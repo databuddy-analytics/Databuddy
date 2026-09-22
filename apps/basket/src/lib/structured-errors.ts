@@ -128,6 +128,12 @@ const BASKET_ERROR_SPEC = {
 		why: "The batch exceeds the maximum number of events per request.",
 		fix: "Split the batch into smaller requests.",
 	},
+	INGEST_ERRORS_BODY_TOO_LARGE: {
+		message: "Error batch too large",
+		status: 413,
+		why: "The /errors request body exceeds the maximum allowed size.",
+		fix: "Send fewer error spans per request or trim stack traces and messages.",
+	},
 	BILLING_LIMIT_EXCEEDED: {
 		message: "Event quota exceeded",
 		status: 402,
@@ -178,10 +184,7 @@ const BASKET_ERROR_SPEC = {
 	},
 } as const;
 
-export const basketErrorCatalog = defineErrorCatalog(
-	"basket",
-	BASKET_ERROR_SPEC
-);
+const basketErrorCatalog = defineErrorCatalog("basket", BASKET_ERROR_SPEC);
 
 export const CLIENT_ERROR_MESSAGES: ReadonlySet<string> = new Set(
 	Object.values(BASKET_ERROR_SPEC)
@@ -218,6 +221,7 @@ export const basketErrors = {
 	ingestUnknownEventType: basketErrorCatalog.INGEST_UNKNOWN_EVENT_TYPE,
 	ingestBatchNotArray: basketErrorCatalog.INGEST_BATCH_NOT_ARRAY,
 	ingestBatchTooLarge: basketErrorCatalog.INGEST_BATCH_TOO_LARGE,
+	ingestErrorsBodyTooLarge: basketErrorCatalog.INGEST_ERRORS_BODY_TOO_LARGE,
 	billingLimitExceeded: basketErrorCatalog.BILLING_LIMIT_EXCEEDED,
 	billingCheckUnavailable: basketErrorCatalog.BILLING_CHECK_UNAVAILABLE,
 	webhookEndpointNotFound: basketErrorCatalog.WEBHOOK_ENDPOINT_NOT_FOUND,
@@ -237,11 +241,6 @@ export function createIngestSchemaValidationError(
 	const err = basketErrorCatalog.INVALID_EVENT_SCHEMA();
 	return Object.assign(err, { issues });
 }
-
-/**
- * A request must not report success while its telemetry could not be durably
- * admitted. Callers return this 503 so SDKs and queueing clients retry.
- */
 export function deliveryUnavailable(cause: unknown) {
 	return createError({
 		code: "basket.DELIVERY_UNAVAILABLE",

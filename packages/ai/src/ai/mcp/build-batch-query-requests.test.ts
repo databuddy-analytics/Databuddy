@@ -1,10 +1,26 @@
-import { describe, expect, it } from "vitest";
-import {
-	buildBatchQueryRequests,
-	formatMcpQueryResults,
-} from "./mcp-utils";
+import { describe, expect, it } from "bun:test";
+import { buildBatchQueryRequests, formatMcpQueryResults } from "./mcp-utils";
 
 describe("buildBatchQueryRequests", () => {
+	it("defaults to 30 inclusive calendar days using the supplied clock and timezone", () => {
+		const plan = buildBatchQueryRequests(
+			[{ type: "country" }],
+			"website-1",
+			"America/Los_Angeles",
+			new Date("2026-09-05T00:00:00Z")
+		);
+		expect(plan.invalid).toEqual([]);
+		expect(plan.requests[0]).toMatchObject({
+			from: "2026-08-06",
+			to: "2026-09-04",
+		});
+		expect(
+			formatMcpQueryResults(plan, [{ type: "country", data: [] }])[0]
+		).toMatchObject({
+			definition: expect.stringContaining("empty locations are excluded"),
+		});
+	});
+
 	it("keeps valid queries when one in the batch is invalid", () => {
 		const { requests, invalid } = buildBatchQueryRequests(
 			[
@@ -31,8 +47,7 @@ describe("buildBatchQueryRequests", () => {
 		expect(plan.invalid).toHaveLength(0);
 		expect(plan.requests[0]?.type).toBe("top_pages");
 		expect(
-			formatMcpQueryResults(plan, [{ type: "top_pages", data: [] }])[0]
-				?.summary
+			formatMcpQueryResults(plan, [{ type: "top_pages", data: [] }])[0]?.summary
 		).toMatch(
 			/^top_pages \| \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2} \| timezone=UTC \| filters=none \| groupBy=default \| timeUnit=default \| orderBy=default \| limit=default$/
 		);
@@ -118,8 +133,7 @@ describe("buildBatchQueryRequests", () => {
 		);
 
 		expect(
-			formatMcpQueryResults(plan, [{ type: "top_pages", data: [] }])[0]
-				?.summary
+			formatMcpQueryResults(plan, [{ type: "top_pages", data: [] }])[0]?.summary
 		).toBe(
 			'top_pages | 2026-07-01 to 2026-07-07 | timezone=UTC | filters=none | groupBy=["country"] | timeUnit=day | orderBy=visitors DESC | limit=50'
 		);

@@ -36,6 +36,7 @@ interface FlagsListProps {
 	stats: Map<string, FlagStats>;
 	statsError: boolean;
 	statsLoading: boolean;
+	websiteId: string;
 }
 
 const FLAG_LIST_MIN_WIDTH_CLASS = "min-w-[980px]";
@@ -77,7 +78,7 @@ function GroupsDisplay({ groups }: { groups: TargetGroup[] }) {
 	);
 }
 
-function StatusToggle({ flag }: { flag: Flag }) {
+function StatusToggle({ flag, websiteId }: { flag: Flag; websiteId: string }) {
 	const queryClient = useQueryClient();
 	const isActive = flag.status === "active";
 
@@ -86,7 +87,7 @@ function StatusToggle({ flag }: { flag: Flag }) {
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.flags.list.key({
-					input: { websiteId: flag.websiteId ?? "" },
+					input: { websiteId },
 				}),
 			});
 		},
@@ -126,10 +127,12 @@ function StatusToggle({ flag }: { flag: Flag }) {
 
 function FlagActions({
 	flag,
+	websiteId,
 	onEdit,
 	onDelete,
 }: {
 	flag: Flag;
+	websiteId: string;
 	onEdit: (flag: Flag) => void;
 	onDelete: (flagId: string) => void;
 }) {
@@ -140,7 +143,7 @@ function FlagActions({
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.flags.list.key({
-					input: { websiteId: flag.websiteId ?? "" },
+					input: { websiteId },
 				}),
 			});
 		},
@@ -165,15 +168,15 @@ function FlagActions({
 						"opacity-50 hover:opacity-100 data-[state=open]:opacity-100"
 					)}
 				>
-					<DotsThreeIcon className="size-5" weight="bold" />
+					<DotsThreeIcon className="size-5" />
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Content align="end" className="w-44">
 					<DropdownMenu.Item className="gap-2" onClick={() => onEdit(flag)}>
-						<PencilSimpleIcon className="size-4" weight="duotone" />
+						<PencilSimpleIcon className="size-4" />
 						Edit Flag
 					</DropdownMenu.Item>
 					<DropdownMenu.Item className="gap-2" onClick={handleArchive}>
-						<ArchiveIcon className="size-4" weight="duotone" />
+						<ArchiveIcon className="size-4" />
 						{flag.status === "archived" ? "Restore" : "Archive"}
 					</DropdownMenu.Item>
 					<DropdownMenu.Separator />
@@ -182,7 +185,7 @@ function FlagActions({
 						onClick={() => onDelete(flag.id)}
 						variant="destructive"
 					>
-						<TrashIcon className="size-4 fill-destructive" weight="duotone" />
+						<TrashIcon className="size-4 fill-destructive" />
 						Delete Flag
 					</DropdownMenu.Item>
 				</DropdownMenu.Content>
@@ -264,7 +267,7 @@ function DependencyBadges({
 					delay={200}
 				>
 					<div className="flex items-center gap-1 rounded bg-violet-500/10 px-1.5 py-0.5 text-violet-600 dark:text-violet-400">
-						<ShareNetworkIcon className="size-3" weight="fill" />
+						<ShareNetworkIcon className="size-3" />
 						<span className="font-medium text-xs">{dependents.length}</span>
 					</div>
 				</Tooltip>
@@ -297,7 +300,7 @@ function FlagActivity({
 				size="sm"
 				variant="ghost"
 			>
-				<WarningCircleIcon className="size-3.5 shrink-0" weight="duotone" />
+				<WarningCircleIcon className="size-3.5 shrink-0" />
 				<span>Activity unavailable</span>
 			</Button>
 		);
@@ -315,11 +318,11 @@ function FlagActivity({
 		<div className="flex min-w-[150px] items-center gap-1">
 			<div className="flex min-w-0 flex-1 flex-col gap-0.5 text-xs">
 				<span className="flex items-center gap-1.5 whitespace-nowrap text-foreground">
-					<ClockIcon className="size-3.5 shrink-0" weight="duotone" />
+					<ClockIcon className="size-3.5 shrink-0" />
 					<span>Last seen {fromNow(stats.lastEvaluatedAt)}</span>
 				</span>
 				<span className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground">
-					<UsersIcon className="size-3.5 shrink-0" weight="duotone" />
+					<UsersIcon className="size-3.5 shrink-0" />
 					<span>
 						{stats.evaluatedUsers.toLocaleString()} observed ·{" "}
 						{FLAG_STATS_WINDOW_DAYS}d
@@ -347,7 +350,7 @@ function FlagActivity({
 					size="icon-sm"
 					variant="ghost"
 				>
-					<InfoIcon className="size-3.5" weight="duotone" />
+					<InfoIcon className="size-3.5" />
 				</Button>
 			</Tooltip>
 		</div>
@@ -384,7 +387,7 @@ function FlagsListHead() {
 						size="icon-sm"
 						variant="ghost"
 					>
-						<InfoIcon className="size-3.5" weight="duotone" />
+						<InfoIcon className="size-3.5" />
 					</Button>
 				</Tooltip>
 			</span>
@@ -405,6 +408,7 @@ function FlagRow({
 	statsLoading,
 	onEdit,
 	onDelete,
+	websiteId,
 }: {
 	flag: Flag;
 	groups: TargetGroup[];
@@ -416,6 +420,7 @@ function FlagRow({
 	statsLoading: boolean;
 	onEdit: (flag: Flag) => void;
 	onDelete: (flagId: string) => void;
+	websiteId: string;
 }) {
 	const typeConfig =
 		TYPE_CONFIG[flag.type as keyof typeof TYPE_CONFIG] ?? TYPE_CONFIG.boolean;
@@ -442,7 +447,7 @@ function FlagRow({
 					<span
 						className={cn("shrink-0 rounded bg-accent p-1.5", typeConfig.color)}
 					>
-						<TypeIconComponent className="size-4" weight="duotone" />
+						<TypeIconComponent className="size-4" />
 					</span>
 					<span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
 						<span className="flex min-w-0 flex-wrap items-center gap-2">
@@ -513,16 +518,21 @@ function FlagRow({
 			<List.Cell className="flex w-[120px] shrink-0 justify-center">
 				{flag.status === "archived" ? (
 					<Badge className="gap-1" variant="warning">
-						<ArchiveIcon className="size-3" weight="duotone" />
+						<ArchiveIcon className="size-3" />
 						Archived
 					</Badge>
 				) : (
-					<StatusToggle flag={flag} />
+					<StatusToggle flag={flag} websiteId={websiteId} />
 				)}
 			</List.Cell>
 
 			<List.Cell action>
-				<FlagActions flag={flag} onDelete={onDelete} onEdit={onEdit} />
+				<FlagActions
+					flag={flag}
+					onDelete={onDelete}
+					onEdit={onEdit}
+					websiteId={websiteId}
+				/>
 			</List.Cell>
 		</List.Row>
 	);
@@ -531,6 +541,7 @@ function FlagRow({
 export function FlagsList({
 	flags,
 	groups,
+	websiteId,
 	onRetryStats,
 	stats,
 	statsError,
@@ -576,6 +587,7 @@ export function FlagsList({
 					statsLoading={statsLoading}
 					onDelete={onDelete}
 					onEdit={onEdit}
+					websiteId={websiteId}
 				/>
 			))}
 		</List>

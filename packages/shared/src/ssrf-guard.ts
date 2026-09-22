@@ -99,7 +99,11 @@ export async function validateUrl(
 		};
 	}
 
-	const hostname = parsed.hostname.toLowerCase();
+	const rawHostname = parsed.hostname.toLowerCase();
+	const hostname =
+		rawHostname.startsWith("[") && rawHostname.endsWith("]")
+			? rawHostname.slice(1, -1)
+			: rawHostname;
 
 	if (BLOCKED_HOSTNAMES.has(hostname)) {
 		return { safe: false, hostname, error: "Blocked hostname" };

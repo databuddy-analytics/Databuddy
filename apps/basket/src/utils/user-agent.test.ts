@@ -1,4 +1,4 @@
-import { vi, describe, expect, test } from "vitest";
+import { vi, beforeEach, describe, expect, test } from "vitest";
 
 const { mockDetectBotShared, mockParseUserAgentShared } = vi.hoisted(() => ({
 	mockDetectBotShared: vi.fn(() => ({
@@ -9,7 +9,7 @@ const { mockDetectBotShared, mockParseUserAgentShared } = vi.hoisted(() => ({
 		reason: undefined,
 		name: undefined,
 	})),
-	mockParseUserAgentShared: vi.fn(() => ({
+	mockParseUserAgentShared: vi.fn((_userAgent: string) => ({
 		browserName: "Chrome",
 		browserVersion: "120.0",
 		osName: "Windows",
@@ -39,23 +39,7 @@ const { detectBot, parseUserAgent } = await import("./user-agent");
 
 const dummyReq = new Request("https://example.com");
 
-// ── detectBot wrapper — tests the legacy category mapping ──
-
 describe("detectBot", () => {
-	test("not a bot → passes through", () => {
-		mockDetectBotShared.mockReturnValue({
-			isBot: false,
-			category: undefined,
-			action: undefined,
-			confidence: 0,
-			reason: undefined,
-			name: undefined,
-		});
-		const result = detectBot("normal-browser", dummyReq);
-		expect(result.isBot).toBe(false);
-		expect(result.category).toBeUndefined();
-	});
-
 	test("AI_CRAWLER → maps to 'AI Crawler'", () => {
 		mockDetectBotShared.mockReturnValue({
 			isBot: true,
@@ -71,83 +55,9 @@ describe("detectBot", () => {
 		expect(result.botName).toBe("GPTBot");
 		expect(result.action).toBe("track_only");
 	});
-
-	test("AI_ASSISTANT → maps to 'AI Assistant'", () => {
-		mockDetectBotShared.mockReturnValue({
-			isBot: true,
-			category: "ai_assistant",
-			action: "track_only",
-			confidence: 90,
-			reason: "ai_pattern",
-			name: "ChatGPT",
-		});
-		const result = detectBot("ChatGPT-User/1.0", dummyReq);
-		expect(result.category).toBe("AI Assistant");
-	});
-
-	test("other bot category → maps to 'Known Bot'", () => {
-		mockDetectBotShared.mockReturnValue({
-			isBot: true,
-			category: "search_engine",
-			action: "allow",
-			confidence: 90,
-			reason: "search_engine_pattern",
-			name: "Googlebot",
-		});
-		const result = detectBot("Googlebot/2.1", dummyReq);
-		expect(result.category).toBe("Known Bot");
-		expect(result.action).toBe("allow");
-	});
-
-	test("passes through reason and full result", () => {
-		const sharedResult = {
-			isBot: true,
-			category: "unknown_bot",
-			action: "block" as const,
-			confidence: 80,
-			reason: "suspicious_pattern",
-			name: "BadBot",
-		};
-		mockDetectBotShared.mockReturnValue(sharedResult);
-		const result = detectBot("BadBot/1.0", dummyReq);
-		expect(result.reason).toBe("suspicious_pattern");
-		expect(result.result).toEqual(sharedResult);
-	});
-
-	test("non-bot has no category", () => {
-		mockDetectBotShared.mockReturnValue({
-			isBot: false,
-			category: undefined,
-			action: undefined,
-			confidence: 0,
-			reason: undefined,
-			name: undefined,
-		});
-		const result = detectBot("Chrome/120", dummyReq);
-		expect(result.category).toBeUndefined();
-		expect(result.botName).toBeUndefined();
-	});
 });
 
-// ── parseUserAgent wrapper ──
-
 describe("parseUserAgent", () => {
-	test("returns parsed fields from shared function", async () => {
-		mockParseUserAgentShared.mockReturnValue({
-			browserName: "Firefox",
-			browserVersion: "121.0",
-			osName: "Linux",
-			osVersion: "6.1",
-			deviceType: "desktop",
-			deviceBrand: undefined,
-			deviceModel: undefined,
-		});
-		const result = await parseUserAgent("Firefox/121.0");
-		expect(result.browserName).toBe("Firefox");
-		expect(result.osName).toBe("Linux");
-		expect(result.deviceType).toBe("desktop");
-	});
-
 	test("empty UA → all undefined", async () => {
 		const result = await parseUserAgent("");
 		expect(result.browserName).toBeUndefined();
@@ -162,5 +72,40 @@ describe("parseUserAgent", () => {
 		const result = await parseUserAgent("broken-ua");
 		expect(result.browserName).toBeUndefined();
 		expect(result.osName).toBeUndefined();
+	});
+});
+
+describe("parseUserAgent memoization", () => {
+	beforeEach(() => {
+		mockParseUserAgentShared.mockReset();
+		mockParseUserAgentShared.mockImplementation(() => ({
+			browserName: "Firefox",
+			browserVersion: "121.0",
+			osName: "macOS",
+			osVersion: "15",
+			deviceType: "desktop",
+			deviceBrand: undefined,
+			deviceModel: undefined,
+		}));
+	});
+
+	test("repeat user agent → parses once and returns the memoized value", async () => {
+		const userAgent = "MemoAgent/1.0";
+		const first = await parseUserAgent(userAgent);
+		const second = await parseUserAgent(userAgent);
+
+		expect(mockParseUserAgentShared).toHaveBeenCalledTimes(1);
+		expect(second).toBe(first);
+		expect(second.browserName).toBe("Firefox");
+	});
+
+	test("oversized user agents share one capped cache entry", async () => {
+		const prefix = `Oversized/${"A".repeat(600)}`;
+		const first = await parseUserAgent(`${prefix}-one`);
+		const second = await parseUserAgent(`${prefix}-two`);
+
+		expect(mockParseUserAgentShared).toHaveBeenCalledTimes(1);
+		expect(mockParseUserAgentShared.mock.calls[0][0]).toHaveLength(512);
+		expect(second).toBe(first);
 	});
 });

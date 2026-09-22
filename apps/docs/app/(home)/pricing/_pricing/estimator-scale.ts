@@ -1,10 +1,10 @@
-export const SLIDER_THRESHOLDS: number[] = [
+const SLIDER_THRESHOLDS: number[] = [
 	0, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000, 250_000_000,
 ];
 
 const SLIDER_SEGMENT_PCT = 100 / (SLIDER_THRESHOLDS.length - 1);
 
-export const clamp = (value: number, min: number, max: number): number =>
+const clamp = (value: number, min: number, max: number): number =>
 	Math.min(Math.max(value, min), max);
 
 export function eventsToSliderValue(events: number): number {

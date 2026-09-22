@@ -61,11 +61,6 @@ export class WebsiteCache {
 			return null;
 		}
 	}
-
-	/**
-	 * Ping Redis to see if it's healthy. When Redis is unhealthy (or REDIS_URL is missing),
-	 * all cache operations should be skipped.
-	 */
 	pingRedis(force = false): Promise<boolean> {
 		const now = Date.now();
 		if (

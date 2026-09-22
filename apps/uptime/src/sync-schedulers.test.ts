@@ -27,9 +27,6 @@ mock.module("@databuddy/db/schema", () => ({
 mock.module("@databuddy/redis", () => ({
 	...actualRedis,
 	getUptimeQueue: () => ({ upsertJobScheduler }),
-	UPTIME_CHECK_JOB_NAME: "uptime-check",
-	UPTIME_JOB_OPTIONS: { attempts: 1_000_000 },
-	uptimeSchedulerId: (scheduleId: string) => `uptime-${scheduleId}`,
 }));
 mock.module("evlog", () => ({
 	...actualEvlog,
@@ -58,14 +55,9 @@ describe("syncSchedulers", () => {
 		expect(upsertJobScheduler).toHaveBeenCalledWith(
 			"uptime-schedule-1",
 			{ pattern: "*/5 * * * *" },
-			{
+			expect.objectContaining({
 				data: { scheduleId: "schedule-1", trigger: "scheduled" },
-				name: "uptime-check",
-				opts: { attempts: 1_000_000 },
-			}
-		);
-		expect(logInfo).toHaveBeenCalledWith(
-			expect.objectContaining({ failed: 0, total: 1, upserted: 1 })
+			})
 		);
 	});
 });

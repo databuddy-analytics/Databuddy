@@ -1,3 +1,4 @@
+import { generateOrganizationBusinessContext } from "@/ai/organization-business-context";
 import {
 	appRouter,
 	createAbortSignalInterceptor,
@@ -26,15 +27,19 @@ export const rpcHandler = new RPCHandler(appRouter, {
 	interceptors: [createAbortSignalInterceptor(), onError(logOrpcHandlerError)],
 });
 
-export function createAuthenticatedOrpcContext(request: Request) {
+function createAuthenticatedOrpcContext(request: Request) {
 	const preResolvedAuth = getPreResolvedAuth(request.headers);
 	return createRPCContext(
-		{ headers: request.headers, requestId: getRequestId(request) },
+		{
+			headers: request.headers,
+			requestId: getRequestId(request),
+			generateBusinessContext: generateOrganizationBusinessContext,
+		},
 		preResolvedAuth
 	);
 }
 
-export function createAnonymousOrpcContext(request: Request) {
+function createAnonymousOrpcContext(request: Request) {
 	return createRPCContext(
 		{ headers: request.headers, requestId: getRequestId(request) },
 		ANONYMOUS_AUTH

@@ -9,14 +9,15 @@ import { CodeBlock } from "@/components/docs";
 
 - Generate keys in [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys)
 - Use either `Authorization: Bearer <key>` or `x-api-key: <key>`
-- Scopes: `read:data`, `track:events`, `read:links`, `write:links`, `manage:websites`, `manage:flags`, `manage:config`
+- Keys start with `dbdy_` followed by 48 characters
+- Scopes: `read:data`, `track:events`, `read:links`, `write:links`, `read:monitors`, `write:monitors`, `read:status_pages`, `write:status_pages`, `manage:websites`, `manage:flags`, `manage:config`
 - Access can be global or scoped to a resource like a specific `website`
 - For private websites, include `website_id` and ensure the key has `read:data`
 - Rotate and revoke keys in [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys); only the prefix/start should be shared/logged
 
 ### What is an API key?
 
-An API key authenticates server-to-server calls to Databuddy. It supports fine-grained scopes and optional resource scoping to enforce least-privilege access.
+An API key authenticates server-to-server calls to Databuddy. It supports fine-grained scopes and optional resource scoping to enforce least-privilege access. Keys start with `dbdy_` followed by 48 characters.
 
 ### Create a key
 
@@ -33,28 +34,36 @@ You can authenticate with either header:
 
 <CodeBlock 
   language="bash"
-  code={`curl -H "Authorization: Bearer YOUR_API_KEY" \\
-  "https://api.databuddy.cc/v1/websites/{website_id}/analytics"`}
+  code={`curl -X POST "https://api.databuddy.cc/v1/query?website_id={website_id}" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"id":"summary","parameters":["summary"],"startDate":"2024-01-01","endDate":"2024-01-31"}'`}
 />
 
 <CodeBlock 
   language="bash"
-  code={`curl -H "x-api-key: YOUR_API_KEY" \\
-  "https://api.databuddy.cc/v1/websites/{website_id}/analytics"`}
+  code={`curl -X POST "https://api.databuddy.cc/v1/query?website_id={website_id}" \\
+  -H "x-api-key: YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"id":"summary","parameters":["summary"],"startDate":"2024-01-01","endDate":"2024-01-31"}'`}
 />
 
 Notes:
 
-- For private websites, include the `website_id` query or path parameter and ensure the key has `read:data` for that site.
-- For public websites, `website_id` may be optional depending on the endpoint semantics.
-- For link shortener analytics, use `link_id` instead of `website_id` to query analytics for specific shortened links.
+- For private websites, include the `website_id` query parameter and ensure the key has `read:data` for that site.
+- For link shortener analytics, use `link_id` instead of `website_id`; this requires `read:data` with global access.
+- `POST /track` for event ingestion lives on `basket.databuddy.cc`, not `api.databuddy.cc`.
 
 ### Scopes
 
 - **read:data**: Read analytics data. Covers query endpoints (`POST /v1/query`, `POST /v1/query/compile`) and listing accessible websites (`GET /v1/query/websites`). Required for any dashboard-style data retrieval.
-- **track:events**: Send custom events via the SDK or `/track` endpoint
-- **read:links**: Read short links and their analytics
+- **track:events**: Send custom events via the SDK or the `/track` endpoint on `basket.databuddy.cc`
+- **read:links**: Read short links
 - **write:links**: Create, update, and delete short links
+- **read:monitors**: Read uptime monitors
+- **write:monitors**: Create, update, and delete uptime monitors
+- **read:status_pages**: Read status pages
+- **write:status_pages**: Create, update, and delete status pages
 - **manage:websites**: Create, update, and delete websites and their settings
 - **manage:flags**: Create, update, and delete feature flags and targeting rules
 - **manage:config**: Integration config and organization settings
@@ -66,14 +75,20 @@ Grant only what you need. Prefer resource-scoped access where possible.
 | Scope | Endpoints / actions |
 |-------|---------------------|
 | `read:data` | `POST /v1/query`, `POST /v1/query/compile`, `GET /v1/query/websites`, `websites.list` RPC |
-| `track:events` | `POST /track` (custom events, pageviews, sessions) |
-| `read:links` | `GET /v1/links/*` read endpoints, link analytics queries |
-| `write:links` | `POST /v1/links`, `PATCH /v1/links/:id`, `DELETE /v1/links/:id` |
+| `track:events` | `POST /track` on `basket.databuddy.cc` (custom events, pageviews, sessions) |
+| `read:links` | Read short links via the `/rpc/links/*` routes |
+| `write:links` | Create, update, and delete short links via the `/rpc/links/*` routes |
+| `read:monitors` | Read uptime monitors and their check history |
+| `write:monitors` | Create, update, pause, and delete uptime monitors |
+| `read:status_pages` | Read status pages and their configuration |
+| `write:status_pages` | Create, update, and delete status pages and incidents |
 | `manage:websites` | Create / update / delete websites, rotate tracking config |
 | `manage:flags` | Feature flag CRUD, targeting rule edits, flag evaluation admin |
 | `manage:config` | Integration config and organization-level settings |
 
-Listing websites is intentionally gated by `read:data` (not a separate `read:websites` scope) because the list is only useful for picking a site to query — any key that can list sites can already read their analytics.
+Link analytics are queried through `POST /v1/query` with `link_id` and require `read:data` with global access, not a links scope.
+
+Listing websites is intentionally gated by `read:data` (not a separate `read:websites` scope) because the list is only useful for picking a site to query. Any key that can list sites can already read their analytics.
 
 ### Resource access
 
@@ -119,14 +134,7 @@ All API endpoints are rate-limited. See the Rate Limits section in the API Refer
 
 ### Audit Logging
 
-All API key usage is logged for security and compliance:
-
-- **Authentication events**: Successful and failed key usage
-- **Scope resolution**: What permissions were checked and granted
-- **Resource access**: Which data resources were accessed
-- **Administrative actions**: Key creation, rotation, and revocation
-
-Logs include IP addresses, user agents, and timestamps for security monitoring.
+Administrative mutations on API keys are logged: created, updated, revoked, rotated, and deleted. Per-request usage is not logged.
 
 ### Best practices
 

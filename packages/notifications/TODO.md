@@ -44,9 +44,9 @@
 - [x] **Discord** - Webhook support
 - [x] **Email** - Injected send function
 - [x] **Webhook** - Generic HTTP webhook
-- [x] **Microsoft Teams** - Adaptive Cards via webhook
-- [x] **Telegram** - Bot API (sendMessage)
-- [x] **Google Chat** - Cards via webhook
+- [ ] **Microsoft Teams** - Adaptive Cards via webhook
+- [ ] **Telegram** - Bot API (sendMessage)
+- [ ] **Google Chat** - Cards via webhook
 - [ ] **PagerDuty** - Integration for incident management
 - [ ] **Opsgenie** - Alerting and on-call management
 - [ ] **SMS/Twilio** - SMS notifications via Twilio API

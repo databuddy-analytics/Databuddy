@@ -5,6 +5,7 @@ import { Autocomplete } from "@databuddy/ui/client";
 
 interface AutocompleteInputProps {
 	className?: string;
+	disabled?: boolean;
 	inputClassName?: string;
 	onValueChange: (value: string) => void;
 	placeholder?: string;
@@ -19,6 +20,7 @@ export const AutocompleteInput = memo(
 		suggestions,
 		placeholder,
 		className,
+		disabled,
 		inputClassName,
 	}: AutocompleteInputProps) => {
 		const [open, setOpen] = useState(false);
@@ -33,11 +35,12 @@ export const AutocompleteInput = memo(
 
 		return (
 			<Autocomplete
+				disabled={disabled}
 				items={filtered}
 				mode="none"
 				onOpenChange={(next) => setOpen(next)}
 				onValueChange={(next) => onValueChange(next)}
-				open={open}
+				open={open && !disabled}
 				value={value}
 			>
 				<div className={className}>

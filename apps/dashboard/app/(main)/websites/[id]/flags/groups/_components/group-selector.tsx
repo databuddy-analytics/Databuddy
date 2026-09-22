@@ -38,7 +38,7 @@ function GroupPill({
 				}}
 				type="button"
 			>
-				<XIcon className="size-3" weight="bold" />
+				<XIcon className="size-3" />
 			</button>
 		</motion.div>
 	);
@@ -76,11 +76,7 @@ function GroupOption({
 					background: `linear-gradient(135deg, ${group.color}25 0%, ${group.color}15 100%)`,
 				}}
 			>
-				<UsersThreeIcon
-					className="size-3.5"
-					style={{ color: group.color }}
-					weight="duotone"
-				/>
+				<UsersThreeIcon className="size-3.5" style={{ color: group.color }} />
 			</div>
 			<div className="min-w-0 flex-1">
 				<div className="truncate font-medium text-foreground text-xs">
@@ -99,9 +95,7 @@ function GroupOption({
 				)}
 				style={isSelected ? { backgroundColor: group.color } : undefined}
 			>
-				{isSelected && (
-					<CheckIcon className="text-white" size={10} weight="bold" />
-				)}
+				{isSelected && <CheckIcon className="text-white" size={10} />}
 			</div>
 		</button>
 	);
@@ -133,10 +127,7 @@ export function GroupSelector({
 	if (availableGroups.length === 0) {
 		return (
 			<div className="rounded-lg border border-dashed bg-accent/50 p-4 text-center">
-				<UsersThreeIcon
-					className="mx-auto mb-2 size-6 text-muted-foreground"
-					weight="duotone"
-				/>
+				<UsersThreeIcon className="mx-auto mb-2 size-6 text-muted-foreground" />
 				<p className="text-balance text-muted-foreground text-xs">
 					No groups yet. Create one to reuse user targeting across flags.
 				</p>

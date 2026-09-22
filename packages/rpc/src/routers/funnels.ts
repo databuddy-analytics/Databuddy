@@ -1,6 +1,13 @@
+import { analyticsCohortSchema } from "@databuddy/shared/analytics-filters";
+import { insightMeasurementSchema } from "@databuddy/shared/insights";
+import { successOutputSchema } from "../lib/schemas";
 import { and, desc, eq, isNull, sql } from "@databuddy/db";
 import { funnelDefinitions } from "@databuddy/db/schema";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
+import {
+	analyticsDateRangeSchema,
+	resolveAnalyticsDateRange,
+} from "@databuddy/validation";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -11,7 +18,12 @@ import {
 	queryLinkVisitorIds,
 } from "../lib/analytics-utils";
 import { setTrackProperties } from "../middleware/track-mutation";
-import { protectedProcedure, publicProcedure, trackedProcedure } from "../orpc";
+import {
+	type Context,
+	protectedProcedure,
+	publicProcedure,
+	trackedProcedure,
+} from "../orpc";
 import {
 	withPublicWorkspace,
 	withWebsiteRead,
@@ -27,7 +39,6 @@ import { queueDefinitionChangeRechecks } from "./insights";
 
 const CACHE_TTL = 300;
 const ANALYTICS_CACHE_TTL = 180;
-const cache = funnelCache;
 
 const filterSchema = z.object({
 	field: z.string(),
@@ -46,13 +57,15 @@ const filterSchema = z.object({
 
 type Filter = z.infer<typeof filterSchema>;
 
-const getDefaultDateRange = () => {
-	const endDate = new Date().toISOString().split("T")[0];
-	const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-		.toISOString()
-		.split("T")[0];
-	return { startDate, endDate };
-};
+const funnelAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
+	cohort: analyticsCohortSchema.optional(),
+	funnelId: z.string(),
+	websiteId: z.string(),
+});
+const funnelAnalyticsByLinkInputSchema = funnelAnalyticsInputSchema.safeExtend({
+	cohort: z.undefined(),
+	linkId: z.string(),
+});
 
 const getEffectiveStartDate = (
 	requestedStartDate: string,
@@ -68,6 +81,63 @@ const getEffectiveStartDate = (
 		? requestedStartDate
 		: createdDate;
 };
+
+async function loadFunnelAnalyticsQuery(
+	db: Context["db"],
+	input: z.infer<typeof funnelAnalyticsInputSchema>
+) {
+	const { startDate, endDate } = resolveAnalyticsDateRange(input);
+
+	const [funnel] = await db
+		.select()
+		.from(funnelDefinitions)
+		.where(
+			and(
+				eq(funnelDefinitions.id, input.funnelId),
+				eq(funnelDefinitions.websiteId, input.websiteId),
+				isNull(funnelDefinitions.deletedAt)
+			)
+		)
+		.limit(1);
+
+	if (!funnel) {
+		throw rpcError.notFound("funnel", input.funnelId);
+	}
+
+	const steps = toAnalyticsSteps(requireFunnelSteps(funnel.steps));
+	const effectiveStartDate = getEffectiveStartDate(
+		startDate,
+		funnel.createdAt,
+		funnel.ignoreHistoricData
+	);
+
+	const filters = [
+		...((funnel.filters as Filter[]) || []),
+		...(input.cohort?.filters ?? []),
+	];
+	return {
+		savedDefinition: insightMeasurementSchema.shape.definition.parse({
+			...funnel,
+			filters: funnel.filters ?? [],
+		}),
+		measurement: insightMeasurementSchema.parse({
+			websiteId: input.websiteId,
+			definitionId: funnel.id,
+			startDate: effectiveStartDate,
+			endDate,
+			definition: { ...funnel, filters },
+		}),
+		effectiveStartDate,
+		endDate,
+		filters,
+		queryParams: {
+			endDate: `${endDate} 23:59:59`,
+			startDate: effectiveStartDate,
+			websiteId: input.websiteId,
+		},
+		steps,
+	};
+}
 
 const funnelListOutputSchema = z.object({
 	createdAt: z.coerce.date(),
@@ -95,8 +165,6 @@ const funnelOutputSchema = z.object({
 	updatedAt: z.coerce.date(),
 	websiteId: z.string(),
 });
-
-const successOutputSchema = z.object({ success: z.literal(true) });
 
 const stepErrorInsightOutputSchema = z.object({
 	message: z.string(),
@@ -182,9 +250,8 @@ export const funnelsRouter = {
 				permissions: ["read"],
 			});
 
-			return cache.withCache({
+			return funnelCache.withCache({
 				key: `list:${input.websiteId}`,
-				disabled: true, // TODO: Remove this once we have a way to invalidate the cache
 				ttl: CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				queryFn: () =>
@@ -223,10 +290,29 @@ export const funnelsRouter = {
 		})
 		.input(z.object({ id: z.string() }))
 		.output(funnelOutputSchema)
-		.handler(({ context, input }) =>
-			cache.withCache({
+		.handler(async ({ context, input }) => {
+			const [funnelRef] = await context.db
+				.select({ websiteId: funnelDefinitions.websiteId })
+				.from(funnelDefinitions)
+				.where(
+					and(
+						eq(funnelDefinitions.id, input.id),
+						isNull(funnelDefinitions.deletedAt)
+					)
+				)
+				.limit(1);
+
+			if (!funnelRef) {
+				throw rpcError.notFound("funnel", input.id);
+			}
+
+			await withWorkspace(context, {
+				websiteId: funnelRef.websiteId,
+				permissions: ["read"],
+			});
+
+			return funnelCache.withCache({
 				key: `byId:${input.id}`,
-				disabled: true, // TODO: Remove this once we have a way to invalidate the cache
 				ttl: CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				queryFn: async () => {
@@ -245,15 +331,10 @@ export const funnelsRouter = {
 						throw rpcError.notFound("funnel", input.id);
 					}
 
-					await withWorkspace(context, {
-						websiteId: funnel.websiteId,
-						permissions: ["read"],
-					});
-
 					return funnel;
 				},
-			})
-		),
+			});
+		}),
 
 	create: trackedProcedure
 		.route({
@@ -438,64 +519,32 @@ export const funnelsRouter = {
 			summary: "Get funnel analytics",
 			tags: ["Funnels"],
 		})
-		.input(
-			z.object({
-				funnelId: z.string(),
-				websiteId: z.string(),
-				startDate: z.string().optional(),
-				endDate: z.string().optional(),
+		.input(funnelAnalyticsInputSchema)
+		.output(
+			funnelAnalyticsOutputSchema.extend({
+				measurement: insightMeasurementSchema,
+				savedDefinition: insightMeasurementSchema.shape.definition,
+				cohort: analyticsCohortSchema.optional(),
 			})
 		)
-		.output(funnelAnalyticsOutputSchema)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-			const { startDate, endDate } =
-				input.startDate && input.endDate
-					? { startDate: input.startDate, endDate: input.endDate }
-					: getDefaultDateRange();
+			const { filters, queryParams, steps, measurement, savedDefinition } =
+				await loadFunnelAnalyticsQuery(context.db, input);
 
-			const [funnel] = await context.db
-				.select()
-				.from(funnelDefinitions)
-				.where(
-					and(
-						eq(funnelDefinitions.id, input.funnelId),
-						eq(funnelDefinitions.websiteId, input.websiteId),
-						isNull(funnelDefinitions.deletedAt)
-					)
-				)
-				.limit(1);
-
-			if (!funnel) {
-				throw rpcError.notFound("funnel", input.funnelId);
-			}
-
-			const steps = requireFunnelSteps(funnel.steps);
-
-			const effectiveStartDate = getEffectiveStartDate(
-				startDate,
-				funnel.createdAt,
-				funnel.ignoreHistoricData
-			);
-
-			const cacheKey = `analytics:${input.funnelId}:${effectiveStartDate}:${endDate}`;
-
-			return cache.withCache({
-				key: cacheKey,
+			const analytics = await funnelCache.withCache({
+				key: `analytics:${JSON.stringify(measurement)}`,
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				tag: `funnel:${input.funnelId}`,
-				queryFn: () =>
-					processFunnelAnalytics(
-						toAnalyticsSteps(steps),
-						(funnel.filters as Filter[]) || [],
-						{
-							websiteId: input.websiteId,
-							startDate: effectiveStartDate,
-							endDate: `${endDate} 23:59:59`,
-						}
-					),
+				queryFn: () => processFunnelAnalytics(steps, filters, queryParams),
 			});
+			return {
+				...analytics,
+				measurement,
+				savedDefinition,
+				cohort: input.cohort,
+			};
 		}),
 
 	getAnalyticsByReferrer: publicProcedure
@@ -507,64 +556,33 @@ export const funnelsRouter = {
 			summary: "Get funnel analytics by referrer",
 			tags: ["Funnels"],
 		})
-		.input(
-			z.object({
-				funnelId: z.string(),
-				websiteId: z.string(),
-				startDate: z.string().optional(),
-				endDate: z.string().optional(),
+		.input(funnelAnalyticsInputSchema)
+		.output(
+			funnelAnalyticsByReferrerOutputSchema.extend({
+				measurement: insightMeasurementSchema,
+				savedDefinition: insightMeasurementSchema.shape.definition,
+				cohort: analyticsCohortSchema.optional(),
 			})
 		)
-		.output(funnelAnalyticsByReferrerOutputSchema)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-			const { startDate, endDate } =
-				input.startDate && input.endDate
-					? { startDate: input.startDate, endDate: input.endDate }
-					: getDefaultDateRange();
+			const { filters, queryParams, steps, measurement, savedDefinition } =
+				await loadFunnelAnalyticsQuery(context.db, input);
 
-			const [funnel] = await context.db
-				.select()
-				.from(funnelDefinitions)
-				.where(
-					and(
-						eq(funnelDefinitions.id, input.funnelId),
-						eq(funnelDefinitions.websiteId, input.websiteId),
-						isNull(funnelDefinitions.deletedAt)
-					)
-				)
-				.limit(1);
-
-			if (!funnel) {
-				throw rpcError.notFound("funnel", input.funnelId);
-			}
-
-			const steps = requireFunnelSteps(funnel.steps);
-
-			const effectiveStartDate = getEffectiveStartDate(
-				startDate,
-				funnel.createdAt,
-				funnel.ignoreHistoricData
-			);
-
-			const cacheKey = `analyticsByReferrer:${input.funnelId}:${effectiveStartDate}:${endDate}`;
-
-			return cache.withCache({
-				key: cacheKey,
+			const analytics = await funnelCache.withCache({
+				key: `analyticsByReferrer:${JSON.stringify(measurement)}`,
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				tag: `funnel:${input.funnelId}`,
 				queryFn: () =>
-					processFunnelAnalyticsByReferrer(
-						toAnalyticsSteps(steps),
-						(funnel.filters as Filter[]) || [],
-						{
-							websiteId: input.websiteId,
-							startDate: effectiveStartDate,
-							endDate: `${endDate} 23:59:59`,
-						}
-					),
+					processFunnelAnalyticsByReferrer(steps, filters, queryParams),
 			});
+			return {
+				...analytics,
+				measurement,
+				savedDefinition,
+				cohort: input.cohort,
+			};
 		}),
 
 	getAnalyticsByLink: publicProcedure
@@ -576,52 +594,12 @@ export const funnelsRouter = {
 			summary: "Get funnel analytics by link",
 			tags: ["Funnels"],
 		})
-		.input(
-			z.object({
-				funnelId: z.string(),
-				websiteId: z.string(),
-				linkId: z.string(),
-				startDate: z.string().optional(),
-				endDate: z.string().optional(),
-			})
-		)
+		.input(funnelAnalyticsByLinkInputSchema)
 		.output(funnelAnalyticsOutputSchema)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-			const { startDate, endDate } =
-				input.startDate && input.endDate
-					? { startDate: input.startDate, endDate: input.endDate }
-					: getDefaultDateRange();
-
-			const [funnel] = await context.db
-				.select()
-				.from(funnelDefinitions)
-				.where(
-					and(
-						eq(funnelDefinitions.id, input.funnelId),
-						eq(funnelDefinitions.websiteId, input.websiteId),
-						isNull(funnelDefinitions.deletedAt)
-					)
-				)
-				.limit(1);
-
-			if (!funnel) {
-				throw rpcError.notFound("funnel", input.funnelId);
-			}
-
-			const steps = requireFunnelSteps(funnel.steps);
-
-			const effectiveStartDate = getEffectiveStartDate(
-				startDate,
-				funnel.createdAt,
-				funnel.ignoreHistoricData
-			);
-
-			const queryParams = {
-				websiteId: input.websiteId,
-				startDate: effectiveStartDate,
-				endDate: `${endDate} 23:59:59`,
-			};
+			const { effectiveStartDate, endDate, filters, queryParams, steps } =
+				await loadFunnelAnalyticsQuery(context.db, input);
 
 			const linkVisitors = await queryLinkVisitorIds(input.linkId, queryParams);
 
@@ -646,21 +624,13 @@ export const funnelsRouter = {
 				};
 			}
 
-			const cacheKey = `analyticsByLink:${input.funnelId}:${input.linkId}:${effectiveStartDate}:${endDate}`;
-
-			return cache.withCache({
-				key: cacheKey,
-				disabled: true, // TODO: Remove this once we have a way to invalidate the cache
+			return funnelCache.withCache({
+				key: `analyticsByLink:${input.funnelId}:${input.linkId}:${effectiveStartDate}:${endDate}`,
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				tag: `funnel:${input.funnelId}`,
 				queryFn: () =>
-					processFunnelAnalytics(
-						toAnalyticsSteps(steps),
-						(funnel.filters as Filter[]) || [],
-						queryParams,
-						linkVisitors
-					),
+					processFunnelAnalytics(steps, filters, queryParams, linkVisitors),
 			});
 		}),
 };

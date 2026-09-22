@@ -1,7 +1,8 @@
 "use server";
 
-import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
+import { ratelimit } from "@databuddy/redis/rate-limit";
 import { headers } from "next/headers";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import type {
 	BatchQueryResponse,
 	DynamicQueryRequest,
@@ -43,21 +44,10 @@ function clampDates(
 	};
 }
 
-async function getClientIp(): Promise<string> {
-	const hdrs = await headers();
-	return (
-		hdrs.get("cf-connecting-ip") ||
-		hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-		hdrs.get("x-real-ip") ||
-		"unknown"
-	);
-}
-
 async function enforceDemoRateLimit(): Promise<void> {
-	const ip = await getClientIp();
+	const ip = getClientIp(await headers()) ?? "unknown";
 	const rl = await ratelimit(`docs:query-demo:${ip}`, 20, 60);
 	if (!rl.success) {
-		getRateLimitHeaders(rl);
 		throw new DemoRateLimitError();
 	}
 }
@@ -133,41 +123,6 @@ async function executeDynamicQuery(
 	} catch (error) {
 		console.error("Failed to execute dynamic query:", error);
 		throw error;
-	}
-}
-
-export async function executeQuery(
-	startDate: string,
-	endDate: string,
-	queryRequest: DynamicQueryRequest,
-	timezone = "UTC"
-): Promise<DynamicQueryResponse> {
-	try {
-		const result = await executeDynamicQuery(
-			startDate,
-			endDate,
-			queryRequest,
-			timezone
-		);
-
-		if ("batch" in result) {
-			throw new Error("Unexpected batch response for single query");
-		}
-
-		return result;
-	} catch {
-		return {
-			success: false,
-			queryId: queryRequest.id,
-			data: [],
-			meta: {
-				parameters: queryRequest.parameters,
-				total_parameters: queryRequest.parameters.length,
-				page: queryRequest.page || 1,
-				limit: queryRequest.limit || 100,
-				filters_applied: queryRequest.filters?.length || 0,
-			},
-		};
 	}
 }
 

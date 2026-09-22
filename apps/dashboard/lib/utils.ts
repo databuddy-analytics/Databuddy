@@ -1,4 +1,4 @@
-export { cn } from "cnfast";
+export { cn } from "cn";
 
 export function getOrganizationInitials(name: string): string {
 	return name
@@ -27,15 +27,4 @@ export function formatDuration(seconds: number): string {
 	const remainingMinutes = minutes % 60;
 
 	return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
-}
-
-export function getDefaultDateRange() {
-	const today = new Date();
-	const thirtyDaysAgo = new Date(today);
-	thirtyDaysAgo.setDate(today.getDate() - 30);
-	return {
-		start_date: thirtyDaysAgo.toISOString().split("T")[0],
-		end_date: today.toISOString().split("T")[0],
-		granularity: "daily" as "hourly" | "daily",
-	};
 }

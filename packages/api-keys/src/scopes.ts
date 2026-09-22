@@ -80,8 +80,6 @@ export function requiredScopesForResource(
 
 	return [...scopes];
 }
-
-/** The metadata namespace where a resource's API-key scopes are evaluated. */
 export function apiKeyScopeTargetForResource(
 	resource: string
 ): ApiKeyScopeTarget {

@@ -1,6 +1,13 @@
 import { AGENT_CREDIT_SCHEMA } from "./lib/credit-schema";
 import { TOPUP_MAX_QUANTITY, TOPUP_TIERS } from "./lib/topup-math";
-import { DATABUNNY_USAGE, LEGACY_SCALE_PLAN } from "@databuddy/shared/billing";
+import {
+	AGENT_CREDIT_ALLOWANCES,
+	DATABUNNY_USAGE,
+	INVESTIGATION_ALLOWANCES,
+	INVESTIGATION_USAGE,
+	PLAN_COPY,
+	SCALE_PLAN,
+} from "@databuddy/shared/billing";
 import { feature, item, plan } from "atmn";
 
 export const events = feature({
@@ -63,12 +70,48 @@ export const agent_credits = feature({
 	],
 });
 
+export const investigation_runs = feature({
+	id: INVESTIGATION_USAGE.featureId,
+	name: INVESTIGATION_USAGE.name,
+	type: "metered",
+	consumable: true,
+});
+
+const EVENT_OVERAGE_TIERS = [
+	{ to: 2_000_000, amount: 0.000_035 },
+	{ to: 10_000_000, amount: 0.000_03 },
+	{ to: 50_000_000, amount: 0.000_02 },
+	{ to: 250_000_000, amount: 0.000_015 },
+	{ to: "inf" as const, amount: 0.000_01 },
+];
+
+function eventsOverageItem(included: number) {
+	return item({
+		featureId: events.id,
+		included,
+		price: {
+			tiers: EVENT_OVERAGE_TIERS.filter(
+				(tier) => tier.to === "inf" || tier.to > included
+			),
+			tierBehaviour: "graduated",
+			billingUnits: 1,
+			billingMethod: "usage_based",
+			interval: "month",
+		},
+	});
+}
+
 export const free = plan({
 	id: "free",
 	name: "Free",
 	addOn: false,
 	autoEnable: true,
 	items: [
+		item({
+			featureId: investigation_runs.id,
+			included: 0,
+			reset: { interval: "one_off" },
+		}),
 		item({
 			featureId: events.id,
 			included: 10_000,
@@ -78,7 +121,7 @@ export const free = plan({
 		}),
 		item({
 			featureId: agent_credits.id,
-			included: 10,
+			included: AGENT_CREDIT_ALLOWANCES.free.month,
 			reset: {
 				interval: "month",
 			},
@@ -96,6 +139,11 @@ export const hobby = plan({
 		interval: "month",
 	},
 	items: [
+		item({
+			featureId: investigation_runs.id,
+			included: 0,
+			reset: { interval: "one_off" },
+		}),
 		item({
 			featureId: events.id,
 			included: 30_000,
@@ -115,14 +163,14 @@ export const hobby = plan({
 		}),
 		item({
 			featureId: agent_credits.id,
-			included: 20,
+			included: AGENT_CREDIT_ALLOWANCES.hobby.month,
 			reset: {
 				interval: "month",
 			},
 		}),
 		item({
 			featureId: agent_credits.id,
-			included: 1,
+			included: AGENT_CREDIT_ALLOWANCES.hobby.day,
 			reset: {
 				interval: "day",
 			},
@@ -141,32 +189,21 @@ export const pro = plan({
 	},
 	items: [
 		item({
-			featureId: events.id,
-			included: 1_000_000,
-			price: {
-				tiers: [
-					{ to: 2_000_000, amount: 0.000_035 },
-					{ to: 10_000_000, amount: 0.000_03 },
-					{ to: 50_000_000, amount: 0.000_02 },
-					{ to: 250_000_000, amount: 0.000_015 },
-					{ to: "inf", amount: 0.000_01 },
-				],
-				tierBehaviour: "graduated",
-				billingUnits: 1,
-				billingMethod: "usage_based",
-				interval: "month",
-			},
+			featureId: investigation_runs.id,
+			included: 0,
+			reset: { interval: "one_off" },
 		}),
+		eventsOverageItem(1_000_000),
 		item({
 			featureId: agent_credits.id,
-			included: 350,
+			included: AGENT_CREDIT_ALLOWANCES.pro.month,
 			reset: {
 				interval: "month",
 			},
 		}),
 		item({
 			featureId: agent_credits.id,
-			included: 5,
+			included: AGENT_CREDIT_ALLOWANCES.pro.day,
 			reset: {
 				interval: "day",
 			},
@@ -174,14 +211,9 @@ export const pro = plan({
 	],
 });
 
-/*
- * Scale is being phased out — preserve current capability for existing
- * customers but do NOT add new feature items beyond what's necessary for
- * parity with Pro. No new bells, no overage tiers.
- */
 export const scale = plan({
-	id: LEGACY_SCALE_PLAN.id,
-	name: LEGACY_SCALE_PLAN.name,
+	id: SCALE_PLAN.id,
+	name: SCALE_PLAN.name,
 	addOn: false,
 	autoEnable: false,
 	price: {
@@ -208,7 +240,7 @@ export const scale = plan({
 		}),
 		item({
 			featureId: agent_credits.id,
-			included: 500,
+			included: AGENT_CREDIT_ALLOWANCES.scale.month,
 			reset: {
 				interval: "month",
 			},
@@ -216,22 +248,11 @@ export const scale = plan({
 	],
 });
 
-/*
- * Intelligence is the new credit-led base plan family. The customer-facing
- * names anchor the plans against analyst capacity, while investigations still
- * consume agent_credits from actual model usage with the shared markup.
- * Monthly plan grants reset; paid credits_topup balances persist and can be
- * replenished automatically with the existing billing controls.
- *
- * These are invitation-only beta plans for now, so they stay out of the
- * self-serve pricing table and public pricing docs. Keep them in the default
- * group so an attached beta plan replaces Free, Hobby, Pro, or legacy Scale
- * instead of stacking as a second base subscription.
- */
+// Default group on purpose: an attached Intelligence plan must replace the base plan, not stack on it.
 export const intelligence = plan({
 	id: "intelligence",
-	name: "Analyst",
-	description: "An always-on product investigator for founders and engineers.",
+	name: "Business",
+	description: PLAN_COPY.intelligence.description,
 	addOn: false,
 	autoEnable: false,
 	price: {
@@ -240,38 +261,21 @@ export const intelligence = plan({
 	},
 	items: [
 		item({
-			featureId: events.id,
-			included: 2_000_000,
+			featureId: investigation_runs.id,
+			included: INVESTIGATION_ALLOWANCES.intelligence,
 			price: {
-				tiers: [
-					{ to: 2_000_000, amount: 0.000_035 },
-					{ to: 10_000_000, amount: 0.000_03 },
-					{ to: 50_000_000, amount: 0.000_02 },
-					{ to: 250_000_000, amount: 0.000_015 },
-					{ to: "inf", amount: 0.000_01 },
-				],
-				tierBehaviour: "graduated",
-				billingUnits: 1,
-				billingMethod: "usage_based",
+				amount: INVESTIGATION_USAGE.priceUsd,
 				interval: "month",
+				billingMethod: "usage_based",
+				billingUnits: 1,
 			},
 		}),
+		eventsOverageItem(2_000_000),
 		item({
 			featureId: agent_credits.id,
-			included: 1500,
+			included: AGENT_CREDIT_ALLOWANCES.intelligence.month,
 			reset: {
 				interval: "month",
-			},
-		}),
-		item({
-			featureId: agent_credits.id,
-			price: {
-				tiers: TOPUP_TIERS.map((t) => ({ to: t.to, amount: t.amount })),
-				tierBehaviour: "graduated",
-				interval: "one_off",
-				billingMethod: "prepaid",
-				billingUnits: 1,
-				maxPurchase: TOPUP_MAX_QUANTITY,
 			},
 		}),
 	],
@@ -279,9 +283,8 @@ export const intelligence = plan({
 
 export const intelligence_scale = plan({
 	id: "intelligence_scale",
-	name: "Data Team",
-	description:
-		"More investigation capacity for products with higher traffic and faster release cycles.",
+	name: "Scale",
+	description: PLAN_COPY.intelligence_scale.description,
 	addOn: false,
 	autoEnable: false,
 	price: {
@@ -290,43 +293,31 @@ export const intelligence_scale = plan({
 	},
 	items: [
 		item({
-			featureId: events.id,
-			included: 10_000_000,
+			featureId: investigation_runs.id,
+			included: INVESTIGATION_ALLOWANCES.intelligence_scale,
 			price: {
-				tiers: [
-					{ to: 2_000_000, amount: 0.000_035 },
-					{ to: 10_000_000, amount: 0.000_03 },
-					{ to: 50_000_000, amount: 0.000_02 },
-					{ to: 250_000_000, amount: 0.000_015 },
-					{ to: "inf", amount: 0.000_01 },
-				],
-				tierBehaviour: "graduated",
-				billingUnits: 1,
-				billingMethod: "usage_based",
+				amount: INVESTIGATION_USAGE.priceUsd,
 				interval: "month",
+				billingMethod: "usage_based",
+				billingUnits: 1,
 			},
 		}),
+		eventsOverageItem(6_000_000),
 		item({
 			featureId: agent_credits.id,
-			included: 5000,
+			included: AGENT_CREDIT_ALLOWANCES.intelligence_scale.month,
 			reset: {
 				interval: "month",
-			},
-		}),
-		item({
-			featureId: agent_credits.id,
-			price: {
-				tiers: TOPUP_TIERS.map((t) => ({ to: t.to, amount: t.amount })),
-				tierBehaviour: "graduated",
-				interval: "one_off",
-				billingMethod: "prepaid",
-				billingUnits: 1,
-				maxPurchase: TOPUP_MAX_QUANTITY,
 			},
 		}),
 	],
 });
 
+/*
+ * Pulse plans are frozen — keep them in the catalog for any remaining
+ * subscribers, but do not sell, restyle, or add features. New uptime
+ * customers use Free / Hobby / Pro.
+ */
 export const pulse_hobby = plan({
 	id: "pulse_hobby",
 	name: "Pulse Hobby",
@@ -370,15 +361,16 @@ export const pulse_pro = plan({
 });
 
 /*
- * Credit booster. Recurring add-on that grants 200 credits each month
- * on top of the base plan. Because these credits are paid for, they
- * roll over up to 400 and never expire until burned — unlike the
- * plan grants which reset monthly with no rollover.
+ * Credit booster. Recurring add-on for analytics plans only — Intelligence
+ * plans already include on-plan prepaid top-up. Grants 200 credits each
+ * month on top of the base plan. Because these credits are paid for, they
+ * roll over up to 400 and never expire until burned — unlike the plan
+ * grants which reset monthly with no rollover.
  */
 export const credits_booster = plan({
 	id: "credits_booster",
-	name: "Monthly investigation credits",
-	description: "200 additional investigation credits every month.",
+	name: "Monthly AI credits",
+	description: "200 additional AI credits every month for Databunny chat.",
 	addOn: true,
 	autoEnable: false,
 	price: {
@@ -409,9 +401,8 @@ export const credits_booster = plan({
  */
 export const credits_topup = plan({
 	id: "credits_topup",
-	name: "Additional investigation credits",
-	description:
-		"Prepaid investigation credits that remain available until used.",
+	name: "Additional AI credits",
+	description: "Prepaid AI credits for Databunny chat; available until used.",
 	addOn: true,
 	autoEnable: false,
 	items: [
@@ -424,6 +415,27 @@ export const credits_topup = plan({
 				billingMethod: "prepaid",
 				billingUnits: 1,
 				maxPurchase: TOPUP_MAX_QUANTITY,
+			},
+		}),
+	],
+});
+
+// Separate prepaid balance. No reset or expiry; never convert agent_credits.
+export const investigations_topup = plan({
+	id: INVESTIGATION_USAGE.topupPlanId,
+	name: "Additional investigations",
+	description: INVESTIGATION_USAGE.description,
+	addOn: true,
+	autoEnable: false,
+	items: [
+		item({
+			featureId: investigation_runs.id,
+			price: {
+				amount: INVESTIGATION_USAGE.priceUsd,
+				interval: "one_off",
+				billingMethod: "prepaid",
+				billingUnits: 1,
+				maxPurchase: INVESTIGATION_USAGE.maxPurchase,
 			},
 		}),
 	],

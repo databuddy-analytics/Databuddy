@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - "*.Dockerfile"
+      - "docker-compose.selfhost.yml"
+      - "selfhost.env.example"
+      - "scripts/test-selfhost-init.sh"
       - ".dockerignore"
       - "apps/api/**"
       - "apps/basket/**"
@@ -15,11 +18,15 @@ on:
       - "bun.lock"
       - "package.json"
       - "turbo.json"
+      - "tsconfig/**"
       - ".github/workflows/health-check.yml"
   pull_request:
     branches: [main, staging]
     paths:
       - "*.Dockerfile"
+      - "docker-compose.selfhost.yml"
+      - "selfhost.env.example"
+      - "scripts/test-selfhost-init.sh"
       - ".dockerignore"
       - "apps/api/**"
       - "apps/basket/**"
@@ -30,6 +37,7 @@ on:
       - "bun.lock"
       - "package.json"
       - "turbo.json"
+      - "tsconfig/**"
       - ".github/workflows/health-check.yml"
 
 permissions:
@@ -40,6 +48,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  selfhost-init:
+    name: Self-host Database Initialization
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - run: bash scripts/test-selfhost-init.sh
+
   vector-config-check:
     name: Vector Delivery Canary
     runs-on: blacksmith-2vcpu-ubuntu-2404
@@ -63,7 +79,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Validate Vector config
         run: |
@@ -93,11 +109,13 @@ jobs:
             --data-binary 'CREATE DATABASE IF NOT EXISTS analytics' \
             http://localhost:8123/
           sed -E \
-            "s@ENGINE = ReplicatedReplacingMergeTree\\('[^']*', '[^']*', ([^)]+)\\)@ENGINE = ReplacingMergeTree(\\1)@" \
+            -e "s@ENGINE = ReplicatedReplacingMergeTree\\('[^']*', '[^']*', ([^)]+)\\)@ENGINE = ReplacingMergeTree(\\1)@" \
+            -e "s@ENGINE = ReplicatedMergeTree\\('[^']*', '[^']*'\\)@ENGINE = MergeTree@" \
             packages/db/src/clickhouse/schema/analytics/core/custom_events.sql \
             | curl -fsS --data-binary @- http://localhost:8123/
           sed -E \
-            "s@ENGINE = ReplicatedReplacingMergeTree\\('[^']*', '[^']*', ([^)]+)\\)@ENGINE = ReplacingMergeTree(\\1)@" \
+            -e "s@ENGINE = ReplicatedReplacingMergeTree\\('[^']*', '[^']*', ([^)]+)\\)@ENGINE = ReplacingMergeTree(\\1)@" \
+            -e "s@ENGINE = ReplicatedMergeTree\\('[^']*', '[^']*'\\)@ENGINE = MergeTree@" \
             packages/db/src/clickhouse/schema/analytics/links/link_visits.sql \
             | curl -fsS --data-binary @- http://localhost:8123/
           curl -fsS \
@@ -134,6 +152,7 @@ jobs:
               analytics-events \
               analytics-error-spans \
               analytics-vitals-spans \
+              analytics-engagement-spans \
               analytics-custom-events \
               analytics-ai-traffic-spans \
               analytics-outgoing-links \
@@ -158,8 +177,9 @@ jobs:
 
           CANARY_ID="ci-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}"
           LINK_CANARY_ID="11111111-1111-4111-8111-111111111111"
+          # Prove Vector still accepts pre-rollout records with the removed field.
           CANARY_PAYLOAD=$(jq -cn \
-            --arg delivery_id "$CANARY_ID" \
+            --arg canary_id "$CANARY_ID" \
             '{
               owner_id: "ci-owner",
               website_id: "ci-website",
@@ -167,12 +187,12 @@ jobs:
               event_name: "vector_delivery_canary",
               namespace: "ci",
               path: "/ci/vector-canary",
-              properties: "{}",
+              properties: ({ canary_id: $canary_id } | tojson),
               anonymous_id: "ci-anonymous",
               session_id: "ci-session",
               source: "ci",
               profile_id: "",
-              delivery_id: $delivery_id
+              delivery_id: $canary_id
             }')
           LINK_CANARY_PAYLOAD=$(jq -cn \
             --arg id "$LINK_CANARY_ID" \
@@ -200,8 +220,8 @@ jobs:
           for i in {1..30}; do
             FIRST_COUNT=$(curl -fsSG \
               --data-urlencode \
-                'query=SELECT count() FROM analytics.custom_events WHERE delivery_id = {delivery_id:String}' \
-              --data-urlencode "param_delivery_id=$CANARY_ID" \
+                "query=SELECT count() FROM analytics.custom_events WHERE owner_id = 'ci-owner' AND event_name = 'vector_delivery_canary' AND JSONExtractString(properties, 'canary_id') = {canary_id:String}" \
+              --data-urlencode "param_canary_id=$CANARY_ID" \
               http://localhost:8123/)
             FIRST_LINK_COUNT=$(curl -fsSG \
               --data-urlencode \
@@ -229,29 +249,17 @@ jobs:
           for i in {1..45}; do
             PHYSICAL_COUNT=$(curl -fsSG \
               --data-urlencode \
-                'query=SELECT count() FROM analytics.custom_events WHERE delivery_id = {delivery_id:String}' \
-              --data-urlencode "param_delivery_id=$CANARY_ID" \
-              http://localhost:8123/)
-            LOGICAL_COUNT=$(curl -fsSG \
-              --data-urlencode \
-                'query=SELECT count() FROM analytics.custom_events FINAL WHERE delivery_id = {delivery_id:String}' \
-              --data-urlencode "param_delivery_id=$CANARY_ID" \
+                "query=SELECT count() FROM analytics.custom_events WHERE owner_id = 'ci-owner' AND event_name = 'vector_delivery_canary' AND JSONExtractString(properties, 'canary_id') = {canary_id:String}" \
+              --data-urlencode "param_canary_id=$CANARY_ID" \
               http://localhost:8123/)
             PHYSICAL_LINK_COUNT=$(curl -fsSG \
               --data-urlencode \
                 'query=SELECT count() FROM analytics.link_visits WHERE id = {id:UUID}' \
               --data-urlencode "param_id=$LINK_CANARY_ID" \
               http://localhost:8123/)
-            LOGICAL_LINK_COUNT=$(curl -fsSG \
-              --data-urlencode \
-                'query=SELECT count() FROM analytics.link_visits FINAL WHERE id = {id:UUID}' \
-              --data-urlencode "param_id=$LINK_CANARY_ID" \
-              http://localhost:8123/)
             if [ "$PHYSICAL_COUNT" = "2" ] \
-              && [ "$LOGICAL_COUNT" = "1" ] \
-              && [ "$PHYSICAL_LINK_COUNT" = "2" ] \
-              && [ "$LOGICAL_LINK_COUNT" = "1" ]; then
-              echo "Vector replays produced two physical rows and one logical delivery per sink"
+              && [ "$PHYSICAL_LINK_COUNT" = "2" ]; then
+              echo "Vector delivered the replayed canary to both sinks"
               exit 0
             fi
             if ! docker inspect -f '{{.State.Running}}' vector-delivery-canary | grep -q true; then
@@ -261,7 +269,7 @@ jobs:
             sleep 1
           done
 
-          echo "Canary replay was not logically deduplicated within 45 seconds"
+          echo "Canary replay was not delivered within 45 seconds"
           docker logs vector-delivery-canary
           docker logs vector-canary-redpanda
           exit 1
@@ -296,7 +304,7 @@ jobs:
           --health-retries 5
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Mount Docker build cache
         uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
@@ -409,7 +417,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Mount Docker build cache
         uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
@@ -555,7 +563,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Mount Docker build cache
         uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
@@ -678,12 +686,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: "1.3.14"
+          bun-version: "1.4.1"
 
       - name: Install workspace dependencies
         run: bun install --frozen-lockfile --ignore-scripts

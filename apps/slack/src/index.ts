@@ -1,14 +1,15 @@
 import { setAiRequestLoggerProvider } from "@databuddy/ai/lib/request-logger";
-import { shutdownPostgres } from "@databuddy/db";
+import { db, shutdownPostgres, sql } from "@databuddy/db";
 import { setRpcRequestLoggerProvider } from "@databuddy/rpc/log-context";
 import {
 	createDatabuddyEvlogEnv,
 	databuddyEvlogRedaction,
 } from "@databuddy/shared/evlog-redaction";
+import { serve } from "bun";
 import { App } from "@slack/bolt";
 import { initLogger, log } from "evlog";
 import { DatabuddyAgentClient } from "@/agent/agent-client";
-import { resolveSlackConfig } from "@/config";
+import { resolveSlackConfig, SLACK_WEB_CLIENT_OPTIONS } from "@/config";
 import {
 	captureSlackError,
 	flushBatchedSlackDrain,
@@ -24,6 +25,7 @@ import {
 	SlackInstallationStore,
 } from "@/slack/installations";
 import { registerSlackListeners } from "@/slack/listeners";
+import { createSlackEventDedupe } from "@/slack/event-dedupe";
 
 const SHUTDOWN_RUN_SETTLE_TIMEOUT_MS = 10_000;
 
@@ -45,6 +47,48 @@ process.on("uncaughtException", (error) => {
 	captureSlackError(error, { process: "uncaughtException" });
 });
 
+async function healthPing(probe: () => Promise<unknown>): Promise<boolean> {
+	try {
+		await probe();
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function startHealthServer(port: number): void {
+	serve({
+		port,
+		fetch: async (request) => {
+			const { pathname } = new URL(request.url);
+			if (pathname === "/health") {
+				return Response.json({ status: "ok" });
+			}
+			if (pathname !== "/health/status") {
+				return new Response("not found", { status: 404 });
+			}
+			const [postgres, cache] = await Promise.all([
+				healthPing(() => db.execute(sql`SELECT 1`)),
+				healthPing(async () => {
+					const { redis } = await import("@databuddy/redis");
+					await redis.ping();
+				}),
+			]);
+			const allOk = postgres && cache;
+			return Response.json(
+				{
+					status: allOk ? "ok" : "degraded",
+					services: {
+						postgres: { status: postgres ? "ok" : "error" },
+						redis: { status: cache ? "ok" : "error" },
+					},
+				},
+				{ status: allOk ? 200 : 503 }
+			);
+		},
+	});
+}
+
 async function main() {
 	const config = resolveSlackConfig();
 
@@ -60,18 +104,27 @@ async function main() {
 		appToken: config.appToken,
 		authorize: createSlackAuthorize(installations),
 		clientOptions: {
+			...SLACK_WEB_CLIENT_OPTIONS,
 			slackApiUrl: "https://slack.com/api",
 		},
+		// Socket Mode connection setup and OAuth keep their native retry behavior.
+		installerOptions: { clientOptions: {} },
 		logLevel: config.logLevel,
 		signingSecret: config.signingSecret,
 		socketMode: config.socketMode,
 	});
 
+	app.use(createSlackEventDedupe());
 	registerSlackListeners(
 		app,
 		new DatabuddyAgentClient(installations),
 		installations
 	);
+
+	const healthPort =
+		Number.parseInt(process.env.PORT ?? "", 10) ||
+		(config.socketMode ? config.port : config.port + 1);
+	startHealthServer(healthPort);
 
 	try {
 		if (config.socketMode) {

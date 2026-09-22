@@ -47,7 +47,7 @@ export function FFAbTestingDemo() {
 							multivariant
 						</span>
 						<span className="font-mono text-[9px] text-muted-foreground/40 uppercase tracking-wider">
-							prod
+							active
 						</span>
 					</div>
 				</div>

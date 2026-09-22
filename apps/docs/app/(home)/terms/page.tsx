@@ -10,7 +10,7 @@ import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import { StructuredData } from "@/components/structured-data";
 
-const title = "Terms of Service - Usage Policies & Legal Agreement | Databuddy";
+const title = "Terms of Service - Usage Policies & Legal Agreement";
 const url = "https://www.databuddy.cc/terms";
 
 export const metadata: Metadata = {
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
 };
 
 export default function TermsPage() {
-	const lastUpdated = "December 22nd, 2025";
+	const lastUpdated = "September 15th, 2026";
 
 	return (
 		<>
@@ -38,7 +38,7 @@ export default function TermsPage() {
 				page={{
 					title,
 					description:
-						"Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and automatic investigations to help your business grow while staying compliant.",
+						"Terms for using Databuddy, including account responsibilities, billing, data handling, and service availability.",
 					url,
 				}}
 			/>
@@ -46,7 +46,7 @@ export default function TermsPage() {
 				{/* Header */}
 				<div className="mb-12 text-center">
 					<div className="mb-5 inline-flex items-center justify-center rounded border border-accent bg-accent/50 p-3">
-						<ScalesIcon className="size-7 text-primary" weight="duotone" />
+						<ScalesIcon className="size-7 text-primary" />
 					</div>
 					<h1 className="mb-4 font-bold text-4xl md:text-5xl">
 						Terms of Service
@@ -72,7 +72,7 @@ export default function TermsPage() {
 				{/* Fair terms highlight */}
 				<div className="mb-8 rounded border border-accent bg-accent/50 p-6">
 					<h2 className="mb-3 flex items-center font-bold text-primary text-xl">
-						<ShieldIcon className="mr-2 size-5" weight="duotone" />
+						<ShieldIcon className="mr-2 size-5" />
 						Fair & Transparent Terms
 					</h2>
 					<p className="mb-4 text-muted-foreground">
@@ -82,15 +82,15 @@ export default function TermsPage() {
 					</p>
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 						<div className="flex items-center text-primary">
-							<FileTextIcon className="mr-2 size-4" weight="duotone" />
+							<FileTextIcon className="mr-2 size-4" />
 							<span className="text-sm">Plain Language</span>
 						</div>
 						<div className="flex items-center text-primary">
-							<ScalesIcon className="mr-2 size-4" weight="duotone" />
+							<ScalesIcon className="mr-2 size-4" />
 							<span className="text-sm">Fair Terms</span>
 						</div>
 						<div className="flex items-center text-primary">
-							<ShieldIcon className="mr-2 size-4" weight="duotone" />
+							<ShieldIcon className="mr-2 size-4" />
 							<span className="text-sm">User Protection</span>
 						</div>
 					</div>
@@ -211,10 +211,7 @@ export default function TermsPage() {
 						</ul>
 						<div className="my-4 rounded border border-amber-500/20 bg-amber-500/10 p-4">
 							<p className="flex items-start text-sm">
-								<WarningIcon
-									className="mt-0.5 mr-2 size-4 shrink-0 text-amber-400"
-									weight="duotone"
-								/>
+								<WarningIcon className="mt-0.5 mr-2 size-4 shrink-0 text-amber-400" />
 								<span>
 									<strong className="text-amber-400">Important:</strong> We may
 									suspend or terminate accounts that violate these terms.
@@ -244,7 +241,8 @@ export default function TermsPage() {
 						<p className="mb-4">Key points about data:</p>
 						<ul className="mb-4 space-y-2">
 							<li>
-								We use privacy-first analytics that don't track individual users
+								Our cookieless tracker supports optional user identification, as
+								described in our Privacy Policy
 							</li>
 							<li>You own your analytics data and can export it anytime</li>
 							<li>We don't sell your data to third parties</li>
@@ -417,10 +415,7 @@ export default function TermsPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 flex items-center font-bold text-2xl">
-							<QuestionIcon
-								className="mr-2 size-6 text-accent-foreground"
-								weight="duotone"
-							/>
+							<QuestionIcon className="mr-2 size-6 text-accent-foreground" />
 							13. Contact Information
 						</h2>
 						<p className="mb-4">

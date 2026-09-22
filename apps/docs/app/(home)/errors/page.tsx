@@ -13,20 +13,21 @@ import { ErrorFrequencyChartDemo } from "@/components/landing/error-frequency-ch
 import { ErrorPerPageBreakdownDemo } from "@/components/landing/error-per-page-breakdown-demo";
 import { ErrorImpactTableArtifact } from "@/components/landing/error-who-it-affects-artifacts";
 import { FaqSection } from "@/components/landing/faq-section";
+import { MidPageCta } from "@/components/landing/mid-page-cta";
 import Section from "@/components/landing/section";
 import { StructuredData } from "@/components/structured-data";
 
 export const metadata: Metadata = {
 	title: "JavaScript Error Tracking - Built Into Your Analytics",
 	description:
-		"Catch, group, and fix JavaScript errors before your users notice. Stack traces, session context, user impact, and instant alerts. No second tool, no extra script.",
+		"Catch and group JavaScript errors with stack traces, session context, and affected-user impact. No second tool, no extra script.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/errors",
 	},
 	openGraph: {
 		title: "JavaScript Error Tracking - Built Into Your Analytics",
 		description:
-			"Catch, group, and fix JavaScript errors before your users notice. Stack traces, session context, user impact, and instant alerts. No second tool, no extra script.",
+			"Catch and group JavaScript errors with stack traces, session context, and affected-user impact. No second tool, no extra script.",
 		url: "https://www.databuddy.cc/errors",
 		images: ["/og-image.png"],
 	},
@@ -36,27 +37,27 @@ const FAQ_ITEMS = [
 	{
 		question: "Will error tracking slow down my site?",
 		answer:
-			"No. The error tracking SDK is tiny and runs asynchronously. It only activates when something goes wrong - there's no polling, no impact on your page load time.",
+			"Error handlers capture exceptions and unhandled rejections, then send them asynchronously. Measure the tracker alongside the rest of your site to check its performance impact.",
 	},
 	{
 		question: "How does Databuddy group errors?",
 		answer:
-			"Errors are grouped by their stack trace fingerprint, so the same bug hitting thousands of users shows up as one issue - not thousands. You can also manually merge or split groups.",
+			"Errors are grouped by message, so the same bug hitting thousands of users shows up as one issue ranked by how many people it affects - not thousands of duplicate rows.",
 	},
 	{
-		question: "Can I see which users were affected by an error?",
+		question: "Can I see how many users an error affected?",
 		answer:
-			"Yes. If you identify users in your analytics setup, every error is linked to the affected user sessions. You can see exactly who hit the bug and replay the context.",
+			"Yes. Every error shows affected users, occurrences, and errors per affected user. Impact analysis stays privacy-safe: aggregate counts, never a list of identified individuals.",
 	},
 	{
-		question: "Does it work with server-side errors too?",
+		question: "Does it capture noise from browser extensions?",
 		answer:
-			"Yes. The Node.js SDK captures unhandled exceptions and rejections on the server side. Both client and server errors appear in the same dashboard.",
+			"Known extension errors and browser runtime noise are filtered before ingestion. Filters reduce noise but cannot distinguish every third-party error.",
 	},
 	{
 		question: "Is error tracking included in all plans?",
 		answer:
-			"Error tracking is available on every plan. The free plan gives you 1,000 error events per month - paid plans scale from there with higher limits and longer retention.",
+			"Error tracking starts on the Hobby plan. Every paid plan includes it with no separate error quota.",
 	},
 ] as const;
 
@@ -74,24 +75,25 @@ export default function ErrorsPage() {
 				page={{
 					title: "JavaScript Error Tracking - Built Into Your Analytics",
 					description:
-						"Catch, group, and fix JavaScript errors before your users notice. Stack traces, session context, user impact, and instant alerts.",
+						"Catch and group JavaScript errors with stack traces, session context, and affected-user impact.",
 					url: "https://www.databuddy.cc/errors",
 				}}
 			/>
 			<div className="overflow-x-hidden">
 				<FeatureHero
-					docsHref="/docs"
+					docsHref="/docs/dashboard"
+					footnote="Error tracking starts on the Hobby plan. Free includes analytics for 10,000 events/mo."
 					primaryLabel="Start Monitoring"
-					subtitle="Every JavaScript error tied to the session, the page, and the funnel step where it happened. Stack traces, user impact, and alerts without a second tool."
-					title="Error tracking built into your analytics."
+					subtitle="Captured JavaScript errors tied to the session and page where they happened. Use stack traces and affected-user counts to prioritize fixes."
+					title="Find the errors affecting your users."
 				/>
 
 				<Section className="border-border border-b" id="impact">
 					<div className={container}>
 						<SectionHeader
-							subtitle="See affected user counts, per-page error rates, and track progress post-fixes all in one place."
+							subtitle="Every error shows affected users, occurrences, and errors per affected user, so the bug hurting the most people rises to the top."
 							title="Prioritize by"
-							titleMuted="real impact."
+							titleMuted="affected users."
 						/>
 
 						<TwoColumnGrid>
@@ -103,7 +105,7 @@ export default function ErrorsPage() {
 							</GridCell>
 							<GridCell>
 								<h3 className={CELL_TITLE_CLASS}>
-									Know about errors before your users report them.
+									Exceptions and rejections, captured automatically.
 								</h3>
 								<ErrorAutoCaptureAlertsStackDemo />
 							</GridCell>
@@ -130,6 +132,12 @@ export default function ErrorsPage() {
 				<Section className="border-border border-b" id="faq">
 					<div className={container}>
 						<FaqSection items={[...FAQ_ITEMS]} />
+					</div>
+				</Section>
+
+				<Section className="border-border border-b" id="cta">
+					<div className={container}>
+						<MidPageCta />
 					</div>
 				</Section>
 

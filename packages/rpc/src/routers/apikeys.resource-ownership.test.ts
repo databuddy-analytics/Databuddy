@@ -33,17 +33,16 @@ beforeAll(async () => {
 	mock.module("../procedures/with-workspace", () => ({
 		withWorkspace: mockWithWorkspace,
 	}));
+	const actualAudit = await import("../lib/audit");
 	mock.module("../lib/audit", () => ({
+		...actualAudit,
 		appendRpcAuditEvent: mockAppendRpcAuditEvent,
 		getAuditActor: () => ({ id: "user-a", type: "user" }),
-		getAuditOrganizationId: () => ORGANIZATION_A,
 		getAuditRequestContext: () => ({}),
 	}));
 
 	({ apikeysRouter } = await import("./apikeys"));
 
-	// Keep the router's captured doubles, but do not leak shared module mocks into
-	// sibling test files that exercise the real workspace middleware.
 	mock.restore();
 });
 

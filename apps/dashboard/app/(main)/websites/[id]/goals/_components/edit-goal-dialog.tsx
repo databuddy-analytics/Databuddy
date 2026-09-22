@@ -2,7 +2,6 @@
 
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import { FilterRow } from "@/components/ui/filter-row";
-import type { InsightMeasurementRecommendation } from "@databuddy/shared/insights";
 import type { AutocompleteData } from "@/hooks/use-autocomplete";
 import { goalFunnelOperatorOptions, useFilters } from "@/hooks/use-filters";
 import type { CreateGoalData, Goal } from "@/hooks/use-goals";
@@ -34,15 +33,9 @@ interface GoalFormData {
 	type: string;
 }
 
-export type GoalDraft = Extract<
-	InsightMeasurementRecommendation,
-	{ kind: "goal_draft" }
->["draft"];
-
 interface EditGoalDialogProps {
 	autocompleteData?: AutocompleteData;
 	goal: Goal | null;
-	initialDraft?: GoalDraft;
 	isOpen: boolean;
 	isSaving: boolean;
 	onClose: () => void;
@@ -54,14 +47,12 @@ export function EditGoalDialog({
 	onClose,
 	onSave,
 	goal,
-	initialDraft,
 	isSaving,
 	autocompleteData,
 }: EditGoalDialogProps) {
 	const [formData, setFormData] = useState<GoalFormData | null>(null);
 	const wasOpen = useRef(false);
 	const isCreateMode = !goal;
-	const isSuggestedDraft = isCreateMode && Boolean(initialDraft);
 
 	useEffect(() => {
 		if (!isOpen) {
@@ -89,18 +80,6 @@ export function EditGoalDialog({
 				filters: sanitizedFilters,
 				ignoreHistoricData: goal.ignoreHistoricData ?? false,
 			});
-		} else if (initialDraft) {
-			setFormData({
-				name: initialDraft.name,
-				description: initialDraft.description,
-				type: initialDraft.type,
-				target: initialDraft.target,
-				filters: initialDraft.filters.map((filter) => ({
-					...filter,
-					operator: filter.operator || "equals",
-				})),
-				ignoreHistoricData: initialDraft.ignoreHistoricData,
-			});
 		} else {
 			setFormData({
 				name: "",
@@ -111,7 +90,7 @@ export function EditGoalDialog({
 				ignoreHistoricData: false,
 			});
 		}
-	}, [goal, initialDraft, isOpen]);
+	}, [goal, isOpen]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -225,21 +204,15 @@ export function EditGoalDialog({
 				<Sheet.Header>
 					<div className="flex items-center gap-4">
 						<div className="flex size-11 items-center justify-center rounded border bg-secondary">
-							<Target className="size-5 text-primary" weight="fill" />
+							<Target className="size-5 text-primary" />
 						</div>
 						<div>
 							<Sheet.Title className="text-lg">
-								{isCreateMode
-									? isSuggestedDraft
-										? "Review Goal Draft"
-										: "New Goal"
-									: formData.name || "Edit Goal"}
+								{isCreateMode ? "New Goal" : formData.name || "Edit Goal"}
 							</Sheet.Title>
 							<Sheet.Description>
 								{isCreateMode
-									? isSuggestedDraft
-										? "Review and adjust this proposed conversion before creating it"
-										: "Track single-step conversions"
+									? "Track single-step conversions"
 									: "Update goal settings"}
 							</Sheet.Description>
 						</div>
@@ -321,10 +294,7 @@ export function EditGoalDialog({
 							<div className="overflow-hidden rounded-md border border-border/60">
 								<Accordion>
 									<Accordion.Trigger>
-										<GearIcon
-											className="size-4 shrink-0 text-muted-foreground"
-											weight="duotone"
-										/>
+										<GearIcon className="size-4 shrink-0 text-muted-foreground" />
 										<Text variant="label">Settings</Text>
 									</Accordion.Trigger>
 									<Accordion.Content>

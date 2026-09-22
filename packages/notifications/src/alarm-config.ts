@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import type { NotificationClientConfig } from "./client";
 import type { NotificationChannel } from "./types";
 
@@ -72,11 +73,6 @@ function sanitizeWebhookHeaders(
 	}
 	return Object.keys(out).length > 0 ? out : undefined;
 }
-
-/**
- * Legacy adapter for callers that can only represent one provider per channel.
- * Use buildAlarmNotificationTargets for per-destination fanout.
- */
 export function buildAlarmNotificationConfig(destinations: AlarmDestination[]) {
 	const clientConfig: NotificationClientConfig = {};
 	const channels = new Set<NotificationChannel>();
@@ -96,6 +92,11 @@ export function buildAlarmNotificationTargets(
 	destinations: AlarmDestination[]
 ): AlarmNotificationTarget[] {
 	const targets: AlarmNotificationTarget[] = [];
+	const defaultEmailFrom =
+		(readBooleanEnv("SELFHOST") &&
+			(process.env.ALERTS_EMAIL_FROM?.trim() ||
+				process.env.EMAIL_FROM?.trim())) ||
+		"Databuddy <alerts@databuddy.cc>";
 
 	for (const dest of destinations) {
 		const cfg = (dest.config ?? {}) as Record<string, unknown>;
@@ -128,10 +129,7 @@ export function buildAlarmNotificationTargets(
 				clientConfig: {
 					email: {
 						defaultTo: dest.identifier,
-						from:
-							typeof cfg.from === "string"
-								? cfg.from
-								: "Databuddy <alerts@databuddy.cc>",
+						from: typeof cfg.from === "string" ? cfg.from : defaultEmailFrom,
 						sendEmailAction: async (payload: {
 							to: string | string[];
 							subject: string;
@@ -146,7 +144,7 @@ export function buildAlarmNotificationTargets(
 							}
 							const resend = new Resend(apiKey);
 							const result = await resend.emails.send({
-								from: payload.from || "Databuddy <alerts@databuddy.cc>",
+								from: payload.from || defaultEmailFrom,
 								to: Array.isArray(payload.to) ? payload.to : [payload.to],
 								subject: payload.subject,
 								html: payload.html || payload.text || "",

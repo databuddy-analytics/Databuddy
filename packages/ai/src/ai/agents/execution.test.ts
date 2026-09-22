@@ -1,10 +1,13 @@
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import { createLogger } from "evlog";
 
 const originalAutumnSecretKey = process.env.AUTUMN_SECRET_KEY;
 
-const mockAutumnCheck = mock(async () => ({
+const mockAutumnCheck = mock(async (input: { customerId: string }) => ({
 	allowed: true,
+	customerId: input.customerId,
 	balance: {
+		featureId: "agent_credits",
 		granted: 100,
 		remaining: 42,
 		unlimited: false,
@@ -23,6 +26,12 @@ const mockMergeWideEvent = mock((_: Record<string, unknown>) => {});
 
 mock.module("@databuddy/rpc/autumn", () => ({
 	getAutumn: () => ({
+		customers: {
+			get: async (input: { customerId: string }) => ({
+				id: input.customerId,
+				flags: {},
+			}),
+		},
 		check: mockAutumnCheck,
 		track: mockAutumnTrack,
 	}),
@@ -55,9 +64,10 @@ mock.module("../../lib/tracing", () => ({
 }));
 
 const {
-	ensureAgentCreditsAvailable,
+	getAgentBillingAccess,
 	isAgentBillingConfigured,
 	resolveAgentBillingCustomerId,
+	trackAgentUsage,
 	trackAgentUsageAndBill,
 } = await import("./execution");
 
@@ -166,9 +176,9 @@ describe("resolveAgentBillingCustomerId", () => {
 	});
 });
 
-describe("ensureAgentCreditsAvailable", () => {
+describe("getAgentBillingAccess", () => {
 	it("logs the checked Autumn customer and balance", async () => {
-		const allowed = await ensureAgentCreditsAvailable("owner:org_slack");
+		const { allowed } = await getAgentBillingAccess("owner:org_slack");
 
 		expect(allowed).toBe(true);
 		expect(mockAutumnCheck).toHaveBeenCalledWith({
@@ -192,7 +202,7 @@ describe("ensureAgentCreditsAvailable", () => {
 	it("skips Autumn when billing is not configured", async () => {
 		delete process.env.AUTUMN_SECRET_KEY;
 
-		const allowed = await ensureAgentCreditsAvailable("self-hosted-user");
+		const { allowed } = await getAgentBillingAccess("self-hosted-user");
 
 		expect(allowed).toBe(true);
 		expect(mockAutumnCheck).not.toHaveBeenCalled();
@@ -203,54 +213,52 @@ describe("ensureAgentCreditsAvailable", () => {
 	});
 });
 
-describe("trackAgentUsageAndBill", () => {
-	it("bills direct agent credits from the actual model cost", async () => {
-		const summary = await trackAgentUsageAndBill({
-			billingCustomerId: "owner:org_slack",
-			modelId: "anthropic/claude-sonnet-4.6",
+describe("trackAgentUsage", () => {
+	it("records usage on an explicit call logger without ambient request context", () => {
+		const requestLogger = createLogger({ test: true });
+		const summary = trackAgentUsage({
+			requestLogger,
+			modelId: "openai/gpt-5.6-luna",
 			source: "dashboard",
-			usage: {
-				inputTokens: 1_000_000,
-				outputTokens: 1_000_000,
-			},
+			usage: { inputTokens: 1000, outputTokens: 100 },
+		});
+		expect(requestLogger.getContext()).toMatchObject(summary);
+		expect(mockMergeWideEvent).not.toHaveBeenCalled();
+	});
+	it("retains model costs without consuming credits when billing is configured", () => {
+		const summary = trackAgentUsage({
+			billingCustomerId: "owner:synthetic-org",
+			modelId: "openai/gpt-5.6-luna",
+			source: "insights",
+			usage: { inputTokens: 1_000_000, outputTokens: 1_000_000 },
 		});
 
 		expect(summary.cost_fallback).toBe(false);
-		expect(summary.cost_model_id).toBe("anthropic/claude-sonnet-4.6");
-		expect(summary.cost_total_usd).toBe(18);
-		expect(summary.agent_credits_used).toBe(360);
-		expect(mockAutumnTrack).toHaveBeenCalledWith(
-			expect.objectContaining({
-				customerId: "owner:org_slack",
-				featureId: "agent_credits",
-				value: 360,
-			})
-		);
+		expect(summary.cost_total_usd).toBe(1.4);
+		expect(mockMergeWideEvent).toHaveBeenCalledWith(summary);
+		expect(mockAutumnCheck).not.toHaveBeenCalled();
+		expect(mockAutumnTrack).not.toHaveBeenCalled();
 	});
+});
 
-	it("uses DeepSeek pricing for Slack instead of the Sonnet fallback", async () => {
-		const summary = await trackAgentUsageAndBill({
-			billingCustomerId: "owner:org_slack",
-			modelId: "deepseek/deepseek-v4-flash",
-			source: "slack",
-			usage: {
-				inputTokens: 1_000_000,
-				outputTokens: 1_000_000,
-			},
+describe("trackAgentUsageAndBill", () => {
+	it("records a swallowed charge error on the supplied call logger", async () => {
+		const requestLogger = createLogger({ test: true });
+		mockAutumnTrack.mockRejectedValueOnce(new Error("Synthetic charge failed"));
+		await trackAgentUsageAndBill({
+			requestLogger,
+			billingCustomerId: "owner:example-org",
+			billingAccess: { allowed: true, customerId: "owner:example-org" },
+			modelId: "openai/gpt-5.6-luna",
+			source: "dashboard",
+			usage: { inputTokens: 1000, outputTokens: 100 },
 		});
-
-		expect(summary.cost_fallback).toBe(false);
-		expect(summary.cost_model_id).toBe("deepseek/deepseek-v4-flash");
-		expect(summary.cost_total_usd).toBe(0.42);
-		expect(summary.agent_credits_used).toBe(8.4);
-		expect(mockAutumnTrack).toHaveBeenCalledWith(
-			expect.objectContaining({
-				featureId: "agent_credits",
-				value: 8.4,
-			})
-		);
+		expect(requestLogger.getContext()).toMatchObject({
+			agent_usage_billing_error: true,
+			agent_source: "dashboard",
+		});
+		expect(mockAutumnCheck).not.toHaveBeenCalled();
 	});
-
 	it("deduplicates retryable usage charges", async () => {
 		await trackAgentUsageAndBill({
 			billingCustomerId: "owner:org_slack",
@@ -279,4 +287,39 @@ describe("trackAgentUsageAndBill", () => {
 		expect(summary.agent_credits_used).toBeGreaterThan(0);
 		expect(mockAutumnTrack).not.toHaveBeenCalled();
 	});
+});
+
+it("self-hosted AI keeps provider setup and skips all hosted billing", async () => {
+	const original = process.env;
+	process.env = {
+		...original,
+		SELFHOST: "true",
+		AI_GATEWAY_API_KEY: "synthetic-ai-key",
+	};
+	try {
+		expect(isAgentBillingConfigured()).toBe(false);
+		expect(
+			await resolveAgentBillingCustomerId({
+				organizationId: "synthetic-org",
+				userId: "synthetic-user",
+			})
+		).toBeNull();
+		expect(await getAgentBillingAccess(null)).toEqual({
+			allowed: true,
+			customerId: null,
+		});
+		await trackAgentUsageAndBill({
+			billingCustomerId: "stale-customer",
+			modelId: "openai/gpt-5.6-luna",
+			source: "dashboard",
+			usage: { inputTokens: 1000, outputTokens: 100 },
+		});
+		expect(mockAutumnCheck).not.toHaveBeenCalled();
+		expect(mockAutumnTrack).not.toHaveBeenCalled();
+		expect(mockGetBillingCustomerId).not.toHaveBeenCalled();
+		Reflect.deleteProperty(process.env, "AI_GATEWAY_API_KEY");
+		await expect(getAgentBillingAccess(null)).rejects.toThrow("configure AI");
+	} finally {
+		process.env = original;
+	}
 });

@@ -147,10 +147,7 @@ export function CancelSubscriptionDialog({
 									>
 										<div className="flex items-center gap-3">
 											<div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary">
-												<IconComponent
-													className="size-4 text-accent-foreground"
-													weight="duotone"
-												/>
+												<IconComponent className="size-4 text-accent-foreground" />
 											</div>
 											<span className="font-medium text-xs">
 												{reason.label}
@@ -213,10 +210,7 @@ export function CancelSubscriptionDialog({
 							>
 								<div className="flex items-start gap-3">
 									<div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary">
-										<CalendarIcon
-											className="size-4 text-accent-foreground"
-											weight="duotone"
-										/>
+										<CalendarIcon className="size-4 text-accent-foreground" />
 									</div>
 									<div className="flex-1">
 										<div className="flex items-center gap-2">
@@ -249,10 +243,7 @@ export function CancelSubscriptionDialog({
 							>
 								<div className="flex items-start gap-3">
 									<div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-destructive/10">
-										<LightningIcon
-											className="size-4 text-destructive"
-											weight="duotone"
-										/>
+										<LightningIcon className="size-4 text-destructive" />
 									</div>
 									<div className="flex-1">
 										<span className="font-medium text-xs">
@@ -267,10 +258,7 @@ export function CancelSubscriptionDialog({
 
 							{selected === "immediate" && (
 								<div className="flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive/5 p-3">
-									<WarningCircleIcon
-										className="mt-0.5 size-4 shrink-0 text-destructive"
-										weight="fill"
-									/>
+									<WarningCircleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
 									<span className="text-destructive text-xs">
 										This action cannot be undone. You will lose access to all{" "}
 										{planName} features immediately.

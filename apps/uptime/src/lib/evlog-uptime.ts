@@ -1,6 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { createBatchedSuperlogDrain } from "@databuddy/shared/evlog-superlog";
 import type { DrainContext, EnrichContext } from "evlog";
 import { createAxiomDrain } from "evlog/axiom";
@@ -43,21 +43,6 @@ function normalizeWideEventForAxiom(event: Record<string, unknown>): void {
 	if (typeof event.error === "string") {
 		event.error_message = event.error;
 		event.error = undefined;
-	}
-
-	if (event.level !== "error") {
-		return;
-	}
-
-	const err = event.error;
-	if (!err || typeof err !== "object" || Array.isArray(err)) {
-		return;
-	}
-
-	const status = (err as Record<string, unknown>).status;
-	if (typeof status === "number" && status >= 400 && status < 500) {
-		event.level = "warn";
-		event.client_http_error = true;
 	}
 }
 

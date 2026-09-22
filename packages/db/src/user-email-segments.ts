@@ -5,7 +5,7 @@ export const EMAIL_SEGMENTS = [
 	"no_websites",
 ] as const;
 
-export type EmailSegment = (typeof EMAIL_SEGMENTS)[number];
+type EmailSegment = (typeof EMAIL_SEGMENTS)[number];
 
 export interface SegmentUser {
 	billingCustomerIds: string[];

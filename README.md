@@ -1,147 +1,112 @@
 # Databuddy
 
-<div align="center">
+Understand how people use your product: where they come from, what they do, and
+where they drop off. Use that insight to decide what to build or improve next.
 
-[![License: AGPL](https://img.shields.io/badge/License-AGPL-red.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
-[![Next.js](https://img.shields.io/badge/Next.js-16.1-black.svg)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-19.2-blue.svg)](https://reactjs.org/)
-[![Turborepo](https://img.shields.io/badge/Turborepo-2.7-blue.svg)](https://turbo.build/repo)
-[![Bun](https://img.shields.io/badge/Bun-1.3-blue.svg)](https://bun.sh/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-4.1-blue.svg)](https://tailwindcss.com/)
+- **Building a product?** [Try hosted Databuddy](https://app.databuddy.cc) or follow the [tracker setup guide](https://www.databuddy.cc/docs/getting-started).
+- **Running your own stack?** Start with [self-hosting](#self-hosting) below.
+- **Want to help build Databuddy?** Read the [contributor guide](CONTRIBUTING.md). Bug reports and docs fixes count too.
 
-[![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/databuddy-analytics/Databuddy?utm_source=oss&utm_medium=github&utm_campaign=databuddy-analytics%2FDatabuddy&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
-[![Code Coverage](https://img.shields.io/badge/coverage-85%25-green.svg)](https://github.com/databuddy-analytics/Databuddy/actions/workflows/coverage.yml)
-[![Security Scan](https://img.shields.io/badge/security-A%2B-green.svg)](https://github.com/databuddy-analytics/Databuddy/actions/workflows/security.yml)
-[![Dependency Status](https://img.shields.io/badge/dependencies-up%20to%20date-green.svg)](https://github.com/databuddy-analytics/Databuddy/actions/workflows/dependencies.yml)
+## Self-hosting
 
-[<img alt="Vercel OSS Program" src="https://vercel.com/oss/program-badge.svg" />](https://vercel.com/oss)
+Run Databuddy on your server with Docker Compose. It sets `SELFHOST=true`, so
+events go straight to ClickHouse, while hosted billing and Databuddy's own telemetry are disabled.
+Email and AI are optional; see [optional services](#optional-services).
 
-[![Discord](https://img.shields.io/badge/Discord-Join-blue?logo=discord)](https://discord.gg/JTk7a38tCZ)
-[![GitHub Stars](https://img.shields.io/github/stars/databuddy-analytics/Databuddy?style=social)](https://github.com/databuddy-analytics/Databuddy/stargazers)
-[![Twitter](https://img.shields.io/twitter/follow/trydatabuddy?style=social)](https://twitter.com/trydatabuddy)
+### Start your instance
 
-</div>
-
-A comprehensive analytics and data management platform built with Next.js, TypeScript, and modern web technologies. Databuddy provides real-time analytics, user tracking, and data visualization capabilities for web applications.
-
-## 🌟 Features
-
-- 📊 Real-time analytics dashboard
-- 👥 User behavior tracking
-- 📈 Advanced data visualization // Soon
-- 🔒 Secure authentication
-- 📱 Responsive design
-- 🌐 Multi-tenant support
-- 🔄 Real-time updates // Soon
-- 📊 Custom metrics // Soon
-- 🎯 Goal tracking
-- 📈 Conversion analytics
-- 🔍 Custom event tracking
-- 📊 Funnel analysis
-- 📈 Cohort analysis // Soon
-- 🔄 A/B testing // Soon
-- 📈 Export capabilities
-- 🔒 GDPR compliance
-- 🔐 Data encryption
-- 📊 API access
-
-## 📚 Table of Contents
-
-1. **How do I get started?**
-   Follow the [Getting Started](https://www.databuddy.cc/docs/getting-started) guide.
-- [Contributing](#-contributing)
-- [Security](#-security)
-- [FAQ](#-faq)
-- [Support](#-support)
-- [License](#-license)
-
-### Prerequisites
-
-- Bun 1.3.14+
-- Node.js 20+
-
-## 🏠 Self-Hosting
-
-Databuddy can be self-hosted using Docker Compose. The repo includes two compose files:
-
-| File | Purpose |
-|---|---|
-| `docker-compose.yaml` | **Development only** — starts infrastructure (Postgres, ClickHouse, Redis) for local dev |
-| `docker-compose.selfhost.yml` | **Production / self-hosting** — backend services from GHCR images |
-
-### Quick Start
+These steps need a release with the `databuddy-init` image. None is published yet;
+check [releases](https://github.com/databuddy-analytics/Databuddy/releases) before starting.
+You'll need Git and Docker Compose for this setup.
 
 ```bash
-# 1. Configure environment
-cp .env.example .env
-# Edit .env — set IMAGE_TAG, URL-safe database/cache passwords, public URLs,
-# BETTER_AUTH_SECRET, DATABUDDY_ENCRYPTION_KEY, IP_HASH_SALT, and
-# AI_GATEWAY_API_KEY. Make the local database URLs use the same credentials
-# before running the initialization commands below.
-
-# 2. Start databases and cache
-docker compose -f docker-compose.selfhost.yml up -d postgres clickhouse redis
-
-# 3. Initialize databases from the repo checkout (first run only)
-bun install --frozen-lockfile
-bun run db:push
-bun run clickhouse:init
-
-# 4. Start backend services
-docker compose -f docker-compose.selfhost.yml up -d
+git clone https://github.com/databuddy-analytics/Databuddy.git
+cd Databuddy
+git checkout YOUR_RELEASE_TAG
+cp selfhost.env.example .env
 ```
 
-Services started:
-- **API** → `localhost:3001`
-- **Basket** (event ingestion) → `localhost:4000`
-- **Insights** (investigation worker) → `localhost:4002`
-- **Links** (short links) → `localhost:2500`
+In `.env`, set:
 
-All ports are configurable via env vars (`API_PORT`, `BASKET_PORT`, etc.). See the compose file comments for the full env var reference.
+- `IMAGE_TAG` to the release you checked out.
+- `POSTGRES_PASSWORD`, `CLICKHOUSE_PASSWORD`, and `REDIS_PASSWORD` to URL-safe passwords.
+- `BETTER_AUTH_SECRET` and `DATABUDDY_ENCRYPTION_KEY` to separate random secrets.
 
-## 🤝 Contributing
+The template includes local URLs. Compose supplies database connections,
+`SELFHOST`, and browser settings; you don't need to repeat them in `.env`.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Generate each password and secret separately with `openssl rand -hex 32`.
+Then start Databuddy:
 
-## 🔒 Security
+```bash
+# Start the databases and create their schemas
+docker compose -f docker-compose.selfhost.yml run --rm init
 
-See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
+# Build the dashboard for your URLs and start the apps
+docker compose -f docker-compose.selfhost.yml up -d --build
+```
 
-## ❓ FAQ
+Open your dashboard URL, create an account, and add your first website.
+The stack includes the dashboard, API, Basket event collector, uptime worker,
+and short-link service (port `2500`). Ports are configurable in `docker-compose.selfhost.yml`.
 
-### General
+For a public instance, replace the template's local URLs with your HTTPS URLs.
+Keep the dashboard and API on the same parent domain. Set `BETTER_AUTH_COOKIE_DOMAIN`, such as `.example.com`,
+to share login across subdomains. Leave it empty for localhost. Rebuild the
+dashboard after changing public URLs; they're part of its browser bundle.
 
-1. **What is Databuddy?**
-   Databuddy is a comprehensive analytics and data management platform.
+### Optional services
 
-2. **How do I get started?**
-   Follow the [Getting Started](https://www.databuddy.cc/docs/getting-started) guide.
+- **Email:** For resets, invitations, and alerts, set `RESEND_API_KEY` and an `EMAIL_FROM` sender on your verified domain, such as `Databuddy <no-reply@example.com>`. Leave `ALERTS_EMAIL_FROM` empty to use the same sender. Once both email settings are configured, set `REQUIRE_EMAIL_VERIFICATION=true` to require verified accounts. Recreate the services after changes.
+- **Social login:** Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, or `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`. Register your dashboard's `/api/auth/callback/google` or `/api/auth/callback/github` URL with the provider, then recreate the services. Sign-in options appear when configured; password sign-in works without email or social providers.
+- **Insights:** Set `AI_GATEWAY_API_KEY` and `COMPOSE_PROFILES=insights` in `.env`, then rerun `docker compose -f docker-compose.selfhost.yml up -d --build`. Website research also needs `FIRECRAWL_API_KEY`.
+- **Status pages:** Deploy [the status app](apps/status) separately with [Node, Bun, and dependencies](CONTRIBUTING.md#run-locally). From the repo root, set your API and status URLs before building:
 
-3. **Is it free?**
-   Check our [pricing page](https://databuddy.cc/pricing).
+  ```bash
+  export NEXT_PUBLIC_SELFHOST=true
+  export NEXT_PUBLIC_API_URL=https://api.example.com
+  export NEXT_PUBLIC_STATUS_URL=https://status.example.com
+  NODE_ENV=production bun run --cwd apps/status build
+  NODE_ENV=production bun run --cwd apps/status start
+  ```
 
-### Technical
+  The app listens on port `3002`. Set the matching `STATUS_URL` in your Compose `.env` and rebuild the dashboard to enable public links.
+- **DQL:** Requires separate setup: a restricted `dql_user` and `CLICKHOUSE_DQL_URL` passed to the API in Compose. Use HTTPS outside loopback and never use the application's admin credentials. See the [DQL setup script](packages/db/src/clickhouse/dql.ts).
 
-1. **What are the system requirements?**
-   See [Prerequisites](#prerequisites).
+Self-hosting is still evolving. If you get stuck, [tell us what happened](https://github.com/databuddy-analytics/Databuddy/issues) or ask in [Discord](https://discord.gg/JTk7a38tCZ).
 
-2. **How do I deploy?**
-   See the deployment documentation in our [docs](https://databuddy.cc/docs).
+### Upgrade your instance
 
-3. **How do I contribute?**
-   See [Contributing](#contributing).
+Back up your databases and `.env`, check out the new release in the same directory,
+and update `IMAGE_TAG`.
+Keep your existing `DATABUDDY_ENCRYPTION_KEY` so stored data stays readable.
+Pull the images, then apply PostgreSQL changes so you can review any prompts:
 
-## 💬 Support
+```bash
+docker compose -f docker-compose.selfhost.yml pull --ignore-buildable
+docker compose -f docker-compose.selfhost.yml pull init
+docker compose -f docker-compose.selfhost.yml run --rm init bun run --cwd packages/db db:push
+```
 
-- [Documentation](https://www.databuddy.cc/docs)
-- [Discord](https://discord.gg/JTk7a38tCZ)
-- [Twitter](https://twitter.com/trydatabuddy)
-- [GitHub Issues](https://github.com/databuddy-analytics/Databuddy/issues)
-- [Email Support](mailto:support@databuddy.cc)
+If you decline a change, stop the upgrade. After accepting the changes, create
+any missing ClickHouse tables and views:
 
-## 📄 License
+```bash
+docker compose -f docker-compose.selfhost.yml run --rm init bun --cwd packages/db src/clickhouse/setup.ts
+```
 
-This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See the [LICENSE](LICENSE) file for details.
+This creates missing objects; it doesn't update existing ones. Apply any extra
+migrations in the release notes before starting the updated apps with
+`docker compose -f docker-compose.selfhost.yml up -d --build`.
 
-Copyright (c) 2025 Databuddy Analytics, Inc.
+## Stay in touch
+
+[Docs](https://www.databuddy.cc/docs) · [Discord](https://discord.gg/JTk7a38tCZ) · [GitHub issues](https://github.com/databuddy-analytics/Databuddy/issues) · [Email](mailto:support@databuddy.cc)
+
+Found a security issue? Please follow [SECURITY.md](SECURITY.md).
+
+## License
+
+[AGPL-3.0](LICENSE). Copyright (c) 2025 Databuddy Analytics, Inc.
+
+[<img alt="Vercel OSS Program" src="https://vercel.com/oss/program-badge.svg" />](https://vercel.com/oss)

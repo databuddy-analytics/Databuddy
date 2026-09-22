@@ -36,8 +36,8 @@ const COMPACT_ROWS: AlertCardRow[] = [
 		tone: "warning",
 	},
 	{
-		id: "console",
-		title: "console.error: API timeout",
+		id: "custom",
+		title: "trackError: payment declined",
 		meta: "8m ago",
 		tone: "success",
 	},

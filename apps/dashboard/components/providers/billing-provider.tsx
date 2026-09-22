@@ -1,14 +1,22 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
+import {
+	hasInvestigationAllowance,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
+
 import {
 	FEATURE_METADATA,
 	type FeatureId,
+	type FeatureLimit,
 	type GatedFeatureId,
 	getMinimumPlanForFeature,
-	getPlanCapabilities as getPlanCapabilitiesForPlan,
+	getNextPlanForFeature,
+	getPlanFeatureLimit,
 	isPlanFeatureEnabled,
 	PLAN_IDS,
-	type PlanCapabilities,
 	type PlanId,
 } from "@databuddy/shared/types/features";
 import { useQuery } from "@tanstack/react-query";
@@ -16,13 +24,13 @@ import { useCustomer, useListPlans } from "autumn-js/react";
 import { useParams, usePathname } from "next/navigation";
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 import { isDashboardE2E } from "@/lib/e2e-mode";
+import { summarizeInvestigationBalance } from "@/lib/investigation-usage";
 import { orpc } from "@/lib/orpc";
 
 type HookCustomer = NonNullable<ReturnType<typeof useCustomer>["data"]>;
 type HookPlan = NonNullable<ReturnType<typeof useListPlans>["data"]>[number];
-type HookBalance = NonNullable<HookCustomer["balances"]>[string];
 
-export interface FeatureAccess {
+interface FeatureAccess {
 	allowed: boolean;
 	balance: number;
 	limit: number;
@@ -30,9 +38,11 @@ export interface FeatureAccess {
 	usagePercent: number | null;
 }
 
-export interface GatedFeatureAccess {
+interface GatedFeatureAccess {
 	allowed: boolean;
+	limit: FeatureLimit;
 	minPlan: PlanId | null;
+	nextPlan: PlanId | null;
 	upgradeMessage: string | null;
 }
 
@@ -41,15 +51,15 @@ export interface BillingContextValue {
 	canUserUpgrade: boolean;
 	currentPlanId: string | null;
 	customer: HookCustomer | null;
-	getBalance: (featureId: FeatureId | string) => HookBalance | null;
 	getGatedFeatureAccess: (feature: GatedFeatureId) => GatedFeatureAccess;
-	getPlanCapabilities: () => PlanCapabilities;
 	getUpgradeMessage: (
 		featureId: FeatureId | GatedFeatureId | string
 	) => string | null;
 	getUsage: (featureId: FeatureId | string) => FeatureAccess;
 	hasActiveSubscription: boolean;
+	isError: boolean;
 	isFeatureEnabled: (feature: GatedFeatureId) => boolean;
+	isFetching: boolean;
 	isFree: boolean;
 	isLoading: boolean;
 	isOrganizationBilling: boolean;
@@ -68,6 +78,8 @@ interface BillingProviderProps {
 const DEMO_BILLING_VALUE: BillingContextValue = {
 	customer: null,
 	plans: [],
+	isError: false,
+	isFetching: false,
 	isLoading: false,
 	hasActiveSubscription: true,
 	currentPlanId: PLAN_IDS.SCALE,
@@ -75,7 +87,6 @@ const DEMO_BILLING_VALUE: BillingContextValue = {
 	isOrganizationBilling: false,
 	canUserUpgrade: true,
 	canUse: () => true,
-	getBalance: () => null,
 	getUsage: () => ({
 		allowed: true,
 		balance: 0,
@@ -86,11 +97,12 @@ const DEMO_BILLING_VALUE: BillingContextValue = {
 	isFeatureEnabled: () => true,
 	getGatedFeatureAccess: () => ({
 		allowed: true,
+		limit: "unlimited",
 		minPlan: null,
+		nextPlan: null,
 		upgradeMessage: null,
 	}),
 	getUpgradeMessage: () => null,
-	getPlanCapabilities: () => getPlanCapabilitiesForPlan(PLAN_IDS.SCALE),
 	refetch: () => {},
 };
 
@@ -107,6 +119,9 @@ export function BillingProvider({
 	public: isPublic,
 	websiteId,
 }: BillingProviderProps) {
+	if (isSelfHosted && !isPublic) {
+		return <SelfHostedBillingProvider>{children}</SelfHostedBillingProvider>;
+	}
 	if (isPublic || isDashboardE2E) {
 		return <PublicBillingProvider>{children}</PublicBillingProvider>;
 	}
@@ -114,6 +129,36 @@ export function BillingProvider({
 		<AuthenticatedBillingProvider websiteId={websiteId}>
 			{children}
 		</AuthenticatedBillingProvider>
+	);
+}
+
+function SelfHostedBillingProvider({ children }: { children: ReactNode }) {
+	const { data, isError, isFetching, isLoading, refetch } = useQuery({
+		...orpc.organizations.getBillingContext.queryOptions(),
+		retry: false,
+	});
+	const canUse = (feature: string) =>
+		feature === "events" || data?.aiConfigured === true;
+	const value: BillingContextValue = {
+		...DEMO_BILLING_VALUE,
+		currentPlanId: null,
+		hasActiveSubscription: false,
+		canUserUpgrade: false,
+		isError,
+		isFetching,
+		isLoading,
+		canUse,
+		getUsage: (feature) => ({
+			allowed: canUse(feature),
+			balance: 0,
+			limit: 0,
+			unlimited: canUse(feature),
+			usagePercent: null,
+		}),
+		refetch,
+	};
+	return (
+		<BillingContext.Provider value={value}>{children}</BillingContext.Provider>
 	);
 }
 
@@ -190,9 +235,6 @@ function AuthenticatedBillingProvider({
 			currentPlan?.autoEnable === true ||
 			!billingContext?.hasActiveSubscription;
 
-		const getBalance = (id: FeatureId | string): HookBalance | null =>
-			customer?.balances?.[id] ?? null;
-
 		const canUse = (id: FeatureId | string): boolean => {
 			const bal = customer?.balances?.[id];
 			if (!bal) {
@@ -242,7 +284,9 @@ function AuthenticatedBillingProvider({
 			const allowed = isPlanFeatureEnabled(currentPlanId, feature);
 			return {
 				allowed,
+				limit: getPlanFeatureLimit(currentPlanId, feature),
 				minPlan: getMinimumPlanForFeature(feature),
+				nextPlan: getNextPlanForFeature(currentPlanId, feature),
 				upgradeMessage: allowed
 					? null
 					: (FEATURE_METADATA[feature]?.upgradeMessage ?? null),
@@ -255,9 +299,6 @@ function AuthenticatedBillingProvider({
 			FEATURE_METADATA[id as FeatureId | GatedFeatureId]?.upgradeMessage ??
 			null;
 
-		const getPlanCapabilities = (): PlanCapabilities =>
-			getPlanCapabilitiesForPlan(currentPlanId);
-
 		const refetch = () => {
 			refetchCustomer();
 			refetchBillingContext();
@@ -267,6 +308,8 @@ function AuthenticatedBillingProvider({
 		return {
 			customer: customer ?? null,
 			plans: plans ?? [],
+			isError: false,
+			isFetching: false,
 			isLoading: isCustomerLoading || isPlansLoading || isBillingContextLoading,
 			hasActiveSubscription: Boolean(billingContext?.hasActiveSubscription),
 			currentPlanId,
@@ -275,11 +318,9 @@ function AuthenticatedBillingProvider({
 			canUserUpgrade,
 			canUse,
 			getUsage,
-			getBalance,
 			isFeatureEnabled,
 			getGatedFeatureAccess,
 			getUpgradeMessage,
-			getPlanCapabilities,
 			refetch,
 		};
 	}, [
@@ -314,5 +355,20 @@ export function useUsageFeature(featureId: FeatureId) {
 		canUse: canUse(featureId),
 		upgradeMessage: getUpgradeMessage(featureId),
 		isFree,
+	};
+}
+
+export function useInvestigationUsage() {
+	const { customer } = useBillingContext();
+	const balance = customer?.balances?.[INVESTIGATION_USAGE.featureId];
+	const usage = useUsageFeature(INVESTIGATION_USAGE.featureId);
+	const details = summarizeInvestigationBalance(balance ?? null);
+	const allowed = hasInvestigationAllowance(balance);
+	return {
+		...usage,
+		...details,
+		fixedPrice: allowed,
+		hasAccess: isSelfHosted ? usage.canUse : allowed,
+		canUse: isSelfHosted ? usage.canUse : allowed && details.canUse,
 	};
 }

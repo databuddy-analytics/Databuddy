@@ -3,7 +3,7 @@ export type ManifestoBlock =
 	| { type: "callout"; text: string }
 	| { type: "prompts"; items: readonly string[] };
 
-export type ManifestoChapterId =
+type ManifestoChapterId =
 	| "analytics-is-broken"
 	| "context-is-everything"
 	| "privacy-is-the-default"
@@ -20,8 +20,8 @@ export interface ManifestoChapter {
 export const manifestoIntro = {
 	title: "The Databuddy Manifesto",
 	lead: [
-		"I built Databuddy because I was tired of pretending the analytics industry wasn't broken. Every tool I used was either spying on my users, drowning me in dashboards I'd never read, or charging me enterprise prices to answer questions a five-year-old could phrase better.",
-		"So I stopped waiting for someone to fix it. Here's what I believe.",
+		"I built Databuddy because I wanted to understand what changed in my product without reconstructing the answer across separate analytics, error, and performance tools.",
+		"Here's what guides the product.",
 	],
 } as const;
 
@@ -33,19 +33,15 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 		blocks: [
 			{
 				type: "paragraph",
-				text: "Google Analytics violated GDPR so many times that entire countries banned it. Then they replaced it with GA4, which somehow made everything worse. Amplitude costs more than most startups' entire cloud bill. PostHog ships a script heavier than some landing pages.",
+				text: "A traffic chart can show a drop without explaining it. An error report can show a failure without showing its effect on conversions. I wanted those pieces connected.",
 			},
 			{
 				type: "paragraph",
-				text: "And what do you get for all of it? Dashboards. Hundreds of dashboards nobody opens after the first week.",
-			},
-			{
-				type: "paragraph",
-				text: "The industry optimized for complexity because complexity justifies pricing tiers. More features, more seats, more events, more money. Nobody stopped to ask whether any of it actually helped you make a better product.",
+				text: "Every feature we add should help someone answer a product question or act on a finding. If it only adds another screen to maintain, we should question it.",
 			},
 			{
 				type: "callout",
-				text: "If your tool needs a certification program, it's not a tool. It's a tax.",
+				text: "Make the answer easier to find.",
 			},
 		],
 	},
@@ -56,11 +52,11 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 		blocks: [
 			{
 				type: "paragraph",
-				text: "Here's the dirty secret about privacy-focused analytics: most of them just show you numbers.",
+				text: "Traffic, errors, and conversions are more useful when you can examine them together.",
 			},
 			{
 				type: "paragraph",
-				text: "Page views. Bounce rates. Referrers. Clean, private, and completely useless on their own.",
+				text: "Pageviews, bounce rates, and referrers are useful starting points. The next step is understanding the activity behind them.",
 			},
 			{
 				type: "paragraph",
@@ -68,15 +64,15 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 			},
 			{
 				type: "paragraph",
-				text: "Raw data is not insight. Context is. That means connecting web analytics to product analytics to errors to performance, all in one place, so you can trace a user\u2019s journey from first click to \u201Caha\u201D moment without duct-taping four tools together.",
+				text: "Raw data is not insight. Context is. That means connecting web analytics to product analytics to errors to performance, all in one place, so you can trace a user’s journey from first click to “aha” moment without duct-taping four tools together.",
 			},
 			{
 				type: "paragraph",
-				text: "Every privacy tool out there got the first part right: stop tracking people. But they stopped too early. They gave you the numbers and left you to figure out the story yourself.",
+				text: "I want Databuddy to show the evidence behind a finding so you can inspect it, challenge it, and decide what to do.",
 			},
 			{
 				type: "callout",
-				text: "I\u2019m building the tool that tells you the story.",
+				text: "I’m building the tool that tells you the story.",
 			},
 		],
 	},
@@ -87,19 +83,19 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 		blocks: [
 			{
 				type: "paragraph",
-				text: "Some companies put \u201Cprivacy-first\u201D in their tagline and charge you extra for it. Others use it as a marketing angle while still fingerprinting your users behind the scenes.",
+				text: "Privacy decisions should be visible in the collection settings and documentation. People should be able to understand what is collected and why.",
 			},
 			{
 				type: "callout",
-				text: "Privacy isn\u2019t a feature. It\u2019s the bare minimum.",
+				text: "Privacy isn’t a feature. It’s the bare minimum.",
 			},
 			{
 				type: "paragraph",
-				text: "Databuddy\u2019s tracking script is 30KB. No cookies. No fingerprints. No personal identifiers. No consent banners scaring away 30\u201340% of your visitors before they even see your product. You install it, and it works. Your users never know it\u2019s there, because it never asks them for anything.",
+				text: "Databuddy’s tracker is about 13 KB gzipped and uses browser storage instead of analytics cookies. User identification is optional. Website owners choose what to collect and remain responsible for their privacy notices and consent requirements.",
 			},
 			{
 				type: "paragraph",
-				text: "This isn\u2019t a tradeoff. You don\u2019t lose insights by respecting people. You lose insights by making half your visitors click away from a cookie popup.",
+				text: "Collect what you need, explain it clearly, and respect the choices people make.",
 			},
 		],
 	},
@@ -114,7 +110,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 			},
 			{
 				type: "paragraph",
-				text: "I don\u2019t think you should need to learn a query builder, memorize filter syntax, or drag widgets around a canvas to understand your own product. You should just ask.",
+				text: "I don’t think you should need to learn a query builder, memorize filter syntax, or drag widgets around a canvas to understand your own product. You should just ask.",
 			},
 			{
 				type: "prompts",
@@ -130,7 +126,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 			},
 			{
 				type: "paragraph",
-				text: "The future of analytics isn\u2019t more dashboards. It\u2019s fewer. It\u2019s an agent that knows your data well enough to surface what matters and shut up about what doesn\u2019t.",
+				text: "The future of analytics isn’t more dashboards. It’s fewer. It’s an agent that knows your data well enough to surface what matters and shut up about what doesn’t.",
 			},
 		],
 	},
@@ -141,11 +137,11 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 		blocks: [
 			{
 				type: "paragraph",
-				text: "Databuddy is for the founder who checks analytics between deploys. The engineer who wants to know if the feature they shipped last night actually moved a number. The two-person team that doesn\u2019t have a \u201Cdata person\u201D and shouldn\u2019t need one.",
+				text: "Databuddy is for the founder who checks analytics between deploys. The engineer who wants to know if the feature they shipped last night actually moved a number. The two-person team that doesn’t have a “data person” and shouldn’t need one.",
 			},
 			{
 				type: "paragraph",
-				text: "I\u2019m not building for enterprises with 50-person data teams. I\u2019m building for the people who are actually making things, and who need their tools to stay out of the way while they do it.",
+				text: "I’m not building for enterprises with 50-person data teams. I’m building for the people who are actually making things, and who need their tools to stay out of the way while they do it.",
 			},
 			{
 				type: "callout",
@@ -153,7 +149,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 			},
 			{
 				type: "paragraph",
-				text: "That\u2019s it. That\u2019s Databuddy.",
+				text: "That’s it. That’s Databuddy.",
 			},
 		],
 	},

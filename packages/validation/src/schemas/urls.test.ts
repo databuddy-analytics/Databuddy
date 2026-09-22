@@ -21,4 +21,10 @@ describe("httpUrlSchema", () => {
 			expect(httpUrlSchema.safeParse(url).success).toBe(false);
 		}
 	});
+
+	test("rejects relative and protocol-relative values", () => {
+		for (const url of ["/path/only", "//example.com/path", "example.com"]) {
+			expect(httpUrlSchema.safeParse(url).success).toBe(false);
+		}
+	});
 });

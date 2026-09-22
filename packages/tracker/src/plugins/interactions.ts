@@ -1,31 +1,244 @@
 import type { BaseTracker } from "../core/tracker";
 
+const interactionEvents = [
+	"mousedown",
+	"keydown",
+	"scroll",
+	"touchstart",
+	"click",
+	"keypress",
+	"mousemove",
+] as const;
+
+const counterByEvent: Partial<
+	Record<
+		(typeof interactionEvents)[number],
+		"clickCount" | "keyCount" | "scrollCount"
+	>
+> = {
+	click: "clickCount",
+	keydown: "keyCount",
+	scroll: "scrollCount",
+};
+
+const RAGE_CLICK_WINDOW_MS = 1000;
+const RAGE_CLICK_THRESHOLD = 3;
+const DEAD_CLICK_WINDOW_MS = 500;
+
+const INTERACTIVE_SELECTOR =
+	'a,button,input,select,textarea,summary,label,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[onclick],[data-track]';
+
+const FORM_FIELD_SELECTOR = "input,select,textarea";
+
+const LEAVES_DOCUMENT_HREF = /^(?:mailto|tel|sms):/i;
+const GENERATED_TOKEN = /^[:_-]|\d{3,}|[0-9a-f]{8,}/i;
+const TARGET_MAX_LENGTH = 32;
+
+function normalizeLabel(value: string | null | undefined): string {
+	const text = value?.replace(/\s+/g, " ").trim().toLowerCase() ?? "";
+	return text
+		.replace(/\S+@\S+/g, "#")
+		.replace(/\d+/g, "#")
+		.slice(0, TARGET_MAX_LENGTH);
+}
+
+function stableAttribute(element: Element, name: string): string | null {
+	const value = element.getAttribute(name);
+	return value && !GENERATED_TOKEN.test(value) ? value : null;
+}
+
+function fieldLabel(element: Element): string | null {
+	return (
+		(element as HTMLInputElement).labels?.[0]?.textContent ||
+		element.getAttribute("placeholder")
+	);
+}
+
+export function describeTarget(element: Element): string {
+	const tag = element.tagName.toLowerCase();
+	const kind =
+		element.getAttribute("role") ??
+		(tag === "input" ? (element.getAttribute("type") ?? "text") : null);
+	const prefix = kind ? `${tag}:${kind}` : tag;
+	const name =
+		element.getAttribute("data-track") ??
+		element.getAttribute("aria-label") ??
+		stableAttribute(element, "name") ??
+		stableAttribute(element, "id") ??
+		(element.matches(FORM_FIELD_SELECTOR)
+			? fieldLabel(element)
+			: element.matches("a,button,summary,[role]")
+				? element.textContent
+				: null);
+	const label = normalizeLabel(name);
+	return `${prefix}:${label || "unnamed"}`;
+}
+
+function leavesDocument(event: MouseEvent, element: Element): boolean {
+	if (
+		event.button !== 0 ||
+		event.metaKey ||
+		event.ctrlKey ||
+		event.shiftKey ||
+		event.altKey
+	) {
+		return true;
+	}
+	const anchor = element.closest("a");
+	if (!anchor) {
+		return false;
+	}
+	return (
+		anchor.target.toLowerCase() === "_blank" ||
+		anchor.hasAttribute("download") ||
+		LEAVES_DOCUMENT_HREF.test(anchor.getAttribute("href") ?? "")
+	);
+}
+
 export function initInteractionTracking(tracker: BaseTracker): () => void {
 	if (tracker.isServer()) {
 		return () => {};
 	}
 
-	const interactionEvents = [
-		"mousedown",
-		"keydown",
-		"scroll",
-		"touchstart",
-		"click",
-		"keypress",
-		"mousemove",
-	];
-
-	const handler = () => {
-		tracker.interactionCount += 1;
-	};
+	const cleanupFns: Array<() => void> = [];
 
 	for (const eventType of interactionEvents) {
+		const counter = counterByEvent[eventType];
+		const handler = () => {
+			tracker.interactionCount += 1;
+			tracker.firstInteractionAt ||= Date.now();
+			if (counter) {
+				tracker[counter] += 1;
+			}
+		};
+
 		window.addEventListener(eventType, handler, { passive: true });
+		cleanupFns.push(() => window.removeEventListener(eventType, handler));
 	}
 
+	let lastClickTarget: EventTarget | null = null;
+	let lastClickAt = 0;
+	let clickStreak = 0;
+
+	const deadClickTimers = new Set<ReturnType<typeof setTimeout>>();
+	let lastMutationAt = 0;
+
+	const mutationObserver =
+		typeof MutationObserver === "undefined"
+			? null
+			: new MutationObserver(() => {
+					lastMutationAt = Date.now();
+				});
+
+	const countRageClick = (target: EventTarget | null, now: number) => {
+		if (
+			target === lastClickTarget &&
+			now - lastClickAt <= RAGE_CLICK_WINDOW_MS
+		) {
+			clickStreak += 1;
+			if (clickStreak === RAGE_CLICK_THRESHOLD) {
+				tracker.rageClickCount += 1;
+				if (target instanceof Element) {
+					tracker.rageClickTarget = describeTarget(
+						target.closest(INTERACTIVE_SELECTOR) ?? target
+					);
+				}
+			}
+		} else {
+			clickStreak = 1;
+		}
+
+		lastClickTarget = target;
+		lastClickAt = now;
+	};
+
+	const watchForDeadClick = (event: MouseEvent, now: number) => {
+		const element = event.target instanceof Element ? event.target : null;
+		const interactive = element?.closest(INTERACTIVE_SELECTOR);
+		if (
+			!(mutationObserver && element && interactive) ||
+			leavesDocument(event, element)
+		) {
+			return;
+		}
+
+		const hrefAtClick = window.location.href;
+		if (deadClickTimers.size === 0) {
+			mutationObserver.observe(document, {
+				subtree: true,
+				childList: true,
+				attributes: true,
+			});
+		}
+
+		const timer = setTimeout(() => {
+			deadClickTimers.delete(timer);
+			if (deadClickTimers.size === 0) {
+				mutationObserver.disconnect();
+			}
+			if (lastMutationAt < now && window.location.href === hrefAtClick) {
+				tracker.deadClickCount += 1;
+				tracker.deadClickTarget = describeTarget(interactive);
+			}
+		}, DEAD_CLICK_WINDOW_MS);
+		deadClickTimers.add(timer);
+	};
+
+	const behaviourClickHandler = (event: MouseEvent) => {
+		const now = Date.now();
+		countRageClick(event.target, now);
+		watchForDeadClick(event, now);
+	};
+
+	const copyHandler = () => {
+		tracker.copyCount += 1;
+	};
+
+	let touchedFields = new WeakSet<Element>();
+	let touchedFieldsPageStart = tracker.pageStartTime;
+
+	const focusHandler = (event: FocusEvent) => {
+		const element = event.target instanceof Element ? event.target : null;
+		if (!(element?.matches(FORM_FIELD_SELECTOR) && element.closest("form"))) {
+			return;
+		}
+		if (touchedFieldsPageStart !== tracker.pageStartTime) {
+			touchedFields = new WeakSet<Element>();
+			touchedFieldsPageStart = tracker.pageStartTime;
+		}
+		if (touchedFields.has(element)) {
+			return;
+		}
+
+		touchedFields.add(element);
+		tracker.formFieldCount += 1;
+		tracker.lastFormField = describeTarget(element);
+	};
+
+	const submitHandler = () => {
+		tracker.formSubmitCount += 1;
+	};
+
+	document.addEventListener("click", behaviourClickHandler, { passive: true });
+	document.addEventListener("copy", copyHandler, { passive: true });
+	document.addEventListener("focusin", focusHandler, { passive: true });
+	document.addEventListener("submit", submitHandler, { passive: true });
+
+	cleanupFns.push(() => {
+		document.removeEventListener("click", behaviourClickHandler);
+		document.removeEventListener("copy", copyHandler);
+		document.removeEventListener("focusin", focusHandler);
+		document.removeEventListener("submit", submitHandler);
+		for (const timer of deadClickTimers) {
+			clearTimeout(timer);
+		}
+		deadClickTimers.clear();
+		mutationObserver?.disconnect();
+	});
+
 	return () => {
-		for (const eventType of interactionEvents) {
-			window.removeEventListener(eventType, handler);
+		for (const cleanup of cleanupFns) {
+			cleanup();
 		}
 	};
 }

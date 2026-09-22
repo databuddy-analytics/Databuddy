@@ -3,18 +3,19 @@ import { Footer } from "@/components/footer";
 import Section from "@/components/landing/section";
 
 import { StructuredData } from "@/components/structured-data";
+import { Suspense } from "react";
 import ContactForm from "./contact-form";
 import ContactHero from "./contact-hero";
 
 export const metadata: Metadata = {
-	title: "Contact Us | Databuddy",
+	title: "Contact Us",
 	description:
 		"Get in touch with the Databuddy team. We'd love to hear from you.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/contact",
 	},
 	openGraph: {
-		title: "Contact Us | Databuddy",
+		title: "Contact Us",
 		description:
 			"Get in touch with the Databuddy team. We'd love to hear from you.",
 		url: "https://www.databuddy.cc/contact",
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
 };
 
 export default function ContactPage() {
-	const title = "Contact Us | Databuddy";
+	const title = "Contact Us";
 	const description =
 		"Get in touch with the Databuddy team. We'd love to hear from you.";
 	const url = "https://www.databuddy.cc/contact";
@@ -38,7 +39,9 @@ export default function ContactPage() {
 							<ContactHero />
 						</div>
 						<div className="lg:col-span-2">
-							<ContactForm />
+							<Suspense fallback={null}>
+								<ContactForm />
+							</Suspense>
 						</div>
 					</div>
 				</div>

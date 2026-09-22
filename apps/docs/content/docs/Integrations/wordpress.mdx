@@ -8,17 +8,17 @@ import { Steps, Step } from "@/components/docs";
 import { CodeBlock } from "@/components/docs";
 import { Card, Cards } from "@/components/docs";
 
-Add Databuddy's privacy-first analytics to your WordPress site with an asynchronous tracker that is about 12 KB gzipped. No cookies, fully GDPR compliant.
+Add Databuddy's privacy-first analytics to your WordPress site with an asynchronous tracker that is about 13 KB gzipped. The tracker uses browser storage instead of analytics cookies. Review your [privacy and consent configuration](/docs/compliance/gdpr-compliance-guide) before enabling collection.
 
 ## Installation Methods
 
-Choose the installation method that works best for your WordPress setup. If you're using WordPress.com (hosted), you'll need to use a plugin since direct theme editing isn't available. For self-hosted WordPress.org sites, you have more flexibility.
+Choose one installation method. WordPress.com requires a plan that supports plugins and custom JavaScript; see its [custom code requirements](https://wordpress.com/support/code/). Self-hosted WordPress supports the methods below.
 
 <Tabs items={['Plugin Method', 'functions.php Method', 'header.php Method']}>
   <Tab>
     **Using a Plugin (Recommended)**
 
-    The safest and easiest way to add Databuddy to WordPress is using a plugin that allows you to inject scripts without modifying theme files. This works for both WordPress.com and self-hosted installations.
+    The safest and easiest way to add Databuddy to WordPress is using a plugin that allows you to inject scripts without modifying theme files. Use a plugin-enabled WordPress.com plan or a self-hosted installation.
 
     <Steps>
       <Step title="Install a Script Injection Plugin">
@@ -32,6 +32,7 @@ Choose the installation method that works best for your WordPress setup. If you'
           code={`<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="YOUR_CLIENT_ID"
+  crossorigin="anonymous"
   async
 ></script>`}
         />
@@ -67,6 +68,7 @@ Choose the installation method that works best for your WordPress setup. If you'
   <script
     src="https://cdn.databuddy.cc/databuddy.js"
     data-client-id="YOUR_CLIENT_ID"
+    crossorigin="anonymous"
     async
   ></script>
   <?php
@@ -103,6 +105,7 @@ add_action('wp_head', 'add_databuddy_analytics');`}
           code={`<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="YOUR_CLIENT_ID"
+  crossorigin="anonymous"
   async
 ></script>
 </head>`}
@@ -127,6 +130,7 @@ Enable essential tracking features for most WordPress sites:
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="YOUR_CLIENT_ID"
   data-track-hash-changes
+  crossorigin="anonymous"
   async
 ></script>`}
 />
@@ -145,6 +149,7 @@ For more detailed analytics, enable additional tracking options:
   data-track-interactions
   data-track-web-vitals
   data-track-errors
+  crossorigin="anonymous"
   async
 ></script>`}
 />
@@ -153,50 +158,30 @@ For more detailed analytics, enable additional tracking options:
 
 ### Form Submission Tracking
 
-Track submissions from popular WordPress form plugins using data attributes:
+Track form submission attempts with a submit handler. To measure successful submissions, use your form plugin’s success callback instead:
 
 <CodeBlock
   language="html"
-  code={`<!-- Contact Form 7 -->
-<input type="hidden" data-track="form_submit" data-form-type="contact">
-
-<!-- Gravity Forms -->
-<input type="hidden" data-track="form_submit" data-form-type="gravity">
-
-<!-- WPForms -->
-<input type="hidden" data-track="form_submit" data-form-type="wpforms">`}
-/>
-
-### Custom Post Type Analytics
-
-Track views of custom post types by adding this to your theme's `functions.php`:
-
-<CodeBlock
-  language="php"
-  filename="functions.php"
-  code={`function track_custom_post_types() {
-  if (is_singular('your_custom_post_type')) {
-    echo '<script>
-      if (window.databuddy) {
-        databuddy.track("custom_post_view", {
-          post_type: "' . esc_js(get_post_type()) . '",
-          post_id: ' . get_the_ID() . '
-        });
-      }
-    </script>';
+  code={`<script>
+document.addEventListener('submit', function (event) {
+  var form = event.target.closest('.wpcf7-form, .gform_wrapper form, .wpforms-form');
+  if (form && window.databuddy) {
+    databuddy.track('form_submit', {
+      form_id: form.id || 'unknown',
+      page_path: window.location.pathname
+    });
   }
-}
-add_action('wp_footer', 'track_custom_post_types');`}
+});
+</script>`}
 />
 
 ## Performance Benefits
 
 Databuddy is designed to have minimal impact on your WordPress site's performance:
 
-- **Lightweight**: About 12 KB gzipped for the current tracker bundle
-- **Non-blocking**: Loads asynchronously without affecting page speed
+- **Lightweight**: About 13 KB gzipped for the current tracker bundle
+- **Asynchronous loading**: Does not block HTML parsing; measure the script’s runtime impact
 - **Core Web Vitals**: Can collect field performance data when enabled
-- **Server Friendly**: Minimal server load compared to other analytics solutions
 
 ## Common Use Cases
 
@@ -216,12 +201,12 @@ Track premium content engagement:
 
 ### Blog Analytics
 
-Track article engagement and reading patterns:
+Track clicks anywhere inside an article (the `data-track` attribute fires on click, not on view):
 
 <CodeBlock
   language="html"
   code={`<article 
-  data-track="article_view" 
+  data-track="article_click" 
   data-category="tutorials" 
   data-author="author-name"
 >
@@ -250,7 +235,7 @@ Track conversion events and CTA clicks:
 
 If Databuddy isn't tracking:
 
-1. **Check Browser Console**: Open developer tools and look for errors or the "Databuddy initialized" message
+1. **Check the Network Tab**: Open developer tools and confirm the script loads from `cdn.databuddy.cc` and requests are sent to `basket.databuddy.cc`
 2. **Verify Script Placement**: Ensure the script is in the `<head>` or before `</body>`
 3. **Clear Cache**: Clear your WordPress cache (WP Rocket, W3 Total Cache, etc.) and browser cache
 4. **Test in Incognito**: Use incognito/private browsing to avoid cache issues

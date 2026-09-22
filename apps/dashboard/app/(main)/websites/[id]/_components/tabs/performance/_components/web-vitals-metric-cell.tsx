@@ -7,7 +7,7 @@ import {
 } from "@databuddy/ui/icons";
 
 interface WebVitalsMetricCellProps {
-	metric: "lcp" | "fcp" | "fid" | "inp" | "cls";
+	metric: "lcp" | "fcp" | "inp" | "cls";
 	value?: number;
 }
 
@@ -17,8 +17,6 @@ const getWebVitalsThresholds = (metric: string) => {
 			return { good: 2500, poor: 4000 };
 		case "fcp":
 			return { good: 1800, poor: 3000 };
-		case "fid":
-			return { good: 100, poor: 300 };
 		case "inp":
 			return { good: 200, poor: 500 };
 		case "cls":
@@ -65,15 +63,22 @@ export function WebVitalsMetricCell({
 	const formatted =
 		metric === "cls" ? value.toFixed(3) : formatPerformanceTime(value);
 	const { colorClass, isGood, isPoor } = getMetricStyles(value, metric);
-	const showIcon = isGood || isPoor;
 
 	return (
-		<div className="flex items-center gap-1">
+		<div className="flex items-center justify-end gap-1">
+			{isGood ? (
+				<CheckCircle
+					aria-hidden="true"
+					className="size-3.5 shrink-0 text-success"
+				/>
+			) : null}
+			{isPoor ? (
+				<Warning
+					aria-hidden="true"
+					className="size-3.5 shrink-0 text-destructive"
+				/>
+			) : null}
 			<span className={colorClass}>{formatted}</span>
-			{showIcon && isGood && (
-				<CheckCircle className="size-3.5 text-green-600" />
-			)}
-			{showIcon && isPoor && <Warning className="size-3.5 text-red-600" />}
 		</div>
 	);
 }

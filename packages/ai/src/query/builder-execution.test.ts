@@ -9,16 +9,34 @@ import {
 import { randomUUIDv7 } from "bun";
 import { chCommand, chQuery } from "@databuddy/db/clickhouse";
 import { QueryBuilders } from "./builders";
+import { filterFor } from "./filter-fixtures";
 import { SimpleQueryBuilder } from "./simple-builder";
 import { ProfilesBuilders } from "./builders/profiles";
-import type {
-	CompiledQuery,
-	Filter,
-	QueryRequest,
-	SimpleQueryConfig,
-} from "./types";
+import type { CompiledQuery, QueryRequest, SimpleQueryConfig } from "./types";
 
 const TEST_CLICKHOUSE_URL = "http://default:@127.0.0.1:8123";
+
+type ProfileSessionEventSource =
+	| "analytics"
+	| "custom"
+	| "error"
+	| "outgoing_link";
+
+type ProfileSessionEventTuple = [
+	id: string,
+	time: string,
+	eventName: string,
+	path: string,
+	properties: string | null,
+	source: ProfileSessionEventSource,
+];
+
+type ProfileSessionWebVitalTuple = [
+	metricName: string,
+	metricValue: number,
+	time: string,
+	path: string,
+];
 
 // Bun's fetch rejects userinfo in URLs, so the probe goes credential-free;
 // the ClickHouse client parses TEST_CLICKHOUSE_URL itself and is unaffected.
@@ -35,7 +53,9 @@ const { clickHouse } = await import("@databuddy/db/clickhouse");
 
 const iit = isClickHouseUp ? it : it.skip;
 const describeIntegration =
-	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true" ? describe : describe.skip;
+	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"
+		? describe
+		: describe.skip;
 
 if (isClickHouseUp) {
 	setDefaultTimeout(15_000);
@@ -50,10 +70,7 @@ if (!isClickHouseUp) {
 afterAll(async () => {
 	// The explicit integration run has more ClickHouse suites after this file.
 	// Isolated builder runs still close their client normally.
-	if (
-		isClickHouseUp &&
-		process.env.CLICKHOUSE_INTEGRATION_TESTS !== "true"
-	) {
+	if (isClickHouseUp && process.env.CLICKHOUSE_INTEGRATION_TESTS !== "true") {
 		await clickHouse.close();
 	}
 });
@@ -77,17 +94,9 @@ const FILTER_FIELD_OVERRIDES: Partial<
 	},
 };
 
-function filterFor(field: string): Filter {
-	return {
-		field,
-		op: "eq",
-		value: NUMERIC_FILTER_FIELDS.has(field) ? 1 : `test-${field}`,
-	};
-}
-
 function requestFor(
 	name: string,
-	config: SimpleQueryConfig,
+	_config: SimpleQueryConfig,
 	fields: string[]
 ): QueryRequest {
 	return {
@@ -95,7 +104,13 @@ function requestFor(
 		type: name,
 		from: "2026-01-01",
 		to: "2026-01-02",
-		filters: fields.map(filterFor),
+		filters: fields.map((field) =>
+			filterFor(
+				field,
+				"2026-02-01",
+				NUMERIC_FILTER_FIELDS.has(field) ? 1 : `test-${field}`
+			)
+		),
 		limit: 5,
 		offset: 0,
 	};
@@ -131,14 +146,12 @@ describe("query builders execute against ClickHouse", () => {
 			);
 		});
 
-		const allFilters =
-			FILTER_FIELD_OVERRIDES[name]?.all ??
-			[
-				...new Set([
-					...(config.requiredFilters ?? []),
-					...(config.allowedFilters ?? []),
-				]),
-			];
+		const allFilters = FILTER_FIELD_OVERRIDES[name]?.all ?? [
+			...new Set([
+				...(config.requiredFilters ?? []),
+				...(config.allowedFilters ?? []),
+			]),
+		];
 		if (allFilters.length > (config.requiredFilters ?? []).length) {
 			iit(`${name} compiles with every allowed filter applied`, async () => {
 				await explainCompiles(name, config, allFilters);
@@ -154,6 +167,10 @@ const collisionWebsiteId = `profile-builder-collision-${randomUUIDv7()}`;
 const collisionProfileA = "profile-builder-collision-a";
 const collisionProfileB = "profile-builder-collision-b";
 const collisionSessionId = "profile-builder-collision-session";
+const customAliasWebsiteId = `profile-builder-custom-alias-${randomUUIDv7()}`;
+const customAliasProfileId = "profile-builder-custom-alias-user";
+const customAliasAnonymousId = "profile-builder-custom-alias-anonymous";
+const customAliasSessionId = "profile-builder-custom-alias-session";
 
 function collisionEvent(
 	anonymous_id: string,
@@ -176,7 +193,9 @@ function collisionEvent(
 	};
 }
 
-function requireQuery(query: string | CompiledQuery | undefined): CompiledQuery {
+function requireQuery(
+	query: string | CompiledQuery | undefined
+): CompiledQuery {
 	if (!query || typeof query === "string") {
 		throw new Error("Profile query did not compile");
 	}
@@ -272,6 +291,72 @@ describeIntegration("profile query identity against ClickHouse", () => {
 		});
 
 		await clickHouse.insert({
+			table: "analytics.custom_events",
+			format: "JSONEachRow",
+			values: [
+				{
+					anonymous_id: customAliasAnonymousId,
+					event_name: "identify_alias",
+					owner_id: customAliasWebsiteId,
+					path: "/custom-only-identity",
+					profile_id: customAliasProfileId,
+					properties: "{}",
+					session_id: customAliasSessionId,
+					timestamp: "2026-08-01 14:00:00",
+					website_id: customAliasWebsiteId,
+				},
+			],
+		});
+		await Promise.all([
+			clickHouse.insert({
+				table: "analytics.error_spans",
+				format: "JSONEachRow",
+				values: [
+					{
+						anonymous_id: customAliasAnonymousId,
+						client_id: customAliasWebsiteId,
+						error_type: "TypeError",
+						message: "custom-only alias error",
+						path: "/custom-only-identity",
+						session_id: customAliasSessionId,
+						timestamp: "2026-08-01 14:01:00",
+					},
+				],
+			}),
+			clickHouse.insert({
+				table: "analytics.outgoing_links",
+				format: "JSONEachRow",
+				values: [
+					{
+						anonymous_id: customAliasAnonymousId,
+						client_id: customAliasWebsiteId,
+						href: "https://example.test/custom-only-link",
+						id: randomUUIDv7(),
+						properties: "{}",
+						session_id: customAliasSessionId,
+						text: "custom-only link",
+						timestamp: "2026-08-01 14:02:00",
+					},
+				],
+			}),
+			clickHouse.insert({
+				table: "analytics.web_vitals_spans",
+				format: "JSONEachRow",
+				values: [
+					{
+						anonymous_id: customAliasAnonymousId,
+						client_id: customAliasWebsiteId,
+						metric_name: "LCP",
+						metric_value: 1234,
+						path: "/custom-only-identity",
+						session_id: customAliasSessionId,
+						timestamp: "2026-08-01 14:03:00",
+					},
+				],
+			}),
+		]);
+
+		await clickHouse.insert({
 			table: "analytics.events",
 			format: "JSONEachRow",
 			values: [
@@ -299,12 +384,7 @@ describeIntegration("profile query identity against ClickHouse", () => {
 					"/collision-b-identify",
 					"2026-08-01 12:03:00"
 				),
-				collisionEvent(
-					"",
-					"",
-					"/collision-unknown",
-					"2026-08-01 12:04:00"
-				),
+				collisionEvent("", "", "/collision-unknown", "2026-08-01 12:04:00"),
 			],
 		});
 	});
@@ -322,23 +402,46 @@ describeIntegration("profile query identity against ClickHouse", () => {
 			"ALTER TABLE analytics.events DELETE WHERE client_id = {websiteId:String} SETTINGS mutations_sync = 1",
 			{ websiteId: collisionWebsiteId }
 		);
+		await Promise.all([
+			chCommand(
+				"ALTER TABLE analytics.custom_events DELETE WHERE owner_id = {websiteId:String} SETTINGS mutations_sync = 1",
+				{ websiteId: customAliasWebsiteId }
+			),
+			chCommand(
+				"ALTER TABLE analytics.error_spans DELETE WHERE client_id = {websiteId:String} SETTINGS mutations_sync = 1",
+				{ websiteId: customAliasWebsiteId }
+			),
+			chCommand(
+				"ALTER TABLE analytics.outgoing_links DELETE WHERE client_id = {websiteId:String} SETTINGS mutations_sync = 1",
+				{ websiteId: customAliasWebsiteId }
+			),
+			chCommand(
+				"ALTER TABLE analytics.web_vitals_spans DELETE WHERE client_id = {websiteId:String} SETTINGS mutations_sync = 1",
+				{ websiteId: customAliasWebsiteId }
+			),
+		]);
 	});
 
 	it("stitches activity and keeps it in the identified profile filter", async () => {
-		const query = requireQuery(ProfilesBuilders.profile_list?.customSql?.({
-			endDate: "2026-08-02",
-			limit: 10,
-			offset: 0,
-			startDate: "2026-08-01",
-			websiteId,
-		}));
-		const filteredQuery = new SimpleQueryBuilder(ProfilesBuilders.profile_list, {
-			filters: [{ field: "profile_id", op: "ne", value: "" }],
-			from: "2026-08-01",
-			projectId: websiteId,
-			to: "2026-08-02",
-			type: "profile_list",
-		}).compile();
+		const query = requireQuery(
+			ProfilesBuilders.profile_list?.customSql?.({
+				endDate: "2026-08-02",
+				limit: 10,
+				offset: 0,
+				startDate: "2026-08-01",
+				websiteId,
+			})
+		);
+		const filteredQuery = new SimpleQueryBuilder(
+			ProfilesBuilders.profile_list,
+			{
+				filters: [{ field: "profile_id", op: "ne", value: "" }],
+				from: "2026-08-01",
+				projectId: websiteId,
+				to: "2026-08-02",
+				type: "profile_list",
+			}
+		).compile();
 
 		const [rows, filteredRows] = await Promise.all([
 			chQuery<{
@@ -366,28 +469,34 @@ describeIntegration("profile query identity against ClickHouse", () => {
 	});
 
 	it("does not cross-attribute reused sessions between profiles", async () => {
-		const listQuery = requireQuery(ProfilesBuilders.profile_list?.customSql?.({
-			endDate: "2026-08-02",
-			limit: 10,
-			offset: 0,
-			startDate: "2026-08-01",
-			websiteId: collisionWebsiteId,
-		}));
-		const detailQueries = [collisionProfileA, collisionProfileB].map((id) =>
-			requireQuery(ProfilesBuilders.profile_detail?.customSql?.({
+		const listQuery = requireQuery(
+			ProfilesBuilders.profile_list?.customSql?.({
 				endDate: "2026-08-02",
-				filters: [{ field: "anonymous_id", op: "eq", value: id }],
+				limit: 10,
+				offset: 0,
 				startDate: "2026-08-01",
 				websiteId: collisionWebsiteId,
-			}))
+			})
+		);
+		const detailQueries = [collisionProfileA, collisionProfileB].map((id) =>
+			requireQuery(
+				ProfilesBuilders.profile_detail?.customSql?.({
+					endDate: "2026-08-02",
+					filters: [{ field: "anonymous_id", op: "eq", value: id }],
+					startDate: "2026-08-01",
+					websiteId: collisionWebsiteId,
+				})
+			)
 		);
 		const sessionQueries = [collisionProfileA, collisionProfileB].map((id) =>
-			requireQuery(ProfilesBuilders.profile_sessions?.customSql?.({
-				endDate: "2026-08-02",
-				filters: [{ field: "anonymous_id", op: "eq", value: id }],
-				startDate: "2026-08-01",
-				websiteId: collisionWebsiteId,
-			}))
+			requireQuery(
+				ProfilesBuilders.profile_sessions?.customSql?.({
+					endDate: "2026-08-02",
+					filters: [{ field: "anonymous_id", op: "eq", value: id }],
+					startDate: "2026-08-01",
+					websiteId: collisionWebsiteId,
+				})
+			)
 		);
 
 		const [listRows, detailRows, sessionRows] = await Promise.all([
@@ -397,14 +506,11 @@ describeIntegration("profile query identity against ClickHouse", () => {
 			),
 			Promise.all(
 				detailQueries.map((query) =>
-					chQuery<{ total_pageviews: number | string }>(
-						query.sql,
-						query.params
-					)
+					chQuery<{ total_pageviews: number | string }>(query.sql, query.params)
 				)
 			),
 			Promise.all(
-					sessionQueries.map((query) =>
+				sessionQueries.map((query) =>
 					chQuery<{
 						events: unknown[];
 						session_id: string;
@@ -421,8 +527,7 @@ describeIntegration("profile query identity against ClickHouse", () => {
 			[collisionProfileB, 2],
 		]);
 		expect(detailRows.map((rows) => Number(rows[0]?.total_pageviews))).toEqual([
-			2,
-			2,
+			2, 2,
 		]);
 		expect(sessionRows).toHaveLength(2);
 		for (const rows of sessionRows) {
@@ -432,18 +537,22 @@ describeIntegration("profile query identity against ClickHouse", () => {
 	});
 
 	it("uses the same stitched identity in profile detail and sessions", async () => {
-		const detailQuery = requireQuery(ProfilesBuilders.profile_detail?.customSql?.({
-			endDate: "2026-08-02",
-			filters: [{ field: "anonymous_id", op: "eq", value: profileId }],
-			startDate: "2026-08-01",
-			websiteId,
-		}));
-		const sessionsQuery = requireQuery(ProfilesBuilders.profile_sessions?.customSql?.({
-			endDate: "2026-08-02",
-			filters: [{ field: "anonymous_id", op: "eq", value: profileId }],
-			startDate: "2026-08-01",
-			websiteId,
-		}));
+		const detailQuery = requireQuery(
+			ProfilesBuilders.profile_detail?.customSql?.({
+				endDate: "2026-08-02",
+				filters: [{ field: "anonymous_id", op: "eq", value: profileId }],
+				startDate: "2026-08-01",
+				websiteId,
+			})
+		);
+		const sessionsQuery = requireQuery(
+			ProfilesBuilders.profile_sessions?.customSql?.({
+				endDate: "2026-08-02",
+				filters: [{ field: "anonymous_id", op: "eq", value: profileId }],
+				startDate: "2026-08-01",
+				websiteId,
+			})
+		);
 
 		const [detailRows, sessionRows] = await Promise.all([
 			chQuery<{ total_pageviews: number | string }>(
@@ -456,20 +565,51 @@ describeIntegration("profile query identity against ClickHouse", () => {
 		expect(Number(detailRows[0]?.total_pageviews)).toBe(4);
 		expect(sessionRows).toHaveLength(2);
 		expect(new Set(sessionRows.map((row) => row.session_id))).toEqual(
-			new Set([
-				"profile-builder-session-1",
-				"profile-builder-session-2",
-			])
+			new Set(["profile-builder-session-1", "profile-builder-session-2"])
 		);
 		expect(
-			sessionRows.find(
-				(row) => row.session_id === "profile-builder-session-1"
-			)?.events
+			sessionRows.find((row) => row.session_id === "profile-builder-session-1")
+				?.events
 		).toHaveLength(5);
 		expect(
-			sessionRows.find(
-				(row) => row.session_id === "profile-builder-session-2"
-			)?.events
+			sessionRows.find((row) => row.session_id === "profile-builder-session-2")
+				?.events
 		).toHaveLength(1);
+	});
+
+	it("keeps telemetry for an alias established only by a custom event", async () => {
+		const query = requireQuery(
+			ProfilesBuilders.profile_sessions?.customSql?.({
+				endDate: "2026-08-02",
+				filters: [
+					{ field: "anonymous_id", op: "eq", value: customAliasProfileId },
+				],
+				limit: 10,
+				offset: 0,
+				startDate: "2026-08-01",
+				websiteId: customAliasWebsiteId,
+			})
+		);
+		const rows = await chQuery<{
+			events: ProfileSessionEventTuple[];
+			session_id: string;
+			web_vitals: ProfileSessionWebVitalTuple[];
+		}>(query.sql, query.params);
+
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.session_id).toBe(customAliasSessionId);
+		expect(
+			rows[0]?.events.map(([, , eventName, , , source]) => [eventName, source])
+		).toEqual(
+			expect.arrayContaining([
+				["identify_alias", "custom"],
+				["TypeError", "error"],
+				["outgoing_link", "outgoing_link"],
+			])
+		);
+		expect(rows[0]?.web_vitals).toHaveLength(1);
+		const [vital] = rows[0]?.web_vitals ?? [];
+		expect(vital?.[0]).toBe("LCP");
+		expect(vital?.[1]).toBe(1234);
 	});
 });

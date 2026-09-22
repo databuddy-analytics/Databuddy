@@ -1,7 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-	parseFrozenInvestigationPlan,
-} from "./run-candidate-plan";
+import { parseFrozenInvestigationPlan } from "./run-candidate-plan";
 
 const candidate = {
 	evidence: ["The route recorded a materially higher error count."],
@@ -25,20 +23,6 @@ const candidate = {
 };
 
 describe("parseFrozenInvestigationPlan", () => {
-	it("accepts a bounded safe candidate snapshot", () => {
-		expect(
-			parseFrozenInvestigationPlan({
-				asOf: "2026-08-01T12:00:00.000Z",
-				candidates: [candidate],
-				reason: "manual",
-			})
-		).toEqual({
-			asOf: "2026-08-01T12:00:00.000Z",
-			candidates: [candidate],
-			reason: "manual",
-		});
-	});
-
 	it("accepts five distinct candidates for a manual full scan", () => {
 		const candidates = Array.from({ length: 5 }, (_, index) => ({
 			...candidate,
@@ -100,28 +84,23 @@ describe("parseFrozenInvestigationPlan", () => {
 		);
 	});
 
-	it("rejects falsy malformed snapshots", () => {
-		expect(() => parseFrozenInvestigationPlan(false)).toThrow();
-	});
-
-	it("rejects noncanonical persisted measurement candidates", () => {
-		expect(() =>
-			parseFrozenInvestigationPlan({
-				asOf: "2026-08-01T12:00:00.000Z",
-				candidates: [
-					{
-						...candidate,
-						measurementCandidate: {
-							basis: "observed_navigation_proxy",
-							kind: "page_navigation_proxy",
-							target: "//signup",
-							type: "PAGE_VIEW",
-						},
+	it("strips legacy measurement candidate keys from persisted plans", () => {
+		const plan = parseFrozenInvestigationPlan({
+			asOf: "2026-08-01T12:00:00.000Z",
+			candidates: [
+				{
+					...candidate,
+					measurementCandidate: {
+						basis: "observed_navigation_proxy",
+						kind: "page_navigation_proxy",
+						target: "//signup",
+						type: "PAGE_VIEW",
 					},
-				],
-				reason: "manual",
-			})
-		).toThrow("Measurement candidate target must be canonical");
+				},
+			],
+			reason: "manual",
+		});
+		expect(plan.candidates[0]).not.toHaveProperty("measurementCandidate");
 	});
 
 	it("accepts a typed empty snapshot so retries keep the same discovery result", () => {

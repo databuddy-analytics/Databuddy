@@ -24,6 +24,12 @@ interface TooltipState {
 	y: number;
 }
 
+interface MapColors {
+	backdrop: string;
+	land: string;
+	outline: string;
+}
+
 interface MapGeometry {
 	baseCanvas: HTMLCanvasElement;
 	countryPixels: Map<number, number[]>;
@@ -63,8 +69,7 @@ function getCountryId(countryCode: string): number | undefined {
 function buildMapGeometry(
 	width: number,
 	height: number,
-	background: string,
-	border: string
+	colors: MapColors
 ): MapGeometry {
 	const projection = geoNaturalEarth1().fitExtent(
 		[
@@ -83,15 +88,15 @@ function buildMapGeometry(
 		throw new Error("Unable to create the realtime map canvas");
 	}
 
-	baseContext.fillStyle = background;
+	baseContext.fillStyle = colors.backdrop;
 	baseContext.fillRect(0, 0, width, height);
+	baseContext.fillStyle = colors.land;
+	baseContext.strokeStyle = colors.outline;
+	baseContext.lineWidth = 0.5;
 	for (const country of WORLD_FEATURES) {
 		baseContext.beginPath();
 		path.context(baseContext)(country);
-		baseContext.fillStyle = background;
 		baseContext.fill();
-		baseContext.strokeStyle = border;
-		baseContext.lineWidth = 0.5;
 		baseContext.stroke();
 	}
 
@@ -186,7 +191,10 @@ export function RealtimeMap({ countries }: RealtimeMapProps) {
 		oy: number;
 	} | null>(null);
 	const [tooltip, setTooltip] = useState<TooltipState | null>(null);
-	countriesRef.current = countries;
+
+	useEffect(() => {
+		countriesRef.current = countries;
+	}, [countries]);
 
 	useEffect(() => {
 		const canvas = canvasRef.current;
@@ -206,6 +214,7 @@ export function RealtimeMap({ countries }: RealtimeMapProps) {
 		let hoveredId: number | null = null;
 		let background = "transparent";
 		let accent = "transparent";
+		let highlight = "transparent";
 
 		const applyTransform = () => {
 			const { scale, x, y } = viewRef.current;
@@ -231,13 +240,15 @@ export function RealtimeMap({ countries }: RealtimeMapProps) {
 			context.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
 			background = getCssColor("--background", background);
 			accent = getCssColor("--chart-4", accent);
+			highlight = getCssColor("--foreground", highlight);
 
-			mapGeometryRef.current = buildMapGeometry(
-				width,
-				height,
-				background,
-				getCssColor("--border", "transparent")
-			);
+			const border = getCssColor("--border", "transparent");
+			const isDark = document.documentElement.classList.contains("dark");
+			mapGeometryRef.current = buildMapGeometry(width, height, {
+				backdrop: background,
+				land: isDark ? background : border,
+				outline: isDark ? border : background,
+			});
 			brightnessRef.current.clear();
 			numericToCountryRef.current.clear();
 			hoveredId = null;
@@ -312,7 +323,7 @@ export function RealtimeMap({ countries }: RealtimeMapProps) {
 					continue;
 				}
 
-				context.fillStyle = countryId === hoveredId ? "white" : accent;
+				context.fillStyle = countryId === hoveredId ? highlight : accent;
 				for (let index = 0; index < pixels.length; index += 2) {
 					const x = pixels[index] ?? 0;
 					const y = pixels[index + 1] ?? 0;
@@ -329,7 +340,7 @@ export function RealtimeMap({ countries }: RealtimeMapProps) {
 			if (hoveredId !== null && !numericToCountryRef.current.has(hoveredId)) {
 				const pixels = geometry.countryPixels.get(hoveredId);
 				if (pixels) {
-					context.fillStyle = "white";
+					context.fillStyle = highlight;
 					context.globalAlpha = 0.15;
 					for (let index = 0; index < pixels.length; index += 2) {
 						context.fillRect(pixels[index] ?? 0, pixels[index + 1] ?? 0, 2, 2);
@@ -449,6 +460,14 @@ export function RealtimeMap({ countries }: RealtimeMapProps) {
 
 		const resizeObserver = new ResizeObserver(resize);
 		resizeObserver.observe(wrapper);
+		const themeObserver = new MutationObserver(() => {
+			if (getCssColor("--background", background) !== background) {
+				resize();
+			}
+		});
+		themeObserver.observe(document.documentElement, {
+			attributeFilter: ["class"],
+		});
 		resize();
 		wrapper.addEventListener("wheel", handleWheel, { passive: false });
 		wrapper.addEventListener("pointerdown", handlePointerDown);
@@ -462,6 +481,7 @@ export function RealtimeMap({ countries }: RealtimeMapProps) {
 		return () => {
 			destroyed = true;
 			resizeObserver.disconnect();
+			themeObserver.disconnect();
 			wrapper.removeEventListener("wheel", handleWheel);
 			wrapper.removeEventListener("pointerdown", handlePointerDown);
 			wrapper.removeEventListener("pointermove", handlePointerMove);

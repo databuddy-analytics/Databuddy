@@ -129,11 +129,7 @@ export function FeedbackPrompt() {
 		<div className="fixed right-4 bottom-4 z-50 w-72 rounded border bg-card p-4 shadow-lg">
 			<div className="mb-3 flex items-start justify-between gap-2">
 				<div className="flex size-8 shrink-0 items-center justify-center rounded border bg-secondary">
-					<ChatTextIcon
-						className="text-accent-foreground"
-						size={14}
-						weight="duotone"
-					/>
+					<ChatTextIcon className="text-accent-foreground" size={14} />
 				</div>
 				<Button
 					aria-label="Dismiss feedback prompt"

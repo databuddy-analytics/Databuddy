@@ -5,7 +5,7 @@ import type { BaseComponentProps } from "../types";
 import { TableIcon } from "@databuddy/ui/icons";
 import { Badge, Card } from "@databuddy/ui";
 
-export interface DataTableColumn {
+interface DataTableColumn {
 	align?: "left" | "center" | "right";
 	header: string;
 	key: string;

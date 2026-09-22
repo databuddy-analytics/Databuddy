@@ -2,9 +2,14 @@ import type {
 	ErrorSpansInsert,
 	EventsInsert,
 	OutgoingLinksInsert,
+	EngagementSpansInsert,
 	WebVitalsSpansInsert,
 } from "@databuddy/db/clickhouse/tables";
-import type { ErrorSpan, IndividualVital } from "@databuddy/validation";
+import type {
+	EngagementSpan,
+	ErrorSpan,
+	IndividualVital,
+} from "@databuddy/validation";
 import { runPromise, send, sendBatch } from "@lib/producer";
 import {
 	getDailySalt,
@@ -36,7 +41,6 @@ export interface TrackEventContext {
 	clientId: string;
 	eventId: string;
 	geo: {
-		anonymizedIP: string;
 		country?: string;
 		region?: string;
 		city?: string;
@@ -137,12 +141,6 @@ function directEventIdentity(eventId: unknown, generateFn: () => string) {
 		generateFn();
 	return { sourceEventId, storedEventId };
 }
-
-/**
- * ClickHouse stores analytics ids as UUIDs, while public client event ids can
- * be arbitrary strings. Derive a valid, stable UUID so the same client retry
- * preserves its physical identity without accepting arbitrary input as UUID.
- */
 export function stableAnalyticsEventId(
 	clientId: string,
 	eventType: "outgoing_link" | "track",
@@ -188,7 +186,7 @@ export function buildTrackEvent(
 		url: sanitizeUrl(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
 		path: sanitizeUrl(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
 		title: sanitizeString(trackData.title, VALIDATION_LIMITS.STRING_MAX_LENGTH),
-		ip: ctx.geo.anonymizedIP || "",
+		ip: "",
 		user_agent: "",
 		browser_name: ctx.ua.browserName || "",
 		browser_version: ctx.ua.browserVersion || "",
@@ -635,6 +633,77 @@ export function insertIndividualVitals(
 	});
 }
 
+export function insertEngagementSpans(
+	spans: EngagementSpan[],
+	clientId: string,
+	userAgent: string,
+	ip: string,
+	request: Request
+): Promise<void> {
+	return record("insertEngagementSpans", async () => {
+		if (spans.length === 0) {
+			return;
+		}
+
+		const geoData = await getGeo(ip, request);
+		const trustedCountry = extractTrustedClientIp(request)
+			? geoData.country
+			: undefined;
+		const shouldAnonymize = spans.map((span) =>
+			shouldAnonymizeVisitorIds(span.anonymizeVisitorIds, trustedCountry)
+		);
+		const [salt, ua] = await Promise.all([
+			shouldAnonymize.includes(true)
+				? getDailySalt()
+				: Promise.resolve(undefined),
+			parseUserAgent(userAgent),
+		]);
+		const rows: EngagementSpansInsert[] = spans.map((span, index) => ({
+			client_id: clientId,
+			anonymous_id: applyVisitorIdPrivacy(
+				span.anonymousId,
+				shouldAnonymize[index] === true,
+				salt
+			),
+			session_id: validateSessionId(span.sessionId),
+			timestamp: span.timestamp,
+			path: sanitizeUrl(span.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+			device_type: ua.deviceType || "",
+			browser_name: ua.browserName || "",
+			country: geoData.country || "",
+			page_index: span.pageIndex,
+			exit_type: span.exitType,
+			time_on_page: span.timeOnPage,
+			active_time: span.activeTime,
+			time_to_first_interaction: span.timeToFirstInteraction,
+			max_scroll_depth: span.maxScrollDepth,
+			scroll_count: span.scrollCount,
+			click_count: span.clickCount,
+			key_count: span.keyCount,
+			interaction_count: span.interactionCount,
+			copy_count: span.copyCount,
+			rage_click_count: span.rageClickCount,
+			dead_click_count: span.deadClickCount,
+			rage_click_target: span.rageClickTarget,
+			dead_click_target: span.deadClickTarget,
+			form_field_count: span.formFieldCount,
+			form_submit_count: span.formSubmitCount,
+			last_form_field: span.lastFormField,
+			form_abandoned:
+				span.formFieldCount > 0 && span.formSubmitCount === 0 ? 1 : 0,
+			error_count: span.errorCount,
+		}));
+
+		await deliverSpanBatch(
+			"engagement",
+			"analytics-engagement-spans",
+			clientId,
+			spans,
+			rows
+		);
+	});
+}
+
 export function insertOutgoingLinksBatch(
 	events: BatchEvent<OutgoingLinksInsert>[]
 ): Promise<void> {
@@ -720,12 +789,22 @@ export function insertCustomEvents(
 				: undefined,
 		}));
 
-		await deliverSpanBatch(
+		const deliveryIds = events.map((event, index) =>
+			stableBatchDeliveryId(
+				events[0]?.owner_id ?? "",
+				"custom_event",
+				event,
+				index
+			)
+		);
+		await deliverItems(
 			"custom_event",
 			"analytics-custom-events",
-			events[0]?.owner_id ?? "",
-			events,
-			spans
+			spans.map((event, index) => ({
+				deliveryId: deliveryIds[index] as string,
+				event,
+				sourceEventId: deliveryIds[index] as string,
+			}))
 		);
 	});
 }

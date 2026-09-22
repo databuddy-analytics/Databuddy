@@ -48,11 +48,6 @@ export const auditSource = pgEnum("audit_source", [
 	"public_api",
 	"worker",
 ]);
-
-/**
- * A tenant-scoped, append-only product ledger. It deliberately has no foreign
- * keys: audit history must survive deletion of the actor or target resource.
- */
 export const auditEvents = pgTable(
 	"audit_events",
 	{
@@ -100,11 +95,6 @@ export const auditEvents = pgTable(
 		),
 	]
 );
-
-/**
- * Durable retry queue for audit writes that fail after their primary mutation
- * has committed. API workers replay these rows until the ledger accepts them.
- */
 export const auditOutboxEvents = pgTable(
 	"audit_outbox_events",
 	{

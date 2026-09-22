@@ -96,7 +96,9 @@ export function ChatProvider({
 	});
 
 	const chatRef = useRef(chat);
-	chatRef.current = chat;
+	useEffect(() => {
+		chatRef.current = chat;
+	}, [chat]);
 
 	const [hasRestored, setHasRestored] = useState(false);
 	const [persistedUserMessageIds, setPersistedUserMessageIds] = useState<

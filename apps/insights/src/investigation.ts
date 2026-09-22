@@ -1,22 +1,20 @@
 import { createHash } from "node:crypto";
 import {
 	investigationSignalSchema,
-	type InsightDatabuddySetupRecommendation,
 	type InsightMetric,
 	type InvestigationSignal,
 } from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import timezonePlugin from "dayjs/plugin/timezone";
 import utcPlugin from "dayjs/plugin/utc";
-import type { DetectedSignal, MeasurementCandidate } from "./detection";
+import type { DetectedSignal } from "./detection";
 
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
 
 interface InvestigationInput {
 	evidence: string[];
-	measurementCandidate?: MeasurementCandidate;
-	setupRecommendationCandidate?: InsightDatabuddySetupRecommendation;
+	investigationObjective?: string;
 	signal: InvestigationSignal;
 }
 
@@ -55,9 +53,22 @@ export function signalKeyForDetectedSignal(
 	return boundedKey(signal.subjectKey ?? signal.metric);
 }
 
+const UNCAUGHT_PREFIX = /^(?:uncaught\s+)+/i;
+
+export function normalizedErrorSubject(value: string): string {
+	const prefixed = value.startsWith("error:");
+	const message = (prefixed ? value.slice("error:".length) : value)
+		.replace(UNCAUGHT_PREFIX, "")
+		.replace(/\s+/g, " ")
+		.trim();
+	return prefixed ? boundedKey(`error:${message}`) : message;
+}
+
 function metricFormat(metric: string): InsightMetric["format"] {
 	if (
 		metric === "bounce_rate" ||
+		metric === "attribution_rate" ||
+		metric === "identified_retention" ||
 		metric.startsWith("funnel:") ||
 		metric.startsWith("goal:")
 	) {
@@ -73,19 +84,14 @@ function metricFormat(metric: string): InsightMetric["format"] {
 }
 
 function isLowerBetter(metric: string): boolean {
-	return ["bounce_rate", "error_count", "lcp", "inp"].includes(metric);
+	return ["bounce_rate", "error_count", "lcp", "inp", "refund_amount"].includes(
+		metric
+	);
 }
 
 const SEVERITY_RANK = { critical: 2, warning: 1, info: 0 } as const;
 const ZERO_COMPLETION_SUBJECT_SUFFIX = ":zero-completions";
-
-/**
- * Conversion definitions are useful context, but an aggregate goal/funnel
- * rate is still a configured measurement rather than a product behavior. Keep
- * that distinction visible to ranking so definition maintenance cannot crowd
- * out route, session, and reliability regressions.
- */
-export function isConversionDefinitionSignal(signal: DetectedSignal): boolean {
+function isConversionDefinitionSignal(signal: DetectedSignal): boolean {
 	return (
 		signal.metric.startsWith("goal:") || signal.metric.startsWith("funnel:")
 	);
@@ -107,11 +113,16 @@ function isFunnelStepSignal(signal: DetectedSignal): boolean {
 	);
 }
 
-export function isDirectSignal(signal: DetectedSignal): boolean {
+function isDirectSignal(signal: DetectedSignal): boolean {
 	return (
 		signal.metric === "revenue" ||
+		signal.metric === "refund_amount" ||
+		signal.metric === "attribution_rate" ||
+		signal.metric === "identified_retention" ||
+		signal.subjectKey?.includes(":referrer:") === true ||
 		signal.metric === "error_count" ||
 		signal.metric === "custom_event_count" ||
+		signal.metric === "custom_event_reach" ||
 		signal.metric === "lcp" ||
 		signal.metric === "inp" ||
 		isPersistentZeroCompletionSignal(signal) ||
@@ -133,9 +144,8 @@ export function isRegression(signal: DetectedSignal): boolean {
 		? signal.direction === "up"
 		: signal.direction === "down";
 }
+const SMALL_COUNT_FLOOR = 10;
 
-/** Fresh work merits an agent turn only for a regression, revenue movement, or
- * known measurement blind spot. Due rechecks are retained by observations. */
 export function isInvestigationCandidate(signal: DetectedSignal): boolean {
 	if (
 		signal.severity === "info" &&
@@ -144,10 +154,24 @@ export function isInvestigationCandidate(signal: DetectedSignal): boolean {
 		// Weak top-level traffic is useful context, not an agent turn by itself.
 		return false;
 	}
+	if (
+		signal.metric === "custom_event_count" &&
+		Math.max(signal.current, signal.baseline) < SMALL_COUNT_FLOOR
+	) {
+		return false;
+	}
 	return (
 		isRegression(signal) ||
-		signal.metric === "measurement_coverage" ||
-		signal.metric === "revenue"
+		[
+			"revenue",
+			"product_revenue",
+			"refund_amount",
+			"attribution_rate",
+			"identified_retention",
+		].includes(signal.metric) ||
+		(isConversionDefinitionSignal(signal) &&
+			signal.current - signal.baseline >= 10 &&
+			signal.deltaPercent >= 30)
 	);
 }
 
@@ -185,6 +209,14 @@ export function rankSignals(signals: DetectedSignal[]): DetectedSignal[] {
 }
 
 function signalWindow(signal: DetectedSignal, lookbackDays: number) {
+	if (signal.period) {
+		return {
+			currentFrom: signal.period.current.from,
+			currentTo: signal.period.current.to,
+			previousFrom: signal.period.previous.from,
+			previousTo: signal.period.previous.to,
+		};
+	}
 	const detectedDay = dayjs(signal.detectedAt);
 	if (signal.method === "zscore") {
 		const baselineDates = signal.baselineDates ?? [];
@@ -215,6 +247,13 @@ function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 	const exactId = idParts.join(":");
 	const rawId = exactId.trim();
 	const id = boundedKey(rawId);
+	if (prefix === "retention" && signal.metric === "identified_retention") {
+		return {
+			type: "cohort",
+			id,
+			label: (signal.entityLabel ?? signal.label).slice(0, 120),
+		};
+	}
 	if (prefix === "funnel" && idParts.at(1) === "step") {
 		return {
 			type: "funnel_step",
@@ -232,7 +271,14 @@ function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 			label: (signal.entityLabel ?? signal.label).slice(0, 120),
 		};
 	}
-	if (prefix === "custom_event") {
+	if (prefix === "product_revenue" && signal.entityId) {
+		return {
+			type: "website",
+			id: signal.entityId,
+			label: (signal.entityLabel ?? signal.label).slice(0, 120),
+		};
+	}
+	if (prefix === "custom_event" || prefix === "custom_event_reach") {
 		return {
 			id: signal.entityId ?? rawId,
 			label: (signal.entityLabel ?? signal.label).slice(0, 120),
@@ -305,7 +351,7 @@ export function prepareInvestigation(
 			format: metricFormat(candidate.metric),
 		},
 		changePercent: candidate.deltaPercent,
-		severity: candidate.severity,
+		severity: sentiment === "positive" ? "info" : candidate.severity,
 		sentiment,
 		period: {
 			current: { from: window.currentFrom, to: window.currentTo },
@@ -317,8 +363,11 @@ export function prepareInvestigation(
 		...(candidate.cohortMeasurement
 			? { cohortMeasurement: candidate.cohortMeasurement }
 			: {}),
+		...(candidate.retentionMeasurement
+			? { retentionMeasurement: candidate.retentionMeasurement }
+			: {}),
 	};
-	const evidence: string[] = [];
+	const evidence: string[] = [...(candidate.evidence ?? [])];
 	if (candidate.definitionEvidence) {
 		evidence.push(evidenceSummary(candidate.definitionEvidence));
 	}
@@ -338,12 +387,7 @@ export function prepareInvestigation(
 
 	return {
 		evidence,
-		...(candidate.measurementCandidate
-			? { measurementCandidate: candidate.measurementCandidate }
-			: {}),
-		...(candidate.setupRecommendationCandidate
-			? { setupRecommendationCandidate: candidate.setupRecommendationCandidate }
-			: {}),
+		investigationObjective: candidate.investigationObjective,
 		signal: investigationSignalSchema.parse(signal),
 	};
 }

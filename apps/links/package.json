@@ -1,29 +1,25 @@
 {
   "name": "@databuddy/links",
   "version": "1.0.0",
-  "type": "module",
-  "private": true,
-  "scripts": {
-    "dev": "dotenv -e ../../.env -- bun --watch run src/index.ts",
-    "build": "bun build src/index.ts --compile --target bun --outfile dist/server --minify-syntax --minify-whitespace",
-    "start": "dotenv -e ../../.env -- ./dist/server",
-    "check-types": "tsc --noEmit",
-    "test": "bun test src"
-  },
   "dependencies": {
     "@databuddy/db": "workspace:*",
     "@databuddy/env": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/shared": "workspace:*",
     "@maxmind/geoip2-node": "^6.3.4",
-    "bullmq": "^5.78.0",
     "elysia": "catalog:",
     "evlog": "catalog:",
     "kafkajs": "^2.2.4",
     "lru-cache": "^11.2.7",
     "ua-parser-js": "^2.0.8"
   },
-  "devDependencies": {
-    "@types/ua-parser-js": "^0.7.39"
-  }
+  "private": true,
+  "scripts": {
+    "dev": "dotenv -e ../../.env -- bun --watch run src/index.ts",
+    "build": "bun build src/index.ts --compile --target bun --outfile dist/server --minify-syntax --minify-whitespace",
+    "start": "dotenv -e ../../.env -- ./dist/server",
+    "check-types": "tsc --noEmit",
+    "test": "bun test --isolate src"
+  },
+  "type": "module"
 }

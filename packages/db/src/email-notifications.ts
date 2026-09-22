@@ -5,11 +5,6 @@ import type {
 } from "./drizzle/schema/auth";
 
 export interface EmailNotificationSettings {
-	anomalies: {
-		customEventEmails: boolean;
-		errorEmails: boolean;
-		trafficEmails: boolean;
-	};
 	billing: {
 		usageWarnings: boolean;
 	};
@@ -26,11 +21,6 @@ export interface EmailNotificationSettings {
 }
 
 export const DEFAULT_EMAIL_NOTIFICATION_SETTINGS = {
-	anomalies: {
-		customEventEmails: false,
-		errorEmails: true,
-		trafficEmails: false,
-	},
 	billing: {
 		usageWarnings: true,
 	},
@@ -68,10 +58,6 @@ export function normalizeEmailNotificationSettings(
 ): EmailNotificationSettings {
 	const current = settings ?? {};
 	return {
-		anomalies: {
-			...DEFAULT_EMAIL_NOTIFICATION_SETTINGS.anomalies,
-			...current.anomalies,
-		},
 		billing: {
 			...DEFAULT_EMAIL_NOTIFICATION_SETTINGS.billing,
 			...current.billing,

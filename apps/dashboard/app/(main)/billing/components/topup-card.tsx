@@ -37,10 +37,10 @@ export function TopupCard() {
 		if (typeof window === "undefined") {
 			return;
 		}
-		if (window.location.hash !== "#topup") {
+		if (window.location.hash !== "#chat-topup") {
 			return;
 		}
-		const el = document.getElementById("topup");
+		const el = document.getElementById("chat-topup");
 		if (el) {
 			el.scrollIntoView({ behavior: "smooth", block: "start" });
 		}
@@ -76,11 +76,11 @@ export function TopupCard() {
 	};
 
 	return (
-		<Card className="scroll-mt-6" id="topup">
+		<Card className="scroll-mt-6" id="chat-topup">
 			<Card.Header>
 				<Card.Title className="flex items-center gap-2">
-					<CoinsIcon className="text-primary" size={14} weight="duotone" />
-					Add investigation credits
+					<CoinsIcon className="text-primary" size={14} />
+					Add AI credits
 				</Card.Title>
 				<Card.Description>
 					{DATABUNNY_USAGE.description} Purchased credits stack with your plan
@@ -91,7 +91,7 @@ export function TopupCard() {
 				<div className="flex flex-col items-center gap-3">
 					<div className="w-full max-w-sm">
 						<CreditArcSlider
-							ariaLabel="Investigation credits to buy"
+							ariaLabel="AI credits to buy"
 							max={TOPUP_MAX_QUANTITY}
 							min={TOPUP_MIN_QUANTITY}
 							onValueChange={setQuantity}
@@ -121,7 +121,7 @@ export function TopupCard() {
 				<div className="space-y-2">
 					<Row label="You get">
 						<span className="tabular-nums">
-							{quantity.toLocaleString()} investigation credits
+							{quantity.toLocaleString()} AI credits
 						</span>
 					</Row>
 					<Row label="Average per credit">
@@ -152,7 +152,6 @@ export function TopupCard() {
 						<CaretDownIcon
 							className={cn("transition-transform", showTiers && "rotate-180")}
 							size={10}
-							weight="bold"
 						/>
 						{showTiers ? "Hide pricing details" : "How pricing works"}
 					</Button>
@@ -197,7 +196,7 @@ export function TopupCard() {
 									return (
 										<div
 											className="flex items-center justify-between gap-3 border-border/50 border-b px-3 py-2 last:border-b-0"
-											key={tier.amount}
+											key={tier.to}
 										>
 											<div className="flex items-center gap-2">
 												<Text
@@ -243,11 +242,7 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 		<div className="flex min-h-[44px] items-start gap-2 rounded border border-primary/30 bg-primary/5 p-3">
 			{isCloseToNextTier && nudge ? (
 				<>
-					<TrendDownIcon
-						className="mt-0.5 shrink-0 text-primary"
-						size={14}
-						weight="duotone"
-					/>
+					<TrendDownIcon className="mt-0.5 shrink-0 text-primary" size={14} />
 					<Text variant="caption">
 						Just{" "}
 						<span className="font-medium text-foreground tabular-nums">
@@ -262,11 +257,7 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 				</>
 			) : showSavings ? (
 				<>
-					<TrendDownIcon
-						className="mt-0.5 shrink-0 text-primary"
-						size={14}
-						weight="duotone"
-					/>
+					<TrendDownIcon className="mt-0.5 shrink-0 text-primary" size={14} />
 					<Text variant="caption">
 						You're saving{" "}
 						<span className="font-medium text-foreground tabular-nums">
@@ -281,11 +272,7 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 				</>
 			) : belowFirstDiscount ? (
 				<>
-					<TrendDownIcon
-						className="mt-0.5 shrink-0 text-primary"
-						size={14}
-						weight="duotone"
-					/>
+					<TrendDownIcon className="mt-0.5 shrink-0 text-primary" size={14} />
 					<Text variant="caption">
 						After the first{" "}
 						<span className="font-medium text-foreground tabular-nums">

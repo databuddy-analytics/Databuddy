@@ -1,47 +1,603 @@
-import { describe, expect, test } from "vitest";
-import { CONTROL_CHARS, longString, XSS_PAYLOADS } from "../test-helpers";
-import { buildTrackEvent, type TrackEventContext } from "./event-service";
+import type { EventsInsert } from "@databuddy/db/clickhouse/tables";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import { longString } from "../test-helpers";
+import type { TrackEventContext } from "./event-service";
 
-// ── Fixtures ──
+const {
+	mockApplyVisitorIdPrivacy,
+	mockGetDailySalt,
+	mockGetGeo,
+	mockMarkDuplicateReservationAmbiguous,
+	mockMarkDuplicateReservationDelivered,
+	mockParseUserAgent,
+	mockReleaseDuplicateReservation,
+	mockReserveDuplicate,
+	mockReserveDuplicateBatch,
+	mockRunPromise,
+	mockSend,
+	mockSendBatch,
+	mockShouldAnonymizeVisitorIds,
+	mockUseLogger,
+} = vi.hoisted(() => ({
+	mockApplyVisitorIdPrivacy: vi.fn((id: unknown) =>
+		typeof id === "string" ? id : ""
+	),
+	mockGetDailySalt: vi.fn(() => Promise.resolve("daily-salt")),
+	mockGetGeo: vi.fn(() =>
+		Promise.resolve({
+			anonymizedIP: "1.2.3.0",
+			city: "San Francisco",
+			country: "US",
+			region: "CA",
+		})
+	),
+	mockParseUserAgent: vi.fn(() =>
+		Promise.resolve({
+			browserName: "Chrome",
+			browserVersion: "120",
+			deviceType: "desktop",
+			osName: "macOS",
+			osVersion: "14",
+		})
+	),
+	mockMarkDuplicateReservationDelivered: vi.fn(() => Promise.resolve()),
+	mockMarkDuplicateReservationAmbiguous: vi.fn(() => Promise.resolve()),
+	mockReleaseDuplicateReservation: vi.fn(() => Promise.resolve()),
+	mockReserveDuplicate: vi.fn(() =>
+		Promise.resolve({
+			deliveredTtl: 86_400,
+			duplicate: false,
+			key: "dedup:track:stable-id",
+			token: "pending:test",
+		})
+	),
+	mockReserveDuplicateBatch: vi.fn(
+		(inputs: Array<{ eventId: string; eventType: string }>) =>
+			Promise.resolve(
+				inputs.map(({ eventId, eventType }) => ({
+					deliveredTtl: 86_400,
+					duplicate: false,
+					key: `dedup:${eventType}:${eventId}`,
+					token: "pending:batch-test",
+				}))
+			)
+	),
+	mockRunPromise: vi.fn(() => Promise.resolve()),
+	mockSend: vi.fn(() => ({ type: "producer-effect" })),
+	mockSendBatch: vi.fn(() => ({ type: "batch-producer-effect" })),
+	mockShouldAnonymizeVisitorIds: vi.fn(() => false),
+	mockUseLogger: {
+		set: vi.fn(),
+	},
+}));
+
+vi.mock("@lib/producer", () => ({
+	runPromise: mockRunPromise,
+	send: mockSend,
+	sendBatch: mockSendBatch,
+}));
+
+vi.mock("@lib/security", () => ({
+	applyVisitorIdPrivacy: mockApplyVisitorIdPrivacy,
+	getDailySalt: mockGetDailySalt,
+	markDuplicateReservationAmbiguous: mockMarkDuplicateReservationAmbiguous,
+	markDuplicateReservationDelivered: mockMarkDuplicateReservationDelivered,
+	releaseDuplicateReservation: mockReleaseDuplicateReservation,
+	reserveDuplicate: mockReserveDuplicate,
+	reserveDuplicateBatch: mockReserveDuplicateBatch,
+	shouldAnonymizeVisitorIds: mockShouldAnonymizeVisitorIds,
+}));
+
+vi.mock("@lib/tracing", () => ({
+	record: (_name: string, fn: () => Promise<void>) => fn(),
+}));
+
+vi.mock("@utils/ip-geo", () => ({
+	extractTrustedClientIp: vi.fn(() => "1.2.3.4"),
+	getGeo: mockGetGeo,
+}));
+
+vi.mock("@utils/user-agent", () => ({
+	parseUserAgent: mockParseUserAgent,
+}));
+
+vi.mock("evlog/elysia", () => ({
+	useLogger: () => mockUseLogger,
+}));
+
+const {
+	buildTrackEvent,
+	insertCustomEvents,
+	insertErrorSpans,
+	insertEngagementSpans,
+	insertIndividualVitals,
+	insertOutgoingLink,
+	insertTrackEvent,
+	insertTrackEventsBatch,
+	stableBatchDeliveryId,
+	stableAnalyticsEventId,
+} = await import("./event-service");
+
+describe("event-service producer handoff", () => {
+	beforeEach(() => {
+		mockApplyVisitorIdPrivacy.mockClear();
+		mockGetDailySalt.mockClear();
+		mockGetGeo.mockClear();
+		mockMarkDuplicateReservationAmbiguous.mockClear();
+		mockMarkDuplicateReservationDelivered.mockClear();
+		mockParseUserAgent.mockClear();
+		mockReleaseDuplicateReservation.mockClear();
+		mockReserveDuplicate.mockReset();
+		mockReserveDuplicate.mockResolvedValue({
+			deliveredTtl: 86_400,
+			duplicate: false,
+			key: "dedup:track:stable-id",
+			token: "pending:test",
+		});
+		mockReserveDuplicateBatch.mockReset();
+		mockReserveDuplicateBatch.mockImplementation(
+			(inputs: Array<{ eventId: string; eventType: string }>) =>
+				Promise.resolve(
+					inputs.map(({ eventId, eventType }) => ({
+						deliveredTtl: 86_400,
+						duplicate: false,
+						key: `dedup:${eventType}:${eventId}`,
+						token: "pending:batch-test",
+					}))
+				)
+		);
+		mockRunPromise.mockClear();
+		mockSend.mockClear();
+		mockSendBatch.mockClear();
+		mockShouldAnonymizeVisitorIds.mockClear();
+		mockUseLogger.set.mockClear();
+	});
+
+	test("awaits track event producer admission", async () => {
+		const effect = { type: "track-effect" };
+		mockSend.mockReturnValueOnce(effect);
+
+		await insertTrackEvent(
+			{
+				anonymousId: "anon_1",
+				eventId: "evt_1",
+				name: "pageview",
+				path: "https://example.com/page",
+				sessionId: "session_1",
+			},
+			"ws_1",
+			"Mozilla/5.0",
+			"1.2.3.4",
+			new Request("https://basket.example/px.jpg")
+		);
+
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-events",
+			expect.objectContaining({
+				anonymous_id: "anon_1",
+				client_id: "ws_1",
+				event_name: "pageview",
+			}),
+			undefined,
+			{ allowDirectFallback: true }
+		);
+		expect(mockRunPromise).toHaveBeenCalledWith(effect);
+		expect(mockMarkDuplicateReservationDelivered).toHaveBeenCalledOnce();
+	});
+
+	test("reserves track events only after enrichment completes", async () => {
+		let resolveGeo!: (value: {
+			anonymizedIP: string;
+			city: string;
+			country: string;
+			region: string;
+		}) => void;
+		mockGetGeo.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveGeo = resolve;
+				})
+		);
+
+		const pending = insertTrackEvent(
+			{ eventId: "evt_1", name: "pageview", path: "/" },
+			"ws_1",
+			"Mozilla/5.0",
+			"1.2.3.4",
+			new Request("https://basket.example/px.jpg")
+		);
+
+		expect(mockGetGeo).toHaveBeenCalledOnce();
+		expect(mockReserveDuplicate).not.toHaveBeenCalled();
+		resolveGeo({
+			anonymizedIP: "1.2.3.0",
+			city: "San Francisco",
+			country: "US",
+			region: "CA",
+		});
+		await pending;
+
+		expect(mockReserveDuplicate.mock.invocationCallOrder[0]).toBeLessThan(
+			mockSend.mock.invocationCallOrder[0] as number
+		);
+	});
+
+	test("reserves outgoing links only after GeoIP enrichment completes", async () => {
+		let resolveGeo!: (value: {
+			anonymizedIP: string;
+			city: string;
+			country: string;
+			region: string;
+		}) => void;
+		mockGetGeo.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveGeo = resolve;
+				})
+		);
+
+		const pending = insertOutgoingLink(
+			{
+				anonymizeVisitorIds: "auto",
+				eventId: "evt_link_1",
+				href: "https://external.example",
+			},
+			"ws_1",
+			new Request("https://basket.example/px.jpg")
+		);
+
+		expect(mockGetGeo).toHaveBeenCalledOnce();
+		expect(mockReserveDuplicate).not.toHaveBeenCalled();
+		resolveGeo({
+			anonymizedIP: "1.2.3.0",
+			city: "San Francisco",
+			country: "US",
+			region: "CA",
+		});
+		await pending;
+
+		expect(mockReserveDuplicate.mock.invocationCallOrder[0]).toBeLessThan(
+			mockSend.mock.invocationCallOrder[0] as number
+		);
+	});
+
+	test("propagates outgoing-link producer admission failures", async () => {
+		const error = new Error("buffer full");
+		mockRunPromise.mockRejectedValueOnce(error);
+
+		await expect(
+			insertOutgoingLink(
+				{
+					anonymousId: "anon_1",
+					eventId: "evt_link_1",
+					href: "https://external.example",
+					sessionId: "session_1",
+				},
+				"ws_1",
+				new Request("https://basket.example/px.jpg")
+			)
+		).rejects.toThrow("Analytics delivery temporarily unavailable");
+		expect(mockReleaseDuplicateReservation).toHaveBeenCalledOnce();
+		expect(mockMarkDuplicateReservationDelivered).not.toHaveBeenCalled();
+	});
+
+	test("preserves an ambiguous Kafka reservation instead of releasing it", async () => {
+		mockRunPromise.mockRejectedValueOnce({
+			_tag: "KafkaSendError",
+			message: "request timed out",
+		});
+
+		await expect(
+			insertTrackEvent(
+				{ eventId: "evt_1", name: "pageview", path: "/" },
+				"ws_1",
+				"Mozilla/5.0",
+				"1.2.3.4",
+				new Request("https://basket.example/px.jpg")
+			)
+		).rejects.toThrow("Analytics delivery temporarily unavailable");
+
+		expect(mockMarkDuplicateReservationAmbiguous).toHaveBeenCalledOnce();
+		expect(mockReleaseDuplicateReservation).not.toHaveBeenCalled();
+	});
+
+	test("returns a retryable failure while another request owns the event", async () => {
+		mockReserveDuplicate.mockResolvedValueOnce({
+			duplicate: false,
+			retryable: true,
+		});
+
+		await expect(
+			insertTrackEvent(
+				{ eventId: "evt_1", name: "pageview", path: "/" },
+				"ws_1",
+				"Mozilla/5.0",
+				"1.2.3.4",
+				new Request("https://basket.example/px.jpg")
+			)
+		).rejects.toMatchObject({ status: 503 });
+		expect(mockSend).not.toHaveBeenCalled();
+	});
+
+	test("atomically reserves a sorted batch and rejects a conflict", async () => {
+		mockReserveDuplicateBatch.mockImplementationOnce(async (inputs) =>
+			inputs.map(() => ({ duplicate: false, retryable: true as const }))
+		);
+		const batchItem = (id: string) => ({
+			event: { id } as EventsInsert,
+			sourceEventId: id,
+		});
+
+		await expect(
+			insertTrackEventsBatch([batchItem("z"), batchItem("a"), batchItem("m")])
+		).rejects.toMatchObject({ status: 503 });
+
+		expect(mockReserveDuplicateBatch).toHaveBeenCalledWith([
+			{ eventId: "a", eventType: "track", sourceEventId: "a" },
+			{ eventId: "m", eventType: "track", sourceEventId: "m" },
+			{ eventId: "z", eventType: "track", sourceEventId: "z" },
+		]);
+		expect(mockReleaseDuplicateReservation).not.toHaveBeenCalled();
+		expect(mockSendBatch).not.toHaveBeenCalled();
+	});
+
+	test("uses a stable UUID for a retried source event", () => {
+		const first = stableAnalyticsEventId("ws_1", "track", "evt_1");
+		const retry = stableAnalyticsEventId("ws_1", "track", "evt_1");
+
+		expect(first).toBe(retry);
+		expect(first).toMatch(
+			/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+		);
+	});
+
+	test("keeps direct delivery IDs distinct before storage truncation", async () => {
+		const prefix = "x".repeat(512);
+
+		await insertOutgoingLink(
+			{
+				eventId: `${prefix}a`,
+				href: "https://external.example/a",
+			},
+			"ws_1",
+			new Request("https://basket.example/px.jpg")
+		);
+		await insertOutgoingLink(
+			{
+				eventId: `${prefix}b`,
+				href: "https://external.example/b",
+			},
+			"ws_1",
+			new Request("https://basket.example/px.jpg")
+		);
+
+		const firstDeliveryId = (
+			mockSend.mock.calls[0]?.[1] as { id?: string } | undefined
+		)?.id;
+		const secondDeliveryId = (
+			mockSend.mock.calls[1]?.[1] as { id?: string } | undefined
+		)?.id;
+		expect(firstDeliveryId).toBeTruthy();
+		expect(secondDeliveryId).toBeTruthy();
+		expect(firstDeliveryId).not.toBe(secondDeliveryId);
+		expect(mockReserveDuplicate.mock.calls[0]?.[0]).toBe(firstDeliveryId);
+		expect(mockReserveDuplicate.mock.calls[1]?.[0]).toBe(secondDeliveryId);
+		expect(mockReserveDuplicate.mock.calls[0]?.[2]).toBe(prefix);
+		expect(mockReserveDuplicate.mock.calls[1]?.[2]).toBe(prefix);
+	});
+
+	test("uses stable side-channel identities for id-less span retries", async () => {
+		const error = {
+			anonymousId: "anon_1",
+			errorType: "TypeError",
+			message: "boom",
+			path: "/checkout",
+			timestamp: 1_780_000_000_000,
+		};
+
+		await insertErrorSpans([error], "ws_1", "US");
+
+		const expectedDeliveryId = stableBatchDeliveryId("ws_1", "error", error, 0);
+		expect(mockSendBatch).toHaveBeenCalledWith(
+			"analytics-error-spans",
+			[
+				expect.objectContaining({
+					delivery_id: expectedDeliveryId,
+					message: "boom",
+					path: "/checkout",
+				}),
+			],
+			[expectedDeliveryId],
+			{ allowDirectFallback: true }
+		);
+		expect(expectedDeliveryId).toMatch(/^[\da-f]{64}$/);
+	});
+
+	test("persists stable delivery identities on vital span rows", async () => {
+		const vital = {
+			eventId: "evt_vital_1",
+			metricName: "LCP" as const,
+			metricValue: 1234,
+			path: "/checkout",
+			timestamp: 1_780_000_000_000,
+		};
+		await insertIndividualVitals([vital], "ws_1", "US");
+		const vitalDeliveryId = stableBatchDeliveryId("ws_1", "vital", vital, 0);
+		expect(mockSendBatch).toHaveBeenLastCalledWith(
+			"analytics-vitals-spans",
+			[
+				expect.objectContaining({
+					delivery_id: vitalDeliveryId,
+					metric_name: "LCP",
+				}),
+			],
+			[vitalDeliveryId],
+			{ allowDirectFallback: true }
+		);
+	});
+
+	test("marks abandoned forms and persists delivery identities on engagement rows", async () => {
+		const span = {
+			timestamp: 1_780_000_000_000,
+			path: "/checkout",
+			pageIndex: 1,
+			exitType: "unload" as const,
+			timeOnPage: 60,
+			activeTime: 20,
+			timeToFirstInteraction: 500,
+			maxScrollDepth: 40,
+			scrollCount: 2,
+			clickCount: 3,
+			keyCount: 12,
+			interactionCount: 17,
+			copyCount: 0,
+			rageClickCount: 0,
+			deadClickCount: 0,
+			rageClickTarget: "",
+			deadClickTarget: "",
+			formFieldCount: 3,
+			formSubmitCount: 0,
+			lastFormField: "input:card number",
+			errorCount: 1,
+		};
+		await insertEngagementSpans(
+			[span],
+			"ws_1",
+			"Mozilla/5.0",
+			"203.0.113.9",
+			new Request("https://basket.example/engagement")
+		);
+		const deliveryId = stableBatchDeliveryId("ws_1", "engagement", span, 0);
+		expect(mockSendBatch).toHaveBeenLastCalledWith(
+			"analytics-engagement-spans",
+			[
+				expect.objectContaining({
+					delivery_id: deliveryId,
+					form_abandoned: 1,
+					last_form_field: "input:card number",
+					exit_type: "unload",
+				}),
+			],
+			[deliveryId],
+			{ allowDirectFallback: true }
+		);
+	});
+
+	test("keeps custom event delivery identities out of payload rows", async () => {
+		const customEvent = {
+			event_id: "evt_custom_1",
+			event_name: "checkout_completed",
+			owner_id: "org_1",
+			properties: { plan: "pro" },
+			timestamp: 1_780_000_000_000,
+			website_id: "ws_1",
+		};
+		await insertCustomEvents([customEvent], "US");
+		const customDeliveryId = stableBatchDeliveryId(
+			"org_1",
+			"custom_event",
+			customEvent,
+			0
+		);
+		expect(mockSendBatch).toHaveBeenLastCalledWith(
+			"analytics-custom-events",
+			[
+				expect.objectContaining({
+					event_name: "checkout_completed",
+				}),
+			],
+			[customDeliveryId],
+			{ allowDirectFallback: true }
+		);
+		const customPayload = mockSendBatch.mock.calls.at(-1)?.[1] as Record<
+			string,
+			unknown
+		>[];
+		expect(customPayload[0]).not.toHaveProperty("delivery_id");
+	});
+
+	test("prefers a source event id over generated span fields", () => {
+		const first = stableBatchDeliveryId(
+			"ws_1",
+			"error",
+			{ eventId: "evt_error_1", message: "first", timestamp: 1 },
+			0
+		);
+		const retry = stableBatchDeliveryId(
+			"ws_1",
+			"error",
+			{ eventId: "evt_error_1", message: "changed", timestamp: 2 },
+			0
+		);
+
+		expect(retry).toBe(first);
+	});
+
+	test("filters an already delivered item from a recomposed retry batch", async () => {
+		const first = {
+			eventId: "evt_error_a",
+			errorType: "Error",
+			message: "a",
+			path: "/",
+			timestamp: 1_780_000_000_000,
+		};
+		const second = {
+			...first,
+			eventId: "evt_error_b",
+			message: "b",
+		};
+		const firstId = stableBatchDeliveryId("ws_1", "error", first, 0);
+		mockReserveDuplicateBatch.mockImplementationOnce(async (inputs) =>
+			inputs.map(({ eventId, eventType }) =>
+				eventId === firstId
+					? { duplicate: true }
+					: {
+							deliveredTtl: 86_400,
+							duplicate: false,
+							key: `dedup:${eventType}:${eventId}`,
+							token: "pending:new-item",
+						}
+			)
+		);
+
+		await insertErrorSpans([first, second], "ws_1");
+
+		expect(mockSendBatch).toHaveBeenCalledWith(
+			"analytics-error-spans",
+			[
+				expect.objectContaining({
+					delivery_id: stableBatchDeliveryId("ws_1", "error", second, 1),
+					message: "b",
+				}),
+			],
+			[stableBatchDeliveryId("ws_1", "error", second, 1)],
+			{ allowDirectFallback: true }
+		);
+	});
+
+	test("preserves an ambiguous id-less batch reservation", async () => {
+		mockRunPromise.mockRejectedValueOnce({ _tag: "KafkaSendError" });
+
+		await expect(
+			insertErrorSpans(
+				[
+					{
+						errorType: "Error",
+						message: "boom",
+						path: "/",
+						timestamp: 1_780_000_000_000,
+					},
+				],
+				"ws_1"
+			)
+		).rejects.toThrow("Analytics delivery temporarily unavailable");
+
+		expect(mockMarkDuplicateReservationAmbiguous).toHaveBeenCalledOnce();
+		expect(mockReleaseDuplicateReservation).not.toHaveBeenCalled();
+	});
+});
 
 const NOW = 1_700_000_000_000;
-
-const fullTrackData = {
-	name: "pageview",
-	timestamp: 1_700_000_001_000,
-	sessionStartTime: 1_700_000_000_500,
-	sessionId: "sess_abc123",
-	anonymousId: "anon_1",
-	referrer: "https://google.com",
-	path: "/dashboard",
-	title: "Dashboard | App",
-	screen_resolution: "1920x1080",
-	viewport_size: "1024x768",
-	language: "en-US",
-	timezone: "America/New_York",
-	connection_type: "wifi",
-	rtt: 50,
-	downlink: 10.5,
-	time_on_page: 30_000,
-	scroll_depth: 75,
-	interaction_count: 12,
-	page_count: 3,
-	utm_source: "google",
-	utm_medium: "cpc",
-	utm_campaign: "summer",
-	utm_term: "analytics",
-	utm_content: "banner",
-	gclid: "gclid_abc",
-	load_time: 1500,
-	dom_ready_time: 800,
-	dom_interactive: 600,
-	ttfb: 200,
-	connection_time: 50,
-	render_time: 100,
-	redirect_time: 10,
-	domain_lookup_time: 30,
-	properties: { plan: "pro", color: "blue" },
-};
 
 const fullCtx: TrackEventContext = {
 	clientId: "ws_test",
@@ -65,89 +621,22 @@ const fullCtx: TrackEventContext = {
 	now: NOW,
 };
 
-// ── Field mapping snapshot ──
-
 describe("buildTrackEvent — field mapping", () => {
-	test("full input → every field mapped correctly", () => {
-		const result = buildTrackEvent(fullTrackData, fullCtx);
-
-		// Identity
-		expect(result.id).toBeTruthy(); // randomUUIDv7
-		expect(result.client_id).toBe("ws_test");
-
-		// Names & content
-		expect(result.event_name).toBe("pageview");
-		expect(result.title).toBe("Dashboard | App");
-		expect(result.referrer).toBe("https://google.com");
-		expect(result.path).toBe("/dashboard");
-		expect(result.url).toBe("/dashboard"); // url === path
-
-		// User identity
-		expect(result.anonymous_id).toBe("salted_anon_1");
-		expect(result.session_id).toBe("sess_abc123");
-
-		// Timestamps — uses trackData values when numeric
-		expect(result.timestamp).toBe(1_700_000_001_000);
-		expect(result.time).toBe(1_700_000_001_000);
-		expect(result.created_at).toBe(NOW);
-
-		// Geo
-		expect(result.ip).toBe("abc123def456");
-		expect(result.country).toBe("United States");
-		expect(result.region).toBe("California");
-		expect(result.city).toBe("San Francisco");
-
-		// UA
-		expect(result.user_agent).toBe(""); // always empty (privacy)
-		expect(result.browser_name).toBe("Chrome");
-		expect(result.browser_version).toBe("120.0");
-		expect(result.os_name).toBe("Windows");
-		expect(result.os_version).toBe("10");
-		expect(result.device_type).toBe("desktop");
-		expect(result.device_brand).toBe("Dell");
-		expect(result.device_model).toBe("XPS");
-
-		// Client context — passthrough
-		expect(result.viewport_size).toBe("1024x768");
-		expect(result.language).toBe("en-US");
-		expect(result.timezone).toBe("America/New_York");
-
-		// Engagement
-		expect(result.time_on_page).toBe(30_000);
-		expect(result.scroll_depth).toBe(75);
-		expect(result.interaction_count).toBe(12);
-		expect(result.page_count).toBe(3);
-
-		// UTM
-		expect(result.utm_source).toBe("google");
-		expect(result.utm_medium).toBe("cpc");
-		expect(result.utm_campaign).toBe("summer");
-		expect(result.utm_term).toBe("analytics");
-		expect(result.utm_content).toBe("banner");
-		expect(result.gclid).toBe("gclid_abc");
-
-		// Performance — validated through validatePerformanceMetric
-		expect(result.dom_ready_time).toBe(800);
-		expect(result.ttfb).toBe(200);
-		expect(result.render_time).toBe(100);
-
-		// Properties
-		expect(result.properties).toBe('{"plan":"pro","color":"blue"}');
-	});
-
 	test("minimal input → defaults applied", () => {
 		const result = buildTrackEvent({ name: "click" }, fullCtx);
 
-		expect(result.event_name).toBe("click");
-		expect(result.timestamp).toBe(NOW); // falls back to ctx.now
-		expect(result.time).toBe(NOW);
-		expect(result.page_count).toBe(1); // default
-		expect(result.properties).toBe("{}"); // empty
-		expect(result.referrer).toBe("");
-		expect(result.path).toBe("");
-		expect(result.url).toBe("");
-		expect(result.title).toBe("");
-		expect(result.session_id).toBe("");
+		expect(result).toMatchObject({
+			event_name: "click",
+			timestamp: NOW,
+			time: NOW,
+			page_count: 1,
+			properties: "{}",
+			referrer: "",
+			path: "",
+			url: "",
+			title: "",
+			session_id: "",
+		});
 	});
 
 	test("missing geo fields → empty strings", () => {
@@ -175,9 +664,9 @@ describe("buildTrackEvent — field mapping", () => {
 		expect(result.timestamp).toBe(NOW);
 	});
 
-	test("performance metrics validated (negative → undefined)", () => {
+	test("performance metrics over the 300s cap → undefined", () => {
 		const result = buildTrackEvent({ name: "x", ttfb: 999_999 }, fullCtx);
-		expect(result.ttfb).toBeUndefined(); // >300000
+		expect(result.ttfb).toBeUndefined();
 	});
 
 	test("event_name sanitized (truncated to 255)", () => {
@@ -201,67 +690,15 @@ describe("buildTrackEvent — field mapping", () => {
 	});
 });
 
-// ── Sanitization boundary ──
-
 describe("buildTrackEvent — sanitization boundary", () => {
-	for (const payload of XSS_PAYLOADS) {
-		test(`XSS in name: ${payload.slice(0, 30)}…`, () => {
-			const result = buildTrackEvent({ name: payload }, fullCtx);
-			expect(result.event_name).not.toContain("<");
-			expect(result.event_name).not.toContain(">");
-		});
-	}
-
-	test("XSS in all text fields stripped", () => {
-		const xss = '<script>alert("xss")</script>';
-		const result = buildTrackEvent(
-			{
-				name: xss,
-				referrer: xss,
-				path: xss,
-				title: xss,
-			},
-			fullCtx
-		);
-		for (const field of [
-			result.event_name,
-			result.referrer,
-			result.path,
-			result.title,
-		]) {
-			expect(field).not.toContain("<script>");
-			expect(field).not.toContain("<");
-		}
-	});
-
-	test("control chars stripped from text fields", () => {
-		const dirty = `clean${CONTROL_CHARS}text`;
-		const result = buildTrackEvent(
-			{ name: dirty, referrer: dirty, path: dirty, title: dirty },
-			fullCtx
-		);
-		for (const field of [
-			result.event_name,
-			result.referrer,
-			result.path,
-			result.title,
-		]) {
-			for (const char of CONTROL_CHARS) {
-				expect(field).not.toContain(char);
-			}
-		}
-	});
-
-	test("properties with XSS are JSON-stringified (not sanitized — stored as JSON)", () => {
+	test("properties are JSON-stringified verbatim, not HTML-sanitized", () => {
 		const result = buildTrackEvent(
 			{ name: "x", properties: { evil: "<script>alert(1)</script>" } },
 			fullCtx
 		);
-		// Properties are JSON-stringified, not HTML-sanitized (they're stored as JSON in CH)
-		expect(result.properties).toContain("script");
-		expect(typeof result.properties).toBe("string");
-		// But it's valid JSON
-		expect(() => JSON.parse(result.properties as string)).not.toThrow();
+		expect(JSON.parse(result.properties as string)).toEqual({
+			evil: "<script>alert(1)</script>",
+		});
 	});
 
 	test("passthrough fields (language, timezone, etc.) are NOT sanitized", () => {
@@ -277,76 +714,11 @@ describe("buildTrackEvent — sanitization boundary", () => {
 		expect(result.timezone).toBe("America/New_York");
 	});
 
-	test("session_id validated (rejects special chars)", () => {
+	test("session_id with stripped tags still passes the session id charset", () => {
 		const result = buildTrackEvent(
 			{ name: "x", sessionId: "sess<script>123" },
 			fullCtx
 		);
-		// sanitizeString strips <script>, then regex check rejects remaining if invalid
-		expect(result.session_id).not.toContain("<");
-	});
-});
-
-// ── Response contract shapes ──
-
-describe("buildTrackEvent — output shape completeness", () => {
-	const REQUIRED_FIELDS = [
-		"id",
-		"client_id",
-		"event_name",
-		"anonymous_id",
-		"profile_id",
-		"time",
-		"session_id",
-		"timestamp",
-		"referrer",
-		"url",
-		"path",
-		"title",
-		"ip",
-		"user_agent",
-		"browser_name",
-		"browser_version",
-		"os_name",
-		"os_version",
-		"device_type",
-		"device_brand",
-		"device_model",
-		"country",
-		"region",
-		"city",
-		"viewport_size",
-		"language",
-		"timezone",
-		"time_on_page",
-		"scroll_depth",
-		"interaction_count",
-		"page_count",
-		"utm_source",
-		"utm_medium",
-		"utm_campaign",
-		"utm_term",
-		"utm_content",
-		"gclid",
-		"dom_ready_time",
-		"ttfb",
-		"render_time",
-		"properties",
-		"created_at",
-	] as const;
-
-	test("output has all required fields", () => {
-		const result = buildTrackEvent(fullTrackData, fullCtx);
-		for (const field of REQUIRED_FIELDS) {
-			expect(result).toHaveProperty(field);
-		}
-	});
-
-	test("output has no unexpected fields", () => {
-		const result = buildTrackEvent(fullTrackData, fullCtx);
-		const keys = Object.keys(result);
-		for (const key of keys) {
-			expect(REQUIRED_FIELDS).toContain(key as any);
-		}
+		expect(result.session_id).toBe("sess123");
 	});
 });

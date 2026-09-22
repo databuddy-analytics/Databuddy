@@ -18,12 +18,16 @@ Track custom events programmatically using the Basket API. This is useful for se
 
 You can authenticate requests using either:
 
-1. **API Key** (recommended for server-side) — Pass in the `Authorization` header
+1. **API Key** (recommended for server-side): pass in the `x-api-key` header or as a Bearer token in the `Authorization` header
 2. **Client ID** — Pass as the `website_id` query parameter or as `websiteId` in the event body
 
 <CodeBlock 
   language="http"
   code={`# With API Key
+POST /track
+x-api-key: your_api_key
+
+# Or as a Bearer token
 POST /track
 Authorization: Bearer your_api_key
 
@@ -99,13 +103,25 @@ Send an array of events in a single request:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | Yes | Event name (1-256 characters) |
-| `properties` | object | No | Custom event properties |
+| `properties` | object | No | Custom event properties (max 50 keys, 32KB serialized) |
+| `eventId` | string | No | Client-supplied event ID used for deduplication (max 512 chars) |
+| `path` | string | No | Page path or URL associated with the event (max 2048 chars) |
 | `anonymousId` | string | No | Anonymous user identifier (max 256 chars) |
+| `profileId` | string | No | Your own user identifier for identity stitching |
+| `anonymizeVisitorIds` | boolean \| "auto" | No | Controls visitor ID anonymization |
 | `sessionId` | string | No | Session identifier (max 256 chars) |
 | `timestamp` | number \| string \| Date | No | Event timestamp (defaults to now) |
 | `namespace` | string | No | Event namespace for grouping (max 64 chars) |
 | `source` | string | No | Event source identifier (max 64 chars) |
 | `websiteId` | string | No | Public Databuddy Client ID (same value as `data-client-id` in the tracker; string id from the dashboard, not necessarily a UUID). Alternative to `?website_id=` |
+
+### Payload Limits
+
+| Limit | Value |
+|-------|-------|
+| Properties per event | 50 keys |
+| Serialized `properties` size | 32KB |
+| Request body size | 2MB |
 
 ---
 
@@ -333,8 +349,13 @@ Track JavaScript errors.
 <CodeBlock 
   language="json"
   code={`{
+  "success": false,
   "status": "error",
-  "message": "Description of the error"
+  "error": "Description of the error",
+  "message": "Description of the error",
+  "code": "ERROR_CODE",
+  "retryable": false,
+  "requestId": "req_abc123def456"
 }`}
 />
 
@@ -343,9 +364,15 @@ Track JavaScript errors.
 | 400 | Invalid request body | Request body failed validation |
 | 400 | Website missing organization | Website not properly configured |
 | 401 | API key or website_id required | No authentication provided |
+| 402 | Event quota exceeded | The plan's event quota was denied by the billing check |
 | 403 | API key missing track:events scope | API key lacks required scope |
+| 403 | Origin not authorized | Request origin is not allowed for this website |
+| 403 | IP address not authorized | Request IP is not allowed for this website |
 | 404 | Website not found | Invalid website_id |
+| 413 | Payload too large | Body or properties exceed the payload limits |
+| 429 | Rate limit exceeded | 600 requests per 60 seconds per API key or website+IP |
 | 500 | Internal server error | Server error |
+| 503 | Billing check unavailable | Event quota could not be verified; retry later |
 
 ---
 

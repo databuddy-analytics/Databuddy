@@ -1,4 +1,3 @@
-import { CheckIcon } from "@databuddy/ui/icons";
 import { cn } from "@databuddy/ui";
 import React from "react";
 
@@ -67,43 +66,4 @@ function Step({
 	);
 }
 
-interface CompletedStepProps extends Omit<StepProps, "stepNumber"> {
-	stepNumber?: number;
-}
-
-function CompletedStep({
-	className,
-	title,
-	stepNumber,
-	total,
-	children,
-	...props
-}: CompletedStepProps) {
-	const isLast = stepNumber === total;
-
-	return (
-		<div
-			className={cn(
-				"relative border-border/60 border-l py-4 pl-8 opacity-60",
-				isLast && "border-l-transparent",
-				className
-			)}
-			{...props}
-		>
-			<div className="absolute top-4 left-[-13px] flex size-6 items-center justify-center rounded-md border border-border/60 bg-card">
-				<CheckIcon className="size-3 text-muted-foreground" />
-			</div>
-
-			<div className="min-w-0">
-				{title && (
-					<h3 className="mb-1 font-medium text-foreground text-sm">{title}</h3>
-				)}
-				<div className="text-muted-foreground text-sm leading-6 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-					{children}
-				</div>
-			</div>
-		</div>
-	);
-}
-
-export { CompletedStep, Step, Steps };
+export { Step, Steps };

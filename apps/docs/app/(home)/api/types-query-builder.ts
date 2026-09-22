@@ -1,4 +1,4 @@
-export type QueryFieldType =
+type QueryFieldType =
 	| "string"
 	| "number"
 	| "boolean"
@@ -6,7 +6,7 @@ export type QueryFieldType =
 	| "datetime"
 	| "json";
 
-export interface QueryOutputField {
+interface QueryOutputField {
 	description?: string;
 	example?: string | number | boolean | null;
 	label?: string;
@@ -15,7 +15,7 @@ export interface QueryOutputField {
 	unit?: string;
 }
 
-export type VisualizationType =
+type VisualizationType =
 	| "table"
 	| "timeseries"
 	| "bar"
@@ -27,13 +27,9 @@ export type VisualizationType =
 export interface QueryBuilderMeta {
 	category?: string;
 	default_visualization?: VisualizationType;
-	deprecated?: boolean;
 	description: string;
-	docs_url?: string;
-	output_example?: Record<string, string | number | boolean | null>[];
 	output_fields?: QueryOutputField[];
 	supports_granularity?: ("hour" | "day" | "week" | "month")[];
 	tags?: string[];
 	title: string;
-	version?: string;
 }

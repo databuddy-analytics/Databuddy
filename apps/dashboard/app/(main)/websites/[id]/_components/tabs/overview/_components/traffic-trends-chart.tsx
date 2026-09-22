@@ -304,12 +304,10 @@ function TrafficTrendsRechartsPlot({
 	};
 
 	const handleMouseUp = (e: { activeLabel?: number | string }) => {
-		setIsDragging((wasDragging) => {
-			if (wasDragging) {
-				setTimeout(() => setSuppressTooltip(false), 150);
-			}
-			return false;
-		});
+		if (isDragging) {
+			setTimeout(() => setSuppressTooltip(false), 150);
+		}
+		setIsDragging(false);
 
 		if (!(e?.activeLabel && refAreaLeft)) {
 			setRefAreaLeft(null);
@@ -404,7 +402,7 @@ function TrafficTrendsRechartsPlot({
 								type="button"
 								variant="secondary"
 							>
-								<NoteIcon className="size-3" weight="duotone" />
+								<NoteIcon className="size-3" />
 								<span>Drag to annotate</span>
 								<XIcon className="size-2.5" />
 							</Button>
@@ -793,11 +791,7 @@ export function TrafficTrendsChart({
 							</p>
 							{dateRange.granularity === "hourly" && dateDiff > 7 ? (
 								<div className="mt-1 flex items-start gap-1 text-amber-600 text-xs">
-									<WarningIcon
-										className="mt-0.5 shrink-0"
-										size={14}
-										weight="fill"
-									/>
+									<WarningIcon className="mt-0.5 shrink-0" size={14} />
 									<span className="leading-relaxed">
 										Large date ranges may affect performance
 									</span>
@@ -842,13 +836,13 @@ export function TrafficTrendsChart({
 					emptyProps={{
 						description:
 							"Your analytics data will appear here as visitors interact with your website",
-						icon: <ChartLineIcon className="size-12" weight="duotone" />,
+						icon: <ChartLineIcon className="size-12" />,
 						title: "No data available",
 					}}
 					errorProps={{
 						description:
 							"We couldn't load traffic data. Try again in a moment.",
-						icon: <WarningCircleIcon className="size-12" weight="duotone" />,
+						icon: <WarningCircleIcon className="size-12" />,
 						title: "Something went wrong",
 						variant: "error",
 					}}

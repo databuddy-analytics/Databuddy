@@ -2,7 +2,7 @@ import type { DynamicQueryFilter } from "@/types/api";
 
 export const DASHBOARD_FILTERS_QUERY_PARAM = "filters";
 
-export type DashboardActionParamValue =
+type DashboardActionParamValue =
 	| (boolean | number | string)[]
 	| boolean
 	| null
@@ -37,7 +37,7 @@ export const DASHBOARD_ACTION_TARGETS = [
 	"website.vitals",
 ] as const;
 
-export type DashboardActionTarget = (typeof DASHBOARD_ACTION_TARGETS)[number];
+type DashboardActionTarget = (typeof DASHBOARD_ACTION_TARGETS)[number];
 
 const DASHBOARD_ACTION_TARGET_SET = new Set<string>(DASHBOARD_ACTION_TARGETS);
 
@@ -193,7 +193,7 @@ function isSafeDashboardPath(pathname: string) {
 	return topLevel ? ALLOWED_TOP_LEVEL_SEGMENTS.has(topLevel) : false;
 }
 
-export function normalizeDashboardHref(
+function normalizeDashboardHref(
 	href: string,
 	websiteId?: string | null
 ): string | null {

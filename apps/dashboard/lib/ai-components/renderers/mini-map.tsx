@@ -2,7 +2,6 @@
 
 import type { LocationData } from "@/types/website";
 import dynamic from "next/dynamic";
-import { motion } from "motion/react";
 import { useId, useMemo, useState } from "react";
 import { CountryFlag } from "@/components/icon";
 import { formatNumber } from "@/lib/formatters";
@@ -34,7 +33,7 @@ const MapComponent = dynamic(
 	}
 );
 
-export interface CountryItem {
+interface CountryItem {
 	country_code?: string;
 	name: string;
 	pageviews?: number;
@@ -91,10 +90,7 @@ export function MiniMapRenderer({ title, countries, className }: MiniMapProps) {
 				<div className="flex flex-col gap-1">
 					<div className="flex items-center gap-2.5 rounded-md bg-background px-2.5 py-2">
 						<div className="flex size-6 items-center justify-center rounded bg-accent">
-							<GlobeIcon
-								className="size-3.5 text-muted-foreground"
-								weight="duotone"
-							/>
+							<GlobeIcon className="size-3.5 text-muted-foreground" />
 						</div>
 						<p className="min-w-0 flex-1 truncate font-medium text-sm">
 							{title ?? "Geographic distribution"}
@@ -102,10 +98,7 @@ export function MiniMapRenderer({ title, countries, className }: MiniMapProps) {
 					</div>
 					<div className="rounded-md bg-background px-3 py-3">
 						<div className="dotted-bg flex flex-col items-center justify-center gap-2 overflow-hidden rounded bg-accent/90 px-4 py-10 text-center">
-							<GlobeIcon
-								className="size-8 text-muted-foreground/40"
-								weight="duotone"
-							/>
+							<GlobeIcon className="size-8 text-muted-foreground/40" />
 							<p className="font-medium text-sm">No location data</p>
 							<p className="text-pretty text-muted-foreground text-xs">
 								Visitor locations will appear once traffic flows in
@@ -127,10 +120,7 @@ export function MiniMapRenderer({ title, countries, className }: MiniMapProps) {
 			<div className="flex flex-col gap-1">
 				<div className="flex items-center gap-2.5 rounded-md bg-background px-2 py-2">
 					<div className="flex size-6 items-center justify-center rounded bg-accent">
-						<GlobeIcon
-							className="size-3.5 text-muted-foreground"
-							weight="duotone"
-						/>
+						<GlobeIcon className="size-3.5 text-muted-foreground" />
 					</div>
 					<p className="min-w-0 flex-1 truncate font-medium text-sm">
 						{title ?? "Geographic distribution"}
@@ -170,78 +160,75 @@ export function MiniMapRenderer({ title, countries, className }: MiniMapProps) {
 												"size-3 shrink-0 text-muted-foreground transition-transform duration-200 ease-out",
 												topCountriesOpen && "rotate-180"
 											)}
-											weight="fill"
 										/>
 									</button>
 
-									<motion.div
-										animate={{
-											height: topCountriesOpen ? "auto" : 0,
-										}}
-										className="overflow-hidden rounded"
-										initial={false}
-										transition={{ type: "spring", stiffness: 600, damping: 45 }}
+									<div
+										className={cn(
+											"grid rounded transition-[grid-template-rows] duration-200 ease-out",
+											topCountriesOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+										)}
 									>
-										<section
-											aria-hidden={!topCountriesOpen}
-											aria-labelledby={topCountriesTriggerId}
-											className="mt-0.5 max-h-40 space-y-0.5 overflow-y-auto rounded"
-											id={topCountriesPanelId}
-										>
-											{topCountries.length > 0 ? (
-												topCountries.map((country) => {
-													const safeVisitors =
-														country.visitors == null ||
-														Number.isNaN(country.visitors)
-															? 0
-															: country.visitors;
-													const safeTotalVisitors =
-														totalVisitors == null || Number.isNaN(totalVisitors)
-															? 0
-															: totalVisitors;
-													const percentage =
-														safeTotalVisitors > 0 &&
-														!Number.isNaN(safeVisitors) &&
-														!Number.isNaN(safeTotalVisitors)
-															? (safeVisitors / safeTotalVisitors) * 100
-															: 0;
-													const countryCode =
-														country.country_code?.toUpperCase() ||
-														country.country.toUpperCase();
+										<div className="overflow-hidden">
+											<section
+												aria-hidden={!topCountriesOpen}
+												aria-labelledby={topCountriesTriggerId}
+												className="mt-0.5 max-h-40 space-y-0.5 overflow-y-auto rounded"
+												id={topCountriesPanelId}
+											>
+												{topCountries.length > 0 ? (
+													topCountries.map((country) => {
+														const safeVisitors =
+															country.visitors == null ||
+															Number.isNaN(country.visitors)
+																? 0
+																: country.visitors;
+														const safeTotalVisitors =
+															totalVisitors == null ||
+															Number.isNaN(totalVisitors)
+																? 0
+																: totalVisitors;
+														const percentage =
+															safeTotalVisitors > 0 &&
+															!Number.isNaN(safeVisitors) &&
+															!Number.isNaN(safeTotalVisitors)
+																? (safeVisitors / safeTotalVisitors) * 100
+																: 0;
+														const countryCode =
+															country.country_code?.toUpperCase() ||
+															country.country.toUpperCase();
 
-													return (
-														<div
-															className="flex items-center gap-2 rounded bg-background px-2 py-1.5 transition-colors hover:bg-accent"
-															key={country.country}
-														>
-															<CountryFlag country={countryCode} size="sm" />
-															<span className="min-w-0 flex-1 truncate text-[11px] text-foreground">
-																{country.country}
-															</span>
-															<div className="flex shrink-0 items-center gap-1 text-balance text-right">
-																<span className="font-medium text-[11px] text-foreground tabular-nums">
-																	{formatNumber(country.visitors)}
+														return (
+															<div
+																className="flex items-center gap-2 rounded bg-background px-2 py-1.5 transition-colors hover:bg-accent"
+																key={country.country}
+															>
+																<CountryFlag country={countryCode} size="sm" />
+																<span className="min-w-0 flex-1 truncate text-[11px] text-foreground">
+																	{country.country}
 																</span>
-																<span className="text-[9px] text-muted-foreground tabular-nums">
-																	{percentage.toFixed(0)}%
-																</span>
+																<div className="flex shrink-0 items-center gap-1 text-balance text-right">
+																	<span className="font-medium text-[11px] text-foreground tabular-nums">
+																		{formatNumber(country.visitors)}
+																	</span>
+																	<span className="text-[9px] text-muted-foreground tabular-nums">
+																		{percentage.toFixed(0)}%
+																	</span>
+																</div>
 															</div>
-														</div>
-													);
-												})
-											) : (
-												<div className="flex flex-col items-center justify-center bg-accent p-3 text-center">
-													<GlobeIcon
-														className="size-5 text-muted-foreground/30"
-														weight="duotone"
-													/>
-													<p className="mt-1 text-[10px] text-muted-foreground">
-														No location data
-													</p>
-												</div>
-											)}
-										</section>
-									</motion.div>
+														);
+													})
+												) : (
+													<div className="flex flex-col items-center justify-center bg-accent p-3 text-center">
+														<GlobeIcon className="size-5 text-muted-foreground/30" />
+														<p className="mt-1 text-[10px] text-muted-foreground">
+															No location data
+														</p>
+													</div>
+												)}
+											</section>
+										</div>
+									</div>
 								</div>
 							</div>
 						</div>

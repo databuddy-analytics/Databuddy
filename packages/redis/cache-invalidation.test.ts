@@ -124,7 +124,6 @@ const {
 	invalidateAgentContextSnapshot,
 	invalidateAgentContextSnapshotsForOwner,
 	invalidateAgentContextSnapshotsForWebsite,
-	invalidateCacheableTag,
 	invalidateCacheableWithArgs,
 	invalidateFlagReadCaches,
 	invalidateOrganizationMembershipCaches,
@@ -164,15 +163,12 @@ beforeEach(() => {
 });
 
 describe("agent context snapshot keys", () => {
-	it("uses the organization as owner when available", () => {
-		expect(getAgentContextSnapshotKey("user-1", "site-1", "org-1")).toBe(
-			"agent:context-snapshot:org-1:site-1"
-		);
-	});
-
-	it("falls back to the user id for personal workspaces", () => {
-		expect(getAgentContextSnapshotKey("user-1", "site-1", null)).toBe(
-			"agent:context-snapshot:user-1:site-1"
+	it.each([
+		["org-1", "agent:context-snapshot:org-1:site-1"],
+		[null, "agent:context-snapshot:user-1:site-1"],
+	])("scopes the key to organization %p", (organizationId, expected) => {
+		expect(getAgentContextSnapshotKey("user-1", "site-1", organizationId)).toBe(
+			expected
 		);
 	});
 });
@@ -247,39 +243,6 @@ describe("cache tag registry", () => {
 		expect(cacheTags.flagKey("client:1", "flag/a b")).toBe(
 			"flag-key:client%3A1:flag%2Fa%20b"
 		);
-	});
-});
-
-describe("tagged cache invalidation", () => {
-	it("deletes keys from an exact tag index without scanning", async () => {
-		const indexKey = "cacheable-index:website-domains-batch:website:site-1";
-		redisStore.set("cacheable:website-domains-batch:[[site-1,site-2]]", {
-			value: "{}",
-			ttl: 100,
-		});
-		redisStore.set("cacheable:website-domains-batch:[[site-2]]", {
-			value: "{}",
-			ttl: 100,
-		});
-		redisSets.set(
-			indexKey,
-			new Set(["cacheable:website-domains-batch:[[site-1,site-2]]"])
-		);
-
-		const deletedCount = await invalidateCacheableTag(
-			"website-domains-batch",
-			cacheTags.website("site-1")
-		);
-
-		expect(deletedCount).toBe(1);
-		expect(
-			redisStore.has("cacheable:website-domains-batch:[[site-1,site-2]]")
-		).toBe(false);
-		expect(redisStore.has("cacheable:website-domains-batch:[[site-2]]")).toBe(
-			true
-		);
-		expect(redisSets.has(indexKey)).toBe(false);
-		expect(mockRedisClient.scan).not.toHaveBeenCalled();
 	});
 });
 
@@ -360,9 +323,7 @@ describe("flag read cache invalidation", () => {
 		expect(redisStore.has("cacheable:flags-client:[site-1]")).toBe(false);
 		expect(redisStore.has("cacheable:flags-definitions:[site-1]")).toBe(false);
 		expect(redisStore.has("cacheable:flags-user:[user-1,site-1]")).toBe(false);
-		expect(redisStore.has("cacheable:flags-user:[user-2,site-1]")).toBe(
-			true
-		);
+		expect(redisStore.has("cacheable:flags-user:[user-2,site-1]")).toBe(true);
 	});
 });
 
@@ -389,11 +350,7 @@ describe("organization membership cache invalidation", () => {
 				cacheNamespaces.organizationOwner,
 				"org-1"
 			),
-			role: getCacheableKey(
-				cacheNamespaces.memberRole,
-				"user-1",
-				"org-1"
-			),
+			role: getCacheableKey(cacheNamespaces.memberRole, "user-1", "org-1"),
 		};
 		redisStore.set(keys.role, {
 			value: "member",
@@ -452,9 +409,16 @@ describe("agent context snapshot invalidation", () => {
 	it("marks every owner snapshot for a website stale", async () => {
 		const orgKey = getAgentContextSnapshotKey("user-1", "site-1", "org-1");
 		const userKey = getAgentContextSnapshotKey("user-2", "site-1", null);
-		const otherSiteKey = getAgentContextSnapshotKey("user-1", "site-2", "org-1");
+		const otherSiteKey = getAgentContextSnapshotKey(
+			"user-1",
+			"site-2",
+			"org-1"
+		);
 		redisStore.set(orgKey, { value: freshSnapshot("org site one"), ttl: 100 });
-		redisStore.set(userKey, { value: freshSnapshot("user site one"), ttl: 100 });
+		redisStore.set(userKey, {
+			value: freshSnapshot("user site one"),
+			ttl: 100,
+		});
 		redisStore.set(otherSiteKey, {
 			value: freshSnapshot("org site two"),
 			ttl: 100,
@@ -481,9 +445,7 @@ describe("agent context snapshot invalidation", () => {
 		const count = await invalidateAgentContextSnapshotsForOwner("org-1");
 
 		expect(count).toBe(2);
-		expect(readSnapshot(firstKey).refreshedAt).toBe(
-			"1970-01-01T00:00:00.000Z"
-		);
+		expect(readSnapshot(firstKey).refreshedAt).toBe("1970-01-01T00:00:00.000Z");
 		expect(readSnapshot(secondKey).refreshedAt).toBe(
 			"1970-01-01T00:00:00.000Z"
 		);

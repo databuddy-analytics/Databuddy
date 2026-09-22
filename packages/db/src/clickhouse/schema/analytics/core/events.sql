@@ -43,14 +43,12 @@ CREATE TABLE IF NOT EXISTS analytics.events
 	`created_at` DateTime64(3, 'UTC'),
 	`timestamp` DateTime64(3) DEFAULT toDate(time),
 	`profile_id` String DEFAULT '',
-	`ingested_at` DateTime64(6, 'UTC') DEFAULT now64(6) CODEC(Delta(8), ZSTD(1)),
 	INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
 	INDEX idx_anonymous_id anonymous_id TYPE bloom_filter(0.01) GRANULARITY 1,
 	INDEX idx_path path TYPE bloom_filter(0.02) GRANULARITY 1,
 	INDEX idx_profile_id profile_id TYPE bloom_filter(0.01) GRANULARITY 1
 )
-ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/analytics_events_delivery_v2', '{replica}', ingested_at)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/analytics_events', '{replica}')
 PARTITION BY toYYYYMM(time)
-PRIMARY KEY client_id
-ORDER BY (client_id, id)
+ORDER BY (client_id, time, id)
 SETTINGS index_granularity = 8192

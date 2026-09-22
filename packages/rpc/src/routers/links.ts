@@ -9,7 +9,6 @@ import {
 	isNull,
 	isUniqueViolationFor,
 	or,
-	sql,
 } from "@databuddy/db";
 import { linkFolders, links } from "@databuddy/db/schema";
 import {
@@ -26,13 +25,13 @@ import { randomUUIDv7 } from "bun";
 import { customAlphabet } from "nanoid";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { getErrorLogFields } from "@databuddy/shared/evlog-fields";
 import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
 import { requireLinkAccess, requireOrganizationId } from "./link-access";
 import {
 	createLinkSchema,
-	deleteLinkSchema,
 	getLinkSchema,
 	linkOutputSchema,
 	listLinksPageOutputSchema,
@@ -58,10 +57,14 @@ type CacheableLink = Pick<
 >;
 interface LinkCacheMutation {
 	id: string;
+	organizationId: string;
 	slug: string;
 	token: string;
 }
-type LinkCacheMutationRequest = Pick<LinkCacheMutation, "id" | "slug"> & {
+type LinkCacheMutationRequest = Pick<
+	LinkCacheMutation,
+	"id" | "organizationId" | "slug"
+> & {
 	mode: "existing" | "new";
 };
 
@@ -69,14 +72,6 @@ const generateLinkSlug = customAlphabet(
 	"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
 	8
 );
-const LINK_DB_STATEMENT_TIMEOUT_MS = 10_000;
-
-function setLocalLinkStatementTimeout() {
-	return sql.raw(
-		`SET LOCAL statement_timeout = '${LINK_DB_STATEMENT_TIMEOUT_MS}ms'`
-	);
-}
-
 function hasPostgresSqlState(error: unknown): boolean {
 	const seen = new Set<object>();
 	let current = error;
@@ -198,20 +193,6 @@ function toCachedLink(link: CacheableLink): CachedLink {
 	};
 }
 
-function getErrorLogFields(error: unknown): {
-	error_message: string;
-	error_stack?: string;
-} {
-	if (error instanceof Error) {
-		return {
-			error_message: error.message,
-			...(error.stack ? { error_stack: error.stack } : {}),
-		};
-	}
-
-	return { error_message: String(error) };
-}
-
 function invalidateLinkAgentContext(organizationId: string): void {
 	// The helper absorbs expected Redis failures; retain this guard for future errors.
 	invalidateAgentContextSnapshotsForOwner(organizationId).catch((error) => {
@@ -227,18 +208,24 @@ async function abandonLinkCacheMutations(
 	reason: string
 ): Promise<void> {
 	await Promise.all(
-		mutations.map(async ({ id, slug, token }) => {
+		mutations.map(async ({ id, organizationId, slug, token }) => {
 			try {
 				if (await abandonCachedLinkMutation(slug, token)) {
 					return;
 				}
 				logger.warn(
-					{ linkId: id, slug },
+					{ linkId: id, organizationId, slug },
 					"Lost link cache mutation lease while abandoning mutation"
 				);
 			} catch (error) {
 				logger.error(
-					{ linkId: id, slug, reason, ...getErrorLogFields(error) },
+					{
+						linkId: id,
+						organizationId,
+						slug,
+						reason,
+						...getErrorLogFields(error),
+					},
 					"Failed to abandon link cache mutation"
 				);
 			}
@@ -251,18 +238,18 @@ async function finishLinkCacheMutation(
 	next: CachedLinkMutationNext,
 	reason: string
 ): Promise<boolean> {
-	const { id, slug, token } = mutation;
+	const { id, organizationId, slug, token } = mutation;
 	try {
 		if (await finishCachedLinkMutation(slug, token, next)) {
 			return true;
 		}
 		logger.warn(
-			{ linkId: id, slug, reason },
+			{ linkId: id, organizationId, slug, reason },
 			"Lost link cache mutation lease before cache finalization"
 		);
 	} catch (error) {
 		logger.error(
-			{ linkId: id, slug, reason, ...getErrorLogFields(error) },
+			{ linkId: id, organizationId, slug, reason, ...getErrorLogFields(error) },
 			"Failed to finalize link cache mutation"
 		);
 	}
@@ -274,7 +261,7 @@ async function finishLinkCacheMutation(
 		await abandonCachedLinkMutation(slug, token);
 	} catch (error) {
 		logger.error(
-			{ linkId: id, slug, reason, ...getErrorLogFields(error) },
+			{ linkId: id, organizationId, slug, reason, ...getErrorLogFields(error) },
 			"Failed to release link cache mutation after finalization failure"
 		);
 	}
@@ -283,7 +270,7 @@ async function finishLinkCacheMutation(
 
 async function backfillLinkCache(
 	slug: string,
-	link: CacheableLink,
+	link: CacheableLink & { organizationId: string },
 	reason: string
 ): Promise<void> {
 	try {
@@ -291,12 +278,23 @@ async function backfillLinkCache(
 			return;
 		}
 		logger.warn(
-			{ linkId: link.id, slug, reason },
+			{
+				linkId: link.id,
+				organizationId: link.organizationId,
+				slug,
+				reason,
+			},
 			"Link cache backfill did not replace an existing entry"
 		);
 	} catch (error) {
 		logger.error(
-			{ linkId: link.id, slug, reason, ...getErrorLogFields(error) },
+			{
+				linkId: link.id,
+				organizationId: link.organizationId,
+				slug,
+				reason,
+				...getErrorLogFields(error),
+			},
 			"Failed to backfill link cache"
 		);
 	}
@@ -335,6 +333,7 @@ async function beginLinkCacheMutations(
 			}
 			mutations.push({
 				id: request.id,
+				organizationId: request.organizationId,
 				slug: request.slug,
 				token: started.token,
 			});
@@ -572,12 +571,10 @@ export const linksRouter = {
 			);
 
 			validateDeepLinkConfiguration(input.deepLinkApp, input.targetUrl);
-			const createdBy = await workspace.getCreatedBy();
-			const resolvedFolderId = await validateFolderId(
-				context.db,
-				input.folderId,
-				organizationId
-			);
+			const [createdBy, resolvedFolderId] = await Promise.all([
+				workspace.getCreatedBy(),
+				validateFolderId(context.db, input.folderId, organizationId),
+			]);
 			const targetDomain =
 				normalizeTargetDomain(input.targetDomain) ??
 				getTargetDomain(input.targetUrl);
@@ -588,71 +585,65 @@ export const linksRouter = {
 
 			for (const slug of slugsToTry) {
 				const linkId = randomUUIDv7();
-				let cacheMutations: LinkCacheMutation[] | null;
-				try {
-					cacheMutations = await beginLinkCacheMutations([
-						{ id: linkId, mode: "new", slug },
-					]);
-				} catch (error) {
-					logger.error(
-						{ slug, linkId, ...getErrorLogFields(error) },
-						"Failed to begin link cache mutation before create"
-					);
-					if (input.slug) {
+				// Custom slugs take a cache lease so hot-slug readers never see
+				// stale state. Generated slugs skip it: PostgreSQL's unique
+				// constraint is authoritative, nobody can read a slug before this
+				// response returns it, and redirects read through to PG on misses.
+				let cacheMutations: LinkCacheMutation[] = [];
+				if (input.slug) {
+					let started: LinkCacheMutation[] | null;
+					try {
+						started = await beginLinkCacheMutations([
+							{ id: linkId, mode: "new", organizationId, slug },
+						]);
+					} catch (error) {
+						logger.error(
+							{ slug, linkId, ...getErrorLogFields(error) },
+							"Failed to begin link cache mutation before create"
+						);
 						throw rpcError.serviceUnavailable(
 							1,
 							"Link cache is temporarily unavailable; retry this custom slug"
 						);
 					}
-					// PostgreSQL's unique constraint is authoritative for generated
-					// slugs. A cache outage must not make random-slug creation
-					// unavailable; redirects read through to PG on cache misses.
-					cacheMutations = [];
-				}
-
-				if (!cacheMutations) {
-					if (input.slug) {
+					if (!started) {
 						throw rpcError.conflict(
 							"This slug is already taken or is being updated"
 						);
 					}
-					continue;
+					cacheMutations = started;
 				}
 
 				const [cacheMutation] = cacheMutations;
 
 				let finalizedFailure = false;
 				try {
-					const newLink = await context.db.transaction(async (tx) => {
-						await tx.execute(setLocalLinkStatementTimeout());
-						const [created] = await tx
-							.insert(links)
-							.values({
-								id: linkId,
-								slug,
-								organizationId,
-								createdBy,
-								folderId: resolvedFolderId,
-								name: input.name,
-								targetUrl: input.targetUrl,
-								targetDomain,
-								sourceType: normalizeNullableText(input.sourceType),
-								sourceId: normalizeNullableText(input.sourceId),
-								sourceOwnerId: normalizeNullableText(input.sourceOwnerId),
-								expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
-								expiredRedirectUrl: input.expiredRedirectUrl ?? null,
-								ogTitle: input.ogTitle ?? null,
-								ogDescription: input.ogDescription ?? null,
-								ogImageUrl: input.ogImageUrl ?? null,
-								ogVideoUrl: input.ogVideoUrl ?? null,
-								iosUrl: input.iosUrl ?? null,
-								androidUrl: input.androidUrl ?? null,
-								externalId: input.externalId ?? null,
-								deepLinkApp: input.deepLinkApp ?? null,
-							})
-							.returning();
-						return created;
-					});
+					const [newLink] = await context.db
+						.insert(links)
+						.values({
+							id: linkId,
+							slug,
+							organizationId,
+							createdBy,
+							folderId: resolvedFolderId,
+							name: input.name,
+							targetUrl: input.targetUrl,
+							targetDomain,
+							sourceType: normalizeNullableText(input.sourceType),
+							sourceId: normalizeNullableText(input.sourceId),
+							sourceOwnerId: normalizeNullableText(input.sourceOwnerId),
+							expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+							expiredRedirectUrl: input.expiredRedirectUrl ?? null,
+							ogTitle: input.ogTitle ?? null,
+							ogDescription: input.ogDescription ?? null,
+							ogImageUrl: input.ogImageUrl ?? null,
+							ogVideoUrl: input.ogVideoUrl ?? null,
+							iosUrl: input.iosUrl ?? null,
+							androidUrl: input.androidUrl ?? null,
+							externalId: input.externalId ?? null,
+							deepLinkApp: input.deepLinkApp ?? null,
+						})
+						.returning();
 
 					if (!newLink) {
 						await abandonLinkCacheMutations(
@@ -663,19 +654,19 @@ export const linksRouter = {
 						throw rpcError.internal("Failed to create link");
 					}
 
-					if (cacheMutation) {
-						await finishLinkCacheMutation(
-							cacheMutation,
-							{ link: toCachedLink(newLink), state: "link" },
-							"create persisted"
+					const publishCache = cacheMutation
+						? finishLinkCacheMutation(
+								cacheMutation,
+								{ link: toCachedLink(newLink), state: "link" },
+								"create persisted"
+							)
+						: backfillLinkCache(slug, newLink, "create bypassed cache lease");
+					publishCache.catch((error) => {
+						logger.error(
+							{ slug, linkId, ...getErrorLogFields(error) },
+							"Failed to publish created link to cache"
 						);
-					} else {
-						await backfillLinkCache(
-							slug,
-							newLink,
-							"create bypassed cache lease"
-						);
-					}
+					});
 					invalidateLinkAgentContext(organizationId);
 
 					return newLink;
@@ -703,15 +694,11 @@ export const linksRouter = {
 
 					let persistedLink: LinkRow | undefined;
 					try {
-						persistedLink = await context.db.transaction(async (tx) => {
-							await tx.execute(setLocalLinkStatementTimeout());
-							const [persisted] = await tx
-								.select()
-								.from(links)
-								.where(eq(links.id, linkId))
-								.limit(1);
-							return persisted;
-						});
+						[persistedLink] = await context.db
+							.select()
+							.from(links)
+							.where(eq(links.id, linkId))
+							.limit(1);
 					} catch (reconciliationError) {
 						logger.error(
 							{
@@ -815,12 +802,18 @@ export const linksRouter = {
 					: normalizeTargetDomain(targetDomain);
 
 			const cacheMutationRequests: LinkCacheMutationRequest[] = [
-				{ id: link.id, mode: "existing", slug: oldSlug },
+				{
+					id: link.id,
+					mode: "existing",
+					organizationId: link.organizationId,
+					slug: oldSlug,
+				},
 			];
 			if (nextSlug !== oldSlug) {
 				cacheMutationRequests.push({
 					id: link.id,
 					mode: "new",
+					organizationId: link.organizationId,
 					slug: nextSlug,
 				});
 			}
@@ -859,39 +852,35 @@ export const linksRouter = {
 
 			let finalizedFailure = false;
 			try {
-				const updatedLink = await context.db.transaction(async (tx) => {
-					await tx.execute(setLocalLinkStatementTimeout());
-					const [updated] = await tx
-						.update(links)
-						.set({
-							...updates,
-							folderId:
-								resolvedFolderId === undefined ? undefined : resolvedFolderId,
-							sourceType:
-								sourceType === undefined
-									? undefined
-									: normalizeNullableText(sourceType),
-							sourceId:
-								sourceId === undefined
-									? undefined
-									: normalizeNullableText(sourceId),
-							sourceOwnerId:
-								sourceOwnerId === undefined
-									? undefined
-									: normalizeNullableText(sourceOwnerId),
-							targetDomain: nextTargetDomain,
-							expiresAt:
-								expiresAt === undefined
-									? undefined
-									: expiresAt
-										? new Date(expiresAt)
-										: null,
-							updatedAt: new Date(),
-						})
-						.where(eq(links.id, id))
-						.returning();
-					return updated;
-				});
+				const [updatedLink] = await context.db
+					.update(links)
+					.set({
+						...updates,
+						folderId:
+							resolvedFolderId === undefined ? undefined : resolvedFolderId,
+						sourceType:
+							sourceType === undefined
+								? undefined
+								: normalizeNullableText(sourceType),
+						sourceId:
+							sourceId === undefined
+								? undefined
+								: normalizeNullableText(sourceId),
+						sourceOwnerId:
+							sourceOwnerId === undefined
+								? undefined
+								: normalizeNullableText(sourceOwnerId),
+						targetDomain: nextTargetDomain,
+						expiresAt:
+							expiresAt === undefined
+								? undefined
+								: expiresAt
+									? new Date(expiresAt)
+									: null,
+						updatedAt: new Date(),
+					})
+					.where(eq(links.id, id))
+					.returning();
 
 				if (!updatedLink) {
 					await tombstoneLinkCacheMutations(
@@ -975,7 +964,7 @@ export const linksRouter = {
 			description: "Deletes a link by id. Requires write:links scope.",
 			spec: (s) => ({ ...s, "x-required-scopes": ["write:links"] as const }),
 		})
-		.input(deleteLinkSchema)
+		.input(getLinkSchema)
 		.output(z.object({ success: z.literal(true) }))
 		.handler(async ({ context, input }) => {
 			const link = await getLinkOrThrow(context, input.id);
@@ -984,7 +973,12 @@ export const linksRouter = {
 			let cacheMutations: LinkCacheMutation[] | null;
 			try {
 				cacheMutations = await beginLinkCacheMutations([
-					{ id: link.id, mode: "existing", slug: link.slug },
+					{
+						id: link.id,
+						mode: "existing",
+						organizationId: link.organizationId,
+						slug: link.slug,
+					},
 				]);
 			} catch (error) {
 				logger.error(
@@ -1006,13 +1000,10 @@ export const linksRouter = {
 
 			let finalizedFailure = false;
 			try {
-				const deleted = await context.db.transaction(async (tx) => {
-					await tx.execute(setLocalLinkStatementTimeout());
-					return tx
-						.delete(links)
-						.where(eq(links.id, input.id))
-						.returning({ id: links.id });
-				});
+				const deleted = await context.db
+					.delete(links)
+					.where(eq(links.id, input.id))
+					.returning({ id: links.id });
 				if (deleted.length === 0) {
 					await tombstoneLinkCacheMutations(
 						cacheMutations,

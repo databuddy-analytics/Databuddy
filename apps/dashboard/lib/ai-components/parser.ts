@@ -25,7 +25,7 @@ function isRawComponentInput(obj: unknown): obj is RawComponentInput {
 	return valid;
 }
 
-export function repairPartialJSON(input: string): string | null {
+function repairPartialJSON(input: string): string | null {
 	if (input.length < 10) {
 		return null;
 	}

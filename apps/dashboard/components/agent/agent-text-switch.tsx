@@ -109,10 +109,12 @@ function DualStaggerStack({
 	const layerDoneRef = useRef({ bottom: false, top: false });
 	const previousFlipRef = useRef(false);
 
-	if (flip && !previousFlipRef.current) {
-		layerDoneRef.current = { bottom: false, top: false };
-	}
-	previousFlipRef.current = flip;
+	useEffect(() => {
+		if (flip && !previousFlipRef.current) {
+			layerDoneRef.current = { bottom: false, top: false };
+		}
+		previousFlipRef.current = flip;
+	}, [flip]);
 
 	const spring = stagger ? SPRING : SPRING_NO_STAGGER;
 
@@ -263,11 +265,7 @@ export function AgentTextSwitch({
 	}, [active, clearHold]);
 
 	useEffect(() => {
-		if (!(active && inView)) {
-			clearHold();
-			return;
-		}
-		if (flip) {
+		if (!(active && inView) || flip) {
 			clearHold();
 		} else {
 			scheduleHold();

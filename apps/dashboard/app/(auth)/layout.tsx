@@ -1,85 +1,29 @@
-import Iridescence from "@/components/bits/Iridiscence";
-import { Logo } from "@/components/layout/logo";
-import Link from "next/link";
-import { Suspense } from "react";
-import { CaretLeftIcon } from "@databuddy/ui/icons";
-import { Button, Spinner, Text } from "@databuddy/ui";
+import { readBooleanEnv } from "@databuddy/env/boolean";
+import { connection } from "next/server";
+import type { ReactNode } from "react";
+import AuthLayout from "./auth-layout";
 
-export default function AuthLayout({
-	children,
-}: {
-	children: React.ReactNode;
-}) {
+export default async function Layout({ children }: { children: ReactNode }) {
+	if (!readBooleanEnv("SELFHOST")) {
+		return <AuthLayout>{children}</AuthLayout>;
+	}
+	await connection();
 	return (
-		<div className="flex h-dvh items-center justify-center bg-muted/50 p-4 md:p-6">
-			<div className="flex h-full max-h-[900px] w-full max-w-[1200px] overflow-hidden rounded-2xl border shadow-sm">
-				<div className="relative hidden flex-col items-start justify-between overflow-hidden rounded-l-2xl p-12 md:flex md:w-1/2">
-					<div className="absolute inset-0">
-						<Iridescence
-							amplitude={0.1}
-							color={[0.1, 0.1, 0.1]}
-							mouseReact={false}
-							speed={0.5}
-						/>
-					</div>
-					<Link className="relative z-10" href="https://www.databuddy.cc">
-						<Button
-							className="group px-0! text-white/50 hover:bg-transparent hover:text-white/80"
-							variant="ghost"
-						>
-							<CaretLeftIcon className="size-4 transition-transform duration-200 group-hover:translate-x-[-4px]" />
-							Back
-						</Button>
-					</Link>
-					<div className="relative z-10">
-						<Text
-							as="h1"
-							className="mb-2 w-full max-w-sm text-balance text-4xl text-white/60 leading-[46px]"
-							variant="display"
-						>
-							Build <span className="text-white">better products</span> with
-							Databuddy
-						</Text>
-						<Text className="max-w-sm text-pretty text-white/90">
-							Connect your data sources, build insights, and share them with
-							your team.
-						</Text>
-					</div>
-				</div>
-				<div className="flex w-full flex-col overflow-auto bg-background md:w-1/2">
-					<div className="flex justify-center p-6 pt-8 md:p-8 md:pt-20">
-						<Logo />
-					</div>
-
-					<div className="flex flex-1 items-center justify-center md:p-8 md:pt-0">
-						<div className="w-full max-w-md">
-							<Suspense
-								fallback={
-									<div className="flex h-40 items-center justify-center">
-										<Spinner size="lg" />
-									</div>
-								}
-							>
-								{children}
-							</Suspense>
-						</div>
-					</div>
-
-					<div className="flex justify-center p-6 pb-8 text-center">
-						<Text tone="muted">
-							Powered by{" "}
-							<a
-								className="font-medium text-foreground hover:underline"
-								href="https://www.databuddy.cc"
-								rel="noopener noreferrer dofollow"
-								target="_blank"
-							>
-								Databuddy
-							</a>
-						</Text>
-					</div>
-				</div>
-			</div>
-		</div>
+		<AuthLayout
+			capabilities={{
+				email: Boolean(
+					process.env.RESEND_API_KEY?.trim() && process.env.EMAIL_FROM?.trim()
+				),
+				github: Boolean(
+					process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET
+				),
+				google: Boolean(
+					process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+				),
+				verifyEmail: readBooleanEnv("REQUIRE_EMAIL_VERIFICATION"),
+			}}
+		>
+			{children}
+		</AuthLayout>
 	);
 }

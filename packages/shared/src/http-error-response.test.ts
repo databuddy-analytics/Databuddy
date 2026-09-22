@@ -63,7 +63,9 @@ describe("buildHttpErrorResponse", () => {
 	});
 
 	it("treats numeric codes as status values, not public error codes", () => {
-		expect(buildHttpErrorResponse({ code: 404, error: new Error("missing") })).toEqual({
+		expect(
+			buildHttpErrorResponse({ code: 404, error: new Error("missing") })
+		).toEqual({
 			status: 404,
 			payload: {
 				success: false,

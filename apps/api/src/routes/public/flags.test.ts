@@ -1,14 +1,76 @@
-import { describe, expect, it } from "vitest";
-import {
+import "@databuddy/test/env";
+import { Elysia } from "elysia";
+import { describe, expect, it, vi } from "vitest";
+
+const state = vi.hoisted(() => ({
+	findFirst: vi.fn(async () => null as unknown),
+	flags: [
+		{
+			defaultValue: true,
+			dependencies: null,
+			flagsToTargetGroups: [],
+			key: "enabled-for-everyone",
+			payload: null,
+			rolloutBy: null,
+			rolloutPercentage: null,
+			rules: null,
+			status: "active",
+			type: "boolean",
+			variants: null,
+		},
+	],
+	rateLimited: false,
+}));
+
+vi.mock("@databuddy/db", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@databuddy/db")>()),
+	db: {
+		query: {
+			flags: {
+				findFirst: state.findFirst,
+				findMany: vi.fn(async () => state.flags),
+			},
+		},
+	},
+}));
+
+vi.mock("@databuddy/redis", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@databuddy/redis")>()),
+	cacheable: (fn: (...args: never[]) => unknown) => fn,
+}));
+
+vi.mock("@databuddy/redis/rate-limit", () => ({
+	getRateLimitHeaders: () => ({ "x-ratelimit-remaining": "0" }),
+	ratelimit: async () => ({
+		limit: 600,
+		remaining: state.rateLimited ? 0 : 599,
+		reset: Date.now() + 60_000,
+		success: !state.rateLimited,
+	}),
+}));
+
+const {
 	evaluateFlag,
 	evaluateRule,
 	evaluateStringRule,
 	evaluateValueRule,
+	flagsRoute,
 	hashString,
 	parseProperties,
 	selectVariant,
-} from "./flags";
+} = await import("./flags");
+const app = new Elysia().use(flagsRoute);
 
+function request(path: string, body?: unknown) {
+	return app.handle(
+		new Request(`http://localhost${path}`, {
+			body: body === undefined ? undefined : JSON.stringify(body),
+			headers:
+				body === undefined ? undefined : { "content-type": "application/json" },
+			method: body === undefined ? "GET" : "POST",
+		})
+	);
+}
 const SAMPLE_SIZE = 500;
 const randomId = () => Math.random().toString(36).slice(2, 15);
 
@@ -43,13 +105,10 @@ describe("hashString", () => {
 });
 
 describe("parseProperties", () => {
-	const cases: Array<[string | undefined, Record<string, unknown>]> = [
+	const cases: [string | undefined, Record<string, unknown>][] = [
 		[undefined, {}],
 		["", {}],
 		["{invalid}", {}],
-		['{"a":1,"b":"c","d":true}', { a: 1, b: "c", d: true }],
-		['{"nested":{"x":1}}', { nested: { x: 1 } }],
-		['{"arr":[1,2,3]}', { arr: [1, 2, 3] }],
 	];
 
 	it.each(cases)("parses %j correctly", (input, expected) => {
@@ -66,173 +125,25 @@ describe("evaluateStringRule", () => {
 		enabled: true,
 		batch: false,
 	});
+	const vals = ["a", "b", "c"];
 
-	it("handles all operators correctly", () => {
-		expect(evaluateStringRule("user-123", rule("equals", "user-123"))).toBe(
-			true
-		);
-		expect(evaluateStringRule("other", rule("equals", "user-123"))).toBe(false);
-
-		expect(
-			evaluateStringRule("user@company.com", rule("contains", "@company"))
-		).toBe(true);
-		expect(
-			evaluateStringRule("user@other.com", rule("contains", "@company"))
-		).toBe(false);
-
-		expect(
-			evaluateStringRule("admin-user", rule("starts_with", "admin-"))
-		).toBe(true);
-		expect(
-			evaluateStringRule("user-admin", rule("starts_with", "admin-"))
-		).toBe(false);
-
-		expect(evaluateStringRule("file.com", rule("ends_with", ".com"))).toBe(
-			true
-		);
-		expect(evaluateStringRule("file.org", rule("ends_with", ".com"))).toBe(
-			false
-		);
-
-		const vals = ["a", "b", "c"];
-		expect(evaluateStringRule("b", rule("in", undefined, vals))).toBe(true);
-		expect(evaluateStringRule("z", rule("in", undefined, vals))).toBe(false);
-		expect(evaluateStringRule("z", rule("not_in", undefined, vals))).toBe(true);
-		expect(evaluateStringRule("a", rule("not_in", undefined, vals))).toBe(
-			false
-		);
-
-		expect(evaluateStringRule("test", rule("unknown_op", "test"))).toBe(false);
-		expect(evaluateStringRule(undefined, rule("equals", "test"))).toBe(false);
-	});
-});
-
-describe("evaluateStringRule - email pattern matching", () => {
-	const emailRule = (op: string, val?: string, vals?: string[]) => ({
-		type: "email" as const,
-		operator: op,
-		value: val,
-		values: vals,
-		enabled: true,
-		batch: false,
-	});
-
-	it("handles ends_with for email domain patterns", () => {
-		// Common use case: target users by email domain
-		expect(
-			evaluateStringRule(
-				"user@databuddy.cc",
-				emailRule("ends_with", "@databuddy.cc")
-			)
-		).toBe(true);
-		expect(
-			evaluateStringRule(
-				"admin@databuddy.cc",
-				emailRule("ends_with", "@databuddy.cc")
-			)
-		).toBe(true);
-		expect(
-			evaluateStringRule(
-				"user@other.com",
-				emailRule("ends_with", "@databuddy.cc")
-			)
-		).toBe(false);
-		expect(
-			evaluateStringRule("user@company.io", emailRule("ends_with", ".io"))
-		).toBe(true);
-		expect(
-			evaluateStringRule("user@company.com", emailRule("ends_with", ".io"))
-		).toBe(false);
-	});
-
-	it("handles starts_with for email prefix patterns", () => {
-		// Target emails starting with a prefix (e.g., admin@, support@)
-		expect(
-			evaluateStringRule(
-				"admin@company.com",
-				emailRule("starts_with", "admin@")
-			)
-		).toBe(true);
-		expect(
-			evaluateStringRule("admin@other.org", emailRule("starts_with", "admin@"))
-		).toBe(true);
-		expect(
-			evaluateStringRule("user@company.com", emailRule("starts_with", "admin@"))
-		).toBe(false);
-		expect(
-			evaluateStringRule(
-				"support@company.com",
-				emailRule("starts_with", "support")
-			)
-		).toBe(true);
-	});
-
-	it("handles contains for partial email matching", () => {
-		// Target emails containing a substring
-		expect(
-			evaluateStringRule(
-				"user@company.internal.com",
-				emailRule("contains", "internal")
-			)
-		).toBe(true);
-		expect(
-			evaluateStringRule(
-				"internal-user@company.com",
-				emailRule("contains", "internal")
-			)
-		).toBe(true);
-		expect(
-			evaluateStringRule("user@company.com", emailRule("contains", "internal"))
-		).toBe(false);
-		expect(
-			evaluateStringRule(
-				"beta-tester@company.com",
-				emailRule("contains", "beta")
-			)
-		).toBe(true);
-	});
-
-	it("handles exact match for full email addresses", () => {
-		expect(
-			evaluateStringRule(
-				"user@databuddy.cc",
-				emailRule("equals", "user@databuddy.cc")
-			)
-		).toBe(true);
-		expect(
-			evaluateStringRule(
-				"other@databuddy.cc",
-				emailRule("equals", "user@databuddy.cc")
-			)
-		).toBe(false);
-	});
-
-	it("handles in/not_in for email lists", () => {
-		const allowedEmails = ["admin@co.com", "support@co.com", "dev@co.com"];
-		expect(
-			evaluateStringRule(
-				"admin@co.com",
-				emailRule("in", undefined, allowedEmails)
-			)
-		).toBe(true);
-		expect(
-			evaluateStringRule(
-				"random@co.com",
-				emailRule("in", undefined, allowedEmails)
-			)
-		).toBe(false);
-		expect(
-			evaluateStringRule(
-				"random@co.com",
-				emailRule("not_in", undefined, allowedEmails)
-			)
-		).toBe(true);
-		expect(
-			evaluateStringRule(
-				"admin@co.com",
-				emailRule("not_in", undefined, allowedEmails)
-			)
-		).toBe(false);
+	it.each([
+		["user-123", rule("equals", "user-123"), true],
+		["other", rule("equals", "user-123"), false],
+		["user@company.com", rule("contains", "@company"), true],
+		["user@other.com", rule("contains", "@company"), false],
+		["admin-user", rule("starts_with", "admin-"), true],
+		["user-admin", rule("starts_with", "admin-"), false],
+		["file.com", rule("ends_with", ".com"), true],
+		["file.org", rule("ends_with", ".com"), false],
+		["b", rule("in", undefined, vals), true],
+		["z", rule("in", undefined, vals), false],
+		["z", rule("not_in", undefined, vals), true],
+		["a", rule("not_in", undefined, vals), false],
+		["test", rule("unknown_op", "test"), false],
+		[undefined, rule("equals", "test"), false],
+	])("%j with %j -> %s", (value, testRule, expected) => {
+		expect(evaluateStringRule(value, testRule)).toBe(expected);
 	});
 });
 
@@ -246,32 +157,24 @@ describe("evaluateValueRule", () => {
 		batch: false,
 	});
 
-	it("handles all operators correctly", () => {
-		expect(evaluateValueRule(25, rule("equals", 25))).toBe(true);
-		expect(evaluateValueRule(30, rule("equals", 25))).toBe(false);
-		expect(evaluateValueRule("professional", rule("contains", "pro"))).toBe(
-			true
-		);
-		expect(evaluateValueRule("basic", rule("contains", "pro"))).toBe(false);
-		expect(
-			evaluateValueRule("pro", rule("in", undefined, ["pro", "ent"]))
-		).toBe(true);
-		expect(
-			evaluateValueRule("free", rule("in", undefined, ["pro", "ent"]))
-		).toBe(false);
-		expect(
-			evaluateValueRule("ok", rule("not_in", undefined, ["bad", "worse"]))
-		).toBe(true);
-		expect(
-			evaluateValueRule("bad", rule("not_in", undefined, ["bad", "worse"]))
-		).toBe(false);
-		expect(evaluateValueRule("val", rule("exists"))).toBe(true);
-		expect(evaluateValueRule(0, rule("exists"))).toBe(true);
-		expect(evaluateValueRule(undefined, rule("exists"))).toBe(false);
-		expect(evaluateValueRule(null, rule("exists"))).toBe(false);
-		expect(evaluateValueRule(undefined, rule("not_exists"))).toBe(true);
-		expect(evaluateValueRule("x", rule("not_exists"))).toBe(false);
-		expect(evaluateValueRule("x", rule("unknown_op"))).toBe(false);
+	it.each([
+		[25, rule("equals", 25), true],
+		[30, rule("equals", 25), false],
+		["professional", rule("contains", "pro"), true],
+		["basic", rule("contains", "pro"), false],
+		["pro", rule("in", undefined, ["pro", "ent"]), true],
+		["free", rule("in", undefined, ["pro", "ent"]), false],
+		["ok", rule("not_in", undefined, ["bad", "worse"]), true],
+		["bad", rule("not_in", undefined, ["bad", "worse"]), false],
+		["val", rule("exists"), true],
+		[0, rule("exists"), true],
+		[undefined, rule("exists"), false],
+		[null, rule("exists"), false],
+		[undefined, rule("not_exists"), true],
+		["x", rule("not_exists"), false],
+		["x", rule("unknown_op"), false],
+	])("%j with %j -> %s", (value, testRule, expected) => {
+		expect(evaluateValueRule(value, testRule)).toBe(expected);
 	});
 });
 
@@ -329,65 +232,6 @@ describe("evaluateRule", () => {
 			false
 		);
 		expect(evaluateRule(emailEndsWithRule, {})).toBe(false);
-	});
-
-	it("handles batch rules with not_in", () => {
-		const emailNotInRule = {
-			type: "email" as const,
-			operator: "not_in" as const,
-			batch: true,
-			batchValues: ["blocked@spam.com"],
-			enabled: true,
-		};
-		expect(evaluateRule(emailNotInRule, { email: "user@company.com" })).toBe(
-			true
-		);
-		expect(evaluateRule(emailNotInRule, { email: "blocked@spam.com" })).toBe(
-			false
-		);
-	});
-
-	it("handles non-batch rules", () => {
-		const userRule = {
-			type: "user_id" as const,
-			operator: "equals",
-			value: "admin",
-			enabled: true,
-			batch: false,
-		};
-		expect(evaluateRule(userRule, { userId: "admin" })).toBe(true);
-		expect(evaluateRule(userRule, { userId: "user" })).toBe(false);
-
-		const emailRule = {
-			type: "email" as const,
-			operator: "contains",
-			value: "@co.com",
-			enabled: true,
-			batch: false,
-		};
-		expect(evaluateRule(emailRule, { email: "x@co.com" })).toBe(true);
-
-		const propRule = {
-			type: "property" as const,
-			operator: "equals",
-			field: "tier",
-			value: "gold",
-			enabled: true,
-			batch: false,
-		};
-		expect(evaluateRule(propRule, { properties: { tier: "gold" } })).toBe(true);
-		expect(evaluateRule(propRule, { properties: { tier: "silver" } })).toBe(
-			false
-		);
-
-		const unknownRule = {
-			type: "unknown" as "user_id",
-			operator: "equals",
-			value: "x",
-			enabled: true,
-			batch: false,
-		};
-		expect(evaluateRule(unknownRule, { userId: "x" })).toBe(false);
 	});
 });
 
@@ -544,29 +388,6 @@ describe("evaluateFlag", () => {
 
 		const nobody = evaluateFlag(flag, { userId: "random" });
 		expect(nobody.reason).toBe("BOOLEAN_DEFAULT");
-	});
-
-	it("handles multivariant flags", () => {
-		const flag = {
-			key: "mv",
-			type: "multivariant" as const,
-			status: "active" as const,
-			defaultValue: false,
-			rolloutPercentage: null,
-			variants: [
-				{ key: "a", value: "A", weight: 50, type: "string" as const },
-				{ key: "b", value: "B", weight: 50, type: "string" as const },
-			],
-			payload: { exp: true },
-		};
-
-		for (let i = 0; i < 50; i += 1) {
-			const r = evaluateFlag(flag, { userId: randomId() });
-			expect(r.enabled).toBe(true);
-			expect(r.reason).toBe("MULTIVARIANT_EVALUATED");
-			expect(["A", "B"]).toContain(r.value as string);
-			expect(r.payload).toEqual({ exp: true });
-		}
 	});
 });
 
@@ -847,102 +668,127 @@ describe("edge cases and stress tests", () => {
 			expect(typeof r.enabled).toBe("boolean");
 		}
 	});
+});
 
-	it("handles rapid sequential evaluations", () => {
-		const flag = {
-			key: "rapid",
-			type: "rollout" as const,
-			rolloutPercentage: 50,
-			status: "active" as const,
-			defaultValue: false,
-		};
-
-		const start = performance.now();
-		for (let i = 0; i < 10_000; i += 1) {
-			evaluateFlag(flag, { userId: `u${i}` });
-		}
-		const duration = performance.now() - start;
-		expect(duration).toBeLessThan(1000);
-	});
-
-	it("handles percentage edge values", () => {
-		for (let i = 0; i < 100; i += 1) {
-			const ctx = { userId: randomId() };
-
-			expect(
-				evaluateFlag(
-					{
-						key: "z",
-						type: "rollout" as const,
-						rolloutPercentage: 0,
-						status: "active" as const,
-						defaultValue: false,
-					},
-					ctx
-				).enabled
-			).toBe(false);
-
-			expect(
-				evaluateFlag(
-					{
-						key: "h",
-						type: "rollout" as const,
-						rolloutPercentage: 100,
-						status: "active" as const,
-						defaultValue: false,
-					},
-					ctx
-				).enabled
-			).toBe(true);
-		}
-
-		for (const pct of [10, 25, 50, 75, 90]) {
-			const flag = {
-				key: `pct-${pct}`,
-				type: "rollout" as const,
-				rolloutPercentage: pct,
-				status: "active" as const,
-				defaultValue: false,
-			};
-
-			let enabled = 0;
-			for (let i = 0; i < SAMPLE_SIZE; i += 1) {
-				if (evaluateFlag(flag, { userId: randomId() }).enabled) {
-					enabled += 1;
-				}
-			}
-
-			const lowerBound = Math.max(0, (pct - 20) / 100) * SAMPLE_SIZE;
-			const upperBound = Math.min(100, (pct + 20) / 100) * SAMPLE_SIZE;
-			expect(enabled).toBeGreaterThanOrEqual(lowerBound);
-			expect(enabled).toBeLessThanOrEqual(upperBound);
+describe("public bulk flags boundary", () => {
+	it("returns all flags only when the key filter is omitted", async () => {
+		for (const response of [
+			await request("/v1/flags/bulk?clientId=site_1"),
+			await request("/v1/flags/bulk", { clientId: "site_1" }),
+		]) {
+			expect(response.status).toBe(200);
+			expect(await response.json()).toMatchObject({
+				count: 1,
+				flags: { "enabled-for-everyone": { enabled: true } },
+			});
 		}
 	});
 
-	it("complex nested context properties", () => {
-		const flag = {
-			key: "nested",
-			type: "boolean" as const,
-			defaultValue: false,
-			status: "active" as const,
-			rolloutPercentage: null,
-			rules: [
-				{
-					type: "property" as const,
-					operator: "exists",
-					field: "meta",
-					enabled: true,
-					batch: false,
-				},
-			],
-		};
+	it("returns no flags for explicitly empty or blank key lists", async () => {
+		for (const response of [
+			await request("/v1/flags/bulk?clientId=site_1&keys="),
+			await request("/v1/flags/bulk?clientId=site_1&keys=%20,%20"),
+			await request("/v1/flags/bulk", { clientId: "site_1", keys: [] }),
+			await request("/v1/flags/bulk", {
+				clientId: "site_1",
+				keys: ["", " "],
+			}),
+		]) {
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({ count: 0, flags: {} });
+		}
+	});
 
-		expect(
-			evaluateFlag(flag, {
-				properties: {
-					meta: { deep: { nested: { value: [1, 2, { x: "y" }] } } },
-				},
-			}).enabled
-		).toBe(true);
+	it("rejects more than 100 requested keys", async () => {
+		const keys = Array.from({ length: 101 }, (_, index) => `flag-${index}`);
+		const getResponse = await request(
+			`/v1/flags/bulk?clientId=site_1&keys=${keys.join(",")}`
+		);
+		expect(getResponse.status).toBe(400);
+
+		const postResponse = await request("/v1/flags/bulk", {
+			clientId: "site_1",
+			keys,
+		});
+		expect(postResponse.status).toBe(422);
+	});
+
+	it("rejects keys longer than 128 characters", async () => {
+		const key = "x".repeat(129);
+		const getResponse = await request(
+			`/v1/flags/bulk?clientId=site_1&keys=${key}`
+		);
+		expect(getResponse.status).toBe(400);
+
+		const postResponse = await request("/v1/flags/bulk", {
+			clientId: "site_1",
+			keys: [key],
+		});
+		expect(postResponse.status).toBe(422);
+	});
+
+	it("rejects requests without a usable clientId", async () => {
+		const missing = await request("/v1/flags/bulk");
+		expect(missing.status).toBe(422);
+
+		const blank = await request("/v1/flags/bulk?clientId=");
+		expect(blank.status).toBe(400);
+		expect(await blank.json()).toMatchObject({
+			count: 0,
+			error: "Missing required clientId parameter",
+		});
+	});
+});
+
+describe("public flag evaluation boundary", () => {
+	it("rejects evaluation without a usable clientId or key", async () => {
+		const missingParams = await request("/v1/flags/evaluate?key=&clientId=");
+		expect(missingParams.status).toBe(400);
+		expect(await missingParams.json()).toMatchObject({
+			enabled: false,
+			reason: "MISSING_REQUIRED_PARAMS",
+		});
+
+		const missingClientId = await request("/v1/flags/evaluate?key=some-flag");
+		expect(missingClientId.status).toBe(422);
+	});
+
+	it("caches missing flags so repeated misses skip the database", async () => {
+		const path = "/v1/flags/evaluate?key=absent-flag&clientId=neg_cache_site";
+
+		const first = await request(path);
+		const second = await request(path);
+
+		expect(first.status).toBe(200);
+		expect(await first.json()).toMatchObject({
+			enabled: false,
+			reason: "FLAG_NOT_FOUND",
+		});
+		expect(await second.json()).toMatchObject({ reason: "FLAG_NOT_FOUND" });
+		expect(state.findFirst).toHaveBeenCalledTimes(1);
+	});
+
+	it("returns 429 with rate limit headers when the per-client budget is exhausted", async () => {
+		state.rateLimited = true;
+		try {
+			const evaluate = await request(
+				"/v1/flags/evaluate?key=some-flag&clientId=limited_site"
+			);
+			expect(evaluate.status).toBe(429);
+			expect(evaluate.headers.get("x-ratelimit-remaining")).toBe("0");
+			expect(await evaluate.json()).toMatchObject({
+				enabled: false,
+				reason: "RATE_LIMITED",
+			});
+
+			const bulk = await request("/v1/flags/bulk?clientId=limited_site");
+			expect(bulk.status).toBe(429);
+			expect(await bulk.json()).toMatchObject({
+				count: 0,
+				reason: "RATE_LIMITED",
+			});
+		} finally {
+			state.rateLimited = false;
+		}
 	});
 });

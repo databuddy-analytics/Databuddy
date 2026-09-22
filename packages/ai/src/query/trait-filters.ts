@@ -11,13 +11,17 @@ import type { Filter, QueryRequest } from "./types";
 export const SANITIZED_QUERY_ERROR = "Query failed";
 
 const PUBLIC_QUERY_ERROR_PATTERNS = [
+	/^Invalid retention (selectors|dates|options):/,
 	/^Unknown query type:/,
 	/^Filter on field '[^']+' is not permitted/,
+	/^Filter target '[^']+' is not permitted/,
+	/^Having filters are not supported for [a-z_]+\./,
 	/^Operator '[^']+' is not permitted for filter '[^']+'\./,
 	/^Grouping by '[^']+' is not permitted/,
 	/^Ordering by '[^']+' is not permitted/,
 	/^Missing required filters?:/,
 	/^error_customer_impact requires exactly one scalar message or path equality filter$/,
+	/^error_route_continuation_comparison requires one scalar message or path equality filter$/,
 	/^Trait filters /,
 	/^Trait segment exceeds /,
 	/^[a-z_]+ filter is required for [a-z_]+ query$/,
@@ -86,6 +90,11 @@ export async function resolveRequestTraitFilters(
 	}
 	const filters = request.filters ?? [];
 	const traitFilters = filters.filter((f) => isTraitFilterField(f.field));
+	if (traitFilters.some((filter) => filter.target || filter.having)) {
+		throw new TraitFilterError(
+			"Trait filters must select rows, without target or having."
+		);
+	}
 	const segment = await resolveTraitSegment(
 		request.projectId,
 		traitFilters as TraitFilter[]

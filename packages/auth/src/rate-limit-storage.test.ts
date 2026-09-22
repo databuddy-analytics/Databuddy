@@ -25,7 +25,7 @@ describe("createAuthRateLimitStorage", () => {
 	test("maps blocked requests to a positive retry delay", async () => {
 		resetRateLimit({
 			success: false,
-			reset: Date.now() + 2_000,
+			reset: Date.now() + 2000,
 		});
 		const storage = createAuthRateLimitStorage();
 

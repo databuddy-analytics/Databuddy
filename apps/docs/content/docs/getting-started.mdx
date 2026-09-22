@@ -21,7 +21,8 @@ This guide takes you from a new Databuddy account to your first tracked page vie
 
 1. Go to [app.databuddy.cc](https://app.databuddy.cc)
 2. Sign up for a free account
-3. Copy your **Client ID** from the dashboard
+3. Create a website in the dashboard
+4. The dashboard shows your install snippet with your **Client ID**
 
 </Step>
 <Step>
@@ -58,6 +59,7 @@ For any website, use the script tag method:
     src="https://cdn.databuddy.cc/databuddy.js"
     data-client-id="your-client-id"
     data-track-web-vitals
+    crossorigin="anonymous"
     async
   ></script>`}
 />
@@ -91,7 +93,7 @@ Add the `<Databuddy />` component once in your root layout:
         <body>
           <Databuddy
             clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
-			trackWebVitals
+            trackWebVitals
             trackErrors
           />
           {children}
@@ -112,7 +114,7 @@ Add the `<Databuddy />` component once in your root layout:
 </Tab>
 <Tab value="Script Tag">
 
-Add the script to your HTML before the closing `</body>` tag:
+Add the script to your HTML `<head>`:
 
 <CodeBlock
   language="html"
@@ -121,9 +123,6 @@ Add the script to your HTML before the closing `</body>` tag:
   <html>
     <head>
       <title>My Website</title>
-    </head>
-    <body>
-      <!-- Your content -->
 
       <!-- Databuddy Analytics -->
       <script
@@ -131,14 +130,23 @@ Add the script to your HTML before the closing `</body>` tag:
         data-client-id="your-client-id"
         data-track-web-vitals
         data-track-errors
+        crossorigin="anonymous"
         async
       ></script>
+    </head>
+    <body>
+      <!-- Your content -->
     </body>
   </html>`}
 />
 
 </Tab>
 </Tabs>
+
+<Callout type="info">
+  `trackWebVitals` and `trackErrors` are off by default; `trackErrors` requires
+  the Hobby plan or higher.
+</Callout>
 
 </Step>
 <Step>

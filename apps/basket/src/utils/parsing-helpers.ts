@@ -87,16 +87,9 @@ export function parseEventId(
 	eventId: unknown,
 	generateFn: () => string
 ): string {
-	const sanitizeString = (str: unknown, maxLength: number): string => {
-		if (typeof str !== "string") {
-			return "";
-		}
-		return str.slice(0, maxLength);
-	};
-
-	const sanitized = sanitizeString(
-		eventId,
-		VALIDATION_LIMITS.EVENT_ID_MAX_LENGTH
-	);
+	const sanitized =
+		typeof eventId === "string"
+			? eventId.slice(0, VALIDATION_LIMITS.EVENT_ID_MAX_LENGTH)
+			: "";
 	return sanitized || generateFn();
 }

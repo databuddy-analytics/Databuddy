@@ -21,6 +21,7 @@ Add Databuddy's privacy-first analytics to your Jekyll static site by adding the
       code={`<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="YOUR_CLIENT_ID"
+  crossorigin="anonymous"
   async
 ></script>`}
     />
@@ -55,20 +56,21 @@ The simplest way is to add the script directly to your default layout file.
     <!-- Other footer content -->
 
     <!-- Databuddy Analytics Script -->
-    {% raw %}{% if jekyll.environment == "production" %}{% endraw %}
+    {% if jekyll.environment == "production" %}
         <script
             src="https://cdn.databuddy.cc/databuddy.js"
             data-client-id="YOUR_CLIENT_ID"
+            crossorigin="anonymous"
             async
         ></script>
-    {% raw %}{% endif %}{% endraw %}
+    {% endif %}
 </body>
 </html>`}
     />
 
     **Explanation:**
 
-    - `{% raw %}{% if jekyll.environment == "production" %}{% endraw %}`: This Liquid tag ensures the script is only included when your site is built for production (e.g., when `JEKYLL_ENV=production jekyll build`). This prevents tracking your local development views.
+    - `{% if jekyll.environment == "production" %}`: This Liquid tag ensures the script is only included when your site is built for production (e.g., when `JEKYLL_ENV=production jekyll build`). This prevents tracking your local development views.
     - Replace `YOUR_CLIENT_ID` with your actual Client ID.
   </Step>
 </Steps>
@@ -86,14 +88,15 @@ A cleaner approach is to create an include file for the script.
     <CodeBlock
       language="html"
       filename="_includes/databuddy-analytics.html"
-      code={`{% raw %}{% comment %} Databuddy Analytics Include {% endcomment %}
+      code={`{% comment %} Databuddy Analytics Include {% endcomment %}
 {% if jekyll.environment == "production" and site.databuddy_client_id %}
     <script
         src="https://cdn.databuddy.cc/databuddy.js"
         data-client-id="{{ site.databuddy_client_id }}"
+        crossorigin="anonymous"
         async
     ></script>
-{% endif %}{% endraw %}`}
+{% endif %}`}
     />
   </Step>
 
@@ -115,7 +118,7 @@ A cleaner approach is to create an include file for the script.
     {{ content }}
     <!-- Other footer content -->
 
-    {% raw %}{% include databuddy-analytics.html %}{% endraw %}
+    {% include databuddy-analytics.html %}
 </body>
 </html>`}
     />
@@ -142,7 +145,7 @@ Enable additional tracking features by modifying the include file:
 <CodeBlock
   language="html"
   filename="_includes/databuddy-analytics.html"
-  code={`{% raw %}{% comment %} Databuddy Analytics Include with Options {% endcomment %}
+  code={`{% comment %} Databuddy Analytics Include with Options {% endcomment %}
 {% if jekyll.environment == "production" and site.databuddy_client_id %}
     <script
         src="https://cdn.databuddy.cc/databuddy.js"
@@ -152,9 +155,10 @@ Enable additional tracking features by modifying the include file:
         data-track-interactions
         data-track-web-vitals
         data-track-errors
+        crossorigin="anonymous"
         async
     ></script>
-{% endif %}{% endraw %}`}
+{% endif %}`}
 />
 
 ## Custom Event Tracking
@@ -214,7 +218,7 @@ track_events: true
 
 Content here...
 
-{% raw %}{% if page.track_events %}{% endraw %}
+{% if page.track_events %}
 <script>
 if (window.databuddy) {
     window.databuddy.track('blog_post_view', {
@@ -223,7 +227,7 @@ if (window.databuddy) {
     });
 }
 </script>
-{% raw %}{% endif %}{% endraw %}`}
+{% endif %}`}
 />
 
 ## Related Integrations

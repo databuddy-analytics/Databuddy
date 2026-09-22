@@ -21,6 +21,7 @@ Add Databuddy's privacy-first analytics to your Hugo static site by adding the t
       code={`<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="YOUR_CLIENT_ID"
+  crossorigin="anonymous"
   async
 ></script>`}
     />
@@ -43,6 +44,7 @@ Add Databuddy's privacy-first analytics to your Hugo static site by adding the t
     <script
         src="https://cdn.databuddy.cc/databuddy.js"
         data-client-id="YOUR_CLIENT_ID"
+        crossorigin="anonymous"
         async
     ></script>
 {{ end }}`}
@@ -98,6 +100,7 @@ To make your Client ID configurable, you can use Hugo's site parameters.
     <script
         src="https://cdn.databuddy.cc/databuddy.js"
         data-client-id="{{ .Site.Params.databuddyClientID }}"
+        crossorigin="anonymous"
         async
     ></script>
 {{ end }}`}
@@ -135,6 +138,7 @@ Enable additional tracking features by modifying the partial:
         data-track-interactions
         data-track-web-vitals
         data-track-errors
+        crossorigin="anonymous"
         async
     ></script>
 {{ end }}`}

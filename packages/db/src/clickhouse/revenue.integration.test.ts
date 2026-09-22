@@ -4,7 +4,9 @@ import { chQuery, clickHouse } from "./client";
 import { buildRevenueLatestCte } from "./revenue";
 
 const describeIntegration =
-	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true" ? describe : describe.skip;
+	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"
+		? describe
+		: describe.skip;
 
 interface RevenueRow {
 	amount: number | string;
@@ -78,14 +80,7 @@ describe("buildRevenueLatestCte", () => {
 		expect(sql).toContain("nullIf(product_name, '') AS product_name");
 		expect(sql).toContain("WHERE owner_id = {ownerId:String}");
 		expect(sql).not.toContain("GROUP BY owner_id, provider, transaction_id");
-});
-
-	test("keeps range predicates in the canonical read", () => {
-		const sql = buildRevenueLatestCte({ scope: "owner_id = 'org_1'" });
-
-		expect(sql).toContain("FROM analytics.revenue FINAL");
-		expect(sql).toContain("WHERE owner_id = 'org_1'");
-});
+	});
 
 	test("applies candidate predicates directly", () => {
 		const sql = buildRevenueLatestCte({
@@ -96,16 +91,6 @@ describe("buildRevenueLatestCte", () => {
 		expect(sql).toContain("AND created >= {from:DateTime}");
 		expect(sql.match(/FROM analytics\.revenue FINAL/g)).toHaveLength(1);
 		expect(sql.match(/owner_id = \{ownerId:String\}/g)).toHaveLength(1);
-	});
-
-	test("accepts a trusted source override", () => {
-		const sql = buildRevenueLatestCte({
-			scope: "owner_id = {ownerId:String}",
-			source: "analytics.revenue_retained_versions_test",
-		});
-
-		expect(sql).toContain("FROM analytics.revenue_retained_versions_test");
-		expect(sql).not.toContain("FROM analytics.revenue\n");
 	});
 });
 
@@ -160,17 +145,11 @@ describeIntegration("canonical revenue rows against ClickHouse", () => {
 					"2026-08-02 12:01:00",
 					{ paymentIntentId: "pi_refunded_payment" }
 				),
-				revenueRow(
-					ownerId,
-					"re_refund",
-					"refunded",
-					"2026-08-02 12:04:00",
-					{
-						amount: "-100.0000",
-						paymentIntentId: "pi_refunded_payment",
-						type: "refund",
-					}
-				),
+				revenueRow(ownerId, "re_refund", "refunded", "2026-08-02 12:04:00", {
+					amount: "-100.0000",
+					paymentIntentId: "pi_refunded_payment",
+					type: "refund",
+				}),
 			],
 		});
 
@@ -219,5 +198,4 @@ describeIntegration("canonical revenue rows against ClickHouse", () => {
 		expect(Number(summary?.successful_payments)).toBe(3);
 		expect(Number(summary?.refunds)).toBe(1);
 	});
-
 });

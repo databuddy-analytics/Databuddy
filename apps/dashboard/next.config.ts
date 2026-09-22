@@ -1,4 +1,5 @@
 import path from "node:path";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import type { NextConfig } from "next";
 
 function joinCspSources(...sources: (string | false)[]): string {
@@ -14,6 +15,12 @@ const demoFrameAncestorSources = [
 ] as const;
 
 const nextConfig: NextConfig = {
+	env: {
+		NEXT_PUBLIC_SELFHOST: String(readBooleanEnv("SELFHOST")),
+		NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID: readBooleanEnv("SELFHOST")
+			? ""
+			: process.env.NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID,
+	},
 	outputFileTracingRoot: path.join(process.cwd(), "../.."),
 	outputFileTracingIncludes: {
 		"/dby/og": ["./fonts/lt-superior/*.otf"],
@@ -56,7 +63,7 @@ const nextConfig: NextConfig = {
 		],
 	},
 	transpilePackages: [],
-	output: "standalone",
+	output: process.env.VERCEL ? undefined : "standalone",
 	async headers() {
 		const securityHeaders = [
 			{
@@ -87,11 +94,19 @@ const nextConfig: NextConfig = {
 		const connectSources = joinCspSources(
 			"'self'",
 			localhostSources,
+			...(readBooleanEnv("SELFHOST")
+				? [
+						process.env.NEXT_PUBLIC_API_URL?.trim() || "http://localhost:3001",
+						process.env.NEXT_PUBLIC_BASKET_URL?.trim() ||
+							"http://localhost:4000",
+					].map((url) => new URL(url).origin)
+				: []),
 			"https://*.databuddy.cc",
 			"https://*.useautumn.com",
 			"https://api.openai.com",
 			"https://bzr.openai.com",
 			"https://hooks.slack.com",
+			"https://api.dub.co",
 			"wss://*.databuddy.cc"
 		);
 		const scriptSources = joinCspSources(
@@ -100,7 +115,8 @@ const nextConfig: NextConfig = {
 			isDev && "'unsafe-eval'",
 			"'wasm-unsafe-eval'",
 			"https://cdn.databuddy.cc",
-			"https://bzrcdn.openai.com"
+			"https://bzrcdn.openai.com",
+			"https://www.dubcdn.com"
 		);
 
 		const cspDirectives = [

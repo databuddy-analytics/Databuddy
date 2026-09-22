@@ -139,7 +139,7 @@ const MODE_OPTIONS = [
 		value: "aggregate" as const,
 		label: (
 			<>
-				<ChartLineUpIcon className="size-3.5" weight="duotone" />
+				<ChartLineUpIcon className="size-3.5" />
 				<span className="hidden sm:inline">Total</span>
 			</>
 		),
@@ -148,7 +148,7 @@ const MODE_OPTIONS = [
 		value: "by-event" as const,
 		label: (
 			<>
-				<ListBulletsIcon className="size-3.5" weight="duotone" />
+				<ListBulletsIcon className="size-3.5" />
 				<span className="hidden sm:inline">By Event</span>
 			</>
 		),
@@ -158,11 +158,11 @@ const MODE_OPTIONS = [
 const CHART_TYPE_OPTIONS = [
 	{
 		value: "area" as const,
-		label: <ChartLineUpIcon className="size-3.5" weight="duotone" />,
+		label: <ChartLineUpIcon className="size-3.5" />,
 	},
 	{
 		value: "bar" as const,
-		label: <ChartBarIcon className="size-3.5" weight="duotone" />,
+		label: <ChartBarIcon className="size-3.5" />,
 	},
 ];
 
@@ -482,7 +482,7 @@ export function EventsTrendChart({
 								size="sm"
 								variant="secondary"
 							>
-								<ArrowCounterClockwiseIcon className="size-3" weight="bold" />
+								<ArrowCounterClockwiseIcon className="size-3" />
 								Reset
 							</Button>
 						)}

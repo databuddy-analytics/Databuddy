@@ -57,11 +57,6 @@ export type TrackingAlertBlockReason =
 export type TrackingAlertKind = "blocked_spike" | "tracking_zero";
 
 export interface OrganizationEmailNotificationSettings {
-	anomalies?: {
-		customEventEmails?: boolean;
-		errorEmails?: boolean;
-		trafficEmails?: boolean;
-	};
 	billing?: {
 		usageWarnings?: boolean;
 	};
@@ -129,7 +124,6 @@ export const account = pgTable(
 		id: text().primaryKey().notNull(),
 		accountId: text("account_id").notNull(),
 		providerId: text("provider_id").notNull(),
-		issuer: text().notNull(),
 		userId: text("user_id").notNull(),
 		accessToken: text("access_token"),
 		refreshToken: text("refresh_token"),
@@ -165,11 +159,6 @@ export const account = pgTable(
 		uniqueIndex("accounts_provider_account_unique").using(
 			"btree",
 			table.providerId.asc().nullsLast().op("text_ops"),
-			table.accountId.asc().nullsLast().op("text_ops")
-		),
-		uniqueIndex("accounts_issuer_account_unique").using(
-			"btree",
-			table.issuer.asc().nullsLast().op("text_ops"),
 			table.accountId.asc().nullsLast().op("text_ops")
 		),
 		foreignKey({
@@ -333,10 +322,8 @@ export const twoFactor = pgTable(
 		secret: text().notNull(),
 		backupCodes: text("backup_codes").notNull(),
 		userId: text("user_id").notNull(),
-		verified: boolean().default(true).notNull(),
-		failedVerificationCount: integer("failed_verification_count")
-			.default(0)
-			.notNull(),
+		verified: boolean().default(true),
+		failedVerificationCount: integer("failed_verification_count").default(0),
 		lockedUntil: timestamp("locked_until", {
 			precision: 3,
 			withTimezone: true,

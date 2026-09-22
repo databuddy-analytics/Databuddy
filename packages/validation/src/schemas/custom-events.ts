@@ -1,5 +1,5 @@
 import z from "zod";
-import { VALIDATION_LIMITS } from "../constants";
+import { MAX_FUTURE_MS, MIN_TIMESTAMP, VALIDATION_LIMITS } from "../constants";
 import { profileIdSchema } from "./identity";
 
 const anonymizeVisitorIds = z
@@ -22,21 +22,31 @@ const boundedPropertiesJson = z
 		`Properties too large (max ${VALIDATION_LIMITS.PROPERTIES_MAX_SERIALIZED} bytes)`
 	);
 
-// Legacy schema
-export const customEventSchema = z.object({
-	eventId: z.string().max(VALIDATION_LIMITS.EVENT_ID_MAX_LENGTH).optional(),
-	name: z.string().min(1).max(VALIDATION_LIMITS.NAME_MAX_LENGTH),
-	anonymousId: z.string().nullable().optional(),
-	anonymizeVisitorIds,
-	sessionId: z.string().nullable().optional(),
-	timestamp: z.number().int().nullable().optional(),
-	properties: boundedPropertiesJson.optional().nullable(),
-});
+const timestampSchema = z
+	.number()
+	.int()
+	.gte(MIN_TIMESTAMP)
+	.nullable()
+	.optional()
+	.refine(
+		(val) =>
+			val === null || val === undefined || val <= Date.now() + MAX_FUTURE_MS,
+		{
+			message: "Timestamp too far in the future (max 1 hour ahead)",
+		}
+	);
 
-// Lean custom event span schema (v2.x)
+const requiredTimestampSchema = z
+	.number()
+	.int()
+	.gte(MIN_TIMESTAMP)
+	.refine((val) => val <= Date.now() + MAX_FUTURE_MS, {
+		message: "Timestamp too far in the future (max 1 hour ahead)",
+	});
+
 export const customEventSpanSchema = z.object({
 	eventId: z.string().max(VALIDATION_LIMITS.EVENT_ID_MAX_LENGTH).optional(),
-	timestamp: z.number().int(),
+	timestamp: requiredTimestampSchema,
 	path: z.string().max(VALIDATION_LIMITS.PATH_MAX_LENGTH),
 	eventName: z.string().min(1).max(VALIDATION_LIMITS.NAME_MAX_LENGTH),
 	anonymousId: z
@@ -65,7 +75,7 @@ export const outgoingLinkSchema = z.object({
 	anonymousId: z.string().nullable().optional(),
 	anonymizeVisitorIds,
 	sessionId: z.string().nullable().optional(),
-	timestamp: z.number().int().nullable().optional(),
+	timestamp: timestampSchema,
 	href: z.string().max(VALIDATION_LIMITS.PATH_MAX_LENGTH),
 	text: z.string().max(VALIDATION_LIMITS.TEXT_MAX_LENGTH).nullable().optional(),
 	properties: boundedPropertiesJson.optional().nullable(),

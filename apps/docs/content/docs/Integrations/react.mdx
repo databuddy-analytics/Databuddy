@@ -48,27 +48,7 @@ export default App;
 
 ### 2. Track Page Views
 
-For React Router integration:
-
-```tsx
-// App.tsx
-import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import { track } from '@databuddy/sdk';
-
-function App() {
-  const location = useLocation();
-
-  useEffect(() => {
-    track('screen_view', {
-      screen_name: location.pathname,
-      screen_class: 'React'
-    });
-  }, [location]);
-
-  return <YourAppContent />;
-}
-```
+Page views are tracked automatically, including SPA navigation with React Router. No extra code is needed; adding manual page view calls on route changes would double-count.
 
 ## Event Tracking
 
@@ -264,13 +244,7 @@ function CheckoutSuccess({ order }) {
       transaction_id: order.id,
       value: order.total,
       currency: 'USD',
-      items: order.items.map(item => ({
-        item_id: item.id,
-        item_name: item.name,
-        item_category: item.category,
-        quantity: item.quantity,
-        price: item.price
-      }))
+      item_count: order.items.length
     });
   }, [order]);
 
@@ -288,13 +262,10 @@ function AddToCartButton({ product }) {
     track('add_to_cart', {
       currency: 'USD',
       value: product.price,
-      items: [{
-        item_id: product.id,
-        item_name: product.name,
-        item_category: product.category,
-        quantity: 1,
-        price: product.price
-      }]
+      item_id: product.id,
+      item_name: product.name,
+      item_category: product.category,
+      quantity: 1
     });
   };
 
@@ -371,7 +342,7 @@ import { track } from '@databuddy/sdk';
 
 function TypedComponent() {
   const handleClick = () => {
-    // TypeScript will ensure correct event properties
+    // Property values are typed as scalars (strings, numbers, booleans)
     track('button_click', {
       button_text: 'Subscribe',
       location: 'header'

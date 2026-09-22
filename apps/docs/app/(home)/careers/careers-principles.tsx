@@ -41,7 +41,7 @@ const principles: Principle[] = [
 		icon: ShieldCheckIcon,
 		title: "Privacy isn't negotiable",
 		description:
-			"We don't collect personal data, we don't use cookies, and we don't bolt on tracking to pad metrics. Everything we build has to pass that bar.",
+			"We build cookieless analytics with explicit controls for collection and optional user identification. Privacy decisions belong in the product, from the first design through delivery.",
 	},
 	{
 		icon: ClockCounterClockwiseIcon,
@@ -74,10 +74,7 @@ export default function CareersPrinciples() {
 				{principles.map((principle) => (
 					<SciFiCard key={principle.title} variant="foreground">
 						<div className="relative h-full rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
-							<principle.icon
-								className="mb-4 size-7 text-muted-foreground duration-300 group-hover:text-foreground"
-								weight="duotone"
-							/>
+							<principle.icon className="mb-4 size-7 text-muted-foreground duration-300 group-hover:text-foreground" />
 							<h3 className="mb-2 font-semibold text-foreground text-lg">
 								{principle.title}
 							</h3>

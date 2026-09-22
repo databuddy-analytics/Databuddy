@@ -6,19 +6,12 @@ import {
 	UPTIME_JOB_OPTIONS,
 	uptimeSchedulerId,
 } from "@databuddy/redis";
+import {
+	CRON_GRANULARITIES,
+	parseUptimeGranularity,
+} from "@databuddy/shared/uptime";
 import { Cause, Data, Effect, Exit, Ref } from "effect";
 import { log } from "evlog";
-
-const CRON_GRANULARITIES: Record<string, string> = {
-	minute: "* * * * *",
-	five_minutes: "*/5 * * * *",
-	ten_minutes: "*/10 * * * *",
-	thirty_minutes: "*/30 * * * *",
-	hour: "0 * * * *",
-	six_hours: "0 */6 * * *",
-	twelve_hours: "0 */12 * * *",
-	day: "0 0 * * *",
-};
 
 class UnknownGranularity extends Data.TaggedError("UnknownGranularity")<{
 	scheduleId: string;
@@ -31,7 +24,8 @@ const syncMonitor = (
 ) =>
 	Effect.gen(function* () {
 		const schedulerId = uptimeSchedulerId(monitor.id);
-		const pattern = CRON_GRANULARITIES[monitor.granularity];
+		const granularity = parseUptimeGranularity(monitor.granularity);
+		const pattern = granularity ? CRON_GRANULARITIES[granularity] : null;
 		if (!pattern) {
 			return yield* Effect.fail(
 				new UnknownGranularity({

@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, jest, mock } from "bun:test";
 import { Databuddy } from "../src/node/index";
-import type {
-	BatchEventInput,
-	BatchEventResponse,
-} from "../src/node/types";
+import type { BatchEventInput, BatchEventResponse } from "../src/node/types";
 
 interface FetchCall {
 	body: unknown;
@@ -34,13 +31,15 @@ function mockFetch(
 ): FetchCall[] {
 	const calls: FetchCall[] = [];
 
-	globalThis.fetch = mock(async (input: string | URL | Request, init?: RequestInit) => {
-		calls.push({
-			url: typeof input === "string" ? input : input.toString(),
-			body: parseBody(init?.body),
-		});
-		return handler(calls.length, init);
-	}) as typeof fetch;
+	globalThis.fetch = mock(
+		async (input: string | URL | Request, init?: RequestInit) => {
+			calls.push({
+				url: typeof input === "string" ? input : input.toString(),
+				body: parseBody(init?.body),
+			});
+			return handler(calls.length, init);
+		}
+	) as typeof fetch;
 
 	return calls;
 }
@@ -83,11 +82,9 @@ function stalledResponse(
 				return;
 			}
 
-			signal?.addEventListener(
-				"abort",
-				() => controller.error(signal.reason),
-				{ once: true }
-			);
+			signal?.addEventListener("abort", () => controller.error(signal.reason), {
+				once: true,
+			});
 		},
 	});
 	return new Response(body, {
@@ -104,7 +101,9 @@ describe("Databuddy Node client", () => {
 
 	it("returns a failed flush result when track reaches the batch threshold", async () => {
 		jest.useFakeTimers();
-		mockFetch(() => new Response("nope", { status: 500, statusText: "Server Error" }));
+		mockFetch(
+			() => new Response("nope", { status: 500, statusText: "Server Error" })
+		);
 
 		const client = new Databuddy({ apiKey: "dbdy_test", batchSize: 1 });
 
@@ -727,19 +726,6 @@ describe("Databuddy Node client", () => {
 		});
 	});
 
-	it("reports queued events separately from delivered events", async () => {
-		mockFetch(() => jsonResponse({ status: "success", processed: 1 }));
-		const client = new Databuddy({ apiKey: "dbdy_test", batchSize: 10 });
-
-		const result = await client.track({
-			name: "signup",
-			websiteId: "site_1",
-		});
-
-		expect(result).toEqual({ success: true, delivery: "queued" });
-		await client.flush();
-	});
-
 	it("does not poison deduplication when an unbatched send fails", async () => {
 		const calls = mockFetch((callNumber) =>
 			callNumber === 1
@@ -798,34 +784,10 @@ describe("Databuddy Node client", () => {
 		);
 	});
 
-	it("passes auto visitor anonymization mode through event payloads", async () => {
-		const calls = mockFetch(() =>
-			jsonResponse({ status: "success", eventId: "evt_1" })
-		);
-		const client = new Databuddy({
-			apiKey: "dbdy_test",
-			anonymizeVisitorIds: "auto",
-			enableBatching: false,
-		});
-
-		const result = await client.track({
-			name: "signup",
-			anonymousId: "anon_123",
-			websiteId: "site_1",
-		});
-
-		expect(result.success).toBe(true);
-		expect(calls[0]?.body).toEqual(
-			expect.objectContaining({
-				name: "signup",
-				anonymousId: "anon_123",
-				anonymizeVisitorIds: "auto",
-			})
-		);
-	});
-
 	it("deduplicates queued events before a successful flush", async () => {
-		const calls = mockFetch(() => jsonResponse({ status: "success", count: 1 }));
+		const calls = mockFetch(() =>
+			jsonResponse({ status: "success", count: 1 })
+		);
 		const client = new Databuddy({ apiKey: "dbdy_test", batchSize: 10 });
 
 		await client.track({

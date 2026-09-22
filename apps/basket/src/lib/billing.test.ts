@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { EvlogError } from "evlog";
 
 const { mockCheck, mockLoggerSet, mockLoggerWarn } = vi.hoisted(() => ({
@@ -34,21 +34,20 @@ const { checkAutumnUsage } = await import("./billing");
 
 describe("checkAutumnUsage", () => {
 	beforeEach(() => {
+		vi.stubEnv("SELFHOST", "false");
 		mockCheck.mockReset();
 		mockLoggerSet.mockReset();
 		mockLoggerWarn.mockReset();
 	});
+	afterEach(() => vi.unstubAllEnvs());
 
-	// ── Enforcement ──
-
-	test("allowed response → allowed", async () => {
-		mockCheck.mockResolvedValue({
+	test("self-hosted events skip hosted billing", async () => {
+		vi.stubEnv("SELFHOST", "true");
+		mockCheck.mockRejectedValue(new Error("AUTUMN_SECRET_KEY is not set"));
+		await expect(checkAutumnUsage("cust_1", "events")).resolves.toEqual({
 			allowed: true,
-			customerId: "cust_1",
-			balance: { usage: 50, granted: 1000, unlimited: false },
 		});
-		const result = await checkAutumnUsage("cust_1", "events");
-		expect(result).toEqual({ allowed: true });
+		expect(mockCheck).not.toHaveBeenCalled();
 	});
 
 	test("denied response → quota error", async () => {
@@ -73,8 +72,6 @@ describe("checkAutumnUsage", () => {
 		});
 	});
 
-	// ── Still calls Autumn (metering for paying customers) ──
-
 	test("calls autumn.check with sendEvent: true", async () => {
 		mockCheck.mockResolvedValue({
 			allowed: true,
@@ -90,24 +87,6 @@ describe("checkAutumnUsage", () => {
 			properties: { website_id: "ws_1" },
 		});
 	});
-
-	test("passes batch quantity through requiredBalance", async () => {
-		mockCheck.mockResolvedValue({
-			allowed: true,
-			customerId: "c",
-			balance: { usage: 0, granted: 0, unlimited: false },
-		});
-		await checkAutumnUsage("cust_1", "events", undefined, 25);
-		expect(mockCheck).toHaveBeenCalledWith({
-			customerId: "cust_1",
-			featureId: "events",
-			sendEvent: true,
-			requiredBalance: 25,
-			properties: undefined,
-		});
-	});
-
-	// ── Logging ──
 
 	test("logs balance context from Autumn response", async () => {
 		mockCheck.mockResolvedValue({

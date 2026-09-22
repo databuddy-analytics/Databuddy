@@ -1,4 +1,4 @@
-export const BASKET_HEALTH_PROBE_TIMEOUT_MS = 5000;
+const BASKET_HEALTH_PROBE_TIMEOUT_MS = 5000;
 
 export class HealthProbeTimeoutError extends Error {
 	readonly timeoutMs: number;

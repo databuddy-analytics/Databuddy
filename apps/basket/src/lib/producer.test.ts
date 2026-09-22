@@ -29,12 +29,9 @@ vi.mock("@lib/tracing", () => ({
 	record: (_name: string, fn: Function) => Promise.resolve().then(() => fn()),
 }));
 
-const {
-	disposeRuntime,
-	getStats,
-	runPromise,
-	send,
-} = await import("./producer");
+const { disposeRuntime, getStats, runPromise, send } = await import(
+	"./producer"
+);
 
 beforeEach(async () => {
 	mockCaptureError.mockClear();

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { serializeJsonLd } from "@databuddy/shared/json-ld";
 import { ThemeProvider } from "next-themes";
 import { DATABUDDY_UPTIME_URL, getStatusPageUrl } from "@/lib/status-url";
@@ -15,21 +16,34 @@ interface StatusPageProps {
 
 const DAYS = 90;
 
-async function getStatusData(slug: string) {
-	try {
-		return await rpcClient.statusPage.getBySlug({ slug, days: DAYS });
-	} catch (error) {
-		if (
-			error &&
-			typeof error === "object" &&
-			"code" in error &&
-			error.code === "NOT_FOUND"
-		) {
-			return null;
-		}
-		throw error;
-	}
+const MAX_FETCH_ATTEMPTS = 3;
+
+function isNotFoundError(error: unknown): boolean {
+	return (
+		!!error &&
+		typeof error === "object" &&
+		"code" in error &&
+		error.code === "NOT_FOUND"
+	);
 }
+
+const getStatusData = cache(async (slug: string) => {
+	let lastError: unknown;
+	for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt++) {
+		if (attempt > 0) {
+			await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+		}
+		try {
+			return await rpcClient.statusPage.getBySlug({ slug, days: DAYS });
+		} catch (error) {
+			if (isNotFoundError(error)) {
+				return null;
+			}
+			lastError = error;
+		}
+	}
+	throw lastError;
+});
 
 function slugify(text: string): string {
 	return text
@@ -59,6 +73,7 @@ export async function generateMetadata({
 		`Live uptime, incident history, and service health for ${data.organization.name}.`;
 	const url = getStatusPageUrl(slug);
 	const faviconUrl = data.statusPage.faviconUrl;
+	const isIndexable = data.monitors.length > 0;
 
 	return {
 		title,
@@ -90,11 +105,11 @@ export async function generateMetadata({
 			siteName: data.organization.name,
 		},
 		robots: {
-			index: true,
-			follow: true,
+			index: isIndexable,
+			follow: isIndexable,
 			googleBot: {
-				index: true,
-				follow: true,
+				index: isIndexable,
+				follow: isIndexable,
 				"max-image-preview": "large",
 				"max-snippet": -1,
 				"max-video-preview": -1,
@@ -220,11 +235,11 @@ export default async function StatusPage({ params }: StatusPageProps) {
 				</main>
 
 				<footer className="shrink-0 border-border/50 border-t bg-background">
-					<div className="mx-auto flex max-w-[822px] items-center justify-center px-4 py-4 sm:px-6">
-						<p className="text-[11px] text-muted-foreground/50 tracking-wide">
+					<div className="mx-auto flex max-w-[822px] items-center justify-center px-4 py-6 sm:px-6">
+						<p className="text-muted-foreground text-sm">
 							Powered by{" "}
 							<a
-								className="text-muted-foreground/70 transition-colors hover:text-foreground"
+								className="font-semibold text-foreground underline-offset-4 transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:underline"
 								href="https://www.databuddy.cc"
 								rel="noopener noreferrer dofollow"
 								target="_blank"

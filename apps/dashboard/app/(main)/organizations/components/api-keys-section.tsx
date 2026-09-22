@@ -177,7 +177,7 @@ export function ApiKeysSection({
 							className={buttonVariants({ size: "sm", variant: "secondary" })}
 						>
 							{STATUS_LABEL[statusFilter]}
-							<CaretDownIcon className="size-3" weight="fill" />
+							<CaretDownIcon className="size-3" />
 						</DropdownMenu.Trigger>
 						<DropdownMenu.Content align="end">
 							<DropdownMenu.RadioGroup
@@ -197,7 +197,7 @@ export function ApiKeysSection({
 							className={buttonVariants({ size: "sm", variant: "secondary" })}
 						>
 							{TYPE_LABEL[typeFilter]}
-							<CaretDownIcon className="size-3" weight="fill" />
+							<CaretDownIcon className="size-3" />
 						</DropdownMenu.Trigger>
 						<DropdownMenu.Content align="end">
 							<DropdownMenu.RadioGroup

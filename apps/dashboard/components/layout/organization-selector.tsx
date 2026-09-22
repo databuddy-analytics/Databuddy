@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { authClient } from "@databuddy/auth/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
@@ -94,15 +96,17 @@ function OrgDropdownItems({
 				<GearIcon className="size-4 shrink-0" />
 				Organization settings
 			</DropdownMenu.Item>
-			<DropdownMenu.Item onClick={() => onNavigate("/billing")}>
-				<CreditCardIcon className="size-4 shrink-0" />
-				Billing
-				{planLabel && (
-					<Badge className="ml-auto" size="sm">
-						{planLabel}
-					</Badge>
-				)}
-			</DropdownMenu.Item>
+			{!isSelfHosted && (
+				<DropdownMenu.Item onClick={() => onNavigate("/billing")}>
+					<CreditCardIcon className="size-4 shrink-0" />
+					Billing
+					{planLabel && (
+						<Badge className="ml-auto" size="sm">
+							{planLabel}
+						</Badge>
+					)}
+				</DropdownMenu.Item>
+			)}
 			<DropdownMenu.Separator />
 			<DropdownMenu.Item onClick={onCreateClick}>
 				<PlusIcon className="size-4 shrink-0" />
@@ -274,38 +278,44 @@ export function OrganizationSelector({
 					}}
 					open={isOpen}
 				>
-					<DropdownMenu.Trigger
-						aria-label={organizationTriggerLabel}
-						className={cn(
-							"flex h-9 w-full items-center gap-2.5 rounded bg-sidebar-accent/50 px-2.5",
-							"hover:bg-sidebar-accent",
-							isSwitching && "cursor-not-allowed opacity-70",
-							isOpen && "bg-sidebar-accent"
-						)}
-						disabled={isSwitching}
-						render={<button type="button" />}
+					<Tooltip
+						content={activeOrganization?.name ?? "Organization"}
+						side="right"
 					>
-						<Avatar
-							alt={activeOrganization?.name ?? "Organization"}
-							className="size-6 shrink-0 rounded ring-1 ring-black/10 ring-inset"
-							src={avatarUrl}
-						/>
-						<span className="min-w-0 flex-1 truncate text-left font-semibold text-sidebar-foreground text-sm">
-							{isSwitching
-								? "Switching organization…"
-								: (activeOrganization?.name ?? "Select organization")}
-						</span>
-						{isSwitching ? (
-							<SpinnerGapIcon className="size-3.5 shrink-0 animate-spin text-sidebar-foreground/30" />
-						) : (
-							<CaretDownIcon
-								className={cn(
-									"size-3.5 shrink-0 text-sidebar-foreground/30",
-									isOpen && "rotate-180"
-								)}
+						<DropdownMenu.Trigger
+							aria-label={organizationTriggerLabel}
+							className={cn(
+								"flex h-9 w-full items-center gap-2.5 rounded bg-sidebar-accent/50 px-2.5",
+								"hover:bg-sidebar-accent",
+								isSwitching && "cursor-not-allowed opacity-70",
+								isOpen && "bg-sidebar-accent"
+							)}
+							disabled={isSwitching}
+							// policy-ignore dashboard/no-raw-interactive-html: DropdownMenu.Trigger's render prop requires a native button element
+							render={<button type="button" />}
+						>
+							<Avatar
+								alt={activeOrganization?.name ?? "Organization"}
+								className="size-6 shrink-0 rounded ring-1 ring-black/10 ring-inset"
+								src={avatarUrl}
 							/>
-						)}
-					</DropdownMenu.Trigger>
+							<span className="min-w-0 flex-1 truncate text-left font-semibold text-sidebar-foreground text-sm">
+								{isSwitching
+									? "Switching organization…"
+									: (activeOrganization?.name ?? "Select organization")}
+							</span>
+							{isSwitching ? (
+								<SpinnerGapIcon className="size-3.5 shrink-0 animate-spin text-sidebar-foreground/30" />
+							) : (
+								<CaretDownIcon
+									className={cn(
+										"size-3.5 shrink-0 text-sidebar-foreground/30",
+										isOpen && "rotate-180"
+									)}
+								/>
+							)}
+						</DropdownMenu.Trigger>
+					</Tooltip>
 					<DropdownMenu.Content
 						align="start"
 						className="min-w-60"

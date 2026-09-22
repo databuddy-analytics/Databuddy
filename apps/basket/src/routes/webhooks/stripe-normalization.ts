@@ -1,4 +1,4 @@
-export interface ExpandableObject {
+interface ExpandableObject {
 	id: string;
 }
 
@@ -31,7 +31,7 @@ interface WebhookInvoiceContext extends WebhookContextObject {
 	} | null;
 }
 
-export interface WebhookPaymentIntent extends WebhookContextObject {
+interface WebhookPaymentIntent extends WebhookContextObject {
 	amount: number;
 	amount_received?: number;
 	cancellation_reason?: unknown;
@@ -40,7 +40,7 @@ export interface WebhookPaymentIntent extends WebhookContextObject {
 	last_payment_error?: WebhookPaymentError | null;
 }
 
-export interface WebhookInvoicePayment {
+interface WebhookInvoicePayment {
 	amount_paid?: number | null;
 	amount_requested?: number | null;
 	created: number;
@@ -57,7 +57,7 @@ export interface WebhookInvoicePayment {
 	status: "canceled" | "open" | "paid";
 }
 
-export interface WebhookInvoice extends WebhookInvoiceContext {
+interface WebhookInvoice extends WebhookInvoiceContext {
 	amount_due?: number;
 	amount_paid: number;
 	amount_remaining?: number;
@@ -73,7 +73,7 @@ export interface WebhookInvoice extends WebhookInvoiceContext {
 	total?: number;
 }
 
-export interface WebhookCharge extends WebhookContextObject {
+interface WebhookCharge extends WebhookContextObject {
 	amount_refunded: number;
 	currency: string;
 	payment_intent?: string | WebhookContextObject | null;
@@ -100,7 +100,7 @@ export interface StripeWebhookEvent {
 	type: string;
 }
 
-export type StripeRecordKind = "attempt" | "money";
+type StripeRecordKind = "attempt" | "money";
 
 const STRIPE_ZERO_DECIMAL_CURRENCIES = new Set([
 	"BIF",
@@ -176,7 +176,7 @@ function nonNegativeInteger(value: unknown): value is number {
 	return Number.isSafeInteger(value) && Number(value) >= 0;
 }
 
-export function getExpandableId(
+function getExpandableId(
 	value: string | ExpandableObject | null | undefined
 ): string | undefined {
 	if (!value) {

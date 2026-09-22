@@ -1,15 +1,13 @@
 import { createClient, type ResponseJSON } from "@clickhouse/client";
 import type { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { finalizeDeliveryTables } from "./logical-reads";
-/**
- * ClickHouse table names used throughout the application
- */
 export const TABLE_NAMES = {
 	events: "analytics.events",
 	outgoing_links: "analytics.outgoing_links",
 	blocked_traffic: "analytics.blocked_traffic",
 	error_spans: "analytics.error_spans",
 	web_vitals_spans: "analytics.web_vitals_spans",
+	engagement_spans: "analytics.engagement_spans",
 	custom_events: "analytics.custom_events",
 	ai_traffic_spans: "analytics.ai_traffic_spans",
 	link_visits: "analytics.link_visits",
@@ -35,11 +33,6 @@ export const FINAL_READ_SETTINGS = {
 export type ClickHouseReadMode = "default" | "restricted";
 
 let clickHouseReadMode: ClickHouseReadMode = "default";
-
-/**
- * A bounded evaluator can use an account that enforces read-only access while
- * forbidding query-setting changes. The caller must restore the prior mode.
- */
 export function setClickHouseReadMode(mode: ClickHouseReadMode): () => void {
 	const previous = clickHouseReadMode;
 	clickHouseReadMode = mode;
@@ -60,6 +53,20 @@ function assertCacheCompatibleSettings(
 		);
 	}
 }
+
+function assertLoopbackForIntegrationTests(url: string | undefined): void {
+	if (process.env.CLICKHOUSE_INTEGRATION_TESTS !== "true") {
+		return;
+	}
+	const hostname = url ? new URL(url).hostname : "";
+	if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostname)) {
+		throw new Error(
+			`ClickHouse integration tests only run against a loopback server; CLICKHOUSE_URL host is "${hostname || "unset"}"`
+		);
+	}
+}
+
+assertLoopbackForIntegrationTests(process.env.CLICKHOUSE_URL);
 
 const baseClient = createClient({
 	url: process.env.CLICKHOUSE_URL,
@@ -153,8 +160,8 @@ export const clickHouse: ClickHouseClient = Object.assign(
 		insert: (
 			...args: Parameters<ClickHouseClient["insert"]>
 		): ReturnType<ClickHouseClient["insert"]> =>
-			withChTiming(() =>
-				withInsertRetry(() => baseClient.insert(...args))
+			withInsertRetry(() =>
+				withChTiming(() => baseClient.insert(...args))
 			) as ReturnType<ClickHouseClient["insert"]>,
 		query: (
 			...args: Parameters<ClickHouseClient["query"]>
@@ -170,6 +177,9 @@ export const clickHouse: ClickHouseClient = Object.assign(
 export interface ChQueryOptions {
 	abort_signal?: AbortSignal;
 	clickhouse_settings?: Record<string, string | number>;
+	// Tags the query in system.query_log via log_comment, so slow shapes can be
+	// grouped by their origin instead of reverse-engineered from SQL text.
+	label?: string;
 	readonly?: boolean;
 }
 
@@ -233,6 +243,9 @@ async function chQueryWithMeta<T>(
 				...(clickHouseReadMode === "default" ? { readonly: "2" } : {}),
 			}
 		: { ...(options?.clickhouse_settings ?? {}), ...finalSettings };
+	if (options?.label) {
+		settings.log_comment = options.label;
+	}
 	assertCacheCompatibleSettings(settings);
 	const timeoutSignal = AbortSignal.timeout(CH_QUERY_MAX_MS);
 	const abortSignal = options?.abort_signal

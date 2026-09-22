@@ -2,11 +2,10 @@
 
 type IconWeight = "regular" | "bold" | "fill" | "duotone";
 
-import { StarIcon as HeartIcon, StarIcon } from "@databuddy/ui/icons";
+import { StarIcon as HeartIcon } from "@databuddy/ui/icons";
 import { SciFiCard } from "@/components/scifi-card";
 
 interface SponsorsHeroProps {
-	featuredSponsors: number;
 	totalSponsors: number;
 }
 
@@ -27,10 +26,7 @@ function StatCard({
 }) {
 	return (
 		<SciFiCard className="flex h-32 w-full flex-col items-center justify-center rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:h-36 lg:h-40">
-			<Icon
-				className="mb-2 size-6 text-muted-foreground duration-300 group-hover:text-foreground sm:h-7 sm:w-7 lg:h-8 lg:w-8"
-				weight="duotone"
-			/>
+			<Icon className="mb-2 size-6 text-muted-foreground duration-300 group-hover:text-foreground sm:h-7 sm:w-7 lg:h-8 lg:w-8" />
 			<div className="text-center">
 				<div className="font-bold text-2xl sm:text-3xl lg:text-4xl">
 					{formatNumber(value)}
@@ -46,10 +42,7 @@ function StatCard({
 	);
 }
 
-export default function SponsorsHero({
-	totalSponsors,
-	featuredSponsors,
-}: SponsorsHeroProps) {
+export default function SponsorsHero({ totalSponsors }: SponsorsHeroProps) {
 	return (
 		<section className="relative w-full pt-24 pb-16 sm:pt-28 sm:pb-20 lg:pt-32 lg:pb-24">
 			<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -72,18 +65,12 @@ export default function SponsorsHero({
 				</div>
 
 				{/* Stats Grid */}
-				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:gap-8">
+				<div className="mx-auto max-w-md">
 					<StatCard
 						description="Supporting our mission"
 						icon={HeartIcon}
-						label="Total Sponsors"
+						label="Sponsors"
 						value={totalSponsors}
-					/>
-					<StatCard
-						description="Featured partners"
-						icon={StarIcon}
-						label="Featured Sponsors"
-						value={featuredSponsors}
 					/>
 				</div>
 			</div>

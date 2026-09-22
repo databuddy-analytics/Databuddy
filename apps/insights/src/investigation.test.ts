@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import type { DetectedSignal } from "./detection";
 import {
+	isInvestigationCandidate,
+	normalizedErrorSubject,
 	prepareInvestigation,
 	rankSignals,
 	signalAnnotationWindow,
@@ -21,7 +23,12 @@ const baseSignal: DetectedSignal = {
 describe("rankSignals", () => {
 	it("prioritizes measured behavioral consequences over raw regressions", () => {
 		const ranked = rankSignals([
-			{ ...baseSignal, direction: "up", deltaPercent: 120, severity: "critical" },
+			{
+				...baseSignal,
+				direction: "up",
+				deltaPercent: 120,
+				severity: "critical",
+			},
 			{
 				...baseSignal,
 				metric: "goal:signup",
@@ -176,42 +183,6 @@ describe("prepareInvestigation", () => {
 		});
 	});
 
-	it("reuses exact detector-owned goal evidence without another read", () => {
-		const result = prepareInvestigation(
-			{
-				...baseSignal,
-				definitionEvidence:
-					"Signup had 0 completions from 100 eligible visitors, versus 20 previously.",
-				entityLabel: "Signup",
-				metric: "goal:goal-1",
-			},
-			7
-		);
-
-		expect(result.evidence).toHaveLength(1);
-		expect(result.evidence.at(-1)).toBe(
-			"Signup had 0 completions from 100 eligible visitors, versus 20 previously."
-		);
-	});
-
-	it("passes signal-window annotations to the agent without classifying them", () => {
-		const result = prepareInvestigation(
-			baseSignal,
-			7,
-			[
-				{
-					date: "2026-07-08",
-					title: "Signup instrumentation intentionally changed",
-				},
-				{ date: "2026-07-09", title: "Pricing campaign paused" },
-			]
-		);
-
-		expect(result.evidence).toEqual([
-			"Annotation: 2026-07-08: Signup instrumentation intentionally changed; 2026-07-09: Pricing campaign paused",
-		]);
-	});
-
 	it("keeps a renamed goal in the same investigation", () => {
 		const first = prepareInvestigation(
 			{
@@ -336,5 +307,70 @@ describe("prepareInvestigation", () => {
 			from: baselineDates[0],
 			to: baselineDates.at(-1),
 		});
+	});
+});
+
+describe("normalizedErrorSubject", () => {
+	it("collapses uncaught variants of the same error message", () => {
+		expect(
+			normalizedErrorSubject("error:Uncaught SyntaxError: Unexpected token")
+		).toBe("error:SyntaxError: Unexpected token");
+		expect(
+			normalizedErrorSubject("Uncaught SyntaxError: Unexpected token")
+		).toBe("SyntaxError: Unexpected token");
+		expect(normalizedErrorSubject("error:SyntaxError: Unexpected token")).toBe(
+			"error:SyntaxError: Unexpected token"
+		);
+		expect(normalizedErrorSubject("route:inp:/")).toBe("route:inp:/");
+	});
+});
+
+describe("isInvestigationCandidate", () => {
+	it("keeps tiny custom event movements out of investigations", () => {
+		const smallEvent: DetectedSignal = {
+			...baseSignal,
+			baseline: 1,
+			current: 3,
+			deltaPercent: 200,
+			direction: "up",
+			metric: "custom_event_count",
+			subjectKey: "custom_event:onboarding_tracking_copied",
+		};
+
+		expect(isInvestigationCandidate(smallEvent)).toBe(false);
+		expect(
+			isInvestigationCandidate({
+				...smallEvent,
+				baseline: 40,
+				current: 12,
+				deltaPercent: -70,
+				direction: "down",
+			})
+		).toBe(true);
+	});
+});
+
+describe("positive sentiment severity", () => {
+	it("caps positive movements at info severity", () => {
+		const improvement = prepareInvestigation(
+			{
+				...baseSignal,
+				baseline: 3,
+				current: 15,
+				deltaPercent: 400,
+				direction: "up",
+				metric: "custom_event_count",
+				severity: "warning",
+				subjectKey: "custom_event:onboarding_tracking_copied",
+			},
+			7
+		);
+
+		expect(improvement.signal.sentiment).toBe("positive");
+		expect(improvement.signal.severity).toBe("info");
+
+		const regression = prepareInvestigation(baseSignal, 7);
+		expect(regression.signal.sentiment).toBe("negative");
+		expect(regression.signal.severity).toBe("warning");
 	});
 });

@@ -1,3 +1,5 @@
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+
 export const GUIDE_URI = "databuddy://guide";
 
 export const MCP_INSTRUCTIONS = `Databuddy gives agents product analytics and durable investigations.
@@ -5,7 +7,7 @@ export const MCP_INSTRUCTIONS = `Databuddy gives agents product analytics and du
 - Use get_data for current analytics. Batch related queries.
 - Use list_insights for published findings. Preserve each returned recommendation exactly; if it is null, do not add advice.
 - Use list_investigations to find cases, then get_investigation for evidence and history.
-- Use reply_to_investigation when a user answers a case's question or adds missing context. This resumes the same investigation.
+- Use reply_to_investigation for an included clarification of the same question using saved evidence. It does not fetch new measurements or change actions. Start a new question or fresh analysis explicitly in the dashboard. It uses one included investigation; additional investigations cost $${INVESTIGATION_USAGE.priceUsd} each after the allowance.
 - After a queued reply, poll get_investigation and reuse the same replyId on retries.
 - Use capabilities only when you need to discover query types, and get_schema only when a field is uncertain.
 - Most website-scoped tools accept websiteId, websiteName, or websiteDomain; tools that operate by a returned ID may not.
@@ -35,7 +37,9 @@ Investigations are durable cases, not generated summaries.
 
 1. \`list_investigations\` returns the latest case for each subject.
 2. \`get_investigation\` returns its evidence, observations, status, and human replies.
-3. \`reply_to_investigation\` adds human context and resumes that same case.
+3. \`reply_to_investigation\` adds human context for an included clarification using that case's saved evidence. It does not fetch new measurements or change actions.
+
+Start a new question or separate fresh analysis explicitly in the dashboard. ${INVESTIGATION_USAGE.description}
 
 Replies are asynchronous. When a reply is queued or running, poll \`get_investigation\` until its durable status succeeds or fails; do not submit the same context under a new reply ID.
 
@@ -43,5 +47,5 @@ Do not recreate an investigation with ad hoc anomaly math when a durable case al
 
 ## Mutations
 
-Respect each tool's API-key scopes. Analytics reads require \`read:data\`; website writes and investigation replies require \`manage:websites\`; flag mutations require \`manage:flags\` (and website-scoped ones also require \`read:data\`); link catalog reads require \`read:links\`, while website-scoped link mutations require \`read:data\` plus \`write:links\` (and \`create_link\` also requires \`read:links\`). Preview goal, annotation, and link mutations with \`confirmed=false\`, then apply only after explicit approval with \`confirmed=true\`.
+Analytics and schema/discovery tools require \`read:data\`. Website writes and investigation replies require \`manage:websites\`; flag mutations require \`manage:flags\`. Short-link reads and previews are organization-wide and require \`read:links\`; every link mutation also requires \`write:links\`. Preview goal, annotation, and link mutations with \`confirmed=false\`, then apply only after explicit approval with \`confirmed=true\`.
 `;

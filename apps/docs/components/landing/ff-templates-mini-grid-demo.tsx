@@ -51,10 +51,7 @@ export function FFTemplatesMiniGridDemo() {
 						key={item.id}
 					>
 						<div className="flex items-start gap-2.5">
-							<item.Icon
-								className="mt-0.5 size-5 shrink-0 text-muted-foreground"
-								weight="duotone"
-							/>
+							<item.Icon className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
 							<div className="min-w-0 flex-1">
 								<p className="font-medium text-foreground text-xs leading-snug">
 									{item.title}

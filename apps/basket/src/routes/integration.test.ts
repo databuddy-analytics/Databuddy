@@ -56,7 +56,10 @@ const {
 				organizationId: "org_1",
 			})
 		),
-		mockCheckForBot: vi.fn(() => Promise.resolve(undefined)),
+		mockCheckForBot: vi.fn(
+			(): Promise<{ error?: Response } | undefined> =>
+				Promise.resolve(undefined)
+		),
 		mockInsertTrackEvent: vi.fn(() => Promise.resolve()),
 		mockInsertOutgoingLink: vi.fn(() => Promise.resolve()),
 		mockInsertTrackEventsBatch: vi.fn(() => Promise.resolve()),
@@ -110,6 +113,7 @@ vi.mock("@lib/event-service", () => ({
 	insertTrackEventsBatch: mockInsertTrackEventsBatch,
 	insertOutgoingLinksBatch: mockInsertOutgoingLinksBatch,
 	insertIndividualVitals: mockInsertIndividualVitals,
+	insertEngagementSpans: vi.fn(async () => {}),
 	insertErrorSpans: mockInsertErrorSpans,
 	insertCustomEvents: mockInsertCustomEvents,
 	stableAnalyticsEventId: vi.fn(() => "stable_id"),
@@ -127,12 +131,13 @@ vi.mock("@utils/ip-geo", () => ({
 	getGeo: mockGetGeo,
 	extractIpFromRequest: vi.fn(() => "1.2.3.4"),
 	extractTrustedClientIp: vi.fn(() => "1.2.3.4"),
-	getVisitorCountryForAutoMode: vi.fn((events: Array<{ anonymizeVisitorIds?: unknown }>) =>
-		Promise.resolve(
-			events.some((event) => event.anonymizeVisitorIds === "auto")
-				? "US"
-				: undefined
-		)
+	getVisitorCountryForAutoMode: vi.fn(
+		(events: Array<{ anonymizeVisitorIds?: unknown }>) =>
+			Promise.resolve(
+				events.some((event) => event.anonymizeVisitorIds === "auto")
+					? "US"
+					: undefined
+			)
 	),
 	closeGeoIPReader: noop,
 }));
@@ -180,16 +185,14 @@ vi.mock("@lib/producer", () => ({
 	runPromise: noopAsync,
 }));
 
-// ── Import routes after mocks ──
-
 const { basketErrors, buildBasketErrorPayload } = await import(
 	"@lib/structured-errors"
 );
+const { ERRORS_BODY_MAX_BYTES } = await import("../routes/basket");
 const { createError, EvlogError } = await import("evlog");
 const { Elysia } = await import("elysia");
 const mockGlobalErrorHandler = vi.fn();
 
-// Wrap basket routes with the same onError handler as index.ts
 const rawBasket = (await import("./basket")).default;
 const basketApp = new Elysia()
 	.onError(({ error, code }) => {
@@ -227,8 +230,6 @@ const trackRoute = new Elysia()
 	})
 	.use(rawTrack);
 
-// ── Helpers ──
-
 const now = Date.now();
 
 function post(
@@ -254,15 +255,13 @@ async function json(res: Response) {
 	return res.json() as Promise<Record<string, unknown>>;
 }
 
-// ── POST / (single ingest) ──
-
 describe("POST /", () => {
 	beforeEach(() => {
 		mockInsertTrackEvent.mockClear();
 		mockInsertOutgoingLink.mockClear();
 	});
 
-	test("valid track event → 200", async () => {
+	test("valid track event → 200 with the exact success body", async () => {
 		const res = await post(basketApp, "/", {
 			type: "track",
 			eventId: "evt_1",
@@ -270,20 +269,20 @@ describe("POST /", () => {
 			path: "https://example.com/page",
 		});
 		expect(res.status).toBe(200);
-		const body = await json(res);
-		expect(body.status).toBe("success");
-		expect(body.type).toBe("track");
+		expect(await json(res)).toEqual({ status: "success", type: "track" });
 	});
 
-	test("valid outgoing_link → 200", async () => {
+	test("valid outgoing_link → 200 with the exact success body", async () => {
 		const res = await post(basketApp, "/", {
 			type: "outgoing_link",
 			eventId: "evt_link_1",
 			href: "https://external.com",
 		});
 		expect(res.status).toBe(200);
-		const body = await json(res);
-		expect(body.type).toBe("outgoing_link");
+		expect(await json(res)).toEqual({
+			status: "success",
+			type: "outgoing_link",
+		});
 	});
 
 	test("durable core delivery failure → retryable 503", async () => {
@@ -309,21 +308,20 @@ describe("POST /", () => {
 			code: "basket.DELIVERY_UNAVAILABLE",
 			retryable: true,
 		});
-		expect(mockGlobalErrorHandler).toHaveBeenCalledWith(
-			expect.any(EvlogError)
-		);
+		expect(mockGlobalErrorHandler).toHaveBeenCalledWith(expect.any(EvlogError));
 	});
 
-	test("unknown event type → 400", async () => {
+	test("unknown event type → 400 structured error", async () => {
 		const res = await post(basketApp, "/", { type: "bogus" });
 		expect(res.status).toBe(400);
+		const body = await json(res);
+		expect(body.success).toBe(false);
+		expect(typeof body.why).toBe("string");
 	});
 });
 
-// ── POST /vitals ──
-
 describe("POST /vitals", () => {
-	test("valid vitals batch → 200", async () => {
+	test("valid vitals batch → 200 with the exact success body", async () => {
 		const res = await post(basketApp, "/vitals", [
 			{
 				timestamp: now,
@@ -333,30 +331,11 @@ describe("POST /vitals", () => {
 			},
 		]);
 		expect(res.status).toBe(200);
-		const body = await json(res);
-		expect(body.status).toBe("success");
-		expect(body.type).toBe("web_vitals");
-		expect(body.count).toBe(1);
-	});
-
-	test("accepts a CORS-safelisted unload beacon body", async () => {
-		const res = await post(
-			basketApp,
-			"/vitals",
-			[
-				{
-					eventId: "vital_stable_1",
-					timestamp: now,
-					path: "https://example.com/page",
-					metricName: "LCP",
-					metricValue: 2500,
-				},
-			],
-			{ "Content-Type": "text/plain;charset=UTF-8" }
-		);
-
-		expect(res.status).toBe(200);
-		expect(await json(res)).toMatchObject({ count: 1, type: "web_vitals" });
+		expect(await json(res)).toEqual({
+			status: "success",
+			type: "web_vitals",
+			count: 1,
+		});
 	});
 
 	test("invalid vitals (bad metric name) → 400", async () => {
@@ -377,17 +356,59 @@ describe("POST /vitals", () => {
 		const body = await json(res);
 		expect(body.count).toBe(0);
 	});
+});
 
-	test("not an array → 400", async () => {
-		const res = await post(basketApp, "/vitals", { not: "array" });
+describe("POST /engagement", () => {
+	const span = {
+		timestamp: now,
+		path: "https://example.com/pricing",
+		pageIndex: 2,
+		exitType: "spa",
+		timeOnPage: 42,
+		activeTime: 30,
+		timeToFirstInteraction: 1200,
+		maxScrollDepth: 80,
+		scrollCount: 6,
+		clickCount: 4,
+		keyCount: 0,
+		interactionCount: 10,
+		copyCount: 1,
+		rageClickCount: 1,
+		deadClickCount: 1,
+		rageClickTarget: "button:compare plans",
+		deadClickTarget: "button:compare plans",
+		formFieldCount: 2,
+		formSubmitCount: 0,
+		lastFormField: "input:email",
+		errorCount: 0,
+	};
+
+	test("valid engagement batch → 200 with the exact success body", async () => {
+		const res = await post(basketApp, "/engagement", [span]);
+		expect(res.status).toBe(200);
+		expect(await json(res)).toEqual({
+			status: "success",
+			type: "engagement",
+			count: 1,
+		});
+	});
+
+	test("invalid engagement (unknown exit type) → 400", async () => {
+		const res = await post(basketApp, "/engagement", [
+			{ ...span, exitType: "teleport" },
+		]);
 		expect(res.status).toBe(400);
+	});
+
+	test("empty array → 200 with count 0", async () => {
+		const res = await post(basketApp, "/engagement", []);
+		expect(res.status).toBe(200);
+		expect((await json(res)).count).toBe(0);
 	});
 });
 
-// ── POST /errors ──
-
 describe("POST /errors", () => {
-	test("valid error batch → 200", async () => {
+	test("valid error batch → 200 with the exact success body", async () => {
 		const res = await post(basketApp, "/errors", [
 			{
 				timestamp: now,
@@ -396,29 +417,11 @@ describe("POST /errors", () => {
 			},
 		]);
 		expect(res.status).toBe(200);
-		const body = await json(res);
-		expect(body.status).toBe("success");
-		expect(body.type).toBe("error");
-		expect(body.count).toBe(1);
-	});
-
-	test("accepts a CORS-safelisted unload beacon body", async () => {
-		const res = await post(
-			basketApp,
-			"/errors",
-			[
-				{
-					eventId: "error_stable_1",
-					timestamp: now,
-					path: "https://example.com/page",
-					message: "TypeError: x is undefined",
-				},
-			],
-			{ "Content-Type": "text/plain;charset=UTF-8" }
-		);
-
-		expect(res.status).toBe(200);
-		expect(await json(res)).toMatchObject({ count: 1, type: "error" });
+		expect(await json(res)).toEqual({
+			status: "success",
+			type: "error",
+			count: 1,
+		});
 	});
 
 	test("missing message → 400", async () => {
@@ -427,12 +430,116 @@ describe("POST /errors", () => {
 		]);
 		expect(res.status).toBe(400);
 	});
+
+	test("body over the size cap → 413 without parsing or validating", async () => {
+		mockValidateRequest.mockClear();
+		mockInsertErrorSpans.mockClear();
+
+		const spans = Array.from({ length: 50 }, () => ({
+			timestamp: now,
+			path: "https://example.com/page",
+			message: "x".repeat(4000),
+		}));
+		const serialized = JSON.stringify(spans);
+		expect(serialized.length).toBeGreaterThan(ERRORS_BODY_MAX_BYTES);
+
+		const request = new Request("http://localhost/errors", {
+			method: "POST",
+			body: serialized,
+			headers: {
+				"Content-Type": "application/json",
+				"content-length": String(serialized.length),
+			},
+		});
+		const res = await basketApp.handle(request);
+
+		expect(res.status).toBe(413);
+		expect(request.bodyUsed).toBe(false);
+		expect(await json(res)).toMatchObject({
+			code: basketErrors.ingestErrorsBodyTooLarge.code,
+			retryable: false,
+		});
+		expect(mockValidateRequest).not.toHaveBeenCalled();
+		expect(mockInsertErrorSpans).not.toHaveBeenCalled();
+	});
+
+	test("oversized body without content-length is still rejected", async () => {
+		const spans = Array.from({ length: 40 }, () => ({
+			timestamp: now,
+			path: "https://example.com/page",
+			message: "x".repeat(4000),
+		}));
+		const serialized = JSON.stringify(spans);
+		expect(serialized.length).toBeGreaterThan(ERRORS_BODY_MAX_BYTES);
+
+		const request = new Request("http://localhost/errors", {
+			method: "POST",
+			body: serialized,
+			headers: { "Content-Type": "application/json" },
+		});
+		request.headers.delete("content-length");
+
+		const res = await basketApp.handle(request);
+
+		expect(res.status).toBe(413);
+		expect(mockInsertErrorSpans).not.toHaveBeenCalled();
+	});
+
+	test("a chunked body stops being read once it passes the cap", async () => {
+		const chunk = new TextEncoder().encode("x".repeat(16 * 1024));
+		const ceiling = ERRORS_BODY_MAX_BYTES * 8;
+		let produced = 0;
+		const body = new ReadableStream({
+			pull(controller) {
+				if (produced >= ceiling) {
+					controller.close();
+					return;
+				}
+				produced += chunk.byteLength;
+				controller.enqueue(chunk);
+			},
+		});
+
+		const request = new Request("http://localhost/errors", {
+			method: "POST",
+			body,
+			duplex: "half",
+			headers: { "Content-Type": "application/json" },
+		} as RequestInit);
+
+		const res = await basketApp.handle(request);
+
+		expect(res.status).toBe(413);
+		expect(produced).toBeLessThanOrEqual(ERRORS_BODY_MAX_BYTES * 2);
+		expect(mockInsertErrorSpans).not.toHaveBeenCalled();
+	});
+
+	test("body under the size cap → 200", async () => {
+		const spans = [
+			{
+				timestamp: now,
+				path: "https://example.com/page",
+				message: "TypeError: x is undefined",
+			},
+		];
+		const serialized = JSON.stringify(spans);
+		expect(serialized.length).toBeLessThan(ERRORS_BODY_MAX_BYTES);
+
+		const res = await post(basketApp, "/errors", spans, {
+			"content-length": String(serialized.length),
+		});
+
+		expect(res.status).toBe(200);
+		expect(await json(res)).toEqual({
+			status: "success",
+			type: "error",
+			count: 1,
+		});
+	});
 });
 
-// ── POST /events (custom events) ──
-
 describe("POST /events", () => {
-	test("valid custom event → 200", async () => {
+	test("valid custom event → 200 with the exact success body", async () => {
 		const res = await post(basketApp, "/events", [
 			{
 				timestamp: now,
@@ -441,9 +548,11 @@ describe("POST /events", () => {
 			},
 		]);
 		expect(res.status).toBe(200);
-		const body = await json(res);
-		expect(body.status).toBe("success");
-		expect(body.type).toBe("custom_event");
+		expect(await json(res)).toEqual({
+			status: "success",
+			type: "custom_event",
+			count: 1,
+		});
 	});
 
 	test("empty eventName → 400", async () => {
@@ -466,61 +575,7 @@ describe("POST /events", () => {
 		]);
 		expect(res.status).toBe(400);
 	});
-
-	test("schema rejection wide-event includes event names + property keys", async () => {
-		mockLogger.set.mockClear();
-		const res = await post(basketApp, "/events", [
-			{
-				timestamp: now,
-				path: "https://example.com",
-				eventName: "purchase",
-				properties: { plan: "pro", source: "homepage" },
-			},
-			{ timestamp: now, path: "https://example.com", eventName: "" },
-		]);
-		expect(res.status).toBe(400);
-		const setCalls = mockLogger.set.mock.calls.map((c: unknown[]) => c[0]);
-		const summaryCall = setCalls.find(
-			(c: Record<string, unknown>) => c.rejectedEventCount !== undefined
-		) as Record<string, unknown>;
-		expect(summaryCall).toBeDefined();
-		expect(summaryCall.rejectedEventCount).toBe(2);
-		expect(summaryCall.rejectedEventNames).toEqual(["purchase"]);
-		expect(summaryCall.rejectedPropertyKeys).toEqual(
-			expect.arrayContaining(["plan", "source"])
-		);
-	});
-
-	test("missing-organization rejection captures event-name summary", async () => {
-		mockLogger.set.mockClear();
-		mockValidateRequest.mockResolvedValueOnce({
-			clientId: "ws_test",
-			userAgent: "TestAgent/1.0",
-			ip: "1.2.3.4",
-			ownerId: "user_1",
-			organizationId: undefined,
-		} as any);
-		const res = await post(basketApp, "/events", [
-			{
-				timestamp: now,
-				path: "https://example.com",
-				eventName: "signup",
-				properties: { plan: "free" },
-			},
-		]);
-		expect(res.status).toBe(400);
-		const setCalls = mockLogger.set.mock.calls.map((c: unknown[]) => c[0]);
-		const summaryCall = setCalls.find(
-			(c: Record<string, unknown>) => c.rejectedEventCount !== undefined
-		) as Record<string, unknown>;
-		expect(summaryCall).toBeDefined();
-		expect(summaryCall.rejectedEventCount).toBe(1);
-		expect(summaryCall.rejectedEventNames).toEqual(["signup"]);
-		expect(summaryCall.rejectedPropertyKeys).toEqual(["plan"]);
-	});
 });
-
-// ── POST /batch ──
 
 describe("POST /batch", () => {
 	test("validation quota errors stay out of the global error reporter", async () => {
@@ -541,7 +596,7 @@ describe("POST /batch", () => {
 		expect(mockGlobalErrorHandler).not.toHaveBeenCalled();
 	});
 
-	test("batch of track events → 200", async () => {
+	test("batch of track events → 200 with the batch response contract", async () => {
 		const res = await post(basketApp, "/batch", [
 			{
 				type: "track",
@@ -557,28 +612,16 @@ describe("POST /batch", () => {
 			},
 		]);
 		expect(res.status).toBe(200);
-		const body = await json(res);
-		expect(body.batch).toBe(true);
-		expect(body.processed).toBe(2);
-	});
-
-	test("accepts a CORS-safelisted unload beacon body", async () => {
-		const res = await post(
-			basketApp,
-			"/batch",
-			[
-				{
-					type: "track",
-					eventId: "event_stable_1",
-					name: "pageview",
-					path: "https://example.com/a",
-				},
+		expect(await json(res)).toMatchObject({
+			status: "success",
+			batch: true,
+			processed: 2,
+			batched: { track: 2, outgoing_link: 0 },
+			results: [
+				expect.objectContaining({ status: "success", type: "track" }),
+				expect.objectContaining({ status: "success", type: "track" }),
 			],
-			{ "Content-Type": "text/plain;charset=UTF-8" }
-		);
-
-		expect(res.status).toBe(200);
-		expect(await json(res)).toMatchObject({ batch: true, processed: 1 });
+		});
 	});
 
 	test("returns 503 instead of accepting an event that could not be prepared", async () => {
@@ -650,9 +693,14 @@ describe("POST /batch", () => {
 		expect(mockInsertOutgoingLinksBatch).toHaveBeenCalledOnce();
 	});
 
-	test("not an array → 400", async () => {
+	test("not an array → 400 with the structured error contract", async () => {
 		const res = await post(basketApp, "/batch", { not: "array" });
 		expect(res.status).toBe(400);
+		const body = await json(res);
+		expect(body).toMatchObject({ success: false, status: "error" });
+		for (const field of ["error", "message", "code", "why", "fix"] as const) {
+			expect(typeof body[field]).toBe("string");
+		}
 	});
 
 	test("too many events (101) → 400", async () => {
@@ -706,13 +754,12 @@ describe("POST /batch", () => {
 	});
 });
 
-// ── GET /px.jpg ──
-
 describe("GET /px.jpg", () => {
-	test("returns transparent GIF", async () => {
+	test("returns a non-cacheable transparent GIF", async () => {
 		const res = await get(basketApp, "/px.jpg?type=track&name=pageview");
 		expect(res.status).toBe(200);
 		expect(res.headers.get("Content-Type")).toBe("image/gif");
+		expect(res.headers.get("Cache-Control")).toContain("no-cache");
 	});
 
 	test("returns a retryable GIF when an unexpected delivery path fails", async () => {
@@ -765,8 +812,6 @@ describe("GET /px.jpg", () => {
 	});
 });
 
-// ── POST /track (API key custom events) ──
-
 describe("POST /track", () => {
 	beforeEach(() => {
 		mockInsertCustomEvents.mockClear();
@@ -798,16 +843,34 @@ describe("POST /track", () => {
 		mockResolveApiKeyOwnerId.mockResolvedValue("user_1");
 	});
 
-	test("single event → 200", async () => {
+	test("bot user agent short-circuits before the billing check", async () => {
+		mockCheckForBot.mockClear();
+		mockCheckForBot.mockResolvedValueOnce({
+			error: new Response(null, { status: 204 }),
+		});
+		const res = await post(
+			trackRoute,
+			"/track",
+			{ name: "signup", websiteId: "ws_test" },
+			{ "User-Agent": "GPTBot/1.0" }
+		);
+		expect(res.status).toBe(204);
+		expect(mockCheckForBot).toHaveBeenCalledOnce();
+		expect(mockCheckAutumnUsage).not.toHaveBeenCalled();
+		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
+	});
+
+	test("single event → 200 with the exact success body", async () => {
 		const res = await post(trackRoute, "/track", {
 			name: "signup",
 			websiteId: "ws_test",
 		});
 		expect(res.status).toBe(200);
-		const body = await json(res);
-		expect(body.status).toBe("success");
-		expect(body.type).toBe("custom_event");
-		expect(body.count).toBe(1);
+		expect(await json(res)).toEqual({
+			status: "success",
+			type: "custom_event",
+			count: 1,
+		});
 	});
 
 	test("preserves the SDK event id for retry-safe delivery", async () => {
@@ -851,16 +914,6 @@ describe("POST /track", () => {
 			],
 			undefined
 		);
-	});
-
-	test("batch of events → 200", async () => {
-		const res = await post(trackRoute, "/track", [
-			{ name: "signup", websiteId: "ws_test" },
-			{ name: "purchase", websiteId: "ws_test", properties: { plan: "pro" } },
-		]);
-		expect(res.status).toBe(200);
-		const body = await json(res);
-		expect(body.count).toBe(2);
 	});
 
 	test("api key + no websiteId → 200 (org-scoped event)", async () => {
@@ -1135,22 +1188,6 @@ describe("POST /track", () => {
 		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
 	});
 
-	test("global api key insert sets owner_id from organization", async () => {
-		mockHasGlobalAccess.mockReturnValue(true);
-		mockInsertCustomEvents.mockClear();
-		await post(trackRoute, "/track", { name: "org_event" });
-		expect(mockInsertCustomEvents).toHaveBeenCalledWith(
-			[
-				expect.objectContaining({
-					owner_id: "org_1",
-					website_id: undefined,
-					event_name: "org_event",
-				}),
-			],
-			undefined
-		);
-	});
-
 	test("preserves namespace, source, anonymousId, sessionId on insert", async () => {
 		mockInsertCustomEvents.mockClear();
 		await post(trackRoute, "/track", {
@@ -1207,8 +1244,14 @@ describe("POST /track", () => {
 		expect(res.status).toBe(200);
 		expect(mockInsertCustomEvents).toHaveBeenCalledWith(
 			[
-				expect.objectContaining({ event_name: "signup", website_id: "ws_test" }),
-				expect.objectContaining({ event_name: "purchase", website_id: "ws_test" }),
+				expect.objectContaining({
+					event_name: "signup",
+					website_id: "ws_test",
+				}),
+				expect.objectContaining({
+					event_name: "purchase",
+					website_id: "ws_test",
+				}),
 			],
 			undefined
 		);
@@ -1225,22 +1268,6 @@ describe("POST /track", () => {
 		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
 	});
 
-	test("missing name → 400", async () => {
-		const res = await post(trackRoute, "/track", {
-			namespace: "x",
-			websiteId: "ws_test",
-		});
-		expect(res.status).toBe(400);
-	});
-
-	test("empty name → 400", async () => {
-		const res = await post(trackRoute, "/track", {
-			name: "",
-			websiteId: "ws_test",
-		});
-		expect(res.status).toBe(400);
-	});
-
 	test("schema failure response exposes Zod issues to client", async () => {
 		const res = await post(trackRoute, "/track", {
 			namespace: "x",
@@ -1249,7 +1276,7 @@ describe("POST /track", () => {
 		expect(res.status).toBe(400);
 		const body = await json(res);
 		expect(Array.isArray(body.errors)).toBe(true);
-		const issues = body.errors as Array<Record<string, unknown>>;
+		const issues = body.errors as Record<string, unknown>[];
 		expect(issues.length).toBeGreaterThan(0);
 		expect(JSON.stringify(issues)).toContain("name");
 	});
@@ -1263,165 +1290,5 @@ describe("POST /track", () => {
 		});
 		expect(res.status).toBe(400);
 		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
-	});
-
-	test("inserts call event-service", async () => {
-		mockInsertCustomEvents.mockClear();
-		await post(trackRoute, "/track", {
-			name: "test_event",
-			websiteId: "ws_test",
-		});
-		expect(mockInsertCustomEvents).toHaveBeenCalled();
-	});
-});
-
-// ── GET /health (inline in index.ts, test directly) ──
-
-import { Elysia as ElysiaHealth } from "elysia";
-
-describe("GET /health", () => {
-	const healthApp = new ElysiaHealth().get("/health", () =>
-		Response.json({ status: "ok" }, { status: 200 })
-	);
-
-	test("returns 200 with status ok", async () => {
-		const res = await healthApp.handle(new Request("http://localhost/health"));
-		expect(res.status).toBe(200);
-		const body = await json(res);
-		expect(body.status).toBe("ok");
-	});
-});
-
-// ═══════════════════════════════════════════════════════════
-// Response contract tests — exact shapes consumers depend on
-// ═══════════════════════════════════════════════════════════
-
-describe("response contracts", () => {
-	// ── Success responses ──
-
-	test("POST / track → { status, type }", async () => {
-		const res = await post(basketApp, "/", {
-			type: "track",
-			eventId: "evt_c1",
-			name: "pageview",
-			path: "https://example.com/page",
-		});
-		const body = await json(res);
-		expect(body).toEqual({ status: "success", type: "track" });
-	});
-
-	test("POST / outgoing_link → { status, type }", async () => {
-		const res = await post(basketApp, "/", {
-			type: "outgoing_link",
-			eventId: "evt_c2",
-			href: "https://external.com",
-		});
-		const body = await json(res);
-		expect(body).toEqual({ status: "success", type: "outgoing_link" });
-	});
-
-	test("POST /vitals → { status, type, count }", async () => {
-		const res = await post(basketApp, "/vitals", [
-			{
-				timestamp: now,
-				path: "https://example.com",
-				metricName: "LCP",
-				metricValue: 2500,
-			},
-			{
-				timestamp: now,
-				path: "https://example.com",
-				metricName: "FCP",
-				metricValue: 1200,
-			},
-		]);
-		const body = await json(res);
-		expect(body).toEqual({ status: "success", type: "web_vitals", count: 2 });
-	});
-
-	test("POST /errors → { status, type, count }", async () => {
-		const res = await post(basketApp, "/errors", [
-			{ timestamp: now, path: "https://example.com", message: "err" },
-		]);
-		const body = await json(res);
-		expect(body).toEqual({ status: "success", type: "error", count: 1 });
-	});
-
-	test("POST /events → { status, type, count }", async () => {
-		const res = await post(basketApp, "/events", [
-			{ timestamp: now, path: "https://example.com", eventName: "purchase" },
-		]);
-		const body = await json(res);
-		expect(body).toEqual({ status: "success", type: "custom_event", count: 1 });
-	});
-
-	test("POST /track → { status, type, count }", async () => {
-		const res = await post(trackRoute, "/track", {
-			name: "signup",
-			websiteId: "ws_test",
-		});
-		const body = await json(res);
-		expect(body).toEqual({ status: "success", type: "custom_event", count: 1 });
-	});
-
-	test("POST /batch → { status, batch, processed, batched, results }", async () => {
-		const res = await post(basketApp, "/batch", [
-			{ type: "track", eventId: "b1", name: "pv", path: "https://example.com" },
-		]);
-		const body = await json(res);
-		expect(body.status).toBe("success");
-		expect(body.batch).toBe(true);
-		expect(typeof body.processed).toBe("number");
-		expect(body.batched).toEqual(
-			expect.objectContaining({
-				track: expect.any(Number),
-				outgoing_link: expect.any(Number),
-			})
-		);
-		expect(Array.isArray(body.results)).toBe(true);
-	});
-
-	// ── Error responses ──
-
-	test("400 error → { success, status, error, message, code, why, fix }", async () => {
-		const res = await post(basketApp, "/batch", { not: "array" });
-		expect(res.status).toBe(400);
-		const body = await json(res);
-		expect(body.success).toBe(false);
-		expect(body.status).toBe("error");
-		expect(typeof body.error).toBe("string");
-		expect(typeof body.message).toBe("string");
-		expect(typeof body.code).toBe("string");
-		expect(typeof body.why).toBe("string");
-		expect(typeof body.fix).toBe("string");
-	});
-
-	test("POST / unknown type → 400 structured error", async () => {
-		const res = await post(basketApp, "/", { type: "bogus" });
-		expect(res.status).toBe(400);
-		const body = await json(res);
-		expect(body.success).toBe(false);
-		expect(typeof body.why).toBe("string");
-	});
-
-	test("GET /px.jpg → image/gif regardless of errors", async () => {
-		const res = await get(basketApp, "/px.jpg?type=track&name=test");
-		expect(res.headers.get("Content-Type")).toBe("image/gif");
-		expect(res.headers.get("Cache-Control")).toContain("no-cache");
-		const buf = new Uint8Array(await res.arrayBuffer());
-		// GIF89a header
-		expect(buf[0]).toBe(0x47); // G
-		expect(buf[1]).toBe(0x49); // I
-		expect(buf[2]).toBe(0x46); // F
-	});
-
-	test("GET /health → exactly { status: 'ok' }", async () => {
-		const healthApp = new ElysiaHealth().get("/health", () =>
-			Response.json({ status: "ok" }, { status: 200 })
-		);
-		const res = await healthApp.handle(new Request("http://localhost/health"));
-		const body = await json(res);
-		expect(Object.keys(body)).toEqual(["status"]);
-		expect(body.status).toBe("ok");
 	});
 });

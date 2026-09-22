@@ -48,7 +48,6 @@ const slackBlockSchema = z
 
 export const insightSlackEffectPayloadSchema = z.object({
 	blocks: z.array(slackBlockSchema).max(50),
-	/** The effect key may include an insight identity; delivery still needs the channel. */
 	channelId: z.string().min(1).optional(),
 	insightId: z.string().min(1).optional(),
 	text: z.string().min(1),
@@ -95,7 +94,7 @@ function formatWebsiteLabel(
 		: websiteDomain;
 }
 
-export function buildFallbackText(
+function buildFallbackText(
 	websiteName: string | null | undefined,
 	websiteDomain: string,
 	insight: SlackInvestigation
@@ -126,11 +125,6 @@ export function buildInsightReplyText(
 	];
 	if (outcome.impact) {
 		lines.push(`*Impact:* ${escapeMrkdwn(userVisibleCopy(outcome.impact))}`);
-	}
-	if (outcome.recommendation) {
-		lines.push(
-			`*Recommended:* ${escapeMrkdwn(userVisibleCopy(outcome.recommendation.action))}`
-		);
 	}
 	if (outcome.next.type === "act" && outcome.rootCause) {
 		lines.push(`*Why:* ${escapeMrkdwn(userVisibleCopy(outcome.rootCause))}`);
@@ -232,7 +226,7 @@ function formatMetricValue(value: number, format?: string): string {
 	}
 }
 
-export function buildThreadBlocks(insight: SlackInvestigation): SlackBlock[] {
+function buildThreadBlocks(insight: SlackInvestigation): SlackBlock[] {
 	const metric = insight.signal.metric;
 	const current = formatMetricValue(metric.current, metric.format);
 	const lines = [
@@ -391,6 +385,7 @@ export async function deliverInsightSlackEffect(
 }
 
 export async function deliverInsightSlackReply(params: {
+	text?: string;
 	clientMessageId: string;
 	context: InsightSlackReplyDeliveryContext;
 	result: {
@@ -401,9 +396,11 @@ export async function deliverInsightSlackReply(params: {
 	return await deliverInsightSlackEffect(
 		{
 			blocks: [],
-			text: params.result
-				? buildInsightReplyText(params.result.outcome, params.result.signal)
-				: "I couldn't finish this investigation. Try replying again, or open it from the original message.",
+			text:
+				params.text ??
+				(params.result
+					? buildInsightReplyText(params.result.outcome, params.result.signal)
+					: "I couldn't finish this investigation. Try replying again, or open it from the original message."),
 		},
 		params.context,
 		params.clientMessageId,

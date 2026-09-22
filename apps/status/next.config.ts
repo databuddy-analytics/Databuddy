@@ -2,9 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
 	transpilePackages: ["@databuddy/ui", "@databuddy/rpc"],
-	typescript: {
-		ignoreBuildErrors: true,
-	},
 	images: {
 		remotePatterns: [
 			{ protocol: "https", hostname: "cdn.databuddy.cc" },
@@ -16,7 +13,6 @@ const nextConfig: NextConfig = {
 				: [{ protocol: "http" as const, hostname: "localhost" }]),
 		],
 	},
-	output: "standalone",
 	async headers() {
 		return [
 			{

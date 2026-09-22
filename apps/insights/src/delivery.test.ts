@@ -5,9 +5,7 @@ import type {
 import { describe, expect, it } from "bun:test";
 import {
 	buildBlocks,
-	buildFallbackText,
 	buildInsightReplyText,
-	buildThreadBlocks,
 	insightSlackEffectPayloadSchema,
 } from "./delivery";
 import type { WebsiteInvestigation } from "./persistence";
@@ -16,13 +14,6 @@ type Blocks = ReturnType<typeof buildBlocks>;
 
 function sectionText(blocks: Blocks, index: number) {
 	return blocks[index]?.text?.text ?? "";
-}
-
-function contextText(blocks: Blocks, index: number) {
-	const element = blocks[index]?.elements?.[0] as
-		| { text?: string }
-		| undefined;
-	return element?.text ?? "";
 }
 
 const signal: InvestigationSignal = {
@@ -99,28 +90,6 @@ describe("Slack investigation delivery", () => {
 		).toBeUndefined();
 	});
 
-	it("renders one actionable investigation", () => {
-		const blocks = buildBlocks(
-			"Databuddy",
-			"app.databuddy.cc",
-			goalInvestigation
-		);
-
-		expect(blocks[0]?.text?.text).toContain("Databuddy (app.databuddy.cc)");
-		expect(contextText(blocks, 1)).toContain("Pricing viewers");
-		expect(sectionText(blocks, 2)).toContain(outcome.title);
-		expect(sectionText(blocks, 3)).toContain(outcome.summary);
-		expect(sectionText(blocks, 3)).toContain(outcome.impact ?? "");
-		expect(sectionText(blocks, 3)).toContain("Include nested billing");
-		const fallback = buildFallbackText(
-			"Databuddy <@U123>",
-			"app.databuddy.cc",
-			goalInvestigation
-		);
-		expect(fallback).toContain("app.databuddy.cc");
-		expect(fallback).toContain("&lt;@U123&gt;");
-	});
-
 	it("renders a specific question without unproven impact", () => {
 		const next: InvestigationOutcome["next"] = {
 			type: "ask",
@@ -159,7 +128,6 @@ describe("Slack investigation delivery", () => {
 
 		expect(JSON.stringify(blocks)).not.toContain("019d7dac");
 	});
-
 });
 
 describe("Slack investigation detail", () => {
@@ -210,22 +178,6 @@ describe("Slack investigation detail", () => {
 			},
 			signal
 		);
-		const recommended = buildInsightReplyText(
-			{
-				...outcome,
-				next: { reason: "The broad goal does not prove a failure.", type: "resolve" },
-				publish: true,
-				recommendation: {
-					action: "Rename Pricing viewers to All billing navigation.",
-					changes: {
-						description: null,
-						name: "All billing navigation",
-					},
-					operation: "edit",
-				},
-			},
-			signal
-		);
 
 		expect(action).toStartWith("*Action ·");
 		expect(action).toContain("&lt;@U123&gt;");
@@ -233,49 +185,9 @@ describe("Slack investigation detail", () => {
 		expect(watching).toStartWith("*Watching ·");
 		expect(watching).toContain("Watch Pricing goal completion.");
 		expect(structuredWatch).toContain(
-		"*Next:* Escalate when Pricing goal completion is below 20 (prior baseline)."
-	);
+			"*Next:* Escalate when Pricing goal completion is below 20 (prior baseline)."
+		);
 		expect(structuredWatch).not.toContain("Watch Pricing goal completion");
 		expect(resolved).toStartWith("*Resolved ·");
-		expect(recommended).toContain(
-			"*Recommended:* Rename Pricing viewers to All billing navigation."
-		);
-	});
-
-	it("renders the measured signal, proven cause, and evidence", () => {
-		const text = buildThreadBlocks(goalInvestigation)[0]?.text?.text ?? "";
-
-		expect(text).toContain("Pricing goal completion: 17 (was 32)");
-		expect(text).toContain("The goal definition excludes");
-		expect(text).toContain("15 of 32 billing visitors");
-	});
-
-	it("formats percent and duration units", () => {
-		const percent = investigationWith({
-			signal: {
-				metric: {
-					label: "Bounce rate",
-					current: 62,
-					previous: 40,
-					format: "percent",
-				},
-			},
-		});
-		const duration = investigationWith({
-			signal: {
-				metric: {
-					label: "Load time",
-					current: 3200,
-					format: "duration_ms",
-				},
-			},
-		});
-
-		expect(buildThreadBlocks(percent)[0]?.text?.text).toContain(
-			"Bounce rate: 62% (was 40%)"
-		);
-		expect(buildThreadBlocks(duration)[0]?.text?.text).toContain(
-			"Load time: 3,200ms"
-		);
 	});
 });

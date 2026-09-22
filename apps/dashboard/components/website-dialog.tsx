@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { z } from "zod";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import {
@@ -85,37 +86,6 @@ export function WebsiteDialog({
 		}
 	}, [website, form]);
 
-	const getErrorMessage = (error: unknown, isEditingMode: boolean): string => {
-		const defaultMessage = `Failed to ${isEditingMode ? "update" : "create"} website.`;
-
-		const rpcError = error as {
-			data?: { code?: string };
-			message?: string;
-		};
-
-		if (rpcError?.data?.code) {
-			switch (rpcError.data.code) {
-				case "CONFLICT":
-					return "A website with this domain already exists.";
-				case "FORBIDDEN":
-					return (
-						rpcError.message ||
-						"You do not have permission to perform this action."
-					);
-				case "UNAUTHORIZED":
-					return "You must be logged in to perform this action.";
-				case "BAD_REQUEST":
-					return (
-						rpcError.message || "Invalid request. Please check your input."
-					);
-				default:
-					return rpcError.message || defaultMessage;
-			}
-		}
-
-		return rpcError?.message || defaultMessage;
-	};
-
 	const handleSubmit: SubmitHandler<FormData> = async (formData) => {
 		const submissionData: CreateWebsiteData = {
 			name: formData.name,
@@ -148,8 +118,10 @@ export function WebsiteDialog({
 			}
 			onOpenChange(false);
 		} catch (error: unknown) {
-			const message = getErrorMessage(error, !!website?.id);
-			toast.error(message);
+			showErrorToast(
+				error,
+				`Failed to ${website?.id ? "update" : "create"} website.`
+			);
 		}
 	};
 

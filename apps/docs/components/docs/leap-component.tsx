@@ -79,5 +79,3 @@ export const LeapComponent = () => {
 		</Card>
 	);
 };
-
-export default LeapComponent;

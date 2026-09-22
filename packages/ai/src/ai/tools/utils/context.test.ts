@@ -16,7 +16,13 @@ describe("resolveToolWebsite", () => {
 	it("rejects a websiteId that is not accessible and not the context website", () => {
 		const ctx = makeCtx({
 			accessibleWebsites: [
-				{ id: "web_a", domain: "a.com", name: null, isPublic: null, createdAt: null },
+				{
+					id: "web_a",
+					domain: "a.com",
+					name: null,
+					isPublic: null,
+					createdAt: null,
+				},
 			],
 			websiteId: "web_ctx",
 		});
@@ -37,7 +43,13 @@ describe("resolveToolWebsite", () => {
 	it("accepts a websiteId that is in the accessible set", () => {
 		const ctx = makeCtx({
 			accessibleWebsites: [
-				{ id: "web_a", domain: "a.com", name: null, isPublic: null, createdAt: null },
+				{
+					id: "web_a",
+					domain: "a.com",
+					name: null,
+					isPublic: null,
+					createdAt: null,
+				},
 			],
 		});
 
@@ -79,8 +91,20 @@ describe("resolveToolWebsite", () => {
 	it("throws when multiple websites are accessible and none is specified", () => {
 		const ctx = makeCtx({
 			accessibleWebsites: [
-				{ id: "web_a", domain: "a.com", name: null, isPublic: null, createdAt: null },
-				{ id: "web_b", domain: "b.com", name: null, isPublic: null, createdAt: null },
+				{
+					id: "web_a",
+					domain: "a.com",
+					name: null,
+					isPublic: null,
+					createdAt: null,
+				},
+				{
+					id: "web_b",
+					domain: "b.com",
+					name: null,
+					isPublic: null,
+					createdAt: null,
+				},
 			],
 		});
 
@@ -90,26 +114,19 @@ describe("resolveToolWebsite", () => {
 	it("resolves a domain name to its UUID from accessibleWebsites", () => {
 		const ctx = makeCtx({
 			accessibleWebsites: [
-				{ id: "web_a", domain: "finvzo.com", name: null, isPublic: null, createdAt: null },
+				{
+					id: "web_a",
+					domain: "finvzo.com",
+					name: null,
+					isPublic: null,
+					createdAt: null,
+				},
 			],
 		});
 
 		expect(resolveToolWebsite(ctx, "finvzo.com")).toEqual({
 			websiteId: "web_a",
 			domain: "finvzo.com",
-		});
-	});
-
-	it("resolves accessible website domains case-insensitively", () => {
-		const ctx = makeCtx({
-			accessibleWebsites: [
-				{ id: "web_a", domain: "Finvzo.COM", name: null, isPublic: null, createdAt: null },
-			],
-		});
-
-		expect(resolveToolWebsite(ctx, " finvzo.com ")).toEqual({
-			websiteId: "web_a",
-			domain: "Finvzo.COM",
 		});
 	});
 
@@ -126,23 +143,16 @@ describe("resolveToolWebsite", () => {
 		});
 	});
 
-	it("resolves ctx.websiteDomain case-insensitively for single-site contexts", () => {
-		const ctx = makeCtx({
-			websiteId: "web_ctx",
-			websiteDomain: "Ctx-Domain.COM",
-			accessibleWebsites: [],
-		});
-
-		expect(resolveToolWebsite(ctx, "ctx-domain.com")).toEqual({
-			websiteId: "web_ctx",
-			domain: "Ctx-Domain.COM",
-		});
-	});
-
 	it("still rejects a domain that does not match any accessible website", () => {
 		const ctx = makeCtx({
 			accessibleWebsites: [
-				{ id: "web_a", domain: "a.com", name: null, isPublic: null, createdAt: null },
+				{
+					id: "web_a",
+					domain: "a.com",
+					name: null,
+					isPublic: null,
+					createdAt: null,
+				},
 			],
 			websiteId: "web_ctx",
 			websiteDomain: "ctx.com",

@@ -18,7 +18,10 @@ const statusOptions = [
 
 const updateFormSchema = z.object({
 	status: z.enum(["investigating", "identified", "monitoring", "resolved"]),
-	message: z.string().min(1, "Message is required"),
+	message: z
+		.string()
+		.min(1, "Message is required")
+		.max(5000, "Message must be 5000 characters or fewer"),
 });
 
 type UpdateFormData = z.infer<typeof updateFormSchema>;

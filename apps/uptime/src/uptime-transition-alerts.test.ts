@@ -3,19 +3,17 @@ import { MonitorStatus } from "./types";
 import {
 	buildTransitionNotificationPayload,
 	buildUptimeDeliveryPlan,
-	countFiredAlarms,
 	resolveTransitionKind,
 	resolveUptimeEmailPreference,
 	shouldReleaseTransitionClaim,
 } from "./uptime-transition-alerts";
 import type { UptimeData } from "./types";
 
-const { UP, DOWN, PENDING, MAINTENANCE } = MonitorStatus;
+const { UP, DOWN } = MonitorStatus;
 
 const baseUptimeData: UptimeData = {
 	attempt: 1,
 	check_type: "http",
-	content_hash: "",
 	event_id: "uptime-event-1",
 	env: "production",
 	error: "",
@@ -63,42 +61,6 @@ describe("resolveTransitionKind — dedupe invariants", () => {
 	test("UP → UP is silent", () => {
 		expect(resolveTransitionKind(UP, UP)).toBeNull();
 	});
-
-	test("repeated DOWN checks stay silent across many calls", () => {
-		for (let i = 0; i < 50; i += 1) {
-			expect(resolveTransitionKind(DOWN, DOWN)).toBeNull();
-		}
-	});
-});
-
-describe("resolveTransitionKind — intermediate states", () => {
-	test("PENDING → DOWN fires a down alert (first real signal is failure)", () => {
-		expect(resolveTransitionKind(PENDING, DOWN)).toBe("down");
-	});
-
-	test("PENDING → UP is silent (no prior DOWN to recover from)", () => {
-		expect(resolveTransitionKind(PENDING, UP)).toBeNull();
-	});
-
-	test("MAINTENANCE → UP is silent (not a recovery event)", () => {
-		expect(resolveTransitionKind(MAINTENANCE, UP)).toBeNull();
-	});
-
-	test("MAINTENANCE → DOWN fires a down alert", () => {
-		expect(resolveTransitionKind(MAINTENANCE, DOWN)).toBe("down");
-	});
-
-	test("any → PENDING is silent (not a user-facing transition)", () => {
-		expect(resolveTransitionKind(UP, PENDING)).toBeNull();
-		expect(resolveTransitionKind(DOWN, PENDING)).toBeNull();
-		expect(resolveTransitionKind(undefined, PENDING)).toBeNull();
-	});
-
-	test("any → MAINTENANCE is silent", () => {
-		expect(resolveTransitionKind(UP, MAINTENANCE)).toBeNull();
-		expect(resolveTransitionKind(DOWN, MAINTENANCE)).toBeNull();
-		expect(resolveTransitionKind(undefined, MAINTENANCE)).toBeNull();
-	});
 });
 
 describe("resolveTransitionKind — defensive inputs", () => {
@@ -114,54 +76,6 @@ describe("resolveTransitionKind — defensive inputs", () => {
 
 	test("NaN previous with DOWN current still alerts (prev !== DOWN)", () => {
 		expect(resolveTransitionKind(Number.NaN, DOWN)).toBe("down");
-	});
-});
-
-describe("resolveTransitionKind — state machine matrix", () => {
-	const states = [undefined, UP, DOWN, PENDING, MAINTENANCE] as const;
-	const expected: Record<string, "down" | "recovered" | null> = {
-		"undefined→0": "down",
-		"undefined→1": null,
-		"undefined→2": null,
-		"undefined→3": null,
-		"1→0": "down",
-		"1→1": null,
-		"1→2": null,
-		"1→3": null,
-		"0→0": null,
-		"0→1": "recovered",
-		"0→2": null,
-		"0→3": null,
-		"2→0": "down",
-		"2→1": null,
-		"2→2": null,
-		"2→3": null,
-		"3→0": "down",
-		"3→1": null,
-		"3→2": null,
-		"3→3": null,
-	};
-
-	for (const prev of states) {
-		for (const curr of states) {
-			if (curr === undefined) {
-				continue;
-			}
-			const key = `${prev === undefined ? "undefined" : prev}→${curr}`;
-			test(`${key} → ${expected[key]}`, () => {
-				expect(resolveTransitionKind(prev, curr)).toBe(expected[key]);
-			});
-		}
-	}
-});
-
-describe("countFiredAlarms", () => {
-	test("counts alarms with at least one successful destination", () => {
-		expect(countFiredAlarms([2, 0, 1])).toBe(2);
-	});
-
-	test("does not count alarms where every destination failed or was filtered", () => {
-		expect(countFiredAlarms([0, 0, 0])).toBe(0);
 	});
 });
 

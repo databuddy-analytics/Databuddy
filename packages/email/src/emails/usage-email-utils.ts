@@ -21,8 +21,6 @@ export function formatUsagePercentage(usage: number, limit: number): string {
 	}
 	return `${Math.round((usage / limit) * 100)}%`;
 }
-
-/** Formats Autumn's Unix timestamp, which is expressed in milliseconds. */
 export function formatResetDate(
 	timestampMs?: number | null
 ): string | undefined {

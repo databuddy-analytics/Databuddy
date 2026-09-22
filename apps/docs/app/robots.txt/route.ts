@@ -2,13 +2,9 @@ import { SITE_URL } from "@/app/util/constants";
 
 export const revalidate = 3600;
 
-const CRAWL_DISALLOW = [
-	"/api/",
-	"/_next/",
-	"/admin/",
-	"/demo/private/",
-	"/contact/thanks",
-];
+const CRAWL_ALLOW = ["/api/llms.txt", "/api/pricing"];
+
+const CRAWL_DISALLOW = ["/api/", "/admin/", "/demo/private/"];
 
 const SEARCH_AGENTS = [
 	"GPTBot",
@@ -26,6 +22,7 @@ function allowBlock(userAgent: string) {
 	return [
 		`User-agent: ${userAgent}`,
 		"Allow: /",
+		...CRAWL_ALLOW.map((path) => `Allow: ${path}`),
 		...CRAWL_DISALLOW.map((path) => `Disallow: ${path}`),
 	].join("\n");
 }

@@ -45,11 +45,9 @@ AI agents can discover Databuddy authentication without scraping this page:
 | Resource | URL |
 |----------|-----|
 | auth.md walkthrough | `https://www.databuddy.cc/auth.md` |
-| OAuth Protected Resource Metadata | `https://api.databuddy.cc/.well-known/oauth-protected-resource` |
-| Authorization Server Metadata | `https://api.databuddy.cc/.well-known/oauth-authorization-server` |
 | API catalog | `https://api.databuddy.cc/.well-known/api-catalog` |
 
-Unauthenticated protected API probes return a `WWW-Authenticate` header with `Bearer resource_metadata="https://api.databuddy.cc/.well-known/oauth-protected-resource"`. Agents should fetch that metadata, choose the smallest required scope, and then retry with `x-api-key` or `Authorization: Bearer`.
+Databuddy currently supports scoped API keys for agent access. OAuth is not available yet; agents should create a key in the dashboard and send it with `x-api-key` or `Authorization: Bearer`.
 
 ## API Key Scopes
 
@@ -59,9 +57,9 @@ Scopes control what actions an API key can perform:
 |-------|------------|
 | `read:data` | Query analytics data **and list accessible websites** — covers `POST /v1/query`, `POST /v1/query/compile`, and `GET /v1/query/websites` |
 | `track:events` | Send custom events via `POST /track` |
-| `read:links` | Read short links and their analytics |
+| `read:links` | Read short links via the link management routes. Link analytics via `POST /v1/query` with `link_id` instead requires `read:data` on a key with global access |
 | `write:links` | Create, update, and delete short links |
-| `read:monitors` | Read uptime monitors and their analytics |
+| `read:monitors` | Read uptime monitors and their analytics; also unlocks `POST /v1/query` for uptime query types |
 | `write:monitors` | Create, update, pause, resume, and delete uptime monitors |
 | `read:status_pages` | Read status pages, incidents, and monitor visibility |
 | `write:status_pages` | Manage status pages, incidents, and monitor visibility |

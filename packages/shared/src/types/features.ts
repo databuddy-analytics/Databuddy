@@ -1,10 +1,10 @@
-import { DATABUNNY_USAGE, LEGACY_SCALE_PLAN } from "../billing";
+import { DATABUNNY_USAGE, INVESTIGATION_USAGE, SCALE_PLAN } from "../billing";
 
 export const PLAN_IDS = {
 	FREE: "free",
 	HOBBY: "hobby",
 	PRO: "pro",
-	SCALE: LEGACY_SCALE_PLAN.id,
+	SCALE: SCALE_PLAN.id,
 } as const;
 
 export type PlanId = (typeof PLAN_IDS)[keyof typeof PLAN_IDS];
@@ -16,6 +16,11 @@ export const INTELLIGENCE_PLAN_IDS = {
 
 export type IntelligencePlanId =
 	(typeof INTELLIGENCE_PLAN_IDS)[keyof typeof INTELLIGENCE_PLAN_IDS];
+
+export const INTELLIGENCE_CONTACT_TOPICS = {
+	[INTELLIGENCE_PLAN_IDS.ANALYST]: "intelligence-business",
+	[INTELLIGENCE_PLAN_IDS.DATA_TEAM]: "intelligence-scale",
+} as const satisfies Record<IntelligencePlanId, string>;
 
 const PLAN_CAPABILITY_ALIASES: Record<IntelligencePlanId, PlanId> = {
 	[INTELLIGENCE_PLAN_IDS.ANALYST]: PLAN_IDS.SCALE,
@@ -32,6 +37,7 @@ export const PLAN_HIERARCHY: PlanId[] = [
 export const FEATURE_IDS = {
 	EVENTS: "events",
 	AGENT_CREDITS: "agent_credits",
+	INVESTIGATION_RUNS: INVESTIGATION_USAGE.featureId,
 } as const;
 
 export type FeatureId = (typeof FEATURE_IDS)[keyof typeof FEATURE_IDS];
@@ -167,6 +173,12 @@ export const FEATURE_METADATA: Record<FeatureId | GatedFeatureId, FeatureMeta> =
 			upgradeMessage: DATABUNNY_USAGE.upgradeMessage,
 			unit: DATABUNNY_USAGE.unit,
 		},
+		[FEATURE_IDS.INVESTIGATION_RUNS]: {
+			name: INVESTIGATION_USAGE.name,
+			description: INVESTIGATION_USAGE.description,
+			unit: INVESTIGATION_USAGE.unit,
+			upgradeMessage: "Add investigations at $1 each",
+		},
 		[GATED_FEATURES.FUNNELS]: {
 			name: "Funnels",
 			description: "Create conversion funnels to track user flows",
@@ -207,6 +219,50 @@ export const FEATURE_METADATA: Record<FeatureId | GatedFeatureId, FeatureMeta> =
 			upgradeMessage: "Geographic is available on all plans",
 		},
 	};
+
+const PLAN_DISPLAY_NAMES: Record<string, string> = {
+	[PLAN_IDS.FREE]: "Free",
+	[PLAN_IDS.HOBBY]: "Hobby",
+	[PLAN_IDS.PRO]: "Pro",
+	[PLAN_IDS.SCALE]: SCALE_PLAN.name,
+	[INTELLIGENCE_PLAN_IDS.ANALYST]: "Business",
+	[INTELLIGENCE_PLAN_IDS.DATA_TEAM]: "Scale",
+};
+
+export function getPlanDisplayName(planId: PlanId | string | null): string {
+	const raw = (planId ?? "").toLowerCase();
+	return (
+		PLAN_DISPLAY_NAMES[raw] ??
+		PLAN_DISPLAY_NAMES[normalizePlanId(planId)] ??
+		"Free"
+	);
+}
+
+export function getFeatureUnavailableMessage(
+	feature: GatedFeatureId,
+	nextPlan: PlanId | null
+): string {
+	const featureName = FEATURE_METADATA[feature]?.name ?? "This feature";
+	return nextPlan
+		? `${featureName} is not available on your plan. Upgrade to ${getPlanDisplayName(nextPlan)} to unlock it.`
+		: `${featureName} is not available on your plan.`;
+}
+
+const TRAILING_PLURAL_S = /s$/;
+
+export function getPlanLimitMessage(
+	planId: PlanId | string | null,
+	feature: GatedFeatureId,
+	limit: number,
+	nextPlan: PlanId | null
+): string {
+	const unit = FEATURE_METADATA[feature]?.unit ?? "items";
+	const noun = limit === 1 ? unit.replace(TRAILING_PLURAL_S, "") : unit;
+	const included = `Your ${getPlanDisplayName(planId)} plan includes ${limit} ${noun}.`;
+	return nextPlan
+		? `${included} Delete one or upgrade to ${getPlanDisplayName(nextPlan)} to create more.`
+		: included;
+}
 
 export function isPlanFeatureEnabled(
 	planId: PlanId | string | null,

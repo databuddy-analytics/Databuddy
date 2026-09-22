@@ -1,4 +1,4 @@
-import { Heading, Section, Text } from "react-email";
+import { Heading, Section, Text } from "@react-email/components";
 import { AUTH_EMAIL_EXPIRY_LABELS } from "./auth-email-expiry";
 import { emailBrand } from "./email-brand";
 import { EmailLayout } from "./email-layout";

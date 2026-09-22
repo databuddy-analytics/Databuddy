@@ -3,6 +3,7 @@ import type { SlackAgentRun } from "@/agent/agent-client";
 
 interface SlackBlockAction {
 	action_id?: string;
+	action_ts?: string;
 	value?: string;
 }
 
@@ -24,6 +25,7 @@ function toBlockAction(action: unknown): SlackBlockAction {
 	}
 	return {
 		action_id: getNonEmptyString(action.action_id),
+		action_ts: getNonEmptyString(action.action_ts),
 		value: getNonEmptyString(action.value),
 	};
 }
@@ -69,7 +71,8 @@ export function parseDrilldownRun(
 	action: unknown,
 	installedTeamId?: string
 ): SlackAgentRun | null {
-	const prompt = toBlockAction(action).value;
+	const blockAction = toBlockAction(action);
+	const prompt = blockAction.value;
 	if (!prompt) {
 		return null;
 	}
@@ -91,6 +94,7 @@ export function parseDrilldownRun(
 	return {
 		channelId,
 		messageTs,
+		requestTs: blockAction.action_ts ?? String(Date.now() / 1000),
 		teamId: installedTeamId ?? payload.team?.id,
 		text: prompt,
 		threadTs,

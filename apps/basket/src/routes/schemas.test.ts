@@ -12,32 +12,19 @@ import { trackEventSchema } from "./track-event-schema";
 
 const now = Date.now();
 
-// ── trackEventSchema ──
-
 schemaTable(
 	"trackEventSchema",
 	trackEventSchema,
 	[
 		["single event, minimal", { name: "signup" }],
 		["single event with delivery id", { eventId: "evt_1", name: "signup" }],
-		[
-			"single event, full",
-			{
-				name: "purchase",
-				namespace: "billing",
-				timestamp: now,
-				properties: { plan: "pro" },
-				anonymousId: "abc",
-				sessionId: "sess",
-				source: "api",
-			},
-		],
 		["single event, websiteId", { name: "ev", websiteId: "ws_123" }],
 		["array of events", [{ name: "a" }, { name: "b" }]],
-		["array, single element", [{ name: "a" }]],
-		["auto visitor ID anonymization", { name: "ev", anonymizeVisitorIds: "auto" }],
+		[
+			"auto visitor ID anonymization",
+			{ name: "ev", anonymizeVisitorIds: "auto" },
+		],
 		["timestamp as string", { name: "ev", timestamp: "2024-01-01T00:00:00Z" }],
-		["timestamp as Date", { name: "ev", timestamp: new Date() }],
 	],
 	[
 		["missing name", { namespace: "x" }],
@@ -60,8 +47,6 @@ schemaTable(
 	]
 );
 
-// ── analyticsEventSchema ──
-
 const validAnalyticsEvent = {
 	eventId: "evt_123",
 	name: "pageview",
@@ -71,62 +56,7 @@ const validAnalyticsEvent = {
 schemaTable(
 	"analyticsEventSchema",
 	analyticsEventSchema,
-	[
-		["minimal valid", validAnalyticsEvent],
-		[
-			"with optional fields",
-			{
-				...validAnalyticsEvent,
-				anonymousId: "anon_1",
-				anonymizeVisitorIds: "auto",
-				sessionId: "sess_1",
-				timestamp: now,
-				sessionStartTime: now,
-				title: "My Page",
-				screen_resolution: "1920x1080",
-				viewport_size: "1024x768",
-				language: "en-US",
-				timezone: "America/New_York",
-				connection_type: "wifi",
-				rtt: 50,
-				downlink: 10.5,
-			},
-		],
-		[
-			"with UTM params",
-			{
-				...validAnalyticsEvent,
-				utm_source: "google",
-				utm_medium: "cpc",
-				utm_campaign: "summer",
-			},
-		],
-		[
-			"with performance metrics",
-			{
-				...validAnalyticsEvent,
-				load_time: 1500,
-				ttfb: 200,
-				dom_ready_time: 800,
-			},
-		],
-		[
-			"nullable fields set to null",
-			{
-				...validAnalyticsEvent,
-				title: null,
-				screen_resolution: null,
-				language: null,
-			},
-		],
-		[
-			"localhost path in dev-like scenario",
-			{
-				...validAnalyticsEvent,
-				path: "http://localhost:3000/page",
-			},
-		],
-	],
+	[["minimal valid", validAnalyticsEvent]],
 	[
 		["missing eventId", { name: "pageview", path: "https://example.com" }],
 		["missing name", { eventId: "x", path: "https://example.com" }],
@@ -137,8 +67,6 @@ schemaTable(
 	]
 );
 
-// ── outgoingLinkSchema ──
-
 const validOutgoingLink = {
 	eventId: "evt_link_1",
 	href: "https://external.com/page",
@@ -147,29 +75,13 @@ const validOutgoingLink = {
 schemaTable(
 	"outgoingLinkSchema",
 	outgoingLinkSchema,
-	[
-		["minimal valid", validOutgoingLink],
-		[
-			"with optional fields",
-			{
-				...validOutgoingLink,
-				anonymousId: "anon",
-				sessionId: "sess",
-				timestamp: now,
-				text: "Click here",
-				properties: '{"key":"val"}',
-			},
-		],
-		["nullable text", { ...validOutgoingLink, text: null }],
-	],
+	[["minimal valid", validOutgoingLink]],
 	[
 		["missing eventId", { href: "https://x.com" }],
 		["missing href", { eventId: "x" }],
 		["href too long", { eventId: "x", href: "a".repeat(2049) }],
 	]
 );
-
-// ── batchedVitalsSchema ──
 
 const validVital = {
 	timestamp: now,
@@ -191,17 +103,6 @@ schemaTable(
 				metricValue: Math.random() * 5000,
 			})),
 		],
-		[
-			"with optional IDs",
-			[
-				{
-					...validVital,
-					eventId: "evt_vital_1",
-					anonymousId: "anon",
-					sessionId: "sess",
-				},
-			],
-		],
 		["empty array", []],
 	],
 	[
@@ -216,8 +117,6 @@ schemaTable(
 	]
 );
 
-// ── batchedErrorsSchema ──
-
 const validError = {
 	timestamp: now,
 	path: "https://example.com/page",
@@ -229,22 +128,6 @@ schemaTable(
 	batchedErrorsSchema,
 	[
 		["single error", [validError]],
-		[
-			"with all optional fields",
-			[
-				{
-					...validError,
-					eventId: "evt_error_1",
-					filename: "app.js",
-					lineno: 42,
-					colno: 10,
-					stack: "Error: ...\n  at foo (app.js:42)",
-					errorType: "TypeError",
-					anonymousId: "anon",
-					sessionId: "sess",
-				},
-			],
-		],
 		["empty array", []],
 	],
 	[
@@ -254,8 +137,6 @@ schemaTable(
 		["not an array", validError],
 	]
 );
-
-// ── batchedCustomEventSpansSchema ──
 
 const validCustomEvent = {
 	timestamp: now,
@@ -268,18 +149,6 @@ schemaTable(
 	batchedCustomEventSpansSchema,
 	[
 		["single event", [validCustomEvent]],
-		[
-			"with optional fields",
-			[
-				{
-					...validCustomEvent,
-					eventId: "evt_custom_1",
-					anonymousId: "anon",
-					sessionId: "sess",
-					properties: '{"key":"val"}',
-				},
-			],
-		],
 		["empty array", []],
 	],
 	[

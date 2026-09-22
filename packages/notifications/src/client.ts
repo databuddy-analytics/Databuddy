@@ -1,4 +1,6 @@
 import type { NotificationProvider } from "./providers/base";
+import type { DiscordProviderConfig } from "./providers/discord";
+import { DiscordProvider } from "./providers/discord";
 import type { EmailProviderConfig } from "./providers/email";
 import { EmailProvider } from "./providers/email";
 import type { SlackProviderConfig } from "./providers/slack";
@@ -17,6 +19,7 @@ export interface NotificationClientConfig {
 	defaultRetries?: number;
 	defaultRetryDelay?: number;
 	defaultTimeout?: number;
+	discord?: DiscordProviderConfig;
 	email?: EmailProviderConfig;
 	slack?: SlackProviderConfig;
 	webhook?: WebhookProviderConfig;
@@ -63,6 +66,12 @@ export class NotificationClient {
 			this.providers.set(
 				"webhook",
 				new WebhookProvider(withDefaults(config.webhook))
+			);
+		}
+		if (config.discord) {
+			this.providers.set(
+				"discord",
+				new DiscordProvider(withDefaults(config.discord))
 			);
 		}
 	}

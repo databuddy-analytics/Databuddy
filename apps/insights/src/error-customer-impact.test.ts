@@ -2,8 +2,7 @@ import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
 import type { InvestigationSignal } from "@databuddy/shared/insights";
 import {
-	 errorCustomerImpactEvidence,
-	 errorIdentitySetupRecommendation,
+	errorCustomerImpactEvidence,
 	hasMaterialRouteContinuation,
 	loadErrorCustomerImpact,
 	matchedErrorContinuationMeasurement,
@@ -74,7 +73,9 @@ describe("error customer impact", () => {
 		expect(() =>
 			parseErrorCustomerImpact({ ...row, linked_visitor_identifiers: 36 })
 		).toThrow("Inconsistent error customer impact result");
-		expect(parseErrorCustomerImpact({ ...row, error_occurrences: 0 })).toBeNull();
+		expect(
+			parseErrorCustomerImpact({ ...row, error_occurrences: 0 })
+		).toBeNull();
 	});
 
 	it("binds the exact fingerprint and current signal window", async () => {
@@ -164,15 +165,21 @@ describe("error customer impact", () => {
 			exposedSessions: 40,
 			percentagePointDifference: -40,
 		});
-		expect(errorCustomerImpactEvidence(impact)).toContain("Errors on this route");
+		expect(errorCustomerImpactEvidence(impact)).toContain(
+			"Errors on this route"
+		);
 		expect(errorCustomerImpactEvidence(impact)).toContain(
 			"This is an association, not proof"
 		);
-		expect(errorCustomerImpactEvidence(impact)).not.toContain("This exact error");
+		expect(errorCustomerImpactEvidence(impact)).not.toContain(
+			"This exact error"
+		);
 	});
 
 	it("parses only internally consistent, sufficiently matched continuation cohorts", () => {
-		expect(parseRouteContinuationComparison(routeContinuationRow)).toMatchObject({
+		expect(
+			parseRouteContinuationComparison(routeContinuationRow)
+		).toMatchObject({
 			controlSessions: 40,
 			exposedSessions: 40,
 			unmatchedControlSessions: 40,
@@ -197,12 +204,12 @@ describe("error customer impact", () => {
 			})
 		).toBeNull();
 		const nonmaterial = parseRouteContinuationComparison({
-				...routeContinuationRow,
-				control_continued_sessions: 36,
-				control_continuation_percent: 90,
-				exposed_continued_sessions: 32,
-				exposed_continuation_percent: 80,
-			});
+			...routeContinuationRow,
+			control_continued_sessions: 36,
+			control_continuation_percent: 90,
+			exposed_continued_sessions: 32,
+			exposed_continuation_percent: 80,
+		});
 		expect(nonmaterial).toMatchObject({
 			percentagePointDifference: -10,
 		});
@@ -301,33 +308,5 @@ describe("error customer impact", () => {
 		expect(evidence).not.toContain("anonymous_id");
 		expect(evidence).not.toContain("profile_id");
 		expect(evidence).not.toContain("session_id");
-	});
-
-	it("offers identification only for a material fully unlinked cohort", () => {
-		const impact = parseErrorCustomerImpact({
-			...row,
-			identified_profiles: 0,
-			identified_profiles_with_prior_attributed_completed_payment: 0,
-			identity_coverage_percent: 0,
-			linked_visitor_identifiers: 0,
-			unlinked_visitor_identifiers: 35,
-		});
-		if (!impact) {
-			throw new Error("Expected impact fixture");
-		}
-
-		expect(errorIdentitySetupRecommendation(impact)).toEqual({
-			action:
-				"Verify or add Databuddy identify() after authentication so future errors can be tied to signed-in users.",
-			feature: "user_identification",
-			kind: "databuddy_setup",
-		});
-		expect(
-			errorIdentitySetupRecommendation({
-				...impact,
-				affectedVisitorIdentifiers: 9,
-				unlinkedVisitorIdentifiers: 9,
-			})
-		).toBeNull();
 	});
 });

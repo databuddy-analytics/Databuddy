@@ -1,7 +1,6 @@
 import { countEvents, expect, findEvent, hasEvent, test } from "./test-utils";
 
 test.describe("Sampling & Filtering", () => {
-
 	test.describe("samplingRate", () => {
 		test("sends all events when samplingRate is 1.0", async ({ page }) => {
 			await page.goto("/test");

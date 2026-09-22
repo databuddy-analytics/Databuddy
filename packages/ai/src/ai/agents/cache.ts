@@ -1,4 +1,3 @@
-import { websitesApi } from "@databuddy/auth";
 import {
 	cacheable,
 	getAgentContextSnapshotKey,
@@ -12,8 +11,6 @@ import {
 } from "../../lib/supermemory";
 import { captureError } from "../../lib/tracing";
 
-const PERM_TTL_SEC = 60;
-const PERM_KEY_PREFIX = "cacheable:agent:perm:website-read";
 const AGENT_CONTEXT_SNAPSHOT_TTL_SEC = 24 * 60 * 60;
 const AGENT_CONTEXT_SNAPSHOT_STALE_AFTER_MS = 15 * 60 * 1000;
 const AGENT_CONTEXT_SNAPSHOT_GET_TIMEOUT_MS = 150;
@@ -113,36 +110,6 @@ function refreshAgentContextSnapshot(
 		});
 
 	snapshotRefreshes.set(key, work);
-}
-
-export async function checkWebsiteReadPermissionCached(
-	userId: string,
-	organizationId: string,
-	headers: Headers
-): Promise<boolean> {
-	const key = `${PERM_KEY_PREFIX}:${userId}:${organizationId}`;
-	const redis = getRedisCache();
-	try {
-		const hit = await redis.get(key);
-		if (hit === "1") {
-			return true;
-		}
-		if (hit === "0") {
-			return false;
-		}
-	} catch {
-		// fall through to uncached check
-	}
-	const result = await websitesApi.hasPermission({
-		headers,
-		body: { organizationId, permissions: { website: ["read"] } },
-	});
-	try {
-		await redis.setex(key, PERM_TTL_SEC, result.success ? "1" : "0");
-	} catch {
-		// best-effort cache write
-	}
-	return result.success;
 }
 
 const getMemoryContextInner = async (

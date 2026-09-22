@@ -3,20 +3,16 @@ import { z } from "zod";
 export const MonitorStatus = {
 	DOWN: 0,
 	UP: 1,
-	PENDING: 2,
-	MAINTENANCE: 3,
 } as const;
 
 export const uptimeDataSchema = z.object({
 	attempt: z.number(),
 	check_type: z.string(),
-	content_hash: z.string(),
 	env: z.string(),
 	error: z.string(),
 	event_id: z.string(),
 	failure_streak: z.number(),
 	http_code: z.number(),
-	json_data: z.string().optional(),
 	probe_ip: z.string(),
 	probe_region: z.string(),
 	redirect_count: z.number(),
@@ -37,13 +33,11 @@ const requiredUnknownSchema = z
 	.unknown()
 	.refine((value) => value !== undefined, "Required");
 
-export const uptimeCheckJobDataSchema = z
-	.object({
-		delivery: z.object({ event: requiredUnknownSchema }).optional(),
-		scheduleId: z.string(),
-		trigger: z.enum(["manual", "scheduled"]),
-	})
-	.passthrough();
+export const uptimeCheckJobDataSchema = z.looseObject({
+	delivery: z.object({ event: requiredUnknownSchema }).optional(),
+	scheduleId: z.string(),
+	trigger: z.enum(["manual", "scheduled"]),
+});
 
 export const uptimeDeliveryJobDataSchema = z.object({
 	event: requiredUnknownSchema,

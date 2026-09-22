@@ -104,10 +104,7 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 		isError: isConfigError,
 		isLoading: isConfigLoading,
 		refetch: refetchConfig,
-	} = useQuery({
-		queryKey: ["revenue-config", websiteId],
-		queryFn: () => orpc.revenue.get.call({ websiteId }),
-	});
+	} = useQuery(orpc.revenue.get.queryOptions({ input: { websiteId } }));
 	const currency = normalizeCurrencyCode(config?.currency);
 	const revenueQueryEnabled = !isConfigLoading && currency !== null;
 	const displayCurrency = currency ?? "";
@@ -216,7 +213,7 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 					size="sm"
 					variant="secondary"
 				>
-					<GearIcon className="size-4 shrink-0" weight="duotone" />
+					<GearIcon className="size-4 shrink-0" />
 					Configure
 				</Button>
 			</TopBar.Actions>

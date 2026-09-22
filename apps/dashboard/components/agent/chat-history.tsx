@@ -90,20 +90,14 @@ export function ChatHistory({
 				<Popover.Trigger
 					render={
 						<Button aria-label="Chat history" size="sm" variant="secondary">
-							<ClockCounterClockwiseIcon
-								className="size-4 shrink-0"
-								weight="duotone"
-							/>
+							<ClockCounterClockwiseIcon className="size-4 shrink-0" />
 						</Button>
 					}
 				/>
 				<Popover.Content align="end" className="w-80 p-0" sideOffset={8}>
 					<div className="border-b p-2">
 						<div className="relative">
-							<MagnifyingGlassIcon
-								className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-								weight="duotone"
-							/>
+							<MagnifyingGlassIcon className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
 							<Input
 								className="h-8 rounded border-border/60 pl-7 text-xs"
 								onChange={(e) => setQuery(e.target.value)}
@@ -239,7 +233,7 @@ function ChatRow({
 					size="icon-sm"
 					variant="ghost"
 				>
-					<CheckIcon className="size-3.5" weight="bold" />
+					<CheckIcon className="size-3.5" />
 				</Button>
 				<Button
 					aria-label="Cancel rename"
@@ -281,7 +275,7 @@ function ChatRow({
 					size="icon-sm"
 					variant="ghost"
 				>
-					<PencilSimpleIcon className="size-3.5" weight="duotone" />
+					<PencilSimpleIcon className="size-3.5" />
 				</Button>
 				<Button
 					aria-label={`Delete conversation: ${chat.title}`}
@@ -290,7 +284,7 @@ function ChatRow({
 					tone="destructive"
 					variant="ghost"
 				>
-					<TrashIcon className="size-3.5" weight="duotone" />
+					<TrashIcon className="size-3.5" />
 				</Button>
 			</div>
 		</div>

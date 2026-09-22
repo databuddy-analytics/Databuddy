@@ -19,31 +19,43 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 
 ## Quick Map
 
+- Self-host changes must preserve hosted behavior with `SELFHOST` unset or `false`, including auth cookies/email, generated snippets, CSP, and image publication. Compare to the pre-change path; import guard-only helpers from `@databuddy/env/boolean` so checking the mode does not initialize unrelated URL config.
+
+- Before any PR merge, follow the AGENTS.md review-feedback gate: wait for configured reviewers on the final head, read all comment/review/thread pages, address each finding with evidence, and re-fetch to verify no unresolved feedback. Review bots can finish several minutes after a draft becomes ready; green CI does not establish completed review.
 - Prod infrastructure repo is local at `/Users/iza/Documents/GitHub/databuddy-infra` (`databuddy-analytics/infra`); ClickHouse cluster inventory is `clickhouse/ansible/inventory.yml`, not `/Users/iza/Dev/Databuddy/infra` or `DatabuddyOPS`.
 - Never use production/customer data as tests, fixtures, snapshots, examples, or copied output. Tests must use placeholders/mocks only (example.com, example IDs). If production ClickHouse is queried for investigation, summarize anonymized aggregates and do not paste customer domains, client IDs, emails, or other identifiers into code or responses.
 - `@databuddy/test/env` targets local `databuddy_test` unless `CI=true`, so a normal `db:push` may update a different database; sync that test database explicitly before debugging removed-column failures.
 - `apps/dashboard`: Next.js app on port `3000` (per-website **agent** chat: `@ai-sdk/react` `useChat` via `contexts/chat-context.tsx` — not the separate `chat-sdk` package; overlapping sends while streaming are queued client-side to mirror a “queue latest” strategy.)
 - Dashboard Playwright webServer commands run under CI PATH from setup-bun; avoid `bash -lc` because login shells can drop Bun from PATH. Build dist-only workspace packages such as `@databuddy/sdk` and `@databuddy/devtools` before starting the API/dashboard. Client `NEXT_PUBLIC_*` flags must use direct env access so Next can inline them. `readBooleanEnv` only treats the literal string `"true"` as enabled, so CI E2E booleans must use `"true"`/`"false"`, not `"1"`/`"0"`.
 - Dashboard pages that call `useSearchParams()` must keep that call inside a Suspense-rendered child; run the production dashboard build after adding URL-driven onboarding state.
+- Business context loads through `OrganizationProvider` before its page query and generation-access check; keep all three states on the same page/card geometry and test their transitions with delayed requests on desktop and mobile.
+- Business-context generation runs in the API; verify `AI_GATEWAY_API_KEY`, `FIRECRAWL_API_KEY`, and hosted `AUTUMN_SECRET_KEY` on the serving API deployment. Worker credentials and a green `/health` do not establish feature readiness.
+- Failed business-context generations survive refresh; dismiss them through the existing generation-ID-scoped cancel mutation while preserving unsaved editor drafts. Hiding the message in component state is not durable.
+- Playwright launched through Bun still uses Node; use portable Promise constructors for deferred E2E requests because CI may not support `Promise.withResolvers`.
 - The local `.env` sets `NODE_ENV=development`; override it with `NODE_ENV=production` when verifying `next build`, or root-error prerender behavior can produce a misleading local failure.
-- Local E2E dashboard smokes that need `/api/test/e2e/*` should start the API/dashboard directly (or through Playwright's webServer command), not via `bun run dev:dashboard`; Turbo runs in strict env mode and drops `DATABUDDY_E2E_MODE`/`DATABUDDY_E2E_TEST_KEY` unless they are added to `turbo.json` `globalEnv`.
+- Local dashboard E2E tests that need `/api/test/e2e/*` should start the API/dashboard directly (or through Playwright's webServer command), not via `bun run dev:dashboard`; Turbo runs in strict env mode and drops `DATABUDDY_E2E_MODE`/`DATABUDDY_E2E_TEST_KEY` unless they are added to `turbo.json` `globalEnv`.
 - Dashboard Playwright public/demo analytics specs call API `/v1/query` anonymously from the browser; keep `DATABUDDY_E2E_MODE` query behavior isolated from production rate limits so CI retries do not exhaust `anon:unknown`.
 - `apps/api`: Elysia API on port `3001`
+- API tests use Vitest through `bun run test` inside `apps/api`; use Vitest test imports rather than `bun:test` in that package.
 - Public REST docs live in `apps/api/src/rpc/openapi.ts`: `/spec.json` is the generated spec, `/` is the reference UI, and hiding a router there also makes its top-level REST paths return 404 because `/*` uses the same filtered docs router.
 - `apps/slack`: Slack agent adapter; Slack installs resolve through org-scoped DB integration records, not a single env bot token/default website. Agent calls use the org-scoped internal principal synthesized from the active integration in `slack/installations.ts`, never a global internal secret.
 - Slack OAuth lives in `apps/api`, but slash commands/events require `apps/slack` to be running too; local `bun run dev:dashboard` runs dashboard + API only, so use `bun run dev:slack` when working on Slack. The Slack package scripts read the root `.env`.
 - Run Slack tests through `bun run test` inside `apps/slack`; the package script supplies only the inert Redis URL needed by eager shared imports.
+- Inspect root `package.json` overrides before interpreting Slack dependency manifest versions or apparent lockfile drift; the effective `@slack/web-api` version may be pinned there.
 - Slack routing is organization-scoped: OAuth binds a Slack workspace to a Databuddy organization, app mentions from the installed workspace auto-bind channels including Slack Connect, and `/bind` is now a manual fallback for unknown/unapproved channels. DMs/assistant threads work after workspace install. Analytics questions should go through app mentions/DMs using MCP-style website discovery inside the installed organization, never by fanning out across the message sender's user memberships. Slack emits evlog events under `apps/slack/.evlog/logs` in development/`SLACK_EVLOG_FS=1`; Axiom uses `AXIOM_TOKEN` and the `slack` dataset; reactions need the `reactions:write` bot scope.
 - Slack scope changes require reinstalling/reauthorizing the workspace; updating the local/remote manifest alone does not grant newly-added bot scopes to an existing installation.
 - Slack agent billing flows through an org-scoped automation API key; existing keys may have `userId: null`, so the agent billing resolver must fall back to the organization owner when an API key has `organizationId`.
 - Slack memory is separate from billing/auth: pass a Slack-scoped `memoryUserId` such as `slack-{team}-{user}` plus current-speaker context so one Slack user's saved name/preferences do not bleed into another user's replies.
 - Slack agent tools use the scopes on the internal principal in `slack/installations.ts`; changing those Databuddy scopes applies without Slack reauthorization. Only changes to Slack OAuth scopes require reconnecting the workspace.
 - Shared agent integrations should call `@databuddy/ai/agent` (`askDatabuddyAgent` / `streamDatabuddyAgent`) instead of importing internal MCP run/history helpers directly.
+- The shared conversational MCP runner (including Slack) uses native goal/link tools through `createMcpAgentTools`; the external MCP server has separate wrappers in `mcp/workspace-tools.ts`.
 - First-party ads attribution work should start by preserving UTMs into registration and signup events only; do not add RPC plumbing, conversion destinations, env hooks, tables, workers, or UI until explicitly needed.
+- Organization business-context drafting is an active streaming request owned by `apps/api/src/ai/organization-business-context.ts`, injected into oRPC by the API host. Its request abort cancels only the matching generation; consumed usage settlement stays independent. Investigation generation stays in `apps/insights`.
 - Insights generation logic belongs in `apps/insights` and should reuse `@databuddy/ai`; `apps/api` should only read insight data or queue runs, not own prompts, model calls, tool loops, validation, or persistence orchestration.
 - `SPEC.md` is the intelligence product contract. `insight_observations` is the readable Insights history; `analytics_insights` is the durable investigation projection. The agent outcome owns brief publication and `act`/`ask` promotion; do not replace either with frontend heuristics or collapse the feed into cases. Do not add a parallel agent, evidence API, fixed query choreography, or action-specific lifecycle.
+- Insights quality reviews must compare fresh baseline/candidate outputs and lead with the product verdict and concrete examples. Score usefulness, noise, reading effort, and retained useful findings separately from code tests and contract passes; preserve interrupted attempts instead of reporting retries as an uninterrupted pass rate.
 - Insights RPC helpers that take `{ context, ...input }` must strip `context` before parsing a `.strict()` Zod input schema (same pattern as `appendInvestigationReply` / `applyInsightGoalAction`); otherwise CI fails with `Unrecognized key: "context"`.
-- `insights.history` / MCP `list_investigations` hide cases while a reply is `queued`/`running` (action-inbox verification); tests must list before reply or expect an empty list while verifying.
+- `insights.history` / MCP `list_investigations` hide cases while analysis or verification is queued/running; included clarifications use saved evidence and must not hide or mutate the case.
 - When reporting what an organization can see in Insights, follow the `insights.brief`/`history` visibility rules instead of counting `analytics_insights`; the projection can contain legacy rows without a readable or published `insight_observations` turn.
 - Production insight shadows must freeze `--reference-time`, retain a tool-name trace, and pass available GitHub context before supporting quality claims. Postgres and ClickHouse are read-only, but connector token refreshes or cache writes can still occur; never describe the whole run as zero-write.
 - Automatic investigations have one organization-wide schedule (`off`, `daily`, or `weekly`) and one organization-wide delivery set; website selection is only for manual runs. Do not reintroduce per-website overrides, hourly/custom cadence, or cron input.
@@ -53,6 +65,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - Replies beneath delivered Slack investigations must resolve the delivery and enter the existing durable reply/resume path; never route them through generic Slack chat or relevance scoring.
 - One-off insight previews must preserve the real signal entity and use customer-facing product output. Never hand-write Slack copy from eval metadata or expose evaluation and suppression mechanics.
 - Agent ClickHouse SQL must use the canonical analytics.events schema: `client_id`, `time`, `path`, `event_name`, and pageviews as `event_name = 'screen_view'`; never `website_id`, `created_at`, `page_path`, `event_type`, or `pageview`.
+- Agent `get_data` filters select rows; do not expose SQL CTE `target` or `having` as generic event/error scopes. Query discovery supplies accepted selectors, and result row counts describe the query output rather than a complete population.
 - Slack agent expected stops such as exhausted Databunny credits should throw `DatabuddyAgentUserError` from `@databuddy/ai/agent/errors`; Slack surfaces those messages directly and reserves the generic reconnect copy for real infrastructure failures.
 - Slack Docker builds use `bun build --compile --bytecode`; keep `apps/slack/src/index.ts` bootstrapping inside an async `main()` instead of top-level `await`, which can fail during compile even when typecheck passes.
 - Insights Docker builds also use `bun build --compile --bytecode`; keep `apps/insights/src/index.ts` startup work inside async functions instead of top-level `await`.
@@ -74,9 +87,12 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - `packages/auth`: Better Auth setup, permissions, organization access
 - `packages/env`: shared URL, public, and boolean environment helpers
 - `packages/shared`: shared types, flags, analytics schemas, utilities
+- Analytics query builders live in `packages/ai/src/query`; there is no standalone `packages/query` directory. Tests are excluded from root Biome checks, so format changed test blocks explicitly.
+- `apps/insights` uses the ES2022 TypeScript library; Bun supporting `findLast` or newer Set methods does not make those APIs typecheck here. Check the package TS library before choosing newer built-ins.
 - `packages/sdk`: published analytics SDK for React, Vue, and Node
 - `packages/tracker`: internal tracker script build and release package
 - `packages/encryption`, `packages/notifications`, `packages/cache`, `packages/redis`, `packages/services`, `packages/validation`, `packages/api-keys`: shared infra and domain packages
+- Knip is configured in root `knip.json` (run `bun run knip`); per-workspace test globs are required because the root `test:watch` (`bun test --watch ./apps`) script shadows the Bun plugin's per-workspace script parsing; `apps/cron` is ignored (standalone scripts, no package.json)
 
 Read [codebase-map.md](./references/codebase-map.md) when you need deeper routing guidance.
 
@@ -106,6 +122,8 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Dashboard + API together: `bun run dev:dashboard`
 - Tests at root currently target `./apps`: `bun run test`
 - Package test mocks can leak across files in one Bun process; when `packages/ai` broadly mocks `@databuddy/redis`, keep the mock export surface in sync with runtime imports from shared RPC/tool code.
+- Preserve tool input types in test helpers with `Tool<Input, Output>`; do not cast mixed tool inputs to `never` to suppress union errors. AI package tests are excluded from its normal type check, so check changed test types explicitly.
+- Import new shared tool helpers directly from their defining modules; the repository prohibits adding barrel exports even when an existing barrel is nearby.
 - Database scripts are routed from root into `packages/db`
 - Runtime environment reads stay in the owning service; shared URL/public helpers live in `packages/env`
 - BullMQ queues use `BULLMQ_REDIS_URL`; generic Redis cache/pubsub code uses `REDIS_URL`.
@@ -120,12 +138,14 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Keep domain concerns at the owning seam. Routers/UI should call domain/service helpers, not know cache keys, raw Redis patterns, billing internals, or provider-specific lifecycle details.
 - Prefer direct, boring code. Use typed registries and small local helpers when they delete duplication; avoid generic job/facade abstractions, labeled pipelines, or framework-y wrappers unless they clearly reduce code and concepts.
 - Test invariants and contracts, not implementation trivia. Add guard tests for architectural rules only when they prevent repeat classes of bugs.
+- During cleanup, do not add per-consumer tests or test-only modules for schemas already covered at their shared boundary; keep one real end-to-end boundary regression when wiring itself changed.
 
 ## Change Routing
 
 ### Dashboard work
 
 - Start in `apps/dashboard`
+- Organization settings should match `organizations/components/general-settings.tsx`: the same `max-w-2xl` column, shared `Card` headers/content, compact fields, and `TopBar.Actions` for Save. Compare actual neighboring pages visually before claiming design consistency; shared inputs alone are not enough.
 - The Feature Flags list is a dense data table; keep flag identity metadata clean and place activity telemetry in a dedicated labeled column with its accuracy caveat in the Activity header tooltip.
 - Keep large page-owned settings sheets and dialogs in adjacent feature files; route components should own page data and layout rather than embedding unrelated form lifecycles.
 - For dashboard navigation audits, check all route surfaces: `components/layout/navigation/navigation-config.tsx`, `components/ui/command-search.tsx`, and local `PageNavigation` layouts under `app/**/layout.tsx` before calling a page orphaned.
@@ -133,8 +153,9 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Custom events UI is shared in `apps/dashboard/components/events/custom-events`; keep many-series legends outside the Recharts plot, use compact controls for property-summary event selection, and avoid separate event-count chip/list sections.
 - Goals and Funnels are sibling conversion surfaces; keep Goals list-first and visually aligned with `app/(main)/websites/[id]/funnels` instead of adding separate summary-card chrome.
 - Funnel rows keep the action menu outside the main toggle button; put row padding on the sibling `Button`, not only on `List.Row`, so the visible row surface is clickable without nesting buttons.
-- Demo website navigation must be public-safe and route-backed; hide sensitive, configuration-heavy, or unavailable website features such as Agent, Feature Flags, Revenue, Users, Realtime, Anomalies, and website Settings instead of inheriting the full website nav. Goals and Funnels may be public demo surfaces, but keep them read-only.
+- Demo website navigation must be public-safe and route-backed; hide sensitive, configuration-heavy, or unavailable website features such as Agent, Feature Flags, Revenue, Users, Realtime, and website Settings instead of inheriting the full website nav. Goals and Funnels may be public demo surfaces, but keep them read-only.
 - Dashboard definitions for feature flags and target groups are admin surfaces; do not expose even sanitized rows to demo-tier/public website access.
+- Billing settings must render details only while their switch is on; hidden grid rows can retain blank height and focusable controls. Autumn `overageLimit` is additional feature units, not USD. Use the native `databunny_chat` flag to hide legacy credit purchases and guards for included-chat accounts; an investigation balance alone does not establish chat terms.
 - Insights history is grouped by its backend-owned subject key in the RPC layer so every client sees one current row per investigation; reads must not invoke AI generation.
 - An executable Insight action must apply its stored mutation and enqueue verification transactionally; never ask a teammate to mark it done manually. Show a verified result only after measured evidence supports it.
 - Insights case pages should not explain their own structure (for example, "context, investigation, and verification in one thread"). Keep only evidence, current state, and actionable controls visible.
@@ -145,7 +166,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Integration catalog logos: use filled Simple Icons SVG path data (or equivalent filled brand SVG), store the path on each item as `iconPath`, render it through a shared logo tile with `bg-secondary/60`, `border-border/70`, `text-foreground`, and `fill="currentColor"`, then use brand color only as a small accent bar (`accent` or `accentClassName: "bg-foreground/70"` for black/near-black brands). Avoid raw brand-black icons or mixed line/filled icon sets that disappear in dark mode.
 - Organization integrations settings should stay list-first and operational: coming-soon integrations are static rows, Slack is the only expandable row for now, and connected integrations need obvious lifecycle controls such as uninstall/disconnect in the row details.
 - MCP setup UI should mirror the governed write metadata in `packages/ai/src/ai/mcp/tools.ts`: default to `read:data`, then expose explicit action bundles for workspace actions, feature flags, and short links with their required scopes and confirmation behavior.
-- Dashboard UI must use `apps/dashboard/components/ds` primitives exactly; feature code must not use raw form/control elements (`button`, `input`, `select`, `textarea`, native dialogs), Base UI/Radix primitives, or ad hoc styled controls directly. If a variant is missing, add or extend the DS component first. For menu-style folder/status/filter/sort/action pickers, use `components/ds/dropdown-menu.tsx`; use `Select` only when the established pattern is explicitly a select/combobox. Read `apps/dashboard/components/ds/README.md` before creating new dashboard UI.
+- Dashboard primitives now live in `packages/ui/src/components` and are consumed through `@databuddy/ui` (`@databuddy/ui/client` for client-only components); the old `apps/dashboard/components/ds/README.md` path no longer exists. Read the corresponding shared component implementation before extending UI. Dashboard UI must use these shared primitives exactly; feature code must not use raw form/control elements (`button`, `input`, `select`, `textarea`, native dialogs), Base UI/Radix primitives, or ad hoc styled controls directly. If a variant is missing, add or extend the DS component first. For menu-style folder/status/filter/sort/action pickers, use `components/ds/dropdown-menu.tsx`; use `Select` only when the established pattern is explicitly a select/combobox. Inspect the shared component APIs in `packages/ui/src/components` before creating new dashboard UI.
 - `DropdownMenu.GroupLabel` must be rendered inside `DropdownMenu.Group`; Base UI throws `MenuGroupRootContext is missing` when labels are placed directly under `DropdownMenu.Content`.
 - Traffic Trends chart annotations should use a chart-adjacent annotation rail for dense data; avoid in-plot labels, tall lines, or floating dots that compete with the chart tooltip/data layer.
 - Flags list rows (`app/(main)/websites/[id]/flags/_components/flags-list.tsx`) are clickable containers with nested controls; mark nested controls with `data-row-interactive="true"` and have the row ignore those targets instead of relying on broad cell-level `stopPropagation`.
@@ -159,7 +180,8 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Start in `apps/api/src`
 - Shared API contracts and procedure logic live in `packages/rpc`
 - Prefer changing shared router logic in `packages/rpc` rather than duplicating validation in the dashboard
-- Investigations run in `apps/insights`; RPC only reads cases and accepts durable replies. Case identity is `websiteId|subjectKey`, where the backend owns the subject key. Persist a new observation for each turn while updating the existing insight row. The stored `changePercent` is already signed.
+- Saved investigation tool evidence must use typed, positive field allowlists; do not persist arbitrary tool outputs or rely on generic secret-pattern redaction. Preserve exact measurement scope, and record omissions instead of reconstructing missing raw evidence.
+- Investigations run in `apps/insights`; RPC only reads cases and accepts durable replies. Case identity is `websiteId|subjectKey`, where the backend owns the subject key. New analysis appends an observation; a clarification stores its answer on the reply and reads the originating observation's saved evidence without changing case state. The stored `changePercent` is already signed.
 
 ### Ingestion and analytics pipeline
 
@@ -170,9 +192,16 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 ## Billing (Autumn)
 
+- Business includes 100 investigations/month and Scale 500, then $1 per extra. Lead pricing cards with these allowances; keep investigation definitions in one short FAQ. A pushed config is not an active offer: verify the serving deployment and native Autumn plan version before claiming the change is live.
+
+- Billing-control read/modify/write must use a strict native client and verify the customer ID before merging settings. SDK `getOrCreate` can fail open with empty controls, causing a later successful update to erase unrelated saved limits.
+
+- Autumn owns all investigation allowances, charges, reservations, prices, and invoicing. Do not store investigation billing state in Postgres tables, fields, or a billing outbox. Use existing product identities and completion state for provider retry references. Verify deployed entitlement support before syncing live plans.
+
+- Autumn catalog updates must send complete mutable plan fields, including explicit `addOn`, `autoEnable`, price, and description: omitted provider fields can reset flags, erase descriptions, or create a free new version. Preserve live legacy economics and verify exact before/after provider readback; passing SDK/CLI validation does not establish provider defaults. Do not overwrite unrelated live credit-schema drift during a pricing sync.
 - Retried insight jobs must persist immutable external delivery effects (currently Slack) before calling providers and reuse the effect ID as the provider idempotency key. An insight observation is product memory, not a delivery checkpoint.
-- Intelligence pricing should use the existing token-cost-backed `agent_credits` and top-up flow; do not invent per-site or "monitored product" billing without explicit product selection and runtime enforcement.
-- Transactional billing email identity has three separate concepts: Autumn customer/billing owner, organization, and actual `to` recipient. Only personalize from the actual recipient record; if it is unavailable, omit the greeting rather than using the owner name. Keep `agent_credits` as an internal feature ID, but describe it to customers as investigation credits and explain that deeper investigations, replies, and rechecks can use more credits.
+- Investigation plans use monthly counts from `INVESTIGATION_ALLOWANCES` and $1 per additional completed result through Autumn `investigation_runs`; never market token credits or an access gate as an investigation allowance. Render the actual attached allowance/reset separately from prepaid balances, and verify catalog, customer subscription, pricing cards, billing, and machine-readable docs together. Clarifications and repair verification are included. Validate explicit analysis consent at the API boundary and reserve one unit in Autumn before analysis; settle only after a readable complete result is persisted, reusing product identity on retries. Existing customers without the entitlement retain legacy `agent_credits` terms; do not convert their balances implicitly.
+- Transactional billing email identity has three separate concepts: Autumn customer/billing owner, organization, and actual `to` recipient. Only personalize from the actual recipient record; if it is unavailable, omit the greeting rather than using the owner name. Distinguish fixed-price investigations from legacy credits in billing copy.
 - `autumn-js` v1.2.2+ — import `autumnHandler` from `autumn-js/fetch` (NOT `autumn-js/elysia`, that export was removed in v1.0)
 - For Elysia, mount with `.mount(autumnHandler(...))` — NOT `.use()`
 - `identify` callback receives `(request: Request)` directly, not `({ request })`
@@ -186,13 +215,19 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 ### Database work
 
-- Postgres schema: `packages/db/src/drizzle/schema.ts`
+- Postgres schemas: `packages/db/src/drizzle/schema/` (`index.ts` barrel)
 - Relations: `packages/db/src/drizzle/relations.ts`
 - Drizzle client: `packages/db/src/client.ts`
 - Production `DATABASE_URL` may already target PgBouncer; inspect both the process pool and PgBouncer queues before attributing API timeouts to PostgreSQL.
 - `pg.Pool` already grows lazily from zero to its configured `max`; do not replace it with one `Client` to address acquisition timeouts, because that serializes queries. Keep a bounded pool, tune its acquisition timeout, and monitor `waitingCount`.
 - ClickHouse helpers and schema: `packages/db/src/clickhouse/*`
+- `ch:check` is package-scoped; run `cd packages/db && bun run ch:check`, not the root script runner.
 - After schema changes, use the repo db scripts rather than ad hoc commands
+- PostgreSQL deploys use `packages/db db:push` through `init.Dockerfile`; register new schema files in `packages/db/drizzle.config.ts`. `packages/migrate` transforms SDK source and is not a database migration runner.
+- A shipped ClickHouse table change needs a tracked forward migration alongside
+  its reference DDL: bootstrap `CREATE ... IF NOT EXISTS` does not migrate
+  deployed tables, and Keeper-path or sort-key changes need a shadow-table
+  exchange.
 - Do not add ClickHouse migration files for delivery hardening; keep relay identity in the worker/queue unless **iza** explicitly requests persistent warehouse identity.
 - For data-cleanup investigations, inspect and describe the existing mutation path first; do not add a persistent purge script unless **iza** explicitly requests one.
 

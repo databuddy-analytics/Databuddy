@@ -1,7 +1,6 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import clsx from "clsx";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DateRange as DayPickerRange } from "react-day-picker";
@@ -12,6 +11,7 @@ import { PageNavigation } from "@/components/layout/page-navigation";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { batchDynamicQueryKeys } from "@/hooks/use-dynamic-query";
 import { useLink } from "@/hooks/use-links";
+import { cn } from "@/lib/utils";
 import { ArrowClockwiseIcon } from "@databuddy/ui/icons";
 import { Button, Skeleton, dayjs } from "@databuddy/ui";
 
@@ -85,15 +85,13 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 		[setDateRangeAction]
 	);
 
-	const getGranularityButtonClass = (type: "daily" | "hourly") => {
-		const isActive = currentGranularity === type;
-		const baseClass =
-			"h-full w-24 cursor-pointer touch-manipulation rounded-none px-0 text-sm";
-		const activeClass = isActive
-			? "font-medium bg-accent hover:bg-accent! text-accent-foreground"
-			: "text-muted-foreground";
-		return `${baseClass} ${activeClass}`.trim();
-	};
+	const getGranularityButtonClass = (type: "daily" | "hourly") =>
+		cn(
+			"h-full w-24 cursor-pointer touch-manipulation rounded-none px-0 text-sm",
+			currentGranularity === type
+				? "bg-accent font-medium text-accent-foreground hover:bg-accent!"
+				: "text-muted-foreground"
+		);
 
 	const isQuickRangeActive = useCallback(
 		(range: QuickRange) => {
@@ -146,7 +144,7 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 				<div className="flex h-12 items-center justify-between border-b pr-4">
 					<div className="flex h-full items-center">
 						<Button
-							className={clsx(getGranularityButtonClass("daily"), "border-r")}
+							className={cn(getGranularityButtonClass("daily"), "border-r")}
 							onClick={() => setCurrentGranularityAtomState("daily")}
 							title="View daily aggregated data"
 							variant="ghost"
@@ -154,7 +152,7 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 							Daily
 						</Button>
 						<Button
-							className={clsx(getGranularityButtonClass("hourly"), "border-r")}
+							className={cn(getGranularityButtonClass("hourly"), "border-r")}
 							disabled={isHourlyDisabled}
 							onClick={() => setCurrentGranularityAtomState("hourly")}
 							title={
@@ -192,7 +190,7 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 								return (
 									<div className="flex h-full items-center" key={range.label}>
 										<Button
-											className={clsx(
+											className={cn(
 												"h-10 w-12 cursor-pointer touch-manipulation whitespace-nowrap rounded-none border-r px-0 font-medium text-xs",
 												isActive
 													? "bg-accent text-accent-foreground hover:bg-accent"

@@ -123,12 +123,13 @@ export default function ExportPage() {
 
 	return (
 		<div className="flex-1 overflow-y-auto">
-			<div className="mx-auto max-w-2xl space-y-6 p-5">
+			<div className="mx-auto max-w-4xl space-y-6 p-5">
 				<Card>
 					<Card.Header>
 						<Card.Title>Export Format</Card.Title>
 						<Card.Description>
-							Choose a format for your data export
+							Choose a format for the files inside your export. Exports download
+							as a .zip archive containing events, errors, and web vitals.
 						</Card.Description>
 					</Card.Header>
 					<Card.Content>
@@ -158,10 +159,7 @@ export default function ExportPage() {
 													{format.label}
 												</span>
 												{isSelected && (
-													<CheckIcon
-														className="size-4 text-primary"
-														weight="bold"
-													/>
+													<CheckIcon className="size-4 text-primary" />
 												)}
 											</div>
 											<p className="text-muted-foreground text-xs">
@@ -214,7 +212,8 @@ export default function ExportPage() {
 								Format:{" "}
 								<Badge className="font-mono" variant="muted">
 									{selectedFormat.toUpperCase()}
-								</Badge>
+								</Badge>{" "}
+								as .zip
 								{useCustomRange && dateRange?.from && dateRange?.to && (
 									<span className="ml-2">
 										{dayjs(dateRange.from).format("MMM D, YYYY")} –{" "}

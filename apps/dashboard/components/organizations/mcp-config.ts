@@ -1,6 +1,6 @@
 import { publicConfig } from "@databuddy/env/public";
 
-export const MCP_SERVER_NAME = "databuddy";
+const MCP_SERVER_NAME = "databuddy";
 export const MCP_ENV_VAR = "DATABUDDY_API_KEY";
 export const MCP_SERVER_URL = publicConfig.urls.mcp;
 

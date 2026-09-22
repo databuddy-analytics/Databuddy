@@ -18,7 +18,6 @@ import {
 	type InsightRunItem,
 } from "@databuddy/db/schema";
 import {
-	summarizeInsightRunItemErrors,
 	syncInsightRunStatus,
 	type InsightRunStatusSummary,
 } from "@databuddy/rpc/insight-generation";
@@ -27,8 +26,13 @@ import {
 	getInsightsQueue,
 	INSIGHTS_JOB_TIMEOUT_MS,
 } from "@databuddy/redis";
-import { emitInsightsEvent, setInsightsLog } from "./lib/evlog-insights";
+import {
+	captureInsightsError,
+	emitInsightsEvent,
+	setInsightsLog,
+} from "./lib/evlog-insights";
 import { loadCompletedPreparedResult } from "./effects";
+import { settleRunInvestigationCharges } from "./observations";
 
 const STALE_ITEM_MS = Math.max(15 * 60 * 1000, INSIGHTS_JOB_TIMEOUT_MS * 4);
 const MAX_STALE_ITEMS_PER_SWEEP = 100;
@@ -175,6 +179,26 @@ export async function finalizeCompletedPreparedItem(
 	if (!result) {
 		return false;
 	}
+	const [identity] = await db
+		.select({
+			organizationId: insightRunItems.organizationId,
+			runId: insightRunItems.runId,
+			websiteId: insightRunItems.websiteId,
+		})
+		.from(insightRunItems)
+		.where(eq(insightRunItems.id, itemId))
+		.limit(1);
+	if (!identity) {
+		return false;
+	}
+	try {
+		await settleRunInvestigationCharges(identity);
+	} catch (error) {
+		captureInsightsError(error, "recovery.billing.settlement_pending", {
+			item_id: itemId,
+		});
+		return false;
+	}
 	const recoverableStatuses: InsightRunItem["status"][] =
 		result.status === "succeeded"
 			? ["failed", "queued", "running"]
@@ -198,8 +222,6 @@ export async function finalizeCompletedPreparedItem(
 		.returning({ id: insightRunItems.id });
 	return updated.length === 1;
 }
-
-export const summarizeItemErrors = summarizeInsightRunItemErrors;
 
 export async function syncRunStatus(
 	runId: string

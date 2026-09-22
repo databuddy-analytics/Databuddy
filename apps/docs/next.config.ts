@@ -11,6 +11,10 @@ const AGENT_LINK_HEADER =
 const config: NextConfig = {
 	reactStrictMode: true,
 	transpilePackages: ["@databuddy/ui"],
+	outputFileTracingIncludes: {
+		"/api/docs/raw/*": ["./content/docs/**/*.mdx"],
+		"/llms-full.txt": ["./content/docs/**/*.mdx"],
+	},
 	async headers() {
 		return await [
 			{
@@ -31,11 +35,6 @@ const config: NextConfig = {
 					{
 						key: "Referrer-Policy",
 						value: "strict-origin-when-cross-origin",
-					},
-					{
-						key: "X-Robots-Tag",
-						value:
-							"index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
 					},
 					{
 						key: "Link",
@@ -66,13 +65,24 @@ const config: NextConfig = {
 
 	rewrites: async () => ({
 		beforeFiles: [
+			{ source: "/mcp.json", destination: "/.well-known/mcp.json" },
+			{
+				source: "/.well-known/mcp/manifest.json",
+				destination: "/.well-known/mcp.json",
+			},
+			{ source: "/agent.md", destination: "/index.md" },
+			{ source: "/agents.md", destination: "/index.md" },
+			{ source: "/llms.md", destination: "/index.md" },
+			{ source: "/api.md", destination: "/api/llms.txt" },
+			{ source: "/developer.md", destination: "/developers/llms.txt" },
+			{ source: "/developers.md", destination: "/developers/llms.txt" },
 			{
 				source: "/docs/:path*.md",
 				destination: "/api/docs/raw/:path*",
 			},
 			{
-				source: "/docs/:path*",
-				destination: "/api/docs/raw/:path*",
+				source: "/docs/:path((?!llms\\.txt$).+)",
+				destination: "/api/docs/raw/:path",
 				has: [
 					{
 						type: "header",
@@ -87,7 +97,27 @@ const config: NextConfig = {
 	}),
 
 	async redirects() {
-		return await [
+		return [
+			{
+				source: "/alternatives/:path*",
+				destination: "/compare/:path*",
+				permanent: true,
+			},
+			{
+				source: "/switch-from/:path*",
+				destination: "/compare/:path*",
+				permanent: true,
+			},
+			{
+				source: "/compare/posthog-vs-databuddy",
+				destination: "/compare/posthog",
+				permanent: true,
+			},
+			{
+				source: "/docs/features/feature-flags",
+				destination: "/docs/sdk/feature-flags",
+				permanent: true,
+			},
 			{
 				source: "/documentation/:path*",
 				destination: "/docs/:path*",

@@ -9,7 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { SectionBullet } from "../icons/section-bullet";
 
-export interface FaqItem {
+interface FaqItem {
 	answer: string;
 	question: string;
 }

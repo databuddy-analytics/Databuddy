@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 import type { ClickHouseClient } from "@clickhouse/client";
 import { clickHouse, TABLE_NAMES } from "@databuddy/db/clickhouse";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { captureError, record } from "@lib/tracing";
 import { PRODUCER_DRAIN_TIMEOUT_MS } from "@lib/shutdown-budget";
 import { Data, Deferred, Effect, Layer, ManagedRuntime, Ref } from "effect";
 import { createError, log } from "evlog";
 import { type Admin, CompressionTypes, Kafka, type Producer } from "kafkajs";
+
+const ASYNC_INSERT_BUSY_TIMEOUT_MS = 50;
 
 function stringifyEvent(event: unknown): string {
 	return JSON.stringify(event, (_key, value) =>
@@ -14,14 +16,14 @@ function stringifyEvent(event: unknown): string {
 	);
 }
 
-export class KafkaConnectionError extends Data.TaggedError(
-	"KafkaConnectionError"
-)<{ readonly cause?: Error }> {}
-export class KafkaSendError extends Data.TaggedError("KafkaSendError")<{
+class KafkaConnectionError extends Data.TaggedError("KafkaConnectionError")<{
+	readonly cause?: Error;
+}> {}
+class KafkaSendError extends Data.TaggedError("KafkaSendError")<{
 	readonly topic: string;
 	readonly cause?: Error;
 }> {}
-export class ProducerShuttingDownError extends Data.TaggedError(
+class ProducerShuttingDownError extends Data.TaggedError(
 	"ProducerShuttingDownError"
 )<{
 	readonly eventCount: number;
@@ -33,13 +35,13 @@ export class ProducerUnavailableError extends Data.TaggedError(
 	readonly cause?: Error;
 	readonly retryable: true;
 }> {}
-export class UnknownKafkaTopicError extends Data.TaggedError(
+class UnknownKafkaTopicError extends Data.TaggedError(
 	"UnknownKafkaTopicError"
 )<{
 	readonly retryable: false;
 	readonly topic: string;
 }> {}
-export class ClickHouseFallbackError extends Data.TaggedError(
+class ClickHouseFallbackError extends Data.TaggedError(
 	"ClickHouseFallbackError"
 )<{
 	readonly cause?: Error;
@@ -55,7 +57,7 @@ export class ShutdownDrainError extends Data.TaggedError("ShutdownDrainError")<{
 	readonly retryable: true;
 }> {}
 
-export type ProducerError =
+type ProducerError =
 	| KafkaConnectionError
 	| KafkaSendError
 	| ProducerShuttingDownError
@@ -119,11 +121,10 @@ export interface ProducerEffects {
 }
 
 export interface ProducerDeliveryOptions {
-	/** Prevent an uncertain Kafka retry from switching to ClickHouse. */
 	readonly allowDirectFallback?: boolean;
 }
 
-export interface KafkaResources {
+interface KafkaResources {
 	readonly admin: Admin;
 	readonly producer: Producer;
 }
@@ -384,6 +385,28 @@ function clickHouseInsertDeduplicationToken(
 	return hash.digest("hex");
 }
 
+function directFallbackValues(table: string, events: unknown[]): unknown[] {
+	if (table !== TABLE_NAMES.custom_events) {
+		return events;
+	}
+
+	return events.map((event) => {
+		if (
+			!event ||
+			typeof event !== "object" ||
+			!Object.hasOwn(event, "delivery_id")
+		) {
+			return event;
+		}
+
+		const { delivery_id: _deliveryId, ...customEvent } = event as Record<
+			string,
+			unknown
+		>;
+		return customEvent;
+	});
+}
+
 async function insertClickHouseChunks(
 	ch: ClickHouseClient,
 	table: string,
@@ -410,6 +433,7 @@ async function insertClickHouseChunks(
 			(async () => {
 				for (let i = 0; i < events.length; i += chunkSize) {
 					const values = events.slice(i, i + chunkSize);
+					const fallbackValues = directFallbackValues(table, values);
 					const chunkDeliveryIds = deliveryIds?.slice(i, i + chunkSize);
 					const deduplicationToken = clickHouseInsertDeduplicationToken(
 						table,
@@ -418,10 +442,13 @@ async function insertClickHouseChunks(
 					);
 					await ch.insert({
 						table,
-						values,
+						values: fallbackValues,
 						format: "JSONEachRow",
 						abort_signal: controller.signal,
 						clickhouse_settings: {
+							async_insert: 1,
+							wait_for_async_insert: 1,
+							async_insert_busy_timeout_ms: ASYNC_INSERT_BUSY_TIMEOUT_MS,
 							insert_deduplication_token: deduplicationToken,
 						},
 						query_id: `basket-${deduplicationToken}`,
@@ -816,7 +843,7 @@ function makeProducerEffects(
 		}
 		return sendViaKafka(
 			topic,
-			events.map((event) => {
+			events.map((event, index) => {
 				const identity = event as {
 					client_id?: string;
 					delivery_id?: string;
@@ -824,7 +851,13 @@ function makeProducerEffects(
 				};
 				return {
 					value: stringifyEvent(event),
-					key: identity.delivery_id || identity.client_id || identity.event_id,
+					key:
+						(topic === "analytics-custom-events"
+							? deliveryIds?.[index]
+							: undefined) ||
+						identity.delivery_id ||
+						identity.client_id ||
+						identity.event_id,
 				};
 			}),
 			events,
@@ -976,7 +1009,7 @@ export const createProducerEffects = (
 		)
 	);
 
-export function initializeKafka(config: ProducerConfig): KafkaResources | null {
+function initializeKafka(config: ProducerConfig): KafkaResources | null {
 	if (config.selfHost || !config.broker) {
 		return null;
 	}
@@ -1015,7 +1048,7 @@ export function initializeKafka(config: ProducerConfig): KafkaResources | null {
 					password: config.password,
 				},
 			}),
-		ssl: process.env.REDPANDA_SSL === "true",
+		ssl: true,
 	});
 
 	return {
@@ -1039,7 +1072,7 @@ export function initializeKafka(config: ProducerConfig): KafkaResources | null {
 	};
 }
 
-export interface ProducerStatsSnapshot {
+interface ProducerStatsSnapshot {
 	connected: boolean;
 	connecting: boolean;
 	errors: number;
@@ -1074,6 +1107,7 @@ const TOPIC_MAP: Record<string, string> = {
 	"analytics-blocked-traffic": TABLE_NAMES.blocked_traffic,
 	"analytics-error-spans": TABLE_NAMES.error_spans,
 	"analytics-vitals-spans": TABLE_NAMES.web_vitals_spans,
+	"analytics-engagement-spans": TABLE_NAMES.engagement_spans,
 	"analytics-custom-events": TABLE_NAMES.custom_events,
 	"analytics-ai-traffic-spans": TABLE_NAMES.ai_traffic_spans,
 	"analytics-link-visits": TABLE_NAMES.link_visits,

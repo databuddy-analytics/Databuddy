@@ -10,7 +10,7 @@ import { remapOpacityToTriplet } from "../../core";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotMatrixCommonProps } from "../../core";
 
-export type DotmTriangle1Props = DotMatrixCommonProps;
+type DotmTriangle1Props = DotMatrixCommonProps;
 
 const MATRIX_SIZE = 7;
 const STEP_COUNT = 30;

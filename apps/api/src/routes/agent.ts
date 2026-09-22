@@ -1,27 +1,18 @@
 import {
+	API_KEY_AUTH_CHALLENGE,
 	getApiKeyFromHeader,
 	hasKeyScope,
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
+import { createConversationAgent } from "@databuddy/ai/agents/conversation";
 import { createConfig as createAgentConfig } from "@databuddy/ai/agents/analytics";
 import {
-	ensureAgentCreditsAvailable,
+	getAgentBillingAccess,
 	resolveAgentBillingCustomerId,
 	trackAgentUsageAndBill,
 } from "@databuddy/ai/agents/execution";
-import { type AgentTier, tierToModelKey } from "@databuddy/ai/agents/router";
-import {
-	AGENT_THINKING_LEVELS,
-	AGENT_TIERS,
-	type AgentConfig,
-} from "@databuddy/ai/agents/types";
-import {
-	type AgentModelKey,
-	AI_MODEL_MAX_RETRIES,
-	ANTHROPIC_CACHE_1H,
-	modelNames,
-	models,
-} from "@databuddy/ai/config/models";
+import { AGENT_THINKING_LEVELS, AGENT_TIERS } from "@databuddy/ai/agents/types";
+import { type AgentModelKey, models } from "@databuddy/ai/config/models";
 import { askDatabuddyAgent, streamDatabuddyAgent } from "@databuddy/ai/agent";
 import {
 	formatMemoryForPrompt,
@@ -32,7 +23,6 @@ import {
 import { auth } from "@databuddy/auth";
 import { db, eq } from "@databuddy/db";
 import { agentChats } from "@databuddy/db/schema";
-import { config } from "@databuddy/env/app";
 import {
 	appendStreamChunk,
 	clearActiveStream,
@@ -52,7 +42,6 @@ import {
 	pruneMessages,
 	safeValidateUIMessages,
 	smoothStream,
-	ToolLoopAgent,
 	type UIMessage,
 } from "ai";
 import { Elysia, t } from "elysia";
@@ -69,17 +58,15 @@ import { trackAgentEvent } from "@databuddy/ai/lib/databuddy";
 import { getResolvedAuth } from "../lib/auth-wide-event";
 import { captureError, mergeWideEvent } from "@databuddy/ai/lib/tracing";
 import { getAccessibleWebsites } from "@databuddy/ai/lib/accessible-websites";
+import { loadOrganizationBusinessContext } from "@databuddy/ai/lib/organization-business-context";
 import { warnAgentStreamRedisSideEffect } from "./agent-stream-errors";
-
-const PROTECTED_RESOURCE_METADATA_URL = `${config.urls.api}/.well-known/oauth-protected-resource`;
 
 function jsonError(status: number, code: string, message: string): Response {
 	const headers: Record<string, string> = {
 		"Content-Type": "application/json",
 	};
 	if (status === 401) {
-		headers["WWW-Authenticate"] =
-			`Bearer resource_metadata="${PROTECTED_RESOURCE_METADATA_URL}"`;
+		headers["WWW-Authenticate"] = API_KEY_AUTH_CHALLENGE;
 	}
 
 	return new Response(
@@ -215,12 +202,6 @@ const MAX_MESSAGES = 100;
 const MAX_PARTS_PER_MESSAGE = 50;
 const MAX_PROPERTIES_PER_PART = 20;
 
-interface AgentExperimentalTelemetry {
-	functionId: string;
-	isEnabled: true;
-	metadata?: Record<string, string>;
-}
-
 // UIMessage parts are polymorphic (text/tool/reasoning/...) and re-validated
 // by safeValidateUIMessages + convertToModelMessages, so we only cap sizes here.
 const UIMessageSchema = t.Object({
@@ -325,47 +306,6 @@ function optionalAgentContext<T>(
 				[`agent_phase_${phaseName}_ms`]: elapsed,
 			});
 		}
-	});
-}
-
-function createToolLoopAgent(
-	config: AgentConfig,
-	experimentalTelemetry?: AgentExperimentalTelemetry
-): InstanceType<typeof ToolLoopAgent> {
-	const ai = getAILogger();
-	// Anthropic rejects `temperature` when extended thinking is enabled.
-	const thinkingEnabled = Boolean(config.providerOptions);
-	return new ToolLoopAgent({
-		model: ai.wrap(config.model),
-		instructions: config.system,
-		tools: config.tools,
-		stopWhen: config.stopWhen,
-		temperature: thinkingEnabled ? undefined : config.temperature,
-		maxRetries: AI_MODEL_MAX_RETRIES,
-		experimental_context: config.experimental_context,
-		experimental_telemetry: experimentalTelemetry,
-		providerOptions: config.providerOptions,
-		prepareStep({ messages }) {
-			if (messages.length === 0) {
-				return { messages };
-			}
-			const last = messages.at(-1);
-			const isAnthropic = config.system.providerOptions != null;
-			if (
-				isAnthropic &&
-				last &&
-				last.role === "user" &&
-				!last.providerOptions
-			) {
-				return {
-					messages: [
-						...messages.slice(0, -1),
-						{ ...last, providerOptions: ANTHROPIC_CACHE_1H },
-					],
-				};
-			}
-			return { messages };
-		},
 	});
 }
 
@@ -516,8 +456,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 	.onBeforeHandle(({ isAuthenticated, set }) => {
 		if (!isAuthenticated) {
 			set.status = 401;
-			set.headers["WWW-Authenticate"] =
-				`Bearer resource_metadata="${PROTECTED_RESOURCE_METADATA_URL}"`;
+			set.headers["WWW-Authenticate"] = API_KEY_AUTH_CHALLENGE;
 			return {
 				success: false,
 				error: "Authentication required",
@@ -726,8 +665,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					const timezone = body.timezone ?? "UTC";
 					const lastMessage = getLastMessagePreview(body.messages);
 
-					const agentTier: AgentTier = body.tier ?? "balanced";
-					const modelKey: AgentModelKey = tierToModelKey(agentTier);
+					const modelKey: AgentModelKey = body.tier ?? "balanced";
 
 					mergeWideEvent({
 						agent_tier: modelKey,
@@ -753,21 +691,10 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						},
 					});
 
-					const creditsCheck = billingCustomerId
-						? timeAgentPhase(
-								"credits_check",
-								ensureAgentCreditsAvailable(billingCustomerId).catch((err) => {
-									captureError(err, {
-										agent_credit_check_error: true,
-										agent_chat_id: chatId,
-										...(defaultWebsiteId
-											? { agent_website_id: defaultWebsiteId }
-											: {}),
-									});
-									return true;
-								})
-							)
-						: Promise.resolve(true);
+					const creditsCheck = timeAgentPhase(
+						"credits_check",
+						getAgentBillingAccess(billingCustomerId)
+					);
 
 					const loadMemoryContext = shouldLoadMemoryContext(lastMessage);
 					mergeWideEvent({
@@ -782,52 +709,62 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						});
 					}
 
-					const [hasCredits, memoryCtx, enrichment] = await timeAgentPhase(
-						"memory_enrich",
-						Promise.all([
-							creditsCheck,
-							loadMemoryContext && defaultWebsiteId
-								? optionalAgentContext(
-										"memory",
-										getMemoryContextCached(
-											lastMessage,
-											userId,
-											defaultWebsiteId
-										),
-										EMPTY_MEMORY_CONTEXT,
-										AGENT_MEMORY_CONTEXT_TIMEOUT_MS,
-										{
-											agent_chat_id: chatId,
-											agent_website_id: defaultWebsiteId,
-										}
-									)
-								: Promise.resolve(EMPTY_MEMORY_CONTEXT),
-							defaultWebsiteId
-								? optionalAgentContext(
-										"enrichment",
-										getAgentContextSnapshot(
-											userId,
-											defaultWebsiteId,
-											organizationId
-										),
-										{ context: "", source: "error" },
-										AGENT_ENRICHMENT_CONTEXT_TIMEOUT_MS,
-										{
-											agent_chat_id: chatId,
-											agent_website_id: defaultWebsiteId,
-										}
-									)
-								: Promise.resolve<AgentContextSnapshotResult>({
-										context: "",
-										source: "miss",
-									}),
-						])
-					);
+					const [billingAccess, memoryCtx, enrichment, businessContext] =
+						await timeAgentPhase(
+							"memory_enrich",
+							Promise.all([
+								creditsCheck,
+								loadMemoryContext && defaultWebsiteId
+									? optionalAgentContext(
+											"memory",
+											getMemoryContextCached(
+												lastMessage,
+												userId,
+												defaultWebsiteId
+											),
+											EMPTY_MEMORY_CONTEXT,
+											AGENT_MEMORY_CONTEXT_TIMEOUT_MS,
+											{
+												agent_chat_id: chatId,
+												agent_website_id: defaultWebsiteId,
+											}
+										)
+									: Promise.resolve(EMPTY_MEMORY_CONTEXT),
+								defaultWebsiteId
+									? optionalAgentContext(
+											"enrichment",
+											getAgentContextSnapshot(
+												userId,
+												defaultWebsiteId,
+												organizationId
+											),
+											{ context: "", source: "error" },
+											AGENT_ENRICHMENT_CONTEXT_TIMEOUT_MS,
+											{
+												agent_chat_id: chatId,
+												agent_website_id: defaultWebsiteId,
+											}
+										)
+									: Promise.resolve<AgentContextSnapshotResult>({
+											context: "",
+											source: "miss",
+										}),
+								loadOrganizationBusinessContext({
+									organizationId,
+									accessibleWebsites,
+									websiteIds: [
+										...(defaultWebsiteId ? [defaultWebsiteId] : []),
+										...(body.mentions ?? []),
+									],
+									abortSignal: request.signal,
+								}),
+							])
+						);
 					mergeWideEvent({
 						agent_enrichment_context_source: enrichment.source,
 					});
 
-					if (!hasCredits) {
+					if (!billingAccess.allowed) {
 						mergeWideEvent({ agent_rejected: "out_of_credits" });
 						return jsonError(
 							402,
@@ -870,6 +807,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 							: "";
 
 					const extras = [
+						businessContext,
 						memoryCtx ? formatMemoryForPrompt(memoryCtx) : "",
 						enrichment.context,
 						mentionContext,
@@ -928,11 +866,16 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						dashboardTelemetryMetadata.organizationId = organizationId;
 					}
 
-					const agent = createToolLoopAgent(config, {
-						isEnabled: true,
-						functionId: `databuddy.dashboard.agent.${AGENT_TYPE}`,
-						metadata: dashboardTelemetryMetadata,
-					});
+					const agent = createConversationAgent(
+						{ ...config, model: getAILogger().wrap(config.model) },
+						{
+							experimental_telemetry: {
+								isEnabled: true,
+								functionId: `databuddy.dashboard.agent.${AGENT_TYPE}`,
+								metadata: dashboardTelemetryMetadata,
+							},
+						}
+					);
 
 					if (isMemoryEnabled() && lastMessage && defaultWebsiteId) {
 						storeConversation(
@@ -991,7 +934,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						.then(async (usage) => {
 							await trackAgentUsageAndBill({
 								usage,
-								modelId: modelNames[modelKey],
+								modelId: config.model.modelId,
 								source: "dashboard",
 								agentType: AGENT_TYPE,
 								websiteId: defaultWebsiteId ?? undefined,
@@ -999,6 +942,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 								userId: persistedUserId ?? null,
 								chatId,
 								billingCustomerId,
+								billingAccess,
 							});
 						})
 						.catch((usageError) => {

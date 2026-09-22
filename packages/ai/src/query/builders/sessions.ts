@@ -11,6 +11,13 @@ function inclusiveEndDate(endDate: string): string {
 export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	session_metrics: {
 		meta: {
+			default_order: null,
+			output_fields: [
+				{ name: "total_sessions", type: "number", unit: "sessions" },
+				{ name: "avg_session_duration", type: "number", unit: "seconds" },
+				{ name: "bounce_rate", type: "number", unit: "percent" },
+				{ name: "total_events", type: "number", unit: "events" },
+			],
 			description:
 				"Aggregate session statistics including total sessions, avg duration, and pages per session.",
 			category: "Sessions",
@@ -418,7 +425,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
         e.event_name,
         e.path,
         CASE
-          WHEN e.event_name NOT IN ('screen_view', 'page_exit', 'web_vitals', 'link_out')
+          WHEN e.event_name NOT IN ('screen_view', 'web_vitals', 'link_out')
             AND e.properties IS NOT NULL
             AND e.properties != '{}'
           THEN CAST(e.properties AS String)

@@ -322,7 +322,7 @@ export function AddFilterForm({
 				onClick={() => setIsOpen(true)}
 				variant="secondary"
 			>
-				<FunnelIcon className="size-3.5" weight="duotone" />
+				<FunnelIcon className="size-3.5" />
 				{buttonText}
 			</Button>
 

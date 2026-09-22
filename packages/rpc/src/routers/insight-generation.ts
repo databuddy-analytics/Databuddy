@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import {
 	and,
 	db,
@@ -36,6 +37,12 @@ import { z } from "zod";
 import { rpcError } from "../errors";
 import { setAuditOrganization } from "../lib/audit";
 import { logger } from "../lib/logger";
+import { getOrganizationOwnerId } from "../utils/organization";
+import { getAutumn } from "../lib/autumn-client";
+import {
+	hasInvestigationAllowance,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 import { auditedProcedure, type Context, protectedProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 import {
@@ -608,11 +615,6 @@ function isAccessDenied(error: unknown): boolean {
 		(error.code === "FORBIDDEN" || error.code === "UNAUTHORIZED")
 	);
 }
-
-/**
- * Readiness remains readable to viewers, but running a review has the same
- * organization-level update requirement as triggerRun.
- */
 function canTriggerInsightGeneration(
 	context: Context,
 	organizationId: string
@@ -653,12 +655,6 @@ async function findActiveInsightRun(
 
 	return active ?? null;
 }
-
-/**
- * A concurrent organization run only becomes this site's review while its
- * own item is still queued or running. A run for another site must not
- * overwrite this site's last terminal result.
- */
 async function findActiveFirstReviewRun(
 	organizationId: string,
 	websiteId: string
@@ -982,6 +978,43 @@ async function insertInsightRunOrFindActive(
 	throw conflict;
 }
 
+async function requireInvestigationsAccess(
+	organizationId: string
+): Promise<void> {
+	if (readBooleanEnv("SELFHOST")) {
+		if (!process.env.AI_GATEWAY_API_KEY?.trim()) {
+			throw rpcError.badRequest(
+				"Ask your administrator to configure AI before running investigations."
+			);
+		}
+		return;
+	}
+	const customerId = await getOrganizationOwnerId(organizationId);
+	const customer = customerId
+		? await getAutumn().customers.get({ customerId })
+		: null;
+	if (
+		!hasInvestigationAllowance(
+			customer?.balances[INVESTIGATION_USAGE.featureId]
+		)
+	) {
+		throw rpcError.featureUnavailable(
+			"Investigations require a plan with an investigation allowance."
+		);
+	}
+}
+
+async function hasInvestigationsAccess(
+	organizationId: string
+): Promise<boolean> {
+	try {
+		await requireInvestigationsAccess(organizationId);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 export async function queueInsightGenerationRun(
 	input: QueueInsightGenerationRunInput
 ): Promise<QueueInsightGenerationRunResult> {
@@ -994,6 +1027,12 @@ export async function queueInsightGenerationRun(
 	const reason = input.reason ?? "manual";
 
 	if (reason !== "manual" && !runConfig.enabled) {
+		return { queuedItems: 0, status: "disabled" };
+	}
+
+	if (reason === "manual") {
+		await requireInvestigationsAccess(input.organizationId);
+	} else if (!(await hasInvestigationsAccess(input.organizationId))) {
 		return { queuedItems: 0, status: "disabled" };
 	}
 
@@ -1193,6 +1232,9 @@ export const insightGenerationRouter = {
 				input,
 				"update"
 			);
+			if (input.enabled === true) {
+				await requireInvestigationsAccess(organizationId);
+			}
 			return mutateConfig(organizationId, (current) =>
 				applyPatch(current, input)
 			);
@@ -1241,6 +1283,7 @@ export const insightGenerationRouter = {
 					"Multiple active Slack connections match this channel"
 				);
 			}
+			await requireInvestigationsAccess(organizationId);
 			return mutateConfig(organizationId, (current) => {
 				const filtered = current.deliveries.filter(
 					(delivery) =>

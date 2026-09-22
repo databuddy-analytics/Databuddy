@@ -275,6 +275,11 @@ export default function SecurityPage() {
 		...orpc.websites.updateSettings.mutationOptions(),
 		onSuccess: (updatedWebsite: Website) => {
 			updateWebsiteCache(queryClient, updatedWebsite);
+			queryClient.invalidateQueries({
+				queryKey: orpc.websites.isTrackingSetup.key({
+					input: { websiteId },
+				}),
+			});
 		},
 	});
 
@@ -359,13 +364,15 @@ export default function SecurityPage() {
 	return (
 		<div className="flex h-full flex-col">
 			<div className="flex-1 overflow-y-auto">
-				<div className="mx-auto max-w-2xl space-y-6 p-5">
+				<div className="mx-auto max-w-4xl space-y-6 p-5">
 					<Card>
 						<Card.Header>
 							<Card.Title>Allowed Origins</Card.Title>
 							<Card.Description>
-								By default, only your registered domain can send analytics. Add
-								additional origins for third-party integrations like{" "}
+								Browser requests are validated against your registered domain
+								using the Origin header. Requests without an Origin header are
+								accepted unless you configure the allowed origins and IP rules
+								below. Add origins for third-party integrations like{" "}
 								<code className="rounded bg-secondary px-1 py-0.5 font-mono text-[11px]">
 									cal.com
 								</code>{" "}
@@ -446,7 +453,7 @@ export default function SecurityPage() {
 					</Card>
 
 					<NoticeBanner
-						description="By default, only your registered domain can send analytics. Add origins here for third-party integrations like Cal.com or embedded widgets."
+						description="Browser requests are validated against your registered domain using the Origin header. Requests without one are accepted unless you configure the allowed origins and IP rules above. Add origins for third-party integrations like Cal.com or embedded widgets."
 						icon={<LockIcon />}
 					/>
 				</div>

@@ -61,12 +61,6 @@ interface AIComponentProps {
 	input: RawComponentInput;
 	streaming?: boolean;
 }
-
-/**
- * Renders an AI-generated component based on its type.
- * During streaming, skips strict validation and shows a skeleton
- * if the data is too incomplete to render.
- */
 export function AIComponent({ input, className, streaming }: AIComponentProps) {
 	if (!hasComponent(input.type)) {
 		return null;

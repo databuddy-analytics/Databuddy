@@ -69,6 +69,10 @@ export function enrichRpcWideEventContext(
 	setOrLog(fields);
 }
 
+export function setRpcAuthTiming(durationMs: number): void {
+	setOrLog({ "timing.auth_ms": Math.round(durationMs) });
+}
+
 export function setRpcProcedureType(procedureType: RpcProcedureType): void {
 	setOrLog({ rpc_procedure_type: procedureType });
 }
@@ -83,12 +87,27 @@ export function setRpcProcedurePath(path: readonly string[]): void {
 	});
 }
 
+const ORPC_CLIENT_ERROR_STATUS: Record<string, number> = {
+	BAD_REQUEST: 400,
+	UNAUTHORIZED: 401,
+	PLAN_LIMIT_EXCEEDED: 402,
+	FORBIDDEN: 403,
+	NOT_FOUND: 404,
+	CONFLICT: 409,
+	UNPROCESSABLE_CONTENT: 422,
+	TOO_MANY_REQUESTS: 429,
+};
+
 export function recordORPCError(error: {
 	code?: string;
 	message?: string;
 }): void {
 	const message = error.message ?? error.code ?? "Unknown error";
-	const err = new Error(message);
+	const status = error.code ? ORPC_CLIENT_ERROR_STATUS[error.code] : undefined;
+	const err: Error & { status?: number } = new Error(message);
+	if (status !== undefined) {
+		err.status = status;
+	}
 	const requestLogger = getActiveRpcRequestLogger();
 	if (requestLogger) {
 		const fields = {
@@ -98,12 +117,16 @@ export function recordORPCError(error: {
 		requestLogger.error(err, fields);
 		return;
 	}
-	const fields = {
+	log.error({
 		service: "rpc",
 		rpc_error_code: error.code,
 		rpc_error_message: error.message,
-	} satisfies Partial<RpcWideEventFields> & { service: "rpc" };
-	log.error(fields);
+		error: {
+			name: err.name,
+			message: err.message,
+			...(status === undefined ? {} : { status }),
+		},
+	});
 }
 
 export function createAbortSignalInterceptor<T = unknown>() {

@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = Number(process.env.DATABUDDY_E2E_PORT ?? 3000);

@@ -1,5 +1,7 @@
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { auth } from "@databuddy/auth";
 import {
+	API_KEY_AUTH_CHALLENGE,
 	type ApiKeyRow,
 	getAccessibleWebsiteIds,
 	getApiKeyFromHeader,
@@ -10,7 +12,6 @@ import {
 } from "@databuddy/api-keys/resolve";
 import { and, db, eq, inArray } from "@databuddy/db";
 import { profiles } from "@databuddy/db/schema";
-import { config } from "@databuddy/env/app";
 import {
 	isTraitFilterField,
 	resolveTraitSegment,
@@ -19,13 +20,15 @@ import {
 	TraitFilterError,
 } from "@databuddy/services/identity";
 import { validateTimezone } from "@databuddy/validation";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { getBillingOwner } from "@databuddy/rpc/billing";
 import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
 import {
 	type GatedFeatureId,
 	GATED_FEATURES,
+	getFeatureUnavailableMessage,
+	getNextPlanForFeature,
 	isFeatureAvailable,
 } from "@databuddy/shared/types/features";
 import {
@@ -33,6 +36,7 @@ import {
 	compileQuery,
 	executeBatch,
 	isFilterFieldAllowed,
+	truncateQueryErrorForLog,
 } from "@databuddy/ai/query";
 import {
 	canReadQueryTypesPublicly,
@@ -58,6 +62,7 @@ import {
 	DynamicQueryRequestSchema,
 	type DynamicQueryRequestType,
 } from "../schemas/query-schemas";
+import { handleAppError } from "../http/errors";
 import { getRequestId } from "../http/request-id";
 
 const PER_WEBSITE_QUERY_CONCURRENCY = 8;
@@ -96,8 +101,6 @@ async function runPerWebsite<T>(key: string, fn: () => Promise<T>): Promise<T> {
 
 const MAX_HOURLY_DAYS = 30;
 const MS_PER_DAY = 86_400_000;
-const PROTECTED_RESOURCE_METADATA_URL = `${config.urls.api}/.well-known/oauth-protected-resource`;
-
 function normalizeDate(input: string): string {
 	return normalizeClickHouseDateTime(input);
 }
@@ -328,34 +331,6 @@ type ProjectAccessResult =
 			status?: number;
 	  };
 
-function createAuthFailedResponse(requestId: string): Response {
-	return new Response(
-		JSON.stringify({
-			success: false,
-			error: "Authentication required",
-			code: "AUTH_REQUIRED",
-			requestId,
-		}),
-		{
-			status: 401,
-			headers: {
-				"Content-Type": "application/json",
-				"X-Request-ID": requestId,
-				"WWW-Authenticate": `Bearer resource_metadata="${PROTECTED_RESOURCE_METADATA_URL}"`,
-			},
-		}
-	);
-}
-
-function clientIpForQuery(request: Request): string {
-	return (
-		request.headers.get("cf-connecting-ip") ||
-		request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-		request.headers.get("x-real-ip") ||
-		"unknown"
-	);
-}
-
 async function enforceQueryRateLimit(
 	ctx: AuthContext,
 	endpoint: "compile" | "execute",
@@ -371,7 +346,7 @@ async function enforceQueryRateLimit(
 		? `apikey:${ctx.apiKey.id}`
 		: ctx.user
 			? `user:${ctx.user.id}`
-			: `anon:${clientIpForQuery(request)}`;
+			: `anon:${getClientIp(request.headers) ?? "unknown"}`;
 	const effectiveLimit = ctx.isAuthenticated ? limit : Math.min(limit, 60);
 	const rl = await ratelimit(
 		`query:${endpoint}:${principal}`,
@@ -418,10 +393,8 @@ function createErrorResponse(
 		headers["X-Request-ID"] = requestId;
 	}
 	if (status === 401) {
-		headers["WWW-Authenticate"] =
-			`Bearer resource_metadata="${PROTECTED_RESOURCE_METADATA_URL}"`;
+		headers["WWW-Authenticate"] = API_KEY_AUTH_CHALLENGE;
 	}
-
 	return new Response(
 		JSON.stringify({
 			success: false,
@@ -481,6 +454,9 @@ async function enforceFeatureGatesForQueryTypes(
 	queryTypes: string[],
 	website: { organizationId: string | null }
 ): Promise<{ error: string; feature: GatedFeatureId } | null> {
+	if (readBooleanEnv("SELFHOST")) {
+		return null;
+	}
 	const required = new Set<GatedFeatureId>();
 	for (const type of queryTypes) {
 		const feature = FEATURE_GATED_QUERY_TYPES[type];
@@ -495,13 +471,19 @@ async function enforceFeatureGatesForQueryTypes(
 	const ownerId = website.organizationId
 		? await getOrganizationOwnerId(website.organizationId)
 		: null;
-	if (!ownerId) {
-		return null;
-	}
-	const billing = await getBillingOwner(ownerId, website.organizationId);
+	const planId = ownerId
+		? (await getBillingOwner(ownerId, website.organizationId)).planId
+		: null;
+
 	for (const feature of required) {
-		if (!isFeatureAvailable(billing.planId, feature)) {
-			return { error: "This feature is not available on the plan", feature };
+		if (!isFeatureAvailable(planId, feature)) {
+			return {
+				error: getFeatureUnavailableMessage(
+					feature,
+					getNextPlanForFeature(planId, feature)
+				),
+				feature,
+			};
 		}
 	}
 	return null;
@@ -1101,7 +1083,7 @@ async function executeDynamicQuery(
 			const result = results[i];
 			if (param) {
 				if (result?.error) {
-					captureError(new Error(result.error), {
+					captureError(new Error(truncateQueryErrorForLog(result.error)), {
 						query_type: param.request.type,
 						route: "v1/query",
 						step: "execute_batch",
@@ -1211,10 +1193,14 @@ export const query = new Elysia({ prefix: "/v1/query" })
 
 	.get("/websites", ({ auth: ctx, request }) =>
 		(async () => {
-			const requestId = getRequestId(request);
 			if (!ctx.isAuthenticated) {
-				return createAuthFailedResponse(requestId);
+				return handleAppError({
+					code: "AUTH_REQUIRED",
+					error: new Error("Authentication required"),
+					request,
+				});
 			}
+			const requestId = getRequestId(request);
 			const list = await getAccessibleWebsites(ctx);
 			const count = Array.isArray(list) ? list.length : 0;
 			mergeWideEvent({

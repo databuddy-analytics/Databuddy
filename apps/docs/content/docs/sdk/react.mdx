@@ -56,7 +56,7 @@ The `Databuddy` component injects the tracking script and configures analytics. 
 
 | Prop | Default | Description |
 |------|---------|-------------|
-| `trackWebVitals` | `false` | Core Web Vitals (LCP, INP, CLS, TTFB) |
+| `trackWebVitals` | `false` | FCP, LCP, INP, CLS, TTFB, and FPS |
 | `trackErrors` | `false` | JavaScript errors and unhandled rejections |
 | `trackOutgoingLinks` | `false` | Clicks on external links |
 | `trackInteractions` | `false` | Button clicks and form submissions |
@@ -124,6 +124,8 @@ function SignupButton() {
   return <button onClick={handleClick}>Sign Up</button>;
 }`}
 </CodeBlock>
+
+The identity helpers (`identify`, `setTraits`, `clearProfile`, `getProfileId`) and the flags hooks (`FlagsProvider`, `useFlag`, `useFlags`) are also exported from `@databuddy/sdk/react`.
 
 ### Common Patterns
 

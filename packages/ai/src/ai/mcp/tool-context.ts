@@ -10,9 +10,9 @@ import {
 import { websitesApi } from "@databuddy/auth";
 import { getRedisCache } from "@databuddy/redis";
 import type { AppContext } from "../config/context";
-import { getCachedWebsite, validateWebsite } from "../../lib/website-utils";
+import { getCachedWebsite } from "../../lib/website-utils";
+import { matchesWebsiteDomain } from "../../lib/website-domain";
 
-const PROTOCOL_RE = /^https?:\/\//;
 const ACCESSIBLE_WEBSITES_TTL_SEC = 30;
 const ACCESSIBLE_WEBSITES_KEY_PREFIX = "mcp:accessible_websites:v2:";
 
@@ -31,13 +31,16 @@ export interface RequestPrincipal {
 export async function ensureWebsiteAccess(
 	websiteId: string,
 	headers: Headers,
-	apiKey: ApiKeyRow | null
+	apiKey: ApiKeyRow | null,
+	organizationId?: string | null
 ): Promise<{ domain: string } | Error> {
-	const validation = await validateWebsite(websiteId);
-	if (!(validation.success && validation.website)) {
-		return new Error(validation.error ?? "Website not found");
+	const website = await getCachedWebsite(websiteId);
+	if (!website) {
+		return new Error("Website not found");
 	}
-	const { website } = validation;
+	if (organizationId && website.organizationId !== organizationId) {
+		return new Error("Website is not in this organization");
+	}
 
 	if (apiKey) {
 		const hasWebsiteAccess = hasWebsiteScopeForOrganization(
@@ -67,11 +70,6 @@ export async function ensureWebsiteAccess(
 	}
 	return { domain: website.domain ?? "unknown" };
 }
-
-/**
- * Stable cache key for accessible websites, scoped by principal ID.
- * Does NOT include the apiKey object itself — keeps secrets out of Redis keys.
- */
 function accessibleWebsitesCacheKey(
 	principal: RequestPrincipal
 ): string | null {
@@ -85,12 +83,6 @@ function accessibleWebsitesCacheKey(
 	}
 	return null;
 }
-
-/**
- * Cached version of getAccessibleWebsites keyed by stable principal ID.
- * Falls back to a direct fetch when Redis is unavailable or the principal
- * is anonymous.
- */
 export async function getCachedAccessibleWebsites(
 	principal: RequestPrincipal
 ): Promise<WebsiteSummary[]> {
@@ -142,9 +134,11 @@ export async function resolveWebsiteId(
 
 	const list = await getCachedAccessibleWebsites(principal);
 
-	if (input.websiteDomain) {
-		const domain = input.websiteDomain.toLowerCase().replace(PROTOCOL_RE, "");
-		const match = list.find((w) => w.domain?.toLowerCase() === domain);
+	const domain = input.websiteDomain;
+	if (domain) {
+		const match = list.find((website) =>
+			matchesWebsiteDomain(website.domain, domain)
+		);
 		if (match) {
 			return match.id;
 		}
@@ -240,7 +234,7 @@ export function buildRpcContext(
 	}
 ): AppContext {
 	return {
-		userId: principal.userId ?? "",
+		userId: principal.userId,
 		websiteId: "",
 		websiteDomain: "",
 		timezone: "UTC",

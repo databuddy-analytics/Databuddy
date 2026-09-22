@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
 import {
 	invalidFilterFieldError,
 	publicQueryErrorMessage,
@@ -6,18 +6,21 @@ import {
 } from "./trait-filters";
 import type { QueryRequest } from "./types";
 
-const mockResolveTraitSegment = vi.fn();
-
-vi.mock("@databuddy/services/identity", () => {
+mock.module("@databuddy/services/identity", () => {
 	class TraitFilterError extends Error {}
 
 	return {
 		TraitFilterError,
 		isTraitFilterField: (field: string) =>
 			field.startsWith("trait:") && field.length > "trait:".length,
-		resolveTraitSegment: mockResolveTraitSegment,
+		resolveTraitSegment: mock(),
 	};
 });
+
+const { resolveTraitSegment } = await import("@databuddy/services/identity");
+const mockResolveTraitSegment = resolveTraitSegment as unknown as ReturnType<
+	typeof mock
+>;
 
 function makeRequest(overrides: Partial<QueryRequest> = {}): QueryRequest {
 	return {
@@ -90,15 +93,17 @@ describe("resolveRequestTraitFilters", () => {
 		expect(mockResolveTraitSegment).not.toHaveBeenCalled();
 	});
 
-	it("rejects unknown query types before resolving trait segments", async () => {
+	it.each([
+		{ target: "event" },
+		{ having: true },
+	])("rejects scoped trait selectors before resolving a different cohort: %o", async (scope) => {
 		await expect(
 			resolveRequestTraitFilters(
 				makeRequest({
-					type: "not_a_query",
-					filters: [{ field: "trait:plan", op: "eq", value: "pro" }],
+					filters: [{ field: "trait:plan", op: "eq", value: "pro", ...scope }],
 				})
 			)
-		).rejects.toThrow("Trait filters are not supported for not_a_query");
+		).rejects.toThrow("Trait filters must select rows");
 		expect(mockResolveTraitSegment).not.toHaveBeenCalled();
 	});
 });
@@ -160,6 +165,23 @@ describe("publicQueryErrorMessage", () => {
 		expect(
 			publicQueryErrorMessage("Missing required filter: 'session_id'.")
 		).toBe("Missing required filter: 'session_id'.");
+		expect(
+			publicQueryErrorMessage(
+				"Filter target 'event' is not permitted for error_frequency."
+			)
+		).toBe("Filter target 'event' is not permitted for error_frequency.");
+		expect(
+			publicQueryErrorMessage(
+				"Having filters are not supported for custom_events_by_path."
+			)
+		).toBe("Having filters are not supported for custom_events_by_path.");
+		expect(
+			publicQueryErrorMessage(
+				"error_route_continuation_comparison requires one scalar message or path equality filter"
+			)
+		).toBe(
+			"error_route_continuation_comparison requires one scalar message or path equality filter"
+		);
 	});
 
 	it("hides raw backend and compiler errors", () => {
@@ -171,9 +193,9 @@ describe("publicQueryErrorMessage", () => {
 		expect(publicQueryErrorMessage("Syntax error: failed at position 42")).toBe(
 			"Query failed"
 		);
-		expect(publicQueryErrorMessage(new Error("Table analytics.events missing"))).toBe(
-			"Query failed"
-		);
+		expect(
+			publicQueryErrorMessage(new Error("Table analytics.events missing"))
+		).toBe("Query failed");
 		expect(publicQueryErrorMessage(null)).toBe("Query failed");
 	});
 });

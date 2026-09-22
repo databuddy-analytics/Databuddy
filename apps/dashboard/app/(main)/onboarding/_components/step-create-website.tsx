@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useController, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { z } from "zod";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { useCreateWebsite } from "@/hooks/use-websites";
@@ -73,15 +74,7 @@ export function StepCreateWebsite({
 			trackAppEvent(APP_EVENTS.onboardingWebsiteCreated, attribution);
 			onComplete(result.id);
 		} catch (error: unknown) {
-			const rpcError = error as {
-				data?: { code?: string };
-				message?: string;
-			};
-			if (rpcError?.data?.code === "CONFLICT") {
-				toast.error("A website with this domain already exists.");
-			} else {
-				toast.error(rpcError?.message || "Failed to create website.");
-			}
+			showErrorToast(error, "Failed to create website.");
 		}
 	};
 
@@ -91,7 +84,7 @@ export function StepCreateWebsite({
 		<div className="mx-auto max-w-2xl space-y-6">
 			<div className="flex items-center gap-3">
 				<div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
-					<GlobeIcon className="size-5 text-primary" weight="duotone" />
+					<GlobeIcon className="size-5 text-primary" />
 				</div>
 				<div>
 					<h2 className="text-balance font-semibold text-lg">

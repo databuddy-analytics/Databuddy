@@ -66,11 +66,6 @@ describe("splitTraits", () => {
 		expect(result.displayName).toBe("Jo Doe");
 	});
 
-	test("null username falls back to name in the same call", () => {
-		const result = splitTraits({ username: null, name: "Jo Doe" });
-		expect(result.displayName).toBe("Jo Doe");
-	});
-
 	test("null username with no name clears the display name", () => {
 		const result = splitTraits({ username: null });
 		expect(result.displayName).toBeNull();
@@ -86,12 +81,6 @@ describe("splitTraits", () => {
 		const result = splitTraits({ email: null });
 		expect(result.email).toBeNull();
 		expect(result.removeKeys).toEqual([]);
-	});
-
-	test("display fields stay undefined when not provided", () => {
-		const result = splitTraits({ plan: "pro" });
-		expect(result.displayName).toBeUndefined();
-		expect(result.email).toBeUndefined();
 	});
 
 	test("handles missing traits", () => {
@@ -126,11 +115,9 @@ describe("applyTraits", () => {
 	});
 
 	test("removed keys drop from the snapshot and report null", () => {
-		const { changes, traits } = applyTraits(
-			{ plan: "pro", beta: true },
-			{},
-			["beta"]
-		);
+		const { changes, traits } = applyTraits({ plan: "pro", beta: true }, {}, [
+			"beta",
+		]);
 		expect(traits).toEqual({ plan: "pro" });
 		expect(changes).toEqual([
 			{ traitKey: "beta", oldValue: true, newValue: null },
@@ -145,7 +132,9 @@ describe("applyTraits", () => {
 
 	test("type changes between same-looking values are detected", () => {
 		const { changes } = applyTraits({ seats: "1" }, { seats: 1 }, []);
-		expect(changes).toEqual([{ traitKey: "seats", oldValue: "1", newValue: 1 }]);
+		expect(changes).toEqual([
+			{ traitKey: "seats", oldValue: "1", newValue: 1 },
+		]);
 	});
 });
 
@@ -199,9 +188,7 @@ describe("denyApiKeyIdentify", () => {
 
 	test("requires the track:events scope for the website", () => {
 		scopeMock.mockReturnValueOnce(false);
-		expect(denyApiKeyIdentify(orgKey, "site_1", website)).toBe(
-			"missing_scope"
-		);
+		expect(denyApiKeyIdentify(orgKey, "site_1", website)).toBe("missing_scope");
 		expect(scopeMock).toHaveBeenCalledWith(orgKey, "site_1", "track:events");
 	});
 

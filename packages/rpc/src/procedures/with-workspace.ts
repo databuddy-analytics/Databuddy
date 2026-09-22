@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { hasKeyScope } from "@databuddy/api-keys/resolve";
 import { requiredScopesForResource } from "@databuddy/api-keys/scopes";
 import type { User } from "@databuddy/auth";
@@ -8,15 +9,13 @@ import {
 } from "@databuddy/auth/permissions";
 import { db } from "@databuddy/db";
 import { cacheNamespaces, cacheable } from "@databuddy/redis";
-import type { PlanId } from "@databuddy/shared/types/features";
+import { normalizePlanId, type PlanId } from "@databuddy/shared/types/features";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { type Context, os } from "../orpc";
 import { getMemberRole, getOrganizationOwnerId } from "../utils/organization";
 
 type Website = NonNullable<Awaited<ReturnType<typeof getWebsiteById>>>;
-
-export type WorkspaceTier = "authed" | "demo";
 
 export type Permissions<R extends ResourceType> = readonly [
 	PermissionFor<R>,
@@ -87,7 +86,7 @@ export interface AuthedWorkspace {
 
 export type AuthedWorkspaceWithPlan = AuthedWorkspace & { plan: PlanId };
 
-export interface DemoWorkspace {
+interface DemoWorkspace {
 	organizationId: string;
 	role: null;
 	tier: "demo";
@@ -95,11 +94,9 @@ export interface DemoWorkspace {
 	website: Website;
 }
 
-export type DemoWorkspaceWithPlan = DemoWorkspace & { plan: PlanId };
+type DemoWorkspaceWithPlan = DemoWorkspace & { plan: PlanId };
 
 export type Workspace = AuthedWorkspace | DemoWorkspace;
-
-export type WorkspaceWithPlan = AuthedWorkspaceWithPlan | DemoWorkspaceWithPlan;
 
 export type PublicWorkspace =
 	| (AuthedWorkspace & { website: Website })
@@ -128,11 +125,11 @@ const getWebsiteById = cacheable(
 
 async function getPlanId(context: Context): Promise<PlanId> {
 	const billing = await context.getBilling();
-	return (billing?.planId ?? "free") as PlanId;
+	return normalizePlanId(billing?.planId ?? null);
 }
 
 function requirePlan(plan: PlanId, requiredPlans: PlanId[] | undefined): void {
-	if (!requiredPlans?.length) {
+	if (readBooleanEnv("SELFHOST") || !requiredPlans?.length) {
 		return;
 	}
 	if (!requiredPlans.includes(plan)) {

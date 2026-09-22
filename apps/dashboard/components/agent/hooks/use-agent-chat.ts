@@ -4,7 +4,7 @@ import { publicConfig } from "@databuddy/env/public";
 
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useAtomValue } from "jotai";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { normalizeAIComponentMessages } from "@/lib/ai-components/message-parts";
 import {
 	agentMentionsAtom,
@@ -25,9 +25,11 @@ export function useAgentChatTransport(
 	const thinkingRef = useRef(thinking);
 	const tierRef = useRef(tier);
 	const mentionsRef = useRef(mentions);
-	thinkingRef.current = thinking;
-	tierRef.current = tier;
-	mentionsRef.current = mentions;
+	useEffect(() => {
+		thinkingRef.current = thinking;
+		tierRef.current = tier;
+		mentionsRef.current = mentions;
+	}, [thinking, tier, mentions]);
 
 	return useMemo(
 		() =>

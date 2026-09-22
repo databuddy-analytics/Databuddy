@@ -7,7 +7,6 @@ import {
 	useCallback,
 	useState,
 } from "react";
-import { toast } from "sonner";
 import { EditFunnelDialog } from "@/app/(main)/websites/[id]/funnels/_components/edit-funnel-dialog";
 import { useChat } from "@/contexts/chat-context";
 import { useFunnels } from "@/hooks/use-funnels";
@@ -101,9 +100,7 @@ export function FunnelPreviewRenderer({
 			try {
 				await createAction(data);
 				setIsDialogOpen(false);
-			} catch {
-				toast.error("Failed to create funnel");
-			}
+			} catch {}
 		},
 		[createAction]
 	);
@@ -120,10 +117,7 @@ export function FunnelPreviewRenderer({
 				<div className="flex flex-col gap-1">
 					<div className="flex items-center gap-2.5 rounded-md bg-background px-2 py-2">
 						<div className="flex size-6 items-center justify-center rounded bg-accent">
-							<FunnelIcon
-								className="size-3.5 text-muted-foreground"
-								weight="duotone"
-							/>
+							<FunnelIcon className="size-3.5 text-muted-foreground" />
 						</div>
 						<p className="font-medium text-sm">{config.title}</p>
 						<Badge className="ml-auto rounded text-[10px]" variant="muted">
@@ -192,7 +186,7 @@ export function FunnelPreviewRenderer({
 								size="sm"
 								tone={config.tone}
 							>
-								<config.ButtonIcon className="size-3.5" weight="bold" />
+								<config.ButtonIcon className="size-3.5" />
 								{config.confirmLabel}
 							</Button>
 						</div>

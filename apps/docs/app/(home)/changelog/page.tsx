@@ -18,14 +18,14 @@ import {
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-	title: "Changelog | Databuddy",
+	title: "Changelog",
 	description:
 		"Stay up to date with the latest features, improvements, and fixes shipped to Databuddy.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/changelog",
 	},
 	openGraph: {
-		title: "Changelog | Databuddy",
+		title: "Changelog",
 		description:
 			"Stay up to date with the latest features, improvements, and fixes shipped to Databuddy.",
 		url: "https://www.databuddy.cc/changelog",
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
 	},
 	twitter: {
 		card: "summary_large_image",
-		title: "Changelog | Databuddy",
+		title: "Changelog",
 		description:
 			"Stay up to date with the latest features, improvements, and fixes shipped to Databuddy.",
 		images: ["/og-image.png"],
@@ -98,7 +98,7 @@ export default async function ChangelogPage() {
 		<div>
 			<StructuredData
 				page={{
-					title: "Changelog | Databuddy",
+					title: "Changelog",
 					description:
 						"Stay up to date with the latest features, improvements, and fixes shipped to Databuddy.",
 					url: "https://www.databuddy.cc/changelog",
@@ -148,10 +148,7 @@ export default async function ChangelogPage() {
 					) : (
 						<div className="flex items-center justify-center px-5 py-20 sm:px-6 lg:px-8">
 							<div className="text-center">
-								<RocketLaunchIcon
-									className="mx-auto mb-4 h-12 w-12 text-muted-foreground/40"
-									weight="duotone"
-								/>
+								<RocketLaunchIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground/40" />
 								<h3 className="mb-2 font-medium text-foreground text-lg tracking-tight">
 									No releases yet
 								</h3>

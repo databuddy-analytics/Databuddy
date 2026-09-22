@@ -164,7 +164,6 @@ export function GroupSheet({
 							<UsersThreeIcon
 								className="size-5"
 								style={{ color: selectedColor }}
-								weight="duotone"
 							/>
 						</div>
 						<div>
@@ -253,10 +252,7 @@ export function GroupSheet({
 													type="button"
 												>
 													{field.value === color.value && (
-														<CheckIcon
-															className="size-3.5 text-white drop-shadow-sm"
-															weight="bold"
-														/>
+														<CheckIcon className="size-3.5 text-white drop-shadow-sm" />
 													)}
 												</button>
 											))}

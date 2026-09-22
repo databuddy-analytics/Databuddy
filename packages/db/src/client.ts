@@ -8,6 +8,7 @@ type DB = NodePgDatabase<typeof relations>;
 
 const DEFAULT_POOL_MAX = 50;
 const DEFAULT_CONNECTION_TIMEOUT_MS = 10_000;
+const DEFAULT_STATEMENT_TIMEOUT_MS = 30_000;
 
 let _pgErrorFn: ((error: Error) => void) | null = null;
 
@@ -21,11 +22,20 @@ export function setPgTimingFn(fn: (durationMs: number) => void) {
 	_pgTimingFn = fn;
 }
 
-function timePoolQueries(pool: Pool): void {
-	const originalQuery = pool.query.bind(pool) as (
-		...args: unknown[]
-	) => unknown;
-	pool.query = ((...args: unknown[]) => {
+const TIMED = Symbol("pgTimed");
+
+interface Queryable {
+	query: (...args: unknown[]) => unknown;
+}
+
+function timeQueries(target: Queryable): void {
+	const taggable = target as Queryable & { [TIMED]?: boolean };
+	if (taggable[TIMED]) {
+		return;
+	}
+	taggable[TIMED] = true;
+	const originalQuery = target.query.bind(target);
+	target.query = (...args: unknown[]) => {
 		const timingFn = _pgTimingFn;
 		if (!timingFn) {
 			return originalQuery(...args);
@@ -37,7 +47,24 @@ function timePoolQueries(pool: Pool): void {
 			result.then(record, record);
 		}
 		return result;
-	}) as Pool["query"];
+	};
+}
+
+function timePoolQueries(pool: Pool): void {
+	timeQueries(pool as unknown as Queryable);
+	const originalConnect = pool.connect.bind(pool) as (
+		...args: unknown[]
+	) => unknown;
+	pool.connect = ((...args: unknown[]) => {
+		const result = originalConnect(...args);
+		if (result instanceof Promise) {
+			return result.then((client: unknown) => {
+				timeQueries(client as Queryable);
+				return client;
+			});
+		}
+		return result;
+	}) as Pool["connect"];
 }
 
 function connectionStringForNodePg(connectionString: string): string {
@@ -77,6 +104,25 @@ function getDb(): DB {
 			connectionTimeoutMillis: DEFAULT_CONNECTION_TIMEOUT_MS,
 			application_name: process.env.SERVICE_NAME || "databuddy",
 		});
+		const statementTimeoutMs = parsePositiveInt(
+			process.env.DB_STATEMENT_TIMEOUT_MS,
+			DEFAULT_STATEMENT_TIMEOUT_MS
+		);
+		// Applied per connection instead of as a startup parameter: PlanetScale's
+		// pooler rejects statement_timeout in the startup packet (08P01).
+		_pool.on("connect", (client) => {
+			client
+				.query(`SET statement_timeout = ${statementTimeoutMs}`)
+				.catch((error) => {
+					if (_pgErrorFn) {
+						_pgErrorFn(
+							error instanceof Error ? error : new Error(String(error))
+						);
+						return;
+					}
+					console.error("[db] failed to set statement_timeout", error);
+				});
+		});
 		timePoolQueries(_pool);
 		_pool.on("error", (error) => {
 			if (_pgErrorFn) {
@@ -113,5 +159,30 @@ export async function shutdownPostgres(): Promise<void> {
 export const db = new Proxy({} as DB, {
 	get(_, prop) {
 		return Reflect.get(getDb(), prop);
+	},
+	set(_, prop, value) {
+		return Reflect.set(getDb(), prop, value);
+	},
+	has(_, prop) {
+		return Reflect.has(getDb(), prop);
+	},
+	getOwnPropertyDescriptor(_, prop) {
+		const descriptor = Reflect.getOwnPropertyDescriptor(getDb(), prop);
+		if (descriptor) {
+			descriptor.configurable = true;
+		}
+		return descriptor;
+	},
+	defineProperty(_, prop, descriptor) {
+		return Reflect.defineProperty(getDb(), prop, descriptor);
+	},
+	deleteProperty(_, prop) {
+		return Reflect.deleteProperty(getDb(), prop);
+	},
+	ownKeys() {
+		return Reflect.ownKeys(getDb());
+	},
+	getPrototypeOf() {
+		return Reflect.getPrototypeOf(getDb());
 	},
 });

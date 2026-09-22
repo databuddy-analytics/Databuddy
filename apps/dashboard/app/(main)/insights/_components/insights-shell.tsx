@@ -16,16 +16,12 @@ import {
 	GlobeIcon,
 	LightbulbIcon,
 	MagnifyingGlassIcon,
-	WrenchIcon,
 } from "@databuddy/ui/icons";
 import { InvestigationSettings } from "./investigation-settings";
+import { InvestigationsAccessNotice } from "./investigations-access-notice";
 import { isActiveRun } from "../_lib/insight-run";
 
-const INSIGHTS_LIST_ROUTES = new Set([
-	"/insights",
-	"/insights/investigations",
-	"/insights/recommendations",
-]);
+const INSIGHTS_LIST_ROUTES = new Set(["/insights", "/insights/investigations"]);
 
 export function InsightsShell({ children }: { children: ReactNode }) {
 	const pathname = usePathname();
@@ -57,9 +53,6 @@ function InsightsListShell({ children }: { children: ReactNode }) {
 			return isActiveRun(query.state.data?.status) ? 2000 : 30_000;
 		},
 	});
-	const recommendationTotal = useQuery(
-		insightQueries.recommendationTotal(organizationId)
-	);
 	const { websites, isLoading: websitesLoading } = useWebsitesLight();
 	const hasNoWebsites =
 		!websitesLoading && websites !== undefined && websites.length === 0;
@@ -159,20 +152,11 @@ function InsightsListShell({ children }: { children: ReactNode }) {
 						id: "investigations",
 						label: "Investigations",
 					},
-					{
-						count: recommendationTotal.data,
-						countLabel: recommendationTotal.data
-							? `${recommendationTotal.data} current recommendation${recommendationTotal.data === 1 ? "" : "s"}`
-							: undefined,
-						countTone: "attention",
-						href: "/insights/recommendations",
-						icon: WrenchIcon,
-						id: "recommendations",
-						label: "Recommendations",
-					},
 				]}
 				variant="tabs"
 			/>
+
+			<InvestigationsAccessNotice organizationId={organizationId} />
 
 			{hasNoWebsites ? (
 				<EmptyState
@@ -183,7 +167,7 @@ function InsightsListShell({ children }: { children: ReactNode }) {
 						},
 					}}
 					description="Add a website to start receiving insights across your organization."
-					icon={<GlobeIcon weight="duotone" />}
+					icon={<GlobeIcon />}
 					title="No websites yet"
 					variant="minimal"
 				/>

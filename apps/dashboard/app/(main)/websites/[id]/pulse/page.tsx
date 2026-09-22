@@ -23,18 +23,6 @@ import {
 import { DeleteDialog } from "@databuddy/ui/client";
 import { Button, EmptyState, localDayjs } from "@databuddy/ui";
 
-interface Schedule {
-	granularity: string;
-	id: string;
-	isPaused: boolean;
-	isPublic: boolean;
-	jsonParsingConfig?: {
-		enabled: boolean;
-	} | null;
-	name?: string | null;
-	url: string;
-}
-
 export default function PulsePage() {
 	const { id: websiteId } = useParams();
 	const { dateRange } = useDateFilters();
@@ -44,15 +32,12 @@ export default function PulsePage() {
 		url: string;
 		name?: string | null;
 		granularity: string;
-		jsonParsingConfig?: {
-			enabled: boolean;
-		} | null;
 	} | null>(null);
 	const [isRefreshing, setIsRefreshing] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
 	const {
-		data: rawSchedule,
+		data: schedule,
 		refetch: refetchSchedule,
 		isLoading: isLoadingSchedule,
 	} = useQuery({
@@ -61,8 +46,6 @@ export default function PulsePage() {
 		}),
 		enabled: !!websiteId,
 	});
-
-	const schedule = rawSchedule as Schedule | null | undefined;
 
 	const pauseMutation = useMutation({
 		...orpc.uptime.pauseSchedule.mutationOptions(),
@@ -149,7 +132,6 @@ export default function PulsePage() {
 				url: schedule.url,
 				name: schedule.name,
 				granularity: schedule.granularity,
-				jsonParsingConfig: schedule.jsonParsingConfig,
 			});
 			setIsDialogOpen(true);
 		}
@@ -210,8 +192,8 @@ export default function PulsePage() {
 				refetchUptimeData(),
 				refetchHeatmapData(),
 			]);
-		} catch (error) {
-			console.error("Failed to refresh:", error);
+		} catch {
+			toast.error("Failed to refresh monitor data");
 		} finally {
 			setIsRefreshing(false);
 		}
@@ -229,18 +211,18 @@ export default function PulsePage() {
 			>
 				{schedule.isPaused ? (
 					<>
-						<PlayIcon size={16} weight="fill" />
+						<PlayIcon size={16} />
 						Resume
 					</>
 				) : (
 					<>
-						<PauseIcon size={16} weight="fill" />
+						<PauseIcon size={16} />
 						Pause
 					</>
 				)}
 			</Button>
 			<Button onClick={handleEditMonitor} size="sm" variant="secondary">
-				<PencilIcon size={16} weight="duotone" />
+				<PencilIcon size={16} />
 				Configure
 			</Button>
 			<Button
@@ -249,7 +231,7 @@ export default function PulsePage() {
 				size="sm"
 				variant="secondary"
 			>
-				<TrashIcon size={16} weight="duotone" />
+				<TrashIcon size={16} />
 				Delete
 			</Button>
 		</>
@@ -306,8 +288,8 @@ export default function PulsePage() {
 								onClick: handleCreateMonitor,
 							}}
 							className="h-full py-0"
-							description="Track availability and get alerts when the site goes down."
-							icon={<HeartbeatIcon weight="duotone" />}
+							description="Track availability, then link an alert to get notified when the site goes down."
+							icon={<HeartbeatIcon />}
 							title="No monitor yet"
 							variant="minimal"
 						/>

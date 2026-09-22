@@ -45,7 +45,7 @@ export function BrandingColorSwatch({
 				</span>
 				<div className="absolute top-2 right-2">
 					{copied ? (
-						<CheckIcon className="size-4 text-emerald-400" weight="bold" />
+						<CheckIcon className="size-4 text-emerald-400" />
 					) : (
 						<CopyIcon className="size-4 opacity-0 transition-opacity group-hover:opacity-70" />
 					)}

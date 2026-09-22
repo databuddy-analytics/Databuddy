@@ -42,8 +42,6 @@ export interface DatabuddyConfig {
 	trackHashChanges?: boolean;
 	trackInteractions?: boolean;
 	trackOutgoingLinks?: boolean;
-	/** @deprecated Use trackWebVitals. This remains as a compatibility alias. */
-	trackPerformance?: boolean;
 	trackWebVitals?: boolean;
 	/** Use 1x1 pixel image for tracking instead of script (default: false) */
 	usePixel?: boolean;
@@ -121,8 +119,6 @@ export interface EventTypeMap {
 		fcp?: number;
 		lcp?: number;
 		cls?: string;
-		/** @deprecated FID was replaced by INP. */
-		fid?: number;
 		inp?: number;
 		fps?: number;
 		ttfb?: number;

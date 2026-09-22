@@ -1,12 +1,13 @@
-FROM oven/bun:1.3.14-slim
+FROM oven/bun:1.4.1-slim
 
 WORKDIR /app
 
 COPY package.json bun.lock turbo.json ./
 COPY packages ./packages
 COPY apps ./apps
+COPY tsconfig ./tsconfig
 
-RUN bun install --ignore-scripts
+RUN bun install --frozen-lockfile --ignore-scripts
 
 ENV NODE_ENV=production
 

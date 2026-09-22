@@ -159,38 +159,6 @@ export const createBrowserColumns = (): ColumnDef<VitalsBreakdownData>[] => [
 	...createMetricColumns(),
 ];
 
-export const createDeviceColumns = (): ColumnDef<VitalsBreakdownData>[] => [
-	{
-		id: "name",
-		accessorKey: "name",
-		header: "Device",
-		cell: ({ getValue }) => {
-			const name = getValue() as string;
-			const deviceLabels: Record<string, string> = {
-				mobile: "Mobile",
-				desktop: "Desktop",
-				tablet: "Tablet",
-			};
-			return (
-				<span className="truncate font-medium text-[15px]">
-					{deviceLabels[name.toLowerCase()] || name}
-				</span>
-			);
-		},
-	},
-	{
-		id: "visitors",
-		accessorKey: "visitors",
-		header: "Visitors",
-		cell: ({ getValue }) => (
-			<span className="text-[15px] text-muted-foreground">
-				{formatNumber((getValue() as number) || 0)}
-			</span>
-		),
-	},
-	...createMetricColumns(),
-];
-
 export const createRegionColumns = (): ColumnDef<VitalsBreakdownData>[] => {
 	const getRegionCountryIcon = (name: string) => {
 		if (typeof name !== "string" || !name.includes(",")) {

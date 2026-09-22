@@ -1,8 +1,16 @@
 import { checkBotId } from "botid/server";
 import { type NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import { z } from "zod";
+import { enforceFormRateLimit } from "@/lib/rate-limit";
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const subscribeSchema = z.object({
+	email: z
+		.string("Please enter a valid email address")
+		.trim()
+		.toLowerCase()
+		.pipe(z.email("Please enter a valid email address")),
+});
 
 export async function POST(request: NextRequest) {
 	try {
@@ -11,9 +19,18 @@ export async function POST(request: NextRequest) {
 			return NextResponse.json({ error: "Access denied" }, { status: 403 });
 		}
 
-		let body: Record<string, unknown>;
+		const rateLimited = await enforceFormRateLimit(request, {
+			key: "newsletter",
+			max: 5,
+			windowSec: 600,
+		});
+		if (rateLimited) {
+			return rateLimited;
+		}
+
+		let body: unknown;
 		try {
-			body = (await request.json()) as Record<string, unknown>;
+			body = await request.json();
 		} catch {
 			return NextResponse.json(
 				{ error: "Invalid request body" },
@@ -21,15 +38,14 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		const email =
-			typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-
-		if (!(email && EMAIL_REGEX.test(email))) {
+		const parsed = subscribeSchema.safeParse(body);
+		if (!parsed.success) {
 			return NextResponse.json(
 				{ error: "Please enter a valid email address" },
 				{ status: 400 }
 			);
 		}
+		const { email } = parsed.data;
 
 		const apiKey = process.env.RESEND_API_KEY;
 		const audienceId = process.env.RESEND_AUDIENCE_ID;
@@ -43,24 +59,28 @@ export async function POST(request: NextRequest) {
 		}
 
 		const resend = new Resend(apiKey);
-		await resend.contacts.create({
+		const { error } = await resend.contacts.create({
 			email,
 			audienceId,
 		});
-
-		return NextResponse.json({ success: true });
-	} catch (error: unknown) {
-		const message =
-			error instanceof Error ? error.message : "Something went wrong";
-
-		if (message.includes("already exists")) {
-			return NextResponse.json({ success: true });
+		if (error && error.statusCode !== 409) {
+			console.error("newsletter/subscribe failed", error);
+			return NextResponse.json(
+				{ error: "Newsletter signup failed. Please try again later." },
+				{ status: 502 }
+			);
 		}
 
+		return NextResponse.json({ success: true });
+	} catch (error) {
 		console.error("newsletter/subscribe failed", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
 		);
 	}
+}
+
+export function GET() {
+	return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
 }

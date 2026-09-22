@@ -52,7 +52,7 @@ export function OnboardingStepIndicator({
 								)}
 							>
 								{isCompleted ? (
-									<CheckIcon className="size-3" weight="bold" />
+									<CheckIcon className="size-3" />
 								) : (
 									<span>{index + 1}</span>
 								)}

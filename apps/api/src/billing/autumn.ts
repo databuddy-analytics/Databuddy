@@ -1,6 +1,10 @@
+import type { JSONValue } from "ai";
+import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
+import { isInvestigationPurchaseValid } from "./investigation-purchase";
 import { auth } from "@databuddy/auth";
 import { getRedisCache } from "@databuddy/redis";
-import { getBillingCustomerId, getMemberRole } from "@databuddy/rpc";
+import { getAutumn, getBillingCustomerId, getMemberRole } from "@databuddy/rpc";
+import { AutumnError } from "autumn-js";
 import { autumnHandler } from "autumn-js/fetch";
 import { useLogger } from "evlog/elysia";
 import { withAutumnApiPath } from "@/lib/autumn-mount";
@@ -22,19 +26,19 @@ const FORBIDDEN_BODY_KEYS = new Set([
 	"prorationBehavior",
 ]);
 
-function sanitize(value: unknown): unknown {
+function sanitize(value: JSONValue): JSONValue {
 	if (Array.isArray(value)) {
 		return value.map(sanitize);
 	}
 	if (!value || typeof value !== "object") {
 		return value;
 	}
-	const out: Record<string, unknown> = {};
+	const out: Record<string, JSONValue | undefined> = {};
 	for (const [key, val] of Object.entries(value)) {
 		if (FORBIDDEN_BODY_KEYS.has(key)) {
 			continue;
 		}
-		out[key] = sanitize(val);
+		out[key] = val === undefined ? undefined : sanitize(val);
 	}
 	return out;
 }
@@ -43,11 +47,8 @@ async function stripPrivilegedBody(request: Request): Promise<Request> {
 	if (request.method === "GET" || request.method === "HEAD") {
 		return request;
 	}
-	const contentType = request.headers.get("content-type") ?? "";
-	if (!contentType.includes("application/json")) {
-		return request;
-	}
-
+	// The native adapter parses JSON regardless of Content-Type. Apply the same
+	// restrictions to text/plain and missing-header requests before forwarding.
 	const text = await request.text();
 	let body: string | null = text || null;
 	if (text) {
@@ -66,6 +67,51 @@ async function stripPrivilegedBody(request: Request): Promise<Request> {
 }
 
 const autumn = autumnHandler({ identify: identifyAutumnCustomer });
+
+type AttachParams = Parameters<
+	ReturnType<typeof getAutumn>["billing"]["attach"]
+>[0];
+
+async function attachWithDubCustomer(
+	request: Request,
+	body: Record<string, unknown>,
+	customerId: string
+): Promise<Response> {
+	try {
+		const result = await getAutumn().billing.attach({
+			...(body as AttachParams),
+			customerId,
+			metadata: {
+				...(typeof body.metadata === "object" && body.metadata),
+				dubCustomerExternalId: customerId,
+			},
+		});
+		await invalidateAutumnCustomerCache(request);
+		return Response.json(result);
+	} catch (error) {
+		const statusCode = error instanceof AutumnError ? error.statusCode : 500;
+		let parsed: { message?: string; code?: string } = {};
+		if (error instanceof AutumnError) {
+			try {
+				parsed = JSON.parse(error.body);
+			} catch {
+				parsed = {};
+			}
+		}
+		return Response.json(
+			{
+				message:
+					parsed.message ??
+					(error instanceof Error
+						? error.message
+						: "Autumn API request failed"),
+				code: parsed.code ?? "autumn_api_error",
+				statusCode,
+			},
+			{ status: statusCode }
+		);
+	}
+}
 
 const AUTUMN_CACHE_TTL_SEC: Record<string, number> = {
 	getOrCreateCustomer: 30,
@@ -133,6 +179,38 @@ async function writeAutumnCache(
 export async function handleAutumnRequest(request: Request) {
 	const sanitized = await stripPrivilegedBody(request);
 	const segment = autumnPathSegment(sanitized);
+	const identity = await identifyAutumnCustomer(sanitized).catch(() => null);
+	if (sanitized.method !== "GET" && sanitized.method !== "HEAD") {
+		const body: JSONValue = await sanitized
+			.clone()
+			.json()
+			.catch(() => null);
+		if (!isInvestigationPurchaseValid(body, segment)) {
+			const response = buildHttpErrorResponse({
+				code: "VALIDATION",
+				error: null,
+			});
+			return Response.json(response.payload, { status: response.status });
+		}
+		if (
+			segment === "attach" &&
+			identity &&
+			body &&
+			typeof body === "object" &&
+			!Array.isArray(body)
+		) {
+			return attachWithDubCustomer(sanitized, body, identity.customerId);
+		}
+		// Expanded responses have a different shape from the plain customer cache.
+		if (
+			segment === "getOrCreateCustomer" &&
+			body !== null &&
+			typeof body === "object" &&
+			Object.hasOwn(body, "expand")
+		) {
+			return autumn(withAutumnApiPath(sanitized));
+		}
+	}
 	const ttlSec = AUTUMN_CACHE_TTL_SEC[segment];
 
 	if (ttlSec === undefined) {
@@ -147,7 +225,6 @@ export async function handleAutumnRequest(request: Request) {
 		return response;
 	}
 
-	const identity = await identifyAutumnCustomer(sanitized).catch(() => null);
 	if (!identity?.customerId) {
 		return autumn(withAutumnApiPath(sanitized));
 	}

@@ -1,7 +1,11 @@
 import { setAiRequestLoggerProvider } from "@databuddy/ai/lib/request-logger";
 import { setPgErrorFn, setPgTimingFn } from "@databuddy/db";
 import { setChTimingFn } from "@databuddy/db/clickhouse";
-import { type CacheLookupEvent, setCacheTimingFn } from "@databuddy/redis";
+import {
+	type CacheLookupEvent,
+	setCacheTimingFn,
+	setLinkCacheTimingFn,
+} from "@databuddy/redis";
 import { setRpcRequestLoggerProvider, setTrackingFn } from "@databuddy/rpc";
 import { log, type RequestLogger } from "evlog";
 import { useLogger } from "evlog/elysia";
@@ -16,6 +20,7 @@ export function configureApiInstrumentation() {
 	setPgTimingFn(recordPgQuery);
 	setChTimingFn(recordChQuery);
 	setCacheTimingFn(recordCacheLookup);
+	setLinkCacheTimingFn(recordLinkCacheOp);
 	startTccTracing();
 }
 
@@ -25,6 +30,8 @@ interface StageCounters {
 	cacheMs: number;
 	chCount: number;
 	chMs: number;
+	linkCacheCount: number;
+	linkCacheMs: number;
 	pgCount: number;
 	pgMs: number;
 }
@@ -49,6 +56,8 @@ function activeStageCounters(): {
 			cacheMs: 0,
 			chCount: 0,
 			chMs: 0,
+			linkCacheCount: 0,
+			linkCacheMs: 0,
 			pgCount: 0,
 			pgMs: 0,
 		};
@@ -98,6 +107,19 @@ function recordCacheLookup(event: CacheLookupEvent) {
 		cache_hit_count: active.counters.cacheHits,
 		cache_miss_count: active.counters.cacheMisses,
 		"timing.cache_total_ms": Math.round(active.counters.cacheMs),
+	});
+}
+
+function recordLinkCacheOp(durationMs: number) {
+	const active = activeStageCounters();
+	if (!active) {
+		return;
+	}
+	active.counters.linkCacheCount += 1;
+	active.counters.linkCacheMs += durationMs;
+	active.logger.set({
+		link_cache_op_count: active.counters.linkCacheCount,
+		"timing.link_cache_total_ms": Math.round(active.counters.linkCacheMs),
 	});
 }
 

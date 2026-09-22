@@ -26,7 +26,7 @@ export const getWebsitesListKey = (): QueryKey =>
 
 const EMPTY_WEBSITES: Website[] = [];
 
-export const updateWebsiteInList = (
+const updateWebsiteInList = (
 	old: WebsitesListData | undefined,
 	updatedWebsite: Website
 ): WebsitesListData | undefined => {

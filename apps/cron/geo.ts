@@ -1,7 +1,3 @@
-/**
- * Geo IP Generator & Accuracy Benchmark
- * Generates IPs from regional CIDR blocks and validates against MaxMind
- */
 /** biome-ignore-all lint/suspicious/noBitwiseOperators: We need it */
 
 import { AddressNotFoundError, Reader } from "@maxmind/geoip2-node";

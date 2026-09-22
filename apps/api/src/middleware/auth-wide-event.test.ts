@@ -14,7 +14,9 @@ describe("auth wide-event admission", () => {
 		const secret = "dbdy_sensitive_test_key";
 		const applyAuth = vi
 			.fn()
-			.mockRejectedValue(new Error(`database timeout while resolving ${secret}`));
+			.mockRejectedValue(
+				new Error(`database timeout while resolving ${secret}`)
+			);
 		const request = new Request("https://api.example.com/links/create", {
 			headers: { "x-api-key": secret },
 			method: "POST",

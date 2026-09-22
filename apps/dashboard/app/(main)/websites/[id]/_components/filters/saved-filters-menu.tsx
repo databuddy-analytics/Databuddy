@@ -64,7 +64,7 @@ export function SavedFiltersMenu({
 				size="sm"
 				variant="secondary"
 			>
-				<BookmarkIcon className="size-3.5" weight="duotone" />
+				<BookmarkIcon className="size-3.5" />
 				{isLoading ? "Loading…" : "No saved"}
 			</Button>
 		);
@@ -79,7 +79,7 @@ export function SavedFiltersMenu({
 					"h-7 px-2.5 text-xs"
 				)}
 			>
-				<BookmarkIcon className="size-3.5" weight="duotone" />
+				<BookmarkIcon className="size-3.5" />
 				Saved ({savedFilters.length})
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Content align="end" className="w-72">
@@ -122,10 +122,7 @@ export function SavedFiltersMenu({
 											{saved.name}
 										</span>
 										{isActive && (
-											<CheckIcon
-												className="size-3.5 text-green-600"
-												weight="bold"
-											/>
+											<CheckIcon className="size-3.5 text-success" />
 										)}
 									</Button>
 									<div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">

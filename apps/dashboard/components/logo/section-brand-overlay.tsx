@@ -3,9 +3,7 @@ import { cn } from "@/lib/utils";
 
 export interface SectionBrandOverlayProps {
 	className?: string;
-	/** Corner overlay vs inline (e.g. chart card header). */
 	layout?: "overlay" | "inline";
-	/** When `layout` is `overlay`: horizontal corner. */
 	position?: "start" | "end";
 }
 

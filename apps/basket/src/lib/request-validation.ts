@@ -8,7 +8,7 @@ import { logBlockedTraffic } from "@lib/blocked-traffic";
 import { runFork, send } from "@lib/producer";
 import { basketErrors } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
-import { extractIpFromRequest, extractTrustedClientIp } from "@utils/ip-geo";
+import { extractAllowlistClientIp, extractIpFromRequest } from "@utils/ip-geo";
 import { detectBot } from "@utils/user-agent";
 import {
 	sanitizeString,
@@ -32,6 +32,12 @@ export interface ValidateRequestOptions {
 interface WebsiteSecuritySettings {
 	allowedIps?: string[];
 	allowedOrigins?: string[];
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: {};
 }
 
 export function getWebsiteSecuritySettings(
@@ -75,10 +81,7 @@ export function validateRequest(
 			throw basketErrors.ingestPayloadTooLarge();
 		}
 
-		const queryRecord =
-			query && typeof query === "object" && !Array.isArray(query)
-				? (query as Record<string, unknown>)
-				: {};
+		const queryRecord = asRecord(query);
 
 		let clientId = sanitizeString(
 			queryRecord.client_id,
@@ -137,7 +140,16 @@ export function validateRequest(
 
 		log.set({ website: { domain: website.domain, status: website.status } });
 
-		if (website.ownerId && options.checkUsage !== false) {
+		const userAgent =
+			sanitizeString(
+				request.headers.get("user-agent"),
+				VALIDATION_LIMITS.STRING_MAX_LENGTH
+			) || "";
+
+		const botCheck = detectBot(userAgent, request);
+		const isBlockedBot = botCheck.isBot && botCheck.action !== "allow";
+
+		if (website.ownerId && options.checkUsage !== false && !isBlockedBot) {
 			await checkAutumnUsage(website.ownerId, "events", {
 				website_domain: website.domain,
 				website_id: website.id,
@@ -204,7 +216,7 @@ export function validateRequest(
 		}
 
 		if (allowedIps && allowedIps.length > 0) {
-			const trustedIp = extractTrustedClientIp(request);
+			const trustedIp = extractAllowlistClientIp(request);
 			const isAllowed =
 				trustedIp &&
 				(await record("isValidIpFromSettings", () =>
@@ -227,12 +239,6 @@ export function validateRequest(
 			}
 		}
 
-		const userAgent =
-			sanitizeString(
-				request.headers.get("user-agent"),
-				VALIDATION_LIMITS.STRING_MAX_LENGTH
-			) || "";
-
 		return {
 			clientId,
 			userAgent,
@@ -252,14 +258,8 @@ export function checkForBot(
 ): Promise<{ error?: Response } | undefined> {
 	return record("checkForBot", () => {
 		const log = useLogger();
-		const bodyRecord =
-			body && typeof body === "object" && !Array.isArray(body)
-				? (body as Record<string, unknown>)
-				: {};
-		const queryRecord =
-			query && typeof query === "object" && !Array.isArray(query)
-				? (query as Record<string, unknown>)
-				: {};
+		const bodyRecord = asRecord(body);
+		const queryRecord = asRecord(query);
 
 		const botCheck = detectBot(userAgent, request);
 

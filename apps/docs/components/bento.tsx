@@ -476,10 +476,10 @@ const ErrorTrackingFeature = () => (
 
 const FeatureFlagsFeature = () => {
 	const flags = [
-		{ name: "New Dashboard", enabled: true, env: "prod" },
-		{ name: "AI Assistant", enabled: false, env: "beta" },
-		{ name: "Dark Mode V2", enabled: true, env: "dev" },
-		{ name: "Analytics V3", enabled: true, env: "prod" },
+		{ name: "New Dashboard", enabled: true, env: "100% rollout" },
+		{ name: "AI Assistant", enabled: false, env: "off" },
+		{ name: "Dark Mode V2", enabled: true, env: "25% rollout" },
+		{ name: "Analytics V3", enabled: true, env: "3 variants" },
 	];
 
 	return (

@@ -40,7 +40,7 @@ export interface FeatureUsage {
 	unlimited: boolean;
 }
 
-function calculateOverageCost(
+export function calculateGraduatedOverageCost(
 	overageAmount: number,
 	tiers?: PricingTier[]
 ): number {
@@ -103,7 +103,7 @@ export function calculateFeatureUsage(
 		overageAmount > 0
 			? {
 					amount: overageAmount,
-					cost: calculateOverageCost(overageAmount, effectiveTiers),
+					cost: calculateGraduatedOverageCost(overageAmount, effectiveTiers),
 				}
 			: null;
 

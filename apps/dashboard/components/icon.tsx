@@ -68,9 +68,7 @@ const OS_ICON_EXT: Record<string, "svg" | "png" | "webp"> = {
 const BROWSER_ICONS = Object.keys(BROWSER_ICON_EXT);
 const OS_ICONS = Object.keys(OS_ICON_EXT);
 
-export type BrowserIconName = keyof typeof BROWSER_ICON_EXT;
-export type OSIconName = keyof typeof OS_ICON_EXT;
-export type IconType = "browser" | "os";
+type IconType = "browser" | "os";
 
 interface PublicIconProps {
 	className?: string;
@@ -148,7 +146,7 @@ function createFallbackIcon(
 	);
 }
 
-export function PublicIcon({
+function PublicIcon({
 	type,
 	name,
 	size = "md",

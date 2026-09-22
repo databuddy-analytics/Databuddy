@@ -1,5 +1,6 @@
 "use client";
 
+import { MobileTopBarActions } from "./top-bar";
 import { authClient } from "@databuddy/auth/client";
 import {
 	FEATURE_METADATA,
@@ -343,6 +344,7 @@ export function MobileSidebar() {
 							<Branding heightPx={22} priority variant="primary-logo" />
 						</Link>
 					</div>
+					<MobileTopBarActions />
 					{!isDemo && (
 						<Button
 							aria-label="Configure Databuddy MCP"

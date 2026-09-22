@@ -53,7 +53,7 @@ export function AnnotationsPanel({
 					aria-label="Annotations"
 					className="inline-flex size-7 items-center justify-center gap-1.5 rounded-md bg-transparent p-0 font-medium text-muted-foreground transition-all duration-(--duration-quick) ease-(--ease-smooth) hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50"
 				>
-					<NoteIcon className="size-3.5" weight="duotone" />
+					<NoteIcon className="size-3.5" />
 					<span className="sr-only">Annotations</span>
 				</Sheet.Trigger>
 				<Sheet.Content
@@ -73,10 +73,7 @@ export function AnnotationsPanel({
 						<Sheet.Body className="p-2">
 							{annotations.length === 0 ? (
 								<div className="flex flex-col items-center justify-center rounded border bg-card py-12 text-center">
-									<NoteIcon
-										className="size-6 text-muted-foreground/40"
-										weight="duotone"
-									/>
+									<NoteIcon className="size-6 text-muted-foreground/40" />
 									<p className="mt-3 font-medium text-foreground text-sm">
 										No annotations yet
 									</p>
@@ -132,7 +129,7 @@ export function AnnotationsPanel({
 													}}
 													variant="ghost"
 												>
-													<PencilIcon className="size-3" weight="duotone" />
+													<PencilIcon className="size-3" />
 												</Button>
 												<Button
 													aria-label="Delete annotation"
@@ -141,7 +138,7 @@ export function AnnotationsPanel({
 													tone="destructive"
 													variant="ghost"
 												>
-													<TrashIcon className="size-3" weight="duotone" />
+													<TrashIcon className="size-3" />
 												</Button>
 											</div>
 										</div>

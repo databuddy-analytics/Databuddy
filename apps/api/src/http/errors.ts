@@ -1,4 +1,4 @@
-import { config } from "@databuddy/env/app";
+import { API_KEY_AUTH_CHALLENGE } from "@databuddy/api-keys/resolve";
 import { ValidationError } from "elysia";
 import { EvlogError, parseError } from "evlog";
 import { getRequestId } from "./request-id";
@@ -29,7 +29,6 @@ const HTTP_STATUS_BY_ERROR_CODE: Record<string, number> = {
 	VALIDATION: 422,
 };
 
-const PROTECTED_RESOURCE_METADATA_URL = `${config.urls.api}/.well-known/oauth-protected-resource`;
 const LEADING_SLASH_PATTERN = /^\//;
 
 export function handleAppError({
@@ -66,8 +65,7 @@ export function handleAppError({
 		"X-Request-ID": responseRequestId,
 	};
 	if (statusCode === 401) {
-		headers["WWW-Authenticate"] =
-			`Bearer resource_metadata="${PROTECTED_RESOURCE_METADATA_URL}"`;
+		headers["WWW-Authenticate"] = API_KEY_AUTH_CHALLENGE;
 	}
 
 	return new Response(

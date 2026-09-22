@@ -8,7 +8,7 @@ import { spiralInwardNormFromIndex, spiralInwardOrderValue } from "../../core";
 import { usePrefersReducedMotion } from "../../hooks";
 import type { DotAnimationResolver, DotMatrixCommonProps } from "../../core";
 
-export type DotmSquare3Props = DotMatrixCommonProps;
+type DotmSquare3Props = DotMatrixCommonProps;
 
 const animationResolver: DotAnimationResolver = ({ isActive, index, reducedMotion, phase }) => {
   if (!isActive) {

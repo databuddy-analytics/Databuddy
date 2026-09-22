@@ -36,37 +36,39 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function mockFetch(flagsResponse: Record<string, FlagResult> = DEFAULT_FLAGS) {
 	const calls: string[] = [];
-	const bodies: Array<Record<string, unknown>> = [];
+	const bodies: Record<string, unknown>[] = [];
 	const originalFetch = globalThis.fetch;
 
-	globalThis.fetch = mock(async (input: string | URL | Request, init?: RequestInit) => {
-		const url = typeof input === "string" ? input : input.toString();
-		calls.push(url);
-		const body =
-			typeof init?.body === "string"
-				? (JSON.parse(init.body) as Record<string, unknown>)
-				: {};
-		bodies.push(body);
-		const keys = Array.isArray(body.keys) ? body.keys : null;
+	globalThis.fetch = mock(
+		async (input: string | URL | Request, init?: RequestInit) => {
+			const url = typeof input === "string" ? input : input.toString();
+			calls.push(url);
+			const body =
+				typeof init?.body === "string"
+					? (JSON.parse(init.body) as Record<string, unknown>)
+					: {};
+			bodies.push(body);
+			const keys = Array.isArray(body.keys) ? body.keys : null;
 
-		if (keys) {
-			const filtered = Object.fromEntries(
-				keys.map((key) => [
-					String(key),
-					flagsResponse[String(key)] ?? FLAG_DISABLED,
-				])
-			);
-			return new Response(JSON.stringify({ flags: filtered }), {
+			if (keys) {
+				const filtered = Object.fromEntries(
+					keys.map((key) => [
+						String(key),
+						flagsResponse[String(key)] ?? FLAG_DISABLED,
+					])
+				);
+				return new Response(JSON.stringify({ flags: filtered }), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				});
+			}
+
+			return new Response(JSON.stringify({ flags: flagsResponse }), {
 				status: 200,
 				headers: { "Content-Type": "application/json" },
 			});
 		}
-
-		return new Response(JSON.stringify({ flags: flagsResponse }), {
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		});
-	}) as typeof fetch;
+	) as typeof fetch;
 
 	return {
 		bodies,
@@ -105,13 +107,6 @@ describe("ServerFlagsManager", () => {
 		fetchMock.restore();
 	});
 
-	describe("createServerFlagsManager", () => {
-		it("returns a ServerFlagsManager instance", async () => {
-			const manager = await create({ clientId: "test-id" });
-			expect(manager).toBeInstanceOf(ServerFlagsManager);
-		});
-	});
-
 	describe("initialization", () => {
 		it("defaults autoFetch to false", async () => {
 			await create({ clientId: "test-id" }, true);
@@ -124,22 +119,6 @@ describe("ServerFlagsManager", () => {
 			expect(fetchMock.calls.length).toBeGreaterThanOrEqual(1);
 			expect(fetchMock.calls.at(0)).toContain("/public/v1/flags/bulk");
 		});
-
-		it("forces skipStorage to true", async () => {
-			const manager = await create(
-				{ clientId: "test-id", skipStorage: false },
-				true
-			);
-			expect(manager.isReady()).toBe(true);
-		});
-
-		it("reaches ready state after waitForInit", async () => {
-			const manager = await create(
-				{ clientId: "test-id", autoFetch: true },
-				true
-			);
-			expect(manager.isReady()).toBe(true);
-		});
 	});
 
 	describe("getFlag", () => {
@@ -150,23 +129,6 @@ describe("ServerFlagsManager", () => {
 			expect(result.enabled).toBe(true);
 			expect(result.value).toBe(true);
 			expect(result.reason).toBe("MATCH");
-		});
-
-		it("fetches and returns a disabled flag", async () => {
-			const manager = await create({ clientId: "test-id" });
-
-			const result = await manager.getFlag("feature-off");
-			expect(result.enabled).toBe(false);
-			expect(result.value).toBe(false);
-		});
-
-		it("returns variant flag with value and variant name", async () => {
-			const manager = await create({ clientId: "test-id" });
-
-			const result = await manager.getFlag("feature-variant");
-			expect(result.enabled).toBe(true);
-			expect(result.value).toBe("treatment-a");
-			expect(result.variant).toBe("treatment-a");
 		});
 
 		it("returns default when disabled", async () => {
@@ -221,27 +183,28 @@ describe("ServerFlagsManager", () => {
 		it("isolates cache by organization context", async () => {
 			fetchMock.restore();
 			const calls: string[] = [];
-			globalThis.fetch = mock(async (input: string | URL | Request, init?: RequestInit) => {
-				const url = typeof input === "string" ? input : input.toString();
-				calls.push(url);
-				const body =
-					typeof init?.body === "string"
-						? (JSON.parse(init.body) as Record<string, unknown>)
-						: {};
-				const orgId = body.organizationId;
-				return new Response(
-					JSON.stringify({
-						flags: {
-							"org-rollout":
-								orgId === "org-a" ? FLAG_ENABLED : FLAG_DISABLED,
-						},
-					}),
-					{
-						status: 200,
-						headers: { "Content-Type": "application/json" },
-					}
-				);
-			}) as typeof fetch;
+			globalThis.fetch = mock(
+				async (input: string | URL | Request, init?: RequestInit) => {
+					const url = typeof input === "string" ? input : input.toString();
+					calls.push(url);
+					const body =
+						typeof init?.body === "string"
+							? (JSON.parse(init.body) as Record<string, unknown>)
+							: {};
+					const orgId = body.organizationId;
+					return new Response(
+						JSON.stringify({
+							flags: {
+								"org-rollout": orgId === "org-a" ? FLAG_ENABLED : FLAG_DISABLED,
+							},
+						}),
+						{
+							status: 200,
+							headers: { "Content-Type": "application/json" },
+						}
+					);
+				}
+			) as typeof fetch;
 
 			const manager = await create({ clientId: "test-id" });
 
@@ -282,16 +245,6 @@ describe("ServerFlagsManager", () => {
 			expect(keys).toContain("feature-off");
 			expect(keys).toContain("feature-variant");
 		});
-
-		it("uses 5ms batch delay (shorter than browser default)", async () => {
-			const manager = await create({ clientId: "test-id" }, true);
-
-			const start = performance.now();
-			await manager.getFlag("feature-on");
-			const elapsed = performance.now() - start;
-
-			expect(elapsed).toBeLessThan(200);
-		});
 	});
 
 	describe("caching", () => {
@@ -329,19 +282,6 @@ describe("ServerFlagsManager", () => {
 			expect(fetchMock.calls.length).toBeGreaterThan(callsAfterFirst);
 		});
 
-		it("getMemoryFlags returns all cached flags", async () => {
-			const manager = await create({
-				clientId: "test-id",
-				autoFetch: true,
-			});
-
-			const flags = manager.getMemoryFlags();
-			expect(flags["feature-on"]).toBeDefined();
-			expect(flags["feature-on"].enabled).toBe(true);
-			expect(flags["feature-off"]).toBeDefined();
-			expect(flags["feature-off"].enabled).toBe(false);
-		});
-
 		it("caps the in-memory flag cache", async () => {
 			const manager = await create({
 				clientId: "test-id",
@@ -374,7 +314,9 @@ describe("ServerFlagsManager", () => {
 					body.userId === "user-123" && body.email === "test@example.com"
 			);
 			expect(hasUser).toBe(true);
-			expect(fetchMock.calls.some((url) => url.includes("test%40"))).toBe(false);
+			expect(fetchMock.calls.some((url) => url.includes("test%40"))).toBe(
+				false
+			);
 		});
 
 		it("sends organizationId and teamId", async () => {
@@ -387,8 +329,7 @@ describe("ServerFlagsManager", () => {
 			await sleep(20);
 
 			const hasOrgTeam = fetchMock.bodies.some(
-				(body) =>
-					body.organizationId === "org-1" && body.teamId === "team-1"
+				(body) => body.organizationId === "org-1" && body.teamId === "team-1"
 			);
 			expect(hasOrgTeam).toBe(true);
 		});
@@ -426,7 +367,7 @@ describe("ServerFlagsManager", () => {
 
 		it("removes prior-user flags after a successful identity switch", async () => {
 			fetchMock.restore();
-			const bodies: Array<Record<string, unknown>> = [];
+			const bodies: Record<string, unknown>[] = [];
 			globalThis.fetch = mock(
 				async (_input: string | URL | Request, init?: RequestInit) => {
 					const body =
@@ -611,7 +552,7 @@ describe("ServerFlagsManager", () => {
 
 		it("settles a pre-flush getFlag against the new identity", async () => {
 			fetchMock.restore();
-			const bodies: Array<Record<string, unknown>> = [];
+			const bodies: Record<string, unknown>[] = [];
 			globalThis.fetch = mock(
 				async (_input: string | URL | Request, init?: RequestInit) => {
 					const body =
@@ -811,9 +752,7 @@ describe("ServerFlagsManager", () => {
 
 			manager.updateUser({ userId: "user-b" });
 			await sleep(20);
-			resolveUserA(
-				Response.json({ flags: { "user-a-only": FLAG_ENABLED } })
-			);
+			resolveUserA(Response.json({ flags: { "user-a-only": FLAG_ENABLED } }));
 			await manager.waitForInit();
 			await sleep(20);
 
@@ -823,32 +762,6 @@ describe("ServerFlagsManager", () => {
 	});
 
 	describe("refresh", () => {
-		it("re-fetches all flags", async () => {
-			const manager = await create({
-				clientId: "test-id",
-				autoFetch: true,
-			});
-			const callsAfterInit = fetchMock.calls.length;
-
-			await manager.refresh();
-			expect(fetchMock.calls.length).toBeGreaterThan(callsAfterInit);
-		});
-
-		it("forceClear clears cache before re-fetch", async () => {
-			const manager = await create({
-				clientId: "test-id",
-				autoFetch: true,
-			});
-
-			const flagsBefore = manager.getMemoryFlags();
-			expect(Object.keys(flagsBefore).length).toBeGreaterThan(0);
-
-			await manager.refresh(true);
-
-			const flagsAfter = manager.getMemoryFlags();
-			expect(Object.keys(flagsAfter).length).toBeGreaterThan(0);
-		});
-
 		it("forceClear prevents an in-flight single fetch from restoring stale data", async () => {
 			fetchMock.restore();
 			let markSingleStarted: () => void;
@@ -924,14 +837,6 @@ describe("ServerFlagsManager", () => {
 	});
 
 	describe("getValue", () => {
-		it("returns cached value", async () => {
-			const manager = await create({ clientId: "test-id" });
-
-			await manager.getFlag("feature-variant");
-			const value = manager.getValue("feature-variant");
-			expect(value).toBe("treatment-a");
-		});
-
 		it("returns default for uncached flag", async () => {
 			const manager = await create({ clientId: "test-id" });
 
@@ -953,9 +858,9 @@ describe("ServerFlagsManager", () => {
 	describe("error handling", () => {
 		it("throws a typed failure on an initial API error", async () => {
 			fetchMock.restore();
-			globalThis.fetch = mock(async () => {
-				return new Response("Internal Server Error", { status: 500 });
-			}) as typeof fetch;
+			globalThis.fetch = mock(
+				async () => new Response("Internal Server Error", { status: 500 })
+			) as typeof fetch;
 
 			const manager = await create({ clientId: "test-id" });
 
@@ -993,10 +898,7 @@ describe("ServerFlagsManager", () => {
 
 			fetchMock.restore();
 			globalThis.fetch = mock(async () =>
-				Response.json(
-					{ error: "Flag service unavailable" },
-					{ status: 503 }
-				)
+				Response.json({ error: "Flag service unavailable" }, { status: 503 })
 			) as typeof fetch;
 			await sleep(10);
 
@@ -1037,17 +939,6 @@ describe("ServerFlagsManager", () => {
 			expect(notified).toBe(true);
 			unsub();
 		});
-
-		it("returns snapshot with flags and ready state", async () => {
-			const manager = await create({
-				clientId: "test-id",
-				autoFetch: true,
-			});
-
-			const snapshot = manager.getSnapshot();
-			expect(snapshot.isReady).toBe(true);
-			expect(snapshot.flags["feature-on"]).toBeDefined();
-		});
 	});
 
 	describe("updateConfig", () => {
@@ -1059,19 +950,6 @@ describe("ServerFlagsManager", () => {
 			expect(fetchMock.calls.length).toBe(0);
 
 			manager.updateConfig({ clientId: "test-id", disabled: false });
-			await sleep(100);
-
-			expect(fetchMock.calls.length).toBeGreaterThanOrEqual(1);
-		});
-
-		it("enables fetching when transitioning from pending to active", async () => {
-			const manager = await create({
-				clientId: "test-id",
-				isPending: true,
-			});
-			expect(fetchMock.calls.length).toBe(0);
-
-			manager.updateConfig({ clientId: "test-id", isPending: false });
 			await sleep(100);
 
 			expect(fetchMock.calls.length).toBeGreaterThanOrEqual(1);

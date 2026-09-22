@@ -13,6 +13,20 @@ import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { WarningCircleIcon } from "@databuddy/ui/icons";
 import { Card, EmptyState } from "@databuddy/ui";
 
+type BatchQueryResults = ReturnType<typeof useBatchDynamicQuery>["results"];
+
+function getRevenueData(
+	results: BatchQueryResults,
+	queryId: string,
+	parameter: string
+): RevenueEntry[] {
+	const result = results.find((r) => r.queryId === queryId);
+	if (!result?.success) {
+		return [];
+	}
+	return (result.data[parameter] as RevenueEntry[]) || [];
+}
+
 interface RevenueAttributionTablesProps {
 	currency: string;
 	dateRange: DateRange;
@@ -70,7 +84,7 @@ export function RevenueAttributionTables({
 		[queryFilters]
 	);
 
-	const { getDataForQuery, isError, isLoading, refetch } = useBatchDynamicQuery(
+	const { results, isError, isLoading, refetch } = useBatchDynamicQuery(
 		websiteId,
 		dateRange,
 		queries,
@@ -78,81 +92,57 @@ export function RevenueAttributionTables({
 	);
 
 	const productData = useMemo(
-		() =>
-			(getDataForQuery(
-				"revenue-products",
-				"revenue_by_product"
-			) as RevenueEntry[]) || [],
-		[getDataForQuery]
+		() => getRevenueData(results, "revenue-products", "revenue_by_product"),
+		[results]
 	);
 
 	const trafficData = useMemo(
 		() => ({
-			referrers:
-				(getDataForQuery(
-					"revenue-traffic",
-					"revenue_by_referrer"
-				) as RevenueEntry[]) || [],
-			utm_sources:
-				(getDataForQuery(
-					"revenue-traffic",
-					"revenue_by_utm_source"
-				) as RevenueEntry[]) || [],
-			utm_mediums:
-				(getDataForQuery(
-					"revenue-traffic",
-					"revenue_by_utm_medium"
-				) as RevenueEntry[]) || [],
-			utm_campaigns:
-				(getDataForQuery(
-					"revenue-traffic",
-					"revenue_by_utm_campaign"
-				) as RevenueEntry[]) || [],
-			entry_pages:
-				(getDataForQuery(
-					"revenue-traffic",
-					"revenue_by_entry_page"
-				) as RevenueEntry[]) || [],
+			referrers: getRevenueData(
+				results,
+				"revenue-traffic",
+				"revenue_by_referrer"
+			),
+			utm_sources: getRevenueData(
+				results,
+				"revenue-traffic",
+				"revenue_by_utm_source"
+			),
+			utm_mediums: getRevenueData(
+				results,
+				"revenue-traffic",
+				"revenue_by_utm_medium"
+			),
+			utm_campaigns: getRevenueData(
+				results,
+				"revenue-traffic",
+				"revenue_by_utm_campaign"
+			),
+			entry_pages: getRevenueData(
+				results,
+				"revenue-traffic",
+				"revenue_by_entry_page"
+			),
 		}),
-		[getDataForQuery]
+		[results]
 	);
 
 	const geoData = useMemo(
 		() => ({
-			countries:
-				(getDataForQuery(
-					"revenue-geo",
-					"revenue_by_country"
-				) as RevenueEntry[]) || [],
-			regions:
-				(getDataForQuery(
-					"revenue-geo",
-					"revenue_by_region"
-				) as RevenueEntry[]) || [],
-			cities:
-				(getDataForQuery("revenue-geo", "revenue_by_city") as RevenueEntry[]) ||
-				[],
+			countries: getRevenueData(results, "revenue-geo", "revenue_by_country"),
+			regions: getRevenueData(results, "revenue-geo", "revenue_by_region"),
+			cities: getRevenueData(results, "revenue-geo", "revenue_by_city"),
 		}),
-		[getDataForQuery]
+		[results]
 	);
 
 	const techData = useMemo(
 		() => ({
-			devices:
-				(getDataForQuery(
-					"revenue-tech",
-					"revenue_by_device"
-				) as RevenueEntry[]) || [],
-			browsers:
-				(getDataForQuery(
-					"revenue-tech",
-					"revenue_by_browser"
-				) as RevenueEntry[]) || [],
-			os:
-				(getDataForQuery("revenue-tech", "revenue_by_os") as RevenueEntry[]) ||
-				[],
+			devices: getRevenueData(results, "revenue-tech", "revenue_by_device"),
+			browsers: getRevenueData(results, "revenue-tech", "revenue_by_browser"),
+			os: getRevenueData(results, "revenue-tech", "revenue_by_os"),
 		}),
-		[getDataForQuery]
+		[results]
 	);
 
 	const productColumns = useMemo(

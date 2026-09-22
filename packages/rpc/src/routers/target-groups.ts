@@ -1,3 +1,4 @@
+import { successOutputSchema } from "../lib/schemas";
 import { and, desc, eq, isNull, withTransaction } from "@databuddy/db";
 import { flagsToTargetGroups, targetGroups } from "@databuddy/db/schema";
 import { createDrizzleCache, redis } from "@databuddy/redis";
@@ -51,8 +52,6 @@ const deleteSchema = z.object({
 });
 
 const targetGroupOutputSchema = z.record(z.string(), z.unknown());
-
-const successOutputSchema = z.object({ success: z.literal(true) });
 
 function requireAuthedTargetGroupRead(workspace: { tier: "authed" | "demo" }) {
 	if (workspace.tier === "demo") {

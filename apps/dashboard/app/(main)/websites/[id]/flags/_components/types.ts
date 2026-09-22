@@ -67,8 +67,6 @@ export interface TargetGroup {
 	websiteId: string;
 }
 
-export type FlagStatus = "active" | "inactive" | "archived";
-
 export interface FlagSheetProps {
 	flag?: Flag | null;
 	isOpen: boolean;

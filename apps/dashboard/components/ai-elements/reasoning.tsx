@@ -27,7 +27,7 @@ interface ReasoningContextValue {
 
 const ReasoningContext = createContext<ReasoningContextValue | null>(null);
 
-export const useReasoning = () => {
+const useReasoning = () => {
 	const context = useContext(ReasoningContext);
 	if (!context) {
 		throw new Error("Reasoning components must be used within Reasoning");
@@ -182,7 +182,6 @@ export const ReasoningTrigger = memo(
 								"size-3.5 shrink-0 opacity-60 transition-transform",
 								isOpen ? "rotate-180" : "rotate-0"
 							)}
-							weight="fill"
 						/>
 					</>
 				)}

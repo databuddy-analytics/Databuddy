@@ -20,11 +20,6 @@ export const autumnWebhookStatusValues = [
 	"dead_letter",
 ] as const;
 export type AutumnWebhookStatus = (typeof autumnWebhookStatusValues)[number];
-
-/**
- * Durable inbox for Autumn usage webhooks that cannot be routed yet.
- * Payloads are normalized before insert and contain billing identifiers only.
- */
 export const autumnWebhookEvents = pgTable(
 	"autumn_webhook_events",
 	{

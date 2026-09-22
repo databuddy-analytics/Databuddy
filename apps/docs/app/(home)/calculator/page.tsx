@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
 import { SITE_URL } from "@/app/util/constants";
 import { Footer } from "@/components/footer";
+import {
+	calculateCookieBannerCost,
+	DEFAULT_INPUTS,
+	formatCurrencyFull,
+	readCalculatorInputs,
+} from "./_components/calculator-engine";
 import { CalculatorSection } from "./_components/calculator-section";
 import { CalculatorSources } from "./_components/calculator-sources";
 import { CtaSection } from "./_components/cta-section";
-import { ScenariosSection } from "./_components/scenarios-section";
 
-const TITLE = "Cookie Banner Cost Calculator";
+const TITLE = "Analytics Measurement Gap Calculator";
 const DESCRIPTION =
-	"Model unattributed revenue from the cookie-consent measurement gap: traffic, visitor-to-paid, revenue per conversion, and a 40–70% band. Not P&L impact.";
-
-/** Matches defaults: 50k visitors, 55% data loss, 1.5% visitor-to-paid, $50 - ~$248k/yr; ~$11/mo Databuddy at this volume */
-const DEFAULT_OG_PARAMS = "revenue=247500&visitors=50000&cost=11";
+	"Estimate how missing visits affect revenue attribution. Adjust traffic, measurement coverage, conversion rate, and order value using your own assumptions.";
 
 interface PageProps {
 	searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -21,24 +23,21 @@ export async function generateMetadata({
 	searchParams,
 }: PageProps): Promise<Metadata> {
 	const params = await searchParams;
-	const revenue = typeof params.revenue === "string" ? params.revenue : null;
-	const visitors = typeof params.visitors === "string" ? params.visitors : null;
-	const cost = typeof params.cost === "string" ? params.cost : null;
-
-	const hasPersonalizedParams = revenue && visitors && cost;
-
-	const ogParams = hasPersonalizedParams
-		? `revenue=${revenue}&visitors=${visitors}&cost=${cost}`
-		: DEFAULT_OG_PARAMS;
-
+	const inputs = readCalculatorInputs(params);
+	const selected = inputs ?? DEFAULT_INPUTS;
+	const result = calculateCookieBannerCost(selected);
+	const ogParams = new URLSearchParams({
+		revenue: String(result.lostRevenueYearly),
+		visitors: String(selected.monthlyVisitors),
+	});
 	const ogImageUrl = `${SITE_URL}/calculator/og?${ogParams}`;
-
-	const personalizedDescription = hasPersonalizedParams
-		? `Modeled unattributed revenue ~$${Number(revenue).toLocaleString()}/year (measurement gap) vs Databuddy ~$${Number(cost).toLocaleString()}/month - not literal loss.`
+	const personalizedDescription = inputs
+		? `Estimated unattributed revenue: ${formatCurrencyFull(result.lostRevenueYearly)}/year. Explore the supplied assumptions in this measurement model.`
 		: DESCRIPTION;
 
 	return {
 		title: TITLE,
+		alternates: { canonical: "/calculator" },
 		description: personalizedDescription,
 		openGraph: {
 			title: TITLE,
@@ -49,7 +48,7 @@ export async function generateMetadata({
 					url: ogImageUrl,
 					width: 1200,
 					height: 630,
-					alt: "Cookie Banner Cost Calculator results",
+					alt: "Analytics Measurement Gap Calculator results",
 				},
 			],
 		},
@@ -62,32 +61,31 @@ export async function generateMetadata({
 	};
 }
 
-export default function CalculatorPage() {
+export default async function CalculatorPage({ searchParams }: PageProps) {
+	const initialInputs =
+		readCalculatorInputs(await searchParams) ?? DEFAULT_INPUTS;
 	return (
 		<>
 			<div className="px-4 pt-20 sm:px-6 sm:pt-24 lg:px-8 lg:pt-32">
 				<div className="mx-auto w-full max-w-7xl">
 					<header className="mb-12 text-center sm:mb-16">
-						<p className="mb-3 font-mono text-muted-foreground text-xs uppercase tracking-widest">
+						<p className="mb-3 text-pretty font-mono text-muted-foreground text-xs uppercase tracking-widest">
 							Free Tool
 						</p>
 						<h1 className="mb-3 text-balance font-bold text-3xl tracking-tight sm:text-4xl lg:text-5xl">
-							Cookie Banner Cost Calculator
+							Analytics Measurement Gap Calculator
 						</h1>
-						<p className="mx-auto max-w-2xl text-balance text-pretty text-muted-foreground text-sm sm:text-base">
-							Without consent, visits often do not show up in cookie-based
-							analytics - a measurement gap, not people abandoning your site.
-							The model estimates unattributed revenue if conversions scale with
-							traffic the same way across measured and unmeasured visits
-							(default 55% unmeasured; 40–70% band on the yearly figure).
-							Popular scripts can still be blocked: think cookie + consent +
-							adblock vs cookieless + adblock, not recovering every dollar.
+						<p className="mx-auto max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base">
+							Estimate the revenue associated with visits missing from your
+							analytics. Adjust the assumptions to explore your measurement gap.
 						</p>
 					</header>
 
 					<div className="space-y-16 sm:space-y-24">
-						<CalculatorSection />
-						<ScenariosSection />
+						<CalculatorSection
+							initialInputs={initialInputs}
+							key={JSON.stringify(initialInputs)}
+						/>
 						<CtaSection />
 						<CalculatorSources />
 					</div>

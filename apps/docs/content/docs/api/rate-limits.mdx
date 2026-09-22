@@ -16,6 +16,18 @@ Rate limits protect the service from bursts and are applied by endpoint and auth
 
 An API key, signed-in user, or anonymous client receives a separate limit identity. Other API families can apply their own limits.
 
+## API key admission limits
+
+Independent of the per-endpoint limits above, every API key request passes an admission layer:
+
+- **Global per-key limit**: when rate limiting is enabled on the key, a rolling quota applies across all endpoints (default 300 requests per 60 seconds; a custom limit can be stored on the key).
+- **Concurrency cap**: at most 20 in-flight requests per key. Exceeding it returns `429` with the message "Too many concurrent API key requests" and `Retry-After: 1`.
+- **Degraded infrastructure**: if the admission infrastructure is unavailable, requests return `503` with code `SERVICE_UNAVAILABLE` and `Retry-After: 5`.
+
+## Event ingestion limit
+
+`POST /track` on `basket.databuddy.cc` is limited to 600 requests per 60 seconds per API key or website+IP.
+
 ## When a limit is reached
 
 A `429` response includes the retry window in both headers and JSON:

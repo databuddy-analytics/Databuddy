@@ -89,7 +89,7 @@ export function OpenAiAdsPixel() {
 	return null;
 }
 
-export function measureOpenAiRegistrationCompleted(eventId?: string) {
+function measureOpenAiRegistrationCompleted(eventId?: string) {
 	if (!initOpenAiQueue()) {
 		return;
 	}

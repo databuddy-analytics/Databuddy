@@ -8,12 +8,6 @@ import {
 import pkg from "../../package.json";
 
 let sdk: NodeSDK | null = null;
-
-/**
- * Registers OpenTelemetry with The Context Company's span processor so
- * Vercel AI SDK `experimental_telemetry` spans (ai.*) are exported to TCC.
- * No-op when TCC_API_KEY is unset (local dev without observability).
- */
 export function initTccTracing(): void {
 	if (sdk || !process.env.TCC_API_KEY) {
 		return;

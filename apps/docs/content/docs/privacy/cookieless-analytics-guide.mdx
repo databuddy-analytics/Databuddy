@@ -1,532 +1,83 @@
 ---
-title: "Cookieless Analytics: Complete Guide to Privacy-First Tracking"
-description: "Learn how cookieless analytics works, why it's the future of web tracking, and how to implement privacy-first analytics without compromising on insights."
+title: "Cookieless Analytics: How Collection and Privacy Work"
+description: "Understand cookieless analytics, browser storage, optional user identification, consent requirements, and how to verify your Databuddy setup."
 icon: "Shield"
 ---
 
-import { CodeBlock } from "@/components/docs";
-
-The era of third-party cookies is ending. This comprehensive guide explains cookieless analytics, why it matters, and how to implement privacy-first tracking that respects user privacy while delivering powerful insights.
+Cookieless analytics collects website activity without using analytics cookies. It can still use browser storage and process personal data. The collection method, identifiers, enabled features, and applicable rules determine the privacy implications.
 
 ## What is Cookieless Analytics?
 
-**Cookieless analytics** refers to web analytics methods that don't rely on cookies to track user behavior. Instead, they use privacy-friendly techniques to collect anonymous, aggregated data about website visitors.
-
-### Traditional Cookie-Based Tracking
-<CodeBlock 
-  language="javascript"
-  filename="Traditional Cookie-Based Approach"
-  code={`// Traditional approach - uses cookies
-  document.cookie = "user_id=12345; expires=Thu, 18 Dec 2025 12:00:00 UTC; path=/";
-  ga('create', 'UA-XXXXX-Y', 'auto');
-  ga('send', 'pageview');`}
-/>
-
-### Cookieless Tracking Approach
-<CodeBlock 
-  language="javascript"
-  filename="Cookieless Analytics Approach"
-  code={`// Cookieless approach - no persistent identifiers
-  databuddy.track('page_view', {
-    page: window.location.pathname,
-    referrer: document.referrer,
-    // No user ID or persistent tracking
-  });`}
-/>
-
-## Why Cookieless Analytics Matters
-
-### 1. Privacy Regulations
-**GDPR, CCPA, and Beyond:**
-- Third-party cookies require explicit consent
-- Heavy fines for non-compliance (up to 4% of revenue)
-- Growing number of privacy laws worldwide
-
-### 2. Browser Changes
-**Major Browser Updates:**
-- **Safari**: Blocks third-party cookies by default
-- **Firefox**: Enhanced Tracking Protection enabled
-- **Chrome**: Phasing out third-party cookies by 2024
-- **Edge**: Following Chrome's timeline
-
-### 3. User Expectations
-**Changing User Behavior:**
-- 86% of users care about data privacy
-- 79% willing to switch brands over privacy concerns
-- Ad blocker usage continues to grow (30%+ of users)
-
-### 4. Data Accuracy
-**Better Data Quality:**
-- No consent banner impact (20-40% data loss)
-- Ad-blocker resistant tracking
-- Consistent cross-browser behavior
-- No cookie expiration issues
+“Cookieless” describes a storage choice. It does not guarantee anonymous data, exemption from consent, or complete measurement. A tracker can use localStorage instead of cookies, and an application can attach a user ID or email to either kind of tracking.
 
 ## How Cookieless Analytics Works
 
-### 1. Server-Side Tracking
-Instead of client-side cookies, data is processed on the server:
+Databuddy's browser tracker:
 
-```javascript
-// Client sends minimal data
-fetch('/analytics/track', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    event: 'page_view',
-    page: location.pathname,
-    referrer: document.referrer
-  })
-});
-```
+- Generates a random visitor ID and stores it in first-party localStorage.
+- Stores session information in sessionStorage.
+- Sends pageviews and enabled events to the ingestion service.
+- Removes query strings from page and referrer addresses, while collecting selected campaign and advertising-click parameters separately.
+- Honors Global Privacy Control, Do Not Track, and stored opt-out preferences.
 
-### 2. Fingerprinting-Free Identification
-Uses non-invasive methods to understand user sessions:
+Ingestion hashes visitor IDs with a rotating daily salt by default. The website's `anonymizeVisitorIds` setting can change that behavior. Standard analytics event records omit raw IP addresses after request handling and approximate location lookup.
 
-```javascript
-// Session-based tracking without fingerprinting
-const sessionData = {
-  timestamp: Date.now(),
-  viewport: `${window.innerWidth}x${window.innerHeight}`,
-  language: navigator.language,
-  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-};
-```
-
-### 3. Privacy-Safe Aggregation
-Data is immediately anonymized and aggregated:
-
-```javascript
-// Server-side aggregation
-const pageStats = {
-  url: '/products',
-  views: 1247,
-  unique_sessions: 892,
-  avg_time: 145, // seconds
-  bounce_rate: 0.34
-};
-```
-
-## Cookieless Analytics Techniques
-
-### 1. First-Party Data Collection
-Collect data directly from your own domain:
-
-```html
-<!-- First-party script on your domain -->
-<script src="https://yourdomain.com/analytics.js"></script>
-```
-
-**Benefits:**
-- No third-party cookie restrictions
-- Better performance and reliability
-- Full control over data collection
-
-### 2. Session-Based Tracking
-Track user sessions without persistent identifiers:
-
-```javascript
-// Generate session ID (not stored as cookie)
-const sessionId = crypto.randomUUID();
-const sessionStart = Date.now();
-
-// Track session events
-function trackEvent(event, data) {
-  sendToServer({
-    session: sessionId,
-    timestamp: Date.now(),
-    event: event,
-    data: data
-  });
-}
-```
-
-### 3. Statistical Modeling
-Use statistical methods to understand user behavior:
-
-```javascript
-// Cohort analysis without individual tracking
-const cohortData = {
-  week: '2024-W01',
-  new_users: 1250,
-  returning_users: 3400,
-  retention_rate: 0.68
-};
-```
-
-### 4. Privacy-Safe Attribution
-Track conversions without cross-site tracking:
-
-```javascript
-// Attribution without cookies
-const attribution = {
-  source: 'organic_search',
-  medium: 'google',
-  campaign: null,
-  conversion_value: 99.99,
-  time_to_conversion: 3600 // seconds
-};
-```
+These controls do not make every payload anonymous. Page paths, titles, custom properties, error messages, and optional profile traits can contain personal information. See the [Data Policy](/data-policy) for the collection and processing details.
 
 ## Implementing Cookieless Analytics
 
-### Option 1: Databuddy (Recommended)
-Complete cookieless solution with full features:
+Create a website in Databuddy and add its ID to the tracking snippet:
 
 ```html
-<!-- Simple implementation -->
-<script src="https://cdn.databuddy.cc/sdk.js" 
-        data-client-id="your-client-id">
-</script>
+<script
+  async
+  src="https://cdn.databuddy.cc/databuddy.js"
+  data-client-id="YOUR_WEBSITE_ID"
+></script>
 ```
 
-**Features:**
-- 100% cookieless by design
-- Real-time analytics
-- GDPR compliant
-- No consent banners required
-- Full feature set (heatmaps, funnels, etc.)
+Load the tracker only after consent when your setup requires it. See [Getting Started](/docs/getting-started) for framework-specific installation and [Security & Privacy](/docs/security) for collection controls.
 
-### Option 2: Custom Implementation
-Build your own cookieless tracking:
+Pageviews are collected automatically. Add custom events only for actions you need to measure; do not manually send duplicate pageviews or build a second session tracker.
 
-```javascript
-// Custom cookieless tracker
-class CookielessAnalytics {
-  constructor(endpoint) {
-    this.endpoint = endpoint;
-    this.sessionId = this.generateSessionId();
-    this.startTime = Date.now();
-  }
+### Optional user identification
 
-  generateSessionId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
-  }
+The [identify API](/docs/sdk/identify-users) associates activity with a profile ID and any traits you supply. This can support analysis across sessions and devices. It also changes the information you process and disclose to visitors.
 
-  track(event, properties = {}) {
-    const data = {
-      session_id: this.sessionId,
-      event: event,
-      properties: {
-        ...properties,
-        timestamp: Date.now(),
-        page: location.pathname,
-        referrer: document.referrer,
-        user_agent: navigator.userAgent,
-        screen_resolution: `${screen.width}x${screen.height}`,
-        viewport: `${window.innerWidth}x${window.innerHeight}`,
-        language: navigator.language,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-      }
-    };
-
-    // Send to server
-    fetch(this.endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-      keepalive: true
-    });
-  }
-
-  trackPageView() {
-    this.track('page_view');
-  }
-
-  trackEvent(name, properties) {
-    this.track('custom_event', { name, ...properties });
-  }
-}
-
-// Usage
-const analytics = new CookielessAnalytics('/api/analytics');
-analytics.trackPageView();
-```
-
-### Option 3: Server-Side Google Analytics
-Use GA4 Measurement Protocol (limited features):
-
-```javascript
-// Server-side GA4 tracking
-const measurementId = 'G-XXXXXXXXXX';
-const apiSecret = 'your-api-secret';
-
-function trackServerSide(clientId, events) {
-  fetch(`https://www.google-analytics.com/mp/collect?measurement_id=${measurementId}&api_secret=${apiSecret}`, {
-    method: 'POST',
-    body: JSON.stringify({
-      client_id: clientId,
-      events: events
-    })
-  });
-}
-```
-
-## Cookieless Analytics Features
-
-### 1. Page Views and Sessions
-Track basic website metrics:
-
-```javascript
-// Page view tracking
-databuddy.track('page_view', {
-  page: location.pathname,
-  title: document.title,
-  referrer: document.referrer
-});
-
-// Session tracking
-databuddy.track('session_start', {
-  entry_page: location.pathname,
-  traffic_source: getTrafficSource()
-});
-```
-
-### 2. User Engagement
-Measure user interaction without personal data:
-
-```javascript
-// Scroll tracking
-let maxScroll = 0;
-window.addEventListener('scroll', () => {
-  const scrollPercent = Math.round((window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100);
-  if (scrollPercent > maxScroll) {
-    maxScroll = scrollPercent;
-    databuddy.track('scroll_depth', { percent: scrollPercent });
-  }
-});
-
-// Time on page
-let startTime = Date.now();
-window.addEventListener('beforeunload', () => {
-  const timeOnPage = Date.now() - startTime;
-  databuddy.track('time_on_page', { duration: timeOnPage });
-});
-```
-
-### 3. Conversion Tracking
-Track goals and conversions:
-
-```javascript
-// E-commerce tracking
-function trackPurchase(orderData) {
-  databuddy.track('purchase', {
-    value: orderData.total,
-    currency: 'USD',
-    items: orderData.items.length,
-    // No personal information
-  });
-}
-
-// Form submissions
-document.querySelector('#contact-form').addEventListener('submit', () => {
-  databuddy.track('form_submit', {
-    form_name: 'contact',
-    page: location.pathname
-  });
-});
-```
-
-### 4. Performance Monitoring
-Track Core Web Vitals and performance:
-
-```javascript
-// Core Web Vitals tracking
-new PerformanceObserver((entryList) => {
-  for (const entry of entryList.getEntries()) {
-    databuddy.track('core_web_vital', {
-      metric: entry.entryType,
-      value: entry.value || entry.startTime,
-      page: location.pathname
-    });
-  }
-}).observe({ entryTypes: ['largest-contentful-paint', 'first-input', 'layout-shift'] });
-```
+Leaving identification disabled does not establish that every event is anonymous. Review the rest of your payloads too.
 
 ## Benefits of Cookieless Analytics
 
-### 1. Privacy Compliance
-- **No consent banners required**
-- **GDPR/CCPA compliant by design**
-- **Respects user privacy preferences**
-- **Reduces legal compliance burden**
+Databuddy lets you collect traffic, product events, errors, and performance measurements without analytics cookies. You can inspect its open-source implementation and choose the enabled features.
 
-### 2. Better Data Quality
-- **No ad-blocker interference**
-- **Consistent cross-browser tracking**
-- **No cookie expiration issues**
-- **Higher data accuracy (20-40% more data)**
-
-### 3. Improved Performance
-- **Faster page load times**
-- **Reduced third-party requests**
-- **Better Core Web Vitals scores**
-- **Enhanced user experience**
-
-### 4. Future-Proof Solution
-- **Works without third-party cookies**
-- **Compatible with privacy browsers**
-- **Adapts to changing regulations**
-- **Sustainable long-term approach**
-
-## Challenges and Solutions
-
-### Challenge 1: Cross-Device Tracking
-**Problem:** Can't track users across devices without cookies
-**Solution:** Focus on session-based insights and statistical modeling
-
-### Challenge 2: Attribution Modeling
-**Problem:** Limited ability to track multi-touch attribution
-**Solution:** Use first-party data and probabilistic attribution
-
-### Challenge 3: Audience Segmentation
-**Problem:** Can't create persistent user segments
-**Solution:** Use behavioral patterns and cohort analysis
-
-### Challenge 4: Retargeting
-**Problem:** Can't retarget specific users
-**Solution:** Focus on contextual advertising and lookalike audiences
-
-## Cookieless Analytics Best Practices
-
-### 1. Data Minimization
-Collect only necessary data:
-
-```javascript
-// Good: Minimal data collection
-const eventData = {
-  event: 'page_view',
-  page: location.pathname,
-  referrer: document.referrer
-};
-
-// Avoid: Excessive data collection
-const excessiveData = {
-  event: 'page_view',
-  user_agent: navigator.userAgent,
-  screen_resolution: screen.width + 'x' + screen.height,
-  installed_plugins: navigator.plugins,
-  // ... too much data
-};
-```
-
-### 2. Transparent Data Practices
-Be clear about data collection:
-
-```html
-<!-- Clear privacy notice -->
-<div class="privacy-notice">
-  We use cookieless analytics to understand how visitors use our site. 
-  No personal data is collected or stored.
-  <a href="/privacy">Learn more</a>
-</div>
-```
-
-### 3. Regular Data Audits
-Monitor your data collection:
-
-```javascript
-// Audit data collection
-function auditDataCollection() {
-  console.log('Data collected:', {
-    personal_data: false,
-    cookies_used: false,
-    third_party_requests: 0,
-    data_retention: '90 days'
-  });
-}
-```
-
-### 4. Performance Monitoring
-Ensure analytics don't impact performance:
-
-```javascript
-// Monitor analytics performance
-const observer = new PerformanceObserver((list) => {
-  for (const entry of list.getEntries()) {
-    if (entry.name.includes('analytics')) {
-      console.log('Analytics performance:', entry.duration);
-    }
-  }
-});
-observer.observe({ entryTypes: ['resource'] });
-```
+Cookieless collection does not bypass browser privacy protections or ad blockers. Network failures, consent decisions, storage restrictions, and tracking configuration can still affect counts.
 
 ## Migration to Cookieless Analytics
 
-### Step 1: Audit Current Setup
-- Identify all tracking cookies
-- Document data collection practices
-- Assess GDPR compliance gaps
-- Review third-party integrations
-
-### Step 2: Choose Cookieless Solution
-- **Databuddy**: Full-featured, easy migration
-- **Custom solution**: Maximum control, requires development
-- **Server-side GA4**: Limited features, complex setup
-
-### Step 3: Implement Parallel Tracking
-```html
-<!-- Run both systems during transition -->
-<script src="https://cdn.databuddy.cc/sdk.js" data-client-id="your-id"></script>
-<script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
-```
-
-### Step 4: Compare and Validate
-- Compare data accuracy
-- Validate key metrics
-- Test all tracking scenarios
-- Train team on new platform
-
-### Step 5: Complete Migration
-- Remove cookie-based tracking
-- Update privacy policy
-- Remove consent banners
-- Monitor performance
-
-## Future of Cookieless Analytics
-
-### Emerging Technologies
-- **Privacy Sandbox**: Google's cookie alternatives
-- **Server-side tracking**: Increased adoption
-- **Automated analysis**: Find important changes faster
-- **Edge computing**: Faster, more private processing
-
-### Industry Trends
-- **Privacy-first design**: Default approach
-- **Regulatory expansion**: More privacy laws
-- **Browser evolution**: Enhanced privacy features
-- **User expectations**: Greater privacy awareness
+1. Record the pageviews, events, conversions, and reports you need from your current setup.
+2. Install Databuddy and verify the actual requests and browser storage in developer tools.
+3. Compare the same time range and definitions in both tools. Session, visitor, bot, and attribution rules can differ.
+4. Review personal information in URLs, event properties, errors, and optional profiles. Update your privacy notice and consent behavior accordingly.
+5. Remove the old tracker when the replacement covers your requirements. Keep consent controls needed for any remaining collection.
 
 ## Frequently Asked Questions
 
-### Is cookieless analytics as accurate as cookie-based tracking?
-Often more accurate due to no ad-blocker interference and consent banner impact.
+### Do I need consent banners with cookieless analytics?
+
+Possibly. Rules can apply to browser storage and other tracking technologies as well as cookies. Audience-measurement exemptions have conditions and vary by jurisdiction. See [CNIL's guidance on analytics](https://www.cnil.fr/en/sheet-ndeg16-use-analytics-your-websites-and-applications) and our [consent and privacy guide](/docs/compliance/gdpr-compliance-guide).
+
+### Is cookieless analytics more accurate?
+
+There is no universal answer. Compare observed collection on your own site, using the same definitions and periods. A higher count alone does not prove better accuracy.
 
 ### Can I still track conversions without cookies?
-Yes, using first-party data and session-based attribution methods.
 
-### Do I need consent banners with cookieless analytics?
-No, if no personal data is collected, consent banners aren't required under GDPR.
+Yes. Record the relevant events and define goals or funnels. User identification is optional; choose it only when you need the additional profile context.
 
-### How does cookieless analytics handle returning visitors?
-Uses statistical modeling and behavioral patterns instead of individual tracking.
+### How are returning visitors recognized?
 
-### Can I integrate cookieless analytics with advertising platforms?
-Yes, through server-side integrations and first-party data sharing.
+The browser's stored visitor ID supports recognition. Clearing storage, switching devices, and visitor-ID anonymization settings can change the resulting counts.
 
-## Conclusion
+### Does Google Analytics support cookieless measurement?
 
-Cookieless analytics represents the future of web tracking. By adopting privacy-first analytics now, you can:
-
-- ✅ Ensure regulatory compliance
-- ✅ Improve data accuracy and quality
-- ✅ Enhance website performance
-- ✅ Build user trust and loyalty
-- ✅ Future-proof your analytics strategy
-
-Ready to go cookieless? Databuddy makes the transition simple and seamless.
-
-[Start your cookieless analytics journey →](https://app.databuddy.cc/register)
-
----
+GA4's advanced consent mode can send cookieless pings when consent is denied. Its basic mode blocks tags until consent is granted. These modes have different collection and modeling behavior; see [Google's consent-mode documentation](https://developers.google.com/tag-platform/security/concepts/consent-mode).

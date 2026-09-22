@@ -99,7 +99,6 @@ export function createDrizzleCache({
 				// Cache reads are best effort; run the source query on failure.
 			}
 
-			// Single-flight protection: wait for existing request
 			if (inflightRequests.has(cacheKey)) {
 				return inflightRequests.get(cacheKey) as Promise<T>;
 			}
@@ -134,14 +133,11 @@ export function createDrizzleCache({
 
 			const dependencyKeys = tables.map((table) => formatDependencyKey(table));
 
-			// Use SUNION to get all members from all dependency sets at once
 			const allMembers = await redis.sunion(...dependencyKeys);
 			const cacheKeysToDelete = allMembers.map((key) => formatCacheKey(key));
 
-			// Also delete reverse-index entries for affected logical keys
 			const byKeyIndexKeys = allMembers.map((key) => formatByKeyIndex(key));
 
-			// Delete dependency sets, cache keys, and reverse-index keys in one operation
 			const keysToDelete = [
 				...dependencyKeys,
 				...cacheKeysToDelete,
@@ -159,11 +155,9 @@ export function createDrizzleCache({
 
 			const tagKeys = tags.map((tag) => formatTagKey(tag));
 
-			// Use SUNION to get all members from all tag sets at once
 			const allMembers = await redis.sunion(...tagKeys);
 			const cacheKeysToDelete = allMembers.map((key) => formatCacheKey(key));
 
-			// Also delete reverse-index entries for affected logical keys
 			const byKeyIndexKeys = allMembers.map((key) => formatByKeyIndex(key));
 
 			// Delete tag sets, cache keys, and reverse-index keys in one operation
@@ -181,7 +175,6 @@ export function createDrizzleCache({
 			const cacheKey = formatCacheKey(key);
 			const byKeyIndexKey = formatByKeyIndex(key);
 
-			// Find all sets that contain this logical key
 			const containingSets = await redis.smembers(byKeyIndexKey);
 			if (containingSets.length > 0) {
 				await Promise.all(
@@ -189,7 +182,6 @@ export function createDrizzleCache({
 				);
 			}
 
-			// Remove cache entry and reverse index entry
 			await redis.unlink(cacheKey, byKeyIndexKey);
 		},
 

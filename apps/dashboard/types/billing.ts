@@ -1,4 +1,4 @@
-export interface DailyUsageRow {
+interface DailyUsageRow {
 	date: string;
 	event_count: number;
 }
@@ -9,7 +9,7 @@ export interface DailyUsageByTypeRow {
 	event_count: number;
 }
 
-export interface EventTypeBreakdown {
+interface EventTypeBreakdown {
 	event_category: string;
 	event_count: number;
 }

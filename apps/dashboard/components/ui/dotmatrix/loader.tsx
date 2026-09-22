@@ -1,49 +1,26 @@
 "use client";
 
-import { useId, type ComponentType } from "react";
-import * as circular from "./variants/circular";
-import * as square from "./variants/square";
-import * as triangle from "./variants/triangle";
+import { useId } from "react";
 import type { DotMatrixCommonProps } from "./core";
+import { DotmCircular1, DotmCircular8 } from "./variants/circular";
+import { DotmSquare1, DotmSquare3 } from "./variants/square";
+import { DotmTriangle1, DotmTriangle7 } from "./variants/triangle";
 import { cn } from "@/lib/utils";
 
-type DotMatrixComponent = ComponentType<DotMatrixCommonProps>;
-
-const VARIANT_COUNT = 20;
-const SHAPES = ["square", "circular", "triangle"] as const;
-type Shape = (typeof SHAPES)[number];
-
-const shapeModules: Record<Shape, Record<string, DotMatrixComponent>> = {
-	square,
-	circular,
-	triangle,
+const DOT_MATRIX_LOADERS = {
+	"dotm-square-1": DotmSquare1,
+	"dotm-square-3": DotmSquare3,
+	"dotm-circular-1": DotmCircular1,
+	"dotm-circular-8": DotmCircular8,
+	"dotm-triangle-1": DotmTriangle1,
+	"dotm-triangle-7": DotmTriangle7,
 };
 
-function buildLoaderName(shape: Shape, n: number) {
-	return `dotm-${shape}-${n}` as const;
-}
+export type DotMatrixLoaderName = keyof typeof DOT_MATRIX_LOADERS;
 
-function capitalize(s: string) {
-	return s[0]!.toUpperCase() + s.slice(1);
-}
-
-export const DOT_MATRIX_LOADER_NAMES = SHAPES.flatMap((shape) =>
-	Array.from({ length: VARIANT_COUNT }, (_, i) => buildLoaderName(shape, i + 1))
-);
-
-export type DotMatrixLoaderName = `dotm-${Shape}-${number}`;
-
-const DOT_MATRIX_LOADERS = Object.fromEntries(
-	SHAPES.flatMap((shape) =>
-		Array.from({ length: VARIANT_COUNT }, (_, i) => {
-			const n = i + 1;
-			const key = buildLoaderName(shape, n);
-			const component =
-				shapeModules[shape][`Dotm${capitalize(shape)}${n}`] as DotMatrixComponent;
-			return [key, component] as const;
-		})
-	)
-) as Record<DotMatrixLoaderName, DotMatrixComponent>;
+const DOT_MATRIX_LOADER_NAMES = Object.keys(
+	DOT_MATRIX_LOADERS
+) as DotMatrixLoaderName[];
 
 function hashLoaderSeed(seed: string): number {
 	let hash = 5381;

@@ -49,6 +49,7 @@ function Root({ className, error = false, ...rest }: RootProps) {
 function Label({ className, ...rest }: LabelHTMLAttributes<HTMLLabelElement>) {
 	const field = useContext(FieldCtx);
 	return (
+		// biome-ignore lint/a11y/noLabelWithoutControl: htmlFor binds to the id supplied by the Field provider
 		<label
 			className={cn(
 				"cursor-pointer select-none font-medium text-foreground text-xs",

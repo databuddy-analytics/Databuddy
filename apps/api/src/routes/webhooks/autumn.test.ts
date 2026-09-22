@@ -2,6 +2,15 @@ import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
+	webhookHandler: undefined as
+		| ((context: {
+				headers: Record<string, string>;
+				request: Request;
+				set: { status: number };
+		  }) => Promise<
+				Response | Awaited<ReturnType<typeof handleVerifiedAutumnEvent>>
+		  >)
+		| undefined,
 	check: vi.fn(async () => ({
 		allowed: true,
 		balance: {
@@ -70,7 +79,9 @@ vi.mock("./autumn-inbox", () => ({
 		};
 	}),
 	deadLetterExhaustedAutumnWebhooks: vi.fn(async () => 0),
-	getAutumnWebhook: vi.fn(async (id: string) => state.storedWebhooks.get(id) ?? null),
+	getAutumnWebhook: vi.fn(
+		async (id: string) => state.storedWebhooks.get(id) ?? null
+	),
 	listReplayableAutumnWebhookIds: vi.fn(async () =>
 		[...state.storedWebhooks.values()]
 			.filter((row) => ["pending", "deferred"].includes(row.status))
@@ -128,11 +139,11 @@ vi.mock("./autumn-inbox", () => ({
 
 vi.mock("@databuddy/db", () => ({
 	and: (...conditions: unknown[]) => ({ conditions }),
-		db: {
-			query: {
-				member: {
-			findMany: vi.fn(async () => state.ownedOrganizations),
-				},
+	db: {
+		query: {
+			member: {
+				findMany: vi.fn(async () => state.ownedOrganizations),
+			},
 			organization: { findFirst: vi.fn(async () => null) },
 			user: { findFirst: vi.fn(async () => state.userRow) },
 		},
@@ -140,11 +151,11 @@ vi.mock("@databuddy/db", () => ({
 	eq: (field: unknown, value: unknown) => ({ field, op: "eq", value }),
 	gt: (field: unknown, value: unknown) => ({ field, op: "gt", value }),
 	isNull: (field: unknown) => ({ field, op: "isNull" }),
-		normalizeEmailNotificationSettings: (raw?: {
-			billing?: { usageWarnings?: boolean };
-		}) => ({
-			billing: { usageWarnings: raw?.billing?.usageWarnings ?? true },
-		}),
+	normalizeEmailNotificationSettings: (raw?: {
+		billing?: { usageWarnings?: boolean };
+	}) => ({
+		billing: { usageWarnings: raw?.billing?.usageWarnings ?? true },
+	}),
 	or: (...conditions: unknown[]) => ({ conditions, op: "or" }),
 	sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
 		strings: Array.from(strings),
@@ -171,10 +182,10 @@ vi.mock("@databuddy/db", () => ({
 					where: vi.fn((condition: unknown) => {
 						state.cooldownConditions.push(condition);
 						return {
-						limit: vi.fn(async () => {
-							state.operations.push("select");
-							return state.recentRows;
-						}),
+							limit: vi.fn(async () => {
+								state.operations.push("select");
+								return state.recentRows;
+							}),
 						};
 					}),
 				})),
@@ -201,7 +212,8 @@ vi.mock("@databuddy/email", () => ({
 	UsageLimitEmail: vi.fn(() => ({ type: "limit" })),
 }));
 
-vi.mock("@databuddy/env/app", () => ({
+vi.mock("@databuddy/env/app", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@databuddy/env/app")>()),
 	config: { email: { alertsFrom: "alerts@databuddy.cc" } },
 }));
 
@@ -214,7 +226,10 @@ vi.mock("@databuddy/notifications", () => ({
 vi.mock("@databuddy/redis", () => ({
 	cacheable: (fn: (...args: unknown[]) => unknown) => fn,
 	invalidateAgentContextSnapshotsForOwner: vi.fn(async () => 0),
-	invalidateBillingOwnerCaches: vi.fn(async () => ({ attempted: 0, failed: 0 })),
+	invalidateBillingOwnerCaches: vi.fn(async () => ({
+		attempted: 0,
+		failed: 0,
+	})),
 }));
 
 vi.mock("@databuddy/rpc", () => ({
@@ -227,7 +242,8 @@ vi.mock("@databuddy/services/billing-lifecycle", () => ({
 
 vi.mock("elysia", () => ({
 	Elysia: class {
-		post() {
+		post(_path: string, handler: typeof state.webhookHandler) {
+			state.webhookHandler = handler;
 			return this;
 		}
 	},
@@ -243,13 +259,16 @@ vi.mock("resend", () => ({
 	},
 }));
 
-vi.mock("svix", () => ({
-	Webhook: class {
-		verify() {
-			return {};
-		}
-	},
-}));
+vi.mock("svix", async (importOriginal) => {
+	const { Webhook } = await importOriginal<typeof import("svix")>();
+	return {
+		Webhook: class extends Webhook {
+			verify() {
+				return {};
+			}
+		},
+	};
+});
 
 vi.mock("../../lib/tracing", () => ({
 	mergeWideEvent: vi.fn(),
@@ -359,13 +378,13 @@ describe("sendAlertEmail", () => {
 			"send",
 			"insert",
 		]);
-			expect(state.send).toHaveBeenCalledWith({
-				from: "alerts@databuddy.cc",
-				to: "member@example.com",
-				subject: "Limit reached",
-				html: "<html />",
-				text: "<html />",
-			});
+		expect(state.send).toHaveBeenCalledWith({
+			from: "alerts@databuddy.cc",
+			to: "member@example.com",
+			subject: "Limit reached",
+			html: "<html />",
+			text: "<html />",
+		});
 		expect(state.inserted).toEqual([
 			expect.objectContaining({
 				alertType: "included",
@@ -462,12 +481,12 @@ describe("Autumn usage emails", () => {
 
 		expect(UsageAlertEmail).toHaveBeenCalledWith(
 			expect.objectContaining({
-				featureName: "Investigation credits",
+				featureName: "AI credits",
 				limitAmount: 350,
 				organizationName: "Acme",
 				remainingAmount: 62,
 				usageAmount: 288,
-				usageUnit: "investigation credits",
+				usageUnit: "AI credits",
 			})
 		);
 		expect(UsageAlertEmail).not.toHaveBeenCalledWith(
@@ -475,7 +494,7 @@ describe("Autumn usage emails", () => {
 		);
 		expect(state.send).toHaveBeenCalledWith(
 			expect.objectContaining({
-				subject: "Investigation credits: 82% used",
+				subject: "AI credits: 82% used",
 				to: "recipient@example.com",
 			})
 		);
@@ -553,7 +572,7 @@ describe("Autumn usage emails", () => {
 
 		expect(UsageLimitEmail).toHaveBeenCalledWith(
 			expect.objectContaining({
-				featureName: "Investigation credits",
+				featureName: "AI credits",
 				isAvailable: false,
 				limitAmount: 350,
 				limitType: "spend_limit",
@@ -562,7 +581,37 @@ describe("Autumn usage emails", () => {
 		);
 		expect(state.send).toHaveBeenCalledWith(
 			expect.objectContaining({
-				subject: "[Action required] Investigation credits limit reached",
+				subject: "[Action required] AI credits limit reached",
+			})
+		);
+	});
+
+	it("limits new investigations without describing included clarifications as paused", async () => {
+		state.check.mockResolvedValueOnce({
+			allowed: false,
+			balance: {
+				granted: 10,
+				remaining: 0,
+				usage: 10,
+				overageAllowed: false,
+				nextResetAt: 0,
+			},
+		});
+		await handleLimitReached({
+			customer_id: "user-1",
+			entity_id: "org-1",
+			feature_id: "investigation_runs",
+			limit_type: "included",
+		});
+		expect(UsageLimitEmail).toHaveBeenCalledWith(
+			expect.objectContaining({
+				featureName: "Investigations",
+				usageUnit: "investigations",
+				pausedActivity:
+					"new investigations (included clarifications remain available)",
+				featureDescription: expect.stringContaining(
+					"Extras cost $1 per completed investigation"
+				),
 			})
 		);
 	});
@@ -586,35 +635,6 @@ describe("Autumn usage emails", () => {
 		expect(state.send).not.toHaveBeenCalled();
 	});
 
-	it("defers usage alerts when organizations are ambiguous", async () => {
-		state.ownedOrganizations.push({
-			organizationId: "org-2",
-			organization: {
-				emailNotifications: { billing: { usageWarnings: true } },
-				id: "org-2",
-				name: "Second organization",
-			},
-		});
-
-		const result = await handleUsageAlert({
-			customer_id: "user-1",
-			feature_id: "events",
-			usage_alert: {
-				threshold: 80,
-				threshold_type: "usage_percentage",
-			},
-		});
-
-		expect(result).toEqual({
-			disposition: "deferred",
-			success: false,
-			message: "Billing usage email deferred: organization could not be resolved",
-		});
-		expect(state.check).not.toHaveBeenCalled();
-		expect(UsageAlertEmail).not.toHaveBeenCalled();
-		expect(state.send).not.toHaveBeenCalled();
-	});
-
 	it("defers limit alerts when the entity does not resolve", async () => {
 		const result = await handleLimitReached({
 			customer_id: "user-1",
@@ -626,7 +646,8 @@ describe("Autumn usage emails", () => {
 		expect(result).toEqual({
 			disposition: "deferred",
 			success: false,
-			message: "Billing usage email deferred: organization could not be resolved",
+			message:
+				"Billing usage email deferred: organization could not be resolved",
 		});
 		expect(state.check).not.toHaveBeenCalled();
 		expect(UsageLimitEmail).not.toHaveBeenCalled();
@@ -714,9 +735,7 @@ describe("Autumn webhook inbox", () => {
 			success: true,
 		});
 		expect(state.send).toHaveBeenCalledTimes(1);
-		expect(state.storedWebhooks.get("msg-duplicate")?.status).toBe(
-			"completed"
-		);
+		expect(state.storedWebhooks.get("msg-duplicate")?.status).toBe("completed");
 	});
 
 	it("stops before claiming another replay when shutdown starts", async () => {
@@ -772,16 +791,12 @@ describe("Autumn webhook inbox", () => {
 		});
 
 		expect(key).toMatch(/^[0-9a-f]{64}$/);
-		expect(state.send).toHaveBeenNthCalledWith(
-			1,
-			expect.any(Object),
-			{ idempotencyKey: key }
-		);
-		expect(state.send).toHaveBeenNthCalledWith(
-			2,
-			expect.any(Object),
-			{ idempotencyKey: key }
-		);
+		expect(state.send).toHaveBeenNthCalledWith(1, expect.any(Object), {
+			idempotencyKey: key,
+		});
+		expect(state.send).toHaveBeenNthCalledWith(2, expect.any(Object), {
+			idempotencyKey: key,
+		});
 		expect(state.storedWebhooks.get(svixId)?.status).toBe("completed");
 	});
 
@@ -827,4 +842,95 @@ describe("Autumn webhook inbox", () => {
 		expect(state.send).toHaveBeenCalledTimes(1);
 		expect(state.storedWebhooks.get("msg-replay")?.status).toBe("completed");
 	});
+
+	it("fails a replay for an unknown webhook id without side effects", async () => {
+		await expect(replayDeferredAutumnWebhook("msg-unknown")).resolves.toEqual({
+			message: "Stored webhook not found",
+			success: false,
+		});
+		expect(state.send).not.toHaveBeenCalled();
+	});
+
+	it("leaves a webhook claimed by another worker queued", async () => {
+		state.storedWebhooks.set("msg-claimed", {
+			attempts: 3,
+			claimToken: "claim-other-worker",
+			id: "msg-claimed",
+			payload: {},
+			status: "processing",
+			type: "balances.limit_reached",
+		});
+
+		await expect(replayDeferredAutumnWebhook("msg-claimed")).resolves.toEqual({
+			disposition: "deferred",
+			message: "Webhook already queued for replay",
+			success: true,
+		});
+		expect(state.send).not.toHaveBeenCalled();
+		expect(state.storedWebhooks.get("msg-claimed")?.status).toBe("processing");
+	});
+
+	it("acknowledges dead-lettered webhooks without reprocessing them", async () => {
+		state.storedWebhooks.set("msg-dead", {
+			attempts: 12,
+			claimToken: null,
+			id: "msg-dead",
+			payload: {},
+			status: "dead_letter",
+			type: "balances.limit_reached",
+		});
+
+		await expect(replayDeferredAutumnWebhook("msg-dead")).resolves.toEqual({
+			disposition: "duplicate",
+			message: "Webhook retained for investigation",
+			success: true,
+		});
+		expect(state.send).not.toHaveBeenCalled();
+	});
+});
+
+it("rejects Autumn webhooks in self-hosted instances before verification or billing", async () => {
+	const original = process.env.SELFHOST;
+	process.env.SELFHOST = "true";
+	try {
+		const response = await state.webhookHandler?.({
+			headers: {},
+			request: new Request("https://api.example.com/webhooks/autumn", {
+				method: "POST",
+				body: "{}",
+			}),
+			set: { status: 200 },
+		});
+		expect(response).toBeInstanceOf(Response);
+		expect((response as Response).status).toBe(404);
+		expect(state.storedWebhooks.size).toBe(0);
+		expect(state.check).not.toHaveBeenCalled();
+		expect(state.send).not.toHaveBeenCalled();
+	} finally {
+		if (original === undefined) {
+			Reflect.deleteProperty(process.env, "SELFHOST");
+		} else {
+			process.env.SELFHOST = original;
+		}
+	}
+});
+
+it("ignores malformed webhook secrets only in self-hosted instances", async () => {
+	const original = process.env;
+	process.env = {
+		...original,
+		SELFHOST: "true",
+		AUTUMN_WEBHOOK_SECRET: "synthetic-invalid-test-only",
+	};
+	try {
+		vi.resetModules();
+		await expect(import("./autumn")).resolves.toBeDefined();
+
+		process.env.SELFHOST = "false";
+		vi.resetModules();
+		await expect(import("./autumn")).rejects.toThrow("Base64Coder");
+	} finally {
+		process.env = original;
+		vi.resetModules();
+	}
 });

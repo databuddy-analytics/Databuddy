@@ -62,7 +62,7 @@ const EMPTY_LINK_FOLDERS: LinkFolder[] = [];
 export type LinkSortOption = "newest" | "oldest" | "name-asc" | "name-desc";
 export type LinkTypeFilter = "all" | "short" | "deep";
 
-export const LINKS_PAGE_SIZE = 50;
+const LINKS_PAGE_SIZE = 50;
 
 export interface LinksPageParams {
 	folderId?: string | null;
@@ -399,33 +399,6 @@ export function useCreateLinkFolder() {
 			queryClient.invalidateQueries({
 				queryKey: foldersRootKey,
 			});
-		},
-	});
-}
-
-export function useUpdateLinkFolder() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.linkFolders.update.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: foldersRootKey,
-			});
-		},
-	});
-}
-
-export function useDeleteLinkFolder() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.linkFolders.delete.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: foldersRootKey,
-			});
-			queryClient.invalidateQueries({ queryKey: linksPaginatedRootKey });
 		},
 	});
 }

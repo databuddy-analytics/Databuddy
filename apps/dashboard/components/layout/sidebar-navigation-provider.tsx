@@ -1,7 +1,6 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import {
 	createContext,
@@ -13,8 +12,6 @@ import {
 	useState,
 } from "react";
 import { useWebsitesLight } from "@/hooks/use-websites";
-import { insightQueries } from "@/lib/insight-api";
-import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import {
 	getNavContext,
 	getNavDirection,
@@ -59,8 +56,6 @@ export function SidebarNavigationProvider({
 }) {
 	const { data: session } = authClient.useSession();
 	const user = session?.user ?? null;
-	const { activeOrganizationId, isSwitchingOrganization } =
-		useOrganizationsContext();
 
 	const pathname = usePathname();
 
@@ -81,13 +76,6 @@ export function SidebarNavigationProvider({
 	);
 
 	const navContext = getNavContext(pathname);
-	const recommendationTotal = useQuery(
-		insightQueries.recommendationTotal(
-			navContext === "main" && !isSwitchingOrganization
-				? (activeOrganizationId ?? undefined)
-				: undefined
-		)
-	);
 	const prevContextRef = useRef<NavContext>(navContext);
 	const [transitionDirection, setTransitionDirection] = useState<
 		"left" | "right" | null
@@ -104,29 +92,7 @@ export function SidebarNavigationProvider({
 		}
 	}, [navContext]);
 
-	const navigation = useMemo(() => {
-		const baseNavigation = getNavigation(pathname);
-		const count = recommendationTotal.data ?? 0;
-		if (navContext !== "main" || isSwitchingOrganization || count === 0) {
-			return baseNavigation;
-		}
-
-		return baseNavigation.map((group) => ({
-			...group,
-			items: group.items.map((item) =>
-				item.href === "/insights"
-					? {
-							...item,
-							badge: {
-								label: `${count} current recommendation${count === 1 ? "" : "s"}`,
-								text: count > 99 ? "99+" : count.toString(),
-								variant: "red" as const,
-							},
-						}
-					: item
-			),
-		}));
-	}, [isSwitchingOrganization, navContext, pathname, recommendationTotal.data]);
+	const navigation = useMemo(() => getNavigation(pathname), [pathname]);
 
 	const currentWebsiteId = isWebsite || isDemo ? websiteId : undefined;
 

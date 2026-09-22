@@ -2,13 +2,14 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Section from "@/components/landing/section";
 import { Button } from "@databuddy/ui";
+import { flush, track } from "@databuddy/sdk";
 import { cn } from "@/lib/utils";
 
 export {
-	CELL_TITLE_CLASS,
 	EASE,
 	TH,
 	TH_RIGHT,
@@ -131,6 +132,7 @@ export function FeatureHero({
 	primaryHref = "https://app.databuddy.cc/register",
 	docsHref = "/docs",
 	badge,
+	footnote = "Free up to 10,000 events/mo. No credit card required.",
 }: {
 	title: string;
 	subtitle: string;
@@ -138,7 +140,10 @@ export function FeatureHero({
 	primaryHref?: string;
 	docsHref?: string;
 	badge?: ReactNode;
+	footnote?: string | null;
 }) {
+	const pathname = usePathname();
+
 	return (
 		<Section className="border-border border-b" id="hero">
 			<div className={container}>
@@ -152,12 +157,26 @@ export function FeatureHero({
 					</p>
 					<div className="flex items-center gap-3 pt-1">
 						<Button asChild>
-							<a href={primaryHref}>{primaryLabel}</a>
+							<a
+								href={primaryHref}
+								onClick={() => {
+									track("signup_cta_clicked", {
+										page: pathname?.split("/").filter(Boolean)[0] ?? "home",
+										placement: "hero",
+									});
+									flush();
+								}}
+							>
+								{primaryLabel}
+							</a>
 						</Button>
 						<Button asChild variant="secondary">
 							<Link href={docsHref}>Read Docs</Link>
 						</Button>
 					</div>
+					{footnote ? (
+						<p className="text-muted-foreground/60 text-xs">{footnote}</p>
+					) : null}
 				</div>
 			</div>
 		</Section>

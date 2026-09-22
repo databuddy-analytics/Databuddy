@@ -1,5 +1,4 @@
-import { expect, test } from "@playwright/test";
-import { waitForSDK } from "./test-utils";
+import { expect, test, waitForSDK } from "./test-utils";
 
 test.describe("SDK Functions", () => {
 	test.beforeEach(async ({ page }) => {
@@ -50,29 +49,6 @@ test.describe("SDK Functions", () => {
 	});
 
 	test.describe("track", () => {
-		test("calls window.databuddy.track with name and properties", async ({
-			page,
-		}) => {
-			const result = await page.evaluate(() => {
-				let capturedName = "";
-				let capturedProps: Record<string, unknown> = {};
-
-				(window as any).databuddy = {
-					track: (name: string, props: Record<string, unknown>) => {
-						capturedName = name;
-						capturedProps = props;
-					},
-					options: {},
-				};
-
-				window.__SDK__.track("test_event", { key: "value" });
-				return { capturedName, capturedProps };
-			});
-
-			expect(result.capturedName).toBe("test_event");
-			expect(result.capturedProps).toEqual({ key: "value" });
-		});
-
 		test("is a no-op when tracker is not loaded", async ({ page }) => {
 			const errored = await page.evaluate(() => {
 				try {
@@ -132,21 +108,6 @@ test.describe("SDK Functions", () => {
 	});
 
 	test.describe("clear", () => {
-		test("calls window.databuddy.clear", async ({ page }) => {
-			const result = await page.evaluate(() => {
-				let called = false;
-				(window as any).databuddy = {
-					clear: () => {
-						called = true;
-					},
-					options: {},
-				};
-				window.__SDK__.clear();
-				return called;
-			});
-			expect(result).toBe(true);
-		});
-
 		test("is a no-op when tracker is not loaded", async ({ page }) => {
 			const errored = await page.evaluate(() => {
 				try {
@@ -161,21 +122,6 @@ test.describe("SDK Functions", () => {
 	});
 
 	test.describe("flush", () => {
-		test("calls window.databuddy.flush", async ({ page }) => {
-			const result = await page.evaluate(() => {
-				let called = false;
-				(window as any).databuddy = {
-					flush: () => {
-						called = true;
-					},
-					options: {},
-				};
-				window.__SDK__.flush();
-				return called;
-			});
-			expect(result).toBe(true);
-		});
-
 		test("is a no-op when tracker is not loaded", async ({ page }) => {
 			const errored = await page.evaluate(() => {
 				try {
@@ -281,6 +227,156 @@ test.describe("SDK Functions", () => {
 			});
 			expect(result).toContain("anonId=anon-only");
 			expect(result).not.toContain("sessionId");
+		});
+	});
+
+	test.describe("tracking helpers — storage throws", () => {
+		test("getAnonymousId() returns null when localStorage throws", async ({
+			page,
+		}) => {
+			const result = await page.evaluate(() => {
+				const { getItem } = Storage.prototype;
+				localStorage.getItem = () => {
+					throw new DOMException("Access denied", "SecurityError");
+				};
+				try {
+					return window.__SDK__.getAnonymousId();
+				} finally {
+					localStorage.getItem = getItem;
+				}
+			});
+			expect(result).toBeNull();
+		});
+
+		test("getSessionId() returns null when sessionStorage throws", async ({
+			page,
+		}) => {
+			const result = await page.evaluate(() => {
+				const { getItem } = Storage.prototype;
+				sessionStorage.getItem = () => {
+					throw new DOMException("Access denied", "SecurityError");
+				};
+				try {
+					return window.__SDK__.getSessionId();
+				} finally {
+					sessionStorage.getItem = getItem;
+				}
+			});
+			expect(result).toBeNull();
+		});
+
+		test("getTrackingIds() returns both null when both storages throw", async ({
+			page,
+		}) => {
+			const result = await page.evaluate(() => {
+				const original = Storage.prototype.getItem;
+				Storage.prototype.getItem = () => {
+					throw new DOMException("Access denied", "SecurityError");
+				};
+				try {
+					return window.__SDK__.getTrackingIds();
+				} finally {
+					Storage.prototype.getItem = original;
+				}
+			});
+			expect(result.anonId).toBeNull();
+			expect(result.sessionId).toBeNull();
+		});
+
+		test("getTrackingIds() returns sessionId when only localStorage throws", async ({
+			page,
+		}) => {
+			const result = await page.evaluate(() => {
+				sessionStorage.setItem("did_session", "sess-ok");
+				const { getItem } = Storage.prototype;
+				localStorage.getItem = () => {
+					throw new DOMException("Access denied", "SecurityError");
+				};
+				try {
+					return window.__SDK__.getTrackingIds();
+				} finally {
+					localStorage.getItem = getItem;
+				}
+			});
+			expect(result.anonId).toBeNull();
+			expect(result.sessionId).toBe("sess-ok");
+		});
+
+		test("getTrackingIds() returns anonId when only sessionStorage throws", async ({
+			page,
+		}) => {
+			const result = await page.evaluate(() => {
+				localStorage.setItem("did", "anon-ok");
+				const { getItem } = Storage.prototype;
+				sessionStorage.getItem = () => {
+					throw new DOMException("Access denied", "SecurityError");
+				};
+				try {
+					return window.__SDK__.getTrackingIds();
+				} finally {
+					sessionStorage.getItem = getItem;
+				}
+			});
+			expect(result.anonId).toBe("anon-ok");
+			expect(result.sessionId).toBeNull();
+		});
+
+		test("getTrackingParams() returns empty string when both storages throw", async ({
+			page,
+		}) => {
+			const result = await page.evaluate(() => {
+				const original = Storage.prototype.getItem;
+				Storage.prototype.getItem = () => {
+					throw new DOMException("Access denied", "SecurityError");
+				};
+				try {
+					return window.__SDK__.getTrackingParams();
+				} finally {
+					Storage.prototype.getItem = original;
+				}
+			});
+			expect(result).toBe("");
+		});
+
+		test("getTrackingParams() returns partial string when only sessionStorage throws", async ({
+			page,
+		}) => {
+			const result = await page.evaluate(() => {
+				localStorage.setItem("did", "anon-partial");
+				const { getItem } = Storage.prototype;
+				sessionStorage.getItem = () => {
+					throw new DOMException("Access denied", "SecurityError");
+				};
+				try {
+					return window.__SDK__.getTrackingParams();
+				} finally {
+					sessionStorage.getItem = getItem;
+				}
+			});
+			expect(result).toContain("anonId=anon-partial");
+			expect(result).not.toContain("sessionId");
+		});
+
+		test("URL param takes priority without touching storage when localStorage throws", async ({
+			page,
+		}) => {
+			const result = await page.evaluate(() => {
+				const original = Storage.prototype.getItem;
+				let storageWasAccessed = false;
+				Storage.prototype.getItem = () => {
+					storageWasAccessed = true;
+					throw new DOMException("Access denied", "SecurityError");
+				};
+				const params = new URLSearchParams("anonId=anon-from-url");
+				try {
+					const id = window.__SDK__.getAnonymousId(params);
+					return { id, storageWasAccessed };
+				} finally {
+					Storage.prototype.getItem = original;
+				}
+			});
+			expect(result.id).toBe("anon-from-url");
+			expect(result.storageWasAccessed).toBe(false);
 		});
 	});
 

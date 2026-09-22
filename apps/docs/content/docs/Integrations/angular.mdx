@@ -25,6 +25,7 @@ The recommended method is to add the Databuddy tracking script directly to your 
       code={`<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="YOUR_CLIENT_ID"
+  crossorigin="anonymous"
   async
 ></script>`}
     />
@@ -54,6 +55,7 @@ The recommended method is to add the Databuddy tracking script directly to your 
   <script
     src="https://cdn.databuddy.cc/databuddy.js"
     data-client-id="YOUR_CLIENT_ID"
+    crossorigin="anonymous"
     async
   ></script>
 </head>
@@ -256,6 +258,7 @@ Enable additional tracking features by adding data attributes to your script tag
   data-track-interactions
   data-track-web-vitals
   data-track-errors
+  crossorigin="anonymous"
   async
 ></script>`}
 />
@@ -372,7 +375,7 @@ export class CustomErrorHandler implements ErrorHandler {
 
     // Track in Databuddy
     if (window.databuddy) {
-      window.databuddy.track('error', {
+      window.databuddy.track('app_error_caught', {
         error_message: error.message,
         error_stack: error.stack,
         page_path: window.location.pathname
@@ -426,18 +429,15 @@ Then use it in your `index.html`:
 <CodeBlock
   language="html"
   filename="src/index.html"
-  code={`<script>
-  // Set client ID based on environment
-  window.databuddyConfig = {
-    clientId: 'YOUR_CLIENT_ID' // Replace with environment variable or build-time replacement
-  };
-</script>
-<script
+  code={`<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="YOUR_CLIENT_ID"
+  crossorigin="anonymous"
   async
 ></script>`}
 />
+
+Use Angular's file replacements or a build-time templating step to substitute `YOUR_CLIENT_ID` per environment.
 
 ## Troubleshooting
 

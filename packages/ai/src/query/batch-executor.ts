@@ -22,6 +22,13 @@ interface BatchOptions {
 }
 
 const BATCH_GROUP_CONCURRENCY = 3;
+const LOGGED_QUERY_ERROR_MAX_LENGTH = 200;
+
+export function truncateQueryErrorForLog(text: string): string {
+	return text.length > LOGGED_QUERY_ERROR_MAX_LENGTH
+		? text.slice(0, LOGGED_QUERY_ERROR_MAX_LENGTH)
+		: text;
+}
 
 async function mapWithConcurrency<T, R>(
 	items: T[],
@@ -128,13 +135,6 @@ const SELECT_KEYWORD = "SELECT";
 const FROM_KEYWORD = "FROM";
 const WORD_BOUNDARY_BEFORE = /[\s(,]/;
 const WORD_BOUNDARY_AFTER = /\s/;
-
-/**
- * Replace string literals, quoted identifiers, and SQL comments with spaces of
- * the same length so byte offsets line up with the original. The result is
- * used only for structural scanning (keyword/paren/comma detection); columns
- * are sliced from the original SQL so identifiers stay intact.
- */
 function maskSqlNoise(sql: string): string {
 	const out = new Array<string>(sql.length);
 	let i = 0;
@@ -345,7 +345,7 @@ async function runSingle(
 			}
 
 			const error = e instanceof Error ? e.message : "Query failed";
-			mergeWideEvent({ query_error: error });
+			mergeWideEvent({ query_error: truncateQueryErrorForLog(error) });
 			return { type: req.type, data: [], error };
 		}
 	}
@@ -364,7 +364,9 @@ function groupBySchema(
 			continue;
 		}
 
-		const sig = getSchemaSignature(req.type, config) || `__solo_${req.type}`;
+		const sig = config.prepareSql
+			? `__staged_${req.type}_${index}`
+			: getSchemaSignature(req.type, config) || `__solo_${req.type}`;
 		const list = groups.get(sig) || [];
 		list.push({ index, req });
 		groups.set(sig, list);
@@ -457,7 +459,7 @@ export async function executeBatch(
 				return await resolveRequestTraitFilters(req);
 			} catch (e) {
 				const error = e instanceof Error ? e.message : "Trait filter failed";
-				mergeWideEvent({ query_error: error });
+				mergeWideEvent({ query_error: truncateQueryErrorForLog(error) });
 				traitFailures.set(index, { type: req.type, data: [], error });
 				return req;
 			}
@@ -499,7 +501,7 @@ export async function executeBatch(
 			opts
 		);
 		for (const failure of failures) {
-			mergeWideEvent({ query_error: failure.error });
+			mergeWideEvent({ query_error: truncateQueryErrorForLog(failure.error) });
 			results[failure.index] = {
 				type: failure.type,
 				data: [],
@@ -527,6 +529,7 @@ export async function executeBatch(
 			const rawRows = await chQuery(sql, params, {
 				abort_signal: opts?.abortSignal,
 				clickhouse_settings: getClickHouseQuerySettings(groupNoCache),
+				label: `batch:${[...new Set(compiledItems.map(({ req }) => req.type))].sort().join("+")}`,
 			});
 
 			mergeWideEvent({
@@ -549,8 +552,9 @@ export async function executeBatch(
 			}
 			return { unionCount: 1, singleCount: 0 };
 		} catch (error) {
-			const batchUnionError =
-				error instanceof Error ? error.message : "Union query failed";
+			const batchUnionError = (
+				error instanceof Error ? error.message : "Union query failed"
+			).slice(0, 300);
 			captureWarning(error, {
 				operation: "batch_union",
 				batch_types: compiledItems.map((g) => g.req.type).join(","),
@@ -562,8 +566,16 @@ export async function executeBatch(
 				batch_union_fallback: 1,
 				batch_union_error: batchUnionError,
 			});
-			for (const { index, req } of compiledItems) {
-				results[index] = await runSingle(req, opts);
+			const fallbackResults = await mapWithConcurrency(
+				compiledItems,
+				BATCH_GROUP_CONCURRENCY,
+				({ req }) => runSingle(req, opts)
+			);
+			for (const [i, { index }] of compiledItems.entries()) {
+				const fallback = fallbackResults[i];
+				if (fallback) {
+					results[index] = fallback;
+				}
 			}
 			return { unionCount: 0, singleCount: compiledItems.length };
 		}

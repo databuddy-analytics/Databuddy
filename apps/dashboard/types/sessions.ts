@@ -1,8 +1,4 @@
-export type SessionEventSource =
-	| "analytics"
-	| "custom"
-	| "error"
-	| "outgoing_link";
+type SessionEventSource = "analytics" | "custom" | "error" | "outgoing_link";
 
 export interface SessionEvent {
 	event_id: string;
@@ -13,7 +9,7 @@ export interface SessionEvent {
 	time: string;
 }
 
-export interface SessionWebVital {
+interface SessionWebVital {
 	metric_name: string;
 	metric_value: number;
 	path: string;
@@ -100,4 +96,4 @@ export type RawSessionEventTuple = [
 	SessionEventSource?,
 ];
 
-export type RawSessionWebVitalTuple = [string, number, string, string];
+type RawSessionWebVitalTuple = [string, number, string, string];

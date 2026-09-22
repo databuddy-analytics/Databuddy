@@ -1,11 +1,12 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { uptimeGranularitySchema } from "@databuddy/shared/uptime";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
@@ -22,19 +23,14 @@ const GRANULARITY_OPTIONS = [
 	{ value: "thirty_minutes", label: "30m" },
 	{ value: "hour", label: "1h" },
 	{ value: "six_hours", label: "6h" },
+	{ value: "twelve_hours", label: "12h" },
+	{ value: "day", label: "24h" },
 ] as const;
 
 const createSchema = z.object({
 	name: z.string().optional(),
 	url: z.string().url("Enter a valid URL (e.g. https://example.com)"),
-	granularity: z.enum([
-		"minute",
-		"five_minutes",
-		"ten_minutes",
-		"thirty_minutes",
-		"hour",
-		"six_hours",
-	]),
+	granularity: uptimeGranularitySchema,
 });
 
 type CreateFormData = z.infer<typeof createSchema>;
@@ -57,6 +53,7 @@ export function AddMonitorDialog({
 	const { activeOrganizationId, activeOrganization } =
 		useOrganizationsContext();
 	const resolvedOrgId = activeOrganization?.id ?? activeOrganizationId ?? "";
+	const queryClient = useQueryClient();
 
 	const [mode, setMode] = useState<Mode>("existing");
 	const [selectedScheduleId, setSelectedScheduleId] = useState("");
@@ -117,15 +114,23 @@ export function AddMonitorDialog({
 	};
 
 	const handleCreate = async (data: CreateFormData) => {
+		let scheduleId: string;
 		try {
 			const result = await createMutation.mutateAsync({
 				organizationId: resolvedOrgId,
 				url: data.url,
 				name: data.name || undefined,
 				granularity: data.granularity,
-				jsonParsingConfig: { enabled: true },
 			});
-			const scheduleId = result.scheduleId as string;
+			scheduleId = result.scheduleId;
+		} catch (error) {
+			const msg =
+				error instanceof Error ? error.message : "Failed to create monitor";
+			toast.error(msg);
+			return;
+		}
+
+		try {
 			await addMutation.mutateAsync({
 				statusPageId,
 				uptimeScheduleId: scheduleId,
@@ -133,10 +138,15 @@ export function AddMonitorDialog({
 			toast.success("Monitor created and added to status page");
 			onCompleteAction();
 			handleClose(false);
-		} catch (error) {
-			const msg =
-				error instanceof Error ? error.message : "Failed to create monitor";
-			toast.error(msg);
+		} catch {
+			queryClient.invalidateQueries({
+				queryKey: orpc.uptime.listSchedules.key(),
+			});
+			setMode("existing");
+			setSelectedScheduleId(scheduleId);
+			toast.error(
+				"Monitor created, but adding it to the page failed. Try adding it again."
+			);
 		}
 	};
 
@@ -163,7 +173,7 @@ export function AddMonitorDialog({
 							onClick={() => setMode("existing")}
 							type="button"
 						>
-							<ListIcon className="size-4" weight="duotone" />
+							<ListIcon className="size-4" />
 							Existing
 						</button>
 						<button
@@ -204,10 +214,7 @@ export function AddMonitorDialog({
 								>
 									{availableSchedules.length === 0 ? (
 										<div className="flex flex-col items-center gap-2 px-4 py-6 text-center">
-											<HeartbeatIcon
-												className="size-8 text-muted-foreground/40"
-												weight="duotone"
-											/>
+											<HeartbeatIcon className="size-8 text-muted-foreground/40" />
 											<p className="text-muted-foreground text-sm">
 												No available monitors.
 											</p>

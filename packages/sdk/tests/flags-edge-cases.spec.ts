@@ -1,8 +1,9 @@
-import { expect, test } from "@playwright/test";
 import {
 	MOCK_FLAG_DISABLED,
 	MOCK_FLAG_ENABLED,
+	expect,
 	getFlagRequestKeys,
+	test,
 	waitForSDK,
 } from "./test-utils";
 
@@ -72,7 +73,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 		expect(result.hasRemoteOnly).toBe(true);
 	});
 
-	test("getFlag(key, user): per-call user affects cache key", async ({
+	test("getFlag(key, user): per-call users get isolated cache entries outside the active context", async ({
 		page,
 	}) => {
 		await bulkOnlyRoute(page, (keys) =>
@@ -94,19 +95,27 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 				},
 			});
 
-			await manager.getFlag("shared-flag", { userId: "user-a" });
-			await manager.getFlag("shared-flag", { userId: "user-b" });
-			const mem = manager.getMemoryFlags();
+			const forUserA = await manager.getFlag("shared-flag", {
+				userId: "user-a",
+			});
+			const forUserB = await manager.getFlag("shared-flag", {
+				userId: "user-b",
+			});
+			const activeContextFlags = manager.getMemoryFlags();
 
 			manager.destroy();
 			return {
 				cacheKeysDiffer: kA !== kB,
-				memoryKeys: Object.keys(mem),
+				enabledForUserA: forUserA.enabled,
+				enabledForUserB: forUserB.enabled,
+				activeContextKeys: Object.keys(activeContextFlags),
 			};
 		});
 
 		expect(result.cacheKeysDiffer).toBe(true);
-		expect(result.memoryKeys).toContain("shared-flag");
+		expect(result.enabledForUserA).toBe(true);
+		expect(result.enabledForUserB).toBe(true);
+		expect(result.activeContextKeys).not.toContain("shared-flag");
 	});
 
 	test("in-flight dedup: parallel getFlag same key issues one bulk request", async ({
@@ -367,7 +376,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 		await page.evaluate(() => {
 			const w = window as unknown as { __tm: { destroy: () => void } };
 			w.__tm.destroy();
-			delete (window as unknown as { __tm?: unknown }).__tm;
+			(window as unknown as { __tm?: unknown }).__tm = undefined;
 		});
 	});
 
@@ -400,5 +409,148 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 		});
 
 		expect(result.rejected).toBe(true);
+	});
+
+	test("a rate-limited endpoint does not trigger one request per getFlag", async ({
+		page,
+	}) => {
+		let requests = 0;
+		await page.route("**/api.databuddy.cc/public/v1/flags/**", (route) => {
+			requests++;
+			return route.fulfill({
+				status: 429,
+				contentType: "application/json",
+				body: JSON.stringify({ flags: {}, count: 0, reason: "RATE_LIMITED" }),
+			});
+		});
+
+		await page.goto("/test");
+		await waitForSDK(page);
+
+		const rejections = await page.evaluate(async () => {
+			const SDK = window.__SDK__;
+			const manager = new SDK.BrowserFlagsManager({
+				config: { clientId: "rate-limited", autoFetch: false },
+			});
+			let count = 0;
+			for (let i = 0; i < 40; i++) {
+				try {
+					await manager.getFlag("some-flag");
+				} catch {
+					count++;
+				}
+			}
+			manager.destroy();
+			return count;
+		});
+
+		expect(rejections).toBe(40);
+		expect(requests).toBe(1);
+	});
+
+	test("waits the server's Retry-After instead of the default backoff", async ({
+		page,
+	}) => {
+		let requests = 0;
+		await page.route("**/api.databuddy.cc/public/v1/flags/**", (route) => {
+			requests++;
+			return route.fulfill({
+				status: 429,
+				headers: {
+					"retry-after": "1",
+					"access-control-allow-origin": "*",
+					"access-control-expose-headers": "Retry-After",
+				},
+				contentType: "application/json",
+				body: JSON.stringify({ flags: {}, count: 0, reason: "RATE_LIMITED" }),
+			});
+		});
+
+		await page.goto("/test");
+		await waitForSDK(page);
+
+		await page.evaluate(async () => {
+			const SDK = window.__SDK__;
+			const manager = new SDK.BrowserFlagsManager({
+				config: { clientId: "retry-after", autoFetch: false },
+			});
+			const attempt = async () => {
+				try {
+					await manager.getFlag("some-flag");
+				} catch {
+					/* expected */
+				}
+			};
+			await attempt();
+			await attempt();
+			await new Promise((resolve) => setTimeout(resolve, 1200));
+			await attempt();
+			manager.destroy();
+		});
+
+		expect(requests).toBe(2);
+	});
+
+	test("retries again once the failure backoff expires", async ({ page }) => {
+		let requests = 0;
+		await page.route("**/api.databuddy.cc/public/v1/flags/**", (route) => {
+			requests++;
+			return route.fulfill({ status: 500, body: "Internal Server Error" });
+		});
+
+		await page.goto("/test");
+		await waitForSDK(page);
+
+		await page.evaluate(async () => {
+			const SDK = window.__SDK__;
+			const manager = new SDK.BrowserFlagsManager({
+				config: { clientId: "backoff-recovery", autoFetch: false },
+			});
+			const attempt = async () => {
+				try {
+					await manager.getFlag("some-flag");
+				} catch {
+					/* expected */
+				}
+			};
+			await attempt();
+			await attempt();
+			await new Promise((resolve) => setTimeout(resolve, 5100));
+			await attempt();
+			manager.destroy();
+		});
+
+		expect(requests).toBe(2);
+	});
+
+	test("works when the anonymous id cannot be persisted", async ({ page }) => {
+		await bulkOnlyRoute(page, () => ({ x: MOCK_FLAG_ENABLED }));
+
+		await page.goto("/test");
+		await waitForSDK(page);
+
+		const result = await page.evaluate(async () => {
+			const originalGet = Storage.prototype.getItem;
+			const originalSet = Storage.prototype.setItem;
+			Storage.prototype.getItem = () => null;
+			Storage.prototype.setItem = () => {
+				throw new DOMException("QuotaExceededError", "QuotaExceededError");
+			};
+
+			const SDK = window.__SDK__;
+			const manager = new SDK.BrowserFlagsManager({
+				config: { clientId: "anon-fail", autoFetch: false },
+			});
+
+			const flag = await manager.getFlag("x");
+			manager.destroy();
+
+			Storage.prototype.getItem = originalGet;
+			Storage.prototype.setItem = originalSet;
+
+			return { enabled: flag.enabled };
+		});
+
+		expect(result.enabled).toBe(true);
 	});
 });

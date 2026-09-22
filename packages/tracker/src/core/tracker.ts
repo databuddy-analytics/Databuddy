@@ -1,12 +1,13 @@
 import { HttpClient, type HttpResult } from "./client";
 import type {
 	BaseEvent,
+	EngagementSpan,
 	ErrorSpan,
 	EventContext,
 	ProfileTraits,
-	TrackEventPayload,
 	TrackerOptions,
 	TrackerSendOutcome,
+	TrackEventPayload,
 	WebVitalEvent,
 } from "./types";
 import {
@@ -68,6 +69,21 @@ export class BaseTracker {
 	pageCount = 0;
 	lastPath = "";
 	interactionCount = 0;
+	clickCount = 0;
+	keyCount = 0;
+	scrollCount = 0;
+	rageClickCount = 0;
+	deadClickCount = 0;
+	formFieldCount = 0;
+	formSubmitCount = 0;
+	errorCount = 0;
+	copyCount = 0;
+	rageClickTarget = "";
+	deadClickTarget = "";
+	lastFormField = "";
+	firstInteractionAt = 0;
+	activeTimeMs = 0;
+	activeSince = 0;
 	maxScrollDepth = 0;
 	pageStartTime = Date.now();
 
@@ -78,6 +94,7 @@ export class BaseTracker {
 	batchQueue: BaseEvent[] = [];
 	vitalsQueue: WebVitalEvent[] = [];
 	errorsQueue: ErrorSpan[] = [];
+	engagementQueue: EngagementSpan[] = [];
 	trackQueue: TrackEventPayload[] = [];
 
 	// One meta entry per queue: holds timer/flushing state + flush config.
@@ -87,6 +104,7 @@ export class BaseTracker {
 		batch: QueueMeta;
 		vitals: QueueMeta;
 		errors: QueueMeta;
+		engagement: QueueMeta;
 		track: QueueMeta;
 	};
 
@@ -113,13 +131,6 @@ export class BaseTracker {
 			sdkVersion: "2.0.0",
 			...options,
 		};
-		if (
-			options.trackWebVitals === undefined &&
-			options.trackPerformance !== undefined
-		) {
-			this.options.trackWebVitals = options.trackPerformance;
-		}
-
 		const effectiveMaxRetries =
 			this.options.enableRetries === false ? 0 : (this.options.maxRetries ?? 3);
 
@@ -167,6 +178,17 @@ export class BaseTracker {
 				queryParam: "client_id",
 				retryAttempts: 0,
 				threshold: 10,
+			},
+			engagement: {
+				activeDeliveryGeneration: null,
+				activeItems: null,
+				timer: null,
+				flushing: false,
+				maxBatchSize: 20,
+				endpoint: "/engagement",
+				queryParam: "client_id",
+				retryAttempts: 0,
+				threshold: 1,
 			},
 			track: {
 				activeDeliveryGeneration: null,
@@ -444,6 +466,7 @@ export class BaseTracker {
 		this.trackQueue.length = 0;
 		this.vitalsQueue.length = 0;
 		this.errorsQueue.length = 0;
+		this.engagementQueue.length = 0;
 
 		for (const meta of Object.values(this._meta)) {
 			if (meta.timer) {
@@ -480,6 +503,7 @@ export class BaseTracker {
 			this.requeueActiveItems(this.trackQueue, this._meta.track),
 			this.requeueActiveItems(this.vitalsQueue, this._meta.vitals),
 			this.requeueActiveItems(this.errorsQueue, this._meta.errors),
+			this.requeueActiveItems(this.engagementQueue, this._meta.engagement),
 		].some(Boolean);
 
 		if (reclaimed) {
@@ -515,11 +539,12 @@ export class BaseTracker {
 		}
 
 		for (const [key, shouldPersist] of Object.entries(TRACKED_PARAMS)) {
-			const val = search.get(key) ?? (shouldPersist ? stored[key] : undefined);
-			if (val) {
-				params[key] = val;
+			const value =
+				search.get(key) ?? (shouldPersist ? stored[key] : undefined);
+			if (value) {
+				params[key] = value;
 				if (shouldPersist) {
-					persist[key] = val;
+					persist[key] = value;
 				}
 			}
 		}
@@ -762,6 +787,18 @@ export class BaseTracker {
 
 	flushErrors() {
 		return this._flushQueue(this.errorsQueue, this._meta.errors);
+	}
+
+	sendEngagement(span: EngagementSpan): Promise<TrackerSendOutcome> {
+		if (this.shouldSkipTracking()) {
+			return Promise.resolve({ ok: true, status: "skipped", count: 0 });
+		}
+		this._enqueue(this.engagementQueue, this._meta.engagement, span);
+		return Promise.resolve({ ok: true, status: "queued", count: 1 });
+	}
+
+	flushEngagement() {
+		return this._flushQueue(this.engagementQueue, this._meta.engagement);
 	}
 
 	trackEvent(

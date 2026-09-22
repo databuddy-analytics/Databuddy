@@ -50,10 +50,7 @@ function SettingsSection({
 		<div className="overflow-hidden rounded-md border border-border/60">
 			<Accordion onOpenChange={onOpenChange} open={isOpen}>
 				<Accordion.Trigger>
-					<Icon
-						className="size-4 shrink-0 text-muted-foreground"
-						weight="duotone"
-					/>
+					<Icon className="size-4 shrink-0 text-muted-foreground" />
 					<span className="font-semibold text-sm">{title}</span>
 					{badge ? <span className="ml-auto">{badge}</span> : null}
 				</Accordion.Trigger>
@@ -94,10 +91,7 @@ export function RevenueSettingsSheet({
 		isError: isConfigError,
 		isLoading,
 		refetch: refetchConfig,
-	} = useQuery({
-		queryKey: ["revenue-config", websiteId],
-		queryFn: () => orpc.revenue.get.call({ websiteId }),
-	});
+	} = useQuery(orpc.revenue.get.queryOptions({ input: { websiteId } }));
 	const savedCurrency = normalizeCurrencyCode(config?.currency);
 	const configuredCurrency =
 		typeof config?.currency === "string"
@@ -126,7 +120,7 @@ export function RevenueSettingsSheet({
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: ["revenue-config", websiteId],
+				queryKey: orpc.revenue.get.key({ input: { websiteId } }),
 			});
 			toast.success("Webhook URLs generated");
 		},
@@ -141,7 +135,7 @@ export function RevenueSettingsSheet({
 		}) => orpc.revenue.upsert.call({ websiteId, ...data }),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: ["revenue-config", websiteId],
+				queryKey: orpc.revenue.get.key({ input: { websiteId } }),
 			});
 			setStripeSecret("");
 			setPaddleSecret("");
@@ -155,7 +149,7 @@ export function RevenueSettingsSheet({
 		mutationFn: () => orpc.revenue.regenerateHash.call({ websiteId }),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: ["revenue-config", websiteId],
+				queryKey: orpc.revenue.get.key({ input: { websiteId } }),
 			});
 			toast.success("Webhook URLs regenerated");
 		},
@@ -195,10 +189,7 @@ export function RevenueSettingsSheet({
 				<Sheet.Header>
 					<div className="flex items-center gap-4">
 						<div className="flex size-11 items-center justify-center rounded border bg-secondary">
-							<CurrencyDollarIcon
-								className="size-5 text-primary"
-								weight="duotone"
-							/>
+							<CurrencyDollarIcon className="size-5 text-primary" />
 						</div>
 						<div>
 							<Sheet.Title className="text-lg">Revenue Tracking</Sheet.Title>
@@ -264,10 +255,7 @@ export function RevenueSettingsSheet({
 									<SettingsSection
 										badge={
 											webhookHash ? (
-												<CheckCircleIcon
-													className="size-4 text-success"
-													weight="duotone"
-												/>
+												<CheckCircleIcon className="size-4 text-success" />
 											) : undefined
 										}
 										icon={LinkIcon}
@@ -309,10 +297,7 @@ export function RevenueSettingsSheet({
 															{copiedStripeUrl ? (
 																<CheckIcon className="size-4 text-success" />
 															) : (
-																<ClipboardIcon
-																	className="size-4"
-																	weight="duotone"
-																/>
+																<ClipboardIcon className="size-4" />
 															)}
 														</Button>
 													</div>
@@ -348,10 +333,7 @@ export function RevenueSettingsSheet({
 															{copiedPaddleUrl ? (
 																<CheckIcon className="size-4 text-success" />
 															) : (
-																<ClipboardIcon
-																	className="size-4"
-																	weight="duotone"
-																/>
+																<ClipboardIcon className="size-4" />
 															)}
 														</Button>
 													</div>
@@ -394,10 +376,7 @@ export function RevenueSettingsSheet({
 									<SettingsSection
 										badge={
 											config?.stripeConfigured ? (
-												<CheckCircleIcon
-													className="size-4 text-success"
-													weight="duotone"
-												/>
+												<CheckCircleIcon className="size-4 text-success" />
 											) : undefined
 										}
 										icon={StripeLogoIcon}
@@ -437,12 +416,9 @@ export function RevenueSettingsSheet({
 														variant="ghost"
 													>
 														{showStripeSecret ? (
-															<EyeSlashIcon
-																className="size-4"
-																weight="duotone"
-															/>
+															<EyeSlashIcon className="size-4" />
 														) : (
-															<EyeIcon className="size-4" weight="duotone" />
+															<EyeIcon className="size-4" />
 														)}
 													</Button>
 												</div>
@@ -487,10 +463,7 @@ export function RevenueSettingsSheet({
 									<SettingsSection
 										badge={
 											config?.paddleConfigured ? (
-												<CheckCircleIcon
-													className="size-4 text-success"
-													weight="duotone"
-												/>
+												<CheckCircleIcon className="size-4 text-success" />
 											) : undefined
 										}
 										icon={CurrencyDollarIcon}
@@ -530,12 +503,9 @@ export function RevenueSettingsSheet({
 														variant="ghost"
 													>
 														{showPaddleSecret ? (
-															<EyeSlashIcon
-																className="size-4"
-																weight="duotone"
-															/>
+															<EyeSlashIcon className="size-4" />
 														) : (
-															<EyeIcon className="size-4" weight="duotone" />
+															<EyeIcon className="size-4" />
 														)}
 													</Button>
 												</div>

@@ -245,12 +245,23 @@ export function UtmBuilderDemo() {
 					</motion.div>
 				))}
 			</div>
-			<div className="rounded border border-border/30 bg-muted/20 px-3 py-2">
-				<div className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-					Result
+			<div className="space-y-2 rounded border border-border/30 bg-muted/20 px-3 py-2">
+				<div>
+					<div className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+						Short link
+					</div>
+					<div className="mt-1 font-mono text-foreground text-xs">
+						dby.sh/launch
+					</div>
 				</div>
-				<div className="mt-1 break-all font-mono text-foreground text-xs">
-					dby.sh/pricing<span className="text-muted-foreground">?{params}</span>
+				<div>
+					<div className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+						Destination
+					</div>
+					<div className="mt-1 break-all font-mono text-foreground text-xs">
+						yourapp.com/pricing
+						<span className="text-muted-foreground">?{params}</span>
+					</div>
 				</div>
 			</div>
 		</div>

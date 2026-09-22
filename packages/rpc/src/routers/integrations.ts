@@ -1,12 +1,22 @@
+import { successOutputSchema } from "../lib/schemas";
+import { auth } from "@databuddy/auth";
 import { and, desc, eq } from "@databuddy/db";
 import {
 	account,
+	githubIntegrations,
 	slackChannelBindings,
 	slackIntegrations,
 	websites,
 } from "@databuddy/db/schema";
 import type { WebsiteIntegrations } from "@databuddy/db/schema";
-import { invalidateSlackIntegrationCache } from "@databuddy/redis";
+import {
+	invalidateGithubIntegrationCache,
+	invalidateSlackIntegrationCache,
+} from "@databuddy/redis/cache-invalidation";
+import {
+	deleteInstallation,
+	getGithubTokenForOrg,
+} from "@databuddy/services/github-app";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import type { Context } from "../orpc";
@@ -18,20 +28,59 @@ import {
 } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 
+const TOKEN_EXPIRY_SKEW_MS = 60 * 1000;
+
 async function getUserProviderToken(
 	database: Context["db"],
 	userId: string,
 	providerId: string
 ): Promise<string | null> {
 	const [row] = await database
-		.select({ accessToken: account.accessToken })
+		.select({
+			accountId: account.id,
+			accessToken: account.accessToken,
+			accessTokenExpiresAt: account.accessTokenExpiresAt,
+			refreshToken: account.refreshToken,
+		})
 		.from(account)
 		.where(and(eq(account.userId, userId), eq(account.providerId, providerId)))
 		.limit(1);
-	return row?.accessToken ?? null;
+	if (!row) {
+		return null;
+	}
+
+	const expired =
+		row.accessTokenExpiresAt !== null &&
+		row.accessTokenExpiresAt.getTime() <= Date.now() + TOKEN_EXPIRY_SKEW_MS;
+	if (row.accessToken && !expired) {
+		return row.accessToken;
+	}
+	if (!row.refreshToken) {
+		return row.accessToken;
+	}
+
+	try {
+		const refreshed = await auth.api.getAccessToken({
+			body: {
+				accountId: row.accountId,
+				userId,
+			},
+		});
+		return refreshed.accessToken ?? null;
+	} catch {
+		return null;
+	}
 }
 
 const GITHUB_API = "https://api.github.com";
+
+const githubRepoListSchema = z.array(
+	z.object({
+		full_name: z.string(),
+		private: z.boolean(),
+		default_branch: z.string(),
+	})
+);
 
 function githubRequest(path: string, token: string): Promise<Response> {
 	return fetch(`${GITHUB_API}${path}`, {
@@ -90,8 +139,18 @@ const slackIntegrationOutputSchema = z.object({
 	channelBindings: z.array(slackChannelBindingOutputSchema),
 });
 
+const githubIntegrationOutputSchema = z.object({
+	id: z.string(),
+	accountLogin: z.string(),
+	accountType: z.string(),
+	status: z.enum(["active", "disabled"]),
+	createdAt: z.coerce.date(),
+	updatedAt: z.coerce.date(),
+});
+
 const listOutputSchema = z.object({
 	slack: z.array(slackIntegrationOutputSchema),
+	github: z.array(githubIntegrationOutputSchema),
 });
 
 const uninstallSlackInputSchema = z.object({
@@ -99,10 +158,11 @@ const uninstallSlackInputSchema = z.object({
 	integrationId: z.string().min(1),
 });
 
-const successOutputSchema = z.object({ success: z.literal(true) });
-
 export type SlackIntegrationOutput = z.infer<
 	typeof slackIntegrationOutputSchema
+>;
+export type GithubIntegrationOutput = z.infer<
+	typeof githubIntegrationOutputSchema
 >;
 
 export const integrationsRouter = {
@@ -143,9 +203,32 @@ export const integrationsRouter = {
 					.orderBy(desc(slackIntegrations.updatedAt));
 			} catch (error) {
 				if (isMissingSlackSchemaError(error)) {
-					return { slack: [] };
+					slackRows = [];
+				} else {
+					throw error;
 				}
-				throw error;
+			}
+
+			let githubRows: GithubIntegrationRow[];
+			try {
+				githubRows = await context.db
+					.select({
+						id: githubIntegrations.id,
+						accountLogin: githubIntegrations.accountLogin,
+						accountType: githubIntegrations.accountType,
+						status: githubIntegrations.status,
+						createdAt: githubIntegrations.createdAt,
+						updatedAt: githubIntegrations.updatedAt,
+					})
+					.from(githubIntegrations)
+					.where(eq(githubIntegrations.organizationId, input.organizationId))
+					.orderBy(desc(githubIntegrations.updatedAt));
+			} catch (error) {
+				if (isMissingGithubSchemaError(error)) {
+					githubRows = [];
+				} else {
+					throw error;
+				}
 			}
 
 			const slack = await Promise.all(
@@ -177,7 +260,65 @@ export const integrationsRouter = {
 				})
 			);
 
-			return { slack };
+			return { slack, github: githubRows };
+		}),
+
+	uninstallGitHub: trackedProcedure
+		.route({
+			description: "Disconnects a GitHub App installation.",
+			method: "POST",
+			path: "/integrations/uninstallGitHub",
+			summary: "Uninstall GitHub",
+			tags: ["Integrations"],
+		})
+		.input(
+			z.object({
+				organizationId: z.string().min(1),
+				integrationId: z.string().min(1),
+			})
+		)
+		.output(
+			z.object({
+				success: z.literal(true),
+				githubUninstalled: z.boolean(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await withWorkspace(context, {
+				organizationId: input.organizationId,
+				resource: "organization",
+				permissions: ["update"],
+			});
+
+			const [integration] = await context.db
+				.select({
+					id: githubIntegrations.id,
+					installationId: githubIntegrations.installationId,
+				})
+				.from(githubIntegrations)
+				.where(
+					and(
+						eq(githubIntegrations.id, input.integrationId),
+						eq(githubIntegrations.organizationId, input.organizationId)
+					)
+				)
+				.limit(1);
+
+			if (!integration) {
+				throw rpcError.notFound("GitHub integration", input.integrationId);
+			}
+
+			await context.db
+				.delete(githubIntegrations)
+				.where(eq(githubIntegrations.id, integration.id));
+
+			await invalidateGithubIntegrationCache(input.organizationId);
+
+			const githubUninstalled = await deleteInstallation(
+				integration.installationId
+			).catch(() => false);
+
+			return { success: true, githubUninstalled };
 		}),
 
 	uninstallSlack: trackedProcedure
@@ -281,11 +422,9 @@ export const integrationsRouter = {
 				resource: "website",
 				permissions: ["update"],
 			});
-			const token = await getUserProviderToken(
-				context.db,
-				context.user.id,
-				"github"
-			);
+			const token =
+				(await getGithubTokenForOrg(website.organizationId)) ??
+				(await getUserProviderToken(context.db, context.user.id, "github"));
 			if (!token) {
 				throw rpcError.badRequest(
 					"Connect GitHub with repository access before linking a repository."
@@ -416,13 +555,14 @@ export const integrationsRouter = {
 
 	listGitHubRepos: sessionProcedure
 		.route({
-			description: "Lists GitHub repos accessible to the current user.",
+			description:
+				"Lists GitHub repos accessible to the organization installation, falling back to the current user's linked account.",
 			method: "POST",
 			path: "/integrations/listGitHubRepos",
 			summary: "List GitHub repos",
 			tags: ["Integrations"],
 		})
-		.input(z.object({}))
+		.input(z.object({ organizationId: z.string().min(1).optional() }))
 		.output(
 			z.object({
 				repos: z.array(
@@ -434,24 +574,33 @@ export const integrationsRouter = {
 				),
 			})
 		)
-		.handler(async ({ context }) => {
-			const token = await getUserProviderToken(
-				context.db,
-				context.user.id,
-				"github"
-			);
+		.handler(async ({ context, input }) => {
+			let installationToken: string | null = null;
+			if (input.organizationId) {
+				await withWorkspace(context, {
+					organizationId: input.organizationId,
+					resource: "organization",
+					permissions: ["read"],
+				});
+				installationToken = await getGithubTokenForOrg(input.organizationId);
+			}
+
+			const token =
+				installationToken ??
+				(await getUserProviderToken(context.db, context.user.id, "github"));
 			if (!token) {
 				throw rpcError.badRequest(
 					"Connect GitHub with repository access before listing repositories."
 				);
 			}
 
+			const path = installationToken
+				? "/installation/repositories?per_page=100"
+				: "/user/repos?sort=pushed&direction=desc&per_page=50";
+
 			let res: Response;
 			try {
-				res = await githubRequest(
-					"/user/repos?sort=pushed&direction=desc&per_page=50",
-					token
-				);
+				res = await githubRequest(path, token);
 			} catch {
 				throw rpcError.badRequest("GitHub could not be reached. Try again.");
 			}
@@ -460,24 +609,21 @@ export const integrationsRouter = {
 				throw githubAccessError(res);
 			}
 
-			const data = await res.json();
-			if (!Array.isArray(data)) {
+			const body = await res.json().catch(() => null);
+			const parsed = githubRepoListSchema.safeParse(
+				installationToken ? body?.repositories : body
+			);
+			if (!parsed.success) {
 				throw rpcError.badRequest(
 					"GitHub returned an invalid repository list."
 				);
 			}
 
 			return {
-				repos: (
-					data as Array<{
-						full_name: string;
-						private: boolean;
-						default_branch: string;
-					}>
-				).map((r) => ({
-					fullName: r.full_name,
-					private: r.private,
-					defaultBranch: r.default_branch,
+				repos: parsed.data.map((repo) => ({
+					fullName: repo.full_name,
+					private: repo.private,
+					defaultBranch: repo.default_branch,
 				})),
 			};
 		}),
@@ -485,9 +631,16 @@ export const integrationsRouter = {
 
 type SlackIntegrationRow = Omit<SlackIntegrationOutput, "channelBindings">;
 type SlackChannelBindingRow = z.infer<typeof slackChannelBindingOutputSchema>;
+type GithubIntegrationRow = z.infer<typeof githubIntegrationOutputSchema>;
 
-function isMissingSlackSchemaError(error: unknown): boolean {
-	if (error instanceof Error && isMissingSlackSchemaError(error.cause)) {
+function isMissingRelationError(
+	error: unknown,
+	relationPrefix: string
+): boolean {
+	if (
+		error instanceof Error &&
+		isMissingRelationError(error.cause, relationPrefix)
+	) {
 		return true;
 	}
 
@@ -507,8 +660,14 @@ function isMissingSlackSchemaError(error: unknown): boolean {
 	const relation = typeof pgError.relation === "string" ? pgError.relation : "";
 	const message = typeof pgError.message === "string" ? pgError.message : "";
 	return (
-		relation.startsWith("slack_") ||
-		message.includes("slack_integrations") ||
-		message.includes("slack_channel_bindings")
+		relation.startsWith(relationPrefix) || message.includes(relationPrefix)
 	);
+}
+
+function isMissingGithubSchemaError(error: unknown): boolean {
+	return isMissingRelationError(error, "github_");
+}
+
+function isMissingSlackSchemaError(error: unknown): boolean {
+	return isMissingRelationError(error, "slack_");
 }

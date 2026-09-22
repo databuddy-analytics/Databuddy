@@ -52,10 +52,7 @@ export function DependencySelector({
 	if (selectableFlags.length === 0 && value.length === 0) {
 		return (
 			<div className="rounded-lg border border-dashed bg-accent/50 p-4 text-center">
-				<GitBranchIcon
-					className="mx-auto mb-2 size-6 text-muted-foreground"
-					weight="duotone"
-				/>
+				<GitBranchIcon className="mx-auto mb-2 size-6 text-muted-foreground" />
 				<p className="text-balance text-muted-foreground text-xs">
 					No other flags available to set as dependencies.
 				</p>
@@ -97,7 +94,7 @@ export function DependencySelector({
 										onClick={() => handleRemove(flag.key)}
 										type="button"
 									>
-										<XIcon className="size-3" weight="bold" />
+										<XIcon className="size-3" />
 									</button>
 								</motion.div>
 							);
@@ -157,7 +154,6 @@ export function DependencySelector({
 												<CheckCircleIcon
 													className="shrink-0 text-success"
 													size={14}
-													weight="fill"
 												/>
 											) : (
 												<CircleIcon

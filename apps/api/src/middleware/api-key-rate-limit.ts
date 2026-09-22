@@ -123,7 +123,6 @@ export function releaseApiKeyInFlight(
 }
 
 export interface EnforceApiKeyRateLimitOptions {
-	/** undefined means auth was not pre-resolved; null means it resolved without a key. */
 	apiKey?: ApiKeyRow | null;
 	dependencies?: ApiKeyAdmissionDependencies;
 }
@@ -196,12 +195,6 @@ export function enforceApiKeyInFlightLimit(
 		"Too many concurrent API key requests"
 	);
 }
-
-/**
- * Enforce an API key's configured distributed rolling-window limit after auth
- * resolution. Every presented key has already passed through the local
- * in-flight gate above.
- */
 export async function enforceApiKeyRateLimit(
 	request: Request,
 	setHeader: (name: string, value: string) => void,

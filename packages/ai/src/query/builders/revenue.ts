@@ -21,12 +21,19 @@ const REVENUE_FILTER_COLUMNS: Record<string, string> = {
 	referrer: "referrer_domain",
 	path: "entry_path",
 	provider: "revenue_provider",
+	product_id: "ifNull(product_id, '')",
+	product_name: "product_name",
 	type: "type",
 	currency: "currency",
 };
 
 const REVENUE_ALLOWED_FILTERS = ["currency", "provider", "type"];
-const REVENUE_OVERVIEW_ALLOWED_FILTERS = ["currency", "provider"];
+const REVENUE_OVERVIEW_ALLOWED_FILTERS = [
+	"currency",
+	"provider",
+	"product_id",
+	"product_name",
+];
 
 function fixedValueMatchesFilter(value: string, filter: Filter): boolean {
 	const values = (
@@ -622,11 +629,11 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			tags: ["revenue", "overview", "summary"],
 			output_fields: [
 				{ name: "currency", type: "string", label: "Currency" },
-				{ name: "total_revenue", type: "number", label: "Total Revenue" },
+				{ name: "total_revenue", type: "number", label: "Gross Revenue" },
 				{
 					name: "total_transactions",
 					type: "number",
-					label: "Total Transactions",
+					label: "Settled Transactions",
 				},
 				{ name: "refund_amount", type: "number", label: "Refund Amount" },
 				{ name: "refund_count", type: "number", label: "Refund Count" },
@@ -638,7 +645,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 				{
 					name: "subscription_count",
 					type: "number",
-					label: "Subscription Count",
+					label: "Subscription Transactions",
 				},
 				{ name: "sale_revenue", type: "number", label: "Sale Revenue" },
 				{ name: "sale_count", type: "number", label: "Sale Count" },
@@ -713,7 +720,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 				},
 			],
 			default_visualization: "metric",
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(() => ({
 			innerCte: {
@@ -912,7 +918,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "timeseries",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(() => ({
 			select: `SELECT
@@ -940,7 +945,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			tags: ["revenue", "provider"],
 			output_fields: REVENUE_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(() => ({
 			select: `SELECT
@@ -955,12 +959,14 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	revenue_by_product: {
 		meta: {
 			title: "Revenue by Product",
-			description: "Revenue breakdown by product.",
+			description:
+				"Gross settled revenue grouped by recorded name, ID and provider, excluding refunds. Names may be payment descriptions rather than catalog products; a limited table cannot establish absence.",
 			category: "Revenue",
 			tags: ["revenue", "product"],
 			output_fields: [
 				{ name: "name", type: "string", label: "Product" },
 				{ name: "product_id", type: "string", label: "Product ID" },
+				{ name: "provider", type: "string", label: "Provider" },
 				{ name: "currency", type: "string", label: "Currency" },
 				{ name: "revenue", type: "number", label: "Revenue" },
 				{ name: "transactions", type: "number", label: "Transactions" },
@@ -968,14 +974,14 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 				{ name: "percentage", type: "number", label: "Share", unit: "%" },
 			],
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
 				select: `SELECT
 				coalesce(product_name, 'Unknown') as name,
-				product_id,${REVENUE_METRICS}`,
-				groupBy: "product_name, product_id, currency",
+				product_id,
+				revenue_provider as provider,${REVENUE_METRICS}`,
+				groupBy: "revenue_provider, product_name, product_id, currency",
 				orderBy: "revenue DESC",
 				limit,
 			}),
@@ -993,7 +999,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			tags: ["revenue", "attribution"],
 			output_fields: REVENUE_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(() => ({
 			select: `SELECT
@@ -1013,7 +1018,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			tags: ["revenue", "country", "geo"],
 			output_fields: REVENUE_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
@@ -1038,7 +1042,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			tags: ["revenue", "region", "geo"],
 			output_fields: REVENUE_GEO_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
@@ -1064,7 +1067,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			tags: ["revenue", "city", "geo"],
 			output_fields: REVENUE_GEO_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
@@ -1090,7 +1092,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			tags: ["revenue", "browser"],
 			output_fields: REVENUE_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
@@ -1114,7 +1115,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			tags: ["revenue", "device"],
 			output_fields: REVENUE_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
@@ -1138,7 +1138,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			tags: ["revenue", "os"],
 			output_fields: REVENUE_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
@@ -1162,7 +1161,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			tags: ["revenue", "referrer"],
 			output_fields: REVENUE_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
@@ -1198,7 +1196,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			tags: ["revenue", "utm", "source"],
 			output_fields: REVENUE_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
@@ -1222,7 +1219,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			tags: ["revenue", "utm", "medium"],
 			output_fields: REVENUE_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
@@ -1246,7 +1242,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			tags: ["revenue", "utm", "campaign"],
 			output_fields: REVENUE_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
@@ -1270,7 +1265,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 			tags: ["revenue", "entry", "page"],
 			output_fields: REVENUE_BREAKDOWN_FIELDS,
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
@@ -1311,7 +1305,6 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 				{ name: "utm_campaign", type: "string", label: "UTM Campaign" },
 			],
 			default_visualization: "table",
-			version: "1.0",
 		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
@@ -1352,7 +1345,9 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> =
 				allowedFilters:
 					name === "revenue_overview"
 						? REVENUE_OVERVIEW_ALLOWED_FILTERS
-						: REVENUE_ALLOWED_FILTERS,
+						: name === "revenue_by_product"
+							? [...REVENUE_ALLOWED_FILTERS, "product_id", "product_name"]
+							: REVENUE_ALLOWED_FILTERS,
 			},
 		])
 	);

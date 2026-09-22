@@ -91,18 +91,6 @@ export const METRIC_COLORS = {
 		"#fefce8",
 		"from-yellow-500/20 to-yellow-600/5"
 	),
-	avg_fid: createColorSet(
-		"#8b5cf6",
-		"#7c3aed",
-		"#ede9fe",
-		"from-violet-500/20 to-violet-600/5"
-	),
-	p50_fid: createColorSet(
-		"#a855f7",
-		"#9333ea",
-		"#f3e8ff",
-		"from-purple-500/20 to-purple-600/5"
-	),
 	avg_inp: createColorSet(
 		"#ec4899",
 		"#db2777",
@@ -132,7 +120,6 @@ export const METRIC_COLORS = {
 export interface ChartDataRow {
 	avg_cls?: number;
 	avg_fcp?: number;
-	avg_fid?: number;
 	avg_inp?: number;
 	avg_lcp?: number;
 	avg_load_time?: number;
@@ -144,7 +131,6 @@ export interface ChartDataRow {
 	median_session_duration_formatted?: string;
 	p50_cls?: number;
 	p50_fcp?: number;
-	p50_fid?: number;
 	p50_inp?: number;
 	p50_lcp?: number;
 	p50_load_time?: number;
@@ -152,12 +138,11 @@ export interface ChartDataRow {
 	sessions?: number;
 	unique_visitors?: number;
 	visitors?: number;
-	/** Stable category for Recharts X-axis; usually rawDate (YYYY-MM-DD or hourly key) */
 	xKey?: string;
 	[key: string]: unknown;
 }
 
-export interface MetricConfig {
+interface MetricConfig {
 	category?: "analytics" | "performance" | "core_web_vitals";
 	color: string;
 	formatValue?: (value: number, row: ChartDataRow) => string;
@@ -168,7 +153,7 @@ export interface MetricConfig {
 	yAxisId: string;
 }
 
-export const formatPerformanceTime = (value: number): string => {
+const formatPerformanceTime = (value: number): string => {
 	if (!value || value === 0) {
 		return "N/A";
 	}
@@ -181,7 +166,7 @@ export const formatPerformanceTime = (value: number): string => {
 		: `${seconds.toFixed(1)}s`;
 };
 
-export const formatCLS = (value: number): string => {
+const formatCLS = (value: number): string => {
 	if (value === null || value === undefined || Number.isNaN(value)) {
 		return "N/A";
 	}
@@ -206,7 +191,7 @@ const createMetric = (
 	category,
 });
 
-export const ANALYTICS_METRICS: MetricConfig[] = [
+const ANALYTICS_METRICS: MetricConfig[] = [
 	createMetric("pageviews", "Pageviews", "pageviews", EyeIcon, (value) =>
 		formatLocaleNumber(value)
 	),
@@ -235,7 +220,7 @@ export const ANALYTICS_METRICS: MetricConfig[] = [
 	),
 ];
 
-export const PERFORMANCE_METRICS: MetricConfig[] = [
+const PERFORMANCE_METRICS: MetricConfig[] = [
 	createMetric(
 		"avg_load_time",
 		"Avg Load Time",
@@ -254,7 +239,7 @@ export const PERFORMANCE_METRICS: MetricConfig[] = [
 	),
 ];
 
-export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
+const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 	createMetric(
 		"avg_fcp",
 		"FCP (Avg)",
@@ -304,22 +289,6 @@ export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 		"core_web_vitals"
 	),
 	createMetric(
-		"avg_fid",
-		"FID (Legacy Avg)",
-		"avg_fid",
-		CursorClickIcon,
-		formatPerformanceTime,
-		"core_web_vitals"
-	),
-	createMetric(
-		"p50_fid",
-		"FID (Legacy P50)",
-		"p50_fid",
-		CursorClickIcon,
-		formatPerformanceTime,
-		"core_web_vitals"
-	),
-	createMetric(
 		"avg_inp",
 		"INP (Avg)",
 		"avg_inp",
@@ -337,7 +306,7 @@ export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 	),
 ];
 
-export const ERROR_METRICS: MetricConfig[] = [
+const ERROR_METRICS: MetricConfig[] = [
 	createMetric(
 		"total_errors",
 		"Total Errors",

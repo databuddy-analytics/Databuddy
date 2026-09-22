@@ -41,6 +41,7 @@ const MUTATION_METHOD_PREFIXES = [
 	"revoke",
 	"rotate",
 	"run",
+	"save",
 	"set",
 	"submit",
 	"test",
@@ -91,7 +92,12 @@ async function writeMutationAudit(
 	const errorCode = error ? getErrorCode(error) : undefined;
 	try {
 		await appendAuditEvent(context.db, organizationId, {
-			action: auditActions.RPC_MUTATION,
+			action:
+				path === "businessContext.save"
+					? auditActions.BUSINESS_CONTEXT_UPDATED
+					: path === "businessContext.restore"
+						? auditActions.BUSINESS_CONTEXT_RESTORED
+						: auditActions.RPC_MUTATION,
 			actor: getAuditActor(context),
 			metadata: errorCode ? { errorCode } : undefined,
 			operation: path,
@@ -123,10 +129,10 @@ export async function runAuditedMutation<T>(
 
 	try {
 		const result = await fn();
-		await writeMutationAudit(context, path, "success");
+		writeMutationAudit(context, path, "success");
 		return result;
 	} catch (error) {
-		await writeMutationAudit(context, path, getAuditOutcome(error), error);
+		writeMutationAudit(context, path, getAuditOutcome(error), error);
 		throw error;
 	}
 }

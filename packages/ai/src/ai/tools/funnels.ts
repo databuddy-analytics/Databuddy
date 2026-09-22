@@ -1,5 +1,6 @@
+import { analyticsCohortSchema } from "@databuddy/shared/analytics-filters";
 import { tool } from "ai";
-import dayjs from "dayjs";
+import { analyticsDateRangeSchema } from "@databuddy/validation";
 import { z } from "zod";
 import {
 	callRPCProcedure,
@@ -7,8 +8,19 @@ import {
 	getAppContext,
 	resolveToolWebsite,
 } from "./utils";
+import { resolveToolDateRange } from "./utils/context";
 
 const logger = createToolLogger("Funnels Tools");
+
+const funnelAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
+	funnelId: z.string(),
+	websiteId: z.string().optional(),
+	cohort: analyticsCohortSchema
+		.nullish()
+		.describe(
+			"Additional cohort filters, or null to measure the saved definition without extra filtering."
+		),
+});
 
 export function createFunnelTools() {
 	const listFunnelsTool = tool({
@@ -40,35 +52,24 @@ export function createFunnelTools() {
 
 	const getFunnelAnalyticsTool = tool({
 		description:
-			"Funnel step conversion and drop-offs for a chosen date range. Do not repeat an exact overall measurement already supplied by the caller.",
-		inputSchema: z.object({
-			funnelId: z.string(),
-			websiteId: z.string().optional(),
-			startDate: z.string().optional(),
-			endDate: z.string().optional(),
-		}),
+			"Funnel definition, measured dates and distinct visitor counts. savedDefinition is the saved configuration; measurement.definition includes read-time cohort filters. A filtered measurement alone does not establish a saved-definition change. Entrants match the first step; completions reach every ordered step within a 24-hour completion window. Final-step users are ordered-path completions, not all visitors to that page/event. These are visitors, not projects, occurrences or attempts. Optional cohort measures browser, device, country or campaign segments without editing the saved definition. Compare cohorts and periods with parallel calls. Omitted dates default to last 30 calendar days in the conversation timezone. Reuse matching verified measurements; remeasure stale or conflicting context.",
+		inputSchema: funnelAnalyticsInputSchema,
 		execute: async (
-			{ funnelId, websiteId: inputWebsiteId, startDate, endDate },
+			{ funnelId, websiteId: inputWebsiteId, startDate, endDate, cohort },
 			options
 		) => {
 			const context = getAppContext(options);
 			const { websiteId } = resolveToolWebsite(context, inputWebsiteId);
 			try {
-				if (startDate && !dayjs(startDate).isValid()) {
-					throw new Error(
-						"Start date must be in YYYY-MM-DD format (e.g., 2024-01-15)."
-					);
-				}
-				if (endDate && !dayjs(endDate).isValid()) {
-					throw new Error(
-						"End date must be in YYYY-MM-DD format (e.g., 2024-01-15)."
-					);
-				}
-
 				return await callRPCProcedure(
 					"funnels",
 					"getAnalytics",
-					{ funnelId, websiteId, startDate, endDate },
+					{
+						funnelId,
+						websiteId,
+						...resolveToolDateRange({ startDate, endDate }, context),
+						cohort: cohort ?? undefined,
+					},
 					context
 				);
 			} catch (error) {
@@ -88,35 +89,24 @@ export function createFunnelTools() {
 
 	const getFunnelAnalyticsByReferrerTool = tool({
 		description:
-			"Funnel analytics broken down by referrer/source. Shows which sources convert best.",
-		inputSchema: z.object({
-			funnelId: z.string(),
-			websiteId: z.string().optional(),
-			startDate: z.string().optional(),
-			endDate: z.string().optional(),
-		}),
+			"Distinct visitors entering the first funnel step and completing its ordered steps, within a 24-hour completion window, grouped by the visitor's earliest first-step referrer in the queried period. Counts are visitors, not projects or attempts. Omitted dates default to last 30 calendar days in the conversation timezone. Accepts one date range; compare periods with separate calls.",
+		inputSchema: funnelAnalyticsInputSchema,
 		execute: async (
-			{ funnelId, websiteId: inputWebsiteId, startDate, endDate },
+			{ funnelId, websiteId: inputWebsiteId, startDate, endDate, cohort },
 			options
 		) => {
 			const context = getAppContext(options);
 			const { websiteId } = resolveToolWebsite(context, inputWebsiteId);
 			try {
-				if (startDate && !dayjs(startDate).isValid()) {
-					throw new Error(
-						"Start date must be in YYYY-MM-DD format (e.g., 2024-01-15)."
-					);
-				}
-				if (endDate && !dayjs(endDate).isValid()) {
-					throw new Error(
-						"End date must be in YYYY-MM-DD format (e.g., 2024-01-15)."
-					);
-				}
-
 				return await callRPCProcedure(
 					"funnels",
 					"getAnalyticsByReferrer",
-					{ funnelId, websiteId, startDate, endDate },
+					{
+						funnelId,
+						websiteId,
+						...resolveToolDateRange({ startDate, endDate }, context),
+						cohort: cohort ?? undefined,
+					},
 					context
 				);
 			} catch (error) {

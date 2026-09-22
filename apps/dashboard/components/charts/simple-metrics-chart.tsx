@@ -21,9 +21,7 @@ interface SimpleMetricsChartProps {
 	height?: number;
 	isLoading?: boolean;
 	metrics: MetricConfig[];
-	/** When true, the last segment (incomplete period) uses a dashed stroke, matching the overview traffic trends chart. Applies to area and line, not bar. */
 	partialLastSegment?: boolean;
-	/** Area (default), line, or grouped bar. */
 	seriesKind?: ChartSeriesKind;
 	title?: string;
 }
@@ -72,7 +70,7 @@ export function SimpleMetricsChart({
 			<Chart.Content<SimpleChartReadyPayload>
 				emptyProps={{
 					description: "No samples in this range.",
-					icon: <ChartLineIcon weight="duotone" />,
+					icon: <ChartLineIcon />,
 					title: "No data",
 				}}
 				loading={<Chart.DefaultLoading height={height} />}

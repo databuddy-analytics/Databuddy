@@ -86,10 +86,3 @@ export function createDeepLinkFormSchema(app: DeepLinkApp) {
 export type DeepLinkFormData = z.infer<
 	ReturnType<typeof createDeepLinkFormSchema>
 >;
-
-export type ExpandedSection =
-	| "expiration"
-	| "devices"
-	| "utm"
-	| "social"
-	| null;

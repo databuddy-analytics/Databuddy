@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { createRedisModuleMock } from "../test-redis-mock";
 
 interface RedisEntry {
 	ttl: number;
@@ -17,13 +18,13 @@ const getSnapshotKey = (
 ) => `agent:context-snapshot:${organizationId ?? userId}:${websiteId}`;
 
 const mockRedisClient = {
-	get: vi.fn(async (key: string) => {
+	get: mock(async (key: string) => {
 		if (failGet) {
 			throw new Error("redis get failed");
 		}
 		return redisStore.get(key)?.value ?? null;
 	}),
-	setex: vi.fn(async (key: string, ttl: number, value: string) => {
+	setex: mock(async (key: string, ttl: number, value: string) => {
 		if (failSet) {
 			throw new Error("redis set failed");
 		}
@@ -32,11 +33,11 @@ const mockRedisClient = {
 	}),
 };
 
-const mockCaptureError = vi.fn(
+const mockCaptureError = mock(
 	(_error: unknown, _fields?: Record<string, string | number | boolean>) => {}
 );
 
-const mockEnrichAgentContext = vi.fn(
+const mockEnrichAgentContext = mock(
 	async (opts: {
 		organizationId: string | null;
 		userId: string;
@@ -47,158 +48,40 @@ const mockEnrichAgentContext = vi.fn(
 const passthroughCacheable = <T extends (...args: never[]) => unknown>(fn: T) =>
 	fn;
 
-vi.mock("@databuddy/auth", () => ({
+mock.module("@databuddy/auth", () => ({
 	auth: {},
 	websitesApi: {
-		hasPermission: vi.fn(async () => ({ success: true })),
+		hasPermission: mock(async () => ({ success: true })),
 	},
 }));
 
-vi.mock("@databuddy/redis", () => ({
-	AGENT_CONTEXT_SNAPSHOT_PREFIX: "agent:context-snapshot",
-	UPTIME_CHECK_JOB_NAME: "uptime-check",
-	UPTIME_JOB_OPTIONS: {},
-	UPTIME_JOB_TIMEOUT_MS: 60_000,
-	UPTIME_QUEUE_NAME: "uptime-checks",
-	INSIGHTS_DISPATCH_JOB_NAME: "insights-dispatch",
-	INSIGHTS_GENERATE_WEBSITE_JOB_NAME: "insights-generate-website",
-	INSIGHTS_JOB_OPTIONS: {},
-	INSIGHTS_JOB_TIMEOUT_MS: 120_000,
-	INSIGHTS_QUEUE_ENV_PREFIX: "INSIGHTS",
-	INSIGHTS_QUEUE_NAME: "insights-generation",
-	activeStreamKey: (id: string) => `active:${id}`,
-	appendStreamChunk: vi.fn(async () => undefined),
-	cacheNamespaces: {
-		agentTelemetryWebsiteExists: "agent-telemetry:website-exists",
-		apiKeyByHash: "api-key-by-hash",
-		apiKeyOwnerId: "api_key_owner_id",
-		billingOwner: "rpc:billing_owner",
-		flag: "flag",
-		flagsClient: "flags-client",
-		flagsDefinitions: "flags-definitions",
-		flagsUser: "flags-user",
-		mcpInsights: "mcp:insights",
-		memberRole: "rpc:member_role",
-		organizationOwner: "rpc:org_owner",
-		organizationRole: "rpc:org_role",
-		slackChannelBinding: "slack-channel-binding",
-		slackIntegrationByTeam: "slack-integration-by-team",
-		statusPage: "status-page",
-		userPreferences: "user-prefs",
-		websiteById: "website_by_id",
-		websiteCache: "website-cache",
-		websiteDomain: "website-domain",
-		websiteDomainsBatch: "website-domains-batch",
-		websiteWithOwner: "website_with_owner_v2",
-	},
-	cacheTags: {
-		billingOwner: (ownerId: string) => `billing-owner:${ownerId}`,
-		flagClient: (clientId: string) => `flag-client:${clientId}`,
-		flagKey: (clientId: string, flagKey: string) =>
-			`flag-key:${clientId}:${flagKey}`,
-		flagUser: (clientId: string, userId: string) =>
-			`flag-user:${clientId}:${userId}`,
-		organization: (organizationId: string) => `organization:${organizationId}`,
-		website: (websiteId: string) => `website:${websiteId}`,
-	},
-	cacheable: passthroughCacheable,
-	clearActiveStream: vi.fn(async () => undefined),
-	closeInsightsQueue: vi.fn(async () => undefined),
-	closeUptimeQueue: vi.fn(async () => undefined),
-	createDrizzleCache: () => ({}),
-	getActiveStream: vi.fn(async () => null),
-	getAgentContextSnapshotKey: getSnapshotKey,
-	getBullMQConnectionOptions: vi.fn(() => ({})),
-	getBullMQWorkerConnectionOptions: vi.fn(() => ({})),
-	getCachedLink: vi.fn(async () => null),
-	getCacheableKey: vi.fn(
-		(prefix: string, args: unknown[]) => `${prefix}:${JSON.stringify(args)}`
-	),
-	getLinkCacheKey: vi.fn((slug: string) => `link:${slug}`),
-	getRateLimitHeaders: vi.fn(() => ({})),
-	getInsightsQueue: vi.fn(() => ({})),
-	getRedisCache: () => mockRedisClient,
-	getUptimeQueue: vi.fn(() => ({})),
-	// Bun keeps this module mock active across later AI tests that import links RPC.
-	// Keep the full link-cache surface local so those tests never reach Redis.
-	abandonCachedLinkMutation: vi.fn(async () => true),
-	beginCachedLinkMutation: vi.fn(async () => ({
-		state: "acquired",
-		token: "test-token",
-	})),
-	finishCachedLinkMutation: vi.fn(async () => true),
-	invalidateAgentContextSnapshot: vi.fn(async () => 0),
-	invalidateAgentContextSnapshotsForOwner: vi.fn(async () => 0),
-	invalidateAgentContextSnapshotsForWebsite: vi.fn(async () => 0),
-	invalidateCacheableKey: vi.fn(async () => 0),
-	invalidateCacheablePattern: vi.fn(async () => 0),
-	invalidateCacheablePrefix: vi.fn(async () => 0),
-	invalidateCacheableTag: vi.fn(async () => 0),
-	invalidateCacheableTags: vi.fn(async () => ({ attempted: 0, failed: 0 })),
-	invalidateCacheableWithArgs: vi.fn(async () => 0),
-	invalidateBillingOwnerCaches: vi.fn(async () => ({
-		attempted: 0,
-		failed: 0,
-	})),
-	invalidateFlagReadCaches: vi.fn(async () => ({ attempted: 0, failed: 0 })),
-	invalidateInsightsCachesForOrganization: vi.fn(async () => ({
-		attempted: 0,
-		failed: 0,
-	})),
-	invalidateLinkCache: vi.fn(async () => undefined),
-	invalidateLinkCaches: vi.fn(async () => undefined),
-	invalidateOrganizationMembershipCaches: vi.fn(async () => ({
-		attempted: 0,
-		failed: 0,
-	})),
-	invalidateSlackChannelBindingCache: vi.fn(async () => undefined),
-	invalidateSlackIntegrationCache: vi.fn(async () => undefined),
-	invalidateStatusPageCache: vi.fn(async () => 0),
-	invalidateUserPreferencesCache: vi.fn(async () => undefined),
-	invalidateWebsiteReadCaches: vi.fn(async () => ({
-		attempted: 0,
-		failed: 0,
-	})),
-	enqueueInsightsResume: vi.fn(async () => "queued"),
-	insightsResumeJobId: (replyId: string) => `insights-reply-${replyId}`,
-	insightsWebsiteJobId: (runId: string, websiteId: string) =>
-		`insights-website-${runId}-${websiteId}`,
-	isClickRecorded: vi.fn(async () => false),
-	markStreamDone: vi.fn(async () => undefined),
-	ratelimit: vi.fn(async () => ({ success: true })),
-	readStreamHistory: vi.fn(async () => []),
-	redis: mockRedisClient,
-	setActiveStream: vi.fn(async () => undefined),
-	setCachedLink: vi.fn(async () => undefined),
-	setCachedLinkIfAbsent: vi.fn(async () => true),
-	setCachedLinkNotFound: vi.fn(async () => undefined),
-	setCachedLinkNotFoundIfAbsent: vi.fn(async () => true),
-	shouldRecordClick: vi.fn(async () => true),
-	shutdownRedis: vi.fn(async () => undefined),
-	streamBufferKey: (id: string) => `stream:${id}`,
-	uptimeImmediateJobId: (id: string) => `uptime:immediate:${id}`,
-	uptimeSchedulerId: (id: string) => `uptime:scheduler:${id}`,
-}));
+mock.module("@databuddy/redis", () =>
+	createRedisModuleMock({
+		cacheable: passthroughCacheable,
+		getAgentContextSnapshotKey: getSnapshotKey,
+		getRedisCache: () => mockRedisClient,
+		redis: mockRedisClient,
+	})
+);
 
-vi.mock("../../lib/supermemory", () => ({
-	formatMemoryForPrompt: vi.fn(() => ""),
-	forgetMemory: vi.fn(async () => ({ success: true })),
-	getMemoryContext: vi.fn(async () => null),
+mock.module("../../lib/supermemory", () => ({
+	formatMemoryForPrompt: mock(() => ""),
+	forgetMemory: mock(async () => ({ success: true })),
+	getMemoryContext: mock(async () => null),
 	isMemoryEnabled: () => memoryEnabled,
-	sanitizeMemoryContent: vi.fn((content: string) => content),
-	saveCuratedMemory: vi.fn(async () => ({ id: "memory-1" })),
-	searchMemories: vi.fn(async () => []),
-	storeAnalyticsSummary: vi.fn(async () => undefined),
-	storeConversation: vi.fn(async () => undefined),
+	sanitizeMemoryContent: mock((content: string) => content),
+	saveCuratedMemory: mock(async () => ({ id: "memory-1" })),
+	searchMemories: mock(async () => []),
+	storeConversation: mock(async () => undefined),
 }));
 
-vi.mock("../../lib/tracing", () => ({
+mock.module("../../lib/tracing", () => ({
 	captureError: mockCaptureError,
-	captureWarning: vi.fn(() => {}),
-	mergeWideEvent: vi.fn(() => {}),
+	captureWarning: mock(() => {}),
+	mergeWideEvent: mock(() => {}),
 }));
 
-vi.mock("../config/enrich-context", () => ({
+mock.module("../config/enrich-context", () => ({
 	enrichAgentContext: mockEnrichAgentContext,
 }));
 
@@ -222,12 +105,6 @@ beforeEach(() => {
 	mockRedisClient.setex.mockClear();
 	mockEnrichAgentContext.mockClear();
 	mockCaptureError.mockClear();
-});
-
-afterEach(() => {
-	failGet = false;
-	failSet = false;
-	memoryEnabled = true;
 });
 
 describe("shouldLoadMemoryContext", () => {

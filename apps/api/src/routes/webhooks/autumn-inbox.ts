@@ -25,7 +25,7 @@ const DEAD_LETTER_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 const RETRY_BASE_MS = 5 * 60 * 1000;
 const RETRY_MAX_MS = 6 * 60 * 60 * 1000;
 
-export const AUTUMN_WEBHOOK_LEASE_MS = 5 * 60 * 1000;
+const AUTUMN_WEBHOOK_LEASE_MS = 5 * 60 * 1000;
 export const AUTUMN_WEBHOOK_MAX_ATTEMPTS = 12;
 
 export interface StoredAutumnWebhook {

@@ -55,7 +55,4 @@ const activeSponsors = sponsors.filter((s) => !s.disabled);
 
 export const sponsorStats = {
 	totalSponsors: activeSponsors.length,
-	featuredSponsors: activeSponsors.filter(
-		(s) => s.tier === "platinum" || s.tier === "gold"
-	).length,
 };

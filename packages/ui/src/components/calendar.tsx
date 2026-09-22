@@ -8,11 +8,7 @@ import {
 	DayPicker,
 	getDefaultClassNames,
 } from "react-day-picker";
-import {
-	CaretDownIcon,
-	CaretLeftIcon,
-	CaretRightIcon,
-} from "./icons";
+import { CaretDownIcon, CaretLeftIcon, CaretRightIcon } from "./icons";
 
 type CalendarComponents = NonNullable<
 	ComponentProps<typeof DayPicker>["components"]
@@ -37,27 +33,12 @@ const CalendarChevron: NonNullable<CalendarComponents["Chevron"]> = ({
 	...props
 }) => {
 	if (orientation === "left") {
-		return (
-			<CaretLeftIcon
-				className={cn("size-3.5", className)}
-				{...props}
-			/>
-		);
+		return <CaretLeftIcon className={cn("size-3.5", className)} {...props} />;
 	}
 	if (orientation === "right") {
-		return (
-			<CaretRightIcon
-				className={cn("size-3.5", className)}
-				{...props}
-			/>
-		);
+		return <CaretRightIcon className={cn("size-3.5", className)} {...props} />;
 	}
-	return (
-		<CaretDownIcon
-			className={cn("size-3.5", className)}
-			{...props}
-		/>
-	);
+	return <CaretDownIcon className={cn("size-3.5", className)} {...props} />;
 };
 
 const CalendarWeekNumber: NonNullable<CalendarComponents["WeekNumber"]> = ({

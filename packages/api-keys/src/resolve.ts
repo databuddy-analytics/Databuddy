@@ -1,4 +1,4 @@
-import { db, eq, type InferSelectModel, sql } from "@databuddy/db";
+import { db, eq, type InferSelectModel } from "@databuddy/db";
 import { apikey } from "@databuddy/db/schema";
 import { cacheNamespaces, cacheable, redis } from "@databuddy/redis";
 import {
@@ -19,7 +19,7 @@ interface KeyMetadata {
 export const keys = createKeys({ prefix: "dbdy_", length: 48 });
 
 export const API_KEY_LOOKUP_TIMEOUT_MS = 5000;
-export const API_KEY_STATEMENT_TIMEOUT_MS = API_KEY_LOOKUP_TIMEOUT_MS;
+export const API_KEY_AUTH_CHALLENGE = 'Bearer realm="databuddy"';
 
 export type ApiKeyResolveOutcome =
 	| "ok"
@@ -38,13 +38,8 @@ type CachedResolveResult =
 
 const getCachedApiKeyByHash = cacheable(
 	async (keyHash: string): Promise<CachedResolveResult> => {
-		const key = await db.transaction(async (tx) => {
-			await tx.execute(
-				sql`SELECT set_config('statement_timeout', ${String(API_KEY_STATEMENT_TIMEOUT_MS)}, true)`
-			);
-			return tx.query.apikey.findFirst({
-				where: { keyHash },
-			});
+		const key = await db.query.apikey.findFirst({
+			where: { keyHash },
 		});
 		if (!key) {
 			return { outcome: "invalid", key: null };
@@ -61,7 +56,7 @@ const getCachedApiKeyByHash = cacheable(
 		return { outcome: "ok", key };
 	},
 	{
-		expireInSec: 30,
+		expireInSec: 300,
 		prefix: cacheNamespaces.apiKeyByHash,
 		queryTimeoutMs: API_KEY_LOOKUP_TIMEOUT_MS,
 	}
@@ -185,16 +180,9 @@ export async function getApiKeyFromHeader(
 	return result.key;
 }
 
-// ── Scope helpers ──────────────────────────────────────────────
-
 function getMeta(key: ApiKeyRow): KeyMetadata {
 	return (key.metadata as KeyMetadata) ?? {};
 }
-
-/**
- * Collects all effective scopes for an API key, merging top-level scopes
- * with per-resource scopes from metadata.
- */
 export function collectScopes(key: ApiKeyRow, resource?: string): string[] {
 	const scopes = new Set<string>(key.scopes);
 	const resources = getMeta(key).resources;
@@ -256,8 +244,6 @@ export function hasKeyAllScopes(
 	return hasAllScopes(collectScopes(key, resource), scopes);
 }
 
-// ── Website-specific helpers ───────────────────────────────────
-
 export function hasWebsiteScope(
 	key: ApiKeyRow | null,
 	websiteId: string,
@@ -265,12 +251,6 @@ export function hasWebsiteScope(
 ): boolean {
 	return hasKeyScope(key, required, `website:${websiteId}`);
 }
-
-/**
- * Checks a website scope only after binding the website to the key's workspace.
- * Resource metadata is user input, so its `website:<id>` key is not proof of
- * ownership by itself.
- */
 export function hasWebsiteScopeForOrganization(
 	key: ApiKeyRow | null,
 	website: { id: string; organizationId: string | null },

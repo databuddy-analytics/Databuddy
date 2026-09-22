@@ -522,7 +522,7 @@ export function ApiKeySheet({
 					<Sheet.Header>
 						<div className="flex items-start gap-3">
 							<div className="flex size-8 items-center justify-center rounded-md bg-primary/10">
-								<KeyIcon className="text-primary" size={14} weight="fill" />
+								<KeyIcon className="text-primary" size={14} />
 							</div>
 							<div className="min-w-0 flex-1">
 								<div className="flex items-center gap-2">
@@ -556,11 +556,7 @@ export function ApiKeySheet({
 							{newSecret && (
 								<div className="rounded-md border border-success/30 bg-success/5 p-3">
 									<div className="mb-2 flex items-center gap-1.5">
-										<CheckCircleIcon
-											className="text-success"
-											size={13}
-											weight="fill"
-										/>
+										<CheckCircleIcon className="text-success" size={13} />
 										<Text className="text-success" variant="label">
 											{isCreate ? "Secret key" : "New secret generated"}
 										</Text>
@@ -581,11 +577,7 @@ export function ApiKeySheet({
 												variant="ghost"
 											>
 												{isCopied ? (
-													<CheckCircleIcon
-														className="text-success"
-														size={13}
-														weight="fill"
-													/>
+													<CheckCircleIcon className="text-success" size={13} />
 												) : (
 													<CopyIcon size={13} />
 												)}
@@ -677,10 +669,7 @@ export function ApiKeySheet({
 								<SectionCard>
 									<Accordion onOpenChange={setExpiryOpen} open={expiryOpen}>
 										<Accordion.Trigger>
-											<ClockIcon
-												className="size-4 shrink-0 text-muted-foreground"
-												weight="duotone"
-											/>
+											<ClockIcon className="size-4 shrink-0 text-muted-foreground" />
 											<Text variant="label">
 												{isCreate ? "Expiry" : "Status & expiry"}
 											</Text>
@@ -735,10 +724,7 @@ export function ApiKeySheet({
 								<SectionCard>
 									<Accordion>
 										<Accordion.Trigger>
-											<ShieldCheckIcon
-												className="size-4 shrink-0 text-muted-foreground"
-												weight="duotone"
-											/>
+											<ShieldCheckIcon className="size-4 shrink-0 text-muted-foreground" />
 											<Text variant="label">Permissions</Text>
 											<Badge
 												className="ml-auto"
@@ -800,10 +786,7 @@ export function ApiKeySheet({
 											)}
 											{hasNoPermissions && (
 												<div className="mb-3 flex gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2">
-													<TriangleWarningIcon
-														className="mt-0.5 size-4 shrink-0 text-warning"
-														weight="duotone"
-													/>
+													<TriangleWarningIcon className="mt-0.5 size-4 shrink-0 text-warning" />
 													<Text tone="muted" variant="caption">
 														This key has no permissions selected and will not be
 														able to access API resources.
@@ -843,10 +826,7 @@ export function ApiKeySheet({
 								<SectionCard>
 									<Accordion>
 										<Accordion.Trigger>
-											<GlobeIcon
-												className="size-4 shrink-0 text-muted-foreground"
-												weight="duotone"
-											/>
+											<GlobeIcon className="size-4 shrink-0 text-muted-foreground" />
 											<Text variant="label">Website access</Text>
 											<Badge className="ml-auto" size="sm" variant="muted">
 												{websiteAccess.length > 0
@@ -886,10 +866,7 @@ export function ApiKeySheet({
 
 												{isLoadingWebsites ? (
 													<div className="flex items-center gap-2 rounded-md border border-border/60 border-dashed px-3 py-3">
-														<GlobeIcon
-															className="size-4 shrink-0 animate-pulse text-muted-foreground"
-															weight="duotone"
-														/>
+														<GlobeIcon className="size-4 shrink-0 animate-pulse text-muted-foreground" />
 														<Text tone="muted" variant="caption">
 															Loading websites…
 														</Text>
@@ -1000,10 +977,7 @@ export function ApiKeySheet({
 													</div>
 												) : (
 													<div className="flex items-center gap-2 rounded-md border border-border/60 border-dashed px-3 py-3">
-														<LockSimpleIcon
-															className="size-4 shrink-0 text-muted-foreground"
-															weight="duotone"
-														/>
+														<LockSimpleIcon className="size-4 shrink-0 text-muted-foreground" />
 														<Text tone="muted" variant="caption">
 															No websites in this organization yet.
 														</Text>
@@ -1017,10 +991,7 @@ export function ApiKeySheet({
 								<SectionCard>
 									<Accordion>
 										<Accordion.Trigger>
-											<GaugeIcon
-												className="size-4 shrink-0 text-muted-foreground"
-												weight="duotone"
-											/>
+											<GaugeIcon className="size-4 shrink-0 text-muted-foreground" />
 											<Text variant="label">Rate limit</Text>
 											<Badge
 												className="ml-auto"
@@ -1086,10 +1057,7 @@ export function ApiKeySheet({
 									<SectionCard tone="destructive">
 										<Accordion>
 											<Accordion.Trigger className="bg-destructive/5 hover:bg-destructive/10">
-												<TriangleWarningIcon
-													className="size-4 shrink-0 text-destructive"
-													weight="duotone"
-												/>
+												<TriangleWarningIcon className="size-4 shrink-0 text-destructive" />
 												<Text className="text-destructive" variant="label">
 													Destructive actions
 												</Text>

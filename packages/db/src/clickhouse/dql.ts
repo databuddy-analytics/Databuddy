@@ -1,10 +1,3 @@
-/**
- * DQL is a thin, read-only ClickHouse surface.
- *
- * Tenant isolation is enforced by the dedicated ClickHouse user, its exact
- * column grant, and a restrictive row policy. The small SQL guard only keeps
- * unpublished ClickHouse namespaces and dynamic sources out of the public API.
- */
 import { isIP } from "node:net";
 import {
 	ClickHouseError,

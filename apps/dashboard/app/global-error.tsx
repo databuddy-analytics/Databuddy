@@ -1,12 +1,6 @@
 "use client";
 
 import { Button } from "@databuddy/ui";
-
-/**
- * Root error boundary — must define its own <html> and <body> and cannot rely on
- * the root layout. Avoid `next/error` here: it expects Pages Router context and
- * breaks prerender (useContext) during `next build`.
- */
 export default function GlobalError({
 	error,
 	reset,

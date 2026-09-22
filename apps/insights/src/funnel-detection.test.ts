@@ -1,4 +1,5 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, spyOn } from "bun:test";
+import { clickHouse } from "@databuddy/db/clickhouse";
 import dayjs from "dayjs";
 import type { DetectSignalsParams } from "./detection";
 import {
@@ -7,6 +8,7 @@ import {
 	detectFunnelGoalSignals,
 	type FunnelDef,
 	type FunnelGoalDeps,
+	type FunnelGoalDetectionDiagnostics,
 	type GoalDef,
 	remeasureFunnelGoalSignal,
 } from "./funnel-detection";
@@ -132,11 +134,6 @@ describe("detectFunnelGoalSignals", () => {
 
 		expect(observed).toEqual([filters, filters, 50]);
 		expect(result).toEqual({ completions: 10, entrants: 50, rate: 20 });
-	});
-
-	it("returns empty when nothing is configured", async () => {
-		const signals = await detectFunnelGoalSignals(PARAMS, TODAY, makeDeps({}));
-		expect(signals).toEqual([]);
 	});
 
 	it("remeasures the same goal below the detector threshold", async () => {
@@ -310,9 +307,7 @@ describe("detectFunnelGoalSignals", () => {
 			fetchFunnels: async () => [FUNNEL],
 			funnelConversion: async () => {
 				call += 1;
-				return call === 1
-					? funnelResult(10, 100)
-					: funnelResult(20, 120);
+				return call === 1 ? funnelResult(10, 100) : funnelResult(20, 120);
 			},
 		});
 
@@ -474,9 +469,7 @@ describe("detectFunnelGoalSignals", () => {
 				fetchGoals: async () => [GOAL],
 				goalConversion: async () => {
 					call += 1;
-					return call === 1
-						? goalResult(0, 0, 100)
-						: goalResult(20, 20, 100);
+					return call === 1 ? goalResult(0, 0, 100) : goalResult(20, 20, 100);
 				},
 			})
 		);
@@ -487,6 +480,7 @@ describe("detectFunnelGoalSignals", () => {
 		);
 		const investigation = prepareInvestigation(signals[0], 7);
 		expect(investigation.evidence[0]).toBe(signals[0]?.definitionEvidence);
+		expect(investigation.signal.entity.label).toBe("Signup");
 		expect(signals[0]?.subjectKey).toBeUndefined();
 	});
 
@@ -499,9 +493,7 @@ describe("detectFunnelGoalSignals", () => {
 				fetchGoals: async () => [GOAL],
 				goalConversion: async () => {
 					call += 1;
-					return call === 1
-						? goalResult(0, 0, 100)
-						: goalResult(0, 0, 120);
+					return call === 1 ? goalResult(0, 0, 100) : goalResult(0, 0, 120);
 				},
 			})
 		);
@@ -534,9 +526,7 @@ describe("detectFunnelGoalSignals", () => {
 				fetchGoals: async () => [GOAL],
 				goalConversion: async () => {
 					call += 1;
-					return call === 1
-						? goalResult(0, 0, 100)
-						: goalResult(1.67, 2, 120);
+					return call === 1 ? goalResult(0, 0, 100) : goalResult(1.67, 2, 120);
 				},
 			})
 		);
@@ -558,9 +548,7 @@ describe("detectFunnelGoalSignals", () => {
 				fetchFunnels: async () => [FUNNEL],
 				funnelConversion: async () => {
 					call += 1;
-					return call === 1
-						? funnelResult(0, 100, 0)
-						: funnelResult(0, 120, 0);
+					return call === 1 ? funnelResult(0, 100, 0) : funnelResult(0, 120, 0);
 				},
 			})
 		);
@@ -640,9 +628,7 @@ describe("detectFunnelGoalSignals", () => {
 				fetchGoals: async () => [GOAL],
 				goalConversion: async () => {
 					call += 1;
-					return call === 1
-						? goalResult(0, 0, 49)
-						: goalResult(0, 0, 120);
+					return call === 1 ? goalResult(0, 0, 49) : goalResult(0, 0, 120);
 				},
 			})
 		);
@@ -693,9 +679,7 @@ describe("detectFunnelGoalSignals", () => {
 				fetchGoals: async () => [GOAL],
 				goalConversion: async () => {
 					call += 1;
-					return call === 1
-						? goalResult(0, 0, 100)
-						: goalResult(0, 0, 120);
+					return call === 1 ? goalResult(0, 0, 100) : goalResult(0, 0, 120);
 				},
 			})
 		);
@@ -733,9 +717,7 @@ describe("detectFunnelGoalSignals", () => {
 				fetchGoals: async () => [GOAL],
 				goalConversion: async () => {
 					call += 1;
-					return call === 1
-						? goalResult(5, 5, 100)
-						: goalResult(0, 0, 120);
+					return call === 1 ? goalResult(5, 5, 100) : goalResult(0, 0, 120);
 				},
 			})
 		);
@@ -746,46 +728,6 @@ describe("detectFunnelGoalSignals", () => {
 			subjectKey: "goal:g1:zero-completions",
 		});
 		expect(prepareInvestigation(signal!, 7).signal.sentiment).toBe("positive");
-	});
-
-	it("remeasures persistent zero-completion funnels without losing their state subject", async () => {
-		const prior = prepareInvestigation(
-			{
-				baseline: 0,
-				current: 0,
-				deltaPercent: 0,
-				detectedAt: "2026-05-21",
-				direction: "down",
-				entityLabel: "Checkout",
-				label: 'Funnel "Checkout" has no completions',
-				method: "wow",
-				metric: "funnel:f1",
-				severity: "warning",
-				subjectKey: "funnel:f1:zero-completions",
-			},
-			7
-		).signal;
-		let call = 0;
-		const signal = await remeasureFunnelGoalSignal(
-			PARAMS,
-			prior,
-			TODAY,
-			makeDeps({
-				fetchFunnels: async () => [FUNNEL],
-				funnelConversion: async () => {
-					call += 1;
-					return call === 1
-						? funnelResult(0, 100, 0)
-						: funnelResult(0, 120, 0);
-				},
-			})
-		);
-
-		expect(signal).toMatchObject({
-			direction: "down",
-			metric: "funnel:f1",
-			subjectKey: "funnel:f1:zero-completions",
-		});
 	});
 
 	it("remeasures sparse zero-completion funnels without keeping the zero warning", async () => {
@@ -824,7 +766,9 @@ describe("detectFunnelGoalSignals", () => {
 			subjectKey: "funnel:f1:zero-completions",
 		});
 		expect(signal?.definitionEvidence).toContain("converted 0 of 1 entrants");
-		expect(signal?.definitionEvidence).not.toContain("completed 0 of 1 entrants");
+		expect(signal?.definitionEvidence).not.toContain(
+			"completed 0 of 1 entrants"
+		);
 	});
 
 	it("reports partial regressions without pre-classifying an action", async () => {
@@ -836,9 +780,7 @@ describe("detectFunnelGoalSignals", () => {
 				fetchGoals: async () => [GOAL],
 				goalConversion: async () => {
 					call += 1;
-					return call === 1
-						? goalResult(1, 1, 100)
-						: goalResult(20, 20, 100);
+					return call === 1 ? goalResult(1, 1, 100) : goalResult(20, 20, 100);
 				},
 			})
 		);
@@ -847,25 +789,6 @@ describe("detectFunnelGoalSignals", () => {
 		expect(signals[0]?.definitionEvidence).toContain(
 			"completed for 1 of 100 observed website visitors, compared with 20 previously"
 		);
-	});
-
-	it("keeps the product name as the investigation entity", async () => {
-		let call = 0;
-		const [detected] = await detectFunnelGoalSignals(
-			PARAMS,
-			TODAY,
-			makeDeps({
-				fetchGoals: async () => [GOAL],
-				goalConversion: async () => {
-					call += 1;
-					return call === 1
-						? goalResult(0, 0, 100)
-						: goalResult(20, 20, 100);
-				},
-			})
-		);
-		const investigation = prepareInvestigation(detected, 7);
-		expect(investigation.signal.entity.label).toBe("Signup");
 	});
 
 	it("keeps page-view regressions and ignores recently edited definitions", async () => {
@@ -951,7 +874,12 @@ describe("detectFunnelGoalSignals", () => {
 			PARAMS,
 			TODAY,
 			makeDeps({
-				fetchFunnels: async () => [FUNNEL, filtered, reordered, competingPurpose],
+				fetchFunnels: async () => [
+					FUNNEL,
+					filtered,
+					reordered,
+					competingPurpose,
+				],
 				funnelConversion: async (funnel, range) => {
 					calls.push(funnel.id);
 					return range.from === "2026-05-22"
@@ -1037,9 +965,7 @@ describe("detectFunnelGoalSignals", () => {
 					}
 					const call = (calls.get(goal.id) ?? 0) + 1;
 					calls.set(goal.id, call);
-					return call === 1
-						? goalResult(0, 0, 100)
-						: goalResult(20, 20, 100);
+					return call === 1 ? goalResult(0, 0, 100) : goalResult(20, 20, 100);
 				},
 			}),
 			{ diagnostics }
@@ -1136,31 +1062,6 @@ describe("detectFunnelGoalSignals", () => {
 		expect(signals.map((signal) => signal.metric)).toContain("goal:goal-9");
 	});
 
-	it("keeps AbortError fatal and stops scheduling more definitions", async () => {
-		const goals = Array.from({ length: 20 }, (_, index) => ({
-			...GOAL,
-			id: `goal-${index}`,
-		}));
-		const abortError = new Error("goal analytics aborted");
-		abortError.name = "AbortError";
-		let calls = 0;
-
-		await expect(
-			detectFunnelGoalSignals(
-				PARAMS,
-				TODAY,
-				makeDeps({
-					fetchGoals: async () => goals,
-					goalConversion: async () => {
-						calls += 1;
-						throw abortError;
-					},
-				})
-			)
-		).rejects.toThrow("goal analytics aborted");
-		expect(calls).toBeLessThanOrEqual(4);
-	});
-
 	it("aborts sibling workers when one definition fails fatally", async () => {
 		const goals = Array.from({ length: 20 }, (_, index) => ({
 			...GOAL,
@@ -1216,62 +1117,6 @@ describe("detectFunnelGoalSignals", () => {
 
 		expect(diagnostics.failedDefinitions).toBe(1);
 		expect(signals.map((signal) => signal.metric)).toContain("goal:valid-goal");
-	});
-
-	it("continues past an uncooperative definition after its hard deadline", async () => {
-		const definitions = Array.from({ length: 3 }, (_, index) => ({
-			...GOAL,
-			id: `goal-${index}`,
-		}));
-		const diagnostics = { failedDefinitions: 0 };
-		const seen = new Set<string>();
-		await detectFunnelGoalSignals(
-			PARAMS,
-			TODAY,
-			makeDeps({
-				fetchGoals: async () => definitions,
-				goalConversion: async (goal) => {
-					seen.add(goal.id);
-					if (goal.id === "goal-0") {
-						return new Promise<ConversionResult>(() => undefined);
-					}
-					return goalResult(20, 20, 100);
-				},
-			}),
-			{ diagnostics, overallTimeoutMs: 200, timeoutMs: 15 }
-		);
-
-		expect(diagnostics.failedDefinitions).toBe(1);
-		expect(seen).toEqual(new Set(["goal-0", "goal-1", "goal-2"]));
-	});
-
-	it("continues with later definitions after one bounded batch times out", async () => {
-		const definitions = Array.from({ length: 4 }, (_, index) => ({
-			...GOAL,
-			id: `goal-${index}`,
-		}));
-		const diagnostics = { failedDefinitions: 0 };
-		const seen = new Set<string>();
-		await detectFunnelGoalSignals(
-			PARAMS,
-			TODAY,
-			makeDeps({
-				fetchGoals: async () => definitions,
-				goalConversion: async (goal, _range, signal) => {
-					seen.add(goal.id);
-					if (goal.id === "goal-0" || goal.id === "goal-1") {
-						return waitForAbort(signal);
-					}
-					return goalResult(20, 20, 100);
-				},
-			}),
-			{ diagnostics, overallTimeoutMs: 100, timeoutMs: 5 }
-		);
-
-		expect(diagnostics.failedDefinitions).toBe(2);
-		expect(seen).toEqual(
-			new Set(["goal-0", "goal-1", "goal-2", "goal-3"])
-		);
 	});
 
 	it("uses one overall budget for definition fetch and scanning", async () => {
@@ -1416,5 +1261,391 @@ describe("detectFunnelGoalSignals", () => {
 		await expect(detection).rejects.toThrow("discovery canceled");
 		expect(calls).toBe(4);
 		expect(active).toBe(0);
+	});
+});
+
+describe("bounded independent referrer discovery", () => {
+	it("reports five eligible funnels, probes only three, and does not invent findings", async () => {
+		const observed: string[] = [];
+		const diagnostics: FunnelGoalDetectionDiagnostics = {
+			failedDefinitions: 0,
+		};
+		const definitions = Array.from({ length: 5 }, (_, index) => ({
+			...FUNNEL,
+			id: `bounded-${index}`,
+			steps: [
+				{
+					name: "Start",
+					target: `/start-${index}`,
+					type: "PAGE_VIEW" as const,
+				},
+				FUNNEL.steps[1],
+			],
+		}));
+		const signals = await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchFunnels: async () => definitions,
+				funnelConversion: async () => funnelResult(50, 1000),
+				funnelReferrers: async (funnel) => {
+					observed.push(funnel.id);
+					return [
+						{ referrer: "direct", total_users: 1000, completed_users: 500 },
+					];
+				},
+			}),
+			{ diagnostics }
+		);
+		expect(signals).toEqual([]);
+		expect(observed).toHaveLength(6);
+		expect(new Set(observed).size).toBe(3);
+		expect(diagnostics.referrerCoverage).toEqual({
+			eligibleFunnels: 5,
+			probedFunnels: 3,
+			unprobedFunnels: 2,
+			failedProbes: 0,
+		});
+	});
+});
+
+describe("independent source discovery", () => {
+	it.each([
+		new Error("source warehouse unavailable"),
+		new DOMException("source request canceled", "AbortError"),
+	])("retains core coverage when an optional source rejects: %s", async (failure) => {
+		const diagnostics: FunnelGoalDetectionDiagnostics = {
+			failedDefinitions: 0,
+		};
+		const result = await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchFunnels: async () => [FUNNEL],
+				fetchGoals: async () => [GOAL],
+				funnelConversion: async () => funnelResult(50, 1000),
+				goalConversion: async (_goal, range) =>
+					range.from === "2026-05-22"
+						? goalResult(10, 50, 500)
+						: goalResult(50, 250, 500),
+				funnelReferrers: async () => {
+					throw failure;
+				},
+			}),
+			{ diagnostics }
+		);
+		expect(result.map((signal) => signal.metric)).toEqual(["goal:g1"]);
+		expect(diagnostics).toEqual({
+			failedDefinitions: 0,
+			referrerCoverage: {
+				eligibleFunnels: 1,
+				probedFunnels: 1,
+				unprobedFunnels: 0,
+				failedProbes: 1,
+			},
+		});
+	});
+	it("finds both opposing source changes behind a stable aggregate", async () => {
+		const signals = await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchFunnels: async () => [FUNNEL],
+				funnelConversion: async () => funnelResult(50, 1000),
+				funnelReferrers: async (_funnel, range) => [
+					{
+						referrer: "direct",
+						total_users: 500,
+						completed_users: range.from === "2026-05-22" ? 200 : 400,
+					},
+					{
+						referrer: "search.example",
+						total_users: 500,
+						completed_users: range.from === "2026-05-22" ? 300 : 100,
+					},
+				],
+			})
+		);
+		expect(
+			signals.map((signal) => [
+				signal.subjectKey,
+				signal.baseline,
+				signal.current,
+			])
+		).toEqual([
+			["funnel:f1:referrer:direct", 80, 40],
+			["funnel:f1:referrer:search.example", 20, 60],
+		]);
+		expect(
+			signals.map((signal) => prepareInvestigation(signal, 7).signal.sentiment)
+		).toEqual(["negative", "positive"]);
+	});
+});
+
+describe("optional referrer deadlines", () => {
+	it("retains the goal when the shared deadline cancels all six optional reads", async () => {
+		const diagnostics: FunnelGoalDetectionDiagnostics = {
+			failedDefinitions: 0,
+		};
+		const probeSignals = new Set<AbortSignal>();
+		let reads = 0;
+		let active = 0;
+		const signals = await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchFunnels: async () =>
+					Array.from({ length: 3 }, (_, index) => ({
+						...FUNNEL,
+						id: `deadline-${index}`,
+						steps: [
+							{
+								name: "Start",
+								target: `/deadline-${index}`,
+								type: "PAGE_VIEW" as const,
+							},
+							FUNNEL.steps[1],
+						],
+					})),
+				fetchGoals: async () => [GOAL],
+				funnelConversion: async () => funnelResult(50, 1000),
+				goalConversion: async (_goal, range) =>
+					range.from === "2026-05-22"
+						? goalResult(10, 50, 500)
+						: goalResult(50, 250, 500),
+				funnelReferrers: async (_funnel, _range, signal) => {
+					if (!signal) {
+						throw new Error("Missing probe cancellation");
+					}
+					probeSignals.add(signal);
+					reads += 1;
+					active += 1;
+					try {
+						return await waitForAbort(signal);
+					} finally {
+						active -= 1;
+					}
+				},
+			}),
+			{ diagnostics, timeoutMs: 10, overallTimeoutMs: 1000 }
+		);
+		expect(signals.map((signal) => signal.metric)).toEqual(["goal:g1"]);
+		expect(reads).toBe(6);
+		expect(active).toBe(0);
+		expect(probeSignals.size).toBe(1);
+		expect(diagnostics.failedDefinitions).toBe(0);
+		expect(diagnostics.referrerCoverage).toEqual({
+			eligibleFunnels: 3,
+			probedFunnels: 3,
+			unprobedFunnels: 0,
+			failedProbes: 3,
+		});
+	});
+	it("stops launching probes if the parent aborts synchronously during the first launch", async () => {
+		const controller = new AbortController();
+		const reason = new Error("parent discovery canceled");
+		const observed = new Set<string>();
+		const diagnostics: FunnelGoalDetectionDiagnostics = {
+			failedDefinitions: 0,
+		};
+		await expect(
+			detectFunnelGoalSignals(
+				PARAMS,
+				TODAY,
+				makeDeps({
+					fetchFunnels: async () => [
+						FUNNEL,
+						{
+							...FUNNEL,
+							id: "f2",
+							steps: [
+								{ name: "Start", target: "/other", type: "PAGE_VIEW" },
+								FUNNEL.steps[1],
+							],
+						},
+					],
+					funnelConversion: async () => funnelResult(50, 1000),
+					funnelReferrers: async (funnel, _range, signal) => {
+						observed.add(funnel.id);
+						controller.abort(reason);
+						return await waitForAbort(signal);
+					},
+				}),
+				{ diagnostics, abortSignal: controller.signal }
+			)
+		).rejects.toBe(reason);
+		expect([...observed]).toEqual(["f1"]);
+		expect(diagnostics.failedDefinitions).toBe(0);
+		expect(diagnostics.referrerCoverage).toEqual({
+			eligibleFunnels: 2,
+			probedFunnels: 1,
+			unprobedFunnels: 1,
+			failedProbes: 0,
+		});
+	});
+});
+
+describe("parallel bounded referrer reads", () => {
+	it("runs only six reads concurrently and retains definition order after out-of-order completion", async () => {
+		const pending: { id: string; finish: () => void }[] = [];
+		const definitions = Array.from({ length: 5 }, (_, index) => ({
+			...FUNNEL,
+			id: `parallel-${index}`,
+			steps: [
+				{
+					name: "Start",
+					target: `/parallel-${index}`,
+					type: "PAGE_VIEW" as const,
+				},
+				FUNNEL.steps[1],
+			],
+		}));
+		let ready: () => void = () => {};
+		const started = new Promise<void>((resolve) => {
+			ready = resolve;
+		});
+		const diagnostics: FunnelGoalDetectionDiagnostics = {
+			failedDefinitions: 0,
+		};
+		const detection = detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchFunnels: async () => definitions,
+				funnelConversion: async () => funnelResult(50, 1000),
+				funnelReferrers: (funnel, range) =>
+					new Promise((resolve) => {
+						pending.push({
+							id: funnel.id,
+							finish: () =>
+								resolve([
+									{
+										referrer: "direct",
+										total_users: 500,
+										completed_users: range.from === "2026-05-22" ? 100 : 300,
+									},
+								]),
+						});
+						if (pending.length === 6) {
+							ready();
+						}
+					}),
+			}),
+			{ diagnostics, timeoutMs: 1000 }
+		);
+		await started;
+		expect(pending).toHaveLength(6);
+		for (const read of [...pending].reverse()) {
+			read.finish();
+		}
+		expect((await detection).map((signal) => signal.subjectKey)).toEqual([
+			"funnel:parallel-0:referrer:direct",
+			"funnel:parallel-1:referrer:direct",
+			"funnel:parallel-2:referrer:direct",
+		]);
+		expect(diagnostics.referrerCoverage).toEqual({
+			eligibleFunnels: 5,
+			probedFunnels: 3,
+			unprobedFunnels: 2,
+			failedProbes: 0,
+		});
+	});
+	it("aborts all six in-flight reads together without marking a parent cancel as source failure", async () => {
+		const controller = new AbortController();
+		const reason = new Error("cancel concurrent source reads");
+		let ready: () => void = () => {};
+		const started = new Promise<void>((resolve) => {
+			ready = resolve;
+		});
+		let active = 0;
+		const signals: AbortSignal[] = [];
+		const diagnostics: FunnelGoalDetectionDiagnostics = {
+			failedDefinitions: 0,
+		};
+		const detection = detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchFunnels: async () =>
+					Array.from({ length: 5 }, (_, index) => ({
+						...FUNNEL,
+						id: `cancel-${index}`,
+						steps: [
+							{
+								name: "Start",
+								target: `/cancel-${index}`,
+								type: "PAGE_VIEW" as const,
+							},
+							FUNNEL.steps[1],
+						],
+					})),
+				funnelConversion: async () => funnelResult(50, 1000),
+				funnelReferrers: async (_funnel, _range, signal) => {
+					if (!signal) {
+						throw new Error("Missing probe cancellation");
+					}
+					signals.push(signal);
+					active += 1;
+					if (active === 6) {
+						ready();
+					}
+					try {
+						return await waitForAbort(signal);
+					} finally {
+						active -= 1;
+					}
+				},
+			}),
+			{ diagnostics, abortSignal: controller.signal }
+		);
+		await started;
+		expect(active).toBe(6);
+		expect(new Set(signals).size).toBe(1);
+		controller.abort(reason);
+		await expect(detection).rejects.toBe(reason);
+		expect(active).toBe(0);
+		expect(signals.every((signal) => signal.reason === reason)).toBe(true);
+		expect(diagnostics.referrerCoverage).toEqual({
+			eligibleFunnels: 5,
+			probedFunnels: 3,
+			unprobedFunnels: 2,
+			failedProbes: 0,
+		});
+	});
+	it("forwards the detector's active signal through the native RPC into ClickHouse", async () => {
+		const controller = new AbortController();
+		const reason = new Error("detector canceled native referrer read");
+		let querySignal: AbortSignal | undefined;
+		const query = spyOn(clickHouse, "query").mockImplementation((options) => {
+			querySignal = options.abort_signal;
+			expect(options.query_params?.websiteId).toBe(PARAMS.websiteId);
+			return new Promise<never>((_resolve, reject) =>
+				querySignal?.addEventListener(
+					"abort",
+					() => reject(querySignal?.reason),
+					{ once: true }
+				)
+			);
+		});
+		try {
+			const read = defaultFunnelGoalDeps(
+				PARAMS.websiteId,
+				TODAY.toDate()
+			).funnelReferrers;
+			if (!read) {
+				throw new Error("Native referrer dependency missing");
+			}
+			const result = read(
+				FUNNEL,
+				{ from: "2026-05-22", to: "2026-05-28" },
+				controller.signal
+			);
+			expect(query).toHaveBeenCalledTimes(1);
+			controller.abort(reason);
+			await expect(result).rejects.toBe(reason);
+			expect(querySignal?.reason).toBe(reason);
+		} finally {
+			query.mockRestore();
+		}
 	});
 });

@@ -6,6 +6,13 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { parseUptimeGranularity } from "@databuddy/shared/uptime";
+import {
+	deriveMonitorFreshness,
+	deriveMonitorStatus,
+	normalizeCheckTimestamp,
+	type MonitorStatus,
+} from "@databuddy/shared/uptime-status";
 import { MonitorDetailLoading } from "@/app/(main)/monitors/_components/monitor-detail-loading";
 import { TopBar } from "@/components/layout/top-bar";
 import { MonitorSheet } from "@/components/monitors/monitor-sheet";
@@ -31,6 +38,7 @@ import {
 	PencilIcon,
 	PlayIcon,
 	TrashIcon,
+	WarningIcon,
 } from "@databuddy/ui/icons";
 import { DeleteDialog } from "@databuddy/ui/client";
 import {
@@ -65,48 +73,78 @@ const granularityLabels: Record<string, string> = {
 	day: "Daily",
 };
 
-interface ScheduleData {
-	cacheBust: boolean;
-	cron: string;
-	granularity: string;
-	id: string;
-	isPaused: boolean;
-	isPublic: boolean;
-	jsonParsingConfig?: { enabled: boolean } | null;
-	name: string | null;
-	organizationId: string;
-	schedulerStatus: string;
-	timeout: number | null;
-	url: string;
-	website?: {
-		id: string;
-		name: string | null;
-		domain: string;
-	} | null;
-	websiteId: string | null;
+function resolveStatus(
+	check: RecentActivityCheck | undefined,
+	granularity: string
+): MonitorStatus {
+	if (!check) {
+		return "unknown";
+	}
+	const freshness = deriveMonitorFreshness(
+		check.timestamp,
+		parseUptimeGranularity(granularity)
+	);
+	return deriveMonitorStatus({
+		lastStatus: check.status,
+		lastHttpCode: check.http_code,
+		freshness,
+	});
 }
 
-function resolveStatus(check: RecentActivityCheck | undefined) {
-	if (!check) {
-		return "unknown" as const;
+const SSL_WARN_DAYS = 14;
+
+function resolveSslExpiry(
+	check: RecentActivityCheck | undefined
+): { daysLeft: number } | null {
+	const normalized = normalizeCheckTimestamp(check?.ssl_expiry ?? null);
+	if (!normalized) {
+		return null;
 	}
-	if (check.status === 1) {
-		return "up" as const;
+	const expiresAt = Date.parse(normalized);
+	if (!Number.isFinite(expiresAt) || expiresAt < Date.UTC(2000, 0, 1)) {
+		return null;
 	}
-	if (check.status === 2) {
-		return "unknown" as const;
+	return { daysLeft: Math.floor((expiresAt - Date.now()) / 86_400_000) };
+}
+
+function SslIndicator({ check }: { check: RecentActivityCheck | undefined }) {
+	const expiry = resolveSslExpiry(check);
+	if (!expiry) {
+		return null;
 	}
-	if (check.http_code > 0 && check.http_code < 500) {
-		return "degraded" as const;
-	}
-	return "down" as const;
+	const { daysLeft } = expiry;
+	const expired = daysLeft < 0 || check?.ssl_valid === 0;
+	const expiringSoon = !expired && daysLeft <= SSL_WARN_DAYS;
+
+	return (
+		<span
+			className={cn(
+				"flex items-center gap-1.5",
+				expired
+					? "font-medium text-destructive"
+					: expiringSoon
+						? "font-medium text-warning"
+						: undefined
+			)}
+		>
+			<span className="text-muted-foreground">SSL</span>
+			<span
+				className={cn(
+					"font-medium tabular-nums",
+					!(expired || expiringSoon) && "text-foreground"
+				)}
+			>
+				{expired ? "expired" : `${daysLeft}d left`}
+			</span>
+		</span>
+	);
 }
 
 function StatusIndicator({
 	status,
 	isPaused,
 }: {
-	status: ReturnType<typeof resolveStatus>;
+	status: MonitorStatus;
 	isPaused: boolean;
 }) {
 	const config = {
@@ -158,7 +196,6 @@ export default function MonitorDetailsPage() {
 		granularity: string;
 		timeout?: number | null;
 		cacheBust?: boolean;
-		jsonParsingConfig?: { enabled: boolean } | null;
 	} | null>(null);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const [isPausing, setIsPausing] = useState(false);
@@ -173,7 +210,7 @@ export default function MonitorDetailsPage() {
 		useState<HTMLDivElement | null>(null);
 
 	const {
-		data: rawSchedule,
+		data: schedule,
 		refetch: refetchSchedule,
 		isLoading: isLoadingSchedule,
 		isError: isScheduleError,
@@ -184,7 +221,6 @@ export default function MonitorDetailsPage() {
 		enabled: !!scheduleId,
 	});
 
-	const schedule = rawSchedule as ScheduleData | undefined;
 	const hasMonitor = !!schedule;
 
 	const queryIdOptions = useMemo(() => {
@@ -401,9 +437,6 @@ export default function MonitorDetailsPage() {
 			granularity: schedule.granularity,
 			timeout: schedule.timeout,
 			cacheBust: schedule.cacheBust,
-			jsonParsingConfig: schedule.jsonParsingConfig as {
-				enabled: boolean;
-			} | null,
 		});
 		setIsSheetOpen(true);
 	};
@@ -528,7 +561,7 @@ export default function MonitorDetailsPage() {
 	}
 
 	const latestCheck = allRecentChecks.at(0);
-	const currentStatus = resolveStatus(latestCheck);
+	const currentStatus = resolveStatus(latestCheck, schedule.granularity);
 	const isChecksReady = !isInitialChecksLoading;
 
 	const isWebsiteMonitor = !!schedule.websiteId;
@@ -569,7 +602,6 @@ export default function MonitorDetailsPage() {
 							"size-4 shrink-0",
 							manualCheckMutation.isPending && "animate-spin"
 						)}
-						weight="fill"
 					/>
 					Check Now
 				</Button>
@@ -584,12 +616,12 @@ export default function MonitorDetailsPage() {
 				>
 					{schedule.isPaused ? (
 						<>
-							<PlayIcon className="size-4 shrink-0" weight="fill" />
+							<PlayIcon className="size-4 shrink-0" />
 							Resume
 						</>
 					) : (
 						<>
-							<PauseIcon className="size-4 shrink-0" weight="fill" />
+							<PauseIcon className="size-4 shrink-0" />
 							Pause
 						</>
 					)}
@@ -601,7 +633,7 @@ export default function MonitorDetailsPage() {
 					type="button"
 					variant="secondary"
 				>
-					<PencilIcon className="size-4 shrink-0" weight="duotone" />
+					<PencilIcon className="size-4 shrink-0" />
 					<span className="hidden sm:inline">Configure</span>
 				</Button>
 				<Button
@@ -611,7 +643,7 @@ export default function MonitorDetailsPage() {
 					type="button"
 					variant="secondary"
 				>
-					<ArrowSquareOutIcon className="size-4 shrink-0" weight="duotone" />
+					<ArrowSquareOutIcon className="size-4 shrink-0" />
 					<span className="hidden sm:inline">Transfer</span>
 				</Button>
 				<Button
@@ -622,7 +654,7 @@ export default function MonitorDetailsPage() {
 					type="button"
 					variant="secondary"
 				>
-					<TrashIcon className="size-4 shrink-0" weight="duotone" />
+					<TrashIcon className="size-4 shrink-0" />
 					<span className="hidden sm:inline">Delete</span>
 				</Button>
 			</TopBar.Actions>
@@ -638,12 +670,21 @@ export default function MonitorDetailsPage() {
 						<Skeleton className="h-3.5 w-16 rounded" />
 					)}
 
+					{schedule.schedulerStatus === "missing" && !schedule.isPaused ? (
+						<span className="flex items-center gap-1.5 font-medium text-warning">
+							<WarningIcon className="size-3.5" />
+							Scheduler inactive
+						</span>
+					) : null}
+
 					<span className="flex items-center gap-1.5">
 						<span className="text-muted-foreground">Frequency</span>
 						<span className="font-medium text-foreground">
 							{granularityLabels[schedule.granularity] || schedule.granularity}
 						</span>
 					</span>
+
+					{isChecksReady ? <SslIndicator check={latestCheck} /> : null}
 
 					{isChecksReady ? (
 						latestCheck ? (
@@ -663,11 +704,7 @@ export default function MonitorDetailsPage() {
 							className="flex items-center gap-1.5 text-primary hover:underline"
 							href={`/websites/${schedule.websiteId}/pulse`}
 						>
-							<GlobeIcon
-								aria-hidden
-								className="size-4 shrink-0"
-								weight="duotone"
-							/>
+							<GlobeIcon aria-hidden className="size-4 shrink-0" />
 							<span className="truncate font-medium">
 								{schedule.website.name || schedule.website.domain}
 							</span>

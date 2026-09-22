@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 
-export type NavSection =
+type NavSection =
 	| "navbar"
 	| "navbar_mobile"
 	| "navbar_features"

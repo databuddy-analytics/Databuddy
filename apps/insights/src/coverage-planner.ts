@@ -1,9 +1,61 @@
+import type { InvestigationSignal } from "@databuddy/shared/insights";
 import type { DetectedSignal } from "./detection";
-import { rankSignals, signalKeyForDetectedSignal } from "./investigation";
 import {
-	portfolioFamilyForDetectedSignal,
-	type InsightPortfolioFamily,
-} from "./specialists";
+	isRegression,
+	normalizedErrorSubject,
+	rankSignals,
+	signalKeyForDetectedSignal,
+} from "./investigation";
+
+export type InsightPortfolioFamily =
+	| "funnel"
+	| "goal"
+	| "reliability"
+	| "general";
+
+export function portfolioFamilyForDetectedSignal(
+	signal: DetectedSignal
+): InsightPortfolioFamily {
+	if (signal.metric.startsWith("funnel:")) {
+		return "funnel";
+	}
+	if (signal.metric.startsWith("goal:")) {
+		return "goal";
+	}
+	if (
+		signal.metric === "error_count" ||
+		signal.metric === "lcp" ||
+		signal.metric === "inp" ||
+		signal.subjectKey?.startsWith("route:") === true
+	) {
+		return "reliability";
+	}
+	return "general";
+}
+
+export function portfolioFamilyForInvestigationSignal(
+	signal: InvestigationSignal
+): InsightPortfolioFamily {
+	const { signalKey } = signal;
+	if (
+		signal.entity.type === "funnel" ||
+		signal.entity.type === "funnel_step" ||
+		signalKey.startsWith("funnel:")
+	) {
+		return "funnel";
+	}
+	if (signal.entity.type === "goal" || signalKey.startsWith("goal:")) {
+		return "goal";
+	}
+	if (
+		signal.entity.type === "error" ||
+		signal.entity.type === "vital" ||
+		signalKey.startsWith("route:")
+	) {
+		return "reliability";
+	}
+	return "general";
+}
 
 const PORTFOLIO_LIMIT = { manual: 5, scheduled: 2 } as const;
 const TRAFFIC_METRICS = new Set(["visitors", "sessions", "pageviews"]);
@@ -11,11 +63,11 @@ const TRAFFIC_METRICS = new Set(["visitors", "sessions", "pageviews"]);
 export type CoveragePortfolioReason = keyof typeof PORTFOLIO_LIMIT;
 
 export interface CoveragePortfolioOptions {
-	/** An exact open investigation to remeasure before newly detected work. */
 	dueSignalKey?: string | null;
-	/** Fill from these signals before using lower-priority fallback work. */
 	preferredSignalKeys?: ReadonlySet<string>;
 	reason: CoveragePortfolioReason;
+	/** A validated model preference; due work and reliability remain code-owned. */
+	selectedSignalKeys?: readonly string[];
 }
 
 interface Candidate {
@@ -32,6 +84,9 @@ export function coveragePortfolioLimit(
 }
 
 function signalGroup(signal: DetectedSignal): string {
+	if (signal.subjectKey?.includes(":referrer:")) {
+		return signal.subjectKey;
+	}
 	if (signal.subjectKey?.startsWith("route:") && signal.entityId) {
 		return `route-health:${signal.entityId}`;
 	}
@@ -50,7 +105,9 @@ function signalGroup(signal: DetectedSignal): string {
 		signal.metric === "lcp" ||
 		signal.metric === "inp"
 	) {
-		return `health:${signal.entityId ?? signal.subjectKey ?? signal.metric}`;
+		return `health:${normalizedErrorSubject(
+			signal.entityId ?? signal.subjectKey ?? signal.metric
+		)}`;
 	}
 	return signalKeyForDetectedSignal(signal);
 }
@@ -70,8 +127,6 @@ function stableIdentity(signal: DetectedSignal): string {
 		String(signal.deltaPercent),
 		JSON.stringify(signal.baselineDates ?? []),
 		signal.definitionEvidence ?? "",
-		JSON.stringify(signal.measurementCandidate ?? null),
-		JSON.stringify(signal.setupRecommendationCandidate ?? null),
 		signal.detectedAt,
 	].join("\u0000");
 }
@@ -99,13 +154,23 @@ function rankedCandidates(signals: DetectedSignal[]): Candidate[] {
 	}
 	return candidates;
 }
-
-/** Selects a small deterministic portfolio without mutating detector output. */
 export function planCoveragePortfolio(
 	signals: DetectedSignal[],
 	options: CoveragePortfolioOptions
 ): DetectedSignal[] {
 	const candidates = rankedCandidates(signals);
+	const selection = options.selectedSignalKeys
+		? new Map(options.selectedSignalKeys.map((key, index) => [key, index]))
+		: null;
+	if (selection) {
+		candidates.sort(
+			(a, b) =>
+				Number(isCriticalReliabilitySignal(b.signal)) -
+					Number(isCriticalReliabilitySignal(a.signal)) ||
+				(selection.get(a.key) ?? Number.POSITIVE_INFINITY) -
+					(selection.get(b.key) ?? Number.POSITIVE_INFINITY)
+		);
+	}
 	const selected: Candidate[] = [];
 	const usedFamilies = new Set<InsightPortfolioFamily>();
 	const usedGroups = new Set<string>();
@@ -129,12 +194,23 @@ export function planCoveragePortfolio(
 			(candidate) =>
 				!(usedKeys.has(candidate.key) || usedGroups.has(candidate.group))
 		);
-		const preferred = options.preferredSignalKeys
-			? available.filter((candidate) =>
-					options.preferredSignalKeys?.has(candidate.key)
+		const wanted = selection
+			? available.filter(
+					(candidate) =>
+						selection.has(candidate.key) ||
+						isCriticalReliabilitySignal(candidate.signal) ||
+						(options.reason === "manual" &&
+							candidate.family !== "general" &&
+							!usedFamilies.has(candidate.family))
 				)
 			: available;
-		const pool = preferred.length > 0 ? preferred : available;
+		const preferred =
+			!selection && options.preferredSignalKeys
+				? wanted.filter((candidate) =>
+						options.preferredSignalKeys?.has(candidate.key)
+					)
+				: wanted;
+		const pool = preferred.length > 0 ? preferred : wanted;
 		const next =
 			options.reason === "manual"
 				? (pool.find((candidate) => !usedFamilies.has(candidate.family)) ??
@@ -147,4 +223,12 @@ export function planCoveragePortfolio(
 	}
 
 	return selected.map((candidate) => candidate.signal);
+}
+
+function isCriticalReliabilitySignal(signal: DetectedSignal): boolean {
+	return (
+		portfolioFamilyForDetectedSignal(signal) === "reliability" &&
+		signal.severity === "critical" &&
+		isRegression(signal)
+	);
 }

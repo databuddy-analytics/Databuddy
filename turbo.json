@@ -8,6 +8,7 @@
   "ui": "tui",
   "envMode": "strict",
   "globalEnv": [
+    "ALERTS_EMAIL_FROM",
     "AUTUMN_SECRET_KEY",
     "BETTER_AUTH_SECRET",
     "BETTER_AUTH_URL",
@@ -19,6 +20,7 @@
     "DATABUDDY_ENCRYPTION_KEY",
     "DATABUDDY_WEBSITE_ID",
     "DB_POOL_MAX",
+    "EMAIL_FROM",
     "GITHUB_CLIENT_ID",
     "GITHUB_CLIENT_SECRET",
     "GOOGLE_CLIENT_ID",
@@ -44,11 +46,13 @@
     "REDPANDA_USER",
     "RESEND_API_KEY",
     "RESEND_AUDIENCE_ID",
+    "SERVICE_NAME",
+    "SELFHOST",
     "SLACK_CLIENT_ID",
     "SLACK_CLIENT_SECRET",
-    "SERVICE_NAME",
     "TCC_API_KEY",
-    "UPTIME_ROUTER_INTEGRATION"
+    "UPTIME_ROUTER_INTEGRATION",
+    "VERCEL"
   ],
   "tasks": {
     "build": {
@@ -89,7 +93,7 @@
       "persistent": false
     },
     "dev": {
-      "dependsOn": ["@databuddy/sdk#build"],
+      "dependsOn": ["@databuddy/sdk#build", "@databuddy/devtools#build"],
       "cache": false,
       "persistent": true
     }

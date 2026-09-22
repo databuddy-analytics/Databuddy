@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import {
 	and,
 	db,
@@ -58,11 +59,6 @@ const ignoredOriginSchema = z
 	});
 
 const emailNotificationSettingsSchema = z.object({
-	anomalies: z.object({
-		customEventEmails: z.boolean(),
-		errorEmails: z.boolean(),
-		trafficEmails: z.boolean(),
-	}),
 	billing: z.object({ usageWarnings: z.boolean() }),
 	trackingHealth: z.object({
 		cooldownMinutes: z
@@ -79,6 +75,10 @@ const emailNotificationSettingsSchema = z.object({
 		recoveryEmails: z.boolean(),
 	}),
 });
+
+export type EmailNotificationSettingsOutput = z.infer<
+	typeof emailNotificationSettingsSchema
+>;
 
 export const organizationsRouter = {
 	updateAvatarSeed: trackedProcedure
@@ -356,6 +356,9 @@ export const organizationsRouter = {
 		})
 		.output(z.record(z.string(), z.unknown()))
 		.handler(async ({ context }) => {
+			if (readBooleanEnv("SELFHOST")) {
+				return { unlimited: true, canUserUpgrade: false };
+			}
 			const billing = await context.getBilling();
 			const customerId = billing?.customerId ?? context.user.id;
 			const isOrganization = billing?.isOrganization ?? false;
@@ -437,6 +440,16 @@ export const organizationsRouter = {
 				}
 			}
 
+			if (readBooleanEnv("SELFHOST")) {
+				return {
+					planId: null,
+					isOrganization: Boolean(context.organizationId),
+					canUserUpgrade: false,
+					hasActiveSubscription: false,
+					aiConfigured: Boolean(process.env.AI_GATEWAY_API_KEY?.trim()),
+				};
+			}
+
 			const debugInfo = isDev
 				? {
 						_debug: {
@@ -449,7 +462,6 @@ export const organizationsRouter = {
 					}
 				: {};
 
-			// No customer ID means we can't look up billing
 			if (!customerId) {
 				return {
 					planId: "free",

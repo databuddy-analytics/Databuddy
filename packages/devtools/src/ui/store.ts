@@ -44,7 +44,7 @@ interface Size {
 
 type Corner = "tl" | "tr" | "bl" | "br";
 
-export interface DevtoolsState {
+interface DevtoolsState {
 	adminApiUrl: string | null;
 	adminKey: string | null;
 	catalog: FlagCatalogState;

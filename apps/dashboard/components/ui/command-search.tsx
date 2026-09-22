@@ -580,7 +580,6 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 								<div className="flex size-8 shrink-0 items-center justify-center rounded bg-background">
 									<MagnifyingGlassIcon
 										className="size-4 text-muted-foreground"
-										weight="duotone"
 									/>
 								</div>
 								<CommandPrimitive.Input
@@ -590,7 +589,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 									value={search}
 								/>
 								<kbd className="hidden items-center gap-1 rounded border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
-									<CommandIcon className="size-3" weight="bold" />
+									<CommandIcon className="size-3" />
 									<span>K</span>
 								</kbd>
 							</div>
@@ -599,7 +598,6 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 								<CommandPrimitive.Empty className="flex flex-col items-center justify-center gap-2 py-12 text-center">
 									<MagnifyingGlassIcon
 										className="size-8 text-muted-foreground/50"
-										weight="duotone"
 									/>
 									<div>
 										<p className="font-medium text-muted-foreground text-sm">
@@ -748,7 +746,6 @@ function SearchResultItem({
 				{item.external && (
 					<ArrowSquareOutIcon
 						className="size-4 text-muted-foreground"
-						weight="duotone"
 					/>
 				)}
 			</div>

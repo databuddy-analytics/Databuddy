@@ -52,9 +52,9 @@ describe("navigation active matching", () => {
 		expect(isNavItemActive(item, "/websites/site_123/events", "site_123")).toBe(
 			true
 		);
-		expect(
-			isNavItemActive(item, "/websites/site_456/events", "site_123")
-		).toBe(false);
+		expect(isNavItemActive(item, "/websites/site_456/events", "site_123")).toBe(
+			false
+		);
 	});
 });
 
@@ -85,16 +85,10 @@ describe("page navigation active matching", () => {
 			"latest"
 		);
 		expect(
-			getActivePageNavigationTabId(
-				insightTabs,
-				"/insights/investigations"
-			)
+			getActivePageNavigationTabId(insightTabs, "/insights/investigations")
 		).toBe("investigations");
 		expect(
-			getActivePageNavigationTabId(
-				insightTabs,
-				"/insights/recommendations"
-			)
+			getActivePageNavigationTabId(insightTabs, "/insights/recommendations")
 		).toBe("recommendations");
 	});
 });
@@ -106,7 +100,6 @@ describe("demo website navigation", () => {
 	it("hides demo-unsafe or unavailable website surfaces", () => {
 		const hiddenHrefs = new Set([
 			"/realtime",
-			"/anomalies",
 			"/users",
 			"/flags",
 			"/revenue",
@@ -130,7 +123,8 @@ describe("demo website navigation", () => {
 		);
 
 		for (const item of visibleDemoItems) {
-			const pagePath = item.href === "" ? "page.tsx" : `${item.href.slice(1)}/page.tsx`;
+			const pagePath =
+				item.href === "" ? "page.tsx" : `${item.href.slice(1)}/page.tsx`;
 			expect(existsSync(new URL(pagePath, demoRoot)), item.href || "/").toBe(
 				true
 			);

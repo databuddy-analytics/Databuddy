@@ -1,4 +1,5 @@
 import { buildRevenueLatestCte } from "@databuddy/db/clickhouse";
+import { Expressions } from "../expressions";
 import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { SimpleQueryConfig } from "../types";
@@ -6,6 +7,26 @@ import type { SimpleQueryConfig } from "../types";
 export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 	recent_errors: {
 		meta: {
+			default_order: "timestamp DESC",
+			output_fields: [
+				{ name: "message", type: "string" },
+				{ name: "stack", type: "string" },
+				{ name: "path", type: "string" },
+				{ name: "anonymous_id", type: "string" },
+				{ name: "session_id", type: "string" },
+				{ name: "timestamp", type: "datetime" },
+				{ name: "filename", type: "string" },
+				{ name: "lineno", type: "number" },
+				{ name: "colno", type: "number" },
+				{ name: "error_type", type: "string" },
+				{ name: "browser_name", type: "string" },
+				{ name: "browser_version", type: "string" },
+				{ name: "os_name", type: "string" },
+				{ name: "os_version", type: "string" },
+				{ name: "device_type", type: "string" },
+				{ name: "country", type: "string" },
+				{ name: "region", type: "string" },
+			],
 			description:
 				"Recent JS errors with full context: message, stack (capped at 1500 chars), path, error_type, browser, OS, device, country. For aggregates use error_summary / errors_by_type / errors_by_page.",
 			category: "Errors",
@@ -685,14 +706,12 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		table: Analytics.error_spans,
 		fields: [
-			"CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END as name",
+			`${Expressions.path.normalized} as name`,
 			"COUNT(*) as errors",
 			"uniq(anonymous_id) as users",
 		],
 		where: ["message != ''", "path != ''"],
-		groupBy: [
-			"CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END",
-		],
+		groupBy: [`${Expressions.path.normalized}`],
 		orderBy: "errors DESC",
 		limit: 20,
 		timeField: "timestamp",
@@ -721,7 +740,6 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 			description: "Overview of errors with calculated error rate",
 			category: "Errors",
 			tags: ["errors", "summary", "overview"],
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate, filterConditions, filterParams } =

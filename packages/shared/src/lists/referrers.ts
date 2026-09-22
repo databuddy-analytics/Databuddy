@@ -1181,10 +1181,12 @@ export const referrers: Record<string, { type: string; name: string }> = {
 	"yandex.ua": { type: "search", name: "Yandex" },
 	"yandex.com": { type: "search", name: "Yandex" },
 	"yandex.by": { type: "search", name: "Yandex" },
+	"yandex.kz": { type: "search", name: "Yandex" },
 	"www.yandex.ru": { type: "search", name: "Yandex" },
 	"www.yandex.ua": { type: "search", name: "Yandex" },
 	"www.yandex.com": { type: "search", name: "Yandex" },
 	"www.yandex.by": { type: "search", name: "Yandex" },
+	"www.yandex.kz": { type: "search", name: "Yandex" },
 	"clck.yandex.ru": { type: "search", name: "Yandex" },
 	"clck.yandex.ua": { type: "search", name: "Yandex" },
 	"clck.yandex.com": { type: "search", name: "Yandex" },
@@ -2557,6 +2559,9 @@ export const referrers: Record<string, { type: string; name: string }> = {
 	"multiply.com": { type: "social", name: "Multiply" },
 	"threads.net": { type: "social", name: "Threads" },
 	"l.threads.net": { type: "social", name: "Threads" },
+	"threads.com": { type: "social", name: "Threads" },
+	"www.threads.com": { type: "social", name: "Threads" },
+	"l.threads.com": { type: "social", name: "Threads" },
 	"com.instagram.barcelona": { type: "social", name: "Threads" },
 	"myyearbook.com": { type: "social", name: "myYearbook" },
 	"renren.com": { type: "social", name: "Renren" },
@@ -2713,6 +2718,8 @@ export const referrers: Record<string, { type: string; name: string }> = {
 
 	"cn.bing.com": { type: "search", name: "Bing" },
 	"search.brave.com": { type: "search", name: "Brave Search" },
+	"kagi.com": { type: "search", name: "Kagi" },
+	"www.kagi.com": { type: "search", name: "Kagi" },
 
 	"discord.com": { type: "social", name: "Discord" },
 	"old.reddit.com": { type: "social", name: "Reddit" },
@@ -2730,4 +2737,3 @@ export const referrers: Record<string, { type: string; name: string }> = {
 	"statics.teams.cdn.office.net": { type: "unknown", name: "Microsoft Teams" },
 	"appleid.apple.com": { type: "unknown", name: "Apple ID" },
 } as const;
-export default referrers;

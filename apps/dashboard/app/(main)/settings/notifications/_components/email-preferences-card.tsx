@@ -9,36 +9,15 @@ import {
 	Skeleton,
 	Text,
 } from "@databuddy/ui";
+import type { EmailNotificationSettingsOutput } from "@databuddy/rpc";
 import { Select, Switch, TagsInput } from "@databuddy/ui/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
 
-type EmailAlertMode = "off" | "critical_only" | "warnings_and_critical";
-type TrackingReason =
-	| "origin_not_authorized"
-	| "origin_missing"
-	| "ip_not_authorized";
-
-interface EmailSettings {
-	anomalies: {
-		customEventEmails: boolean;
-		errorEmails: boolean;
-		trafficEmails: boolean;
-	};
-	billing: { usageWarnings: boolean };
-	trackingHealth: {
-		cooldownMinutes: number;
-		ignoredOrigins: string[];
-		ignoredReasons: TrackingReason[];
-		mode: EmailAlertMode;
-	};
-	uptime: {
-		downEmails: boolean;
-		recoveryEmails: boolean;
-	};
-}
+type EmailSettings = EmailNotificationSettingsOutput;
+type EmailAlertMode = EmailSettings["trackingHealth"]["mode"];
 
 type SettingsSection = Record<string, unknown>;
 
@@ -347,35 +326,6 @@ export function EmailPreferencesCard() {
 										save(withSection(settings, "uptime", { recoveryEmails }))
 									}
 									title="Monitor recovery emails"
-								/>
-								<ToggleSetting
-									checked={settings.anomalies.errorEmails}
-									description="Email for error-rate spikes."
-									disabled={disabled}
-									onChange={(errorEmails) =>
-										save(withSection(settings, "anomalies", { errorEmails }))
-									}
-									title="Error anomaly emails"
-								/>
-								<ToggleSetting
-									checked={settings.anomalies.trafficEmails}
-									description="Email for pageview spikes or drops."
-									disabled={disabled}
-									onChange={(trafficEmails) =>
-										save(withSection(settings, "anomalies", { trafficEmails }))
-									}
-									title="Traffic anomaly emails"
-								/>
-								<ToggleSetting
-									checked={settings.anomalies.customEventEmails}
-									description="Email for custom event spikes or drops."
-									disabled={disabled}
-									onChange={(customEventEmails) =>
-										save(
-											withSection(settings, "anomalies", { customEventEmails })
-										)
-									}
-									title="Custom event anomaly emails"
 								/>
 							</SettingCardGroup>
 						</div>

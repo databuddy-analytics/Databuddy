@@ -1,3 +1,5 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
+import type { OrganizationBusinessContext } from "@databuddy/shared/organization-business-context";
 import {
 	type ApiKeyRow,
 	getApiKeyFromHeader,
@@ -11,6 +13,7 @@ import {
 	recordORPCError,
 	setRpcProcedurePath,
 	setRpcProcedureType,
+	setRpcAuthTiming,
 } from "./lib/rpc-log-context";
 import { runTracked } from "./middleware/track-mutation";
 import { runAuditedMutation } from "./middleware/audit-mutation";
@@ -74,15 +77,30 @@ export function createServiceAuth(
 }
 
 export const createRPCContext = async (
-	opts: { headers: Headers; requestId?: string },
+	opts: {
+		headers: Headers;
+		requestId?: string;
+		generateBusinessContext?: (input: {
+			organizationId: string;
+			generationId: string;
+			signal?: AbortSignal;
+		}) => AsyncGenerator<OrganizationBusinessContext, void, void>;
+	},
 	preResolved?: PreResolvedAuth
 ) => {
-	const [session, apiKey] = preResolved
-		? [preResolved.session, preResolved.apiKey]
-		: await Promise.all([
-				auth.api.getSession({ headers: opts.headers }),
-				getApiKeyFromHeader(opts.headers),
-			]);
+	let session: PreResolvedAuth["session"];
+	let apiKey: PreResolvedAuth["apiKey"];
+	if (preResolved) {
+		session = preResolved.session;
+		apiKey = preResolved.apiKey;
+	} else {
+		const authStartedAt = performance.now();
+		[session, apiKey] = await Promise.all([
+			auth.api.getSession({ headers: opts.headers }),
+			getApiKeyFromHeader(opts.headers),
+		]);
+		setRpcAuthTiming(performance.now() - authStartedAt);
+	}
 
 	const user = session?.user;
 
@@ -93,24 +111,21 @@ export const createRPCContext = async (
 	let billingResolved = false;
 
 	const getBilling = async (): Promise<BillingOwner | undefined> => {
+		if (readBooleanEnv("SELFHOST")) {
+			return;
+		}
 		if (billingResolved) {
 			return billingCache;
 		}
-		billingResolved = true;
-
-		try {
-			if (user) {
-				billingCache = await getBillingOwner(user.id, organizationId);
-			} else if (apiKey?.organizationId) {
-				const ownerId = await getOrganizationOwnerId(apiKey.organizationId);
-				if (ownerId) {
-					billingCache = await getBillingOwner(ownerId, apiKey.organizationId);
-				}
+		if (user) {
+			billingCache = await getBillingOwner(user.id, organizationId);
+		} else if (apiKey?.organizationId) {
+			const ownerId = await getOrganizationOwnerId(apiKey.organizationId);
+			if (ownerId) {
+				billingCache = await getBillingOwner(ownerId, apiKey.organizationId);
 			}
-		} catch {
-			billingCache = undefined;
 		}
-
+		billingResolved = true;
 		return billingCache;
 	};
 

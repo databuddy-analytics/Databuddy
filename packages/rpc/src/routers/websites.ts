@@ -1,5 +1,7 @@
+import { successOutputSchema } from "../lib/schemas";
+import { BusinessMemoryRetirementError } from "@databuddy/services/business-memory";
 import { db } from "@databuddy/db";
-import { chQuery } from "@databuddy/db/clickhouse";
+import { chQuery, purgeWebsiteAnalyticsData } from "@databuddy/db/clickhouse";
 import { cacheable } from "@databuddy/redis";
 import { auditActions } from "@databuddy/shared/audit";
 import {
@@ -53,6 +55,9 @@ import {
 const websiteService = new WebsiteService(db);
 
 function handleServiceError(error: unknown): never {
+	if (error instanceof BusinessMemoryRetirementError) {
+		throw rpcError.serviceUnavailable(4, error.message);
+	}
 	if (error instanceof ValidationError) {
 		throw rpcError.badRequest(error.message);
 	}
@@ -356,8 +361,6 @@ const listWithChartsOutputSchema = z.object({
 	chartData: z.record(z.string(), processedMiniChartDataSchema),
 	activeUsers: z.record(z.string(), z.number()),
 });
-
-const successOutputSchema = z.object({ success: z.literal(true) });
 
 const trackingIssueOutputSchema = z.object({
 	count: z.number(),
@@ -852,6 +855,19 @@ export const websitesRouter = {
 				handleServiceError(error);
 			}
 
+			try {
+				await purgeWebsiteAnalyticsData(input.id);
+			} catch (error) {
+				logger.error(
+					{
+						websiteId: input.id,
+						error: String(error),
+						event: "Website Analytics Purge Failed",
+					},
+					`Analytics purge failed for deleted website ${input.id}; data must be purged manually`
+				);
+			}
+
 			logger.warn(
 				{
 					websiteId: websiteToDelete.id,
@@ -1211,7 +1227,7 @@ export const websitesRouter = {
 			return {
 				filename: exportResult.filename,
 				data: exportResult.buffer.toString("base64"),
-				metadata: exportResult.meta as unknown as Record<string, unknown>,
+				metadata: { ...exportResult.meta },
 			};
 		}),
 };

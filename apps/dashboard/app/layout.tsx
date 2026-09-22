@@ -1,12 +1,13 @@
 import "./globals.css";
 
+import { DubAnalytics } from "@/components/dub-analytics";
 import { OpenAiAdsPixel } from "@/components/openai-ads-pixel";
 import { Toaster } from "@/components/ui/sonner";
 import { APP_URL } from "@/lib/app-url";
 import { DatabuddyDevtools } from "@databuddy/devtools/react";
 import { publicConfig } from "@databuddy/env/public";
 import { Databuddy } from "@databuddy/sdk/react";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import Providers from "./providers";
@@ -120,6 +121,7 @@ export default function RootLayout({
 }>) {
 	const isLocalhost = process.env.NODE_ENV === "development";
 	const isE2E = readBooleanEnv("DATABUDDY_E2E_MODE");
+	const isTrackingDisabled = isE2E || readBooleanEnv("SELFHOST");
 
 	return (
 		<html
@@ -135,7 +137,7 @@ export default function RootLayout({
 					</main>
 				</Providers>
 				<Toaster />
-				{isE2E ? null : (
+				{isTrackingDisabled ? null : (
 					<Databuddy
 						apiUrl={publicConfig.urls.basket}
 						clientId={
@@ -162,7 +164,8 @@ export default function RootLayout({
 						trackWebVitals={true}
 					/>
 				)}
-				{isLocalhost || isE2E ? null : <OpenAiAdsPixel />}
+				{isLocalhost || isTrackingDisabled ? null : <OpenAiAdsPixel />}
+				{isLocalhost || isTrackingDisabled ? null : <DubAnalytics />}
 				{isLocalhost && !isE2E ? <DatabuddyDevtools /> : null}
 			</body>
 		</html>

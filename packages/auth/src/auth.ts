@@ -1,10 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { redisStorage } from "@better-auth/redis-storage";
 import { sso } from "@better-auth/sso";
-import {
-	getCurrentAdapter,
-	runWithTransaction,
-} from "@better-auth/core/context";
+import { runWithTransaction } from "@better-auth/core/context";
 import { and, db, eq, like } from "@databuddy/db";
 // biome-ignore lint/performance/noNamespaceImport: Better Auth's Drizzle adapter expects a schema object map.
 import * as schema from "@databuddy/db/schema";
@@ -24,7 +21,7 @@ import {
 	VerificationEmail,
 } from "@databuddy/email";
 import { config } from "@databuddy/env/app";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { SlackProvider } from "@databuddy/notifications";
 import {
 	getRedisCache,
@@ -32,10 +29,14 @@ import {
 	ratelimit,
 } from "@databuddy/redis";
 import {
+	appendAuditEvent,
 	appendAuditEventInTransaction,
 	type AppendAuditEventInput,
-	createAuditEventPayload,
 } from "@databuddy/services/audit";
+import {
+	BusinessMemoryRetirementError,
+	deleteOrganizationWithBusinessMemory,
+} from "@databuddy/services/business-memory";
 import {
 	auditActions,
 	type AuditActionDefinition,
@@ -136,10 +137,27 @@ function isSelfHosted() {
 
 function shouldRequireEmailVerification() {
 	if (process.env.REQUIRE_EMAIL_VERIFICATION != null) {
-		return readBooleanEnv("REQUIRE_EMAIL_VERIFICATION");
+		const required = readBooleanEnv("REQUIRE_EMAIL_VERIFICATION");
+		if (
+			required &&
+			isSelfHosted() &&
+			!(process.env.RESEND_API_KEY?.trim() && process.env.EMAIL_FROM?.trim())
+		) {
+			throw new Error(
+				"Self-hosted email verification requires RESEND_API_KEY and EMAIL_FROM on a verified domain."
+			);
+		}
+		return required;
 	}
 	return isProduction() && !isSelfHosted();
 }
+
+const cookieDomain = isSelfHosted()
+	? process.env.BETTER_AUTH_COOKIE_DOMAIN?.trim() || undefined
+	: (process.env.BETTER_AUTH_COOKIE_DOMAIN ?? ".databuddy.cc");
+const sendVerificationOnAuth = isSelfHosted()
+	? shouldRequireEmailVerification()
+	: isProduction();
 
 type EmailTemplate = Parameters<typeof render>[0];
 
@@ -226,7 +244,7 @@ function notifySlack(
 	priority: "high" | "normal",
 	metadata: Record<string, string>
 ): void {
-	if (!SLACK_WEBHOOK_URL) {
+	if (isSelfHosted() || !SLACK_WEBHOOK_URL) {
 		return;
 	}
 
@@ -242,6 +260,52 @@ function notifySlack(
 		})
 		.catch((error) => {
 			console.error(`Failed to send Slack notification (${title}):`, error);
+		});
+}
+
+const DUB_API_KEY = process.env.DUB_API_KEY ?? "";
+
+function trackDubSignUp(user: {
+	id: string;
+	email: string;
+	name: string | null;
+	image?: string | null;
+}): void {
+	if (isSelfHosted()) {
+		return;
+	}
+	const clickId = getAuthAuditContext()?.dubClickId;
+	if (!(DUB_API_KEY && clickId)) {
+		return;
+	}
+
+	fetch("https://api.dub.co/track/lead", {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${DUB_API_KEY}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({
+			clickId,
+			eventName: "Sign Up",
+			customerExternalId: user.id,
+			customerEmail: user.email,
+			customerName: user.name,
+			customerAvatar: user.image,
+		}),
+	})
+		.then(async (response) => {
+			if (!response.ok) {
+				throw new Error(`${response.status} ${await response.text()}`);
+			}
+		})
+		.catch((error) => {
+			log.warn({
+				service: "auth",
+				dub_event: "lead",
+				auth_user_id: user.id,
+				error: error instanceof Error ? error.message : String(error),
+			});
 		});
 }
 
@@ -310,6 +374,26 @@ function toAuditActor(user: { id: string; name?: string | null }): AuditActor {
 	};
 }
 
+async function getAuditMemberDetails(member: { id: string; userId: string }) {
+	const user = await db.query.user.findFirst({
+		where: { id: member.userId },
+		columns: { email: true, name: true },
+	});
+	const displayName = user
+		? user.name
+			? `${user.name} <${user.email}>`
+			: user.email
+		: `User ${member.userId}`;
+
+	return {
+		metadata: {
+			affectedUserDisplayName: displayName,
+			affectedUserId: member.userId,
+		},
+		target: { id: member.id, displayName },
+	};
+}
+
 async function recordAuthAudit<TAction extends AuditActionDefinition>(
 	organizationId: string,
 	input: Omit<
@@ -319,19 +403,12 @@ async function recordAuthAudit<TAction extends AuditActionDefinition>(
 	fallbackActor?: AuditActor
 ): Promise<void> {
 	const context = getAuthAuditContext();
-	const adapter = await getCurrentAdapter(
-		(await auth.$context).adapter as Parameters<typeof getCurrentAdapter>[0]
-	);
-	await adapter.create({
-		model: "auditEvents",
-		data: createAuditEventPayload(organizationId, {
-			...input,
-			actor: context?.actor ?? fallbackActor ?? betterAuthSystemActor,
-			operation: context?.operation,
-			request: context?.request,
-			source: "better_auth",
-		}),
-		forceAllowId: true,
+	await appendAuditEvent(db, organizationId, {
+		...input,
+		actor: context?.actor ?? fallbackActor ?? betterAuthSystemActor,
+		operation: context?.operation,
+		request: context?.request,
+		source: "better_auth",
 	});
 }
 
@@ -437,17 +514,37 @@ export const auth = betterAuth({
 						name: createdUser.name,
 						organizationId: orgId,
 					});
+					trackDubSignUp(createdUser);
 				},
 			},
 		},
 		session: {
 			create: {
 				before: async (sessionData) => {
-					if (sessionData.activeOrganizationId) {
-						return { data: sessionData };
-					}
-
+					let base = sessionData;
 					try {
+						if (sessionData.activeOrganizationId) {
+							const activeMembership = await db.query.member.findFirst({
+								where: {
+									userId: sessionData.userId,
+									organizationId: sessionData.activeOrganizationId,
+								},
+								columns: { organizationId: true },
+							});
+							if (activeMembership) {
+								return { data: sessionData };
+							}
+							log.warn({
+								service: "auth",
+								auth_hook: "session.create.before",
+								auth_user_id: sessionData.userId,
+								auth_org_id: sessionData.activeOrganizationId,
+								message:
+									"Cleared active organization the user is not a member of",
+							});
+							base = { ...sessionData, activeOrganizationId: null };
+						}
+
 						const userOrg = await db.query.member.findFirst({
 							where: { userId: sessionData.userId },
 							columns: { organizationId: true },
@@ -456,7 +553,7 @@ export const auth = betterAuth({
 						if (userOrg) {
 							return {
 								data: {
-									...sessionData,
+									...base,
 									activeOrganizationId: userOrg.organizationId,
 								},
 							};
@@ -467,7 +564,7 @@ export const auth = betterAuth({
 							columns: { id: true, name: true, email: true },
 						});
 						if (!user) {
-							return { data: sessionData };
+							return { data: base };
 						}
 
 						const orgId = await provisionDefaultOrg({
@@ -483,7 +580,7 @@ export const auth = betterAuth({
 							message: "Provisioned default org for orphaned account",
 						});
 						return {
-							data: { ...sessionData, activeOrganizationId: orgId },
+							data: { ...base, activeOrganizationId: orgId },
 						};
 					} catch (error) {
 						log.error({
@@ -494,7 +591,7 @@ export const auth = betterAuth({
 						});
 					}
 
-					return { data: sessionData };
+					return { data: base };
 				},
 			},
 		},
@@ -535,8 +632,8 @@ export const auth = betterAuth({
 	},
 	advanced: {
 		crossSubDomainCookies: {
-			enabled: isProduction() && !isSelfHosted(),
-			domain: process.env.BETTER_AUTH_COOKIE_DOMAIN ?? ".databuddy.cc",
+			enabled: isProduction() && (!isSelfHosted() || Boolean(cookieDomain)),
+			domain: cookieDomain,
 		},
 		cookiePrefix: isProduction() ? "databuddy" : "databuddy-dev",
 		useSecureCookies: isProduction(),
@@ -547,16 +644,24 @@ export const auth = betterAuth({
 		config.urls.api,
 	],
 	socialProviders: {
-		google: {
-			clientId: process.env.GOOGLE_CLIENT_ID as string,
-			clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-			accessType: "offline",
-			prompt: "select_account consent",
-		},
-		github: {
-			clientId: process.env.GITHUB_CLIENT_ID as string,
-			clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
-		},
+		...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+			? {
+					google: {
+						clientId: process.env.GOOGLE_CLIENT_ID,
+						clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+						accessType: "offline",
+						prompt: "select_account consent",
+					},
+				}
+			: {}),
+		...(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET
+			? {
+					github: {
+						clientId: process.env.GITHUB_CLIENT_ID,
+						clientSecret: process.env.GITHUB_CLIENT_SECRET,
+					},
+				}
+			: {}),
 	},
 	emailAndPassword: {
 		enabled: true,
@@ -587,8 +692,8 @@ export const auth = betterAuth({
 	},
 	emailVerification: {
 		expiresIn: AUTH_EMAIL_EXPIRY_SECONDS.emailVerification,
-		sendOnSignUp: process.env.NODE_ENV === "production",
-		sendOnSignIn: process.env.NODE_ENV === "production",
+		sendOnSignUp: sendVerificationOnAuth,
+		sendOnSignIn: sendVerificationOnAuth,
 		autoSignInAfterVerification: true,
 		sendVerificationEmail: async ({ user, url }) => {
 			await enforceAuthEmailRateLimit({
@@ -687,13 +792,42 @@ export const auth = betterAuth({
 				viewer,
 			},
 			organizationHooks: {
+				beforeCreateOrganization: ({ organization }) => {
+					if (organization.metadata !== undefined) {
+						throw new APIError("BAD_REQUEST", {
+							message: "Organization metadata is managed by the server.",
+						});
+					}
+					return Promise.resolve();
+				},
+				beforeUpdateOrganization: ({ organization }) => {
+					if (organization.metadata !== undefined) {
+						throw new APIError("BAD_REQUEST", {
+							message: "Organization metadata is managed by the server.",
+						});
+					}
+					return Promise.resolve();
+				},
+				beforeDeleteOrganization: async ({ organization }) => {
+					try {
+						await deleteOrganizationWithBusinessMemory(organization.id);
+					} catch (error) {
+						if (!(error instanceof BusinessMemoryRetirementError)) {
+							throw error;
+						}
+						throw new APIError("SERVICE_UNAVAILABLE", {
+							message:
+								"Business memory could not be removed. Retry deleting the organization.",
+						});
+					}
+				},
 				afterAddMember: async ({ member, organization }) => {
 					await invalidateMemberCaches(member);
+					const memberAudit = await getAuditMemberDetails(member);
 					await recordAuthAudit(organization.id, {
 						action: auditActions.ORGANIZATION_MEMBER_ADDED,
-						target: { id: member.id },
+						...memberAudit,
 						changes: { role: { after: member.role } },
-						metadata: { memberUserId: member.userId },
 					});
 				},
 				afterCreateOrganization: async ({ member, organization, user }) => {
@@ -744,14 +878,14 @@ export const auth = betterAuth({
 				},
 				afterRemoveMember: async ({ member, organization }) => {
 					await invalidateMemberCaches(member);
+					const memberAudit = await getAuditMemberDetails(member);
 					await recordAuthAudit(organization.id, {
 						action: auditActions.ORGANIZATION_MEMBER_REMOVED,
-						target: { id: member.id },
+						...memberAudit,
 						changes: {
 							deleted: { after: true },
 							role: { before: member.role },
 						},
-						metadata: { memberUserId: member.userId },
 					});
 				},
 				afterUpdateMemberRole: async ({
@@ -760,11 +894,11 @@ export const auth = betterAuth({
 					previousRole,
 				}) => {
 					await invalidateMemberCaches(member);
+					const memberAudit = await getAuditMemberDetails(member);
 					await recordAuthAudit(organization.id, {
 						action: auditActions.ORGANIZATION_MEMBER_ROLE_UPDATED,
-						target: { id: member.id },
+						...memberAudit,
 						changes: { role: { before: previousRole, after: member.role } },
-						metadata: { memberUserId: member.userId },
 					});
 				},
 				afterCreateInvitation: async ({
@@ -776,7 +910,10 @@ export const auth = betterAuth({
 						organization.id,
 						{
 							action: auditActions.ORGANIZATION_INVITATION_CREATED,
-							target: { id: invitation.id },
+							target: {
+								id: invitation.id,
+								displayName: invitation.email,
+							},
 							changes: { role: { after: invitation.role } },
 							metadata: { status: invitation.status },
 						},
@@ -788,7 +925,10 @@ export const auth = betterAuth({
 						organization.id,
 						{
 							action: auditActions.ORGANIZATION_INVITATION_ACCEPTED,
-							target: { id: invitation.id },
+							target: {
+								id: invitation.id,
+								displayName: invitation.email,
+							},
 							changes: {
 								status: { before: "pending", after: invitation.status },
 							},
@@ -801,7 +941,10 @@ export const auth = betterAuth({
 						organization.id,
 						{
 							action: auditActions.ORGANIZATION_INVITATION_REJECTED,
-							target: { id: invitation.id },
+							target: {
+								id: invitation.id,
+								displayName: invitation.email,
+							},
 							changes: {
 								status: { before: "pending", after: invitation.status },
 							},
@@ -818,7 +961,10 @@ export const auth = betterAuth({
 						organization.id,
 						{
 							action: auditActions.ORGANIZATION_INVITATION_CANCELLED,
-							target: { id: invitation.id },
+							target: {
+								id: invitation.id,
+								displayName: invitation.email,
+							},
 							changes: {
 								status: { before: "pending", after: invitation.status },
 							},
@@ -853,8 +999,6 @@ export const auth = betterAuth({
 export const websitesApi = {
 	hasPermission: auth.api.hasPermission,
 };
-
-/** Runs a Better Auth request with its Drizzle adapter pinned to one transaction. */
 export async function runWithAuthTransaction<T>(
 	callback: () => Promise<T>
 ): Promise<T> {

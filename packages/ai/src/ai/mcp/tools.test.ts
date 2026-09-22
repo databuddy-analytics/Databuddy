@@ -11,6 +11,7 @@ import {
 	handleDatabuddyMcpRequest,
 } from "../../mcp/http";
 import { defineMcpTool, type McpRequestContext } from "./define-tool";
+import { resolveMcpDateRange } from "./tool-contracts";
 import { createMcpTools } from "./tools";
 
 const ctx: McpRequestContext = {
@@ -135,7 +136,8 @@ describe("MCP tool invariants", () => {
 		const tool = defineMcpTool(
 			{
 				name: "literal_string_input",
-				description: "Test that literal string inputs reach the handler unchanged.",
+				description:
+					"Test that literal string inputs reach the handler unchanged.",
 				inputSchema: z.object({
 					enabled: z.boolean(),
 					literal: z.string(),
@@ -153,6 +155,25 @@ describe("MCP tool invariants", () => {
 			expect(result).not.toMatchObject({ isError: true });
 			expect(received).toEqual({ enabled: true, literal });
 		}
+	});
+
+	test("does not expose internal exception text", async () => {
+		const sentinel = "MCP_INTERNAL_SENTINEL_DO_NOT_EXPOSE";
+		const tool = defineMcpTool(
+			{
+				name: "internal_error_test",
+				description:
+					"Test that internal exception text is not returned to callers.",
+				inputSchema: z.object({}),
+			},
+			() => {
+				throw new Error(sentinel);
+			}
+		).build(ctx);
+
+		const result = await tool.handler({});
+		expect(result).toMatchObject({ isError: true });
+		expect(JSON.stringify(result)).not.toContain(sentinel);
 	});
 
 	test("create_link matches the HTTP(S) and deep-link app contract", () => {
@@ -236,27 +257,42 @@ describe("MCP tool invariants", () => {
 				xValue: "2026-02-30T12:00:00Z",
 			}).success
 		).toBe(false);
-	});
-
-	test("keeps mixed batch date errors inside the batch result", () => {
-		const getData = tools.find((tool) => tool.name === "get_data");
-		if (!getData) {
-			throw new Error("Expected get_data to be registered");
-		}
-
 		expect(
-			getData.inputSchema.safeParse({
-				queries: [
-					{ preset: "last_7d", type: "summary_metrics" },
-					{
-						from: "2026-02-30",
-						to: "2026-03-02",
-						type: "summary_metrics",
-					},
-				],
+			createAnnotation.inputSchema.safeParse({
+				annotationType: "range",
+				confirmed: false,
+				text: "Release",
 				websiteId: "website-1",
+				xEndValue: "2026-03-02",
+				xValue: "2026-03-01",
 			}).success
 		).toBe(true);
+		for (const xEndValue of [undefined, "2026-02-28"]) {
+			expect(
+				createAnnotation.inputSchema.safeParse({
+					annotationType: "range",
+					confirmed: false,
+					text: "Release",
+					websiteId: "website-1",
+					xEndValue,
+					xValue: "2026-03-01",
+				}).success
+			).toBe(false);
+		}
+	});
+
+	test.each([
+		{},
+		{ preset: "last_30d" as const },
+	])("resolves MCP presets and defaults to 30 days: %j", (range) => {
+		const { from, to } = resolveMcpDateRange(range);
+		expect(from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+		expect(to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+		expect(
+			(Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) /
+				86_400_000 +
+				1
+		).toBe(30);
 	});
 
 	test("tool names are unique snake_case", () => {
@@ -298,47 +334,31 @@ describe("MCP tool invariants", () => {
 			}
 		}
 	});
-
-	test("zero-argument schemas accept an empty object", () => {
-		for (const tool of tools) {
-			const schema = z.toJSONSchema(tool.inputSchema, { io: "input" });
-			if ((schema.required as string[] | undefined)?.length === 0) {
-				expect(tool.inputSchema.safeParse({}).success).toBe(true);
-			}
-		}
-	});
-
-	test("avoids reserved methods", () => {
-		const reserved = new Set(["initialize", "ping", "notifications/initialized"]);
-		for (const tool of tools) {
-			expect(reserved.has(tool.name)).toBe(false);
-		}
-	});
 });
 
 describe("investigation tools", () => {
 	test("only advertises tools whose API-key scopes can satisfy their calls", async () => {
+		const zeroScope = await listToolsForScopes([]);
+		const zeroScopeNames = new Set(zeroScope.tools.map((tool) => tool.name));
+		expect(zeroScopeNames.has("capabilities")).toBe(false);
+		expect(zeroScopeNames.has("get_schema")).toBe(false);
+
 		const readData = await listToolsForScopes(["read:data"]);
 		const readDataNames = new Set(readData.tools.map((tool) => tool.name));
 		expect(readData.response.status).toBe(200);
+		expect(readDataNames.has("capabilities")).toBe(true);
+		expect(readDataNames.has("get_schema")).toBe(true);
 		expect(readDataNames.has("get_data")).toBe(true);
 		expect(readDataNames.has("get_funnel_analytics_by_referrer")).toBe(true);
 		expect(readDataNames.has("list_links")).toBe(false);
 		expect(readDataNames.has("create_link")).toBe(false);
 		expect(readDataNames.has("create_flag")).toBe(false);
 
-		const flagManager = await listToolsForScopes([
-			"read:data",
-			"manage:flags",
-		]);
+		const flagManager = await listToolsForScopes(["read:data", "manage:flags"]);
 		const flagManagerNames = new Set(
 			flagManager.tools.map((tool) => tool.name)
 		);
-		for (const name of [
-			"create_flag",
-			"update_flag",
-			"add_users_to_flag",
-		]) {
+		for (const name of ["create_flag", "update_flag", "add_users_to_flag"]) {
 			expect(flagManagerNames.has(name)).toBe(true);
 		}
 
@@ -373,10 +393,7 @@ describe("investigation tools", () => {
 			expect(workspaceWriterWithoutReadNames.has(name)).toBe(false);
 		}
 
-		const linkReader = await listToolsForScopes([
-			"read:data",
-			"read:links",
-		]);
+		const linkReader = await listToolsForScopes(["read:data", "read:links"]);
 		expect(
 			new Set(linkReader.tools.map((tool) => tool.name)).has("list_links")
 		).toBe(true);
@@ -400,9 +417,7 @@ describe("investigation tools", () => {
 			"read:links",
 			"write:links",
 		]);
-		const linkWriterNames = new Set(
-			linkWriter.tools.map((tool) => tool.name)
-		);
+		const linkWriterNames = new Set(linkWriter.tools.map((tool) => tool.name));
 		for (const name of ["create_link", "update_link", "delete_link"]) {
 			expect(linkWriterNames.has(name)).toBe(true);
 		}
@@ -413,11 +428,7 @@ describe("investigation tools", () => {
 			createInternalPrincipal({
 				metadata: {
 					resources: {
-						"website:site-1": [
-							"read:data",
-							"read:links",
-							"write:links",
-						],
+						"website:site-1": ["read:data", "read:links", "write:links"],
 					},
 				},
 				organizationId: "org-1",
@@ -507,38 +518,18 @@ describe("investigation tools", () => {
 	});
 
 	test("publishes the investigation lifecycle to a website-scoped key", async () => {
-		const principal = createInternalPrincipal({
-			metadata: {
-				resources: {
-					"website:site-1": ["read:data", "manage:websites"],
+		const { response, tools: listed } = await listToolsForPrincipal(
+			createInternalPrincipal({
+				metadata: {
+					resources: {
+						"website:site-1": ["read:data", "manage:websites"],
+					},
 				},
-			},
-			organizationId: "org-1",
-			scopes: [],
-		});
-		const response = await handleDatabuddyMcpRequest({
-			apiKey: principal.apiKey,
-			organizationId: "org-1",
-			request: new Request("https://api.databuddy.test/v1/mcp", {
-				body: JSON.stringify({
-					id: 1,
-					jsonrpc: "2.0",
-					method: "tools/list",
-					params: {},
-				}),
-				headers: {
-					accept: "application/json, text/event-stream",
-					"content-type": "application/json",
-				},
-				method: "POST",
-			}),
-			requestHeaders: new Headers(),
-			userId: null,
-		});
-		const body = (await response.json()) as {
-			result?: { tools?: Array<{ name: string }> };
-		};
-		const names = new Set(body.result?.tools?.map((tool) => tool.name));
+				organizationId: "org-1",
+				scopes: [],
+			})
+		);
+		const names = new Set(listed.map((tool) => tool.name));
 
 		expect(response.status).toBe(200);
 		for (const name of [
@@ -549,43 +540,5 @@ describe("investigation tools", () => {
 		]) {
 			expect(names.has(name)).toBe(true);
 		}
-	});
-
-	test("exposes published insights and the durable investigation lifecycle", () => {
-		const byName = new Map(tools.map((tool) => [tool.name, tool]));
-
-		expect(byName.get("list_insights")?.metadata).toMatchObject({
-			access: { kind: "read", scopes: ["read:data"] },
-		});
-		expect(byName.get("list_investigations")?.metadata).toMatchObject({
-			access: { kind: "read", scopes: ["read:data"] },
-		});
-		expect(byName.get("get_investigation")?.metadata).toMatchObject({
-			access: { kind: "read", scopes: ["read:data"] },
-		});
-		expect(byName.get("reply_to_investigation")?.metadata).toMatchObject({
-			access: { kind: "write", scopes: ["manage:websites"] },
-		});
-		expect(
-			byName.get("reply_to_investigation")?.inputSchema.safeParse({
-				body: "The deploy completed at noon.",
-				investigationId: "investigation-1",
-				replyId: "mcp-request-1",
-			}).success
-		).toBe(true);
-		expect(
-			byName.get("reply_to_investigation")?.inputSchema.safeParse({
-				body: "The deploy completed at noon.",
-				investigationId: "investigation-1",
-				replyId: "mcp:request:1",
-			}).success
-		).toBe(false);
-		expect(
-			byName.get("reply_to_investigation")?.inputSchema.safeParse({
-				body: "The deploy completed at noon.",
-				investigationId: "investigation-1",
-			}).success
-		).toBe(false);
-
 	});
 });

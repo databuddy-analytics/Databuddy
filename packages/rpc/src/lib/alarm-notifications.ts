@@ -1,12 +1,9 @@
 import {
 	NotificationClient,
-	buildAlarmNotificationConfig,
 	buildAlarmNotificationTargets,
 	type NotificationPayload,
 	type NotificationResult,
 } from "@databuddy/notifications";
-
-export const toNotificationConfig = buildAlarmNotificationConfig;
 export const toNotificationTargets = buildAlarmNotificationTargets;
 
 type NotificationTarget = ReturnType<

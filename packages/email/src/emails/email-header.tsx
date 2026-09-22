@@ -1,4 +1,4 @@
-import { Img, Section, Text } from "react-email";
+import { Img, Section, Text } from "@react-email/components";
 import { emailBrand } from "./email-brand";
 
 interface EmailHeaderProps {

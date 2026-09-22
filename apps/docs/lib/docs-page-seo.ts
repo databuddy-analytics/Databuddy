@@ -2,7 +2,6 @@ import { type DocPage, getPageImage } from "@/lib/source";
 
 export interface DocsPageSeoModel {
 	description: string;
-	keywords: string[];
 	ogImage: string;
 	pageTitle: string;
 	sectionLabel: string;
@@ -31,32 +30,6 @@ function sectionLabelForUrl(url: string): string {
 	return "Documentation";
 }
 
-function contextKeywordsForUrl(url: string): string[] {
-	return [
-		...(url.includes("integration") || url.includes("Integrations")
-			? ["integration", "setup guide", "installation"]
-			: []),
-		...(url.includes("api")
-			? ["API", "reference", "endpoints", "REST API"]
-			: []),
-		...(url.includes("getting-started")
-			? ["tutorial", "quickstart", "setup"]
-			: []),
-		...(url.includes("sdk") ? ["SDK", "JavaScript", "tracking"] : []),
-		...(url.includes("dashboard") ? ["dashboard", "real-time", "UI"] : []),
-		...(url.includes("security") ? ["security", "privacy", "compliance"] : []),
-		...(url.includes("performance")
-			? ["performance", "core web vitals", "optimization"]
-			: []),
-		...(url.includes("react") ? ["React", "React.js", "component"] : []),
-		...(url.includes("nextjs") ? ["Next.js", "server components", "SSR"] : []),
-		...(url.includes("wordpress") ? ["WordPress", "plugin", "CMS"] : []),
-		...(url.includes("shopify")
-			? ["Shopify", "e-commerce", "online store"]
-			: []),
-	];
-}
-
 export function getDocsPageSeo(page: DocPage): DocsPageSeoModel {
 	const pageTitle = page.data.title ?? "Documentation";
 	const url = `https://www.databuddy.cc${page.url}`;
@@ -67,24 +40,12 @@ export function getDocsPageSeo(page: DocPage): DocsPageSeoModel {
 	const ogImage = `https://www.databuddy.cc${getPageImage(page).url}`;
 	const sectionLabel = sectionLabelForUrl(page.url);
 
-	const keywords = [
-		pageTitle.toLowerCase(),
-		"databuddy",
-		"analytics",
-		"privacy-first",
-		"web analytics",
-		"GDPR compliant",
-		"cookieless analytics",
-		...contextKeywordsForUrl(page.url),
-	];
-
 	return {
 		pageTitle,
 		title,
 		description,
 		url,
 		ogImage,
-		keywords,
 		sectionLabel,
 	};
 }

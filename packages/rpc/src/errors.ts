@@ -7,6 +7,7 @@ const resourceSchema = z.object({
 });
 
 const limitSchema = z.object({
+	feature: z.string(),
 	limit: z.number(),
 	current: z.number(),
 	nextPlan: z.string().optional(),
@@ -61,7 +62,7 @@ export const baseErrors = {
 	},
 	FEATURE_UNAVAILABLE: {
 		message: "This feature is not available on your current plan",
-		status: 403,
+		status: 402,
 		data: featureSchema,
 	},
 	INTERNAL_SERVER_ERROR: {
@@ -70,22 +71,24 @@ export const baseErrors = {
 	},
 } as const;
 
-export type BaseErrors = typeof baseErrors;
-
 export const rpcError = {
 	unauthorized: (message?: string) =>
 		new ORPCError("UNAUTHORIZED", { message }),
 	forbidden: (message?: string) => new ORPCError("FORBIDDEN", { message }),
 	notFound: (resourceType: string, resourceId?: string) =>
 		new ORPCError("NOT_FOUND", {
-			message: `${resourceType} not found`,
+			message: `${humanizeResourceType(resourceType)} not found`,
 			data: { resourceType, resourceId },
 		}),
 	badRequest: (message?: string) => new ORPCError("BAD_REQUEST", { message }),
-	featureUnavailable: (feature: string, requiredPlan?: string) =>
+	featureUnavailable: (
+		feature: string,
+		requiredPlan?: string,
+		message?: string
+	) =>
 		new ORPCError("FEATURE_UNAVAILABLE", {
-			status: 403,
-			message: "This feature is not available on your current plan",
+			status: 402,
+			message: message ?? "This feature is not available on your current plan",
 			data: { feature, requiredPlan },
 		}),
 	conflict: (message?: string) => new ORPCError("CONFLICT", { message }),
@@ -101,19 +104,34 @@ export const rpcError = {
 			message: message ?? "The service is temporarily unavailable",
 			data: { retryAfter: normalizeRetryAfterSeconds(retryAfter) },
 		}),
-	planLimitExceeded: (
-		limit: number,
-		current: number,
-		nextPlan?: string,
-		message?: string
-	) =>
+	planLimitExceeded: ({
+		message,
+		...data
+	}: {
+		feature: string;
+		limit: number;
+		current: number;
+		nextPlan?: string;
+		message: string;
+	}) =>
 		new ORPCError("PLAN_LIMIT_EXCEEDED", {
 			status: 402,
-			message: message ?? "You have reached the limit for your current plan",
-			data: { limit, current, nextPlan },
+			message,
+			data,
 		}),
-	internal: (_message?: string) => new ORPCError("INTERNAL_SERVER_ERROR"),
+	internal: (message?: string) =>
+		new ORPCError("INTERNAL_SERVER_ERROR", { message }),
 };
+
+const CAMEL_CASE_BOUNDARY = /([a-z])([A-Z])/g;
+
+function humanizeResourceType(resourceType: string): string {
+	const spaced = resourceType.replace(
+		CAMEL_CASE_BOUNDARY,
+		(_, before: string, after: string) => `${before} ${after.toLowerCase()}`
+	);
+	return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
 
 function normalizeRetryAfterSeconds(value: number): number {
 	if (!Number.isFinite(value)) {

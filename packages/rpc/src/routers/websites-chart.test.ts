@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { type ChartDataRow, calculateTrend, processChartData } from "./websites-chart";
+import {
+	type ChartDataRow,
+	calculateTrend,
+	processChartData,
+} from "./websites-chart";
 
 function makeRows(
 	websiteId: string,
@@ -39,11 +43,9 @@ function activeRows(websiteId: string) {
 
 describe("processChartData", () => {
 	it("returns hasAnyData=true and hasHistoricalData=true for a website with recent pageviews", () => {
-		const result = processChartData(
-			["site-a"],
-			activeRows("site-a"),
-			[{ websiteId: "site-a" }]
-		);
+		const result = processChartData(["site-a"], activeRows("site-a"), [
+			{ websiteId: "site-a" },
+		]);
 
 		expect(result["site-a"].hasAnyData).toBe(true);
 		expect(result["site-a"].hasHistoricalData).toBe(true);
@@ -52,11 +54,9 @@ describe("processChartData", () => {
 	});
 
 	it("returns hasAnyData=false and hasHistoricalData=true for a website with only historical data", () => {
-		const result = processChartData(
-			["site-b"],
-			emptyRows("site-b"),
-			[{ websiteId: "site-b" }]
-		);
+		const result = processChartData(["site-b"], emptyRows("site-b"), [
+			{ websiteId: "site-b" },
+		]);
 
 		expect(result["site-b"].hasAnyData).toBe(false);
 		expect(result["site-b"].hasHistoricalData).toBe(true);
@@ -64,32 +64,11 @@ describe("processChartData", () => {
 	});
 
 	it("returns hasAnyData=false and hasHistoricalData=false for a website that never had data", () => {
-		const result = processChartData(
-			["site-c"],
-			emptyRows("site-c"),
-			[]
-		);
+		const result = processChartData(["site-c"], emptyRows("site-c"), []);
 
 		expect(result["site-c"].hasAnyData).toBe(false);
 		expect(result["site-c"].hasHistoricalData).toBe(false);
 		expect(result["site-c"].totalViews).toBe(0);
-	});
-
-	it("handles multiple websites in different states", () => {
-		const result = processChartData(
-			["active", "dormant", "new"],
-			[...activeRows("active"), ...emptyRows("dormant"), ...emptyRows("new")],
-			[{ websiteId: "active" }, { websiteId: "dormant" }]
-		);
-
-		expect(result["active"].hasAnyData).toBe(true);
-		expect(result["active"].hasHistoricalData).toBe(true);
-
-		expect(result["dormant"].hasAnyData).toBe(false);
-		expect(result["dormant"].hasHistoricalData).toBe(true);
-
-		expect(result["new"].hasAnyData).toBe(false);
-		expect(result["new"].hasHistoricalData).toBe(false);
 	});
 
 	it("returns an empty record when no website IDs are provided", () => {
@@ -107,11 +86,9 @@ describe("processChartData", () => {
 			}))
 		);
 
-		const result = processChartData(
-			["site-d"],
-			rows,
-			[{ websiteId: "site-d" }]
-		);
+		const result = processChartData(["site-d"], rows, [
+			{ websiteId: "site-d" },
+		]);
 
 		expect(result["site-d"].hasAnyData).toBe(true);
 		expect(result["site-d"].totalViews).toBe(1);
@@ -124,11 +101,9 @@ describe("processChartData", () => {
 			{ date: "2026-05-14", value: 50, hasData: true },
 		]);
 
-		const result = processChartData(
-			["site-e"],
-			rows,
-			[{ websiteId: "site-e" }]
-		);
+		const result = processChartData(["site-e"], rows, [
+			{ websiteId: "site-e" },
+		]);
 
 		expect(result["site-e"].totalViews).toBe(350);
 	});

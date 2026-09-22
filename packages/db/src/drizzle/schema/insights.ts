@@ -1,9 +1,11 @@
 import { inArray } from "drizzle-orm";
 import type {
 	InsightReplySlackDelivery,
+	InvestigationEvidenceSnapshot,
 	InvestigationOutcome,
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
+import type { OrganizationBusinessContext } from "@databuddy/shared/organization-business-context";
 import {
 	boolean,
 	foreignKey,
@@ -149,11 +151,6 @@ export const insightRunItems = pgTable(
 		status: text().$type<InsightRunItemStatus>().default("queued").notNull(),
 		attempts: integer().default(0).notNull(),
 		resultCount: integer("result_count").default(0).notNull(),
-		/**
-		 * The deterministic, read-only portfolio chosen before agents run. Keeping
-		 * it on the run item lets retries complete the same work instead of
-		 * rediscovering a different set of signals after telemetry changes.
-		 */
 		candidatePlan: jsonb("candidate_plan").$type<unknown>(),
 		preparedAt: timestamp("prepared_at", {
 			precision: 3,
@@ -277,6 +274,7 @@ export const insightObservations = pgTable(
 		asOf: timestamp("as_of", { precision: 3, withTimezone: true }).notNull(),
 		signal: jsonb().$type<InvestigationSignal>().notNull(),
 		evidence: jsonb().$type<string[]>().default([]).notNull(),
+		snapshot: jsonb().$type<InvestigationEvidenceSnapshot>(),
 		outcome: jsonb("decision").$type<InvestigationOutcome>().notNull(),
 		recheckAt: timestamp("recheck_at", {
 			precision: 3,
@@ -327,6 +325,12 @@ export const insightReplies = pgTable(
 		id: text().primaryKey(),
 		insightId: text("insight_id").notNull(),
 		observationId: text("observation_id"),
+		sourceObservationId: text("source_observation_id"),
+		intent: text()
+			.$type<"clarification" | "analysis" | "verification">()
+			.default("clarification")
+			.notNull(),
+		assistantText: text("assistant_text"),
 		authorId: text("author_id"),
 		authorName: text("author_name").notNull(),
 		body: text().notNull(),
@@ -357,6 +361,24 @@ export const insightReplies = pgTable(
 			foreignColumns: [user.id],
 			name: "insight_replies_author_id_fkey",
 		}).onDelete("set null"),
+	]
+);
+
+export const organizationBusinessContexts = pgTable(
+	"organization_business_contexts",
+	{
+		organizationId: text("organization_id").primaryKey(),
+		state: jsonb().$type<OrganizationBusinessContext>().notNull(),
+		updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "organization_business_contexts_organization_id_fkey",
+		}).onDelete("cascade"),
 	]
 );
 

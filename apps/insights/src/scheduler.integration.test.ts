@@ -6,6 +6,7 @@ import {
 	describe,
 	expect,
 	it,
+	mock,
 	spyOn,
 } from "bun:test";
 import { db as appDb, shutdownPostgres } from "@databuddy/db";
@@ -19,10 +20,7 @@ import {
 	getInsightsQueue,
 	type InsightsGenerateWebsiteJobData,
 } from "@databuddy/redis";
-import {
-	mutateConfig,
-	queueInsightGenerationRun,
-} from "@databuddy/rpc/insight-generation";
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import {
 	closePostgres,
 	db,
@@ -39,6 +37,57 @@ import {
 	dispatchDueInsightRuns,
 	retryConfigSoon,
 } from "./scheduler";
+
+// Admission reads the native investigation allowance, not a plan name.
+// Reject every other request so this suite cannot contact a live provider.
+spyOn(globalThis, "fetch").mockImplementation((request) => {
+	if (
+		!(request instanceof Request) ||
+		new URL(request.url).origin !== "https://api.useautumn.com" ||
+		new URL(request.url).pathname !== "/v1/customers.get"
+	) {
+		throw new Error("Only the synthetic customer allowance is permitted");
+	}
+	return Promise.resolve(
+		Response.json({
+			id: "test-owner",
+			name: null,
+			email: null,
+			created_at: 0,
+			fingerprint: null,
+			stripe_id: null,
+			env: "sandbox",
+			metadata: {},
+			send_email_receipts: false,
+			billing_controls: {},
+			subscriptions: [],
+			purchases: [],
+			flags: {},
+			balances: {
+				[INVESTIGATION_USAGE.featureId]: {
+					feature_id: INVESTIGATION_USAGE.featureId,
+					granted: 10,
+					remaining: 10,
+					usage: 0,
+					unlimited: false,
+					overage_allowed: false,
+					max_purchase: null,
+					next_reset_at: null,
+				},
+			},
+		})
+	);
+});
+
+const actualOrganization = await import("@databuddy/rpc/organization");
+mock.module("@databuddy/rpc/organization", () => ({
+	...actualOrganization,
+	getOrganizationOwnerId: async () => "test-owner",
+}));
+
+const { mutateConfig, queueInsightGenerationRun } = await import(
+	"@databuddy/rpc/insight-generation"
+);
 
 const runIntegration =
 	process.env.INSIGHTS_INTEGRATION_TESTS === "true" && hasTestDb;
@@ -58,6 +107,7 @@ describeIntegration("insights scheduler integration", () => {
 	});
 
 	afterAll(async () => {
+		mock.restore();
 		await cleanupQueueJobs();
 		await closeInsightsQueue();
 		await shutdownPostgres();
@@ -77,13 +127,15 @@ describeIntegration("insights scheduler integration", () => {
 		});
 		const now = new Date();
 
-		await db().insert(insightGenerationConfigs).values({
-			id: randomUUIDv7(),
-			organizationId: org.id,
-			enabled: true,
-			frequency: "daily",
-			nextRunAt: new Date(now.getTime() - 1000),
-		});
+		await db()
+			.insert(insightGenerationConfigs)
+			.values({
+				id: randomUUIDv7(),
+				organizationId: org.id,
+				enabled: true,
+				frequency: "daily",
+				nextRunAt: new Date(now.getTime() - 1000),
+			});
 
 		const result = await dispatchDueInsightRuns(now);
 
@@ -127,9 +179,9 @@ describeIntegration("insights scheduler integration", () => {
 			.where(eq(insightGenerationConfigs.organizationId, org.id))
 			.limit(1);
 
-		expect(config?.nextRunAt && config.nextRunAt.getTime() > now.getTime()).toBe(
-			true
-		);
+		expect(
+			config?.nextRunAt && config.nextRunAt.getTime() > now.getTime()
+		).toBe(true);
 	});
 
 	it("advances a due config when the organization has no websites", async () => {
@@ -137,14 +189,16 @@ describeIntegration("insights scheduler integration", () => {
 		organizationIds.add(org.id);
 		const now = new Date();
 
-		await db().insert(insightGenerationConfigs).values({
-			id: randomUUIDv7(),
-			organizationId: org.id,
-			enabled: true,
-			frequency: "weekly",
-			nextRunAt: new Date(now.getTime() - 1000),
-			timezone: "UT<C",
-		});
+		await db()
+			.insert(insightGenerationConfigs)
+			.values({
+				id: randomUUIDv7(),
+				organizationId: org.id,
+				enabled: true,
+				frequency: "weekly",
+				nextRunAt: new Date(now.getTime() - 1000),
+				timezone: "UT<C",
+			});
 
 		const result = await dispatchDueInsightRuns(now);
 
@@ -309,13 +363,15 @@ describeIntegration("insights scheduler integration", () => {
 		const org = await insertOrganization();
 		organizationIds.add(org.id);
 		const now = new Date("2026-01-22T09:00:00.000Z");
-		await db().insert(insightGenerationConfigs).values({
-			id: randomUUIDv7(),
-			organizationId: org.id,
-			enabled: true,
-			frequency: "daily",
-			nextRunAt: new Date(now.getTime() - 1000),
-		});
+		await db()
+			.insert(insightGenerationConfigs)
+			.values({
+				id: randomUUIDv7(),
+				organizationId: org.id,
+				enabled: true,
+				frequency: "daily",
+				nextRunAt: new Date(now.getTime() - 1000),
+			});
 		const [stale] = await db()
 			.select()
 			.from(insightGenerationConfigs)
@@ -353,9 +409,7 @@ describeIntegration("insights scheduler integration", () => {
 				queueInsightGenerationRun({
 					organizationId: org.id,
 					timezone: " UTC ",
-					websiteIds: [
-						index % 2 === 0 ? firstWebsite.id : secondWebsite.id,
-					],
+					websiteIds: [index % 2 === 0 ? firstWebsite.id : secondWebsite.id],
 				})
 			)
 		);
@@ -481,7 +535,7 @@ describeIntegration("insights scheduler integration", () => {
 					organizationId: org.id,
 					websiteIds: [failedWebsite.id],
 				})
-			).rejects.toThrow("Internal Server Error");
+			).rejects.toThrow("Failed to queue insight generation");
 		} finally {
 			publish.mockRestore();
 		}

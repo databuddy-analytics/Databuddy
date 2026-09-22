@@ -14,7 +14,10 @@ import { checkAutumnUsage } from "@lib/billing";
 import { parseCorsSafeJson } from "@lib/cors-safe-json";
 import { insertCustomEvents } from "@lib/event-service";
 import { ratelimit } from "@databuddy/redis/rate-limit";
-import { getWebsiteSecuritySettings } from "@lib/request-validation";
+import {
+	checkForBot,
+	getWebsiteSecuritySettings,
+} from "@lib/request-validation";
 import { summarizeRejectedBody } from "@lib/rejection-summary";
 import {
 	basketErrors,
@@ -23,11 +26,16 @@ import {
 } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
 import {
+	extractAllowlistClientIp,
 	extractTrustedClientIp,
 	getVisitorCountryForAutoMode,
 } from "@utils/ip-geo";
 import { isValidIpFromSettings } from "@utils/origin-ip-validation";
-import { VALIDATION_LIMITS, validatePayloadSize } from "@utils/validation";
+import {
+	sanitizeString,
+	VALIDATION_LIMITS,
+	validatePayloadSize,
+} from "@utils/validation";
 import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
 import { type TrackEventPayload, trackEventSchema } from "./track-event-schema";
@@ -123,7 +131,7 @@ async function enforceWebsiteSecurity(
 	}
 
 	if (allowedIps && allowedIps.length > 0) {
-		const ip = extractTrustedClientIp(request);
+		const ip = extractAllowlistClientIp(request);
 		if (!(ip && (await isValidIpFromSettings(ip, allowedIps)))) {
 			log.set({ auth: { ok: false, reason: "ip_not_authorized" } });
 			throw basketErrors.ingestIpNotAuthorized();
@@ -251,6 +259,24 @@ export const trackRoute = new Elysia()
 			const websiteIdParam = typedQuery.website_id || events[0]?.websiteId;
 
 			const auth = await resolveAuth(request.headers, request, websiteIdParam);
+
+			const userAgent =
+				sanitizeString(
+					request.headers.get("user-agent"),
+					VALIDATION_LIMITS.STRING_MAX_LENGTH
+				) || "";
+			const botError = await checkForBot(
+				request,
+				typedBody,
+				typedQuery,
+				auth.websiteId ?? websiteIdParam ?? "",
+				userAgent
+			);
+			if (botError) {
+				log.set({ rejected: "bot" });
+				return botError.error;
+			}
+
 			const targets = events.map((event) => ({
 				event,
 				websiteId: event.websiteId ?? typedQuery.website_id ?? auth.websiteId,

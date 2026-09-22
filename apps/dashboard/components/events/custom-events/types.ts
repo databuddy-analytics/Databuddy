@@ -56,7 +56,7 @@ export interface MiniChartDataPoint {
 	value: number;
 }
 
-export type PropertyInferredType =
+type PropertyInferredType =
 	| "boolean"
 	| "numeric"
 	| "datetime"
@@ -66,7 +66,7 @@ export type PropertyInferredType =
 	| "text"
 	| "high_cardinality";
 
-export type PropertyRenderStrategy =
+type PropertyRenderStrategy =
 	| "distribution_bar"
 	| "top_n_chart"
 	| "top_n_with_other"

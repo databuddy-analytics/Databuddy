@@ -147,25 +147,6 @@ export function parseReferrer(
 	};
 }
 
-export function categorizeReferrer(referrerInfo: ReferrerInfo): string {
-	switch (referrerInfo.type) {
-		case "search":
-			return "Search Engine";
-		case "social":
-			return "Social Media";
-		case "email":
-			return "Email";
-		case "ads":
-			return "Advertising";
-		case "ai":
-			return "AI";
-		case "direct":
-			return "Direct";
-		default:
-			return "Other";
-	}
-}
-
 export function isInternalReferrer(
 	referrerUrl: string,
 	websiteHostname?: string | null

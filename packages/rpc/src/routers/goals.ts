@@ -1,7 +1,14 @@
+import { analyticsCohortSchema } from "@databuddy/shared/analytics-filters";
+import { insightMeasurementSchema } from "@databuddy/shared/insights";
+import { successOutputSchema } from "../lib/schemas";
 import { and, desc, eq, inArray, isNull } from "@databuddy/db";
 import { goals } from "@databuddy/db/schema";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
+import {
+	analyticsDateRangeSchema,
+	resolveAnalyticsDateRange,
+} from "@databuddy/validation";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -10,6 +17,7 @@ import {
 	getTotalWebsiteUsers,
 	processGoalAnalytics,
 } from "../lib/analytics-utils";
+import { getErrorLogFields } from "@databuddy/shared/evlog-fields";
 import { logger } from "../lib/logger";
 import { invalidateGoalsCache } from "../lib/goals-cache";
 import { setTrackProperties } from "../middleware/track-mutation";
@@ -42,6 +50,18 @@ const filterSchema = z.object({
 
 type Filter = z.infer<typeof filterSchema>;
 
+const goalAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
+	cohort: analyticsCohortSchema.optional(),
+	filters: z.array(filterSchema).optional(),
+	goalId: z.string(),
+	websiteId: z.string(),
+});
+const bulkGoalAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
+	filters: z.array(filterSchema).optional(),
+	goalIds: z.array(z.string()).min(1),
+	websiteId: z.string(),
+});
+
 const goalOutputSchema = z.object({
 	id: z.string(),
 	websiteId: z.string(),
@@ -57,8 +77,6 @@ const goalOutputSchema = z.object({
 	updatedAt: z.coerce.date(),
 	deletedAt: z.nullable(z.coerce.date()),
 });
-
-const successOutputSchema = z.object({ success: z.literal(true) });
 
 const stepErrorInsightOutputSchema = z.object({
 	message: z.string(),
@@ -116,14 +134,6 @@ const goalAnalyticsResultSchema = z.discriminatedUnion("ok", [
 ]);
 
 type GoalAnalyticsResult = z.infer<typeof goalAnalyticsResultSchema>;
-
-const getDefaultDateRange = () => {
-	const endDate = new Date().toISOString().split("T")[0];
-	const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-		.toISOString()
-		.split("T")[0];
-	return { startDate, endDate };
-};
 
 const getEffectiveStartDate = (
 	requestedStartDate: string,
@@ -376,22 +386,17 @@ export const goalsRouter = {
 			description:
 				"Returns conversion analytics for a single goal. Requires website read permission.",
 		})
-		.input(
-			z.object({
-				goalId: z.string(),
-				websiteId: z.string(),
-				startDate: z.string().optional(),
-				endDate: z.string().optional(),
-				filters: z.array(filterSchema).optional(),
+		.input(goalAnalyticsInputSchema)
+		.output(
+			goalAnalyticsOutputSchema.extend({
+				measurement: insightMeasurementSchema,
+				savedDefinition: insightMeasurementSchema.shape.definition,
+				cohort: analyticsCohortSchema.optional(),
 			})
 		)
-		.output(goalAnalyticsOutputSchema)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-			const { startDate, endDate } =
-				input.startDate && input.endDate
-					? { startDate: input.startDate, endDate: input.endDate }
-					: getDefaultDateRange();
+			const { startDate, endDate } = resolveAnalyticsDateRange(input);
 
 			const [goal] = await context.db
 				.select()
@@ -415,11 +420,21 @@ export const goalsRouter = {
 				goal.ignoreHistoricData
 			);
 
-			const requestFilters = input.filters ?? [];
-			const cacheKey = `analytics:${input.goalId}:${effectiveStartDate}:${endDate}:${JSON.stringify(requestFilters)}`;
+			const combinedFilters = [
+				...(input.filters ?? []),
+				...(input.cohort?.filters ?? []),
+				...((goal.filters as Filter[]) || []),
+			];
+			const measurement = insightMeasurementSchema.parse({
+				websiteId: input.websiteId,
+				definitionId: goal.id,
+				startDate: effectiveStartDate,
+				endDate,
+				definition: { ...goal, filters: combinedFilters },
+			});
 
-			return cache.withCache({
-				key: cacheKey,
+			const analytics = await cache.withCache({
+				key: `analytics:${JSON.stringify(measurement)}`,
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["goals"],
 				queryFn: async () => {
@@ -432,8 +447,6 @@ export const goalsRouter = {
 						},
 					];
 
-					const filters = (goal.filters as Filter[]) || [];
-					const combinedFilters = [...requestFilters, ...filters];
 					const totalWebsiteUsers = await getTotalWebsiteUsers(
 						input.websiteId,
 						effectiveStartDate,
@@ -452,6 +465,15 @@ export const goalsRouter = {
 					);
 				},
 			});
+			return {
+				...analytics,
+				measurement,
+				cohort: input.cohort,
+				savedDefinition: insightMeasurementSchema.shape.definition.parse({
+					...goal,
+					filters: goal.filters ?? [],
+				}),
+			};
 		}),
 
 	bulkAnalytics: publicProcedure
@@ -463,22 +485,11 @@ export const goalsRouter = {
 			description:
 				"Returns conversion analytics for multiple goals. Requires website read permission.",
 		})
-		.input(
-			z.object({
-				websiteId: z.string(),
-				goalIds: z.array(z.string()).min(1),
-				startDate: z.string().optional(),
-				endDate: z.string().optional(),
-				filters: z.array(filterSchema).optional(),
-			})
-		)
+		.input(bulkGoalAnalyticsInputSchema)
 		.output(z.record(z.string(), goalAnalyticsResultSchema))
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-			const { startDate, endDate } =
-				input.startDate && input.endDate
-					? { startDate: input.startDate, endDate: input.endDate }
-					: getDefaultDateRange();
+			const { startDate, endDate } = resolveAnalyticsDateRange(input);
 
 			const goalsList = await context.db
 				.select()
@@ -493,6 +504,24 @@ export const goalsRouter = {
 				.orderBy(desc(goals.createdAt));
 
 			const requestFilters = input.filters ?? [];
+			const totalUsersCache = new Map<string, Promise<number>>();
+			const memoizedTotalUsers = (
+				effectiveStartDate: string,
+				filters: Filter[]
+			): Promise<number> => {
+				const key = `${effectiveStartDate}|${JSON.stringify(filters)}`;
+				let pending = totalUsersCache.get(key);
+				if (!pending) {
+					pending = getTotalWebsiteUsers(
+						input.websiteId,
+						effectiveStartDate,
+						endDate,
+						filters
+					);
+					totalUsersCache.set(key, pending);
+				}
+				return pending;
+			};
 			const results = await Promise.all(
 				goalsList.map(async (goal): Promise<[string, GoalAnalyticsResult]> => {
 					const effectiveStartDate = getEffectiveStartDate(
@@ -514,10 +543,8 @@ export const goalsRouter = {
 					const combinedFilters = [...requestFilters, ...filters];
 
 					try {
-						const totalUsers = await getTotalWebsiteUsers(
-							input.websiteId,
+						const totalUsers = await memoizedTotalUsers(
 							effectiveStartDate,
-							endDate,
 							combinedFilters
 						);
 						const analytics = await processGoalAnalytics(
@@ -534,7 +561,7 @@ export const goalsRouter = {
 					} catch (error) {
 						logger.error(
 							{
-								error,
+								...getErrorLogFields(error),
 								goalId: goal.id,
 								websiteId: input.websiteId,
 							},

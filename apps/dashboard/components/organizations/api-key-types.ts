@@ -39,23 +39,6 @@ export function formatMaskedApiKey({
 	return `${startIncludesPrefix ? start : `${cleanPrefix}_${start}`}••••`;
 }
 
-export type ApiResourceType =
-	| "global"
-	| "website"
-	| "ab_experiment"
-	| "feature_flag"
-	| "analytics_data"
-	| "error_data"
-	| "web_vitals"
-	| "custom_events"
-	| "export_data";
-
-export interface ApiKeyAccessEntry {
-	resourceId?: string | null;
-	resourceType: ApiResourceType;
-	scopes: ApiScope[];
-}
-
 export interface ApiKeyListItem {
 	createdAt: Date;
 	description?: string | null;
@@ -78,21 +61,4 @@ export interface ApiKeyListItem {
 	tags?: string[];
 	type: "user" | "sdk" | "automation";
 	updatedAt: Date;
-}
-
-export interface ApiKeyDetail extends ApiKeyListItem {
-	access: Array<{ id: string } & ApiKeyAccessEntry>;
-}
-
-export interface CreateApiKeyInput {
-	access?: ApiKeyAccessEntry[];
-	expiresAt?: string;
-	globalScopes?: ApiScope[];
-	metadata?: Record<string, unknown>;
-	name: string;
-	organizationId: string;
-	rateLimitEnabled?: boolean;
-	rateLimitMax?: number;
-	rateLimitTimeWindow?: number;
-	type?: "user" | "sdk" | "automation";
 }

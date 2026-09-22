@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { summarizeItemErrors } from "./recovery";
+import { summarizeInsightRunItemErrors as summarizeItemErrors } from "@databuddy/rpc/insight-generation";
 
 describe("summarizeItemErrors", () => {
 	it("returns null when no failed items have error messages", () => {

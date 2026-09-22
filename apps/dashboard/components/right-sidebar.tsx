@@ -95,11 +95,7 @@ function InfoCard({
 			)}
 		>
 			<div className="flex size-10 shrink-0 items-center justify-center rounded bg-secondary">
-				<IconComponent
-					className="text-accent-foreground"
-					size={20}
-					weight="duotone"
-				/>
+				<IconComponent className="text-accent-foreground" size={20} />
 			</div>
 			<div className="min-w-0 flex-1">
 				<div className="flex items-center gap-2">

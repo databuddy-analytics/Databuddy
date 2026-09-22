@@ -1,3 +1,4 @@
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { auth } from "@databuddy/auth";
 import { and, db, eq } from "@databuddy/db";
 import { member, slackIntegrations } from "@databuddy/db/schema";
@@ -10,10 +11,10 @@ import { Elysia, t } from "elysia";
 import { useLogger } from "evlog/elysia";
 import { z } from "zod";
 import {
-	createSlackOAuthState,
-	type SlackOAuthState,
-	verifySlackOAuthState,
-} from "./slack-state";
+	createOAuthState,
+	type OAuthState,
+	verifyOAuthState,
+} from "./oauth-state";
 
 const SLACK_OAUTH_SCOPES = [
 	"assistant:write",
@@ -295,7 +296,7 @@ async function saveSlackInstallation({
 	access: SlackAccessResponse;
 	config: SlackOAuthConfig;
 	identity: SlackBotIdentity;
-	state: SlackOAuthState;
+	state: OAuthState;
 }): Promise<void> {
 	try {
 		await saveSlackInstallationOnce({ access, config, identity, state });
@@ -317,7 +318,7 @@ async function saveSlackInstallationOnce({
 	access: SlackAccessResponse;
 	config: SlackOAuthConfig;
 	identity: SlackBotIdentity;
-	state: SlackOAuthState;
+	state: OAuthState;
 }): Promise<void> {
 	const teamId = identity.teamId ?? access.teamId;
 	const teamName = identity.teamName ?? access.teamName ?? teamId;
@@ -371,21 +372,12 @@ async function saveSlackInstallationOnce({
 	await invalidateSlackIntegrationCache(teamId);
 }
 
-function principalFromRequest(request: Request): string {
-	return (
-		request.headers.get("cf-connecting-ip") ||
-		request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-		request.headers.get("x-real-ip") ||
-		"unknown"
-	);
-}
-
 async function throttleSlackOAuth(
 	action: "install" | "callback",
 	request: Request,
 	max: number
 ): Promise<Response | null> {
-	const ip = principalFromRequest(request);
+	const ip = getClientIp(request.headers) ?? "unknown";
 	const rl = await ratelimit(`slack-oauth:${action}:${ip}`, max, 60);
 	if (rl.success) {
 		return null;
@@ -407,7 +399,7 @@ export const integrations = new Elysia({ prefix: "/v1/integrations" })
 			try {
 				const config = requireConfig(request);
 				const userId = await requireOrgInstaller(request, query.organizationId);
-				const state = createSlackOAuthState(
+				const state = createOAuthState(
 					{
 						expiresAt: Date.now() + SLACK_STATE_TTL_MS,
 						nonce: randomUUIDv7(),
@@ -459,7 +451,7 @@ export const integrations = new Elysia({ prefix: "/v1/integrations" })
 					throw new SlackInstallError("Slack did not return an OAuth code");
 				}
 				const config = requireConfig(request);
-				const state = verifySlackOAuthState(query.state, config.authSecret);
+				const state = verifyOAuthState(query.state, config.authSecret);
 				if (!state) {
 					throw new SlackInstallError("Slack install link expired");
 				}

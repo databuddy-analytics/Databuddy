@@ -1,8 +1,14 @@
 "use client";
 
+import { PLAN_IDS } from "@databuddy/shared/types/features";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { FeatureGate } from "@/components/feature-gate";
+import {
+	useBillingContext,
+	useInvestigationUsage,
+} from "@/components/providers/billing-provider";
 import { orpc } from "@/lib/orpc";
 import {
 	Button,
@@ -106,6 +112,9 @@ export function InvestigationSettings({
 		},
 	});
 
+	const { isLoading: billingLoading } = useBillingContext();
+	const { fixedPrice, hasAccess } = useInvestigationUsage();
+	const canInvestigate = billingLoading || hasAccess;
 	const configReady = Boolean(organizationId && configQuery.isSuccess && form);
 	const analysisPending = isAnalyzing || triggerMutation.isPending;
 	const isBusy = !configReady || saveMutation.isPending || analysisPending;
@@ -123,7 +132,7 @@ export function InvestigationSettings({
 						{analysisPending ? (
 							<Spinner size="sm" />
 						) : (
-							<GearIcon className="size-4" weight="duotone" />
+							<GearIcon className="size-4" />
 						)}
 						<span className="hidden sm:inline">
 							{analysisPending ? "Analyzing…" : "Analysis"}
@@ -140,67 +149,82 @@ export function InvestigationSettings({
 				</Sheet.Header>
 
 				<Sheet.Body className="space-y-6">
-					{!configReady && configQuery.isError && !configQuery.isFetching ? (
-						<EmptyState
-							action={{
-								label: "Try again",
-								onClick: () => {
-									configQuery.refetch().catch(() => undefined);
-								},
-								variant: "secondary",
-							}}
-							description="Databuddy couldn't load analysis settings for this organization."
-							icon={<GearIcon weight="duotone" />}
-							title="Couldn't load settings"
-							variant="error"
-						/>
-					) : configReady && form ? (
-						<>
-							<div className="space-y-2">
-								<p className="font-medium text-sm">Schedule</p>
-								<div className="flex gap-1.5">
-									{SCHEDULE_OPTIONS.map((option) => (
-										<Button
-											className="flex-1 justify-center"
-											disabled={isBusy}
-											key={option.value}
-											onClick={() =>
-												setForm({
-													...form,
-													schedule: option.value,
-												})
-											}
-											size="sm"
-											type="button"
-											variant={
-												form.schedule === option.value ? "primary" : "secondary"
-											}
-										>
-											{option.label}
-										</Button>
-									))}
+					<FeatureGate
+						allowed={hasAccess}
+						description="Databunny runs scheduled investigations on the invite-only Business plan. Request access to turn them on for your organization."
+						requiredPlan={PLAN_IDS.SCALE}
+						title="Automatic investigations are invite only"
+					>
+						{!configReady && configQuery.isError && !configQuery.isFetching ? (
+							<EmptyState
+								action={{
+									label: "Try again",
+									onClick: () => {
+										configQuery.refetch().catch(() => undefined);
+									},
+									variant: "secondary",
+								}}
+								description="Databuddy couldn't load analysis settings for this organization."
+								icon={<GearIcon />}
+								title="Couldn't load settings"
+								variant="error"
+							/>
+						) : configReady && form ? (
+							<>
+								<div className="space-y-2">
+									<p className="font-medium text-sm">Schedule</p>
+									<div className="flex gap-1.5">
+										{SCHEDULE_OPTIONS.map((option) => (
+											<Button
+												className="flex-1 justify-center"
+												disabled={isBusy}
+												key={option.value}
+												onClick={() =>
+													setForm({
+														...form,
+														schedule: option.value,
+													})
+												}
+												size="sm"
+												type="button"
+												variant={
+													form.schedule === option.value
+														? "primary"
+														: "secondary"
+												}
+											>
+												{option.label}
+											</Button>
+										))}
+									</div>
 								</div>
+								<Field>
+									<Field.Label>Timezone</Field.Label>
+									<TimezonePicker
+										disabled={isBusy}
+										onChange={(timezone) => setForm({ ...form, timezone })}
+										value={form.timezone}
+									/>
+								</Field>
+							</>
+						) : (
+							<div className="space-y-4">
+								<Skeleton className="h-10 rounded" />
+								<Skeleton className="h-10 rounded" />
 							</div>
-							<Field>
-								<Field.Label>Timezone</Field.Label>
-								<TimezonePicker
-									disabled={isBusy}
-									onChange={(timezone) => setForm({ ...form, timezone })}
-									value={form.timezone}
-								/>
-							</Field>
-						</>
-					) : (
-						<div className="space-y-4">
-							<Skeleton className="h-10 rounded" />
-							<Skeleton className="h-10 rounded" />
-						</div>
-					)}
+						)}
+					</FeatureGate>
 				</Sheet.Body>
 
-				<Sheet.Footer className="flex items-center justify-between gap-3">
+				<Sheet.Footer className="flex flex-wrap items-center justify-between gap-3">
+					{!billingLoading && fixedPrice && (
+						<p className="w-full text-muted-foreground text-xs">
+							Scheduled and manual runs can complete multiple investigations.
+							Your monthly allowance applies first, then $1 each.
+						</p>
+					)}
 					<Button
-						disabled={isBusy}
+						disabled={isBusy || !canInvestigate}
 						onClick={() => {
 							if (!(form && organizationId)) {
 								return;

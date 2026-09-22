@@ -72,7 +72,7 @@ function TransferPageContent() {
 	if (isLoadingWebsite || isLoadingOrganizations || !websiteData) {
 		return (
 			<div className="flex-1 overflow-y-auto">
-				<div className="mx-auto max-w-2xl space-y-6 p-5">
+				<div className="mx-auto max-w-4xl space-y-6 p-5">
 					<Card>
 						<Card.Header>
 							<Skeleton className="h-4 w-32" />
@@ -112,7 +112,7 @@ function TransferPageContent() {
 	return (
 		<div className="flex h-full flex-col">
 			<div className="flex-1 overflow-y-auto">
-				<div className="mx-auto max-w-2xl space-y-6 p-5">
+				<div className="mx-auto max-w-4xl space-y-6 p-5">
 					<Card>
 						<Card.Header>
 							<Card.Title>Transfer Website</Card.Title>
@@ -295,10 +295,7 @@ function TransferPageContent() {
 							</div>
 
 							<div className="flex justify-center">
-								<ArrowRightIcon
-									className="size-4 rotate-90 text-muted-foreground"
-									weight="bold"
-								/>
+								<ArrowRightIcon className="size-4 rotate-90 text-muted-foreground" />
 							</div>
 
 							<div className="flex items-center gap-2.5 rounded border border-primary/30 bg-primary/5 p-2.5">
@@ -342,7 +339,7 @@ function TransferPageContent() {
 							Cancel
 						</Button>
 						<Button loading={isTransferring} onClick={handleTransfer}>
-							<ArrowSquareOutIcon className="size-4" weight="fill" />
+							<ArrowSquareOutIcon className="size-4" />
 							Confirm Transfer
 						</Button>
 					</Dialog.Footer>
@@ -357,7 +354,7 @@ export default function TransferPage() {
 		<Suspense
 			fallback={
 				<div className="flex-1 overflow-y-auto">
-					<div className="mx-auto max-w-2xl space-y-6 p-5">
+					<div className="mx-auto max-w-4xl space-y-6 p-5">
 						<Card>
 							<Card.Header>
 								<Skeleton className="h-4 w-32" />

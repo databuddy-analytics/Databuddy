@@ -1,16 +1,21 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
+import { getAutumn } from "../lib/autumn-client";
+import { getBillingCustomerId } from "../utils/billing";
+import {
+	hasInvestigationAllowance,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
+import { appliedInsightActionReply } from "@databuddy/shared/insights";
 import {
 	and,
-	count,
 	db,
 	desc,
 	eq,
 	inArray,
 	isNull,
-	not,
+	ne,
 	notExists,
-	or,
 	sql,
-	type SQLWrapper,
 } from "@databuddy/db";
 import {
 	analyticsInsights,
@@ -26,23 +31,31 @@ import {
 	insightsResumeJobId,
 } from "@databuddy/redis";
 import { ratelimit } from "@databuddy/redis/rate-limit";
+import { getWebsiteBusinessScope } from "@databuddy/services/business-memory";
 import {
 	historyInsightSchema,
 	insightBriefItemSchema,
-	insightRecommendationItemSchema,
 	insightReplySlackDeliverySchema,
 	insightReplyStatusSchema,
 	insightTimelineItemSchema,
 	insightTimelineReplySchema,
 	parseInvestigationOutcome,
 	parseInvestigationSignal,
+	insightDefinitionEditError,
 } from "@databuddy/shared/insights";
+import { isDeepStrictEqual } from "node:util";
+
+// Goal and funnel filters are conjunctive, so reordering them does not change
+// what the definition measures. Compare them order-insensitively.
+const canonicalFilters = (filters: unknown[] | null | undefined): string[] =>
+	[...(filters ?? [])].map((filter) => JSON.stringify(filter)).sort();
 import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { invalidateGoalsCache } from "../lib/goals-cache";
 import { invalidateFunnelsCache } from "../lib/funnels-cache";
+import { insightRepairError } from "./insight-repairs";
 import { logger } from "../lib/logger";
 import { setAuditOrganization } from "../lib/audit";
 import {
@@ -54,7 +67,6 @@ import {
 import { withWorkspace } from "../procedures/with-workspace";
 
 const INSIGHT_TIMELINE_ROWS_PER_KIND = 50;
-const COMPLETED_RECOMMENDATION_LIMIT = 5;
 
 function isAccessDenied(error: unknown): boolean {
 	return (
@@ -65,6 +77,8 @@ function isAccessDenied(error: unknown): boolean {
 
 const appendInvestigationReplyInputSchema = z
 	.object({
+		intent: z.enum(["clarification", "analysis"]).optional(),
+		acceptedPriceUsd: z.literal(INVESTIGATION_USAGE.priceUsd).optional(),
 		body: z.string().trim().min(1).max(2000),
 		insightId: z.string().min(1).max(256),
 		replyId: z
@@ -77,9 +91,30 @@ const appendInvestigationReplyInputSchema = z
 			})
 			.optional(),
 	})
-	.strict();
+	.strict()
+	.superRefine((input, context) => {
+		if (
+			input.intent === "analysis" &&
+			input.acceptedPriceUsd !== INVESTIGATION_USAGE.priceUsd
+		) {
+			context.addIssue({
+				code: "custom",
+				path: ["acceptedPriceUsd"],
+				message:
+					"A new analysis uses one investigation; additional investigations cost $1 after your allowance. Accept that rate to continue.",
+			});
+		}
+	});
 
 type InsightTimelineItem = z.infer<typeof insightTimelineItemSchema>;
+
+function requireInvestigationAI() {
+	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
+		throw rpcError.badRequest(
+			"Ask your administrator to configure AI before continuing an investigation."
+		);
+	}
+}
 
 async function queueInsightReply(
 	replyId: string
@@ -139,6 +174,9 @@ export async function queueDefinitionChangeRechecks(input: {
 	type: RecheckableDefinitionType;
 	websiteId: string;
 }): Promise<void> {
+	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
+		return;
+	}
 	const subjectPrefix = `${input.type}:${input.definitionId}`;
 	try {
 		const cases = await db
@@ -213,11 +251,31 @@ export async function queueDefinitionChangeRechecks(input: {
 						return null;
 					}
 
+					const [source] = await tx
+						.select({ id: insightObservations.id })
+						.from(insightObservations)
+						.where(
+							and(
+								eq(insightObservations.organizationId, insight.organizationId),
+								eq(insightObservations.websiteId, input.websiteId),
+								eq(insightObservations.signalKey, insight.subjectKey)
+							)
+						)
+						.orderBy(
+							desc(insightObservations.createdAt),
+							desc(insightObservations.id)
+						)
+						.limit(1);
+					if (!source) {
+						return null;
+					}
 					const id = randomUUIDv7();
 					await tx.insert(insightReplies).values({
 						authorId: null,
 						authorName: "Databuddy",
 						body: definitionChangeReply(input.type),
+						intent: "verification",
+						sourceObservationId: source.id,
 						id,
 						insightId: current.id,
 						status: "queued",
@@ -326,7 +384,6 @@ function serializeInsightBrief(
 		id: row.id,
 		impact: outcome.impact,
 		investigationId: row.investigationId ?? null,
-		recommendation: outcome.recommendation ?? null,
 		rootCause: outcome.rootCause,
 		signal,
 		summary: outcome.summary,
@@ -383,6 +440,8 @@ async function loadInsightTimeline(
 		db
 			.select({
 				authorName: insightReplies.authorName,
+				assistantText: insightReplies.assistantText,
+				intent: insightReplies.intent,
 				body: insightReplies.body,
 				createdAt: insightReplies.createdAt,
 				id: insightReplies.id,
@@ -421,6 +480,8 @@ async function loadInsightTimeline(
 			};
 		}),
 		...replies.map((reply) => ({
+			assistantText: reply.assistantText,
+			intent: reply.intent,
 			author: reply.authorName,
 			body: reply.body,
 			createdAt: reply.createdAt.toISOString(),
@@ -465,6 +526,7 @@ function replyAuthor(
 
 export async function appendInvestigationReply(
 	input: z.input<typeof appendInvestigationReplyInputSchema> & {
+		authorExternalId?: string;
 		authorName?: string;
 		context: Context;
 		slackDelivery?: z.input<typeof insightReplySlackDeliverySchema>;
@@ -474,6 +536,7 @@ export async function appendInvestigationReply(
 	reply: z.infer<typeof insightTimelineReplySchema>;
 }> {
 	const {
+		authorExternalId,
 		authorName: rawAuthorName,
 		context,
 		slackDelivery: rawSlackDelivery,
@@ -516,9 +579,70 @@ export async function appendInvestigationReply(
 	});
 	setAuditOrganization(context, insight.organizationId);
 
+	requireInvestigationAI();
 	const author = replyAuthor(context, authorName);
-	const createdAt = new Date();
+	if (parsed.intent === "analysis" && !author.authorId) {
+		throw rpcError.badRequest("Start a new analysis from the dashboard.");
+	}
+	const principalId =
+		author.authorId ??
+		[`apikey:${context.apiKey?.id}`, authorExternalId]
+			.filter(Boolean)
+			.join(":");
+	const rate = await ratelimit(
+		`insights:reply:${insight.organizationId}:${principalId}`,
+		20,
+		60
+	);
+	if (!rate.success) {
+		throw rpcError.rateLimited(
+			Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000))
+		);
+	}
+	if (
+		parsed.intent === "analysis" &&
+		author.authorId &&
+		!readBooleanEnv("SELFHOST")
+	) {
+		const customerId = await getBillingCustomerId(
+			author.authorId,
+			insight.organizationId
+		);
+		const customer = await getAutumn().customers.get({ customerId });
+		if (
+			customer.id !== customerId ||
+			!hasInvestigationAllowance(
+				customer.balances[INVESTIGATION_USAGE.featureId]
+			)
+		) {
+			throw rpcError.badRequest(
+				"Activate investigation billing to start a new analysis. Clarifications remain included."
+			);
+		}
+	}
 	const stored = await db.transaction(async (tx) => {
+		// Match persistence and deletion: website first, then investigation rows.
+		const [site] = await tx
+			.select({ id: websites.id })
+			.from(websites)
+			.where(
+				and(
+					eq(websites.id, insight.websiteId),
+					eq(websites.organizationId, insight.organizationId),
+					isNull(websites.deletedAt)
+				)
+			)
+			.for("update");
+		if (!site) {
+			throw rpcError.notFound("website", insight.websiteId);
+		}
+		const businessScope =
+			parsed.intent === "analysis"
+				? await getWebsiteBusinessScope(insight, {
+						database: tx,
+						initialize: true,
+					})
+				: null;
 		const insightCase = and(
 			eq(analyticsInsights.organizationId, insight.organizationId),
 			eq(analyticsInsights.websiteId, insight.websiteId),
@@ -539,6 +663,7 @@ export async function appendInvestigationReply(
 			.select({
 				authorName: insightReplies.authorName,
 				body: insightReplies.body,
+				intent: insightReplies.intent,
 				createdAt: insightReplies.createdAt,
 				id: insightReplies.id,
 				organizationId: analyticsInsights.organizationId,
@@ -560,6 +685,7 @@ export async function appendInvestigationReply(
 				existing.websiteId !== insight.websiteId ||
 				existing.subjectKey !== insight.subjectKey ||
 				existing.body !== parsed.body ||
+				existing.intent !== (parsed.intent ?? "clarification") ||
 				existing.slackDelivery?.channelId !== slackDelivery?.channelId ||
 				existing.slackDelivery?.threadTs !== slackDelivery?.threadTs
 			) {
@@ -589,6 +715,10 @@ export async function appendInvestigationReply(
 					eq(insightObservations.signalKey, insight.subjectKey)
 				)
 			)
+			.orderBy(
+				desc(insightObservations.createdAt),
+				desc(insightObservations.id)
+			)
 			.limit(1);
 		if (!observation) {
 			throw rpcError.badRequest(
@@ -613,12 +743,20 @@ export async function appendInvestigationReply(
 			);
 		}
 
+		const createdAt = new Date(
+			Math.max(
+				Date.now(),
+				businessScope ? Date.parse(businessScope.startedAt) : 0
+			)
+		);
 		await tx.insert(insightReplies).values({
 			...author,
 			body: parsed.body,
 			createdAt,
 			id,
 			insightId: current.id,
+			intent: parsed.intent ?? "clarification",
+			sourceObservationId: observation.id,
 			slackDelivery,
 			status: "queued",
 		});
@@ -685,10 +823,7 @@ function sameDefinitionExecution(
 	if (left.operation === "delete" || right.operation === "delete") {
 		return true;
 	}
-	return (
-		left.changes.name === right.changes.name &&
-		left.changes.description === right.changes.description
-	);
+	return isDeepStrictEqual(left.changes, right.changes);
 }
 
 function definitionActionError(
@@ -701,7 +836,7 @@ function definitionActionError(
 		: rpcError.conflict("This definition action is no longer available");
 }
 
-export async function applyInsightAction(input: {
+async function applyInsightAction(input: {
 	context: Context;
 	insightId: string;
 }): Promise<{ reply: z.infer<typeof insightTimelineReplySchema> }> {
@@ -762,6 +897,7 @@ export async function applyInsightAction(input: {
 	});
 	setAuditOrganization(context, target.organizationId);
 
+	requireInvestigationAI();
 	const author = replyAuthor(context);
 	const completed = await db.transaction(async (tx) => {
 		const [current] = await tx
@@ -792,6 +928,7 @@ export async function applyInsightAction(input: {
 
 		const [observation] = await tx
 			.select({
+				id: insightObservations.id,
 				createdAt: insightObservations.createdAt,
 				outcome: insightObservations.outcome,
 				signal: insightObservations.signal,
@@ -843,12 +980,21 @@ export async function applyInsightAction(input: {
 		}
 
 		const completedAt = new Date();
+		if (action.operation === "edit") {
+			const error = insightDefinitionEditError(entityType, action.changes);
+			if (error) {
+				throw rpcError.badRequest(error);
+			}
+		}
 		if (entityType === "goal") {
 			const [goal] = await tx
 				.select({
 					description: goals.description,
 					id: goals.id,
 					name: goals.name,
+					target: goals.target,
+					type: goals.type,
+					filters: goals.filters,
 					updatedAt: goals.updatedAt,
 				})
 				.from(goals)
@@ -880,11 +1026,45 @@ export async function applyInsightAction(input: {
 					})
 					.where(eq(goals.id, goal.id));
 			} else {
+				const changes = {
+					description: action.changes.description ?? goal.description,
+					name: action.changes.name ?? goal.name,
+					target: action.changes.target ?? goal.target,
+					type: action.changes.type ?? goal.type,
+					filters: action.changes.filters ?? goal.filters,
+				};
+				const includesMeasurement =
+					action.changes.target != null ||
+					action.changes.type != null ||
+					action.changes.filters != null;
+				if (includesMeasurement) {
+					const error = insightRepairError(
+						{ id: goal.id, type: "goal" },
+						goal,
+						action.changes
+					);
+					if (error) {
+						throw rpcError.badRequest(error);
+					}
+				}
+				if (
+					changes.description === goal.description &&
+					changes.name === goal.name &&
+					changes.target === goal.target &&
+					changes.type === goal.type &&
+					isDeepStrictEqual(
+						canonicalFilters(changes.filters),
+						canonicalFilters(goal.filters)
+					)
+				) {
+					throw rpcError.badRequest(
+						"This action does not change the goal definition."
+					);
+				}
 				await tx
 					.update(goals)
 					.set({
-						description: action.changes.description ?? goal.description,
-						name: action.changes.name ?? goal.name,
+						...changes,
 						updatedAt: completedAt,
 					})
 					.where(eq(goals.id, goal.id));
@@ -895,6 +1075,8 @@ export async function applyInsightAction(input: {
 					description: funnelDefinitions.description,
 					id: funnelDefinitions.id,
 					name: funnelDefinitions.name,
+					steps: funnelDefinitions.steps,
+					filters: funnelDefinitions.filters,
 					updatedAt: funnelDefinitions.updatedAt,
 				})
 				.from(funnelDefinitions)
@@ -926,11 +1108,39 @@ export async function applyInsightAction(input: {
 					})
 					.where(eq(funnelDefinitions.id, funnel.id));
 			} else {
+				const changes = {
+					description: action.changes.description ?? funnel.description,
+					name: action.changes.name ?? funnel.name,
+					steps: action.changes.steps ?? funnel.steps,
+					filters: action.changes.filters ?? funnel.filters,
+				};
+				if (action.changes.steps != null || action.changes.filters != null) {
+					const error = insightRepairError(
+						{ id: funnel.id, type: "funnel" },
+						funnel,
+						action.changes
+					);
+					if (error) {
+						throw rpcError.badRequest(error);
+					}
+				}
+				if (
+					changes.description === funnel.description &&
+					changes.name === funnel.name &&
+					isDeepStrictEqual(changes.steps, funnel.steps) &&
+					isDeepStrictEqual(
+						canonicalFilters(changes.filters),
+						canonicalFilters(funnel.filters)
+					)
+				) {
+					throw rpcError.badRequest(
+						"This action does not change the funnel definition."
+					);
+				}
 				await tx
 					.update(funnelDefinitions)
 					.set({
-						description: action.changes.description ?? funnel.description,
-						name: action.changes.name ?? funnel.name,
+						...changes,
 						updatedAt: completedAt,
 					})
 					.where(eq(funnelDefinitions.id, funnel.id));
@@ -938,13 +1148,15 @@ export async function applyInsightAction(input: {
 		}
 
 		const replyId = randomUUIDv7();
-		const body = `Databuddy applied the ${entityType} action. Recheck its verification condition against current data.`;
+		const body = appliedInsightActionReply(entityType);
 		await tx.insert(insightReplies).values({
 			...author,
 			body,
 			createdAt: completedAt,
 			id: replyId,
 			insightId: current.id,
+			intent: "verification",
+			sourceObservationId: observation.id,
 			status: "queued",
 		});
 		return { body, createdAt: completedAt, id: replyId, type: entityType };
@@ -1043,339 +1255,6 @@ export const insightsRouter = {
 			};
 		}),
 
-	recommendations: protectedProcedure
-		.route({
-			method: "POST",
-			path: "/insights/recommendations",
-			tags: ["Insights"],
-			summary: "List current and completed insight recommendations",
-		})
-		.input(
-			z.object({
-				includeCompleted: z.boolean().default(true),
-				limit: z.number().int().min(1).max(100).default(50),
-				offset: z.number().int().min(0).default(0),
-				organizationId: z.string().min(1),
-				websiteId: z.string().min(1).optional(),
-			})
-		)
-		.output(
-			z.object({
-				completed: z.array(insightRecommendationItemSchema),
-				hasMore: z.boolean(),
-				recommendations: z.array(insightRecommendationItemSchema),
-				total: z.number().int().nonnegative(),
-			})
-		)
-		.handler(async ({ context, input }) => {
-			await authorizeInsightsRead(context, input);
-			const latestRecommendation = (
-				alias: string,
-				recommendationOnly = false
-			) => {
-				const latestBySignal = db
-					.selectDistinctOn(
-						[insightObservations.websiteId, insightObservations.signalKey],
-						{
-							...insightBriefSelection,
-							investigationId: sql<string | null>`${analyticsInsights.id}`.as(
-								"investigation_id"
-							),
-							recheckAt: insightObservations.recheckAt,
-							signalKey: insightObservations.signalKey,
-						}
-					)
-					.from(insightObservations)
-					.innerJoin(websites, eq(insightObservations.websiteId, websites.id))
-					.leftJoin(
-						analyticsInsights,
-						and(
-							eq(insightObservations.insightId, analyticsInsights.id),
-							eq(
-								insightObservations.organizationId,
-								analyticsInsights.organizationId
-							),
-							eq(insightObservations.websiteId, analyticsInsights.websiteId),
-							eq(insightObservations.signalKey, analyticsInsights.subjectKey)
-						)
-					)
-					.where(
-						and(
-							eq(insightObservations.organizationId, input.organizationId),
-							input.websiteId
-								? eq(insightObservations.websiteId, input.websiteId)
-								: undefined,
-							recommendationOnly
-								? sql`${insightObservations.outcome}->>'recommendation' is not null`
-								: undefined,
-							isNull(websites.deletedAt)
-						)
-					)
-					.orderBy(
-						insightObservations.websiteId,
-						insightObservations.signalKey,
-						desc(insightObservations.asOf),
-						desc(insightObservations.createdAt),
-						desc(insightObservations.id)
-					)
-					.as(`${alias}_state`);
-				const recommendation = sql`${latestBySignal.outcome}->'recommendation'`;
-				return db
-					.selectDistinctOn([latestBySignal.websiteId, recommendation], {
-						asOf: latestBySignal.asOf,
-						createdAt: latestBySignal.createdAt,
-						id: latestBySignal.id,
-						investigationId: latestBySignal.investigationId,
-						outcome: latestBySignal.outcome,
-						recheckAt: latestBySignal.recheckAt,
-						signal: latestBySignal.signal,
-						signalKey: latestBySignal.signalKey,
-						websiteDomain: latestBySignal.websiteDomain,
-						websiteId: latestBySignal.websiteId,
-						websiteName: latestBySignal.websiteName,
-					})
-					.from(latestBySignal)
-					.where(sql`${latestBySignal.outcome}->>'recommendation' is not null`)
-					.orderBy(
-						latestBySignal.websiteId,
-						recommendation,
-						desc(latestBySignal.asOf),
-						desc(latestBySignal.createdAt),
-						desc(latestBySignal.id)
-					)
-					.as(alias);
-			};
-
-			const pageSource = latestRecommendation("latest_recommendations");
-			const completedSource = latestRecommendation(
-				"latest_completed_recommendations",
-				true
-			);
-			const recommendationState = (source: typeof pageSource) => {
-				const recommendation = sql`${source.outcome}->'recommendation'`;
-				const recommendationChanges = sql`${recommendation}->'changes'`;
-				const recommendationDraft = sql`${recommendation}->'draft'`;
-				const recommendationKind = sql`${recommendation}->>'kind'`;
-				const recommendationOperation = sql`${recommendation}->>'operation'`;
-				const entityId = sql`${source.signal}->'entity'->>'id'`;
-				const entityType = sql`${source.signal}->'entity'->>'type'`;
-				const isFreshStandaloneRecommendation = or(
-					sql`coalesce(${recommendationKind}, '') not in ('instrumentation', 'databuddy_setup')`,
-					sql`${source.outcome}->'next'->>'type' <> 'resolve'`,
-					sql`${source.recheckAt} > now()`
-				);
-				const noEquivalentGoalDraft = notExists(
-					db
-						.select({ id: goals.id })
-						.from(goals)
-						.where(
-							and(
-								eq(goals.websiteId, source.websiteId),
-								eq(goals.isActive, true),
-								isNull(goals.deletedAt),
-								sql`${goals.type} = ${recommendationDraft}->>'type'`,
-								sql`${goals.target} = ${recommendationDraft}->>'target'`,
-								sql`coalesce(${goals.filters}, '[]'::jsonb) = coalesce(${recommendationDraft}->'filters', '[]'::jsonb)`,
-								sql`${goals.ignoreHistoricData} = CASE ${recommendationDraft}->>'ignoreHistoricData' WHEN 'true' THEN true ELSE false END`
-							)
-						)
-				);
-				const noEquivalentFunnelDraft = notExists(
-					db
-						.select({ id: funnelDefinitions.id })
-						.from(funnelDefinitions)
-						.where(
-							and(
-								eq(funnelDefinitions.websiteId, source.websiteId),
-								eq(funnelDefinitions.isActive, true),
-								isNull(funnelDefinitions.deletedAt),
-								sql`coalesce(${funnelDefinitions.filters}, '[]'::jsonb) = coalesce(${recommendationDraft}->'filters', '[]'::jsonb)`,
-								sql`${funnelDefinitions.ignoreHistoricData} = CASE ${recommendationDraft}->>'ignoreHistoricData' WHEN 'true' THEN true ELSE false END`,
-								sql`(
-									SELECT jsonb_agg(
-										jsonb_build_object(
-											'type', existing_step.value->>'type',
-											'target', existing_step.value->>'target',
-											'conditions', coalesce(nullif(existing_step.value->'conditions', 'null'::jsonb), '{}'::jsonb)
-										)
-										ORDER BY existing_step.ordinality
-									)
-									FROM jsonb_array_elements(${funnelDefinitions.steps}) WITH ORDINALITY AS existing_step(value, ordinality)
-								) = (
-									SELECT jsonb_agg(
-										jsonb_build_object(
-											'type', draft_step.value->>'type',
-											'target', draft_step.value->>'target',
-											'conditions', '{}'::jsonb
-										)
-										ORDER BY draft_step.ordinality
-									)
-									FROM jsonb_array_elements(${recommendationDraft}->'steps') WITH ORDINALITY AS draft_step(value, ordinality)
-								)`
-							)
-						)
-				);
-				const definitionEditApplied = (
-					table: typeof goals | typeof funnelDefinitions,
-					definition: {
-						deletedAt: SQLWrapper;
-						description: SQLWrapper;
-						id: SQLWrapper;
-						name: SQLWrapper;
-						websiteId: SQLWrapper;
-					}
-				) =>
-					sql`exists (
-						select 1 from ${table}
-						where ${definition.websiteId} = ${source.websiteId}
-							and ${definition.id} = ${entityId}
-							and ${definition.deletedAt} is null
-							and (${recommendationChanges}->>'name' is null or ${definition.name} = ${recommendationChanges}->>'name')
-							and (${recommendationChanges}->>'description' is null or ${definition.description} = ${recommendationChanges}->>'description')
-					)`;
-				const definitionDeleted = (
-					table: typeof goals | typeof funnelDefinitions,
-					definition: {
-						deletedAt: SQLWrapper;
-						id: SQLWrapper;
-						websiteId: SQLWrapper;
-					}
-				) =>
-					sql`not exists (
-						select 1 from ${table}
-						where ${definition.websiteId} = ${source.websiteId}
-							and ${definition.id} = ${entityId}
-							and ${definition.deletedAt} is null
-					)`;
-				const goalEditApplied = and(
-					sql`${recommendationOperation} = 'edit'`,
-					sql`${entityType} = 'goal'`,
-					definitionEditApplied(goals, goals)
-				);
-				const funnelEditApplied = and(
-					sql`${recommendationOperation} = 'edit'`,
-					sql`${entityType} = 'funnel'`,
-					definitionEditApplied(funnelDefinitions, funnelDefinitions)
-				);
-				const goalDeleteApplied = and(
-					sql`${recommendationOperation} = 'delete'`,
-					sql`${entityType} = 'goal'`,
-					definitionDeleted(goals, goals)
-				);
-				const funnelDeleteApplied = and(
-					sql`${recommendationOperation} = 'delete'`,
-					sql`${entityType} = 'funnel'`,
-					definitionDeleted(funnelDefinitions, funnelDefinitions)
-				);
-				const isCompletedDefinitionRecommendation = or(
-					goalEditApplied,
-					funnelEditApplied,
-					goalDeleteApplied,
-					funnelDeleteApplied
-				);
-				const hasNativeRecommendation = or(
-					sql`${recommendationOperation} in ('edit', 'delete') and ${entityType} in ('goal', 'funnel')`,
-					sql`${recommendationKind} in ('goal_draft', 'funnel_draft', 'instrumentation', 'databuddy_setup')`
-				);
-				const isCurrentRecommendation = and(
-					or(
-						and(
-							sql`${recommendationKind} = 'goal_draft'`,
-							noEquivalentGoalDraft
-						),
-						and(
-							sql`${recommendationKind} = 'funnel_draft'`,
-							noEquivalentFunnelDraft
-						),
-						and(
-							sql`${recommendationKind} is null or ${recommendationKind} not in ('goal_draft', 'funnel_draft')`,
-							sql`not coalesce(${isCompletedDefinitionRecommendation}, false)`
-						)
-					),
-					isFreshStandaloneRecommendation
-				);
-				const isCompletedRecommendation = or(
-					and(
-						sql`${recommendationKind} = 'goal_draft'`,
-						not(noEquivalentGoalDraft)
-					),
-					and(
-						sql`${recommendationKind} = 'funnel_draft'`,
-						not(noEquivalentFunnelDraft)
-					),
-					isCompletedDefinitionRecommendation
-				);
-
-				return {
-					hasNativeRecommendation,
-					isCompletedRecommendation,
-					isCurrentRecommendation,
-				};
-			};
-			const pageState = recommendationState(pageSource);
-			const completedState = recommendationState(completedSource);
-			const [rows, [summary], completedRows] = await Promise.all([
-				db
-					.select()
-					.from(pageSource)
-					.where(
-						and(
-							sql`${pageSource.outcome}->>'recommendation' is not null`,
-							pageState.hasNativeRecommendation,
-							pageState.isCurrentRecommendation
-						)
-					)
-					.orderBy(
-						desc(pageSource.asOf),
-						desc(pageSource.createdAt),
-						desc(pageSource.id)
-					)
-					.limit(input.limit + 1)
-					.offset(input.offset),
-				db
-					.select({ total: count() })
-					.from(pageSource)
-					.where(
-						and(
-							sql`${pageSource.outcome}->>'recommendation' is not null`,
-							pageState.hasNativeRecommendation,
-							pageState.isCurrentRecommendation
-						)
-					),
-				input.includeCompleted
-					? db
-							.select()
-							.from(completedSource)
-							.where(
-								and(
-									sql`${completedSource.outcome}->>'recommendation' is not null`,
-									completedState.hasNativeRecommendation,
-									completedState.isCompletedRecommendation
-								)
-							)
-							.orderBy(
-								desc(completedSource.asOf),
-								desc(completedSource.createdAt),
-								desc(completedSource.id)
-							)
-							.limit(COMPLETED_RECOMMENDATION_LIMIT)
-					: Promise.resolve([]),
-			]);
-			const toRecommendation = (row: (typeof rows)[number]) => {
-				const insight = serializeInsightBrief(row);
-				return insight?.recommendation
-					? [{ ...insight, recommendation: insight.recommendation }]
-					: [];
-			};
-			const page = rows.slice(0, input.limit).flatMap(toRecommendation);
-			return {
-				completed: completedRows.flatMap(toRecommendation),
-				hasMore: rows.length > input.limit,
-				recommendations: page,
-				total: summary?.total ?? 0,
-			};
-		}),
-
 	history: protectedProcedure
 		.route({
 			method: "POST",
@@ -1407,7 +1286,8 @@ export const insightsRouter = {
 					.where(
 						and(
 							eq(insightReplies.insightId, analyticsInsights.id),
-							inArray(insightReplies.status, ["queued", "running"])
+							inArray(insightReplies.status, ["queued", "running"]),
+							ne(insightReplies.intent, "clarification")
 						)
 					)
 			);
@@ -1448,7 +1328,7 @@ export const insightsRouter = {
 						eq(insightObservations.insightId, analyticsInsights.id),
 						eq(insightObservations.websiteId, analyticsInsights.websiteId),
 						eq(insightObservations.signalKey, analyticsInsights.subjectKey),
-						sql`${insightObservations.outcome}->'next'->>'type' in ('act', 'ask')`
+						sql`(${insightObservations.outcome}->'next'->>'type' in ('act', 'ask') OR ${insightObservations.snapshot}->>'completion' = 'complete')`
 					)
 				)
 				.where(whereClause)
@@ -1669,6 +1549,7 @@ export const insightsRouter = {
 				websiteId: reply.websiteId,
 			});
 			setAuditOrganization(context, reply.organizationId);
+			requireInvestigationAI();
 			const pendingStatus = await db.transaction(async (tx) => {
 				const insightCase = and(
 					eq(analyticsInsights.organizationId, reply.organizationId),

@@ -19,7 +19,6 @@ import {
 export {
 	APP_EVENTS,
 	readMarketingProperties,
-	readUtmProperties,
 } from "@databuddy/shared/custom-events";
 export type {
 	OnboardingAttributionProperties,

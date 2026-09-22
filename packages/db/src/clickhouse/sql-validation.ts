@@ -1,16 +1,9 @@
 const ALLOWED_TABLE_PREFIX = "analytics.";
-
-/**
- * Tenant column for each analytics.* table the agent is allowed to query.
- * Used both as an allowlist (any analytics.X table not listed here is rejected)
- * and to build per-table `additional_table_filters` for server-side tenant
- * isolation. Add new tables here when they ship — but prefer query builders
- * for tables with complex tenant logic (custom_events, revenue).
- */
 export const AGENT_TENANT_COLUMN_BY_TABLE: Readonly<Record<string, string>> = {
 	"analytics.events": "client_id",
 	"analytics.error_spans": "client_id",
 	"analytics.web_vitals_spans": "client_id",
+	"analytics.engagement_spans": "client_id",
 	"analytics.outgoing_links": "client_id",
 	"analytics.custom_events": "owner_id",
 	"analytics.revenue": "owner_id",
@@ -55,6 +48,36 @@ export const AGENT_TABLE_COLUMNS: Readonly<
 		"colno",
 		"stack",
 		"error_type",
+	]),
+	"analytics.engagement_spans": new Set([
+		"client_id",
+		"anonymous_id",
+		"session_id",
+		"timestamp",
+		"path",
+		"device_type",
+		"browser_name",
+		"country",
+		"page_index",
+		"exit_type",
+		"time_on_page",
+		"active_time",
+		"time_to_first_interaction",
+		"max_scroll_depth",
+		"scroll_count",
+		"click_count",
+		"key_count",
+		"interaction_count",
+		"copy_count",
+		"rage_click_count",
+		"dead_click_count",
+		"rage_click_target",
+		"dead_click_target",
+		"form_field_count",
+		"form_submit_count",
+		"last_form_field",
+		"form_abandoned",
+		"error_count",
 	]),
 	"analytics.web_vitals_spans": new Set([
 		"client_id",
@@ -102,16 +125,6 @@ export const AGENT_TABLE_COLUMNS: Readonly<
 		"path",
 	]),
 };
-
-/**
- * Builds the `additional_table_filters` ClickHouse session-setting value
- * scoped to `websiteId` for the supplied tables. The returned string is the
- * raw map literal (no JSON quoting); pass it as the value of the
- * `additional_table_filters` entry in `clickhouse_settings`.
- *
- * Format: `{'<table>':'<col>=''<id>''',...}` where double single-quotes
- * are the ClickHouse SQL escape for a single quote.
- */
 export function buildAdditionalTableFilters(
 	tables: Iterable<string>,
 	websiteId: string
@@ -399,12 +412,6 @@ function topLevelTenantColumnsByAlias(
 function hasTopLevelOr(whereBody: string): boolean {
 	return TOP_LEVEL_OR_PATTERN.test(flattenToTopLevel(whereBody));
 }
-
-/**
- * Returns the set of allowlisted analytics.* tables referenced in the query.
- * Callers use this to build `additional_table_filters` server-side.
- * Pre-condition: sql has already passed `validateAgentSQL`.
- */
 export function extractAllowlistedTables(sql: string): Set<string> {
 	const sanitized = maskCommentsAndStrings(sql);
 	const refs = extractRelationReferences(sanitized);

@@ -1,6 +1,8 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
+
 const AUTUMN_BALANCE_TIMEOUT_MS = 10_000;
 
-export class AutumnBalanceUpdateError extends Error {
+class AutumnBalanceUpdateError extends Error {
 	readonly definitiveFailure: boolean;
 
 	constructor(message: string, definitiveFailure: boolean) {
@@ -21,6 +23,12 @@ export async function updateAutumnBalance(input: {
 	redemptionId: string;
 	secretKey?: string | null;
 }): Promise<void> {
+	if (readBooleanEnv("SELFHOST")) {
+		throw new AutumnBalanceUpdateError(
+			"Hosted billing is disabled for self-hosted instances",
+			true
+		);
+	}
 	const secretKey = input.secretKey ?? process.env.AUTUMN_SECRET_KEY;
 	if (!secretKey) {
 		throw new AutumnBalanceUpdateError("AUTUMN_SECRET_KEY is not set", true);

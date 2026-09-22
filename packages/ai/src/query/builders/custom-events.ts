@@ -14,12 +14,6 @@ function projectWhereClause(
 	// Website-level: match either owner_id or website_id (bloom-filter indexed).
 	return "(owner_id = {projectId:String} OR website_id = {projectId:String})";
 }
-
-/**
- * Separates property_key filter conditions from standard conditions.
- * property_key is a derived column (from arrayJoin) so it can't be in the CTE WHERE —
- * it must be applied in the outer query or after the CTE resolves.
- */
 function separatePropertyKeyConditions(filterConditions?: string[]): {
 	whereClause: string;
 	propertyKeyClause: string;
@@ -495,19 +489,6 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "timestamp",
 		allowedFilters: ["profile_id", "path", "event_name", "website_id"],
 	},
-
-	/**
-	 * Property Classification Query
-	 * Analyzes each property and returns classification data:
-	 * - cardinality: number of unique values
-	 * - total_count: total occurrences
-	 * - coverage_ratio: top 10 values / total (0-1)
-	 * - avg_length: average string length
-	 * - max_length: max string length
-	 * - is_numeric: whether all values are numeric
-	 * - is_boolean: whether all values are boolean
-	 * - sample_values: top 5 values with counts
-	 */
 	custom_events_property_classification: {
 		meta: {
 			description:
@@ -647,11 +628,6 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 			"property_key",
 		],
 	},
-
-	/**
-	 * Top N Values for a specific property (for aggregatable properties)
-	 * Use this when render_strategy is 'top_n_chart' or 'top_n_with_other'
-	 */
 	custom_events_property_top_values: {
 		meta: {
 			description: "Most common values for a specific custom event property.",
@@ -745,11 +721,6 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 			"property_key",
 		],
 	},
-
-	/**
-	 * Distribution for low-cardinality properties
-	 * Returns all values with counts and percentages
-	 */
 	custom_events_property_distribution: {
 		meta: {
 			description: "Value distribution for a specific custom event property.",
@@ -841,11 +812,6 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 			"property_key",
 		],
 	},
-
-	/**
-	 * Discovery query: returns events + property keys + top 5 values per property in a single call.
-	 * Replaces the need for sequential custom_events → custom_event_properties → custom_events_property_top_values.
-	 */
 	custom_events_discovery: {
 		customSql: (ctx) => {
 			const {
@@ -949,7 +915,7 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 		meta: {
 			title: "Custom Events Discovery",
 			description:
-				"Returns all custom events with their property keys and top 5 values per property in a single query. Use this instead of calling custom_events, custom_event_properties, and custom_events_property_top_values separately.",
+				"Bounded event/property discovery: one row per event and property, with up to 5 values. Event totals repeat across property rows; do not sum them. Popular events can consume the row limit, so omitted events are not proven absent. Use custom_events for event inventory, then filter this builder by event_name to inspect properties.",
 			category: "Custom Events",
 			tags: ["custom-events", "discovery", "properties"],
 		},

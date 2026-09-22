@@ -3,6 +3,7 @@ import type { AuditActor, AuditRequestContext } from "@databuddy/shared/audit";
 
 export interface AuthAuditContext {
 	actor?: AuditActor;
+	dubClickId?: string;
 	operation?: string;
 	request?: AuditRequestContext;
 }

@@ -24,36 +24,23 @@ function keys(signals: DetectedSignal[]): string[] {
 }
 
 describe("planCoveragePortfolio", () => {
-	it("caps manual runs at five signals and scheduled runs at two", () => {
-		const candidates = [
-			signal({ metric: "error_count", subjectKey: "error:checkout" }),
-			signal({ metric: "goal:signup", subjectKey: "goal:signup" }),
-			signal({ metric: "visitors" }),
-			signal({ metric: "bounce_rate", direction: "up" }),
-			signal({ metric: "revenue" }),
-			signal({ metric: "custom_event_count", subjectKey: "event:share" }),
-		];
-
-		expect(
-			planCoveragePortfolio(candidates, { reason: "manual" })
-		).toHaveLength(5);
-		expect(
-			planCoveragePortfolio(candidates, { reason: "scheduled" })
-		).toHaveLength(2);
-	});
-
 	it("uses a manual full scan for family breadth before repeated reliability work", () => {
-		const reliabilitySignals = ["checkout", "search", "billing", "account", "docs"].map(
-			(subject) =>
-				signal({
-					baseline: 50,
-					current: 100,
-					deltaPercent: 100,
-					direction: "up",
-					metric: "error_count",
-					severity: "critical",
-					subjectKey: `error:${subject}`,
-				})
+		const reliabilitySignals = [
+			"checkout",
+			"search",
+			"billing",
+			"account",
+			"docs",
+		].map((subject) =>
+			signal({
+				baseline: 50,
+				current: 100,
+				deltaPercent: 100,
+				direction: "up",
+				metric: "error_count",
+				severity: "critical",
+				subjectKey: `error:${subject}`,
+			})
 		);
 		const revenue = signal({
 			baseline: 100,
@@ -154,9 +141,13 @@ describe("planCoveragePortfolio", () => {
 			signalKeyForDetectedSignal(visitors),
 			signalKeyForDetectedSignal(goal),
 		]);
-		expect(plan.filter((item) => item.metric === "error_count")).toHaveLength(1);
+		expect(plan.filter((item) => item.metric === "error_count")).toHaveLength(
+			1
+		);
 		expect(
-			plan.filter((item) => ["visitors", "sessions", "pageviews"].includes(item.metric))
+			plan.filter((item) =>
+				["visitors", "sessions", "pageviews"].includes(item.metric)
+			)
 		).toHaveLength(1);
 	});
 
@@ -189,8 +180,12 @@ describe("planCoveragePortfolio", () => {
 			},
 		});
 
-		const forward = planCoveragePortfolio([first, second], { reason: "manual" });
-		const reversed = planCoveragePortfolio([second, first], { reason: "manual" });
+		const forward = planCoveragePortfolio([first, second], {
+			reason: "manual",
+		});
+		const reversed = planCoveragePortfolio([second, first], {
+			reason: "manual",
+		});
 
 		expect(forward).toEqual(reversed);
 	});
@@ -227,9 +222,7 @@ describe("planCoveragePortfolio", () => {
 		);
 
 		expect(plan).toHaveLength(3);
-		expect(
-			plan.filter((item) => item.entityId === "/explore")
-		).toHaveLength(1);
+		expect(plan.filter((item) => item.entityId === "/explore")).toHaveLength(1);
 	});
 
 	it("returns the same portfolio order regardless of detector input order", () => {
@@ -242,7 +235,9 @@ describe("planCoveragePortfolio", () => {
 		expect(
 			keys(planCoveragePortfolio(candidates, { reason: "manual" }))
 		).toEqual(
-			keys(planCoveragePortfolio([...candidates].reverse(), { reason: "manual" }))
+			keys(
+				planCoveragePortfolio([...candidates].reverse(), { reason: "manual" })
+			)
 		);
 	});
 
@@ -293,5 +288,71 @@ describe("planCoveragePortfolio", () => {
 			signalKeyForDetectedSignal(coolingError),
 		]);
 	});
+});
 
+describe("business preference constraints", () => {
+	it("retains manual family breadth before spending remaining slots on repeated preferred work", () => {
+		const goals = Array.from({ length: 5 }, (_, index) =>
+			signal({ metric: `goal:${index}`, subjectKey: `goal:${index}` })
+		);
+		const funnel = signal({
+			metric: "funnel:checkout",
+			subjectKey: "funnel:checkout",
+		});
+		const error = signal({
+			metric: "error_count",
+			subjectKey: "error:checkout",
+			direction: "up",
+			baseline: 10,
+			current: 100,
+			severity: "critical",
+		});
+		const traffic = signal({ metric: "visitors" });
+		const plan = planCoveragePortfolio([...goals, funnel, error, traffic], {
+			reason: "manual",
+			selectedSignalKeys: keys(goals),
+		});
+		expect(plan).toHaveLength(5);
+		expect(plan).toContain(error);
+		expect(plan).toContain(funnel);
+		expect(plan).not.toContain(traffic);
+		expect(plan.filter((item) => item.metric.startsWith("goal:"))).toHaveLength(
+			3
+		);
+	});
+
+	it.each([
+		"manual",
+		"scheduled",
+	] as const)("preserves an explicit traffic exclusion in a %s scan", (reason) => {
+		const goal = signal({
+			metric: "goal:activation",
+			subjectKey: "goal:activation",
+		});
+		const traffic = signal({ metric: "visitors" });
+		expect(
+			planCoveragePortfolio([traffic, goal], {
+				reason,
+				selectedSignalKeys: keys([goal]),
+			})
+		).toEqual([goal]);
+		expect(
+			planCoveragePortfolio([traffic, goal], {
+				reason,
+				selectedSignalKeys: keys([traffic]),
+			})
+		).toContain(traffic);
+	});
+
+	it("keeps one correlated subject, the due case first, and the scheduled limit", () => {
+		const due = signal({ metric: "goal:due", subjectKey: "goal:due" });
+		const visitors = signal({ metric: "visitors" });
+		const sessions = signal({ metric: "sessions" });
+		const plan = planCoveragePortfolio([due, visitors, sessions], {
+			reason: "scheduled",
+			dueSignalKey: signalKeyForDetectedSignal(due),
+			selectedSignalKeys: keys([sessions, visitors]),
+		});
+		expect(keys(plan)).toEqual(keys([due, sessions]));
+	});
 });

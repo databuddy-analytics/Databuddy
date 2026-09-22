@@ -1,30 +1,25 @@
 import { describe, expect, it } from "bun:test";
-import { createConfig } from "./app";
+import { createConfig, readBooleanEnv } from "./app";
 
 describe("createConfig", () => {
-	it("uses local defaults outside production", () => {
-		expect(createConfig({ NODE_ENV: "development" })).toMatchObject({
-			urls: {
-				api: "http://localhost:3001",
-				basket: "http://localhost:4000",
-				dashboard: "http://localhost:3000",
-				links: "http://localhost:2500",
-				mcp: "http://localhost:3001/v1/mcp/",
-				status: "http://localhost:3002",
-			},
+	it("keeps production URL defaults local only when self-hosting", () => {
+		expect(createConfig({ NODE_ENV: "production" }).urls).toEqual({
+			api: "https://api.databuddy.cc",
+			basket: "https://basket.databuddy.cc",
+			dashboard: "https://app.databuddy.cc",
+			links: "https://dby.sh",
+			mcp: "https://api.databuddy.cc/v1/mcp/",
+			status: "https://status.databuddy.cc",
 		});
-	});
-
-	it("uses cloud defaults in production", () => {
-		expect(createConfig({ NODE_ENV: "production" })).toMatchObject({
-			urls: {
-				api: "https://api.databuddy.cc",
-				basket: "https://basket.databuddy.cc",
-				dashboard: "https://app.databuddy.cc",
-				links: "https://dby.sh",
-				mcp: "https://api.databuddy.cc/v1/mcp/",
-				status: "https://status.databuddy.cc",
-			},
+		expect(
+			createConfig({ NODE_ENV: "production", SELFHOST: " TRUE " }).urls
+		).toEqual({
+			api: "http://localhost:3001",
+			basket: "http://localhost:4000",
+			dashboard: "http://localhost:3000",
+			links: "http://localhost:2500",
+			mcp: "http://localhost:3001/v1/mcp/",
+			status: "http://localhost:3002",
 		});
 	});
 
@@ -34,6 +29,7 @@ describe("createConfig", () => {
 				API_URL: "https://api.example.com/",
 				DASHBOARD_URL: "https://app.example.com/",
 				NODE_ENV: "production",
+				SELFHOST: "true",
 			})
 		).toMatchObject({
 			urls: {
@@ -140,13 +136,25 @@ describe("createConfig", () => {
 	});
 
 	it("falls alert email back to the normal sender before the default", () => {
-		expect(
-			createConfig({ EMAIL_FROM: "App <app@example.com>" })
-		).toMatchObject({
-			email: {
-				alertsFrom: "App <app@example.com>",
-				from: "App <app@example.com>",
-			},
-		});
+		expect(createConfig({ EMAIL_FROM: "App <app@example.com>" })).toMatchObject(
+			{
+				email: {
+					alertsFrom: "App <app@example.com>",
+					from: "App <app@example.com>",
+				},
+			}
+		);
+	});
+});
+
+describe("readBooleanEnv", () => {
+	it("only enables an explicit true value", () => {
+		for (const value of [undefined, "", "false", "0", "1", "yes"]) {
+			expect(readBooleanEnv("FLAG", { FLAG: value })).toBe(false);
+		}
+	});
+
+	it("accepts true without case or whitespace sensitivity", () => {
+		expect(readBooleanEnv("FLAG", { FLAG: " TRUE " })).toBe(true);
 	});
 });

@@ -1,4 +1,4 @@
-export interface MiniChartDataPoint {
+interface MiniChartDataPoint {
 	date: string;
 	value: number;
 }
@@ -30,10 +30,4 @@ interface RegionData {
 export interface LocationData {
 	countries: CountryData[];
 	regions: RegionData[];
-}
-
-export interface WebsiteBasic {
-	domain: string;
-	id: string;
-	name?: string | null;
 }

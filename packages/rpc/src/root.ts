@@ -1,7 +1,6 @@
 import { agentChatsRouter } from "./routers/agent-chats";
 import { alarmsRouter } from "./routers/alarms";
 import { annotationsRouter } from "./routers/annotations";
-import { anomaliesRouter } from "./routers/anomalies";
 import { apikeysRouter } from "./routers/apikeys";
 import { auditRouter } from "./routers/audit";
 import { autocompleteRouter } from "./routers/autocomplete";
@@ -16,6 +15,7 @@ import { integrationsRouter } from "./routers/integrations";
 import { linkFoldersRouter } from "./routers/link-folders";
 import { linksRouter } from "./routers/links";
 import { organizationsRouter } from "./routers/organizations";
+import { businessContextRouter } from "./routers/business-context";
 import { profilesRouter } from "./routers/profiles";
 import { revenueRouter } from "./routers/revenue";
 import { statusPageRouter } from "./routers/status-page";
@@ -27,7 +27,6 @@ import { websitesRouter } from "./routers/websites";
 export const appRouter = {
 	agentChats: agentChatsRouter,
 	alarms: alarmsRouter,
-	anomalies: anomaliesRouter,
 	annotations: annotationsRouter,
 	audit: auditRouter,
 	websites: websitesRouter,
@@ -42,6 +41,7 @@ export const appRouter = {
 	insights: insightsRouter,
 	targetGroups: targetGroupsRouter,
 	organizations: organizationsRouter,
+	businessContext: businessContextRouter,
 	profiles: profilesRouter,
 	billing: billingRouter,
 	statusPage: statusPageRouter,

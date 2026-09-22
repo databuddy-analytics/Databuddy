@@ -1,5 +1,5 @@
 import { clickHouse, TABLE_NAMES } from "@databuddy/db/clickhouse";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

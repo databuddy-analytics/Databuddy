@@ -18,7 +18,6 @@ export interface NavigationItem {
 	disabled?: boolean;
 	domain?: string;
 	external?: boolean;
-	flag?: string;
 	gatedFeature?: GatedFeatureId;
 	hideFromDemo?: boolean;
 	hideFromSidebar?: boolean;
@@ -34,7 +33,7 @@ export interface NavigationItem {
 	tag?: string;
 }
 
-export interface NavigationSearchItem {
+interface NavigationSearchItem {
 	disabled?: boolean;
 	external?: boolean;
 	href?: string;
@@ -44,19 +43,9 @@ export interface NavigationSearchItem {
 	searchTags?: string[];
 }
 
-export interface NavigationSection {
-	flag?: string;
-	icon: NavIcon;
-	items: NavigationItem[];
-	title: string;
-}
-
 export interface NavigationGroup {
 	back?: { href: string; label: string };
-	flag?: string;
 	items: NavigationItem[];
 	label: string;
 	pinToBottom?: boolean;
 }
-
-export type NavigationEntry = NavigationSection | NavigationItem;

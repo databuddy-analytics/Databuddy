@@ -56,7 +56,7 @@ import {
 
 export type { RecentCustomEvent } from "@/components/events/custom-events";
 
-export interface EventsStreamData {
+interface EventsStreamData {
 	error: Error | null;
 	events: StreamCustomEvent[] | undefined;
 	isError: boolean;
@@ -120,11 +120,11 @@ interface ActiveFilter {
 function getFilterIcon(type: ActiveFilter["type"]) {
 	switch (type) {
 		case "event":
-			return <LightningIcon className="size-3" weight="fill" />;
+			return <LightningIcon className="size-3" />;
 		case "path":
 			return <LinkIcon className="size-3" />;
 		case "property":
-			return <TagIcon className="size-3" weight="fill" />;
+			return <TagIcon className="size-3" />;
 		case "hasProps":
 			return <BracketsSquareIcon className="size-3" />;
 		default:
@@ -162,7 +162,7 @@ function ActiveFiltersDisplay({ filters }: { filters: ActiveFilter[] }) {
 						onClick={filter.onRemoveAction}
 						type="button"
 					>
-						<XIcon className="size-3" weight="bold" />
+						<XIcon className="size-3" />
 					</button>
 				</Badge>
 			))}
@@ -231,7 +231,9 @@ export function EventsStreamContent({
 	);
 
 	const pageRef = useRef(page);
-	pageRef.current = page;
+	useEffect(() => {
+		pageRef.current = page;
+	}, [page]);
 
 	const justResetRef = useRef(false);
 	useEffect(() => {
@@ -325,9 +327,9 @@ export function EventsStreamContent({
 		}
 		const values = new Set<string>();
 		for (const event of allEvents) {
-			const val = event.properties[selectedPropertyKey];
-			if (val !== undefined && val !== null) {
-				values.add(String(val));
+			const propertyValue = event.properties[selectedPropertyKey];
+			if (propertyValue !== undefined && propertyValue !== null) {
+				values.add(String(propertyValue));
 			}
 		}
 		return Array.from(values).sort();
@@ -696,10 +698,7 @@ export function EventsStreamContent({
 				<div className="flex flex-wrap items-center gap-2">
 					<div className="flex items-center gap-1 rounded-md bg-secondary p-0.5">
 						<div className="flex items-center gap-1.5 pl-1.5">
-							<LightningIcon
-								className="size-3.5 text-muted-foreground"
-								weight="duotone"
-							/>
+							<LightningIcon className="size-3.5 text-muted-foreground" />
 							<Select
 								onValueChange={setSelectedEventType}
 								value={selectedEventType}
@@ -748,10 +747,7 @@ export function EventsStreamContent({
 						</div>
 
 						<div className="flex items-center gap-1.5 pl-1.5">
-							<TagIcon
-								className="size-3.5 text-muted-foreground"
-								weight="duotone"
-							/>
+							<TagIcon className="size-3.5 text-muted-foreground" />
 							<Select
 								onValueChange={(v) =>
 									setHasProperties(v as HasPropertiesFilter)
@@ -832,10 +828,7 @@ export function EventsStreamContent({
 					</div>
 
 					<div className="relative w-[180px] flex-none">
-						<MagnifyingGlassIcon
-							className="absolute top-1/2 left-2.5 z-10 size-3.5 -translate-y-1/2 text-muted-foreground"
-							weight="bold"
-						/>
+						<MagnifyingGlassIcon className="absolute top-1/2 left-2.5 z-10 size-3.5 -translate-y-1/2 text-muted-foreground" />
 						<Input
 							className={cn(
 								"h-7 border-transparent bg-transparent pr-7 pl-8 text-sm shadow-none placeholder:text-muted-foreground/50 focus-visible:border-border focus-visible:bg-background",

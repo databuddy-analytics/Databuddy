@@ -207,18 +207,9 @@ async function evictInvalidCachedLinkIfCurrent(
 		// A corrupt cache value is still a miss when best-effort eviction fails.
 	}
 }
-
-/**
- * Generates a consistent cache key for a link by slug.
- */
 export function getLinkCacheKey(slug: string): string {
 	return `${LINKS_CACHE_PREFIX}:${slug}`;
 }
-
-/**
- * Get a link from cache by slug. Pending mutations deliberately do not fall
- * through to a read-through database lookup.
- */
 export async function getCachedLink(slug: string): Promise<CachedLinkLookup> {
 	const key = getLinkCacheKey(slug);
 
@@ -252,11 +243,6 @@ export async function getCachedLink(slug: string): Promise<CachedLinkLookup> {
 	await evictInvalidCachedLinkIfCurrent(key, cached);
 	return { state: "miss" };
 }
-
-/**
- * Start an id-aware cache mutation lease. A lease replaces the prior value so
- * readers return `pending` instead of querying the database mid-mutation.
- */
 export async function beginCachedLinkMutation(
 	slug: string,
 	mutation: { id: string; mode: "existing" | "new" }
@@ -282,10 +268,6 @@ export async function beginCachedLinkMutation(
 	}
 	return { state: "conflict" };
 }
-
-/**
- * Finish a mutation only while this caller still owns its pending marker.
- */
 export async function finishCachedLinkMutation(
 	slug: string,
 	token: string,
@@ -324,10 +306,6 @@ export async function abandonCachedLinkMutation(
 	)) as number;
 	return result === 1;
 }
-
-/**
- * Backfill a cache miss without overwriting a newer mutation or tombstone.
- */
 export async function setCachedLinkIfAbsent(
 	slug: string,
 	link: CachedLink
@@ -343,10 +321,6 @@ export async function setCachedLinkIfAbsent(
 	);
 	return result === "OK";
 }
-
-/**
- * Backfill a negative cache miss without replacing a concurrent mutation.
- */
 export async function setCachedLinkNotFoundIfAbsent(
 	slug: string
 ): Promise<boolean> {

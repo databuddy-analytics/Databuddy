@@ -1,3 +1,4 @@
+import { isSelfHosted } from "@databuddy/env/public";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import {
 	OpenExternalIcon as ArrowSquareOutIcon,
@@ -36,11 +37,10 @@ import {
 	UserIcon,
 	UserSettingsIcon,
 	Users3Icon as UsersThreeIcon,
-	TriangleWarningIcon as WarningIcon,
 } from "@databuddy/ui/icons";
 import type { NavigationGroup, NavigationItem } from "./types";
 
-export const createNavItem = (
+const createNavItem = (
 	name: string,
 	icon: NavigationItem["icon"],
 	href: string,
@@ -159,15 +159,8 @@ export const websiteNavigation: NavigationGroup[] = [
 				rootLevel: false,
 				gatedFeature: GATED_FEATURES.GEOGRAPHIC,
 			}),
-			createNavItem("Anomalies", WarningIcon, "/anomalies", {
-				rootLevel: false,
-				alpha: true,
-				flag: "anomalies",
-				hideFromDemo: true,
-			}),
 			createNavItem("Pulse", PulseIcon, "/pulse", {
 				rootLevel: false,
-				flag: "pulse",
 				alpha: true,
 			}),
 		],
@@ -215,7 +208,6 @@ export const websiteNavigation: NavigationGroup[] = [
 			createNavItem("Revenue", CurrencyDollarIcon, "/revenue", {
 				alpha: true,
 				rootLevel: false,
-				flag: "revenue",
 				hideFromDemo: true,
 			}),
 		],
@@ -307,10 +299,17 @@ export const settingsNavigation: NavigationGroup[] = [
 				],
 			}),
 			createNavItem(
+				"Business Context",
+				LightbulbIcon,
+				"/organizations/settings/business-context",
+				{
+					searchTags: ["business brief", "company profile", "AI context"],
+				}
+			),
+			createNavItem(
 				"Integrations",
 				PlugIcon,
-				"/organizations/settings/integrations",
-				{ flag: "integrations" }
+				"/organizations/settings/integrations"
 			),
 			createNavItem("Members", UserIcon, "/organizations/members"),
 			createNavItem(
@@ -318,9 +317,13 @@ export const settingsNavigation: NavigationGroup[] = [
 				ShieldCheckIcon,
 				"/organizations/settings/audit"
 			),
-			createNavItem("Billing", CreditCardIcon, "/billing"),
-			createNavItem("Plans", CurrencyDollarIcon, "/billing/plans"),
-			createNavItem("Invoices", ReceiptIcon, "/billing/history"),
+			...(isSelfHosted
+				? []
+				: [
+						createNavItem("Billing", CreditCardIcon, "/billing"),
+						createNavItem("Plans", CurrencyDollarIcon, "/billing/plans"),
+						createNavItem("Invoices", ReceiptIcon, "/billing/history"),
+					]),
 		],
 	},
 	{

@@ -1,4 +1,4 @@
-export interface DynamicQueryFilter {
+interface DynamicQueryFilter {
 	field: string;
 	operator: string;
 	value: string | number | boolean;
@@ -16,7 +16,7 @@ export interface DynamicQueryRequest {
 	timeZone?: string;
 }
 
-export interface ParameterResult {
+interface ParameterResult {
 	data: unknown[];
 	error?: string;
 	parameter: string;

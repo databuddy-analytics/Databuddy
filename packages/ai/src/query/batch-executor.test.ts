@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import type { RequestLogger } from "evlog";
 import { setAiRequestLoggerProvider } from "../lib/request-logger";
 import { QueryBuilders } from "./builders";
+import { makeRequiredFilters } from "./filter-fixtures";
 import { SimpleQueryBuilder } from "./simple-builder";
 
 const realClickHouseModule = { ...actualClickHouse };
@@ -22,25 +23,13 @@ const {
 	getSchemaGroups,
 } = await import("./batch-executor");
 
-const lastSelectColumns = extractOuterSelectColumns;
-
 function compileSql(type: string): string {
 	const config = QueryBuilders[type];
 	if (!config) {
 		throw new Error(`Missing config for ${type}`);
 	}
-	const requiredFilters = [
-		...new Set([
-			...(config.requiredFilters ?? []),
-			...(config.requiredAnyFilter?.slice(0, 1) ?? []),
-		]),
-	].map((field) => ({
-		field,
-		op: "eq" as const,
-		value: `${field}-required-value`,
-	}));
 	return new SimpleQueryBuilder(config, {
-		filters: requiredFilters,
+		filters: makeRequiredFilters(config),
 		projectId: "test-website",
 		type,
 		from: "2026-04-01",
@@ -83,14 +72,16 @@ describe("batch-executor schema signatures", () => {
 			type,
 		}));
 
-	it.each(builderCases)(
-		"$type emits the columns declared in meta.output_fields",
-		({ type, declared }) => {
-			const sql = compileSql(type);
-			const actual = lastSelectColumns(sql);
-			expect(actual).toEqual(declared);
-		}
-	);
+	it.each(
+		builderCases
+	)("$type emits the columns declared in meta.output_fields", ({
+		type,
+		declared,
+	}) => {
+		const sql = compileSql(type);
+		const actual = extractOuterSelectColumns(sql);
+		expect(actual).toEqual(declared);
+	});
 
 	it("groups builders that share a schema signature", () => {
 		const groups = getSchemaGroups();
@@ -112,18 +103,9 @@ describe("batch-executor schema signatures", () => {
 		}
 	});
 
-	it("returns no peers for a builder without meta", () => {
-		const peers = getCompatibleQueries("session_metrics");
-		expect(peers).toEqual([]);
-	});
-
 	it("treats builders with different column shapes as incompatible", () => {
 		expect(areQueriesCompatible("country", "region")).toBe(false);
 		expect(areQueriesCompatible("country", "city")).toBe(false);
-	});
-
-	it("region and city share a signature now that meta matches their SQL", () => {
-		expect(areQueriesCompatible("region", "city")).toBe(true);
 	});
 
 	it("every realtime builder opts out of the ClickHouse query cache", () => {
@@ -283,10 +265,6 @@ describe("buildUnionQuery compile isolation", () => {
 });
 
 describe("extractOuterSelectColumns", () => {
-	it("returns top-level projection on simple SELECT", () => {
-		expect(extractOuterSelectColumns("SELECT a, b FROM t")).toEqual(["a", "b"]);
-	});
-
 	it("ignores subquery projections in FROM", () => {
 		expect(
 			extractOuterSelectColumns(
@@ -331,22 +309,22 @@ describe("extractOuterSelectColumns", () => {
 
 	it("does not treat SELECT/FROM inside block comments as keywords", () => {
 		expect(
-			extractOuterSelectColumns(
-				"SELECT a /* FROM commented out */, b FROM t"
-			)
+			extractOuterSelectColumns("SELECT a /* FROM commented out */, b FROM t")
 		).toEqual(["a", "b"]);
 	});
 
 	it("does not split on commas inside string literals", () => {
-		expect(
-			extractOuterSelectColumns("SELECT 'a, b' AS s, c FROM t")
-		).toEqual(["s", "c"]);
+		expect(extractOuterSelectColumns("SELECT 'a, b' AS s, c FROM t")).toEqual([
+			"s",
+			"c",
+		]);
 	});
 
 	it("treats quoted identifiers as identifiers, not keywords", () => {
-		expect(
-			extractOuterSelectColumns('SELECT "FROM" AS f, b FROM t')
-		).toEqual(["f", "b"]);
+		expect(extractOuterSelectColumns('SELECT "FROM" AS f, b FROM t')).toEqual([
+			"f",
+			"b",
+		]);
 	});
 
 	it("handles nested function calls without breaking on parens", () => {

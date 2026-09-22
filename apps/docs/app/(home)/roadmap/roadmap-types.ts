@@ -7,14 +7,13 @@ export type RoadmapStatus =
 
 export type RoadmapPriority = "critical" | "high" | "medium" | "low";
 
-export type RoadmapCategory =
+type RoadmapCategory =
 	| "analytics"
 	| "AI"
 	| "integrations"
 	| "developer-experience";
 
 export interface RoadmapItem {
-	assignees?: string[]; // GitHub usernames
 	category: RoadmapCategory;
 	completedDate?: string; // ISO date string
 	description: string;
@@ -29,14 +28,6 @@ export interface RoadmapItem {
 	tags?: string[]; // Additional tags
 	targetDate?: string; // ISO date string
 	title: string;
-}
-
-export interface RoadmapQuarter {
-	endDate: string;
-	id: string;
-	items: RoadmapItem[];
-	name: string; // e.g., "Q1 2024"
-	startDate: string;
 }
 
 export interface RoadmapStats {

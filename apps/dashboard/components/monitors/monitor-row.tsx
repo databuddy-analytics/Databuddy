@@ -22,8 +22,8 @@ import {
 	PlayIcon,
 	TrashIcon,
 } from "@databuddy/ui/icons";
-import { DropdownMenu } from "@databuddy/ui/client";
-import { Badge, Skeleton, dayjs, formatDateOnly } from "@databuddy/ui";
+import { DeleteDialog, DropdownMenu } from "@databuddy/ui/client";
+import { Badge, Skeleton, dayjs } from "@databuddy/ui";
 
 const GRANULARITY_LABELS: Record<string, string> = {
 	minute: "1 min",
@@ -49,11 +49,10 @@ interface MonitorRowProps {
 		url: string | null;
 		name: string | null;
 		granularity: string;
-		cron: string;
 		isPaused: boolean;
 		createdAt: Date | string;
 		updatedAt: Date | string;
-		website: {
+		website?: {
 			id: string;
 			name: string | null;
 			domain: string;
@@ -69,6 +68,7 @@ function MonitorActions({
 }: MonitorRowProps) {
 	const [isPausing, setIsPausing] = useState(false);
 	const [isTransferOpen, setIsTransferOpen] = useState(false);
+	const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
 	const pauseMutation = useMutation({
 		...orpc.uptime.pauseSchedule.mutationOptions(),
@@ -124,6 +124,7 @@ function MonitorActions({
 		try {
 			await deleteMutation.mutateAsync({ scheduleId: schedule.id });
 			toast.success("Monitor deleted");
+			setIsDeleteOpen(false);
 			onDeleteAction();
 		} catch (error) {
 			const errorMessage =
@@ -153,14 +154,14 @@ function MonitorActions({
 			<DropdownMenu>
 				<DropdownMenu.Trigger
 					aria-label="Monitor actions"
-					className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-interactive-hover hover:text-foreground group-hover:opacity-100 data-[state=open]:opacity-100"
+					className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-interactive-hover hover:text-foreground group-hover:opacity-100 data-popup-open:opacity-100"
 					data-dropdown-trigger
 				>
-					<DotsThreeIcon className="size-4" weight="bold" />
+					<DotsThreeIcon className="size-4" />
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Content align="end" className="w-52">
 					<DropdownMenu.Item className="gap-2" onClick={onEditAction}>
-						<PencilSimpleIcon className="size-4" weight="duotone" />
+						<PencilSimpleIcon className="size-4" />
 						Edit Monitor
 					</DropdownMenu.Item>
 					<DropdownMenu.Item
@@ -168,7 +169,7 @@ function MonitorActions({
 						disabled={manualCheckMutation.isPending || schedule.isPaused}
 						onClick={handleManualCheck}
 					>
-						<LightningIcon className="size-4" weight="duotone" />
+						<LightningIcon className="size-4" />
 						Check Now
 					</DropdownMenu.Item>
 					<DropdownMenu.Item
@@ -179,18 +180,18 @@ function MonitorActions({
 						onClick={handleTogglePause}
 					>
 						{schedule.isPaused ? (
-							<PlayIcon className="size-4" weight="duotone" />
+							<PlayIcon className="size-4" />
 						) : (
-							<PauseIcon className="size-4" weight="duotone" />
+							<PauseIcon className="size-4" />
 						)}
 						{schedule.isPaused ? "Resume" : "Pause"}
 					</DropdownMenu.Item>
-					{schedule.organizationId ? (
+					{schedule.organizationId && !schedule.websiteId ? (
 						<DropdownMenu.Item
 							className="gap-2"
 							onClick={() => setIsTransferOpen(true)}
 						>
-							<ArrowSquareOutIcon className="size-4" weight="duotone" />
+							<ArrowSquareOutIcon className="size-4" />
 							Transfer to Organization
 						</DropdownMenu.Item>
 					) : null}
@@ -198,14 +199,23 @@ function MonitorActions({
 					<DropdownMenu.Item
 						className="gap-2 text-destructive focus:text-destructive"
 						disabled={deleteMutation.isPending}
-						onClick={handleDelete}
+						onClick={() => setIsDeleteOpen(true)}
 						variant="destructive"
 					>
-						<TrashIcon className="size-4 fill-destructive" weight="duotone" />
+						<TrashIcon className="size-4 fill-destructive" />
 						Delete Monitor
 					</DropdownMenu.Item>
 				</DropdownMenu.Content>
 			</DropdownMenu>
+
+			<DeleteDialog
+				isDeleting={deleteMutation.isPending}
+				isOpen={isDeleteOpen}
+				itemName={schedule.name ?? schedule.url ?? undefined}
+				onClose={() => setIsDeleteOpen(false)}
+				onConfirm={handleDelete}
+				title="Delete Monitor"
+			/>
 
 			{schedule.organizationId ? (
 				<TransferToOrgDialog
@@ -319,10 +329,9 @@ function MiniHeatmap({
 			<UptimeHeatmapStrip
 				days={heatmapData}
 				emptyLabel="No data"
-				getDateLabel={(d) => formatDateOnly(d)}
 				interactive={false}
 				isActive={isActive}
-				stripClassName="grid h-1.5 w-32 gap-x-px lg:w-44"
+				stripClassName="grid h-3 w-32 gap-x-px lg:w-44"
 			/>
 			<span
 				className={cn(
@@ -357,10 +366,7 @@ export function MonitorRow({
 
 	const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
 		const target = e.target as HTMLElement;
-		if (
-			target.closest("[data-dropdown-trigger]") ||
-			target.closest("[data-radix-popper-content-wrapper]")
-		) {
+		if (target.closest("[data-dropdown-trigger]")) {
 			e.preventDefault();
 		}
 	};
@@ -388,13 +394,11 @@ export function MonitorRow({
 							<FaviconImage
 								altText={`${displayName} favicon`}
 								domain={displayUrl}
-								fallbackIcon={
-									<HeartbeatIcon className="size-5" weight="duotone" />
-								}
+								fallbackIcon={<HeartbeatIcon className="size-5" />}
 								size={20}
 							/>
 						) : (
-							<HeartbeatIcon className="size-5" weight="duotone" />
+							<HeartbeatIcon className="size-5" />
 						)}
 					</div>
 					<div className="min-w-0 flex-1">

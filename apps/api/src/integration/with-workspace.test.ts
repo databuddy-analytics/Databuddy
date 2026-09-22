@@ -1,13 +1,7 @@
 import "@databuddy/test/env";
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createProcedureClient } from "@orpc/server";
-import {
-	withWorkspace,
-	withPublicWorkspace,
-	appRouter,
-	type Context,
-} from "@databuddy/rpc";
+import { withWorkspace, withPublicWorkspace, appRouter } from "@databuddy/rpc";
 import {
 	reset,
 	cleanup,
@@ -21,12 +15,9 @@ import {
 	signUp,
 	addToOrganization,
 } from "@databuddy/test";
+import { call } from "./helpers";
 
 const iit = hasTestDb ? it : it.skip;
-
-function call<T>(procedure: T, ctx: Context) {
-	return createProcedureClient(procedure as any, { context: ctx });
-}
 
 beforeEach(() => reset());
 afterAll(() => cleanup());
@@ -41,7 +32,7 @@ describe("withWorkspace", () => {
 					resource: "organization",
 					permissions: ["read"],
 				}),
-				"UNAUTHORIZED",
+				"UNAUTHORIZED"
 			);
 		});
 	});
@@ -62,7 +53,7 @@ describe("withWorkspace", () => {
 					resource: "organization",
 					permissions: ["read"],
 				}),
-				"BAD_REQUEST",
+				"BAD_REQUEST"
 			);
 		});
 
@@ -92,7 +83,7 @@ describe("withWorkspace", () => {
 					websiteId: "nonexistent",
 					permissions: ["read"],
 				}),
-				"NOT_FOUND",
+				"NOT_FOUND"
 			);
 		});
 	});
@@ -136,7 +127,7 @@ describe("withWorkspace", () => {
 					resource: "website",
 					permissions: ["update"],
 				}),
-				"FORBIDDEN",
+				"FORBIDDEN"
 			);
 		});
 
@@ -151,7 +142,7 @@ describe("withWorkspace", () => {
 					resource: "website",
 					permissions: ["create"],
 				}),
-				"FORBIDDEN",
+				"FORBIDDEN"
 			);
 		});
 
@@ -178,7 +169,7 @@ describe("withWorkspace", () => {
 					resource: "organization",
 					permissions: ["read"],
 				}),
-				"FORBIDDEN",
+				"FORBIDDEN"
 			);
 		});
 
@@ -194,9 +185,100 @@ describe("withWorkspace", () => {
 					websiteId: siteInB.id,
 					permissions: ["read"],
 				}),
-				"FORBIDDEN",
+				"FORBIDDEN"
 			);
 		});
+
+		iit(
+			"cannot read another membership's website while a different org is active",
+			async () => {
+				const user = await signUp();
+				const orgA = await insertOrganization();
+				const orgB = await insertOrganization();
+				await addToOrganization(user.id, orgA.id, "owner");
+				await addToOrganization(user.id, orgB.id, "owner");
+				const siteB = await insertWebsite({ organizationId: orgB.id });
+
+				await expectCode(
+					withWorkspace(userContext(user, orgA.id), {
+						websiteId: siteB.id,
+						permissions: ["read"],
+					}),
+					"FORBIDDEN"
+				);
+			}
+		);
+	});
+
+	describe("allowCrossOrg bypass for transfer-like flows", () => {
+		iit(
+			"owner of both source and target can authorize against non-active org",
+			async () => {
+				const user = await signUp();
+				const orgA = await insertOrganization();
+				const orgB = await insertOrganization();
+				await addToOrganization(user.id, orgA.id, "owner");
+				await addToOrganization(user.id, orgB.id, "owner");
+				const siteA = await insertWebsite({ organizationId: orgA.id });
+
+				const source = await withWorkspace(userContext(user, orgA.id), {
+					websiteId: siteA.id,
+					permissions: ["update"],
+					allowCrossOrg: true,
+				});
+				expect(source.organizationId).toBe(orgA.id);
+
+				const target = await withWorkspace(userContext(user, orgA.id), {
+					organizationId: orgB.id,
+					resource: "website",
+					permissions: ["create"],
+					allowCrossOrg: true,
+				});
+				expect(target.organizationId).toBe(orgB.id);
+				expect(target.role).toBe("owner");
+			}
+		);
+
+		iit(
+			"allowCrossOrg still blocks non-members from creating in target org",
+			async () => {
+				const user = await signUp();
+				const orgA = await insertOrganization();
+				const orgB = await insertOrganization();
+				await addToOrganization(user.id, orgA.id, "owner");
+
+				await expectCode(
+					withWorkspace(userContext(user, orgA.id), {
+						organizationId: orgB.id,
+						resource: "website",
+						permissions: ["create"],
+						allowCrossOrg: true,
+					}),
+					"FORBIDDEN"
+				);
+			}
+		);
+
+		iit(
+			"allowCrossOrg still blocks insufficient role in target org",
+			async () => {
+				const user = await signUp();
+				const orgA = await insertOrganization();
+				const orgB = await insertOrganization();
+				await addToOrganization(user.id, orgA.id, "owner");
+				await addToOrganization(user.id, orgB.id, "viewer");
+
+				await expectCode(
+					withWorkspace(userContext(user, orgA.id), {
+						organizationId: orgB.id,
+						resource: "website",
+						permissions: ["create"],
+						allowCrossOrg: true,
+					}),
+					"FORBIDDEN"
+				);
+			}
+		);
 	});
 
 	describe("API key path", () => {
@@ -208,7 +290,7 @@ describe("withWorkspace", () => {
 				withWorkspace(apiKeyContext(orgA.id, ["read:data"], orgB.id), {
 					organizationId: orgB.id,
 				}),
-				"FORBIDDEN",
+				"FORBIDDEN"
 			);
 		});
 
@@ -235,7 +317,7 @@ describe("withWorkspace", () => {
 					resource: "website",
 					permissions: ["update"],
 				}),
-				"FORBIDDEN",
+				"FORBIDDEN"
 			);
 		});
 
@@ -250,7 +332,7 @@ describe("withWorkspace", () => {
 					organizationId: org.id,
 					resource: "website",
 					permissions: ["create"],
-				},
+				}
 			);
 			expect(ws.user).toBeNull();
 		});
@@ -306,7 +388,7 @@ describe("withWorkspace", () => {
 					resource: "website",
 					permissions: ["read"],
 				}),
-				"FORBIDDEN",
+				"FORBIDDEN"
 			);
 		});
 	});
@@ -371,7 +453,7 @@ describe("withWorkspace", () => {
 					websiteId: site.id,
 					permissions: ["update"],
 				}),
-				"UNAUTHORIZED",
+				"UNAUTHORIZED"
 			);
 		});
 
@@ -387,7 +469,7 @@ describe("withWorkspace", () => {
 					websiteId: site.id,
 					permissions: ["read"],
 				}),
-				"UNAUTHORIZED",
+				"UNAUTHORIZED"
 			);
 		});
 
@@ -470,68 +552,77 @@ describe("withWorkspace", () => {
 				{
 					websiteId: site.id,
 					permissions: ["read"],
-				},
+				}
 			);
 			expect(ws.tier).toBe("demo");
 			expect(ws.role).toBeNull();
 		});
 
-		iit("gives member with mismatched active org demo tier on public website", async () => {
-			const owner = await signUp();
-			const orgA = await insertOrganization();
-			const orgB = await insertOrganization();
-			await addToOrganization(owner.id, orgA.id, "owner");
-			await addToOrganization(owner.id, orgB.id, "owner");
-			const site = await insertWebsite({
-				organizationId: orgA.id,
-				isPublic: true,
-			});
+		iit(
+			"gives member with mismatched active org demo tier on public website",
+			async () => {
+				const owner = await signUp();
+				const orgA = await insertOrganization();
+				const orgB = await insertOrganization();
+				await addToOrganization(owner.id, orgA.id, "owner");
+				await addToOrganization(owner.id, orgB.id, "owner");
+				const site = await insertWebsite({
+					organizationId: orgA.id,
+					isPublic: true,
+				});
 
-			const ws = await withPublicWorkspace(userContext(owner, orgB.id), {
-				websiteId: site.id,
-				permissions: ["read"],
-			});
-			expect(ws.tier).toBe("demo");
-		});
-
-		iit("gives org API key with read scope authed tier on public website", async () => {
-			const org = await insertOrganization();
-			const owner = await signUp();
-			await addToOrganization(owner.id, org.id, "owner");
-			const site = await insertWebsite({
-				organizationId: org.id,
-				isPublic: true,
-			});
-
-			const ws = await withPublicWorkspace(
-				apiKeyContext(org.id, ["read:data"]),
-				{
+				const ws = await withPublicWorkspace(userContext(owner, orgB.id), {
 					websiteId: site.id,
 					permissions: ["read"],
-				},
-			);
-			expect(ws.tier).toBe("authed");
-			expect(ws.user).toBeNull();
-		});
+				});
+				expect(ws.tier).toBe("demo");
+			}
+		);
 
-		iit("gives org API key without read scope demo tier on public website", async () => {
-			const org = await insertOrganization();
-			const owner = await signUp();
-			await addToOrganization(owner.id, org.id, "owner");
-			const site = await insertWebsite({
-				organizationId: org.id,
-				isPublic: true,
-			});
+		iit(
+			"gives org API key with read scope authed tier on public website",
+			async () => {
+				const org = await insertOrganization();
+				const owner = await signUp();
+				await addToOrganization(owner.id, org.id, "owner");
+				const site = await insertWebsite({
+					organizationId: org.id,
+					isPublic: true,
+				});
 
-			const ws = await withPublicWorkspace(
-				apiKeyContext(org.id, ["track:events"]),
-				{
-					websiteId: site.id,
-					permissions: ["read"],
-				},
-			);
-			expect(ws.tier).toBe("demo");
-		});
+				const ws = await withPublicWorkspace(
+					apiKeyContext(org.id, ["read:data"]),
+					{
+						websiteId: site.id,
+						permissions: ["read"],
+					}
+				);
+				expect(ws.tier).toBe("authed");
+				expect(ws.user).toBeNull();
+			}
+		);
+
+		iit(
+			"gives org API key without read scope demo tier on public website",
+			async () => {
+				const org = await insertOrganization();
+				const owner = await signUp();
+				await addToOrganization(owner.id, org.id, "owner");
+				const site = await insertWebsite({
+					organizationId: org.id,
+					isPublic: true,
+				});
+
+				const ws = await withPublicWorkspace(
+					apiKeyContext(org.id, ["track:events"]),
+					{
+						websiteId: site.id,
+						permissions: ["read"],
+					}
+				);
+				expect(ws.tier).toBe("demo");
+			}
+		);
 
 		iit("gives cross-org API key demo tier on public website", async () => {
 			const ownerOrg = await insertOrganization();
@@ -548,7 +639,7 @@ describe("withWorkspace", () => {
 				{
 					websiteId: site.id,
 					permissions: ["read"],
-				},
+				}
 			);
 			expect(ws.tier).toBe("demo");
 		});
@@ -570,19 +661,22 @@ describe("withWorkspace", () => {
 			expect(ws.user).toBeNull();
 		});
 
-		iit("denies API key with manage:websites but without manage:flags", async () => {
-			const org = await insertOrganization();
-			const site = await insertWebsite({ organizationId: org.id });
+		iit(
+			"denies API key with manage:websites but without manage:flags",
+			async () => {
+				const org = await insertOrganization();
+				const site = await insertWebsite({ organizationId: org.id });
 
-			await expectCode(
-				withWorkspace(apiKeyContext(org.id, ["manage:websites"]), {
-					websiteId: site.id,
-					resource: "flag",
-					permissions: ["update"],
-				}),
-				"FORBIDDEN",
-			);
-		});
+				await expectCode(
+					withWorkspace(apiKeyContext(org.id, ["manage:websites"]), {
+						websiteId: site.id,
+						resource: "flag",
+						permissions: ["update"],
+					}),
+					"FORBIDDEN"
+				);
+			}
+		);
 
 		iit("allows API key with read:data to read flags", async () => {
 			const org = await insertOrganization();
@@ -621,7 +715,7 @@ describe("withWorkspace", () => {
 					resource: "flag",
 					permissions: ["delete"],
 				}),
-				"FORBIDDEN",
+				"FORBIDDEN"
 			);
 		});
 
@@ -636,7 +730,7 @@ describe("withWorkspace", () => {
 					resource: "flag",
 					permissions: ["update"],
 				}),
-				"FORBIDDEN",
+				"FORBIDDEN"
 			);
 		});
 	});
@@ -663,37 +757,43 @@ describe("withWorkspace", () => {
 					resource: "monitor",
 					permissions: ["read"],
 				}),
-				"FORBIDDEN",
+				"FORBIDDEN"
 			);
 		});
 
 		iit("allows API key with write:monitors to write monitors", async () => {
 			const org = await insertOrganization();
 
-			const ws = await withWorkspace(apiKeyContext(org.id, ["write:monitors"]), {
-				organizationId: org.id,
-				resource: "monitor",
-				permissions: ["update"],
-			});
+			const ws = await withWorkspace(
+				apiKeyContext(org.id, ["write:monitors"]),
+				{
+					organizationId: org.id,
+					resource: "monitor",
+					permissions: ["update"],
+				}
+			);
 			expect(ws.tier).toBe("authed");
 		});
 	});
 
 	describe("status page resource", () => {
-		iit("allows API key with read:status_pages to read status pages", async () => {
-			const org = await insertOrganization();
+		iit(
+			"allows API key with read:status_pages to read status pages",
+			async () => {
+				const org = await insertOrganization();
 
-			const ws = await withWorkspace(
-				apiKeyContext(org.id, ["read:status_pages"]),
-				{
-					organizationId: org.id,
-					resource: "status_page",
-					permissions: ["read"],
-				},
-			);
-			expect(ws.tier).toBe("authed");
-			expect(ws.user).toBeNull();
-		});
+				const ws = await withWorkspace(
+					apiKeyContext(org.id, ["read:status_pages"]),
+					{
+						organizationId: org.id,
+						resource: "status_page",
+						permissions: ["read"],
+					}
+				);
+				expect(ws.tier).toBe("authed");
+				expect(ws.user).toBeNull();
+			}
+		);
 
 		iit("denies API key with read:data from reading status pages", async () => {
 			const org = await insertOrganization();
@@ -704,23 +804,26 @@ describe("withWorkspace", () => {
 					resource: "status_page",
 					permissions: ["read"],
 				}),
-				"FORBIDDEN",
+				"FORBIDDEN"
 			);
 		});
 
-		iit("allows API key with write:status_pages to write status pages", async () => {
-			const org = await insertOrganization();
+		iit(
+			"allows API key with write:status_pages to write status pages",
+			async () => {
+				const org = await insertOrganization();
 
-			const ws = await withWorkspace(
-				apiKeyContext(org.id, ["write:status_pages"]),
-				{
-					organizationId: org.id,
-					resource: "status_page",
-					permissions: ["update"],
-				},
-			);
-			expect(ws.tier).toBe("authed");
-		});
+				const ws = await withWorkspace(
+					apiKeyContext(org.id, ["write:status_pages"]),
+					{
+						organizationId: org.id,
+						resource: "status_page",
+						permissions: ["update"],
+					}
+				);
+				expect(ws.tier).toBe("authed");
+			}
+		);
 	});
 
 	describe("plan gating", () => {
@@ -736,55 +839,64 @@ describe("withWorkspace", () => {
 					permissions: ["read"],
 					requiredPlans: ["pro"],
 				}),
-				"FEATURE_UNAVAILABLE",
+				"FEATURE_UNAVAILABLE"
 			);
 		});
 
-		iit("rejects non-member with FORBIDDEN before revealing plan gate", async () => {
-			const user = await signUp();
-			const org = await insertOrganization();
+		iit(
+			"rejects non-member with FORBIDDEN before revealing plan gate",
+			async () => {
+				const user = await signUp();
+				const org = await insertOrganization();
 
-			await expectCode(
-				withWorkspace(userContext(user, org.id), {
+				await expectCode(
+					withWorkspace(userContext(user, org.id), {
+						organizationId: org.id,
+						resource: "organization",
+						permissions: ["read"],
+						requiredPlans: ["pro"],
+					}),
+					"FORBIDDEN"
+				);
+			}
+		);
+
+		iit(
+			"defaults explicit plan resolution to free without billing",
+			async () => {
+				const user = await signUp();
+				const org = await insertOrganization();
+				await addToOrganization(user.id, org.id, "owner");
+
+				const ws = await withWorkspace(userContext(user, org.id), {
 					organizationId: org.id,
 					resource: "organization",
 					permissions: ["read"],
-					requiredPlans: ["pro"],
-				}),
-				"FORBIDDEN",
-			);
-		});
+					includePlan: true,
+				});
 
-		iit("defaults explicit plan resolution to free without billing", async () => {
-			const user = await signUp();
-			const org = await insertOrganization();
-			await addToOrganization(user.id, org.id, "owner");
-
-			const ws = await withWorkspace(userContext(user, org.id), {
-				organizationId: org.id,
-				resource: "organization",
-				permissions: ["read"],
-				includePlan: true,
-			});
-
-			expect(ws.plan).toBe("free");
-		});
+				expect(ws.plan).toBe("free");
+			}
+		);
 	});
 
 	describe("sessionProcedure guard", () => {
-		iit("rejects API key on organizations.getUserPendingInvitations", async () => {
-			const org = await insertOrganization();
-			const owner = await signUp();
-			await addToOrganization(owner.id, org.id, "owner");
+		iit(
+			"rejects API key on organizations.getUserPendingInvitations",
+			async () => {
+				const org = await insertOrganization();
+				const owner = await signUp();
+				await addToOrganization(owner.id, org.id, "owner");
 
-			await expectCode(
-				call(
-					appRouter.organizations.getUserPendingInvitations,
-					apiKeyContext(org.id, ["read:data", "manage:config"]),
-				)(undefined),
-				"UNAUTHORIZED",
-			);
-		});
+				await expectCode(
+					call(
+						appRouter.organizations.getUserPendingInvitations,
+						apiKeyContext(org.id, ["read:data", "manage:config"])
+					)(undefined),
+					"UNAUTHORIZED"
+				);
+			}
+		);
 
 		iit("rejects API key on apikeys.getMyRole", async () => {
 			const org = await insertOrganization();
@@ -794,9 +906,9 @@ describe("withWorkspace", () => {
 			await expectCode(
 				call(
 					appRouter.apikeys.getMyRole,
-					apiKeyContext(org.id, ["read:data", "manage:config"]),
+					apiKeyContext(org.id, ["read:data", "manage:config"])
 				)({ organizationId: org.id }),
-				"UNAUTHORIZED",
+				"UNAUTHORIZED"
 			);
 		});
 
@@ -808,9 +920,9 @@ describe("withWorkspace", () => {
 			await expectCode(
 				call(
 					appRouter.feedback.list,
-					apiKeyContext(org.id, ["read:data"]),
+					apiKeyContext(org.id, ["read:data"])
 				)(undefined),
-				"UNAUTHORIZED",
+				"UNAUTHORIZED"
 			);
 		});
 
@@ -821,7 +933,7 @@ describe("withWorkspace", () => {
 
 			const result = await call(
 				appRouter.apikeys.getMyRole,
-				userContext(user, org.id),
+				userContext(user, org.id)
 			)({ organizationId: org.id });
 			expect(result.role).toBe("admin");
 		});

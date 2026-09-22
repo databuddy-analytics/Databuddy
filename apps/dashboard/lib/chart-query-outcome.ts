@@ -1,9 +1,4 @@
 import type { UseQueryResult } from "@tanstack/react-query";
-
-/**
- * Derives chart UI state from TanStack Query (or manual props). Use with
- * `Chart.Content` so pages don’t hand-roll loading → flash → chart.
- */
 export type ChartQueryOutcome<T> =
 	| { status: "empty" }
 	| { status: "error" }
@@ -51,8 +46,6 @@ export type ChartQuerySlice<T> = Pick<
 	UseQueryResult<T, Error>,
 	"data" | "isPending" | "isError" | "isSuccess"
 >;
-
-/** Infers chart state from a TanStack query — pass to `Chart.Content` as `query`. */
 export function chartQueryOutcomeFromQuery<T>(
 	query: ChartQuerySlice<T>,
 	options?: { gatePending?: boolean; isEmpty?: (data: T) => boolean }

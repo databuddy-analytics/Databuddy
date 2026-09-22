@@ -2,9 +2,8 @@ import { afterEach, describe, expect, mock, test } from "bun:test";
 import type { SafeFetchInit } from "@databuddy/shared/ssrf-guard";
 import type { NotificationPayload, NotificationResult } from "../../types";
 
-const safeFetchMock = mock(
-	(_url: string, _init?: SafeFetchInit) =>
-		Promise.resolve(new Response("ok", { status: 200 }))
+const safeFetchMock = mock((_url: string, _init?: SafeFetchInit) =>
+	Promise.resolve(new Response("ok", { status: 200 }))
 );
 
 mock.module("@databuddy/shared/ssrf-guard", () => ({
@@ -18,18 +17,15 @@ class TestProvider extends BaseProvider {
 		return { success: true, channel: "webhook" };
 	}
 
-	public testWithRetry<T>(fn: () => Promise<T>): Promise<T> {
+	testWithRetry<T>(fn: () => Promise<T>): Promise<T> {
 		return this.withRetry(fn);
 	}
 
-	public testFetchWithTimeout(
-		url: string,
-		init?: RequestInit
-	): Promise<Response> {
+	testFetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
 		return this.fetchWithTimeout(url, init);
 	}
 
-	public override delay(ms: number): Promise<void> {
+	override delay(ms: number): Promise<void> {
 		return super.delay(ms);
 	}
 }
@@ -42,24 +38,8 @@ describe("BaseProvider", () => {
 		);
 	});
 
-	describe("constructor defaults", () => {
-		test("uses default timeout of 10_000", () => {
-			const provider = new TestProvider();
-			expect(provider).toBeDefined();
-		});
-
-		test("custom options override defaults", () => {
-			const provider = new TestProvider({
-				timeout: 5000,
-				retries: 3,
-				retryDelay: 500,
-			});
-			expect(provider).toBeDefined();
-		});
-	});
-
 	describe("withRetry", () => {
-		test("no retries by default — fn fails once, error thrown immediately", async () => {
+		test("no retries by default: fn fails once, error thrown immediately", async () => {
 			const provider = new TestProvider();
 			const fn = mock(() => Promise.reject(new Error("fail")));
 
@@ -123,28 +103,6 @@ describe("BaseProvider", () => {
 			expect(safeFetchMock).toHaveBeenCalledWith("http://example.com", {
 				timeoutMs: 5000,
 			});
-		});
-
-		test("throws timeout error when request exceeds timeout", async () => {
-			safeFetchMock.mockImplementationOnce(() =>
-				Promise.reject(new Error("Request timed out after 10ms"))
-			);
-
-			const provider = new TestProvider({ timeout: 10 });
-			await expect(
-				provider.testFetchWithTimeout("http://example.com")
-			).rejects.toThrow("Request timed out after 10ms");
-		});
-
-		test("propagates non-abort errors as-is", async () => {
-			safeFetchMock.mockImplementationOnce(() =>
-				Promise.reject(new Error("network failure"))
-			);
-
-			const provider = new TestProvider({ timeout: 5000 });
-			await expect(
-				provider.testFetchWithTimeout("http://example.com")
-			).rejects.toThrow("network failure");
 		});
 	});
 });

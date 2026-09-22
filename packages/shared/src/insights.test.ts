@@ -1,15 +1,15 @@
 import { describe, expect, it } from "bun:test";
-import { z } from "zod";
 import {
 	agentInvestigationOutcomeSchema,
+	describeInsightDefinitionAction,
+	insightDefinitionEditError,
 	insightBriefItemSchema,
 	insightDefinitionOperationSchema,
-	insightMeasurementRecommendationSchema,
-	insightRecommendationSchema,
 	investigationOutcomeSchema,
 	investigationSignalSchema,
 	parseInvestigationOutcome,
 	parseInvestigationSignal,
+	retentionMeasurementSchema,
 } from "./insights";
 
 const signal = {
@@ -116,7 +116,9 @@ describe("investigationSignalSchema", () => {
 			baselineDates,
 		};
 
-		expect(investigationSignalSchema.safeParse(zscoreSignal).success).toBe(true);
+		expect(investigationSignalSchema.safeParse(zscoreSignal).success).toBe(
+			true
+		);
 		expect(
 			investigationSignalSchema.safeParse({
 				...zscoreSignal,
@@ -126,9 +128,199 @@ describe("investigationSignalSchema", () => {
 	});
 });
 
+describe("durable retention daily rows", () => {
+	function measurement() {
+		const window = (from: string, end: string) => ({
+			eligible: 100,
+			retained: 80,
+			incomplete: 0 as const,
+			events: 125,
+			identifiedEvents: 100,
+			cohortStart: `${from}T00:00:00.000Z`,
+			cohortEnd: `${end}T00:00:00.000Z`,
+		});
+		const days = (from: string) => [
+			{
+				date: from,
+				eligible: 0,
+				retained: 0,
+				incomplete: 0 as const,
+				events: 0,
+				identifiedEvents: 0,
+			},
+			{
+				date: new Date(Date.parse(from) + 86_400_000)
+					.toISOString()
+					.slice(0, 10),
+				eligible: 40,
+				retained: 32,
+				incomplete: 0 as const,
+				events: 50,
+				identifiedEvents: 40,
+			},
+			{
+				date: new Date(Date.parse(from) + 2 * 86_400_000)
+					.toISOString()
+					.slice(0, 10),
+				eligible: 60,
+				retained: 48,
+				incomplete: 0 as const,
+				events: 75,
+				identifiedEvents: 60,
+			},
+		];
+		return {
+			definition: {
+				websiteId: "site-1",
+				domain: "example.com",
+				activationEvent: "report_shared",
+				returnEvent: "report_opened",
+				horizonDays: 7 as const,
+			},
+			timezone: "UTC",
+			observationEnd: "2026-07-15",
+			observedBefore: "2026-07-16T00:00:00.000Z",
+			previous: window("2026-06-24", "2026-07-01"),
+			current: window("2026-07-01", "2026-07-08"),
+			daily: { previous: days("2026-06-24"), current: days("2026-07-01") },
+		};
+	}
+
+	it("round-trips zero and sub-50 daily counts without changing aggregate windows", () => {
+		const retained = measurement();
+		const stored = JSON.parse(
+			JSON.stringify({ ...signal, retentionMeasurement: retained })
+		);
+		expect(parseInvestigationSignal(stored)?.retentionMeasurement).toEqual(
+			retained
+		);
+		const { daily: _daily, ...legacy } = retained;
+		expect(retentionMeasurementSchema.parse(legacy)).toEqual(legacy);
+		expect(
+			parseInvestigationSignal({ ...signal, retentionMeasurement: legacy })
+				?.retentionMeasurement
+		).toEqual(legacy);
+	});
+
+	it.each([
+		"eligible",
+		"retained",
+		"events",
+		"identifiedEvents",
+	] as const)("rejects a stored %s sum that differs from the overall count", (field) => {
+		const retained = measurement();
+		retained.daily.current[1][field] -= 1;
+		expect(
+			parseInvestigationSignal({ ...signal, retentionMeasurement: retained })
+		).toBeNull();
+	});
+
+	it.each([
+		"duplicate",
+		"unsorted",
+		"before-window",
+		"end-boundary",
+		"eighth-day",
+		"missing-period",
+		"empty-period",
+		"incomplete",
+		"fractional",
+		"unsafe-count",
+		"negative",
+		"retained-over-eligible",
+		"events-below-identified",
+		"invalid-date",
+		"long-window",
+		"invalid-timezone",
+		"invalid-window-timestamp",
+	] as const)("rejects invalid stored daily data: %s", (mode) => {
+		const retained = measurement();
+		const days = retained.daily.current;
+		switch (mode) {
+			case "duplicate":
+				days[1].date = days[0].date;
+				break;
+			case "unsorted":
+				days.reverse();
+				break;
+			case "before-window":
+				days[0].date = "2026-06-30";
+				break;
+			case "end-boundary":
+				days[2].date = "2026-07-08";
+				break;
+			case "eighth-day":
+				days.push(...Array.from({ length: 5 }, () => ({ ...days[0] })));
+				break;
+			case "missing-period":
+				Reflect.deleteProperty(retained.daily, "previous");
+				break;
+			case "empty-period":
+				retained.daily.previous = [];
+				break;
+			case "incomplete":
+				Object.assign(days[0], { incomplete: 1 });
+				break;
+			case "fractional":
+				days[1].retained = 31.5;
+				break;
+			case "unsafe-count":
+				days[1].events = Number.MAX_SAFE_INTEGER + 1;
+				break;
+			case "negative":
+				days[0].retained = -1;
+				break;
+			case "retained-over-eligible":
+				days[0].retained = 1;
+				break;
+			case "events-below-identified":
+				days[1].events = 39;
+				break;
+			case "invalid-date":
+				days[0].date = "2026-07-00";
+				break;
+			case "long-window":
+				retained.current.cohortEnd = "2026-07-09T00:00:00.000Z";
+				break;
+			case "invalid-timezone":
+				retained.timezone = "Invalid/Timezone";
+				break;
+			case "invalid-window-timestamp":
+				retained.current.cohortStart = "not-a-timestamp";
+				break;
+			default:
+				throw new Error(`Unhandled mode ${mode satisfies never}`);
+		}
+		expect(
+			parseInvestigationSignal({ ...signal, retentionMeasurement: retained })
+		).toBeNull();
+	});
+
+	it("uses calendar dates in the saved timezone across a DST change", () => {
+		const retained = measurement();
+		retained.timezone = "Europe/Berlin";
+		retained.previous.cohortStart = "2026-03-16T00:00:00+01:00";
+		retained.previous.cohortEnd = "2026-03-23T00:00:00+01:00";
+		retained.current.cohortStart = "2026-03-23T00:00:00+01:00";
+		retained.current.cohortEnd = "2026-03-30T00:00:00+02:00";
+		for (const [period, dates] of [
+			["previous", ["2026-03-16", "2026-03-17", "2026-03-22"]],
+			["current", ["2026-03-23", "2026-03-24", "2026-03-29"]],
+		] as const) {
+			for (const [index, row] of retained.daily[period].entries()) {
+				row.date = dates[index];
+			}
+		}
+		expect(retentionMeasurementSchema.parse(retained)).toEqual(retained);
+		retained.daily.current[2].date = "2026-03-30";
+		expect(retentionMeasurementSchema.safeParse(retained).success).toBe(false);
+	});
+});
+
 const outcomeBase = {
-	title: "Checkout recovered after rollback",
-	summary: "Checkout failures ended after the latest handler change was rolled back.",
+	title: "Checkout recovered after the handler rollback",
+	summary:
+		"Checkout failures ended after the latest handler change was rolled back.",
 	impact: "The failure blocked 18 checkout attempts before the rollback.",
 	rootCause: null,
 	evidence: ["Checkout submissions resumed after the handler rollback."],
@@ -144,61 +336,59 @@ const agentFields = {
 	publicationBasis: "measured_impact" as const,
 };
 
-const goalDraftRecommendation = {
-	action: "Create a goal for completed signup pages.",
-	draft: {
-		description: "Counts visitors who reach the completed signup page.",
-		filters: [],
-		ignoreHistoricData: false,
-		name: "Signup completed",
-		target: "/sign-up/complete",
-		type: "PAGE_VIEW" as const,
-	},
-	kind: "goal_draft" as const,
-};
-
-const funnelDraftRecommendation = {
-	action: "Create a signup journey funnel.",
-	draft: {
-		description: "Measures progression from signup to onboarding.",
-		filters: [],
-		ignoreHistoricData: false,
-		name: "Signup journey",
-		steps: [
-			{ name: "Sign up", target: "/sign-up", type: "PAGE_VIEW" as const },
-			{
-				name: "Onboarding complete",
-				target: "onboarding_completed",
-				type: "EVENT" as const,
-			},
-		],
-	},
-	kind: "funnel_draft" as const,
-};
-
-const instrumentationRecommendation = {
-	action: "Instrument the activation milestones before creating a funnel.",
-	events: [
-		{
-			description: "Emit when a visitor completes signup.",
-			name: "signup_completed",
-		},
-		{
-			description: "Emit when a visitor completes onboarding.",
-			name: "onboarding_completed",
-		},
-	],
-	kind: "instrumentation" as const,
-};
-
-const databuddySetupRecommendation = {
-	action:
-		"Verify or add Databuddy identify() after authentication so future errors can be tied to signed-in users.",
-	feature: "user_identification" as const,
-	kind: "databuddy_setup" as const,
-};
-
 describe("insightDefinitionOperationSchema", () => {
+	it("accepts a minimal goal target patch without redundant metadata fields", () => {
+		expect(
+			insightDefinitionOperationSchema.parse({
+				operation: "edit",
+				action: "Repair the workspace goal target.",
+				changes: { target: "/workspace" },
+			}).changes
+		).toEqual({ target: "/workspace" });
+	});
+
+	it("describes the executable patch instead of a conflicting model action", () => {
+		const operation = insightDefinitionOperationSchema.parse({
+			operation: "edit",
+			action: "Delete the goal.",
+			changes: {
+				name: null,
+				description: null,
+				target: "/workspace",
+				type: "PAGE_VIEW",
+				filters: [],
+			},
+		});
+		expect(
+			describeInsightDefinitionAction("Reached workspace", operation)
+		).toBe(
+			'For Reached workspace, set target to "/workspace"; set type to PAGE_VIEW; set filters to none.'
+		);
+		if (operation.operation !== "edit") {
+			throw new Error("Expected an edit");
+		}
+		expect(insightDefinitionEditError("goal", operation.changes)).toBeNull();
+		expect(insightDefinitionEditError("funnel", operation.changes)).toContain(
+			"replace steps"
+		);
+	});
+
+	it("rejects unsupported filter fields in executable patches", () => {
+		expect(
+			insightDefinitionOperationSchema.safeParse({
+				operation: "edit",
+				action: "Change the cohort.",
+				changes: {
+					name: null,
+					description: null,
+					filters: [
+						{ field: "unknown_column", operator: "equals", value: "mobile" },
+					],
+				},
+			}).success
+		).toBe(false);
+	});
+
 	it("accepts an exact funnel rename", () => {
 		const execution = {
 			action: "Rename Sign-Up Flow to Homepage-to-Getting Started Journey.",
@@ -209,7 +399,9 @@ describe("insightDefinitionOperationSchema", () => {
 			operation: "edit" as const,
 		};
 
-		expect(insightDefinitionOperationSchema.parse(execution)).toEqual(execution);
+		expect(insightDefinitionOperationSchema.parse(execution)).toEqual(
+			execution
+		);
 	});
 
 	it("rejects an empty edit and display-only operations", () => {
@@ -219,7 +411,9 @@ describe("insightDefinitionOperationSchema", () => {
 			operation: "edit" as const,
 		};
 
-		expect(insightDefinitionOperationSchema.safeParse(base).success).toBe(false);
+		expect(insightDefinitionOperationSchema.safeParse(base).success).toBe(
+			false
+		);
 		expect(
 			insightDefinitionOperationSchema.safeParse({
 				action: "Review the funnel definition.",
@@ -230,122 +424,8 @@ describe("insightDefinitionOperationSchema", () => {
 	});
 });
 
-describe("insightMeasurementRecommendationSchema", () => {
-	it("accepts strict goal, funnel, and instrumentation recommendations", () => {
-		for (const recommendation of [
-			goalDraftRecommendation,
-			funnelDraftRecommendation,
-			instrumentationRecommendation,
-		]) {
-			expect(
-				insightMeasurementRecommendationSchema.safeParse(recommendation).success
-			).toBe(true);
-		}
-	});
-
-	it("accepts a typed Databuddy setup recommendation", () => {
-		expect(
-			insightRecommendationSchema.safeParse(databuddySetupRecommendation).success
-		).toBe(true);
-		expect(
-			insightRecommendationSchema.safeParse({
-				...databuddySetupRecommendation,
-				feature: "tracking",
-			}).success
-		).toBe(true);
-		expect(
-			insightRecommendationSchema.safeParse({
-				...databuddySetupRecommendation,
-				feature: "revenue_attribution",
-			}).success
-		).toBe(false);
-	});
-
-	it("keeps draft targets executable without widening goal actions", () => {
-		for (const invalid of [
-			{
-				...goalDraftRecommendation,
-				draft: { ...goalDraftRecommendation.draft, type: "CUSTOM" },
-			},
-			{
-				...goalDraftRecommendation,
-				draft: {
-					...goalDraftRecommendation.draft,
-					filters: [
-						{ field: "country", operator: "equals", value: "US" },
-					],
-				},
-			},
-			{
-				...funnelDraftRecommendation,
-				draft: {
-					...funnelDraftRecommendation.draft,
-					steps: [funnelDraftRecommendation.draft.steps[0]],
-				},
-			},
-			{
-				...funnelDraftRecommendation,
-				draft: {
-					...funnelDraftRecommendation.draft,
-					filters: [
-						{ field: "country", operator: "equals", value: "US" },
-					],
-				},
-			},
-			{
-				...funnelDraftRecommendation,
-				draft: {
-					...funnelDraftRecommendation.draft,
-					steps: [
-						{
-							...funnelDraftRecommendation.draft.steps[0],
-							conditions: { plan: "pro" },
-						},
-						funnelDraftRecommendation.draft.steps[1],
-					],
-				},
-			},
-			{
-				...instrumentationRecommendation,
-				events: [{ name: "signup_completed" }],
-			},
-			{
-				...instrumentationRecommendation,
-				events: [
-					instrumentationRecommendation.events[0],
-					instrumentationRecommendation.events[0],
-				],
-			},
-			{ ...goalDraftRecommendation, operation: "edit" },
-		]) {
-			expect(
-				insightMeasurementRecommendationSchema.safeParse(invalid).success
-			).toBe(false);
-		}
-	});
-
-	it("preserves legacy generic and null recommendations", () => {
-		expect(
-			insightRecommendationSchema.safeParse({
-				action: "Review the pricing-page CTA.",
-				changes: null,
-				operation: null,
-			}).success
-		).toBe(true);
-		expect(insightRecommendationSchema.safeParse(null).success).toBe(true);
-	});
-});
-
 describe("insightBriefItemSchema", () => {
 	it("keeps readable context and measured signal data without case mechanics", () => {
-		const recommendation = {
-			action: "Rename Signup completed to Checkout completed.",
-			changes: {
-				description: "Counts completed checkout events.",
-				name: "Checkout completed",
-			},
-			operation: "edit" as const,
-		};
 		const parsed = insightBriefItemSchema.parse({
 			asOf: "2026-07-07T00:00:00.000Z",
 			createdAt: "2026-07-07T01:00:00.000Z",
@@ -354,7 +434,6 @@ describe("insightBriefItemSchema", () => {
 			impact: outcomeBase.impact,
 			investigationId: null,
 			next: outcomeBase.next,
-			recommendation,
 			rootCause: outcomeBase.rootCause,
 			signal,
 			summary: outcomeBase.summary,
@@ -365,7 +444,6 @@ describe("insightBriefItemSchema", () => {
 		});
 
 		expect(parsed.investigationId).toBeNull();
-		expect(parsed.recommendation).toEqual(recommendation);
 		expect(parsed.signal.entity.label).toBe("Signup completed");
 		expect(parsed).not.toHaveProperty("next");
 	});
@@ -378,60 +456,97 @@ describe("insightBriefItemSchema", () => {
 			}).success
 		).toBe(false);
 	});
-
-	it("returns a typed measurement recommendation", () => {
-		const parsed = insightBriefItemSchema.parse({
-			asOf: "2026-07-07T00:00:00.000Z",
-			createdAt: "2026-07-07T01:00:00.000Z",
-			evidence: outcomeBase.evidence,
-			id: "observation-2",
-			impact: outcomeBase.impact,
-			investigationId: null,
-			recommendation: funnelDraftRecommendation,
-			rootCause: outcomeBase.rootCause,
-			signal,
-			summary: outcomeBase.summary,
-			title: outcomeBase.title,
-			websiteDomain: "example.com",
-			websiteId: "site-1",
-			websiteName: "Example",
-		});
-
-		expect(parsed.recommendation).toEqual(funnelDraftRecommendation);
-	});
 });
 
 describe("investigationOutcomeSchema", () => {
-	it("emits a strict output schema for agent next moves", () => {
-		const schema = z.toJSONSchema(agentInvestigationOutcomeSchema, {
-			io: "output",
-		}) as {
-			properties: {
-				next: {
-					anyOf: Array<{
-						properties: {
-							threshold?: { required?: string[] };
-							type: { const: string };
-						};
-						required?: string[];
-					}>;
-				};
-			};
+	it.each([
+		"team",
+		"website",
+		"mixed",
+	])("round trips %s context without letting the model author provenance", (origin) => {
+		const snapshot = {
+			capturedAt: "2026-09-08T12:00:00Z",
+			status: "partial",
+			issues: ["Context is bounded; additional source records were omitted."],
+			sources: [
+				{
+					id: "organization-profile:example-org:0",
+					kind: "organization_profile",
+					content:
+						"Report preparation starts a draft, not a completed download.",
+					origin,
+					observedAt: "2026-09-08T11:00:00Z",
+					profileVersion: { revision: 3, updatedAt: "2026-09-08T11:00:00Z" },
+					references: [
+						{ title: "Report guide", url: "https://example.com/reports" },
+					],
+				},
+			],
 		};
-		const branch = (type: string) =>
-			schema.properties.next.anyOf.find(
-				(candidate) => candidate.properties.type.const === type
-			);
+		const persisted = JSON.parse(
+			JSON.stringify({ ...outcomeBase, contextSnapshot: snapshot })
+		);
+		expect(parseInvestigationOutcome(persisted)?.contextSnapshot).toEqual(
+			snapshot
+		);
+		expect(parseInvestigationOutcome(outcomeBase)).not.toHaveProperty(
+			"contextSnapshot"
+		);
+		const authored = agentInvestigationOutcomeSchema.parse({
+			...outcomeBase,
+			...agentFields,
+			publish: true,
+			contextSnapshot: snapshot,
+		});
+		expect(authored).not.toHaveProperty("contextSnapshot");
+		expect(agentInvestigationOutcomeSchema.shape).not.toHaveProperty(
+			"contextSnapshot"
+		);
+		const invalid = {
+			...snapshot,
+			sources: [
+				{
+					...snapshot.sources[0],
+					profileVersion: { revision: 0, updatedAt: "invalid" },
+				},
+			],
+		};
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				contextSnapshot: invalid,
+			}).success
+		).toBe(false);
+	});
 
-		expect(branch("act")?.required).toEqual([
-			"type",
-			"action",
-			"target",
-			"verification",
-			"recheckAt",
-			"execution",
-		]);
-		expect(branch("watch")).toBeUndefined();
+	it("accepts concise titles while rejecting empty titles and raw identifiers", () => {
+		const accepted = {
+			...outcomeBase,
+			...agentFields,
+			publish: true,
+		};
+		const withTitle = (title: string) =>
+			agentInvestigationOutcomeSchema.safeParse({ ...accepted, title }).success;
+
+		expect(withTitle("263 visitors hit a Facebook script syntax error")).toBe(
+			true
+		);
+		expect(withTitle("Signup conversion improved")).toBe(true);
+		expect(withTitle(" ")).toBe(false);
+		expect(withTitle("a".repeat(121))).toBe(false);
+		expect(
+			withTitle(
+				"The signup_completed event stopped firing after the last deploy"
+			)
+		).toBe(false);
+		expect(
+			withTitle(
+				"Errors rose on a977a75d-88e4-4c10-91a5-f2c4b37d38c2 during checkout"
+			)
+		).toBe(false);
+		expect(
+			withTitle("Errors rose on https://example.com/checkout this week")
+		).toBe(false);
 	});
 
 	it("requires every new agent turn to make the publish decision", () => {
@@ -443,7 +558,6 @@ describe("investigationOutcomeSchema", () => {
 				...outcomeBase,
 				...agentFields,
 				publish: true,
-				recommendation: null,
 			}).success
 		).toBe(true);
 	});
@@ -453,7 +567,6 @@ describe("investigationOutcomeSchema", () => {
 			...outcomeBase,
 			...agentFields,
 			publish: true,
-			recommendation: null,
 		};
 		expect(agentInvestigationOutcomeSchema.safeParse(published).success).toBe(
 			true
@@ -477,7 +590,7 @@ describe("investigationOutcomeSchema", () => {
 				impact: null,
 				publicationBasis: "decision_safety",
 			}).success
-		).toBe(false);
+		).toBe(true);
 		expect(
 			agentInvestigationOutcomeSchema.safeParse({
 				...published,
@@ -499,7 +612,7 @@ describe("investigationOutcomeSchema", () => {
 				findingKind: "user_experience",
 				impact: null,
 			}).success
-		).toBe(false);
+		).toBe(true);
 		expect(
 			agentInvestigationOutcomeSchema.safeParse({
 				...published,
@@ -523,7 +636,7 @@ describe("investigationOutcomeSchema", () => {
 		).toBe(false);
 	});
 
-	it("keeps old stored outcomes while allowing standalone recommendations", () => {
+	it("keeps old stored outcomes and strips legacy recommendation keys", () => {
 		expect(investigationOutcomeSchema.parse(outcomeBase)).toEqual(outcomeBase);
 		expect(
 			investigationOutcomeSchema.safeParse({
@@ -538,99 +651,15 @@ describe("investigationOutcomeSchema", () => {
 			}).success
 		).toBe(false);
 		expect(
-			investigationOutcomeSchema.safeParse({
+			investigationOutcomeSchema.parse({
 				...outcomeBase,
-				publish: false,
-					recommendation: {
-						action: "Rename Clicked Nav.",
-						changes: { description: null, name: "Navigation clicks" },
-						operation: "edit",
-					},
-				}).success
-		).toBe(true);
-		expect(
-			investigationOutcomeSchema.safeParse({
-				...outcomeBase,
-				next: {
-					action: "Rename Clicked Nav.",
-					target: "Goal: Clicked Nav",
-					type: "act",
-					verification: "The goal name reflects its broad scope.",
-				},
-				publish: true,
 				recommendation: {
 					action: "Rename Clicked Nav.",
 					changes: { description: null, name: "Navigation clicks" },
 					operation: "edit",
 				},
-				rootCause: "The goal name does not match its configured target.",
-			}).success
-		).toBe(false);
-		expect(
-			investigationOutcomeSchema.safeParse({
-				...outcomeBase,
-				next: {
-					question:
-						"Connect the repository that owns the application so Databuddy can inspect the failure path.",
-					type: "ask",
-				},
-				publish: true,
-				recommendation: databuddySetupRecommendation,
-			}).success
-		).toBe(true);
-	});
-
-	it("accepts a standalone measurement recommendation without an executable action", () => {
-		const outcome = {
-			...outcomeBase,
-			publish: false,
-			recommendation: instrumentationRecommendation,
-		};
-
-		expect(investigationOutcomeSchema.safeParse(outcome).success).toBe(true);
-		expect(
-			agentInvestigationOutcomeSchema.safeParse({
-				...outcome,
-				...agentFields,
-				publicationBasis: null,
-			}).success
-		).toBe(true);
-	});
-
-	it("keeps measurement drafts separate from actions and execution", () => {
-		const action = {
-			action: "Rename Signup completed to Signup completion.",
-			execution: {
-				action: "Rename Signup completed to Signup completion.",
-				changes: { description: null, name: "Signup completion" },
-				operation: "edit" as const,
-			},
-			recheckAt: "2026-07-20T12:00:00.000Z",
-			target: "Signup completed goal",
-			type: "act" as const,
-			verification: "The goal name reflects its configured target.",
-		};
-
-		expect(
-			investigationOutcomeSchema.safeParse({
-				...outcomeBase,
-				next: action,
-				publish: true,
-				recommendation: goalDraftRecommendation,
-				rootCause: "The goal name no longer reflects its configured target.",
-			}).success
-		).toBe(false);
-		expect(
-			investigationOutcomeSchema.safeParse({
-				...outcomeBase,
-				next: {
-					question: "Which event marks completed signup?",
-					type: "ask",
-				},
-				publish: true,
-				recommendation: funnelDraftRecommendation,
-			}).success
-		).toBe(false);
+			})
+		).toEqual(outcomeBase);
 	});
 
 	it("requires an exact future measurement window from the agent", () => {
@@ -648,7 +677,6 @@ describe("investigationOutcomeSchema", () => {
 				...agentFields,
 				next: action,
 				publish: true,
-				recommendation: null,
 				rootCause: "The handler rejected valid checkout submissions.",
 			}).success
 		).toBe(false);
@@ -658,7 +686,6 @@ describe("investigationOutcomeSchema", () => {
 				...agentFields,
 				next: { ...action, recheckAt: "2026-07-20T12:00:00.000Z" },
 				publish: true,
-				recommendation: null,
 				rootCause: "The handler rejected valid checkout submissions.",
 			}).success
 		).toBe(true);
@@ -682,7 +709,6 @@ describe("investigationOutcomeSchema", () => {
 			...agentFields,
 			next: action,
 			publish: true,
-			recommendation: null,
 			rootCause: "The goal name does not match its configured target.",
 		};
 
@@ -691,16 +717,16 @@ describe("investigationOutcomeSchema", () => {
 		);
 		expect(
 			agentInvestigationOutcomeSchema.safeParse({
-			...candidate,
-			next: {
-				...action,
-				execution: {
-					...action.execution,
-					changes: { description: null, name: null },
+				...candidate,
+				next: {
+					...action,
+					execution: {
+						...action.execution,
+						changes: { description: null, name: null },
+					},
 				},
-			},
-		}).success
-	).toBe(false);
+			}).success
+		).toBe(false);
 		const legacyAction = agentInvestigationOutcomeSchema.safeParse({
 			...candidate,
 			next: {
@@ -718,52 +744,6 @@ describe("investigationOutcomeSchema", () => {
 			legacyAction.data.next.execution
 		) {
 			expect("action" in legacyAction.data.next.execution).toBe(false);
-		}
-	});
-
-	it("requires exact fields for every new goal edit recommendation", () => {
-		const recommendation = {
-			action:
-				"Rename Clicked Nav to Navigation clicks and describe its broad scope.",
-			changes: {
-				description:
-					"All navigation activity across the navbar, footer, feature menu, and external destinations.",
-				name: "Navigation clicks",
-			},
-			operation: "edit" as const,
-		};
-		const deletion = {
-			action: "Delete the duplicate Clicked Nav goal.",
-			changes: null,
-			operation: "delete" as const,
-		};
-		const accepts = (candidate: unknown) =>
-			agentInvestigationOutcomeSchema.safeParse({
-				...outcomeBase,
-				...agentFields,
-				publish: true,
-				recommendation: candidate,
-			}).success;
-
-		for (const [candidate, expected] of [
-			[recommendation, true],
-			[
-				{
-					...recommendation,
-					changes: { description: null, name: "Navigation clicks" },
-				},
-				true,
-			],
-			[{ ...recommendation, changes: { name: "Navigation clicks" } }, false],
-			[{ ...recommendation, changes: null }, false],
-			[{ ...deletion, changes: recommendation.changes }, false],
-			[deletion, true],
-			[
-				{ action: "Review the pricing-page CTA.", changes: null, operation: null },
-				true,
-			],
-		] as const) {
-			expect(accepts(candidate)).toBe(expected);
 		}
 	});
 
@@ -785,12 +765,9 @@ describe("investigationOutcomeSchema", () => {
 			next: watch,
 			publish: false,
 			publicationBasis: null,
-			recommendation: null,
 		};
 
-		expect(investigationOutcomeSchema.safeParse(candidate).success).toBe(
-			true
-		);
+		expect(investigationOutcomeSchema.safeParse(candidate).success).toBe(true);
 		expect(
 			agentInvestigationOutcomeSchema.safeParse({
 				...candidate,
@@ -799,25 +776,26 @@ describe("investigationOutcomeSchema", () => {
 	});
 
 	it("accepts concise output with measured or unknown impact", () => {
-		expect(investigationOutcomeSchema.safeParse(outcomeBase).success).toBe(true);
+		expect(investigationOutcomeSchema.safeParse(outcomeBase).success).toBe(
+			true
+		);
 		expect(
 			investigationOutcomeSchema.safeParse({ ...outcomeBase, impact: null })
 				.success
 		).toBe(true);
-			expect(
-				investigationOutcomeSchema.safeParse({
-					...outcomeBase,
-					impact: null,
-					rootCause:
-						"The handler change dropped valid checkout submissions.",
-					next: {
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				impact: null,
+				rootCause: "The handler change dropped valid checkout submissions.",
+				next: {
 					action: "Roll back the checkout handler.",
 					target: "Checkout handler",
 					type: "act",
 					verification: "Checkout attempts succeed again.",
 				},
 			}).success
-		).toBe(false);
+		).toBe(true);
 		expect(
 			investigationOutcomeSchema.safeParse({
 				...outcomeBase,
@@ -841,10 +819,23 @@ describe("investigationOutcomeSchema", () => {
 		).toBe(true);
 	});
 
+	it("generates one finding paragraph while retaining legacy stored impact", () => {
+		const generated = agentInvestigationOutcomeSchema.parse({
+			...outcomeBase,
+			...agentFields,
+			publish: true,
+		});
+		expect(generated).not.toHaveProperty("impact");
+		expect(investigationOutcomeSchema.parse(generated).impact).toBeNull();
+		expect(investigationOutcomeSchema.parse(outcomeBase).impact).toBe(
+			outcomeBase.impact
+		);
+	});
+
 	it("requires concise evidence", () => {
 		for (const invalid of [
 			{ ...outcomeBase, evidence: [] },
-			{ ...outcomeBase, evidence: Array(3).fill("Measured fact") },
+			{ ...outcomeBase, evidence: new Array(3).fill("Measured fact") },
 		]) {
 			expect(investigationOutcomeSchema.safeParse(invalid).success).toBe(false);
 		}

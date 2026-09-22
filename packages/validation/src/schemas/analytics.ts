@@ -6,6 +6,34 @@ import {
 	RESOLUTION_REGEX,
 } from "../regexes";
 import { profileIdSchema } from "./identity";
+export const analyticsDateRangeSchema = z
+	.object({
+		startDate: z.iso.date().optional(),
+		endDate: z.iso.date().optional(),
+	})
+	.refine(({ startDate, endDate }) => Boolean(startDate) === Boolean(endDate), {
+		message:
+			"Provide both startDate and endDate, or omit both to use the default range.",
+		path: ["endDate"],
+	})
+	.refine(
+		({ startDate, endDate }) => !(startDate && endDate) || startDate <= endDate,
+		{ message: "endDate must be on or after startDate.", path: ["endDate"] }
+	);
+export function resolveAnalyticsDateRange(
+	{ startDate, endDate }: { endDate?: string; startDate?: string },
+	now = new Date()
+): { endDate: string; startDate: string } {
+	if (startDate && endDate) {
+		return { startDate, endDate };
+	}
+	const start = new Date(now);
+	start.setUTCDate(start.getUTCDate() - 6);
+	return {
+		startDate: start.toISOString().slice(0, 10),
+		endDate: now.toISOString().slice(0, 10),
+	};
+}
 
 const resolutionSchema = z
 	.string()

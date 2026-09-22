@@ -18,6 +18,7 @@ interface ArchivedFlagItemProps {
 	flag: Flag;
 	onDelete: (flagId: string) => void;
 	onEdit: (flag: Flag) => void;
+	websiteId: string;
 }
 
 export function ArchivedFlagItem({
@@ -25,6 +26,7 @@ export function ArchivedFlagItem({
 	onEdit,
 	onDelete,
 	className,
+	websiteId,
 }: ArchivedFlagItemProps) {
 	const queryClient = useQueryClient();
 
@@ -33,7 +35,7 @@ export function ArchivedFlagItem({
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.flags.list.key({
-					input: { websiteId: flag.websiteId ?? "" },
+					input: { websiteId },
 				}),
 			});
 		},
@@ -85,7 +87,7 @@ export function ArchivedFlagItem({
 						size="sm"
 						variant="secondary"
 					>
-						<ArrowCounterClockwiseIcon className="size-4" weight="duotone" />
+						<ArrowCounterClockwiseIcon className="size-4" />
 						<span className="hidden sm:inline">Restore</span>
 					</Button>
 				</div>
@@ -101,18 +103,15 @@ export function ArchivedFlagItem({
 								"opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
 							)}
 						>
-							<DotsThreeIcon className="size-5" weight="bold" />
+							<DotsThreeIcon className="size-5" />
 						</DropdownMenu.Trigger>
 						<DropdownMenu.Content align="end" className="w-40">
 							<DropdownMenu.Item onClick={() => onEdit(flag)}>
-								<PencilSimpleIcon className="size-4" weight="duotone" />
+								<PencilSimpleIcon className="size-4" />
 								Edit
 							</DropdownMenu.Item>
 							<DropdownMenu.Item onClick={handleRestore}>
-								<ArrowCounterClockwiseIcon
-									className="size-4"
-									weight="duotone"
-								/>
+								<ArrowCounterClockwiseIcon className="size-4" />
 								Restore
 							</DropdownMenu.Item>
 							<DropdownMenu.Separator />
@@ -120,7 +119,7 @@ export function ArchivedFlagItem({
 								className="text-destructive focus:text-destructive"
 								onClick={() => onDelete(flag.id)}
 							>
-								<TrashIcon className="size-4" weight="duotone" />
+								<TrashIcon className="size-4" />
 								Delete
 							</DropdownMenu.Item>
 						</DropdownMenu.Content>

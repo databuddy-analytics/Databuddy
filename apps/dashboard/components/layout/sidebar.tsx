@@ -301,22 +301,20 @@ function useGroupCollapse(groupKey: string, hasActiveChild: boolean) {
 	}, [groupKey, hasActiveChild]);
 
 	const toggle = useCallback(() => {
-		setIsCollapsed((prev) => {
-			const next = !prev;
-			try {
-				const stored = JSON.parse(
-					localStorage.getItem(COLLAPSED_GROUPS_KEY) || "{}"
-				);
-				if (next) {
-					stored[groupKey] = true;
-				} else {
-					delete stored[groupKey];
-				}
-				localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify(stored));
-			} catch {}
-			return next;
-		});
-	}, [groupKey]);
+		const next = !isCollapsed;
+		setIsCollapsed(next);
+		try {
+			const stored = JSON.parse(
+				localStorage.getItem(COLLAPSED_GROUPS_KEY) || "{}"
+			);
+			if (next) {
+				stored[groupKey] = true;
+			} else {
+				delete stored[groupKey];
+			}
+			localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify(stored));
+		} catch {}
+	}, [groupKey, isCollapsed]);
 
 	return { isCollapsed, toggle };
 }

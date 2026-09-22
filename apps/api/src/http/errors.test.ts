@@ -1,6 +1,7 @@
 import { createError } from "evlog";
 import { t, ValidationError } from "elysia";
 import { afterEach, describe, expect, it } from "vitest";
+import { API_KEY_AUTH_CHALLENGE } from "@databuddy/api-keys/resolve";
 import { handleAppError } from "./errors";
 
 const originalNodeEnv = process.env.NODE_ENV;
@@ -9,7 +10,9 @@ afterEach(() => {
 	process.env.NODE_ENV = originalNodeEnv;
 });
 
-async function readPayload(response: Response): Promise<Record<string, unknown>> {
+async function readPayload(
+	response: Response
+): Promise<Record<string, unknown>> {
 	return response.json() as Promise<Record<string, unknown>>;
 }
 
@@ -29,13 +32,13 @@ describe("handleAppError", () => {
 		});
 
 		expect(response.status).toBe(500);
-			expect(await readPayload(response)).toEqual({
-				success: false,
-				error: "An internal server error occurred",
-				code: "api.SECRET_FAILURE",
-				requestId: "req_test_5xx",
-			});
-			expect(response.headers.get("X-Request-ID")).toBe("req_test_5xx");
+		expect(await readPayload(response)).toEqual({
+			success: false,
+			error: "An internal server error occurred",
+			code: "api.SECRET_FAILURE",
+			requestId: "req_test_5xx",
+		});
+		expect(response.headers.get("X-Request-ID")).toBe("req_test_5xx");
 	});
 
 	it("keeps structured 4xx details visible in production", async () => {
@@ -52,14 +55,33 @@ describe("handleAppError", () => {
 		});
 
 		expect(response.status).toBe(400);
-			expect(await readPayload(response)).toEqual({
+		expect(await readPayload(response)).toEqual({
 			success: false,
 			error: "Invalid filter",
 			code: "api.BAD_INPUT",
 			why: "The filter operator is unsupported.",
-				fix: "Use one of the documented operators.",
-				requestId: "req_test_4xx",
-			});
+			fix: "Use one of the documented operators.",
+			requestId: "req_test_4xx",
+		});
+	});
+
+	it("uses the API-key authentication challenge without OAuth metadata", async () => {
+		const response = handleAppError({
+			code: "AUTH_REQUIRED",
+			requestId: "req_test_auth",
+			error: new Error("Authentication required"),
+		});
+
+		expect(response.status).toBe(401);
+		expect(await readPayload(response)).toEqual({
+			success: false,
+			error: "Authentication required",
+			code: "AUTH_REQUIRED",
+			requestId: "req_test_auth",
+		});
+		expect(response.headers.get("WWW-Authenticate")).toBe(
+			API_KEY_AUTH_CHALLENGE
+		);
 	});
 
 	it("returns safe field details for request validation errors", async () => {

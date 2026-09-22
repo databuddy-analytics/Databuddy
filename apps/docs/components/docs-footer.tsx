@@ -21,7 +21,7 @@ export function DocsFooter() {
 								rel="noopener noreferrer"
 								target="_blank"
 							>
-								ADD DATABUDDY IN 5 MINUTES
+								START FREE
 							</a>
 						</SciFiButton>
 					</div>

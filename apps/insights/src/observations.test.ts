@@ -65,7 +65,7 @@ function memory(
 }
 
 describe("eligibleSignalsForInvestigation", () => {
-	it("returns only unseen regressions, revenue movements, and measurement gaps", () => {
+	it("returns only unseen regressions and revenue movements", () => {
 		const first = detected("goal:signup");
 		const second = detected("goal:purchase");
 		const improvement = detected("visitors", {
@@ -82,20 +82,13 @@ describe("eligibleSignalsForInvestigation", () => {
 			direction: "up",
 			severity: "info",
 		});
-		const measurementGap = detected("measurement_coverage", {
-			baseline: 0,
-			current: 0,
-			deltaPercent: 0,
-			direction: "up",
-			severity: "info",
-		});
 		expect(
 			eligibleSignalsForInvestigation(
-				[first, improvement, revenueMovement, measurementGap, second],
+				[first, improvement, revenueMovement, second],
 				new Map(),
 				NOW
 			)
-		).toEqual([first, revenueMovement, measurementGap, second]);
+		).toEqual([first, revenueMovement, second]);
 	});
 
 	it("rotates past a cooling signal to an unseen signal", () => {
@@ -313,18 +306,6 @@ describe("eligibleSignalsForInvestigation", () => {
 });
 
 describe("nextRecheckAt", () => {
-	it("honors an agent's concrete verification window", () => {
-		const next: InvestigationOutcome["next"] = {
-			action: "Deploy the inspected fix.",
-			recheckAt: "2026-07-19T12:00:00.000Z",
-			target: "Checkout form",
-			type: "act",
-			verification: "Checkout completion returns to its prior baseline.",
-		};
-
-		expect(nextRecheckAt(NOW, next).toISOString()).toBe(next.recheckAt);
-	});
-
 	it("keeps historical outcomes on the safe fallback cadence", () => {
 		const cases: [InvestigationOutcome["next"], string][] = [
 			[
@@ -340,8 +321,14 @@ describe("nextRecheckAt", () => {
 				{ escalation: "The failure recurs.", type: "watch" },
 				"2026-07-13T12:00:00.000Z",
 			],
-			[{ question: "Who owns this route?", type: "ask" }, "2026-08-11T12:00:00.000Z"],
-			[{ reason: "The metric recovered.", type: "resolve" }, "2026-08-11T12:00:00.000Z"],
+			[
+				{ question: "Who owns this route?", type: "ask" },
+				"2026-08-11T12:00:00.000Z",
+			],
+			[
+				{ reason: "The metric recovered.", type: "resolve" },
+				"2026-08-11T12:00:00.000Z",
+			],
 		];
 		for (const [next, expected] of cases) {
 			expect(nextRecheckAt(NOW, next).toISOString()).toBe(expected);

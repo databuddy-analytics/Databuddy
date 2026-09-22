@@ -151,7 +151,7 @@ function detect(
 			isBot: true,
 			category: BotCategory.UNKNOWN_BOT,
 			name,
-			action: BotAction.BLOCK,
+			action: getAction(BotCategory.UNKNOWN_BOT, config),
 			confidence: 70,
 			reason: "general_bot_pattern",
 		};

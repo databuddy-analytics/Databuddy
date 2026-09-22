@@ -1,5 +1,9 @@
 import { chQuery } from "@databuddy/db/clickhouse";
 import { createDrizzleCache, redis } from "@databuddy/redis";
+import {
+	analyticsDateRangeSchema,
+	resolveAnalyticsDateRange,
+} from "@databuddy/validation";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { logger } from "../lib/logger";
@@ -11,13 +15,9 @@ const drizzleCache = createDrizzleCache({ redis, namespace: "autocomplete" });
 
 const CACHE_TTL = 1800;
 
-const getDefaultDateRange = () => {
-	const endDate = new Date().toISOString().split("T")[0];
-	const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-		.toISOString()
-		.split("T")[0];
-	return { startDate, endDate };
-};
+const autocompleteInputSchema = analyticsDateRangeSchema.safeExtend({
+	websiteId: z.string(),
+});
 
 const getAutocompleteQuery = () => `
 	SELECT 'customEvents' as category, event_name as value
@@ -154,13 +154,7 @@ export const autocompleteRouter = {
 			summary: "Get autocomplete",
 			tags: ["Autocomplete"],
 		})
-		.input(
-			z.object({
-				websiteId: z.string(),
-				startDate: z.string().optional(),
-				endDate: z.string().optional(),
-			})
-		)
+		.input(autocompleteInputSchema)
 		.output(autocompleteOutputSchema)
 		.handler(async ({ context, input }) => {
 			const workspace = await withPublicWorkspace(context, {
@@ -168,10 +162,7 @@ export const autocompleteRouter = {
 				permissions: ["read"],
 			});
 
-			const { startDate, endDate } =
-				input.startDate && input.endDate
-					? { startDate: input.startDate, endDate: input.endDate }
-					: getDefaultDateRange();
+			const { startDate, endDate } = resolveAnalyticsDateRange(input);
 
 			return drizzleCache.withCache({
 				key: scopedCacheKey(

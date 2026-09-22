@@ -57,7 +57,9 @@ function Root(props: ComponentPropsWithoutRef<typeof BaseSelect.Root>) {
 	);
 
 	return (
-		<LabelRegistryCtx.Provider value={registry}>
+		<LabelRegistryCtx.Provider
+			value={props.items === undefined ? registry : null}
+		>
 			<BaseSelect.Root {...props} />
 		</LabelRegistryCtx.Provider>
 	);

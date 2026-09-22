@@ -3,10 +3,10 @@ export const revalidate = false;
 const SKILL = `---
 name: databuddy
 description: Privacy-first analytics SDK. Browser tracking, server-side events, feature flags, and REST API.
-version: 2.4.0
+version: 2.6.0
 ---
 
-# Databuddy SDK (v2.4)
+# Databuddy SDK (v2.6)
 
 Privacy-first analytics SDK. Covers browser tracking, server-side events, feature flags, and a REST API.
 
@@ -131,13 +131,24 @@ Requires \`trackAttributes: true\`:
 |--------|------|---------|-------------|
 | \`clientId\` | \`string\` | Auto-detect | Project client ID |
 | \`disabled\` | \`boolean\` | \`false\` | Disable all tracking |
-| \`trackWebVitals\` | \`boolean\` | \`false\` | Core Web Vitals (LCP, INP, CLS) |
+| \`anonymizeVisitorIds\` | \`boolean \\| "auto"\` | \`true\` | Anonymize visitor IDs before storage |
+| \`apiUrl\` | \`string\` | \`https://basket.databuddy.cc\` | Event ingestion endpoint |
+| \`scriptUrl\` | \`string\` | \`https://cdn.databuddy.cc/databuddy.js\` | Custom browser bundle URL |
+| \`trackWebVitals\` | \`boolean\` | \`false\` | Core Web Vitals (FCP, LCP, INP, CLS, TTFB) plus FPS |
 | \`trackErrors\` | \`boolean\` | \`false\` | JavaScript error tracking |
 | \`trackInteractions\` | \`boolean\` | \`false\` | User interactions |
 | \`trackOutgoingLinks\` | \`boolean\` | \`false\` | External link clicks |
 | \`trackHashChanges\` | \`boolean\` | \`false\` | URL hash changes |
 | \`trackAttributes\` | \`boolean\` | \`false\` | \`data-*\` attributes |
 | \`enableBatching\` | \`boolean\` | \`true\` | Batch events before sending |
+| \`batchSize\` | \`number\` | \`10\` | Events per batch (max 50) |
+| \`batchTimeout\` | \`number\` | \`5000\` | Batch flush interval in ms |
+| \`enableRetries\` | \`boolean\` | \`true\` | Retry failed requests |
+| \`maxRetries\` | \`number\` | \`3\` | Max retries for failed requests |
+| \`initialRetryDelay\` | \`number\` | \`500\` | Initial retry delay in ms |
+| \`ignoreBotDetection\` | \`boolean\` | \`false\` | Track bots when true |
+| \`usePixel\` | \`boolean\` | \`false\` | Use 1x1 pixel image instead of script |
+| \`filter\` | \`(event) => boolean\` | -- | Return \`false\` to skip an event |
 | \`samplingRate\` | \`number\` | \`1.0\` | Sampling rate (0.0-1.0) |
 | \`skipPatterns\` | \`string[]\` | -- | Glob patterns to skip tracking |
 | \`maskPatterns\` | \`string[]\` | -- | Glob patterns to mask paths |
@@ -188,7 +199,7 @@ curl -X POST https://basket.databuddy.cc/track \\
   -d '{"name": "purchase", "properties": {"amount": 99.99}}'
 \`\`\`
 
-Accepts single event or array (max 100). Max payload: 1MB single, 5MB batch.
+Accepts single event or array (max 100). Max payload: 1MB (2MB request body hard cap); batch arrays up to 100 events.
 
 ### Feature Flags
 
@@ -226,7 +237,9 @@ Accepts single event or array (max 100). Max payload: 1MB single, 5MB batch.
 
 ## Supported Frameworks
 
-React, Next.js, Vue, Svelte, SvelteKit, Angular, Shopify, WordPress, Webflow, Wix, Squarespace, Hugo, Jekyll, Framer, Bubble, Mintlify, Laravel, Google Tag Manager.
+React, Next.js, Vue, Nuxt, Svelte, SvelteKit, Angular, Shopify, WordPress, Webflow, Wix, Squarespace, Hugo, Jekyll, Framer, Bubble, Mintlify, Laravel, Google Tag Manager.
+
+Dedicated integration guides also cover Cal.com bookings and payments (Stripe and Paddle).
 `;
 
 export async function GET() {

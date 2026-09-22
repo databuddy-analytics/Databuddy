@@ -2,9 +2,8 @@ import { describe, expect, it } from "bun:test";
 import { API_SCOPES } from "./api-scopes";
 import {
 	type AgentDiscoveryUrls,
-	createAuthorizationServerMetadata,
-	createMcpManifest,
-	createMcpServerCard,
+	createAgentJson,
+	createFeedbackMarkdown,
 	parseNlwebAskBody,
 } from "./agent-discovery";
 
@@ -20,41 +19,19 @@ const urls = {
 } satisfies AgentDiscoveryUrls;
 
 describe("agent discovery builders", () => {
-	it("uses the shared API scope registry in auth metadata", () => {
-		const metadata = createAuthorizationServerMetadata(urls);
+	it("describes API-key authentication without unimplemented OAuth endpoints", () => {
+		const agent = createAgentJson(urls);
 
 		expect(API_SCOPES).toContain("track:events");
-		expect(metadata.scopes_supported).toBe(API_SCOPES);
-		expect(metadata.agent_auth.register_uri).toBe(
-			"https://api.databuddy.cc/agent-auth/register"
+		expect(agent.authentication.scopes).toBe(API_SCOPES);
+		expect(agent.endpoints).not.toHaveProperty("protected_resource_metadata");
+		expect(agent.endpoints).not.toHaveProperty("authorization_server_metadata");
+	});
+
+	it("advertises feedback.md with a working submit endpoint", () => {
+		expect(createFeedbackMarkdown(urls)).toContain(
+			"https://www.databuddy.cc/api/feedback/submit"
 		);
-	});
-
-	it("advertises only the real MCP guide resource", () => {
-		const card = createMcpServerCard(urls);
-
-		expect(card.resources).toEqual([
-			{
-				uri: "databuddy://guide",
-				mimeType: "text/markdown",
-				description: "MCP workflow guide and query conventions.",
-			},
-		]);
-	});
-
-	it("keeps API-key MCP discovery free of unimplemented OAuth metadata", () => {
-		const manifest = createMcpManifest(urls);
-		const card = createMcpServerCard(urls);
-
-		expect(
-			Object.hasOwn(
-				manifest.authentication,
-				"protected_resource_metadata_url"
-			)
-		).toBe(false);
-		expect(
-			Object.hasOwn(card.authentication, "protectedResourceMetadataUrl")
-		).toBe(false);
 	});
 
 	it("parses NLWeb ask bodies without casts", () => {

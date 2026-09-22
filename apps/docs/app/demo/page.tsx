@@ -5,7 +5,8 @@ import Link from "next/link";
 import { getDemoEmbedBaseUrl, hostFromNextHeaders } from "@/lib/demo-embed-url";
 
 export const metadata: Metadata = {
-	title: "Live Demo | Databuddy",
+	title: "Live Demo",
+	alternates: { canonical: "/demo" },
 	description:
 		"Experience Databuddy analytics in action with our live demo dashboard. See real-time analytics, insights, and privacy-first tracking.",
 };
@@ -22,10 +23,7 @@ export default async function DemoPage() {
 					className="group flex items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm hover:bg-card"
 					href="/"
 				>
-					<ArrowLeftIcon
-						className="size-4 text-foreground transition-transform group-hover:-translate-x-0.5"
-						weight="fill"
-					/>
+					<ArrowLeftIcon className="size-4 text-foreground transition-transform group-hover:-translate-x-0.5" />
 					<span className="text-foreground">Back to Home</span>
 				</Link>
 
@@ -44,10 +42,7 @@ export default async function DemoPage() {
 						target="_blank"
 					>
 						<span>Get Started Free</span>
-						<ArrowLeftIcon
-							className="size-4 rotate-180 transition-transform group-hover:translate-x-0.5"
-							weight="fill"
-						/>
+						<ArrowLeftIcon className="size-4 rotate-180 transition-transform group-hover:translate-x-0.5" />
 					</Link>
 				</div>
 			</div>
@@ -56,14 +51,14 @@ export default async function DemoPage() {
 				<div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
 					<div className="max-w-2xl">
 						<div className="mb-2 font-mono text-muted-foreground text-xs uppercase tracking-[0.16em]">
-							Live AI analytics demo
+							Live analytics demo
 						</div>
 						<h1 className="text-balance font-semibold text-2xl text-foreground leading-tight md:text-4xl">
-							Ask why your metrics changed
+							Explore a real Databuddy dashboard
 						</h1>
 						<p className="mt-2 max-w-xl text-muted-foreground text-sm leading-6 md:text-base">
-							Explore real traffic, funnels, errors, vitals, and feature flags.
-							Databuddy turns the dashboard into answers your team can act on.
+							Real traffic from a live site: audience, events, funnels, goals,
+							errors, Web Vitals, and a world map of your visitors.
 						</p>
 					</div>
 
@@ -75,10 +70,7 @@ export default async function DemoPage() {
 							target="_blank"
 						>
 							Create free account
-							<ArrowLeftIcon
-								className="size-4 rotate-180 transition-transform"
-								weight="fill"
-							/>
+							<ArrowLeftIcon className="size-4 rotate-180 transition-transform" />
 						</Link>
 					</div>
 				</div>

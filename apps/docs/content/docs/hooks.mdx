@@ -106,9 +106,11 @@ Don't let tracking errors break your app:
 }, []);`}
 />
 
+The SDK also exports `trackError` for reporting handled errors and `flush` for sending queued events immediately.
+
 ### 5. Conditional Tracking
 
-Only track in production or when explicitly enabled:
+Only track in production or when explicitly enabled. The `<Databuddy />` component's `disabled` prop already covers dev-environment gating; use a check like this only for tracking calls outside the component:
 
 <CodeBlock 
   language="tsx"

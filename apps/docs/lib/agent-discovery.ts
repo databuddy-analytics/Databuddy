@@ -4,13 +4,12 @@ import {
 	createAgentJson as createSharedAgentJson,
 	createApiCatalog as createSharedApiCatalog,
 	createAuthMarkdown as createSharedAuthMarkdown,
-	createAuthorizationServerMetadata as createSharedAuthorizationServerMetadata,
 	createDeveloperResources,
+	createFeedbackMarkdown as createSharedFeedbackMarkdown,
 	createIndexMarkdown as createSharedIndexMarkdown,
 	createMcpManifest as createSharedMcpManifest,
 	createMcpServerCard as createSharedMcpServerCard,
 	createNlwebAnswer as createSharedNlwebAnswer,
-	createProtectedResourceMetadata as createSharedProtectedResourceMetadata,
 	createSchemaMapXml as createSharedSchemaMapXml,
 	createScopedLlmsText as createSharedScopedLlmsText,
 	createSoftwareJsonl as createSharedSoftwareJsonl,
@@ -28,8 +27,6 @@ import {
 } from "@/app/util/constants";
 
 export {
-	AGENT_DISCOVERY_UPDATED,
-	API_SCOPES,
 	createFaqJsonl,
 	createNlwebSseBody,
 	createWebBotAuthDirectory,
@@ -103,14 +100,6 @@ export function createApiCatalog() {
 	return createSharedApiCatalog(discoveryUrls);
 }
 
-export function createProtectedResourceMetadata(resource = API_URL) {
-	return createSharedProtectedResourceMetadata(discoveryUrls, resource);
-}
-
-export function createAuthorizationServerMetadata() {
-	return createSharedAuthorizationServerMetadata(discoveryUrls);
-}
-
 export function createUcpProfile() {
 	return createSharedUcpProfile(discoveryUrls);
 }
@@ -121,6 +110,10 @@ export function createIndexMarkdown() {
 
 export function createAuthMarkdown() {
 	return createSharedAuthMarkdown(discoveryUrls);
+}
+
+export function createFeedbackMarkdown() {
+	return createSharedFeedbackMarkdown(discoveryUrls);
 }
 
 export function createScopedLlmsText(area: "api" | "developers" | "docs") {

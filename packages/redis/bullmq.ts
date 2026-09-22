@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import type { RedisOptions } from "ioredis";
 
 export interface BullMQConnectionConfig {
@@ -10,7 +11,10 @@ function resolveBullMQRedisUrl(config: BullMQConnectionConfig = {}): string {
 		: null;
 	const prefixedUrl = prefixedName ? process.env[prefixedName]?.trim() : "";
 	const fallbackUrl = process.env.BULLMQ_REDIS_URL?.trim();
-	const redisUrl = prefixedUrl || fallbackUrl;
+	const redisUrl =
+		prefixedUrl ||
+		fallbackUrl ||
+		(readBooleanEnv("SELFHOST") ? process.env.REDIS_URL?.trim() : undefined);
 	if (!redisUrl) {
 		throw new Error(
 			`${prefixedName ? `${prefixedName} or ` : ""}BULLMQ_REDIS_URL environment variable is required`

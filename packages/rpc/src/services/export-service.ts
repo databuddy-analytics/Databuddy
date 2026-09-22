@@ -46,7 +46,7 @@ interface ExportData {
 	webVitals: WebVital[];
 }
 
-export interface ExportMetadata {
+interface ExportMetadata {
 	counts: {
 		events: number;
 		errors: number;
@@ -66,7 +66,7 @@ export interface GenerateExportResult {
 	meta: ExportMetadata;
 }
 
-export interface ValidatedExportDates {
+interface ValidatedExportDates {
 	endDate?: string;
 	startDate?: string;
 }
@@ -112,11 +112,6 @@ function parseDate(
 	}
 	return { date: parsed };
 }
-
-/**
- * Validates and sanitizes export date inputs. When dates are missing the
- * range defaults to the last DEFAULT_RANGE_DAYS days to bound the export.
- */
 export function validateExportDateRange(
 	startDate?: string,
 	endDate?: string
@@ -173,10 +168,6 @@ export function validateExportDateRange(
 		},
 	};
 }
-
-/**
- * Main service to handle data export
- */
 export async function generateExport(
 	websiteId: string,
 	format: ExportFormat = "json",
@@ -239,8 +230,6 @@ export async function generateExport(
 
 	return { filename, buffer, meta };
 }
-
-// --- Data Fetching ---
 
 async function fetchExportData(
 	websiteId: string,
@@ -352,8 +341,6 @@ function getWebVitalsQuery(dateFilter: string): string {
 		LIMIT ${MAX_ROWS_PER_TABLE}
 	`;
 }
-
-// --- Formatting ---
 
 function getFileExtension(format: ExportFormat): string {
 	switch (format) {

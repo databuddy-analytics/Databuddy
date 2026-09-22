@@ -1,4 +1,10 @@
-import { chQuery } from "@databuddy/db/clickhouse";
+import {
+	chQuery,
+	canonicalVisitorExpression,
+	identityJoins,
+	identityPairMapCte,
+	sessionMetaCte,
+} from "@databuddy/db/clickhouse";
 import { goalFunnelFilterFieldSet } from "@databuddy/shared/analytics-filters";
 import { parseReferrer } from "@databuddy/shared/utils/referrer";
 
@@ -112,7 +118,6 @@ interface ReferrerRow {
 	vid: string;
 }
 
-// Helpers
 const ESCAPE_BACKSLASH_REGEX = /\\/g;
 const ESCAPE_LIKE_WILDCARDS_REGEX = /[%_]/g;
 const escapeClickhouseString = (value: string): string =>
@@ -147,8 +152,6 @@ const formatDuration = (seconds: number): string => {
 
 const pct = (num: number, denom: number): number =>
 	denom > 0 ? Math.round((num / denom) * 10_000) / 100 : 0;
-
-/** ClickHouse JSON often returns UInt64 as string; coercing avoids NaN and string concat bugs. */
 function toFiniteNumber(value: unknown, fallback = 0): number {
 	if (typeof value === "number" && Number.isFinite(value)) {
 		return value;
@@ -264,7 +267,6 @@ const buildFilterSQL = (
 	return parts.length > 0 ? ` AND ${parts.join(" AND ")}` : "";
 };
 
-// Query building
 const buildTimeRangeWhere = (timeColumn: string) =>
 	`${timeColumn} >= parseDateTimeBestEffort({startDate:String})
 		AND ${timeColumn} <= parseDateTimeBestEffort({endDate:String})`;
@@ -285,82 +287,58 @@ const customEventRows = (projection: string): string => `SELECT ${projection}
 		AND owner_id != {websiteId:String}
 		AND ${buildTimeRangeWhere("timestamp")}`;
 
-const visitorIdentityCtes = `visitor_identity_rows AS (
+const EVENT_CONTEXT_COLUMNS = [
+	"referrer",
+	"country",
+	"city",
+	"device_type",
+	"browser_name",
+	"os_name",
+	"language",
+	"utm_source",
+	"utm_medium",
+	"utm_campaign",
+	"utm_term",
+	"utm_content",
+	"user_agent",
+	"viewport_size",
+] as const;
+
+const contextColumns = EVENT_CONTEXT_COLUMNS.join(",\n\t\t");
+
+const nullContextColumns = EVENT_CONTEXT_COLUMNS.map(
+	(column) => `CAST(NULL, 'Nullable(String)') AS ${column}`
+).join(",\n\t\t");
+
+const directSessionMetaCtes = `identity_source_rows AS (
 	SELECT
+		toUInt8(1) AS source_kind,
 		profile_id,
 		anonymous_id,
 		session_id,
-		time AS identity_time
+		time AS identity_time,
+		url,
+		event_name,
+		path,
+		${contextColumns}
 	FROM analytics.events
 	WHERE ${buildBaseWhere("time")}
 	UNION ALL
 	${customEventRows(`
+		toUInt8(2) AS source_kind,
 		profile_id,
 		ifNull(anonymous_id, '') AS anonymous_id,
 		ifNull(session_id, '') AS session_id,
-		timestamp AS identity_time`)}
+		timestamp AS identity_time,
+		CAST(NULL, 'Nullable(String)') AS url,
+		event_name,
+		path,
+		${nullContextColumns}`)}
 ),
-visitor_profiles_by_anonymous AS (
-	SELECT
-		anonymous_id,
-		arraySort(groupArray((identity_time, profile_id))) AS profile_history
-	FROM visitor_identity_rows
-	WHERE anonymous_id != '' AND profile_id != ''
-	GROUP BY anonymous_id
-),
-visitor_identity_by_session AS (
-	SELECT
-		session_id,
-		arraySort(groupArrayIf((identity_time, profile_id), profile_id != '')) AS profile_history,
-		argMaxIf(anonymous_id, identity_time, anonymous_id != '') AS mapped_anonymous_id
-	FROM visitor_identity_rows
-	WHERE session_id != ''
-	GROUP BY session_id
-)`;
+${sessionMetaCte("identity_source_rows")}`;
 
-const identityJoins = (source: string): string => `
-	LEFT JOIN visitor_profiles_by_anonymous direct_profile
-		ON ${source}.anonymous_id = direct_profile.anonymous_id
-	LEFT JOIN visitor_identity_by_session session_identity
-		ON ${source}.session_id = session_identity.session_id
-	LEFT JOIN visitor_profiles_by_anonymous session_profile
-		ON session_identity.mapped_anonymous_id = session_profile.anonymous_id`;
-
-const profileAtRowTime = (
-	source: string,
-	profileSource: string,
-	identityTime = `${source}.identity_time`
-): string =>
-	`tupleElement(
-	arrayLast(
-		identity -> tupleElement(identity, 1) <= ${identityTime},
-		${profileSource}.profile_history
-	),
-	2
-)`;
-
-// Keep the initial identify backfill, but apply later profile changes forward only.
-const sessionProfileAtRowTime = (
-	source: string,
-	identityTime = `${source}.identity_time`
-): string => `coalesce(
-	nullIf(${profileAtRowTime(source, "session_identity", identityTime)}, ''),
-	nullIf(tupleElement(arrayElement(session_identity.profile_history, 1), 2), ''),
-	''
-)`;
-
-const canonicalVisitorExpression = (
-	source: string,
-	identityTime?: string
-): string => `coalesce(
-	nullIf(${source}.profile_id, ''),
-	nullIf(${sessionProfileAtRowTime(source, identityTime)}, ''),
-	nullIf(${profileAtRowTime(source, "direct_profile", identityTime)}, ''),
-	nullIf(${profileAtRowTime(source, "session_profile", identityTime)}, ''),
-	nullIf(${source}.anonymous_id, ''),
-	nullIf(session_identity.mapped_anonymous_id, ''),
-	''
-)`;
+const visitorIdentityCtes = `identity_pairs_anon AS ${identityPairMapCte("anonymous_id")},
+identity_pairs_session AS ${identityPairMapCte("session_id")}`;
 
 const pathOnlyExpression = (field = "path") =>
 	`if(startsWith(${field}, 'http://') OR startsWith(${field}, 'https://'), path(${field}), ${field})`;
@@ -426,7 +404,7 @@ function buildIdentifiedEventStream(
 			step.type === "PAGE_VIEW"
 				? `row.source_kind = 1
 					AND row.event_name = 'screen_view'
-					AND ${normalizedPathExpression("row.path")} = {${targetKey}:String}`
+					AND row.normalized_path = {${targetKey}:String}`
 				: `row.event_name = {${targetKey}:String}`;
 		let matches = baseMatch;
 		if (index === 0 && filters.length > 0) {
@@ -456,20 +434,7 @@ function buildIdentifiedEventStream(
 		time AS identity_time,
 		event_name,
 		path,
-		referrer,
-		country,
-		city,
-		device_type,
-		browser_name,
-		os_name,
-		language,
-		utm_source,
-		utm_medium,
-		utm_campaign,
-		utm_term,
-		utm_content,
-		user_agent,
-		viewport_size
+		${contextColumns}
 	FROM analytics.events
 	WHERE ${buildBaseWhere("time")}
 	UNION ALL
@@ -481,21 +446,9 @@ function buildIdentifiedEventStream(
 		timestamp AS identity_time,
 		event_name,
 		path,
-		CAST(NULL, 'Nullable(String)') AS referrer,
-		CAST(NULL, 'Nullable(String)') AS country,
-		CAST(NULL, 'Nullable(String)') AS city,
-		CAST(NULL, 'Nullable(String)') AS device_type,
-		CAST(NULL, 'Nullable(String)') AS browser_name,
-		CAST(NULL, 'Nullable(String)') AS os_name,
-		CAST(NULL, 'Nullable(String)') AS language,
-		CAST(NULL, 'Nullable(String)') AS utm_source,
-		CAST(NULL, 'Nullable(String)') AS utm_medium,
-		CAST(NULL, 'Nullable(String)') AS utm_campaign,
-		CAST(NULL, 'Nullable(String)') AS utm_term,
-		CAST(NULL, 'Nullable(String)') AS utm_content,
-		CAST(NULL, 'Nullable(String)') AS user_agent,
-		CAST(NULL, 'Nullable(String)') AS viewport_size`)}
+		${nullContextColumns}`)}
 ),
+${sessionMetaCte("analytics_rows")},
 identified_rows AS (
 	SELECT
 		source_row.source_kind AS source_kind,
@@ -520,12 +473,13 @@ identified_rows AS (
 		source_row.user_agent AS user_agent,
 		source_row.viewport_size AS viewport_size,
 		${visitor} AS vid
-	FROM analytics_rows source_row${identityJoins("source_row")}
+	FROM identity_rows source_row${identityJoins("source_row")}
 	WHERE ${visitor} != ''
 ),
 context_rows AS (
 	SELECT
 		context.*,
+		${normalizedPathExpression("context.path")} AS normalized_path,
 		if(
 			context.session_id != '',
 			context.last_matching_session_context_ms,
@@ -595,24 +549,19 @@ export const queryLinkVisitorIds = async (
 	params: ClickhouseQueryParams
 ): Promise<Set<string>> => {
 	const refParams = { ...params, linkRefPattern: `%ref=${linkId}%` };
-	const eventVisitor = canonicalVisitorExpression("event", "event.time");
+	const eventVisitor = canonicalVisitorExpression("event");
 	const rows = await chQuery<{ vid: string }>(
-		`WITH ${visitorIdentityCtes}
+		`WITH ${visitorIdentityCtes},
+${directSessionMetaCtes}
 		 SELECT DISTINCT ${eventVisitor} as vid
-		 FROM analytics.events event${identityJoins("event")}
-		 WHERE event.client_id = {websiteId:String}
-			AND ${buildTimeRangeWhere("event.time")}
+		 FROM identity_rows event${identityJoins("event")}
+		 WHERE event.source_kind = 1
 			AND event.url LIKE {linkRefPattern:String}
 			AND ${eventVisitor} != ''`,
 		refParams
 	);
 	return new Set(rows.map((r) => String(r.vid ?? "")));
 };
-
-/**
- * Cheap detector path: one event stream and one visitor aggregation. It deliberately
- * excludes time series, duration, and error context; those belong to investigation.
- */
 export const processFunnelConversionCounts = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
@@ -667,7 +616,7 @@ ORDER BY step_number`;
 	};
 };
 
-export const processGoalConversionCount = async (
+const processGoalConversionCount = async (
 	step: AnalyticsStep,
 	filters: Filter[],
 	params: ClickhouseQueryParams,
@@ -682,7 +631,6 @@ SELECT uniqExact(vid) AS completions FROM events`;
 	return toFiniteNumber(row?.completions, 0);
 };
 
-// Main funnel analytics — step matching, timing, and aggregation happen in ClickHouse
 export const processFunnelAnalytics = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
@@ -915,11 +863,11 @@ export const processGoalAnalytics = async (
 	};
 };
 
-// Referrer analytics — step matching in ClickHouse, referrer grouping in JS
 export const processFunnelAnalyticsByReferrer = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
-	params: ClickhouseQueryParams
+	params: ClickhouseQueryParams,
+	abortSignal?: AbortSignal
 ): Promise<{ referrer_analytics: ReferrerAnalytics[] }> => {
 	const totalSteps = steps.length;
 	if (totalSteps === 0) {
@@ -940,7 +888,9 @@ FROM step_events
 GROUP BY vid
 HAVING max_step >= 1`;
 
-	const rows = await chQuery<ReferrerRow>(fullQuery, params);
+	const rows = await chQuery<ReferrerRow>(fullQuery, params, {
+		abort_signal: abortSignal,
+	});
 
 	const groups = new Map<
 		string,
@@ -983,7 +933,6 @@ HAVING max_step >= 1`;
 	};
 };
 
-// Get total unique visitors for a website in date range
 export const getTotalWebsiteUsers = async (
 	websiteId: string,
 	startDate: string,
@@ -1000,14 +949,13 @@ export const getTotalWebsiteUsers = async (
 		(filter) => filter.field !== "event_name"
 	);
 	const filterSQL = buildFilterSQL(denominatorFilters, params, "event");
-	const eventVisitor = canonicalVisitorExpression("event", "event.time");
+	const eventVisitor = canonicalVisitorExpression("event");
 	const [result] = await chQuery<{ count: number }>(
-		`WITH ${visitorIdentityCtes}
+		`WITH ${visitorIdentityCtes},
+${directSessionMetaCtes}
 		 SELECT COUNT(DISTINCT ${eventVisitor}) as count
-		 FROM analytics.events event${identityJoins("event")}
-		 WHERE event.client_id = {websiteId:String}
-			AND event.time >= parseDateTimeBestEffort({startDate:String})
-			AND event.time <= parseDateTimeBestEffort({endDate:String})
+		 FROM identity_rows event${identityJoins("event")}
+		 WHERE event.source_kind = 1
 			AND event.event_name = 'screen_view'
 			AND ${eventVisitor} != ''${filterSQL}`,
 		params,

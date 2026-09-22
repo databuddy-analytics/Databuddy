@@ -4,7 +4,6 @@ import { useId } from "react";
 import { EASE, useRevealOnScroll } from "@/components/landing/demo-primitives";
 const DEPLOY_X = 390;
 
-// Orange line — total occurrences. Peaks early, stays elevated, drops sharply after deploy.
 const ORANGE_LINE =
 	"M 0 44" +
 	" C 28 37,52 35,75 38" +
@@ -18,7 +17,6 @@ const ORANGE_LINE =
 	" C 504 124,530 122,556 124" +
 	" C 570 125,580 127,600 128";
 
-// Red line — affected users. Always below orange. Near-zero after deploy.
 const RED_LINE =
 	"M 0 76" +
 	" C 28 69,52 67,75 69" +
@@ -151,7 +149,7 @@ export function ErrorFrequencyChartDemo() {
 							x={DEPLOY_X}
 							y={12}
 						>
-							v1.2.5 deployed
+							fix shipped
 						</text>
 					</svg>
 				</div>
@@ -177,7 +175,7 @@ export function ErrorFrequencyChartDemo() {
 					</span>
 				</span>
 				<span className="font-mono text-green-500/50 text-xs">
-					−98% after deploy
+					−98% after the fix
 				</span>
 			</div>
 		</div>

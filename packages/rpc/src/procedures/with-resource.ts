@@ -74,11 +74,24 @@ export async function withResource<K extends RegisteredResource>(
 ): Promise<RowOf<K>> {
 	const entry = registry[options.resource];
 	const row = await loadOrThrow(options.resource, options.id);
-	await withWorkspace<AuthResourceOf<K>>(context, {
-		organizationId: row.organizationId,
-		resource: entry.authResource as AuthResourceOf<K>,
-		permissions: options.permissions,
-	});
+	const websiteId =
+		"websiteId" in row && typeof row.websiteId === "string"
+			? row.websiteId
+			: undefined;
+	if (websiteId) {
+		await withWorkspace<AuthResourceOf<K>>(context, {
+			organizationId: row.organizationId,
+			resource: entry.authResource as AuthResourceOf<K>,
+			permissions: options.permissions,
+			websiteId,
+		});
+	} else {
+		await withWorkspace<AuthResourceOf<K>>(context, {
+			organizationId: row.organizationId,
+			resource: entry.authResource as AuthResourceOf<K>,
+			permissions: options.permissions,
+		});
+	}
 	return row;
 }
 

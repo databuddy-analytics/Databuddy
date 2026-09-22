@@ -89,7 +89,9 @@ function useTopBarSlot(name: string, content: ReactNode) {
 	const store = useStore();
 	const id = useId();
 	const contentRef = useRef(content);
-	contentRef.current = content;
+	useEffect(() => {
+		contentRef.current = content;
+	}, [content]);
 
 	useEffect(() => {
 		store.setSlot(name, id, contentRef.current);
@@ -248,6 +250,23 @@ export function TopBar() {
 				</div>
 			</div>
 		</header>
+	);
+}
+
+export function MobileTopBarActions() {
+	const actionsContent = useStoreSlot("actions");
+	const [hasMounted, setHasMounted] = useState(false);
+
+	useEffect(() => {
+		setHasMounted(true);
+	}, []);
+
+	if (!(hasMounted && actionsContent)) {
+		return null;
+	}
+
+	return (
+		<div className="flex min-w-0 items-center gap-1.5">{actionsContent}</div>
 	);
 }
 

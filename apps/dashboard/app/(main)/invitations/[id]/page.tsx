@@ -91,10 +91,7 @@ function InvitationDetails({
 			<div className="w-full max-w-md space-y-6">
 				<div className="flex justify-center">
 					<div className="rounded border bg-secondary p-4">
-						<UserPlusIcon
-							className="size-8 text-accent-foreground"
-							weight="fill"
-						/>
+						<UserPlusIcon className="size-8 text-accent-foreground" />
 					</div>
 				</div>
 
@@ -119,10 +116,7 @@ function InvitationDetails({
 				<div className="space-y-3 rounded border bg-card p-4">
 					<div className="flex items-center gap-3">
 						<div className="flex size-10 shrink-0 items-center justify-center rounded bg-secondary">
-							<BuildingsIcon
-								className="size-5 text-accent-foreground"
-								weight="duotone"
-							/>
+							<BuildingsIcon className="size-5 text-accent-foreground" />
 						</div>
 						<div className="min-w-0 flex-1">
 							<p className="font-medium text-foreground text-sm">
@@ -150,7 +144,6 @@ function InvitationDetails({
 										? "text-amber-600 dark:text-amber-400"
 										: "text-accent-foreground"
 								)}
-								weight="duotone"
 							/>
 						</div>
 						<div className="min-w-0 flex-1">
@@ -176,7 +169,7 @@ function InvitationDetails({
 							"Joining…"
 						) : (
 							<>
-								<UserPlusIcon className="size-4" weight="duotone" />
+								<UserPlusIcon className="size-4" />
 								Join Organization
 							</>
 						)}
@@ -202,10 +195,7 @@ function SuccessState({ organizationName }: { organizationName: string }) {
 			<div className="w-full max-w-md space-y-6 text-center">
 				<div className="flex justify-center">
 					<div className="rounded border border-green-500/20 bg-green-500/10 p-4">
-						<CheckCircleIcon
-							className="size-8 text-green-600 dark:text-green-400"
-							weight="fill"
-						/>
+						<CheckCircleIcon className="size-8 text-success" />
 					</div>
 				</div>
 

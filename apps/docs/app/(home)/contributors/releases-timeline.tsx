@@ -210,12 +210,9 @@ export default function ReleasesTimeline({ data }: Props) {
 									}`}
 								>
 									{release.isPrerelease ? (
-										<TagIcon className="size-4 text-orange-600" weight="fill" />
+										<TagIcon className="size-4 text-orange-600" />
 									) : (
-										<RocketIcon
-											className="size-4 text-green-600"
-											weight="fill"
-										/>
+										<RocketIcon className="size-4 text-green-600" />
 									)}
 								</div>
 

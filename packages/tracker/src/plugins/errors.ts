@@ -23,6 +23,7 @@ const isExtensionSource = (candidate?: string | null) => {
 
 const browserRuntimeNoisePatterns = [
 	/^Object Not Found Matching Id:\d+, MethodName:[A-Za-z_$][\w$]*, ParamCount:\d+$/,
+	/^ResizeObserver loop (?:completed with undelivered notifications|limit exceeded)\.?$/,
 ] as const;
 
 const isBrowserRuntimeNoise = (message?: string | null) => {
@@ -55,6 +56,7 @@ export function initErrorTracking(tracker: BaseTracker): () => void {
 		};
 
 		logger.log("Queueing error", errorSpan);
+		tracker.errorCount += 1;
 		tracker.sendError(errorSpan);
 	};
 

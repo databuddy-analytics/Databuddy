@@ -23,7 +23,9 @@ export interface RecentActivityCheck {
 	http_code: number;
 	probe_ip?: string;
 	probe_region: string;
-	status: number; // 1 = up, 0 = down, 2 = pending
+	ssl_expiry?: string | null;
+	ssl_valid?: number;
+	status: number; // 1 = up, 0 = down
 	timestamp: string;
 	total_ms: number;
 }
@@ -78,33 +80,6 @@ function LoadMoreSkeletonRow() {
 	);
 }
 
-function InitialTableSkeleton({ rows }: { rows: number }) {
-	return (
-		<div className="bg-card">
-			<div className="border-b bg-card px-3">
-				<div className="flex h-10 items-center gap-6 border-transparent border-b">
-					<Skeleton className="h-4 w-14 rounded" />
-					<Skeleton className="h-4 w-12 rounded" />
-					<Skeleton className="h-4 w-16 rounded" />
-					<Skeleton className="h-4 w-8 rounded" />
-					<Skeleton className="h-4 w-16 rounded" />
-				</div>
-			</div>
-			<Table>
-				<TableBody>
-					{Array.from({ length: rows }).map((_, i) => (
-						<LoadMoreSkeletonRow key={`sk-${i}`} />
-					))}
-				</TableBody>
-			</Table>
-		</div>
-	);
-}
-
-export function RecentActivityTableSkeleton({ rows = 8 }: { rows?: number }) {
-	return <InitialTableSkeleton rows={rows} />;
-}
-
 export function RecentActivity({
 	checks,
 	hasMore = false,
@@ -140,11 +115,7 @@ export function RecentActivity({
 								<TableCell className="h-auto py-14 text-center" colSpan={5}>
 									<div className="mx-auto flex max-w-sm flex-col items-center gap-3 px-4">
 										<div className="flex size-11 items-center justify-center rounded border bg-muted/50 text-muted-foreground">
-											<ClockCounterClockwiseIcon
-												aria-hidden
-												size={22}
-												weight="duotone"
-											/>
+											<ClockCounterClockwiseIcon aria-hidden size={22} />
 										</div>
 										<div className="space-y-1">
 											<p className="text-balance font-medium text-foreground text-sm">
@@ -169,7 +140,6 @@ export function RecentActivity({
 														aria-hidden
 														className="mt-0.5 shrink-0 text-emerald-500 sm:mt-0"
 														size={18}
-														weight="fill"
 													/>
 												),
 												pending: (
@@ -177,7 +147,6 @@ export function RecentActivity({
 														aria-hidden
 														className="mt-0.5 shrink-0 text-amber-500 sm:mt-0"
 														size={18}
-														weight="fill"
 													/>
 												),
 												degraded: (
@@ -185,7 +154,6 @@ export function RecentActivity({
 														aria-hidden
 														className="mt-0.5 shrink-0 text-amber-500 sm:mt-0"
 														size={18}
-														weight="fill"
 													/>
 												),
 												down: (
@@ -193,7 +161,6 @@ export function RecentActivity({
 														aria-hidden
 														className="mt-0.5 shrink-0 text-red-500 sm:mt-0"
 														size={18}
-														weight="fill"
 													/>
 												),
 											};

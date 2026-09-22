@@ -1,4 +1,46 @@
-import type { Page, Request } from "@playwright/test";
+import {
+	expect,
+	type Page,
+	type Request,
+	test as base,
+} from "@playwright/test";
+
+const DEFAULT_REQUEST_BUDGET = 25;
+
+export const test = base.extend<{ requestBudget: number }>({
+	requestBudget: [DEFAULT_REQUEST_BUDGET, { option: true }],
+	page: async ({ page, requestBudget }, use, testInfo) => {
+		const callsByPath = new Map<string, number>();
+		page.on("request", (request) => {
+			const type = request.resourceType();
+			if (type !== "fetch" && type !== "xhr") {
+				return;
+			}
+			const { pathname } = new URL(request.url());
+			callsByPath.set(pathname, (callsByPath.get(pathname) ?? 0) + 1);
+		});
+
+		await use(page);
+
+		let total = 0;
+		for (const count of callsByPath.values()) {
+			total += count;
+		}
+		const breakdown =
+			Array.from(callsByPath, ([path, count]) => `${path} x${count}`).join(
+				", "
+			) || "none";
+		const summary = `[requests] ${total}/${requestBudget} — ${breakdown}`;
+		console.log(summary);
+		testInfo.annotations.push({ type: "requests", description: summary });
+		expect(
+			total,
+			`SDK made ${total} API requests, budget is ${requestBudget} (${breakdown}). Raise it deliberately with test.use({ requestBudget: N }) if the traffic is expected.`
+		).toBeLessThanOrEqual(requestBudget);
+	},
+});
+
+export { expect } from "@playwright/test";
 
 export function getFlagRequestBody(request: Request): Record<string, unknown> {
 	const data = request.postData();
@@ -54,35 +96,4 @@ export async function waitForSDK(page: Page): Promise<void> {
 			timeout: 5000,
 		}
 	);
-}
-
-/**
- * Set up standard API route interception for flags endpoints.
- * Returns a callback that resolves with captured request details.
- */
-export function setupFlagsRoutes(
-	page: Page,
-	flagsResponse: Record<string, unknown> = {}
-) {
-	const requests: { url: string; method: string }[] = [];
-
-	return {
-		requests,
-		async init() {
-			await page.route(
-				"**/api.databuddy.cc/public/v1/flags/**",
-				async (route) => {
-					const url = route.request().url();
-					requests.push({ url, method: route.request().method() });
-
-					await route.fulfill({
-						status: 200,
-						contentType: "application/json",
-						body: JSON.stringify({ flags: flagsResponse }),
-						headers: { "Access-Control-Allow-Origin": "*" },
-					});
-				}
-			);
-		},
-	};
 }

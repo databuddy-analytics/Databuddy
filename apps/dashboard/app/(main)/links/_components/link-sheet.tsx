@@ -18,7 +18,6 @@ import { linkFormSchema } from "./link-form-schema";
 import { LinkQrCode } from "./link-qr-code";
 import {
 	buildLinkPayload,
-	mapLinkApiError,
 	normalizeUrlInput,
 	stripProtocol,
 } from "./link-utils";
@@ -174,9 +173,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 				toast.success("Link created");
 			}
 			onOpenChange(false);
-		} catch (error: unknown) {
-			toast.error(mapLinkApiError(error, !!link?.id));
-		}
+		} catch {}
 	};
 
 	const { copyToClipboard } = useCopyToClipboard({
@@ -339,10 +336,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 				<div className="overflow-hidden rounded-md border border-border/60">
 					<Accordion>
 						<Accordion.Trigger>
-							<CalendarIcon
-								className="size-4 shrink-0 text-muted-foreground"
-								weight="duotone"
-							/>
+							<CalendarIcon className="size-4 shrink-0 text-muted-foreground" />
 							<Text variant="label">Link Expiration</Text>
 							{hasExpiration && (
 								<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
@@ -393,10 +387,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 				<div className="overflow-hidden rounded-md border border-border/60">
 					<Accordion>
 						<Accordion.Trigger>
-							<DeviceMobileIcon
-								className="size-4 shrink-0 text-muted-foreground"
-								weight="duotone"
-							/>
+							<DeviceMobileIcon className="size-4 shrink-0 text-muted-foreground" />
 							<Text variant="label">Device Targeting</Text>
 							{deviceTargetingCount > 0 && (
 								<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
@@ -416,7 +407,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 										render={({ field, fieldState }) => (
 											<Field error={!!fieldState.error}>
 												<Field.Label className="flex items-center gap-1.5">
-													<DeviceMobileIcon size={14} weight="fill" />
+													<DeviceMobileIcon size={14} />
 													iOS URL
 												</Field.Label>
 												<Input
@@ -441,7 +432,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 										render={({ field, fieldState }) => (
 											<Field error={!!fieldState.error}>
 												<Field.Label className="flex items-center gap-1.5">
-													<DeviceMobileIcon size={14} weight="fill" />
+													<DeviceMobileIcon size={14} />
 													Android URL
 												</Field.Label>
 												<Input
@@ -469,10 +460,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 				<div className="overflow-hidden rounded-md border border-border/60">
 					<Accordion>
 						<Accordion.Trigger>
-							<LinkSimpleIcon
-								className="size-4 shrink-0 text-muted-foreground"
-								weight="duotone"
-							/>
+							<LinkSimpleIcon className="size-4 shrink-0 text-muted-foreground" />
 							<Text variant="label">UTM Parameters</Text>
 							{utmCount > 0 && (
 								<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
@@ -493,10 +481,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 				<div className="overflow-hidden rounded-md border border-border/60">
 					<Accordion>
 						<Accordion.Trigger>
-							<ImageIcon
-								className="size-4 shrink-0 text-muted-foreground"
-								weight="duotone"
-							/>
+							<ImageIcon className="size-4 shrink-0 text-muted-foreground" />
 							<Text variant="label">Social Preview</Text>
 							{useCustomOg && (
 								<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
@@ -540,7 +525,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 							<Tabs.List className="mx-5 mt-3 shrink-0">
 								<Tabs.Tab value="details">Details</Tabs.Tab>
 								<Tabs.Tab value="qr-code">
-									<QrCodeIcon className="size-3.5" weight="duotone" />
+									<QrCodeIcon className="size-3.5" />
 									QR Code
 								</Tabs.Tab>
 							</Tabs.List>

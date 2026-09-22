@@ -15,8 +15,6 @@ import { PlanetIcon } from "@databuddy/ui/icons";
 
 const poweredByLabelClass =
 	"shrink-0 text-balance font-medium text-muted-foreground text-sm";
-
-/** Header Powered by row: wraps cleanly on narrow viewports. */
 const brandAttributionLinkClass =
 	"flex min-w-0 flex-wrap items-center gap-3 rounded transition-opacity hover:opacity-90";
 
@@ -74,11 +72,7 @@ export default function PublicWebsiteLayout({
 								className="size-5"
 								domain={websiteData?.domain || ""}
 								fallbackIcon={
-									<PlanetIcon
-										className="text-sidebar-ring"
-										size={20}
-										weight="duotone"
-									/>
+									<PlanetIcon className="text-sidebar-ring" size={20} />
 								}
 								size={20}
 							/>
