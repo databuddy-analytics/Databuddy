@@ -1,5 +1,6 @@
 import { db, sql } from "@databuddy/db";
 import { chQuery } from "@databuddy/db/clickhouse";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { cacheable, redis } from "@databuddy/redis";
 import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
@@ -7,6 +8,8 @@ import { useLogger } from "evlog/elysia";
 // created_at is stamped when a run starts, so this budget spans two hourly
 // runs plus the slowest observed backup rather than two runs exactly.
 const STALE_BACKUP_AFTER_MINUTES = 150;
+// Bounds the ClickHouse query only. cacheable spends up to REDIS_TIMEOUT_MS
+// (2s) before this runs, so the handler's worst case is ~6s.
 const BACKUP_PROBE_TIMEOUT_MS = 4000;
 const MISSING_TABLE_CODES = ["UNKNOWN_TABLE", "UNKNOWN_DATABASE"];
 
@@ -18,8 +21,11 @@ type BackupFreshness =
 const readBackupFreshness = cacheable(
 	async function readBackupFreshness(): Promise<BackupFreshness> {
 		try {
-			const rows = await chQuery<{ started_at: number }>(
-				`SELECT toUnixTimestamp(max(created_at)) AS started_at
+			// Age is computed inside ClickHouse so it never spans two clocks;
+			// the epoch only distinguishes "no rows" from a real timestamp.
+			const rows = await chQuery<{ age_minutes: number; started_at: number }>(
+				`SELECT toUnixTimestamp(max(created_at)) AS started_at,
+				        dateDiff('minute', max(created_at), now()) AS age_minutes
 				 FROM internal.databuddy_backups
 				 WHERE status = 'completed'`,
 				undefined,
@@ -30,17 +36,22 @@ const readBackupFreshness = cacheable(
 				}
 			);
 			// max() over no rows yields the DateTime zero value, not NULL.
-			const startedAt = Number(rows[0]?.started_at ?? 0);
-			if (startedAt === 0) {
+			if (Number(rows[0]?.started_at ?? 0) === 0) {
 				return { state: "never" };
 			}
 			return {
 				state: "measured",
-				ageMinutes: Math.round((Date.now() / 1000 - startedAt) / 60),
+				ageMinutes: Number(rows[0]?.age_minutes ?? 0),
 			};
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
-			if (MISSING_TABLE_CODES.some((code) => message.includes(code))) {
+			const tableMissing = MISSING_TABLE_CODES.some((code) =>
+				message.includes(code)
+			);
+			// Only self-hosters legitimately lack the table. In managed
+			// deployments a missing table means the backup job is gone, which
+			// must page rather than report a green "unconfigured".
+			if (tableMissing && readBooleanEnv("SELFHOST")) {
 				return { state: "unconfigured" };
 			}
 			throw err;
