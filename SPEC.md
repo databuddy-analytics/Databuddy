@@ -93,10 +93,13 @@ One exact signal starts an agent turn. The Insights brief aggregates useful turn
 
 A run may first freeze a small portfolio of distinct signals. Available sourced
 business context and complete candidate definitions inform at most one bounded
-model selection before subject recall and investigation. Unavailable or invalid
+Jev evaluation before subject recall and investigation. It ranks all retained candidates;
+code applies correlation grouping and run limits afterward. Only an applicable sourced
+explanation or scope exclusion may remove optional work; uncertain meaning retains it.
+Jev selects work without rewriting its question or supplying evidence or publication decisions. Unavailable or invalid
 context retains the deterministic fallback; due rechecks and critical reliability
 regressions retain priority even when the model selects none. Original measurement
-constraints and the unverified planning rationale stay in the frozen objective.
+constraints stay unchanged in the frozen objective.
 Scheduled runs investigate at most two; a deliberate manual full scan investigates at
 most five and covers a distinct eligible specialist family before taking extra work from
 one family. This does not reintroduce optional general work excluded by business-aware
