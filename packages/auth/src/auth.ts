@@ -42,11 +42,15 @@ import {
 	type AuditActionDefinition,
 	type AuditActor,
 } from "@databuddy/shared/audit";
+import { cimd } from "@better-auth/cimd";
+import { fetchClientMetadataResource } from "@better-auth/cimd/node";
+import { mcp } from "@better-auth/mcp";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
 import {
 	emailOTP,
+	jwt,
 	lastLoginMethod,
 	magicLink,
 	multiSession,
@@ -721,6 +725,16 @@ export const auth = betterAuth({
 		},
 	},
 	plugins: [
+		jwt(),
+		mcp({
+			loginPage: "/login",
+			consentPage: "/consent",
+			resource: config.urls.mcp,
+		}),
+		cimd({
+			fetchClientMetadataResource,
+			metadataProfile: "mcp-2026-07-28",
+		}),
 		multiSession({
 			maximumSessions: 5,
 		}),

@@ -19,13 +19,14 @@ const urls = {
 } satisfies AgentDiscoveryUrls;
 
 describe("agent discovery builders", () => {
-	it("describes API-key authentication without unimplemented OAuth endpoints", () => {
+	it("advertises the protected resource metadata MCP clients discover through", () => {
 		const agent = createAgentJson(urls);
 
 		expect(API_SCOPES).toContain("track:events");
 		expect(agent.authentication.scopes).toBe(API_SCOPES);
-		expect(agent.endpoints).not.toHaveProperty("protected_resource_metadata");
-		expect(agent.endpoints).not.toHaveProperty("authorization_server_metadata");
+		expect(agent.endpoints.protected_resource_metadata).toContain(
+			"/.well-known/oauth-protected-resource"
+		);
 	});
 
 	it("advertises feedback.md with a working submit endpoint", () => {

@@ -13,6 +13,7 @@ import {
 } from "@databuddy/shared/agent-discovery";
 import { API_KEY_AUTH_CHALLENGE } from "@databuddy/api-keys/resolve";
 import { config } from "@databuddy/env/app";
+import { API_SCOPES } from "@databuddy/shared/api-scopes";
 import { Elysia } from "elysia";
 
 const SITE_URL = "https://www.databuddy.cc";
@@ -29,6 +30,8 @@ const discoveryUrls = {
 	mcpManifestUrl: `${SITE_URL}/.well-known/mcp.json`,
 	apiCatalogUrl: `${API_URL}/.well-known/api-catalog`,
 } satisfies AgentDiscoveryUrls;
+
+const AUTHORIZATION_SERVER = `${config.urls.dashboard}/api/auth`;
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
 	return Response.json(body, {
@@ -125,6 +128,15 @@ export const discovery = new Elysia({ name: "agent-discovery" })
 	)
 	.get("/.well-known/mcp", () =>
 		jsonResponse(createMcpServerCard(discoveryUrls))
+	)
+	.get("/.well-known/oauth-protected-resource", () =>
+		jsonResponse({
+			resource: config.urls.mcp,
+			authorization_servers: [AUTHORIZATION_SERVER],
+			bearer_methods_supported: ["header"],
+			scopes_supported: API_SCOPES,
+			resource_documentation: `${SITE_URL}/docs/mcp`,
+		})
 	)
 	.get("/.well-known/ucp", () => jsonResponse(createUcpProfile(discoveryUrls)))
 	.get("/sandbox", () => jsonResponse(createSandboxDiscovery(discoveryUrls)))

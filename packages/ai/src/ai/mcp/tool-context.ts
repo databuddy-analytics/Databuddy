@@ -8,7 +8,9 @@ import {
 	hasWebsiteScopeForOrganization,
 } from "@databuddy/api-keys/resolve";
 import { websitesApi } from "@databuddy/auth";
+import { roleHasPermission } from "@databuddy/auth/permissions";
 import { getRedisCache } from "@databuddy/redis";
+import { getMemberRole } from "@databuddy/rpc/organization";
 import type { AppContext } from "../config/context";
 import { getCachedWebsite } from "../../lib/website-utils";
 import { matchesWebsiteDomain } from "../../lib/website-domain";
@@ -32,7 +34,8 @@ export async function ensureWebsiteAccess(
 	websiteId: string,
 	headers: Headers,
 	apiKey: ApiKeyRow | null,
-	organizationId?: string | null
+	organizationId?: string | null,
+	oauthUserId?: string | null
 ): Promise<{ domain: string } | Error> {
 	const website = await getCachedWebsite(websiteId);
 	if (!website) {
@@ -40,6 +43,17 @@ export async function ensureWebsiteAccess(
 	}
 	if (organizationId && website.organizationId !== organizationId) {
 		return new Error("Website is not in this organization");
+	}
+
+	if (oauthUserId) {
+		if (!website.organizationId) {
+			return new Error("Access denied to this website");
+		}
+		const role = await getMemberRole(oauthUserId, website.organizationId);
+		if (!(role && roleHasPermission(role, "website", ["read"]))) {
+			return new Error("Access denied to this website");
+		}
+		return { domain: website.domain ?? "unknown" };
 	}
 
 	if (apiKey) {

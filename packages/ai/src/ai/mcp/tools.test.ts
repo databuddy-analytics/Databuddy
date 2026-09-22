@@ -26,12 +26,15 @@ const TOOL_NAME_RE = /^[a-z][a-z0-9_]*$/;
 const MAX_DESCRIPTION_LEN = 240;
 
 describe("MCP transport", () => {
-	test("keeps API-key authentication separate from unimplemented OAuth", async () => {
+	test("points unauthenticated callers at the protected resource metadata", async () => {
 		const response = createMcpUnauthorizedResponse();
 
 		expect(response.status).toBe(401);
-		expect(response.headers.get("www-authenticate")).not.toContain(
-			"resource_metadata"
+		expect(response.headers.get("www-authenticate")).toContain(
+			'resource_metadata="'
+		);
+		expect(response.headers.get("www-authenticate")).toContain(
+			"/.well-known/oauth-protected-resource"
 		);
 		expect(await response.json()).toMatchObject({
 			id: null,
