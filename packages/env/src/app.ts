@@ -208,12 +208,6 @@ export function assertStorageConfigured(): void {
 			"Object storage is half-configured. Set both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or neither."
 		);
 	}
-
-	if (isHostedCloud(process.env) && !config.storage) {
-		throw new Error(
-			"Object storage credentials are missing. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or set SELFHOST=true to run without status page asset uploads."
-		);
-	}
 }
 
 export const config = createConfig();
