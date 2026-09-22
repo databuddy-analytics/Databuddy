@@ -41,11 +41,11 @@ function ConsentPage() {
 
 	const decide = async (accept: boolean) => {
 		setPendingDecision(accept ? "accept" : "deny");
-		const result = await authClient.$fetch<{ redirect_uri?: string }>(
+		const result = await authClient.$fetch<{ url?: string }>(
 			"/oauth2/consent",
 			{ method: "POST", body: { accept, oauth_query: oauthQuery } }
 		);
-		const redirectUri = result.data?.redirect_uri;
+		const redirectUri = result.data?.url;
 		if (!redirectUri) {
 			setPendingDecision(null);
 			toast.error("Could not complete authorization. Try connecting again.");

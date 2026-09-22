@@ -199,6 +199,12 @@ jobs:
         run: |
           bun test packages/services/src/organization-business-context.integration.test.ts packages/services/src/business-memory.integration.test.ts packages/services/src/measurement-plan.integration.test.ts packages/ai/src/lib/business-context.test.ts
           bun test packages/auth/src/organization-metadata.integration.test.ts
+      - name: MCP OAuth integration
+        env:
+          NODE_ENV: test
+          MCP_OAUTH_INTEGRATION_TESTS: "true"
+          REQUIRE_EMAIL_VERIFICATION: "false"
+        run: bun test packages/auth/src/mcp-oauth.integration.test.ts
       - name: Insights integration
         env:
           NODE_ENV: test
