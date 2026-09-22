@@ -775,7 +775,7 @@ export const statusPageRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			setTrackProperties({ severity: input.severity ?? "minor" });
+			setTrackProperties({ severity: input.severity });
 			const statusPage = await withResource(context, {
 				resource: "status_page",
 				id: input.statusPageId,
@@ -801,7 +801,6 @@ export const statusPageRouter = {
 			}
 
 			const incidentId = randomUUIDv7();
-			const updateId = randomUUIDv7();
 
 			await withTransaction(async (tx) => {
 				await tx.insert(incidents).values({
@@ -813,7 +812,7 @@ export const statusPageRouter = {
 				});
 
 				await tx.insert(incidentUpdates).values({
-					id: updateId,
+					id: randomUUIDv7(),
 					incidentId,
 					status: "investigating",
 					message: input.message,
