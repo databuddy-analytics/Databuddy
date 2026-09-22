@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useState } from "react";
 import {
 	calculateFeatureUsage,
+	findPlanPricingTiers,
 	formatCompactNumber,
 	formatCurrency,
 } from "@/app/(main)/billing/utils/feature-usage";
@@ -15,11 +16,16 @@ import { useBillingContext } from "@/components/providers/billing-provider";
 const DISMISS_KEY_PREFIX = "databuddy:overage-banner:";
 
 export function OverageBanner() {
-	const { customer } = useBillingContext();
+	const { customer, plans } = useBillingContext();
 	const [dismissed, setDismissed] = useState(false);
 
 	const balance = customer?.balances?.[FEATURE_IDS.EVENTS];
-	const feature = balance ? calculateFeatureUsage(balance) : null;
+	const feature = balance
+		? calculateFeatureUsage(
+				balance,
+				findPlanPricingTiers(plans, FEATURE_IDS.EVENTS)
+			)
+		: null;
 
 	if (!(feature?.overage && feature.hasPricedOverage) || dismissed) {
 		return null;

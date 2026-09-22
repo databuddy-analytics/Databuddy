@@ -52,8 +52,7 @@ export const UsageRow = memo(function UsageRowComponent({
 	canSelfServeUpgrade?: boolean;
 	feature: FeatureUsage;
 }) {
-	const used = feature.includedLimit - feature.balance;
-	const usedClamped = Math.max(0, used);
+	const usedClamped = Math.max(0, feature.used);
 	const hasNormalLimit = !(feature.unlimited || feature.hasExtraCredits);
 	const hasOverage = feature.overage !== null;
 	const isBilledOverage = hasOverage && feature.hasPricedOverage;
