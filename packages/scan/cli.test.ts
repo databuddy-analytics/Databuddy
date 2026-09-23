@@ -706,7 +706,7 @@ export function Report() {
 		const npmConfig = join(temporary, "npmrc");
 		await writeFile(npmConfig, "");
 		const npmFlags = [
-			"--offline",
+			"--prefer-offline",
 			"--ignore-scripts",
 			`--cache=${npmCache}`,
 			`--userconfig=${npmConfig}`,
