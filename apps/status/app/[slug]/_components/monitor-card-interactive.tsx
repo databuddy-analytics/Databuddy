@@ -4,9 +4,10 @@ import { useId, useMemo, useState } from "react";
 import { cn, StatusDot } from "@databuddy/ui";
 import { CaretDownIcon } from "@databuddy/ui/icons";
 import {
-	type MonitorDailyData,
-	MonitorRowInteractive,
-} from "./monitor-row-interactive";
+	buildUptimeHeatmapDays,
+	LatencyChart,
+	UptimeHeatmapStrip,
+} from "@databuddy/ui/uptime";
 
 const LAST_CHECK_FORMATTER = new Intl.DateTimeFormat("en-US", {
 	day: "numeric",
@@ -17,9 +18,17 @@ const LAST_CHECK_FORMATTER = new Intl.DateTimeFormat("en-US", {
 	timeZoneName: "short",
 });
 
-export interface MonitorCardInteractiveProps {
+interface MonitorCardProps {
 	anchorId: string;
-	dailyData: MonitorDailyData;
+	dailyData: Array<{
+		avg_response_time?: number;
+		date: string;
+		downtime_seconds?: number;
+		p95_response_time?: number;
+		successful_checks?: number;
+		total_checks?: number;
+		uptime_percentage?: number;
+	}>;
 	days: number;
 	domain?: string;
 	freshness: "fresh" | "stale" | "unknown";
@@ -40,7 +49,7 @@ function uptimeColor(pct: number): string {
 	return "text-red-600 dark:text-red-400";
 }
 
-export function MonitorCardInteractive({
+export function MonitorCard({
 	anchorId,
 	dailyData,
 	days,
@@ -51,15 +60,15 @@ export function MonitorCardInteractive({
 	status,
 	freshness,
 	uptimePercentage,
-}: MonitorCardInteractiveProps) {
+}: MonitorCardProps) {
 	const [isOpen, setIsOpen] = useState(true);
 	const panelId = useId();
-	const hasLatencyData = useMemo(
-		() =>
-			dailyData.some(
-				(d) => d.avg_response_time != null || d.p95_response_time != null
-			),
-		[dailyData]
+	const hasLatencyData = dailyData.some(
+		(d) => d.avg_response_time != null || d.p95_response_time != null
+	);
+	const heatmapDays = useMemo(
+		() => buildUptimeHeatmapDays(dailyData, days),
+		[dailyData, days]
 	);
 	const statusConfig = {
 		up: { label: "Operational", color: "success" as const },
@@ -137,13 +146,28 @@ export function MonitorCardInteractive({
 			>
 				<div className="min-h-0 overflow-hidden">
 					<div className="px-5 py-5 sm:px-6 sm:py-6">
-						<MonitorRowInteractive
-							dailyData={dailyData}
-							days={days}
-							hasLatencyData={hasLatencyData}
-							hasUptimeData={uptimePercentage !== undefined}
-							id={id}
-						/>
+						{uptimePercentage !== undefined && (
+							<div className="flex flex-col gap-3">
+								<div className="flex items-center justify-between px-0.5 text-muted-foreground text-sm leading-[1.2] sm:text-base">
+									<span className="font-medium">{days} days ago</span>
+									<span>Today</span>
+								</div>
+								<UptimeHeatmapStrip
+									days={heatmapDays}
+									emptyLabel="No data recorded"
+									interactive
+									isActive
+								/>
+							</div>
+						)}
+						{hasLatencyData && (
+							<div className="mt-4 border-border/60 border-t pt-2">
+								<LatencyChart
+									data={dailyData}
+									storageKey={`status-latency-${id}`}
+								/>
+							</div>
+						)}
 					</div>
 				</div>
 			</div>

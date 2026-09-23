@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import type { AppRouter } from "@databuddy/rpc";
 import type { OverallStatus } from "@databuddy/shared/uptime-status";
 import type { RouterClient } from "@orpc/server";
@@ -10,26 +9,11 @@ import {
 	CircleInfoIcon,
 	ClockRotateIcon,
 } from "@databuddy/ui/icons";
-import { MonitorCardInteractive } from "./monitor-card-interactive";
 
 type StatusPageData = NonNullable<
 	Awaited<ReturnType<RouterClient<AppRouter>["statusPage"]["getBySlug"]>>
 >;
 type Incident = StatusPageData["incidents"][number];
-
-function StatusRoot({
-	children,
-	className,
-}: {
-	children: ReactNode;
-	className?: string;
-}) {
-	return (
-		<div className={cn("space-y-12", className)} data-slot="status-page">
-			{children}
-		</div>
-	);
-}
 
 const STATUS_CONFIG = {
 	operational: {
@@ -83,19 +67,15 @@ function pluralize(count: number, singular: string, plural = `${singular}s`) {
 	return `${count} ${count === 1 ? singular : plural}`;
 }
 
-interface StatusHeaderProps {
-	activeIncidentCount: number;
-	className?: string;
-	description?: string;
-	status: OverallStatus;
-}
-
-function StatusHeader({
+export function StatusHeader({
 	activeIncidentCount,
 	description,
 	status,
-	className,
-}: StatusHeaderProps) {
+}: {
+	activeIncidentCount: number;
+	description?: string;
+	status: OverallStatus;
+}) {
 	const config = STATUS_CONFIG[status];
 	const message =
 		activeIncidentCount > 0
@@ -103,61 +83,42 @@ function StatusHeader({
 			: description?.trim() || config.description;
 
 	return (
-		<div className={className} data-slot="status-header">
+		<div
+			className={cn("overflow-hidden rounded-xl border", config.sectionClass)}
+			data-slot="status-section"
+		>
 			<div
-				className={cn("overflow-hidden rounded-xl border", config.sectionClass)}
-				data-slot="status-section"
+				className={cn(
+					"relative z-[1] flex w-full select-none items-start gap-2 overflow-hidden rounded-t-xl rounded-b-none p-3 sm:p-4",
+					config.headerClass
+				)}
 			>
-				<div
-					className={cn(
-						"relative z-[1] flex w-full select-none items-start gap-2 overflow-hidden rounded-t-xl rounded-b-none p-3 sm:p-4",
-						config.headerClass
-					)}
-				>
-					<div className="shrink-0 p-1">
-						<CaretDownIcon className="size-3" />
-					</div>
-					<div className="flex min-w-0 flex-1 items-baseline gap-3">
-						<span className="min-w-0 flex-1 truncate font-semibold text-sm leading-[1.2] sm:text-base">
-							{config.title}
-						</span>
-						<span className="shrink-0 pr-1 font-medium text-xs leading-[1.2] opacity-85 sm:text-sm">
-							{config.shortLabel}
-						</span>
-					</div>
+				<div className="shrink-0 p-1">
+					<CaretDownIcon className="size-3" />
 				</div>
-
-				<div className="flex gap-3 px-4 py-3 sm:py-5 sm:pl-[25px]">
-					<div className="flex shrink-0 items-stretch">
-						<div className={cn("w-0.5 rounded-full", config.lineClass)} />
-					</div>
-					<div
-						className={cn(
-							"py-1 font-medium text-sm leading-[1.2] sm:text-base",
-							config.textClass
-						)}
-					>
-						{message}
-					</div>
+				<div className="flex min-w-0 flex-1 items-baseline gap-3">
+					<span className="min-w-0 flex-1 truncate font-semibold text-sm leading-[1.2] sm:text-base">
+						{config.title}
+					</span>
+					<span className="shrink-0 pr-1 font-medium text-xs leading-[1.2] opacity-85 sm:text-sm">
+						{config.shortLabel}
+					</span>
 				</div>
 			</div>
-		</div>
-	);
-}
 
-function StatusMonitorList({
-	children,
-	className,
-}: {
-	children: ReactNode;
-	className?: string;
-}) {
-	return (
-		<div
-			className={cn("flex flex-col gap-5", className)}
-			data-slot="status-monitors"
-		>
-			{children}
+			<div className="flex gap-3 px-4 py-3 sm:py-5 sm:pl-[25px]">
+				<div className="flex shrink-0 items-stretch">
+					<div className={cn("w-0.5 rounded-full", config.lineClass)} />
+				</div>
+				<div
+					className={cn(
+						"py-1 font-medium text-sm leading-[1.2] sm:text-base",
+						config.textClass
+					)}
+				>
+					{message}
+				</div>
+			</div>
 		</div>
 	);
 }
@@ -192,13 +153,7 @@ function formatIncidentDate(iso: string): string {
 	return INCIDENT_DATE_FORMATTER.format(new Date(iso));
 }
 
-function StatusIncidentList({
-	incidents,
-	className,
-}: {
-	className?: string;
-	incidents: Incident[];
-}) {
+export function StatusIncidentList({ incidents }: { incidents: Incident[] }) {
 	const active = incidents.filter((i) => i.status !== "resolved");
 	const resolved = incidents.filter((i) => i.status === "resolved");
 
@@ -207,7 +162,7 @@ function StatusIncidentList({
 	}
 
 	return (
-		<div className={cn("space-y-6", className)}>
+		<div className="space-y-6">
 			{active.length > 0 && (
 				<div className="space-y-4">
 					<h2 className="font-semibold text-[15px]">Active Incidents</h2>
@@ -256,7 +211,7 @@ function IncidentCard({ incident }: { incident: Incident }) {
 						<span className="text-muted-foreground text-xs">
 							{formatIncidentDate(incident.createdAt)}
 							{incident.resolvedAt &&
-								` — Resolved ${formatIncidentDate(incident.resolvedAt)}`}
+								` · Resolved ${formatIncidentDate(incident.resolvedAt)}`}
 						</span>
 						{incident.affectedMonitors.length > 0 && (
 							<div className="flex flex-wrap gap-1.5">
@@ -310,29 +265,25 @@ function IncidentCard({ incident }: { incident: Incident }) {
 	);
 }
 
-function StatusFooter({
+export function StatusFooter({
+	activeIncidentCount,
+	hasIncidents,
 	timestamp,
-	incidents,
-	className,
 }: {
-	className?: string;
-	incidents: Incident[];
+	activeIncidentCount: number;
+	hasIncidents: boolean;
 	timestamp: string | null;
 }) {
-	const activeCount = incidents.filter((i) => i.status !== "resolved").length;
+	let summary = "No incidents in the last 90 days";
+	if (activeIncidentCount > 0) {
+		summary = pluralize(activeIncidentCount, "active incident");
+	} else if (hasIncidents) {
+		summary = "No active incidents";
+	}
 
 	return (
-		<div
-			className={cn(
-				"flex items-center justify-between text-muted-foreground/60 text-xs",
-				className
-			)}
-		>
-			<span>
-				{activeCount > 0
-					? `${activeCount} active incident${activeCount === 1 ? "" : "s"}`
-					: "No incidents in the last 90 days"}
-			</span>
+		<div className="flex items-center justify-between text-muted-foreground/60 text-xs">
+			<span>{summary}</span>
 			{timestamp && (
 				<span className="tabular-nums">
 					Updated {FOOTER_TIME_FORMATTER.format(new Date(timestamp))}
@@ -341,19 +292,3 @@ function StatusFooter({
 		</div>
 	);
 }
-
-StatusRoot.displayName = "Status";
-
-export const Status: typeof StatusRoot & {
-	Footer: typeof StatusFooter;
-	Header: typeof StatusHeader;
-	IncidentList: typeof StatusIncidentList;
-	MonitorCard: typeof MonitorCardInteractive;
-	MonitorList: typeof StatusMonitorList;
-} = Object.assign(StatusRoot, {
-	Footer: StatusFooter,
-	Header: StatusHeader,
-	IncidentList: StatusIncidentList,
-	MonitorCard: MonitorCardInteractive,
-	MonitorList: StatusMonitorList,
-});

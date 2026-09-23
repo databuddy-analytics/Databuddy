@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
+import { ORPCError } from "@orpc/client";
 import { serializeJsonLd } from "@databuddy/shared/json-ld";
 import { ThemeProvider } from "next-themes";
 import { DATABUDDY_UPTIME_URL, getStatusPageUrl } from "@/lib/status-url";
 import { rpcClient } from "@/lib/orpc";
 import { StatusNavbar } from "./_components/status-navbar";
-import { Status } from "./_components/status-page";
+import { MonitorCard } from "./_components/monitor-card-interactive";
+import {
+	StatusFooter,
+	StatusHeader,
+	StatusIncidentList,
+} from "./_components/status-page";
 
 export const revalidate = 60;
 
@@ -16,34 +22,14 @@ interface StatusPageProps {
 
 const DAYS = 90;
 
-const MAX_FETCH_ATTEMPTS = 3;
-
-function isNotFoundError(error: unknown): boolean {
-	return (
-		!!error &&
-		typeof error === "object" &&
-		"code" in error &&
-		error.code === "NOT_FOUND"
-	);
-}
-
-const getStatusData = cache(async (slug: string) => {
-	let lastError: unknown;
-	for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt++) {
-		if (attempt > 0) {
-			await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+const getStatusData = cache((slug: string) =>
+	rpcClient.statusPage.getBySlug({ slug }).catch((error: unknown) => {
+		if (error instanceof ORPCError && error.code === "NOT_FOUND") {
+			return null;
 		}
-		try {
-			return await rpcClient.statusPage.getBySlug({ slug, days: DAYS });
-		} catch (error) {
-			if (isNotFoundError(error)) {
-				return null;
-			}
-			lastError = error;
-		}
-	}
-	throw lastError;
-});
+		throw error;
+	})
+);
 
 function slugify(text: string): string {
 	return text
@@ -199,18 +185,18 @@ export default async function StatusPage({ params }: StatusPageProps) {
 							type="application/ld+json"
 						/>
 
-						<Status>
-							<Status.Header
+						<div className="space-y-12">
+							<StatusHeader
 								activeIncidentCount={activeIncidentCount}
 								description={page.description ?? undefined}
 								status={data.overallStatus}
 							/>
 
-							<Status.IncidentList incidents={data.incidents} />
+							<StatusIncidentList incidents={data.incidents} />
 
-							<Status.MonitorList>
+							<div className="flex flex-col gap-5">
 								{data.monitors.map((monitor) => (
-									<Status.MonitorCard
+									<MonitorCard
 										anchorId={slugify(monitor.name)}
 										dailyData={monitor.dailyData}
 										days={DAYS}
@@ -224,13 +210,14 @@ export default async function StatusPage({ params }: StatusPageProps) {
 										uptimePercentage={monitor.uptimePercentage ?? undefined}
 									/>
 								))}
-							</Status.MonitorList>
+							</div>
 
-							<Status.Footer
-								incidents={data.incidents}
+							<StatusFooter
+								activeIncidentCount={activeIncidentCount}
+								hasIncidents={data.incidents.length > 0}
 								timestamp={latestTimestamp}
 							/>
-						</Status>
+						</div>
 					</div>
 				</main>
 
