@@ -5,6 +5,7 @@ describe("createConfig", () => {
 	it("keeps production URL defaults local only when self-hosting", () => {
 		expect(createConfig({ NODE_ENV: "production" }).urls).toEqual({
 			api: "https://api.databuddy.cc",
+			authorizationServer: "https://app.databuddy.cc/api/auth",
 			basket: "https://basket.databuddy.cc",
 			dashboard: "https://app.databuddy.cc",
 			links: "https://dby.sh",
@@ -15,6 +16,7 @@ describe("createConfig", () => {
 			createConfig({ NODE_ENV: "production", SELFHOST: " TRUE " }).urls
 		).toEqual({
 			api: "http://localhost:3001",
+			authorizationServer: "http://localhost:3000/api/auth",
 			basket: "http://localhost:4000",
 			dashboard: "http://localhost:3000",
 			links: "http://localhost:2500",

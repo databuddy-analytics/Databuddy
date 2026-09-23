@@ -82,6 +82,7 @@ export interface Config {
 	storage?: StorageConfig;
 	urls: {
 		api: string;
+		authorizationServer: string;
 		basket: string;
 		dashboard: string;
 		links: string;
@@ -188,6 +189,7 @@ export function createConfig(env: Env = process.env): Config {
 		storage: readStorage(env),
 		urls: {
 			api: apiUrl,
+			authorizationServer: `${dashboardUrl}/api/auth`,
 			basket: readUrl(env, URLS.basket),
 			dashboard: dashboardUrl,
 			links: readUrl(env, URLS.links),

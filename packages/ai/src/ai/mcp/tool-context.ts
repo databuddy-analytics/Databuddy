@@ -8,7 +8,9 @@ import {
 	hasWebsiteScopeForOrganization,
 } from "@databuddy/api-keys/resolve";
 import { websitesApi } from "@databuddy/auth";
+import { roleHasPermission } from "@databuddy/auth/permissions";
 import { getRedisCache } from "@databuddy/redis";
+import { getMemberRole } from "@databuddy/rpc/organization";
 import type { AppContext } from "../config/context";
 import { getCachedWebsite } from "../../lib/website-utils";
 import { matchesWebsiteDomain } from "../../lib/website-domain";
@@ -24,22 +26,37 @@ export interface WebsiteSelectorInput {
 
 export interface RequestPrincipal {
 	apiKey: ApiKeyRow | null;
+	oauthUserId?: string | null;
 	organizationId?: string | null;
 	userId: string | null;
 }
 
+export type AuthorizedPrincipal = RequestPrincipal & {
+	requestHeaders: Headers;
+};
+
 export async function ensureWebsiteAccess(
 	websiteId: string,
-	headers: Headers,
-	apiKey: ApiKeyRow | null,
-	organizationId?: string | null
+	principal: AuthorizedPrincipal
 ): Promise<{ domain: string } | Error> {
+	const { apiKey, oauthUserId, organizationId } = principal;
 	const website = await getCachedWebsite(websiteId);
 	if (!website) {
 		return new Error("Website not found");
 	}
 	if (organizationId && website.organizationId !== organizationId) {
 		return new Error("Website is not in this organization");
+	}
+
+	if (oauthUserId) {
+		if (!website.organizationId) {
+			return new Error("Access denied to this website");
+		}
+		const role = await getMemberRole(oauthUserId, website.organizationId);
+		if (!(role && roleHasPermission(role, "website", ["read"]))) {
+			return new Error("Access denied to this website");
+		}
+		return { domain: website.domain ?? "unknown" };
 	}
 
 	if (apiKey) {
@@ -58,7 +75,7 @@ export async function ensureWebsiteAccess(
 		website.organizationId &&
 		(
 			await websitesApi.hasPermission({
-				headers,
+				headers: principal.requestHeaders,
 				body: {
 					organizationId: website.organizationId,
 					permissions: { website: ["read"] },
@@ -228,11 +245,7 @@ export async function resolveOrganizationIds(
 	return new Error("Could not determine organization");
 }
 
-export function buildRpcContext(
-	principal: RequestPrincipal & {
-		requestHeaders: Headers;
-	}
-): AppContext {
+export function buildRpcContext(principal: AuthorizedPrincipal): AppContext {
 	return {
 		userId: principal.userId,
 		websiteId: "",
