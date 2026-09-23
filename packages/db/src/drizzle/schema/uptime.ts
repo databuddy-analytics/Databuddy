@@ -128,7 +128,10 @@ export const statusPageMonitors = pgTable(
 			.$onUpdate(() => new Date()),
 	},
 	(table) => [
-		index("status_page_monitors_status_page_id_idx").on(table.statusPageId),
+		uniqueIndex("status_page_monitors_page_schedule_unique").on(
+			table.statusPageId,
+			table.uptimeScheduleId
+		),
 		index("status_page_monitors_uptime_schedule_id_idx").on(
 			table.uptimeScheduleId
 		),

@@ -569,24 +569,25 @@ export const statusPageRouter = {
 				);
 			}
 
-			const existing = await db.query.statusPageMonitors.findFirst({
-				where: {
-					statusPageId: input.statusPageId,
-					uptimeScheduleId: input.uptimeScheduleId,
-				},
-			});
-
-			if (existing) {
-				throw rpcError.badRequest("Monitor is already on this status page");
-			}
-
 			const id = randomUUIDv7();
 
-			await db.insert(statusPageMonitors).values({
-				id,
-				statusPageId: input.statusPageId,
-				uptimeScheduleId: input.uptimeScheduleId,
-			});
+			try {
+				await db.insert(statusPageMonitors).values({
+					id,
+					statusPageId: input.statusPageId,
+					uptimeScheduleId: input.uptimeScheduleId,
+				});
+			} catch (error) {
+				if (
+					isUniqueViolationFor(
+						error,
+						"status_page_monitors_page_schedule_unique"
+					)
+				) {
+					throw rpcError.badRequest("Monitor is already on this status page");
+				}
+				throw error;
+			}
 
 			await invalidateStatusPageCache(statusPage.slug);
 
