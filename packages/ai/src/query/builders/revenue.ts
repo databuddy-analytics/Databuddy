@@ -994,6 +994,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 				groupBy: "revenue_provider, product_name, product_id, currency",
 				orderBy: "revenue DESC",
 				limit,
+				extraConditions: ["type != 'refund'"],
 			}),
 			50
 		),

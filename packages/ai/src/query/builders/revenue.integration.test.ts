@@ -197,7 +197,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			query.sql,
 			query.params
 		);
-		expect(groups).toHaveLength(4);
+		expect(groups).toHaveLength(3);
 		expect(groups).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
@@ -213,13 +213,6 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 					name: "Solo",
 					revenue: 400,
 					transactions: 1,
-				}),
-				expect.objectContaining({
-					provider: "stripe",
-					product_id: null,
-					name: "Refund",
-					revenue: 0,
-					transactions: 0,
 				}),
 				expect.objectContaining({
 					provider: "stripe",
