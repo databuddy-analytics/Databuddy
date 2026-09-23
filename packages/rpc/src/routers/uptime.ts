@@ -49,13 +49,13 @@ async function statusPageSlugsForSchedule(
 	return rows.map((row) => row.slug);
 }
 
-async function invalidateStatusPageSlugs(
+async function invalidateStatusPageCachesForSchedule(
 	scheduleId: string,
-	slugs: string[]
+	slugs?: string[]
 ): Promise<void> {
 	const results = await Promise.allSettled(
-		slugs.map((slug) =>
-			Promise.resolve().then(() => invalidateStatusPageCache(slug))
+		(slugs ?? (await statusPageSlugsForSchedule(scheduleId))).map(
+			invalidateStatusPageCache
 		)
 	);
 	const failed = results.filter((result) => result.status === "rejected");
@@ -65,15 +65,6 @@ async function invalidateStatusPageSlugs(
 			"Failed to invalidate status page caches for uptime schedule"
 		);
 	}
-}
-
-async function invalidateStatusPageCachesForSchedule(
-	scheduleId: string
-): Promise<void> {
-	await invalidateStatusPageSlugs(
-		scheduleId,
-		await statusPageSlugsForSchedule(scheduleId)
-	);
 }
 
 const getScheduleOutputSchema = z.object({
@@ -372,7 +363,7 @@ export const uptimeRouter = {
 			const slugs = await statusPageSlugsForSchedule(input.scheduleId);
 
 			await deleteScheduleWithScheduler(input.scheduleId);
-			await invalidateStatusPageSlugs(input.scheduleId, slugs);
+			await invalidateStatusPageCachesForSchedule(input.scheduleId, slugs);
 
 			logger.info({ scheduleId: input.scheduleId }, "Schedule deleted");
 			return { success: true };
@@ -462,7 +453,6 @@ export const uptimeRouter = {
 					updatedAt: new Date(),
 				})
 				.where(eq(uptimeSchedules.id, input.scheduleId));
-			await invalidateStatusPageCachesForSchedule(input.scheduleId);
 
 			logger.info(
 				{
@@ -496,7 +486,6 @@ export const uptimeRouter = {
 			});
 
 			await triggerManualUptimeCheck(input.scheduleId, schedule.isPaused);
-			await invalidateStatusPageCachesForSchedule(input.scheduleId);
 
 			logger.info({ scheduleId: input.scheduleId }, "Manual check triggered");
 			return { success: true };
