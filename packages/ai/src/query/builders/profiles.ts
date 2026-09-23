@@ -1,6 +1,7 @@
 import {
 	CUSTOM_EVENTS_VISITOR_KEY,
 	buildRevenueLatestCte,
+	paymentIntentIdExpression,
 	visitorMatch,
 } from "@databuddy/db/clickhouse";
 import { Analytics } from "../../types/tables";
@@ -534,15 +535,6 @@ function profileActivityCte(
           AND timestamp >= toDateTime({startDate:String})
           AND timestamp <= toDateTime({endDate:String})
       )`;
-}
-
-function paymentIntentIdExpression(alias = ""): string {
-	const prefix = alias ? `${alias}.` : "";
-	return `if(
-  JSONExtractString(${prefix}metadata, 'stripe_payment_intent_id') != '',
-  JSONExtractString(${prefix}metadata, 'stripe_payment_intent_id'),
-  if(${prefix}provider = 'stripe' AND startsWith(${prefix}transaction_id, 'pi_'), ${prefix}transaction_id, '')
-)`;
 }
 
 const ATTRIBUTED_REVENUE_VISITOR_KEY =
