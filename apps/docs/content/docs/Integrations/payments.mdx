@@ -34,7 +34,9 @@ In the [Stripe dashboard](https://dashboard.stripe.com/webhooks), add an endpoin
 </tbody>
 </table>
 
-Databuddy expects Stripe API version `2025-05-28.basil` or later. Keep `payment_intent.succeeded` enabled for one-time payments; `invoice_payment.paid` is the canonical event for payments attached to an invoice. Databuddy uses the immutable InvoicePayment ID, so the same allocation embedded in `invoice.paid` and delivered later as `invoice_payment.paid` is counted once. `invoice.paid` also supplies the invoice-level remainder for payments made outside Stripe; Databuddy records that remainder only when Stripe includes a complete payments list.
+Databuddy expects Stripe API version `2025-05-28.basil` or later, because `invoice_payment.paid` was introduced in that version and is the canonical money event for anything billed through an invoice. Keep `payment_intent.succeeded` enabled for one-time payments.
+
+`invoice.paid` and `invoice_payment.paid` carry different halves of the same fact, and you need both. The payment event carries the amount but references its invoice by ID only, so it cannot see your metadata. The invoice event carries the metadata but no payment amount, because Stripe does not include the invoice's `payments` list in webhook deliveries. Databuddy records the amount from the payment event and joins the metadata from the invoice event, which is why a subscription payment stays unattributed if only one of the two is enabled. Order does not matter, and redelivering either event is safe.
 
 Paste the endpoint's **signing secret** into the Revenue settings so Databuddy can verify each delivery.
 

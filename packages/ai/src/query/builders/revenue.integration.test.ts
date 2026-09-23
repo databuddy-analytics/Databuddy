@@ -1287,6 +1287,94 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		expect(Number(attributed?.transactions)).toBe(1);
 	});
 
+	it("stitches an invoice link record that arrives after the payment row", async () => {
+		const organizationId = `organization-${randomUUIDv7()}`;
+		const websiteId = `revenue-link-late-${randomUUIDv7()}`;
+		const sessionId = `session-${randomUUIDv7()}`;
+		const at = "2026-08-02 12:00:00";
+
+		await clickHouse.insert({
+			table: "analytics.events",
+			format: "JSONEachRow",
+			values: [
+				{
+					id: randomUUIDv7(),
+					client_id: websiteId,
+					event_name: "screen_view",
+					session_id: sessionId,
+					time: "2026-08-02 11:00:00",
+					url: "https://example.com/checkout",
+					path: "/checkout",
+					country: "FR",
+					ip: "127.0.0.1",
+					user_agent: "integration-test",
+					properties: "{}",
+					created_at: "2026-08-02 11:00:00",
+				},
+			],
+		});
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					organizationId,
+					"inpay_late_link",
+					180,
+					"subscription",
+					"completed",
+					stripeMetadata("money", { stripe_invoice_id: "in_late_link" }),
+					at,
+					{
+						anonymous_id: null,
+						customer_id: "",
+						session_id: null,
+						website_id: websiteId,
+						synced_at: "2026-08-02 12:00:00",
+					}
+				),
+			],
+		});
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					organizationId,
+					"in_late_link:link",
+					0,
+					"subscription_event",
+					"linked",
+					stripeMetadata("link", { stripe_invoice_id: "in_late_link" }),
+					at,
+					{
+						customer_id: "",
+						session_id: sessionId,
+						website_id: websiteId,
+						synced_at: "2026-08-02 18:00:00",
+					}
+				),
+			],
+		});
+
+		const query = RevenueBuilders.revenue_attribution_overview?.customSql?.({
+			endDate: "2026-08-03",
+			startDate: "2026-08-01",
+			websiteId,
+		});
+		if (!query || typeof query === "string") {
+			throw new Error("Revenue attribution overview did not compile");
+		}
+		const rows = await chQuery<{ name: string; revenue: number | string }>(
+			query.sql,
+			query.params
+		);
+
+		expect(Number(rows.find((row) => row.name === "Attributed")?.revenue)).toBe(
+			180
+		);
+	});
+
 	it("attributes late organization-owned refunds to the website and paying profile", async () => {
 		const websiteId = `revenue-refund-${randomUUIDv7()}`;
 		const organizationId = `organization-${randomUUIDv7()}`;

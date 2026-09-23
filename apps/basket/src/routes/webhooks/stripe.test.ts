@@ -605,6 +605,40 @@ describe("normalizeStripeEvent", () => {
 		]);
 	});
 
+	test("collapses invoice.paid and invoice.payment_succeeded onto one link id", () => {
+		const invoiceObject = {
+			amount_paid: 900,
+			created: 1_699_000_000,
+			currency: "usd",
+			customer: "cus_dual",
+			id: "in_dual",
+			metadata: { databuddy_session_id: "session-dual" },
+			status: "paid",
+		};
+		const paid = normalizeStripeEvent({
+			api_version: "2025-08-27.basil",
+			created: 1_700_000_600,
+			id: "evt_dual_paid",
+			type: "invoice.paid",
+			data: { object: invoiceObject },
+		});
+		const succeeded = normalizeStripeEvent({
+			api_version: "2025-08-27.basil",
+			created: 1_700_000_601,
+			id: "evt_dual_succeeded",
+			type: "invoice.payment_succeeded",
+			data: { object: invoiceObject },
+		});
+
+		expect(paid.map((record) => record.transactionId)).toEqual([
+			"in_dual:link",
+		]);
+		expect(succeeded.map((record) => record.transactionId)).toEqual([
+			"in_dual:link",
+		]);
+		expect(paid[0]?.rawMetadata).toEqual(succeeded[0]?.rawMetadata);
+	});
+
 	test("omits the invoice link record when there is nothing to carry", () => {
 		const records = normalizeStripeEvent({
 			api_version: "2025-03-31.basil",
