@@ -1,27 +1,41 @@
 import { describe, expect, test } from "bun:test";
-import * as drizzleSchema from "@databuddy/db/schema";
+import {
+	jwks,
+	oauthAccessToken,
+	oauthClient,
+	oauthClientAssertion,
+	oauthClientResource,
+	oauthConsent,
+	oauthRefreshToken,
+	oauthResource,
+} from "@databuddy/db/schema";
 import { getSchema } from "better-auth/db";
 import { oauthAuthOptions } from "./oauth";
 
-const OAUTH_MODELS = [
-	"jwks",
-	"oauthClient",
-	"oauthResource",
-	"oauthClientResource",
-	"oauthRefreshToken",
-	"oauthAccessToken",
-	"oauthConsent",
-	"oauthClientAssertion",
-] as const;
+const OAUTH_TABLES = {
+	jwks,
+	oauthAccessToken,
+	oauthClient,
+	oauthClientAssertion,
+	oauthClientResource,
+	oauthConsent,
+	oauthRefreshToken,
+	oauthResource,
+} as const;
+
+type OAuthModel = keyof typeof OAUTH_TABLES;
+
+const OAUTH_MODELS = Object.keys(OAUTH_TABLES) as OAuthModel[];
 
 function expectedOAuthSchema() {
 	return getSchema(oauthAuthOptions);
 }
 
-const schema: Record<
-	string,
-	Record<string, { notNull?: boolean }>
-> = drizzleSchema;
+type ColumnShape = { notNull?: boolean } | undefined;
+
+function column(model: OAuthModel, field: string): ColumnShape {
+	return Reflect.get(OAUTH_TABLES[model], field) as ColumnShape;
+}
 
 describe("OAuth provider tables match Better Auth", () => {
 	test("every model Better Auth expects is exported under its model name", () => {
@@ -29,7 +43,7 @@ describe("OAuth provider tables match Better Auth", () => {
 
 		for (const model of OAUTH_MODELS) {
 			expect(expected[model]).toBeDefined();
-			expect(schema[model]).toBeDefined();
+			expect(OAUTH_TABLES[model]).toBeDefined();
 		}
 	});
 
@@ -39,7 +53,7 @@ describe("OAuth provider tables match Better Auth", () => {
 
 		for (const model of OAUTH_MODELS) {
 			for (const field of Object.keys(expected[model].fields)) {
-				if (!schema[model][field]) {
+				if (!column(model, field)) {
 					missing.push(`${model}.${field}`);
 				}
 			}
@@ -54,12 +68,12 @@ describe("OAuth provider tables match Better Auth", () => {
 
 		for (const model of OAUTH_MODELS) {
 			for (const [field, attribute] of Object.entries(expected[model].fields)) {
-				const column = schema[model][field];
-				if (!column) {
+				const target = column(model, field);
+				if (!target) {
 					continue;
 				}
 				const shouldBeNotNull = attribute.required !== false;
-				if (shouldBeNotNull !== Boolean(column.notNull)) {
+				if (shouldBeNotNull !== Boolean(target.notNull)) {
 					mismatched.push(
 						`${model}.${field} expected notNull=${shouldBeNotNull}`
 					);
