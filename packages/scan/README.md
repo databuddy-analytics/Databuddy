@@ -8,7 +8,7 @@ npx @databuddy/scan --run
 bunx @databuddy/scan --run
 ```
 
-Requires Git, Node.js 22+, and a Vercel AI Gateway key in `AI_GATEWAY_API_KEY` or your repository's `.env`. To run directly on Bun without Node, use `bunx --bun @databuddy/scan --run` (Bun 1.2+).
+Requires Git, Node.js 22+, and your own [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key in `AI_GATEWAY_API_KEY`, set in your shell or your repository's `.env`. Requests go from your machine to your Gateway account; Databuddy never sees your source. To run directly on Bun without Node, use `bunx --bun @databuddy/scan --run` (Bun 1.2+).
 
 Run without `--run` to preview the number of eligible files without sending code. **`--run` sends included source code to Jev through your Vercel AI Gateway account**, requesting zero data retention. Provider charges may apply. The scanner reads tracked files from your working tree, including uncommitted edits; it excludes tests, examples, symlinks, unsupported files, and detected embedded secrets. Detection is not a guarantee that source contains no secrets.
 

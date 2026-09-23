@@ -151,6 +151,7 @@ const safeError =
 	/^(?:Gateway HTTP [0-9]{3}|No matching cached response; network disabled)$/;
 const shedError = /^(?:Gateway HTTP 5[0-9]{2}|Gateway request timed out)$/;
 const splitDepth = 2;
+const keyHelp = "Create one at https://vercel.com/docs/ai-gateway";
 const catalogByteLimit = 24_000;
 
 export async function readJSON(path: string): Promise<unknown> {
@@ -410,7 +411,7 @@ export async function scan(
 	const apiKey = process.env.AI_GATEWAY_API_KEY;
 	if (!(cacheOnly || apiKey)) {
 		throw new Error(
-			"Set AI_GATEWAY_API_KEY in the repository .env to run Jev."
+			`Set AI_GATEWAY_API_KEY to your Vercel AI Gateway key, in your shell or the repository .env. ${keyHelp}`
 		);
 	}
 	const started = performance.now(),
@@ -616,6 +617,14 @@ export async function scan(
 		await writes;
 		if (logFailure) {
 			throw new Error("Could not write scan diagnostics.");
+		}
+		const denied = calls
+			.flatMap((c) => c.attempts)
+			.find((a) => a.status === 401 || a.status === 403);
+		if (denied) {
+			throw new Error(
+				`Vercel AI Gateway rejected AI_GATEWAY_API_KEY (HTTP ${denied.status}). ${keyHelp}`
+			);
 		}
 		rows.sort(
 			(a, b) =>
