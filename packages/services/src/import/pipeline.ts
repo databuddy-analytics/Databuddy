@@ -10,6 +10,7 @@ export const PAGEVIEW_EVENT_NAME = "screen_view";
 export const PAGE_EXIT_EVENT_NAME = "page_exit";
 
 const IMPORT_MARKER_KEY = "__import";
+const IMPORT_RUN_KEY = "__import_run";
 
 const INSERT_CHUNK_SIZE = 10_000;
 const SECONDS_PER_DAY = 86_400;
@@ -94,14 +95,11 @@ export interface ImportEntry {
 
 export type ImportSource =
 	| { kind: "archive"; entries(): AsyncIterable<ImportEntry> }
-	| { kind: "file"; name: string; text(): Promise<string> }
-	| {
-			kind: "api";
-			fetchPage(cursor?: string): Promise<{ rows: unknown[]; cursor?: string }>;
-	  };
+	| { kind: "file"; name: string; text(): Promise<string> };
 
 export interface ImportContext {
 	domain: string;
+	runId: string;
 	timezone: string;
 	websiteId: string;
 }
@@ -318,8 +316,9 @@ export function synthesizeDate(
 		}
 	}
 
-	const durations = new Array<number>(perSession.length).fill(
-		BOUNCE_DURATION_SECONDS
+	const durations = Array.from(
+		{ length: perSession.length },
+		() => BOUNCE_DURATION_SECONDS
 	);
 	const nonBounceBudget = Math.max(
 		0,
@@ -357,7 +356,14 @@ export function synthesizeDate(
 		durations.reduce((total, value) => total + value, 0) - totalDuration;
 
 	const dayStart = zonedDayStartUtc(date, context.timezone).getTime();
-	const sessionStride = Math.floor(SECONDS_PER_DAY / visits) * 1000;
+	const dayEnd = dayStart + SECONDS_PER_DAY * 1000 - 1;
+	const longestSessionSeconds =
+		(Math.max(...perSession) + 1) * INTRA_SESSION_GAP_SECONDS;
+	const spreadSeconds = Math.max(
+		0,
+		SECONDS_PER_DAY - Math.min(longestSessionSeconds, SECONDS_PER_DAY)
+	);
+	const sessionStride = Math.floor(spreadSeconds / visits) * 1000;
 	const events: ImportedEvent[] = [];
 	let slotIndex = 0;
 
@@ -379,7 +385,12 @@ export function synthesizeDate(
 			}
 			lastSlot = slot;
 			events.push({
-				time: new Date(sessionStart + page * INTRA_SESSION_GAP_SECONDS * 1000),
+				time: new Date(
+					Math.min(
+						sessionStart + page * INTRA_SESSION_GAP_SECONDS * 1000,
+						dayEnd
+					)
+				),
 				eventName: PAGEVIEW_EVENT_NAME,
 				path: slot.path,
 				hostname: slot.hostname,
@@ -395,7 +406,10 @@ export function synthesizeDate(
 
 		events.push({
 			time: new Date(
-				sessionStart + pageviews * INTRA_SESSION_GAP_SECONDS * 1000
+				Math.min(
+					sessionStart + pageviews * INTRA_SESSION_GAP_SECONDS * 1000,
+					dayEnd
+				)
 			),
 			eventName: PAGE_EXIT_EVENT_NAME,
 			path: lastSlot.path,
@@ -475,6 +489,7 @@ export function toEventRow(
 		profile_id: "",
 		properties: JSON.stringify({
 			[IMPORT_MARKER_KEY]: providerId,
+			[IMPORT_RUN_KEY]: context.runId,
 			...event.properties,
 		}),
 		created_at: clickHouseDateTime(new Date()),
@@ -503,17 +518,30 @@ async function insertChunk(
 	});
 }
 
-export async function deleteImportedEvents(
-	websiteId: string,
-	providerId?: string
-): Promise<void> {
-	const marker = providerId
-		? `JSONExtractString(properties, '${IMPORT_MARKER_KEY}') = {providerId:String}`
-		: `JSONExtractString(properties, '${IMPORT_MARKER_KEY}') != ''`;
+export async function deleteImportedEvents(options: {
+	websiteId: string;
+	providerId?: string;
+	exceptRunId?: string;
+}): Promise<void> {
+	const { websiteId, providerId, exceptRunId } = options;
+	const conditions = [
+		providerId
+			? `JSONExtractString(properties, '${IMPORT_MARKER_KEY}') = {providerId:String}`
+			: `JSONExtractString(properties, '${IMPORT_MARKER_KEY}') != ''`,
+	];
+	if (exceptRunId) {
+		conditions.push(
+			`JSONExtractString(properties, '${IMPORT_RUN_KEY}') != {exceptRunId:String}`
+		);
+	}
 
 	await clickHouse.command({
-		query: `ALTER TABLE ${TABLE_NAMES.events} DELETE WHERE client_id = {websiteId:String} AND ${marker}`,
-		query_params: providerId ? { websiteId, providerId } : { websiteId },
+		query: `ALTER TABLE ${TABLE_NAMES.events} DELETE WHERE client_id = {websiteId:String} AND ${conditions.join(" AND ")}`,
+		query_params: {
+			websiteId,
+			...(providerId ? { providerId } : {}),
+			...(exceptRunId ? { exceptRunId } : {}),
+		},
 		clickhouse_settings: { mutations_sync: "1" },
 	});
 }

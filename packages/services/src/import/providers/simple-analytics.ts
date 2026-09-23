@@ -28,16 +28,13 @@ async function sourceText(source: ImportSource): Promise<string[]> {
 	if (source.kind === "file") {
 		return [await source.text()];
 	}
-	if (source.kind === "archive") {
-		const texts: string[] = [];
-		for await (const entry of source.entries()) {
-			if (entry.name.endsWith(".csv")) {
-				texts.push(await entry.text());
-			}
+	const texts: string[] = [];
+	for await (const entry of source.entries()) {
+		if (entry.name.endsWith(".csv")) {
+			texts.push(await entry.text());
 		}
-		return texts;
 	}
-	return [];
+	return texts;
 }
 
 function hasSimpleAnalyticsHeader(text: string): boolean {

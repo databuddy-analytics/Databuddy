@@ -16,7 +16,7 @@ import { setTrackProperties } from "../middleware/track-mutation";
 import { protectedProcedure, trackedSessionProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 
-const MAX_IMPORT_BYTES = 512 * 1024 * 1024;
+const MAX_IMPORT_BYTES = 64 * 1024 * 1024;
 const IMPORT_RATE_WINDOW_SECONDS = 3600;
 const IMPORT_CONTENT_TYPES = ["application/zip", "text/csv"] as const;
 

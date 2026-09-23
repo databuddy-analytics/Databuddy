@@ -10,7 +10,7 @@
     "./feedback": "./src/feedback.ts",
     "./github-app": "./src/github-app.ts",
     "./identity": "./src/identity.ts",
-    "./import": "./src/import/index.ts",
+    "./import": "./src/import/runner.ts",
     "./websites": "./src/websites.ts",
     "./storage": "./src/storage.ts",
     "./organization-business-context": "./src/organization-business-context.ts"
