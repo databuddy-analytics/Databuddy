@@ -64,13 +64,13 @@ export const revenueRouter = {
 			};
 		}),
 
-	webhookEvents: protectedProcedure
+	stripeWebhookEvents: protectedProcedure
 		.route({
 			description:
-				"Returns the last time each provider webhook event was received. Requires read permission.",
+				"Returns the last time each Stripe webhook event was received. Requires read permission.",
 			method: "POST",
-			path: "/revenue/webhookEvents",
-			summary: "Get webhook event health",
+			path: "/revenue/stripeWebhookEvents",
+			summary: "Get Stripe webhook event health",
 			tags: ["Revenue"],
 		})
 		.input(z.object({ websiteId: z.string().optional() }))
@@ -79,7 +79,6 @@ export const revenueRouter = {
 				z.object({
 					eventType: z.string(),
 					lastReceivedAt: z.string(),
-					provider: z.string(),
 				})
 			)
 		)
@@ -97,25 +96,17 @@ export const revenueRouter = {
 			const rows = await chQuery<{
 				event_type: string;
 				last_received_at: string;
-				provider: string;
 			}>(
 				`SELECT
-					provider,
-					if(
-						provider = 'stripe',
-						JSONExtractString(metadata, 'stripe_event_type'),
-						'transaction.completed'
-					) AS event_type,
+					JSONExtractString(metadata, 'stripe_event_type') AS event_type,
 					formatDateTime(max(synced_at), '%Y-%m-%dT%H:%i:%SZ') AS last_received_at
 				FROM analytics.revenue
 				WHERE owner_id = {ownerId:String}
 					${input.websiteId ? "AND website_id = {websiteId:String}" : ""}
+					AND provider = 'stripe'
 					AND synced_at >= now() - INTERVAL 90 DAY
-					AND (
-						provider != 'stripe'
-						OR JSONExtractString(metadata, 'stripe_event_type') != ''
-					)
-				GROUP BY provider, event_type`,
+					AND JSONExtractString(metadata, 'stripe_event_type') != ''
+				GROUP BY event_type`,
 				{
 					ownerId: workspace.organizationId,
 					...(input.websiteId ? { websiteId: input.websiteId } : {}),
@@ -125,7 +116,6 @@ export const revenueRouter = {
 			return rows.map((row) => ({
 				eventType: row.event_type,
 				lastReceivedAt: row.last_received_at,
-				provider: row.provider,
 			}));
 		}),
 

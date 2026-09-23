@@ -31,18 +31,15 @@ const PADDLE_REQUIRED_EVENTS = ["transaction.completed"];
 
 type ExpandedSection = "webhooks" | "stripe" | "paddle" | null;
 
-function RequiredEventList({
-	anyReceived,
-	events,
+function StripeRequiredEventList({
 	lastReceived,
 }: {
-	anyReceived: boolean;
-	events: readonly string[];
 	lastReceived: Map<string, string>;
 }) {
+	const anyReceived = lastReceived.size > 0;
 	return (
 		<div className="space-y-1">
-			{events.map((event) => {
+			{STRIPE_WEBHOOK_EVENTS.required.map(({ event }) => {
 				const receivedAt = lastReceived.get(event);
 				return (
 					<div className="flex items-center justify-between gap-2" key={event}>
@@ -130,18 +127,14 @@ export function RevenueSettingsSheet({
 		isLoading,
 		refetch: refetchConfig,
 	} = useQuery(orpc.revenue.get.queryOptions({ input: { websiteId } }));
-	const { data: webhookEvents } = useQuery(
-		orpc.revenue.webhookEvents.queryOptions({ input: { websiteId } })
+	const { data: stripeWebhookEvents } = useQuery(
+		orpc.revenue.stripeWebhookEvents.queryOptions({ input: { websiteId } })
 	);
 	const stripeEventsReceived = new Map(
-		(webhookEvents ?? [])
-			.filter((row) => row.provider === "stripe")
-			.map((row) => [row.eventType, row.lastReceivedAt])
-	);
-	const paddleEventsReceived = new Map(
-		(webhookEvents ?? [])
-			.filter((row) => row.provider === "paddle")
-			.map((row) => [row.eventType, row.lastReceivedAt])
+		(stripeWebhookEvents ?? []).map((row) => [
+			row.eventType,
+			row.lastReceivedAt,
+		])
 	);
 	const missingStripeEvents =
 		stripeEventsReceived.size > 0 &&
@@ -486,11 +479,7 @@ export function RevenueSettingsSheet({
 												<p className="text-muted-foreground text-xs">
 													Required events
 												</p>
-												<RequiredEventList
-													anyReceived={stripeEventsReceived.size > 0}
-													events={STRIPE_WEBHOOK_EVENTS.required.map(
-														({ event }) => event
-													)}
+												<StripeRequiredEventList
 													lastReceived={stripeEventsReceived}
 												/>
 												{missingStripeEvents ? (
@@ -577,11 +566,16 @@ export function RevenueSettingsSheet({
 												<p className="text-muted-foreground text-xs">
 													Required events
 												</p>
-												<RequiredEventList
-													anyReceived={paddleEventsReceived.size > 0}
-													events={PADDLE_REQUIRED_EVENTS}
-													lastReceived={paddleEventsReceived}
-												/>
+												<div className="flex flex-wrap gap-1">
+													{PADDLE_REQUIRED_EVENTS.map((event) => (
+														<code
+															className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary"
+															key={event}
+														>
+															{event}
+														</code>
+													))}
+												</div>
 											</div>
 										</div>
 									</SettingsSection>
