@@ -1,10 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { cimd } from "@better-auth/cimd";
-import { fetchClientMetadataResource } from "@better-auth/cimd/node";
-import { mcp } from "@better-auth/mcp";
 import * as drizzleSchema from "@databuddy/db/schema";
 import { getSchema } from "better-auth/db";
-import { jwt } from "better-auth/plugins";
+import { oauthAuthOptions } from "./oauth";
 
 const OAUTH_MODELS = [
 	"jwks",
@@ -18,20 +15,7 @@ const OAUTH_MODELS = [
 ] as const;
 
 function expectedOAuthSchema() {
-	return getSchema({
-		plugins: [
-			jwt(),
-			mcp({
-				loginPage: "/login",
-				consentPage: "/consent",
-				resource: "https://api.databuddy.cc/v1/mcp/",
-			}),
-			cimd({
-				fetchClientMetadataResource,
-				metadataProfile: "mcp-2026-07-28",
-			}),
-		],
-	});
+	return getSchema(oauthAuthOptions);
 }
 
 const schema: Record<

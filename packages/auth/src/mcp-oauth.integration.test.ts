@@ -14,7 +14,7 @@ function base64Url(input: Buffer): string {
 }
 
 integration("MCP OAuth authorization round trip", () => {
-	let auth: typeof import("./auth").auth;
+	let auth: typeof import("./oauth").oauthAuth;
 	let dbModule: typeof import("@databuddy/db");
 	let schema: typeof import("@databuddy/db/schema");
 	let config: typeof import("@databuddy/env/app").config;
@@ -30,7 +30,7 @@ integration("MCP OAuth authorization round trip", () => {
 		dbModule = await import("@databuddy/db");
 		schema = await import("@databuddy/db/schema");
 		config = (await import("@databuddy/env/app")).config;
-		auth = (await import("./auth")).auth;
+		auth = (await import("./oauth")).oauthAuth;
 
 		const signUp = await auth.handler(
 			new Request(`${baseURL}/api/auth/sign-up/email`, {
@@ -338,9 +338,9 @@ integration("MCP OAuth authorization round trip", () => {
 		);
 
 		expect(token.status).toBeGreaterThanOrEqual(400);
-		expect((await token.json()) as { access_token?: string }).not.toHaveProperty(
-			"access_token"
-		);
+		expect(
+			(await token.json()) as { access_token?: string }
+		).not.toHaveProperty("access_token");
 	});
 
 	test("publishes authorization server metadata clients discover through", async () => {

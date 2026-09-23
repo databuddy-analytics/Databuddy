@@ -1,12 +1,12 @@
 import {
-	auth,
 	runWithAuthAuditContext,
 	runWithAuthTransaction,
 } from "@databuddy/auth";
+import { oauthAuth } from "@databuddy/auth/oauth";
 import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { toNextJsHandler } from "better-auth/next-js";
 
-const handlers = toNextJsHandler(auth.handler);
+const handlers = toNextJsHandler(oauthAuth.handler);
 
 const auditedOrganizationPaths = new Set([
 	"/organization/create",
@@ -37,7 +37,9 @@ async function withAuditContext<T>(
 			: handler();
 	}
 
-	const session = await auth.api.getSession({ headers: request.headers });
+	const session = await oauthAuth.api.getSession({
+		headers: request.headers,
+	});
 	return runWithAuthAuditContext(
 		{
 			dubClickId,

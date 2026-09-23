@@ -42,15 +42,11 @@ import {
 	type AuditActionDefinition,
 	type AuditActor,
 } from "@databuddy/shared/audit";
-import { cimd } from "@better-auth/cimd";
-import { fetchClientMetadataResource } from "@better-auth/cimd/node";
-import { mcp } from "@better-auth/mcp";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
 import {
 	emailOTP,
-	jwt,
 	lastLoginMethod,
 	magicLink,
 	multiSession,
@@ -439,7 +435,7 @@ function forwardAuthLog(
 	log.info(fields);
 }
 
-export const auth = betterAuth({
+export const baseAuthOptions = {
 	logger: {
 		log: forwardAuthLog,
 	},
@@ -725,16 +721,6 @@ export const auth = betterAuth({
 		},
 	},
 	plugins: [
-		jwt(),
-		mcp({
-			loginPage: "/login",
-			consentPage: "/consent",
-			resource: config.urls.mcp,
-		}),
-		cimd({
-			fetchClientMetadataResource,
-			metadataProfile: "mcp-2026-07-28",
-		}),
 		multiSession({
 			maximumSessions: 5,
 		}),
@@ -1017,7 +1003,9 @@ export const auth = betterAuth({
 			},
 		}),
 	],
-});
+} satisfies Parameters<typeof betterAuth>[0];
+
+export const auth = betterAuth(baseAuthOptions);
 
 export const websitesApi = {
 	hasPermission: auth.api.hasPermission,
