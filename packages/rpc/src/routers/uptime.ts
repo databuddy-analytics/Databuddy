@@ -234,19 +234,36 @@ export const uptimeRouter = {
 				throw rpcError.badRequest("Organization ID is required");
 			}
 
-			await withWorkspace(context, {
-				organizationId,
-				resource: "monitor",
-				permissions: ["create"],
-			});
+			if (input.websiteId) {
+				await withWorkspace(context, {
+					organizationId,
+					websiteId: input.websiteId,
+					resource: "monitor",
+					permissions: ["create"],
+				});
+			} else {
+				await withWorkspace(context, {
+					organizationId,
+					resource: "monitor",
+					permissions: ["create"],
+				});
+			}
 
 			const existing = await db.query.uptimeSchedules.findFirst({
-				where: { url: input.url, organizationId },
+				where: {
+					organizationId,
+					OR: [
+						{ url: input.url },
+						...(input.websiteId ? [{ websiteId: input.websiteId }] : []),
+					],
+				},
 			});
 
 			if (existing) {
 				throw rpcError.conflict(
-					"Monitor already exists for this URL in this organization"
+					existing.url === input.url
+						? "Monitor already exists for this URL in this organization"
+						: "This website already has a monitor"
 				);
 			}
 
