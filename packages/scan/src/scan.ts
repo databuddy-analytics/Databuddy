@@ -151,6 +151,7 @@ const safeError =
 	/^(?:Gateway HTTP [0-9]{3}|No matching cached response; network disabled)$/;
 const shedError = /^(?:Gateway HTTP 5[0-9]{2}|Gateway request timed out)$/;
 const splitDepth = 2;
+const catalogByteLimit = 24_000;
 
 export async function readJSON(path: string): Promise<unknown> {
 	try {
@@ -229,6 +230,8 @@ export async function readSources(root: string) {
 	for (const path of execFileSync("git", ["ls-files", "-z"], {
 		cwd: root,
 		encoding: "utf8",
+		// A large monorepo's path listing exceeds the default child-process buffer.
+		maxBuffer: 64 * 1024 * 1024,
 	})
 		.split("\0")
 		.filter(Boolean)
@@ -296,11 +299,29 @@ export async function readSources(root: string) {
 			});
 		}
 	}
+	// The whole catalog ships in every request, so it must never crowd out the source it describes.
+	// Kept in measured priority order: shared producers carry coverage that locations alone cannot.
+	let budget = catalogByteLimit;
+	const trim = (entries: string[]) => {
+		const kept: string[] = [];
+		for (const entry of entries) {
+			budget -= entry.length + 4;
+			if (budget < 0) {
+				return kept;
+			}
+			kept.push(entry);
+		}
+		return kept;
+	};
+	const coverage = collectCoverage(sources);
 	const catalog = {
-		directTrackingCandidates: [...tracking].sort((left, right) =>
-			left.localeCompare(right)
+		trackingHelpers: trim(coverage.trackingHelpers),
+		trackedRoutes: trim(coverage.trackedRoutes),
+		warehouseWrites: trim(coverage.warehouseWrites),
+		attributeTracking: trim(coverage.attributeTracking),
+		directTrackingCandidates: trim(
+			[...tracking].sort((left, right) => left.localeCompare(right))
 		),
-		...collectCoverage(sources),
 		note: `This is a lexical and syntactic index of possible tracking, deduplicated by call signature, not proof of coverage. Matches can be source examples, unrelated functions or wrappers. Verify executable source, event meaning and outcome before classifying covered. No matches does not prove missing coverage: shared procedures and imported callees may track elsewhere. Audit logs and usage metering alone are not product analytics. Static tracking code does not prove delivery. ${coverageNote}`,
 	};
 	return { inventory, sources, catalog };

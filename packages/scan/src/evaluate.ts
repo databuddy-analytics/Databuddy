@@ -282,7 +282,10 @@ function retryDelay(
 	const duration = Number.isFinite(Number(value))
 		? Number(value) * 1000
 		: Date.parse(value) - Date.now();
-	return Number.isFinite(duration) ? Math.max(0, duration) : 0;
+	// Honour backpressure, but a gateway asking for an hour must not suspend the scan for one.
+	return Number.isFinite(duration)
+		? Math.min(Math.max(0, duration), 60_000)
+		: 0;
 }
 
 export async function requestEvaluation(
