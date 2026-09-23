@@ -425,7 +425,10 @@ function buildInvoiceLinkRecord(
 		rawMetadata: Record<string, string>;
 	}
 ): NormalizedStripeRecord | null {
-	if (Object.keys(input.rawMetadata).length === 0 && !input.customerId) {
+	const linksAVisitor = Object.keys(input.rawMetadata).some((key) =>
+		key.startsWith("databuddy_")
+	);
+	if (!linksAVisitor) {
 		return null;
 	}
 	return {

@@ -639,7 +639,7 @@ describe("normalizeStripeEvent", () => {
 		expect(paid[0]?.rawMetadata).toEqual(succeeded[0]?.rawMetadata);
 	});
 
-	test("omits the invoice link record when there is nothing to carry", () => {
+	test("omits the invoice link record when no databuddy ids are present", () => {
 		const records = normalizeStripeEvent({
 			api_version: "2025-03-31.basil",
 			created: 1_700_000_502,
@@ -650,7 +650,10 @@ describe("normalizeStripeEvent", () => {
 					amount_paid: 900,
 					created: 1_699_000_000,
 					currency: "usd",
+					customer: "cus_bare",
+					description: "Pro plan",
 					id: "in_bare",
+					metadata: { internal_order_id: "ord_1" },
 					status: "paid",
 				},
 			},

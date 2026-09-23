@@ -278,6 +278,7 @@ function buildAttributionCte(
 			FROM ${Analytics.revenue} FINAL
 			WHERE ${directScope}
 				AND provider = 'stripe'
+				AND created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
 				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 				AND JSONExtractString(metadata, 'stripe_record_kind') = 'link'
 				AND JSONExtractString(metadata, 'stripe_invoice_id') != ''

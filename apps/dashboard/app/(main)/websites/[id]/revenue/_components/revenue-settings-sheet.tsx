@@ -36,7 +36,6 @@ function StripeRequiredEventList({
 }: {
 	lastReceived: Map<string, string>;
 }) {
-	const anyReceived = lastReceived.size > 0;
 	return (
 		<div className="space-y-1">
 			{STRIPE_WEBHOOK_EVENTS.required.map(({ event }) => {
@@ -46,19 +45,16 @@ function StripeRequiredEventList({
 						<code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary">
 							{event}
 						</code>
-						{receivedAt ? (
-							<span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-								<CheckCircleIcon className="size-3 text-success" />
-								{fromNow(receivedAt)}
-							</span>
-						) : (
-							<span
-								className={`flex shrink-0 items-center gap-1 text-[11px] ${anyReceived ? "text-warning" : "text-muted-foreground"}`}
-							>
-								{anyReceived ? <WarningCircleIcon className="size-3" /> : null}
-								Never received
-							</span>
-						)}
+						<span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+							{receivedAt ? (
+								<>
+									<CheckCircleIcon className="size-3 text-success" />
+									{fromNow(receivedAt)}
+								</>
+							) : (
+								"No activity in 90 days"
+							)}
+						</span>
 					</div>
 				);
 			})}
@@ -136,11 +132,6 @@ export function RevenueSettingsSheet({
 			row.lastReceivedAt,
 		])
 	);
-	const missingStripeEvents =
-		stripeEventsReceived.size > 0 &&
-		STRIPE_WEBHOOK_EVENTS.required.some(
-			({ event }) => !stripeEventsReceived.has(event)
-		);
 	const savedCurrency = normalizeCurrencyCode(config?.currency);
 	const configuredCurrency =
 		typeof config?.currency === "string"
@@ -424,9 +415,7 @@ export function RevenueSettingsSheet({
 
 									<SettingsSection
 										badge={
-											missingStripeEvents ? (
-												<WarningCircleIcon className="size-4 text-warning" />
-											) : config?.stripeConfigured ? (
+											config?.stripeConfigured ? (
 												<CheckCircleIcon className="size-4 text-success" />
 											) : undefined
 										}
@@ -482,13 +471,11 @@ export function RevenueSettingsSheet({
 												<StripeRequiredEventList
 													lastReceived={stripeEventsReceived}
 												/>
-												{missingStripeEvents ? (
-													<p className="text-[11px] text-warning">
-														Stripe only sends the events your endpoint is
-														subscribed to. Add the missing ones in Stripe, or
-														those payments will never be attributed.
-													</p>
-												) : null}
+												<p className="text-[11px] text-muted-foreground">
+													Timestamps show when Databuddy last recorded each
+													event, not whether Stripe is sending it. Events like
+													refunds only appear once they happen.
+												</p>
 											</div>
 										</div>
 									</SettingsSection>
