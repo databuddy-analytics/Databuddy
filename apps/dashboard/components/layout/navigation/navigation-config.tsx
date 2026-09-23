@@ -8,6 +8,7 @@ import {
 	CodeIcon,
 	CreditCardIcon,
 	CurrencyDollarIcon,
+	DatabaseIcon,
 	EyeIcon,
 	FileDownloadIcon as FileArrowDownIcon,
 	FlagIcon,
@@ -241,6 +242,17 @@ export const websiteNavigation: NavigationGroup[] = [
 			createNavItem("Data Export", FileArrowDownIcon, "/settings/export", {
 				rootLevel: false,
 				hideFromDemo: true,
+			}),
+			createNavItem("Data Import", DatabaseIcon, "/settings/import", {
+				rootLevel: false,
+				hideFromDemo: true,
+				searchTags: [
+					"import",
+					"migrate",
+					"plausible",
+					"simple analytics",
+					"switch from",
+				],
 			}),
 			createNavItem("Setup", CodeIcon, "/settings/tracking", {
 				rootLevel: false,

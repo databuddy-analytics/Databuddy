@@ -57,7 +57,7 @@ function RequiredEventList({
 									{fromNow(receivedAt)}
 								</>
 							) : (
-								"No activity in 90 days"
+								"No delivery in 90 days"
 							)}
 						</span>
 					</div>
@@ -136,13 +136,10 @@ export function RevenueSettingsSheet({
 			.filter((row) => row.provider === "stripe")
 			.map((row) => [row.eventType, row.lastReceivedAt])
 	);
-	const paddleLastReceived = (webhookDeliveries ?? []).find(
-		(row) => row.provider === "paddle"
-	)?.lastReceivedAt;
 	const paddleEventsReceived = new Map(
-		paddleLastReceived
-			? PADDLE_REQUIRED_EVENTS.map((event) => [event, paddleLastReceived])
-			: []
+		(webhookDeliveries ?? [])
+			.filter((row) => row.provider === "paddle")
+			.map((row) => [row.eventType, row.lastReceivedAt])
 	);
 	const savedCurrency = normalizeCurrencyCode(config?.currency);
 	const configuredCurrency =
@@ -485,9 +482,10 @@ export function RevenueSettingsSheet({
 													lastReceived={stripeEventsReceived}
 												/>
 												<p className="text-[11px] text-muted-foreground">
-													Timestamps show when Databuddy last recorded each
-													event, not whether Stripe is sending it. Events like
-													refunds only appear once they happen.
+													Timestamps show when Databuddy last received each
+													event. An event that has not happened yet, such as a
+													refund, shows no delivery even when your endpoint is
+													subscribed to it.
 												</p>
 											</div>
 										</div>

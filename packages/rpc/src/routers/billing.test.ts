@@ -86,6 +86,7 @@ mock.module("../lib/logger", () => ({
 	},
 }));
 mock.module("@databuddy/db/clickhouse", () => ({
+	EXCLUDE_IMPORTED_ROWS: "NOT startsWith(anonymous_id, 'imp_')",
 	chQuery: () => {
 		throw new Error("Unexpected analytics query");
 	},

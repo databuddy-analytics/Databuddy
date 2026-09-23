@@ -13,6 +13,7 @@ import {
 import {
 	formatDate,
 	getWebhookConfig,
+	recordWebhookDelivery,
 	resolveWebsiteId,
 	stripeApiVersion,
 } from "./shared";
@@ -250,9 +251,13 @@ export const stripeWebhook = new Elysia().use(evlog()).post(
 			eventType: event.type,
 			stripeApiVersion: event.api_version,
 		});
+		let recordCount = 0;
+		let status: "failed" | "processed" = "failed";
 		try {
 			const records = normalizeStripeEvent(event);
 			await insertStripeRevenue(config, records, event.api_version);
+			recordCount = records.length;
+			status = "processed";
 			log.set({
 				recordCount: records.length,
 				moneyRecordCount: records.filter(
@@ -266,6 +271,21 @@ export const stripeWebhook = new Elysia().use(evlog()).post(
 		} catch (error) {
 			log.error(error instanceof Error ? error : new Error(String(error)));
 			throw basketErrors.webhookProcessingFailed();
+		} finally {
+			await recordWebhookDelivery({
+				apiVersion: stripeApiVersion(event.api_version),
+				eventId: event.id,
+				eventType: event.type,
+				ownerId: config.ownerId,
+				provider: "stripe",
+				recordCount,
+				status,
+				websiteId: config.websiteId,
+			}).catch((error) => {
+				log.error(error instanceof Error ? error : new Error(String(error)), {
+					webhookDeliveryLog: "write_failed",
+				});
+			});
 		}
 	},
 	{ parse: "none" }

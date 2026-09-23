@@ -10,6 +10,7 @@
     "./feedback": "./src/feedback.ts",
     "./github-app": "./src/github-app.ts",
     "./identity": "./src/identity.ts",
+    "./import": "./src/import/runner.ts",
     "./websites": "./src/websites.ts",
     "./storage": "./src/storage.ts",
     "./organization-business-context": "./src/organization-business-context.ts"
@@ -24,6 +25,7 @@
     "@databuddy/env": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/shared": "workspace:*",
+    "jszip": "^3.10.2",
     "supermemory": "^4.17.0",
     "zod": "^4.4.3"
   },
