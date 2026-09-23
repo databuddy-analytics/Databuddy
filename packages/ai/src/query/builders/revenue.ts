@@ -280,7 +280,7 @@ function buildAttributionCte(
 			WHERE ${directScope}
 				AND provider = 'stripe'
 				AND created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
-				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59')) + INTERVAL 1 DAY
 				AND JSONExtractString(metadata, 'stripe_record_kind') = 'link'
 				AND JSONExtractString(metadata, 'stripe_invoice_id') != ''
 			GROUP BY owner_id, invoice_id
@@ -429,6 +429,12 @@ function buildAttributionCte(
 			UNION DISTINCT
 			SELECT mapped_session_id AS session_id FROM customer_session_map
 			WHERE mapped_session_id IS NOT NULL AND mapped_session_id != ''
+			UNION DISTINCT
+			SELECT session_id FROM stripe_payment_context
+			WHERE session_id != ''
+			UNION DISTINCT
+			SELECT linked_session_id AS session_id FROM stripe_invoice_context
+			WHERE linked_session_id != ''
 		),
 		first_touch_by_session AS (
 			SELECT

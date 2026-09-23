@@ -1350,6 +1350,73 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		).toEqual(["inpay_profile"]);
 	});
 
+	it("stitches an invoice link record created just past the report cutoff", async () => {
+		const organizationId = `organization-${randomUUIDv7()}`;
+		const websiteId = `revenue-link-cutoff-${randomUUIDv7()}`;
+		const sessionId = `session-${randomUUIDv7()}`;
+
+		await clickHouse.insert({
+			table: "analytics.events",
+			format: "JSONEachRow",
+			values: [
+				attributionEvent(websiteId, sessionId, "2026-08-02 11:00:00", null),
+			],
+		});
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					organizationId,
+					"inpay_cutoff",
+					160,
+					"subscription",
+					"completed",
+					stripeMetadata("money", { stripe_invoice_id: "in_cutoff" }),
+					"2026-08-03 23:59:58",
+					{
+						anonymous_id: null,
+						customer_id: "",
+						session_id: null,
+						website_id: websiteId,
+					}
+				),
+				revenueRow(
+					organizationId,
+					"in_cutoff:link",
+					0,
+					"subscription_event",
+					"linked",
+					stripeMetadata("link", { stripe_invoice_id: "in_cutoff" }),
+					"2026-08-04 00:00:02",
+					{
+						customer_id: "",
+						session_id: sessionId,
+						website_id: websiteId,
+					}
+				),
+			],
+		});
+
+		const query = RevenueBuilders.revenue_attribution_overview?.customSql?.({
+			endDate: "2026-08-03",
+			startDate: "2026-08-01",
+			websiteId,
+		});
+		if (!query || typeof query === "string") {
+			throw new Error("Revenue attribution overview did not compile");
+		}
+		const rows = await chQuery<{ name: string; revenue: number | string }>(
+			query.sql,
+			query.params
+		);
+
+		expect(Number(rows.find((row) => row.name === "Attributed")?.revenue)).toBe(
+			160
+		);
+		expect(rows.find((row) => row.name === "Unattributed")).toBeUndefined();
+	});
+
 	it("stitches an invoice link record that arrives after the payment row", async () => {
 		const organizationId = `organization-${randomUUIDv7()}`;
 		const websiteId = `revenue-link-late-${randomUUIDv7()}`;

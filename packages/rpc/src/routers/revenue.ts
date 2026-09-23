@@ -109,7 +109,7 @@ export const revenueRouter = {
 					formatDateTime(max(synced_at), '%Y-%m-%dT%H:%i:%SZ') AS last_received_at
 				FROM analytics.revenue
 				WHERE owner_id = {ownerId:String}
-					${input.websiteId ? "AND website_id = {websiteId:String}" : ""}
+					${input.websiteId ? "AND (website_id = {websiteId:String} OR website_id IS NULL)" : ""}
 					AND synced_at >= now() - INTERVAL 90 DAY
 					AND (
 						provider != 'stripe'
