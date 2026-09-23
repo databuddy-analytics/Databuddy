@@ -543,6 +543,88 @@ describe("normalizeStripeEvent", () => {
 		).toBe(false);
 	});
 
+	test("carries invoice metadata on a link record when the invoice omits payments", () => {
+		const invoiceMetadata = {
+			databuddy_anonymous_id: "anon-sub",
+			databuddy_client_id: "site-sub",
+			databuddy_session_id: "session-sub",
+		};
+		const invoiceRecords = normalizeStripeEvent({
+			api_version: "2025-03-31.basil",
+			created: 1_700_000_500,
+			id: "evt_invoice_no_payments",
+			type: "invoice.paid",
+			data: {
+				object: {
+					amount_paid: 900,
+					created: 1_699_000_000,
+					currency: "usd",
+					customer: "cus_sub",
+					id: "in_no_payments",
+					metadata: invoiceMetadata,
+					status: "paid",
+				},
+			},
+		});
+		const paymentRecords = normalizeStripeEvent({
+			api_version: "2025-03-31.basil",
+			created: 1_700_000_501,
+			id: "evt_inpay_no_payments",
+			type: "invoice_payment.paid",
+			data: {
+				object: {
+					amount_paid: 900,
+					created: 1_700_000_490,
+					currency: "usd",
+					id: "inpay_no_payments",
+					invoice: "in_no_payments",
+					payment: { type: "payment_intent", payment_intent: "pi_sub" },
+					status: "paid",
+				},
+			},
+		});
+
+		expect(invoiceRecords).toMatchObject([
+			{
+				amount: 0,
+				context: { invoiceId: "in_no_payments", recordKind: "link" },
+				customerId: "cus_sub",
+				rawMetadata: invoiceMetadata,
+				status: "linked",
+				transactionId: "in_no_payments:link",
+				type: "subscription_event",
+			},
+		]);
+		expect(paymentRecords).toMatchObject([
+			{
+				amount: 9,
+				context: { invoiceId: "in_no_payments", recordKind: "money" },
+				rawMetadata: {},
+				transactionId: "inpay_no_payments",
+			},
+		]);
+	});
+
+	test("omits the invoice link record when there is nothing to carry", () => {
+		const records = normalizeStripeEvent({
+			api_version: "2025-03-31.basil",
+			created: 1_700_000_502,
+			id: "evt_invoice_bare",
+			type: "invoice.paid",
+			data: {
+				object: {
+					amount_paid: 900,
+					created: 1_699_000_000,
+					currency: "usd",
+					id: "in_bare",
+					status: "paid",
+				},
+			},
+		});
+
+		expect(records).toEqual([]);
+	});
+
 	test("uses requested and remaining invoice amounts for failed partial payments", () => {
 		const failedInvoice = (
 			id: string,
