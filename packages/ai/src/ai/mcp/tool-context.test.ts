@@ -41,7 +41,11 @@ mock.module("@databuddy/api-keys/resolve", () => ({
 	hasKeyScope: () => true,
 	hasWebsiteScopeForOrganization: () => true,
 }));
-mock.module("@databuddy/redis", () => ({ getRedisCache: () => null }));
+const realRedis = await import("@databuddy/redis");
+mock.module("@databuddy/redis", () => ({
+	...realRedis,
+	getRedisCache: () => null,
+}));
 
 const { ensureWebsiteAccess, resolveWebsiteId } = await import(
 	"./tool-context"
