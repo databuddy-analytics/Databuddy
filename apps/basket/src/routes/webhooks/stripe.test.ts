@@ -689,4 +689,24 @@ describe("normalizeStripeEvent", () => {
 			)
 		).toMatchObject({ stripe_event_type: "invoice.paid" });
 	});
+
+	test("records the event API version so payload shape stays answerable", () => {
+		const context = {
+			eventType: "invoice_payment.paid",
+			recordKind: "money",
+		} as const;
+
+		expect(buildStripeMetadata({}, context, "2025-05-28.basil")).toMatchObject({
+			stripe_api_version: "2025-05-28.basil",
+		});
+		expect(buildStripeMetadata({}, context, "2025-03-31")).toMatchObject({
+			stripe_api_version: "2025-03-31",
+		});
+		expect(buildStripeMetadata({}, context)).not.toHaveProperty(
+			"stripe_api_version"
+		);
+		expect(
+			buildStripeMetadata({}, context, "not-a-version")
+		).not.toHaveProperty("stripe_api_version");
+	});
 });
