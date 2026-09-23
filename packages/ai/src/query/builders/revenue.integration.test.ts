@@ -1287,6 +1287,76 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		expect(Number(attributed?.transactions)).toBe(1);
 	});
 
+	it("credits invoice payment money to the visitor from the invoice link record", async () => {
+		const organizationId = `organization-${randomUUIDv7()}`;
+		const websiteId = `profile-invoice-link-${randomUUIDv7()}`;
+		const anonymousId = `anon-${randomUUIDv7()}`;
+		const sessionId = `session-${randomUUIDv7()}`;
+		const at = "2026-08-02 12:00:00";
+
+		await clickHouse.insert({
+			table: "analytics.events",
+			format: "JSONEachRow",
+			values: [
+				attributionEvent(websiteId, sessionId, "2026-08-02 11:00:00", null),
+			],
+		});
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					organizationId,
+					"in_profile_link:link",
+					0,
+					"subscription_event",
+					"linked",
+					stripeMetadata("link", { stripe_invoice_id: "in_profile_link" }),
+					at,
+					{
+						anonymous_id: anonymousId,
+						customer_id: "",
+						session_id: sessionId,
+						website_id: websiteId,
+					}
+				),
+				revenueRow(
+					organizationId,
+					"inpay_profile",
+					140,
+					"subscription",
+					"completed",
+					stripeMetadata("money", { stripe_invoice_id: "in_profile_link" }),
+					at,
+					{
+						anonymous_id: null,
+						customer_id: "",
+						session_id: null,
+						website_id: websiteId,
+					}
+				),
+			],
+		});
+
+		const detailQuery = ProfilesBuilders.profile_revenue?.customSql?.({
+			endDate: "2026-08-03",
+			startDate: "2026-08-01",
+			websiteId,
+			filters: [{ field: "anonymous_id", op: "eq", value: anonymousId }],
+		});
+		if (!detailQuery || typeof detailQuery === "string") {
+			throw new Error("Profile revenue did not compile");
+		}
+		const transactions = await chQuery<{
+			amount: number | string;
+			transaction_id: string;
+		}>(detailQuery.sql, detailQuery.params);
+
+		expect(
+			transactions.map((transaction) => transaction.transaction_id)
+		).toEqual(["inpay_profile"]);
+	});
+
 	it("stitches an invoice link record that arrives after the payment row", async () => {
 		const organizationId = `organization-${randomUUIDv7()}`;
 		const websiteId = `revenue-link-late-${randomUUIDv7()}`;

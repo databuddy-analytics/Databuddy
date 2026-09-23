@@ -540,6 +540,8 @@ function profileActivityCte(
 const ATTRIBUTED_REVENUE_VISITOR_KEY =
 	"if(attributed_profile_id != '', attributed_profile_id, ifNull(attributed_anonymous_id, ''))";
 
+const PROFILE_INVOICE_ID = "JSONExtractString(metadata, 'stripe_invoice_id')";
+
 function stripeProfileContextCtes(visitorPredicate: string): string {
 	const paymentIntentId = paymentIntentIdExpression();
 	return `
@@ -566,6 +568,31 @@ function stripeProfileContextCtes(visitorPredicate: string): string {
           SELECT owner_id, payment_intent_id FROM profile_payment_intents
         )
       GROUP BY owner_id, payment_intent_id
+    ),
+    profile_invoice_ids AS (
+      SELECT DISTINCT
+        owner_id,
+        ${PROFILE_INVOICE_ID} AS invoice_id
+      FROM ${Analytics.revenue}
+      WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
+        AND provider = 'stripe'
+        AND ${visitorPredicate}
+        AND ${PROFILE_INVOICE_ID} != ''
+    ),
+    profile_invoice_context AS (
+      SELECT
+        owner_id,
+        ${PROFILE_INVOICE_ID} AS invoice_id,
+        argMaxIf(profile_id, synced_at, profile_id != '') AS profile_id,
+        argMaxIf(ifNull(anonymous_id, ''), synced_at, ifNull(anonymous_id, '') != '') AS anonymous_id,
+        argMaxIf(ifNull(session_id, ''), synced_at, ifNull(session_id, '') != '') AS session_id
+      FROM ${Analytics.revenue}
+      WHERE provider = 'stripe'
+        AND (owner_id, ${PROFILE_INVOICE_ID}) IN (
+          SELECT owner_id, invoice_id FROM profile_invoice_ids
+        )
+        AND ${PROFILE_INVOICE_ID} != ''
+      GROUP BY owner_id, invoice_id
     )`;
 }
 
@@ -579,6 +606,12 @@ function stripeProfileRevenueScope(): string {
 				SELECT owner_id, payment_intent_id FROM profile_payment_intents
 			)
 		)
+		OR (
+			provider = 'stripe'
+			AND (owner_id, ${PROFILE_INVOICE_ID}) IN (
+				SELECT owner_id, invoice_id FROM profile_invoice_ids
+			)
+		)
 	)`;
 }
 
@@ -587,13 +620,16 @@ function attributedProfileRevenueCte(latestCte: string): string {
     profile_revenue_attributed AS (
       SELECT
         r.*,
-        coalesce(nullIf(r.profile_id, ''), nullIf(context.profile_id, ''), '') AS attributed_profile_id,
-        coalesce(r.anonymous_id, nullIf(context.anonymous_id, '')) AS attributed_anonymous_id,
-        coalesce(r.session_id, nullIf(context.session_id, '')) AS attributed_session_id
+        coalesce(nullIf(r.profile_id, ''), nullIf(context.profile_id, ''), nullIf(invoice_context.profile_id, ''), '') AS attributed_profile_id,
+        coalesce(r.anonymous_id, nullIf(context.anonymous_id, ''), nullIf(invoice_context.anonymous_id, '')) AS attributed_anonymous_id,
+        coalesce(r.session_id, nullIf(context.session_id, ''), nullIf(invoice_context.session_id, '')) AS attributed_session_id
       FROM ${latestCte} r
       LEFT JOIN profile_payment_context context
         ON context.owner_id = r.owner_id
 		AND context.payment_intent_id = ${paymentIntentIdExpression("r")}
+      LEFT JOIN profile_invoice_context invoice_context
+        ON invoice_context.owner_id = r.owner_id
+        AND invoice_context.invoice_id = JSONExtractString(r.metadata, 'stripe_invoice_id')
     )`;
 }
 
