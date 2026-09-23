@@ -36,11 +36,31 @@ function planAfterScenario(
 	return null;
 }
 
+export async function recordSelfAnalyticsEvent(opts: {
+	profileId: string;
+	eventName: string;
+	properties: Record<string, string>;
+	source: string;
+}): Promise<void> {
+	const websiteId = process.env.SELF_ANALYTICS_WEBSITE_ID;
+	if (!websiteId) {
+		return;
+	}
+	await insertLifecycleEvent(
+		websiteId,
+		opts.profileId,
+		opts.eventName,
+		opts.properties,
+		opts.source
+	);
+}
+
 async function insertLifecycleEvent(
 	websiteId: string,
 	customerId: string,
 	eventName: string,
-	properties: Record<string, string>
+	properties: Record<string, string>,
+	source = "billing"
 ): Promise<void> {
 	const [website] = await db
 		.select({ organizationId: websites.organizationId })
@@ -60,7 +80,7 @@ async function insertLifecycleEvent(
 				event_name: eventName,
 				properties: JSON.stringify(properties),
 				profile_id: customerId,
-				source: "billing",
+				source,
 			},
 		],
 		format: "JSONEachRow",

@@ -1,4 +1,3 @@
-import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
 import { Heading, Link, Section, Text } from "@react-email/components";
 import { emailBrand } from "./email-brand";
 import { EmailButton } from "./email-button";
@@ -22,11 +21,37 @@ export interface UsageLimitEmailProps {
 	usageUnit: string;
 }
 
-const LIMIT_HEADINGS: Record<UsageLimitType, string> = {
-	included: "Included allowance used",
-	max_purchase: "Top-up limit reached",
-	spend_limit: "Spending limit reached",
+export type UsageLimitState = "paused" | "overage" | "allowance_used";
+
+const LIMIT_LABELS: Record<UsageLimitType, string> = {
+	included: "included allowance",
+	max_purchase: "top-up limit",
+	spend_limit: "spending limit",
 };
+
+export function usageLimitState(
+	isAvailable: boolean,
+	overageAllowed: boolean
+): UsageLimitState {
+	if (!isAvailable) {
+		return "paused";
+	}
+	return overageAllowed ? "overage" : "allowance_used";
+}
+
+export function usageLimitHeading(
+	state: UsageLimitState,
+	limitType: UsageLimitType
+): string {
+	const label = LIMIT_LABELS[limitType];
+	if (state === "paused") {
+		return `Paused at your ${label}`;
+	}
+	if (state === "overage") {
+		return `Past your ${label}, still running on overage`;
+	}
+	return `${label.charAt(0).toUpperCase()}${label.slice(1)} used`;
+}
 
 export const UsageLimitEmail = ({
 	featureDescription,
@@ -47,9 +72,23 @@ export const UsageLimitEmail = ({
 	const remaining = formatUsageNumber(Math.max(0, remainingAmount));
 	const resetDate = formatResetDate(nextResetAt);
 	const context = organizationName ? ` for ${organizationName}` : "";
-	const accessStatus = isAvailable
-		? "Access remains available."
-		: `Access to ${pausedActivity} is paused.`;
+	const state = usageLimitState(isAvailable, overageAllowed);
+	const resetClause = resetDate
+		? `, or wait until the allowance resets ${resetDate} UTC`
+		: "";
+
+	let accessStatus: string;
+	let detail: string;
+	if (state === "overage") {
+		accessStatus = `Nothing is paused: ${pausedActivity} keeps running, and usage past your allowance is billed as overage.`;
+		detail = `Your billing page shows the overage so far this period and the rate it is charged at${resetDate ? `, and the allowance resets ${resetDate} UTC` : ""}.`;
+	} else if (state === "allowance_used") {
+		accessStatus = `Nothing is paused: ${pausedActivity} keeps running on the ${remaining} ${usageUnit} you have left.`;
+		detail = `Once the remaining ${usageUnit} run out, ${pausedActivity} pauses until you change the billing limit or plan${resetClause}.`;
+	} else {
+		accessStatus = `Access to ${pausedActivity} is paused.`;
+		detail = `Change the billing limit or plan to resume ${pausedActivity}${resetClause}.`;
+	}
 
 	return (
 		<EmailLayout
@@ -61,8 +100,25 @@ export const UsageLimitEmail = ({
 					className="m-0 mb-3 font-semibold text-xl tracking-tight"
 					style={{ color: emailBrand.foreground }}
 				>
-					{featureName}: {LIMIT_HEADINGS[limitType]}
+					{featureName}: {usageLimitHeading(state, limitType)}
 				</Heading>
+			</Section>
+
+			<Section
+				className="my-5 rounded p-4"
+				style={{
+					backgroundColor: emailBrand.inset,
+					border: `1px solid ${isAvailable ? emailBrand.border : emailBrand.amber}`,
+				}}
+			>
+				<Text
+					className="m-0 text-center font-semibold text-sm leading-relaxed"
+					style={{
+						color: isAvailable ? emailBrand.foreground : emailBrand.amber,
+					}}
+				>
+					{accessStatus}
+				</Text>
 			</Section>
 
 			<Section className="mt-4">
@@ -83,11 +139,7 @@ export const UsageLimitEmail = ({
 					className="m-0 mb-4 text-sm leading-relaxed"
 					style={{ color: emailBrand.muted }}
 				>
-					{isAvailable
-						? overageAllowed
-							? `Access to ${pausedActivity} can continue. Additional usage may be billed according to your plan.`
-							: `Access to ${pausedActivity} can continue with the remaining allowance shown above.`
-						: `Access to ${pausedActivity} is currently paused. Change the billing limit or plan to resume it${resetDate ? `, or wait until the allowance resets ${resetDate} UTC` : ""}.`}
+					{detail}
 				</Text>
 			</Section>
 
@@ -117,7 +169,9 @@ export const UsageLimitEmail = ({
 
 			<Section className="text-center">
 				<EmailButton href="https://app.databuddy.cc/billing">
-					Review billing settings
+					{state === "overage"
+						? "See your overage so far"
+						: "Review billing settings"}
 				</EmailButton>
 			</Section>
 
@@ -148,18 +202,19 @@ export const UsageLimitEmail = ({
 };
 
 UsageLimitEmail.PreviewProps = {
-	featureDescription: DATABUNNY_USAGE.description,
-	featureName: DATABUNNY_USAGE.name,
-	isAvailable: false,
-	limitAmount: 350,
+	featureDescription:
+		"Events include page views, custom events, errors, and Web Vitals collected by Databuddy.",
+	featureName: "Event tracking",
+	isAvailable: true,
+	limitAmount: 1_000_000,
 	limitType: "included",
-	nextResetAt: Date.UTC(2026, 7, 1),
+	nextResetAt: Date.UTC(2026, 9, 1),
 	organizationName: "Acme Inc",
-	overageAllowed: false,
-	pausedActivity: DATABUNNY_USAGE.pausedActivity,
+	overageAllowed: true,
+	pausedActivity: "new event collection",
 	remainingAmount: 0,
-	usageAmount: 350,
-	usageUnit: DATABUNNY_USAGE.unit,
+	usageAmount: 1_284_000,
+	usageUnit: "events",
 } satisfies UsageLimitEmailProps;
 
 export default UsageLimitEmail;

@@ -1,9 +1,22 @@
+"use client";
+
+import { APP_EVENTS } from "@databuddy/shared/custom-events";
+import { useEffect } from "react";
+import { trackAppEvent } from "@/lib/app-events";
 import Link from "next/link";
 import { Logo } from "@/components/layout/logo";
 import { CheckCircleIcon } from "@databuddy/ui/icons";
 import { Button } from "@databuddy/ui";
 
 export default function PaymentSuccess() {
+	useEffect(() => {
+		trackAppEvent(
+			APP_EVENTS.checkoutCompleted,
+			{ source: "stripe" },
+			{ flush: true }
+		);
+	}, []);
+
 	return (
 		<div className="flex h-dvh flex-col items-center justify-center bg-background p-4 sm:p-6">
 			<div className="absolute top-8 right-0 left-0 flex justify-center">

@@ -1,8 +1,18 @@
 import type { UptimeGranularity } from "./uptime";
 
-export type MonitorStatus = "up" | "down" | "degraded" | "unknown";
-export type MonitorFreshness = "fresh" | "stale" | "unknown";
-type OverallStatus = "operational" | "degraded" | "outage" | "unknown";
+export const MONITOR_STATUSES = ["up", "down", "degraded", "unknown"] as const;
+export type MonitorStatus = (typeof MONITOR_STATUSES)[number];
+
+export const MONITOR_FRESHNESS = ["fresh", "stale", "unknown"] as const;
+export type MonitorFreshness = (typeof MONITOR_FRESHNESS)[number];
+
+export const OVERALL_STATUSES = [
+	"operational",
+	"degraded",
+	"outage",
+	"unknown",
+] as const;
+export type OverallStatus = (typeof OVERALL_STATUSES)[number];
 
 const GRANULARITY_MS = {
 	minute: 60_000,

@@ -1,5 +1,7 @@
 "use client";
 
+import { APP_EVENTS } from "@databuddy/shared/custom-events";
+import { trackAppEvent } from "@/lib/app-events";
 import {
 	INVESTIGATION_USAGE,
 	investigationQuantitySchema,
@@ -44,6 +46,10 @@ export function InvestigationTopupCard() {
 			return;
 		}
 		setIsAttaching(true);
+		trackAppEvent(APP_EVENTS.topupPurchaseStarted, {
+			feature: "investigation_runs",
+			quantity: parsedQuantity.data,
+		});
 		try {
 			await attach({
 				planId: INVESTIGATION_USAGE.topupPlanId,

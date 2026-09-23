@@ -11,7 +11,13 @@ import {
 	withTransaction,
 } from "@databuddy/db";
 import { usageAlertLog } from "@databuddy/db/schema";
-import { render, UsageAlertEmail, UsageLimitEmail } from "@databuddy/email";
+import {
+	render,
+	UsageAlertEmail,
+	usageLimitHeading,
+	usageLimitState,
+	UsageLimitEmail,
+} from "@databuddy/email";
 import { config, readBooleanEnv } from "@databuddy/env/app";
 import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
 import { SlackProvider } from "@databuddy/notifications";
@@ -495,10 +501,12 @@ export async function handleLimitReached(
 	}
 
 	const feature = getFeatureCopy(feature_id);
-	const isHardStop = !snapshot.isAvailable;
-	const subject = isHardStop
-		? `[Action required] ${feature.name} limit reached`
-		: `${feature.name}: included allowance used`;
+	const state = usageLimitState(snapshot.isAvailable, snapshot.overageAllowed);
+	const heading = usageLimitHeading(state, limit_type);
+	const subject =
+		state === "paused"
+			? `[Action required] ${feature.name}: ${heading}`
+			: `${feature.name}: ${heading}`;
 	mergeWideEvent({ customer_id, feature_id, limit_type });
 
 	return sendAlertEmail({

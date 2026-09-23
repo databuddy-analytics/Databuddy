@@ -1,5 +1,7 @@
 "use client";
 
+import { APP_EVENTS } from "@databuddy/shared/custom-events";
+import { trackAppEvent } from "@/lib/app-events";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
 
@@ -9,6 +11,7 @@ export function useWebsiteTransferToOrg() {
 	const transferMutation = useMutation({
 		...orpc.websites.transferToOrganization.mutationOptions(),
 		onSuccess: (_data, variables) => {
+			trackAppEvent(APP_EVENTS.websiteTransferred, { target: "organization" });
 			queryClient.invalidateQueries({
 				queryKey: orpc.websites.list.key(),
 			});

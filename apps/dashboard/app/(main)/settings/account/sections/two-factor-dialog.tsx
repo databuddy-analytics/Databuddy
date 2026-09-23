@@ -1,5 +1,7 @@
 "use client";
 
+import { APP_EVENTS } from "@databuddy/shared/custom-events";
+import { trackAppEvent } from "@/lib/app-events";
 import { authClient } from "@databuddy/auth/client";
 import { useMutation } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
@@ -155,6 +157,7 @@ export function TwoFactorDialog({
 			return result.data;
 		},
 		onSuccess: () => {
+			trackAppEvent(APP_EVENTS.twoFactorEnabled);
 			toast.success("Two-factor authentication enabled!");
 			setStep("backup");
 			onSuccess();
@@ -170,6 +173,7 @@ export function TwoFactorDialog({
 			return result.data;
 		},
 		onSuccess: () => {
+			trackAppEvent(APP_EVENTS.twoFactorDisabled);
 			toast.success("Two-factor authentication disabled");
 			onSuccess();
 			onOpenChange(false);
