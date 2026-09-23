@@ -186,6 +186,10 @@ function isOrgScope(filterParams?: Record<string, Filter["value"]>): boolean {
 	return filterParams?.__orgLevel === "true";
 }
 
+function attributedDimension(column: string, alias: string): string {
+	return `if(ft_direct.session_id != '', ft_direct.${column}, ft_customer.${column}) as ${alias}`;
+}
+
 function buildAttributionCte(
 	filterParams?: Record<string, Filter["value"]>
 ): string {
@@ -269,6 +273,23 @@ function buildAttributionCte(
 				)
 				AND ${paymentIntentIdExpression} != ''
 			GROUP BY owner_id, payment_intent_id
+		),
+		stripe_invoice_context AS (
+			SELECT
+				owner_id,
+				JSONExtractString(metadata, 'stripe_invoice_id') AS invoice_id,
+				argMaxIf(ifNull(website_id, ''), synced_at, ifNull(website_id, '') != '') AS linked_website_id,
+				argMaxIf(ifNull(anonymous_id, ''), synced_at, ifNull(anonymous_id, '') != '') AS linked_anonymous_id,
+				argMaxIf(ifNull(session_id, ''), synced_at, ifNull(session_id, '') != '') AS linked_session_id,
+				argMaxIf(customer_id, synced_at, customer_id != '') AS linked_customer_id,
+				argMaxIf(ifNull(product_name, ''), synced_at, ifNull(product_name, '') != '') AS linked_product_name
+			FROM ${Analytics.revenue} FINAL
+			WHERE ${directScope}
+				AND provider = 'stripe'
+				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+				AND JSONExtractString(metadata, 'stripe_record_kind') = 'link'
+				AND JSONExtractString(metadata, 'stripe_invoice_id') != ''
+			GROUP BY owner_id, invoice_id
 		),
 		stripe_payment_attempt_rows AS (
 			SELECT
@@ -355,11 +376,11 @@ function buildAttributionCte(
 				r.transaction_id,
 				r.amount AS amount,
 				r.type AS type,
-				coalesce(r.anonymous_id, nullIf(payment_context.anonymous_id, '')) as r_anonymous_id,
-				coalesce(r.session_id, nullIf(payment_context.session_id, '')) as r_session_id,
-				coalesce(nullIf(r.customer_id, ''), nullIf(payment_context.customer_id, '')) as r_customer_id,
+				coalesce(r.anonymous_id, nullIf(payment_context.anonymous_id, ''), nullIf(invoice_context.linked_anonymous_id, '')) as r_anonymous_id,
+				coalesce(r.session_id, nullIf(payment_context.session_id, ''), nullIf(invoice_context.linked_session_id, '')) as r_session_id,
+				coalesce(nullIf(r.customer_id, ''), nullIf(payment_context.customer_id, ''), nullIf(invoice_context.linked_customer_id, '')) as r_customer_id,
 				r.product_id,
-				coalesce(r.product_name, nullIf(payment_context.product_name, '')) as product_name,
+				coalesce(r.product_name, nullIf(payment_context.product_name, ''), nullIf(invoice_context.linked_product_name, '')) as product_name,
 				r.provider,
 				r.currency,
 				r.metadata,
@@ -368,9 +389,13 @@ function buildAttributionCte(
 			LEFT JOIN stripe_payment_context payment_context
 				ON payment_context.owner_id = r.owner_id
 				AND payment_context.payment_intent_id = ${paymentIntentIdExpression.replaceAll("metadata", "r.metadata").replaceAll("transaction_id", "r.transaction_id")}
+			LEFT JOIN stripe_invoice_context invoice_context
+				ON invoice_context.owner_id = r.owner_id
+				AND invoice_context.invoice_id = JSONExtractString(r.metadata, 'stripe_invoice_id')
 			WHERE
 				(${attributedWebsiteScope}
-					OR payment_context.website_id = {websiteId:String})
+					OR payment_context.website_id = {websiteId:String}
+					OR invoice_context.linked_website_id = {websiteId:String})
 				AND r.created >= toDateTime({startDate:String})
 				AND r.created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 				AND r.type != 'subscription_event'
@@ -451,17 +476,17 @@ function buildAttributionCte(
 					WHEN ft_customer.session_id != '' THEN 1
 					ELSE 0
 				END as is_attributed,
-				coalesce(ft_direct.first_country, ft_customer.first_country) as country,
-				coalesce(ft_direct.first_region, ft_customer.first_region) as region,
-				coalesce(ft_direct.first_city, ft_customer.first_city) as city,
-				coalesce(ft_direct.first_browser, ft_customer.first_browser) as browser_name,
-				coalesce(ft_direct.first_device, ft_customer.first_device) as device_type,
-				coalesce(ft_direct.first_os, ft_customer.first_os) as os_name,
-				coalesce(ft_direct.first_referrer, ft_customer.first_referrer) as referrer_domain,
-				coalesce(ft_direct.first_utm_source, ft_customer.first_utm_source) as utm_source,
-				coalesce(ft_direct.first_utm_medium, ft_customer.first_utm_medium) as utm_medium,
-				coalesce(ft_direct.first_utm_campaign, ft_customer.first_utm_campaign) as utm_campaign,
-				coalesce(ft_direct.first_path, ft_customer.first_path) as entry_path
+				${attributedDimension("first_country", "country")},
+				${attributedDimension("first_region", "region")},
+				${attributedDimension("first_city", "city")},
+				${attributedDimension("first_browser", "browser_name")},
+				${attributedDimension("first_device", "device_type")},
+				${attributedDimension("first_os", "os_name")},
+				${attributedDimension("first_referrer", "referrer_domain")},
+				${attributedDimension("first_utm_source", "utm_source")},
+				${attributedDimension("first_utm_medium", "utm_medium")},
+				${attributedDimension("first_utm_campaign", "utm_campaign")},
+				${attributedDimension("first_path", "entry_path")}
 			FROM revenue_base rb
 			LEFT JOIN first_touch_by_session ft_direct
 				ON rb.r_session_id = ft_direct.session_id
