@@ -31,13 +31,12 @@ In the [Stripe dashboard](https://dashboard.stripe.com/webhooks), add an endpoin
 {STRIPE_WEBHOOK_EVENTS.required.map(({ event, purpose }) => (
   <tr key={event}><td><code>{event}</code></td><td>{purpose} ({event === "invoice_payment.paid" ? "required on API 2025-05-28.basil or later" : "required"})</td></tr>
 ))}
-{STRIPE_WEBHOOK_EVENTS.optional.map(({ event, purpose }) => (
-  <tr key={event}><td><code>{event}</code></td><td>{purpose} (optional)</td></tr>
-))}
 </tbody>
 </table>
 
-Databuddy expects Stripe API version `2025-05-28.basil` or later. Keep `payment_intent.succeeded` enabled for one-time payments; `invoice_payment.paid` is the canonical event for payments attached to an invoice. Databuddy uses the immutable InvoicePayment ID, so the same allocation embedded in `invoice.paid` and delivered later as `invoice_payment.paid` is counted once. `invoice.paid` also supplies the invoice-level remainder for payments made outside Stripe; Databuddy records that remainder only when Stripe includes a complete payments list.
+Databuddy expects Stripe API version `2025-05-28.basil` or later, because `invoice_payment.paid` was introduced in that version and is the canonical money event for anything billed through an invoice. Keep `payment_intent.succeeded` enabled for one-time payments.
+
+`invoice.paid` and `invoice_payment.paid` carry different halves of the same fact, and you need both. The payment event carries the amount but references its invoice by ID only, so it cannot see your metadata. The invoice event carries the metadata but no payment amount, because Stripe does not include the invoice's `payments` list in webhook deliveries. Databuddy records the amount from the payment event and joins the metadata from the invoice event, which is why a subscription payment stays unattributed if only one of the two is enabled. Order does not matter, and redelivering either event is safe.
 
 Paste the endpoint's **signing secret** into the Revenue settings so Databuddy can verify each delivery.
 
@@ -119,6 +118,15 @@ device IDs are never stored. Profile IDs are your own user IDs and are stored
 as sent.
 </Callout>
 
+<Callout type="warn">
+Only the browser tracker creates the sessions that revenue attribution joins
+against. Server-side `track()` calls through the Node SDK or the `/track` API
+are stored as custom events, so a session ID you mint on the server has no
+referrer, campaign, country, or device behind it and will resolve as
+unattributed. Take `sessionId` from `getTrackingIds()` in the browser and pass
+it to your server, rather than generating one server-side.
+</Callout>
+
 ## Verify it works
 
 Send a test payment (Stripe test mode works), then check **Website → Revenue**. The transaction appears within seconds of the webhook delivery. If you passed a profile ID, the revenue also shows on that user in **Website → Users**.
@@ -127,4 +135,6 @@ Send a test payment (Stripe test mode works), then check **Website → Revenue**
 
 - **Nothing appears:** confirm the webhook URL matches the generated one exactly and the signing secret is saved in Revenue settings; deliveries with bad signatures are rejected.
 - **Revenue appears but isn't attributed:** the payment had no Databuddy metadata. Attribution only works for payments created after you started passing IDs.
+- **One payment type never attributes:** check that your endpoint subscribes to every required event. Stripe subscribes an endpoint to a fixed event list, and adding a new payment flow does not update it. Revenue settings shows when Databuddy last recorded each event, which helps you spot a type that stopped arriving, but an event that simply has not happened yet (a refund, a failed payment) also shows no activity, so compare it against the event list in your Stripe dashboard rather than treating it as proof.
+- **A session ID you sent isn't recognised:** it has to come from the browser tracker. IDs generated on the server, or sent through server-side `track()`, never produce a joinable session.
 - **Stripe shows failed deliveries:** regenerating webhook URLs invalidates the old path, so update Stripe after regenerating.

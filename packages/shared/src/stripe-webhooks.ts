@@ -17,7 +17,7 @@ export const STRIPE_WEBHOOK_EVENTS = {
 		},
 		{
 			event: "invoice.paid",
-			purpose: "Provides invoice context and records out-of-band payment facts",
+			purpose: "Carries the invoice metadata that links a payment to a visitor",
 		},
 		{
 			event: "invoice_payment.paid",
@@ -34,5 +34,4 @@ export const STRIPE_WEBHOOK_EVENTS = {
 			purpose: "Records each refund",
 		},
 	],
-	optional: [],
 } as const;
