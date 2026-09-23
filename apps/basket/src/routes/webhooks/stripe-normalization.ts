@@ -46,13 +46,10 @@ interface WebhookInvoicePayment {
 	created: number;
 	currency: string;
 	id: string;
-	invoice: string | WebhookInvoiceContext;
+	invoice: string;
 	is_default?: boolean;
 	payment?: {
-		charge?: string | WebhookContextObject | null;
-		payment_intent?: string | WebhookPaymentContext | null;
-		payment_record?: string | WebhookContextObject | null;
-		type: "charge" | "payment_intent" | "payment_record";
+		payment_intent?: string | null;
 	};
 	status: "canceled" | "open" | "paid";
 }
@@ -185,18 +182,6 @@ function getExpandableId(
 	return typeof value === "string" ? value : value.id;
 }
 
-function getCustomerId(
-	value: string | ExpandableObject | null | undefined
-): string | undefined {
-	return getExpandableId(value);
-}
-
-function getExpandedObject<T extends ExpandableObject>(
-	value: string | T | null | undefined
-): T | undefined {
-	return typeof value === "object" && value !== null ? value : undefined;
-}
-
 const STRIPE_REASON_TOKEN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 function reasonToken(value: unknown): string | undefined {
@@ -307,36 +292,12 @@ function buildAttemptRecord(
 	};
 }
 
-function getInvoicePaymentContext(payment: WebhookInvoicePayment): {
-	customerId?: string;
-	productName?: string;
-	rawMetadata: Record<string, string>;
-} {
-	const invoice = getExpandedObject(payment.invoice);
-	const paymentObject =
-		getExpandedObject(payment.payment?.payment_intent) ??
-		getExpandedObject(payment.payment?.charge) ??
-		getExpandedObject(payment.payment?.payment_record);
-	const productName =
-		invoice?.description ?? paymentObject?.description ?? undefined;
-	const resolvedCustomerId =
-		getCustomerId(invoice?.customer) ?? getCustomerId(paymentObject?.customer);
-	return {
-		...(resolvedCustomerId ? { customerId: resolvedCustomerId } : {}),
-		...(productName ? { productName } : {}),
-		rawMetadata: {
-			...paymentObject?.metadata,
-			...(invoice ? getInvoiceMetadata(invoice) : {}),
-		},
-	};
-}
-
 function buildInvoicePaymentRecord(
 	event: StripeWebhookEvent,
 	payment: WebhookInvoicePayment,
 	rawMetadata: Record<string, string> = {},
-	fallbackCustomerId?: string,
-	fallbackProductName?: string
+	resolvedCustomerId?: string,
+	resolvedProductName?: string
 ): NormalizedStripeRecord | null {
 	if (payment.status !== "paid" || !payment.amount_paid) {
 		return null;
@@ -346,10 +307,6 @@ function buildInvoicePaymentRecord(
 		throw new Error("Stripe InvoicePayment is missing invoice identity");
 	}
 	const paymentIntentId = getExpandableId(payment.payment?.payment_intent);
-	const expandedContext = getInvoicePaymentContext(payment);
-	const resolvedCustomerId = fallbackCustomerId ?? expandedContext.customerId;
-	const resolvedProductName =
-		fallbackProductName ?? expandedContext.productName;
 	return {
 		amount: amountFromMinorUnits(
 			payment.amount_paid,
@@ -364,7 +321,7 @@ function buildInvoicePaymentRecord(
 		currency: payment.currency.toUpperCase(),
 		...(resolvedCustomerId ? { customerId: resolvedCustomerId } : {}),
 		...(resolvedProductName ? { productName: resolvedProductName } : {}),
-		rawMetadata: { ...expandedContext.rawMetadata, ...rawMetadata },
+		rawMetadata,
 		status: "completed",
 		transactionId: payment.id,
 		type: "subscription",
@@ -379,7 +336,7 @@ function normalizePaymentIntent(
 	const paymentDetails = {
 		createdUnix: event.created,
 		currency: intent.currency,
-		customerId: getCustomerId(intent.customer),
+		customerId: getExpandableId(intent.customer),
 		paymentIntentId: intent.id,
 		productName: intent.description ?? undefined,
 		rawMetadata: intent.metadata,
@@ -510,7 +467,7 @@ function normalizePaidInvoice(
 ): NormalizedStripeRecord[] {
 	const invoice = event.data.object as WebhookInvoice;
 	const rawMetadata = getInvoiceMetadata(invoice);
-	const invoiceCustomerId = getCustomerId(invoice.customer);
+	const invoiceCustomerId = getExpandableId(invoice.customer);
 	const productName = invoice.description ?? undefined;
 	if (invoice.status !== "paid" || invoice.amount_paid <= 0) {
 		return [];
@@ -563,9 +520,6 @@ function normalizeFailedInvoice(
 	const requestedPaymentIntentId = getExpandableId(
 		requestedPayment?.payment?.payment_intent
 	);
-	const requestedPaymentIntent = getExpandedObject(
-		requestedPayment?.payment?.payment_intent
-	);
 	const amountMinorUnits =
 		requestedPayment?.amount_requested ??
 		(nonNegativeInteger(invoice.amount_remaining)
@@ -578,14 +532,13 @@ function normalizeFailedInvoice(
 		buildAttemptRecord(event, {
 			amountMinorUnits,
 			currency: invoice.currency,
-			customerId: getCustomerId(invoice.customer),
+			customerId: getExpandableId(invoice.customer),
 			invoiceId: invoice.id,
 			...(requestedPaymentIntentId
 				? { paymentIntentId: requestedPaymentIntentId }
 				: {}),
 			productName: invoice.description ?? undefined,
 			rawMetadata: getInvoiceMetadata(invoice),
-			reason: getPaymentFailureContext(requestedPaymentIntent),
 			status: "failed",
 		}),
 	];
@@ -594,7 +547,7 @@ function normalizeFailedInvoice(
 function normalizeRefund(event: StripeWebhookEvent): NormalizedStripeRecord[] {
 	const charge = event.data.object as WebhookCharge;
 	const paymentIntentId = getExpandableId(charge.payment_intent);
-	const refundCustomerId = getCustomerId(charge.customer);
+	const refundCustomerId = getExpandableId(charge.customer);
 	return (charge.refunds?.data ?? []).map((refund) => ({
 		amount: -amountFromMinorUnits(
 			refund.amount,

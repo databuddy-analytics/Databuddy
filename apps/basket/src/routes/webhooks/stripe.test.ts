@@ -679,56 +679,33 @@ describe("normalizeStripeEvent", () => {
 		expect(requested?.context.paymentIntentId).toBe("pi_requested");
 	});
 
-	test("carries expanded invoice context on direct InvoicePayment events", () => {
+	test("cannot recover invoice context from a direct InvoicePayment event", () => {
 		const [record] = normalizeStripeEvent({
 			api_version: "2025-08-27.basil",
 			created: 1_700_000_500,
-			id: "evt_expanded_inpay",
+			id: "evt_direct_inpay",
 			type: "invoice_payment.paid",
 			data: {
 				object: {
 					amount_paid: 300,
 					created: 1_700_000_490,
 					currency: "usd",
-					id: "inpay_expanded",
-					invoice: {
-						customer: "cus_invoice",
-						description: "Pro plan",
-						id: "in_expanded",
-						metadata: { databuddy_session_id: "session-invoice" },
-						parent: {
-							subscription_details: {
-								metadata: { databuddy_profile_id: "profile-subscription" },
-							},
-						},
-					},
-					payment: {
-						payment_intent: {
-							customer: "cus_payment",
-							description: "Fallback plan",
-							id: "pi_expanded",
-							metadata: { databuddy_anonymous_id: "anon-payment" },
-						},
-						type: "payment_intent",
-					},
+					id: "inpay_direct",
+					invoice: "in_direct",
+					payment: { payment_intent: "pi_direct" },
 					status: "paid",
 				},
 			},
 		});
 
 		expect(record).toMatchObject({
-			customerId: "cus_invoice",
-			productName: "Pro plan",
-			rawMetadata: {
-				databuddy_anonymous_id: "anon-payment",
-				databuddy_profile_id: "profile-subscription",
-				databuddy_session_id: "session-invoice",
-			},
-			context: {
-				invoiceId: "in_expanded",
-				paymentIntentId: "pi_expanded",
-			},
+			amount: 3,
+			context: { invoiceId: "in_direct", paymentIntentId: "pi_direct" },
+			rawMetadata: {},
+			transactionId: "inpay_direct",
 		});
+		expect(record?.customerId).toBeUndefined();
+		expect(record?.productName).toBeUndefined();
 	});
 
 	test("retains failed and canceled attempts with intended amount", () => {
@@ -826,7 +803,7 @@ describe("normalizeStripeEvent", () => {
 		});
 	});
 
-	test("reads invoice failure codes from the expanded attempted payment", () => {
+	test("records an invoice failure attempt without a reason Stripe did not send", () => {
 		const [record] = normalizeStripeEvent({
 			api_version: "2025-08-27.basil",
 			created: 1_700_000_401,
@@ -848,17 +825,7 @@ describe("normalizeStripeEvent", () => {
 								id: "inpay_declined",
 								invoice: "in_declined",
 								is_default: true,
-								payment: {
-									payment_intent: {
-										id: "pi_declined",
-										last_payment_error: {
-											code: "card_declined",
-											decline_code: "do_not_honor",
-											type: "card_error",
-										},
-									},
-									type: "payment_intent",
-								},
+								payment: { payment_intent: "pi_declined" },
 								status: "open",
 							},
 						],
@@ -872,12 +839,14 @@ describe("normalizeStripeEvent", () => {
 		expect(record).toMatchObject({
 			amount: 25,
 			context: {
-				failureCode: "card_declined",
-				failureDeclineCode: "do_not_honor",
-				failureType: "card_error",
+				invoiceId: "in_declined",
 				paymentIntentId: "pi_declined",
+				recordKind: "attempt",
 			},
+			status: "failed",
 		});
+		expect(record?.context.failureCode).toBeUndefined();
+		expect(record?.context.failureDeclineCode).toBeUndefined();
 	});
 
 	test("uses economic event time instead of object creation or retry arrival", () => {
