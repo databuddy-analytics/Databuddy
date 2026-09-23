@@ -81,11 +81,11 @@ export const UsageLimitEmail = ({
 	let accessStatus: string;
 	let detail: string;
 	if (state === "overage") {
-		accessStatus = `Nothing is paused: ${pausedActivity} keeps running, and usage past your allowance is billed as overage.`;
+		accessStatus = `Nothing is paused: access to ${pausedActivity} continues, and usage past your allowance is billed as overage.`;
 		detail = `Your billing page shows the overage so far this period and the rate it is charged at${resetDate ? `, and the allowance resets ${resetDate} UTC` : ""}.`;
 	} else if (state === "allowance_used") {
-		accessStatus = `Nothing is paused: ${pausedActivity} keeps running on the ${remaining} ${usageUnit} you have left.`;
-		detail = `Once the remaining ${usageUnit} run out, ${pausedActivity} pauses until you change the billing limit or plan${resetClause}.`;
+		accessStatus = `Nothing is paused: access to ${pausedActivity} continues on the ${remaining} ${usageUnit} you have left.`;
+		detail = `Once the remaining ${usageUnit} run out, access to ${pausedActivity} pauses until you change the billing limit or plan${resetClause}.`;
 	} else {
 		accessStatus = `Access to ${pausedActivity} is paused.`;
 		detail = `Change the billing limit or plan to resume ${pausedActivity}${resetClause}.`;
