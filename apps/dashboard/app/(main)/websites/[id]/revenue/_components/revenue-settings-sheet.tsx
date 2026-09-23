@@ -28,17 +28,22 @@ import {
 const BASKET_URL = publicConfig.urls.basket;
 
 const PADDLE_REQUIRED_EVENTS = ["transaction.completed"];
+const STRIPE_REQUIRED_EVENTS = STRIPE_WEBHOOK_EVENTS.required.map(
+	({ event }) => event
+);
 
 type ExpandedSection = "webhooks" | "stripe" | "paddle" | null;
 
-function StripeRequiredEventList({
+function RequiredEventList({
+	events,
 	lastReceived,
 }: {
+	events: readonly string[];
 	lastReceived: Map<string, string>;
 }) {
 	return (
 		<div className="space-y-1">
-			{STRIPE_WEBHOOK_EVENTS.required.map(({ event }) => {
+			{events.map((event) => {
 				const receivedAt = lastReceived.get(event);
 				return (
 					<div className="flex items-center justify-between gap-2" key={event}>
@@ -123,14 +128,21 @@ export function RevenueSettingsSheet({
 		isLoading,
 		refetch: refetchConfig,
 	} = useQuery(orpc.revenue.get.queryOptions({ input: { websiteId } }));
-	const { data: stripeWebhookEvents } = useQuery(
-		orpc.revenue.stripeWebhookEvents.queryOptions({ input: { websiteId } })
+	const { data: webhookDeliveries } = useQuery(
+		orpc.revenue.webhookDeliveries.queryOptions({ input: { websiteId } })
 	);
 	const stripeEventsReceived = new Map(
-		(stripeWebhookEvents ?? []).map((row) => [
-			row.eventType,
-			row.lastReceivedAt,
-		])
+		(webhookDeliveries ?? [])
+			.filter((row) => row.provider === "stripe")
+			.map((row) => [row.eventType, row.lastReceivedAt])
+	);
+	const paddleLastReceived = (webhookDeliveries ?? []).find(
+		(row) => row.provider === "paddle"
+	)?.lastReceivedAt;
+	const paddleEventsReceived = new Map(
+		paddleLastReceived
+			? PADDLE_REQUIRED_EVENTS.map((event) => [event, paddleLastReceived])
+			: []
 	);
 	const savedCurrency = normalizeCurrencyCode(config?.currency);
 	const configuredCurrency =
@@ -468,7 +480,8 @@ export function RevenueSettingsSheet({
 												<p className="text-muted-foreground text-xs">
 													Required events
 												</p>
-												<StripeRequiredEventList
+												<RequiredEventList
+													events={STRIPE_REQUIRED_EVENTS}
 													lastReceived={stripeEventsReceived}
 												/>
 												<p className="text-[11px] text-muted-foreground">
@@ -535,16 +548,14 @@ export function RevenueSettingsSheet({
 												<p className="text-muted-foreground text-xs">
 													Required events
 												</p>
-												<div className="flex flex-wrap gap-1">
-													{PADDLE_REQUIRED_EVENTS.map((event) => (
-														<code
-															className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary"
-															key={event}
-														>
-															{event}
-														</code>
-													))}
-												</div>
+												<RequiredEventList
+													events={PADDLE_REQUIRED_EVENTS}
+													lastReceived={paddleEventsReceived}
+												/>
+												<p className="text-[11px] text-muted-foreground">
+													Shows when Databuddy last recorded the event, not
+													whether Paddle is sending it.
+												</p>
 											</div>
 										</div>
 									</SettingsSection>

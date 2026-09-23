@@ -64,13 +64,13 @@ export const revenueRouter = {
 			};
 		}),
 
-	stripeWebhookEvents: protectedProcedure
+	webhookDeliveries: protectedProcedure
 		.route({
 			description:
-				"Returns the last time each Stripe webhook event was received. Requires read permission.",
+				"Returns when each provider webhook last produced a record. Requires read permission.",
 			method: "POST",
-			path: "/revenue/stripeWebhookEvents",
-			summary: "Get Stripe webhook event health",
+			path: "/revenue/webhookDeliveries",
+			summary: "Get webhook delivery recency",
 			tags: ["Revenue"],
 		})
 		.input(z.object({ websiteId: z.string().optional() }))
@@ -79,6 +79,7 @@ export const revenueRouter = {
 				z.object({
 					eventType: z.string(),
 					lastReceivedAt: z.string(),
+					provider: z.string(),
 				})
 			)
 		)
@@ -96,17 +97,25 @@ export const revenueRouter = {
 			const rows = await chQuery<{
 				event_type: string;
 				last_received_at: string;
+				provider: string;
 			}>(
 				`SELECT
-					JSONExtractString(metadata, 'stripe_event_type') AS event_type,
+					provider,
+					if(
+						provider = 'stripe',
+						JSONExtractString(metadata, 'stripe_event_type'),
+						''
+					) AS event_type,
 					formatDateTime(max(synced_at), '%Y-%m-%dT%H:%i:%SZ') AS last_received_at
 				FROM analytics.revenue
 				WHERE owner_id = {ownerId:String}
 					${input.websiteId ? "AND website_id = {websiteId:String}" : ""}
-					AND provider = 'stripe'
 					AND synced_at >= now() - INTERVAL 90 DAY
-					AND JSONExtractString(metadata, 'stripe_event_type') != ''
-				GROUP BY event_type`,
+					AND (
+						provider != 'stripe'
+						OR JSONExtractString(metadata, 'stripe_event_type') != ''
+					)
+				GROUP BY provider, event_type`,
 				{
 					ownerId: workspace.organizationId,
 					...(input.websiteId ? { websiteId: input.websiteId } : {}),
@@ -116,6 +125,7 @@ export const revenueRouter = {
 			return rows.map((row) => ({
 				eventType: row.event_type,
 				lastReceivedAt: row.last_received_at,
+				provider: row.provider,
 			}));
 		}),
 
