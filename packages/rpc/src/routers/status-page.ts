@@ -158,6 +158,7 @@ export const statusPageRouter = {
 		.input(z.object({ slug: z.string().min(1).max(100) }))
 		.output(statusPageOutputSchema)
 		.handler(async ({ context, input }) => {
+			await enforcePublicRateLimit(context.headers, "page", 600);
 			await enforcePublicRateLimit(context.headers, `page:${input.slug}`, 120);
 			const { page } = await fetchStatusPageData(input.slug);
 
