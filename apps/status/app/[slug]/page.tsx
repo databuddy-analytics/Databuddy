@@ -5,6 +5,7 @@ import { serializeJsonLd } from "@databuddy/shared/json-ld";
 import { ThemeProvider } from "next-themes";
 import { DATABUDDY_UPTIME_URL, getStatusPageUrl } from "@/lib/status-url";
 import { rpcClient } from "@/lib/orpc";
+import { Branding } from "../_components/branding";
 import { StatusNavbar } from "./_components/status-navbar";
 import { Status } from "./_components/status-page";
 
@@ -193,7 +194,7 @@ export default async function StatusPage({ params }: StatusPageProps) {
 				/>
 
 				<main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-					<div className="mx-auto max-w-[822px] px-4 py-8 sm:px-6">
+					<div className="mx-auto max-w-[822px] px-4 pt-10 pb-16 sm:px-6 sm:pt-14">
 						<script
 							dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
 							type="application/ld+json"
@@ -204,18 +205,18 @@ export default async function StatusPage({ params }: StatusPageProps) {
 								activeIncidentCount={activeIncidentCount}
 								description={page.description ?? undefined}
 								status={data.overallStatus}
+								updatedAt={latestTimestamp}
 							/>
 
-							<Status.IncidentList incidents={data.incidents} />
+							<Status.ActiveIncidents incidents={data.incidents} />
 
-							<Status.MonitorList>
+							<Status.MonitorList days={DAYS}>
 								{data.monitors.map((monitor) => (
 									<Status.MonitorCard
 										anchorId={slugify(monitor.name)}
 										dailyData={monitor.dailyData}
 										days={DAYS}
 										domain={monitor.domain ?? undefined}
-										id={monitor.id}
 										key={monitor.id}
 										lastCheckedAt={monitor.lastCheckedAt}
 										name={monitor.name}
@@ -226,27 +227,26 @@ export default async function StatusPage({ params }: StatusPageProps) {
 								))}
 							</Status.MonitorList>
 
-							<Status.Footer
-								incidents={data.incidents}
-								timestamp={latestTimestamp}
-							/>
+							<Status.PastIncidents incidents={data.incidents} />
 						</Status>
 					</div>
 				</main>
 
 				<footer className="shrink-0 border-border/50 border-t bg-background">
-					<div className="mx-auto flex max-w-[822px] items-center justify-center px-4 py-6 sm:px-6">
-						<p className="text-muted-foreground text-sm">
-							Powered by{" "}
-							<a
-								className="font-semibold text-foreground underline-offset-4 transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:underline"
-								href="https://www.databuddy.cc"
-								rel="noopener noreferrer dofollow"
-								target="_blank"
-							>
-								Databuddy
-							</a>
-						</p>
+					<div className="mx-auto flex max-w-[822px] items-center justify-center px-4 py-4 sm:px-6">
+						<a
+							className="flex items-center gap-2 text-muted-foreground text-xs opacity-80 transition-opacity duration-(--duration-quick) ease-(--ease-smooth) hover:opacity-100"
+							href="https://www.databuddy.cc"
+							rel="noopener noreferrer dofollow"
+							target="_blank"
+						>
+							Powered by
+							<Branding
+								heightPx={13}
+								imageClassName="opacity-70"
+								variant="wordmark"
+							/>
+						</a>
 					</div>
 				</footer>
 			</div>

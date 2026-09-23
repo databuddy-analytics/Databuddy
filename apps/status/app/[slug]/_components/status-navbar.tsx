@@ -22,7 +22,7 @@ export function StatusNavbar({
 	const brand = (
 		<span className="flex min-w-0 items-center gap-2">
 			{logo}
-			<span className="truncate font-medium text-[13px] text-foreground">
+			<span className="truncate font-semibold text-foreground text-sm">
 				{name}
 			</span>
 		</span>
@@ -44,10 +44,10 @@ export function StatusNavbar({
 					brand
 				)}
 
-				<div className="flex items-center gap-1.5">
+				<div className="flex items-center gap-1">
 					{supportUrl ? (
 						<a
-							className="flex h-8 items-center gap-1.5 rounded-md border border-border/60 bg-secondary/40 px-2.5 text-muted-foreground text-xs transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:bg-secondary hover:text-foreground"
+							className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-muted-foreground text-xs transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:bg-secondary hover:text-foreground"
 							href={supportUrl}
 							rel="noopener noreferrer"
 							target="_blank"
@@ -57,7 +57,7 @@ export function StatusNavbar({
 						</a>
 					) : null}
 					<a
-						className="flex h-8 items-center rounded-md bg-primary px-3 font-medium text-primary-foreground text-xs transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:bg-primary/90"
+						className="flex h-8 items-center rounded-md px-2.5 text-muted-foreground text-xs transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:bg-secondary hover:text-foreground"
 						href={DATABUDDY_UPTIME_URL}
 						rel="noopener noreferrer"
 						target="_blank"
