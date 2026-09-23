@@ -449,6 +449,28 @@ export interface WebVitalsSpansInsert {
 	delivery_id?: string;
 }
 
+export interface WebhookDeliveriesRow {
+	owner_id: string;
+	website_id: string | null;
+	provider: string;
+	event_type: string;
+	event_id: string;
+	api_version: string;
+	record_count: number;
+	received_at: string;
+}
+
+export interface WebhookDeliveriesInsert {
+	owner_id: string;
+	website_id?: string | null;
+	provider: string;
+	event_type: string;
+	event_id: string;
+	api_version?: string;
+	record_count?: number;
+	received_at: number | string;
+}
+
 export interface UptimeMonitorRow {
 	site_id: string;
 	url: string;
@@ -513,6 +535,7 @@ export interface ClickHouseTables {
 	outgoing_links: OutgoingLinksRow;
 	revenue: RevenueRow;
 	web_vitals_spans: WebVitalsSpansRow;
+	webhook_deliveries: WebhookDeliveriesRow;
 	uptime_monitor: UptimeMonitorRow;
 }
 
@@ -530,5 +553,6 @@ export const TABLE_COLUMNS = {
 	"analytics.outgoing_links": ["id", "client_id", "anonymous_id", "session_id", "href", "text", "properties", "timestamp"],
 	"analytics.revenue": ["owner_id", "website_id", "transaction_id", "provider", "type", "status", "amount", "original_amount", "original_currency", "currency", "anonymous_id", "session_id", "customer_id", "product_id", "product_name", "metadata", "created", "synced_at", "profile_id"],
 	"analytics.web_vitals_spans": ["client_id", "anonymous_id", "session_id", "timestamp", "path", "metric_name", "metric_value", "delivery_id"],
+	"analytics.webhook_deliveries": ["owner_id", "website_id", "provider", "event_type", "event_id", "api_version", "record_count", "received_at"],
 	"uptime.uptime_monitor": ["site_id", "url", "timestamp", "status", "http_code", "ttfb_ms", "total_ms", "attempt", "retries", "failure_streak", "response_bytes", "content_hash", "redirect_count", "probe_region", "probe_ip", "ssl_expiry", "ssl_valid", "env", "check_type", "user_agent", "error", "json_data"],
 } as const satisfies Record<string, readonly string[]>;

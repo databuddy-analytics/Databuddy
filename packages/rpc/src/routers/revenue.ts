@@ -67,7 +67,7 @@ export const revenueRouter = {
 	webhookDeliveries: protectedProcedure
 		.route({
 			description:
-				"Returns when each provider webhook last produced a record. Requires read permission.",
+				"Returns when each provider webhook event was last delivered. Requires read permission.",
 			method: "POST",
 			path: "/revenue/webhookDeliveries",
 			summary: "Get webhook delivery recency",
@@ -80,6 +80,7 @@ export const revenueRouter = {
 					eventType: z.string(),
 					lastReceivedAt: z.string(),
 					provider: z.string(),
+					recordedCount: z.number(),
 				})
 			)
 		)
@@ -98,23 +99,17 @@ export const revenueRouter = {
 				event_type: string;
 				last_received_at: string;
 				provider: string;
+				recorded_count: string;
 			}>(
 				`SELECT
 					provider,
-					if(
-						provider = 'stripe',
-						JSONExtractString(metadata, 'stripe_event_type'),
-						''
-					) AS event_type,
-					formatDateTime(max(synced_at), '%Y-%m-%dT%H:%i:%SZ') AS last_received_at
-				FROM analytics.revenue
+					event_type,
+					formatDateTime(max(received_at), '%Y-%m-%dT%H:%i:%SZ') AS last_received_at,
+					sum(record_count) AS recorded_count
+				FROM analytics.webhook_deliveries FINAL
 				WHERE owner_id = {ownerId:String}
 					${input.websiteId ? "AND (website_id = {websiteId:String} OR website_id IS NULL)" : ""}
-					AND synced_at >= now() - INTERVAL 90 DAY
-					AND (
-						provider != 'stripe'
-						OR JSONExtractString(metadata, 'stripe_event_type') != ''
-					)
+					AND received_at >= now() - INTERVAL 90 DAY
 				GROUP BY provider, event_type`,
 				{
 					ownerId: workspace.organizationId,
@@ -126,6 +121,7 @@ export const revenueRouter = {
 				eventType: row.event_type,
 				lastReceivedAt: row.last_received_at,
 				provider: row.provider,
+				recordedCount: Number(row.recorded_count),
 			}));
 		}),
 

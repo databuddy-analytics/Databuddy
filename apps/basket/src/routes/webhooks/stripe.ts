@@ -13,6 +13,7 @@ import {
 import {
 	formatDate,
 	getWebhookConfig,
+	recordWebhookDelivery,
 	resolveWebsiteId,
 	stripeApiVersion,
 } from "./shared";
@@ -253,6 +254,19 @@ export const stripeWebhook = new Elysia().use(evlog()).post(
 		try {
 			const records = normalizeStripeEvent(event);
 			await insertStripeRevenue(config, records, event.api_version);
+			await recordWebhookDelivery({
+				apiVersion: stripeApiVersion(event.api_version),
+				eventId: event.id,
+				eventType: event.type,
+				ownerId: config.ownerId,
+				provider: "stripe",
+				recordCount: records.length,
+				websiteId: config.websiteId,
+			}).catch((error: unknown) => {
+				log.error(error instanceof Error ? error : new Error(String(error)), {
+					webhookDeliveryLog: "write_failed",
+				});
+			});
 			log.set({
 				recordCount: records.length,
 				moneyRecordCount: records.filter(
