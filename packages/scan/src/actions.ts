@@ -36,7 +36,26 @@ interface Reference {
 const extension = /\.[cm]?[jt]sx?$/i;
 const intent =
 	/\b(?:copy|export|download|connect|install|upgrade|checkout|subscribe|sign up|register|start trial|accept invitation)\b/i;
-const handlers = new Set(["onClick", "onSubmit", "onCopy"]);
+const selection = /\.on(?:ValueChange|CheckedChange|Select)$/;
+const handlers = new Set([
+	"onClick",
+	"onSubmit",
+	"onCopy",
+	"onValueChange",
+	"onCheckedChange",
+	"onSelect",
+]);
+const writes = new Set([
+	"mutate",
+	"mutateAsync",
+	"writeText",
+	"write",
+	"setItem",
+	"removeItem",
+	"insert",
+	"update",
+	"delete",
+]);
 const routeMethods = new Set([
 	"post",
 	"put",
@@ -632,7 +651,7 @@ export function groupActions(
 			}
 		}
 	});
-	return roots.map((root) => {
+	return roots.flatMap((root) => {
 		const issues = new Set<string>(),
 			sites = new Map<string, Site>(),
 			contexts = new Map<string, string>();
@@ -692,6 +711,7 @@ export function groupActions(
 			}
 		}
 		const visited = new Set<ts.Node>();
+		let commits = false;
 		function evidence(owner: Unit, node: ts.Node, depth: number) {
 			if (visited.has(node)) {
 				return;
@@ -705,21 +725,12 @@ export function groupActions(
 				const callee = child.expression;
 				if (ts.isPropertyAccessExpression(callee)) {
 					const method = callee.name.text;
+					if (writes.has(method)) {
+						commits = true;
+					}
 					if (
-						[
-							"mutate",
-							"mutateAsync",
-							"writeText",
-							"write",
-							"setItem",
-							"removeItem",
-							"insert",
-							"update",
-							"delete",
-							"track",
-							"capture",
-							"logEvent",
-						].includes(method)
+						writes.has(method) ||
+						["track", "capture", "logEvent"].includes(method)
 					) {
 						addSite(owner, child);
 					}
@@ -741,6 +752,9 @@ export function groupActions(
 				}
 				if (trackingCall.test(callee.text)) {
 					addSite(owner, child);
+				}
+				if (callee.text === "fetch") {
+					commits = true;
 				}
 				const resolved = resolve(owner, callee.text, child, issues);
 				if (resolved?.unit.stateSetters.has(resolved.node)) {
@@ -807,14 +821,21 @@ export function groupActions(
 				}
 			}
 		}
+		// A selector inside a form only feeds the submit, which is the action; one that saves on
+		// change is an action itself.
+		if (selection.test(root.label) && !commits) {
+			return [];
+		}
 		const location = site(unit, root.node);
-		return {
-			start: location.start,
-			end: location.end,
-			label: root.label,
-			source: [...contexts.values()].join("\n\n"),
-			sites: [...sites.values()],
-			issues: [...issues],
-		};
+		return [
+			{
+				start: location.start,
+				end: location.end,
+				label: root.label,
+				source: [...contexts.values()].join("\n\n"),
+				sites: [...sites.values()],
+				issues: [...issues],
+			},
+		];
 	});
 }

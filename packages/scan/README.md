@@ -44,6 +44,6 @@ TypeScript source compiles to `dist/cli.js`. Commander handles arguments, Zod va
 
 Quality tests use synthetic source to reproduce the reviewed misses, duplicate flags, noise, and ambiguous callbacks. They verify extraction and evidence, not model accuracy. The optional live comparison uses 20 previously reviewed Databuddy targets, keeps review labels out of prompts, and reports unmatched or ambiguous targets separately. This selected set is a regression check, not a whole-repository accuracy estimate. It sends source through the same Gateway account as a normal scan.
 
-Grouping is the default, on a 190-item labelled intersection where it raised covered precision from 51.6% to 93.9% (McNemar p=0.027) at 2.4x the speed of whole-file review. Known gaps: only `onClick`, `onSubmit` and `onCopy` seed a candidate, so selector-driven workflows using `onValueChange`, `onCheckedChange` or `onSelect` are missed; docs-copy and upgrade controls still classify as operational.
+Grouping is the default, on a 190-item labelled intersection where it raised covered precision from 51.6% to 93.9% (McNemar p=0.027) at 2.4x the speed of whole-file review. `onValueChange`, `onCheckedChange` and `onSelect` seed a candidate only when the handler writes something, so a toggle that saves on change is reviewed while a field that feeds a form's submit is not. Known gap: docs-copy and upgrade controls still classify as operational.
 
 Licensed under MIT; see [LICENSE](LICENSE).
