@@ -56,6 +56,8 @@ const writes = new Set([
 	"update",
 	"delete",
 ]);
+const httpWrites = new Set(["post", "put", "patch"]);
+const readMethod = /^(?:get|head|options)$/i;
 const routeMethods = new Set([
 	"post",
 	"put",
@@ -75,6 +77,27 @@ const afterHook = /^after[A-Z]/;
 const hookContainer = /^(?:hooks|organizationHooks|databaseHooks)$/;
 const trackingCall = /^(?:track|capture|logEvent)/;
 
+function writesOverFetch(
+	call: ts.CallExpression,
+	owner: { file: ts.SourceFile }
+) {
+	const init = call.arguments[1];
+	if (!(init && ts.isObjectLiteralExpression(init))) {
+		return false;
+	}
+	const method = init.properties.find(
+		(property) =>
+			ts.isPropertyAssignment(property) &&
+			property.name.getText(owner.file) === "method"
+	);
+	if (!(method && ts.isPropertyAssignment(method))) {
+		return false;
+	}
+	return !(
+		ts.isStringLiteralLike(method.initializer) &&
+		readMethod.test(method.initializer.text)
+	);
+}
 function walk(node: ts.Node, visit: (node: ts.Node) => void) {
 	visit(node);
 	ts.forEachChild(node, (child) => walk(child, visit));
@@ -725,7 +748,7 @@ export function groupActions(
 				const callee = child.expression;
 				if (ts.isPropertyAccessExpression(callee)) {
 					const method = callee.name.text;
-					if (writes.has(method)) {
+					if (writes.has(method) || httpWrites.has(method)) {
 						commits = true;
 					}
 					if (
@@ -753,7 +776,7 @@ export function groupActions(
 				if (trackingCall.test(callee.text)) {
 					addSite(owner, child);
 				}
-				if (callee.text === "fetch") {
+				if (callee.text === "fetch" && writesOverFetch(child, owner)) {
 					commits = true;
 				}
 				const resolved = resolve(owner, callee.text, child, issues);
