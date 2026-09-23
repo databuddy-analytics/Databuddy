@@ -1,4 +1,8 @@
-import { buildRevenueLatestCte } from "@databuddy/db/clickhouse";
+import {
+	buildRevenueLatestCte,
+	paymentIntentIdExpression,
+	stripeContextAggregates,
+} from "@databuddy/db/clickhouse";
 import { STRIPE_FAILURE_WEBHOOK_EVENTS } from "@databuddy/shared/stripe-webhooks";
 import { Analytics } from "../../types/tables";
 import { escapeLikePattern } from "../simple-builder";
@@ -186,6 +190,10 @@ function isOrgScope(filterParams?: Record<string, Filter["value"]>): boolean {
 	return filterParams?.__orgLevel === "true";
 }
 
+function attributedDimension(column: string, alias: string): string {
+	return `if(ft_direct.session_id != '', ft_direct.${column}, ft_customer.${column}) as ${alias}`;
+}
+
 function buildAttributionCte(
 	filterParams?: Record<string, Filter["value"]>
 ): string {
@@ -196,11 +204,7 @@ function buildAttributionCte(
 	const eventScope = orgScope
 		? "client_id IN {websiteIds:Array(String)}"
 		: "client_id = {websiteId:String}";
-	const paymentIntentIdExpression = `if(
-		JSONExtractString(metadata, 'stripe_payment_intent_id') != '',
-		JSONExtractString(metadata, 'stripe_payment_intent_id'),
-		if(startsWith(transaction_id, 'pi_'), transaction_id, '')
-	)`;
+	const paymentIntentId = paymentIntentIdExpression();
 	const relatedStripeScope = `(
 		${directScope}
 		OR (
@@ -231,44 +235,55 @@ function buildAttributionCte(
 		scoped_stripe_payment_intents AS (
 			SELECT DISTINCT
 				owner_id,
-				${paymentIntentIdExpression} AS payment_intent_id
+				${paymentIntentId} AS payment_intent_id
 			FROM ${Analytics.revenue} FINAL
 			WHERE ${directScope}
 				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 				AND provider = 'stripe'
-				AND ${paymentIntentIdExpression} != ''
+				AND ${paymentIntentId} != ''
 		),
 		linked_payment_intents AS (
 			SELECT DISTINCT
 				owner_id,
-				${paymentIntentIdExpression} AS payment_intent_id
+				${paymentIntentId} AS payment_intent_id
 			FROM revenue_latest_range
 			WHERE provider = 'stripe'
 				AND type IN ('sale', 'subscription')
 				AND status = 'completed'
 				AND JSONExtractString(metadata, 'stripe_record_kind') = 'money'
 				AND JSONExtractString(metadata, 'stripe_invoice_id') != ''
-				AND ${paymentIntentIdExpression} != ''
+				AND ${paymentIntentId} != ''
 		),
 		stripe_payment_context AS (
 			SELECT
 				owner_id,
-				${paymentIntentIdExpression} AS payment_intent_id,
-				argMaxIf(ifNull(website_id, ''), synced_at, ifNull(website_id, '') != '') AS website_id,
-				argMaxIf(ifNull(anonymous_id, ''), synced_at, ifNull(anonymous_id, '') != '') AS anonymous_id,
-				argMaxIf(ifNull(session_id, ''), synced_at, ifNull(session_id, '') != '') AS session_id,
-				argMaxIf(customer_id, synced_at, customer_id != '') AS customer_id,
-				argMaxIf(ifNull(product_name, ''), synced_at, ifNull(product_name, '') != '') AS product_name
+				${paymentIntentId} AS payment_intent_id,
+				${stripeContextAggregates()}
 			FROM ${Analytics.revenue} FINAL
 			WHERE provider = 'stripe'
+				AND type != 'refund'
 				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				AND (owner_id, ${paymentIntentIdExpression}) IN (
+				AND (owner_id, ${paymentIntentId}) IN (
 					SELECT owner_id, payment_intent_id FROM scoped_stripe_payment_intents
 					UNION DISTINCT
 					SELECT owner_id, payment_intent_id FROM linked_payment_intents
 				)
-				AND ${paymentIntentIdExpression} != ''
+				AND ${paymentIntentId} != ''
 			GROUP BY owner_id, payment_intent_id
+		),
+		stripe_invoice_context AS (
+			SELECT
+				owner_id,
+				JSONExtractString(metadata, 'stripe_invoice_id') AS invoice_id,
+				${stripeContextAggregates("linked_")}
+			FROM ${Analytics.revenue} FINAL
+			WHERE ${directScope}
+				AND provider = 'stripe'
+				AND created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
+				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59')) + INTERVAL 1 DAY
+				AND JSONExtractString(metadata, 'stripe_record_kind') = 'link'
+				AND JSONExtractString(metadata, 'stripe_invoice_id') != ''
+			GROUP BY owner_id, invoice_id
 		),
 		stripe_payment_attempt_rows AS (
 			SELECT
@@ -355,11 +370,11 @@ function buildAttributionCte(
 				r.transaction_id,
 				r.amount AS amount,
 				r.type AS type,
-				coalesce(r.anonymous_id, nullIf(payment_context.anonymous_id, '')) as r_anonymous_id,
-				coalesce(r.session_id, nullIf(payment_context.session_id, '')) as r_session_id,
-				coalesce(nullIf(r.customer_id, ''), nullIf(payment_context.customer_id, '')) as r_customer_id,
+				coalesce(r.anonymous_id, nullIf(payment_context.anonymous_id, ''), nullIf(invoice_context.linked_anonymous_id, '')) as r_anonymous_id,
+				coalesce(r.session_id, nullIf(payment_context.session_id, ''), nullIf(invoice_context.linked_session_id, '')) as r_session_id,
+				coalesce(nullIf(r.customer_id, ''), nullIf(payment_context.customer_id, ''), nullIf(invoice_context.linked_customer_id, '')) as r_customer_id,
 				r.product_id,
-				coalesce(r.product_name, nullIf(payment_context.product_name, '')) as product_name,
+				coalesce(r.product_name, nullIf(payment_context.product_name, ''), nullIf(invoice_context.linked_product_name, '')) as product_name,
 				r.provider,
 				r.currency,
 				r.metadata,
@@ -367,10 +382,14 @@ function buildAttributionCte(
 			FROM revenue_latest_range r
 			LEFT JOIN stripe_payment_context payment_context
 				ON payment_context.owner_id = r.owner_id
-				AND payment_context.payment_intent_id = ${paymentIntentIdExpression.replaceAll("metadata", "r.metadata").replaceAll("transaction_id", "r.transaction_id")}
+				AND payment_context.payment_intent_id = ${paymentIntentIdExpression("r")}
+			LEFT JOIN stripe_invoice_context invoice_context
+				ON invoice_context.owner_id = r.owner_id
+				AND invoice_context.invoice_id = JSONExtractString(r.metadata, 'stripe_invoice_id')
 			WHERE
 				(${attributedWebsiteScope}
-					OR payment_context.website_id = {websiteId:String})
+					OR payment_context.website_id = {websiteId:String}
+					OR invoice_context.linked_website_id = {websiteId:String})
 				AND r.created >= toDateTime({startDate:String})
 				AND r.created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 				AND r.type != 'subscription_event'
@@ -410,6 +429,12 @@ function buildAttributionCte(
 			UNION DISTINCT
 			SELECT mapped_session_id AS session_id FROM customer_session_map
 			WHERE mapped_session_id IS NOT NULL AND mapped_session_id != ''
+			UNION DISTINCT
+			SELECT session_id FROM stripe_payment_context
+			WHERE session_id != ''
+			UNION DISTINCT
+			SELECT linked_session_id AS session_id FROM stripe_invoice_context
+			WHERE linked_session_id != ''
 		),
 		first_touch_by_session AS (
 			SELECT
@@ -451,17 +476,17 @@ function buildAttributionCte(
 					WHEN ft_customer.session_id != '' THEN 1
 					ELSE 0
 				END as is_attributed,
-				coalesce(ft_direct.first_country, ft_customer.first_country) as country,
-				coalesce(ft_direct.first_region, ft_customer.first_region) as region,
-				coalesce(ft_direct.first_city, ft_customer.first_city) as city,
-				coalesce(ft_direct.first_browser, ft_customer.first_browser) as browser_name,
-				coalesce(ft_direct.first_device, ft_customer.first_device) as device_type,
-				coalesce(ft_direct.first_os, ft_customer.first_os) as os_name,
-				coalesce(ft_direct.first_referrer, ft_customer.first_referrer) as referrer_domain,
-				coalesce(ft_direct.first_utm_source, ft_customer.first_utm_source) as utm_source,
-				coalesce(ft_direct.first_utm_medium, ft_customer.first_utm_medium) as utm_medium,
-				coalesce(ft_direct.first_utm_campaign, ft_customer.first_utm_campaign) as utm_campaign,
-				coalesce(ft_direct.first_path, ft_customer.first_path) as entry_path
+				${attributedDimension("first_country", "country")},
+				${attributedDimension("first_region", "region")},
+				${attributedDimension("first_city", "city")},
+				${attributedDimension("first_browser", "browser_name")},
+				${attributedDimension("first_device", "device_type")},
+				${attributedDimension("first_os", "os_name")},
+				${attributedDimension("first_referrer", "referrer_domain")},
+				${attributedDimension("first_utm_source", "utm_source")},
+				${attributedDimension("first_utm_medium", "utm_medium")},
+				${attributedDimension("first_utm_campaign", "utm_campaign")},
+				${attributedDimension("first_path", "entry_path")}
 			FROM revenue_base rb
 			LEFT JOIN first_touch_by_session ft_direct
 				ON rb.r_session_id = ft_direct.session_id
@@ -587,17 +612,8 @@ const REVENUE_METRICS = `
 function dimensionCase(column: string, fallback: string): string {
 	return `CASE
 		WHEN is_attributed = 0 THEN 'Unattributed'
-		WHEN ${column} = '' OR ${column} IS NULL THEN '${fallback}'
-		ELSE ${column}
+		ELSE coalesce(nullIf(${column}, ''), '${fallback}')
 	END`;
-}
-
-function recentTransactionDimension(
-	column: string,
-	fallback: string,
-	alias: string
-): string {
-	return `CASE WHEN is_attributed = 0 THEN 'Unattributed' ELSE coalesce(nullIf(${column}, ''), '${fallback}') END as ${alias}`;
 }
 
 const REVENUE_BREAKDOWN_FIELDS = [
@@ -984,6 +1000,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 				groupBy: "revenue_provider, product_name, product_id, currency",
 				orderBy: "revenue DESC",
 				limit,
+				extraConditions: ["type != 'refund'"],
 			}),
 			50
 		),
@@ -1318,12 +1335,12 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 				product_name,
 				created,
 				is_attributed,
-				${recentTransactionDimension("country", "Unknown", "country")},
-				${recentTransactionDimension("browser_name", "Unknown", "browser_name")},
-				${recentTransactionDimension("device_type", "Unknown", "device_type")},
-				${recentTransactionDimension("referrer_domain", "Direct", "referrer")},
-				${recentTransactionDimension("utm_source", "None", "utm_source")},
-				${recentTransactionDimension("utm_campaign", "None", "utm_campaign")}`,
+				${dimensionCase("country", "Unknown")} as country,
+				${dimensionCase("browser_name", "Unknown")} as browser_name,
+				${dimensionCase("device_type", "Unknown")} as device_type,
+				${dimensionCase("referrer_domain", "Direct")} as referrer,
+				${dimensionCase("utm_source", "None")} as utm_source,
+				${dimensionCase("utm_campaign", "None")} as utm_campaign`,
 				orderBy: "created DESC",
 				limit,
 				extraConditions: ["type != 'refund'"],

@@ -6,6 +6,14 @@ export function formatDate(date: Date): string {
 	return date.toISOString().replace("T", " ").replace(DATE_REGEX, "");
 }
 
+const STRIPE_API_VERSION = /^\d{4}-\d{2}-\d{2}(\.[a-z]+)?$/;
+
+export function stripeApiVersion(value: unknown): string | undefined {
+	return typeof value === "string" && STRIPE_API_VERSION.test(value)
+		? value
+		: undefined;
+}
+
 export async function getWebhookConfig<K extends string>(
 	hash: string,
 	secretField: K,

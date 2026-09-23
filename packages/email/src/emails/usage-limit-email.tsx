@@ -1,3 +1,4 @@
+import { EVENTS_USAGE } from "@databuddy/shared/billing";
 import { Heading, Link, Section, Text } from "@react-email/components";
 import { emailBrand } from "./email-brand";
 import { EmailButton } from "./email-button";
@@ -80,11 +81,11 @@ export const UsageLimitEmail = ({
 	let accessStatus: string;
 	let detail: string;
 	if (state === "overage") {
-		accessStatus = `Nothing is paused: ${pausedActivity} keeps running, and usage past your allowance is billed as overage.`;
+		accessStatus = `Nothing is paused: access to ${pausedActivity} continues, and usage past your allowance is billed as overage.`;
 		detail = `Your billing page shows the overage so far this period and the rate it is charged at${resetDate ? `, and the allowance resets ${resetDate} UTC` : ""}.`;
 	} else if (state === "allowance_used") {
-		accessStatus = `Nothing is paused: ${pausedActivity} keeps running on the ${remaining} ${usageUnit} you have left.`;
-		detail = `Once the remaining ${usageUnit} run out, ${pausedActivity} pauses until you change the billing limit or plan${resetClause}.`;
+		accessStatus = `Nothing is paused: access to ${pausedActivity} continues on the ${remaining} ${usageUnit} you have left.`;
+		detail = `Once the remaining ${usageUnit} run out, access to ${pausedActivity} pauses until you change the billing limit or plan${resetClause}.`;
 	} else {
 		accessStatus = `Access to ${pausedActivity} is paused.`;
 		detail = `Change the billing limit or plan to resume ${pausedActivity}${resetClause}.`;
@@ -202,19 +203,18 @@ export const UsageLimitEmail = ({
 };
 
 UsageLimitEmail.PreviewProps = {
-	featureDescription:
-		"Events include page views, custom events, errors, and Web Vitals collected by Databuddy.",
-	featureName: "Event tracking",
+	featureDescription: EVENTS_USAGE.description,
+	featureName: EVENTS_USAGE.name,
 	isAvailable: true,
 	limitAmount: 1_000_000,
 	limitType: "included",
 	nextResetAt: Date.UTC(2026, 9, 1),
 	organizationName: "Acme Inc",
 	overageAllowed: true,
-	pausedActivity: "new event collection",
+	pausedActivity: EVENTS_USAGE.pausedActivity,
 	remainingAmount: 0,
 	usageAmount: 1_284_000,
-	usageUnit: "events",
+	usageUnit: EVENTS_USAGE.unit,
 } satisfies UsageLimitEmailProps;
 
 export default UsageLimitEmail;

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "@databuddy/db";
+import { chQuery } from "@databuddy/db/clickhouse";
 import { revenueConfig } from "@databuddy/db/schema";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -61,6 +62,71 @@ export const revenueRouter = {
 				createdAt: config.createdAt,
 				updatedAt: config.updatedAt,
 			};
+		}),
+
+	webhookDeliveries: protectedProcedure
+		.route({
+			description:
+				"Returns when each provider webhook last produced a record. Requires read permission.",
+			method: "POST",
+			path: "/revenue/webhookDeliveries",
+			summary: "Get webhook delivery recency",
+			tags: ["Revenue"],
+		})
+		.input(z.object({ websiteId: z.string().optional() }))
+		.output(
+			z.array(
+				z.object({
+					eventType: z.string(),
+					lastReceivedAt: z.string(),
+					provider: z.string(),
+				})
+			)
+		)
+		.handler(async ({ context, input }) => {
+			const workspace = input.websiteId
+				? await withWorkspace(context, {
+						websiteId: input.websiteId,
+						permissions: ["read"],
+					})
+				: await withWorkspace(context, {
+						resource: "website",
+						permissions: ["update"],
+					});
+
+			const rows = await chQuery<{
+				event_type: string;
+				last_received_at: string;
+				provider: string;
+			}>(
+				`SELECT
+					provider,
+					if(
+						provider = 'stripe',
+						JSONExtractString(metadata, 'stripe_event_type'),
+						''
+					) AS event_type,
+					formatDateTime(max(synced_at), '%Y-%m-%dT%H:%i:%SZ') AS last_received_at
+				FROM analytics.revenue
+				WHERE owner_id = {ownerId:String}
+					${input.websiteId ? "AND (website_id = {websiteId:String} OR website_id IS NULL)" : ""}
+					AND synced_at >= now() - INTERVAL 90 DAY
+					AND (
+						provider != 'stripe'
+						OR JSONExtractString(metadata, 'stripe_event_type') != ''
+					)
+				GROUP BY provider, event_type`,
+				{
+					ownerId: workspace.organizationId,
+					...(input.websiteId ? { websiteId: input.websiteId } : {}),
+				}
+			);
+
+			return rows.map((row) => ({
+				eventType: row.event_type,
+				lastReceivedAt: row.last_received_at,
+				provider: row.provider,
+			}));
 		}),
 
 	upsert: auditedSessionProcedure

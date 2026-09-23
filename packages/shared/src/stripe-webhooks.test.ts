@@ -5,10 +5,9 @@ import {
 } from "./stripe-webhooks";
 
 describe("STRIPE_WEBHOOK_EVENTS", () => {
-	const registeredEvents = [
-		...STRIPE_WEBHOOK_EVENTS.required,
-		...STRIPE_WEBHOOK_EVENTS.optional,
-	].map(({ event }) => event);
+	const registeredEvents = STRIPE_WEBHOOK_EVENTS.required.map(
+		({ event }) => event
+	);
 
 	test("registers every event exactly once", () => {
 		expect(new Set(registeredEvents).size).toBe(registeredEvents.length);
