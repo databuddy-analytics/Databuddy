@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS uptime.uptime_monitor
 	`retries` UInt8 DEFAULT 0 CODEC(ZSTD(1)),
 	`failure_streak` UInt16 DEFAULT 0 CODEC(ZSTD(1)),
 	`response_bytes` UInt32 DEFAULT 0 CODEC(ZSTD(1)),
+	`content_hash` String CODEC(ZSTD(1)),
 	`redirect_count` UInt8 DEFAULT 0 CODEC(ZSTD(1)),
 	`probe_region` LowCardinality(String) DEFAULT 'default',
 	`probe_ip` String CODEC(ZSTD(1)),
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS uptime.uptime_monitor
 	`check_type` LowCardinality(String) DEFAULT 'http',
 	`user_agent` String DEFAULT 'uptime-monitor',
 	`error` String DEFAULT '' CODEC(ZSTD(1)),
+	`json_data` String DEFAULT '' CODEC(ZSTD(1)),
 	INDEX idx_site_id site_id TYPE bloom_filter(0.01) GRANULARITY 1,
 	INDEX idx_status status TYPE minmax GRANULARITY 1,
 	INDEX idx_timestamp timestamp TYPE minmax GRANULARITY 1
