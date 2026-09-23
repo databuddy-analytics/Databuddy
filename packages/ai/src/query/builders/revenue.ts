@@ -604,17 +604,8 @@ const REVENUE_METRICS = `
 function dimensionCase(column: string, fallback: string): string {
 	return `CASE
 		WHEN is_attributed = 0 THEN 'Unattributed'
-		WHEN ${column} = '' OR ${column} IS NULL THEN '${fallback}'
-		ELSE ${column}
+		ELSE coalesce(nullIf(${column}, ''), '${fallback}')
 	END`;
-}
-
-function recentTransactionDimension(
-	column: string,
-	fallback: string,
-	alias: string
-): string {
-	return `CASE WHEN is_attributed = 0 THEN 'Unattributed' ELSE coalesce(nullIf(${column}, ''), '${fallback}') END as ${alias}`;
 }
 
 const REVENUE_BREAKDOWN_FIELDS = [
@@ -1335,12 +1326,12 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 				product_name,
 				created,
 				is_attributed,
-				${recentTransactionDimension("country", "Unknown", "country")},
-				${recentTransactionDimension("browser_name", "Unknown", "browser_name")},
-				${recentTransactionDimension("device_type", "Unknown", "device_type")},
-				${recentTransactionDimension("referrer_domain", "Direct", "referrer")},
-				${recentTransactionDimension("utm_source", "None", "utm_source")},
-				${recentTransactionDimension("utm_campaign", "None", "utm_campaign")}`,
+				${dimensionCase("country", "Unknown")} as country,
+				${dimensionCase("browser_name", "Unknown")} as browser_name,
+				${dimensionCase("device_type", "Unknown")} as device_type,
+				${dimensionCase("referrer_domain", "Direct")} as referrer,
+				${dimensionCase("utm_source", "None")} as utm_source,
+				${dimensionCase("utm_campaign", "None")} as utm_campaign`,
 				orderBy: "created DESC",
 				limit,
 				extraConditions: ["type != 'refund'"],
