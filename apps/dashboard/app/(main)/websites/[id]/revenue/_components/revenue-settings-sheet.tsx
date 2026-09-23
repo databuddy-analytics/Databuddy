@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { orpc } from "@/lib/orpc";
 import { Accordion, Sheet } from "@databuddy/ui/client";
-import { Button, EmptyState, Field, Input } from "@databuddy/ui";
+import { Button, EmptyState, Field, fromNow, Input } from "@databuddy/ui";
 import {
 	ArrowClockwiseIcon,
 	ArrowSquareOutIcon,
@@ -30,6 +30,44 @@ const BASKET_URL = publicConfig.urls.basket;
 const PADDLE_REQUIRED_EVENTS = ["transaction.completed"];
 
 type ExpandedSection = "webhooks" | "stripe" | "paddle" | null;
+
+function RequiredEventList({
+	anyReceived,
+	events,
+	lastReceived,
+}: {
+	anyReceived: boolean;
+	events: readonly string[];
+	lastReceived: Map<string, string>;
+}) {
+	return (
+		<div className="space-y-1">
+			{events.map((event) => {
+				const receivedAt = lastReceived.get(event);
+				return (
+					<div className="flex items-center justify-between gap-2" key={event}>
+						<code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary">
+							{event}
+						</code>
+						{receivedAt ? (
+							<span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+								<CheckCircleIcon className="size-3 text-success" />
+								{fromNow(receivedAt)}
+							</span>
+						) : (
+							<span
+								className={`flex shrink-0 items-center gap-1 text-[11px] ${anyReceived ? "text-warning" : "text-muted-foreground"}`}
+							>
+								{anyReceived ? <WarningCircleIcon className="size-3" /> : null}
+								Never received
+							</span>
+						)}
+					</div>
+				);
+			})}
+		</div>
+	);
+}
 
 function SettingsSection({
 	icon: Icon,
@@ -92,6 +130,24 @@ export function RevenueSettingsSheet({
 		isLoading,
 		refetch: refetchConfig,
 	} = useQuery(orpc.revenue.get.queryOptions({ input: { websiteId } }));
+	const { data: webhookEvents } = useQuery(
+		orpc.revenue.webhookEvents.queryOptions({ input: { websiteId } })
+	);
+	const stripeEventsReceived = new Map(
+		(webhookEvents ?? [])
+			.filter((row) => row.provider === "stripe")
+			.map((row) => [row.eventType, row.lastReceivedAt])
+	);
+	const paddleEventsReceived = new Map(
+		(webhookEvents ?? [])
+			.filter((row) => row.provider === "paddle")
+			.map((row) => [row.eventType, row.lastReceivedAt])
+	);
+	const missingStripeEvents =
+		stripeEventsReceived.size > 0 &&
+		STRIPE_WEBHOOK_EVENTS.required.some(
+			({ event }) => !stripeEventsReceived.has(event)
+		);
 	const savedCurrency = normalizeCurrencyCode(config?.currency);
 	const configuredCurrency =
 		typeof config?.currency === "string"
@@ -375,7 +431,9 @@ export function RevenueSettingsSheet({
 
 									<SettingsSection
 										badge={
-											config?.stripeConfigured ? (
+											missingStripeEvents ? (
+												<WarningCircleIcon className="size-4 text-warning" />
+											) : config?.stripeConfigured ? (
 												<CheckCircleIcon className="size-4 text-success" />
 											) : undefined
 										}
@@ -428,16 +486,20 @@ export function RevenueSettingsSheet({
 												<p className="text-muted-foreground text-xs">
 													Required events
 												</p>
-												<div className="flex flex-wrap gap-1">
-													{STRIPE_WEBHOOK_EVENTS.required.map(({ event }) => (
-														<code
-															className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary"
-															key={event}
-														>
-															{event}
-														</code>
-													))}
-												</div>
+												<RequiredEventList
+													anyReceived={stripeEventsReceived.size > 0}
+													events={STRIPE_WEBHOOK_EVENTS.required.map(
+														({ event }) => event
+													)}
+													lastReceived={stripeEventsReceived}
+												/>
+												{missingStripeEvents ? (
+													<p className="text-[11px] text-warning">
+														Stripe only sends the events your endpoint is
+														subscribed to. Add the missing ones in Stripe, or
+														those payments will never be attributed.
+													</p>
+												) : null}
 											</div>
 
 											{STRIPE_WEBHOOK_EVENTS.optional.length > 0 && (
@@ -515,16 +577,11 @@ export function RevenueSettingsSheet({
 												<p className="text-muted-foreground text-xs">
 													Required events
 												</p>
-												<div className="flex flex-wrap gap-1">
-													{PADDLE_REQUIRED_EVENTS.map((event) => (
-														<code
-															className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary"
-															key={event}
-														>
-															{event}
-														</code>
-													))}
-												</div>
+												<RequiredEventList
+													anyReceived={paddleEventsReceived.size > 0}
+													events={PADDLE_REQUIRED_EVENTS}
+													lastReceived={paddleEventsReceived}
+												/>
 											</div>
 										</div>
 									</SettingsSection>
