@@ -6,7 +6,7 @@ import {
 	type Row,
 	requestEvaluation,
 	scanRequestSchema,
-} from "@databuddy/scan/evaluate";
+} from "@databuddy/scan/src/evaluate";
 import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { Elysia } from "elysia";
 import { createError } from "evlog";
@@ -63,11 +63,27 @@ function reject(
 	return response;
 }
 
-function parseJson(text: string): unknown {
-	try {
-		return JSON.parse(text);
-	} catch {
+async function readCapped(request: Request): Promise<string | null> {
+	if (Number(request.headers.get("content-length")) > maxBodyBytes) {
 		return null;
+	}
+	const reader = request.body?.getReader();
+	if (!reader) {
+		return "";
+	}
+	const chunks: Uint8Array[] = [];
+	let size = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) {
+			return Buffer.concat(chunks).toString("utf8");
+		}
+		size += value.byteLength;
+		if (size > maxBodyBytes) {
+			await reader.cancel();
+			return null;
+		}
+		chunks.push(value);
 	}
 }
 
@@ -92,9 +108,8 @@ export const scanRoute = new Elysia({ prefix: "/v1/scan" }).post(
 				);
 			}
 		}
-		const text = await request.text();
-		mergeWideEvent({ scan_request_bytes: Buffer.byteLength(text) });
-		if (Buffer.byteLength(text) > maxBodyBytes) {
+		const text = await readCapped(request);
+		if (text === null) {
 			return reject(
 				request,
 				413,
@@ -102,7 +117,13 @@ export const scanRoute = new Elysia({ prefix: "/v1/scan" }).post(
 				"Scan request too large"
 			);
 		}
-		const parsed = scanRequestSchema.safeParse(parseJson(text));
+		mergeWideEvent({ scan_request_bytes: Buffer.byteLength(text) });
+		let parsed: ReturnType<typeof scanRequestSchema.safeParse>;
+		try {
+			parsed = scanRequestSchema.safeParse(JSON.parse(text));
+		} catch {
+			return reject(request, 400, "BAD_REQUEST", "Invalid scan request");
+		}
 		if (!parsed.success) {
 			return reject(request, 400, "BAD_REQUEST", "Invalid scan request");
 		}
@@ -148,5 +169,6 @@ export const scanRoute = new Elysia({ prefix: "/v1/scan" }).post(
 				"Scanning is temporarily unavailable"
 			);
 		}
-	}
+	},
+	{ parse: "none" }
 );
