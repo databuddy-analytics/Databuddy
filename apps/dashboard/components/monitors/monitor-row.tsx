@@ -88,7 +88,11 @@ export function useMonitorActions(
 			setTimeout(() => {
 				invalidateMonitorQueries(queryClient, scheduleId);
 				queryClient.invalidateQueries({
-					queryKey: batchDynamicQueryKeys.all(),
+					queryKey: batchDynamicQueryKeys.byTarget(
+						schedule.websiteId
+							? { websiteId: schedule.websiteId }
+							: { scheduleId }
+					),
 				});
 			}, 3000);
 		},

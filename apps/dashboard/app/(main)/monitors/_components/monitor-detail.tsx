@@ -78,6 +78,7 @@ interface RecentActivityCheck extends Record<string, unknown> {
 	total_ms: number;
 }
 
+const RECENT_CHECKS_KEY = "uptime-recent-checks";
 const RECENT_CHECKS_PAGE_SIZE = 50;
 const SSL_WARN_DAYS = 14;
 const HEATMAP_QUERIES = [
@@ -464,12 +465,11 @@ function MonitorDetailBody({
 
 	const recentChecksQuery = useInfiniteQuery({
 		queryKey: [
-			...batchDynamicQueryKeys.all(),
-			target.websiteId,
-			target.scheduleId,
-			"uptime-recent-checks",
+			...batchDynamicQueryKeys.byTarget(target),
+			RECENT_CHECKS_KEY,
 			dateRange.start_date,
 			dateRange.end_date,
+			dateRange.granularity,
 		],
 		initialPageParam: 1,
 		queryFn: async ({ pageParam, signal }) => {
@@ -536,7 +536,16 @@ function MonitorDetailBody({
 					input: { scheduleId: schedule.id },
 				}),
 			}),
-			queryClient.invalidateQueries({ queryKey: batchDynamicQueryKeys.all() }),
+			queryClient.invalidateQueries({
+				queryKey: batchDynamicQueryKeys.byTarget(target),
+				predicate: (query) => query.queryKey[3] !== RECENT_CHECKS_KEY,
+			}),
+			queryClient.resetQueries({
+				queryKey: [
+					...batchDynamicQueryKeys.byTarget(target),
+					RECENT_CHECKS_KEY,
+				],
+			}),
 		]);
 		setIsRefreshing(false);
 	};
