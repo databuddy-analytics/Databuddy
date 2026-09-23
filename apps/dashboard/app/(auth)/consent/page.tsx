@@ -3,7 +3,9 @@
 import { authClient } from "@databuddy/auth/client";
 import { Button, Card, Skeleton, Spinner, Text } from "@databuddy/ui";
 import { CheckCircleIcon, PlugIcon } from "@databuddy/ui/icons";
-import { Suspense, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { toast } from "sonner";
 
 interface PublicClient {
@@ -12,32 +14,38 @@ interface PublicClient {
 	uri?: string | null;
 }
 
+function redirectHost(redirectUri: string | null): string | null {
+	if (!redirectUri) {
+		return null;
+	}
+	try {
+		return new URL(redirectUri).host;
+	} catch {
+		return null;
+	}
+}
+
 function ConsentPage() {
-	const [client, setClient] = useState<PublicClient | null>(null);
-	const [isLoadingClient, setIsLoadingClient] = useState(true);
+	const searchParams = useSearchParams();
 	const [pendingDecision, setPendingDecision] = useState<
 		"accept" | "deny" | null
 	>(null);
 
-	const oauthQuery =
-		typeof window === "undefined" ? "" : window.location.search.slice(1);
-	const params = new URLSearchParams(oauthQuery);
-	const clientId = params.get("client_id");
-	const scopes = (params.get("scope") ?? "").split(" ").filter(Boolean);
+	const oauthQuery = searchParams.toString();
+	const clientId = searchParams.get("client_id");
+	const host = redirectHost(searchParams.get("redirect_uri"));
+	const scopes = (searchParams.get("scope") ?? "").split(" ").filter(Boolean);
 
-	useEffect(() => {
-		if (!clientId) {
-			setIsLoadingClient(false);
-			return;
-		}
-		authClient
-			.$fetch<PublicClient>(
-				`/oauth2/public-client?client_id=${encodeURIComponent(clientId)}`
-			)
-			.then((result) => setClient(result.data ?? null))
-			.catch(() => setClient(null))
-			.finally(() => setIsLoadingClient(false));
-	}, [clientId]);
+	const { data: client, isPending } = useQuery<PublicClient | null>({
+		enabled: Boolean(clientId),
+		queryKey: ["oauth-public-client", clientId],
+		queryFn: async () => {
+			const result = await authClient.$fetch<PublicClient>(
+				`/oauth2/public-client?client_id=${encodeURIComponent(clientId as string)}`
+			);
+			return result.data ?? null;
+		},
+	});
 
 	const decide = async (accept: boolean) => {
 		setPendingDecision(accept ? "accept" : "deny");
@@ -56,7 +64,7 @@ function ConsentPage() {
 
 	if (!clientId) {
 		return (
-			<Card className="p-6">
+			<Card className="flex flex-col gap-2 p-6">
 				<Text as="h1" className="text-balance font-medium text-2xl">
 					Nothing to authorize
 				</Text>
@@ -68,17 +76,15 @@ function ConsentPage() {
 		);
 	}
 
-	const clientName = client?.name ?? clientId;
-
 	return (
 		<Card className="flex flex-col gap-6 p-6">
 			<div className="flex items-center gap-3">
 				<PlugIcon className="size-5 text-muted-foreground" />
-				{isLoadingClient ? (
-					<Skeleton className="h-6 w-40" />
+				{isPending ? (
+					<Skeleton className="h-8 w-48" />
 				) : (
 					<Text as="h1" className="text-balance font-medium text-2xl">
-						{clientName} wants to connect
+						{client?.name ?? clientId} wants to connect
 					</Text>
 				)}
 			</div>
@@ -88,6 +94,13 @@ function ConsentPage() {
 				permissions. You can revoke access at any time from your account
 				settings.
 			</Text>
+
+			{host && (
+				<Text tone="muted">
+					You will be sent back to <span className="font-medium">{host}</span>.
+					Only continue if you recognise it.
+				</Text>
+			)}
 
 			{scopes.length > 0 && (
 				<ul className="flex flex-col gap-2">

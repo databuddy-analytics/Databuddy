@@ -113,12 +113,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 			}),
 			execute: async (args, options) => {
 				const ctx = getToolContext(options);
-				const access = await ensureWebsiteAccess(
-					args.websiteId,
-					ctx.requestHeaders,
-					ctx.apiKey,
-					ctx.organizationId
-				);
+				const access = await ensureWebsiteAccess(args.websiteId, ctx);
 				if (access instanceof Error) {
 					throw new Error(access.message);
 				}
@@ -139,12 +134,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 			inputSchema: agentDataInputSchema,
 			execute: async (args, options) => {
 				const ctx = getToolContext(options);
-				const access = await ensureWebsiteAccess(
-					args.websiteId,
-					ctx.requestHeaders,
-					ctx.apiKey,
-					ctx.organizationId
-				);
+				const access = await ensureWebsiteAccess(args.websiteId, ctx);
 				if (access instanceof Error) {
 					throw new Error(access.message);
 				}
@@ -179,12 +169,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 					throw new Error("websiteId is required");
 				}
 				const ctx = getToolContext(toolOptions);
-				const access = await ensureWebsiteAccess(
-					websiteId,
-					ctx.requestHeaders,
-					ctx.apiKey,
-					ctx.organizationId
-				);
+				const access = await ensureWebsiteAccess(websiteId, ctx);
 				if (access instanceof Error) {
 					throw access;
 				}

@@ -84,33 +84,33 @@ describe("shared agent's business-context organization boundary", () => {
 	it("rejects a missing website before checking permissions", async () => {
 		permission.mockClear();
 		expect(
-			await ensureWebsiteAccess(
-				"missing-site",
-				new Headers(),
-				null,
-				"org-other"
-			)
+			await ensureWebsiteAccess("missing-site", {
+				apiKey: null,
+				organizationId: "org-other",
+				requestHeaders: new Headers(),
+				userId: null,
+			})
 		).toEqual(new Error("Website not found"));
 		expect(permission).not.toHaveBeenCalled();
 	});
 	it("rejects a site in another organization even if the session could read both", async () => {
 		permission.mockClear();
-		const result = await ensureWebsiteAccess(
-			"foreign-site",
-			new Headers(),
-			null,
-			"org-current"
-		);
+		const result = await ensureWebsiteAccess("foreign-site", {
+			apiKey: null,
+			organizationId: "org-current",
+			requestHeaders: new Headers(),
+			userId: null,
+		});
 		expect(result).toBeInstanceOf(Error);
 		expect(permission).not.toHaveBeenCalled();
 	});
 	it("continues checking website authorization inside the context organization", async () => {
-		const result = await ensureWebsiteAccess(
-			"same-org-site",
-			new Headers(),
-			null,
-			"org-other"
-		);
+		const result = await ensureWebsiteAccess("same-org-site", {
+			apiKey: null,
+			organizationId: "org-other",
+			requestHeaders: new Headers(),
+			userId: null,
+		});
 		expect(result).toEqual({ domain: "other.example.com" });
 		expect(permission).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -124,7 +124,12 @@ describe("shared agent's business-context organization boundary", () => {
 	it("preserves denial from website authorization", async () => {
 		permission.mockResolvedValueOnce({ success: false });
 		expect(
-			await ensureWebsiteAccess("denied-site", new Headers(), null, "org-other")
+			await ensureWebsiteAccess("denied-site", {
+				apiKey: null,
+				organizationId: "org-other",
+				requestHeaders: new Headers(),
+				userId: null,
+			})
 		).toBeInstanceOf(Error);
 	});
 });

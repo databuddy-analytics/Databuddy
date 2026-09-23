@@ -277,13 +277,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 						if (resolvedId instanceof Error) {
 							throw new McpToolError("not_found", resolvedId.message);
 						}
-						const access = await ensureWebsiteAccess(
-							resolvedId,
-							ctx.requestHeaders,
-							ctx.apiKey,
-							ctx.organizationId,
-							ctx.oauthUserId
-						);
+						const access = await ensureWebsiteAccess(resolvedId, ctx);
 						if (access instanceof Error) {
 							throw new McpToolError("unauthorized", access.message);
 						}

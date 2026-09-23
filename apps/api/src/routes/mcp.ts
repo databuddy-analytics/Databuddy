@@ -32,15 +32,17 @@ const handleOAuthMcpRequest = createMcpProtectedRequestHandler(
 		audience: config.urls.mcp,
 		jwksUrl: `${AUTHORIZATION_SERVER}/jwks`,
 	},
-	(request, claims) =>
-		handleDatabuddyMcpRequest({
+	(request, claims) => {
+		const subject = typeof claims.sub === "string" ? claims.sub : null;
+		return handleDatabuddyMcpRequest({
 			request,
 			requestHeaders: request.headers,
-			userId: typeof claims.sub === "string" ? claims.sub : null,
-			oauthUserId: typeof claims.sub === "string" ? claims.sub : null,
+			userId: subject,
+			oauthUserId: subject,
 			apiKey: null,
 			organizationId: null,
-		})
+		});
+	}
 );
 
 function handleMcpRequest({
@@ -48,17 +50,12 @@ function handleMcpRequest({
 	user,
 	apiKey,
 	organizationId,
-	isOAuth,
 }: {
 	apiKey: Awaited<ReturnType<typeof getApiKeyFromHeader>> | null;
-	isOAuth: boolean;
 	organizationId: string | null;
 	request: Request;
 	user: { id: string } | null;
 }) {
-	if (isOAuth) {
-		return handleOAuthMcpRequest(request);
-	}
 	return handleDatabuddyMcpRequest({
 		request,
 		requestHeaders: request.headers,
@@ -69,20 +66,17 @@ function handleMcpRequest({
 }
 
 export const mcp = new Elysia({ name: "mcp" })
-	.onRequest(
-		({ request }) =>
-			rejectInvalidMcpOrigin(request) ?? rejectUnsupportedMcpMethod(request)
-	)
-	.derive(async ({ request }) => {
-		if (isOAuthBearer(request.headers)) {
-			return {
-				user: null,
-				apiKey: null,
-				isAuthenticated: true,
-				isOAuth: true,
-				organizationId: null,
-			};
+	.onRequest(({ request }) => {
+		const rejected =
+			rejectInvalidMcpOrigin(request) ?? rejectUnsupportedMcpMethod(request);
+		if (rejected) {
+			return rejected;
 		}
+		if (isOAuthBearer(request.headers)) {
+			return handleOAuthMcpRequest(request);
+		}
+	})
+	.derive(async ({ request }) => {
 		const preResolved = getResolvedAuth(request.headers);
 		const hasApiKey = isApiKeyPresent(request.headers);
 		const apiKey = hasApiKey
@@ -101,7 +95,6 @@ export const mcp = new Elysia({ name: "mcp" })
 			user,
 			apiKey,
 			isAuthenticated: Boolean(user ?? apiKey),
-			isOAuth: false,
 			organizationId:
 				apiKey?.organizationId ?? session?.session.activeOrganizationId ?? null,
 		};

@@ -82,13 +82,12 @@ integration("MCP OAuth website authorization", () => {
 	});
 
 	test("grants a member of the website's organization", async () => {
-		const access = await ensureWebsiteAccess(
-			websiteId,
-			new Headers(),
-			null,
-			null,
-			viewerId
-		);
+		const access = await ensureWebsiteAccess(websiteId, {
+			apiKey: null,
+			oauthUserId: viewerId,
+			requestHeaders: new Headers(),
+			userId: viewerId,
+		});
 
 		expect(access).not.toBeInstanceOf(Error);
 		expect((access as { domain: string }).domain).toBe(
@@ -97,26 +96,24 @@ integration("MCP OAuth website authorization", () => {
 	});
 
 	test("denies a user who belongs to a different organization", async () => {
-		const access = await ensureWebsiteAccess(
-			websiteId,
-			new Headers(),
-			null,
-			null,
-			outsiderId
-		);
+		const access = await ensureWebsiteAccess(websiteId, {
+			apiKey: null,
+			oauthUserId: outsiderId,
+			requestHeaders: new Headers(),
+			userId: outsiderId,
+		});
 
 		expect(access).toBeInstanceOf(Error);
 		expect((access as Error).message).toBe("Access denied to this website");
 	});
 
 	test("denies a user with no membership at all", async () => {
-		const access = await ensureWebsiteAccess(
-			websiteId,
-			new Headers(),
-			null,
-			null,
-			`ghost-${suffix}`
-		);
+		const access = await ensureWebsiteAccess(websiteId, {
+			apiKey: null,
+			oauthUserId: `ghost-${suffix}`,
+			requestHeaders: new Headers(),
+			userId: `ghost-${suffix}`,
+		});
 
 		expect(access).toBeInstanceOf(Error);
 	});
