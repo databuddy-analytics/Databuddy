@@ -6,6 +6,10 @@ import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import {
+	MAX_UPLOAD_BYTES,
+	UPLOAD_CONTENT_TYPES,
+} from "@databuddy/shared/uploads";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
 import {
@@ -20,8 +24,7 @@ import { Sheet } from "@databuddy/ui/client";
 
 const URL_REGEX = /^https?:\/\/.+/;
 
-const UPLOAD_ACCEPT =
-	"image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon";
+const UPLOAD_ACCEPT = UPLOAD_CONTENT_TYPES.join(",");
 
 const ASSET_FIELDS = {
 	logo: { label: "Logo", field: "logoUrl" },
@@ -148,17 +151,27 @@ export function StatusPageSheet({
 		}
 	}, [open, statusPage, form]);
 
-	const uploadUrlMutation = useMutation({
-		...orpc.statusPage.createAssetUploadUrl.mutationOptions(),
-	});
+	const uploadUrlMutation = useMutation(
+		orpc.statusPage.createAssetUploadUrl.mutationOptions()
+	);
 	const [uploading, setUploading] = useState<AssetKind | null>(null);
+	const organizationId = activeOrganization?.id ?? activeOrganizationId ?? null;
 
 	const uploadAsset = async (asset: AssetKind, file: File) => {
-		const organizationId =
-			activeOrganization?.id ?? activeOrganizationId ?? null;
-
 		if (!organizationId) {
 			toast.error("No active organization selected");
+			return;
+		}
+
+		const contentType = UPLOAD_CONTENT_TYPES.find((type) => type === file.type);
+
+		if (!contentType) {
+			toast.error("Unsupported file type. Use PNG, JPEG, WebP, SVG, or ICO.");
+			return;
+		}
+
+		if (file.size > MAX_UPLOAD_BYTES) {
+			toast.error("File is too large. The limit is 2 MB.");
 			return;
 		}
 
@@ -169,13 +182,13 @@ export function StatusPageSheet({
 			const { publicUrl, uploadUrl } = await uploadUrlMutation.mutateAsync({
 				asset,
 				contentLength: file.size,
-				contentType: file.type,
+				contentType,
 				organizationId,
 			});
 
 			const response = await fetch(uploadUrl, {
 				body: file,
-				headers: { "Content-Type": file.type },
+				headers: { "Content-Type": contentType },
 				method: "PUT",
 			});
 
@@ -197,60 +210,42 @@ export function StatusPageSheet({
 		}
 	};
 
-	const createMutation = useMutation({
-		...orpc.statusPage.create.mutationOptions(),
-	});
-	const updateMutation = useMutation({
-		...orpc.statusPage.update.mutationOptions(),
-	});
+	const createMutation = useMutation(orpc.statusPage.create.mutationOptions());
+	const updateMutation = useMutation(orpc.statusPage.update.mutationOptions());
 
 	const handleSubmit = async () => {
 		const data = form.getValues();
-		const urlOrNull = (v: string | undefined) =>
-			v && v.trim() !== "" ? v : null;
+		const details = {
+			name: data.name,
+			slug: data.slug,
+			description: data.description,
+			logoUrl: urlOrNull(data.logoUrl),
+			faviconUrl: urlOrNull(data.faviconUrl),
+			websiteUrl: urlOrNull(data.websiteUrl),
+			supportUrl: urlOrNull(data.supportUrl),
+			theme: data.theme,
+		};
 
 		try {
-			if (isEditing && statusPage) {
+			if (statusPage) {
 				await updateMutation.mutateAsync({
 					statusPageId: statusPage.id,
-					name: data.name,
-					slug: data.slug,
-					description: data.description,
-					logoUrl: urlOrNull(data.logoUrl),
-					faviconUrl: urlOrNull(data.faviconUrl),
-					websiteUrl: urlOrNull(data.websiteUrl),
-					supportUrl: urlOrNull(data.supportUrl),
-					theme: data.theme,
+					...details,
 				});
-				toast.success("Status page updated");
 			} else {
-				const resolvedOrganizationId =
-					activeOrganization?.id ?? activeOrganizationId ?? null;
-
-				if (!resolvedOrganizationId) {
+				if (!organizationId) {
 					toast.error("No active organization selected");
 					return;
 				}
-
-				await createMutation.mutateAsync({
-					organizationId: resolvedOrganizationId,
-					name: data.name,
-					slug: data.slug,
-					description: data.description,
-					logoUrl: urlOrNull(data.logoUrl),
-					faviconUrl: urlOrNull(data.faviconUrl),
-					websiteUrl: urlOrNull(data.websiteUrl),
-					supportUrl: urlOrNull(data.supportUrl),
-					theme: data.theme,
-				});
-				toast.success("Status page created");
+				await createMutation.mutateAsync({ organizationId, ...details });
 			}
+			toast.success(`Status page ${statusPage ? "updated" : "created"}`);
 			onSaveAction?.();
 			onCloseAction(false);
 		} catch (error) {
-			const errorMessage =
-				error instanceof Error ? error.message : "Failed to save status page";
-			toast.error(errorMessage);
+			toast.error(
+				error instanceof Error ? error.message : "Failed to save status page"
+			);
 		}
 	};
 
@@ -474,6 +469,10 @@ export function StatusPageSheet({
 	);
 }
 
+function urlOrNull(value: string | undefined) {
+	return value && value.trim() !== "" ? value : null;
+}
+
 function buildDefaults(
 	sp: StatusPageSheetProps["statusPage"]
 ): StatusPageFormData {
@@ -485,6 +484,6 @@ function buildDefaults(
 		faviconUrl: sp?.faviconUrl ?? "",
 		websiteUrl: sp?.websiteUrl ?? "",
 		supportUrl: sp?.supportUrl ?? "",
-		theme: (sp?.theme as "system" | "light" | "dark") ?? "system",
+		theme: statusPageFormSchema.shape.theme.catch("system").parse(sp?.theme),
 	};
 }

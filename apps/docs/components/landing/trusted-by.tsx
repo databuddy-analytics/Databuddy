@@ -1,7 +1,4 @@
-"use client";
-
 import Image from "next/image";
-import { useEffect, useState } from "react";
 
 const companies = [
 	{
@@ -51,9 +48,6 @@ const companies = [
 	},
 ];
 
-const VISIBLE = 8;
-const INTERVAL = 3000;
-
 const devTeams = [
 	{
 		name: "CodeRabbit",
@@ -77,16 +71,12 @@ const devTeams = [
 	},
 ];
 
-function CompanyCard({
-	company,
-	fading,
-}: {
-	company: (typeof companies)[number];
-	fading: boolean;
-}) {
+function CompanyCard({ company }: { company: (typeof companies)[number] }) {
 	return (
 		<a
-			className={`group flex flex-col items-center justify-center gap-3 rounded-lg border border-border/50 bg-card/50 px-4 py-5 transition-all duration-500 hover:border-border hover:bg-card sm:py-6 ${fading ? "opacity-0" : "opacity-100"}`}
+			className={
+				"group flex flex-col items-center justify-center gap-3 rounded-lg border border-border/50 bg-card/50 px-4 py-5 transition-all duration-500 hover:border-border hover:bg-card sm:py-6"
+			}
 			href={company.url}
 			rel="noopener noreferrer"
 			target="_blank"
@@ -113,45 +103,7 @@ function CompanyCard({
 	);
 }
 
-function useRotatingGrid() {
-	const [slots, setSlots] = useState(() => companies.slice(0, VISIBLE));
-	const [swapIndex, setSwapIndex] = useState(-1);
-	const [nextCompanyIdx, setNextCompanyIdx] = useState(VISIBLE);
-
-	useEffect(() => {
-		if (companies.length <= VISIBLE) {
-			return;
-		}
-
-		const id = setInterval(() => {
-			const slotToSwap = Math.floor(Math.random() * VISIBLE);
-			setSwapIndex(slotToSwap);
-
-			setTimeout(() => {
-				setSlots((prev) => {
-					const next = [...prev];
-					const visible = new Set(next.map((c) => c.name));
-					let idx = nextCompanyIdx;
-					while (visible.has(companies[idx % companies.length].name)) {
-						idx++;
-					}
-					next[slotToSwap] = companies[idx % companies.length];
-					setNextCompanyIdx(idx + 1);
-					return next;
-				});
-				setSwapIndex(-1);
-			}, 500);
-		}, INTERVAL);
-
-		return () => clearInterval(id);
-	}, [nextCompanyIdx]);
-
-	return { slots, swapIndex };
-}
-
 export function TrustedBy() {
-	const { slots, swapIndex } = useRotatingGrid();
-
 	return (
 		<div className="w-full py-10 sm:py-12">
 			<p className="mb-6 text-pretty text-center text-muted-foreground text-sm uppercase tracking-wide">
@@ -185,12 +137,8 @@ export function TrustedBy() {
 			</p>
 
 			<div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-				{slots.map((company, i) => (
-					<CompanyCard
-						company={company}
-						fading={i === swapIndex}
-						key={`slot-${String(i)}`}
-					/>
+				{companies.map((company) => (
+					<CompanyCard company={company} key={company.name} />
 				))}
 			</div>
 		</div>

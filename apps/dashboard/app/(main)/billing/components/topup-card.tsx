@@ -1,5 +1,7 @@
 "use client";
 
+import { APP_EVENTS } from "@databuddy/shared/custom-events";
+import { trackAppEvent } from "@/lib/app-events";
 import { CreditArcSlider } from "@/components/ui/credit-arc-slider";
 import { cn } from "@/lib/utils";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
@@ -57,6 +59,10 @@ export function TopupCard() {
 
 	const handlePurchase = async () => {
 		setIsAttaching(true);
+		trackAppEvent(APP_EVENTS.topupPurchaseStarted, {
+			feature: "agent_credits",
+			quantity,
+		});
 		try {
 			await attach({
 				planId: TOPUP_PRODUCT_ID,

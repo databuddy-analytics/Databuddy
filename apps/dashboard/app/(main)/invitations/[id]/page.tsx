@@ -1,5 +1,7 @@
 "use client";
 
+import { APP_EVENTS } from "@databuddy/shared/custom-events";
+import { trackAppEvent } from "@/lib/app-events";
 import { authClient } from "@databuddy/auth/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
@@ -315,6 +317,7 @@ export default function AcceptInvitationPage() {
 
 		if (result.data) {
 			setActionStatus("success");
+			trackAppEvent(APP_EVENTS.invitationAccepted, { role: invitation.role });
 			queryClient.invalidateQueries({
 				queryKey: orpc.organizations.getUserPendingInvitations.key(),
 			});

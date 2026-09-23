@@ -1,5 +1,7 @@
 "use client";
 
+import { APP_EVENTS } from "@databuddy/shared/custom-events";
+import { trackAppEvent } from "@/lib/app-events";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button, Text } from "@databuddy/ui";
@@ -31,7 +33,11 @@ export function RedeemDialog({
 
 	const redeemMutation = useMutation({
 		...orpc.feedback.redeemCredits.mutationOptions(),
-		onSuccess: (result) => {
+		onSuccess: (result, variables) => {
+			trackAppEvent(APP_EVENTS.feedbackCreditsRedeemed, {
+				reward: rewardType === "agent-credits" ? "agent_credits" : "events",
+				tier: variables.tierIndex,
+			});
 			toast.success(
 				`Redeemed ${result.rewardAmount.toLocaleString()} ${rewardLabel.toLowerCase()}. ${result.remainingCredits.toLocaleString()} feedback credits remaining.`
 			);
