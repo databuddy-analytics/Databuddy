@@ -485,7 +485,6 @@ export interface UptimeMonitorRow {
 	retries: number;
 	failure_streak: number;
 	response_bytes: number;
-	content_hash: string;
 	redirect_count: number;
 	probe_region: string;
 	probe_ip: string;
@@ -495,7 +494,6 @@ export interface UptimeMonitorRow {
 	check_type: string;
 	user_agent: string;
 	error: string;
-	json_data: string;
 }
 
 export interface UptimeMonitorInsert {
@@ -510,7 +508,6 @@ export interface UptimeMonitorInsert {
 	retries?: number;
 	failure_streak?: number;
 	response_bytes?: number;
-	content_hash: string;
 	redirect_count?: number;
 	probe_region?: string;
 	probe_ip: string;
@@ -520,7 +517,6 @@ export interface UptimeMonitorInsert {
 	check_type?: string;
 	user_agent?: string;
 	error?: string;
-	json_data?: string;
 }
 
 export interface ClickHouseTables {
@@ -556,5 +552,5 @@ export const TABLE_COLUMNS = {
 	"analytics.revenue": ["owner_id", "website_id", "transaction_id", "provider", "type", "status", "amount", "original_amount", "original_currency", "currency", "anonymous_id", "session_id", "customer_id", "product_id", "product_name", "metadata", "created", "synced_at", "profile_id"],
 	"analytics.web_vitals_spans": ["client_id", "anonymous_id", "session_id", "timestamp", "path", "metric_name", "metric_value", "delivery_id"],
 	"analytics.webhook_deliveries": ["owner_id", "website_id", "provider", "event_type", "event_id", "api_version", "record_count", "status", "received_at"],
-	"uptime.uptime_monitor": ["site_id", "url", "timestamp", "status", "http_code", "ttfb_ms", "total_ms", "attempt", "retries", "failure_streak", "response_bytes", "content_hash", "redirect_count", "probe_region", "probe_ip", "ssl_expiry", "ssl_valid", "env", "check_type", "user_agent", "error", "json_data"],
+	"uptime.uptime_monitor": ["site_id", "url", "timestamp", "status", "http_code", "ttfb_ms", "total_ms", "attempt", "retries", "failure_streak", "response_bytes", "redirect_count", "probe_region", "probe_ip", "ssl_expiry", "ssl_valid", "env", "check_type", "user_agent", "error"],
 } as const satisfies Record<string, readonly string[]>;
