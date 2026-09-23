@@ -19,6 +19,8 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 
 ## Quick Map
 
+- Public `packages/scan` is MIT-licensed; do not inherit the repository AGPL license for it. Keep enterprise AI licensing scoped separately using the owner's explicit terms.
+
 - Self-host changes must preserve hosted behavior with `SELFHOST` unset or `false`, including auth cookies/email, generated snippets, CSP, and image publication. Compare to the pre-change path; import guard-only helpers from `@databuddy/env/boolean` so checking the mode does not initialize unrelated URL config.
 
 - Before any PR merge, follow the AGENTS.md review-feedback gate: wait for configured reviewers on the final head, read all comment/review/thread pages, address each finding with evidence, and re-fetch to verify no unresolved feedback. Review bots can finish several minutes after a draft becomes ready; green CI does not establish completed review.
