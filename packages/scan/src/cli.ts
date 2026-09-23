@@ -19,7 +19,7 @@ const optionsSchema = scanOptionsSchema.extend({
 const command = new Command()
 	.name("databuddy-scan")
 	.description(
-		"Find product analytics gaps in your Git repository.\nPreview offline, or use --run to send source to Jev through Vercel AI Gateway."
+		"Find product analytics gaps in your Git repository.\nPreview offline, or use --run to classify source with Jev through Databuddy's scan API.\nSet AI_GATEWAY_API_KEY to send it to your own Vercel AI Gateway account instead."
 	)
 	.version(version)
 	.option("--run", "Scan or resume")
@@ -60,7 +60,7 @@ const command = new Command()
 	.option("--json", "Write JSON without progress output")
 	.addHelpText(
 		"after",
-		"\nExamples:\n  npx @databuddy/scan --run\n  bunx @databuddy/scan --report --verbose\n\nRequires AI_GATEWAY_API_KEY for new requests. Zero data retention is requested.\nCtrl+C saves completed work; repeat --run to resume."
+		"\nExamples:\n  npx @databuddy/scan --run\n  bunx @databuddy/scan --report --verbose\n\nNo key needed. Zero data retention is requested either way.\nCtrl+C saves completed work; repeat --run to resume."
 	)
 	.exitOverride();
 

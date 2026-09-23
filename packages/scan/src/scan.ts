@@ -37,7 +37,7 @@ export const scanOptionsSchema = z.object({
 	actions: z.boolean().default(true),
 	concurrency: z.coerce.number().int().positive().default(8),
 	// Label agreement against solo classification holds at 2-4 segments and falls off by 8, so cap at 4.
-	batchFiles: z.coerce.number().int().positive().default(4),
+	batchFiles: z.coerce.number().int().positive().max(8).default(4),
 });
 const timeoutMs = 15_000;
 // Failure rate climbs with request size: 26% at 30-40KB, 34% at 40-50KB, 94% above 70KB.
@@ -151,7 +151,7 @@ const safeError =
 	/^(?:Gateway HTTP [0-9]{3}|No matching cached response; network disabled)$/;
 const shedError = /^(?:Gateway HTTP 5[0-9]{2}|Gateway request timed out)$/;
 const splitDepth = 2;
-const keyHelp = "Create one at https://vercel.com/docs/ai-gateway";
+const keyHelp = "Check the key, or unset it to use Databuddy's scan API.";
 const catalogByteLimit = 24_000;
 
 export async function readJSON(path: string): Promise<unknown> {
@@ -408,12 +408,7 @@ export async function scan(
 			}
 		}
 	}
-	const apiKey = process.env.AI_GATEWAY_API_KEY;
-	if (!(cacheOnly || apiKey)) {
-		throw new Error(
-			`Set AI_GATEWAY_API_KEY to your Vercel AI Gateway key, in your shell or the repository .env. ${keyHelp}`
-		);
-	}
+	const apiKey = process.env.AI_GATEWAY_API_KEY?.trim() || undefined;
 	const started = performance.now(),
 		runId = randomUUID(),
 		controller = new AbortController(),
@@ -536,7 +531,7 @@ export async function scan(
 						throw new Error("No matching cached response; network disabled");
 					}
 					response = await requestEvaluation(body, {
-						apiKey: apiKey ?? "",
+						apiKey,
 						timeoutMs,
 						signal: controller.signal,
 						onAttempt: (attempt) => {
@@ -618,12 +613,16 @@ export async function scan(
 		if (logFailure) {
 			throw new Error("Could not write scan diagnostics.");
 		}
-		const denied = calls
-			.flatMap((c) => c.attempts)
-			.find((a) => a.status === 401 || a.status === 403);
-		if (denied) {
+		const statuses = calls.flatMap((c) => c.attempts).map((a) => a.status);
+		const denied = statuses.find((status) => status === 401 || status === 403);
+		if (apiKey && denied) {
 			throw new Error(
-				`Vercel AI Gateway rejected AI_GATEWAY_API_KEY (HTTP ${denied.status}). ${keyHelp}`
+				`Vercel AI Gateway rejected AI_GATEWAY_API_KEY (HTTP ${denied}). ${keyHelp}`
+			);
+		}
+		if (!apiKey && statuses.includes(429)) {
+			throw new Error(
+				"Databuddy's scan API rate limit was reached. Try again later, or set AI_GATEWAY_API_KEY to use your own Vercel AI Gateway key."
 			);
 		}
 		rows.sort(

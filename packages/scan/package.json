@@ -47,5 +47,8 @@
   "devDependencies": {
     "@types/bun": "catalog:",
     "@types/node": "^26.0.0"
+  },
+  "exports": {
+    "./evaluate": "./src/evaluate.ts"
   }
 }
