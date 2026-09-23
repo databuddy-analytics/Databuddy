@@ -16,8 +16,6 @@ import {
 } from "@/http/cors";
 import { getResolvedAuth } from "@/lib/auth-wide-event";
 
-const AUTHORIZATION_SERVER = `${config.urls.dashboard}/api/auth`;
-
 function isOAuthBearer(headers: Headers): boolean {
 	const authorization = headers.get("authorization");
 	if (!authorization?.toLowerCase().startsWith("bearer ")) {
@@ -28,9 +26,9 @@ function isOAuthBearer(headers: Headers): boolean {
 
 const handleOAuthMcpRequest = createMcpProtectedRequestHandler(
 	{
-		issuer: AUTHORIZATION_SERVER,
+		issuer: config.urls.authorizationServer,
 		audience: config.urls.mcp,
-		jwksUrl: `${AUTHORIZATION_SERVER}/jwks`,
+		jwksUrl: `${config.urls.authorizationServer}/jwks`,
 	},
 	(request, claims) => {
 		const subject = typeof claims.sub === "string" ? claims.sub : null;

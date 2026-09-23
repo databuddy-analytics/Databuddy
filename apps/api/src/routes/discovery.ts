@@ -31,8 +31,6 @@ const discoveryUrls = {
 	apiCatalogUrl: `${API_URL}/.well-known/api-catalog`,
 } satisfies AgentDiscoveryUrls;
 
-const AUTHORIZATION_SERVER = `${config.urls.dashboard}/api/auth`;
-
 function jsonResponse(body: unknown, init?: ResponseInit) {
 	return Response.json(body, {
 		...init,
@@ -132,7 +130,7 @@ export const discovery = new Elysia({ name: "agent-discovery" })
 	.get("/.well-known/oauth-protected-resource", () =>
 		jsonResponse({
 			resource: config.urls.mcp,
-			authorization_servers: [AUTHORIZATION_SERVER],
+			authorization_servers: [config.urls.authorizationServer],
 			bearer_methods_supported: ["header"],
 			scopes_supported: API_SCOPES,
 			resource_documentation: `${SITE_URL}/docs/mcp`,
