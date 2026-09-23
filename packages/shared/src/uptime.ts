@@ -50,3 +50,7 @@ export function formatUptimeGranularity(value: string): string {
 	const granularity = parseUptimeGranularity(value);
 	return granularity ? UPTIME_GRANULARITY_LABELS[granularity] : value;
 }
+
+export const RESERVED_STATUS_PAGE_SLUGS: ReadonlySet<string> = new Set([
+	"health",
+]);

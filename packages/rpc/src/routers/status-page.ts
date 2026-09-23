@@ -37,6 +37,7 @@ import {
 	publicProcedure,
 	trackedProcedure,
 } from "../orpc";
+import { RESERVED_STATUS_PAGE_SLUGS } from "@databuddy/shared/uptime";
 import { authorizeTransfer, withResource } from "../procedures/with-resource";
 import { withWorkspace } from "../procedures/with-workspace";
 import {
@@ -76,8 +77,6 @@ const httpUrl = z
 		"URL must start with https://"
 	);
 
-const RESERVED_SLUGS = new Set(["health"]);
-
 const statusPageSlug = z
 	.string()
 	.min(1)
@@ -86,7 +85,10 @@ const statusPageSlug = z
 		/^[a-z0-9-]+$/,
 		"Slug must only contain lowercase letters, numbers, and dashes"
 	)
-	.refine((slug) => !RESERVED_SLUGS.has(slug), "This slug is reserved");
+	.refine(
+		(slug) => !RESERVED_STATUS_PAGE_SLUGS.has(slug),
+		"This slug is reserved"
+	);
 
 const statusPageFields = z.object({
 	name: z.string().min(1).max(120),

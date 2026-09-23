@@ -1,5 +1,6 @@
 "use client";
 
+import { RESERVED_STATUS_PAGE_SLUGS } from "@databuddy/shared/uptime";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -85,6 +86,10 @@ const statusPageFormSchema = z.object({
 		.regex(
 			/^[a-z0-9-]+$/,
 			"Slug must only contain lowercase letters, numbers, and dashes"
+		)
+		.refine(
+			(slug) => !RESERVED_STATUS_PAGE_SLUGS.has(slug),
+			"This slug is reserved"
 		),
 	description: z
 		.string()
