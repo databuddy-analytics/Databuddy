@@ -80,7 +80,6 @@ export const revenueRouter = {
 					eventType: z.string(),
 					lastReceivedAt: z.string(),
 					provider: z.string(),
-					recordedCount: z.number(),
 				})
 			)
 		)
@@ -99,13 +98,11 @@ export const revenueRouter = {
 				event_type: string;
 				last_received_at: string;
 				provider: string;
-				recorded_count: string;
 			}>(
 				`SELECT
 					provider,
 					event_type,
-					formatDateTime(max(received_at), '%Y-%m-%dT%H:%i:%SZ') AS last_received_at,
-					sum(record_count) AS recorded_count
+					formatDateTime(max(received_at), '%Y-%m-%dT%H:%i:%SZ') AS last_received_at
 				FROM analytics.webhook_deliveries FINAL
 				WHERE owner_id = {ownerId:String}
 					${input.websiteId ? "AND (website_id = {websiteId:String} OR website_id IS NULL)" : ""}
@@ -121,7 +118,6 @@ export const revenueRouter = {
 				eventType: row.event_type,
 				lastReceivedAt: row.last_received_at,
 				provider: row.provider,
-				recordedCount: Number(row.recorded_count),
 			}));
 		}),
 
