@@ -107,6 +107,6 @@ Found a security issue? Please follow [SECURITY.md](SECURITY.md).
 
 ## License
 
-[AGPL-3.0](LICENSE). Copyright (c) 2025 Databuddy Analytics, Inc.
+[AGPL-3.0](LICENSE), except `packages/scan` which is [MIT](packages/scan/LICENSE). Copyright (c) 2025 Databuddy Analytics, Inc.
 
 [<img alt="Vercel OSS Program" src="https://vercel.com/oss/program-badge.svg" />](https://vercel.com/oss)

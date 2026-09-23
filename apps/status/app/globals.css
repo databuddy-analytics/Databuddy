@@ -85,7 +85,12 @@
   --chart-3: #e3a514;
   --chart-4: #2d9cdb;
   --chart-5: #27ae60;
-  --success: #16a34a;
+  --success: #23965f;
+  --uptime-operational: #34a870;
+  --uptime-degraded: #e2a336;
+  --uptime-partial: #e0773a;
+  --uptime-major: #d8473f;
+  --uptime-empty: #e4e5ea;
   --status-bar-active-overlay: rgba(255, 255, 255, 0.42);
   --radius: 0.35rem;
   --radius-sm: 0.375rem;
@@ -122,7 +127,12 @@
   --card-foreground: #e7e8eb;
   --popover: #2a2a31;
   --popover-foreground: #e7e8eb;
-  --success: #16a34a;
+  --success: #45b27d;
+  --uptime-operational: #3a9f6d;
+  --uptime-degraded: #d19a3c;
+  --uptime-partial: #d0723f;
+  --uptime-major: #d4524b;
+  --uptime-empty: #2e2e35;
   --primary: #e7e8eb;
   --primary-foreground: #27282d;
   --secondary: #2a2a31;
