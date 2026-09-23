@@ -182,32 +182,12 @@ describe("normalizeStripeEvent", () => {
 				created: 1_699_900_000,
 				currency: "usd",
 				id: "in_1",
-				payments: {
-					data: [
-						{
-							amount_paid: 300,
-							created: 1_700_000_190,
-							currency: "usd",
-							id: "inpay_1",
-							invoice: "in_1",
-							payment: {
-								payment_intent: "pi_1",
-								type: "payment_intent",
-							},
-							status: "paid",
-						},
-					],
-					has_more: false,
-				},
 				status: "paid",
 			},
 		},
 	} satisfies StripeWebhookEvent;
 
-	test("uses one immutable payment identity for modern invoice revenue", () => {
-		const intent = {
-			...modernIntent,
-		} satisfies StripeWebhookEvent;
+	test("records invoice money once, from the payment event only", () => {
 		const payment = {
 			api_version: "2025-08-27.basil",
 			created: 1_700_000_202,
@@ -220,39 +200,31 @@ describe("normalizeStripeEvent", () => {
 					currency: "usd",
 					id: "inpay_1",
 					invoice: "in_1",
-					payment: { type: "payment_intent", payment_intent: "pi_1" },
+					payment: { payment_intent: "pi_1" },
 					status: "paid",
 				},
 			},
 		} satisfies StripeWebhookEvent;
-		const invoice = modernInvoice;
 		const records = [
-			...normalizeStripeEvent(intent),
+			...normalizeStripeEvent(modernIntent),
 			...normalizeStripeEvent(payment),
-			...normalizeStripeEvent(invoice),
+			...normalizeStripeEvent(modernInvoice),
 		];
 
 		expect(
-			records.find((record) => record.transactionId === "in_1")
-		).toBeUndefined();
+			records.filter((record) => record.context.recordKind === "money")
+		).toHaveLength(2);
 		expect(
 			records.find((record) => record.transactionId === "inpay_1")
 		).toMatchObject({
 			amount: 3,
-			context: {
-				invoiceId: "in_1",
-				paymentIntentId: "pi_1",
-			},
+			context: { invoiceId: "in_1", paymentIntentId: "pi_1" },
 			createdUnix: 1_700_000_202,
 		});
 		expect(
 			records.find((record) => record.transactionId === "pi_1")
 		).toMatchObject({ context: { paymentIntentId: "pi_1" } });
-		expect(
-			normalizeStripeEvent(invoice).filter(
-				(record) => record.transactionId === "inpay_1"
-			)
-		).toHaveLength(1);
+		expect(normalizeStripeEvent(modernInvoice)).toEqual([]);
 	});
 
 	test.each([
@@ -310,237 +282,6 @@ describe("normalizeStripeEvent", () => {
 
 		expect(attempt?.amount).toBe(500);
 		expect(refund?.amount).toBe(-250);
-	});
-
-	test("counts complete modern invoice out-of-band payment facts once", () => {
-		const fullyOutOfBand = normalizeStripeEvent({
-			api_version: "2025-08-27.basil",
-			created: 1_700_000_300,
-			id: "evt_oob_invoice",
-			type: "invoice.paid",
-			data: {
-				object: {
-					amount_paid: 10_000,
-					created: 1_699_000_000,
-					currency: "usd",
-					id: "in_oob",
-					payments: { data: [], has_more: false },
-					status: "paid",
-				},
-			},
-		});
-		const partiallyOutOfBand = normalizeStripeEvent({
-			api_version: "2025-08-27.basil",
-			created: 1_700_000_301,
-			id: "evt_partial_oob_invoice",
-			type: "invoice.paid",
-			data: {
-				object: {
-					amount_paid: 10_000,
-					created: 1_699_000_000,
-					currency: "usd",
-					id: "in_partial_oob",
-					payments: {
-						data: [
-							{
-								amount_paid: 6000,
-								created: 1_700_000_290,
-								currency: "usd",
-								id: "inpay_partial",
-								invoice: "in_partial_oob",
-								payment: {
-									payment_intent: "pi_partial",
-									type: "payment_intent",
-								},
-								status: "paid",
-							},
-						],
-						has_more: false,
-					},
-					status: "paid",
-				},
-			},
-		});
-		const fullMoney = fullyOutOfBand.filter(
-			(record) => record.context.recordKind === "money"
-		);
-		const partialMoney = partiallyOutOfBand.filter(
-			(record) => record.context.recordKind === "money"
-		);
-
-		expect(fullMoney).toMatchObject([
-			{
-				amount: 100,
-				context: {
-					invoiceId: "in_oob",
-				},
-				transactionId: "in_oob:out_of_band",
-			},
-		]);
-		expect(partialMoney).toContainEqual(
-			expect.objectContaining({
-				amount: 60,
-				context: expect.objectContaining({
-					invoiceId: "in_partial_oob",
-					paymentIntentId: "pi_partial",
-				}),
-				transactionId: "inpay_partial",
-			})
-		);
-		expect(partialMoney).toContainEqual(
-			expect.objectContaining({
-				amount: 40,
-				context: expect.objectContaining({
-					invoiceId: "in_partial_oob",
-				}),
-				transactionId: "in_partial_oob:out_of_band",
-			})
-		);
-		expect(partiallyOutOfBand).toContainEqual(
-			expect.objectContaining({
-				context: expect.objectContaining({
-					invoiceId: "in_partial_oob",
-					paymentIntentId: "pi_partial",
-				}),
-				transactionId: "inpay_partial",
-			})
-		);
-	});
-
-	test("counts exact embedded allocations and out-of-band remainder", () => {
-		const money = normalizeStripeEvent({
-			api_version: "2025-08-27.basil",
-			created: 1_700_000_301,
-			id: "evt_transition_oob",
-			type: "invoice.paid",
-			data: {
-				object: {
-					amount_paid: 10_000,
-					created: 1_699_000_000,
-					currency: "usd",
-					id: "in_transition_oob",
-					payments: {
-						data: [
-							{
-								amount_paid: 6000,
-								created: 1_700_000_290,
-								currency: "usd",
-								id: "inpay_transition",
-								invoice: "in_transition_oob",
-								payment: {
-									payment_intent: "pi_transition",
-									type: "payment_intent",
-								},
-								status: "paid",
-							},
-						],
-						has_more: false,
-					},
-					status: "paid",
-				},
-			},
-		}).filter((record) => record.context.recordKind === "money");
-
-		expect(money).toMatchObject([
-			{
-				amount: 60,
-				transactionId: "inpay_transition",
-			},
-			{
-				amount: 40,
-				transactionId: "in_transition_oob:out_of_band",
-			},
-		]);
-	});
-
-	test("uses payment IDs when modern invoice allocations are paginated", () => {
-		const records = normalizeStripeEvent({
-			api_version: "2025-08-27.basil",
-			created: 1_700_000_300,
-			id: "evt_partial_invoice",
-			type: "invoice.paid",
-			data: {
-				object: {
-					amount_paid: 400,
-					created: 1_699_000_000,
-					currency: "usd",
-					id: "in_partial",
-					status: "paid",
-					payments: {
-						has_more: true,
-						data: [
-							{
-								amount_paid: 100,
-								created: 1_700_000_100,
-								currency: "usd",
-								id: "inpay_1",
-								invoice: "in_partial",
-								payment: {
-									type: "payment_intent",
-									payment_intent: "pi_1",
-								},
-								status: "paid",
-							},
-							{
-								amount_paid: 200,
-								created: 1_700_000_200,
-								currency: "usd",
-								id: "inpay_2",
-								invoice: "in_partial",
-								payment: {
-									type: "payment_intent",
-									payment_intent: "pi_2",
-								},
-								status: "paid",
-							},
-						],
-					},
-				},
-			},
-		});
-		const money = records.filter(
-			(record) => record.context.recordKind === "money"
-		);
-
-		expect(money).toMatchObject([
-			{
-				amount: 1,
-				transactionId: "inpay_1",
-			},
-			{
-				amount: 2,
-				transactionId: "inpay_2",
-			},
-		]);
-		expect(
-			records.find((record) => record.transactionId === "in_partial")
-		).toBeUndefined();
-	});
-
-	test("does not infer modern out-of-band revenue from a paginated list", () => {
-		const records = normalizeStripeEvent({
-			api_version: "2025-08-27.basil",
-			created: 1_700_000_300,
-			id: "evt_paginated_oob",
-			type: "invoice.paid",
-			data: {
-				object: {
-					amount_paid: 400,
-					created: 1_699_000_000,
-					currency: "usd",
-					id: "in_paginated_oob",
-					payments: {
-						has_more: true,
-						data: [],
-					},
-					status: "paid",
-				},
-			},
-		});
-
-		expect(
-			records.some((record) => record.transactionId.endsWith(":out_of_band"))
-		).toBe(false);
 	});
 
 	test("carries invoice metadata on a link record when the invoice omits payments", () => {
@@ -662,7 +403,7 @@ describe("normalizeStripeEvent", () => {
 		expect(records).toEqual([]);
 	});
 
-	test("uses requested and remaining invoice amounts for failed partial payments", () => {
+	test("falls back through remaining, due and total for a failed invoice", () => {
 		const failedInvoice = (
 			id: string,
 			object: StripeWebhookEvent["data"]["object"]
@@ -674,46 +415,37 @@ describe("normalizeStripeEvent", () => {
 				type: "invoice.payment_failed",
 				data: { object },
 			})[0];
-		const remaining = failedInvoice("evt_remaining", {
-			amount_due: 10_000,
-			amount_paid: 3000,
-			amount_remaining: 7000,
+		const base = {
 			created: 1_699_000_000,
 			currency: "usd",
-			id: "in_remaining",
 			status: "open",
-		});
-		const requested = failedInvoice("evt_requested", {
-			amount_due: 10_000,
-			amount_paid: 3000,
-			amount_remaining: 7000,
-			created: 1_699_000_000,
-			currency: "usd",
-			id: "in_requested",
-			payments: {
-				data: [
-					{
-						amount_requested: 2500,
-						created: 1_700_000_390,
-						currency: "usd",
-						id: "inpay_requested",
-						invoice: "in_requested",
-						is_default: true,
-						payment: {
-							type: "payment_intent",
-							payment_intent: "pi_requested",
-						},
-						status: "open",
-					},
-				],
-				has_more: false,
-			},
-			status: "open",
-		});
+		};
 
-		expect(remaining?.amount).toBe(70);
-		expect(requested?.amount).toBe(25);
-		expect(requested?.context.paymentIntentId).toBe("pi_requested");
+		expect(
+			failedInvoice("evt_remaining", {
+				...base,
+				amount_due: 10_000,
+				amount_paid: 3000,
+				amount_remaining: 7000,
+				id: "in_remaining",
+			})?.amount
+		).toBe(70);
+		expect(
+			failedInvoice("evt_due", {
+				...base,
+				amount_due: 10_000,
+				amount_paid: 0,
+				id: "in_due",
+			})?.amount
+		).toBe(100);
+		expect(
+			failedInvoice("evt_total", {
+				...base,
+				amount_paid: 0,
+				id: "in_total",
+				total: 4500,
+			})?.amount
+		).toBe(45);
 	});
 
 	test("cannot recover invoice context from a direct InvoicePayment event", () => {
@@ -853,21 +585,6 @@ describe("normalizeStripeEvent", () => {
 					created: 1_700_000_390,
 					currency: "usd",
 					id: "in_declined",
-					payments: {
-						data: [
-							{
-								amount_requested: 2500,
-								created: 1_700_000_400,
-								currency: "usd",
-								id: "inpay_declined",
-								invoice: "in_declined",
-								is_default: true,
-								payment: { payment_intent: "pi_declined" },
-								status: "open",
-							},
-						],
-						has_more: false,
-					},
 					status: "open",
 				},
 			},
@@ -875,13 +592,10 @@ describe("normalizeStripeEvent", () => {
 
 		expect(record).toMatchObject({
 			amount: 25,
-			context: {
-				invoiceId: "in_declined",
-				paymentIntentId: "pi_declined",
-				recordKind: "attempt",
-			},
+			context: { invoiceId: "in_declined", recordKind: "attempt" },
 			status: "failed",
 		});
+		expect(record?.context.paymentIntentId).toBeUndefined();
 		expect(record?.context.failureCode).toBeUndefined();
 		expect(record?.context.failureDeclineCode).toBeUndefined();
 	});

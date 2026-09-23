@@ -835,9 +835,9 @@ describeStripeE2E("Stripe revenue end-to-end matrix", () => {
 			const [jpy] = await revenueOverview(fixture.siteId, [
 				{ field: "currency", op: "eq", value: "JPY" },
 			]);
-			expect(Number(usd?.total_revenue)).toBe(356);
-			expect(Number(usd?.total_transactions)).toBe(12);
-			expect(Number(usd?.subscription_revenue)).toBe(174);
+			expect(Number(usd?.total_revenue)).toBe(336);
+			expect(Number(usd?.total_transactions)).toBe(11);
+			expect(Number(usd?.subscription_revenue)).toBe(154);
 			expect(Number(usd?.sale_revenue)).toBe(182);
 			expect(Number(usd?.refund_amount)).toBe(-5);
 			expect(Number(usd?.refund_count)).toBe(2);
@@ -913,7 +913,7 @@ describeStripeE2E("Stripe revenue end-to-end matrix", () => {
 					)
 				)
 				.reduce((total, row) => total + Number(row.amount), 0);
-			expect(legacyBrokenUsdGross).toBe(446);
+			expect(legacyBrokenUsdGross).toBe(426);
 			expect(linkedPaymentIntentGross).toBe(90);
 			expect(legacyBrokenUsdGross).toBe(
 				Number(usd?.total_revenue) + linkedPaymentIntentGross
