@@ -100,7 +100,7 @@ export interface StripeWebhookEvent {
 	type: string;
 }
 
-type StripeRecordKind = "attempt" | "money";
+type StripeRecordKind = "attempt" | "link" | "money";
 
 const STRIPE_ZERO_DECIMAL_CURRENCIES = new Set([
 	"BIF",
@@ -139,7 +139,7 @@ export interface NormalizedStripeRecord {
 	customerId?: string;
 	productName?: string;
 	rawMetadata: Record<string, string>;
-	status: "canceled" | "completed" | "failed" | "refunded";
+	status: "canceled" | "completed" | "failed" | "linked" | "refunded";
 	transactionId: string;
 	type: "refund" | "sale" | "subscription" | "subscription_event";
 }
@@ -459,6 +459,32 @@ function buildOutOfBandPaymentRecord(
 	};
 }
 
+function buildInvoiceLinkRecord(
+	event: StripeWebhookEvent,
+	invoice: WebhookInvoice,
+	input: {
+		customerId?: string;
+		productName?: string;
+		rawMetadata: Record<string, string>;
+	}
+): NormalizedStripeRecord | null {
+	if (Object.keys(input.rawMetadata).length === 0 && !input.customerId) {
+		return null;
+	}
+	return {
+		amount: 0,
+		context: buildRecordContext(event, "link", { invoiceId: invoice.id }),
+		createdUnix: requireUnixSeconds(event.created, "Stripe payment time"),
+		currency: invoice.currency.toUpperCase(),
+		...(input.customerId ? { customerId: input.customerId } : {}),
+		...(input.productName ? { productName: input.productName } : {}),
+		rawMetadata: input.rawMetadata,
+		status: "linked",
+		transactionId: `${invoice.id}:link`,
+		type: "subscription_event",
+	};
+}
+
 function sumPaidInvoiceAllocations(invoice: WebhookInvoice): number {
 	return (invoice.payments?.data ?? []).reduce((total, payment) => {
 		if (
@@ -502,8 +528,14 @@ function normalizePaidInvoice(
 		)
 		.filter((record): record is NormalizedStripeRecord => record !== null);
 	const outOfBandMinorUnits = getOutOfBandPaymentAmount(invoice);
+	const invoiceLink = buildInvoiceLinkRecord(event, invoice, {
+		customerId: invoiceCustomerId,
+		productName,
+		rawMetadata,
+	});
 	return [
 		...allocations,
+		...(invoiceLink ? [invoiceLink] : []),
 		...(outOfBandMinorUnits !== null && outOfBandMinorUnits > 0
 			? [
 					buildOutOfBandPaymentRecord(event, invoice, outOfBandMinorUnits, {
