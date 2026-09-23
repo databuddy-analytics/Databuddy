@@ -271,6 +271,7 @@ describe("normalizeStripeEvent", () => {
 			data: {
 				object: {
 					amount_refunded: 250,
+					created: 1_700_000_300,
 					currency: "jpy",
 					id: "ch_jpy",
 				},
@@ -291,6 +292,7 @@ describe("normalizeStripeEvent", () => {
 				data: {
 					object: {
 						amount_refunded: amountRefunded,
+						created: 1_700_000_600,
 						currency: "usd",
 						customer: "cus_refund",
 						id: "ch_partial",
@@ -314,6 +316,31 @@ describe("normalizeStripeEvent", () => {
 		expect(second?.transactionId).toBe(first?.transactionId);
 	});
 
+	test("keeps partial refunds of one charge in a single ReplacingMergeTree partition", () => {
+		const refundAt = (eventCreated: number, amountRefunded: number) =>
+			normalizeStripeEvent({
+				api_version: "2025-08-27.basil",
+				created: eventCreated,
+				id: `evt_refund_${eventCreated}`,
+				type: "charge.refunded",
+				data: {
+					object: {
+						amount_refunded: amountRefunded,
+						created: 1_767_000_000,
+						currency: "usd",
+						id: "ch_straddle",
+					},
+				},
+			})[0];
+
+		const january = refundAt(1_769_800_000, 300);
+		const february = refundAt(1_770_100_000, 500);
+
+		expect(january?.transactionId).toBe(february?.transactionId);
+		expect(january?.createdUnix).toBe(february?.createdUnix);
+		expect(february?.amount).toBe(-5);
+	});
+
 	test("ignores a charge.refunded delivery that reports nothing refunded", () => {
 		expect(
 			normalizeStripeEvent({
@@ -324,6 +351,7 @@ describe("normalizeStripeEvent", () => {
 				data: {
 					object: {
 						amount_refunded: 0,
+						created: 1_700_000_600,
 						currency: "usd",
 						id: "ch_zero",
 					},

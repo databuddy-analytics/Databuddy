@@ -66,6 +66,7 @@ interface WebhookInvoice extends WebhookInvoiceContext {
 
 interface WebhookCharge extends WebhookContextObject {
 	amount_refunded: number;
+	created: number;
 	currency: string;
 	payment_intent?: string | null;
 }
@@ -452,7 +453,7 @@ function normalizeRefund(event: StripeWebhookEvent): NormalizedStripeRecord[] {
 			context: buildRecordContext(event, "money", {
 				...(paymentIntentId ? { paymentIntentId } : {}),
 			}),
-			createdUnix: requireUnixSeconds(event.created, "Stripe refund time"),
+			createdUnix: requireUnixSeconds(charge.created, "Stripe charge time"),
 			currency: charge.currency.toUpperCase(),
 			...(refundCustomerId ? { customerId: refundCustomerId } : {}),
 			productName: "Refund",

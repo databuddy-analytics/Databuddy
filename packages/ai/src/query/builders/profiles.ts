@@ -789,6 +789,9 @@ function profileListQueries(ctx: CustomSqlContext) {
 				OR (owner_id, ${paymentIntentIdExpression()}) IN (
 					SELECT owner_id, payment_intent_id FROM profile_payment_intents
 				)
+				OR (owner_id, ${PROFILE_INVOICE_ID}) IN (
+					SELECT owner_id, invoice_id FROM profile_invoice_ids
+				)
 			)`,
 			name: "profile_revenue_latest",
 			scope: stripeProfileRevenueScope(),

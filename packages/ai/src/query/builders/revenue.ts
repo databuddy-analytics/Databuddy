@@ -261,6 +261,7 @@ function buildAttributionCte(
 				${stripeContextAggregates()}
 			FROM ${Analytics.revenue} FINAL
 			WHERE provider = 'stripe'
+				AND type != 'refund'
 				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 				AND (owner_id, ${paymentIntentId}) IN (
 					SELECT owner_id, payment_intent_id FROM scoped_stripe_payment_intents

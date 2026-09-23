@@ -302,6 +302,7 @@ function refundedCharge(day: number, paymentIntentId: string): StripeEvent {
 	return stripeEvent("charge.refunded", day, {
 		amount_refunded: 500,
 		amount: 2500,
+		created: eventUnix(day),
 		currency: "usd",
 		customer: null,
 		id: `ch_${randomUUIDv7()}`,
