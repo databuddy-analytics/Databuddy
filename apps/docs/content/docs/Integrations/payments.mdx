@@ -31,9 +31,6 @@ In the [Stripe dashboard](https://dashboard.stripe.com/webhooks), add an endpoin
 {STRIPE_WEBHOOK_EVENTS.required.map(({ event, purpose }) => (
   <tr key={event}><td><code>{event}</code></td><td>{purpose} ({event === "invoice_payment.paid" ? "required on API 2025-05-28.basil or later" : "required"})</td></tr>
 ))}
-{STRIPE_WEBHOOK_EVENTS.optional.map(({ event, purpose }) => (
-  <tr key={event}><td><code>{event}</code></td><td>{purpose} (optional)</td></tr>
-))}
 </tbody>
 </table>
 
