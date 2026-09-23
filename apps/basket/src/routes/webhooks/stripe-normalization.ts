@@ -67,14 +67,7 @@ interface WebhookInvoice extends WebhookInvoiceContext {
 interface WebhookCharge extends WebhookContextObject {
 	amount_refunded: number;
 	currency: string;
-	payment_intent?: string | WebhookContextObject | null;
-	refunds?: {
-		data: Array<{
-			amount: number;
-			created: number;
-			id: string;
-		}>;
-	};
+	payment_intent?: string | null;
 }
 
 export interface StripeWebhookEvent {
@@ -440,26 +433,35 @@ function normalizeFailedInvoice(
 
 function normalizeRefund(event: StripeWebhookEvent): NormalizedStripeRecord[] {
 	const charge = event.data.object as WebhookCharge;
+	if (
+		!(
+			Number.isSafeInteger(charge.amount_refunded) && charge.amount_refunded > 0
+		)
+	) {
+		return [];
+	}
 	const paymentIntentId = getExpandableId(charge.payment_intent);
 	const refundCustomerId = getExpandableId(charge.customer);
-	return (charge.refunds?.data ?? []).map((refund) => ({
-		amount: -amountFromMinorUnits(
-			refund.amount,
-			charge.currency,
-			"Stripe Refund.amount"
-		),
-		context: buildRecordContext(event, "money", {
-			...(paymentIntentId ? { paymentIntentId } : {}),
-		}),
-		createdUnix: requireUnixSeconds(refund.created, "Stripe refund time"),
-		currency: charge.currency.toUpperCase(),
-		...(refundCustomerId ? { customerId: refundCustomerId } : {}),
-		productName: "Refund",
-		rawMetadata: charge.metadata ?? {},
-		status: "refunded",
-		transactionId: refund.id,
-		type: "refund",
-	}));
+	return [
+		{
+			amount: -amountFromMinorUnits(
+				charge.amount_refunded,
+				charge.currency,
+				"Stripe Charge.amount_refunded"
+			),
+			context: buildRecordContext(event, "money", {
+				...(paymentIntentId ? { paymentIntentId } : {}),
+			}),
+			createdUnix: requireUnixSeconds(event.created, "Stripe refund time"),
+			currency: charge.currency.toUpperCase(),
+			...(refundCustomerId ? { customerId: refundCustomerId } : {}),
+			productName: "Refund",
+			rawMetadata: charge.metadata ?? {},
+			status: "refunded",
+			transactionId: `${charge.id}:refund`,
+			type: "refund",
+		},
+	];
 }
 
 export function normalizeStripeEvent(

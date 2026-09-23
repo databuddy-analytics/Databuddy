@@ -273,15 +273,63 @@ describe("normalizeStripeEvent", () => {
 					amount_refunded: 250,
 					currency: "jpy",
 					id: "ch_jpy",
-					refunds: {
-						data: [{ amount: 250, created: 1_700_000_300, id: "re_jpy" }],
-					},
 				},
 			},
 		});
 
 		expect(attempt?.amount).toBe(500);
 		expect(refund?.amount).toBe(-250);
+	});
+
+	test("records a refund from the charge total Stripe actually sends", () => {
+		const refundEvent = (id: string, amountRefunded: number) =>
+			normalizeStripeEvent({
+				api_version: "2025-08-27.basil",
+				created: 1_700_000_700,
+				id,
+				type: "charge.refunded",
+				data: {
+					object: {
+						amount_refunded: amountRefunded,
+						currency: "usd",
+						customer: "cus_refund",
+						id: "ch_partial",
+						payment_intent: "pi_refund",
+					},
+				},
+			});
+
+		const [first] = refundEvent("evt_refund_1", 500);
+		const [second] = refundEvent("evt_refund_2", 1200);
+
+		expect(first).toMatchObject({
+			amount: -5,
+			context: { paymentIntentId: "pi_refund", recordKind: "money" },
+			customerId: "cus_refund",
+			status: "refunded",
+			transactionId: "ch_partial:refund",
+			type: "refund",
+		});
+		expect(second?.amount).toBe(-12);
+		expect(second?.transactionId).toBe(first?.transactionId);
+	});
+
+	test("ignores a charge.refunded delivery that reports nothing refunded", () => {
+		expect(
+			normalizeStripeEvent({
+				api_version: "2025-08-27.basil",
+				created: 1_700_000_701,
+				type: "charge.refunded",
+				id: "evt_refund_zero",
+				data: {
+					object: {
+						amount_refunded: 0,
+						currency: "usd",
+						id: "ch_zero",
+					},
+				},
+			})
+		).toEqual([]);
 	});
 
 	test("carries invoice metadata on a link record when the invoice omits payments", () => {

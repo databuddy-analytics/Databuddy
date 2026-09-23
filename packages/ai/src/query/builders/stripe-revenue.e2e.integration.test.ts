@@ -307,12 +307,6 @@ function refundedCharge(day: number, paymentIntentId: string): StripeEvent {
 		id: `ch_${randomUUIDv7()}`,
 		metadata: {},
 		payment_intent: paymentIntentId,
-		refunds: {
-			data: [
-				{ amount: 300, created: eventUnix(day), id: `re_${randomUUIDv7()}` },
-				{ amount: 200, created: eventUnix(day), id: `re_${randomUUIDv7()}` },
-			],
-		},
 	});
 }
 
@@ -840,7 +834,7 @@ describeStripeE2E("Stripe revenue end-to-end matrix", () => {
 			expect(Number(usd?.subscription_revenue)).toBe(154);
 			expect(Number(usd?.sale_revenue)).toBe(182);
 			expect(Number(usd?.refund_amount)).toBe(-5);
-			expect(Number(usd?.refund_count)).toBe(2);
+			expect(Number(usd?.refund_count)).toBe(1);
 			expect(Number(jpy?.total_revenue)).toBe(500);
 			expect(Number(jpy?.total_transactions)).toBe(1);
 
