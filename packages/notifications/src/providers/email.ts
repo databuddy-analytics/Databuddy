@@ -6,19 +6,6 @@ import type {
 import { BaseProvider } from "./base";
 
 const FIRST_CHARACTER_PATTERN = /^./;
-const UPTIME_MESSAGE_METADATA_KEYS = new Set([
-	"checkedAt",
-	"error",
-	"httpCode",
-	"kind",
-	"probeRegion",
-	"siteLabel",
-	"sslExpiryMs",
-	"sslValid",
-	"totalMs",
-	"ttfbMs",
-	"url",
-]);
 const UPTIME_TRANSITION_MESSAGE_METADATA_KEYS = new Set([
 	"checkedAt",
 	"dashboardUrl",
@@ -46,9 +33,6 @@ function escapeHtml(str: string): string {
 }
 
 function isUserFacingMetadata(key: string, template: unknown): boolean {
-	if (template === "uptime" && UPTIME_MESSAGE_METADATA_KEYS.has(key)) {
-		return false;
-	}
 	if (
 		template === "uptime-transition" &&
 		UPTIME_TRANSITION_MESSAGE_METADATA_KEYS.has(key)
