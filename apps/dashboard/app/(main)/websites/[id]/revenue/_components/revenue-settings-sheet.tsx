@@ -28,15 +28,16 @@ import {
 const BASKET_URL = publicConfig.urls.basket;
 
 const PADDLE_REQUIRED_EVENTS = ["transaction.completed"];
+const STRIPE_REQUIRED_EVENTS = STRIPE_WEBHOOK_EVENTS.required.map(
+	({ event }) => event
+);
 
 type ExpandedSection = "webhooks" | "stripe" | "paddle" | null;
 
 function RequiredEventList({
-	anyReceived,
 	events,
 	lastReceived,
 }: {
-	anyReceived: boolean;
 	events: readonly string[];
 	lastReceived: Map<string, string>;
 }) {
@@ -49,19 +50,16 @@ function RequiredEventList({
 						<code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary">
 							{event}
 						</code>
-						{receivedAt ? (
-							<span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-								<CheckCircleIcon className="size-3 text-success" />
-								{fromNow(receivedAt)}
-							</span>
-						) : (
-							<span
-								className={`flex shrink-0 items-center gap-1 text-[11px] ${anyReceived ? "text-warning" : "text-muted-foreground"}`}
-							>
-								{anyReceived ? <WarningCircleIcon className="size-3" /> : null}
-								Never received
-							</span>
-						)}
+						<span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+							{receivedAt ? (
+								<>
+									<CheckCircleIcon className="size-3 text-success" />
+									{fromNow(receivedAt)}
+								</>
+							) : (
+								"No activity in 90 days"
+							)}
+						</span>
 					</div>
 				);
 			})}
@@ -130,24 +128,22 @@ export function RevenueSettingsSheet({
 		isLoading,
 		refetch: refetchConfig,
 	} = useQuery(orpc.revenue.get.queryOptions({ input: { websiteId } }));
-	const { data: webhookEvents } = useQuery(
-		orpc.revenue.webhookEvents.queryOptions({ input: { websiteId } })
+	const { data: webhookDeliveries } = useQuery(
+		orpc.revenue.webhookDeliveries.queryOptions({ input: { websiteId } })
 	);
 	const stripeEventsReceived = new Map(
-		(webhookEvents ?? [])
+		(webhookDeliveries ?? [])
 			.filter((row) => row.provider === "stripe")
 			.map((row) => [row.eventType, row.lastReceivedAt])
 	);
+	const paddleLastReceived = (webhookDeliveries ?? []).find(
+		(row) => row.provider === "paddle"
+	)?.lastReceivedAt;
 	const paddleEventsReceived = new Map(
-		(webhookEvents ?? [])
-			.filter((row) => row.provider === "paddle")
-			.map((row) => [row.eventType, row.lastReceivedAt])
+		paddleLastReceived
+			? PADDLE_REQUIRED_EVENTS.map((event) => [event, paddleLastReceived])
+			: []
 	);
-	const missingStripeEvents =
-		stripeEventsReceived.size > 0 &&
-		STRIPE_WEBHOOK_EVENTS.required.some(
-			({ event }) => !stripeEventsReceived.has(event)
-		);
 	const savedCurrency = normalizeCurrencyCode(config?.currency);
 	const configuredCurrency =
 		typeof config?.currency === "string"
@@ -431,9 +427,7 @@ export function RevenueSettingsSheet({
 
 									<SettingsSection
 										badge={
-											missingStripeEvents ? (
-												<WarningCircleIcon className="size-4 text-warning" />
-											) : config?.stripeConfigured ? (
+											config?.stripeConfigured ? (
 												<CheckCircleIcon className="size-4 text-success" />
 											) : undefined
 										}
@@ -487,38 +481,15 @@ export function RevenueSettingsSheet({
 													Required events
 												</p>
 												<RequiredEventList
-													anyReceived={stripeEventsReceived.size > 0}
-													events={STRIPE_WEBHOOK_EVENTS.required.map(
-														({ event }) => event
-													)}
+													events={STRIPE_REQUIRED_EVENTS}
 													lastReceived={stripeEventsReceived}
 												/>
-												{missingStripeEvents ? (
-													<p className="text-[11px] text-warning">
-														Stripe only sends the events your endpoint is
-														subscribed to. Add the missing ones in Stripe, or
-														those payments will never be attributed.
-													</p>
-												) : null}
+												<p className="text-[11px] text-muted-foreground">
+													Timestamps show when Databuddy last recorded each
+													event, not whether Stripe is sending it. Events like
+													refunds only appear once they happen.
+												</p>
 											</div>
-
-											{STRIPE_WEBHOOK_EVENTS.optional.length > 0 && (
-												<div className="space-y-2">
-													<p className="text-muted-foreground text-xs">
-														Optional
-													</p>
-													<div className="flex flex-wrap gap-1">
-														{STRIPE_WEBHOOK_EVENTS.optional.map(({ event }) => (
-															<code
-																className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
-																key={event}
-															>
-																{event}
-															</code>
-														))}
-													</div>
-												</div>
-											)}
 										</div>
 									</SettingsSection>
 
@@ -578,10 +549,13 @@ export function RevenueSettingsSheet({
 													Required events
 												</p>
 												<RequiredEventList
-													anyReceived={paddleEventsReceived.size > 0}
 													events={PADDLE_REQUIRED_EVENTS}
 													lastReceived={paddleEventsReceived}
 												/>
+												<p className="text-[11px] text-muted-foreground">
+													Shows when Databuddy last recorded the event, not
+													whether Paddle is sending it.
+												</p>
 											</div>
 										</div>
 									</SettingsSection>

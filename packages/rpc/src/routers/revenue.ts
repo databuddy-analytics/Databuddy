@@ -64,13 +64,13 @@ export const revenueRouter = {
 			};
 		}),
 
-	webhookEvents: protectedProcedure
+	webhookDeliveries: protectedProcedure
 		.route({
 			description:
-				"Returns the last time each provider webhook event was received. Requires read permission.",
+				"Returns when each provider webhook last produced a record. Requires read permission.",
 			method: "POST",
-			path: "/revenue/webhookEvents",
-			summary: "Get webhook event health",
+			path: "/revenue/webhookDeliveries",
+			summary: "Get webhook delivery recency",
 			tags: ["Revenue"],
 		})
 		.input(z.object({ websiteId: z.string().optional() }))
@@ -104,7 +104,7 @@ export const revenueRouter = {
 					if(
 						provider = 'stripe',
 						JSONExtractString(metadata, 'stripe_event_type'),
-						'transaction.completed'
+						''
 					) AS event_type,
 					formatDateTime(max(synced_at), '%Y-%m-%dT%H:%i:%SZ') AS last_received_at
 				FROM analytics.revenue
