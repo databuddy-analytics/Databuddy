@@ -23,7 +23,8 @@ const GRAIN_LABEL = {
 } as const;
 const GRAIN_HINT = {
 	event: "Per-visit rows, so every breakdown is preserved.",
-	rollup: "Daily totals only. Location and device breakdowns are unavailable.",
+	rollup:
+		"Daily totals. Breakdowns are accurate per day, but cannot be combined with each other.",
 } as const;
 
 function browserTimeZone(): string {

@@ -236,9 +236,51 @@ interface PageSlot {
 	path: string;
 }
 
+interface DimensionTotal {
+	pageviews: number;
+	value: string;
+}
+
 interface DateBucket {
+	dimensions: Map<SynthesizedDimension, DimensionTotal[]>;
 	pages: Array<PageSlot & { pageviews: number }>;
 	totals: Partial<Record<RollupMetric, number>>;
+}
+
+const DIMENSION_FIELDS = {
+	browser: "browserName",
+	country: "country",
+	device: "deviceType",
+	os: "osName",
+	referrer: "referrer",
+	source: "sourceName",
+} as const satisfies Partial<Record<RollupDimensionKind, keyof ImportedEvent>>;
+
+type SynthesizedDimension = keyof typeof DIMENSION_FIELDS;
+
+function isSynthesizedDimension(
+	kind: RollupDimensionKind
+): kind is SynthesizedDimension {
+	return kind in DIMENSION_FIELDS;
+}
+
+function assignDimension(
+	perSession: number[],
+	totals: DimensionTotal[]
+): Array<string | undefined> {
+	const assigned = Array.from<string | undefined>({
+		length: perSession.length,
+	});
+	let session = 0;
+	for (const total of [...totals].sort((a, b) => b.pageviews - a.pageviews)) {
+		let budget = total.pageviews;
+		while (budget > 0 && session < perSession.length) {
+			assigned[session] = total.value;
+			budget -= perSession[session];
+			session += 1;
+		}
+	}
+	return assigned;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -355,6 +397,23 @@ export function synthesizeDate(
 	adjustments.durationDeltaSeconds =
 		durations.reduce((total, value) => total + value, 0) - totalDuration;
 
+	const sessionDimensions = new Map(
+		[...bucket.dimensions].map(([kind, totals]) => [
+			kind,
+			assignDimension(perSession, totals),
+		])
+	);
+	const dimensionsFor = (session: number): Partial<ImportedEvent> => {
+		const fields: Partial<ImportedEvent> = {};
+		for (const [kind, assigned] of sessionDimensions) {
+			const value = assigned[session];
+			if (value) {
+				fields[DIMENSION_FIELDS[kind]] = value;
+			}
+		}
+		return fields;
+	};
+
 	const dayStart = zonedDayStartUtc(date, context.timezone).getTime();
 	const dayEnd = dayStart + SECONDS_PER_DAY * 1000 - 1;
 	const longestSessionSeconds =
@@ -372,8 +431,9 @@ export function synthesizeDate(
 		if (pageviews <= 0) {
 			continue;
 		}
-		const visitorKey = `${context.websiteId}:${date}:v${session % visitors}`;
+		const visitorKey = `${context.websiteId}:${date}:v${Math.floor((session * visitors) / visits)}`;
 		const sessionKey = `${context.websiteId}:${date}:s${session}`;
+		const dimensions = dimensionsFor(session);
 		const sessionStart = dayStart + session * sessionStride;
 		let lastSlot: PageSlot | undefined;
 
@@ -396,6 +456,7 @@ export function synthesizeDate(
 				hostname: slot.hostname,
 				visitorKey,
 				sessionKey,
+				...dimensions,
 			});
 		}
 
@@ -417,6 +478,7 @@ export function synthesizeDate(
 			visitorKey,
 			sessionKey,
 			timeOnPage,
+			...dimensions,
 		});
 	}
 
@@ -587,7 +649,11 @@ export async function runImport(options: {
 			continue;
 		}
 
-		const bucket = buckets.get(record.date) ?? { totals: {}, pages: [] };
+		const bucket = buckets.get(record.date) ?? {
+			totals: {},
+			pages: [],
+			dimensions: new Map<SynthesizedDimension, DimensionTotal[]>(),
+		};
 		if (record.dimension === null) {
 			bucket.totals = { ...bucket.totals, ...record.metrics };
 		} else if (record.dimension.kind === "page") {
@@ -596,6 +662,17 @@ export async function runImport(options: {
 				hostname: record.dimension.hostname,
 				pageviews: record.metrics.pageviews ?? 0,
 			});
+		} else if (isSynthesizedDimension(record.dimension.kind)) {
+			const kind = record.dimension.kind;
+			const totals = bucket.dimensions.get(kind) ?? [];
+			totals.push({
+				value:
+					kind === "device"
+						? record.dimension.value.toLowerCase()
+						: record.dimension.value,
+				pageviews: record.metrics.pageviews ?? 0,
+			});
+			bucket.dimensions.set(kind, totals);
 		} else {
 			skippedRollups += 1;
 		}
