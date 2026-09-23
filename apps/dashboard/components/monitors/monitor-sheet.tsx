@@ -1,15 +1,27 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	type QueryClient,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
 	parseUptimeGranularity,
+	UPTIME_GRANULARITY_OPTIONS,
 	type UptimeGranularity,
 } from "@databuddy/shared/uptime";
 import { toast } from "sonner";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { useWebsite } from "@/hooks/use-websites";
+import {
+	type AlarmData,
+	alarmMonitorIds,
+	DEST_LABELS,
+	parseAlarms,
+} from "@/app/(main)/settings/notifications/_components/alarm-sheet";
 import { orpc } from "@/lib/orpc";
 import { BellIcon, GearIcon, InfoIcon } from "@databuddy/ui/icons";
 import { Accordion, Sheet, Switch } from "@databuddy/ui/client";
@@ -24,27 +36,25 @@ import {
 	Tooltip,
 } from "@databuddy/ui";
 
-const granularityOptions: { label: string; value: UptimeGranularity }[] = [
-	{ value: "minute", label: "1m" },
-	{ value: "five_minutes", label: "5m" },
-	{ value: "ten_minutes", label: "10m" },
-	{ value: "thirty_minutes", label: "30m" },
-	{ value: "hour", label: "1h" },
-	{ value: "six_hours", label: "6h" },
-	{ value: "twelve_hours", label: "12h" },
-	{ value: "day", label: "24h" },
-];
-
-const DEST_LABELS: Record<string, string> = {
-	slack: "Slack",
-	email: "Email",
-	webhook: "Webhook",
-};
+export function invalidateMonitorQueries(
+	queryClient: QueryClient,
+	scheduleId?: string
+) {
+	const queryKeys = [
+		orpc.uptime.listSchedules.key(),
+		orpc.uptime.getScheduleByWebsiteId.key(),
+		orpc.statusPage.key(),
+		...(scheduleId
+			? [orpc.uptime.getSchedule.key({ input: { scheduleId } })]
+			: []),
+	];
+	return Promise.all(
+		queryKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey }))
+	);
+}
 
 interface MonitorSheetProps {
 	onCloseAction: (open: boolean) => void;
-	onCreatedAction?: (scheduleId: string) => void;
-	onSaveAction?: () => void;
 	open: boolean;
 	schedule?: {
 		cacheBust?: boolean;
@@ -88,43 +98,10 @@ function isValidUrl(value: string): boolean {
 	}
 }
 
-interface ParsedAlarm {
-	destinations: Array<{ id: string; type: string }>;
-	enabled: boolean;
-	id: string;
-	linkedIds: string[];
-	name: string;
-	triggerConditions: Record<string, unknown>;
-}
-
-function parseAlarms(rows: readonly Record<string, unknown>[]): ParsedAlarm[] {
-	return rows.map((row) => {
-		const r = row as Record<string, unknown>;
-		const tc =
-			typeof r.triggerConditions === "object" && r.triggerConditions
-				? (r.triggerConditions as Record<string, unknown>)
-				: {};
-		return {
-			id: r.id as string,
-			name: r.name as string,
-			enabled: r.enabled as boolean,
-			triggerConditions: tc,
-			linkedIds: Array.isArray(tc.monitorIds)
-				? (tc.monitorIds as string[])
-				: [],
-			destinations: Array.isArray(r.destinations)
-				? (r.destinations as Array<{ id: string; type: string }>)
-				: [],
-		};
-	});
-}
-
 export function MonitorSheet({
 	open,
 	onCloseAction,
 	websiteId,
-	onSaveAction,
-	onCreatedAction,
 	schedule,
 }: MonitorSheetProps) {
 	const isEditing = !!schedule;
@@ -159,17 +136,16 @@ export function MonitorSheet({
 	const alarms = parseAlarms(
 		(rawAlarms ?? []) as readonly Record<string, unknown>[]
 	);
+	const isLinked = (alarm: AlarmData) =>
+		alarmMonitorIds(alarm).includes(schedule?.id ?? "");
+	const linkedAlarmCount = alarms.filter(isLinked).length;
 
-	const linkedAlarmCount = alarms.filter((a) =>
-		a.linkedIds.includes(schedule?.id ?? "")
-	).length;
-
-	const toggleAlarm = async (alarm: ParsedAlarm) => {
+	const toggleAlarm = async (alarm: AlarmData) => {
 		const scheduleId = schedule?.id ?? "";
-		const isLinked = alarm.linkedIds.includes(scheduleId);
-		const nextIds = isLinked
-			? alarm.linkedIds.filter((id) => id !== scheduleId)
-			: [...alarm.linkedIds, scheduleId];
+		const linkedIds = alarmMonitorIds(alarm);
+		const nextIds = isLinked(alarm)
+			? linkedIds.filter((id) => id !== scheduleId)
+			: [...linkedIds, scheduleId];
 		try {
 			await alarmUpdateMutation.mutateAsync({
 				alarmId: alarm.id,
@@ -246,11 +222,12 @@ export function MonitorSheet({
 					timeout: timeoutMs,
 					cacheBust,
 				});
+				await invalidateMonitorQueries(queryClient, schedule.id);
 				toast.success("Monitor updated");
 			} else {
 				const resolvedOrganizationId =
 					activeOrganization?.id ?? activeOrganizationId ?? null;
-				const result = await createMutation.mutateAsync({
+				await createMutation.mutateAsync({
 					...(resolvedOrganizationId
 						? { organizationId: resolvedOrganizationId }
 						: {}),
@@ -261,10 +238,9 @@ export function MonitorSheet({
 					timeout: timeoutMs ?? undefined,
 					cacheBust,
 				});
+				await invalidateMonitorQueries(queryClient);
 				toast.success("Monitor created");
-				onCreatedAction?.(result.scheduleId);
 			}
-			onSaveAction?.();
 			onCloseAction(false);
 		} catch {}
 	};
@@ -339,7 +315,7 @@ export function MonitorSheet({
 								className="w-full"
 								disabled={isPending}
 								onChange={setGranularity}
-								options={granularityOptions}
+								options={UPTIME_GRANULARITY_OPTIONS}
 								value={granularity}
 							/>
 						</Field>
@@ -421,9 +397,6 @@ export function MonitorSheet({
 											) : (
 												<div className="space-y-4">
 													{alarms.map((alarm) => {
-														const isLinked = alarm.linkedIds.includes(
-															schedule?.id ?? ""
-														);
 														const destSummary = alarm.destinations
 															.map((d) => DEST_LABELS[d.type] ?? d.type)
 															.join(", ");
@@ -441,7 +414,7 @@ export function MonitorSheet({
 																		</Badge>
 																	)}
 																	<Switch
-																		checked={isLinked}
+																		checked={isLinked(alarm)}
 																		disabled={alarmUpdateMutation.isPending}
 																		onCheckedChange={() => toggleAlarm(alarm)}
 																	/>

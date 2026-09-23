@@ -3,7 +3,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
-import { toast } from "sonner";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import {
@@ -94,7 +93,6 @@ export function StatusPageMonitorRow({
 			});
 		} catch {
 			queryClient.setQueryData(queryKey, previous);
-			toast.error("Failed to update setting");
 		}
 	};
 
@@ -128,7 +126,6 @@ export function StatusPageMonitorRow({
 			});
 		} catch {
 			queryClient.setQueryData(queryKey, previous);
-			toast.error("Failed to rename monitor");
 		}
 	};
 

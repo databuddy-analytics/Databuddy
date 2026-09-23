@@ -21,7 +21,6 @@ interface MonitorsSectionProps {
 		isPaused: boolean;
 		granularity: string;
 	}>;
-	onCreateMonitorAction?: () => void;
 	totalMonitors: number;
 }
 
@@ -41,7 +40,6 @@ function HomeMonitorHeatmap({
 			interactive={false}
 			isActive={isActive}
 			stripClassName="mt-1.5 grid h-3 w-full gap-x-px"
-			tooltipHasData={(day) => day.hasData && isActive}
 		/>
 	);
 }
@@ -183,17 +181,9 @@ export function MonitorsSection({
 	totalMonitors,
 	activeMonitors,
 	isLoading,
-	onCreateMonitorAction,
 }: MonitorsSectionProps) {
 	const router = useRouter();
-
-	const handleAddMonitor = () => {
-		if (onCreateMonitorAction) {
-			onCreateMonitorAction();
-		} else {
-			router.push("/monitors");
-		}
-	};
+	const handleAddMonitor = () => router.push("/monitors");
 
 	if (isLoading) {
 		return (

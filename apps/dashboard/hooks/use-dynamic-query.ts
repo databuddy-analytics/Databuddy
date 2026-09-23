@@ -106,7 +106,7 @@ function buildRequest(
 	};
 }
 
-async function fetchDynamicQuery(
+export async function fetchDynamicQuery(
 	idOrOptions: string | QueryTarget,
 	dateRange: DateRange,
 	queryData: DynamicQueryRequest | DynamicQueryRequest[],

@@ -7,7 +7,9 @@ import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { PageNavigation } from "@/components/layout/page-navigation";
-import { TransferToOrgDialog } from "@/components/transfer-to-org-dialog";
+import { invalidateMonitorQueries } from "@/components/monitors/monitor-sheet";
+import { StatusPageTransferDialog } from "@/components/status-pages/status-page-row";
+import { List } from "@/components/ui/composables/list";
 import { getStatusPageUrl } from "@/lib/app-url";
 import { orpc } from "@/lib/orpc";
 import { StatusPageSheet } from "@/components/status-pages/status-page-sheet";
@@ -27,12 +29,11 @@ import {
 	PlusIcon,
 	SirenIcon,
 } from "@databuddy/ui/icons";
-import { DeleteDialog, Switch } from "@databuddy/ui/client";
+import { DeleteDialog } from "@databuddy/ui/client";
 import {
 	Button,
 	Card,
 	EmptyState,
-	Field,
 	Skeleton,
 	buttonVariants,
 } from "@databuddy/ui";
@@ -49,7 +50,6 @@ export default function StatusPageDetailsPage() {
 	const [isIncidentSheetOpen, setIsIncidentSheetOpen] = useState(false);
 	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [isTransferOpen, setIsTransferOpen] = useState(false);
-	const [includeMonitors, setIncludeMonitors] = useState(true);
 	const [monitorToRemove, setMonitorToRemove] = useState<string | null>(null);
 
 	const statusPageQuery = useQuery({
@@ -57,21 +57,13 @@ export default function StatusPageDetailsPage() {
 		enabled: !!statusPageId,
 	});
 
-	const transferMutation = useMutation({
-		...orpc.statusPage.transfer.mutationOptions(),
-	});
+	const invalidate = () => invalidateMonitorQueries(queryClient);
 
 	const removeMutation = useMutation({
 		...orpc.statusPage.removeMonitor.mutationOptions(),
 		onSuccess: () => {
-			invalidate();
 			toast.success("Monitor removed");
-			setMonitorToRemove(null);
-		},
-		onError: (error) => {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to remove monitor"
-			);
+			return invalidate();
 		},
 	});
 
@@ -81,31 +73,6 @@ export default function StatusPageDetailsPage() {
 	const monitorToRemoveData = statusPage?.monitors.find(
 		(m: StatusPageMonitor) => m.id === monitorToRemove
 	);
-
-	const invalidate = () => {
-		queryClient.invalidateQueries({
-			queryKey: orpc.statusPage.get.key({ input: { statusPageId } }),
-		});
-	};
-
-	const handleTransfer = async (targetOrganizationId: string) => {
-		try {
-			await transferMutation.mutateAsync({
-				statusPageId,
-				targetOrganizationId,
-				includeMonitors,
-			});
-			toast.success("Status page transferred successfully");
-			setIsTransferOpen(false);
-			router.push("/monitors/status-pages");
-		} catch (error) {
-			const errorMessage =
-				error instanceof Error
-					? error.message
-					: "Failed to transfer status page";
-			toast.error(errorMessage);
-		}
-	};
 
 	const handleConfirmRemove = async () => {
 		if (!monitorToRemoveData) {
@@ -121,37 +88,7 @@ export default function StatusPageDetailsPage() {
 
 	let monitorsContent: ReactNode;
 	if (isLoading) {
-		monitorsContent = (
-			<div className="divide-y">
-				{Array.from({ length: 3 }).map((_, i) => (
-					<div
-						className="flex items-center gap-4 px-5 py-3"
-						key={`skel-${i + 1}`}
-					>
-						<Skeleton className="size-8 shrink-0 rounded-lg" />
-						<div className="min-w-0 flex-1 space-y-1.5">
-							<Skeleton className="h-4 w-40" />
-							<Skeleton className="h-3 w-56" />
-						</div>
-					</div>
-				))}
-			</div>
-		);
-	} else if (statusPageQuery.isError) {
-		monitorsContent = (
-			<div className="px-5 py-12">
-				<EmptyState
-					action={{
-						label: "Retry",
-						onClick: () => statusPageQuery.refetch(),
-					}}
-					description="Something went wrong while loading the status page."
-					icon={<BrowserIcon />}
-					title="Failed to load"
-					variant="error"
-				/>
-			</div>
-		);
+		monitorsContent = <List.DefaultLoading />;
 	} else if (statusPage?.monitors.length === 0) {
 		monitorsContent = (
 			<div className="px-5 py-12">
@@ -183,6 +120,23 @@ export default function StatusPageDetailsPage() {
 						statusPageId={statusPageId}
 					/>
 				))}
+			</div>
+		);
+	}
+
+	if (statusPageQuery.isError) {
+		return (
+			<div className="flex min-h-0 flex-1 items-center justify-center p-6">
+				<EmptyState
+					action={{
+						label: "Retry",
+						onClick: () => statusPageQuery.refetch(),
+					}}
+					description="The status page could not be loaded. It may not exist or you may not have access."
+					icon={<BrowserIcon />}
+					title="Failed to load status page"
+					variant="error"
+				/>
 			</div>
 		);
 	}
@@ -378,36 +332,12 @@ export default function StatusPageDetailsPage() {
 				/>
 
 				{statusPage ? (
-					<TransferToOrgDialog
-						currentOrganizationId={statusPage.organizationId}
-						description={`Move "${statusPage.name}" to a different organization.`}
-						isPending={transferMutation.isPending}
+					<StatusPageTransferDialog
 						onOpenChangeAction={setIsTransferOpen}
-						onTransferAction={handleTransfer}
+						onTransferredAction={() => router.push("/monitors/status-pages")}
 						open={isTransferOpen}
-						title="Transfer Status Page"
-						warning="The status page and its configuration will be transferred to {orgName}."
-					>
-						<div className="flex items-center justify-between gap-3 rounded border p-3">
-							<div className="min-w-0">
-								<Field.Label
-									className="cursor-pointer text-sm"
-									htmlFor="include-monitors-detail"
-								>
-									Include all linked monitors
-								</Field.Label>
-								<p className="text-muted-foreground text-xs">
-									If off, monitors are removed from this page and stay in the
-									current organization.
-								</p>
-							</div>
-							<Switch
-								checked={includeMonitors}
-								id="include-monitors-detail"
-								onCheckedChange={setIncludeMonitors}
-							/>
-						</div>
-					</TransferToOrgDialog>
+						statusPage={statusPage}
+					/>
 				) : null}
 			</div>
 		</ErrorBoundary>

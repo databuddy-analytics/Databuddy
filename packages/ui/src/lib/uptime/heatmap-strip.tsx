@@ -35,7 +35,6 @@ export interface UptimeHeatmapStripProps {
 	interactive: boolean;
 	isActive: boolean;
 	stripClassName?: string;
-	tooltipHasData?: (day: UptimeHeatmapDay) => boolean;
 }
 
 const TOOLTIP_WIDTH = 224;
@@ -346,7 +345,6 @@ export function UptimeHeatmapStrip({
 	isActive,
 	stripClassName,
 	emptyLabel,
-	tooltipHasData,
 }: UptimeHeatmapStripProps) {
 	const gridRef = useRef<HTMLFieldSetElement>(null);
 	const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -521,9 +519,7 @@ export function UptimeHeatmapStrip({
 		);
 	}
 
-	const showData = activeDay
-		? (tooltipHasData?.(activeDay) ?? (isActive && activeDay.hasData))
-		: false;
+	const showData = isActive && !!activeDay?.hasData;
 
 	return (
 		<>

@@ -13,10 +13,10 @@ import {
 	TrashIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
-import { CreateIncidentSheet } from "./create-incident-sheet";
-import { UpdateIncidentSheet } from "./update-incident-sheet";
+import { List } from "@/components/ui/composables/list";
+import { IncidentSheet } from "./create-incident-sheet";
 import { DeleteDialog } from "@databuddy/ui/client";
-import { Button, EmptyState, Skeleton } from "@databuddy/ui";
+import { Button, EmptyState } from "@databuddy/ui";
 
 const STATUS_LABELS: Record<string, string> = {
 	investigating: "Investigating",
@@ -59,12 +59,6 @@ export function IncidentsTab({
 				}),
 			});
 			toast.success("Incident deleted");
-			setDeleteTarget(null);
-		},
-		onError: (error) => {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to delete incident"
-			);
 		},
 	});
 
@@ -73,19 +67,16 @@ export function IncidentsTab({
 	return (
 		<>
 			{incidentsQuery.isLoading ? (
-				<div className="divide-y">
-					{Array.from({ length: 2 }).map((_, i) => (
-						<div
-							className="flex items-center gap-4 px-5 py-3"
-							key={`inc-skel-${i + 1}`}
-						>
-							<Skeleton className="size-8 shrink-0 rounded-lg" />
-							<div className="min-w-0 flex-1 space-y-1.5">
-								<Skeleton className="h-4 w-48" />
-								<Skeleton className="h-3 w-72" />
-							</div>
-						</div>
-					))}
+				<List.DefaultLoading />
+			) : incidentsQuery.isError ? (
+				<div className="px-5 py-12">
+					<EmptyState
+						action={{ label: "Retry", onClick: () => incidentsQuery.refetch() }}
+						description="Something went wrong while loading incidents."
+						icon={<SirenIcon />}
+						title="Failed to load incidents"
+						variant="error"
+					/>
 				</div>
 			) : incidents.length === 0 ? (
 				<div className="px-5 py-12">
@@ -124,17 +115,15 @@ export function IncidentsTab({
 				</div>
 			)}
 
-			<CreateIncidentSheet
+			<IncidentSheet
 				onOpenChangeAction={onSheetOpenChange}
 				open={isSheetOpen}
 				statusPageId={statusPageId}
 			/>
 
 			{updateTarget && (
-				<UpdateIncidentSheet
-					currentStatus={updateTarget.status}
-					incidentId={updateTarget.id}
-					incidentTitle={updateTarget.title}
+				<IncidentSheet
+					incident={updateTarget}
 					onOpenChangeAction={(v) => {
 						if (!v) {
 							setUpdateTarget(null);
@@ -151,9 +140,9 @@ export function IncidentsTab({
 				isDeleting={deleteMutation.isPending}
 				isOpen={deleteTarget !== null}
 				onClose={() => setDeleteTarget(null)}
-				onConfirm={() => {
+				onConfirm={async () => {
 					if (deleteTarget) {
-						deleteMutation.mutate({ incidentId: deleteTarget });
+						await deleteMutation.mutateAsync({ incidentId: deleteTarget });
 					}
 				}}
 				title="Delete Incident"
