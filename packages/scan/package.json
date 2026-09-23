@@ -1,0 +1,51 @@
+{
+  "name": "@databuddy/scan",
+  "version": "0.1.0",
+  "description": "Find product analytics tracking opportunities in your codebase.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "databuddy-scan": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "bun run check-types && bun build ./src/cli.ts --target=node --format=esm --packages=external --outfile=dist/cli.js",
+    "check-types": "tsc --noEmit",
+    "test": "bun run build && bun test",
+    "eval:quality": "bun quality/run.ts",
+    "prepack": "bun run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/databuddy-analytics/databuddy.git",
+    "directory": "packages/scan"
+  },
+  "homepage": "https://databuddy.cc",
+  "keywords": [
+    "databuddy",
+    "analytics",
+    "cli",
+    "events",
+    "tracking"
+  ],
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "commander": "^14.0.3",
+    "log-update": "^7.0.2",
+    "p-limit": "^7.2.0",
+    "typescript": "^5.9.3",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/node": "^26.0.0"
+  }
+}
