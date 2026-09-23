@@ -58,6 +58,7 @@ async function extractAnalyticsMetadata(
 
 interface PaddleEvent {
 	data: PaddleTransaction;
+	event_id?: string;
 	event_type: string;
 }
 
@@ -243,31 +244,35 @@ export const paddleWebhook = new Elysia().use(evlog()).post(
 
 		log.set({ eventType: event.event_type });
 
+		let recordCount = 0;
+		let status: "failed" | "processed" = "failed";
 		try {
-			let recordCount = 0;
 			if (event.event_type === "transaction.completed") {
 				await handleTransaction(event.data, result);
 				recordCount = 1;
 			} else {
 				log.set({ unhandled: true });
 			}
-			await recordWebhookDelivery({
-				eventId: event.data?.id ?? "",
-				eventType: event.event_type,
-				ownerId: result.ownerId,
-				provider: "paddle",
-				recordCount,
-				websiteId: result.websiteId,
-			}).catch((error: unknown) => {
-				log.error(error instanceof Error ? error : new Error(String(error)), {
-					webhookDeliveryLog: "write_failed",
-				});
-			});
+			status = "processed";
 
 			return { received: true, type: event.event_type };
 		} catch (error) {
 			log.error(error instanceof Error ? error : new Error(String(error)));
 			throw basketErrors.webhookProcessingFailed();
+		} finally {
+			await recordWebhookDelivery({
+				eventId: event.event_id ?? "",
+				eventType: event.event_type,
+				ownerId: result.ownerId,
+				provider: "paddle",
+				recordCount,
+				status,
+				websiteId: result.websiteId,
+			}).catch((error) => {
+				log.error(error instanceof Error ? error : new Error(String(error)), {
+					webhookDeliveryLog: "write_failed",
+				});
+			});
 		}
 	},
 	{ parse: "none" }

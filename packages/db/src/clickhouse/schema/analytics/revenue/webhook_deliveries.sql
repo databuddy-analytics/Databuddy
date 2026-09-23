@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS analytics.webhook_deliveries
 	`event_id` String CODEC(ZSTD(1)),
 	`api_version` LowCardinality(String) DEFAULT '',
 	`record_count` UInt16 DEFAULT 0,
+	`status` LowCardinality(String) DEFAULT 'processed',
 	`received_at` DateTime('UTC') CODEC(Delta(4), ZSTD(1)),
 	INDEX idx_owner_id owner_id TYPE bloom_filter(0.01) GRANULARITY 1
 )

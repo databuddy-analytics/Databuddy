@@ -14,6 +14,7 @@ export async function recordWebhookDelivery(input: {
 	ownerId: string;
 	provider: string;
 	recordCount: number;
+	status: "failed" | "processed";
 	websiteId: string | null;
 }): Promise<void> {
 	await clickHouse.insert({
@@ -28,6 +29,7 @@ export async function recordWebhookDelivery(input: {
 				event_id: input.eventId,
 				api_version: input.apiVersion ?? "",
 				record_count: input.recordCount,
+				status: input.status,
 				received_at: formatDate(new Date()),
 			},
 		],
