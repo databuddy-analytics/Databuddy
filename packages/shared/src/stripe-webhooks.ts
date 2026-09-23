@@ -34,5 +34,4 @@ export const STRIPE_WEBHOOK_EVENTS = {
 			purpose: "Records each refund",
 		},
 	],
-	optional: [],
 } as const;

@@ -490,24 +490,6 @@ export function RevenueSettingsSheet({
 													</p>
 												) : null}
 											</div>
-
-											{STRIPE_WEBHOOK_EVENTS.optional.length > 0 && (
-												<div className="space-y-2">
-													<p className="text-muted-foreground text-xs">
-														Optional
-													</p>
-													<div className="flex flex-wrap gap-1">
-														{STRIPE_WEBHOOK_EVENTS.optional.map(({ event }) => (
-															<code
-																className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
-																key={event}
-															>
-																{event}
-															</code>
-														))}
-													</div>
-												</div>
-											)}
 										</div>
 									</SettingsSection>
 
