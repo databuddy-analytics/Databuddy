@@ -54,12 +54,7 @@ const command = new Command()
 		"Results directory (default: per-repository user cache)"
 	)
 	.option("--concurrency <count>", "Concurrent requests (default: 8)")
-	.option("--timeout-ms <milliseconds>", "Request timeout (default: 15000)")
 	.option("--batch-files <count>", "Maximum segments per request (default: 4)")
-	.option(
-		"--max-request-bytes <count>",
-		"Packing budget per request; one oversized segment still ships alone (default: 48000)"
-	)
 	.option("--verbose", "Show every source location and request details")
 	.option("--plain", "Disable terminal control codes")
 	.option("--json", "Write JSON without progress output")

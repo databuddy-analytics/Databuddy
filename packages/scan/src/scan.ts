@@ -15,6 +15,7 @@ import { z } from "zod";
 import { collectCoverage, coverageNote } from "./catalog";
 import {
 	type Attempt,
+	type Catalog,
 	createRequest,
 	parseResponse,
 	readUsage,
@@ -35,11 +36,12 @@ export const scanOptionsSchema = z.object({
 	// 51.6% -> 93.9%, p=0.027, at 2.4x the speed. Files that parse with no action are not reviewed.
 	actions: z.boolean().default(true),
 	concurrency: z.coerce.number().int().positive().default(8),
-	timeoutMs: z.coerce.number().int().positive().default(15_000),
 	// Label agreement against solo classification holds at 2-4 segments and falls off by 8, so cap at 4.
 	batchFiles: z.coerce.number().int().positive().default(4),
-	maxRequestBytes: z.coerce.number().int().positive().default(48_000),
 });
+const timeoutMs = 15_000;
+// Failure rate climbs with request size: 26% at 30-40KB, 34% at 40-50KB, 94% above 70KB.
+const maxRequestBytes = 48_000;
 const attemptSchema = z.object({
 	attempt: z.number(),
 	ms: z.number(),
@@ -77,7 +79,6 @@ export const resultSchema = z.object({
 		segments: z.number(),
 		classifiedSegments: z.number(),
 		batches: z.number(),
-		largestRequestBytes: z.number(),
 		oversizedBatches: z.number(),
 		splitBatches: z.number(),
 		completedBatches: z.number(),
@@ -196,20 +197,18 @@ export function splitSource(path: string, content: string): Segment[] {
 // Those requests are counted as oversizedBatches.
 export function planRequests(
 	segments: Segment[],
-	build: (jobs: Segment[]) => string,
-	bounds: { batchFiles: number; maxRequestBytes: number }
+	catalog: Catalog,
+	batchFiles: number
 ): { body: string; jobs: Segment[] }[] {
+	const build = (jobs: Segment[]) => createRequest(jobs, catalog);
 	const overhead = Buffer.byteLength(build([]));
-	const budget = Math.max(1, bounds.maxRequestBytes - overhead);
+	const budget = Math.max(1, maxRequestBytes - overhead);
 	const batches: Segment[][] = [];
 	let batch: Segment[] = [],
 		size = 0;
 	for (const segment of segments) {
 		const cost = Buffer.byteLength(build([segment])) - overhead;
-		if (
-			batch.length &&
-			(size + cost > budget || batch.length >= bounds.batchFiles)
-		) {
+		if (batch.length && (size + cost > budget || batch.length >= batchFiles)) {
 			batches.push(batch);
 			batch = [];
 			size = 0;
@@ -311,16 +310,7 @@ export async function scan(
 	options: z.infer<typeof scanOptionsSchema> & { output: string },
 	onProgress: (snapshot: Snapshot) => void
 ) {
-	const {
-		root,
-		output,
-		cacheOnly,
-		fresh,
-		concurrency,
-		timeoutMs,
-		batchFiles,
-		maxRequestBytes,
-	} = options;
+	const { root, output, cacheOnly, fresh, concurrency, batchFiles } = options;
 	const run = options.run || fresh || cacheOnly;
 	const git = (...args: string[]) =>
 		execFileSync("git", args, {
@@ -384,11 +374,7 @@ export async function scan(
 	if (!run) {
 		return { includedFiles, skippedFiles: noActionFiles.length };
 	}
-	const batches = planRequests(
-		segments,
-		(jobs) => createRequest(jobs, catalog),
-		{ batchFiles, maxRequestBytes }
-	);
+	const batches = planRequests(segments, catalog, batchFiles);
 	if (!(cacheOnly || process.env.AI_GATEWAY_API_KEY)) {
 		try {
 			process.loadEnvFile(join(root, ".env"));
@@ -631,7 +617,6 @@ export async function scan(
 			segments: segments.length,
 			classifiedSegments: rows.length,
 			batches: plannedBatches,
-			largestRequestBytes: Math.max(0, ...calls.map((c) => c.requestBytes)),
 			oversizedBatches: calls.filter((c) => c.requestBytes > maxRequestBytes)
 				.length,
 			splitBatches: calls.filter((c) => c.split).length,

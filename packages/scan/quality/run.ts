@@ -127,7 +127,7 @@ async function main() {
 		.parse(JSON.parse(dataset))
 		.slice(0, options.limit);
 	const { sources, inventory, catalog } = await readSources(root);
-	const bounds = scanOptionsSchema.parse({});
+	const { batchFiles } = scanOptionsSchema.parse({});
 	// Production planning keeps prompts comparable to a real scan instead of one request per file.
 	const prepare = (jobs: Segment[], body = createRequest(jobs, catalog)) => ({
 		body,
@@ -136,8 +136,8 @@ async function main() {
 		requestHash: hash(body),
 	});
 	const plan = (segments: Segment[]): Prepared[] =>
-		planRequests(segments, (jobs) => createRequest(jobs, catalog), bounds).map(
-			({ body, jobs }) => prepare(jobs, body)
+		planRequests(segments, catalog, batchFiles).map(({ body, jobs }) =>
+			prepare(jobs, body)
 		);
 	const placements = (batches: Prepared[]) => {
 		const map = new Map<Segment, Placement>();
