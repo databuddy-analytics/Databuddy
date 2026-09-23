@@ -6,15 +6,7 @@ const interactionEvents = [
 	"scroll",
 	"touchstart",
 	"click",
-	"keypress",
-	"mousemove",
 ] as const;
-
-const counterByEvent: Partial<
-	Record<(typeof interactionEvents)[number], "clickCount">
-> = {
-	click: "clickCount",
-};
 
 const RAGE_CLICK_WINDOW_MS = 1000;
 const RAGE_CLICK_THRESHOLD = 3;
@@ -110,12 +102,11 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 	const cleanupFns: Array<() => void> = [];
 
 	for (const eventType of interactionEvents) {
-		const counter = counterByEvent[eventType];
 		const handler = () => {
 			tracker.interactionCount += 1;
 			tracker.firstInteractionAt ||= Date.now();
-			if (counter) {
-				tracker[counter] += 1;
+			if (eventType === "click") {
+				tracker.clickCount += 1;
 			}
 		};
 
@@ -179,7 +170,6 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 			mutationObserver.observe(document, {
 				subtree: true,
 				childList: true,
-				attributes: true,
 				attributeFilter: MUTATION_ATTRIBUTE_FILTER,
 			});
 		}
