@@ -204,7 +204,9 @@ jobs:
           NODE_ENV: test
           MCP_OAUTH_INTEGRATION_TESTS: "true"
           REQUIRE_EMAIL_VERIFICATION: "false"
-        run: bun test packages/auth/src/mcp-oauth.integration.test.ts
+        run: |
+          bun test packages/auth/src/mcp-oauth.integration.test.ts
+          bun test packages/ai/src/ai/mcp/oauth-website-access.integration.test.ts
       - name: Insights integration
         env:
           NODE_ENV: test
