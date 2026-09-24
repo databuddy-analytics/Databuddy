@@ -86,6 +86,7 @@ const afterHook = /^after[A-Z]/;
 const hookContainer = /^(?:hooks|organizationHooks|databaseHooks)$/;
 const trackingCall = /^(?:track|capture|logEvent)/;
 const whitespaceRun = /\s+/g;
+const pending = /(?:\.\.\.|\u2026)\s*$/;
 const formAttributes = new Set(["action", "formAction"]);
 const formHook = /^(?:React\.)?use(?:ActionState|FormState)$/;
 
@@ -195,6 +196,76 @@ function lookup(unit: Unit, name: string, at: ts.Node): ts.Node | undefined {
 			return found;
 		}
 	}
+}
+
+const appRoute = /(?:^|\/)app\/(.+)\/route\.[cm]?[jt]sx?$/;
+const pagesRoute = /(?:^|\/)pages\/(api\/.+?)(?:\/index)?\.[cm]?[jt]sx?$/;
+const routeGroup = /^\(.*\)$/;
+const queryOrHash = /[?#]/;
+const genericHandler =
+	/^(?:on(?:Click|Submit|Select|Change)|handle(?:Click|Submit|Change)|submit|handler|callback|formAction)$/;
+const entities: Record<string, string> = {
+	"&apos;": "'",
+	"&#39;": "'",
+	"&quot;": '"',
+	"&amp;": "&",
+	"&lt;": "<",
+	"&gt;": ">",
+	"&nbsp;": " ",
+};
+const entity = /&(?:apos|#39|quot|amp|lt|gt|nbsp);/g;
+const routeTables = new WeakMap<
+	ReadonlyMap<string, string>,
+	{ export: "default" | "method"; parts: string[]; path: string }[]
+>();
+function routeTable(sources: ReadonlyMap<string, string>) {
+	let table = routeTables.get(sources);
+	if (!table) {
+		table = [];
+		for (const path of sources.keys()) {
+			const app = appRoute.exec(path);
+			const pages = app ? null : pagesRoute.exec(path);
+			const route = app?.[1] ?? pages?.[1];
+			if (route) {
+				table.push({
+					path,
+					export: app ? "method" : "default",
+					parts: route.split("/").filter((part) => !routeGroup.test(part)),
+				});
+			}
+		}
+		routeTables.set(sources, table);
+	}
+	return table;
+}
+function urlParts(input: ts.Node): (string | null)[] | undefined {
+	const node = unwrap(input);
+	const text = ts.isStringLiteralLike(node)
+		? node.text
+		: ts.isTemplateExpression(node)
+			? node.head.text +
+				node.templateSpans.map((span) => `\0${span.literal.text}`).join("")
+			: undefined;
+	const pathname = text?.split(queryOrHash)[0];
+	if (!pathname?.startsWith("/")) {
+		return;
+	}
+	return pathname
+		.split("/")
+		.filter(Boolean)
+		.map((part) => (part.includes("\0") ? null : part));
+}
+function routeMatches(route: string[], url: (string | null)[]) {
+	for (const [index, part] of route.entries()) {
+		if (part.startsWith("[...") || part.startsWith("[[...")) {
+			return url.length > index || part.startsWith("[[");
+		}
+		const piece = url[index];
+		if (piece === undefined || !(part.startsWith("[") || piece === part)) {
+			return false;
+		}
+	}
+	return route.length === url.length;
 }
 
 export function groupActions(
@@ -527,11 +598,66 @@ export function groupActions(
 			initializer && ts.isJsxExpression(initializer) && initializer.expression
 				? unwrap(initializer.expression)
 				: undefined;
-		if (expression && ts.isIdentifier(expression)) {
+		if (
+			expression &&
+			ts.isIdentifier(expression) &&
+			!genericHandler.test(expression.text)
+		) {
 			return ` ${expression.text}`;
 		}
-		const text = labels.join(" ").replace(whitespaceRun, " ").trim();
-		return text ? ` "${text.slice(0, 60)}"` : "";
+		const text = labels
+			.join(" ")
+			.replace(entity, (match) => entities[match] ?? match)
+			.replace(whitespaceRun, " ")
+			.trim();
+		return text ? ` "${text.slice(0, 40)}"` : "";
+	}
+	function routeHandler(
+		call: ts.CallExpression,
+		owner: Unit,
+		issues: Set<string>
+	): Reference | undefined {
+		const url = call.arguments[0] && urlParts(call.arguments[0]);
+		if (!url) {
+			return;
+		}
+		const dynamic = (parts: string[]) =>
+			parts.filter((part) => part.startsWith("[")).length;
+		const matches = routeTable(sources)
+			.filter((route) => routeMatches(route.parts, url))
+			.sort((a, b) => dynamic(a.parts) - dynamic(b.parts));
+		const route =
+			matches.length === 1 ||
+			(matches[0] &&
+				matches[1] &&
+				dynamic(matches[0].parts) < dynamic(matches[1].parts))
+				? matches[0]
+				: undefined;
+		if (!route) {
+			return;
+		}
+		const init = call.arguments[1];
+		const method =
+			init && ts.isObjectLiteralExpression(init)
+				? init.properties.find(
+						(property): property is ts.PropertyAssignment =>
+							ts.isPropertyAssignment(property) &&
+							property.name.getText(owner.file) === "method"
+					)?.initializer
+				: undefined;
+		const target = parse(route.path, sources.get(route.path) ?? "");
+		if (!target) {
+			return;
+		}
+		return exported(
+			target,
+			route.export === "default"
+				? "default"
+				: method && ts.isStringLiteralLike(method)
+					? method.text.toUpperCase()
+					: "GET",
+			issues
+		);
 	}
 	const roots: {
 		node: ts.Node;
@@ -572,18 +698,39 @@ export function groupActions(
 						isFunction(unwrap(attribute.initializer.expression)))
 			);
 			const labels: string[] = [];
+			const buttonText = (part: ts.Node): ts.Node | undefined =>
+				ts.isJsxElement(part) &&
+				part.openingElement.tagName
+					.getText(unit.file)
+					.toLowerCase()
+					.endsWith("button")
+					? part
+					: ts.forEachChild(part, buttonText);
 			const visible = (part: ts.Node) => {
 				if (ts.isJsxAttribute(part)) {
 					return;
 				}
-				if (ts.isJsxText(part) || ts.isStringLiteralLike(part)) {
+				if (
+					(ts.isJsxText(part) ||
+						(ts.isStringLiteralLike(part) &&
+							!ts.isBinaryExpression(part.parent))) &&
+					!pending.test(part.text)
+				) {
 					labels.push(part.text);
 				}
 				ts.forEachChild(part, visible);
 			};
 			if (ts.isJsxElement(whole)) {
-				for (const child of whole.children) {
-					visible(child);
+				const button =
+					component.toLowerCase() === "form"
+						? whole.children.map(buttonText).find(Boolean)
+						: undefined;
+				if (button) {
+					visible(button);
+				} else if (component.toLowerCase() !== "form") {
+					for (const child of whole.children) {
+						visible(child);
+					}
 				}
 			}
 			for (const attribute of attributes) {
@@ -822,8 +969,15 @@ export function groupActions(
 				if (trackingCall.test(callee.text)) {
 					addSite(owner, child);
 				}
-				if (callee.text === "fetch" && writesOverFetch(child, owner)) {
-					commits = true;
+				if (callee.text === "fetch") {
+					if (writesOverFetch(child, owner)) {
+						commits = true;
+					}
+					const handler = routeHandler(child, owner, issues);
+					if (handler && depth < 2) {
+						addSite(handler.unit, handler.node);
+						evidence(handler.unit, handler.node, depth + 1);
+					}
 				}
 				const resolved = resolve(owner, callee.text, child, issues);
 				if (resolved?.unit.stateSetters.has(resolved.node)) {
@@ -863,6 +1017,18 @@ export function groupActions(
 				follow(owner, expression.whenTrue);
 				follow(owner, expression.whenFalse);
 				return;
+			}
+			if (ts.isCallExpression(expression)) {
+				const handlers = expression.arguments.filter(
+					(argument) =>
+						isFunction(unwrap(argument)) || ts.isIdentifier(unwrap(argument))
+				);
+				for (const argument of handlers) {
+					follow(owner, argument);
+				}
+				if (handlers.length) {
+					return;
+				}
 			}
 			const resolved = ts.isIdentifier(expression)
 				? resolve(owner, expression.text, expression, issues)
