@@ -460,3 +460,28 @@ test("unsupported or malformed source requests source fallback rather than empty
 		null
 	);
 });
+
+test("exported write route handlers are actions while reads and internal helpers are not", () => {
+	const source = `export async function POST(request) {
+  await database.leads.insert(await request.json());
+  return Response.json({ ok: true });
+}
+export async function GET() {
+  return new Response("User-agent: *");
+}
+async function PUT() {
+  await database.leads.update({});
+}`;
+	const actions = groups(source, {}, "app/api/contact/route.ts");
+	assert.equal(actions.length, 1);
+	assert.equal(actions[0]!.label, "POST");
+	assert.match(actions[0]!.source, /database\.leads\.insert/);
+	assert.equal(
+		groups(
+			"export const POST = async (request) => { await database.leads.insert(await request.json()); };",
+			{},
+			"app/api/lead/route.ts"
+		).length,
+		1
+	);
+});

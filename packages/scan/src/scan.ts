@@ -16,6 +16,7 @@ import { collectCoverage, coverageNote } from "./catalog";
 import {
 	type Attempt,
 	type Catalog,
+	type JsonValue,
 	createRequest,
 	parseResponse,
 	readUsage,
@@ -32,15 +33,11 @@ export const scanOptionsSchema = z.object({
 	run: z.boolean().default(false),
 	fresh: z.boolean().default(false),
 	cacheOnly: z.boolean().default(false),
-	// Grouped extraction beats whole-file chunks on a 190-item labelled intersection: covered precision
-	// 51.6% -> 93.9%, p=0.027, at 2.4x the speed. Files that parse with no action are not reviewed.
 	actions: z.boolean().default(true),
 	concurrency: z.coerce.number().int().positive().default(8),
-	// Label agreement against solo classification holds at 2-4 segments and falls off by 8, so cap at 4.
 	batchFiles: z.coerce.number().int().positive().max(8).default(4),
 });
 const timeoutMs = 15_000;
-// Failure rate climbs with request size: 26% at 30-40KB, 34% at 40-50KB, 94% above 70KB.
 const maxRequestBytes = 48_000;
 const attemptSchema = z.object({
 	attempt: z.number(),
@@ -118,8 +115,6 @@ const trackingCall =
 const closers: Record<string, string> = { "(": ")", "[": "]", "{": "}" };
 const trailingSeparator = /[\s,]+$/;
 const whitespaceRun = /\s+/g;
-// The argument as written identifies the event; a bare string search picks up nested property values
-// instead. A truncated object argument still has to read as source, not as `track({ name: 'x',)`.
 function firstArgument(text: string) {
 	const open: string[] = [];
 	let argument = "";
@@ -154,7 +149,7 @@ const splitDepth = 2;
 const keyHelp = "Check the key, or unset it to use Databuddy's scan API.";
 const catalogByteLimit = 24_000;
 
-export async function readJSON(path: string): Promise<unknown> {
+export async function readJSON(path: string): Promise<JsonValue> {
 	try {
 		return JSON.parse(await readFile(path, "utf8"));
 	} catch (error) {
@@ -164,7 +159,7 @@ export async function readJSON(path: string): Promise<unknown> {
 		throw error;
 	}
 }
-async function saveJSON(path: string, value: unknown) {
+async function saveJSON(path: string, value: object | JsonValue) {
 	const temporary = `${path}.${process.pid}.tmp`;
 	await writeFile(temporary, JSON.stringify(value), { mode: 0o600 });
 	await rename(temporary, path);
@@ -174,7 +169,6 @@ export function splitSource(path: string, content: string): Segment[] {
 	let source = "",
 		start = 1,
 		line = 1;
-	// Line chunks preserve all source; cross-chunk control flow still needs review.
 	for (const text of content.split(sourceLineBoundary)) {
 		if (text.length > 24_000) {
 			throw new Error("oversized_source_line");
@@ -193,10 +187,6 @@ export function splitSource(path: string, content: string): Segment[] {
 	return segments;
 }
 
-// The gateway sheds load on large prompts, and source characters mispredict request bytes, so pack by
-// measured cost. maxRequestBytes is a packing budget, not a hard cap: a segment whose own cost exceeds
-// it still ships alone, because splitting one segment's source would break the thing being judged.
-// Those requests are counted as oversizedBatches.
 export function planRequests(
 	segments: Segment[],
 	catalog: Catalog,
@@ -231,7 +221,6 @@ export async function readSources(root: string) {
 	for (const path of execFileSync("git", ["ls-files", "-z"], {
 		cwd: root,
 		encoding: "utf8",
-		// A large monorepo's path listing exceeds the default child-process buffer.
 		maxBuffer: 64 * 1024 * 1024,
 	})
 		.split("\0")
@@ -300,8 +289,6 @@ export async function readSources(root: string) {
 			});
 		}
 	}
-	// The whole catalog ships in every request, so it must never crowd out the source it describes.
-	// Kept in measured priority order: shared producers carry coverage that locations alone cannot.
 	let budget = catalogByteLimit;
 	const trim = (entries: string[]) => {
 		const kept: string[] = [];
@@ -360,8 +347,6 @@ export async function scan(
 		? await import("./actions")
 		: { groupActions: null };
 	const segments: Segment[] = [];
-	// A file the grouper parsed without finding an executable action has nothing to instrument; only
-	// unsupported or unparsable files still fall back to whole-source review.
 	const noActionFiles: string[] = [];
 	for (const [path, source] of sources) {
 		const actions = groupActions?.(path, source, sources);
@@ -417,8 +402,7 @@ export async function scan(
 		calls: Call[] = [];
 	let plannedBatches = batches.length,
 		interrupted = false,
-		logFailure: unknown;
-	// A cache replay is read-only, including diagnostics files.
+		logFailed = false;
 	const logFile = cacheOnly
 		? null
 		: await open(join(output, "progress.ndjson"), "a", 0o600);
@@ -433,7 +417,7 @@ export async function scan(
 			);
 		});
 		writes.catch((error) => {
-			logFailure = error;
+			logFailed = true;
 			controller.abort(error);
 		});
 	};
@@ -475,7 +459,6 @@ export async function scan(
 			batches: batches.length,
 		});
 		update();
-		// A large request is far more likely to be shed than a small one, so a failed batch is retried as halves.
 		const evaluateBatch = async (
 			{ body, jobs }: { body: string; jobs: Segment[] },
 			index: number,
@@ -500,7 +483,7 @@ export async function scan(
 					costUsd: null,
 					attempts,
 				};
-			let response: unknown = null;
+			let response: JsonValue = null;
 			log("batch_started", {
 				batch: index,
 				depth,
@@ -571,7 +554,7 @@ export async function scan(
 					shedError.test(call.error);
 				if (
 					attempts.some((a) => a.status === 401 || a.status === 403) ||
-					logFailure
+					logFailed
 				) {
 					controller.abort();
 				}
@@ -611,7 +594,7 @@ export async function scan(
 			throw rejected.reason;
 		}
 		await writes;
-		if (logFailure) {
+		if (logFailed) {
 			throw new Error("Could not write scan diagnostics.");
 		}
 		const statuses = calls.flatMap((c) => c.attempts).map((a) => a.status);
