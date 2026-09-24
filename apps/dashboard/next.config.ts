@@ -28,6 +28,7 @@ const nextConfig: NextConfig = {
 			destination: new URL(source, apiProxyUrl).href,
 		}));
 	},
+	experimental: apiProxyUrl ? { proxyTimeout: 600_000 } : undefined,
 	env: {
 		...(apiProxyUrl && process.env.NEXT_PUBLIC_APP_URL
 			? { NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_APP_URL }
