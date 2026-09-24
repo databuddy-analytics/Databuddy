@@ -861,8 +861,6 @@ export function groupActions(
 				}
 			}
 		}
-		// A selector inside a form only feeds the submit, which is the action; one that saves on
-		// change is an action itself.
 		if (selection.test(root.label) && !commits) {
 			return [];
 		}

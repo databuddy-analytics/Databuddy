@@ -1,4 +1,3 @@
-// Developer-only prompt diagnostic. Ground truth stays local; production extraction selects context.
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, realpath, rename, writeFile } from "node:fs/promises";
@@ -129,7 +128,6 @@ async function main() {
 		.slice(0, options.limit);
 	const { sources, inventory, catalog } = await readSources(root);
 	const { batchFiles } = scanOptionsSchema.parse({});
-	// Production planning keeps prompts comparable to a real scan instead of one request per file.
 	const prepare = (jobs: Segment[], body = createRequest(jobs, catalog)) => ({
 		body,
 		bytes: Buffer.byteLength(body),
@@ -189,7 +187,6 @@ async function main() {
 				(segment) =>
 					segment.start <= review.line && segment.end >= review.endLine
 			) ?? null;
-		// Only the anchor's membership in executable root/sites counts; surrounding source is not evidence.
 		const matched = (file.actions ?? []).flatMap((action, index) =>
 			[
 				{ path: review.path, start: action.start, end: action.end },
@@ -295,8 +292,6 @@ async function main() {
 			return {
 				...review,
 				sourceHash: file.source === undefined ? null : hash(file.source),
-				// Labels pin a path and line in a tree other sessions keep editing, so a changed file
-				// means the reviewed decision may no longer describe what is at that line.
 				stale:
 					file.source === undefined || !review.sourceSha
 						? null
@@ -339,8 +334,6 @@ async function main() {
 			const selected = entries.filter(
 				(entry) => split === "all" || entry.split === split
 			);
-			// Overall accuracy is dominated by the ignore mass and hides the real failure mode, which is
-			// inventing gaps in clean code. Recall per expected decision exposes it.
 			const count = (variant: "baseline" | "focused") => ({
 				scored: selected.filter((entry) => entry[variant].correct !== null)
 					.length,
@@ -485,7 +478,6 @@ async function main() {
 		if (!apiKey) {
 			throw new Error("Set AI_GATEWAY_API_KEY before using --run.");
 		}
-		// Production splits a shed request into halves; without it a case is lost rather than measured.
 		const evaluate = async (
 			prepared: Prepared,
 			placed: Map<Segment, Placement>,
@@ -557,7 +549,6 @@ async function main() {
 		process.on("SIGINT", cancel);
 		process.on("SIGTERM", cancel);
 		try {
-			// Arms alternate so a provider outage cannot degrade one of them alone.
 			const arms = [
 				baselineBatches.map(
 					(prepared) => [prepared, baselinePlacements] as const

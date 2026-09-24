@@ -33,8 +33,6 @@ const areas = {
 const controls = /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g;
 export const clean = (value: string | number | null | undefined) =>
 	stripVTControlCharacters(String(value ?? "")).replace(controls, "");
-// Coverage and area are answered independently, so a gap with no product area is the model
-// disagreeing with itself. Those rows measure weaker, so they rank below findings that agree.
 const disputed = (row: Row) => (row.category === "none" ? 1 : 0);
 const gaps = (rows: Row[]) =>
 	rows

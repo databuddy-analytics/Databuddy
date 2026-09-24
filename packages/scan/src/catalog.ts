@@ -123,7 +123,6 @@ function routerKeys(sources: ReadonlyMap<string, string>) {
 	return keys;
 }
 
-// The middleware derives event names from a route-keyed override map; find it by shape so the scan stays repo-agnostic.
 function nameOverrides(sources: ReadonlyMap<string, string>) {
 	const overrides: Record<string, string> = {};
 	for (const [path, source] of sources) {
@@ -285,8 +284,6 @@ function trackingDeclarations(sources: ReadonlyMap<string, string>) {
 					[...text.matchAll(eventLiteral)].map((match) => match[1] as string)
 				),
 			];
-			// Without a resolved event name the entry claims coverage it cannot back: a page component
-			// that merely contains a track call does not track its caller's action.
 			if (events.length) {
 				helpers.push(
 					`${name} (${path}:${line}) fires ${events.slice(0, 6).join("/")}`
