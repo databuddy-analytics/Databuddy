@@ -128,6 +128,15 @@ export const scanRoute = new Elysia({ prefix: "/v1/scan" }).post(
 				limit.requests,
 				limit.windowSeconds
 			);
+			if (rl.degraded) {
+				mergeWideEvent({ scan_rate_limit_degraded: true });
+				return reject(
+					request,
+					503,
+					"SERVICE_UNAVAILABLE",
+					"Scanning is temporarily unavailable"
+				);
+			}
 			if (!rl.success) {
 				mergeWideEvent({ scan_rate_limited: true });
 				return reject(
