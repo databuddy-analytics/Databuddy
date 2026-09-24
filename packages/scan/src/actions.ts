@@ -81,7 +81,10 @@ const jsxExtension = /x$/i;
 const jsExtension = /\.[cm]?js$/i;
 const importExtension = /\.[cm]?jsx?$/i;
 const routineCall =
-	/^(?:(?:event|e)\.preventDefault|(?:router|history)\.(?:push|replace|back|refresh)|console\.\w+)$/;
+	/^(?:(?:event|e|evt)\.(?:preventDefault|stopPropagation)|(?:router|history)\.(?:push|replace|back|refresh)|console\.\w+|[\w$.]*\.classList\.(?:add|remove|toggle|replace)|[\w$.]*\.(?:focus|blur|scrollIntoView|setAttribute|removeAttribute|toggleAttribute))$/;
+const domListeners = new Set(["addEventListener", "on"]);
+const domEvents = new Set(["click", "submit", "copy"]);
+const domProperties = new Set(["onclick", "onsubmit", "oncopy"]);
 const afterHook = /^after[A-Z]/;
 const hookContainer = /^(?:hooks|organizationHooks|databaseHooks)$/;
 const trackingCall = /^(?:track|capture|logEvent)/;
@@ -838,6 +841,49 @@ export function groupActions(
 				callbacks: [node],
 				label: node.name.text,
 				needsWrite: !writeMethods.has(node.name.text),
+			});
+		}
+		if (
+			ts.isCallExpression(node) &&
+			ts.isPropertyAccessExpression(node.expression) &&
+			domListeners.has(node.expression.name.text)
+		) {
+			const [type] = node.arguments;
+			const handler = [...node.arguments]
+				.reverse()
+				.find(
+					(argument) =>
+						isFunction(unwrap(argument)) || ts.isIdentifier(unwrap(argument))
+				);
+			if (
+				type &&
+				ts.isStringLiteralLike(type) &&
+				domEvents.has(type.text) &&
+				handler &&
+				handler !== type &&
+				!routine(handler, unit)
+			) {
+				roots.push({
+					node: handler,
+					owner: node,
+					callbacks: [handler],
+					label: `${node.expression.expression.getText(unit.file).replace(whitespaceRun, " ").slice(0, 60)}.${type.text}`,
+				});
+			}
+		}
+		if (
+			ts.isBinaryExpression(node) &&
+			node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+			ts.isPropertyAccessExpression(node.left) &&
+			domProperties.has(node.left.name.text) &&
+			(isFunction(unwrap(node.right)) || ts.isIdentifier(unwrap(node.right))) &&
+			!routine(node.right, unit)
+		) {
+			roots.push({
+				node: node.right,
+				owner: node,
+				callbacks: [node.right],
+				label: `${node.left.expression.getText(unit.file).replace(whitespaceRun, " ").slice(0, 60)}.${node.left.name.text.slice(2)}`,
 			});
 		}
 		if (

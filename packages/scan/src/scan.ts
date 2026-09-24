@@ -84,6 +84,7 @@ const resultSchema = z.object({
 		requestAttempts: z.number(),
 		retries: z.number(),
 		wallSeconds: z.number(),
+		warnings: z.array(z.string()),
 	}),
 	rows: z.array(rowSchema),
 });
@@ -100,7 +101,7 @@ interface InventoryFile {
 export const hash = (value: string) =>
 	createHash("sha256").update(value).digest("hex");
 const excluded =
-	/(?:^|\/)(?:tests?|__tests__|fixtures?|__fixtures__|__mocks__|examples?|playground|node_modules|dist|\.next|\.agents|\.codex|vendor)(?:\/|$)|\.(?:test|spec|stories|generated|d)\.[^.]+$/i;
+	/(?:^|\/)(?:tests?|__tests__|fixtures?|__fixtures__|__mocks__|examples?|playground|e2e|cypress|playwright|node_modules|dist|\.next|\.agents|\.codex|vendor)(?:\/|$)|\.(?:test|spec|stories|generated|d)\.[^.]+$/i;
 const sourceFile = /\.(?:[cm]?[jt]sx?|vue|swift|py|sh|sql|html|css)$/;
 const repositoryKey =
 	/^[ \t]*(?:export[ \t]+)?AI_GATEWAY_API_KEY[ \t]*=[ \t]*(.*?)[ \t]*$/m;
@@ -111,7 +112,7 @@ const sourceLineBoundary = /(?<=\n)/;
 const secret =
 	/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|(?:sk_live_|sk-proj-|ghp_|github_pat_)[A-Za-z0-9_-]{20,}/;
 const trackingCall =
-	/\b((?:[\w$]+\.)?(?:track[A-Z]\w*|track|capture|logEvent))\s*\(/;
+	/\b((?:[\w$]+\.)?(?:track[A-Z]\w*|track|capture|logEvent))\s*\((?=\s*(?:["'`{]|[\w$]+\.[\w$]))/;
 const closers: Record<string, string> = { "(": ")", "[": "]", "{": "}" };
 const trailingSeparator = /[\s,]+$/;
 const whitespaceRun = /\s+/g;
@@ -422,6 +423,15 @@ export async function scan(
 		segments.splice(segments.indexOf(segment), 1);
 	}
 	const includedFiles = new Set(segments.map((s) => s.path)).size;
+	const sourceFiles = [...sources.keys()].filter((path) =>
+		reviewable.test(path)
+	).length;
+	const warnings =
+		options.actions && sourceFiles >= 20 && includedFiles < sourceFiles / 20
+			? [
+					`Only ${includedFiles} of ${sourceFiles} source files contain actions the scanner recognises (JSX handlers, form actions, DOM listeners, route handlers). Findings cover those files only, so an empty result does not mean tracking is complete.`,
+				]
+			: [];
 	if (!cacheOnly) {
 		await mkdir(join(output, "responses"), { recursive: true, mode: 0o700 });
 		await saveJSON(join(output, "inventory.json"), {
@@ -448,6 +458,7 @@ export async function scan(
 			destination,
 			files: sentFiles(segments, excerpts),
 			skippedFiles: noActionFiles.length,
+			warnings,
 			payload: { catalog, segments },
 		};
 	}
@@ -726,6 +737,7 @@ export async function scan(
 				0
 			),
 			wallSeconds: Math.round((performance.now() - started) / 100) / 10,
+			warnings,
 		};
 		const round = (value: number | null) =>
 			value === null ? null : Math.round(value * 100) / 100;
