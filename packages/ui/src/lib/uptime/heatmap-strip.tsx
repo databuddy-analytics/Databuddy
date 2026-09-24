@@ -37,7 +37,6 @@ export interface UptimeHeatmapStripProps {
 	isActive: boolean;
 	stripClassName?: string;
 	tooltipHasData?: (day: UptimeHeatmapDay) => boolean;
-	variant?: "line" | "bars";
 }
 
 const TOOLTIP_WIDTH = 224;
@@ -366,7 +365,6 @@ export function UptimeHeatmapStrip({
 	stripClassName,
 	emptyLabel,
 	tooltipHasData,
-	variant = "line",
 }: UptimeHeatmapStripProps) {
 	const gridRef = useRef<HTMLFieldSetElement>(null);
 	const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -394,12 +392,9 @@ export function UptimeHeatmapStrip({
 		}),
 		[days.length]
 	);
-	const isBars = variant === "bars";
 	const gridClassName =
 		stripClassName ??
-		(isBars
-			? "relative grid h-8 cursor-pointer gap-x-px border-0 p-0 sm:gap-x-[2px]"
-			: "relative -my-3 grid cursor-pointer gap-x-px border-0 px-0 py-3 sm:gap-x-[2px]");
+		"relative -my-3 grid cursor-pointer gap-x-px border-0 px-0 py-3 sm:gap-x-[2px]";
 
 	const clearHideTimer = useCallback(() => {
 		if (hideTimerRef.current) {
@@ -496,19 +491,6 @@ export function UptimeHeatmapStrip({
 		[clearHideTimer]
 	);
 
-	const barNodes = days.map((day, index) => (
-		<div
-			aria-hidden
-			className="h-full rounded-[2px] transition-opacity duration-(--duration-instant) ease-(--ease-smooth)"
-			key={day.dateStr}
-			style={{
-				background: SEGMENT_COLORS[getSeverity(day, isActive)],
-				opacity:
-					isTooltipVisible && tooltip && tooltip.index !== index ? 0.55 : 1,
-			}}
-		/>
-	));
-
 	const segmentNodes = segments.map((segment) => {
 		const activeIndex = tooltip?.index ?? null;
 		const containsActive =
@@ -552,7 +534,7 @@ export function UptimeHeatmapStrip({
 				className={cn("grid items-end gap-x-px", gridClassName)}
 				style={gridStyle}
 			>
-				{isBars ? barNodes : segmentNodes}
+				{segmentNodes}
 			</div>
 		);
 	}
@@ -572,19 +554,15 @@ export function UptimeHeatmapStrip({
 				ref={gridRef}
 				style={gridStyle}
 			>
-				{isBars ? barNodes : segmentNodes}
+				{segmentNodes}
 				<div
-					className={cn(
-						"pointer-events-none absolute right-0 left-0 grid gap-x-px",
-						"sm:gap-x-[2px]",
-						isBars ? "inset-y-0" : "inset-y-3"
-					)}
+					className="pointer-events-none absolute inset-y-3 right-0 left-0 grid gap-x-px sm:gap-x-[2px]"
 					style={gridStyle}
 				>
 					{days.map((day, index) => (
 						<button
 							aria-label={dayLabels[index]}
-							className="h-full rounded-[2px] bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+							className="h-full rounded-full bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 							key={day.dateStr}
 							onBlur={hideTooltip}
 							onFocus={() => handleDayFocus(index)}
