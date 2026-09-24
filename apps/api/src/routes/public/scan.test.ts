@@ -2,11 +2,12 @@ import "@databuddy/test/env";
 import { Elysia } from "elysia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const state = vi.hoisted(() => ({ rateLimited: false }));
+const state = vi.hoisted(() => ({ degraded: false, rateLimited: false }));
 
 vi.mock("@databuddy/redis/rate-limit", () => ({
 	getRateLimitHeaders: () => ({ "x-ratelimit-remaining": "0" }),
 	ratelimit: async () => ({
+		degraded: state.degraded,
 		limit: 600,
 		remaining: state.rateLimited ? 0 : 599,
 		reset: Date.now() + 60_000,
@@ -51,6 +52,7 @@ function request(body: string, headers: Record<string, string> = {}) {
 }
 
 beforeEach(() => {
+	state.degraded = false;
 	state.rateLimited = false;
 	gatewayBodies = [];
 	gatewayStatus = 200;
@@ -141,6 +143,16 @@ describe("public scan endpoint", () => {
 
 		expect(response.status).toBe(429);
 		expect(response.headers.get("x-ratelimit-remaining")).toBe("0");
+		expect(gatewayBodies).toHaveLength(0);
+	});
+
+	it("fails closed when the rate limiter cannot reach Redis", async () => {
+		state.degraded = true;
+		const response = await request(
+			JSON.stringify({ catalog, segments: [segment] })
+		);
+
+		expect(response.status).toBe(503);
 		expect(gatewayBodies).toHaveLength(0);
 	});
 
