@@ -1,5 +1,6 @@
 "use client";
 
+import { RESERVED_STATUS_PAGE_SLUGS } from "@databuddy/shared/uptime";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -22,7 +23,7 @@ import {
 } from "@databuddy/ui";
 import { Sheet } from "@databuddy/ui/client";
 
-const URL_REGEX = /^https?:\/\/.+/;
+const HTTPS_URL_REGEX = /^https:\/\/.+/;
 
 const UPLOAD_ACCEPT = UPLOAD_CONTENT_TYPES.join(",");
 
@@ -85,6 +86,10 @@ const statusPageFormSchema = z.object({
 		.regex(
 			/^[a-z0-9-]+$/,
 			"Slug must only contain lowercase letters, numbers, and dashes"
+		)
+		.refine(
+			(slug) => !RESERVED_STATUS_PAGE_SLUGS.has(slug),
+			"This slug is reserved"
 		),
 	description: z
 		.string()
@@ -92,16 +97,28 @@ const statusPageFormSchema = z.object({
 		.optional(),
 	logoUrl: z
 		.string()
-		.refine((v) => v === "" || URL_REGEX.test(v), "Must be a valid URL"),
+		.refine(
+			(v) => v === "" || HTTPS_URL_REGEX.test(v),
+			"Must start with https://"
+		),
 	faviconUrl: z
 		.string()
-		.refine((v) => v === "" || URL_REGEX.test(v), "Must be a valid URL"),
+		.refine(
+			(v) => v === "" || HTTPS_URL_REGEX.test(v),
+			"Must start with https://"
+		),
 	websiteUrl: z
 		.string()
-		.refine((v) => v === "" || URL_REGEX.test(v), "Must be a valid URL"),
+		.refine(
+			(v) => v === "" || HTTPS_URL_REGEX.test(v),
+			"Must start with https://"
+		),
 	supportUrl: z
 		.string()
-		.refine((v) => v === "" || URL_REGEX.test(v), "Must be a valid URL"),
+		.refine(
+			(v) => v === "" || HTTPS_URL_REGEX.test(v),
+			"Must start with https://"
+		),
 	theme: z.enum(["system", "light", "dark"]),
 });
 
@@ -166,7 +183,7 @@ export function StatusPageSheet({
 		const contentType = UPLOAD_CONTENT_TYPES.find((type) => type === file.type);
 
 		if (!contentType) {
-			toast.error("Unsupported file type. Use PNG, JPEG, WebP, SVG, or ICO.");
+			toast.error("Unsupported file type. Use PNG, JPEG, WebP, or ICO.");
 			return;
 		}
 
@@ -190,10 +207,11 @@ export function StatusPageSheet({
 				body: file,
 				headers: { "Content-Type": contentType },
 				method: "PUT",
-			});
+			}).catch(() => null);
 
-			if (!response.ok) {
-				throw new Error(`Upload failed with status ${response.status}`);
+			if (!response?.ok) {
+				toast.error("Upload failed, try again");
+				return;
 			}
 
 			form.setValue(field, publicUrl, {
@@ -201,10 +219,7 @@ export function StatusPageSheet({
 				shouldValidate: true,
 			});
 			toast.success(`${label} uploaded`);
-		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Upload failed, try again"
-			);
+		} catch {
 		} finally {
 			setUploading(null);
 		}
@@ -242,11 +257,7 @@ export function StatusPageSheet({
 			toast.success(`Status page ${statusPage ? "updated" : "created"}`);
 			onSaveAction?.();
 			onCloseAction(false);
-		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to save status page"
-			);
-		}
+		} catch {}
 	};
 
 	const isPending = createMutation.isPending || updateMutation.isPending;

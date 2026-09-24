@@ -133,14 +133,31 @@ interface LatestCheckRow {
 	site_id: string;
 }
 
-function getDateRange(days: number) {
-	const today = new Date();
-	const start = new Date(today);
-	start.setDate(start.getDate() - (days - 1));
-	return {
-		startDate: start.toISOString().slice(0, 10),
-		endDate: today.toISOString().slice(0, 10),
-	};
+const HISTORY_DAYS = 90;
+
+function daysAgo(days: number): Date {
+	const date = new Date();
+	date.setDate(date.getDate() - days);
+	return date;
+}
+
+function monitorLabel(
+	monitor: {
+		displayName: string | null;
+		hideUrl: boolean;
+		name: string | null;
+		url: string | null;
+	},
+	website: { domain: string; name: string | null } | undefined
+): string {
+	return (
+		monitor.displayName ??
+		monitor.name ??
+		website?.name ??
+		website?.domain ??
+		(monitor.hideUrl ? null : monitor.url) ??
+		"Monitor"
+	);
 }
 
 function groupDailyRows(rows: DailyRow[]): Map<string, DailyRow[]> {
@@ -190,9 +207,8 @@ function applyIncidentImpacts(
 }
 
 async function _fetchStatusPageData(
-	slug: string,
-	days = 90
-): Promise<StatusPageOutput | null> {
+	slug: string
+): Promise<{ page: StatusPageOutput | null }> {
 	const rows = await db
 		.select({
 			statusPageId: statusPages.id,
@@ -234,7 +250,7 @@ async function _fetchStatusPageData(
 		.orderBy(statusPageMonitors.order, statusPageMonitors.id);
 
 	if (rows.length === 0) {
-		return null;
+		return { page: null };
 	}
 
 	const org = {
@@ -272,7 +288,10 @@ async function _fetchStatusPageData(
 		];
 	});
 
-	const { startDate, endDate } = getDateRange(days);
+	const startDate = daysAgo(HISTORY_DAYS - 1)
+		.toISOString()
+		.slice(0, 10);
+	const endDate = new Date().toISOString().slice(0, 10);
 
 	const websiteIds = [
 		...new Set(
@@ -284,67 +303,40 @@ async function _fetchStatusPageData(
 
 	const siteIds = [...new Set(schedules.map((s) => s.websiteId ?? s.id))];
 
-	const ninetyDaysAgoDate = new Date();
-	ninetyDaysAgoDate.setDate(ninetyDaysAgoDate.getDate() - 90);
-
-	const incidentRelations = {
-		updates: {
-			orderBy: { createdAt: "desc" },
-			limit: 20,
-		},
-		affectedMonitors: true,
-	} as const;
-
-	const [
-		websiteRows,
-		allDailyData,
-		allRecentChecks,
-		windowedIncidents,
-		unresolvedIncidents,
-	] = await Promise.all([
-		websiteIds.length > 0
-			? db
-					.select({
-						id: websites.id,
-						domain: websites.domain,
-						name: websites.name,
-					})
-					.from(websites)
-					.where(inArray(websites.id, websiteIds))
-			: Promise.resolve([]),
-		siteIds.length > 0
-			? chQuery<DailyRow>(DAILY_UPTIME_SQL, { siteIds, startDate, endDate })
-			: Promise.resolve([]),
-		siteIds.length > 0
-			? chQuery<LatestCheckRow>(LATEST_CHECK_SQL, { siteIds })
-			: Promise.resolve([]),
-		db.query.incidents.findMany({
-			where: {
-				statusPageId: rows[0].statusPageId,
-				createdAt: { gte: ninetyDaysAgoDate },
-			},
-			orderBy: { createdAt: "desc" },
-			limit: 50,
-			with: incidentRelations,
-		}),
-		db.query.incidents.findMany({
-			where: {
-				statusPageId: rows[0].statusPageId,
-				status: { ne: "resolved" },
-			},
-			orderBy: { createdAt: "desc" },
-			limit: 50,
-			with: incidentRelations,
-		}),
-	]);
-
-	const recentIncidents = [
-		...new Map(
-			[...unresolvedIncidents, ...windowedIncidents].map(
-				(incident) => [incident.id, incident] as const
-			)
-		).values(),
-	].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+	const [websiteRows, allDailyData, allRecentChecks, recentIncidents] =
+		await Promise.all([
+			websiteIds.length > 0
+				? db
+						.select({
+							id: websites.id,
+							domain: websites.domain,
+							name: websites.name,
+						})
+						.from(websites)
+						.where(inArray(websites.id, websiteIds))
+				: Promise.resolve([]),
+			siteIds.length > 0
+				? chQuery<DailyRow>(DAILY_UPTIME_SQL, { siteIds, startDate, endDate })
+				: Promise.resolve([]),
+			siteIds.length > 0
+				? chQuery<LatestCheckRow>(LATEST_CHECK_SQL, { siteIds })
+				: Promise.resolve([]),
+			db.query.incidents.findMany({
+				where: {
+					statusPageId: rows[0].statusPageId,
+					OR: [
+						{ createdAt: { gte: daysAgo(HISTORY_DAYS) } },
+						{ status: { ne: "resolved" } },
+					],
+				},
+				orderBy: { createdAt: "desc" },
+				limit: 50,
+				with: {
+					updates: { orderBy: { createdAt: "desc" }, limit: 20 },
+					affectedMonitors: true,
+				},
+			}),
+		]);
 
 	const websiteMap = new Map(websiteRows.map((w) => [w.id, w] as const));
 
@@ -393,12 +385,7 @@ async function _fetchStatusPageData(
 
 		return {
 			id: schedule.id,
-			name:
-				schedule.displayName ??
-				schedule.name ??
-				website?.name ??
-				website?.domain ??
-				schedule.url,
+			name: monitorLabel(schedule, website),
 			domain: schedule.hideUrl ? undefined : (website?.domain ?? schedule.url),
 			currentStatus,
 			freshness,
@@ -406,44 +393,44 @@ async function _fetchStatusPageData(
 				schedule.hideUptimePercentage || dailyData.length === 0
 					? undefined
 					: Math.round(uptimePercentageRaw * 100) / 100,
-			dailyData: dailyData.map((d) => ({
-				date: String(d.date),
-				uptime_percentage: schedule.hideUptimePercentage
-					? undefined
-					: d.uptime_percentage,
-				total_checks: schedule.hideUptimePercentage
-					? undefined
-					: d.total_checks,
-				successful_checks: schedule.hideUptimePercentage
-					? undefined
-					: d.successful_checks,
-				downtime_seconds: schedule.hideUptimePercentage
-					? undefined
-					: d.downtime_seconds,
-				avg_response_time: schedule.hideLatency
-					? undefined
-					: d.avg_response_time,
-				p95_response_time: schedule.hideLatency
-					? undefined
-					: d.p95_response_time,
-			})),
+			dailyData: dailyData.map(
+				({
+					site_id: _siteId,
+					date,
+					avg_response_time,
+					p95_response_time,
+					...uptime
+				}) => ({
+					date: String(date),
+					...(schedule.hideUptimePercentage ? {} : uptime),
+					...(schedule.hideLatency
+						? {}
+						: { avg_response_time, p95_response_time }),
+				})
+			),
 			lastCheckedAt,
 		};
 	});
 
 	const spmIdToName = new Map(
-		rows
-			.filter((r) => r.statusPageMonitorId)
-			.map(
-				(r) =>
-					[
-						r.statusPageMonitorId,
-						r.monitorDisplayName ??
-							r.scheduleName ??
-							r.scheduleUrl ??
-							"Unknown",
-					] as const
-			)
+		rows.flatMap((r) =>
+			r.statusPageMonitorId
+				? [
+						[
+							r.statusPageMonitorId,
+							monitorLabel(
+								{
+									displayName: r.monitorDisplayName,
+									hideUrl: r.hideUrl ?? false,
+									name: r.scheduleName,
+									url: r.scheduleUrl,
+								},
+								r.websiteId ? websiteMap.get(r.websiteId) : undefined
+							),
+						] as const,
+					]
+				: []
+		)
 	);
 
 	const formattedIncidents = recentIncidents.map((incident) => ({
@@ -473,11 +460,13 @@ async function _fetchStatusPageData(
 	applyIncidentImpacts(monitors, activeIncidents, rows);
 
 	return {
-		organization: org,
-		statusPage: statusPageInfo,
-		overallStatus: deriveOverallStatus(monitors, formattedIncidents),
-		monitors,
-		incidents: formattedIncidents,
+		page: {
+			organization: org,
+			statusPage: statusPageInfo,
+			overallStatus: deriveOverallStatus(monitors, formattedIncidents),
+			monitors,
+			incidents: formattedIncidents,
+		},
 	};
 }
 

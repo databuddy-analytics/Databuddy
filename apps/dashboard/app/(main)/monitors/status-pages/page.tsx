@@ -12,6 +12,7 @@ import {
 	StatusPageRow,
 } from "@/components/status-pages/status-page-row";
 import { StatusPageSheet } from "@/components/status-pages/status-page-sheet";
+import { invalidateMonitorQueries } from "@/components/monitors/monitor-sheet";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import {
@@ -21,13 +22,25 @@ import {
 	PlusIcon,
 } from "@databuddy/ui/icons";
 import { DeleteDialog } from "@databuddy/ui/client";
-import { Button, Card, EmptyState, Skeleton } from "@databuddy/ui";
-import { StatusPagesSearchBar } from "../_components/status-pages-search-bar";
+import { List } from "@/components/ui/composables/list";
+import { Button, Card, EmptyState } from "@databuddy/ui";
+import { ListSearchBar } from "../_components/monitors-search-bar";
 import {
 	type SortOption,
-	type StatusFilter,
-	useFilteredStatusPages,
-} from "../_components/use-filtered-status-pages";
+	useFilteredList,
+} from "../_components/use-filtered-monitors";
+
+type StatusFilter = "all" | "active" | "empty";
+
+const STATUS_LABELS: Record<StatusFilter, string> = {
+	all: "All",
+	active: "Active",
+	empty: "Empty",
+};
+
+const statusPageSearchFields = (
+	page: StatusPage
+): [string, ...(string | null)[]] => [page.name, page.slug, page.description];
 
 export default function StatusPagesListPage() {
 	return (
@@ -66,16 +79,8 @@ function StatusPagesListPageContent() {
 	const deleteMutation = useMutation({
 		...orpc.statusPage.delete.mutationOptions(),
 		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.statusPage.list.key(),
-			});
 			toast.success("Status page deleted");
-			setStatusPageToDelete(null);
-		},
-		onError: (error) => {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to delete status page"
-			);
+			return invalidateMonitorQueries(queryClient);
 		},
 	});
 
@@ -119,11 +124,15 @@ function StatusPagesListPageContent() {
 	}, [clearCommandParam, handleCreate, searchParams]);
 
 	const statusPages = statusPagesQuery.data ?? [];
-	const filtered = useFilteredStatusPages(
-		statusPages,
+	const filtered = useFilteredList(
+		statusFilter === "all"
+			? statusPages
+			: statusPages.filter(
+					(p) => p.monitorCount > 0 === (statusFilter === "active")
+				),
 		search,
 		sort,
-		statusFilter
+		statusPageSearchFields
 	);
 	const isLoading = statusPagesQuery.isLoading || !resolvedOrgId;
 	const hasEmpty = statusPages.some((p) => p.monitorCount === 0);
@@ -160,25 +169,7 @@ function StatusPagesListPageContent() {
 				<div className="space-y-6 p-5">
 					<Card>
 						<Card.Content className="p-0">
-							{isLoading && (
-								<div className="divide-y">
-									{Array.from({ length: 3 }).map((_, i) => (
-										<div
-											className="flex items-center gap-4 px-5 py-3"
-											key={`skel-${i + 1}`}
-										>
-											<Skeleton className="size-10 shrink-0 rounded-lg" />
-											<div className="min-w-0 flex-1 space-y-2">
-												<div className="flex items-center gap-2">
-													<Skeleton className="h-4 w-40" />
-													<Skeleton className="h-4 w-16 rounded-full" />
-												</div>
-												<Skeleton className="h-3.5 w-56" />
-											</div>
-										</div>
-									))}
-								</div>
-							)}
+							{isLoading && <List.DefaultLoading />}
 
 							{!(isLoading || hasPages) && (
 								<div className="px-5 py-12">
@@ -203,14 +194,16 @@ function StatusPagesListPageContent() {
 							{!isLoading && hasPages && (
 								<>
 									<div className="border-b px-4 py-2">
-										<StatusPagesSearchBar
-											hasEmpty={hasEmpty}
+										<ListSearchBar
 											onSearchQueryChangeAction={setSearch}
 											onSortByChangeAction={setSort}
 											onStatusFilterChangeAction={setStatusFilter}
+											placeholder="Search status pages"
 											searchQuery={search}
+											showStatusFilter={hasEmpty || statusFilter !== "all"}
 											sortBy={sort}
 											statusFilter={statusFilter}
+											statusLabels={STATUS_LABELS}
 										/>
 									</div>
 									{noResults ? (
@@ -235,7 +228,6 @@ function StatusPagesListPageContent() {
 														setStatusPageToDelete(statusPage)
 													}
 													onEditAction={() => handleEdit(statusPage)}
-													onTransferSuccessAction={statusPagesQuery.refetch}
 													statusPage={statusPage}
 												/>
 											))}

@@ -18,7 +18,7 @@ interface SummaryStatsProps {
 	activeMonitors: number;
 	averageTrend: number;
 	isLoading?: boolean;
-	pulseHealthPercentage: number;
+	pulseActivePercentage: number;
 	totalActiveUsers: number;
 	totalMonitors: number;
 	totalViews: number;
@@ -54,7 +54,7 @@ export function SummaryStats({
 	averageTrend,
 	trendDirection,
 	websiteCount,
-	pulseHealthPercentage,
+	pulseActivePercentage,
 	totalMonitors,
 	activeMonitors,
 	isLoading,
@@ -204,14 +204,14 @@ export function SummaryStats({
 								</p>
 								<p className="truncate text-muted-foreground text-xs">
 									{totalMonitors > 0
-										? `${(pulseHealthPercentage == null || Number.isNaN(pulseHealthPercentage) ? 0 : pulseHealthPercentage).toFixed(0)}% healthy`
+										? `${(pulseActivePercentage == null || Number.isNaN(pulseActivePercentage) ? 0 : pulseActivePercentage).toFixed(0)}% active`
 										: "uptime monitoring"}
 								</p>
 							</div>
-							{totalMonitors > 0 && pulseHealthPercentage === 100 && (
+							{totalMonitors > 0 && pulseActivePercentage === 100 && (
 								<StatusDot color="success" size="md" />
 							)}
-							{totalMonitors > 0 && pulseHealthPercentage < 100 && (
+							{totalMonitors > 0 && pulseActivePercentage < 100 && (
 								<StatusDot color="warning" size="md" />
 							)}
 						</div>

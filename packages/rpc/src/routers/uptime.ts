@@ -49,13 +49,13 @@ async function statusPageSlugsForSchedule(
 	return rows.map((row) => row.slug);
 }
 
-async function invalidateStatusPageSlugs(
+async function invalidateStatusPageCachesForSchedule(
 	scheduleId: string,
-	slugs: string[]
+	slugs?: string[]
 ): Promise<void> {
 	const results = await Promise.allSettled(
-		slugs.map((slug) =>
-			Promise.resolve().then(() => invalidateStatusPageCache(slug))
+		(slugs ?? (await statusPageSlugsForSchedule(scheduleId))).map(
+			invalidateStatusPageCache
 		)
 	);
 	const failed = results.filter((result) => result.status === "rejected");
@@ -65,15 +65,6 @@ async function invalidateStatusPageSlugs(
 			"Failed to invalidate status page caches for uptime schedule"
 		);
 	}
-}
-
-async function invalidateStatusPageCachesForSchedule(
-	scheduleId: string
-): Promise<void> {
-	await invalidateStatusPageSlugs(
-		scheduleId,
-		await statusPageSlugsForSchedule(scheduleId)
-	);
 }
 
 const getScheduleOutputSchema = z.object({
@@ -243,19 +234,36 @@ export const uptimeRouter = {
 				throw rpcError.badRequest("Organization ID is required");
 			}
 
-			await withWorkspace(context, {
-				organizationId,
-				resource: "monitor",
-				permissions: ["create"],
-			});
+			if (input.websiteId) {
+				await withWorkspace(context, {
+					organizationId,
+					websiteId: input.websiteId,
+					resource: "monitor",
+					permissions: ["create"],
+				});
+			} else {
+				await withWorkspace(context, {
+					organizationId,
+					resource: "monitor",
+					permissions: ["create"],
+				});
+			}
 
 			const existing = await db.query.uptimeSchedules.findFirst({
-				where: { url: input.url, organizationId },
+				where: {
+					organizationId,
+					OR: [
+						{ url: input.url },
+						...(input.websiteId ? [{ websiteId: input.websiteId }] : []),
+					],
+				},
 			});
 
 			if (existing) {
 				throw rpcError.conflict(
-					"Monitor already exists for this URL in this organization"
+					existing.url === input.url
+						? "Monitor already exists for this URL in this organization"
+						: "This website already has a monitor"
 				);
 			}
 
@@ -372,7 +380,7 @@ export const uptimeRouter = {
 			const slugs = await statusPageSlugsForSchedule(input.scheduleId);
 
 			await deleteScheduleWithScheduler(input.scheduleId);
-			await invalidateStatusPageSlugs(input.scheduleId, slugs);
+			await invalidateStatusPageCachesForSchedule(input.scheduleId, slugs);
 
 			logger.info({ scheduleId: input.scheduleId }, "Schedule deleted");
 			return { success: true };
@@ -462,7 +470,6 @@ export const uptimeRouter = {
 					updatedAt: new Date(),
 				})
 				.where(eq(uptimeSchedules.id, input.scheduleId));
-			await invalidateStatusPageCachesForSchedule(input.scheduleId);
 
 			logger.info(
 				{
@@ -496,7 +503,6 @@ export const uptimeRouter = {
 			});
 
 			await triggerManualUptimeCheck(input.scheduleId, schedule.isPaused);
-			await invalidateStatusPageCachesForSchedule(input.scheduleId);
 
 			logger.info({ scheduleId: input.scheduleId }, "Manual check triggered");
 			return { success: true };

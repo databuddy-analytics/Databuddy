@@ -37,6 +37,7 @@ import {
 	publicProcedure,
 	trackedProcedure,
 } from "../orpc";
+import { RESERVED_STATUS_PAGE_SLUGS } from "@databuddy/shared/uptime";
 import { authorizeTransfer, withResource } from "../procedures/with-resource";
 import { withWorkspace } from "../procedures/with-workspace";
 import {
@@ -49,6 +50,7 @@ import {
 	incidentStatus,
 	publicStatusPageSitemapEntrySchema,
 	statusPageOutputSchema,
+	statusPageTheme,
 } from "./status-page-schemas";
 
 async function enforcePublicRateLimit(
@@ -82,7 +84,22 @@ const statusPageSlug = z
 	.regex(
 		/^[a-z0-9-]+$/,
 		"Slug must only contain lowercase letters, numbers, and dashes"
+	)
+	.refine(
+		(slug) => !RESERVED_STATUS_PAGE_SLUGS.has(slug),
+		"This slug is reserved"
 	);
+
+const statusPageFields = z.object({
+	name: z.string().min(1).max(120),
+	slug: statusPageSlug,
+	description: z.string().max(500).optional(),
+	logoUrl: httpUrl.nullish(),
+	faviconUrl: httpUrl.nullish(),
+	websiteUrl: httpUrl.nullish(),
+	supportUrl: httpUrl.nullish(),
+	theme: statusPageTheme.optional(),
+});
 
 function isSlugConflict(error: unknown): boolean {
 	return isUniqueViolationFor(error, "status_pages_slug_unique");
@@ -126,7 +143,7 @@ export const statusPageRouter = {
 		})
 		.output(z.array(publicStatusPageSitemapEntrySchema))
 		.handler(async ({ context }) => {
-			await enforcePublicRateLimit(context.headers, "sitemap", 10);
+			await enforcePublicRateLimit(context.headers, "sitemap", 60);
 			return listPublicStatusPageSitemapEntries();
 		}),
 
@@ -138,25 +155,18 @@ export const statusPageRouter = {
 			tags: ["StatusPage"],
 			spec: (spec) => ({ ...spec, security: [] }),
 		})
-		.input(
-			z.object({
-				slug: z.string().min(1),
-				days: z
-					.union([z.literal(7), z.literal(30), z.literal(90)])
-					.optional()
-					.default(90),
-			})
-		)
+		.input(z.object({ slug: z.string().min(1).max(100) }))
 		.output(statusPageOutputSchema)
 		.handler(async ({ context, input }) => {
-			await enforcePublicRateLimit(context.headers, "page", 120);
-			const data = await fetchStatusPageData(input.slug, input.days);
+			await enforcePublicRateLimit(context.headers, "page", 600);
+			await enforcePublicRateLimit(context.headers, `page:${input.slug}`, 120);
+			const { page } = await fetchStatusPageData(input.slug);
 
-			if (!data) {
+			if (!page) {
 				throw rpcError.notFound("StatusPage", input.slug);
 			}
 
-			return data;
+			return page;
 		}),
 
 	list: protectedProcedure
@@ -313,19 +323,7 @@ export const statusPageRouter = {
 				"x-required-scopes": ["write:status_pages"] as const,
 			}),
 		})
-		.input(
-			z.object({
-				organizationId: z.string(),
-				name: z.string().min(1).max(120),
-				slug: statusPageSlug,
-				description: z.string().max(500).optional(),
-				logoUrl: httpUrl.nullish(),
-				faviconUrl: httpUrl.nullish(),
-				websiteUrl: httpUrl.nullish(),
-				supportUrl: httpUrl.nullish(),
-				theme: z.enum(["system", "light", "dark"]).optional(),
-			})
-		)
+		.input(statusPageFields.extend({ organizationId: z.string() }))
 		.handler(async ({ context, input }) => {
 			setTrackProperties({ theme: input.theme ?? "default" });
 			await withWorkspace(context, {
@@ -337,24 +335,15 @@ export const statusPageRouter = {
 			const id = randomUUIDv7();
 
 			try {
-				await db.insert(statusPages).values({
-					id,
-					organizationId: input.organizationId,
-					name: input.name,
-					slug: input.slug,
-					description: input.description,
-					logoUrl: input.logoUrl ?? null,
-					faviconUrl: input.faviconUrl ?? null,
-					websiteUrl: input.websiteUrl ?? null,
-					supportUrl: input.supportUrl ?? null,
-					theme: input.theme ?? "system",
-				});
+				await db.insert(statusPages).values({ id, ...input });
 			} catch (error) {
 				if (isSlugConflict(error)) {
 					throw rpcError.badRequest("Slug is already taken");
 				}
 				throw error;
 			}
+
+			await invalidateStatusPageCache(input.slug);
 
 			return db.query.statusPages.findFirst({
 				where: { id },
@@ -374,49 +363,20 @@ export const statusPageRouter = {
 				"x-required-scopes": ["write:status_pages"] as const,
 			}),
 		})
-		.input(
-			z.object({
-				statusPageId: z.string(),
-				name: z.string().min(1).max(120).optional(),
-				slug: statusPageSlug.optional(),
-				description: z.string().max(500).optional(),
-				logoUrl: httpUrl.nullish(),
-				faviconUrl: httpUrl.nullish(),
-				websiteUrl: httpUrl.nullish(),
-				supportUrl: httpUrl.nullish(),
-				theme: z.enum(["system", "light", "dark"]).optional(),
-			})
-		)
+		.input(statusPageFields.partial().extend({ statusPageId: z.string() }))
 		.handler(async ({ context, input }) => {
 			const statusPage = await withResource(context, {
 				resource: "status_page",
 				id: input.statusPageId,
 				permissions: ["update"],
 			});
+			const { statusPageId, ...fields } = input;
 
 			try {
 				await db
 					.update(statusPages)
-					.set({
-						...(input.name && { name: input.name }),
-						...(input.slug && { slug: input.slug }),
-						...(input.description !== undefined && {
-							description: input.description,
-						}),
-						...(input.logoUrl !== undefined && { logoUrl: input.logoUrl }),
-						...(input.faviconUrl !== undefined && {
-							faviconUrl: input.faviconUrl,
-						}),
-						...(input.websiteUrl !== undefined && {
-							websiteUrl: input.websiteUrl,
-						}),
-						...(input.supportUrl !== undefined && {
-							supportUrl: input.supportUrl,
-						}),
-						...(input.theme !== undefined && { theme: input.theme }),
-						updatedAt: new Date(),
-					})
-					.where(eq(statusPages.id, input.statusPageId));
+					.set({ ...fields, updatedAt: new Date() })
+					.where(eq(statusPages.id, statusPageId));
 			} catch (error) {
 				if (isSlugConflict(error)) {
 					throw rpcError.badRequest("Slug is already taken");
@@ -612,24 +572,25 @@ export const statusPageRouter = {
 				);
 			}
 
-			const existing = await db.query.statusPageMonitors.findFirst({
-				where: {
-					statusPageId: input.statusPageId,
-					uptimeScheduleId: input.uptimeScheduleId,
-				},
-			});
-
-			if (existing) {
-				throw rpcError.badRequest("Monitor is already on this status page");
-			}
-
 			const id = randomUUIDv7();
 
-			await db.insert(statusPageMonitors).values({
-				id,
-				statusPageId: input.statusPageId,
-				uptimeScheduleId: input.uptimeScheduleId,
-			});
+			try {
+				await db.insert(statusPageMonitors).values({
+					id,
+					statusPageId: input.statusPageId,
+					uptimeScheduleId: input.uptimeScheduleId,
+				});
+			} catch (error) {
+				if (
+					isUniqueViolationFor(
+						error,
+						"status_page_monitors_page_schedule_unique"
+					)
+				) {
+					throw rpcError.badRequest("Monitor is already on this status page");
+				}
+				throw error;
+			}
 
 			await invalidateStatusPageCache(statusPage.slug);
 
@@ -719,23 +680,11 @@ export const statusPageRouter = {
 				permissions: ["update"],
 			});
 
+			const { monitorId, ...settings } = input;
 			await db
 				.update(statusPageMonitors)
-				.set({
-					...(input.displayName !== undefined && {
-						displayName: input.displayName,
-					}),
-					...(input.hideUrl !== undefined && { hideUrl: input.hideUrl }),
-					...(input.hideUptimePercentage !== undefined && {
-						hideUptimePercentage: input.hideUptimePercentage,
-					}),
-					...(input.hideLatency !== undefined && {
-						hideLatency: input.hideLatency,
-					}),
-					...(input.order !== undefined && { order: input.order }),
-					updatedAt: new Date(),
-				})
-				.where(eq(statusPageMonitors.id, input.monitorId));
+				.set({ ...settings, updatedAt: new Date() })
+				.where(eq(statusPageMonitors.id, monitorId));
 
 			await invalidateStatusPageCache(monitor.statusPage.slug);
 

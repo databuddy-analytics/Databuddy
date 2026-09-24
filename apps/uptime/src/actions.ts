@@ -8,11 +8,10 @@ import {
 } from "@databuddy/shared/ssrf-guard";
 import { Data, Effect } from "effect";
 import { UPTIME_ENV } from "./lib/env";
-import { captureError } from "./lib/tracing";
-import type { ActionResult, ScheduleLookupReason, UptimeData } from "./types";
+import type { ScheduleLookupReason, UptimeData } from "./types";
 import { MonitorStatus } from "./types";
 
-const DEFAULT_TIMEOUT = 60_000;
+export const DEFAULT_TIMEOUT = 60_000;
 const MAX_REDIRECTS = 10;
 
 const USER_AGENT =
@@ -54,12 +53,14 @@ export interface CheckOptions {
 	timeout?: number;
 }
 
-class ScheduleLookupError extends Data.TaggedError("ScheduleLookupError")<{
+export class ScheduleLookupError extends Data.TaggedError(
+	"ScheduleLookupError"
+)<{
 	message: string;
 	reason: ScheduleLookupReason;
 }> {}
 
-class UptimeCheckError extends Data.TaggedError("UptimeCheckError")<{
+export class UptimeCheckError extends Data.TaggedError("UptimeCheckError")<{
 	message: string;
 }> {}
 
@@ -93,35 +94,29 @@ function applyCacheBust(url: string): string {
 
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 const TIMED_OUT_PATTERN = /tim(?:ed out|eout)/i;
+const TIMEOUT_ERROR_PREFIX = "Timeout after";
 
-class ResponseTooLargeError extends Error {
-	constructor(limit: number) {
-		super(`Response exceeded ${limit} bytes`);
-	}
+export function isTimedOut(data: UptimeData): boolean {
+	return data.error.startsWith(TIMEOUT_ERROR_PREFIX);
 }
 
-async function readBoundedBody(res: Response, limit: number): Promise<string> {
+async function readBoundedBody(res: Response, limit: number): Promise<number> {
 	if (!res.body) {
-		return "";
+		return 0;
 	}
 	const reader = res.body.getReader();
-	const decoder = new TextDecoder();
-	const chunks: string[] = [];
 	let total = 0;
 	while (true) {
 		const { value, done } = await reader.read();
 		if (done) {
-			break;
+			return total;
 		}
 		total += value.byteLength;
 		if (total > limit) {
 			await reader.cancel().catch(() => undefined);
-			throw new ResponseTooLargeError(limit);
+			return total;
 		}
-		chunks.push(decoder.decode(value, { stream: true }));
 	}
-	chunks.push(decoder.decode());
-	return chunks.join("");
 }
 
 async function pingWebsite(
@@ -149,86 +144,57 @@ async function pingWebsite(
 				ttfb = performance.now() - start;
 			}
 
-			if (res.status >= 300 && res.status < 400) {
-				const location = res.headers.get("location");
-				if (!location) {
-					break;
-				}
+			const location =
+				res.status >= 300 && res.status < 400
+					? res.headers.get("location")
+					: null;
+			if (location) {
+				await res.body?.cancel().catch(() => undefined);
 				redirects += 1;
 				current = new URL(location, current).toString();
 				continue;
 			}
 
-			const contentLength = res.headers.get("content-length");
-			if (
-				contentLength &&
-				Number.parseInt(contentLength, 10) > MAX_RESPONSE_BYTES
-			) {
-				return {
-					ok: false,
-					statusCode: res.status,
-					ttfb: Math.round(ttfb),
-					total: Math.round(performance.now() - start),
-					error: `Response too large (${contentLength} > ${MAX_RESPONSE_BYTES} bytes)`,
-				};
-			}
-			let bodyText: string;
-			try {
-				bodyText = await readBoundedBody(res, MAX_RESPONSE_BYTES);
-			} catch (err) {
-				if (err instanceof ResponseTooLargeError) {
-					return {
-						ok: false,
-						statusCode: res.status,
-						ttfb: Math.round(ttfb),
-						total: Math.round(performance.now() - start),
-						error: err.message,
-					};
-				}
-				throw err;
-			}
-			const total = performance.now() - start;
+			const bytes = await readBoundedBody(res, MAX_RESPONSE_BYTES);
+			const failure = (error: string): FetchFailure => ({
+				ok: false,
+				statusCode: res.status,
+				ttfb: Math.round(ttfb),
+				total: Math.round(performance.now() - start),
+				error,
+			});
 
+			if (bytes > MAX_RESPONSE_BYTES) {
+				return failure(`Response exceeded ${MAX_RESPONSE_BYTES} bytes`);
+			}
 			if (res.status >= 400) {
-				return {
-					ok: false,
-					statusCode: res.status,
-					ttfb: Math.round(ttfb),
-					total: Math.round(total),
-					error: `HTTP ${res.status}: ${res.statusText}`,
-				};
+				return failure(`HTTP ${res.status}: ${res.statusText}`);
 			}
 
 			return {
 				ok: true,
 				statusCode: res.status,
 				ttfb: Math.round(ttfb),
-				total: Math.round(total),
+				total: Math.round(performance.now() - start),
 				redirects,
-				bytes: Buffer.byteLength(bodyText, "utf8"),
+				bytes,
 			};
 		}
 
 		throw new Error(`Too many redirects (max ${MAX_REDIRECTS})`);
 	} catch (error) {
-		const total = performance.now() - start;
-
-		if (error instanceof SsrfError) {
-			return {
-				ok: false,
-				statusCode: 0,
-				ttfb: 0,
-				total: Math.round(total),
-				error: error.message,
-			};
+		let message = classifyFetchError(error, timeout);
+		if (checkSignal.aborted) {
+			message = `${TIMEOUT_ERROR_PREFIX} ${timeout}ms`;
+		} else if (error instanceof SsrfError) {
+			message = error.message;
 		}
-
 		return {
 			ok: false,
 			statusCode: 0,
 			ttfb: 0,
-			total: Math.round(total),
-			error: classifyFetchError(error, timeout),
+			total: Math.round(performance.now() - start),
+			error: message,
 		};
 	}
 }
@@ -250,7 +216,7 @@ function errorCode(error: unknown): string | undefined {
 
 export function classifyFetchError(error: unknown, timeout: number): string {
 	if (error instanceof Error && TIMED_OUT_PATTERN.test(error.message)) {
-		return `Timeout after ${timeout}ms`;
+		return `${TIMEOUT_ERROR_PREFIX} ${timeout}ms`;
 	}
 
 	const code = errorCode(error);
@@ -287,7 +253,7 @@ export function classifyFetchError(error: unknown, timeout: number): string {
 	return "Unknown error";
 }
 
-const checkCertificate = (url: string) =>
+export const checkCertificate = (url: string) =>
 	Effect.promise<{ valid: boolean; expiry: number }>(async () => {
 		const fallback = { valid: false, expiry: 0 };
 		try {
@@ -349,34 +315,31 @@ const PROBE_IP_FAILURE_RETRY_MS = 5 * 60_000;
 let cachedProbeIp: string | null = null;
 let probeIpFailedAt = Number.NEGATIVE_INFINITY;
 
-const getProbeMetadata = Effect.tryPromise({
-	try: async () => {
-		const retryFailedLookup =
-			performance.now() - probeIpFailedAt > PROBE_IP_FAILURE_RETRY_MS;
-		if (!cachedProbeIp && retryFailedLookup) {
-			try {
-				const res = await fetch("https://api.ipify.org?format=json", {
-					signal: AbortSignal.timeout(5000),
-				});
-				if (res.ok) {
-					const data = await res.json();
-					if (typeof data?.ip === "string") {
-						cachedProbeIp = data.ip;
-					}
+const getProbeMetadata = Effect.promise(async () => {
+	const retryFailedLookup =
+		performance.now() - probeIpFailedAt > PROBE_IP_FAILURE_RETRY_MS;
+	if (!cachedProbeIp && retryFailedLookup) {
+		try {
+			const res = await fetch("https://api.ipify.org?format=json", {
+				signal: AbortSignal.timeout(5000),
+			});
+			if (res.ok) {
+				const data = await res.json();
+				if (typeof data?.ip === "string") {
+					cachedProbeIp = data.ip;
 				}
-			} catch {
-				// Probe metadata is best-effort; uptime checks should continue without it.
 			}
-			if (!cachedProbeIp) {
-				probeIpFailedAt = performance.now();
-			}
+		} catch {
+			// Probe metadata is best-effort; uptime checks should continue without it.
 		}
-		return { ip: cachedProbeIp ?? "unknown", region: PROBE_REGION };
-	},
-	catch: () => ({ ip: "unknown", region: PROBE_REGION }),
+		if (!cachedProbeIp) {
+			probeIpFailedAt = performance.now();
+		}
+	}
+	return { ip: cachedProbeIp ?? "unknown", region: PROBE_REGION };
 });
 
-const resolveSchedule = (id: string) =>
+export const lookupSchedule = (id: string) =>
 	Effect.tryPromise({
 		try: () =>
 			db.query.uptimeSchedules.findFirst({
@@ -425,7 +388,7 @@ const resolveSchedule = (id: string) =>
 		})
 	);
 
-const runUptimeCheck = (
+export const checkUptime = (
 	siteId: string,
 	url: string,
 	attempt: number,
@@ -452,7 +415,7 @@ const runUptimeCheck = (
 			{ concurrency: "unbounded" }
 		);
 
-		return {
+		const data: UptimeData = {
 			site_id: siteId,
 			url: normalizedUrl,
 			timestamp,
@@ -474,45 +437,6 @@ const runUptimeCheck = (
 			check_type: "http",
 			user_agent: USER_AGENT,
 			error: pingResult.ok ? "" : pingResult.error,
-		} satisfies UptimeData;
+		};
+		return data;
 	});
-
-export { checkCertificate };
-
-export async function lookupSchedule(
-	id: string
-): Promise<ActionResult<ScheduleData>> {
-	try {
-		const data = await Effect.runPromise(resolveSchedule(id));
-		return { success: true, data };
-	} catch (error) {
-		const reason: ScheduleLookupReason =
-			error instanceof ScheduleLookupError ? error.reason : "transient";
-		captureError(error, { error_step: "lookup_schedule", reason });
-		return {
-			success: false,
-			error: error instanceof Error ? error.message : "Database error",
-			reason,
-		};
-	}
-}
-
-export async function checkUptime(
-	siteId: string,
-	url: string,
-	attempt = 1,
-	options: CheckOptions = {}
-): Promise<ActionResult<UptimeData>> {
-	try {
-		const data = await Effect.runPromise(
-			runUptimeCheck(siteId, url, attempt, options)
-		);
-		return { success: true, data };
-	} catch (error) {
-		captureError(error, { error_step: "check_uptime" });
-		return {
-			success: false,
-			error: error instanceof Error ? error.message : "Uptime check failed",
-		};
-	}
-}

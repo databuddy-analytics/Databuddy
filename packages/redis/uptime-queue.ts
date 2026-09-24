@@ -28,9 +28,9 @@ export const UPTIME_JOB_OPTIONS = {
 };
 
 export const UPTIME_DELIVERY_JOB_OPTIONS = {
-	attempts: 20,
+	attempts: 12,
 	backoff: {
-		type: "fixed",
+		type: "exponential",
 		delay: 30_000,
 	},
 	stackTraceLimit: 3,
