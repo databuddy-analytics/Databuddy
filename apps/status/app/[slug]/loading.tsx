@@ -2,16 +2,26 @@ import { Skeleton } from "@databuddy/ui";
 
 function MonitorSkeleton() {
 	return (
-		<div className="px-4 py-4 sm:px-5 sm:py-5">
-			<div className="flex items-center justify-between gap-4">
-				<Skeleton className="h-4 w-40 rounded" />
-				<Skeleton className="h-3 w-20 rounded" />
+		<div className="overflow-hidden rounded-xl border border-border/60 bg-card">
+			<div className="flex items-start gap-2 p-3 sm:gap-3 sm:p-4">
+				<div className="shrink-0 p-1">
+					<Skeleton className="size-3 rounded" />
+				</div>
+				<div className="min-w-0 flex-1 space-y-1.5">
+					<Skeleton className="h-4 w-40 rounded" />
+					<Skeleton className="h-3 w-56 rounded" />
+				</div>
 			</div>
-			<Skeleton className="mt-3 h-8 w-full rounded-[2px]" />
-			<div className="mt-2 flex justify-between">
-				<Skeleton className="h-3 w-16 rounded" />
-				<Skeleton className="h-3 w-24 rounded" />
-				<Skeleton className="h-3 w-10 rounded" />
+			<div className="border-border/60 border-t bg-muted/30 px-5 py-5 sm:px-6 sm:py-6">
+				<Skeleton className="h-1.5 w-full rounded-full" />
+				<div className="mt-2 flex justify-between">
+					<Skeleton className="h-3 w-16 rounded" />
+					<Skeleton className="h-3 w-24 rounded" />
+					<Skeleton className="h-3 w-10 rounded" />
+				</div>
+				<div className="mt-4 border-border/60 border-t pt-4">
+					<Skeleton className="h-4 w-32 rounded" />
+				</div>
 			</div>
 		</div>
 	);
@@ -34,29 +44,33 @@ export default function StatusLoading() {
 			</div>
 
 			<main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-				<div className="mx-auto max-w-[822px] space-y-14 px-4 pt-10 pb-16 sm:px-6 sm:pt-14">
-					<div className="flex items-start gap-4">
-						<Skeleton className="mt-1 ml-[5px] size-8 shrink-0 rounded-full" />
-						<div className="min-w-0 flex-1 space-y-2">
-							<Skeleton className="h-7 w-64 rounded" />
-							<Skeleton className="h-4 w-full max-w-sm rounded" />
-							<Skeleton className="h-3 w-36 rounded" />
+				<div className="mx-auto max-w-[822px] space-y-12 px-4 py-8 sm:px-6">
+					<div className="overflow-hidden rounded-xl border border-border/60 bg-card">
+						<div className="flex items-start gap-2 border-border/60 border-b bg-muted/30 p-3 sm:p-4">
+							<div className="shrink-0 p-1">
+								<Skeleton className="size-3 rounded" />
+							</div>
+							<div className="flex min-w-0 flex-1 items-baseline gap-3">
+								<Skeleton className="h-4 w-44 rounded" />
+								<Skeleton className="ml-auto h-4 w-20 shrink-0 rounded" />
+							</div>
+						</div>
+						<div className="flex gap-3 px-4 py-3 sm:py-5 sm:pl-[25px]">
+							<Skeleton className="w-0.5 self-stretch rounded-full" />
+							<div className="w-full space-y-2 py-1">
+								<Skeleton className="h-4 w-full max-w-md rounded" />
+								<Skeleton className="h-3 w-36 rounded" />
+							</div>
 						</div>
 					</div>
 
-					<div>
-						<div className="mb-3 flex items-baseline justify-between">
-							<Skeleton className="h-4 w-16 rounded" />
-							<Skeleton className="h-3 w-40 rounded" />
-						</div>
-						<div className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card">
-							<MonitorSkeleton />
-							<MonitorSkeleton />
-							<MonitorSkeleton />
-						</div>
+					<div className="flex flex-col gap-5">
+						<MonitorSkeleton />
+						<MonitorSkeleton />
+						<MonitorSkeleton />
 					</div>
 
-					<div className="space-y-3">
+					<div className="space-y-4">
 						<Skeleton className="h-4 w-28 rounded" />
 						<div className="border-border/70 border-t pt-4">
 							<Skeleton className="h-4 w-64 rounded" />
@@ -66,8 +80,8 @@ export default function StatusLoading() {
 			</main>
 
 			<footer className="shrink-0 border-border/50 border-t bg-background">
-				<div className="mx-auto flex max-w-[822px] items-center justify-center px-4 py-4 sm:px-6">
-					<Skeleton className="h-3 w-32 rounded" />
+				<div className="mx-auto flex max-w-[822px] items-center justify-center px-4 py-6 sm:px-6">
+					<Skeleton className="h-4 w-36 rounded" />
 				</div>
 			</footer>
 		</div>

@@ -1,4 +1,9 @@
-import { StatusDot } from "@databuddy/ui";
+"use client";
+
+import { useId, useState } from "react";
+import { cn, StatusDot } from "@databuddy/ui";
+import { CaretDownIcon } from "@databuddy/ui/icons";
+import { LatencyChart } from "@databuddy/ui/uptime";
 import { type MonitorDailyData, UptimeHistory } from "./uptime-history";
 
 const LAST_CHECK_FORMATTER = new Intl.DateTimeFormat("en-US", {
@@ -16,6 +21,7 @@ export interface MonitorCardInteractiveProps {
 	days: number;
 	domain?: string;
 	freshness: "fresh" | "stale" | "unknown";
+	id: string;
 	lastCheckedAt: string | null;
 	name: string;
 	status: "up" | "down" | "degraded" | "unknown";
@@ -28,17 +34,23 @@ export function MonitorCardInteractive({
 	days,
 	domain,
 	freshness,
+	id,
 	lastCheckedAt,
 	name,
 	status,
 	uptimePercentage,
 }: MonitorCardInteractiveProps) {
+	const [isOpen, setIsOpen] = useState(true);
+	const panelId = useId();
+	const hasLatencyData = dailyData.some(
+		(d) => d.avg_response_time != null || d.p95_response_time != null
+	);
 	const statusConfig = {
 		up: { label: "Operational", color: "success" as const },
 		degraded: { label: "Degraded", color: "warning" as const },
 		down: { label: "Down", color: "destructive" as const },
 		unknown: {
-			label: freshness === "stale" ? "Data stale" : "Unknown",
+			label: freshness === "stale" ? "Data stale" : "Status unknown",
 			color: "muted" as const,
 		},
 	}[status];
@@ -48,35 +60,78 @@ export function MonitorCardInteractive({
 
 	return (
 		<div
-			className="scroll-mt-20 px-4 py-4 sm:px-5 sm:py-5"
-			data-slot="status-monitor"
+			className="scroll-mt-20 overflow-hidden rounded-xl border border-border/60 bg-card"
+			data-slot="status-section"
 			id={anchorId}
 		>
-			<div className="flex items-center justify-between gap-4">
-				<p className="min-w-0 truncate font-medium text-sm">
-					{name}
-					{domain ? (
-						<span className="font-normal text-muted-foreground"> {domain}</span>
-					) : null}
-				</p>
-				<span
-					className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs"
-					title={checkedLabel}
-				>
-					<StatusDot color={statusConfig.color} size="md" />
-					{statusConfig.label}
-				</span>
-			</div>
-
-			{uptimePercentage === undefined ? null : (
-				<div className="mt-3">
-					<UptimeHistory
-						dailyData={dailyData}
-						days={days}
-						uptimePercentage={uptimePercentage}
+			<button
+				aria-controls={panelId}
+				aria-expanded={isOpen}
+				className="flex w-full cursor-pointer select-none items-start gap-2 bg-card p-3 text-left outline-none transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset sm:gap-3 sm:p-4"
+				onClick={() => setIsOpen((open) => !open)}
+				type="button"
+			>
+				<div className="shrink-0 p-1">
+					<CaretDownIcon
+						className={cn(
+							"size-3 -rotate-90 text-muted-foreground transition-transform duration-(--duration-base) ease-(--expo-out)",
+							isOpen && "rotate-0"
+						)}
 					/>
 				</div>
-			)}
+				<div className="min-w-0 flex-1">
+					<span className="block truncate font-semibold text-sm leading-[1.2] sm:text-base">
+						{name}
+						{domain ? (
+							<span className="font-normal text-muted-foreground">
+								{" "}
+								{domain}
+							</span>
+						) : null}
+					</span>
+					<span className="mt-1 flex items-center gap-1.5 text-muted-foreground text-xs">
+						<StatusDot color={statusConfig.color} size="sm" />
+						{statusConfig.label} · {checkedLabel}
+					</span>
+				</div>
+			</button>
+
+			<div
+				aria-hidden={!isOpen}
+				className={cn(
+					"grid border-t bg-muted/30 transition-[grid-template-rows,opacity,border-color] duration-(--duration-base) ease-(--expo-out) motion-reduce:transition-none",
+					isOpen
+						? "grid-rows-[1fr] border-border/60 opacity-100"
+						: "grid-rows-[0fr] border-transparent opacity-0"
+				)}
+				id={panelId}
+				inert={isOpen ? undefined : true}
+			>
+				<div className="min-h-0 overflow-hidden">
+					<div className="px-5 py-5 sm:px-6 sm:py-6">
+						{uptimePercentage === undefined ? null : (
+							<UptimeHistory
+								dailyData={dailyData}
+								days={days}
+								uptimePercentage={uptimePercentage}
+							/>
+						)}
+						{hasLatencyData ? (
+							<div
+								className={cn(
+									uptimePercentage !== undefined &&
+										"mt-4 border-border/60 border-t pt-2"
+								)}
+							>
+								<LatencyChart
+									data={dailyData}
+									storageKey={`status-latency-${id}`}
+								/>
+							</div>
+						) : null}
+					</div>
+				</div>
+			</div>
 		</div>
 	);
 }

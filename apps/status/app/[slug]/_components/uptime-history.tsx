@@ -43,7 +43,6 @@ export function UptimeHistory({
 				emptyLabel="No data recorded"
 				interactive
 				isActive
-				variant="bars"
 			/>
 			<div className="mt-2 flex items-center gap-3 text-muted-foreground text-xs">
 				<span className="shrink-0">{days} days ago</span>
