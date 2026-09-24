@@ -6,7 +6,7 @@ export interface Site {
 	path: string;
 	start: number;
 }
-export interface Action {
+interface Action {
 	end: number;
 	excerpts: Site[];
 	issues: string[];
