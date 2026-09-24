@@ -46,6 +46,8 @@ function uniqueFiles(rows: Row[]) {
 	}
 	return [...found.values()];
 }
+const count = (value: number, one: string, many = `${one}s`) =>
+	`${value} ${value === 1 ? one : many}`;
 const elapsed = (seconds: number) =>
 	seconds < 60
 		? `${Math.round(seconds)}s`
@@ -116,8 +118,8 @@ export function createTerminal({ json = false }: Options = {}) {
 			files === 0
 				? "Nothing to send: every result is cached from an earlier scan.\n"
 				: destination.kind === "databuddy"
-					? `Sending code from ${files} files to Databuddy's scan API (${destination.host}). Jev classifies it on Vercel AI Gateway with zero data retention; your source is never stored or logged. Preview with --dry-run, or set AI_GATEWAY_API_KEY to use your own gateway. https://www.databuddy.cc/privacy\n`
-					: `Sending code from ${files} files directly to your Vercel AI Gateway account (${destination.host}) with zero data retention. Databuddy receives nothing.\n`
+					? `Sending code from ${count(files, "file")} to Databuddy's scan API (${destination.host}). Jev classifies it on Vercel AI Gateway with zero data retention; your source is never stored or logged. Preview with --dry-run, or set AI_GATEWAY_API_KEY to use your own gateway. https://www.databuddy.cc/privacy\n`
+					: `Sending code from ${count(files, "file")} directly to your Vercel AI Gateway account (${destination.host}) with zero data retention. Databuddy receives nothing.\n`
 		);
 	}
 
@@ -138,7 +140,7 @@ export function createTerminal({ json = false }: Options = {}) {
 				"",
 				title,
 				"",
-				`  Nothing to send: none of the ${result.skippedFiles} files here has a user action to review. Scan a wider folder.`,
+				`  Nothing to send: none of the ${count(result.skippedFiles, "file")} here has a user action to review. Scan a wider folder.`,
 				"",
 			]);
 		}
@@ -146,14 +148,14 @@ export function createTerminal({ json = false }: Options = {}) {
 			"",
 			title,
 			"",
-			`  Would send these lines from ${result.files.length} ${result.files.length === 1 ? "file" : "files"} to ${result.destination.host}. Nothing was sent.`,
+			`  Would send these lines from ${count(result.files.length, "file")} to ${result.destination.host}. Nothing was sent.`,
 			"",
 			...result.files.map(
 				(file) =>
 					`  ${clean(file.path).padEnd(width)}  ${file.lines.map(([start, end]) => (start === end ? start : `${start}-${end}`)).join(", ")}`
 			),
 			"",
-			`  ${result.skippedFiles} files have nothing to review and are not sent. --dry-run --json prints the exact payload.`,
+			`  Not sent: ${count(result.skippedFiles, "other file")} with nothing to review. --dry-run --json prints the exact payload.`,
 			"",
 		]);
 	}
@@ -170,7 +172,7 @@ export function createTerminal({ json = false }: Options = {}) {
 			"",
 			title,
 			"",
-			`  ${s.interrupted ? "Stopped" : "Scan complete"} · ${flagged.length} findings in ${uniqueFiles(flagged).length} files · ${elapsed(s.wallSeconds)}`,
+			`  ${s.interrupted ? "Stopped" : "Scan complete"} · ${count(flagged.length, "finding")} in ${count(uniqueFiles(flagged).length, "file")} · ${elapsed(s.wallSeconds)}`,
 			"",
 			...visible.map(
 				(row) =>
@@ -185,7 +187,7 @@ export function createTerminal({ json = false }: Options = {}) {
 		if (s.failures || s.unattemptedBatches || s.interrupted) {
 			lines.push(
 				"",
-				`  ${s.failures + s.unattemptedBatches} batches did not finish. Run again to retry them; finished work is kept.`
+				`  ${count(s.failures + s.unattemptedBatches, "batch", "batches")} did not finish. Run again to retry them; finished work is kept.`
 			);
 		}
 		print([...lines, ""]);
