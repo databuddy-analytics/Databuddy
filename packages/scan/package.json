@@ -1,11 +1,11 @@
 {
   "name": "@databuddy/scan",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Find product analytics tracking opportunities in your codebase.",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "databuddy-scan": "./dist/cli.js"
+    "databuddy-scan": "dist/cli.js"
   },
   "files": [
     "dist"
@@ -14,7 +14,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "bun run check-types && bun build ./src/cli.ts --target=node --format=esm --packages=external --outfile=dist/cli.js",
+    "build": "bun run check-types && bun run bundle",
+    "bundle": "bun -e \"import{readdirSync,chmodSync}from'node:fs';const b=await Bun.build({entrypoints:['./src/cli.ts'],target:'node',format:'esm',minify:true,metafile:true});if(!b.success)throw new AggregateError(b.logs,'Build failed');await Bun.write('dist/cli.js',b.outputs[0]);chmodSync('dist/cli.js',0o755);const d=new Map();for(const k of Object.keys(b.metafile.inputs)){const i=k.lastIndexOf('node_modules/');if(i<0)continue;const p=k.slice(i+13).split('/'),n=p[0].startsWith('@')?p[0]+'/'+p[1]:p[0];d.set(n,k.slice(0,i+13)+n)}let o='';for(const[n,p]of[...d].sort()){const j=await Bun.file(p+'/package.json').json(),f=readdirSync(p).find(x=>/^licen[cs]e/i.test(x));o+=n+'@'+j.version+' ('+j.license+')\\n\\n'+(f?await Bun.file(p+'/'+f).text():'')+'\\n\\n'}await Bun.write('dist/THIRD_PARTY_LICENSES',o)\"",
     "check-types": "tsc --noEmit",
     "test": "bun run build && bun test",
     "eval:quality": "bun quality/run.ts",
@@ -25,9 +26,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/databuddy-analytics/databuddy.git",
+    "url": "git+https://github.com/databuddy-analytics/databuddy.git",
     "directory": "packages/scan"
   },
+  "bugs": "https://github.com/databuddy-analytics/databuddy/issues",
   "homepage": "https://databuddy.cc",
   "keywords": [
     "databuddy",
@@ -36,16 +38,14 @@
     "events",
     "tracking"
   ],
-  "dependencies": {
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/node": "^26.0.0",
     "chalk": "^5.6.2",
     "commander": "^14.0.3",
     "log-update": "^7.0.2",
     "p-limit": "^7.2.0",
-    "typescript": "^5.9.3",
+    "typescript": "catalog:",
     "zod": "^4.1.12"
-  },
-  "devDependencies": {
-    "@types/bun": "catalog:",
-    "@types/node": "^26.0.0"
   }
 }

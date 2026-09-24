@@ -5,7 +5,6 @@ import {
 	type Catalog,
 	createRequest,
 	parseResponse,
-	readUsage,
 	requestEvaluation,
 	type Attempt,
 	type EvaluationOptions,
@@ -31,7 +30,6 @@ const response = () => ({
 		priority_0: { score: 2 },
 	},
 	usage: { inputTokens: 10, outputTokens: 3 },
-	providerMetadata: { gateway: { cost: 0.02 } },
 });
 
 function options(overrides: Partial<EvaluationOptions> = {}) {
@@ -95,7 +93,6 @@ test("response schemas validate every answer and preserve selected probabilities
 		],
 		inputTokens: 10,
 		outputTokens: 3,
-		costUsd: 0.02,
 	});
 	for (const answers of [
 		{},
@@ -109,37 +106,6 @@ test("response schemas validate every answer and preserve selected probabilities
 	]) {
 		assert.throws(() => parseResponse({ answers }, jobs));
 	}
-});
-
-test("usage survives malformed answers and invalid or absent metrics are unknown", () => {
-	assert.deepEqual(readUsage({ ...response(), answers: null }), {
-		inputTokens: 10,
-		outputTokens: 3,
-		costUsd: 0.02,
-	});
-	assert.deepEqual(
-		readUsage({
-			usage: { inputTokens: "12", outputTokens: "3" },
-			providerMetadata: { gateway: { cost: "0.01" } },
-		}),
-		{ inputTokens: 12, outputTokens: 3, costUsd: 0.01 }
-	);
-	assert.deepEqual(
-		readUsage({
-			usage: { inputTokens: -1, outputTokens: Number.POSITIVE_INFINITY },
-			providerMetadata: { gateway: { cost: "" } },
-		}),
-		{ inputTokens: 0, outputTokens: 0, costUsd: null }
-	);
-	assert.equal(
-		readUsage({ providerMetadata: { gateway: { cost: 0 } } }).costUsd,
-		0
-	);
-	assert.deepEqual(readUsage(null), {
-		inputTokens: 0,
-		outputTokens: 0,
-		costUsd: null,
-	});
 });
 
 test("5xx and timeout retry twice, with complete attempt records and private headers", async () => {

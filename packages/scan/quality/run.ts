@@ -7,12 +7,10 @@ import { z } from "zod";
 import { groupActions } from "../src/actions";
 import {
 	type Attempt,
-	type JsonValue,
 	type Row,
 	type Segment,
 	createRequest,
 	parseResponse,
-	readUsage,
 	requestEvaluation,
 } from "../src/evaluate";
 import {
@@ -48,7 +46,6 @@ interface Placement {
 }
 interface RequestResult {
 	attempts: Attempt[];
-	costUsd: number | null;
 	error?: string;
 	inputTokens: number;
 	ms: number;
@@ -413,18 +410,6 @@ async function main() {
 						(attempt) => attempt.error ?? `HTTP ${attempt.status ?? 0}`
 					)
 				),
-				reportedCostUsd: sum(
-					[...requests.values()].map((request) => request.costUsd ?? 0)
-				),
-				unknownFailedCallCosts: attempts.filter((attempt) => attempt.error)
-					.length,
-				missingCostReports: [...requests.values()].filter(
-					(request) =>
-						request.costUsd === null &&
-						request.attempts.some(
-							(attempt) => attempt.status === 200 && !attempt.error
-						)
-				).length,
 				extraction: tally(entries.map((entry) => entry.extraction)),
 				staleCases: entries.filter((entry) => entry.stale === true).length,
 				caseOutcomes: {
@@ -496,11 +481,9 @@ async function main() {
 				ms: 0,
 				inputTokens: 0,
 				outputTokens: 0,
-				costUsd: null,
 			};
-			let raw: JsonValue = null;
 			try {
-				raw = await requestEvaluation(prepared.body, {
+				const raw = await requestEvaluation(prepared.body, {
 					apiKey,
 					timeoutMs: 15_000,
 					signal: controller.signal,
@@ -509,7 +492,6 @@ async function main() {
 				});
 				Object.assign(record, parseResponse(raw, prepared.jobs));
 			} catch (error) {
-				Object.assign(record, readUsage(raw));
 				record.error = controller.signal.aborted
 					? "interrupted"
 					: error instanceof z.ZodError

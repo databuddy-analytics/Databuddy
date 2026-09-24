@@ -606,21 +606,19 @@
     },
     "packages/scan": {
       "name": "@databuddy/scan",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "bin": {
         "databuddy-scan": "./dist/cli.js",
-      },
-      "dependencies": {
-        "chalk": "^5.6.2",
-        "commander": "^14.0.3",
-        "log-update": "^7.0.2",
-        "p-limit": "^7.2.0",
-        "typescript": "^5.9.3",
-        "zod": "^4.1.12",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
         "@types/node": "^26.0.0",
+        "chalk": "^5.6.2",
+        "commander": "^14.0.3",
+        "log-update": "^7.0.2",
+        "p-limit": "^7.2.0",
+        "typescript": "catalog:",
+        "zod": "^4.1.12",
       },
     },
     "packages/sdk": {

@@ -84,6 +84,7 @@ const resultSchema = z.object({
 		requestAttempts: z.number(),
 		retries: z.number(),
 		wallSeconds: z.number(),
+		warnings: z.array(z.string()),
 	}),
 	rows: z.array(rowSchema),
 });
@@ -100,18 +101,18 @@ interface InventoryFile {
 export const hash = (value: string) =>
 	createHash("sha256").update(value).digest("hex");
 const excluded =
-	/(?:^|\/)(?:tests?|__tests__|fixtures?|__fixtures__|__mocks__|examples?|playground|node_modules|dist|\.next|\.agents|\.codex|vendor)(?:\/|$)|\.(?:test|spec|stories|generated|d)\.[^.]+$/i;
-const sourceFile = /\.(?:[cm]?[jt]sx?|vue|swift|py|sh|sql|html|css)$/;
+	/(?:^|\/)(?:tests?|__tests__|fixtures?|__fixtures__|__mocks__|examples?|playground|e2e|cypress|playwright|node_modules|dist|\.next|\.agents|\.codex|vendor)(?:\/|$)|\.(?:test|spec|stories|generated|d)\.[^.]+$/i;
+const sourceFile = /\.(?:[cm]?[jt]sx?|vue|svelte|swift|py|sh|sql|html?|css)$/;
 const repositoryKey =
 	/^[ \t]*(?:export[ \t]+)?AI_GATEWAY_API_KEY[ \t]*=[ \t]*(.*?)[ \t]*$/m;
 const quoted = /^(["'])(.*)\1$/;
 const routeHandlerLabel = /^(?:GET|POST|PUT|PATCH|DELETE)$/;
-const reviewable = /\.(?:[cm]?[jt]sx?|vue|swift|py)$/;
+const reviewable = /\.(?:[cm]?[jt]sx?|vue|svelte|swift|py)$/;
 const sourceLineBoundary = /(?<=\n)/;
 const secret =
 	/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|(?:sk_live_|sk-proj-|ghp_|github_pat_)[A-Za-z0-9_-]{20,}/;
 const trackingCall =
-	/\b((?:[\w$]+\.)?(?:track[A-Z]\w*|track|capture|logEvent))\s*\(/;
+	/\b((?:[\w$]+\.)?(?:track[A-Z]\w*|track|capture|logEvent))\s*\((?=\s*(?:["'`{]|[\w$]+\.[\w$]))/;
 const closers: Record<string, string> = { "(": ")", "[": "]", "{": "}" };
 const trailingSeparator = /[\s,]+$/;
 const whitespaceRun = /\s+/g;
@@ -149,7 +150,7 @@ const splitDepth = 2;
 const keyHelp = "Check the key, or unset it to use Databuddy's scan API.";
 const catalogByteLimit = 24_000;
 
-export async function readJSON(path: string): Promise<JsonValue> {
+async function readJSON(path: string): Promise<JsonValue> {
 	try {
 		return JSON.parse(await readFile(path, "utf8"));
 	} catch (error) {
@@ -385,7 +386,7 @@ export async function scan(
 	const { groupActions } = options.actions
 		? await import("./actions")
 		: { groupActions: null };
-	const segments: Segment[] = [];
+	const found: Segment[] = [];
 	const excerpts = new Map<Segment, Site[]>();
 	const noActionFiles: string[] = [];
 	for (const [path, source] of sources) {
@@ -399,29 +400,39 @@ export async function scan(
 				...action
 			} of actions) {
 				const segment = { path, start, end, source: context, action };
-				segments.push(segment);
+				found.push(segment);
 				excerpts.set(segment, lines);
 			}
 		} else if (actions || !reviewable.test(path)) {
 			noActionFiles.push(path);
 		} else {
-			segments.push(...splitSource(path, source));
+			found.push(...splitSource(path, source));
 		}
 	}
 	const linkedRoutes = new Set(
-		segments.flatMap((segment) =>
+		found.flatMap((segment) =>
 			(segment.action?.sites ?? [])
 				.filter((site) => site.path !== segment.path)
 				.map((site) => `${site.path}:${site.start}`)
 		)
 	);
-	const linked = (segment: Segment) =>
-		routeHandlerLabel.test(segment.action?.label ?? "") &&
-		linkedRoutes.has(`${segment.path}:${segment.start}`);
-	for (const segment of segments.filter(linked)) {
-		segments.splice(segments.indexOf(segment), 1);
-	}
+	const segments = found.filter(
+		(segment) =>
+			!(
+				routeHandlerLabel.test(segment.action?.label ?? "") &&
+				linkedRoutes.has(`${segment.path}:${segment.start}`)
+			)
+	);
 	const includedFiles = new Set(segments.map((s) => s.path)).size;
+	const sourceFiles = [...sources.keys()].filter((path) =>
+		reviewable.test(path)
+	).length;
+	const warnings =
+		options.actions && sourceFiles >= 20 && includedFiles < sourceFiles / 20
+			? [
+					`Only ${includedFiles} of ${sourceFiles} source files contain actions the scanner recognises (JSX handlers, form actions, DOM listeners, route handlers). Findings cover those files only, so an empty result does not mean tracking is complete.`,
+				]
+			: [];
 	if (!cacheOnly) {
 		await mkdir(join(output, "responses"), { recursive: true, mode: 0o700 });
 		await saveJSON(join(output, "inventory.json"), {
@@ -448,6 +459,7 @@ export async function scan(
 			destination,
 			files: sentFiles(segments, excerpts),
 			skippedFiles: noActionFiles.length,
+			warnings,
 			payload: { catalog, segments },
 		};
 	}
@@ -509,12 +521,6 @@ export async function scan(
 			classifiedFiles: new Set(rows.map((r) => r.path)).size,
 			batches: plannedBatches,
 			completedBatches: calls.filter((c) => !c.split).length,
-			active: limit.activeCount,
-			retries: calls.reduce(
-				(n, c) => n + Math.max(0, c.attempts.length - 1),
-				0
-			),
-			failures: calls.filter((c) => c.error && !c.split).length,
 			elapsedSeconds: (performance.now() - started) / 1000,
 			rows,
 		});
@@ -726,6 +732,7 @@ export async function scan(
 				0
 			),
 			wallSeconds: Math.round((performance.now() - started) / 100) / 10,
+			warnings,
 		};
 		const round = (value: number | null) =>
 			value === null ? null : Math.round(value * 100) / 100;

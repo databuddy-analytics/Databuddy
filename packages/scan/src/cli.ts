@@ -23,7 +23,7 @@ const command = new Command()
 		"directory or file to scan; nothing outside it is read",
 		"."
 	)
-	.option("--dry-run", "list the files that would be sent, and send nothing")
+	.option("--dry-run", "list every line that would be sent, and send nothing")
 	.option("--json", "print results as JSON")
 	.addOption(new Option("--output <path>").hideHelp())
 	.addOption(new Option("--concurrency <count>").hideHelp())
