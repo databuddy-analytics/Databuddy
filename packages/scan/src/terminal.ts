@@ -123,11 +123,19 @@ export function createTerminal({ json = false }: Options = {}) {
 		);
 	}
 
+	function notes(warnings: string[]) {
+		return warnings.flatMap((warning) => [
+			`  ${output.hex("#e3a514")("Warning:")} ${clean(warning)}`,
+			"",
+		]);
+	}
+
 	function dryRun(result: {
 		destination: Destination;
 		files: SentFile[];
 		payload: object;
 		skippedFiles: number;
+		warnings: string[];
 	}) {
 		if (json) {
 			return print([
@@ -142,6 +150,7 @@ export function createTerminal({ json = false }: Options = {}) {
 				"",
 				`  Nothing to send: none of the ${count(result.skippedFiles, "file")} here has a user action to review. Scan a wider folder.`,
 				"",
+				...notes(result.warnings),
 			]);
 		}
 		print([
@@ -157,6 +166,7 @@ export function createTerminal({ json = false }: Options = {}) {
 			"",
 			`  Not sent: ${count(result.skippedFiles, "other file")} with nothing to review. --dry-run --json prints the exact payload.`,
 			"",
+			...notes(result.warnings),
 		]);
 	}
 
@@ -174,6 +184,7 @@ export function createTerminal({ json = false }: Options = {}) {
 			"",
 			`  ${s.interrupted ? "Stopped" : "Scan complete"} · ${count(flagged.length, "finding")} in ${count(uniqueFiles(flagged).length, "file")} · ${elapsed(s.wallSeconds)}`,
 			"",
+			...notes(s.warnings),
 			...visible.map(
 				(row) =>
 					`  ${location(row)} · ${row.action ? `${clean(row.action.label)} · ` : ""}${row.coverage} · ${areas[row.category]}`
