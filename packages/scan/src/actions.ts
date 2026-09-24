@@ -67,6 +67,7 @@ const routeMethods = new Set([
 	"handler",
 ]);
 const httpMethods = new Set(["POST", "PUT", "PATCH", "DELETE", "GET"]);
+const writeMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const contextLimit = 16_000;
 const jsxExtension = /x$/i;
 const jsExtension = /\.[cm]?js$/i;
@@ -646,6 +647,22 @@ export function groupActions(
 				node,
 				owner: node,
 				callbacks: [node.initializer],
+				label: node.name.text,
+			});
+		}
+		if (
+			ts.isFunctionDeclaration(node) &&
+			node.name &&
+			node.body &&
+			writeMethods.has(node.name.text) &&
+			ts
+				.getModifiers(node)
+				?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
+		) {
+			roots.push({
+				node,
+				owner: node,
+				callbacks: [node],
 				label: node.name.text,
 			});
 		}
