@@ -386,7 +386,7 @@ export async function scan(
 	const { groupActions } = options.actions
 		? await import("./actions")
 		: { groupActions: null };
-	const segments: Segment[] = [];
+	const found: Segment[] = [];
 	const excerpts = new Map<Segment, Site[]>();
 	const noActionFiles: string[] = [];
 	for (const [path, source] of sources) {
@@ -400,28 +400,29 @@ export async function scan(
 				...action
 			} of actions) {
 				const segment = { path, start, end, source: context, action };
-				segments.push(segment);
+				found.push(segment);
 				excerpts.set(segment, lines);
 			}
 		} else if (actions || !reviewable.test(path)) {
 			noActionFiles.push(path);
 		} else {
-			segments.push(...splitSource(path, source));
+			found.push(...splitSource(path, source));
 		}
 	}
 	const linkedRoutes = new Set(
-		segments.flatMap((segment) =>
+		found.flatMap((segment) =>
 			(segment.action?.sites ?? [])
 				.filter((site) => site.path !== segment.path)
 				.map((site) => `${site.path}:${site.start}`)
 		)
 	);
-	const linked = (segment: Segment) =>
-		routeHandlerLabel.test(segment.action?.label ?? "") &&
-		linkedRoutes.has(`${segment.path}:${segment.start}`);
-	for (const segment of segments.filter(linked)) {
-		segments.splice(segments.indexOf(segment), 1);
-	}
+	const segments = found.filter(
+		(segment) =>
+			!(
+				routeHandlerLabel.test(segment.action?.label ?? "") &&
+				linkedRoutes.has(`${segment.path}:${segment.start}`)
+			)
+	);
 	const includedFiles = new Set(segments.map((s) => s.path)).size;
 	const sourceFiles = [...sources.keys()].filter((path) =>
 		reviewable.test(path)
@@ -520,12 +521,6 @@ export async function scan(
 			classifiedFiles: new Set(rows.map((r) => r.path)).size,
 			batches: plannedBatches,
 			completedBatches: calls.filter((c) => !c.split).length,
-			active: limit.activeCount,
-			retries: calls.reduce(
-				(n, c) => n + Math.max(0, c.attempts.length - 1),
-				0
-			),
-			failures: calls.filter((c) => c.error && !c.split).length,
 			elapsedSeconds: (performance.now() - started) / 1000,
 			rows,
 		});
