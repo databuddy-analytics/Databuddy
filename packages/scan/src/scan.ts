@@ -20,6 +20,7 @@ import {
 	createRequest,
 	parseResponse,
 	readUsage,
+	hostedScanUrl,
 	requestEvaluation,
 	rowSchema,
 	type Row,
@@ -30,7 +31,7 @@ import type { Snapshot } from "./terminal";
 export const scanOptionsSchema = z.object({
 	root: z.string().trim().min(1).default("."),
 	output: z.string().trim().min(1).optional(),
-	run: z.boolean().default(false),
+	dryRun: z.boolean().default(false),
 	fresh: z.boolean().default(false),
 	cacheOnly: z.boolean().default(false),
 	actions: z.boolean().default(true),
@@ -69,6 +70,11 @@ export const resultSchema = z.object({
 		finishedAt: z.string(),
 		sourceHash: z.string(),
 		cacheOnly: z.boolean(),
+		destination: z.object({
+			host: z.string(),
+			kind: z.enum(["databuddy", "gateway"]),
+		}),
+		zeroDataRetention: z.literal(true),
 		interrupted: z.boolean(),
 		includedFiles: z.number(),
 		skippedFiles: z.number(),
@@ -315,12 +321,17 @@ export async function readSources(root: string) {
 	return { inventory, sources, catalog };
 }
 
+export interface Destination {
+	host: string;
+	kind: "databuddy" | "gateway";
+}
+
 export async function scan(
 	options: z.infer<typeof scanOptionsSchema> & { output: string },
-	onProgress: (snapshot: Snapshot) => void
+	onProgress: (snapshot: Snapshot) => void,
+	announce: (notice: { destination: Destination; files: number }) => void
 ) {
 	const { root, output, cacheOnly, fresh, concurrency, batchFiles } = options;
-	const run = options.run || fresh || cacheOnly;
 	const git = (...args: string[]) =>
 		execFileSync("git", args, {
 			cwd: root,
@@ -378,22 +389,27 @@ export async function scan(
 			catalog,
 		});
 	}
-	if (!run) {
-		return { includedFiles, skippedFiles: noActionFiles.length };
-	}
-	const batches = planRequests(segments, catalog, batchFiles);
-	if (!(cacheOnly || process.env.AI_GATEWAY_API_KEY)) {
-		try {
-			process.loadEnvFile(join(root, ".env"));
-		} catch (error) {
-			if (
-				!(error instanceof Error && "code" in error && error.code === "ENOENT")
-			) {
-				throw new Error("Could not load the repository .env.");
-			}
+	const apiKey = process.env.AI_GATEWAY_API_KEY?.trim() || undefined;
+	const destination: Destination = apiKey
+		? { host: "ai-gateway.vercel.sh", kind: "gateway" }
+		: { host: new URL(hostedScanUrl).host, kind: "databuddy" };
+	const sent = new Set<string>();
+	for (const segment of segments) {
+		sent.add(segment.path);
+		for (const site of segment.action?.sites ?? []) {
+			sent.add(site.path);
 		}
 	}
-	const apiKey = process.env.AI_GATEWAY_API_KEY?.trim() || undefined;
+	if (options.dryRun) {
+		return {
+			dryRun: true as const,
+			destination,
+			files: [...sent].sort(),
+			skippedFiles: noActionFiles.length,
+		};
+	}
+	announce({ destination, files: sent.size });
+	const batches = planRequests(segments, catalog, batchFiles);
 	const started = performance.now(),
 		runId = randomUUID(),
 		controller = new AbortController(),
@@ -435,7 +451,6 @@ export async function scan(
 			failures: calls.filter((c) => c.error && !c.split).length,
 			elapsedSeconds: (performance.now() - started) / 1000,
 			rows,
-			cacheOnly,
 		});
 	const cancel = () => {
 		if (!interrupted) {
@@ -623,6 +638,8 @@ export async function scan(
 			finishedAt: new Date().toISOString(),
 			sourceHash,
 			cacheOnly,
+			destination,
+			zeroDataRetention: true,
 			interrupted,
 			includedFiles,
 			skippedFiles: noActionFiles.length,
