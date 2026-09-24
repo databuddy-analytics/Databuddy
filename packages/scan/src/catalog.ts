@@ -240,7 +240,17 @@ function firedKind(text: string, node: ts.Node) {
 			: ts.isIdentifier(callee)
 				? callee.text
 				: null;
-		if (name && trackingCallee.test(name)) {
+		const [event] = child.arguments;
+		if (
+			name &&
+			trackingCallee.test(name) &&
+			event &&
+			(ts.isStringLiteralLike(event) ||
+				ts.isTemplateExpression(event) ||
+				ts.isObjectLiteralExpression(event) ||
+				ts.isPropertyAccessExpression(event) ||
+				ts.isElementAccessExpression(event))
+		) {
 			kind = "track";
 		} else if (
 			writesWarehouse &&
