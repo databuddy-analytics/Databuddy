@@ -37,7 +37,7 @@ export const scanOptionsSchema = z.object({
 	cacheOnly: z.boolean().default(false),
 	actions: z.boolean().default(true),
 	concurrency: z.coerce.number().int().positive().default(8),
-	batchFiles: z.coerce.number().int().positive().max(8).default(2),
+	batchFiles: z.coerce.number().int().positive().max(4).default(2),
 });
 const timeoutMs = 15_000;
 const maxRequestBytes = 48_000;
