@@ -102,6 +102,9 @@ export const hash = (value: string) =>
 const excluded =
 	/(?:^|\/)(?:tests?|__tests__|fixtures?|__fixtures__|__mocks__|examples?|playground|node_modules|dist|\.next|\.agents|\.codex|vendor)(?:\/|$)|\.(?:test|spec|stories|generated|d)\.[^.]+$/i;
 const sourceFile = /\.(?:[cm]?[jt]sx?|vue|swift|py|sh|sql|html|css)$/;
+const repositoryKey =
+	/^[ \t]*(?:export[ \t]+)?AI_GATEWAY_API_KEY[ \t]*=[ \t]*(.*?)[ \t]*$/m;
+const quoted = /^(["'])(.*)\1$/;
 const routeHandlerLabel = /^(?:GET|POST|PUT|PATCH|DELETE)$/;
 const reviewable = /\.(?:[cm]?[jt]sx?|vue|swift|py)$/;
 const sourceLineBoundary = /(?<=\n)/;
@@ -429,7 +432,13 @@ export async function scan(
 			catalog,
 		});
 	}
-	const apiKey = process.env.AI_GATEWAY_API_KEY?.trim() || undefined;
+	const apiKey =
+		process.env.AI_GATEWAY_API_KEY?.trim() ||
+		repositoryKey
+			.exec(await readFile(join(root, ".env"), "utf8").catch(() => ""))?.[1]
+			?.trim()
+			.replace(quoted, "$2") ||
+		undefined;
 	const destination: Destination = apiKey
 		? { host: "ai-gateway.vercel.sh", kind: "gateway" }
 		: { host: new URL(hostedScanUrl).host, kind: "databuddy" };
