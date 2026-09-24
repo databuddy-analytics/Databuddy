@@ -6,14 +6,11 @@ import { hostedScanUrl, type Row } from "./evaluate.js";
 import type { Destination, ScanResult, SentFile } from "./scan.js";
 
 export interface Snapshot {
-	active: number;
 	batches: number;
 	classifiedFiles: number;
 	completedBatches: number;
 	elapsedSeconds: number;
-	failures: number;
 	includedFiles: number;
-	retries: number;
 	rows: Row[];
 }
 
