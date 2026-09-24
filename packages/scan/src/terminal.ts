@@ -1,9 +1,8 @@
-import { join } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import chalk, { Chalk, chalkStderr } from "chalk";
 import { createLogUpdate } from "log-update";
 import { hostedScanUrl, type Row } from "./evaluate.js";
-import type { Destination, ScanResult, SentFile } from "./scan.js";
+import type { ScanResult, scan } from "./scan.js";
 
 export interface Snapshot {
 	batches: number;
@@ -28,7 +27,7 @@ const areas = {
 export const privacy = `Code is sent to Databuddy's scan API (${new URL(hostedScanUrl).host}), which classifies it with the Jev model (typesafe-ai/jev) on Vercel AI Gateway under zero data retention: your source is never stored or logged. For JavaScript and TypeScript only the actions it finds and the functions they call are sent, not whole files; --dry-run lists every line without sending anything. Set AI_GATEWAY_API_KEY to send it to your own Vercel AI Gateway account instead, and Databuddy receives nothing. Privacy policy: https://www.databuddy.cc/privacy`;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: Source paths and provider labels must not control the terminal.
 const controls = /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g;
-export const clean = (value: string | number | null | undefined) =>
+const clean = (value: string | number | null | undefined) =>
 	stripVTControlCharacters(String(value ?? "")).replace(controls, "");
 const gaps = (rows: Row[]) =>
 	rows.filter(
@@ -49,13 +48,11 @@ const elapsed = (seconds: number) =>
 	seconds < 60
 		? `${Math.round(seconds)}s`
 		: `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`;
-const location = (row: Row, root = "") =>
-	`${clean(root ? join(root, row.path) : row.path)}:${row.start}`;
-interface Options {
-	json?: boolean;
-}
+const location = (row: Row) => `${clean(row.path)}:${row.start}`;
+const accent = "#e3a514";
+type DryRun = Extract<Awaited<ReturnType<typeof scan>>, { dryRun: true }>;
 
-export function createTerminal({ json = false }: Options = {}) {
+export function createTerminal({ json = false }: { json?: boolean } = {}) {
 	const interactive =
 		process.stderr.isTTY && process.env.TERM !== "dumb" && !json;
 	const noColor =
@@ -93,10 +90,10 @@ export function createTerminal({ json = false }: Options = {}) {
 			[
 				title,
 				"",
-				`  ${progress.hex("#e3a514")("━".repeat(filled))}${progress.dim("─".repeat(28 - filled))} ${Math.round(fraction * 100)}%`,
+				`  ${progress.hex(accent)("━".repeat(filled))}${progress.dim("─".repeat(28 - filled))} ${Math.round(fraction * 100)}%`,
 				`  ${snapshot.classifiedFiles} / ${snapshot.includedFiles} files · ${elapsed(snapshot.elapsedSeconds)}`,
 				"",
-				progress.hex("#e3a514")(`  ${found.length} files to review`),
+				progress.hex(accent)(`  ${count(found.length, "file")} to review`),
 				...found
 					.slice(0, 3)
 					.map((row) => `  ${location(row)} · ${areas[row.category]}`),
@@ -108,7 +105,7 @@ export function createTerminal({ json = false }: Options = {}) {
 		destination,
 		files,
 	}: {
-		destination: Destination;
+		destination: DryRun["destination"];
 		files: number;
 	}) {
 		process.stderr.write(
@@ -122,18 +119,12 @@ export function createTerminal({ json = false }: Options = {}) {
 
 	function notes(warnings: string[]) {
 		return warnings.flatMap((warning) => [
-			`  ${output.hex("#e3a514")("Warning:")} ${clean(warning)}`,
+			`  ${output.hex(accent)("Warning:")} ${clean(warning)}`,
 			"",
 		]);
 	}
 
-	function dryRun(result: {
-		destination: Destination;
-		files: SentFile[];
-		payload: object;
-		skippedFiles: number;
-		warnings: string[];
-	}) {
+	function dryRun(result: DryRun) {
 		if (json) {
 			return print([
 				JSON.stringify({ ...result, sent: false, zeroDataRetention: true }),

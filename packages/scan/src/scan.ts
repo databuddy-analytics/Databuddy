@@ -150,7 +150,7 @@ const splitDepth = 2;
 const keyHelp = "Check the key, or unset it to use Databuddy's scan API.";
 const catalogByteLimit = 24_000;
 
-export async function readJSON(path: string): Promise<JsonValue> {
+async function readJSON(path: string): Promise<JsonValue> {
 	try {
 		return JSON.parse(await readFile(path, "utf8"));
 	} catch (error) {
