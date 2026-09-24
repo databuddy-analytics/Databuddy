@@ -169,7 +169,10 @@ function functionValue(input: ts.Node): FunctionNode | undefined {
 	if (isFunction(node)) {
 		return node;
 	}
-	if (ts.isVariableDeclaration(node) && node.initializer) {
+	if (
+		(ts.isVariableDeclaration(node) || ts.isPropertyAssignment(node)) &&
+		node.initializer
+	) {
 		return functionValue(node.initializer);
 	}
 	if (
@@ -278,9 +281,15 @@ function routeMatches(route: string[], url: (string | null)[]) {
 	return route.length === url.length;
 }
 
-const markup = /\.html?$/i;
-const inlineHandler =
-	/<([a-z][\w-]*)\b[^>]*?\son(click|submit|copy)\s*=\s*(["'])([\s\S]*?)\3[^>]*>([^<]*)/gi;
+const markup = /\.(?:html?|vue|svelte)$/i;
+const markupHandlers = [
+	/<([a-z][\w-]*)\b[^>]*?\son(click|submit|copy)\s*=\s*(["'])([\s\S]*?)\3[^>]*>([^<]*)/gi,
+	/<([a-z][\w-]*)\b[^>]*?\s(?:@|v-on:)(click|submit|copy)(?:\.[\w.]+)?\s*=\s*(["'])([\s\S]*?)\3[^>]*>([^<]*)/gi,
+	/<([a-z][\w-]*)\b[^>]*?\son:?(click|submit|copy)(?:\|[\w|]+)?\s*=\s*(\{)((?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*)\}[^>]*>([^<]*)/gi,
+];
+const scriptBlock = /(<script\b[^>]*>)([\s\S]*?)<\/script>/gi;
+const reference = /^[\w$.]+$/;
+const navigation = /(?:^|\.)(?:location|href)$/;
 const classicScript = /\.c?js$/i;
 const moduleSyntax = /^[ \t]*(?:import|export)\b/m;
 const topLevelName =
@@ -289,17 +298,28 @@ const lineBreak = /\r?\n/g;
 function decode(text: string) {
 	return text.replace(entity, (match) => entities[match] ?? match);
 }
-function inlineHandlers(html: string) {
-	const lines = html.split("\n").map(() => "");
-	for (const match of html.matchAll(inlineHandler)) {
-		const [, tag = "", event = "", , code = "", text = ""] = match;
-		const line = html.slice(0, match.index).split("\n").length - 1;
-		const element = tag.toLowerCase();
-		lines[line] +=
-			`<${element} on${event[0]?.toUpperCase()}${event.slice(1).toLowerCase()}={() => {${decode(code).replace(lineBreak, " ")}}}>{${JSON.stringify(decode(text).trim())}}</${element}>`;
+function markupSource(text: string, scripts: boolean) {
+	const lineOf = (index: number) => text.slice(0, index).split("\n").length - 1;
+	const lines = text.split("\n").map(() => "");
+	if (scripts) {
+		for (const match of text.matchAll(scriptBlock)) {
+			const first = lineOf(match.index + (match[1]?.length ?? 0));
+			for (const [offset, line] of (match[2] ?? "").split("\n").entries()) {
+				lines[first + offset] = line;
+			}
+		}
 	}
-	lines[0] = `export const markup = <>${lines[0]}`;
-	lines[lines.length - 1] += "</>;";
+	for (const pattern of markupHandlers) {
+		for (const match of text.matchAll(pattern)) {
+			const [, tag = "", event = "", quote, code = "", label = ""] = match;
+			const element = tag.toLowerCase();
+			const body = decode(code).replace(lineBreak, " ").trim();
+			const handler =
+				quote === "{" || reference.test(body) ? body : `() => {${body}}`;
+			lines[lineOf(match.index)] +=
+				`;<${element} on${event[0]?.toUpperCase()}${event.slice(1).toLowerCase()}={${handler}}>{${JSON.stringify(decode(label).trim())}}</${element}>;`;
+		}
+	}
 	return lines.join("\n");
 }
 const scriptIndexes = new WeakMap<
@@ -340,22 +360,28 @@ export function groupActions(
 		if (!(extension.test(key) || page)) {
 			return null;
 		}
-		const file = ts.createSourceFile(
-			key,
-			page ? inlineHandlers(text) : text,
-			ts.ScriptTarget.Latest,
-			true,
+		const kind =
 			page || jsxExtension.test(key)
 				? ts.ScriptKind.TSX
 				: jsExtension.test(key)
 					? ts.ScriptKind.JS
-					: ts.ScriptKind.TS
-		);
-		// createSourceFile populates parseDiagnostics, omitted from TS's public SourceFile type.
-		if (
-			(file as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] })
-				.parseDiagnostics.length
-		) {
+					: ts.ScriptKind.TS;
+		const file = (
+			page ? [markupSource(text, true), markupSource(text, false)] : [text]
+		)
+			.map((variant) =>
+				ts.createSourceFile(key, variant, ts.ScriptTarget.Latest, true, kind)
+			)
+			.find(
+				(candidate) =>
+					// createSourceFile populates parseDiagnostics, omitted from TS's public SourceFile type.
+					!(
+						candidate as ts.SourceFile & {
+							parseDiagnostics: readonly ts.Diagnostic[];
+						}
+					).parseDiagnostics.length
+			);
+		if (!file) {
 			units.set(key, null);
 			return null;
 		}
@@ -608,6 +634,21 @@ export function groupActions(
 			return { unit: owner, node: local };
 		}
 		const imported = owner.imports.get(name);
+		if (!imported && markup.test(owner.path)) {
+			const methods: ts.Node[] = [];
+			walk(owner.file, (node) => {
+				if (
+					(ts.isMethodDeclaration(node) || ts.isPropertyAssignment(node)) &&
+					node.name.getText(owner.file) === name &&
+					functionValue(node)
+				) {
+					methods.push(node);
+				}
+			});
+			if (methods[0]) {
+				return { unit: owner, node: methods[0] };
+			}
+		}
 		if (!imported) {
 			const [script, ...others] = scriptFunctions(sources).get(name) ?? [];
 			const shared =
@@ -638,25 +679,33 @@ export function groupActions(
 			}
 			visited.add(bound);
 			const fn = functionValue(bound);
-			return fn?.body ? routine(fn.body, owner, visited) : false;
+			return fn ? routine(fn, owner, visited) : false;
 		}
 		const calls: ts.CallExpression[] = [];
+		let navigates = false;
 		walk(expression, (node) => {
 			if (ts.isCallExpression(node)) {
 				calls.push(node);
 			}
+			if (
+				ts.isBinaryExpression(node) &&
+				node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+				navigation.test(node.left.getText(owner.file))
+			) {
+				navigates = true;
+			}
 		});
-		return (
-			calls.length > 0 &&
-			calls.every((call) => {
-				const name = call.expression.getText(owner.file);
-				return (
-					routineCall.test(name) ||
-					(ts.isIdentifier(call.expression) &&
-						routine(call.expression, owner, new Set(visited)))
-				);
-			})
-		);
+		if (calls.length === 0) {
+			return isFunction(expression) && !navigates;
+		}
+		return calls.every((call) => {
+			const name = call.expression.getText(owner.file);
+			return (
+				routineCall.test(name) ||
+				(ts.isIdentifier(call.expression) &&
+					routine(call.expression, owner, new Set(visited)))
+			);
+		});
 	}
 	function describe(initializer: ts.Node | undefined, labels: string[]) {
 		const expression =
