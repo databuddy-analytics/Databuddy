@@ -11,7 +11,7 @@ Run it inside a Git repository, or pass a folder to scan only that folder. No ac
 ```
   databuddy. / event scan
 
-  Scan complete · 9 files to review · 13 findings · 14s
+  Scan complete · 13 findings in 9 files · 14s
 
   app/api/stripe/checkout/route.ts:9 · GET · missing · Payments
   app/(dashboard)/pricing/page.tsx:88 · form.action checkoutAction · missing · Payments
