@@ -184,7 +184,8 @@ export function EmailPreferencesCard() {
 										onValueChange={(value) =>
 											save(
 												withSection(settings, "trackingHealth", {
-													mode: String(value) as EmailAlertMode,
+													mode: TRACKING_MODES.find((m) => m.value === value)
+														?.value,
 												})
 											)
 										}

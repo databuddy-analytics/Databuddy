@@ -16,7 +16,7 @@ import {
 	type AlarmData,
 	AlarmSheet,
 	alarmMonitorIds,
-	DEST_LABELS,
+	CHANNELS,
 	parseAlarms,
 } from "./_components/alarm-sheet";
 import { EmailPreferencesCard } from "./_components/email-preferences-card";
@@ -95,9 +95,7 @@ export default function NotificationsSettingsPage() {
 		setSheetOpen(true);
 	};
 
-	const alarmList = parseAlarms(
-		(alarms ?? []) as readonly Record<string, unknown>[]
-	);
+	const alarmList = parseAlarms(alarms ?? []);
 
 	return (
 		<div className="flex-1 overflow-y-auto">
@@ -192,7 +190,7 @@ export default function NotificationsSettingsPage() {
 														{alarm.destinations.length > 0 ? (
 															alarm.destinations.map((d) => (
 																<Badge key={d.id} size="sm" variant="muted">
-																	{DEST_LABELS[d.type] ?? d.type}
+																	{CHANNELS[d.type].label}
 																</Badge>
 															))
 														) : (

@@ -12,6 +12,7 @@ import {
 	UPLOAD_CONTENT_TYPES,
 } from "@databuddy/shared/uploads";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
+import type { StatusPage } from "@/components/status-pages/status-page-row";
 import { orpc } from "@/lib/orpc";
 import {
 	Button,
@@ -74,6 +75,45 @@ function AssetUploadButton({
 	);
 }
 
+const optionalHttpsUrl = z
+	.string()
+	.refine(
+		(v) => v === "" || HTTPS_URL_REGEX.test(v),
+		"Must start with https://"
+	);
+
+const URL_FIELDS = [
+	{
+		name: "logoUrl",
+		label: "Logo",
+		placeholder: "https://example.com/logo.svg",
+		asset: "logo",
+		description:
+			"Displayed in the navbar and page header. Upload a file or paste an https URL.",
+	},
+	{
+		name: "faviconUrl",
+		label: "Favicon",
+		placeholder: "https://example.com/favicon.ico",
+		asset: "favicon",
+		description: null,
+	},
+	{
+		name: "websiteUrl",
+		label: "Website URL",
+		placeholder: "https://example.com",
+		asset: null,
+		description: "Logo and name link to this URL",
+	},
+	{
+		name: "supportUrl",
+		label: "Support URL",
+		placeholder: "https://example.com/support",
+		asset: null,
+		description: 'Shown as a "Get Support" link in the navbar',
+	},
+] as const;
+
 const statusPageFormSchema = z.object({
 	name: z
 		.string()
@@ -95,30 +135,10 @@ const statusPageFormSchema = z.object({
 		.string()
 		.max(500, "Description must be 500 characters or fewer")
 		.optional(),
-	logoUrl: z
-		.string()
-		.refine(
-			(v) => v === "" || HTTPS_URL_REGEX.test(v),
-			"Must start with https://"
-		),
-	faviconUrl: z
-		.string()
-		.refine(
-			(v) => v === "" || HTTPS_URL_REGEX.test(v),
-			"Must start with https://"
-		),
-	websiteUrl: z
-		.string()
-		.refine(
-			(v) => v === "" || HTTPS_URL_REGEX.test(v),
-			"Must start with https://"
-		),
-	supportUrl: z
-		.string()
-		.refine(
-			(v) => v === "" || HTTPS_URL_REGEX.test(v),
-			"Must start with https://"
-		),
+	logoUrl: optionalHttpsUrl,
+	faviconUrl: optionalHttpsUrl,
+	websiteUrl: optionalHttpsUrl,
+	supportUrl: optionalHttpsUrl,
 	theme: z.enum(["system", "light", "dark"]),
 });
 
@@ -134,17 +154,18 @@ interface StatusPageSheetProps {
 	onCloseAction: (open: boolean) => void;
 	onSaveAction?: () => void;
 	open: boolean;
-	statusPage?: {
-		description?: string | null;
-		faviconUrl?: string | null;
-		id: string;
-		logoUrl?: string | null;
-		name: string;
-		slug: string;
-		supportUrl?: string | null;
-		theme?: string | null;
-		websiteUrl?: string | null;
-	} | null;
+	statusPage?: Pick<
+		StatusPage,
+		| "description"
+		| "faviconUrl"
+		| "id"
+		| "logoUrl"
+		| "name"
+		| "slug"
+		| "supportUrl"
+		| "theme"
+		| "websiteUrl"
+	> | null;
 }
 
 export function StatusPageSheet({
@@ -339,94 +360,38 @@ export function StatusPageSheet({
 								</p>
 							</div>
 
-							<Controller
-								control={form.control}
-								name="logoUrl"
-								render={({ field, fieldState }) => (
-									<Field error={!!fieldState.error}>
-										<Field.Label>Logo</Field.Label>
-										<div className="flex items-center gap-2">
-											<Input
-												placeholder="https://example.com/logo.svg"
-												{...field}
-											/>
-											<AssetUploadButton
-												busy={uploading !== null}
-												onPickAction={(file) => uploadAsset("logo", file)}
-												uploading={uploading === "logo"}
-											/>
-										</div>
-										<Field.Description>
-											Displayed in the navbar and page header. Upload a file or
-											paste an https URL.
-										</Field.Description>
-										{fieldState.error && (
-											<Field.Error>{fieldState.error.message}</Field.Error>
+							{URL_FIELDS.map(
+								({ name, label, placeholder, asset, description }) => (
+									<Controller
+										control={form.control}
+										key={name}
+										name={name}
+										render={({ field, fieldState }) => (
+											<Field error={!!fieldState.error}>
+												<Field.Label>{label}</Field.Label>
+												{asset ? (
+													<div className="flex items-center gap-2">
+														<Input placeholder={placeholder} {...field} />
+														<AssetUploadButton
+															busy={uploading !== null}
+															onPickAction={(file) => uploadAsset(asset, file)}
+															uploading={uploading === asset}
+														/>
+													</div>
+												) : (
+													<Input placeholder={placeholder} {...field} />
+												)}
+												{description && (
+													<Field.Description>{description}</Field.Description>
+												)}
+												{fieldState.error && (
+													<Field.Error>{fieldState.error.message}</Field.Error>
+												)}
+											</Field>
 										)}
-									</Field>
-								)}
-							/>
-
-							<Controller
-								control={form.control}
-								name="faviconUrl"
-								render={({ field, fieldState }) => (
-									<Field error={!!fieldState.error}>
-										<Field.Label>Favicon</Field.Label>
-										<div className="flex items-center gap-2">
-											<Input
-												placeholder="https://example.com/favicon.ico"
-												{...field}
-											/>
-											<AssetUploadButton
-												busy={uploading !== null}
-												onPickAction={(file) => uploadAsset("favicon", file)}
-												uploading={uploading === "favicon"}
-											/>
-										</div>
-										{fieldState.error && (
-											<Field.Error>{fieldState.error.message}</Field.Error>
-										)}
-									</Field>
-								)}
-							/>
-
-							<Controller
-								control={form.control}
-								name="websiteUrl"
-								render={({ field, fieldState }) => (
-									<Field error={!!fieldState.error}>
-										<Field.Label>Website URL</Field.Label>
-										<Input placeholder="https://example.com" {...field} />
-										<Field.Description>
-											Logo and name link to this URL
-										</Field.Description>
-										{fieldState.error && (
-											<Field.Error>{fieldState.error.message}</Field.Error>
-										)}
-									</Field>
-								)}
-							/>
-
-							<Controller
-								control={form.control}
-								name="supportUrl"
-								render={({ field, fieldState }) => (
-									<Field error={!!fieldState.error}>
-										<Field.Label>Support URL</Field.Label>
-										<Input
-											placeholder="https://example.com/support"
-											{...field}
-										/>
-										<Field.Description>
-											Shown as a "Get Support" link in the navbar
-										</Field.Description>
-										{fieldState.error && (
-											<Field.Error>{fieldState.error.message}</Field.Error>
-										)}
-									</Field>
-								)}
-							/>
+									/>
+								)
+							)}
 						</div>
 
 						<Divider />
