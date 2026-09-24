@@ -106,7 +106,7 @@ export const scanRequestSchema = z.object({
 			})
 		)
 		.min(1)
-		.max(8),
+		.max(4),
 	catalog: z.object({
 		attributeTracking: catalogEntries,
 		directTrackingCandidates: catalogEntries,

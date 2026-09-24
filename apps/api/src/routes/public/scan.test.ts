@@ -115,7 +115,7 @@ describe("public scan endpoint", () => {
 		expect(
 			(
 				await request(
-					JSON.stringify({ catalog, segments: new Array(9).fill(segment) })
+					JSON.stringify({ catalog, segments: new Array(5).fill(segment) })
 				)
 			).status
 		).toBe(400);
