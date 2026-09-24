@@ -287,7 +287,7 @@ const markupHandlers = [
 	/<([a-z][\w-]*)\b[^>]*?\s(?:@|v-on:)(click|submit|copy)(?:\.[\w.]+)?\s*=\s*(["'])([\s\S]*?)\3[^>]*>([^<]*)/gi,
 	/<([a-z][\w-]*)\b[^>]*?\son:?(click|submit|copy)(?:\|[\w|]+)?\s*=\s*(\{)((?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*)\}[^>]*>([^<]*)/gi,
 ];
-const scriptBlock = /(<script\b[^>]*>)([\s\S]*?)<\/script>/gi;
+const scriptBlock = /(<script\b[^>]*>)([\s\S]*?)<\/script\s*>/gi;
 const reference = /^[\w$.]+$/;
 const navigation = /(?:^|\.)(?:location|href)$/;
 const classicScript = /\.c?js$/i;
