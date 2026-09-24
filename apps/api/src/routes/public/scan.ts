@@ -186,17 +186,20 @@ export const scanRoute = new Elysia({ prefix: "/v1/scan" }).post(
 				(error) => captureError(error, { scan_event: "scan_run_started" })
 			);
 		}
+		let gatewayStatus: number | null = null;
 		try {
 			const raw = await requestEvaluation(createRequest(segments, catalog), {
 				apiKey,
 				attempts: 1,
 				timeoutMs: 15_000,
 				signal: request.signal,
-				onAttempt: (attempt) =>
+				onAttempt: (attempt) => {
+					gatewayStatus = attempt.status;
 					mergeWideEvent({
 						scan_gateway_status: attempt.status ?? 0,
 						scan_gateway_ms: attempt.ms,
-					}),
+					});
+				},
 				onRetry: () => undefined,
 			});
 			const { rows, inputTokens, outputTokens } = parseResponse(raw, segments);
@@ -213,7 +216,13 @@ export const scanRoute = new Elysia({ prefix: "/v1/scan" }).post(
 			};
 		} catch (error) {
 			const timedOut = error instanceof Error && error.name === "TimeoutError";
-			mergeWideEvent({ scan_failed: timedOut ? "timeout" : "gateway" });
+			mergeWideEvent({
+				scan_failed: timedOut
+					? "timeout"
+					: gatewayStatus === 200
+						? "invalid_response"
+						: `gateway_${gatewayStatus ?? "network"}`,
+			});
 			return reject(
 				request,
 				timedOut ? 504 : 503,
