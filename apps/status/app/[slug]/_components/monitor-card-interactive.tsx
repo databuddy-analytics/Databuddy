@@ -67,7 +67,7 @@ export function MonitorCardInteractive({
 			<button
 				aria-controls={panelId}
 				aria-expanded={isOpen}
-				className="flex w-full cursor-pointer select-none items-start gap-2 bg-card p-3 text-left outline-none transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset sm:gap-3 sm:p-4"
+				className="flex w-full cursor-pointer select-none items-center gap-2 p-4 text-left outline-none transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset sm:gap-3 sm:p-5"
 				onClick={() => setIsOpen((open) => !open)}
 				type="button"
 			>
@@ -80,7 +80,7 @@ export function MonitorCardInteractive({
 					/>
 				</div>
 				<div className="min-w-0 flex-1">
-					<span className="block truncate font-semibold text-sm leading-[1.2] sm:text-base">
+					<span className="block truncate font-semibold text-sm sm:text-base">
 						{name}
 						{domain ? (
 							<span className="font-normal text-muted-foreground">
@@ -89,26 +89,27 @@ export function MonitorCardInteractive({
 							</span>
 						) : null}
 					</span>
-					<span className="mt-1 flex items-center gap-1.5 text-muted-foreground text-xs">
-						<StatusDot color={statusConfig.color} size="sm" />
-						{statusConfig.label} · {checkedLabel}
-					</span>
 				</div>
+				<span
+					className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs"
+					title={checkedLabel}
+				>
+					<StatusDot color={statusConfig.color} size="sm" />
+					{statusConfig.label}
+				</span>
 			</button>
 
 			<div
 				aria-hidden={!isOpen}
 				className={cn(
-					"grid border-t bg-muted/30 transition-[grid-template-rows,opacity,border-color] duration-(--duration-base) ease-(--expo-out) motion-reduce:transition-none",
-					isOpen
-						? "grid-rows-[1fr] border-border/60 opacity-100"
-						: "grid-rows-[0fr] border-transparent opacity-0"
+					"grid transition-[grid-template-rows,opacity] duration-(--duration-base) ease-(--expo-out) motion-reduce:transition-none",
+					isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
 				)}
 				id={panelId}
 				inert={isOpen ? undefined : true}
 			>
 				<div className="min-h-0 overflow-hidden">
-					<div className="px-5 py-5 sm:px-6 sm:py-6">
+					<div className="px-4 pt-1 pb-2 sm:px-5">
 						{uptimePercentage === undefined ? null : (
 							<UptimeHistory
 								dailyData={dailyData}
@@ -120,13 +121,15 @@ export function MonitorCardInteractive({
 							<div
 								className={cn(
 									uptimePercentage !== undefined &&
-										"mt-4 border-border/60 border-t pt-2"
+										"mt-3 border-border/60 border-t"
 								)}
 							>
-								<LatencyChart
-									data={dailyData}
-									storageKey={`status-latency-${id}`}
-								/>
+								<div className="-mx-2">
+									<LatencyChart
+										data={dailyData}
+										storageKey={`status-latency-${id}`}
+									/>
+								</div>
 							</div>
 						) : null}
 					</div>

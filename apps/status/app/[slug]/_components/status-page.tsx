@@ -3,7 +3,6 @@ import type { AppRouter } from "@databuddy/rpc";
 import type { OverallStatus } from "@databuddy/shared/uptime-status";
 import type { RouterClient } from "@orpc/server";
 import { cn, StatusDot } from "@databuddy/ui";
-import { CaretDownIcon } from "@databuddy/ui/icons";
 import { MonitorCardInteractive } from "./monitor-card-interactive";
 
 type StatusPageData = NonNullable<
@@ -28,41 +27,25 @@ function StatusRoot({
 const STATUS_CONFIG = {
 	operational: {
 		title: "We're Fully Operational",
-		shortLabel: "Operational",
 		description: "We're not aware of any issues affecting these services.",
-		sectionClass:
-			"border-[color-mix(in_oklab,var(--uptime-operational)_30%,transparent)] bg-[color-mix(in_oklab,var(--uptime-operational)_7%,var(--card))]",
-		headerClass: "bg-(--uptime-operational) text-white",
-		lineClass: "bg-(--uptime-operational)",
+		dotColor: "success",
 	},
 	degraded: {
 		title: "Some Systems Degraded",
-		shortLabel: "Degraded",
 		description:
 			"One or more services are degraded. We're tracking the impact.",
-		sectionClass:
-			"border-[color-mix(in_oklab,var(--uptime-degraded)_30%,transparent)] bg-[color-mix(in_oklab,var(--uptime-degraded)_8%,var(--card))]",
-		headerClass: "bg-(--uptime-degraded) text-[#2b2000]",
-		lineClass: "bg-(--uptime-degraded)",
+		dotColor: "warning",
 	},
 	outage: {
 		title: "Service Disruption",
-		shortLabel: "Outage",
 		description: "An outage is affecting one or more services.",
-		sectionClass:
-			"border-[color-mix(in_oklab,var(--uptime-major)_30%,transparent)] bg-[color-mix(in_oklab,var(--uptime-major)_7%,var(--card))]",
-		headerClass: "bg-(--uptime-major) text-white",
-		lineClass: "bg-(--uptime-major)",
+		dotColor: "destructive",
 	},
 	unknown: {
 		title: "Status Unavailable",
-		shortLabel: "Unknown",
 		description:
 			"We don't have enough recent monitoring data to confirm service health.",
-		sectionClass:
-			"border-border/70 bg-muted/40 dark:border-border dark:bg-muted/25",
-		headerClass: "bg-muted text-foreground",
-		lineClass: "bg-muted-foreground/50",
+		dotColor: "muted",
 	},
 } as const satisfies Record<OverallStatus, unknown>;
 
@@ -105,47 +88,42 @@ function StatusHeader({
 			: description?.trim() || config.description;
 
 	return (
-		<div className={className} data-slot="status-header">
-			<div
-				className={cn("overflow-hidden rounded-xl border", config.sectionClass)}
-				data-slot="status-section"
-			>
-				<div
-					className={cn(
-						"flex w-full select-none items-start gap-2 p-3 sm:p-4",
-						config.headerClass
-					)}
-				>
-					<div className="shrink-0 p-1">
-						<CaretDownIcon className="size-3" />
-					</div>
-					<div className="flex min-w-0 flex-1 items-baseline gap-3">
-						<h1 className="min-w-0 flex-1 truncate font-semibold text-sm leading-[1.2] sm:text-base">
+		<section
+			className={cn(
+				"rounded-xl border border-border/60 bg-card p-4 sm:p-5",
+				className
+			)}
+			data-slot="status-header"
+		>
+			<div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+				<div className="min-w-0">
+					<div className="flex items-center gap-3">
+						<StatusDot
+							className={cn(
+								"ring-4",
+								status === "operational" && "ring-success/15",
+								status === "degraded" && "ring-warning/15",
+								status === "outage" && "ring-destructive/15",
+								status === "unknown" && "ring-muted"
+							)}
+							color={config.dotColor}
+							size="lg"
+						/>
+						<h1 className="min-w-0 font-semibold text-base leading-tight sm:text-lg">
 							{config.title}
 						</h1>
-						<span className="shrink-0 pr-1 font-medium text-xs leading-[1.2] opacity-85 sm:text-sm">
-							{config.shortLabel}
-						</span>
 					</div>
+					<p className="mt-1.5 pl-[22px] text-muted-foreground text-sm leading-relaxed">
+						{message}
+					</p>
 				</div>
-
-				<div className="flex gap-3 px-4 py-3 sm:py-5 sm:pl-[25px]">
-					<div className="flex shrink-0 items-stretch">
-						<div className={cn("w-0.5 rounded-full", config.lineClass)} />
-					</div>
-					<div className="space-y-1.5 py-1">
-						<p className="font-medium text-foreground/80 text-sm leading-[1.2] sm:text-base">
-							{message}
-						</p>
-						{updatedAt ? (
-							<p className="text-muted-foreground text-xs tabular-nums">
-								Updated {formatDateTime(updatedAt)}
-							</p>
-						) : null}
-					</div>
-				</div>
+				{updatedAt ? (
+					<span className="shrink-0 pl-[22px] text-muted-foreground text-xs tabular-nums sm:pt-1 sm:pl-0">
+						Updated {formatDateTime(updatedAt)}
+					</span>
+				) : null}
 			</div>
-		</div>
+		</section>
 	);
 }
 
