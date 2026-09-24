@@ -58,6 +58,11 @@ const writes = new Set([
 	"insert",
 	"update",
 	"delete",
+	"create",
+	"upsert",
+	"createMany",
+	"updateMany",
+	"deleteMany",
 ]);
 const httpWrites = new Set(["post", "put", "patch"]);
 const readMethod = /^(?:get|head|options)$/i;
@@ -789,13 +794,13 @@ export function groupActions(
 				const callee = child.expression;
 				if (ts.isPropertyAccessExpression(callee)) {
 					const method = callee.name.text;
-					if (writes.has(method) || httpWrites.has(method)) {
+					const write =
+						writes.has(method) &&
+						callee.expression.getText(owner.file) !== "Object";
+					if (write || httpWrites.has(method)) {
 						commits = true;
 					}
-					if (
-						writes.has(method) ||
-						["track", "capture", "logEvent"].includes(method)
-					) {
+					if (write || ["track", "capture", "logEvent"].includes(method)) {
 						addSite(owner, child);
 					}
 					if (
