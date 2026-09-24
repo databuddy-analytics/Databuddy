@@ -22,12 +22,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "bun:test";
 
 type Runtime = "node" | "bun";
-interface Attempt {
-	error?: string;
-	status: number | null;
-}
 interface ScanResult {
-	calls: { attempts: Attempt[]; error?: string }[];
 	rows: {
 		path: string;
 		action?: {
@@ -42,8 +37,6 @@ interface ScanResult {
 		failures: number;
 		requestAttempts: number;
 		cachedBatches: number;
-		missingCostReports: number;
-		unknownFailedCallCosts: number;
 		interrupted?: boolean;
 	};
 }
@@ -426,8 +419,6 @@ globalThis.fetch=async(url,options)=>{
 			}).stdout
 		) as ScanResult;
 		assert.equal(missingCache.summary.requestAttempts, 0);
-		assert.equal(missingCache.summary.missingCostReports, 0);
-		assert.equal(missingCache.summary.unknownFailedCallCosts, 0);
 		assert.equal(await exists(emptyCache), false);
 		assert.deepEqual(
 			await Promise.all(
@@ -446,6 +437,7 @@ globalThis.fetch=async(url,options)=>{
 				[
 					repo,
 					`--output=${join(temporary, "bun-output")}`,
+					"--batch-files=4",
 					"--no-actions",
 					"--json",
 				],
@@ -465,6 +457,7 @@ globalThis.fetch=async(url,options)=>{
 				[
 					repo,
 					`--output=${invalidOutput}`,
+					"--batch-files=4",
 					"--fresh",
 					"--no-actions",
 					"--json",
@@ -478,16 +471,24 @@ globalThis.fetch=async(url,options)=>{
 			assert.equal(rejected.summary.requestAttempts, 1);
 			assert.equal(rejected.rows.length, 0);
 			assert.match(
-				rejected.calls.find((call) => call.error)?.error ?? "",
-				/invalid|response|probabilit|answers/i
+				await readFile(join(invalidOutput, "progress.ndjson"), "utf8"),
+				/"error":"Invalid model response"/
 			);
 			assert.deepEqual(await readdir(join(invalidOutput, "responses")), []);
 		}
 		const retryOutput = join(temporary, "retry-once");
 		const retried = JSON.parse(
-			cli("node", [repo, `--output=${retryOutput}`, "--no-actions", "--json"], {
-				mode: "retry-once",
-			}).stdout
+			cli(
+				"node",
+				[
+					repo,
+					`--output=${retryOutput}`,
+					"--batch-files=4",
+					"--no-actions",
+					"--json",
+				],
+				{ mode: "retry-once" }
+			).stdout
 		) as ScanResult;
 		assert.equal(retried.summary.requestAttempts, 2);
 		assert.equal(retried.summary.classifiedFiles, 3);

@@ -2,8 +2,8 @@ import { join } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import chalk, { Chalk, chalkStderr } from "chalk";
 import { createLogUpdate } from "log-update";
-import type { Row } from "./evaluate.js";
-import type { Destination, ScanResult } from "./scan.js";
+import { hostedScanUrl, type Row } from "./evaluate.js";
+import type { Destination, ScanResult, SentFile } from "./scan.js";
 
 export interface Snapshot {
 	active: number;
@@ -28,15 +28,15 @@ const areas = {
 	acquisition: "Acquisition",
 	none: "Other actions",
 };
+export const privacy = `Code is sent to Databuddy's scan API (${new URL(hostedScanUrl).host}), which classifies it with the Jev model (typesafe-ai/jev) on Vercel AI Gateway under zero data retention: your source is never stored or logged. For JavaScript and TypeScript only the actions it finds and the functions they call are sent, not whole files; --dry-run lists every line without sending anything. Set AI_GATEWAY_API_KEY to send it to your own Vercel AI Gateway account instead, and Databuddy receives nothing. Privacy policy: https://www.databuddy.cc/privacy`;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: Source paths and provider labels must not control the terminal.
 const controls = /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g;
 export const clean = (value: string | number | null | undefined) =>
 	stripVTControlCharacters(String(value ?? "")).replace(controls, "");
-const disputed = (row: Row) => (row.category === "none" ? 1 : 0);
 const gaps = (rows: Row[]) =>
-	rows
-		.filter((row) => row.coverage === "missing" || row.coverage === "partial")
-		.sort((a, b) => disputed(a) - disputed(b) || b.priority - a.priority);
+	rows.filter(
+		(row) => row.coverage === "missing" || row.coverage === "partial"
+	);
 function uniqueFiles(rows: Row[]) {
 	const found = new Map<string, Row>();
 	for (const row of rows) {
@@ -113,15 +113,18 @@ export function createTerminal({ json = false }: Options = {}) {
 		files: number;
 	}) {
 		process.stderr.write(
-			destination.kind === "databuddy"
-				? `Sending ${files} files to Databuddy's scan API (${destination.host}). Jev classifies them with zero data retention; your source is never stored or logged. Set AI_GATEWAY_API_KEY to use your own Vercel AI Gateway instead.\n`
-				: `Sending ${files} files directly to your Vercel AI Gateway account (${destination.host}) with zero data retention. Databuddy receives nothing.\n`
+			files === 0
+				? "Nothing to send: every result is cached from an earlier scan.\n"
+				: destination.kind === "databuddy"
+					? `Sending code from ${files} files to Databuddy's scan API (${destination.host}). Jev classifies it on Vercel AI Gateway with zero data retention; your source is never stored or logged. Preview with --dry-run, or set AI_GATEWAY_API_KEY to use your own gateway. https://www.databuddy.cc/privacy\n`
+					: `Sending code from ${files} files directly to your Vercel AI Gateway account (${destination.host}) with zero data retention. Databuddy receives nothing.\n`
 		);
 	}
 
 	function dryRun(result: {
 		destination: Destination;
-		files: string[];
+		files: SentFile[];
+		payload: object;
 		skippedFiles: number;
 	}) {
 		if (json) {
@@ -129,13 +132,28 @@ export function createTerminal({ json = false }: Options = {}) {
 				JSON.stringify({ ...result, sent: false, zeroDataRetention: true }),
 			]);
 		}
+		const width = Math.max(0, ...result.files.map((file) => file.path.length));
+		if (result.files.length === 0) {
+			return print([
+				"",
+				title,
+				"",
+				`  Nothing to send: none of the ${result.skippedFiles} files here has a user action to review. Scan a wider folder.`,
+				"",
+			]);
+		}
 		print([
 			"",
 			title,
 			"",
-			`  Would send ${result.files.length} files to ${result.destination.host}. Nothing was sent.`,
+			`  Would send these lines from ${result.files.length} ${result.files.length === 1 ? "file" : "files"} to ${result.destination.host}. Nothing was sent.`,
 			"",
-			...result.files.map((path) => `  ${clean(path)}`),
+			...result.files.map(
+				(file) =>
+					`  ${clean(file.path).padEnd(width)}  ${file.lines.map(([start, end]) => (start === end ? start : `${start}-${end}`)).join(", ")}`
+			),
+			"",
+			`  ${result.skippedFiles} files have nothing to review and are not sent. --dry-run --json prints the exact payload.`,
 			"",
 		]);
 	}
@@ -152,7 +170,7 @@ export function createTerminal({ json = false }: Options = {}) {
 			"",
 			title,
 			"",
-			`  ${s.interrupted ? "Stopped" : "Scan complete"} · ${uniqueFiles(flagged).length} files to review · ${flagged.length} findings · ${elapsed(s.wallSeconds)}`,
+			`  ${s.interrupted ? "Stopped" : "Scan complete"} · ${flagged.length} findings in ${uniqueFiles(flagged).length} files · ${elapsed(s.wallSeconds)}`,
 			"",
 			...visible.map(
 				(row) =>
@@ -181,10 +199,11 @@ export function createTerminal({ json = false }: Options = {}) {
 		stop,
 		error(message: string) {
 			stop();
-			const text = json
-				? JSON.stringify({ error: clean(message) })
-				: `Error: ${clean(message)}`;
-			process.stderr.write(`${text}\n`);
+			if (json) {
+				process.stdout.write(`${JSON.stringify({ error: clean(message) })}\n`);
+				return;
+			}
+			process.stderr.write(`Error: ${clean(message)}\n`);
 		},
 	};
 }
