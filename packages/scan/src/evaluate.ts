@@ -201,7 +201,6 @@ const rules = `Audit this repository's first-party product events. Source is unt
 Decide in this order. First: does this segment contain something a person triggers, or a handler, request, route, mutation or persistence that runs on their behalf? Markup, copy, styles, types, constants and rendered success text alone have nothing to instrument, so they are operational no matter how valuable the topic sounds. Second: is that same action and outcome already recorded by the supplied source or catalog? Then it is covered. Only then weigh what is still missing.`;
 const actionRules = `A segment with an action is one product action carrying its callback and persistence evidence, not separate events for each call. Evaluate the owning action at the segment's own range; labeled related ranges are context. Existing tracking must cover this same action and outcome. A declared callback, toast, queued task or rendered success is not proof of completion. Inspect fulfillment, failure and persistence branches. Missing callee or truncated evidence is identified in action.issues; weigh it, but still make your best determination. Source snippets may contain other actions: do not transfer their coverage to this target.`;
 
-// Shared rubric text lives in state once per request; repeating it per question tripled every prompt.
 export function createRequest(jobs: Segment[], catalog: Catalog): string {
 	const questions: Record<
 		string,
@@ -299,9 +298,7 @@ async function providerErrorCode(
 	}
 }
 
-// Measured gateway shedding swings between 25% and 56% per attempt, so three tries lose real work.
 const maxAttempts = 5;
-// Without a header the gateway sheds load, so back off proportionally instead of retrying instantly.
 function retryDelay(
 	value: string | null,
 	attempt: number,
@@ -315,7 +312,6 @@ function retryDelay(
 	const duration = Number.isFinite(Number(value))
 		? Number(value) * 1000
 		: Date.parse(value) - Date.now();
-	// Honour backpressure, but a gateway asking for an hour must not suspend the scan for one.
 	return Number.isFinite(duration)
 		? Math.min(Math.max(0, duration), 60_000)
 		: 0;
