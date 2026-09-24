@@ -37,7 +37,7 @@ interface Reference {
 const extension = /\.[cm]?[jt]sx?$/i;
 const intent =
 	/\b(?:copy|export|download|connect|install|upgrade|checkout|subscribe|sign up|register|start trial|accept invitation)\b/i;
-const selection = /\.on(?:ValueChange|CheckedChange|Select)$/;
+const selections = new Set(["onValueChange", "onCheckedChange", "onSelect"]);
 const handlers = new Set([
 	"onClick",
 	"onSubmit",
@@ -113,6 +113,13 @@ function writesOverFetch(
 		ts.isStringLiteralLike(method.initializer) &&
 		readMethod.test(method.initializer.text)
 	);
+}
+function callable(node: ts.Node) {
+	const value = unwrap(node);
+	return isFunction(value) || ts.isIdentifier(value);
+}
+function brief(node: ts.Node, file: ts.SourceFile) {
+	return node.getText(file).replace(whitespaceRun, " ").slice(0, 60);
 }
 function walk(node: ts.Node, visit: (node: ts.Node) => void) {
 	visit(node);
@@ -216,7 +223,7 @@ const entities: Record<string, string> = {
 	"&gt;": ">",
 	"&nbsp;": " ",
 };
-const entity = /&(?:apos|#39|quot|amp|lt|gt|nbsp);/g;
+const entity = new RegExp(Object.keys(entities).join("|"), "g");
 const routeTables = new WeakMap<
 	ReadonlyMap<string, string>,
 	{ export: "default" | "method"; parts: string[]; path: string }[]
@@ -271,6 +278,54 @@ function routeMatches(route: string[], url: (string | null)[]) {
 	return route.length === url.length;
 }
 
+const markup = /\.html?$/i;
+const inlineHandler =
+	/<([a-z][\w-]*)\b[^>]*?\son(click|submit|copy)\s*=\s*(["'])([\s\S]*?)\3[^>]*>([^<]*)/gi;
+const classicScript = /\.c?js$/i;
+const moduleSyntax = /^[ \t]*(?:import|export)\b/m;
+const topLevelName =
+	/^(?:(?:async[ \t]+)?function[ \t]*\*?[ \t]*([\w$]+)|(?:const|let|var)[ \t]+([\w$]+)[ \t]*=)/gm;
+const lineBreak = /\r?\n/g;
+function decode(text: string) {
+	return text.replace(entity, (match) => entities[match] ?? match);
+}
+function inlineHandlers(html: string) {
+	const lines = html.split("\n").map(() => "");
+	for (const match of html.matchAll(inlineHandler)) {
+		const [, tag = "", event = "", , code = "", text = ""] = match;
+		const line = html.slice(0, match.index).split("\n").length - 1;
+		const element = tag.toLowerCase();
+		lines[line] +=
+			`<${element} on${event[0]?.toUpperCase()}${event.slice(1).toLowerCase()}={() => {${decode(code).replace(lineBreak, " ")}}}>{${JSON.stringify(decode(text).trim())}}</${element}>`;
+	}
+	lines[0] = `export const markup = <>${lines[0]}`;
+	lines[lines.length - 1] += "</>;";
+	return lines.join("\n");
+}
+const scriptIndexes = new WeakMap<
+	ReadonlyMap<string, string>,
+	Map<string, string[]>
+>();
+function scriptFunctions(sources: ReadonlyMap<string, string>) {
+	let index = scriptIndexes.get(sources);
+	if (!index) {
+		index = new Map();
+		for (const [path, text] of sources) {
+			if (!classicScript.test(path) || moduleSyntax.test(text)) {
+				continue;
+			}
+			for (const match of text.matchAll(topLevelName)) {
+				const name = match[1] ?? match[2];
+				if (name) {
+					index.set(name, [...(index.get(name) ?? []), path]);
+				}
+			}
+		}
+		scriptIndexes.set(sources, index);
+	}
+	return index;
+}
+
 export function groupActions(
 	path: string,
 	source: string,
@@ -281,15 +336,16 @@ export function groupActions(
 		if (units.has(key)) {
 			return units.get(key) ?? null;
 		}
-		if (!extension.test(key)) {
+		const page = markup.test(key);
+		if (!(extension.test(key) || page)) {
 			return null;
 		}
 		const file = ts.createSourceFile(
 			key,
-			text,
+			page ? inlineHandlers(text) : text,
 			ts.ScriptTarget.Latest,
 			true,
-			jsxExtension.test(key)
+			page || jsxExtension.test(key)
 				? ts.ScriptKind.TSX
 				: jsExtension.test(key)
 					? ts.ScriptKind.JS
@@ -553,7 +609,13 @@ export function groupActions(
 		}
 		const imported = owner.imports.get(name);
 		if (!imported) {
-			return;
+			const [script, ...others] = scriptFunctions(sources).get(name) ?? [];
+			const shared =
+				script && !others.length
+					? parse(script, sources.get(script) ?? "")
+					: null;
+			const node = shared && lookup(shared, name, shared.file);
+			return shared && node ? { unit: shared, node } : undefined;
 		}
 		const target = moduleFile(owner, imported.module, issues);
 		if (target) {
@@ -608,11 +670,7 @@ export function groupActions(
 		) {
 			return ` ${expression.text}`;
 		}
-		const text = labels
-			.join(" ")
-			.replace(entity, (match) => entities[match] ?? match)
-			.replace(whitespaceRun, " ")
-			.trim();
+		const text = decode(labels.join(" ")).replace(whitespaceRun, " ").trim();
 		return text ? ` "${text.slice(0, 40)}"` : "";
 	}
 	function routeHandler(
@@ -697,8 +755,7 @@ export function groupActions(
 						attribute.initializer.expression.kind
 					) &&
 					(!formAttributes.has(attribute.name.getText(unit.file)) ||
-						ts.isIdentifier(unwrap(attribute.initializer.expression)) ||
-						isFunction(unwrap(attribute.initializer.expression)))
+						callable(attribute.initializer.expression))
 			);
 			const labels: string[] = [];
 			const buttonText = (part: ts.Node): ts.Node | undefined =>
@@ -772,6 +829,11 @@ export function groupActions(
 					)
 					.filter((expression): expression is ts.Expression => !!expression),
 				label: `${tag}.${active[0]?.name.getText(unit.file) ?? (component === "CopyButton" ? "copy" : "intent")}${describe(active[0]?.initializer, labels)}`,
+				needsWrite:
+					active.length > 0 &&
+					active.every((attribute) =>
+						selections.has(attribute.name.getText(unit.file))
+					),
 				...(component === "CopyButton" ? { component: tag } : {}),
 			});
 		}
@@ -812,35 +874,33 @@ export function groupActions(
 				});
 			}
 		}
-		if (
+		const handler =
 			ts.isVariableDeclaration(node) &&
 			ts.isIdentifier(node.name) &&
-			httpMethods.has(node.name.text) &&
 			node.initializer &&
 			functionValue(node.initializer)
-		) {
+				? node.initializer
+				: ts.isFunctionDeclaration(node) &&
+						node.body &&
+						ts
+							.getModifiers(node)
+							?.some(
+								(modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword
+							)
+					? node
+					: undefined;
+		const method =
+			handler &&
+			(ts.isVariableDeclaration(node) || ts.isFunctionDeclaration(node))
+				? node.name?.getText(unit.file)
+				: undefined;
+		if (handler && method && httpMethods.has(method)) {
 			roots.push({
 				node,
 				owner: node,
-				callbacks: [node.initializer],
-				label: node.name.text,
-			});
-		}
-		if (
-			ts.isFunctionDeclaration(node) &&
-			node.name &&
-			node.body &&
-			httpMethods.has(node.name.text) &&
-			ts
-				.getModifiers(node)
-				?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
-		) {
-			roots.push({
-				node,
-				owner: node,
-				callbacks: [node],
-				label: node.name.text,
-				needsWrite: !writeMethods.has(node.name.text),
+				callbacks: [handler],
+				label: method,
+				needsWrite: !writeMethods.has(method),
 			});
 		}
 		if (
@@ -849,25 +909,19 @@ export function groupActions(
 			domListeners.has(node.expression.name.text)
 		) {
 			const [type] = node.arguments;
-			const handler = [...node.arguments]
-				.reverse()
-				.find(
-					(argument) =>
-						isFunction(unwrap(argument)) || ts.isIdentifier(unwrap(argument))
-				);
+			const listener = [...node.arguments].reverse().find(callable);
 			if (
 				type &&
 				ts.isStringLiteralLike(type) &&
 				domEvents.has(type.text) &&
-				handler &&
-				handler !== type &&
-				!routine(handler, unit)
+				listener &&
+				!routine(listener, unit)
 			) {
 				roots.push({
-					node: handler,
+					node: listener,
 					owner: node,
-					callbacks: [handler],
-					label: `${node.expression.expression.getText(unit.file).replace(whitespaceRun, " ").slice(0, 60)}.${type.text}`,
+					callbacks: [listener],
+					label: `${brief(node.expression.expression, unit.file)}.${type.text}`,
 				});
 			}
 		}
@@ -876,14 +930,14 @@ export function groupActions(
 			node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
 			ts.isPropertyAccessExpression(node.left) &&
 			domProperties.has(node.left.name.text) &&
-			(isFunction(unwrap(node.right)) || ts.isIdentifier(unwrap(node.right))) &&
+			callable(node.right) &&
 			!routine(node.right, unit)
 		) {
 			roots.push({
 				node: node.right,
 				owner: node,
 				callbacks: [node.right],
-				label: `${node.left.expression.getText(unit.file).replace(whitespaceRun, " ").slice(0, 60)}.${node.left.name.text.slice(2)}`,
+				label: `${brief(node.left.expression, unit.file)}.${node.left.name.text.slice(2)}`,
 			});
 		}
 		if (
@@ -993,7 +1047,7 @@ export function groupActions(
 					if (write || httpWrites.has(method)) {
 						commits = true;
 					}
-					if (write || ["track", "capture", "logEvent"].includes(method)) {
+					if (write || trackingCall.test(method)) {
 						addSite(owner, child);
 					}
 					if (
@@ -1065,10 +1119,7 @@ export function groupActions(
 				return;
 			}
 			if (ts.isCallExpression(expression)) {
-				const handlers = expression.arguments.filter(
-					(argument) =>
-						isFunction(unwrap(argument)) || ts.isIdentifier(unwrap(argument))
-				);
+				const handlers = expression.arguments.filter(callable);
 				for (const argument of handlers) {
 					follow(owner, argument);
 				}
@@ -1130,7 +1181,7 @@ export function groupActions(
 				}
 			}
 		}
-		if ((selection.test(root.label) || root.needsWrite) && !commits) {
+		if (root.needsWrite && !commits) {
 			return [];
 		}
 		const location = site(unit, root.node);
