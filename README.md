@@ -101,8 +101,10 @@ any missing ClickHouse tables, views, columns, and indexes:
 docker compose -f docker-compose.selfhost.yml run --rm init bun --cwd packages/db src/clickhouse/setup.ts
 ```
 
-This adds what's missing but never changes or drops existing objects. Apply any
-extra migrations in the release notes before starting the updated apps with
+This adds what's missing but never changes or drops existing objects. Columns
+and indexes are only added on single-node installs; with `CLICKHOUSE_CLUSTER`
+set, apply them yourself. Apply any extra migrations in the release notes before
+starting the updated apps with
 `docker compose -f docker-compose.selfhost.yml up -d --build`.
 
 ## Stay in touch
