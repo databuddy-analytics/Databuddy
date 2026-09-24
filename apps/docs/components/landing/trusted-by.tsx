@@ -1,4 +1,10 @@
 import Image from "next/image";
+import {
+	Marquee,
+	MarqueeContent,
+	MarqueeFade,
+	MarqueeItem,
+} from "@/components/ui/kibo-ui/marquee";
 
 const companies = [
 	{
@@ -46,7 +52,21 @@ const companies = [
 		logo: "/social/figurable.svg",
 		invert: true,
 	},
+	{
+		name: "Context.dev",
+		badge: "YC S26",
+		url: "https://www.context.dev",
+		logo: "/social/context-dev.svg",
+	},
+	{
+		name: "Cortad",
+		url: "https://cortad.com",
+		logo: "/social/cortad.png",
+	},
 ];
+
+const half = Math.ceil(companies.length / 2);
+const companyRows = [companies.slice(0, half), companies.slice(half)];
 
 const devTeams = [
 	{
@@ -74,9 +94,7 @@ const devTeams = [
 function CompanyCard({ company }: { company: (typeof companies)[number] }) {
 	return (
 		<a
-			className={
-				"group flex flex-col items-center justify-center gap-3 rounded-lg border border-border/50 bg-card/50 px-4 py-5 transition-all duration-500 hover:border-border hover:bg-card sm:py-6"
-			}
+			className="group flex w-44 flex-col items-center justify-center gap-3 rounded-lg border border-border/50 bg-card/50 px-4 py-5 transition-colors duration-300 hover:border-border hover:bg-card sm:w-52 sm:py-6"
 			href={company.url}
 			rel="noopener noreferrer"
 			target="_blank"
@@ -136,9 +154,23 @@ export function TrustedBy() {
 				And teams including
 			</p>
 
-			<div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-				{companies.map((company) => (
-					<CompanyCard company={company} key={company.name} />
+			<div className="flex flex-col gap-3 sm:gap-4">
+				{companyRows.map((row, index) => (
+					<Marquee key={row[0].name}>
+						<MarqueeFade side="left" />
+						<MarqueeFade side="right" />
+						<MarqueeContent
+							direction={index % 2 === 0 ? "left" : "right"}
+							gradient={false}
+							speed={30}
+						>
+							{row.map((company) => (
+								<MarqueeItem key={company.name}>
+									<CompanyCard company={company} />
+								</MarqueeItem>
+							))}
+						</MarqueeContent>
+					</Marquee>
 				))}
 			</div>
 		</div>
