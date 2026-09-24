@@ -1,0 +1,576 @@
+[
+  {
+    "id": "docs-code-copy",
+    "path": "apps/docs/components/docs/code-block.tsx",
+    "line": 253,
+    "endLine": 253,
+    "symbol": "Shell",
+    "behavior": "Docs code CopyButton invocation",
+    "expectedDecision": "useful",
+    "split": "known",
+    "reason": "Docs-owned copy is a useful adoption action with no product event at this caller. The shared button exposes a success callback; instrument the docs-owned client boundary, not every generic copy button.",
+    "evidence": [
+      {
+        "path": "apps/docs/components/docs/code-block.tsx",
+        "line": 211,
+        "endLine": 262,
+        "note": "Both header and no-header copy controls; language is available, framework is not."
+      },
+      {
+        "path": "packages/ui/src/components/copy-button.tsx",
+        "line": 34,
+        "endLine": 52,
+        "note": "Clipboard success invokes optional onCopy; rejection does not."
+      }
+    ],
+    "knownIssue": "missed-useful-action",
+    "sourceSha": "f74373e0fc5230edd893e56056a6c99382f5697fcc2b6f938648e647aa46cd09"
+  },
+  {
+    "id": "feature-upgrade",
+    "path": "apps/dashboard/components/feature-gate.tsx",
+    "line": 163,
+    "endLine": 167,
+    "symbol": "FeatureGate",
+    "behavior": "Feature-gate upgrade link activation",
+    "expectedDecision": "useful",
+    "split": "known",
+    "reason": "Upgrade intent from a blocked feature is distinct from a generic billing page view and from a paid conversion. Feature/current-plan/required-plan context is available; no click event is present.",
+    "evidence": [
+      {
+        "path": "apps/dashboard/components/feature-gate.tsx",
+        "line": 71,
+        "endLine": 115,
+        "note": "Feature and current plan determine the required plan."
+      },
+      {
+        "path": "apps/dashboard/components/feature-gate.tsx",
+        "line": 151,
+        "endLine": 168,
+        "note": "Upgrade CTA is restricted to users who can upgrade."
+      }
+    ],
+    "knownIssue": "missed-useful-action",
+    "sourceSha": "b7f3244fd61696f35fbcd67f2cde811728e9ef64ca4846761341bc12cb40d372"
+  },
+  {
+    "id": "tracking-settings-copy",
+    "path": "apps/dashboard/app/(main)/websites/[id]/_components/tabs/tracking-setup-tab.tsx",
+    "line": 440,
+    "endLine": 442,
+    "symbol": "WebsiteTrackingSetupTab.handleCopy",
+    "behavior": "Tracking settings script-tag copy invocation",
+    "expectedDecision": "useful",
+    "split": "known",
+    "reason": "Settings copy is outside the already-instrumented onboarding flow. This handler does not await the clipboard promise, so a proposed copy-success event must wait for fulfillment; its current toast proves only invocation.",
+    "evidence": [
+      {
+        "path": "apps/dashboard/app/(main)/websites/[id]/_components/tabs/tracking-setup-tab.tsx",
+        "line": 312,
+        "endLine": 317,
+        "note": "Shared handler invokes clipboard write without awaiting success."
+      },
+      {
+        "path": "apps/dashboard/app/(main)/websites/[id]/_components/tabs/tracking-setup-tab.tsx",
+        "line": 437,
+        "endLine": 443,
+        "note": "Selected script-tag block, not the separate client-id copy."
+      },
+      {
+        "path": "apps/dashboard/app/(main)/onboarding/_components/step-install-tracking.tsx",
+        "line": 253,
+        "endLine": 271,
+        "note": "Onboarding has its own guarded copy event; it does not cover settings."
+      }
+    ],
+    "knownIssue": "missed-useful-action",
+    "sourceSha": "52ddb9d0bc55474452b8652e08d0bdaf6d3ad2c4b0b9851b538ee828bed50904"
+  },
+  {
+    "id": "payment-success-render",
+    "path": "apps/dashboard/app/payment/success/page.tsx",
+    "line": 6,
+    "endLine": 37,
+    "symbol": "PaymentSuccess",
+    "behavior": "Payment success page render",
+    "expectedDecision": "ignore",
+    "split": "known",
+    "reason": "Static confirmation copy verifies no transaction. Rendering this page is not evidence of payment and should not produce a conversion event; the billing lifecycle producer handles authoritative lifecycle events.",
+    "evidence": [
+      {
+        "path": "apps/dashboard/app/payment/success/page.tsx",
+        "line": 1,
+        "endLine": 37,
+        "note": "Entire page is static render plus ordinary dashboard navigation."
+      },
+      {
+        "path": "packages/services/src/billing-lifecycle.ts",
+        "line": 70,
+        "endLine": 101,
+        "note": "Authoritative lifecycle helper writes a scenario event when configured."
+      }
+    ],
+    "knownIssue": "false-positive",
+    "expectExecutableAction": false,
+    "sourceSha": "c02b09c23b2b773f5a8dc22c044acabbec282793342a639a032faf5bb5ec9594"
+  },
+  {
+    "id": "billing-lifecycle",
+    "path": "packages/services/src/billing-lifecycle.ts",
+    "line": 91,
+    "endLine": 99,
+    "symbol": "recordPlanChange",
+    "behavior": "Billing lifecycle custom event insert",
+    "expectedDecision": "covered",
+    "split": "known",
+    "reason": "This is an existing first-party producer even though it writes ClickHouse directly rather than calling track. Scenario names and the configured self-analytics destination establish coverage; static code review does not establish that production delivery is enabled.",
+    "evidence": [
+      {
+        "path": "packages/services/src/billing-lifecycle.ts",
+        "line": 6,
+        "endLine": 15,
+        "note": "Lifecycle scenario-to-event mapping."
+      },
+      {
+        "path": "packages/services/src/billing-lifecycle.ts",
+        "line": 39,
+        "endLine": 101,
+        "note": "Custom-events insert and configuration guard."
+      },
+      {
+        "path": "apps/api/src/routes/webhooks/autumn.ts",
+        "line": 635,
+        "endLine": 661,
+        "note": "Webhook invokes recordPlanChange and handles delivery errors."
+      }
+    ],
+    "sourceSha": "b1f8254f976074554178720e739245e7d5cf07815e496a9f1841bd6fa9266d68"
+  },
+  {
+    "id": "onboarding-copy",
+    "path": "apps/dashboard/app/(main)/onboarding/_components/step-install-tracking.tsx",
+    "line": 254,
+    "endLine": 254,
+    "symbol": "handleCopy",
+    "behavior": "Onboarding clipboard copy",
+    "expectedDecision": "covered",
+    "split": "known",
+    "reason": "Successful copy already emits onboarding_tracking_copied with block and method after copyTextToClipboard succeeds. Adding another same-action event would duplicate coverage.",
+    "evidence": [
+      {
+        "path": "apps/dashboard/app/(main)/onboarding/_components/step-install-tracking.tsx",
+        "line": 253,
+        "endLine": 271,
+        "note": "Copy guard and existing trackAppEvent are in the same handler."
+      },
+      {
+        "path": "packages/shared/src/custom-events.ts",
+        "line": 1,
+        "endLine": 17,
+        "note": "Shared event-name contract."
+      }
+    ],
+    "sourceSha": "255c196a42335f1d17e4a37c5b8e1b21edd6378c312475e200e6a53ff3439d94"
+  },
+  {
+    "id": "sdk-track-primitive",
+    "path": "packages/sdk/src/core/tracker.ts",
+    "line": 87,
+    "endLine": 87,
+    "symbol": "track",
+    "behavior": "SDK forwards a caller-supplied custom event",
+    "expectedDecision": "ignore",
+    "split": "known",
+    "reason": "Public SDK transport forwards customer-owned event names and properties. It is infrastructure, not a missing first-party product action, and should not receive a generic self-tracking event.",
+    "evidence": [
+      {
+        "path": "packages/sdk/src/core/tracker.ts",
+        "line": 57,
+        "endLine": 88,
+        "note": "Dispatch/queue behavior and exported track wrapper."
+      }
+    ],
+    "sourceSha": "4f0356194a22a028908ddfcdad85733db26277997dbd25e7b2ebbb8bcc7ec102"
+  },
+  {
+    "id": "generated-node-snippet",
+    "path": "apps/dashboard/app/(main)/websites/[id]/_components/utils/code-generators.ts",
+    "line": 238,
+    "endLine": 244,
+    "symbol": "generateNodeCode",
+    "behavior": "Generated example analytics.track text",
+    "expectedDecision": "ignore",
+    "split": "known",
+    "reason": "The apparent analytics.track call is inside a returned template string for customers to copy. It neither executes in this app nor proves existing first-party event coverage.",
+    "evidence": [
+      {
+        "path": "apps/dashboard/app/(main)/websites/[id]/_components/utils/code-generators.ts",
+        "line": 229,
+        "endLine": 248,
+        "note": "Template-string boundaries enclose the example event."
+      }
+    ],
+    "expectExecutableAction": false,
+    "sourceSha": "8a8843854c06974b979d776119480c34e6517fa71589797d83ac19e1b12da9f4"
+  },
+  {
+    "id": "shared-copy-button",
+    "path": "packages/ui/src/components/copy-button.tsx",
+    "line": 59,
+    "endLine": 59,
+    "symbol": "CopyButton.copyToClipboard",
+    "behavior": "Reusable copy-control activation",
+    "expectedDecision": "ignore",
+    "split": "known",
+    "reason": "The reusable UI primitive lacks a business surface and should remain generic. Its optional success callback lets product-owned callers instrument meaningful copies without tracking all clipboard content.",
+    "evidence": [
+      {
+        "path": "packages/ui/src/components/copy-button.tsx",
+        "line": 20,
+        "endLine": 59,
+        "note": "Generic value/onCopy props, clipboard guards, and callback invocation."
+      }
+    ],
+    "sourceSha": "e2862e1f72595c7a8c1ea6d41cf3d646fbc3fa95ad763d8c3c82d31f40faf892"
+  },
+  {
+    "id": "generic-button-keyboard",
+    "path": "packages/ui/src/components/button.tsx",
+    "line": 178,
+    "endLine": 178,
+    "symbol": "Button.handler",
+    "behavior": "Reusable button keyboard callback",
+    "expectedDecision": "ignore",
+    "split": "holdout",
+    "reason": "This forwards a consumer-supplied keyboard callback from a design-system button. No first-party business action can be inferred here; instrumentation belongs at an owning caller.",
+    "evidence": [
+      {
+        "path": "packages/ui/src/components/button.tsx",
+        "line": 153,
+        "endLine": 183,
+        "note": "Generic props, disabled guard, keyboard listener and cleanup."
+      }
+    ],
+    "sourceSha": "74543b5f86edeeb6e6affdb9a2657aaec50e655590fc7c6f8c0d107ac6719a96"
+  },
+  {
+    "id": "sidebar-navigation",
+    "path": "apps/dashboard/components/layout/sidebar.tsx",
+    "line": 101,
+    "endLine": 101,
+    "symbol": "SidebarNavItem.handleClick",
+    "behavior": "Ordinary sidebar route navigation",
+    "expectedDecision": "ignore",
+    "split": "holdout",
+    "reason": "The selected handler performs ordinary parameterized navigation. It has no differentiated conversion or adoption outcome requiring a custom event; do not conflate it with the separate locked-feature branch.",
+    "evidence": [
+      {
+        "path": "apps/dashboard/components/layout/sidebar.tsx",
+        "line": 76,
+        "endLine": 105,
+        "note": "Route construction and external/disabled guards."
+      }
+    ],
+    "sourceSha": "006320e21d33dcec16407198609ca2b6081b4f5208badfb1951e98b8855b8bce"
+  },
+  {
+    "id": "revenue-config-save",
+    "path": "packages/rpc/src/routers/revenue.ts",
+    "line": 97,
+    "endLine": 108,
+    "symbol": "revenueRouter.upsert",
+    "behavior": "Revenue configuration update persistence",
+    "expectedDecision": "useful",
+    "split": "holdout",
+    "reason": "Saving provider configuration is a meaningful adoption outcome. auditedSessionProcedure writes an audit trail but lacks runTracked; configuration persistence does not prove that a revenue webhook has received data. Track only provider booleans/currency, never secrets or webhook hashes.",
+    "evidence": [
+      {
+        "path": "packages/rpc/src/routers/revenue.ts",
+        "line": 66,
+        "endLine": 86,
+        "note": "Procedure wrapper and authorization."
+      },
+      {
+        "path": "packages/rpc/src/routers/revenue.ts",
+        "line": 90,
+        "endLine": 141,
+        "note": "Update/insert branches and returned configured flags."
+      },
+      {
+        "path": "packages/rpc/src/orpc.ts",
+        "line": 188,
+        "endLine": 212,
+        "note": "Tracked wrappers add runTracked; audited wrappers do not."
+      }
+    ],
+    "sourceSha": "5be3aa07b4c029714d01248e0b15e8925030290b9405cab28f892e678d030b5b"
+  },
+  {
+    "id": "saved-filter-save",
+    "path": "apps/dashboard/hooks/use-saved-filters.ts",
+    "line": 277,
+    "endLine": 279,
+    "symbol": "useSavedFilters.saveFilter",
+    "behavior": "Explicit saved-filter save invocation",
+    "expectedDecision": "useful",
+    "split": "holdout",
+    "reason": "Manual filter saving is a useful retention/adoption action with no custom event. The caller currently returns success even if localStorage persistence fails; a durable-save event requires propagated storage success. Do not count automatic cleanup as a user save.",
+    "evidence": [
+      {
+        "path": "apps/dashboard/hooks/use-saved-filters.ts",
+        "line": 251,
+        "endLine": 282,
+        "note": "Explicit save validation, update, toast, and return."
+      },
+      {
+        "path": "apps/dashboard/hooks/use-saved-filters.ts",
+        "line": 158,
+        "endLine": 189,
+        "note": "Storage helper returns failure rather than throwing."
+      },
+      {
+        "path": "apps/dashboard/hooks/use-saved-filters.ts",
+        "line": 219,
+        "endLine": 243,
+        "note": "Failure is not propagated and automatic cleanup uses the same helper."
+      }
+    ],
+    "sourceSha": "6c39ff61e4c9f04ed5b0b5c293790fbf02133d71926d4db129953cd364c94191"
+  },
+  {
+    "id": "analytics-export",
+    "path": "packages/rpc/src/routers/websites.ts",
+    "line": 1220,
+    "endLine": 1225,
+    "symbol": "websitesRouter.exportDownload",
+    "behavior": "Analytics export generation",
+    "expectedDecision": "useful",
+    "split": "holdout",
+    "reason": "The authorized export action generates a usable artifact through an untracked protectedProcedure. A success event belongs after generation resolves; it measures generated data, not confirmation that a browser saved a file.",
+    "evidence": [
+      {
+        "path": "packages/rpc/src/routers/websites.ts",
+        "line": 1176,
+        "endLine": 1188,
+        "note": "Untracked procedure and bounded format choices."
+      },
+      {
+        "path": "packages/rpc/src/routers/websites.ts",
+        "line": 1205,
+        "endLine": 1232,
+        "note": "Validation/permission checks precede awaited generation."
+      },
+      {
+        "path": "apps/dashboard/app/(main)/websites/[id]/settings/export/page.tsx",
+        "line": 68,
+        "endLine": 77,
+        "note": "Browser download initiation does not verify a disk save."
+      }
+    ],
+    "sourceSha": "840093da1ed1a60080a046d005216aa06b0a85407643243281601f31820c5ebb"
+  },
+  {
+    "id": "invitation-accept",
+    "path": "packages/auth/src/auth.ts",
+    "line": 919,
+    "endLine": 934,
+    "symbol": "afterAcceptInvitation",
+    "behavior": "Organization invitation acceptance hook",
+    "expectedDecision": "useful",
+    "split": "holdout",
+    "reason": "Successful acceptance is a team-activation outcome. This hook records an audit event, not product analytics. Measure acceptance at the authoritative hook with bounded properties; exclude invitation emails.",
+    "evidence": [
+      {
+        "path": "packages/auth/src/auth.ts",
+        "line": 919,
+        "endLine": 934,
+        "note": "After-accept hook only calls recordAuthAudit."
+      },
+      {
+        "path": "packages/auth/src/auth.ts",
+        "line": 386,
+        "endLine": 402,
+        "note": "recordAuthAudit appends the audit trail."
+      },
+      {
+        "path": "apps/dashboard/app/(main)/invitations/[id]/page.tsx",
+        "line": 305,
+        "endLine": 324,
+        "note": "Client distinguishes returned data from no-data failure."
+      }
+    ],
+    "sourceSha": "13e60204a729dc7b1803265e9c0e52323285da50cbc9657983123cd890f8eabc"
+  },
+  {
+    "id": "github-connect-intent",
+    "path": "apps/dashboard/app/(main)/organizations/components/integrations-settings.tsx",
+    "line": 614,
+    "endLine": 618,
+    "symbol": "GitHubIntegrationRow",
+    "behavior": "GitHub install/connect link activation",
+    "expectedDecision": "useful",
+    "split": "holdout",
+    "reason": "This no-active-integration link is a concrete connection-start opportunity. It measures intent before leaving the app; it must not claim authorization, persistence, or first-ever installation. The neighboring manage-access link is a different branch.",
+    "evidence": [
+      {
+        "path": "apps/dashboard/app/(main)/organizations/components/integrations-settings.tsx",
+        "line": 585,
+        "endLine": 620,
+        "note": "Active versus not-active branches distinguish manage access and connect."
+      },
+      {
+        "path": "apps/dashboard/app/(main)/organizations/components/integrations-settings.tsx",
+        "line": 215,
+        "endLine": 225,
+        "note": "Provider install URL builders."
+      }
+    ],
+    "sourceSha": "692400ec78aed75abcab1306baa89331c63aac6e1f7883b15b1cd5b44c9a1fa1"
+  },
+  {
+    "id": "github-connect-persist",
+    "path": "apps/api/src/routes/integrations/github.ts",
+    "line": 263,
+    "endLine": 265,
+    "symbol": "handleInstallCallback",
+    "behavior": "Verified GitHub installation save completion",
+    "expectedDecision": "useful",
+    "split": "holdout",
+    "reason": "A verified callback awaits integration persistence before redirecting connected. This is a missing connection outcome separate from the intent link. Existing installations are updated too, so do not assume this always creates a first connection; failures take a different redirect.",
+    "evidence": [
+      {
+        "path": "apps/api/src/routes/integrations/github.ts",
+        "line": 225,
+        "endLine": 274,
+        "note": "State/user/ownership/account checks, save await, and error branch."
+      },
+      {
+        "path": "apps/api/src/routes/integrations/github.ts",
+        "line": 92,
+        "endLine": 146,
+        "note": "Transaction either updates or inserts, then invalidates cache."
+      }
+    ],
+    "sourceSha": "19dcc967c23caf3c1b1fa1805507996c1d718337032f5e0df55c0d6b4414ff2b"
+  },
+  {
+    "id": "goal-create-covered",
+    "path": "packages/rpc/src/routers/goals.ts",
+    "line": 263,
+    "endLine": 277,
+    "symbol": "goalsRouter.create",
+    "behavior": "Conversion-goal create persistence",
+    "expectedDecision": "covered",
+    "split": "holdout",
+    "reason": "The create endpoint uses trackedProcedure and adds type properties. Shared middleware emits goal_created after successful resolution and API bootstrap supplies the analytics producer. A second local event would duplicate this action.",
+    "evidence": [
+      {
+        "path": "packages/rpc/src/routers/goals.ts",
+        "line": 219,
+        "endLine": 246,
+        "note": "Tracked wrapper and setTrackProperties."
+      },
+      {
+        "path": "packages/rpc/src/routers/goals.ts",
+        "line": 263,
+        "endLine": 282,
+        "note": "Create persistence and return."
+      },
+      {
+        "path": "packages/rpc/src/orpc.ts",
+        "line": 188,
+        "endLine": 195,
+        "note": "Tracked procedure wraps audited execution with runTracked."
+      },
+      {
+        "path": "packages/rpc/src/middleware/track-mutation.ts",
+        "line": 118,
+        "endLine": 155,
+        "note": "Shared middleware emits after successful resolution."
+      },
+      {
+        "path": "apps/api/src/bootstrap/instrumentation.ts",
+        "line": 12,
+        "endLine": 18,
+        "note": "API bootstrap wires trackMutationEvent."
+      }
+    ],
+    "sourceSha": "be4c268e8d8a9061e757231d7a73517a77ab3bc0db88ad9b30d33250136f13e7"
+  },
+  {
+    "id": "insight-reply",
+    "path": "apps/dashboard/app/(main)/insights/[id]/page.tsx",
+    "line": 716,
+    "endLine": 732,
+    "symbol": "ReplyComposer.sendReply",
+    "behavior": "Investigation reply submission",
+    "expectedDecision": "useful",
+    "split": "holdout",
+    "reason": "Reply submission/status is a useful missing engagement measurement. RPC onSuccess may return reply.status=failed: a saved reply and a started/completed investigation are different outcomes. The audited reply route does not add product tracking; do not send reply text.",
+    "evidence": [
+      {
+        "path": "apps/dashboard/app/(main)/insights/[id]/page.tsx",
+        "line": 681,
+        "endLine": 697,
+        "note": "Top-level success handler explicitly handles failed processing status."
+      },
+      {
+        "path": "apps/dashboard/app/(main)/insights/[id]/page.tsx",
+        "line": 708,
+        "endLine": 733,
+        "note": "Input intent, pending guard, mutation and status-conditioned toast."
+      },
+      {
+        "path": "packages/rpc/src/routers/insights.ts",
+        "line": 1465,
+        "endLine": 1481,
+        "note": "Audited route delegates to appendInvestigationReply."
+      },
+      {
+        "path": "packages/rpc/src/orpc.ts",
+        "line": 206,
+        "endLine": 212,
+        "note": "Audited wrappers are distinct from product tracking."
+      }
+    ],
+    "sourceSha": "b407f09a7311295bda8d7dc26932c4389d677420954ab51c843cd2c6ced2eb07"
+  },
+  {
+    "id": "manual-investigation-request",
+    "path": "apps/dashboard/app/(main)/insights/_components/investigation-settings.tsx",
+    "line": 228,
+    "endLine": 236,
+    "symbol": "InvestigationSettings.triggerMutation",
+    "behavior": "Manual investigation generation request",
+    "expectedDecision": "useful",
+    "split": "holdout",
+    "reason": "Repeat/manual investigation requests are useful beyond first-review onboarding coverage. Result status distinguishes reused, queued, disabled, and skipped outcomes; requesting/queuing is not completed investigation. The route is audited but not tracked.",
+    "evidence": [
+      {
+        "path": "apps/dashboard/app/(main)/insights/_components/investigation-settings.tsx",
+        "line": 96,
+        "endLine": 113,
+        "note": "Response handling distinguishes reused/queued/disabled/no-websites."
+      },
+      {
+        "path": "packages/rpc/src/routers/insight-generation.ts",
+        "line": 1347,
+        "endLine": 1382,
+        "note": "Audited route returns queue status and delegates execution."
+      },
+      {
+        "path": "packages/rpc/src/routers/insight-generation.ts",
+        "line": 1115,
+        "endLine": 1146,
+        "note": "No-items returns skipped; enqueue errors throw; successful queue returns queued."
+      },
+      {
+        "path": "apps/dashboard/app/(main)/insights/page.tsx",
+        "line": 87,
+        "endLine": 114,
+        "note": "Existing first_review_started is in the separate onboarding-specific caller."
+      }
+    ],
+    "sourceSha": "bea88cef20bf279d372b1759aa2f4057eca8a40bb0b72e5cbe3a6b8df6c2d3e0"
+  }
+]
