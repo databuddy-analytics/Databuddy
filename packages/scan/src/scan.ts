@@ -532,6 +532,7 @@ export async function scan(
 					}
 					response = await requestEvaluation(body, {
 						apiKey,
+						run: { id: runId, mode: options.actions ? "actions" : "files" },
 						timeoutMs,
 						signal: controller.signal,
 						onAttempt: (attempt) => {

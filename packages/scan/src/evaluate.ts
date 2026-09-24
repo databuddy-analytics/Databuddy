@@ -1,5 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
+import { version } from "../package.json";
 
 export interface Segment {
 	action?: z.infer<typeof actionSchema>;
@@ -29,6 +30,7 @@ export interface EvaluationOptions {
 	attempts?: number;
 	onAttempt: (attempt: Attempt) => void;
 	onRetry: (retry: { attempt: number; reason: string; waitMs: number }) => void;
+	run?: { id: string; mode: "actions" | "files" };
 	signal: AbortSignal;
 	timeoutMs: number;
 }
@@ -336,7 +338,16 @@ export async function requestEvaluation(
 				"ai-evaluation-model-specification-version": "4",
 				"ai-model-id": "typesafe-ai/jev",
 			}
-		: { "Content-Type": "application/json" };
+		: {
+				"Content-Type": "application/json",
+				"x-databuddy-scan-version": version,
+				...(options.run
+					? {
+							"x-databuddy-scan-run": options.run.id,
+							"x-databuddy-scan-mode": options.run.mode,
+						}
+					: {}),
+			};
 	for (let attempt = 1; attempt <= attempts; attempt++) {
 		options.signal.throwIfAborted();
 		const started = performance.now();
