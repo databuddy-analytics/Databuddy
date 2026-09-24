@@ -1,4 +1,10 @@
 import {
+	INCIDENT_IMPACTS,
+	INCIDENT_SEVERITIES,
+	INCIDENT_STATUSES,
+	STATUS_PAGE_THEMES,
+} from "@databuddy/db/schema";
+import {
 	MONITOR_FRESHNESS,
 	MONITOR_STATUSES,
 	OVERALL_STATUSES,
@@ -26,22 +32,19 @@ export const monitorSchema = z.object({
 	lastCheckedAt: z.string().nullable(),
 });
 
+export const statusPageTheme = z.enum(STATUS_PAGE_THEMES);
+
 export const statusPageCustomizationSchema = z.object({
 	logoUrl: z.string().nullable(),
 	faviconUrl: z.string().nullable(),
 	websiteUrl: z.string().nullable(),
 	supportUrl: z.string().nullable(),
-	theme: z.enum(["system", "light", "dark"]).nullable(),
+	theme: statusPageTheme.nullable(),
 });
 
-export const incidentStatus = z.enum([
-	"investigating",
-	"identified",
-	"monitoring",
-	"resolved",
-]);
+export const incidentStatus = z.enum(INCIDENT_STATUSES);
 
-export const incidentSeverity = z.enum(["minor", "major", "critical"]);
+export const incidentSeverity = z.enum(INCIDENT_SEVERITIES);
 
 export const incidentUpdateSchema = z.object({
 	id: z.string(),
@@ -50,7 +53,7 @@ export const incidentUpdateSchema = z.object({
 	createdAt: z.string(),
 });
 
-export const incidentImpact = z.enum(["degraded", "down"]);
+export const incidentImpact = z.enum(INCIDENT_IMPACTS);
 
 export const incidentAffectedMonitorSchema = z.object({
 	statusPageMonitorId: z.string(),

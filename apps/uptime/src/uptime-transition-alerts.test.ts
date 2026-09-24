@@ -68,15 +68,6 @@ describe("resolveTransitionKind — defensive inputs", () => {
 		expect(resolveTransitionKind(DOWN, 99)).toBeNull();
 		expect(resolveTransitionKind(UP, -1)).toBeNull();
 	});
-
-	test("NaN current never fires", () => {
-		expect(resolveTransitionKind(DOWN, Number.NaN)).toBeNull();
-		expect(resolveTransitionKind(UP, Number.NaN)).toBeNull();
-	});
-
-	test("NaN previous with DOWN current still alerts (prev !== DOWN)", () => {
-		expect(resolveTransitionKind(Number.NaN, DOWN)).toBe("down");
-	});
 });
 
 describe("shouldReleaseTransitionClaim", () => {

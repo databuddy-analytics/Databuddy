@@ -49,11 +49,47 @@ const CHANNELS: Record<
 	},
 };
 
-const destinationSchema = z.object({
-	type: z.enum(["slack", "email", "webhook"]),
-	identifier: z.string().min(1, "Required"),
-	config: z.record(z.string(), z.unknown()),
-});
+export const DEST_LABELS: Record<string, string> = Object.fromEntries(
+	Object.entries(CHANNELS).map(([type, channel]) => [type, channel.label])
+);
+
+const MASK = "•";
+const SLACK_WEBHOOK_PATTERN =
+	/^https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[A-Za-z0-9]+$/;
+const HTTP_URL_PATTERN = /^https?:\/\//;
+const emailSchema = z.email();
+
+function destinationError(type: DestType, identifier: string): string | null {
+	if (identifier.includes(MASK)) {
+		return null;
+	}
+	if (type === "slack") {
+		return SLACK_WEBHOOK_PATTERN.test(identifier)
+			? null
+			: "Enter a hooks.slack.com webhook URL";
+	}
+	if (type === "email") {
+		return emailSchema.safeParse(identifier).success
+			? null
+			: "Enter a valid email address";
+	}
+	return HTTP_URL_PATTERN.test(identifier) && URL.canParse(identifier)
+		? null
+		: "Enter an http:// or https:// URL";
+}
+
+const destinationSchema = z
+	.object({
+		type: z.enum(["slack", "email", "webhook"]),
+		identifier: z.string().min(1, "Required"),
+		config: z.record(z.string(), z.unknown()),
+	})
+	.superRefine((destination, ctx) => {
+		const message = destinationError(destination.type, destination.identifier);
+		if (message) {
+			ctx.addIssue({ code: "custom", path: ["identifier"], message });
+		}
+	});
 
 const alarmFormSchema = z.object({
 	name: z.string().min(1, "Name is required"),
@@ -74,14 +110,80 @@ interface AlarmDestination {
 }
 
 export interface AlarmData {
-	description?: string | null;
-	destinations?: AlarmDestination[];
+	description: string | null;
+	destinations: AlarmDestination[];
 	enabled: boolean;
 	id: string;
 	name: string;
-	triggerConditions?: Record<string, unknown>;
+	triggerConditions: Record<string, unknown>;
 	triggerType: string;
-	websiteId?: string | null;
+	websiteId: string | null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
+export function parseAlarms(rows: readonly Record<string, unknown>[]) {
+	const out: AlarmData[] = [];
+	for (const row of rows) {
+		if (
+			typeof row.id !== "string" ||
+			typeof row.name !== "string" ||
+			typeof row.enabled !== "boolean" ||
+			typeof row.triggerType !== "string"
+		) {
+			continue;
+		}
+		const destinations = (
+			Array.isArray(row.destinations) ? row.destinations : []
+		).flatMap((d: unknown) =>
+			isRecord(d) &&
+			typeof d.id === "string" &&
+			typeof d.type === "string" &&
+			typeof d.identifier === "string"
+				? [
+						{
+							id: d.id,
+							type: d.type,
+							identifier: d.identifier,
+							config: isRecord(d.config) ? d.config : {},
+						},
+					]
+				: []
+		);
+		out.push({
+			id: row.id,
+			name: row.name,
+			enabled: row.enabled,
+			triggerType: row.triggerType,
+			triggerConditions: isRecord(row.triggerConditions)
+				? row.triggerConditions
+				: {},
+			description: typeof row.description === "string" ? row.description : null,
+			websiteId: typeof row.websiteId === "string" ? row.websiteId : null,
+			destinations,
+		});
+	}
+	return out;
+}
+
+export function alarmMonitorIds(alarm: AlarmData): string[] {
+	const ids = alarm.triggerConditions.monitorIds;
+	return Array.isArray(ids)
+		? ids.filter((id): id is string => typeof id === "string")
+		: [];
+}
+
+function isMaskedDestination(destination: AlarmDestination) {
+	const headers = destination.config.headers;
+	return (
+		destination.identifier.includes(MASK) ||
+		(isRecord(headers) &&
+			Object.values(headers).some(
+				(value) => typeof value === "string" && value.includes(MASK)
+			))
+	);
 }
 
 interface AlarmSheetProps {
@@ -96,10 +198,10 @@ function buildDefaults(alarm: AlarmData | null | undefined): AlarmFormData {
 		name: alarm?.name ?? "",
 		description: alarm?.description ?? "",
 		enabled: alarm?.enabled ?? true,
-		destinations: alarm?.destinations?.map((d) => ({
+		destinations: alarm?.destinations.map((d) => ({
 			type: d.type as DestType,
-			identifier: d.identifier ?? "",
-			config: (d.config ?? {}) as Record<string, unknown>,
+			identifier: d.identifier,
+			config: d.config,
 		})) ?? [{ type: "slack" as DestType, identifier: "", config: {} }],
 	};
 }
@@ -121,9 +223,11 @@ function fromHeaderPairs(pairs: { name: string; value: string }[]) {
 
 function WebhookHeaders({
 	config,
+	disabled,
 	onChange,
 }: {
 	config: Record<string, unknown> | undefined;
+	disabled: boolean;
 	onChange: (headers: Record<string, string>) => void;
 }) {
 	const [pairs, setPairs] = useState(() => toHeaderPairs(config));
@@ -140,19 +244,24 @@ function WebhookHeaders({
 					Headers{" "}
 					<span className="font-normal text-muted-foreground">(optional)</span>
 				</Text>
-				<button
-					className="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground text-xs transition-colors hover:bg-interactive-hover hover:text-foreground"
-					onClick={() => update([...pairs, { name: "", value: "" }])}
-					type="button"
-				>
-					<PlusIcon className="size-3" />
-					Add
-				</button>
+				{disabled ? null : (
+					<Button
+						className="h-6 gap-1 px-1.5 font-normal"
+						onClick={() => update([...pairs, { name: "", value: "" }])}
+						size="sm"
+						type="button"
+						variant="ghost"
+					>
+						<PlusIcon className="size-3" />
+						Add
+					</Button>
+				)}
 			</div>
 			{pairs.map((pair, i) => (
 				<div className="flex items-center gap-1.5" key={i}>
 					<Input
 						className="flex-1 font-mono text-xs"
+						disabled={disabled}
 						onChange={(e) => {
 							const next = [...pairs];
 							next[i] = { ...pair, name: e.target.value };
@@ -163,6 +272,7 @@ function WebhookHeaders({
 					/>
 					<Input
 						className="flex-[2] font-mono text-xs"
+						disabled={disabled}
 						onChange={(e) => {
 							const next = [...pairs];
 							next[i] = { ...pair, value: e.target.value };
@@ -171,14 +281,18 @@ function WebhookHeaders({
 						placeholder="Value"
 						value={pair.value}
 					/>
-					<button
-						aria-label="Remove header"
-						className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
-						onClick={() => update(pairs.filter((_, j) => j !== i))}
-						type="button"
-					>
-						<XMarkIcon className="size-3" />
-					</button>
+					{disabled ? null : (
+						<Button
+							aria-label="Remove header"
+							className="size-6 shrink-0 px-0 hover:text-destructive"
+							onClick={() => update(pairs.filter((_, j) => j !== i))}
+							size="sm"
+							type="button"
+							variant="ghost"
+						>
+							<XMarkIcon className="size-3" />
+						</Button>
+					)}
 				</div>
 			))}
 		</div>
@@ -192,6 +306,8 @@ export function AlarmSheet({
 	alarm,
 }: AlarmSheetProps) {
 	const isEditing = !!alarm;
+	const destinationsLocked =
+		alarm?.destinations.some(isMaskedDestination) ?? false;
 	const { activeOrganization, activeOrganizationId } =
 		useOrganizationsContext();
 	const queryClient = useQueryClient();
@@ -240,7 +356,7 @@ export function AlarmSheet({
 						| "uptime"
 						| "traffic_spike"
 						| "error_rate",
-					destinations: data.destinations,
+					...(destinationsLocked ? {} : { destinations: data.destinations }),
 				});
 				toast.success("Alert updated");
 			} else {
@@ -342,6 +458,14 @@ export function AlarmSheet({
 						<div className="space-y-3">
 							<Text variant="label">Destinations</Text>
 
+							{destinationsLocked && (
+								<Text tone="muted" variant="caption">
+									Destination secrets are hidden for your role, so only an
+									organization admin can change destinations. Other settings can
+									still be saved.
+								</Text>
+							)}
+
 							{form.formState.errors.destinations?.root && (
 								<Text tone="destructive" variant="caption">
 									{form.formState.errors.destinations.root.message}
@@ -381,7 +505,7 @@ export function AlarmSheet({
 															</Text>
 														)}
 													</Accordion.Trigger>
-													{fields.length > 1 && (
+													{fields.length > 1 && !destinationsLocked && (
 														<button
 															aria-label="Remove destination"
 															className="shrink-0 rounded p-2 text-muted-foreground transition-colors hover:text-destructive"
@@ -402,6 +526,7 @@ export function AlarmSheet({
 																	{channel?.fieldLabel ?? "Identifier"}
 																</Field.Label>
 																<Input
+																	disabled={destinationsLocked}
 																	placeholder={channel?.placeholder ?? ""}
 																	{...idField}
 																/>
@@ -419,6 +544,7 @@ export function AlarmSheet({
 															config={form.watch(
 																`destinations.${index}.config`
 															)}
+															disabled={destinationsLocked}
 															onChange={(headers) =>
 																form.setValue(`destinations.${index}.config`, {
 																	...form.getValues(
@@ -436,28 +562,30 @@ export function AlarmSheet({
 								})}
 							</div>
 
-							<div className="flex gap-2">
-								{(
-									Object.entries(CHANNELS) as [
-										DestType,
-										(typeof CHANNELS)[DestType],
-									][]
-								).map(([type, config]) => {
-									const Icon = config.icon;
-									return (
-										<Button
-											key={type}
-											onClick={() => addDestination(type)}
-											size="sm"
-											type="button"
-											variant="secondary"
-										>
-											<Icon className="size-3.5" />
-											{config.label}
-										</Button>
-									);
-								})}
-							</div>
+							{destinationsLocked ? null : (
+								<div className="flex gap-2">
+									{(
+										Object.entries(CHANNELS) as [
+											DestType,
+											(typeof CHANNELS)[DestType],
+										][]
+									).map(([type, config]) => {
+										const Icon = config.icon;
+										return (
+											<Button
+												key={type}
+												onClick={() => addDestination(type)}
+												size="sm"
+												type="button"
+												variant="secondary"
+											>
+												<Icon className="size-3.5" />
+												{config.label}
+											</Button>
+										);
+									})}
+								</div>
+							)}
 						</div>
 					</Sheet.Body>
 

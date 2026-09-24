@@ -34,7 +34,7 @@ const getStatusData = cache(async (slug: string) => {
 			await new Promise((resolve) => setTimeout(resolve, attempt * 500));
 		}
 		try {
-			return await rpcClient.statusPage.getBySlug({ slug, days: DAYS });
+			return await rpcClient.statusPage.getBySlug({ slug });
 		} catch (error) {
 			if (isNotFoundError(error)) {
 				return null;

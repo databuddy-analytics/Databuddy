@@ -1,14 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { DelayedError } from "bullmq";
-import type { ScheduleData } from "./actions";
+import { Effect } from "effect";
+import {
+	type ScheduleData,
+	ScheduleLookupError,
+	UptimeCheckError,
+} from "./actions";
 import type { UptimeData } from "./types";
 import type {
 	MonitorState,
 	MonitorStateLookup,
 } from "./uptime-transition-alerts";
 import {
-	DEFAULT_UPTIME_WORKER_CONCURRENCY,
-	getUptimeWorkerConcurrency,
 	processUptimeCheck,
 	processUptimeDeliveryJob,
 	processUptimeJob,
@@ -43,27 +46,20 @@ const calls = {
 	delivery: [] as UptimeData[],
 	email: [] as Array<{ schedule: ScheduleData; data: UptimeData }>,
 	loggerFields: [] as Record<string, unknown>[],
+	locks: [] as string[],
 	loggerEmitted: [] as boolean[],
 	monitorState: [] as Array<{ monitorId: string; state: MonitorState }>,
 	order: [] as string[],
+	previousStateReads: [] as string[],
 	reaped: [] as string[],
 	send: [] as Array<{ event: unknown; key: string | undefined }>,
 };
 
-type CheckResult =
-	| { success: true; data: UptimeData }
-	| { success: false; error: string };
-
-let lookupResult:
-	| { success: true; data: ScheduleData }
-	| {
-			success: false;
-			error: string;
-			reason?: "not_found" | "malformed" | "transient";
-	  };
-let checkResults: CheckResult[];
+let lookupResult: ScheduleData | ScheduleLookupError;
+let checkResults: Array<UptimeData | UptimeCheckError>;
 let previousState: MonitorStateLookup;
 let reapBehaviour: "ok" | "throw" = "ok";
+let lockHeld = false;
 
 function schedule(values: Partial<ScheduleData> = {}): ScheduleData {
 	return {
@@ -109,10 +105,14 @@ function uptimeData(values: Partial<UptimeData> = {}): UptimeData {
 
 function deps(): UptimeWorkerDeps {
 	return {
+		acquireCheckLock: async (scheduleId) => {
+			calls.locks.push(`acquire:${scheduleId}`);
+			return lockHeld ? null : "lock-token";
+		},
 		captureError: (error, context) => {
 			calls.captureError.push({ error, context: context ?? {} });
 		},
-		checkUptime: async (monitorId, url, attempt, options) => {
+		checkUptime: (monitorId, url, attempt, options) => {
 			calls.check.push({
 				monitorId,
 				url,
@@ -125,7 +125,9 @@ function deps(): UptimeWorkerDeps {
 			if (!next) {
 				throw new Error("no check result configured");
 			}
-			return next;
+			return next instanceof UptimeCheckError
+				? Effect.fail(next)
+				: Effect.succeed(next);
 		},
 		createLogger: (fields) => {
 			calls.loggerFields.push({ ...fields });
@@ -143,16 +145,26 @@ function deps(): UptimeWorkerDeps {
 			calls.delivery.push(data);
 			calls.order.push("enqueue");
 		},
-		getPreviousMonitorState: async () => previousState,
+		getPreviousMonitorState: async (monitorId) => {
+			calls.previousStateReads.push(monitorId);
+			return previousState;
+		},
 		setMonitorState: async (monitorId, state) => {
 			calls.monitorState.push({ monitorId, state });
+			calls.order.push("state");
 		},
-		lookupSchedule: async () => lookupResult,
-		reapOrphanScheduler: async (scheduleId: string) => {
+		lookupSchedule: () =>
+			lookupResult instanceof ScheduleLookupError
+				? Effect.fail(lookupResult)
+				: Effect.succeed(lookupResult),
+		reapScheduler: async (scheduleId: string) => {
 			calls.reaped.push(scheduleId);
 			if (reapBehaviour === "throw") {
 				throw new Error("redis reap blew up");
 			}
+		},
+		releaseCheckLock: async (scheduleId, token) => {
+			calls.locks.push(`release:${scheduleId}:${token}`);
 		},
 		sendUptimeEvent: async (event, key) => {
 			calls.send.push({ event, key });
@@ -173,15 +185,18 @@ beforeEach(() => {
 	calls.delivery = [];
 	calls.email = [];
 	calls.loggerFields = [];
+	calls.locks = [];
 	calls.loggerEmitted = [];
 	calls.monitorState = [];
 	calls.order = [];
+	calls.previousStateReads = [];
 	calls.reaped = [];
 	calls.send = [];
-	lookupResult = { success: true, data: schedule() };
-	checkResults = [{ success: true, data: uptimeData() }];
+	lookupResult = schedule();
+	checkResults = [uptimeData()];
 	previousState = { kind: "found", state: { status: 0, failureStreak: 1 } };
 	reapBehaviour = "ok";
+	lockHeld = false;
 });
 
 async function flushMicrotasks(): Promise<void> {
@@ -206,21 +221,6 @@ function processUptimeCheckForTest(
 		checkpoint
 	);
 }
-
-describe("getUptimeWorkerConcurrency", () => {
-	it("rejects invalid configured values", () => {
-		expect(getUptimeWorkerConcurrency("0")).toBe(
-			DEFAULT_UPTIME_WORKER_CONCURRENCY
-		);
-		expect(getUptimeWorkerConcurrency("nope")).toBe(
-			DEFAULT_UPTIME_WORKER_CONCURRENCY
-		);
-	});
-
-	it("uses explicit configured values without an arbitrary cap", () => {
-		expect(getUptimeWorkerConcurrency("25000")).toBe(25_000);
-	});
-});
 
 describe("processUptimeCheck", () => {
 	it("rejects unknown BullMQ job names before loading schedules", async () => {
@@ -273,7 +273,11 @@ describe("processUptimeCheck", () => {
 		]);
 		expect(calls.delivery).toEqual([uptimeData()]);
 		expect(calls.email).toHaveLength(1);
-		expect(calls.order).toEqual(["enqueue", "alert"]);
+		expect(calls.order).toEqual(["state", "enqueue", "alert"]);
+		expect(calls.locks).toEqual([
+			"acquire:schedule-1",
+			"release:schedule-1:lock-token",
+		]);
 		expect(calls.loggerFields).toContainEqual(
 			expect.objectContaining({
 				schedule_id: "schedule-1",
@@ -293,7 +297,8 @@ describe("processUptimeCheck", () => {
 			expect.objectContaining({
 				event_id: "uptime-event-1",
 				outcome: "up",
-				previous_uptime_status: 0,
+				previous_state_source: "skipped",
+				previous_uptime_status: -1,
 				ttfb_ms: 10,
 				total_ms: 30,
 			})
@@ -304,21 +309,77 @@ describe("processUptimeCheck", () => {
 		expect(calls.loggerEmitted).toHaveLength(1);
 	});
 
-	it("records -1 when no previous monitor status exists", async () => {
+	it("skips the previous state read for up checks", async () => {
+		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
+
+		expect(calls.previousStateReads).toEqual([]);
+		expect(calls.monitorState).toEqual([
+			{ monitorId: "website-1", state: { status: 1, failureStreak: 0 } },
+		]);
+	});
+
+	it("starts a streak at 1 when a down check has no previous monitor status", async () => {
+		checkResults = [uptimeData({ status: 0, error: "HTTP 503" })];
 		previousState = { kind: "missing" };
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
 
+		expect(calls.previousStateReads).toEqual(["website-1"]);
 		expect(calls.loggerFields).toContainEqual(
-			expect.objectContaining({ previous_uptime_status: -1 })
+			expect.objectContaining({
+				previous_state_source: "missing",
+				previous_uptime_status: -1,
+				failure_streak: 1,
+			})
+		);
+	});
+
+	it("skips without checking when another job holds the schedule lock", async () => {
+		lockHeld = true;
+
+		await processUptimeCheckForTest("schedule-1", "manual", deps());
+
+		expect(calls.check).toEqual([]);
+		expect(calls.delivery).toEqual([]);
+		expect(calls.locks).toEqual(["acquire:schedule-1"]);
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({ outcome: "skipped_overlap" })
+		);
+		expect(calls.loggerEmitted).toHaveLength(1);
+	});
+
+	it("releases the schedule lock when the check fails", async () => {
+		checkResults = [new UptimeCheckError({ message: "boom" })];
+
+		await expect(
+			processUptimeCheckForTest("schedule-1", "scheduled", deps())
+		).rejects.toThrow("boom");
+
+		expect(calls.locks).toEqual([
+			"acquire:schedule-1",
+			"release:schedule-1:lock-token",
+		]);
+	});
+
+	it("runs without the lock when the lock store is unavailable", async () => {
+		const lockDeps = deps();
+		lockDeps.acquireCheckLock = async () => {
+			throw new Error("redis down");
+		};
+
+		await processUptimeCheckForTest("schedule-1", "scheduled", lockDeps);
+
+		expect(calls.check).toHaveLength(1);
+		expect(calls.locks).toEqual([]);
+		expect(calls.captureError).toContainEqual(
+			expect.objectContaining({
+				context: expect.objectContaining({ error_step: "check_lock_acquire" }),
+			})
 		);
 	});
 
 	it("uses the schedule id as monitor id when no website is attached", async () => {
-		lookupResult = {
-			success: true,
-			data: schedule({ website: null, websiteId: null, timeout: null }),
-		};
+		lookupResult = schedule({ website: null, websiteId: null, timeout: null });
 
 		await processUptimeCheckForTest("schedule-only", "manual", deps());
 
@@ -345,12 +406,14 @@ describe("processUptimeCheck", () => {
 		);
 	});
 
-	it("skips paused schedules without running the check", async () => {
-		lookupResult = { success: true, data: schedule({ isPaused: true }) };
+	it("skips paused schedules and reaps their scheduler", async () => {
+		lookupResult = schedule({ isPaused: true });
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
+		await flushMicrotasks();
 
 		expect(calls.check).toEqual([]);
+		expect(calls.reaped).toEqual(["schedule-1"]);
 		expect(calls.delivery).toEqual([]);
 		expect(calls.loggerFields).toContainEqual(
 			expect.objectContaining({ organization_id: "org-1" })
@@ -362,7 +425,10 @@ describe("processUptimeCheck", () => {
 	});
 
 	it("skips missing schedules without throwing", async () => {
-		lookupResult = { success: false, error: "not found", reason: "not_found" };
+		lookupResult = new ScheduleLookupError({
+			message: "not found",
+			reason: "not_found",
+		});
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
 
@@ -377,11 +443,10 @@ describe("processUptimeCheck", () => {
 	});
 
 	it("reaps the BullMQ scheduler when reason is not_found", async () => {
-		lookupResult = {
-			success: false,
-			error: "Schedule schedule-1 not found",
+		lookupResult = new ScheduleLookupError({
+			message: "Schedule schedule-1 not found",
 			reason: "not_found",
-		};
+		});
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
 		await flushMicrotasks();
@@ -396,11 +461,10 @@ describe("processUptimeCheck", () => {
 	});
 
 	it("throws transient DB lookup failures so BullMQ retries, without reaping", async () => {
-		lookupResult = {
-			success: false,
-			error: "ECONNRESET",
+		lookupResult = new ScheduleLookupError({
+			message: "ECONNRESET",
 			reason: "transient",
-		};
+		});
 
 		await expect(
 			processUptimeCheckForTest("schedule-1", "scheduled", deps())
@@ -413,23 +477,11 @@ describe("processUptimeCheck", () => {
 		);
 	});
 
-	it("treats a missing reason as transient: throws and does not reap", async () => {
-		lookupResult = { success: false, error: "boom" };
-
-		await expect(
-			processUptimeCheckForTest("schedule-1", "scheduled", deps())
-		).rejects.toThrow("boom");
-		await flushMicrotasks();
-
-		expect(calls.reaped).toEqual([]);
-	});
-
 	it("survives reap failures without crashing the job", async () => {
-		lookupResult = {
-			success: false,
-			error: "Schedule schedule-1 not found",
+		lookupResult = new ScheduleLookupError({
+			message: "Schedule schedule-1 not found",
 			reason: "not_found",
-		};
+		});
 		reapBehaviour = "throw";
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
@@ -454,7 +506,7 @@ describe("processUptimeCheck", () => {
 	});
 
 	it("throws failed checks so BullMQ retry/backoff can run", async () => {
-		checkResults = [{ success: false, error: "timeout" }];
+		checkResults = [new UptimeCheckError({ message: "timeout" })];
 
 		await expect(
 			processUptimeCheckForTest("schedule-1", "scheduled", deps())
@@ -470,8 +522,8 @@ describe("processUptimeCheck", () => {
 
 	it("retries a down check and delivers the recovered attempt", async () => {
 		checkResults = [
-			{ success: true, data: uptimeData({ status: 0, error: "HTTP 503" }) },
-			{ success: true, data: uptimeData({ attempt: 2, retries: 1 }) },
+			uptimeData({ status: 0, error: "HTTP 503" }),
+			uptimeData({ attempt: 2, retries: 1 }),
 		];
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
@@ -484,9 +536,7 @@ describe("processUptimeCheck", () => {
 	});
 
 	it("marks down only after exhausting in-process attempts", async () => {
-		checkResults = [
-			{ success: true, data: uptimeData({ status: 0, error: "HTTP 503" }) },
-		];
+		checkResults = [uptimeData({ status: 0, error: "HTTP 503" })];
 		previousState = { kind: "found", state: { status: 1, failureStreak: 0 } };
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
@@ -501,9 +551,7 @@ describe("processUptimeCheck", () => {
 	});
 
 	it("continues the failure streak and persists it as the next previous state", async () => {
-		checkResults = [
-			{ success: true, data: uptimeData({ status: 0, error: "HTTP 503" }) },
-		];
+		checkResults = [uptimeData({ status: 0, error: "HTTP 503" })];
 		previousState = { kind: "found", state: { status: 0, failureStreak: 4 } };
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
@@ -516,16 +564,39 @@ describe("processUptimeCheck", () => {
 		]);
 	});
 
-	it("does not reset the streak when the previous state is unavailable", async () => {
-		checkResults = [
-			{ success: true, data: uptimeData({ status: 0, error: "HTTP 503" }) },
-		];
-		previousState = { kind: "unavailable" };
+	it("does not retry an attempt that timed out", async () => {
+		checkResults = [uptimeData({ status: 0, error: "Timeout after 5000ms" })];
 
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
 
+		expect(calls.check.map((c) => c.attempt)).toEqual([1]);
 		expect(calls.loggerFields).toContainEqual(
-			expect.objectContaining({ previous_state_source: "unavailable" })
+			expect.objectContaining({ outcome: "down" })
+		);
+	});
+
+	it("fails the job instead of resetting the streak when previous state is unavailable", async () => {
+		checkResults = [uptimeData({ status: 0, error: "HTTP 503" })];
+		previousState = { kind: "unavailable" };
+		const checkpoints: UptimeData[] = [];
+
+		await expect(
+			processUptimeCheckForTest(
+				"schedule-1",
+				"scheduled",
+				deps(),
+				undefined,
+				async (data) => {
+					checkpoints.push(data);
+				}
+			)
+		).rejects.toThrow("Previous monitor state unavailable");
+
+		expect(checkpoints).toEqual([]);
+		expect(calls.monitorState).toEqual([]);
+		expect(calls.delivery).toEqual([]);
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({ outcome: "previous_state_unavailable" })
 		);
 	});
 
@@ -543,7 +614,7 @@ describe("processUptimeCheck", () => {
 
 		expect(calls.checkpoint).toEqual([uptimeData()]);
 		expect(calls.delivery).toEqual([uptimeData()]);
-		expect(calls.order).toEqual(["checkpoint", "enqueue", "alert"]);
+		expect(calls.order).toEqual(["checkpoint", "state", "enqueue", "alert"]);
 	});
 
 	it("retries the source job when the durable checkpoint fails", async () => {
@@ -561,6 +632,7 @@ describe("processUptimeCheck", () => {
 
 		expect(calls.delivery).toEqual([]);
 		expect(calls.email).toEqual([]);
+		expect(calls.monitorState).toEqual([]);
 		expect(calls.captureError).toContainEqual(
 			expect.objectContaining({
 				context: expect.objectContaining({
@@ -720,7 +792,6 @@ describe("processUptimeCheck", () => {
 			})
 		).toBe(0);
 		expect(resolveFailureStreak(0, { kind: "missing" })).toBe(1);
-		expect(resolveFailureStreak(0, { kind: "unavailable" })).toBe(1);
 		expect(
 			resolveFailureStreak(0, {
 				kind: "found",
