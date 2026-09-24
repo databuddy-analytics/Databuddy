@@ -16,6 +16,7 @@ import { collectCoverage, coverageNote } from "./catalog";
 import {
 	type Attempt,
 	type Catalog,
+	type JsonValue,
 	createRequest,
 	parseResponse,
 	readUsage,
@@ -154,7 +155,7 @@ const splitDepth = 2;
 const keyHelp = "Check the key, or unset it to use Databuddy's scan API.";
 const catalogByteLimit = 24_000;
 
-export async function readJSON(path: string): Promise<unknown> {
+export async function readJSON(path: string): Promise<JsonValue> {
 	try {
 		return JSON.parse(await readFile(path, "utf8"));
 	} catch (error) {
@@ -164,7 +165,7 @@ export async function readJSON(path: string): Promise<unknown> {
 		throw error;
 	}
 }
-async function saveJSON(path: string, value: unknown) {
+async function saveJSON(path: string, value: object | JsonValue) {
 	const temporary = `${path}.${process.pid}.tmp`;
 	await writeFile(temporary, JSON.stringify(value), { mode: 0o600 });
 	await rename(temporary, path);
@@ -417,7 +418,7 @@ export async function scan(
 		calls: Call[] = [];
 	let plannedBatches = batches.length,
 		interrupted = false,
-		logFailure: unknown;
+		logFailed = false;
 	// A cache replay is read-only, including diagnostics files.
 	const logFile = cacheOnly
 		? null
@@ -433,7 +434,7 @@ export async function scan(
 			);
 		});
 		writes.catch((error) => {
-			logFailure = error;
+			logFailed = true;
 			controller.abort(error);
 		});
 	};
@@ -500,7 +501,7 @@ export async function scan(
 					costUsd: null,
 					attempts,
 				};
-			let response: unknown = null;
+			let response: JsonValue = null;
 			log("batch_started", {
 				batch: index,
 				depth,
@@ -571,7 +572,7 @@ export async function scan(
 					shedError.test(call.error);
 				if (
 					attempts.some((a) => a.status === 401 || a.status === 403) ||
-					logFailure
+					logFailed
 				) {
 					controller.abort();
 				}
@@ -611,7 +612,7 @@ export async function scan(
 			throw rejected.reason;
 		}
 		await writes;
-		if (logFailure) {
+		if (logFailed) {
 			throw new Error("Could not write scan diagnostics.");
 		}
 		const statuses = calls.flatMap((c) => c.attempts).map((a) => a.status);

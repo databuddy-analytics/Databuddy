@@ -2,6 +2,13 @@ import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { version } from "../package.json";
 
+export type JsonValue =
+	| string
+	| number
+	| boolean
+	| null
+	| JsonValue[]
+	| { [key: string]: JsonValue };
 export interface Segment {
 	action?: z.infer<typeof actionSchema>;
 	end: number;
@@ -124,7 +131,7 @@ const metadataSchema = z
 	})
 	.catch({ gateway: { cost: null } });
 
-export function readUsage(raw: unknown) {
+export function readUsage(raw: JsonValue) {
 	const result = z
 		.object({
 			usage: z.unknown().optional(),
@@ -140,7 +147,7 @@ export function readUsage(raw: unknown) {
 	return { ...usage, costUsd: metadata.gateway.cost ?? null };
 }
 
-export function parseResponse(raw: unknown, jobs: Segment[]) {
+export function parseResponse(raw: JsonValue, jobs: Segment[]) {
 	const { answers } = responseSchema.parse(raw);
 	const rows: Row[] = jobs.map((job, index) => {
 		const coverage = coverageAnswer.parse(answers[`coverage_${index}`]);
@@ -322,7 +329,7 @@ export const hostedScanUrl =
 export async function requestEvaluation(
 	body: string,
 	options: EvaluationOptions
-): Promise<unknown> {
+): Promise<JsonValue> {
 	const attempts = options.attempts ?? maxAttempts;
 	const direct = Boolean(options.apiKey);
 	const { state } = direct ? { state: null } : JSON.parse(body);
@@ -370,7 +377,7 @@ export async function requestEvaluation(
 				providerCode = await providerErrorCode(response);
 				throw new Error(`Gateway HTTP ${response.status}`);
 			}
-			const result: unknown = await response.json();
+			const result = (await response.json()) as JsonValue;
 			options.onAttempt({
 				attempt,
 				ms: Math.round(performance.now() - started),
