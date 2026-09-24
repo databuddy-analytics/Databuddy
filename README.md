@@ -58,6 +58,8 @@ dashboard after changing public URLs; they're part of its browser bundle.
 No shared parent domain, such as a PaaS default domain like `*.up.railway.app`?
 Leave `BETTER_AUTH_COOKIE_DOMAIN` empty and set the dashboard's `API_PROXY_URL`
 to the API's internal URL, then rebuild; the dashboard serves the API on its own origin.
+On a PaaS, build the dashboard from source with `dashboard.Dockerfile`; its URLs
+are baked in at build time, so there is no prebuilt dashboard image.
 
 ### Optional services
 
