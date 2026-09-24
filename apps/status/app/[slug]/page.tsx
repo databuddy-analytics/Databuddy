@@ -8,7 +8,12 @@ import { DATABUDDY_UPTIME_URL, getStatusPageUrl } from "@/lib/status-url";
 import { rpcClient } from "@/lib/orpc";
 import { Branding } from "../_components/branding";
 import { StatusNavbar } from "./_components/status-navbar";
-import { Status } from "./_components/status-page";
+import { MonitorCardInteractive } from "./_components/monitor-card-interactive";
+import {
+	ActiveIncidents,
+	PastIncidents,
+	StatusHeader,
+} from "./_components/status-page";
 
 export const revalidate = 60;
 
@@ -121,9 +126,9 @@ export default async function StatusPage({ params }: StatusPageProps) {
 	const { statusPage: page } = data;
 	const theme = resolveTheme(page.theme);
 	const forcedTheme = theme === "system" ? undefined : theme;
-	const activeIncidentCount = data.incidents.filter(
+	const activeIncidents = data.incidents.filter(
 		(incident) => incident.status !== "resolved"
-	).length;
+	);
 
 	const latestTimestamp = data.monitors.reduce<string | null>(
 		(latest, monitor) => {
@@ -181,36 +186,33 @@ export default async function StatusPage({ params }: StatusPageProps) {
 							type="application/ld+json"
 						/>
 
-						<Status>
-							<Status.Header
-								activeIncidentCount={activeIncidentCount}
-								description={page.description ?? undefined}
+						<div className="space-y-12" data-slot="status-page">
+							<StatusHeader
+								activeIncidentCount={activeIncidents.length}
+								description={page.description}
 								status={data.overallStatus}
 								updatedAt={latestTimestamp}
 							/>
 
-							<Status.ActiveIncidents incidents={data.incidents} />
+							<ActiveIncidents incidents={activeIncidents} />
 
-							<Status.MonitorList>
+							<div className="flex flex-col gap-5" data-slot="status-monitors">
 								{data.monitors.map((monitor) => (
-									<Status.MonitorCard
+									<MonitorCardInteractive
 										anchorId={slugify(monitor.name)}
-										dailyData={monitor.dailyData}
 										days={DAYS}
-										domain={monitor.domain ?? undefined}
-										id={monitor.id}
 										key={monitor.id}
-										lastCheckedAt={monitor.lastCheckedAt}
-										name={monitor.name}
-										freshness={monitor.freshness}
-										status={monitor.currentStatus}
-										uptimePercentage={monitor.uptimePercentage ?? undefined}
+										monitor={monitor}
 									/>
 								))}
-							</Status.MonitorList>
+							</div>
 
-							<Status.PastIncidents incidents={data.incidents} />
-						</Status>
+							<PastIncidents
+								incidents={data.incidents.filter(
+									(incident) => incident.status === "resolved"
+								)}
+							/>
+						</div>
 					</div>
 				</main>
 

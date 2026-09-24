@@ -1,51 +1,40 @@
-import type { ReactNode } from "react";
 import type { AppRouter } from "@databuddy/rpc";
 import type { OverallStatus } from "@databuddy/shared/uptime-status";
 import type { RouterClient } from "@orpc/server";
 import { cn, StatusDot } from "@databuddy/ui";
-import { MonitorCardInteractive } from "./monitor-card-interactive";
 
-type StatusPageData = NonNullable<
+export type StatusPageData = NonNullable<
 	Awaited<ReturnType<RouterClient<AppRouter>["statusPage"]["getBySlug"]>>
 >;
+export type StatusMonitor = StatusPageData["monitors"][number];
 type Incident = StatusPageData["incidents"][number];
-
-function StatusRoot({
-	children,
-	className,
-}: {
-	children: ReactNode;
-	className?: string;
-}) {
-	return (
-		<div className={cn("space-y-12", className)} data-slot="status-page">
-			{children}
-		</div>
-	);
-}
 
 const STATUS_CONFIG = {
 	operational: {
 		title: "We're Fully Operational",
 		description: "We're not aware of any issues affecting these services.",
 		dotColor: "success",
+		ring: "ring-success/15",
 	},
 	degraded: {
 		title: "Some Systems Degraded",
 		description:
 			"One or more services are degraded. We're tracking the impact.",
 		dotColor: "warning",
+		ring: "ring-warning/15",
 	},
 	outage: {
 		title: "Service Disruption",
 		description: "An outage is affecting one or more services.",
 		dotColor: "destructive",
+		ring: "ring-destructive/15",
 	},
 	unknown: {
 		title: "Status Unavailable",
 		description:
 			"We don't have enough recent monitoring data to confirm service health.",
 		dotColor: "muted",
+		ring: "ring-muted",
 	},
 } as const satisfies Record<OverallStatus, unknown>;
 
@@ -62,50 +51,33 @@ function formatDateTime(iso: string): string {
 	return DATE_TIME_FORMATTER.format(new Date(iso));
 }
 
-function pluralize(count: number, singular: string, plural = `${singular}s`) {
-	return `${count} ${count === 1 ? singular : plural}`;
-}
-
-interface StatusHeaderProps {
-	activeIncidentCount: number;
-	className?: string;
-	description?: string;
-	status: OverallStatus;
-	updatedAt: string | null;
-}
-
-function StatusHeader({
+export function StatusHeader({
 	activeIncidentCount,
-	className,
 	description,
 	status,
 	updatedAt,
-}: StatusHeaderProps) {
+}: {
+	activeIncidentCount: number;
+	description: string | null;
+	status: OverallStatus;
+	updatedAt: string | null;
+}) {
 	const config = STATUS_CONFIG[status];
 	const message =
 		activeIncidentCount > 0
-			? `${pluralize(activeIncidentCount, "active incident")} currently need${activeIncidentCount === 1 ? "s" : ""} attention.`
+			? `${activeIncidentCount} active incident${activeIncidentCount === 1 ? " currently needs" : "s currently need"} attention.`
 			: description?.trim() || config.description;
 
 	return (
 		<section
-			className={cn(
-				"rounded-xl border border-border/60 bg-card p-4 sm:p-5",
-				className
-			)}
+			className="rounded-xl border border-border/60 bg-card p-4 sm:p-5"
 			data-slot="status-header"
 		>
 			<div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
 				<div className="min-w-0">
 					<div className="flex items-center gap-3">
 						<StatusDot
-							className={cn(
-								"ring-4",
-								status === "operational" && "ring-success/15",
-								status === "degraded" && "ring-warning/15",
-								status === "outage" && "ring-destructive/15",
-								status === "unknown" && "ring-muted"
-							)}
+							className={cn("ring-4", config.ring)}
 							color={config.dotColor}
 							size="lg"
 						/>
@@ -127,33 +99,12 @@ function StatusHeader({
 	);
 }
 
-function StatusMonitorList({
-	children,
-	className,
-}: {
-	children: ReactNode;
-	className?: string;
-}) {
-	return (
-		<div
-			className={cn("flex flex-col gap-5", className)}
-			data-slot="status-monitors"
-		>
-			{children}
-		</div>
-	);
-}
-
-const INCIDENT_STATUS_LABELS: Record<string, string> = {
+const INCIDENT_STATUS_LABELS: Record<Incident["status"], string> = {
 	investigating: "Investigating",
 	identified: "Identified",
 	monitoring: "Monitoring",
 	resolved: "Resolved",
 };
-
-function incidentStatusLabel(status: string): string {
-	return INCIDENT_STATUS_LABELS[status] ?? status;
-}
 
 function incidentDotColor(
 	incident: Incident
@@ -164,18 +115,7 @@ function incidentDotColor(
 	return incident.severity === "critical" ? "destructive" : "warning";
 }
 
-function affectedSummary(incident: Incident): string | null {
-	if (incident.affectedMonitors.length === 0) {
-		return null;
-	}
-	const names = incident.affectedMonitors.map(
-		(am) => `${am.monitorName} (${am.impact === "down" ? "down" : "degraded"})`
-	);
-	return `Affects ${names.join(", ")}`;
-}
-
 function IncidentItem({ incident }: { incident: Incident }) {
-	const affected = affectedSummary(incident);
 	const timing = incident.resolvedAt
 		? `${formatDateTime(incident.createdAt)} to ${formatDateTime(incident.resolvedAt)}`
 		: `Since ${formatDateTime(incident.createdAt)}`;
@@ -190,8 +130,10 @@ function IncidentItem({ incident }: { incident: Incident }) {
 					</h3>
 				</div>
 				<p className="mt-1 pl-4 text-muted-foreground text-xs tabular-nums leading-relaxed">
-					{incidentStatusLabel(incident.status)} · {timing}
-					{affected ? ` · ${affected}` : null}
+					{INCIDENT_STATUS_LABELS[incident.status]} · {timing}
+					{incident.affectedMonitors.length > 0
+						? ` · Affects ${incident.affectedMonitors.map((am) => `${am.monitorName} (${am.impact})`).join(", ")}`
+						: null}
 				</p>
 			</div>
 
@@ -201,7 +143,7 @@ function IncidentItem({ incident }: { incident: Incident }) {
 						<li key={update.id}>
 							<p className="text-pretty text-sm leading-relaxed">
 								<span className="font-medium">
-									{incidentStatusLabel(update.status)}
+									{INCIDENT_STATUS_LABELS[update.status]}
 								</span>
 								<span className="text-muted-foreground">
 									{" "}
@@ -222,24 +164,16 @@ function IncidentItem({ incident }: { incident: Incident }) {
 	);
 }
 
-function StatusActiveIncidents({
-	className,
-	incidents,
-}: {
-	className?: string;
-	incidents: Incident[];
-}) {
-	const active = incidents.filter((i) => i.status !== "resolved");
-
-	if (active.length === 0) {
+export function ActiveIncidents({ incidents }: { incidents: Incident[] }) {
+	if (incidents.length === 0) {
 		return null;
 	}
 
 	return (
-		<section className={cn("space-y-4", className)}>
+		<section className="space-y-4">
 			<h2 className="font-semibold text-[15px]">Active Incidents</h2>
 			<div className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card">
-				{active.map((incident) => (
+				{incidents.map((incident) => (
 					<div className="p-5" key={incident.id}>
 						<IncidentItem incident={incident} />
 					</div>
@@ -249,21 +183,13 @@ function StatusActiveIncidents({
 	);
 }
 
-function StatusPastIncidents({
-	className,
-	incidents,
-}: {
-	className?: string;
-	incidents: Incident[];
-}) {
-	const resolved = incidents.filter((i) => i.status === "resolved");
-
+export function PastIncidents({ incidents }: { incidents: Incident[] }) {
 	return (
-		<section className={cn("space-y-4", className)}>
+		<section className="space-y-4">
 			<h2 className="font-semibold text-[15px]">Past Incidents</h2>
-			{resolved.length > 0 ? (
+			{incidents.length > 0 ? (
 				<div className="space-y-8 border-border/70 border-t pt-6">
-					{resolved.map((incident) => (
+					{incidents.map((incident) => (
 						<IncidentItem incident={incident} key={incident.id} />
 					))}
 				</div>
@@ -275,19 +201,3 @@ function StatusPastIncidents({
 		</section>
 	);
 }
-
-StatusRoot.displayName = "Status";
-
-export const Status: typeof StatusRoot & {
-	ActiveIncidents: typeof StatusActiveIncidents;
-	Header: typeof StatusHeader;
-	MonitorCard: typeof MonitorCardInteractive;
-	MonitorList: typeof StatusMonitorList;
-	PastIncidents: typeof StatusPastIncidents;
-} = Object.assign(StatusRoot, {
-	ActiveIncidents: StatusActiveIncidents,
-	Header: StatusHeader,
-	MonitorCard: MonitorCardInteractive,
-	MonitorList: StatusMonitorList,
-	PastIncidents: StatusPastIncidents,
-});
