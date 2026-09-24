@@ -1,5 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
+import { version } from "../package.json";
 
 export interface Segment {
 	action?: z.infer<typeof actionSchema>;
@@ -25,9 +26,11 @@ export interface Attempt {
 	status: number | null;
 }
 export interface EvaluationOptions {
-	apiKey: string;
+	apiKey?: string;
+	attempts?: number;
 	onAttempt: (attempt: Attempt) => void;
 	onRetry: (retry: { attempt: number; reason: string; waitMs: number }) => void;
+	run?: { id: string; mode: "actions" | "files" };
 	signal: AbortSignal;
 	timeoutMs: number;
 }
@@ -83,6 +86,29 @@ export const rowSchema = z.object({
 	action: actionSchema.optional(),
 });
 export type Row = z.infer<typeof rowSchema>;
+const catalogEntries = z.array(z.string().max(600)).max(400);
+export const scanRequestSchema = z.object({
+	segments: z
+		.array(
+			z.object({
+				path: z.string().min(1).max(512),
+				start: z.number().int().positive(),
+				end: z.number().int().positive(),
+				source: z.string().max(40_000),
+				action: actionSchema.optional(),
+			})
+		)
+		.min(1)
+		.max(8),
+	catalog: z.object({
+		attributeTracking: catalogEntries,
+		directTrackingCandidates: catalogEntries,
+		note: z.string().max(4000),
+		trackedRoutes: catalogEntries,
+		trackingHelpers: catalogEntries,
+		warehouseWrites: catalogEntries,
+	}),
+});
 const responseSchema = z.object({ answers: z.record(z.string(), z.unknown()) });
 const numeric = z
 	.union([z.number(), z.string().trim().min(1)])
@@ -288,11 +314,41 @@ function retryDelay(
 		: 0;
 }
 
+const gatewayUrl = "https://ai-gateway.vercel.sh/v4/ai/evaluation-model";
+export const hostedScanUrl =
+	process.env.DATABUDDY_SCAN_URL ??
+	"https://api.databuddy.cc/public/v1/scan/evaluate";
+
 export async function requestEvaluation(
 	body: string,
 	options: EvaluationOptions
 ): Promise<unknown> {
-	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+	const attempts = options.attempts ?? maxAttempts;
+	const direct = Boolean(options.apiKey);
+	const { state } = direct ? { state: null } : JSON.parse(body);
+	const payload = direct
+		? body
+		: JSON.stringify({ segments: state.segments, catalog: state.catalog });
+	const headers: Record<string, string> = direct
+		? {
+				Authorization: `Bearer ${options.apiKey}`,
+				"Content-Type": "application/json",
+				"ai-gateway-protocol-version": "0.0.1",
+				"ai-gateway-auth-method": "api-key",
+				"ai-evaluation-model-specification-version": "4",
+				"ai-model-id": "typesafe-ai/jev",
+			}
+		: {
+				"Content-Type": "application/json",
+				"x-databuddy-scan-version": version,
+				...(options.run
+					? {
+							"x-databuddy-scan-run": options.run.id,
+							"x-databuddy-scan-mode": options.run.mode,
+						}
+					: {}),
+			};
+	for (let attempt = 1; attempt <= attempts; attempt++) {
 		options.signal.throwIfAborted();
 		const started = performance.now();
 		const timeout = AbortSignal.timeout(options.timeoutMs);
@@ -300,22 +356,12 @@ export async function requestEvaluation(
 		let providerCode: string | undefined;
 		let requestId = "";
 		try {
-			response = await fetch(
-				"https://ai-gateway.vercel.sh/v4/ai/evaluation-model",
-				{
-					method: "POST",
-					body,
-					headers: {
-						Authorization: `Bearer ${options.apiKey}`,
-						"Content-Type": "application/json",
-						"ai-gateway-protocol-version": "0.0.1",
-						"ai-gateway-auth-method": "api-key",
-						"ai-evaluation-model-specification-version": "4",
-						"ai-model-id": "typesafe-ai/jev",
-					},
-					signal: AbortSignal.any([timeout, options.signal]),
-				}
-			);
+			response = await fetch(direct ? gatewayUrl : hostedScanUrl, {
+				method: "POST",
+				body: payload,
+				headers,
+				signal: AbortSignal.any([timeout, options.signal]),
+			});
 			requestId = safeRequestId.parse(
 				response.headers.get("x-vercel-id") ??
 					response.headers.get("x-request-id")
@@ -361,7 +407,7 @@ export async function requestEvaluation(
 			});
 			if (
 				options.signal.aborted ||
-				attempt === maxAttempts ||
+				attempt === attempts ||
 				!((response && response.status >= 500) || name === "TimeoutError")
 			) {
 				throw failure;

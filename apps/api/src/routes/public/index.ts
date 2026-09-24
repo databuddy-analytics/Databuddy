@@ -5,6 +5,7 @@ import { captureError, mergeWideEvent } from "@databuddy/ai/lib/tracing";
 import { handleAppError } from "@/http/errors";
 import { agentTelemetryRoute } from "./agent-telemetry";
 import { flagsRoute } from "./flags";
+import { scanRoute } from "./scan";
 
 export const publicApi = new Elysia({ prefix: "/public" })
 	.use(
@@ -29,6 +30,7 @@ export const publicApi = new Elysia({ prefix: "/public" })
 	.options("*", () => new Response(null, { status: 204 }))
 	.use(agentTelemetryRoute)
 	.use(flagsRoute)
+	.use(scanRoute)
 	.onError(function handlePublicError({ error, code, request }) {
 		const isNotFound = code === "NOT_FOUND";
 		mergeWideEvent({
