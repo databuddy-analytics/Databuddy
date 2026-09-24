@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../utils";
 import type { UptimeHeatmapDay } from "./heatmap-days";
+import { formatMs } from "./latency-chart-data";
 
 type UptimeSeverity =
 	| "empty"
@@ -44,11 +45,12 @@ const TOOLTIP_HIDE_MS = 150;
 const TOOLTIP_Z_INDEX = 2_147_483_647;
 
 const SEGMENT_COLORS: Record<UptimeSeverity, string> = {
-	empty: "color-mix(in oklab, var(--muted) 78%, var(--foreground) 14%)",
-	operational: "#06c652",
-	degraded: "#fbbf24",
-	partial: "#fb8f24",
-	major: "#ff2b3c",
+	empty:
+		"var(--uptime-empty, color-mix(in oklab, var(--muted) 78%, var(--foreground) 14%))",
+	operational: "var(--uptime-operational, #06c652)",
+	degraded: "var(--uptime-degraded, #fbbf24)",
+	partial: "var(--uptime-partial, #fb8f24)",
+	major: "var(--uptime-major, #ff2b3c)",
 };
 
 const SEGMENT_HEIGHTS: Record<UptimeSeverity, string> = {
@@ -251,6 +253,22 @@ function SegmentTooltip({
 				{showData && downtimeLabel ? (
 					<p className="mt-2 text-muted-foreground text-xs tabular-nums leading-[1.2]">
 						{downtimeLabel} downtime recorded
+					</p>
+				) : null}
+				{showData &&
+				(day.avgResponseTime !== null || day.p95ResponseTime !== null) ? (
+					<p className="mt-2 text-muted-foreground text-xs tabular-nums leading-[1.2]">
+						{[
+							day.avgResponseTime === null
+								? null
+								: `${formatMs(day.avgResponseTime)} avg`,
+							day.p95ResponseTime === null
+								? null
+								: `${formatMs(day.p95ResponseTime)} p95`,
+						]
+							.filter(Boolean)
+							.join(" · ")}{" "}
+						response time
 					</p>
 				) : null}
 			</div>

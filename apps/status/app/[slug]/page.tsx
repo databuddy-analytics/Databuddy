@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
+import { ORPCError } from "@orpc/client";
 import { serializeJsonLd } from "@databuddy/shared/json-ld";
 import { ThemeProvider } from "next-themes";
 import { DATABUDDY_UPTIME_URL, getStatusPageUrl } from "@/lib/status-url";
 import { rpcClient } from "@/lib/orpc";
+import { Branding } from "../_components/branding";
 import { StatusNavbar } from "./_components/status-navbar";
 import { Status } from "./_components/status-page";
 
@@ -16,34 +18,14 @@ interface StatusPageProps {
 
 const DAYS = 90;
 
-const MAX_FETCH_ATTEMPTS = 3;
-
-function isNotFoundError(error: unknown): boolean {
-	return (
-		!!error &&
-		typeof error === "object" &&
-		"code" in error &&
-		error.code === "NOT_FOUND"
-	);
-}
-
-const getStatusData = cache(async (slug: string) => {
-	let lastError: unknown;
-	for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt++) {
-		if (attempt > 0) {
-			await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+const getStatusData = cache((slug: string) =>
+	rpcClient.statusPage.getBySlug({ slug }).catch((error: unknown) => {
+		if (error instanceof ORPCError && error.code === "NOT_FOUND") {
+			return null;
 		}
-		try {
-			return await rpcClient.statusPage.getBySlug({ slug });
-		} catch (error) {
-			if (isNotFoundError(error)) {
-				return null;
-			}
-			lastError = error;
-		}
-	}
-	throw lastError;
-});
+		throw error;
+	})
+);
 
 function slugify(text: string): string {
 	return text
@@ -204,9 +186,10 @@ export default async function StatusPage({ params }: StatusPageProps) {
 								activeIncidentCount={activeIncidentCount}
 								description={page.description ?? undefined}
 								status={data.overallStatus}
+								updatedAt={latestTimestamp}
 							/>
 
-							<Status.IncidentList incidents={data.incidents} />
+							<Status.ActiveIncidents incidents={data.incidents} />
 
 							<Status.MonitorList>
 								{data.monitors.map((monitor) => (
@@ -226,27 +209,22 @@ export default async function StatusPage({ params }: StatusPageProps) {
 								))}
 							</Status.MonitorList>
 
-							<Status.Footer
-								incidents={data.incidents}
-								timestamp={latestTimestamp}
-							/>
+							<Status.PastIncidents incidents={data.incidents} />
 						</Status>
 					</div>
 				</main>
 
 				<footer className="shrink-0 border-border/50 border-t bg-background">
 					<div className="mx-auto flex max-w-[822px] items-center justify-center px-4 py-6 sm:px-6">
-						<p className="text-muted-foreground text-sm">
-							Powered by{" "}
-							<a
-								className="font-semibold text-foreground underline-offset-4 transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:underline"
-								href="https://www.databuddy.cc"
-								rel="noopener noreferrer dofollow"
-								target="_blank"
-							>
-								Databuddy
-							</a>
-						</p>
+						<a
+							className="flex items-center gap-2 text-muted-foreground text-sm transition-opacity duration-(--duration-quick) ease-(--ease-smooth) hover:opacity-70"
+							href="https://www.databuddy.cc"
+							rel="noopener noreferrer dofollow"
+							target="_blank"
+						>
+							Powered by
+							<Branding heightPx={16} variant="wordmark" />
+						</a>
 					</div>
 				</footer>
 			</div>

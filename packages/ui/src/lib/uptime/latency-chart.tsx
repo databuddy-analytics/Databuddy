@@ -86,14 +86,14 @@ function SummaryMetric({
 	}
 
 	return (
-		<span className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-border/60 bg-background/70 px-2 py-1 text-muted-foreground text-xs leading-none">
+		<span className="inline-flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs leading-none">
 			<span
 				aria-hidden
 				className="size-1.5 shrink-0 rounded-full"
 				style={{ backgroundColor: color }}
 			/>
-			<span className="hidden font-medium sm:inline">{label}</span>
-			<span className="font-semibold text-foreground tabular-nums">
+			<span className="hidden sm:inline">{label}</span>
+			<span className="font-medium text-foreground tabular-nums">
 				{formatMs(value)}
 			</span>
 		</span>
@@ -165,15 +165,13 @@ export function LatencyChart({
 				}}
 				type="button"
 			>
-				<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-background/70 text-muted-foreground ring-1 ring-border/60">
-					<ChartActivityIcon className="size-3.5" />
-				</span>
+				<ChartActivityIcon className="size-3.5 shrink-0 text-muted-foreground" />
 
-				<span className="min-w-0 flex-1 truncate font-semibold text-sm leading-[1.2]">
+				<span className="min-w-0 flex-1 truncate font-medium text-sm leading-[1.2]">
 					Response time
 				</span>
 
-				<span className="flex min-w-0 shrink-0 items-center gap-1.5">
+				<span className="flex min-w-0 shrink-0 items-center gap-3">
 					{METRICS.map((metric) => (
 						<SummaryMetric
 							color={metric.color}
