@@ -690,6 +690,17 @@ export function Report() {
 		const packedPaths = packed.files.map((file) => file.path);
 		assert.ok(packedPaths.includes("dist/cli.js"));
 		assert.ok(packedPaths.includes("dist/THIRD_PARTY_LICENSES"));
+		const notices = await readFile(
+			join(packageDir, "dist/THIRD_PARTY_LICENSES"),
+			"utf8"
+		);
+		for (const bundled of ["commander", "typescript", "zod"]) {
+			assert.match(
+				notices,
+				new RegExp(`^${bundled}@\\S+ \\(`, "m"),
+				`${bundled} is bundled without its license`
+			);
+		}
 		assert.ok(
 			packedPaths.every(
 				(path) =>

@@ -14,8 +14,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "bun run check-types && bun build ./src/cli.ts --target=node --format=esm --minify --metafile=dist/meta.json --outfile=dist/cli.js && bun run licenses",
-    "licenses": "bun -e \"import{readdirSync as r,rmSync}from'node:fs';const m=await Bun.file('dist/meta.json').json(),d=new Map();for(const k of Object.keys(m.inputs)){const i=k.lastIndexOf('node_modules/');if(i<0)continue;const p=k.slice(i+13).split('/'),n=p[0].startsWith('@')?p[0]+'/'+p[1]:p[0];d.set(n,k.slice(0,i+13)+n)}let o='';for(const[n,p]of[...d].sort()){const j=await Bun.file(p+'/package.json').json(),f=r(p).find(x=>/^licen[cs]e/i.test(x));o+=n+'@'+j.version+' ('+j.license+')\\n\\n'+(f?await Bun.file(p+'/'+f).text():'')+'\\n\\n'}await Bun.write('dist/THIRD_PARTY_LICENSES',o);rmSync('dist/meta.json')\"",
+    "build": "bun run check-types && bun run bundle",
+    "bundle": "bun -e \"import{readdirSync,chmodSync}from'node:fs';const b=await Bun.build({entrypoints:['./src/cli.ts'],target:'node',format:'esm',minify:true,metafile:true});if(!b.success)throw new AggregateError(b.logs,'Build failed');await Bun.write('dist/cli.js',b.outputs[0]);chmodSync('dist/cli.js',0o755);const d=new Map();for(const k of Object.keys(b.metafile.inputs)){const i=k.lastIndexOf('node_modules/');if(i<0)continue;const p=k.slice(i+13).split('/'),n=p[0].startsWith('@')?p[0]+'/'+p[1]:p[0];d.set(n,k.slice(0,i+13)+n)}let o='';for(const[n,p]of[...d].sort()){const j=await Bun.file(p+'/package.json').json(),f=readdirSync(p).find(x=>/^licen[cs]e/i.test(x));o+=n+'@'+j.version+' ('+j.license+')\\n\\n'+(f?await Bun.file(p+'/'+f).text():'')+'\\n\\n'}await Bun.write('dist/THIRD_PARTY_LICENSES',o)\"",
     "check-types": "tsc --noEmit",
     "test": "bun run build && bun test",
     "eval:quality": "bun quality/run.ts",
