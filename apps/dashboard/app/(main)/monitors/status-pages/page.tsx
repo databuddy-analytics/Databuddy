@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { TopBar } from "@/components/layout/top-bar";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -84,19 +84,10 @@ function StatusPagesListPageContent() {
 		},
 	});
 
-	const clearCommandParam = useCallback(() => {
-		const params = new URLSearchParams(searchParams.toString());
-		params.delete("command");
-		const query = params.toString();
-		router.replace(query ? `${pathname}?${query}` : pathname, {
-			scroll: false,
-		});
-	}, [pathname, router, searchParams]);
-
-	const handleCreate = useCallback(() => {
+	const handleCreate = () => {
 		setEditingStatusPage(null);
 		setIsSheetOpen(true);
-	}, []);
+	};
 
 	const handleEdit = (statusPage: StatusPage) => {
 		setEditingStatusPage(statusPage);
@@ -119,9 +110,15 @@ function StatusPagesListPageContent() {
 		if (searchParams.get("command") !== "create-status-page") {
 			return;
 		}
-		handleCreate();
-		clearCommandParam();
-	}, [clearCommandParam, handleCreate, searchParams]);
+		setEditingStatusPage(null);
+		setIsSheetOpen(true);
+		const params = new URLSearchParams(searchParams.toString());
+		params.delete("command");
+		const query = params.toString();
+		router.replace(query ? `${pathname}?${query}` : pathname, {
+			scroll: false,
+		});
+	}, [pathname, router, searchParams]);
 
 	const statusPages = statusPagesQuery.data ?? [];
 	const filtered = useFilteredList(

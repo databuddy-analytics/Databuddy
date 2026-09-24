@@ -18,6 +18,7 @@ import {
 } from "@databuddy/db/schema";
 import { invalidateStatusPageCache } from "@databuddy/redis";
 import { ratelimit } from "@databuddy/redis/rate-limit";
+import type { Route } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import {
@@ -101,6 +102,22 @@ const statusPageFields = z.object({
 	theme: statusPageTheme.optional(),
 });
 
+function statusPageRoute(
+	name: string,
+	summary: string,
+	access: "read" | "write",
+	description: string
+): Route {
+	return {
+		description,
+		method: "POST",
+		path: `/statusPage/${name}`,
+		summary,
+		tags: ["StatusPage"],
+		spec: (s) => ({ ...s, "x-required-scopes": [`${access}:status_pages`] }),
+	};
+}
+
 function isSlugConflict(error: unknown): boolean {
 	return isUniqueViolationFor(error, "status_pages_slug_unique");
 }
@@ -170,18 +187,14 @@ export const statusPageRouter = {
 		}),
 
 	list: protectedProcedure
-		.route({
-			description:
-				"Lists status pages for an organization. Requires read:status_pages scope.",
-			method: "POST",
-			path: "/statusPage/list",
-			summary: "List status pages for organization",
-			tags: ["StatusPage"],
-			spec: (s) => ({
-				...s,
-				"x-required-scopes": ["read:status_pages"] as const,
-			}),
-		})
+		.route(
+			statusPageRoute(
+				"list",
+				"List status pages for organization",
+				"read",
+				"Lists status pages for an organization. Requires read:status_pages scope."
+			)
+		)
 		.input(
 			z.object({
 				organizationId: z.string(),
@@ -204,26 +217,21 @@ export const statusPageRouter = {
 				},
 			});
 
-			return pages.map((page) => ({
+			return pages.map(({ statusPageMonitors: monitors, ...page }) => ({
 				...page,
-				monitorCount: page.statusPageMonitors.length,
-				statusPageMonitors: undefined,
+				monitorCount: monitors.length,
 			}));
 		}),
 
 	get: protectedProcedure
-		.route({
-			description:
-				"Returns status page details including monitors. Requires read:status_pages scope.",
-			method: "POST",
-			path: "/statusPage/get",
-			summary: "Get status page details including monitors",
-			tags: ["StatusPage"],
-			spec: (s) => ({
-				...s,
-				"x-required-scopes": ["read:status_pages"] as const,
-			}),
-		})
+		.route(
+			statusPageRoute(
+				"get",
+				"Get status page details including monitors",
+				"read",
+				"Returns status page details including monitors. Requires read:status_pages scope."
+			)
+		)
 		.input(
 			z.object({
 				statusPageId: z.string(),
@@ -268,18 +276,14 @@ export const statusPageRouter = {
 		}),
 
 	createAssetUploadUrl: trackedProcedure
-		.route({
-			description:
-				"Returns a short-lived presigned URL for uploading a status page logo or favicon. Requires write:status_pages scope.",
-			method: "POST",
-			path: "/statusPage/createAssetUploadUrl",
-			summary: "Create an asset upload URL",
-			tags: ["StatusPage"],
-			spec: (s) => ({
-				...s,
-				"x-required-scopes": ["write:status_pages"] as const,
-			}),
-		})
+		.route(
+			statusPageRoute(
+				"createAssetUploadUrl",
+				"Create an asset upload URL",
+				"write",
+				"Returns a short-lived presigned URL for uploading a status page logo or favicon. Requires write:status_pages scope."
+			)
+		)
 		.input(
 			z.object({
 				asset: z.enum(["logo", "favicon"]),
@@ -303,26 +307,18 @@ export const statusPageRouter = {
 				);
 			}
 
-			return createAssetUpload({
-				asset: input.asset,
-				contentLength: input.contentLength,
-				contentType: input.contentType,
-				organizationId: input.organizationId,
-			});
+			return createAssetUpload(input);
 		}),
 
 	create: trackedProcedure
-		.route({
-			description: "Creates a status page. Requires write:status_pages scope.",
-			method: "POST",
-			path: "/statusPage/create",
-			summary: "Create status page",
-			tags: ["StatusPage"],
-			spec: (s) => ({
-				...s,
-				"x-required-scopes": ["write:status_pages"] as const,
-			}),
-		})
+		.route(
+			statusPageRoute(
+				"create",
+				"Create status page",
+				"write",
+				"Creates a status page. Requires write:status_pages scope."
+			)
+		)
 		.input(statusPageFields.extend({ organizationId: z.string() }))
 		.handler(async ({ context, input }) => {
 			setTrackProperties({ theme: input.theme ?? "default" });
@@ -332,37 +328,30 @@ export const statusPageRouter = {
 				permissions: ["create"],
 			});
 
-			const id = randomUUIDv7();
-
-			try {
-				await db.insert(statusPages).values({ id, ...input });
-			} catch (error) {
-				if (isSlugConflict(error)) {
-					throw rpcError.badRequest("Slug is already taken");
-				}
-				throw error;
-			}
+			const [page] = await db
+				.insert(statusPages)
+				.values({ id: randomUUIDv7(), ...input })
+				.returning()
+				.catch((error) => {
+					throw isSlugConflict(error)
+						? rpcError.badRequest("Slug is already taken")
+						: error;
+				});
 
 			await invalidateStatusPageCache(input.slug);
 
-			return db.query.statusPages.findFirst({
-				where: { id },
-			});
+			return page;
 		}),
 
 	update: trackedProcedure
-		.route({
-			description:
-				"Updates status page details. Requires write:status_pages scope.",
-			method: "POST",
-			path: "/statusPage/update",
-			summary: "Update status page details",
-			tags: ["StatusPage"],
-			spec: (s) => ({
-				...s,
-				"x-required-scopes": ["write:status_pages"] as const,
-			}),
-		})
+		.route(
+			statusPageRoute(
+				"update",
+				"Update status page details",
+				"write",
+				"Updates status page details. Requires write:status_pages scope."
+			)
+		)
 		.input(statusPageFields.partial().extend({ statusPageId: z.string() }))
 		.handler(async ({ context, input }) => {
 			const statusPage = await withResource(context, {
@@ -372,40 +361,34 @@ export const statusPageRouter = {
 			});
 			const { statusPageId, ...fields } = input;
 
-			try {
-				await db
-					.update(statusPages)
-					.set({ ...fields, updatedAt: new Date() })
-					.where(eq(statusPages.id, statusPageId));
-			} catch (error) {
-				if (isSlugConflict(error)) {
-					throw rpcError.badRequest("Slug is already taken");
-				}
-				throw error;
-			}
+			const [page] = await db
+				.update(statusPages)
+				.set({ ...fields, updatedAt: new Date() })
+				.where(eq(statusPages.id, statusPageId))
+				.returning()
+				.catch((error) => {
+					throw isSlugConflict(error)
+						? rpcError.badRequest("Slug is already taken")
+						: error;
+				});
 
 			await invalidateStatusPageCache(statusPage.slug);
 			if (input.slug && input.slug !== statusPage.slug) {
 				await invalidateStatusPageCache(input.slug);
 			}
 
-			return db.query.statusPages.findFirst({
-				where: { id: input.statusPageId },
-			});
+			return page;
 		}),
 
 	delete: trackedProcedure
-		.route({
-			description: "Deletes a status page. Requires write:status_pages scope.",
-			method: "POST",
-			path: "/statusPage/delete",
-			summary: "Delete status page",
-			tags: ["StatusPage"],
-			spec: (s) => ({
-				...s,
-				"x-required-scopes": ["write:status_pages"] as const,
-			}),
-		})
+		.route(
+			statusPageRoute(
+				"delete",
+				"Delete status page",
+				"write",
+				"Deletes a status page. Requires write:status_pages scope."
+			)
+		)
 		.input(
 			z.object({
 				statusPageId: z.string(),
@@ -428,18 +411,14 @@ export const statusPageRouter = {
 		}),
 
 	transfer: trackedProcedure
-		.route({
-			description:
-				"Transfers a status page to another organization. Requires write:status_pages scope on source and target.",
-			method: "POST",
-			path: "/statusPage/transfer",
-			summary: "Transfer status page to another organization",
-			tags: ["StatusPage"],
-			spec: (s) => ({
-				...s,
-				"x-required-scopes": ["write:status_pages"] as const,
-			}),
-		})
+		.route(
+			statusPageRoute(
+				"transfer",
+				"Transfer status page to another organization",
+				"write",
+				"Transfers a status page to another organization. Requires write:status_pages scope on source and target."
+			)
+		)
 		.input(
 			z.object({
 				statusPageId: z.string(),
@@ -532,18 +511,14 @@ export const statusPageRouter = {
 		}),
 
 	addMonitor: trackedProcedure
-		.route({
-			description:
-				"Adds a monitor to a status page. Requires write:status_pages scope.",
-			method: "POST",
-			path: "/statusPage/addMonitor",
-			summary: "Add a monitor to a status page",
-			tags: ["StatusPage"],
-			spec: (s) => ({
-				...s,
-				"x-required-scopes": ["write:status_pages"] as const,
-			}),
-		})
+		.route(
+			statusPageRoute(
+				"addMonitor",
+				"Add a monitor to a status page",
+				"write",
+				"Adds a monitor to a status page. Requires write:status_pages scope."
+			)
+		)
 		.input(
 			z.object({
 				statusPageId: z.string(),
@@ -572,46 +547,33 @@ export const statusPageRouter = {
 				);
 			}
 
-			const id = randomUUIDv7();
-
-			try {
-				await db.insert(statusPageMonitors).values({
-					id,
-					statusPageId: input.statusPageId,
-					uptimeScheduleId: input.uptimeScheduleId,
-				});
-			} catch (error) {
-				if (
-					isUniqueViolationFor(
+			const [monitor] = await db
+				.insert(statusPageMonitors)
+				.values({ id: randomUUIDv7(), ...input })
+				.returning()
+				.catch((error) => {
+					throw isUniqueViolationFor(
 						error,
 						"status_page_monitors_page_schedule_unique"
 					)
-				) {
-					throw rpcError.badRequest("Monitor is already on this status page");
-				}
-				throw error;
-			}
+						? rpcError.badRequest("Monitor is already on this status page")
+						: error;
+				});
 
 			await invalidateStatusPageCache(statusPage.slug);
 
-			return db.query.statusPageMonitors.findFirst({
-				where: { id },
-			});
+			return monitor;
 		}),
 
 	removeMonitor: trackedProcedure
-		.route({
-			description:
-				"Removes a monitor from a status page. Requires write:status_pages scope.",
-			method: "POST",
-			path: "/statusPage/removeMonitor",
-			summary: "Remove a monitor from a status page",
-			tags: ["StatusPage"],
-			spec: (s) => ({
-				...s,
-				"x-required-scopes": ["write:status_pages"] as const,
-			}),
-		})
+		.route(
+			statusPageRoute(
+				"removeMonitor",
+				"Remove a monitor from a status page",
+				"write",
+				"Removes a monitor from a status page. Requires write:status_pages scope."
+			)
+		)
 		.input(
 			z.object({
 				statusPageId: z.string(),
@@ -640,18 +602,14 @@ export const statusPageRouter = {
 		}),
 
 	updateMonitorSettings: trackedProcedure
-		.route({
-			description:
-				"Updates visibility settings for a status page monitor. Requires write:status_pages scope.",
-			method: "POST",
-			path: "/statusPage/updateMonitorSettings",
-			summary: "Update visibility settings for a status page monitor",
-			tags: ["StatusPage"],
-			spec: (s) => ({
-				...s,
-				"x-required-scopes": ["write:status_pages"] as const,
-			}),
-		})
+		.route(
+			statusPageRoute(
+				"updateMonitorSettings",
+				"Update visibility settings for a status page monitor",
+				"write",
+				"Updates visibility settings for a status page monitor. Requires write:status_pages scope."
+			)
+		)
 		.input(
 			z.object({
 				monitorId: z.string(),
@@ -681,31 +639,26 @@ export const statusPageRouter = {
 			});
 
 			const { monitorId, ...settings } = input;
-			await db
+			const [updated] = await db
 				.update(statusPageMonitors)
 				.set({ ...settings, updatedAt: new Date() })
-				.where(eq(statusPageMonitors.id, monitorId));
+				.where(eq(statusPageMonitors.id, monitorId))
+				.returning();
 
 			await invalidateStatusPageCache(monitor.statusPage.slug);
 
-			return db.query.statusPageMonitors.findFirst({
-				where: { id: input.monitorId },
-			});
+			return updated;
 		}),
 
 	createIncident: trackedProcedure
-		.route({
-			description:
-				"Creates a new status page incident. Requires write:status_pages scope.",
-			method: "POST",
-			path: "/statusPage/createIncident",
-			summary: "Create a new incident",
-			tags: ["StatusPage"],
-			spec: (s) => ({
-				...s,
-				"x-required-scopes": ["write:status_pages"] as const,
-			}),
-		})
+		.route(
+			statusPageRoute(
+				"createIncident",
+				"Create a new incident",
+				"write",
+				"Creates a new status page incident. Requires write:status_pages scope."
+			)
+		)
 		.input(
 			z.object({
 				statusPageId: z.string(),
@@ -788,18 +741,14 @@ export const statusPageRouter = {
 		}),
 
 	updateIncident: trackedProcedure
-		.route({
-			description:
-				"Posts an update to a status page incident. Requires write:status_pages scope.",
-			method: "POST",
-			path: "/statusPage/updateIncident",
-			summary: "Post an update to an incident",
-			tags: ["StatusPage"],
-			spec: (s) => ({
-				...s,
-				"x-required-scopes": ["write:status_pages"] as const,
-			}),
-		})
+		.route(
+			statusPageRoute(
+				"updateIncident",
+				"Post an update to an incident",
+				"write",
+				"Posts an update to a status page incident. Requires write:status_pages scope."
+			)
+		)
 		.input(
 			z.object({
 				incidentId: z.string(),
@@ -842,18 +791,14 @@ export const statusPageRouter = {
 		}),
 
 	deleteIncident: trackedProcedure
-		.route({
-			description:
-				"Deletes a status page incident. Requires write:status_pages scope.",
-			method: "POST",
-			path: "/statusPage/deleteIncident",
-			summary: "Delete an incident",
-			tags: ["StatusPage"],
-			spec: (s) => ({
-				...s,
-				"x-required-scopes": ["write:status_pages"] as const,
-			}),
-		})
+		.route(
+			statusPageRoute(
+				"deleteIncident",
+				"Delete an incident",
+				"write",
+				"Deletes a status page incident. Requires write:status_pages scope."
+			)
+		)
 		.input(z.object({ incidentId: z.string() }))
 		.handler(async ({ context, input }) => {
 			const incident = await requireIncidentForUpdate(
@@ -869,18 +814,14 @@ export const statusPageRouter = {
 		}),
 
 	listIncidents: protectedProcedure
-		.route({
-			description:
-				"Lists incidents for a status page. Requires read:status_pages scope.",
-			method: "POST",
-			path: "/statusPage/listIncidents",
-			summary: "List incidents for a status page",
-			tags: ["StatusPage"],
-			spec: (s) => ({
-				...s,
-				"x-required-scopes": ["read:status_pages"] as const,
-			}),
-		})
+		.route(
+			statusPageRoute(
+				"listIncidents",
+				"List incidents for a status page",
+				"read",
+				"Lists incidents for a status page. Requires read:status_pages scope."
+			)
+		)
 		.input(z.object({ statusPageId: z.string() }))
 		.handler(async ({ context, input }) => {
 			await withResource(context, {

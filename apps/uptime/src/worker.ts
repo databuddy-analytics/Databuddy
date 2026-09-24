@@ -19,11 +19,9 @@ import {
 	uptimeSchedulerId,
 } from "@databuddy/redis";
 import { DelayedError, type Job, Worker } from "bullmq";
-import type { RequestLogger } from "evlog";
-import { createLogger, log } from "evlog";
+import { createLogger, log, type RequestLogger } from "evlog";
 import { Cause, Data, Effect, Exit } from "effect";
 import {
-	type CheckOptions,
 	checkUptime,
 	DEFAULT_TIMEOUT,
 	isTimedOut,
@@ -68,56 +66,27 @@ const CHECK_LOCK_MARGIN_MS = 30_000;
 const RELEASE_CHECK_LOCK_SCRIPT =
 	'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) end return 0';
 
-async function acquireCheckLock(
-	scheduleId: string,
-	ttlMs: number
-): Promise<string | null> {
-	const token = randomUUID();
-	const result = await redis.set(
-		`${CHECK_LOCK_PREFIX}${scheduleId}`,
-		token,
-		"PX",
-		ttlMs,
-		"NX"
-	);
-	return result === "OK" ? token : null;
-}
-
-async function releaseCheckLock(
-	scheduleId: string,
-	token: string
-): Promise<void> {
-	await redis.eval(
-		RELEASE_CHECK_LOCK_SCRIPT,
-		1,
-		`${CHECK_LOCK_PREFIX}${scheduleId}`,
-		token
-	);
-}
-
-export interface UptimeWorkerDeps {
-	acquireCheckLock: typeof acquireCheckLock;
-	captureError: typeof captureError;
-	checkUptime: typeof checkUptime;
-	createLogger: (
-		fields: Record<string, string | number | boolean>
-	) => RequestLogger;
-	enqueueUptimeDelivery: (data: UptimeData) => Promise<void>;
-	fireTransitionAlerts: typeof fireTransitionAlerts;
-	getPreviousMonitorState: typeof getPreviousMonitorState;
-	lookupSchedule: typeof lookupSchedule;
-	reapScheduler: (scheduleId: string) => Promise<void>;
-	releaseCheckLock: typeof releaseCheckLock;
-	sendUptimeEvent: typeof sendUptimeEvent;
-	setMonitorState: typeof writeMonitorState;
-}
-
-const uptimeWorkerDeps: UptimeWorkerDeps = {
-	acquireCheckLock,
+const uptimeWorkerDeps = {
+	acquireCheckLock: async (
+		scheduleId: string,
+		ttlMs: number
+	): Promise<string | null> => {
+		const token = randomUUID();
+		const result = await redis.set(
+			`${CHECK_LOCK_PREFIX}${scheduleId}`,
+			token,
+			"PX",
+			ttlMs,
+			"NX"
+		);
+		return result === "OK" ? token : null;
+	},
 	captureError,
 	checkUptime,
-	createLogger: (fields) => createLogger(fields),
-	enqueueUptimeDelivery: async (data) => {
+	createLogger: (
+		fields: Record<string, string | number | boolean>
+	): RequestLogger => createLogger(fields),
+	enqueueUptimeDelivery: async (data: UptimeData) => {
 		await getUptimeDeliveryQueue().add(
 			UPTIME_DELIVERY_QUEUE_NAME,
 			{ event: data },
@@ -127,13 +96,22 @@ const uptimeWorkerDeps: UptimeWorkerDeps = {
 	fireTransitionAlerts,
 	getPreviousMonitorState,
 	lookupSchedule,
-	reapScheduler: async (scheduleId) => {
+	reapScheduler: async (scheduleId: string) => {
 		await getUptimeQueue().removeJobScheduler(uptimeSchedulerId(scheduleId));
 	},
-	releaseCheckLock,
+	releaseCheckLock: async (scheduleId: string, token: string) => {
+		await redis.eval(
+			RELEASE_CHECK_LOCK_SCRIPT,
+			1,
+			`${CHECK_LOCK_PREFIX}${scheduleId}`,
+			token
+		);
+	},
 	sendUptimeEvent,
 	setMonitorState: writeMonitorState,
 };
+
+export type UptimeWorkerDeps = typeof uptimeWorkerDeps;
 
 const DEFAULT_UPTIME_WORKER_CONCURRENCY = 25;
 const CHECK_ATTEMPTS = 3;
@@ -176,13 +154,6 @@ type UptimeDeliveryWorkerJob = Pick<
 	"attemptsMade" | "data" | "id" | "name" | "moveToDelayed"
 >;
 
-function toUptimeStorageEvent({
-	event_id: _eventId,
-	...event
-}: UptimeData): Omit<UptimeData, "event_id"> {
-	return event;
-}
-
 const timed = <A, E>(
 	label: string,
 	effect: Effect.Effect<A, E>,
@@ -197,12 +168,15 @@ const timed = <A, E>(
 
 const runCheck = (
 	monitorId: string,
-	url: string,
-	options: CheckOptions,
+	schedule: ScheduleData,
 	deps: UptimeWorkerDeps
 ) =>
 	Effect.gen(function* () {
-		let data = yield* deps.checkUptime(monitorId, url, 1, options);
+		const options = {
+			timeout: schedule.timeout ?? undefined,
+			cacheBust: schedule.cacheBust,
+		};
+		let data = yield* deps.checkUptime(monitorId, schedule.url, 1, options);
 		for (
 			let attempt = 2;
 			data.status !== MonitorStatus.UP &&
@@ -211,26 +185,10 @@ const runCheck = (
 			attempt++
 		) {
 			yield* Effect.sleep(checkRetryDelayMs());
-			data = yield* deps.checkUptime(monitorId, url, attempt, options);
+			data = yield* deps.checkUptime(monitorId, schedule.url, attempt, options);
 		}
 		return data;
 	});
-
-const fetchPreviousState = (monitorId: string, deps: UptimeWorkerDeps) =>
-	Effect.tryPromise({
-		try: () => deps.getPreviousMonitorState(monitorId),
-		catch: (cause) => new PreviousStateUnavailable({ message: String(cause) }),
-	}).pipe(
-		Effect.flatMap((state) =>
-			state.kind === "unavailable"
-				? Effect.fail(
-						new PreviousStateUnavailable({
-							message: `Previous monitor state unavailable for ${monitorId}`,
-						})
-					)
-				: Effect.succeed(state)
-		)
-	);
 
 export function resolveFailureStreak(
 	status: number,
@@ -244,25 +202,6 @@ export function resolveFailureStreak(
 		? previous.state.failureStreak + 1
 		: 1;
 }
-
-const persistMonitorState = (
-	monitorId: string,
-	data: UptimeData,
-	deps: UptimeWorkerDeps
-) =>
-	Effect.promise(() =>
-		deps
-			.setMonitorState(monitorId, {
-				failureStreak: data.failure_streak,
-				status: data.status,
-			})
-			.catch((cause: unknown) => {
-				deps.captureError(cause, {
-					error_step: "monitor_state_persist",
-					event_id: data.event_id,
-				});
-			})
-	);
 
 const handoffDelivery = (
 	data: UptimeData,
@@ -281,36 +220,57 @@ const handoffDelivery = (
 		},
 	});
 
+const admitDelivery = (
+	data: UptimeData,
+	deps: UptimeWorkerDeps,
+	log: RequestLogger
+) =>
+	timed(
+		"delivery_queue_admission",
+		handoffDelivery(
+			data,
+			() => deps.enqueueUptimeDelivery(data),
+			"uptime_delivery_enqueue",
+			deps
+		),
+		log
+	).pipe(
+		Effect.tap(() =>
+			Effect.sync(() => log.set({ delivery_queue_admitted: true }))
+		)
+	);
+
 const runTransitionAlerts = (
 	schedule: ScheduleData,
 	data: UptimeData,
 	deps: UptimeWorkerDeps,
 	log: RequestLogger
 ) =>
-	Effect.tryPromise({
-		try: () => deps.fireTransitionAlerts({ schedule, data }),
-		catch: (cause) => cause,
-	}).pipe(
-		Effect.match({
-			onSuccess: (transition) => {
-				if (transition.transition_kind) {
+	timed(
+		"transition_email",
+		Effect.promise(() =>
+			deps.fireTransitionAlerts({ schedule, data }).then(
+				(transition) => {
+					if (transition.transition_kind) {
+						log.set({
+							transition_kind: transition.transition_kind,
+							alarms_fired: transition.alarms_fired,
+						});
+					}
+				},
+				(error: unknown) => {
+					deps.captureError(error, {
+						error_step: "transition_alerts",
+						schedule_id: schedule.id,
+					});
 					log.set({
-						transition_kind: transition.transition_kind,
-						alarms_fired: transition.alarms_fired,
+						transition_alert_error:
+							error instanceof Error ? error.message : "unknown",
 					});
 				}
-			},
-			onFailure: (error) => {
-				deps.captureError(error, {
-					error_step: "transition_alerts",
-					schedule_id: schedule.id,
-				});
-				log.set({
-					transition_alert_error:
-						error instanceof Error ? error.message : "unknown",
-				});
-			},
-		})
+			)
+		),
+		log
 	);
 
 function reapScheduler(
@@ -338,68 +298,17 @@ function reapScheduler(
 		});
 }
 
-type CheckLock = { token: string } | "held" | "unavailable";
-
-const acquireLock = (
-	scheduleId: string,
-	ttlMs: number,
-	deps: UptimeWorkerDeps,
-	log: RequestLogger
-) =>
-	Effect.tryPromise({
-		try: () => deps.acquireCheckLock(scheduleId, ttlMs),
-		catch: (cause) => cause,
-	}).pipe(
-		Effect.map((token): CheckLock => (token === null ? "held" : { token })),
-		Effect.catch((cause) =>
-			Effect.sync((): CheckLock => {
-				deps.captureError(cause, {
-					error_step: "check_lock_acquire",
-					schedule_id: scheduleId,
-				});
-				log.set({ check_lock_unavailable: true });
-				return "unavailable";
-			})
-		)
-	);
-
-const releaseLock = (
-	scheduleId: string,
-	lock: CheckLock,
-	deps: UptimeWorkerDeps
-) =>
-	typeof lock === "string"
-		? Effect.void
-		: Effect.promise(() =>
-				deps
-					.releaseCheckLock(scheduleId, lock.token)
-					.catch((cause: unknown) => {
-						deps.captureError(cause, {
-							error_step: "check_lock_release",
-							schedule_id: scheduleId,
-						});
-					})
-			);
-
 const runLockedCheck = (
 	schedule: ScheduleData,
 	monitorId: string,
 	log: RequestLogger,
 	deps: UptimeWorkerDeps,
-	checkpoint: UptimeEventCheckpoint
+	checkpoint: (data: UptimeData) => Promise<void>
 ) =>
 	Effect.gen(function* () {
 		const checked = yield* timed(
 			"check_uptime",
-			runCheck(
-				monitorId,
-				schedule.url,
-				{
-					timeout: schedule.timeout ?? undefined,
-					cacheBust: schedule.cacheBust,
-				},
-				deps
-			),
+			runCheck(monitorId, schedule, deps),
 			log
 		).pipe(
 			Effect.tapError((e) =>
@@ -413,7 +322,19 @@ const runLockedCheck = (
 			checked.status === MonitorStatus.DOWN
 				? yield* timed(
 						"previous_status",
-						fetchPreviousState(monitorId, deps),
+						Effect.tryPromise({
+							try: () => deps.getPreviousMonitorState(monitorId),
+							catch: (cause) =>
+								new PreviousStateUnavailable({ message: String(cause) }),
+						}).pipe(
+							Effect.filterOrFail(
+								(state) => state.kind !== "unavailable",
+								() =>
+									new PreviousStateUnavailable({
+										message: `Previous monitor state unavailable for ${monitorId}`,
+									})
+							)
+						),
 						log
 					).pipe(
 						Effect.tapError((e) =>
@@ -468,36 +389,31 @@ const runLockedCheck = (
 
 		yield* timed(
 			"monitor_state_persist",
-			persistMonitorState(monitorId, data, deps),
-			log
-		);
-
-		yield* timed(
-			"delivery_queue_admission",
-			handoffDelivery(
-				data,
-				() => deps.enqueueUptimeDelivery(data),
-				"uptime_delivery_enqueue",
+			Effect.promise(() =>
 				deps
+					.setMonitorState(monitorId, {
+						failureStreak: data.failure_streak,
+						status: data.status,
+					})
+					.catch((cause: unknown) => {
+						deps.captureError(cause, {
+							error_step: "monitor_state_persist",
+							event_id: data.event_id,
+						});
+					})
 			),
 			log
 		);
-		log.set({ delivery_queue_admitted: true });
 
-		yield* timed(
-			"transition_email",
-			runTransitionAlerts(schedule, data, deps, log),
-			log
-		);
+		yield* admitDelivery(data, deps, log);
+		yield* runTransitionAlerts(schedule, data, deps, log);
 	});
-
-type UptimeEventCheckpoint = (data: UptimeData) => Promise<void>;
 
 const processCheck = (
 	scheduleId: string,
 	log: RequestLogger,
 	deps: UptimeWorkerDeps,
-	checkpoint: UptimeEventCheckpoint
+	checkpoint: (data: UptimeData) => Promise<void>
 ) =>
 	Effect.gen(function* () {
 		const schedule = yield* timed(
@@ -544,55 +460,40 @@ const processCheck = (
 			...(schedule.websiteId ? { website_id: schedule.websiteId } : {}),
 		});
 
-		const lock = yield* acquireLock(
-			scheduleId,
-			checkLockTtlMs(schedule.timeout),
-			deps,
-			log
+		const lockToken = yield* Effect.promise(() =>
+			deps
+				.acquireCheckLock(scheduleId, checkLockTtlMs(schedule.timeout))
+				.catch((cause: unknown) => {
+					deps.captureError(cause, {
+						error_step: "check_lock_acquire",
+						schedule_id: scheduleId,
+					});
+					log.set({ check_lock_unavailable: true });
+					return;
+				})
 		);
-		if (lock === "held") {
+		if (lockToken === null) {
 			log.set({ outcome: "skipped_overlap" });
 			return;
 		}
 
 		yield* runLockedCheck(schedule, monitorId, log, deps, checkpoint).pipe(
-			Effect.ensuring(releaseLock(scheduleId, lock, deps))
+			Effect.ensuring(
+				lockToken === undefined
+					? Effect.void
+					: Effect.promise(() =>
+							deps
+								.releaseCheckLock(scheduleId, lockToken)
+								.catch((cause: unknown) => {
+									deps.captureError(cause, {
+										error_step: "check_lock_release",
+										schedule_id: scheduleId,
+									});
+								})
+						)
+			)
 		);
 	});
-
-export async function processUptimeCheck(
-	scheduleId: string,
-	trigger: UptimeCheckJobData["trigger"],
-	deps: UptimeWorkerDeps,
-	jobMeta: { id?: string; attempt?: number } | undefined,
-	checkpoint: UptimeEventCheckpoint
-) {
-	const startedAt = performance.now();
-	const log = deps.createLogger({
-		schedule_id: scheduleId,
-		uptime_trigger: trigger,
-		...(jobMeta?.id ? { job_id: jobMeta.id } : {}),
-		...(jobMeta?.attempt ? { job_attempt: jobMeta.attempt } : {}),
-	});
-
-	const exit = await Effect.runPromiseExit(
-		processCheck(scheduleId, log, deps, checkpoint)
-	);
-
-	log.set({ check_duration_ms: Math.round(performance.now() - startedAt) });
-	log.emit();
-
-	if (Exit.isFailure(exit)) {
-		const error = Cause.squash(exit.cause);
-		if (
-			error instanceof ScheduleLookupError &&
-			REAPABLE_REASONS.has(error.reason)
-		) {
-			return;
-		}
-		throw new Error(error instanceof Error ? error.message : String(error));
-	}
-}
 
 const replayDelivery = (
 	scheduleId: string,
@@ -601,18 +502,7 @@ const replayDelivery = (
 	log: RequestLogger
 ) =>
 	Effect.gen(function* () {
-		yield* timed(
-			"delivery_queue_admission",
-			handoffDelivery(
-				data,
-				() => deps.enqueueUptimeDelivery(data),
-				"uptime_delivery_enqueue",
-				deps
-			),
-			log
-		);
-		log.set({ delivery_queue_admitted: true });
-
+		yield* admitDelivery(data, deps, log);
 		const schedule = yield* deps.lookupSchedule(scheduleId).pipe(
 			Effect.catch((error) =>
 				Effect.sync(() => {
@@ -625,40 +515,9 @@ const replayDelivery = (
 			)
 		);
 		if (schedule) {
-			yield* timed(
-				"transition_email",
-				runTransitionAlerts(schedule, data, deps, log),
-				log
-			);
+			yield* runTransitionAlerts(schedule, data, deps, log);
 		}
 	});
-
-async function replayPersistedUptimeDelivery(
-	job: UptimeWorkerJob,
-	data: UptimeData,
-	deps: UptimeWorkerDeps
-): Promise<void> {
-	const startedAt = performance.now();
-	const log = deps.createLogger({
-		schedule_id: job.data.scheduleId,
-		uptime_trigger: job.data.trigger,
-		event_id: data.event_id,
-		delivery_replay: true,
-		...(job.id ? { job_id: job.id } : {}),
-		...(job.attemptsMade ? { job_attempt: job.attemptsMade } : {}),
-	});
-
-	try {
-		await Effect.runPromise(
-			replayDelivery(job.data.scheduleId, data, deps, log)
-		);
-	} finally {
-		log.set({
-			delivery_replay_duration_ms: Math.round(performance.now() - startedAt),
-		});
-		log.emit();
-	}
-}
 
 export async function processUptimeJob(
 	job: UptimeWorkerJob,
@@ -674,30 +533,48 @@ export async function processUptimeJob(
 	}
 
 	const jobData = parsedJobData.data;
-	const persistedEvent = jobData.delivery?.event;
-	if (persistedEvent !== undefined) {
-		const parsedEvent = uptimeDataSchema.safeParse(persistedEvent);
-		if (!parsedEvent.success) {
-			throw new Error("Invalid persisted uptime delivery payload");
-		}
-		await replayPersistedUptimeDelivery(job, parsedEvent.data, deps);
-		return;
+	const persisted =
+		jobData.delivery && uptimeDataSchema.safeParse(jobData.delivery.event);
+	if (persisted && !persisted.success) {
+		throw new Error("Invalid persisted uptime delivery payload");
 	}
+	const replayEvent = persisted?.data;
 
-	await processUptimeCheck(
-		jobData.scheduleId,
-		jobData.trigger,
-		deps,
-		{
-			id: job.id,
-			attempt: job.attemptsMade,
-		},
-		async (data) =>
-			job.updateData({
-				...jobData,
-				delivery: { event: data },
-			})
+	const startedAt = performance.now();
+	const log = deps.createLogger({
+		schedule_id: jobData.scheduleId,
+		uptime_trigger: jobData.trigger,
+		...(replayEvent
+			? { event_id: replayEvent.event_id, delivery_replay: true }
+			: {}),
+		...(job.id ? { job_id: job.id } : {}),
+		...(job.attemptsMade ? { job_attempt: job.attemptsMade } : {}),
+	});
+
+	const exit = await Effect.runPromiseExit<void, unknown>(
+		replayEvent
+			? replayDelivery(jobData.scheduleId, replayEvent, deps, log)
+			: processCheck(jobData.scheduleId, log, deps, async (data) => {
+					await job.updateData({ ...jobData, delivery: { event: data } });
+				})
 	);
+
+	log.set({
+		[replayEvent ? "delivery_replay_duration_ms" : "check_duration_ms"]:
+			Math.round(performance.now() - startedAt),
+	});
+	log.emit();
+
+	if (Exit.isFailure(exit)) {
+		const error = Cause.squash(exit.cause);
+		if (
+			error instanceof ScheduleLookupError &&
+			REAPABLE_REASONS.has(error.reason)
+		) {
+			return;
+		}
+		throw new Error(error instanceof Error ? error.message : String(error));
+	}
 }
 
 export async function processUptimeDeliveryJob(
@@ -719,14 +596,13 @@ export async function processUptimeDeliveryJob(
 		throw new Error("Invalid uptime delivery payload");
 	}
 
-	const data = parsedEvent.data;
+	const { event_id: eventId, ...event } = parsedEvent.data;
 	try {
-		await deps.sendUptimeEvent(toUptimeStorageEvent(data), data.site_id);
+		await deps.sendUptimeEvent(event, event.site_id);
 	} catch (error) {
 		deps.captureError(error, {
 			error_step: "uptime_delivery_send",
-			event_id: data.event_id,
-			job_id: job.id ?? "",
+			event_id: eventId,
 		});
 		if (readBooleanEnv("SELFHOST")) {
 			// Keep the durable payload pending until ClickHouse recovers.
@@ -744,14 +620,14 @@ function observeWorker<T>(
 	worker: Worker<T>,
 	step: "uptime_worker" | "uptime_delivery_worker",
 	maxAttempts: number,
-	describeJob: (data: unknown) => Record<string, string>
+	describeJob: (data: T) => Record<string, string | undefined>
 ): Worker<T> {
 	worker.on("failed", (job, error) => {
 		const attemptsUsed = job?.attemptsMade ?? 0;
 		const attemptsMax = job?.opts?.attempts ?? maxAttempts;
 		captureError(error, {
 			error_step: `${step}_job_failed`,
-			job_id: job?.id ?? "",
+			job_id: job?.id,
 			attempts_used: attemptsUsed,
 			attempts_max: attemptsMax,
 			is_final_attempt: attemptsUsed >= attemptsMax,
@@ -791,15 +667,7 @@ export function startUptimeWorker() {
 		),
 		"uptime_worker",
 		UPTIME_JOB_OPTIONS.attempts,
-		(data): Record<string, string> => {
-			const parsed = uptimeCheckJobDataSchema.safeParse(data);
-			return parsed.success
-				? {
-						schedule_id: parsed.data.scheduleId,
-						trigger: parsed.data.trigger,
-					}
-				: {};
-		}
+		(data) => ({ schedule_id: data.scheduleId, trigger: data.trigger })
 	);
 }
 
@@ -816,12 +684,8 @@ export function startUptimeDeliveryWorker() {
 		),
 		"uptime_delivery_worker",
 		UPTIME_DELIVERY_JOB_OPTIONS.attempts,
-		(data): Record<string, string> => {
-			const parsed = uptimeDeliveryJobDataSchema.safeParse(data);
-			const event = parsed.success
-				? uptimeDataSchema.safeParse(parsed.data.event)
-				: undefined;
-			return event?.success ? { event_id: event.data.event_id } : {};
-		}
+		(data) => ({
+			event_id: uptimeDataSchema.safeParse(data.event).data?.event_id,
+		})
 	);
 }

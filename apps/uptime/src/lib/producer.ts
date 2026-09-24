@@ -59,7 +59,6 @@ function ensureProducer(): Promise<Producer> {
 		})
 		.catch((error) => {
 			captureError(error, { error_step: "kafka_producer_connect" });
-			singletonProducer = null;
 			throw error;
 		})
 		.finally(() => {

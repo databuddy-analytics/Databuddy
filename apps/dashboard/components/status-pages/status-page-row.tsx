@@ -21,21 +21,9 @@ import {
 import { Badge, Field } from "@databuddy/ui";
 import { DropdownMenu, Switch } from "@databuddy/ui/client";
 
-export interface StatusPage {
-	createdAt: Date | string;
-	description: string | null;
-	faviconUrl?: string | null;
-	id: string;
-	logoUrl?: string | null;
-	monitorCount: number;
-	name: string;
-	organizationId: string;
-	slug: string;
-	supportUrl?: string | null;
-	theme?: string | null;
-	updatedAt: Date | string;
-	websiteUrl?: string | null;
-}
+export type StatusPage = Awaited<
+	ReturnType<typeof orpc.statusPage.list.call>
+>[number];
 
 interface StatusPageRowProps {
 	onDeleteAction: () => void;
@@ -204,8 +192,10 @@ export function StatusPageRow({
 	const hasMonitors = statusPage.monitorCount > 0;
 
 	const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-		const target = e.target as HTMLElement;
-		if (target.closest("[data-dropdown-trigger]")) {
+		if (
+			e.target instanceof Element &&
+			e.target.closest("[data-dropdown-trigger]")
+		) {
 			e.preventDefault();
 		}
 	};

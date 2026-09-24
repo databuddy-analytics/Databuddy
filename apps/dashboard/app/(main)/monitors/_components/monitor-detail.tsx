@@ -19,7 +19,10 @@ import {
 	type MonitorStatus,
 } from "@databuddy/shared/uptime-status";
 import { TopBar } from "@/components/layout/top-bar";
-import { useMonitorActions } from "@/components/monitors/monitor-row";
+import {
+	useMonitorActions,
+	useUptimeHeatmap,
+} from "@/components/monitors/monitor-row";
 import { MonitorSheet } from "@/components/monitors/monitor-sheet";
 import {
 	Table,
@@ -38,7 +41,6 @@ import {
 import { orpc } from "@/lib/orpc";
 import { UptimeHeatmap } from "@/lib/uptime/uptime-heatmap";
 import { cn } from "@/lib/utils";
-import type { BatchQueryResponse } from "@/types/api";
 import {
 	ArrowClockwiseIcon,
 	ArrowSquareOutIcon,
@@ -81,13 +83,6 @@ interface RecentActivityCheck extends Record<string, unknown> {
 const RECENT_CHECKS_KEY = "uptime-recent-checks";
 const RECENT_CHECKS_PAGE_SIZE = 50;
 const SSL_WARN_DAYS = 14;
-const HEATMAP_QUERIES = [
-	{
-		id: "uptime-heatmap",
-		parameters: ["uptime_time_series"],
-		granularity: "daily" as const,
-	},
-];
 const LATENCY_QUERIES = [
 	{ id: "uptime-latency", parameters: ["uptime_response_time_trends"] },
 ];
@@ -109,24 +104,16 @@ function resolveCheckDisplay(check: RecentActivityCheck) {
 	return { label: "Downtime", tone: "down" } as const;
 }
 
+const WARNING_CHECK_ICON = (
+	<WarningCircleIcon aria-hidden className="shrink-0 text-warning" size={18} />
+);
+
 const CHECK_ICONS = {
 	up: (
 		<CheckCircleIcon aria-hidden className="shrink-0 text-success" size={18} />
 	),
-	pending: (
-		<WarningCircleIcon
-			aria-hidden
-			className="shrink-0 text-warning"
-			size={18}
-		/>
-	),
-	degraded: (
-		<WarningCircleIcon
-			aria-hidden
-			className="shrink-0 text-warning"
-			size={18}
-		/>
-	),
+	pending: WARNING_CHECK_ICON,
+	degraded: WARNING_CHECK_ICON,
 	down: (
 		<XCircleIcon aria-hidden className="shrink-0 text-destructive" size={18} />
 	),
@@ -311,26 +298,14 @@ function resolveStatus(
 	});
 }
 
-function resolveSslExpiry(
-	check: RecentActivityCheck | undefined
-): { daysLeft: number } | null {
-	const normalized = normalizeCheckTimestamp(check?.ssl_expiry ?? null);
-	if (!normalized) {
-		return null;
-	}
-	const expiresAt = Date.parse(normalized);
+function SslIndicator({ check }: { check: RecentActivityCheck | undefined }) {
+	const expiresAt = Date.parse(
+		normalizeCheckTimestamp(check?.ssl_expiry ?? null) ?? ""
+	);
 	if (!Number.isFinite(expiresAt) || expiresAt < Date.UTC(2000, 0, 1)) {
 		return null;
 	}
-	return { daysLeft: Math.floor((expiresAt - Date.now()) / 86_400_000) };
-}
-
-function SslIndicator({ check }: { check: RecentActivityCheck | undefined }) {
-	const expiry = resolveSslExpiry(check);
-	if (!expiry) {
-		return null;
-	}
-	const { daysLeft } = expiry;
+	const daysLeft = Math.floor((expiresAt - Date.now()) / 86_400_000);
 	const expired = daysLeft < 0 || check?.ssl_valid === 0;
 	const expiringSoon = !expired && daysLeft <= SSL_WARN_DAYS;
 
@@ -421,45 +396,23 @@ function MonitorDetailBody({
 	const [isRefreshing, setIsRefreshing] = useState(false);
 	const actions = useMonitorActions(schedule, onRemovedAction);
 
-	const target = useMemo(
-		() =>
-			schedule.websiteId
-				? { websiteId: schedule.websiteId }
-				: { scheduleId: schedule.id },
-		[schedule.websiteId, schedule.id]
-	);
-
-	const heatmapDateRange = useMemo(
-		() => ({
-			start_date: localDayjs()
-				.subtract(89, "day")
-				.startOf("day")
-				.format("YYYY-MM-DD"),
-			end_date: localDayjs().startOf("day").format("YYYY-MM-DD"),
-			granularity: "daily" as const,
-		}),
-		[]
-	);
-	const heatmap = useBatchDynamicQuery(
-		target,
-		heatmapDateRange,
-		HEATMAP_QUERIES
-	);
-
-	const latencyDateRange = useMemo(() => {
-		const days = localDayjs(dateRange.end_date).diff(
-			localDayjs(dateRange.start_date),
-			"day"
-		);
-		return {
-			start_date: dateRange.start_date,
-			end_date: dateRange.end_date,
-			granularity: days <= 7 ? ("hourly" as const) : ("daily" as const),
-		};
-	}, [dateRange]);
+	const target = schedule.websiteId
+		? { websiteId: schedule.websiteId }
+		: { scheduleId: schedule.id };
+	const heatmap = useUptimeHeatmap(schedule, 90);
 	const latency = useBatchDynamicQuery(
 		target,
-		latencyDateRange,
+		{
+			start_date: dateRange.start_date,
+			end_date: dateRange.end_date,
+			granularity:
+				localDayjs(dateRange.end_date).diff(
+					localDayjs(dateRange.start_date),
+					"day"
+				) <= 7
+					? "hourly"
+					: "daily",
+		},
 		LATENCY_QUERIES
 	);
 
@@ -473,7 +426,7 @@ function MonitorDetailBody({
 		],
 		initialPageParam: 1,
 		queryFn: async ({ pageParam, signal }) => {
-			const response = (await fetchDynamicQuery(
+			const response = await fetchDynamicQuery(
 				target,
 				dateRange,
 				[
@@ -485,10 +438,13 @@ function MonitorDetailBody({
 					},
 				],
 				signal
-			)) as BatchQueryResponse;
-			const result = response.results[0]?.data.find(
-				(r) => r.parameter === "uptime_recent_checks"
 			);
+			const result =
+				"results" in response
+					? response.results[0]?.data.find(
+							(r) => r.parameter === "uptime_recent_checks"
+						)
+					: undefined;
 			return (result?.success ? result.data : []) as RecentActivityCheck[];
 		},
 		getNextPageParam: (lastPage, _pages, lastPageParam) =>
@@ -707,10 +663,7 @@ function MonitorDetailBody({
 
 				<div className="shrink-0 bg-sidebar">
 					<UptimeHeatmap
-						data={heatmap.getDataForQuery(
-							"uptime-heatmap",
-							"uptime_time_series"
-						)}
+						data={heatmap.data}
 						days={90}
 						isLoading={heatmap.isLoading}
 					/>

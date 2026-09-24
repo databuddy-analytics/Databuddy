@@ -3,8 +3,12 @@
 import { useId, useState } from "react";
 import { cn, StatusDot } from "@databuddy/ui";
 import { CaretDownIcon } from "@databuddy/ui/icons";
-import { LatencyChart } from "@databuddy/ui/uptime";
-import { type MonitorDailyData, UptimeHistory } from "./uptime-history";
+import {
+	buildUptimeHeatmapDays,
+	LatencyChart,
+	UptimeHeatmapStrip,
+} from "@databuddy/ui/uptime";
+import type { StatusMonitor } from "./status-page";
 
 const LAST_CHECK_FORMATTER = new Intl.DateTimeFormat("en-US", {
 	day: "numeric",
@@ -15,31 +19,28 @@ const LAST_CHECK_FORMATTER = new Intl.DateTimeFormat("en-US", {
 	timeZoneName: "short",
 });
 
-export interface MonitorCardInteractiveProps {
-	anchorId: string;
-	dailyData: MonitorDailyData;
-	days: number;
-	domain?: string;
-	freshness: "fresh" | "stale" | "unknown";
-	id: string;
-	lastCheckedAt: string | null;
-	name: string;
-	status: "up" | "down" | "degraded" | "unknown";
-	uptimePercentage?: number;
+function formatUptime(pct: number): string {
+	return pct >= 100 ? "100" : (Math.floor(pct * 100) / 100).toFixed(2);
 }
 
 export function MonitorCardInteractive({
 	anchorId,
-	dailyData,
 	days,
-	domain,
-	freshness,
-	id,
-	lastCheckedAt,
-	name,
-	status,
-	uptimePercentage,
-}: MonitorCardInteractiveProps) {
+	monitor: {
+		currentStatus,
+		dailyData,
+		domain,
+		freshness,
+		id,
+		lastCheckedAt,
+		name,
+		uptimePercentage,
+	},
+}: {
+	anchorId: string;
+	days: number;
+	monitor: StatusMonitor;
+}) {
 	const [isOpen, setIsOpen] = useState(true);
 	const panelId = useId();
 	const hasLatencyData = dailyData.some(
@@ -53,7 +54,7 @@ export function MonitorCardInteractive({
 			label: freshness === "stale" ? "Data stale" : "Status unknown",
 			color: "muted" as const,
 		},
-	}[status];
+	}[currentStatus];
 	const checkedLabel = lastCheckedAt
 		? `Last checked ${LAST_CHECK_FORMATTER.format(new Date(lastCheckedAt))}`
 		: "No completed checks";
@@ -111,11 +112,23 @@ export function MonitorCardInteractive({
 				<div className="min-h-0 overflow-hidden">
 					<div className="px-4 pt-1 pb-2 sm:px-5">
 						{uptimePercentage === undefined ? null : (
-							<UptimeHistory
-								dailyData={dailyData}
-								days={days}
-								uptimePercentage={uptimePercentage}
-							/>
+							<div>
+								<UptimeHeatmapStrip
+									days={buildUptimeHeatmapDays(dailyData, days)}
+									emptyLabel="No data recorded"
+									interactive
+									isActive
+								/>
+								<div className="mt-2 flex items-center gap-3 text-muted-foreground text-xs">
+									<span className="shrink-0">{days} days ago</span>
+									<span aria-hidden className="h-px flex-1 bg-border/70" />
+									<span className="shrink-0 tabular-nums">
+										{formatUptime(uptimePercentage)}% uptime
+									</span>
+									<span aria-hidden className="h-px flex-1 bg-border/70" />
+									<span className="shrink-0">Today</span>
+								</div>
+							</div>
 						)}
 						{hasLatencyData ? (
 							<div
