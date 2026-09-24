@@ -3,61 +3,54 @@
 Find the places in your codebase where a product analytics event is missing.
 
 ```sh
-npx @databuddy/scan --run
+npx @databuddy/scan
 ```
 
-Run it from inside any Git repository. No account or API key needed. Requires Node.js 22+ (or `bunx @databuddy/scan --run`).
+Run it inside a Git repository, or pass a path. No account or key. Node.js 22+, or `bunx @databuddy/scan`.
 
 ```
   databuddy. / event scan
 
-  Scan complete · 314 / 314 files · 1m 24s
+  Scan complete · 191 files to review · 294 findings · 1m 24s
 
-  191 files to review
-  Potential gaps · review the source
   app/billing/topup-card.tsx:135 · Button.onClick · missing · Payments
   app/settings/two-factor-dialog.tsx:403 · Button.onClick · missing · Setup & onboarding
   api/integrations/slack.ts:433 · get /slack/callback · missing · Integrations
 ```
 
-## How it works
+## Where your code goes
 
-1. **Finds actions.** It parses your JavaScript and TypeScript and groups each user action with the code it triggers: a button with its mutation, a form with its submit, a route with its database write.
-2. **Checks for existing tracking.** It builds an index of the events you already send, including ones fired by shared helpers and middleware.
-3. **Ranks the gaps.** Each action is classified as missing, partial, already tracked, or not worth tracking, then ranked by product area and priority.
+The scan sends the source of the files it reviews to Databuddy's scan API (`api.databuddy.cc`), which classifies it with Jev under **zero data retention**. **Your source is never stored or logged.** The API only counts scans, using a random run ID, the CLI version and request sizes; nothing identifies you or your repository. The CLI prints where the source is going, with the number of files, before it sends anything.
 
-Findings are suggestions to review, not guaranteed insertion points. The scanner never edits your code.
+- `--dry-run` lists exactly which files would be sent, and sends nothing.
+- To keep source off Databuddy entirely, set `AI_GATEWAY_API_KEY` to your own [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key. Requests then go straight to your account and Databuddy receives nothing.
 
-## Commands
+Only Git-tracked files are read. Tests, examples, symlinks and files that look like they contain secrets are skipped.
 
-| Command | What it does |
+## For agents
+
+```sh
+npx @databuddy/scan --json
+```
+
+Prints every finding with its file, line, coverage (`missing`, `partial`, `covered`), product area and priority. `summary.destination` and `summary.zeroDataRetention` state where the source went. The privacy notice goes to stderr, so stdout stays valid JSON.
+
+## Options
+
+| | |
 | --- | --- |
-| `npx @databuddy/scan` | Preview how many files will be scanned. Sends nothing. |
-| `npx @databuddy/scan --run` | Scan, or resume an interrupted scan |
-| `npx @databuddy/scan --report --verbose` | Show every finding from the last scan |
-| `npx @databuddy/scan --diagnostics` | Show failures, retries and timing |
-| `npx @databuddy/scan --run --fresh` | Scan again without reusing saved results |
-| `npx @databuddy/scan --run --no-actions` | Review whole files instead of grouped actions |
+| `[path]` | Repository to scan. Defaults to the current one. |
+| `--dry-run` | List the files that would be sent. Sends nothing. |
+| `--json` | Print results as JSON. |
 
-Press Ctrl+C at any time; completed work is kept and `--run` picks up where it stopped. Add `--json` for machine-readable output, or see `--help` for everything else.
-
-## What gets sent
-
-`--run` sends the source of the files being scanned to Jev, the model that classifies it. Zero data retention is requested on every call.
-
-- **By default**, requests go through Databuddy's scan API. It forwards source to Jev and does not store or log it. It also receives a random ID for the run, the CLI version and the scan mode, which we use to count scans. Nothing identifies you or your repository.
-- **With your own key**, set `AI_GATEWAY_API_KEY` to a [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key and requests go straight from your machine to your account. Databuddy receives nothing.
-
-Only files tracked by Git are read. Tests, examples, symlinks and files that look like they contain secrets are skipped; that detection is a safeguard, not a guarantee.
-
-Results are saved locally under `~/.cache/databuddy/scan/`. Use `--output` to choose another folder.
+Running again is fast: finished work is cached, and an interrupted scan resumes where it stopped. Findings are suggestions to review; the scanner never edits your code.
 
 ## Contributing
 
 From the Databuddy monorepo root:
 
 ```sh
-bun ./scan.ts --run                          # Run from source
+bun ./scan.ts                                # Run from source
 bun run --cwd packages/scan test             # Build and test
 bun run --cwd packages/scan eval:quality     # Extraction audit against reviewed cases
 ```
