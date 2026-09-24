@@ -155,7 +155,7 @@ export function createTerminal({ json = false }: Options = {}) {
 					`  ${clean(file.path).padEnd(width)}  ${file.lines.map(([start, end]) => (start === end ? start : `${start}-${end}`)).join(", ")}`
 			),
 			"",
-			`  ${count(result.skippedFiles, "other file")} had nothing to review and were not sent. --dry-run --json prints the exact payload.`,
+			`  Not sent: ${count(result.skippedFiles, "other file")} with nothing to review. --dry-run --json prints the exact payload.`,
 			"",
 		]);
 	}
