@@ -56,7 +56,7 @@ interface Captured {
 }
 interface PackageInfo {
 	bin: Record<string, string>;
-	dependencies: Record<string, string>;
+	dependencies?: Record<string, string>;
 	engines: { node: string };
 	files: string[];
 	name: string;
@@ -79,8 +79,6 @@ async function exists(path: string) {
 }
 
 // Build first. Package-manager checks use the normal npm cache, or SCAN_TEST_NPM_CACHE.
-// If offline installation reports ENOTCACHED, install this package tarball once with npm
-// into a temporary directory to seed runtime dependencies, then rerun these tests.
 test("compiled CLI scans safely, resumes, and runs from a standalone npm package", async () => {
 	const temporary = await mkdtemp(join(tmpdir(), "databuddy-scan-test-"));
 	const outside = join(temporary, "outside"),
@@ -171,19 +169,11 @@ test("compiled CLI scans safely, resumes, and runs from a standalone npm package
 		);
 		assert.deepEqual(packageInfo.files, ["dist"]);
 		assert.equal(packageInfo.engines.node, ">=22");
-		for (const dependency of [
-			"commander",
-			"zod",
-			"chalk",
-			"log-update",
-			"p-limit",
-			"typescript",
-		]) {
-			assert.ok(
-				packageInfo.dependencies[dependency],
-				`${dependency} must be a runtime dependency`
-			);
-		}
+		assert.equal(
+			packageInfo.dependencies,
+			undefined,
+			"The CLI is bundled; runtime dependencies make npx install them"
+		);
 		assert.ok(packageInfo.scripts.build);
 		assert.ok(
 			(await readFile(scanner, "utf8")).startsWith("#!/usr/bin/env node\n")
@@ -699,6 +689,7 @@ export function Report() {
 		assert.ok(packed);
 		const packedPaths = packed.files.map((file) => file.path);
 		assert.ok(packedPaths.includes("dist/cli.js"));
+		assert.ok(packedPaths.includes("dist/THIRD_PARTY_LICENSES"));
 		assert.ok(
 			packedPaths.every(
 				(path) =>
@@ -745,14 +736,13 @@ export function Report() {
 			`--prefix=${installed}`,
 			tarball,
 		]);
-		for (const dependency of Object.keys(packageInfo.dependencies)) {
-			assert.ok(
-				await exists(
-					join(installed, "node_modules", dependency, "package.json")
-				),
-				`Standalone installation omitted ${dependency}`
-			);
-		}
+		assert.deepEqual(
+			(await readdir(join(installed, "node_modules"))).filter(
+				(name) => !name.startsWith(".")
+			),
+			["@databuddy"],
+			"The published package must install without dependencies"
+		);
 		assert.equal(
 			ok("bun", ["x", "--no-install", "--bun", "databuddy-scan", "--version"], {
 				cwd: installed,
