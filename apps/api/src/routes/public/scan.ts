@@ -190,7 +190,7 @@ export const scanRoute = new Elysia({ prefix: "/v1/scan" }).post(
 		try {
 			const raw = await requestEvaluation(createRequest(segments, catalog), {
 				apiKey,
-				attempts: 1,
+				attempts: 2,
 				timeoutMs: 15_000,
 				signal: request.signal,
 				onAttempt: (attempt) => {
