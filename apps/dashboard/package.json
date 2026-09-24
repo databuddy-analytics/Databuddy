@@ -50,7 +50,7 @@
     "@types/leaflet": "^1.9.21",
     "ai": "^6.0.188",
     "autumn-js": "catalog:",
-    "better-auth": "^1.5.5",
+    "better-auth": "1.7.5",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
     "cn": "^0.2.4",

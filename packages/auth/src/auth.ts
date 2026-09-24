@@ -459,12 +459,14 @@ export const auth = betterAuth({
 		window: 60,
 		max: 100,
 		customStorage: {
-			get: async (key) => {
-				const value = await getRedisCache().get(key);
-				return value ? JSON.parse(value) : null;
-			},
-			set: async (key, value) => {
-				await getRedisCache().set(key, JSON.stringify(value), "EX", 120);
+			consume: async (key, rule) => {
+				const result = await ratelimit(key, rule.max, rule.window);
+				return {
+					allowed: result.success,
+					retryAfter: result.success
+						? null
+						: Math.max(1, Math.ceil((result.reset - Date.now()) / 1000)),
+				};
 			},
 		},
 		customRules: {
@@ -629,6 +631,7 @@ export const auth = betterAuth({
 		},
 	},
 	appName: "databuddy.cc",
+	baseURL: config.urls.dashboard,
 	onAPIError: {
 		throw: false,
 		onError: (error) => {

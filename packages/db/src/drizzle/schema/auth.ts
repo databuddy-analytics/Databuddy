@@ -2,6 +2,7 @@ import {
 	boolean,
 	foreignKey,
 	index,
+	integer,
 	jsonb,
 	pgEnum,
 	pgTable,
@@ -321,6 +322,12 @@ export const twoFactor = pgTable(
 		secret: text().notNull(),
 		backupCodes: text("backup_codes").notNull(),
 		userId: text("user_id").notNull(),
+		verified: boolean().default(true),
+		failedVerificationCount: integer("failed_verification_count").default(0),
+		lockedUntil: timestamp("locked_until", {
+			precision: 3,
+			withTimezone: true,
+		}),
 	},
 	(table) => [
 		index("idx_two_factor_user_id").using(
