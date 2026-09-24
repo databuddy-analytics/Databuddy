@@ -102,12 +102,12 @@ export const hash = (value: string) =>
 	createHash("sha256").update(value).digest("hex");
 const excluded =
 	/(?:^|\/)(?:tests?|__tests__|fixtures?|__fixtures__|__mocks__|examples?|playground|e2e|cypress|playwright|node_modules|dist|\.next|\.agents|\.codex|vendor)(?:\/|$)|\.(?:test|spec|stories|generated|d)\.[^.]+$/i;
-const sourceFile = /\.(?:[cm]?[jt]sx?|vue|swift|py|sh|sql|html|css)$/;
+const sourceFile = /\.(?:[cm]?[jt]sx?|vue|svelte|swift|py|sh|sql|html?|css)$/;
 const repositoryKey =
 	/^[ \t]*(?:export[ \t]+)?AI_GATEWAY_API_KEY[ \t]*=[ \t]*(.*?)[ \t]*$/m;
 const quoted = /^(["'])(.*)\1$/;
 const routeHandlerLabel = /^(?:GET|POST|PUT|PATCH|DELETE)$/;
-const reviewable = /\.(?:[cm]?[jt]sx?|vue|swift|py)$/;
+const reviewable = /\.(?:[cm]?[jt]sx?|vue|svelte|swift|py)$/;
 const sourceLineBoundary = /(?<=\n)/;
 const secret =
 	/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|(?:sk_live_|sk-proj-|ghp_|github_pat_)[A-Za-z0-9_-]{20,}/;
