@@ -86,9 +86,7 @@ export default async function OGImage({
 	params: Promise<{ slug: string }>;
 }) {
 	const { slug } = await params;
-	const data = await rpcClient.statusPage
-		.getBySlug({ slug, days: BAR_DAYS })
-		.catch(() => null);
+	const data = await rpcClient.statusPage.getBySlug({ slug }).catch(() => null);
 
 	const pageName = data?.statusPage.name || "Status Page";
 	const status = data?.overallStatus ?? "unknown";

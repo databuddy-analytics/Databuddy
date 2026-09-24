@@ -10,103 +10,52 @@ import {
 	CRON_GRANULARITIES,
 	parseUptimeGranularity,
 } from "@databuddy/shared/uptime";
-import { Cause, Data, Effect, Exit, Ref } from "effect";
 import { log } from "evlog";
 
-class UnknownGranularity extends Data.TaggedError("UnknownGranularity")<{
-	scheduleId: string;
-	granularity: string;
-}> {}
-
-const syncMonitor = (
-	monitor: { id: string; granularity: string },
-	queue: ReturnType<typeof getUptimeQueue>
-) =>
-	Effect.gen(function* () {
-		const schedulerId = uptimeSchedulerId(monitor.id);
-		const granularity = parseUptimeGranularity(monitor.granularity);
-		const pattern = granularity ? CRON_GRANULARITIES[granularity] : null;
-		if (!pattern) {
-			return yield* Effect.fail(
-				new UnknownGranularity({
-					scheduleId: monitor.id,
-					granularity: monitor.granularity,
-				})
-			);
-		}
-
-		yield* Effect.tryPromise({
-			try: () =>
-				queue.upsertJobScheduler(
-					schedulerId,
-					{ pattern },
-					{
-						name: UPTIME_CHECK_JOB_NAME,
-						data: {
-							scheduleId: monitor.id,
-							trigger: "scheduled" as const,
-						},
-						opts: UPTIME_JOB_OPTIONS,
-					}
-				),
-			catch: (cause) => cause,
-		});
-	});
-
-const syncAll = Effect.gen(function* () {
+export async function syncSchedulers(): Promise<void> {
 	const queue = getUptimeQueue();
+	const monitors = await db
+		.select({
+			id: uptimeSchedules.id,
+			granularity: uptimeSchedules.granularity,
+		})
+		.from(uptimeSchedules)
+		.where(eq(uptimeSchedules.isPaused, false));
 
-	const monitors = yield* Effect.tryPromise({
-		try: () =>
-			db
-				.select({
-					id: uptimeSchedules.id,
-					granularity: uptimeSchedules.granularity,
-				})
-				.from(uptimeSchedules)
-				.where(eq(uptimeSchedules.isPaused, false)),
-		catch: (cause) => cause,
-	});
-
-	const upserted = yield* Ref.make(0);
-	const failed = yield* Ref.make(0);
+	let upserted = 0;
+	let failed = 0;
 
 	for (const monitor of monitors) {
-		yield* syncMonitor(monitor, queue).pipe(
-			Effect.tap(() => Ref.update(upserted, (n) => n + 1)),
-			Effect.catch((error) => {
-				if (error instanceof UnknownGranularity) {
-					log.error({
-						sync: "scheduler",
-						schedule_id: error.scheduleId,
-						error_message: `Unknown granularity: ${error.granularity}`,
-					});
-					return Ref.update(failed, (n) => n + 1);
+		const granularity = parseUptimeGranularity(monitor.granularity);
+		const pattern = granularity ? CRON_GRANULARITIES[granularity] : null;
+		try {
+			if (!pattern) {
+				throw new Error(`Unknown granularity: ${monitor.granularity}`);
+			}
+			await queue.upsertJobScheduler(
+				uptimeSchedulerId(monitor.id),
+				{ pattern },
+				{
+					name: UPTIME_CHECK_JOB_NAME,
+					data: { scheduleId: monitor.id, trigger: "scheduled" },
+					opts: UPTIME_JOB_OPTIONS,
 				}
-
-				log.error({
-					sync: "scheduler",
-					schedule_id: monitor.id,
-					error_message: error instanceof Error ? error.message : String(error),
-				});
-				return Ref.update(failed, (n) => n + 1);
-			})
-		);
+			);
+			upserted += 1;
+		} catch (error) {
+			failed += 1;
+			log.error({
+				sync: "scheduler",
+				schedule_id: monitor.id,
+				error_message: error instanceof Error ? error.message : String(error),
+			});
+		}
 	}
-
-	const [u, f] = yield* Effect.all([Ref.get(upserted), Ref.get(failed)]);
 
 	log.info({
 		sync: "scheduler",
 		total: monitors.length,
-		upserted: u,
-		failed: f,
+		upserted,
+		failed,
 	});
-});
-
-export async function syncSchedulers(): Promise<void> {
-	const exit = await Effect.runPromiseExit(syncAll);
-	if (Exit.isFailure(exit)) {
-		throw Cause.squash(exit.cause);
-	}
 }

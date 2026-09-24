@@ -1,12 +1,15 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { uptimeGranularitySchema } from "@databuddy/shared/uptime";
+import {
+	UPTIME_GRANULARITY_OPTIONS,
+	uptimeGranularitySchema,
+} from "@databuddy/shared/uptime";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
@@ -15,17 +18,6 @@ import { Button, Field, Input } from "@databuddy/ui";
 import { Dialog, DropdownMenu } from "@databuddy/ui/client";
 
 type Mode = "existing" | "create";
-
-const GRANULARITY_OPTIONS = [
-	{ value: "minute", label: "1m" },
-	{ value: "five_minutes", label: "5m" },
-	{ value: "ten_minutes", label: "10m" },
-	{ value: "thirty_minutes", label: "30m" },
-	{ value: "hour", label: "1h" },
-	{ value: "six_hours", label: "6h" },
-	{ value: "twelve_hours", label: "12h" },
-	{ value: "day", label: "24h" },
-] as const;
 
 const createSchema = z.object({
 	name: z.string().optional(),
@@ -53,7 +45,6 @@ export function AddMonitorDialog({
 	const { activeOrganizationId, activeOrganization } =
 		useOrganizationsContext();
 	const resolvedOrgId = activeOrganization?.id ?? activeOrganizationId ?? "";
-	const queryClient = useQueryClient();
 
 	const [mode, setMode] = useState<Mode>("existing");
 	const [selectedScheduleId, setSelectedScheduleId] = useState("");
@@ -106,11 +97,7 @@ export function AddMonitorDialog({
 			toast.success("Monitor added to status page");
 			onCompleteAction();
 			handleClose(false);
-		} catch (error) {
-			const msg =
-				error instanceof Error ? error.message : "Failed to add monitor";
-			toast.error(msg);
-		}
+		} catch {}
 	};
 
 	const handleCreate = async (data: CreateFormData) => {
@@ -123,10 +110,7 @@ export function AddMonitorDialog({
 				granularity: data.granularity,
 			});
 			scheduleId = result.scheduleId;
-		} catch (error) {
-			const msg =
-				error instanceof Error ? error.message : "Failed to create monitor";
-			toast.error(msg);
+		} catch {
 			return;
 		}
 
@@ -139,14 +123,10 @@ export function AddMonitorDialog({
 			onCompleteAction();
 			handleClose(false);
 		} catch {
-			queryClient.invalidateQueries({
-				queryKey: orpc.uptime.listSchedules.key(),
-			});
+			onCompleteAction();
 			setMode("existing");
 			setSelectedScheduleId(scheduleId);
-			toast.error(
-				"Monitor created, but adding it to the page failed. Try adding it again."
-			);
+			toast.info("Monitor created. Try adding it to the page again.");
 		}
 	};
 
@@ -285,14 +265,14 @@ export function AddMonitorDialog({
 									<Field>
 										<Field.Label>Check Frequency</Field.Label>
 										<div className="flex items-center gap-0 rounded border">
-											{GRANULARITY_OPTIONS.map((opt, i) => {
+											{UPTIME_GRANULARITY_OPTIONS.map((opt, i) => {
 												const isActive = field.value === opt.value;
 												return (
 													<Button
 														className={cn(
 															"h-9 flex-1 cursor-pointer whitespace-nowrap rounded-none border-r px-0 font-medium text-sm last:border-r-0",
 															i === 0 && "rounded-l",
-															i === GRANULARITY_OPTIONS.length - 1 &&
+															i === UPTIME_GRANULARITY_OPTIONS.length - 1 &&
 																"rounded-r",
 															isActive
 																? "bg-accent text-accent-foreground hover:bg-accent"

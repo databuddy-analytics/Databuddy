@@ -5,6 +5,7 @@ import {
 	buildUptimeHeatmapDays,
 	UptimeHeatmapStrip,
 } from "@databuddy/ui/uptime";
+import { Skeleton } from "@databuddy/ui";
 
 interface UptimeHeatmapProps {
 	data: {
@@ -59,17 +60,24 @@ export function UptimeHeatmap({
 				<h3 className="text-balance font-semibold text-lg text-sidebar-foreground">
 					Uptime History
 				</h3>
-				<span className="shrink-0 text-muted-foreground text-sm tabular-nums">
-					Last {days} days:{" "}
-					{periodStats.uptime > 0
-						? `${periodStats.uptime.toFixed(2)}%`
-						: "No data"}
-				</span>
+				{isLoading ? (
+					<Skeleton className="h-4 w-32 rounded" />
+				) : (
+					<span className="shrink-0 text-muted-foreground text-sm tabular-nums">
+						Last {days} days:{" "}
+						{periodStats.uptime > 0
+							? `${periodStats.uptime.toFixed(2)}%`
+							: "No data"}
+					</span>
+				)}
 			</div>
 
 			<div className="p-4">
 				{isLoading ? (
-					<div className="grid h-1.5 w-full gap-x-px sm:gap-x-[2px]">
+					<div
+						className="grid h-1.5 w-full gap-x-px sm:gap-x-[2px]"
+						style={{ gridTemplateColumns: `repeat(${days}, minmax(0, 1fr))` }}
+					>
 						{Array.from({ length: days }).map((_, i) => (
 							<div
 								className="h-full animate-pulse rounded-full bg-secondary"

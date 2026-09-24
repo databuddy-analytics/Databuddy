@@ -30,3 +30,27 @@ export function parseUptimeGranularity(
 	const parsed = uptimeGranularitySchema.safeParse(value);
 	return parsed.success ? parsed.data : null;
 }
+
+export const UPTIME_GRANULARITY_LABELS = {
+	minute: "1m",
+	five_minutes: "5m",
+	ten_minutes: "10m",
+	thirty_minutes: "30m",
+	hour: "1h",
+	six_hours: "6h",
+	twelve_hours: "12h",
+	day: "24h",
+} as const satisfies Record<UptimeGranularity, string>;
+
+export const UPTIME_GRANULARITY_OPTIONS = uptimeGranularitySchema.options.map(
+	(value) => ({ value, label: UPTIME_GRANULARITY_LABELS[value] })
+);
+
+export function formatUptimeGranularity(value: string): string {
+	const granularity = parseUptimeGranularity(value);
+	return granularity ? UPTIME_GRANULARITY_LABELS[granularity] : value;
+}
+
+export const RESERVED_STATUS_PAGE_SLUGS: ReadonlySet<string> = new Set([
+	"health",
+]);

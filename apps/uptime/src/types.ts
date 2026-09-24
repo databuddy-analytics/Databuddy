@@ -46,7 +46,3 @@ export const uptimeDeliveryJobDataSchema = z.object({
 export type UptimeData = z.infer<typeof uptimeDataSchema>;
 
 export type ScheduleLookupReason = "not_found" | "malformed" | "transient";
-
-export type ActionResult<T> =
-	| { success: true; data: T }
-	| { success: false; error: string; reason?: ScheduleLookupReason };

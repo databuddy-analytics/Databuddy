@@ -178,11 +178,23 @@ export async function resumeScheduleWithScheduler(
 	granularity: UptimeGranularity,
 	deps: UptimeLifecycleDeps = uptimeLifecycleDeps
 ): Promise<void> {
-	await deps.upsertScheduler(scheduleId, granularity);
 	await deps.store.update(scheduleId, {
 		isPaused: false,
 		updatedAt: deps.now(),
 	});
+	try {
+		await deps.upsertScheduler(scheduleId, granularity);
+	} catch (error) {
+		await deps.store
+			.update(scheduleId, { isPaused: true, updatedAt: deps.now() })
+			.catch((rollbackError) =>
+				logger.error(
+					{ scheduleId, error: rollbackError },
+					"Failed to roll back monitor pause after scheduler resume failure"
+				)
+			);
+		throw error;
+	}
 }
 
 export async function triggerManualUptimeCheck(

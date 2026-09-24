@@ -12,8 +12,6 @@ import {
 	databuddyEvlogRedaction,
 } from "@databuddy/shared/evlog-redaction";
 import { Elysia } from "elysia";
-import { Kafka } from "kafkajs";
-import { Effect } from "effect";
 import { initLogger, log } from "evlog";
 import { evlog } from "evlog/elysia";
 import { UPTIME_ENV } from "./lib/env";
@@ -22,7 +20,7 @@ import {
 	flushBatchedUptimeDrain,
 	uptimeLoggerDrain,
 } from "./lib/evlog-uptime";
-import { disconnectProducer } from "./lib/producer";
+import { disconnectProducer, pingRedpanda } from "./lib/producer";
 import { captureError } from "./lib/tracing";
 import { syncSchedulers } from "./sync-schedulers";
 import { startUptimeDeliveryWorker, startUptimeWorker } from "./worker";
@@ -39,20 +37,13 @@ let uptimeWorker: ReturnType<typeof startUptimeWorker> | null = null;
 let uptimeDeliveryWorker: ReturnType<typeof startUptimeDeliveryWorker> | null =
 	null;
 
-process.on("unhandledRejection", (reason, _promise) => {
+process.on("unhandledRejection", (reason) => {
 	captureError(reason, { process: "unhandledRejection" });
-	log.error({
-		process: "unhandledRejection",
-		reason: reason instanceof Error ? reason.message : String(reason),
-	});
 });
 
 process.on("uncaughtException", (error) => {
-	captureError(error, { process: "uncaughtException" });
-	log.error({
+	captureError(error, {
 		process: "uncaughtException",
-		error_message: error instanceof Error ? error.message : String(error),
-		error_stack: error instanceof Error ? error.stack : undefined,
 		error_source: "process",
 	});
 	shutdown("uncaughtException", 1).catch((shutdownError) => {
@@ -65,66 +56,48 @@ process.on("uncaughtException", (error) => {
 });
 
 const DRAIN_TIMEOUT_MS = 30_000;
+const PROBE_TIMEOUT_MS = 6000;
 
-const drainStep = (step: string, action: () => Promise<void>) =>
-	Effect.tryPromise({
-		try: action,
-		catch: (cause) => cause,
-	}).pipe(
-		Effect.catch((cause) =>
-			Effect.sync(() =>
-				log.error({
-					lifecycle: "shutdown",
-					error_step: step,
-					error_message: cause instanceof Error ? cause.message : String(cause),
-				})
-			)
-		)
-	);
+function withTimeout<T>(
+	promise: Promise<T>,
+	ms: number,
+	label: string
+): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const timeout = new Promise<never>((_, reject) => {
+		timer = setTimeout(
+			() => reject(new Error(`${label} timed out after ${ms}ms`)),
+			ms
+		);
+	});
+	return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 
-const drainAll = (
-	worker: ReturnType<typeof startUptimeWorker> | null,
-	deliveryWorker: ReturnType<typeof startUptimeDeliveryWorker> | null
-) =>
-	Effect.gen(function* () {
-		// Stop source admission before closing the relay, preserving queued events
-		// for the next worker process if the shutdown window expires.
-		yield* drainStep(
-			"uptime_worker_close",
-			() => worker?.close() ?? Promise.resolve()
-		);
-		yield* drainStep(
-			"uptime_delivery_worker_close",
-			() => deliveryWorker?.close() ?? Promise.resolve()
-		);
-		yield* Effect.all(
-			[
-				drainStep("uptime_queue_close", () => closeUptimeQueue()),
-				drainStep("uptime_log_flush", () => flushBatchedUptimeDrain()),
-				drainStep("uptime_postgres_close", () => shutdownPostgres()),
-				drainStep("uptime_producer_disconnect", () => disconnectProducer()),
-			],
-			{ concurrency: "unbounded" }
-		);
-	}).pipe(
-		Effect.timeout(`${DRAIN_TIMEOUT_MS} millis`),
-		Effect.catch((cause) =>
-			Effect.sync(() =>
-				log.error({
-					lifecycle: "shutdown",
-					error_step:
-						cause &&
-						typeof cause === "object" &&
-						"_tag" in cause &&
-						cause._tag === "TimeoutError"
-							? "drain_timeout"
-							: "drain_failed",
-					drain_timeout_ms: DRAIN_TIMEOUT_MS,
-					error_message: cause instanceof Error ? cause.message : String(cause),
-				})
-			)
-		)
+async function drainStep(
+	step: string,
+	action: () => Promise<unknown> | undefined
+): Promise<void> {
+	try {
+		await action();
+	} catch (error) {
+		captureError(error, { lifecycle: "shutdown", error_step: step });
+	}
+}
+
+async function drainAll(): Promise<void> {
+	// Stop source admission before closing the relay, preserving queued events
+	// for the next worker process if the shutdown window expires.
+	await drainStep("uptime_worker_close", () => uptimeWorker?.close());
+	await drainStep("uptime_delivery_worker_close", () =>
+		uptimeDeliveryWorker?.close()
 	);
+	await Promise.all([
+		drainStep("uptime_queue_close", closeUptimeQueue),
+		drainStep("uptime_log_flush", flushBatchedUptimeDrain),
+		drainStep("uptime_postgres_close", shutdownPostgres),
+		drainStep("uptime_producer_disconnect", disconnectProducer),
+	]);
+}
 
 async function shutdown(signal: string, exitCode = 0) {
 	shutdownExitCode = Math.max(shutdownExitCode, exitCode);
@@ -137,7 +110,13 @@ async function shutdown(signal: string, exitCode = 0) {
 	}
 	log.info("lifecycle", `${signal} received, shutting down gracefully`);
 	try {
-		await Effect.runPromise(drainAll(uptimeWorker, uptimeDeliveryWorker));
+		await withTimeout(drainAll(), DRAIN_TIMEOUT_MS, "drain");
+	} catch (error) {
+		captureError(error, {
+			lifecycle: "shutdown",
+			error_step: "drain_timeout",
+			drain_timeout_ms: DRAIN_TIMEOUT_MS,
+		});
 	} finally {
 		process.exit(shutdownExitCode);
 	}
@@ -188,11 +167,9 @@ function startSchedulerResync(): void {
 			uptimeWorker = startUptimeWorker();
 			startSchedulerResync();
 		} catch (error) {
-			captureError(error, { error_step: "uptime_startup" });
-			log.error({
+			captureError(error, {
 				lifecycle: "startup",
 				error_step: "uptime_startup",
-				error_message: error instanceof Error ? error.message : String(error),
 			});
 			await shutdown("startup", 1);
 		}
@@ -211,106 +188,62 @@ type ProbeResult =
 	| { status: "ok"; latency_ms: number }
 	| { status: "error"; latency_ms: number; code: "UNAVAILABLE" };
 
-const PROBE_TIMEOUT_MS = 6000;
+async function probe(
+	name: string,
+	fn: () => Promise<unknown>
+): Promise<ProbeResult> {
+	const start = performance.now();
+	try {
+		await withTimeout(fn(), PROBE_TIMEOUT_MS, name);
+		return { status: "ok", latency_ms: Math.round(performance.now() - start) };
+	} catch (error) {
+		log.error({
+			health_probe: name,
+			error_message: error instanceof Error ? error.message : String(error),
+		});
+		return {
+			status: "error",
+			latency_ms: Math.round(performance.now() - start),
+			code: "UNAVAILABLE",
+		};
+	}
+}
 
-const probe = (name: string, fn: () => Promise<void>) =>
-	Effect.gen(function* () {
-		const start = performance.now();
-		const result = yield* Effect.tryPromise({
-			try: fn,
-			catch: (cause) => cause,
-		}).pipe(
-			Effect.timeout(PROBE_TIMEOUT_MS),
-			Effect.map(
-				(): ProbeResult => ({
-					status: "ok",
-					latency_ms: Math.round(performance.now() - start),
-				})
-			),
-			Effect.catch(
-				(err): Effect.Effect<ProbeResult> =>
-					Effect.sync(() => {
-						log.error({
-							health_probe: name,
-							error_message: err instanceof Error ? err.message : String(err),
-						});
-						return {
-							status: "error",
-							latency_ms: Math.round(performance.now() - start),
-							code: "UNAVAILABLE",
-						};
-					})
-			)
-		);
-		return result;
+async function pingClickHouse(): Promise<void> {
+	const { success } = await clickHouse.ping({
+		abort_signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+		select: false,
 	});
+	if (!success) {
+		throw new Error("ping failed");
+	}
+}
 
-const healthCheck = Effect.gen(function* () {
+async function runHealthCheck() {
 	const deliveryService = readBooleanEnv("SELFHOST")
 		? "clickhouse"
 		: "redpanda";
-	const [postgres, bullmqRedis, delivery] = yield* Effect.all(
-		[
-			probe("postgres", () => db.execute(sql`SELECT 1`).then(() => {})),
-			probe("bullmqRedis", async () => {
-				await getUptimeQueue().count();
-			}),
-			probe(deliveryService, async () => {
-				if (deliveryService === "clickhouse") {
-					const { success } = await clickHouse.ping({
-						abort_signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
-						select: false,
-					});
-					if (!success) {
-						throw new Error("ping failed");
-					}
-					return;
-				}
-				const broker = process.env.REDPANDA_BROKER;
-				if (!broker) {
-					throw new Error("not configured");
-				}
-				const kafka = new Kafka({
-					clientId: "health",
-					brokers: [broker],
-					connectionTimeout: 5000,
-					...(process.env.REDPANDA_USER &&
-						process.env.REDPANDA_PASSWORD && {
-							sasl: {
-								mechanism: "scram-sha-256",
-								username: process.env.REDPANDA_USER,
-								password: process.env.REDPANDA_PASSWORD,
-							},
-						}),
-					ssl: true,
-				});
-				const admin = kafka.admin();
-				try {
-					await admin.connect();
-				} finally {
-					await admin.disconnect().catch(() => {});
-				}
-			}),
-		],
-		{ concurrency: "unbounded" }
-	);
+	const [postgres, bullmqRedis, delivery] = await Promise.all([
+		probe("postgres", () => db.execute(sql`SELECT 1`)),
+		probe("bullmqRedis", () => getUptimeQueue().count()),
+		probe(
+			deliveryService,
+			deliveryService === "clickhouse" ? pingClickHouse : pingRedpanda
+		),
+	]);
 
 	const services = { postgres, bullmqRedis, [deliveryService]: delivery };
 	const status = Object.values(services).every((s) => s.status === "ok")
 		? "ok"
 		: "degraded";
 	return { status, services };
-});
+}
 
 const HEALTH_CACHE_MS = 10_000;
 let healthCache: {
 	at: number;
 	result: Awaited<ReturnType<typeof runHealthCheck>>;
 } | null = null;
-
-function runHealthCheck() {
-	return Effect.runPromise(healthCheck);
-}
 
 async function memoizedHealthCheck() {
 	if (healthCache && performance.now() - healthCache.at < HEALTH_CACHE_MS) {
