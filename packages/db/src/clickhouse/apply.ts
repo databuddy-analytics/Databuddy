@@ -1,7 +1,7 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { clickHouse } from "./client";
-import { readSql, sqlFiles } from "./schema-parse";
+import { parseTable, qualifiedNameOf, readSql, sqlFiles } from "./schema-parse";
 
 const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), "schema");
 
@@ -48,6 +48,20 @@ export async function applyClickHouseSchema(): Promise<{
 			sql = toSingleNode(sql);
 		}
 		await clickHouse.command({ query: sql });
+		if (SINGLE_NODE && tables.includes(file)) {
+			const { columns, indexes } = parseTable(sql);
+			const additions = [
+				...columns.map(
+					(column) => `ADD COLUMN IF NOT EXISTS ${column.definition}`
+				),
+				...indexes.map(
+					(index) => `ADD INDEX IF NOT EXISTS ${index.name} ${index.definition}`
+				),
+			];
+			await clickHouse.command({
+				query: `ALTER TABLE ${qualifiedNameOf(sql)} ${additions.join(", ")}`,
+			});
+		}
 	}
 
 	return { databases, tables: tables.length, views: views.length };

@@ -15,6 +15,7 @@ const TABLE_NAME_PATTERN =
 
 export interface ParsedColumn {
 	computed: boolean;
+	definition: string;
 	hasDefault: boolean;
 	name: string;
 	nullable: boolean;
@@ -140,6 +141,7 @@ export function parseColumns(sql: string): ParsedColumn[] {
 			nullable: isNullable(type),
 			hasDefault: DEFAULT_PATTERN.test(afterName),
 			computed: COMPUTED_PATTERN.test(afterName),
+			definition: item,
 		});
 	}
 	return cols;
