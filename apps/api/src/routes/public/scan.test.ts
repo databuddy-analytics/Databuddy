@@ -161,12 +161,12 @@ describe("public scan endpoint", () => {
 		expect(
 			(await request(JSON.stringify({ catalog, segments: [segment] }))).status
 		).toBe(503);
-		expect(gatewayBodies).toHaveLength(1);
+		expect(gatewayBodies).toHaveLength(2);
 
 		vi.stubEnv("AI_GATEWAY_API_KEY", "");
 		expect(
 			(await request(JSON.stringify({ catalog, segments: [segment] }))).status
 		).toBe(503);
-		expect(gatewayBodies).toHaveLength(1);
+		expect(gatewayBodies).toHaveLength(2);
 	});
 });
