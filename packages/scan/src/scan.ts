@@ -102,6 +102,7 @@ export const hash = (value: string) =>
 const excluded =
 	/(?:^|\/)(?:tests?|__tests__|fixtures?|__fixtures__|__mocks__|examples?|playground|node_modules|dist|\.next|\.agents|\.codex|vendor)(?:\/|$)|\.(?:test|spec|stories|generated|d)\.[^.]+$/i;
 const sourceFile = /\.(?:[cm]?[jt]sx?|vue|swift|py|sh|sql|html|css)$/;
+const routeHandlerLabel = /^(?:GET|POST|PUT|PATCH|DELETE)$/;
 const reviewable = /\.(?:[cm]?[jt]sx?|vue|swift|py)$/;
 const sourceLineBoundary = /(?<=\n)/;
 const secret =
@@ -403,6 +404,19 @@ export async function scan(
 		} else {
 			segments.push(...splitSource(path, source));
 		}
+	}
+	const linkedRoutes = new Set(
+		segments.flatMap((segment) =>
+			(segment.action?.sites ?? [])
+				.filter((site) => site.path !== segment.path)
+				.map((site) => `${site.path}:${site.start}`)
+		)
+	);
+	const linked = (segment: Segment) =>
+		routeHandlerLabel.test(segment.action?.label ?? "") &&
+		linkedRoutes.has(`${segment.path}:${segment.start}`);
+	for (const segment of segments.filter(linked)) {
+		segments.splice(segments.indexOf(segment), 1);
 	}
 	const includedFiles = new Set(segments.map((s) => s.path)).size;
 	if (!cacheOnly) {
