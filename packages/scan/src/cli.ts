@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { realpath } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { Command, CommanderError, Option } from "commander";
 import { z } from "zod";
 import { version } from "../package.json";
 import { hash, scan, scanOptionsSchema } from "./scan";
-import { createTerminal } from "./terminal";
+import { createTerminal, privacy } from "./terminal";
 
 const optionsSchema = scanOptionsSchema.extend({
 	json: z.boolean().default(false),
@@ -15,10 +15,14 @@ const optionsSchema = scanOptionsSchema.extend({
 const command = new Command()
 	.name("databuddy-scan")
 	.description(
-		"Find where your product is missing analytics events.\n\nSource is classified by Jev through Databuddy's scan API with zero data retention; your source is never stored or logged. Set AI_GATEWAY_API_KEY to send it to your own Vercel AI Gateway account instead, and Databuddy receives nothing."
+		`Find where your product is missing analytics events.\n\n${privacy}\n\nResults are cached in ~/.cache/databuddy/scan, so unchanged code is not sent again.`
 	)
 	.version(version)
-	.argument("[path]", "repository to scan", ".")
+	.argument(
+		"[path]",
+		"directory or file to scan; nothing outside it is read",
+		"."
+	)
 	.option("--dry-run", "list the files that would be sent, and send nothing")
 	.option("--json", "print results as JSON")
 	.addOption(new Option("--output <path>").hideHelp())
@@ -37,11 +41,12 @@ async function main() {
 	});
 	const terminal = createTerminal(options);
 	try {
-		let root: string;
+		let root: string, target: string;
 		try {
+			target = await realpath(resolve(options.root));
 			root = await realpath(
 				execFileSync("git", ["rev-parse", "--show-toplevel"], {
-					cwd: resolve(options.root),
+					cwd: (await stat(target)).isFile() ? dirname(target) : target,
 					encoding: "utf8",
 					stdio: ["ignore", "pipe", "pipe"],
 				}).trim()
@@ -61,7 +66,7 @@ async function main() {
 				)
 		);
 		const result = await scan(
-			{ ...options, root, output },
+			{ ...options, root, output, scope: relative(root, target) },
 			terminal.update,
 			terminal.announce
 		);

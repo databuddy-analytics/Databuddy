@@ -6,26 +6,27 @@ Find the places in your codebase where a product analytics event is missing.
 npx @databuddy/scan
 ```
 
-Run it inside a Git repository, or pass a path. No account or key. Node.js 22+, or `bunx @databuddy/scan`.
+Run it inside a Git repository, or pass a folder to scan only that folder. No account or key. Node.js 22+, or `bunx @databuddy/scan`.
 
 ```
   databuddy. / event scan
 
-  Scan complete · 191 files to review · 294 findings · 1m 24s
+  Scan complete · 9 files to review · 13 findings · 14s
 
-  app/billing/topup-card.tsx:135 · Button.onClick · missing · Payments
-  app/settings/two-factor-dialog.tsx:403 · Button.onClick · missing · Setup & onboarding
-  api/integrations/slack.ts:433 · get /slack/callback · missing · Integrations
+  app/api/stripe/checkout/route.ts:9 · GET · missing · Payments
+  app/(dashboard)/pricing/page.tsx:88 · form.action checkoutAction · missing · Payments
+  app/(dashboard)/dashboard/page.tsx:204 · form.action inviteAction · missing · Setup & onboarding
 ```
 
 ## Where your code goes
 
-The scan sends the source of the files it reviews to Databuddy's scan API (`api.databuddy.cc`), which classifies it with Jev under **zero data retention**. **Your source is never stored or logged.** The API only counts scans, using a random run ID, the CLI version and request sizes; nothing identifies you or your repository. The CLI prints where the source is going, with the number of files, before it sends anything.
+The scan sends code to Databuddy's scan API (`api.databuddy.cc`), which classifies it with the Jev model on Vercel AI Gateway under **zero data retention**. For JavaScript and TypeScript it sends only the user actions it finds and the functions they call, not whole files. **Your source is never stored or logged.** The API only counts scans, using a random run ID, the CLI version and request sizes; nothing identifies you or your repository. The CLI prints where the source is going, with the number of files, before it sends anything.
 
-- `--dry-run` lists exactly which files would be sent, and sends nothing.
+- `--dry-run` lists every file and line range that would be sent, and sends nothing. `--dry-run --json` prints the exact payload.
+- `databuddy-scan <folder>` reads and sends nothing outside that folder.
 - To keep source off Databuddy entirely, set `AI_GATEWAY_API_KEY` to your own [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key. Requests then go straight to your account and Databuddy receives nothing.
 
-Only Git-tracked files are read. Tests, examples, symlinks and files that look like they contain secrets are skipped.
+Only Git-tracked files are read. See the [privacy policy](https://www.databuddy.cc/privacy). Tests, examples, symlinks and files that look like they contain secrets are skipped.
 
 ## For agents
 
@@ -33,17 +34,17 @@ Only Git-tracked files are read. Tests, examples, symlinks and files that look l
 npx @databuddy/scan --json
 ```
 
-Prints every finding with its file, line, coverage (`missing`, `partial`, `covered`), product area and priority. `summary.destination` and `summary.zeroDataRetention` state where the source went. The privacy notice goes to stderr, so stdout stays valid JSON.
+Prints every finding with its file, line, coverage (`missing`, `partial`, `covered`), product area and priority, most important first. `summary.destination` and `summary.zeroDataRetention` state where the source went. The privacy notice goes to stderr, so stdout is always one JSON document, including `{"error": ...}` on failure.
 
 ## Options
 
 | | |
 | --- | --- |
-| `[path]` | Repository to scan. Defaults to the current one. |
-| `--dry-run` | List the files that would be sent. Sends nothing. |
+| `[path]` | Folder or file to scan. Defaults to the current folder. |
+| `--dry-run` | List the lines that would be sent. Sends nothing. |
 | `--json` | Print results as JSON. |
 
-Running again is fast: finished work is cached, and an interrupted scan resumes where it stopped. Findings are suggestions to review; the scanner never edits your code.
+Running again is fast: results are cached in `~/.cache/databuddy/scan`, unchanged code is not sent again, and an interrupted scan resumes where it stopped. Findings are suggestions to review; the scanner never edits your code.
 
 ## Contributing
 
