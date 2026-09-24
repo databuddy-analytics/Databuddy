@@ -8,6 +8,7 @@ export interface Site {
 }
 export interface Action {
 	end: number;
+	excerpts: Site[];
 	issues: string[];
 	label: string;
 	sites: Site[];
@@ -41,6 +42,8 @@ const handlers = new Set([
 	"onClick",
 	"onSubmit",
 	"onCopy",
+	"action",
+	"formAction",
 	"onValueChange",
 	"onCheckedChange",
 	"onSelect",
@@ -77,6 +80,9 @@ const routineCall =
 const afterHook = /^after[A-Z]/;
 const hookContainer = /^(?:hooks|organizationHooks|databaseHooks)$/;
 const trackingCall = /^(?:track|capture|logEvent)/;
+const whitespaceRun = /\s+/g;
+const formAttributes = new Set(["action", "formAction"]);
+const formHook = /^(?:React\.)?use(?:ActionState|FormState)$/;
 
 function writesOverFetch(
 	call: ts.CallExpression,
@@ -511,6 +517,17 @@ export function groupActions(
 			})
 		);
 	}
+	function describe(initializer: ts.Node | undefined, labels: string[]) {
+		const expression =
+			initializer && ts.isJsxExpression(initializer) && initializer.expression
+				? unwrap(initializer.expression)
+				: undefined;
+		if (expression && ts.isIdentifier(expression)) {
+			return ` ${expression.text}`;
+		}
+		const text = labels.join(" ").replace(whitespaceRun, " ").trim();
+		return text ? ` "${text.slice(0, 60)}"` : "";
+	}
 	const roots: {
 		node: ts.Node;
 		owner: ts.Node;
@@ -519,6 +536,7 @@ export function groupActions(
 		component?: string;
 		wrapper?: ts.Node;
 		route?: ts.Node;
+		needsWrite?: boolean;
 	}[] = [];
 	walk(unit.file, (node) => {
 		if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
@@ -543,7 +561,10 @@ export function groupActions(
 					attribute.initializer.expression &&
 					![ts.SyntaxKind.NullKeyword, ts.SyntaxKind.FalseKeyword].includes(
 						attribute.initializer.expression.kind
-					)
+					) &&
+					(!formAttributes.has(attribute.name.getText(unit.file)) ||
+						ts.isIdentifier(unwrap(attribute.initializer.expression)) ||
+						isFunction(unwrap(attribute.initializer.expression)))
 			);
 			const labels: string[] = [];
 			const visible = (part: ts.Node) => {
@@ -595,7 +616,7 @@ export function groupActions(
 							(attribute.initializer as ts.JsxExpression).expression
 					)
 					.filter((expression): expression is ts.Expression => !!expression),
-				label: `${tag}.${active[0]?.name.getText(unit.file) ?? (component === "CopyButton" ? "copy" : "intent")}`,
+				label: `${tag}.${active[0]?.name.getText(unit.file) ?? (component === "CopyButton" ? "copy" : "intent")}${describe(active[0]?.initializer, labels)}`,
 				...(component === "CopyButton" ? { component: tag } : {}),
 			});
 		}
@@ -654,7 +675,7 @@ export function groupActions(
 			ts.isFunctionDeclaration(node) &&
 			node.name &&
 			node.body &&
-			writeMethods.has(node.name.text) &&
+			httpMethods.has(node.name.text) &&
 			ts
 				.getModifiers(node)
 				?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
@@ -664,6 +685,7 @@ export function groupActions(
 				owner: node,
 				callbacks: [node],
 				label: node.name.text,
+				needsWrite: !writeMethods.has(node.name.text),
 			});
 		}
 		if (
@@ -694,7 +716,8 @@ export function groupActions(
 	return roots.flatMap((root) => {
 		const issues = new Set<string>(),
 			sites = new Map<string, Site>(),
-			contexts = new Map<string, string>();
+			contexts = new Map<string, string>(),
+			excerpts: Site[] = [];
 		let characters = 0;
 		const addSite = (owner: Unit, node: ts.Node) => {
 			const location = site(owner, node);
@@ -713,6 +736,7 @@ export function groupActions(
 				return;
 			}
 			contexts.set(key, framed);
+			excerpts.push(location);
 			characters += framed.length + 2;
 		};
 		addSite(unit, root.node);
@@ -824,20 +848,48 @@ export function groupActions(
 				}
 			});
 		}
-		for (const callback of root.callbacks) {
-			const expression = unwrap(callback);
-			if (ts.isIdentifier(expression)) {
-				const resolved = resolve(unit, expression.text, expression, issues);
-				if (resolved && !ts.isParameter(resolved.node)) {
-					evidence(resolved.unit, resolved.node, 0);
-				} else {
-					issues.add(`unresolved_callback:${expression.text}`);
-				}
-			} else if (isFunction(expression)) {
-				evidence(unit, expression, 0);
-			} else {
-				issues.add(`unresolved_callback:${expression.getText(unit.file)}`);
+		function follow(owner: Unit, input: ts.Node) {
+			const expression = unwrap(input);
+			if (isFunction(expression)) {
+				evidence(owner, expression, 0);
+				return;
 			}
+			if (ts.isConditionalExpression(expression)) {
+				follow(owner, expression.whenTrue);
+				follow(owner, expression.whenFalse);
+				return;
+			}
+			const resolved = ts.isIdentifier(expression)
+				? resolve(owner, expression.text, expression, issues)
+				: undefined;
+			if (!resolved || ts.isParameter(resolved.node)) {
+				issues.add(`unresolved_callback:${expression.getText(owner.file)}`);
+				return;
+			}
+			const holder = resolved.node.parent?.parent;
+			const hook =
+				ts.isBindingElement(resolved.node) &&
+				holder &&
+				ts.isVariableDeclaration(holder) &&
+				holder.initializer
+					? unwrap(holder.initializer)
+					: undefined;
+			if (
+				hook &&
+				ts.isCallExpression(hook) &&
+				formHook.test(hook.expression.getText(resolved.unit.file)) &&
+				hook.arguments[0] &&
+				!visited.has(hook)
+			) {
+				visited.add(hook);
+				addContext(resolved.unit, declaration(holder));
+				follow(resolved.unit, hook.arguments[0]);
+				return;
+			}
+			evidence(resolved.unit, resolved.node, 0);
+		}
+		for (const callback of root.callbacks) {
+			follow(unit, callback);
 		}
 		if (root.component) {
 			const resolved = resolve(unit, root.component, root.node, issues);
@@ -861,7 +913,7 @@ export function groupActions(
 				}
 			}
 		}
-		if (selection.test(root.label) && !commits) {
+		if ((selection.test(root.label) || root.needsWrite) && !commits) {
 			return [];
 		}
 		const location = site(unit, root.node);
@@ -873,6 +925,7 @@ export function groupActions(
 				source: [...contexts.values()].join("\n\n"),
 				sites: [...sites.values()],
 				issues: [...issues],
+				excerpts,
 			},
 		];
 	});
