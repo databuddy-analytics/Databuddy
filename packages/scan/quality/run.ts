@@ -8,6 +8,7 @@ import { z } from "zod";
 import { groupActions } from "../src/actions";
 import {
 	type Attempt,
+	type JsonValue,
 	type Row,
 	type Segment,
 	createRequest,
@@ -505,7 +506,7 @@ async function main() {
 				outputTokens: 0,
 				costUsd: null,
 			};
-			let raw: unknown;
+			let raw: JsonValue = null;
 			try {
 				raw = await requestEvaluation(prepared.body, {
 					apiKey,
