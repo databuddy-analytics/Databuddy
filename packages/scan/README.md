@@ -11,12 +11,14 @@ Run it inside a Git repository, or pass a folder to scan only that folder. No ac
 ```
   databuddy. / event scan
 
-  Scan complete · 9 files to review · 13 findings · 14s
+  Scan complete · 13 findings in 9 files · 14s
 
   app/api/stripe/checkout/route.ts:9 · GET · missing · Payments
   app/(dashboard)/pricing/page.tsx:88 · form.action checkoutAction · missing · Payments
   app/(dashboard)/dashboard/page.tsx:204 · form.action inviteAction · missing · Setup & onboarding
 ```
+
+It recognises React and JSX handlers, form and server actions, Vue and Svelte components, inline HTML handlers, `addEventListener`, and Next.js, Express-style and Hono route handlers. If it finds actions in only a small share of your files, it says so rather than reporting a clean result.
 
 ## Where your code goes
 

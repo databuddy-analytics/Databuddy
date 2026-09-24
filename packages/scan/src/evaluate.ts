@@ -42,14 +42,14 @@ export interface EvaluationOptions {
 	timeoutMs: number;
 }
 
-export const coverageSchema = z.enum([
+const coverageSchema = z.enum([
 	"missing",
 	"partial",
 	"covered",
 	"operational",
 	"uncertain",
 ]);
-export const categorySchema = z.enum([
+const categorySchema = z.enum([
 	"activation",
 	"revenue",
 	"investigation",
@@ -60,8 +60,6 @@ export const categorySchema = z.enum([
 	"acquisition",
 	"none",
 ]);
-export type Coverage = z.infer<typeof coverageSchema>;
-export type Category = z.infer<typeof categorySchema>;
 const probability = z.number().min(0).max(1);
 const probabilities = z.record(z.string(), probability).nullish();
 const coverageAnswer = z.object({ choice: coverageSchema, probabilities });
@@ -116,39 +114,16 @@ export const scanRequestSchema = z.object({
 		warehouseWrites: catalogEntries,
 	}),
 });
-const responseSchema = z.object({ answers: z.record(z.string(), z.unknown()) });
-const numeric = z
-	.union([z.number(), z.string().trim().min(1)])
-	.pipe(z.coerce.number<string | number>().nonnegative());
-const usageSchema = z
-	.object({ inputTokens: numeric.catch(0), outputTokens: numeric.catch(0) })
-	.catch({ inputTokens: 0, outputTokens: 0 });
-const metadataSchema = z
-	.object({
-		gateway: z
-			.object({ cost: numeric.nullish().catch(null) })
-			.catch({ cost: null }),
-	})
-	.catch({ gateway: { cost: null } });
-
-export function readUsage(raw: JsonValue) {
-	const result = z
-		.object({
-			usage: z.unknown().optional(),
-			providerMetadata: z.unknown().optional(),
-		})
-		.safeParse(raw);
-	const usage = usageSchema.parse(
-		result.success ? result.data.usage : undefined
-	);
-	const metadata = metadataSchema.parse(
-		result.success ? result.data.providerMetadata : undefined
-	);
-	return { ...usage, costUsd: metadata.gateway.cost ?? null };
-}
+const tokens = z.number().nonnegative().catch(0);
+const responseSchema = z.object({
+	answers: z.record(z.string(), z.unknown()),
+	usage: z
+		.object({ inputTokens: tokens, outputTokens: tokens })
+		.catch({ inputTokens: 0, outputTokens: 0 }),
+});
 
 export function parseResponse(raw: JsonValue, jobs: Segment[]) {
-	const { answers } = responseSchema.parse(raw);
+	const { answers, usage } = responseSchema.parse(raw);
 	const rows: Row[] = jobs.map((job, index) => {
 		const coverage = coverageAnswer.parse(answers[`coverage_${index}`]);
 		const category = categoryAnswer.parse(answers[`category_${index}`]);
@@ -165,7 +140,7 @@ export function parseResponse(raw: JsonValue, jobs: Segment[]) {
 			...(job.action ? { action: job.action } : {}),
 		});
 	});
-	return { rows, ...readUsage(raw) };
+	return { rows, ...usage };
 }
 
 const coverage = {
