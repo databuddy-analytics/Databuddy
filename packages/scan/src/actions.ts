@@ -8,6 +8,7 @@ export interface Site {
 }
 export interface Action {
 	end: number;
+	excerpts: Site[];
 	issues: string[];
 	label: string;
 	sites: Site[];
@@ -41,6 +42,8 @@ const handlers = new Set([
 	"onClick",
 	"onSubmit",
 	"onCopy",
+	"action",
+	"formAction",
 	"onValueChange",
 	"onCheckedChange",
 	"onSelect",
@@ -55,6 +58,11 @@ const writes = new Set([
 	"insert",
 	"update",
 	"delete",
+	"create",
+	"upsert",
+	"createMany",
+	"updateMany",
+	"deleteMany",
 ]);
 const httpWrites = new Set(["post", "put", "patch"]);
 const readMethod = /^(?:get|head|options)$/i;
@@ -77,6 +85,10 @@ const routineCall =
 const afterHook = /^after[A-Z]/;
 const hookContainer = /^(?:hooks|organizationHooks|databaseHooks)$/;
 const trackingCall = /^(?:track|capture|logEvent)/;
+const whitespaceRun = /\s+/g;
+const pending = /(?:\.\.\.|\u2026)\s*$/;
+const formAttributes = new Set(["action", "formAction"]);
+const formHook = /^(?:React\.)?use(?:ActionState|FormState)$/;
 
 function writesOverFetch(
 	call: ts.CallExpression,
@@ -184,6 +196,76 @@ function lookup(unit: Unit, name: string, at: ts.Node): ts.Node | undefined {
 			return found;
 		}
 	}
+}
+
+const appRoute = /(?:^|\/)app\/(.+)\/route\.[cm]?[jt]sx?$/;
+const pagesRoute = /(?:^|\/)pages\/(api\/.+?)(?:\/index)?\.[cm]?[jt]sx?$/;
+const routeGroup = /^\(.*\)$/;
+const queryOrHash = /[?#]/;
+const genericHandler =
+	/^(?:on(?:Click|Submit|Select|Change)|handle(?:Click|Submit|Change)|submit|handler|callback|formAction)$/;
+const entities: Record<string, string> = {
+	"&apos;": "'",
+	"&#39;": "'",
+	"&quot;": '"',
+	"&amp;": "&",
+	"&lt;": "<",
+	"&gt;": ">",
+	"&nbsp;": " ",
+};
+const entity = /&(?:apos|#39|quot|amp|lt|gt|nbsp);/g;
+const routeTables = new WeakMap<
+	ReadonlyMap<string, string>,
+	{ export: "default" | "method"; parts: string[]; path: string }[]
+>();
+function routeTable(sources: ReadonlyMap<string, string>) {
+	let table = routeTables.get(sources);
+	if (!table) {
+		table = [];
+		for (const path of sources.keys()) {
+			const app = appRoute.exec(path);
+			const pages = app ? null : pagesRoute.exec(path);
+			const route = app?.[1] ?? pages?.[1];
+			if (route) {
+				table.push({
+					path,
+					export: app ? "method" : "default",
+					parts: route.split("/").filter((part) => !routeGroup.test(part)),
+				});
+			}
+		}
+		routeTables.set(sources, table);
+	}
+	return table;
+}
+function urlParts(input: ts.Node): (string | null)[] | undefined {
+	const node = unwrap(input);
+	const text = ts.isStringLiteralLike(node)
+		? node.text
+		: ts.isTemplateExpression(node)
+			? node.head.text +
+				node.templateSpans.map((span) => `\0${span.literal.text}`).join("")
+			: undefined;
+	const pathname = text?.split(queryOrHash)[0];
+	if (!pathname?.startsWith("/")) {
+		return;
+	}
+	return pathname
+		.split("/")
+		.filter(Boolean)
+		.map((part) => (part.includes("\0") ? null : part));
+}
+function routeMatches(route: string[], url: (string | null)[]) {
+	for (const [index, part] of route.entries()) {
+		if (part.startsWith("[...") || part.startsWith("[[...")) {
+			return url.length > index || part.startsWith("[[");
+		}
+		const piece = url[index];
+		if (piece === undefined || !(part.startsWith("[") || piece === part)) {
+			return false;
+		}
+	}
+	return route.length === url.length;
 }
 
 export function groupActions(
@@ -511,6 +593,72 @@ export function groupActions(
 			})
 		);
 	}
+	function describe(initializer: ts.Node | undefined, labels: string[]) {
+		const expression =
+			initializer && ts.isJsxExpression(initializer) && initializer.expression
+				? unwrap(initializer.expression)
+				: undefined;
+		if (
+			expression &&
+			ts.isIdentifier(expression) &&
+			!genericHandler.test(expression.text)
+		) {
+			return ` ${expression.text}`;
+		}
+		const text = labels
+			.join(" ")
+			.replace(entity, (match) => entities[match] ?? match)
+			.replace(whitespaceRun, " ")
+			.trim();
+		return text ? ` "${text.slice(0, 40)}"` : "";
+	}
+	function routeHandler(
+		call: ts.CallExpression,
+		owner: Unit,
+		issues: Set<string>
+	): Reference | undefined {
+		const url = call.arguments[0] && urlParts(call.arguments[0]);
+		if (!url) {
+			return;
+		}
+		const dynamic = (parts: string[]) =>
+			parts.filter((part) => part.startsWith("[")).length;
+		const matches = routeTable(sources)
+			.filter((route) => routeMatches(route.parts, url))
+			.sort((a, b) => dynamic(a.parts) - dynamic(b.parts));
+		const route =
+			matches.length === 1 ||
+			(matches[0] &&
+				matches[1] &&
+				dynamic(matches[0].parts) < dynamic(matches[1].parts))
+				? matches[0]
+				: undefined;
+		if (!route) {
+			return;
+		}
+		const init = call.arguments[1];
+		const method =
+			init && ts.isObjectLiteralExpression(init)
+				? init.properties.find(
+						(property): property is ts.PropertyAssignment =>
+							ts.isPropertyAssignment(property) &&
+							property.name.getText(owner.file) === "method"
+					)?.initializer
+				: undefined;
+		const target = parse(route.path, sources.get(route.path) ?? "");
+		if (!target) {
+			return;
+		}
+		return exported(
+			target,
+			route.export === "default"
+				? "default"
+				: method && ts.isStringLiteralLike(method)
+					? method.text.toUpperCase()
+					: "GET",
+			issues
+		);
+	}
 	const roots: {
 		node: ts.Node;
 		owner: ts.Node;
@@ -519,6 +667,7 @@ export function groupActions(
 		component?: string;
 		wrapper?: ts.Node;
 		route?: ts.Node;
+		needsWrite?: boolean;
 	}[] = [];
 	walk(unit.file, (node) => {
 		if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
@@ -543,21 +692,45 @@ export function groupActions(
 					attribute.initializer.expression &&
 					![ts.SyntaxKind.NullKeyword, ts.SyntaxKind.FalseKeyword].includes(
 						attribute.initializer.expression.kind
-					)
+					) &&
+					(!formAttributes.has(attribute.name.getText(unit.file)) ||
+						ts.isIdentifier(unwrap(attribute.initializer.expression)) ||
+						isFunction(unwrap(attribute.initializer.expression)))
 			);
 			const labels: string[] = [];
+			const buttonText = (part: ts.Node): ts.Node | undefined =>
+				ts.isJsxElement(part) &&
+				part.openingElement.tagName
+					.getText(unit.file)
+					.toLowerCase()
+					.endsWith("button")
+					? part
+					: ts.forEachChild(part, buttonText);
 			const visible = (part: ts.Node) => {
 				if (ts.isJsxAttribute(part)) {
 					return;
 				}
-				if (ts.isJsxText(part) || ts.isStringLiteralLike(part)) {
+				if (
+					(ts.isJsxText(part) ||
+						(ts.isStringLiteralLike(part) &&
+							!ts.isBinaryExpression(part.parent))) &&
+					!pending.test(part.text)
+				) {
 					labels.push(part.text);
 				}
 				ts.forEachChild(part, visible);
 			};
 			if (ts.isJsxElement(whole)) {
-				for (const child of whole.children) {
-					visible(child);
+				const button =
+					component.toLowerCase() === "form"
+						? whole.children.map(buttonText).find(Boolean)
+						: undefined;
+				if (button) {
+					visible(button);
+				} else if (component.toLowerCase() !== "form") {
+					for (const child of whole.children) {
+						visible(child);
+					}
 				}
 			}
 			for (const attribute of attributes) {
@@ -595,7 +768,7 @@ export function groupActions(
 							(attribute.initializer as ts.JsxExpression).expression
 					)
 					.filter((expression): expression is ts.Expression => !!expression),
-				label: `${tag}.${active[0]?.name.getText(unit.file) ?? (component === "CopyButton" ? "copy" : "intent")}`,
+				label: `${tag}.${active[0]?.name.getText(unit.file) ?? (component === "CopyButton" ? "copy" : "intent")}${describe(active[0]?.initializer, labels)}`,
 				...(component === "CopyButton" ? { component: tag } : {}),
 			});
 		}
@@ -654,7 +827,7 @@ export function groupActions(
 			ts.isFunctionDeclaration(node) &&
 			node.name &&
 			node.body &&
-			writeMethods.has(node.name.text) &&
+			httpMethods.has(node.name.text) &&
 			ts
 				.getModifiers(node)
 				?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
@@ -664,6 +837,7 @@ export function groupActions(
 				owner: node,
 				callbacks: [node],
 				label: node.name.text,
+				needsWrite: !writeMethods.has(node.name.text),
 			});
 		}
 		if (
@@ -694,7 +868,8 @@ export function groupActions(
 	return roots.flatMap((root) => {
 		const issues = new Set<string>(),
 			sites = new Map<string, Site>(),
-			contexts = new Map<string, string>();
+			contexts = new Map<string, string>(),
+			excerpts: Site[] = [];
 		let characters = 0;
 		const addSite = (owner: Unit, node: ts.Node) => {
 			const location = site(owner, node);
@@ -713,6 +888,7 @@ export function groupActions(
 				return;
 			}
 			contexts.set(key, framed);
+			excerpts.push(location);
 			characters += framed.length + 2;
 		};
 		addSite(unit, root.node);
@@ -765,13 +941,13 @@ export function groupActions(
 				const callee = child.expression;
 				if (ts.isPropertyAccessExpression(callee)) {
 					const method = callee.name.text;
-					if (writes.has(method) || httpWrites.has(method)) {
+					const write =
+						writes.has(method) &&
+						callee.expression.getText(owner.file) !== "Object";
+					if (write || httpWrites.has(method)) {
 						commits = true;
 					}
-					if (
-						writes.has(method) ||
-						["track", "capture", "logEvent"].includes(method)
-					) {
+					if (write || ["track", "capture", "logEvent"].includes(method)) {
 						addSite(owner, child);
 					}
 					if (
@@ -793,8 +969,15 @@ export function groupActions(
 				if (trackingCall.test(callee.text)) {
 					addSite(owner, child);
 				}
-				if (callee.text === "fetch" && writesOverFetch(child, owner)) {
-					commits = true;
+				if (callee.text === "fetch") {
+					if (writesOverFetch(child, owner)) {
+						commits = true;
+					}
+					const handler = routeHandler(child, owner, issues);
+					if (handler && depth < 2) {
+						addSite(handler.unit, handler.node);
+						evidence(handler.unit, handler.node, depth + 1);
+					}
 				}
 				const resolved = resolve(owner, callee.text, child, issues);
 				if (resolved?.unit.stateSetters.has(resolved.node)) {
@@ -824,20 +1007,60 @@ export function groupActions(
 				}
 			});
 		}
-		for (const callback of root.callbacks) {
-			const expression = unwrap(callback);
-			if (ts.isIdentifier(expression)) {
-				const resolved = resolve(unit, expression.text, expression, issues);
-				if (resolved && !ts.isParameter(resolved.node)) {
-					evidence(resolved.unit, resolved.node, 0);
-				} else {
-					issues.add(`unresolved_callback:${expression.text}`);
-				}
-			} else if (isFunction(expression)) {
-				evidence(unit, expression, 0);
-			} else {
-				issues.add(`unresolved_callback:${expression.getText(unit.file)}`);
+		function follow(owner: Unit, input: ts.Node) {
+			const expression = unwrap(input);
+			if (isFunction(expression)) {
+				evidence(owner, expression, 0);
+				return;
 			}
+			if (ts.isConditionalExpression(expression)) {
+				follow(owner, expression.whenTrue);
+				follow(owner, expression.whenFalse);
+				return;
+			}
+			if (ts.isCallExpression(expression)) {
+				const handlers = expression.arguments.filter(
+					(argument) =>
+						isFunction(unwrap(argument)) || ts.isIdentifier(unwrap(argument))
+				);
+				for (const argument of handlers) {
+					follow(owner, argument);
+				}
+				if (handlers.length) {
+					return;
+				}
+			}
+			const resolved = ts.isIdentifier(expression)
+				? resolve(owner, expression.text, expression, issues)
+				: undefined;
+			if (!resolved || ts.isParameter(resolved.node)) {
+				issues.add(`unresolved_callback:${expression.getText(owner.file)}`);
+				return;
+			}
+			const holder = resolved.node.parent?.parent;
+			const hook =
+				ts.isBindingElement(resolved.node) &&
+				holder &&
+				ts.isVariableDeclaration(holder) &&
+				holder.initializer
+					? unwrap(holder.initializer)
+					: undefined;
+			if (
+				hook &&
+				ts.isCallExpression(hook) &&
+				formHook.test(hook.expression.getText(resolved.unit.file)) &&
+				hook.arguments[0] &&
+				!visited.has(hook)
+			) {
+				visited.add(hook);
+				addContext(resolved.unit, declaration(holder));
+				follow(resolved.unit, hook.arguments[0]);
+				return;
+			}
+			evidence(resolved.unit, resolved.node, 0);
+		}
+		for (const callback of root.callbacks) {
+			follow(unit, callback);
 		}
 		if (root.component) {
 			const resolved = resolve(unit, root.component, root.node, issues);
@@ -861,7 +1084,7 @@ export function groupActions(
 				}
 			}
 		}
-		if (selection.test(root.label) && !commits) {
+		if ((selection.test(root.label) || root.needsWrite) && !commits) {
 			return [];
 		}
 		const location = site(unit, root.node);
@@ -873,6 +1096,7 @@ export function groupActions(
 				source: [...contexts.values()].join("\n\n"),
 				sites: [...sites.values()],
 				issues: [...issues],
+				excerpts,
 			},
 		];
 	});

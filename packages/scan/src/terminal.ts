@@ -2,13 +2,12 @@ import { join } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import chalk, { Chalk, chalkStderr } from "chalk";
 import { createLogUpdate } from "log-update";
-import type { Row } from "./evaluate.js";
-import type { ScanResult } from "./scan.js";
+import { hostedScanUrl, type Row } from "./evaluate.js";
+import type { Destination, ScanResult, SentFile } from "./scan.js";
 
 export interface Snapshot {
 	active: number;
 	batches: number;
-	cacheOnly: boolean;
 	classifiedFiles: number;
 	completedBatches: number;
 	elapsedSeconds: number;
@@ -29,15 +28,15 @@ const areas = {
 	acquisition: "Acquisition",
 	none: "Other actions",
 };
+export const privacy = `Code is sent to Databuddy's scan API (${new URL(hostedScanUrl).host}), which classifies it with the Jev model (typesafe-ai/jev) on Vercel AI Gateway under zero data retention: your source is never stored or logged. For JavaScript and TypeScript only the actions it finds and the functions they call are sent, not whole files; --dry-run lists every line without sending anything. Set AI_GATEWAY_API_KEY to send it to your own Vercel AI Gateway account instead, and Databuddy receives nothing. Privacy policy: https://www.databuddy.cc/privacy`;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: Source paths and provider labels must not control the terminal.
 const controls = /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g;
 export const clean = (value: string | number | null | undefined) =>
 	stripVTControlCharacters(String(value ?? "")).replace(controls, "");
-const disputed = (row: Row) => (row.category === "none" ? 1 : 0);
 const gaps = (rows: Row[]) =>
-	rows
-		.filter((row) => row.coverage === "missing" || row.coverage === "partial")
-		.sort((a, b) => disputed(a) - disputed(b) || b.priority - a.priority);
+	rows.filter(
+		(row) => row.coverage === "missing" || row.coverage === "partial"
+	);
 function uniqueFiles(rows: Row[]) {
 	const found = new Map<string, Row>();
 	for (const row of rows) {
@@ -55,19 +54,12 @@ const location = (row: Row, root = "") =>
 	`${clean(root ? join(root, row.path) : row.path)}:${row.start}`;
 interface Options {
 	json?: boolean;
-	plain?: boolean;
-	verbose?: boolean;
 }
 
-export function createTerminal({
-	json = false,
-	plain = false,
-	verbose = false,
-}: Options = {}) {
+export function createTerminal({ json = false }: Options = {}) {
 	const interactive =
-		process.stderr.isTTY && process.env.TERM !== "dumb" && !plain && !json;
+		process.stderr.isTTY && process.env.TERM !== "dumb" && !json;
 	const noColor =
-		plain ||
 		json ||
 		Object.hasOwn(process.env, "NO_COLOR") ||
 		process.env.TERM === "dumb";
@@ -77,8 +69,7 @@ export function createTerminal({
 	const live = createLogUpdate(process.stderr);
 	const print = (lines: string[]) =>
 		process.stdout.write(`${lines.join("\n")}\n`);
-	const title = (suffix = "") =>
-		`  ${output.bold("databuddy.")} ${output.dim(`/ event scan${suffix}`)}`;
+	const title = `  ${output.bold("databuddy.")} ${output.dim("/ event scan")}`;
 	let rendered = false;
 
 	function stop() {
@@ -98,192 +89,121 @@ export function createTerminal({
 			? Math.min(1, snapshot.completedBatches / snapshot.batches)
 			: 0;
 		const filled = Math.round(fraction * 28);
-		const lines = [
-			`  ${progress.bold("databuddy.")} ${progress.dim("/ event scan")}`,
-			"",
-			`  ${snapshot.cacheOnly ? "Reading saved responses" : "Scanning your code"}`,
-			`  ${progress.hex("#e3a514")("━".repeat(filled))}${progress.dim("─".repeat(28 - filled))} ${Math.round(fraction * 100)}%`,
-			`  ${snapshot.classifiedFiles} / ${snapshot.includedFiles} files · ${elapsed(snapshot.elapsedSeconds)}`,
-			"",
-			progress.hex("#e3a514")(`  ${found.length} files to review`),
-			...found
-				.slice(0, 3)
-				.map((row) => `  ${location(row)} · ${areas[row.category]}`),
-		];
-		if (verbose) {
-			lines.push(
-				`  ${snapshot.active} active · ${snapshot.retries} retries · ${snapshot.failures} failed`
-			);
-		}
 		rendered = true;
-		live(lines.join("\n"));
+		live(
+			[
+				title,
+				"",
+				`  ${progress.hex("#e3a514")("━".repeat(filled))}${progress.dim("─".repeat(28 - filled))} ${Math.round(fraction * 100)}%`,
+				`  ${snapshot.classifiedFiles} / ${snapshot.includedFiles} files · ${elapsed(snapshot.elapsedSeconds)}`,
+				"",
+				progress.hex("#e3a514")(`  ${found.length} files to review`),
+				...found
+					.slice(0, 3)
+					.map((row) => `  ${location(row)} · ${areas[row.category]}`),
+			].join("\n")
+		);
 	}
 
-	function finish(
-		result: ScanResult,
-		options: { saved?: boolean; directory?: string } = {}
-	) {
+	function announce({
+		destination,
+		files,
+	}: {
+		destination: Destination;
+		files: number;
+	}) {
+		process.stderr.write(
+			files === 0
+				? "Nothing to send: every result is cached from an earlier scan.\n"
+				: destination.kind === "databuddy"
+					? `Sending code from ${files} files to Databuddy's scan API (${destination.host}). Jev classifies it on Vercel AI Gateway with zero data retention; your source is never stored or logged. Preview with --dry-run, or set AI_GATEWAY_API_KEY to use your own gateway. https://www.databuddy.cc/privacy\n`
+					: `Sending code from ${files} files directly to your Vercel AI Gateway account (${destination.host}) with zero data retention. Databuddy receives nothing.\n`
+		);
+	}
+
+	function dryRun(result: {
+		destination: Destination;
+		files: SentFile[];
+		payload: object;
+		skippedFiles: number;
+	}) {
+		if (json) {
+			return print([
+				JSON.stringify({ ...result, sent: false, zeroDataRetention: true }),
+			]);
+		}
+		const width = Math.max(0, ...result.files.map((file) => file.path.length));
+		if (result.files.length === 0) {
+			return print([
+				"",
+				title,
+				"",
+				`  Nothing to send: none of the ${result.skippedFiles} files here has a user action to review. Scan a wider folder.`,
+				"",
+			]);
+		}
+		print([
+			"",
+			title,
+			"",
+			`  Would send these lines from ${result.files.length} ${result.files.length === 1 ? "file" : "files"} to ${result.destination.host}. Nothing was sent.`,
+			"",
+			...result.files.map(
+				(file) =>
+					`  ${clean(file.path).padEnd(width)}  ${file.lines.map(([start, end]) => (start === end ? start : `${start}-${end}`)).join(", ")}`
+			),
+			"",
+			`  ${result.skippedFiles} files have nothing to review and are not sent. --dry-run --json prints the exact payload.`,
+			"",
+		]);
+	}
+
+	function finish(result: ScanResult) {
 		stop();
 		if (json) {
 			return print([JSON.stringify(result)]);
 		}
 		const { summary: s, rows } = result;
-		const flagged = gaps(rows),
-			found = uniqueFiles(flagged);
-		const uncertain = rows.filter((row) => row.coverage === "uncertain");
-		const incomplete =
-			s.failures > 0 ||
-			s.unattemptedBatches > 0 ||
-			s.classifiedFiles < s.includedFiles;
-		let status = incomplete ? "Scan incomplete" : "Scan complete";
-		if (s.interrupted) {
-			status = "Stopped";
-		}
-		const suffix = options.saved || s.cacheOnly ? " · saved results" : "";
+		const flagged = gaps(rows);
+		const visible = interactive ? flagged.slice(0, 10) : flagged;
 		const lines = [
 			"",
-			title(suffix),
+			title,
 			"",
-			`  ${output.hex("#e3a514")(status)} · ${s.classifiedFiles} / ${s.includedFiles} files · ${incomplete ? `${s.classifiedSegments} / ${s.segments} segments · ` : ""}${s.skippedFiles ? `${s.skippedFiles} skipped · ` : ""}${elapsed(s.wallSeconds)}`,
+			`  ${s.interrupted ? "Stopped" : "Scan complete"} · ${flagged.length} findings in ${uniqueFiles(flagged).length} files · ${elapsed(s.wallSeconds)}`,
 			"",
-			output.hex("#e3a514")(`  ${found.length} files to review`),
+			...visible.map(
+				(row) =>
+					`  ${location(row)} · ${row.action ? `${clean(row.action.label)} · ` : ""}${row.coverage} · ${areas[row.category]}`
+			),
 		];
-		if (flagged.length) {
-			lines.push("  Potential gaps · review the source");
-		}
-		const visible = verbose ? flagged : found.slice(0, 3);
-		for (const row of visible) {
+		if (flagged.length > visible.length) {
 			lines.push(
-				`  ${location(row, verbose ? s.root : "")} · ${row.action ? `${clean(row.action.label)} · ` : ""}${row.coverage} · ${areas[row.category]}`
+				`  ${flagged.length - visible.length} more · databuddy-scan --json lists every finding`
 			);
 		}
-		if (!verbose && flagged.length > visible.length) {
-			lines.push("  All locations: databuddy-scan --report --verbose");
-		}
-		if (uncertain.length) {
-			lines.push(
-				`  ${uniqueFiles(uncertain).length} files have uncertain segments`
-			);
-			if (verbose) {
-				lines.push(
-					...uncertain.map(
-						(row) =>
-							`  ${location(row, s.root)} · ${row.action ? `${clean(row.action.label)} · ` : ""}needs context`
-					)
-				);
-			}
-		}
-		if (incomplete || s.interrupted) {
+		if (s.failures || s.unattemptedBatches || s.interrupted) {
 			lines.push(
 				"",
-				"  Progress saved. Continue: databuddy-scan --run",
-				"  Diagnose: databuddy-scan --diagnostics"
+				`  ${s.failures + s.unattemptedBatches} batches did not finish. Run again to retry them; finished work is kept.`
 			);
-		}
-		if (verbose) {
-			for (const call of result.calls
-				.filter((call) => call.error)
-				.slice(0, 3)) {
-				lines.push(`  Batch ${call.batch + 1}: ${clean(call.error)}`);
-			}
-			if (options.directory) {
-				lines.push(`  Reports: ${clean(options.directory)}`);
-			}
 		}
 		print([...lines, ""]);
 	}
 
-	function diagnostics(result: ScanResult, directory: string) {
-		stop();
-		const s = result.summary;
-		const attempts = result.calls.flatMap((call) => call.attempts);
-		const statuses = new Map<string, number>();
-		for (const attempt of attempts) {
-			const status =
-				attempt.providerCode ?? attempt.error ?? String(attempt.status);
-			statuses.set(status, (statuses.get(status) ?? 0) + 1);
-		}
-		const latency = attempts
-			.map((attempt) => attempt.ms)
-			.filter(Number.isFinite)
-			.sort((a, b) => a - b);
-		const percentile = (fraction: number) =>
-			latency[Math.ceil(latency.length * fraction) - 1] ?? null;
-		const data = {
-			files: `${s.classifiedFiles}/${s.includedFiles}`,
-			requests: attempts.length,
-			retries: s.retries,
-			cachedBatches: s.cachedBatches,
-			failedBatches: s.failures,
-			unattemptedBatches: s.unattemptedBatches,
-			statuses: Object.fromEntries(statuses),
-			latencyMs: { p50: percentile(0.5), p95: percentile(0.95) },
-			batchLatencyMs: (() => {
-				const spent = result.calls.map((call) => call.ms).sort((a, b) => a - b);
-				return {
-					p50: spent[Math.ceil(spent.length * 0.5) - 1] ?? null,
-					p95: spent[Math.ceil(spent.length * 0.95) - 1] ?? null,
-				};
-			})(),
-			skippedFiles: s.skippedFiles,
-			oversizedBatches: s.oversizedBatches,
-			splitBatches: s.splitBatches,
-			reviewFiles: uniqueFiles(gaps(result.rows)).length,
-			uncertainSegments: result.rows.filter(
-				(row) => row.coverage === "uncertain"
-			).length,
-			reportedCostUsd: s.currentRunReportedCostUsd,
-			unknownFailedCallCosts: s.unknownFailedCallCosts,
-			missingCostReports: s.missingCostReports,
-		};
-		if (json) {
-			return print([JSON.stringify(data)]);
-		}
-		const statusCounts = [...statuses]
-			.map(([status, count]) => `${clean(status)}: ${count}`)
-			.join(", ");
-		print([
-			"",
-			title(" · diagnostics"),
-			"",
-			`  ${data.files} files · ${data.failedBatches} failed batches · ${data.unattemptedBatches} unattempted`,
-			`  ${data.skippedFiles} files skipped with no detected action · listed in inventory.json`,
-			`  ${data.requests} requests · ${data.retries} retries · ${statusCounts}`,
-			`  ${data.splitBatches} batches split after a failure · ${data.oversizedBatches} single segments over the request limit`,
-			`  Request latency: median ${data.latencyMs.p50 ?? "—"} ms · p95 ${data.latencyMs.p95 ?? "—"} ms`,
-			`  Batch latency, retries included: median ${data.batchLatencyMs.p50 ?? "—"} ms · p95 ${data.batchLatencyMs.p95 ?? "—"} ms`,
-			`  ${data.cachedBatches} cached responses · no new requests for cached results`,
-			`  $${data.reportedCostUsd.toFixed(3)} reported this run · ${data.unknownFailedCallCosts} failed request costs unknown · ${data.missingCostReports} responses missing cost`,
-			`  ${data.reviewFiles} files flagged · ${data.uncertainSegments} uncertain segments`,
-			`  Request log: ${clean(join(directory, "progress.ndjson"))}`,
-			"",
-		]);
-	}
-
 	return {
 		update,
+		announce,
+		dryRun,
 		finish,
-		diagnostics,
 		stop,
-		inventory(info: { includedFiles: number; skippedFiles: number }) {
-			print(
-				json
-					? [JSON.stringify(info)]
-					: [
-							"",
-							title(),
-							"",
-							`  ${info.includedFiles} files with product actions ready to scan${info.skippedFiles ? ` · ${info.skippedFiles} with none detected` : ""}. Start: databuddy-scan --run`,
-							"",
-						]
-			);
-		},
 		error(message: string) {
 			stop();
-			const text = json
-				? JSON.stringify({ error: clean(message) })
-				: `Error: ${clean(message)}`;
-			process.stderr.write(`${text}\n`);
+			if (json) {
+				process.stdout.write(`${JSON.stringify({ error: clean(message) })}\n`);
+				return;
+			}
+			process.stderr.write(`Error: ${clean(message)}\n`);
 		},
 	};
 }

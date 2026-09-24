@@ -22,12 +22,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "bun:test";
 
 type Runtime = "node" | "bun";
-interface Attempt {
-	error?: string;
-	status: number | null;
-}
 interface ScanResult {
-	calls: { attempts: Attempt[]; error?: string }[];
 	rows: {
 		path: string;
 		action?: {
@@ -42,8 +37,6 @@ interface ScanResult {
 		failures: number;
 		requestAttempts: number;
 		cachedBatches: number;
-		missingCostReports: number;
-		unknownFailedCallCosts: number;
 		interrupted?: boolean;
 	};
 }
@@ -213,7 +206,7 @@ globalThis.fetch=async(url,options)=>{
 };\n`
 		);
 		for (const runtime of ["node", "bun"] as const) {
-			assert.match(cli(runtime, ["--help"]).stdout, /--run/);
+			assert.match(cli(runtime, ["--help"]).stdout, /--dry-run/);
 			assert.equal(
 				cli(runtime, ["--version"]).stdout.trim(),
 				packageInfo.version
@@ -299,16 +292,19 @@ globalThis.fetch=async(url,options)=>{
 		}
 		const output = join(temporary, "output"),
 			common = [
-				`--root=${repo}`,
+				repo,
 				`--output=${output}`,
 				"--batch-files=1",
 				"--no-actions",
 				"--json",
 			];
 		const preview = JSON.parse(
-			cli("node", ["--json", "--no-actions"], { cwd: join(repo, "src") }).stdout
-		) as { includedFiles: number };
-		assert.equal(preview.includedFiles, 3);
+			cli("node", ["--json", "--dry-run", "--no-actions"], {
+				cwd: join(repo, "src"),
+			}).stdout
+		) as { files: string[]; sent: boolean };
+		assert.equal(preview.files.length, 3);
+		assert.equal(preview.sent, false);
 		const defaultOutput = join(
 			cache,
 			"databuddy/scan",
@@ -355,7 +351,7 @@ globalThis.fetch=async(url,options)=>{
 		}
 
 		const first = JSON.parse(
-			cli("node", [...common, "--run", "--fresh", "--concurrency=2"], {
+			cli("node", [...common, "--fresh", "--concurrency=2"], {
 				mode: "valid",
 			}).stdout
 		) as ScanResult;
@@ -407,18 +403,6 @@ globalThis.fetch=async(url,options)=>{
 		const savedPath = join(output, "results.json"),
 			saved = await readFile(savedPath, "utf8");
 		assert.deepEqual(JSON.parse(saved), first);
-		assert.deepEqual(
-			JSON.parse(cli("bun", [...common, "--report"]).stdout),
-			first
-		);
-		assert.equal(
-			(
-				JSON.parse(cli("node", [...common, "--diagnostics"]).stdout) as {
-					requests: number;
-				}
-			).requests,
-			3
-		);
 		const replayFiles = ["results.json", "inventory.json", "progress.ndjson"];
 		const beforeReplay = await Promise.all(
 			replayFiles.map((name) => readFile(join(output, name), "utf8"))
@@ -430,15 +414,11 @@ globalThis.fetch=async(url,options)=>{
 		assert.equal(cached.summary.requestAttempts, 0);
 		const emptyCache = join(temporary, "empty-cache");
 		const missingCache = JSON.parse(
-			cli(
-				"node",
-				["--cache-only", "--json", `--root=${repo}`, `--output=${emptyCache}`],
-				{ status: 1 }
-			).stdout
+			cli("node", ["--cache-only", "--json", repo, `--output=${emptyCache}`], {
+				status: 1,
+			}).stdout
 		) as ScanResult;
 		assert.equal(missingCache.summary.requestAttempts, 0);
-		assert.equal(missingCache.summary.missingCostReports, 0);
-		assert.equal(missingCache.summary.unknownFailedCallCosts, 0);
 		assert.equal(await exists(emptyCache), false);
 		assert.deepEqual(
 			await Promise.all(
@@ -447,9 +427,7 @@ globalThis.fetch=async(url,options)=>{
 			beforeReplay,
 			"Cache-only replay changed saved output"
 		);
-		const resumed = JSON.parse(
-			cli("node", [...common, "--run"]).stdout
-		) as ScanResult;
+		const resumed = JSON.parse(cli("node", common).stdout) as ScanResult;
 		assert.equal(resumed.summary.requestAttempts, 0);
 		assert.equal(resumed.summary.cachedBatches, 3);
 		assert.equal((await requests()).length, 3);
@@ -457,9 +435,9 @@ globalThis.fetch=async(url,options)=>{
 			cli(
 				"bun",
 				[
-					`--root=${repo}`,
+					repo,
 					`--output=${join(temporary, "bun-output")}`,
-					"--run",
+					"--batch-files=4",
 					"--no-actions",
 					"--json",
 				],
@@ -477,9 +455,9 @@ globalThis.fetch=async(url,options)=>{
 			cli(
 				runtime,
 				[
-					`--root=${repo}`,
+					repo,
 					`--output=${invalidOutput}`,
-					"--run",
+					"--batch-files=4",
 					"--fresh",
 					"--no-actions",
 					"--json",
@@ -493,8 +471,8 @@ globalThis.fetch=async(url,options)=>{
 			assert.equal(rejected.summary.requestAttempts, 1);
 			assert.equal(rejected.rows.length, 0);
 			assert.match(
-				rejected.calls.find((call) => call.error)?.error ?? "",
-				/invalid|response|probabilit|answers/i
+				await readFile(join(invalidOutput, "progress.ndjson"), "utf8"),
+				/"error":"Invalid model response"/
 			);
 			assert.deepEqual(await readdir(join(invalidOutput, "responses")), []);
 		}
@@ -503,9 +481,9 @@ globalThis.fetch=async(url,options)=>{
 			cli(
 				"node",
 				[
-					`--root=${repo}`,
+					repo,
 					`--output=${retryOutput}`,
-					"--run",
+					"--batch-files=4",
 					"--no-actions",
 					"--json",
 				],
@@ -530,9 +508,8 @@ globalThis.fetch=async(url,options)=>{
 				"--import",
 				preload,
 				scanner,
-				`--root=${repo}`,
+				repo,
 				`--output=${interruptedOutput}`,
-				"--run",
 				"--no-actions",
 				"--json",
 				"--batch-files=1",
@@ -638,14 +615,13 @@ export function Report() {
 		ok("git", ["init", "--quiet"], { cwd: actionRepo, encoding: "utf8" });
 		ok("git", ["add", "."], { cwd: actionRepo, encoding: "utf8" });
 		const actionArgs = [
-			`--root=${actionRepo}`,
+			actionRepo,
 			`--output=${join(temporary, "action-output")}`,
-			"--actions",
 			"--json",
 		];
 		const beforeActions = (await requests()).length;
 		const actionResult = JSON.parse(
-			cli("node", [...actionArgs, "--run"], { mode: "valid" }).stdout
+			cli("node", actionArgs, { mode: "valid" }).stdout
 		) as ScanResult;
 		const groupedRows = actionResult.rows.filter(
 			(row) => row.path === "page.tsx" && row.action
@@ -744,18 +720,19 @@ export function Report() {
 			ok("npm", [...execArgs, "--version"]).trim(),
 			packageInfo.version
 		);
-		assert.match(ok("npm", [...execArgs, "--help"]), /--run/);
+		assert.match(ok("npm", [...execArgs, "--help"]), /--dry-run/);
 		assert.equal(
 			(
 				JSON.parse(
 					ok("npm", [
 						...execArgs,
-						`--root=${repo}`,
+						repo,
 						`--output=${join(temporary, "installed-output")}`,
+						"--dry-run",
 						"--json",
 					])
-				) as { includedFiles: number }
-			).includedFiles,
+				) as { files: string[] }
+			).files.length,
 			1
 		);
 		const installed = join(temporary, "installed");
@@ -788,7 +765,7 @@ export function Report() {
 				cwd: installed,
 				encoding: "utf8",
 			}),
-			/--run/
+			/--dry-run/
 		);
 		for (const args of [
 			["--self-test"],
@@ -797,14 +774,16 @@ export function Report() {
 			["--opportunities"],
 			["--unknown"],
 			["--concurrency=0"],
-			["--report", "--run"],
-			["--report", "--diagnostics"],
+			["--run"],
+			["--report"],
+			["--diagnostics"],
+			["--root=."],
 			["--cache-only", "--fresh"],
 			["--output="],
 		]) {
-			cli("node", [`--root=${repo}`, ...args], { status: 1 });
+			cli("node", [repo, ...args], { status: 1 });
 		}
-		cli("node", ["--run"], { status: 1 });
+		cli("node", [], { status: 1 });
 	} finally {
 		await rm(temporary, { recursive: true, force: true });
 	}
