@@ -18,6 +18,8 @@ Run it inside a Git repository, or pass a folder to scan only that folder. No ac
   app/(dashboard)/dashboard/page.tsx:204 · form.action inviteAction · missing · Setup & onboarding
 ```
 
+It recognises React and JSX handlers, form and server actions, Vue and Svelte components, inline HTML handlers, `addEventListener`, and Next.js, Express-style and Hono route handlers. If it finds actions in only a small share of your files, it says so rather than reporting a clean result.
+
 ## Where your code goes
 
 The scan sends code to Databuddy's scan API (`api.databuddy.cc`), which classifies it with the Jev model on Vercel AI Gateway under **zero data retention**. For JavaScript and TypeScript it sends only the user actions it finds and the functions they call, not whole files. **Your source is never stored or logged.** The API only counts scans, using a random run ID, the CLI version and request sizes; nothing identifies you or your repository. The CLI prints where the source is going, with the number of files, before it sends anything.
