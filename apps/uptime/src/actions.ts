@@ -203,15 +203,10 @@ function errorCode(error: unknown): string | undefined {
 	if (!(error instanceof Error)) {
 		return;
 	}
-	const direct = (error as NodeJS.ErrnoException).code;
-	if (typeof direct === "string") {
-		return direct;
+	if ("code" in error && typeof error.code === "string") {
+		return error.code;
 	}
-	const cause = error.cause;
-	if (cause instanceof Error) {
-		return errorCode(cause);
-	}
-	return;
+	return errorCode(error.cause);
 }
 
 export function classifyFetchError(error: unknown, timeout: number): string {
@@ -253,7 +248,7 @@ export function classifyFetchError(error: unknown, timeout: number): string {
 	return "Unknown error";
 }
 
-export const checkCertificate = (url: string) =>
+const checkCertificate = (url: string) =>
 	Effect.promise<{ valid: boolean; expiry: number }>(async () => {
 		const fallback = { valid: false, expiry: 0 };
 		try {
