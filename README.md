@@ -93,14 +93,14 @@ docker compose -f docker-compose.selfhost.yml run --rm init bun run --cwd packag
 ```
 
 If you decline a change, stop the upgrade. After accepting the changes, create
-any missing ClickHouse tables and views:
+any missing ClickHouse tables, views, columns, and indexes:
 
 ```bash
 docker compose -f docker-compose.selfhost.yml run --rm init bun --cwd packages/db src/clickhouse/setup.ts
 ```
 
-This creates missing objects; it doesn't update existing ones. Apply any extra
-migrations in the release notes before starting the updated apps with
+This adds what's missing but never changes or drops existing objects. Apply any
+extra migrations in the release notes before starting the updated apps with
 `docker compose -f docker-compose.selfhost.yml up -d --build`.
 
 ## Stay in touch
