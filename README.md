@@ -55,6 +55,12 @@ Keep the dashboard and API on the same parent domain. Set `BETTER_AUTH_COOKIE_DO
 to share login across subdomains. Leave it empty for localhost. Rebuild the
 dashboard after changing public URLs; they're part of its browser bundle.
 
+No shared parent domain, such as a PaaS default domain like `*.up.railway.app`?
+Leave `BETTER_AUTH_COOKIE_DOMAIN` empty and set the dashboard's `API_PROXY_URL`
+to the API's internal URL, then rebuild; the dashboard serves the API on its own origin.
+On a PaaS, build the dashboard from source with `dashboard.Dockerfile`; its URLs
+are baked in at build time, so there is no prebuilt dashboard image.
+
 ### Optional services
 
 - **Email:** For resets, invitations, and alerts, set `RESEND_API_KEY` and an `EMAIL_FROM` sender on your verified domain, such as `Databuddy <no-reply@example.com>`. Leave `ALERTS_EMAIL_FROM` empty to use the same sender. Once both email settings are configured, set `REQUIRE_EMAIL_VERIFICATION=true` to require verified accounts. Recreate the services after changes.
@@ -89,14 +95,14 @@ docker compose -f docker-compose.selfhost.yml run --rm init bun run --cwd packag
 ```
 
 If you decline a change, stop the upgrade. After accepting the changes, create
-any missing ClickHouse tables and views:
+any missing ClickHouse tables, views, columns, and indexes:
 
 ```bash
 docker compose -f docker-compose.selfhost.yml run --rm init bun --cwd packages/db src/clickhouse/setup.ts
 ```
 
-This creates missing objects; it doesn't update existing ones. Apply any extra
-migrations in the release notes before starting the updated apps with
+This adds what's missing but never changes or drops existing objects. Apply any
+extra migrations in the release notes before starting the updated apps with
 `docker compose -f docker-compose.selfhost.yml up -d --build`.
 
 ## Stay in touch

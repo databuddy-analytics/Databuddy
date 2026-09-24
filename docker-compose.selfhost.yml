@@ -126,6 +126,7 @@ services:
       dockerfile: dashboard.Dockerfile
       args:
         SELFHOST: "true"
+        API_PROXY_URL: ${API_PROXY_URL:-}
         NEXT_PUBLIC_APP_URL: *dashboard-url
         NEXT_PUBLIC_API_URL: *api-url
         NEXT_PUBLIC_BASKET_URL: *basket-url
