@@ -7,6 +7,10 @@ export interface ReferrerInfo {
 	url: string;
 }
 
+export const AI_REFERRER_DOMAINS = Object.keys(referrers).filter(
+	(domain) => referrers[domain]?.type === "ai"
+);
+
 const DIRECT_VALUES = new Set(["", "direct", "(direct)", "none"]);
 const PROTOCOL_PREFIX_REGEX = /^https?:\/\//i;
 const WHITESPACE_REGEX = /\s/;

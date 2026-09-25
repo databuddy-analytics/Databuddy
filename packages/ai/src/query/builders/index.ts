@@ -1,3 +1,4 @@
+import { AiAgentsBuilders } from "./ai-agents";
 import { CustomEventsBuilders } from "./custom-events";
 import { DevicesBuilders } from "./devices";
 import { EngagementBuilders } from "./engagement";
@@ -32,6 +33,7 @@ const BASE_QUERY_BUILDERS = {
 	...LinkShortenerBuilders,
 	...EngagementBuilders,
 	...VitalsBuilders,
+	...AiAgentsBuilders,
 	...UptimeBuilders,
 	...RevenueBuilders,
 	...RealtimeBuilders,
