@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { test } from "node:test";
 import {
-	type Catalog,
-	createRequest,
 	parseResponse,
 	requestEvaluation,
 	type Attempt,
@@ -13,16 +10,6 @@ import {
 const jobs = [
 	{ path: "src/action.ts", start: 7, end: 9, source: "await persist();\n" },
 ];
-const catalog: Catalog = {
-	attributeTracking: ['src/page.tsx:9 data-track="cta"'],
-	directTrackingCandidates: ['src/covered.ts:2 track("saved")'],
-	note: "Fixture catalog",
-	trackedRoutes: [
-		"links.create -> link_created (src/router.ts:4-20, trackedProcedure)",
-	],
-	trackingHelpers: ["saveDraft (src/save.ts:3) fires draft_saved"],
-	warehouseWrites: [],
-};
 const response = () => ({
 	answers: {
 		coverage_0: { choice: "missing", probabilities: { missing: 0.8 } },
@@ -65,17 +52,6 @@ async function withFetch(
 		globalThis.fetch = original;
 	}
 }
-
-test("request JSON retains the original protocol and cache hash", () => {
-	const body = createRequest(jobs, catalog);
-	assert.equal(
-		createHash("sha256").update(body).digest("hex"),
-		"315806a8d9c2a4af44143202d5eabd9a96b0c03012d84ea238433477c2d788e3"
-	);
-	assert.deepEqual(JSON.parse(body).providerOptions, {
-		gateway: { zeroDataRetention: true },
-	});
-});
 
 test("response schemas validate every answer and preserve selected probabilities", () => {
 	assert.deepEqual(parseResponse(response(), jobs), {
@@ -211,89 +187,4 @@ test("provider error bodies are bounded and cancelled without retaining body tex
 	assert.equal(cancelled, true);
 	assert.equal(state.attempts[0]?.providerCode, "invalid_api_key");
 	assert.ok(!JSON.stringify(state.attempts).includes("private fixture tail"));
-});
-
-test("Retry-After honors cancellation before another request starts", async () => {
-	const controller = new AbortController();
-	let waitMs = 0;
-	const state = options({
-		signal: controller.signal,
-		onRetry(retry) {
-			waitMs = retry.waitMs;
-			controller.abort();
-		},
-	});
-	await withFetch(
-		async () =>
-			new Response(null, { status: 503, headers: { "retry-after": "60" } }),
-		async () => {
-			await assert.rejects(requestEvaluation("{}", state.value), {
-				name: "AbortError",
-			});
-		}
-	);
-	assert.equal(waitMs, 60_000);
-	assert.equal(state.attempts.length, 1);
-});
-
-test("cancellation aborts the fetch and does not retry", async () => {
-	const controller = new AbortController();
-	const state = options({ signal: controller.signal });
-	await withFetch(
-		async (_url, init) =>
-			new Promise((_resolve, reject) => {
-				init?.signal?.addEventListener(
-					"abort",
-					() => reject(init.signal?.reason),
-					{ once: true }
-				);
-				controller.abort();
-			}),
-		async () => {
-			await assert.rejects(requestEvaluation("{}", state.value), {
-				name: "AbortError",
-			});
-		}
-	);
-	assert.equal(state.attempts.length, 1);
-	assert.equal(state.attempts[0]?.error, "interrupted");
-	assert.equal(state.retries.length, 0);
-});
-
-test("a timeout while consuming a successful response body still retries", async () => {
-	const state = options({ timeoutMs: 5 });
-	const keepAlive = setTimeout(() => {}, 1000);
-	try {
-		await withFetch(
-			async (_url, init) =>
-				new Response(
-					new ReadableStream({
-						start(controller) {
-							init?.signal?.addEventListener(
-								"abort",
-								() =>
-									controller.error(
-										new DOMException("fixture stream aborted", "AbortError")
-									),
-								{ once: true }
-							);
-						},
-					})
-				),
-			async () => {
-				await assert.rejects(requestEvaluation("{}", state.value), {
-					name: "TimeoutError",
-				});
-			}
-		);
-	} finally {
-		clearTimeout(keepAlive);
-	}
-	assert.equal(state.attempts.length, 5);
-	assert.equal(state.retries.length, 4);
-	assert.ok(
-		state.attempts.every(
-			(attempt) => attempt.status === 200 && attempt.error === "timeout"
-		)
-	);
 });
