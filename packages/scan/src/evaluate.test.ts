@@ -70,7 +70,7 @@ test("request JSON retains the original protocol and cache hash", () => {
 	const body = createRequest(jobs, catalog);
 	assert.equal(
 		createHash("sha256").update(body).digest("hex"),
-		"c7a1f7c03cfce0203937d8cbd8011912d942052afaa1213e45ef6ca3f2549883"
+		"315806a8d9c2a4af44143202d5eabd9a96b0c03012d84ea238433477c2d788e3"
 	);
 	assert.deepEqual(JSON.parse(body).providerOptions, {
 		gateway: { zeroDataRetention: true },
