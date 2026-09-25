@@ -5,7 +5,12 @@ export type AgentPurpose = "training" | "search_index" | "user_fetch" | "agent";
 
 export const AI_AGENT_CLASSIFICATION: Record<
 	string,
-	{ operator: string; purpose: AgentPurpose; asn?: number } | null
+	{
+		operator: string;
+		purpose: AgentPurpose;
+		asn?: number;
+		dnsMasks?: string[];
+	} | null
 > = {
 	"ai-search-bot": { operator: "AISearchBot", purpose: "search_index" },
 	"ai2-crawler": { operator: "Ai2", purpose: "training" },
@@ -79,7 +84,11 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"openai-crawler-user": { operator: "OpenAI", purpose: "user_fetch" },
 	"perplexity-crawler": { operator: "Perplexity", purpose: "search_index" },
 	"perplexity-user": { operator: "Perplexity", purpose: "user_fetch" },
-	"petalsearch-crawler": { operator: "Huawei", purpose: "search_index" },
+	"petalsearch-crawler": {
+		operator: "Huawei",
+		purpose: "search_index",
+		dnsMasks: ["petalbot-@.petalsearch.com"],
+	},
 	"phind-bot": { operator: "Phind", purpose: "user_fetch" },
 	"primal-crawler": null,
 	"python-scrapy": null,
@@ -178,7 +187,7 @@ function toAiAgent(bot: z.infer<typeof wellKnownBotSchema>): AiAgent | null {
 	if (!classification) {
 		return null;
 	}
-	const { asn, ...identity } = classification;
+	const { asn, dnsMasks = [], ...identity } = classification;
 	const agent: AiAgent = {
 		...identity,
 		id: bot.id,
@@ -193,7 +202,7 @@ function toAiAgent(bot: z.infer<typeof wellKnownBotSchema>): AiAgent | null {
 				]
 			: [],
 		ipRanges: [],
-		dnsMasks: [],
+		dnsMasks: [...dnsMasks],
 	};
 	for (const verification of bot.verification ?? []) {
 		if (verification.type === "dns") {
