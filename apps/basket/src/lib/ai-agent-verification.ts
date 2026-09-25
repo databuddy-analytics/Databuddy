@@ -1,5 +1,6 @@
 import { Resolver } from "node:dns/promises";
 import { BlockList, isIP } from "node:net";
+import { setTimeout as sleep } from "node:timers/promises";
 import { getRedisCache } from "@databuddy/redis/redis";
 import {
 	AI_AGENTS,
@@ -193,7 +194,9 @@ export async function verifyAiAgent(
 	if (cached) {
 		return cached;
 	}
-	await Promise.race([ensureIpRanges(), Bun.sleep(FIRST_LOAD_WAIT_MS)]);
+	if (!blockListsByAgentId) {
+		await Promise.race([ensureIpRanges(), sleep(FIRST_LOAD_WAIT_MS)]);
+	}
 	const list = blockListsByAgentId?.get(agent.id);
 	let verification: AgentVerification | null;
 	if (list?.check(ip, family)) {
