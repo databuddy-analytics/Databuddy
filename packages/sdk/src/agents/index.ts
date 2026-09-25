@@ -19,11 +19,8 @@ function getClientIp(request: Request): string {
 	if ("cf" in request) {
 		return headers.get("cf-connecting-ip") ?? "";
 	}
-	return (
-		headers.get("x-real-ip") ??
-		headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-		""
-	);
+	const forwardedByProxy = headers.get("x-forwarded-for")?.split(",").at(-1);
+	return forwardedByProxy?.trim() || headers.get("x-real-ip") || "";
 }
 
 export async function trackAgentTraffic(

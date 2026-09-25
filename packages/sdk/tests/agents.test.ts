@@ -34,7 +34,7 @@ describe("AI_AGENT_USER_AGENT", () => {
 });
 
 describe("trackAgentTraffic", () => {
-	it("sends the path without the query and the first forwarded IP", async () => {
+	it("sends the path without the query and the proxy-appended IP", async () => {
 		const bodies: unknown[] = [];
 		globalThis.fetch = mock((_url: string, init?: RequestInit) => {
 			bodies.push(JSON.parse(String(init?.body)));
@@ -42,7 +42,7 @@ describe("trackAgentTraffic", () => {
 		}) as typeof fetch;
 		await trackAgentTraffic(
 			agentRequest("/pricing?token=secret", {
-				headers: { "x-forwarded-for": "20.171.206.7, 10.0.0.1" },
+				headers: { "x-forwarded-for": "132.196.86.1, 20.171.206.7" },
 			}),
 			{ apiKey: "dbdy_test", websiteId: "site_1" }
 		);
