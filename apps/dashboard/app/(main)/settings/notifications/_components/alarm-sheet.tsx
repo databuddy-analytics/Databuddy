@@ -101,33 +101,39 @@ type AlarmFormData = z.infer<typeof alarmFormSchema>;
 
 const recordSchema = z.record(z.string(), z.unknown()).catch({});
 
-const alarmRowSchema = z.object({
+const destinationRowSchema = z.object({
 	id: z.string(),
-	name: z.string(),
-	enabled: z.boolean(),
-	triggerType: z.enum(["uptime", "traffic_spike", "error_rate"]),
-	triggerConditions: recordSchema,
-	description: z.string().nullable().catch(null),
-	websiteId: z.string().nullable().catch(null),
-	destinations: z
-		.array(
-			z
-				.object({
-					id: z.string(),
-					type: destTypeSchema,
-					identifier: z.string(),
-					config: recordSchema,
-				})
-				.nullable()
-				.catch(null)
-		)
-		.catch([])
-		.transform((destinations) => destinations.filter((d) => d !== null)),
+	type: destTypeSchema,
+	identifier: z.string(),
+	config: recordSchema,
 });
+
+const alarmRowSchema = z
+	.object({
+		id: z.string(),
+		name: z.string(),
+		enabled: z.boolean(),
+		triggerType: z.string(),
+		triggerConditions: recordSchema,
+		description: z.string().nullable().catch(null),
+		websiteId: z.string().nullable().catch(null),
+		destinations: z.array(z.unknown()).catch([]),
+	})
+	.transform(({ destinations, ...alarm }) => {
+		const supported = destinations.flatMap((row) => {
+			const parsed = destinationRowSchema.safeParse(row);
+			return parsed.success ? [parsed.data] : [];
+		});
+		return {
+			...alarm,
+			destinations: supported,
+			hasUnsupportedDestinations: supported.length < destinations.length,
+		};
+	});
 
 export type AlarmData = z.infer<typeof alarmRowSchema>;
 
-export function parseAlarms(rows: readonly unknown[]) {
+export function parseAlarms(rows: Record<string, unknown>[]) {
 	return rows.flatMap((row) => {
 		const parsed = alarmRowSchema.safeParse(row);
 		return parsed.success ? [parsed.data] : [];
@@ -274,7 +280,9 @@ export function AlarmSheet({
 }: AlarmSheetProps) {
 	const isEditing = !!alarm;
 	const destinationsLocked =
-		alarm?.destinations.some(isMaskedDestination) ?? false;
+		(alarm?.hasUnsupportedDestinations ||
+			alarm?.destinations.some(isMaskedDestination)) ??
+		false;
 	const { activeOrganization, activeOrganizationId } =
 		useOrganizationsContext();
 	const queryClient = useQueryClient();
@@ -319,7 +327,6 @@ export function AlarmSheet({
 					description: data.description ?? null,
 					enabled: data.enabled,
 					websiteId: alarm.websiteId ?? null,
-					triggerType: alarm.triggerType,
 					...(destinationsLocked ? {} : { destinations: data.destinations }),
 				});
 				toast.success("Alert updated");
@@ -420,9 +427,9 @@ export function AlarmSheet({
 
 							{destinationsLocked && (
 								<Text tone="muted" variant="caption">
-									Destination secrets are hidden for your role, so only an
-									organization admin can change destinations. Other settings can
-									still be saved.
+									Some destinations are hidden for your role or not supported in
+									this form, so destinations can't be changed here. Other
+									settings can still be saved.
 								</Text>
 							)}
 
