@@ -84,6 +84,18 @@ describe("verifyAiAgent", () => {
 		);
 	});
 
+	test("keeps last known good ranges when a source returns garbage", async () => {
+		redisStore.set(
+			`bot-ranges:${GPTBOT_RANGES}`,
+			JSON.stringify(["132.196.86.0/24"])
+		);
+		serveRanges({ [GPTBOT_RANGES]: ["<html>", "not-an-ip/99"] });
+		const verifyAiAgent = await loadVerifier();
+		expect(await verifyAiAgent("openai-crawler", "132.196.86.7")).toBe(
+			"ip_verified"
+		);
+	});
+
 	test("cannot verify without ranges or DNS masks", async () => {
 		serveRanges({});
 		const verifyAiAgent = await loadVerifier();
