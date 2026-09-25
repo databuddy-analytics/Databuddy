@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
-import { Command, CommanderError, Option } from "commander";
+import { Command, CommanderError } from "commander";
 import { z } from "zod";
 import { version } from "../package.json";
 import { hash, scan, scanOptionsSchema } from "./scan";
@@ -25,12 +25,6 @@ const command = new Command()
 	)
 	.option("--dry-run", "list every line that would be sent, and send nothing")
 	.option("--json", "print results as JSON")
-	.addOption(new Option("--output <path>").hideHelp())
-	.addOption(new Option("--concurrency <count>").hideHelp())
-	.addOption(new Option("--batch-files <count>").hideHelp())
-	.addOption(new Option("--cache-only").hideHelp())
-	.addOption(new Option("--fresh").conflicts("cacheOnly").hideHelp())
-	.addOption(new Option("--no-actions").hideHelp())
 	.exitOverride();
 
 async function main() {
@@ -56,14 +50,11 @@ async function main() {
 				"Run inside a Git repository, or pass its path: databuddy-scan <path>"
 			);
 		}
-		const output = resolve(
-			options.output ??
-				join(
-					process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"),
-					"databuddy",
-					"scan",
-					hash(root).slice(0, 16)
-				)
+		const output = join(
+			process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"),
+			"databuddy",
+			"scan",
+			hash(root).slice(0, 16)
 		);
 		const result = await scan(
 			{ ...options, root, output, scope: relative(root, target) },

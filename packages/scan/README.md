@@ -55,7 +55,7 @@ From the Databuddy monorepo root:
 ```sh
 bun ./scan.ts                                # Run from source
 bun run --cwd packages/scan test             # Build and test
-bun run --cwd packages/scan eval:quality     # Extraction audit against reviewed cases
+bun run --cwd packages/scan eval:quality     # Score extraction, or findings from a --json scan, against labelled cases
 ```
 
 ## License

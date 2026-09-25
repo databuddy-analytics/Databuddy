@@ -13,7 +13,7 @@ import {
 import { join } from "node:path";
 import pLimit from "p-limit";
 import { z } from "zod";
-import type { Site } from "./actions";
+import { groupActions, type Site } from "./actions";
 import { collectCoverage, coverageNote } from "./catalog";
 import {
 	type Attempt,
@@ -31,14 +31,10 @@ import type { Snapshot } from "./terminal";
 
 export const scanOptionsSchema = z.object({
 	root: z.string().trim().min(1).default("."),
-	output: z.string().trim().min(1).optional(),
 	dryRun: z.boolean().default(false),
-	fresh: z.boolean().default(false),
-	cacheOnly: z.boolean().default(false),
-	actions: z.boolean().default(true),
-	concurrency: z.coerce.number().int().positive().default(8),
-	batchFiles: z.coerce.number().int().positive().max(4).default(2),
 });
+const concurrency = 8;
+const batchFiles = 2;
 const timeoutMs = 15_000;
 const maxRequestBytes = 48_000;
 const attemptSchema = z.object({
@@ -148,8 +144,7 @@ function firstArgument(text: string) {
 			.join("")
 	);
 }
-const safeError =
-	/^(?:Gateway HTTP [0-9]{3}|No matching cached response; network disabled)$/;
+const safeError = /^Gateway HTTP [0-9]{3}$/;
 const shedError = /^(?:Gateway HTTP 5[0-9]{2}|Gateway request timed out)$/;
 const splitDepth = 2;
 const keyHelp = "Check the key, or unset it to use Databuddy's scan API.";
@@ -170,7 +165,7 @@ async function saveJSON(path: string, value: object | JsonValue) {
 	await writeFile(temporary, JSON.stringify(value), { mode: 0o600 });
 	await rename(temporary, path);
 }
-export function splitSource(path: string, content: string): Segment[] {
+function splitSource(path: string, content: string): Segment[] {
 	const segments: Segment[] = [];
 	let source = "",
 		start = 1,
@@ -193,10 +188,9 @@ export function splitSource(path: string, content: string): Segment[] {
 	return segments;
 }
 
-export function planRequests(
+function planRequests(
 	segments: Segment[],
-	catalog: Catalog,
-	batchFiles: number
+	catalog: Catalog
 ): { body: string; jobs: Segment[] }[] {
 	const build = (jobs: Segment[]) => createRequest(jobs, catalog);
 	const overhead = Buffer.byteLength(build([]));
@@ -220,7 +214,7 @@ export function planRequests(
 	return batches.map((jobs) => ({ body: build(jobs), jobs }));
 }
 
-export async function readSources(root: string, scope = "") {
+async function readSources(root: string, scope = "") {
 	const inventory: InventoryFile[] = [],
 		sources = new Map<string, string>(),
 		indexed = new Map<string, string>(),
@@ -388,23 +382,13 @@ export async function scan(
 	onProgress: (snapshot: Snapshot) => void,
 	announce: (notice: { destination: Destination; files: number }) => void
 ) {
-	const { root, scope, output, cacheOnly, fresh, concurrency, batchFiles } =
-		options;
+	const { root, scope, output } = options;
 	const git = (...args: string[]) =>
 		execFileSync("git", args, {
 			cwd: root,
 			encoding: "utf8",
 			stdio: ["ignore", "pipe", "pipe"],
 		});
-	const previous = await readJSON(join(output, "inventory.json"));
-	if (
-		previous &&
-		z.object({ root: z.string() }).parse(previous).root !== root
-	) {
-		throw new Error(
-			"This output directory belongs to another repository. Choose another --output."
-		);
-	}
 	let head: string | null = null;
 	try {
 		head = git("rev-parse", "--verify", "HEAD").trim();
@@ -439,15 +423,12 @@ export async function scan(
 		}
 		return notes.size ? `${[...notes].join("\n")}\n${source}` : source;
 	};
-	const { groupActions } = options.actions
-		? await import("./actions")
-		: { groupActions: null };
 	const found: Segment[] = [];
 	const settled: Row[] = [];
 	const excerpts = new Map<Segment, Site[]>();
 	const noActionFiles: string[] = [];
 	for (const [path, source] of sources) {
-		const actions = groupActions?.(path, source, sources, workspace);
+		const actions = groupActions(path, source, sources, workspace);
 		if (actions?.length) {
 			for (const {
 				start,
@@ -512,21 +493,19 @@ export async function scan(
 		reviewable.test(path)
 	).length;
 	const warnings =
-		options.actions && sourceFiles >= 20 && includedFiles < sourceFiles / 20
+		sourceFiles >= 20 && includedFiles < sourceFiles / 20
 			? [
 					`Only ${includedFiles} of ${sourceFiles} source files contain actions the scanner recognises (JSX handlers, form actions, DOM listeners, route handlers). Findings cover those files only, so an empty result does not mean tracking is complete.`,
 				]
 			: [];
-	if (!cacheOnly) {
-		await mkdir(join(output, "responses"), { recursive: true, mode: 0o700 });
-		await saveJSON(join(output, "inventory.json"), {
-			root,
-			head,
-			files: inventory,
-			noActionFiles,
-			catalog,
-		});
-	}
+	await mkdir(join(output, "responses"), { recursive: true, mode: 0o700 });
+	await saveJSON(join(output, "inventory.json"), {
+		root,
+		head,
+		files: inventory,
+		noActionFiles,
+		catalog,
+	});
 	const apiKey =
 		process.env.AI_GATEWAY_API_KEY?.trim() ||
 		repositoryKey
@@ -547,7 +526,7 @@ export async function scan(
 			payload: { catalog, segments },
 		};
 	}
-	const batches = planRequests(segments, catalog, batchFiles);
+	const batches = planRequests(segments, catalog);
 	const cacheFile = (body: string, kind = "json") =>
 		join(output, "responses", `${hash(body)}.${kind}`);
 	const exists = (path: string) =>
@@ -555,23 +534,18 @@ export async function scan(
 			() => true,
 			() => false
 		);
-	if (!cacheOnly) {
-		const pending = await Promise.all(
-			batches.map(async ({ body, jobs }) =>
-				fresh ||
-				!(
-					(await exists(cacheFile(body))) ||
-					(await exists(cacheFile(body, "split")))
-				)
-					? jobs
-					: []
-			)
-		);
-		announce({
-			destination,
-			files: sentFiles(pending.flat(), excerpts).length,
-		});
-	}
+	const pending = await Promise.all(
+		batches.map(async ({ body, jobs }) =>
+			(await exists(cacheFile(body))) ||
+			(await exists(cacheFile(body, "split")))
+				? []
+				: jobs
+		)
+	);
+	announce({
+		destination,
+		files: sentFiles(pending.flat(), excerpts).length,
+	});
 	const started = performance.now(),
 		runId = randomUUID(),
 		controller = new AbortController(),
@@ -581,14 +555,9 @@ export async function scan(
 	let plannedBatches = batches.length,
 		interrupted = false,
 		logFailed = false;
-	const logFile = cacheOnly
-		? null
-		: await open(join(output, "progress.ndjson"), "a", 0o600);
+	const logFile = await open(join(output, "progress.ndjson"), "a", 0o600);
 	let writes = Promise.resolve();
 	const log = (type: string, fields: Record<string, unknown> = {}) => {
-		if (!logFile) {
-			return;
-		}
 		writes = writes.then(async () => {
 			await logFile.write(
 				`${JSON.stringify({ type, ...fields, at: new Date().toISOString(), runId })}\n`
@@ -660,38 +629,30 @@ export async function scan(
 				files: jobs.map((j) => `${j.path}:${j.start}`),
 			});
 			try {
-				if (!fresh) {
-					try {
-						response = await readJSON(cacheFile(body));
-						if (response !== null) {
-							parseResponse(response, jobs);
-							call.cached = true;
-						}
-					} catch (error) {
-						if (
-							!(error instanceof SyntaxError || error instanceof z.ZodError)
-						) {
-							throw error;
-						}
-						log("cache_invalid", { batch: index, cacheKey });
+				try {
+					response = await readJSON(cacheFile(body));
+					if (response !== null) {
+						parseResponse(response, jobs);
+						call.cached = true;
 					}
+				} catch (error) {
+					if (!(error instanceof SyntaxError || error instanceof z.ZodError)) {
+						throw error;
+					}
+					log("cache_invalid", { batch: index, cacheKey });
 				}
 				const splittable = jobs.length > 1 && depth < splitDepth;
 				if (
-					!(call.cached || fresh) &&
+					!call.cached &&
 					splittable &&
 					(await exists(cacheFile(body, "split")))
 				) {
 					call.split = true;
 				} else if (!call.cached) {
-					response = null;
-					if (cacheOnly) {
-						throw new Error("No matching cached response; network disabled");
-					}
 					response = await requestEvaluation(body, {
 						apiKey,
 						attempts: splittable ? 2 : undefined,
-						run: { id: runId, mode: options.actions ? "actions" : "files" },
+						run: runId,
 						timeoutMs,
 						signal: controller.signal,
 						onAttempt: (attempt) => {
@@ -721,7 +682,7 @@ export async function scan(
 									? `Scan failed (${String(error.code)})`
 									: "Scan failed";
 				call.split =
-					!(cacheOnly || controller.signal.aborted) &&
+					!controller.signal.aborted &&
 					jobs.length > 1 &&
 					depth < splitDepth &&
 					shedError.test(call.error);
@@ -746,9 +707,7 @@ export async function scan(
 				update();
 			}
 			if (call.split) {
-				if (!cacheOnly) {
-					await writeFile(cacheFile(body, "split"), "", { mode: 0o600 });
-				}
+				await writeFile(cacheFile(body, "split"), "", { mode: 0o600 });
 				const half = Math.ceil(jobs.length / 2);
 				const halves = [jobs.slice(0, half), jobs.slice(half)];
 				plannedBatches += halves.length - 1;
@@ -829,9 +788,7 @@ export async function scan(
 				categoryProbability: round(row.categoryProbability),
 			})),
 		};
-		if (!cacheOnly) {
-			await saveJSON(join(output, "results.json"), result);
-		}
+		await saveJSON(join(output, "results.json"), result);
 		log("finished", { summary });
 		await writes;
 		return result;
@@ -843,6 +800,6 @@ export async function scan(
 		await writes.catch(() => {
 			/* The awaited write reports the failure. */
 		});
-		await logFile?.close();
+		await logFile.close();
 	}
 }
