@@ -19,8 +19,7 @@ import { useWebsite } from "@/hooks/use-websites";
 import {
 	type AlarmData,
 	alarmMonitorIds,
-	CHANNELS,
-	parseAlarms,
+	channelLabel,
 } from "@/app/(main)/settings/notifications/_components/alarm-sheet";
 import { orpc } from "@/lib/orpc";
 import { BellIcon, GearIcon, InfoIcon } from "@databuddy/ui/icons";
@@ -129,7 +128,7 @@ export function MonitorSheet({
 		enabled: open && isEditing,
 	});
 
-	const alarms = parseAlarms(rawAlarms ?? []);
+	const alarms = rawAlarms ?? [];
 	const isLinked = (alarm: AlarmData) =>
 		alarmMonitorIds(alarm).includes(schedule?.id ?? "");
 	const linkedAlarmCount = alarms.filter(isLinked).length;
@@ -386,7 +385,7 @@ export function MonitorSheet({
 												<div className="space-y-4">
 													{alarms.map((alarm) => {
 														const destSummary = alarm.destinations
-															.map((d) => CHANNELS[d.type].label)
+															.map((d) => channelLabel(d.type))
 															.join(", ");
 
 														return (
