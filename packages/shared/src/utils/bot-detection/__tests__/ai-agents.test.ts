@@ -33,7 +33,10 @@ describe("vendored well-known-bots drift", () => {
 				(count, v) => count + (v.sources?.length ?? 0),
 				0
 			);
-			return agent.ipRangeSources.length !== sourceCount;
+			const upstreamSources = agent.ipRangeSources.filter(
+				(source) => source.format !== "asn"
+			);
+			return upstreamSources.length !== sourceCount;
 		}).map((agent) => agent.id);
 		expect(unread).toEqual([]);
 	});
@@ -76,6 +79,19 @@ describe("parseIpRanges", () => {
 		expect(parseIpRanges("json", body)).toEqual([
 			"20.171.206.0/24",
 			"2a03::/32",
+		]);
+	});
+
+	it("reads announced prefixes for an ASN", () => {
+		const body = JSON.stringify({
+			status: "ok",
+			data: {
+				prefixes: [{ prefix: "31.13.24.0/21" }, { prefix: "2a03:2880::/32" }],
+			},
+		});
+		expect(parseIpRanges("asn", body)).toEqual([
+			"31.13.24.0/21",
+			"2a03:2880::/32",
 		]);
 	});
 
