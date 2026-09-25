@@ -18,17 +18,17 @@ Run it inside a Git repository, or pass a folder to scan only that folder. No ac
   app/(dashboard)/dashboard/page.tsx:204 · form.action inviteAction · missing · Setup & onboarding
 ```
 
-It recognises React and JSX handlers, form and server actions, Vue and Svelte components, inline HTML handlers, `addEventListener`, and Next.js, Express-style and Hono route handlers. If it finds actions in only a small share of your files, it says so rather than reporting a clean result.
+It recognises React and JSX handlers, form and server actions, Vue, Svelte and Astro components, inline HTML handlers, `addEventListener`, Next.js, Express-style and Hono route handlers, and FastAPI, Flask and Django write routes. If it finds actions in only a small share of your files, it says so rather than reporting a clean result.
 
 ## Where your code goes
 
-The scan sends code to Databuddy's scan API (`api.databuddy.cc`), which classifies it with the Jev model on Vercel AI Gateway under **zero data retention**. For JavaScript and TypeScript it sends only the user actions it finds and the functions they call, not whole files. **Your source is never stored or logged.** The API only counts scans, using a random run ID, the CLI version and request sizes; nothing identifies you or your repository. The CLI prints where the source is going, with the number of files, before it sends anything.
+The scan sends code to Databuddy's scan API (`api.databuddy.cc`), which classifies it with the Jev model on Vercel AI Gateway under **zero data retention**. It sends only the user actions it finds and the functions they call, not whole files. Swift files, and files it cannot parse, are the exception and are sent whole. **Your source is never stored or logged.** The API only counts scans, using a random run ID, the CLI version and request sizes; nothing identifies you or your repository. The CLI prints where the source is going, with the number of files, before it sends anything.
 
 - `--dry-run` lists every file and line range that would be sent, and sends nothing. `--dry-run --json` prints the exact payload.
-- `databuddy-scan <folder>` reads and sends nothing outside that folder.
+- `databuddy-scan <folder>` sends code only from that folder. It still reads the rest of the repository to find existing tracking, and sends that as a list of event names and file:line references, so actions tracked elsewhere are not reported as missing.
 - To keep source off Databuddy entirely, set `AI_GATEWAY_API_KEY` to your own [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key. Requests then go straight to your account and Databuddy receives nothing.
 
-Only Git-tracked files are read. See the [privacy policy](https://www.databuddy.cc/privacy). Tests, examples, symlinks and files that look like they contain secrets are skipped.
+Only Git-tracked files are read. See [how the scanner handles your code](https://www.databuddy.cc/docs/privacy/event-scanner). Tests, examples, symlinks and files that look like they contain secrets are skipped.
 
 ## For agents
 
@@ -55,7 +55,7 @@ From the Databuddy monorepo root:
 ```sh
 bun ./scan.ts                                # Run from source
 bun run --cwd packages/scan test             # Build and test
-bun run --cwd packages/scan eval:quality     # Extraction audit against reviewed cases
+bun run --cwd packages/scan eval:quality     # Score extraction, or findings from a --json scan, against labelled cases
 ```
 
 ## License

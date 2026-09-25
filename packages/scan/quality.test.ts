@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "bun:test";
 import { groupActions } from "./src/actions";
+import { collectCoverage } from "./src/catalog";
 
 // Behavioral extraction regressions from the reviewed action audit, not model-accuracy tests.
 // Source fixtures contain executable code only; review labels and rationales stay in test names.
@@ -448,7 +449,7 @@ export function Export() {
 
 test("unsupported or malformed source requests source fallback rather than empty success", () => {
 	assert.equal(
-		groupActions("app/service.py", "def save():\n  pass\n", new Map()),
+		groupActions("App/Service.swift", "func save() {}\n", new Map()),
 		null
 	);
 	assert.equal(
@@ -484,4 +485,413 @@ async function PUT() {
 		).length,
 		1
 	);
+});
+
+test("astro pages yield script listeners and inline handlers while JSON-LD is ignored", () => {
+	const source = `---
+import Layout from "../layouts/Layout.astro";
+const title = "Contact";
+---
+<Layout title={title}>
+  <script type="application/ld+json">{"@context": "https://schema.org"}</script>
+  <form id="contact"><button type="submit">Send</button></form>
+  <button data-track="demo_requested" onclick="requestDemo()">Book a demo</button>
+</Layout>
+<script>
+  document.getElementById("contact").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await fetch("/api/contact", { method: "POST", body: new FormData(event.target) });
+  });
+</script>`;
+	const actions = groups(source, {}, "src/pages/contact.astro");
+	const submit = actions.find((action) => action.label.endsWith(".submit"));
+	assert.ok(submit);
+	assert.match(submit.source, /method: "POST"/);
+	const demo = actions.find((action) => action.label.includes("Book a demo"));
+	assert.ok(demo);
+	assert.equal(demo.tracked, 'data-track="demo_requested"');
+});
+
+test("labels name the idle branch and the element's own text, not hrefs or nested controls", () => {
+	const source = `export function Panel({ affordable, busy, cost, onClose, redeem, start, signUp, upgrade }) {
+  return <section>
+    <button onClick={() => start.mutate()}>{busy ? "Opening" : "Start the run"}</button>
+    <a href="#" onClick={() => signUp.mutate()}>Sign up</a>
+    <button onClick={() => redeem.mutate()}>{affordable ? "Redeem" : cost.toLocaleString()}</button>
+    <div className="overlay" onClick={() => onClose.mutate()}>
+      <h2>Upgrade your plan</h2>
+      <button onClick={() => upgrade.mutate()}>Upgrade</button>
+    </div>
+  </section>;
+}`;
+	const labels = groups(source).map((action) => action.label);
+	assert.ok(labels.includes('button.onClick "Start the run"'));
+	assert.ok(labels.includes('a.onClick "Sign up"'));
+	assert.ok(labels.includes('button.onClick "Redeem"'));
+	assert.ok(labels.includes("div.onClick"));
+	assert.ok(labels.includes('button.onClick "Upgrade"'));
+	const form = `export function Rename({ save, close }) {
+  return <form onSubmit={(event) => save.mutate(event)}>
+    <Button onClick={close}>Cancel</Button>
+    <Button type="submit">Rename</Button>
+  </form>;
+}`;
+	assert.equal(groups(form)[0]!.label, 'form.onSubmit "Rename"');
+});
+
+test("a data-track attribute on a click target or its ancestor marks the action tracked", () => {
+	const source = `export function SignIn({ social, open, submit }) {
+  return <section data-track="signin_opened">
+    <button data-track="signin_google" onClick={() => social("google")}>Google</button>
+    <button onClick={() => open()}>Email</button>
+    <form onSubmit={submit}><button data-track="signin_submitted" type="submit">Sign in</button></form>
+  </section>;
+}`;
+	const actions = groups(source);
+	assert.equal(
+		at(actions, source, 'social("google")')[0]?.tracked,
+		'data-track="signin_google"'
+	);
+	assert.equal(
+		at(actions, source, "open()")[0]?.tracked,
+		'data-track="signin_opened"'
+	);
+	assert.equal(at(actions, source, "onSubmit={submit}")[0]?.tracked, undefined);
+});
+
+test("python write routes are extracted alone and other functions are not sent", () => {
+	const source = `from fastapi import APIRouter
+router = APIRouter()
+
+def helper():
+    return 1
+
+@router.get("/plans")
+def plans():
+    return []
+
+@router.post(
+    "/checkout",
+)
+async def checkout(
+    body: Checkout,
+) -> Session:
+    session = await stripe.create(body)
+    return session
+
+@app.route("/invite", methods=["GET", "POST"])
+def invite():
+    save()
+`;
+	const actions = groups(source, {}, "api/billing.py");
+	assert.deepEqual(
+		actions.map((action) => action.label),
+		["POST /checkout", "POST /invite"]
+	);
+	assert.match(actions[0]!.source, /stripe\.create/);
+	assert.doesNotMatch(actions[0]!.source, /def plans|def helper|def invite/);
+	assert.deepEqual(
+		groups("def helper():\n    return 1\n", {}, "sdk/client.py"),
+		[]
+	);
+});
+
+test("data-track listeners are found in every documented install form", () => {
+	const listeners = (source: string, path = "app/layout.tsx") =>
+		collectCoverage(new Map([[path, source]])).attributeListeners.length;
+	assert.equal(
+		listeners('<Databuddy clientId="x" trackAttributes trackErrors />'),
+		1
+	);
+	assert.equal(listeners("init({ clientId, trackAttributes: true });"), 1);
+	assert.equal(
+		listeners(
+			'<script src="https://cdn.databuddy.cc/databuddy.js" data-track-attributes></script>',
+			"index.html"
+		),
+		1
+	);
+	assert.equal(
+		listeners(
+			'document.addEventListener("click", (e) => e.target.closest("[data-track]"));'
+		),
+		1
+	);
+	assert.equal(listeners("<Databuddy trackAttributes={false} />"), 0);
+	assert.equal(listeners("trackAttributes?: boolean;"), 0);
+	assert.equal(
+		listeners(
+			'const el = e.target.closest("[data-track]");',
+			"packages/tracker/src/index.ts"
+		),
+		0
+	);
+});
+
+test("callbacks passed as props are followed to the parent and dropped when every parent only sets state", () => {
+	const row = `export function Row({ onDelete, onEdit }) {
+  return <div>
+    <button onClick={() => onDelete()}>Delete</button>
+    <button onClick={onEdit}>Edit</button>
+  </div>;
+}`;
+	const list = `import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { Row } from "./row";
+export function List() {
+  const [editing, setEditing] = useState(false);
+  const remove = useMutation({ ...orpc.goals.delete.mutationOptions() });
+  return <section>
+    <Row onDelete={() => remove.mutate({ id })} onEdit={setEditing} />
+    <Row
+      onDelete={onRemove ?? (() => remove.mutate({ id }))}
+      onEdit={setEditing ?? (() => {})}
+    />
+  </section>;
+}`;
+	const actions = groups(row, { "app/list.tsx": list }, "app/row.tsx");
+	assert.deepEqual(
+		actions.map((action) => action.label),
+		['button.onClick "Delete"']
+	);
+	assert.match(actions[0]!.source, /orpc\.goals\.delete\.mutationOptions/);
+	assert.ok(actions[0]!.commits);
+});
+
+test("values returned from custom hooks and mutations passed directly are followed", () => {
+	const source = `import { useMutation } from "@tanstack/react-query";
+function useFunnels() {
+  const update = useMutation({ ...orpc.funnels.update.mutationOptions() });
+  const updateAction = (input) => update.mutateAsync(input);
+  return { updateAction };
+}
+export function Editor() {
+  const { updateAction } = useFunnels();
+  const archive = useMutation({ ...orpc.funnels.archive.mutationOptions() });
+  return <section>
+    <button onClick={() => updateAction({ name })}>Save funnel</button>
+    <button onClick={archive.mutate}>Archive</button>
+  </section>;
+}`;
+	const actions = groups(source);
+	assert.match(
+		at(actions, source, "updateAction({ name })")[0]!.source,
+		/orpc\.funnels\.update/
+	);
+	assert.match(
+		at(actions, source, "onClick={archive.mutate}")[0]!.source,
+		/orpc\.funnels\.archive/
+	);
+});
+
+test("atom setters, refetches and form resets are UI state rather than actions", () => {
+	const source = `import { useAtom, useSetAtom } from "jotai";
+export function Toolbar({ query, form }) {
+  const [open, setOpen] = useAtom(sheetAtom);
+  const setFilter = useSetAtom(filterAtom);
+  return <section>
+    <button onClick={() => setOpen(true)}>New monitor</button>
+    <button onClick={() => setFilter("errors")}>Errors</button>
+    <button onClick={() => query.refetch()}>Refresh</button>
+    <button onClick={() => form.reset()}>Clear</button>
+  </section>;
+}`;
+	assert.deepEqual(groups(source), []);
+});
+
+test("the catalog lists forwarding helpers and callers of warehouse writers, not components", () => {
+	const catalog = collectCoverage(
+		new Map([
+			[
+				"lib/app-events.ts",
+				"export function trackAppEvent(name, properties) {\n  track(name, properties);\n}",
+			],
+			[
+				"app/page.tsx",
+				"export function Page() {\n  trackAppEvent(appEvents.opened);\n  return null;\n}",
+			],
+			[
+				"services/lifecycle.ts",
+				'async function insertLifecycleEvent(row) {\n  await clickhouse.insert({ table: "analytics.custom_events", values: [row] });\n}\nexport async function recordSelfAnalyticsEvent(name) {\n  await insertLifecycleEvent({ name });\n}',
+			],
+		])
+	);
+	assert.deepEqual(
+		catalog.trackingHelpers.map((helper) => helper.split(" (")[0]),
+		["trackAppEvent", "recordSelfAnalyticsEvent"]
+	);
+});
+
+test("an action prop holding rendered JSX is not a form action", () => {
+	const source = `export function GitHubRow({ connected, installUrl }) {
+  let action;
+  if (connected) {
+    action = <span>Connected</span>;
+  } else {
+    action = <a href={installUrl}>Connect</a>;
+  }
+  return <IntegrationListRow action={action} />;
+}`;
+	assert.deepEqual(
+		groups(source).map((action) => action.label),
+		['a.intent "Connect"']
+	);
+});
+
+test("framework server actions and handlers are actions with their routes", () => {
+	const kit = `export const actions = {
+  default: async ({ request }) => {
+    await api.post("users", await request.formData());
+  },
+  logout: async ({ cookies }) => {
+    cookies.delete("jwt", { path: "/" });
+  }
+};`;
+	assert.deepEqual(
+		groups(kit, {}, "src/routes/(app)/settings/+page.server.js").map(
+			(action) => action.label
+		),
+		["POST /settings", "POST /settings?/logout"]
+	);
+	const remix = `export async function loader() { return null; }
+export const action = async ({ request }) => {
+  await createNote(await request.formData());
+  return redirect("/notes");
+};`;
+	assert.deepEqual(
+		groups(remix, {}, "app/routes/notes.new.tsx").map((action) => action.label),
+		["action notes.new"]
+	);
+	const nitro = `export default defineEventHandler(async (event) => {
+  await db.customers.insert(await readBody(event));
+});`;
+	assert.deepEqual(
+		groups(nitro, {}, "server/api/customers/index.post.ts").map(
+			(action) => action.label
+		),
+		["POST /api/customers"]
+	);
+});
+
+test("vue components keep their case, label prop and the form's submit button", () => {
+	const source = `<template>
+  <UForm :state="state" @submit="onSubmit">
+    <UFormField label="Name"><UInput v-model="state.name" /></UFormField>
+    <UButton label="Cancel" @click="close" />
+    <UButton label="Create" type="submit" />
+  </UForm>
+  <u-button label="Delete" @click="remove()" />
+</template>
+<script setup lang="ts">
+async function onSubmit() { await $fetch("/api/customers", { method: "POST" }); }
+async function remove() { await $fetch("/api/customers/1", { method: "DELETE" }); }
+</script>`;
+	const labels = groups(source, {}, "app/components/AddModal.vue").map(
+		(action) => action.label
+	);
+	assert.ok(labels.includes('UForm.onSubmit "Create"'));
+	assert.ok(labels.includes('UButton.onClick "Delete"'));
+});
+
+test("callbacks forwarded through several components and fallbacks reach the page's mutation", () => {
+	const item = `export function GroupItem({ group, onDelete }) {
+  return <GroupActions group={group} onDelete={onDelete} />;
+}
+function GroupActions({ group, onDelete }) {
+  return <button onClick={() => onDelete(group.id)}>Delete</button>;
+}`;
+	const list = `import { GroupItem } from "./group-item";
+export function GroupsList({ groups, onDeleteGroup }) {
+  return groups.map((group) => (
+    <GroupItem group={group} key={group.id} onDelete={onDeleteGroup ?? (() => {})} />
+  ));
+}`;
+	const page = `import { useMutation } from "@tanstack/react-query";
+import { GroupsList } from "./groups-list";
+export default function Page() {
+  const remove = useMutation({ ...orpc.targetGroups.delete.mutationOptions() });
+  const handleDeleteGroup = async (id) => {
+    await remove.mutateAsync({ id });
+  };
+  return <GroupsList groups={[]} onDeleteGroup={handleDeleteGroup} />;
+}`;
+	const actions = groups(
+		item,
+		{ "app/groups-list.tsx": list, "app/page.tsx": page },
+		"app/group-item.tsx"
+	);
+	assert.equal(actions.length, 1);
+	assert.match(actions[0]!.source, /orpc\.targetGroups\.delete/);
+});
+
+test("a clipboard copy carries the value it copies so the model can tell a snippet from an ID", () => {
+	const source = `export function Terminal() {
+  const steps = ["git clone https://github.com/acme/app", "pnpm install", "pnpm dev"];
+  const copy = () => {
+    navigator.clipboard.writeText(steps.join("\\n"));
+  };
+  return <button onClick={copy}>Copy</button>;
+}`;
+	const [action] = groups(source);
+	assert.match(action!.source, /pnpm install/);
+});
+
+test("a mutation whose function is a prop, and props destructured in the body, reach the parent's route", () => {
+	const control = `import { useMutation } from "@tanstack/react-query";
+export function Control({ onSave }) {
+  const mutation = useMutation({ mutationFn: onSave });
+  const handleSave = () => mutation.mutate({ enabled: true });
+  return <button onClick={handleSave}>Save</button>;
+}`;
+	const modal = `export function Modal(props) {
+  const handleSubmit = async () => {
+    const { onCreate } = props;
+    await onCreate({ text });
+  };
+  return <button onClick={handleSubmit}>Create</button>;
+}`;
+	const page = `import { Control } from "./control";
+import { Modal } from "./modal";
+export default function Page() {
+  return <section>
+    <Control onSave={(input) => orpc.billing.setUsageAlert.call(input)} />
+    <Modal onCreate={(input) => orpc.annotations.create.call(input)} />
+  </section>;
+}`;
+	const extra = {
+		"app/control.tsx": control,
+		"app/modal.tsx": modal,
+		"app/page.tsx": page,
+	};
+	assert.match(
+		groups(control, extra, "app/control.tsx")[0]!.source,
+		/orpc\.billing\.setUsageAlert/
+	);
+	assert.match(
+		groups(modal, extra, "app/modal.tsx")[0]!.source,
+		/orpc\.annotations\.create/
+	);
+});
+
+test("every handler on a markup tag is read and i18n keys become labels", () => {
+	const source = `<template>
+  <form @click.stop="stopPropagation" @submit.prevent="vote">
+    <button type="submit">{{ $t('polls.vote') }}</button>
+  </form>
+  <StatusActionButton :title="$t('action.boost')" @click="toggleReblog()" />
+</template>
+<script setup lang="ts">
+function noop() {}
+async function vote() {
+  await client.polls.$select(id).votes.create({ choices });
+}
+async function toggleReblog() {
+  await client.statuses.$select(id).reblog();
+}
+</script>`;
+	const labels = groups(source, {}, "components/StatusPoll.vue").map(
+		(action) => action.label
+	);
+	assert.ok(labels.includes("form.onSubmit vote"));
+	assert.ok(labels.includes('StatusActionButton.onClick "action.boost"'));
 });

@@ -22,13 +22,15 @@ const areas = {
 	analysis: "Analytics",
 	retention: "Engagement",
 	acquisition: "Acquisition",
-	none: "Other actions",
 };
-export const privacy = `Code is sent to Databuddy's scan API (${new URL(hostedScanUrl).host}), which classifies it with the Jev model (typesafe-ai/jev) on Vercel AI Gateway under zero data retention: your source is never stored or logged. For JavaScript and TypeScript only the actions it finds and the functions they call are sent, not whole files; --dry-run lists every line without sending anything. Set AI_GATEWAY_API_KEY to send it to your own Vercel AI Gateway account instead, and Databuddy receives nothing. Privacy policy: https://www.databuddy.cc/privacy`;
+export const privacy = `Code is sent to Databuddy's scan API (${new URL(hostedScanUrl).host}), which classifies it with the Jev model (typesafe-ai/jev) on Vercel AI Gateway under zero data retention: your source is never stored or logged. Only the actions it finds and the functions they call are sent, not whole files, except for Swift and any file it cannot parse; --dry-run lists every line without sending anything. Set AI_GATEWAY_API_KEY to send it to your own Vercel AI Gateway account instead, and Databuddy receives nothing. How the scanner handles your code: https://www.databuddy.cc/docs/privacy/event-scanner`;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: Source paths and provider labels must not control the terminal.
 const controls = /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g;
 const clean = (value: string | number | null | undefined) =>
 	stripVTControlCharacters(String(value ?? "")).replace(controls, "");
+const minimumPriority = 0.7;
+const shown = (rows: Row[]) =>
+	gaps(rows).filter((row) => row.priority >= minimumPriority);
 const gaps = (rows: Row[]) =>
 	rows.filter(
 		(row) => row.coverage === "missing" || row.coverage === "partial"
@@ -49,6 +51,10 @@ const elapsed = (seconds: number) =>
 		? `${Math.round(seconds)}s`
 		: `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`;
 const location = (row: Row) => `${clean(row.path)}:${row.start}`;
+const area = (row: Row) =>
+	row.category !== "none" && (row.categoryProbability ?? 1) >= 0.5
+		? ` · ${areas[row.category]}`
+		: "";
 const accent = "#e3a514";
 type DryRun = Extract<Awaited<ReturnType<typeof scan>>, { dryRun: true }>;
 
@@ -80,7 +86,7 @@ export function createTerminal({ json = false }: { json?: boolean } = {}) {
 		if (!interactive) {
 			return;
 		}
-		const found = uniqueFiles(gaps(snapshot.rows));
+		const found = uniqueFiles(shown(snapshot.rows));
 		const fraction = snapshot.batches
 			? Math.min(1, snapshot.completedBatches / snapshot.batches)
 			: 0;
@@ -94,9 +100,7 @@ export function createTerminal({ json = false }: { json?: boolean } = {}) {
 				`  ${snapshot.classifiedFiles} / ${snapshot.includedFiles} files · ${elapsed(snapshot.elapsedSeconds)}`,
 				"",
 				progress.hex(accent)(`  ${count(found.length, "file")} to review`),
-				...found
-					.slice(0, 3)
-					.map((row) => `  ${location(row)} · ${areas[row.category]}`),
+				...found.slice(0, 3).map((row) => `  ${location(row)}${area(row)}`),
 			].join("\n")
 		);
 	}
@@ -112,7 +116,7 @@ export function createTerminal({ json = false }: { json?: boolean } = {}) {
 			files === 0
 				? "Nothing to send: every result is cached from an earlier scan.\n"
 				: destination.kind === "databuddy"
-					? `Sending code from ${count(files, "file")} to Databuddy's scan API (${destination.host}). Jev classifies it on Vercel AI Gateway with zero data retention; your source is never stored or logged. Preview with --dry-run, or set AI_GATEWAY_API_KEY to use your own gateway. https://www.databuddy.cc/privacy\n`
+					? `Sending code from ${count(files, "file")} to Databuddy's scan API (${destination.host}). Jev classifies it on Vercel AI Gateway with zero data retention; your source is never stored or logged. Preview with --dry-run, or set AI_GATEWAY_API_KEY to use your own gateway. https://www.databuddy.cc/docs/privacy/event-scanner\n`
 					: `Sending code from ${count(files, "file")} directly to your Vercel AI Gateway account (${destination.host}) with zero data retention. Databuddy receives nothing.\n`
 		);
 	}
@@ -164,7 +168,8 @@ export function createTerminal({ json = false }: { json?: boolean } = {}) {
 			return print([JSON.stringify(result)]);
 		}
 		const { summary: s, rows } = result;
-		const flagged = gaps(rows);
+		const flagged = shown(rows);
+		const quiet = gaps(rows).length - flagged.length;
 		const visible = interactive ? flagged.slice(0, 10) : flagged;
 		const lines = [
 			"",
@@ -175,12 +180,19 @@ export function createTerminal({ json = false }: { json?: boolean } = {}) {
 			...notes(s.warnings),
 			...visible.map(
 				(row) =>
-					`  ${location(row)} · ${row.action ? `${clean(row.action.label)} · ` : ""}${row.coverage} · ${areas[row.category]}`
+					`  ${location(row)} · ${row.action ? `${clean(row.action.label)} · ` : ""}${row.coverage}${area(row)}`
 			),
 		];
-		if (flagged.length > visible.length) {
+		if (flagged.length > visible.length || quiet) {
 			lines.push(
-				`  ${flagged.length - visible.length} more · databuddy-scan --json lists every finding`
+				`  ${[
+					flagged.length > visible.length
+						? `${flagged.length - visible.length} more`
+						: "",
+					quiet ? `${quiet} low-priority not shown` : "",
+				]
+					.filter(Boolean)
+					.join(", ")} · databuddy-scan --json lists every finding`
 			);
 		}
 		if (s.failures || s.unattemptedBatches || s.interrupted) {

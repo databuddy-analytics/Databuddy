@@ -373,6 +373,10 @@ export const contents: SidebarSection[] = [
 						title: "Cookieless Analytics",
 						href: "/docs/privacy/cookieless-analytics-guide",
 					},
+					{
+						title: "Event Scanner Data",
+						href: "/docs/privacy/event-scanner",
+					},
 				],
 			},
 			{

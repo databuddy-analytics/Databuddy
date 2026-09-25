@@ -13,7 +13,7 @@ import {
 import { join } from "node:path";
 import pLimit from "p-limit";
 import { z } from "zod";
-import type { Site } from "./actions";
+import { groupActions, type Site } from "./actions";
 import { collectCoverage, coverageNote } from "./catalog";
 import {
 	type Attempt,
@@ -31,14 +31,10 @@ import type { Snapshot } from "./terminal";
 
 export const scanOptionsSchema = z.object({
 	root: z.string().trim().min(1).default("."),
-	output: z.string().trim().min(1).optional(),
 	dryRun: z.boolean().default(false),
-	fresh: z.boolean().default(false),
-	cacheOnly: z.boolean().default(false),
-	actions: z.boolean().default(true),
-	concurrency: z.coerce.number().int().positive().default(8),
-	batchFiles: z.coerce.number().int().positive().max(4).default(2),
 });
+const concurrency = 8;
+const batchFiles = 2;
 const timeoutMs = 15_000;
 const maxRequestBytes = 48_000;
 const attemptSchema = z.object({
@@ -102,12 +98,13 @@ export const hash = (value: string) =>
 	createHash("sha256").update(value).digest("hex");
 const excluded =
 	/(?:^|\/)(?:tests?|__tests__|fixtures?|__fixtures__|__mocks__|examples?|playground|e2e|cypress|playwright|node_modules|dist|\.next|\.agents|\.codex|vendor)(?:\/|$)|\.(?:test|spec|stories|generated|d)\.[^.]+$/i;
-const sourceFile = /\.(?:[cm]?[jt]sx?|vue|svelte|swift|py|sh|sql|html?|css)$/;
+const sourceFile =
+	/\.(?:[cm]?[jt]sx?|vue|svelte|astro|swift|py|sh|sql|html?|css)$/;
 const repositoryKey =
 	/^[ \t]*(?:export[ \t]+)?AI_GATEWAY_API_KEY[ \t]*=[ \t]*(.*?)[ \t]*$/m;
 const quoted = /^(["'])(.*)\1$/;
 const routeHandlerLabel = /^(?:GET|POST|PUT|PATCH|DELETE)$/;
-const reviewable = /\.(?:[cm]?[jt]sx?|vue|svelte|swift|py)$/;
+const reviewable = /\.(?:[cm]?[jt]sx?|vue|svelte|astro|swift|py)$/;
 const sourceLineBoundary = /(?<=\n)/;
 const secret =
 	/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|(?:sk_live_|sk-proj-|ghp_|github_pat_)[A-Za-z0-9_-]{20,}/;
@@ -116,6 +113,10 @@ const trackingCall =
 const closers: Record<string, string> = { "(": ")", "[": "]", "{": "}" };
 const trailingSeparator = /[\s,]+$/;
 const whitespaceRun = /\s+/g;
+const routeArrow = / -> /;
+const packageManifest = /(?:^|\/)package\.json$/;
+const procedureCall =
+	/\b[\w$]+\.(\w+)\.(\w+)\.(?:mutationOptions|queryOptions|infiniteOptions|call|mutate|mutateAsync)\b/g;
 function firstArgument(text: string) {
 	const open: string[] = [];
 	let argument = "";
@@ -143,8 +144,7 @@ function firstArgument(text: string) {
 			.join("")
 	);
 }
-const safeError =
-	/^(?:Gateway HTTP [0-9]{3}|No matching cached response; network disabled)$/;
+const safeError = /^Gateway HTTP [0-9]{3}$/;
 const shedError = /^(?:Gateway HTTP 5[0-9]{2}|Gateway request timed out)$/;
 const splitDepth = 2;
 const keyHelp = "Check the key, or unset it to use Databuddy's scan API.";
@@ -165,7 +165,7 @@ async function saveJSON(path: string, value: object | JsonValue) {
 	await writeFile(temporary, JSON.stringify(value), { mode: 0o600 });
 	await rename(temporary, path);
 }
-export function splitSource(path: string, content: string): Segment[] {
+function splitSource(path: string, content: string): Segment[] {
 	const segments: Segment[] = [];
 	let source = "",
 		start = 1,
@@ -188,10 +188,9 @@ export function splitSource(path: string, content: string): Segment[] {
 	return segments;
 }
 
-export function planRequests(
+function planRequests(
 	segments: Segment[],
-	catalog: Catalog,
-	batchFiles: number
+	catalog: Catalog
 ): { body: string; jobs: Segment[] }[] {
 	const build = (jobs: Segment[]) => createRequest(jobs, catalog);
 	const overhead = Buffer.byteLength(build([]));
@@ -215,24 +214,40 @@ export function planRequests(
 	return batches.map((jobs) => ({ body: build(jobs), jobs }));
 }
 
-export async function readSources(root: string, scope = "") {
+async function readSources(root: string, scope = "") {
 	const inventory: InventoryFile[] = [],
 		sources = new Map<string, string>(),
+		indexed = new Map<string, string>(),
+		workspace = new Set<string>(),
+		packageRoots: string[] = [],
 		tracking = new Set<string>();
-	for (const path of execFileSync(
-		"git",
-		["ls-files", "-z", ...(scope ? ["--", `:(literal)${scope}`] : [])],
-		{
-			cwd: root,
-			encoding: "utf8",
-			maxBuffer: 64 * 1024 * 1024,
-		}
-	)
+	for (const path of execFileSync("git", ["ls-files", "-z"], {
+		cwd: root,
+		encoding: "utf8",
+		maxBuffer: 64 * 1024 * 1024,
+	})
 		.split("\0")
 		.filter(Boolean)
 		.sort()) {
+		if (packageManifest.test(path)) {
+			packageRoots.push(path.slice(0, path.lastIndexOf("/") + 1));
+			try {
+				const { name } = JSON.parse(await readFile(join(root, path), "utf8"));
+				if (typeof name === "string") {
+					workspace.add(name);
+				}
+			} catch {
+				/* An unreadable manifest only loses first-party import detection. */
+			}
+		}
+		const scoped = !scope || path === scope || path.startsWith(`${scope}/`);
+		const record = (file: InventoryFile) => {
+			if (scoped) {
+				inventory.push(file);
+			}
+		};
 		if (!sourceFile.test(path) || excluded.test(path)) {
-			inventory.push({
+			record({
 				path,
 				status: "excluded",
 				reason: "non-runtime/source-or-test",
@@ -245,12 +260,12 @@ export async function readSources(root: string, scope = "") {
 				(await lstat(sourcePath)).isSymbolicLink() ||
 				(await realpath(sourcePath)) !== sourcePath
 			) {
-				inventory.push({ path, status: "excluded", reason: "symbolic_link" });
+				record({ path, status: "excluded", reason: "symbolic_link" });
 				continue;
 			}
 			const content = await readFile(sourcePath, "utf8");
 			if (secret.test(content)) {
-				inventory.push({
+				record({
 					path,
 					status: "excluded",
 					reason: "possible embedded secret",
@@ -258,8 +273,11 @@ export async function readSources(root: string, scope = "") {
 				continue;
 			}
 			const chunks = splitSource(path, content);
-			sources.set(path, content);
-			inventory.push({
+			indexed.set(path, content);
+			if (scoped) {
+				sources.set(path, content);
+			}
+			record({
 				path,
 				status: "included",
 				sha256: hash(content),
@@ -281,7 +299,7 @@ export async function readSources(root: string, scope = "") {
 				tracking.add(signature);
 			}
 		} catch (error) {
-			inventory.push({
+			record({
 				path,
 				status: "excluded",
 				reason:
@@ -306,10 +324,10 @@ export async function readSources(root: string, scope = "") {
 		}
 		return kept;
 	};
-	const coverage = collectCoverage(sources);
+	const coverage = collectCoverage(indexed);
 	const catalog = {
-		trackingHelpers: trim(coverage.trackingHelpers),
 		trackedRoutes: trim(coverage.trackedRoutes),
+		trackingHelpers: trim(coverage.trackingHelpers),
 		warehouseWrites: trim(coverage.warehouseWrites),
 		attributeTracking: trim(coverage.attributeTracking),
 		directTrackingCandidates: trim(
@@ -317,7 +335,15 @@ export async function readSources(root: string, scope = "") {
 		),
 		note: `This is a lexical and syntactic index of possible tracking, deduplicated by call signature, not proof of coverage. Matches can be source examples, unrelated functions or wrappers. Verify executable source, event meaning and outcome before classifying covered. No matches does not prove missing coverage: shared procedures and imported callees may track elsewhere. Audit logs and usage metering alone are not product analytics. Static tracking code does not prove delivery. ${coverageNote}`,
 	};
-	return { inventory, sources, catalog };
+	return {
+		inventory,
+		sources,
+		catalog,
+		attributeListeners: coverage.attributeListeners,
+		trackedRoutes: coverage.trackedRoutes,
+		workspace,
+		packageRoots,
+	};
 }
 
 export interface Destination {
@@ -359,47 +385,101 @@ export async function scan(
 	onProgress: (snapshot: Snapshot) => void,
 	announce: (notice: { destination: Destination; files: number }) => void
 ) {
-	const { root, scope, output, cacheOnly, fresh, concurrency, batchFiles } =
-		options;
+	const { root, scope, output } = options;
 	const git = (...args: string[]) =>
 		execFileSync("git", args, {
 			cwd: root,
 			encoding: "utf8",
 			stdio: ["ignore", "pipe", "pipe"],
 		});
-	const previous = await readJSON(join(output, "inventory.json"));
-	if (
-		previous &&
-		z.object({ root: z.string() }).parse(previous).root !== root
-	) {
-		throw new Error(
-			"This output directory belongs to another repository. Choose another --output."
-		);
-	}
 	let head: string | null = null;
 	try {
 		head = git("rev-parse", "--verify", "HEAD").trim();
 	} catch {
 		/* A newly initialized repository may have no commit. */
 	}
-	const { inventory, sources, catalog } = await readSources(root, scope);
-	const { groupActions } = options.actions
-		? await import("./actions")
-		: { groupActions: null };
+	const {
+		inventory,
+		sources,
+		catalog,
+		attributeListeners,
+		trackedRoutes,
+		workspace,
+		packageRoots,
+	} = await readSources(root, scope);
+	const appOf = (path: string) =>
+		packageRoots
+			.filter((prefix) => path.startsWith(prefix))
+			.reduce(
+				(longest, prefix) =>
+					prefix.length > longest.length ? prefix : longest,
+				""
+			);
+	const listenerFor = (path: string) =>
+		attributeListeners.find(
+			(entry) => appOf(entry.slice(0, entry.lastIndexOf(":"))) === appOf(path)
+		);
+	const routeEvents = new Map(
+		trackedRoutes.map((entry) => {
+			const [route = "", event = ""] = entry.split(routeArrow);
+			return [route, event.split(" (")[0] ?? ""];
+		})
+	);
+	const annotate = (source: string) => {
+		const notes = new Set<string>();
+		for (const match of source.matchAll(procedureCall)) {
+			const route = `${match[1]}.${match[2]}`;
+			const event = routeEvents.get(route);
+			if (event) {
+				notes.add(
+					`// ${route} is a tracked route: it emits ${event} after the call succeeds`
+				);
+			}
+		}
+		return notes.size ? `${[...notes].join("\n")}\n${source}` : source;
+	};
 	const found: Segment[] = [];
+	const settled: Row[] = [];
 	const excerpts = new Map<Segment, Site[]>();
 	const noActionFiles: string[] = [];
 	for (const [path, source] of sources) {
-		const actions = groupActions?.(path, source, sources);
+		const actions = groupActions(path, source, sources, workspace);
+		const listener = listenerFor(path);
 		if (actions?.length) {
 			for (const {
 				start,
 				end,
 				source: context,
 				excerpts: lines,
+				commits,
+				tracked,
 				...action
 			} of actions) {
-				const segment = { path, start, end, source: context, action };
+				if (tracked && listener && !commits) {
+					settled.push({
+						path,
+						start,
+						end,
+						coverage: "covered",
+						category: "none",
+						priority: 0,
+						coverageProbability: 1,
+						categoryProbability: null,
+						action,
+					});
+					continue;
+				}
+				const segment = {
+					path,
+					start,
+					end,
+					source: annotate(
+						tracked && listener
+							? `// ${tracked} on this element or an ancestor is emitted on click by the data-track listener at ${listener}\n${context}`
+							: context
+					),
+					action,
+				};
 				found.push(segment);
 				excerpts.set(segment, lines);
 			}
@@ -423,26 +503,25 @@ export async function scan(
 				linkedRoutes.has(`${segment.path}:${segment.start}`)
 			)
 	);
-	const includedFiles = new Set(segments.map((s) => s.path)).size;
+	const includedFiles = new Set([...segments, ...settled].map((s) => s.path))
+		.size;
 	const sourceFiles = [...sources.keys()].filter((path) =>
 		reviewable.test(path)
 	).length;
 	const warnings =
-		options.actions && sourceFiles >= 20 && includedFiles < sourceFiles / 20
+		sourceFiles >= 20 && includedFiles < sourceFiles / 20
 			? [
 					`Only ${includedFiles} of ${sourceFiles} source files contain actions the scanner recognises (JSX handlers, form actions, DOM listeners, route handlers). Findings cover those files only, so an empty result does not mean tracking is complete.`,
 				]
 			: [];
-	if (!cacheOnly) {
-		await mkdir(join(output, "responses"), { recursive: true, mode: 0o700 });
-		await saveJSON(join(output, "inventory.json"), {
-			root,
-			head,
-			files: inventory,
-			noActionFiles,
-			catalog,
-		});
-	}
+	await mkdir(join(output, "responses"), { recursive: true, mode: 0o700 });
+	await saveJSON(join(output, "inventory.json"), {
+		root,
+		head,
+		files: inventory,
+		noActionFiles,
+		catalog,
+	});
 	const apiKey =
 		process.env.AI_GATEWAY_API_KEY?.trim() ||
 		repositoryKey
@@ -463,7 +542,7 @@ export async function scan(
 			payload: { catalog, segments },
 		};
 	}
-	const batches = planRequests(segments, catalog, batchFiles);
+	const batches = planRequests(segments, catalog);
 	const cacheFile = (body: string, kind = "json") =>
 		join(output, "responses", `${hash(body)}.${kind}`);
 	const exists = (path: string) =>
@@ -471,40 +550,30 @@ export async function scan(
 			() => true,
 			() => false
 		);
-	if (!cacheOnly) {
-		const pending = await Promise.all(
-			batches.map(async ({ body, jobs }) =>
-				fresh ||
-				!(
-					(await exists(cacheFile(body))) ||
-					(await exists(cacheFile(body, "split")))
-				)
-					? jobs
-					: []
-			)
-		);
-		announce({
-			destination,
-			files: sentFiles(pending.flat(), excerpts).length,
-		});
-	}
+	const pending = await Promise.all(
+		batches.map(async ({ body, jobs }) =>
+			(await exists(cacheFile(body))) ||
+			(await exists(cacheFile(body, "split")))
+				? []
+				: jobs
+		)
+	);
+	announce({
+		destination,
+		files: sentFiles(pending.flat(), excerpts).length,
+	});
 	const started = performance.now(),
 		runId = randomUUID(),
 		controller = new AbortController(),
 		limit = pLimit(concurrency);
-	const rows: Row[] = [],
+	const rows: Row[] = [...settled],
 		calls: Call[] = [];
 	let plannedBatches = batches.length,
 		interrupted = false,
 		logFailed = false;
-	const logFile = cacheOnly
-		? null
-		: await open(join(output, "progress.ndjson"), "a", 0o600);
+	const logFile = await open(join(output, "progress.ndjson"), "a", 0o600);
 	let writes = Promise.resolve();
 	const log = (type: string, fields: Record<string, unknown> = {}) => {
-		if (!logFile) {
-			return;
-		}
 		writes = writes.then(async () => {
 			await logFile.write(
 				`${JSON.stringify({ type, ...fields, at: new Date().toISOString(), runId })}\n`
@@ -576,38 +645,30 @@ export async function scan(
 				files: jobs.map((j) => `${j.path}:${j.start}`),
 			});
 			try {
-				if (!fresh) {
-					try {
-						response = await readJSON(cacheFile(body));
-						if (response !== null) {
-							parseResponse(response, jobs);
-							call.cached = true;
-						}
-					} catch (error) {
-						if (
-							!(error instanceof SyntaxError || error instanceof z.ZodError)
-						) {
-							throw error;
-						}
-						log("cache_invalid", { batch: index, cacheKey });
+				try {
+					response = await readJSON(cacheFile(body));
+					if (response !== null) {
+						parseResponse(response, jobs);
+						call.cached = true;
 					}
+				} catch (error) {
+					if (!(error instanceof SyntaxError || error instanceof z.ZodError)) {
+						throw error;
+					}
+					log("cache_invalid", { batch: index, cacheKey });
 				}
 				const splittable = jobs.length > 1 && depth < splitDepth;
 				if (
-					!(call.cached || fresh) &&
+					!call.cached &&
 					splittable &&
 					(await exists(cacheFile(body, "split")))
 				) {
 					call.split = true;
 				} else if (!call.cached) {
-					response = null;
-					if (cacheOnly) {
-						throw new Error("No matching cached response; network disabled");
-					}
 					response = await requestEvaluation(body, {
 						apiKey,
 						attempts: splittable ? 2 : undefined,
-						run: { id: runId, mode: options.actions ? "actions" : "files" },
+						run: runId,
 						timeoutMs,
 						signal: controller.signal,
 						onAttempt: (attempt) => {
@@ -637,7 +698,7 @@ export async function scan(
 									? `Scan failed (${String(error.code)})`
 									: "Scan failed";
 				call.split =
-					!(cacheOnly || controller.signal.aborted) &&
+					!controller.signal.aborted &&
 					jobs.length > 1 &&
 					depth < splitDepth &&
 					shedError.test(call.error);
@@ -662,9 +723,7 @@ export async function scan(
 				update();
 			}
 			if (call.split) {
-				if (!cacheOnly) {
-					await writeFile(cacheFile(body, "split"), "", { mode: 0o600 });
-				}
+				await writeFile(cacheFile(body, "split"), "", { mode: 0o600 });
 				const half = Math.ceil(jobs.length / 2);
 				const halves = [jobs.slice(0, half), jobs.slice(half)];
 				plannedBatches += halves.length - 1;
@@ -745,9 +804,7 @@ export async function scan(
 				categoryProbability: round(row.categoryProbability),
 			})),
 		};
-		if (!cacheOnly) {
-			await saveJSON(join(output, "results.json"), result);
-		}
+		await saveJSON(join(output, "results.json"), result);
 		log("finished", { summary });
 		await writes;
 		return result;
@@ -759,6 +816,6 @@ export async function scan(
 		await writes.catch(() => {
 			/* The awaited write reports the failure. */
 		});
-		await logFile?.close();
+		await logFile.close();
 	}
 }
