@@ -22,9 +22,12 @@ const dryRunSchema = z.object({
 	payload: z.object({ segments: z.array(spanSchema) }),
 });
 const resultSchema = z.object({
-	rows: z.array(spanSchema.extend({ coverage: z.string() })),
+	rows: z.array(
+		spanSchema.extend({ coverage: z.string(), priority: z.number() })
+	),
 });
 
+const shownPriority = 0.7;
 const [resultsPath, ...flags] = process.argv.slice(2);
 const verbose = flags.includes("--verbose") || resultsPath === "--verbose";
 const here = dirname(fileURLToPath(import.meta.url));
@@ -99,7 +102,8 @@ for (const split of ["known", "holdout"] as const) {
 		rows.some(
 			(row) =>
 				covers(row, item.path, item.line) &&
-				(row.coverage === "missing" || row.coverage === "partial")
+				(row.coverage === "missing" || row.coverage === "partial") &&
+				row.priority >= shownPriority
 		);
 	const hits = scoped.filter(flagged);
 	const truePositives = hits.filter(
