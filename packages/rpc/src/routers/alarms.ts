@@ -5,6 +5,7 @@ import {
 	alarmTriggerTypeValues,
 } from "@databuddy/db/schema";
 import { ratelimit } from "@databuddy/redis/rate-limit";
+import { createSelectSchema } from "drizzle-orm/zod";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -87,7 +88,14 @@ const destinationSchema = z.discriminatedUnion("type", [
 	emailDestinationSchema,
 ]);
 
-const alarmOutputSchema = z.record(z.string(), z.unknown());
+const jsonRecord = z.record(z.string(), z.unknown());
+const alarmOutputSchema = createSelectSchema(alarms, {
+	triggerConditions: jsonRecord,
+}).extend({
+	destinations: z.array(
+		createSelectSchema(alarmDestinations, { config: jsonRecord })
+	),
+});
 
 function maskTail(value: string, keep = 4): string {
 	if (value.length <= keep) {
@@ -97,23 +105,28 @@ function maskTail(value: string, keep = 4): string {
 }
 
 interface RedactableDestination {
-	config: unknown;
+	config: Record<string, unknown>;
 	identifier: string;
 	type: string;
 }
 
 function redactDestination<T extends RedactableDestination>(d: T): T {
-	const cfg = (d.config ?? {}) as Record<string, unknown>;
-	const headers = cfg.headers as Record<string, string> | undefined;
-	const redactedHeaders = headers
-		? Object.fromEntries(
-				Object.entries(headers).map(([name, value]) => [name, maskTail(value)])
-			)
-		: headers;
+	const { headers } = d.config;
 	return {
 		...d,
 		identifier: d.type === "email" ? d.identifier : maskTail(d.identifier),
-		config: redactedHeaders ? { ...cfg, headers: redactedHeaders } : cfg,
+		config:
+			headers && typeof headers === "object"
+				? {
+						...d.config,
+						headers: Object.fromEntries(
+							Object.entries(headers).map(([name, value]) => [
+								name,
+								typeof value === "string" ? maskTail(value) : value,
+							])
+						),
+					}
+				: d.config,
 	};
 }
 
