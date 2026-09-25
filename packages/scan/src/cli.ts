@@ -20,7 +20,7 @@ const command = new Command()
 	.version(version)
 	.argument(
 		"[path]",
-		"directory or file to scan; nothing outside it is read",
+		"directory or file to scan; code outside it is never sent",
 		"."
 	)
 	.option("--dry-run", "list every line that would be sent, and send nothing")

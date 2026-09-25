@@ -102,12 +102,13 @@ export const hash = (value: string) =>
 	createHash("sha256").update(value).digest("hex");
 const excluded =
 	/(?:^|\/)(?:tests?|__tests__|fixtures?|__fixtures__|__mocks__|examples?|playground|e2e|cypress|playwright|node_modules|dist|\.next|\.agents|\.codex|vendor)(?:\/|$)|\.(?:test|spec|stories|generated|d)\.[^.]+$/i;
-const sourceFile = /\.(?:[cm]?[jt]sx?|vue|svelte|swift|py|sh|sql|html?|css)$/;
+const sourceFile =
+	/\.(?:[cm]?[jt]sx?|vue|svelte|astro|swift|py|sh|sql|html?|css)$/;
 const repositoryKey =
 	/^[ \t]*(?:export[ \t]+)?AI_GATEWAY_API_KEY[ \t]*=[ \t]*(.*?)[ \t]*$/m;
 const quoted = /^(["'])(.*)\1$/;
 const routeHandlerLabel = /^(?:GET|POST|PUT|PATCH|DELETE)$/;
-const reviewable = /\.(?:[cm]?[jt]sx?|vue|svelte|swift|py)$/;
+const reviewable = /\.(?:[cm]?[jt]sx?|vue|svelte|astro|swift|py)$/;
 const sourceLineBoundary = /(?<=\n)/;
 const secret =
 	/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|(?:sk_live_|sk-proj-|ghp_|github_pat_)[A-Za-z0-9_-]{20,}/;
@@ -116,6 +117,10 @@ const trackingCall =
 const closers: Record<string, string> = { "(": ")", "[": "]", "{": "}" };
 const trailingSeparator = /[\s,]+$/;
 const whitespaceRun = /\s+/g;
+const routeArrow = / -> /;
+const packageManifest = /(?:^|\/)package\.json$/;
+const procedureCall =
+	/\b[\w$]+\.(\w+)\.(\w+)\.(?:mutationOptions|queryOptions|infiniteOptions|call|mutate|mutateAsync)\b/g;
 function firstArgument(text: string) {
 	const open: string[] = [];
 	let argument = "";
@@ -218,21 +223,35 @@ export function planRequests(
 export async function readSources(root: string, scope = "") {
 	const inventory: InventoryFile[] = [],
 		sources = new Map<string, string>(),
+		indexed = new Map<string, string>(),
+		workspace = new Set<string>(),
 		tracking = new Set<string>();
-	for (const path of execFileSync(
-		"git",
-		["ls-files", "-z", ...(scope ? ["--", `:(literal)${scope}`] : [])],
-		{
-			cwd: root,
-			encoding: "utf8",
-			maxBuffer: 64 * 1024 * 1024,
-		}
-	)
+	for (const path of execFileSync("git", ["ls-files", "-z"], {
+		cwd: root,
+		encoding: "utf8",
+		maxBuffer: 64 * 1024 * 1024,
+	})
 		.split("\0")
 		.filter(Boolean)
 		.sort()) {
+		if (packageManifest.test(path)) {
+			try {
+				const { name } = JSON.parse(await readFile(join(root, path), "utf8"));
+				if (typeof name === "string") {
+					workspace.add(name);
+				}
+			} catch {
+				/* An unreadable manifest only loses first-party import detection. */
+			}
+		}
+		const scoped = !scope || path === scope || path.startsWith(`${scope}/`);
+		const record = (file: InventoryFile) => {
+			if (scoped) {
+				inventory.push(file);
+			}
+		};
 		if (!sourceFile.test(path) || excluded.test(path)) {
-			inventory.push({
+			record({
 				path,
 				status: "excluded",
 				reason: "non-runtime/source-or-test",
@@ -245,12 +264,12 @@ export async function readSources(root: string, scope = "") {
 				(await lstat(sourcePath)).isSymbolicLink() ||
 				(await realpath(sourcePath)) !== sourcePath
 			) {
-				inventory.push({ path, status: "excluded", reason: "symbolic_link" });
+				record({ path, status: "excluded", reason: "symbolic_link" });
 				continue;
 			}
 			const content = await readFile(sourcePath, "utf8");
 			if (secret.test(content)) {
-				inventory.push({
+				record({
 					path,
 					status: "excluded",
 					reason: "possible embedded secret",
@@ -258,8 +277,11 @@ export async function readSources(root: string, scope = "") {
 				continue;
 			}
 			const chunks = splitSource(path, content);
-			sources.set(path, content);
-			inventory.push({
+			indexed.set(path, content);
+			if (scoped) {
+				sources.set(path, content);
+			}
+			record({
 				path,
 				status: "included",
 				sha256: hash(content),
@@ -281,7 +303,7 @@ export async function readSources(root: string, scope = "") {
 				tracking.add(signature);
 			}
 		} catch (error) {
-			inventory.push({
+			record({
 				path,
 				status: "excluded",
 				reason:
@@ -306,10 +328,10 @@ export async function readSources(root: string, scope = "") {
 		}
 		return kept;
 	};
-	const coverage = collectCoverage(sources);
+	const coverage = collectCoverage(indexed);
 	const catalog = {
-		trackingHelpers: trim(coverage.trackingHelpers),
 		trackedRoutes: trim(coverage.trackedRoutes),
+		trackingHelpers: trim(coverage.trackingHelpers),
 		warehouseWrites: trim(coverage.warehouseWrites),
 		attributeTracking: trim(coverage.attributeTracking),
 		directTrackingCandidates: trim(
@@ -317,7 +339,14 @@ export async function readSources(root: string, scope = "") {
 		),
 		note: `This is a lexical and syntactic index of possible tracking, deduplicated by call signature, not proof of coverage. Matches can be source examples, unrelated functions or wrappers. Verify executable source, event meaning and outcome before classifying covered. No matches does not prove missing coverage: shared procedures and imported callees may track elsewhere. Audit logs and usage metering alone are not product analytics. Static tracking code does not prove delivery. ${coverageNote}`,
 	};
-	return { inventory, sources, catalog };
+	return {
+		inventory,
+		sources,
+		catalog,
+		attributeListeners: coverage.attributeListeners,
+		trackedRoutes: coverage.trackedRoutes,
+		workspace,
+	};
 }
 
 export interface Destination {
@@ -382,24 +411,78 @@ export async function scan(
 	} catch {
 		/* A newly initialized repository may have no commit. */
 	}
-	const { inventory, sources, catalog } = await readSources(root, scope);
+	const {
+		inventory,
+		sources,
+		catalog,
+		attributeListeners,
+		trackedRoutes,
+		workspace,
+	} = await readSources(root, scope);
+	const [listener] = attributeListeners;
+	const routeEvents = new Map(
+		trackedRoutes.map((entry) => {
+			const [route = "", event = ""] = entry.split(routeArrow);
+			return [route, event.split(" (")[0] ?? ""];
+		})
+	);
+	const annotate = (source: string) => {
+		const notes = new Set<string>();
+		for (const match of source.matchAll(procedureCall)) {
+			const route = `${match[1]}.${match[2]}`;
+			const event = routeEvents.get(route);
+			if (event) {
+				notes.add(
+					`// ${route} is a tracked route: it emits ${event} after the call succeeds`
+				);
+			}
+		}
+		return notes.size ? `${[...notes].join("\n")}\n${source}` : source;
+	};
 	const { groupActions } = options.actions
 		? await import("./actions")
 		: { groupActions: null };
 	const found: Segment[] = [];
+	const settled: Row[] = [];
 	const excerpts = new Map<Segment, Site[]>();
 	const noActionFiles: string[] = [];
 	for (const [path, source] of sources) {
-		const actions = groupActions?.(path, source, sources);
+		const actions = groupActions?.(path, source, sources, workspace);
 		if (actions?.length) {
 			for (const {
 				start,
 				end,
 				source: context,
 				excerpts: lines,
+				commits,
+				tracked,
 				...action
 			} of actions) {
-				const segment = { path, start, end, source: context, action };
+				if (tracked && listener && !commits) {
+					settled.push({
+						path,
+						start,
+						end,
+						coverage: "covered",
+						category: "none",
+						priority: 0,
+						coverageProbability: 1,
+						categoryProbability: null,
+						action,
+					});
+					continue;
+				}
+				const segment = {
+					path,
+					start,
+					end,
+					source: annotate(
+						tracked && listener
+							? `// ${tracked} on this element or an ancestor is emitted on click by the data-track listener at ${listener}\n${context}`
+							: context
+					),
+					action,
+				};
 				found.push(segment);
 				excerpts.set(segment, lines);
 			}
@@ -423,7 +506,8 @@ export async function scan(
 				linkedRoutes.has(`${segment.path}:${segment.start}`)
 			)
 	);
-	const includedFiles = new Set(segments.map((s) => s.path)).size;
+	const includedFiles = new Set([...segments, ...settled].map((s) => s.path))
+		.size;
 	const sourceFiles = [...sources.keys()].filter((path) =>
 		reviewable.test(path)
 	).length;
@@ -492,7 +576,7 @@ export async function scan(
 		runId = randomUUID(),
 		controller = new AbortController(),
 		limit = pLimit(concurrency);
-	const rows: Row[] = [],
+	const rows: Row[] = [...settled],
 		calls: Call[] = [];
 	let plannedBatches = batches.length,
 		interrupted = false,
