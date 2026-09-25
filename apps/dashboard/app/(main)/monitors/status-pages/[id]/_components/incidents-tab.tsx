@@ -25,6 +25,10 @@ const STATUS_LABELS: Record<string, string> = {
 	resolved: "Resolved",
 };
 
+type Incident = Awaited<
+	ReturnType<typeof orpc.statusPage.listIncidents.call>
+>[number];
+
 interface IncidentsTabProps {
 	isSheetOpen: boolean;
 	onSheetOpenChange: (open: boolean) => void;
@@ -38,11 +42,7 @@ export function IncidentsTab({
 }: IncidentsTabProps) {
 	const queryClient = useQueryClient();
 	const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-	const [updateTarget, setUpdateTarget] = useState<{
-		id: string;
-		title: string;
-		status: string;
-	} | null>(null);
+	const [updateTarget, setUpdateTarget] = useState<Incident | null>(null);
 
 	const incidentsQuery = useQuery({
 		...orpc.statusPage.listIncidents.queryOptions({
@@ -103,13 +103,7 @@ export function IncidentsTab({
 							incident={incident}
 							key={incident.id}
 							onDelete={() => setDeleteTarget(incident.id)}
-							onUpdate={() =>
-								setUpdateTarget({
-									id: incident.id,
-									title: incident.title,
-									status: incident.status,
-								})
-							}
+							onUpdate={() => setUpdateTarget(incident)}
 						/>
 					))}
 				</div>
@@ -165,20 +159,7 @@ function IncidentRow({
 	onDelete,
 	onUpdate,
 }: {
-	incident: {
-		id: string;
-		title: string;
-		status: string;
-		severity: string;
-		createdAt: Date;
-		resolvedAt: Date | null;
-		updates: Array<{
-			id: string;
-			status: string;
-			message: string;
-			createdAt: Date;
-		}>;
-	};
+	incident: Incident;
 	onDelete: () => void;
 	onUpdate: () => void;
 }) {

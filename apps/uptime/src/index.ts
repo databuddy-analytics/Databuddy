@@ -262,13 +262,11 @@ const app = new Elysia()
 	)
 	.onError(function handleError({ error, code }) {
 		const { payload, status } = buildHttpErrorResponse({ code, error });
-		const event: Record<string, string | number | boolean> = {
+		const event = {
 			error_step: "elysia",
 			status,
+			elysia_code: code == null ? undefined : String(code),
 		};
-		if (code != null) {
-			event.elysia_code = String(code);
-		}
 		if (status >= 500) {
 			captureError(error, event);
 		} else {

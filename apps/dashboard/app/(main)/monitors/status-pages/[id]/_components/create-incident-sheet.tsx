@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -93,7 +93,6 @@ export function IncidentSheet({
 	});
 	const monitors = statusPageQuery.data?.monitors ?? [];
 
-	const schema = useMemo(() => buildSchema(isUpdate), [isUpdate]);
 	const defaultValues: IncidentFormData = {
 		title: "",
 		severity: "minor",
@@ -101,7 +100,7 @@ export function IncidentSheet({
 		message: "",
 	};
 	const form = useForm<IncidentFormData>({
-		resolver: zodResolver(schema),
+		resolver: zodResolver(buildSchema(isUpdate)),
 		defaultValues,
 	});
 

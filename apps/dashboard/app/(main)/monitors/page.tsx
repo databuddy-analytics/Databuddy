@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { MonitorRow } from "@/components/monitors/monitor-row";
@@ -57,42 +57,19 @@ function MonitorsPageContent() {
 	const [search, setSearch] = useState("");
 	const [sort, setSort] = useState<SortOption>("newest");
 	const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-	const [editingSchedule, setEditingSchedule] = useState<{
-		id: string;
-		url: string;
-		name?: string | null;
-		granularity: string;
-		timeout?: number | null;
-		cacheBust?: boolean;
-	} | null>(null);
+	const [editingSchedule, setEditingSchedule] = useState<Monitor | null>(null);
 
 	const schedulesQuery = useQuery({
 		...orpc.uptime.listSchedules.queryOptions({ input: {} }),
 	});
 
-	const clearCommandParam = useCallback(() => {
-		const params = new URLSearchParams(searchParams.toString());
-		params.delete("command");
-		const query = params.toString();
-		router.replace(query ? `${pathname}?${query}` : pathname, {
-			scroll: false,
-		});
-	}, [pathname, router, searchParams]);
-
-	const handleCreate = useCallback(() => {
+	const handleCreate = () => {
 		setEditingSchedule(null);
 		setIsSheetOpen(true);
-	}, []);
+	};
 
 	const handleEdit = (schedule: Monitor) => {
-		setEditingSchedule({
-			id: schedule.id,
-			url: schedule.url ?? "",
-			name: schedule.name,
-			granularity: schedule.granularity,
-			timeout: schedule.timeout,
-			cacheBust: schedule.cacheBust,
-		});
+		setEditingSchedule(schedule);
 		setIsSheetOpen(true);
 	};
 
@@ -105,9 +82,15 @@ function MonitorsPageContent() {
 		if (searchParams.get("command") !== "create-monitor") {
 			return;
 		}
-		handleCreate();
-		clearCommandParam();
-	}, [clearCommandParam, handleCreate, searchParams]);
+		setEditingSchedule(null);
+		setIsSheetOpen(true);
+		const params = new URLSearchParams(searchParams.toString());
+		params.delete("command");
+		const query = params.toString();
+		router.replace(query ? `${pathname}?${query}` : pathname, {
+			scroll: false,
+		});
+	}, [pathname, router, searchParams]);
 
 	const monitors = schedulesQuery.data ?? [];
 	const filtered = useFilteredList(

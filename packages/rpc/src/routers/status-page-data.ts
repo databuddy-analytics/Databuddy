@@ -14,8 +14,6 @@ import {
 	deriveMonitorStatus,
 	deriveOverallStatus,
 	normalizeCheckTimestamp,
-	type MonitorFreshness,
-	type MonitorStatus,
 } from "@databuddy/shared/uptime-status";
 import type {
 	Incident,
@@ -212,16 +210,20 @@ async function _fetchStatusPageData(
 	const rows = await db
 		.select({
 			statusPageId: statusPages.id,
-			orgName: organization.name,
-			orgSlug: organization.slug,
-			orgLogo: organization.logo,
-			statusPageName: statusPages.name,
-			statusPageDescription: statusPages.description,
-			logoUrl: statusPages.logoUrl,
-			faviconUrl: statusPages.faviconUrl,
-			websiteUrl: statusPages.websiteUrl,
-			supportUrl: statusPages.supportUrl,
-			theme: statusPages.theme,
+			organization: {
+				name: organization.name,
+				slug: organization.slug,
+				logo: organization.logo,
+			},
+			statusPage: {
+				name: statusPages.name,
+				description: statusPages.description,
+				logoUrl: statusPages.logoUrl,
+				faviconUrl: statusPages.faviconUrl,
+				websiteUrl: statusPages.websiteUrl,
+				supportUrl: statusPages.supportUrl,
+				theme: statusPages.theme,
+			},
 			statusPageMonitorId: statusPageMonitors.id,
 			scheduleId: uptimeSchedules.id,
 			websiteId: uptimeSchedules.websiteId,
@@ -253,22 +255,6 @@ async function _fetchStatusPageData(
 		return { page: null };
 	}
 
-	const org = {
-		name: rows[0].orgName,
-		slug: rows[0].orgSlug ?? slug,
-		logo: rows[0].orgLogo,
-	};
-
-	const statusPageInfo = {
-		name: rows[0].statusPageName,
-		description: rows[0].statusPageDescription,
-		logoUrl: rows[0].logoUrl,
-		faviconUrl: rows[0].faviconUrl,
-		websiteUrl: rows[0].websiteUrl,
-		supportUrl: rows[0].supportUrl,
-		theme: rows[0].theme,
-	};
-
 	const schedules = rows.flatMap((r) => {
 		if (!(r.scheduleId && r.scheduleUrl && r.granularity)) {
 			return [];
@@ -294,11 +280,7 @@ async function _fetchStatusPageData(
 	const endDate = new Date().toISOString().slice(0, 10);
 
 	const websiteIds = [
-		...new Set(
-			schedules
-				.map((s) => s.websiteId)
-				.filter((id): id is string => id !== null)
-		),
+		...new Set(schedules.flatMap((s) => (s.websiteId ? [s.websiteId] : []))),
 	];
 
 	const siteIds = [...new Set(schedules.map((s) => s.websiteId ?? s.id))];
@@ -356,11 +338,11 @@ async function _fetchStatusPageData(
 			latestCheck?.last_timestamp ?? null
 		);
 
-		const freshness: MonitorFreshness = deriveMonitorFreshness(
+		const freshness = deriveMonitorFreshness(
 			lastCheckedAt,
 			parseUptimeGranularity(schedule.granularity)
 		);
-		const currentStatus: MonitorStatus = deriveMonitorStatus({
+		const currentStatus = deriveMonitorStatus({
 			lastStatus: latestCheck?.last_status ?? null,
 			lastHttpCode: latestCheck?.last_http_code ?? null,
 			freshness,
@@ -461,8 +443,11 @@ async function _fetchStatusPageData(
 
 	return {
 		page: {
-			organization: org,
-			statusPage: statusPageInfo,
+			organization: {
+				...rows[0].organization,
+				slug: rows[0].organization.slug ?? slug,
+			},
+			statusPage: rows[0].statusPage,
 			overallStatus: deriveOverallStatus(monitors, formattedIncidents),
 			monitors,
 			incidents: formattedIncidents,

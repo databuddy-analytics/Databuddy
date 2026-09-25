@@ -7,7 +7,7 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
 	parseUptimeGranularity,
 	UPTIME_GRANULARITY_OPTIONS,
@@ -19,7 +19,7 @@ import { useWebsite } from "@/hooks/use-websites";
 import {
 	type AlarmData,
 	alarmMonitorIds,
-	DEST_LABELS,
+	CHANNELS,
 	parseAlarms,
 } from "@/app/(main)/settings/notifications/_components/alarm-sheet";
 import { orpc } from "@/lib/orpc";
@@ -56,14 +56,10 @@ export function invalidateMonitorQueries(
 interface MonitorSheetProps {
 	onCloseAction: (open: boolean) => void;
 	open: boolean;
-	schedule?: {
-		cacheBust?: boolean;
-		granularity: string;
-		id: string;
-		name?: string | null;
-		timeout?: number | null;
-		url: string;
-	} | null;
+	schedule?: Pick<
+		Awaited<ReturnType<typeof orpc.uptime.getSchedule.call>>,
+		"cacheBust" | "granularity" | "id" | "name" | "timeout" | "url"
+	> | null;
 	websiteId?: string;
 }
 
@@ -133,9 +129,7 @@ export function MonitorSheet({
 		enabled: open && isEditing,
 	});
 
-	const alarms = parseAlarms(
-		(rawAlarms ?? []) as readonly Record<string, unknown>[]
-	);
+	const alarms = parseAlarms(rawAlarms ?? []);
 	const isLinked = (alarm: AlarmData) =>
 		alarmMonitorIds(alarm).includes(schedule?.id ?? "");
 	const linkedAlarmCount = alarms.filter(isLinked).length;
@@ -190,20 +184,14 @@ export function MonitorSheet({
 
 	const isPending = createMutation.isPending || updateMutation.isPending;
 
-	const validateUrl = useCallback(() => {
-		if (!url) {
-			setUrlError(null);
-			return;
-		}
+	const validateUrl = () =>
 		setUrlError(
-			isValidUrl(url)
+			!url || isValidUrl(url)
 				? null
 				: "Please enter a valid URL (e.g. https://example.com)"
 		);
-	}, [url]);
 
-	const canSubmit =
-		isEditing || (url.length > 0 && !urlError && isValidUrl(url));
+	const canSubmit = isEditing || (url.length > 0 && isValidUrl(url));
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -398,7 +386,7 @@ export function MonitorSheet({
 												<div className="space-y-4">
 													{alarms.map((alarm) => {
 														const destSummary = alarm.destinations
-															.map((d) => DEST_LABELS[d.type] ?? d.type)
+															.map((d) => CHANNELS[d.type].label)
 															.join(", ");
 
 														return (

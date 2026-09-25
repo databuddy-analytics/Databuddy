@@ -6,13 +6,12 @@ import {
 	ScheduleLookupError,
 	UptimeCheckError,
 } from "./actions";
-import type { UptimeData } from "./types";
+import { type UptimeData, uptimeDataSchema } from "./types";
 import type {
 	MonitorState,
 	MonitorStateLookup,
 } from "./uptime-transition-alerts";
 import {
-	processUptimeCheck,
 	processUptimeDeliveryJob,
 	processUptimeJob,
 	resolveFailureStreak,
@@ -210,15 +209,18 @@ function processUptimeCheckForTest(
 	scheduleId: string,
 	trigger: "manual" | "scheduled",
 	workerDeps: UptimeWorkerDeps = deps(),
-	jobMeta?: { id?: string; attempt?: number },
 	checkpoint: UptimeEventCheckpoint = noOpCheckpoint
 ) {
-	return processUptimeCheck(
-		scheduleId,
-		trigger,
-		workerDeps,
-		jobMeta,
-		checkpoint
+	return processUptimeJob(
+		{
+			name: "uptime-check",
+			data: { scheduleId, trigger },
+			attemptsMade: 0,
+			updateData: async (data) => {
+				await checkpoint(uptimeDataSchema.parse(data.delivery?.event));
+			},
+		},
+		workerDeps
 	);
 }
 
@@ -246,7 +248,7 @@ describe("processUptimeCheck", () => {
 				data: { scheduleId: "schedule-1", trigger: "manual" },
 				attemptsMade: 0,
 				updateData: async (data) => {
-					calls.checkpoint.push(data.delivery?.event as UptimeData);
+					calls.checkpoint.push(uptimeDataSchema.parse(data.delivery?.event));
 				},
 			},
 			deps()
@@ -585,7 +587,6 @@ describe("processUptimeCheck", () => {
 				"schedule-1",
 				"scheduled",
 				deps(),
-				undefined,
 				async (data) => {
 					checkpoints.push(data);
 				}
@@ -605,7 +606,6 @@ describe("processUptimeCheck", () => {
 			"schedule-1",
 			"manual",
 			deps(),
-			undefined,
 			async (data) => {
 				calls.checkpoint.push(data);
 				calls.order.push("checkpoint");
@@ -619,15 +619,9 @@ describe("processUptimeCheck", () => {
 
 	it("retries the source job when the durable checkpoint fails", async () => {
 		await expect(
-			processUptimeCheckForTest(
-				"schedule-1",
-				"manual",
-				deps(),
-				undefined,
-				async () => {
-					throw new Error("redis unavailable");
-				}
-			)
+			processUptimeCheckForTest("schedule-1", "manual", deps(), async () => {
+				throw new Error("redis unavailable");
+			})
 		).rejects.toThrow("redis unavailable");
 
 		expect(calls.delivery).toEqual([]);

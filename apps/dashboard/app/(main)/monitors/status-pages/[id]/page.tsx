@@ -16,10 +16,7 @@ import { StatusPageSheet } from "@/components/status-pages/status-page-sheet";
 import { cn } from "@/lib/utils";
 import { AddMonitorDialog } from "./_components/add-monitor-dialog";
 import { IncidentsTab } from "./_components/incidents-tab";
-import {
-	type StatusPageMonitor,
-	StatusPageMonitorRow,
-} from "./_components/status-page-monitor-row";
+import { StatusPageMonitorRow } from "./_components/status-page-monitor-row";
 import {
 	ArrowClockwiseIcon,
 	ArrowSquareOutIcon,
@@ -41,9 +38,8 @@ import {
 type Tab = "monitors" | "incidents";
 
 export default function StatusPageDetailsPage() {
-	const params = useParams();
+	const { id: statusPageId } = useParams<{ id: string }>();
 	const router = useRouter();
-	const statusPageId = params.id as string;
 	const queryClient = useQueryClient();
 	const [activeTab, setActiveTab] = useState<Tab>("monitors");
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -71,7 +67,7 @@ export default function StatusPageDetailsPage() {
 	const statusPageUrl = statusPage && getStatusPageUrl(statusPage.slug);
 
 	const monitorToRemoveData = statusPage?.monitors.find(
-		(m: StatusPageMonitor) => m.id === monitorToRemove
+		(m) => m.id === monitorToRemove
 	);
 
 	const handleConfirmRemove = async () => {
@@ -112,11 +108,11 @@ export default function StatusPageDetailsPage() {
 	} else {
 		monitorsContent = (
 			<div className="divide-y">
-				{statusPage?.monitors.map((monitor: StatusPageMonitor) => (
+				{statusPage?.monitors.map((monitor) => (
 					<StatusPageMonitorRow
 						key={monitor.id}
 						monitor={monitor}
-						onRemoveRequestAction={(id) => setMonitorToRemove(id)}
+						onRemoveRequestAction={setMonitorToRemove}
 						statusPageId={statusPageId}
 					/>
 				))}
@@ -306,9 +302,7 @@ export default function StatusPageDetailsPage() {
 
 				<AddMonitorDialog
 					existingMonitorIds={
-						statusPage?.monitors.map(
-							(m: StatusPageMonitor) => m.uptimeScheduleId
-						) ?? []
+						statusPage?.monitors.map((m) => m.uptimeScheduleId) ?? []
 					}
 					onCompleteAction={invalidate}
 					onOpenChangeAction={setIsDialogOpen}

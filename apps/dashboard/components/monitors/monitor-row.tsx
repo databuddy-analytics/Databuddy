@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PrefetchZone } from "@/components/ds/prefetch-zone";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { FaviconImage } from "@/components/analytics/favicon-image";
 import { TransferToOrgDialog } from "@/components/transfer-to-org-dialog";
@@ -14,8 +14,10 @@ import {
 	useBatchDynamicQuery,
 } from "@/hooks/use-dynamic-query";
 import { orpc } from "@/lib/orpc";
-import { buildUptimeHeatmapDays } from "@databuddy/ui/uptime";
-import { UptimeHeatmapStrip } from "@databuddy/ui/uptime";
+import {
+	buildUptimeHeatmapDays,
+	UptimeHeatmapStrip,
+} from "@databuddy/ui/uptime";
 import { cn } from "@/lib/utils";
 import {
 	ArrowSquareOutIcon,
@@ -28,7 +30,7 @@ import {
 	TrashIcon,
 } from "@databuddy/ui/icons";
 import { DeleteDialog, DropdownMenu } from "@databuddy/ui/client";
-import { Badge, Skeleton, dayjs } from "@databuddy/ui";
+import { Badge, Skeleton, localDayjs } from "@databuddy/ui";
 
 const HEATMAP_DAYS = 30;
 
@@ -214,69 +216,58 @@ function MonitorActions({ schedule, onEditAction }: MonitorRowProps) {
 	);
 }
 
-function MiniHeatmap({
-	scheduleId,
-	websiteId,
-	isActive,
-}: {
-	scheduleId: string;
-	websiteId: string | null;
-	isActive: boolean;
-}) {
-	const heatmapDateRange = useMemo(
-		() => ({
-			start_date: dayjs()
-				.subtract(HEATMAP_DAYS - 1, "day")
+const HEATMAP_QUERIES = [
+	{
+		id: "uptime-heatmap",
+		parameters: ["uptime_time_series"],
+		granularity: "daily" as const,
+	},
+];
+
+export function useUptimeHeatmap(
+	schedule: Pick<MonitorActionTarget, "id" | "websiteId">,
+	days: number,
+	enabled = true
+) {
+	const { getDataForQuery, isLoading } = useBatchDynamicQuery(
+		schedule.websiteId
+			? { websiteId: schedule.websiteId }
+			: { scheduleId: schedule.id },
+		{
+			start_date: localDayjs()
+				.subtract(days - 1, "day")
 				.startOf("day")
 				.format("YYYY-MM-DD"),
-			end_date: dayjs().startOf("day").format("YYYY-MM-DD"),
-			granularity: "daily" as const,
-		}),
-		[]
+			end_date: localDayjs().startOf("day").format("YYYY-MM-DD"),
+			granularity: "daily",
+		},
+		HEATMAP_QUERIES,
+		{ enabled }
 	);
+	return {
+		data: getDataForQuery("uptime-heatmap", "uptime_time_series"),
+		isLoading,
+	};
+}
 
-	const queryIdOptions = useMemo(
-		() => (websiteId ? { websiteId } : { scheduleId }),
-		[websiteId, scheduleId]
+function MiniHeatmap({
+	schedule,
+	isActive,
+}: {
+	schedule: MonitorActionTarget;
+	isActive: boolean;
+}) {
+	const { data, isLoading } = useUptimeHeatmap(
+		schedule,
+		HEATMAP_DAYS,
+		isActive
 	);
-
-	const heatmapQueries = useMemo(
-		() => [
-			{
-				id: "uptime-heatmap",
-				parameters: ["uptime_time_series"],
-				granularity: "daily" as const,
-			},
-		],
-		[]
-	);
-
-	const { getDataForQuery, isLoading } = useBatchDynamicQuery(
-		queryIdOptions,
-		heatmapDateRange,
-		heatmapQueries,
-		{ enabled: isActive }
-	);
-
-	const rawData =
-		(getDataForQuery("uptime-heatmap", "uptime_time_series") as Array<{
-			date: string;
-			uptime_percentage?: number;
-		}>) || [];
-
-	const heatmapData = useMemo(
-		() => buildUptimeHeatmapDays(rawData, HEATMAP_DAYS),
-		[rawData]
-	);
-
-	const uptimePercent = useMemo(() => {
-		const withData = heatmapData.filter((d) => d.hasData);
-		if (withData.length === 0) {
-			return null;
-		}
-		const total = withData.reduce((acc, d) => acc + d.uptime, 0);
-		return total / withData.length;
-	}, [heatmapData]);
+	const heatmapData = buildUptimeHeatmapDays(data, HEATMAP_DAYS);
+	const withData = heatmapData.filter((d) => d.hasData);
+	const uptimePercent =
+		withData.length === 0
+			? null
+			: withData.reduce((acc, d) => acc + d.uptime, 0) / withData.length;
 
 	if (!isActive) {
 		return (
@@ -341,8 +332,10 @@ export function MonitorRow({ schedule, onEditAction }: MonitorRowProps) {
 	const displayUrl = isWebsiteMonitor ? schedule.website?.domain : schedule.url;
 
 	const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-		const target = e.target as HTMLElement;
-		if (target.closest("[data-dropdown-trigger]")) {
+		if (
+			e.target instanceof Element &&
+			e.target.closest("[data-dropdown-trigger]")
+		) {
 			e.preventDefault();
 		}
 	};
@@ -406,11 +399,7 @@ export function MonitorRow({ schedule, onEditAction }: MonitorRowProps) {
 				</div>
 
 				<div className="hidden shrink-0 items-center gap-3 pr-2 lg:flex">
-					<MiniHeatmap
-						isActive={isActive}
-						scheduleId={schedule.id}
-						websiteId={schedule.websiteId}
-					/>
+					<MiniHeatmap isActive={isActive} schedule={schedule} />
 				</div>
 
 				<div className="flex shrink-0 items-center pr-4">
