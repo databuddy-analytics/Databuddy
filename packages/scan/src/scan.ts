@@ -103,6 +103,7 @@ const sourceFile =
 const repositoryKey =
 	/^[ \t]*(?:export[ \t]+)?AI_GATEWAY_API_KEY[ \t]*=[ \t]*(.*?)[ \t]*$/m;
 const quoted = /^(["'])(.*)\1$/;
+const workspaceFolder = /^(?:apps|packages)\/[^/]+\//;
 const routeHandlerLabel = /^(?:GET|POST|PUT|PATCH|DELETE)$/;
 const reviewable = /\.(?:[cm]?[jt]sx?|vue|svelte|astro|swift|py)$/;
 const sourceLineBoundary = /(?<=\n)/;
@@ -403,7 +404,11 @@ export async function scan(
 		trackedRoutes,
 		workspace,
 	} = await readSources(root, scope);
-	const [listener] = attributeListeners;
+	const appOf = (path: string) => workspaceFolder.exec(path)?.[0] ?? "";
+	const listenerFor = (path: string) =>
+		attributeListeners.find(
+			(entry) => appOf(entry.slice(0, entry.lastIndexOf(":"))) === appOf(path)
+		);
 	const routeEvents = new Map(
 		trackedRoutes.map((entry) => {
 			const [route = "", event = ""] = entry.split(routeArrow);
@@ -429,6 +434,7 @@ export async function scan(
 	const noActionFiles: string[] = [];
 	for (const [path, source] of sources) {
 		const actions = groupActions(path, source, sources, workspace);
+		const listener = listenerFor(path);
 		if (actions?.length) {
 			for (const {
 				start,

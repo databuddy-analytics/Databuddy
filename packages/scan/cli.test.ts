@@ -17,8 +17,8 @@ import { afterAll, beforeAll, test } from "bun:test";
 
 interface Captured {
 	body: {
-		segments?: unknown[];
-		state?: unknown;
+		segments?: { source: string }[];
+		state?: { segments: { source: string }[] };
 		providerOptions?: { gateway: { zeroDataRetention: boolean } };
 	};
 	headers: Record<string, string>;
@@ -196,7 +196,10 @@ test("the dry-run payload never carries secrets, env files, symlinked code or ot
 	}
 	const scoped = JSON.parse(
 		cli([join(repo, "src/app"), "--dry-run", "--json"]).stdout
-	) as { files: { path: string }[]; payload: { segments: unknown[] } };
+	) as {
+		files: { path: string }[];
+		payload: { segments: { source: string }[] };
+	};
 	assert.ok(!JSON.stringify(scoped.payload.segments).includes(markers.sibling));
 	assert.deepEqual(scoped.files.map((file) => file.path).sort(), [
 		"src/app/checkout.tsx",
