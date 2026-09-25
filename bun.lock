@@ -625,6 +625,7 @@
       "name": "@databuddy/sdk",
       "version": "2.6.0",
       "devDependencies": {
+        "@databuddy/shared": "workspace:*",
         "@playwright/test": "^1.58.2",
         "@types/bun": "catalog:",
         "@types/node": "^26.0.0",
