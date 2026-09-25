@@ -67,6 +67,11 @@ const writes = new Set([
 	"deleteMany",
 ]);
 const httpWrites = new Set(["post", "put", "patch"]);
+const readCall =
+	/^(?:get|list|find|load|fetch|query|read|refetch|invalidate|prefetch|wait|sleep|delay|resolve|all|allSettled|race)\w*$/i;
+const actionVerb =
+	/^(?:send|submit|publish|invite|purchase|checkout|attach|upload|export|connect|install|subscribe|sign(?:In|Up|Out)|approve|reject|revoke|rotate|regenerate|generate|trigger|archive|restore|destroy|save|transfer)(?:[A-Z]\w*)?$/;
+const downloadSignal = /(?:^|\.)(?:createObjectURL|download)$/;
 const readMethod = /^(?:get|head|options)$/i;
 const routeMethods = new Set([
 	"post",
@@ -1294,6 +1299,7 @@ export function groupActions(
 		wrapper?: ts.Node;
 		route?: ts.Node;
 		needsWrite?: boolean;
+		userEvent?: boolean;
 		tracked?: string;
 	}[] = [];
 	const formHandler = (input: ts.Node) => {
@@ -1485,6 +1491,8 @@ export function groupActions(
 					active.every((attribute) =>
 						selections.has(attribute.name.getText(unit.file))
 					),
+				userEvent:
+					component !== "CopyButton" && active.length > 0 && !productIntent,
 				...(component === "CopyButton" ? { component: tag } : {}),
 			});
 		}
@@ -1764,6 +1772,26 @@ export function groupActions(
 			addContext(owner, declaration(node));
 			walk(node, (child) => {
 				if (
+					root.userEvent &&
+					depth <= 1 &&
+					((ts.isAwaitExpression(child) &&
+						ts.isCallExpression(unwrap(child.expression)) &&
+						!readCall.test(
+							(unwrap(child.expression) as ts.CallExpression).expression
+								.getText(owner.file)
+								.split(".")
+								.at(-1) ?? ""
+						)) ||
+						(ts.isPropertyAccessExpression(child) &&
+							downloadSignal.test(child.getText(owner.file))) ||
+						(ts.isCallExpression(child) &&
+							actionVerb.test(
+								child.expression.getText(owner.file).split(".").at(-1) ?? ""
+							)))
+				) {
+					commits = true;
+				}
+				if (
 					ts.isPropertyAssignment(child) &&
 					mutationCallbacks.has(child.name.getText(owner.file)) &&
 					ts.isIdentifier(unwrap(child.initializer))
@@ -1983,6 +2011,13 @@ export function groupActions(
 					issues.add(`unresolved_wrapper:${base.text}`);
 				}
 			}
+		}
+		if (
+			root.userEvent &&
+			!commits &&
+			![...issues].some((issue) => issue.startsWith("unresolved"))
+		) {
+			return [];
 		}
 		if (root.needsWrite && !commits) {
 			return [];
