@@ -45,7 +45,7 @@ globalThis.fetch=async(url,options)=>{
  if(mode==='retry-once'&&sequence===1)return Response.json({error:{message:'DO_NOT_LOG_PROVIDER_BODY'}},{status:503});
  if(mode==='interrupt'&&sequence>1)return new Promise((_,reject)=>{const alive=setTimeout(()=>reject(Error('Mock wait expired')),10000);const abort=()=>{clearTimeout(alive);reject(options.signal.reason)};if(options.signal.aborted)abort();else options.signal.addEventListener('abort',abort,{once:true});});
  const answers={};const segments=body.state?.segments??body.segments;
- for(let i=0;i<segments.length;i++){answers['coverage_'+i]={choice:'missing',probabilities:{missing:1}};answers['category_'+i]={choice:'activation',probabilities:{activation:1}};answers['priority_'+i]={score:2};}
+ for(let i=0;i<segments.length;i++){answers['coverage_'+i]={choice:'missing',probabilities:{missing:1}};answers['category_'+i]={choice:'activation',probabilities:{activation:1}};answers['priority_'+i]={score:i===1?0.2:2};}
  return Response.json({answers,usage:{inputTokens:10,outputTokens:5}});
 };\n`;
 const markers = {
@@ -210,8 +210,13 @@ test("the dry-run payload never carries secrets, env files, symlinked code or ot
 test("a scan classifies through the chosen destination, reuses its cache and stops cleanly", async () => {
 	const hosted = JSON.parse(
 		cli([repo, "--json"], { mode: "valid", key: "", cache: "hosted" }).stdout
-	) as { summary: Summary };
+	) as { summary: Summary; rows: { priority: number }[] };
 	assert.equal(hosted.summary.classifiedFiles, 3);
+	assert.ok(hosted.rows.some((row) => row.priority < 0.7));
+	assert.match(
+		cli([repo], { key: "", cache: "hosted" }).stdout,
+		/\d+ low-priority not shown/
+	);
 	for (const request of await requests()) {
 		assert.match(request.url, /\/public\/v1\/scan\/evaluate$/);
 		assert.equal(request.headers.Authorization, undefined);

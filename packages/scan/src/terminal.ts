@@ -29,6 +29,8 @@ const controls = /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g;
 const clean = (value: string | number | null | undefined) =>
 	stripVTControlCharacters(String(value ?? "")).replace(controls, "");
 const minimumPriority = 0.7;
+const shown = (rows: Row[]) =>
+	gaps(rows).filter((row) => row.priority >= minimumPriority);
 const gaps = (rows: Row[]) =>
 	rows.filter(
 		(row) => row.coverage === "missing" || row.coverage === "partial"
@@ -84,7 +86,7 @@ export function createTerminal({ json = false }: { json?: boolean } = {}) {
 		if (!interactive) {
 			return;
 		}
-		const found = uniqueFiles(gaps(snapshot.rows));
+		const found = uniqueFiles(shown(snapshot.rows));
 		const fraction = snapshot.batches
 			? Math.min(1, snapshot.completedBatches / snapshot.batches)
 			: 0;
@@ -166,7 +168,7 @@ export function createTerminal({ json = false }: { json?: boolean } = {}) {
 			return print([JSON.stringify(result)]);
 		}
 		const { summary: s, rows } = result;
-		const flagged = gaps(rows).filter((row) => row.priority >= minimumPriority);
+		const flagged = shown(rows);
 		const quiet = gaps(rows).length - flagged.length;
 		const visible = interactive ? flagged.slice(0, 10) : flagged;
 		const lines = [
