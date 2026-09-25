@@ -72,8 +72,8 @@ const tally = (values: string[]) =>
 	);
 const limit = (value: string) => {
 	const parsed = Number(value);
-	if (!Number.isInteger(parsed) || parsed < 1 || parsed > 20) {
-		throw new InvalidArgumentError("Choose 1–20 reviewed cases.");
+	if (!Number.isInteger(parsed) || parsed < 1) {
+		throw new InvalidArgumentError("Choose at least 1 reviewed case.");
 	}
 	return parsed;
 };
@@ -89,7 +89,7 @@ const command = new Command()
 	)
 	.option(
 		"--limit <count>",
-		"First 1–20 reviewed cases, in the fixed dataset order",
+		"How many reviewed cases to run, in the fixed dataset order",
 		limit,
 		20
 	)
@@ -120,7 +120,6 @@ async function main() {
 	);
 	const cases = reviewSchema
 		.array()
-		.max(20)
 		.parse(JSON.parse(dataset))
 		.slice(0, options.limit);
 	const { sources, inventory, catalog } = await readSources(root);
