@@ -61,7 +61,9 @@ async function refreshIpRanges(source: IpRangeSource): Promise<void> {
 			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 		});
 		const ranges = response.ok
-			? parseIpRanges(source.format, await response.text())
+			? parseIpRanges(source.format, await response.text()).filter(
+					(range) => parseRange(range) !== null
+				)
 			: [];
 		if (ranges.length > 0) {
 			ipRangesBySourceUrl.set(source.url, ranges);
@@ -98,16 +100,25 @@ async function refreshIpRanges(source: IpRangeSource): Promise<void> {
 	}
 }
 
+function parseRange(
+	range: string
+): { address: string; bits: number; family: IpFamily } | null {
+	const [address = "", prefix] = range.split("/");
+	const family = ipFamily(address);
+	const maxBits = family === "ipv4" ? 32 : 128;
+	const bits = prefix === undefined ? maxBits : Number(prefix);
+	return family && Number.isInteger(bits) && bits >= 0 && bits <= maxBits
+		? { address, bits, family }
+		: null;
+}
+
 function toBlockList(ranges: string[]): BlockList | null {
 	const list = new BlockList();
 	let added = 0;
 	for (const range of ranges) {
-		const [address = "", prefix] = range.split("/");
-		const family = ipFamily(address);
-		const maxBits = family === "ipv4" ? 32 : 128;
-		const bits = prefix === undefined ? maxBits : Number(prefix);
-		if (family && Number.isInteger(bits) && bits >= 0 && bits <= maxBits) {
-			list.addSubnet(address, bits, family);
+		const parsed = parseRange(range);
+		if (parsed) {
+			list.addSubnet(parsed.address, parsed.bits, parsed.family);
 			added++;
 		}
 	}
