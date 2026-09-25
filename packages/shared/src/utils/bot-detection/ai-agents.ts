@@ -5,13 +5,14 @@ export type AgentPurpose = "training" | "search_index" | "user_fetch" | "agent";
 
 export const AI_AGENT_CLASSIFICATION: Record<
 	string,
-	{ operator: string; purpose: AgentPurpose } | null
+	{ operator: string; purpose: AgentPurpose; asn?: number } | null
 > = {
 	"ai-search-bot": { operator: "AISearchBot", purpose: "search_index" },
 	"ai2-crawler": { operator: "Ai2", purpose: "training" },
 	"ai2-crawler-dolma": { operator: "Ai2", purpose: "training" },
 	"aihit-crawler": null,
 	"amazon-bedrock-agentcore-browser": { operator: "Amazon", purpose: "agent" },
+	"amazon-crawler": { operator: "Amazon", purpose: "training" },
 	"amazon-searchbot": { operator: "Amazon", purpose: "search_index" },
 	"amazon-user": { operator: "Amazon", purpose: "user_fetch" },
 	"anomura-crawler": { operator: "Anomura", purpose: "search_index" },
@@ -23,6 +24,7 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	},
 	"anthropic-crawler-user": { operator: "Anthropic", purpose: "user_fetch" },
 	"apify-bot": { operator: "Apify", purpose: "agent" },
+	"apple-crawler": { operator: "Apple", purpose: "search_index" },
 	"atlassian-bot": { operator: "Atlassian", purpose: "user_fetch" },
 	"azure-ai-searchbot": { operator: "Microsoft", purpose: "search_index" },
 	"botify-crawler": null,
@@ -45,6 +47,7 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"glutenfreepleasure-crawler": null,
 	"google-agent": { operator: "Google", purpose: "agent" },
 	"google-crawler-cloudvertex": { operator: "Google", purpose: "search_index" },
+	"google-crawler-other": { operator: "Google", purpose: "training" },
 	"google-gemini-deep-research": { operator: "Google", purpose: "user_fetch" },
 	"google-gemini-notebook": { operator: "Google", purpose: "user_fetch" },
 	"iask-crawler": { operator: "iAsk", purpose: "search_index" },
@@ -61,8 +64,8 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"leadcrunch-crawler": null,
 	"linkup-bot": { operator: "Linkup", purpose: "user_fetch" },
 	"mediatoolkit-crawler": null,
-	"meta-crawler": { operator: "Meta", purpose: "training" },
-	"meta-crawler-user": { operator: "Meta", purpose: "user_fetch" },
+	"meta-crawler": { operator: "Meta", purpose: "training", asn: 32_934 },
+	"meta-crawler-user": { operator: "Meta", purpose: "user_fetch", asn: 32_934 },
 	"mistral-ai-index": { operator: "Mistral", purpose: "search_index" },
 	"mistral-ai-training": { operator: "Mistral", purpose: "training" },
 	"mistral-ai-user": { operator: "Mistral", purpose: "user_fetch" },
@@ -127,6 +130,10 @@ const wellKnownBotSchema = z.object({
 		.optional(),
 });
 
+const announcedPrefixesSchema = z.object({
+	data: z.object({ prefixes: z.array(z.object({ prefix: z.string() })) }),
+});
+
 const ipPrefixListSchema = z.object({
 	prefixes: z.array(
 		z.object({
@@ -137,7 +144,7 @@ const ipPrefixListSchema = z.object({
 });
 
 export interface IpRangeSource {
-	format: "json" | "text" | "csv";
+	format: "json" | "text" | "csv" | "asn";
 	url: string;
 }
 
@@ -171,12 +178,20 @@ function toAiAgent(bot: z.infer<typeof wellKnownBotSchema>): AiAgent | null {
 	if (!classification) {
 		return null;
 	}
+	const { asn, ...identity } = classification;
 	const agent: AiAgent = {
-		...classification,
+		...identity,
 		id: bot.id,
 		patterns: bot.pattern.accepted.map((p) => new RegExp(p)),
 		excludePatterns: bot.pattern.forbidden.map((p) => new RegExp(p)),
-		ipRangeSources: [],
+		ipRangeSources: asn
+			? [
+					{
+						format: "asn",
+						url: `https://stat.ripe.net/data/announced-prefixes/data.json?resource=AS${asn}`,
+					},
+				]
+			: [],
 		ipRanges: [],
 		dnsMasks: [],
 	};
@@ -218,6 +233,10 @@ export function parseIpRanges(
 	format: IpRangeSource["format"],
 	body: string
 ): string[] {
+	if (format === "asn") {
+		const parsed = announcedPrefixesSchema.safeParse(JSON.parse(body));
+		return parsed.success ? parsed.data.data.prefixes.map((p) => p.prefix) : [];
+	}
 	if (format === "json") {
 		const parsed = ipPrefixListSchema.safeParse(JSON.parse(body));
 		return parsed.success
