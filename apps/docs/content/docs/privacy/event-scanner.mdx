@@ -16,7 +16,7 @@ Before sending anything, the CLI prints where the code is going and how many fil
 
 ## What is sent
 
-For JavaScript, TypeScript, Vue, Svelte and HTML, the scanner sends only the code around each user action it finds: the handler, the functions it calls, and the route it posts to. It does not send whole files. Python and Swift files are sent whole.
+For JavaScript, TypeScript, Vue, Svelte and HTML, the scanner sends only the code around each user action it finds: the handler, the functions it calls, and the route it posts to. It does not send whole files, except files it cannot parse, which are sent whole. Python and Swift files are sent whole.
 
 It never sends:
 
