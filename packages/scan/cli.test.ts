@@ -1,16 +1,10 @@
 import assert from "node:assert/strict";
+import { spawn, spawnSync } from "node:child_process";
 import {
-	spawn,
-	spawnSync,
-	type SpawnSyncOptionsWithStringEncoding,
-} from "node:child_process";
-import { createHash } from "node:crypto";
-import {
-	access,
 	mkdir,
 	mkdtemp,
-	readFile,
 	readdir,
+	readFile,
 	realpath,
 	rm,
 	symlink,
@@ -19,773 +13,377 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { test } from "bun:test";
+import { afterAll, beforeAll, test } from "bun:test";
 
-type Runtime = "node" | "bun";
-interface ScanResult {
-	rows: {
-		path: string;
-		action?: {
-			label: string;
-			sites: { path: string; start: number; end: number }[];
-			issues: string[];
-		};
-	}[];
-	summary: {
-		root: string;
-		classifiedFiles: number;
-		failures: number;
-		requestAttempts: number;
-		cachedBatches: number;
-		interrupted?: boolean;
-	};
-}
-interface Inventory {
-	files: { path: string; status: string; reason?: string }[];
-	root: string;
-}
 interface Captured {
 	body: {
-		state: { segments: { source: string }[] };
-		providerOptions: { gateway: { zeroDataRetention: boolean } };
+		segments?: { source: string }[];
+		state?: { segments: { source: string }[] };
+		providerOptions?: { gateway: { zeroDataRetention: boolean } };
 	};
 	headers: Record<string, string>;
 	mode: string;
 	sequence: number;
 	url: string;
 }
-interface PackageInfo {
-	bin: Record<string, string>;
-	dependencies?: Record<string, string>;
-	engines: { node: string };
-	files: string[];
-	name: string;
-	scripts: { build: string };
-	version: string;
+interface Summary {
+	cachedBatches: number;
+	classifiedFiles: number;
+	interrupted: boolean;
+	requestAttempts: number;
 }
+
 const packageDir = dirname(fileURLToPath(import.meta.url));
 const scanner = join(packageDir, "dist/cli.js");
-
-async function exists(path: string) {
-	try {
-		await access(path);
-		return true;
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-			return false;
-		}
-		throw error;
-	}
-}
-
-// Build first. Package-manager checks use the normal npm cache, or SCAN_TEST_NPM_CACHE.
-test("compiled CLI scans safely, resumes, and runs from a standalone npm package", async () => {
-	const temporary = await mkdtemp(join(tmpdir(), "databuddy-scan-test-"));
-	const outside = join(temporary, "outside"),
-		cache = join(temporary, "cache");
-	const capturePath = join(temporary, "requests.ndjson"),
-		preload = join(temporary, "mock-fetch.mjs");
-	const env: NodeJS.ProcessEnv = {
-		PATH: process.env.PATH,
-		TERM: "dumb",
-		NO_COLOR: "1",
-		XDG_CACHE_HOME: cache,
-		AI_GATEWAY_API_KEY: "synthetic-key-no-network",
-		SCAN_TEST_CAPTURE: capturePath,
-	};
-	function command(
-		binary: string,
-		args: string[],
-		options: SpawnSyncOptionsWithStringEncoding = { encoding: "utf8" }
-	) {
-		const result = spawnSync(binary, args, {
-			cwd: outside,
-			env,
-			timeout: 20_000,
-			maxBuffer: 8 * 1024 * 1024,
-			...options,
-			encoding: "utf8",
-		});
-		assert.ifError(result.error);
-		assert.equal(result.signal, null, `${binary} was interrupted`);
-		return result;
-	}
-	function ok(
-		binary: string,
-		args: string[],
-		options?: SpawnSyncOptionsWithStringEncoding
-	) {
-		const result = command(binary, args, options);
-		assert.equal(
-			result.status,
-			0,
-			`${binary} failed:\n${result.stderr}\n${result.stdout}`
-		);
-		return result.stdout;
-	}
-	function cli(
-		runtime: Runtime,
-		args: string[],
-		{ cwd = outside, mode = "forbid", status = 0 } = {}
-	) {
-		const result = command(
-			runtime,
-			[runtime === "bun" ? "--preload" : "--import", preload, scanner, ...args],
-			{ cwd, env: { ...env, SCAN_TEST_MODE: mode }, encoding: "utf8" }
-		);
-		assert.equal(
-			result.status,
-			status,
-			`${runtime} ${args.join(" ")}:\n${result.stderr}\n${result.stdout}`
-		);
-		assert.ok(
-			!result.stdout.includes("\x1b"),
-			"Plain/JSON output contains terminal controls"
-		);
-		return result;
-	}
-	async function requests(): Promise<Captured[]> {
-		return (await exists(capturePath))
-			? (await readFile(capturePath, "utf8"))
-					.trim()
-					.split("\n")
-					.filter(Boolean)
-					.map((line) => JSON.parse(line) as Captured)
-			: [];
-	}
-	try {
-		await mkdir(outside);
-		assert.ok(
-			await exists(scanner),
-			"Run the package build before these integration tests"
-		);
-		const packageInfo = JSON.parse(
-			await readFile(join(packageDir, "package.json"), "utf8")
-		) as PackageInfo;
-		assert.equal(packageInfo.name, "@databuddy/scan");
-		assert.equal(
-			packageInfo.bin["databuddy-scan"]?.replace(/^\.\//, ""),
-			"dist/cli.js"
-		);
-		assert.deepEqual(packageInfo.files, ["dist"]);
-		assert.equal(packageInfo.engines.node, ">=22");
-		assert.equal(
-			packageInfo.dependencies,
-			undefined,
-			"The CLI is bundled; runtime dependencies make npx install them"
-		);
-		assert.ok(packageInfo.scripts.build);
-		assert.ok(
-			(await readFile(scanner, "utf8")).startsWith("#!/usr/bin/env node\n")
-		);
-		await writeFile(
-			preload,
-			`import {appendFileSync} from 'node:fs';
+const mockFetch = `import {appendFileSync} from 'node:fs';
 let sequence=0;
 globalThis.fetch=async(url,options)=>{
  const mode=process.env.SCAN_TEST_MODE;
  if(mode==='forbid')throw Error('NETWORK_FORBIDDEN');
  const body=JSON.parse(options.body);
  appendFileSync(process.env.SCAN_TEST_CAPTURE,JSON.stringify({mode,sequence:++sequence,url,headers:options.headers,body})+'\\n');
- if(mode==='retry-once'&&sequence===1)return Response.json({error:{type:'service_unavailable_error',message:'DO_NOT_LOG_PROVIDER_BODY'}},{status:503});
- if(mode==='interrupt'&&sequence>1)return new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Mock wait expired')),10000);const abort=()=>{clearTimeout(timer);reject(options.signal.reason)};if(options.signal.aborted)abort();else options.signal.addEventListener('abort',abort,{once:true});});
- const answers={};for(let i=0;i<body.state.segments.length;i++){answers['coverage_'+i]={choice:'missing',probabilities:{missing:1}};answers['category_'+i]={choice:'activation',probabilities:{activation:1}};answers['priority_'+i]={score:2,probabilities:{2:1}};}
- if(mode==='invalid-probabilities')answers.coverage_0.probabilities.missing=2;
- if(mode==='invalid-answers')return Response.json(null);
- return Response.json({answers,usage:{inputTokens:10,outputTokens:5},providerMetadata:{gateway:{cost:0.001}}});
-};\n`
-		);
-		for (const runtime of ["node", "bun"] as const) {
-			assert.match(cli(runtime, ["--help"]).stdout, /--dry-run/);
-			assert.equal(
-				cli(runtime, ["--version"]).stdout.trim(),
-				packageInfo.version
-			);
-			assert.equal(
-				await exists(join(cache, "databuddy/scan")),
-				false,
-				"Metadata commands created scan output"
-			);
-		}
-		const repoPath = join(temporary, "repo");
-		await mkdir(join(repoPath, "src"), { recursive: true });
-		const repo = await realpath(repoPath),
-			sourceMarker = "SYNTHETIC_PRODUCT_SOURCE";
-		await writeFile(
-			join(repo, "src/checkout.ts"),
-			`export async function buy() { return checkout.purchase('${sourceMarker}'); }\n`
-		);
-		await writeFile(
-			join(repo, "src/settings.tsx"),
-			"export function Settings() { return <button onClick={() => saveSettings()}>Save settings</button>; }\n"
-		);
-		await writeFile(
-			join(repo, "src/analytics.ts"),
-			"export function completed() { capture('fixture_completed'); }\n"
-		);
-		await writeFile(join(repo, ".env"), "DO_NOT_SEND=ENV_CONTENT_MARKER\n");
-		await writeFile(
-			join(repo, "src/private.ts"),
-			`export const key = 'sk_live_${"S".repeat(32)}'; // EMBEDDED_SECRET_MARKER\n`
-		);
-		await writeFile(
-			join(temporary, "external.ts"),
-			"export const external = 'OUTSIDE_SOURCE_MARKER';\n"
-		);
-		await symlink(join(temporary, "external.ts"), join(repo, "src/linked.ts"));
-		const ancestorLinks = [
-			{
-				path: "src/escaped/nested.ts",
-				target: join(temporary, "external-directory"),
-				marker: "OUTSIDE_ANCESTOR_SOURCE_MARKER",
+ if(mode==='retry-once'&&sequence===1)return Response.json({error:{message:'DO_NOT_LOG_PROVIDER_BODY'}},{status:503});
+ if(mode==='interrupt'&&sequence>1)return new Promise((_,reject)=>{const alive=setTimeout(()=>reject(Error('Mock wait expired')),10000);const abort=()=>{clearTimeout(alive);reject(options.signal.reason)};if(options.signal.aborted)abort();else options.signal.addEventListener('abort',abort,{once:true});});
+ const answers={};const segments=body.state?.segments??body.segments;
+ for(let i=0;i<segments.length;i++){answers['coverage_'+i]={choice:'missing',probabilities:{missing:1}};answers['category_'+i]={choice:'activation',probabilities:{activation:1}};answers['priority_'+i]={score:2};}
+ return Response.json({answers,usage:{inputTokens:10,outputTokens:5}});
+};\n`;
+const markers = {
+	source: "SYNTHETIC_PRODUCT_SOURCE",
+	env: "ENV_CONTENT_MARKER",
+	secret: "EMBEDDED_SECRET_MARKER",
+	outside: "OUTSIDE_SOURCE_MARKER",
+	ancestor: "ANCESTOR_SOURCE_MARKER",
+	sibling: "SIBLING_FOLDER_MARKER",
+};
+let temporary = "",
+	repo = "",
+	preload = "",
+	capture = "";
+
+function git(cwd: string, ...args: string[]) {
+	const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+	assert.equal(result.status, 0, result.stderr);
+}
+function cli(
+	args: string[],
+	{
+		mode = "forbid",
+		key = "synthetic-key-no-network",
+		cache = "cache",
+		status = 0,
+		runtime = "node",
+	} = {}
+) {
+	const result = spawnSync(
+		runtime,
+		[runtime === "bun" ? "--preload" : "--import", preload, scanner, ...args],
+		{
+			cwd: temporary,
+			encoding: "utf8",
+			timeout: 20_000,
+			env: {
+				PATH: process.env.PATH,
+				TERM: "dumb",
+				NO_COLOR: "1",
+				XDG_CACHE_HOME: join(temporary, cache),
+				SCAN_TEST_MODE: mode,
+				SCAN_TEST_CAPTURE: capture,
+				...(key ? { AI_GATEWAY_API_KEY: key } : {}),
 			},
-			{
-				path: "src/internal-link/nested.ts",
-				target: join(repo, "untracked-target"),
-				marker: "INTERNAL_ANCESTOR_SOURCE_MARKER",
-			},
-		];
-		for (const link of ancestorLinks) {
-			await mkdir(dirname(join(repo, link.path)), { recursive: true });
-			await writeFile(join(repo, link.path), "export const before = true;\n");
 		}
-		ok("git", ["init", "--quiet"], { cwd: repo, encoding: "utf8" });
-		ok("git", ["add", "."], { cwd: repo, encoding: "utf8" });
-		ok(
-			"git",
-			[
-				"-c",
-				"user.name=Fixture",
-				"-c",
-				"user.email=fixture@example.com",
-				"-c",
-				"commit.gpgsign=false",
-				"-c",
-				"core.hooksPath=/dev/null",
-				"commit",
-				"--quiet",
-				"-m",
-				"Synthetic source",
-			],
-			{ cwd: repo, encoding: "utf8" }
-		);
-		// Tracked regular leaf files must remain excluded when an ancestor becomes a symlink.
-		for (const link of ancestorLinks) {
-			await mkdir(link.target, { recursive: true });
-			await writeFile(
-				join(link.target, "nested.ts"),
-				`export const redirected = '${link.marker}';\n`
-			);
-			const ancestor = dirname(join(repo, link.path));
-			await rm(ancestor, { recursive: true });
-			await symlink(link.target, ancestor);
-		}
-		const output = join(temporary, "output"),
-			common = [
-				repo,
-				`--output=${output}`,
-				"--batch-files=1",
-				"--no-actions",
-				"--json",
-			];
-		const preview = JSON.parse(
-			cli("node", ["--json", "--dry-run", "--no-actions"], {
-				cwd: join(repo, "src"),
-			}).stdout
-		) as { files: string[]; sent: boolean };
-		assert.equal(preview.files.length, 3);
-		assert.equal(preview.sent, false);
-		const defaultOutput = join(
-			cache,
-			"databuddy/scan",
-			createHash("sha256").update(repo).digest("hex").slice(0, 16)
-		);
-		const inventory = JSON.parse(
-			await readFile(join(defaultOutput, "inventory.json"), "utf8")
-		) as Inventory;
-		assert.equal(
-			inventory.root,
-			repo,
-			"Nested cwd did not resolve to Git root"
-		);
-		assert.deepEqual(
-			inventory.files
-				.filter((file) => file.status === "included")
-				.map((file) => file.path)
-				.sort(),
-			["src/analytics.ts", "src/checkout.ts", "src/settings.tsx"]
-		);
-		for (const path of [
-			"src/linked.ts",
-			...ancestorLinks.map((link) => link.path),
-		]) {
-			assert.equal(
-				inventory.files.find((file) => file.path === path)?.status,
-				"excluded",
-				`${path} was not excluded`
-			);
-		}
-		assert.equal((await requests()).length, 0);
-		for (const name of [
-			"inventory.json",
-			"results.json",
-			"responses",
-			"progress.ndjson",
-			"ranked-files.md",
-		]) {
-			assert.equal(
-				await exists(join(packageDir, name)),
-				false,
-				`Output leaked into package: ${name}`
-			);
-		}
+	);
+	assert.equal(
+		result.status,
+		status,
+		`${args.join(" ")}:\n${result.stderr}\n${result.stdout}`
+	);
+	assert.ok(
+		!result.stdout.includes("\x1b"),
+		"Output contains terminal controls"
+	);
+	return result;
+}
+async function requests(): Promise<Captured[]> {
+	const text = await readFile(capture, "utf8").catch(() => "");
+	return text
+		.split("\n")
+		.filter(Boolean)
+		.map((line) => JSON.parse(line) as Captured);
+}
+function button(name: string, marker = "") {
+	return `export function ${name}() { return <button onClick={() => api.${name.toLowerCase()}.mutate("${marker}")}>${name}</button>; }\n`;
+}
 
-		const first = JSON.parse(
-			cli("node", [...common, "--fresh", "--concurrency=2"], {
-				mode: "valid",
-			}).stdout
-		) as ScanResult;
-		assert.equal(first.summary.root, repo);
-		assert.equal(first.summary.classifiedFiles, 3);
-		assert.equal(first.summary.failures, 0);
-		assert.equal(first.summary.requestAttempts, 3);
-		assert.equal(first.rows.length, 3);
-		const captured = await requests();
-		assert.equal(captured.length, 3);
-		const payload = JSON.stringify(captured.map((request) => request.body));
-		assert.ok(payload.includes(sourceMarker));
-		assert.ok(
-			payload.includes("fixture_completed"),
-			"Repository tracking candidates missing"
-		);
-		for (const forbidden of [
-			"ENV_CONTENT_MARKER",
-			"EMBEDDED_SECRET_MARKER",
-			"OUTSIDE_SOURCE_MARKER",
-			...ancestorLinks.map((link) => link.marker),
-			"packages/rpc/src",
-			"SELF_ANALYTICS_WEBSITE_ID",
-			"first_review_started",
-			"agent_activity",
-			"Autumn",
-			"runTracked",
-			"configureApiInstrumentation",
-		]) {
-			assert.ok(
-				!payload.includes(forbidden),
-				`Excluded/foreign facts leaked: ${forbidden}`
-			);
-		}
-		for (const request of captured) {
-			assert.equal(
-				request.url,
-				"https://ai-gateway.vercel.sh/v4/ai/evaluation-model"
-			);
-			assert.equal(
-				request.headers.Authorization,
-				"Bearer synthetic-key-no-network"
-			);
-			assert.equal(
-				request.body.providerOptions.gateway.zeroDataRetention,
-				true
-			);
-		}
-		const savedPath = join(output, "results.json"),
-			saved = await readFile(savedPath, "utf8");
-		assert.deepEqual(JSON.parse(saved), first);
-		const replayFiles = ["results.json", "inventory.json", "progress.ndjson"];
-		const beforeReplay = await Promise.all(
-			replayFiles.map((name) => readFile(join(output, name), "utf8"))
-		);
-		const cached = JSON.parse(
-			cli("bun", [...common, "--cache-only"]).stdout
-		) as ScanResult;
-		assert.equal(cached.summary.cachedBatches, 3);
-		assert.equal(cached.summary.requestAttempts, 0);
-		const emptyCache = join(temporary, "empty-cache");
-		const missingCache = JSON.parse(
-			cli("node", ["--cache-only", "--json", repo, `--output=${emptyCache}`], {
-				status: 1,
-			}).stdout
-		) as ScanResult;
-		assert.equal(missingCache.summary.requestAttempts, 0);
-		assert.equal(await exists(emptyCache), false);
-		assert.deepEqual(
-			await Promise.all(
-				replayFiles.map((name) => readFile(join(output, name), "utf8"))
-			),
-			beforeReplay,
-			"Cache-only replay changed saved output"
-		);
-		const resumed = JSON.parse(cli("node", common).stdout) as ScanResult;
-		assert.equal(resumed.summary.requestAttempts, 0);
-		assert.equal(resumed.summary.cachedBatches, 3);
-		assert.equal((await requests()).length, 3);
-		const bunRun = JSON.parse(
-			cli(
-				"bun",
-				[
-					repo,
-					`--output=${join(temporary, "bun-output")}`,
-					"--batch-files=4",
-					"--no-actions",
-					"--json",
-				],
-				{ mode: "valid" }
-			).stdout
-		) as ScanResult;
-		assert.equal(bunRun.summary.classifiedFiles, 3);
-		assert.equal(bunRun.summary.requestAttempts, 1);
+beforeAll(async () => {
+	temporary = await mkdtemp(join(tmpdir(), "databuddy-scan-test-"));
+	preload = join(temporary, "mock-fetch.mjs");
+	capture = join(temporary, "requests.ndjson");
+	await writeFile(preload, mockFetch);
+	repo = await realpath(await mkdtemp(join(temporary, "repo-")));
+	await mkdir(join(repo, "src/app"), { recursive: true });
+	await mkdir(join(repo, "src/admin"), { recursive: true });
+	await mkdir(join(repo, "src/nested"));
+	await writeFile(
+		join(repo, "src/app/checkout.tsx"),
+		button("Buy", markers.source)
+	);
+	await writeFile(join(repo, "src/app/settings.tsx"), button("Save"));
+	await writeFile(
+		join(repo, "src/admin/ban.tsx"),
+		button("Ban", markers.sibling)
+	);
+	await writeFile(join(repo, ".env"), `DO_NOT_SEND=${markers.env}\n`);
+	await writeFile(
+		join(repo, "src/app/keys.tsx"),
+		`export const key = "sk_live_${"S".repeat(32)}"; // ${markers.secret}\n${button("Rotate")}`
+	);
+	await writeFile(
+		join(temporary, "external.tsx"),
+		button("Leak", markers.outside)
+	);
+	await symlink(
+		join(temporary, "external.tsx"),
+		join(repo, "src/app/linked.tsx")
+	);
+	await writeFile(
+		join(repo, "src/nested/page.tsx"),
+		"export const before = true;\n"
+	);
+	git(repo, "init", "--quiet");
+	git(repo, "add", ".");
+	git(
+		repo,
+		"-c",
+		"user.name=Fixture",
+		"-c",
+		"user.email=fixture@example.com",
+		"-c",
+		"commit.gpgsign=false",
+		"-c",
+		"core.hooksPath=/dev/null",
+		"commit",
+		"--quiet",
+		"-m",
+		"fixture"
+	);
+	await mkdir(join(temporary, "redirect"));
+	await writeFile(
+		join(temporary, "redirect/page.tsx"),
+		button("Hop", markers.ancestor)
+	);
+	await rm(join(repo, "src/nested"), { recursive: true });
+	await symlink(join(temporary, "redirect"), join(repo, "src/nested"));
+});
 
-		for (const [runtime, mode] of [
-			["node", "invalid-probabilities"],
-			["bun", "invalid-answers"],
-		] as const) {
-			const invalidOutput = join(temporary, mode);
-			cli(
-				runtime,
-				[
-					repo,
-					`--output=${invalidOutput}`,
-					"--batch-files=4",
-					"--fresh",
-					"--no-actions",
-					"--json",
-				],
-				{ mode, status: 1 }
-			);
-			const rejected = JSON.parse(
-				await readFile(join(invalidOutput, "results.json"), "utf8")
-			) as ScanResult;
-			assert.equal(rejected.summary.failures, 1);
-			assert.equal(rejected.summary.requestAttempts, 1);
-			assert.equal(rejected.rows.length, 0);
-			assert.match(
-				await readFile(join(invalidOutput, "progress.ndjson"), "utf8"),
-				/"error":"Invalid model response"/
-			);
-			assert.deepEqual(await readdir(join(invalidOutput, "responses")), []);
-		}
-		const retryOutput = join(temporary, "retry-once");
-		const retried = JSON.parse(
-			cli(
-				"node",
-				[
-					repo,
-					`--output=${retryOutput}`,
-					"--batch-files=4",
-					"--no-actions",
-					"--json",
-				],
-				{ mode: "retry-once" }
-			).stdout
-		) as ScanResult;
-		assert.equal(retried.summary.requestAttempts, 2);
-		assert.equal(retried.summary.classifiedFiles, 3);
-		const log = await readFile(join(retryOutput, "progress.ndjson"), "utf8");
-		for (const secret of [
-			sourceMarker,
-			"synthetic-key-no-network",
-			"DO_NOT_LOG_PROVIDER_BODY",
-		]) {
-			assert.ok(!log.includes(secret), `Request log leaked ${secret}`);
-		}
+afterAll(async () => {
+	await rm(temporary, { recursive: true, force: true });
+});
 
-		const interruptedOutput = join(temporary, "interrupted");
-		const child = spawn(
-			"node",
-			[
-				"--import",
-				preload,
-				scanner,
-				repo,
-				`--output=${interruptedOutput}`,
-				"--no-actions",
-				"--json",
-				"--batch-files=1",
-				"--concurrency=1",
-			],
-			{
-				cwd: outside,
-				env: { ...env, SCAN_TEST_MODE: "interrupt" },
-				stdio: ["ignore", "pipe", "pipe"],
-			}
-		);
-		let childOut = "",
-			childError = "";
-		child.stdout.on("data", (chunk) => {
-			childOut += chunk.toString();
-		});
-		child.stderr.on("data", (chunk) => {
-			childError += chunk.toString();
-		});
-		const closed = new Promise<number | null>((resolve, reject) => {
-			child.once("error", reject);
-			child.once("close", resolve);
-		});
-		try {
-			const deadline = Date.now() + 5000;
-			while (
-				!(await requests()).some(
-					(request) => request.mode === "interrupt" && request.sequence === 2
-				)
-			) {
-				assert.ok(
-					Date.now() < deadline,
-					`Interrupt fixture did not reach second request: ${childError}`
-				);
-				await new Promise((resolve) => setTimeout(resolve, 10));
-			}
-			child.kill("SIGINT");
-			const timer = setTimeout(() => child.kill("SIGKILL"), 5000);
-			try {
-				assert.equal(await closed, 130, childError);
-			} finally {
-				clearTimeout(timer);
-			}
-			const stopped = JSON.parse(childOut) as ScanResult;
-			assert.equal(stopped.summary.interrupted, true);
-			assert.equal(stopped.summary.classifiedFiles, 1);
-			assert.deepEqual(
-				JSON.parse(
-					await readFile(join(interruptedOutput, "results.json"), "utf8")
-				),
-				stopped
-			);
-			assert.equal(
-				(await readdir(join(interruptedOutput, "responses"))).length,
-				1
-			);
-		} finally {
-			if (child.exitCode === null && child.signalCode === null) {
-				child.kill("SIGKILL");
-				await closed;
-			}
-		}
-
-		const actionRepo = join(temporary, "action-repo");
-		await mkdir(actionRepo);
-		const actionSource = `import { copyReport } from "./copy";
-import { secretPrepare } from "./secret";
-import { externalPrepare } from "./linked";
-export function Report() {
-  const request = useMutation({ mutationFn: api.requestReport,
-    onSuccess(result) { if (result.status === "queued") showQueued(); }
-  });
-  function submitReport() {
-    secretPrepare();
-    externalPrepare();
-    request.mutate({ reportId });
-  }
-  return <section>
-    <button onClick={submitReport}>Generate report</button>
-    <button onClick={copyReport}>Copy report</button>
-  </section>;
-}`;
-		await writeFile(join(actionRepo, "page.tsx"), actionSource);
-		await writeFile(
-			join(actionRepo, "copy.ts"),
-			`export async function copyReport() {
-  await navigator.clipboard.writeText("SYNTHETIC_IMPORTED_COPY");
-  showCopied();
-}`
-		);
-		await writeFile(
-			join(actionRepo, "secret.ts"),
-			`export function secretPrepare() { return "sk_live_${"S".repeat(32)}_EXCLUDED_IMPORT_SECRET"; }`
-		);
-		await writeFile(
-			join(temporary, "action-external.ts"),
-			'export function externalPrepare() { return "EXCLUDED_SYMLINK_IMPORT"; }'
-		);
-		await symlink(
-			join(temporary, "action-external.ts"),
-			join(actionRepo, "linked.ts")
-		);
-		ok("git", ["init", "--quiet"], { cwd: actionRepo, encoding: "utf8" });
-		ok("git", ["add", "."], { cwd: actionRepo, encoding: "utf8" });
-		const actionArgs = [
-			actionRepo,
-			`--output=${join(temporary, "action-output")}`,
-			"--json",
-		];
-		const beforeActions = (await requests()).length;
-		const actionResult = JSON.parse(
-			cli("node", actionArgs, { mode: "valid" }).stdout
-		) as ScanResult;
-		const groupedRows = actionResult.rows.filter(
-			(row) => row.path === "page.tsx" && row.action
-		);
-		assert.equal(
-			groupedRows.length,
-			2,
-			"Handler and mutation must not become separate recommendations"
-		);
-		const mutationLine = actionSource
-			.slice(0, actionSource.indexOf("request.mutate("))
-			.split("\n").length;
-		const mutationRows = groupedRows.filter((row) =>
-			row.action?.sites.some(
-				(site) =>
-					site.path === "page.tsx" &&
-					site.start <= mutationLine &&
-					site.end >= mutationLine
-			)
-		);
-		assert.equal(mutationRows.length, 1);
-		assert.ok(
-			groupedRows.some((row) =>
-				row.action?.sites.some((site) => site.path === "copy.ts")
-			)
-		);
-		const actionRequests = (await requests()).slice(beforeActions);
-		assert.ok(actionRequests.length > 0);
-		const actionPayload = JSON.stringify(
-			actionRequests.map((request) => request.body)
-		);
-		assert.ok(actionPayload.includes("SYNTHETIC_IMPORTED_COPY"));
-		assert.ok(
-			actionRequests.some((request) =>
-				request.body.state.segments.some((segment) =>
-					segment.source.includes('result.status === "queued"')
-				)
-			)
-		);
-		assert.ok(!actionPayload.includes("EXCLUDED_IMPORT_SECRET"));
-		assert.ok(!actionPayload.includes("EXCLUDED_SYMLINK_IMPORT"));
-		const actionReplay = JSON.parse(
-			cli("bun", [...actionArgs, "--cache-only"]).stdout
-		) as ScanResult;
-		assert.equal(actionReplay.summary.requestAttempts, 0);
-		assert.equal(
-			actionReplay.rows.filter((row) => row.action).length,
-			actionResult.rows.filter((row) => row.action).length
-		);
-		assert.equal(
-			(await requests()).length,
-			beforeActions + actionRequests.length
-		);
-
-		const npmCache =
-			process.env.SCAN_TEST_NPM_CACHE ??
-			ok("npm", ["config", "get", "cache"]).trim();
-		const npmConfig = join(temporary, "npmrc");
-		await writeFile(npmConfig, "");
-		const npmFlags = [
-			"--prefer-offline",
-			"--ignore-scripts",
-			`--cache=${npmCache}`,
-			`--userconfig=${npmConfig}`,
-		];
-		const packed = (
-			JSON.parse(
-				ok(
-					"npm",
-					["pack", "--json", ...npmFlags, `--pack-destination=${temporary}`],
-					{ cwd: packageDir, encoding: "utf8" }
-				)
-			) as { filename: string; files: { path: string }[] }[]
-		)[0];
-		assert.ok(packed);
-		const packedPaths = packed.files.map((file) => file.path);
-		assert.ok(packedPaths.includes("dist/cli.js"));
-		assert.ok(packedPaths.includes("dist/THIRD_PARTY_LICENSES"));
-		const notices = await readFile(
-			join(packageDir, "dist/THIRD_PARTY_LICENSES"),
-			"utf8"
-		);
-		for (const bundled of ["commander", "typescript", "zod"]) {
-			assert.match(
-				notices,
-				new RegExp(`^${bundled}@\\S+ \\(`, "m"),
-				`${bundled} is bundled without its license`
-			);
-		}
-		assert.ok(
-			packedPaths.every(
-				(path) =>
-					path.startsWith("dist/") ||
-					["LICENSE", "README.md", "package.json"].includes(path)
-			),
-			`Unexpected published files: ${packedPaths.join(", ")}`
-		);
-		const tarball = join(temporary, packed.filename),
-			execArgs = [
-				"exec",
-				...npmFlags,
-				"--yes",
-				`--package=${tarball}`,
-				"--",
-				"databuddy-scan",
-			];
-		assert.equal(
-			ok("npm", [...execArgs, "--version"]).trim(),
-			packageInfo.version
-		);
-		assert.match(ok("npm", [...execArgs, "--help"]), /--dry-run/);
-		assert.equal(
-			(
-				JSON.parse(
-					ok("npm", [
-						...execArgs,
-						repo,
-						`--output=${join(temporary, "installed-output")}`,
-						"--dry-run",
-						"--json",
-					])
-				) as { files: string[] }
-			).files.length,
-			1
-		);
-		const installed = join(temporary, "installed");
-		await mkdir(installed);
-		ok("npm", [
-			"install",
-			...npmFlags,
-			"--no-audit",
-			"--no-fund",
-			`--prefix=${installed}`,
-			tarball,
-		]);
-		assert.deepEqual(
-			(await readdir(join(installed, "node_modules"))).filter(
-				(name) => !name.startsWith(".")
-			),
-			["@databuddy"],
-			"The published package must install without dependencies"
-		);
-		assert.equal(
-			ok("bun", ["x", "--no-install", "--bun", "databuddy-scan", "--version"], {
-				cwd: installed,
-				encoding: "utf8",
-			}).trim(),
-			packageInfo.version
-		);
-		assert.match(
-			ok("bun", ["x", "--no-install", "--bun", "databuddy-scan", "--help"], {
-				cwd: installed,
-				encoding: "utf8",
-			}),
-			/--dry-run/
-		);
-		for (const args of [
-			["--self-test"],
-			["--max-batches=1"],
-			["--sample-segments=1"],
-			["--opportunities"],
-			["--unknown"],
-			["--concurrency=0"],
-			["--run"],
-			["--report"],
-			["--diagnostics"],
-			["--root=."],
-			["--cache-only", "--fresh"],
-			["--output="],
-		]) {
-			cli("node", [repo, ...args], { status: 1 });
-		}
-		cli("node", [], { status: 1 });
-	} finally {
-		await rm(temporary, { recursive: true, force: true });
+test("the dry-run payload never carries secrets, env files, symlinked code or other folders", () => {
+	const whole = JSON.stringify(
+		JSON.parse(cli([repo, "--dry-run", "--json"]).stdout).payload
+	);
+	assert.ok(whole.includes(markers.source));
+	assert.ok(whole.includes(markers.sibling));
+	for (const marker of [
+		markers.env,
+		markers.secret,
+		markers.outside,
+		markers.ancestor,
+	]) {
+		assert.ok(!whole.includes(marker), `${marker} reached the payload`);
 	}
-}, 90_000);
+	const scoped = JSON.parse(
+		cli([join(repo, "src/app"), "--dry-run", "--json"]).stdout
+	) as {
+		files: { path: string }[];
+		payload: { segments: { source: string }[] };
+	};
+	assert.ok(!JSON.stringify(scoped.payload.segments).includes(markers.sibling));
+	assert.deepEqual(scoped.files.map((file) => file.path).sort(), [
+		"src/app/checkout.tsx",
+		"src/app/settings.tsx",
+	]);
+});
+
+test("a scan classifies through the chosen destination, reuses its cache and stops cleanly", async () => {
+	const hosted = JSON.parse(
+		cli([repo, "--json"], { mode: "valid", key: "", cache: "hosted" }).stdout
+	) as { summary: Summary };
+	assert.equal(hosted.summary.classifiedFiles, 3);
+	for (const request of await requests()) {
+		assert.match(request.url, /\/public\/v1\/scan\/evaluate$/);
+		assert.equal(request.headers.Authorization, undefined);
+		assert.match(
+			request.headers["x-databuddy-scan-run"] ?? "",
+			/^[0-9a-f-]{36}$/
+		);
+		assert.ok(request.body.segments && !request.body.state);
+	}
+
+	const before = (await requests()).length;
+	const direct = JSON.parse(
+		cli([repo, "--json"], { mode: "retry-once", runtime: "bun" }).stdout
+	) as { summary: Summary };
+	assert.equal(direct.summary.classifiedFiles, 3);
+	const sent = (await requests()).slice(before);
+	assert.equal(direct.summary.requestAttempts, sent.length);
+	for (const request of sent) {
+		assert.equal(
+			request.url,
+			"https://ai-gateway.vercel.sh/v4/ai/evaluation-model"
+		);
+		assert.equal(
+			request.headers.Authorization,
+			"Bearer synthetic-key-no-network"
+		);
+		assert.equal(request.body.providerOptions?.gateway.zeroDataRetention, true);
+	}
+	const cacheRoot = join(temporary, "cache/databuddy/scan");
+	const [runDir = ""] = await readdir(cacheRoot);
+	const log = await readFile(
+		join(cacheRoot, runDir, "progress.ndjson"),
+		"utf8"
+	);
+	for (const secret of [
+		markers.source,
+		"synthetic-key-no-network",
+		"DO_NOT_LOG_PROVIDER_BODY",
+	]) {
+		assert.ok(!log.includes(secret), `Progress log leaked ${secret}`);
+	}
+
+	const replay = JSON.parse(cli([repo, "--json"]).stdout) as {
+		summary: Summary;
+	};
+	assert.equal(replay.summary.requestAttempts, 0);
+	assert.ok(replay.summary.cachedBatches > 0);
+
+	const child = spawn("node", ["--import", preload, scanner, repo, "--json"], {
+		cwd: temporary,
+		env: {
+			PATH: process.env.PATH,
+			XDG_CACHE_HOME: join(temporary, "interrupted"),
+			AI_GATEWAY_API_KEY: "synthetic-key-no-network",
+			SCAN_TEST_MODE: "interrupt",
+			SCAN_TEST_CAPTURE: capture,
+		},
+		stdio: ["ignore", "pipe", "pipe"],
+	});
+	let stdout = "";
+	child.stdout.on("data", (chunk) => {
+		stdout += chunk.toString();
+	});
+	const closed = new Promise<number | null>((resolve) =>
+		child.once("close", resolve)
+	);
+	const deadline = Date.now() + 5000;
+	while (
+		!(await requests()).some(
+			(request) => request.mode === "interrupt" && request.sequence > 1
+		)
+	) {
+		assert.ok(
+			Date.now() < deadline,
+			"Interrupt fixture never reached a pending request"
+		);
+		await new Promise((resolve) => setTimeout(resolve, 10));
+	}
+	child.kill("SIGINT");
+	assert.equal(await closed, 130);
+	assert.equal(
+		(JSON.parse(stdout) as { summary: Summary }).summary.interrupted,
+		true
+	);
+}, 60_000);
+
+test("the published package installs as one file and runs under npm and bun", async () => {
+	const pkg = JSON.parse(
+		await readFile(join(packageDir, "package.json"), "utf8")
+	);
+	assert.equal(
+		pkg.dependencies,
+		undefined,
+		"Runtime dependencies make npx install them"
+	);
+	assert.equal(cli(["--version"]).stdout.trim(), pkg.version);
+	for (const args of [
+		["--run"],
+		["--no-actions"],
+		["--output=x"],
+		["--unknown"],
+	]) {
+		cli([repo, ...args], { status: 1 });
+	}
+	const npm = (args: string[], cwd = packageDir) => {
+		const result = spawnSync("npm", args, {
+			cwd,
+			encoding: "utf8",
+			timeout: 60_000,
+		});
+		assert.equal(result.status, 0, result.stderr);
+		return result.stdout;
+	};
+	const [packed] = JSON.parse(
+		npm([
+			"pack",
+			"--json",
+			"--ignore-scripts",
+			`--pack-destination=${temporary}`,
+		])
+	) as { filename: string; files: { path: string }[] }[];
+	assert.ok(packed);
+	assert.deepEqual(packed.files.map((file) => file.path).sort(), [
+		"LICENSE",
+		"README.md",
+		"dist/THIRD_PARTY_LICENSES",
+		"dist/cli.js",
+		"package.json",
+	]);
+	const notices = await readFile(
+		join(packageDir, "dist/THIRD_PARTY_LICENSES"),
+		"utf8"
+	);
+	for (const bundled of ["commander", "typescript", "zod"]) {
+		assert.match(notices, new RegExp(`^${bundled}@\\S+ \\(`, "m"));
+	}
+	const tarball = join(temporary, packed.filename);
+	assert.equal(
+		npm([
+			"exec",
+			"--yes",
+			"--prefer-offline",
+			`--package=${tarball}`,
+			"--",
+			"databuddy-scan",
+			"--version",
+		]).trim(),
+		pkg.version
+	);
+	const installed = join(temporary, "installed");
+	await mkdir(installed);
+	npm([
+		"install",
+		"--prefer-offline",
+		"--no-audit",
+		"--no-fund",
+		`--prefix=${installed}`,
+		tarball,
+	]);
+	assert.deepEqual(
+		(await readdir(join(installed, "node_modules"))).filter(
+			(name) => !name.startsWith(".")
+		),
+		["@databuddy"]
+	);
+	const bun = spawnSync(
+		"bun",
+		["x", "--no-install", "--bun", "databuddy-scan", "--version"],
+		{
+			cwd: installed,
+			encoding: "utf8",
+		}
+	);
+	assert.equal(bun.stdout.trim(), pkg.version, bun.stderr);
+}, 120_000);
