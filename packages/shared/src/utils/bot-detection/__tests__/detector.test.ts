@@ -53,7 +53,6 @@ describe("detectBot", () => {
 			["ChatGLM-Spider", "ChatGLM-Spider"],
 			["Together-Bot", "Together-Bot"],
 			["Replicate-Bot", "Replicate-Bot"],
-			["FirecrawlAgent", "FirecrawlAgent"],
 			["Cohere crawler", "cohere-training-data-crawler"],
 			["Cloudflare-AI-Search", "Cloudflare-AI-Search/1.0"],
 			["SBIntuitionsBot", "SBIntuitionsBot/1.0"],
@@ -75,6 +74,7 @@ describe("detectBot", () => {
 			["Perplexity-User", "Perplexity-User/1.0"],
 			["Cohere-AI", "Cohere-AI/1.0"],
 			["Meta ExternalFetcher", "meta-externalfetcher/1.0"],
+			["FirecrawlAgent", "FirecrawlAgent"],
 		])("detects %s as track-only AI assistant", (_label, ua) => {
 			expectBot(ua, BotCategory.AI_ASSISTANT, BotAction.TRACK_ONLY);
 		});

@@ -1,3 +1,5 @@
+import type { AiAgent } from "./ai-agents";
+
 export const BotCategory = {
 	AI_CRAWLER: "ai_crawler",
 	AI_ASSISTANT: "ai_assistant",
@@ -19,6 +21,7 @@ export const BotAction = {
 export type BotAction = (typeof BotAction)[keyof typeof BotAction];
 export interface BotDetectionResult {
 	action: BotAction;
+	agent?: Pick<AiAgent, "id" | "operator" | "purpose">;
 	category?: BotCategory;
 	confidence: number;
 	isBot: boolean;

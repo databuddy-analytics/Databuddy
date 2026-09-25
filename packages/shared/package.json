@@ -11,6 +11,7 @@
     "./audit": "./src/audit.ts",
     "./billing": "./src/billing.ts",
     "./bot-detection": "./src/utils/bot-detection/index.ts",
+    "./bot-detection/ai-agents": "./src/utils/bot-detection/ai-agents.ts",
     "./bot-detection/detector": "./src/utils/bot-detection/detector.ts",
     "./bot-detection/types": "./src/utils/bot-detection/types.ts",
     "./bot-detection/user-agent": "./src/utils/bot-detection/user-agent.ts",
@@ -40,7 +41,8 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit",
-    "test": "bun test src"
+    "test": "bun test src",
+    "bots:sync": "curl -fsSL https://raw.githubusercontent.com/arcjet/well-known-bots/main/well-known-bots.json -o src/utils/bot-detection/well-known-bots.json && bun test src/utils/bot-detection"
   },
   "dependencies": {
     "evlog": "catalog:",
