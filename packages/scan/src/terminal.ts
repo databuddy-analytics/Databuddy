@@ -28,6 +28,7 @@ export const privacy = `Code is sent to Databuddy's scan API (${new URL(hostedSc
 const controls = /[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g;
 const clean = (value: string | number | null | undefined) =>
 	stripVTControlCharacters(String(value ?? "")).replace(controls, "");
+const minimumPriority = 0.7;
 const gaps = (rows: Row[]) =>
 	rows.filter(
 		(row) => row.coverage === "missing" || row.coverage === "partial"
@@ -165,7 +166,8 @@ export function createTerminal({ json = false }: { json?: boolean } = {}) {
 			return print([JSON.stringify(result)]);
 		}
 		const { summary: s, rows } = result;
-		const flagged = gaps(rows);
+		const flagged = gaps(rows).filter((row) => row.priority >= minimumPriority);
+		const quiet = gaps(rows).length - flagged.length;
 		const visible = interactive ? flagged.slice(0, 10) : flagged;
 		const lines = [
 			"",
@@ -179,9 +181,16 @@ export function createTerminal({ json = false }: { json?: boolean } = {}) {
 					`  ${location(row)} · ${row.action ? `${clean(row.action.label)} · ` : ""}${row.coverage}${area(row)}`
 			),
 		];
-		if (flagged.length > visible.length) {
+		if (flagged.length > visible.length || quiet) {
 			lines.push(
-				`  ${flagged.length - visible.length} more · databuddy-scan --json lists every finding`
+				`  ${[
+					flagged.length > visible.length
+						? `${flagged.length - visible.length} more`
+						: "",
+					quiet ? `${quiet} low-priority not shown` : "",
+				]
+					.filter(Boolean)
+					.join(", ")} · databuddy-scan --json lists every finding`
 			);
 		}
 		if (s.failures || s.unattemptedBatches || s.interrupted) {
