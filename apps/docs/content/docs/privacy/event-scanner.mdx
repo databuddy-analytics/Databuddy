@@ -4,13 +4,13 @@ description: "Exactly which code @databuddy/scan sends, where it goes, what Data
 icon: "Shield"
 ---
 
-`npx @databuddy/scan` finds user actions in your repository that have no analytics event. It reads your code locally and sends the relevant parts to a model that classifies each action. This page lists every piece of data involved so you can decide whether to run it.
+`npx @databuddy/scan` (or `bunx @databuddy/scan`) finds user actions in your repository that have no analytics event. It reads your code locally and sends the relevant parts to a model that classifies each action. This page lists every piece of data involved so you can decide whether to run it.
 
 ## Check before you send
 
 - `npx @databuddy/scan --dry-run` lists every file and line range that would be sent, and sends nothing.
-- `npx @databuddy/scan --dry-run --json` prints the exact request payload.
-- `npx @databuddy/scan <folder>` reads and sends nothing outside that folder.
+- `npx @databuddy/scan --dry-run --json` prints every code segment and the tracking catalog that would be sent. Real requests carry the same data split into batches of up to four segments; with your own gateway key they also include the scanner's fixed classification instructions.
+- `npx @databuddy/scan <folder>` sends no code from outside that folder. The only file it reads outside the folder is the repository root's `.env`, and only to look for `AI_GATEWAY_API_KEY`.
 
 Before sending anything, the CLI prints where the code is going and how many files it comes from.
 
@@ -34,7 +34,7 @@ The API holds your code in memory only while it answers the request. It does not
 
 ## What Databuddy records
 
-Each scan request produces one log entry with:
+Scan request logs contain these fields. Routine successful requests are sampled, so not every request is kept:
 
 - method, path, status, duration and request size;
 - the HTTP client's user agent, for example `node`;
@@ -53,6 +53,6 @@ Set `AI_GATEWAY_API_KEY` to your own Vercel AI Gateway key, in your shell or in 
 
 ## What stays on your machine
 
-Results are cached in `~/.cache/databuddy/scan`, so unchanged code is not sent again. The cache holds the list of scanned files with their hashes, the tracking calls it found, the locations of the actions, and the model's classifications. Delete the folder to clear it.
+Results are cached in `~/.cache/databuddy/scan` (or `$XDG_CACHE_HOME/databuddy/scan` when `XDG_CACHE_HOME` is set), so unchanged code is not sent again. The cache holds the list of scanned files with their hashes, the tracking calls it found, the locations of the actions, and the model's classifications. Delete the folder to clear it.
 
 The scanner never edits your repository. It is MIT licensed and its source is in the [Databuddy repository](https://github.com/databuddy-analytics/databuddy/tree/main/packages/scan).
