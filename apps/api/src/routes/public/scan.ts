@@ -19,7 +19,6 @@ const maxBodyBytes = 256 * 1024;
 const runPattern =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const versionPattern = /^\d{1,3}\.\d{1,3}\.\d{1,3}$/;
-const modes = new Set(["actions", "files"]);
 const limits = [
 	{ requests: 600, windowSeconds: 60 },
 	{ requests: 5000, windowSeconds: 86_400 },
@@ -45,15 +44,13 @@ function answersFrom(rows: Row[]) {
 function scanContext(headers: Headers) {
 	const run = headers.get("x-databuddy-scan-run") ?? "";
 	const version = headers.get("x-databuddy-scan-version") ?? "";
-	const mode = headers.get("x-databuddy-scan-mode") ?? "";
 	return {
 		run: runPattern.test(run) ? run : null,
 		version: versionPattern.test(version) ? version : "unknown",
-		mode: modes.has(mode) ? mode : "unknown",
 	};
 }
 
-async function recordRunStart(run: string, version: string, mode: string) {
+async function recordRunStart(run: string, version: string) {
 	const first = await runRateLimitCommand((redis) =>
 		redis.set(`scan:run:${run}`, "1", "EX", 86_400, "NX")
 	);
@@ -63,7 +60,7 @@ async function recordRunStart(run: string, version: string, mode: string) {
 	await recordSelfAnalyticsEvent({
 		profileId: run,
 		eventName: "scan_run_started",
-		properties: { cli_version: version, mode },
+		properties: { cli_version: version },
 		source: "scan",
 	});
 }
@@ -116,7 +113,6 @@ export const scanRoute = new Elysia({ prefix: "/v1/scan" }).post(
 		mergeWideEvent({
 			scan_run: context.run ?? "none",
 			scan_cli_version: context.version,
-			scan_mode: context.mode,
 		});
 		const caller = createHmac("sha256", process.env.BETTER_AUTH_SECRET ?? "")
 			.update(getClientIp(request.headers) ?? "shared")
@@ -182,8 +178,8 @@ export const scanRoute = new Elysia({ prefix: "/v1/scan" }).post(
 		const { segments, catalog } = parsed.data;
 		mergeWideEvent({ scan_segments: segments.length });
 		if (context.run) {
-			recordRunStart(context.run, context.version, context.mode).catch(
-				(error) => captureError(error, { scan_event: "scan_run_started" })
+			recordRunStart(context.run, context.version).catch((error) =>
+				captureError(error, { scan_event: "scan_run_started" })
 			);
 		}
 		let gatewayStatus: number | null = null;
