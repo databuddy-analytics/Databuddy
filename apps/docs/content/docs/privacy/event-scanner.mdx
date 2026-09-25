@@ -10,13 +10,13 @@ icon: "Shield"
 
 - `npx @databuddy/scan --dry-run` lists every file and line range that would be sent, and sends nothing.
 - `npx @databuddy/scan --dry-run --json` prints every code segment and the tracking catalog that would be sent. Real requests carry the same data split into batches of up to four segments; with your own gateway key they also include the scanner's fixed classification instructions.
-- `npx @databuddy/scan <folder>` sends no code from outside that folder. The only file it reads outside the folder is the repository root's `.env`, and only to look for `AI_GATEWAY_API_KEY`.
+- `npx @databuddy/scan <folder>` sends code only from that folder. It still reads the rest of the repository locally, with the same exclusions, to find existing tracking, and sends that as a list of event names and `file:line` references so actions tracked elsewhere are not reported as missing. It also reads the repository root's `.env`, only to look for `AI_GATEWAY_API_KEY`.
 
 Before sending anything, the CLI prints where the code is going and how many files it comes from.
 
 ## What is sent
 
-For JavaScript, TypeScript, Vue, Svelte and HTML, the scanner sends only the code around each user action it finds: the handler, the functions it calls, and the route it posts to. It does not send whole files, except files it cannot parse, which are sent whole. Python and Swift files are sent whole.
+For JavaScript, TypeScript, Vue, Svelte, Astro and HTML, the scanner sends only the code around each user action it finds: the handler, the functions it calls, and the route it posts to. For Python it sends only decorated write routes (FastAPI, Flask or Django POST, PUT, PATCH and DELETE handlers), each as its own function; Python files without one are not sent. Swift files, and any file it cannot parse, are sent whole.
 
 It never sends:
 
@@ -38,10 +38,10 @@ Scan request logs contain these fields. Routine successful requests are sampled,
 
 - method, path, status, duration and request size;
 - the HTTP client's user agent, for example `node`;
-- a random run ID generated per scan, the CLI version and the scan mode;
+- a random run ID generated per scan and the CLI version;
 - the number of code segments, the model gateway's status and timing, input token count, and how many findings were missing or covered.
 
-The first request of each run also records a `scan_run_started` event in Databuddy's own analytics, keyed by the random run ID, with the CLI version and mode. This is how we count scans.
+The first request of each run also records a `scan_run_started` event in Databuddy's own analytics, keyed by the random run ID, with the CLI version. This is how we count scans.
 
 For rate limiting (600 requests a minute, 5,000 a day), your IP address is hashed with a server secret and used as a Redis key that expires with its window. The IP address itself is not logged or stored.
 
