@@ -37,7 +37,7 @@ export interface EvaluationOptions {
 	attempts?: number;
 	onAttempt: (attempt: Attempt) => void;
 	onRetry: (retry: { attempt: number; reason: string; waitMs: number }) => void;
-	run?: { id: string; mode: "actions" | "files" };
+	run?: string;
 	signal: AbortSignal;
 	timeoutMs: number;
 }
@@ -320,12 +320,7 @@ export async function requestEvaluation(
 		: {
 				"Content-Type": "application/json",
 				"x-databuddy-scan-version": version,
-				...(options.run
-					? {
-							"x-databuddy-scan-run": options.run.id,
-							"x-databuddy-scan-mode": options.run.mode,
-						}
-					: {}),
+				...(options.run ? { "x-databuddy-scan-run": options.run } : {}),
 			};
 	for (let attempt = 1; attempt <= attempts; attempt++) {
 		options.signal.throwIfAborted();
