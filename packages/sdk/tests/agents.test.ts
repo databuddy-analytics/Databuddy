@@ -56,6 +56,46 @@ describe("trackAgentTraffic", () => {
 		]);
 	});
 
+	it.each([
+		[
+			"ignores a client-sent cf-connecting-ip outside Workers",
+			{ "cf-connecting-ip": "132.196.86.1", "x-real-ip": "203.0.113.9" },
+			false,
+			undefined,
+			"203.0.113.9",
+		],
+		[
+			"trusts cf-connecting-ip on Workers",
+			{ "cf-connecting-ip": "132.196.86.1", "x-real-ip": "203.0.113.9" },
+			true,
+			undefined,
+			"132.196.86.1",
+		],
+		[
+			"prefers an explicit ip option",
+			{ "x-real-ip": "203.0.113.9" },
+			false,
+			"198.51.100.4",
+			"198.51.100.4",
+		],
+	])("%s", async (_label, headers, onWorkers, ip, expected) => {
+		const bodies: { ip: string }[] = [];
+		globalThis.fetch = mock((_url: string, init?: RequestInit) => {
+			bodies.push(JSON.parse(String(init?.body)));
+			return Promise.resolve(new Response(null, { status: 202 }));
+		}) as typeof fetch;
+		const request = agentRequest("/pricing", { headers });
+		if (onWorkers) {
+			Object.defineProperty(request, "cf", { value: {} });
+		}
+		await trackAgentTraffic(request, {
+			apiKey: "dbdy_test",
+			websiteId: "site_1",
+			ip,
+		});
+		expect(bodies[0]?.ip).toBe(expected);
+	});
+
 	it("never rejects when basket is unreachable", async () => {
 		globalThis.fetch = mock(() =>
 			Promise.reject(new Error("network down"))

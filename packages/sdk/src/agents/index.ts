@@ -1,6 +1,7 @@
 export interface AgentTrafficOptions {
 	apiKey: string;
 	apiUrl?: string;
+	ip?: string;
 	timeoutMs?: number;
 	websiteId: string;
 }
@@ -13,9 +14,12 @@ const ASSET_PATH =
 const DEFAULT_API_URL = "https://basket.databuddy.cc";
 const DEFAULT_TIMEOUT_MS = 3000;
 
-function getClientIp(headers: Headers): string {
+function getClientIp(request: Request): string {
+	const { headers } = request;
+	if ("cf" in request) {
+		return headers.get("cf-connecting-ip") ?? "";
+	}
 	return (
-		headers.get("cf-connecting-ip") ??
 		headers.get("x-real-ip") ??
 		headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
 		""
@@ -47,7 +51,7 @@ export async function trackAgentTraffic(
 			websiteId: options.websiteId,
 			path: pathname,
 			userAgent,
-			ip: getClientIp(request.headers),
+			ip: options.ip ?? getClientIp(request),
 			referrer: request.headers.get("referer") ?? undefined,
 		}),
 		signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
