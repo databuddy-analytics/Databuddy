@@ -29,6 +29,7 @@ import { sanitizeRequestId } from "@lib/request-id";
 import { buildBasketErrorPayload } from "@lib/structured-errors";
 import { captureError } from "@lib/tracing";
 import { BASKET_SHUTDOWN_TIMEOUT_MS } from "@lib/shutdown-budget";
+import { aiTrafficRoute } from "@routes/ai-traffic";
 import basketRouter from "@routes/basket";
 import { identifyRoute } from "@routes/identify";
 import { trackRoute } from "@routes/track";
@@ -188,6 +189,7 @@ const app = new Elysia()
 	.use(basketRouter)
 	.use(identifyRoute)
 	.use(trackRoute)
+	.use(aiTrafficRoute)
 	.use(stripeWebhook)
 	.use(paddleWebhook)
 	.get("/health/status", async function basketHealthStatus() {

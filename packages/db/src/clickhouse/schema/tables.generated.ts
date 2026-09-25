@@ -13,6 +13,10 @@ export interface AiTrafficSpansRow {
 	user_agent: string;
 	path: string;
 	referrer: string | null;
+	agent_id: string;
+	agent_purpose: string;
+	verification: string;
+	source: string;
 }
 
 export interface AiTrafficSpansInsert {
@@ -23,6 +27,10 @@ export interface AiTrafficSpansInsert {
 	user_agent: string;
 	path: string;
 	referrer?: string | null;
+	agent_id?: string;
+	agent_purpose?: string;
+	verification?: string;
+	source?: string;
 }
 
 export interface BlockedTrafficRow {
@@ -517,7 +525,7 @@ export interface ClickHouseTables {
 }
 
 export const TABLE_COLUMNS = {
-	"analytics.ai_traffic_spans": ["client_id", "timestamp", "bot_type", "bot_name", "user_agent", "path", "referrer"],
+	"analytics.ai_traffic_spans": ["client_id", "timestamp", "bot_type", "bot_name", "user_agent", "path", "referrer", "agent_id", "agent_purpose", "verification", "source"],
 	"analytics.blocked_traffic": ["id", "client_id", "timestamp", "path", "url", "referrer", "method", "origin", "ip", "user_agent", "accept_header", "language", "block_reason", "block_category", "bot_name", "country", "region", "browser_name", "browser_version", "os_name", "os_version", "device_type", "payload_size", "created_at"],
 	"analytics.custom_events": ["owner_id", "website_id", "timestamp", "event_name", "namespace", "path", "properties", "anonymous_id", "session_id", "source", "profile_id"],
 	"analytics.daily_pageviews": ["client_id", "date", "pageviews"],
