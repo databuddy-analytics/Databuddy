@@ -631,7 +631,7 @@ function observeWorker<T>(
 			attempts_used: attemptsUsed,
 			attempts_max: attemptsMax,
 			is_final_attempt: attemptsUsed >= attemptsMax,
-			...(job ? describeJob(job.data) : {}),
+			...(job?.data ? describeJob(job.data) : {}),
 		});
 	});
 	worker.on("stalled", (jobId) => {
