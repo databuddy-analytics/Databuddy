@@ -7,6 +7,7 @@ export interface Site {
 	start: number;
 }
 interface Action {
+	commits: boolean;
 	end: number;
 	excerpts: Site[];
 	issues: string[];
@@ -14,6 +15,7 @@ interface Action {
 	sites: Site[];
 	source: string;
 	start: number;
+	tracked?: string;
 }
 type FunctionNode =
 	| ts.FunctionDeclaration
@@ -81,7 +83,9 @@ const jsxExtension = /x$/i;
 const jsExtension = /\.[cm]?js$/i;
 const importExtension = /\.[cm]?jsx?$/i;
 const routineCall =
-	/^(?:(?:event|e|evt)\.(?:preventDefault|stopPropagation)|(?:router|history)\.(?:push|replace|back|refresh)|console\.\w+|[\w$.]*\.classList\.(?:add|remove|toggle|replace)|[\w$.]*\.(?:focus|blur|scrollIntoView|setAttribute|removeAttribute|toggleAttribute))$/;
+	/^(?:(?:event|e|evt)\.(?:preventDefault|stopPropagation)|(?:router|history)\.(?:push|replace|back|refresh)|console\.\w+|[\w$.]*\.classList\.(?:add|remove|toggle|replace)|[\w$.]*\.(?:focus|blur|scrollIntoView|setAttribute|removeAttribute|toggleAttribute|refetch|refetchQueries|invalidateQueries|resetQueries|reset|fetchNextPage|fetchPreviousPage))$/;
+const queryHelper =
+	/^(?:refetch|refetchQueries|invalidateQueries|resetQueries|reset|fetchNextPage|fetchPreviousPage)$/;
 const domListeners = new Set(["addEventListener", "on"]);
 const domEvents = new Set(["click", "submit", "copy"]);
 const domProperties = new Set(["onclick", "onsubmit", "oncopy"]);
@@ -92,6 +96,36 @@ const whitespaceRun = /\s+/g;
 const pending = /(?:\.\.\.|\u2026)\s*$/;
 const formAttributes = new Set(["action", "formAction"]);
 const formHook = /^(?:React\.)?use(?:ActionState|FormState)$/;
+const mutationCallbacks = new Set([
+	"mutationFn",
+	"onMutate",
+	"onSuccess",
+	"onError",
+	"onSettled",
+]);
+const submitHandler = /^(?:onSubmit|action|formAction)$/;
+const statePairs = new Set([
+	"react:useState",
+	"react:useReducer",
+	"jotai:useAtom",
+	"nuqs:useQueryState",
+	"nuqs:useQueryStates",
+]);
+const stateSetterHooks = new Set(["jotai:useSetAtom"]);
+const namedByContent = new Set(["a", "button", "label", "option", "summary"]);
+const contentRoles = new Set([
+	"button",
+	"checkbox",
+	"link",
+	"menuitem",
+	"menuitemcheckbox",
+	"menuitemradio",
+	"option",
+	"radio",
+	"switch",
+	"tab",
+	"treeitem",
+]);
 
 function writesOverFetch(
 	call: ts.CallExpression,
@@ -112,6 +146,20 @@ function writesOverFetch(
 	return !(
 		ts.isStringLiteralLike(method.initializer) &&
 		readMethod.test(method.initializer.text)
+	);
+}
+function forwarded(input: ts.Node): boolean {
+	const node = unwrap(input);
+	return ts.isIdentifier(node) || (fallback(node) && forwarded(node.left));
+}
+function hop(target: { node: ts.Node }, depth: number) {
+	return forwarded(target.node) ? depth : depth + 1;
+}
+function fallback(node: ts.Node): node is ts.BinaryExpression {
+	return (
+		ts.isBinaryExpression(node) &&
+		(node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+			node.operatorToken.kind === ts.SyntaxKind.BarBarToken)
 	);
 }
 function callable(node: ts.Node) {
@@ -183,6 +231,27 @@ function functionValue(input: ts.Node): FunctionNode | undefined {
 		return functionValue(node.arguments[0]);
 	}
 }
+function trackedBy(element: ts.Node, file: ts.SourceFile) {
+	for (
+		let node: ts.Node | undefined = element;
+		node && !isFunction(node) && !ts.isSourceFile(node);
+		node = node.parent
+	) {
+		const opening = ts.isJsxElement(node)
+			? node.openingElement
+			: ts.isJsxSelfClosingElement(node)
+				? node
+				: undefined;
+		const attribute = opening?.attributes.properties.find(
+			(property): property is ts.JsxAttribute =>
+				ts.isJsxAttribute(property) &&
+				property.name.getText(file) === "data-track"
+		);
+		if (attribute) {
+			return attribute.getText(file);
+		}
+	}
+}
 function site(unit: Unit, node: ts.Node): Site {
 	return {
 		path: unit.path,
@@ -195,12 +264,23 @@ function site(unit: Unit, node: ts.Node): Site {
 			).line + 1,
 	};
 }
-function declaration(node: ts.Node): ts.Node {
+function declaration(input: ts.Node): ts.Node {
+	let node = input;
+	while (ts.isBindingElement(node) || ts.isObjectBindingPattern(node)) {
+		node = node.parent;
+	}
 	return ts.isVariableDeclaration(node) &&
 		ts.isVariableDeclarationList(node.parent) &&
 		ts.isVariableStatement(node.parent.parent)
 		? node.parent.parent
 		: node;
+}
+function lookupBase(unit: Unit, expression: ts.Node): ts.Node {
+	const node = unwrap(expression);
+	const base = ts.isPropertyAccessExpression(node)
+		? unwrap(node.expression)
+		: node;
+	return (ts.isIdentifier(base) && lookup(unit, base.text, base)) || node;
 }
 function lookup(unit: Unit, name: string, at: ts.Node): ts.Node | undefined {
 	for (let parent: ts.Node | undefined = at; parent; parent = parent.parent) {
@@ -214,6 +294,21 @@ function lookup(unit: Unit, name: string, at: ts.Node): ts.Node | undefined {
 const appRoute = /(?:^|\/)app\/(.+)\/route\.[cm]?[jt]sx?$/;
 const pagesRoute = /(?:^|\/)pages\/(api\/.+?)(?:\/index)?\.[cm]?[jt]sx?$/;
 const routeGroup = /^\(.*\)$/;
+const remixRoute = /(?:^|\/)app\/routes\/(.+?)(?:\/route)?\.[cm]?[jt]sx?$/;
+const nitroRoute =
+	/(?:^|\/)server\/(api|routes)\/(.+?)(?:\.(get|post|put|patch|delete))?\.[cm]?[jt]s$/;
+const nitroHandler = /^(?:define(?:Cached)?EventHandler|eventHandler)$/;
+const indexSuffix = /\/?index$/;
+const svelteKitPage = /(?:^|\/)src\/routes\/?(.*?)\/?\+page\.server\.[jt]s$/;
+function exportedDeclaration(node: ts.Node) {
+	const statement = ts.isVariableDeclaration(node) ? node.parent.parent : node;
+	return !!(
+		ts.canHaveModifiers(statement) &&
+		ts
+			.getModifiers(statement)
+			?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
+	);
+}
 const queryOrHash = /[?#]/;
 const genericHandler =
 	/^(?:on(?:Click|Submit|Select|Change)|handle(?:Click|Submit|Change)|submit|handler|callback|formAction)$/;
@@ -281,13 +376,31 @@ function routeMatches(route: string[], url: (string | null)[]) {
 	return route.length === url.length;
 }
 
-const markup = /\.(?:html?|vue|svelte)$/i;
-const markupHandlers = [
-	/<([a-z][\w-]*)\b[^>]*?\son(click|submit|copy)\s*=\s*(["'])([\s\S]*?)\3[^>]*>([^<]*)/gi,
-	/<([a-z][\w-]*)\b[^>]*?\s(?:@|v-on:)(click|submit|copy)(?:\.[\w.]+)?\s*=\s*(["'])([\s\S]*?)\3[^>]*>([^<]*)/gi,
-	/<([a-z][\w-]*)\b[^>]*?\son:?(click|submit|copy)(?:\|[\w|]+)?\s*=\s*(\{)((?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*)\}[^>]*>([^<]*)/gi,
-];
+const markup = /\.(?:html?|vue|svelte|astro)$/i;
+const braced = "\\{(?:[^{}]|\\{(?:[^{}]|\\{[^{}]*\\})*\\})*\\}";
+const openingTag = new RegExp(
+	`<([A-Za-z][\\w-]*)((?:\\s+[^\\s"'{}>=/]+(?:\\s*=\\s*(?:"[^"]*"|'[^']*'|${braced}|[^\\s>"']+))?)*)\\s*/?>([^<]*)`,
+	"g"
+);
+const handlerAttribute = new RegExp(
+	`\\s(?:on:?|@|v-on:)(click|submit|copy)(?:[.|][\\w.|]+)?\\s*=\\s*(?:"([^"]*)"|'([^']*)'|(${braced}))`,
+	"gi"
+);
+const translation = /\{\{?\s*\$?t[ce]?\(\s*["'`]([^"'`]+)["'`][^}]*\}\}?/g;
+const interpolation = /\{\{[\s\S]*?\}\}|\{[^{}]*\}/g;
+const boundLabel =
+	/\s:(label|aria-label|title|text)\s*=\s*["']\s*\$?t[ce]?\(\s*[`'"]([^`'"]+)[`'"][^"']*["']/gi;
 const scriptBlock = /(<script\b[^>]*>)([\s\S]*?)<\/script\b[^>]*>/gi;
+const scriptType = /\stype\s*=\s*["']?([^"'\s>]+)/i;
+const executableType =
+	/^(?:module|(?:text|application)\/(?:javascript|ecmascript|typescript|babel)|text\/jsx)$/i;
+const markupAttribute =
+	/\s(data-track|label|aria-label|title|role|type)\s*=\s*("[^"]*"|'[^']*'|\{[^{}]*\})/gi;
+const kebabPart = /(?:^|-)([a-z])/g;
+const formTag = /form$/i;
+const submitButton =
+	/<[\w-]*button\b([^>]*\btype\s*=\s*["']submit["'][^>]*)>([^<]*)/i;
+const markupLabel = /\blabel\s*=\s*["']([^"']+)["']/i;
 const reference = /^[\w$.]+$/;
 const navigation = /(?:^|\.)(?:location|href)$/;
 const classicScript = /\.c?js$/i;
@@ -303,22 +416,69 @@ function markupSource(text: string, scripts: boolean) {
 	const lines = text.split("\n").map(() => "");
 	if (scripts) {
 		for (const match of text.matchAll(scriptBlock)) {
+			const type = scriptType.exec(match[1] ?? "")?.[1];
+			if (type && !executableType.test(type)) {
+				continue;
+			}
 			const first = lineOf(match.index + (match[1]?.length ?? 0));
 			for (const [offset, line] of (match[2] ?? "").split("\n").entries()) {
 				lines[first + offset] = line;
 			}
 		}
 	}
-	for (const pattern of markupHandlers) {
-		for (const match of text.matchAll(pattern)) {
-			const [, tag = "", event = "", quote, code = "", label = ""] = match;
-			const element = tag.toLowerCase();
-			const body = decode(code).replace(lineBreak, " ").trim();
-			const handler =
-				quote === "{" || reference.test(body) ? body : `() => {${body}}`;
-			lines[lineOf(match.index)] +=
-				`;<${element} on${event[0]?.toUpperCase()}${event.slice(1).toLowerCase()}={${handler}}>{${JSON.stringify(decode(label).trim())}}</${element}>;`;
+	for (const match of text.matchAll(openingTag)) {
+		const [, tag = "", attributes = "", label = ""] = match;
+		const events = new Map<string, string>();
+		for (const attribute of attributes.matchAll(handlerAttribute)) {
+			const event = attribute[1]?.toLowerCase() ?? "";
+			const braces = attribute[4];
+			const body = decode(
+				braces ? braces.slice(1, -1) : (attribute[2] ?? attribute[3] ?? "")
+			)
+				.replace(lineBreak, " ")
+				.trim();
+			if (!events.has(event)) {
+				events.set(
+					event,
+					braces || reference.test(body) ? body : `() => {${body}}`
+				);
+			}
 		}
+		if (!events.size) {
+			continue;
+		}
+		const element = tag.includes("-")
+			? tag.replace(kebabPart, (_, first: string) => first.toUpperCase())
+			: tag;
+		let name = decode(label)
+			.replace(translation, "$1")
+			.replace(interpolation, "")
+			.trim();
+		if (!name && formTag.test(tag)) {
+			const body = text.slice(match.index + match[0].length);
+			const close = body.search(new RegExp(`</${tag}\\s*>`));
+			const submit = submitButton.exec(close < 0 ? body : body.slice(0, close));
+			name =
+				(submit && markupLabel.exec(submit[1] ?? "")?.[1]) ??
+				decode(submit?.[2] ?? "").trim();
+		}
+		const kept = [
+			...[...attributes.matchAll(markupAttribute)].map(
+				(attribute) => ` ${attribute[1]}=${attribute[2]}`
+			),
+			...[...attributes.matchAll(boundLabel)].map(
+				(attribute) =>
+					` ${attribute[1]?.toLowerCase() === "text" ? "label" : attribute[1]}=${JSON.stringify(attribute[2])}`
+			),
+		].join("");
+		const handlers = [...events]
+			.map(
+				([event, handler]) =>
+					` on${event[0]?.toUpperCase()}${event.slice(1)}={${handler}}`
+			)
+			.join("");
+		lines[lineOf(match.index)] +=
+			`;<${element}${kept}${handlers}>{${JSON.stringify(name)}}</${element}>;`;
 	}
 	return lines.join("\n");
 }
@@ -346,11 +506,116 @@ function scriptFunctions(sources: ReadonlyMap<string, string>) {
 	return index;
 }
 
+const python = /\.py$/i;
+const pythonDecorator = /^\s*@/;
+const pythonFunction = /^(\s*)(?:async\s+)?def\s+\w+/;
+const pythonSignatureEnd = /\)\s*(?:->[^:]*)?:/;
+const pythonNoise = /(["'])(?:\\.|(?!\1).)*\1|#.*/g;
+const pythonMethod = /^@[\w.]+\.(post|put|patch|delete)\s*\(/i;
+const pythonMethodList =
+	/^@(?:[\w.]+\.(?:route|api_route)|(?:[\w.]+\.)?(?:api_view|require_http_methods))\s*\(/;
+const pythonWriteMethod = /["'](POST|PUT|PATCH|DELETE)["']/i;
+const pythonRequirePost = /^@(?:[\w.]+\.)?require_POST\b/;
+const pythonPath = /\(\s*(?:(?:path|rule)\s*=\s*)?["'](\/[^"']*)["']/;
+function depthOf(line: string) {
+	let depth = 0;
+	for (const character of line.replace(pythonNoise, "")) {
+		if ("([{".includes(character)) {
+			depth++;
+		} else if (")]}".includes(character)) {
+			depth--;
+		}
+	}
+	return depth;
+}
+function pythonRoute(decorator: string) {
+	const method =
+		pythonMethod.exec(decorator)?.[1] ??
+		(pythonMethodList.test(decorator)
+			? pythonWriteMethod.exec(decorator)?.[1]
+			: undefined) ??
+		(pythonRequirePost.test(decorator) ? "POST" : undefined);
+	if (!method) {
+		return;
+	}
+	const route = pythonPath.exec(decorator)?.[1];
+	return `${method.toUpperCase()}${route ? ` ${route.slice(0, 120)}` : ""}`;
+}
+function pythonActions(path: string, source: string): Action[] {
+	const lines = source.split("\n");
+	const actions: Action[] = [];
+	let decorators: string[] = [],
+		first = 0;
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index] ?? "";
+		if (pythonDecorator.test(line)) {
+			if (!decorators.length) {
+				first = index;
+			}
+			let decorator = line.trim(),
+				depth = depthOf(line);
+			while (depth > 0 && index + 1 < lines.length) {
+				index++;
+				decorator += ` ${lines[index]?.trim() ?? ""}`;
+				depth += depthOf(lines[index] ?? "");
+			}
+			decorators.push(decorator);
+			continue;
+		}
+		const definition = pythonFunction.exec(line);
+		const label = definition && decorators.map(pythonRoute).find(Boolean);
+		if (definition && label) {
+			const indent = definition[1]?.length ?? 0;
+			let end = index,
+				depth = 0;
+			for (; end < lines.length; end++) {
+				const signature = lines[end] ?? "";
+				depth += depthOf(signature);
+				if (depth <= 0 && pythonSignatureEnd.test(signature)) {
+					break;
+				}
+			}
+			for (let next = end + 1; next < lines.length; next++) {
+				const body = lines[next] ?? "";
+				if (body.trim()) {
+					if (body.length - body.trimStart().length <= indent) {
+						break;
+					}
+					end = next;
+				}
+			}
+			const location = { path, start: first + 1, end: end + 1 };
+			const text = `# ${path}:${location.start}-${location.end}\n${lines.slice(first, end + 1).join("\n")}`;
+			actions.push({
+				...location,
+				label,
+				commits: true,
+				source: text.slice(0, contextLimit),
+				sites: [location],
+				excerpts: [location],
+				issues:
+					text.length > contextLimit
+						? [`truncated_context:${path}:${location.start}`]
+						: [],
+			});
+			index = end;
+		}
+		if (line.trim() && !line.trimStart().startsWith("#")) {
+			decorators = [];
+		}
+	}
+	return actions;
+}
+
 export function groupActions(
 	path: string,
 	source: string,
-	sources: ReadonlyMap<string, string>
+	sources: ReadonlyMap<string, string>,
+	workspace: ReadonlySet<string> = new Set()
 ): Action[] | null {
+	if (python.test(path)) {
+		return pythonActions(path, source);
+	}
 	const units = new Map<string, Unit | null>();
 	function parse(key: string, text: string): Unit | null {
 		if (units.has(key)) {
@@ -393,7 +658,7 @@ export function groupActions(
 			stateSetters: new Set(),
 		};
 		const hookBindings: {
-			setter: ts.BindingElement;
+			setter: ts.Node;
 			call: ts.CallExpression;
 		}[] = [];
 		const bind = (owner: ts.Node, name: string, node: ts.Node) => {
@@ -428,6 +693,24 @@ export function groupActions(
 				ts.isIdentifier(node.name)
 			) {
 				bind(scope(node), node.name.text, node);
+			}
+			if (
+				ts.isVariableDeclaration(node) &&
+				ts.isIdentifier(node.name) &&
+				node.initializer &&
+				ts.isCallExpression(node.initializer)
+			) {
+				hookBindings.push({ setter: node, call: node.initializer });
+			}
+			if (
+				ts.isVariableDeclaration(node) &&
+				ts.isObjectBindingPattern(node.name)
+			) {
+				for (const binding of node.name.elements) {
+					if (ts.isIdentifier(binding.name)) {
+						bind(scope(node), binding.name.text, binding);
+					}
+				}
 			}
 			if (isFunction(node)) {
 				for (const parameter of node.parameters) {
@@ -467,8 +750,10 @@ export function groupActions(
 				const imported = unit.imports.get(call.expression.text);
 				if (
 					!lookup(unit, call.expression.text, call) &&
-					imported?.module === "react" &&
-					["useState", "useReducer"].includes(imported.name)
+					imported &&
+					(ts.isBindingElement(setter) ? statePairs : stateSetterHooks).has(
+						`${imported.module}:${imported.name}`
+					)
 				) {
 					unit.stateSetters.add(setter);
 				}
@@ -555,7 +840,13 @@ export function groupActions(
 				return parse(matches[0], sources.get(matches[0]) ?? "") ?? undefined;
 			}
 		}
-		issues.add(`unresolved_import:${specifier}`);
+		const bare = !(specifier.startsWith(".") || specifier.startsWith("@/"));
+		const packageRoot = moduleParts
+			.slice(0, specifier.startsWith("@") ? 2 : 1)
+			.join("/");
+		if (!(bare && workspace.size && !workspace.has(packageRoot))) {
+			issues.add(`unresolved_import:${specifier}`);
+		}
 	}
 	function exported(
 		target: Unit,
@@ -669,15 +960,48 @@ export function groupActions(
 		visited = new Set<ts.Node>()
 	): boolean {
 		const expression = unwrap(input);
+		if (fallback(expression)) {
+			return (
+				routine(expression.left, owner, new Set(visited)) &&
+				routine(expression.right, owner, new Set(visited))
+			);
+		}
+		if (ts.isPropertyAccessExpression(expression)) {
+			if (queryHelper.test(expression.name.text)) {
+				return true;
+			}
+			const passed = indirect(owner, expression);
+			return (
+				passed.length > 0 &&
+				passed.every((target) =>
+					routine(target.node, target.unit, new Set(visited))
+				)
+			);
+		}
 		if (ts.isIdentifier(expression)) {
 			const bound = lookup(owner, expression.text, expression);
 			if (!bound || visited.has(bound)) {
 				return false;
 			}
-			if (owner.stateSetters.has(bound)) {
+			if (
+				owner.stateSetters.has(bound) ||
+				(ts.isBindingElement(bound) &&
+					queryHelper.test(
+						bound.propertyName?.getText(owner.file) ?? expression.text
+					))
+			) {
 				return true;
 			}
 			visited.add(bound);
+			if (ts.isParameter(bound) || ts.isBindingElement(bound)) {
+				const passed = indirect(owner, expression);
+				return (
+					passed.length > 0 &&
+					passed.every((target) =>
+						routine(target.node, target.unit, new Set(visited))
+					)
+				);
+			}
 			const fn = functionValue(bound);
 			return fn ? routine(fn, owner, visited) : false;
 		}
@@ -769,6 +1093,198 @@ export function groupActions(
 			issues
 		);
 	}
+	const usages = new Map<string, Reference[]>();
+	function componentOf(parameter: ts.ParameterDeclaration) {
+		const fn = parameter.parent;
+		const name =
+			ts.isFunctionDeclaration(fn) && fn.name
+				? fn.name.text
+				: ts.isVariableDeclaration(fn.parent) && ts.isIdentifier(fn.parent.name)
+					? fn.parent.name.text
+					: undefined;
+		const isDefault =
+			ts.isFunctionDeclaration(fn) &&
+			!!ts
+				.getModifiers(fn)
+				?.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword);
+		return name && fn.parameters[0] === parameter
+			? { name, isDefault }
+			: undefined;
+	}
+	function propName(parameter: ts.ParameterDeclaration, local: string) {
+		if (ts.isIdentifier(parameter.name)) {
+			return;
+		}
+		let found: string | undefined;
+		walk(parameter.name, (part) => {
+			if (
+				ts.isBindingElement(part) &&
+				ts.isIdentifier(part.name) &&
+				part.name.text === local
+			) {
+				found = part.propertyName?.getText() ?? local;
+			}
+		});
+		return found;
+	}
+	function passedProps(
+		owner: Unit,
+		parameter: ts.ParameterDeclaration,
+		prop: string
+	): Reference[] {
+		const component = componentOf(parameter);
+		if (!component) {
+			return [];
+		}
+		const key = `${owner.path}:${component.name}:${prop}`;
+		const cached = usages.get(key);
+		if (cached) {
+			return cached;
+		}
+		const found: Reference[] = [];
+		const stem = posix.basename(owner.path).replace(extension, "");
+		for (const [candidate, text] of sources) {
+			if (
+				!(
+					text.includes(component.name) ||
+					(component.isDefault && text.includes(stem))
+				)
+			) {
+				continue;
+			}
+			const caller = parse(candidate, text);
+			if (!caller) {
+				continue;
+			}
+			const tags = new Set<string>();
+			if (caller.path === owner.path) {
+				tags.add(component.name);
+			}
+			for (const [local, entry] of caller.imports) {
+				if (
+					(entry.name === component.name ||
+						(entry.name === "default" && component.isDefault)) &&
+					moduleFile(caller, entry.module, new Set())?.path === owner.path
+				) {
+					tags.add(local);
+				}
+			}
+			if (!tags.size) {
+				continue;
+			}
+			walk(caller.file, (node) => {
+				if (
+					(ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
+					tags.has(node.tagName.getText(caller.file))
+				) {
+					for (const attribute of node.attributes.properties) {
+						if (
+							ts.isJsxAttribute(attribute) &&
+							attribute.name.getText(caller.file) === prop &&
+							attribute.initializer &&
+							ts.isJsxExpression(attribute.initializer) &&
+							attribute.initializer.expression
+						) {
+							found.push({
+								unit: caller,
+								node: attribute.initializer.expression,
+							});
+						}
+					}
+				}
+			});
+		}
+		usages.set(key, found);
+		return found;
+	}
+	function hookMember(
+		owner: Unit,
+		call: ts.Expression,
+		member: string
+	): Reference | undefined {
+		const hook = unwrap(call);
+		if (!(ts.isCallExpression(hook) && ts.isIdentifier(hook.expression))) {
+			return;
+		}
+		const target = resolve(owner, hook.expression.text, hook, new Set());
+		const fn = target && functionValue(target.node);
+		if (!(target && fn?.body)) {
+			return;
+		}
+		let value: Reference | undefined;
+		walk(fn.body, (node) => {
+			if (
+				value ||
+				!ts.isReturnStatement(node) ||
+				enclosingFunction(node) !== fn ||
+				!node.expression
+			) {
+				return;
+			}
+			const returned = unwrap(node.expression);
+			if (!ts.isObjectLiteralExpression(returned)) {
+				return;
+			}
+			for (const property of returned.properties) {
+				if (property.name?.getText(target.unit.file) !== member) {
+					continue;
+				}
+				if (ts.isShorthandPropertyAssignment(property)) {
+					const bound = lookup(target.unit, member, property);
+					value = bound ? { unit: target.unit, node: bound } : undefined;
+				} else if (ts.isPropertyAssignment(property)) {
+					value = { unit: target.unit, node: property.initializer };
+				} else if (ts.isMethodDeclaration(property)) {
+					value = { unit: target.unit, node: property };
+				}
+			}
+		});
+		return value;
+	}
+	function indirect(owner: Unit, expression: ts.Node): Reference[] {
+		const node = unwrap(expression);
+		const [base, member] = ts.isPropertyAccessExpression(node)
+			? [unwrap(node.expression), node.name.text]
+			: [node, undefined];
+		if (!ts.isIdentifier(base)) {
+			return [];
+		}
+		const bound = lookup(owner, base.text, base);
+		if (bound && ts.isParameter(bound)) {
+			const prop = member ?? propName(bound, base.text);
+			return prop ? passedProps(owner, bound, prop) : [];
+		}
+		if (
+			member &&
+			bound &&
+			ts.isVariableDeclaration(bound) &&
+			bound.initializer
+		) {
+			const found = hookMember(owner, bound.initializer, member);
+			return found ? [found] : [];
+		}
+		if (!member && bound && ts.isBindingElement(bound)) {
+			const holder = declaration(bound);
+			const variable = ts.isVariableStatement(holder)
+				? holder.declarationList.declarations.find(
+						(item) => item.name === bound.parent
+					)
+				: undefined;
+			const prop = bound.propertyName?.getText(owner.file) ?? base.text;
+			const source = variable?.initializer && unwrap(variable.initializer);
+			const props =
+				source && ts.isIdentifier(source)
+					? lookup(owner, source.text, source)
+					: undefined;
+			if (props && ts.isParameter(props)) {
+				return passedProps(owner, props, prop);
+			}
+			const found =
+				variable?.initializer && hookMember(owner, variable.initializer, prop);
+			return found ? [found] : [];
+		}
+		return [];
+	}
 	const roots: {
 		node: ts.Node;
 		owner: ts.Node;
@@ -778,7 +1294,16 @@ export function groupActions(
 		wrapper?: ts.Node;
 		route?: ts.Node;
 		needsWrite?: boolean;
+		tracked?: string;
 	}[] = [];
+	const formHandler = (input: ts.Node) => {
+		const value = unwrap(input);
+		if (!ts.isIdentifier(value)) {
+			return isFunction(value);
+		}
+		const bound = lookup(unit, value.text, value);
+		return !(bound && ts.isVariableDeclaration(bound) && !functionValue(bound));
+	};
 	walk(unit.file, (node) => {
 		if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
 			const whole = ts.isJsxOpeningElement(node) ? node.parent : node;
@@ -804,19 +1329,28 @@ export function groupActions(
 						attribute.initializer.expression.kind
 					) &&
 					(!formAttributes.has(attribute.name.getText(unit.file)) ||
-						callable(attribute.initializer.expression))
+						formHandler(attribute.initializer.expression))
 			);
-			const labels: string[] = [];
-			const buttonText = (part: ts.Node): ts.Node | undefined =>
-				ts.isJsxElement(part) &&
-				part.openingElement.tagName
-					.getText(unit.file)
-					.toLowerCase()
-					.endsWith("button")
-					? part
-					: ts.forEachChild(part, buttonText);
-			const visible = (part: ts.Node) => {
+			const ownsHandler = (part: ts.Node) =>
+				(ts.isJsxElement(part) || ts.isJsxSelfClosingElement(part)) &&
+				(ts.isJsxElement(part)
+					? part.openingElement
+					: part
+				).attributes.properties.some(
+					(attribute) =>
+						ts.isJsxAttribute(attribute) &&
+						handlers.has(attribute.name.getText(unit.file))
+				);
+			const mentioned: string[] = [];
+			const text = (part: ts.Node, shown: string[] | null) => {
 				if (ts.isJsxAttribute(part)) {
+					return;
+				}
+				if (ts.isConditionalExpression(part)) {
+					const idle: string[] = [];
+					text(part.whenFalse, idle);
+					text(part.whenTrue, idle.length ? null : shown);
+					shown?.push(...idle);
 					return;
 				}
 				if (
@@ -825,39 +1359,102 @@ export function groupActions(
 							!ts.isBinaryExpression(part.parent))) &&
 					!pending.test(part.text)
 				) {
-					labels.push(part.text);
+					mentioned.push(part.text);
+					shown?.push(part.text);
 				}
-				ts.forEachChild(part, visible);
+				ts.forEachChild(part, (child) => {
+					if (!ownsHandler(child)) {
+						text(child, shown);
+					}
+				});
 			};
+			const buttons: ts.JsxElement[] = [];
+			const findButtons = (part: ts.Node) => {
+				if (
+					ts.isJsxElement(part) &&
+					part.openingElement.tagName
+						.getText(unit.file)
+						.toLowerCase()
+						.endsWith("button")
+				) {
+					buttons.push(part);
+					return;
+				}
+				ts.forEachChild(part, findButtons);
+			};
+			const submits = (button: ts.JsxElement) =>
+				button.openingElement.attributes.properties.some(
+					(property) =>
+						ts.isJsxAttribute(property) &&
+						property.name.getText(unit.file) === "type" &&
+						!!property.initializer &&
+						ts.isStringLiteral(property.initializer) &&
+						property.initializer.text === "submit"
+				);
+			const attributeValue = (name: string) =>
+				attributes.find(
+					(candidate) => candidate.name.getText(unit.file) === name
+				)?.initializer;
+			const role = attributeValue("role");
+			const contentNamed =
+				component !== component.toLowerCase() ||
+				namedByContent.has(component) ||
+				(!!role &&
+					ts.isStringLiteral(role) &&
+					contentRoles.has(role.text.toLowerCase()));
+			const content: string[] = [];
 			if (ts.isJsxElement(whole)) {
+				if (component.toLowerCase() === "form") {
+					for (const child of whole.children) {
+						findButtons(child);
+					}
+				}
 				const button =
-					component.toLowerCase() === "form"
-						? whole.children.map(buttonText).find(Boolean)
-						: undefined;
+					buttons.find(submits) ??
+					buttons.filter((candidate) => !ownsHandler(candidate)).at(-1) ??
+					buttons.at(-1);
 				if (button) {
-					visible(button);
+					text(button, content);
 				} else if (component.toLowerCase() !== "form") {
 					for (const child of whole.children) {
-						visible(child);
+						if (!ownsHandler(child)) {
+							text(child, contentNamed ? content : null);
+						}
 					}
 				}
 			}
-			for (const attribute of attributes) {
-				if (
-					["title", "aria-label", "href"].includes(
-						attribute.name.getText(unit.file)
-					) &&
-					attribute.initializer
-				) {
-					visible(attribute.initializer);
-				}
+			const [ariaLabel, labelProp, title]: string[][] = [[], [], []];
+			const ariaNode = attributeValue("aria-label"),
+				labelNode = attributeValue("label"),
+				titleNode = attributeValue("title"),
+				hrefNode = attributeValue("href");
+			if (ariaNode) {
+				text(ariaNode, ariaLabel);
 			}
-			const productIntent = intent.test(labels.join(" "));
-			const active = events.filter((attribute) => {
-				const expression = (attribute.initializer as ts.JsxExpression)
-					.expression;
-				return expression && (!routine(expression, unit) || productIntent);
-			});
+			if (labelNode && component !== component.toLowerCase()) {
+				text(labelNode, labelProp);
+			}
+			if (titleNode) {
+				text(titleNode, title);
+			}
+			if (hrefNode) {
+				text(hrefNode, null);
+			}
+			const labels = [ariaLabel, content, labelProp, title].find(
+				(words) => words.join("").trim().length
+			);
+			const productIntent = intent.test(mentioned.join(" "));
+			const active = events
+				.filter((attribute) => {
+					const expression = (attribute.initializer as ts.JsxExpression)
+						.expression;
+					return expression && (!routine(expression, unit) || productIntent);
+				})
+				.sort(
+					(left, right) =>
+						Number(!submitHandler.test(left.name.getText(unit.file))) -
+						Number(!submitHandler.test(right.name.getText(unit.file)))
+				);
 			const delegated =
 				component === "CopyButton" ||
 				(["Link", "a"].includes(component) &&
@@ -877,7 +1474,12 @@ export function groupActions(
 							(attribute.initializer as ts.JsxExpression).expression
 					)
 					.filter((expression): expression is ts.Expression => !!expression),
-				label: `${tag}.${active[0]?.name.getText(unit.file) ?? (component === "CopyButton" ? "copy" : "intent")}${describe(active[0]?.initializer, labels)}`,
+				label: `${tag}.${active[0]?.name.getText(unit.file) ?? (component === "CopyButton" ? "copy" : "intent")}${describe(active[0]?.initializer, labels ?? [])}`,
+				tracked: active.every(
+					(attribute) => attribute.name.getText(unit.file) === "onClick"
+				)
+					? trackedBy(whole, unit.file)
+					: undefined,
 				needsWrite:
 					active.length > 0 &&
 					active.every((attribute) =>
@@ -952,6 +1554,75 @@ export function groupActions(
 				needsWrite: !writeMethods.has(method),
 			});
 		}
+		const nitro = nitroRoute.exec(unit.path);
+		if (
+			nitro &&
+			ts.isExportAssignment(node) &&
+			ts.isCallExpression(unwrap(node.expression))
+		) {
+			const call = unwrap(node.expression) as ts.CallExpression;
+			const [callback] = call.arguments;
+			if (
+				nitroHandler.test(call.expression.getText(unit.file)) &&
+				callback &&
+				callable(callback)
+			) {
+				const method = nitro[3]?.toUpperCase();
+				roots.push({
+					node: callback,
+					owner: node,
+					callbacks: [callback],
+					label: `${method ?? "handler"} /${nitro[1]}/${(nitro[2] ?? "").replace(indexSuffix, "")}`,
+					needsWrite: !(method && writeMethods.has(method)),
+				});
+			}
+		}
+		const routeModule = remixRoute.exec(unit.path);
+		if (
+			handler &&
+			method === "action" &&
+			routeModule &&
+			exportedDeclaration(node)
+		) {
+			roots.push({
+				node,
+				owner: node,
+				callbacks: [handler],
+				label: `action ${routeModule[1]}`,
+			});
+		}
+		const page = svelteKitPage.exec(unit.path);
+		if (
+			page &&
+			ts.isVariableDeclaration(node) &&
+			node.name.getText(unit.file) === "actions" &&
+			exportedDeclaration(node) &&
+			node.initializer &&
+			ts.isObjectLiteralExpression(unwrap(node.initializer))
+		) {
+			const route = `/${(page[1] ?? "")
+				.split("/")
+				.filter((part) => part && !routeGroup.test(part))
+				.join("/")}`;
+			for (const property of (
+				unwrap(node.initializer) as ts.ObjectLiteralExpression
+			).properties) {
+				const name = property.name?.getText(unit.file);
+				const value = ts.isPropertyAssignment(property)
+					? property.initializer
+					: ts.isMethodDeclaration(property)
+						? property
+						: undefined;
+				if (name && value && callable(value)) {
+					roots.push({
+						node: property,
+						owner: property,
+						callbacks: [value],
+						label: `POST ${route}${name === "default" ? "" : `?/${name}`}`,
+					});
+				}
+			}
+		}
 		if (
 			ts.isCallExpression(node) &&
 			ts.isPropertyAccessExpression(node.expression) &&
@@ -1024,14 +1695,19 @@ export function groupActions(
 			const location = site(owner, node);
 			sites.set(`${location.path}:${location.start}:${location.end}`, location);
 		};
+		const frame = (owner: Unit, node: ts.Node) => {
+			const location = site(owner, node);
+			return {
+				location,
+				key: `${location.path}:${node.pos}:${node.end}`,
+				framed: `// ${location.path}:${location.start}-${location.end}\n${node.getText(owner.file)}`,
+			};
+		};
 		const addContext = (owner: Unit, node: ts.Node) => {
-			const location = site(owner, node),
-				key = `${location.path}:${node.pos}:${node.end}`;
+			const { location, key, framed } = frame(owner, node);
 			if (contexts.has(key)) {
 				return;
 			}
-			const text = node.getText(owner.file),
-				framed = `// ${location.path}:${location.start}-${location.end}\n${text}`;
 			if (characters + framed.length > contextLimit) {
 				issues.add(`truncated_context:${location.path}:${location.start}`);
 				return;
@@ -1041,7 +1717,10 @@ export function groupActions(
 			characters += framed.length + 2;
 		};
 		addSite(unit, root.node);
-		addContext(unit, root.owner);
+		const opening = ts.isJsxElement(root.owner)
+			? root.owner.openingElement
+			: root.owner;
+		addContext(unit, opening);
 		if (root.route) {
 			addContext(unit, root.route);
 		}
@@ -1084,6 +1763,14 @@ export function groupActions(
 			visited.add(node);
 			addContext(owner, declaration(node));
 			walk(node, (child) => {
+				if (
+					ts.isPropertyAssignment(child) &&
+					mutationCallbacks.has(child.name.getText(owner.file)) &&
+					ts.isIdentifier(unwrap(child.initializer))
+				) {
+					follow(owner, child.initializer, depth);
+					return;
+				}
 				if (!ts.isCallExpression(child)) {
 					return;
 				}
@@ -1099,6 +1786,21 @@ export function groupActions(
 					if (write || trackingCall.test(method)) {
 						addSite(owner, child);
 					}
+					if (method === "writeText") {
+						for (const argument of child.arguments) {
+							walk(argument, (part) => {
+								const bound =
+									ts.isIdentifier(part) && lookup(owner, part.text, part);
+								if (
+									bound &&
+									ts.isVariableDeclaration(bound) &&
+									!functionValue(bound)
+								) {
+									addContext(owner, declaration(bound));
+								}
+							});
+						}
+					}
 					if (
 						["mutate", "mutateAsync"].includes(method) &&
 						ts.isIdentifier(callee.expression)
@@ -1108,6 +1810,11 @@ export function groupActions(
 							evidence(owner, config, depth + 1);
 						} else if (!config) {
 							issues.add(`unresolved_mutation:${callee.expression.text}`);
+						}
+					} else if (depth < 2) {
+						for (const target of indirect(owner, callee)) {
+							addSite(owner, child);
+							pursue(target, hop(target, depth));
 						}
 					}
 					return;
@@ -1132,7 +1839,13 @@ export function groupActions(
 				if (resolved?.unit.stateSetters.has(resolved.node)) {
 					return;
 				}
-				if (resolved && !ts.isParameter(resolved.node)) {
+				const passed = resolved && depth < 2 ? indirect(owner, callee) : [];
+				if (passed.length) {
+					addSite(owner, child);
+					for (const target of passed) {
+						pursue(target, hop(target, depth));
+					}
+				} else if (resolved && !ts.isParameter(resolved.node)) {
 					if (depth < 2) {
 						addSite(owner, child);
 						evidence(resolved.unit, resolved.node, depth + 1);
@@ -1156,25 +1869,66 @@ export function groupActions(
 				}
 			});
 		}
-		function follow(owner: Unit, input: ts.Node) {
+		function pursue(target: Reference, depth: number) {
+			if (
+				ts.isVariableDeclaration(target.node) ||
+				ts.isFunctionDeclaration(target.node) ||
+				ts.isMethodDeclaration(target.node) ||
+				ts.isBindingElement(target.node)
+			) {
+				evidence(target.unit, target.node, depth);
+			} else {
+				follow(target.unit, target.node, depth);
+			}
+		}
+		function follow(owner: Unit, input: ts.Node, depth = 0) {
 			const expression = unwrap(input);
+			if (visited.has(expression)) {
+				return;
+			}
 			if (isFunction(expression)) {
-				evidence(owner, expression, 0);
+				evidence(owner, expression, depth);
 				return;
 			}
 			if (ts.isConditionalExpression(expression)) {
-				follow(owner, expression.whenTrue);
-				follow(owner, expression.whenFalse);
+				follow(owner, expression.whenTrue, depth);
+				follow(owner, expression.whenFalse, depth);
+				return;
+			}
+			if (fallback(expression)) {
+				follow(owner, expression.left, depth);
+				follow(owner, expression.right, depth);
 				return;
 			}
 			if (ts.isCallExpression(expression)) {
 				const handlers = expression.arguments.filter(callable);
 				for (const argument of handlers) {
-					follow(owner, argument);
+					follow(owner, argument, depth);
 				}
 				if (handlers.length) {
 					return;
 				}
+			}
+			visited.add(expression);
+			if (
+				ts.isPropertyAccessExpression(expression) &&
+				["mutate", "mutateAsync"].includes(expression.name.text) &&
+				ts.isIdentifier(expression.expression)
+			) {
+				const config = lookup(owner, expression.expression.text, expression);
+				if (config) {
+					commits = true;
+					evidence(owner, config, depth);
+					return;
+				}
+			}
+			const passed = depth < 2 ? indirect(owner, expression) : [];
+			if (passed.length) {
+				addContext(owner, declaration(lookupBase(owner, expression)));
+				for (const target of passed) {
+					pursue(target, hop(target, depth));
+				}
+				return;
 			}
 			const resolved = ts.isIdentifier(expression)
 				? resolve(owner, expression.text, expression, issues)
@@ -1200,10 +1954,10 @@ export function groupActions(
 			) {
 				visited.add(hook);
 				addContext(resolved.unit, declaration(holder));
-				follow(resolved.unit, hook.arguments[0]);
+				follow(resolved.unit, hook.arguments[0], depth);
 				return;
 			}
-			evidence(resolved.unit, resolved.node, 0);
+			evidence(resolved.unit, resolved.node, depth);
 		}
 		for (const callback of root.callbacks) {
 			follow(unit, callback);
@@ -1233,12 +1987,44 @@ export function groupActions(
 		if (root.needsWrite && !commits) {
 			return [];
 		}
+		if (opening !== root.owner) {
+			const head = frame(unit, opening),
+				whole = frame(unit, root.owner),
+				kept = contexts.get(head.key);
+			if (
+				kept &&
+				characters - kept.length + whole.framed.length <= contextLimit
+			) {
+				const entries = [...contexts].map(([key, value]): [string, string] =>
+					key === head.key ? [whole.key, whole.framed] : [key, value]
+				);
+				contexts.clear();
+				for (const [key, value] of entries) {
+					contexts.set(key, value);
+				}
+				characters += whole.framed.length - kept.length;
+				excerpts.splice(
+					excerpts.findIndex(
+						(location) =>
+							location.path === head.location.path &&
+							location.start === head.location.start &&
+							location.end === head.location.end
+					),
+					1,
+					whole.location
+				);
+			} else {
+				issues.add(`truncated_context:${unit.path}:${whole.location.start}`);
+			}
+		}
 		const location = site(unit, root.node);
 		return [
 			{
 				start: location.start,
 				end: location.end,
 				label: root.label,
+				commits,
+				...(root.tracked ? { tracked: root.tracked } : {}),
 				source: [...contexts.values()].join("\n\n"),
 				sites: [...sites.values()],
 				issues: [...issues],
