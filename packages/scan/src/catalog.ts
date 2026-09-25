@@ -23,7 +23,9 @@ const dataTrack = /data-track=["'{]+([\w.:-]+)/;
 const attributeOption =
 	/\btrack(?:Attributes|-attributes)\b(?!\s*\??\s*:\s*boolean)(?!\s*[:=]\s*\{?\s*["'`]?false\b)/;
 const attributeSelector =
-	/["'`][^"'`\n]*\[data-track[\]\s=~|^$*]|\.dataset\.track\b/;
+	/\(\s*["'`][^"'`\n]*\[data-track[\]\s=~|^$*]|\.dataset\.track\b/;
+const commentLine = /^\s*(?:\/\/|\/?\*)/;
+const scriptFile = /\.[cm]?[jt]sx?$/;
 const collectorPackage =
 	/^(?:apps\/basket|packages\/(?:sdk|sdk-swift|tracker|nuxt|devtools))\//;
 const verbs: Record<string, string> = {
@@ -369,14 +371,39 @@ export function collectCoverage(sources: ReadonlyMap<string, string>) {
 	const listeners: string[] = [];
 	for (const [path, source] of sources) {
 		const collector = collectorPackage.test(path);
+		let literals: [number, number][] | null = null;
+		const inLiteral = (offset: number) => {
+			if (!scriptFile.test(path)) {
+				return false;
+			}
+			if (!literals) {
+				const found: [number, number][] = [];
+				walk(parse(path, source), (node) => {
+					if (
+						ts.isStringLiteral(node) ||
+						ts.isNoSubstitutionTemplateLiteral(node) ||
+						ts.isTemplateExpression(node)
+					) {
+						found.push([node.getStart(), node.end]);
+					}
+				});
+				literals = found;
+			}
+			return literals.some(([start, end]) => start <= offset && offset < end);
+		};
+		let offset = 0;
 		for (const [index, line] of source.split("\n").entries()) {
+			const lineStart = offset;
+			offset += line.length + 1;
 			const match = line.match(dataTrack);
 			if (match) {
 				attributes.push(`${path}:${index + 1} data-track="${match[1]}"`);
 			}
+			const option = collector ? null : attributeOption.exec(line);
 			if (
-				!collector &&
-				(attributeOption.test(line) || attributeSelector.test(line))
+				!(collector || commentLine.test(line)) &&
+				((option && !inLiteral(lineStart + option.index)) ||
+					attributeSelector.test(line))
 			) {
 				listeners.push(`${path}:${index + 1}`);
 			}

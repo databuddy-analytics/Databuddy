@@ -103,7 +103,6 @@ const sourceFile =
 const repositoryKey =
 	/^[ \t]*(?:export[ \t]+)?AI_GATEWAY_API_KEY[ \t]*=[ \t]*(.*?)[ \t]*$/m;
 const quoted = /^(["'])(.*)\1$/;
-const workspaceFolder = /^(?:apps|packages)\/[^/]+\//;
 const routeHandlerLabel = /^(?:GET|POST|PUT|PATCH|DELETE)$/;
 const reviewable = /\.(?:[cm]?[jt]sx?|vue|svelte|astro|swift|py)$/;
 const sourceLineBoundary = /(?<=\n)/;
@@ -220,6 +219,7 @@ async function readSources(root: string, scope = "") {
 		sources = new Map<string, string>(),
 		indexed = new Map<string, string>(),
 		workspace = new Set<string>(),
+		packageRoots: string[] = [],
 		tracking = new Set<string>();
 	for (const path of execFileSync("git", ["ls-files", "-z"], {
 		cwd: root,
@@ -230,6 +230,7 @@ async function readSources(root: string, scope = "") {
 		.filter(Boolean)
 		.sort()) {
 		if (packageManifest.test(path)) {
+			packageRoots.push(path.slice(0, path.lastIndexOf("/") + 1));
 			try {
 				const { name } = JSON.parse(await readFile(join(root, path), "utf8"));
 				if (typeof name === "string") {
@@ -341,6 +342,7 @@ async function readSources(root: string, scope = "") {
 		attributeListeners: coverage.attributeListeners,
 		trackedRoutes: coverage.trackedRoutes,
 		workspace,
+		packageRoots,
 	};
 }
 
@@ -403,8 +405,16 @@ export async function scan(
 		attributeListeners,
 		trackedRoutes,
 		workspace,
+		packageRoots,
 	} = await readSources(root, scope);
-	const appOf = (path: string) => workspaceFolder.exec(path)?.[0] ?? "";
+	const appOf = (path: string) =>
+		packageRoots
+			.filter((prefix) => path.startsWith(prefix))
+			.reduce(
+				(longest, prefix) =>
+					prefix.length > longest.length ? prefix : longest,
+				""
+			);
 	const listenerFor = (path: string) =>
 		attributeListeners.find(
 			(entry) => appOf(entry.slice(0, entry.lastIndexOf(":"))) === appOf(path)
