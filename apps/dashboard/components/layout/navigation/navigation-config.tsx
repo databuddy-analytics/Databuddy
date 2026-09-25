@@ -3,6 +3,7 @@ import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import {
 	OpenExternalIcon as ArrowSquareOutIcon,
 	BellIcon,
+	BrainIcon,
 	BugIcon,
 	ChartPieIcon as ChartPieSliceIcon,
 	CodeIcon,
@@ -142,6 +143,12 @@ export const websiteNavigation: NavigationGroup[] = [
 			}),
 			createNavItem("Audience", UsersThreeIcon, "/audience", {
 				rootLevel: false,
+			}),
+			createNavItem("AI Agents", BrainIcon, "/agents", {
+				alpha: true,
+				hideFromDemo: true,
+				rootLevel: false,
+				searchTags: ["ai crawlers", "bots", "gptbot", "claudebot", "llm"],
 			}),
 			createNavItem("Error Tracking", BugIcon, "/errors", {
 				rootLevel: false,
