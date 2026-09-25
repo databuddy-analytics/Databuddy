@@ -18,9 +18,10 @@ import {
 import { Button, Divider, Field, Input, Text } from "@databuddy/ui";
 import { Accordion, Sheet, Switch } from "@databuddy/ui/client";
 
-type DestType = "slack" | "email" | "webhook";
+const destTypeSchema = z.enum(["slack", "email", "webhook"]);
+type DestType = z.infer<typeof destTypeSchema>;
 
-const CHANNELS: Record<
+export const CHANNELS: Record<
 	DestType,
 	{
 		label: string;
@@ -49,10 +50,6 @@ const CHANNELS: Record<
 	},
 };
 
-export const DEST_LABELS: Record<string, string> = Object.fromEntries(
-	Object.entries(CHANNELS).map(([type, channel]) => [type, channel.label])
-);
-
 const MASK = "•";
 const SLACK_WEBHOOK_PATTERN =
 	/^https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[A-Za-z0-9]+$/;
@@ -80,7 +77,7 @@ function destinationError(type: DestType, identifier: string): string | null {
 
 const destinationSchema = z
 	.object({
-		type: z.enum(["slack", "email", "webhook"]),
+		type: destTypeSchema,
 		identifier: z.string().min(1, "Required"),
 		config: z.record(z.string(), z.unknown()),
 	})
@@ -102,70 +99,45 @@ const alarmFormSchema = z.object({
 
 type AlarmFormData = z.infer<typeof alarmFormSchema>;
 
-interface AlarmDestination {
-	config: Record<string, unknown>;
-	id: string;
-	identifier: string;
-	type: string;
-}
+const recordSchema = z.record(z.string(), z.unknown()).catch({});
 
-export interface AlarmData {
-	description: string | null;
-	destinations: AlarmDestination[];
-	enabled: boolean;
-	id: string;
-	name: string;
-	triggerConditions: Record<string, unknown>;
-	triggerType: string;
-	websiteId: string | null;
-}
+const destinationRowSchema = z.object({
+	id: z.string(),
+	type: destTypeSchema,
+	identifier: z.string(),
+	config: recordSchema,
+});
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null;
-}
-
-export function parseAlarms(rows: readonly Record<string, unknown>[]) {
-	const out: AlarmData[] = [];
-	for (const row of rows) {
-		if (
-			typeof row.id !== "string" ||
-			typeof row.name !== "string" ||
-			typeof row.enabled !== "boolean" ||
-			typeof row.triggerType !== "string"
-		) {
-			continue;
-		}
-		const destinations = (
-			Array.isArray(row.destinations) ? row.destinations : []
-		).flatMap((d: unknown) =>
-			isRecord(d) &&
-			typeof d.id === "string" &&
-			typeof d.type === "string" &&
-			typeof d.identifier === "string"
-				? [
-						{
-							id: d.id,
-							type: d.type,
-							identifier: d.identifier,
-							config: isRecord(d.config) ? d.config : {},
-						},
-					]
-				: []
-		);
-		out.push({
-			id: row.id,
-			name: row.name,
-			enabled: row.enabled,
-			triggerType: row.triggerType,
-			triggerConditions: isRecord(row.triggerConditions)
-				? row.triggerConditions
-				: {},
-			description: typeof row.description === "string" ? row.description : null,
-			websiteId: typeof row.websiteId === "string" ? row.websiteId : null,
-			destinations,
+const alarmRowSchema = z
+	.object({
+		id: z.string(),
+		name: z.string(),
+		enabled: z.boolean(),
+		triggerType: z.string(),
+		triggerConditions: recordSchema,
+		description: z.string().nullable().catch(null),
+		websiteId: z.string().nullable().catch(null),
+		destinations: z.array(z.unknown()).catch([]),
+	})
+	.transform(({ destinations, ...alarm }) => {
+		const supported = destinations.flatMap((row) => {
+			const parsed = destinationRowSchema.safeParse(row);
+			return parsed.success ? [parsed.data] : [];
 		});
-	}
-	return out;
+		return {
+			...alarm,
+			destinations: supported,
+			hasUnsupportedDestinations: supported.length < destinations.length,
+		};
+	});
+
+export type AlarmData = z.infer<typeof alarmRowSchema>;
+
+export function parseAlarms(rows: Record<string, unknown>[]) {
+	return rows.flatMap((row) => {
+		const parsed = alarmRowSchema.safeParse(row);
+		return parsed.success ? [parsed.data] : [];
+	});
 }
 
 export function alarmMonitorIds(alarm: AlarmData): string[] {
@@ -175,11 +147,12 @@ export function alarmMonitorIds(alarm: AlarmData): string[] {
 		: [];
 }
 
-function isMaskedDestination(destination: AlarmDestination) {
+function isMaskedDestination(destination: AlarmData["destinations"][number]) {
 	const headers = destination.config.headers;
 	return (
 		destination.identifier.includes(MASK) ||
-		(isRecord(headers) &&
+		(typeof headers === "object" &&
+			headers !== null &&
 			Object.values(headers).some(
 				(value) => typeof value === "string" && value.includes(MASK)
 			))
@@ -198,11 +171,11 @@ function buildDefaults(alarm: AlarmData | null | undefined): AlarmFormData {
 		name: alarm?.name ?? "",
 		description: alarm?.description ?? "",
 		enabled: alarm?.enabled ?? true,
-		destinations: alarm?.destinations.map((d) => ({
-			type: d.type as DestType,
-			identifier: d.identifier,
-			config: d.config,
-		})) ?? [{ type: "slack" as DestType, identifier: "", config: {} }],
+		destinations: alarm?.destinations.map(({ type, identifier, config }) => ({
+			type,
+			identifier,
+			config,
+		})) ?? [{ type: "slack", identifier: "", config: {} }],
 	};
 }
 
@@ -307,7 +280,9 @@ export function AlarmSheet({
 }: AlarmSheetProps) {
 	const isEditing = !!alarm;
 	const destinationsLocked =
-		alarm?.destinations.some(isMaskedDestination) ?? false;
+		(alarm?.hasUnsupportedDestinations ||
+			alarm?.destinations.some(isMaskedDestination)) ??
+		false;
 	const { activeOrganization, activeOrganizationId } =
 		useOrganizationsContext();
 	const queryClient = useQueryClient();
@@ -352,10 +327,6 @@ export function AlarmSheet({
 					description: data.description ?? null,
 					enabled: data.enabled,
 					websiteId: alarm.websiteId ?? null,
-					triggerType: alarm.triggerType as
-						| "uptime"
-						| "traffic_spike"
-						| "error_rate",
 					...(destinationsLocked ? {} : { destinations: data.destinations }),
 				});
 				toast.success("Alert updated");
@@ -378,10 +349,6 @@ export function AlarmSheet({
 			onSaveAction?.();
 			onCloseAction(false);
 		} catch {}
-	};
-
-	const addDestination = (type: DestType) => {
-		append({ type, identifier: "", config: {} });
 	};
 
 	return (
@@ -460,9 +427,9 @@ export function AlarmSheet({
 
 							{destinationsLocked && (
 								<Text tone="muted" variant="caption">
-									Destination secrets are hidden for your role, so only an
-									organization admin can change destinations. Other settings can
-									still be saved.
+									Some destinations are hidden for your role or not supported in
+									this form, so destinations can't be changed here. Other
+									settings can still be saved.
 								</Text>
 							)}
 
@@ -474,11 +441,9 @@ export function AlarmSheet({
 
 							<div className="space-y-2">
 								{fields.map((field, index) => {
-									const destType = form.watch(
-										`destinations.${index}.type`
-									) as DestType;
+									const destType = form.watch(`destinations.${index}.type`);
 									const channel = CHANNELS[destType];
-									const Icon = channel?.icon ?? GlobeSimpleIcon;
+									const Icon = channel.icon;
 									const identifier = form.watch(
 										`destinations.${index}.identifier`
 									);
@@ -492,9 +457,7 @@ export function AlarmSheet({
 												<div className="flex items-center">
 													<Accordion.Trigger className="flex-1">
 														<Icon className="size-4 shrink-0 text-muted-foreground" />
-														<Text variant="label">
-															{channel?.label ?? destType}
-														</Text>
+														<Text variant="label">{channel.label}</Text>
 														{identifier && (
 															<Text
 																className="ml-auto max-w-[140px] truncate"
@@ -522,12 +485,10 @@ export function AlarmSheet({
 														name={`destinations.${index}.identifier`}
 														render={({ field: idField, fieldState }) => (
 															<Field error={!!fieldState.error}>
-																<Field.Label>
-																	{channel?.fieldLabel ?? "Identifier"}
-																</Field.Label>
+																<Field.Label>{channel.fieldLabel}</Field.Label>
 																<Input
 																	disabled={destinationsLocked}
-																	placeholder={channel?.placeholder ?? ""}
+																	placeholder={channel.placeholder}
 																	{...idField}
 																/>
 																{fieldState.error && (
@@ -574,7 +535,9 @@ export function AlarmSheet({
 										return (
 											<Button
 												key={type}
-												onClick={() => addDestination(type)}
+												onClick={() =>
+													append({ type, identifier: "", config: {} })
+												}
 												size="sm"
 												type="button"
 												variant="secondary"

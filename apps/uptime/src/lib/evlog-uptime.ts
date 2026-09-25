@@ -32,7 +32,7 @@ const devFsDrain = useLocalEvlogFiles
 	: null;
 
 export async function uptimeLoggerDrain(ctx: DrainContext): Promise<void> {
-	normalizeWideEventForAxiom(ctx.event as Record<string, unknown>);
+	normalizeWideEventForAxiom(ctx.event);
 
 	if (devFsDrain) {
 		await devFsDrain(ctx);
