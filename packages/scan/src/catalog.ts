@@ -13,12 +13,17 @@ const trailingS = /s$/;
 const togglePrefix = /^toggle(.+)$/;
 const camelBoundary = /([a-z])([A-Z])/g;
 const tsxExtension = /\.tsx$/;
+const lowerFirst = /^[a-z_$]/;
+const regexSpecial = /[$()*+.?[\\\]^{|}]/g;
 const trackProperties = /setTrackProperties\(\s*\{([\s\S]*?)\}/g;
 const propertyName = /(?:^|[\s,{])([A-Za-z_]\w*)\s*:/g;
 const eventLiteral =
 	/\b(?:track[A-Z]\w*|track|capture|logEvent)\s*\(\s*\{?\s*(?:name:\s*)?["'`]([\w.:-]+)["'`]/g;
 const dataTrack = /data-track=["'{]+([\w.:-]+)/;
-const attributeMount = /trackAttributes(?:\s*$|\s*=\s*\{?\s*true|\s*\/>|\s*>)/;
+const attributeOption =
+	/\btrack(?:Attributes|-attributes)\b(?!\s*\??\s*:\s*boolean)(?!\s*[:=]\s*\{?\s*["'`]?false\b)/;
+const attributeSelector =
+	/["'`][^"'`\n]*\[data-track[\]\s=~|^$*]|\.dataset\.track\b/;
 const collectorPackage =
 	/^(?:apps\/basket|packages\/(?:sdk|sdk-swift|tracker|nuxt|devtools))\//;
 const verbs: Record<string, string> = {
@@ -229,6 +234,18 @@ function trackedRoutes(sources: ReadonlyMap<string, string>) {
 
 function firedKind(text: string, node: ts.Node) {
 	const writesWarehouse = warehouseTable.test(text);
+	const fn = ts.isVariableDeclaration(node) ? node.initializer : node;
+	const parameters = new Set(
+		fn &&
+			(ts.isFunctionDeclaration(fn) ||
+				ts.isArrowFunction(fn) ||
+				ts.isFunctionExpression(fn))
+			? fn.parameters
+					.map((parameter) => parameter.name)
+					.filter(ts.isIdentifier)
+					.map((name) => name.text)
+			: []
+	);
 	let kind: "track" | "warehouse" | null = null;
 	walk(node, (child) => {
 		if (kind === "track" || !ts.isCallExpression(child)) {
@@ -249,7 +266,8 @@ function firedKind(text: string, node: ts.Node) {
 				ts.isTemplateExpression(event) ||
 				ts.isObjectLiteralExpression(event) ||
 				ts.isPropertyAccessExpression(event) ||
-				ts.isElementAccessExpression(event))
+				ts.isElementAccessExpression(event) ||
+				(ts.isIdentifier(event) && parameters.has(event.text)))
 		) {
 			kind = "track";
 		} else if (
@@ -262,9 +280,26 @@ function firedKind(text: string, node: ts.Node) {
 	return kind;
 }
 
+function topLevelFunctions(file: ts.SourceFile) {
+	const found: { name: string; node: ts.Node }[] = [];
+	for (const statement of file.statements) {
+		if (ts.isFunctionDeclaration(statement) && statement.name) {
+			found.push({ name: statement.name.text, node: statement });
+		} else if (ts.isVariableStatement(statement)) {
+			for (const declaration of statement.declarationList.declarations) {
+				if (ts.isIdentifier(declaration.name) && declaration.initializer) {
+					found.push({ name: declaration.name.text, node: declaration });
+				}
+			}
+		}
+	}
+	return found;
+}
+
 function trackingDeclarations(sources: ReadonlyMap<string, string>) {
 	const helpers: string[] = [];
 	const warehouse: string[] = [];
+	const writers = new Set<string>();
 	for (const [path, source] of sources) {
 		if (
 			collectorPackage.test(path) ||
@@ -276,18 +311,19 @@ function trackingDeclarations(sources: ReadonlyMap<string, string>) {
 			continue;
 		}
 		const file = parse(path, source);
-		const record = (name: string, node: ts.Node) => {
+		for (const { name, node } of topLevelFunctions(file)) {
 			const text = node.getText(file);
 			const kind = firedKind(text, node);
 			if (!kind) {
-				return;
+				continue;
 			}
 			const line = lineOf(file, node.getStart(file));
 			if (kind === "warehouse") {
+				writers.add(name);
 				warehouse.push(
 					`${name} (${path}:${line}) inserts analytics.custom_events`
 				);
-				return;
+				continue;
 			}
 			const events = [
 				...new Set(
@@ -298,16 +334,29 @@ function trackingDeclarations(sources: ReadonlyMap<string, string>) {
 				helpers.push(
 					`${name} (${path}:${line}) fires ${events.slice(0, 6).join("/")}`
 				);
+			} else if (lowerFirst.test(name)) {
+				helpers.push(
+					`${name} (${path}:${line}) fires the event its caller passes`
+				);
 			}
-		};
-		for (const statement of file.statements) {
-			if (ts.isFunctionDeclaration(statement) && statement.name) {
-				record(statement.name.text, statement);
-			} else if (ts.isVariableStatement(statement)) {
-				for (const declaration of statement.declarationList.declarations) {
-					if (ts.isIdentifier(declaration.name) && declaration.initializer) {
-						record(declaration.name.text, declaration);
-					}
+		}
+	}
+	if (writers.size) {
+		const names = [...writers].map((name) =>
+			name.replace(regexSpecial, "\\$&")
+		);
+		const caller = new RegExp(`\\b(${names.join("|")})\\s*\\(`);
+		for (const [path, source] of sources) {
+			if (collectorPackage.test(path) || !caller.test(source)) {
+				continue;
+			}
+			const file = parse(path, source);
+			for (const { name, node } of topLevelFunctions(file)) {
+				const via = caller.exec(node.getText(file))?.[1];
+				if (via && !writers.has(name) && lowerFirst.test(name)) {
+					helpers.push(
+						`${name} (${path}:${lineOf(file, node.getStart(file))}) records events via ${via}`
+					);
 				}
 			}
 		}
@@ -317,21 +366,29 @@ function trackingDeclarations(sources: ReadonlyMap<string, string>) {
 
 export function collectCoverage(sources: ReadonlyMap<string, string>) {
 	const attributes: string[] = [];
-	const mounts: string[] = [];
+	const listeners: string[] = [];
 	for (const [path, source] of sources) {
+		const collector = collectorPackage.test(path);
 		for (const [index, line] of source.split("\n").entries()) {
 			const match = line.match(dataTrack);
 			if (match) {
 				attributes.push(`${path}:${index + 1} data-track="${match[1]}"`);
 			}
-			if (attributeMount.test(line)) {
-				mounts.push(`mounted trackAttributes at ${path}:${index + 1}`);
+			if (
+				!collector &&
+				(attributeOption.test(line) || attributeSelector.test(line))
+			) {
+				listeners.push(`${path}:${index + 1}`);
 			}
 		}
 	}
 	const { helpers, warehouse } = trackingDeclarations(sources);
 	return {
-		attributeTracking: [...attributes, ...mounts],
+		attributeTracking: [
+			...attributes,
+			...listeners.map((listener) => `data-track listener at ${listener}`),
+		],
+		attributeListeners: listeners,
 		trackedRoutes: trackedRoutes(sources),
 		trackingHelpers: helpers,
 		warehouseWrites: warehouse,
@@ -339,4 +396,4 @@ export function collectCoverage(sources: ReadonlyMap<string, string>) {
 }
 
 export const coverageNote =
-	"trackedRoutes lists ORPC procedures declared on the tracked middleware: each emits the named event automatically after the handler resolves successfully, with no track() call in the handler, and a caller that awaits that route inherits that coverage. trackingHelpers are first-party functions that call track() internally; calling one is direct coverage. attributeTracking elements emit on click wherever the SDK is mounted with trackAttributes. warehouseWrites insert analytics rows directly.";
+	"trackedRoutes lists ORPC procedures declared on the tracked middleware: each emits the named event automatically after the handler resolves successfully, with no track() call in the handler, and a caller that awaits that route inherits that coverage. trackingHelpers are first-party functions that call track() internally; calling one is direct coverage. attributeTracking lists data-track attributes and the listeners that emit them: the SDK's trackAttributes option or a delegated [data-track] handler. When a listener is listed, a click on a data-track element or anything inside it emits that event; it records the click, not a later submit, request or payment outcome. warehouseWrites insert analytics rows directly.";
