@@ -16,8 +16,7 @@ import {
 	type AlarmData,
 	AlarmSheet,
 	alarmMonitorIds,
-	CHANNELS,
-	parseAlarms,
+	channelLabel,
 } from "./_components/alarm-sheet";
 import { EmailPreferencesCard } from "./_components/email-preferences-card";
 import { summarizeTestDelivery } from "./_components/notification-test-result";
@@ -95,7 +94,7 @@ export default function NotificationsSettingsPage() {
 		setSheetOpen(true);
 	};
 
-	const alarmList = parseAlarms(alarms ?? []);
+	const alarmList = alarms ?? [];
 
 	return (
 		<div className="flex-1 overflow-y-auto">
@@ -190,7 +189,7 @@ export default function NotificationsSettingsPage() {
 														{alarm.destinations.length > 0 ? (
 															alarm.destinations.map((d) => (
 																<Badge key={d.id} size="sm" variant="muted">
-																	{CHANNELS[d.type].label}
+																	{channelLabel(d.type)}
 																</Badge>
 															))
 														) : (
