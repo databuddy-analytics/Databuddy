@@ -73,6 +73,8 @@ mock.module("@databuddy/db", () => ({
 	db: { select, transaction },
 }));
 mock.module("@databuddy/redis", () => ({
+	cacheable: <T>(fn: T) => fn,
+	cacheNamespaces: {},
 	enqueueInsightsResume: enqueue,
 	getInsightsQueue: mock(),
 	insightsResumeJobId: mock(),
@@ -97,6 +99,7 @@ mock.module("../orpc", () => ({
 	auditedProcedure: procedure,
 	auditedSessionProcedure: procedure,
 	protectedProcedure: procedure,
+	publicProcedure: procedure,
 }));
 const {
 	appendInvestigationReply,
