@@ -135,7 +135,6 @@ export function buildAlarmNotificationTargets(
 							subject: string;
 							html?: string;
 							text?: string;
-							from?: string;
 						}) => {
 							const { Resend } = await import("resend");
 							const apiKey = process.env.RESEND_API_KEY;
