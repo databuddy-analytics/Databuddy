@@ -30,6 +30,7 @@ export default function PublicInvestigationPage() {
 	const { data, isLoading } = useQuery({
 		...orpc.insights.getPublicShare.queryOptions({ input: { shareId } }),
 		enabled: shareId.length > 0,
+		meta: { suppressGlobalErrorToast: true },
 		retry: false,
 	});
 
