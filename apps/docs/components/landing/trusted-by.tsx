@@ -14,32 +14,33 @@ const companies = [
 		invert: true,
 	},
 	{
+		name: "Context.dev",
+		ycBatch: "S26",
+		url: "https://www.context.dev",
+		logo: "/social/context-dev.svg",
+	},
+	{
 		name: "Inth",
-		badge: "YC P26",
+		ycBatch: "P26",
 		url: "https://inth.com",
 		logo: "/social/inth.svg",
 	},
 	{
 		name: "Tday",
-		badge: "YC P26",
+		ycBatch: "P26",
 		url: "https://tday.com",
 		logo: "/social/tday.png",
-	},
-	{
-		name: "Rare UI",
-		url: "https://www.rareui.com",
-		logo: "/social/rare-ui.svg",
-	},
-	{
-		name: "nuqs",
-		url: "https://nuqs.dev",
-		logo: "/social/nuqs.svg",
 	},
 	{
 		name: "Coinstash",
 		url: "https://coinstash.com.au",
 		logo: "/social/coinstash.svg",
 		invert: true,
+	},
+	{
+		name: "nuqs",
+		url: "https://nuqs.dev",
+		logo: "/social/nuqs.svg",
 	},
 	{
 		name: "Maza",
@@ -53,15 +54,14 @@ const companies = [
 		invert: true,
 	},
 	{
-		name: "Context.dev",
-		badge: "YC S26",
-		url: "https://www.context.dev",
-		logo: "/social/context-dev.svg",
-	},
-	{
 		name: "Cortad",
 		url: "https://cortad.com",
 		logo: "/social/cortad.png",
+	},
+	{
+		name: "Rare UI",
+		url: "https://www.rareui.com",
+		logo: "/social/rare-ui.svg",
 	},
 ];
 
@@ -111,9 +111,16 @@ function CompanyCard({ company }: { company: (typeof companies)[number] }) {
 				<span className="text-muted-foreground text-xs transition-colors group-hover:text-foreground">
 					{company.name}
 				</span>
-				{company.badge && (
-					<span className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[9px] text-primary leading-none">
-						{company.badge}
+				{company.ycBatch && (
+					<span className="flex items-center gap-1 rounded bg-primary/10 py-0.5 pr-1.5 pl-0.5 font-mono text-[9px] text-primary leading-none">
+						<img
+							alt="Y Combinator"
+							className="size-3 rounded-[2px]"
+							height={12}
+							src="/social/ycombinator.svg"
+							width={12}
+						/>
+						{company.ycBatch}
 					</span>
 				)}
 			</div>
