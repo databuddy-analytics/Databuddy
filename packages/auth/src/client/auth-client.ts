@@ -1,4 +1,3 @@
-import { ssoClient } from "@better-auth/sso/client";
 import {
 	customSessionClient,
 	emailOTPClient,
@@ -22,7 +21,6 @@ export const authClient = createAuthClient({
 		emailOTPClient(),
 		magicLinkClient(),
 		lastLoginMethodClient(),
-		ssoClient(),
 		organizationClient({
 			ac,
 			roles: {
