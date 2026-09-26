@@ -18,6 +18,7 @@ const INTRA_SESSION_GAP_SECONDS = 60;
 const BOUNCE_DURATION_SECONDS = 1;
 const BOUNCE_DURATION_CEILING_SECONDS = 9;
 const NON_BOUNCE_DURATION_FLOOR_SECONDS = 10;
+const WWW_PREFIX = /^www\./;
 
 type ImportGrain = "event" | "rollup";
 
@@ -184,7 +185,7 @@ export function csvNumber(value: string | undefined): number {
 	return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function timeZoneOffsetMs(at: Date, timeZone: string): number {
+function offsetMs(at: Date, timeZone: string): number {
 	const formatter = new Intl.DateTimeFormat("en-US", {
 		timeZone,
 		hour12: false,
@@ -209,18 +210,41 @@ function timeZoneOffsetMs(at: Date, timeZone: string): number {
 	return asUtc - at.getTime();
 }
 
+function timeZoneOffsetMs(at: Date, timeZone: string): number {
+	try {
+		return offsetMs(at, timeZone);
+	} catch {
+		return 0;
+	}
+}
+
 function zonedDayStartUtc(date: string, timeZone: string): Date {
 	const utcMidnight = new Date(`${date}T00:00:00Z`);
 	if (Number.isNaN(utcMidnight.getTime())) {
 		throw new Error(`Unparseable rollup date: ${date}`);
 	}
-	try {
-		return new Date(
-			utcMidnight.getTime() - timeZoneOffsetMs(utcMidnight, timeZone)
-		);
-	} catch {
-		return utcMidnight;
+	return new Date(
+		utcMidnight.getTime() - timeZoneOffsetMs(utcMidnight, timeZone)
+	);
+}
+
+export function endOfLocalDay(at: Date, timeZone: string): Date {
+	const dayMs = SECONDS_PER_DAY * 1000;
+	const offset = timeZoneOffsetMs(at, timeZone);
+	const local = at.getTime() + offset;
+	return new Date(Math.floor(local / dayMs) * dayMs + dayMs - 1 - offset);
+}
+
+export function isSameSite(
+	hostname: string | undefined,
+	domain: string
+): boolean {
+	if (!hostname) {
+		return true;
 	}
+	const host = hostname.toLowerCase().replace(WWW_PREFIX, "");
+	const site = domain.toLowerCase().replace(WWW_PREFIX, "");
+	return host === site || host.endsWith(`.${site}`);
 }
 
 interface PageSlot {

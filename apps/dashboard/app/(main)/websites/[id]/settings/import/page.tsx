@@ -18,7 +18,23 @@ import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_STATES = new Set(["waiting", "active", "delayed", "prioritized"]);
-const PROVIDERS_WITH_LOGOS = new Set(["plausible", "simple-analytics"]);
+const PROVIDERS_WITH_LOGOS = new Set([
+	"plausible",
+	"posthog",
+	"simple-analytics",
+]);
+const MONOCHROME_LOGOS = new Set(["posthog"]);
+type ImportContentType =
+	| "application/x-ndjson"
+	| "application/zip"
+	| "text/csv";
+const CONTENT_TYPES: Record<string, ImportContentType | undefined> = {
+	csv: "text/csv",
+	json: "application/x-ndjson",
+	jsonl: "application/x-ndjson",
+	ndjson: "application/x-ndjson",
+	zip: "application/zip",
+};
 const GRAIN_LABEL = {
 	event: "Full detail",
 	rollup: "Daily totals",
@@ -75,9 +91,12 @@ export default function ImportPage() {
 			return;
 		}
 
-		const contentType = file.name.endsWith(".csv")
-			? "text/csv"
-			: "application/zip";
+		const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+		const contentType = CONTENT_TYPES[extension];
+		if (!contentType) {
+			toast.error("Upload a .zip, .csv or .jsonl export file.");
+			return;
+		}
 
 		try {
 			const { key, uploadUrl } = await createUpload.mutateAsync({
@@ -192,6 +211,11 @@ export default function ImportPage() {
 												{PROVIDERS_WITH_LOGOS.has(provider.id) ? (
 													<Image
 														alt=""
+														className={
+															MONOCHROME_LOGOS.has(provider.id)
+																? "dark:invert"
+																: undefined
+														}
 														height={20}
 														src={`/providers/${provider.id}.svg`}
 														unoptimized
@@ -233,7 +257,7 @@ export default function ImportPage() {
 						<Card.Content className="space-y-4">
 							{/* policy-ignore dashboard/no-raw-interactive-html: a hidden native file input is the only way to open the OS file picker; @databuddy/ui has no file input component */}
 							<input
-								accept=".zip,.csv"
+								accept=".zip,.csv,.jsonl,.ndjson,.json"
 								className="hidden"
 								onChange={(event) => setFile(event.target.files?.[0] ?? null)}
 								ref={fileInput}
