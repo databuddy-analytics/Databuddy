@@ -293,7 +293,7 @@ const runSslExpiryAlerts = (
 						});
 					}
 				},
-				(error: unknown) => {
+				(error) => {
 					deps.captureError(error, {
 						error_step: "ssl_expiry_alerts",
 						schedule_id: schedule.id,
@@ -551,7 +551,6 @@ const replayDelivery = (
 		);
 		if (schedule) {
 			yield* runTransitionAlerts(schedule, data, deps, log);
-			yield* runSslExpiryAlerts(schedule, data, deps, log);
 		}
 	});
 

@@ -272,9 +272,11 @@ const checkCertificate = (url: string) =>
 							port,
 							servername: parsed.hostname,
 							timeout: 5000,
+							rejectUnauthorized: false,
 						},
 						() => {
 							const cert = socket.getPeerCertificate();
+							const trusted = socket.authorized;
 							socket.destroy();
 
 							if (!cert?.valid_to) {
@@ -287,7 +289,7 @@ const checkCertificate = (url: string) =>
 								resolve(fallback);
 								return;
 							}
-							resolve({ valid: expiry > Date.now(), expiry });
+							resolve({ valid: trusted && expiry > Date.now(), expiry });
 						}
 					);
 

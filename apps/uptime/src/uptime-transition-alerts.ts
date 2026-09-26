@@ -513,6 +513,7 @@ export function fireTransitionAlerts({
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SSL_EXPIRY_ALERT_WINDOW_MS = 14 * DAY_MS;
 const SSL_EXPIRY_HIGH_PRIORITY_DAYS = 3;
+const SSL_ALERT_CLAIM_SECONDS = 10 * 60;
 const SSL_ALERT_KEY_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 export interface SslExpiryAlert {
@@ -582,19 +583,20 @@ export function buildSslExpiryNotificationPayload(input: {
 const claimSslAlert = (key: string) =>
 	recover(
 		async () =>
-			(await redis.set(key, "1", "EX", SSL_ALERT_KEY_TTL_SECONDS, "NX")) ===
-			"OK",
+			(await redis.set(key, "1", "EX", SSL_ALERT_CLAIM_SECONDS, "NX")) === "OK",
 		false,
 		{ error_step: "ssl_alert_claim" }
 	);
 
-const releaseSslAlert = (key: string) =>
+const settleSslAlert = (key: string, delivered: boolean) =>
 	recover(
 		async () => {
-			await redis.del(key);
+			await (delivered
+				? redis.expire(key, SSL_ALERT_KEY_TTL_SECONDS)
+				: redis.del(key));
 		},
 		undefined,
-		{ error_step: "ssl_alert_claim_release" }
+		{ error_step: "ssl_alert_claim_settle" }
 	);
 
 export function fireSslExpiryAlerts({
@@ -641,10 +643,7 @@ export function fireSslExpiryAlerts({
 				siteLabel: buildSiteLabel(schedule),
 				url: data.url,
 			});
-			const { emailDeliveryDeferred, sendable } = buildUptimeDeliveryPlan(
-				linkedAlarms,
-				emailsEnabled
-			);
+			const { sendable } = buildUptimeDeliveryPlan(linkedAlarms, emailsEnabled);
 
 			const results = yield* Effect.all(
 				sendable.map((alarm) => sendToAlarm(alarm, payload)),
@@ -652,15 +651,7 @@ export function fireSslExpiryAlerts({
 			);
 
 			const fired = results.filter((count) => count > 0).length;
-			if (
-				shouldReleaseTransitionClaim(
-					sendable.length,
-					fired,
-					emailDeliveryDeferred
-				)
-			) {
-				yield* releaseSslAlert(key);
-			}
+			yield* settleSslAlert(key, fired > 0);
 			return { alarms_fired: fired, ssl_days_remaining: alert.daysRemaining };
 		})
 	);
