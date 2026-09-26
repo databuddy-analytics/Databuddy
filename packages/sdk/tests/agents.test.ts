@@ -8,7 +8,7 @@ const CLAUDE_CODE =
 	"Claude-User (claude-code/2.1.280; +https://support.anthropic.com/)";
 const CHROME =
 	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
-const OPTIONS = { apiKey: "dbdy_test", websiteId: "site_1" };
+const OPTIONS = { websiteId: "site_1" };
 const originalFetch = globalThis.fetch;
 const originalEnv = { ...process.env };
 
@@ -49,7 +49,7 @@ describe("trackAgents", () => {
 	});
 
 	it.each([
-		["/pricing", {}, { format: "html", path: "/pricing" }],
+		["/pricing", {}, { format: "html", host: "example.com", path: "/pricing" }],
 		["/pricing?token=secret", {}, { format: "html", path: "/pricing" }],
 		["/docs/intro.md", {}, { format: "markdown" }],
 		[
@@ -75,19 +75,26 @@ describe("trackAgents", () => {
 		const bodies = captureBodies();
 		await trackAgents(
 			{
-				headers: { "user-agent": CLAUDE_CODE, accept: "text/markdown" },
+				headers: {
+					"user-agent": CLAUDE_CODE,
+					accept: "text/markdown",
+					host: "docs.example.com",
+				},
 				method: "GET",
 				url: "/docs/intro?ref=cli",
 			},
 			OPTIONS
 		);
 		expect(bodies).toEqual([
-			expect.objectContaining({ format: "markdown", path: "/docs/intro" }),
+			expect.objectContaining({
+				format: "markdown",
+				host: "docs.example.com",
+				path: "/docs/intro",
+			}),
 		]);
 	});
 
 	it("hands the request to waitUntil when used as a drop-in proxy", async () => {
-		process.env.DATABUDDY_API_KEY = "dbdy_env";
 		process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID = "site_env";
 		const bodies = captureBodies();
 		const pending: Promise<unknown>[] = [];
@@ -96,8 +103,7 @@ describe("trackAgents", () => {
 		expect(bodies).toEqual([expect.objectContaining({ format: "llms" })]);
 	});
 
-	it("reads the key and site id from the environment", async () => {
-		process.env.DATABUDDY_API_KEY = "dbdy_env";
+	it("reads the website id from the environment", async () => {
 		process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID = "site_env";
 		const bodies = captureBodies();
 		await trackAgents(request("/pricing"));
@@ -106,10 +112,11 @@ describe("trackAgents", () => {
 		]);
 	});
 
-	it("sends nothing without a key", async () => {
-		process.env.DATABUDDY_API_KEY = "";
+	it("sends nothing without a website id", async () => {
+		process.env.DATABUDDY_WEBSITE_ID = "";
+		process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID = "";
 		const bodies = captureBodies();
-		await trackAgents(request("/pricing"), { websiteId: "site_1" });
+		await trackAgents(request("/pricing"));
 		expect(bodies).toEqual([]);
 	});
 

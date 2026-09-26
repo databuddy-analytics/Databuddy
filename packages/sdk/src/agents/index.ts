@@ -1,5 +1,4 @@
 export interface TrackAgentsOptions {
-	apiKey?: string;
 	apiUrl?: string;
 	timeoutMs?: number;
 	websiteId?: string;
@@ -49,17 +48,18 @@ export async function trackAgents(
 	request: Request | NodeRequest,
 	options: TrackAgentsOptions = {}
 ): Promise<void> {
-	const apiKey = options.apiKey ?? env("DATABUDDY_API_KEY");
 	const websiteId =
 		options.websiteId ??
 		env("DATABUDDY_WEBSITE_ID") ??
 		env("NEXT_PUBLIC_DATABUDDY_CLIENT_ID");
 	const method = request.method ?? "GET";
 	const userAgent = header(request, "user-agent");
-	const { pathname } = new URL(request.url ?? "/", "http://localhost");
+	const { host, pathname } = new URL(
+		request.url ?? "/",
+		`http://${header(request, "host") || "localhost"}`
+	);
 	if (
 		!(
-			apiKey &&
 			websiteId &&
 			(method === "GET" || method === "HEAD") &&
 			AI_AGENT_USER_AGENT.test(userAgent)
@@ -70,12 +70,10 @@ export async function trackAgents(
 	}
 	await fetch(`${options.apiUrl ?? DEFAULT_API_URL}/ai-traffic`, {
 		method: "POST",
-		headers: {
-			Authorization: `Bearer ${apiKey}`,
-			"Content-Type": "application/json",
-		},
+		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({
 			websiteId,
+			host,
 			path: pathname,
 			format: contentFormat(pathname, header(request, "accept")),
 			userAgent,
