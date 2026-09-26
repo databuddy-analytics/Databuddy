@@ -62,6 +62,35 @@ describe("EmailProvider", () => {
 		expect(delivered?.text).not.toContain("monitor-1");
 	});
 
+	test("hides repeated SSL expiry fields but keeps its unique monitored URL", async () => {
+		let delivered: EmailPayload | undefined;
+		const provider = new EmailProvider({
+			defaultTo: "recipient@example.com",
+			sendEmailAction: async (payload) => {
+				delivered = payload;
+			},
+		});
+
+		await provider.send({
+			title: "SSL certificate expires in 5 days: Acme",
+			message:
+				"The SSL certificate for Acme expires at 2026-10-01T00:00:00.000Z. View details: https://app.databuddy.cc/monitors/1",
+			metadata: {
+				dashboardUrl: "https://app.databuddy.cc/monitors/1",
+				daysRemaining: 5,
+				expiresAt: "2026-10-01T00:00:00.000Z",
+				monitorName: "Acme",
+				template: "uptime-ssl-expiry",
+				url: "https://acme.example/health",
+			},
+		});
+
+		expect(delivered?.text).toContain("Url: https://acme.example/health");
+		expect(delivered?.text).not.toContain("Days Remaining:");
+		expect(delivered?.text).not.toContain("Expires At:");
+		expect(delivered?.text).not.toContain("Monitor Name:");
+	});
+
 	test("returns a failed channel result when delivery throws", async () => {
 		const provider = new EmailProvider({
 			defaultTo: "recipient@example.com",
