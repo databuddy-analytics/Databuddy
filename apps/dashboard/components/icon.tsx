@@ -66,19 +66,38 @@ const OS_ICON_EXT: Record<string, "svg" | "png" | "webp"> = {
 };
 
 const AI_ICON_COLORS: Record<string, string | null> = {
+	Ai2: "#F0529C",
+	Amazon: "#FF9900",
 	Apple: null,
+	Atlassian: "#0052CC",
 	ByteDance: "#3C8CFF",
 	ChatGPT: null,
 	Claude: "#D97757",
+	Cloudflare: "#F38020",
+	Cohere: "#FF7759",
 	Copilot: "#0D91E1",
 	Cursor: null,
 	DeepSeek: "#5786FE",
+	Devin: "#0294DE",
+	Doubao: "#1E37FC",
 	DuckDuckGo: "#DE5833",
+	Exa: "#1F40ED",
+	Firecrawl: null,
 	Gemini: "#8E75B2",
 	Huawei: "#FF0000",
+	Kagi: "#FFB319",
+	Manus: null,
 	Meta: "#0467DF",
 	Mistral: "#FA520F",
+	Moonshot: null,
+	Mozilla: null,
+	OpenCode: null,
 	Perplexity: "#1FB8CD",
+	Phind: null,
+	Poe: "#5D5CDE",
+	Tavily: "#FE363B",
+	v0: null,
+	Zed: "#084CCF",
 };
 const AI_ICONS = Object.keys(AI_ICON_COLORS);
 
