@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
+import { SLACK_WEBHOOK_PATTERN } from "@databuddy/shared/uptime";
 import {
 	BellIcon as SlackLogoIcon,
 	EnvelopeSimpleIcon,
@@ -51,8 +52,6 @@ export const CHANNELS: Record<
 };
 
 const MASK = "•";
-const SLACK_WEBHOOK_PATTERN =
-	/^https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[A-Za-z0-9]+$/;
 const HTTP_URL_PATTERN = /^https?:\/\//;
 const emailSchema = z.email();
 
