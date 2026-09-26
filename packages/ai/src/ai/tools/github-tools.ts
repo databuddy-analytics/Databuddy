@@ -1,15 +1,35 @@
+import { and, db, eq, isNull, websites } from "@databuddy/db";
 import { getGithubTokenForOrg } from "@databuddy/services/github-app";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
-import { createCachedTokenFn } from "./utils/oauth-token";
 
-function createInstallationFirstTokenFn(
-	organizationId: string,
-	userId?: string
+function createInstallationTokenFn(
+	organizationId: string
 ): () => Promise<string | null> {
-	const legacy = createCachedTokenFn("github", organizationId, userId, "repo");
-	return async () =>
-		(await getGithubTokenForOrg(organizationId).catch(() => null)) ?? legacy();
+	return () => getGithubTokenForOrg(organizationId).catch(() => null);
+}
+
+function createLinkedRepositoriesFn(
+	organizationId: string
+): () => Promise<GitHubRepository[]> {
+	let linked: Promise<GitHubRepository[]> | undefined;
+	return () => {
+		linked ??= db
+			.select({ integrations: websites.integrations })
+			.from(websites)
+			.where(
+				and(
+					eq(websites.organizationId, organizationId),
+					isNull(websites.deletedAt)
+				)
+			)
+			.then((rows) =>
+				rows.flatMap((row) =>
+					row.integrations?.github ? [row.integrations.github] : []
+				)
+			);
+		return linked;
+	};
 }
 
 const GITHUB_API = "https://api.github.com";
@@ -108,7 +128,6 @@ function githubApiError(value: unknown): string | null {
 export interface GitHubToolsParams {
 	organizationId: string;
 	repository?: GitHubRepository | null;
-	userId?: string;
 }
 
 export interface GitHubRepository {
@@ -117,6 +136,7 @@ export interface GitHubRepository {
 }
 
 export interface GitHubToolDependencies {
+	getLinkedRepositories?: () => Promise<GitHubRepository[]>;
 	getToken?: () => Promise<string | null>;
 	request?: (path: string, token: string) => Promise<unknown>;
 }
@@ -131,24 +151,35 @@ function createRepositorySchema<T extends z.ZodRawShape>(
 	return z.object({ ...REPOSITORY_FIELDS, ...shape });
 }
 
-function resolveRepository(
-	repository: GitHubRepository | undefined,
-	input: unknown
-): GitHubRepository {
-	if (repository) {
-		return repository;
-	}
+async function resolveLinkedRepository(
+	input: unknown,
+	getLinkedRepositories: () => Promise<GitHubRepository[]>
+): Promise<GitHubRepository> {
 	if (
-		input &&
-		typeof input === "object" &&
-		"owner" in input &&
-		"repo" in input &&
-		typeof input.owner === "string" &&
-		typeof input.repo === "string"
+		!(
+			input &&
+			typeof input === "object" &&
+			"owner" in input &&
+			"repo" in input &&
+			typeof input.owner === "string" &&
+			typeof input.repo === "string"
+		)
 	) {
-		return { owner: input.owner, repo: input.repo };
+		throw new Error("GitHub repository is required");
 	}
-	throw new Error("GitHub repository is required");
+	const requested = { owner: input.owner, repo: input.repo };
+	const linked = await getLinkedRepositories();
+	const isLinked = linked.some(
+		(candidate) =>
+			candidate.owner.toLowerCase() === requested.owner.toLowerCase() &&
+			candidate.repo.toLowerCase() === requested.repo.toLowerCase()
+	);
+	if (!isLinked) {
+		throw new Error(
+			"GitHub repository is not linked to a website in this workspace"
+		);
+	}
+	return requested;
 }
 
 function repositoryPath(repository: GitHubRepository): string {
@@ -169,8 +200,10 @@ export function createGitHubTools(
 
 	const repository = params.repository;
 	const getToken =
-		dependencies.getToken ??
-		createInstallationFirstTokenFn(params.organizationId, params.userId);
+		dependencies.getToken ?? createInstallationTokenFn(params.organizationId);
+	const getLinkedRepositories =
+		dependencies.getLinkedRepositories ??
+		createLinkedRepositoriesFn(params.organizationId);
 	const request = dependencies.request ?? githubFetch;
 	// Toolkits are created per agent run; never share file identities across runs.
 	const fileShas = new Map<string, string | null>();
@@ -217,7 +250,9 @@ export function createGitHubTools(
 			if (!token) {
 				return { error: "No GitHub account connected for this organization" };
 			}
-			const repo = resolveRepository(repository, input);
+			const repo =
+				repository ??
+				(await resolveLinkedRepository(input, getLinkedRepositories));
 
 			const envNeedle = input.environment?.toLowerCase();
 			const since = input.since ? Date.parse(input.since) : null;
@@ -351,7 +386,9 @@ export function createGitHubTools(
 			if (!token) {
 				return { error: "No GitHub account connected for this organization" };
 			}
-			const repo = resolveRepository(repository, input);
+			const repo =
+				repository ??
+				(await resolveLinkedRepository(input, getLinkedRepositories));
 
 			const queryParams = new URLSearchParams({
 				per_page: String(input.limit),
@@ -415,7 +452,9 @@ export function createGitHubTools(
 			if (!token) {
 				return { error: "No GitHub account connected for this organization" };
 			}
-			const repo = resolveRepository(repository, input);
+			const repo =
+				repository ??
+				(await resolveLinkedRepository(input, getLinkedRepositories));
 			const apiState = input.state === "merged" ? "closed" : input.state;
 
 			const scanLimit = input.state === "merged" ? 100 : input.limit;
@@ -485,7 +524,9 @@ export function createGitHubTools(
 			if (!token) {
 				return { error: "No GitHub account connected for this organization" };
 			}
-			const repo = resolveRepository(repository, input);
+			const repo =
+				repository ??
+				(await resolveLinkedRepository(input, getLinkedRepositories));
 			const path = repositoryPath(repo);
 			const data = await request(`/repos/${path}/pulls/${input.number}`, token);
 			if (data && typeof data === "object" && "error" in data) {
@@ -589,7 +630,7 @@ export function createGitHubTools(
 
 	const listReposTool = tool({
 		description:
-			"List GitHub repos the connected account can access, sorted by last push. Call this first to find the repo name before querying deploys or commits.",
+			"List the GitHub repos linked to websites in this workspace. Call this first to find the repo name before querying deploys or commits.",
 		inputSchema: z.object({
 			limit: z
 				.number()
@@ -600,35 +641,10 @@ export function createGitHubTools(
 				.describe("Number of repos to return"),
 		}),
 		execute: async ({ limit }) => {
-			const token = await getToken();
-			if (!token) {
-				return { error: "No GitHub account connected for this organization" };
-			}
-
-			const data = await request(
-				`/user/repos?sort=pushed&direction=desc&per_page=${limit}`,
-				token
-			);
-
-			if (data && typeof data === "object" && "error" in data) {
-				return data;
-			}
-
-			const repos = data as Array<{
-				full_name: string;
-				private: boolean;
-				pushed_at: string | null;
-				default_branch: string;
-			}>;
-
+			const repos = (await getLinkedRepositories()).slice(0, limit);
 			return {
 				count: repos.length,
-				repos: repos.map((r) => ({
-					name: r.full_name,
-					private: r.private,
-					lastPush: r.pushed_at,
-					defaultBranch: r.default_branch,
-				})),
+				repos: repos.map((r) => ({ name: `${r.owner}/${r.repo}` })),
 			};
 		},
 	});
@@ -663,7 +679,9 @@ export function createGitHubTools(
 				.describe("Maximum UTF-16 characters to return; defaults to 15,000."),
 		}),
 		execute: async (input) => {
-			const repo = resolveRepository(repository, input);
+			const repo =
+				repository ??
+				(await resolveLinkedRepository(input, getLinkedRepositories));
 			const refParam = input.ref ? `?ref=${encodeURIComponent(input.ref)}` : "";
 			const requestPath = `/repos/${repositoryPath(repo)}/contents/${filePath(input.path)}${refParam}`;
 			// Bind this read before auth can yield to a concurrent first-window read.
@@ -743,7 +761,9 @@ export function createGitHubTools(
 			if (!token) {
 				return { error: "No GitHub account connected" };
 			}
-			const repo = resolveRepository(repository, input);
+			const repo =
+				repository ??
+				(await resolveLinkedRepository(input, getLinkedRepositories));
 
 			const data = await request(
 				input.base
@@ -834,7 +854,9 @@ export function createGitHubTools(
 			if (!token) {
 				return { error: "No GitHub account connected" };
 			}
-			const repo = resolveRepository(repository, input);
+			const repo =
+				repository ??
+				(await resolveLinkedRepository(input, getLinkedRepositories));
 
 			const data = await request(
 				`/search/code?q=${encodeURIComponent(input.query)}+repo:${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}&per_page=10`,

@@ -87,7 +87,10 @@ async function resolveOAuthToken(
 		.where(
 			and(
 				eq(member.organizationId, organizationId),
-				eq(account.providerId, providerId)
+				eq(account.providerId, providerId),
+				preferUserId
+					? eq(account.userId, preferUserId)
+					: eq(member.role, "owner")
 			)
 		)
 		.orderBy(...orderBy)
