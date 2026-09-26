@@ -1,5 +1,6 @@
 "use server";
 
+import { DEMO_QUERY_TYPES } from "./types";
 import type { QueryBuilderMeta } from "./types-query-builder";
 
 interface QueryConfig {
@@ -44,7 +45,15 @@ export async function getQueryTypes(
 		}
 
 		const data = (await response.json()) as QueryTypesResponse;
-		return data;
+		return {
+			...data,
+			types: data.types.filter((type) => DEMO_QUERY_TYPES.has(type)),
+			configs: Object.fromEntries(
+				Object.entries(data.configs).filter(([type]) =>
+					DEMO_QUERY_TYPES.has(type)
+				)
+			),
+		};
 	} catch (error) {
 		console.error("Failed to fetch query types:", error);
 		return {
