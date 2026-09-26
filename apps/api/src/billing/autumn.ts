@@ -1,6 +1,5 @@
 import type { JSONValue } from "ai";
 import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
-import { INTELLIGENCE_PLAN_IDS } from "@databuddy/shared/types/features";
 import { isInvestigationPurchaseValid } from "./investigation-purchase";
 import { auth } from "@databuddy/auth";
 import { getRedisCache } from "@databuddy/redis";
@@ -42,10 +41,6 @@ const ALLOWED_AUTUMN_ROUTES = new Set([
 	"previewUpdateSubscription",
 	"updateSubscription",
 ]);
-
-const INVITE_ONLY_PLAN_IDS = new Set<string>(
-	Object.values(INTELLIGENCE_PLAN_IDS)
-);
 
 function sanitize(value: JSONValue): JSONValue {
 	if (Array.isArray(value)) {
@@ -221,11 +216,7 @@ export async function handleAutumnRequest(request: Request) {
 			!Array.isArray(body)
 				? body
 				: null;
-		if (
-			!isInvestigationPurchaseValid(body, segment) ||
-			(typeof attachBody?.planId === "string" &&
-				INVITE_ONLY_PLAN_IDS.has(attachBody.planId))
-		) {
+		if (!isInvestigationPurchaseValid(body, segment)) {
 			return autumnErrorResponse("VALIDATION");
 		}
 		if (attachBody && identity) {
