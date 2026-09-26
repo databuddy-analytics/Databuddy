@@ -5,6 +5,7 @@ import {
 	MarqueeFade,
 	MarqueeItem,
 } from "@/components/ui/kibo-ui/marquee";
+import { cn } from "@/lib/utils";
 
 const companies = [
 	{
@@ -30,6 +31,7 @@ const companies = [
 		ycBatch: "P26",
 		url: "https://tday.com",
 		logo: "/social/tday.png",
+		markOnly: true,
 	},
 	{
 		name: "Coinstash",
@@ -57,73 +59,66 @@ const companies = [
 		name: "Cortad",
 		url: "https://cortad.com",
 		logo: "/social/cortad.png",
+		markOnly: true,
 	},
 	{
 		name: "Rare UI",
 		url: "https://www.rareui.com",
 		logo: "/social/rare-ui.svg",
+		markOnly: true,
+	},
+	{
+		name: "Notra",
+		url: "https://www.usenotra.com",
+		logo: "/notra.svg",
+		markOnly: true,
 	},
 ];
 
 const half = Math.ceil(companies.length / 2);
 const companyRows = [companies.slice(0, half), companies.slice(half)];
 
-const devTeams = [
-	{
-		name: "CodeRabbit",
-		icon: "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/coderabbit.svg",
-	},
-	{
-		name: "OpenAI",
-		icon: "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/openai.svg",
-	},
-	{
-		name: "Vercel",
-		icon: "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/vercel.svg",
-	},
-	{
-		name: "Supabase",
-		icon: "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/supabase.svg",
-	},
-	{
-		name: "Upstash",
-		icon: "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/upstash.svg",
-	},
-];
+const devTeams = ["CodeRabbit", "OpenAI", "Vercel", "Supabase", "Upstash"];
 
 function CompanyCard({ company }: { company: (typeof companies)[number] }) {
 	return (
 		<a
-			className="group flex w-44 flex-col items-center justify-center gap-3 rounded-lg border border-border/50 bg-card/50 px-4 py-5 transition-colors duration-300 hover:border-border hover:bg-card sm:w-52 sm:py-6"
+			className="group relative flex h-24 w-44 items-center justify-center rounded-lg border border-border/50 bg-card/50 px-4 transition-colors duration-300 hover:border-border hover:bg-card sm:h-26 sm:w-52"
 			href={company.url}
 			rel="noopener noreferrer"
 			target="_blank"
 		>
-			<Image
-				alt={company.name}
-				className={`h-6 max-w-full object-contain opacity-70 transition-opacity duration-200 group-hover:opacity-100 sm:h-7 ${company.invert ? "invert" : ""}`}
-				height={28}
-				src={company.logo}
-				style={{ width: "auto" }}
-				width={120}
-			/>
-			<div className="flex items-center gap-1.5">
-				<span className="text-muted-foreground text-xs transition-colors group-hover:text-foreground">
-					{company.name}
-				</span>
-				{company.ycBatch && (
-					<span className="flex items-center gap-1 rounded bg-primary/10 py-0.5 pr-1.5 pl-0.5 font-mono text-[9px] text-primary leading-none">
-						<img
-							alt="Y Combinator"
-							className="size-3 rounded-[2px]"
-							height={12}
-							src="/social/ycombinator.svg"
-							width={12}
-						/>
-						{company.ycBatch}
+			<div className="flex h-7 max-w-full items-center gap-2.5 text-foreground opacity-70 transition-opacity duration-200 group-hover:opacity-100">
+				<Image
+					alt={company.markOnly ? "" : company.name}
+					className={cn(
+						"max-w-full object-contain",
+						company.markOnly ? "h-5 rounded-sm sm:h-6" : "h-6 sm:h-7",
+						company.invert && "invert"
+					)}
+					height={28}
+					src={company.logo}
+					style={{ width: "auto" }}
+					width={120}
+				/>
+				{company.markOnly && (
+					<span className="font-medium text-sm sm:text-base">
+						{company.name}
 					</span>
 				)}
 			</div>
+			{company.ycBatch && (
+				<span className="absolute top-2 right-2 flex items-center gap-1 rounded bg-primary/10 py-0.5 pr-1.5 pl-0.5 font-mono text-[9px] text-primary leading-none">
+					<img
+						alt="Y Combinator"
+						className="size-3 rounded-[2px]"
+						height={12}
+						src="/social/ycombinator.svg"
+						width={12}
+					/>
+					{company.ycBatch}
+				</span>
+			)}
 		</a>
 	);
 }
@@ -137,20 +132,15 @@ export function TrustedBy() {
 
 			<div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-5 sm:gap-x-12">
 				{devTeams.map((team) => (
-					<div
-						className="flex items-center gap-2.5 text-foreground"
-						key={team.name}
-					>
+					<div className="flex items-center gap-2.5 text-foreground" key={team}>
 						<img
-							alt={team.name}
+							alt={team}
 							className="size-5 rounded-sm invert sm:size-6"
 							height={24}
-							src={team.icon}
+							src={`https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${team.toLowerCase()}.svg`}
 							width={24}
 						/>
-						<span className="font-medium text-sm sm:text-base">
-							{team.name}
-						</span>
+						<span className="font-medium text-sm sm:text-base">{team}</span>
 					</div>
 				))}
 			</div>
