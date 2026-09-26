@@ -1,4 +1,5 @@
 import { AI_AGENTS } from "@databuddy/shared/bot-detection/ai-agents";
+import { AI_APP_BROWSERS } from "@databuddy/shared/bot-detection/user-agent";
 import { AI_REFERRERS } from "@databuddy/shared/utils/referrer";
 import { Analytics } from "../../types/tables";
 import type { CustomSqlContext, SimpleQueryConfig } from "../types";
@@ -6,7 +7,7 @@ import type { CustomSqlContext, SimpleQueryConfig } from "../types";
 const AGENT_PRODUCT =
 	"transform(agent_id, {agentIds:Array(String)}, {agentProducts:Array(String)}, bot_name)";
 const VISIT_PRODUCT =
-	"if(browser_name IN ('Claude', 'Cursor'), browser_name, transform(domainWithoutWWW(referrer), {aiDomains:Array(String)}, {aiNames:Array(String)}, transform(utm_source, {aiDomains:Array(String)}, {aiNames:Array(String)}, '')))";
+	"if(has({aiApps:Array(String)}, browser_name), browser_name, transform(domainWithoutWWW(referrer), {aiDomains:Array(String)}, {aiNames:Array(String)}, transform(utm_source, {aiDomains:Array(String)}, {aiNames:Array(String)}, '')))";
 const CONTENT_FORMAT = `if(format != '', format, multiIf(
 	endsWith(lower(path(path)), 'llms.txt') OR endsWith(lower(path(path)), 'llms-full.txt'), 'llms',
 	endsWith(lower(path(path)), '.md') OR endsWith(lower(path(path)), '.mdx'), 'markdown',
@@ -36,6 +37,7 @@ function productParams(ctx: CustomSqlContext) {
 		agentProducts: AI_AGENTS.map((agent) => agent.product),
 		aiDomains: AI_REFERRERS.map((referrer) => referrer.domain),
 		aiNames: AI_REFERRERS.map((referrer) => referrer.name),
+		aiApps: AI_APP_BROWSERS,
 	};
 }
 
