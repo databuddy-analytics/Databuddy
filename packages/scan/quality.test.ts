@@ -63,7 +63,7 @@ test("a user callback and its mutation form one candidate with response guards",
 	assert.match(actions[0]!.source, /result\.status === "skipped"/);
 });
 
-test("separate uses of the same callback remain separate surface actions", () => {
+test("a setup copy is an action while copying an ID through the same callback is not", () => {
 	const source = `export function TrackingSettings() {
   function handleCopy(value) {
     navigator.clipboard.writeText(value);
@@ -75,9 +75,9 @@ test("separate uses of the same callback remain separate surface actions", () =>
   </section>;
 }`;
 	const actions = groups(source);
-	assert.equal(actions.length, 2);
+	assert.equal(actions.length, 1);
 	assert.equal(at(actions, source, "handleCopy(script)").length, 1);
-	assert.equal(at(actions, source, "handleCopy(clientId)").length, 1);
+	assert.equal(at(actions, source, "handleCopy(clientId)").length, 0);
 	for (const action of actions) {
 		assert.match(action.source, /navigator\.clipboard\.writeText\(value\)/);
 		assert.doesNotMatch(action.source, /await navigator\.clipboard/);
