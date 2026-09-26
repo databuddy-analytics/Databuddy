@@ -197,6 +197,7 @@ export default function ImportPage() {
 														alt=""
 														height={20}
 														src={`/providers/${PROVIDER_LOGOS[provider.id]}.svg`}
+														unoptimized
 														width={20}
 													/>
 												) : (
