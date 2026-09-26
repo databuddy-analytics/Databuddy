@@ -897,7 +897,7 @@ async function toggleReblog() {
 });
 
 test("a link's route is matched as a GET while that route's own requests keep their method", () => {
-	const page = `const checkoutUrl = \`\${API}/v1/billing/checkout\`;
+	const page = `${"const checkoutUrl = `${API}/v1/billing/checkout`;"}
 function portalUrl() { return new URL("/v1/billing/portal", API).toString(); }
 export function Upgrade() { return <a href={checkoutUrl}>Upgrade to Pro</a>; }
 export function Manage() { return <a href={portalUrl()}>Upgrade billing</a>; }`;
