@@ -324,6 +324,7 @@ export function checkForBot(
 				agent_purpose: agent?.purpose,
 				verification,
 				source: "tracker",
+				format: "html",
 			};
 			runFork(send("analytics-ai-traffic-spans", span));
 

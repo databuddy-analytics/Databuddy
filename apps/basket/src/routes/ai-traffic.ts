@@ -21,6 +21,7 @@ import { z } from "zod";
 const agentHitSchema = z.object({
 	websiteId: z.string().min(1).max(128),
 	path: z.string().max(2048),
+	format: z.enum(["markdown", "llms", "html"]).default("html"),
 	userAgent: z.string().min(1).max(512),
 	ip: z.string().max(64),
 	referrer: z.string().max(2048).optional(),
@@ -76,6 +77,7 @@ export const aiTrafficRoute = new Elysia()
 				bot_name: botName ?? agent.operator,
 				user_agent: hit.userAgent,
 				path: hit.path,
+				format: hit.format,
 				referrer: hit.referrer,
 				agent_id: agent.id,
 				agent_purpose: agent.purpose,
