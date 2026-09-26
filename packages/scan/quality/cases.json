@@ -1467,8 +1467,8 @@
   {
     "id": "audit-integrations-settings-625",
     "path": "apps/dashboard/app/(main)/organizations/components/integrations-settings.tsx",
-    "line": 625,
-    "endLine": 625,
+    "line": 612,
+    "endLine": 618,
     "behavior": "IntegrationListRow.action action",
     "expectedDecision": "useful",
     "split": "known",
@@ -1511,9 +1511,9 @@
     "path": "apps/dashboard/components/agent/agent-messages.tsx",
     "line": 364,
     "endLine": 364,
-    "expectedDecision": "useful",
+    "expectedDecision": "ignore",
     "split": "known",
-    "reason": "Single agent auditor labelled this missing on 2026-09-25 at ae77d54f0 while tuning the scanner; not an independent holdout.",
+    "reason": "Copies a link or message rather than setup material, so the setup-copy policy ignores it.",
     "sourceSha": "2306319716fbb8498e55647c5a88237107b0136118662a0536950dc3444f097a"
   },
   {
@@ -1969,8 +1969,8 @@
   {
     "id": "holdout-b-integrations-settings-502",
     "path": "apps/dashboard/app/(main)/organizations/components/integrations-settings.tsx",
-    "line": 502,
-    "endLine": 502,
+    "line": 486,
+    "endLine": 495,
     "expectedDecision": "useful",
     "split": "known",
     "reason": "Single agent auditor labelled this missing on 2026-09-25 at ae77d54f0 while tuning the scanner; not an independent holdout.",
@@ -2236,9 +2236,9 @@
     "line": 162,
     "endLine": 162,
     "behavior": "DropdownMenu.Item.onClick \"Copy URL\"",
-    "expectedDecision": "useful",
+    "expectedDecision": "ignore",
     "split": "known",
-    "reason": "Single agent auditor labelled this missing on 2026-09-25 at ae77d54f0 while tuning the scanner; not an independent holdout.",
+    "reason": "Copies a link or message rather than setup material, so the setup-copy policy ignores it.",
     "sourceSha": "197e1ea09456567a7f7e477d4e82faf4f3c3ef54a9d52150789fc993e1023196"
   },
   {
@@ -2302,9 +2302,9 @@
     "line": 150,
     "endLine": 150,
     "behavior": "Button.onClick handleCopy",
-    "expectedDecision": "useful",
+    "expectedDecision": "ignore",
     "split": "known",
-    "reason": "Single agent auditor labelled this missing on 2026-09-25 at ae77d54f0 while tuning the scanner; not an independent holdout.",
+    "reason": "Copies a link or message rather than setup material, so the setup-copy policy ignores it.",
     "sourceSha": "52574f78588d3c4e67797cca9f53944bdeba4b370eddf908b7f6f4f12f7bf81a"
   },
   {
@@ -2489,9 +2489,9 @@
     "line": 348,
     "endLine": 348,
     "behavior": "Button.onClick \"Copy public overview link\"",
-    "expectedDecision": "useful",
+    "expectedDecision": "ignore",
     "split": "known",
-    "reason": "Single agent auditor labelled this missing on 2026-09-25 at ae77d54f0 while tuning the scanner; not an independent holdout.",
+    "reason": "Copies a link or message rather than setup material, so the setup-copy policy ignores it.",
     "sourceSha": "bf134b9f77576a7edaa957bc15e342984c122d603a3593619494e4819df375b7"
   },
   {
@@ -2577,9 +2577,9 @@
     "line": 169,
     "endLine": 169,
     "behavior": "DropdownMenu.Item.onClick handleCopy",
-    "expectedDecision": "useful",
+    "expectedDecision": "ignore",
     "split": "known",
-    "reason": "Single agent auditor labelled this missing on 2026-09-25 at ae77d54f0 while tuning the scanner; not an independent holdout.",
+    "reason": "Copies a link or message rather than setup material, so the setup-copy policy ignores it.",
     "sourceSha": "52574f78588d3c4e67797cca9f53944bdeba4b370eddf908b7f6f4f12f7bf81a"
   },
   {
@@ -2588,9 +2588,9 @@
     "line": 212,
     "endLine": 212,
     "behavior": "Button.onClick \"Copy\"",
-    "expectedDecision": "useful",
+    "expectedDecision": "ignore",
     "split": "known",
-    "reason": "Single agent auditor labelled this missing on 2026-09-25 at ae77d54f0 while tuning the scanner; not an independent holdout.",
+    "reason": "Copies a link or message rather than setup material, so the setup-copy policy ignores it.",
     "sourceSha": "76f41719e82b1d66d6ce206a5d97f1cf8758455c671eb35a143664e7bb7b546f"
   },
   {
