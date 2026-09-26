@@ -92,6 +92,7 @@ const AI_ICON_COLORS: Record<string, string | null> = {
 	Moonshot: null,
 	Mozilla: null,
 	OpenCode: null,
+	Parallel: null,
 	Perplexity: "#1FB8CD",
 	Phind: null,
 	Poe: "#5D5CDE",
