@@ -648,6 +648,7 @@ interface ChartMultiSeriesProps {
 	metrics: Array<MetricConfig & { color: string }>;
 	partialLastSegment?: boolean;
 	seriesKind?: ChartSeriesKind;
+	showYAxis?: boolean;
 }
 
 const NON_ID_CHARS = /[^a-zA-Z0-9_-]/g;
@@ -662,6 +663,7 @@ function ChartMultiSeries({
 	hideXAxis = false,
 	barLayout = "grouped",
 	barStackId = "stack",
+	showYAxis = false,
 }: ChartMultiSeriesProps) {
 	const gradientPrefix = `gradient-${useId().replace(NON_ID_CHARS, "")}`;
 	const seriesUsesDashSplit = seriesKind !== "bar";
@@ -691,6 +693,7 @@ function ChartMultiSeries({
 
 	const sharedAxes = (
 		<>
+			{showYAxis ? <CartesianGrid {...chartCartesianGridDefault} /> : null}
 			<XAxis
 				axisLine={false}
 				dataKey="date"
@@ -698,7 +701,18 @@ function ChartMultiSeries({
 				tick={hideXAxis ? false : chartAxisTickDefault}
 				tickLine={false}
 			/>
-			<YAxis domain={["dataMin", "dataMax"]} hide />
+			{showYAxis ? (
+				<YAxis
+					axisLine={false}
+					domain={[0, "auto"]}
+					tick={chartAxisTickDefault}
+					tickFormatter={formatNumber}
+					tickLine={false}
+					width={chartAxisYWidthDefault}
+				/>
+			) : (
+				<YAxis domain={["dataMin", "dataMax"]} hide />
+			)}
 			<Tooltip
 				content={(props) => (
 					<ChartTooltip
