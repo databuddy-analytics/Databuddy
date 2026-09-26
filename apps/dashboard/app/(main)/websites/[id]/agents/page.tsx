@@ -1,6 +1,6 @@
 "use client";
 
-import { dayjs, EmptyState, fromNow } from "@databuddy/ui";
+import { Button, dayjs, EmptyState, fromNow, StatusDot } from "@databuddy/ui";
 import { CopyButton } from "@databuddy/ui/client";
 import {
 	BrainIcon,
@@ -8,6 +8,7 @@ import {
 	GlobeIcon,
 	ListBulletsIcon,
 } from "@databuddy/ui/icons";
+import { useMutation } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
@@ -23,6 +24,7 @@ import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { formatNumber } from "@/lib/formatters";
+import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
 interface ProductRow {
@@ -202,9 +204,66 @@ function setupSnippet(websiteId: string): string {
 export { proxy } from "@databuddy/sdk/agents";
 
 // .env
-DATABUDDY_API_KEY=your_api_key
 NEXT_PUBLIC_DATABUDDY_CLIENT_ID=${websiteId}
 `;
+}
+
+function AgentSetup({
+	className,
+	websiteId,
+}: {
+	className?: string;
+	websiteId: string;
+}) {
+	const check = useMutation(orpc.websites.checkAgentSetup.mutationOptions());
+	const results = check.data
+		? [
+				{
+					label: "Homepage",
+					isRecorded: check.data.homepage,
+					hint: "deploy proxy.ts with NEXT_PUBLIC_DATABUDDY_CLIENT_ID set",
+				},
+				{
+					label: "llms.txt",
+					isRecorded: check.data.llmsTxt,
+					hint: "make sure your proxy matcher doesn't skip .txt files",
+				},
+			]
+		: [];
+
+	return (
+		<div className={cn("flex flex-col gap-2", className)}>
+			<div className="flex gap-2">
+				<CopyButton
+					label="Copy setup"
+					size="md"
+					value={setupSnippet(websiteId)}
+					variant="secondary"
+				/>
+				<Button
+					loading={check.isPending}
+					onClick={() => check.mutate({ websiteId })}
+					size="md"
+					variant="secondary"
+				>
+					Test setup
+				</Button>
+			</div>
+			{results.map((result) => (
+				<p className="flex items-center gap-1.5 text-xs" key={result.label}>
+					<StatusDot color={result.isRecorded ? "success" : "warning"} />
+					{result.isRecorded
+						? `${result.label} recorded`
+						: `${result.label} not recorded: ${result.hint}`}
+				</p>
+			))}
+			{check.isError ? (
+				<p className="text-destructive text-xs">
+					Couldn't run the check. Try again in a moment.
+				</p>
+			) : null}
+		</div>
+	);
 }
 
 function countsByProduct<TRow extends { date: string; product: string }>(
@@ -477,15 +536,8 @@ export default function AgentsPage() {
 		return (
 			<div className="flex h-full flex-col p-4">
 				<EmptyState
-					action={
-						<CopyButton
-							label="Copy setup"
-							size="md"
-							value={setupSnippet(websiteId)}
-							variant="secondary"
-						/>
-					}
-					description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers skip JavaScript, so add one line to your server to see them."
+					action={<AgentSetup className="items-center" websiteId={websiteId} />}
+					description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers skip JavaScript, so add one file to your site, deploy, then test it."
 					icon={<BrainIcon />}
 					isMainContent
 					title="No AI activity yet"
@@ -559,10 +611,13 @@ export default function AgentsPage() {
 					/>
 				) : null}
 
-				<p className="text-pretty text-muted-foreground text-xs">
-					Crawlers that don't run JavaScript, like GPTBot and ClaudeBot, only
-					appear once @databuddy/sdk/agents runs on your server.
-				</p>
+				<div className="space-y-2">
+					<p className="text-pretty text-muted-foreground text-xs">
+						Crawlers that don't run JavaScript, like GPTBot and ClaudeBot, only
+						appear once @databuddy/sdk/agents runs on your server.
+					</p>
+					<AgentSetup websiteId={websiteId} />
+				</div>
 			</div>
 		</div>
 	);
