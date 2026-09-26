@@ -277,9 +277,11 @@ const checkCertificate = (url: string) =>
 						() => {
 							const cert = socket.getPeerCertificate();
 							const trusted = socket.authorized;
+							const onlyExpired =
+								String(socket.authorizationError) === "CERT_HAS_EXPIRED";
 							socket.destroy();
 
-							if (!cert?.valid_to) {
+							if (!((trusted || onlyExpired) && cert?.valid_to)) {
 								resolve(fallback);
 								return;
 							}
