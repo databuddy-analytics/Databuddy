@@ -18,10 +18,7 @@ import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_STATES = new Set(["waiting", "active", "delayed", "prioritized"]);
-const PROVIDER_LOGOS: Record<string, string> = {
-	plausible: "Plausible",
-	"simple-analytics": "SimpleAnalytics",
-};
+const PROVIDERS_WITH_LOGOS = new Set(["plausible", "simple-analytics"]);
 const GRAIN_LABEL = {
 	event: "Full detail",
 	rollup: "Daily totals",
@@ -78,22 +75,22 @@ export default function ImportPage() {
 			return;
 		}
 
+		const contentType = file.name.endsWith(".csv")
+			? "text/csv"
+			: "application/zip";
+
 		try {
 			const { key, uploadUrl } = await createUpload.mutateAsync({
 				websiteId,
 				contentLength: file.size,
-				contentType: file.name.endsWith(".csv")
-					? "text/csv"
-					: "application/zip",
+				contentType,
 			});
 
 			const upload = await fetch(uploadUrl, {
 				method: "PUT",
 				body: file,
 				headers: {
-					"content-type": file.name.endsWith(".csv")
-						? "text/csv"
-						: "application/zip",
+					"content-type": contentType,
 					"content-length": String(file.size),
 				},
 			});
@@ -192,11 +189,11 @@ export default function ImportPage() {
 											variant="outline"
 										>
 											<div className="flex size-8 items-center justify-center rounded border bg-secondary">
-												{PROVIDER_LOGOS[provider.id] ? (
+												{PROVIDERS_WITH_LOGOS.has(provider.id) ? (
 													<Image
 														alt=""
 														height={20}
-														src={`/providers/${PROVIDER_LOGOS[provider.id]}.svg`}
+														src={`/providers/${provider.id}.svg`}
 														unoptimized
 														width={20}
 													/>
