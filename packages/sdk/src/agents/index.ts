@@ -1,8 +1,14 @@
-export interface AgentTrafficOptions {
+export interface TrackAgentsOptions {
 	apiKey?: string;
 	apiUrl?: string;
 	timeoutMs?: number;
 	websiteId?: string;
+}
+
+interface NodeRequest {
+	headers: Record<string, string | string[] | undefined>;
+	method?: string;
+	url?: string;
 }
 
 export const AI_AGENT_USER_AGENT =
@@ -19,6 +25,14 @@ function env(name: string): string | undefined {
 	return typeof process === "undefined" ? undefined : process.env[name];
 }
 
+function header(request: Request | NodeRequest, name: string): string {
+	if (request instanceof Request) {
+		return request.headers.get(name) ?? "";
+	}
+	const value = request.headers[name];
+	return (Array.isArray(value) ? value[0] : value) ?? "";
+}
+
 function contentFormat(
 	pathname: string,
 	accept: string
@@ -31,22 +45,23 @@ function contentFormat(
 		: "html";
 }
 
-export async function trackAgentTraffic(
-	request: Request,
-	options: AgentTrafficOptions = {}
+export async function trackAgents(
+	request: Request | NodeRequest,
+	options: TrackAgentsOptions = {}
 ): Promise<void> {
 	const apiKey = options.apiKey ?? env("DATABUDDY_API_KEY");
 	const websiteId =
 		options.websiteId ??
 		env("DATABUDDY_WEBSITE_ID") ??
 		env("NEXT_PUBLIC_DATABUDDY_CLIENT_ID");
-	const userAgent = request.headers.get("user-agent") ?? "";
-	const { pathname } = new URL(request.url);
+	const method = request.method ?? "GET";
+	const userAgent = header(request, "user-agent");
+	const { pathname } = new URL(request.url ?? "/", "http://localhost");
 	if (
 		!(
 			apiKey &&
 			websiteId &&
-			(request.method === "GET" || request.method === "HEAD") &&
+			(method === "GET" || method === "HEAD") &&
 			AI_AGENT_USER_AGENT.test(userAgent)
 		) ||
 		ASSET_PATH.test(pathname)
@@ -62,10 +77,17 @@ export async function trackAgentTraffic(
 		body: JSON.stringify({
 			websiteId,
 			path: pathname,
-			format: contentFormat(pathname, request.headers.get("accept") ?? ""),
+			format: contentFormat(pathname, header(request, "accept")),
 			userAgent,
-			referrer: request.headers.get("referer") ?? undefined,
+			referrer: header(request, "referer") || undefined,
 		}),
 		signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
 	}).catch(() => undefined);
+}
+
+export function proxy(
+	request: Request,
+	event: { waitUntil(promise: Promise<unknown>): void }
+): void {
+	event.waitUntil(trackAgents(request));
 }

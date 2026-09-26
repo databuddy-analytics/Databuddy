@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
 import { AI_AGENTS } from "@databuddy/shared/bot-detection/ai-agents";
-import { AI_AGENT_USER_AGENT, trackAgentTraffic } from "../src/agents/index";
+import { AI_AGENT_USER_AGENT, proxy, trackAgents } from "../src/agents/index";
 
 const GPTBOT =
 	"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)";
@@ -40,7 +40,7 @@ afterEach(() => {
 	process.env = { ...originalEnv };
 });
 
-describe("trackAgentTraffic", () => {
+describe("trackAgents", () => {
 	it("recognizes exactly the shared registry's agents", () => {
 		const registry = AI_AGENTS.flatMap((agent) =>
 			agent.patterns.map((pattern) => pattern.source)
@@ -65,17 +65,42 @@ describe("trackAgentTraffic", () => {
 		["/logo.PNG", {}, null],
 	])("reports %s %o as %o", async (path, init, expected) => {
 		const bodies = captureBodies();
-		await trackAgentTraffic(request(path, init), OPTIONS);
+		await trackAgents(request(path, init), OPTIONS);
 		expect(bodies[0] ?? null).toEqual(
 			expected ? expect.objectContaining(expected) : null
 		);
+	});
+
+	it("accepts a Node or Express request", async () => {
+		const bodies = captureBodies();
+		await trackAgents(
+			{
+				headers: { "user-agent": CLAUDE_CODE, accept: "text/markdown" },
+				method: "GET",
+				url: "/docs/intro?ref=cli",
+			},
+			OPTIONS
+		);
+		expect(bodies).toEqual([
+			expect.objectContaining({ format: "markdown", path: "/docs/intro" }),
+		]);
+	});
+
+	it("hands the request to waitUntil when used as a drop-in proxy", async () => {
+		process.env.DATABUDDY_API_KEY = "dbdy_env";
+		process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID = "site_env";
+		const bodies = captureBodies();
+		const pending: Promise<unknown>[] = [];
+		proxy(request("/llms.txt"), { waitUntil: (p) => pending.push(p) });
+		await Promise.all(pending);
+		expect(bodies).toEqual([expect.objectContaining({ format: "llms" })]);
 	});
 
 	it("reads the key and site id from the environment", async () => {
 		process.env.DATABUDDY_API_KEY = "dbdy_env";
 		process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID = "site_env";
 		const bodies = captureBodies();
-		await trackAgentTraffic(request("/pricing"));
+		await trackAgents(request("/pricing"));
 		expect(bodies).toEqual([
 			expect.objectContaining({ websiteId: "site_env" }),
 		]);
@@ -84,7 +109,7 @@ describe("trackAgentTraffic", () => {
 	it("sends nothing without a key", async () => {
 		process.env.DATABUDDY_API_KEY = "";
 		const bodies = captureBodies();
-		await trackAgentTraffic(request("/pricing"), { websiteId: "site_1" });
+		await trackAgents(request("/pricing"), { websiteId: "site_1" });
 		expect(bodies).toEqual([]);
 	});
 
@@ -93,7 +118,7 @@ describe("trackAgentTraffic", () => {
 			Promise.reject(new Error("network down"))
 		) as typeof fetch;
 		await expect(
-			trackAgentTraffic(request("/pricing"), OPTIONS)
+			trackAgents(request("/pricing"), OPTIONS)
 		).resolves.toBeUndefined();
 	});
 });
