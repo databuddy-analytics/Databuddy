@@ -341,7 +341,6 @@ export async function recoverStaleInsightRuns(now = new Date()) {
 		recoveredReplies: replies.recovered,
 		scannedItems: items.length,
 		scannedReplies: replies.scanned,
-		scannedRuns: runIds.size,
 		syncedRuns: runIds.size,
 	};
 }

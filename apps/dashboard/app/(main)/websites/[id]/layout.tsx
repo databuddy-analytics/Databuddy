@@ -52,7 +52,6 @@ const ROUTES_WITHOUT_ANALYTICS_TOOLBAR = new Set([
 	"flags",
 	"map",
 	"pulse",
-	"realtime",
 	"settings",
 	"users",
 ]);

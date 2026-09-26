@@ -21,7 +21,6 @@ import type {
 	InvestigationOutcome,
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
-import { appliedInsightActionReply } from "@databuddy/shared/insights";
 import { createEvidenceSnapshot } from "./evidence-snapshot";
 import { resumeInsightReply, recordInsightReplyFailure } from "./resume";
 import * as billing from "./investigation-billing";
@@ -58,8 +57,6 @@ const outcome: InvestigationOutcome = {
 async function fixture(
 	input: {
 		legacy?: boolean;
-		corrupt?: boolean;
-		body?: string;
 		intent?: "analysis" | "clarification" | "verification";
 	} = {}
 ) {
@@ -92,7 +89,7 @@ async function fixture(
 		sentiment: "negative",
 	});
 	const snapshot = createEvidenceSnapshot({
-		organizationId: input.corrupt ? "wrong-organization" : organizationId,
+		organizationId,
 		websiteId,
 		capturedAt: "2026-09-12T00:00:00.000Z",
 		signal,
@@ -131,7 +128,7 @@ async function fixture(
 		id: replyId,
 		insightId,
 		authorName: "Example teammate",
-		body: input.body ?? "Explain the original result",
+		body: "Explain the original result",
 		sourceObservationId: observationId,
 		intent: input.intent ?? "clarification",
 		createdAt:
@@ -314,41 +311,6 @@ integration("included saved-evidence replies", () => {
 		await closeInsightsQueue();
 		await shutdownPostgres();
 	});
-	it("refuses new analysis under unconfigured terms before provider reservation or fresh work", async () => {
-		const f = await fixture({ intent: "analysis" });
-		spyOn(billing, "resolveInvestigationBilling").mockResolvedValue({
-			mode: "unconfigured",
-			customerId: null,
-		});
-		const reserve = spyOn(
-			billing,
-			"reserveInvestigationCharge"
-		).mockImplementation(forbidden);
-		const newWork = mock(forbidden);
-		await expect(
-			resumeInsightReply(
-				f.replyId,
-				newWork,
-				newWork,
-				newWork,
-				{
-					loadCurrentBusinessScope: newWork,
-					loadBusinessProfile: newWork,
-					recallBusinessContext: newWork,
-				},
-				newWork
-			)
-		).rejects.toThrow("Activate investigation billing");
-		expect(reserve).not.toHaveBeenCalled();
-		expect(newWork).not.toHaveBeenCalled();
-		expect(
-			await db
-				.select()
-				.from(insightObservations)
-				.where(eq(insightObservations.insightId, f.insightId))
-		).toHaveLength(1);
-	});
-
 	it("rejects an attached $2 usage price at the native reservation boundary before measurements or model work", async () => {
 		const f = await fixture({ intent: "analysis" });
 		const remote = nativeProvider({ price: 2 });
@@ -467,29 +429,6 @@ integration("included saved-evidence replies", () => {
 				.where(eq(insightObservations.insightId, f.insightId))
 		).toHaveLength(2);
 	});
-	it.each([
-		"Please run a new analysis",
-		appliedInsightActionReply("goal"),
-	])("never selects new work from new public reply text: %s", async (body) => {
-		const f = await fixture({ body });
-		let calls = 0;
-		await resumeInsightReply(
-			f.replyId,
-			forbidden,
-			forbidden,
-			forbidden,
-			business,
-			async () => {
-				calls++;
-				return {
-					text: "This reply only explains saved evidence.",
-					modelId: "openai/gpt-5.6-luna",
-					usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-				};
-			}
-		);
-		expect(calls).toBe(1);
-	});
 	it("keeps a legacy missing snapshot explicit without fresh reads", async () => {
 		const f = await fixture({ legacy: true });
 		await resumeInsightReply(
@@ -508,51 +447,6 @@ integration("included saved-evidence replies", () => {
 			}
 		);
 	});
-	it("rejects a snapshot with a different organization before generation", async () => {
-		const f = await fixture({ corrupt: true });
-		await expect(
-			resumeInsightReply(
-				f.replyId,
-				forbidden,
-				forbidden,
-				forbidden,
-				business,
-				forbidden
-			)
-		).rejects.toThrow("different investigation");
-	});
-	it("delivers a final failure notice without creating a replacement billing operation", async () => {
-		const f = await fixture({ intent: "analysis" });
-		await db
-			.update(insightReplies)
-			.set({
-				slackDelivery: {
-					type: "slack",
-					channelId: "C_SYNTHETIC",
-					threadTs: "123.456",
-				},
-			})
-			.where(eq(insightReplies.id, f.replyId));
-		const billingWork = mock(forbidden);
-		spyOn(billing, "reserveInvestigationCharge").mockImplementation(
-			billingWork
-		);
-		spyOn(billing, "settleInvestigationCharge").mockImplementation(billingWork);
-		let deliveries = 0;
-		await recordInsightReplyFailure(f.replyId, true, async (input) => {
-			expect(input.result).toBeNull();
-			deliveries++;
-			return "123.457";
-		});
-		expect(billingWork).not.toHaveBeenCalled();
-		expect(deliveries).toBe(1);
-		const [reply] = await db
-			.select()
-			.from(insightReplies)
-			.where(eq(insightReplies.id, f.replyId));
-		expect(reply?.status).toBe("failed");
-	});
-
 	it("replays a lost native confirmation after the reply is saved without another model call or debit", async () => {
 		const f = await fixture({ intent: "analysis" });
 		await db

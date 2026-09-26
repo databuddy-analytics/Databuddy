@@ -81,6 +81,15 @@ const nextConfig: NextConfig = {
 	},
 	transpilePackages: [],
 	output: process.env.VERCEL ? undefined : "standalone",
+	async redirects() {
+		return [
+			{
+				source: "/websites/:id/realtime",
+				destination: "/websites/:id/map",
+				permanent: true,
+			},
+		];
+	},
 	async headers() {
 		const securityHeaders = [
 			{

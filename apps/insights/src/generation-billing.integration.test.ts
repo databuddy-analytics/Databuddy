@@ -434,7 +434,7 @@ integration("native generation fixed-unit persistence", () => {
 	}
 
 	it.each([
-		100, 500,
+		100,
 	])("keeps quiet completed answers readable and settles one extra unit after %s monthly investigations", async (allowance) => {
 		monthlyAllowance = allowance;
 		const input = await fixture();

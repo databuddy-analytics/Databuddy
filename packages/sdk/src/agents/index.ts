@@ -1,9 +1,13 @@
-export interface AgentTrafficOptions {
-	apiKey: string;
+export interface TrackAgentsOptions {
 	apiUrl?: string;
-	ip?: string;
 	timeoutMs?: number;
-	websiteId: string;
+	websiteId?: string;
+}
+
+interface NodeRequest {
+	headers: Record<string, string | string[] | undefined>;
+	method?: string;
+	url?: string;
 }
 
 export const AI_AGENT_USER_AGENT =
@@ -11,27 +15,53 @@ export const AI_AGENT_USER_AGENT =
 
 const ASSET_PATH =
 	/^\/_next\/|\.(?:js|mjs|css|map|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|eot|mp4|webm|mp3|wav|pdf|zip)$/i;
+const LLMS_TXT_PATH = /\/llms(-full)?\.txt$/i;
+const MARKDOWN_PATH = /\.mdx?$/i;
 const DEFAULT_API_URL = "https://basket.databuddy.cc";
 const DEFAULT_TIMEOUT_MS = 3000;
 
-function getClientIp(request: Request): string {
-	const { headers } = request;
-	if ("cf" in request) {
-		return headers.get("cf-connecting-ip") ?? "";
-	}
-	const forwardedByProxy = headers.get("x-forwarded-for")?.split(",").at(-1);
-	return forwardedByProxy?.trim() || headers.get("x-real-ip") || "";
+function env(name: string): string | undefined {
+	return typeof process === "undefined" ? undefined : process.env[name];
 }
 
-export async function trackAgentTraffic(
-	request: Request,
-	options: AgentTrafficOptions
+function header(request: Request | NodeRequest, name: string): string {
+	if (request instanceof Request) {
+		return request.headers.get(name) ?? "";
+	}
+	const value = request.headers[name];
+	return (Array.isArray(value) ? value[0] : value) ?? "";
+}
+
+function contentFormat(
+	pathname: string,
+	accept: string
+): "llms" | "markdown" | "html" {
+	if (LLMS_TXT_PATH.test(pathname)) {
+		return "llms";
+	}
+	return MARKDOWN_PATH.test(pathname) || accept.includes("text/markdown")
+		? "markdown"
+		: "html";
+}
+
+export async function trackAgents(
+	request: Request | NodeRequest,
+	options: TrackAgentsOptions = {}
 ): Promise<void> {
-	const userAgent = request.headers.get("user-agent") ?? "";
-	const { pathname } = new URL(request.url);
+	const websiteId =
+		options.websiteId ??
+		env("DATABUDDY_WEBSITE_ID") ??
+		env("NEXT_PUBLIC_DATABUDDY_CLIENT_ID");
+	const method = request.method ?? "GET";
+	const userAgent = header(request, "user-agent");
+	const { host, pathname } = new URL(
+		request.url ?? "/",
+		`http://${header(request, "host") || "localhost"}`
+	);
 	if (
 		!(
-			(request.method === "GET" || request.method === "HEAD") &&
+			websiteId &&
+			(method === "GET" || method === "HEAD") &&
 			AI_AGENT_USER_AGENT.test(userAgent)
 		) ||
 		ASSET_PATH.test(pathname)
@@ -40,17 +70,22 @@ export async function trackAgentTraffic(
 	}
 	await fetch(`${options.apiUrl ?? DEFAULT_API_URL}/ai-traffic`, {
 		method: "POST",
-		headers: {
-			Authorization: `Bearer ${options.apiKey}`,
-			"Content-Type": "application/json",
-		},
+		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({
-			websiteId: options.websiteId,
+			websiteId,
+			host,
 			path: pathname,
+			format: contentFormat(pathname, header(request, "accept")),
 			userAgent,
-			ip: options.ip ?? getClientIp(request),
-			referrer: request.headers.get("referer") ?? undefined,
+			referrer: header(request, "referer") || undefined,
 		}),
 		signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
 	}).catch(() => undefined);
+}
+
+export function proxy(
+	request: Request,
+	event: { waitUntil(promise: Promise<unknown>): void }
+): void {
+	event.waitUntil(trackAgents(request));
 }

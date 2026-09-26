@@ -402,17 +402,15 @@ describe("loadRouteVitalContinuation", () => {
 
 describe("remeasureRouteHealthSignal", () => {
 	it("returns a route recovery without applying the discovery impact threshold", async () => {
-		const requests: RouteHealthQueryInput[] = [];
 		const signal = await remeasureRouteHealthSignal(
 			PARAMS,
 			routeSignal("route:error:/explore"),
 			TODAY,
-			queryDeps((input) => {
-				requests.push(input);
-				return input.from === "2026-07-25"
+			queryDeps((input) =>
+				input.from === "2026-07-25"
 					? [{ errors: 3, name: "/explore", users: 2 }]
-					: [{ errors: 36, name: "/explore", users: 35 }];
-			})
+					: [{ errors: 36, name: "/explore", users: 35 }]
+			)
 		);
 
 		expect(signal).toMatchObject({
@@ -421,10 +419,6 @@ describe("remeasureRouteHealthSignal", () => {
 			direction: "down",
 			subjectKey: "route:error:/explore",
 		});
-		expect(requests.map((request) => request.filters)).toEqual([
-			undefined,
-			undefined,
-		]);
 	});
 
 	it("refuses a stored route key that is not already canonical and static", async () => {

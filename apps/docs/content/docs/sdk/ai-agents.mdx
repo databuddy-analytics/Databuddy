@@ -1,0 +1,108 @@
+---
+title: AI Agents
+description: See which AI products read your site, which pages and formats they fetch, and how many visitors they send
+---
+
+import { Callout, CodeBlock } from "@/components/docs";
+
+The AI Agents page shows ChatGPT, Claude, Perplexity, Gemini, Meta AI, Claude Code and other AI products: the pages they read, whether they fetched HTML, markdown or `llms.txt`, and the visitors they sent you.
+
+Agents that run JavaScript and visitors referred by AI assistants show up automatically through the Databuddy script. Crawlers and coding agents like GPTBot, ClaudeBot and Claude Code don't run JavaScript, so they only show up once `@databuddy/sdk/agents` runs on your server.
+
+<Callout type="info">
+  **Package**: `@databuddy/sdk` | **Import**: `@databuddy/sdk/agents`
+</Callout>
+
+## Setup
+
+No API key is needed, only your website ID. If you already use the Databuddy SDK, it's set:
+
+<CodeBlock language="bash">
+  {`NEXT_PUBLIC_DATABUDDY_CLIENT_ID=your_website_id`}
+</CodeBlock>
+
+`DATABUDDY_WEBSITE_ID` also works. Requests are only recorded when they come from your website's domain or one of its allowed origins, so local development never shows up.
+
+### Next.js and Fumadocs
+
+If you don't have a proxy yet, create `proxy.ts` (Next.js 16) next to your `app` folder:
+
+<CodeBlock language="ts">
+  {`export { proxy } from "@databuddy/sdk/agents";`}
+</CodeBlock>
+
+On Next.js 15, create `middleware.ts` instead:
+
+<CodeBlock language="ts">
+  {`export { proxy as middleware } from "@databuddy/sdk/agents";`}
+</CodeBlock>
+
+If you already have a proxy, add one line to it:
+
+<CodeBlock language="ts">
+  {`import { trackAgents } from "@databuddy/sdk/agents";
+import { type NextFetchEvent, type NextRequest, NextResponse } from "next/server";
+
+export function proxy(request: NextRequest, event: NextFetchEvent) {
+  event.waitUntil(trackAgents(request));
+  return NextResponse.next();
+}`}
+</CodeBlock>
+
+<Callout type="warn">
+  If your proxy has a `matcher`, make sure it doesn't exclude `.md` and `.txt` paths. Those are the markdown pages and `llms.txt` files AI tools fetch most.
+</Callout>
+
+Fumadocs sites need nothing extra. Markdown requested through a `.md` URL or an `Accept: text/markdown` header is recorded as markdown, and `llms.txt` and `llms-full.txt` are recorded on their own.
+
+### Vercel (any framework)
+
+For Vite, Astro or any other site on Vercel, add `middleware.ts` at the project root:
+
+<CodeBlock language="ts">
+  {`export { proxy as default } from "@databuddy/sdk/agents";`}
+</CodeBlock>
+
+### Cloudflare Workers, Hono and other fetch handlers
+
+<CodeBlock language="ts">
+  {`import { trackAgents } from "@databuddy/sdk/agents";
+
+export default {
+  async fetch(request, env, ctx) {
+    ctx.waitUntil(trackAgents(request, { websiteId: "your_website_id" }));
+    return fetch(request);
+  },
+};`}
+</CodeBlock>
+
+Workers don't have `process.env`, so pass the website ID as an option.
+
+### Express and Node
+
+<CodeBlock language="ts">
+  {`import { trackAgents } from "@databuddy/sdk/agents";
+
+app.use((req, _res, next) => {
+  trackAgents(req);
+  next();
+});`}
+</CodeBlock>
+
+## What gets recorded
+
+`trackAgents` only reports `GET` and `HEAD` requests from known AI products, and skips images, scripts, styles and fonts. Each request records the page path without its query string, the agent, and the format served:
+
+| Format | When |
+| --- | --- |
+| Markdown | The path ends in `.md` or `.mdx`, or the request accepts `text/markdown` |
+| llms.txt | The path is `llms.txt` or `llms-full.txt` |
+| HTML | Anything else |
+
+It never throws and never delays your response: requests to Databuddy run in the background and time out after 3 seconds.
+
+## Test your setup
+
+Deploy, then open the AI Agents page in your dashboard and click **Test setup**. Databuddy requests your homepage and `/llms.txt` as GPTBot and tells you whether each request was recorded. Test requests never show up in your data.
+
+Static hosts without middleware (GitHub Pages, S3) and hosted docs platforms that don't let you run code can't report crawler requests.
