@@ -1,8 +1,22 @@
 "use client";
 
+import { fromNow } from "@databuddy/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { AiProductIcon } from "@/components/icon";
 import { formatNumber } from "@/lib/formatters";
+
+export interface ProductRow {
+	last_seen: string;
+	on_demand: number;
+	pages: number;
+	product: string;
+	requests: number;
+	search_index: number;
+	training: number;
+	visitors: number;
+}
+
+export const NEVER_SEEN = "1970";
 
 export interface AgentPageRow {
 	name: string;
@@ -56,4 +70,52 @@ export const pageColumns: ColumnDef<AgentPageRow>[] = [
 	numberColumn("requests", "AI requests"),
 	numberColumn("pageviews", "Human views"),
 	numberColumn("visitors", "AI visitors"),
+];
+
+function productNumberColumn(
+	key: "requests" | "pages" | "visitors",
+	header: string
+): ColumnDef<ProductRow & { name: string }> {
+	return {
+		id: key,
+		accessorKey: key,
+		header,
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground tabular-nums">
+				{formatNumber((getValue() as number) ?? 0)}
+			</span>
+		),
+	};
+}
+
+export const otherProductColumns: ColumnDef<ProductRow & { name: string }>[] = [
+	{
+		id: "name",
+		accessorKey: "name",
+		header: "Product",
+		cell: ({ row }) => (
+			<div className="flex min-w-0 items-center gap-2">
+				<AiProductIcon name={row.original.name} size="sm" />
+				<span className="truncate font-medium text-[15px]">
+					{row.original.name}
+				</span>
+			</div>
+		),
+	},
+	productNumberColumn("requests", "Requests"),
+	productNumberColumn("pages", "Pages read"),
+	productNumberColumn("visitors", "Visitors sent"),
+	{
+		id: "last_seen",
+		accessorKey: "last_seen",
+		header: "Last read",
+		cell: ({ getValue }) => {
+			const value = getValue() as string;
+			return (
+				<span className="text-[15px] text-muted-foreground">
+					{value.startsWith(NEVER_SEEN) ? "Never" : fromNow(value)}
+				</span>
+			);
+		},
+	},
 ];

@@ -70,7 +70,6 @@ const AI_ICONS = [
 	"ByteDance",
 	"ChatGPT",
 	"Claude",
-	"Copilot",
 	"Cursor",
 	"DeepSeek",
 	"DuckDuckGo",
@@ -80,7 +79,7 @@ const AI_ICONS = [
 	"Mistral",
 	"Perplexity",
 ];
-const MONOCHROME_AI_ICONS = new Set(["Apple", "ChatGPT", "Copilot", "Cursor"]);
+const MONOCHROME_AI_ICONS = new Set(["Apple", "ChatGPT", "Cursor"]);
 
 const BROWSER_ICONS = Object.keys(BROWSER_ICON_EXT);
 const OS_ICONS = Object.keys(OS_ICON_EXT);
