@@ -1,4 +1,4 @@
-import { BaseTracker, type QueueMeta } from "./core/tracker";
+import { BaseTracker, type QueuedItem, type QueueMeta } from "./core/tracker";
 import type {
 	EngagementSpan,
 	ProfileTraits,
@@ -226,9 +226,9 @@ export class Databuddy extends BaseTracker {
 		});
 	}
 
-	private flushQueueViaBeacon(queue: unknown[], meta: QueueMeta): void {
+	private flushQueueViaBeacon(queue: QueuedItem[], meta: QueueMeta): void {
 		while (queue.length > 0) {
-			const chunk: unknown[] = [];
+			const chunk: QueuedItem[] = [];
 			let payloadBytes = 2;
 			let queueIndex = 0;
 			while (queueIndex < queue.length && chunk.length < meta.maxBatchSize) {
