@@ -48,6 +48,24 @@ type PageResult = Omit<AgentPageRow, "name"> & { page: string };
 const CHART_PRODUCTS = 4;
 const NON_ID_CHARS = /[^a-zA-Z0-9_-]/g;
 
+const FOREGROUND = "var(--color-foreground)";
+const PRODUCT_COLORS: Record<string, string> = {
+	Apple: FOREGROUND,
+	ByteDance: "#3C8CFF",
+	ChatGPT: FOREGROUND,
+	Claude: "#D97757",
+	"Claude Code": "#D97757",
+	Cursor: FOREGROUND,
+	DeepSeek: "#5786FE",
+	DuckDuckGo: "#DE5833",
+	"Gemini CLI": "#8E75B2",
+	"Google Gemini": "#8E75B2",
+	Huawei: "#FF0000",
+	"Meta AI": "#0467DF",
+	Mistral: "#FA520F",
+	Perplexity: "#1FB8CD",
+};
+
 const FAVICON_FALLBACKS: Record<string, string> = {
 	"Microsoft Copilot": "copilot.microsoft.com",
 };
@@ -144,6 +162,7 @@ function ProductCard({ row, trend }: { row: ProductRow; trend: TrendPoint[] }) {
 				</p>
 				<div className="my-1.5 h-9">
 					<Chart.SingleSeries
+						color={PRODUCT_COLORS[row.product]}
 						data={trend}
 						height={36}
 						id={`ai-product-${row.product.replace(NON_ID_CHARS, "-")}`}
