@@ -130,6 +130,22 @@ function emptyProduct(product: string): ProductRow {
 	};
 }
 
+function ProductCardSkeleton() {
+	return (
+		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
+			<div className="flex items-center gap-2.5">
+				<Skeleton className="size-7 rounded" />
+				<Skeleton className="h-4 w-24" />
+			</div>
+			<div>
+				<Skeleton className="h-7 w-28" />
+				<Skeleton className="my-1.5 h-9 w-full" />
+				<Skeleton className="h-4 w-40" />
+			</div>
+		</div>
+	);
+}
+
 function ProductCard({ row, trend }: { row: ProductRow; trend: TrendPoint[] }) {
 	const purpose = mainPurpose(row);
 	const isActive = row.requests > 0 || row.visitors > 0;
@@ -313,7 +329,7 @@ export default function AgentsPage() {
 				<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-3">
 					{isLoading
 						? FEATURED_PRODUCTS.map((name) => (
-								<Skeleton className="h-[104px] rounded-lg" key={name} />
+								<ProductCardSkeleton key={name} />
 							))
 						: featured.map((row) => (
 								<ProductCard
@@ -324,7 +340,7 @@ export default function AgentsPage() {
 							))}
 				</div>
 
-				{chart.metrics.length > 0 ? (
+				{isLoading || chart.metrics.length > 0 ? (
 					<SimpleMetricsChart
 						data={chart.data}
 						description="Requests from each AI product's crawlers and agents"
@@ -334,6 +350,7 @@ export default function AgentsPage() {
 						metrics={chart.metrics}
 						partialLastSegment
 						seriesKind={chartType}
+						showYAxis
 						title="AI requests"
 					/>
 				) : null}
@@ -347,7 +364,7 @@ export default function AgentsPage() {
 					title="Pages"
 				/>
 
-				{others.length > 0 ? (
+				{isLoading || others.length > 0 ? (
 					<DataTable
 						columns={otherProductColumns}
 						data={others}
