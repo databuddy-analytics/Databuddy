@@ -173,7 +173,7 @@ export default async function ChangelogPage() {
 							aria-hidden
 							className="shrink-0"
 							height={16}
-							src="/notra.svg"
+							src="/social/notra.svg"
 							width={16}
 						/>
 						<span className="font-medium text-xs tracking-wide">Notra</span>

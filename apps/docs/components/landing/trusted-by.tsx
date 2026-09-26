@@ -70,7 +70,7 @@ const companies = [
 	{
 		name: "Notra",
 		url: "https://www.usenotra.com",
-		logo: "/notra.svg",
+		logo: "/social/notra.svg",
 		markOnly: true,
 	},
 ];
@@ -78,7 +78,13 @@ const companies = [
 const half = Math.ceil(companies.length / 2);
 const companyRows = [companies.slice(0, half), companies.slice(half)];
 
-const devTeams = ["CodeRabbit", "OpenAI", "Vercel", "Supabase", "Upstash"];
+const devTeams = [
+	{ name: "CodeRabbit", logo: "/social/coderabbit.svg" },
+	{ name: "OpenAI", logo: "/social/openai.svg" },
+	{ name: "Vercel", logo: "/social/vercel.svg" },
+	{ name: "Supabase", logo: "/social/supabase.svg" },
+	{ name: "Upstash", logo: "/social/upstash.svg" },
+];
 
 function CompanyCard({ company }: { company: (typeof companies)[number] }) {
 	return (
@@ -109,7 +115,7 @@ function CompanyCard({ company }: { company: (typeof companies)[number] }) {
 			</div>
 			{company.ycBatch && (
 				<span className="absolute top-2 right-2 flex items-center gap-1 rounded bg-primary/10 py-0.5 pr-1.5 pl-0.5 font-mono text-[9px] text-primary leading-none">
-					<img
+					<Image
 						alt="Y Combinator"
 						className="size-3 rounded-[2px]"
 						height={12}
@@ -132,15 +138,20 @@ export function TrustedBy() {
 
 			<div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-5 sm:gap-x-12">
 				{devTeams.map((team) => (
-					<div className="flex items-center gap-2.5 text-foreground" key={team}>
-						<img
-							alt={team}
-							className="size-5 rounded-sm invert sm:size-6"
+					<div
+						className="flex items-center gap-2.5 text-foreground"
+						key={team.name}
+					>
+						<Image
+							alt=""
+							className="size-5 invert sm:size-6"
 							height={24}
-							src={`https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${team.toLowerCase()}.svg`}
+							src={team.logo}
 							width={24}
 						/>
-						<span className="font-medium text-sm sm:text-base">{team}</span>
+						<span className="font-medium text-sm sm:text-base">
+							{team.name}
+						</span>
 					</div>
 				))}
 			</div>
