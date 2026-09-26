@@ -2131,7 +2131,11 @@ export function groupActions(
 			follow(unit, callback);
 		}
 		if (root.link) {
-			evidence(unit, root.link, 0);
+			const value = unwrap(root.link);
+			const target = ts.isIdentifier(value)
+				? resolve(unit, value.text, value, issues)
+				: undefined;
+			evidence(target?.unit ?? unit, target?.node ?? root.link, 0);
 		}
 		if (root.component) {
 			const resolved = resolve(unit, root.component, root.node, issues);
