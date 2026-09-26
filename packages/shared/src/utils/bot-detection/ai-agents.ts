@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AI_PRODUCT_BY_OPERATOR } from "./types";
 import wellKnownBots from "./well-known-bots.json";
 
 export type AgentPurpose = "training" | "search_index" | "user_fetch" | "agent";
@@ -101,14 +102,6 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"webzio-crawler-ai": { operator: "Webz.io", purpose: "training" },
 	"you-crawler": { operator: "You.com", purpose: "search_index" },
 	"zanista-bot": { operator: "Zanista", purpose: "search_index" },
-};
-
-const AI_PRODUCT_BY_OPERATOR: Record<string, string> = {
-	Anthropic: "Claude",
-	Google: "Google Gemini",
-	Meta: "Meta AI",
-	Microsoft: "Microsoft Copilot",
-	OpenAI: "ChatGPT",
 };
 
 function aiProductOf(operator: string): string {

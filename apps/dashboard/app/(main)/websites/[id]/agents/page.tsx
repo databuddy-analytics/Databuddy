@@ -10,6 +10,11 @@ import {
 } from "@databuddy/ui/icons";
 import { useMutation } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
+import {
+	CONTENT_FORMATS,
+	type ContentFormat,
+	FEATURED_AI_PRODUCTS,
+} from "@databuddy/shared/bot-detection/types";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
@@ -17,8 +22,7 @@ import {
 	Chart,
 	type ChartMultiSeriesDataPoint,
 } from "@/components/ui/composables/chart";
-import { FaviconImage } from "@/components/analytics/favicon-image";
-import { AiProductIcon } from "@/components/icon";
+import { AiProductIcon, aiProductColor } from "@/components/icon";
 import { DataTable } from "@/components/table/data-table";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
@@ -26,6 +30,23 @@ import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { formatNumber } from "@/lib/formatters";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
+
+const FORMATS: Record<
+	ContentFormat,
+	{ description: string; icon: typeof GlobeIcon; label: string }
+> = {
+	markdown: {
+		description: ".md pages and markdown requests",
+		icon: FileTextIcon,
+		label: "Markdown",
+	},
+	llms: {
+		description: "llms.txt and llms-full.txt",
+		icon: ListBulletsIcon,
+		label: "llms.txt",
+	},
+	html: { description: "Regular web pages", icon: GlobeIcon, label: "HTML" },
+};
 
 interface ProductRow {
 	last_seen: string;
@@ -40,14 +61,8 @@ interface ProductRow {
 
 const NEVER_SEEN = "1970";
 
-const FORMAT_LABELS: Record<string, string> = {
-	html: "HTML",
-	llms: "llms.txt",
-	markdown: "Markdown",
-};
-
 interface AgentPageRow {
-	format: string | null;
+	format: ContentFormat | null;
 	name: string;
 	pageviews: number;
 	products: string[];
@@ -103,10 +118,10 @@ const pageColumns: ColumnDef<AgentPageRow>[] = [
 		accessorKey: "format",
 		header: "Format",
 		cell: ({ getValue }) => {
-			const format = getValue() as string | null;
+			const format = getValue() as ContentFormat | null;
 			return (
 				<span className="text-[15px] text-muted-foreground">
-					{format ? (FORMAT_LABELS[format] ?? format) : ""}
+					{format ? FORMATS[format].label : ""}
 				</span>
 			);
 		},
@@ -147,7 +162,7 @@ const otherProductColumns: ColumnDef<ProductRow & { name: string }>[] = [
 ];
 
 interface FormatRow {
-	format: string;
+	format: ContentFormat;
 	pages: number;
 	products: string[];
 	requests: number;
@@ -169,35 +184,6 @@ type PageResult = Omit<AgentPageRow, "name"> & { page: string };
 const NON_ID_CHARS = /[^a-zA-Z0-9_-]/g;
 
 const CHART_PRODUCTS = 4;
-const FOREGROUND = "var(--color-foreground)";
-const PRODUCT_COLORS: Record<string, string> = {
-	Apple: FOREGROUND,
-	ByteDance: "#3C8CFF",
-	ChatGPT: FOREGROUND,
-	Claude: "#D97757",
-	"Claude Code": "#D97757",
-	Cursor: FOREGROUND,
-	DeepSeek: "#5786FE",
-	DuckDuckGo: "#DE5833",
-	"Gemini CLI": "#8E75B2",
-	"Google Gemini": "#8E75B2",
-	Huawei: "#FF0000",
-	"Meta AI": "#0467DF",
-	Mistral: "#FA520F",
-	Perplexity: "#1FB8CD",
-};
-
-const FAVICON_FALLBACKS: Record<string, string> = {
-	"Microsoft Copilot": "copilot.microsoft.com",
-};
-const FEATURED_PRODUCTS = [
-	"ChatGPT",
-	"Claude",
-	"Google Gemini",
-	"Perplexity",
-	"Microsoft Copilot",
-	"Meta AI",
-];
 
 function setupSnippet(websiteId: string): string {
 	return `// proxy.ts
@@ -266,20 +252,6 @@ function AgentSetup({
 	);
 }
 
-function countsByProduct<TRow extends { date: string; product: string }>(
-	rows: TRow[],
-	value: (row: TRow) => number,
-	bucketFormat: string
-): Map<string, Map<string, number>> {
-	const counts = new Map<string, Map<string, number>>();
-	for (const row of rows) {
-		const byBucket = counts.get(row.product) ?? new Map<string, number>();
-		byBucket.set(dayjs(row.date).format(bucketFormat), value(row));
-		counts.set(row.product, byBucket);
-	}
-	return counts;
-}
-
 function mainPurpose(row: ProductRow): string | null {
 	const purposes = [
 		{ label: "training", value: row.training },
@@ -302,30 +274,16 @@ function emptyProduct(product: string): ProductRow {
 	};
 }
 
-const FORMATS = [
-	{
-		description: ".md pages and markdown requests",
-		format: "markdown",
-		icon: FileTextIcon,
-	},
-	{
-		description: "llms.txt and llms-full.txt",
-		format: "llms",
-		icon: ListBulletsIcon,
-	},
-	{ description: "Regular web pages", format: "html", icon: GlobeIcon },
-];
-
 function FormatCard({
 	format,
 	isLoading,
 	row,
 }: {
-	format: (typeof FORMATS)[number];
+	format: ContentFormat;
 	isLoading: boolean;
 	row: FormatRow | undefined;
 }) {
-	const Icon = format.icon;
+	const { description, icon: Icon, label } = FORMATS[format];
 	return (
 		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
 			<div className="flex items-center gap-2.5">
@@ -333,11 +291,9 @@ function FormatCard({
 					<Icon className="size-4 text-muted-foreground" />
 				</div>
 				<div className="min-w-0">
-					<p className="truncate font-semibold text-sm">
-						{FORMAT_LABELS[format.format]}
-					</p>
+					<p className="truncate font-semibold text-sm">{label}</p>
 					<p className="truncate text-muted-foreground text-xs">
-						{format.description}
+						{description}
 					</p>
 				</div>
 			</div>
@@ -387,16 +343,6 @@ function ProductCard({
 			<div className="flex items-center gap-2.5">
 				<AiProductIcon
 					className={cn(!isActive && "opacity-40 grayscale")}
-					fallback={
-						FAVICON_FALLBACKS[row.product] ? (
-							<FaviconImage
-								altText={row.product}
-								className={cn(!isActive && "opacity-40 grayscale")}
-								domain={FAVICON_FALLBACKS[row.product]}
-								size={28}
-							/>
-						) : undefined
-					}
 					name={row.product}
 					size={28}
 				/>
@@ -411,7 +357,7 @@ function ProductCard({
 				</p>
 				<div className="my-1.5 h-9">
 					<Chart.SingleSeries
-						color={PRODUCT_COLORS[row.product]}
+						color={aiProductColor(row.product)}
 						data={trend}
 						height={36}
 						id={`ai-product-${row.product.replace(NON_ID_CHARS, "-")}`}
@@ -483,15 +429,18 @@ export default function AgentsPage() {
 		return keys;
 	}, [dateRange.start_date, dateRange.end_date, isHourly, bucketFormat]);
 
-	const visitorsByProduct = useMemo(
-		() =>
-			countsByProduct(
-				visitorSeries,
-				(row) => Number(row.visitors) || 0,
-				bucketFormat
-			),
-		[visitorSeries, bucketFormat]
-	);
+	const visitorsByProduct = useMemo(() => {
+		const counts = new Map<string, Map<string, number>>();
+		for (const row of visitorSeries) {
+			const byBucket = counts.get(row.product) ?? new Map<string, number>();
+			byBucket.set(
+				dayjs(row.date).format(bucketFormat),
+				Number(row.visitors) || 0
+			);
+			counts.set(row.product, byBucket);
+		}
+		return counts;
+	}, [visitorSeries, bucketFormat]);
 
 	const trendFor = (product: string): TrendPoint[] =>
 		buckets.map((date) => ({
@@ -519,11 +468,11 @@ export default function AgentsPage() {
 		};
 	}, [products, buckets, visitorsByProduct, isHourly]);
 
-	const featured = FEATURED_PRODUCTS.map(
+	const featured = FEATURED_AI_PRODUCTS.map(
 		(name) => products.find((row) => row.product === name) ?? emptyProduct(name)
 	);
 	const others = products
-		.filter((row) => !FEATURED_PRODUCTS.includes(row.product))
+		.filter((row) => !FEATURED_AI_PRODUCTS.includes(row.product))
 		.map((row) => ({ ...row, name: row.product }));
 
 	const pageRows = useMemo(
@@ -560,36 +509,34 @@ export default function AgentsPage() {
 					))}
 				</div>
 
-				<div>
-					<h2 className="mb-2 font-semibold text-sm">
-						How AI reads your content
-					</h2>
-					<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-3">
-						{FORMATS.map((format) => (
+				<div className="space-y-1.5 rounded-xl bg-secondary p-1.5">
+					<div className="grid gap-1.5 sm:grid-cols-3">
+						{CONTENT_FORMATS.map((format) => (
 							<FormatCard
 								format={format}
 								isLoading={isLoading}
-								key={format.format}
-								row={formats.find((row) => row.format === format.format)}
+								key={format}
+								row={formats.find((row) => row.format === format)}
 							/>
 						))}
 					</div>
-				</div>
 
-				{isLoading || chart.metrics.length > 0 ? (
-					<SimpleMetricsChart
-						chartStepType={chartStepType}
-						data={chart.data}
-						description="Visitors each AI product sent to your site"
-						height={280}
-						isLoading={isLoading}
-						metrics={chart.metrics}
-						partialLastSegment
-						seriesKind={chartType}
-						showYAxis
-						title="AI visitors"
-					/>
-				) : null}
+					{isLoading || chart.metrics.length > 0 ? (
+						<SimpleMetricsChart
+							chartStepType={chartStepType}
+							className="rounded-lg border-0 bg-background"
+							data={chart.data}
+							description="Visitors each AI product sent to your site"
+							height={280}
+							isLoading={isLoading}
+							metrics={chart.metrics}
+							partialLastSegment
+							seriesKind={chartType}
+							showYAxis
+							title="AI visitors"
+						/>
+					) : null}
+				</div>
 
 				<DataTable
 					columns={pageColumns}

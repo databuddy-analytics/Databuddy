@@ -71,17 +71,19 @@ describe("trackAgents", () => {
 		);
 	});
 
-	it("accepts a Node or Express request", async () => {
+	it("accepts an Express request behind a proxy", async () => {
 		const bodies = captureBodies();
 		await trackAgents(
 			{
 				headers: {
 					"user-agent": CLAUDE_CODE,
 					accept: "text/markdown",
-					host: "docs.example.com",
+					host: "127.0.0.1:3000",
+					"x-forwarded-host": "docs.example.com, edge.example.net",
 				},
 				method: "GET",
-				url: "/docs/intro?ref=cli",
+				originalUrl: "/docs/intro?ref=cli",
+				url: "/intro?ref=cli",
 			},
 			OPTIONS
 		);
@@ -103,8 +105,8 @@ describe("trackAgents", () => {
 		expect(bodies).toEqual([expect.objectContaining({ format: "llms" })]);
 	});
 
-	it("reads the website id from the environment", async () => {
-		process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID = "site_env";
+	it("reads the website id from any framework's environment", async () => {
+		process.env.VITE_DATABUDDY_CLIENT_ID = "site_env";
 		const bodies = captureBodies();
 		await trackAgents(request("/pricing"));
 		expect(bodies).toEqual([

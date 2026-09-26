@@ -21,6 +21,7 @@ import {
 	setupCheckKey,
 	setupCheckNonce,
 } from "@databuddy/shared/bot-detection/ai-agents";
+import { CONTENT_FORMATS } from "@databuddy/shared/bot-detection/types";
 import {
 	checkForBot,
 	getWebsiteSecuritySettings,
@@ -53,7 +54,7 @@ const agentHitSchema = z.object({
 	websiteId: z.string().min(1).max(128),
 	host: z.string().min(1).max(253),
 	path: z.string().max(2048),
-	format: z.enum(["markdown", "llms", "html"]).default("html"),
+	format: z.enum(CONTENT_FORMATS).default("html"),
 	userAgent: z.string().min(1).max(512),
 	referrer: z.string().max(2048).optional(),
 });

@@ -18,7 +18,11 @@ import { withWorkspace } from "../procedures/with-workspace";
 
 const MAX_IMPORT_BYTES = 64 * 1024 * 1024;
 const IMPORT_RATE_WINDOW_SECONDS = 3600;
-const IMPORT_CONTENT_TYPES = ["application/zip", "text/csv"] as const;
+const IMPORT_CONTENT_TYPES = [
+	"application/zip",
+	"application/x-ndjson",
+	"text/csv",
+] as const;
 
 const providerIdSchema = z.enum(
 	IMPORT_PROVIDERS.map((provider) => provider.id) as [string, ...string[]]

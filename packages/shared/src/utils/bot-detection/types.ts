@@ -1,5 +1,19 @@
 import type { AiAgent } from "./ai-agents";
 
+export const AI_PRODUCT_BY_OPERATOR: Record<string, string> = {
+	OpenAI: "ChatGPT",
+	Anthropic: "Claude",
+	Google: "Google Gemini",
+	Perplexity: "Perplexity",
+	Microsoft: "Microsoft Copilot",
+	Meta: "Meta AI",
+};
+
+export const FEATURED_AI_PRODUCTS = Object.values(AI_PRODUCT_BY_OPERATOR);
+
+export const CONTENT_FORMATS = ["markdown", "llms", "html"] as const;
+export type ContentFormat = (typeof CONTENT_FORMATS)[number];
+
 export const BotCategory = {
 	AI_CRAWLER: "ai_crawler",
 	AI_ASSISTANT: "ai_assistant",
