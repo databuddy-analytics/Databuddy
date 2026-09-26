@@ -107,7 +107,7 @@ export interface ImportProvider {
 	): AsyncIterable<ImportRecord>;
 }
 
-interface ImportAdjustments {
+export interface ImportAdjustments {
 	droppedVisits: number;
 	durationDeltaSeconds: number;
 }
@@ -301,7 +301,7 @@ function pageSlotsForDate(bucket: DateBucket): PageSlot[] {
 	return slots;
 }
 
-function synthesizeDate(
+export function synthesizeDate(
 	date: string,
 	bucket: DateBucket,
 	context: ImportContext
