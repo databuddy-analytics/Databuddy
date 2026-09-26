@@ -1,5 +1,6 @@
 import type { JSONValue } from "ai";
 import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
+import { INTELLIGENCE_PLAN_IDS } from "@databuddy/shared/types/features";
 import { isInvestigationPurchaseValid } from "./investigation-purchase";
 import { auth } from "@databuddy/auth";
 import { getRedisCache } from "@databuddy/redis";
@@ -22,9 +23,29 @@ const FORBIDDEN_BODY_KEYS = new Set([
 	"returnUrl",
 	"cancelUrl",
 	"trialEnd",
+	"freeTrial",
+	"discounts",
+	"rewardId",
+	"version",
+	"carryOverBalances",
+	"carryOverUsages",
 	"billingCycleAnchor",
 	"prorationBehavior",
 ]);
+
+const ALLOWED_AUTUMN_ROUTES = new Set([
+	"attach",
+	"getOrCreateCustomer",
+	"listPlans",
+	"openCustomerPortal",
+	"previewAttach",
+	"previewUpdateSubscription",
+	"updateSubscription",
+]);
+
+const INVITE_ONLY_PLAN_IDS = new Set<string>(
+	Object.values(INTELLIGENCE_PLAN_IDS)
+);
 
 function sanitize(value: JSONValue): JSONValue {
 	if (Array.isArray(value)) {
@@ -176,7 +197,26 @@ async function writeAutumnCache(
 		.catch(() => {});
 }
 
+function autumnErrorResponse(code: "NOT_FOUND" | "VALIDATION") {
+	const response = buildHttpErrorResponse({ code, error: null });
+	return Response.json(response.payload, { status: response.status });
+}
+
+function isInviteOnlyAttach(segment: string, body: JSONValue): boolean {
+	return (
+		segment === "attach" &&
+		body !== null &&
+		typeof body === "object" &&
+		!Array.isArray(body) &&
+		typeof body.planId === "string" &&
+		INVITE_ONLY_PLAN_IDS.has(body.planId)
+	);
+}
+
 export async function handleAutumnRequest(request: Request) {
+	if (!ALLOWED_AUTUMN_ROUTES.has(autumnPathSegment(request))) {
+		return autumnErrorResponse("NOT_FOUND");
+	}
 	const sanitized = await stripPrivilegedBody(request);
 	const segment = autumnPathSegment(sanitized);
 	const identity = await identifyAutumnCustomer(sanitized).catch(() => null);
@@ -185,12 +225,11 @@ export async function handleAutumnRequest(request: Request) {
 			.clone()
 			.json()
 			.catch(() => null);
-		if (!isInvestigationPurchaseValid(body, segment)) {
-			const response = buildHttpErrorResponse({
-				code: "VALIDATION",
-				error: null,
-			});
-			return Response.json(response.payload, { status: response.status });
+		if (
+			!isInvestigationPurchaseValid(body, segment) ||
+			isInviteOnlyAttach(segment, body)
+		) {
+			return autumnErrorResponse("VALIDATION");
 		}
 		if (
 			segment === "attach" &&
