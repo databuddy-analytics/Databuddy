@@ -9,7 +9,7 @@ import ts from "typescript";
  * Keeping the rollout boundary in code makes new violations fail without
  * requiring a noisy, hand-maintained list of legacy exceptions.
  */
-const POLICY_ROLLOUT_BASE = "941dc1344";
+const POLICY_ROLLOUT_BASE = "941dc134410092fcb87eddf2faf56dba11498b04";
 
 const RULE = {
 	noCustomJsonErrorResponse: "http/no-custom-json-error-response",
@@ -774,6 +774,11 @@ function getRolloutDiff() {
 	const fetchedDiff = tryRunGit(diffArgs);
 	if (fetchedDiff !== null) {
 		return fetchedDiff;
+	}
+	if (process.env.CI) {
+		throw new Error(
+			`Policy lint could not diff against rollout commit ${POLICY_ROLLOUT_BASE}; changed-line policy checks cannot run.`
+		);
 	}
 
 	const workingTreeDiff = tryRunGit(["diff", "--unified=0", "--no-ext-diff"]);
