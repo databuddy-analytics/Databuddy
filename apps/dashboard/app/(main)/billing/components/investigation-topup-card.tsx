@@ -8,6 +8,7 @@ import {
 } from "@databuddy/shared/billing";
 import { Button, Card, dayjs, Field, Input, Skeleton } from "@databuddy/ui";
 import { useCustomer } from "autumn-js/react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -150,16 +151,16 @@ export function InvestigationTopupCard() {
 							</p>
 						)}
 					</div>
-				) : (
+				) : canUserUpgrade ? (
 					<Button asChild variant="secondary">
-						<a
-							href="https://www.databuddy.cc/contact?topic=intelligence-business"
-							rel="noopener noreferrer"
-							target="_blank"
-						>
-							Request investigation access
-						</a>
+						<Link href="/billing/plans?plan=intelligence">
+							Upgrade to Business
+						</Link>
 					</Button>
+				) : (
+					<p className="text-muted-foreground text-sm">
+						Ask an organization owner or admin to upgrade to Business.
+					</p>
 				)}
 			</Card.Content>
 		</Card>

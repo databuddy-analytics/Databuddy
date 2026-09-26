@@ -5,7 +5,6 @@ import {
 	FEATURE_METADATA,
 	GATED_FEATURES,
 	HIDDEN_PRICING_FEATURES,
-	INTELLIGENCE_CONTACT_TOPICS,
 	normalizePlanId,
 	PLAN_FEATURE_LIMITS,
 } from "@databuddy/shared/types/features";
@@ -43,8 +42,6 @@ type HookPlan = NonNullable<ReturnType<typeof useListPlans>["data"]>[number];
 type BillingItem = HookPlan["items"][number];
 type BillingPreview = AttachDialogProps["preview"];
 
-const CONTACT_TOPICS: Record<string, string | undefined> =
-	INTELLIGENCE_CONTACT_TOPICS;
 const DISPLAYED_PLAN_IDS = [
 	"intelligence_scale",
 	"intelligence",
@@ -232,7 +229,6 @@ function PricingCard({
 	const isActive = eligibility?.status === "active";
 	const planName = getCustomerPlanName(plan.id, plan.name);
 	const investigationTerms = getInvestigationTerms(plan.items);
-	const contactTopic = CONTACT_TOPICS[plan.id];
 	const isRecommended = plan.id === RECOMMENDED_PLAN_ID;
 	const Icon = PLAN_ICONS[plan.id] ?? CrownIcon;
 
@@ -281,11 +277,6 @@ function PricingCard({
 								Selected
 							</Badge>
 						)}
-						{contactTopic && !isActive && (
-							<Badge size="sm" variant="muted">
-								Invite only
-							</Badge>
-						)}
 					</div>
 					<Card.Description className="mt-0.5 text-pretty">
 						{PLAN_TAGLINES[plan.id] ?? plan.description}
@@ -298,51 +289,39 @@ function PricingCard({
 			<Card.Content className="flex flex-1 flex-col gap-5 p-5">
 				<PricingFeatures plan={plan} />
 				<div className="mt-auto space-y-3">
-					{contactTopic && !isActive ? (
-						<Button asChild className="w-full" size="lg" variant="secondary">
-							<a
-								href={`https://www.databuddy.cc/contact?topic=${contactTopic}`}
-								rel="noopener noreferrer"
-								target="_blank"
-							>
-								Request access
-							</a>
-						</Button>
-					) : (
-						<Button
-							aria-label={getButtonText(eligibility, isSelected)}
-							className="w-full"
-							disabled={
-								!eligibility?.canceling &&
-								(isActive || eligibility?.status === "scheduled")
+					<Button
+						aria-label={getButtonText(eligibility, isSelected)}
+						className="w-full"
+						disabled={
+							!eligibility?.canceling &&
+							(isActive || eligibility?.status === "scheduled")
+						}
+						loading={isLoadingPreview}
+						onClick={async () => {
+							setIsLoadingPreview(true);
+							try {
+								setPreview(await previewAction());
+								setDialogOpen(true);
+							} catch (error) {
+								toast.error(
+									getUserFacingErrorMessage(
+										error,
+										"We couldn't load the billing preview. Try again."
+									)
+								);
+							} finally {
+								setIsLoadingPreview(false);
 							}
-							loading={isLoadingPreview}
-							onClick={async () => {
-								setIsLoadingPreview(true);
-								try {
-									setPreview(await previewAction());
-									setDialogOpen(true);
-								} catch (error) {
-									toast.error(
-										getUserFacingErrorMessage(
-											error,
-											"We couldn't load the billing preview. Try again."
-										)
-									);
-								} finally {
-									setIsLoadingPreview(false);
-								}
-							}}
-							size="lg"
-							variant={
-								isActive || !(isRecommended || isSelected)
-									? "secondary"
-									: "primary"
-							}
-						>
-							{getButtonText(eligibility, isSelected)}
-						</Button>
-					)}
+						}}
+						size="lg"
+						variant={
+							isActive || !(isRecommended || isSelected)
+								? "secondary"
+								: "primary"
+						}
+					>
+						{getButtonText(eligibility, isSelected)}
+					</Button>
 				</div>
 			</Card.Content>
 			{preview && (

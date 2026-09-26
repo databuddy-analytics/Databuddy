@@ -13,10 +13,7 @@ import { getSubscriptionPriceText } from "@/lib/autumn/subscription-price";
 import { orpc } from "@/lib/orpc";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import type { UsageResponse } from "@/types/billing";
-import {
-	INTELLIGENCE_CONTACT_TOPICS,
-	INTELLIGENCE_PLAN_IDS,
-} from "@databuddy/shared/types/features";
+import { INTELLIGENCE_PLAN_IDS } from "@databuddy/shared/types/features";
 import { useQuery } from "@tanstack/react-query";
 import type { PreviewAttachResponse } from "autumn-js";
 import type { UseCustomerResult } from "autumn-js/react";
@@ -396,9 +393,7 @@ export default function BillingPage() {
 			currentPlan?.customerEligibility?.canceling === true
 	);
 	const canSelfServeUpgrade = plans.some(
-		(plan) =>
-			plan.customerEligibility?.attachAction === "upgrade" &&
-			!(plan.id in INTELLIGENCE_CONTACT_TOPICS)
+		(plan) => plan.customerEligibility?.attachAction === "upgrade"
 	);
 	const showAddOns = addOns.length > 0;
 	const currentPlanDisplayName = getCustomerPlanName(
