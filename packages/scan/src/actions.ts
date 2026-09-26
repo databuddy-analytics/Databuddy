@@ -1144,7 +1144,11 @@ export function groupActions(
 			issues
 		);
 	}
+	let followingLink = false;
 	function requestMethod(input: ts.Node, owner: Unit) {
+		if (followingLink) {
+			return "get";
+		}
 		const parent = input.parent;
 		if (ts.isJsxAttribute(parent) || ts.isJsxExpression(parent)) {
 			return "get";
@@ -2135,7 +2139,9 @@ export function groupActions(
 			const target = ts.isIdentifier(value)
 				? resolve(unit, value.text, value, issues)
 				: undefined;
+			followingLink = true;
 			evidence(target?.unit ?? unit, target?.node ?? root.link, 0);
+			followingLink = false;
 		}
 		if (root.component) {
 			const resolved = resolve(unit, root.component, root.node, issues);
