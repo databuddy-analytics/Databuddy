@@ -96,6 +96,24 @@ describe("trackAgentTraffic", () => {
 		expect(bodies[0]?.ip).toBe(expected);
 	});
 
+	it.each([
+		["/docs/intro.md", {}, "markdown"],
+		["/docs/intro", { accept: "text/markdown, text/html, */*" }, "markdown"],
+		["/llms-full.txt", {}, "llms"],
+		["/docs/intro", { accept: "text/html" }, "html"],
+	])("reports %s %o as %s", async (path, headers, expected) => {
+		const bodies: { format: string }[] = [];
+		globalThis.fetch = mock((_url: string, init?: RequestInit) => {
+			bodies.push(JSON.parse(String(init?.body)));
+			return Promise.resolve(new Response(null, { status: 202 }));
+		}) as typeof fetch;
+		await trackAgentTraffic(agentRequest(path, { headers }), {
+			apiKey: "dbdy_test",
+			websiteId: "site_1",
+		});
+		expect(bodies[0]?.format).toBe(expected);
+	});
+
 	it("never rejects when basket is unreachable", async () => {
 		globalThis.fetch = mock(() =>
 			Promise.reject(new Error("network down"))

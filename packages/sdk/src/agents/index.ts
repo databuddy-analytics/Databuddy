@@ -11,6 +11,8 @@ export const AI_AGENT_USER_AGENT =
 
 const ASSET_PATH =
 	/^\/_next\/|\.(?:js|mjs|css|map|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|eot|mp4|webm|mp3|wav|pdf|zip)$/i;
+const LLMS_TXT_PATH = /\/llms(-full)?\.txt$/i;
+const MARKDOWN_PATH = /\.mdx?$/i;
 const DEFAULT_API_URL = "https://basket.databuddy.cc";
 const DEFAULT_TIMEOUT_MS = 3000;
 
@@ -21,6 +23,18 @@ function getClientIp(request: Request): string {
 	}
 	const forwardedByProxy = headers.get("x-forwarded-for")?.split(",").at(-1);
 	return forwardedByProxy?.trim() || headers.get("x-real-ip") || "";
+}
+
+function contentFormat(
+	pathname: string,
+	accept: string
+): "llms" | "markdown" | "html" {
+	if (LLMS_TXT_PATH.test(pathname)) {
+		return "llms";
+	}
+	return MARKDOWN_PATH.test(pathname) || accept.includes("text/markdown")
+		? "markdown"
+		: "html";
 }
 
 export async function trackAgentTraffic(
@@ -47,6 +61,7 @@ export async function trackAgentTraffic(
 		body: JSON.stringify({
 			websiteId: options.websiteId,
 			path: pathname,
+			format: contentFormat(pathname, request.headers.get("accept") ?? ""),
 			userAgent,
 			ip: options.ip ?? getClientIp(request),
 			referrer: request.headers.get("referer") ?? undefined,
