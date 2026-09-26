@@ -246,7 +246,10 @@ export default function TermsPage() {
 							</li>
 							<li>You own your analytics data and can export it anytime</li>
 							<li>We don't sell your data to third parties</li>
-							<li>We comply with GDPR, CCPA, and other privacy regulations</li>
+							<li>
+								We design the service to support compliance with GDPR, CCPA, and
+								other privacy regulations
+							</li>
 						</ul>
 						<p className="mb-4">
 							You agree not to use the service to send sensitive information
@@ -255,7 +258,9 @@ export default function TermsPage() {
 							government issued identification numbers, financial account
 							information, and personally identifiable information that could be
 							used to directly identify, contact, or precisely locate an
-							individual.
+							individual, other than the user IDs, names, and email addresses
+							you send through the user identification features described in our
+							documentation.
 						</p>
 					</section>
 
