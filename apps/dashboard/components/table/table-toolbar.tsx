@@ -1,8 +1,10 @@
+import { AskAgentButton } from "@/components/agent/new-chat-button";
 import { SectionBrandOverlay } from "@/components/logo/section-brand-overlay";
 import { ArrowsOutSimpleIcon } from "@databuddy/ui/icons";
 import { Button, Card } from "@databuddy/ui";
 
 interface TableToolbarProps {
+	agentSubject?: string;
 	borderBottom?: boolean;
 	description?: string;
 	onFullScreenToggle?: () => void;
@@ -12,6 +14,7 @@ interface TableToolbarProps {
 }
 
 export function TableToolbar({
+	agentSubject,
 	title,
 	description,
 	showFullScreen = true,
@@ -30,6 +33,7 @@ export function TableToolbar({
 			</div>
 			<div className="flex shrink-0 items-center gap-1">
 				{showBrand ? <SectionBrandOverlay layout="inline" /> : null}
+				{agentSubject ? <AskAgentButton subject={agentSubject} /> : null}
 				{showFullScreen && onFullScreenToggle && (
 					<Button
 						aria-label="Full screen"
