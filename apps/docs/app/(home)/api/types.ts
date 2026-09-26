@@ -1,6 +1,7 @@
 export const DEMO_QUERY_TYPES = new Set<string>([
 	"summary_metrics",
 	"today_metrics",
+	"active_stats",
 	"events_by_date",
 	"top_pages",
 	"entry_pages",
