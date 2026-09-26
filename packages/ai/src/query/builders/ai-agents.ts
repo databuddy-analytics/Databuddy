@@ -6,8 +6,17 @@ import type { CustomSqlContext, SimpleQueryConfig } from "../types";
 
 const AGENT_PRODUCT =
 	"transform(agent_id, {agentIds:Array(String)}, {agentProducts:Array(String)}, bot_name)";
-const VISIT_PRODUCT =
-	"if(has({aiApps:Array(String)}, browser_name), browser_name, transform(domainWithoutWWW(referrer), {aiDomains:Array(String)}, {aiNames:Array(String)}, transform(utm_source, {aiDomains:Array(String)}, {aiNames:Array(String)}, '')))";
+export function aiVisitProduct(referrerDomain: string): string {
+	return `if(has({aiApps:Array(String)}, browser_name), browser_name, transform(${referrerDomain}, {aiDomains:Array(String)}, {aiNames:Array(String)}, transform(utm_source, {aiDomains:Array(String)}, {aiNames:Array(String)}, '')))`;
+}
+
+export const AI_VISIT_PARAMS = {
+	aiApps: AI_APP_BROWSERS,
+	aiDomains: AI_REFERRERS.map((referrer) => referrer.domain),
+	aiNames: AI_REFERRERS.map((referrer) => referrer.name),
+};
+
+const VISIT_PRODUCT = aiVisitProduct("domainWithoutWWW(referrer)");
 const CONTENT_FORMAT = `if(format != '', format, multiIf(
 	endsWith(lower(path(path)), 'llms.txt') OR endsWith(lower(path(path)), 'llms-full.txt'), 'llms',
 	endsWith(lower(path(path)), '.md') OR endsWith(lower(path(path)), '.mdx'), 'markdown',
@@ -35,9 +44,7 @@ function productParams(ctx: CustomSqlContext) {
 		endDate: ctx.endDate,
 		agentIds: AI_AGENTS.map((agent) => agent.id),
 		agentProducts: AI_AGENTS.map((agent) => agent.product),
-		aiDomains: AI_REFERRERS.map((referrer) => referrer.domain),
-		aiNames: AI_REFERRERS.map((referrer) => referrer.name),
-		aiApps: AI_APP_BROWSERS,
+		...AI_VISIT_PARAMS,
 	};
 }
 
@@ -207,6 +214,96 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 				LIMIT {limit:UInt32}
 			`,
 			params: { ...productParams(ctx), limit: ctx.limit ?? 100 },
+		}),
+		timeField: "timestamp",
+		customizable: false,
+	},
+
+	ai_visitor_outcomes: {
+		meta: {
+			title: "What AI Visitors Do",
+			description:
+				"Visitors each AI product sent, how many pages they viewed per visit, and the share that viewed two or more pages, next to the same numbers for all visitors.",
+			category: "AI Agents",
+			tags: ["ai", "referrals", "engagement", "outcomes"],
+			output_fields: [
+				{ name: "product", type: "string", label: "Product" },
+				{ name: "visitors", type: "number", label: "Visitors" },
+				{ name: "pages_per_visit", type: "number", label: "Pages per visit" },
+				{
+					name: "engaged_rate",
+					type: "number",
+					label: "Viewed 2+ pages",
+					unit: "%",
+				},
+			],
+			default_visualization: "table",
+		},
+		customSql: (ctx) => ({
+			sql: `
+				SELECT
+					if(grouping(ai_product) = 1, 'All visitors', ai_product) AS product,
+					count() AS visitors,
+					round(avg(pageviews), 2) AS pages_per_visit,
+					round(countIf(pageviews > 1) / count() * 100, 1) AS engaged_rate
+				FROM (
+					SELECT
+						session_id,
+						anyIf(visit_product, visit_product != '') AS ai_product,
+						countIf(event_name = 'screen_view') AS pageviews
+					FROM (
+						SELECT session_id, event_name, ${VISIT_PRODUCT} AS visit_product
+						FROM ${Analytics.events}
+						WHERE ${EVENT_RANGE}
+					)
+					GROUP BY session_id
+				)
+				GROUP BY GROUPING SETS ((ai_product), ())
+				HAVING ai_product != '' OR grouping(ai_product) = 1
+				ORDER BY grouping(ai_product) DESC, visitors DESC
+				LIMIT {limit:UInt32}
+			`,
+			params: { ...productParams(ctx), limit: ctx.limit ?? 20 },
+		}),
+		timeField: "time",
+		customizable: false,
+	},
+
+	ai_crawlers: {
+		meta: {
+			title: "AI Crawlers",
+			description:
+				"Each AI crawler or agent that requested your pages, with its product, purpose, request count, last request, and a sample user agent for checking robots.txt rules.",
+			category: "AI Agents",
+			tags: ["ai", "crawlers", "robots.txt", "bots"],
+			output_fields: [
+				{ name: "agent_id", type: "string", label: "Agent" },
+				{ name: "name", type: "string", label: "Crawler" },
+				{ name: "product", type: "string", label: "Product" },
+				{ name: "purpose", type: "string", label: "Purpose" },
+				{ name: "requests", type: "number", label: "Requests" },
+				{ name: "last_seen", type: "datetime", label: "Last request" },
+				{ name: "user_agent", type: "string", label: "User agent" },
+			],
+			default_visualization: "table",
+		},
+		customSql: (ctx) => ({
+			sql: `
+				SELECT
+					agent_id,
+					any(bot_name) AS name,
+					any(${AGENT_PRODUCT}) AS product,
+					any(agent_purpose) AS purpose,
+					count() AS requests,
+					max(timestamp) AS last_seen,
+					any(user_agent) AS user_agent
+				FROM ${Analytics.ai_traffic_spans}
+				WHERE ${SPAN_RANGE} AND agent_id != ''
+				GROUP BY agent_id
+				ORDER BY requests DESC
+				LIMIT {limit:UInt32}
+			`,
+			params: { ...productParams(ctx), limit: ctx.limit ?? 50 },
 		}),
 		timeField: "timestamp",
 		customizable: false,

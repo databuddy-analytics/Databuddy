@@ -5,6 +5,7 @@ import {
 } from "@databuddy/db/clickhouse";
 import { STRIPE_FAILURE_WEBHOOK_EVENTS } from "@databuddy/shared/stripe-webhooks";
 import { Analytics } from "../../types/tables";
+import { AI_VISIT_PARAMS, aiVisitProduct } from "./ai-agents";
 import { escapeLikePattern } from "../simple-builder";
 import type { CustomSqlFn, Filter, SimpleQueryConfig } from "../types";
 
@@ -1203,6 +1204,59 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 		),
 		timeField: "created",
 		customizable: true,
+	},
+
+	revenue_by_ai_product: {
+		meta: {
+			title: "Revenue by AI Product",
+			description:
+				"Attributed revenue from visitors sent by AI products (ChatGPT, Claude, Perplexity and others) through referrals or their desktop app browser.",
+			category: "Revenue",
+			tags: ["revenue", "ai", "referrer", "chatgpt", "claude"],
+			output_fields: REVENUE_BREAKDOWN_FIELDS,
+			default_visualization: "table",
+		},
+		customSql: ({
+			websiteId,
+			startDate,
+			endDate,
+			filters,
+			limit,
+			filterParams,
+		}) => {
+			const query = buildRevenueQuery(
+				{
+					select: `SELECT
+				ai_product as name,${REVENUE_METRICS}`,
+					groupBy: "ai_product, currency",
+					orderBy: "revenue DESC",
+					limit: limit ?? 20,
+					innerCte: {
+						name: "ai_product_agg",
+						body: (source) => `
+						SELECT * FROM (
+							SELECT
+								${aiVisitProduct("replaceRegexpOne(referrer_domain, '^www\\\\.', '')")} as ai_product,
+								currency,
+								amount,
+								type,
+								r_customer_id
+							FROM ${source}
+						)
+						WHERE ai_product != ''
+					`,
+					},
+				},
+				websiteId,
+				startDate,
+				endDate,
+				filters,
+				filterParams
+			);
+			return { ...query, params: { ...query.params, ...AI_VISIT_PARAMS } };
+		},
+		timeField: "created",
+		customizable: false,
 	},
 
 	revenue_by_utm_source: {
