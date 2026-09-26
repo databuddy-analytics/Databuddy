@@ -1,111 +1,190 @@
 import {
+	endOfLocalDay,
+	type ImportContext,
 	type ImportProvider,
+	type ImportRecord,
 	type ImportSource,
+	isSameSite,
 	PAGE_EXIT_EVENT_NAME,
 	PAGEVIEW_EVENT_NAME,
 } from "../pipeline";
 
 const PAGEVIEW_EVENT = "$pageview";
 const MIN_EXIT_SECONDS = 1;
-const DETECT_SAMPLE_LINES = 20;
+const MAX_EXIT_SECONDS = 30 * 60;
+const SESSION_GAP_MS = 30 * 60 * 1000;
+const DETECT_SAMPLE_EVENTS = 20;
 
-interface PosthogProperties {
-	$browser?: string;
-	$current_url?: string;
-	$device_type?: string;
-	$geoip_country_code?: string;
-	$os?: string;
-	$pathname?: string;
-	$referrer?: string;
-	$session_id?: string;
-}
+type JsonObject = Record<string, unknown>;
 
-interface PosthogEvent {
-	distinct_id?: string;
-	event?: string;
-	person_id?: string;
-	properties?: PosthogProperties | string;
-	timestamp?: string;
-}
-
-interface Visit {
-	firstMs: number;
+interface Pageview {
+	browserName: string | null;
+	country: string | null;
+	deviceType: string | null;
 	hostname?: string;
-	key: string;
-	lastMs: number;
+	osName: string | null;
+	path: string;
+	referrer: string | null;
+	sessionId: string | null;
+	timeMs: number;
+	visitorKey: string;
+}
+
+interface OpenPage {
+	at: number;
+	hostname?: string;
 	path: string;
 	visitorKey: string;
 }
 
-function parseJsonLines(text: string): PosthogEvent[] {
-	const events: PosthogEvent[] = [];
-	for (const line of text.split("\n")) {
+interface VisitorSession {
+	key: string;
+	lastMs: number;
+}
+
+function asObject(value: unknown): JsonObject | null {
+	return typeof value === "object" && value !== null && !Array.isArray(value)
+		? (value as JsonObject)
+		: null;
+}
+
+function parseJsonObject(line: string): JsonObject | null {
+	try {
+		return asObject(JSON.parse(line));
+	} catch {
+		return null;
+	}
+}
+
+function text(value: unknown): string | null {
+	return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function* jsonLines(body: string): Generator<JsonObject> {
+	for (const line of body.split("\n")) {
 		const trimmed = line.trim();
 		if (!trimmed.startsWith("{")) {
 			continue;
 		}
-		try {
-			events.push(JSON.parse(trimmed) as PosthogEvent);
-		} catch {}
-	}
-	return events;
-}
-
-function propertiesOf(event: PosthogEvent): PosthogProperties {
-	const raw = event.properties;
-	if (!raw) {
-		return {};
-	}
-	if (typeof raw !== "string") {
-		return raw;
-	}
-	try {
-		return JSON.parse(raw) as PosthogProperties;
-	} catch {
-		return {};
-	}
-}
-
-function pathAndHostname(properties: PosthogProperties): {
-	hostname?: string;
-	path: string;
-} {
-	if (properties.$current_url) {
-		try {
-			const url = new URL(properties.$current_url);
-			return { hostname: url.hostname, path: url.pathname };
-		} catch {
-			// fall through to $pathname
+		const parsed = parseJsonObject(trimmed);
+		if (parsed) {
+			yield parsed;
 		}
 	}
-	return { path: properties.$pathname || "/" };
 }
 
-async function sourceTexts(source: ImportSource): Promise<string[]> {
+async function* jsonObjects(source: ImportSource): AsyncGenerator<JsonObject> {
 	if (source.kind === "file") {
-		return [await source.text()];
+		yield* jsonLines(await source.text());
+		return;
 	}
-	const texts: string[] = [];
 	for await (const entry of source.entries()) {
 		if (entry.name.endsWith(".parquet")) {
 			continue;
 		}
-		texts.push(await entry.text());
+		yield* jsonLines(await entry.text());
 	}
-	return texts;
 }
 
-function looksLikePosthogExport(text: string): boolean {
-	for (const event of parseJsonLines(text).slice(0, DETECT_SAMPLE_LINES)) {
-		if (
-			event.event &&
-			event.timestamp &&
-			(event.distinct_id || event.person_id)
-		) {
-			return true;
-		}
+function propertiesOf(event: JsonObject): JsonObject {
+	const raw = event.properties;
+	return (typeof raw === "string" ? parseJsonObject(raw) : asObject(raw)) ?? {};
+}
+
+function pathAndHostname(properties: JsonObject): {
+	hostname?: string;
+	path: string;
+} {
+	const url = text(properties.$current_url);
+	if (url && URL.canParse(url)) {
+		const parsed = new URL(url);
+		return { hostname: parsed.hostname, path: parsed.pathname };
 	}
-	return false;
+	return { path: text(properties.$pathname) ?? "/" };
+}
+
+function isPosthogEvent(event: JsonObject): boolean {
+	return Boolean(
+		text(event.event) &&
+			text(event.timestamp) &&
+			(text(event.distinct_id) || text(event.person_id))
+	);
+}
+
+function toPageview(
+	event: JsonObject,
+	context: ImportContext
+): Pageview | null {
+	if (text(event.event) !== PAGEVIEW_EVENT) {
+		return null;
+	}
+	const timeMs = Date.parse(text(event.timestamp) ?? "");
+	if (!Number.isFinite(timeMs)) {
+		return null;
+	}
+
+	const properties = propertiesOf(event);
+	const { path, hostname } = pathAndHostname(properties);
+	if (!isSameSite(hostname, context.domain)) {
+		return null;
+	}
+
+	return {
+		browserName: text(properties.$browser),
+		country: text(properties.$geoip_country_code),
+		deviceType: text(properties.$device_type)?.toLowerCase() ?? null,
+		hostname,
+		osName: text(properties.$os),
+		path,
+		referrer: text(properties.$referrer),
+		sessionId: text(properties.$session_id),
+		timeMs,
+		visitorKey:
+			text(event.person_id) ??
+			text(event.distinct_id) ??
+			`${context.websiteId}:anon`,
+	};
+}
+
+function sessionKeyFor(
+	pageview: Pageview,
+	visitors: Map<string, VisitorSession>
+): string {
+	if (pageview.sessionId) {
+		return `${pageview.visitorKey}:${pageview.sessionId}`;
+	}
+	const current = visitors.get(pageview.visitorKey);
+	if (current && pageview.timeMs - current.lastMs <= SESSION_GAP_MS) {
+		current.lastMs = pageview.timeMs;
+		return current.key;
+	}
+	const key = `${pageview.visitorKey}:g${pageview.timeMs}`;
+	visitors.set(pageview.visitorKey, { key, lastMs: pageview.timeMs });
+	return key;
+}
+
+function exitRecord(
+	page: OpenPage,
+	sessionKey: string,
+	elapsedMs: number,
+	timezone: string
+): ImportRecord {
+	const seconds = Math.min(
+		MAX_EXIT_SECONDS,
+		Math.max(MIN_EXIT_SECONDS, Math.round(elapsedMs / 1000))
+	);
+	const dayEnd = endOfLocalDay(new Date(page.at), timezone).getTime();
+
+	return {
+		grain: "event",
+		time: new Date(Math.min(page.at + seconds * 1000, dayEnd)),
+		eventName: PAGE_EXIT_EVENT_NAME,
+		path: page.path,
+		hostname: page.hostname,
+		visitorKey: page.visitorKey,
+		sessionKey,
+		timeOnPage: seconds,
+	};
 }
 
 export const posthogProvider: ImportProvider = {
@@ -114,82 +193,73 @@ export const posthogProvider: ImportProvider = {
 	grain: "event",
 
 	async detect(source) {
-		const texts = await sourceTexts(source);
-		return texts.some(looksLikePosthogExport);
+		let checked = 0;
+		for await (const event of jsonObjects(source)) {
+			if (isPosthogEvent(event)) {
+				return true;
+			}
+			checked += 1;
+			if (checked >= DETECT_SAMPLE_EVENTS) {
+				break;
+			}
+		}
+		return false;
 	},
 
 	async *parse(source, context) {
-		const texts = await sourceTexts(source);
-		const rows = texts
-			.flatMap(parseJsonLines)
-			.filter((event) => event.event === PAGEVIEW_EVENT)
-			.map((event) => ({
-				event,
-				properties: propertiesOf(event),
-				timeMs: Date.parse(event.timestamp ?? ""),
-			}))
-			.filter(({ timeMs }) => Number.isFinite(timeMs))
-			.sort((a, b) => a.timeMs - b.timeMs);
-
-		const visits = new Map<string, Visit>();
-		let fallback = 0;
-
-		for (const { event, properties, timeMs } of rows) {
-			const visitorKey =
-				event.person_id || event.distinct_id || `${context.websiteId}:anon`;
-			let key = properties.$session_id;
-			if (!key) {
-				fallback += 1;
-				key = `${visitorKey}:${fallback}`;
+		const pageviews: Pageview[] = [];
+		for await (const event of jsonObjects(source)) {
+			const pageview = toPageview(event, context);
+			if (pageview) {
+				pageviews.push(pageview);
 			}
-			const { path, hostname } = pathAndHostname(properties);
+		}
+		pageviews.sort((a, b) => a.timeMs - b.timeMs);
 
-			const visit = visits.get(key);
-			if (visit) {
-				visit.lastMs = timeMs;
-				visit.path = path;
-				visit.hostname = hostname;
-			} else {
-				visits.set(key, {
-					firstMs: timeMs,
-					hostname,
-					key,
-					lastMs: timeMs,
-					path,
-					visitorKey,
-				});
+		const visitors = new Map<string, VisitorSession>();
+		const open = new Map<string, OpenPage>();
+
+		for (const pageview of pageviews) {
+			const sessionKey = sessionKeyFor(pageview, visitors);
+			const previous = open.get(sessionKey);
+			if (previous) {
+				yield exitRecord(
+					previous,
+					sessionKey,
+					pageview.timeMs - previous.at,
+					context.timezone
+				);
 			}
+			open.set(sessionKey, {
+				at: pageview.timeMs,
+				hostname: pageview.hostname,
+				path: pageview.path,
+				visitorKey: pageview.visitorKey,
+			});
 
 			yield {
 				grain: "event",
-				time: new Date(timeMs),
+				time: new Date(pageview.timeMs),
 				eventName: PAGEVIEW_EVENT_NAME,
-				path,
-				hostname,
-				visitorKey,
-				sessionKey: key,
-				referrer: properties.$referrer || null,
-				country: properties.$geoip_country_code || null,
-				deviceType: properties.$device_type?.toLowerCase() || null,
-				browserName: properties.$browser || null,
-				osName: properties.$os || null,
+				path: pageview.path,
+				hostname: pageview.hostname,
+				visitorKey: pageview.visitorKey,
+				sessionKey,
+				referrer: pageview.referrer,
+				country: pageview.country,
+				deviceType: pageview.deviceType,
+				browserName: pageview.browserName,
+				osName: pageview.osName,
 			};
 		}
 
-		for (const visit of visits.values()) {
-			yield {
-				grain: "event",
-				time: new Date(visit.lastMs + 1000),
-				eventName: PAGE_EXIT_EVENT_NAME,
-				path: visit.path,
-				hostname: visit.hostname,
-				visitorKey: visit.visitorKey,
-				sessionKey: visit.key,
-				timeOnPage: Math.max(
-					MIN_EXIT_SECONDS,
-					Math.round((visit.lastMs - visit.firstMs) / 1000)
-				),
-			};
+		for (const [sessionKey, last] of open) {
+			yield exitRecord(
+				last,
+				sessionKey,
+				MIN_EXIT_SECONDS * 1000,
+				context.timezone
+			);
 		}
 	},
 };
