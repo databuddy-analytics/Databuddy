@@ -1,6 +1,6 @@
 "use client";
 
-import { dayjs, EmptyState, fromNow, Skeleton } from "@databuddy/ui";
+import { dayjs, EmptyState, fromNow } from "@databuddy/ui";
 import { CopyButton } from "@databuddy/ui/client";
 import { BrainIcon } from "@databuddy/ui/icons";
 import { useParams } from "next/navigation";
@@ -130,23 +130,15 @@ function emptyProduct(product: string): ProductRow {
 	};
 }
 
-function ProductCardSkeleton() {
-	return (
-		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
-			<div className="flex items-center gap-2.5">
-				<Skeleton className="size-7 rounded" />
-				<Skeleton className="h-4 w-24" />
-			</div>
-			<div>
-				<Skeleton className="h-7 w-28" />
-				<Skeleton className="my-1.5 h-9 w-full" />
-				<Skeleton className="h-4 w-40" />
-			</div>
-		</div>
-	);
-}
-
-function ProductCard({ row, trend }: { row: ProductRow; trend: TrendPoint[] }) {
+function ProductCard({
+	isLoading,
+	row,
+	trend,
+}: {
+	isLoading: boolean;
+	row: ProductRow;
+	trend: TrendPoint[];
+}) {
 	const purpose = mainPurpose(row);
 	const isActive = row.requests > 0 || row.visitors > 0;
 	return (
@@ -195,7 +187,9 @@ function ProductCard({ row, trend }: { row: ProductRow; trend: TrendPoint[] }) {
 						? `Read ${formatNumber(row.pages)} pages${purpose ? ` for ${purpose}` : ""}, ${fromNow(row.last_seen)}`
 						: isActive
 							? "Hasn't read your pages"
-							: "Not seen yet"}
+							: isLoading
+								? "Checking…"
+								: "Not seen yet"}
 				</p>
 			</div>
 		</div>
@@ -327,17 +321,14 @@ export default function AgentsPage() {
 		<div className="relative flex h-full flex-col">
 			<div className="space-y-4 p-4">
 				<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-3">
-					{isLoading
-						? FEATURED_PRODUCTS.map((name) => (
-								<ProductCardSkeleton key={name} />
-							))
-						: featured.map((row) => (
-								<ProductCard
-									key={row.product}
-									row={row}
-									trend={trendFor(row.product)}
-								/>
-							))}
+					{featured.map((row) => (
+						<ProductCard
+							isLoading={isLoading}
+							key={row.product}
+							row={row}
+							trend={trendFor(row.product)}
+						/>
+					))}
 				</div>
 
 				{isLoading || chart.metrics.length > 0 ? (
