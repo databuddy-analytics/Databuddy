@@ -1145,8 +1145,8 @@ export function groupActions(
 		);
 	}
 	let followingLink = false;
-	function requestMethod(input: ts.Node, owner: Unit, depth: number) {
-		if (followingLink && depth === 0) {
+	function requestMethod(input: ts.Node, owner: Unit) {
+		if (followingLink) {
 			return "get";
 		}
 		const parent = input.parent;
@@ -1176,16 +1176,12 @@ export function groupActions(
 				: "get";
 		}
 	}
-	function serverHandlers(
-		input: ts.Node,
-		owner: Unit,
-		depth: number
-	): Reference[] {
+	function serverHandlers(input: ts.Node, owner: Unit): Reference[] {
 		const url = urlParts(input);
 		if (!url || url.length < 2) {
 			return [];
 		}
-		const method = requestMethod(input, owner, depth);
+		const method = requestMethod(input, owner);
 		const matches = serverTable(sources).filter(
 			(route) =>
 				route.path !== owner.path &&
@@ -1940,10 +1936,13 @@ export function groupActions(
 						ts.isNoSubstitutionTemplateLiteral(child) ||
 						ts.isTemplateExpression(child))
 				) {
-					for (const handler of serverHandlers(child, owner, depth)) {
+					for (const handler of serverHandlers(child, owner)) {
 						addSite(handler.unit, handler.node);
 						if (!ts.isIdentifier(unwrap(handler.node))) {
+							const linking = followingLink;
+							followingLink = false;
 							evidence(handler.unit, handler.node, depth + 1);
+							followingLink = linking;
 						}
 					}
 				}
