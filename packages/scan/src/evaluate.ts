@@ -89,6 +89,9 @@ export const rowSchema = z.object({
 	coverageProbability: probability.nullable(),
 	categoryProbability: probability.nullable(),
 	action: actionSchema.optional(),
+	suggestedEvent: z
+		.object({ name: z.string(), properties: z.array(z.string()) })
+		.optional(),
 });
 export type Row = z.infer<typeof rowSchema>;
 const catalogEntries = z.array(z.string().max(600)).max(400);

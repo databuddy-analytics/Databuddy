@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "bun:test";
 import { groupActions } from "./src/actions";
 import { collectCoverage } from "./src/catalog";
+import { suggestEvent } from "./src/scan";
 
 // Behavioral extraction regressions from the reviewed action audit, not model-accuracy tests.
 // Source fixtures contain executable code only; review labels and rationales stay in test names.
@@ -995,5 +996,36 @@ export const better = betterAuth({
 	assert.deepEqual(
 		groups(source, {}, "lib/auth.ts").map((action) => action.label),
 		["events.signIn", "events.createUser", "user.create.after"]
+	);
+});
+
+test("a finding gets a past-tense snake_case event name and only enum-like properties", () => {
+	const name = (label: string, source = "", path = "app/billing/page.tsx") =>
+		suggestEvent(path, label, source)?.name;
+	assert.equal(
+		name("Button.onClick", "orpc.apiKeys.revokeKey.mutate({ id })"),
+		"api_key_revoked"
+	);
+	assert.equal(
+		name("handler create", "", "packages/rpc/src/routers/links.ts"),
+		"link_created"
+	);
+	assert.equal(name('Link.intent "Upgrade to Business"'), "business_upgraded");
+	assert.equal(
+		name("Button.onClick handleSave", "", "app/monitors/status-form.tsx"),
+		"status_saved"
+	);
+	assert.equal(name("post /v1/invites/:id/accept"), "invite_accepted");
+	assert.equal(
+		name("handler list", "", "packages/rpc/src/routers/links.ts"),
+		undefined
+	);
+	assert.deepEqual(
+		suggestEvent(
+			"app/page.tsx",
+			"form.onSubmit createTeam",
+			"save({ name, email, plan: form.plan, role })"
+		)?.properties,
+		["plan", "role"]
 	);
 });
