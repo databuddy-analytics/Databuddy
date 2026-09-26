@@ -115,11 +115,11 @@ export const uptimeRouter = {
 				"getScheduleByWebsiteId",
 				"Get schedule by website",
 				"read",
-				"Returns uptime schedule for a website. Requires read:monitors scope."
+				"Returns uptime schedule for a website with BullMQ scheduler status. Requires read:monitors scope."
 			)
 		)
 		.input(z.object({ websiteId: z.string() }))
-		.output(listScheduleItemSchema.nullable())
+		.output(getScheduleOutputSchema.nullable())
 		.handler(async ({ context, input }) => {
 			await withWorkspace(context, {
 				websiteId: input.websiteId,
@@ -130,9 +130,19 @@ export const uptimeRouter = {
 			const schedule = await db.query.uptimeSchedules.findFirst({
 				where: { websiteId: input.websiteId },
 				orderBy: { createdAt: "desc" },
+				with: { website: true },
 			});
+			if (!schedule) {
+				return null;
+			}
 
-			return schedule ?? null;
+			const schedulerActive = await hasUptimeSchedule(schedule.id).catch(
+				() => false
+			);
+			return {
+				...schedule,
+				schedulerStatus: schedulerActive ? "active" : "missing",
+			};
 		}),
 
 	listSchedules: protectedProcedure
