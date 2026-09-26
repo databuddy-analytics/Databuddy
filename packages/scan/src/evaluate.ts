@@ -285,12 +285,14 @@ function retryDelay(
 			Math.min(2000, timeoutMs / 50) * attempt * (1 + Math.random())
 		);
 	}
+	const duration = retryAfterMs(value);
+	return Number.isFinite(duration) ? Math.min(duration, 60_000) : 0;
+}
+function retryAfterMs(value: string) {
 	const duration = Number.isFinite(Number(value))
 		? Number(value) * 1000
 		: Date.parse(value) - Date.now();
-	return Number.isFinite(duration)
-		? Math.min(Math.max(0, duration), 60_000)
-		: 0;
+	return Number.isFinite(duration) ? Math.max(0, duration) : Number.NaN;
 }
 
 const gatewayUrl = "https://ai-gateway.vercel.sh/v4/ai/evaluation-model";
@@ -383,7 +385,7 @@ export async function requestEvaluation(
 			const throttled =
 				response?.status === 429 &&
 				retryAfter !== null &&
-				Number(retryAfter) <= 60;
+				retryAfterMs(retryAfter) <= 60_000;
 			if (
 				options.signal.aborted ||
 				attempt === attempts ||
