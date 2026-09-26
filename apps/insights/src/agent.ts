@@ -1359,12 +1359,26 @@ function resolveEvidenceReferences(
 	);
 }
 
+const FUNNEL_STEP_ENTITY = /^([^:]+):step:([1-9]\d*)$/;
+
 function hasCompleteDefinitionMeasurement(
 	input: InsightAgentInput,
 	sources: unknown[],
 	results: VerificationRead[]
 ) {
-	const entity = input.signal.entity;
+	const subject = input.signal.entity;
+	const step =
+		subject.type === "funnel_step" ? FUNNEL_STEP_ENTITY.exec(subject.id) : null;
+	const stepNumber = step ? Number(step[2]) : null;
+	if (
+		subject.type === "funnel_step" &&
+		(!(stepNumber && Number.isSafeInteger(stepNumber)) ||
+			stepNumber < 2 ||
+			input.signal.signalKey !== `funnel:${subject.id}`)
+	) {
+		return false;
+	}
+	const entity = step ? { id: step[1], type: "funnel" as const } : subject;
 	if (entity.type !== "goal" && entity.type !== "funnel") {
 		return false;
 	}
@@ -1375,7 +1389,21 @@ function hasCompleteDefinitionMeasurement(
 		measurement: insightMeasurementSchema,
 		total_users_entered: z.number().int().nonnegative(),
 		total_users_completed: z.number().int().nonnegative(),
+		steps_analytics: z
+			.array(
+				z.object({
+					step_number: z.number().int().positive(),
+					users: z.number().int().nonnegative(),
+					total_users: z.number().int().nonnegative(),
+					conversion_rate: z.number().min(0).max(100),
+				})
+			)
+			.optional()
+			.catch(undefined),
 	});
+	const periods = stepNumber
+		? [input.signal.period.current, input.signal.period.previous]
+		: [input.signal.period.current];
 	const parsed = sources
 		.map((source) => schema.safeParse(source))
 		.filter((value) => value.success);
@@ -1386,8 +1414,16 @@ function hasCompleteDefinitionMeasurement(
 	);
 	if (
 		!current ||
-		Date.parse(input.signal.period.current.to) + 86_400_000 >
-			Date.parse(input.appContext.currentDateTime)
+		periods.some(
+			(period) =>
+				!parsed.some(
+					({ data }) =>
+						data.measurement.startDate === period.from &&
+						data.measurement.endDate === period.to
+				) ||
+				Date.parse(period.to) + 86_400_000 >
+					Date.parse(input.appContext.currentDateTime)
+		)
 	) {
 		return false;
 	}
@@ -1402,15 +1438,52 @@ function hasCompleteDefinitionMeasurement(
 	) {
 		return false;
 	}
-	const exact = ({ data }: (typeof parsed)[number]) =>
-		data.measurement.websiteId ===
-			(input.appContext.websiteId ?? input.appContext.defaultWebsiteId) &&
-		data.measurement.definitionId === entity.id &&
-		data.total_users_completed <= data.total_users_entered &&
-		isDeepStrictEqual(
-			insightVerificationDefinitionSchema.parse(data.measurement.definition),
-			definition
+	const population = (data: z.infer<typeof schema>) =>
+		(data.steps_analytics ?? [])
+			.filter(
+				(row) =>
+					row.step_number === stepNumber ||
+					row.step_number === Number(stepNumber) - 1
+			)
+			.sort((left, right) => left.step_number - right.step_number);
+	const exact = ({ data }: (typeof parsed)[number]) => {
+		if (stepNumber) {
+			const rows = population(data);
+			const [before, target] = rows;
+			// Step conversion uses the preceding step, not whole-funnel total_users.
+			if (
+				!("steps" in definition) ||
+				stepNumber > definition.steps.length ||
+				rows.length !== 2 ||
+				before.step_number !== stepNumber - 1 ||
+				target.step_number !== stepNumber ||
+				rows.some((row) => row.total_users !== data.total_users_entered) ||
+				before.users > data.total_users_entered ||
+				(before.step_number === 1 &&
+					before.users !== data.total_users_entered) ||
+				target.users > before.users ||
+				data.total_users_completed > target.users ||
+				(stepNumber === definition.steps.length &&
+					target.users !== data.total_users_completed) ||
+				target.conversion_rate !==
+					(before.users > 0
+						? Math.round((target.users / before.users) * 10_000) / 100
+						: 0)
+			) {
+				return false;
+			}
+		}
+		return (
+			data.measurement.websiteId ===
+				(input.appContext.websiteId ?? input.appContext.defaultWebsiteId) &&
+			data.measurement.definitionId === entity.id &&
+			data.total_users_completed <= data.total_users_entered &&
+			isDeepStrictEqual(
+				insightVerificationDefinitionSchema.parse(data.measurement.definition),
+				definition
+			)
 		);
+	};
 	if (!parsed.every(exact)) {
 		return false;
 	}
@@ -1423,9 +1496,14 @@ function hasCompleteDefinitionMeasurement(
 			.object({ startDate: z.string(), endDate: z.string() })
 			.safeParse(read.input);
 		if (
-			!request.success ||
-			request.data.startDate !== input.signal.period.current.from ||
-			request.data.endDate !== input.signal.period.current.to
+			!(
+				request.success &&
+				periods.some(
+					(period) =>
+						request.data.startDate === period.from &&
+						request.data.endDate === period.to
+				)
+			)
 		) {
 			continue;
 		}
@@ -1434,6 +1512,17 @@ function hasCompleteDefinitionMeasurement(
 			!(actual.success && exact(actual)) ||
 			actual.data.measurement.startDate !== request.data.startDate ||
 			actual.data.measurement.endDate !== request.data.endDate
+		) {
+			return false;
+		}
+		if (
+			stepNumber &&
+			parsed.some(
+				({ data }) =>
+					data.measurement.startDate === request.data.startDate &&
+					data.measurement.endDate === request.data.endDate &&
+					!isDeepStrictEqual(population(data), population(actual.data))
+			)
 		) {
 			return false;
 		}
@@ -2546,7 +2635,8 @@ export async function runInsightAgent(
 							candidate.evidence.flatMap((entry, index) =>
 								entry.sources.flatMap((ref, sourceIndex) =>
 									ref.source === "tool" &&
-									ref.name === `get_${input.signal.entity.type}_analytics`
+									ref.name ===
+										`get_${input.signal.entity.type === "funnel_step" ? "funnel" : input.signal.entity.type}_analytics`
 										? [citedEvidence[index][sourceIndex]]
 										: []
 								)
