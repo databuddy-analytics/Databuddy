@@ -1145,8 +1145,8 @@ export function groupActions(
 		);
 	}
 	let followingLink = false;
-	function requestMethod(input: ts.Node, owner: Unit) {
-		if (followingLink) {
+	function requestMethod(input: ts.Node, owner: Unit, depth: number) {
+		if (followingLink && depth === 0) {
 			return "get";
 		}
 		const parent = input.parent;
@@ -1176,12 +1176,16 @@ export function groupActions(
 				: "get";
 		}
 	}
-	function serverHandlers(input: ts.Node, owner: Unit): Reference[] {
+	function serverHandlers(
+		input: ts.Node,
+		owner: Unit,
+		depth: number
+	): Reference[] {
 		const url = urlParts(input);
 		if (!url || url.length < 2) {
 			return [];
 		}
-		const method = requestMethod(input, owner);
+		const method = requestMethod(input, owner, depth);
 		const matches = serverTable(sources).filter(
 			(route) =>
 				route.path !== owner.path &&
@@ -1936,7 +1940,7 @@ export function groupActions(
 						ts.isNoSubstitutionTemplateLiteral(child) ||
 						ts.isTemplateExpression(child))
 				) {
-					for (const handler of serverHandlers(child, owner)) {
+					for (const handler of serverHandlers(child, owner, depth)) {
 						addSite(handler.unit, handler.node);
 						if (!ts.isIdentifier(unwrap(handler.node))) {
 							evidence(handler.unit, handler.node, depth + 1);
