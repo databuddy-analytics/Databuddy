@@ -45,6 +45,7 @@ function productParams(ctx: CustomSqlContext) {
 		endDate: ctx.endDate,
 		agentIds: AI_AGENTS.map((agent) => agent.id),
 		agentProducts: AI_AGENTS.map((agent) => agent.product),
+		agentNames: AI_AGENTS.map((agent) => agent.name),
 		...AI_VISIT_PARAMS,
 	};
 }
@@ -292,7 +293,7 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 			sql: `
 				SELECT
 					agent_id,
-					any(bot_name) AS name,
+					transform(agent_id, {agentIds:Array(String)}, {agentNames:Array(String)}, agent_id) AS name,
 					any(${AGENT_PRODUCT}) AS product,
 					any(agent_purpose) AS purpose,
 					count() AS requests,

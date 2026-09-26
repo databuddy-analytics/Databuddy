@@ -92,7 +92,7 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"searchatlas-crawler": null,
 	"semanticscholar-crawler": null,
 	"sentione-crawler": null,
-	shapbot: { operator: "ShapBot", purpose: "search_index" },
+	shapbot: { operator: "Parallel", purpose: "search_index" },
 	"storygize-crawler": null,
 	"tavily-bot": { operator: "Tavily", purpose: "user_fetch" },
 	"tiktok-crawler": { operator: "ByteDance", purpose: "training" },
@@ -108,8 +108,14 @@ function aiProductOf(operator: string): string {
 	return AI_PRODUCT_BY_OPERATOR[operator] ?? operator;
 }
 
+const TRAILING_SEPARATORS = /[\s/]+$/;
+const HAS_UPPERCASE = /[A-Z]/;
+
 const wellKnownBotSchema = z.object({
 	id: z.string(),
+	instances: z
+		.object({ accepted: z.array(z.string()).default([]) })
+		.default({ accepted: [] }),
 	pattern: z.object({
 		accepted: z.array(z.string()),
 		forbidden: z.array(z.string()),
@@ -119,6 +125,7 @@ const wellKnownBotSchema = z.object({
 export interface AiAgent {
 	excludePatterns: RegExp[];
 	id: string;
+	name: string;
 	operator: string;
 	patterns: RegExp[];
 	product: string;
@@ -133,6 +140,7 @@ function codingAgent(
 ): AiAgent {
 	return {
 		id,
+		name: product,
 		operator,
 		product,
 		purpose: "agent",
@@ -162,6 +170,18 @@ const CODING_AGENTS: AiAgent[] = [
 	codingAgent("manus", "Manus", "Manus", /Manus-User/i),
 ];
 
+function crawlerName(bot: z.infer<typeof wellKnownBotSchema>): string {
+	const names = bot.instances.accepted.flatMap((userAgent) =>
+		bot.pattern.accepted.flatMap(
+			(pattern) =>
+				new RegExp(pattern)
+					.exec(userAgent)?.[0]
+					.replace(TRAILING_SEPARATORS, "") ?? []
+		)
+	);
+	return names.find((name) => HAS_UPPERCASE.test(name)) ?? names[0] ?? bot.id;
+}
+
 function toAiAgent(bot: z.infer<typeof wellKnownBotSchema>): AiAgent | null {
 	const classification = AI_AGENT_CLASSIFICATION[bot.id];
 	if (!classification) {
@@ -170,6 +190,7 @@ function toAiAgent(bot: z.infer<typeof wellKnownBotSchema>): AiAgent | null {
 	return {
 		...classification,
 		id: bot.id,
+		name: crawlerName(bot),
 		product: aiProductOf(classification.operator),
 		patterns: bot.pattern.accepted.map((p) => new RegExp(p)),
 		excludePatterns: bot.pattern.forbidden.map((p) => new RegExp(p)),
