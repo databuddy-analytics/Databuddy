@@ -1,6 +1,7 @@
 "use client";
 
 import { dayjs, EmptyState, fromNow, Skeleton } from "@databuddy/ui";
+import { CopyButton } from "@databuddy/ui/client";
 import { BrainIcon } from "@databuddy/ui/icons";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
@@ -33,6 +34,22 @@ interface ProductSeriesRow {
 type PageResult = Omit<AgentPageRow, "name"> & { page: string };
 
 const CHART_PRODUCTS = 4;
+
+function proxySnippet(websiteId: string): string {
+	return `import { trackAgentTraffic } from "@databuddy/sdk/agents";
+import { type NextFetchEvent, type NextRequest, NextResponse } from "next/server";
+
+export function proxy(request: NextRequest, event: NextFetchEvent) {
+	event.waitUntil(
+		trackAgentTraffic(request, {
+			apiKey: process.env.DATABUDDY_API_KEY ?? "",
+			websiteId: "${websiteId}",
+		})
+	);
+	return NextResponse.next();
+}
+`;
+}
 const NEVER_SEEN = "1970";
 
 function mainPurpose(row: ProductRow): string | null {
@@ -136,11 +153,20 @@ export default function AgentsPage() {
 
 	if (!isLoading && products.length === 0) {
 		return (
-			<div className="p-4">
+			<div className="flex h-full flex-col p-4">
 				<EmptyState
-					description="ChatGPT, Claude, Perplexity and other AI products show up here when they read your pages or send you visitors. Crawlers like GPTBot and ClaudeBot don't run JavaScript, so add trackAgentTraffic from @databuddy/sdk/agents to your server to see them."
+					action={
+						<CopyButton
+							label="Copy proxy.ts setup"
+							size="md"
+							value={proxySnippet(websiteId)}
+							variant="secondary"
+						/>
+					}
+					description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers skip JavaScript, so add this to your Next.js proxy.ts to see them."
 					icon={<BrainIcon />}
-					title="No AI activity in this period"
+					isMainContent
+					title="No AI activity yet"
 				/>
 			</div>
 		);
