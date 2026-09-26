@@ -13,8 +13,8 @@ import {
 import { FaviconImage } from "@/components/analytics/favicon-image";
 import { AiProductIcon } from "@/components/icon";
 import { DataTable } from "@/components/table/data-table";
-import { useDateFilters } from "@/hooks/use-date-filters";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
+import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { formatNumber } from "@/lib/formatters";
 import {
@@ -25,12 +25,6 @@ import {
 	pageColumns,
 } from "./columns";
 import { cn } from "@/lib/utils";
-
-interface ProductSeriesRow {
-	date: string;
-	product: string;
-	requests: number;
-}
 
 interface VisitorSeriesRow {
 	date: string;
@@ -45,9 +39,9 @@ interface TrendPoint {
 
 type PageResult = Omit<AgentPageRow, "name"> & { page: string };
 
-const CHART_PRODUCTS = 4;
 const NON_ID_CHARS = /[^a-zA-Z0-9_-]/g;
 
+const CHART_PRODUCTS = 4;
 const FOREGROUND = "var(--color-foreground)";
 const PRODUCT_COLORS: Record<string, string> = {
 	Apple: FOREGROUND,
@@ -207,7 +201,6 @@ export default function AgentsPage() {
 		dateRange,
 		[
 			{ id: "products", parameters: ["ai_products"] },
-			{ id: "series", parameters: ["ai_agent_time_series"] },
 			{ id: "visitors", parameters: ["ai_product_visitors"] },
 			{ id: "pages", parameters: ["ai_agent_pages"] },
 		]
@@ -215,9 +208,6 @@ export default function AgentsPage() {
 
 	const products =
 		(getDataForQuery("products", "ai_products") as ProductRow[]) ?? [];
-	const series =
-		(getDataForQuery("series", "ai_agent_time_series") as ProductSeriesRow[]) ??
-		[];
 	const pages =
 		(getDataForQuery("pages", "ai_agent_pages") as PageResult[]) ?? [];
 
@@ -243,45 +233,41 @@ export default function AgentsPage() {
 		return keys;
 	}, [dateRange.start_date, dateRange.end_date, isHourly, bucketFormat]);
 
+	const visitorsByProduct = useMemo(
+		() =>
+			countsByProduct(
+				visitorSeries,
+				(row) => Number(row.visitors) || 0,
+				bucketFormat
+			),
+		[visitorSeries, bucketFormat]
+	);
+
+	const trendFor = (product: string): TrendPoint[] =>
+		buckets.map((date) => ({
+			date,
+			value: visitorsByProduct.get(product)?.get(date) ?? 0,
+		}));
+
 	const chart = useMemo(() => {
 		const topProducts = products
-			.filter((row) => row.requests > 0)
+			.filter((row) => row.visitors > 0)
+			.sort((a, b) => b.visitors - a.visitors)
 			.slice(0, CHART_PRODUCTS)
 			.map((row) => row.product);
-		const requests = countsByProduct(
-			series,
-			(row) => Number(row.requests) || 0,
-			bucketFormat
-		);
 		return {
 			data: buckets.map((bucket): ChartMultiSeriesDataPoint => {
 				const point: ChartMultiSeriesDataPoint = {
 					date: dayjs(bucket).format(isHourly ? "HH:mm" : "MMM D"),
 				};
 				for (const product of topProducts) {
-					point[product] = requests.get(product)?.get(bucket) ?? 0;
+					point[product] = visitorsByProduct.get(product)?.get(bucket) ?? 0;
 				}
 				return point;
 			}),
-			metrics: topProducts.map((product) => ({
-				key: product,
-				label: product,
-			})),
+			metrics: topProducts.map((product) => ({ key: product, label: product })),
 		};
-	}, [products, series, buckets, bucketFormat, isHourly]);
-
-	const trendFor = useMemo(() => {
-		const visitors = countsByProduct(
-			visitorSeries,
-			(row) => Number(row.visitors) || 0,
-			bucketFormat
-		);
-		return (product: string): TrendPoint[] =>
-			buckets.map((date) => ({
-				date,
-				value: visitors.get(product)?.get(date) ?? 0,
-			}));
-	}, [visitorSeries, buckets, bucketFormat]);
+	}, [products, buckets, visitorsByProduct, isHourly]);
 
 	const featured = FEATURED_PRODUCTS.map(
 		(name) => products.find((row) => row.product === name) ?? emptyProduct(name)
@@ -333,24 +319,24 @@ export default function AgentsPage() {
 
 				{isLoading || chart.metrics.length > 0 ? (
 					<SimpleMetricsChart
+						chartStepType={chartStepType}
 						data={chart.data}
-						description="Requests from each AI product's crawlers and agents"
+						description="Visitors each AI product sent to your site"
 						height={280}
 						isLoading={isLoading}
-						chartStepType={chartStepType}
 						metrics={chart.metrics}
 						partialLastSegment
 						seriesKind={chartType}
 						showYAxis
-						title="AI requests"
+						title="AI visitors"
 					/>
 				) : null}
 
 				<DataTable
 					columns={pageColumns}
 					data={pageRows}
-					description="What AI reads, next to what humans read"
-					emptyMessage="No pages read by AI yet"
+					description="Where AI sends visitors, and what it reads"
+					emptyMessage="No AI visitors or reads yet"
 					isLoading={isLoading}
 					title="Pages"
 				/>
@@ -360,6 +346,7 @@ export default function AgentsPage() {
 						columns={otherProductColumns}
 						data={others}
 						description="Coding agents, crawlers and other AI products"
+						initialPageSize={5}
 						isLoading={isLoading}
 						title="Other AI"
 					/>

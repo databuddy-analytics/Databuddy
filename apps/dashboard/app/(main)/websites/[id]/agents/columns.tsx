@@ -53,6 +53,7 @@ export const pageColumns: ColumnDef<AgentPageRow>[] = [
 			</span>
 		),
 	},
+	numberColumn("visitors", "AI visitors"),
 	{
 		id: "products",
 		accessorKey: "products",
@@ -69,7 +70,6 @@ export const pageColumns: ColumnDef<AgentPageRow>[] = [
 	},
 	numberColumn("requests", "AI requests"),
 	numberColumn("pageviews", "Human views"),
-	numberColumn("visitors", "AI visitors"),
 ];
 
 function productNumberColumn(
