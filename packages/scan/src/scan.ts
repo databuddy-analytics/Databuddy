@@ -103,7 +103,8 @@ const sourceFile =
 const repositoryKey =
 	/^[ \t]*(?:export[ \t]+)?AI_GATEWAY_API_KEY[ \t]*=[ \t]*(.*?)[ \t]*$/m;
 const quoted = /^(["'])(.*)\1$/;
-const routeHandlerLabel = /^(?:GET|POST|PUT|PATCH|DELETE)$/;
+const routeHandlerLabel =
+	/^(?:GET|POST|PUT|PATCH|DELETE)$|^(?:get|post|put|patch|delete|all) \//;
 const reviewable = /\.(?:[cm]?[jt]sx?|vue|svelte|astro|swift|py)$/;
 const sourceLineBoundary = /(?<=\n)/;
 const secret =
@@ -149,6 +150,9 @@ const shedError = /^(?:Gateway HTTP 5[0-9]{2}|Gateway request timed out)$/;
 const splitDepth = 2;
 const keyHelp = "Check the key, or unset it to use Databuddy's scan API.";
 const catalogByteLimit = 24_000;
+const entryPath = /((?:[\w@.()[\]-]+\/)+[\w@.()[\]-]+\.\w+):\d/;
+const entrySymbol = /^([\w$.]+)/;
+const entryEvent = /["'`]([\w.:-]+)["'`]/;
 
 async function readJSON(path: string): Promise<JsonValue> {
 	try {
@@ -186,6 +190,34 @@ function splitSource(path: string, content: string): Segment[] {
 		segments.push({ path, start, end: line - 1, source });
 	}
 	return segments;
+}
+
+function slimCatalog(jobs: Segment[], catalog: Catalog): Catalog {
+	const text = jobs.map((job) => job.source).join("\n");
+	const paths = new Set(
+		jobs.flatMap((job) => [
+			job.path,
+			...(job.action?.sites ?? []).map((site) => site.path),
+		])
+	);
+	const relevant = (entry: string) => {
+		const path = entryPath.exec(entry)?.[1];
+		const symbol = entrySymbol.exec(entry)?.[1] ?? "";
+		const event = entryEvent.exec(entry)?.[1] ?? "";
+		return (
+			(path !== undefined && paths.has(path)) ||
+			(symbol.length > 3 && text.includes(symbol)) ||
+			(event.length > 3 && text.includes(event))
+		);
+	};
+	return {
+		...catalog,
+		trackedRoutes: catalog.trackedRoutes.filter(relevant),
+		attributeTracking: catalog.attributeTracking.filter(
+			(entry) => entry.startsWith("data-track listener") || relevant(entry)
+		),
+		directTrackingCandidates: catalog.directTrackingCandidates.filter(relevant),
+	};
 }
 
 function planRequests(
@@ -637,6 +669,14 @@ export async function scan(
 					attempts,
 				};
 			let response: JsonValue = null;
+			const slimBody =
+				jobs.length === 1
+					? createRequest(jobs, slimCatalog(jobs, catalog))
+					: body;
+			const splittable =
+				depth < splitDepth &&
+				(jobs.length > 1 || slimBody.length < body.length);
+
 			log("batch_started", {
 				batch: index,
 				depth,
@@ -657,7 +697,6 @@ export async function scan(
 					}
 					log("cache_invalid", { batch: index, cacheKey });
 				}
-				const splittable = jobs.length > 1 && depth < splitDepth;
 				if (
 					!call.cached &&
 					splittable &&
@@ -699,8 +738,7 @@ export async function scan(
 									: "Scan failed";
 				call.split =
 					!controller.signal.aborted &&
-					jobs.length > 1 &&
-					depth < splitDepth &&
+					splittable &&
 					shedError.test(call.error);
 				if (
 					attempts.some((a) => a.status === 401 || a.status === 403) ||
@@ -724,6 +762,10 @@ export async function scan(
 			}
 			if (call.split) {
 				await writeFile(cacheFile(body, "split"), "", { mode: 0o600 });
+				if (jobs.length === 1) {
+					await evaluateBatch({ body: slimBody, jobs }, index, depth + 1);
+					return;
+				}
 				const half = Math.ceil(jobs.length / 2);
 				const halves = [jobs.slice(0, half), jobs.slice(half)];
 				plannedBatches += halves.length - 1;
