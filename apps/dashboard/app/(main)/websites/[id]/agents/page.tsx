@@ -1,8 +1,20 @@
 "use client";
 
-import { dayjs, EmptyState, fromNow } from "@databuddy/ui";
+import { Button, dayjs, EmptyState, fromNow, StatusDot } from "@databuddy/ui";
 import { CopyButton } from "@databuddy/ui/client";
-import { BrainIcon } from "@databuddy/ui/icons";
+import {
+	BrainIcon,
+	FileTextIcon,
+	GlobeIcon,
+	ListBulletsIcon,
+} from "@databuddy/ui/icons";
+import { useMutation } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
+import {
+	CONTENT_FORMATS,
+	type ContentFormat,
+	FEATURED_AI_PRODUCTS,
+} from "@databuddy/shared/bot-detection/types";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
@@ -10,21 +22,151 @@ import {
 	Chart,
 	type ChartMultiSeriesDataPoint,
 } from "@/components/ui/composables/chart";
-import { FaviconImage } from "@/components/analytics/favicon-image";
-import { AiProductIcon } from "@/components/icon";
+import { AiProductIcon, aiProductColor } from "@/components/icon";
 import { DataTable } from "@/components/table/data-table";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { formatNumber } from "@/lib/formatters";
-import {
-	type AgentPageRow,
-	NEVER_SEEN,
-	otherProductColumns,
-	type ProductRow,
-	pageColumns,
-} from "./columns";
+import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
+
+const FORMATS: Record<
+	ContentFormat,
+	{ description: string; icon: typeof GlobeIcon; label: string }
+> = {
+	markdown: {
+		description: ".md pages and markdown requests",
+		icon: FileTextIcon,
+		label: "Markdown",
+	},
+	llms: {
+		description: "llms.txt and llms-full.txt",
+		icon: ListBulletsIcon,
+		label: "llms.txt",
+	},
+	html: { description: "Regular web pages", icon: GlobeIcon, label: "HTML" },
+};
+
+interface ProductRow {
+	last_seen: string;
+	on_demand: number;
+	pages: number;
+	product: string;
+	requests: number;
+	search_index: number;
+	training: number;
+	visitors: number;
+}
+
+const NEVER_SEEN = "1970";
+
+interface AgentPageRow {
+	format: ContentFormat | null;
+	name: string;
+	pageviews: number;
+	products: string[];
+	requests: number;
+	visitors: number;
+}
+
+function numberColumn<TRow>(
+	key: keyof TRow & string,
+	header: string
+): ColumnDef<TRow> {
+	return {
+		id: key,
+		accessorKey: key,
+		header,
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground tabular-nums">
+				{formatNumber((getValue() as number) ?? 0)}
+			</span>
+		),
+	};
+}
+
+const pageColumns: ColumnDef<AgentPageRow>[] = [
+	{
+		id: "name",
+		accessorKey: "name",
+		header: "Page",
+		cell: ({ getValue }) => (
+			<span className="truncate font-medium text-[15px]">
+				{getValue() as string}
+			</span>
+		),
+	},
+	numberColumn<AgentPageRow>("visitors", "AI visitors"),
+	{
+		id: "products",
+		accessorKey: "products",
+		header: "Read by",
+		cell: ({ row }) => (
+			<div className="flex items-center gap-1">
+				{row.original.products.map((product) => (
+					<span key={product} title={product}>
+						<AiProductIcon name={product} size="sm" />
+					</span>
+				))}
+			</div>
+		),
+	},
+	numberColumn<AgentPageRow>("requests", "AI requests"),
+	{
+		id: "format",
+		accessorKey: "format",
+		header: "Format",
+		cell: ({ getValue }) => {
+			const format = getValue() as ContentFormat | null;
+			return (
+				<span className="text-[15px] text-muted-foreground">
+					{format ? FORMATS[format].label : ""}
+				</span>
+			);
+		},
+	},
+	numberColumn<AgentPageRow>("pageviews", "Human views"),
+];
+
+const otherProductColumns: ColumnDef<ProductRow & { name: string }>[] = [
+	{
+		id: "name",
+		accessorKey: "name",
+		header: "Product",
+		cell: ({ row }) => (
+			<div className="flex min-w-0 items-center gap-2">
+				<AiProductIcon name={row.original.name} size="sm" />
+				<span className="truncate font-medium text-[15px]">
+					{row.original.name}
+				</span>
+			</div>
+		),
+	},
+	numberColumn<ProductRow & { name: string }>("requests", "Requests"),
+	numberColumn<ProductRow & { name: string }>("pages", "Pages read"),
+	numberColumn<ProductRow & { name: string }>("visitors", "Visitors sent"),
+	{
+		id: "last_seen",
+		accessorKey: "last_seen",
+		header: "Last read",
+		cell: ({ getValue }) => {
+			const value = getValue() as string;
+			return (
+				<span className="text-[15px] text-muted-foreground">
+					{value.startsWith(NEVER_SEEN) ? "Never" : fromNow(value)}
+				</span>
+			);
+		},
+	},
+];
+
+interface FormatRow {
+	format: ContentFormat;
+	pages: number;
+	products: string[];
+	requests: number;
+}
 
 interface VisitorSeriesRow {
 	date: string;
@@ -42,64 +184,72 @@ type PageResult = Omit<AgentPageRow, "name"> & { page: string };
 const NON_ID_CHARS = /[^a-zA-Z0-9_-]/g;
 
 const CHART_PRODUCTS = 4;
-const FOREGROUND = "var(--color-foreground)";
-const PRODUCT_COLORS: Record<string, string> = {
-	Apple: FOREGROUND,
-	ByteDance: "#3C8CFF",
-	ChatGPT: FOREGROUND,
-	Claude: "#D97757",
-	"Claude Code": "#D97757",
-	Cursor: FOREGROUND,
-	DeepSeek: "#5786FE",
-	DuckDuckGo: "#DE5833",
-	"Gemini CLI": "#8E75B2",
-	"Google Gemini": "#8E75B2",
-	Huawei: "#FF0000",
-	"Meta AI": "#0467DF",
-	Mistral: "#FA520F",
-	Perplexity: "#1FB8CD",
-};
 
-const FAVICON_FALLBACKS: Record<string, string> = {
-	"Microsoft Copilot": "copilot.microsoft.com",
-};
-const FEATURED_PRODUCTS = [
-	"ChatGPT",
-	"Claude",
-	"Google Gemini",
-	"Perplexity",
-	"Microsoft Copilot",
-	"Meta AI",
-];
+function setupSnippet(websiteId: string): string {
+	return `// proxy.ts
+export { proxy } from "@databuddy/sdk/agents";
 
-function proxySnippet(websiteId: string): string {
-	return `import { trackAgentTraffic } from "@databuddy/sdk/agents";
-import { type NextFetchEvent, type NextRequest, NextResponse } from "next/server";
-
-export function proxy(request: NextRequest, event: NextFetchEvent) {
-	event.waitUntil(
-		trackAgentTraffic(request, {
-			apiKey: process.env.DATABUDDY_API_KEY ?? "",
-			websiteId: "${websiteId}",
-		})
-	);
-	return NextResponse.next();
-}
+// .env
+NEXT_PUBLIC_DATABUDDY_CLIENT_ID=${websiteId}
 `;
 }
 
-function countsByProduct<TRow extends { date: string; product: string }>(
-	rows: TRow[],
-	value: (row: TRow) => number,
-	bucketFormat: string
-): Map<string, Map<string, number>> {
-	const counts = new Map<string, Map<string, number>>();
-	for (const row of rows) {
-		const byBucket = counts.get(row.product) ?? new Map<string, number>();
-		byBucket.set(dayjs(row.date).format(bucketFormat), value(row));
-		counts.set(row.product, byBucket);
-	}
-	return counts;
+function AgentSetup({
+	className,
+	websiteId,
+}: {
+	className?: string;
+	websiteId: string;
+}) {
+	const check = useMutation(orpc.websites.checkAgentSetup.mutationOptions());
+	const results = check.data
+		? [
+				{
+					label: "Homepage",
+					isRecorded: check.data.homepage,
+					hint: "deploy proxy.ts with NEXT_PUBLIC_DATABUDDY_CLIENT_ID set",
+				},
+				{
+					label: "llms.txt",
+					isRecorded: check.data.llmsTxt,
+					hint: "make sure your proxy matcher doesn't skip .txt files",
+				},
+			]
+		: [];
+
+	return (
+		<div className={cn("flex flex-col gap-2", className)}>
+			<div className="flex gap-2">
+				<CopyButton
+					label="Copy setup"
+					size="md"
+					value={setupSnippet(websiteId)}
+					variant="secondary"
+				/>
+				<Button
+					loading={check.isPending}
+					onClick={() => check.mutate({ websiteId })}
+					size="md"
+					variant="secondary"
+				>
+					Test setup
+				</Button>
+			</div>
+			{results.map((result) => (
+				<p className="flex items-center gap-1.5 text-xs" key={result.label}>
+					<StatusDot color={result.isRecorded ? "success" : "warning"} />
+					{result.isRecorded
+						? `${result.label} recorded`
+						: `${result.label} not recorded: ${result.hint}`}
+				</p>
+			))}
+			{check.isError ? (
+				<p className="text-destructive text-xs">
+					Couldn't run the check. Try again in a moment.
+				</p>
+			) : null}
+		</div>
+	);
 }
 
 function mainPurpose(row: ProductRow): string | null {
@@ -124,6 +274,59 @@ function emptyProduct(product: string): ProductRow {
 	};
 }
 
+function FormatCard({
+	format,
+	isLoading,
+	row,
+}: {
+	format: ContentFormat;
+	isLoading: boolean;
+	row: FormatRow | undefined;
+}) {
+	const { description, icon: Icon, label } = FORMATS[format];
+	return (
+		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
+			<div className="flex items-center gap-2.5">
+				<div className="flex size-7 items-center justify-center rounded bg-accent">
+					<Icon className="size-4 text-muted-foreground" />
+				</div>
+				<div className="min-w-0">
+					<p className="truncate font-semibold text-sm">{label}</p>
+					<p className="truncate text-muted-foreground text-xs">
+						{description}
+					</p>
+				</div>
+			</div>
+			<div>
+				<p className="font-semibold text-xl tabular-nums">
+					{formatNumber(row?.requests ?? 0)}
+					<span className="ml-1.5 font-normal text-muted-foreground text-xs">
+						requests
+					</span>
+				</p>
+				<div className="mt-1.5 flex h-5 items-center gap-1.5">
+					{row && row.requests > 0 ? (
+						<>
+							<span className="text-muted-foreground text-xs">
+								{formatNumber(row.pages)} pages, read by
+							</span>
+							{row.products.map((product) => (
+								<span key={product} title={product}>
+									<AiProductIcon name={product} size="sm" />
+								</span>
+							))}
+						</>
+					) : (
+						<span className="text-muted-foreground text-xs">
+							{isLoading ? "Checking…" : "Not fetched yet"}
+						</span>
+					)}
+				</div>
+			</div>
+		</div>
+	);
+}
+
 function ProductCard({
 	isLoading,
 	row,
@@ -140,16 +343,6 @@ function ProductCard({
 			<div className="flex items-center gap-2.5">
 				<AiProductIcon
 					className={cn(!isActive && "opacity-40 grayscale")}
-					fallback={
-						FAVICON_FALLBACKS[row.product] ? (
-							<FaviconImage
-								altText={row.product}
-								className={cn(!isActive && "opacity-40 grayscale")}
-								domain={FAVICON_FALLBACKS[row.product]}
-								size={28}
-							/>
-						) : undefined
-					}
 					name={row.product}
 					size={28}
 				/>
@@ -164,7 +357,7 @@ function ProductCard({
 				</p>
 				<div className="my-1.5 h-9">
 					<Chart.SingleSeries
-						color={PRODUCT_COLORS[row.product]}
+						color={aiProductColor(row.product)}
 						data={trend}
 						height={36}
 						id={`ai-product-${row.product.replace(NON_ID_CHARS, "-")}`}
@@ -202,12 +395,15 @@ export default function AgentsPage() {
 		[
 			{ id: "products", parameters: ["ai_products"] },
 			{ id: "visitors", parameters: ["ai_product_visitors"] },
+			{ id: "formats", parameters: ["ai_content_formats"] },
 			{ id: "pages", parameters: ["ai_agent_pages"] },
 		]
 	);
 
 	const products =
 		(getDataForQuery("products", "ai_products") as ProductRow[]) ?? [];
+	const formats =
+		(getDataForQuery("formats", "ai_content_formats") as FormatRow[]) ?? [];
 	const pages =
 		(getDataForQuery("pages", "ai_agent_pages") as PageResult[]) ?? [];
 
@@ -233,15 +429,18 @@ export default function AgentsPage() {
 		return keys;
 	}, [dateRange.start_date, dateRange.end_date, isHourly, bucketFormat]);
 
-	const visitorsByProduct = useMemo(
-		() =>
-			countsByProduct(
-				visitorSeries,
-				(row) => Number(row.visitors) || 0,
-				bucketFormat
-			),
-		[visitorSeries, bucketFormat]
-	);
+	const visitorsByProduct = useMemo(() => {
+		const counts = new Map<string, Map<string, number>>();
+		for (const row of visitorSeries) {
+			const byBucket = counts.get(row.product) ?? new Map<string, number>();
+			byBucket.set(
+				dayjs(row.date).format(bucketFormat),
+				Number(row.visitors) || 0
+			);
+			counts.set(row.product, byBucket);
+		}
+		return counts;
+	}, [visitorSeries, bucketFormat]);
 
 	const trendFor = (product: string): TrendPoint[] =>
 		buckets.map((date) => ({
@@ -269,11 +468,11 @@ export default function AgentsPage() {
 		};
 	}, [products, buckets, visitorsByProduct, isHourly]);
 
-	const featured = FEATURED_PRODUCTS.map(
+	const featured = FEATURED_AI_PRODUCTS.map(
 		(name) => products.find((row) => row.product === name) ?? emptyProduct(name)
 	);
 	const others = products
-		.filter((row) => !FEATURED_PRODUCTS.includes(row.product))
+		.filter((row) => !FEATURED_AI_PRODUCTS.includes(row.product))
 		.map((row) => ({ ...row, name: row.product }));
 
 	const pageRows = useMemo(
@@ -286,15 +485,8 @@ export default function AgentsPage() {
 		return (
 			<div className="flex h-full flex-col p-4">
 				<EmptyState
-					action={
-						<CopyButton
-							label="Copy proxy.ts setup"
-							size="md"
-							value={proxySnippet(websiteId)}
-							variant="secondary"
-						/>
-					}
-					description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers skip JavaScript, so add this to your Next.js proxy.ts to see them."
+					action={<AgentSetup className="items-center" websiteId={websiteId} />}
+					description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers skip JavaScript, so add one file to your site, deploy, then test it."
 					icon={<BrainIcon />}
 					isMainContent
 					title="No AI activity yet"
@@ -317,20 +509,34 @@ export default function AgentsPage() {
 					))}
 				</div>
 
-				{isLoading || chart.metrics.length > 0 ? (
-					<SimpleMetricsChart
-						chartStepType={chartStepType}
-						data={chart.data}
-						description="Visitors each AI product sent to your site"
-						height={280}
-						isLoading={isLoading}
-						metrics={chart.metrics}
-						partialLastSegment
-						seriesKind={chartType}
-						showYAxis
-						title="AI visitors"
-					/>
-				) : null}
+				<div className="space-y-1.5 rounded-xl bg-secondary p-1.5">
+					<div className="grid gap-1.5 sm:grid-cols-3">
+						{CONTENT_FORMATS.map((format) => (
+							<FormatCard
+								format={format}
+								isLoading={isLoading}
+								key={format}
+								row={formats.find((row) => row.format === format)}
+							/>
+						))}
+					</div>
+
+					{isLoading || chart.metrics.length > 0 ? (
+						<SimpleMetricsChart
+							chartStepType={chartStepType}
+							className="rounded-lg border-0 bg-background"
+							data={chart.data}
+							description="Visitors each AI product sent to your site"
+							height={280}
+							isLoading={isLoading}
+							metrics={chart.metrics}
+							partialLastSegment
+							seriesKind={chartType}
+							showYAxis
+							title="AI visitors"
+						/>
+					) : null}
+				</div>
 
 				<DataTable
 					columns={pageColumns}
@@ -352,11 +558,13 @@ export default function AgentsPage() {
 					/>
 				) : null}
 
-				<p className="text-pretty text-muted-foreground text-xs">
-					Crawlers that don't run JavaScript, like GPTBot and ClaudeBot, only
-					appear once trackAgentTraffic from @databuddy/sdk/agents runs on your
-					server.
-				</p>
+				<div className="space-y-2">
+					<p className="text-pretty text-muted-foreground text-xs">
+						Crawlers that don't run JavaScript, like GPTBot and ClaudeBot, only
+						appear once @databuddy/sdk/agents runs on your server.
+					</p>
+					<AgentSetup websiteId={websiteId} />
+				</div>
 			</div>
 		</div>
 	);

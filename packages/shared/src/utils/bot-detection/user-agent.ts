@@ -2,7 +2,10 @@ import { UAParser } from "ua-parser-js";
 import type { ParsedUserAgent } from "./types";
 import { UA_BOT_NAMES, UA_PATTERNS, UA_REGEX } from "./ua-patterns";
 
-const AI_APP_BROWSER = /\b(Claude|Cursor)\/(\d[\d.]*)/;
+export const AI_APP_BROWSERS = ["Claude", "Cursor"];
+const AI_APP_BROWSER = new RegExp(
+	`\\b(${AI_APP_BROWSERS.join("|")})\\/(\\d[\\d.]*)`
+);
 
 export function parseUserAgent(userAgent: string): ParsedUserAgent {
 	if (!userAgent) {

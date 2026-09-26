@@ -924,3 +924,19 @@ export function Manage() { return <a href={portalUrl()}>Upgrade billing</a>; }`;
 	]);
 	assert.deepEqual(sites("href={portalUrl()}"), ["api/billing.ts:4"]);
 });
+
+test("a bound or applied action reaches its write only when it is invoked", () => {
+	const actions = (body: string) => {
+		const source = `import { save } from "./save";
+export function Page() {
+	return <button onClick={() => { ${body} }}>Save</button>;
+}`;
+		return groups(source, {
+			"app/save.ts":
+				"export async function save(id: string) { await db.insert(items).values({ id }); }",
+		});
+	};
+	assert.equal(actions("const run = save.bind(null, id); run();").length, 1);
+	assert.equal(actions("save.apply(null, [id]);").length, 1);
+	assert.equal(actions("const later = save.bind(null, id);").length, 0);
+});

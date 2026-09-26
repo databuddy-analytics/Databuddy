@@ -2,7 +2,13 @@ import { successOutputSchema } from "../lib/schemas";
 import { BusinessMemoryRetirementError } from "@databuddy/services/business-memory";
 import { db } from "@databuddy/db";
 import { chQuery, purgeWebsiteAnalyticsData } from "@databuddy/db/clickhouse";
-import { cacheable } from "@databuddy/redis";
+import { setTimeout as sleep } from "node:timers/promises";
+import { cacheable, redis } from "@databuddy/redis";
+import {
+	setupCheckKey,
+	setupCheckUserAgent,
+} from "@databuddy/shared/bot-detection/ai-agents";
+import { safeFetch } from "@databuddy/shared/ssrf-guard";
 import { auditActions } from "@databuddy/shared/audit";
 import {
 	getTrackingBlockOriginHost,
@@ -51,6 +57,27 @@ import {
 	type ProcessedMiniChartData,
 	processChartData,
 } from "./websites-chart";
+
+async function isAgentRequestRecorded(
+	websiteId: string,
+	url: string
+): Promise<boolean> {
+	const nonce = crypto.randomUUID();
+	await safeFetch(url, {
+		headers: { "user-agent": setupCheckUserAgent(nonce) },
+		timeoutMs: 8000,
+	})
+		.then((response) => response.body?.cancel())
+		.catch(() => undefined);
+	const key = setupCheckKey(websiteId, nonce);
+	for (let attempt = 0; attempt < 10; attempt++) {
+		if (await redis.exists(key)) {
+			return true;
+		}
+		await sleep(300);
+	}
+	return false;
+}
 
 const websiteService = new WebsiteService(db);
 
@@ -1091,6 +1118,33 @@ export const websitesRouter = {
 				status_message: buildStatusMessage(eventsStatus, trackingIssue),
 				tracking_issue: trackingIssue,
 			};
+		}),
+
+	checkAgentSetup: protectedProcedure
+		.route({
+			description:
+				"Requests the website's homepage and llms.txt as GPTBot and reports whether @databuddy/sdk/agents recorded each request. Requires website read permission.",
+			method: "POST",
+			path: "/websites/checkAgentSetup",
+			summary: "Check AI agent tracking setup",
+			tags: ["Websites"],
+		})
+		.input(z.object({ websiteId: z.string() }))
+		.output(z.object({ homepage: z.boolean(), llmsTxt: z.boolean() }))
+		.handler(async ({ context, input }) => {
+			const { website } = await withWorkspace(context, {
+				websiteId: input.websiteId,
+				permissions: ["read"],
+			});
+			if (!website) {
+				throw rpcError.notFound("website");
+			}
+			const [homepage, llmsTxt] = await Promise.all(
+				["/", "/llms.txt"].map((path) =>
+					isAgentRequestRecorded(website.id, `https://${website.domain}${path}`)
+				)
+			);
+			return { homepage, llmsTxt };
 		}),
 
 	updateSettings: trackedProcedure
