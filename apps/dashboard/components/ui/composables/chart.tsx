@@ -761,12 +761,12 @@ function ChartMultiSeries({
 									<stop
 										offset="0%"
 										stopColor={metric.color}
-										stopOpacity={0.4}
+										stopOpacity={0.3}
 									/>
 									<stop
 										offset="100%"
 										stopColor={metric.color}
-										stopOpacity={0}
+										stopOpacity={0.02}
 									/>
 								</linearGradient>
 							))}
