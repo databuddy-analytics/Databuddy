@@ -48,8 +48,72 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect affected checks
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    outputs:
+      api: ${{ steps.detect.outputs.api }}
+      basket: ${{ steps.detect.outputs.basket }}
+      insights: ${{ steps.detect.outputs.insights }}
+      links: ${{ steps.detect.outputs.links }}
+      selfhost: ${{ steps.detect.outputs.selfhost }}
+      vector: ${{ steps.detect.outputs.vector }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.4.1"
+      - id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          checks=(api basket insights links selfhost vector)
+          run_all() {
+            for check in "${checks[@]}"; do
+              echo "$check=true" >> "$GITHUB_OUTPUT"
+            done
+            exit 0
+          }
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base=$(git rev-parse HEAD^1)
+          else
+            base="$PUSH_BEFORE"
+          fi
+          if [[ -z "$base" || "$base" =~ ^0+$ ]] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            run_all
+          fi
+          changed=$(git diff --name-only --no-renames "$base" HEAD)
+          if grep -qE '^(\.dockerignore|bun\.lock|package\.json|turbo\.json|tsconfig/|\.github/workflows/health-check\.yml$)' <<< "$changed"; then
+            run_all
+          fi
+          affected=$(TURBO_SCM_BASE="$base" TURBO_SCM_HEAD=HEAD bunx turbo@2.11.1 ls --affected --output=json | jq -r '.packages.items[].name')
+          for svc in api basket insights links; do
+            if grep -qx "@databuddy/$svc" <<< "$affected" || grep -qx "$svc\.Dockerfile" <<< "$changed"; then
+              echo "$svc=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$svc=false" >> "$GITHUB_OUTPUT"
+            fi
+          done
+          if grep -qx "@databuddy/db" <<< "$affected" || grep -qE '^(init\.Dockerfile|docker-compose\.selfhost\.yml|selfhost\.env\.example|scripts/test-selfhost-init\.sh|(apps|packages)/[^/]+/package\.json)$' <<< "$changed"; then
+            echo "selfhost=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "selfhost=false" >> "$GITHUB_OUTPUT"
+          fi
+          if grep -qE '^(infra/ingest/|packages/db/src/clickhouse/schema/)' <<< "$changed"; then
+            echo "vector=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "vector=false" >> "$GITHUB_OUTPUT"
+          fi
+
   selfhost-init:
     name: Self-host Database Initialization
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.selfhost == 'true') }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
     steps:
@@ -58,6 +122,8 @@ jobs:
 
   vector-config-check:
     name: Vector Delivery Canary
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.vector == 'true') }}
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 10
 
@@ -276,6 +342,8 @@ jobs:
 
   api-health-check:
     name: API Health Check
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.api == 'true') }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 20
 
@@ -386,6 +454,8 @@ jobs:
 
   basket-health-check:
     name: Basket Health Check
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.basket == 'true') }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 20
 
@@ -519,6 +589,8 @@ jobs:
 
   insights-health-check:
     name: Insights Health Check
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.insights == 'true') }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 20
 
@@ -642,6 +714,8 @@ jobs:
 
   links-health-check:
     name: Links Health Check
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.links == 'true') }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 20
 
