@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { redisStorage } from "@better-auth/redis-storage";
-import { sso } from "@better-auth/sso";
 import { runWithTransaction } from "@better-auth/core/context";
 import { and, db, eq, like } from "@databuddy/db";
 // biome-ignore lint/performance/noNamespaceImport: Better Auth's Drizzle adapter expects a schema object map.
@@ -778,12 +777,6 @@ export const baseAuthOptions = {
 					subject: "Your sign-in link for Databuddy",
 					template: MagicLinkEmail({ url }),
 				});
-			},
-		}),
-		sso({
-			organizationProvisioning: {
-				disabled: false,
-				defaultRole: "member",
 			},
 		}),
 		twoFactor(),
