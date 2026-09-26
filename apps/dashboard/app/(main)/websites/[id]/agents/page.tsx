@@ -1,12 +1,23 @@
 "use client";
 
-import { Button, dayjs, EmptyState, fromNow, StatusDot } from "@databuddy/ui";
+import {
+	Button,
+	dayjs,
+	EmptyState,
+	fromNow,
+	Skeleton,
+	StatusDot,
+	Tooltip,
+} from "@databuddy/ui";
 import { CopyButton } from "@databuddy/ui/client";
 import {
 	BrainIcon,
 	FileTextIcon,
 	GlobeIcon,
 	ListBulletsIcon,
+	MinusIcon,
+	TrendDownIcon,
+	TrendUpIcon,
 } from "@databuddy/ui/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -16,7 +27,7 @@ import {
 	FEATURED_AI_PRODUCTS,
 } from "@databuddy/shared/bot-detection/types";
 import { useParams } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
 import {
 	Chart,
@@ -31,6 +42,10 @@ import { formatNumber } from "@/lib/formatters";
 import { formatRevenueCurrency } from "@/lib/revenue-currency";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
+import {
+	calculatePercentChange,
+	calculatePreviousPeriod,
+} from "../_components/utils/analytics-helpers";
 
 const FORMATS: Record<
 	ContentFormat,
@@ -349,6 +364,26 @@ type OutcomeResult = Omit<OutcomeRow, "name" | "revenue"> & {
 const NON_ID_CHARS = /[^a-zA-Z0-9_-]/g;
 
 const CHART_PRODUCTS = 4;
+const SHARE_BARS = 6;
+
+const RANKED_ROWS = 6;
+
+interface ShareRow {
+	change: number | "new" | null;
+	product: string;
+	share: number;
+	visitors: number;
+}
+
+interface VisitorShare {
+	previousTotal: number;
+	rows: ShareRow[];
+	total: number;
+}
+
+function formatShare(share: number): string {
+	return `${share.toFixed(1)}%`;
+}
 
 function setupSnippet(websiteId: string): string {
 	return `// proxy.ts
@@ -557,17 +592,227 @@ function ProductCard({
 	);
 }
 
+function ShareChange({ change }: { change: ShareRow["change"] }) {
+	if (change === "new") {
+		return <span className="text-muted-foreground text-xs">New</span>;
+	}
+	if (change === null || Math.abs(change) < 0.05) {
+		return <MinusIcon className="size-3.5 text-muted-foreground" />;
+	}
+	const Icon = change > 0 ? TrendUpIcon : TrendDownIcon;
+	return (
+		<span className="flex items-center gap-1 text-muted-foreground text-xs tabular-nums">
+			<Icon className="size-3.5" />
+			{Math.abs(change).toFixed(1)} pts
+		</span>
+	);
+}
+
+function TotalChange({
+	current,
+	previous,
+}: {
+	current: number;
+	previous: number;
+}) {
+	const change = calculatePercentChange(current, previous);
+	if (Math.abs(change) < 0.5) {
+		return null;
+	}
+	const Icon = change > 0 ? TrendUpIcon : TrendDownIcon;
+	return (
+		<span
+			className={cn(
+				"flex items-center gap-1 font-medium text-xs tabular-nums",
+				change > 0 ? "text-success" : "text-destructive"
+			)}
+		>
+			<Icon className="size-3.5" />
+			{Math.abs(change).toFixed(0)}%
+		</span>
+	);
+}
+
+function ShareBars({ rows }: { rows: ShareRow[] }) {
+	const maxShare = Math.max(...rows.map((row) => row.share));
+	return (
+		<div>
+			<div className="flex h-48 items-end gap-3 border-b">
+				{rows.map((row) => (
+					<Tooltip
+						content={`${row.product}: ${formatNumber(row.visitors)} visitors`}
+						key={row.product}
+					>
+						<div className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
+							<span className="text-muted-foreground text-xs tabular-nums group-hover:text-foreground">
+								{formatShare(row.share)}
+							</span>
+							<div
+								className="w-full max-w-10 rounded-t bg-foreground/80 group-hover:bg-foreground"
+								style={{
+									height: `${Math.max((row.share / maxShare) * 80, 1)}%`,
+								}}
+							/>
+						</div>
+					</Tooltip>
+				))}
+			</div>
+			<div className="mt-2.5 flex gap-3">
+				{rows.map((row) => (
+					<div className="flex flex-1 justify-center" key={row.product}>
+						<AiProductIcon name={row.product} size="md" />
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
+
+function ShareRanking({ rows }: { rows: ShareRow[] }) {
+	const [isExpanded, setIsExpanded] = useState(false);
+	const visibleRows = isExpanded ? rows : rows.slice(0, RANKED_ROWS);
+	return (
+		<div className="flex flex-col">
+			<ol className="divide-y">
+				{visibleRows.map((row, index) => (
+					<li className="flex h-11 items-center gap-3" key={row.product}>
+						<span className="w-5 text-muted-foreground text-sm tabular-nums">
+							{index + 1}
+						</span>
+						<AiProductIcon name={row.product} size="sm" />
+						<span className="min-w-0 flex-1 truncate font-medium text-sm">
+							{row.product}
+						</span>
+						<span className="text-muted-foreground text-xs tabular-nums">
+							{formatNumber(row.visitors)}
+						</span>
+						<span className="w-14 text-right font-medium text-sm tabular-nums">
+							{formatShare(row.share)}
+						</span>
+						<span className="flex w-16 justify-end">
+							<ShareChange change={row.change} />
+						</span>
+					</li>
+				))}
+			</ol>
+			{rows.length > RANKED_ROWS ? (
+				<Button
+					className="mt-2 self-center"
+					onClick={() => setIsExpanded((expanded) => !expanded)}
+					size="sm"
+					variant="ghost"
+				>
+					{isExpanded ? "Show less" : `Show all ${rows.length}`}
+				</Button>
+			) : null}
+		</div>
+	);
+}
+
+function VisitorSharePanel({
+	isLoading,
+	previousRange,
+	share,
+}: {
+	isLoading: boolean;
+	previousRange: { end_date: string; start_date: string };
+	share: VisitorShare;
+}) {
+	const hasComparison = share.previousTotal > 0;
+	return (
+		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-2">
+			<div className="flex flex-col gap-5 rounded-lg bg-background p-4">
+				<div>
+					<p className="font-semibold text-sm">Share of AI visitors</p>
+					<div className="mt-2 flex h-8 items-center gap-2">
+						{isLoading ? (
+							<Skeleton className="h-7 w-28" />
+						) : (
+							<>
+								<p className="font-semibold text-2xl tabular-nums">
+									{formatNumber(share.total)}
+									<span className="ml-1.5 font-normal text-muted-foreground text-xs">
+										AI visitors
+									</span>
+								</p>
+								{hasComparison ? (
+									<TotalChange
+										current={share.total}
+										previous={share.previousTotal}
+									/>
+								) : null}
+							</>
+						)}
+					</div>
+					{isLoading ? (
+						<Skeleton className="mt-1 h-4 w-48" />
+					) : (
+						<p className="mt-1 text-muted-foreground text-xs">
+							{share.rows.length} AI products · compared with{" "}
+							{dayjs(previousRange.start_date).format("MMM D")} to{" "}
+							{dayjs(previousRange.end_date).format("MMM D")}
+						</p>
+					)}
+				</div>
+				{isLoading ? (
+					<Skeleton className="h-56 w-full" />
+				) : (
+					<ShareBars rows={share.rows.slice(0, SHARE_BARS)} />
+				)}
+				{isLoading || hasComparison ? null : (
+					<p className="text-pretty text-muted-foreground text-xs">
+						No AI visitors in the previous period, so changes appear once there
+						is one to compare against.
+					</p>
+				)}
+			</div>
+			<div className="flex flex-col gap-3 rounded-lg bg-background p-4">
+				<div>
+					<p className="font-semibold text-sm">Ranking</p>
+					<p className="text-muted-foreground text-xs">
+						Change in share since the previous period
+					</p>
+				</div>
+				{isLoading ? (
+					<div className="space-y-2">
+						{Array.from({ length: RANKED_ROWS }, (_, index) => (
+							<Skeleton className="h-9 w-full" key={index} />
+						))}
+					</div>
+				) : (
+					<ShareRanking rows={share.rows} />
+				)}
+			</div>
+		</div>
+	);
+}
+
 export default function AgentsPage() {
 	const { id } = useParams();
 	const websiteId = id as string;
 	const { dateRange } = useDateFilters();
 	const { chartType, chartStepType } = useChartPreferences("overview-main");
 
+	const previousRange = useMemo(
+		() => calculatePreviousPeriod(dateRange),
+		[dateRange]
+	);
+
 	const { isLoading, getDataForQuery } = useBatchDynamicQuery(
 		websiteId,
 		dateRange,
 		[
-			{ id: "products", parameters: ["ai_products"] },
+			{
+				id: "products",
+				parameters: [
+					"ai_products",
+					{
+						name: "ai_products",
+						...previousRange,
+						id: "previous_ai_products",
+					},
+				],
+			},
 			{ id: "visitors", parameters: ["ai_product_visitors"] },
 			{ id: "formats", parameters: ["ai_content_formats"] },
 			{ id: "pages", parameters: ["ai_agent_pages"] },
@@ -579,6 +824,8 @@ export default function AgentsPage() {
 
 	const products =
 		(getDataForQuery("products", "ai_products") as ProductRow[]) ?? [];
+	const previousProducts =
+		(getDataForQuery("products", "previous_ai_products") as ProductRow[]) ?? [];
 	const formats =
 		(getDataForQuery("formats", "ai_content_formats") as FormatRow[]) ?? [];
 	const pages =
@@ -671,6 +918,42 @@ export default function AgentsPage() {
 		};
 	}, [products, buckets, visitorsByProduct, isHourly]);
 
+	const visitorShare = useMemo((): VisitorShare => {
+		const previousVisitors = new Map(
+			previousProducts.map((row) => [row.product, Number(row.visitors) || 0])
+		);
+		const previousTotal = [...previousVisitors.values()].reduce(
+			(sum, visitors) => sum + visitors,
+			0
+		);
+		const ranked = products
+			.map((row) => ({
+				product: row.product,
+				visitors: Number(row.visitors) || 0,
+			}))
+			.filter((row) => row.visitors > 0)
+			.sort((a, b) => b.visitors - a.visitors);
+		const total = ranked.reduce((sum, row) => sum + row.visitors, 0);
+		return {
+			previousTotal,
+			total,
+			rows: ranked.map((row) => {
+				const share = (row.visitors / total) * 100;
+				const previous = previousVisitors.get(row.product) ?? 0;
+				return {
+					...row,
+					share,
+					change:
+						previousTotal === 0
+							? null
+							: previous === 0
+								? "new"
+								: share - (previous / previousTotal) * 100,
+				};
+			}),
+		};
+	}, [products, previousProducts]);
+
 	const featured = FEATURED_AI_PRODUCTS.map(
 		(name) => products.find((row) => row.product === name) ?? emptyProduct(name)
 	);
@@ -722,6 +1005,14 @@ export default function AgentsPage() {
 						/>
 					))}
 				</div>
+
+				{isLoading || visitorShare.rows.length > 0 ? (
+					<VisitorSharePanel
+						isLoading={isLoading}
+						previousRange={previousRange}
+						share={visitorShare}
+					/>
+				) : null}
 
 				<div className="space-y-1.5 rounded-xl bg-secondary p-1.5">
 					<div className="grid gap-1.5 sm:grid-cols-3">
