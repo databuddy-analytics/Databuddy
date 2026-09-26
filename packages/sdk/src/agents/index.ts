@@ -1,3 +1,5 @@
+import { detectClientId } from "../utils";
+
 export interface TrackAgentsOptions {
 	apiUrl?: string;
 	timeoutMs?: number;
@@ -7,6 +9,7 @@ export interface TrackAgentsOptions {
 interface NodeRequest {
 	headers: Record<string, string | string[] | undefined>;
 	method?: string;
+	originalUrl?: string;
 	url?: string;
 }
 
@@ -19,10 +22,6 @@ const LLMS_TXT_PATH = /\/llms(-full)?\.txt$/i;
 const MARKDOWN_PATH = /\.mdx?$/i;
 const DEFAULT_API_URL = "https://basket.databuddy.cc";
 const DEFAULT_TIMEOUT_MS = 3000;
-
-function env(name: string): string | undefined {
-	return typeof process === "undefined" ? undefined : process.env[name];
-}
 
 function header(request: Request | NodeRequest, name: string): string {
 	if (request instanceof Request) {
@@ -49,15 +48,21 @@ export async function trackAgents(
 	options: TrackAgentsOptions = {}
 ): Promise<void> {
 	const websiteId =
-		options.websiteId ??
-		env("DATABUDDY_WEBSITE_ID") ??
-		env("NEXT_PUBLIC_DATABUDDY_CLIENT_ID");
+		detectClientId(options.websiteId) ??
+		(typeof process === "undefined"
+			? undefined
+			: process.env.DATABUDDY_WEBSITE_ID);
 	const method = request.method ?? "GET";
 	const userAgent = header(request, "user-agent");
-	const { host, pathname } = new URL(
-		request.url ?? "/",
-		`http://${header(request, "host") || "localhost"}`
+	const url = new URL(
+		("originalUrl" in request && request.originalUrl) || request.url || "/",
+		"http://localhost"
 	);
+	const { pathname } = url;
+	const host =
+		header(request, "x-forwarded-host").split(",")[0]?.trim() ||
+		header(request, "host") ||
+		url.host;
 	if (
 		!(
 			websiteId &&
