@@ -152,8 +152,7 @@ function monitorLabel(
 		monitor.displayName ??
 		monitor.name ??
 		website?.name ??
-		website?.domain ??
-		(monitor.hideUrl ? null : monitor.url) ??
+		(monitor.hideUrl ? null : (website?.domain ?? monitor.url)) ??
 		"Monitor"
 	);
 }
