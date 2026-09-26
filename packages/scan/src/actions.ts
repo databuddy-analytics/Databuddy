@@ -40,6 +40,8 @@ const extension = /\.[cm]?[jt]sx?$/i;
 const intent =
 	/\b(?:copy|export|download|connect|install|upgrade|checkout|subscribe|sign up|register|start trial|accept invitation)\b/i;
 const selections = new Set(["onValueChange", "onCheckedChange", "onSelect"]);
+const componentCallback =
+	/^on(?:Save|Submit|Confirm|Create|Delete|Remove|Add|Invite|Send|Publish|Connect|Install|Export|Import|Upload|Upgrade|Checkout|Purchase|Subscribe|Complete|Finish|Apply|Accept|Approve|Reject|Decline|Archive|Restore|Transfer|Revoke|Rotate|Generate|Run|Trigger|Share|Redeem|Book|Schedule|Vote|Reply|Rename|Update)(?:[A-Z]\w*)?$/;
 const handlers = new Set([
 	"onClick",
 	"onSubmit",
@@ -68,6 +70,9 @@ const writes = new Set([
 ]);
 const httpWrites = new Set(["post", "put", "patch"]);
 const boundCall = new Set(["bind", "call", "apply"]);
+const camelBoundary = /([a-z])([A-Z])/g;
+const setupCopy =
+	/\b(?:install(?:ation)?|snippet|script|command|cli|config(?:uration)?|setup|sdk|embed|curl|npm|npx|bunx|yarn|pnpm|env|api[\s_-]?key|apikey|key|token|secret|webhook|mcp|code)\b/i;
 const readCall =
 	/^(?:get|list|find|load|fetch|query|read|refetch|invalidate|prefetch|wait|sleep|delay|resolve|all|allSettled|race)\w*$/i;
 const actionVerb =
@@ -95,8 +100,9 @@ const queryHelper =
 const domListeners = new Set(["addEventListener", "on"]);
 const domEvents = new Set(["click", "submit", "copy"]);
 const domProperties = new Set(["onclick", "onsubmit", "oncopy"]);
-const afterHook = /^after[A-Z]/;
+const afterHook = /^after(?:[A-Z]|$)/;
 const hookContainer = /^(?:hooks|organizationHooks|databaseHooks)$/;
+const authEvent = /^(?:signIn|signOut|createUser|updateUser|linkAccount)$/;
 const trackingCall = /^(?:track|capture|logEvent)/;
 const whitespaceRun = /\s+/g;
 const pending = /(?:\.\.\.|\u2026)\s*$/;
@@ -174,6 +180,14 @@ function callable(node: ts.Node) {
 }
 function brief(node: ts.Node, file: ts.SourceFile) {
 	return node.getText(file).replace(whitespaceRun, " ").slice(0, 60);
+}
+function attributeText(node: ts.Node, file: ts.SourceFile) {
+	const element = ts.isJsxElement(node) ? node.openingElement : node;
+	return ts.isJsxOpeningElement(element) || ts.isJsxSelfClosingElement(element)
+		? element.attributes.properties
+				.map((attribute) => attribute.getText(file))
+				.join(" ")
+		: "";
 }
 function walk(node: ts.Node, visit: (node: ts.Node) => void) {
 	visit(node);
@@ -287,6 +301,31 @@ function lookupBase(unit: Unit, expression: ts.Node): ts.Node {
 		? unwrap(node.expression)
 		: node;
 	return (ts.isIdentifier(base) && lookup(unit, base.text, base)) || node;
+}
+function forwardedProp(unit: Unit, expression: ts.Node): boolean {
+	let node = unwrap(expression);
+	if (
+		ts.isBinaryExpression(node) &&
+		node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken
+	) {
+		node = unwrap(node.left);
+	}
+	if (ts.isPropertyAccessExpression(node)) {
+		node = unwrap(node.expression);
+	}
+	if (!ts.isIdentifier(node)) {
+		return false;
+	}
+	const found = lookup(unit, node.text, node);
+	if (
+		found &&
+		ts.isBindingElement(found) &&
+		ts.isVariableDeclaration(found.parent.parent) &&
+		found.parent.parent.initializer
+	) {
+		return forwardedProp(unit, found.parent.parent.initializer);
+	}
+	return !!found && ts.isParameter(found);
 }
 function lookup(unit: Unit, name: string, at: ts.Node): ts.Node | undefined {
 	for (let parent: ts.Node | undefined = at; parent; parent = parent.parent) {
@@ -1454,7 +1493,15 @@ export function groupActions(
 			const attributes = node.attributes.properties.filter(ts.isJsxAttribute);
 			const events = attributes.filter(
 				(attribute) =>
-					handlers.has(attribute.name.getText(unit.file)) &&
+					(handlers.has(attribute.name.getText(unit.file)) ||
+						(component !== component.toLowerCase() &&
+							componentCallback.test(attribute.name.getText(unit.file)) &&
+							!(
+								attribute.initializer &&
+								ts.isJsxExpression(attribute.initializer) &&
+								attribute.initializer.expression &&
+								forwardedProp(unit, attribute.initializer.expression)
+							))) &&
 					attribute.initializer &&
 					ts.isJsxExpression(attribute.initializer) &&
 					attribute.initializer.expression &&
@@ -1620,8 +1667,10 @@ export function groupActions(
 					: undefined,
 				needsWrite:
 					active.length > 0 &&
-					active.every((attribute) =>
-						selections.has(attribute.name.getText(unit.file))
+					active.every(
+						(attribute) =>
+							selections.has(attribute.name.getText(unit.file)) ||
+							!handlers.has(attribute.name.getText(unit.file))
 					),
 				userEvent:
 					component !== "CopyButton" && active.length > 0 && !productIntent,
@@ -1655,11 +1704,29 @@ export function groupActions(
 					node.arguments[0] && ts.isStringLiteralLike(node.arguments[0])
 						? node.arguments[0]
 						: undefined;
+				let procedure: ts.Node = node;
+				while (
+					ts.isCallExpression(procedure.parent) ||
+					ts.isPropertyAccessExpression(procedure.parent) ||
+					ts.isParenthesizedExpression(procedure.parent) ||
+					ts.isAsExpression(procedure.parent) ||
+					ts.isSatisfiesExpression(procedure.parent)
+				) {
+					procedure = procedure.parent;
+				}
+				const key =
+					!route &&
+					(ts.isPropertyAssignment(procedure.parent) ||
+						ts.isVariableDeclaration(procedure.parent)) &&
+					(ts.isIdentifier(procedure.parent.name) ||
+						ts.isStringLiteral(procedure.parent.name))
+						? procedure.parent.name.text
+						: undefined;
 				roots.push({
 					node: callback,
 					owner: callback,
 					callbacks: [callback],
-					label: `${method}${route ? ` ${route.text.slice(0, 120)}` : ""}`,
+					label: `${method}${route ? ` ${route.text.slice(0, 120)}` : key ? ` ${key}` : ""}`,
 					wrapper: node.expression.expression,
 					route,
 				});
@@ -1800,27 +1867,51 @@ export function groupActions(
 				label: `${brief(node.left.expression, unit.file)}.${node.left.name.text.slice(2)}`,
 			});
 		}
+		const hook =
+			ts.isMethodDeclaration(node) && node.body
+				? node
+				: ts.isPropertyAssignment(node) && functionValue(node.initializer)
+					? node.initializer
+					: undefined;
 		if (
-			ts.isPropertyAssignment(node) &&
-			afterHook.test(node.name.getText(unit.file)) &&
-			functionValue(node.initializer)
+			hook &&
+			(ts.isMethodDeclaration(node) || ts.isPropertyAssignment(node)) &&
+			ts.isObjectLiteralExpression(node.parent)
 		) {
-			for (
-				let ancestor: ts.Node | undefined = node.parent;
-				ancestor;
-				ancestor = ancestor.parent
+			const name = node.name.getText(unit.file);
+			const container = node.parent.parent;
+			if (
+				authEvent.test(name) &&
+				ts.isPropertyAssignment(container) &&
+				container.name.getText(unit.file) === "events"
 			) {
-				if (
-					ts.isPropertyAssignment(ancestor) &&
-					hookContainer.test(ancestor.name.getText(unit.file))
+				roots.push({
+					node,
+					owner: node,
+					callbacks: [hook],
+					label: `events.${name}`,
+				});
+			} else if (afterHook.test(name)) {
+				const path = [name];
+				for (
+					let ancestor: ts.Node | undefined = node.parent;
+					ancestor;
+					ancestor = ancestor.parent
 				) {
-					roots.push({
-						node,
-						owner: node,
-						callbacks: [node.initializer],
-						label: node.name.getText(unit.file),
-					});
-					break;
+					if (!ts.isPropertyAssignment(ancestor)) {
+						continue;
+					}
+					const key = ancestor.name.getText(unit.file);
+					if (hookContainer.test(key)) {
+						roots.push({
+							node,
+							owner: node,
+							callbacks: [hook],
+							label: name === "after" ? path.join(".") : name,
+						});
+						break;
+					}
+					path.unshift(key);
 				}
 			}
 		}
@@ -1896,6 +1987,7 @@ export function groupActions(
 		}
 		const visited = new Set<ts.Node>();
 		let commits = false;
+		const copied: string[] = [];
 		function evidence(owner: Unit, node: ts.Node, depth: number) {
 			if (visited.has(node)) {
 				return;
@@ -1956,13 +2048,14 @@ export function groupActions(
 					const write =
 						writes.has(method) &&
 						callee.expression.getText(owner.file) !== "Object";
-					if (write || httpWrites.has(method)) {
+					if ((write && method !== "writeText") || httpWrites.has(method)) {
 						commits = true;
 					}
 					if (write || trackingCall.test(method)) {
 						addSite(owner, child);
 					}
 					if (method === "writeText") {
+						copied.push(...child.arguments.map((a) => a.getText(owner.file)));
 						for (const argument of child.arguments) {
 							walk(argument, (part) => {
 								const bound =
@@ -1973,6 +2066,7 @@ export function groupActions(
 									!functionValue(bound)
 								) {
 									addContext(owner, declaration(bound));
+									copied.push(declaration(bound).getText(owner.file));
 								}
 							});
 						}
@@ -2180,7 +2274,18 @@ export function groupActions(
 				}
 			}
 		}
-		if (
+		if (copied.length && !commits) {
+			if (
+				!setupCopy.test(
+					`${unit.path} ${root.label.slice(root.label.indexOf(".") + 1)} ${attributeText(root.owner, unit.file)} ${copied.join(" ")}`.replace(
+						camelBoundary,
+						"$1 $2"
+					)
+				)
+			) {
+				return [];
+			}
+		} else if (
 			root.userEvent &&
 			!commits &&
 			![...issues].some((issue) => issue.startsWith("unresolved"))

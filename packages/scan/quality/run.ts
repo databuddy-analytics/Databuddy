@@ -9,14 +9,18 @@ const caseSchema = z.object({
 	id: z.string(),
 	path: z.string(),
 	line: z.number().int().positive(),
+	endLine: z.number().int().positive().optional(),
 	expectedDecision: z.enum(["useful", "covered", "ignore", "needs_context"]),
 	split: z.enum(["known", "holdout"]),
 	sourceSha: z.string().optional(),
 });
-const spanSchema = z.object({
+const siteSchema = z.object({
 	path: z.string(),
 	start: z.number(),
 	end: z.number(),
+});
+const spanSchema = siteSchema.extend({
+	action: z.object({ sites: z.array(siteSchema) }).optional(),
 });
 const dryRunSchema = z.object({
 	payload: z.object({ segments: z.array(spanSchema) }),
@@ -39,8 +43,14 @@ const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
 const cases = z
 	.array(caseSchema)
 	.parse(JSON.parse(await readFile(join(here, "cases.json"), "utf8")));
-const covers = (span: z.infer<typeof spanSchema>, path: string, line: number) =>
-	span.path === path && span.start <= line && line <= span.end;
+type Case = z.infer<typeof caseSchema>;
+const covers = (span: z.infer<typeof spanSchema>, item: Case) =>
+	[span, ...(span.action?.sites ?? [])].some(
+		(site) =>
+			site.path === item.path &&
+			site.start <= (item.endLine ?? item.line) &&
+			item.line <= site.end
+	);
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 
 const current = await Promise.all(
@@ -79,7 +89,7 @@ for (const split of ["known", "holdout"] as const) {
 		continue;
 	}
 	const extracted = (item: (typeof scoped)[number]) =>
-		segments.some((segment) => covers(segment, item.path, item.line));
+		segments.some((segment) => covers(segment, item));
 	const useful = scoped.filter((item) => item.expectedDecision === "useful");
 	const ignored = scoped.filter((item) => item.expectedDecision === "ignore");
 	const misses = useful.filter((item) => !extracted(item));
@@ -101,7 +111,7 @@ for (const split of ["known", "holdout"] as const) {
 	const flagged = (item: (typeof scoped)[number]) =>
 		rows.some(
 			(row) =>
-				covers(row, item.path, item.line) &&
+				covers(row, item) &&
 				(row.coverage === "missing" || row.coverage === "partial") &&
 				row.priority >= shownPriority
 		);
