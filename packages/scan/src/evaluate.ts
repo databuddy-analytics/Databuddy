@@ -379,18 +379,23 @@ export async function requestEvaluation(
 				...(providerCode ? { providerCode } : {}),
 				...(requestId ? { requestId } : {}),
 			});
+			const retryAfter = response?.headers.get("retry-after") ?? null;
+			const throttled =
+				response?.status === 429 &&
+				retryAfter !== null &&
+				Number(retryAfter) <= 60;
 			if (
 				options.signal.aborted ||
 				attempt === attempts ||
-				!((response && response.status >= 500) || name === "TimeoutError")
+				!(
+					(response && response.status >= 500) ||
+					name === "TimeoutError" ||
+					throttled
+				)
 			) {
 				throw failure;
 			}
-			const waitMs = retryDelay(
-				response?.headers.get("retry-after") ?? null,
-				attempt,
-				options.timeoutMs
-			);
+			const waitMs = retryDelay(retryAfter, attempt, options.timeoutMs);
 			options.onRetry({
 				attempt,
 				reason:
