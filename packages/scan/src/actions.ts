@@ -299,6 +299,7 @@ function lookup(unit: Unit, name: string, at: ts.Node): ts.Node | undefined {
 const appRoute = /(?:^|\/)app\/(.+)\/route\.[cm]?[jt]sx?$/;
 const pagesRoute = /(?:^|\/)pages\/(api\/.+?)(?:\/index)?\.[cm]?[jt]sx?$/;
 const routeGroup = /^\(.*\)$/;
+const leadingBase = /^\0(?=\/)/;
 const remixRoute = /(?:^|\/)app\/routes\/(.+?)(?:\/route)?\.[cm]?[jt]sx?$/;
 const nitroRoute =
 	/(?:^|\/)server\/(api|routes)\/(.+?)(?:\.(get|post|put|patch|delete))?\.[cm]?[jt]s$/;
@@ -359,7 +360,7 @@ function urlParts(input: ts.Node): (string | null)[] | undefined {
 			? node.head.text +
 				node.templateSpans.map((span) => `\0${span.literal.text}`).join("")
 			: undefined;
-	const pathname = text?.split(queryOrHash)[0];
+	const pathname = text?.split(queryOrHash)[0]?.replace(leadingBase, "");
 	if (!pathname?.startsWith("/")) {
 		return;
 	}
@@ -367,6 +368,48 @@ function urlParts(input: ts.Node): (string | null)[] | undefined {
 		.split("/")
 		.filter(Boolean)
 		.map((part) => (part.includes("\0") ? null : part));
+}
+const serverRouteCall =
+	/\.(get|post|put|patch|delete|all)\(\s*["'`](\/[^"'`]*)["'`]/g;
+const serverPrefix = /\b(?:prefix\s*:|basePath\()\s*["'`](\/[^"'`]*)["'`]/;
+const serverFile = /\.[cm]?[jt]s$/;
+const serverTables = new WeakMap<
+	ReadonlyMap<string, string>,
+	{ line: number; method: string; parts: string[]; path: string }[]
+>();
+function serverTable(sources: ReadonlyMap<string, string>) {
+	let table = serverTables.get(sources);
+	if (!table) {
+		table = [];
+		for (const [path, text] of sources) {
+			if (!serverFile.test(path)) {
+				continue;
+			}
+			const prefix = serverPrefix.exec(text)?.[1] ?? "";
+			for (const match of text.matchAll(serverRouteCall)) {
+				table.push({
+					path,
+					method: match[1] ?? "",
+					line: text.slice(0, match.index).split("\n").length,
+					parts: `${prefix}${match[2] ?? ""}`.split("/").filter(Boolean),
+				});
+			}
+		}
+		serverTables.set(sources, table);
+	}
+	return table;
+}
+function serverMatches(route: string[], url: (string | null)[]) {
+	return (
+		route.length === url.length &&
+		route.every(
+			(part, index) =>
+				part.startsWith(":") ||
+				part.startsWith("{") ||
+				part === "*" ||
+				url[index] === part
+		)
+	);
 }
 function routeMatches(route: string[], url: (string | null)[]) {
 	for (const [index, part] of route.entries()) {
@@ -1098,6 +1141,44 @@ export function groupActions(
 			issues
 		);
 	}
+	function serverHandlers(input: ts.Node, owner: Unit): Reference[] {
+		const url = urlParts(input);
+		if (!url || url.length < 2) {
+			return [];
+		}
+		const matches = serverTable(sources).filter(
+			(route) => route.path !== owner.path && serverMatches(route.parts, url)
+		);
+		if (!matches.length || matches.length > 2) {
+			return [];
+		}
+		return matches.flatMap((route) => {
+			const target = parse(route.path, sources.get(route.path) ?? "");
+			const found: Reference[] = [];
+			if (target) {
+				walk(target.file, (node) => {
+					if (
+						ts.isCallExpression(node) &&
+						ts.isPropertyAccessExpression(node.expression) &&
+						node.expression.name.text === route.method &&
+						target.file.getLineAndCharacterOfPosition(
+							node.expression.name.getStart(target.file)
+						).line +
+							1 ===
+							route.line
+					) {
+						const callback = [...node.arguments]
+							.reverse()
+							.find((argument) => isFunction(unwrap(argument)));
+						if (callback) {
+							found.push({ unit: target, node: callback });
+						}
+					}
+				});
+			}
+			return found;
+		});
+	}
 	const usages = new Map<string, Reference[]>();
 	function componentOf(parameter: ts.ParameterDeclaration) {
 		const fn = parameter.parent;
@@ -1296,6 +1377,7 @@ export function groupActions(
 		callbacks: ts.Node[];
 		label: string;
 		component?: string;
+		link?: ts.Node;
 		wrapper?: ts.Node;
 		route?: ts.Node;
 		needsWrite?: boolean;
@@ -1471,7 +1553,16 @@ export function groupActions(
 			if (!(active.length || delegated)) {
 				return;
 			}
+			const href = attributes.find(
+				(attribute) => attribute.name.getText(unit.file) === "href"
+			)?.initializer;
 			roots.push({
+				...(!active.length &&
+				href &&
+				ts.isJsxExpression(href) &&
+				href.expression
+					? { link: href.expression }
+					: {}),
 				node: active[0] ?? whole,
 				owner: whole,
 				callbacks: active
@@ -1799,6 +1890,17 @@ export function groupActions(
 					follow(owner, child.initializer, depth);
 					return;
 				}
+				if (
+					depth < 2 &&
+					(ts.isStringLiteral(child) ||
+						ts.isNoSubstitutionTemplateLiteral(child) ||
+						ts.isTemplateExpression(child))
+				) {
+					for (const handler of serverHandlers(child, owner)) {
+						addSite(handler.unit, handler.node);
+						evidence(handler.unit, handler.node, depth + 1);
+					}
+				}
 				if (!ts.isCallExpression(child)) {
 					return;
 				}
@@ -1989,6 +2091,9 @@ export function groupActions(
 		}
 		for (const callback of root.callbacks) {
 			follow(unit, callback);
+		}
+		if (root.link) {
+			evidence(unit, root.link, 0);
 		}
 		if (root.component) {
 			const resolved = resolve(unit, root.component, root.node, issues);

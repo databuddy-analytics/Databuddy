@@ -103,7 +103,8 @@ const sourceFile =
 const repositoryKey =
 	/^[ \t]*(?:export[ \t]+)?AI_GATEWAY_API_KEY[ \t]*=[ \t]*(.*?)[ \t]*$/m;
 const quoted = /^(["'])(.*)\1$/;
-const routeHandlerLabel = /^(?:GET|POST|PUT|PATCH|DELETE)$/;
+const routeHandlerLabel =
+	/^(?:GET|POST|PUT|PATCH|DELETE)$|^(?:get|post|put|patch|delete|all) \//;
 const reviewable = /\.(?:[cm]?[jt]sx?|vue|svelte|astro|swift|py)$/;
 const sourceLineBoundary = /(?<=\n)/;
 const secret =
