@@ -895,3 +895,32 @@ async function toggleReblog() {
 	assert.ok(labels.includes("form.onSubmit vote"));
 	assert.ok(labels.includes('StatusActionButton.onClick "action.boost"'));
 });
+
+test("a link's route is matched as a GET while that route's own requests keep their method", () => {
+	const page = `${"const checkoutUrl = `${API}/v1/billing/checkout`;"}
+function portalUrl() { return new URL("/v1/billing/portal", API).toString(); }
+export function Upgrade() { return <a href={checkoutUrl}>Upgrade to Pro</a>; }
+export function Manage() { return <a href={portalUrl()}>Upgrade billing</a>; }`;
+	const server = `export const billing = new Elysia({ prefix: "/v1/billing" })
+  .get("/checkout", async () => { await fetch("/v1/billing/audit", { method: "POST" }); })
+  .post("/checkout", async () => { await db.insert(orders).values({}); })
+  .get("/portal", async () => redirect(await stripe.billingPortal.sessions.create({})))
+  .post("/portal", async () => { await db.update(customers).set({}); });`;
+	const audit = `export const audit = new Elysia({ prefix: "/v1/billing/audit" })
+  .get("/", async () => db.select().from(audits))
+  .post("/", async () => { await db.insert(audits).values({}); });`;
+	const actions = groups(
+		page,
+		{ "api/billing.ts": server, "api/audit.ts": audit },
+		"web/pricing.tsx"
+	);
+	const sites = (text: string) =>
+		(at(actions, page, text, "web/pricing.tsx")[0]?.sites ?? [])
+			.filter((site) => site.path.startsWith("api/"))
+			.map((site) => `${site.path}:${site.start}`);
+	assert.deepEqual(sites("href={checkoutUrl}"), [
+		"api/billing.ts:2",
+		"api/audit.ts:3",
+	]);
+	assert.deepEqual(sites("href={portalUrl()}"), ["api/billing.ts:4"]);
+});

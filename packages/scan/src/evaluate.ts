@@ -285,12 +285,14 @@ function retryDelay(
 			Math.min(2000, timeoutMs / 50) * attempt * (1 + Math.random())
 		);
 	}
+	const duration = retryAfterMs(value);
+	return Number.isFinite(duration) ? Math.min(duration, 60_000) : 0;
+}
+function retryAfterMs(value: string) {
 	const duration = Number.isFinite(Number(value))
 		? Number(value) * 1000
 		: Date.parse(value) - Date.now();
-	return Number.isFinite(duration)
-		? Math.min(Math.max(0, duration), 60_000)
-		: 0;
+	return Number.isFinite(duration) ? Math.max(0, duration) : Number.NaN;
 }
 
 const gatewayUrl = "https://ai-gateway.vercel.sh/v4/ai/evaluation-model";
@@ -379,18 +381,23 @@ export async function requestEvaluation(
 				...(providerCode ? { providerCode } : {}),
 				...(requestId ? { requestId } : {}),
 			});
+			const retryAfter = response?.headers.get("retry-after") ?? null;
+			const throttled =
+				response?.status === 429 &&
+				retryAfter !== null &&
+				retryAfterMs(retryAfter) <= 60_000;
 			if (
 				options.signal.aborted ||
 				attempt === attempts ||
-				!((response && response.status >= 500) || name === "TimeoutError")
+				!(
+					(response && response.status >= 500) ||
+					name === "TimeoutError" ||
+					throttled
+				)
 			) {
 				throw failure;
 			}
-			const waitMs = retryDelay(
-				response?.headers.get("retry-after") ?? null,
-				attempt,
-				options.timeoutMs
-			);
+			const waitMs = retryDelay(retryAfter, attempt, options.timeoutMs);
 			options.onRetry({
 				attempt,
 				reason:

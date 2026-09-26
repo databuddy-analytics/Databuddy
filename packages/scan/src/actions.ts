@@ -1144,7 +1144,11 @@ export function groupActions(
 			issues
 		);
 	}
+	let followingLink = false;
 	function requestMethod(input: ts.Node, owner: Unit) {
+		if (followingLink) {
+			return "get";
+		}
 		const parent = input.parent;
 		if (ts.isJsxAttribute(parent) || ts.isJsxExpression(parent)) {
 			return "get";
@@ -1935,7 +1939,10 @@ export function groupActions(
 					for (const handler of serverHandlers(child, owner)) {
 						addSite(handler.unit, handler.node);
 						if (!ts.isIdentifier(unwrap(handler.node))) {
+							const linking = followingLink;
+							followingLink = false;
 							evidence(handler.unit, handler.node, depth + 1);
+							followingLink = linking;
 						}
 					}
 				}
@@ -2131,7 +2138,13 @@ export function groupActions(
 			follow(unit, callback);
 		}
 		if (root.link) {
-			evidence(unit, root.link, 0);
+			const value = unwrap(root.link);
+			const target = ts.isIdentifier(value)
+				? resolve(unit, value.text, value, issues)
+				: undefined;
+			followingLink = true;
+			evidence(target?.unit ?? unit, target?.node ?? root.link, 0);
+			followingLink = false;
 		}
 		if (root.component) {
 			const resolved = resolve(unit, root.component, root.node, issues);
