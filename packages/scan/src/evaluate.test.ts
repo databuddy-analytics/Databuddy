@@ -158,6 +158,26 @@ test("exhausted 5xx, auth and rate limits stop at their exact attempt limits", a
 	}
 });
 
+test("a per-minute rate limit waits for Retry-After and retries", async () => {
+	const state = options();
+	let count = 0;
+	await withFetch(
+		async () => {
+			count++;
+			return count === 1
+				? new Response(null, { status: 429, headers: { "retry-after": "0" } })
+				: Response.json(response());
+		},
+		async () => {
+			assert.deepEqual(await requestEvaluation("{}", state.value), response());
+		}
+	);
+	assert.deepEqual(
+		state.attempts.map((attempt) => attempt.status),
+		[429, 200]
+	);
+});
+
 test("provider error bodies are bounded and cancelled without retaining body text", async () => {
 	let cancelled = false;
 	const body =
