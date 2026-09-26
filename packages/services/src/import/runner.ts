@@ -58,15 +58,15 @@ export async function zipSource(
 		async *entries(): AsyncIterable<ImportEntry> {
 			let expanded = 0;
 			for (const file of files) {
-				const declared = declaredSize(file);
-				if (declared > MAX_ENTRY_BYTES) {
-					throw new Error(
-						`Archive entry ${file.name} declares ${declared} bytes, over the ${MAX_ENTRY_BYTES} byte limit`
-					);
-				}
 				yield {
 					name: file.name,
 					text: async () => {
+						const declared = declaredSize(file);
+						if (declared > MAX_ENTRY_BYTES) {
+							throw new Error(
+								`Archive entry ${file.name} declares ${declared} bytes, over the ${MAX_ENTRY_BYTES} byte limit`
+							);
+						}
 						const text = await file.async("string");
 						if (text.length > MAX_ENTRY_BYTES) {
 							throw new Error(
