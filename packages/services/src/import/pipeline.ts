@@ -255,19 +255,25 @@ function isSynthesizedDimension(
 	return kind in DIMENSION_FIELDS;
 }
 
+interface PlannedSession {
+	durationSeconds: number;
+	isBounce: boolean;
+	pageviews: number;
+}
+
 function assignDimension(
-	perSession: number[],
+	sessions: PlannedSession[],
 	totals: DimensionTotal[]
 ): Array<string | undefined> {
 	const assigned = Array.from<string | undefined>({
-		length: perSession.length,
+		length: sessions.length,
 	});
 	let session = 0;
 	for (const total of [...totals].sort((a, b) => b.pageviews - a.pageviews)) {
 		let budget = total.pageviews;
-		while (budget > 0 && session < perSession.length) {
+		while (budget > 0 && session < sessions.length) {
 			assigned[session] = total.value;
-			budget -= perSession[session];
+			budget -= sessions[session].pageviews;
 			session += 1;
 		}
 	}
@@ -332,35 +338,39 @@ export function synthesizeDate(
 		Math.round(bucket.totals.durationSeconds ?? 0)
 	);
 
-	const perSession: number[] = [];
+	const sessions: PlannedSession[] = [];
 	for (let i = 0; i < bounces; i += 1) {
-		perSession.push(1);
+		sessions.push({
+			pageviews: 1,
+			durationSeconds: BOUNCE_DURATION_SECONDS,
+			isBounce: true,
+		});
 	}
 	const remaining = slots.length - bounces;
 	if (nonBounce > 0) {
 		const base = Math.floor(remaining / nonBounce);
 		const extra = remaining % nonBounce;
 		for (let i = 0; i < nonBounce; i += 1) {
-			perSession.push(base + (i < extra ? 1 : 0));
+			sessions.push({
+				pageviews: base + (i < extra ? 1 : 0),
+				durationSeconds: 0,
+				isBounce: false,
+			});
 		}
 	}
 
-	const durations = Array.from(
-		{ length: perSession.length },
-		() => BOUNCE_DURATION_SECONDS
-	);
-	const nonBounceBudget = Math.max(
-		0,
-		totalDuration - bounces * BOUNCE_DURATION_SECONDS
-	);
 	if (nonBounce > 0) {
-		const base = Math.floor(nonBounceBudget / nonBounce);
-		let remainder = nonBounceBudget - base * nonBounce;
-		for (let i = bounces; i < perSession.length; i += 1) {
+		const budget = Math.max(
+			0,
+			totalDuration - bounces * BOUNCE_DURATION_SECONDS
+		);
+		const base = Math.floor(budget / nonBounce);
+		let remainder = budget - base * nonBounce;
+		for (const session of sessions.filter((entry) => !entry.isBounce)) {
 			const extra = remainder > 0 ? 1 : 0;
 			remainder -= extra;
-			durations[i] =
-				perSession[i] === 1
+			session.durationSeconds =
+				session.pageviews === 1
 					? Math.max(base + extra, NON_BOUNCE_DURATION_FLOOR_SECONDS)
 					: base + extra;
 		}
@@ -374,23 +384,24 @@ export function synthesizeDate(
 			base < BOUNCE_DURATION_CEILING_SECONDS
 				? totalDuration - base * bounces
 				: 0;
-		for (let i = 0; i < bounces; i += 1) {
+		for (const session of sessions) {
 			const extra = remainder > 0 ? 1 : 0;
 			remainder -= extra;
-			durations[i] = base + extra;
+			session.durationSeconds = base + extra;
 		}
 	}
 
 	const adjustments: ImportAdjustments = {
 		droppedVisits: Math.max(0, requestedVisits - visits),
 		durationDeltaSeconds:
-			durations.reduce((total, value) => total + value, 0) - totalDuration,
+			sessions.reduce((total, entry) => total + entry.durationSeconds, 0) -
+			totalDuration,
 	};
 
 	const sessionDimensions = new Map(
 		[...bucket.dimensions].map(([kind, totals]) => [
 			kind,
-			assignDimension(perSession, totals),
+			assignDimension(sessions, totals),
 		])
 	);
 	const dimensionsFor = (session: number): Partial<ImportedEvent> => {
@@ -407,7 +418,8 @@ export function synthesizeDate(
 	const dayStart = zonedDayStartUtc(date, context.timezone).getTime();
 	const dayEnd = dayStart + SECONDS_PER_DAY * 1000 - 1;
 	const longestSessionSeconds =
-		(Math.max(...perSession) + 1) * INTRA_SESSION_GAP_SECONDS;
+		(Math.max(...sessions.map((entry) => entry.pageviews)) + 1) *
+		INTRA_SESSION_GAP_SECONDS;
 	const spreadSeconds = Math.max(
 		0,
 		SECONDS_PER_DAY - Math.min(longestSessionSeconds, SECONDS_PER_DAY)
@@ -416,8 +428,8 @@ export function synthesizeDate(
 	const events: ImportedEvent[] = [];
 	let slotIndex = 0;
 
-	for (let session = 0; session < perSession.length; session += 1) {
-		const pageviews = perSession[session];
+	for (const [session, planned] of sessions.entries()) {
+		const pageviews = planned.pageviews;
 		if (pageviews <= 0) {
 			continue;
 		}
@@ -450,7 +462,7 @@ export function synthesizeDate(
 			});
 		}
 
-		const timeOnPage = durations[session];
+		const timeOnPage = planned.durationSeconds;
 		if (!lastSlot || timeOnPage <= 0) {
 			continue;
 		}
