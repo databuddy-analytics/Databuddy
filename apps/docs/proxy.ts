@@ -1,11 +1,24 @@
-import { acceptMarkdownOverHtml } from "@/app/api/pricing/accept-markdown";
-import type { NextRequest } from "next/server";
+import { trackAgentTraffic } from "@databuddy/sdk/agents";
+import type { NextFetchEvent, NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { acceptMarkdownOverHtml } from "@/app/api/pricing/accept-markdown";
 
-export function proxy(request: NextRequest) {
+const MARKDOWN_NEGOTIATED_PATHS = new Set(["/", "/pricing", "/pricing/"]);
+
+export function proxy(request: NextRequest, event: NextFetchEvent) {
+	event.waitUntil(
+		trackAgentTraffic(request, {
+			apiKey: process.env.DATABUDDY_API_KEY ?? "",
+			websiteId: "OXmNQsViBT-FOS_wZCTHc",
+		})
+	);
+
+	const { pathname } = request.nextUrl;
+	if (!MARKDOWN_NEGOTIATED_PATHS.has(pathname)) {
+		return NextResponse.next();
+	}
 	if (acceptMarkdownOverHtml(request.headers.get("accept") ?? "")) {
-		const target =
-			request.nextUrl.pathname === "/" ? "/index.md" : "/api/pricing";
+		const target = pathname === "/" ? "/index.md" : "/api/pricing";
 		return NextResponse.rewrite(new URL(target, request.nextUrl));
 	}
 	const res = NextResponse.next();
@@ -14,5 +27,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-	matcher: ["/", "/pricing", "/pricing/"],
+	matcher: [
+		"/((?!_next/|favicon|.*\\.(?:png|jpe?g|gif|webp|avif|svg|ico|css|js|woff2?|ttf|map)$).*)",
+	],
 };
