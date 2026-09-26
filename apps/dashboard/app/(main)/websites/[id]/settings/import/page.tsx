@@ -9,6 +9,7 @@ import {
 	WarningIcon,
 } from "@databuddy/ui/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -17,6 +18,10 @@ import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_STATES = new Set(["waiting", "active", "delayed", "prioritized"]);
+const PROVIDER_LOGOS: Record<string, string> = {
+	plausible: "Plausible",
+	"simple-analytics": "SimpleAnalytics",
+};
 const GRAIN_LABEL = {
 	event: "Full detail",
 	rollup: "Daily totals",
@@ -167,7 +172,16 @@ export default function ImportPage() {
 											variant="outline"
 										>
 											<div className="flex size-8 items-center justify-center rounded border bg-secondary">
-												<DatabaseIcon className="size-5" />
+												{PROVIDER_LOGOS[provider.id] ? (
+													<Image
+														alt=""
+														height={20}
+														src={`/providers/${PROVIDER_LOGOS[provider.id]}.svg`}
+														width={20}
+													/>
+												) : (
+													<DatabaseIcon className="size-5" />
+												)}
 											</div>
 											<div className="min-w-0 flex-1">
 												<div className="mb-1 flex items-center gap-2">
