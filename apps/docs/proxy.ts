@@ -1,4 +1,4 @@
-import { trackAgentTraffic } from "@databuddy/sdk/agents";
+import { trackAgents } from "@databuddy/sdk/agents";
 import type { NextFetchEvent, NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { acceptMarkdownOverHtml } from "@/app/api/pricing/accept-markdown";
@@ -6,9 +6,7 @@ import { acceptMarkdownOverHtml } from "@/app/api/pricing/accept-markdown";
 const MARKDOWN_NEGOTIATED_PATHS = new Set(["/", "/pricing", "/pricing/"]);
 
 export function proxy(request: NextRequest, event: NextFetchEvent) {
-	event.waitUntil(
-		trackAgentTraffic(request, { websiteId: "OXmNQsViBT-FOS_wZCTHc" })
-	);
+	event.waitUntil(trackAgents(request, { websiteId: "OXmNQsViBT-FOS_wZCTHc" }));
 
 	const { pathname } = request.nextUrl;
 	if (!MARKDOWN_NEGOTIATED_PATHS.has(pathname)) {
