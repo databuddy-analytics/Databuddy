@@ -3,8 +3,8 @@
 import { EmptyState } from "@databuddy/ui";
 import {
 	BrainIcon,
-	ShieldCheckIcon,
-	ShieldWarningIcon,
+	FileTextIcon,
+	RobotIcon,
 	UsersIcon,
 } from "@databuddy/ui/icons";
 import { dayjs } from "@databuddy/ui";
@@ -15,11 +15,11 @@ import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
 import { DataTable } from "@/components/table/data-table";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
-import { formatNumber } from "@/lib/formatters";
 import {
 	type AgentPageRow,
 	type AgentRow,
 	agentColumns,
+	PURPOSES,
 	pageColumns,
 } from "./columns";
 
@@ -29,24 +29,17 @@ interface AgentSummary {
 	hits: number;
 	pages: number;
 	sessions: number;
-	spoofed_hits: number;
-	verified_hits: number;
 }
 
 interface AgentTimeSeriesRow {
 	date: string;
 	hits: number;
-	spoofed_hits: number;
-	verified_hits: number;
+	on_demand: number;
+	search_index: number;
+	training: number;
 }
 
 type AgentPageResult = Omit<AgentPageRow, "name"> & { page: string };
-
-const CHART_METRICS = [
-	{ key: "hits", label: "Agent hits", color: "var(--color-chart-1)" },
-	{ key: "verified_hits", label: "Verified", color: "var(--color-success)" },
-	{ key: "spoofed_hits", label: "Spoofed", color: "var(--color-destructive)" },
-];
 
 function percentOf(part: number, total: number): string {
 	return total > 0 ? `${Math.round((part / total) * 100)}%` : "0%";
@@ -93,8 +86,18 @@ export default function AgentsPage() {
 		[series, dateRange.granularity]
 	);
 
-	const miniChart = (key: keyof AgentTimeSeriesRow) =>
-		series.map((row) => ({ date: row.date, value: Number(row[key]) || 0 }));
+	const hitsChart = series.map((row) => ({
+		date: row.date,
+		value: Number(row.hits) || 0,
+	}));
+
+	const purposeMetrics = PURPOSES.filter(({ key }) =>
+		series.some((row) => row[key] > 0)
+	).map(({ key, label }) => ({ key, label }));
+	const chartMetrics =
+		purposeMetrics.length > 0
+			? purposeMetrics
+			: [{ key: "hits", label: "Agent hits" }];
 
 	const pageRows = useMemo(
 		(): AgentPageRow[] =>
@@ -121,8 +124,7 @@ export default function AgentsPage() {
 			<div className="space-y-4 p-4">
 				<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-4">
 					<StatCard
-						chartData={miniChart("hits")}
-						description={`${formatNumber(summary?.agents ?? 0)} agents across ${formatNumber(summary?.pages ?? 0)} pages`}
+						chartData={hitsChart}
 						icon={BrainIcon}
 						id="agent-hits"
 						isLoading={isLoading}
@@ -130,22 +132,18 @@ export default function AgentsPage() {
 						value={hits}
 					/>
 					<StatCard
-						chartData={miniChart("verified_hits")}
-						description={`${formatNumber(summary?.verified_hits ?? 0)} hits from official IPs`}
-						icon={ShieldCheckIcon}
-						id="agent-verified"
+						icon={RobotIcon}
+						id="agent-count"
 						isLoading={isLoading}
-						title="Verified"
-						value={percentOf(summary?.verified_hits ?? 0, hits)}
+						title="Agents"
+						value={summary?.agents ?? 0}
 					/>
 					<StatCard
-						chartData={miniChart("spoofed_hits")}
-						description={`${formatNumber(summary?.spoofed_hits ?? 0)} hits claiming to be an agent`}
-						icon={ShieldWarningIcon}
-						id="agent-spoofed"
+						icon={FileTextIcon}
+						id="agent-pages"
 						isLoading={isLoading}
-						title="Spoofed"
-						value={percentOf(summary?.spoofed_hits ?? 0, hits)}
+						title="Pages read"
+						value={summary?.pages ?? 0}
 					/>
 					<StatCard
 						description={`${percentOf(summary?.ai_sessions ?? 0, summary?.sessions ?? 0)} of all sessions`}
@@ -159,16 +157,16 @@ export default function AgentsPage() {
 
 				<SimpleMetricsChart
 					data={chartData}
-					description="Hits from AI agents and crawlers, verified against official IP ranges"
+					description="Hits from AI agents and crawlers by purpose"
 					height={300}
 					isLoading={isLoading}
-					metrics={CHART_METRICS}
+					metrics={chartMetrics}
 					partialLastSegment
 					title="Agent traffic"
 				/>
 
 				<DataTable
-					columns={pageColumns}
+					columns={pageColumns(pageRows)}
 					data={pageRows}
 					description="What AI agents read, next to what humans read"
 					emptyMessage="No pages read by agents yet"
@@ -179,7 +177,7 @@ export default function AgentsPage() {
 				<DataTable
 					columns={agentColumns}
 					data={agents}
-					description="Who is reading, and whether they are who they claim to be"
+					description="Who is reading, and why"
 					emptyMessage="No agents yet"
 					isLoading={isLoading}
 					title="Agents"

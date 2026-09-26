@@ -6,7 +6,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { formatNumber } from "@/lib/formatters";
 
 export interface AgentPageRow {
-	agents: number;
 	ai_sessions: number;
 	hits: number;
 	name: string;
@@ -14,7 +13,6 @@ export interface AgentPageRow {
 	pageviews: number;
 	search_index: number;
 	training: number;
-	verified_hits: number;
 }
 
 export interface AgentRow {
@@ -23,9 +21,15 @@ export interface AgentRow {
 	name: string;
 	pages: number;
 	purpose: string;
-	spoofed_hits: number;
-	verified_hits: number;
 }
+
+type PurposeKey = "training" | "search_index" | "on_demand";
+
+export const PURPOSES: { key: PurposeKey; label: string }[] = [
+	{ key: "training", label: "Training" },
+	{ key: "search_index", label: "Search" },
+	{ key: "on_demand", label: "On demand" },
+];
 
 const PURPOSE_LABELS: Record<string, string> = {
 	training: "Training",
@@ -33,14 +37,6 @@ const PURPOSE_LABELS: Record<string, string> = {
 	user_fetch: "On demand",
 	agent: "Agent",
 };
-
-function NumberCell({ value }: { value: number }) {
-	return (
-		<span className="text-[15px] text-muted-foreground tabular-nums">
-			{formatNumber(value)}
-		</span>
-	);
-}
 
 function numberColumn<TRow>(
 	key: keyof TRow & string,
@@ -50,28 +46,34 @@ function numberColumn<TRow>(
 		id: key,
 		accessorKey: key,
 		header,
-		cell: ({ getValue }) => <NumberCell value={(getValue() as number) ?? 0} />,
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground tabular-nums">
+				{formatNumber((getValue() as number) ?? 0)}
+			</span>
+		),
 	};
 }
 
-export const pageColumns: ColumnDef<AgentPageRow>[] = [
-	{
-		id: "name",
-		accessorKey: "name",
-		header: "Page",
-		cell: ({ getValue }) => (
-			<span className="truncate font-medium text-[15px]">
-				{getValue() as string}
-			</span>
+export function pageColumns(rows: AgentPageRow[]): ColumnDef<AgentPageRow>[] {
+	return [
+		{
+			id: "name",
+			accessorKey: "name",
+			header: "Page",
+			cell: ({ getValue }) => (
+				<span className="truncate font-medium text-[15px]">
+					{getValue() as string}
+				</span>
+			),
+		},
+		numberColumn("hits", "Agent hits"),
+		...PURPOSES.filter(({ key }) => rows.some((row) => row[key] > 0)).map(
+			({ key, label }) => numberColumn<AgentPageRow>(key, label)
 		),
-	},
-	numberColumn("hits", "Agent hits"),
-	numberColumn("training", "Training"),
-	numberColumn("search_index", "Search"),
-	numberColumn("on_demand", "On demand"),
-	numberColumn("pageviews", "Human views"),
-	numberColumn("ai_sessions", "AI visits"),
-];
+		numberColumn("pageviews", "Human views"),
+		numberColumn("ai_sessions", "AI visits"),
+	];
+}
 
 export const agentColumns: ColumnDef<AgentRow>[] = [
 	{
@@ -90,33 +92,6 @@ export const agentColumns: ColumnDef<AgentRow>[] = [
 		),
 	},
 	numberColumn("hits", "Hits"),
-	{
-		id: "verification",
-		accessorKey: "verified_hits",
-		header: "Verification",
-		cell: ({ row }) => {
-			const { hits, verified_hits, spoofed_hits } = row.original;
-			if (spoofed_hits > 0) {
-				return (
-					<Badge size="sm" variant="destructive">
-						{formatNumber(spoofed_hits)} spoofed
-					</Badge>
-				);
-			}
-			if (verified_hits > 0) {
-				return (
-					<Badge size="sm" variant="success">
-						{Math.round((verified_hits / Math.max(hits, 1)) * 100)}% verified
-					</Badge>
-				);
-			}
-			return (
-				<Badge size="sm" variant="muted">
-					Unverified
-				</Badge>
-			);
-		},
-	},
 	numberColumn("pages", "Pages"),
 	{
 		id: "last_seen",

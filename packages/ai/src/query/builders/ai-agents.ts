@@ -1,3 +1,4 @@
+import { AI_AGENT_CLASSIFICATION } from "@databuddy/shared/bot-detection/ai-agents";
 import { AI_REFERRER_DOMAINS } from "@databuddy/shared/utils/referrer";
 import { Analytics } from "../../types/tables";
 import type { CustomSqlContext, SimpleQueryConfig } from "../types";
@@ -9,9 +10,16 @@ const AI_DOMAINS = [
 	),
 ];
 
-const VERIFIED = "verification IN ('ip_verified', 'rdns_verified')";
-const SPOOFED = "verification = 'spoofed'";
+const CLASSIFIED_AGENTS = Object.entries(AI_AGENT_CLASSIFICATION).flatMap(
+	([id, classification]) => (classification ? [{ id, ...classification }] : [])
+);
+
 const AGENT_KEY = "if(agent_id != '', agent_id, bot_name)";
+const OPERATOR =
+	"transform(agent_id, {agentIds:Array(String)}, {agentOperators:Array(String)}, bot_name)";
+const PURPOSE_COUNTS = `countIf(agent_purpose = 'training') AS training,
+	countIf(agent_purpose = 'search_index') AS search_index,
+	countIf(agent_purpose IN ('user_fetch', 'agent')) AS on_demand`;
 const AI_REFERRED =
 	"(domainWithoutWWW(referrer) IN {aiDomains:Array(String)} OR utm_source IN {aiDomains:Array(String)})";
 
@@ -41,13 +49,11 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 		meta: {
 			title: "AI Agent Summary",
 			description:
-				"AI agent and crawler hits with verified and spoofed counts, distinct agents and pages, plus sessions referred by AI assistants.",
+				"AI agent and crawler hits with distinct agents and pages, plus sessions referred by AI assistants.",
 			category: "AI Agents",
 			tags: ["ai", "agents", "crawlers", "bots", "summary"],
 			output_fields: [
 				{ name: "hits", type: "number", label: "Agent hits" },
-				{ name: "verified_hits", type: "number", label: "Verified hits" },
-				{ name: "spoofed_hits", type: "number", label: "Spoofed hits" },
 				{ name: "agents", type: "number", label: "Agents" },
 				{ name: "pages", type: "number", label: "Pages" },
 				{ name: "ai_sessions", type: "number", label: "AI-referred sessions" },
@@ -56,14 +62,10 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		customSql: (ctx) => ({
 			sql: `
-				SELECT
-					s.hits, s.verified_hits, s.spoofed_hits, s.agents, s.pages,
-					v.ai_sessions, v.sessions
+				SELECT s.hits, s.agents, s.pages, v.ai_sessions, v.sessions
 				FROM (
 					SELECT
 						count() AS hits,
-						countIf(${VERIFIED}) AS verified_hits,
-						countIf(${SPOOFED}) AS spoofed_hits,
 						uniq(${AGENT_KEY}) AS agents,
 						uniq(${pageOf("path")}) AS pages
 					FROM ${Analytics.ai_traffic_spans}
@@ -87,14 +89,15 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 		meta: {
 			title: "AI Agent Hits Over Time",
 			description:
-				"AI agent and crawler hits per day (or hour), split into verified and spoofed.",
+				"AI agent and crawler hits per day (or hour), split by purpose: training, search index and on-demand fetches.",
 			category: "AI Agents",
 			tags: ["ai", "agents", "crawlers", "time-series"],
 			output_fields: [
 				{ name: "date", type: "string", label: "Date" },
 				{ name: "hits", type: "number", label: "Agent hits" },
-				{ name: "verified_hits", type: "number", label: "Verified hits" },
-				{ name: "spoofed_hits", type: "number", label: "Spoofed hits" },
+				{ name: "training", type: "number", label: "Training" },
+				{ name: "search_index", type: "number", label: "Search index" },
+				{ name: "on_demand", type: "number", label: "On demand" },
 			],
 			default_visualization: "timeseries",
 			supports_granularity: ["hour", "day"],
@@ -106,11 +109,7 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 					: "toDate(timestamp)";
 			return {
 				sql: `
-					SELECT
-						${bucket} AS date,
-						count() AS hits,
-						countIf(${VERIFIED}) AS verified_hits,
-						countIf(${SPOOFED}) AS spoofed_hits
+					SELECT ${bucket} AS date, count() AS hits, ${PURPOSE_COUNTS}
 					FROM ${Analytics.ai_traffic_spans}
 					WHERE ${SPAN_RANGE}
 					GROUP BY date
@@ -136,8 +135,6 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 				{ name: "training", type: "number", label: "Training" },
 				{ name: "search_index", type: "number", label: "Search index" },
 				{ name: "on_demand", type: "number", label: "On demand" },
-				{ name: "verified_hits", type: "number", label: "Verified hits" },
-				{ name: "agents", type: "number", label: "Agents" },
 				{ name: "pageviews", type: "number", label: "Human pageviews" },
 				{ name: "ai_sessions", type: "number", label: "AI-referred sessions" },
 			],
@@ -147,17 +144,9 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 			sql: `
 				SELECT
 					a.page AS page, a.hits, a.training, a.search_index, a.on_demand,
-					a.verified_hits, a.agents,
 					h.pageviews, h.ai_sessions
 				FROM (
-					SELECT
-						${pageOf("path")} AS page,
-						count() AS hits,
-						countIf(agent_purpose = 'training') AS training,
-						countIf(agent_purpose = 'search_index') AS search_index,
-						countIf(agent_purpose IN ('user_fetch', 'agent')) AS on_demand,
-						countIf(${VERIFIED}) AS verified_hits,
-						uniq(${AGENT_KEY}) AS agents
+					SELECT ${pageOf("path")} AS page, count() AS hits, ${PURPOSE_COUNTS}
 					FROM ${Analytics.ai_traffic_spans}
 					WHERE ${SPAN_RANGE} AND path != ''
 					GROUP BY page
@@ -185,16 +174,14 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 		meta: {
 			title: "AI Agents",
 			description:
-				"AI agents and crawlers that visited, with purpose, hits, verified and spoofed counts, distinct pages and last seen time.",
+				"AI agents and crawlers that visited, named by the company that runs them, with purpose, hits, distinct pages and last seen time.",
 			category: "AI Agents",
-			tags: ["ai", "agents", "crawlers", "bots", "verification"],
+			tags: ["ai", "agents", "crawlers", "bots"],
 			output_fields: [
 				{ name: "agent", type: "string", label: "Agent id" },
-				{ name: "name", type: "string", label: "Agent" },
+				{ name: "name", type: "string", label: "Operator" },
 				{ name: "purpose", type: "string", label: "Purpose" },
 				{ name: "hits", type: "number", label: "Hits" },
-				{ name: "verified_hits", type: "number", label: "Verified hits" },
-				{ name: "spoofed_hits", type: "number", label: "Spoofed hits" },
 				{ name: "pages", type: "number", label: "Pages" },
 				{ name: "last_seen", type: "datetime", label: "Last seen" },
 			],
@@ -204,11 +191,9 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 			sql: `
 				SELECT
 					${AGENT_KEY} AS agent,
-					any(bot_name) AS name,
+					any(${OPERATOR}) AS name,
 					anyIf(agent_purpose, agent_purpose != '') AS purpose,
 					count() AS hits,
-					countIf(${VERIFIED}) AS verified_hits,
-					countIf(${SPOOFED}) AS spoofed_hits,
 					uniq(${pageOf("path")}) AS pages,
 					max(timestamp) AS last_seen
 				FROM ${Analytics.ai_traffic_spans}
@@ -217,7 +202,12 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 				ORDER BY hits DESC
 				LIMIT {limit:UInt32}
 			`,
-			params: { ...rangeParams(ctx), limit: ctx.limit ?? 100 },
+			params: {
+				...rangeParams(ctx),
+				agentIds: CLASSIFIED_AGENTS.map((agent) => agent.id),
+				agentOperators: CLASSIFIED_AGENTS.map((agent) => agent.operator),
+				limit: ctx.limit ?? 100,
+			},
 		}),
 		timeField: "timestamp",
 		customizable: false,
