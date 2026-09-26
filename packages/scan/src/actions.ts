@@ -299,7 +299,7 @@ function lookup(unit: Unit, name: string, at: ts.Node): ts.Node | undefined {
 const appRoute = /(?:^|\/)app\/(.+)\/route\.[cm]?[jt]sx?$/;
 const pagesRoute = /(?:^|\/)pages\/(api\/.+?)(?:\/index)?\.[cm]?[jt]sx?$/;
 const routeGroup = /^\(.*\)$/;
-const leadingBase = /^\0(?=\/)/;
+const leadingBase = /^:var(?=\/)/;
 const remixRoute = /(?:^|\/)app\/routes\/(.+?)(?:\/route)?\.[cm]?[jt]sx?$/;
 const nitroRoute =
 	/(?:^|\/)server\/(api|routes)\/(.+?)(?:\.(get|post|put|patch|delete))?\.[cm]?[jt]s$/;
@@ -358,7 +358,7 @@ function urlParts(input: ts.Node): (string | null)[] | undefined {
 		? node.text
 		: ts.isTemplateExpression(node)
 			? node.head.text +
-				node.templateSpans.map((span) => `\0${span.literal.text}`).join("")
+				node.templateSpans.map((span) => `:var${span.literal.text}`).join("")
 			: undefined;
 	const pathname = text?.split(queryOrHash)[0]?.replace(leadingBase, "");
 	if (!pathname?.startsWith("/")) {
@@ -367,11 +367,11 @@ function urlParts(input: ts.Node): (string | null)[] | undefined {
 	return pathname
 		.split("/")
 		.filter(Boolean)
-		.map((part) => (part.includes("\0") ? null : part));
+		.map((part) => (part.includes(":var") ? null : part));
 }
 const serverRouteCall =
 	/\.(get|post|put|patch|delete|all)\(\s*["'`](\/[^"'`]*)["'`]/g;
-const serverPrefix = /\b(?:prefix\s*:|basePath\()\s*["'`](\/[^"'`]*)["'`]/;
+const serverPrefix = /\b(?:prefix\s*:|basePath\()\s*["'`](\/[^"'`]*)["'`]/g;
 const serverFile = /\.[cm]?[jt]s$/;
 const serverTables = new WeakMap<
 	ReadonlyMap<string, string>,
@@ -385,8 +385,11 @@ function serverTable(sources: ReadonlyMap<string, string>) {
 			if (!serverFile.test(path)) {
 				continue;
 			}
-			const prefix = serverPrefix.exec(text)?.[1] ?? "";
+			const prefixes = [...text.matchAll(serverPrefix)];
 			for (const match of text.matchAll(serverRouteCall)) {
+				const prefix =
+					prefixes.filter((found) => found.index < match.index).at(-1)?.[1] ??
+					"";
 				table.push({
 					path,
 					method: match[1] ?? "",
@@ -1141,15 +1144,47 @@ export function groupActions(
 			issues
 		);
 	}
+	function requestMethod(input: ts.Node, owner: Unit) {
+		const parent = input.parent;
+		if (ts.isJsxAttribute(parent) || ts.isJsxExpression(parent)) {
+			return "get";
+		}
+		if (!(ts.isCallExpression(parent) && parent.arguments[0] === input)) {
+			return;
+		}
+		const callee = parent.expression;
+		if (ts.isPropertyAccessExpression(callee)) {
+			const name = callee.name.text.toLowerCase();
+			return routeMethods.has(name) && name !== "handler" ? name : undefined;
+		}
+		if (ts.isIdentifier(callee) && callee.text === "fetch") {
+			const init = parent.arguments[1];
+			const method =
+				init && ts.isObjectLiteralExpression(init)
+					? init.properties.find(
+							(property): property is ts.PropertyAssignment =>
+								ts.isPropertyAssignment(property) &&
+								property.name.getText(owner.file) === "method"
+						)?.initializer
+					: undefined;
+			return method && ts.isStringLiteralLike(method)
+				? method.text.toLowerCase()
+				: "get";
+		}
+	}
 	function serverHandlers(input: ts.Node, owner: Unit): Reference[] {
 		const url = urlParts(input);
 		if (!url || url.length < 2) {
 			return [];
 		}
+		const method = requestMethod(input, owner);
 		const matches = serverTable(sources).filter(
-			(route) => route.path !== owner.path && serverMatches(route.parts, url)
+			(route) =>
+				route.path !== owner.path &&
+				serverMatches(route.parts, url) &&
+				(!method || route.method === method || route.method === "all")
 		);
-		if (!matches.length || matches.length > 2) {
+		if (matches.length !== 1) {
 			return [];
 		}
 		return matches.flatMap((route) => {
@@ -1167,11 +1202,16 @@ export function groupActions(
 							1 ===
 							route.line
 					) {
-						const callback = [...node.arguments]
-							.reverse()
-							.find((argument) => isFunction(unwrap(argument)));
-						if (callback) {
-							found.push({ unit: target, node: callback });
+						const callback = [...node.arguments].reverse().find(callable);
+						const value = callback && unwrap(callback);
+						const named =
+							value && ts.isIdentifier(value)
+								? resolve(target, value.text, value, new Set())
+								: undefined;
+						if (named && !ts.isParameter(named.node) && callback) {
+							found.push(named, { unit: target, node: callback });
+						} else if (value && isFunction(value)) {
+							found.push({ unit: target, node: value });
 						}
 					}
 				});
@@ -1556,13 +1596,9 @@ export function groupActions(
 			const href = attributes.find(
 				(attribute) => attribute.name.getText(unit.file) === "href"
 			)?.initializer;
+			const link = href && ts.isJsxExpression(href) ? href.expression : href;
 			roots.push({
-				...(!active.length &&
-				href &&
-				ts.isJsxExpression(href) &&
-				href.expression
-					? { link: href.expression }
-					: {}),
+				...(!active.length && link ? { link } : {}),
 				node: active[0] ?? whole,
 				owner: whole,
 				callbacks: active
@@ -1898,7 +1934,9 @@ export function groupActions(
 				) {
 					for (const handler of serverHandlers(child, owner)) {
 						addSite(handler.unit, handler.node);
-						evidence(handler.unit, handler.node, depth + 1);
+						if (!ts.isIdentifier(unwrap(handler.node))) {
+							evidence(handler.unit, handler.node, depth + 1);
+						}
 					}
 				}
 				if (!ts.isCallExpression(child)) {
