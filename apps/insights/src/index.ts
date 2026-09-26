@@ -17,12 +17,12 @@ import {
 	INSIGHTS_QUEUE_NAME,
 	type InsightsQueueJobData,
 } from "@databuddy/redis";
-import { runImportJob } from "@databuddy/services/import";
+import { PermanentImportError, runImportJob } from "@databuddy/services/import";
 import {
 	createDatabuddyEvlogEnv,
 	databuddyEvlogRedaction,
 } from "@databuddy/shared/evlog-redaction";
-import { Worker } from "bullmq";
+import { UnrecoverableError, Worker } from "bullmq";
 import { Elysia } from "elysia";
 import { initLogger } from "evlog";
 import { processInsightsJob } from "./jobs";
@@ -177,7 +177,12 @@ async function startRuntime() {
 			async (job) => {
 				const result = await runImportJob(job.data, ({ rows }) =>
 					job.updateProgress(rows)
-				);
+				).catch((error) => {
+					if (error instanceof PermanentImportError) {
+						throw new UnrecoverableError(error.message);
+					}
+					throw error;
+				});
 				emitInsightsEvent("info", "import.completed", {
 					run_id: job.data.runId,
 					website_id: job.data.websiteId,

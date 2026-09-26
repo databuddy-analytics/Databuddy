@@ -14,6 +14,8 @@ import { plausibleProvider } from "./providers/plausible";
 import { simpleAnalyticsProvider } from "./providers/simple-analytics";
 
 const ZIP_MAGIC = [0x50, 0x4b];
+const HTTP_CLIENT_ERROR = 400;
+const HTTP_SERVER_ERROR = 500;
 const MAX_ARCHIVE_ENTRIES = 64;
 const MAX_ENTRY_BYTES = 32 * 1024 * 1024;
 const MAX_EXPANDED_BYTES = 128 * 1024 * 1024;
@@ -94,13 +96,17 @@ export function fileSource(name: string, contents: string): ImportSource {
 	return { kind: "file", name, text: () => Promise.resolve(contents) };
 }
 
+export class PermanentImportError extends Error {}
+
 export async function runImportJob(
 	data: ImportRunJobData,
 	onProgress?: (progress: { rows: number }) => void | Promise<void>
 ): Promise<ImportResult> {
 	const provider = getImportProvider(data.providerId);
 	if (!provider) {
-		throw new Error(`Unknown import provider: ${data.providerId}`);
+		throw new PermanentImportError(
+			`Unknown import provider: ${data.providerId}`
+		);
 	}
 
 	const website = await db.query.websites.findFirst({
@@ -108,17 +114,24 @@ export async function runImportJob(
 		columns: { domain: true, organizationId: true },
 	});
 	if (!website) {
-		throw new Error(`Website not found: ${data.websiteId}`);
+		throw new PermanentImportError(`Website not found: ${data.websiteId}`);
 	}
 	if (website.organizationId !== data.organizationId) {
-		throw new Error(
+		throw new PermanentImportError(
 			`Website ${data.websiteId} belongs to another organization`
 		);
 	}
 
 	const response = await fetch(createImportDownloadUrl(data.storageKey));
 	if (!response.ok) {
-		throw new Error(`Import object fetch failed with ${response.status}`);
+		const message = `Import object fetch failed with ${response.status}`;
+		if (
+			response.status >= HTTP_CLIENT_ERROR &&
+			response.status < HTTP_SERVER_ERROR
+		) {
+			throw new PermanentImportError(message);
+		}
+		throw new Error(message);
 	}
 	const body = new Uint8Array(await response.arrayBuffer());
 	const source = ZIP_MAGIC.every((byte, index) => body[index] === byte)
@@ -126,7 +139,9 @@ export async function runImportJob(
 		: fileSource(data.storageKey, new TextDecoder().decode(body));
 
 	if (!(await provider.detect(source))) {
-		throw new Error(`Uploaded file is not a ${provider.label} export`);
+		throw new PermanentImportError(
+			`Uploaded file is not a ${provider.label} export`
+		);
 	}
 
 	const result = await runImport({

@@ -52,9 +52,10 @@ export default function ImportPage() {
 	const [replaceExisting, setReplaceExisting] = useState(false);
 	const [runId, setRunId] = useState<string | null>(null);
 
-	const { data: providers, isLoading: providersLoading } = useQuery(
+	const { data: catalog, isLoading: providersLoading } = useQuery(
 		orpc.imports.providers.queryOptions()
 	);
+	const providers = catalog?.providers;
 
 	const { data: run } = useQuery({
 		...orpc.imports.status.queryOptions({
@@ -126,6 +127,25 @@ export default function ImportPage() {
 
 	const isStarting = createUpload.isPending || startImport.isPending;
 	const isRunning = ACTIVE_STATES.has(run?.state ?? "");
+
+	if (catalog && !catalog.storageConfigured) {
+		return (
+			<div className="flex-1 overflow-y-auto">
+				<div className="mx-auto max-w-4xl space-y-6 p-5">
+					<Card>
+						<Card.Header>
+							<Card.Title>Imports are unavailable</Card.Title>
+							<Card.Description>
+								Importing reads an export file from object storage, which this
+								deployment has not configured. Set AWS_ACCESS_KEY_ID and
+								AWS_SECRET_ACCESS_KEY to enable it.
+							</Card.Description>
+						</Card.Header>
+					</Card>
+				</div>
+			</div>
+		);
+	}
 
 	if (!websiteData) {
 		return (
