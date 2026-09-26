@@ -67,6 +67,7 @@ const writes = new Set([
 	"deleteMany",
 ]);
 const httpWrites = new Set(["post", "put", "patch"]);
+const boundCall = new Set(["bind", "call", "apply"]);
 const readCall =
 	/^(?:get|list|find|load|fetch|query|read|refetch|invalidate|prefetch|wait|sleep|delay|resolve|all|allSettled|race)\w*$/i;
 const actionVerb =
@@ -1986,6 +1987,17 @@ export function groupActions(
 						} else if (!config) {
 							issues.add(`unresolved_mutation:${callee.expression.text}`);
 						}
+					} else if (
+						depth < 2 &&
+						boundCall.has(method) &&
+						ts.isIdentifier(callee.expression) &&
+						(method !== "bind" ||
+							child.parent === node ||
+							(ts.isCallExpression(child.parent) &&
+								child.parent.expression === child))
+					) {
+						addSite(owner, child);
+						follow(owner, callee.expression, depth + 1);
 					} else if (depth < 2) {
 						for (const target of indirect(owner, callee)) {
 							addSite(owner, child);

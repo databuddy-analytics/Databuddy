@@ -1,99 +1,125 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
 import { AI_AGENTS } from "@databuddy/shared/bot-detection/ai-agents";
-import { AI_AGENT_USER_AGENT, trackAgentTraffic } from "../src/agents/index";
+import { AI_AGENT_USER_AGENT, proxy, trackAgents } from "../src/agents/index";
 
 const GPTBOT =
 	"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)";
+const CLAUDE_CODE =
+	"Claude-User (claude-code/2.1.280; +https://support.anthropic.com/)";
 const CHROME =
 	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+const OPTIONS = { websiteId: "site_1" };
 const originalFetch = globalThis.fetch;
+const originalEnv = { ...process.env };
 
-function agentRequest(
+function request(
 	path: string,
-	init: { method?: string; userAgent?: string; headers?: HeadersInit } = {}
+	init: { accept?: string; method?: string; userAgent?: string } = {}
 ): Request {
-	const headers = new Headers(init.headers);
-	headers.set("user-agent", init.userAgent ?? GPTBOT);
+	const headers = new Headers({ "user-agent": init.userAgent ?? GPTBOT });
+	if (init.accept) {
+		headers.set("accept", init.accept);
+	}
 	return new Request(`https://example.com${path}`, {
-		method: init.method ?? "GET",
 		headers,
+		method: init.method ?? "GET",
 	});
+}
+
+function captureBodies() {
+	const bodies: Record<string, unknown>[] = [];
+	globalThis.fetch = mock((_url: string, init?: RequestInit) => {
+		bodies.push(JSON.parse(String(init?.body)));
+		return Promise.resolve(new Response(null, { status: 202 }));
+	}) as typeof fetch;
+	return bodies;
 }
 
 afterEach(() => {
 	globalThis.fetch = originalFetch;
+	process.env = { ...originalEnv };
 });
 
-describe("AI_AGENT_USER_AGENT", () => {
-	it("matches the shared AI agent registry", () => {
+describe("trackAgents", () => {
+	it("recognizes exactly the shared registry's agents", () => {
 		const registry = AI_AGENTS.flatMap((agent) =>
 			agent.patterns.map((pattern) => pattern.source)
 		).join("|");
 		expect(AI_AGENT_USER_AGENT.source).toBe(registry);
 	});
-});
 
-describe("trackAgentTraffic", () => {
-	it("sends the path without the query and the proxy-appended IP", async () => {
-		const bodies: unknown[] = [];
-		globalThis.fetch = mock((_url: string, init?: RequestInit) => {
-			bodies.push(JSON.parse(String(init?.body)));
-			return Promise.resolve(new Response(null, { status: 200 }));
-		}) as typeof fetch;
-		await trackAgentTraffic(
-			agentRequest("/pricing?token=secret", {
-				headers: { "x-forwarded-for": "132.196.86.1, 20.171.206.7" },
-			}),
-			{ apiKey: "dbdy_test", websiteId: "site_1" }
+	it.each([
+		["/pricing", {}, { format: "html", host: "example.com", path: "/pricing" }],
+		["/pricing?token=secret", {}, { format: "html", path: "/pricing" }],
+		["/docs/intro.md", {}, { format: "markdown" }],
+		[
+			"/docs/intro",
+			{ accept: "text/markdown, text/html, */*", userAgent: CLAUDE_CODE },
+			{ format: "markdown" },
+		],
+		["/llms-full.txt", {}, { format: "llms" }],
+		["/pricing", { method: "HEAD" }, { format: "html" }],
+		["/pricing", { method: "POST" }, null],
+		["/pricing", { userAgent: CHROME }, null],
+		["/_next/static/chunks/app.js", {}, null],
+		["/logo.PNG", {}, null],
+	])("reports %s %o as %o", async (path, init, expected) => {
+		const bodies = captureBodies();
+		await trackAgents(request(path, init), OPTIONS);
+		expect(bodies[0] ?? null).toEqual(
+			expected ? expect.objectContaining(expected) : null
+		);
+	});
+
+	it("accepts an Express request behind a proxy", async () => {
+		const bodies = captureBodies();
+		await trackAgents(
+			{
+				headers: {
+					"user-agent": CLAUDE_CODE,
+					accept: "text/markdown",
+					host: "127.0.0.1:3000",
+					"x-forwarded-host": "docs.example.com, edge.example.net",
+				},
+				method: "GET",
+				originalUrl: "/docs/intro?ref=cli",
+				url: "/intro?ref=cli",
+			},
+			OPTIONS
 		);
 		expect(bodies).toEqual([
 			expect.objectContaining({
-				websiteId: "site_1",
-				path: "/pricing",
-				ip: "20.171.206.7",
-				userAgent: GPTBOT,
+				format: "markdown",
+				host: "docs.example.com",
+				path: "/docs/intro",
 			}),
 		]);
 	});
 
-	it.each([
-		[
-			"ignores a client-sent cf-connecting-ip outside Workers",
-			{ "cf-connecting-ip": "132.196.86.1", "x-real-ip": "203.0.113.9" },
-			false,
-			undefined,
-			"203.0.113.9",
-		],
-		[
-			"trusts cf-connecting-ip on Workers",
-			{ "cf-connecting-ip": "132.196.86.1", "x-real-ip": "203.0.113.9" },
-			true,
-			undefined,
-			"132.196.86.1",
-		],
-		[
-			"prefers an explicit ip option",
-			{ "x-real-ip": "203.0.113.9" },
-			false,
-			"198.51.100.4",
-			"198.51.100.4",
-		],
-	])("%s", async (_label, headers, onWorkers, ip, expected) => {
-		const bodies: { ip: string }[] = [];
-		globalThis.fetch = mock((_url: string, init?: RequestInit) => {
-			bodies.push(JSON.parse(String(init?.body)));
-			return Promise.resolve(new Response(null, { status: 202 }));
-		}) as typeof fetch;
-		const request = agentRequest("/pricing", { headers });
-		if (onWorkers) {
-			Object.defineProperty(request, "cf", { value: {} });
-		}
-		await trackAgentTraffic(request, {
-			apiKey: "dbdy_test",
-			websiteId: "site_1",
-			ip,
-		});
-		expect(bodies[0]?.ip).toBe(expected);
+	it("hands the request to waitUntil when used as a drop-in proxy", async () => {
+		process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID = "site_env";
+		const bodies = captureBodies();
+		const pending: Promise<unknown>[] = [];
+		proxy(request("/llms.txt"), { waitUntil: (p) => pending.push(p) });
+		await Promise.all(pending);
+		expect(bodies).toEqual([expect.objectContaining({ format: "llms" })]);
+	});
+
+	it("reads the website id from any framework's environment", async () => {
+		process.env.VITE_DATABUDDY_CLIENT_ID = "site_env";
+		const bodies = captureBodies();
+		await trackAgents(request("/pricing"));
+		expect(bodies).toEqual([
+			expect.objectContaining({ websiteId: "site_env" }),
+		]);
+	});
+
+	it("sends nothing without a website id", async () => {
+		process.env.DATABUDDY_WEBSITE_ID = "";
+		process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID = "";
+		const bodies = captureBodies();
+		await trackAgents(request("/pricing"));
+		expect(bodies).toEqual([]);
 	});
 
 	it("never rejects when basket is unreachable", async () => {
@@ -101,32 +127,7 @@ describe("trackAgentTraffic", () => {
 			Promise.reject(new Error("network down"))
 		) as typeof fetch;
 		await expect(
-			trackAgentTraffic(agentRequest("/pricing"), {
-				apiKey: "dbdy_test",
-				websiteId: "site_1",
-			})
+			trackAgents(request("/pricing"), OPTIONS)
 		).resolves.toBeUndefined();
-	});
-
-	it.each([
-		["/pricing", {}, 1],
-		["/llms.txt", {}, 1],
-		["/docs/intro.md", {}, 1],
-		["/pricing", { method: "HEAD" }, 1],
-		["/pricing", { method: "POST" }, 0],
-		["/pricing", { userAgent: CHROME }, 0],
-		["/_next/static/chunks/app.js", {}, 0],
-		["/logo.PNG", {}, 0],
-		["/fonts/inter.woff2", {}, 0],
-	])("%s %o sends %i hits", async (path, init, expected) => {
-		const fetchMock = mock(() =>
-			Promise.resolve(new Response(null, { status: 202 }))
-		);
-		globalThis.fetch = fetchMock as typeof fetch;
-		await trackAgentTraffic(agentRequest(path, init), {
-			apiKey: "dbdy_test",
-			websiteId: "site_1",
-		});
-		expect(fetchMock).toHaveBeenCalledTimes(expected);
 	});
 });

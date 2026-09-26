@@ -11,6 +11,7 @@ import {
 	runImport,
 } from "./pipeline";
 import { plausibleProvider } from "./providers/plausible";
+import { posthogProvider } from "./providers/posthog";
 import { simpleAnalyticsProvider } from "./providers/simple-analytics";
 
 const ZIP_MAGIC = [0x50, 0x4b];
@@ -22,6 +23,7 @@ const MAX_EXPANDED_BYTES = 128 * 1024 * 1024;
 
 export const IMPORT_PROVIDERS: ImportProvider[] = [
 	plausibleProvider,
+	posthogProvider,
 	simpleAnalyticsProvider,
 ];
 
@@ -58,15 +60,15 @@ export async function zipSource(
 		async *entries(): AsyncIterable<ImportEntry> {
 			let expanded = 0;
 			for (const file of files) {
-				const declared = declaredSize(file);
-				if (declared > MAX_ENTRY_BYTES) {
-					throw new Error(
-						`Archive entry ${file.name} declares ${declared} bytes, over the ${MAX_ENTRY_BYTES} byte limit`
-					);
-				}
 				yield {
 					name: file.name,
 					text: async () => {
+						const declared = declaredSize(file);
+						if (declared > MAX_ENTRY_BYTES) {
+							throw new Error(
+								`Archive entry ${file.name} declares ${declared} bytes, over the ${MAX_ENTRY_BYTES} byte limit`
+							);
+						}
 						const text = await file.async("string");
 						if (text.length > MAX_ENTRY_BYTES) {
 							throw new Error(

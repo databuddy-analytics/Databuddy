@@ -1,3 +1,4 @@
+import type { AiTrafficSpansInsert } from "@databuddy/db/clickhouse/tables";
 import {
 	getWebsiteByIdV2,
 	isOriginAllowed,
@@ -13,7 +14,14 @@ import {
 import { checkAutumnUsage } from "@lib/billing";
 import { parseCorsSafeJson } from "@lib/cors-safe-json";
 import { insertCustomEvents } from "@lib/event-service";
+import { runFork, send } from "@lib/producer";
 import { ratelimit } from "@databuddy/redis/rate-limit";
+import { redis } from "@databuddy/redis/redis";
+import {
+	setupCheckKey,
+	setupCheckNonce,
+} from "@databuddy/shared/bot-detection/ai-agents";
+import { CONTENT_FORMATS } from "@databuddy/shared/bot-detection/types";
 import {
 	checkForBot,
 	getWebsiteSecuritySettings,
@@ -36,9 +44,20 @@ import {
 	VALIDATION_LIMITS,
 	validatePayloadSize,
 } from "@utils/validation";
+import { detectBot } from "@utils/user-agent";
 import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
+import { z } from "zod";
 import { type TrackEventPayload, trackEventSchema } from "./track-event-schema";
+
+const agentHitSchema = z.object({
+	websiteId: z.string().min(1).max(128),
+	host: z.string().min(1).max(253),
+	path: z.string().max(2048),
+	format: z.enum(CONTENT_FORMATS).default("html"),
+	userAgent: z.string().min(1).max(512),
+	referrer: z.string().max(2048).optional(),
+});
 
 interface ResolvedAuth {
 	apiKey?: ApiKeyRow;
@@ -417,6 +436,78 @@ export const trackRoute = new Elysia()
 				{ status: "success", type: "custom_event", count: spans.length },
 				200
 			);
+		} catch (error) {
+			rethrowOrWrap(error, log);
+		}
+	})
+	.post("/ai-traffic", async ({ body, request }) => {
+		const log = useLogger();
+		log.set({ route: "ai-traffic" });
+
+		try {
+			const parsed = agentHitSchema.safeParse(body);
+			if (!parsed.success) {
+				throw createIngestSchemaValidationError(parsed.error.issues);
+			}
+			const hit = parsed.data;
+			log.set({ websiteId: hit.websiteId, host: hit.host });
+
+			const website = await getWebsiteByIdV2(hit.websiteId);
+			if (!website) {
+				throw basketErrors.trackWebsiteNotFound();
+			}
+			const allowedOrigins = getWebsiteSecuritySettings(
+				website.settings
+			)?.allowedOrigins;
+			if (
+				!isOriginAllowed(`https://${hit.host}`, website.domain, allowedOrigins)
+			) {
+				log.set({ rejected: "host_not_authorized" });
+				throw basketErrors.ingestOriginNotAuthorized();
+			}
+
+			const setupNonce = setupCheckNonce(hit.userAgent);
+			if (setupNonce) {
+				await redis.set(
+					setupCheckKey(hit.websiteId, setupNonce),
+					hit.path,
+					"EX",
+					120
+				);
+				return new Response(null, { status: 202 });
+			}
+
+			const { botName, result } = detectBot(hit.userAgent, request);
+			const agent = result?.agent;
+			if (!agent) {
+				log.set({ rejected: "not_ai_agent" });
+				return new Response(null, { status: 204 });
+			}
+
+			log.set({
+				bot: {
+					name: botName,
+					agent: agent.id,
+					purpose: agent.purpose,
+				},
+			});
+
+			const span: AiTrafficSpansInsert = {
+				client_id: hit.websiteId,
+				timestamp: Date.now(),
+				bot_type: result.category ?? "unknown",
+				bot_name: botName ?? agent.operator,
+				user_agent: hit.userAgent,
+				path: hit.path,
+				format: hit.format,
+				referrer: hit.referrer,
+				agent_id: agent.id,
+				agent_purpose: agent.purpose,
+				source: "middleware",
+			};
+			runFork(send("analytics-ai-traffic-spans", span));
+
+			return new Response(null, { status: 202 });
 		} catch (error) {
 			rethrowOrWrap(error, log);
 		}
