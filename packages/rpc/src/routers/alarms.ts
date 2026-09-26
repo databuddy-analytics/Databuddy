@@ -4,6 +4,7 @@ import {
 	alarms,
 	alarmTriggerTypeValues,
 } from "@databuddy/db/schema";
+import { MAX_ALARM_DESTINATIONS } from "@databuddy/notifications";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { createSelectSchema } from "drizzle-orm/zod";
 import { randomUUIDv7 } from "bun";
@@ -81,8 +82,6 @@ const emailDestinationSchema = z.object({
 	identifier: z.string().email(),
 	config: z.record(z.string(), z.unknown()).default({}),
 });
-
-const MAX_ALARM_DESTINATIONS = 10;
 
 const destinationSchema = z.discriminatedUnion("type", [
 	slackDestinationSchema,
