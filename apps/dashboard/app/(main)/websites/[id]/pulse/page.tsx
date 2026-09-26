@@ -27,7 +27,10 @@ export default function PulsePage() {
 	if (scheduleQuery.data) {
 		return (
 			<MonitorDetail
-				initialSchedule={scheduleQuery.data}
+				initialSchedule={{
+					data: scheduleQuery.data,
+					updatedAt: scheduleQuery.dataUpdatedAt,
+				}}
 				scheduleId={scheduleQuery.data.id}
 				title="Uptime"
 			/>

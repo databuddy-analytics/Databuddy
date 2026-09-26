@@ -713,7 +713,7 @@ export function MonitorDetail({
 	title,
 	onRemovedAction,
 }: {
-	initialSchedule?: Schedule;
+	initialSchedule?: { data: Schedule; updatedAt: number };
 	onRemovedAction?: () => void;
 	scheduleId: string;
 	title?: string;
@@ -721,7 +721,8 @@ export function MonitorDetail({
 	const router = useRouter();
 	const scheduleQuery = useQuery({
 		...orpc.uptime.getSchedule.queryOptions({ input: { scheduleId } }),
-		initialData: initialSchedule,
+		initialData: initialSchedule?.data,
+		initialDataUpdatedAt: initialSchedule?.updatedAt,
 	});
 
 	if (scheduleQuery.isPending) {
