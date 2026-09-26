@@ -3,35 +3,6 @@ import { getGithubTokenForOrg } from "@databuddy/services/github-app";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 
-function createInstallationTokenFn(
-	organizationId: string
-): () => Promise<string | null> {
-	return () => getGithubTokenForOrg(organizationId).catch(() => null);
-}
-
-function createLinkedRepositoriesFn(
-	organizationId: string
-): () => Promise<GitHubRepository[]> {
-	let linked: Promise<GitHubRepository[]> | undefined;
-	return () => {
-		linked ??= db
-			.select({ integrations: websites.integrations })
-			.from(websites)
-			.where(
-				and(
-					eq(websites.organizationId, organizationId),
-					isNull(websites.deletedAt)
-				)
-			)
-			.then((rows) =>
-				rows.flatMap((row) =>
-					row.integrations?.github ? [row.integrations.github] : []
-				)
-			);
-		return linked;
-	};
-}
-
 const GITHUB_API = "https://api.github.com";
 const MAX_RESULTS = 10;
 const DEPLOY_FETCH_SIZE = 50;
@@ -200,10 +171,28 @@ export function createGitHubTools(
 
 	const repository = params.repository;
 	const getToken =
-		dependencies.getToken ?? createInstallationTokenFn(params.organizationId);
+		dependencies.getToken ??
+		(() => getGithubTokenForOrg(params.organizationId).catch(() => null));
+	let linkedRepositories: Promise<GitHubRepository[]> | undefined;
 	const getLinkedRepositories =
 		dependencies.getLinkedRepositories ??
-		createLinkedRepositoriesFn(params.organizationId);
+		(() => {
+			linkedRepositories ??= db
+				.select({ integrations: websites.integrations })
+				.from(websites)
+				.where(
+					and(
+						eq(websites.organizationId, params.organizationId),
+						isNull(websites.deletedAt)
+					)
+				)
+				.then((rows) =>
+					rows.flatMap((row) =>
+						row.integrations?.github ? [row.integrations.github] : []
+					)
+				);
+			return linkedRepositories;
+		});
 	const request = dependencies.request ?? githubFetch;
 	// Toolkits are created per agent run; never share file identities across runs.
 	const fileShas = new Map<string, string | null>();
