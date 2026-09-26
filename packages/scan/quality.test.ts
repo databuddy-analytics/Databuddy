@@ -959,3 +959,41 @@ export function Page() {
 	assert.equal(actions("save.apply(null, [id]);").length, 1);
 	assert.equal(actions("const later = save.bind(null, id);").length, 0);
 });
+
+test("a product callback on a component is an action at its origin, not where it is forwarded", () => {
+	const source = `import { remove } from "./remove";
+export function Page() {
+	return <DeleteDialog onConfirm={() => remove(id)} onOpenChange={() => setOpen(false)} />;
+}
+export function Row({ onDelete }) {
+	return <Actions onDelete={onDelete} />;
+}
+export function Filters() {
+	return <SaveDialog onSave={() => setDraft(null)} />;
+}`;
+	const actions = groups(source, {
+		"app/remove.ts":
+			"export async function remove(id: string) { await db.delete(items).where(eq(items.id, id)); }",
+	});
+	assert.deepEqual(
+		actions.map((action) => action.label),
+		["DeleteDialog.onConfirm"]
+	);
+});
+
+test("NextAuth events and Better-Auth after hooks are server actions", () => {
+	const source = `export const auth = NextAuth({
+	events: {
+		async signIn({ user }) { await db.update(users).set({ seenAt: new Date() }); },
+		createUser: async ({ user }) => { await sendWelcome(user); },
+	},
+	callbacks: { async signIn() { return true; } },
+});
+export const better = betterAuth({
+	databaseHooks: { user: { create: { after: async (user) => { await sendWelcome(user); } } } },
+});`;
+	assert.deepEqual(
+		groups(source, {}, "lib/auth.ts").map((action) => action.label),
+		["events.signIn", "events.createUser", "user.create.after"]
+	);
+});
