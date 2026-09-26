@@ -13,6 +13,21 @@ import type { UptimeGranularity } from "@databuddy/shared/uptime";
 import { organization } from "./auth";
 import { websites } from "./websites";
 
+export const STATUS_PAGE_THEMES = ["system", "light", "dark"] as const;
+export const INCIDENT_STATUSES = [
+	"investigating",
+	"identified",
+	"monitoring",
+	"resolved",
+] as const;
+export const INCIDENT_SEVERITIES = ["minor", "major", "critical"] as const;
+export const INCIDENT_IMPACTS = ["degraded", "down"] as const;
+
+type StatusPageTheme = (typeof STATUS_PAGE_THEMES)[number];
+type IncidentStatus = (typeof INCIDENT_STATUSES)[number];
+type IncidentSeverity = (typeof INCIDENT_SEVERITIES)[number];
+type IncidentImpact = (typeof INCIDENT_IMPACTS)[number];
+
 export interface UptimeJsonParsingConfig {
 	enabled: boolean;
 }
@@ -71,7 +86,7 @@ export const statusPages = pgTable(
 		faviconUrl: text("favicon_url"),
 		websiteUrl: text("website_url"),
 		supportUrl: text("support_url"),
-		theme: text().$type<"system" | "light" | "dark">().default("system"),
+		theme: text().$type<StatusPageTheme>().default("system"),
 		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
 			.defaultNow()
 			.notNull(),
@@ -113,7 +128,10 @@ export const statusPageMonitors = pgTable(
 			.$onUpdate(() => new Date()),
 	},
 	(table) => [
-		index("status_page_monitors_status_page_id_idx").on(table.statusPageId),
+		uniqueIndex("status_page_monitors_page_schedule_unique").on(
+			table.statusPageId,
+			table.uptimeScheduleId
+		),
 		index("status_page_monitors_uptime_schedule_id_idx").on(
 			table.uptimeScheduleId
 		),
@@ -136,14 +154,8 @@ export const incidents = pgTable(
 		id: text().primaryKey(),
 		statusPageId: text("status_page_id").notNull(),
 		title: text().notNull(),
-		status: text()
-			.$type<"investigating" | "identified" | "monitoring" | "resolved">()
-			.notNull()
-			.default("investigating"),
-		severity: text()
-			.$type<"minor" | "major" | "critical">()
-			.notNull()
-			.default("minor"),
+		status: text().$type<IncidentStatus>().notNull().default("investigating"),
+		severity: text().$type<IncidentSeverity>().notNull().default("minor"),
 		resolvedAt: timestamp("resolved_at", {
 			precision: 3,
 			withTimezone: true,
@@ -172,9 +184,7 @@ export const incidentUpdates = pgTable(
 	{
 		id: text().primaryKey(),
 		incidentId: text("incident_id").notNull(),
-		status: text()
-			.$type<"investigating" | "identified" | "monitoring" | "resolved">()
-			.notNull(),
+		status: text().$type<IncidentStatus>().notNull(),
 		message: text().notNull(),
 		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
 			.defaultNow()
@@ -196,7 +206,7 @@ export const incidentAffectedMonitors = pgTable(
 		id: text().primaryKey(),
 		incidentId: text("incident_id").notNull(),
 		statusPageMonitorId: text("status_page_monitor_id").notNull(),
-		impact: text().$type<"degraded" | "down">().notNull().default("degraded"),
+		impact: text().$type<IncidentImpact>().notNull().default("degraded"),
 	},
 	(table) => [
 		index("incident_affected_monitors_incident_id_idx").on(table.incidentId),

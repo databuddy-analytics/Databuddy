@@ -1,16 +1,23 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PrefetchZone } from "@/components/ds/prefetch-zone";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { FaviconImage } from "@/components/analytics/favicon-image";
 import { TransferToOrgDialog } from "@/components/transfer-to-org-dialog";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
+import { formatUptimeGranularity } from "@databuddy/shared/uptime";
+import { invalidateMonitorQueries } from "@/components/monitors/monitor-sheet";
+import {
+	batchDynamicQueryKeys,
+	useBatchDynamicQuery,
+} from "@/hooks/use-dynamic-query";
 import { orpc } from "@/lib/orpc";
-import { buildUptimeHeatmapDays } from "@databuddy/ui/uptime";
-import { UptimeHeatmapStrip } from "@databuddy/ui/uptime";
+import {
+	buildUptimeHeatmapDays,
+	UptimeHeatmapStrip,
+} from "@databuddy/ui/uptime";
 import { cn } from "@/lib/utils";
 import {
 	ArrowSquareOutIcon,
@@ -23,35 +30,123 @@ import {
 	TrashIcon,
 } from "@databuddy/ui/icons";
 import { DeleteDialog, DropdownMenu } from "@databuddy/ui/client";
-import { Badge, Skeleton, dayjs } from "@databuddy/ui";
-
-const GRANULARITY_LABELS: Record<string, string> = {
-	minute: "1 min",
-	five_minutes: "5 min",
-	ten_minutes: "10 min",
-	thirty_minutes: "30 min",
-	hour: "1 hr",
-	six_hours: "6 hrs",
-	twelve_hours: "12 hrs",
-	day: "24 hrs",
-};
+import { Badge, Skeleton, localDayjs } from "@databuddy/ui";
 
 const HEATMAP_DAYS = 30;
 
+interface MonitorActionTarget {
+	id: string;
+	isPaused: boolean;
+	name: string | null;
+	organizationId: string;
+	url: string | null;
+	websiteId: string | null;
+}
+
+export function useMonitorActions(
+	schedule: MonitorActionTarget,
+	onRemovedAction?: () => void
+) {
+	const queryClient = useQueryClient();
+	const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+	const [isTransferOpen, setIsTransferOpen] = useState(false);
+	const scheduleId = schedule.id;
+
+	const handleRemoved = (message: string) => {
+		toast.success(message);
+		onRemovedAction?.();
+		return invalidateMonitorQueries(queryClient);
+	};
+
+	const pauseMutation = useMutation({
+		...orpc.uptime.pauseSchedule.mutationOptions(),
+		onSuccess: () => {
+			toast.success("Monitor paused");
+			return invalidateMonitorQueries(queryClient, scheduleId);
+		},
+	});
+	const resumeMutation = useMutation({
+		...orpc.uptime.resumeSchedule.mutationOptions(),
+		onSuccess: () => {
+			toast.success("Monitor resumed");
+			return invalidateMonitorQueries(queryClient, scheduleId);
+		},
+	});
+	const deleteMutation = useMutation({
+		...orpc.uptime.deleteSchedule.mutationOptions(),
+		onSuccess: () => handleRemoved("Monitor deleted"),
+	});
+	const transferMutation = useMutation({
+		...orpc.uptime.transfer.mutationOptions(),
+		onSuccess: () => {
+			setIsTransferOpen(false);
+			return handleRemoved("Monitor transferred");
+		},
+	});
+	const manualCheckMutation = useMutation({
+		...orpc.uptime.manualCheck.mutationOptions(),
+		onSuccess: () => {
+			toast.success("Check triggered");
+			setTimeout(() => {
+				invalidateMonitorQueries(queryClient, scheduleId);
+				queryClient.invalidateQueries({
+					queryKey: batchDynamicQueryKeys.byTarget(
+						schedule.websiteId
+							? { websiteId: schedule.websiteId }
+							: { scheduleId }
+					),
+				});
+			}, 3000);
+		},
+	});
+
+	const canTransfer = !schedule.websiteId;
+	const pauseTarget = schedule.isPaused ? resumeMutation : pauseMutation;
+
+	return {
+		canTransfer,
+		checkNow: () => manualCheckMutation.mutate({ scheduleId }),
+		isChecking: manualCheckMutation.isPending,
+		isDeleting: deleteMutation.isPending,
+		isTogglingPause: pauseMutation.isPending || resumeMutation.isPending,
+		openDelete: () => setIsDeleteOpen(true),
+		openTransfer: () => setIsTransferOpen(true),
+		togglePause: () => pauseTarget.mutate({ scheduleId }),
+		dialogs: (
+			<>
+				<DeleteDialog
+					isDeleting={deleteMutation.isPending}
+					isOpen={isDeleteOpen}
+					itemName={schedule.name ?? schedule.url ?? undefined}
+					onClose={() => setIsDeleteOpen(false)}
+					onConfirm={async () => {
+						await deleteMutation.mutateAsync({ scheduleId });
+					}}
+					title="Delete Monitor"
+				/>
+				{canTransfer ? (
+					<TransferToOrgDialog
+						currentOrganizationId={schedule.organizationId}
+						description="Move this monitor to a different organization."
+						isPending={transferMutation.isPending}
+						onOpenChangeAction={setIsTransferOpen}
+						onTransferAction={(targetOrganizationId) =>
+							transferMutation.mutate({ scheduleId, targetOrganizationId })
+						}
+						open={isTransferOpen}
+						title="Transfer Monitor"
+						warning="All monitoring data and configuration will be transferred to {orgName}."
+					/>
+				) : null}
+			</>
+		),
+	};
+}
+
 interface MonitorRowProps {
-	onDeleteAction: () => void;
 	onEditAction: () => void;
-	onRefetchAction: () => void;
-	schedule: {
-		id: string;
-		organizationId?: string;
-		websiteId: string | null;
-		url: string | null;
-		name: string | null;
+	schedule: MonitorActionTarget & {
 		granularity: string;
-		isPaused: boolean;
-		createdAt: Date | string;
-		updatedAt: Date | string;
 		website?: {
 			id: string;
 			name: string | null;
@@ -60,94 +155,8 @@ interface MonitorRowProps {
 	};
 }
 
-function MonitorActions({
-	schedule,
-	onEditAction,
-	onDeleteAction,
-	onRefetchAction,
-}: MonitorRowProps) {
-	const [isPausing, setIsPausing] = useState(false);
-	const [isTransferOpen, setIsTransferOpen] = useState(false);
-	const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-
-	const pauseMutation = useMutation({
-		...orpc.uptime.pauseSchedule.mutationOptions(),
-	});
-	const resumeMutation = useMutation({
-		...orpc.uptime.resumeSchedule.mutationOptions(),
-	});
-	const deleteMutation = useMutation({
-		...orpc.uptime.deleteSchedule.mutationOptions(),
-	});
-	const transferMutation = useMutation({
-		...orpc.uptime.transfer.mutationOptions(),
-	});
-	const manualCheckMutation = useMutation({
-		...orpc.uptime.manualCheck.mutationOptions(),
-	});
-
-	const handleManualCheck = async () => {
-		try {
-			await manualCheckMutation.mutateAsync({ scheduleId: schedule.id });
-			toast.success("Check triggered");
-			setTimeout(() => {
-				onRefetchAction();
-			}, 3000);
-		} catch (error) {
-			const errorMessage =
-				error instanceof Error ? error.message : "Failed to trigger check";
-			toast.error(errorMessage);
-		}
-	};
-
-	const handleTogglePause = async () => {
-		setIsPausing(true);
-		try {
-			if (schedule.isPaused) {
-				await resumeMutation.mutateAsync({ scheduleId: schedule.id });
-				toast.success("Monitor resumed");
-			} else {
-				await pauseMutation.mutateAsync({ scheduleId: schedule.id });
-				toast.success("Monitor paused");
-			}
-			onRefetchAction();
-		} catch (error) {
-			const errorMessage =
-				error instanceof Error ? error.message : "Failed to update monitor";
-			toast.error(errorMessage);
-		} finally {
-			setIsPausing(false);
-		}
-	};
-
-	const handleDelete = async () => {
-		try {
-			await deleteMutation.mutateAsync({ scheduleId: schedule.id });
-			toast.success("Monitor deleted");
-			setIsDeleteOpen(false);
-			onDeleteAction();
-		} catch (error) {
-			const errorMessage =
-				error instanceof Error ? error.message : "Failed to delete monitor";
-			toast.error(errorMessage);
-		}
-	};
-
-	const handleTransfer = async (targetOrganizationId: string) => {
-		try {
-			await transferMutation.mutateAsync({
-				scheduleId: schedule.id,
-				targetOrganizationId,
-			});
-			toast.success("Monitor transferred");
-			setIsTransferOpen(false);
-			onRefetchAction();
-		} catch (error) {
-			const errorMessage =
-				error instanceof Error ? error.message : "Failed to transfer monitor";
-			toast.error(errorMessage);
-		}
-	};
+function MonitorActions({ schedule, onEditAction }: MonitorRowProps) {
+	const actions = useMonitorActions(schedule);
 
 	return (
 		<>
@@ -166,18 +175,16 @@ function MonitorActions({
 					</DropdownMenu.Item>
 					<DropdownMenu.Item
 						className="gap-2"
-						disabled={manualCheckMutation.isPending || schedule.isPaused}
-						onClick={handleManualCheck}
+						disabled={actions.isChecking || schedule.isPaused}
+						onClick={actions.checkNow}
 					>
 						<LightningIcon className="size-4" />
 						Check Now
 					</DropdownMenu.Item>
 					<DropdownMenu.Item
 						className="gap-2"
-						disabled={
-							isPausing || pauseMutation.isPending || resumeMutation.isPending
-						}
-						onClick={handleTogglePause}
+						disabled={actions.isTogglingPause}
+						onClick={actions.togglePause}
 					>
 						{schedule.isPaused ? (
 							<PlayIcon className="size-4" />
@@ -186,11 +193,8 @@ function MonitorActions({
 						)}
 						{schedule.isPaused ? "Resume" : "Pause"}
 					</DropdownMenu.Item>
-					{schedule.organizationId && !schedule.websiteId ? (
-						<DropdownMenu.Item
-							className="gap-2"
-							onClick={() => setIsTransferOpen(true)}
-						>
+					{actions.canTransfer ? (
+						<DropdownMenu.Item className="gap-2" onClick={actions.openTransfer}>
 							<ArrowSquareOutIcon className="size-4" />
 							Transfer to Organization
 						</DropdownMenu.Item>
@@ -198,8 +202,8 @@ function MonitorActions({
 					<DropdownMenu.Separator />
 					<DropdownMenu.Item
 						className="gap-2 text-destructive focus:text-destructive"
-						disabled={deleteMutation.isPending}
-						onClick={() => setIsDeleteOpen(true)}
+						disabled={actions.isDeleting}
+						onClick={actions.openDelete}
 						variant="destructive"
 					>
 						<TrashIcon className="size-4 fill-destructive" />
@@ -207,95 +211,63 @@ function MonitorActions({
 					</DropdownMenu.Item>
 				</DropdownMenu.Content>
 			</DropdownMenu>
-
-			<DeleteDialog
-				isDeleting={deleteMutation.isPending}
-				isOpen={isDeleteOpen}
-				itemName={schedule.name ?? schedule.url ?? undefined}
-				onClose={() => setIsDeleteOpen(false)}
-				onConfirm={handleDelete}
-				title="Delete Monitor"
-			/>
-
-			{schedule.organizationId ? (
-				<TransferToOrgDialog
-					currentOrganizationId={schedule.organizationId}
-					description="Move this monitor to a different organization."
-					isPending={transferMutation.isPending}
-					onOpenChangeAction={setIsTransferOpen}
-					onTransferAction={handleTransfer}
-					open={isTransferOpen}
-					title="Transfer Monitor"
-					warning="All monitoring data and configuration will be transferred to {orgName}."
-				/>
-			) : null}
+			{actions.dialogs}
 		</>
 	);
 }
 
-function MiniHeatmap({
-	scheduleId,
-	websiteId,
-	isActive,
-}: {
-	scheduleId: string;
-	websiteId: string | null;
-	isActive: boolean;
-}) {
-	const heatmapDateRange = useMemo(
-		() => ({
-			start_date: dayjs()
-				.subtract(HEATMAP_DAYS - 1, "day")
+const HEATMAP_QUERIES = [
+	{
+		id: "uptime-heatmap",
+		parameters: ["uptime_time_series"],
+		granularity: "daily" as const,
+	},
+];
+
+export function useUptimeHeatmap(
+	schedule: Pick<MonitorActionTarget, "id" | "websiteId">,
+	days: number,
+	enabled = true
+) {
+	const { getDataForQuery, isLoading } = useBatchDynamicQuery(
+		schedule.websiteId
+			? { websiteId: schedule.websiteId }
+			: { scheduleId: schedule.id },
+		{
+			start_date: localDayjs()
+				.subtract(days - 1, "day")
 				.startOf("day")
 				.format("YYYY-MM-DD"),
-			end_date: dayjs().startOf("day").format("YYYY-MM-DD"),
-			granularity: "daily" as const,
-		}),
-		[]
+			end_date: localDayjs().startOf("day").format("YYYY-MM-DD"),
+			granularity: "daily",
+		},
+		HEATMAP_QUERIES,
+		{ enabled }
 	);
+	return {
+		data: getDataForQuery("uptime-heatmap", "uptime_time_series"),
+		isLoading,
+	};
+}
 
-	const queryIdOptions = useMemo(
-		() => (websiteId ? { websiteId } : { scheduleId }),
-		[websiteId, scheduleId]
+function MiniHeatmap({
+	schedule,
+	isActive,
+}: {
+	schedule: MonitorActionTarget;
+	isActive: boolean;
+}) {
+	const { data, isLoading } = useUptimeHeatmap(
+		schedule,
+		HEATMAP_DAYS,
+		isActive
 	);
-
-	const heatmapQueries = useMemo(
-		() => [
-			{
-				id: "uptime-heatmap",
-				parameters: ["uptime_time_series"],
-				granularity: "daily" as const,
-			},
-		],
-		[]
-	);
-
-	const { getDataForQuery, isLoading } = useBatchDynamicQuery(
-		queryIdOptions,
-		heatmapDateRange,
-		heatmapQueries,
-		{ enabled: isActive }
-	);
-
-	const rawData =
-		(getDataForQuery("uptime-heatmap", "uptime_time_series") as Array<{
-			date: string;
-			uptime_percentage?: number;
-		}>) || [];
-
-	const heatmapData = useMemo(
-		() => buildUptimeHeatmapDays(rawData, HEATMAP_DAYS),
-		[rawData]
-	);
-
-	const uptimePercent = useMemo(() => {
-		const withData = heatmapData.filter((d) => d.hasData);
-		if (withData.length === 0) {
-			return null;
-		}
-		const total = withData.reduce((acc, d) => acc + d.uptime, 0);
-		return total / withData.length;
-	}, [heatmapData]);
+	const heatmapData = buildUptimeHeatmapDays(data, HEATMAP_DAYS);
+	const withData = heatmapData.filter((d) => d.hasData);
+	const uptimePercent =
+		withData.length === 0
+			? null
+			: withData.reduce((acc, d) => acc + d.uptime, 0) / withData.length;
 
 	if (!isActive) {
 		return (
@@ -351,12 +323,7 @@ function MiniHeatmap({
 	);
 }
 
-export function MonitorRow({
-	schedule,
-	onEditAction,
-	onDeleteAction,
-	onRefetchAction,
-}: MonitorRowProps) {
+export function MonitorRow({ schedule, onEditAction }: MonitorRowProps) {
 	const isWebsiteMonitor = !!schedule.websiteId;
 	const isActive = !schedule.isPaused;
 	const displayName = isWebsiteMonitor
@@ -365,8 +332,10 @@ export function MonitorRow({
 	const displayUrl = isWebsiteMonitor ? schedule.website?.domain : schedule.url;
 
 	const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-		const target = e.target as HTMLElement;
-		if (target.closest("[data-dropdown-trigger]")) {
+		if (
+			e.target instanceof Element &&
+			e.target.closest("[data-dropdown-trigger]")
+		) {
 			e.preventDefault();
 		}
 	};
@@ -423,28 +392,18 @@ export function MonitorRow({
 								<span className="text-muted-foreground text-xs">·</span>
 							)}
 							<span className="shrink-0 text-muted-foreground text-xs tabular-nums">
-								{GRANULARITY_LABELS[schedule.granularity] ||
-									schedule.granularity}
+								{formatUptimeGranularity(schedule.granularity)}
 							</span>
 						</div>
 					</div>
 				</div>
 
 				<div className="hidden shrink-0 items-center gap-3 pr-2 lg:flex">
-					<MiniHeatmap
-						isActive={isActive}
-						scheduleId={schedule.id}
-						websiteId={schedule.websiteId}
-					/>
+					<MiniHeatmap isActive={isActive} schedule={schedule} />
 				</div>
 
 				<div className="flex shrink-0 items-center pr-4">
-					<MonitorActions
-						onDeleteAction={onDeleteAction}
-						onEditAction={onEditAction}
-						onRefetchAction={onRefetchAction}
-						schedule={schedule}
-					/>
+					<MonitorActions onEditAction={onEditAction} schedule={schedule} />
 				</div>
 			</Link>
 		</PrefetchZone>

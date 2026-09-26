@@ -13,53 +13,27 @@ import {
 	buildAlarmNotificationTargets,
 } from "@databuddy/notifications";
 import { redis } from "@databuddy/redis";
-import { Data, Effect } from "effect";
+import { Effect } from "effect";
 import { z } from "zod";
 import type { ScheduleData } from "./actions";
-import { UPTIME_ENV } from "./lib/env";
 import { captureError } from "./lib/tracing";
 import { MonitorStatus, type UptimeData } from "./types";
 
-class TransitionClaimError extends Data.TaggedError("TransitionClaimError")<{
-	cause: unknown;
-}> {}
-
-class TransitionReleaseError extends Data.TaggedError(
-	"TransitionReleaseError"
-)<{
-	cause: unknown;
-}> {}
-
-class AlarmLookupError extends Data.TaggedError("AlarmLookupError")<{
-	cause: unknown;
-}> {}
-
-class NotificationSendError extends Data.TaggedError("NotificationSendError")<{
-	alarmId: string;
-	channel: string;
-	cause: unknown;
-}> {}
-
-class PreviousStateQueryError extends Data.TaggedError(
-	"PreviousStateQueryError"
-)<{
-	cause: unknown;
-}> {}
-
-class EmailSettingsLookupError extends Data.TaggedError(
-	"EmailSettingsLookupError"
-)<{
-	cause: unknown;
-}> {}
+const recover = <A, B>(
+	run: () => Promise<A>,
+	fallback: B,
+	attributes: Record<string, string | number | boolean>
+) =>
+	Effect.promise(() =>
+		run().catch((cause: unknown) => {
+			captureError(cause, attributes);
+			return fallback;
+		})
+	);
 
 interface LinkedAlarm {
 	destinations: Array<{ type: string; identifier: string; config: unknown }>;
 	id: string;
-}
-
-interface ClaimedTransition {
-	kind: "down" | "recovered";
-	previousStatus: number | null;
 }
 
 type TransitionNotificationPayload = Parameters<NotificationClient["send"]>[0];
@@ -69,32 +43,17 @@ interface TransitionResult {
 	transition_kind: "down" | "recovered" | null;
 }
 
-const NO_TRANSITION: TransitionResult = {
-	alarms_fired: 0,
-	transition_kind: null,
-};
-
 export function resolveTransitionKind(
 	previous: number | undefined,
 	current: number
 ): "down" | "recovered" | null {
 	if (current === MonitorStatus.UP) {
-		if (previous === MonitorStatus.DOWN) {
-			return "recovered";
-		}
-		return null;
+		return previous === MonitorStatus.DOWN ? "recovered" : null;
 	}
 	if (current === MonitorStatus.DOWN) {
-		if (previous === MonitorStatus.DOWN) {
-			return null;
-		}
-		return "down";
+		return previous === MonitorStatus.DOWN ? null : "down";
 	}
 	return null;
-}
-
-function countFiredAlarms(deliveryCounts: number[]): number {
-	return deliveryCounts.filter((count) => count > 0).length;
 }
 
 export function shouldReleaseTransitionClaim(
@@ -126,15 +85,10 @@ export function resolveUptimeEmailPreference(
 }
 
 function buildSiteLabel(schedule: ScheduleData): string {
-	const w = schedule.website;
-	if (w?.name) {
-		return w.name;
-	}
-	if (w?.domain) {
-		return w.domain;
-	}
-	if (schedule.name) {
-		return schedule.name;
+	const label =
+		schedule.website?.name || schedule.website?.domain || schedule.name;
+	if (label) {
+		return label;
 	}
 	try {
 		return new URL(schedule.url).hostname;
@@ -210,16 +164,6 @@ const ALARM_CACHE_TTL_MS = 30_000;
 const ALARM_CACHE_MAX_ORGS = 512;
 const alarmCache = new Map<string, { alarms: OrgAlarm[]; fetchedAt: number }>();
 
-const fetchOrgAlarms = (organizationId: string) =>
-	Effect.tryPromise({
-		try: (): Promise<OrgAlarm[]> =>
-			db.query.alarms.findMany({
-				where: { organizationId, enabled: true },
-				with: { destinations: true },
-			}),
-		catch: (cause) => new AlarmLookupError({ cause }),
-	});
-
 const lookupLinkedAlarms = (scheduleId: string, organizationId: string) =>
 	Effect.gen(function* () {
 		const cached = alarmCache.get(organizationId);
@@ -227,7 +171,19 @@ const lookupLinkedAlarms = (scheduleId: string, organizationId: string) =>
 		if (cached && performance.now() - cached.fetchedAt < ALARM_CACHE_TTL_MS) {
 			alarms = cached.alarms;
 		} else {
-			alarms = yield* fetchOrgAlarms(organizationId);
+			const fetched = yield* recover(
+				(): Promise<OrgAlarm[]> =>
+					db.query.alarms.findMany({
+						where: { organizationId, enabled: true },
+						with: { destinations: true },
+					}),
+				null,
+				{ error_step: "alarm_lookup" }
+			);
+			if (fetched === null) {
+				return null;
+			}
+			alarms = fetched;
 			if (alarmCache.size >= ALARM_CACHE_MAX_ORGS) {
 				alarmCache.clear();
 			}
@@ -242,8 +198,8 @@ const lookupLinkedAlarms = (scheduleId: string, organizationId: string) =>
 	});
 
 const claimTransition = (scheduleId: string, currentStatus: number) =>
-	Effect.tryPromise({
-		try: () =>
+	recover(
+		() =>
 			withTransaction(async (tx) => {
 				const [row] = await tx
 					.select({ last: uptimeSchedules.lastNotifiedStatus })
@@ -268,19 +224,20 @@ const claimTransition = (scheduleId: string, currentStatus: number) =>
 					.set({ lastNotifiedStatus: currentStatus })
 					.where(eq(uptimeSchedules.id, scheduleId));
 
-				return { kind, previousStatus: row.last } satisfies ClaimedTransition;
+				return { kind, previousStatus: row.last };
 			}),
-		catch: (cause) => new TransitionClaimError({ cause }),
-	});
+		null,
+		{ error_step: "transition_claim" }
+	);
 
 const releaseTransitionClaim = (input: {
 	currentStatus: number;
 	previousStatus: number | null;
 	scheduleId: string;
 }) =>
-	Effect.tryPromise({
-		try: () =>
-			db
+	recover(
+		async () => {
+			await db
 				.update(uptimeSchedules)
 				.set({ lastNotifiedStatus: input.previousStatus })
 				.where(
@@ -288,30 +245,11 @@ const releaseTransitionClaim = (input: {
 						eq(uptimeSchedules.id, input.scheduleId),
 						eq(uptimeSchedules.lastNotifiedStatus, input.currentStatus)
 					)
-				),
-		catch: (cause) => new TransitionReleaseError({ cause }),
-	});
-
-async function getOrganizationEmailSettings(organizationId: string) {
-	const row = await db.query.organization.findFirst({
-		where: { id: organizationId },
-		columns: { emailNotifications: true },
-	});
-	return normalizeEmailNotificationSettings(row?.emailNotifications);
-}
-
-function filterUptimeEmailDestinations(
-	alarm: LinkedAlarm,
-	emailsEnabled: boolean
-): LinkedAlarm {
-	if (emailsEnabled) {
-		return alarm;
-	}
-	return {
-		...alarm,
-		destinations: alarm.destinations.filter((dest) => dest.type !== "email"),
-	};
-}
+				);
+		},
+		undefined,
+		{ error_step: "transition_claim_release", schedule_id: input.scheduleId }
+	);
 
 export function buildUptimeDeliveryPlan(
 	alarms: LinkedAlarm[],
@@ -324,72 +262,67 @@ export function buildUptimeDeliveryPlan(
 		emailDeliveryDeferred: emailPreference === null,
 		sendable: alarms
 			.map((alarm) =>
-				filterUptimeEmailDestinations(alarm, emailPreference === true)
+				emailPreference === true
+					? alarm
+					: {
+							...alarm,
+							destinations: alarm.destinations.filter(
+								(dest) => dest.type !== "email"
+							),
+						}
 			)
 			.filter((alarm) => alarm.destinations.length > 0),
 	};
 }
 
+function countSuccesses(
+	alarmId: string,
+	deliveryResults: Awaited<ReturnType<NotificationClient["send"]>>
+): number {
+	let successes = 0;
+	for (const result of deliveryResults) {
+		if (result.success) {
+			successes += 1;
+		} else {
+			captureError(
+				new Error(
+					result.error ?? `Notification delivery failed for ${result.channel}`
+				),
+				{
+					error_step: "alarm_notification_result",
+					alarm_id: alarmId,
+					channel: result.channel,
+				}
+			);
+		}
+	}
+	return successes;
+}
+
 const sendToAlarm = (
 	alarm: LinkedAlarm,
-	payload: Parameters<NotificationClient["send"]>[0]
-) => {
-	const targets = buildAlarmNotificationTargets(alarm.destinations);
-	if (targets.length === 0) {
-		return Effect.succeed(0);
-	}
-
-	return Effect.gen(function* () {
-		const results = yield* Effect.all(
-			targets.map((target) =>
-				Effect.tryPromise({
-					try: () =>
-						new NotificationClient(target.clientConfig).send(payload, {
+	payload: TransitionNotificationPayload
+) =>
+	Effect.all(
+		buildAlarmNotificationTargets(alarm.destinations).map((target) =>
+			recover(
+				async () =>
+					countSuccesses(
+						alarm.id,
+						await new NotificationClient(target.clientConfig).send(payload, {
 							channels: [target.channel],
-						}),
-					catch: (cause) =>
-						new NotificationSendError({
-							alarmId: alarm.id,
-							channel: target.channel,
-							cause,
-						}),
-				}).pipe(
-					Effect.map((deliveryResults) => {
-						let successes = 0;
-						for (const result of deliveryResults) {
-							if (result.success) {
-								successes += 1;
-							} else {
-								captureError(
-									new Error(
-										result.error ??
-											`Notification delivery failed for ${result.channel}`
-									),
-									{
-										error_step: "alarm_notification_result",
-										alarm_id: alarm.id,
-										channel: result.channel,
-									}
-								);
-							}
-						}
-						return successes;
-					}),
-					Effect.catchTag("NotificationSendError", (e) => {
-						captureError(e.cause, {
-							error_step: "alarm_notification",
-							alarm_id: e.alarmId,
-							channel: e.channel,
-						});
-						return Effect.succeed(0);
-					})
-				)
-			),
-			{ concurrency: "unbounded" }
-		);
-		return results.reduce((total, count) => total + count, 0);
-	});
-};
+						})
+					),
+				0,
+				{
+					error_step: "alarm_notification",
+					alarm_id: alarm.id,
+					channel: target.channel,
+				}
+			)
+		),
+		{ concurrency: "unbounded" }
+	).pipe(Effect.map((counts) => counts.reduce((total, n) => total + n, 0)));
 
 export interface MonitorState {
 	failureStreak: number;
@@ -442,149 +375,31 @@ export async function writeMonitorState(
 	);
 }
 
-const queryPreviousState = (siteId: string) =>
-	Effect.gen(function* () {
-		if (!process.env.CLICKHOUSE_URL) {
-			return { kind: "missing" } as MonitorStateLookup;
-		}
-
-		const rows = yield* Effect.tryPromise({
-			try: () =>
-				chQuery<{ failure_streak: number; status: number }>(
-					`SELECT status, failure_streak
+async function queryPreviousState(siteId: string): Promise<MonitorStateLookup> {
+	if (!process.env.CLICKHOUSE_URL) {
+		return { kind: "missing" };
+	}
+	try {
+		const [first] = await chQuery<{ failure_streak: number; status: number }>(
+			`SELECT status, failure_streak
        FROM uptime.uptime_monitor
        WHERE site_id = {siteId:String}
          AND timestamp > now() - INTERVAL 30 DAY
        ORDER BY timestamp DESC
        LIMIT 1`,
-					{ siteId }
-				),
-			catch: (cause) => new PreviousStateQueryError({ cause }),
-		}).pipe(
-			Effect.catchTag("PreviousStateQueryError", (e) => {
-				captureError(e.cause, { error_step: "previous_monitor_state" });
-				return Effect.succeed(null);
-			})
+			{ siteId }
 		);
-
-		if (rows === null) {
-			return { kind: "unavailable" } as MonitorStateLookup;
-		}
-
-		const first = rows[0];
 		return first
-			? ({
+			? {
 					kind: "found",
-					state: {
-						failureStreak: first.failure_streak,
-						status: first.status,
-					},
-				} as MonitorStateLookup)
-			: ({ kind: "missing" } as MonitorStateLookup);
-	});
-
-const handleTransition = (options: {
-	schedule: ScheduleData;
-	data: UptimeData;
-}) =>
-	Effect.gen(function* () {
-		if (!UPTIME_ENV.isProduction) {
-			return NO_TRANSITION;
-		}
-
-		const claim = yield* claimTransition(
-			options.schedule.id,
-			options.data.status
-		).pipe(
-			Effect.catchTag("TransitionClaimError", (e) => {
-				captureError(e.cause, { error_step: "transition_claim" });
-				return Effect.succeed(null);
-			})
-		);
-
-		if (claim === null) {
-			return NO_TRANSITION;
-		}
-		const { kind } = claim;
-		const releaseClaim = releaseTransitionClaim({
-			currentStatus: options.data.status,
-			previousStatus: claim.previousStatus,
-			scheduleId: options.schedule.id,
-		}).pipe(
-			Effect.catchTag("TransitionReleaseError", (error) => {
-				captureError(error.cause, {
-					error_step: "transition_claim_release",
-					schedule_id: options.schedule.id,
-				});
-				return Effect.void;
-			})
-		);
-
-		const linkedAlarms = yield* lookupLinkedAlarms(
-			options.schedule.id,
-			options.schedule.organizationId
-		).pipe(
-			Effect.catchTag("AlarmLookupError", (e) => {
-				captureError(e.cause, { error_step: "alarm_lookup" });
-				return Effect.succeed(null);
-			})
-		);
-		if (linkedAlarms === null) {
-			yield* releaseClaim;
-			return { alarms_fired: 0, transition_kind: kind };
-		}
-
-		if (linkedAlarms.length === 0) {
-			return { alarms_fired: 0, transition_kind: kind };
-		}
-
-		const emailSettings = yield* Effect.tryPromise({
-			try: () => getOrganizationEmailSettings(options.schedule.organizationId),
-			catch: (cause) => new EmailSettingsLookupError({ cause }),
-		}).pipe(
-			Effect.catchTag("EmailSettingsLookupError", (e) => {
-				captureError(e.cause, {
-					error_step: "organization_email_settings",
-					organization_id: options.schedule.organizationId,
-				});
-				return Effect.succeed(null);
-			})
-		);
-		const emailsEnabled = resolveUptimeEmailPreference(emailSettings, kind);
-
-		const siteLabel = buildSiteLabel(options.schedule);
-		const dashboardUrl = `${config.urls.dashboard}/monitors/${options.schedule.id}`;
-
-		const payload = buildTransitionNotificationPayload({
-			dashboardUrl,
-			data: options.data,
-			kind,
-			monitorId: options.schedule.id,
-			siteLabel,
-		});
-
-		const { emailDeliveryDeferred, sendable } = buildUptimeDeliveryPlan(
-			linkedAlarms,
-			emailsEnabled
-		);
-
-		const results = yield* Effect.all(
-			sendable.map((alarm) => sendToAlarm(alarm, payload)),
-			{ concurrency: "unbounded" }
-		);
-
-		const fired = countFiredAlarms(results);
-		if (
-			shouldReleaseTransitionClaim(
-				sendable.length,
-				fired,
-				emailDeliveryDeferred
-			)
-		) {
-			yield* releaseClaim;
-		}
-		return { alarms_fired: fired, transition_kind: kind };
-	});
+					state: { failureStreak: first.failure_streak, status: first.status },
+				}
+			: { kind: "missing" };
+	} catch (cause) {
+		captureError(cause, { error_step: "previous_monitor_state" });
+		return { kind: "unavailable" };
+	}
+}
 
 export async function getPreviousMonitorState(
 	siteId: string
@@ -594,7 +409,7 @@ export async function getPreviousMonitorState(
 		return cached;
 	}
 
-	const stored = await Effect.runPromise(queryPreviousState(siteId));
+	const stored = await queryPreviousState(siteId);
 	if (stored.kind !== "missing") {
 		return stored;
 	}
@@ -602,9 +417,88 @@ export async function getPreviousMonitorState(
 	return cached.kind === "unavailable" ? cached : { kind: "missing" };
 }
 
-export function fireTransitionAlerts(options: {
+export function fireTransitionAlerts({
+	schedule,
+	data,
+}: {
 	schedule: ScheduleData;
 	data: UptimeData;
 }): Promise<TransitionResult> {
-	return Effect.runPromise(handleTransition(options));
+	return Effect.runPromise(
+		Effect.gen(function* () {
+			const claim = yield* claimTransition(schedule.id, data.status);
+
+			if (claim === null) {
+				return { alarms_fired: 0, transition_kind: null };
+			}
+			const { kind } = claim;
+			const releaseClaim = releaseTransitionClaim({
+				currentStatus: data.status,
+				previousStatus: claim.previousStatus,
+				scheduleId: schedule.id,
+			});
+
+			const linkedAlarms = yield* lookupLinkedAlarms(
+				schedule.id,
+				schedule.organizationId
+			);
+			if (linkedAlarms === null) {
+				yield* releaseClaim;
+				return { alarms_fired: 0, transition_kind: kind };
+			}
+
+			if (linkedAlarms.length === 0) {
+				return { alarms_fired: 0, transition_kind: kind };
+			}
+
+			const emailSettings = yield* recover(
+				async () => {
+					const row = await db.query.organization.findFirst({
+						where: { id: schedule.organizationId },
+						columns: { emailNotifications: true },
+					});
+					return normalizeEmailNotificationSettings(row?.emailNotifications);
+				},
+				null,
+				{
+					error_step: "organization_email_settings",
+					organization_id: schedule.organizationId,
+				}
+			);
+			const emailsEnabled = resolveUptimeEmailPreference(emailSettings, kind);
+
+			const siteLabel = buildSiteLabel(schedule);
+			const dashboardUrl = `${config.urls.dashboard}/monitors/${schedule.id}`;
+
+			const payload = buildTransitionNotificationPayload({
+				dashboardUrl,
+				data,
+				kind,
+				monitorId: schedule.id,
+				siteLabel,
+			});
+
+			const { emailDeliveryDeferred, sendable } = buildUptimeDeliveryPlan(
+				linkedAlarms,
+				emailsEnabled
+			);
+
+			const results = yield* Effect.all(
+				sendable.map((alarm) => sendToAlarm(alarm, payload)),
+				{ concurrency: "unbounded" }
+			);
+
+			const fired = results.filter((count) => count > 0).length;
+			if (
+				shouldReleaseTransitionClaim(
+					sendable.length,
+					fired,
+					emailDeliveryDeferred
+				)
+			) {
+				yield* releaseClaim;
+			}
+			return { alarms_fired: fired, transition_kind: kind };
+		})
+	);
 }

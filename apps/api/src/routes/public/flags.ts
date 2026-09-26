@@ -765,6 +765,12 @@ function resolveFlagOwnership(
 	return { websiteId: null, organizationId: null };
 }
 
+function normalizeFlagEnvironment(environment?: string): string | undefined {
+	return environment && environment !== "undefined" && environment !== "null"
+		? environment
+		: undefined;
+}
+
 interface BulkFlagInput extends UserContext {
 	clientId: string;
 	environment?: string;
@@ -772,10 +778,14 @@ interface BulkFlagInput extends UserContext {
 }
 
 async function evaluateBulkFlags(
-	input: BulkFlagInput,
+	rawInput: BulkFlagInput,
 	set: ElysiaSet,
 	request: Request
 ) {
+	const input = {
+		...rawInput,
+		environment: normalizeFlagEnvironment(rawInput.environment),
+	};
 	if (!(await enforcePublicFlagRateLimit(request, input.clientId, set))) {
 		return { flags: {}, count: 0, reason: "RATE_LIMITED" };
 	}
@@ -917,6 +927,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 	.get(
 		"/evaluate",
 		async function evaluateFlagEndpoint({ query, set, request }) {
+			query.environment = normalizeFlagEnvironment(query.environment);
 			if (!(await enforcePublicFlagRateLimit(request, query.clientId, set))) {
 				return {
 					enabled: false,
@@ -1042,6 +1053,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 	.get(
 		"/definitions",
 		async function getDefinitionsEndpoint({ query, set, request }) {
+			query.environment = normalizeFlagEnvironment(query.environment);
 			mergeWideEvent({
 				flag_client_id: query.clientId || "",
 				flag_environment: query.environment || "",

@@ -12,175 +12,62 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { orpc } from "@/lib/orpc";
-import { AlarmSheet } from "./_components/alarm-sheet";
+import {
+	type AlarmData,
+	AlarmSheet,
+	alarmMonitorIds,
+	channelLabel,
+} from "./_components/alarm-sheet";
 import { EmailPreferencesCard } from "./_components/email-preferences-card";
 import { summarizeTestDelivery } from "./_components/notification-test-result";
-import { Dialog, DropdownMenu, Switch } from "@databuddy/ui/client";
+import { List } from "@/components/ui/composables/list";
+import { DeleteDialog, DropdownMenu, Switch } from "@databuddy/ui/client";
 import {
 	Badge,
 	Button,
 	Card,
 	EmptyState,
-	Skeleton,
 	StatusDot,
 	Text,
 } from "@databuddy/ui";
 
-interface AlarmDestination {
-	config: Record<string, string | boolean | number | null>;
-	id: string;
-	identifier: string;
-	type: string;
-}
-
-interface Alarm {
-	description?: string | null;
-	destinations?: AlarmDestination[];
-	enabled: boolean;
-	id: string;
-	name: string;
-	triggerConditions?: Record<string, unknown>;
-	triggerType: string;
-	websiteId?: string | null;
-}
-
-const DEST_LABELS: Record<string, string> = {
-	slack: "Slack",
-	email: "Email",
-	webhook: "Webhook",
-};
-
-function parseAlarms(rows: readonly Record<string, unknown>[]): Alarm[] {
-	const out: Alarm[] = [];
-	for (const row of rows) {
-		if (
-			typeof row.id !== "string" ||
-			typeof row.name !== "string" ||
-			typeof row.enabled !== "boolean" ||
-			typeof row.triggerType !== "string"
-		) {
-			continue;
-		}
-		let destinations: AlarmDestination[] | undefined;
-		if (Array.isArray(row.destinations)) {
-			destinations = [];
-			for (const d of row.destinations) {
-				if (typeof d !== "object" || d === null) {
-					continue;
-				}
-				const o = d as Record<string, unknown>;
-				if (
-					typeof o.id === "string" &&
-					typeof o.type === "string" &&
-					typeof o.identifier === "string"
-				) {
-					destinations.push({
-						id: o.id,
-						type: o.type,
-						identifier: o.identifier,
-						config: (o.config ?? {}) as AlarmDestination["config"],
-					});
-				}
-			}
-		}
-		out.push({
-			id: row.id,
-			name: row.name,
-			enabled: row.enabled,
-			triggerType: row.triggerType,
-			triggerConditions:
-				typeof row.triggerConditions === "object" && row.triggerConditions
-					? (row.triggerConditions as Record<string, unknown>)
-					: undefined,
-			description: typeof row.description === "string" ? row.description : null,
-			websiteId: typeof row.websiteId === "string" ? row.websiteId : null,
-			destinations,
-		});
-	}
-	return out;
-}
-
-function DeleteAlarmDialog({
-	alarm,
-	isPending,
-	onConfirm,
-	onClose,
-}: {
-	alarm: Alarm | null;
-	isPending: boolean;
-	onConfirm: () => void;
-	onClose: () => void;
-}) {
-	return (
-		<Dialog onOpenChange={(open) => !open && onClose()} open={!!alarm}>
-			<Dialog.Content>
-				<Dialog.Header>
-					<Dialog.Title>Delete alert</Dialog.Title>
-					<Dialog.Description>
-						Are you sure you want to delete <strong>{alarm?.name}</strong>? This
-						action cannot be undone.
-					</Dialog.Description>
-				</Dialog.Header>
-				<Dialog.Footer>
-					<Button onClick={onClose} variant="secondary">
-						Cancel
-					</Button>
-					<Button loading={isPending} onClick={onConfirm} tone="destructive">
-						Delete
-					</Button>
-				</Dialog.Footer>
-			</Dialog.Content>
-		</Dialog>
-	);
-}
-
 export default function NotificationsSettingsPage() {
 	const queryClient = useQueryClient();
 	const [sheetOpen, setSheetOpen] = useState(false);
-	const [editingAlarm, setEditingAlarm] = useState<Alarm | null>(null);
-	const [deletingAlarm, setDeletingAlarm] = useState<Alarm | null>(null);
+	const [editingAlarm, setEditingAlarm] = useState<AlarmData | null>(null);
+	const [deletingAlarm, setDeletingAlarm] = useState<AlarmData | null>(null);
 	const [testingAlarmId, setTestingAlarmId] = useState<string | null>(null);
 
-	const { data: alarms, isLoading } = useQuery({
+	const {
+		data: alarms,
+		isLoading,
+		isError,
+		refetch,
+	} = useQuery({
 		...orpc.alarms.list.queryOptions({
 			input: {},
 		}),
 	});
 
+	const invalidateAlarms = () =>
+		queryClient.invalidateQueries({ queryKey: orpc.alarms.list.key() });
 	const deleteMutation = useMutation({
 		...orpc.alarms.delete.mutationOptions(),
+		onSuccess: () => {
+			toast.success("Alert deleted");
+			return invalidateAlarms();
+		},
 	});
 	const toggleMutation = useMutation({
 		...orpc.alarms.update.mutationOptions(),
+		onSuccess: invalidateAlarms,
 	});
 	const testMutation = useMutation({
 		...orpc.alarms.test.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
 	});
 
-	const handleDelete = async () => {
-		if (!deletingAlarm) {
-			return;
-		}
-		try {
-			await deleteMutation.mutateAsync({ alarmId: deletingAlarm.id });
-			toast.success("Alert deleted");
-			await queryClient.invalidateQueries({ queryKey: orpc.alarms.list.key() });
-			setDeletingAlarm(null);
-		} catch {
-			toast.error("Failed to delete alert");
-		}
-	};
-
-	const handleToggle = async (alarm: Alarm, enabled: boolean) => {
-		try {
-			await toggleMutation.mutateAsync({ alarmId: alarm.id, enabled });
-			await queryClient.invalidateQueries({ queryKey: orpc.alarms.list.key() });
-		} catch {
-			toast.error("Failed to update alert");
-		}
-	};
-
-	const handleTest = async (alarm: Alarm) => {
+	const handleTest = async (alarm: AlarmData) => {
 		setTestingAlarmId(alarm.id);
 		try {
 			const result = await testMutation.mutateAsync({ alarmId: alarm.id });
@@ -197,7 +84,7 @@ export default function NotificationsSettingsPage() {
 		}
 	};
 
-	const handleEdit = (alarm: Alarm) => {
+	const handleEdit = (alarm: AlarmData) => {
 		setEditingAlarm(alarm);
 		setSheetOpen(true);
 	};
@@ -207,9 +94,7 @@ export default function NotificationsSettingsPage() {
 		setSheetOpen(true);
 	};
 
-	const alarmList = parseAlarms(
-		(alarms ?? []) as readonly Record<string, unknown>[]
-	);
+	const alarmList = alarms ?? [];
 
 	return (
 		<div className="flex-1 overflow-y-auto">
@@ -234,27 +119,21 @@ export default function NotificationsSettingsPage() {
 						</Button>
 					</Card.Header>
 					<Card.Content className="p-0">
-						{isLoading && (
-							<div className="divide-y">
-								{Array.from({ length: 3 }).map((_, i) => (
-									<div
-										className="flex items-center gap-4 px-5 py-3"
-										key={`skel-${i + 1}`}
-									>
-										<Skeleton className="size-10 shrink-0 rounded-lg" />
-										<div className="min-w-0 flex-1 space-y-2">
-											<div className="flex items-center gap-2">
-												<Skeleton className="h-4 w-40" />
-												<Skeleton className="h-4 w-16 rounded-full" />
-											</div>
-											<Skeleton className="h-3.5 w-56" />
-										</div>
-									</div>
-								))}
+						{isLoading && <List.DefaultLoading />}
+
+						{isError && (
+							<div className="px-5 py-12">
+								<EmptyState
+									action={{ label: "Retry", onClick: () => refetch() }}
+									description="Something went wrong while loading your alerts."
+									icon={<BellIcon />}
+									title="Failed to load alerts"
+									variant="error"
+								/>
 							</div>
 						)}
 
-						{!isLoading && alarmList.length === 0 && (
+						{!(isLoading || isError) && alarmList.length === 0 && (
 							<div className="px-5 py-12">
 								<EmptyState
 									action={
@@ -270,16 +149,11 @@ export default function NotificationsSettingsPage() {
 							</div>
 						)}
 
-						{!isLoading && alarmList.length > 0 && (
+						{!(isLoading || isError) && alarmList.length > 0 && (
 							<div className="divide-y">
 								{alarmList.map((alarm) => {
 									const isTesting = testingAlarmId === alarm.id;
-									const destCount = alarm.destinations?.length ?? 0;
-									const monitorCount = Array.isArray(
-										alarm.triggerConditions?.monitorIds
-									)
-										? (alarm.triggerConditions.monitorIds as string[]).length
-										: 0;
+									const monitorCount = alarmMonitorIds(alarm).length;
 									return (
 										<div
 											className="group flex items-center hover:bg-interactive-hover"
@@ -312,10 +186,10 @@ export default function NotificationsSettingsPage() {
 														</Badge>
 													</div>
 													<div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-														{destCount > 0 ? (
-															(alarm.destinations ?? []).map((d) => (
+														{alarm.destinations.length > 0 ? (
+															alarm.destinations.map((d) => (
 																<Badge key={d.id} size="sm" variant="muted">
-																	{DEST_LABELS[d.type] ?? d.type}
+																	{channelLabel(d.type)}
 																</Badge>
 															))
 														) : (
@@ -355,7 +229,12 @@ export default function NotificationsSettingsPage() {
 											<div className="flex shrink-0 items-center gap-1 pr-4">
 												<Switch
 													checked={alarm.enabled}
-													onCheckedChange={(val) => handleToggle(alarm, val)}
+													onCheckedChange={(enabled) =>
+														toggleMutation.mutate({
+															alarmId: alarm.id,
+															enabled,
+														})
+													}
 												/>
 												<DropdownMenu>
 													<DropdownMenu.Trigger
@@ -405,11 +284,17 @@ export default function NotificationsSettingsPage() {
 				open={sheetOpen}
 			/>
 
-			<DeleteAlarmDialog
-				alarm={deletingAlarm}
-				isPending={deleteMutation.isPending}
+			<DeleteDialog
+				isDeleting={deleteMutation.isPending}
+				isOpen={deletingAlarm !== null}
+				itemName={deletingAlarm?.name}
 				onClose={() => setDeletingAlarm(null)}
-				onConfirm={handleDelete}
+				onConfirm={async () => {
+					if (deletingAlarm) {
+						await deleteMutation.mutateAsync({ alarmId: deletingAlarm.id });
+					}
+				}}
+				title="Delete alert"
 			/>
 		</div>
 	);

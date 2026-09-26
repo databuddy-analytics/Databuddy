@@ -9,6 +9,7 @@
   "envMode": "strict",
   "globalEnv": [
     "ALERTS_EMAIL_FROM",
+    "API_PROXY_URL",
     "AUTUMN_SECRET_KEY",
     "BETTER_AUTH_SECRET",
     "BETTER_AUTH_URL",

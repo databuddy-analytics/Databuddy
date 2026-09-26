@@ -1,5 +1,9 @@
 // biome-ignore-all lint/a11y: OG image SVGs don't need alt text
 
+import type {
+	MonitorStatus,
+	OverallStatus,
+} from "@databuddy/shared/uptime-status";
 import { ImageResponse } from "next/og";
 import { rpcClient } from "@/lib/orpc";
 import { STATUS_URL } from "@/lib/status-url";
@@ -18,7 +22,7 @@ const THEME = {
 } as const;
 
 const STATUS_BANNER: Record<
-	string,
+	OverallStatus,
 	{ bg: string; border: string; text: string; label: string }
 > = {
 	operational: {
@@ -47,7 +51,7 @@ const STATUS_BANNER: Record<
 	},
 };
 
-const MONITOR_STATUS_COLORS: Record<string, string> = {
+const MONITOR_STATUS_COLORS: Record<MonitorStatus, string> = {
 	up: "#10b981",
 	degraded: "#f59e0b",
 	down: "#ef4444",
@@ -82,13 +86,11 @@ export default async function OGImage({
 	params: Promise<{ slug: string }>;
 }) {
 	const { slug } = await params;
-	const data = await rpcClient.statusPage
-		.getBySlug({ slug, days: BAR_DAYS })
-		.catch(() => null);
+	const data = await rpcClient.statusPage.getBySlug({ slug }).catch(() => null);
 
 	const pageName = data?.statusPage.name || "Status Page";
 	const status = data?.overallStatus ?? "unknown";
-	const banner = STATUS_BANNER[status] ?? STATUS_BANNER.unknown;
+	const banner = STATUS_BANNER[status];
 	const monitors = data?.monitors.slice(0, MAX_MONITORS) ?? [];
 	const totalMonitors = data?.monitors.length ?? 0;
 
@@ -198,9 +200,8 @@ export default async function OGImage({
 						Last {BAR_DAYS} days
 					</span>
 					{monitors.map((monitor) => {
-						const monitorStatus = monitor.currentStatus as string;
-						const statusColor =
-							MONITOR_STATUS_COLORS[monitorStatus] ?? THEME.mutedForeground;
+						const monitorStatus = monitor.currentStatus;
+						const statusColor = MONITOR_STATUS_COLORS[monitorStatus];
 						const barDays = monitor.dailyData.slice(-BAR_DAYS);
 
 						return (

@@ -1,12 +1,14 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useId, useState } from "react";
 import { cn, StatusDot } from "@databuddy/ui";
 import { CaretDownIcon } from "@databuddy/ui/icons";
 import {
-	type MonitorDailyData,
-	MonitorRowInteractive,
-} from "./monitor-row-interactive";
+	buildUptimeHeatmapDays,
+	LatencyChart,
+	UptimeHeatmapStrip,
+} from "@databuddy/ui/uptime";
+import type { StatusMonitor } from "./status-page";
 
 const LAST_CHECK_FORMATTER = new Intl.DateTimeFormat("en-US", {
 	day: "numeric",
@@ -17,49 +19,32 @@ const LAST_CHECK_FORMATTER = new Intl.DateTimeFormat("en-US", {
 	timeZoneName: "short",
 });
 
-export interface MonitorCardInteractiveProps {
-	anchorId: string;
-	dailyData: MonitorDailyData;
-	days: number;
-	domain?: string;
-	freshness: "fresh" | "stale" | "unknown";
-	id: string;
-	lastCheckedAt: string | null;
-	name: string;
-	status: "up" | "down" | "degraded" | "unknown";
-	uptimePercentage?: number;
-}
-
-function uptimeColor(pct: number): string {
-	if (pct >= 99.9) {
-		return "text-emerald-600 dark:text-emerald-400";
-	}
-	if (pct >= 99) {
-		return "text-amber-600 dark:text-amber-400";
-	}
-	return "text-red-600 dark:text-red-400";
+function formatUptime(pct: number): string {
+	return pct >= 100 ? "100" : (Math.floor(pct * 100) / 100).toFixed(2);
 }
 
 export function MonitorCardInteractive({
 	anchorId,
-	dailyData,
 	days,
-	domain,
-	id,
-	lastCheckedAt,
-	name,
-	status,
-	freshness,
-	uptimePercentage,
-}: MonitorCardInteractiveProps) {
+	monitor: {
+		currentStatus,
+		dailyData,
+		domain,
+		freshness,
+		id,
+		lastCheckedAt,
+		name,
+		uptimePercentage,
+	},
+}: {
+	anchorId: string;
+	days: number;
+	monitor: StatusMonitor;
+}) {
 	const [isOpen, setIsOpen] = useState(true);
 	const panelId = useId();
-	const hasLatencyData = useMemo(
-		() =>
-			dailyData.some(
-				(d) => d.avg_response_time != null || d.p95_response_time != null
-			),
-		[dailyData]
+	const hasLatencyData = dailyData.some(
+		(d) => d.avg_response_time != null || d.p95_response_time != null
 	);
 	const statusConfig = {
 		up: { label: "Operational", color: "success" as const },
@@ -69,7 +54,7 @@ export function MonitorCardInteractive({
 			label: freshness === "stale" ? "Data stale" : "Status unknown",
 			color: "muted" as const,
 		},
-	}[status];
+	}[currentStatus];
 	const checkedLabel = lastCheckedAt
 		? `Last checked ${LAST_CHECK_FORMATTER.format(new Date(lastCheckedAt))}`
 		: "No completed checks";
@@ -83,7 +68,7 @@ export function MonitorCardInteractive({
 			<button
 				aria-controls={panelId}
 				aria-expanded={isOpen}
-				className="relative z-20 flex w-full cursor-pointer select-none items-start gap-2 overflow-hidden rounded-t-xl rounded-b-none bg-card p-3 text-left outline-none transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset sm:gap-3 sm:p-4"
+				className="flex w-full cursor-pointer select-none items-center gap-2 p-4 text-left outline-none transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset sm:gap-3 sm:p-5"
 				onClick={() => setIsOpen((open) => !open)}
 				type="button"
 			>
@@ -95,55 +80,71 @@ export function MonitorCardInteractive({
 						)}
 					/>
 				</div>
-				<div className="flex min-w-0 flex-1 items-center gap-3">
-					<div className="min-w-0 flex-1">
-						<span className="block truncate font-semibold text-sm leading-[1.2] sm:text-base">
-							{name}
-							{domain && (
-								<span className="font-normal text-muted-foreground">
-									{" "}
-									({domain})
-								</span>
-							)}
-						</span>
-						<span className="mt-1 flex items-center gap-1.5 text-muted-foreground text-xs">
-							<StatusDot color={statusConfig.color} size="sm" />
-							{statusConfig.label} · {checkedLabel}
-						</span>
-					</div>
-					{uptimePercentage !== undefined && (
-						<span
-							className={cn(
-								"shrink-0 font-medium text-sm tabular-nums leading-[1.2] sm:text-base",
-								uptimeColor(uptimePercentage)
-							)}
-						>
-							{uptimePercentage.toFixed(2)}% uptime
-						</span>
-					)}
+				<div className="min-w-0 flex-1">
+					<span className="block truncate font-semibold text-sm sm:text-base">
+						{name}
+						{domain ? (
+							<span className="font-normal text-muted-foreground">
+								{" "}
+								{domain}
+							</span>
+						) : null}
+					</span>
 				</div>
+				<span
+					className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs"
+					title={checkedLabel}
+				>
+					<StatusDot color={statusConfig.color} size="sm" />
+					{statusConfig.label}
+				</span>
 			</button>
 
 			<div
 				aria-hidden={!isOpen}
 				className={cn(
-					"grid border-t bg-muted/30 transition-[grid-template-rows,opacity,border-color] duration-(--duration-base) ease-(--expo-out) motion-reduce:transition-none",
-					isOpen
-						? "grid-rows-[1fr] border-border/60 opacity-100"
-						: "grid-rows-[0fr] border-transparent opacity-0"
+					"grid transition-[grid-template-rows,opacity] duration-(--duration-base) ease-(--expo-out) motion-reduce:transition-none",
+					isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
 				)}
 				id={panelId}
 				inert={isOpen ? undefined : true}
 			>
 				<div className="min-h-0 overflow-hidden">
-					<div className="px-5 py-5 sm:px-6 sm:py-6">
-						<MonitorRowInteractive
-							dailyData={dailyData}
-							days={days}
-							hasLatencyData={hasLatencyData}
-							hasUptimeData={uptimePercentage !== undefined}
-							id={id}
-						/>
+					<div className="px-4 pt-1 pb-2 sm:px-5">
+						{uptimePercentage === undefined ? null : (
+							<div>
+								<UptimeHeatmapStrip
+									days={buildUptimeHeatmapDays(dailyData, days)}
+									emptyLabel="No data recorded"
+									interactive
+									isActive
+								/>
+								<div className="mt-2 flex items-center gap-3 text-muted-foreground text-xs">
+									<span className="shrink-0">{days} days ago</span>
+									<span aria-hidden className="h-px flex-1 bg-border/70" />
+									<span className="shrink-0 tabular-nums">
+										{formatUptime(uptimePercentage)}% uptime
+									</span>
+									<span aria-hidden className="h-px flex-1 bg-border/70" />
+									<span className="shrink-0">Today</span>
+								</div>
+							</div>
+						)}
+						{hasLatencyData ? (
+							<div
+								className={cn(
+									uptimePercentage !== undefined &&
+										"mt-3 border-border/60 border-t"
+								)}
+							>
+								<div className="-mx-2">
+									<LatencyChart
+										data={dailyData}
+										storageKey={`status-latency-${id}`}
+									/>
+								</div>
+							</div>
+						) : null}
 					</div>
 				</div>
 			</div>

@@ -307,7 +307,7 @@ describe("uptime lifecycle drift guards", () => {
 		expect(calls.remove).toEqual(["schedule-1"]);
 	});
 
-	it("does not mark storage active when scheduler resume fails", async () => {
+	it("rolls storage back to paused when scheduler resume fails", async () => {
 		schedules.set("schedule-1", schedule({ isPaused: true }));
 		failUpsert = true;
 
@@ -316,14 +316,25 @@ describe("uptime lifecycle drift guards", () => {
 		).rejects.toThrow("upsert failed");
 
 		expect(schedules.get("schedule-1")?.isPaused).toBe(true);
-		expect(calls.update).toEqual([]);
+		expect(calls.update.map((call) => call.values.isPaused)).toEqual([
+			false,
+			true,
+		]);
 	});
 
-	it("resumes by creating the scheduler before marking storage active", async () => {
+	it("marks storage active before creating the scheduler so a firing job is not reaped", async () => {
 		schedules.set("schedule-1", schedule({ isPaused: true }));
+		const resumeDeps = deps();
+		const upsert = resumeDeps.upsertScheduler;
+		let pausedAtUpsert: boolean | undefined;
+		resumeDeps.upsertScheduler = async (scheduleId, granularity) => {
+			pausedAtUpsert = schedules.get(scheduleId)?.isPaused;
+			await upsert(scheduleId, granularity);
+		};
 
-		await resumeScheduleWithScheduler("schedule-1", "minute", deps());
+		await resumeScheduleWithScheduler("schedule-1", "minute", resumeDeps);
 
+		expect(pausedAtUpsert).toBe(false);
 		expect(calls.upsert).toEqual([
 			{ scheduleId: "schedule-1", granularity: "minute" },
 		]);

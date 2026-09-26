@@ -16,8 +16,9 @@ vi.mock("@lib/request-validation", () => ({
 }));
 vi.mock("@hooks/auth", () => ({ getWebsiteByIdV2: vi.fn() }));
 vi.mock("@lib/api-key", () => ({
+	API_KEY_DENIAL_ERRORS: {},
+	denyApiKeyWebsiteAccess: vi.fn(),
 	getApiKeyFromHeader: vi.fn(),
-	hasWebsiteScope: vi.fn(),
 }));
 vi.mock("evlog/elysia", () => ({ useLogger: () => ({ set: vi.fn() }) }));
 
@@ -29,10 +30,8 @@ import {
 	splitTraits,
 } from "@databuddy/services/identity";
 import { VALIDATION_LIMITS as SHARED_LIMITS } from "@databuddy/validation";
-import type { ApiKeyRow } from "@lib/api-key";
-import { hasWebsiteScope } from "@lib/api-key";
 import { VALIDATION_LIMITS } from "@utils/validation";
-import { denyApiKeyIdentify, normalizeIdentifyProfileId } from "./identify";
+import { normalizeIdentifyProfileId } from "./identify";
 
 describe("validation limit drift", () => {
 	test("profile id cap matches between schema and sanitization", () => {
@@ -172,63 +171,5 @@ describe("pii protection", () => {
 		expect(hash).toBe(emailLookupHash("jo@acme.com"));
 		expect(hash).toMatch(/^[0-9a-f]{64}$/);
 		expect(hash).not.toBe(emailLookupHash("other@acme.com"));
-	});
-});
-
-describe("denyApiKeyIdentify", () => {
-	const orgKey = { id: "key_1", organizationId: "org_1" } as ApiKeyRow;
-	const website = { organizationId: "org_1", status: "ACTIVE" };
-	const scopeMock = vi.mocked(hasWebsiteScope);
-
-	test("requires a websiteId", () => {
-		expect(denyApiKeyIdentify(orgKey, undefined, null)).toBe(
-			"missing_website_id"
-		);
-	});
-
-	test("requires the track:events scope for the website", () => {
-		scopeMock.mockReturnValueOnce(false);
-		expect(denyApiKeyIdentify(orgKey, "site_1", website)).toBe("missing_scope");
-		expect(scopeMock).toHaveBeenCalledWith(orgKey, "site_1", "track:events");
-	});
-
-	test("requires the website to exist", () => {
-		scopeMock.mockReturnValueOnce(true);
-		expect(denyApiKeyIdentify(orgKey, "site_1", null)).toBe(
-			"website_not_found"
-		);
-	});
-
-	test("rejects websites from another organization", () => {
-		scopeMock.mockReturnValueOnce(true);
-		expect(
-			denyApiKeyIdentify(orgKey, "site_1", {
-				organizationId: "org_2",
-				status: "ACTIVE",
-			})
-		).toBe("website_scope_mismatch");
-	});
-
-	test("rejects websites that are not active", () => {
-		scopeMock.mockReturnValueOnce(true);
-		expect(
-			denyApiKeyIdentify(orgKey, "site_1", {
-				organizationId: "org_1",
-				status: "INACTIVE",
-			})
-		).toBe("website_not_active");
-	});
-
-	test("rejects keys without an organization", () => {
-		scopeMock.mockReturnValueOnce(true);
-		const userKey = { id: "key_2", organizationId: null } as ApiKeyRow;
-		expect(denyApiKeyIdentify(userKey, "site_1", website)).toBe(
-			"website_scope_mismatch"
-		);
-	});
-
-	test("allows in-org websites with the right scope", () => {
-		scopeMock.mockReturnValueOnce(true);
-		expect(denyApiKeyIdentify(orgKey, "site_1", website)).toBeNull();
 	});
 });

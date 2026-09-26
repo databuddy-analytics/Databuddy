@@ -9,6 +9,14 @@ export const DATABUNNY_USAGE = {
 	upgradeMessage: "Add AI credits or upgrade your plan",
 } as const;
 
+export const EVENTS_USAGE = {
+	description:
+		"Events include page views, custom events, errors, and Web Vitals collected by Databuddy.",
+	name: "Event tracking",
+	pausedActivity: "new event collection",
+	unit: "events",
+} as const;
+
 export const INVESTIGATION_USAGE = {
 	featureId: "investigation_runs",
 	name: "Investigations",

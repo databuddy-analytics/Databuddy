@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { CaretDownIcon, ChartActivityIcon } from "../../components/icons";
 import { Skeleton } from "../../components/skeleton";
 import { usePersistentState } from "../../hooks/use-persistent-state";
@@ -36,34 +36,19 @@ function toChartData(data: LatencyDataPoint[]): ChartDataPoint[] {
 		}));
 }
 
-function computeSummary(chartData: ChartDataPoint[]) {
-	if (chartData.length === 0) {
-		return { avg: null, p95: null };
-	}
-	const latest = chartData.at(-1);
+function computeSummary(
+	chartData: ChartDataPoint[]
+): Record<(typeof METRICS)[number]["key"], number | null> {
 	const avgValues = chartData
 		.map((d) => d.avg_response_time)
 		.filter((v): v is number => v != null);
 	return {
-		avg:
+		avg_response_time:
 			avgValues.length > 0
 				? avgValues.reduce((a, b) => a + b, 0) / avgValues.length
 				: null,
-		p95: latest?.p95_response_time ?? null,
+		p95_response_time: chartData.at(-1)?.p95_response_time ?? null,
 	};
-}
-
-function getSummaryValue(
-	summary: { avg: number | null; p95: number | null },
-	key: (typeof METRICS)[number]["key"]
-) {
-	return key === "avg_response_time" ? summary.avg : summary.p95;
-}
-
-interface LatencyChartProps {
-	data: LatencyDataPoint[];
-	isLoading?: boolean;
-	storageKey: string;
 }
 
 function SummaryMetric({
@@ -86,34 +71,36 @@ function SummaryMetric({
 	}
 
 	return (
-		<span className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-border/60 bg-background/70 px-2 py-1 text-muted-foreground text-xs leading-none">
+		<span className="inline-flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs leading-none">
 			<span
 				aria-hidden
 				className="size-1.5 shrink-0 rounded-full"
 				style={{ backgroundColor: color }}
 			/>
-			<span className="hidden font-medium sm:inline">{label}</span>
-			<span className="font-semibold text-foreground tabular-nums">
+			<span className="hidden sm:inline">{label}</span>
+			<span className="font-medium text-foreground tabular-nums">
 				{formatMs(value)}
 			</span>
 		</span>
 	);
 }
 
+const CHART_SKELETON = (
+	<Skeleton
+		className="w-full rounded-md"
+		style={{ minHeight: CHART_BLOCK_MIN_PX }}
+	/>
+);
+
 function ChartBody({
 	chartData,
 	isLoading,
 }: {
-	chartData: ReturnType<typeof toChartData>;
+	chartData: ChartDataPoint[];
 	isLoading: boolean;
 }) {
 	if (isLoading) {
-		return (
-			<Skeleton
-				className="w-full rounded-md"
-				style={{ minHeight: CHART_BLOCK_MIN_PX }}
-			/>
-		);
+		return CHART_SKELETON;
 	}
 
 	if (chartData.length === 0) {
@@ -130,14 +117,7 @@ function ChartBody({
 	}
 
 	return (
-		<Suspense
-			fallback={
-				<Skeleton
-					className="w-full rounded-md"
-					style={{ minHeight: CHART_BLOCK_MIN_PX }}
-				/>
-			}
-		>
+		<Suspense fallback={CHART_SKELETON}>
 			<LatencyAreaChart data={chartData} />
 		</Suspense>
 	);
@@ -147,11 +127,15 @@ export function LatencyChart({
 	data,
 	isLoading = false,
 	storageKey,
-}: LatencyChartProps) {
+}: {
+	data: LatencyDataPoint[];
+	isLoading?: boolean;
+	storageKey: string;
+}) {
 	const [isOpen, setIsOpen] = usePersistentState(storageKey, false);
 	const [hasEverOpened, setHasEverOpened] = useState(false);
-	const chartData = useMemo(() => toChartData(data), [data]);
-	const summary = useMemo(() => computeSummary(chartData), [chartData]);
+	const chartData = toChartData(data);
+	const summary = computeSummary(chartData);
 	const shouldRenderChart = isOpen || hasEverOpened;
 
 	return (
@@ -165,25 +149,25 @@ export function LatencyChart({
 				}}
 				type="button"
 			>
-				<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-background/70 text-muted-foreground ring-1 ring-border/60">
-					<ChartActivityIcon className="size-3.5" />
-				</span>
+				<ChartActivityIcon className="size-3.5 shrink-0 text-muted-foreground" />
 
-				<span className="min-w-0 flex-1 truncate font-semibold text-sm leading-[1.2]">
+				<span className="min-w-0 flex-1 truncate font-medium text-sm leading-[1.2]">
 					Response time
 				</span>
 
-				<span className="flex min-w-0 shrink-0 items-center gap-1.5">
+				<span className="flex min-w-0 shrink-0 items-center gap-3">
 					{METRICS.map((metric) => (
 						<SummaryMetric
 							color={metric.color}
 							isLoading={isLoading}
 							key={metric.key}
 							label={metric.label}
-							value={getSummaryValue(summary, metric.key)}
+							value={summary[metric.key]}
 						/>
 					))}
-					{isLoading || summary.avg != null || summary.p95 != null ? null : (
+					{isLoading ||
+					summary.avg_response_time != null ||
+					summary.p95_response_time != null ? null : (
 						<span className="text-muted-foreground text-xs">No data</span>
 					)}
 				</span>

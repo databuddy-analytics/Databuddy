@@ -38,6 +38,7 @@ let state, cursor, canUserUpgrade;
 const attach = mock(async () => {});
 mock.module("react", () => ({ ...React, useState: () => [state[cursor++], () => {}], useEffect: () => {} }));
 mock.module("autumn-js/react", () => ({ useCustomer: () => ({ attach }) }));
+mock.module("@/lib/app-events", () => ({ trackAppEvent: () => {} }));
 mock.module("@/components/providers/billing-provider", () => ({
   useBillingContext: () => ({ canUserUpgrade, isFeatureEnabled: () => true, isLoading: false }),
   useInvestigationUsage: () => ({ fixedPrice: true, balance: 0, payAsYouGo: false, overageAllowed: false, unlimited: false, monthly: [], prepaid: [], usagePrices: [] }),

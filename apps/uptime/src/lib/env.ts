@@ -5,6 +5,5 @@ const environment =
 
 export const UPTIME_ENV = {
 	environment,
-	isDev: process.env.NODE_ENV === "development",
 	isProduction: environment === "production",
 } as const;

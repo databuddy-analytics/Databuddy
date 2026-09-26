@@ -11,4 +11,4 @@ RUN bun install --frozen-lockfile --ignore-scripts
 
 ENV NODE_ENV=production
 
-CMD ["sh", "-c", "bun run --cwd packages/db db:push && bun --cwd packages/db src/clickhouse/setup.ts"]
+CMD ["sh", "-c", "while sleep 0.2; do printf '\\r'; done | script -qec 'bun run --cwd packages/db db:push' /tmp/db-push.log && ! grep -q 'changes were aborted' /tmp/db-push.log && bun --cwd packages/db src/clickhouse/setup.ts"]

@@ -27,9 +27,8 @@ import {
 	Text,
 } from "@databuddy/ui";
 import { Switch } from "@databuddy/ui/client";
+import { FEATURE_IDS } from "@databuddy/shared/types/features";
 import { cn } from "@/lib/utils";
-
-const EVENTS_FEATURE_ID = "events";
 
 const TOPUP_DEFAULTS = { threshold: 100, quantity: 1000 };
 const TOPUP_LIMITS = {
@@ -60,7 +59,7 @@ export function BillingControlsCard() {
 	const alert = useMemo(() => {
 		const e = customer?.billingControls?.usageAlerts?.find(
 			(a) =>
-				a.featureId === EVENTS_FEATURE_ID &&
+				a.featureId === FEATURE_IDS.EVENTS &&
 				a.thresholdType === "usage_percentage"
 		);
 		return e ? { enabled: e.enabled, threshold: e.threshold } : null;
@@ -77,7 +76,7 @@ export function BillingControlsCard() {
 
 	if (!customer) {
 		return (
-			<Card>
+			<Card id="billing-controls">
 				<Card.Content>
 					{isLoading ? (
 						<Skeleton className="h-32" />
@@ -92,7 +91,7 @@ export function BillingControlsCard() {
 	}
 
 	return (
-		<Card>
+		<Card id="billing-controls">
 			<Card.Header>
 				<Card.Title className="flex items-center gap-2 text-balance">
 					<GearIcon className="text-muted-foreground" size={14} />

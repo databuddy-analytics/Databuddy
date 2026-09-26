@@ -21,6 +21,7 @@
   "dependencies": {
     "@databuddy/db": "workspace:*",
     "@databuddy/encryption": "workspace:*",
+    "@databuddy/env": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/shared": "workspace:*",
     "supermemory": "^4.17.0",

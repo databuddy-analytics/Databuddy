@@ -18,9 +18,10 @@ import {
 import { Button, Divider, Field, Input, Text } from "@databuddy/ui";
 import { Accordion, Sheet, Switch } from "@databuddy/ui/client";
 
-type DestType = "slack" | "email" | "webhook";
+const destTypeSchema = z.enum(["slack", "email", "webhook"]);
+type DestType = z.infer<typeof destTypeSchema>;
 
-const CHANNELS: Record<
+export const CHANNELS: Record<
 	DestType,
 	{
 		label: string;
@@ -49,11 +50,43 @@ const CHANNELS: Record<
 	},
 };
 
-const destinationSchema = z.object({
-	type: z.enum(["slack", "email", "webhook"]),
-	identifier: z.string().min(1, "Required"),
-	config: z.record(z.string(), z.unknown()),
-});
+const MASK = "•";
+const SLACK_WEBHOOK_PATTERN =
+	/^https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[A-Za-z0-9]+$/;
+const HTTP_URL_PATTERN = /^https?:\/\//;
+const emailSchema = z.email();
+
+function destinationError(type: DestType, identifier: string): string | null {
+	if (identifier.includes(MASK)) {
+		return null;
+	}
+	if (type === "slack") {
+		return SLACK_WEBHOOK_PATTERN.test(identifier)
+			? null
+			: "Enter a hooks.slack.com webhook URL";
+	}
+	if (type === "email") {
+		return emailSchema.safeParse(identifier).success
+			? null
+			: "Enter a valid email address";
+	}
+	return HTTP_URL_PATTERN.test(identifier) && URL.canParse(identifier)
+		? null
+		: "Enter an http:// or https:// URL";
+}
+
+const destinationSchema = z
+	.object({
+		type: destTypeSchema,
+		identifier: z.string().min(1, "Required"),
+		config: z.record(z.string(), z.unknown()),
+	})
+	.superRefine((destination, ctx) => {
+		const message = destinationError(destination.type, destination.identifier);
+		if (message) {
+			ctx.addIssue({ code: "custom", path: ["identifier"], message });
+		}
+	});
 
 const alarmFormSchema = z.object({
 	name: z.string().min(1, "Name is required"),
@@ -66,22 +99,37 @@ const alarmFormSchema = z.object({
 
 type AlarmFormData = z.infer<typeof alarmFormSchema>;
 
-interface AlarmDestination {
-	config: Record<string, unknown>;
-	id: string;
-	identifier: string;
-	type: string;
+const lockedAlarmFormSchema = alarmFormSchema.extend({
+	destinations: z.array(destinationSchema),
+});
+
+export type AlarmData = Awaited<
+	ReturnType<typeof orpc.alarms.list.call>
+>[number];
+type AlarmDestination = AlarmData["destinations"][number];
+
+export function channelLabel(type: string): string {
+	const parsed = destTypeSchema.safeParse(type);
+	return parsed.success ? CHANNELS[parsed.data].label : type;
 }
 
-export interface AlarmData {
-	description?: string | null;
-	destinations?: AlarmDestination[];
-	enabled: boolean;
-	id: string;
-	name: string;
-	triggerConditions?: Record<string, unknown>;
-	triggerType: string;
-	websiteId?: string | null;
+export function alarmMonitorIds(alarm: AlarmData): string[] {
+	const ids = alarm.triggerConditions.monitorIds;
+	return Array.isArray(ids)
+		? ids.filter((id): id is string => typeof id === "string")
+		: [];
+}
+
+function isMaskedDestination(destination: AlarmDestination) {
+	const headers = destination.config.headers;
+	return (
+		destination.identifier.includes(MASK) ||
+		(typeof headers === "object" &&
+			headers !== null &&
+			Object.values(headers).some(
+				(value) => typeof value === "string" && value.includes(MASK)
+			))
+	);
 }
 
 interface AlarmSheetProps {
@@ -96,17 +144,24 @@ function buildDefaults(alarm: AlarmData | null | undefined): AlarmFormData {
 		name: alarm?.name ?? "",
 		description: alarm?.description ?? "",
 		enabled: alarm?.enabled ?? true,
-		destinations: alarm?.destinations?.map((d) => ({
-			type: d.type as DestType,
-			identifier: d.identifier ?? "",
-			config: (d.config ?? {}) as Record<string, unknown>,
-		})) ?? [{ type: "slack" as DestType, identifier: "", config: {} }],
+		destinations: alarm
+			? alarm.destinations.flatMap(({ type, identifier, config }) => {
+					const parsed = destTypeSchema.safeParse(type);
+					return parsed.success
+						? [{ type: parsed.data, identifier, config }]
+						: [];
+				})
+			: [{ type: "slack", identifier: "", config: {} }],
 	};
 }
 
 function toHeaderPairs(config: Record<string, unknown> | undefined) {
-	const raw = (config?.headers ?? {}) as Record<string, string>;
-	return Object.entries(raw).map(([name, value]) => ({ name, value }));
+	const headers = config?.headers;
+	return headers && typeof headers === "object"
+		? Object.entries(headers).flatMap(([name, value]) =>
+				typeof value === "string" ? [{ name, value }] : []
+			)
+		: [];
 }
 
 function fromHeaderPairs(pairs: { name: string; value: string }[]) {
@@ -121,9 +176,11 @@ function fromHeaderPairs(pairs: { name: string; value: string }[]) {
 
 function WebhookHeaders({
 	config,
+	disabled,
 	onChange,
 }: {
 	config: Record<string, unknown> | undefined;
+	disabled: boolean;
 	onChange: (headers: Record<string, string>) => void;
 }) {
 	const [pairs, setPairs] = useState(() => toHeaderPairs(config));
@@ -140,19 +197,24 @@ function WebhookHeaders({
 					Headers{" "}
 					<span className="font-normal text-muted-foreground">(optional)</span>
 				</Text>
-				<button
-					className="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground text-xs transition-colors hover:bg-interactive-hover hover:text-foreground"
-					onClick={() => update([...pairs, { name: "", value: "" }])}
-					type="button"
-				>
-					<PlusIcon className="size-3" />
-					Add
-				</button>
+				{disabled ? null : (
+					<Button
+						className="h-6 gap-1 px-1.5 font-normal"
+						onClick={() => update([...pairs, { name: "", value: "" }])}
+						size="sm"
+						type="button"
+						variant="ghost"
+					>
+						<PlusIcon className="size-3" />
+						Add
+					</Button>
+				)}
 			</div>
 			{pairs.map((pair, i) => (
 				<div className="flex items-center gap-1.5" key={i}>
 					<Input
 						className="flex-1 font-mono text-xs"
+						disabled={disabled}
 						onChange={(e) => {
 							const next = [...pairs];
 							next[i] = { ...pair, name: e.target.value };
@@ -163,6 +225,7 @@ function WebhookHeaders({
 					/>
 					<Input
 						className="flex-[2] font-mono text-xs"
+						disabled={disabled}
 						onChange={(e) => {
 							const next = [...pairs];
 							next[i] = { ...pair, value: e.target.value };
@@ -171,14 +234,18 @@ function WebhookHeaders({
 						placeholder="Value"
 						value={pair.value}
 					/>
-					<button
-						aria-label="Remove header"
-						className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
-						onClick={() => update(pairs.filter((_, j) => j !== i))}
-						type="button"
-					>
-						<XMarkIcon className="size-3" />
-					</button>
+					{disabled ? null : (
+						<Button
+							aria-label="Remove header"
+							className="size-6 shrink-0 px-0 hover:text-destructive"
+							onClick={() => update(pairs.filter((_, j) => j !== i))}
+							size="sm"
+							type="button"
+							variant="ghost"
+						>
+							<XMarkIcon className="size-3" />
+						</Button>
+					)}
 				</div>
 			))}
 		</div>
@@ -192,12 +259,20 @@ export function AlarmSheet({
 	alarm,
 }: AlarmSheetProps) {
 	const isEditing = !!alarm;
+	const destinationsLocked =
+		alarm?.destinations.some(
+			(destination) =>
+				!destTypeSchema.safeParse(destination.type).success ||
+				isMaskedDestination(destination)
+		) ?? false;
 	const { activeOrganization, activeOrganizationId } =
 		useOrganizationsContext();
 	const queryClient = useQueryClient();
 
 	const form = useForm<AlarmFormData>({
-		resolver: zodResolver(alarmFormSchema),
+		resolver: zodResolver(
+			destinationsLocked ? lockedAlarmFormSchema : alarmFormSchema
+		),
 		defaultValues: buildDefaults(alarm),
 	});
 
@@ -236,11 +311,7 @@ export function AlarmSheet({
 					description: data.description ?? null,
 					enabled: data.enabled,
 					websiteId: alarm.websiteId ?? null,
-					triggerType: alarm.triggerType as
-						| "uptime"
-						| "traffic_spike"
-						| "error_rate",
-					destinations: data.destinations,
+					...(destinationsLocked ? {} : { destinations: data.destinations }),
 				});
 				toast.success("Alert updated");
 			} else {
@@ -262,10 +333,6 @@ export function AlarmSheet({
 			onSaveAction?.();
 			onCloseAction(false);
 		} catch {}
-	};
-
-	const addDestination = (type: DestType) => {
-		append({ type, identifier: "", config: {} });
 	};
 
 	return (
@@ -342,6 +409,14 @@ export function AlarmSheet({
 						<div className="space-y-3">
 							<Text variant="label">Destinations</Text>
 
+							{destinationsLocked && (
+								<Text tone="muted" variant="caption">
+									Some destinations are hidden for your role or not supported in
+									this form, so destinations can't be changed here. Other
+									settings can still be saved.
+								</Text>
+							)}
+
 							{form.formState.errors.destinations?.root && (
 								<Text tone="destructive" variant="caption">
 									{form.formState.errors.destinations.root.message}
@@ -350,11 +425,9 @@ export function AlarmSheet({
 
 							<div className="space-y-2">
 								{fields.map((field, index) => {
-									const destType = form.watch(
-										`destinations.${index}.type`
-									) as DestType;
+									const destType = form.watch(`destinations.${index}.type`);
 									const channel = CHANNELS[destType];
-									const Icon = channel?.icon ?? GlobeSimpleIcon;
+									const Icon = channel.icon;
 									const identifier = form.watch(
 										`destinations.${index}.identifier`
 									);
@@ -368,9 +441,7 @@ export function AlarmSheet({
 												<div className="flex items-center">
 													<Accordion.Trigger className="flex-1">
 														<Icon className="size-4 shrink-0 text-muted-foreground" />
-														<Text variant="label">
-															{channel?.label ?? destType}
-														</Text>
+														<Text variant="label">{channel.label}</Text>
 														{identifier && (
 															<Text
 																className="ml-auto max-w-[140px] truncate"
@@ -381,7 +452,7 @@ export function AlarmSheet({
 															</Text>
 														)}
 													</Accordion.Trigger>
-													{fields.length > 1 && (
+													{fields.length > 1 && !destinationsLocked && (
 														<button
 															aria-label="Remove destination"
 															className="shrink-0 rounded p-2 text-muted-foreground transition-colors hover:text-destructive"
@@ -398,11 +469,10 @@ export function AlarmSheet({
 														name={`destinations.${index}.identifier`}
 														render={({ field: idField, fieldState }) => (
 															<Field error={!!fieldState.error}>
-																<Field.Label>
-																	{channel?.fieldLabel ?? "Identifier"}
-																</Field.Label>
+																<Field.Label>{channel.fieldLabel}</Field.Label>
 																<Input
-																	placeholder={channel?.placeholder ?? ""}
+																	disabled={destinationsLocked}
+																	placeholder={channel.placeholder}
 																	{...idField}
 																/>
 																{fieldState.error && (
@@ -419,6 +489,7 @@ export function AlarmSheet({
 															config={form.watch(
 																`destinations.${index}.config`
 															)}
+															disabled={destinationsLocked}
 															onChange={(headers) =>
 																form.setValue(`destinations.${index}.config`, {
 																	...form.getValues(
@@ -436,28 +507,32 @@ export function AlarmSheet({
 								})}
 							</div>
 
-							<div className="flex gap-2">
-								{(
-									Object.entries(CHANNELS) as [
-										DestType,
-										(typeof CHANNELS)[DestType],
-									][]
-								).map(([type, config]) => {
-									const Icon = config.icon;
-									return (
-										<Button
-											key={type}
-											onClick={() => addDestination(type)}
-											size="sm"
-											type="button"
-											variant="secondary"
-										>
-											<Icon className="size-3.5" />
-											{config.label}
-										</Button>
-									);
-								})}
-							</div>
+							{destinationsLocked ? null : (
+								<div className="flex gap-2">
+									{(
+										Object.entries(CHANNELS) as [
+											DestType,
+											(typeof CHANNELS)[DestType],
+										][]
+									).map(([type, config]) => {
+										const Icon = config.icon;
+										return (
+											<Button
+												key={type}
+												onClick={() =>
+													append({ type, identifier: "", config: {} })
+												}
+												size="sm"
+												type="button"
+												variant="secondary"
+											>
+												<Icon className="size-3.5" />
+												{config.label}
+											</Button>
+										);
+									})}
+								</div>
+							)}
 						</div>
 					</Sheet.Body>
 

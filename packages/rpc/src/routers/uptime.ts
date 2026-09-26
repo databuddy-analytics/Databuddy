@@ -8,8 +8,8 @@ import { invalidateStatusPageCache } from "@databuddy/redis";
 import {
 	CRON_GRANULARITIES,
 	uptimeGranularitySchema,
-	type UptimeGranularity,
 } from "@databuddy/shared/uptime";
+import type { Route } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -26,16 +26,23 @@ import {
 	resumeScheduleWithScheduler,
 	triggerManualUptimeCheck,
 	updateScheduleWithScheduler,
-	type UptimeScheduleUpdate,
 } from "../services/uptime-lifecycle";
 import { hasUptimeSchedule } from "../services/uptime-scheduler";
 
-function parseStoredGranularity(value: string): UptimeGranularity {
-	const parsed = uptimeGranularitySchema.safeParse(value);
-	if (!parsed.success) {
-		throw rpcError.internal("Invalid monitor granularity");
-	}
-	return parsed.data;
+function uptimeRoute(
+	name: string,
+	summary: string,
+	access: "read" | "write",
+	description: string
+): Route {
+	return {
+		description,
+		method: "POST",
+		path: `/uptime/${name}`,
+		summary,
+		tags: ["Uptime"],
+		spec: (s) => ({ ...s, "x-required-scopes": [`${access}:monitors`] }),
+	};
 }
 
 async function statusPageSlugsForSchedule(
@@ -49,13 +56,13 @@ async function statusPageSlugsForSchedule(
 	return rows.map((row) => row.slug);
 }
 
-async function invalidateStatusPageSlugs(
+async function invalidateStatusPageCachesForSchedule(
 	scheduleId: string,
-	slugs: string[]
+	slugs?: string[]
 ): Promise<void> {
 	const results = await Promise.allSettled(
-		slugs.map((slug) =>
-			Promise.resolve().then(() => invalidateStatusPageCache(slug))
+		(slugs ?? (await statusPageSlugsForSchedule(scheduleId))).map(
+			invalidateStatusPageCache
 		)
 	);
 	const failed = results.filter((result) => result.status === "rejected");
@@ -65,15 +72,6 @@ async function invalidateStatusPageSlugs(
 			"Failed to invalidate status page caches for uptime schedule"
 		);
 	}
-}
-
-async function invalidateStatusPageCachesForSchedule(
-	scheduleId: string
-): Promise<void> {
-	await invalidateStatusPageSlugs(
-		scheduleId,
-		await statusPageSlugsForSchedule(scheduleId)
-	);
 }
 
 const getScheduleOutputSchema = z.object({
@@ -112,15 +110,14 @@ const listScheduleItemSchema = getScheduleOutputSchema.omit({
 
 export const uptimeRouter = {
 	getScheduleByWebsiteId: protectedProcedure
-		.route({
-			description:
-				"Returns uptime schedule for a website. Requires read:monitors scope.",
-			method: "POST",
-			path: "/uptime/getScheduleByWebsiteId",
-			summary: "Get schedule by website",
-			tags: ["Uptime"],
-			spec: (s) => ({ ...s, "x-required-scopes": ["read:monitors"] as const }),
-		})
+		.route(
+			uptimeRoute(
+				"getScheduleByWebsiteId",
+				"Get schedule by website",
+				"read",
+				"Returns uptime schedule for a website. Requires read:monitors scope."
+			)
+		)
 		.input(z.object({ websiteId: z.string() }))
 		.output(listScheduleItemSchema.nullable())
 		.handler(async ({ context, input }) => {
@@ -139,15 +136,14 @@ export const uptimeRouter = {
 		}),
 
 	listSchedules: protectedProcedure
-		.route({
-			description:
-				"Returns uptime schedules for one organization or all accessible organizations. Requires read:monitors scope.",
-			method: "POST",
-			path: "/uptime/listSchedules",
-			summary: "List schedules",
-			tags: ["Uptime"],
-			spec: (s) => ({ ...s, "x-required-scopes": ["read:monitors"] as const }),
-		})
+		.route(
+			uptimeRoute(
+				"listSchedules",
+				"List schedules",
+				"read",
+				"Returns uptime schedules for one organization or all accessible organizations. Requires read:monitors scope."
+			)
+		)
 		.input(
 			z
 				.object({
@@ -178,15 +174,14 @@ export const uptimeRouter = {
 		}),
 
 	getSchedule: protectedProcedure
-		.route({
-			description:
-				"Returns schedule with BullMQ scheduler status. Requires read:monitors scope.",
-			method: "POST",
-			path: "/uptime/getSchedule",
-			summary: "Get schedule",
-			tags: ["Uptime"],
-			spec: (s) => ({ ...s, "x-required-scopes": ["read:monitors"] as const }),
-		})
+		.route(
+			uptimeRoute(
+				"getSchedule",
+				"Get schedule",
+				"read",
+				"Returns schedule with BullMQ scheduler status. Requires read:monitors scope."
+			)
+		)
 		.input(z.object({ scheduleId: z.string() }))
 		.output(getScheduleOutputSchema)
 		.handler(async ({ context, input }) => {
@@ -215,14 +210,14 @@ export const uptimeRouter = {
 		}),
 
 	createSchedule: trackedProcedure
-		.route({
-			description: "Creates an uptime monitor. Requires write:monitors scope.",
-			method: "POST",
-			path: "/uptime/createSchedule",
-			summary: "Create schedule",
-			tags: ["Uptime"],
-			spec: (s) => ({ ...s, "x-required-scopes": ["write:monitors"] as const }),
-		})
+		.route(
+			uptimeRoute(
+				"createSchedule",
+				"Create schedule",
+				"write",
+				"Creates an uptime monitor. Requires write:monitors scope."
+			)
+		)
 		.input(
 			z.object({
 				url: z.string().url(),
@@ -243,19 +238,36 @@ export const uptimeRouter = {
 				throw rpcError.badRequest("Organization ID is required");
 			}
 
-			await withWorkspace(context, {
-				organizationId,
-				resource: "monitor",
-				permissions: ["create"],
-			});
+			if (input.websiteId) {
+				await withWorkspace(context, {
+					organizationId,
+					websiteId: input.websiteId,
+					resource: "monitor",
+					permissions: ["create"],
+				});
+			} else {
+				await withWorkspace(context, {
+					organizationId,
+					resource: "monitor",
+					permissions: ["create"],
+				});
+			}
 
 			const existing = await db.query.uptimeSchedules.findFirst({
-				where: { url: input.url, organizationId },
+				where: {
+					organizationId,
+					OR: [
+						{ url: input.url },
+						...(input.websiteId ? [{ websiteId: input.websiteId }] : []),
+					],
+				},
 			});
 
 			if (existing) {
 				throw rpcError.conflict(
-					"Monitor already exists for this URL in this organization"
+					existing.url === input.url
+						? "Monitor already exists for this URL in this organization"
+						: "This website already has a monitor"
 				);
 			}
 
@@ -285,14 +297,14 @@ export const uptimeRouter = {
 		}),
 
 	updateSchedule: trackedProcedure
-		.route({
-			description: "Updates an uptime schedule. Requires write:monitors scope.",
-			method: "POST",
-			path: "/uptime/updateSchedule",
-			summary: "Update schedule",
-			tags: ["Uptime"],
-			spec: (s) => ({ ...s, "x-required-scopes": ["write:monitors"] as const }),
-		})
+		.route(
+			uptimeRoute(
+				"updateSchedule",
+				"Update schedule",
+				"write",
+				"Updates an uptime schedule. Requires write:monitors scope."
+			)
+		)
 		.input(
 			z.object({
 				scheduleId: z.string(),
@@ -310,31 +322,17 @@ export const uptimeRouter = {
 				permissions: ["update"],
 			});
 
-			const updateData: UptimeScheduleUpdate = {
-				updatedAt: new Date(),
-			};
-
-			if (input.name !== undefined) {
-				const trimmed = input.name?.trim();
-				updateData.name = trimmed ? trimmed : null;
-			}
-
-			if (input.granularity) {
-				updateData.granularity = input.granularity;
-				updateData.cron = CRON_GRANULARITIES[input.granularity];
-			}
-
-			if (input.timeout !== undefined) {
-				updateData.timeout = input.timeout;
-			}
-
-			if (input.cacheBust !== undefined) {
-				updateData.cacheBust = input.cacheBust;
-			}
-
 			await updateScheduleWithScheduler(
 				input.scheduleId,
-				updateData,
+				{
+					name:
+						input.name === undefined ? undefined : input.name?.trim() || null,
+					granularity: input.granularity,
+					cron: input.granularity && CRON_GRANULARITIES[input.granularity],
+					timeout: input.timeout,
+					cacheBust: input.cacheBust,
+					updatedAt: new Date(),
+				},
 				existingSchedule
 			);
 			await invalidateStatusPageCachesForSchedule(input.scheduleId);
@@ -353,14 +351,14 @@ export const uptimeRouter = {
 		}),
 
 	deleteSchedule: trackedProcedure
-		.route({
-			description: "Deletes an uptime schedule. Requires write:monitors scope.",
-			method: "POST",
-			path: "/uptime/deleteSchedule",
-			summary: "Delete schedule",
-			tags: ["Uptime"],
-			spec: (s) => ({ ...s, "x-required-scopes": ["write:monitors"] as const }),
-		})
+		.route(
+			uptimeRoute(
+				"deleteSchedule",
+				"Delete schedule",
+				"write",
+				"Deletes an uptime schedule. Requires write:monitors scope."
+			)
+		)
 		.input(z.object({ scheduleId: z.string() }))
 		.output(z.object({ success: z.literal(true) }))
 		.handler(async ({ context, input }) => {
@@ -372,22 +370,21 @@ export const uptimeRouter = {
 			const slugs = await statusPageSlugsForSchedule(input.scheduleId);
 
 			await deleteScheduleWithScheduler(input.scheduleId);
-			await invalidateStatusPageSlugs(input.scheduleId, slugs);
+			await invalidateStatusPageCachesForSchedule(input.scheduleId, slugs);
 
 			logger.info({ scheduleId: input.scheduleId }, "Schedule deleted");
 			return { success: true };
 		}),
 
 	pauseSchedule: trackedProcedure
-		.route({
-			description:
-				"Pauses an uptime schedule. Legacy compatibility. Requires write:monitors scope.",
-			method: "POST",
-			path: "/uptime/pauseSchedule",
-			summary: "Pause schedule",
-			tags: ["Uptime"],
-			spec: (s) => ({ ...s, "x-required-scopes": ["write:monitors"] as const }),
-		})
+		.route(
+			uptimeRoute(
+				"pauseSchedule",
+				"Pause schedule",
+				"write",
+				"Pauses an uptime schedule. Legacy compatibility. Requires write:monitors scope."
+			)
+		)
 		.input(z.object({ scheduleId: z.string() }))
 		.output(z.object({ success: z.literal(true), isPaused: z.literal(true) }))
 		.handler(async ({ context, input }) => {
@@ -418,15 +415,14 @@ export const uptimeRouter = {
 		}),
 
 	transfer: trackedProcedure
-		.route({
-			description:
-				"Transfers an uptime monitor to another organization. Requires write:monitors scope on source and target.",
-			method: "POST",
-			path: "/uptime/transfer",
-			summary: "Transfer monitor",
-			tags: ["Uptime"],
-			spec: (s) => ({ ...s, "x-required-scopes": ["write:monitors"] as const }),
-		})
+		.route(
+			uptimeRoute(
+				"transfer",
+				"Transfer monitor",
+				"write",
+				"Transfers an uptime monitor to another organization. Requires write:monitors scope on source and target."
+			)
+		)
 		.input(
 			z.object({
 				scheduleId: z.string(),
@@ -462,7 +458,6 @@ export const uptimeRouter = {
 					updatedAt: new Date(),
 				})
 				.where(eq(uptimeSchedules.id, input.scheduleId));
-			await invalidateStatusPageCachesForSchedule(input.scheduleId);
 
 			logger.info(
 				{
@@ -477,15 +472,14 @@ export const uptimeRouter = {
 		}),
 
 	manualCheck: trackedProcedure
-		.route({
-			description:
-				"Triggers an immediate uptime check for a monitor. Monitor must not be paused. Requires write:monitors scope.",
-			method: "POST",
-			path: "/uptime/manualCheck",
-			summary: "Manual check",
-			tags: ["Uptime"],
-			spec: (s) => ({ ...s, "x-required-scopes": ["write:monitors"] as const }),
-		})
+		.route(
+			uptimeRoute(
+				"manualCheck",
+				"Manual check",
+				"write",
+				"Triggers an immediate uptime check for a monitor. Monitor must not be paused. Requires write:monitors scope."
+			)
+		)
 		.input(z.object({ scheduleId: z.string() }))
 		.output(z.object({ success: z.literal(true) }))
 		.handler(async ({ context, input }) => {
@@ -496,22 +490,20 @@ export const uptimeRouter = {
 			});
 
 			await triggerManualUptimeCheck(input.scheduleId, schedule.isPaused);
-			await invalidateStatusPageCachesForSchedule(input.scheduleId);
 
 			logger.info({ scheduleId: input.scheduleId }, "Manual check triggered");
 			return { success: true };
 		}),
 
 	resumeSchedule: trackedProcedure
-		.route({
-			description:
-				"Resumes an uptime schedule. Legacy compatibility. Requires write:monitors scope.",
-			method: "POST",
-			path: "/uptime/resumeSchedule",
-			summary: "Resume schedule",
-			tags: ["Uptime"],
-			spec: (s) => ({ ...s, "x-required-scopes": ["write:monitors"] as const }),
-		})
+		.route(
+			uptimeRoute(
+				"resumeSchedule",
+				"Resume schedule",
+				"write",
+				"Resumes an uptime schedule. Legacy compatibility. Requires write:monitors scope."
+			)
+		)
 		.input(z.object({ scheduleId: z.string() }))
 		.output(z.object({ success: z.literal(true), isPaused: z.literal(false) }))
 		.handler(async ({ context, input }) => {
@@ -528,7 +520,7 @@ export const uptimeRouter = {
 			try {
 				await resumeScheduleWithScheduler(
 					input.scheduleId,
-					parseStoredGranularity(schedule.granularity)
+					uptimeGranularitySchema.parse(schedule.granularity)
 				);
 			} catch (error) {
 				logger.error(

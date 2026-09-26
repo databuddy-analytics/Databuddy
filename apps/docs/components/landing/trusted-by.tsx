@@ -1,7 +1,10 @@
-"use client";
-
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import {
+	Marquee,
+	MarqueeContent,
+	MarqueeFade,
+	MarqueeItem,
+} from "@/components/ui/kibo-ui/marquee";
 
 const companies = [
 	{
@@ -49,10 +52,21 @@ const companies = [
 		logo: "/social/figurable.svg",
 		invert: true,
 	},
+	{
+		name: "Context.dev",
+		badge: "YC S26",
+		url: "https://www.context.dev",
+		logo: "/social/context-dev.svg",
+	},
+	{
+		name: "Cortad",
+		url: "https://cortad.com",
+		logo: "/social/cortad.png",
+	},
 ];
 
-const VISIBLE = 8;
-const INTERVAL = 3000;
+const half = Math.ceil(companies.length / 2);
+const companyRows = [companies.slice(0, half), companies.slice(half)];
 
 const devTeams = [
 	{
@@ -77,16 +91,10 @@ const devTeams = [
 	},
 ];
 
-function CompanyCard({
-	company,
-	fading,
-}: {
-	company: (typeof companies)[number];
-	fading: boolean;
-}) {
+function CompanyCard({ company }: { company: (typeof companies)[number] }) {
 	return (
 		<a
-			className={`group flex flex-col items-center justify-center gap-3 rounded-lg border border-border/50 bg-card/50 px-4 py-5 transition-all duration-500 hover:border-border hover:bg-card sm:py-6 ${fading ? "opacity-0" : "opacity-100"}`}
+			className="group flex w-44 flex-col items-center justify-center gap-3 rounded-lg border border-border/50 bg-card/50 px-4 py-5 transition-colors duration-300 hover:border-border hover:bg-card sm:w-52 sm:py-6"
 			href={company.url}
 			rel="noopener noreferrer"
 			target="_blank"
@@ -113,45 +121,7 @@ function CompanyCard({
 	);
 }
 
-function useRotatingGrid() {
-	const [slots, setSlots] = useState(() => companies.slice(0, VISIBLE));
-	const [swapIndex, setSwapIndex] = useState(-1);
-	const [nextCompanyIdx, setNextCompanyIdx] = useState(VISIBLE);
-
-	useEffect(() => {
-		if (companies.length <= VISIBLE) {
-			return;
-		}
-
-		const id = setInterval(() => {
-			const slotToSwap = Math.floor(Math.random() * VISIBLE);
-			setSwapIndex(slotToSwap);
-
-			setTimeout(() => {
-				setSlots((prev) => {
-					const next = [...prev];
-					const visible = new Set(next.map((c) => c.name));
-					let idx = nextCompanyIdx;
-					while (visible.has(companies[idx % companies.length].name)) {
-						idx++;
-					}
-					next[slotToSwap] = companies[idx % companies.length];
-					setNextCompanyIdx(idx + 1);
-					return next;
-				});
-				setSwapIndex(-1);
-			}, 500);
-		}, INTERVAL);
-
-		return () => clearInterval(id);
-	}, [nextCompanyIdx]);
-
-	return { slots, swapIndex };
-}
-
 export function TrustedBy() {
-	const { slots, swapIndex } = useRotatingGrid();
-
 	return (
 		<div className="w-full py-10 sm:py-12">
 			<p className="mb-6 text-pretty text-center text-muted-foreground text-sm uppercase tracking-wide">
@@ -184,13 +154,23 @@ export function TrustedBy() {
 				And teams including
 			</p>
 
-			<div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-				{slots.map((company, i) => (
-					<CompanyCard
-						company={company}
-						fading={i === swapIndex}
-						key={`slot-${String(i)}`}
-					/>
+			<div className="flex flex-col gap-3 sm:gap-4">
+				{companyRows.map((row, index) => (
+					<Marquee key={row[0].name}>
+						<MarqueeFade side="left" />
+						<MarqueeFade side="right" />
+						<MarqueeContent
+							direction={index % 2 === 0 ? "left" : "right"}
+							gradient={false}
+							speed={30}
+						>
+							{row.map((company) => (
+								<MarqueeItem key={company.name}>
+									<CompanyCard company={company} />
+								</MarqueeItem>
+							))}
+						</MarqueeContent>
+					</Marquee>
 				))}
 			</div>
 		</div>

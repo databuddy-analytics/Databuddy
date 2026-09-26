@@ -1,7 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
 import type { EmailPayload } from "../../types";
 import { EmailProvider } from "../../providers/email";
-import { buildUptimeNotificationPayload } from "../../templates/uptime";
 
 describe("EmailProvider", () => {
 	test("builds plain text and hides internal metadata from recipients", async () => {
@@ -20,7 +19,7 @@ describe("EmailProvider", () => {
 			metadata: {
 				dashboardUrl: "https://app.databuddy.cc/monitors/1",
 				monitorId: "internal-monitor-id",
-				template: "uptime",
+				template: "anomaly",
 				zScore: 9.42,
 			},
 		});
@@ -30,39 +29,6 @@ describe("EmailProvider", () => {
 		expect(delivered?.text).not.toContain("internal-monitor-id");
 		expect(delivered?.text).not.toContain("Template:");
 		expect(delivered?.text).not.toContain("Z score:");
-	});
-
-	test("does not duplicate uptime message fields or expose raw timestamps", async () => {
-		let delivered: EmailPayload | undefined;
-		const provider = new EmailProvider({
-			defaultTo: "recipient@example.com",
-			sendEmailAction: async (payload) => {
-				delivered = payload;
-			},
-		});
-		const checkedAt = 1_700_000_000_000;
-		const payload = buildUptimeNotificationPayload({
-			checkedAt,
-			error: "Connection refused",
-			httpCode: 503,
-			kind: "down",
-			probeRegion: "eu-west-1",
-			siteLabel: "Acme Corp",
-			totalMs: 250,
-			ttfbMs: 100,
-			url: "https://acme.example",
-		});
-
-		await provider.send(payload);
-
-		expect(delivered?.text).toBe(payload.message);
-		expect(delivered?.html).not.toContain(String(checkedAt));
-		expect(delivered?.text).not.toContain(String(checkedAt));
-		expect(payload.metadata).toMatchObject({
-			checkedAt,
-			httpCode: 503,
-			template: "uptime",
-		});
 	});
 
 	test("hides repeated transition fields but keeps its unique monitored URL", async () => {

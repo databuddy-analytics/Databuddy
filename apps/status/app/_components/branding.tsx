@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { cn } from "@databuddy/ui";
 
-type BrandVariant = "logomark" | "primary-logo" | "wordmark";
+type BrandVariant = "logomark" | "wordmark";
 
 interface BrandingProps {
 	className?: string;
@@ -13,13 +13,11 @@ interface BrandingProps {
 
 const VIEWBOX_ASPECT: Record<BrandVariant, number> = {
 	logomark: 997.25 / 1000,
-	"primary-logo": 4633.76 / 1091.09,
 	wordmark: 3529.1 / 722.77,
 };
 
 const BRAND_PATH: Record<BrandVariant, string> = {
 	logomark: "/brand/logomark",
-	"primary-logo": "/brand/primary-logo",
 	wordmark: "/brand/wordmark",
 };
 

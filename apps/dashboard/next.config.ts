@@ -14,8 +14,25 @@ const demoFrameAncestorSources = [
 	"https://staging.databuddy.cc",
 ] as const;
 
+const apiProxyUrl = readBooleanEnv("SELFHOST")
+	? process.env.API_PROXY_URL?.trim()
+	: undefined;
+
 const nextConfig: NextConfig = {
+	async rewrites() {
+		if (!apiProxyUrl) {
+			return [];
+		}
+		return ["/rpc/:path*", "/v1/:path*"].map((source) => ({
+			source,
+			destination: new URL(source, apiProxyUrl).href,
+		}));
+	},
+	experimental: apiProxyUrl ? { proxyTimeout: 600_000 } : undefined,
 	env: {
+		...(apiProxyUrl && process.env.NEXT_PUBLIC_APP_URL
+			? { NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_APP_URL }
+			: {}),
 		NEXT_PUBLIC_SELFHOST: String(readBooleanEnv("SELFHOST")),
 		NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID: readBooleanEnv("SELFHOST")
 			? ""
