@@ -227,7 +227,7 @@ function PublicIcon({
 					img.style.display = "none";
 				}}
 				src={iconSrc}
-				unoptimized
+				unoptimized={iconSrc.endsWith(".svg")}
 				width={iconSize}
 			/>
 		</div>
