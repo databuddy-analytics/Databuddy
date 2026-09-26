@@ -8,6 +8,7 @@ import dayjs from "dayjs";
 import timezonePlugin from "dayjs/plugin/timezone";
 import utcPlugin from "dayjs/plugin/utc";
 import type { DetectedSignal } from "./detection";
+import { cohortMeasurementEvidence } from "./error-customer-impact";
 
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
@@ -83,11 +84,14 @@ function metricFormat(metric: string): InsightMetric["format"] {
 	return "number";
 }
 
-function isLowerBetter(metric: string): boolean {
-	return ["bounce_rate", "error_count", "lcp", "inp", "refund_amount"].includes(
-		metric
-	);
-}
+export const LOWER_IS_BETTER_METRICS = new Set([
+	"bounce_rate",
+	"error_count",
+	"refund_amount",
+	"lcp",
+	"inp",
+]);
+export const TRAFFIC_METRICS = new Set(["visitors", "sessions", "pageviews"]);
 
 const SEVERITY_RANK = { critical: 2, warning: 1, info: 0 } as const;
 const ZERO_COMPLETION_SUBJECT_SUFFIX = ":zero-completions";
@@ -140,17 +144,14 @@ export function isRegression(signal: DetectedSignal): boolean {
 	if (signal.metric === "inp" && signal.current > 200) {
 		return true;
 	}
-	return isLowerBetter(signal.metric)
+	return LOWER_IS_BETTER_METRICS.has(signal.metric)
 		? signal.direction === "up"
 		: signal.direction === "down";
 }
 const SMALL_COUNT_FLOOR = 10;
 
 export function isInvestigationCandidate(signal: DetectedSignal): boolean {
-	if (
-		signal.severity === "info" &&
-		["visitors", "sessions", "pageviews"].includes(signal.metric)
-	) {
+	if (signal.severity === "info" && TRAFFIC_METRICS.has(signal.metric)) {
 		// Weak top-level traffic is useful context, not an agent turn by itself.
 		return false;
 	}
@@ -307,20 +308,6 @@ function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 
 function evidenceSummary(value: string): string {
 	return value.length <= 500 ? value : `${value.slice(0, 499).trimEnd()}…`;
-}
-
-function cohortMeasurementEvidence(signal: DetectedSignal): string | null {
-	const measurement = signal.cohortMeasurement;
-	if (!measurement) {
-		return null;
-	}
-	const difference =
-		Math.round(
-			(measurement.exposedContinuationPercent -
-				measurement.controlContinuationPercent) *
-				10
-		) / 10;
-	return `Among ${measurement.matchedSessions.toLocaleString("en-US")} error-exposed sessions and ${measurement.matchedSessions.toLocaleString("en-US")} matched control sessions on the same route, day, device, and browser, ${measurement.exposedContinuationPercent.toLocaleString("en-US", { maximumFractionDigits: 1 })}% of exposed sessions later viewed a different page within 10 minutes, versus ${measurement.controlContinuationPercent.toLocaleString("en-US", { maximumFractionDigits: 1 })}% of controls (${difference.toLocaleString("en-US", { maximumFractionDigits: 1 })} percentage points). This is an association, not proof that the error caused the difference.`;
 }
 
 export function prepareInvestigation(

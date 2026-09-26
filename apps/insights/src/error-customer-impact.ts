@@ -15,7 +15,7 @@ export interface RouteContinuationComparison {
 	unmatchedExposedSessions: number;
 }
 
-export interface RouteContinuationPolicy {
+interface RouteContinuationPolicy {
 	minimumCohort: number;
 	minimumExposedMatchRate: number;
 }
@@ -252,22 +252,22 @@ export function parseErrorCustomerImpact(
 	) {
 		throw new Error("Inconsistent error customer impact result");
 	}
-	const expectedCoverage =
-		result.affectedVisitorIdentifiers === 0
-			? 0
-			: Math.round(
-					(result.linkedVisitorIdentifiers /
-						result.affectedVisitorIdentifiers) *
-						1000
-				) / 10;
-	if (Math.abs(result.identityCoveragePercent - expectedCoverage) > 0.05) {
+	if (
+		Math.abs(
+			result.identityCoveragePercent -
+				expectedPercent(
+					result.linkedVisitorIdentifiers,
+					result.affectedVisitorIdentifiers
+				)
+		) > 0.05
+	) {
 		throw new Error("Inconsistent error customer impact identity coverage");
 	}
 	return result;
 }
 
 function continuationEvidenceFromSignal(
-	signal: InvestigationSignal
+	signal: Pick<InvestigationSignal, "cohortMeasurement">
 ): RouteContinuationEvidence | null {
 	const measurement = signal.cohortMeasurement;
 	if (!measurement) {
@@ -375,6 +375,19 @@ function countLabel(value: number, singular: string): string {
 	return `${value.toLocaleString("en-US")} ${singular}${value === 1 ? "" : "s"}`;
 }
 
+function routeContinuationSentence(
+	continuation: RouteContinuationEvidence
+): string {
+	return `Among ${countLabel(continuation.exposedSessions, "error-exposed session")} and ${countLabel(continuation.controlSessions, "matched control session")} on the same route, day, device, and browser, ${continuation.exposedContinuationPercent.toLocaleString("en-US", { maximumFractionDigits: 1 })}% of exposed sessions later viewed a different page within 10 minutes, versus ${continuation.controlContinuationPercent.toLocaleString("en-US", { maximumFractionDigits: 1 })}% of controls (${continuation.percentagePointDifference.toLocaleString("en-US", { maximumFractionDigits: 1 })} percentage points). This is an association, not proof that the error caused the difference.`;
+}
+
+export function cohortMeasurementEvidence(
+	signal: Pick<InvestigationSignal, "cohortMeasurement">
+): string | null {
+	const continuation = continuationEvidenceFromSignal(signal);
+	return continuation ? routeContinuationSentence(continuation) : null;
+}
+
 export function errorCustomerImpactEvidence(
 	impact: ErrorCustomerImpact
 ): string {
@@ -385,11 +398,7 @@ export function errorCustomerImpactEvidence(
 		`${countLabel(impact.identifiedProfiles, "profile")} resolved from same-window session or visitor context. ${impact.linkedVisitorIdentifiers.toLocaleString("en-US")} of ${impact.affectedVisitorIdentifiers.toLocaleString("en-US")} non-empty visitor identifiers had an unambiguous same-window profile link; ${impact.unlinkedVisitorIdentifiers.toLocaleString("en-US")} did not.`,
 	];
 	if (impact.routeContinuation) {
-		facts.splice(
-			1,
-			0,
-			`Among ${countLabel(impact.routeContinuation.exposedSessions, "error-exposed session")} and ${countLabel(impact.routeContinuation.controlSessions, "matched control session")} on the same route, day, device, and browser, ${impact.routeContinuation.exposedContinuationPercent.toLocaleString("en-US", { maximumFractionDigits: 1 })}% of exposed sessions later viewed a different page within 10 minutes, versus ${impact.routeContinuation.controlContinuationPercent.toLocaleString("en-US", { maximumFractionDigits: 1 })}% of controls (${impact.routeContinuation.percentagePointDifference.toLocaleString("en-US", { maximumFractionDigits: 1 })} percentage points). This is an association, not proof that the error caused the difference.`
-		);
+		facts.splice(1, 0, routeContinuationSentence(impact.routeContinuation));
 	}
 	if (impact.identifiedProfilesWithPriorAttributedCompletedPayment > 0) {
 		facts.push(

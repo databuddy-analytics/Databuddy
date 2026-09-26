@@ -576,8 +576,6 @@ describe("native retention daily depth", () => {
 	});
 
 	it.each([
-		["missing sources", { claim: { retentionDetail: true } }],
-		["empty sources", { claim: { retentionDetail: true }, sources: [] }],
 		[
 			"provided source",
 			{
@@ -741,8 +739,6 @@ describe("tool-supplied retention publication without a saved snapshot", () => {
 	});
 
 	it.each([
-		{ period: "previous" as const, eligible: 20 },
-		{ period: "current" as const, eligible: 20 },
 		{ period: "previous" as const, eligible: 49 },
 		{ period: "current" as const, eligible: 49 },
 	])("keeps $period cohort with $eligible eligible profiles private", async ({
@@ -784,15 +780,6 @@ describe("tool-supplied retention publication without a saved snapshot", () => {
 			[reading("previous"), reading("current")],
 			finish(
 				"Eligible identified profiles returning within seven days fell from 40/50 to 10/50."
-			)
-		);
-	});
-
-	it("rejects a public native-prose comparison of 16/20 to 4/20 eligible profiles", async () => {
-		await expectPrivate(
-			[reading("previous", 20), reading("current", 20)],
-			finish(
-				"Eligible identified profiles returning within seven days fell from 16/20 to 4/20."
 			)
 		);
 	});

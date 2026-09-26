@@ -17,7 +17,12 @@ import {
 	type RouteContinuationComparison,
 } from "./error-customer-impact";
 import { emitInsightsEvent } from "./lib/evlog-insights";
-import { rankSignals, signalKeyForDetectedSignal } from "./investigation";
+import {
+	LOWER_IS_BETTER_METRICS,
+	rankSignals,
+	signalKeyForDetectedSignal,
+	TRAFFIC_METRICS,
+} from "./investigation";
 
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
@@ -95,14 +100,6 @@ const ANOMALY_METRICS: AnomalyMetric[] = [
 
 const SESSION_DERIVED_METRICS = new Set(["bounce_rate", "session_duration"]);
 
-const LOWER_IS_BETTER_METRICS = new Set([
-	"bounce_rate",
-	"error_count",
-	"refund_amount",
-	"lcp",
-	"inp",
-]);
-
 function isImprovement(
 	metric: string,
 	current: number,
@@ -139,13 +136,13 @@ function mad(values: number[]): number {
 const MAD_SCALE = 1.4826;
 const ZSCORE_THRESHOLD = 2.5;
 const ZSCORE_MIN_BASELINE = 6;
+const ZSCORE_MIN_DAY_SESSIONS = 100;
 const ZSCORE_HISTORY_DAYS = 22;
 const WOW_TRAFFIC_THRESHOLD = 40;
 const WOW_ERROR_THRESHOLD = 40;
 const WOW_REVENUE_THRESHOLD = 30;
 const WOW_VITALS_THRESHOLD = 30;
 const CUSTOM_EVENT_DROP_THRESHOLD = 50;
-const CUSTOM_EVENT_MIN_BASELINE = 10;
 const REVENUE_MIN_ABSOLUTE_CHANGE = 25;
 const REVENUE_MIN_TRANSACTIONS = 5;
 const FILTER_SESSION_DURATION_MIN_DELTA = 60;
@@ -178,7 +175,6 @@ export const INSIGHT_VITALS = {
 		maxPlausible: 10_000,
 	},
 } as const;
-const VITALS = INSIGHT_VITALS;
 const VITALS_MIN_SAMPLES = 10;
 const PERSISTENT_LCP_MIN_SAMPLES = 100;
 const PERSISTENT_LCP_POOR_THRESHOLD = 4000;
@@ -251,9 +247,7 @@ const METRIC_FILTERS: Record<string, SignalFilter> = {
 		Math.abs(s.current - s.baseline) >= FILTER_BOUNCE_MIN_DELTA,
 	custom_event_count: () => true,
 	custom_event_reach: () => true,
-	error_count: (s) =>
-		Math.abs(s.current - s.baseline) >= FILTER_ERROR_MIN_DELTA &&
-		Math.max(s.current, s.baseline) >= FILTER_ERROR_MIN_PEAK,
+	error_count: () => true,
 	inp: () => true,
 	lcp: () => true,
 	revenue: () => true,
@@ -277,12 +271,7 @@ export function makeWowSignal(
 	detectedAt: string,
 	options: { round?: boolean } = {}
 ): DetectedSignal {
-	const pct =
-		baseline === 0
-			? current === 0
-				? 0
-				: 100
-			: safeDeltaPercent(current, baseline);
+	const pct = safeDeltaPercent(current, baseline);
 	const lowerIsBetter = LOWER_IS_BETTER_METRICS.has(metric);
 	const direction = lowerIsBetter
 		? current > baseline
@@ -319,38 +308,39 @@ function makeRevenueSignal(
 	if (!(c.success && p.success) || c.data < 0 || p.data < 0) {
 		return null;
 	}
+	const signal = makeWowSignal(
+		"revenue",
+		`${currency} gross revenue`,
+		c.data,
+		p.data,
+		detectedAt
+	);
 	return {
-		...makeWowSignal(
-			"revenue",
-			`${currency} gross revenue`,
-			c.data,
-			p.data,
-			detectedAt
-		),
+		...signal,
+		severity:
+			signal.direction === "down" && signal.severity === "info"
+				? "warning"
+				: signal.severity,
 		subjectKey: `revenue:${currency}`,
 		investigationObjective:
-			"Find which measured receipt groups account for the gross revenue change and what decision that concentration changes. Inspect revenue_by_product; its names can be payment or invoice descriptions, not verified catalog products. Separate missing coverage from an unchanged group. Do not infer profit, acquisition ROI or subscription churn.",
-		definitionEvidence: `Business meaning: gross settled revenue in ${currency}, excluding refunds. The snapshot alone is not publication evidence: confirm with revenue_overview for this currency across both complete signal windows.`,
+			"Find which measured product or payment-description groups account for the gross revenue change and what decision that concentration changes. Inspect revenue_by_product; its names can be payment or invoice descriptions, not verified catalog products. Separate missing coverage from an unchanged group. Do not infer profit, acquisition ROI or subscription churn.",
+		definitionEvidence: `Business meaning: gross revenue from completed payments in ${currency}, excluding refunds. The snapshot alone is not publication evidence: confirm with revenue_overview for this currency across both complete signal windows.`,
 	};
 }
 
 const commercialNumberSchema = z
 	.union([z.number(), z.string().trim().min(1)])
 	.pipe(z.coerce.number<string | number>().finite());
+const countSchema = commercialNumberSchema.pipe(z.number().int().nonnegative());
 const commercialOverviewSchema = z.object({
 	total_revenue: commercialNumberSchema.pipe(z.number().nonnegative()),
-	total_transactions: commercialNumberSchema.pipe(
-		z.number().int().nonnegative()
-	),
+	total_transactions: countSchema,
 	// The native ledger sums refunds as negative amounts; discovery compares money returned.
 	refund_amount: commercialNumberSchema
 		.transform(Math.abs)
 		.nullish()
 		.catch(null),
-	refund_count: commercialNumberSchema
-		.pipe(z.number().int().nonnegative())
-		.nullish()
-		.catch(null),
+	refund_count: countSchema.nullish().catch(null),
 	attributed_revenue: commercialNumberSchema
 		.pipe(z.number().nonnegative())
 		.nullish()
@@ -365,7 +355,7 @@ const productRevenueRowSchema = z.object({
 		.string()
 		.refine((value) => value.trim().length > 0 && value.trim() !== "Unknown"),
 	revenue: commercialNumberSchema.pipe(z.number().nonnegative()),
-	transactions: commercialNumberSchema.pipe(z.number().int().nonnegative()),
+	transactions: countSchema,
 });
 
 function productRevenueRows(rows: Record<string, unknown>[]) {
@@ -431,7 +421,7 @@ function makeProductRevenueSignal(
 	return {
 		...makeWowSignal(
 			"product_revenue",
-			`${label} ${current.currency} receipts`,
+			`${label} ${current.currency} payments`,
 			current.revenue,
 			previous.revenue,
 			detectedAt
@@ -440,8 +430,8 @@ function makeProductRevenueSignal(
 		entityId: current.name,
 		entityLabel: label,
 		investigationObjective:
-			"Find material changes in the composition of settled receipts, even when total revenue is flat. A verified material receipt-description shift is a measured business result and can publish with resolve when no cause or repair is known. Confirm revenue_overview for both windows: currency, provider, product_name=signal.entity.id and product_id=empty string, plus a separate currency-only whole control. These are payment descriptions, not verified catalog products. Do not infer churn, causality or absence from a limited table.",
-		definitionEvidence: `${current.provider} receipts described ${JSON.stringify(current.name)} with no product ID, ${current.currency} gross settled revenue excluding refunds: ${previous.revenue} across ${previous.transactions} transactions → ${current.revenue} across ${current.transactions}. Whole-currency gross: ${p.total_revenue} → ${c.total_revenue}; receipt-description share: ${round2(previousShare)}% → ${round2(currentShare)}%. Remaining gross: ${p.total_revenue - previous.revenue} → ${c.total_revenue - current.revenue}. Confirm description and whole controls with native revenue_overview; the snapshot alone cannot support publication.`,
+			"Find material changes in the composition of payments, even when total revenue is flat. A verified material payment-description shift is a measured business result and can publish with resolve when no cause or repair is known. Confirm revenue_overview for both windows: currency, provider, product_name=signal.entity.id and product_id=empty string, plus a separate currency-only whole control. These are payment descriptions, not verified catalog products. Do not infer churn, causality or absence from a limited table.",
+		definitionEvidence: `${current.provider} payments described ${JSON.stringify(current.name)} with no product ID, ${current.currency} gross revenue from completed payments excluding refunds: ${previous.revenue} across ${previous.transactions} transactions → ${current.revenue} across ${current.transactions}. Whole-currency gross: ${p.total_revenue} → ${c.total_revenue}; payment-description share: ${round2(previousShare)}% → ${round2(currentShare)}%. Remaining gross: ${p.total_revenue - previous.revenue} → ${c.total_revenue - current.revenue}. Confirm description and whole controls with native revenue_overview; the snapshot alone cannot support publication.`,
 	};
 }
 
@@ -485,8 +475,8 @@ function commercialSignals(
 				),
 				subjectKey: `refund_amount:${currency}`,
 				investigationObjective:
-					"Investigate the independent refund change and its operational consequence even if gross settled revenue is unchanged. Reconcile amounts and refund counts in this exact currency; do not let stable gross suppress refund review.",
-				definitionEvidence: `${currency} refunds: ${p.refund_amount} across ${p.refund_count} refunds → ${c.refund_amount} across ${c.refund_count}. Gross settled revenue: ${p.total_revenue} → ${c.total_revenue}; refunds are independent of gross, not subtracted from it. Refunds can refer to earlier purchases, so this is not a purchase-cohort refund rate. Confirm both complete windows with revenue_overview.`,
+					"Investigate the independent refund change and its operational consequence even if gross revenue from completed payments is unchanged. Reconcile amounts and refund counts in this exact currency; do not let stable gross suppress refund review.",
+				definitionEvidence: `${currency} refunds: ${p.refund_amount} across ${p.refund_count} refunds → ${c.refund_amount} across ${c.refund_count}. Gross revenue: ${p.total_revenue} → ${c.total_revenue}; refunds are independent of gross, not subtracted from it. Refunds can refer to earlier purchases, so this is not a purchase-cohort refund rate. Confirm both complete windows with revenue_overview.`,
 			});
 		}
 	}
@@ -516,7 +506,7 @@ function commercialSignals(
 				subjectKey: `attribution_rate:${currency}`,
 				investigationObjective:
 					"Investigate the independent attribution coverage change and which acquisition comparison is now unsafe or newly supported. Retain this decision separately from refunds or gross movement. Unattributed revenue is not lost sales.",
-				definitionEvidence: `${currency} attributed settled revenue: ${p.attributed_revenue} of ${p.total_revenue} gross → ${c.attributed_revenue} of ${c.total_revenue} gross. Coverage is ${previousRate}% → ${currentRate}%. This changes which acquisition decisions the observed attribution supports; unattributed revenue is not lost sales. Confirm both complete windows with revenue_overview; attribution does not establish acquisition causality.`,
+				definitionEvidence: `${currency} attributed revenue: ${p.attributed_revenue} of ${p.total_revenue} gross → ${c.attributed_revenue} of ${c.total_revenue} gross. Coverage is ${previousRate}% → ${currentRate}%. This changes which acquisition decisions the observed attribution supports; unattributed revenue is not lost sales. Confirm both complete windows with revenue_overview; attribution does not establish acquisition causality.`,
 			});
 		}
 	}
@@ -588,6 +578,29 @@ function errorLabel(row: Record<string, unknown> | undefined): string {
 	return `${errorType ? `${errorType}: ` : ""}${message}${location ? ` at ${location}` : ""}`;
 }
 
+function errorCountSignal(
+	label: string,
+	fingerprint: string,
+	currentRow: Record<string, unknown> | undefined,
+	previousRow: Record<string, unknown> | undefined,
+	detectedAt: string
+): DetectedSignal {
+	const signal = makeWowSignal(
+		"error_count",
+		label,
+		numberField(currentRow, "count"),
+		numberField(previousRow, "count"),
+		detectedAt
+	);
+	return {
+		...signal,
+		definitionEvidence: `${label} occurred ${signal.current} times across ${numberField(currentRow, "users")} visitor identifiers, compared with ${signal.baseline} occurrences across ${numberField(previousRow, "users")} visitor identifiers previously.`,
+		entityId: fingerprint,
+		entityLabel: label,
+		subjectKey: `error:${fingerprint}`,
+	};
+}
+
 function errorBehaviorSignal(params: {
 	behavior: RouteContinuationComparison;
 	currentRow: Record<string, unknown>;
@@ -595,24 +608,18 @@ function errorBehaviorSignal(params: {
 	fingerprint: string;
 	previousRow: Record<string, unknown> | undefined;
 }): DetectedSignal {
-	const current = numberField(params.currentRow, "count");
-	const previous = numberField(params.previousRow, "count");
-	const label = errorLabel(params.currentRow ?? params.previousRow);
 	const material = hasMaterialRouteContinuation(params.behavior);
 	return {
-		...makeWowSignal(
-			"error_count",
-			label,
-			current,
-			previous,
+		...errorCountSignal(
+			errorLabel(params.currentRow ?? params.previousRow),
+			params.fingerprint,
+			params.currentRow,
+			params.previousRow,
 			params.detectedAt
 		),
 		cohortMeasurement: matchedErrorContinuationMeasurement(params.behavior),
 		deltaPercent: 0,
 		direction: material ? "up" : "down",
-		definitionEvidence: `${label} occurred ${current} times across ${numberField(params.currentRow, "users")} visitor identifiers, compared with ${previous} occurrences across ${numberField(params.previousRow, "users")} visitor identifiers previously.`,
-		entityId: params.fingerprint,
-		entityLabel: label,
 		method: "behavior",
 		severity: material
 			? params.behavior.exposedSessions >= 100 &&
@@ -620,7 +627,6 @@ function errorBehaviorSignal(params: {
 				? "critical"
 				: "warning"
 			: "info",
-		subjectKey: `error:${params.fingerprint}`,
 	};
 }
 
@@ -714,13 +720,10 @@ async function detectErrorBehaviorSignals(params: {
 	return signals;
 }
 
-const customEventCount = z
-	.union([z.number(), z.string().trim().min(1).pipe(z.coerce.number())])
-	.pipe(z.number().int().nonnegative());
 const customEventCounts = z.object({
-	total_events: customEventCount,
-	unique_users: customEventCount,
-	unique_sessions: customEventCount,
+	total_events: countSchema,
+	unique_users: countSchema,
+	unique_sessions: countSchema,
 });
 
 function makeCustomEventSignal(
@@ -773,7 +776,7 @@ function isWeekend(dateStr: string): boolean {
 	return day === 0 || day === 6;
 }
 
-function numberField(
+export function numberField(
 	row: Record<string, unknown> | undefined,
 	key: string
 ): number {
@@ -781,7 +784,7 @@ function numberField(
 	return Number.isFinite(value) ? value : 0;
 }
 
-function stringField(
+export function stringField(
 	row: Record<string, unknown> | undefined,
 	key: string
 ): string | null {
@@ -944,21 +947,16 @@ export async function remeasureMetricSignal(
 		const [currentRows, previousRows] = pair.value;
 		const currentRow = currentRows[0];
 		const previousRow = previousRows[0];
-		const label = prior.entity.label || prior.metric.label;
-		const countSignal = () => {
-			const signal = makeWowSignal(
-				"error_count",
-				label,
-				numberField(currentRow, "count"),
-				numberField(previousRow, "count"),
+		const countSignal = () => ({
+			...errorCountSignal(
+				prior.entity.label || prior.metric.label,
+				fingerprint,
+				currentRow,
+				previousRow,
 				currentTo
-			);
-			signal.subjectKey = prior.signalKey;
-			signal.entityId = fingerprint;
-			signal.entityLabel = label;
-			signal.definitionEvidence = `${label} occurred ${signal.current} times across ${numberField(currentRow, "users")} visitor identifiers, compared with ${signal.baseline} occurrences across ${numberField(previousRow, "users")} visitor identifiers previously.`;
-			return signal;
-		};
+			),
+			subjectKey: prior.signalKey,
+		});
 		if (prior.cohortMeasurement) {
 			if (!currentRow) {
 				return countSignal();
@@ -1010,6 +1008,7 @@ export async function remeasureMetricSignal(
 
 	if (prior.signalKey.startsWith("product_revenue:")) {
 		const [, currency, provider, selector] = prior.signalKey.split(":");
+		const key = `product_revenue:${currency}:${provider}:product_name:${encodeURIComponent(prior.entity.id)}`;
 		if (
 			normalizeCurrencyCode(currency) !== currency ||
 			selector !== "product_name" ||
@@ -1017,7 +1016,7 @@ export async function remeasureMetricSignal(
 			!prior.entity.id ||
 			signalKeyForDetectedSignal({
 				metric: "product_revenue",
-				subjectKey: `product_revenue:${currency}:${provider}:product_name:${encodeURIComponent(prior.entity.id)}`,
+				subjectKey: key,
 			}) !== prior.signalKey
 		) {
 			return null;
@@ -1039,7 +1038,6 @@ export async function remeasureMetricSignal(
 		if (!(product.value && whole.value)) {
 			return null;
 		}
-		const key = `product_revenue:${currency}:${provider}:product_name:${encodeURIComponent(prior.entity.id)}`;
 		const [current, previous] = product.value.map((rows) =>
 			productRevenueRows(rows).get(key)
 		);
@@ -1092,7 +1090,8 @@ export async function remeasureMetricSignal(
 			: null;
 	}
 
-	const vital = prior.signalKey === "lcp" ? VITALS.LCP : VITALS.INP;
+	const vital =
+		prior.signalKey === "lcp" ? INSIGHT_VITALS.LCP : INSIGHT_VITALS.INP;
 	if (prior.signalKey === "lcp" || prior.signalKey === "inp") {
 		const pair = await readPair("vitals", "vitals_overview");
 		if (!pair.value) {
@@ -1144,7 +1143,7 @@ interface DetectorFamilyResult<T> {
 	value: T | null;
 }
 
-function rethrowDetectionAbort(
+export function rethrowDetectionAbort(
 	error: unknown,
 	abortSignal?: AbortSignal
 ): void {
@@ -1260,7 +1259,6 @@ export async function detectSignals(
 	const sorted = history.failed
 		? []
 		: densifyDailyHistory(history.value ?? [], dailyFrom, dailyTo);
-	const historyIncomplete = history.failed;
 	const zscoreSignals = history.failed ? [] : detectZscore(sorted);
 
 	const baselineRows = sorted.slice(0, -1);
@@ -1282,14 +1280,12 @@ export async function detectSignals(
 		wowThresholds,
 		abortSignal
 	);
-	const wowSignals = wow.signals;
 	if (diagnostics) {
-		diagnostics.failedFamilies =
-			(historyIncomplete ? 1 : 0) + wow.failedFamilies;
+		diagnostics.failedFamilies = (history.failed ? 1 : 0) + wow.failedFamilies;
 	}
 
 	const wowDirection = new Map<string, "up" | "down">();
-	for (const s of wowSignals) {
+	for (const s of wow.signals) {
 		wowDirection.set(s.metric, s.direction);
 	}
 	const reconciledZscore = zscoreSignals.filter((s) => {
@@ -1297,7 +1293,7 @@ export async function detectSignals(
 		return wow === undefined || wow === s.direction;
 	});
 
-	const all = [...reconciledZscore, ...wowSignals];
+	const all = [...reconciledZscore, ...wow.signals];
 
 	const bySubject = new Map<string, DetectedSignal>();
 	for (const signal of all) {
@@ -1306,6 +1302,9 @@ export async function detectSignals(
 		if (
 			!prev ||
 			(signal.method === "behavior" && prev.method !== "behavior") ||
+			(signal.method === "wow" &&
+				prev.method === "zscore" &&
+				Math.abs(prev.deltaPercent) < 1.5 * Math.abs(signal.deltaPercent)) ||
 			(signal.method === prev.method &&
 				Math.abs(signal.deltaPercent) > Math.abs(prev.deltaPercent))
 		) {
@@ -1329,8 +1328,6 @@ export async function detectSignals(
 	);
 }
 
-const TRAFFIC_METRICS = new Set(["visitors", "sessions", "pageviews"]);
-
 function collapseCorrelated(signals: DetectedSignal[]): DetectedSignal[] {
 	const up = signals.filter((s) => s.direction === "up");
 	const down = signals.filter((s) => s.direction === "down");
@@ -1353,10 +1350,6 @@ function collapseCorrelated(signals: DetectedSignal[]): DetectedSignal[] {
 }
 
 function detectZscore(sorted: Record<string, unknown>[]): DetectedSignal[] {
-	if (sorted.length < 7) {
-		return [];
-	}
-
 	const latest = sorted.at(-1);
 	if (!latest) {
 		return [];
@@ -1380,15 +1373,14 @@ function detectZscore(sorted: Record<string, unknown>[]): DetectedSignal[] {
 	for (const metric of ANOMALY_METRICS) {
 		if (
 			SESSION_DERIVED_METRICS.has(metric.key) &&
-			numberField(latest, "sessions") === 0
+			numberField(latest, "sessions") < ZSCORE_MIN_DAY_SESSIONS
 		) {
 			continue;
 		}
 		const comparableRows = baseline.filter(
 			(row) =>
-				Number.isFinite(numberField(row, metric.dailyField)) &&
-				(!SESSION_DERIVED_METRICS.has(metric.key) ||
-					numberField(row, "sessions") > 0)
+				!SESSION_DERIVED_METRICS.has(metric.key) ||
+				numberField(row, "sessions") > 0
 		);
 		const baselineValues = comparableRows.map((row) =>
 			numberField(row, metric.dailyField)
@@ -1614,17 +1606,18 @@ async function detectWow(
 		) {
 			continue;
 		}
-		const row = affectedRow ?? currentRow ?? previousRow;
-		const label = errorLabel(row);
-		const signal = capLowReachSeverity(
-			makeWowSignal("error_count", label, current, previous, currentTo),
-			affectedUsers
+		signals.push(
+			capLowReachSeverity(
+				errorCountSignal(
+					errorLabel(affectedRow ?? currentRow ?? previousRow),
+					fingerprint,
+					currentRow,
+					previousRow,
+					currentTo
+				),
+				affectedUsers
+			)
 		);
-		signal.subjectKey = `error:${fingerprint}`;
-		signal.entityId = fingerprint;
-		signal.entityLabel = label;
-		signal.definitionEvidence = `${label} occurred ${current} times across ${numberField(currentRow, "users")} visitor identifiers, compared with ${previous} occurrences across ${numberField(previousRow, "users")} visitor identifiers previously.`;
-		signals.push(signal);
 	}
 	const behaviorSignals = await detectErrorBehaviorSignals({
 		abortSignal,
@@ -1672,7 +1665,7 @@ async function detectWow(
 			numberField(previousRow, "unique_sessions")
 		);
 		if (
-			previous < CUSTOM_EVENT_MIN_BASELINE ||
+			previous - current <= 3 * Math.sqrt(previous + current) ||
 			previousReach < MIN_AFFECTED_USERS ||
 			safeDeltaPercent(current, previous) > -CUSTOM_EVENT_DROP_THRESHOLD
 		) {
@@ -1809,7 +1802,7 @@ async function detectWow(
 	const vitalsCurrentMap = mapRowsByStringField(currentVitals, "metric_name");
 	const vitalsPreviousMap = mapRowsByStringField(previousVitals, "metric_name");
 
-	for (const [metricName, vital] of Object.entries(VITALS)) {
+	for (const [metricName, vital] of Object.entries(INSIGHT_VITALS)) {
 		const cur = vitalsCurrentMap.get(metricName);
 		const prev = vitalsPreviousMap.get(metricName);
 		const curVal = numberField(cur, "p75");
@@ -1861,10 +1854,7 @@ async function detectWow(
 				.length + (customEventsFailed ? 1 : 0),
 		signals,
 		weeklySessions:
-			(Math.max(
-				numberField(currentSummary[0], "sessions"),
-				numberField(previousSummary[0], "sessions")
-			) /
+			(Math.max(currentSessions, previousSessions) /
 				Math.max(3, lookbackDays)) *
 			7,
 	};

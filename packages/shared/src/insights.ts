@@ -1042,7 +1042,7 @@ export function describeInsightDefinitionAction(
 	}
 	if (changes.steps != null) {
 		edits.push(
-			`replace steps with ${changes.steps.map((step) => `${step.name} (${step.type}: ${step.target})`).join(" → ")}`
+			`replace steps with ${changes.steps.map((step) => `${step.name} (${step.type}: ${step.target}${step.conditions && Object.keys(step.conditions).length > 0 ? "; existing conditions kept" : ""})`).join(" → ")}`
 		);
 	}
 	if (changes.filters != null) {

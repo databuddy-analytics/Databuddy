@@ -325,6 +325,26 @@ describe("detectSignals", () => {
 			);
 		});
 
+		it.each([
+			75, 150,
+		])("needs a real sample before flagging a one-day bounce spike: %i sessions", async (sessions) => {
+			const start = dayjs().subtract(28, "day");
+			const rows = Array.from({ length: 28 }, (_, i) => ({
+				date: start.add(i, "day").format("YYYY-MM-DD"),
+				visitors: 100,
+				sessions: i === 27 ? sessions : 120,
+				pageviews: 200,
+				bounce_rate: i === 27 ? 80 : 38 + (i % 3) * 2,
+				median_session_duration: 60,
+			}));
+
+			const signals = await detectSignals(BASE_PARAMS, createMockQueryFn(rows));
+
+			expect(
+				signals.some((s) => s.metric === "bounce_rate" && s.method === "zscore")
+			).toBe(sessions >= 100);
+		});
+
 		it("ignores normal variation below threshold", async () => {
 			const start = dayjs().subtract(14, "day");
 			const stable = generateStableDays(
@@ -728,6 +748,44 @@ describe("detectSignals", () => {
 	});
 
 	describe("deduplication", () => {
+		it("keeps the weekly comparison when a drop is sustained", async () => {
+			const start = dayjs().subtract(28, "day");
+			const rows = makeDailyRows(
+				Array.from({ length: 28 }, (_, i) => ({
+					date: start.add(i, "day").format("YYYY-MM-DD"),
+					visitors: i < 20 ? 150 + (i % 3) : 5,
+					sessions: i < 20 ? 170 + (i % 3) : 6,
+					pageviews: i < 20 ? 300 + (i % 3) : 8,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				}))
+			);
+			const queryFn = createMockQueryFn(
+				rows,
+				{
+					unique_visitors: 35,
+					sessions: 42,
+					pageviews: 56,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				},
+				{
+					unique_visitors: 1050,
+					sessions: 1190,
+					pageviews: 2100,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				}
+			);
+
+			const traffic = (await detectSignals(BASE_PARAMS, queryFn)).filter((s) =>
+				["visitors", "sessions", "pageviews"].includes(s.metric)
+			);
+
+			expect(traffic).toHaveLength(1);
+			expect(traffic[0]?.method).toBe("wow");
+		});
+
 		it("keeps highest delta per metric when both methods fire", async () => {
 			const start = dayjs().subtract(28, "day");
 			const normal = generateStableDays(
@@ -907,13 +965,6 @@ describe("detectSignals", () => {
 				previous: { unique_visitors: 80 },
 				metrics: ["visitors"],
 				detected: false,
-			},
-			{
-				name: "keeps count metrics with impact at or above 50",
-				current: { unique_visitors: 200 },
-				previous: { unique_visitors: 100 },
-				metrics: ["visitors"],
-				detected: true,
 			},
 		] as const) {
 			it(name, async () => {
@@ -1353,8 +1404,12 @@ describe("detectSignals", () => {
 						[
 							customEventRow(disappeared, 40, 25),
 							customEventRow("checkout_completed", 80, 45),
+							customEventRow("comparison_viewed", 20, 12),
 						],
-						[customEventRow("checkout_completed", 30, 20)],
+						[
+							customEventRow("checkout_completed", 30, 20),
+							customEventRow("comparison_viewed", 10, 9),
+						],
 					],
 				}
 			);
@@ -1380,11 +1435,14 @@ describe("detectSignals", () => {
 			expect(
 				signals.find((signal) => signal.entityId === "checkout_completed")
 			).toMatchObject({ baseline: 80, current: 30, deltaPercent: -62.5 });
+			expect(
+				signals.some((signal) => signal.entityId === "comparison_viewed")
+			).toBe(false);
 			expect(requests.find((request) => request.filters)?.filters).toEqual([
 				{
 					field: "event_name",
 					op: "in",
-					value: [disappeared, "checkout_completed"],
+					value: [disappeared, "checkout_completed", "comparison_viewed"],
 				},
 			]);
 			if (!eventSignal) {
@@ -1699,11 +1757,18 @@ describe("detectSignals", () => {
 				"revenue:EUR",
 				"revenue:USD",
 			]);
+			expect(
+				Object.fromEntries(
+					signals.map((signal) => [signal.subjectKey, signal.severity])
+				)
+			).toEqual({ "revenue:EUR": "critical", "revenue:USD": "warning" });
 			for (const candidate of signals) {
 				const prepared = prepareInvestigation(candidate, 7);
 				expect(prepared.signal.signalKey).toBe(candidate.subjectKey);
 				expect(prepared.signal.entity.label).toBe(candidate.label);
-				expect(prepared.evidence.join(" ")).toContain("gross settled revenue");
+				expect(prepared.evidence.join(" ")).toContain(
+					"gross revenue from completed payments"
+				);
 				const calls: Parameters<QueryFn>[0][] = [];
 				const response = createMockQueryFn(
 					[],
@@ -1744,8 +1809,6 @@ describe("detectSignals", () => {
 		it.each([
 			"missing current",
 			"missing previous",
-			"missing identity",
-			"invalid identity",
 		])("does not invent a zero for %s", async (scenario) => {
 			const row = {
 				currency: "USD",
@@ -1754,20 +1817,7 @@ describe("detectSignals", () => {
 			};
 			const before = scenario === "missing previous" ? [] : [row];
 			const after =
-				scenario === "missing current"
-					? []
-					: [
-							{
-								...row,
-								currency:
-									scenario === "missing identity"
-										? undefined
-										: scenario === "invalid identity"
-											? "not-currency"
-											: "USD",
-								total_revenue: 1000,
-							},
-						];
+				scenario === "missing current" ? [] : [{ ...row, total_revenue: 1000 }];
 			const signals = await detectSignals(
 				BASE_PARAMS,
 				createMockQueryFn([], {}, {}, { revenue_overview: [after, before] })

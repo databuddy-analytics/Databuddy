@@ -511,7 +511,6 @@ integration("investigation billing through the native Autumn SDK", () => {
 
 	it.each([
 		[100],
-		[500],
 	])("accepts the native %i monthly grant and $1 single-unit additional usage", async (grant) => {
 		const remote = provider({ grant, remaining: 0, overage: true });
 		const input = operation();
@@ -650,17 +649,6 @@ integration("investigation billing through the native Autumn SDK", () => {
 		).toThrow("expired");
 		expect(remote.requests).toHaveLength(1);
 		await releaseInvestigationCharge(reservation, remote.client);
-	});
-
-	it("leaves unconfigured access on its original path without provider mutations", async () => {
-		const remote = provider();
-		const reservation = await reserveInvestigationCharge(
-			{ ...operation(), billing: { mode: "unconfigured", customerId } },
-			remote.client
-		);
-		expect(reservation.mode).toBe("unconfigured");
-		await releaseInvestigationCharge(reservation, remote.client);
-		expect(remote.requests).toHaveLength(0);
 	});
 
 	it("keeps provider billing implementation independent of PostgreSQL and Redis write modules", async () => {

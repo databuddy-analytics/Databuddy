@@ -60,7 +60,6 @@
     "dev:slack": "dotenv -- turbo dev --env-mode=loose --filter @databuddy/slack",
     "dev:status": "dotenv -- turbo dev --env-mode=loose --filter @databuddy/status --filter @databuddy/api",
     "git:setup-aliases": "git config --local include.path ../gitconfig",
-    "insights:production-shadow": "dotenv -- bun run --cwd apps/insights src/production-shadow.ts",
     "check": "ultracite check",
     "fix": "ultracite fix",
     "changeset": "changeset",
