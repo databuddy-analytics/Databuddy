@@ -5,8 +5,8 @@ import type { CustomSqlContext, SimpleQueryConfig } from "../types";
 
 const AGENT_PRODUCT =
 	"transform(agent_id, {agentIds:Array(String)}, {agentProducts:Array(String)}, bot_name)";
-const REFERRER_PRODUCT =
-	"transform(domainWithoutWWW(referrer), {aiDomains:Array(String)}, {aiNames:Array(String)}, transform(utm_source, {aiDomains:Array(String)}, {aiNames:Array(String)}, ''))";
+const VISIT_PRODUCT =
+	"if(browser_name IN ('Claude', 'Cursor'), browser_name, transform(domainWithoutWWW(referrer), {aiDomains:Array(String)}, {aiNames:Array(String)}, transform(utm_source, {aiDomains:Array(String)}, {aiNames:Array(String)}, '')))";
 const PURPOSE_COUNTS = `countIf(agent_purpose = 'training') AS training,
 	countIf(agent_purpose = 'search_index') AS search_index,
 	countIf(agent_purpose IN ('user_fetch', 'agent')) AS on_demand`;
@@ -40,7 +40,7 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 		meta: {
 			title: "AI Products",
 			description:
-				"AI products (ChatGPT, Claude, Perplexity, Gemini, Meta AI and others) with the requests their crawlers and agents made, pages they read, purpose split, and visitors they referred.",
+				"AI products (ChatGPT, Claude, Perplexity, Gemini, Meta AI and others) with the requests their crawlers and agents made, pages they read, purpose split, and visitors they sent through referrals or their desktop app browser.",
 			category: "AI Agents",
 			tags: ["ai", "agents", "crawlers", "chatgpt", "claude", "referrals"],
 			output_fields: [
@@ -73,7 +73,7 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 					GROUP BY product
 				) AS c
 				FULL OUTER JOIN (
-					SELECT ${REFERRER_PRODUCT} AS product, uniq(session_id) AS visitors
+					SELECT ${VISIT_PRODUCT} AS product, uniq(session_id) AS visitors
 					FROM ${Analytics.events}
 					WHERE ${EVENT_RANGE}
 					GROUP BY product
@@ -123,6 +123,40 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 		customizable: false,
 	},
 
+	ai_product_visitors: {
+		meta: {
+			title: "AI Visitors Over Time",
+			description:
+				"Visitors per day (or hour) sent by each AI product, from its referrals and from its desktop app browser (Claude, Cursor).",
+			category: "AI Agents",
+			tags: ["ai", "referrals", "visitors", "time-series"],
+			output_fields: [
+				{ name: "date", type: "string", label: "Date" },
+				{ name: "product", type: "string", label: "Product" },
+				{ name: "visitors", type: "number", label: "Visitors" },
+			],
+			default_visualization: "timeseries",
+			supports_granularity: ["hour", "day"],
+		},
+		customSql: (ctx) => {
+			const bucket =
+				ctx.granularity === "hour" ? "toStartOfHour(time)" : "toDate(time)";
+			return {
+				sql: `
+					SELECT ${bucket} AS date, ${VISIT_PRODUCT} AS product, uniq(session_id) AS visitors
+					FROM ${Analytics.events}
+					WHERE ${EVENT_RANGE}
+					GROUP BY date, product
+					HAVING product != ''
+					ORDER BY date ASC
+				`,
+				params: productParams(ctx),
+			};
+		},
+		timeField: "time",
+		customizable: false,
+	},
+
 	ai_agent_pages: {
 		meta: {
 			title: "Pages Read by AI Agents",
@@ -157,7 +191,7 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 					SELECT
 						${pageOf("path")} AS page,
 						countIf(event_name = 'screen_view') AS pageviews,
-						uniqIf(session_id, ${REFERRER_PRODUCT} != '') AS visitors
+						uniqIf(session_id, ${VISIT_PRODUCT} != '') AS visitors
 					FROM ${Analytics.events}
 					WHERE ${EVENT_RANGE} AND path != ''
 					GROUP BY page
