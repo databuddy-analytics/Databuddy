@@ -213,8 +213,6 @@ function slimCatalog(jobs: Segment[], catalog: Catalog): Catalog {
 	return {
 		...catalog,
 		trackedRoutes: catalog.trackedRoutes.filter(relevant),
-		trackingHelpers: catalog.trackingHelpers.filter(relevant),
-		warehouseWrites: catalog.warehouseWrites.filter(relevant),
 		attributeTracking: catalog.attributeTracking.filter(
 			(entry) => entry.startsWith("data-track listener") || relevant(entry)
 		),
