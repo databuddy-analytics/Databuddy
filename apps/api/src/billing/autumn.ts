@@ -202,43 +202,34 @@ function autumnErrorResponse(code: "NOT_FOUND" | "VALIDATION") {
 	return Response.json(response.payload, { status: response.status });
 }
 
-function isInviteOnlyAttach(segment: string, body: JSONValue): boolean {
-	return (
-		segment === "attach" &&
-		body !== null &&
-		typeof body === "object" &&
-		!Array.isArray(body) &&
-		typeof body.planId === "string" &&
-		INVITE_ONLY_PLAN_IDS.has(body.planId)
-	);
-}
-
 export async function handleAutumnRequest(request: Request) {
-	if (!ALLOWED_AUTUMN_ROUTES.has(autumnPathSegment(request))) {
+	const segment = autumnPathSegment(request);
+	if (!ALLOWED_AUTUMN_ROUTES.has(segment)) {
 		return autumnErrorResponse("NOT_FOUND");
 	}
 	const sanitized = await stripPrivilegedBody(request);
-	const segment = autumnPathSegment(sanitized);
 	const identity = await identifyAutumnCustomer(sanitized).catch(() => null);
 	if (sanitized.method !== "GET" && sanitized.method !== "HEAD") {
 		const body: JSONValue = await sanitized
 			.clone()
 			.json()
 			.catch(() => null);
+		const attachBody =
+			segment === "attach" &&
+			body !== null &&
+			typeof body === "object" &&
+			!Array.isArray(body)
+				? body
+				: null;
 		if (
 			!isInvestigationPurchaseValid(body, segment) ||
-			isInviteOnlyAttach(segment, body)
+			(typeof attachBody?.planId === "string" &&
+				INVITE_ONLY_PLAN_IDS.has(attachBody.planId))
 		) {
 			return autumnErrorResponse("VALIDATION");
 		}
-		if (
-			segment === "attach" &&
-			identity &&
-			body &&
-			typeof body === "object" &&
-			!Array.isArray(body)
-		) {
-			return attachWithDubCustomer(sanitized, body, identity.customerId);
+		if (attachBody && identity) {
+			return attachWithDubCustomer(sanitized, attachBody, identity.customerId);
 		}
 		// Expanded responses have a different shape from the plain customer cache.
 		if (
