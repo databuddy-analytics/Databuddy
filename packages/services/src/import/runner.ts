@@ -11,6 +11,7 @@ import {
 	runImport,
 } from "./pipeline";
 import { plausibleProvider } from "./providers/plausible";
+import { posthogProvider } from "./providers/posthog";
 import { simpleAnalyticsProvider } from "./providers/simple-analytics";
 
 const ZIP_MAGIC = [0x50, 0x4b];
@@ -22,6 +23,7 @@ const MAX_EXPANDED_BYTES = 128 * 1024 * 1024;
 
 export const IMPORT_PROVIDERS: ImportProvider[] = [
 	plausibleProvider,
+	posthogProvider,
 	simpleAnalyticsProvider,
 ];
 

@@ -18,7 +18,12 @@ import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_STATES = new Set(["waiting", "active", "delayed", "prioritized"]);
-const PROVIDERS_WITH_LOGOS = new Set(["plausible", "simple-analytics"]);
+const PROVIDERS_WITH_LOGOS = new Set([
+	"plausible",
+	"posthog",
+	"simple-analytics",
+]);
+const MONOCHROME_LOGOS = new Set(["posthog"]);
 const GRAIN_LABEL = {
 	event: "Full detail",
 	rollup: "Daily totals",
@@ -192,6 +197,11 @@ export default function ImportPage() {
 												{PROVIDERS_WITH_LOGOS.has(provider.id) ? (
 													<Image
 														alt=""
+														className={
+															MONOCHROME_LOGOS.has(provider.id)
+																? "dark:invert"
+																: undefined
+														}
 														height={20}
 														src={`/providers/${provider.id}.svg`}
 														unoptimized
