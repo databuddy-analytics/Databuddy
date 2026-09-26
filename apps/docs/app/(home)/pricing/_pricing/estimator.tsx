@@ -150,7 +150,7 @@ export function Estimator({ plans }: Props) {
 									value={monthlyInvestigations}
 								/>
 								<p className="mt-2 text-muted-foreground text-xs">
-									Business and Scale require an invitation.
+									Business and Scale include monthly investigations.
 								</p>
 							</div>
 						</div>
