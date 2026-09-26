@@ -1,10 +1,10 @@
 "use client";
 
-import { Button, dayjs, EmptyState, fromNow, Skeleton } from "@databuddy/ui";
+import { dayjs, EmptyState, fromNow, Skeleton } from "@databuddy/ui";
 import { CopyButton } from "@databuddy/ui/client";
 import { BrainIcon } from "@databuddy/ui/icons";
 import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
 import {
 	Chart,
@@ -14,6 +14,7 @@ import { FaviconImage } from "@/components/analytics/favicon-image";
 import { AiProductIcon } from "@/components/icon";
 import { DataTable } from "@/components/table/data-table";
 import { useDateFilters } from "@/hooks/use-date-filters";
+import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { formatNumber } from "@/lib/formatters";
 import {
@@ -45,6 +46,25 @@ interface TrendPoint {
 type PageResult = Omit<AgentPageRow, "name"> & { page: string };
 
 const CHART_PRODUCTS = 4;
+const NON_ID_CHARS = /[^a-zA-Z0-9_-]/g;
+const FOREGROUND = "var(--color-foreground)";
+const PRODUCT_COLORS: Record<string, string> = {
+	Apple: FOREGROUND,
+	ByteDance: "#3C8CFF",
+	ChatGPT: FOREGROUND,
+	Claude: "#D97757",
+	"Claude Code": "#D97757",
+	Cursor: FOREGROUND,
+	DeepSeek: "#5786FE",
+	DuckDuckGo: "#DE5833",
+	"Gemini CLI": "#8E75B2",
+	"Google Gemini": "#8E75B2",
+	Huawei: "#FF0000",
+	"Meta AI": "#0467DF",
+	Mistral: "#FA520F",
+	Perplexity: "#1FB8CD",
+};
+
 const FAVICON_FALLBACKS: Record<string, string> = {
 	"Microsoft Copilot": "copilot.microsoft.com",
 };
@@ -73,6 +93,20 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
 `;
 }
 
+function countsByProduct<TRow extends { date: string; product: string }>(
+	rows: TRow[],
+	value: (row: TRow) => number,
+	bucketFormat: string
+): Map<string, Map<string, number>> {
+	const counts = new Map<string, Map<string, number>>();
+	for (const row of rows) {
+		const byBucket = counts.get(row.product) ?? new Map<string, number>();
+		byBucket.set(dayjs(row.date).format(bucketFormat), value(row));
+		counts.set(row.product, byBucket);
+	}
+	return counts;
+}
+
 function mainPurpose(row: ProductRow): string | null {
 	const purposes = [
 		{ label: "training", value: row.training },
@@ -95,30 +129,11 @@ function emptyProduct(product: string): ProductRow {
 	};
 }
 
-function ProductCard({
-	isSelected,
-	onSelect,
-	row,
-	trend,
-}: {
-	isSelected: boolean;
-	onSelect: () => void;
-	row: ProductRow;
-	trend: TrendPoint[];
-}) {
+function ProductCard({ row, trend }: { row: ProductRow; trend: TrendPoint[] }) {
 	const purpose = mainPurpose(row);
 	const isActive = row.requests > 0 || row.visitors > 0;
 	return (
-		<Button
-			aria-pressed={isSelected}
-			className={cn(
-				"h-auto flex-col items-stretch justify-start gap-3 rounded-lg bg-background p-3 text-left font-normal",
-				isSelected && "ring-2 ring-primary"
-			)}
-			disabled={!isActive}
-			onClick={onSelect}
-			variant="ghost"
-		>
+		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
 			<div className="flex items-center gap-2.5">
 				<AiProductIcon
 					className={cn(!isActive && "opacity-40 grayscale")}
@@ -137,40 +152,36 @@ function ProductCard({
 				/>
 				<p className="truncate font-semibold text-sm">{row.product}</p>
 			</div>
-			{isActive ? (
-				<div>
-					<p className="font-semibold text-xl tabular-nums">
-						{formatNumber(row.visitors)}
-						<span className="ml-1.5 font-normal text-muted-foreground text-xs">
-							visitors sent
-						</span>
-					</p>
-					{trend.length > 1 ? (
-						<div className="my-1.5 h-9">
-							<Chart.SingleSeries
-								data={trend}
-								height={36}
-								id={`ai-product-${row.product}`}
-								tooltip={{
-									formatLabelAction: (label) =>
-										dayjs(label).format("ddd, MMM D"),
-									formatValue: formatNumber,
-									valueSuffixLabel: "visitors",
-								}}
-								yDomain={[0, "dataMax"]}
-							/>
-						</div>
-					) : null}
-					<p className="truncate text-muted-foreground text-xs">
-						{row.requests > 0
-							? `Read ${formatNumber(row.pages)} pages${purpose ? ` for ${purpose}` : ""}, ${fromNow(row.last_seen)}`
-							: "Hasn't read your pages"}
-					</p>
+			<div>
+				<p className="font-semibold text-xl tabular-nums">
+					{formatNumber(row.visitors)}
+					<span className="ml-1.5 font-normal text-muted-foreground text-xs">
+						visitors sent
+					</span>
+				</p>
+				<div className="my-1.5 h-9">
+					<Chart.SingleSeries
+						color={PRODUCT_COLORS[row.product]}
+						data={trend}
+						height={36}
+						id={`ai-product-${row.product.replace(NON_ID_CHARS, "-")}`}
+						tooltip={{
+							formatLabelAction: (label) => dayjs(label).format("ddd, MMM D"),
+							formatValue: formatNumber,
+							valueSuffixLabel: "visitors",
+						}}
+						yDomain={[0, "dataMax + 1"]}
+					/>
 				</div>
-			) : (
-				<p className="text-muted-foreground text-xs">Not seen yet</p>
-			)}
-		</Button>
+				<p className="truncate text-muted-foreground text-xs">
+					{row.requests > 0
+						? `Read ${formatNumber(row.pages)} pages${purpose ? ` for ${purpose}` : ""}, ${fromNow(row.last_seen)}`
+						: isActive
+							? "Hasn't read your pages"
+							: "Not seen yet"}
+				</p>
+			</div>
+		</div>
 	);
 }
 
@@ -178,7 +189,7 @@ export default function AgentsPage() {
 	const { id } = useParams();
 	const websiteId = id as string;
 	const { dateRange } = useDateFilters();
-	const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+	const { chartType, chartStepType } = useChartPreferences("overview-main");
 
 	const { isLoading, getDataForQuery } = useBatchDynamicQuery(
 		websiteId,
@@ -199,64 +210,68 @@ export default function AgentsPage() {
 	const pages =
 		(getDataForQuery("pages", "ai_agent_pages") as PageResult[]) ?? [];
 
-	const chart = useMemo(() => {
-		const topProducts = products
-			.filter((row) => row.requests > 0)
-			.slice(0, CHART_PRODUCTS)
-			.map((row) => row.product);
-		const byDate = new Map<string, ChartMultiSeriesDataPoint>();
-		for (const row of series) {
-			if (!topProducts.includes(row.product)) {
-				continue;
-			}
-			const date =
-				dateRange.granularity === "hourly"
-					? dayjs(row.date).format("HH:mm")
-					: dayjs(row.date).format("MMM D");
-			const point = byDate.get(date) ?? { date };
-			point[row.product] = Number(row.requests) || 0;
-			byDate.set(date, point);
-		}
-		return {
-			data: [...byDate.values()],
-			metrics: topProducts.map((product) => ({ key: product, label: product })),
-		};
-	}, [products, series, dateRange.granularity]);
-
 	const visitorSeries =
 		(getDataForQuery(
 			"visitors",
 			"ai_product_visitors"
 		) as VisitorSeriesRow[]) ?? [];
-	const trends = useMemo(() => {
-		const unit = dateRange.granularity === "hourly" ? "hour" : "day";
-		const buckets: string[] = [];
+
+	const isHourly = dateRange.granularity === "hourly";
+	const bucketFormat = isHourly ? "YYYY-MM-DD HH:00" : "YYYY-MM-DD";
+	const buckets = useMemo(() => {
+		const unit = isHourly ? "hour" : "day";
 		const end = dayjs(dateRange.end_date).endOf("day");
+		const keys: string[] = [];
 		for (
 			let cursor = dayjs(dateRange.start_date).startOf(unit);
 			!cursor.isAfter(end);
 			cursor = cursor.add(1, unit)
 		) {
-			buckets.push(
-				cursor.format(unit === "hour" ? "YYYY-MM-DD HH:00" : "YYYY-MM-DD")
-			);
+			keys.push(cursor.format(bucketFormat));
 		}
-		const visitsByProduct = new Map<string, Map<string, number>>();
-		for (const row of visitorSeries) {
-			const key = dayjs(row.date).format(
-				unit === "hour" ? "YYYY-MM-DD HH:00" : "YYYY-MM-DD"
-			);
-			const visits = visitsByProduct.get(row.product) ?? new Map();
-			visits.set(key, Number(row.visitors) || 0);
-			visitsByProduct.set(row.product, visits);
-		}
-		return new Map(
-			[...visitsByProduct].map(([product, visits]) => [
-				product,
-				buckets.map((date) => ({ date, value: visits.get(date) ?? 0 })),
-			])
+		return keys;
+	}, [dateRange.start_date, dateRange.end_date, isHourly, bucketFormat]);
+
+	const chart = useMemo(() => {
+		const topProducts = products
+			.filter((row) => row.requests > 0)
+			.slice(0, CHART_PRODUCTS)
+			.map((row) => row.product);
+		const requests = countsByProduct(
+			series,
+			(row) => Number(row.requests) || 0,
+			bucketFormat
 		);
-	}, [visitorSeries, dateRange]);
+		return {
+			data: buckets.map((bucket): ChartMultiSeriesDataPoint => {
+				const point: ChartMultiSeriesDataPoint = {
+					date: dayjs(bucket).format(isHourly ? "HH:mm" : "MMM D"),
+				};
+				for (const product of topProducts) {
+					point[product] = requests.get(product)?.get(bucket) ?? 0;
+				}
+				return point;
+			}),
+			metrics: topProducts.map((product) => ({
+				color: PRODUCT_COLORS[product],
+				key: product,
+				label: product,
+			})),
+		};
+	}, [products, series, buckets, bucketFormat, isHourly]);
+
+	const trendFor = useMemo(() => {
+		const visitors = countsByProduct(
+			visitorSeries,
+			(row) => Number(row.visitors) || 0,
+			bucketFormat
+		);
+		return (product: string): TrendPoint[] =>
+			buckets.map((date) => ({
+				date,
+				value: visitors.get(product)?.get(date) ?? 0,
+			}));
+	}, [visitorSeries, buckets, bucketFormat]);
 
 	const featured = FEATURED_PRODUCTS.map(
 		(name) => products.find((row) => row.product === name) ?? emptyProduct(name)
@@ -267,12 +282,8 @@ export default function AgentsPage() {
 
 	const pageRows = useMemo(
 		(): AgentPageRow[] =>
-			pages
-				.filter(
-					(row) => !selectedProduct || row.products.includes(selectedProduct)
-				)
-				.map(({ page, ...row }) => ({ ...row, name: page })),
-		[pages, selectedProduct]
+			pages.map(({ page, ...row }) => ({ ...row, name: page })),
+		[pages]
 	);
 
 	if (!isLoading && products.length === 0) {
@@ -306,15 +317,9 @@ export default function AgentsPage() {
 							))
 						: featured.map((row) => (
 								<ProductCard
-									isSelected={selectedProduct === row.product}
 									key={row.product}
-									onSelect={() =>
-										setSelectedProduct((current) =>
-											current === row.product ? null : row.product
-										)
-									}
 									row={row}
-									trend={trends.get(row.product) ?? []}
+									trend={trendFor(row.product)}
 								/>
 							))}
 				</div>
@@ -325,8 +330,10 @@ export default function AgentsPage() {
 						description="Requests from each AI product's crawlers and agents"
 						height={280}
 						isLoading={isLoading}
+						chartStepType={chartStepType}
 						metrics={chart.metrics}
 						partialLastSegment
+						seriesKind={chartType}
 						title="AI requests"
 					/>
 				) : null}
@@ -334,11 +341,7 @@ export default function AgentsPage() {
 				<DataTable
 					columns={pageColumns}
 					data={pageRows}
-					description={
-						selectedProduct
-							? `Pages ${selectedProduct} reads, next to what humans read`
-							: "What AI reads, next to what humans read"
-					}
+					description="What AI reads, next to what humans read"
 					emptyMessage="No pages read by AI yet"
 					isLoading={isLoading}
 					title="Pages"
