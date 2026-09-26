@@ -1987,7 +1987,15 @@ export function groupActions(
 						} else if (!config) {
 							issues.add(`unresolved_mutation:${callee.expression.text}`);
 						}
-					} else if (depth < 2 && boundCall.has(method)) {
+					} else if (
+						depth < 2 &&
+						boundCall.has(method) &&
+						ts.isIdentifier(callee.expression) &&
+						(method !== "bind" ||
+							child.parent === node ||
+							(ts.isCallExpression(child.parent) &&
+								child.parent.expression === child))
+					) {
 						addSite(owner, child);
 						follow(owner, callee.expression, depth + 1);
 					} else if (depth < 2) {
