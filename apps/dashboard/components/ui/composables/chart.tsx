@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentType, ReactElement, ReactNode } from "react";
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import {
 	Area,
 	AreaChart,
@@ -650,6 +650,8 @@ interface ChartMultiSeriesProps {
 	seriesKind?: ChartSeriesKind;
 }
 
+const NON_ID_CHARS = /[^a-zA-Z0-9_-]/g;
+
 function ChartMultiSeries({
 	data: points,
 	metrics: series,
@@ -661,6 +663,7 @@ function ChartMultiSeries({
 	barLayout = "grouped",
 	barStackId = "stack",
 }: ChartMultiSeriesProps) {
+	const gradientPrefix = `gradient-${useId().replace(NON_ID_CHARS, "")}`;
 	const seriesUsesDashSplit = seriesKind !== "bar";
 
 	const [DasharrayCalculator, lineDasharrays] = useDynamicDasharray({
@@ -746,9 +749,9 @@ function ChartMultiSeries({
 				<ComposedChart data={points} margin={ZERO_MARGIN}>
 					{seriesKind === "area" ? (
 						<defs>
-							{series.map((metric) => (
+							{series.map((metric, index) => (
 								<linearGradient
-									id={`gradient-${metric.key}`}
+									id={`${gradientPrefix}-${index}`}
 									key={metric.key}
 									x1="0"
 									x2="0"
@@ -786,7 +789,7 @@ function ChartMultiSeries({
 									type={curveType}
 								/>
 							))
-						: series.map((metric) => (
+						: series.map((metric, index) => (
 								<Area
 									activeDot={{
 										r: 2.5,
@@ -796,7 +799,7 @@ function ChartMultiSeries({
 									}}
 									dataKey={metric.key}
 									dot={false}
-									fill={`url(#gradient-${metric.key})`}
+									fill={`url(#${gradientPrefix}-${index})`}
 									key={metric.key}
 									name={metric.label}
 									stroke={metric.color}
