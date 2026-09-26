@@ -47,13 +47,6 @@ function stableAttribute(element: Element, name: string): string | null {
 	return value && !GENERATED_TOKEN.test(value) ? value : null;
 }
 
-function fieldLabel(element: Element): string | null {
-	return (
-		(element as HTMLInputElement).labels?.[0]?.textContent ||
-		element.getAttribute("placeholder")
-	);
-}
-
 export function describeTarget(element: Element): string {
 	const tag = element.tagName.toLowerCase();
 	const kind =
@@ -66,10 +59,9 @@ export function describeTarget(element: Element): string {
 		stableAttribute(element, "name") ??
 		stableAttribute(element, "id") ??
 		(element.matches(FORM_FIELD_SELECTOR)
-			? fieldLabel(element)
-			: element.matches("a,button,summary,[role]")
-				? element.textContent
-				: null);
+			? (element as HTMLInputElement).labels?.[0]?.textContent ||
+				element.getAttribute("placeholder")
+			: null);
 	const label = normalizeLabel(name);
 	return `${prefix}:${label || "unnamed"}`;
 }
