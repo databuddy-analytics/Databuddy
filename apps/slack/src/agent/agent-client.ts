@@ -110,6 +110,7 @@ class SharedDatabuddyAgentRunner implements SlackAgentRunner {
 			conversationId,
 			input: formatSlackAgentInput(run),
 			memoryUserId: createSlackMemoryUserId(run),
+			mutationMode: "dry-run",
 			onToolEvent: options?.onToolEvent,
 			onToolTrace: options?.onToolTrace,
 			slackContext: run.slackContext,
