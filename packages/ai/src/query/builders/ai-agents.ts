@@ -88,41 +88,6 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 		customizable: false,
 	},
 
-	ai_agent_time_series: {
-		meta: {
-			title: "AI Agent Requests Over Time",
-			description:
-				"Requests from AI crawlers and agents per day (or hour), per AI product.",
-			category: "AI Agents",
-			tags: ["ai", "agents", "crawlers", "time-series"],
-			output_fields: [
-				{ name: "date", type: "string", label: "Date" },
-				{ name: "product", type: "string", label: "Product" },
-				{ name: "requests", type: "number", label: "Requests" },
-			],
-			default_visualization: "timeseries",
-			supports_granularity: ["hour", "day"],
-		},
-		customSql: (ctx) => {
-			const bucket =
-				ctx.granularity === "hour"
-					? "toStartOfHour(timestamp)"
-					: "toDate(timestamp)";
-			return {
-				sql: `
-					SELECT ${bucket} AS date, ${AGENT_PRODUCT} AS product, count() AS requests
-					FROM ${Analytics.ai_traffic_spans}
-					WHERE ${SPAN_RANGE}
-					GROUP BY date, product
-					ORDER BY date ASC
-				`,
-				params: productParams(ctx),
-			};
-		},
-		timeField: "timestamp",
-		customizable: false,
-	},
-
 	ai_product_visitors: {
 		meta: {
 			title: "AI Visitors Over Time",
@@ -159,23 +124,25 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 
 	ai_agent_pages: {
 		meta: {
-			title: "Pages Read by AI Agents",
+			title: "Pages Read by or Visited from AI",
 			description:
-				"Pages ranked by AI agent requests, with the AI products reading each page, next to human pageviews and AI-referred visitors for the same page.",
+				"Pages AI products send visitors to or read, ranked by AI-referred visitors then AI requests, with the products reading each page and its human pageviews.",
 			category: "AI Agents",
-			tags: ["ai", "agents", "crawlers", "pages"],
+			tags: ["ai", "agents", "crawlers", "pages", "referrals"],
 			output_fields: [
 				{ name: "page", type: "string", label: "Page" },
-				{ name: "requests", type: "number", label: "AI requests" },
-				{ name: "products", type: "json", label: "Read by" },
-				{ name: "pageviews", type: "number", label: "Human pageviews" },
 				{ name: "visitors", type: "number", label: "AI-referred visitors" },
+				{ name: "products", type: "json", label: "Read by" },
+				{ name: "requests", type: "number", label: "AI requests" },
+				{ name: "pageviews", type: "number", label: "Human pageviews" },
 			],
 			default_visualization: "table",
 		},
 		customSql: (ctx) => ({
 			sql: `
-				SELECT a.page AS page, a.requests, a.products, h.pageviews, h.visitors
+				SELECT
+					if(a.page != '', a.page, h.page) AS page,
+					h.visitors, a.products, a.requests, h.pageviews
 				FROM (
 					SELECT
 						${pageOf("path")} AS page,
@@ -184,10 +151,8 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 					FROM ${Analytics.ai_traffic_spans}
 					WHERE ${SPAN_RANGE} AND path != ''
 					GROUP BY page
-					ORDER BY requests DESC
-					LIMIT {limit:UInt32}
 				) AS a
-				LEFT JOIN (
+				FULL OUTER JOIN (
 					SELECT
 						${pageOf("path")} AS page,
 						countIf(event_name = 'screen_view') AS pageviews,
@@ -196,7 +161,9 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 					WHERE ${EVENT_RANGE} AND path != ''
 					GROUP BY page
 				) AS h ON a.page = h.page
-				ORDER BY a.requests DESC
+				WHERE a.requests > 0 OR h.visitors > 0
+				ORDER BY h.visitors DESC, a.requests DESC
+				LIMIT {limit:UInt32}
 			`,
 			params: { ...productParams(ctx), limit: ctx.limit ?? 100 },
 		}),
