@@ -196,4 +196,38 @@ test.describe("Privacy & Opt-out", () => {
 		expect(requestSent).toBe(false);
 		expect(queuedBeforeOptOutSent).toBe(false);
 	});
+
+	test("click descriptors never read rendered element text", async ({
+		page,
+	}) => {
+		await page.goto("/test");
+		await page.evaluate(() => {
+			document.body.innerHTML = `
+				<button>Reply to Jane Doe</button>
+				<a id="profile-4821" href="#jane">Jane Doe</a>
+				<button data-track="save_settings">Save</button>
+				<label>Email <input id="field-1234"></label>`;
+			(window as any).databuddyConfig = {
+				clientId: "test-click-descriptors",
+				ignoreBotDetection: true,
+				trackInteractions: true,
+			};
+		});
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+		await expect
+			.poll(() => page.evaluate(() => !!(window as any).__tracker))
+			.toBeTruthy();
+
+		const rageClickTarget = async (selector: string) => {
+			await page.click(selector, { clickCount: 3 });
+			return page.evaluate(() => (window as any).__tracker.rageClickTarget);
+		};
+
+		expect(await rageClickTarget("text=Reply to Jane Doe")).toBe(
+			"button:unnamed"
+		);
+		expect(await rageClickTarget("a")).toBe("a:unnamed");
+		expect(await rageClickTarget("text=Save")).toBe("button:save_settings");
+		expect(await rageClickTarget("input")).toBe("input:text:email");
+	});
 });
