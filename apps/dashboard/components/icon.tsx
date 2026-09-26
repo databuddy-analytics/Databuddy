@@ -195,13 +195,19 @@ function PublicIcon({
 		searchName = getOSMappedName(normalizedName);
 	}
 
-	const iconName = findIconMatch(searchName, availableIcons);
+	const ownIconName = findIconMatch(searchName, availableIcons);
+	const aiAppName =
+		type === "browser" && !ownIconName
+			? AI_ICONS.find((icon) => icon.toLowerCase() === searchName.toLowerCase())
+			: undefined;
+	const iconType: IconType = aiAppName ? "ai" : type;
+	const iconName = ownIconName ?? aiAppName;
 
 	if (!iconName) {
 		return fallback || createFallbackIcon(normalizedName, iconSize, className);
 	}
 
-	const iconSrc = getIconSrc(iconName, type);
+	const iconSrc = getIconSrc(iconName, iconType);
 
 	return (
 		<div
@@ -217,7 +223,9 @@ function PublicIcon({
 				alt={name}
 				className={cn(
 					"object-contain",
-					type === "ai" && MONOCHROME_AI_ICONS.has(iconName) && "dark:invert"
+					iconType === "ai" &&
+						MONOCHROME_AI_ICONS.has(iconName) &&
+						"dark:invert"
 				)}
 				height={iconSize}
 				key={`${iconName}`}

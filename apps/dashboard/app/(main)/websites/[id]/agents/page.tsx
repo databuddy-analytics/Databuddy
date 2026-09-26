@@ -6,7 +6,10 @@ import { BrainIcon } from "@databuddy/ui/icons";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
-import type { ChartMultiSeriesDataPoint } from "@/components/ui/composables/chart";
+import {
+	Chart,
+	type ChartMultiSeriesDataPoint,
+} from "@/components/ui/composables/chart";
 import { FaviconImage } from "@/components/analytics/favicon-image";
 import { AiProductIcon } from "@/components/icon";
 import { DataTable } from "@/components/table/data-table";
@@ -26,6 +29,17 @@ interface ProductSeriesRow {
 	date: string;
 	product: string;
 	requests: number;
+}
+
+interface VisitorSeriesRow {
+	date: string;
+	product: string;
+	visitors: number;
+}
+
+interface TrendPoint {
+	date: string;
+	value: number;
 }
 
 type PageResult = Omit<AgentPageRow, "name"> & { page: string };
@@ -85,10 +99,12 @@ function ProductCard({
 	isSelected,
 	onSelect,
 	row,
+	trend,
 }: {
 	isSelected: boolean;
 	onSelect: () => void;
 	row: ProductRow;
+	trend: TrendPoint[];
 }) {
 	const purpose = mainPurpose(row);
 	const isActive = row.requests > 0 || row.visitors > 0;
@@ -129,6 +145,22 @@ function ProductCard({
 							visitors sent
 						</span>
 					</p>
+					{trend.length > 1 ? (
+						<div className="my-1.5 h-9">
+							<Chart.SingleSeries
+								data={trend}
+								height={36}
+								id={`ai-product-${row.product}`}
+								tooltip={{
+									formatLabelAction: (label) =>
+										dayjs(label).format("ddd, MMM D"),
+									formatValue: formatNumber,
+									valueSuffixLabel: "visitors",
+								}}
+								yDomain={[0, "dataMax"]}
+							/>
+						</div>
+					) : null}
 					<p className="truncate text-muted-foreground text-xs">
 						{row.requests > 0
 							? `Read ${formatNumber(row.pages)} pages${purpose ? ` for ${purpose}` : ""}, ${fromNow(row.last_seen)}`
@@ -154,6 +186,7 @@ export default function AgentsPage() {
 		[
 			{ id: "products", parameters: ["ai_products"] },
 			{ id: "series", parameters: ["ai_agent_time_series"] },
+			{ id: "visitors", parameters: ["ai_product_visitors"] },
 			{ id: "pages", parameters: ["ai_agent_pages"] },
 		]
 	);
@@ -189,6 +222,41 @@ export default function AgentsPage() {
 			metrics: topProducts.map((product) => ({ key: product, label: product })),
 		};
 	}, [products, series, dateRange.granularity]);
+
+	const visitorSeries =
+		(getDataForQuery(
+			"visitors",
+			"ai_product_visitors"
+		) as VisitorSeriesRow[]) ?? [];
+	const trends = useMemo(() => {
+		const unit = dateRange.granularity === "hourly" ? "hour" : "day";
+		const buckets: string[] = [];
+		const end = dayjs(dateRange.end_date).endOf("day");
+		for (
+			let cursor = dayjs(dateRange.start_date).startOf(unit);
+			!cursor.isAfter(end);
+			cursor = cursor.add(1, unit)
+		) {
+			buckets.push(
+				cursor.format(unit === "hour" ? "YYYY-MM-DD HH:00" : "YYYY-MM-DD")
+			);
+		}
+		const visitsByProduct = new Map<string, Map<string, number>>();
+		for (const row of visitorSeries) {
+			const key = dayjs(row.date).format(
+				unit === "hour" ? "YYYY-MM-DD HH:00" : "YYYY-MM-DD"
+			);
+			const visits = visitsByProduct.get(row.product) ?? new Map();
+			visits.set(key, Number(row.visitors) || 0);
+			visitsByProduct.set(row.product, visits);
+		}
+		return new Map(
+			[...visitsByProduct].map(([product, visits]) => [
+				product,
+				buckets.map((date) => ({ date, value: visits.get(date) ?? 0 })),
+			])
+		);
+	}, [visitorSeries, dateRange]);
 
 	const featured = FEATURED_PRODUCTS.map(
 		(name) => products.find((row) => row.product === name) ?? emptyProduct(name)
@@ -246,6 +314,7 @@ export default function AgentsPage() {
 										)
 									}
 									row={row}
+									trend={trends.get(row.product) ?? []}
 								/>
 							))}
 				</div>
