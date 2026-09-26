@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import * as agentModule from "@databuddy/ai/agent";
 import type {
-	SlackThreadReplyMessage,
+	DatabuddyAgentSlackMessage,
 	SlackThreadReplyRelevance,
 	SlackThreadReplyRelevanceInput,
 } from "@databuddy/ai/agent";
@@ -44,7 +44,7 @@ async function decide(text: string) {
 
 async function decideWithThread(
 	text: string,
-	threadMessages: SlackThreadReplyMessage[]
+	threadMessages: DatabuddyAgentSlackMessage[]
 ) {
 	return shouldReplyToSlackThreadFollowUp(createRun(text), {
 		botUserId: "UBOT",
@@ -61,7 +61,7 @@ describe("Slack thread reply relevance", () => {
 	it("lets the model allow the exact short clarification answer from thread context", async () => {
 		modelDecision = {
 			confidence: 0.92,
-			reason: "direct_request",
+			reason: "relevant",
 			shouldReply: true,
 		};
 
@@ -77,7 +77,7 @@ describe("Slack thread reply relevance", () => {
 				},
 			])
 		).resolves.toMatchObject({
-			reason: "direct_request",
+			reason: "relevant",
 			shouldReply: true,
 			source: "model",
 		});
@@ -96,13 +96,32 @@ describe("Slack thread reply relevance", () => {
 		});
 	});
 
-	it("falls back conservatively for unmentioned replies when the model is unavailable", async () => {
-		await expect(
-			decide("databuddy is gonna make qais mad")
-		).resolves.toMatchObject({
-			reason: "ambiguous",
+	it.each([
+		["databuddy is gonna make qais mad", "ambiguous"],
+		["<@OTHER> what now?", "ambiguous"],
+		[" \n\t ", "side_chatter"],
+	])("stays silent on %j when the model is unavailable", async (text, reason) => {
+		await expect(decide(text)).resolves.toEqual({
+			confidence: 0.5,
+			reason,
 			shouldReply: false,
 			source: "fallback",
 		});
+	});
+
+	it("still classifies the latest message when reading Slack history fails", async () => {
+		await expect(
+			shouldReplyToSlackThreadFollowUp(createRun(" <@uBoT> what now? "), {
+				botUserId: "UBOT",
+				readThreadMessages: () =>
+					Promise.reject(new Error("Slack unavailable")),
+			})
+		).resolves.toEqual({
+			confidence: 0.65,
+			reason: "bot_mentioned",
+			shouldReply: true,
+			source: "fallback",
+		});
+		expect(capturedModelInput?.threadMessages).toEqual([]);
 	});
 });
