@@ -59,6 +59,7 @@ let checkResults: Array<UptimeData | UptimeCheckError>;
 let previousState: MonitorStateLookup;
 let reapBehaviour: "ok" | "throw" = "ok";
 let lockHeld = false;
+let sslAlertBehaviour: "ok" | "throw" = "ok";
 
 function schedule(values: Partial<ScheduleData> = {}): ScheduleData {
 	return {
@@ -90,7 +91,7 @@ function uptimeData(values: Partial<UptimeData> = {}): UptimeData {
 		response_bytes: 100,
 		retries: 0,
 		site_id: "website-1",
-		ssl_expiry: 0,
+		ssl_expiry: null,
 		ssl_valid: 1,
 		status: 1,
 		timestamp: 1_775_000_000,
@@ -173,6 +174,13 @@ function deps(): UptimeWorkerDeps {
 			calls.order.push("alert");
 			return { transition_kind: null, alarms_fired: 0 };
 		},
+		fireSslExpiryAlerts: async () => {
+			calls.order.push("ssl_alert");
+			if (sslAlertBehaviour === "throw") {
+				throw new Error("notification provider down");
+			}
+			return { alarms_fired: 0, ssl_days_remaining: null };
+		},
 	};
 }
 
@@ -196,6 +204,7 @@ beforeEach(() => {
 	previousState = { kind: "found", state: { status: 0, failureStreak: 1 } };
 	reapBehaviour = "ok";
 	lockHeld = false;
+	sslAlertBehaviour = "ok";
 });
 
 async function flushMicrotasks(): Promise<void> {
@@ -275,7 +284,7 @@ describe("processUptimeCheck", () => {
 		]);
 		expect(calls.delivery).toEqual([uptimeData()]);
 		expect(calls.email).toHaveLength(1);
-		expect(calls.order).toEqual(["state", "enqueue", "alert"]);
+		expect(calls.order).toEqual(["state", "enqueue", "alert", "ssl_alert"]);
 		expect(calls.locks).toEqual([
 			"acquire:schedule-1",
 			"release:schedule-1:lock-token",
@@ -308,6 +317,19 @@ describe("processUptimeCheck", () => {
 		expect(calls.loggerFields).toContainEqual(
 			expect.objectContaining({ delivery_queue_admitted: true })
 		);
+		expect(calls.loggerEmitted).toHaveLength(1);
+	});
+
+	it("completes the job and captures the error when SSL expiry alerts fail", async () => {
+		sslAlertBehaviour = "throw";
+
+		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
+
+		expect(calls.delivery).toEqual([uptimeData()]);
+		expect(calls.captureError).toContainEqual({
+			error: expect.any(Error),
+			context: { error_step: "ssl_expiry_alerts", schedule_id: "schedule-1" },
+		});
 		expect(calls.loggerEmitted).toHaveLength(1);
 	});
 
@@ -614,7 +636,13 @@ describe("processUptimeCheck", () => {
 
 		expect(calls.checkpoint).toEqual([uptimeData()]);
 		expect(calls.delivery).toEqual([uptimeData()]);
-		expect(calls.order).toEqual(["checkpoint", "state", "enqueue", "alert"]);
+		expect(calls.order).toEqual([
+			"checkpoint",
+			"state",
+			"enqueue",
+			"alert",
+			"ssl_alert",
+		]);
 	});
 
 	it("retries the source job when the durable checkpoint fails", async () => {
