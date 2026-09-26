@@ -19,41 +19,33 @@ const BOUNCE_DURATION_SECONDS = 1;
 const BOUNCE_DURATION_CEILING_SECONDS = 9;
 const NON_BOUNCE_DURATION_FLOOR_SECONDS = 10;
 
-export type ImportGrain = "event" | "rollup";
+type ImportGrain = "event" | "rollup";
 
 export type RollupDimensionKind =
 	| "page"
 	| "entry_page"
 	| "exit_page"
-	| "referrer"
 	| "source"
 	| "country"
-	| "region"
-	| "city"
 	| "browser"
 	| "os"
 	| "device"
-	| "utm_source"
-	| "utm_medium"
-	| "utm_campaign"
-	| "utm_term"
-	| "utm_content"
 	| "custom_event";
 
-export type RollupMetric =
+type RollupMetric =
 	| "visitors"
 	| "visits"
 	| "pageviews"
 	| "bounces"
 	| "durationSeconds";
 
-export interface RollupDimension {
+interface RollupDimension {
 	hostname?: string;
 	kind: RollupDimensionKind;
 	value: string;
 }
 
-export interface ImportedRollup {
+interface ImportedRollup {
 	date: string;
 	dimension: RollupDimension | null;
 	metrics: Partial<Record<RollupMetric, number>>;
@@ -252,7 +244,6 @@ const DIMENSION_FIELDS = {
 	country: "country",
 	device: "deviceType",
 	os: "osName",
-	referrer: "referrer",
 	source: "sourceName",
 } as const satisfies Partial<Record<RollupDimensionKind, keyof ImportedEvent>>;
 
@@ -323,9 +314,12 @@ export function synthesizeDate(
 		};
 	}
 
+	const requestedVisits = Math.round(
+		bucket.totals.visits ?? bucket.totals.visitors ?? 1
+	);
 	const { visits, bounces, nonBounce } = sessionShape(
 		slots.length,
-		bucket.totals.visits ?? bucket.totals.visitors ?? 1,
+		requestedVisits,
 		bucket.totals.bounces ?? 0
 	);
 	const visitors = clamp(
@@ -337,13 +331,6 @@ export function synthesizeDate(
 		0,
 		Math.round(bucket.totals.durationSeconds ?? 0)
 	);
-	const requestedVisits = Math.round(
-		bucket.totals.visits ?? bucket.totals.visitors ?? 1
-	);
-	const adjustments: ImportAdjustments = {
-		droppedVisits: Math.max(0, requestedVisits - visits),
-		durationDeltaSeconds: 0,
-	};
 
 	const perSession: number[] = [];
 	for (let i = 0; i < bounces; i += 1) {
@@ -394,8 +381,11 @@ export function synthesizeDate(
 		}
 	}
 
-	adjustments.durationDeltaSeconds =
-		durations.reduce((total, value) => total + value, 0) - totalDuration;
+	const adjustments: ImportAdjustments = {
+		droppedVisits: Math.max(0, requestedVisits - visits),
+		durationDeltaSeconds:
+			durations.reduce((total, value) => total + value, 0) - totalDuration,
+	};
 
 	const sessionDimensions = new Map(
 		[...bucket.dimensions].map(([kind, totals]) => [
@@ -504,7 +494,7 @@ function clickHouseDateTime(at: Date): string {
 	return at.toISOString().replace("T", " ").replace("Z", "");
 }
 
-export function toEventRow(
+function toEventRow(
 	event: ImportedEvent,
 	context: ImportContext,
 	providerId: string

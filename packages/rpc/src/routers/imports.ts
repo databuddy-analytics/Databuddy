@@ -50,17 +50,25 @@ export const importsRouter = {
 			description: "Returns the analytics providers Databuddy can import from.",
 		})
 		.output(
-			z.array(
-				z.object({
-					id: z.string(),
-					label: z.string(),
-					grain: z.enum(["event", "rollup"]),
-				})
-			)
+			z.object({
+				storageConfigured: z.boolean(),
+				providers: z.array(
+					z.object({
+						id: z.string(),
+						label: z.string(),
+						grain: z.enum(["event", "rollup"]),
+					})
+				),
+			})
 		)
-		.handler(() =>
-			IMPORT_PROVIDERS.map(({ id, label, grain }) => ({ id, label, grain }))
-		),
+		.handler(() => ({
+			storageConfigured: isStorageConfigured(),
+			providers: IMPORT_PROVIDERS.map(({ id, label, grain }) => ({
+				id,
+				label,
+				grain,
+			})),
+		})),
 
 	createUpload: trackedSessionProcedure
 		.route({
