@@ -21,6 +21,8 @@ const {
 	mockGetAccessibleWebsiteIds,
 	mockGetWebsiteByIdV2,
 	mockResolveApiKeyOwnerId,
+	mockDenyApiKeyWebsiteAccess,
+	apiKeyDenialErrors,
 } = vi.hoisted(() => {
 	const noop = vi.fn(() => {});
 	const noopAsync = vi.fn(() => Promise.resolve());
@@ -39,6 +41,8 @@ const {
 		organizationId: "org_1",
 	};
 	return {
+		mockDenyApiKeyWebsiteAccess: vi.fn((): string | null => null),
+		apiKeyDenialErrors: {} as Record<string, () => Error>,
 		noop,
 		noopAsync,
 		mockLogger: {
@@ -142,11 +146,11 @@ vi.mock("@utils/ip-geo", () => ({
 	closeGeoIPReader: noop,
 }));
 
-vi.mock("@utils/user-agent", () => ({
+vi.mock("@utils/user-agent", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@utils/user-agent")>()),
 	parseUserAgent: vi.fn(() =>
 		Promise.resolve({ browserName: "Chrome", osName: "Windows" })
 	),
-	detectBot: vi.fn(() => ({ isBot: false })),
 }));
 
 vi.mock("@lib/blocked-traffic", () => ({
@@ -165,6 +169,8 @@ vi.mock("@databuddy/redis/rate-limit", () => ({
 }));
 
 vi.mock("@lib/api-key", () => ({
+	API_KEY_DENIAL_ERRORS: apiKeyDenialErrors,
+	denyApiKeyWebsiteAccess: mockDenyApiKeyWebsiteAccess,
 	getApiKeyFromHeader: mockGetApiKeyFromHeader,
 	hasKeyScope: mockHasKeyScope,
 	hasGlobalAccess: mockHasGlobalAccess,
@@ -189,6 +195,9 @@ const { basketErrors, buildBasketErrorPayload } = await import(
 	"@lib/structured-errors"
 );
 const { ERRORS_BODY_MAX_BYTES } = await import("../routes/basket");
+const { send: mockSend } = await import("@lib/producer");
+apiKeyDenialErrors.website_scope_mismatch =
+	basketErrors.trackWebsiteScopeMismatch;
 const { createError, EvlogError } = await import("evlog");
 const { Elysia } = await import("elysia");
 const mockGlobalErrorHandler = vi.fn();
@@ -1290,5 +1299,68 @@ describe("POST /track", () => {
 		});
 		expect(res.status).toBe(400);
 		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
+	});
+});
+
+describe("POST /ai-traffic", () => {
+	const CLAUDE_CODE =
+		"Claude-User (claude-code/2.1.280; +https://support.anthropic.com/)";
+
+	beforeEach(() => {
+		vi.mocked(mockSend).mockClear();
+		mockGetApiKeyFromHeader.mockResolvedValue({
+			id: "key_1",
+			organizationId: "org_1",
+			userId: "user_1",
+			scopes: ["track:events"],
+		});
+		mockDenyApiKeyWebsiteAccess.mockReturnValue(null);
+	});
+
+	function hit(userAgent: string) {
+		return post(trackRoute, "/ai-traffic", {
+			websiteId: "ws_test",
+			path: "/docs/intro",
+			format: "markdown",
+			userAgent,
+		});
+	}
+
+	test("stores an AI agent request with its agent and format", async () => {
+		const res = await hit(CLAUDE_CODE);
+		expect(res.status).toBe(202);
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-ai-traffic-spans",
+			expect.objectContaining({
+				client_id: "ws_test",
+				path: "/docs/intro",
+				agent_id: "claude-code",
+				agent_purpose: "agent",
+				format: "markdown",
+				source: "middleware",
+			})
+		);
+	});
+
+	test("drops requests from anything that is not an AI agent", async () => {
+		const res = await hit(
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+		);
+		expect(res.status).toBe(204);
+		expect(mockSend).not.toHaveBeenCalled();
+	});
+
+	test("requires an API key", async () => {
+		mockGetApiKeyFromHeader.mockResolvedValueOnce(null);
+		const res = await hit(CLAUDE_CODE);
+		expect(res.status).toBe(401);
+		expect(mockSend).not.toHaveBeenCalled();
+	});
+
+	test("rejects keys that cannot write to the website", async () => {
+		mockDenyApiKeyWebsiteAccess.mockReturnValueOnce("website_scope_mismatch");
+		const res = await hit(CLAUDE_CODE);
+		expect(res.status).toBe(403);
+		expect(mockSend).not.toHaveBeenCalled();
 	});
 });
