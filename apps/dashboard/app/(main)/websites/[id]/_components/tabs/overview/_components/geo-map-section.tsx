@@ -74,11 +74,7 @@ export function GeoMapSection({ countries, isLoading }: GeoMapSectionProps) {
 			>
 				<div className="relative flex-1 max-lg:aspect-video lg:min-h-0 [&>div]:rounded-none [&>div]:border-0">
 					<ChartErrorBoundary fallbackClassName="h-full w-full">
-						<MapComponent
-							height="100%"
-							isLoading={false}
-							locationData={locationData}
-						/>
+						<MapComponent height="100%" locationData={locationData} />
 					</ChartErrorBoundary>
 				</div>
 

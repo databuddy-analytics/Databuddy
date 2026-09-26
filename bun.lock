@@ -6,10 +6,7 @@
       "name": "databuddy",
       "dependencies": {
         "@sinclair/typebox": "^0.34.49",
-        "d3-geo": "^3.1.1",
         "drizzle-orm": "^1.0.0-rc.1",
-        "topojson-client": "^3.1.0",
-        "world-atlas": "^2.0.2",
       },
       "devDependencies": {
         "@biomejs/biome": "catalog:",
@@ -176,12 +173,10 @@
         "@orpc/server": "^1.14.0",
         "@playwright/test": "^1.58.2",
         "@tailwindcss/postcss": "^4.2.2",
-        "@types/d3-geo": "^3.1.0",
         "@types/node": "^26.0.0",
         "@types/pg": "^8.18.0",
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
-        "@types/topojson-client": "^3.1.5",
         "atmn": "^1.1.8",
         "babel-plugin-react-compiler": "^19.1.0-rc.1-rc-af1b7da-20250421",
         "tailwindcss": "^4.2.2",

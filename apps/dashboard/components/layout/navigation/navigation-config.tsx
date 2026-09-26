@@ -33,7 +33,6 @@ import {
 	ChartActivityIcon as PulseIcon,
 	ReceiptIcon,
 	RobotIcon,
-	SignalIcon,
 	ShieldCheckIcon,
 	TargetIcon,
 	UserIcon,
@@ -137,9 +136,16 @@ export const websiteNavigation: NavigationGroup[] = [
 		label: "",
 		items: [
 			createNavItem("Dashboard", ChartPieSliceIcon, "", { rootLevel: false }),
-			createNavItem("Realtime", SignalIcon, "/realtime", {
+			createNavItem("Map", MapPinIcon, "/map", {
 				rootLevel: false,
-				hideFromDemo: true,
+				gatedFeature: GATED_FEATURES.GEOGRAPHIC,
+				searchTags: [
+					"realtime",
+					"geographic",
+					"countries",
+					"live",
+					"locations",
+				],
 			}),
 			createNavItem("Audience", UsersThreeIcon, "/audience", {
 				rootLevel: false,
@@ -162,10 +168,6 @@ export const websiteNavigation: NavigationGroup[] = [
 			createNavItem("Web Vitals", GaugeIcon, "/vitals", {
 				rootLevel: false,
 				gatedFeature: GATED_FEATURES.WEB_VITALS,
-			}),
-			createNavItem("Geographic", MapPinIcon, "/map", {
-				rootLevel: false,
-				gatedFeature: GATED_FEATURES.GEOGRAPHIC,
 			}),
 			createNavItem("Pulse", PulseIcon, "/pulse", {
 				rootLevel: false,
