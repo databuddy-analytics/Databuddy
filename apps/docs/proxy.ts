@@ -7,10 +7,7 @@ const MARKDOWN_NEGOTIATED_PATHS = new Set(["/", "/pricing", "/pricing/"]);
 
 export function proxy(request: NextRequest, event: NextFetchEvent) {
 	event.waitUntil(
-		trackAgentTraffic(request, {
-			apiKey: process.env.DATABUDDY_API_KEY ?? "",
-			websiteId: "OXmNQsViBT-FOS_wZCTHc",
-		})
+		trackAgentTraffic(request, { websiteId: "OXmNQsViBT-FOS_wZCTHc" })
 	);
 
 	const { pathname } = request.nextUrl;
