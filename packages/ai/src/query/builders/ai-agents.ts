@@ -30,6 +30,7 @@ function pageOf(column: string): string {
 }
 
 const SPAN_RANGE = `client_id = {websiteId:String}
+	AND agent_id != ''
 	AND timestamp >= toDateTime({startDate:String})
 	AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))`;
 
@@ -298,7 +299,7 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 					max(timestamp) AS last_seen,
 					any(user_agent) AS user_agent
 				FROM ${Analytics.ai_traffic_spans}
-				WHERE ${SPAN_RANGE} AND agent_id != ''
+				WHERE ${SPAN_RANGE}
 				GROUP BY agent_id
 				ORDER BY requests DESC
 				LIMIT {limit:UInt32}
