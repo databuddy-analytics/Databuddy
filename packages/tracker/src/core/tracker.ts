@@ -45,9 +45,16 @@ const MAX_PROFILE_ID_LENGTH = 128;
 const MIN_RETRY_DELAY = 250;
 const MAX_RETRY_DELAY = 30_000;
 
+export type QueuedItem =
+	| BaseEvent
+	| EngagementSpan
+	| ErrorSpan
+	| TrackEventPayload
+	| WebVitalEvent;
+
 export interface QueueMeta {
 	activeDeliveryGeneration: number | null;
-	activeItems: unknown[] | null;
+	activeItems: QueuedItem[] | null;
 	endpoint: string;
 	flushing: boolean;
 	maxBatchSize: number;
@@ -441,7 +448,7 @@ export class BaseTracker {
 		}
 	}
 
-	protected get queues(): [unknown[], QueueMeta][] {
+	protected get queues(): [QueuedItem[], QueueMeta][] {
 		return [
 			[this.batchQueue, this._meta.batch],
 			[this.trackQueue, this._meta.track],
@@ -451,7 +458,7 @@ export class BaseTracker {
 		];
 	}
 
-	private requeueActiveItems(queue: unknown[], meta: QueueMeta): boolean {
+	private requeueActiveItems(queue: QueuedItem[], meta: QueueMeta): boolean {
 		if (!meta.activeItems || meta.activeItems.length === 0) {
 			return false;
 		}
@@ -594,8 +601,8 @@ export class BaseTracker {
 		return Math.min(base * 2 ** exponent, MAX_RETRY_DELAY);
 	}
 
-	private _scheduleQueueFlush<T>(
-		queue: T[],
+	private _scheduleQueueFlush(
+		queue: QueuedItem[],
 		meta: QueueMeta,
 		delay: number
 	): void {
@@ -604,7 +611,11 @@ export class BaseTracker {
 		}
 	}
 
-	private _enqueue<T>(queue: T[], meta: QueueMeta, item: T): void {
+	private _enqueue<T extends QueuedItem>(
+		queue: T[],
+		meta: QueueMeta,
+		item: T
+	): void {
 		queue.push(item);
 		this._scheduleQueueFlush(queue, meta, this.options.batchTimeout ?? 5000);
 		if (queue.length >= meta.threshold) {
@@ -612,8 +623,8 @@ export class BaseTracker {
 		}
 	}
 
-	protected async _flushQueue<T>(
-		queue: T[],
+	protected async _flushQueue(
+		queue: QueuedItem[],
 		meta: QueueMeta
 	): Promise<TrackerSendOutcome> {
 		if (this.shouldBlockQueuedDelivery()) {
@@ -655,8 +666,7 @@ export class BaseTracker {
 				deliveryGeneration === this.deliveryGeneration &&
 				!result.ok &&
 				result.retryable &&
-				!this.shouldBlockQueuedDelivery() &&
-				deliveryGeneration === this.deliveryGeneration
+				!this.shouldBlockQueuedDelivery()
 			) {
 				queue.unshift(...items);
 				meta.retryAttempts += 1;
