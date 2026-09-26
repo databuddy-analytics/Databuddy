@@ -1,48 +1,84 @@
 "use client";
 
-import { EmptyState } from "@databuddy/ui";
-import {
-	BrainIcon,
-	FileTextIcon,
-	RobotIcon,
-	UsersIcon,
-} from "@databuddy/ui/icons";
-import { dayjs } from "@databuddy/ui";
+import { dayjs, EmptyState, fromNow, Skeleton } from "@databuddy/ui";
+import { BrainIcon } from "@databuddy/ui/icons";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
-import { StatCard } from "@/components/analytics/stat-card";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
+import type { ChartMultiSeriesDataPoint } from "@/components/ui/composables/chart";
+import { AiProductIcon } from "@/components/icon";
 import { DataTable } from "@/components/table/data-table";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
-import {
-	type AgentPageRow,
-	type AgentRow,
-	agentColumns,
-	PURPOSES,
-	pageColumns,
-} from "./columns";
+import { formatNumber } from "@/lib/formatters";
+import { type AgentPageRow, pageColumns } from "./columns";
 
-interface AgentSummary {
-	agents: number;
-	ai_sessions: number;
-	hits: number;
-	pages: number;
-	sessions: number;
-}
-
-interface AgentTimeSeriesRow {
-	date: string;
-	hits: number;
+interface ProductRow {
+	last_seen: string;
 	on_demand: number;
+	pages: number;
+	product: string;
+	requests: number;
 	search_index: number;
 	training: number;
+	visitors: number;
 }
 
-type AgentPageResult = Omit<AgentPageRow, "name"> & { page: string };
+interface ProductSeriesRow {
+	date: string;
+	product: string;
+	requests: number;
+}
 
-function percentOf(part: number, total: number): string {
-	return total > 0 ? `${Math.round((part / total) * 100)}%` : "0%";
+type PageResult = Omit<AgentPageRow, "name"> & { page: string };
+
+const CHART_PRODUCTS = 4;
+const NEVER_SEEN = "1970";
+
+function mainPurpose(row: ProductRow): string | null {
+	const purposes = [
+		{ label: "training", value: row.training },
+		{ label: "search", value: row.search_index },
+		{ label: "on-demand fetches", value: row.on_demand },
+	].sort((a, b) => b.value - a.value);
+	return purposes[0].value > 0 ? purposes[0].label : null;
+}
+
+function ProductCard({ row }: { row: ProductRow }) {
+	const purpose = mainPurpose(row);
+	return (
+		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
+			<div className="flex items-center gap-2.5">
+				<AiProductIcon name={row.product} size={28} />
+				<div className="min-w-0">
+					<p className="truncate font-semibold text-sm">{row.product}</p>
+					<p className="truncate text-muted-foreground text-xs">
+						{row.last_seen.startsWith(NEVER_SEEN)
+							? "Sends visitors"
+							: `Last read ${fromNow(row.last_seen)}`}
+					</p>
+				</div>
+			</div>
+			<div className="grid grid-cols-2 gap-2">
+				<div>
+					<p className="font-semibold text-base tabular-nums">
+						{formatNumber(row.requests)}
+					</p>
+					<p className="text-muted-foreground text-xs">
+						{row.requests > 0
+							? `requests, ${formatNumber(row.pages)} pages${purpose ? `, ${purpose}` : ""}`
+							: "requests"}
+					</p>
+				</div>
+				<div>
+					<p className="font-semibold text-base tabular-nums">
+						{formatNumber(row.visitors)}
+					</p>
+					<p className="text-muted-foreground text-xs">visitors sent</p>
+				</div>
+			</div>
+		</div>
+	);
 }
 
 export default function AgentsPage() {
@@ -54,50 +90,43 @@ export default function AgentsPage() {
 		websiteId,
 		dateRange,
 		[
-			{ id: "agent-summary", parameters: ["ai_agent_summary"] },
-			{ id: "agent-series", parameters: ["ai_agent_time_series"] },
-			{ id: "agent-tables", parameters: ["ai_agent_pages", "ai_agents"] },
+			{ id: "products", parameters: ["ai_products"] },
+			{ id: "series", parameters: ["ai_agent_time_series"] },
+			{ id: "pages", parameters: ["ai_agent_pages"] },
 		]
 	);
 
-	const summary = (
-		getDataForQuery("agent-summary", "ai_agent_summary") as AgentSummary[]
-	)?.[0];
+	const products =
+		(getDataForQuery("products", "ai_products") as ProductRow[]) ?? [];
 	const series =
-		(getDataForQuery(
-			"agent-series",
-			"ai_agent_time_series"
-		) as AgentTimeSeriesRow[]) ?? [];
-	const pages =
-		(getDataForQuery("agent-tables", "ai_agent_pages") as AgentPageResult[]) ??
+		(getDataForQuery("series", "ai_agent_time_series") as ProductSeriesRow[]) ??
 		[];
-	const agents =
-		(getDataForQuery("agent-tables", "ai_agents") as AgentRow[]) ?? [];
+	const pages =
+		(getDataForQuery("pages", "ai_agent_pages") as PageResult[]) ?? [];
 
-	const chartData = useMemo(
-		() =>
-			series.map((row) => ({
-				...row,
-				date:
-					dateRange.granularity === "hourly"
-						? dayjs(row.date).format("HH:mm")
-						: dayjs(row.date).format("MMM D"),
-			})),
-		[series, dateRange.granularity]
-	);
-
-	const hitsChart = series.map((row) => ({
-		date: row.date,
-		value: Number(row.hits) || 0,
-	}));
-
-	const purposeMetrics = PURPOSES.filter(({ key }) =>
-		series.some((row) => row[key] > 0)
-	).map(({ key, label }) => ({ key, label }));
-	const chartMetrics =
-		purposeMetrics.length > 0
-			? purposeMetrics
-			: [{ key: "hits", label: "Agent hits" }];
+	const chart = useMemo(() => {
+		const topProducts = products
+			.filter((row) => row.requests > 0)
+			.slice(0, CHART_PRODUCTS)
+			.map((row) => row.product);
+		const byDate = new Map<string, ChartMultiSeriesDataPoint>();
+		for (const row of series) {
+			if (!topProducts.includes(row.product)) {
+				continue;
+			}
+			const date =
+				dateRange.granularity === "hourly"
+					? dayjs(row.date).format("HH:mm")
+					: dayjs(row.date).format("MMM D");
+			const point = byDate.get(date) ?? { date };
+			point[row.product] = Number(row.requests) || 0;
+			byDate.set(date, point);
+		}
+		return {
+			data: [...byDate.values()],
+			metrics: topProducts.map((product) => ({ key: product, label: product })),
+		};
+	}, [products, series, dateRange.granularity]);
 
 	const pageRows = useMemo(
 		(): AgentPageRow[] =>
@@ -105,15 +134,13 @@ export default function AgentsPage() {
 		[pages]
 	);
 
-	const hits = summary?.hits ?? 0;
-
-	if (!isLoading && hits === 0) {
+	if (!isLoading && products.length === 0) {
 		return (
 			<div className="p-4">
 				<EmptyState
-					description="Agents that run JavaScript show up automatically. Crawlers like GPTBot and ClaudeBot don't, so add trackAgentTraffic from @databuddy/sdk/agents to your server to see them."
+					description="ChatGPT, Claude, Perplexity and other AI products show up here when they read your pages or send you visitors. Crawlers like GPTBot and ClaudeBot don't run JavaScript, so add trackAgentTraffic from @databuddy/sdk/agents to your server to see them."
 					icon={<BrainIcon />}
-					title="No AI agents in this period"
+					title="No AI activity in this period"
 				/>
 			</div>
 		);
@@ -123,64 +150,34 @@ export default function AgentsPage() {
 		<div className="relative flex h-full flex-col">
 			<div className="space-y-4 p-4">
 				<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-4">
-					<StatCard
-						chartData={hitsChart}
-						icon={BrainIcon}
-						id="agent-hits"
-						isLoading={isLoading}
-						title="Agent hits"
-						value={hits}
-					/>
-					<StatCard
-						icon={RobotIcon}
-						id="agent-count"
-						isLoading={isLoading}
-						title="Agents"
-						value={summary?.agents ?? 0}
-					/>
-					<StatCard
-						icon={FileTextIcon}
-						id="agent-pages"
-						isLoading={isLoading}
-						title="Pages read"
-						value={summary?.pages ?? 0}
-					/>
-					<StatCard
-						description={`${percentOf(summary?.ai_sessions ?? 0, summary?.sessions ?? 0)} of all sessions`}
-						icon={UsersIcon}
-						id="agent-referrals"
-						isLoading={isLoading}
-						title="AI-referred sessions"
-						value={summary?.ai_sessions ?? 0}
-					/>
+					{isLoading
+						? Array.from({ length: 4 }, (_, index) => (
+								<Skeleton className="h-[116px] rounded-lg" key={index} />
+							))
+						: products.map((row) => (
+								<ProductCard key={row.product} row={row} />
+							))}
 				</div>
 
-				<SimpleMetricsChart
-					data={chartData}
-					description="Hits from AI agents and crawlers by purpose"
-					height={300}
-					isLoading={isLoading}
-					metrics={chartMetrics}
-					partialLastSegment
-					title="Agent traffic"
-				/>
+				{chart.metrics.length > 0 ? (
+					<SimpleMetricsChart
+						data={chart.data}
+						description="Requests from each AI product's crawlers and agents"
+						height={280}
+						isLoading={isLoading}
+						metrics={chart.metrics}
+						partialLastSegment
+						title="AI requests"
+					/>
+				) : null}
 
 				<DataTable
-					columns={pageColumns(pageRows)}
+					columns={pageColumns}
 					data={pageRows}
-					description="What AI agents read, next to what humans read"
-					emptyMessage="No pages read by agents yet"
+					description="What AI reads, next to what humans read"
+					emptyMessage="No pages read by AI yet"
 					isLoading={isLoading}
 					title="Pages"
-				/>
-
-				<DataTable
-					columns={agentColumns}
-					data={agents}
-					description="Who is reading, and why"
-					emptyMessage="No agents yet"
-					isLoading={isLoading}
-					title="Agents"
 				/>
 
 				<p className="text-pretty text-muted-foreground text-xs">

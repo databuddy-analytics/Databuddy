@@ -65,10 +65,40 @@ const OS_ICON_EXT: Record<string, "svg" | "png" | "webp"> = {
 	macOS: "svg",
 };
 
+const AI_ICONS = [
+	"Apple",
+	"ByteDance",
+	"ChatGPT",
+	"Claude",
+	"Copilot",
+	"Cursor",
+	"DeepSeek",
+	"DuckDuckGo",
+	"Gemini",
+	"Huawei",
+	"Meta",
+	"Mistral",
+	"Perplexity",
+];
+const MONOCHROME_AI_ICONS = new Set(["Apple", "ChatGPT", "Copilot", "Cursor"]);
+
 const BROWSER_ICONS = Object.keys(BROWSER_ICON_EXT);
 const OS_ICONS = Object.keys(OS_ICON_EXT);
 
-type IconType = "browser" | "os";
+type IconType = "browser" | "os" | "ai";
+
+const ICON_SETS: Record<
+	IconType,
+	{ extensions: Record<string, string>; folder: string; names: string[] }
+> = {
+	browser: {
+		extensions: BROWSER_ICON_EXT,
+		folder: "browsers",
+		names: BROWSER_ICONS,
+	},
+	os: { extensions: OS_ICON_EXT, folder: "operating-systems", names: OS_ICONS },
+	ai: { extensions: {}, folder: "ai", names: AI_ICONS },
+};
 
 interface PublicIconProps {
 	className?: string;
@@ -122,10 +152,9 @@ function getOSMappedName(normalizedName: string): string {
 	return osMap[lowerName] || normalizedName;
 }
 
-function getIconSrc(iconName: string, folder: string): string {
-	const ext =
-		folder === "browsers" ? BROWSER_ICON_EXT[iconName] : OS_ICON_EXT[iconName];
-	return `/${folder}/${iconName}.${ext ?? "svg"}`;
+function getIconSrc(iconName: string, type: IconType): string {
+	const { extensions, folder } = ICON_SETS[type];
+	return `/${folder}/${iconName}.${extensions[iconName] ?? "svg"}`;
 }
 
 function createFallbackIcon(
@@ -160,8 +189,7 @@ function PublicIcon({
 	}
 
 	const normalizedName = normalizeIconName(name);
-	const folder = type === "browser" ? "browsers" : "operating-systems";
-	const availableIcons = type === "browser" ? BROWSER_ICONS : OS_ICONS;
+	const availableIcons = ICON_SETS[type].names;
 
 	let searchName = normalizedName;
 	if (type === "os") {
@@ -174,7 +202,7 @@ function PublicIcon({
 		return fallback || createFallbackIcon(normalizedName, iconSize, className);
 	}
 
-	const iconSrc = getIconSrc(iconName, folder);
+	const iconSrc = getIconSrc(iconName, type);
 
 	return (
 		<div
@@ -188,7 +216,10 @@ function PublicIcon({
 		>
 			<Image
 				alt={name}
-				className={cn("object-contain")}
+				className={cn(
+					"object-contain",
+					type === "ai" && MONOCHROME_AI_ICONS.has(iconName) && "dark:invert"
+				)}
 				height={iconSize}
 				key={`${iconName}`}
 				onError={(e) => {
@@ -232,6 +263,23 @@ export function OSIcon({
 			name={name}
 			size={size}
 			type="os"
+		/>
+	);
+}
+
+export function AiProductIcon({
+	name,
+	size = "md",
+	className,
+	fallback,
+}: Omit<PublicIconProps, "type">) {
+	return (
+		<PublicIcon
+			className={className}
+			fallback={fallback}
+			name={name}
+			size={size}
+			type="ai"
 		/>
 	);
 }
