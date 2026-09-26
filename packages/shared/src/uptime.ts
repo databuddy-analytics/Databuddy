@@ -42,6 +42,17 @@ export const UPTIME_GRANULARITY_LABELS = {
 	day: "24h",
 } as const satisfies Record<UptimeGranularity, string>;
 
+export const UPTIME_GRANULARITY_FREQUENCY = {
+	minute: "Every minute",
+	five_minutes: "Every 5 minutes",
+	ten_minutes: "Every 10 minutes",
+	thirty_minutes: "Every 30 minutes",
+	hour: "Hourly",
+	six_hours: "Every 6 hours",
+	twelve_hours: "Every 12 hours",
+	day: "Daily",
+} as const satisfies Record<UptimeGranularity, string>;
+
 export const UPTIME_GRANULARITY_OPTIONS = uptimeGranularitySchema.options.map(
 	(value) => ({ value, label: UPTIME_GRANULARITY_LABELS[value] })
 );
@@ -50,6 +61,9 @@ export function formatUptimeGranularity(value: string): string {
 	const granularity = parseUptimeGranularity(value);
 	return granularity ? UPTIME_GRANULARITY_LABELS[granularity] : value;
 }
+
+export const SLACK_WEBHOOK_PATTERN =
+	/^https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[A-Za-z0-9]+$/;
 
 export const RESERVED_STATUS_PAGE_SLUGS: ReadonlySet<string> = new Set([
 	"health",

@@ -9,8 +9,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type RefCallback, useCallback, useMemo, useState } from "react";
 import {
-	formatUptimeGranularity,
 	parseUptimeGranularity,
+	UPTIME_GRANULARITY_FREQUENCY,
 } from "@databuddy/shared/uptime";
 import {
 	deriveMonitorFreshness,
@@ -622,7 +622,7 @@ function MonitorDetailBody({
 					<span className="flex items-center gap-1.5">
 						<span className="text-muted-foreground">Frequency</span>
 						<span className="font-medium text-foreground">
-							Every {formatUptimeGranularity(schedule.granularity)}
+							{UPTIME_GRANULARITY_FREQUENCY[schedule.granularity]}
 						</span>
 					</span>
 
@@ -709,17 +709,21 @@ function MonitorDetailBody({
 
 export function MonitorDetail({
 	scheduleId,
+	initialSchedule,
 	title,
 	onRemovedAction,
 }: {
+	initialSchedule?: { data: Schedule; updatedAt: number };
 	onRemovedAction?: () => void;
 	scheduleId: string;
 	title?: string;
 }) {
 	const router = useRouter();
-	const scheduleQuery = useQuery(
-		orpc.uptime.getSchedule.queryOptions({ input: { scheduleId } })
-	);
+	const scheduleQuery = useQuery({
+		...orpc.uptime.getSchedule.queryOptions({ input: { scheduleId } }),
+		initialData: initialSchedule?.data,
+		initialDataUpdatedAt: initialSchedule?.updatedAt,
+	});
 
 	if (scheduleQuery.isPending) {
 		return <MonitorDetailLoading />;

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { connect } from "node:tls";
+import { checkServerIdentity, connect } from "node:tls";
 import { db } from "@databuddy/db";
 import {
 	safeFetch,
@@ -249,8 +249,8 @@ export function classifyFetchError(error: unknown, timeout: number): string {
 }
 
 const checkCertificate = (url: string) =>
-	Effect.promise<{ valid: boolean; expiry: number }>(async () => {
-		const fallback = { valid: false, expiry: 0 };
+	Effect.promise<{ valid: boolean; expiry: number | null }>(async () => {
+		const fallback = { valid: false, expiry: null };
 		try {
 			const parsed = new URL(url);
 			if (parsed.protocol !== "https:") {
@@ -264,7 +264,7 @@ const checkCertificate = (url: string) =>
 
 			const port = parsed.port ? Number.parseInt(parsed.port, 10) : 443;
 
-			return await new Promise<{ valid: boolean; expiry: number }>(
+			return await new Promise<{ valid: boolean; expiry: number | null }>(
 				(resolve) => {
 					const socket = connect(
 						{
@@ -272,21 +272,27 @@ const checkCertificate = (url: string) =>
 							port,
 							servername: parsed.hostname,
 							timeout: 5000,
+							rejectUnauthorized: false,
 						},
 						() => {
 							const cert = socket.getPeerCertificate();
+							const trusted = socket.authorized;
+							const onlyExpired =
+								String(socket.authorizationError) === "CERT_HAS_EXPIRED" &&
+								checkServerIdentity(parsed.hostname, cert) === undefined;
 							socket.destroy();
 
-							if (!cert?.valid_to) {
+							if (!((trusted || onlyExpired) && cert?.valid_to)) {
 								resolve(fallback);
 								return;
 							}
 
-							const expiry = new Date(cert.valid_to);
-							resolve({
-								valid: expiry > new Date(),
-								expiry: expiry.getTime(),
-							});
+							const expiry = new Date(cert.valid_to).getTime();
+							if (Number.isNaN(expiry)) {
+								resolve(fallback);
+								return;
+							}
+							resolve({ valid: trusted && expiry > Date.now(), expiry });
 						}
 					);
 
