@@ -370,6 +370,23 @@ describe("parseUserAgent", () => {
 		expect(result.osName).toBe("iOS");
 	});
 
+	it.each([
+		[
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Claude/2.2553.1 Chrome/152.0.7977.76 Safari/537.36",
+			"Claude",
+			"2.2553.1",
+		],
+		[
+			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Cursor/3.6.31 Chrome/142.0.7444.265 Electron/39.8.1 Safari/537.36",
+			"Cursor",
+			"3.6.31",
+		],
+	])("reports the AI desktop app as the browser for %s", (ua, name, version) => {
+		const result = parseUserAgent(ua);
+		expect(result.browserName).toBe(name);
+		expect(result.browserVersion).toBe(version);
+	});
+
 	it("returns only the raw value for an empty string", () => {
 		expect(parseUserAgent("")).toEqual({ raw: "" });
 	});
