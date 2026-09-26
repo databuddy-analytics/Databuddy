@@ -255,6 +255,10 @@ export const contents: SidebarSection[] = [
 						href: "/docs/sdk/tracker",
 					},
 					{
+						title: "AI Agents",
+						href: "/docs/sdk/ai-agents",
+					},
+					{
 						title: "DevTools",
 						href: "/docs/sdk/devtools",
 					},
