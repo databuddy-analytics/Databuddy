@@ -3,10 +3,20 @@ import { AI_REFERRERS } from "@databuddy/shared/utils/referrer";
 import { Analytics } from "../../types/tables";
 import type { CustomSqlContext, SimpleQueryConfig } from "../types";
 
-const AGENT_PRODUCT =
-	"transform(agent_id, {agentIds:Array(String)}, {agentProducts:Array(String)}, bot_name)";
-const VISIT_PRODUCT =
-	"if(browser_name IN ('Claude', 'Cursor'), browser_name, transform(domainWithoutWWW(referrer), {aiDomains:Array(String)}, {aiNames:Array(String)}, transform(utm_source, {aiDomains:Array(String)}, {aiNames:Array(String)}, '')))";
+function sqlArray(values: string[]): string {
+	return `[${values.map((v) => `'${v.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`).join(", ")}]`;
+}
+
+// Inline lookup arrays as SQL literals so ClickHouse treats them as true constants.
+// Using Array(String) query parameters inside aggregate functions (e.g. topK) and
+// scalar functions like transform() fails in ClickHouse 25.x with a parse error.
+const AGENT_IDS = sqlArray(AI_AGENTS.map((a) => a.id));
+const AGENT_PRODUCTS_ARRAY = sqlArray(AI_AGENTS.map((a) => a.product));
+const AI_DOMAINS_ARRAY = sqlArray(AI_REFERRERS.map((r) => r.domain));
+const AI_NAMES_ARRAY = sqlArray(AI_REFERRERS.map((r) => r.name));
+
+const AGENT_PRODUCT = `transform(agent_id, ${AGENT_IDS}, ${AGENT_PRODUCTS_ARRAY}, bot_name)`;
+const VISIT_PRODUCT = `if(browser_name IN ('Claude', 'Cursor'), browser_name, transform(domainWithoutWWW(referrer), ${AI_DOMAINS_ARRAY}, ${AI_NAMES_ARRAY}, transform(utm_source, ${AI_DOMAINS_ARRAY}, ${AI_NAMES_ARRAY}, '')))`;
 const PURPOSE_COUNTS = `countIf(agent_purpose = 'training') AS training,
 	countIf(agent_purpose = 'search_index') AS search_index,
 	countIf(agent_purpose IN ('user_fetch', 'agent')) AS on_demand`;
@@ -28,10 +38,6 @@ function productParams(ctx: CustomSqlContext) {
 		websiteId: ctx.websiteId,
 		startDate: ctx.startDate,
 		endDate: ctx.endDate,
-		agentIds: AI_AGENTS.map((agent) => agent.id),
-		agentProducts: AI_AGENTS.map((agent) => agent.product),
-		aiDomains: AI_REFERRERS.map((referrer) => referrer.domain),
-		aiNames: AI_REFERRERS.map((referrer) => referrer.name),
 	};
 }
 
