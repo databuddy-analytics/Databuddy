@@ -24,6 +24,15 @@ const attributeOption =
 	/\btrack(?:Attributes|-attributes)\b(?!\s*\??\s*:\s*boolean)(?!\s*[:=]\s*\{?\s*["'`]?false\b)/;
 const attributeSelector =
 	/\(\s*["'`][^"'`\n]*\[data-track[\]\s=~|^$*]|\.dataset\.track\b/;
+const attributeName = /^(?:trackAttributes|data-track-attributes)$/;
+const datasetTrack = /\.dataset\.track\b/;
+const trackSelector = /\[data-track[\]\s=~|^$*]/;
+const selectorMethods = new Set([
+	"closest",
+	"matches",
+	"querySelector",
+	"querySelectorAll",
+]);
 const commentLine = /^\s*(?:\/\/|\/?\*)/;
 const scriptFile = /\.[cm]?[jt]sx?$/;
 const collectorPackage =
@@ -366,44 +375,90 @@ function trackingDeclarations(sources: ReadonlyMap<string, string>) {
 	return { helpers, warehouse };
 }
 
+function scriptListeners(path: string, source: string) {
+	const file = parse(path, source);
+	const lines = new Set<number>();
+	const add = (node: ts.Node) => lines.add(lineOf(file, node.getStart(file)));
+	const enabled = (value: ts.Node | undefined) =>
+		!(
+			value &&
+			(value.kind === ts.SyntaxKind.FalseKeyword ||
+				(ts.isJsxExpression(value) &&
+					value.expression?.kind === ts.SyntaxKind.FalseKeyword) ||
+				(ts.isStringLiteralLike(value) && value.text === "false"))
+		);
+	walk(file, (node) => {
+		if (
+			ts.isJsxAttribute(node) &&
+			attributeName.test(node.name.getText(file)) &&
+			enabled(node.initializer)
+		) {
+			add(node);
+		} else if (
+			(ts.isPropertyAssignment(node) ||
+				ts.isShorthandPropertyAssignment(node)) &&
+			attributeName.test(node.name.getText(file)) &&
+			(ts.isShorthandPropertyAssignment(node) || enabled(node.initializer))
+		) {
+			add(node);
+		} else if (
+			ts.isCallExpression(node) &&
+			ts.isPropertyAccessExpression(node.expression)
+		) {
+			const [first, second] = node.arguments;
+			const method = node.expression.name.text;
+			if (
+				(method === "setAttribute" &&
+					first &&
+					ts.isStringLiteralLike(first) &&
+					attributeName.test(first.text) &&
+					enabled(second)) ||
+				(selectorMethods.has(method) &&
+					first &&
+					ts.isStringLiteralLike(first) &&
+					trackSelector.test(first.text))
+			) {
+				add(node);
+			}
+		} else if (
+			ts.isPropertyAccessExpression(node) &&
+			node.name.text === "track" &&
+			ts.isPropertyAccessExpression(node.expression) &&
+			node.expression.name.text === "dataset"
+		) {
+			add(node);
+		}
+	});
+	return [...lines].map((line) => `${path}:${line}`);
+}
+
 export function collectCoverage(sources: ReadonlyMap<string, string>) {
 	const attributes: string[] = [];
 	const listeners: string[] = [];
 	for (const [path, source] of sources) {
-		const collector = collectorPackage.test(path);
-		let literals: [number, number][] | null = null;
-		const inLiteral = (offset: number) => {
-			if (!scriptFile.test(path)) {
-				return false;
-			}
-			if (!literals) {
-				const found: [number, number][] = [];
-				walk(parse(path, source), (node) => {
-					if (
-						ts.isStringLiteral(node) ||
-						ts.isNoSubstitutionTemplateLiteral(node) ||
-						ts.isTemplateExpression(node)
-					) {
-						found.push([node.getStart(), node.end]);
-					}
-				});
-				literals = found;
-			}
-			return literals.some(([start, end]) => start <= offset && offset < end);
-		};
-		let offset = 0;
 		for (const [index, line] of source.split("\n").entries()) {
-			const lineStart = offset;
-			offset += line.length + 1;
 			const match = line.match(dataTrack);
 			if (match) {
 				attributes.push(`${path}:${index + 1} data-track="${match[1]}"`);
 			}
-			const option = collector ? null : attributeOption.exec(line);
+		}
+		if (collectorPackage.test(path)) {
+			continue;
+		}
+		if (scriptFile.test(path)) {
 			if (
-				!(collector || commentLine.test(line)) &&
-				((option && !inLiteral(lineStart + option.index)) ||
-					attributeSelector.test(line))
+				attributeOption.test(source) ||
+				trackSelector.test(source) ||
+				datasetTrack.test(source)
+			) {
+				listeners.push(...scriptListeners(path, source));
+			}
+			continue;
+		}
+		for (const [index, line] of source.split("\n").entries()) {
+			if (
+				!commentLine.test(line) &&
+				(attributeOption.test(line) || attributeSelector.test(line))
 			) {
 				listeners.push(`${path}:${index + 1}`);
 			}

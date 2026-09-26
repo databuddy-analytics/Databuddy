@@ -621,6 +621,25 @@ test("data-track listeners are found in every documented install form", () => {
 	assert.equal(listeners("trackAttributes?: boolean;"), 0);
 	assert.equal(
 		listeners(
+			'const script = document.createElement("script");\nscript.setAttribute("data-track-attributes", "true");'
+		),
+		1
+	);
+	assert.equal(listeners("const name = target.dataset.track;"), 1);
+	assert.equal(
+		listeners(
+			'export const snippet = `document.addEventListener("click", (e) => e.target.closest("[data-track]"));`;'
+		),
+		0
+	);
+	assert.equal(
+		listeners(
+			'export const settings = [{ key: "trackAttributes", label: "Track attributes" }];'
+		),
+		0
+	);
+	assert.equal(
+		listeners(
 			'const el = e.target.closest("[data-track]");',
 			"packages/tracker/src/index.ts"
 		),
