@@ -7,6 +7,12 @@ import { agentTelemetryRoute } from "./agent-telemetry";
 import { flagsRoute } from "./flags";
 import { scanRoute } from "./scan";
 
+const PUBLIC_API_PATH = /^\/public(?:\/|$)/;
+
+function isPublicApiRequest(request: Request): boolean {
+	return PUBLIC_API_PATH.test(new URL(request.url).pathname);
+}
+
 export const publicApi = new Elysia({ prefix: "/public" })
 	.use(
 		serverTiming({
@@ -24,7 +30,7 @@ export const publicApi = new Elysia({ prefix: "/public" })
 		cors({
 			credentials: false,
 			exposeHeaders: ["X-Request-ID", "Retry-After"],
-			origin: true,
+			origin: isPublicApiRequest,
 		})
 	)
 	.options("*", () => new Response(null, { status: 204 }))
