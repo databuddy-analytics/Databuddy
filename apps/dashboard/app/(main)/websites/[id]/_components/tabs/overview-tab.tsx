@@ -27,6 +27,7 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { metricVisibilityAtom } from "@/stores/jotai/chartAtoms";
 import {
 	calculatePercentChange,
+	calculatePreviousPeriod,
 	clampBounceRate,
 	formatDateByGranularity,
 } from "../utils/analytics-helpers";
@@ -137,27 +138,11 @@ export function WebsiteOverviewTab({
 }: WebsiteOverviewTabProps) {
 	const { chartType, chartStepType } = useChartPreferences("overview-stats");
 	const isMobile = useMediaQuery("(max-width: 640px)");
-	const calculatePreviousPeriod = useCallback(
-		(currentRange: typeof dateRange) => {
-			const startDate = dayjs(currentRange.start_date);
-			const daysDiff = dayjs(currentRange.end_date).diff(startDate, "day");
-
-			return {
-				start_date: startDate
-					.subtract(daysDiff + 1, "day")
-					.format("YYYY-MM-DD"),
-				end_date: startDate.subtract(1, "day").format("YYYY-MM-DD"),
-				granularity: currentRange.granularity,
-			};
-		},
-		[]
-	);
-
 	const { setDateRangeAction } = useDateFilters();
 
 	const previousPeriodRange = useMemo(
 		() => calculatePreviousPeriod(dateRange),
-		[dateRange, calculatePreviousPeriod]
+		[dateRange]
 	);
 
 	const [visibleMetrics] = useAtom(metricVisibilityAtom);
