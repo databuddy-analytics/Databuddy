@@ -363,7 +363,13 @@ integration("MCP OAuth authorization round trip", () => {
 			.delete(schema.oauthResource)
 			.where(eq(schema.oauthResource.identifier, config.urls.mcp));
 
-		let started: Promise<PromiseSettledResult<unknown>[]> | undefined;
+		let started:
+			| Promise<
+					PromiseSettledResult<
+						Awaited<typeof import("./oauth")["oauthAuth"]["$context"]>
+					>[]
+			  >
+			| undefined;
 		await db.transaction(async (tx) => {
 			await tx.insert(schema.oauthResource).values({
 				id: randomUUID(),
