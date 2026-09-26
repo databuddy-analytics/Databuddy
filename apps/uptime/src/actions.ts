@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { connect } from "node:tls";
+import { checkServerIdentity, connect } from "node:tls";
 import { db } from "@databuddy/db";
 import {
 	safeFetch,
@@ -278,7 +278,8 @@ const checkCertificate = (url: string) =>
 							const cert = socket.getPeerCertificate();
 							const trusted = socket.authorized;
 							const onlyExpired =
-								String(socket.authorizationError) === "CERT_HAS_EXPIRED";
+								String(socket.authorizationError) === "CERT_HAS_EXPIRED" &&
+								checkServerIdentity(parsed.hostname, cert) === undefined;
 							socket.destroy();
 
 							if (!((trusted || onlyExpired) && cert?.valid_to)) {
