@@ -88,6 +88,8 @@ export function buildAlarmNotificationConfig(destinations: AlarmDestination[]) {
 	return { clientConfig, channels: Array.from(channels) };
 }
 
+export const MAX_ALARM_DESTINATIONS = 10;
+
 export function buildAlarmNotificationTargets(
 	destinations: AlarmDestination[]
 ): AlarmNotificationTarget[] {
@@ -98,7 +100,7 @@ export function buildAlarmNotificationTargets(
 				process.env.EMAIL_FROM?.trim())) ||
 		"Databuddy <alerts@databuddy.cc>";
 
-	for (const dest of destinations) {
+	for (const dest of destinations.slice(0, MAX_ALARM_DESTINATIONS)) {
 		const cfg = (dest.config ?? {}) as Record<string, unknown>;
 
 		if (dest.type === "slack") {
