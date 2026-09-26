@@ -1,4 +1,8 @@
 import {
+	detectAiAgentSignals,
+	remeasureAiAgentSignal,
+} from "./ai-agent-detection";
+import {
 	type BusinessContext,
 	type BusinessScope,
 	businessContextSchema,
@@ -310,6 +314,7 @@ interface InvestigationRuntime {
 }
 
 export interface InvestigationSources {
+	detectAiAgentSignals?: typeof detectAiAgentSignals;
 	detectDefinitionSignals: typeof detectFunnelGoalSignals;
 	detectMetricSignals: typeof detectSignals;
 	detectRetentionSignals?: typeof detectRetentionSignals;
@@ -359,6 +364,9 @@ export function remeasureStoredSignal(
 		routeHealth?: RouteHealthDetectionDeps;
 	} = {}
 ): Promise<DetectedSignal | null> {
+	if (prior.signalKey.startsWith("ai_agents:")) {
+		return remeasureAiAgentSignal(params, prior, today, undefined, abortSignal);
+	}
 	if (prior.signalKey.startsWith("retention:")) {
 		return detectRetentionSignals(
 			params,
@@ -484,6 +492,7 @@ export async function refreshInvestigationSignal(params: {
 }
 
 const productionInvestigationSources: InvestigationSources = {
+	detectAiAgentSignals,
 	detectRetentionSignals,
 	loadBusinessProfile: loadWebsiteBusinessProfile,
 	recallBusinessContext: recallWebsiteBusinessContext,
@@ -625,6 +634,16 @@ export async function discoverWebsiteSignals(
 			)
 		),
 		detectSource(
+			"ai_agents",
+			() =>
+				runtime.sources.detectAiAgentSignals?.(
+					detectParams,
+					asOf,
+					undefined,
+					sourceAbortSignal
+				) ?? Promise.resolve([])
+		),
+		detectSource(
 			"retention",
 			() =>
 				runtime.sources.detectRetentionSignals?.(
@@ -646,6 +665,7 @@ export async function discoverWebsiteSignals(
 		metricSignals,
 		funnelGoalSignals,
 		routeHealthSignals,
+		aiAgentSignals,
 		retentionSignals,
 	] = await Promise.all(detectionTasks);
 	if (
@@ -680,6 +700,7 @@ export async function discoverWebsiteSignals(
 		...metricSignals,
 		...funnelGoalSignals,
 		...routeHealthSignals,
+		...aiAgentSignals,
 		...retentionSignals,
 	]) {
 		const key = signalKeyForDetectedSignal(signal);
