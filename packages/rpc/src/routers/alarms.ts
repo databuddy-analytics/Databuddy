@@ -5,6 +5,7 @@ import {
 	alarmTriggerTypeValues,
 } from "@databuddy/db/schema";
 import { ratelimit } from "@databuddy/redis/rate-limit";
+import { SLACK_WEBHOOK_PATTERN } from "@databuddy/shared/uptime";
 import { createSelectSchema } from "drizzle-orm/zod";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
@@ -18,8 +19,6 @@ import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
 import { withResource } from "../procedures/with-resource";
 import { withWorkspace } from "../procedures/with-workspace";
 
-const SLACK_WEBHOOK_PATTERN =
-	/^https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[A-Za-z0-9]+$/;
 const FORBIDDEN_HEADER_NAMES = new Set([
 	"authorization",
 	"cookie",
