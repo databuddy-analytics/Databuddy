@@ -58,6 +58,81 @@ import {
 	processChartData,
 } from "./websites-chart";
 
+const ROBOTS_COMMENT = /#.*$/;
+const ROBOTS_ROOT_PATHS = new Set(["/", "/*", "*"]);
+const ROBOTS_MAX_BYTES = 512_000;
+
+type RobotsAccess = "allowed" | "partial" | "blocked";
+
+interface RobotsGroup {
+	agents: string[];
+	rules: { isAllow: boolean; path: string }[];
+}
+
+function parseRobotsTxt(robotsTxt: string): RobotsGroup[] {
+	const groups: RobotsGroup[] = [];
+	let current: RobotsGroup | undefined;
+	let isReadingAgents = false;
+	for (const line of robotsTxt.split("\n")) {
+		const [rawKey = "", ...rest] = line.replace(ROBOTS_COMMENT, "").split(":");
+		const key = rawKey.trim().toLowerCase();
+		const value = rest.join(":").trim();
+		if (key === "user-agent") {
+			if (!(current && isReadingAgents)) {
+				current = { agents: [], rules: [] };
+				groups.push(current);
+			}
+			current.agents.push(value.toLowerCase());
+			isReadingAgents = true;
+		} else if (key) {
+			isReadingAgents = false;
+			if ((key === "allow" || key === "disallow") && value && current) {
+				current.rules.push({ isAllow: key === "allow", path: value });
+			}
+		}
+	}
+	return groups;
+}
+
+function robotsAccessFor(
+	groups: RobotsGroup[],
+	userAgent: string
+): RobotsAccess {
+	const ua = userAgent.toLowerCase();
+	const token =
+		groups
+			.flatMap((group) => group.agents)
+			.filter((agent) => agent !== "*" && ua.includes(agent))
+			.sort((a, b) => b.length - a.length)[0] ?? "*";
+	const rules = groups
+		.filter((group) => group.agents.includes(token))
+		.flatMap((group) => group.rules);
+	const isRootBlocked = rules.some(
+		(rule) => !rule.isAllow && ROBOTS_ROOT_PATHS.has(rule.path)
+	);
+	const isRootAllowed = rules.some(
+		(rule) => rule.isAllow && ROBOTS_ROOT_PATHS.has(rule.path)
+	);
+	if (isRootBlocked && !isRootAllowed) {
+		return "blocked";
+	}
+	return rules.some((rule) => !rule.isAllow) ? "partial" : "allowed";
+}
+
+const fetchRobotsTxt = cacheable(
+	async (domain: string): Promise<string | null> => {
+		const response = await safeFetch(`https://${domain}/robots.txt`, {
+			timeoutMs: 5000,
+		}).catch(() => null);
+		if (!response?.ok) {
+			await response?.body?.cancel();
+			return null;
+		}
+		return (await response.text()).slice(0, ROBOTS_MAX_BYTES);
+	},
+	{ expireInSec: 600, prefix: "robots_txt" }
+);
+
 async function isAgentRequestRecorded(
 	websiteId: string,
 	url: string
@@ -1145,6 +1220,45 @@ export const websitesRouter = {
 				)
 			);
 			return { homepage, llmsTxt };
+		}),
+
+	checkAiRobots: protectedProcedure
+		.route({
+			description:
+				"Reads the website's robots.txt and reports, for each AI crawler user agent, whether it is allowed, partly blocked, or blocked. Requires website read permission.",
+			method: "POST",
+			path: "/websites/checkAiRobots",
+			summary: "Check robots.txt rules for AI crawlers",
+			tags: ["Websites"],
+		})
+		.input(
+			z.object({
+				websiteId: z.string(),
+				userAgents: z.array(z.string().max(512)).max(100),
+			})
+		)
+		.output(
+			z.object({
+				hasRobotsTxt: z.boolean(),
+				access: z.array(z.enum(["allowed", "partial", "blocked"])),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const { website } = await withWorkspace(context, {
+				websiteId: input.websiteId,
+				permissions: ["read"],
+			});
+			if (!website) {
+				throw rpcError.notFound("website");
+			}
+			const robotsTxt = await fetchRobotsTxt(website.domain);
+			const groups = robotsTxt ? parseRobotsTxt(robotsTxt) : [];
+			return {
+				hasRobotsTxt: robotsTxt !== null,
+				access: input.userAgents.map((userAgent) =>
+					robotsAccessFor(groups, userAgent)
+				),
+			};
 		}),
 
 	updateSettings: trackedProcedure

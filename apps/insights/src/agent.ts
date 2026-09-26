@@ -868,8 +868,14 @@ const GOAL_INSTRUCTIONS =
 const RELIABILITY_INSTRUCTIONS =
 	"This signal concerns reliability. Establish the exact failing or slow surface, its measured reach, and the closest directly measured consequence. Use source, configuration, or deploy evidence only when it can establish a concrete repair mechanism. Headline measured errors or exposure; inspected code does not turn an error count into a count of blocked attempts. State the mechanism once in rootCause and cite its source alongside the exposure facts. Verify the repaired invariant (such as the null-payment fallback) and recovery to a healthy baseline; fewer errors than the current incident alone does not verify a repair.";
 
+const AI_AGENT_INSTRUCTIONS =
+	"This signal concerns an AI product (ChatGPT, Claude, Perplexity and others) reading the site or sending visitors. Use the ai_products, ai_agent_pages, ai_crawlers, ai_content_formats and ai_visitor_outcomes queries to establish which pages and formats it read, which crawler or agent made the requests and for what purpose, and what its visitors did. Treat a crawl increase as a change in how that product indexes or answers from the site, not as human demand. Do not claim a ranking, citation or answer change the data cannot show.";
+
 function signalInstructions(signal: InvestigationSignal): string | null {
 	const { signalKey } = signal;
+	if (signalKey.startsWith("ai_agents:")) {
+		return AI_AGENT_INSTRUCTIONS;
+	}
 	if (
 		signal.entity.type === "funnel" ||
 		signal.entity.type === "funnel_step" ||

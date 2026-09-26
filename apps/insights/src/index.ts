@@ -134,6 +134,44 @@ async function startRuntime() {
 	emitInsightsEvent("info", "lifecycle.starting", {
 		worker_enabled: workerEnabled,
 	});
+	importWorker = new Worker<ImportRunJobData>(
+		IMPORT_QUEUE_NAME,
+		async (job) => {
+			const result = await runImportJob(job.data, ({ rows }) =>
+				job.updateProgress(rows)
+			).catch((error) => {
+				if (error instanceof PermanentImportError) {
+					throw new UnrecoverableError(error.message);
+				}
+				throw error;
+			});
+			emitInsightsEvent("info", "import.completed", {
+				run_id: job.data.runId,
+				website_id: job.data.websiteId,
+				provider_id: job.data.providerId,
+				rows: result.rows,
+				dates: result.dates,
+				skipped_rollups: result.skippedRollups,
+				dropped_visits: result.adjustments.droppedVisits,
+				duration_delta_seconds: result.adjustments.durationDeltaSeconds,
+			});
+			return result;
+		},
+		{
+			connection: getBullMQWorkerConnectionOptions({
+				envPrefix: IMPORT_QUEUE_ENV_PREFIX,
+			}),
+			concurrency: 1,
+			lockDuration: IMPORT_JOB_TIMEOUT_MS * 2,
+			stalledInterval: IMPORT_JOB_TIMEOUT_MS * 3,
+		}
+	);
+	importWorker.on("failed", (job, error) => {
+		captureInsightsError(error, "import.failed", {
+			run_id: job?.data.runId,
+			website_id: job?.data.websiteId,
+		});
+	});
 	if (workerEnabled) {
 		if (!isAiGatewayConfigured) {
 			throw new Error("INSIGHTS_WORKER_ENABLED requires AI_GATEWAY_API_KEY");
@@ -164,44 +202,6 @@ async function startRuntime() {
 				stalledInterval: INSIGHTS_JOB_TIMEOUT_MS * 3,
 			}
 		);
-		importWorker = new Worker<ImportRunJobData>(
-			IMPORT_QUEUE_NAME,
-			async (job) => {
-				const result = await runImportJob(job.data, ({ rows }) =>
-					job.updateProgress(rows)
-				).catch((error) => {
-					if (error instanceof PermanentImportError) {
-						throw new UnrecoverableError(error.message);
-					}
-					throw error;
-				});
-				emitInsightsEvent("info", "import.completed", {
-					run_id: job.data.runId,
-					website_id: job.data.websiteId,
-					provider_id: job.data.providerId,
-					rows: result.rows,
-					dates: result.dates,
-					skipped_rollups: result.skippedRollups,
-					dropped_visits: result.adjustments.droppedVisits,
-					duration_delta_seconds: result.adjustments.durationDeltaSeconds,
-				});
-				return result;
-			},
-			{
-				connection: getBullMQWorkerConnectionOptions({
-					envPrefix: IMPORT_QUEUE_ENV_PREFIX,
-				}),
-				concurrency: 1,
-				lockDuration: IMPORT_JOB_TIMEOUT_MS * 2,
-				stalledInterval: IMPORT_JOB_TIMEOUT_MS * 3,
-			}
-		);
-		importWorker.on("failed", (job, error) => {
-			captureInsightsError(error, "import.failed", {
-				run_id: job?.data.runId,
-				website_id: job?.data.websiteId,
-			});
-		});
 		insightsWorker.on("stalled", (jobId) => {
 			emitInsightsEvent("warn", "worker.job_stalled", { job_id: jobId });
 		});

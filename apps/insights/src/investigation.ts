@@ -286,6 +286,13 @@ function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 			type: "event",
 		};
 	}
+	if (prefix === "ai_agents") {
+		return {
+			type: "channel",
+			id: boundedKey(signal.entityId ?? rawId),
+			label: (signal.entityLabel ?? signal.label).slice(0, 120),
+		};
+	}
 	if (prefix === "route") {
 		return {
 			type: "page",
