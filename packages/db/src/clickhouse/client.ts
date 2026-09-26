@@ -26,10 +26,6 @@ export const CLICKHOUSE_OPTIONS: NodeClickHouseClientConfigOptions = {
 	},
 };
 
-export const FINAL_READ_SETTINGS = {
-	final: 1,
-} as const;
-
 export type ClickHouseReadMode = "default" | "restricted";
 
 let clickHouseReadMode: ClickHouseReadMode = "default";
@@ -232,17 +228,12 @@ async function chQueryWithMeta<T>(
 	options?: ChQueryOptions
 ): Promise<ResponseJSON<T>> {
 	const logical = finalizeDeliveryTables(query);
-	const finalSettings =
-		logical.usesFinal && clickHouseReadMode === "default"
-			? FINAL_READ_SETTINGS
-			: {};
 	const settings: Record<string, string | number> = options?.readonly
 		? {
 				...(options.clickhouse_settings ?? {}),
-				...finalSettings,
 				...(clickHouseReadMode === "default" ? { readonly: "2" } : {}),
 			}
-		: { ...(options?.clickhouse_settings ?? {}), ...finalSettings };
+		: { ...(options?.clickhouse_settings ?? {}) };
 	if (options?.label) {
 		settings.log_comment = options.label;
 	}

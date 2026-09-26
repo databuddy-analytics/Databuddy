@@ -153,7 +153,6 @@ describe("DQL ClickHouse client", () => {
 			dqlSettingsForWebsite("website-a", "SELECT count() FROM analytics.events")
 		).toEqual({
 			[DQL_TENANT_SETTING]: "website-a",
-			final: 1,
 			readonly: 1,
 		});
 		expect(() => dqlSettingsForWebsite(" ")).toThrow(
@@ -197,12 +196,12 @@ describe("DQL ClickHouse client", () => {
 		);
 
 		expect(captured).toMatchObject({
-			query: sql,
+			query:
+				"SELECT path, count() AS views FROM analytics.events FINAL WHERE time >= {from:DateTime64(3)} GROUP BY path",
 			query_params: { from: "2026-07-01 00:00:00" },
 			format: "JSON",
 			clickhouse_settings: {
 				[DQL_TENANT_SETTING]: "website-a",
-				final: 1,
 				readonly: 1,
 			},
 		});

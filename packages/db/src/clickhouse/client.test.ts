@@ -116,10 +116,10 @@ describe("chQuery", () => {
 
 		await chQuery("SELECT count() FROM analytics.events");
 
-		expect(settings).toEqual({
-			final: 1,
-		});
-		expect(query).toBe("SELECT count() FROM analytics.events");
+		// FINAL is now injected directly into the SQL instead of via a session
+		// setting, so no extra clickhouse_settings are needed.
+		expect(settings).toBeUndefined();
+		expect(query).toBe("SELECT count() FROM analytics.events FINAL");
 	});
 
 	test("can omit forbidden settings for a bounded read-only evaluator", async () => {

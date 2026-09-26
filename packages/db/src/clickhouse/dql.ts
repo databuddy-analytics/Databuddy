@@ -7,7 +7,7 @@ import {
 	type ResultSet,
 } from "@clickhouse/client";
 import { password as bunPassword } from "bun";
-import { clickHouse, CLICKHOUSE_OPTIONS, FINAL_READ_SETTINGS } from "./client";
+import { clickHouse, CLICKHOUSE_OPTIONS } from "./client";
 import { finalizeDeliveryTables } from "./logical-reads";
 import { hasCommaJoinInFrom } from "./sql-validation";
 
@@ -183,7 +183,7 @@ function parseDqlUrl(rawUrl: string | undefined): {
 
 export function dqlSettingsForWebsite(
 	websiteId: string,
-	query?: string
+	_query?: string
 ): Record<string, number | string> {
 	if (!websiteId.trim()) {
 		throw new Error("DQL requires an authorized website identifier.");
@@ -191,9 +191,6 @@ export function dqlSettingsForWebsite(
 
 	return {
 		[DQL_TENANT_SETTING]: websiteId,
-		...(query && finalizeDeliveryTables(query).usesFinal
-			? FINAL_READ_SETTINGS
-			: {}),
 		readonly: 1,
 	};
 }
