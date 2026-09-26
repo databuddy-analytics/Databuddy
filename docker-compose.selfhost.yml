@@ -199,7 +199,6 @@ services:
   insights:
     <<: *backend
     image: ghcr.io/databuddy-analytics/databuddy-insights:${IMAGE_TAG:?Set IMAGE_TAG to a release tag}
-    profiles: [ "insights" ]
     ports:
       - "${INSIGHTS_PORT:-4002}:4002"
     environment:

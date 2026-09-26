@@ -1,4 +1,4 @@
-import { BaseTracker } from "./core/tracker";
+import { BaseTracker, type QueueMeta } from "./core/tracker";
 import type {
 	EngagementSpan,
 	ProfileTraits,
@@ -21,13 +21,6 @@ import { initScrollDepthTracking } from "./plugins/scroll-depth";
 import { initWebVitalsTracking } from "./plugins/vitals";
 
 const MAX_BEACON_PAYLOAD_BYTES = 60 * 1024;
-const MAX_BEACON_EVENTS_BY_ENDPOINT: Record<string, number> = {
-	"/batch": 100,
-	"/engagement": 20,
-	"/errors": 50,
-	"/track": 100,
-	"/vitals": 20,
-};
 
 export class Databuddy extends BaseTracker {
 	private cleanupFns: Array<() => void> = [];
@@ -72,12 +65,9 @@ export class Databuddy extends BaseTracker {
 				clearProfile: () => this.clearProfile(),
 				getProfileId: () => this.getProfileId(),
 				flush: () => {
-					Promise.all([
-						this.flushBatch(),
-						this.flushTrack(),
-						this.flushVitals(),
-						this.flushErrors(),
-					]).catch(() => {});
+					Promise.all(
+						this.queues.map(([queue, meta]) => this._flushQueue(queue, meta))
+					).catch(() => {});
 				},
 				clear: () => this.clear(),
 				setGlobalProperties: (props: Record<string, unknown>) =>
@@ -236,21 +226,12 @@ export class Databuddy extends BaseTracker {
 		});
 	}
 
-	private flushQueueViaBeacon(
-		queue: unknown[],
-		endpoint: string,
-		fallback: () => Promise<unknown>
-	): void {
-		if (queue.length === 0) {
-			return;
-		}
-
-		const maxEvents = MAX_BEACON_EVENTS_BY_ENDPOINT[endpoint] ?? 100;
+	private flushQueueViaBeacon(queue: unknown[], meta: QueueMeta): void {
 		while (queue.length > 0) {
 			const chunk: unknown[] = [];
 			let payloadBytes = 2;
 			let queueIndex = 0;
-			while (queueIndex < queue.length && chunk.length < maxEvents) {
+			while (queueIndex < queue.length && chunk.length < meta.maxBatchSize) {
 				const item = queue[queueIndex];
 				let serialized: string;
 				try {
@@ -276,35 +257,27 @@ export class Databuddy extends BaseTracker {
 				return;
 			}
 
-			if (!(chunk.length > 0 && this.sendBeacon(chunk, endpoint))) {
-				fallback().catch(() => {});
+			if (!(chunk.length > 0 && this.sendBeacon(chunk, meta.endpoint))) {
+				this._flushQueue(queue, meta).catch(() => {});
 				return;
 			}
 			queue.splice(0, chunk.length);
 		}
 	}
 
+	private flushQueuesViaBeacon() {
+		this.requeueActiveDeliveriesForUnload();
+		for (const [queue, meta] of this.queues) {
+			this.flushQueueViaBeacon(queue, meta);
+		}
+	}
+
 	private handlePageUnload() {
 		if (this.shouldBlockQueuedDelivery()) {
-			this.discardPendingEvents();
+			this.cancelPendingDelivery();
 			return;
 		}
-		this.requeueActiveDeliveriesForUnload();
-		this.flushQueueViaBeacon(this.batchQueue, "/batch", () =>
-			this.flushBatch()
-		);
-		this.flushQueueViaBeacon(this.trackQueue, "/track", () =>
-			this.flushTrack()
-		);
-		this.flushQueueViaBeacon(this.vitalsQueue, "/vitals", () =>
-			this.flushVitals()
-		);
-		this.flushQueueViaBeacon(this.errorsQueue, "/errors", () =>
-			this.flushErrors()
-		);
-		this.flushQueueViaBeacon(this.engagementQueue, "/engagement", () =>
-			this.flushEngagement()
-		);
+		this.flushQueuesViaBeacon();
 		if (this.hasSentExitBeacon) {
 			return;
 		}
@@ -312,20 +285,23 @@ export class Databuddy extends BaseTracker {
 
 		const now = Date.now();
 		this.sendBeacon([this.buildEngagementSpan(now, "unload")], "/engagement");
-		this.sendBatchBeacon([
-			{
-				eventId: generateUUIDv4(),
-				name: "page_exit",
-				anonymousId: this.anonymousId,
-				anonymizeVisitorIds: this.options.anonymizeVisitorIds,
-				profileId: this.profileId ?? undefined,
-				sessionId: this.sessionId,
-				timestamp: now,
-				...this.getBaseContext(),
-				...this.globalProperties,
-				...this.pageEngagement(now),
-			},
-		]);
+		this.sendBeacon(
+			[
+				{
+					eventId: generateUUIDv4(),
+					name: "page_exit",
+					anonymousId: this.anonymousId,
+					anonymizeVisitorIds: this.options.anonymizeVisitorIds,
+					profileId: this.profileId ?? undefined,
+					sessionId: this.sessionId,
+					timestamp: now,
+					...this.getBaseContext(),
+					...this.globalProperties,
+					...this.pageEngagement(now),
+				},
+			],
+			"/batch"
+		);
 	}
 
 	private handleBfCacheRestore() {
@@ -511,7 +487,7 @@ export class Databuddy extends BaseTracker {
 	}
 
 	clear() {
-		this.discardPendingEvents();
+		this.cancelPendingDelivery();
 		this.globalProperties = {};
 		if (!this.isServer()) {
 			try {
@@ -540,33 +516,13 @@ export class Databuddy extends BaseTracker {
 		this.maxScrollDepth = 0;
 	}
 
-	private discardPendingEvents(): void {
-		this.cancelPendingDelivery();
-	}
-
 	destroy() {
 		for (const cleanup of this.cleanupFns) {
 			cleanup();
 		}
 		this.cleanupFns = [];
 
-		this.requeueActiveDeliveriesForUnload();
-
-		// Flush all pending data via sendBeacon (with fetch fallback) before clearing.
-		// flushQueueViaBeacon empties the array in-place on success; on failure it
-		// kicks off the fetch fallback which also clears the array via _flushQueue.
-		this.flushQueueViaBeacon(this.batchQueue, "/batch", () =>
-			this.flushBatch()
-		);
-		this.flushQueueViaBeacon(this.trackQueue, "/track", () =>
-			this.flushTrack()
-		);
-		this.flushQueueViaBeacon(this.vitalsQueue, "/vitals", () =>
-			this.flushVitals()
-		);
-		this.flushQueueViaBeacon(this.errorsQueue, "/errors", () =>
-			this.flushErrors()
-		);
+		this.flushQueuesViaBeacon();
 
 		// Cancel any pending flush timers that beacon-success paths left behind.
 		for (const meta of Object.values(this._meta)) {

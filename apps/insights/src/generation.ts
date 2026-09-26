@@ -1,4 +1,8 @@
 import {
+	detectAiAgentSignals,
+	remeasureAiAgentSignal,
+} from "./ai-agent-detection";
+import {
 	type BusinessContext,
 	type BusinessScope,
 	businessContextSchema,
@@ -310,6 +314,7 @@ interface InvestigationRuntime {
 }
 
 export interface InvestigationSources {
+	detectAiAgentSignals?: typeof detectAiAgentSignals;
 	detectDefinitionSignals: typeof detectFunnelGoalSignals;
 	detectMetricSignals: typeof detectSignals;
 	detectRetentionSignals?: typeof detectRetentionSignals;
@@ -359,6 +364,9 @@ export function remeasureStoredSignal(
 		routeHealth?: RouteHealthDetectionDeps;
 	} = {}
 ): Promise<DetectedSignal | null> {
+	if (prior.signalKey.startsWith("ai_agents:")) {
+		return remeasureAiAgentSignal(params, prior, today, undefined, abortSignal);
+	}
 	if (prior.signalKey.startsWith("retention:")) {
 		return detectRetentionSignals(
 			params,
@@ -484,6 +492,7 @@ export async function refreshInvestigationSignal(params: {
 }
 
 const productionInvestigationSources: InvestigationSources = {
+	detectAiAgentSignals,
 	detectRetentionSignals,
 	loadBusinessProfile: loadWebsiteBusinessProfile,
 	recallBusinessContext: recallWebsiteBusinessContext,
@@ -625,6 +634,16 @@ export async function discoverWebsiteSignals(
 			)
 		),
 		detectSource(
+			"ai_agents",
+			() =>
+				runtime.sources.detectAiAgentSignals?.(
+					detectParams,
+					asOf,
+					undefined,
+					sourceAbortSignal
+				) ?? Promise.resolve([])
+		),
+		detectSource(
 			"retention",
 			() =>
 				runtime.sources.detectRetentionSignals?.(
@@ -646,6 +665,7 @@ export async function discoverWebsiteSignals(
 		metricSignals,
 		funnelGoalSignals,
 		routeHealthSignals,
+		aiAgentSignals,
 		retentionSignals,
 	] = await Promise.all(detectionTasks);
 	if (
@@ -680,6 +700,7 @@ export async function discoverWebsiteSignals(
 		...metricSignals,
 		...funnelGoalSignals,
 		...routeHealthSignals,
+		...aiAgentSignals,
 		...retentionSignals,
 	]) {
 		const key = signalKeyForDetectedSignal(signal);
@@ -1399,7 +1420,6 @@ export async function generateWebsiteInsights(
 		startedAt: site.settings?.businessContextStartedAt,
 	});
 	let billingCheckError: unknown;
-	let billingCustomerId: string | null = null;
 	let billing: InvestigationBilling | null = null;
 	let noCredits = false;
 	const canRunAgent = async () => {
@@ -1408,7 +1428,6 @@ export async function generateWebsiteInsights(
 				organizationId: input.organizationId,
 				userId: input.requestedByUserId,
 			});
-			billingCustomerId = billing.customerId;
 			noCredits = !(await canRunInvestigation(billing));
 			return !noCredits;
 		} catch (error) {
@@ -1422,32 +1441,17 @@ export async function generateWebsiteInsights(
 			return false;
 		}
 	};
-	const billUsage = (
-		usage: Required<Pick<InsightAgentResult, "modelId" | "usage">>,
-		signalKey: string,
-		idempotencyKey: string
+	const recordUsage = (
+		usage: Required<Pick<InsightAgentResult, "modelId" | "usage">>
 	) =>
-		Promise.resolve()
-			.then(() =>
-				trackAgentUsage({
-					billingCustomerId,
-					chatId: `insights:${input.organizationId}:${site.id}:${signalKey}`,
-					idempotencyKey,
-					modelId: usage.modelId,
-					usage: usage.usage,
-					organizationId: input.organizationId,
-					source: "insights",
-					userId: input.requestedByUserId,
-					websiteId: site.id,
-				})
-			)
-			.catch((error) =>
-				captureInsightsError(error, "generation.billing.failed", {
-					organization_id: input.organizationId,
-					run_id: input.runId,
-					website_id: site.id,
-				})
-			);
+		trackAgentUsage({
+			modelId: usage.modelId,
+			usage: usage.usage,
+			organizationId: input.organizationId,
+			source: "insights",
+			userId: input.requestedByUserId,
+			websiteId: site.id,
+		});
 	let plan = await loadInsightRunCandidatePlan(
 		runIdentity,
 		input.reason,
@@ -1498,11 +1502,7 @@ export async function generateWebsiteInsights(
 						}
 						const result = await chooseInvestigationSignals(selectionInput);
 						if (result) {
-							await billUsage(
-								result,
-								"selection",
-								`insights:${input.runId}:${site.id}:selection`
-							);
+							recordUsage(result);
 						}
 						return result;
 					},
@@ -1680,7 +1680,6 @@ export async function generateWebsiteInsights(
 							billing,
 							startedAt: new Date(plan.asOf),
 						});
-						billingCustomerId = charge.customerId;
 					} catch (error) {
 						// Included continuations can still finish; report the unpaid
 						// fresh work as a partial failure after the portfolio runs.
@@ -1690,7 +1689,6 @@ export async function generateWebsiteInsights(
 					}
 				}
 				let outcomeSaved = false;
-				const usageIdempotencyKey = `insights:${input.runId}:${site.id}:${randomUUIDv7()}`;
 				const agentUsage: {
 					value: Required<Pick<InsightAgentResult, "modelId" | "usage">> | null;
 				} = { value: null };
@@ -1787,13 +1785,8 @@ export async function generateWebsiteInsights(
 					}
 					throw error;
 				} finally {
-					const billableUsage = agentUsage.value;
-					if (billableUsage) {
-						await billUsage(
-							billableUsage,
-							plannedCandidate.signal.signalKey,
-							usageIdempotencyKey
-						);
+					if (agentUsage.value) {
+						recordUsage(agentUsage.value);
 					}
 				}
 			},
