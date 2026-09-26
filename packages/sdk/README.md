@@ -130,7 +130,7 @@ All options are type-safe and documented in `DatabuddyConfig`:
 ## 💡 FAQ
 
 **Q: Is Databuddy privacy-friendly?**  
-A: Yes! All analytics are anonymized by default. No cookies, no fingerprinting, no PII.
+A: Yes. The tracker sets no cookies and does no fingerprinting. It keeps a random visitor ID in localStorage, visitor IDs are salted and hashed at ingestion by default, and location is stored at city level. Traits you send with `identify()`, such as email or name, are personal data and are stored on that website's profiles.
 
 **Q: Can I use this in Next.js, Remix, or plain React?**  
 A: Yes! `<Databuddy />` works in any React app. For non-React, use the script tag directly.

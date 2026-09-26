@@ -18,42 +18,35 @@ const INTRA_SESSION_GAP_SECONDS = 60;
 const BOUNCE_DURATION_SECONDS = 1;
 const BOUNCE_DURATION_CEILING_SECONDS = 9;
 const NON_BOUNCE_DURATION_FLOOR_SECONDS = 10;
+const WWW_PREFIX = /^www\./;
 
-export type ImportGrain = "event" | "rollup";
+type ImportGrain = "event" | "rollup";
 
 export type RollupDimensionKind =
 	| "page"
 	| "entry_page"
 	| "exit_page"
-	| "referrer"
 	| "source"
 	| "country"
-	| "region"
-	| "city"
 	| "browser"
 	| "os"
 	| "device"
-	| "utm_source"
-	| "utm_medium"
-	| "utm_campaign"
-	| "utm_term"
-	| "utm_content"
 	| "custom_event";
 
-export type RollupMetric =
+type RollupMetric =
 	| "visitors"
 	| "visits"
 	| "pageviews"
 	| "bounces"
 	| "durationSeconds";
 
-export interface RollupDimension {
+interface RollupDimension {
 	hostname?: string;
 	kind: RollupDimensionKind;
 	value: string;
 }
 
-export interface ImportedRollup {
+interface ImportedRollup {
 	date: string;
 	dimension: RollupDimension | null;
 	metrics: Partial<Record<RollupMetric, number>>;
@@ -192,7 +185,7 @@ export function csvNumber(value: string | undefined): number {
 	return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function timeZoneOffsetMs(at: Date, timeZone: string): number {
+function offsetMs(at: Date, timeZone: string): number {
 	const formatter = new Intl.DateTimeFormat("en-US", {
 		timeZone,
 		hour12: false,
@@ -217,18 +210,41 @@ function timeZoneOffsetMs(at: Date, timeZone: string): number {
 	return asUtc - at.getTime();
 }
 
+function timeZoneOffsetMs(at: Date, timeZone: string): number {
+	try {
+		return offsetMs(at, timeZone);
+	} catch {
+		return 0;
+	}
+}
+
 function zonedDayStartUtc(date: string, timeZone: string): Date {
 	const utcMidnight = new Date(`${date}T00:00:00Z`);
 	if (Number.isNaN(utcMidnight.getTime())) {
 		throw new Error(`Unparseable rollup date: ${date}`);
 	}
-	try {
-		return new Date(
-			utcMidnight.getTime() - timeZoneOffsetMs(utcMidnight, timeZone)
-		);
-	} catch {
-		return utcMidnight;
+	return new Date(
+		utcMidnight.getTime() - timeZoneOffsetMs(utcMidnight, timeZone)
+	);
+}
+
+export function endOfLocalDay(at: Date, timeZone: string): Date {
+	const dayMs = SECONDS_PER_DAY * 1000;
+	const offset = timeZoneOffsetMs(at, timeZone);
+	const local = at.getTime() + offset;
+	return new Date(Math.floor(local / dayMs) * dayMs + dayMs - 1 - offset);
+}
+
+export function isSameSite(
+	hostname: string | undefined,
+	domain: string
+): boolean {
+	if (!hostname) {
+		return true;
 	}
+	const host = hostname.toLowerCase().replace(WWW_PREFIX, "");
+	const site = domain.toLowerCase().replace(WWW_PREFIX, "");
+	return host === site || host.endsWith(`.${site}`);
 }
 
 interface PageSlot {
@@ -252,7 +268,6 @@ const DIMENSION_FIELDS = {
 	country: "country",
 	device: "deviceType",
 	os: "osName",
-	referrer: "referrer",
 	source: "sourceName",
 } as const satisfies Partial<Record<RollupDimensionKind, keyof ImportedEvent>>;
 
@@ -264,19 +279,25 @@ function isSynthesizedDimension(
 	return kind in DIMENSION_FIELDS;
 }
 
+interface PlannedSession {
+	durationSeconds: number;
+	isBounce: boolean;
+	pageviews: number;
+}
+
 function assignDimension(
-	perSession: number[],
+	sessions: PlannedSession[],
 	totals: DimensionTotal[]
 ): Array<string | undefined> {
 	const assigned = Array.from<string | undefined>({
-		length: perSession.length,
+		length: sessions.length,
 	});
 	let session = 0;
 	for (const total of [...totals].sort((a, b) => b.pageviews - a.pageviews)) {
 		let budget = total.pageviews;
-		while (budget > 0 && session < perSession.length) {
+		while (budget > 0 && session < sessions.length) {
 			assigned[session] = total.value;
-			budget -= perSession[session];
+			budget -= sessions[session].pageviews;
 			session += 1;
 		}
 	}
@@ -323,9 +344,12 @@ export function synthesizeDate(
 		};
 	}
 
+	const requestedVisits = Math.round(
+		bucket.totals.visits ?? bucket.totals.visitors ?? 1
+	);
 	const { visits, bounces, nonBounce } = sessionShape(
 		slots.length,
-		bucket.totals.visits ?? bucket.totals.visitors ?? 1,
+		requestedVisits,
 		bucket.totals.bounces ?? 0
 	);
 	const visitors = clamp(
@@ -337,43 +361,40 @@ export function synthesizeDate(
 		0,
 		Math.round(bucket.totals.durationSeconds ?? 0)
 	);
-	const requestedVisits = Math.round(
-		bucket.totals.visits ?? bucket.totals.visitors ?? 1
-	);
-	const adjustments: ImportAdjustments = {
-		droppedVisits: Math.max(0, requestedVisits - visits),
-		durationDeltaSeconds: 0,
-	};
 
-	const perSession: number[] = [];
+	const sessions: PlannedSession[] = [];
 	for (let i = 0; i < bounces; i += 1) {
-		perSession.push(1);
+		sessions.push({
+			pageviews: 1,
+			durationSeconds: BOUNCE_DURATION_SECONDS,
+			isBounce: true,
+		});
 	}
 	const remaining = slots.length - bounces;
 	if (nonBounce > 0) {
 		const base = Math.floor(remaining / nonBounce);
 		const extra = remaining % nonBounce;
 		for (let i = 0; i < nonBounce; i += 1) {
-			perSession.push(base + (i < extra ? 1 : 0));
+			sessions.push({
+				pageviews: base + (i < extra ? 1 : 0),
+				durationSeconds: 0,
+				isBounce: false,
+			});
 		}
 	}
 
-	const durations = Array.from(
-		{ length: perSession.length },
-		() => BOUNCE_DURATION_SECONDS
-	);
-	const nonBounceBudget = Math.max(
-		0,
-		totalDuration - bounces * BOUNCE_DURATION_SECONDS
-	);
 	if (nonBounce > 0) {
-		const base = Math.floor(nonBounceBudget / nonBounce);
-		let remainder = nonBounceBudget - base * nonBounce;
-		for (let i = bounces; i < perSession.length; i += 1) {
+		const budget = Math.max(
+			0,
+			totalDuration - bounces * BOUNCE_DURATION_SECONDS
+		);
+		const base = Math.floor(budget / nonBounce);
+		let remainder = budget - base * nonBounce;
+		for (const session of sessions.filter((entry) => !entry.isBounce)) {
 			const extra = remainder > 0 ? 1 : 0;
 			remainder -= extra;
-			durations[i] =
-				perSession[i] === 1
+			session.durationSeconds =
+				session.pageviews === 1
 					? Math.max(base + extra, NON_BOUNCE_DURATION_FLOOR_SECONDS)
 					: base + extra;
 		}
@@ -387,20 +408,24 @@ export function synthesizeDate(
 			base < BOUNCE_DURATION_CEILING_SECONDS
 				? totalDuration - base * bounces
 				: 0;
-		for (let i = 0; i < bounces; i += 1) {
+		for (const session of sessions) {
 			const extra = remainder > 0 ? 1 : 0;
 			remainder -= extra;
-			durations[i] = base + extra;
+			session.durationSeconds = base + extra;
 		}
 	}
 
-	adjustments.durationDeltaSeconds =
-		durations.reduce((total, value) => total + value, 0) - totalDuration;
+	const adjustments: ImportAdjustments = {
+		droppedVisits: Math.max(0, requestedVisits - visits),
+		durationDeltaSeconds:
+			sessions.reduce((total, entry) => total + entry.durationSeconds, 0) -
+			totalDuration,
+	};
 
 	const sessionDimensions = new Map(
 		[...bucket.dimensions].map(([kind, totals]) => [
 			kind,
-			assignDimension(perSession, totals),
+			assignDimension(sessions, totals),
 		])
 	);
 	const dimensionsFor = (session: number): Partial<ImportedEvent> => {
@@ -417,7 +442,8 @@ export function synthesizeDate(
 	const dayStart = zonedDayStartUtc(date, context.timezone).getTime();
 	const dayEnd = dayStart + SECONDS_PER_DAY * 1000 - 1;
 	const longestSessionSeconds =
-		(Math.max(...perSession) + 1) * INTRA_SESSION_GAP_SECONDS;
+		(Math.max(...sessions.map((entry) => entry.pageviews)) + 1) *
+		INTRA_SESSION_GAP_SECONDS;
 	const spreadSeconds = Math.max(
 		0,
 		SECONDS_PER_DAY - Math.min(longestSessionSeconds, SECONDS_PER_DAY)
@@ -426,8 +452,8 @@ export function synthesizeDate(
 	const events: ImportedEvent[] = [];
 	let slotIndex = 0;
 
-	for (let session = 0; session < perSession.length; session += 1) {
-		const pageviews = perSession[session];
+	for (const [session, planned] of sessions.entries()) {
+		const pageviews = planned.pageviews;
 		if (pageviews <= 0) {
 			continue;
 		}
@@ -460,7 +486,7 @@ export function synthesizeDate(
 			});
 		}
 
-		const timeOnPage = durations[session];
+		const timeOnPage = planned.durationSeconds;
 		if (!lastSlot || timeOnPage <= 0) {
 			continue;
 		}
@@ -504,7 +530,7 @@ function clickHouseDateTime(at: Date): string {
 	return at.toISOString().replace("T", " ").replace("Z", "");
 }
 
-export function toEventRow(
+function toEventRow(
 	event: ImportedEvent,
 	context: ImportContext,
 	providerId: string

@@ -6,4 +6,5 @@ export * from "./types";
 export {
 	buildAlarmNotificationConfig,
 	buildAlarmNotificationTargets,
+	MAX_ALARM_DESTINATIONS,
 } from "./alarm-config";

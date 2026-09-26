@@ -1,17 +1,68 @@
 "use client";
 
-import { dayjs, EmptyState, fromNow, Skeleton } from "@databuddy/ui";
-import { BrainIcon } from "@databuddy/ui/icons";
+import {
+	Button,
+	dayjs,
+	EmptyState,
+	fromNow,
+	Skeleton,
+	StatusDot,
+	Tooltip,
+} from "@databuddy/ui";
+import { CopyButton } from "@databuddy/ui/client";
+import {
+	BrainIcon,
+	FileTextIcon,
+	GlobeIcon,
+	ListBulletsIcon,
+	MinusIcon,
+	TrendDownIcon,
+	TrendUpIcon,
+} from "@databuddy/ui/icons";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
+import {
+	CONTENT_FORMATS,
+	type ContentFormat,
+	FEATURED_AI_PRODUCTS,
+} from "@databuddy/shared/bot-detection/types";
 import { useParams } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
-import type { ChartMultiSeriesDataPoint } from "@/components/ui/composables/chart";
-import { AiProductIcon } from "@/components/icon";
+import {
+	Chart,
+	type ChartMultiSeriesDataPoint,
+} from "@/components/ui/composables/chart";
+import { AiProductIcon, aiProductColor } from "@/components/icon";
 import { DataTable } from "@/components/table/data-table";
+import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { formatNumber } from "@/lib/formatters";
-import { type AgentPageRow, pageColumns } from "./columns";
+import { formatRevenueCurrency } from "@/lib/revenue-currency";
+import { orpc } from "@/lib/orpc";
+import { cn } from "@/lib/utils";
+import {
+	calculatePercentChange,
+	calculatePreviousPeriod,
+} from "../_components/utils/analytics-helpers";
+
+const FORMATS: Record<
+	ContentFormat,
+	{ description: string; icon: typeof GlobeIcon; label: string }
+> = {
+	markdown: {
+		description: ".md pages and markdown requests",
+		icon: FileTextIcon,
+		label: "Markdown",
+	},
+	llms: {
+		description: "llms.txt and llms-full.txt",
+		icon: ListBulletsIcon,
+		label: "llms.txt",
+	},
+	html: { description: "Regular web pages", icon: GlobeIcon, label: "HTML" },
+};
 
 interface ProductRow {
 	last_seen: string;
@@ -24,58 +75,713 @@ interface ProductRow {
 	visitors: number;
 }
 
-interface ProductSeriesRow {
-	date: string;
+const NEVER_SEEN = "1970";
+const ALL_VISITORS = "All visitors";
+
+interface AgentPageRow {
+	format: ContentFormat | null;
+	name: string;
+	pageviews: number;
+	products: string[];
+	requests: number;
+	visitors: number;
+}
+
+function numberColumn<TRow>(
+	key: keyof TRow & string,
+	header: string
+): ColumnDef<TRow> {
+	return {
+		id: key,
+		accessorKey: key,
+		header,
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground tabular-nums">
+				{formatNumber((getValue() as number) ?? 0)}
+			</span>
+		),
+	};
+}
+
+const pageColumns: ColumnDef<AgentPageRow>[] = [
+	{
+		id: "name",
+		accessorKey: "name",
+		header: "Page",
+		cell: ({ getValue }) => (
+			<span className="truncate font-medium text-[15px]">
+				{getValue() as string}
+			</span>
+		),
+	},
+	numberColumn<AgentPageRow>("visitors", "AI visitors"),
+	{
+		id: "products",
+		accessorKey: "products",
+		header: "Read by",
+		cell: ({ row }) => (
+			<div className="flex items-center gap-1">
+				{row.original.products.map((product) => (
+					<span key={product} title={product}>
+						<AiProductIcon name={product} size="sm" />
+					</span>
+				))}
+			</div>
+		),
+	},
+	numberColumn<AgentPageRow>("requests", "AI requests"),
+	{
+		id: "format",
+		accessorKey: "format",
+		header: "Format",
+		cell: ({ getValue }) => {
+			const format = getValue() as ContentFormat | null;
+			return (
+				<span className="text-[15px] text-muted-foreground">
+					{format ? FORMATS[format].label : ""}
+				</span>
+			);
+		},
+	},
+	numberColumn<AgentPageRow>("pageviews", "Human views"),
+];
+
+const otherProductColumns: ColumnDef<ProductRow & { name: string }>[] = [
+	{
+		id: "name",
+		accessorKey: "name",
+		header: "Product",
+		cell: ({ row }) => (
+			<div className="flex min-w-0 items-center gap-2">
+				<AiProductIcon name={row.original.name} size="sm" />
+				<span className="truncate font-medium text-[15px]">
+					{row.original.name}
+				</span>
+			</div>
+		),
+	},
+	numberColumn<ProductRow & { name: string }>("requests", "Requests"),
+	numberColumn<ProductRow & { name: string }>("pages", "Pages read"),
+	numberColumn<ProductRow & { name: string }>("visitors", "Visitors sent"),
+	{
+		id: "last_seen",
+		accessorKey: "last_seen",
+		header: "Last read",
+		cell: ({ getValue }) => {
+			const value = getValue() as string;
+			return (
+				<span className="text-[15px] text-muted-foreground">
+					{value.startsWith(NEVER_SEEN) ? "Never" : fromNow(value)}
+				</span>
+			);
+		},
+	},
+];
+
+interface OutcomeRow {
+	engaged_rate: number;
+	name: string;
+	pages_per_visit: number;
+	revenue: string;
+	visitors: number;
+}
+
+interface RevenueRow {
+	currency: string;
+	name: string;
+	revenue: number;
+}
+
+const outcomeColumns: ColumnDef<OutcomeRow>[] = [
+	{
+		id: "name",
+		accessorKey: "name",
+		header: "Visitors from",
+		cell: ({ row }) => (
+			<div className="flex min-w-0 items-center gap-2">
+				{row.original.name === ALL_VISITORS ? null : (
+					<AiProductIcon name={row.original.name} size="sm" />
+				)}
+				<span
+					className={cn(
+						"truncate text-[15px]",
+						row.original.name === ALL_VISITORS
+							? "text-muted-foreground"
+							: "font-medium"
+					)}
+				>
+					{row.original.name}
+				</span>
+			</div>
+		),
+	},
+	numberColumn<OutcomeRow>("visitors", "Visitors"),
+	{
+		id: "pages_per_visit",
+		accessorKey: "pages_per_visit",
+		header: "Pages per visit",
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground tabular-nums">
+				{(getValue() as number).toFixed(1)}
+			</span>
+		),
+	},
+	{
+		id: "engaged_rate",
+		accessorKey: "engaged_rate",
+		header: "Viewed 2+ pages",
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground tabular-nums">
+				{getValue() as number}%
+			</span>
+		),
+	},
+	{
+		id: "revenue",
+		accessorKey: "revenue",
+		header: "Revenue",
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground tabular-nums">
+				{getValue() as string}
+			</span>
+		),
+	},
+];
+
+interface CrawlerRow {
+	agent_id: string;
+	last_seen: string;
+	name: string;
 	product: string;
+	purpose: string;
+	requests: number;
+	robots: RobotsAccess | undefined;
+	user_agent: string;
+}
+
+type RobotsAccess = "allowed" | "partial" | "blocked";
+
+const PURPOSE_LABELS: Record<string, string> = {
+	agent: "Agent",
+	search_index: "Search",
+	training: "Training",
+	user_fetch: "Answers",
+};
+
+const ROBOTS_LABELS: Record<RobotsAccess, string> = {
+	allowed: "Allowed",
+	blocked: "Blocked",
+	partial: "Partly blocked",
+};
+
+const crawlerColumns: ColumnDef<CrawlerRow>[] = [
+	{
+		id: "name",
+		accessorKey: "name",
+		header: "Crawler",
+		cell: ({ row }) => (
+			<div className="flex min-w-0 items-center gap-2">
+				<AiProductIcon name={row.original.product} size="sm" />
+				<span className="truncate font-medium text-[15px]">
+					{row.original.name}
+				</span>
+			</div>
+		),
+	},
+	{
+		id: "purpose",
+		accessorKey: "purpose",
+		header: "Reads for",
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground">
+				{PURPOSE_LABELS[getValue() as string] ?? ""}
+			</span>
+		),
+	},
+	numberColumn<CrawlerRow>("requests", "Requests"),
+	{
+		id: "robots",
+		accessorKey: "robots",
+		header: "robots.txt",
+		cell: ({ row }) => {
+			const { last_seen, robots } = row.original;
+			if (!robots) {
+				return null;
+			}
+			const isStillCrawling =
+				robots === "blocked" && dayjs().diff(last_seen, "hour") < 24;
+			return (
+				<span className="flex items-center gap-1.5 text-[15px] text-muted-foreground">
+					<StatusDot
+						color={
+							robots === "allowed"
+								? "success"
+								: isStillCrawling
+									? "destructive"
+									: "warning"
+						}
+					/>
+					{isStillCrawling ? "Blocked, still crawling" : ROBOTS_LABELS[robots]}
+				</span>
+			);
+		},
+	},
+	{
+		id: "last_seen",
+		accessorKey: "last_seen",
+		header: "Last read",
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground">
+				{fromNow(getValue() as string)}
+			</span>
+		),
+	},
+];
+
+interface FormatRow {
+	format: ContentFormat;
+	pages: number;
+	products: string[];
 	requests: number;
 }
 
+interface VisitorSeriesRow {
+	date: string;
+	product: string;
+	visitors: number;
+}
+
+interface TrendPoint {
+	date: string;
+	value: number;
+}
+
 type PageResult = Omit<AgentPageRow, "name"> & { page: string };
+type OutcomeResult = Omit<OutcomeRow, "name" | "revenue"> & {
+	product: string;
+};
+
+const NON_ID_CHARS = /[^a-zA-Z0-9_-]/g;
 
 const CHART_PRODUCTS = 4;
-const NEVER_SEEN = "1970";
+const SHARE_BARS = 6;
+
+const RANKED_ROWS = 6;
+
+interface ShareRow {
+	change: number | "new" | null;
+	product: string;
+	share: number;
+	visitors: number;
+}
+
+interface VisitorShare {
+	previousTotal: number;
+	rows: ShareRow[];
+	total: number;
+}
+
+function formatShare(share: number): string {
+	return `${share.toFixed(1)}%`;
+}
+
+function setupSnippet(websiteId: string): string {
+	return `// proxy.ts
+export { proxy } from "@databuddy/sdk/agents";
+
+// .env
+NEXT_PUBLIC_DATABUDDY_CLIENT_ID=${websiteId}
+`;
+}
+
+function AgentSetup({
+	className,
+	websiteId,
+}: {
+	className?: string;
+	websiteId: string;
+}) {
+	const check = useMutation(orpc.websites.checkAgentSetup.mutationOptions());
+	const results = check.data
+		? [
+				{
+					label: "Homepage",
+					isRecorded: check.data.homepage,
+					hint: "deploy proxy.ts with NEXT_PUBLIC_DATABUDDY_CLIENT_ID set",
+				},
+				{
+					label: "llms.txt",
+					isRecorded: check.data.llmsTxt,
+					hint: "make sure your proxy matcher doesn't skip .txt files",
+				},
+			]
+		: [];
+
+	return (
+		<div className={cn("flex flex-col gap-2", className)}>
+			<div className="flex gap-2">
+				<CopyButton
+					label="Copy setup"
+					size="md"
+					value={setupSnippet(websiteId)}
+					variant="secondary"
+				/>
+				<Button
+					loading={check.isPending}
+					onClick={() => check.mutate({ websiteId })}
+					size="md"
+					variant="secondary"
+				>
+					Test setup
+				</Button>
+			</div>
+			{results.map((result) => (
+				<p className="flex items-center gap-1.5 text-xs" key={result.label}>
+					<StatusDot color={result.isRecorded ? "success" : "warning"} />
+					{result.isRecorded
+						? `${result.label} recorded`
+						: `${result.label} not recorded: ${result.hint}`}
+				</p>
+			))}
+			{check.isError ? (
+				<p className="text-destructive text-xs">
+					Couldn't run the check. Try again in a moment.
+				</p>
+			) : null}
+		</div>
+	);
+}
 
 function mainPurpose(row: ProductRow): string | null {
 	const purposes = [
 		{ label: "training", value: row.training },
 		{ label: "search", value: row.search_index },
-		{ label: "on-demand fetches", value: row.on_demand },
+		{ label: "answers", value: row.on_demand },
 	].sort((a, b) => b.value - a.value);
 	return purposes[0].value > 0 ? purposes[0].label : null;
 }
 
-function ProductCard({ row }: { row: ProductRow }) {
-	const purpose = mainPurpose(row);
+function emptyProduct(product: string): ProductRow {
+	return {
+		last_seen: NEVER_SEEN,
+		on_demand: 0,
+		pages: 0,
+		product,
+		requests: 0,
+		search_index: 0,
+		training: 0,
+		visitors: 0,
+	};
+}
+
+function FormatCard({
+	format,
+	isLoading,
+	row,
+}: {
+	format: ContentFormat;
+	isLoading: boolean;
+	row: FormatRow | undefined;
+}) {
+	const { description, icon: Icon, label } = FORMATS[format];
 	return (
 		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
 			<div className="flex items-center gap-2.5">
-				<AiProductIcon name={row.product} size={28} />
+				<div className="flex size-7 items-center justify-center rounded bg-accent">
+					<Icon className="size-4 text-muted-foreground" />
+				</div>
 				<div className="min-w-0">
-					<p className="truncate font-semibold text-sm">{row.product}</p>
+					<p className="truncate font-semibold text-sm">{label}</p>
 					<p className="truncate text-muted-foreground text-xs">
-						{row.last_seen.startsWith(NEVER_SEEN)
-							? "Sends visitors"
-							: `Last read ${fromNow(row.last_seen)}`}
+						{description}
 					</p>
 				</div>
 			</div>
-			<div className="grid grid-cols-2 gap-2">
+			<div>
+				<p className="font-semibold text-xl tabular-nums">
+					{formatNumber(row?.requests ?? 0)}
+					<span className="ml-1.5 font-normal text-muted-foreground text-xs">
+						requests
+					</span>
+				</p>
+				<div className="mt-1.5 flex h-5 items-center gap-1.5">
+					{row && row.requests > 0 ? (
+						<>
+							<span className="text-muted-foreground text-xs">
+								{formatNumber(row.pages)} pages, read by
+							</span>
+							{row.products.map((product) => (
+								<span key={product} title={product}>
+									<AiProductIcon name={product} size="sm" />
+								</span>
+							))}
+						</>
+					) : (
+						<span className="text-muted-foreground text-xs">
+							{isLoading ? "Checking…" : "Not fetched yet"}
+						</span>
+					)}
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function ProductCard({
+	isLoading,
+	row,
+	trend,
+}: {
+	isLoading: boolean;
+	row: ProductRow;
+	trend: TrendPoint[];
+}) {
+	const purpose = mainPurpose(row);
+	const isActive = row.requests > 0 || row.visitors > 0;
+	return (
+		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
+			<div className="flex items-center gap-2.5">
+				<AiProductIcon
+					className={cn(!isActive && "opacity-40 grayscale")}
+					name={row.product}
+					size={28}
+				/>
+				<p className="truncate font-semibold text-sm">{row.product}</p>
+				{row.requests > 0 && row.visitors > 0 ? (
+					<span
+						className="ml-auto shrink-0 text-muted-foreground text-xs tabular-nums"
+						title="AI requests for every visitor it sent you"
+					>
+						{formatNumber(Math.round(row.requests / row.visitors) || 1)} reads
+						per visitor
+					</span>
+				) : null}
+			</div>
+			<div>
+				<p className="font-semibold text-xl tabular-nums">
+					{formatNumber(row.visitors)}
+					<span className="ml-1.5 font-normal text-muted-foreground text-xs">
+						visitors sent
+					</span>
+				</p>
+				<div className="my-1.5 h-9">
+					<Chart.SingleSeries
+						color={aiProductColor(row.product)}
+						data={trend}
+						height={36}
+						id={`ai-product-${row.product.replace(NON_ID_CHARS, "-")}`}
+						tooltip={{
+							formatLabelAction: (label) => dayjs(label).format("ddd, MMM D"),
+							formatValue: formatNumber,
+							valueSuffixLabel: "visitors",
+						}}
+						yDomain={[0, "dataMax + 1"]}
+					/>
+				</div>
+				<p className="truncate text-muted-foreground text-xs">
+					{row.requests > 0
+						? `Read ${formatNumber(row.pages)} pages${purpose ? ` for ${purpose}` : ""}, ${fromNow(row.last_seen)}`
+						: isActive
+							? "Hasn't read your pages"
+							: isLoading
+								? "Checking…"
+								: "Not seen yet"}
+				</p>
+			</div>
+		</div>
+	);
+}
+
+function ShareChange({ change }: { change: ShareRow["change"] }) {
+	if (change === "new") {
+		return <span className="text-muted-foreground text-xs">New</span>;
+	}
+	if (change === null || Math.abs(change) < 0.05) {
+		return <MinusIcon className="size-3.5 text-muted-foreground" />;
+	}
+	const Icon = change > 0 ? TrendUpIcon : TrendDownIcon;
+	return (
+		<span className="flex items-center gap-1 text-muted-foreground text-xs tabular-nums">
+			<Icon className="size-3.5" />
+			{Math.abs(change).toFixed(1)} pts
+		</span>
+	);
+}
+
+function TotalChange({
+	current,
+	previous,
+}: {
+	current: number;
+	previous: number;
+}) {
+	const change = calculatePercentChange(current, previous);
+	if (Math.abs(change) < 0.5) {
+		return null;
+	}
+	const Icon = change > 0 ? TrendUpIcon : TrendDownIcon;
+	return (
+		<span
+			className={cn(
+				"flex items-center gap-1 font-medium text-xs tabular-nums",
+				change > 0 ? "text-success" : "text-destructive"
+			)}
+		>
+			<Icon className="size-3.5" />
+			{Math.abs(change).toFixed(0)}%
+		</span>
+	);
+}
+
+function ShareBars({ rows }: { rows: ShareRow[] }) {
+	const maxShare = Math.max(...rows.map((row) => row.share));
+	return (
+		<div>
+			<div className="flex h-48 items-end gap-3 border-b">
+				{rows.map((row) => (
+					<Tooltip
+						content={`${row.product}: ${formatNumber(row.visitors)} visitors`}
+						key={row.product}
+					>
+						<div className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
+							<span className="text-muted-foreground text-xs tabular-nums group-hover:text-foreground">
+								{formatShare(row.share)}
+							</span>
+							<div
+								className="w-full max-w-10 rounded-t bg-foreground/80 group-hover:bg-foreground"
+								style={{
+									height: `${Math.max((row.share / maxShare) * 80, 1)}%`,
+								}}
+							/>
+						</div>
+					</Tooltip>
+				))}
+			</div>
+			<div className="mt-2.5 flex gap-3">
+				{rows.map((row) => (
+					<div className="flex flex-1 justify-center" key={row.product}>
+						<AiProductIcon name={row.product} size="md" />
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
+
+function ShareRanking({ rows }: { rows: ShareRow[] }) {
+	const [isExpanded, setIsExpanded] = useState(false);
+	const visibleRows = isExpanded ? rows : rows.slice(0, RANKED_ROWS);
+	return (
+		<div className="flex flex-col">
+			<ol className="divide-y">
+				{visibleRows.map((row, index) => (
+					<li className="flex h-11 items-center gap-3" key={row.product}>
+						<span className="w-5 text-muted-foreground text-sm tabular-nums">
+							{index + 1}
+						</span>
+						<AiProductIcon name={row.product} size="sm" />
+						<span className="min-w-0 flex-1 truncate font-medium text-sm">
+							{row.product}
+						</span>
+						<span className="text-muted-foreground text-xs tabular-nums">
+							{formatNumber(row.visitors)}
+						</span>
+						<span className="w-14 text-right font-medium text-sm tabular-nums">
+							{formatShare(row.share)}
+						</span>
+						<span className="flex w-16 justify-end">
+							<ShareChange change={row.change} />
+						</span>
+					</li>
+				))}
+			</ol>
+			{rows.length > RANKED_ROWS ? (
+				<Button
+					className="mt-2 self-center"
+					onClick={() => setIsExpanded((expanded) => !expanded)}
+					size="sm"
+					variant="ghost"
+				>
+					{isExpanded ? "Show less" : `Show all ${rows.length}`}
+				</Button>
+			) : null}
+		</div>
+	);
+}
+
+function VisitorSharePanel({
+	isLoading,
+	previousRange,
+	share,
+}: {
+	isLoading: boolean;
+	previousRange: { end_date: string; start_date: string };
+	share: VisitorShare;
+}) {
+	const hasComparison = share.previousTotal > 0;
+	return (
+		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-2">
+			<div className="flex flex-col gap-5 rounded-lg bg-background p-4">
 				<div>
-					<p className="font-semibold text-base tabular-nums">
-						{formatNumber(row.requests)}
+					<p className="font-semibold text-sm">Share of AI visitors</p>
+					<div className="mt-2 flex h-8 items-center gap-2">
+						{isLoading ? (
+							<Skeleton className="h-7 w-28" />
+						) : (
+							<>
+								<p className="font-semibold text-2xl tabular-nums">
+									{formatNumber(share.total)}
+									<span className="ml-1.5 font-normal text-muted-foreground text-xs">
+										AI visitors
+									</span>
+								</p>
+								{hasComparison ? (
+									<TotalChange
+										current={share.total}
+										previous={share.previousTotal}
+									/>
+								) : null}
+							</>
+						)}
+					</div>
+					{isLoading ? (
+						<Skeleton className="mt-1 h-4 w-48" />
+					) : (
+						<p className="mt-1 text-muted-foreground text-xs">
+							{share.rows.length} AI products · compared with{" "}
+							{dayjs(previousRange.start_date).format("MMM D")} to{" "}
+							{dayjs(previousRange.end_date).format("MMM D")}
+						</p>
+					)}
+				</div>
+				{isLoading ? (
+					<Skeleton className="h-56 w-full" />
+				) : (
+					<ShareBars rows={share.rows.slice(0, SHARE_BARS)} />
+				)}
+				{isLoading || hasComparison ? null : (
+					<p className="text-pretty text-muted-foreground text-xs">
+						No AI visitors in the previous period, so changes appear once there
+						is one to compare against.
 					</p>
+				)}
+			</div>
+			<div className="flex flex-col gap-3 rounded-lg bg-background p-4">
+				<div>
+					<p className="font-semibold text-sm">Ranking</p>
 					<p className="text-muted-foreground text-xs">
-						{row.requests > 0
-							? `requests, ${formatNumber(row.pages)} pages${purpose ? `, ${purpose}` : ""}`
-							: "requests"}
+						Change in share since the previous period
 					</p>
 				</div>
-				<div>
-					<p className="font-semibold text-base tabular-nums">
-						{formatNumber(row.visitors)}
-					</p>
-					<p className="text-muted-foreground text-xs">visitors sent</p>
-				</div>
+				{isLoading ? (
+					<div className="space-y-2">
+						{Array.from({ length: RANKED_ROWS }, (_, index) => (
+							<Skeleton className="h-9 w-full" key={index} />
+						))}
+					</div>
+				) : (
+					<ShareRanking rows={share.rows} />
+				)}
 			</div>
 		</div>
 	);
@@ -85,48 +791,186 @@ export default function AgentsPage() {
 	const { id } = useParams();
 	const websiteId = id as string;
 	const { dateRange } = useDateFilters();
+	const { chartType, chartStepType } = useChartPreferences("overview-main");
+
+	const previousRange = useMemo(
+		() => calculatePreviousPeriod(dateRange),
+		[dateRange]
+	);
 
 	const { isLoading, getDataForQuery } = useBatchDynamicQuery(
 		websiteId,
 		dateRange,
 		[
-			{ id: "products", parameters: ["ai_products"] },
-			{ id: "series", parameters: ["ai_agent_time_series"] },
+			{
+				id: "products",
+				parameters: [
+					"ai_products",
+					{
+						name: "ai_products",
+						...previousRange,
+						id: "previous_ai_products",
+					},
+				],
+			},
+			{ id: "visitors", parameters: ["ai_product_visitors"] },
+			{ id: "formats", parameters: ["ai_content_formats"] },
 			{ id: "pages", parameters: ["ai_agent_pages"] },
+			{ id: "outcomes", parameters: ["ai_visitor_outcomes"] },
+			{ id: "revenue", parameters: ["revenue_by_ai_product"] },
+			{ id: "crawlers", parameters: ["ai_crawlers"] },
 		]
 	);
 
 	const products =
 		(getDataForQuery("products", "ai_products") as ProductRow[]) ?? [];
-	const series =
-		(getDataForQuery("series", "ai_agent_time_series") as ProductSeriesRow[]) ??
-		[];
+	const previousProducts =
+		(getDataForQuery("products", "previous_ai_products") as ProductRow[]) ?? [];
+	const formats =
+		(getDataForQuery("formats", "ai_content_formats") as FormatRow[]) ?? [];
 	const pages =
 		(getDataForQuery("pages", "ai_agent_pages") as PageResult[]) ?? [];
+	const outcomes =
+		(getDataForQuery("outcomes", "ai_visitor_outcomes") as OutcomeResult[]) ??
+		[];
+	const crawlers =
+		(getDataForQuery("crawlers", "ai_crawlers") as Omit<
+			CrawlerRow,
+			"robots"
+		>[]) ?? [];
+	const robots = useQuery({
+		...orpc.websites.checkAiRobots.queryOptions({
+			input: {
+				websiteId,
+				userAgents: crawlers.map((crawler) => crawler.user_agent),
+			},
+		}),
+		enabled: crawlers.length > 0,
+		staleTime: 10 * 60 * 1000,
+	});
+	const crawlerRows = crawlers.map(
+		(crawler, index): CrawlerRow => ({
+			...crawler,
+			robots: robots.data?.access[index],
+		})
+	);
+	const revenue =
+		(getDataForQuery("revenue", "revenue_by_ai_product") as RevenueRow[]) ?? [];
+
+	const visitorSeries =
+		(getDataForQuery(
+			"visitors",
+			"ai_product_visitors"
+		) as VisitorSeriesRow[]) ?? [];
+
+	const isHourly = dateRange.granularity === "hourly";
+	const bucketFormat = isHourly ? "YYYY-MM-DD HH:00" : "YYYY-MM-DD";
+	const buckets = useMemo(() => {
+		const unit = isHourly ? "hour" : "day";
+		const end = dayjs(dateRange.end_date).endOf("day");
+		const keys: string[] = [];
+		for (
+			let cursor = dayjs(dateRange.start_date).startOf(unit);
+			!cursor.isAfter(end);
+			cursor = cursor.add(1, unit)
+		) {
+			keys.push(cursor.format(bucketFormat));
+		}
+		return keys;
+	}, [dateRange.start_date, dateRange.end_date, isHourly, bucketFormat]);
+
+	const visitorsByProduct = useMemo(() => {
+		const counts = new Map<string, Map<string, number>>();
+		for (const row of visitorSeries) {
+			const byBucket = counts.get(row.product) ?? new Map<string, number>();
+			byBucket.set(
+				dayjs(row.date).format(bucketFormat),
+				Number(row.visitors) || 0
+			);
+			counts.set(row.product, byBucket);
+		}
+		return counts;
+	}, [visitorSeries, bucketFormat]);
+
+	const trendFor = (product: string): TrendPoint[] =>
+		buckets.map((date) => ({
+			date,
+			value: visitorsByProduct.get(product)?.get(date) ?? 0,
+		}));
 
 	const chart = useMemo(() => {
 		const topProducts = products
-			.filter((row) => row.requests > 0)
+			.filter((row) => row.visitors > 0)
+			.sort((a, b) => b.visitors - a.visitors)
 			.slice(0, CHART_PRODUCTS)
 			.map((row) => row.product);
-		const byDate = new Map<string, ChartMultiSeriesDataPoint>();
-		for (const row of series) {
-			if (!topProducts.includes(row.product)) {
-				continue;
-			}
-			const date =
-				dateRange.granularity === "hourly"
-					? dayjs(row.date).format("HH:mm")
-					: dayjs(row.date).format("MMM D");
-			const point = byDate.get(date) ?? { date };
-			point[row.product] = Number(row.requests) || 0;
-			byDate.set(date, point);
-		}
 		return {
-			data: [...byDate.values()],
+			data: buckets.map((bucket): ChartMultiSeriesDataPoint => {
+				const point: ChartMultiSeriesDataPoint = {
+					date: dayjs(bucket).format(isHourly ? "HH:mm" : "MMM D"),
+				};
+				for (const product of topProducts) {
+					point[product] = visitorsByProduct.get(product)?.get(bucket) ?? 0;
+				}
+				return point;
+			}),
 			metrics: topProducts.map((product) => ({ key: product, label: product })),
 		};
-	}, [products, series, dateRange.granularity]);
+	}, [products, buckets, visitorsByProduct, isHourly]);
+
+	const visitorShare = useMemo((): VisitorShare => {
+		const previousVisitors = new Map(
+			previousProducts.map((row) => [row.product, Number(row.visitors) || 0])
+		);
+		const previousTotal = [...previousVisitors.values()].reduce(
+			(sum, visitors) => sum + visitors,
+			0
+		);
+		const ranked = products
+			.map((row) => ({
+				product: row.product,
+				visitors: Number(row.visitors) || 0,
+			}))
+			.filter((row) => row.visitors > 0)
+			.sort((a, b) => b.visitors - a.visitors);
+		const total = ranked.reduce((sum, row) => sum + row.visitors, 0);
+		return {
+			previousTotal,
+			total,
+			rows: ranked.map((row) => {
+				const share = (row.visitors / total) * 100;
+				const previous = previousVisitors.get(row.product) ?? 0;
+				return {
+					...row,
+					share,
+					change:
+						previousTotal === 0
+							? null
+							: previous === 0
+								? "new"
+								: share - (previous / previousTotal) * 100,
+				};
+			}),
+		};
+	}, [products, previousProducts]);
+
+	const featured = FEATURED_AI_PRODUCTS.map(
+		(name) => products.find((row) => row.product === name) ?? emptyProduct(name)
+	);
+	const others = products
+		.filter((row) => !FEATURED_AI_PRODUCTS.includes(row.product))
+		.map((row) => ({ ...row, name: row.product }));
+
+	const outcomeRows = outcomes.map(({ product, ...row }): OutcomeRow => {
+		const earned = revenue.find((item) => item.name === product);
+		return {
+			...row,
+			name: product,
+			revenue: earned
+				? formatRevenueCurrency(earned.revenue, earned.currency)
+				: "",
+		};
+	});
 
 	const pageRows = useMemo(
 		(): AgentPageRow[] =>
@@ -136,11 +980,13 @@ export default function AgentsPage() {
 
 	if (!isLoading && products.length === 0) {
 		return (
-			<div className="p-4">
+			<div className="flex h-full flex-col p-4">
 				<EmptyState
-					description="ChatGPT, Claude, Perplexity and other AI products show up here when they read your pages or send you visitors. Crawlers like GPTBot and ClaudeBot don't run JavaScript, so add trackAgentTraffic from @databuddy/sdk/agents to your server to see them."
+					action={<AgentSetup className="items-center" websiteId={websiteId} />}
+					description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers skip JavaScript, so add one file to your site, deploy, then test it."
 					icon={<BrainIcon />}
-					title="No AI activity in this period"
+					isMainContent
+					title="No AI activity yet"
 				/>
 			</div>
 		);
@@ -149,42 +995,106 @@ export default function AgentsPage() {
 	return (
 		<div className="relative flex h-full flex-col">
 			<div className="space-y-4 p-4">
-				<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-4">
-					{isLoading
-						? Array.from({ length: 4 }, (_, index) => (
-								<Skeleton className="h-[116px] rounded-lg" key={index} />
-							))
-						: products.map((row) => (
-								<ProductCard key={row.product} row={row} />
-							))}
+				<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-3">
+					{featured.map((row) => (
+						<ProductCard
+							isLoading={isLoading}
+							key={row.product}
+							row={row}
+							trend={trendFor(row.product)}
+						/>
+					))}
 				</div>
 
-				{chart.metrics.length > 0 ? (
-					<SimpleMetricsChart
-						data={chart.data}
-						description="Requests from each AI product's crawlers and agents"
-						height={280}
+				{isLoading || visitorShare.rows.length > 0 ? (
+					<VisitorSharePanel
 						isLoading={isLoading}
-						metrics={chart.metrics}
-						partialLastSegment
-						title="AI requests"
+						previousRange={previousRange}
+						share={visitorShare}
+					/>
+				) : null}
+
+				<div className="space-y-1.5 rounded-xl bg-secondary p-1.5">
+					<div className="grid gap-1.5 sm:grid-cols-3">
+						{CONTENT_FORMATS.map((format) => (
+							<FormatCard
+								format={format}
+								isLoading={isLoading}
+								key={format}
+								row={formats.find((row) => row.format === format)}
+							/>
+						))}
+					</div>
+
+					{isLoading || chart.metrics.length > 0 ? (
+						<SimpleMetricsChart
+							chartStepType={chartStepType}
+							className="rounded-lg border-0 bg-background"
+							data={chart.data}
+							description="Visitors each AI product sent to your site"
+							height={280}
+							isLoading={isLoading}
+							metrics={chart.metrics}
+							partialLastSegment
+							seriesKind={chartType}
+							showYAxis
+							title="AI visitors"
+						/>
+					) : null}
+				</div>
+
+				{isLoading || outcomeRows.length > 1 ? (
+					<DataTable
+						columns={outcomeColumns}
+						data={outcomeRows}
+						description="How visitors from AI browse and buy, next to everyone else"
+						isLoading={isLoading}
+						title="What AI visitors do"
+					/>
+				) : null}
+
+				{isLoading || crawlerRows.length > 0 ? (
+					<DataTable
+						columns={crawlerColumns}
+						data={crawlerRows}
+						description={
+							robots.data && !robots.data.hasRobotsTxt
+								? "Your site has no robots.txt, so every crawler is allowed"
+								: "Each AI crawler and what your robots.txt lets it read"
+						}
+						initialPageSize={10}
+						isLoading={isLoading}
+						title="AI crawlers"
 					/>
 				) : null}
 
 				<DataTable
 					columns={pageColumns}
 					data={pageRows}
-					description="What AI reads, next to what humans read"
-					emptyMessage="No pages read by AI yet"
+					description="Where AI sends visitors, and what it reads"
+					emptyMessage="No AI visitors or reads yet"
 					isLoading={isLoading}
 					title="Pages"
 				/>
 
-				<p className="text-pretty text-muted-foreground text-xs">
-					Crawlers that don't run JavaScript, like GPTBot and ClaudeBot, only
-					appear once trackAgentTraffic from @databuddy/sdk/agents runs on your
-					server.
-				</p>
+				{isLoading || others.length > 0 ? (
+					<DataTable
+						columns={otherProductColumns}
+						data={others}
+						description="Coding agents, crawlers and other AI products"
+						initialPageSize={5}
+						isLoading={isLoading}
+						title="Other AI"
+					/>
+				) : null}
+
+				<div className="space-y-2">
+					<p className="text-pretty text-muted-foreground text-xs">
+						Crawlers that don't run JavaScript, like GPTBot and ClaudeBot, only
+						appear once @databuddy/sdk/agents runs on your server.
+					</p>
+					<AgentSetup websiteId={websiteId} />
+				</div>
 			</div>
 		</div>
 	);

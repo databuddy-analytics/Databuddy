@@ -102,7 +102,7 @@ const SUGGESTED_PROMPTS = [
 	},
 	{
 		icon: ChartLineUpIcon,
-		label: "Compare this month vs last month",
+		label: "How does this month compare to last?",
 		source: "Suggested",
 		color: "bg-blue-500/10 text-blue-400",
 	},

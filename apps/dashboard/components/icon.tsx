@@ -65,22 +65,42 @@ const OS_ICON_EXT: Record<string, "svg" | "png" | "webp"> = {
 	macOS: "svg",
 };
 
-const AI_ICONS = [
-	"Apple",
-	"ByteDance",
-	"ChatGPT",
-	"Claude",
-	"Copilot",
-	"Cursor",
-	"DeepSeek",
-	"DuckDuckGo",
-	"Gemini",
-	"Huawei",
-	"Meta",
-	"Mistral",
-	"Perplexity",
-];
-const MONOCHROME_AI_ICONS = new Set(["Apple", "ChatGPT", "Copilot", "Cursor"]);
+const AI_ICON_COLORS: Record<string, string | null> = {
+	Ai2: "#F0529C",
+	Amazon: "#FF9900",
+	Apple: null,
+	Atlassian: "#0052CC",
+	ByteDance: "#3C8CFF",
+	ChatGPT: null,
+	Claude: "#D97757",
+	Cloudflare: "#F38020",
+	Cohere: "#FF7759",
+	Copilot: "#0D91E1",
+	Cursor: null,
+	DeepSeek: "#5786FE",
+	Devin: "#0294DE",
+	Doubao: "#1E37FC",
+	DuckDuckGo: "#DE5833",
+	Exa: "#1F40ED",
+	Firecrawl: null,
+	Gemini: "#8E75B2",
+	Huawei: "#FF0000",
+	Kagi: "#FFB319",
+	Manus: null,
+	Meta: "#0467DF",
+	Mistral: "#FA520F",
+	Moonshot: null,
+	Mozilla: null,
+	OpenCode: null,
+	Parallel: null,
+	Perplexity: "#1FB8CD",
+	Phind: null,
+	Poe: "#5D5CDE",
+	Tavily: "#FE363B",
+	v0: null,
+	Zed: "#084CCF",
+};
+const AI_ICONS = Object.keys(AI_ICON_COLORS);
 
 const BROWSER_ICONS = Object.keys(BROWSER_ICON_EXT);
 const OS_ICONS = Object.keys(OS_ICON_EXT);
@@ -196,13 +216,19 @@ function PublicIcon({
 		searchName = getOSMappedName(normalizedName);
 	}
 
-	const iconName = findIconMatch(searchName, availableIcons);
+	const ownIconName = findIconMatch(searchName, availableIcons);
+	const aiAppName =
+		type === "browser" && !ownIconName
+			? AI_ICONS.find((icon) => icon.toLowerCase() === searchName.toLowerCase())
+			: undefined;
+	const iconType: IconType = aiAppName ? "ai" : type;
+	const iconName = ownIconName ?? aiAppName;
 
 	if (!iconName) {
 		return fallback || createFallbackIcon(normalizedName, iconSize, className);
 	}
 
-	const iconSrc = getIconSrc(iconName, type);
+	const iconSrc = getIconSrc(iconName, iconType);
 
 	return (
 		<div
@@ -218,7 +244,9 @@ function PublicIcon({
 				alt={name}
 				className={cn(
 					"object-contain",
-					type === "ai" && MONOCHROME_AI_ICONS.has(iconName) && "dark:invert"
+					iconType === "ai" &&
+						AI_ICON_COLORS[iconName] === null &&
+						"dark:invert"
 				)}
 				height={iconSize}
 				key={`${iconName}`}
@@ -227,6 +255,7 @@ function PublicIcon({
 					img.style.display = "none";
 				}}
 				src={iconSrc}
+				unoptimized={iconSrc.endsWith(".svg")}
 				width={iconSize}
 			/>
 		</div>
@@ -265,6 +294,14 @@ export function OSIcon({
 			type="os"
 		/>
 	);
+}
+
+export function aiProductColor(name: string): string | undefined {
+	const icon = findIconMatch(normalizeIconName(name), AI_ICONS);
+	if (!icon) {
+		return;
+	}
+	return AI_ICON_COLORS[icon] ?? "var(--color-foreground)";
 }
 
 export function AiProductIcon({

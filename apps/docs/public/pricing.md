@@ -11,8 +11,8 @@ Machine-readable: [JSON](https://www.databuddy.cc/api/pricing) · static [Markdo
 | Free | $0 | 10,000 | — | 10 | No paid overage — ingestion pauses at the monthly event allowance |
 | Hobby | $9.99/mo | 30,000 | — | 20 (plus 1 / day) | Tiered event overage |
 | Pro | $49.99/mo | 1,000,000 | — | 350 (plus 5 / day) | Tiered event overage |
-| Business | $299/mo | 2,000,000 | 100 / month | 1,500 | Invite only. $1 per additional investigation, billed monthly; tiered event overage |
-| Scale | $799/mo | 6,000,000 | 250 / month | 3,000 | Invite only. Adds SSO, audit logs, and guided onboarding. $1 per additional investigation, billed monthly; tiered event overage |
+| Business | $299/mo | 2,000,000 | 100 / month | 1,500 | $1 per additional investigation, billed monthly; tiered event overage |
+| Scale | $799/mo | 6,000,000 | 250 / month | 3,000 | Adds SSO, audit logs, and guided onboarding. $1 per additional investigation, billed monthly; tiered event overage |
 | Enterprise | Custom | Custom | Custom | Custom | Volume, security, SLAs — [pricing page](https://www.databuddy.cc/pricing) |
 
 ## Events (overage on paid plans)
@@ -63,7 +63,7 @@ Custom volume, security, and support. [Contact us](https://www.databuddy.cc/cont
 ## Links
 
 - Free, Hobby, and Pro: [Get started](https://app.databuddy.cc/register)
-- Business: [Request access](https://www.databuddy.cc/contact?topic=intelligence-business)
-- Scale: [Request access](https://www.databuddy.cc/contact?topic=intelligence-scale)
+- Business: [Get started](https://app.databuddy.cc/register?plan=intelligence)
+- Scale: [Get started](https://app.databuddy.cc/register?plan=intelligence_scale)
 - Website: [databuddy.cc/pricing](https://www.databuddy.cc/pricing)
 - JSON API: [databuddy.cc/api/pricing](https://www.databuddy.cc/api/pricing)

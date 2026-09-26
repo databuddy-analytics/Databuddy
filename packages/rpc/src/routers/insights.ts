@@ -1,6 +1,7 @@
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { getAutumn } from "../lib/autumn-client";
 import { getBillingCustomerId } from "../utils/billing";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import {
 	hasInvestigationAllowance,
 	INVESTIGATION_USAGE,
@@ -23,9 +24,12 @@ import {
 	goals,
 	insightObservations,
 	insightReplies,
+	investigationShares,
 	websites,
 } from "@databuddy/db/schema";
 import {
+	cacheable,
+	cacheNamespaces,
 	enqueueInsightsResume,
 	getInsightsQueue,
 	insightsResumeJobId,
@@ -39,10 +43,15 @@ import {
 	insightReplyStatusSchema,
 	insightTimelineItemSchema,
 	insightTimelineReplySchema,
+	type InsightTimelineInvestigation,
+	investigationShareStateSchema,
+	type InvestigationShareSnapshot,
 	parseInvestigationOutcome,
+	publicInvestigationShareSchema,
 	parseInvestigationSignal,
 	insightDefinitionEditError,
 } from "@databuddy/shared/insights";
+import { randomBytes } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 
 // Goal and funnel filters are conjunctive, so reordering them does not change
@@ -63,6 +72,7 @@ import {
 	auditedSessionProcedure,
 	type Context,
 	protectedProcedure,
+	publicProcedure,
 } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 
@@ -1185,6 +1195,113 @@ async function applyInsightAction(input: {
 	};
 }
 
+async function findCurrentInvestigation(insightId: string) {
+	const [row] = await selectInsights()
+		.where(and(eq(analyticsInsights.id, insightId), isNull(websites.deletedAt)))
+		.limit(1);
+	if (!row) {
+		return null;
+	}
+	const [current] = await selectInsights()
+		.where(
+			and(
+				eq(analyticsInsights.organizationId, row.organizationId),
+				eq(analyticsInsights.websiteId, row.websiteId),
+				eq(analyticsInsights.subjectKey, row.subjectKey),
+				isNull(websites.deletedAt)
+			)
+		)
+		.orderBy(desc(analyticsInsights.createdAt), desc(analyticsInsights.id))
+		.limit(1);
+	return current ?? row;
+}
+
+async function authorizeInvestigationShare(
+	context: Context,
+	insightId: string,
+	permission: "read" | "update"
+) {
+	const insight = await findCurrentInvestigation(insightId);
+	if (!insight) {
+		throw rpcError.notFound("Investigation", insightId);
+	}
+	await withWorkspace(context, {
+		allowCrossOrg: true,
+		organizationId: insight.organizationId,
+		permissions: [permission],
+		websiteId: insight.websiteId,
+	});
+	return insight;
+}
+
+function investigationShareCase(insight: InsightRow) {
+	return and(
+		eq(investigationShares.organizationId, insight.organizationId),
+		eq(investigationShares.websiteId, insight.websiteId),
+		eq(investigationShares.subjectKey, insight.subjectKey)
+	);
+}
+
+function publicInvestigationItem(
+	item: InsightTimelineInvestigation
+): InsightTimelineInvestigation {
+	const { next } = item.outcome;
+	return {
+		...item,
+		outcome: {
+			...item.outcome,
+			contextSnapshot: undefined,
+			next: next.type === "act" ? { ...next, execution: null } : next,
+		},
+	};
+}
+
+const fetchPublicInvestigationShare = cacheable(
+	async (shareId: string) => {
+		const [share] = await db
+			.select({
+				publishedAt: investigationShares.publishedAt,
+				snapshot: investigationShares.snapshot,
+				version: investigationShares.version,
+			})
+			.from(investigationShares)
+			.innerJoin(websites, eq(investigationShares.websiteId, websites.id))
+			.where(
+				and(eq(investigationShares.id, shareId), isNull(websites.deletedAt))
+			)
+			.limit(1);
+		return {
+			share: share
+				? {
+						...share.snapshot,
+						publishedAt: share.publishedAt.toISOString(),
+						version: share.version,
+					}
+				: null,
+		};
+	},
+	{
+		expireInSec: 300,
+		prefix: cacheNamespaces.investigationShare,
+		reviveDates: false,
+	}
+);
+
+async function enforcePublicShareRateLimit(
+	headers: Headers,
+	bucket: string,
+	limit: number
+): Promise<void> {
+	const result = await ratelimit(
+		`investigation-share:${bucket}:${getClientIp(headers) ?? "unknown"}`,
+		limit,
+		60
+	);
+	if (!result.success) {
+		throw rpcError.rateLimited(60);
+	}
+}
+
 export const insightsRouter = {
 	brief: protectedProcedure
 		.route({
@@ -1644,5 +1761,196 @@ export const insightsRouter = {
 			}
 			const status = await queueInsightReply(input.replyId);
 			return { replyId: input.replyId, status };
+		}),
+	getShare: protectedProcedure
+		.route({
+			method: "POST",
+			path: "/insights/share/get",
+			tags: ["Insights"],
+			summary: "Get an investigation's public link",
+		})
+		.input(z.object({ insightId: z.string().min(1).max(256) }))
+		.output(
+			z.object({
+				canPublish: z.boolean(),
+				share: investigationShareStateSchema.nullable(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const insight = await authorizeInvestigationShare(
+				context,
+				input.insightId,
+				"read"
+			);
+			const [share] = await db
+				.select({
+					id: investigationShares.id,
+					publishedAt: investigationShares.publishedAt,
+					version: investigationShares.version,
+				})
+				.from(investigationShares)
+				.where(investigationShareCase(insight))
+				.limit(1);
+			const canPublish = context.user
+				? await withWorkspace(context, {
+						allowCrossOrg: true,
+						organizationId: insight.organizationId,
+						permissions: ["update"],
+						websiteId: insight.websiteId,
+					})
+						.then(() => true)
+						.catch((error) => {
+							if (isAccessDenied(error)) {
+								return false;
+							}
+							throw error;
+						})
+				: false;
+			return {
+				canPublish,
+				share: share
+					? {
+							id: share.id,
+							publishedAt: share.publishedAt.toISOString(),
+							version: share.version,
+						}
+					: null,
+			};
+		}),
+
+	publishShare: auditedSessionProcedure
+		.route({
+			method: "POST",
+			path: "/insights/share/publish",
+			tags: ["Insights"],
+			summary: "Publish an investigation to its public link",
+			description:
+				"Snapshots the investigation's findings. Viewers of the link see this version until it is published again.",
+		})
+		.input(z.object({ insightId: z.string().min(1).max(256) }))
+		.output(investigationShareStateSchema)
+		.handler(async ({ context, input }) => {
+			const insight = await authorizeInvestigationShare(
+				context,
+				input.insightId,
+				"update"
+			);
+			setAuditOrganization(context, insight.organizationId);
+			const timeline = (await loadInsightTimeline(insight)).flatMap((item) =>
+				item.kind === "investigation" ? [publicInvestigationItem(item)] : []
+			);
+			if (timeline.length === 0) {
+				throw rpcError.badRequest(
+					"This investigation has no findings to publish yet"
+				);
+			}
+			const snapshot: InvestigationShareSnapshot = {
+				insight: {
+					changePercent: insight.changePercent ?? undefined,
+					description: insight.description,
+					resolvedReason: insight.resolvedReason ?? null,
+					sentiment: insight.sentiment,
+					severity: insight.severity,
+					status: insight.status,
+					title: insight.title,
+					websiteDomain: insight.websiteDomain,
+					websiteName: insight.websiteName,
+				},
+				timeline,
+			};
+			const publishedAt = new Date();
+			const [share] = await db
+				.insert(investigationShares)
+				.values({
+					id: randomBytes(18).toString("base64url"),
+					insightId: insight.id,
+					organizationId: insight.organizationId,
+					publishedAt,
+					publishedBy: context.user.id,
+					snapshot,
+					subjectKey: insight.subjectKey,
+					version: 1,
+					websiteId: insight.websiteId,
+				})
+				.onConflictDoUpdate({
+					target: [
+						investigationShares.organizationId,
+						investigationShares.websiteId,
+						investigationShares.subjectKey,
+					],
+					set: {
+						insightId: insight.id,
+						publishedAt,
+						publishedBy: context.user.id,
+						snapshot,
+						version: sql`${investigationShares.version} + 1`,
+					},
+				})
+				.returning({
+					id: investigationShares.id,
+					publishedAt: investigationShares.publishedAt,
+					version: investigationShares.version,
+				});
+			if (!share) {
+				throw rpcError.internal("Could not publish the investigation");
+			}
+			await fetchPublicInvestigationShare.invalidate(share.id);
+			return {
+				id: share.id,
+				publishedAt: share.publishedAt.toISOString(),
+				version: share.version,
+			};
+		}),
+
+	unpublishShare: auditedSessionProcedure
+		.route({
+			method: "POST",
+			path: "/insights/share/unpublish",
+			tags: ["Insights"],
+			summary: "Turn off an investigation's public link",
+		})
+		.input(z.object({ insightId: z.string().min(1).max(256) }))
+		.output(z.object({ success: z.boolean() }))
+		.handler(async ({ context, input }) => {
+			const insight = await authorizeInvestigationShare(
+				context,
+				input.insightId,
+				"update"
+			);
+			setAuditOrganization(context, insight.organizationId);
+			const removed = await db
+				.delete(investigationShares)
+				.where(investigationShareCase(insight))
+				.returning({ id: investigationShares.id });
+			await Promise.all(
+				removed.map((share) =>
+					fetchPublicInvestigationShare.invalidate(share.id)
+				)
+			);
+			return { success: removed.length > 0 };
+		}),
+
+	getPublicShare: publicProcedure
+		.route({
+			method: "POST",
+			path: "/insights/share/public",
+			tags: ["Insights"],
+			summary: "Get a published investigation",
+			spec: (spec) => ({ ...spec, security: [] }),
+		})
+		.input(z.object({ shareId: z.string().min(1).max(64) }))
+		.output(publicInvestigationShareSchema)
+		.handler(async ({ context, input }) => {
+			await enforcePublicShareRateLimit(context.headers, "page", 600);
+			await enforcePublicShareRateLimit(
+				context.headers,
+				`page:${input.shareId}`,
+				120
+			);
+			const { share } = await fetchPublicInvestigationShare(input.shareId);
+			if (!share) {
+				throw rpcError.notFound("Investigation", input.shareId);
+			}
+			return share;
 		}),
 };

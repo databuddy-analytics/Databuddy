@@ -101,6 +101,10 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 	const portalTarget = typeof document === "undefined" ? null : document.body;
 
 	const currentTabData = tabs?.find((tab) => tab.id === activeTab);
+	const agentSubject =
+		currentTabData && tabs && tabs.length > 1
+			? `${title}, ${currentTabData.label}`
+			: title;
 	const tableData = currentTabData?.data || data || [];
 	const tableColumns = currentTabData?.columns || columns || [];
 
@@ -122,6 +126,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 		return (
 			<Card className={className}>
 				<TableToolbar
+					agentSubject={agentSubject}
 					description={description}
 					showBrand={showBrandInHeader}
 					showFullScreen={false}
@@ -143,6 +148,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 		<>
 			<Card className={className}>
 				<TableToolbar
+					agentSubject={agentSubject}
 					description={description}
 					onFullScreenToggle={() => setFullScreen(true)}
 					showBrand={showBrandInHeader}

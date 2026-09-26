@@ -4,7 +4,9 @@ import {
 	alarms,
 	alarmTriggerTypeValues,
 } from "@databuddy/db/schema";
+import { MAX_ALARM_DESTINATIONS } from "@databuddy/notifications";
 import { ratelimit } from "@databuddy/redis/rate-limit";
+import { SLACK_WEBHOOK_PATTERN } from "@databuddy/shared/uptime";
 import { createSelectSchema } from "drizzle-orm/zod";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
@@ -18,8 +20,6 @@ import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
 import { withResource } from "../procedures/with-resource";
 import { withWorkspace } from "../procedures/with-workspace";
 
-const SLACK_WEBHOOK_PATTERN =
-	/^https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[A-Za-z0-9]+$/;
 const FORBIDDEN_HEADER_NAMES = new Set([
 	"authorization",
 	"cookie",
@@ -210,7 +210,8 @@ export const alarmsRouter = {
 				triggerConditions: z.record(z.string(), z.unknown()).default({}),
 				destinations: z
 					.array(destinationSchema)
-					.min(1, "At least one destination is required"),
+					.min(1, "At least one destination is required")
+					.max(MAX_ALARM_DESTINATIONS),
 			})
 		)
 		.output(alarmOutputSchema)
@@ -281,7 +282,10 @@ export const alarmsRouter = {
 				websiteId: z.string().nullish(),
 				triggerType: z.enum(alarmTriggerTypeValues).optional(),
 				triggerConditions: z.record(z.string(), z.unknown()).optional(),
-				destinations: z.array(destinationSchema).optional(),
+				destinations: z
+					.array(destinationSchema)
+					.max(MAX_ALARM_DESTINATIONS)
+					.optional(),
 			})
 		)
 		.output(alarmOutputSchema)

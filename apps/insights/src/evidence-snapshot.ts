@@ -334,6 +334,21 @@ const referrerScopeSchema = z.object({
 	endDate: z.string(),
 	cohort: savedCohort.nullish(),
 });
+const referrerAnalyticsSchema = z.object({
+	referrer_analytics: z.array(referrerSchema),
+});
+
+function referrerRateKey(
+	scope: z.infer<typeof referrerScopeSchema>,
+	referrer: string
+): string {
+	return JSON.stringify([
+		scope.websiteId,
+		scope.funnelId,
+		scope.cohort ?? null,
+		referrer,
+	]);
+}
 
 function previousReferrerRates(snapshot: InvestigationEvidenceSnapshot) {
 	const rates = new Map<string, { source: string; percent: number } | null>();
@@ -342,9 +357,7 @@ function previousReferrerRates(snapshot: InvestigationEvidenceSnapshot) {
 			continue;
 		}
 		const scope = referrerScopeSchema.safeParse(read.input);
-		const rows = z
-			.object({ referrer_analytics: z.array(referrerSchema) })
-			.safeParse(read.output);
+		const rows = referrerAnalyticsSchema.safeParse(read.output);
 		if (
 			!(scope.success && rows.success) ||
 			scope.data.websiteId !== snapshot.websiteId ||
@@ -358,12 +371,7 @@ function previousReferrerRates(snapshot: InvestigationEvidenceSnapshot) {
 			if (!row.total_users || row.completed_users > row.total_users) {
 				continue;
 			}
-			const key = JSON.stringify([
-				scope.data.websiteId,
-				scope.data.funnelId,
-				scope.data.cohort ?? null,
-				row.referrer,
-			]);
+			const key = referrerRateKey(scope.data, row.referrer);
 			// Repeated/conflicting sources are left to explicit evidence review.
 			rates.set(
 				key,
@@ -424,9 +432,7 @@ export function clarificationMetrics(snapshot: InvestigationEvidenceSnapshot) {
 		if (read.name !== "get_funnel_analytics_by_referrer") {
 			return [];
 		}
-		const parsed = z
-			.object({ referrer_analytics: z.array(referrerSchema) })
-			.safeParse(read.output);
+		const parsed = referrerAnalyticsSchema.safeParse(read.output);
 		if (!parsed.success) {
 			return [];
 		}
@@ -438,14 +444,7 @@ export function clarificationMetrics(snapshot: InvestigationEvidenceSnapshot) {
 					scope.success &&
 					scope.data.startDate === snapshot.signal.period.current.from &&
 					scope.data.endDate === snapshot.signal.period.current.to
-						? previousRates.get(
-								JSON.stringify([
-									scope.data.websiteId,
-									scope.data.funnelId,
-									scope.data.cohort ?? null,
-									row.referrer,
-								])
-							)
+						? previousRates.get(referrerRateKey(scope.data, row.referrer))
 						: null;
 				const percent = row.total_users
 					? (100 * row.completed_users) / row.total_users

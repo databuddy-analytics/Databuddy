@@ -356,4 +356,53 @@ integration("MCP OAuth authorization round trip", () => {
 		expect(metadata.code_challenge_methods_supported).toContain("S256");
 		expect(metadata.token_endpoint).toContain("/oauth2/token");
 	});
+
+	test("a lost race to seed the MCP resource does not break auth startup", async () => {
+		const { db, eq, sql } = dbModule;
+		await db
+			.delete(schema.oauthResource)
+			.where(eq(schema.oauthResource.identifier, config.urls.mcp));
+
+		let started:
+			| Promise<
+					PromiseSettledResult<
+						Awaited<typeof import("./oauth")["oauthAuth"]["$context"]>
+					>[]
+			  >
+			| undefined;
+		await db.transaction(async (tx) => {
+			await tx.insert(schema.oauthResource).values({
+				id: randomUUID(),
+				identifier: config.urls.mcp,
+				name: config.urls.mcp,
+			});
+			const modules: typeof import("./oauth")[] = await Promise.all(
+				[0, 1].map((index) => import(`./oauth.ts?race=${index}`))
+			);
+			started = Promise.allSettled(
+				modules.map((module) => module.oauthAuth.$context)
+			);
+			for (let attempt = 0; attempt < 250; attempt++) {
+				const blocked = await db.execute<{ count: number }>(
+					sql`select count(*)::int as count from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock' and query like 'insert into "oauth_resource"%'`
+				);
+				if (blocked.rows[0]?.count === modules.length) {
+					return;
+				}
+				await Bun.sleep(20);
+			}
+			throw new Error("seed inserts never blocked on the uncommitted row");
+		});
+
+		const results = (await started) ?? [];
+		expect(results).toHaveLength(2);
+		expect(results.filter((result) => result.status === "rejected")).toEqual(
+			[]
+		);
+		const rows = await db
+			.select({ id: schema.oauthResource.id })
+			.from(schema.oauthResource)
+			.where(eq(schema.oauthResource.identifier, config.urls.mcp));
+		expect(rows).toHaveLength(1);
+	});
 });

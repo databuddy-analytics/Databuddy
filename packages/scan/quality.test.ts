@@ -621,6 +621,25 @@ test("data-track listeners are found in every documented install form", () => {
 	assert.equal(listeners("trackAttributes?: boolean;"), 0);
 	assert.equal(
 		listeners(
+			'const script = document.createElement("script");\nscript.setAttribute("data-track-attributes", "true");'
+		),
+		1
+	);
+	assert.equal(listeners("const name = target.dataset.track;"), 1);
+	assert.equal(
+		listeners(
+			'export const snippet = `document.addEventListener("click", (e) => e.target.closest("[data-track]"));`;'
+		),
+		0
+	);
+	assert.equal(
+		listeners(
+			'export const settings = [{ key: "trackAttributes", label: "Track attributes" }];'
+		),
+		0
+	);
+	assert.equal(
+		listeners(
 			'const el = e.target.closest("[data-track]");',
 			"packages/tracker/src/index.ts"
 		),
@@ -894,4 +913,49 @@ async function toggleReblog() {
 	);
 	assert.ok(labels.includes("form.onSubmit vote"));
 	assert.ok(labels.includes('StatusActionButton.onClick "action.boost"'));
+});
+
+test("a link's route is matched as a GET while that route's own requests keep their method", () => {
+	const page = `${"const checkoutUrl = `${API}/v1/billing/checkout`;"}
+function portalUrl() { return new URL("/v1/billing/portal", API).toString(); }
+export function Upgrade() { return <a href={checkoutUrl}>Upgrade to Pro</a>; }
+export function Manage() { return <a href={portalUrl()}>Upgrade billing</a>; }`;
+	const server = `export const billing = new Elysia({ prefix: "/v1/billing" })
+  .get("/checkout", async () => { await fetch("/v1/billing/audit", { method: "POST" }); })
+  .post("/checkout", async () => { await db.insert(orders).values({}); })
+  .get("/portal", async () => redirect(await stripe.billingPortal.sessions.create({})))
+  .post("/portal", async () => { await db.update(customers).set({}); });`;
+	const audit = `export const audit = new Elysia({ prefix: "/v1/billing/audit" })
+  .get("/", async () => db.select().from(audits))
+  .post("/", async () => { await db.insert(audits).values({}); });`;
+	const actions = groups(
+		page,
+		{ "api/billing.ts": server, "api/audit.ts": audit },
+		"web/pricing.tsx"
+	);
+	const sites = (text: string) =>
+		(at(actions, page, text, "web/pricing.tsx")[0]?.sites ?? [])
+			.filter((site) => site.path.startsWith("api/"))
+			.map((site) => `${site.path}:${site.start}`);
+	assert.deepEqual(sites("href={checkoutUrl}"), [
+		"api/billing.ts:2",
+		"api/audit.ts:3",
+	]);
+	assert.deepEqual(sites("href={portalUrl()}"), ["api/billing.ts:4"]);
+});
+
+test("a bound or applied action reaches its write only when it is invoked", () => {
+	const actions = (body: string) => {
+		const source = `import { save } from "./save";
+export function Page() {
+	return <button onClick={() => { ${body} }}>Save</button>;
+}`;
+		return groups(source, {
+			"app/save.ts":
+				"export async function save(id: string) { await db.insert(items).values({ id }); }",
+		});
+	};
+	assert.equal(actions("const run = save.bind(null, id); run();").length, 1);
+	assert.equal(actions("save.apply(null, [id]);").length, 1);
+	assert.equal(actions("const later = save.bind(null, id);").length, 0);
 });

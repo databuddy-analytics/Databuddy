@@ -17,12 +17,12 @@ import {
 	INSIGHTS_QUEUE_NAME,
 	type InsightsQueueJobData,
 } from "@databuddy/redis";
-import { runImportJob } from "@databuddy/services/import";
+import { PermanentImportError, runImportJob } from "@databuddy/services/import";
 import {
 	createDatabuddyEvlogEnv,
 	databuddyEvlogRedaction,
 } from "@databuddy/shared/evlog-redaction";
-import { Worker } from "bullmq";
+import { UnrecoverableError, Worker } from "bullmq";
 import { Elysia } from "elysia";
 import { initLogger } from "evlog";
 import { processInsightsJob } from "./jobs";
@@ -116,31 +116,61 @@ function exitAfterDrain(code: number) {
 		return;
 	}
 	shuttingDown = true;
-	drainAll()
-		.catch((error) => {
-			captureInsightsError(error, "lifecycle.shutdown_failed", {
-				lifecycle: "shutdown",
-			});
-		})
-		.finally(() => process.exit(code));
+	drainAll().finally(() => process.exit(code));
 }
 
-async function shutdown(signal: string) {
+function shutdown(signal: string) {
 	if (shuttingDown) {
 		return;
 	}
-	shuttingDown = true;
 	emitInsightsEvent("info", "lifecycle.shutdown_requested", {
 		lifecycle: "shutdown",
 		signal,
 	});
-	await drainAll();
-	process.exit(0);
+	exitAfterDrain(0);
 }
 
 async function startRuntime() {
 	emitInsightsEvent("info", "lifecycle.starting", {
 		worker_enabled: workerEnabled,
+	});
+	importWorker = new Worker<ImportRunJobData>(
+		IMPORT_QUEUE_NAME,
+		async (job) => {
+			const result = await runImportJob(job.data, ({ rows }) =>
+				job.updateProgress(rows)
+			).catch((error) => {
+				if (error instanceof PermanentImportError) {
+					throw new UnrecoverableError(error.message);
+				}
+				throw error;
+			});
+			emitInsightsEvent("info", "import.completed", {
+				run_id: job.data.runId,
+				website_id: job.data.websiteId,
+				provider_id: job.data.providerId,
+				rows: result.rows,
+				dates: result.dates,
+				skipped_rollups: result.skippedRollups,
+				dropped_visits: result.adjustments.droppedVisits,
+				duration_delta_seconds: result.adjustments.durationDeltaSeconds,
+			});
+			return result;
+		},
+		{
+			connection: getBullMQWorkerConnectionOptions({
+				envPrefix: IMPORT_QUEUE_ENV_PREFIX,
+			}),
+			concurrency: 1,
+			lockDuration: IMPORT_JOB_TIMEOUT_MS * 2,
+			stalledInterval: IMPORT_JOB_TIMEOUT_MS * 3,
+		}
+	);
+	importWorker.on("failed", (job, error) => {
+		captureInsightsError(error, "import.failed", {
+			run_id: job?.data.runId,
+			website_id: job?.data.websiteId,
+		});
 	});
 	if (workerEnabled) {
 		if (!isAiGatewayConfigured) {
@@ -172,39 +202,6 @@ async function startRuntime() {
 				stalledInterval: INSIGHTS_JOB_TIMEOUT_MS * 3,
 			}
 		);
-		importWorker = new Worker<ImportRunJobData>(
-			IMPORT_QUEUE_NAME,
-			async (job) => {
-				const result = await runImportJob(job.data, ({ rows }) =>
-					job.updateProgress(rows)
-				);
-				emitInsightsEvent("info", "import.completed", {
-					run_id: job.data.runId,
-					website_id: job.data.websiteId,
-					provider_id: job.data.providerId,
-					rows: result.rows,
-					dates: result.dates,
-					skipped_rollups: result.skippedRollups,
-					dropped_visits: result.adjustments.droppedVisits,
-					duration_delta_seconds: result.adjustments.durationDeltaSeconds,
-				});
-				return result;
-			},
-			{
-				connection: getBullMQWorkerConnectionOptions({
-					envPrefix: IMPORT_QUEUE_ENV_PREFIX,
-				}),
-				concurrency: 1,
-				lockDuration: IMPORT_JOB_TIMEOUT_MS * 2,
-				stalledInterval: IMPORT_JOB_TIMEOUT_MS * 3,
-			}
-		);
-		importWorker.on("failed", (job, error) => {
-			captureInsightsError(error, "import.failed", {
-				run_id: job?.data.runId,
-				website_id: job?.data.websiteId,
-			});
-		});
 		insightsWorker.on("stalled", (jobId) => {
 			emitInsightsEvent("warn", "worker.job_stalled", { job_id: jobId });
 		});

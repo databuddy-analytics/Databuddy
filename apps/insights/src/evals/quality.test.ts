@@ -19,6 +19,10 @@ it.each([
 		comparison: "New-user visits held at 1,200 in both comparison weeks.",
 		retained: true,
 	},
+	{
+		comparison: "Completions fell 80→24, while new-user visits remained 1,200.",
+		retained: true,
+	},
 	{ comparison: "Visits held at 1,200 this week.", retained: false },
 	{ comparison: "Completions fell from 80 to 24.", retained: false },
 ])("scores the steady-arrival context rather than an exact count: $comparison", ({

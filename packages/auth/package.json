@@ -20,7 +20,6 @@
     "@better-auth/core": "1.7.5",
     "@better-auth/mcp": "1.7.5",
     "@better-auth/redis-storage": "1.7.5",
-    "@better-auth/sso": "1.7.5",
     "@databuddy/db": "*",
     "@databuddy/email": "*",
     "@databuddy/env": "workspace:*",

@@ -28,3 +28,25 @@ export const calculatePercentChange = (
 	}
 	return ((current - previous) / previous) * 100;
 };
+
+export function calculatePreviousPeriod<
+	TRange extends {
+		end_date: string;
+		granularity?: Granularity;
+		start_date: string;
+	},
+>(
+	range: TRange
+): {
+	end_date: string;
+	granularity: TRange["granularity"];
+	start_date: string;
+} {
+	const start = dayjs(range.start_date);
+	const days = dayjs(range.end_date).diff(start, "day") + 1;
+	return {
+		start_date: start.subtract(days, "day").format("YYYY-MM-DD"),
+		end_date: start.subtract(1, "day").format("YYYY-MM-DD"),
+		granularity: range.granularity,
+	};
+}

@@ -19,7 +19,7 @@ export const uptimeDataSchema = z.object({
 	response_bytes: z.number(),
 	retries: z.number(),
 	site_id: z.string(),
-	ssl_expiry: z.number(),
+	ssl_expiry: z.number().nullable(),
 	ssl_valid: z.number(),
 	status: z.number(),
 	timestamp: z.number(),

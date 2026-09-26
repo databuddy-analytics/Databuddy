@@ -158,19 +158,31 @@ export async function retireObsoleteRetentionObservation(params: {
 		return true;
 	});
 	if (retired) {
-		try {
-			await Promise.all([
-				invalidateInsightsCachesForOrganization(params.organizationId),
-				invalidateAgentContextSnapshotsForWebsite(params.websiteId),
-			]);
-		} catch (error) {
-			captureInsightsError(error, "generation.cache_invalidation.failed", {
-				organization_id: params.organizationId,
-				website_id: params.websiteId,
-			});
-		}
+		await invalidateInsightCaches(
+			params.organizationId,
+			params.websiteId,
+			"generation.cache_invalidation.failed"
+		);
 	}
 	return retired;
+}
+
+export async function invalidateInsightCaches(
+	organizationId: string,
+	websiteId: string,
+	eventName: string
+): Promise<void> {
+	try {
+		await Promise.all([
+			invalidateInsightsCachesForOrganization(organizationId),
+			invalidateAgentContextSnapshotsForWebsite(websiteId),
+		]);
+	} catch (error) {
+		captureInsightsError(error, eventName, {
+			organization_id: organizationId,
+			website_id: websiteId,
+		});
+	}
 }
 
 export interface WebsiteInvestigation {
@@ -372,17 +384,11 @@ export async function persistInvestigation(params: {
 		return rows[0] ?? null;
 	});
 
-	try {
-		await Promise.all([
-			invalidateInsightsCachesForOrganization(params.organizationId),
-			invalidateAgentContextSnapshotsForWebsite(investigation.websiteId),
-		]);
-	} catch (error) {
-		captureInsightsError(error, "generation.cache_invalidation.failed", {
-			organization_id: params.organizationId,
-			website_id: investigation.websiteId,
-		});
-	}
+	await invalidateInsightCaches(
+		params.organizationId,
+		investigation.websiteId,
+		"generation.cache_invalidation.failed"
+	);
 
 	emitInsightsEvent("info", "generation.persistence.completed", {
 		organization_id: params.organizationId,

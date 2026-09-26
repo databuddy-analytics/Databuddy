@@ -6,7 +6,12 @@ import {
 	invalidFilterFieldError,
 	resolveRequestTraitFilters,
 } from "./trait-filters";
-import type { FilterOperators, QueryRequest, TimeGranularity } from "./types";
+import type {
+	CompiledQuery,
+	FilterOperators,
+	QueryRequest,
+	TimeGranularity,
+} from "./types";
 
 const FILTER_OPS = [
 	"eq",
@@ -91,7 +96,8 @@ export const executeQuery = async (
 	request: QueryRequest,
 	websiteDomain?: string | null,
 	timezone?: string,
-	abortSignal?: AbortSignal
+	abortSignal?: AbortSignal,
+	onCompiled?: (query: CompiledQuery) => void
 ) => {
 	const validated = parseRequest(request);
 	const filterError = invalidFilterFieldError(
@@ -102,7 +108,10 @@ export const executeQuery = async (
 		throw new Error(filterError);
 	}
 	const resolved = await resolveRequestTraitFilters(validated);
-	return createBuilder(resolved, websiteDomain, timezone).execute(abortSignal);
+	return createBuilder(resolved, websiteDomain, timezone).execute(
+		abortSignal,
+		onCompiled
+	);
 };
 
 export const compileQuery = (

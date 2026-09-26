@@ -5,9 +5,14 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+	CodeBlock,
+	CodeBlockCopyButton,
+} from "@/components/ai-elements/code-block";
 import { cn } from "@/lib/utils";
 import type { ComponentProps } from "react";
 import {
+	CaretRightIcon,
 	CheckCircleIcon,
 	CircleNotchIcon,
 	XCircleIcon,
@@ -116,6 +121,40 @@ export const ToolInput = ({ className, input }: ToolInputProps) => {
 		</dl>
 	);
 };
+
+export interface ToolQueryProps {
+	className?: string;
+	label: string;
+	params?: Record<string, unknown>;
+	sql: string;
+}
+
+export const ToolQuery = ({
+	className,
+	label,
+	params,
+	sql,
+}: ToolQueryProps) => (
+	<Collapsible className={cn("group/query min-w-0", className)}>
+		<CollapsibleTrigger className="flex w-full min-w-0 items-center gap-1.5 text-left text-muted-foreground text-xs hover:text-foreground">
+			<CaretRightIcon className="size-3 shrink-0 transition-transform group-data-[state=open]/query:rotate-90 motion-reduce:transition-none" />
+			<span className="shrink-0">View query</span>
+			<span className="truncate text-muted-foreground/55">{label}</span>
+		</CollapsibleTrigger>
+		<CollapsibleContent className="space-y-2 pt-2">
+			<CodeBlock
+				className="[&_code]:text-xs! [&_pre]:max-h-80 [&_pre]:overflow-auto [&_pre]:p-3! [&_pre]:text-xs!"
+				code={sql}
+				language="sql"
+			>
+				<CodeBlockCopyButton aria-label="Copy query" />
+			</CodeBlock>
+			{params && Object.keys(params).length > 0 ? (
+				<ToolInput input={params} />
+			) : null}
+		</CollapsibleContent>
+	</Collapsible>
+);
 
 export interface ToolOutputProps {
 	className?: string;

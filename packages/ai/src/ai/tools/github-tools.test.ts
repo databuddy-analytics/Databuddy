@@ -453,6 +453,11 @@ describe("GitHub bounded file evidence", () => {
 		const tools = createGitHubTools(
 			{ organizationId: "org_1" },
 			{
+				getLinkedRepositories: async () => [
+					repository,
+					{ ...repository, owner: "other" },
+					{ ...repository, repo: "other" },
+				],
 				getToken: async () => "fixture-token",
 				request: async (url) => ({
 					encoding: "base64",

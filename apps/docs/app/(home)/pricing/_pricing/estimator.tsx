@@ -1,7 +1,3 @@
-import {
-	INTELLIGENCE_CONTACT_TOPICS,
-	INTELLIGENCE_PLAN_IDS,
-} from "@databuddy/shared/types/features";
 import { CaretDownIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -74,11 +70,6 @@ export function Estimator({ plans }: Props) {
 				);
 
 	const tiers = bestPlan?.eventTiers ?? [];
-	const contactTopic =
-		bestPlan?.id === INTELLIGENCE_PLAN_IDS.ANALYST ||
-		bestPlan?.id === INTELLIGENCE_PLAN_IDS.DATA_TEAM
-			? INTELLIGENCE_CONTACT_TOPICS[bestPlan.id]
-			: null;
 
 	return (
 		<section className="motion-reduce:[&_*]:animate-none! motion-reduce:[&_*]:transition-none!">
@@ -159,7 +150,7 @@ export function Estimator({ plans }: Props) {
 									value={monthlyInvestigations}
 								/>
 								<p className="mt-2 text-muted-foreground text-xs">
-									Business and Scale require an invitation.
+									Business and Scale include monthly investigations.
 								</p>
 							</div>
 						</div>
@@ -279,21 +270,17 @@ export function Estimator({ plans }: Props) {
 											className="transition-opacity duration-150 hover:animate-none hover:bg-foreground/10 focus-visible:bg-foreground/10 active:scale-100 active:bg-foreground/15 active:opacity-80"
 										>
 											<Link
-												href={
-													contactTopic
-														? `/contact?topic=${contactTopic}`
-														: `https://app.databuddy.cc/register${bestPlan ? `?plan=${bestPlan.id}` : ""}`
-												}
+												href={`https://app.databuddy.cc/register${bestPlan ? `?plan=${bestPlan.id}` : ""}`}
 												onClick={() =>
 													trackPricingPlanClick(
 														bestPlan?.id ?? "unknown",
 														"pricing_estimator"
 													)
 												}
-												rel={contactTopic ? undefined : "noopener noreferrer"}
-												target={contactTopic ? undefined : "_blank"}
+												rel="noopener noreferrer"
+												target="_blank"
 											>
-												{contactTopic ? "REQUEST ACCESS" : "GET STARTED"}
+												GET STARTED
 											</Link>
 										</SciFiButton>
 									</div>

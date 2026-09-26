@@ -26,7 +26,7 @@ const ABSENCE_CLAIM =
 	/\b(?:does not exist|no longer exists|retired route|absent from the site|nonexistent route|(?:route|path|page) (?:is |was |has been )?(?:missing|removed|deleted|retired|unavailable)|(?:missing|removed|deleted|retired) (?:route|path|page))\b/i;
 
 const STEADY_ARRIVALS =
-	/\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained|held)\s+)?(?:unchanged|steady|stable)\b|\b(?:unchanged|steady|stable)\s+(?:new-user\s+)?(?:visits|arrivals)\b|\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained|held)\s+)?(?:at\s+)?1[,.]?200\s+(?:(?:in|across|for)\s+)?(?:both|each)\b/i;
+	/\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained|held)\s+)?(?:unchanged|steady|stable)\b|\b(?:unchanged|steady|stable)\s+(?:new-user\s+)?(?:visits|arrivals)\b|\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained|held)\s+(?:at\s+)?1[,.]?200\b(?!\s+(?:this|that|last|during|in\s+the\s+(?:current|latest)))|(?:at\s+)?1[,.]?200\s+(?:(?:in|across|for)\s+)?(?:both|each)\b)/i;
 const SOURCE_COHORT = /\bgoogle(?:\.com)?\b/i;
 const WORD_SEPARATOR = /\s+/;
 
@@ -94,18 +94,22 @@ const goalTools: ToolSet = {
 	),
 	get_data: tool({
 		description:
-			"Inspect page traffic. An exact path filter returns the full count for that path; otherwise returns a partial top-pages table.",
+			"Inspect page traffic for the current window. An exact path filter returns the full count for that path; otherwise returns a partial top-pages table.",
 		inputSchema: z.object({ path: z.string().nullable() }).strict(),
 		execute: ({ path }) => ({
 			results: {
 				pages: path
 					? {
+							...period.current,
+							timezone: "UTC",
 							data: [{ path, visitors: path === "/workspace" ? 164 : 0 }],
 							returnedRows: 1,
 							rowCount: 1,
 							truncated: false,
 						}
 					: {
+							...period.current,
+							timezone: "UTC",
 							data: [
 								{ path: "/", visitors: 680 },
 								{ path: "/workspace", visitors: 164 },
@@ -408,12 +412,18 @@ export const qualityCases: QualityCase[] = [
 					"Authenticated visitors reach /workspace. Tracking is present. This is the correct destination for the saved workspace goal; no code or definition mismatch has been established.",
 			}),
 		},
-		check: ({ outcome }) =>
-			outcome.next.type === "act"
+		check: ({ outcome }) => [
+			...(outcome.next.type === "act"
 				? [
 						"Proposed another repair although the inspected definition already measures the correct route",
 					]
-				: [],
+				: []),
+			...(outcome.publish
+				? [
+						"Published a stale-signal conflict although the inspected goal and route are correct",
+					]
+				: []),
+		],
 	},
 	...[false, true].map(
 		(native): QualityCase => ({
@@ -1059,6 +1069,7 @@ for (const scenario of [
 	qualityCases.push({
 		...original,
 		id: `check-${scenario}`,
+		reviewRequired: undefined,
 		input: {
 			...original.input,
 			appContext: {
@@ -1138,13 +1149,43 @@ for (const scenario of [
 				},
 			},
 		},
-		reviewRequired: `Expected ${status}. Check that the customer copy agrees with the code verdict and preserves the reason, exact dates, measured count and threshold. A small sample or unfinished window cannot prove recovery.`,
-		check: (result, calls) => [
-			...original.check(result, calls),
-			...(result.outcome.verification?.status === status
-				? []
-				: [`Expected persisted verification status ${status}`]),
-		],
+		check: (result, calls) => {
+			const verification = result.outcome.verification;
+			const copy = [
+				result.outcome.title,
+				result.outcome.summary,
+				result.outcome.impact,
+				result.outcome.rootCause,
+				...result.outcome.evidence,
+			].join(" ");
+			const mentions = (value: number) =>
+				new RegExp(
+					`\\b${value.toLocaleString("en-US")}\\b|\\b${value}\\b`
+				).test(copy);
+			return [
+				...original.check(result, calls),
+				...(verification?.status === status
+					? []
+					: [`Expected persisted verification status ${status}`]),
+				...(verification && !isDeepStrictEqual(verification.check, check)
+					? [
+							"Persisted verification check drifted from the requested definition, window, threshold or minimum entrants",
+						]
+					: []),
+				...(verification?.measured !== null &&
+				verification?.measured !== undefined &&
+				!mentions(verification.measured)
+					? [
+							`Customer copy omits the measured count ${verification.measured} the verdict rests on`,
+						]
+					: []),
+				...(verification && !mentions(check.threshold.value)
+					? [
+							`Customer copy omits the ${check.threshold.value} threshold the verdict rests on`,
+						]
+					: []),
+			];
+		},
 	});
 }
 
@@ -1744,8 +1785,13 @@ function depthRevenueTool(reordered: boolean, available = true) {
 					query.from === depthPeriod.current.from &&
 					query.to === depthPeriod.current.to;
 				const key = `${query.type}@${appContext.websiteId}#${index + 1}`;
+				if (!available) {
+					results[key] = {
+						error: `${query.type} is not available in this workspace.`,
+					};
+					continue;
+				}
 				if (
-					!available ||
 					query.type !== "revenue_overview" ||
 					!(previous || current) ||
 					query.timezone !== "UTC" ||
@@ -1833,9 +1879,7 @@ for (const reordered of [false, true]) {
 					)
 				: [];
 			const usdEvidence = outcome.evidence.filter((entry) =>
-				entry.startsWith(
-					"USD, 2026-08-25–2026-08-31 → 2026-09-01–2026-09-07 UTC:"
-				)
+				entry.startsWith("USD, Aug 25–31 → Sep 1–7:")
 			);
 			return [
 				...(outcome.publish
@@ -1981,8 +2025,26 @@ for (const available of [true, false]) {
 						: !query.data.category && relevant)
 				);
 			});
+			const directRead = calls.some(
+				(call) =>
+					call.name === "get_data" &&
+					Object.entries(
+						z
+							.object({
+								results: z.record(
+									z.string(),
+									z.object({ data: z.array(z.unknown()).optional() }).catch({})
+								),
+							})
+							.safeParse(call.output).data?.results ?? {}
+					).some(
+						([key, result]) =>
+							key.startsWith("revenue_overview@") &&
+							(!available || Array.isArray(result.data))
+					)
+			);
 			return [
-				...(widened
+				...(widened || directRead
 					? []
 					: ["Did not inspect capabilities beyond the wrong category"]),
 				...(outcome.publish === available

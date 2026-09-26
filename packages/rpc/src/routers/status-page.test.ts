@@ -111,3 +111,29 @@ test("getBySlug cache hit returns the same validated payload as the miss", async
 	expect(select).toHaveBeenCalledTimes(1);
 	expect(hit).toEqual(miss);
 });
+
+test("getBySlug hides a website domain behind hideUrl for an unnamed monitor", async () => {
+	redisStore.clear();
+	select
+		.mockImplementationOnce(() =>
+			queryReturning([
+				{
+					...statusPageRow,
+					websiteId: "site_1",
+					scheduleName: null,
+					monitorDisplayName: null,
+					hideUrl: true,
+				},
+			])
+		)
+		.mockImplementationOnce(() =>
+			queryReturning([{ id: "site_1", domain: "acme.test", name: null }])
+		);
+
+	const page = await getBySlug();
+
+	expect(page.monitors[0]?.name).toBe("Monitor");
+	expect(page.monitors[0]?.domain).toBeUndefined();
+	expect(page.incidents[0]?.affectedMonitors[0]?.monitorName).toBe("Monitor");
+	expect(JSON.stringify(page)).not.toContain("acme.test");
+});

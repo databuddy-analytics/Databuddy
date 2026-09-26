@@ -6,7 +6,6 @@ import {
 } from "@hooks/auth";
 import { checkAutumnUsage } from "@lib/billing";
 import { logBlockedTraffic } from "@lib/blocked-traffic";
-import { verifyAiAgent } from "@lib/ai-agent-verification";
 import { runFork, send } from "@lib/producer";
 import { basketErrors } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
@@ -152,11 +151,19 @@ export function validateRequest(
 		const isBlockedBot = botCheck.isBot && botCheck.action !== "allow";
 
 		if (website.ownerId && options.checkUsage !== false && !isBlockedBot) {
-			await checkAutumnUsage(website.ownerId, "events", {
-				website_domain: website.domain,
-				website_id: website.id,
-				website_name: website.name,
-			});
+			const eventCount = Array.isArray(body)
+				? Math.min(Math.max(body.length, 1), VALIDATION_LIMITS.BATCH_MAX_SIZE)
+				: 1;
+			await checkAutumnUsage(
+				website.ownerId,
+				"events",
+				{
+					website_domain: website.domain,
+					website_id: website.id,
+					website_name: website.name,
+				},
+				eventCount
+			);
 		}
 
 		const origin = request.headers.get("origin");
@@ -258,7 +265,7 @@ export function checkForBot(
 	clientId: string,
 	userAgent: string
 ): Promise<{ error?: Response } | undefined> {
-	return record("checkForBot", async () => {
+	return record("checkForBot", () => {
 		const log = useLogger();
 		const bodyRecord = asRecord(body);
 		const queryRecord = asRecord(query);
@@ -271,10 +278,6 @@ export function checkForBot(
 
 		const { action, result } = botCheck;
 		const agent = result?.agent;
-		const verification =
-			action === "track_only" && agent
-				? await verifyAiAgent(agent.id, extractIpFromRequest(request))
-				: undefined;
 		log.set({
 			bot: {
 				name: botCheck.botName,
@@ -282,7 +285,6 @@ export function checkForBot(
 				action,
 				agent: agent?.id,
 				purpose: agent?.purpose,
-				verification,
 			},
 		});
 
@@ -314,8 +316,8 @@ export function checkForBot(
 				referrer,
 				agent_id: agent?.id,
 				agent_purpose: agent?.purpose,
-				verification,
 				source: "tracker",
+				format: "html",
 			};
 			runFork(send("analytics-ai-traffic-spans", span));
 

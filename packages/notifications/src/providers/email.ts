@@ -6,13 +6,21 @@ import type {
 import { BaseProvider } from "./base";
 
 const FIRST_CHARACTER_PATTERN = /^./;
-const UPTIME_TRANSITION_MESSAGE_METADATA_KEYS = new Set([
-	"checkedAt",
-	"dashboardUrl",
-	"httpCode",
-	"kind",
-	"monitorName",
-]);
+const METADATA_IN_MESSAGE: Record<string, ReadonlySet<string>> = {
+	"uptime-transition": new Set([
+		"checkedAt",
+		"dashboardUrl",
+		"httpCode",
+		"kind",
+		"monitorName",
+	]),
+	"uptime-ssl-expiry": new Set([
+		"dashboardUrl",
+		"daysRemaining",
+		"expiresAt",
+		"monitorName",
+	]),
+};
 
 export interface EmailProviderConfig {
 	defaultTo?: string | string[];
@@ -33,10 +41,7 @@ function escapeHtml(str: string): string {
 }
 
 function isUserFacingMetadata(key: string, template: unknown): boolean {
-	if (
-		template === "uptime-transition" &&
-		UPTIME_TRANSITION_MESSAGE_METADATA_KEYS.has(key)
-	) {
+	if (typeof template === "string" && METADATA_IN_MESSAGE[template]?.has(key)) {
 		return false;
 	}
 	return !(

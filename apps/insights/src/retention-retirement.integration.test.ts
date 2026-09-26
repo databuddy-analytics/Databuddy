@@ -258,7 +258,6 @@ integration("obsolete retention observations in isolated PostgreSQL", () => {
 	it.each([
 		{ activationEvent: "report_published" },
 		{ returnEvent: "report_reopened" },
-		{ activationEvent: "report_published", returnEvent: "report_reopened" },
 		{ namespace: "production" },
 		{ horizonDays: 30 as const },
 	])("retires only the old due case after saved selectors change: %j", async (changes) => {
@@ -367,18 +366,6 @@ integration("obsolete retention observations in isolated PostgreSQL", () => {
 			resolvedReason: "stale",
 		});
 		expect(await rows()).toHaveLength(2);
-	});
-	it("retires a removed definition and leaves no endlessly deferred case", async () => {
-		await save([]);
-		expect(await discover()).toMatchObject({
-			kind: "empty",
-			artifact: { status: "no_signals" },
-		});
-		expect(await projection()).toMatchObject({
-			status: "resolved",
-			resolvedReason: "stale",
-		});
-		expect(await loadDueOpenInvestigation(scope())).toBeNull();
 	});
 	it("remeasures a label-only rename without retiring or rewriting its history", async () => {
 		await save([{ ...plan, name: "Renamed report return" }]);

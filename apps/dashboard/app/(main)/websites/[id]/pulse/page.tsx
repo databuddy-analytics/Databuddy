@@ -25,7 +25,16 @@ export default function PulsePage() {
 	});
 
 	if (scheduleQuery.data) {
-		return <MonitorDetail scheduleId={scheduleQuery.data.id} title="Uptime" />;
+		return (
+			<MonitorDetail
+				initialSchedule={{
+					data: scheduleQuery.data,
+					updatedAt: scheduleQuery.dataUpdatedAt,
+				}}
+				scheduleId={scheduleQuery.data.id}
+				title="Uptime"
+			/>
+		);
 	}
 
 	let content: React.ReactNode;

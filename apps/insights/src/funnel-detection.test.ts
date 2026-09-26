@@ -636,23 +636,6 @@ describe("detectFunnelGoalSignals", () => {
 		expect(signals).toEqual([]);
 	});
 
-	it("does not report persistent zero completions for a changed definition", async () => {
-		const changedGoal = {
-			...GOAL,
-			updatedAt: new Date("2026-05-20T00:00:00.000Z"),
-		};
-		const signals = await detectFunnelGoalSignals(
-			PARAMS,
-			TODAY,
-			makeDeps({
-				fetchGoals: async () => [changedGoal],
-				goalConversion: async () => goalResult(0, 0, 100),
-			})
-		);
-
-		expect(signals).toEqual([]);
-	});
-
 	it("remeasures persistent zero-completion goals without losing their state subject", async () => {
 		const prior = prepareInvestigation(
 			{

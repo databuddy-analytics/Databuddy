@@ -7,6 +7,9 @@ import {
 	type DetectSignalsParams,
 	INSIGHT_VITALS,
 	makeWowSignal,
+	numberField,
+	safeDeltaPercent,
+	stringField,
 	wowWindow,
 } from "./detection";
 import {
@@ -263,7 +266,6 @@ const ROUTE_VITAL_CONTINUATION_SQL = `
 `;
 
 export interface RouteHealthQueryInput {
-	filters?: Array<{ field: "path"; op: "eq"; value: string }>;
 	from: string;
 	limit: number;
 	offset?: number;
@@ -292,11 +294,9 @@ interface RouteVitalValue {
 	samples: number;
 }
 
-interface RouteSignalSpec {
-	kind: "error" | "vital";
-	metric?: RouteVital;
-	route: string;
-}
+type RouteSignalSpec =
+	| { kind: "error"; route: string }
+	| { kind: "vital"; metric: RouteVital; route: string };
 
 function defaultQuery(
 	input: RouteHealthQueryInput,
@@ -305,18 +305,9 @@ function defaultQuery(
 	return executeQuery(input, undefined, input.timezone, abortSignal);
 }
 
-function finiteNumber(value: unknown): number {
-	const number = Number(value);
-	return Number.isFinite(number) ? number : 0;
-}
-
-function positiveNumber(value: unknown): number {
-	const number = finiteNumber(value);
+function positiveNumber(row: Record<string, unknown>, key: string): number {
+	const number = numberField(row, key);
 	return number > 0 ? number : 0;
-}
-
-function stringValue(value: unknown): string | null {
-	return typeof value === "string" && value.length > 0 ? value : null;
 }
 export function canonicalStaticRoute(value: string): string | null {
 	if (value.length === 0 || value.length > MAX_RAW_ROUTE_LENGTH) {
@@ -383,7 +374,7 @@ type RouteVitalContinuationQuery = (
 	input: RouteVitalContinuationQueryInput
 ) => Promise<Record<string, unknown>[]>;
 
-export interface RouteVitalContinuation {
+interface RouteVitalContinuation {
 	comparison: RouteContinuationComparison;
 	metric: RouteVital;
 	route: string;
@@ -397,36 +388,23 @@ const routeVitalContinuationPolicy = {
 function routeVitalTarget(
 	signal: InvestigationSignal
 ): RouteVitalTarget | null {
-	const targets: { metric: RouteVital; prefix: string }[] = [
-		{ metric: "LCP", prefix: "route:lcp:" },
-		{ metric: "INP", prefix: "route:inp:" },
-	];
-	for (const target of targets) {
-		if (!signal.signalKey.startsWith(target.prefix)) {
-			continue;
-		}
-		const route = canonicalStaticRoute(
-			signal.signalKey.slice(target.prefix.length)
-		);
-		if (
-			!route ||
-			signal.signalKey !== `${target.prefix}${route}` ||
-			signal.entity.type !== "page" ||
-			signal.entity.id !== route
-		) {
-			return null;
-		}
-		const vital = INSIGHT_VITALS[target.metric];
-		if (
-			!Number.isFinite(signal.metric.current) ||
-			signal.metric.current <= vital.badThreshold ||
-			signal.metric.current > vital.maxPlausible
-		) {
-			return null;
-		}
-		return { metric: target.metric, route };
+	const spec = routeSignalSpec(signal);
+	if (
+		spec?.kind !== "vital" ||
+		signal.entity.type !== "page" ||
+		signal.entity.id !== spec.route
+	) {
+		return null;
 	}
-	return null;
+	const vital = INSIGHT_VITALS[spec.metric];
+	if (
+		!Number.isFinite(signal.metric.current) ||
+		signal.metric.current <= vital.badThreshold ||
+		signal.metric.current > vital.maxPlausible
+	) {
+		return null;
+	}
+	return { metric: spec.metric, route: spec.route };
 }
 
 function queryRouteVitalContinuation(
@@ -507,7 +485,7 @@ export function routeVitalContinuationEvidence(
 
 function routeFromRow(row: Record<string, unknown>): string | null {
 	return canonicalStaticRoute(
-		stringValue(row.page) ?? stringValue(row.name) ?? ""
+		stringField(row, "page") ?? stringField(row, "name") ?? ""
 	);
 }
 
@@ -522,15 +500,15 @@ function groupErrors(
 		}
 		const current = grouped.get(route) ?? { errors: 0, users: 0 };
 		grouped.set(route, {
-			errors: current.errors + positiveNumber(row.errors),
-			users: Math.max(current.users, positiveNumber(row.users)),
+			errors: current.errors + positiveNumber(row, "errors"),
+			users: Math.max(current.users, positiveNumber(row, "users")),
 		});
 	}
 	return grouped;
 }
 
 function vitalFromRow(row: Record<string, unknown>): RouteVital | null {
-	const value = stringValue(row.metric_name)?.toUpperCase();
+	const value = stringField(row, "metric_name")?.toUpperCase();
 	return value === "LCP" || value === "INP" ? value : null;
 }
 
@@ -541,8 +519,8 @@ function groupVitals(
 	for (const row of rows) {
 		const route = routeFromRow(row);
 		const metric = vitalFromRow(row);
-		const p75 = positiveNumber(row.p75);
-		const samples = positiveNumber(row.samples);
+		const p75 = positiveNumber(row, "p75");
+		const samples = positiveNumber(row, "samples");
 		if (!(route && metric) || p75 === 0 || samples === 0) {
 			continue;
 		}
@@ -567,14 +545,7 @@ function routeErrorSignal(params: {
 	detectedAt: string;
 	route: string;
 }): DetectedSignal | null {
-	const delta =
-		params.baseline.errors === 0
-			? params.current.errors === 0
-				? 0
-				: 100
-			: ((params.current.errors - params.baseline.errors) /
-					params.baseline.errors) *
-				100;
+	const delta = safeDeltaPercent(params.current.errors, params.baseline.errors);
 	if (
 		params.applyThreshold &&
 		(params.current.errors <= params.baseline.errors ||
@@ -628,8 +599,7 @@ function routeVitalSignal(params: {
 	) {
 		return null;
 	}
-	const delta =
-		((params.current.p75 - params.baseline.p75) / params.baseline.p75) * 100;
+	const delta = safeDeltaPercent(params.current.p75, params.baseline.p75);
 	if (
 		params.applyThreshold &&
 		(params.current.p75 <= params.baseline.p75 ||
@@ -675,23 +645,17 @@ function compareSignals(left: DetectedSignal, right: DetectedSignal): number {
 }
 
 function routeSignalSpec(prior: InvestigationSignal): RouteSignalSpec | null {
-	const specs: {
-		kind: RouteSignalSpec["kind"];
-		metric?: RouteVital;
-		prefix: string;
-	}[] = [
-		{ kind: "error", prefix: "route:error:" },
-		{ kind: "vital", metric: "LCP", prefix: "route:lcp:" },
-		{ kind: "vital", metric: "INP", prefix: "route:inp:" },
-	];
-	for (const spec of specs) {
-		if (!prior.signalKey.startsWith(spec.prefix)) {
+	const specs = [
+		["route:error:", { kind: "error" }],
+		["route:lcp:", { kind: "vital", metric: "LCP" }],
+		["route:inp:", { kind: "vital", metric: "INP" }],
+	] as const;
+	for (const [prefix, spec] of specs) {
+		if (!prior.signalKey.startsWith(prefix)) {
 			continue;
 		}
-		const route = canonicalStaticRoute(
-			prior.signalKey.slice(spec.prefix.length)
-		);
-		if (!route || `${spec.prefix}${route}` !== prior.signalKey) {
+		const route = canonicalStaticRoute(prior.signalKey.slice(prefix.length));
+		if (!route || `${prefix}${route}` !== prior.signalKey) {
 			return null;
 		}
 		return { ...spec, route };
@@ -699,28 +663,30 @@ function routeSignalSpec(prior: InvestigationSignal): RouteSignalSpec | null {
 	return null;
 }
 
-function queryInput(params: {
-	from: string;
-	route?: string;
-	to: string;
-	type: RouteHealthQueryType;
-	values: DetectSignalsParams;
-}): RouteHealthQueryInput {
-	return {
-		...(params.route
-			? {
-					filters: [
-						{ field: "path" as const, op: "eq" as const, value: params.route },
-					],
-				}
-			: {}),
-		from: params.from,
-		limit: ROUTE_QUERY_LIMIT,
-		projectId: params.values.websiteId,
-		to: params.to,
-		timezone: params.values.timezone,
-		type: params.type,
-	};
+function readWindows(
+	type: RouteHealthQueryType,
+	params: DetectSignalsParams,
+	window: ReturnType<typeof wowWindow>,
+	dependencies: RouteHealthDetectionDeps,
+	abortSignal?: AbortSignal
+): Promise<[Record<string, unknown>[], Record<string, unknown>[]]> {
+	const read = (from: string, to: string) =>
+		queryRouteHealthPages(
+			dependencies.query ?? defaultQuery,
+			{
+				from,
+				limit: ROUTE_QUERY_LIMIT,
+				projectId: params.websiteId,
+				to,
+				timezone: params.timezone,
+				type,
+			},
+			abortSignal
+		);
+	return Promise.all([
+		read(window.currentFrom, window.currentTo),
+		read(window.previousFrom, window.previousTo),
+	]);
 }
 
 async function queryRouteHealthPages(
@@ -752,50 +718,11 @@ export async function detectRouteHealthSignals(
 	dependencies: RouteHealthDetectionDeps = {},
 	abortSignal?: AbortSignal
 ): Promise<DetectedSignal[]> {
-	const query = dependencies.query ?? defaultQuery;
 	const window = wowWindow(today, params.lookbackDays);
-	const [currentErrors, previousErrors, currentVitals, previousVitals] =
+	const [[currentErrors, previousErrors], [currentVitals, previousVitals]] =
 		await Promise.all([
-			queryRouteHealthPages(
-				query,
-				queryInput({
-					from: window.currentFrom,
-					to: window.currentTo,
-					type: "errors_by_page",
-					values: params,
-				}),
-				abortSignal
-			),
-			queryRouteHealthPages(
-				query,
-				queryInput({
-					from: window.previousFrom,
-					to: window.previousTo,
-					type: "errors_by_page",
-					values: params,
-				}),
-				abortSignal
-			),
-			queryRouteHealthPages(
-				query,
-				queryInput({
-					from: window.currentFrom,
-					to: window.currentTo,
-					type: "vitals_by_page",
-					values: params,
-				}),
-				abortSignal
-			),
-			queryRouteHealthPages(
-				query,
-				queryInput({
-					from: window.previousFrom,
-					to: window.previousTo,
-					type: "vitals_by_page",
-					values: params,
-				}),
-				abortSignal
-			),
+			readWindows("errors_by_page", params, window, dependencies, abortSignal),
+			readWindows("vitals_by_page", params, window, dependencies, abortSignal),
 		]);
 
 	const errorCurrent = groupErrors(currentErrors);
@@ -855,32 +782,14 @@ export async function remeasureRouteHealthSignal(
 	if (!spec) {
 		return null;
 	}
-	const query = dependencies.query ?? defaultQuery;
 	const window = wowWindow(today, params.lookbackDays);
-	const type: RouteHealthQueryType =
-		spec.kind === "error" ? "errors_by_page" : "vitals_by_page";
-	const [currentRows, previousRows] = await Promise.all([
-		queryRouteHealthPages(
-			query,
-			queryInput({
-				from: window.currentFrom,
-				to: window.currentTo,
-				type,
-				values: params,
-			}),
-			abortSignal
-		),
-		queryRouteHealthPages(
-			query,
-			queryInput({
-				from: window.previousFrom,
-				to: window.previousTo,
-				type,
-				values: params,
-			}),
-			abortSignal
-		),
-	]);
+	const [currentRows, previousRows] = await readWindows(
+		spec.kind === "error" ? "errors_by_page" : "vitals_by_page",
+		params,
+		window,
+		dependencies,
+		abortSignal
+	);
 
 	if (spec.kind === "error") {
 		const current = groupErrors(currentRows).get(spec.route) ?? {
@@ -903,7 +812,7 @@ export async function remeasureRouteHealthSignal(
 	const key = `${spec.metric}:${spec.route}`;
 	const current = groupVitals(currentRows).get(key);
 	const baseline = groupVitals(previousRows).get(key);
-	if (!(current && baseline && spec.metric)) {
+	if (!(current && baseline)) {
 		return null;
 	}
 	return routeVitalSignal({

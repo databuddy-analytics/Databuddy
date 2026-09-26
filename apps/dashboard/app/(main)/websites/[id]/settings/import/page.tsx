@@ -9,6 +9,7 @@ import {
 	WarningIcon,
 } from "@databuddy/ui/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -17,6 +18,23 @@ import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_STATES = new Set(["waiting", "active", "delayed", "prioritized"]);
+const PROVIDERS_WITH_LOGOS = new Set([
+	"plausible",
+	"posthog",
+	"simple-analytics",
+]);
+const MONOCHROME_LOGOS = new Set(["posthog"]);
+type ImportContentType =
+	| "application/x-ndjson"
+	| "application/zip"
+	| "text/csv";
+const CONTENT_TYPES: Record<string, ImportContentType | undefined> = {
+	csv: "text/csv",
+	json: "application/x-ndjson",
+	jsonl: "application/x-ndjson",
+	ndjson: "application/x-ndjson",
+	zip: "application/zip",
+};
 const GRAIN_LABEL = {
 	event: "Full detail",
 	rollup: "Daily totals",
@@ -47,9 +65,10 @@ export default function ImportPage() {
 	const [replaceExisting, setReplaceExisting] = useState(false);
 	const [runId, setRunId] = useState<string | null>(null);
 
-	const { data: providers, isLoading: providersLoading } = useQuery(
+	const { data: catalog, isLoading: providersLoading } = useQuery(
 		orpc.imports.providers.queryOptions()
 	);
+	const providers = catalog?.providers;
 
 	const { data: run } = useQuery({
 		...orpc.imports.status.queryOptions({
@@ -72,22 +91,25 @@ export default function ImportPage() {
 			return;
 		}
 
+		const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+		const contentType = CONTENT_TYPES[extension];
+		if (!contentType) {
+			toast.error("Upload a .zip, .csv or .jsonl export file.");
+			return;
+		}
+
 		try {
 			const { key, uploadUrl } = await createUpload.mutateAsync({
 				websiteId,
 				contentLength: file.size,
-				contentType: file.name.endsWith(".csv")
-					? "text/csv"
-					: "application/zip",
+				contentType,
 			});
 
 			const upload = await fetch(uploadUrl, {
 				method: "PUT",
 				body: file,
 				headers: {
-					"content-type": file.name.endsWith(".csv")
-						? "text/csv"
-						: "application/zip",
+					"content-type": contentType,
 					"content-length": String(file.size),
 				},
 			});
@@ -121,6 +143,25 @@ export default function ImportPage() {
 
 	const isStarting = createUpload.isPending || startImport.isPending;
 	const isRunning = ACTIVE_STATES.has(run?.state ?? "");
+
+	if (catalog && !catalog.storageConfigured) {
+		return (
+			<div className="flex-1 overflow-y-auto">
+				<div className="mx-auto max-w-4xl space-y-6 p-5">
+					<Card>
+						<Card.Header>
+							<Card.Title>Imports are unavailable</Card.Title>
+							<Card.Description>
+								Importing reads an export file from object storage, which this
+								deployment has not configured. Set AWS_ACCESS_KEY_ID and
+								AWS_SECRET_ACCESS_KEY to enable it.
+							</Card.Description>
+						</Card.Header>
+					</Card>
+				</div>
+			</div>
+		);
+	}
 
 	if (!websiteData) {
 		return (
@@ -167,7 +208,22 @@ export default function ImportPage() {
 											variant="outline"
 										>
 											<div className="flex size-8 items-center justify-center rounded border bg-secondary">
-												<DatabaseIcon className="size-5" />
+												{PROVIDERS_WITH_LOGOS.has(provider.id) ? (
+													<Image
+														alt=""
+														className={
+															MONOCHROME_LOGOS.has(provider.id)
+																? "dark:invert"
+																: undefined
+														}
+														height={20}
+														src={`/providers/${provider.id}.svg`}
+														unoptimized
+														width={20}
+													/>
+												) : (
+													<DatabaseIcon className="size-5" />
+												)}
 											</div>
 											<div className="min-w-0 flex-1">
 												<div className="mb-1 flex items-center gap-2">
@@ -201,7 +257,7 @@ export default function ImportPage() {
 						<Card.Content className="space-y-4">
 							{/* policy-ignore dashboard/no-raw-interactive-html: a hidden native file input is the only way to open the OS file picker; @databuddy/ui has no file input component */}
 							<input
-								accept=".zip,.csv"
+								accept=".zip,.csv,.jsonl,.ndjson,.json"
 								className="hidden"
 								onChange={(event) => setFile(event.target.files?.[0] ?? null)}
 								ref={fileInput}

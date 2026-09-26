@@ -983,7 +983,7 @@ export const historyInsightSchema = z.object({
 	websiteName: z.string().nullable(),
 });
 
-const insightTimelineInvestigationSchema = z.object({
+export const insightTimelineInvestigationSchema = z.object({
 	createdAt: z.string(),
 	entity: investigationEntitySchema,
 	id: z.string(),
@@ -1009,12 +1009,45 @@ export const insightTimelineItemSchema = z.discriminatedUnion("kind", [
 	insightTimelineReplySchema,
 ]);
 
+export const investigationShareSnapshotSchema = z.object({
+	insight: historyInsightSchema.pick({
+		changePercent: true,
+		description: true,
+		resolvedReason: true,
+		sentiment: true,
+		severity: true,
+		status: true,
+		title: true,
+		websiteDomain: true,
+		websiteName: true,
+	}),
+	timeline: z.array(insightTimelineInvestigationSchema).min(1),
+});
+
+export const investigationShareStateSchema = z.object({
+	id: z.string(),
+	publishedAt: z.string(),
+	version: z.number().int().positive(),
+});
+
+export const publicInvestigationShareSchema =
+	investigationShareSnapshotSchema.extend({
+		publishedAt: z.string(),
+		version: z.number().int().positive(),
+	});
+
 export type InsightSeverity = z.infer<typeof insightSeveritySchema>;
 export type InsightSentiment = z.infer<typeof insightSentimentSchema>;
 export type InsightMetric = z.infer<typeof insightMetricSchema>;
 export type InsightBriefItem = z.infer<typeof insightBriefItemSchema>;
 export type InvestigationSignal = z.infer<typeof investigationSignalSchema>;
 export type InvestigationOutcome = z.infer<typeof investigationOutcomeSchema>;
+export type InsightTimelineInvestigation = z.infer<
+	typeof insightTimelineInvestigationSchema
+>;
+export type InvestigationShareSnapshot = z.infer<
+	typeof investigationShareSnapshotSchema
+>;
 export type AgentInvestigationOutcome = z.infer<
 	typeof agentInvestigationOutcomeSchema
 >;
@@ -1042,7 +1075,7 @@ export function describeInsightDefinitionAction(
 	}
 	if (changes.steps != null) {
 		edits.push(
-			`replace steps with ${changes.steps.map((step) => `${step.name} (${step.type}: ${step.target})`).join(" → ")}`
+			`replace steps with ${changes.steps.map((step) => `${step.name} (${step.type}: ${step.target}${step.conditions && Object.keys(step.conditions).length > 0 ? "; existing conditions kept" : ""})`).join(" → ")}`
 		);
 	}
 	if (changes.filters != null) {

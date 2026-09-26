@@ -218,6 +218,18 @@ export function unavailableBusinessContext(
 
 class BusinessScopeError extends Error {}
 
+function assertScopeUnchanged(
+	current: BusinessScope | null,
+	scope: BusinessScope
+): asserts current is BusinessScope & { startedAt: string } {
+	if (
+		!current?.startedAt ||
+		businessContainerTag(current) !== businessContainerTag(scope)
+	) {
+		throw new BusinessScopeError("Website scope changed or was deleted");
+	}
+}
+
 async function reconcileReplies(
 	input: {
 		scope: BusinessScope;
@@ -250,12 +262,7 @@ async function reconcileReplies(
 				cause: error,
 			});
 		});
-		if (
-			!current?.startedAt ||
-			businessContainerTag(current) !== businessContainerTag(input.scope)
-		) {
-			throw new BusinessScopeError("Website scope changed or was deleted");
-		}
+		assertScopeUnchanged(current, input.scope);
 		const scopeStartedAt = Date.parse(current.startedAt);
 		const eligible = replies.filter(
 			(reply) =>
@@ -365,13 +372,7 @@ export async function loadWebsiteBusinessProfile(
 			.catch((error) =>
 				unavailableBusinessContext(error, input.scope, input.asOf)
 			);
-		const current = await sources.currentScope(input.scope);
-		if (
-			!current?.startedAt ||
-			businessContainerTag(current) !== businessContainerTag(input.scope)
-		) {
-			throw new BusinessScopeError("Website scope changed or was deleted");
-		}
+		assertScopeUnchanged(await sources.currentScope(input.scope), input.scope);
 		return mergeBusinessContext(reconciled, organization);
 	} catch (error) {
 		return unavailableBusinessContext(error, input.scope, input.asOf);
@@ -390,58 +391,53 @@ export function organizationProfileContext(
 			(item) =>
 				item.websiteId === scope?.websiteId && item.domain === scope.domain
 		);
-		if (plan) {
-			const content = `Saved team-defined activation and return measurement (not emitter-code verification): ${JSON.stringify(plan)}. Native query: identified_profile_retention.`;
+		const pushChunks = (
+			idPrefix: string,
+			content: string,
+			fields: Pick<BusinessSource, "author" | "origin">,
+			first: Pick<BusinessSource, "references"> = {}
+		) => {
 			for (let offset = 0; offset < content.length; offset += 4000) {
 				sources.push({
-					id: `organization-measurement-plan:${organizationId}:${plan.websiteId}:${offset / 4000}`,
+					id: `${idPrefix}:${offset / 4000}`,
 					kind: "organization_profile",
 					content: content.slice(offset, offset + 4000),
 					observedAt: profile.updatedAt,
-					author: "Team measurement definition",
-					origin: "team",
+					...fields,
 					profileVersion: {
 						revision: profile.revision,
 						updatedAt: profile.updatedAt,
 					},
+					...(offset === 0 ? first : {}),
 				});
 			}
+		};
+		if (plan) {
+			pushChunks(
+				`organization-measurement-plan:${organizationId}:${plan.websiteId}`,
+				`Saved team-defined activation and return measurement (not emitter-code verification): ${JSON.stringify(plan)}. Native query: identified_profile_retention.`,
+				{ author: "Team measurement definition", origin: "team" }
+			);
 		}
-		const teamContext = formatBusinessTeamContext(profile.teamContext);
-		for (let offset = 0; offset < teamContext.length; offset += 4000) {
-			sources.push({
-				id: `organization-team-context:${organizationId}:${offset / 4000}`,
-				kind: "organization_profile",
-				content: teamContext.slice(offset, offset + 4000),
-				observedAt: profile.updatedAt,
-				author: "Team priorities and definitions",
-				origin: "team",
-				profileVersion: {
-					revision: profile.revision,
-					updatedAt: profile.updatedAt,
-				},
-			});
-		}
+		pushChunks(
+			`organization-team-context:${organizationId}`,
+			formatBusinessTeamContext(profile.teamContext),
+			{ author: "Team priorities and definitions", origin: "team" }
+		);
 		// Keep the source contract and the complete editable document; no semantic
 		// summarization between the saved text and the investigator's input.
-		for (let offset = 0; offset < profile.content.length; offset += 4000) {
-			sources.push({
-				id: `organization-profile:${organizationId}:${offset / 4000}`,
-				kind: "organization_profile",
-				content: profile.content.slice(offset, offset + 4000),
-				observedAt: profile.updatedAt,
+		pushChunks(
+			`organization-profile:${organizationId}`,
+			profile.content,
+			{
 				author:
 					profile.origin === "mixed"
 						? "Edited website background"
 						: "Organization settings",
 				origin: profile.origin,
-				profileVersion: {
-					revision: profile.revision,
-					updatedAt: profile.updatedAt,
-				},
-				...(offset === 0 ? { references: profile.sources } : {}),
-			});
-		}
+			},
+			{ references: profile.sources }
+		);
 	}
 	return {
 		capturedAt: asOf.toISOString(),

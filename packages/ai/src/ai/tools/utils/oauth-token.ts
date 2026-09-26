@@ -1,7 +1,6 @@
 import { auth } from "@databuddy/auth";
 import { and, db, eq } from "@databuddy/db";
 import { account, member } from "@databuddy/db/schema";
-import { getOAuthTokenOrderBy } from "./oauth-token-ordering";
 
 const TOKEN_TTL_MS = 45 * 60 * 1000;
 const NEGATIVE_TTL_MS = 5 * 60 * 1000;
@@ -68,11 +67,9 @@ async function resolveCandidateToken(
 async function resolveOAuthToken(
 	providerId: string,
 	organizationId: string,
-	preferUserId?: string,
+	userId?: string,
 	requiredScope?: string
 ): Promise<ResolvedToken | null> {
-	const orderBy = getOAuthTokenOrderBy(preferUserId);
-
 	const candidates: TokenCandidate[] = await db
 		.select({
 			accountId: account.id,
@@ -87,10 +84,10 @@ async function resolveOAuthToken(
 		.where(
 			and(
 				eq(member.organizationId, organizationId),
-				eq(account.providerId, providerId)
+				eq(account.providerId, providerId),
+				userId ? eq(account.userId, userId) : eq(member.role, "owner")
 			)
 		)
-		.orderBy(...orderBy)
 		.limit(MAX_CANDIDATES);
 
 	for (const candidate of candidates) {
@@ -109,7 +106,7 @@ async function resolveOAuthToken(
 export function createCachedTokenFn(
 	providerId: string,
 	organizationId: string,
-	preferUserId?: string,
+	userId?: string,
 	requiredScope?: string
 ): () => Promise<string | null> {
 	let cached: string | null | undefined;
@@ -121,7 +118,7 @@ export function createCachedTokenFn(
 		const resolved = await resolveOAuthToken(
 			providerId,
 			organizationId,
-			preferUserId,
+			userId,
 			requiredScope
 		);
 		const now = Date.now();

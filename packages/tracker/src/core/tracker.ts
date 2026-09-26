@@ -45,9 +45,16 @@ const MAX_PROFILE_ID_LENGTH = 128;
 const MIN_RETRY_DELAY = 250;
 const MAX_RETRY_DELAY = 30_000;
 
-interface QueueMeta {
+export type QueuedItem =
+	| BaseEvent
+	| EngagementSpan
+	| ErrorSpan
+	| TrackEventPayload
+	| WebVitalEvent;
+
+export interface QueueMeta {
 	activeDeliveryGeneration: number | null;
-	activeItems: unknown[] | null;
+	activeItems: QueuedItem[] | null;
 	endpoint: string;
 	flushing: boolean;
 	maxBatchSize: number;
@@ -55,6 +62,25 @@ interface QueueMeta {
 	retryAttempts: number;
 	threshold: number;
 	timer: Timer | null;
+}
+
+function queueMeta(
+	endpoint: string,
+	maxBatchSize: number,
+	threshold: number,
+	queryParam = "client_id"
+): QueueMeta {
+	return {
+		activeDeliveryGeneration: null,
+		activeItems: null,
+		endpoint,
+		flushing: false,
+		maxBatchSize,
+		queryParam,
+		retryAttempts: 0,
+		threshold,
+		timer: null,
+	};
 }
 
 export class BaseTracker {
@@ -97,10 +123,7 @@ export class BaseTracker {
 	engagementQueue: EngagementSpan[] = [];
 	trackQueue: TrackEventPayload[] = [];
 
-	// One meta entry per queue: holds timer/flushing state + flush config.
-	// Public flushBatch/flushVitals/flushErrors/flushTrack remain as thin
-	// wrappers for backwards-compat with tests + index.ts.
-	protected _meta!: {
+	protected _meta: {
 		batch: QueueMeta;
 		vitals: QueueMeta;
 		errors: QueueMeta;
@@ -146,61 +169,11 @@ export class BaseTracker {
 		});
 
 		this._meta = {
-			batch: {
-				activeDeliveryGeneration: null,
-				activeItems: null,
-				timer: null,
-				flushing: false,
-				maxBatchSize: 100,
-				endpoint: "/batch",
-				queryParam: "client_id",
-				retryAttempts: 0,
-				threshold: this.options.batchSize || 10,
-			},
-			vitals: {
-				activeDeliveryGeneration: null,
-				activeItems: null,
-				timer: null,
-				flushing: false,
-				maxBatchSize: 20,
-				endpoint: "/vitals",
-				queryParam: "client_id",
-				retryAttempts: 0,
-				threshold: 6,
-			},
-			errors: {
-				activeDeliveryGeneration: null,
-				activeItems: null,
-				timer: null,
-				flushing: false,
-				maxBatchSize: 50,
-				endpoint: "/errors",
-				queryParam: "client_id",
-				retryAttempts: 0,
-				threshold: 10,
-			},
-			engagement: {
-				activeDeliveryGeneration: null,
-				activeItems: null,
-				timer: null,
-				flushing: false,
-				maxBatchSize: 20,
-				endpoint: "/engagement",
-				queryParam: "client_id",
-				retryAttempts: 0,
-				threshold: 1,
-			},
-			track: {
-				activeDeliveryGeneration: null,
-				activeItems: null,
-				timer: null,
-				flushing: false,
-				maxBatchSize: 100,
-				endpoint: "/track",
-				queryParam: "website_id",
-				retryAttempts: 0,
-				threshold: 10,
-			},
+			batch: queueMeta("/batch", 100, this.options.batchSize || 10),
+			vitals: queueMeta("/vitals", 20, 6),
+			errors: queueMeta("/errors", 50, 10),
+			engagement: queueMeta("/engagement", 20, 1),
+			track: queueMeta("/track", 100, 10, "website_id"),
 		};
 
 		if (typeof window !== "undefined" && isOptedOut()) {
@@ -462,13 +435,8 @@ export class BaseTracker {
 	protected cancelPendingDelivery(): void {
 		this.deliveryGeneration += 1;
 		this.api.cancelPendingRequests();
-		this.batchQueue.length = 0;
-		this.trackQueue.length = 0;
-		this.vitalsQueue.length = 0;
-		this.errorsQueue.length = 0;
-		this.engagementQueue.length = 0;
-
-		for (const meta of Object.values(this._meta)) {
+		for (const [queue, meta] of this.queues) {
+			queue.length = 0;
 			if (meta.timer) {
 				clearTimeout(meta.timer);
 				meta.timer = null;
@@ -480,12 +448,22 @@ export class BaseTracker {
 		}
 	}
 
-	private requeueActiveItems<T>(queue: T[], meta: QueueMeta): boolean {
+	protected get queues(): [QueuedItem[], QueueMeta][] {
+		return [
+			[this.batchQueue, this._meta.batch],
+			[this.trackQueue, this._meta.track],
+			[this.vitalsQueue, this._meta.vitals],
+			[this.errorsQueue, this._meta.errors],
+			[this.engagementQueue, this._meta.engagement],
+		];
+	}
+
+	private requeueActiveItems(queue: QueuedItem[], meta: QueueMeta): boolean {
 		if (!meta.activeItems || meta.activeItems.length === 0) {
 			return false;
 		}
 
-		queue.unshift(...(meta.activeItems as T[]));
+		queue.unshift(...meta.activeItems);
 		meta.activeDeliveryGeneration = null;
 		meta.activeItems = null;
 		meta.flushing = false;
@@ -498,13 +476,9 @@ export class BaseTracker {
 	 * stable event identities through the unload beacon path.
 	 */
 	protected requeueActiveDeliveriesForUnload(): void {
-		const reclaimed = [
-			this.requeueActiveItems(this.batchQueue, this._meta.batch),
-			this.requeueActiveItems(this.trackQueue, this._meta.track),
-			this.requeueActiveItems(this.vitalsQueue, this._meta.vitals),
-			this.requeueActiveItems(this.errorsQueue, this._meta.errors),
-			this.requeueActiveItems(this.engagementQueue, this._meta.engagement),
-		].some(Boolean);
+		const reclaimed = this.queues
+			.map(([queue, meta]) => this.requeueActiveItems(queue, meta))
+			.some(Boolean);
 
 		if (reclaimed) {
 			this.deliveryGeneration += 1;
@@ -617,35 +591,6 @@ export class BaseTracker {
 		};
 	}
 
-	send(
-		event: BaseEvent & { isForceSend?: boolean }
-	): Promise<TrackerSendOutcome> {
-		if (this.shouldSkipTracking()) {
-			return Promise.resolve({ ok: true, status: "skipped", count: 0 });
-		}
-		if (this.options.filter && !this.options.filter(event)) {
-			return Promise.resolve({ ok: true, status: "skipped", count: 0 });
-		}
-
-		const samplingRate = this.options.samplingRate ?? 1.0;
-		if (samplingRate < 1.0 && Math.random() > samplingRate) {
-			return Promise.resolve({ ok: true, status: "skipped", count: 0 });
-		}
-
-		if (this.options.enableBatching && !event.isForceSend) {
-			return this.addToBatch(event);
-		}
-
-		return this.api
-			.fetch(
-				"/",
-				event,
-				{ keepalive: false },
-				{ client_id: this.options.clientId }
-			)
-			.then((result) => this.toSendOutcome(result, 1));
-	}
-
 	private _retryDelay(attempts: number): number {
 		const configured = this.options.initialRetryDelay ?? 500;
 		const base = Math.max(
@@ -656,8 +601,8 @@ export class BaseTracker {
 		return Math.min(base * 2 ** exponent, MAX_RETRY_DELAY);
 	}
 
-	private _scheduleQueueFlush<T>(
-		queue: T[],
+	private _scheduleQueueFlush(
+		queue: QueuedItem[],
 		meta: QueueMeta,
 		delay: number
 	): void {
@@ -666,7 +611,11 @@ export class BaseTracker {
 		}
 	}
 
-	private _enqueue<T>(queue: T[], meta: QueueMeta, item: T): void {
+	private _enqueue<T extends QueuedItem>(
+		queue: T[],
+		meta: QueueMeta,
+		item: T
+	): void {
 		queue.push(item);
 		this._scheduleQueueFlush(queue, meta, this.options.batchTimeout ?? 5000);
 		if (queue.length >= meta.threshold) {
@@ -674,8 +623,8 @@ export class BaseTracker {
 		}
 	}
 
-	private async _flushQueue<T>(
-		queue: T[],
+	protected async _flushQueue(
+		queue: QueuedItem[],
 		meta: QueueMeta
 	): Promise<TrackerSendOutcome> {
 		if (this.shouldBlockQueuedDelivery()) {
@@ -717,8 +666,7 @@ export class BaseTracker {
 				deliveryGeneration === this.deliveryGeneration &&
 				!result.ok &&
 				result.retryable &&
-				!this.shouldBlockQueuedDelivery() &&
-				deliveryGeneration === this.deliveryGeneration
+				!this.shouldBlockQueuedDelivery()
 			) {
 				queue.unshift(...items);
 				meta.retryAttempts += 1;
@@ -756,59 +704,37 @@ export class BaseTracker {
 		}
 	}
 
-	addToBatch(event: BaseEvent): Promise<TrackerSendOutcome> {
+	addToBatch(event: BaseEvent): void {
 		this._enqueue(this.batchQueue, this._meta.batch, event);
-		return Promise.resolve({ ok: true, status: "queued", count: 1 });
 	}
 
 	flushBatch() {
 		return this._flushQueue(this.batchQueue, this._meta.batch);
 	}
 
-	sendVital(event: WebVitalEvent): Promise<TrackerSendOutcome> {
-		if (this.shouldSkipTracking()) {
-			return Promise.resolve({ ok: true, status: "skipped", count: 0 });
+	sendVital(event: WebVitalEvent): void {
+		if (!this.shouldSkipTracking()) {
+			this._enqueue(this.vitalsQueue, this._meta.vitals, event);
 		}
-		this._enqueue(this.vitalsQueue, this._meta.vitals, event);
-		return Promise.resolve({ ok: true, status: "queued", count: 1 });
 	}
 
 	flushVitals() {
 		return this._flushQueue(this.vitalsQueue, this._meta.vitals);
 	}
 
-	sendError(error: ErrorSpan): Promise<TrackerSendOutcome> {
-		if (this.shouldSkipTracking()) {
-			return Promise.resolve({ ok: true, status: "skipped", count: 0 });
+	sendError(error: ErrorSpan): void {
+		if (!this.shouldSkipTracking()) {
+			this._enqueue(this.errorsQueue, this._meta.errors, error);
 		}
-		this._enqueue(this.errorsQueue, this._meta.errors, error);
-		return Promise.resolve({ ok: true, status: "queued", count: 1 });
 	}
 
-	flushErrors() {
-		return this._flushQueue(this.errorsQueue, this._meta.errors);
-	}
-
-	sendEngagement(span: EngagementSpan): Promise<TrackerSendOutcome> {
-		if (this.shouldSkipTracking()) {
-			return Promise.resolve({ ok: true, status: "skipped", count: 0 });
+	sendEngagement(span: EngagementSpan): void {
+		if (!this.shouldSkipTracking()) {
+			this._enqueue(this.engagementQueue, this._meta.engagement, span);
 		}
-		this._enqueue(this.engagementQueue, this._meta.engagement, span);
-		return Promise.resolve({ ok: true, status: "queued", count: 1 });
 	}
 
-	flushEngagement() {
-		return this._flushQueue(this.engagementQueue, this._meta.engagement);
-	}
-
-	trackEvent(
-		name: string,
-		properties?: Record<string, unknown>
-	): Promise<TrackerSendOutcome> {
-		if (this.shouldSkipTracking()) {
-			return Promise.resolve({ ok: true, status: "skipped", count: 0 });
-		}
-
+	trackEvent(name: string, properties?: Record<string, unknown>): void {
 		const event: TrackEventPayload = {
 			eventId: generateUUIDv4(),
 			name,
@@ -824,11 +750,6 @@ export class BaseTracker {
 		};
 
 		this._enqueue(this.trackQueue, this._meta.track, event);
-		return Promise.resolve({ ok: true, status: "queued", count: 1 });
-	}
-
-	flushTrack() {
-		return this._flushQueue(this.trackQueue, this._meta.track);
 	}
 
 	private toSendOutcome<T>(
@@ -854,7 +775,7 @@ export class BaseTracker {
 		};
 	}
 
-	sendBeacon(data: unknown, endpoint = "/vitals"): boolean {
+	sendBeacon(data: unknown, endpoint: string): boolean {
 		if (
 			this.isServer() ||
 			this.shouldBlockQueuedDelivery() ||
@@ -879,10 +800,6 @@ export class BaseTracker {
 		} catch {
 			return false;
 		}
-	}
-
-	sendBatchBeacon(events: unknown[]): boolean {
-		return this.sendBeacon(events, "/batch");
 	}
 
 	onRouteChange(callback: (path: string) => void): () => void {
