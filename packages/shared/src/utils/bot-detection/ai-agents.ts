@@ -8,8 +8,6 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	{
 		operator: string;
 		purpose: AgentPurpose;
-		asn?: number;
-		dnsMasks?: string[];
 	} | null
 > = {
 	"ai-search-bot": { operator: "AISearchBot", purpose: "search_index" },
@@ -69,8 +67,8 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"leadcrunch-crawler": null,
 	"linkup-bot": { operator: "Linkup", purpose: "user_fetch" },
 	"mediatoolkit-crawler": null,
-	"meta-crawler": { operator: "Meta", purpose: "training", asn: 32_934 },
-	"meta-crawler-user": { operator: "Meta", purpose: "user_fetch", asn: 32_934 },
+	"meta-crawler": { operator: "Meta", purpose: "training" },
+	"meta-crawler-user": { operator: "Meta", purpose: "user_fetch" },
 	"mistral-ai-index": { operator: "Mistral", purpose: "search_index" },
 	"mistral-ai-training": { operator: "Mistral", purpose: "training" },
 	"mistral-ai-user": { operator: "Mistral", purpose: "user_fetch" },
@@ -84,11 +82,7 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"openai-crawler-user": { operator: "OpenAI", purpose: "user_fetch" },
 	"perplexity-crawler": { operator: "Perplexity", purpose: "search_index" },
 	"perplexity-user": { operator: "Perplexity", purpose: "user_fetch" },
-	"petalsearch-crawler": {
-		operator: "Huawei",
-		purpose: "search_index",
-		dnsMasks: ["petalbot-@.petalsearch.com"],
-	},
+	"petalsearch-crawler": { operator: "Huawei", purpose: "search_index" },
 	"phind-bot": { operator: "Phind", purpose: "user_fetch" },
 	"primal-crawler": null,
 	"python-scrapy": null,
@@ -121,60 +115,17 @@ function aiProductOf(operator: string): string {
 	return AI_PRODUCT_BY_OPERATOR[operator] ?? operator;
 }
 
-const ipRangeSourceSchema = z.object({
-	type: z.enum(["http-json", "http-text", "http-csv"]),
-	url: z.url(),
-	selector: z.string().optional(),
-});
-
 const wellKnownBotSchema = z.object({
 	id: z.string(),
 	pattern: z.object({
 		accepted: z.array(z.string()),
 		forbidden: z.array(z.string()),
 	}),
-	verification: z
-		.array(
-			z.discriminatedUnion("type", [
-				z.object({
-					type: z.literal("cidr"),
-					sources: z.array(ipRangeSourceSchema),
-				}),
-				z.object({
-					type: z.literal("ip"),
-					sources: z.array(ipRangeSourceSchema).optional(),
-					ips: z.array(z.string()).optional(),
-				}),
-				z.object({ type: z.literal("dns"), masks: z.array(z.string()) }),
-			])
-		)
-		.optional(),
 });
-
-const announcedPrefixesSchema = z.object({
-	data: z.object({ prefixes: z.array(z.object({ prefix: z.string() })) }),
-});
-
-const ipPrefixListSchema = z.object({
-	prefixes: z.array(
-		z.object({
-			ipv4Prefix: z.string().optional(),
-			ipv6Prefix: z.string().optional(),
-		})
-	),
-});
-
-export interface IpRangeSource {
-	format: "json" | "text" | "csv" | "asn";
-	url: string;
-}
 
 export interface AiAgent {
-	dnsMasks: string[];
 	excludePatterns: RegExp[];
 	id: string;
-	ipRangeSources: IpRangeSource[];
-	ipRanges: string[];
 	operator: string;
 	patterns: RegExp[];
 	product: string;
@@ -194,9 +145,6 @@ function codingAgent(
 		purpose: "agent",
 		patterns: [pattern],
 		excludePatterns: [],
-		ipRangeSources: [],
-		ipRanges: [],
-		dnsMasks: [],
 	};
 }
 
@@ -221,59 +169,18 @@ const CODING_AGENTS: AiAgent[] = [
 	codingAgent("manus", "Manus", "Manus", /Manus-User/i),
 ];
 
-function toIpRangeSource(
-	source: z.infer<typeof ipRangeSourceSchema>
-): IpRangeSource | null {
-	if (source.type === "http-text") {
-		return { format: "text", url: source.url };
-	}
-	if (source.type === "http-csv") {
-		return { format: "csv", url: source.url };
-	}
-	return source.selector?.startsWith("$.prefixes[*]")
-		? { format: "json", url: source.url }
-		: null;
-}
-
 function toAiAgent(bot: z.infer<typeof wellKnownBotSchema>): AiAgent | null {
 	const classification = AI_AGENT_CLASSIFICATION[bot.id];
 	if (!classification) {
 		return null;
 	}
-	const { asn, dnsMasks = [], ...identity } = classification;
-	const agent: AiAgent = {
-		...identity,
+	return {
+		...classification,
 		id: bot.id,
-		product: aiProductOf(identity.operator),
+		product: aiProductOf(classification.operator),
 		patterns: bot.pattern.accepted.map((p) => new RegExp(p)),
 		excludePatterns: bot.pattern.forbidden.map((p) => new RegExp(p)),
-		ipRangeSources: asn
-			? [
-					{
-						format: "asn",
-						url: `https://stat.ripe.net/data/announced-prefixes/data.json?resource=AS${asn}`,
-					},
-				]
-			: [],
-		ipRanges: [],
-		dnsMasks: [...dnsMasks],
 	};
-	for (const verification of bot.verification ?? []) {
-		if (verification.type === "dns") {
-			agent.dnsMasks.push(...verification.masks);
-			continue;
-		}
-		if (verification.type === "ip") {
-			agent.ipRanges.push(...(verification.ips ?? []));
-		}
-		for (const source of verification.sources ?? []) {
-			const ipRangeSource = toIpRangeSource(source);
-			if (ipRangeSource) {
-				agent.ipRangeSources.push(ipRangeSource);
-			}
-		}
-	}
-	return agent;
 }
 
 export const AI_AGENTS: AiAgent[] = [
@@ -292,39 +199,5 @@ export function matchAiAgent(userAgent: string): AiAgent | null {
 				agent.patterns.some((p) => p.test(userAgent)) &&
 				!agent.excludePatterns.some((p) => p.test(userAgent))
 		) ?? null
-	);
-}
-
-export function parseIpRanges(
-	format: IpRangeSource["format"],
-	body: string
-): string[] {
-	if (format === "asn") {
-		const parsed = announcedPrefixesSchema.safeParse(JSON.parse(body));
-		return parsed.success ? parsed.data.data.prefixes.map((p) => p.prefix) : [];
-	}
-	if (format === "json") {
-		const parsed = ipPrefixListSchema.safeParse(JSON.parse(body));
-		return parsed.success
-			? parsed.data.prefixes.flatMap((p) =>
-					[p.ipv4Prefix, p.ipv6Prefix].filter((prefix) => prefix !== undefined)
-				)
-			: [];
-	}
-	return body
-		.split("\n")
-		.map((line) => (format === "csv" ? line.split(",")[0] : line)?.trim() ?? "")
-		.filter((prefix) => prefix && !prefix.startsWith("#"));
-}
-
-const TRAILING_DOT = /\.$/;
-
-export function isDnsMaskMatch(mask: string, hostname: string): boolean {
-	const pattern = mask
-		.replaceAll(".", "\\.")
-		.replaceAll("*", ".?")
-		.replaceAll("@", ".*");
-	return new RegExp(`^${pattern}$`, "i").test(
-		hostname.replace(TRAILING_DOT, "")
 	);
 }
