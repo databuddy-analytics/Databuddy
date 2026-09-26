@@ -197,14 +197,13 @@ const FEATURED_PRODUCTS = [
 	"Meta AI",
 ];
 
-function proxySnippet(websiteId: string): string {
-	return `import { trackAgentTraffic } from "@databuddy/sdk/agents";
-import { type NextFetchEvent, type NextRequest, NextResponse } from "next/server";
+function setupSnippet(websiteId: string): string {
+	return `// proxy.ts
+export { proxy } from "@databuddy/sdk/agents";
 
-export function proxy(request: NextRequest, event: NextFetchEvent) {
-	event.waitUntil(trackAgentTraffic(request, { websiteId: "${websiteId}" }));
-	return NextResponse.next();
-}
+// .env
+DATABUDDY_API_KEY=your_api_key
+NEXT_PUBLIC_DATABUDDY_CLIENT_ID=${websiteId}
 `;
 }
 
@@ -480,13 +479,13 @@ export default function AgentsPage() {
 				<EmptyState
 					action={
 						<CopyButton
-							label="Copy proxy.ts setup"
+							label="Copy setup"
 							size="md"
-							value={proxySnippet(websiteId)}
+							value={setupSnippet(websiteId)}
 							variant="secondary"
 						/>
 					}
-					description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers skip JavaScript, so add this to your Next.js proxy.ts and set DATABUDDY_API_KEY to see them."
+					description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers skip JavaScript, so add one line to your server to see them."
 					icon={<BrainIcon />}
 					isMainContent
 					title="No AI activity yet"
@@ -562,8 +561,7 @@ export default function AgentsPage() {
 
 				<p className="text-pretty text-muted-foreground text-xs">
 					Crawlers that don't run JavaScript, like GPTBot and ClaudeBot, only
-					appear once trackAgentTraffic from @databuddy/sdk/agents runs on your
-					server.
+					appear once @databuddy/sdk/agents runs on your server.
 				</p>
 			</div>
 		</div>
