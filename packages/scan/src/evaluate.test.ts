@@ -159,25 +159,37 @@ test("exhausted 5xx, auth and rate limits stop at their exact attempt limits", a
 });
 
 test("a per-minute rate limit waits for Retry-After and retries", async () => {
-	const state = options();
-	const sent: number[] = [];
-	await withFetch(
-		async () => {
-			sent.push(performance.now());
-			return sent.length === 1
-				? new Response(null, { status: 429, headers: { "retry-after": "1" } })
-				: Response.json(response());
-		},
-		async () => {
-			assert.deepEqual(await requestEvaluation("{}", state.value), response());
-		}
-	);
-	assert.deepEqual(
-		state.attempts.map((attempt) => attempt.status),
-		[429, 200]
-	);
-	assert.equal(state.retries[0]?.waitMs, 1000);
-	assert.ok((sent[1] ?? 0) - (sent[0] ?? 0) >= 950);
+	for (const [retryAfter, within] of [
+		[() => "1", [1000, 1000]],
+		[() => new Date(Date.now() + 2000).toUTCString(), [900, 2000]],
+	] as const) {
+		const state = options();
+		const sent: number[] = [];
+		await withFetch(
+			async () => {
+				sent.push(performance.now());
+				return sent.length === 1
+					? new Response(null, {
+							status: 429,
+							headers: { "retry-after": retryAfter() },
+						})
+					: Response.json(response());
+			},
+			async () => {
+				assert.deepEqual(
+					await requestEvaluation("{}", state.value),
+					response()
+				);
+			}
+		);
+		assert.deepEqual(
+			state.attempts.map((attempt) => attempt.status),
+			[429, 200]
+		);
+		const waitMs = state.retries[0]?.waitMs ?? 0;
+		assert.ok(waitMs >= within[0] && waitMs <= within[1], `waited ${waitMs}ms`);
+		assert.ok((sent[1] ?? 0) - (sent[0] ?? 0) >= waitMs - 50);
+	}
 });
 
 test("provider error bodies are bounded and cancelled without retaining body text", async () => {

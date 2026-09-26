@@ -1939,7 +1939,10 @@ export function groupActions(
 					for (const handler of serverHandlers(child, owner)) {
 						addSite(handler.unit, handler.node);
 						if (!ts.isIdentifier(unwrap(handler.node))) {
+							const linking = followingLink;
+							followingLink = false;
 							evidence(handler.unit, handler.node, depth + 1);
+							followingLink = linking;
 						}
 					}
 				}
