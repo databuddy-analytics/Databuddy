@@ -1,9 +1,8 @@
 export interface AgentTrafficOptions {
-	apiKey: string;
+	apiKey?: string;
 	apiUrl?: string;
-	ip?: string;
 	timeoutMs?: number;
-	websiteId: string;
+	websiteId?: string;
 }
 
 export const AI_AGENT_USER_AGENT =
@@ -16,13 +15,8 @@ const MARKDOWN_PATH = /\.mdx?$/i;
 const DEFAULT_API_URL = "https://basket.databuddy.cc";
 const DEFAULT_TIMEOUT_MS = 3000;
 
-function getClientIp(request: Request): string {
-	const { headers } = request;
-	if ("cf" in request) {
-		return headers.get("cf-connecting-ip") ?? "";
-	}
-	const forwardedByProxy = headers.get("x-forwarded-for")?.split(",").at(-1);
-	return forwardedByProxy?.trim() || headers.get("x-real-ip") || "";
+function env(name: string): string | undefined {
+	return typeof process === "undefined" ? undefined : process.env[name];
 }
 
 function contentFormat(
@@ -39,12 +33,19 @@ function contentFormat(
 
 export async function trackAgentTraffic(
 	request: Request,
-	options: AgentTrafficOptions
+	options: AgentTrafficOptions = {}
 ): Promise<void> {
+	const apiKey = options.apiKey ?? env("DATABUDDY_API_KEY");
+	const websiteId =
+		options.websiteId ??
+		env("DATABUDDY_WEBSITE_ID") ??
+		env("NEXT_PUBLIC_DATABUDDY_CLIENT_ID");
 	const userAgent = request.headers.get("user-agent") ?? "";
 	const { pathname } = new URL(request.url);
 	if (
 		!(
+			apiKey &&
+			websiteId &&
 			(request.method === "GET" || request.method === "HEAD") &&
 			AI_AGENT_USER_AGENT.test(userAgent)
 		) ||
@@ -55,15 +56,14 @@ export async function trackAgentTraffic(
 	await fetch(`${options.apiUrl ?? DEFAULT_API_URL}/ai-traffic`, {
 		method: "POST",
 		headers: {
-			Authorization: `Bearer ${options.apiKey}`,
+			Authorization: `Bearer ${apiKey}`,
 			"Content-Type": "application/json",
 		},
 		body: JSON.stringify({
-			websiteId: options.websiteId,
+			websiteId,
 			path: pathname,
 			format: contentFormat(pathname, request.headers.get("accept") ?? ""),
 			userAgent,
-			ip: options.ip ?? getClientIp(request),
 			referrer: request.headers.get("referer") ?? undefined,
 		}),
 		signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
