@@ -8,6 +8,7 @@ import {
 	GlobeIcon,
 	ListBulletsIcon,
 } from "@databuddy/ui/icons";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
@@ -22,15 +23,126 @@ import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { formatNumber } from "@/lib/formatters";
-import {
-	type AgentPageRow,
-	FORMAT_LABELS,
-	NEVER_SEEN,
-	otherProductColumns,
-	type ProductRow,
-	pageColumns,
-} from "./columns";
 import { cn } from "@/lib/utils";
+
+interface ProductRow {
+	last_seen: string;
+	on_demand: number;
+	pages: number;
+	product: string;
+	requests: number;
+	search_index: number;
+	training: number;
+	visitors: number;
+}
+
+const NEVER_SEEN = "1970";
+
+const FORMAT_LABELS: Record<string, string> = {
+	html: "HTML",
+	llms: "llms.txt",
+	markdown: "Markdown",
+};
+
+interface AgentPageRow {
+	format: string | null;
+	name: string;
+	pageviews: number;
+	products: string[];
+	requests: number;
+	visitors: number;
+}
+
+function numberColumn<TRow>(
+	key: keyof TRow & string,
+	header: string
+): ColumnDef<TRow> {
+	return {
+		id: key,
+		accessorKey: key,
+		header,
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground tabular-nums">
+				{formatNumber((getValue() as number) ?? 0)}
+			</span>
+		),
+	};
+}
+
+const pageColumns: ColumnDef<AgentPageRow>[] = [
+	{
+		id: "name",
+		accessorKey: "name",
+		header: "Page",
+		cell: ({ getValue }) => (
+			<span className="truncate font-medium text-[15px]">
+				{getValue() as string}
+			</span>
+		),
+	},
+	numberColumn<AgentPageRow>("visitors", "AI visitors"),
+	{
+		id: "products",
+		accessorKey: "products",
+		header: "Read by",
+		cell: ({ row }) => (
+			<div className="flex items-center gap-1">
+				{row.original.products.map((product) => (
+					<span key={product} title={product}>
+						<AiProductIcon name={product} size="sm" />
+					</span>
+				))}
+			</div>
+		),
+	},
+	numberColumn<AgentPageRow>("requests", "AI requests"),
+	{
+		id: "format",
+		accessorKey: "format",
+		header: "Format",
+		cell: ({ getValue }) => {
+			const format = getValue() as string | null;
+			return (
+				<span className="text-[15px] text-muted-foreground">
+					{format ? (FORMAT_LABELS[format] ?? format) : ""}
+				</span>
+			);
+		},
+	},
+	numberColumn<AgentPageRow>("pageviews", "Human views"),
+];
+
+const otherProductColumns: ColumnDef<ProductRow & { name: string }>[] = [
+	{
+		id: "name",
+		accessorKey: "name",
+		header: "Product",
+		cell: ({ row }) => (
+			<div className="flex min-w-0 items-center gap-2">
+				<AiProductIcon name={row.original.name} size="sm" />
+				<span className="truncate font-medium text-[15px]">
+					{row.original.name}
+				</span>
+			</div>
+		),
+	},
+	numberColumn<ProductRow & { name: string }>("requests", "Requests"),
+	numberColumn<ProductRow & { name: string }>("pages", "Pages read"),
+	numberColumn<ProductRow & { name: string }>("visitors", "Visitors sent"),
+	{
+		id: "last_seen",
+		accessorKey: "last_seen",
+		header: "Last read",
+		cell: ({ getValue }) => {
+			const value = getValue() as string;
+			return (
+				<span className="text-[15px] text-muted-foreground">
+					{value.startsWith(NEVER_SEEN) ? "Never" : fromNow(value)}
+				</span>
+			);
+		},
+	},
+];
 
 interface FormatRow {
 	format: string;
@@ -90,12 +202,7 @@ function proxySnippet(websiteId: string): string {
 import { type NextFetchEvent, type NextRequest, NextResponse } from "next/server";
 
 export function proxy(request: NextRequest, event: NextFetchEvent) {
-	event.waitUntil(
-		trackAgentTraffic(request, {
-			apiKey: process.env.DATABUDDY_API_KEY ?? "",
-			websiteId: "${websiteId}",
-		})
-	);
+	event.waitUntil(trackAgentTraffic(request, { websiteId: "${websiteId}" }));
 	return NextResponse.next();
 }
 `;
@@ -379,7 +486,7 @@ export default function AgentsPage() {
 							variant="secondary"
 						/>
 					}
-					description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers skip JavaScript, so add this to your Next.js proxy.ts to see them."
+					description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers skip JavaScript, so add this to your Next.js proxy.ts and set DATABUDDY_API_KEY to see them."
 					icon={<BrainIcon />}
 					isMainContent
 					title="No AI activity yet"
