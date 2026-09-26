@@ -7,6 +7,7 @@
   },
   "ui": "tui",
   "envMode": "strict",
+  "globalDependencies": ["tsconfig/**"],
   "globalEnv": [
     "ALERTS_EMAIL_FROM",
     "API_PROXY_URL",

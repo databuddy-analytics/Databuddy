@@ -59,6 +59,9 @@ jobs:
       - run: bun run --cwd apps/docs postinstall
       - run: bun run --cwd apps/docs lint:links
       - run: bun run check-types
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ vars.TURBO_TEAM }}
       - name: ClickHouse types match DDL
         run: bun run --cwd packages/db ch:check
       - name: ClickHouse schema matches cluster
