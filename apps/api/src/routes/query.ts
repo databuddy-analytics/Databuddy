@@ -64,6 +64,7 @@ import {
 } from "../schemas/query-schemas";
 import { handleAppError } from "../http/errors";
 import { getRequestId } from "../http/request-id";
+import { getResolvedAuth } from "../lib/auth-wide-event";
 
 const PER_WEBSITE_QUERY_CONCURRENCY = 8;
 
@@ -1152,11 +1153,22 @@ async function executeDynamicQuery(
 
 export const query = new Elysia({ prefix: "/v1/query" })
 	.derive(async ({ request }): Promise<{ auth: AuthContext }> => {
+		const preResolved = getResolvedAuth(request.headers);
 		const hasApiKey = isApiKeyPresent(request.headers);
-		const [apiKey, session] = await Promise.all([
-			hasApiKey ? getApiKeyFromHeader(request.headers) : null,
-			auth.api.getSession({ headers: request.headers }),
-		]);
+
+		let apiKey: ApiKeyRow | null;
+		let session: Awaited<ReturnType<typeof auth.api.getSession>> | null;
+
+		if (preResolved) {
+			session = preResolved.session;
+			apiKey = preResolved.apiKeyResult?.key ?? null;
+		} else {
+			[apiKey, session] = await Promise.all([
+				hasApiKey ? getApiKeyFromHeader(request.headers) : null,
+				auth.api.getSession({ headers: request.headers }).catch(() => null),
+			]);
+		}
+
 		const user = session?.user ?? null;
 
 		if (
