@@ -142,7 +142,7 @@ export default function DatabunnyPage() {
 				<Section className="border-border border-b" id="agent">
 					<div className={container}>
 						<SectionHeader
-							subtitle="Type a question about your traffic, conversions, errors, or performance. Databunny queries your data and shows the findings and supporting evidence."
+							subtitle="Type a question about your traffic, conversions, errors, or performance. Databunny runs the queries, answers with the numbers, and shows you the SQL it ran."
 							title="Ask anything,"
 							titleMuted="get real answers."
 						/>

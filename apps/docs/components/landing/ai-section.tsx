@@ -24,6 +24,25 @@ const MCP_CLIENTS = [
 	"Zed",
 ] as const;
 
+const QUESTIONS = [
+	{
+		question: "Why did signups drop this week?",
+		sources: "funnels · goals · events",
+	},
+	{
+		question: "Did Tuesday's deploy break checkout?",
+		sources: "errors · GitHub deploys",
+	},
+	{
+		question: "Which referrers bring paying customers?",
+		sources: "revenue · referrers",
+	},
+	{
+		question: "Is the site slower since last week?",
+		sources: "web vitals · uptime",
+	},
+] as const;
+
 function revealStyle(visible: boolean, delayMs: number) {
 	return {
 		transitionDelay: visible ? `${delayMs}ms` : "0ms",
@@ -334,15 +353,28 @@ export function AiSection() {
 					<span className="mt-1.5 hidden sm:block">
 						<SectionBullet color="#6E56CF" />
 					</span>
-					<span className="text-foreground">
-						Finds problems before you ask.
-					</span>
+					<span className="text-foreground">Analysis. Not just chat.</span>
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
 					Databunny investigates your traffic, errors, funnels, and vitals on
 					its own, and only interrupts you when there's a decision to make. Your
 					own agents get the same access over MCP.
 				</p>
+				<ul className="mt-6 grid max-w-4xl gap-x-8 gap-y-3 sm:grid-cols-2">
+					{QUESTIONS.map((item) => (
+						<li
+							className="border-border/60 border-l-2 pl-3"
+							key={item.question}
+						>
+							<p className="font-medium text-foreground text-sm sm:text-base">
+								{item.question}
+							</p>
+							<p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+								{item.sources}
+							</p>
+						</li>
+					))}
+				</ul>
 			</div>
 
 			<div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-12">
