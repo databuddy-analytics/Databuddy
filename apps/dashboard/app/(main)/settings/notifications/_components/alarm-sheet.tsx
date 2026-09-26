@@ -99,45 +99,18 @@ const alarmFormSchema = z.object({
 
 type AlarmFormData = z.infer<typeof alarmFormSchema>;
 
-const recordSchema = z.record(z.string(), z.unknown()).catch({});
-
-const destinationRowSchema = z.object({
-	id: z.string(),
-	type: destTypeSchema,
-	identifier: z.string(),
-	config: recordSchema,
+const lockedAlarmFormSchema = alarmFormSchema.extend({
+	destinations: z.array(destinationSchema),
 });
 
-const alarmRowSchema = z
-	.object({
-		id: z.string(),
-		name: z.string(),
-		enabled: z.boolean(),
-		triggerType: z.string(),
-		triggerConditions: recordSchema,
-		description: z.string().nullable().catch(null),
-		websiteId: z.string().nullable().catch(null),
-		destinations: z.array(z.unknown()).catch([]),
-	})
-	.transform(({ destinations, ...alarm }) => {
-		const supported = destinations.flatMap((row) => {
-			const parsed = destinationRowSchema.safeParse(row);
-			return parsed.success ? [parsed.data] : [];
-		});
-		return {
-			...alarm,
-			destinations: supported,
-			hasUnsupportedDestinations: supported.length < destinations.length,
-		};
-	});
+export type AlarmData = Awaited<
+	ReturnType<typeof orpc.alarms.list.call>
+>[number];
+type AlarmDestination = AlarmData["destinations"][number];
 
-export type AlarmData = z.infer<typeof alarmRowSchema>;
-
-export function parseAlarms(rows: Record<string, unknown>[]) {
-	return rows.flatMap((row) => {
-		const parsed = alarmRowSchema.safeParse(row);
-		return parsed.success ? [parsed.data] : [];
-	});
+export function channelLabel(type: string): string {
+	const parsed = destTypeSchema.safeParse(type);
+	return parsed.success ? CHANNELS[parsed.data].label : type;
 }
 
 export function alarmMonitorIds(alarm: AlarmData): string[] {
@@ -147,7 +120,7 @@ export function alarmMonitorIds(alarm: AlarmData): string[] {
 		: [];
 }
 
-function isMaskedDestination(destination: AlarmData["destinations"][number]) {
+function isMaskedDestination(destination: AlarmDestination) {
 	const headers = destination.config.headers;
 	return (
 		destination.identifier.includes(MASK) ||
@@ -171,17 +144,24 @@ function buildDefaults(alarm: AlarmData | null | undefined): AlarmFormData {
 		name: alarm?.name ?? "",
 		description: alarm?.description ?? "",
 		enabled: alarm?.enabled ?? true,
-		destinations: alarm?.destinations.map(({ type, identifier, config }) => ({
-			type,
-			identifier,
-			config,
-		})) ?? [{ type: "slack", identifier: "", config: {} }],
+		destinations: alarm
+			? alarm.destinations.flatMap(({ type, identifier, config }) => {
+					const parsed = destTypeSchema.safeParse(type);
+					return parsed.success
+						? [{ type: parsed.data, identifier, config }]
+						: [];
+				})
+			: [{ type: "slack", identifier: "", config: {} }],
 	};
 }
 
 function toHeaderPairs(config: Record<string, unknown> | undefined) {
-	const raw = (config?.headers ?? {}) as Record<string, string>;
-	return Object.entries(raw).map(([name, value]) => ({ name, value }));
+	const headers = config?.headers;
+	return headers && typeof headers === "object"
+		? Object.entries(headers).flatMap(([name, value]) =>
+				typeof value === "string" ? [{ name, value }] : []
+			)
+		: [];
 }
 
 function fromHeaderPairs(pairs: { name: string; value: string }[]) {
@@ -280,15 +260,19 @@ export function AlarmSheet({
 }: AlarmSheetProps) {
 	const isEditing = !!alarm;
 	const destinationsLocked =
-		(alarm?.hasUnsupportedDestinations ||
-			alarm?.destinations.some(isMaskedDestination)) ??
-		false;
+		alarm?.destinations.some(
+			(destination) =>
+				!destTypeSchema.safeParse(destination.type).success ||
+				isMaskedDestination(destination)
+		) ?? false;
 	const { activeOrganization, activeOrganizationId } =
 		useOrganizationsContext();
 	const queryClient = useQueryClient();
 
 	const form = useForm<AlarmFormData>({
-		resolver: zodResolver(alarmFormSchema),
+		resolver: zodResolver(
+			destinationsLocked ? lockedAlarmFormSchema : alarmFormSchema
+		),
 		defaultValues: buildDefaults(alarm),
 	});
 
