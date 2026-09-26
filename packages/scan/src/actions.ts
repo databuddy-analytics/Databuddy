@@ -68,6 +68,9 @@ const writes = new Set([
 ]);
 const httpWrites = new Set(["post", "put", "patch"]);
 const boundCall = new Set(["bind", "call", "apply"]);
+const camelBoundary = /([a-z])([A-Z])/g;
+const setupCopy =
+	/\b(?:install(?:ation)?|snippet|script|command|cli|config(?:uration)?|setup|sdk|embed|curl|npm|npx|bunx|yarn|pnpm|env|api[\s_-]?key|apikey|key|token|secret|webhook|mcp|code)\b/i;
 const readCall =
 	/^(?:get|list|find|load|fetch|query|read|refetch|invalidate|prefetch|wait|sleep|delay|resolve|all|allSettled|race)\w*$/i;
 const actionVerb =
@@ -174,6 +177,14 @@ function callable(node: ts.Node) {
 }
 function brief(node: ts.Node, file: ts.SourceFile) {
 	return node.getText(file).replace(whitespaceRun, " ").slice(0, 60);
+}
+function attributeText(node: ts.Node, file: ts.SourceFile) {
+	const element = ts.isJsxElement(node) ? node.openingElement : node;
+	return ts.isJsxOpeningElement(element) || ts.isJsxSelfClosingElement(element)
+		? element.attributes.properties
+				.map((attribute) => attribute.getText(file))
+				.join(" ")
+		: "";
 }
 function walk(node: ts.Node, visit: (node: ts.Node) => void) {
 	visit(node);
@@ -1896,6 +1907,7 @@ export function groupActions(
 		}
 		const visited = new Set<ts.Node>();
 		let commits = false;
+		const copied: string[] = [];
 		function evidence(owner: Unit, node: ts.Node, depth: number) {
 			if (visited.has(node)) {
 				return;
@@ -1956,13 +1968,14 @@ export function groupActions(
 					const write =
 						writes.has(method) &&
 						callee.expression.getText(owner.file) !== "Object";
-					if (write || httpWrites.has(method)) {
+					if ((write && method !== "writeText") || httpWrites.has(method)) {
 						commits = true;
 					}
 					if (write || trackingCall.test(method)) {
 						addSite(owner, child);
 					}
 					if (method === "writeText") {
+						copied.push(...child.arguments.map((a) => a.getText(owner.file)));
 						for (const argument of child.arguments) {
 							walk(argument, (part) => {
 								const bound =
@@ -1973,6 +1986,7 @@ export function groupActions(
 									!functionValue(bound)
 								) {
 									addContext(owner, declaration(bound));
+									copied.push(declaration(bound).getText(owner.file));
 								}
 							});
 						}
@@ -2180,7 +2194,18 @@ export function groupActions(
 				}
 			}
 		}
-		if (
+		if (copied.length && !commits) {
+			if (
+				!setupCopy.test(
+					`${unit.path} ${root.label.slice(root.label.indexOf(".") + 1)} ${attributeText(root.owner, unit.file)} ${copied.join(" ")}`.replace(
+						camelBoundary,
+						"$1 $2"
+					)
+				)
+			) {
+				return [];
+			}
+		} else if (
 			root.userEvent &&
 			!commits &&
 			![...issues].some((issue) => issue.startsWith("unresolved"))
