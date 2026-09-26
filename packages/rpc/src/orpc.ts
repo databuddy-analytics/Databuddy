@@ -18,6 +18,7 @@ import {
 import { runTracked } from "./middleware/track-mutation";
 import { runAuditedMutation } from "./middleware/audit-mutation";
 import { type BillingOwner, getBillingOwner } from "./utils/billing";
+import { logger } from "./lib/logger";
 import { getOrganizationOwnerId } from "./utils/organization";
 
 export interface PreResolvedAuth {
@@ -117,13 +118,20 @@ export const createRPCContext = async (
 		if (billingResolved) {
 			return billingCache;
 		}
-		if (user) {
-			billingCache = await getBillingOwner(user.id, organizationId);
-		} else if (apiKey?.organizationId) {
-			const ownerId = await getOrganizationOwnerId(apiKey.organizationId);
-			if (ownerId) {
-				billingCache = await getBillingOwner(ownerId, apiKey.organizationId);
+		try {
+			if (user) {
+				billingCache = await getBillingOwner(user.id, organizationId);
+			} else if (apiKey?.organizationId) {
+				const ownerId = await getOrganizationOwnerId(apiKey.organizationId);
+				if (ownerId) {
+					billingCache = await getBillingOwner(ownerId, apiKey.organizationId);
+				}
 			}
+		} catch (error) {
+			logger.warn(
+				{ error },
+				"Failed to resolve billing owner; falling back to free tier"
+			);
 		}
 		billingResolved = true;
 		return billingCache;
