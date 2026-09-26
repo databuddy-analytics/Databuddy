@@ -58,6 +58,32 @@ describe("matchAiAgent", () => {
 		}
 	});
 
+	it("tells Claude Code apart from Claude web fetches", () => {
+		expect(
+			matchAiAgent(
+				"Claude-User (claude-code/2.1.280; +https://support.anthropic.com/)"
+			)?.product
+		).toBe("Claude Code");
+		expect(
+			matchAiAgent(
+				"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-User/1.0; +Claude-User@anthropic.com)"
+			)?.product
+		).toBe("Claude");
+	});
+
+	it("leaves AI desktop app browsers to human analytics", () => {
+		expect(
+			matchAiAgent(
+				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Claude/2.2553.1 Chrome/152.0.7977.76 Safari/537.36"
+			)
+		).toBeNull();
+		expect(
+			matchAiAgent(
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Cursor/3.6.31 Chrome/142.0.7444.265 Electron/39.8.1 Safari/537.36"
+			)
+		).toBeNull();
+	});
+
 	it("ignores human browsers", () => {
 		expect(
 			matchAiAgent(

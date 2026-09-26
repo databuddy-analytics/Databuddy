@@ -45,7 +45,6 @@ describe("detectBot", () => {
 			["TikTokSpider", "TikTokSpider"],
 			["Bravebot", "Bravebot"],
 			["YouBot", "YouBot/1.0"],
-			["v0bot", "v0bot"],
 			["HuggingFace-Bot", "HuggingFace-Bot"],
 			["CCBot", "CCBot/2.0"],
 			["Diffbot", "Diffbot/0.1"],
@@ -75,6 +74,7 @@ describe("detectBot", () => {
 			["Cohere-AI", "Cohere-AI/1.0"],
 			["Meta ExternalFetcher", "meta-externalfetcher/1.0"],
 			["FirecrawlAgent", "FirecrawlAgent"],
+			["v0bot", "v0bot"],
 		])("detects %s as track-only AI assistant", (_label, ua) => {
 			expectBot(ua, BotCategory.AI_ASSISTANT, BotAction.TRACK_ONLY);
 		});

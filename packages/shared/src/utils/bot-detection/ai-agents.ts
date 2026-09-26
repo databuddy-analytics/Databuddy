@@ -109,6 +109,18 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"zanista-bot": { operator: "Zanista", purpose: "search_index" },
 };
 
+const AI_PRODUCT_BY_OPERATOR: Record<string, string> = {
+	Anthropic: "Claude",
+	Google: "Google Gemini",
+	Meta: "Meta AI",
+	Microsoft: "Microsoft Copilot",
+	OpenAI: "ChatGPT",
+};
+
+function aiProductOf(operator: string): string {
+	return AI_PRODUCT_BY_OPERATOR[operator] ?? operator;
+}
+
 const ipRangeSourceSchema = z.object({
 	type: z.enum(["http-json", "http-text", "http-csv"]),
 	url: z.url(),
@@ -165,8 +177,49 @@ export interface AiAgent {
 	ipRanges: string[];
 	operator: string;
 	patterns: RegExp[];
+	product: string;
 	purpose: AgentPurpose;
 }
+
+function codingAgent(
+	id: string,
+	operator: string,
+	product: string,
+	pattern: RegExp
+): AiAgent {
+	return {
+		id,
+		operator,
+		product,
+		purpose: "agent",
+		patterns: [pattern],
+		excludePatterns: [],
+		ipRangeSources: [],
+		ipRanges: [],
+		dnsMasks: [],
+	};
+}
+
+const CODING_AGENTS: AiAgent[] = [
+	codingAgent(
+		"claude-code",
+		"Anthropic",
+		"Claude Code",
+		/Claude-User \(claude-code\//
+	),
+	codingAgent("gemini-cli", "Google", "Gemini CLI", /Google-Gemini-CLI\//),
+	codingAgent(
+		"aider",
+		"Aider",
+		"Aider",
+		/Aider\/[\d.]+ \+https:\/\/aider\.chat/
+	),
+	codingAgent("zed", "Zed", "Zed", /^Zed\/[\d.]+ \(/),
+	codingAgent("opencode", "OpenCode", "OpenCode", /^opencode$/),
+	codingAgent("devin", "Cognition", "Devin", /\bDevin\/\d/),
+	codingAgent("v0", "Vercel", "v0", /\bv0bot\b/),
+	codingAgent("manus", "Manus", "Manus", /Manus-User/i),
+];
 
 function toIpRangeSource(
 	source: z.infer<typeof ipRangeSourceSchema>
@@ -191,6 +244,7 @@ function toAiAgent(bot: z.infer<typeof wellKnownBotSchema>): AiAgent | null {
 	const agent: AiAgent = {
 		...identity,
 		id: bot.id,
+		product: aiProductOf(identity.operator),
 		patterns: bot.pattern.accepted.map((p) => new RegExp(p)),
 		excludePatterns: bot.pattern.forbidden.map((p) => new RegExp(p)),
 		ipRangeSources: asn
@@ -222,11 +276,14 @@ function toAiAgent(bot: z.infer<typeof wellKnownBotSchema>): AiAgent | null {
 	return agent;
 }
 
-export const AI_AGENTS: AiAgent[] = z
-	.array(wellKnownBotSchema)
-	.parse(wellKnownBots.filter((bot) => bot.id in AI_AGENT_CLASSIFICATION))
-	.map(toAiAgent)
-	.filter((agent) => agent !== null);
+export const AI_AGENTS: AiAgent[] = [
+	...CODING_AGENTS,
+	...z
+		.array(wellKnownBotSchema)
+		.parse(wellKnownBots.filter((bot) => bot.id in AI_AGENT_CLASSIFICATION))
+		.map(toAiAgent)
+		.filter((agent) => agent !== null),
+];
 
 export function matchAiAgent(userAgent: string): AiAgent | null {
 	return (
