@@ -58,8 +58,8 @@ const QuerySchema = z.object({
 		.optional(),
 	groupBy: z.array(z.string()).optional(),
 	orderBy: z.string().optional(),
-	limit: z.number().min(1).max(1000).optional(),
-	offset: z.number().min(0).optional(),
+	limit: z.number().int().min(1).max(1000).optional(),
+	offset: z.number().int().min(0).optional(),
 	timezone: z.string().optional(),
 });
 
