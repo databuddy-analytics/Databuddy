@@ -649,7 +649,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 				{
 					name: "total_transactions",
 					type: "number",
-					label: "Settled Transactions",
+					label: "Payments",
 				},
 				{ name: "refund_amount", type: "number", label: "Refund Amount" },
 				{ name: "refund_count", type: "number", label: "Refund Count" },
