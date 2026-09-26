@@ -179,6 +179,16 @@ export function parseCsv(text: string): Record<string, string>[] {
 		);
 }
 
+export async function* sourceEntries(
+	source: ImportSource
+): AsyncIterable<ImportEntry> {
+	if (source.kind === "file") {
+		yield { name: source.name, text: () => source.text() };
+		return;
+	}
+	yield* source.entries();
+}
+
 export function csvNumber(value: string | undefined): number {
 	const parsed = Number(value);
 	return Number.isFinite(parsed) ? parsed : 0;

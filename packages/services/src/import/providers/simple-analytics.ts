@@ -6,6 +6,7 @@ import {
 	PAGE_EXIT_EVENT_NAME,
 	PAGEVIEW_EVENT_NAME,
 	parseCsv,
+	sourceEntries,
 } from "../pipeline";
 
 const SESSION_WINDOW_MS = 30 * 60 * 1000;
@@ -25,14 +26,9 @@ function isTruthy(value: string | undefined): boolean {
 }
 
 async function sourceText(source: ImportSource): Promise<string[]> {
-	if (source.kind === "file") {
-		return [await source.text()];
-	}
 	const texts: string[] = [];
-	for await (const entry of source.entries()) {
-		if (entry.name.endsWith(".csv")) {
-			texts.push(await entry.text());
-		}
+	for await (const entry of sourceEntries(source)) {
+		texts.push(await entry.text());
 	}
 	return texts;
 }

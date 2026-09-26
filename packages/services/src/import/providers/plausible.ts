@@ -1,12 +1,12 @@
 import {
 	csvNumber,
 	type ImportContext,
-	type ImportEntry,
 	type ImportProvider,
 	type ImportRecord,
 	type ImportSource,
 	parseCsv,
 	type RollupDimensionKind,
+	sourceEntries,
 } from "../pipeline";
 
 const VISITORS_TABLE = "imported_visitors";
@@ -34,18 +34,6 @@ function tableNameOf(entryName: string): string {
 		return "";
 	}
 	return base.replace(DATE_RANGE_SUFFIX, "").replace(CSV_SUFFIX, "");
-}
-
-async function* sourceEntries(
-	source: ImportSource
-): AsyncIterable<ImportEntry> {
-	if (source.kind === "archive") {
-		yield* source.entries();
-		return;
-	}
-	if (source.kind === "file") {
-		yield { name: source.name, text: () => source.text() };
-	}
 }
 
 function* visitorRecords(text: string): Generator<ImportRecord> {
