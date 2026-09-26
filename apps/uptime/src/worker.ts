@@ -40,6 +40,7 @@ import {
 	type UptimeData,
 } from "./types";
 import {
+	fireSslExpiryAlerts,
 	fireTransitionAlerts,
 	getPreviousMonitorState,
 	type MonitorStateLookup,
@@ -93,6 +94,7 @@ const uptimeWorkerDeps = {
 			{ jobId: uptimeDeliveryJobId(data.event_id) }
 		);
 	},
+	fireSslExpiryAlerts,
 	fireTransitionAlerts,
 	getPreviousMonitorState,
 	lookupSchedule,
@@ -273,6 +275,38 @@ const runTransitionAlerts = (
 		log
 	);
 
+const runSslExpiryAlerts = (
+	schedule: ScheduleData,
+	data: UptimeData,
+	deps: UptimeWorkerDeps,
+	log: RequestLogger
+) =>
+	timed(
+		"ssl_expiry_alert",
+		Effect.promise(() =>
+			deps.fireSslExpiryAlerts({ schedule, data }).then(
+				(result) => {
+					if (result.ssl_days_remaining !== null) {
+						log.set({
+							ssl_days_remaining: result.ssl_days_remaining,
+							ssl_alarms_fired: result.alarms_fired,
+						});
+					}
+				},
+				(error: unknown) => {
+					deps.captureError(error, {
+						error_step: "ssl_expiry_alerts",
+						schedule_id: schedule.id,
+					});
+					log.set({
+						ssl_alert_error: error instanceof Error ? error.message : "unknown",
+					});
+				}
+			)
+		),
+		log
+	);
+
 function reapScheduler(
 	scheduleId: string,
 	reason: ScheduleLookupReason | "paused",
@@ -407,6 +441,7 @@ const runLockedCheck = (
 
 		yield* admitDelivery(data, deps, log);
 		yield* runTransitionAlerts(schedule, data, deps, log);
+		yield* runSslExpiryAlerts(schedule, data, deps, log);
 	});
 
 const processCheck = (
@@ -516,6 +551,7 @@ const replayDelivery = (
 		);
 		if (schedule) {
 			yield* runTransitionAlerts(schedule, data, deps, log);
+			yield* runSslExpiryAlerts(schedule, data, deps, log);
 		}
 	});
 
