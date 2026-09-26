@@ -1,4 +1,3 @@
-import { INTELLIGENCE_CONTACT_TOPICS } from "@databuddy/shared/types/features";
 import Link from "next/link";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import { SciFiCard } from "@/components/scifi-card";
@@ -6,9 +5,6 @@ import { formatMoney } from "./estimator-utils";
 import { GatedFeaturePricingRows } from "./gated-feature-rows";
 import { trackPricingPlanClick } from "./track-pricing";
 import type { NormalizedPlan } from "./normalize";
-
-const contactTopics: Record<string, string | undefined> =
-	INTELLIGENCE_CONTACT_TOPICS;
 
 const RECOMMENDED_PLAN_ID = "intelligence";
 
@@ -118,11 +114,6 @@ export function PlansComparisonTable({ plans }: { plans: NormalizedPlan[] }) {
 														{plan.positioning}
 													</span>
 												) : null}
-												{contactTopics[plan.id] ? (
-													<span className="rounded-sm border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground uppercase tracking-wide">
-														Invite only
-													</span>
-												) : null}
 											</div>
 											<span className="min-h-12 max-w-44 text-pretty font-normal text-muted-foreground text-xs leading-snug">
 												{plan.description}
@@ -180,40 +171,33 @@ export function PlansComparisonTable({ plans }: { plans: NormalizedPlan[] }) {
 							)}
 							<tr className="border-border border-t">
 								<td className="px-4 py-3 sm:px-5 lg:px-6" />
-								{columns.map((plan) => {
-									const topic = contactTopics[plan.id];
-									return (
-										<td className={cellClass(plan.id)} key={plan.id}>
-											<SciFiButton
-												asChild
-												className="hover:animate-none hover:bg-foreground/10 focus-visible:bg-foreground/10 active:bg-foreground/15"
+								{columns.map((plan) => (
+									<td className={cellClass(plan.id)} key={plan.id}>
+										<SciFiButton
+											asChild
+											className="hover:animate-none hover:bg-foreground/10 focus-visible:bg-foreground/10 active:bg-foreground/15"
+										>
+											<Link
+												aria-label={`${plan.id === "enterprise" ? "Contact us about" : "Get started with"} ${plan.name}`}
+												href={
+													plan.id === "enterprise"
+														? "/contact"
+														: `https://app.databuddy.cc/register?plan=${plan.id}`
+												}
+												onClick={() =>
+													trackPricingPlanClick(
+														plan.id,
+														"pricing_comparison_table"
+													)
+												}
 											>
-												<Link
-													aria-label={`${topic ? "Request access to" : plan.id === "enterprise" ? "Contact us about" : "Get started with"} ${plan.name}`}
-													href={
-														topic
-															? `/contact?topic=${topic}`
-															: plan.id === "enterprise"
-																? "/contact"
-																: `https://app.databuddy.cc/register?plan=${plan.id}`
-													}
-													onClick={() =>
-														trackPricingPlanClick(
-															plan.id,
-															"pricing_comparison_table"
-														)
-													}
-												>
-													{topic
-														? "REQUEST ACCESS"
-														: plan.id === "enterprise"
-															? "CONTACT US"
-															: "GET STARTED"}
-												</Link>
-											</SciFiButton>
-										</td>
-									);
-								})}
+												{plan.id === "enterprise"
+													? "CONTACT US"
+													: "GET STARTED"}
+											</Link>
+										</SciFiButton>
+									</td>
+								))}
 							</tr>
 						</tbody>
 					</table>

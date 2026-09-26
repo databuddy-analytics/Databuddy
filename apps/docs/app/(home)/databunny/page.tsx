@@ -48,7 +48,7 @@ const FAQ_ITEMS = [
 	{
 		question: "How does automatic analysis work?",
 		answer:
-			"On the invite-only Business and Scale plans, choose a daily or weekly schedule for your organization. Databunny investigates noteworthy changes, keeps the evidence and history together, and gives you a concrete next step.",
+			"On the Business and Scale plans, choose a daily or weekly schedule for your organization. Databunny investigates noteworthy changes, keeps the evidence and history together, and gives you a concrete next step.",
 	},
 	{
 		question: "What becomes an investigation?",
@@ -62,7 +62,7 @@ const FAQ_ITEMS = [
 	},
 	{
 		question: "Is Databunny included in all plans?",
-		answer: `Databunny chat runs on AI credits, and every plan includes a monthly allowance. Business includes ${INVESTIGATION_ALLOWANCES.intelligence} investigations per month and Scale includes ${INVESTIGATION_ALLOWANCES.intelligence_scale}, with $${INVESTIGATION_USAGE.priceUsd} per extra. Investigation access is invite only.`,
+		answer: `Databunny chat runs on AI credits, and every plan includes a monthly allowance. Business includes ${INVESTIGATION_ALLOWANCES.intelligence} investigations per month and Scale includes ${INVESTIGATION_ALLOWANCES.intelligence_scale}, with $${INVESTIGATION_USAGE.priceUsd} per extra.`,
 	},
 ] as const;
 
@@ -84,9 +84,9 @@ export default function DatabunnyPage() {
 			<div className="overflow-x-hidden">
 				<FeatureHero
 					docsHref="/docs"
-					primaryLabel="Request investigation access"
-					primaryHref="/contact?topic=intelligence-business"
-					footnote={`Invite only. Business: ${INVESTIGATION_ALLOWANCES.intelligence}/month. Scale: ${INVESTIGATION_ALLOWANCES.intelligence_scale}/month. $${INVESTIGATION_USAGE.priceUsd} per extra.`}
+					primaryLabel="Start with Business"
+					primaryHref="https://app.databuddy.cc/register?plan=intelligence"
+					footnote={`Business: ${INVESTIGATION_ALLOWANCES.intelligence}/month. Scale: ${INVESTIGATION_ALLOWANCES.intelligence_scale}/month. $${INVESTIGATION_USAGE.priceUsd} per extra.`}
 					subtitle="Ask questions about your analytics or schedule investigations into traffic, errors, and conversions. Get the findings and supporting evidence in your dashboard or Slack."
 					title="The analyst that finds problems before you ask."
 				/>
