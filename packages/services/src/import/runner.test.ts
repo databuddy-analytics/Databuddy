@@ -57,11 +57,10 @@ describe("archive traversal", () => {
 			if (source.kind !== "archive") {
 				throw new Error("expected an archive source");
 			}
-			for await (const entry of source.entries()) {
-				await entry.text();
-			}
+			const entries = await Array.fromAsync(source.entries());
+			await Promise.all(entries.map((entry) => entry.text()));
 		};
-		expect(read()).rejects.toThrow(/over the .* byte limit/);
+		await expect(read()).rejects.toThrow(/over the .* byte limit/);
 	});
 
 	test("an archive with too many entries is rejected before any read", async () => {
@@ -75,7 +74,7 @@ describe("archive traversal", () => {
 		}
 		const bytes = await zip.generateAsync({ type: "uint8array" });
 
-		expect(zipSource(bytes)).rejects.toThrow(/more than the \d+/);
+		await expect(zipSource(bytes)).rejects.toThrow(/more than the \d+/);
 	});
 });
 
