@@ -8,7 +8,7 @@ import {
 	GlobeIcon,
 	ListBulletsIcon,
 } from "@databuddy/ui/icons";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
 	CONTENT_FORMATS,
@@ -28,6 +28,7 @@ import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { formatNumber } from "@/lib/formatters";
+import { formatRevenueCurrency } from "@/lib/revenue-currency";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +61,7 @@ interface ProductRow {
 }
 
 const NEVER_SEEN = "1970";
+const ALL_VISITORS = "All visitors";
 
 interface AgentPageRow {
 	format: ContentFormat | null;
@@ -161,6 +163,166 @@ const otherProductColumns: ColumnDef<ProductRow & { name: string }>[] = [
 	},
 ];
 
+interface OutcomeRow {
+	engaged_rate: number;
+	name: string;
+	pages_per_visit: number;
+	revenue: string;
+	visitors: number;
+}
+
+interface RevenueRow {
+	currency: string;
+	name: string;
+	revenue: number;
+}
+
+const outcomeColumns: ColumnDef<OutcomeRow>[] = [
+	{
+		id: "name",
+		accessorKey: "name",
+		header: "Visitors from",
+		cell: ({ row }) => (
+			<div className="flex min-w-0 items-center gap-2">
+				{row.original.name === ALL_VISITORS ? null : (
+					<AiProductIcon name={row.original.name} size="sm" />
+				)}
+				<span
+					className={cn(
+						"truncate text-[15px]",
+						row.original.name === ALL_VISITORS
+							? "text-muted-foreground"
+							: "font-medium"
+					)}
+				>
+					{row.original.name}
+				</span>
+			</div>
+		),
+	},
+	numberColumn<OutcomeRow>("visitors", "Visitors"),
+	{
+		id: "pages_per_visit",
+		accessorKey: "pages_per_visit",
+		header: "Pages per visit",
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground tabular-nums">
+				{(getValue() as number).toFixed(1)}
+			</span>
+		),
+	},
+	{
+		id: "engaged_rate",
+		accessorKey: "engaged_rate",
+		header: "Viewed 2+ pages",
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground tabular-nums">
+				{getValue() as number}%
+			</span>
+		),
+	},
+	{
+		id: "revenue",
+		accessorKey: "revenue",
+		header: "Revenue",
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground tabular-nums">
+				{getValue() as string}
+			</span>
+		),
+	},
+];
+
+interface CrawlerRow {
+	agent_id: string;
+	last_seen: string;
+	name: string;
+	product: string;
+	purpose: string;
+	requests: number;
+	robots: RobotsAccess | undefined;
+	user_agent: string;
+}
+
+type RobotsAccess = "allowed" | "partial" | "blocked";
+
+const PURPOSE_LABELS: Record<string, string> = {
+	agent: "Agent",
+	search_index: "Search",
+	training: "Training",
+	user_fetch: "Answers",
+};
+
+const ROBOTS_LABELS: Record<RobotsAccess, string> = {
+	allowed: "Allowed",
+	blocked: "Blocked",
+	partial: "Partly blocked",
+};
+
+const crawlerColumns: ColumnDef<CrawlerRow>[] = [
+	{
+		id: "name",
+		accessorKey: "name",
+		header: "Crawler",
+		cell: ({ row }) => (
+			<div className="flex min-w-0 items-center gap-2">
+				<AiProductIcon name={row.original.product} size="sm" />
+				<span className="truncate font-medium text-[15px]">
+					{row.original.name}
+				</span>
+			</div>
+		),
+	},
+	{
+		id: "purpose",
+		accessorKey: "purpose",
+		header: "Reads for",
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground">
+				{PURPOSE_LABELS[getValue() as string] ?? ""}
+			</span>
+		),
+	},
+	numberColumn<CrawlerRow>("requests", "Requests"),
+	{
+		id: "robots",
+		accessorKey: "robots",
+		header: "robots.txt",
+		cell: ({ row }) => {
+			const { last_seen, robots } = row.original;
+			if (!robots) {
+				return null;
+			}
+			const isStillCrawling =
+				robots === "blocked" && dayjs().diff(last_seen, "hour") < 24;
+			return (
+				<span className="flex items-center gap-1.5 text-[15px] text-muted-foreground">
+					<StatusDot
+						color={
+							robots === "allowed"
+								? "success"
+								: isStillCrawling
+									? "destructive"
+									: "warning"
+						}
+					/>
+					{isStillCrawling ? "Blocked, still crawling" : ROBOTS_LABELS[robots]}
+				</span>
+			);
+		},
+	},
+	{
+		id: "last_seen",
+		accessorKey: "last_seen",
+		header: "Last read",
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground">
+				{fromNow(getValue() as string)}
+			</span>
+		),
+	},
+];
+
 interface FormatRow {
 	format: ContentFormat;
 	pages: number;
@@ -180,6 +342,9 @@ interface TrendPoint {
 }
 
 type PageResult = Omit<AgentPageRow, "name"> & { page: string };
+type OutcomeResult = Omit<OutcomeRow, "name" | "revenue"> & {
+	product: string;
+};
 
 const NON_ID_CHARS = /[^a-zA-Z0-9_-]/g;
 
@@ -347,6 +512,15 @@ function ProductCard({
 					size={28}
 				/>
 				<p className="truncate font-semibold text-sm">{row.product}</p>
+				{row.requests > 0 && row.visitors > 0 ? (
+					<span
+						className="ml-auto shrink-0 text-muted-foreground text-xs tabular-nums"
+						title="AI requests for every visitor it sent you"
+					>
+						{formatNumber(Math.round(row.requests / row.visitors) || 1)} reads
+						per visitor
+					</span>
+				) : null}
 			</div>
 			<div>
 				<p className="font-semibold text-xl tabular-nums">
@@ -397,6 +571,9 @@ export default function AgentsPage() {
 			{ id: "visitors", parameters: ["ai_product_visitors"] },
 			{ id: "formats", parameters: ["ai_content_formats"] },
 			{ id: "pages", parameters: ["ai_agent_pages"] },
+			{ id: "outcomes", parameters: ["ai_visitor_outcomes"] },
+			{ id: "revenue", parameters: ["revenue_by_ai_product"] },
+			{ id: "crawlers", parameters: ["ai_crawlers"] },
 		]
 	);
 
@@ -406,6 +583,32 @@ export default function AgentsPage() {
 		(getDataForQuery("formats", "ai_content_formats") as FormatRow[]) ?? [];
 	const pages =
 		(getDataForQuery("pages", "ai_agent_pages") as PageResult[]) ?? [];
+	const outcomes =
+		(getDataForQuery("outcomes", "ai_visitor_outcomes") as OutcomeResult[]) ??
+		[];
+	const crawlers =
+		(getDataForQuery("crawlers", "ai_crawlers") as Omit<
+			CrawlerRow,
+			"robots"
+		>[]) ?? [];
+	const robots = useQuery({
+		...orpc.websites.checkAiRobots.queryOptions({
+			input: {
+				websiteId,
+				userAgents: crawlers.map((crawler) => crawler.user_agent),
+			},
+		}),
+		enabled: crawlers.length > 0,
+		staleTime: 10 * 60 * 1000,
+	});
+	const crawlerRows = crawlers.map(
+		(crawler, index): CrawlerRow => ({
+			...crawler,
+			robots: robots.data?.access[index],
+		})
+	);
+	const revenue =
+		(getDataForQuery("revenue", "revenue_by_ai_product") as RevenueRow[]) ?? [];
 
 	const visitorSeries =
 		(getDataForQuery(
@@ -475,6 +678,17 @@ export default function AgentsPage() {
 		.filter((row) => !FEATURED_AI_PRODUCTS.includes(row.product))
 		.map((row) => ({ ...row, name: row.product }));
 
+	const outcomeRows = outcomes.map(({ product, ...row }): OutcomeRow => {
+		const earned = revenue.find((item) => item.name === product);
+		return {
+			...row,
+			name: product,
+			revenue: earned
+				? formatRevenueCurrency(earned.revenue, earned.currency)
+				: "",
+		};
+	});
+
 	const pageRows = useMemo(
 		(): AgentPageRow[] =>
 			pages.map(({ page, ...row }) => ({ ...row, name: page })),
@@ -537,6 +751,31 @@ export default function AgentsPage() {
 						/>
 					) : null}
 				</div>
+
+				{isLoading || outcomeRows.length > 1 ? (
+					<DataTable
+						columns={outcomeColumns}
+						data={outcomeRows}
+						description="How visitors from AI browse and buy, next to everyone else"
+						isLoading={isLoading}
+						title="What AI visitors do"
+					/>
+				) : null}
+
+				{isLoading || crawlerRows.length > 0 ? (
+					<DataTable
+						columns={crawlerColumns}
+						data={crawlerRows}
+						description={
+							robots.data && !robots.data.hasRobotsTxt
+								? "Your site has no robots.txt, so every crawler is allowed"
+								: "Each AI crawler and what your robots.txt lets it read"
+						}
+						initialPageSize={10}
+						isLoading={isLoading}
+						title="AI crawlers"
+					/>
+				) : null}
 
 				<DataTable
 					columns={pageColumns}
