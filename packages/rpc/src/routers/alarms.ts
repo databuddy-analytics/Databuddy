@@ -82,6 +82,8 @@ const emailDestinationSchema = z.object({
 	config: z.record(z.string(), z.unknown()).default({}),
 });
 
+const MAX_ALARM_DESTINATIONS = 10;
+
 const destinationSchema = z.discriminatedUnion("type", [
 	slackDestinationSchema,
 	webhookDestinationSchema,
@@ -210,7 +212,8 @@ export const alarmsRouter = {
 				triggerConditions: z.record(z.string(), z.unknown()).default({}),
 				destinations: z
 					.array(destinationSchema)
-					.min(1, "At least one destination is required"),
+					.min(1, "At least one destination is required")
+					.max(MAX_ALARM_DESTINATIONS),
 			})
 		)
 		.output(alarmOutputSchema)
@@ -281,7 +284,10 @@ export const alarmsRouter = {
 				websiteId: z.string().nullish(),
 				triggerType: z.enum(alarmTriggerTypeValues).optional(),
 				triggerConditions: z.record(z.string(), z.unknown()).optional(),
-				destinations: z.array(destinationSchema).optional(),
+				destinations: z
+					.array(destinationSchema)
+					.max(MAX_ALARM_DESTINATIONS)
+					.optional(),
 			})
 		)
 		.output(alarmOutputSchema)

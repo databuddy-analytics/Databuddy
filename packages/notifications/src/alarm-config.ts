@@ -129,7 +129,7 @@ export function buildAlarmNotificationTargets(
 				clientConfig: {
 					email: {
 						defaultTo: dest.identifier,
-						from: typeof cfg.from === "string" ? cfg.from : defaultEmailFrom,
+						from: defaultEmailFrom,
 						sendEmailAction: async (payload: {
 							to: string | string[];
 							subject: string;
@@ -144,7 +144,7 @@ export function buildAlarmNotificationTargets(
 							}
 							const resend = new Resend(apiKey);
 							const result = await resend.emails.send({
-								from: payload.from || defaultEmailFrom,
+								from: defaultEmailFrom,
 								to: Array.isArray(payload.to) ? payload.to : [payload.to],
 								subject: payload.subject,
 								html: payload.html || payload.text || "",
