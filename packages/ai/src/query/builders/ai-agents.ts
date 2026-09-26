@@ -7,6 +7,10 @@ const AGENT_PRODUCT =
 	"transform(agent_id, {agentIds:Array(String)}, {agentProducts:Array(String)}, bot_name)";
 const VISIT_PRODUCT =
 	"if(browser_name IN ('Claude', 'Cursor'), browser_name, transform(domainWithoutWWW(referrer), {aiDomains:Array(String)}, {aiNames:Array(String)}, transform(utm_source, {aiDomains:Array(String)}, {aiNames:Array(String)}, '')))";
+const CONTENT_FORMAT = `if(format != '', format, multiIf(
+	endsWith(lower(path(path)), 'llms.txt') OR endsWith(lower(path(path)), 'llms-full.txt'), 'llms',
+	endsWith(lower(path(path)), '.md') OR endsWith(lower(path(path)), '.mdx'), 'markdown',
+	'html'))`;
 const PURPOSE_COUNTS = `countIf(agent_purpose = 'training') AS training,
 	countIf(agent_purpose = 'search_index') AS search_index,
 	countIf(agent_purpose IN ('user_fetch', 'agent')) AS on_demand`;
@@ -88,6 +92,39 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 		customizable: false,
 	},
 
+	ai_content_formats: {
+		meta: {
+			title: "How AI Reads Your Content",
+			description:
+				"AI requests split by the content format served: markdown (.md pages or markdown requested through the Accept header), llms.txt files, and HTML pages, with pages and the AI products fetching each format.",
+			category: "AI Agents",
+			tags: ["ai", "agents", "markdown", "llms.txt", "docs"],
+			output_fields: [
+				{ name: "format", type: "string", label: "Format" },
+				{ name: "requests", type: "number", label: "Requests" },
+				{ name: "pages", type: "number", label: "Pages" },
+				{ name: "products", type: "json", label: "Read by" },
+			],
+			default_visualization: "table",
+		},
+		customSql: (ctx) => ({
+			sql: `
+				SELECT
+					${CONTENT_FORMAT} AS format,
+					count() AS requests,
+					uniq(${pageOf("path")}) AS pages,
+					topK(4)(${AGENT_PRODUCT}) AS products
+				FROM ${Analytics.ai_traffic_spans}
+				WHERE ${SPAN_RANGE}
+				GROUP BY format
+				ORDER BY requests DESC
+			`,
+			params: productParams(ctx),
+		}),
+		timeField: "timestamp",
+		customizable: false,
+	},
+
 	ai_product_visitors: {
 		meta: {
 			title: "AI Visitors Over Time",
@@ -134,6 +171,7 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 				{ name: "visitors", type: "number", label: "AI-referred visitors" },
 				{ name: "products", type: "json", label: "Read by" },
 				{ name: "requests", type: "number", label: "AI requests" },
+				{ name: "format", type: "string", label: "Format" },
 				{ name: "pageviews", type: "number", label: "Human pageviews" },
 			],
 			default_visualization: "table",
@@ -142,12 +180,13 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 			sql: `
 				SELECT
 					if(a.page != '', a.page, h.page) AS page,
-					h.visitors, a.products, a.requests, h.pageviews
+					h.visitors, a.products, a.requests, a.format, h.pageviews
 				FROM (
 					SELECT
 						${pageOf("path")} AS page,
 						count() AS requests,
-						topK(3)(${AGENT_PRODUCT}) AS products
+						topK(3)(${AGENT_PRODUCT}) AS products,
+						topK(1)(${CONTENT_FORMAT})[1] AS format
 					FROM ${Analytics.ai_traffic_spans}
 					WHERE ${SPAN_RANGE} AND path != ''
 					GROUP BY page
