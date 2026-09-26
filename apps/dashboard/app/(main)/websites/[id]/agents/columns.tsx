@@ -18,7 +18,14 @@ export interface ProductRow {
 
 export const NEVER_SEEN = "1970";
 
+export const FORMAT_LABELS: Record<string, string> = {
+	html: "HTML",
+	llms: "llms.txt",
+	markdown: "Markdown",
+};
+
 export interface AgentPageRow {
+	format: string | null;
 	name: string;
 	pageviews: number;
 	products: string[];
@@ -69,6 +76,19 @@ export const pageColumns: ColumnDef<AgentPageRow>[] = [
 		),
 	},
 	numberColumn("requests", "AI requests"),
+	{
+		id: "format",
+		accessorKey: "format",
+		header: "Format",
+		cell: ({ getValue }) => {
+			const format = getValue() as string | null;
+			return (
+				<span className="text-[15px] text-muted-foreground">
+					{format ? (FORMAT_LABELS[format] ?? format) : ""}
+				</span>
+			);
+		},
+	},
 	numberColumn("pageviews", "Human views"),
 ];
 

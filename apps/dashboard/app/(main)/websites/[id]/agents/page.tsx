@@ -2,7 +2,12 @@
 
 import { dayjs, EmptyState, fromNow } from "@databuddy/ui";
 import { CopyButton } from "@databuddy/ui/client";
-import { BrainIcon } from "@databuddy/ui/icons";
+import {
+	BrainIcon,
+	FileTextIcon,
+	GlobeIcon,
+	ListBulletsIcon,
+} from "@databuddy/ui/icons";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
@@ -19,12 +24,20 @@ import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { formatNumber } from "@/lib/formatters";
 import {
 	type AgentPageRow,
+	FORMAT_LABELS,
 	NEVER_SEEN,
 	otherProductColumns,
 	type ProductRow,
 	pageColumns,
 } from "./columns";
 import { cn } from "@/lib/utils";
+
+interface FormatRow {
+	format: string;
+	pages: number;
+	products: string[];
+	requests: number;
+}
 
 interface VisitorSeriesRow {
 	date: string;
@@ -124,6 +137,75 @@ function emptyProduct(product: string): ProductRow {
 	};
 }
 
+const FORMATS = [
+	{
+		description: ".md pages and markdown requests",
+		format: "markdown",
+		icon: FileTextIcon,
+	},
+	{
+		description: "llms.txt and llms-full.txt",
+		format: "llms",
+		icon: ListBulletsIcon,
+	},
+	{ description: "Regular web pages", format: "html", icon: GlobeIcon },
+];
+
+function FormatCard({
+	format,
+	isLoading,
+	row,
+}: {
+	format: (typeof FORMATS)[number];
+	isLoading: boolean;
+	row: FormatRow | undefined;
+}) {
+	const Icon = format.icon;
+	return (
+		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
+			<div className="flex items-center gap-2.5">
+				<div className="flex size-7 items-center justify-center rounded bg-accent">
+					<Icon className="size-4 text-muted-foreground" />
+				</div>
+				<div className="min-w-0">
+					<p className="truncate font-semibold text-sm">
+						{FORMAT_LABELS[format.format]}
+					</p>
+					<p className="truncate text-muted-foreground text-xs">
+						{format.description}
+					</p>
+				</div>
+			</div>
+			<div>
+				<p className="font-semibold text-xl tabular-nums">
+					{formatNumber(row?.requests ?? 0)}
+					<span className="ml-1.5 font-normal text-muted-foreground text-xs">
+						requests
+					</span>
+				</p>
+				<div className="mt-1.5 flex h-5 items-center gap-1.5">
+					{row && row.requests > 0 ? (
+						<>
+							<span className="text-muted-foreground text-xs">
+								{formatNumber(row.pages)} pages, read by
+							</span>
+							{row.products.map((product) => (
+								<span key={product} title={product}>
+									<AiProductIcon name={product} size="sm" />
+								</span>
+							))}
+						</>
+					) : (
+						<span className="text-muted-foreground text-xs">
+							{isLoading ? "Checking…" : "Not fetched yet"}
+						</span>
+					)}
+				</div>
+			</div>
+		</div>
+	);
+}
+
 function ProductCard({
 	isLoading,
 	row,
@@ -202,12 +284,15 @@ export default function AgentsPage() {
 		[
 			{ id: "products", parameters: ["ai_products"] },
 			{ id: "visitors", parameters: ["ai_product_visitors"] },
+			{ id: "formats", parameters: ["ai_content_formats"] },
 			{ id: "pages", parameters: ["ai_agent_pages"] },
 		]
 	);
 
 	const products =
 		(getDataForQuery("products", "ai_products") as ProductRow[]) ?? [];
+	const formats =
+		(getDataForQuery("formats", "ai_content_formats") as FormatRow[]) ?? [];
 	const pages =
 		(getDataForQuery("pages", "ai_agent_pages") as PageResult[]) ?? [];
 
@@ -315,6 +400,22 @@ export default function AgentsPage() {
 							trend={trendFor(row.product)}
 						/>
 					))}
+				</div>
+
+				<div>
+					<h2 className="mb-2 font-semibold text-sm">
+						How AI reads your content
+					</h2>
+					<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-3">
+						{FORMATS.map((format) => (
+							<FormatCard
+								format={format}
+								isLoading={isLoading}
+								key={format.format}
+								row={formats.find((row) => row.format === format.format)}
+							/>
+						))}
+					</div>
 				</div>
 
 				{isLoading || chart.metrics.length > 0 ? (
