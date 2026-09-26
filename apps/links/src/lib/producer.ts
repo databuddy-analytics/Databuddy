@@ -19,6 +19,7 @@ const pendingSelfHostVisits = new Set<Promise<boolean>>();
 let producer: Producer | null = null;
 let connectPromise: Promise<boolean> | null = null;
 let nextReconnectAt = 0;
+let kafkaConnectFailed = false;
 let lastConnectErrorLogAt = 0;
 let lastFallbackErrorLogAt = 0;
 let shuttingDown = false;
@@ -72,6 +73,8 @@ function captureDependencyError(
 	captureError(error, context);
 }
 
+let shouldReportFailure = false;
+
 function connect(reportFailure = true): Promise<boolean> {
 	if (shuttingDown) {
 		return Promise.resolve(false);
@@ -90,9 +93,22 @@ function connect(reportFailure = true): Promise<boolean> {
 		return Promise.resolve(false);
 	}
 
+	// Set only after the cooldown early return: that return path skips the
+	// finally that resets the flag, so setting it earlier would leak a stale
+	// reportFailure=true into the next real connect attempt.
+	if (reportFailure) {
+		shouldReportFailure = true;
+	}
+
 	if (connectPromise) {
 		return connectPromise;
 	}
+
+	const useSsl =
+		process.env.REDPANDA_SSL === "false" ||
+		process.env.REDPANDA_SSL_ENABLED === "false"
+			? false
+			: true;
 
 	connectPromise = (async () => {
 		let candidate: Producer | null = null;
@@ -113,7 +129,7 @@ function connect(reportFailure = true): Promise<boolean> {
 				...(username && password
 					? { sasl: { mechanism: "scram-sha-256", username, password } }
 					: {}),
-				ssl: true,
+				ssl: useSsl,
 			});
 
 			candidate = kafka.producer({
@@ -134,10 +150,11 @@ function connect(reportFailure = true): Promise<boolean> {
 			}
 			producer = candidate;
 			nextReconnectAt = 0;
+			kafkaConnectFailed = false;
 			setAttributes({ kafka_connected: true });
 			return true;
 		} catch (error) {
-			if (reportFailure) {
+			if (shouldReportFailure) {
 				captureDependencyError(
 					error,
 					{ operation: "kafka_connect" },
@@ -152,9 +169,11 @@ function connect(reportFailure = true): Promise<boolean> {
 			producer = null;
 			nextReconnectAt = Date.now() + reconnectCooldownMs;
 			setAttributes({ kafka_connected: false });
+			kafkaConnectFailed = true;
 			return false;
 		} finally {
 			connectPromise = null;
+			shouldReportFailure = false;
 		}
 	})();
 
@@ -184,12 +203,19 @@ export function getProducerHealthState(): ProducerHealthState {
 	return "idle";
 }
 
+export function didKafkaConnectFail(): boolean {
+	return kafkaConnectFailed;
+}
+
 export async function warmProducerConnection(): Promise<void> {
 	await connect();
 }
 
 export async function refreshProducerConnection(): Promise<void> {
-	await connect(false);
+	const connected = await connect(false);
+	if (!connected) {
+		throw new Error("Kafka health probe failed");
+	}
 }
 
 async function persistLinkVisitDirectly(
@@ -261,7 +287,13 @@ export async function sendLinkVisit(
 		kafka_message_key: eventKey ?? "unknown",
 	});
 
-	const kafkaReady = await connect();
+	let kafkaReady = false;
+	try {
+		kafkaReady = await connect();
+	} catch (error) {
+		kafkaReady = false;
+	}
+
 	const activeProducer = producer;
 	if (!(kafkaReady && activeProducer)) {
 		setAttributes({
@@ -310,7 +342,11 @@ export async function disconnectProducer(): Promise<void> {
 		return;
 	}
 	if (connectPromise) {
-		await connectPromise;
+		try {
+			await connectPromise;
+		} catch {
+			// Expected health/connect probe rejection during shutdown should not fail disconnectProducer
+		}
 	}
 	const activeProducer = producer;
 	producer = null;
