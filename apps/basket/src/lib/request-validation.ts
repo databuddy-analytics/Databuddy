@@ -152,11 +152,19 @@ export function validateRequest(
 		const isBlockedBot = botCheck.isBot && botCheck.action !== "allow";
 
 		if (website.ownerId && options.checkUsage !== false && !isBlockedBot) {
-			await checkAutumnUsage(website.ownerId, "events", {
-				website_domain: website.domain,
-				website_id: website.id,
-				website_name: website.name,
-			});
+			const eventCount = Array.isArray(body)
+				? Math.min(Math.max(body.length, 1), VALIDATION_LIMITS.BATCH_MAX_SIZE)
+				: 1;
+			await checkAutumnUsage(
+				website.ownerId,
+				"events",
+				{
+					website_domain: website.domain,
+					website_id: website.id,
+					website_name: website.name,
+				},
+				eventCount
+			);
 		}
 
 		const origin = request.headers.get("origin");
