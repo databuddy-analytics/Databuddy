@@ -5,9 +5,7 @@ import {
 	resolveApiKeyOwnerId,
 } from "@hooks/auth";
 import {
-	API_KEY_DENIAL_ERRORS,
 	type ApiKeyRow,
-	denyApiKeyWebsiteAccess,
 	getAccessibleWebsiteIds,
 	getApiKeyFromHeader,
 	hasGlobalAccess,
@@ -18,6 +16,11 @@ import { parseCorsSafeJson } from "@lib/cors-safe-json";
 import { insertCustomEvents } from "@lib/event-service";
 import { runFork, send } from "@lib/producer";
 import { ratelimit } from "@databuddy/redis/rate-limit";
+import { redis } from "@databuddy/redis/redis";
+import {
+	setupCheckKey,
+	setupCheckNonce,
+} from "@databuddy/shared/bot-detection/ai-agents";
 import {
 	checkForBot,
 	getWebsiteSecuritySettings,
@@ -48,6 +51,7 @@ import { type TrackEventPayload, trackEventSchema } from "./track-event-schema";
 
 const agentHitSchema = z.object({
 	websiteId: z.string().min(1).max(128),
+	host: z.string().min(1).max(253),
 	path: z.string().max(2048),
 	format: z.enum(["markdown", "llms", "html"]).default("html"),
 	userAgent: z.string().min(1).max(512),
@@ -440,23 +444,36 @@ export const trackRoute = new Elysia()
 		log.set({ route: "ai-traffic" });
 
 		try {
-			const apiKey = await getApiKeyFromHeader(request.headers);
-			if (!apiKey) {
-				throw basketErrors.trackMissingCredentials();
-			}
-
 			const parsed = agentHitSchema.safeParse(body);
 			if (!parsed.success) {
 				throw createIngestSchemaValidationError(parsed.error.issues);
 			}
 			const hit = parsed.data;
-			log.set({ websiteId: hit.websiteId });
+			log.set({ websiteId: hit.websiteId, host: hit.host });
 
 			const website = await getWebsiteByIdV2(hit.websiteId);
-			const denial = denyApiKeyWebsiteAccess(apiKey, hit.websiteId, website);
-			if (denial) {
-				log.set({ rejected: denial });
-				throw API_KEY_DENIAL_ERRORS[denial]();
+			if (!website) {
+				throw basketErrors.trackWebsiteNotFound();
+			}
+			const allowedOrigins = getWebsiteSecuritySettings(
+				website.settings
+			)?.allowedOrigins;
+			if (
+				!isOriginAllowed(`https://${hit.host}`, website.domain, allowedOrigins)
+			) {
+				log.set({ rejected: "host_not_authorized" });
+				throw basketErrors.ingestOriginNotAuthorized();
+			}
+
+			const setupNonce = setupCheckNonce(hit.userAgent);
+			if (setupNonce) {
+				await redis.set(
+					setupCheckKey(hit.websiteId, setupNonce),
+					hit.path,
+					"EX",
+					120
+				);
+				return new Response(null, { status: 202 });
 			}
 
 			const { botName, result } = detectBot(hit.userAgent, request);

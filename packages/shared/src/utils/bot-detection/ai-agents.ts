@@ -201,3 +201,17 @@ export function matchAiAgent(userAgent: string): AiAgent | null {
 		) ?? null
 	);
 }
+
+const SETUP_CHECK_TOKEN = /DatabuddySetupCheck\/([\w-]{1,64})/;
+
+export function setupCheckUserAgent(nonce: string): string {
+	return `Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot) DatabuddySetupCheck/${nonce}`;
+}
+
+export function setupCheckNonce(userAgent: string): string | null {
+	return SETUP_CHECK_TOKEN.exec(userAgent)?.[1] ?? null;
+}
+
+export function setupCheckKey(websiteId: string, nonce: string): string {
+	return `ai-agent-setup-check:${websiteId}:${nonce}`;
+}

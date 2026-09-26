@@ -1,4 +1,5 @@
-import { vi, beforeEach, describe, expect, test } from "vitest";
+import { setupCheckUserAgent } from "@databuddy/shared/bot-detection/ai-agents";
+import { vi, afterEach, beforeEach, describe, expect, test } from "vitest";
 
 const {
 	noop,
@@ -22,6 +23,7 @@ const {
 	mockGetWebsiteByIdV2,
 	mockResolveApiKeyOwnerId,
 	mockDenyApiKeyWebsiteAccess,
+	mockRedisSet,
 	apiKeyDenialErrors,
 } = vi.hoisted(() => {
 	const noop = vi.fn(() => {});
@@ -42,6 +44,7 @@ const {
 	};
 	return {
 		mockDenyApiKeyWebsiteAccess: vi.fn((): string | null => null),
+		mockRedisSet: vi.fn(() => Promise.resolve("OK")),
 		apiKeyDenialErrors: {} as Record<string, () => Error>,
 		noop,
 		noopAsync,
@@ -177,6 +180,10 @@ vi.mock("@lib/api-key", () => ({
 	getAccessibleWebsiteIds: mockGetAccessibleWebsiteIds,
 }));
 
+vi.mock("@databuddy/redis/redis", () => ({
+	redis: { set: mockRedisSet },
+}));
+
 vi.mock("@hooks/auth", () => ({
 	getWebsiteByIdV2: mockGetWebsiteByIdV2,
 	resolveApiKeyOwnerId: mockResolveApiKeyOwnerId,
@@ -196,6 +203,7 @@ const { basketErrors, buildBasketErrorPayload } = await import(
 );
 const { ERRORS_BODY_MAX_BYTES } = await import("../routes/basket");
 const { send: mockSend } = await import("@lib/producer");
+const { isOriginAllowed } = await import("@hooks/auth");
 apiKeyDenialErrors.website_scope_mismatch =
 	basketErrors.trackWebsiteScopeMismatch;
 const { createError, EvlogError } = await import("evlog");
@@ -1308,25 +1316,28 @@ describe("POST /ai-traffic", () => {
 
 	beforeEach(() => {
 		vi.mocked(mockSend).mockClear();
-		mockGetApiKeyFromHeader.mockResolvedValue({
-			id: "key_1",
-			organizationId: "org_1",
-			userId: "user_1",
-			scopes: ["track:events"],
-		});
-		mockDenyApiKeyWebsiteAccess.mockReturnValue(null);
+		vi.mocked(mockRedisSet).mockClear();
+		vi.mocked(isOriginAllowed).mockImplementation(
+			(origin: string, domain: string) =>
+				new URL(origin).hostname.endsWith(domain)
+		);
 	});
 
-	function hit(userAgent: string) {
+	afterEach(() => {
+		vi.mocked(isOriginAllowed).mockImplementation(() => true);
+	});
+
+	function hit(userAgent: string, host = "docs.example.com") {
 		return post(trackRoute, "/ai-traffic", {
 			websiteId: "ws_test",
+			host,
 			path: "/docs/intro",
 			format: "markdown",
 			userAgent,
 		});
 	}
 
-	test("stores an AI agent request with its agent and format", async () => {
+	test("stores an AI agent request without an API key", async () => {
 		const res = await hit(CLAUDE_CODE);
 		expect(res.status).toBe(202);
 		expect(mockSend).toHaveBeenCalledWith(
@@ -1350,17 +1361,21 @@ describe("POST /ai-traffic", () => {
 		expect(mockSend).not.toHaveBeenCalled();
 	});
 
-	test("requires an API key", async () => {
-		mockGetApiKeyFromHeader.mockResolvedValueOnce(null);
-		const res = await hit(CLAUDE_CODE);
-		expect(res.status).toBe(401);
+	test("rejects hits from a host the website does not own", async () => {
+		const res = await hit(CLAUDE_CODE, "someone-else.dev");
+		expect(res.status).toBe(403);
 		expect(mockSend).not.toHaveBeenCalled();
 	});
 
-	test("rejects keys that cannot write to the website", async () => {
-		mockDenyApiKeyWebsiteAccess.mockReturnValueOnce("website_scope_mismatch");
-		const res = await hit(CLAUDE_CODE);
-		expect(res.status).toBe(403);
+	test("records a setup check in Redis instead of analytics", async () => {
+		const res = await hit(setupCheckUserAgent("nonce_1"));
+		expect(res.status).toBe(202);
 		expect(mockSend).not.toHaveBeenCalled();
+		expect(mockRedisSet).toHaveBeenCalledWith(
+			"ai-agent-setup-check:ws_test:nonce_1",
+			"/docs/intro",
+			"EX",
+			120
+		);
 	});
 });
