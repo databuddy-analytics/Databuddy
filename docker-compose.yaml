@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:17
     container_name: databuddy-postgres
+    command: postgres -c max_connections=600
     environment:
       POSTGRES_DB: databuddy
       POSTGRES_USER: databuddy
