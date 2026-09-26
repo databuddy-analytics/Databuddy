@@ -74,14 +74,14 @@ export function resolveUptimeEmailPreference(
 	settings: {
 		uptime: { downEmails: boolean; recoveryEmails: boolean };
 	} | null,
-	kind: "down" | "recovered"
+	kind: "down" | "recovered" | "ssl_expiry"
 ): boolean | null {
 	if (settings === null) {
 		return null;
 	}
-	return kind === "down"
-		? settings.uptime.downEmails
-		: settings.uptime.recoveryEmails;
+	return kind === "recovered"
+		? settings.uptime.recoveryEmails
+		: settings.uptime.downEmails;
 }
 
 function buildSiteLabel(schedule: ScheduleData): string {
@@ -96,6 +96,9 @@ function buildSiteLabel(schedule: ScheduleData): string {
 		return schedule.url;
 	}
 }
+
+const monitorDashboardUrl = (scheduleId: string) =>
+	`${config.urls.dashboard}/monitors/${scheduleId}`;
 
 function formatCheckedAt(timestamp: number): string {
 	if (!Number.isFinite(timestamp)) {
@@ -324,6 +327,22 @@ const sendToAlarm = (
 		{ concurrency: "unbounded" }
 	).pipe(Effect.map((counts) => counts.reduce((total, n) => total + n, 0)));
 
+const loadEmailSettings = (organizationId: string) =>
+	recover(
+		async () => {
+			const row = await db.query.organization.findFirst({
+				where: { id: organizationId },
+				columns: { emailNotifications: true },
+			});
+			return normalizeEmailNotificationSettings(row?.emailNotifications);
+		},
+		null,
+		{
+			error_step: "organization_email_settings",
+			organization_id: organizationId,
+		}
+	);
+
 export interface MonitorState {
 	failureStreak: number;
 	status: number;
@@ -451,27 +470,15 @@ export function fireTransitionAlerts({
 				return { alarms_fired: 0, transition_kind: kind };
 			}
 
-			const emailSettings = yield* recover(
-				async () => {
-					const row = await db.query.organization.findFirst({
-						where: { id: schedule.organizationId },
-						columns: { emailNotifications: true },
-					});
-					return normalizeEmailNotificationSettings(row?.emailNotifications);
-				},
-				null,
-				{
-					error_step: "organization_email_settings",
-					organization_id: schedule.organizationId,
-				}
+			const emailsEnabled = resolveUptimeEmailPreference(
+				yield* loadEmailSettings(schedule.organizationId),
+				kind
 			);
-			const emailsEnabled = resolveUptimeEmailPreference(emailSettings, kind);
 
 			const siteLabel = buildSiteLabel(schedule);
-			const dashboardUrl = `${config.urls.dashboard}/monitors/${schedule.id}`;
 
 			const payload = buildTransitionNotificationPayload({
-				dashboardUrl,
+				dashboardUrl: monitorDashboardUrl(schedule.id),
 				data,
 				kind,
 				monitorId: schedule.id,
@@ -499,6 +506,153 @@ export function fireTransitionAlerts({
 				yield* releaseClaim;
 			}
 			return { alarms_fired: fired, transition_kind: kind };
+		})
+	);
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const SSL_EXPIRY_ALERT_WINDOW_MS = 14 * DAY_MS;
+const SSL_EXPIRY_HIGH_PRIORITY_DAYS = 3;
+const SSL_ALERT_CLAIM_SECONDS = 10 * 60;
+const SSL_ALERT_KEY_TTL_SECONDS = 60 * 60 * 24 * 30;
+
+export interface SslExpiryAlert {
+	daysRemaining: number;
+	expired: boolean;
+	expiresAt: number;
+}
+
+export function resolveSslExpiryAlert(
+	data: Pick<UptimeData, "ssl_expiry" | "url">,
+	now: number
+): SslExpiryAlert | null {
+	const expiresAt = data.ssl_expiry;
+	if (expiresAt === null || !Number.isFinite(expiresAt) || expiresAt <= 0) {
+		return null;
+	}
+	if (!URL.canParse(data.url) || new URL(data.url).protocol !== "https:") {
+		return null;
+	}
+	const remainingMs = expiresAt - now;
+	if (remainingMs > SSL_EXPIRY_ALERT_WINDOW_MS) {
+		return null;
+	}
+	return {
+		daysRemaining: Math.max(0, Math.ceil(remainingMs / DAY_MS)),
+		expiresAt,
+		expired: remainingMs <= 0,
+	};
+}
+
+export const sslExpiryAlertKey = (scheduleId: string, expiresAt: number) =>
+	`uptime:ssl-alert:${scheduleId}:${expiresAt}`;
+
+export function buildSslExpiryNotificationPayload(input: {
+	alert: SslExpiryAlert;
+	dashboardUrl: string;
+	monitorId: string;
+	siteLabel: string;
+	url: string;
+}): TransitionNotificationPayload {
+	const { alert, siteLabel } = input;
+	const expiresAt = new Date(alert.expiresAt).toISOString();
+	const dayLabel = alert.daysRemaining === 1 ? "day" : "days";
+	return {
+		title: alert.expired
+			? `SSL certificate expired: ${siteLabel}`
+			: `SSL certificate expires in ${alert.daysRemaining} ${dayLabel}: ${siteLabel}`,
+		message: alert.expired
+			? `The SSL certificate for ${siteLabel} expired at ${expiresAt}. Visitors see browser security warnings until it is renewed. View details: ${input.dashboardUrl}`
+			: `The SSL certificate for ${siteLabel} expires at ${expiresAt}. Renew it before then to avoid browser security warnings. View details: ${input.dashboardUrl}`,
+		priority:
+			alert.expired || alert.daysRemaining <= SSL_EXPIRY_HIGH_PRIORITY_DAYS
+				? "high"
+				: "normal",
+		metadata: {
+			template: "uptime-ssl-expiry",
+			monitorId: input.monitorId,
+			monitorName: siteLabel,
+			url: input.url,
+			expiresAt,
+			daysRemaining: alert.daysRemaining,
+			dashboardUrl: input.dashboardUrl,
+		},
+	};
+}
+
+const claimSslAlert = (key: string) =>
+	recover(
+		async () =>
+			(await redis.set(key, "1", "EX", SSL_ALERT_CLAIM_SECONDS, "NX")) === "OK",
+		false,
+		{ error_step: "ssl_alert_claim" }
+	);
+
+const settleSslAlert = (key: string, delivered: boolean) =>
+	recover(
+		async () => {
+			await (delivered
+				? redis.expire(key, SSL_ALERT_KEY_TTL_SECONDS)
+				: redis.del(key));
+		},
+		undefined,
+		{ error_step: "ssl_alert_claim_settle" }
+	);
+
+export function fireSslExpiryAlerts({
+	schedule,
+	data,
+	now = Date.now(),
+}: {
+	schedule: ScheduleData;
+	data: UptimeData;
+	now?: number;
+}): Promise<{ alarms_fired: number; ssl_days_remaining: number | null }> {
+	return Effect.runPromise(
+		Effect.gen(function* () {
+			const alert = resolveSslExpiryAlert(data, now);
+			if (alert === null) {
+				return { alarms_fired: 0, ssl_days_remaining: null };
+			}
+			const skipped = {
+				alarms_fired: 0,
+				ssl_days_remaining: alert.daysRemaining,
+			};
+
+			const linkedAlarms = yield* lookupLinkedAlarms(
+				schedule.id,
+				schedule.organizationId
+			);
+			if (linkedAlarms === null || linkedAlarms.length === 0) {
+				return skipped;
+			}
+
+			const key = sslExpiryAlertKey(schedule.id, alert.expiresAt);
+			if (!(yield* claimSslAlert(key))) {
+				return skipped;
+			}
+
+			const emailsEnabled = resolveUptimeEmailPreference(
+				yield* loadEmailSettings(schedule.organizationId),
+				"ssl_expiry"
+			);
+			const payload = buildSslExpiryNotificationPayload({
+				alert,
+				dashboardUrl: monitorDashboardUrl(schedule.id),
+				monitorId: schedule.id,
+				siteLabel: buildSiteLabel(schedule),
+				url: data.url,
+			});
+			const { sendable } = buildUptimeDeliveryPlan(linkedAlarms, emailsEnabled);
+
+			const results = yield* Effect.all(
+				sendable.map((alarm) => sendToAlarm(alarm, payload)),
+				{ concurrency: "unbounded" }
+			);
+
+			const fired = results.filter((count) => count > 0).length;
+			yield* settleSslAlert(key, fired > 0);
+			return { alarms_fired: fired, ssl_days_remaining: alert.daysRemaining };
 		})
 	);
 }
