@@ -7,7 +7,7 @@
     "check-types": "tsc --noEmit",
     "dev": "NODE_ENV=development dotenv -e ../../.env -- bun --hot src/index.ts",
     "test": "TZ=UTC bunx --bun vitest run",
-    "test:integration": "TZ=UTC bunx --bun vitest run --config vitest.integration.config.ts",
+    "test:integration": "UPTIME_ROUTER_INTEGRATION=true BULLMQ_REDIS_URL=\"${BULLMQ_REDIS_URL:-redis://localhost:6379/3}\" TZ=UTC bunx --bun vitest run --config vitest.integration.config.ts",
     "test:watch": "TZ=UTC bunx --bun vitest"
   },
   "dependencies": {

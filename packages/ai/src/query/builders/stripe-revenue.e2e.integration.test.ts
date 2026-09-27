@@ -1,3 +1,4 @@
+import "@databuddy/db/test-env";
 import { createHmac } from "node:crypto";
 import { resolve } from "node:path";
 import {

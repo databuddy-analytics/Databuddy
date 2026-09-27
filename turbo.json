@@ -86,6 +86,11 @@
         "WEBSITE_READER_INTEGRATION_TESTS"
       ]
     },
+    "test:integration": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "passThroughEnv": ["*"]
+    },
     "check-types": {
       "dependsOn": ["^build"]
     },
