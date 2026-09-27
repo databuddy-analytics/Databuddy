@@ -6,7 +6,13 @@ import { PRODUCER_DRAIN_TIMEOUT_MS } from "@lib/shutdown-budget";
 import { captureError, record } from "@lib/tracing";
 import { Data, Deferred, Effect, Ref } from "effect";
 import { createError, log } from "evlog";
-import { type Admin, CompressionTypes, Kafka, type Producer } from "kafkajs";
+import {
+	type Admin,
+	CompressionTypes,
+	Kafka,
+	type Message,
+	type Producer,
+} from "kafkajs";
 
 export interface ProducerConfig {
 	broker?: string;
@@ -24,21 +30,15 @@ export interface ProducerConfig {
 	username?: string;
 }
 
+type ClickHouseInserter = Pick<ClickHouseClient, "insert">;
+type KafkaProducer = Pick<Producer, "connect" | "disconnect" | "send">;
+type KafkaAdmin = Pick<
+	Admin,
+	"connect" | "describeCluster" | "disconnect" | "listTopics"
+>;
+
 interface DeliveryOptions {
 	readonly allowDirectFallback?: boolean;
-}
-
-interface ProducerStats {
-	connected: boolean;
-	connecting: boolean;
-	errors: number;
-	failed: boolean;
-	failedCount: number;
-	inFlight: number;
-	kafkaEnabled: boolean;
-	lastErrorTime: number | null;
-	lastRetry: number;
-	sent: number;
 }
 
 export interface EventProducer {
@@ -56,7 +56,6 @@ export interface EventProducer {
 		options?: DeliveryOptions
 	) => Effect.Effect<void, DeliveryError>;
 	shutDown: Effect.Effect<void, ShutdownDrainError>;
-	stats: Effect.Effect<ProducerStats>;
 }
 
 class KafkaConnectionError extends Data.TaggedError("KafkaConnectionError")<{
@@ -110,14 +109,9 @@ type DeliveryError =
 interface ProducerState {
 	connected: boolean;
 	connecting: Deferred.Deferred<boolean> | null;
-	connectionFailed: boolean;
-	errors: number;
-	failedCount: number;
+	connectionFailedAt: number | null;
 	inFlight: number;
-	lastErrorTime: number | null;
-	lastRetry: number;
 	producerInitialized: boolean;
-	sent: number;
 	shuttingDown: boolean;
 }
 
@@ -128,30 +122,21 @@ type ConnectDecision =
 	| { readonly type: "shutting-down" }
 	| { readonly deferred: Deferred.Deferred<boolean>; readonly type: "wait" };
 
-interface KafkaMessage {
-	key?: string;
-	value: string;
-}
-
 const INITIAL_STATE: ProducerState = {
-	sent: 0,
-	failedCount: 0,
-	errors: 0,
-	lastErrorTime: null,
 	connected: false,
 	connecting: null,
-	connectionFailed: false,
-	lastRetry: 0,
+	connectionFailedAt: null,
+	inFlight: 0,
 	producerInitialized: false,
 	shuttingDown: false,
-	inFlight: 0,
 };
 
 const ASYNC_INSERT_BUSY_TIMEOUT_MS = 50;
 
-const TOPIC_REJECTION_TYPES = new Set([
+const TOPIC_ERROR_TYPES = new Set([
 	"INVALID_TOPIC_EXCEPTION",
 	"TOPIC_AUTHORIZATION_FAILED",
+	"UNKNOWN_TOPIC_OR_PARTITION",
 ]);
 
 class DeadlineError extends Error {}
@@ -166,11 +151,11 @@ function stringifyEvent(event: unknown): string {
 	);
 }
 
-function isTopicRejection(error: unknown): boolean {
+function isTopicError(error: unknown): boolean {
 	let current = error;
 	for (let depth = 0; current instanceof Error && depth < 5; depth++) {
 		const type = (current as { type?: unknown }).type;
-		if (typeof type === "string" && TOPIC_REJECTION_TYPES.has(type)) {
+		if (typeof type === "string" && TOPIC_ERROR_TYPES.has(type)) {
 			return true;
 		}
 		current = current.cause;
@@ -178,24 +163,28 @@ function isTopicRejection(error: unknown): boolean {
 	return false;
 }
 
+interface DeadlineOptions {
+	message: string;
+	onAbandon?: () => void;
+	signal?: AbortSignal;
+	timeoutMs: number;
+}
+
 function withDeadline<T>(
 	operation: Promise<T>,
-	timeoutMs: number,
-	message: string,
-	signal?: AbortSignal,
-	onUncertain?: () => void
+	{ message, onAbandon, signal, timeoutMs }: DeadlineOptions
 ): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		let settled = false;
 		let timeout: ReturnType<typeof setTimeout> | undefined;
 
-		const finish = (complete: () => void, uncertain = false) => {
+		const finish = (complete: () => void, abandoned = false) => {
 			if (settled) {
 				return;
 			}
 			settled = true;
-			if (uncertain) {
-				onUncertain?.();
+			if (abandoned) {
+				onAbandon?.();
 			}
 			clearTimeout(timeout);
 			signal?.removeEventListener("abort", handleAbort);
@@ -242,7 +231,7 @@ interface KafkaHealthProbe {
 }
 
 function createKafkaHealthProbe(
-	admin: Admin,
+	admin: KafkaAdmin,
 	requiredTopics: string[]
 ): KafkaHealthProbe {
 	let activeProbe: ActiveHealthProbe | null = null;
@@ -340,11 +329,10 @@ function createKafkaHealthProbe(
 			}
 			const probe = startProbe();
 			try {
-				await withDeadline(
-					probe.promise,
+				await withDeadline(probe.promise, {
+					message: `Redpanda health probe exceeded ${timeoutMs}ms`,
 					timeoutMs,
-					`Redpanda health probe exceeded ${timeoutMs}ms`
-				);
+				});
 			} catch (error) {
 				if (error instanceof DeadlineError) {
 					probe.cancelled = true;
@@ -409,7 +397,7 @@ function withoutDeliveryIds(table: string, events: unknown[]): unknown[] {
 }
 
 async function insertIntoClickHouse(
-	ch: ClickHouseClient,
+	ch: ClickHouseInserter,
 	table: string,
 	events: unknown[],
 	chunkSize: number,
@@ -441,13 +429,11 @@ async function insertIntoClickHouse(
 		}
 	};
 
-	await withDeadline(
-		insertAllChunks(),
+	await withDeadline(insertAllChunks(), {
+		message: `Direct ClickHouse fallback exceeded ${timeoutMs}ms admission deadline`,
+		onAbandon: () => controller.abort(),
 		timeoutMs,
-		`Direct ClickHouse fallback exceeded ${timeoutMs}ms admission deadline`,
-		undefined,
-		() => controller.abort()
-	);
+	});
 }
 
 export function createEventProducer({
@@ -457,53 +443,62 @@ export function createEventProducer({
 	kafkaAdmin = null,
 	topicMap,
 }: {
-	clickHouse: ClickHouseClient;
+	clickHouse: ClickHouseInserter;
 	config: ProducerConfig;
-	kafka?: Producer | null;
-	kafkaAdmin?: Admin | null;
+	kafka?: KafkaProducer | null;
+	kafkaAdmin?: KafkaAdmin | null;
 	topicMap: Record<string, string>;
 }): EventProducer {
 	const state = Ref.makeUnsafe<ProducerState>(INITIAL_STATE);
-	const kafkaEnabled = !config.selfHost && Boolean(config.broker);
+	const producer = config.selfHost || !config.broker ? null : kafka;
 	const healthProbe = kafkaAdmin
 		? createKafkaHealthProbe(kafkaAdmin, Object.keys(topicMap))
 		: null;
 	const unacknowledgedSends = new Map<Promise<unknown>, number>();
 	const unacknowledgedCount = () =>
 		Array.from(unacknowledgedSends.values()).reduce((total, n) => total + n, 0);
+	const topicFailedAt = new Map<string, number>();
 
-	const countSent = (n: number) =>
-		Ref.update(state, (s) => ({ ...s, sent: s.sent + n }));
+	const withinCooldown = (failedAt: number | null) =>
+		failedAt !== null && Date.now() - failedAt < config.reconnectCooldown;
 
 	const reportError = (
 		cause: unknown,
-		context: Parameters<typeof captureError>[1],
-		update: (s: ProducerState) => Partial<ProducerState> = () => ({})
-	) =>
-		Ref.update(state, (s) => ({
-			...s,
-			...update(s),
-			errors: s.errors + 1,
-			lastErrorTime: Date.now(),
-		})).pipe(Effect.andThen(Effect.sync(() => captureError(cause, context))));
+		context: Parameters<typeof captureError>[1]
+	) => Effect.sync(() => captureError(cause, context));
 
-	const reserveInFlight = (count: number) =>
+	const unavailable = (cause: unknown) =>
+		new ProducerUnavailableError({ cause: toError(cause), retryable: true });
+
+	const withInFlight = <A, E, S>(
+		count: number,
+		shuttingDownError: () => S,
+		effect: Effect.Effect<A, E>
+	): Effect.Effect<A, E | S> =>
 		Ref.modify(state, (s) => {
 			if (s.shuttingDown) {
 				return [false, s] as const;
 			}
 			return [true, { ...s, inFlight: s.inFlight + count }] as const;
-		});
-
-	const releaseInFlight = (count: number) =>
-		Ref.update(state, (s) => ({
-			...s,
-			inFlight: Math.max(0, s.inFlight - count),
-		}));
+		}).pipe(
+			Effect.flatMap(
+				(accepted): Effect.Effect<A, E | S> =>
+					accepted
+						? effect.pipe(
+								Effect.ensuring(
+									Ref.update(state, (s) => ({
+										...s,
+										inFlight: Math.max(0, s.inFlight - count),
+									}))
+								)
+							)
+						: Effect.fail(shuttingDownError())
+			)
+		);
 
 	const connect: Effect.Effect<boolean> = Effect.gen(function* () {
-		if (!(kafkaEnabled && kafka)) {
-			return (yield* Ref.get(state)).connected;
+		if (!producer) {
+			return false;
 		}
 
 		const attempt = yield* Deferred.make<boolean>();
@@ -519,10 +514,7 @@ export function createEventProducer({
 				if (s.connecting) {
 					return [{ deferred: s.connecting, type: "wait" as const }, s];
 				}
-				if (
-					s.connectionFailed &&
-					Date.now() - s.lastRetry < config.reconnectCooldown
-				) {
+				if (withinCooldown(s.connectionFailedAt)) {
 					return [{ type: "fallback" as const }, s];
 				}
 				return [
@@ -542,20 +534,17 @@ export function createEventProducer({
 			return yield* Deferred.await(decision.deferred);
 		}
 
-		let connectedAfterDeadline = false;
-		let lateDisconnectStarted = false;
-		const connection = kafka.connect();
+		let abandoned = false;
+		const connection = producer.connect();
 		connection.then(
 			() => {
-				if (!connectedAfterDeadline || lateDisconnectStarted) {
-					return;
-				}
-				lateDisconnectStarted = true;
-				kafka.disconnect().catch((error) => {
-					captureError(error, {
-						message: "Failed to reconcile a late Redpanda connection",
+				if (abandoned) {
+					producer.disconnect().catch((error) => {
+						captureError(error, {
+							message: "Failed to reconcile a late Redpanda connection",
+						});
 					});
-				});
+				}
 			},
 			() => undefined
 		);
@@ -565,15 +554,14 @@ export function createEventProducer({
 
 		return yield* Effect.tryPromise({
 			try: (signal) =>
-				withDeadline(
-					connection,
-					config.connectTimeout,
-					`Redpanda connection exceeded ${config.connectTimeout}ms`,
+				withDeadline(connection, {
+					message: `Redpanda connection exceeded ${config.connectTimeout}ms`,
+					onAbandon: () => {
+						abandoned = true;
+					},
 					signal,
-					() => {
-						connectedAfterDeadline = true;
-					}
-				),
+					timeoutMs: config.connectTimeout,
+				}),
 			catch: (e) => new KafkaConnectionError({ cause: toError(e) }),
 		}).pipe(
 			Effect.flatMap(() =>
@@ -585,8 +573,7 @@ export function createEventProducer({
 							...s,
 							connected: accepted,
 							connecting: clearAttempt(s),
-							connectionFailed: false,
-							lastRetry: 0,
+							connectionFailedAt: null,
 							producerInitialized: true,
 						},
 					] as const;
@@ -596,17 +583,14 @@ export function createEventProducer({
 				Ref.update(state, (s) => ({
 					...s,
 					connecting: clearAttempt(s),
-					connectionFailed: true,
-					lastRetry: Date.now(),
-					errors: s.errors + 1,
-					lastErrorTime: Date.now(),
+					connectionFailedAt: Date.now(),
 				})).pipe(
-					Effect.tap(() =>
+					Effect.andThen(
 						Effect.sync(() =>
 							log.warn({
 								message:
 									"Redpanda connection failed, using ClickHouse fallback",
-								error_message: toError(err.cause).message,
+								error_message: err.cause?.message,
 							})
 						)
 					),
@@ -624,36 +608,26 @@ export function createEventProducer({
 		);
 	});
 
-	const unavailable = (reason: string) =>
-		new ProducerUnavailableError({
-			cause: new Error(reason),
-			retryable: true,
-		});
-
 	const checkConnection: Effect.Effect<void, ProducerUnavailableError> =
-		reserveInFlight(1).pipe(
-			Effect.flatMap((accepted) =>
-				accepted
-					? connect
-					: Effect.fail(unavailable("Producer is shutting down"))
-			),
-			Effect.flatMap((connected) => {
-				if (!healthProbe) {
-					return Effect.fail(unavailable("Redpanda is not configured"));
-				}
-				if (!connected) {
-					return Effect.fail(unavailable("Redpanda producer is not connected"));
-				}
-				return Effect.tryPromise({
-					try: () => healthProbe.probe(config.healthProbeTimeout),
-					catch: (error) =>
-						new ProducerUnavailableError({
-							cause: toError(error),
-							retryable: true,
-						}),
-				});
-			}),
-			Effect.ensuring(releaseInFlight(1))
+		withInFlight(
+			1,
+			() => unavailable("Producer is shutting down"),
+			connect.pipe(
+				Effect.flatMap((connected) => {
+					if (!healthProbe) {
+						return Effect.fail(unavailable("Redpanda is not configured"));
+					}
+					if (!connected) {
+						return Effect.fail(
+							unavailable("Redpanda producer is not connected")
+						);
+					}
+					return Effect.tryPromise({
+						try: () => healthProbe.probe(config.healthProbeTimeout),
+						catch: unavailable,
+					});
+				})
+			)
 		);
 
 	const tableForTopic = (
@@ -706,117 +680,105 @@ export function createEventProducer({
 							topic,
 						}),
 				}).pipe(
-					Effect.andThen(countSent(events.length)),
-					Effect.catchTag("ClickHouseFallbackError", (error) =>
+					Effect.tapError((error) =>
 						reportError(error.cause, {
 							message:
 								"Direct ClickHouse fallback insert failed; rejecting delivery",
 							table,
 							topic,
-						}).pipe(Effect.andThen(Effect.fail(error)))
+						})
 					)
 				)
 			)
 		);
 
-	const rejectAmbiguousSend = (err: KafkaSendError, messageCount: number) =>
-		reportError(
-			err.cause,
-			{
-				message:
-					"Redpanda send acknowledgement is ambiguous; rejecting delivery",
-				message_count: messageCount,
-				topic: err.topic,
-			},
-			(s) => ({
-				connectionFailed: true,
-				connected: false,
-				lastRetry: Date.now(),
-				failedCount: s.failedCount + messageCount,
-			})
-		).pipe(Effect.andThen(Effect.fail(err)));
-
-	const reportRejectedTopic = (err: KafkaSendError) =>
-		reportError(err.cause, {
-			message: "Redpanda rejected the topic; delivering directly to ClickHouse",
-			topic: err.topic,
-		}).pipe(Effect.as(false));
+	const rejectSend = (err: KafkaSendError, messageCount: number) => {
+		const topicOnly = isTopicError(err.cause);
+		const startCooldown = topicOnly
+			? Effect.sync(() => {
+					topicFailedAt.set(err.topic, Date.now());
+				})
+			: Ref.update(state, (s) => ({
+					...s,
+					connected: false,
+					connectionFailedAt: Date.now(),
+				}));
+		return startCooldown.pipe(
+			Effect.andThen(
+				reportError(err.cause, {
+					cooldown: topicOnly ? "topic" : "producer",
+					message:
+						"Redpanda send failed or its acknowledgement is ambiguous; rejecting delivery",
+					message_count: messageCount,
+					topic: err.topic,
+				})
+			),
+			Effect.andThen(Effect.fail(err))
+		);
+	};
 
 	const sendToKafka = (
-		producer: Producer,
+		kafkaProducer: KafkaProducer,
 		topic: string,
-		messages: KafkaMessage[]
-	): Effect.Effect<boolean, KafkaSendError> =>
+		messages: Message[]
+	): Effect.Effect<void, KafkaSendError> =>
 		Effect.suspend(() => {
-			const send = producer.send({
+			const send = kafkaProducer.send({
 				topic,
 				messages,
 				timeout: config.kafkaTimeout,
 				compression: CompressionTypes.GZIP,
 			});
-			send.then(
-				() => unacknowledgedSends.delete(send),
-				() => unacknowledgedSends.delete(send)
-			);
+			const forget = () => unacknowledgedSends.delete(send);
+			send.then(forget, forget);
 			return Effect.tryPromise({
 				try: (signal) =>
-					withDeadline(
-						send,
-						config.kafkaTimeout,
-						`Redpanda send acknowledgement exceeded ${config.kafkaTimeout}ms`,
-						signal,
-						() => {
+					withDeadline(send, {
+						message: `Redpanda send acknowledgement exceeded ${config.kafkaTimeout}ms`,
+						onAbandon: () => {
 							unacknowledgedSends.set(send, messages.length);
-						}
-					),
+						},
+						signal,
+						timeoutMs: config.kafkaTimeout,
+					}),
 				catch: (e) => new KafkaSendError({ topic, cause: toError(e) }),
 			}).pipe(
-				Effect.andThen(countSent(messages.length)),
-				Effect.as(true),
 				Effect.catchTag("KafkaSendError", (err) =>
-					isTopicRejection(err.cause)
-						? reportRejectedTopic(err)
-						: rejectAmbiguousSend(err, messages.length)
+					rejectSend(err, messages.length)
 				)
 			);
 		});
 
 	const deliver = (
 		topic: string,
-		messages: KafkaMessage[],
+		messages: Message[],
 		events: unknown[],
 		deliveryIds: string[] | undefined,
 		options: DeliveryOptions = {}
 	): Effect.Effect<void, DeliveryError> =>
-		reserveInFlight(events.length).pipe(
-			Effect.flatMap((accepted) =>
-				accepted
-					? Effect.void
-					: Effect.fail(
-							new ProducerShuttingDownError({
-								eventCount: events.length,
-								retryable: true,
-							})
+		withInFlight(
+			events.length,
+			() =>
+				new ProducerShuttingDownError({
+					eventCount: events.length,
+					retryable: true,
+				}),
+			Effect.gen(function* () {
+				const topicAvailable = !withinCooldown(
+					topicFailedAt.get(topic) ?? null
+				);
+				if (producer && topicAvailable && (yield* connect)) {
+					return yield* sendToKafka(producer, topic, messages);
+				}
+				if (options.allowDirectFallback === false) {
+					return yield* Effect.fail(
+						unavailable(
+							"Redpanda is unavailable and this retry must not fall back to ClickHouse"
 						)
-			),
-			Effect.andThen(
-				Effect.gen(function* () {
-					if (
-						kafkaEnabled &&
-						kafka &&
-						(yield* connect) &&
-						(yield* sendToKafka(kafka, topic, messages))
-					) {
-						return;
-					}
-					if (options.allowDirectFallback === false) {
-						return yield* Effect.fail(
-							new ProducerUnavailableError({ retryable: true })
-						);
-					}
-					yield* insertDirectly(topic, events, deliveryIds);
-				}).pipe(Effect.ensuring(releaseInFlight(events.length)))
-			)
+					);
+				}
+				yield* insertDirectly(topic, events, deliveryIds);
+			})
 		);
 
 	const sendOne: EventProducer["sendOne"] = (topic, event, key, options) =>
@@ -864,12 +826,12 @@ export function createEventProducer({
 
 	const disconnectProducer = Effect.gen(function* () {
 		const s = yield* Ref.get(state);
-		if (!(kafka && (s.producerInitialized || s.connecting))) {
+		if (!(producer && (s.producerInitialized || s.connecting))) {
 			return;
 		}
 
 		yield* Effect.tryPromise({
-			try: () => kafka.disconnect(),
+			try: () => producer.disconnect(),
 			catch: (e) => new KafkaConnectionError({ cause: toError(e) }),
 		}).pipe(
 			Effect.ensuring(
@@ -881,11 +843,9 @@ export function createEventProducer({
 				}))
 			),
 			Effect.tapError((err) =>
-				Effect.sync(() =>
-					captureError(err.cause, {
-						message: "Error disconnecting Redpanda producer",
-					})
-				)
+				reportError(err.cause, {
+					message: "Error disconnecting Redpanda producer",
+				})
 			)
 		);
 	});
@@ -896,11 +856,9 @@ export function createEventProducer({
 				catch: (error) => new KafkaConnectionError({ cause: toError(error) }),
 			}).pipe(
 				Effect.tapError((error) =>
-					Effect.sync(() =>
-						captureError(error.cause, {
-							message: "Error disconnecting Redpanda health probe",
-						})
-					)
+					reportError(error.cause, {
+						message: "Error disconnecting Redpanda health probe",
+					})
 				)
 			)
 		: Effect.void;
@@ -954,25 +912,7 @@ export function createEventProducer({
 		}
 	);
 
-	const stats: Effect.Effect<ProducerStats> = Ref.get(state).pipe(
-		Effect.map(
-			({
-				connecting,
-				connectionFailed,
-				producerInitialized: _producerInitialized,
-				shuttingDown: _shuttingDown,
-				...counters
-			}) => ({
-				...counters,
-				connecting: connecting !== null,
-				failed: connectionFailed,
-				inFlight: counters.inFlight + unacknowledgedCount(),
-				kafkaEnabled,
-			})
-		)
-	);
-
-	return { checkConnection, sendMany, sendOne, shutDown, stats };
+	return { checkConnection, sendMany, sendOne, shutDown };
 }
 
 function createKafkaClients(
