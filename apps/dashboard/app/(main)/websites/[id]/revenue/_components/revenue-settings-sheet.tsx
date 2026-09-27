@@ -62,10 +62,10 @@ function RequiredEventList({
 							{fromNow(receivedAt)}
 						</>
 					);
-				} else if (unavailable) {
-					status = "Unavailable";
 				} else if (lastReceived) {
 					status = "No delivery in 90 days";
+				} else if (unavailable) {
+					status = "Unavailable";
 				}
 				return (
 					<div className="flex items-center justify-between gap-2" key={event}>
