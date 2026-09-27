@@ -6,6 +6,7 @@ import type {
 } from "./core/types";
 import {
 	clearStoredTrackingState,
+	dataAttributeKey,
 	generateUUIDv4,
 	getTrackerConfig,
 	isDebugMode,
@@ -231,8 +232,11 @@ export class Databuddy extends BaseTracker {
 			const chunk: QueuedItem[] = [];
 			let payloadBytes = 2;
 			let queueIndex = 0;
-			while (queueIndex < queue.length && chunk.length < meta.maxBatchSize) {
+			while (chunk.length < meta.maxBatchSize) {
 				const item = queue[queueIndex];
+				if (item === undefined) {
+					break;
+				}
 				let serialized: string;
 				try {
 					serialized = JSON.stringify(item) ?? "null";
@@ -430,9 +434,7 @@ export class Databuddy extends BaseTracker {
 			const properties: Record<string, string> = {};
 			for (const attr of trackable.attributes) {
 				if (attr.name.startsWith("data-") && attr.name !== "data-track") {
-					properties[
-						attr.name.slice(5).replace(/-./g, (x) => x[1].toUpperCase())
-					] = attr.value;
+					properties[dataAttributeKey(attr.name)] = attr.value;
 				}
 			}
 			this.track(eventName, properties);
