@@ -1,4 +1,5 @@
 import {
+	afterAll,
 	beforeAll,
 	beforeEach,
 	describe,
@@ -14,6 +15,20 @@ import type {
 } from "./with-workspace";
 
 process.env.REDIS_URL ??= "redis://localhost:6379";
+
+const originalAutumnKey = process.env.AUTUMN_SECRET_KEY;
+
+beforeAll(() => {
+	process.env.AUTUMN_SECRET_KEY = "synthetic-plan-gating";
+});
+
+afterAll(() => {
+	if (originalAutumnKey === undefined) {
+		Reflect.deleteProperty(process.env, "AUTUMN_SECRET_KEY");
+	} else {
+		process.env.AUTUMN_SECRET_KEY = originalAutumnKey;
+	}
+});
 
 const ORGANIZATION_ID = "org-test";
 const OTHER_ORGANIZATION_ID = "org-other";

@@ -1,6 +1,6 @@
 import "@databuddy/test/env";
 
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { withWorkspace, withPublicWorkspace, appRouter } from "@databuddy/rpc";
 import {
 	reset,
@@ -827,6 +827,20 @@ describe("withWorkspace", () => {
 	});
 
 	describe("plan gating", () => {
+		const originalAutumnKey = process.env.AUTUMN_SECRET_KEY;
+
+		beforeAll(() => {
+			process.env.AUTUMN_SECRET_KEY = "synthetic-plan-gating";
+		});
+
+		afterAll(() => {
+			if (originalAutumnKey === undefined) {
+				Reflect.deleteProperty(process.env, "AUTUMN_SECRET_KEY");
+			} else {
+				process.env.AUTUMN_SECRET_KEY = originalAutumnKey;
+			}
+		});
+
 		iit("rejects when required plan not met", async () => {
 			const user = await signUp();
 			const org = await insertOrganization();
