@@ -56,25 +56,31 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
         run: |
+          set -euo pipefail
           if [[ "$INIT_ONLY" == "true" ]]; then
-            echo 'services=["init"]' >> "$GITHUB_OUTPUT"
+            candidates=(init)
+          else
+            candidates=(api basket insights links uptime)
+          fi
+          all=$(printf '"%s",' "${candidates[@]}")
+          all="[${all%,}]"
+          if [[ "$EVENT_NAME" != "push" || -z "$BEFORE_SHA" || "$BEFORE_SHA" =~ ^0+$ ]] || ! git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+            echo "services=$all" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          ALL='["api","basket","insights","links","uptime"]'
-          if [[ "$EVENT_NAME" != "push" ]]; then
-            echo "services=$ALL" >> "$GITHUB_OUTPUT"
+          changed=$(git diff --name-only --no-renames "$BEFORE_SHA" HEAD)
+          if grep -qE '^(\.dockerignore|\.github/workflows/docker-publish(-init)?\.yml)$' <<< "$changed"; then
+            echo "services=$all" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [[ -z "$BEFORE_SHA" || "$BEFORE_SHA" == "0000000000000000000000000000000000000000" ]]; then
-            echo "services=$ALL" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          export TURBO_SCM_BASE="$BEFORE_SHA"
-          export TURBO_SCM_HEAD="HEAD"
+          packages=$(TURBO_SCM_BASE="$BEFORE_SHA" TURBO_SCM_HEAD=HEAD bunx turbo ls --affected --output=json | jq -r '.packages.items[].name')
           affected=()
-          for svc in api basket insights links uptime; do
-            count=$(bunx turbo ls --affected --filter="@databuddy/$svc" --output=json | jq -r '.packages.count')
-            if [[ "$count" != "0" ]]; then
+          for svc in "${candidates[@]}"; do
+            package="@databuddy/$svc"
+            if [[ "$svc" == "init" ]]; then
+              package="@databuddy/db"
+            fi
+            if grep -qx "$package" <<< "$packages" || grep -qx "$svc\.Dockerfile" <<< "$changed"; then
               affected+=("\"$svc\"")
             fi
           done
