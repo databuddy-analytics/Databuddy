@@ -1,0 +1,102 @@
+import * as actualClickHouse from "@databuddy/db/clickhouse";
+import { describe, expect, mock, test } from "bun:test";
+import type { ClickhouseQueryParams } from "./analytics-utils";
+
+interface StepCountRow {
+	completions: number | string;
+	step_num: number;
+}
+
+const realClickHouseModule = { ...actualClickHouse };
+const chQueryMock = mock(
+	(_query: string, _params?: ClickhouseQueryParams): Promise<StepCountRow[]> =>
+		Promise.resolve([])
+);
+
+mock.module("@databuddy/db/clickhouse", () => ({
+	...realClickHouseModule,
+	chQuery: chQueryMock,
+}));
+
+const { buildGoalAnalyticsResult, processGoalsConversionCountsBatch } =
+	await import("./analytics-utils");
+
+describe("processGoalsConversionCountsBatch", () => {
+	test("returns an empty map and issues no query for an empty step list", async () => {
+		chQueryMock.mockClear();
+
+		const result = await processGoalsConversionCountsBatch([], {
+			websiteId: "site_1",
+			startDate: "2026-01-01",
+			endDate: "2026-01-07 23:59:59",
+		});
+
+		expect(result.size).toBe(0);
+		expect(chQueryMock).not.toHaveBeenCalled();
+	});
+
+	test("counts every goal in one query and reads UInt64 counts sent as strings", async () => {
+		chQueryMock.mockClear();
+		chQueryMock.mockImplementationOnce(() =>
+			Promise.resolve([
+				{ step_num: 1, completions: "42" },
+				{ step_num: 2, completions: "7" },
+			])
+		);
+
+		const result = await processGoalsConversionCountsBatch(
+			[
+				{
+					step_number: 1,
+					type: "PAGE_VIEW",
+					target: "/pricing",
+					name: "Pricing",
+				},
+				{ step_number: 2, type: "EVENT", target: "signup", name: "Signup" },
+				{ step_number: 3, type: "EVENT", target: "purchase", name: "Purchase" },
+			],
+			{
+				websiteId: "site_1",
+				startDate: "2026-01-01",
+				endDate: "2026-01-07 23:59:59",
+			}
+		);
+
+		expect(chQueryMock).toHaveBeenCalledTimes(1);
+		expect(result.get(1)).toBe(42);
+		expect(result.get(2)).toBe(7);
+		expect(result.has(3)).toBe(false);
+	});
+
+	test("builds step matches without filter clauses", async () => {
+		chQueryMock.mockClear();
+		chQueryMock.mockImplementationOnce(() => Promise.resolve([]));
+
+		await processGoalsConversionCountsBatch(
+			[{ step_number: 1, type: "EVENT", target: "signup", name: "Signup" }],
+			{ websiteId: "site_1", startDate: "2026-01-01", endDate: "2026-01-07" }
+		);
+
+		const [query] = chQueryMock.mock.calls.at(-1) as [string];
+		expect(query).not.toContain("browserFilter");
+		expect(query).not.toContain("customFilter");
+	});
+});
+
+describe("buildGoalAnalyticsResult", () => {
+	test("computes conversion rate from completions and total entered users", () => {
+		const analytics = buildGoalAnalyticsResult("Signup", 25, 100);
+
+		expect(analytics.total_users_completed).toBe(25);
+		expect(analytics.total_users_entered).toBe(100);
+		expect(analytics.overall_conversion_rate).toBe(25);
+		expect(analytics.steps_analytics).toHaveLength(1);
+		expect(analytics.steps_analytics[0]?.step_name).toBe("Signup");
+	});
+
+	test("reports a zero conversion rate instead of dividing by zero", () => {
+		const analytics = buildGoalAnalyticsResult("Signup", 0, 0);
+
+		expect(analytics.overall_conversion_rate).toBe(0);
+	});
+});
