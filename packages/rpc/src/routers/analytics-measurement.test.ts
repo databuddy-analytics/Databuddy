@@ -322,13 +322,15 @@ test("bulk goal analytics counts unfiltered goals in one query and filtered goal
 
 	expect(batchQuery).toHaveBeenCalledTimes(1);
 	expect(
-		batchQuery.mock.calls[0]?.[0].map((step) => [step.step_number, step.target])
+		batchQuery.mock.calls
+			.at(0)?.[0]
+			.map((step) => [step.step_number, step.target])
 	).toEqual([
 		[1, "signup"],
 		[2, "purchase"],
 	]);
 	expect(goalQuery).toHaveBeenCalledTimes(1);
-	expect(goalQuery.mock.calls[0]?.[1]).toEqual([savedFilter]);
+	expect(goalQuery.mock.calls.at(0)?.[1]).toEqual([savedFilter]);
 	expect(result.signup).toMatchObject({
 		ok: true,
 		data: { total_users_completed: 30, total_users_entered: 200 },
@@ -350,7 +352,7 @@ test("bulk goal analytics falls back to per-goal queries when the batched query 
 	expect(goalQuery).toHaveBeenCalledTimes(3);
 	expect(
 		Object.fromEntries(
-			goalQuery.mock.calls.map((call) => [call[0][0]?.name, call[1]])
+			goalQuery.mock.calls.map((call) => [call[0].at(0)?.name, call[1]])
 		)
 	).toEqual({ signup: [], purchase: [], filtered: [savedFilter] });
 	expect(Object.values(result).every((entry) => entry.ok)).toBe(true);

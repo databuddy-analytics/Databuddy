@@ -52,7 +52,7 @@ describe("groupGoalsForBulkAnalytics", () => {
 			{ goal: filtered, combinedFilters: goalFilters },
 		]);
 		expect(batchChunks).toHaveLength(1);
-		expect(batchChunks[0]?.goals).toEqual([unfiltered]);
+		expect(batchChunks.at(0)?.goals).toEqual([unfiltered]);
 	});
 
 	test("routes every goal to individualGoals when a request-level filter applies", () => {

@@ -91,7 +91,7 @@ describe("buildGoalAnalyticsResult", () => {
 		expect(analytics.total_users_entered).toBe(100);
 		expect(analytics.overall_conversion_rate).toBe(25);
 		expect(analytics.steps_analytics).toHaveLength(1);
-		expect(analytics.steps_analytics[0]?.step_name).toBe("Signup");
+		expect(analytics.steps_analytics.at(0)?.step_name).toBe("Signup");
 	});
 
 	test("reports a zero conversion rate instead of dividing by zero", () => {
