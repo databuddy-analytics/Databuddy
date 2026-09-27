@@ -1,7 +1,5 @@
 import { readFile } from "node:fs/promises";
-import type { ClickHouseClient } from "@clickhouse/client";
 import { Effect } from "effect";
-import type { Admin, Producer } from "kafkajs";
 import { beforeEach, describe, expect, type Mock, test, vi } from "vitest";
 import type { ProducerConfig } from "./producer";
 
@@ -15,24 +13,14 @@ vi.mock("evlog", async () => {
 	return { ...actual, log: { ...actual.log, warn: mockLogWarn } };
 });
 
-vi.mock("@databuddy/db/clickhouse", () => ({
+vi.mock("@databuddy/db/clickhouse", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@databuddy/db/clickhouse")>()),
 	clickHouse: {},
-	TABLE_NAMES: {
-		ai_traffic_spans: "analytics.ai_traffic_spans",
-		blocked_traffic: "analytics.blocked_traffic",
-		custom_events: "analytics.custom_events",
-		engagement_spans: "analytics.engagement_spans",
-		error_spans: "analytics.error_spans",
-		events: "analytics.events",
-		link_visits: "analytics.link_visits",
-		outgoing_links: "analytics.outgoing_links",
-		web_vitals_spans: "analytics.web_vitals_spans",
-	},
 }));
 
 vi.mock("@lib/tracing", () => ({
 	captureError: mockCaptureError,
-	record: (_name: string, fn: () => Promise<unknown>) => fn(),
+	record: <T>(_name: string, fn: () => Promise<T>) => fn(),
 }));
 
 const { createEventProducer, TOPIC_MAP } = await import("./producer");
@@ -43,19 +31,16 @@ const topicMap = {
 };
 
 const baseConfig: ProducerConfig = {
-	broker: undefined,
 	chunkSize: 100,
 	connectTimeout: 100,
 	directFallbackTimeout: 1000,
 	healthProbeTimeout: 100,
 	kafkaTimeout: 1000,
 	maxProducerRetries: 0,
-	password: undefined,
 	producerRetryDelay: 1,
 	reconnectCooldown: 1,
 	selfHost: true,
 	shutdownDrainTimeout: 50,
-	username: undefined,
 };
 
 const withKafka: Partial<ProducerConfig> = {
@@ -72,6 +57,21 @@ const event = (id: string) => ({
 	timestamp: 1,
 });
 
+const cluster = {
+	brokers: [{ host: "redpanda.test", nodeId: 1, port: 9092 }],
+	clusterId: "test",
+	controller: 1,
+};
+
+const settlesWithin = (promise: Promise<void>, ms: number) =>
+	Promise.race([
+		promise.then(
+			() => true,
+			() => true
+		),
+		new Promise<boolean>((resolve) => setTimeout(resolve, ms, false)),
+	]);
+
 function deferred<T = void>() {
 	let resolve: (value: T) => void = () => undefined;
 	let reject: (error: Error) => void = () => undefined;
@@ -86,7 +86,7 @@ function fakeKafka(overrides: Partial<Record<"connect" | "send", Mock>> = {}) {
 	return {
 		connect: vi.fn(() => Promise.resolve()),
 		disconnect: vi.fn(() => Promise.resolve()),
-		send: vi.fn(() => Promise.resolve([] as unknown[])),
+		send: vi.fn(() => Promise.resolve([])),
 		...overrides,
 	};
 }
@@ -98,9 +98,7 @@ function fakeAdmin(
 ) {
 	return {
 		connect: vi.fn(() => Promise.resolve()),
-		describeCluster: vi.fn(() =>
-			Promise.resolve({ brokers: [{ nodeId: 1 }], clusterId: "test" })
-		),
+		describeCluster: vi.fn(() => Promise.resolve(cluster)),
 		disconnect: vi.fn(() => Promise.resolve()),
 		listTopics: vi.fn(() => Promise.resolve(Object.keys(topicMap))),
 		...overrides,
@@ -119,10 +117,10 @@ function createProducer({
 	kafkaAdmin?: ReturnType<typeof fakeAdmin>;
 } = {}) {
 	return createEventProducer({
-		clickHouse: { insert } as unknown as ClickHouseClient,
+		clickHouse: { insert },
 		config: { ...baseConfig, ...config },
-		kafka: kafka as unknown as Producer | undefined,
-		kafkaAdmin: kafkaAdmin as unknown as Admin | undefined,
+		kafka,
+		kafkaAdmin,
 		topicMap,
 	});
 }
@@ -176,11 +174,6 @@ describe("direct ClickHouse delivery", () => {
 			})
 		);
 		expect(kafka.connect).not.toHaveBeenCalled();
-		expect(await run(producer.stats)).toMatchObject({
-			inFlight: 0,
-			kafkaEnabled: false,
-			sent: 1,
-		});
 	});
 
 	test("gives a retried event the same deduplication token by event id or delivery id", async () => {
@@ -251,13 +244,12 @@ describe("direct ClickHouse delivery", () => {
 			table: "analytics.events",
 			topic: "analytics-events",
 		});
-		expect(await run(failing.stats)).toMatchObject({
-			errors: 1,
-			inFlight: 0,
-			sent: 0,
-		});
+		expect(mockCaptureError).toHaveBeenCalledOnce();
 
-		const stalledInsert = vi.fn(() => new Promise<void>(() => undefined));
+		const stalledInsert = vi.fn(
+			(_params: { abort_signal?: AbortSignal }) =>
+				new Promise<void>(() => undefined)
+		);
 		const stalled = createProducer({
 			config: { directFallbackTimeout: 20 },
 			insert: stalledInsert,
@@ -268,10 +260,7 @@ describe("direct ClickHouse delivery", () => {
 			_tag: "ClickHouseFallbackError",
 			retryable: true,
 		});
-		expect(
-			(stalledInsert.mock.calls[0]?.[0] as { abort_signal?: AbortSignal })
-				.abort_signal?.aborted
-		).toBe(true);
+		expect(stalledInsert.mock.calls[0]?.[0].abort_signal?.aborted).toBe(true);
 	});
 
 	test("rejects an unmapped topic as non-retryable", async () => {
@@ -336,12 +325,6 @@ describe("Kafka delivery", () => {
 		expect(kafka.connect).toHaveBeenCalledOnce();
 		expect(kafka.send).toHaveBeenCalledTimes(50);
 		expect(insert).not.toHaveBeenCalled();
-		expect(await run(producer.stats)).toMatchObject({
-			connected: true,
-			connecting: false,
-			inFlight: 0,
-			sent: 50,
-		});
 	});
 
 	test("falls back to ClickHouse during the reconnect cooldown after a failed connection", async () => {
@@ -361,13 +344,6 @@ describe("Kafka delivery", () => {
 		expect(kafka.connect).toHaveBeenCalledOnce();
 		expect(insert).toHaveBeenCalledTimes(51);
 		expect(mockLogWarn).toHaveBeenCalledOnce();
-		expect(await run(producer.stats)).toMatchObject({
-			connected: false,
-			errors: 1,
-			failed: true,
-			inFlight: 0,
-			sent: 51,
-		});
 	});
 
 	test("pins retries of an ambiguous send to Kafka while unrelated events fall back", async () => {
@@ -397,17 +373,11 @@ describe("Kafka delivery", () => {
 
 		await run(producer.sendOne("analytics-events", event("unrelated")));
 		expect(insert).toHaveBeenCalledOnce();
-		expect(await run(producer.stats)).toMatchObject({
-			connected: false,
-			errors: 1,
-			failed: true,
-			failedCount: 1,
-			inFlight: 0,
-			sent: 1,
-		});
+		expect(kafka.send).toHaveBeenCalledOnce();
+		expect(mockCaptureError).toHaveBeenCalledOnce();
 	});
 
-	test("delivers a broker-rejected topic directly without dropping the connection", async () => {
+	test("sends a rejected topic directly for the cooldown while other topics stay on Kafka", async () => {
 		const insert = vi.fn(() => Promise.resolve());
 		const topicRejection = new Error("Not authorized to access topics", {
 			cause: Object.assign(new Error("Topic authorization failed"), {
@@ -420,41 +390,35 @@ describe("Kafka delivery", () => {
 		});
 		const producer = createProducer({ config: withKafka, insert, kafka });
 
-		await run(producer.sendOne("analytics-events", event("rejected")));
+		await expect(
+			run(producer.sendOne("analytics-events", event("rejected")))
+		).rejects.toMatchObject({ _tag: "KafkaSendError" });
+		await expect(
+			run(
+				producer.sendOne("analytics-events", event("rejected"), undefined, {
+					allowDirectFallback: false,
+				})
+			)
+		).rejects.toMatchObject({ _tag: "ProducerUnavailableError" });
+		expect(insert).not.toHaveBeenCalled();
+
 		await run(producer.sendOne("analytics-events", event("next")));
+		await run(
+			producer.sendMany(
+				"analytics-custom-events",
+				[{ event_name: "x" }],
+				["d1"]
+			)
+		);
 
 		expect(insert).toHaveBeenCalledOnce();
+		expect(insert).toHaveBeenCalledWith(
+			expect.objectContaining({ table: "analytics.events" })
+		);
+		expect(kafka.connect).toHaveBeenCalledOnce();
 		expect(kafka.send).toHaveBeenCalledTimes(2);
-		expect(await run(producer.stats)).toMatchObject({
-			connected: true,
-			errors: 1,
-			failed: false,
-			failedCount: 0,
-			sent: 2,
-		});
-	});
-
-	test("counts a send acknowledged after its deadline as in flight until it settles", async () => {
-		const acknowledgement = deferred<unknown[]>();
-		const kafka = fakeKafka({ send: vi.fn(() => acknowledgement.promise) });
-		const producer = createProducer({
-			config: { ...withKafka, connectTimeout: 20, kafkaTimeout: 20 },
-			kafka,
-		});
-
-		await expect(
-			run(producer.sendOne("analytics-events", event("e1")))
-		).rejects.toMatchObject({
-			_tag: "KafkaSendError",
-			cause: expect.objectContaining({
-				message: "Redpanda send acknowledgement exceeded 20ms",
-			}),
-		});
-		expect((await run(producer.stats)).inFlight).toBe(1);
-
-		acknowledgement.resolve([]);
-		await vi.waitFor(async () =>
-			expect((await run(producer.stats)).inFlight).toBe(0)
+		expect(kafka.send).toHaveBeenLastCalledWith(
+			expect.objectContaining({ topic: "analytics-custom-events" })
 		);
 	});
 
@@ -471,10 +435,6 @@ describe("Kafka delivery", () => {
 		await expect(run(producer.checkConnection)).rejects.toMatchObject({
 			_tag: "ProducerUnavailableError",
 		});
-		expect(await run(producer.stats)).toMatchObject({
-			connecting: false,
-			inFlight: 0,
-		});
 
 		connection.resolve();
 		await vi.waitFor(() => expect(kafka.disconnect).toHaveBeenCalledOnce());
@@ -488,7 +448,7 @@ describe("health check", () => {
 		const kafkaAdmin = fakeAdmin({
 			describeCluster: vi
 				.fn()
-				.mockResolvedValueOnce({ brokers: [{ nodeId: 1 }], clusterId: "test" })
+				.mockResolvedValueOnce(cluster)
 				.mockRejectedValueOnce(new Error("metadata unavailable")),
 		});
 		const producer = createProducer({ config: withKafka, kafka, kafkaAdmin });
@@ -540,7 +500,7 @@ describe("health check", () => {
 	});
 
 	test("bounds a stalled metadata probe", async () => {
-		const metadata = deferred<never>();
+		const metadata = deferred<typeof cluster>();
 		const kafkaAdmin = fakeAdmin({
 			describeCluster: vi.fn(() => metadata.promise),
 			disconnect: vi.fn(() => {
@@ -564,12 +524,11 @@ describe("health check", () => {
 		await vi.waitFor(() =>
 			expect(kafkaAdmin.disconnect).toHaveBeenCalledOnce()
 		);
-		expect((await run(producer.stats)).inFlight).toBe(0);
 	});
 });
 
 describe("shutdown", () => {
-	test("rejects new sends while waiting for in-flight deliveries", async () => {
+	test("rejects new work while waiting for in-flight deliveries", async () => {
 		const insertDone = deferred();
 		const insert = vi.fn(() => insertDone.promise);
 		const producer = createProducer({
@@ -587,7 +546,10 @@ describe("shutdown", () => {
 			_tag: "ProducerShuttingDownError",
 			retryable: true,
 		});
-		expect((await run(producer.stats)).inFlight).toBe(1);
+		await expect(run(producer.checkConnection)).rejects.toMatchObject({
+			_tag: "ProducerUnavailableError",
+		});
+		expect(await settlesWithin(shutdown, 30)).toBe(false);
 
 		insertDone.resolve();
 		await inFlight;
@@ -612,6 +574,28 @@ describe("shutdown", () => {
 
 		insertDone.resolve();
 		await inFlight;
+	});
+
+	test("waits for a send acknowledged after its deadline", async () => {
+		const acknowledgement = deferred<[]>();
+		const producer = createProducer({
+			config: { ...withKafka, kafkaTimeout: 20, shutdownDrainTimeout: 500 },
+			kafka: fakeKafka({ send: vi.fn(() => acknowledgement.promise) }),
+		});
+
+		await expect(
+			run(producer.sendOne("analytics-events", event("e1")))
+		).rejects.toMatchObject({
+			_tag: "KafkaSendError",
+			cause: expect.objectContaining({
+				message: "Redpanda send acknowledgement exceeded 20ms",
+			}),
+		});
+		const shutdown = run(producer.shutDown);
+		expect(await settlesWithin(shutdown, 30)).toBe(false);
+
+		acknowledgement.resolve([]);
+		await shutdown;
 	});
 
 	test("bounds a stalled admin disconnect", async () => {
@@ -661,18 +645,10 @@ describe("shutdown", () => {
 		expect(kafka.connect).toHaveBeenCalledOnce();
 		expect(kafka.disconnect).toHaveBeenCalledOnce();
 		expect(kafkaAdmin.connect).not.toHaveBeenCalled();
-		expect(await run(producer.stats)).toMatchObject({
-			connected: false,
-			connecting: false,
-			inFlight: 0,
-		});
 	});
 
 	test("waits for an active health probe before disconnecting", async () => {
-		const metadata = deferred<{
-			brokers: Array<{ nodeId: number }>;
-			clusterId: string;
-		}>();
+		const metadata = deferred<typeof cluster>();
 		const kafka = fakeKafka();
 		const kafkaAdmin = fakeAdmin({
 			describeCluster: vi.fn(() => metadata.promise),
@@ -693,34 +669,33 @@ describe("shutdown", () => {
 		await vi.waitFor(() =>
 			expect(kafkaAdmin.describeCluster).toHaveBeenCalledOnce()
 		);
-		let shutdownSettled = false;
-		const shutdown = run(producer.shutDown).finally(() => {
-			shutdownSettled = true;
-		});
-		await new Promise((resolve) => setTimeout(resolve, 10));
-		expect(shutdownSettled).toBe(false);
+		const shutdown = run(producer.shutDown);
+		expect(await settlesWithin(shutdown, 30)).toBe(false);
 
-		metadata.resolve({ brokers: [{ nodeId: 1 }], clusterId: "test" });
+		metadata.resolve(cluster);
 		await check;
 		await shutdown;
 
 		expect(kafkaAdmin.disconnect).toHaveBeenCalledOnce();
 		expect(kafka.disconnect).toHaveBeenCalledOnce();
-		expect(await run(producer.stats)).toMatchObject({
-			connected: false,
-			connecting: false,
-			inFlight: 0,
-		});
 	});
 });
 
-test("every produced topic is consumed and routed by Vector", async () => {
+test("Vector consumes every produced topic into its ClickHouse table", async () => {
 	const vectorConfig = await readFile(
 		new URL("../../../../infra/ingest/vector.yaml", import.meta.url),
 		"utf8"
 	);
-	for (const topic of Object.keys(TOPIC_MAP)) {
+	for (const [topic, table] of Object.entries(TOPIC_MAP)) {
 		expect(vectorConfig).toContain(`- ${topic}\n`);
-		expect(vectorConfig).toContain(`.topic == "${topic}"`);
+		const route = vectorConfig.match(
+			new RegExp(`(\\w+): '\\.topic == "${topic}"'`)
+		)?.[1];
+		const sink = vectorConfig.match(
+			new RegExp(
+				`- route_analytics\\.${route}\\n[\\s\\S]*?database: (\\w+)\\n\\s*table: (\\w+)`
+			)
+		);
+		expect(`${sink?.[1]}.${sink?.[2]}`, topic).toBe(table);
 	}
 });
