@@ -4,6 +4,7 @@
   "version": "1.0.1",
   "type": "module",
   "scripts": {
+    "check-types": "tsc --noEmit",
     "dev": "NODE_ENV=development dotenv -e ../../.env -- bun --hot src/index.ts",
     "test": "TZ=UTC bunx --bun vitest run",
     "test:integration": "TZ=UTC bunx --bun vitest run --config vitest.integration.config.ts",
