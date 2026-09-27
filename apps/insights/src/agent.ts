@@ -1436,9 +1436,11 @@ function hasCompleteDefinitionMeasurement(
 	results: VerificationRead[]
 ) {
 	const subject = input.signal.entity;
-	const step =
-		subject.type === "funnel_step" ? FUNNEL_STEP_ENTITY.exec(subject.id) : null;
-	const stepNumber = step ? Number(step[2]) : null;
+	const [, stepFunnelId, stepText] =
+		subject.type === "funnel_step"
+			? (FUNNEL_STEP_ENTITY.exec(subject.id) ?? [])
+			: [];
+	const stepNumber = stepText ? Number(stepText) : null;
 	if (
 		subject.type === "funnel_step" &&
 		(!(stepNumber && Number.isSafeInteger(stepNumber)) ||
@@ -1447,7 +1449,9 @@ function hasCompleteDefinitionMeasurement(
 	) {
 		return false;
 	}
-	const entity = step ? { id: step[1], type: "funnel" as const } : subject;
+	const entity = stepFunnelId
+		? { id: stepFunnelId, type: "funnel" as const }
+		: subject;
 	if (entity.type !== "goal" && entity.type !== "funnel") {
 		return false;
 	}
@@ -1523,7 +1527,7 @@ function hasCompleteDefinitionMeasurement(
 			if (
 				!("steps" in definition) ||
 				stepNumber > definition.steps.length ||
-				rows.length !== 2 ||
+				!(rows.length === 2 && before && target) ||
 				before.step_number !== stepNumber - 1 ||
 				target.step_number !== stepNumber ||
 				rows.some((row) => row.total_users !== data.total_users_entered) ||
