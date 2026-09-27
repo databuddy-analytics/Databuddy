@@ -321,4 +321,99 @@ export const AiAgentsBuilders = {
 		timeField: "timestamp",
 		customizable: false,
 	},
+
+	ai_weekly_digest: {
+		meta: {
+			title: "AI Activity Digest",
+			description:
+				"Per AI product, visitors sent and requests made in the selected period and the equally long period before it, plus the pages it read in the selected period that it had not read in the 90 days before.",
+			category: "AI Agents",
+			tags: ["ai", "digest", "summary", "week-over-week"],
+			output_fields: [
+				{ name: "product", type: "string", label: "Product" },
+				{ name: "visitors", type: "number", label: "Visitors" },
+				{
+					name: "previous_visitors",
+					type: "number",
+					label: "Previous visitors",
+				},
+				{ name: "requests", type: "number", label: "Requests" },
+				{
+					name: "previous_requests",
+					type: "number",
+					label: "Previous requests",
+				},
+				{
+					name: "new_pages",
+					type: "number",
+					label: "Pages read for the first time",
+				},
+			],
+			default_visualization: "table",
+		},
+		customSql: (ctx) => ({
+			sql: `
+				WITH
+					toDate({startDate:String}) AS current_start,
+					toDate({endDate:String}) + 1 AS period_end,
+					current_start - (period_end - current_start) AS previous_start
+				SELECT
+					product,
+					sum(visitors_now) AS visitors,
+					sum(visitors_before) AS previous_visitors,
+					sum(requests_now) AS requests,
+					sum(requests_before) AS previous_requests,
+					sum(pages_new) AS new_pages
+				FROM (
+					SELECT
+						${AGENT_PRODUCT} AS product,
+						toUInt64(0) AS visitors_now,
+						toUInt64(0) AS visitors_before,
+						toUInt64(countIf(timestamp >= current_start)) AS requests_now,
+						toUInt64(countIf(timestamp < current_start)) AS requests_before,
+						toUInt64(0) AS pages_new
+					FROM ${Analytics.ai_traffic_spans}
+					WHERE ${COUNTED_SPAN}
+						AND timestamp >= previous_start AND timestamp < period_end
+					GROUP BY product
+					UNION ALL
+					SELECT
+						${VISIT_PRODUCT} AS product,
+						toUInt64(uniqIf(anonymous_id, time >= current_start)),
+						toUInt64(uniqIf(anonymous_id, time < current_start)),
+						toUInt64(0),
+						toUInt64(0),
+						toUInt64(0)
+					FROM ${Analytics.events}
+					WHERE client_id = {websiteId:String}
+						AND time >= previous_start AND time < period_end
+					GROUP BY product
+					HAVING product != ''
+					UNION ALL
+					SELECT
+						product,
+						toUInt64(0),
+						toUInt64(0),
+						toUInt64(0),
+						toUInt64(0),
+						toUInt64(countIf(first_read >= current_start))
+					FROM (
+						SELECT ${AGENT_PRODUCT} AS product, ${pageOf("path")} AS page, min(timestamp) AS first_read
+						FROM ${Analytics.ai_traffic_spans}
+						WHERE ${COUNTED_SPAN} AND path != ''
+							AND timestamp >= current_start - INTERVAL 90 DAY AND timestamp < period_end
+						GROUP BY product, page
+					)
+					GROUP BY product
+				)
+				GROUP BY product
+				HAVING visitors + previous_visitors + requests + previous_requests + new_pages > 0
+				ORDER BY visitors + requests DESC
+				LIMIT {limit:UInt32}
+			`,
+			params: { ...productParams(ctx), limit: ctx.limit ?? 20 },
+		}),
+		timeField: "timestamp",
+		customizable: false,
+	},
 } satisfies Record<string, SimpleQueryConfig>;
