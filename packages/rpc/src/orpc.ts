@@ -1,4 +1,3 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
 import type { OrganizationBusinessContext } from "@databuddy/shared/organization-business-context";
 import {
 	type ApiKeyRow,
@@ -15,6 +14,7 @@ import {
 	setRpcProcedureType,
 	setRpcAuthTiming,
 } from "./lib/rpc-log-context";
+import { hasHostedBilling } from "./lib/autumn-client";
 import { runTracked } from "./middleware/track-mutation";
 import { runAuditedMutation } from "./middleware/audit-mutation";
 import { type BillingOwner, getBillingOwner } from "./utils/billing";
@@ -111,7 +111,7 @@ export const createRPCContext = async (
 	let billingResolved = false;
 
 	const getBilling = async (): Promise<BillingOwner | undefined> => {
-		if (readBooleanEnv("SELFHOST")) {
+		if (!hasHostedBilling()) {
 			return;
 		}
 		if (billingResolved) {

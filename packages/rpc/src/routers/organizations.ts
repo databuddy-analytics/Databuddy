@@ -1,4 +1,3 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
 import {
 	and,
 	db,
@@ -16,7 +15,7 @@ import {
 } from "@databuddy/validation";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { getAutumn } from "../lib/autumn-client";
+import { getAutumn, hasHostedBilling } from "../lib/autumn-client";
 import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import {
@@ -360,7 +359,7 @@ export const organizationsRouter = {
 		})
 		.output(z.record(z.string(), z.unknown()))
 		.handler(async ({ context }) => {
-			if (readBooleanEnv("SELFHOST")) {
+			if (!hasHostedBilling()) {
 				return { unlimited: true, canUserUpgrade: false };
 			}
 			const billing = await context.getBilling();
@@ -444,7 +443,7 @@ export const organizationsRouter = {
 				}
 			}
 
-			if (readBooleanEnv("SELFHOST")) {
+			if (!hasHostedBilling()) {
 				return {
 					planId: null,
 					isOrganization: Boolean(context.organizationId),
