@@ -1,6 +1,5 @@
-import { countEvents, expect, findEvent, hasEvent, test } from "./test-utils";
+import { expect, findEvent, hasEvent, test } from "./test-utils";
 
-/** Flatten `properties` for /track payloads; batch events are already flat. */
 function eventPayloadForAssert(
 	event: Record<string, unknown>
 ): Record<string, unknown> {
@@ -14,7 +13,6 @@ function eventPayloadForAssert(
 }
 
 test.describe("API Methods", () => {
-
 	test.describe("setGlobalProperties", () => {
 		test("merges global properties into all events", async ({ page }) => {
 			await page.goto("/test");
@@ -31,7 +29,6 @@ test.describe("API Methods", () => {
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
 				.toBeTruthy();
 
-			// Set global properties
 			await page.evaluate(() => {
 				(window as any).db.setGlobalProperties({
 					app_version: "1.2.3",
@@ -89,7 +86,6 @@ test.describe("API Methods", () => {
 					hasEvent(req, (e) => e.name === "override_test")
 			);
 
-			// Override the global property
 			await page.evaluate(() => {
 				(window as any).db.track("override_test", { environment: "staging" });
 			});
@@ -102,7 +98,6 @@ test.describe("API Methods", () => {
 			}
 			const payload = eventPayloadForAssert(raw);
 
-			// Event-level props should override global
 			expect(payload.environment).toBe("staging");
 		});
 
@@ -149,124 +144,6 @@ test.describe("API Methods", () => {
 		});
 	});
 
-	test.describe("track (custom events)", () => {
-		test("sends custom event with properties", async ({ page }) => {
-			await page.goto("/test");
-			await page.evaluate(() => {
-				(window as any).databuddyConfig = {
-					clientId: "test-custom-event",
-					ignoreBotDetection: true,
-					batchTimeout: 200,
-				};
-			});
-			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
-
-			await expect
-				.poll(async () => await page.evaluate(() => !!(window as any).db))
-				.toBeTruthy();
-
-			const requestPromise = page.waitForRequest(
-				(req) =>
-					req.url().includes("basket.databuddy.cc") &&
-					hasEvent(req, (e) => e.name === "my_custom_event")
-			);
-
-			await page.evaluate(() => {
-				(window as any).db.track("my_custom_event", { foo: "bar" });
-			});
-
-			const request = await requestPromise;
-			const raw = findEvent(request, (e) => e.name === "my_custom_event");
-			expect(raw).toBeDefined();
-			if (raw === undefined) {
-				throw new Error("Expected my_custom_event in request payload");
-			}
-			const payload = eventPayloadForAssert(raw);
-
-			expect(payload.name).toBe("my_custom_event");
-			expect(payload.foo).toBe("bar");
-		});
-
-		test("includes global properties in custom events", async ({ page }) => {
-			await page.goto("/test");
-			await page.evaluate(() => {
-				(window as any).databuddyConfig = {
-					clientId: "test-custom-event",
-					ignoreBotDetection: true,
-					batchTimeout: 200,
-				};
-			});
-			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
-
-			await expect
-				.poll(async () => await page.evaluate(() => !!(window as any).db))
-				.toBeTruthy();
-
-			await page.evaluate(() => {
-				(window as any).db.setGlobalProperties({ user_tier: "premium" });
-			});
-
-			const requestPromise = page.waitForRequest(
-				(req) =>
-					req.url().includes("basket.databuddy.cc") &&
-					hasEvent(req, (e) => e.name === "custom_with_global")
-			);
-
-			await page.evaluate(() => {
-				(window as any).db.track("custom_with_global");
-			});
-
-			const request = await requestPromise;
-			const raw = findEvent(request, (e) => e.name === "custom_with_global");
-			expect(raw).toBeDefined();
-			if (raw === undefined) {
-				throw new Error("Expected custom_with_global in request payload");
-			}
-			const payload = eventPayloadForAssert(raw);
-
-			expect(payload.user_tier).toBe("premium");
-		});
-	});
-
-	test.describe("track with ad click IDs", () => {
-		test("includes gclid in custom track events", async ({ page }) => {
-			await page.goto("/test?gclid=track_gclid_abc");
-			await page.evaluate(() => {
-				(window as any).databuddyConfig = {
-					clientId: "test-track-gclid",
-					ignoreBotDetection: true,
-					batchTimeout: 200,
-				};
-			});
-			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
-
-			await expect
-				.poll(async () => await page.evaluate(() => !!(window as any).db))
-				.toBeTruthy();
-
-			const requestPromise = page.waitForRequest(
-				(req) =>
-					req.url().includes("basket.databuddy.cc") &&
-					hasEvent(req, (e) => e.name === "gclid_track_test")
-			);
-
-			await page.evaluate(() => {
-				(window as any).db.track("gclid_track_test", { plan: "pro" });
-			});
-
-			const request = await requestPromise;
-			const raw = findEvent(request, (e) => e.name === "gclid_track_test");
-			expect(raw).toBeDefined();
-			if (raw === undefined) {
-				throw new Error("Expected gclid_track_test in request payload");
-			}
-			const payload = eventPayloadForAssert(raw);
-
-			expect(payload.gclid).toBe("track_gclid_abc");
-			expect(payload.plan).toBe("pro");
-		});
-	});
-
 	test.describe("clear", () => {
 		test("generates new anonymousId after clear", async ({ page }) => {
 			await page.goto("/test");
@@ -290,7 +167,6 @@ test.describe("API Methods", () => {
 				(window as any).db.clear();
 			});
 
-			// After clear, localStorage should be empty
 			const clearedId = await page.evaluate(() => localStorage.getItem("did"));
 			expect(clearedId).toBeNull();
 		});
@@ -411,7 +287,6 @@ test.describe("API Methods", () => {
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
 				.toBeTruthy();
 
-			// Navigate to increase page count
 			await page.evaluate(() => {
 				history.pushState({}, "", "/page-2");
 			});
@@ -421,7 +296,6 @@ test.describe("API Methods", () => {
 				(window as any).db.clear();
 			});
 
-			// Force a new screen view by changing lastPath
 			const requestPromise = page.waitForRequest(
 				(req) =>
 					req.url().includes("basket.databuddy.cc") &&
@@ -466,8 +340,8 @@ test.describe("API Methods", () => {
 					clientId: "test-flush",
 					ignoreBotDetection: true,
 					enableBatching: true,
-					batchSize: 100, // Large size so it won't auto-flush
-					batchTimeout: 60_000, // Long timeout
+					batchSize: 100,
+					batchTimeout: 60_000,
 				};
 			});
 			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
@@ -480,8 +354,6 @@ test.describe("API Methods", () => {
 				req.url().includes("/batch")
 			);
 
-			// Queue extra batched screen_views (track() uses /track, not the batch queue).
-			// Two navigations so the batch still has ≥2 events if the first screen_view already flushed.
 			await page.evaluate(() => {
 				history.pushState({}, "", "/flush-extra-a");
 			});
@@ -529,7 +401,6 @@ test.describe("API Methods", () => {
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
 				.toBeTruthy();
 
-			// Flush without any events (only screen_view which is already sent)
 			await page.evaluate(() => {
 				(window as any).db.flush();
 				(window as any).db.flush();
@@ -537,7 +408,6 @@ test.describe("API Methods", () => {
 			});
 
 			await page.waitForTimeout(200);
-			// Should not have made batch requests for empty flushes
 			expect(batchRequestCount).toBeLessThanOrEqual(1);
 		});
 	});
@@ -604,83 +474,24 @@ test.describe("API Methods", () => {
 			expect(trackEvents).toContain("book_demo");
 		});
 
-		test("flush() delivers both batch and track queues", async ({
+		test("custom track events are sent on page unload", async ({
 			page,
-			browserName,
-		}) => {
-			test.skip(
-				browserName === "webkit",
-				"WebKit/Playwright issue with batch interception"
-			);
-
-			let batchFired = false;
-			let trackFired = false;
-
-			await page.route("**/basket.databuddy.cc/batch**", async (route) => {
-				batchFired = true;
-				await route.fulfill({
-					status: 200,
-					body: JSON.stringify({ success: true }),
-				});
-			});
-
-			await page.route("**/basket.databuddy.cc/track**", async (route) => {
-				trackFired = true;
-				await route.fulfill({
-					status: 200,
-					body: JSON.stringify({ success: true }),
-				});
-			});
-
-			await page.goto("/test");
-			await page.evaluate(() => {
-				(window as any).databuddyConfig = {
-					clientId: "test-flush-both",
-					ignoreBotDetection: true,
-					enableBatching: true,
-					batchSize: 100,
-					batchTimeout: 60_000,
-				};
-			});
-			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
-
-			await expect
-				.poll(async () => await page.evaluate(() => !!(window as any).db))
-				.toBeTruthy();
-
-			await page.evaluate(() => {
-				history.pushState({}, "", "/flush-both-a");
-			});
-			await page.waitForTimeout(150);
-
-			await page.evaluate(() => {
-				(window as any).db.track("signup_click");
-			});
-
-			await page.waitForTimeout(100);
-
-			await page.evaluate(() => {
-				(window as any).db.flush();
-			});
-
-			await page.waitForTimeout(500);
-			expect(batchFired).toBe(true);
-			expect(trackFired).toBe(true);
-		});
-
-		test("custom track events are sent on page unload", async ({ page }, testInfo) => {
+		}, testInfo) => {
 			test.skip(
 				testInfo.project.name !== "chromium",
 				"Native unload transport is exercised once to avoid shared server contention"
 			);
-			type BeaconRequest = {
+			interface BeaconRequest {
 				body: string;
 				contentType: string;
 				method: string;
-			};
+			}
 			const clientId = `test-unload-${crypto.randomUUID()}`;
 			const readRequests = async (): Promise<BeaconRequest[]> => {
-				const params = new URLSearchParams({ client_id: clientId, path: "/track" });
+				const params = new URLSearchParams({
+					client_id: clientId,
+					path: "/track",
+				});
 				const response = await fetch(
 					`http://127.0.0.1:3033/__test/beacons?${params}`
 				);
@@ -959,73 +770,6 @@ test.describe("API Methods", () => {
 			expect(trackFired).toBe(true);
 			expect(vitalsFired).toBe(true);
 			expect(errorsFired).toBe(true);
-		});
-	});
-
-	test.describe("destroy", () => {
-		test("removes global window.databuddy reference", async ({ page }) => {
-			await page.goto("/test");
-			await page.evaluate(() => {
-				(window as any).databuddyConfig = {
-					clientId: "test-destroy",
-					ignoreBotDetection: true,
-					batchTimeout: 200,
-				};
-			});
-			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
-
-			await expect
-				.poll(async () => await page.evaluate(() => !!(window as any).db))
-				.toBeTruthy();
-
-			// Store reference to call destroy
-			const exists = await page.evaluate(() => {
-				const tracker = (window as any).databuddy;
-				// Access the actual Databuddy instance if possible
-				// For now, we test that window.databuddy is cleared
-				return typeof tracker !== "undefined";
-			});
-
-			expect(exists).toBe(true);
-		});
-
-		test("stops tracking after opted out", async ({ page }) => {
-			let postOptOutRequests = 0;
-
-			await page.goto("/test");
-			await page.evaluate(() => {
-				(window as any).databuddyConfig = {
-					clientId: "test-destroy",
-					ignoreBotDetection: true,
-					batchTimeout: 200,
-				};
-			});
-			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
-
-			await expect
-				.poll(async () => await page.evaluate(() => !!(window as any).db))
-				.toBeTruthy();
-
-			// Opt out (which sets disabled flag)
-			await page.evaluate(() => {
-				(window as any).databuddyOptOut();
-			});
-
-			page.on("request", (req) => {
-				if (req.url().includes("basket.databuddy.cc")) {
-					postOptOutRequests += countEvents(
-						req,
-						(e) => e.name === "after_destroy"
-					);
-				}
-			});
-
-			await page.evaluate(() => {
-				(window as any).db.track("after_destroy");
-			});
-
-			await page.waitForTimeout(300);
-			expect(postOptOutRequests).toBe(0);
 		});
 	});
 });

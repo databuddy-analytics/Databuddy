@@ -19,7 +19,7 @@
     "build": "bun build src/index.ts --compile --target bun --outfile dist/server --minify-syntax --minify-whitespace",
     "start": "dotenv -e ../../.env -- ./dist/server",
     "check-types": "tsc --noEmit",
-    "test": "bun test src"
+    "test": "bun test --isolate src"
   },
   "type": "module"
 }

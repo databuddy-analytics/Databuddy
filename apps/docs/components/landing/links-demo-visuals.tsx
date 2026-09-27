@@ -1,5 +1,11 @@
 "use client";
 
+import {
+	SiInstagram,
+	SiSpotify,
+	SiX,
+	SiYoutube,
+} from "@icons-pack/react-simple-icons";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -274,28 +280,28 @@ const DEEP_LINKS = [
 		color: "#E4405F",
 		url: "instagram.com/databuddy",
 		resolved: "instagram://user?username=databuddy",
-		icon: "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/instagram.svg",
+		Icon: SiInstagram,
 	},
 	{
 		app: "YouTube",
 		color: "#FF0000",
 		url: "youtube.com/watch?v=abc123",
 		resolved: "vnd.youtube://abc123",
-		icon: "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/youtube.svg",
+		Icon: SiYoutube,
 	},
 	{
 		app: "Spotify",
 		color: "#1DB954",
 		url: "open.spotify.com/track/xyz",
 		resolved: "spotify://track/xyz",
-		icon: "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/spotify.svg",
+		Icon: SiSpotify,
 	},
 	{
 		app: "X",
 		color: "#fff",
 		url: "x.com/trydatabuddy",
 		resolved: "twitter://user?screen_name=trydatabuddy",
-		icon: "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/x.svg",
+		Icon: SiX,
 	},
 ];
 
@@ -327,13 +333,7 @@ export function DeepLinkDemo() {
 						onClick={() => setActiveIdx(i)}
 						type="button"
 					>
-						<img
-							alt={dl.app}
-							className="size-4 invert"
-							height={16}
-							src={dl.icon}
-							width={16}
-						/>
+						<dl.Icon className="size-4" title={dl.app} />
 					</button>
 				))}
 			</div>

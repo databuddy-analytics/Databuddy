@@ -4,7 +4,6 @@ import { getBullMQConnectionOptions } from "./bullmq";
 export const UPTIME_QUEUE_NAME = "uptime-checks";
 export const UPTIME_CHECK_JOB_NAME = "uptime-check";
 export const UPTIME_DELIVERY_QUEUE_NAME = "uptime-event-delivery";
-export const UPTIME_DELIVERY_JOB_NAME = UPTIME_DELIVERY_QUEUE_NAME;
 
 export const UPTIME_WORKER_LOCK_MS = 90_000;
 export const UPTIME_WORKER_STALLED_INTERVAL_MS = 60_000;
@@ -29,9 +28,9 @@ export const UPTIME_JOB_OPTIONS = {
 };
 
 export const UPTIME_DELIVERY_JOB_OPTIONS = {
-	attempts: 20,
+	attempts: 12,
 	backoff: {
-		type: "fixed",
+		type: "exponential",
 		delay: 30_000,
 	},
 	stackTraceLimit: 3,

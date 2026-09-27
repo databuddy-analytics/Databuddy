@@ -91,18 +91,6 @@ export const METRIC_COLORS = {
 		"#fefce8",
 		"from-yellow-500/20 to-yellow-600/5"
 	),
-	avg_fid: createColorSet(
-		"#8b5cf6",
-		"#7c3aed",
-		"#ede9fe",
-		"from-violet-500/20 to-violet-600/5"
-	),
-	p50_fid: createColorSet(
-		"#a855f7",
-		"#9333ea",
-		"#f3e8ff",
-		"from-purple-500/20 to-purple-600/5"
-	),
 	avg_inp: createColorSet(
 		"#ec4899",
 		"#db2777",
@@ -132,7 +120,6 @@ export const METRIC_COLORS = {
 export interface ChartDataRow {
 	avg_cls?: number;
 	avg_fcp?: number;
-	avg_fid?: number;
 	avg_inp?: number;
 	avg_lcp?: number;
 	avg_load_time?: number;
@@ -144,7 +131,6 @@ export interface ChartDataRow {
 	median_session_duration_formatted?: string;
 	p50_cls?: number;
 	p50_fcp?: number;
-	p50_fid?: number;
 	p50_inp?: number;
 	p50_lcp?: number;
 	p50_load_time?: number;
@@ -300,22 +286,6 @@ const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 		"p50_cls",
 		GaugeIcon,
 		formatCLS,
-		"core_web_vitals"
-	),
-	createMetric(
-		"avg_fid",
-		"FID (Legacy Avg)",
-		"avg_fid",
-		CursorClickIcon,
-		formatPerformanceTime,
-		"core_web_vitals"
-	),
-	createMetric(
-		"p50_fid",
-		"FID (Legacy P50)",
-		"p50_fid",
-		CursorClickIcon,
-		formatPerformanceTime,
 		"core_web_vitals"
 	),
 	createMetric(

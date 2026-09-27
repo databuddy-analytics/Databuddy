@@ -17,6 +17,7 @@ export interface BalanceLike {
 	featureId: string;
 	granted: number;
 	nextResetAt?: number | null;
+	overageAllowed?: boolean;
 	remaining: number;
 	unlimited: boolean;
 	usage?: number;
@@ -38,30 +39,64 @@ export interface FeatureUsage {
 	pricingTiers: PricingTier[];
 	resetAt: number | null;
 	unlimited: boolean;
+	used: number;
+}
+
+export interface PlanLike {
+	customerEligibility?: { status?: string } | null;
+	items?: Array<{
+		featureId?: string | null;
+		price?: {
+			tiers?: Array<{ amount?: number; to?: number | "inf" | null }> | null;
+		} | null;
+	}> | null;
+}
+
+export function findPlanPricingTiers(
+	plans: PlanLike[] | undefined,
+	featureId: string
+): PricingTier[] | undefined {
+	for (const plan of plans ?? []) {
+		if (plan.customerEligibility?.status !== "active") {
+			continue;
+		}
+		const tiers = plan.items?.find(
+			(candidate) => candidate.featureId === featureId
+		)?.price?.tiers;
+		if (tiers?.length) {
+			return tiers.map((tier) => ({
+				to: (tier.to ?? "inf") as number | "inf",
+				amount: tier.amount ?? 0,
+			}));
+		}
+	}
+	return;
 }
 
 export function calculateGraduatedOverageCost(
 	overageAmount: number,
-	tiers?: PricingTier[]
+	tiers?: PricingTier[],
+	includedLimit = 0
 ): number {
 	if (overageAmount <= 0 || !tiers?.length) {
 		return 0;
 	}
 
-	let remaining = overageAmount;
 	let totalCost = 0;
-	let processed = 0;
+	let billedFrom = includedLimit;
+	const billedTo = includedLimit + overageAmount;
 
 	for (const tier of tiers) {
 		const tierLimit = tier.to === "inf" ? Number.POSITIVE_INFINITY : tier.to;
-		const tierSize = tierLimit - processed;
-		const unitsInTier = Math.min(remaining, tierSize);
+		if (tierLimit <= billedFrom) {
+			continue;
+		}
 
+		const unitsInTier = Math.min(tierLimit, billedTo) - billedFrom;
 		totalCost += unitsInTier * tier.amount;
-		remaining -= unitsInTier;
-		processed = tierLimit;
+		billedFrom = tierLimit;
 
-		if (remaining <= 0) {
+		if (billedFrom >= billedTo) {
 			break;
 		}
 	}
@@ -89,9 +124,6 @@ export function calculateFeatureUsage(
 			: remaining < 0
 				? Math.abs(remaining)
 				: 0;
-	const hasPricedOverage = pricingTiers?.length
-		? pricingTiers.length > 0
-		: (bal.breakdown?.some((b) => b.price?.tiers?.length) ?? false);
 	const effectiveTiers =
 		pricingTiers ??
 		bal.breakdown?.at(0)?.price?.tiers?.map((t) => ({
@@ -99,11 +131,16 @@ export function calculateFeatureUsage(
 			amount: t.amount ?? 0,
 		})) ??
 		[];
+	const hasPricedOverage = bal.overageAllowed ?? effectiveTiers.length > 0;
 	const overage =
 		overageAmount > 0
 			? {
 					amount: overageAmount,
-					cost: calculateGraduatedOverageCost(overageAmount, effectiveTiers),
+					cost: calculateGraduatedOverageCost(
+						overageAmount,
+						effectiveTiers,
+						limit
+					),
 				}
 			: null;
 
@@ -114,8 +151,10 @@ export function calculateFeatureUsage(
 			: limit;
 
 	const interval = bal.breakdown?.at(0)?.reset?.interval ?? null;
+	const used = bal.usage ?? Math.max(0, limit - remaining);
 
 	return {
+		used,
 		id: bal.featureId,
 		name: bal.feature?.name ?? bal.featureId,
 		balance: remaining,
@@ -129,6 +168,16 @@ export function calculateFeatureUsage(
 		resetAt: bal.nextResetAt ?? null,
 		overage,
 	};
+}
+
+export function formatCurrency(amount: number): string {
+	if (amount >= 1000) {
+		return `$${(amount / 1000).toFixed(1)}K`;
+	}
+	if (amount >= 1) {
+		return `$${amount.toFixed(2)}`;
+	}
+	return `$${amount.toFixed(4)}`;
 }
 
 export function formatCompactNumber(num: number): string {

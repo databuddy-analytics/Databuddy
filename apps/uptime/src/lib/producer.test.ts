@@ -1,8 +1,9 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 
 const kafkaConfigs: unknown[] = [];
-const producers: Array<ReturnType<typeof createProducer>> = [];
+const producers: ReturnType<typeof createProducer>[] = [];
 const captureError = mock(() => {});
+const clickHouseInsert = mock(() => Promise.resolve());
 
 class KafkaMock {
 	constructor(config: unknown) {
@@ -24,10 +25,14 @@ mock.module("kafkajs", () => ({
 }));
 
 mock.module("./tracing", () => ({ captureError }));
+mock.module("@databuddy/db/clickhouse", () => ({
+	clickHouse: { insert: clickHouseInsert },
+}));
 
 const { disconnectProducer, sendUptimeEvent } = await import("./producer");
 
 const environmentKeys = [
+	"SELFHOST",
 	"REDPANDA_BROKER",
 	"REDPANDA_PASSWORD",
 	"REDPANDA_USER",
@@ -55,6 +60,8 @@ beforeEach(async () => {
 	kafkaConfigs.length = 0;
 	producers.length = 0;
 	captureError.mockClear();
+	clickHouseInsert.mockClear();
+	process.env.SELFHOST = "false";
 	process.env.REDPANDA_BROKER = "redpanda.test:9092";
 	delete process.env.REDPANDA_PASSWORD;
 	delete process.env.REDPANDA_USER;
@@ -73,6 +80,48 @@ afterAll(async () => {
 });
 
 describe("sendUptimeEvent", () => {
+	test("self-hosting waits for ClickHouse persistence and ignores a configured broker", async () => {
+		process.env.SELFHOST = "true";
+		let resolveInsert: (() => void) | undefined;
+		clickHouseInsert.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveInsert = resolve;
+				})
+		);
+		const event = { site_id: "site_test", timestamp: 1_789_516_800_000 };
+		let settled = false;
+		const delivery = sendUptimeEvent(event).then(() => {
+			settled = true;
+		});
+		await Bun.sleep(0);
+
+		expect(settled).toBe(false);
+		expect(clickHouseInsert).toHaveBeenCalledWith(
+			expect.objectContaining({
+				table: "uptime.uptime_monitor",
+				values: [event],
+				format: "JSONEachRow",
+				abort_signal: expect.any(AbortSignal),
+				clickhouse_settings: {
+					async_insert: 0,
+				},
+			})
+		);
+		resolveInsert?.();
+		await delivery;
+		expect(kafkaConfigs).toEqual([]);
+	});
+
+	test("self-hosted insert failures reach the delivery worker for retry", async () => {
+		process.env.SELFHOST = "true";
+		const error = new Error("ClickHouse unavailable");
+		clickHouseInsert.mockRejectedValueOnce(error);
+
+		await expect(sendUptimeEvent({ site_id: "site_test" })).rejects.toBe(error);
+		expect(kafkaConfigs).toEqual([]);
+	});
+
 	test("shares one in-flight connection across concurrent cold-start sends", async () => {
 		let resolveConnection: (() => void) | undefined;
 		const producer = createProducer({
@@ -83,7 +132,9 @@ describe("sendUptimeEvent", () => {
 		});
 		producers.push(producer);
 
-		const sends = Array.from({ length: 20 }, () => sendUptimeEvent({ ok: true }));
+		const sends = Array.from({ length: 20 }, () =>
+			sendUptimeEvent({ ok: true })
+		);
 
 		expect(producer.connect).toHaveBeenCalledTimes(1);
 		expect(resolveConnection).toBeDefined();

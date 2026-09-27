@@ -282,9 +282,7 @@ describe("redirect route", () => {
 		});
 		sendLinkVisit.mockResolvedValueOnce(false);
 
-		const response = await app.handle(
-			new Request("http://links.test/unsunk")
-		);
+		const response = await app.handle(new Request("http://links.test/unsunk"));
 
 		expect(response.status).toBe(302);
 		await new Promise((resolve) => setTimeout(resolve, 0));

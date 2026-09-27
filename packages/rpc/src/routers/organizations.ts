@@ -15,7 +15,7 @@ import {
 } from "@databuddy/validation";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { getAutumn } from "../lib/autumn-client";
+import { getAutumn, hasHostedBilling } from "../lib/autumn-client";
 import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import {
@@ -113,6 +113,10 @@ export const organizationsRouter = {
 				.set({ logo: input.seed })
 				.where(eq(organization.id, input.organizationId))
 				.returning();
+
+			if (!updatedOrganization) {
+				throw rpcError.notFound("Organization", input.organizationId);
+			}
 
 			return { organization: updatedOrganization };
 		}),
@@ -355,6 +359,9 @@ export const organizationsRouter = {
 		})
 		.output(z.record(z.string(), z.unknown()))
 		.handler(async ({ context }) => {
+			if (!hasHostedBilling()) {
+				return { unlimited: true, canUserUpgrade: false };
+			}
 			const billing = await context.getBilling();
 			const customerId = billing?.customerId ?? context.user.id;
 			const isOrganization = billing?.isOrganization ?? false;
@@ -434,6 +441,16 @@ export const organizationsRouter = {
 					isOrganization = billing.isOrganization;
 					canUserUpgrade = billing.canUserUpgrade;
 				}
+			}
+
+			if (!hasHostedBilling()) {
+				return {
+					planId: null,
+					isOrganization: Boolean(context.organizationId),
+					canUserUpgrade: false,
+					hasActiveSubscription: false,
+					aiConfigured: Boolean(process.env.AI_GATEWAY_API_KEY?.trim()),
+				};
 			}
 
 			const debugInfo = isDev

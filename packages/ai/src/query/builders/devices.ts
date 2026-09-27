@@ -1,7 +1,7 @@
 import { Analytics } from "../../types/tables";
 import type { SimpleQueryConfig } from "../types";
 
-export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
+export const DevicesBuilders = {
 	browser_name: {
 		meta: {
 			title: "Browser Usage",
@@ -38,7 +38,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "pie",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: [
@@ -91,7 +90,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "pie",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: [
@@ -150,7 +148,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: [
@@ -215,7 +212,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: [
@@ -275,7 +271,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "pie",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: [
@@ -436,7 +431,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: [
@@ -494,7 +488,6 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "pie",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: [
@@ -514,4 +507,4 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		customizable: true,
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

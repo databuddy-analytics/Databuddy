@@ -1,8 +1,5 @@
-import {
-	expect,
-	test,
-	waitForSDK,
-} from "./test-utils";
+import { getStressIterations } from "./fuzz-helpers";
+import { expect, test, waitForSDK } from "./test-utils";
 
 test.describe("BrowserFlagStorage", () => {
 	test.beforeEach(async ({ page }) => {
@@ -116,6 +113,51 @@ test.describe("BrowserFlagStorage", () => {
 			expect(result["var-flag"].value).toBe("treatment-a");
 			expect(result["var-flag"].variant).toBe("treatment-a");
 			expect(result["var-flag"].payload).toEqual({ color: "red", size: 42 });
+		});
+
+		test("numeric value 0 round-trip via setAll/getAll", async ({ page }) => {
+			const result = await page.evaluate(() => {
+				const storage = new window.__SDK__.BrowserFlagStorage();
+				storage.setAll({
+					zero: {
+						enabled: true,
+						value: 0,
+						payload: null,
+						reason: "MATCH",
+					},
+				});
+				const all = storage.getAll();
+				return { value: all.zero?.value };
+			});
+
+			expect(result.value).toBe(0);
+		});
+
+		test("setAll quota failure is swallowed (no throw)", async ({ page }) => {
+			const result = await page.evaluate(() => {
+				const storage = new window.__SDK__.BrowserFlagStorage();
+				const original = Storage.prototype.setItem;
+				let threw = false;
+				Storage.prototype.setItem = () => {
+					throw new DOMException("QuotaExceededError", "QuotaExceededError");
+				};
+				try {
+					storage.setAll({
+						q: {
+							enabled: true,
+							value: true,
+							payload: null,
+							reason: "MATCH",
+						},
+					});
+				} catch {
+					threw = true;
+				}
+				Storage.prototype.setItem = original;
+				return { threw };
+			});
+
+			expect(result.threw).toBe(false);
 		});
 	});
 
@@ -245,6 +287,118 @@ test.describe("BrowserFlagStorage", () => {
 			});
 
 			expect(Object.keys(result)).toHaveLength(0);
+		});
+	});
+
+	test.describe("stress", () => {
+		test("many random setAll/getAll cycles stay consistent", async ({
+			page,
+		}) => {
+			const iterations = getStressIterations();
+			const seed = 99;
+
+			const result = await page.evaluate(
+				({ iterations: n, seed: s }) => {
+					const failures: string[] = [];
+
+					function mulberry32(seed: number) {
+						let state = seed;
+						return () => {
+							state += 0x6d_2b_79_f5;
+							let t = state;
+							t = Math.imul(t ^ (t >>> 15), t | 1);
+							t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+							return ((t ^ (t >>> 14)) >>> 0) / 2 ** 32;
+						};
+					}
+
+					const rand = mulberry32(s);
+					const storage = new window.__SDK__.BrowserFlagStorage();
+					const base = {
+						enabled: true,
+						value: true,
+						payload: null,
+						reason: "MATCH",
+					};
+
+					for (let i = 0; i < n; i++) {
+						const batchSize = 1 + Math.floor(rand() * 10);
+						const batch: Record<string, typeof base> = {};
+						const keys: string[] = [];
+						for (let j = 0; j < batchSize; j++) {
+							const key = `f-${Math.floor(rand() * 1_000_000)}-${i % 50}`;
+							batch[key] = base;
+							keys.push(key);
+						}
+						storage.setAll(batch);
+						const all = storage.getAll();
+						for (const key of keys) {
+							if (!all[key] || all[key].enabled !== true) {
+								failures.push(`getAll mismatch at iter ${i}, key ${key}`);
+							}
+						}
+					}
+
+					return { failures, iterations: n };
+				},
+				{ iterations, seed }
+			);
+
+			expect(result.failures, result.failures.join("\n")).toHaveLength(0);
+			expect(result.iterations).toBeGreaterThan(0);
+		});
+
+		test("setAll replaces prior keys (repeated random)", async ({ page }) => {
+			const rounds = Math.min(30, Math.floor(getStressIterations() / 10));
+			const seed = 3;
+
+			const result = await page.evaluate(
+				({ rounds: r, seed: s }) => {
+					const failures: string[] = [];
+
+					function mulberry32(seed: number) {
+						let state = seed;
+						return () => {
+							state += 0x6d_2b_79_f5;
+							let t = state;
+							t = Math.imul(t ^ (t >>> 15), t | 1);
+							t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+							return ((t ^ (t >>> 14)) >>> 0) / 2 ** 32;
+						};
+					}
+
+					const rand = mulberry32(s);
+					const storage = new window.__SDK__.BrowserFlagStorage();
+					const flag = {
+						enabled: false,
+						value: false,
+						payload: null,
+						reason: "NO_MATCH",
+					};
+
+					for (let round = 0; round < r; round++) {
+						const batch: Record<string, typeof flag> = {};
+						const batchSize = 5 + Math.floor(rand() * 20);
+						for (let j = 0; j < batchSize; j++) {
+							const k = `r${round}-k${j}-${Math.floor(rand() * 10_000)}`;
+							batch[k] = flag;
+						}
+						storage.setAll(batch);
+						const all = storage.getAll();
+						const count = Object.keys(all).length;
+						if (count !== batchSize) {
+							failures.push(
+								`round ${round}: expected ${batchSize} keys, got ${count}`
+							);
+						}
+					}
+
+					return { failures };
+				},
+				{ rounds, seed }
+			);
+
+			expect(result.failures, result.failures.join("\n")).toHaveLength(0);
 		});
 	});
 });

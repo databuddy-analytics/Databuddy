@@ -27,13 +27,9 @@ type VisualizationType =
 export interface QueryBuilderMeta {
 	category?: string;
 	default_visualization?: VisualizationType;
-	deprecated?: boolean;
 	description: string;
-	docs_url?: string;
-	output_example?: Record<string, string | number | boolean | null>[];
 	output_fields?: QueryOutputField[];
 	supports_granularity?: ("hour" | "day" | "week" | "month")[];
 	tags?: string[];
 	title: string;
-	version?: string;
 }

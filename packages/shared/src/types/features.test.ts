@@ -9,7 +9,7 @@ import {
 } from "./features";
 
 describe("plan feature helpers", () => {
-	it("gives invitation-only intelligence plans Scale capabilities", () => {
+	it("gives intelligence plans Scale capabilities", () => {
 		expect(getPlanCapabilities(INTELLIGENCE_PLAN_IDS.ANALYST)).toEqual(
 			getPlanCapabilities(PLAN_IDS.SCALE)
 		);
@@ -19,9 +19,9 @@ describe("plan feature helpers", () => {
 	});
 
 	it("treats unknown plan ids as free instead of throwing", () => {
-		expect(getPlanFeatureLimit("legacy-enterprise", GATED_FEATURES.FUNNELS)).toBe(
-			1
-		);
+		expect(
+			getPlanFeatureLimit("legacy-enterprise", GATED_FEATURES.FUNNELS)
+		).toBe(1);
 		expect(
 			getNextPlanForFeature("legacy-enterprise", GATED_FEATURES.ERROR_TRACKING)
 		).toBe(PLAN_IDS.HOBBY);

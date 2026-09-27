@@ -4,13 +4,7 @@ export const revalidate = 3600;
 
 const CRAWL_ALLOW = ["/api/llms.txt", "/api/pricing"];
 
-const CRAWL_DISALLOW = [
-	"/api/",
-	"/_next/",
-	"/admin/",
-	"/demo/private/",
-	"/contact/thanks",
-];
+const CRAWL_DISALLOW = ["/api/", "/admin/", "/demo/private/"];
 
 const SEARCH_AGENTS = [
 	"GPTBot",

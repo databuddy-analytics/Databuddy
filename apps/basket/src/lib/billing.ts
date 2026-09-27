@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { getAutumn } from "@databuddy/rpc/autumn";
 import { basketErrors } from "@lib/structured-errors";
 import { captureError, record } from "@lib/tracing";
@@ -14,6 +15,9 @@ export function checkAutumnUsage(
 	properties?: Record<string, unknown>,
 	quantity = 1
 ): Promise<BillingResult> {
+	if (readBooleanEnv("SELFHOST")) {
+		return Promise.resolve({ allowed: true });
+	}
 	return record("checkAutumnUsage", async (): Promise<BillingResult> => {
 		const log = useLogger();
 

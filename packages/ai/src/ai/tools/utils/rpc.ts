@@ -1,5 +1,4 @@
-import { ORPCError } from "@orpc/server";
-import type { PreResolvedAuth } from "@databuddy/rpc";
+import { createRouterClient, ORPCError } from "@orpc/server";
 import type { AppContext } from "../../config/context";
 import { createToolLogger } from "./logger";
 
@@ -15,7 +14,7 @@ export async function callRPCProcedure(
 	abortSignal?: AbortSignal
 ) {
 	try {
-		if (context.mutationMode === "dry-run" && isMutationMethod(method)) {
+		if (context.mutationMode === "dry-run" && MUTATION_METHOD_RE.test(method)) {
 			return {
 				dryRun: true,
 				message: `Dry-run mode blocked ${routerName}.${method}; no data was changed.`,
@@ -25,9 +24,10 @@ export async function callRPCProcedure(
 		}
 
 		const headers = context.requestHeaders ?? new Headers();
-		const preResolved = resolvePreResolvedAuth(context);
-		const { getServerRPCClient } = await import("../../../lib/orpc-server");
-		const client = await getServerRPCClient(headers, preResolved);
+		const { appRouter, createRPCContext } = await import("@databuddy/rpc");
+		const client = createRouterClient(appRouter, {
+			context: await createRPCContext({ headers }, context.serviceAuth),
+		});
 
 		const router = client[routerName as keyof typeof client] as
 			| Record<
@@ -94,14 +94,4 @@ export async function callRPCProcedure(
 		});
 		throw new Error("An unexpected error occurred. Please try again.");
 	}
-}
-
-function isMutationMethod(method: string): boolean {
-	return MUTATION_METHOD_RE.test(method);
-}
-
-function resolvePreResolvedAuth(
-	context: AppContext
-): PreResolvedAuth | undefined {
-	return context.serviceAuth;
 }

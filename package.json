@@ -12,7 +12,7 @@
     "dotenv-cli": "^10.0.0",
     "ipaddr.js": "^2.3.0",
     "knip": "^6.22.0",
-    "turbo": "^2.9.6",
+    "turbo": "^2.11.1",
     "typescript": "^5.9.3",
     "ultracite": "^7.6.1"
   },
@@ -24,10 +24,10 @@
     "protobufjs": ">=7.5.5",
     "@slack/web-api": "7.17.0",
     "autumn-js": "1.2.23",
-    "next": "16.3.4"
+    "next": "16.3.5"
   },
   "trustedDependencies": [],
-  "packageManager": "bun@1.4.0",
+  "packageManager": "bun@1.4.1",
   "private": true,
   "scripts": {
     "prepare": "lefthook install",
@@ -36,8 +36,8 @@
     "dev": "dotenv -- turbo run dev --env-mode=loose",
     "start": "NODE_ENV=production dotenv -- turbo run start --env-mode=loose",
     "test": "dotenv -- turbo run test",
-    "test:watch": "dotenv -- bun test --watch ./apps",
-    "test:coverage": "dotenv -- bun test --coverage ./apps",
+    "test:watch": "dotenv -- bun test --watch ./apps --path-ignore-patterns='**/*.integration.test.ts'",
+    "test:coverage": "dotenv -- bun test --coverage ./apps --path-ignore-patterns='**/*.integration.test.ts'",
     "lint": "bunx ultracite check && bun run lint:policies",
     "knip": "knip",
     "lint:policies": "bunx tsc --project scripts/tsconfig.json && bun test scripts/lint-policy.test.ts && bun scripts/lint-policy.ts",
@@ -60,7 +60,6 @@
     "dev:slack": "dotenv -- turbo dev --env-mode=loose --filter @databuddy/slack",
     "dev:status": "dotenv -- turbo dev --env-mode=loose --filter @databuddy/status --filter @databuddy/api",
     "git:setup-aliases": "git config --local include.path ../gitconfig",
-    "insights:production-shadow": "dotenv -- bun run --cwd apps/insights src/production-shadow.ts",
     "check": "ultracite check",
     "fix": "ultracite fix",
     "changeset": "changeset",
@@ -77,7 +76,7 @@
     "catalog": {
       "react": "19.2.6",
       "react-dom": "19.2.6",
-      "next": "16.3.4",
+      "next": "16.3.5",
       "typescript": "^5.9.3",
       "zod": "4.1.12",
       "autumn-js": "1.2.23",
@@ -96,9 +95,6 @@
   },
   "dependencies": {
     "@sinclair/typebox": "^0.34.49",
-    "d3-geo": "^3.1.1",
-    "drizzle-orm": "^1.0.0-rc.1",
-    "topojson-client": "^3.1.0",
-    "world-atlas": "^2.0.2"
+    "drizzle-orm": "^1.0.0-rc.1"
   }
 }

@@ -189,6 +189,9 @@ export function isValidIpFromSettings(
 function isIpInCidrRange(ip: string, cidr: string): boolean {
 	try {
 		const [network, prefixLengthStr] = cidr.split("/");
+		if (network === undefined || prefixLengthStr === undefined) {
+			return false;
+		}
 		const prefixLength = Number.parseInt(prefixLengthStr, 10);
 
 		if (Number.isNaN(prefixLength) || prefixLength < 0 || prefixLength > 32) {

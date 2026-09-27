@@ -67,7 +67,7 @@ const OUTBOUND_LINK_CONTEXT_CTES = `
 	)
 `;
 
-export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
+export const LinkShortenerBuilders = {
 	link_total_clicks: {
 		meta: {
 			title: "Link Total Clicks",
@@ -84,7 +84,6 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "metric",
 			supports_granularity: [],
-			version: "1.0",
 		},
 		table: Analytics.link_visits,
 		// A broker retry can replay an event after an ambiguous Kafka
@@ -118,7 +117,6 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "timeseries",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		table: Analytics.link_visits,
 		fields: ["uniqExact(id) as clicks"],
@@ -156,7 +154,6 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "timeseries",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		table: Analytics.link_visits,
 		fields: ["uniq(referrer) as value"],
@@ -194,7 +191,6 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "timeseries",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		table: Analytics.link_visits,
 		fields: ["uniq(country) as value"],
@@ -239,7 +235,6 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: [],
-			version: "1.0",
 		},
 		table: Analytics.link_visits,
 		fields: [
@@ -285,7 +280,6 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: [],
-			version: "1.0",
 		},
 		table: Analytics.link_visits,
 		fields: [
@@ -331,7 +325,6 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: [],
-			version: "1.0",
 		},
 		table: Analytics.link_visits,
 		fields: [
@@ -377,7 +370,6 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: [],
-			version: "1.0",
 		},
 		table: Analytics.link_visits,
 		fields: [
@@ -417,7 +409,6 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "pie",
 			supports_granularity: [],
-			version: "1.0",
 		},
 		table: Analytics.link_visits,
 		fields: [
@@ -453,7 +444,6 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: [],
-			version: "1.0",
 		},
 		table: Analytics.link_visits,
 		fields: [
@@ -467,11 +457,11 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 		idField: "link_id",
 		customizable: false,
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;
 
 // Outbound Links Query Builders (Website Analytics)
 
-export const LinksBuilders: Record<string, SimpleQueryConfig> = {
+export const LinksBuilders = {
 	outbound_links: {
 		meta: {
 			title: "Outbound Links",
@@ -526,7 +516,6 @@ export const LinksBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate, filterConditions, filterParams } =
@@ -618,7 +607,6 @@ export const LinksBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "table",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 
 		customSql: (ctx) => {
@@ -663,4 +651,4 @@ export const LinksBuilders: Record<string, SimpleQueryConfig> = {
 		allowedFilters: ["client_id", "anonymous_id", "session_id", "href", "text"],
 		customizable: true,
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

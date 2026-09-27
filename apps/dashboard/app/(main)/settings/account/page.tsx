@@ -443,8 +443,7 @@ export default function AccountSettingsPage() {
 	const unlinkAccount = useMutation({
 		mutationFn: async (accountToUnlink: Account) => {
 			const result = await authClient.unlinkAccount({
-				providerId: accountToUnlink.providerId,
-				accountId: accountToUnlink.accountId,
+				accountId: accountToUnlink.id,
 			});
 			if (result.error) {
 				throw new Error(result.error.message);
@@ -471,7 +470,7 @@ export default function AccountSettingsPage() {
 	return (
 		<div className="flex h-full flex-col">
 			<div className="flex-1 overflow-y-auto">
-				<div className="mx-auto max-w-2xl space-y-6 p-5">
+				<div className="mx-auto max-w-4xl space-y-6 p-5">
 					<Card>
 						<Card.Header>
 							<Card.Title>Profile Photo</Card.Title>

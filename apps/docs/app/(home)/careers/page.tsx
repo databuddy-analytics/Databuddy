@@ -8,7 +8,7 @@ import CareersOpenings from "./careers-openings";
 import CareersPaths from "./careers-paths";
 import CareersPrinciples from "./careers-principles";
 
-const title = "Careers | Databuddy";
+const title = "Careers";
 const description =
 	"We're hiring a Founding Engineer and an SDR to help build and grow privacy-first analytics. Small remote team, open source, real ownership.";
 const url = "https://www.databuddy.cc/careers";

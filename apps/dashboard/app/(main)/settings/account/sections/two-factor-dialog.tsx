@@ -1,5 +1,7 @@
 "use client";
 
+import { APP_EVENTS } from "@databuddy/shared/custom-events";
+import { trackAppEvent } from "@/lib/app-events";
 import { authClient } from "@databuddy/auth/client";
 import { useMutation } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
@@ -125,18 +127,19 @@ export function TwoFactorDialog({
 
 	const enableMutation = useMutation({
 		mutationFn: async () => {
-			const result = await authClient.twoFactor.enable({ password });
+			const result = await authClient.twoFactor.enable({
+				method: "totp",
+				password,
+			});
 			if (result.error) {
 				throw new Error(result.error.message);
 			}
 			return result.data;
 		},
 		onSuccess: (data) => {
-			if (data?.totpURI) {
+			if (data?.method === "totp") {
 				setTotpUri(data.totpURI);
 				setSecret(extractSecretFromTotpUri(data.totpURI));
-			}
-			if (data?.backupCodes) {
 				setBackupCodes(data.backupCodes);
 			}
 			setStep("setup");
@@ -154,6 +157,7 @@ export function TwoFactorDialog({
 			return result.data;
 		},
 		onSuccess: () => {
+			trackAppEvent(APP_EVENTS.twoFactorEnabled);
 			toast.success("Two-factor authentication enabled!");
 			setStep("backup");
 			onSuccess();
@@ -169,6 +173,7 @@ export function TwoFactorDialog({
 			return result.data;
 		},
 		onSuccess: () => {
+			trackAppEvent(APP_EVENTS.twoFactorDisabled);
 			toast.success("Two-factor authentication disabled");
 			onSuccess();
 			onOpenChange(false);

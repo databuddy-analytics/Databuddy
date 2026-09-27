@@ -9,7 +9,14 @@ import { toast } from "sonner";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { orpc } from "@/lib/orpc";
 import { Accordion, Sheet } from "@databuddy/ui/client";
-import { Button, EmptyState, Field, Input } from "@databuddy/ui";
+import {
+	Button,
+	EmptyState,
+	Field,
+	fromNow,
+	Input,
+	Skeleton,
+} from "@databuddy/ui";
 import {
 	ArrowClockwiseIcon,
 	ArrowSquareOutIcon,
@@ -28,8 +35,52 @@ import {
 const BASKET_URL = publicConfig.urls.basket;
 
 const PADDLE_REQUIRED_EVENTS = ["transaction.completed"];
+const STRIPE_REQUIRED_EVENTS = STRIPE_WEBHOOK_EVENTS.required.map(
+	({ event }) => event
+);
 
 type ExpandedSection = "webhooks" | "stripe" | "paddle" | null;
+
+function RequiredEventList({
+	events,
+	lastReceived,
+	unavailable,
+}: {
+	events: readonly string[];
+	lastReceived: Map<string, string> | undefined;
+	unavailable: boolean;
+}) {
+	return (
+		<div className="space-y-1">
+			{events.map((event) => {
+				const receivedAt = lastReceived?.get(event);
+				let status: ReactNode = <Skeleton className="h-3 w-20 rounded" />;
+				if (unavailable) {
+					status = "Unavailable";
+				} else if (receivedAt) {
+					status = (
+						<>
+							<CheckCircleIcon className="size-3 text-success" />
+							{fromNow(receivedAt)}
+						</>
+					);
+				} else if (lastReceived) {
+					status = "No delivery in 90 days";
+				}
+				return (
+					<div className="flex items-center justify-between gap-2" key={event}>
+						<code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary">
+							{event}
+						</code>
+						<span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+							{status}
+						</span>
+					</div>
+				);
+			})}
+		</div>
+	);
+}
 
 function SettingsSection({
 	icon: Icon,
@@ -92,6 +143,16 @@ export function RevenueSettingsSheet({
 		isLoading,
 		refetch: refetchConfig,
 	} = useQuery(orpc.revenue.get.queryOptions({ input: { websiteId } }));
+	const { data: webhookDeliveries, isError: isDeliveriesError } = useQuery(
+		orpc.revenue.webhookDeliveries.queryOptions({ input: { websiteId } })
+	);
+	const eventsReceived = (provider: "paddle" | "stripe") =>
+		webhookDeliveries &&
+		new Map(
+			webhookDeliveries
+				.filter((row) => row.provider === provider)
+				.map((row) => [row.eventType, row.lastReceivedAt])
+		);
 	const savedCurrency = normalizeCurrencyCode(config?.currency);
 	const configuredCurrency =
 		typeof config?.currency === "string"
@@ -428,35 +489,18 @@ export function RevenueSettingsSheet({
 												<p className="text-muted-foreground text-xs">
 													Required events
 												</p>
-												<div className="flex flex-wrap gap-1">
-													{STRIPE_WEBHOOK_EVENTS.required.map(({ event }) => (
-														<code
-															className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary"
-															key={event}
-														>
-															{event}
-														</code>
-													))}
-												</div>
+												<RequiredEventList
+													events={STRIPE_REQUIRED_EVENTS}
+													lastReceived={eventsReceived("stripe")}
+													unavailable={isDeliveriesError}
+												/>
+												<p className="text-[11px] text-muted-foreground">
+													Timestamps show when Databuddy last received each
+													event. An event that has not happened yet, such as a
+													refund, shows no delivery even when your endpoint is
+													subscribed to it.
+												</p>
 											</div>
-
-											{STRIPE_WEBHOOK_EVENTS.optional.length > 0 && (
-												<div className="space-y-2">
-													<p className="text-muted-foreground text-xs">
-														Optional
-													</p>
-													<div className="flex flex-wrap gap-1">
-														{STRIPE_WEBHOOK_EVENTS.optional.map(({ event }) => (
-															<code
-																className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
-																key={event}
-															>
-																{event}
-															</code>
-														))}
-													</div>
-												</div>
-											)}
 										</div>
 									</SettingsSection>
 
@@ -515,16 +559,15 @@ export function RevenueSettingsSheet({
 												<p className="text-muted-foreground text-xs">
 													Required events
 												</p>
-												<div className="flex flex-wrap gap-1">
-													{PADDLE_REQUIRED_EVENTS.map((event) => (
-														<code
-															className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary"
-															key={event}
-														>
-															{event}
-														</code>
-													))}
-												</div>
+												<RequiredEventList
+													events={PADDLE_REQUIRED_EVENTS}
+													lastReceived={eventsReceived("paddle")}
+													unavailable={isDeliveriesError}
+												/>
+												<p className="text-[11px] text-muted-foreground">
+													Shows when Databuddy last recorded the event, not
+													whether Paddle is sending it.
+												</p>
 											</div>
 										</div>
 									</SettingsSection>

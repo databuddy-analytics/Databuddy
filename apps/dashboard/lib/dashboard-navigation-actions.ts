@@ -92,7 +92,7 @@ const WEBSITE_TARGET_PATHS = {
 	"website.funnels": "/funnels",
 	"website.goals": "/goals",
 	"website.map": "/map",
-	"website.realtime": "/realtime",
+	"website.realtime": "/map",
 	"website.revenue": "/revenue",
 	"website.settings.tracking": "/settings/tracking",
 	"website.users": "/users",

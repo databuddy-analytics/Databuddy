@@ -36,37 +36,39 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function mockFetch(flagsResponse: Record<string, FlagResult> = DEFAULT_FLAGS) {
 	const calls: string[] = [];
-	const bodies: Array<Record<string, unknown>> = [];
+	const bodies: Record<string, unknown>[] = [];
 	const originalFetch = globalThis.fetch;
 
-	globalThis.fetch = mock(async (input: string | URL | Request, init?: RequestInit) => {
-		const url = typeof input === "string" ? input : input.toString();
-		calls.push(url);
-		const body =
-			typeof init?.body === "string"
-				? (JSON.parse(init.body) as Record<string, unknown>)
-				: {};
-		bodies.push(body);
-		const keys = Array.isArray(body.keys) ? body.keys : null;
+	globalThis.fetch = mock(
+		async (input: string | URL | Request, init?: RequestInit) => {
+			const url = typeof input === "string" ? input : input.toString();
+			calls.push(url);
+			const body =
+				typeof init?.body === "string"
+					? (JSON.parse(init.body) as Record<string, unknown>)
+					: {};
+			bodies.push(body);
+			const keys = Array.isArray(body.keys) ? body.keys : null;
 
-		if (keys) {
-			const filtered = Object.fromEntries(
-				keys.map((key) => [
-					String(key),
-					flagsResponse[String(key)] ?? FLAG_DISABLED,
-				])
-			);
-			return new Response(JSON.stringify({ flags: filtered }), {
+			if (keys) {
+				const filtered = Object.fromEntries(
+					keys.map((key) => [
+						String(key),
+						flagsResponse[String(key)] ?? FLAG_DISABLED,
+					])
+				);
+				return new Response(JSON.stringify({ flags: filtered }), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				});
+			}
+
+			return new Response(JSON.stringify({ flags: flagsResponse }), {
 				status: 200,
 				headers: { "Content-Type": "application/json" },
 			});
 		}
-
-		return new Response(JSON.stringify({ flags: flagsResponse }), {
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		});
-	}) as typeof fetch;
+	) as typeof fetch;
 
 	return {
 		bodies,
@@ -181,27 +183,28 @@ describe("ServerFlagsManager", () => {
 		it("isolates cache by organization context", async () => {
 			fetchMock.restore();
 			const calls: string[] = [];
-			globalThis.fetch = mock(async (input: string | URL | Request, init?: RequestInit) => {
-				const url = typeof input === "string" ? input : input.toString();
-				calls.push(url);
-				const body =
-					typeof init?.body === "string"
-						? (JSON.parse(init.body) as Record<string, unknown>)
-						: {};
-				const orgId = body.organizationId;
-				return new Response(
-					JSON.stringify({
-						flags: {
-							"org-rollout":
-								orgId === "org-a" ? FLAG_ENABLED : FLAG_DISABLED,
-						},
-					}),
-					{
-						status: 200,
-						headers: { "Content-Type": "application/json" },
-					}
-				);
-			}) as typeof fetch;
+			globalThis.fetch = mock(
+				async (input: string | URL | Request, init?: RequestInit) => {
+					const url = typeof input === "string" ? input : input.toString();
+					calls.push(url);
+					const body =
+						typeof init?.body === "string"
+							? (JSON.parse(init.body) as Record<string, unknown>)
+							: {};
+					const orgId = body.organizationId;
+					return new Response(
+						JSON.stringify({
+							flags: {
+								"org-rollout": orgId === "org-a" ? FLAG_ENABLED : FLAG_DISABLED,
+							},
+						}),
+						{
+							status: 200,
+							headers: { "Content-Type": "application/json" },
+						}
+					);
+				}
+			) as typeof fetch;
 
 			const manager = await create({ clientId: "test-id" });
 
@@ -311,7 +314,9 @@ describe("ServerFlagsManager", () => {
 					body.userId === "user-123" && body.email === "test@example.com"
 			);
 			expect(hasUser).toBe(true);
-			expect(fetchMock.calls.some((url) => url.includes("test%40"))).toBe(false);
+			expect(fetchMock.calls.some((url) => url.includes("test%40"))).toBe(
+				false
+			);
 		});
 
 		it("sends organizationId and teamId", async () => {
@@ -324,8 +329,7 @@ describe("ServerFlagsManager", () => {
 			await sleep(20);
 
 			const hasOrgTeam = fetchMock.bodies.some(
-				(body) =>
-					body.organizationId === "org-1" && body.teamId === "team-1"
+				(body) => body.organizationId === "org-1" && body.teamId === "team-1"
 			);
 			expect(hasOrgTeam).toBe(true);
 		});
@@ -363,7 +367,7 @@ describe("ServerFlagsManager", () => {
 
 		it("removes prior-user flags after a successful identity switch", async () => {
 			fetchMock.restore();
-			const bodies: Array<Record<string, unknown>> = [];
+			const bodies: Record<string, unknown>[] = [];
 			globalThis.fetch = mock(
 				async (_input: string | URL | Request, init?: RequestInit) => {
 					const body =
@@ -548,7 +552,7 @@ describe("ServerFlagsManager", () => {
 
 		it("settles a pre-flush getFlag against the new identity", async () => {
 			fetchMock.restore();
-			const bodies: Array<Record<string, unknown>> = [];
+			const bodies: Record<string, unknown>[] = [];
 			globalThis.fetch = mock(
 				async (_input: string | URL | Request, init?: RequestInit) => {
 					const body =
@@ -748,9 +752,7 @@ describe("ServerFlagsManager", () => {
 
 			manager.updateUser({ userId: "user-b" });
 			await sleep(20);
-			resolveUserA(
-				Response.json({ flags: { "user-a-only": FLAG_ENABLED } })
-			);
+			resolveUserA(Response.json({ flags: { "user-a-only": FLAG_ENABLED } }));
 			await manager.waitForInit();
 			await sleep(20);
 
@@ -856,9 +858,9 @@ describe("ServerFlagsManager", () => {
 	describe("error handling", () => {
 		it("throws a typed failure on an initial API error", async () => {
 			fetchMock.restore();
-			globalThis.fetch = mock(async () => {
-				return new Response("Internal Server Error", { status: 500 });
-			}) as typeof fetch;
+			globalThis.fetch = mock(
+				async () => new Response("Internal Server Error", { status: 500 })
+			) as typeof fetch;
 
 			const manager = await create({ clientId: "test-id" });
 
@@ -896,10 +898,7 @@ describe("ServerFlagsManager", () => {
 
 			fetchMock.restore();
 			globalThis.fetch = mock(async () =>
-				Response.json(
-					{ error: "Flag service unavailable" },
-					{ status: 503 }
-				)
+				Response.json({ error: "Flag service unavailable" }, { status: 503 })
 			) as typeof fetch;
 			await sleep(10);
 

@@ -1,9 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-	isHttpUrl,
-	LINK_SLUG_REGEX,
-	PUBLIC_LINK_SLUG_REGEX,
-} from "./links";
+import { isHttpUrl, LINK_SLUG_REGEX, PUBLIC_LINK_SLUG_REGEX } from "./links";
 
 describe("link constants", () => {
 	test("accepts only absolute HTTP(S) URLs", () => {

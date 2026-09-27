@@ -23,7 +23,9 @@ describe("custom event helpers", () => {
 	});
 
 	it("keeps marketing params a unique superset of UTM params", () => {
-		expect(new Set(MARKETING_PARAM_KEYS).size).toBe(MARKETING_PARAM_KEYS.length);
+		expect(new Set(MARKETING_PARAM_KEYS).size).toBe(
+			MARKETING_PARAM_KEYS.length
+		);
 		for (const key of UTM_PARAM_KEYS) {
 			expect(MARKETING_PARAM_KEYS).toContain(key);
 		}

@@ -3,7 +3,9 @@ import { resolveSlackFeedbackSignal } from "@/slack/feedback";
 
 describe("resolveSlackFeedbackSignal", () => {
 	it("strips wrapping colons and lowercases", () => {
-		expect(resolveSlackFeedbackSignal({ value: ":ThumbsUp:" })).toBe("thumbsup");
+		expect(resolveSlackFeedbackSignal({ value: ":ThumbsUp:" })).toBe(
+			"thumbsup"
+		);
 	});
 
 	it("falls back to selected_option value", () => {

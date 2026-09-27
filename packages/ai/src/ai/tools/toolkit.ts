@@ -90,7 +90,6 @@ export function createToolkit(params: ToolkitParams): ToolSet {
 				createGitHubTools({
 					repository: params.githubRepository,
 					organizationId: params.organizationId,
-					userId: params.userId,
 				})
 			);
 		}

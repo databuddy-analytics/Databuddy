@@ -180,12 +180,8 @@ export async function POST(request: NextRequest) {
 							anonymousId: contactData.anonId,
 							sessionId: contactData.sessionId,
 							properties: {
-								fullName: contactData.fullName,
-								businessName: contactData.businessName,
-								website: contactData.website,
-								email: contactData.email,
-								phone: contactData.phone,
-								ip: clientIP,
+								hasPhone: Boolean(contactData.phone),
+								hasTopic: Boolean(contactData.topic),
 							},
 						})
 						.then(() => databuddy.flush())
@@ -203,8 +199,4 @@ export async function POST(request: NextRequest) {
 			{ status: 502 }
 		);
 	}
-}
-
-export function GET() {
-	return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
 }

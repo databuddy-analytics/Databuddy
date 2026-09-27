@@ -65,8 +65,8 @@ function createDependencies(
 			};
 		}
 	);
-	const resolveApiKey = vi.fn(async (headers: Headers) =>
-		keys.get(headers.get("x-api-key") ?? "") ?? null
+	const resolveApiKey = vi.fn(
+		async (headers: Headers) => keys.get(headers.get("x-api-key") ?? "") ?? null
 	);
 	const dependencies: ApiKeyAdmissionDependencies = {
 		consume,
@@ -239,7 +239,9 @@ describe("API key rate limit admission", () => {
 			app.handle(createLinkRequest("missing-three")),
 		]);
 
-		expect(responses.map((response) => response.status)).toEqual([200, 200, 200]);
+		expect(responses.map((response) => response.status)).toEqual([
+			200, 200, 200,
+		]);
 		expect(consume).not.toHaveBeenCalled();
 		expect(getHandlerCalls()).toBe(3);
 	});
@@ -254,9 +256,7 @@ describe("API key rate limit admission", () => {
 		);
 		const { app, getHandlerCalls } = createLinksApp(dependencies);
 
-		const response = await app.handle(
-			createLinkRequest("dbdy_plan_default")
-		);
+		const response = await app.handle(createLinkRequest("dbdy_plan_default"));
 
 		expect(response.status).toBe(200);
 		expect(consume).toHaveBeenCalledWith(
@@ -327,48 +327,35 @@ describe("API key rate limit admission", () => {
 		const keyB = createApiKey("concurrent-b", {
 			rateLimitMax: 300,
 		});
-		const {
-			consume,
-			dependencies,
-			recordAdmissionOutcome,
-			resolveApiKey,
-		} = createDependencies(
-			new Map([
-				["dbdy_concurrent_a", keyA],
-				["dbdy_concurrent_b", keyB],
-			]),
-			API_KEY_IN_FLIGHT_LIMIT
-		);
+		const { consume, dependencies, recordAdmissionOutcome, resolveApiKey } =
+			createDependencies(
+				new Map([
+					["dbdy_concurrent_a", keyA],
+					["dbdy_concurrent_b", keyB],
+				]),
+				API_KEY_IN_FLIGHT_LIMIT
+			);
 		let blockKeyA = true;
 		const releaseHandlers: Array<() => void> = [];
-		const { app, getHandlerCalls } = createLinksApp(
-			dependencies,
-			(request) => {
-				if (
-					blockKeyA &&
-					request.headers.get("x-api-key") === "dbdy_concurrent_a"
-				) {
-					return new Promise((resolve) => {
-						releaseHandlers.push(() => resolve({ created: true }));
-					});
-				}
-				return { created: true };
+		const { app, getHandlerCalls } = createLinksApp(dependencies, (request) => {
+			if (
+				blockKeyA &&
+				request.headers.get("x-api-key") === "dbdy_concurrent_a"
+			) {
+				return new Promise((resolve) => {
+					releaseHandlers.push(() => resolve({ created: true }));
+				});
 			}
-		);
+			return { created: true };
+		});
 
 		const pending = Array.from({ length: API_KEY_IN_FLIGHT_LIMIT }, () =>
 			app.handle(createLinkRequest("dbdy_concurrent_a"))
 		);
-		await waitUntil(
-			() => releaseHandlers.length === API_KEY_IN_FLIGHT_LIMIT
-		);
+		await waitUntil(() => releaseHandlers.length === API_KEY_IN_FLIGHT_LIMIT);
 
-		const rejected = await app.handle(
-			createLinkRequest("dbdy_concurrent_a")
-		);
-		const otherKey = await app.handle(
-			createLinkRequest("dbdy_concurrent_b")
-		);
+		const rejected = await app.handle(createLinkRequest("dbdy_concurrent_a"));
+		const otherKey = await app.handle(createLinkRequest("dbdy_concurrent_b"));
 
 		expect(rejected.status).toBe(429);
 		expect(rejected.headers.get("x-ratelimit-limit")).toBe("20");
@@ -378,9 +365,7 @@ describe("API key rate limit admission", () => {
 		expect(resolveApiKey).toHaveBeenCalledTimes(API_KEY_IN_FLIGHT_LIMIT + 1);
 		expect(getHandlerCalls()).toBe(API_KEY_IN_FLIGHT_LIMIT + 1);
 		expect(recordAdmissionOutcome).toHaveBeenCalledTimes(1);
-		expect(recordAdmissionOutcome).toHaveBeenCalledWith(
-			"in_flight_rejected"
-		);
+		expect(recordAdmissionOutcome).toHaveBeenCalledWith("in_flight_rejected");
 
 		for (const release of releaseHandlers) {
 			release();
@@ -398,9 +383,7 @@ describe("API key rate limit admission", () => {
 
 	it("records Redis fail-open decisions while allowing the request", async () => {
 		const key = createApiKey("degraded", { rateLimitMax: 300 });
-		const degraded = createDependencies(
-			new Map([["dbdy_degraded", key]])
-		);
+		const degraded = createDependencies(new Map([["dbdy_degraded", key]]));
 		degraded.dependencies.consume = vi.fn().mockResolvedValue({
 			degraded: true,
 			limit: 300,
@@ -431,10 +414,9 @@ describe("API key rate limit admission", () => {
 		],
 		[
 			"PostgreSQL statement timeout",
-			Object.assign(
-				new Error("canceling statement due to statement timeout"),
-				{ code: "57014" }
-			),
+			Object.assign(new Error("canceling statement due to statement timeout"), {
+				code: "57014",
+			}),
 		],
 	])("releases the in-flight lease after %s", async (_case, error) => {
 		const key = createApiKey("resolution-timeout", { rateLimitMax: 300 });
@@ -471,17 +453,13 @@ describe("API key rate limit admission", () => {
 
 	it("fails closed when the distributed quota dependency rejects", async () => {
 		const key = createApiKey("quota-timeout", { rateLimitMax: 300 });
-		const timeout = createDependencies(
-			new Map([["dbdy_quota_timeout", key]])
-		);
+		const timeout = createDependencies(new Map([["dbdy_quota_timeout", key]]));
 		timeout.dependencies.consume = vi
 			.fn()
 			.mockRejectedValue(new Error("Rate limit operation timed out"));
 		const { app, getHandlerCalls } = createLinksApp(timeout.dependencies);
 
-		const response = await app.handle(
-			createLinkRequest("dbdy_quota_timeout")
-		);
+		const response = await app.handle(createLinkRequest("dbdy_quota_timeout"));
 
 		expect(response.status).toBe(503);
 		expect(response.headers.get("retry-after")).toBe("5");
@@ -490,7 +468,9 @@ describe("API key rate limit admission", () => {
 			code: "SERVICE_UNAVAILABLE",
 			success: false,
 		});
-		expect(JSON.stringify(body)).not.toContain("Rate limit operation timed out");
+		expect(JSON.stringify(body)).not.toContain(
+			"Rate limit operation timed out"
+		);
 		expect(JSON.stringify(body)).not.toContain("dbdy_quota_timeout");
 		expect(getHandlerCalls()).toBe(0);
 		expect(timeout.recordAdmissionOutcome).toHaveBeenCalledWith(
@@ -572,9 +552,7 @@ describe("API key rate limit admission", () => {
 			)
 		).toEqual(DEFAULT_API_KEY_RATE_LIMIT);
 		expect(
-			getApiKeyRateLimitConfig(
-				createApiKey("invalid-max", { rateLimitMax: 0 })
-			)
+			getApiKeyRateLimitConfig(createApiKey("invalid-max", { rateLimitMax: 0 }))
 		).toEqual({
 			limit: DEFAULT_API_KEY_RATE_LIMIT.limit,
 			windowSeconds: 60,

@@ -74,7 +74,7 @@ export const UsageAlertEmail = ({
 					style={{ color: emailBrand.muted }}
 				>
 					{overageAllowed
-						? "Your billing settings allow usage beyond the included allowance. Additional usage may be billed according to your plan."
+						? `Nothing pauses when the allowance runs out: ${pausedActivity} keeps running, and usage past the allowance is billed as overage.`
 						: `If the remaining allowance reaches zero, access to ${pausedActivity} will pause until the allowance resets or the plan is changed.`}
 					{resetDate ? ` The current allowance resets ${resetDate} UTC.` : ""}
 				</Text>

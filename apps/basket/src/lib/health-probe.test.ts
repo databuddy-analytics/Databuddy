@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
-	HealthProbeTimeoutError,
+	type HealthProbeTimeoutError,
 	withHealthProbeDeadline,
 } from "./health-probe";
 

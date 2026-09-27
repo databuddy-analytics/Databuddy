@@ -5,7 +5,8 @@ import Link from "next/link";
 import { getDemoEmbedBaseUrl, hostFromNextHeaders } from "@/lib/demo-embed-url";
 
 export const metadata: Metadata = {
-	title: "Live Demo | Databuddy",
+	title: "Live Demo",
+	alternates: { canonical: "/demo" },
 	description:
 		"Experience Databuddy analytics in action with our live demo dashboard. See real-time analytics, insights, and privacy-first tracking.",
 };

@@ -1,3 +1,4 @@
+import type { AiTrafficSpansInsert } from "@databuddy/db/clickhouse/tables";
 import {
 	getWebsiteByIdV2,
 	isOriginAllowed,
@@ -150,11 +151,19 @@ export function validateRequest(
 		const isBlockedBot = botCheck.isBot && botCheck.action !== "allow";
 
 		if (website.ownerId && options.checkUsage !== false && !isBlockedBot) {
-			await checkAutumnUsage(website.ownerId, "events", {
-				website_domain: website.domain,
-				website_id: website.id,
-				website_name: website.name,
-			});
+			const eventCount = Array.isArray(body)
+				? Math.min(Math.max(body.length, 1), VALIDATION_LIMITS.BATCH_MAX_SIZE)
+				: 1;
+			await checkAutumnUsage(
+				website.ownerId,
+				"events",
+				{
+					website_domain: website.domain,
+					website_id: website.id,
+					website_name: website.name,
+				},
+				eventCount
+			);
 		}
 
 		const origin = request.headers.get("origin");
@@ -268,8 +277,15 @@ export function checkForBot(
 		}
 
 		const { action, result } = botCheck;
+		const agent = result?.agent;
 		log.set({
-			bot: { name: botCheck.botName, category: botCheck.category, action },
+			bot: {
+				name: botCheck.botName,
+				category: botCheck.category,
+				action,
+				agent: agent?.id,
+				purpose: agent?.purpose,
+			},
 		});
 
 		if (action === "allow") {
@@ -290,18 +306,20 @@ export function checkForBot(
 				request.headers.get("referer") ||
 				undefined;
 
-			runFork(
-				send("analytics-ai-traffic-spans", {
-					client_id: clientId,
-					timestamp: Date.now(),
-					bot_type: result?.category || "unknown",
-					bot_name: botCheck.botName || "unknown",
-					user_agent: userAgent,
-					path,
-					referrer,
-					action: "tracked",
-				})
-			);
+			const span: AiTrafficSpansInsert = {
+				client_id: clientId,
+				timestamp: Date.now(),
+				bot_type: result?.category || "unknown",
+				bot_name: botCheck.botName || "unknown",
+				user_agent: userAgent,
+				path,
+				referrer,
+				agent_id: agent?.id,
+				agent_purpose: agent?.purpose,
+				source: "tracker",
+				format: "html",
+			};
+			runFork(send("analytics-ai-traffic-spans", span));
 
 			return {
 				error: new Response(null, { status: 204 }),

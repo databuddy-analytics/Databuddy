@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useMemo, useState } from "react";
+import { AskAgentButton } from "@/components/agent/new-chat-button";
 import { METRIC_COLORS } from "@/components/charts/metrics-constants";
 import { useDynamicDasharray } from "@/components/charts/use-dynamic-dasharray";
 import { TableEmptyState } from "@/components/table/table-empty-state";
@@ -507,6 +508,10 @@ export function EventsTrendChart({
 								Drag to zoom
 							</Badge>
 						)}
+						<AskAgentButton
+							className="text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+							subject="the Events Trend chart"
+						/>
 					</div>
 				</Chart.Header>
 

@@ -8,14 +8,14 @@ import AmbassadorHero from "./ambassador-hero";
 import AmbassadorRewards from "./ambassador-rewards";
 
 export const metadata: Metadata = {
-	title: "Become an Ambassador | Databuddy",
+	title: "Become an Ambassador",
 	description:
 		"Join the Databuddy Ambassador Program and help us build the future of privacy-first analytics",
 	alternates: {
 		canonical: "https://www.databuddy.cc/ambassadors",
 	},
 	openGraph: {
-		title: "Become an Ambassador | Databuddy",
+		title: "Become an Ambassador",
 		description:
 			"Join the Databuddy Ambassador Program and help us build the future of privacy-first analytics",
 		url: "https://www.databuddy.cc/ambassadors",
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 };
 
 export default function AmbassadorsPage() {
-	const title = "Become an Ambassador | Databuddy";
+	const title = "Become an Ambassador";
 	const description =
 		"Join the Databuddy Ambassador Program and help us build the future of privacy-first analytics";
 	const url = "https://www.databuddy.cc/ambassadors";

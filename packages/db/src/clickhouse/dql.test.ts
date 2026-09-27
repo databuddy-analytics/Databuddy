@@ -37,9 +37,7 @@ describe("DQL ClickHouse access", () => {
 			bunPassword.verifySync("local-test-password", passwordHash ?? "")
 		).toBe(true);
 		expect(sql).not.toContain("local-test-password");
-		expect(sql).toContain(
-			"GRANT `dql_role` TO `dql_user` WITH REPLACE OPTION"
-		);
+		expect(sql).toContain("GRANT `dql_role` TO `dql_user` WITH REPLACE OPTION");
 		expect(sql).toContain("REVOKE ALL FROM `dql_user`");
 		expect(sql).toContain("REVOKE ALL FROM `dql_role`");
 		expect(sql).toContain(
@@ -47,9 +45,7 @@ describe("DQL ClickHouse access", () => {
 		);
 		expect(sql).toContain("allow_get_client_http_header = 0 READONLY");
 		expect(sql).toContain("max_threads = 4 MIN 1 MAX 4");
-		expect(sql).toContain(
-			"max_concurrent_queries_for_user = 4 MIN 1 MAX 4"
-		);
+		expect(sql).toContain("max_concurrent_queries_for_user = 4 MIN 1 MAX 4");
 		expect(sql).toContain(
 			`USING client_id = getSetting('${DQL_TENANT_SETTING}') AS RESTRICTIVE`
 		);
@@ -75,9 +71,7 @@ describe("DQL ClickHouse access", () => {
 	test("keeps the catalog physical and rejects unsafe provisioning input", () => {
 		const physicalColumns = new Set(TABLE_COLUMNS["analytics.events"]);
 		expect(
-			DQL_SCHEMA[0].columns.every((column) =>
-				physicalColumns.has(column.name)
-			)
+			DQL_SCHEMA[0].columns.every((column) => physicalColumns.has(column.name))
 		).toBe(true);
 		expect(() =>
 			buildDqlAccessStatements({
@@ -156,10 +150,7 @@ describe("DQL ClickHouse client", () => {
 			readonly: 1,
 		});
 		expect(
-			dqlSettingsForWebsite(
-				"website-a",
-				"SELECT count() FROM analytics.events"
-			)
+			dqlSettingsForWebsite("website-a", "SELECT count() FROM analytics.events")
 		).toEqual({
 			[DQL_TENANT_SETTING]: "website-a",
 			final: 1,
@@ -310,7 +301,9 @@ describe("DQL ClickHouse client", () => {
 });
 
 const describeIntegration =
-	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true" ? describe : describe.skip;
+	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"
+		? describe
+		: describe.skip;
 const LOCAL_CLICKHOUSE_URL =
 	process.env.CLICKHOUSE_URL ??
 	"http://default:@localhost:8123/databuddy_analytics";
@@ -356,200 +349,197 @@ async function currentClientAddress(admin: ClickHouseClient): Promise<string> {
 	});
 	const address = (await result.text()).trim();
 	if (!address) {
-		throw new Error("ClickHouse did not report the integration client address.");
+		throw new Error(
+			"ClickHouse did not report the integration client address."
+		);
 	}
 	return address;
 }
 
 describeIntegration("DQL database boundary", () => {
-	test(
-		"isolates tenants and denies bypasses",
-		{ timeout: 30_000 },
-		async () => {
-			assertLocalTestTarget(LOCAL_CLICKHOUSE_URL);
-			const suffix = randomUUIDv7().replaceAll("-", "");
-			const websiteA = `dql-site-a-${suffix}`;
-			const websiteB = `dql-site-b-${suffix}`;
-			const pathA = `/dql-a-${suffix}`;
-			const pathB = `/dql-b-${suffix}`;
-			const user = `dql_test_user_${suffix}`;
-			const role = `dql_test_role_${suffix}`;
-			const backdoorRole = `dql_test_backdoor_${suffix}`;
-			const policyPrefix = `dql_test_${suffix}`;
-			const policy = `${policyPrefix}_events_website`;
-			const password = `dql-test-${suffix}`;
-			const admin = createClient({ url: LOCAL_CLICKHOUSE_URL });
-			const allowedHost = await currentClientAddress(admin);
-			const dqlUrl = new URL(LOCAL_CLICKHOUSE_URL);
-			dqlUrl.username = user;
-			dqlUrl.password = password;
-			const rawDqlClient = createClient({
-				compression: { request: true, response: false },
-				url: dqlUrl.toString(),
+	test("isolates tenants and denies bypasses", {
+		timeout: 30_000,
+	}, async () => {
+		assertLocalTestTarget(LOCAL_CLICKHOUSE_URL);
+		const suffix = randomUUIDv7().replaceAll("-", "");
+		const websiteA = `dql-site-a-${suffix}`;
+		const websiteB = `dql-site-b-${suffix}`;
+		const pathA = `/dql-a-${suffix}`;
+		const pathB = `/dql-b-${suffix}`;
+		const user = `dql_test_user_${suffix}`;
+		const role = `dql_test_role_${suffix}`;
+		const backdoorRole = `dql_test_backdoor_${suffix}`;
+		const policyPrefix = `dql_test_${suffix}`;
+		const policy = `${policyPrefix}_events_website`;
+		const password = `dql-test-${suffix}`;
+		const admin = createClient({ url: LOCAL_CLICKHOUSE_URL });
+		const allowedHost = await currentClientAddress(admin);
+		const dqlUrl = new URL(LOCAL_CLICKHOUSE_URL);
+		dqlUrl.username = user;
+		dqlUrl.password = password;
+		const rawDqlClient = createClient({
+			compression: { request: true, response: false },
+			url: dqlUrl.toString(),
+		});
+		const dqlClient = rawDqlClient as unknown as DqlQueryClient;
+
+		try {
+			await admin.insert({
+				columns: [
+					"id",
+					"client_id",
+					"event_name",
+					"anonymous_id",
+					"time",
+					"session_id",
+					"referrer",
+					"url",
+					"path",
+					"ip",
+					"user_agent",
+					"properties",
+					"created_at",
+				],
+				format: "JSONEachRow",
+				table: "analytics.events",
+				values: [eventFixture(websiteA, pathA), eventFixture(websiteB, pathB)],
 			});
-			const dqlClient = rawDqlClient as unknown as DqlQueryClient;
+			await applyDqlAccess(admin, {
+				hosts: [allowedHost],
+				password,
+				policyPrefix,
+				role,
+				user,
+			});
 
-			try {
-				await admin.insert({
-					columns: [
-						"id",
-						"client_id",
-						"event_name",
-						"anonymous_id",
-						"time",
-						"session_id",
-						"referrer",
-						"url",
-						"path",
-						"ip",
-						"user_agent",
-						"properties",
-						"created_at",
-					],
-					format: "JSONEachRow",
-					table: "analytics.events",
-					values: [
-						eventFixture(websiteA, pathA),
-						eventFixture(websiteB, pathB),
-					],
-				});
-				await applyDqlAccess(admin, {
-					hosts: [allowedHost],
-					password,
-					policyPrefix,
-					role,
-					user,
-				});
+			await admin.command({ query: `CREATE ROLE \`${backdoorRole}\`` });
+			await admin.command({
+				query: `GRANT SELECT(query) ON system.query_log TO \`${backdoorRole}\``,
+			});
+			await admin.command({
+				query: `GRANT \`${backdoorRole}\` TO \`${user}\``,
+			});
+			await admin.command({
+				query: `GRANT SELECT(client_id) ON analytics.events TO \`${user}\``,
+			});
+			await admin.command({
+				query: `GRANT FILE, INSERT, CREATE TEMPORARY TABLE ON *.* TO \`${role}\``,
+			});
+			await admin.command({
+				query: `ALTER ROLE \`${role}\` SETTINGS allow_get_client_http_header = 1`,
+			});
+			await applyDqlAccess(admin, {
+				hosts: [allowedHost],
+				password,
+				policyPrefix,
+				role,
+				user,
+			});
 
-				await admin.command({ query: `CREATE ROLE \`${backdoorRole}\`` });
-				await admin.command({
-					query: `GRANT SELECT(query) ON system.query_log TO \`${backdoorRole}\``,
-				});
-				await admin.command({
-					query: `GRANT \`${backdoorRole}\` TO \`${user}\``,
-				});
-				await admin.command({
-					query: `GRANT SELECT(client_id) ON analytics.events TO \`${user}\``,
-				});
-				await admin.command({
-					query: `GRANT FILE, INSERT, CREATE TEMPORARY TABLE ON *.* TO \`${role}\``,
-				});
-				await admin.command({
-					query: `ALTER ROLE \`${role}\` SETTINGS allow_get_client_http_header = 1`,
-				});
-				await applyDqlAccess(admin, {
-					hosts: [allowedHost],
-					password,
-					policyPrefix,
-					role,
-					user,
-				});
+			const result = await executeDqlQuery<{ path: string }>(
+				{
+					params: { paths: [pathA, pathB] },
+					sql: "SELECT path FROM analytics.events WHERE path IN {paths:Array(String)} ORDER BY path",
+					websiteId: websiteA,
+				},
+				dqlClient
+			);
+			expect(result.rows).toEqual([{ path: pathA }]);
 
-				const result = await executeDqlQuery<{ path: string }>(
-					{
-						params: { paths: [pathA, pathB] },
-						sql: "SELECT path FROM analytics.events WHERE path IN {paths:Array(String)} ORDER BY path",
-						websiteId: websiteA,
-					},
-					dqlClient
-				);
-				expect(result.rows).toEqual([{ path: pathA }]);
-
-				const nested = await executeDqlQuery<{ path: string }>(
-					{
-						sql: `WITH scoped AS (
+			const nested = await executeDqlQuery<{ path: string }>(
+				{
+					sql: `WITH scoped AS (
 						SELECT path FROM analytics.events
 					)
 					SELECT path FROM scoped
 					UNION ALL
 					SELECT path FROM analytics.events
 					ORDER BY path`,
+					websiteId: websiteA,
+				},
+				dqlClient
+			);
+			expect(nested.rows).toEqual([{ path: pathA }, { path: pathA }]);
+
+			await expect(
+				executeDqlQuery(
+					{
+						sql: "SELECT * FROM mergeTreeIndex(analytics, events)",
 						websiteId: websiteA,
 					},
 					dqlClient
-				);
-				expect(nested.rows).toEqual([{ path: pathA }, { path: pathA }]);
-
-				await expect(
-					executeDqlQuery(
-						{
-							sql: "SELECT * FROM mergeTreeIndex(analytics, events)",
-							websiteId: websiteA,
-						},
-						dqlClient
-					)
-				).rejects.toThrow("published analytics surface");
-				await expect(
-					dqlClient.query({
-						clickhouse_settings: { readonly: 1 },
-						format: "JSON",
-						query: "SELECT path FROM analytics.events LIMIT 1",
-					})
-				).rejects.toThrow();
-				await expect(
-					dqlClient.query({
-						clickhouse_settings: dqlSettingsForWebsite(websiteA),
-						format: "JSON",
-						query: "SELECT client_id FROM analytics.events LIMIT 1",
-					})
-				).rejects.toThrow();
-				await expect(
-					dqlClient.query({
-						clickhouse_settings: dqlSettingsForWebsite(websiteA),
-						format: "JSON",
-						query: "SELECT query FROM system.query_log LIMIT 1",
-					})
-				).rejects.toThrow();
-				await expect(
-					dqlClient.query({
-						clickhouse_settings: dqlSettingsForWebsite(websiteA),
-						format: "JSON",
-						query: "SELECT getClientHTTPHeader('Authorization')",
-					})
-				).rejects.toThrow();
-				await expect(
-					dqlClient.query({
-						clickhouse_settings: dqlSettingsForWebsite(websiteA),
-						format: "JSON",
-						query: "SELECT * FROM file('/etc/passwd', LineAsString)",
-					})
-				).rejects.toThrow();
-				await expect(
-					dqlClient.query({
-						clickhouse_settings: dqlSettingsForWebsite(websiteA),
-						format: "JSON",
-						query: `SELECT path FROM analytics.events SETTINGS ${DQL_TENANT_SETTING} = '${websiteB}'`,
-					})
-				).rejects.toThrow();
-				await expect(
-					rawDqlClient.command({
-						query:
-							"INSERT INTO analytics.events (client_id) VALUES ({websiteId:String})",
-						query_params: { websiteId: websiteA },
-					})
-				).rejects.toThrow();
-				await expect(
-					rawDqlClient.command({
-						query:
-							"CREATE TEMPORARY TABLE dql_privilege_escape (value String)",
-					})
-				).rejects.toThrow();
-			} finally {
-				await admin.command({
-					query: `DROP ROW POLICY IF EXISTS \`${policy}\` ON analytics.events`,
-				});
-				await admin.command({ query: `DROP USER IF EXISTS \`${user}\`` });
-				await admin.command({ query: `DROP ROLE IF EXISTS \`${role}\`` });
-				await admin.command({
-					query: `DROP ROLE IF EXISTS \`${backdoorRole}\``,
-				});
-				await admin.command({
-					query: `ALTER TABLE analytics.events DELETE WHERE client_id IN ({websiteA:String}, {websiteB:String}) SETTINGS mutations_sync = 1`,
-					query_params: { websiteA, websiteB },
-				});
-				await rawDqlClient.close();
-				await admin.close();
-			}
+				)
+			).rejects.toThrow("published analytics surface");
+			await expect(
+				dqlClient.query({
+					clickhouse_settings: { readonly: 1 },
+					format: "JSON",
+					query: "SELECT path FROM analytics.events LIMIT 1",
+				})
+			).rejects.toThrow();
+			await expect(
+				dqlClient.query({
+					clickhouse_settings: dqlSettingsForWebsite(websiteA),
+					format: "JSON",
+					query: "SELECT client_id FROM analytics.events LIMIT 1",
+				})
+			).rejects.toThrow();
+			await expect(
+				dqlClient.query({
+					clickhouse_settings: dqlSettingsForWebsite(websiteA),
+					format: "JSON",
+					query: "SELECT query FROM system.query_log LIMIT 1",
+				})
+			).rejects.toThrow();
+			await expect(
+				dqlClient.query({
+					clickhouse_settings: dqlSettingsForWebsite(websiteA),
+					format: "JSON",
+					query: "SELECT getClientHTTPHeader('Authorization')",
+				})
+			).rejects.toThrow();
+			await expect(
+				dqlClient.query({
+					clickhouse_settings: dqlSettingsForWebsite(websiteA),
+					format: "JSON",
+					query: "SELECT * FROM file('/etc/passwd', LineAsString)",
+				})
+			).rejects.toThrow();
+			await expect(
+				dqlClient.query({
+					clickhouse_settings: dqlSettingsForWebsite(websiteA),
+					format: "JSON",
+					query: `SELECT path FROM analytics.events SETTINGS ${DQL_TENANT_SETTING} = '${websiteB}'`,
+				})
+			).rejects.toThrow();
+			await expect(
+				rawDqlClient.command({
+					query:
+						"INSERT INTO analytics.events (client_id) VALUES ({websiteId:String})",
+					query_params: { websiteId: websiteA },
+				})
+			).rejects.toThrow();
+			await expect(
+				rawDqlClient.command({
+					query: "CREATE TEMPORARY TABLE dql_privilege_escape (value String)",
+				})
+			).rejects.toThrow();
+		} finally {
+			await admin.command({
+				query: `DROP ROW POLICY IF EXISTS \`${policy}\` ON analytics.events`,
+			});
+			await admin.command({ query: `DROP USER IF EXISTS \`${user}\`` });
+			await admin.command({ query: `DROP ROLE IF EXISTS \`${role}\`` });
+			await admin.command({
+				query: `DROP ROLE IF EXISTS \`${backdoorRole}\``,
+			});
+			await admin.command({
+				query:
+					"ALTER TABLE analytics.events DELETE WHERE client_id IN ({websiteA:String}, {websiteB:String}) SETTINGS mutations_sync = 1",
+				query_params: { websiteA, websiteB },
+			});
+			await rawDqlClient.close();
+			await admin.close();
 		}
-	);
+	});
 });

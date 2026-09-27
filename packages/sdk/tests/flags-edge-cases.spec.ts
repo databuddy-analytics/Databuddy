@@ -376,7 +376,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 		await page.evaluate(() => {
 			const w = window as unknown as { __tm: { destroy: () => void } };
 			w.__tm.destroy();
-			delete (window as unknown as { __tm?: unknown }).__tm;
+			(window as unknown as { __tm?: unknown }).__tm = undefined;
 		});
 	});
 
@@ -521,5 +521,36 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 		});
 
 		expect(requests).toBe(2);
+	});
+
+	test("works when the anonymous id cannot be persisted", async ({ page }) => {
+		await bulkOnlyRoute(page, () => ({ x: MOCK_FLAG_ENABLED }));
+
+		await page.goto("/test");
+		await waitForSDK(page);
+
+		const result = await page.evaluate(async () => {
+			const originalGet = Storage.prototype.getItem;
+			const originalSet = Storage.prototype.setItem;
+			Storage.prototype.getItem = () => null;
+			Storage.prototype.setItem = () => {
+				throw new DOMException("QuotaExceededError", "QuotaExceededError");
+			};
+
+			const SDK = window.__SDK__;
+			const manager = new SDK.BrowserFlagsManager({
+				config: { clientId: "anon-fail", autoFetch: false },
+			});
+
+			const flag = await manager.getFlag("x");
+			manager.destroy();
+
+			Storage.prototype.getItem = originalGet;
+			Storage.prototype.setItem = originalSet;
+
+			return { enabled: flag.enabled };
+		});
+
+		expect(result.enabled).toBe(true);
 	});
 });

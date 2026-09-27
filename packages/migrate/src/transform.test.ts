@@ -253,5 +253,4 @@ describe("transform", () => {
 		expect(result.output.startsWith(surrounding)).toBe(true);
 		expect(result.output.endsWith(trailing)).toBe(true);
 	});
-
 });

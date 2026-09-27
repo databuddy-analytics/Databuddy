@@ -55,7 +55,6 @@ describe("detectBot", () => {
 		expect(result.botName).toBe("GPTBot");
 		expect(result.action).toBe("track_only");
 	});
-
 });
 
 describe("parseUserAgent", () => {

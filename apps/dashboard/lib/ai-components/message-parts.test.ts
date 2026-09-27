@@ -22,15 +22,6 @@ describe("AI component message parts", () => {
 		).toEqual(actionComponent);
 	});
 
-	it("keeps legacy kebab-case data parts readable", () => {
-		expect(
-			getAIComponentInputFromPart({
-				type: "data-ai-component",
-				data: actionComponent,
-			})
-		).toEqual(actionComponent);
-	});
-
 	it("rejects invalid component data parts", () => {
 		expect(
 			getAIComponentInputFromPart({

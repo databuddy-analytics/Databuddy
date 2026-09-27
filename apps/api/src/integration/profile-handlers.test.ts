@@ -57,10 +57,12 @@ describe("profiles.get", () => {
 		await addToOrganization(user.id, org.id, "member");
 		const website = await insertWebsite({ organizationId: org.id });
 		await seedProfile(website.id, "user_1");
-		await db().insert(profileAliases).values([
-			{ websiteId: website.id, anonymousId: "anon_a", profileId: "user_1" },
-			{ websiteId: website.id, anonymousId: "anon_b", profileId: "user_1" },
-		]);
+		await db()
+			.insert(profileAliases)
+			.values([
+				{ websiteId: website.id, anonymousId: "anon_a", profileId: "user_1" },
+				{ websiteId: website.id, anonymousId: "anon_b", profileId: "user_1" },
+			]);
 
 		const result = await call(appRouter.profiles.get, {
 			...userContext(user, org.id),
@@ -217,13 +219,19 @@ describe("profiles.findByEmail", () => {
 		);
 		const ctx = userContext(user, org.id);
 
-		const found = await call(appRouter.profiles.findByEmail, ctx)({
+		const found = await call(
+			appRouter.profiles.findByEmail,
+			ctx
+		)({
 			websiteId: website.id,
 			email: "jo@acme.com",
 		});
 		expect(found).toEqual({ profileId: "user_1" });
 
-		const missing = await call(appRouter.profiles.findByEmail, ctx)({
+		const missing = await call(
+			appRouter.profiles.findByEmail,
+			ctx
+		)({
 			websiteId: website.id,
 			email: "nobody@acme.com",
 		});
@@ -247,12 +255,18 @@ describe("profiles.traitKeys / traitValues", () => {
 		});
 		const ctx = userContext(user, org.id);
 
-		const keys = await call(appRouter.profiles.traitKeys, ctx)({
+		const keys = await call(
+			appRouter.profiles.traitKeys,
+			ctx
+		)({
 			websiteId: website.id,
 		});
 		expect(keys).toEqual(["beta", "plan"]);
 
-		const values = await call(appRouter.profiles.traitValues, ctx)({
+		const values = await call(
+			appRouter.profiles.traitValues,
+			ctx
+		)({
 			websiteId: website.id,
 			key: "plan",
 		});
@@ -298,97 +312,106 @@ describe("getTraitDistribution", () => {
 		]);
 	});
 
-	iit("gives every returned key a value before adding more values per key", async () => {
-		const org = await insertOrganization();
-		const website = await insertWebsite({ organizationId: org.id });
-		const keys = Array.from({ length: 11 }, (_, index) => `trait_${index}`);
+	iit(
+		"gives every returned key a value before adding more values per key",
+		async () => {
+			const org = await insertOrganization();
+			const website = await insertWebsite({ organizationId: org.id });
+			const keys = Array.from({ length: 11 }, (_, index) => `trait_${index}`);
 
-		await Promise.all(
-			Array.from({ length: 20 }, (_, valueIndex) =>
-				seedProfile(website.id, `user_${valueIndex}`, {
-					traits: Object.fromEntries(
-						keys.map((key) => [key, `value_${valueIndex}`])
-					),
-				})
-			)
-		);
+			await Promise.all(
+				Array.from({ length: 20 }, (_, valueIndex) =>
+					seedProfile(website.id, `user_${valueIndex}`, {
+						traits: Object.fromEntries(
+							keys.map((key) => [key, `value_${valueIndex}`])
+						),
+					})
+				)
+			);
 
-		const distribution = await getTraitDistribution(website.id);
-		expect(distribution).toMatchObject({
-			hasMoreKeys: false,
-			hasMoreValues: true,
-			returnedTraitKeys: 11,
-			totalTraitKeys: 11,
-			valuesPerKey: 18,
-		});
-		expect(distribution.traits).toHaveLength(198);
-		expect(new Set(distribution.traits.map((trait) => trait.key))).toEqual(
-			new Set(keys)
-		);
-	});
+			const distribution = await getTraitDistribution(website.id);
+			expect(distribution).toMatchObject({
+				hasMoreKeys: false,
+				hasMoreValues: true,
+				returnedTraitKeys: 11,
+				totalTraitKeys: 11,
+				valuesPerKey: 18,
+			});
+			expect(distribution.traits).toHaveLength(198);
+			expect(new Set(distribution.traits.map((trait) => trait.key))).toEqual(
+				new Set(keys)
+			);
+		}
+	);
 
-	iit("reports when lower-coverage keys are omitted by the row bound", async () => {
-		const org = await insertOrganization();
-		const website = await insertWebsite({ organizationId: org.id });
-		await seedProfile(website.id, "user_1", {
-			traits: Object.fromEntries(
-				Array.from({ length: 201 }, (_, index) => [`trait_${index}`, true])
-			),
-		});
+	iit(
+		"reports when lower-coverage keys are omitted by the row bound",
+		async () => {
+			const org = await insertOrganization();
+			const website = await insertWebsite({ organizationId: org.id });
+			await seedProfile(website.id, "user_1", {
+				traits: Object.fromEntries(
+					Array.from({ length: 201 }, (_, index) => [`trait_${index}`, true])
+				),
+			});
 
-		const distribution = await getTraitDistribution(website.id);
-		expect(distribution).toMatchObject({
-			hasMoreKeys: true,
-			hasMoreValues: false,
-			returnedTraitKeys: 200,
-			totalTraitKeys: 201,
-			valuesPerKey: 1,
-		});
-		expect(distribution.traits).toHaveLength(200);
-	});
+			const distribution = await getTraitDistribution(website.id);
+			expect(distribution).toMatchObject({
+				hasMoreKeys: true,
+				hasMoreValues: false,
+				returnedTraitKeys: 200,
+				totalTraitKeys: 201,
+				valuesPerKey: 1,
+			});
+			expect(distribution.traits).toHaveLength(200);
+		}
+	);
 });
 
 describe("resolveTraitSegment", () => {
-	iit("resolves profile ids by trait predicate scoped to the website", async () => {
-		const org = await insertOrganization();
-		const website = await insertWebsite({ organizationId: org.id });
-		const otherWebsite = await insertWebsite({ organizationId: org.id });
-		await seedProfile(website.id, "user_1", { traits: { plan: "pro" } });
-		await seedProfile(website.id, "user_2", { traits: { plan: "free" } });
-		await seedProfile(website.id, "user_3", {
-			traits: { plan: "pro", beta: true },
-		});
-		await seedProfile(otherWebsite.id, "user_4", { traits: { plan: "pro" } });
+	iit(
+		"resolves profile ids by trait predicate scoped to the website",
+		async () => {
+			const org = await insertOrganization();
+			const website = await insertWebsite({ organizationId: org.id });
+			const otherWebsite = await insertWebsite({ organizationId: org.id });
+			await seedProfile(website.id, "user_1", { traits: { plan: "pro" } });
+			await seedProfile(website.id, "user_2", { traits: { plan: "free" } });
+			await seedProfile(website.id, "user_3", {
+				traits: { plan: "pro", beta: true },
+			});
+			await seedProfile(otherWebsite.id, "user_4", { traits: { plan: "pro" } });
 
-		const pro = await resolveTraitSegment(website.id, [
-			{ field: "trait:plan", op: "eq", value: "pro" },
-		]);
-		expect(pro.sort()).toEqual(["user_1", "user_3"]);
+			const pro = await resolveTraitSegment(website.id, [
+				{ field: "trait:plan", op: "eq", value: "pro" },
+			]);
+			expect(pro.sort()).toEqual(["user_1", "user_3"]);
 
-		const proBeta = await resolveTraitSegment(website.id, [
-			{ field: "trait:plan", op: "eq", value: "pro" },
-			{ field: "trait:beta", op: "eq", value: "true" },
-		]);
-		expect(proBeta).toEqual(["user_3"]);
+			const proBeta = await resolveTraitSegment(website.id, [
+				{ field: "trait:plan", op: "eq", value: "pro" },
+				{ field: "trait:beta", op: "eq", value: "true" },
+			]);
+			expect(proBeta).toEqual(["user_3"]);
 
-		const notPro = await resolveTraitSegment(website.id, [
-			{ field: "trait:plan", op: "ne", value: "pro" },
-		]);
-		expect(notPro).toEqual(["user_2"]);
+			const notPro = await resolveTraitSegment(website.id, [
+				{ field: "trait:plan", op: "ne", value: "pro" },
+			]);
+			expect(notPro).toEqual(["user_2"]);
 
-		const inList = await resolveTraitSegment(website.id, [
-			{ field: "trait:plan", op: "in", value: ["free", "trial"] },
-		]);
-		expect(inList).toEqual(["user_2"]);
+			const inList = await resolveTraitSegment(website.id, [
+				{ field: "trait:plan", op: "in", value: ["free", "trial"] },
+			]);
+			expect(inList).toEqual(["user_2"]);
 
-		const emptyIn = await resolveTraitSegment(website.id, [
-			{ field: "trait:plan", op: "in", value: [] },
-		]);
-		expect(emptyIn).toEqual([]);
+			const emptyIn = await resolveTraitSegment(website.id, [
+				{ field: "trait:plan", op: "in", value: [] },
+			]);
+			expect(emptyIn).toEqual([]);
 
-		const emptyNotIn = await resolveTraitSegment(website.id, [
-			{ field: "trait:plan", op: "not_in", value: [] },
-		]);
-		expect(emptyNotIn.sort()).toEqual(["user_1", "user_2", "user_3"]);
-	});
+			const emptyNotIn = await resolveTraitSegment(website.id, [
+				{ field: "trait:plan", op: "not_in", value: [] },
+			]);
+			expect(emptyNotIn.sort()).toEqual(["user_1", "user_2", "user_3"]);
+		}
+	);
 });

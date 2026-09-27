@@ -14,7 +14,6 @@ export * from "./magic-link-email";
 export * from "./otp-email";
 export * from "./reset-password-email";
 export { emailTailwindConfig } from "./tailwind.config";
-export * from "./uptime-alert-email";
 export * from "./usage-alert-email";
 export * from "./usage-email-utils";
 export * from "./usage-limit-email";

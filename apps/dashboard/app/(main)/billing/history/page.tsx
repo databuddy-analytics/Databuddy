@@ -27,11 +27,11 @@ import {
 const PAGE_SIZE = 10;
 
 export default function HistoryPage() {
-	const { customerData, isLoading, error, refetch } = useBillingData();
+	const { customer, isLoading, error, refetch } = useBillingData();
 	const { onManageBilling } = useBilling();
 	const [page, setPage] = useState(0);
 
-	const invoices = customerData?.invoices ?? [];
+	const invoices = customer?.invoices ?? [];
 	const sortedInvoices = useMemo(
 		() => [...invoices].sort((a, b) => b.createdAt - a.createdAt),
 		[invoices]
@@ -43,12 +43,7 @@ export default function HistoryPage() {
 		(page + 1) * PAGE_SIZE
 	);
 
-	const subscriptionHistory = useMemo(() => {
-		if (!customerData?.subscriptions?.length) {
-			return [];
-		}
-		return customerData.subscriptions;
-	}, [customerData?.subscriptions]);
+	const subscriptionHistory = customer?.subscriptions ?? [];
 
 	if (isLoading) {
 		return (
@@ -61,7 +56,7 @@ export default function HistoryPage() {
 	if (error) {
 		return (
 			<main className="min-h-0 flex-1 overflow-y-auto">
-				<div className="mx-auto max-w-2xl p-5">
+				<div className="mx-auto max-w-4xl p-5">
 					<ErrorState error={error} onRetry={refetch} />
 				</div>
 			</main>
@@ -70,7 +65,7 @@ export default function HistoryPage() {
 
 	return (
 		<main className="min-h-0 flex-1 overflow-y-auto">
-			<div className="mx-auto max-w-2xl space-y-6 p-5">
+			<div className="mx-auto max-w-4xl space-y-6 p-5">
 				<Card>
 					<Card.Header className="flex-row items-start justify-between gap-4">
 						<div>
@@ -156,7 +151,7 @@ export default function HistoryPage() {
 }
 
 type Invoice = NonNullable<
-	NonNullable<ReturnType<typeof useBillingData>["customerData"]>["invoices"]
+	NonNullable<ReturnType<typeof useBillingData>["customer"]>["invoices"]
 >[number];
 
 const InvoiceRow = memo(function InvoiceRowComponent({
@@ -288,7 +283,7 @@ function SubscriptionItem({
 
 function HistorySkeleton() {
 	return (
-		<div className="mx-auto max-w-2xl space-y-6 p-5">
+		<div className="mx-auto max-w-4xl space-y-6 p-5">
 			<Card>
 				<Card.Header className="flex-row items-start justify-between gap-4">
 					<div className="space-y-1">

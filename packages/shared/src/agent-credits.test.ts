@@ -22,7 +22,6 @@ describe("agent credit math", () => {
 			0.3 * AGENT_CREDITS_PER_USD * AGENT_CREDIT_MARKUP
 		);
 	});
-
 });
 
 describe("agent model cost resolution", () => {

@@ -90,9 +90,9 @@ describe("audit write-time redaction", () => {
 	});
 
 	test("redacts whole array values on sensitive fields", () => {
-		expect(
-			redactAuditChanges({ token: { after: ["a", "b"] } })
-		).toEqual({ token: { after: AUDIT_REDACTED_VALUE } });
+		expect(redactAuditChanges({ token: { after: ["a", "b"] } })).toEqual({
+			token: { after: AUDIT_REDACTED_VALUE },
+		});
 	});
 
 	test("preserves non-string values on plain fields", () => {

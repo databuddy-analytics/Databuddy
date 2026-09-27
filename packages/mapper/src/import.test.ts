@@ -98,7 +98,6 @@ describe("createImport", () => {
 
 		expect(events[0].event_name).toBe("screen_view");
 	});
-
 });
 
 describe("mapUmamiRow", () => {

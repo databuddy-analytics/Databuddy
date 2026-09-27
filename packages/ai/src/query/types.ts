@@ -35,16 +35,14 @@ export type VisualizationType =
 
 export interface QueryBuilderMeta {
 	category?: string;
+	/** Effective ordering inside custom SQL; null means no ordering. */
+	default_order?: string | null;
 	default_visualization?: VisualizationType;
-	deprecated?: boolean;
 	description: string;
-	docs_url?: string;
-	output_example?: Record<string, string | number | boolean | null>[];
 	output_fields?: QueryOutputField[];
 	supports_granularity?: ("hour" | "day" | "week" | "month")[];
 	tags?: string[];
 	title?: string;
-	version?: string;
 }
 
 // `contains` wraps values as %v%; `starts_with` appends %. Both map to LIKE.
@@ -118,10 +116,12 @@ export interface CustomSqlContext {
 	filterParams?: Record<string, Filter["value"]>;
 	filters?: Filter[];
 	granularity?: TimeUnit;
+	groupBy?: string[];
 	helpers?: QueryHelpers;
 	limit?: number;
 	offset?: number;
 	orderBy?: string;
+	preparedKeys?: Record<string, string[]>;
 	startDate: string;
 	timezone?: string;
 	websiteId: string;
@@ -130,6 +130,18 @@ export interface CustomSqlContext {
 export type CustomSqlFn = (
 	ctx: CustomSqlContext
 ) => string | { sql: string; params: Record<string, unknown> };
+
+/**
+ * Resolves a narrow key set in its own round trip so customSql can bind it as a
+ * parameter, instead of leaving ClickHouse to re-execute the CTE that produces
+ * it once per reference. Builders declaring this never join a batched UNION.
+ */
+export type PrepareSqlFn = (ctx: CustomSqlContext) => {
+	as: string;
+	column: string;
+	params: Record<string, unknown>;
+	sql: string;
+}[];
 
 export interface PercentageOf {
 	as?: string;
@@ -140,6 +152,8 @@ export interface SimpleQueryConfig {
 	allowedFilterOperators?: Partial<Record<string, readonly FilterOperator[]>>;
 	allowedFilters?: string[];
 	appendEndOfDayToTo?: boolean;
+	/** False for native selectors that do not accept generic event filters. */
+	commonFilters?: boolean;
 	customizable?: boolean;
 	customSql?: CustomSqlFn;
 	fields?: ConfigField[];
@@ -153,6 +167,7 @@ export interface SimpleQueryConfig {
 	orderBy?: string;
 	percentageOf?: PercentageOf;
 	plugins?: QueryPlugins;
+	prepareSql?: PrepareSqlFn;
 	publicAccess?: boolean;
 	requiredAnyFilter?: string[];
 	requiredFilters?: string[];

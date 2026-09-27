@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { cache } from "react";
 
 const DEFAULT_MARBLE_API_URL = "https://api.marblecms.com/v1";
@@ -188,11 +189,32 @@ export const getPosts = cache(() =>
 	})
 );
 
-export const getSinglePost = cache((slug: string) =>
-	fetchFromMarble<MarblePost>(`posts/${encodeURIComponent(slug)}`, {
-		returnStatusOnError: true,
-	})
-);
+export const getSinglePost = cache(async (slug: string) => {
+	const result = await fetchFromMarble<MarblePost>(
+		`posts/${encodeURIComponent(slug)}`,
+		{ returnStatusOnError: true }
+	);
+	if ("error" in result) {
+		if (result.status === 404) {
+			notFound();
+		}
+		throw new Error(`Failed to load blog post: ${result.status}`);
+	}
+	if (!(result.post && isPublished(result.post))) {
+		notFound();
+	}
+	return result.post;
+});
+
+export function getPostModifiedAt(
+	post: Pick<Post, "publishedAt" | "updatedAt">
+) {
+	const publishedAt = new Date(post.publishedAt);
+	const updatedAt = post.updatedAt ? new Date(post.updatedAt) : publishedAt;
+	return updatedAt >= publishedAt && updatedAt.getTime() <= Date.now()
+		? updatedAt.toISOString()
+		: publishedAt.toISOString();
+}
 
 export function isPublished(post: {
 	publishedAt: Date | string;

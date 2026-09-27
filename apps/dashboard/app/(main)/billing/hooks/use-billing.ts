@@ -7,13 +7,8 @@ import { trackCancelFeedbackAction } from "../actions/cancel-feedback-action";
 import type { CancelFeedback } from "../components/cancel-subscription-dialog";
 import {
 	calculateFeatureUsage,
-	type FeatureUsage,
+	findPlanPricingTiers,
 } from "../utils/feature-usage";
-import { getStripeMetadata } from "../utils/stripe-metadata";
-
-interface Usage {
-	features: FeatureUsage[];
-}
 export interface CancelTarget {
 	currentPeriodEnd?: number;
 	id: string;
@@ -22,30 +17,10 @@ export interface CancelTarget {
 export type { CancelFeedback } from "../components/cancel-subscription-dialog";
 
 export function useBilling(refetch?: () => void) {
-	const { attach, updateSubscription, check, openCustomerPortal } =
-		useCustomer();
-	const [isLoading, setIsLoading] = useState(false);
+	const { updateSubscription, openCustomerPortal } = useCustomer();
 	const [cancelTarget, setCancelTarget] = useState<CancelTarget | null>(null);
 
-	const handleUpgrade = async (planId: string) => {
-		try {
-			await attach({
-				planId,
-				successUrl: `${window.location.origin}/billing`,
-				metadata: getStripeMetadata(),
-			});
-		} catch (error) {
-			toast.error(
-				getUserFacingErrorMessage(
-					error,
-					"We couldn't update this subscription. Try again."
-				)
-			);
-		}
-	};
-
 	const handleCancel = async (planId: string, immediate = false) => {
-		setIsLoading(true);
 		try {
 			await updateSubscription({
 				planId,
@@ -68,8 +43,6 @@ export function useBilling(refetch?: () => void) {
 				)
 			);
 			return false;
-		} finally {
-			setIsLoading(false);
 		}
 	};
 
@@ -92,9 +65,6 @@ export function useBilling(refetch?: () => void) {
 	};
 
 	return {
-		isLoading,
-		onUpgrade: handleUpgrade,
-		onCancel: handleCancel,
 		onCancelClick: (id: string, name: string, currentPeriodEnd?: number) =>
 			setCancelTarget({ id, name, currentPeriodEnd }),
 		onCancelConfirm: async (immediate: boolean, feedback?: CancelFeedback) => {
@@ -121,7 +91,6 @@ export function useBilling(refetch?: () => void) {
 			openCustomerPortal({
 				returnUrl: `${window.location.origin}/billing`,
 			}),
-		check,
 		showCancelDialog: !!cancelTarget,
 		cancelTarget,
 		getSubscriptionStatusDetails,
@@ -134,7 +103,9 @@ export function useBillingData() {
 		isLoading: isCustomerLoading,
 		error: customerError,
 		refetch: refetchCustomer,
-	} = useCustomer({ expand: ["invoices", "payment_method"] });
+	} = useCustomer({
+		expand: ["invoices", "payment_method", "subscriptions.plan"],
+	});
 
 	const {
 		data: plans,
@@ -142,15 +113,18 @@ export function useBillingData() {
 		refetch: refetchPlans,
 	} = useListPlans();
 
-	const usage: Usage = useMemo(
+	const usage = useMemo(
 		() => ({
 			features: customer?.balances
 				? Object.values(customer.balances).map((bal) =>
-						calculateFeatureUsage(bal)
+						calculateFeatureUsage(
+							bal,
+							findPlanPricingTiers(plans, bal.featureId)
+						)
 					)
 				: [],
 		}),
-		[customer?.balances]
+		[customer?.balances, plans]
 	);
 
 	const refetch = () => {
@@ -162,7 +136,6 @@ export function useBillingData() {
 		plans: plans ?? [],
 		usage,
 		customer,
-		customerData: customer,
 		isLoading: isCustomerLoading || isPlansLoading,
 		error: customerError,
 		refetch,

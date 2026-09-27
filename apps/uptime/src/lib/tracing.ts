@@ -2,7 +2,7 @@ import { log } from "evlog";
 
 export function captureError(
 	error: unknown,
-	attributes?: Record<string, string | number | boolean>
+	attributes?: Record<string, string | number | boolean | undefined>
 ): void {
 	const err = error instanceof Error ? error : new Error(String(error));
 	log.error({

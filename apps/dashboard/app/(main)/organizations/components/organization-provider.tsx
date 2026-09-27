@@ -11,11 +11,14 @@ import {
 	EnvelopeIcon,
 	GearIcon,
 	GlobeIcon,
+	LightbulbIcon,
 	PlugIcon,
 	UsersIcon,
 	ShieldCheckIcon,
 } from "@databuddy/ui/icons";
 import { Button, EmptyState, Skeleton } from "@databuddy/ui";
+
+import { BusinessContextSkeleton } from "./business-context-layout";
 
 type IconComponent = React.ComponentType<React.SVGProps<SVGSVGElement>>;
 
@@ -64,6 +67,12 @@ const PAGE_INFO_MAP: Record<string, PageInfo> = {
 		icon: PlugIcon,
 		requiresOrg: true,
 	},
+	"/organizations/settings/business-context": {
+		title: "Business Context",
+		description: "Give your agent a shared understanding of your business",
+		icon: LightbulbIcon,
+		requiresOrg: true,
+	},
 	"/organizations/settings/audit": {
 		title: "Audit Log",
 		description: "Review privileged activity in this organization",
@@ -101,6 +110,9 @@ export function OrganizationProvider({
 	);
 
 	if (isLoading) {
+		if (pathname === "/organizations/settings/business-context") {
+			return <BusinessContextSkeleton />;
+		}
 		return (
 			<div className="flex h-full flex-col">
 				<div className="border-b">

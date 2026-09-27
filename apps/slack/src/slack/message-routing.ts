@@ -3,6 +3,10 @@ import type { types } from "@slack/bolt";
 
 const LEADING_APP_MENTION_REGEX = /^<@[A-Z0-9]+>\s*/i;
 
+export function isSlackStopCommand(text: string): boolean {
+	return text.trim().toLowerCase() === "stop";
+}
+
 type SlackMessageFields = Pick<
 	types.GenericMessageEvent,
 	| "bot_id"

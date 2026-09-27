@@ -34,9 +34,13 @@ describe("encryption", () => {
 
 	it("rejects tampered ciphertext", () => {
 		const secret = generateKey();
-		const [version, iv, tag, ciphertext] = encrypt("payload", secret).split(":");
+		const [version, iv, tag, ciphertext] = encrypt("payload", secret).split(
+			":"
+		);
 		const flipped =
-			ciphertext[0] === "A" ? `B${ciphertext.slice(1)}` : `A${ciphertext.slice(1)}`;
+			ciphertext[0] === "A"
+				? `B${ciphertext.slice(1)}`
+				: `A${ciphertext.slice(1)}`;
 
 		expect(() =>
 			decrypt([version, iv, tag, flipped].join(":"), secret)
@@ -45,7 +49,9 @@ describe("encryption", () => {
 
 	it("rejects a tampered auth tag", () => {
 		const secret = generateKey();
-		const [version, iv, tag, ciphertext] = encrypt("payload", secret).split(":");
+		const [version, iv, tag, ciphertext] = encrypt("payload", secret).split(
+			":"
+		);
 		const flippedTag = tag[0] === "A" ? `B${tag.slice(1)}` : `A${tag.slice(1)}`;
 
 		expect(() =>
@@ -92,12 +98,14 @@ describe("encryption", () => {
 		expect(generateKey()).not.toBe(key);
 	});
 
-	it.each([[31], [1025], [64.5], [Number.NaN]])(
-		"rejects key length %p outside 32-1024 whole bytes",
-		(byteLength) => {
-			expect(() => generateKey(byteLength)).toThrow(
-				"Key length must be an integer between 32 and 1024 bytes"
-			);
-		}
-	);
+	it.each([
+		[31],
+		[1025],
+		[64.5],
+		[Number.NaN],
+	])("rejects key length %p outside 32-1024 whole bytes", (byteLength) => {
+		expect(() => generateKey(byteLength)).toThrow(
+			"Key length must be an integer between 32 and 1024 bytes"
+		);
+	});
 });

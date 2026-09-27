@@ -4,7 +4,9 @@ import { chQuery, clickHouse } from "@databuddy/db/clickhouse";
 import { CustomEventsBuilders } from "./custom-events";
 
 const describeIntegration =
-	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true" ? describe : describe.skip;
+	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"
+		? describe
+		: describe.skip;
 
 describeIntegration("custom event identity against ClickHouse", () => {
 	it("excludes unidentified rows while deduplicating anonymous and profile identities", async () => {

@@ -1,18 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { generateAgentPrompt } from "../../websites/[id]/_components/utils/code-generators";
 
 describe("generateAgentPrompt", () => {
 	test("does not ask an AI assistant to send installation telemetry", () => {
-		const promptSource = readFileSync(
-			new URL("./step-install-tracking.tsx", import.meta.url),
-			"utf8"
-		);
+		const prompt = generateAgentPrompt("example-client-id");
 
-		expect(promptSource).not.toContain("agent-telemetry");
-		expect(promptSource).not.toContain("Report Back");
-		expect(promptSource).not.toContain("Always send this report");
-		expect(promptSource).not.toContain("trackPerformance");
-		expect(promptSource).not.toContain("trackScreenViews");
-		expect(promptSource).not.toContain("trackSessions");
+		expect(prompt).not.toContain("agent-telemetry");
+		expect(prompt).not.toContain("Report Back");
+		expect(prompt).not.toContain("Always send this report");
+		expect(prompt).not.toContain("trackPerformance");
+		expect(prompt).not.toContain("trackScreenViews");
+		expect(prompt).not.toContain("trackSessions");
 	});
 });

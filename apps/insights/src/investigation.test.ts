@@ -23,7 +23,12 @@ const baseSignal: DetectedSignal = {
 describe("rankSignals", () => {
 	it("prioritizes measured behavioral consequences over raw regressions", () => {
 		const ranked = rankSignals([
-			{ ...baseSignal, direction: "up", deltaPercent: 120, severity: "critical" },
+			{
+				...baseSignal,
+				direction: "up",
+				deltaPercent: 120,
+				severity: "critical",
+			},
 			{
 				...baseSignal,
 				metric: "goal:signup",
@@ -310,9 +315,9 @@ describe("normalizedErrorSubject", () => {
 		expect(
 			normalizedErrorSubject("error:Uncaught SyntaxError: Unexpected token")
 		).toBe("error:SyntaxError: Unexpected token");
-		expect(normalizedErrorSubject("Uncaught SyntaxError: Unexpected token")).toBe(
-			"SyntaxError: Unexpected token"
-		);
+		expect(
+			normalizedErrorSubject("Uncaught SyntaxError: Unexpected token")
+		).toBe("SyntaxError: Unexpected token");
 		expect(normalizedErrorSubject("error:SyntaxError: Unexpected token")).toBe(
 			"error:SyntaxError: Unexpected token"
 		);

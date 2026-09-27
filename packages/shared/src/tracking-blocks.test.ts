@@ -9,9 +9,7 @@ import {
 
 describe("tracking block helpers", () => {
 	test("detects actionable block reasons", () => {
-		expect(isActionableTrackingBlockReason("origin_not_authorized")).toBe(
-			true
-		);
+		expect(isActionableTrackingBlockReason("origin_not_authorized")).toBe(true);
 		expect(isActionableTrackingBlockReason("known_scraper")).toBe(false);
 	});
 
@@ -29,9 +27,7 @@ describe("tracking block helpers", () => {
 	test("ignores local/dev origins", () => {
 		expect(isIgnoredTrackingBlockOrigin("http://localhost:3000")).toBe(true);
 		expect(isIgnoredTrackingBlockOrigin("http://127.0.0.1:3000")).toBe(true);
-		expect(isIgnoredTrackingBlockOrigin("http://192.168.1.4:5173")).toBe(
-			true
-		);
+		expect(isIgnoredTrackingBlockOrigin("http://192.168.1.4:5173")).toBe(true);
 		expect(isIgnoredTrackingBlockOrigin("https://app.local")).toBe(true);
 		expect(isIgnoredTrackingBlockOrigin("null")).toBe(true);
 		expect(

@@ -14,10 +14,7 @@ describe("NotificationClient", () => {
 		channels.length = 0;
 
 		const results = await pending;
-		expect(results.map((result) => result.channel)).toEqual([
-			"slack",
-			"email",
-		]);
+		expect(results.map((result) => result.channel)).toEqual(["slack", "email"]);
 		expect(results.every((result) => !result.success)).toBe(true);
 	});
 });

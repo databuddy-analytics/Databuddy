@@ -14,7 +14,9 @@ export const McpDateRangeSchema = z
 		preset: z
 			.enum(MCP_DATE_PRESETS as [DatePreset, ...DatePreset[]])
 			.optional()
-			.describe("Date preset such as last_7d. Alternative to from/to."),
+			.describe(
+				"Date preset such as last_7d. Alternative to from/to; defaults to last_30d."
+			),
 		from: DateOnlySchema.optional().describe(
 			"Start date YYYY-MM-DD. Use with to; alternative to preset."
 		),
@@ -51,8 +53,8 @@ export function resolveMcpDateRange(input: {
 	preset?: DatePreset;
 	to?: string;
 }): { from?: string; to?: string } {
-	if (input.preset) {
-		const { from, to } = resolveDatePreset(input.preset, "UTC");
+	if (input.preset || !(input.from || input.to)) {
+		const { from, to } = resolveDatePreset(input.preset ?? "last_30d", "UTC");
 		return { from, to };
 	}
 	return { from: input.from, to: input.to };

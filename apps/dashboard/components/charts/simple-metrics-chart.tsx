@@ -23,6 +23,7 @@ interface SimpleMetricsChartProps {
 	metrics: MetricConfig[];
 	partialLastSegment?: boolean;
 	seriesKind?: ChartSeriesKind;
+	showYAxis?: boolean;
 	title?: string;
 }
 
@@ -42,6 +43,7 @@ export function SimpleMetricsChart({
 	partialLastSegment = false,
 	chartStepType = "monotone",
 	seriesKind = "area",
+	showYAxis = false,
 }: SimpleMetricsChartProps) {
 	const metricsWithColors = useMemo(
 		() =>
@@ -86,6 +88,7 @@ export function SimpleMetricsChart({
 								metrics={series}
 								partialLastSegment={partialLastSegment}
 								seriesKind={seriesKind}
+								showYAxis={showYAxis}
 							/>
 						</Chart.Plot>
 

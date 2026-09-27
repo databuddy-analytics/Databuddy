@@ -12,6 +12,13 @@ const PROTOCOL_PREFIX_REGEX = /^https?:\/\//i;
 const WHITESPACE_REGEX = /\s/;
 const WWW_PREFIX_REGEX = /^www\./;
 
+export const AI_REFERRERS = Object.entries(referrers)
+	.filter(([, referrer]) => referrer.type === "ai")
+	.map(([domain, referrer]) => ({
+		domain: domain.replace(WWW_PREFIX_REGEX, ""),
+		name: referrer.name,
+	}));
+
 function directReferrer(url = ""): ReferrerInfo {
 	return {
 		type: "direct",
@@ -125,6 +132,9 @@ export function parseReferrer(
 	}
 
 	const match = lookupReferrer(hostname);
+	if (match?.type === "direct") {
+		return directReferrer(raw);
+	}
 	if (match) {
 		return {
 			type: match.type,
@@ -145,25 +155,6 @@ export function parseReferrer(
 		url: raw,
 		domain: normalizedHostname,
 	};
-}
-
-export function categorizeReferrer(referrerInfo: ReferrerInfo): string {
-	switch (referrerInfo.type) {
-		case "search":
-			return "Search Engine";
-		case "social":
-			return "Social Media";
-		case "email":
-			return "Email";
-		case "ads":
-			return "Advertising";
-		case "ai":
-			return "AI";
-		case "direct":
-			return "Direct";
-		default:
-			return "Other";
-	}
 }
 
 export function isInternalReferrer(

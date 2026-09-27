@@ -9,6 +9,7 @@ import type {
 import {
 	analyticsEventSchema,
 	batchedCustomEventSpansSchema,
+	batchedEngagementSchema,
 	batchedErrorsSchema,
 	batchedVitalsSchema,
 	errorSpanSchema,
@@ -18,6 +19,7 @@ import {
 import {
 	buildTrackEvent,
 	insertCustomEvents,
+	insertEngagementSpans,
 	insertErrorSpans,
 	insertIndividualVitals,
 	insertOutgoingLink,
@@ -316,6 +318,55 @@ const app = new Elysia()
 			return Response.json({
 				status: "success",
 				type: "web_vitals",
+				count: parseResult.data.length,
+			});
+		} catch (error) {
+			rethrowOrWrap(error, log);
+		}
+	})
+	.post("/engagement", async ({ body, query, request }) => {
+		const log = useLogger();
+		log.set({ route: "engagement" });
+
+		try {
+			const { clientId, userAgent, ip } = await validateRequest(
+				body,
+				query,
+				request
+			);
+			log.set({ clientId });
+
+			const parseResult = batchedEngagementSchema.safeParse(body);
+			if (!parseResult.success) {
+				log.set({ rejected: "schema" });
+				throw createIngestSchemaValidationError(parseResult.error.issues);
+			}
+
+			log.set({ count: parseResult.data.length });
+
+			const botError = await checkForBot(
+				request,
+				body,
+				query,
+				clientId,
+				userAgent
+			);
+			if (botError) {
+				log.set({ rejected: "bot" });
+				return botError.error;
+			}
+
+			await insertEngagementSpans(
+				parseResult.data,
+				clientId,
+				userAgent,
+				ip,
+				request
+			);
+
+			return Response.json({
+				status: "success",
+				type: "engagement",
 				count: parseResult.data.length,
 			});
 		} catch (error) {

@@ -1,6 +1,6 @@
 import { chQuery } from "@databuddy/db/clickhouse";
 import { captureWarning, mergeWideEvent } from "../lib/tracing";
-import { QueryBuilders, suggestQueryTypes } from "./builders";
+import { getQueryBuilder, QueryBuilders, suggestQueryTypes } from "./builders";
 import {
 	getClickHouseQuerySettings,
 	SimpleQueryBuilder,
@@ -313,7 +313,7 @@ async function runSingle(
 	req: BatchRequest,
 	opts?: BatchOptions
 ): Promise<BatchResult> {
-	const config = QueryBuilders[req.type];
+	const config = getQueryBuilder(req.type);
 	if (!config) {
 		return {
 			type: req.type,
@@ -359,12 +359,14 @@ function groupBySchema(
 	const groups = new Map<string, { index: number; req: BatchRequest }[]>();
 
 	for (const { index, req } of items) {
-		const config = QueryBuilders[req.type];
+		const config = getQueryBuilder(req.type);
 		if (!config) {
 			continue;
 		}
 
-		const sig = getSchemaSignature(req.type, config) || `__solo_${req.type}`;
+		const sig = config.prepareSql
+			? `__staged_${req.type}_${index}`
+			: getSchemaSignature(req.type, config) || `__solo_${req.type}`;
 		const list = groups.get(sig) || [];
 		list.push({ index, req });
 		groups.set(sig, list);
@@ -383,7 +385,7 @@ export function buildUnionQuery(
 	const failures: { index: number; type: string; error: string }[] = [];
 
 	for (const { index, req } of items) {
-		const config = QueryBuilders[req.type];
+		const config = getQueryBuilder(req.type);
 		if (!config) {
 			failures.push({
 				index,
@@ -522,11 +524,12 @@ export async function executeBatch(
 
 		try {
 			const groupNoCache = compiledItems.some(
-				({ req }) => QueryBuilders[req.type]?.noCache
+				({ req }) => getQueryBuilder(req.type)?.noCache
 			);
 			const rawRows = await chQuery(sql, params, {
 				abort_signal: opts?.abortSignal,
 				clickhouse_settings: getClickHouseQuerySettings(groupNoCache),
+				label: `batch:${[...new Set(compiledItems.map(({ req }) => req.type))].sort().join("+")}`,
 			});
 
 			mergeWideEvent({
@@ -540,7 +543,7 @@ export async function executeBatch(
 			);
 
 			for (const { index, req } of compiledItems) {
-				const config = QueryBuilders[req.type];
+				const config = getQueryBuilder(req.type);
 				const raw = split.get(index) || [];
 				results[index] = {
 					type: req.type,
@@ -597,7 +600,7 @@ export async function executeBatch(
 }
 
 export function areQueriesCompatible(type1: string, type2: string): boolean {
-	const [c1, c2] = [QueryBuilders[type1], QueryBuilders[type2]];
+	const [c1, c2] = [getQueryBuilder(type1), getQueryBuilder(type2)];
 	if (!(c1 && c2)) {
 		return false;
 	}
@@ -609,7 +612,7 @@ export function areQueriesCompatible(type1: string, type2: string): boolean {
 }
 
 export function getCompatibleQueries(type: string): string[] {
-	const config = QueryBuilders[type];
+	const config = getQueryBuilder(type);
 	const sig = config ? getSchemaSignature(type, config) : null;
 	if (!sig) {
 		return [];

@@ -1,17 +1,18 @@
+import { clickHouse } from "@databuddy/db/clickhouse";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
 import { captureError } from "./tracing";
 
 const TOPIC = "analytics-uptime-checks";
 
-const connectProducer = (): Promise<Producer> => {
+function createKafka(): Kafka {
 	const broker = process.env.REDPANDA_BROKER;
 	if (!broker) {
-		return Promise.reject(new Error("REDPANDA_BROKER not set"));
+		throw new Error("REDPANDA_BROKER not set");
 	}
-
 	const username = process.env.REDPANDA_USER;
 	const password = process.env.REDPANDA_PASSWORD;
-	const kafka = new Kafka({
+	return new Kafka({
 		brokers: [broker],
 		clientId: "uptime-producer",
 		...(username && password
@@ -19,15 +20,26 @@ const connectProducer = (): Promise<Producer> => {
 			: {}),
 		ssl: true,
 	});
+}
 
-	const producer = kafka.producer({
+const connectProducer = async (): Promise<Producer> => {
+	const producer = createKafka().producer({
 		maxInFlightRequests: 1,
 		idempotent: true,
 		transactionTimeout: 30_000,
 	});
-
-	return producer.connect().then(() => producer);
+	await producer.connect();
+	return producer;
 };
+
+export async function pingRedpanda(): Promise<void> {
+	const admin = createKafka().admin();
+	try {
+		await admin.connect();
+	} finally {
+		await admin.disconnect().catch(() => undefined);
+	}
+}
 
 let singletonProducer: Producer | null = null;
 let singletonConnection: Promise<Producer> | null = null;
@@ -47,7 +59,6 @@ function ensureProducer(): Promise<Producer> {
 		})
 		.catch((error) => {
 			captureError(error, { error_step: "kafka_producer_connect" });
-			singletonProducer = null;
 			throw error;
 		})
 		.finally(() => {
@@ -74,6 +85,18 @@ export async function sendUptimeEvent(
 	event: unknown,
 	key?: string
 ): Promise<void> {
+	if (readBooleanEnv("SELFHOST")) {
+		await clickHouse.insert({
+			table: "uptime.uptime_monitor",
+			values: [event],
+			format: "JSONEachRow",
+			abort_signal: AbortSignal.timeout(10_000),
+			clickhouse_settings: {
+				async_insert: 0,
+			},
+		});
+		return;
+	}
 	const producer = await ensureProducer();
 	try {
 		await producer.send({

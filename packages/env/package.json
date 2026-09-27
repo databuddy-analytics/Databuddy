@@ -11,6 +11,10 @@
     "./public": {
       "types": "./src/public.ts",
       "default": "./src/public.ts"
+    },
+    "./boolean": {
+      "types": "./src/boolean.ts",
+      "default": "./src/boolean.ts"
     }
   },
   "files": [

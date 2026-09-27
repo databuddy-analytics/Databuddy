@@ -10,7 +10,7 @@ The user provides frontend requirements: a component, page, application, or inte
 
 ## Repository UI Guardrail
 
-When working inside the Databuddy dashboard (`apps/dashboard`), the existing design system is mandatory and overrides the generic creative guidance below. Read `apps/dashboard/components/ds/README.md` and build feature UI from `apps/dashboard/components/ds` primitives exactly. Do not use raw form/control elements (`button`, `input`, `select`, `textarea`, native dialogs), Base UI/Radix primitives, or one-off styled controls in feature components. If the needed API or variant is missing, add or extend the DS primitive first.
+When working inside the Databuddy dashboard (`apps/dashboard`), the existing design system is mandatory and overrides the generic creative guidance below. Build feature UI from `@databuddy/ui` primitives and inspect their APIs in `packages/ui/src/components`. The former `apps/dashboard/components/ds/README.md` path no longer exists. Do not use raw form/control elements (`button`, `input`, `select`, `textarea`, native dialogs), Base UI/Radix primitives, or one-off styled controls in feature components. If the needed API or variant is missing, add or extend the DS primitive first.
 
 For Databuddy dashboard pickers, use `DropdownMenu` for menu-style folder/status/filter/sort/action choices. Use `Select` only when the established pattern is truly a select/combobox. Product dashboard surfaces should stay consistent, dense, and operational rather than exploratory or marketing-styled.
 

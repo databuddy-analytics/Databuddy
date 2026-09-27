@@ -1,3 +1,4 @@
+import { analyticsCohortSchema } from "@databuddy/shared/analytics-filters";
 import { tool } from "ai";
 import { analyticsDateRangeSchema } from "@databuddy/validation";
 import { z } from "zod";
@@ -7,6 +8,7 @@ import {
 	getAppContext,
 	resolveToolWebsite,
 } from "./utils";
+import { resolveToolDateRange } from "./utils/context";
 
 const logger = createToolLogger("Goals Tools");
 
@@ -19,6 +21,11 @@ const goalFilterSchema = z.object({
 const goalAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
 	goalId: z.string(),
 	websiteId: z.string().optional(),
+	cohort: analyticsCohortSchema
+		.nullish()
+		.describe(
+			"Additional cohort filters, or null to measure the saved definition without extra filtering."
+		),
 });
 const createGoalInputSchema = z.object({
 	websiteId: z.string(),
@@ -31,9 +38,13 @@ const createGoalInputSchema = z.object({
 	confirmed: z.boolean().describe("false=preview, true=apply"),
 });
 const updateGoalInputSchema = createGoalInputSchema
-	.omit({ confirmed: true, websiteId: true })
+	.omit({ websiteId: true })
 	.partial()
-	.extend({ id: z.string(), isActive: z.boolean().optional() });
+	.extend({
+		id: z.string(),
+		isActive: z.boolean().optional(),
+		confirmed: createGoalInputSchema.shape.confirmed.default(false),
+	});
 
 export function createGoalTools() {
 	const listGoalsTool = tool({
@@ -65,10 +76,10 @@ export function createGoalTools() {
 
 	const getGoalAnalyticsTool = tool({
 		description:
-			"Goal analytics for a chosen date range: conversion rate, users entered, and users completed. Do not repeat an exact measurement already supplied by the caller.",
+			"Goal definition, measured dates and distinct visitor counts. savedDefinition is the saved configuration; measurement.definition includes read-time cohort filters. A filtered measurement alone does not establish a saved-definition change. total_users_entered: website page-view visitors matching filters except event_name. total_users_completed: visitors matching the goal. overall_conversion_rate: completed / entered percent, not login or attempt success. Optional cohort measures browser, device, country or campaign segments without editing the saved definition. Compare cohorts and periods with parallel calls. Omitted dates default to last 30 calendar days in the conversation timezone. Reuse matching verified measurements; remeasure stale or conflicting context.",
 		inputSchema: goalAnalyticsInputSchema,
 		execute: async (
-			{ goalId, websiteId: inputWebsiteId, startDate, endDate },
+			{ goalId, websiteId: inputWebsiteId, startDate, endDate, cohort },
 			options
 		) => {
 			const context = getAppContext(options);
@@ -77,7 +88,12 @@ export function createGoalTools() {
 				return await callRPCProcedure(
 					"goals",
 					"getAnalytics",
-					{ goalId, websiteId, startDate, endDate },
+					{
+						goalId,
+						websiteId,
+						...resolveToolDateRange({ startDate, endDate }, context),
+						cohort: cohort ?? undefined,
+					},
 					context
 				);
 			} catch (error) {
@@ -177,36 +193,47 @@ export function createGoalTools() {
 	});
 
 	const updateGoalTool = tool({
-		description: "Update a goal.",
+		description:
+			"Update a goal. Preview changes first, then set confirmed=true after explicit user approval.",
 		inputSchema: updateGoalInputSchema,
-		execute: async (
-			{
-				id,
-				name,
-				description,
-				type,
-				target,
-				filters,
-				ignoreHistoricData,
-				isActive,
-			},
-			options
-		) => {
+		execute: async ({ id, confirmed, ...input }, options) => {
 			const context = getAppContext(options);
+			const updates = Object.fromEntries(
+				Object.entries(input).filter(([, value]) => value !== undefined)
+			);
+			const hasUpdates = Object.keys(updates).length > 0;
 			try {
+				if (!(confirmed && hasUpdates)) {
+					const current = await callRPCProcedure(
+						"goals",
+						"getById",
+						{ id },
+						context
+					);
+					if (!hasUpdates) {
+						return {
+							preview: true,
+							message: "No changes detected. The goal will remain unchanged.",
+							confirmationRequired: false,
+							current,
+							updates,
+						};
+					}
+					return {
+						preview: true,
+						message: "Please review this goal update before applying it.",
+						current,
+						updates,
+						confirmationRequired: true,
+						instruction:
+							"To update this goal, the user must explicitly confirm. Only then call this tool again with confirmed=true.",
+					};
+				}
+
 				const result = await callRPCProcedure(
 					"goals",
 					"update",
-					{
-						id,
-						name,
-						description,
-						type,
-						target,
-						filters,
-						ignoreHistoricData,
-						isActive,
-					},
+					{ id, ...updates },
 					context
 				);
 

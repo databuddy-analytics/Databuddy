@@ -1,3 +1,5 @@
+import { analyticsDateRangeSchema } from "@databuddy/validation";
+import { resolveDatePreset } from "../../../lib/date-presets";
 import type { AppContext } from "../../config/context";
 import { todayInTimeZone } from "../../../query/date-utils";
 
@@ -15,6 +17,23 @@ export function toolDateRangeError(
 	return from > contextDate || to > contextDate
 		? `Date range cannot extend beyond context date ${contextDate}`
 		: null;
+}
+
+export function resolveToolDateRange(
+	range: { startDate?: string; endDate?: string },
+	context: AppContext
+): { startDate: string; endDate: string } {
+	const parsed = analyticsDateRangeSchema.parse(range);
+	if (parsed.startDate && parsed.endDate) {
+		return { startDate: parsed.startDate, endDate: parsed.endDate };
+	}
+	const reference = new Date(context.currentDateTime);
+	const { startDate, endDate } = resolveDatePreset(
+		"last_30d",
+		context.timezone ?? "UTC",
+		Number.isNaN(reference.getTime()) ? new Date() : reference
+	);
+	return { startDate, endDate };
 }
 
 export function getAppContext(options: {

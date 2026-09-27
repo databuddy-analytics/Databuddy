@@ -5,9 +5,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
-    },
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true
+    }
   },
   "include": ["src/**/*"],
   "exclude": [

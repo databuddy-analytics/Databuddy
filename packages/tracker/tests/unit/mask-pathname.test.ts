@@ -151,9 +151,9 @@ describe("maskPathname", () => {
 		});
 
 		test("prefix mismatch does not match", () => {
-			expect(
-				maskPathname("/files/invoice-1.pdf", ["/files/report-*"])
-			).toBe("/files/invoice-1.pdf");
+			expect(maskPathname("/files/invoice-1.pdf", ["/files/report-*"])).toBe(
+				"/files/invoice-1.pdf"
+			);
 		});
 
 		test("masks segments by suffix", () => {
@@ -235,9 +235,9 @@ describe("maskPathname", () => {
 		});
 
 		test("masks percent-encoded segments", () => {
-			expect(
-				maskPathname("/users/%E4%BD%A0%E5%A5%BD", ["/users/*"])
-			).toBe("/users/*");
+			expect(maskPathname("/users/%E4%BD%A0%E5%A5%BD", ["/users/*"])).toBe(
+				"/users/*"
+			);
 		});
 
 		test("masks raw unicode segments", () => {
@@ -350,5 +350,4 @@ describe("maskPathname", () => {
 			}
 		});
 	});
-
 });

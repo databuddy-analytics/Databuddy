@@ -1,4 +1,14 @@
 import { LogLevel } from "@slack/bolt";
+import type { WebClientOptions } from "@slack/web-api";
+
+export const SLACK_WEB_CLIENT_OPTIONS = {
+	// Interactive calls must settle promptly; replaying an uncertain write can
+	// duplicate output or deliver it after the user has stopped the run.
+	timeout: 5000,
+	retryConfig: { retries: 0 },
+	// Retry-After waits bypass the retry budget and can pause the whole client.
+	rejectRateLimitedCalls: true,
+} satisfies WebClientOptions;
 
 export interface TokenCryptoConfig {
 	encryptionKey: string;

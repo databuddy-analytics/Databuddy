@@ -25,16 +25,13 @@ export async function claimDueConfig(
 	if (!config.nextRunAt) {
 		return null;
 	}
+	const frequency = normalizeInsightScheduleFrequency(config.frequency);
 	const [claimed] = await db
 		.update(insightGenerationConfigs)
 		.set({
-			frequency: normalizeInsightScheduleFrequency(config.frequency),
+			frequency,
 			nextRunAt: getNextInsightRunAt(
-				{
-					enabled: config.enabled,
-					frequency: normalizeInsightScheduleFrequency(config.frequency),
-					timezone: config.timezone,
-				},
+				{ enabled: config.enabled, frequency, timezone: config.timezone },
 				now
 			),
 			updatedAt: now,
@@ -75,40 +72,33 @@ export async function retryConfigSoon(
 		);
 }
 
-export async function ensureInsightsDispatchSchedule(): Promise<void> {
+async function ensureSchedule(
+	name: string,
+	schedule: { reason: "scheduled" } | { reason: "maintenance" },
+	eventName: string
+): Promise<void> {
 	await getInsightsQueue().upsertJobScheduler(
-		INSIGHTS_DISPATCH_JOB_NAME,
+		name,
 		{ every: SCHEDULE_INTERVAL_MS },
-		{
-			name: INSIGHTS_DISPATCH_JOB_NAME,
-			data: {
-				reason: "scheduled",
-				triggeredAt: new Date().toISOString(),
-			},
-		}
+		{ name, data: { ...schedule, triggeredAt: new Date().toISOString() } }
 	);
-
-	emitInsightsEvent("info", "scheduler.dispatch_ensured", {
-		interval_ms: SCHEDULE_INTERVAL_MS,
-	});
+	emitInsightsEvent("info", eventName, { interval_ms: SCHEDULE_INTERVAL_MS });
 }
 
-export async function ensureInsightsMaintenanceSchedule(): Promise<void> {
-	await getInsightsQueue().upsertJobScheduler(
-		INSIGHTS_MAINTENANCE_JOB_NAME,
-		{ every: SCHEDULE_INTERVAL_MS },
-		{
-			name: INSIGHTS_MAINTENANCE_JOB_NAME,
-			data: {
-				reason: "maintenance",
-				triggeredAt: new Date().toISOString(),
-			},
-		}
+export function ensureInsightsDispatchSchedule(): Promise<void> {
+	return ensureSchedule(
+		INSIGHTS_DISPATCH_JOB_NAME,
+		{ reason: "scheduled" },
+		"scheduler.dispatch_ensured"
 	);
+}
 
-	emitInsightsEvent("info", "scheduler.maintenance_ensured", {
-		interval_ms: SCHEDULE_INTERVAL_MS,
-	});
+export function ensureInsightsMaintenanceSchedule(): Promise<void> {
+	return ensureSchedule(
+		INSIGHTS_MAINTENANCE_JOB_NAME,
+		{ reason: "maintenance" },
+		"scheduler.maintenance_ensured"
+	);
 }
 
 export async function dispatchDueInsightRuns(now = new Date()) {

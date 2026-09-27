@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { createRedisModuleMock } from "../test-redis-mock";
 
 const redisStore = new Map<string, string>();
@@ -7,13 +7,13 @@ let failSet = false;
 let redisUnavailable = false;
 
 const mockRedisClient = {
-	get: vi.fn(async (key: string) => {
+	get: mock(async (key: string) => {
 		if (failGet) {
 			throw new Error("redis get failed");
 		}
 		return redisStore.get(key) ?? null;
 	}),
-	setex: vi.fn(async (key: string, _ttl: number, value: string) => {
+	setex: mock(async (key: string, _ttl: number, value: string) => {
 		if (failSet) {
 			throw new Error("redis set failed");
 		}
@@ -22,7 +22,7 @@ const mockRedisClient = {
 	}),
 };
 
-vi.mock("@databuddy/redis", () =>
+mock.module("@databuddy/redis", () =>
 	createRedisModuleMock({
 		getRedisCache: () => {
 			if (redisUnavailable) {
@@ -45,12 +45,6 @@ beforeEach(() => {
 	redisUnavailable = false;
 	mockRedisClient.get.mockClear();
 	mockRedisClient.setex.mockClear();
-});
-
-afterEach(() => {
-	failGet = false;
-	failSet = false;
-	redisUnavailable = false;
 });
 
 describe("conversation store", () => {

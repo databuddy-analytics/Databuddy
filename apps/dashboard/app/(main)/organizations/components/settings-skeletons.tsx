@@ -78,7 +78,7 @@ export function InvitationsSkeleton() {
 
 export function MembersPageSkeleton() {
 	return (
-		<div className="mx-auto max-w-2xl space-y-6 p-5">
+		<div className="mx-auto max-w-4xl space-y-6 p-5">
 			<MembersSkeleton />
 			<InvitationsSkeleton />
 		</div>
@@ -88,7 +88,7 @@ export function MembersPageSkeleton() {
 export function GeneralSettingsSkeleton() {
 	return (
 		<SettingsShell>
-			<div className="mx-auto max-w-2xl space-y-6 p-5">
+			<div className="mx-auto max-w-4xl space-y-6 p-5">
 				<Card>
 					<Card.Header>
 						<Skeleton className="h-3.5 w-44" />

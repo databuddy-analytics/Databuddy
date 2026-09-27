@@ -1,7 +1,9 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { publicConfig } from "@databuddy/env/public";
 import { FeedbackPrompt } from "@/components/feedback-prompt";
 import { isDashboardE2E } from "@/lib/e2e-mode";
 import { Sidebar } from "@/components/layout/sidebar";
+import { OverageBanner } from "@/components/layout/overage-banner";
 import {
 	SidebarInset,
 	SidebarLayout,
@@ -56,6 +58,7 @@ export default function MainLayout({
 									<SidebarInset>
 										<TopBar />
 										<div className="flex min-h-0 flex-1 flex-col overflow-hidden overflow-x-hidden overscroll-y-none pt-12 md:pt-0">
+											<OverageBanner />
 											{children}
 										</div>
 									</SidebarInset>
@@ -69,7 +72,7 @@ export default function MainLayout({
 		</BillingProvider>
 	);
 
-	if (isDashboardE2E) {
+	if (isDashboardE2E || readBooleanEnv("SELFHOST")) {
 		return content;
 	}
 

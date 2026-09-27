@@ -1,5 +1,6 @@
 "use client";
 
+import { EmailUnavailable, useAuthCapabilities } from "../../auth-capabilities";
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
@@ -12,6 +13,7 @@ import { safeCallbackPath } from "@/lib/safe-callback";
 const MAGIC_EMAIL_KEY = "databuddy:magic-email";
 
 function MagicSentPage() {
+	const capabilities = useAuthCapabilities();
 	const [callback] = useQueryState(
 		"callback",
 		parseAsString.withDefault("/websites")
@@ -70,6 +72,10 @@ function MagicSentPage() {
 		}
 		setIsLoading(false);
 	};
+
+	if (!capabilities.email) {
+		return <EmailUnavailable loginHref={loginHref} />;
+	}
 
 	if (!isReady) {
 		return (

@@ -18,8 +18,10 @@ vi.mock("@/routes/webhooks/autumn-inbox", () => ({
 	markAutumnWebhookDeadLettersAlerted: vi.fn(async () => 0),
 }));
 
-import { startAutumnWebhookReplayLoop } from "./autumn-webhook-replay";
-import { runAutumnWebhookMaintenance } from "./autumn-webhook-replay";
+import {
+	runAutumnWebhookMaintenance,
+	startAutumnWebhookReplayLoop,
+} from "./autumn-webhook-replay";
 import { replayDeferredAutumnWebhooks } from "@/routes/webhooks/autumn";
 import {
 	deleteCompletedAutumnWebhooks,

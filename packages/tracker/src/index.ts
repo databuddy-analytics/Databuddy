@@ -1,7 +1,12 @@
-import { BaseTracker } from "./core/tracker";
-import type { ProfileTraits, TrackerOptions } from "./core/types";
+import { BaseTracker, type QueuedItem, type QueueMeta } from "./core/tracker";
+import type {
+	EngagementSpan,
+	ProfileTraits,
+	TrackerOptions,
+} from "./core/types";
 import {
 	clearStoredTrackingState,
+	dataAttributeKey,
 	generateUUIDv4,
 	getTrackerConfig,
 	isDebugMode,
@@ -17,12 +22,6 @@ import { initScrollDepthTracking } from "./plugins/scroll-depth";
 import { initWebVitalsTracking } from "./plugins/vitals";
 
 const MAX_BEACON_PAYLOAD_BYTES = 60 * 1024;
-const MAX_BEACON_EVENTS_BY_ENDPOINT: Record<string, number> = {
-	"/batch": 100,
-	"/errors": 50,
-	"/track": 100,
-	"/vitals": 20,
-};
 
 export class Databuddy extends BaseTracker {
 	private cleanupFns: Array<() => void> = [];
@@ -67,12 +66,9 @@ export class Databuddy extends BaseTracker {
 				clearProfile: () => this.clearProfile(),
 				getProfileId: () => this.getProfileId(),
 				flush: () => {
-					Promise.all([
-						this.flushBatch(),
-						this.flushTrack(),
-						this.flushVitals(),
-						this.flushErrors(),
-					]).catch(() => {});
+					Promise.all(
+						this.queues.map(([queue, meta]) => this._flushQueue(queue, meta))
+					).catch(() => {});
 				},
 				clear: () => this.clear(),
 				setGlobalProperties: (props: Record<string, unknown>) =>
@@ -215,29 +211,32 @@ export class Databuddy extends BaseTracker {
 		};
 		window.addEventListener("pageshow", pageshowHandler);
 
+		const activityHandler = () => this.updateActiveTime();
+		document.addEventListener("visibilitychange", activityHandler);
+		window.addEventListener("focus", activityHandler);
+		window.addEventListener("blur", activityHandler);
+		this.activeSince = this.isPageActive() ? Date.now() : 0;
+
 		this.cleanupFns.push(() => {
 			window.removeEventListener("beforeunload", handleUnload);
 			window.removeEventListener("pagehide", handleUnload);
 			window.removeEventListener("pageshow", pageshowHandler);
+			document.removeEventListener("visibilitychange", activityHandler);
+			window.removeEventListener("focus", activityHandler);
+			window.removeEventListener("blur", activityHandler);
 		});
 	}
 
-	private flushQueueViaBeacon(
-		queue: unknown[],
-		endpoint: string,
-		fallback: () => Promise<unknown>
-	): void {
-		if (queue.length === 0) {
-			return;
-		}
-
-		const maxEvents = MAX_BEACON_EVENTS_BY_ENDPOINT[endpoint] ?? 100;
+	private flushQueueViaBeacon(queue: QueuedItem[], meta: QueueMeta): void {
 		while (queue.length > 0) {
-			const chunk: unknown[] = [];
+			const chunk: QueuedItem[] = [];
 			let payloadBytes = 2;
 			let queueIndex = 0;
-			while (queueIndex < queue.length && chunk.length < maxEvents) {
+			while (chunk.length < meta.maxBatchSize) {
 				const item = queue[queueIndex];
+				if (item === undefined) {
+					break;
+				}
 				let serialized: string;
 				try {
 					serialized = JSON.stringify(item) ?? "null";
@@ -262,55 +261,51 @@ export class Databuddy extends BaseTracker {
 				return;
 			}
 
-			if (!(chunk.length > 0 && this.sendBeacon(chunk, endpoint))) {
-				fallback().catch(() => {});
+			if (!(chunk.length > 0 && this.sendBeacon(chunk, meta.endpoint))) {
+				this._flushQueue(queue, meta).catch(() => {});
 				return;
 			}
 			queue.splice(0, chunk.length);
 		}
 	}
 
+	private flushQueuesViaBeacon() {
+		this.requeueActiveDeliveriesForUnload();
+		for (const [queue, meta] of this.queues) {
+			this.flushQueueViaBeacon(queue, meta);
+		}
+	}
+
 	private handlePageUnload() {
 		if (this.shouldBlockQueuedDelivery()) {
-			this.discardPendingEvents();
+			this.cancelPendingDelivery();
 			return;
 		}
-		this.requeueActiveDeliveriesForUnload();
-		this.flushQueueViaBeacon(this.batchQueue, "/batch", () =>
-			this.flushBatch()
-		);
-		this.flushQueueViaBeacon(this.trackQueue, "/track", () =>
-			this.flushTrack()
-		);
-		this.flushQueueViaBeacon(this.vitalsQueue, "/vitals", () =>
-			this.flushVitals()
-		);
-		this.flushQueueViaBeacon(this.errorsQueue, "/errors", () =>
-			this.flushErrors()
-		);
+		this.flushQueuesViaBeacon();
 		if (this.hasSentExitBeacon) {
 			return;
 		}
 		this.hasSentExitBeacon = true;
 
 		const now = Date.now();
-		this.sendBatchBeacon([
-			{
-				eventId: generateUUIDv4(),
-				name: "page_exit",
-				anonymousId: this.anonymousId,
-				anonymizeVisitorIds: this.options.anonymizeVisitorIds,
-				profileId: this.profileId ?? undefined,
-				sessionId: this.sessionId,
-				timestamp: now,
-				...this.getBaseContext(),
-				...this.globalProperties,
-				time_on_page: Math.round((now - this.pageStartTime) / 1000),
-				scroll_depth: this.maxScrollDepth,
-				interaction_count: this.interactionCount,
-				page_count: this.pageCount,
-			},
-		]);
+		this.sendBeacon([this.buildEngagementSpan(now, "unload")], "/engagement");
+		this.sendBeacon(
+			[
+				{
+					eventId: generateUUIDv4(),
+					name: "page_exit",
+					anonymousId: this.anonymousId,
+					anonymizeVisitorIds: this.options.anonymizeVisitorIds,
+					profileId: this.profileId ?? undefined,
+					sessionId: this.sessionId,
+					timestamp: now,
+					...this.getBaseContext(),
+					...this.globalProperties,
+					...this.pageEngagement(now),
+				},
+			],
+			"/batch"
+		);
 	}
 
 	private handleBfCacheRestore() {
@@ -331,21 +326,96 @@ export class Databuddy extends BaseTracker {
 		this.screenView({ navigation_type: "back_forward_cache" });
 	}
 
+	private pageEngagement(now: number) {
+		return {
+			time_on_page: Math.round((now - this.pageStartTime) / 1000),
+			scroll_depth: this.maxScrollDepth,
+			interaction_count: this.interactionCount,
+			page_count: this.pageCount,
+		};
+	}
+
 	private trackPageExit(exitPath?: string) {
 		const now = Date.now();
 		this._trackInternal("page_exit", {
 			path: exitPath ? sanitizePageUrl(exitPath) : undefined,
 			timestamp: now,
-			time_on_page: Math.round((now - this.pageStartTime) / 1000),
-			scroll_depth: this.maxScrollDepth,
-			interaction_count: this.interactionCount,
-			page_count: this.pageCount,
+			...this.pageEngagement(now),
 		});
+		this.sendEngagement(this.buildEngagementSpan(now, "spa", exitPath));
+	}
+
+	private buildEngagementSpan(
+		now: number,
+		exitType: EngagementSpan["exitType"],
+		exitPath?: string
+	): EngagementSpan {
+		return {
+			timestamp: now,
+			path: exitPath ? sanitizePageUrl(exitPath) : this.getMaskedPath(),
+			anonymousId: this.anonymousId,
+			anonymizeVisitorIds: this.options.anonymizeVisitorIds,
+			sessionId: this.sessionId,
+			pageIndex: this.pageCount,
+			exitType,
+			timeOnPage: Math.round((now - this.pageStartTime) / 1000),
+			activeTime: Math.round(
+				(this.activeTimeMs + (this.activeSince ? now - this.activeSince : 0)) /
+					1000
+			),
+			timeToFirstInteraction: this.firstInteractionAt
+				? Math.max(0, this.firstInteractionAt - this.pageStartTime)
+				: 0,
+			maxScrollDepth: Math.round(this.maxScrollDepth),
+			scrollCount: this.scrollCount,
+			clickCount: this.clickCount,
+			keyCount: this.keyCount,
+			interactionCount: this.interactionCount,
+			copyCount: this.copyCount,
+			rageClickCount: this.rageClickCount,
+			deadClickCount: this.deadClickCount,
+			rageClickTarget: this.rageClickTarget,
+			deadClickTarget: this.deadClickTarget,
+			formFieldCount: this.formFieldCount,
+			formSubmitCount: this.formSubmitCount,
+			lastFormField: this.lastFormField,
+			errorCount: this.errorCount,
+		};
+	}
+
+	private isPageActive(): boolean {
+		return document.visibilityState === "visible" && document.hasFocus();
+	}
+
+	private updateActiveTime() {
+		const now = Date.now();
+		if (this.activeSince) {
+			this.activeTimeMs += now - this.activeSince;
+			this.activeSince = 0;
+		}
+		if (this.isPageActive()) {
+			this.activeSince = now;
+		}
 	}
 
 	private resetPageEngagement() {
 		this.pageStartTime = Date.now();
 		this.interactionCount = 0;
+		this.clickCount = 0;
+		this.keyCount = 0;
+		this.scrollCount = 0;
+		this.rageClickCount = 0;
+		this.deadClickCount = 0;
+		this.formFieldCount = 0;
+		this.formSubmitCount = 0;
+		this.errorCount = 0;
+		this.copyCount = 0;
+		this.rageClickTarget = "";
+		this.deadClickTarget = "";
+		this.lastFormField = "";
+		this.firstInteractionAt = 0;
+		this.activeTimeMs = 0;
+		this.activeSince = this.isPageActive() ? this.pageStartTime : 0;
 		this.maxScrollDepth = 0;
 	}
 
@@ -364,9 +434,7 @@ export class Databuddy extends BaseTracker {
 			const properties: Record<string, string> = {};
 			for (const attr of trackable.attributes) {
 				if (attr.name.startsWith("data-") && attr.name !== "data-track") {
-					properties[
-						attr.name.slice(5).replace(/-./g, (x) => x[1].toUpperCase())
-					] = attr.value;
+					properties[dataAttributeKey(attr.name)] = attr.value;
 				}
 			}
 			this.track(eventName, properties);
@@ -421,7 +489,7 @@ export class Databuddy extends BaseTracker {
 	}
 
 	clear() {
-		this.discardPendingEvents();
+		this.cancelPendingDelivery();
 		this.globalProperties = {};
 		if (!this.isServer()) {
 			try {
@@ -439,11 +507,15 @@ export class Databuddy extends BaseTracker {
 		this.pageCount = 0;
 		this.lastPath = "";
 		this.interactionCount = 0;
+		this.clickCount = 0;
+		this.keyCount = 0;
+		this.scrollCount = 0;
+		this.rageClickCount = 0;
+		this.deadClickCount = 0;
+		this.formFieldCount = 0;
+		this.formSubmitCount = 0;
+		this.errorCount = 0;
 		this.maxScrollDepth = 0;
-	}
-
-	private discardPendingEvents(): void {
-		this.cancelPendingDelivery();
 	}
 
 	destroy() {
@@ -452,23 +524,7 @@ export class Databuddy extends BaseTracker {
 		}
 		this.cleanupFns = [];
 
-		this.requeueActiveDeliveriesForUnload();
-
-		// Flush all pending data via sendBeacon (with fetch fallback) before clearing.
-		// flushQueueViaBeacon empties the array in-place on success; on failure it
-		// kicks off the fetch fallback which also clears the array via _flushQueue.
-		this.flushQueueViaBeacon(this.batchQueue, "/batch", () =>
-			this.flushBatch()
-		);
-		this.flushQueueViaBeacon(this.trackQueue, "/track", () =>
-			this.flushTrack()
-		);
-		this.flushQueueViaBeacon(this.vitalsQueue, "/vitals", () =>
-			this.flushVitals()
-		);
-		this.flushQueueViaBeacon(this.errorsQueue, "/errors", () =>
-			this.flushErrors()
-		);
+		this.flushQueuesViaBeacon();
 
 		// Cancel any pending flush timers that beacon-success paths left behind.
 		for (const meta of Object.values(this._meta)) {

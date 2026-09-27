@@ -162,6 +162,15 @@ With `enableBatching: true`, `track()` usually confirms that the event was queue
 
 Use `eventId` when your code may retry the same logical event. The SDK uses it as a local deduplication key for queued or already delivered events.
 
+<Callout type="warn">
+Server-side events are stored as custom events. They do not create the page-view
+sessions that referrer, campaign, country, and device reporting is built on, and
+[revenue attribution](/docs/Integrations/payments) cannot join to them. Passing a
+`sessionId` you generated on the server does not change this. To attribute
+server-side activity, take the real `sessionId` from `getTrackingIds()` in the
+browser and send it to your server.
+</Callout>
+
 ### `batch(events)`
 
 Send multiple events in a single batch (max 100 events):

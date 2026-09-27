@@ -1,3 +1,4 @@
+import { generateOrganizationBusinessContext } from "@/ai/organization-business-context";
 import {
 	appRouter,
 	createAbortSignalInterceptor,
@@ -29,7 +30,11 @@ export const rpcHandler = new RPCHandler(appRouter, {
 function createAuthenticatedOrpcContext(request: Request) {
 	const preResolvedAuth = getPreResolvedAuth(request.headers);
 	return createRPCContext(
-		{ headers: request.headers, requestId: getRequestId(request) },
+		{
+			headers: request.headers,
+			requestId: getRequestId(request),
+			generateBusinessContext: generateOrganizationBusinessContext,
+		},
 		preResolvedAuth
 	);
 }

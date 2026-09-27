@@ -54,12 +54,14 @@ async function insertSchedule(
 
 async function insertStatusPage(organizationId: string) {
 	const id = nextId("page");
-	await db().insert(statusPages).values({
-		id,
-		organizationId,
-		name: `Page ${id}`,
-		slug: id.replaceAll("_", "-"),
-	});
+	await db()
+		.insert(statusPages)
+		.values({
+			id,
+			organizationId,
+			name: `Page ${id}`,
+			slug: id.replaceAll("_", "-"),
+		});
 	return id;
 }
 
@@ -127,26 +129,29 @@ describe("statusPage.transfer", () => {
 		expect(await getScheduleOrg(scheduleId)).toBe(source.id);
 	});
 
-	iit("moves exclusively-attached monitors when includeMonitors is true", async () => {
-		const { user, source, target } = await setupOrgs();
-		const pageId = await insertStatusPage(source.id);
-		const scheduleId = await insertSchedule(source.id);
-		await attachMonitor(pageId, scheduleId);
+	iit(
+		"moves exclusively-attached monitors when includeMonitors is true",
+		async () => {
+			const { user, source, target } = await setupOrgs();
+			const pageId = await insertStatusPage(source.id);
+			const scheduleId = await insertSchedule(source.id);
+			await attachMonitor(pageId, scheduleId);
 
-		const result = await call(
-			appRouter.statusPage.transfer,
-			userContext(user, source.id)
-		)({
-			statusPageId: pageId,
-			targetOrganizationId: target.id,
-			includeMonitors: true,
-		});
+			const result = await call(
+				appRouter.statusPage.transfer,
+				userContext(user, source.id)
+			)({
+				statusPageId: pageId,
+				targetOrganizationId: target.id,
+				includeMonitors: true,
+			});
 
-		expect(result.success).toBe(true);
-		expect(await getPageOrg(pageId)).toBe(target.id);
-		expect(await getScheduleOrg(scheduleId)).toBe(target.id);
-		expect(await getPageMonitors(pageId)).toHaveLength(1);
-	});
+			expect(result.success).toBe(true);
+			expect(await getPageOrg(pageId)).toBe(target.id);
+			expect(await getScheduleOrg(scheduleId)).toBe(target.id);
+			expect(await getPageMonitors(pageId)).toHaveLength(1);
+		}
+	);
 
 	iit("rejects moving website-linked monitors", async () => {
 		const { user, source, target } = await setupOrgs();
@@ -158,7 +163,10 @@ describe("statusPage.transfer", () => {
 		await attachMonitor(pageId, scheduleId);
 
 		await expectCode(
-			call(appRouter.statusPage.transfer, userContext(user, source.id))({
+			call(
+				appRouter.statusPage.transfer,
+				userContext(user, source.id)
+			)({
 				statusPageId: pageId,
 				targetOrganizationId: target.id,
 				includeMonitors: true,
@@ -179,7 +187,10 @@ describe("statusPage.transfer", () => {
 		await attachMonitor(pageB, scheduleId);
 
 		await expectCode(
-			call(appRouter.statusPage.transfer, userContext(user, source.id))({
+			call(
+				appRouter.statusPage.transfer,
+				userContext(user, source.id)
+			)({
 				statusPageId: pageA,
 				targetOrganizationId: target.id,
 				includeMonitors: true,
@@ -218,7 +229,10 @@ describe("uptime.transfer", () => {
 		});
 
 		await expectCode(
-			call(appRouter.uptime.transfer, userContext(user, source.id))({
+			call(
+				appRouter.uptime.transfer,
+				userContext(user, source.id)
+			)({
 				scheduleId,
 				targetOrganizationId: target.id,
 			}),
@@ -235,7 +249,10 @@ describe("uptime.transfer", () => {
 		await attachMonitor(pageId, scheduleId);
 
 		await expectCode(
-			call(appRouter.uptime.transfer, userContext(user, source.id))({
+			call(
+				appRouter.uptime.transfer,
+				userContext(user, source.id)
+			)({
 				scheduleId,
 				targetOrganizationId: target.id,
 			}),

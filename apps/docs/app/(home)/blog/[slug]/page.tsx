@@ -3,23 +3,20 @@ import {
 	CalendarIcon,
 	ClockIcon,
 	UserIcon,
-	WarningCircleIcon,
 } from "@databuddy/ui/icons";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { SITE_URL } from "@/app/util/constants";
 import { Footer } from "@/components/footer";
-import { SciFiButton } from "@/components/landing/scifi-btn";
 import { Prose } from "@/components/prose";
-import { SciFiCard } from "@/components/scifi-card";
 import { StructuredData } from "@/components/structured-data";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
 	getPosts,
 	getSinglePost,
 	isPublished,
-	type Post,
+	getPostModifiedAt,
 } from "@/lib/blog-query";
 
 const STRIP_HTML_REGEX = /<[^>]+>/g;
@@ -59,43 +56,35 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
 	const slug = (await params).slug;
 
-	try {
-		const data = await getSinglePost(slug);
-		if ("error" in data || !data?.post) {
-			return { title: "Not Found | Databuddy" };
-		}
+	const post = await getSinglePost(slug);
 
-		const postUrl = `${SITE_URL}/blog/${slug}`;
-		const ogImage = data.post.coverImage ?? `${SITE_URL}/og-image.png`;
-		const publishedIso = new Date(data.post.publishedAt).toISOString();
+	const postUrl = `${SITE_URL}/blog/${slug}`;
+	const ogImage = post.coverImage ?? `${SITE_URL}/og-image.png`;
+	const publishedIso = new Date(post.publishedAt).toISOString();
 
-		return {
-			title: data.post.title,
-			description: data.post.description,
-			alternates: {
-				canonical: postUrl,
-			},
-			openGraph: {
-				title: data.post.title,
-				description: data.post.description,
-				type: "article",
-				url: postUrl,
-				images: [
-					{ url: ogImage, width: 1200, height: 630, alt: data.post.title },
-				],
-				publishedTime: publishedIso,
-				authors: data.post.authors.map((a: { name: string }) => a.name),
-			},
-			twitter: {
-				card: "summary_large_image",
-				title: data.post.title,
-				description: data.post.description,
-				images: [ogImage],
-			},
-		};
-	} catch {
-		return { title: "Not Found | Databuddy" };
-	}
+	return {
+		title: post.title,
+		description: post.description,
+		alternates: {
+			canonical: postUrl,
+		},
+		openGraph: {
+			title: post.title,
+			description: post.description,
+			type: "article",
+			url: postUrl,
+			images: [{ url: ogImage, width: 1200, height: 630, alt: post.title }],
+			publishedTime: publishedIso,
+			modifiedTime: getPostModifiedAt(post),
+			authors: post.authors.map((author) => author.name),
+		},
+		twitter: {
+			card: "summary_large_image",
+			title: post.title,
+			description: post.description,
+			images: [ogImage],
+		},
+	};
 }
 
 export default async function PostPage({
@@ -104,45 +93,7 @@ export default async function PostPage({
 	params: Promise<{ slug: string }>;
 }) {
 	const { slug } = await params;
-	const result = (await getSinglePost(slug)) as {
-		post?: Post;
-		error?: boolean;
-		status?: number;
-		statusText?: string;
-	};
-	if (!(result?.post && isPublished(result.post))) {
-		return (
-			<>
-				<div className="relative flex min-h-[60vh] w-full items-center justify-center overflow-hidden px-4 pt-10 sm:px-6 sm:pt-12 lg:px-8">
-					<div className="relative z-10 mx-auto w-full max-w-lg text-center">
-						<SciFiCard>
-							<div className="relative rounded border border-border bg-card/50 p-8 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-12">
-								<WarningCircleIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground duration-300 group-hover:text-foreground sm:h-16 sm:w-16" />
-								<h1 className="mb-3 text-balance font-semibold text-2xl leading-tight tracking-tight sm:text-3xl md:text-4xl">
-									Post Not Found
-								</h1>
-								<p className="mb-6 font-medium text-muted-foreground text-sm leading-relaxed tracking-tight sm:text-base">
-									The article you're looking for seems to have been moved or no
-									longer exists.
-								</p>
-								<div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-									<SciFiButton asChild className="flex-1 sm:flex-initial">
-										<Link aria-label="Back to blog" href="/blog">
-											<ArrowLeftIcon className="size-4" />
-											Back to Blog
-										</Link>
-									</SciFiButton>
-								</div>
-							</div>
-						</SciFiCard>
-					</div>
-				</div>
-				<Footer />
-			</>
-		);
-	}
-
-	const post = result.post;
+	const post = await getSinglePost(slug);
 
 	const estimateReadingTime = (htmlContent: string): string => {
 		const text = htmlContent.replace(STRIP_HTML_REGEX, " ");
@@ -168,7 +119,11 @@ export default async function PostPage({
 							description: post.description,
 							imageUrl: ogImage,
 							datePublished: publishedIso,
-							dateModified: publishedIso,
+							authors: post.authors.map((author) => ({
+								name: author.name,
+								url: author.socials?.[0]?.url,
+							})),
+							dateModified: getPostModifiedAt(post),
 						},
 					},
 				]}
@@ -178,7 +133,7 @@ export default async function PostPage({
 					url: postUrl,
 					imageUrl: ogImage,
 					datePublished: publishedIso,
-					dateModified: publishedIso,
+					dateModified: getPostModifiedAt(post),
 				}}
 			/>
 			<div className="mx-auto w-full max-w-3xl px-4 pt-10 sm:px-6 sm:pt-12 lg:px-8">
@@ -220,10 +175,10 @@ export default async function PostPage({
 								rel="noopener noreferrer"
 								target="_blank"
 							>
-								<span>{post.authors[0].name}</span>
+								<span>{post.authors[0]?.name ?? "Databuddy"}</span>
 							</Link>
 						) : (
-							<span>{post.authors[0].name}</span>
+							<span>{post.authors[0]?.name ?? "Databuddy"}</span>
 						)}
 						{post.authors.length > 1 && (
 							<span> +{post.authors.length - 1}</span>

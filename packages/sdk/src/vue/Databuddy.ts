@@ -42,7 +42,6 @@ export const Databuddy = defineComponent({
 		trackHashChanges: optionalBoolean,
 		trackInteractions: optionalBoolean,
 		trackOutgoingLinks: optionalBoolean,
-		trackPerformance: optionalBoolean,
 		trackWebVitals: optionalBoolean,
 		usePixel: optionalBoolean,
 	},

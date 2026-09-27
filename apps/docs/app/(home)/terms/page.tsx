@@ -10,7 +10,7 @@ import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import { StructuredData } from "@/components/structured-data";
 
-const title = "Terms of Service - Usage Policies & Legal Agreement | Databuddy";
+const title = "Terms of Service - Usage Policies & Legal Agreement";
 const url = "https://www.databuddy.cc/terms";
 
 export const metadata: Metadata = {
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
 };
 
 export default function TermsPage() {
-	const lastUpdated = "December 22nd, 2025";
+	const lastUpdated = "September 15th, 2026";
 
 	return (
 		<>
@@ -38,7 +38,7 @@ export default function TermsPage() {
 				page={{
 					title,
 					description:
-						"Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and automatic investigations to help your business grow while staying compliant.",
+						"Terms for using Databuddy, including account responsibilities, billing, data handling, and service availability.",
 					url,
 				}}
 			/>
@@ -241,11 +241,15 @@ export default function TermsPage() {
 						<p className="mb-4">Key points about data:</p>
 						<ul className="mb-4 space-y-2">
 							<li>
-								We use privacy-first analytics that don't track individual users
+								Our cookieless tracker supports optional user identification, as
+								described in our Privacy Policy
 							</li>
 							<li>You own your analytics data and can export it anytime</li>
 							<li>We don't sell your data to third parties</li>
-							<li>We comply with GDPR, CCPA, and other privacy regulations</li>
+							<li>
+								We design the service to support compliance with GDPR, CCPA, and
+								other privacy regulations
+							</li>
 						</ul>
 						<p className="mb-4">
 							You agree not to use the service to send sensitive information
@@ -254,7 +258,9 @@ export default function TermsPage() {
 							government issued identification numbers, financial account
 							information, and personally identifiable information that could be
 							used to directly identify, contact, or precisely locate an
-							individual.
+							individual, other than the user IDs, names, and email addresses
+							you send through the user identification features described in our
+							documentation.
 						</p>
 					</section>
 

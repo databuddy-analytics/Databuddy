@@ -90,7 +90,10 @@ describe("replayAuditOutbox", () => {
 			}),
 		} as unknown as AuditDatabase;
 
-		expect(await replayAuditOutbox(database)).toEqual({ failed: 0, replayed: 1 });
+		expect(await replayAuditOutbox(database)).toEqual({
+			failed: 0,
+			replayed: 1,
+		});
 		expect(operations).toEqual(["insert", "delete"]);
 	});
 
@@ -115,7 +118,10 @@ describe("replayAuditOutbox", () => {
 			}),
 		} as unknown as AuditDatabase;
 
-		expect(await replayAuditOutbox(database)).toEqual({ failed: 1, replayed: 0 });
+		expect(await replayAuditOutbox(database)).toEqual({
+			failed: 1,
+			replayed: 0,
+		});
 	});
 });
 
@@ -153,7 +159,9 @@ describe("audit CSV export", () => {
 		expect(csv.split("\r\n")[0]).toContain("created_at");
 		expect(csv).toContain('"\'  =Issa, Nassar"');
 		expect(csv).toContain('"Production key"');
-		expect(csv).toContain('"{""apiKey"":{""after"":""[REDACTED]""},""deleted"":{""after"":true}}"');
+		expect(csv).toContain(
+			'"{""apiKey"":{""after"":""[REDACTED]""},""deleted"":{""after"":true}}"'
+		);
 		expect(csv).toContain('"{""accessToken"":""[REDACTED]""}"');
 	});
 });

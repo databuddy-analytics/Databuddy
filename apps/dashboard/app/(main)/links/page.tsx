@@ -180,7 +180,7 @@ function LinksPageContent() {
 	return (
 		<ErrorBoundary>
 			<div className="flex-1 overflow-y-auto" ref={scrollRef}>
-				<div className="mx-auto max-w-2xl space-y-6 p-5">
+				<div className="mx-auto max-w-4xl space-y-6 p-5">
 					<Card>
 						<Card.Header className="flex-row items-start justify-between gap-4">
 							<div>

@@ -7,10 +7,12 @@ import { ProfilesBuilders } from "./profiles";
 import { RevenueBuilders } from "./revenue";
 
 const describeIntegration =
-	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true" ? describe : describe.skip;
+	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"
+		? describe
+		: describe.skip;
 
 function stripeMetadata(
-	recordKind: "attempt" | "money",
+	recordKind: "attempt" | "link" | "money",
 	extra: Record<string, string> = {}
 ): string {
 	return JSON.stringify({
@@ -126,6 +128,128 @@ function attributionEvent(
 }
 
 describeIntegration("revenue query builders against ClickHouse", () => {
+	it("preserves null-ID payment descriptions and excludes identified receipts with the same label", async () => {
+		const websiteId = `revenue-descriptions-${randomUUIDv7()}`;
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					websiteId,
+					"team-a",
+					100,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-01 12:00:00",
+					{ product_id: null, product_name: "Team" }
+				),
+				revenueRow(
+					websiteId,
+					"team-b",
+					200,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-02 12:00:00",
+					{ product_id: null, product_name: "Team" }
+				),
+				revenueRow(
+					websiteId,
+					"solo",
+					400,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-02 12:00:00",
+					{ product_id: null, product_name: "Solo" }
+				),
+				revenueRow(
+					websiteId,
+					"refund",
+					-50,
+					"refund",
+					"refunded",
+					"{}",
+					"2026-08-02 12:00:00",
+					{ product_id: null, product_name: "Refund" }
+				),
+				revenueRow(
+					websiteId,
+					"identified",
+					700,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-02 12:00:00",
+					{ product_id: "identified-team", product_name: "Team" }
+				),
+			],
+		});
+		const query = new SimpleQueryBuilder(RevenueBuilders.revenue_by_product, {
+			projectId: websiteId,
+			type: "revenue_by_product",
+			from: "2026-08-01",
+			to: "2026-08-03",
+			limit: 20,
+		}).compile();
+		const groups = await chQuery<Record<string, unknown>>(
+			query.sql,
+			query.params
+		);
+		expect(groups).toHaveLength(3);
+		expect(groups).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					provider: "stripe",
+					product_id: null,
+					name: "Team",
+					revenue: 300,
+					transactions: 2,
+				}),
+				expect.objectContaining({
+					provider: "stripe",
+					product_id: null,
+					name: "Solo",
+					revenue: 400,
+					transactions: 1,
+				}),
+				expect.objectContaining({
+					provider: "stripe",
+					product_id: "identified-team",
+					name: "Team",
+					revenue: 700,
+					transactions: 1,
+				}),
+			])
+		);
+		const filters: Filter[] = [
+			{ field: "currency", op: "eq", value: "USD" },
+			{ field: "provider", op: "eq", value: "stripe" },
+			{ field: "product_name", op: "eq", value: "Team" },
+			{ field: "product_id", op: "eq", value: "" },
+		];
+		const [measured] = await revenueOverview(
+			websiteId,
+			"2026-08-01",
+			"2026-08-03",
+			filters
+		);
+		expect(Number(measured.total_revenue)).toBe(300);
+		expect(Number(measured.refund_amount)).toBe(0);
+		expect(Number(measured.payment_diagnostics_available)).toBe(0);
+		const [all] = await revenueOverview(websiteId, "2026-08-01", "2026-08-03");
+		expect(Number(all.total_revenue)).toBe(1400);
+		expect(Number(all.refund_amount)).toBe(-50);
+		expect(
+			await revenueOverview(websiteId, "2026-08-01", "2026-08-03", [
+				...filters.slice(0, 2),
+				{ field: "product_name", op: "eq", value: "absent" },
+				filters[3],
+			])
+		).toEqual([]);
+	}, 15_000);
+
 	it("counts canonical Stripe records and keeps payment diagnostics separate", async () => {
 		const websiteId = `revenue-cutover-${randomUUIDv7()}`;
 		const cutoverRevenueRow = (
@@ -446,7 +570,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			table: "analytics.revenue",
 			format: "JSONEachRow",
 			values: [
-					revenueRow(
+				revenueRow(
 					websiteId,
 					"inpay_recovered",
 					60,
@@ -880,12 +1004,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			table: "analytics.events",
 			format: "JSONEachRow",
 			values: [
-				attributionEvent(
-					websiteId,
-					sessionId,
-					"2026-08-01 11:00:00",
-					null
-				),
+				attributionEvent(websiteId, sessionId, "2026-08-01 11:00:00", null),
 				attributionEvent(
 					websiteId,
 					sessionId,
@@ -994,6 +1113,398 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		expect(Number(attributed?.transactions)).toBe(1);
 	});
 
+	it("keeps first-touch dimensions when attribution comes from the customer session map", async () => {
+		const organizationId = `organization-${randomUUIDv7()}`;
+		const websiteId = `revenue-customer-dims-${randomUUIDv7()}`;
+		const sessionId = `session-${randomUUIDv7()}`;
+		const customerId = `cus-${randomUUIDv7()}`;
+		const seededAt = "2026-08-01 12:00:00";
+		const renewalAt = "2026-08-02 12:00:00";
+
+		await clickHouse.insert({
+			table: "analytics.events",
+			format: "JSONEachRow",
+			values: [
+				{
+					id: randomUUIDv7(),
+					client_id: websiteId,
+					event_name: "screen_view",
+					session_id: sessionId,
+					time: "2026-08-01 11:00:00",
+					url: "https://example.com/pricing",
+					path: "/pricing",
+					country: "DE",
+					browser_name: "Chrome",
+					device_type: "desktop",
+					referrer: "https://partner.example/launch",
+					ip: "127.0.0.1",
+					user_agent: "integration-test",
+					properties: "{}",
+					created_at: "2026-08-01 11:00:00",
+				},
+			],
+		});
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					organizationId,
+					"pi_seed_session",
+					10,
+					"sale",
+					"completed",
+					stripeMetadata("money"),
+					seededAt,
+					{
+						customer_id: customerId,
+						session_id: sessionId,
+						website_id: websiteId,
+					}
+				),
+				revenueRow(
+					organizationId,
+					"inpay_renewal",
+					20,
+					"subscription",
+					"completed",
+					stripeMetadata("money", { stripe_invoice_id: "in_renewal" }),
+					renewalAt,
+					{
+						customer_id: customerId,
+						session_id: null,
+						website_id: websiteId,
+					}
+				),
+			],
+		});
+
+		const query = RevenueBuilders.revenue_by_country?.customSql?.({
+			endDate: "2026-08-03",
+			startDate: "2026-08-01",
+			websiteId,
+		});
+		if (!query || typeof query === "string") {
+			throw new Error("Revenue by country did not compile");
+		}
+		const rows = await chQuery<{ name: string; transactions: number | string }>(
+			query.sql,
+			query.params
+		);
+
+		expect(rows.find((row) => row.name === "Unknown")).toBeUndefined();
+		expect(Number(rows.find((row) => row.name === "DE")?.transactions)).toBe(2);
+	});
+
+	it("attributes invoice payment money from the invoice link record", async () => {
+		const organizationId = `organization-${randomUUIDv7()}`;
+		const websiteId = `revenue-invoice-link-${randomUUIDv7()}`;
+		const sessionId = `session-${randomUUIDv7()}`;
+		const anonymousId = `anon-${randomUUIDv7()}`;
+		const at = "2026-08-02 12:00:00";
+
+		await clickHouse.insert({
+			table: "analytics.events",
+			format: "JSONEachRow",
+			values: [
+				{
+					id: randomUUIDv7(),
+					client_id: websiteId,
+					event_name: "screen_view",
+					anonymous_id: anonymousId,
+					session_id: sessionId,
+					time: "2026-08-02 11:00:00",
+					url: "https://example.com/checkout",
+					path: "/checkout",
+					country: "FR",
+					ip: "127.0.0.1",
+					user_agent: "integration-test",
+					properties: "{}",
+					created_at: "2026-08-02 11:00:00",
+				},
+			],
+		});
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					organizationId,
+					"in_linked:link",
+					0,
+					"subscription_event",
+					"linked",
+					stripeMetadata("link", { stripe_invoice_id: "in_linked" }),
+					at,
+					{
+						anonymous_id: anonymousId,
+						customer_id: "",
+						session_id: sessionId,
+						website_id: websiteId,
+					}
+				),
+				revenueRow(
+					organizationId,
+					"inpay_linked",
+					140,
+					"subscription",
+					"completed",
+					stripeMetadata("money", { stripe_invoice_id: "in_linked" }),
+					at,
+					{
+						anonymous_id: null,
+						customer_id: "",
+						session_id: null,
+						website_id: websiteId,
+					}
+				),
+			],
+		});
+
+		const query = RevenueBuilders.revenue_attribution_overview?.customSql?.({
+			endDate: "2026-08-03",
+			startDate: "2026-08-01",
+			websiteId,
+		});
+		if (!query || typeof query === "string") {
+			throw new Error("Revenue attribution overview did not compile");
+		}
+		const rows = await chQuery<{
+			name: string;
+			revenue: number | string;
+			transactions: number | string;
+		}>(query.sql, query.params);
+
+		const attributed = rows.find((row) => row.name === "Attributed");
+		expect(Number(attributed?.revenue)).toBe(140);
+		expect(Number(attributed?.transactions)).toBe(1);
+	});
+
+	it("credits invoice payment money to the visitor from the invoice link record", async () => {
+		const organizationId = `organization-${randomUUIDv7()}`;
+		const websiteId = `profile-invoice-link-${randomUUIDv7()}`;
+		const anonymousId = `anon-${randomUUIDv7()}`;
+		const sessionId = `session-${randomUUIDv7()}`;
+		const at = "2026-08-02 12:00:00";
+
+		await clickHouse.insert({
+			table: "analytics.events",
+			format: "JSONEachRow",
+			values: [
+				attributionEvent(websiteId, sessionId, "2026-08-02 11:00:00", null),
+			],
+		});
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					organizationId,
+					"in_profile_link:link",
+					0,
+					"subscription_event",
+					"linked",
+					stripeMetadata("link", { stripe_invoice_id: "in_profile_link" }),
+					at,
+					{
+						anonymous_id: anonymousId,
+						customer_id: "",
+						session_id: sessionId,
+						website_id: websiteId,
+					}
+				),
+				revenueRow(
+					organizationId,
+					"inpay_profile",
+					140,
+					"subscription",
+					"completed",
+					stripeMetadata("money", { stripe_invoice_id: "in_profile_link" }),
+					at,
+					{
+						anonymous_id: null,
+						customer_id: "",
+						session_id: null,
+						website_id: websiteId,
+					}
+				),
+			],
+		});
+
+		const detailQuery = ProfilesBuilders.profile_revenue?.customSql?.({
+			endDate: "2026-08-03",
+			startDate: "2026-08-01",
+			websiteId,
+			filters: [{ field: "anonymous_id", op: "eq", value: anonymousId }],
+		});
+		if (!detailQuery || typeof detailQuery === "string") {
+			throw new Error("Profile revenue did not compile");
+		}
+		const transactions = await chQuery<{
+			amount: number | string;
+			transaction_id: string;
+		}>(detailQuery.sql, detailQuery.params);
+
+		expect(
+			transactions.map((transaction) => transaction.transaction_id)
+		).toEqual(["inpay_profile"]);
+	});
+
+	it("stitches an invoice link record created just past the report cutoff", async () => {
+		const organizationId = `organization-${randomUUIDv7()}`;
+		const websiteId = `revenue-link-cutoff-${randomUUIDv7()}`;
+		const sessionId = `session-${randomUUIDv7()}`;
+
+		await clickHouse.insert({
+			table: "analytics.events",
+			format: "JSONEachRow",
+			values: [
+				attributionEvent(websiteId, sessionId, "2026-08-02 11:00:00", null),
+			],
+		});
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					organizationId,
+					"inpay_cutoff",
+					160,
+					"subscription",
+					"completed",
+					stripeMetadata("money", { stripe_invoice_id: "in_cutoff" }),
+					"2026-08-03 23:59:58",
+					{
+						anonymous_id: null,
+						customer_id: "",
+						session_id: null,
+						website_id: websiteId,
+					}
+				),
+				revenueRow(
+					organizationId,
+					"in_cutoff:link",
+					0,
+					"subscription_event",
+					"linked",
+					stripeMetadata("link", { stripe_invoice_id: "in_cutoff" }),
+					"2026-08-04 00:00:02",
+					{
+						customer_id: "",
+						session_id: sessionId,
+						website_id: websiteId,
+					}
+				),
+			],
+		});
+
+		const query = RevenueBuilders.revenue_attribution_overview?.customSql?.({
+			endDate: "2026-08-03",
+			startDate: "2026-08-01",
+			websiteId,
+		});
+		if (!query || typeof query === "string") {
+			throw new Error("Revenue attribution overview did not compile");
+		}
+		const rows = await chQuery<{ name: string; revenue: number | string }>(
+			query.sql,
+			query.params
+		);
+
+		expect(Number(rows.find((row) => row.name === "Attributed")?.revenue)).toBe(
+			160
+		);
+		expect(rows.find((row) => row.name === "Unattributed")).toBeUndefined();
+	});
+
+	it("stitches an invoice link record that arrives after the payment row", async () => {
+		const organizationId = `organization-${randomUUIDv7()}`;
+		const websiteId = `revenue-link-late-${randomUUIDv7()}`;
+		const sessionId = `session-${randomUUIDv7()}`;
+		const at = "2026-08-02 12:00:00";
+
+		await clickHouse.insert({
+			table: "analytics.events",
+			format: "JSONEachRow",
+			values: [
+				{
+					id: randomUUIDv7(),
+					client_id: websiteId,
+					event_name: "screen_view",
+					session_id: sessionId,
+					time: "2026-08-02 11:00:00",
+					url: "https://example.com/checkout",
+					path: "/checkout",
+					country: "FR",
+					ip: "127.0.0.1",
+					user_agent: "integration-test",
+					properties: "{}",
+					created_at: "2026-08-02 11:00:00",
+				},
+			],
+		});
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					organizationId,
+					"inpay_late_link",
+					180,
+					"subscription",
+					"completed",
+					stripeMetadata("money", { stripe_invoice_id: "in_late_link" }),
+					at,
+					{
+						anonymous_id: null,
+						customer_id: "",
+						session_id: null,
+						website_id: websiteId,
+						synced_at: "2026-08-02 12:00:00",
+					}
+				),
+			],
+		});
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					organizationId,
+					"in_late_link:link",
+					0,
+					"subscription_event",
+					"linked",
+					stripeMetadata("link", { stripe_invoice_id: "in_late_link" }),
+					at,
+					{
+						customer_id: "",
+						session_id: sessionId,
+						website_id: websiteId,
+						synced_at: "2026-08-02 18:00:00",
+					}
+				),
+			],
+		});
+
+		const query = RevenueBuilders.revenue_attribution_overview?.customSql?.({
+			endDate: "2026-08-03",
+			startDate: "2026-08-01",
+			websiteId,
+		});
+		if (!query || typeof query === "string") {
+			throw new Error("Revenue attribution overview did not compile");
+		}
+		const rows = await chQuery<{ name: string; revenue: number | string }>(
+			query.sql,
+			query.params
+		);
+
+		expect(Number(rows.find((row) => row.name === "Attributed")?.revenue)).toBe(
+			180
+		);
+	});
+
 	it("attributes late organization-owned refunds to the website and paying profile", async () => {
 		const websiteId = `revenue-refund-${randomUUIDv7()}`;
 		const organizationId = `organization-${randomUUIDv7()}`;
@@ -1087,10 +1598,10 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		if (!listQuery || typeof listQuery === "string") {
 			throw new Error("Profile list did not compile");
 		}
-		const profiles = await chQuery<{ ltv: number | string; profile_id: string }>(
-			listQuery.sql,
-			listQuery.params
-		);
+		const profiles = await chQuery<{
+			ltv: number | string;
+			profile_id: string;
+		}>(listQuery.sql, listQuery.params);
 
 		const detailQuery = ProfilesBuilders.profile_revenue?.customSql?.({
 			endDate: "2026-08-03",
@@ -1113,8 +1624,8 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		expect(
 			Number(profiles.find((profile) => profile.profile_id === profileId)?.ltv)
 		).toBe(80);
-		expect(transactions.map((transaction) => transaction.transaction_id)).toEqual([
-			"re_profile_refund",
-		]);
+		expect(
+			transactions.map((transaction) => transaction.transaction_id)
+		).toEqual(["re_profile_refund"]);
 	});
 });

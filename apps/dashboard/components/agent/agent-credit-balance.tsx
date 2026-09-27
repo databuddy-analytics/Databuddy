@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { useAtomValue } from "jotai";
 import { motion } from "motion/react";
 import { useRouter } from "next/navigation";
@@ -47,6 +49,9 @@ export function AgentCreditBalance({
 		return () => clearTimeout(timer);
 	}, [status]);
 
+	if (isSelfHosted) {
+		return null;
+	}
 	if (isLoading) {
 		return (
 			<Skeleton
@@ -63,7 +68,7 @@ export function AgentCreditBalance({
 			return null;
 		}
 		return (
-			<Tooltip content="Unlimited investigation credits on your plan">
+			<Tooltip content="Unlimited AI credits on your plan">
 				<Button
 					className="gap-1 border border-border/60 bg-card px-2 text-muted-foreground text-xs hover:border-border hover:bg-card hover:text-foreground"
 					onClick={() => router.push("/billing")}
@@ -88,8 +93,8 @@ export function AgentCreditBalance({
 		<Tooltip
 			content={
 				isEmpty
-					? "Your investigation credit balance is empty. Open billing to add credits or change plans."
-					: `${balance.toLocaleString()} of ${limit.toLocaleString()} investigation credits remaining. Deeper investigations, replies, and rechecks use more.`
+					? "Your AI credit balance is empty. Open billing to add credits or change plans."
+					: `${balance.toLocaleString()} of ${limit.toLocaleString()} AI credits remaining. Credits pay for Databunny chat.`
 			}
 		>
 			<motion.div
@@ -102,8 +107,8 @@ export function AgentCreditBalance({
 				<Button
 					aria-label={
 						isEmpty
-							? "Investigation credit balance is empty; open billing"
-							: `${balance.toLocaleString()} of ${limit.toLocaleString()} investigation credits remaining`
+							? "AI credit balance is empty; open billing"
+							: `${balance.toLocaleString()} of ${limit.toLocaleString()} AI credits remaining`
 					}
 					className={cn(
 						"gap-1.5 border px-2 text-xs",
@@ -115,7 +120,9 @@ export function AgentCreditBalance({
 						!(isEmpty || isLow) &&
 							"border-border/60 bg-card text-muted-foreground hover:border-border hover:bg-card hover:text-foreground"
 					)}
-					onClick={() => router.push(isEmpty ? "/billing#topup" : "/billing")}
+					onClick={() =>
+						router.push(isEmpty ? "/billing#chat-topup" : "/billing")
+					}
 					size="sm"
 					variant="secondary"
 				>

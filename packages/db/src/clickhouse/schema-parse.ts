@@ -15,6 +15,7 @@ const TABLE_NAME_PATTERN =
 
 export interface ParsedColumn {
 	computed: boolean;
+	definition: string;
 	hasDefault: boolean;
 	name: string;
 	nullable: boolean;
@@ -104,11 +105,11 @@ const COLUMN_MODIFIERS =
 const NON_COLUMN = /^(?:INDEX|CONSTRAINT|PROJECTION|PRIMARY\s+KEY)\b/i;
 
 export function tableNameOf(sql: string): string {
-	const m = sql.match(TABLE_NAME_PATTERN);
-	if (!m) {
+	const name = sql.match(TABLE_NAME_PATTERN)?.[1];
+	if (name === undefined) {
 		throw new Error("Could not parse table name");
 	}
-	return m[1];
+	return name;
 }
 
 export function qualifiedNameOf(sql: string): string {
@@ -128,18 +129,20 @@ export function parseColumns(sql: string): ParsedColumn[] {
 			continue;
 		}
 		const nameMatch = item.match(COLUMN_NAME_PATTERN);
-		if (!nameMatch) {
+		const name = nameMatch?.[1];
+		if (!nameMatch || name === undefined) {
 			continue;
 		}
 		const afterName = item.slice(nameMatch[0].length);
 		const modAt = afterName.search(COLUMN_MODIFIERS);
 		const type = (modAt === -1 ? afterName : afterName.slice(0, modAt)).trim();
 		cols.push({
-			name: nameMatch[1],
+			name,
 			type,
 			nullable: isNullable(type),
 			hasDefault: DEFAULT_PATTERN.test(afterName),
 			computed: COMPUTED_PATTERN.test(afterName),
+			definition: item,
 		});
 	}
 	return cols;
@@ -153,11 +156,12 @@ function parseIndexes(sql: string): ParsedIndex[] {
 	const indexes: ParsedIndex[] = [];
 	for (const item of splitTopLevel(firstParenGroup(sql).body)) {
 		const match = item.match(INDEX_NAME_PATTERN);
-		if (!match) {
+		const name = match?.[1];
+		if (!match || name === undefined) {
 			continue;
 		}
 		indexes.push({
-			name: match[1],
+			name,
 			definition: normalizeDefinition(item.slice(match[0].length)),
 		});
 	}
@@ -167,8 +171,8 @@ function parseIndexes(sql: string): ParsedIndex[] {
 function clause(tail: string, keyword: string, stops: string[]): string {
 	const lookahead = stops.length ? `(?=(?:${stops.join("|")})\\b|$)` : "(?=$)";
 	const re = new RegExp(`${keyword}\\s+([\\s\\S]*?)\\s*${lookahead}`, "i");
-	const m = tail.match(re);
-	return m ? m[1].trim() : "";
+	const value = tail.match(re)?.[1];
+	return value === undefined ? "" : value.trim();
 }
 
 export function parseTable(sql: string): ParsedTable {

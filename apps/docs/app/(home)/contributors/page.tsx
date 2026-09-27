@@ -20,14 +20,14 @@ const statsCache: {
 } = {};
 
 export const metadata: Metadata = {
-	title: "Contributors | Databuddy",
+	title: "Contributors",
 	description:
 		"Meet the amazing developers building the future of privacy-first analytics",
 	alternates: {
 		canonical: "https://www.databuddy.cc/contributors",
 	},
 	openGraph: {
-		title: "Contributors | Databuddy",
+		title: "Contributors",
 		description:
 			"Meet the amazing developers building the future of privacy-first analytics",
 		url: "https://www.databuddy.cc/contributors",
@@ -461,7 +461,7 @@ async function fetchGitHubData() {
 export default async function ContributorsPage() {
 	const data = await fetchGitHubData();
 
-	const title = "Contributors | Databuddy";
+	const title = "Contributors";
 	const description =
 		"Meet the amazing developers building the future of privacy-first analytics";
 	const url = "https://www.databuddy.cc/contributors";

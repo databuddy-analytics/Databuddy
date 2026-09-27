@@ -8,7 +8,7 @@ import { Callout } from "@/components/docs";
 import { CodeBlock } from "@/components/docs";
 import { Card, Cards } from "@/components/docs";
 
-Databuddy enables you to gather privacy-first analytics on user behavior, capture custom events, track performance metrics, and more within your Framer site - all while maintaining GDPR compliance without cookies.
+Track visits, custom events, errors, and performance on your Framer site. Databuddy uses browser storage instead of analytics cookies; review your [privacy and consent configuration](/docs/compliance/gdpr-compliance-guide) before enabling collection.
 
 <Callout type="info">
 **Easy Setup**: Install our [official Framer plugin](https://www.framer.com/marketplace/plugins/databuddy-analytics/) from the Framer Marketplace for the fastest setup, or manually add the script using the instructions below.
@@ -121,22 +121,17 @@ If you see real-time data in your dashboard, congratulations! Databuddy is now t
 
 ### Custom Event Tracking
 
-Track custom interactions in your Framer components using data attributes:
+With `data-track-attributes="true"` enabled, track clicks using data attributes:
 
 <CodeBlock
   language="html"
   code={`<!-- Track button clicks -->
-<button data-track="cta_clicked" data-button-type="primary">Get Started</button>
-
-<!-- Track form submissions -->
-<form data-track="newsletter_signup" data-form-location="header">
-  <!-- form content -->
-</form>`}
+<button data-track="cta_clicked" data-button-type="primary">Get Started</button>`}
 />
 
 ### Performance Monitoring
 
-Enable performance tracking by updating your script configuration:
+Replace your existing manual script with this configuration to enable performance tracking. Install the tracker once:
 
 <CodeBlock
   language="html"
@@ -156,14 +151,10 @@ Enable performance tracking by updating your script configuration:
 
 ## Benefits for Framer Sites
 
-- **Cookie-free tracking**: No cookie consent banners needed
-- **Lightweight**: About 12 KB gzipped for the current tracker bundle
-- **True privacy**: No fingerprinting, complete data ownership
-- **Fast Loading**: Async loading won't slow down your Framer site
+- **Cookieless collection**: Browser storage, with opt-out and optional identification controls
 - **Performance visibility**: Collect Core Web Vitals when enabled
-- **Privacy Compliant**: Fully GDPR and CCPA compliant
-- **Real-time Data**: See visitor activity as it happens
-- **Open Source**: Fully transparent and auditable code
+- **Real-time data**: See recent visitor activity
+- **Open source**: Inspect and self-host the code
 
 ## Troubleshooting
 
@@ -195,7 +186,7 @@ If Databuddy isn't working:
 If analytics data isn't showing:
 
 1. Wait 2-3 minutes for data processing
-2. Check that your domain is verified in Databuddy dashboard
+2. Check that the hostname registered for your website matches your published site
 3. Ensure you're viewing the correct date range
 4. Try visiting your site in an incognito window
 </Callout>

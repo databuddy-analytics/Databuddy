@@ -11,6 +11,7 @@ import { cacheNamespaces, cacheable } from "@databuddy/redis";
 import { normalizePlanId, type PlanId } from "@databuddy/shared/types/features";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { hasHostedBilling } from "../lib/autumn-client";
 import { type Context, os } from "../orpc";
 import { getMemberRole, getOrganizationOwnerId } from "../utils/organization";
 
@@ -128,7 +129,7 @@ async function getPlanId(context: Context): Promise<PlanId> {
 }
 
 function requirePlan(plan: PlanId, requiredPlans: PlanId[] | undefined): void {
-	if (!requiredPlans?.length) {
+	if (!(hasHostedBilling() && requiredPlans?.length)) {
 		return;
 	}
 	if (!requiredPlans.includes(plan)) {

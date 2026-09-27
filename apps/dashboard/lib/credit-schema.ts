@@ -4,9 +4,7 @@ import {
 	usdPerMillionTokensToAgentCreditsPerToken,
 } from "@databuddy/shared/agent-credits";
 
-export const BASELINE_MODEL_ID = AGENT_PRICING_BASELINE_MODEL_ID;
-
-const baseline = resolveAgentModelCost(BASELINE_MODEL_ID).cost;
+const baseline = resolveAgentModelCost(AGENT_PRICING_BASELINE_MODEL_ID).cost;
 
 export const AGENT_CREDIT_SCHEMA = {
 	input: usdPerMillionTokensToAgentCreditsPerToken(baseline.input),

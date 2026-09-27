@@ -1,12 +1,19 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
+import { ORPCError } from "@orpc/client";
 import { serializeJsonLd } from "@databuddy/shared/json-ld";
 import { ThemeProvider } from "next-themes";
 import { DATABUDDY_UPTIME_URL, getStatusPageUrl } from "@/lib/status-url";
 import { rpcClient } from "@/lib/orpc";
+import { Branding } from "../_components/branding";
 import { StatusNavbar } from "./_components/status-navbar";
-import { Status } from "./_components/status-page";
+import { MonitorCardInteractive } from "./_components/monitor-card-interactive";
+import {
+	ActiveIncidents,
+	PastIncidents,
+	StatusHeader,
+} from "./_components/status-page";
 
 export const revalidate = 60;
 
@@ -16,34 +23,14 @@ interface StatusPageProps {
 
 const DAYS = 90;
 
-const MAX_FETCH_ATTEMPTS = 3;
-
-function isNotFoundError(error: unknown): boolean {
-	return (
-		!!error &&
-		typeof error === "object" &&
-		"code" in error &&
-		error.code === "NOT_FOUND"
-	);
-}
-
-const getStatusData = cache(async (slug: string) => {
-	let lastError: unknown;
-	for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt++) {
-		if (attempt > 0) {
-			await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+const getStatusData = cache((slug: string) =>
+	rpcClient.statusPage.getBySlug({ slug }).catch((error: unknown) => {
+		if (error instanceof ORPCError && error.code === "NOT_FOUND") {
+			return null;
 		}
-		try {
-			return await rpcClient.statusPage.getBySlug({ slug, days: DAYS });
-		} catch (error) {
-			if (isNotFoundError(error)) {
-				return null;
-			}
-			lastError = error;
-		}
-	}
-	throw lastError;
-});
+		throw error;
+	})
+);
 
 function slugify(text: string): string {
 	return text
@@ -139,9 +126,9 @@ export default async function StatusPage({ params }: StatusPageProps) {
 	const { statusPage: page } = data;
 	const theme = resolveTheme(page.theme);
 	const forcedTheme = theme === "system" ? undefined : theme;
-	const activeIncidentCount = data.incidents.filter(
+	const activeIncidents = data.incidents.filter(
 		(incident) => incident.status !== "resolved"
-	).length;
+	);
 
 	const latestTimestamp = data.monitors.reduce<string | null>(
 		(latest, monitor) => {
@@ -199,54 +186,47 @@ export default async function StatusPage({ params }: StatusPageProps) {
 							type="application/ld+json"
 						/>
 
-						<Status>
-							<Status.Header
-								activeIncidentCount={activeIncidentCount}
-								description={page.description ?? undefined}
+						<div className="space-y-12" data-slot="status-page">
+							<StatusHeader
+								activeIncidentCount={activeIncidents.length}
+								description={page.description}
 								status={data.overallStatus}
+								updatedAt={latestTimestamp}
 							/>
 
-							<Status.IncidentList incidents={data.incidents} />
+							<ActiveIncidents incidents={activeIncidents} />
 
-							<Status.MonitorList>
+							<div className="flex flex-col gap-5" data-slot="status-monitors">
 								{data.monitors.map((monitor) => (
-									<Status.MonitorCard
+									<MonitorCardInteractive
 										anchorId={slugify(monitor.name)}
-										dailyData={monitor.dailyData}
 										days={DAYS}
-										domain={monitor.domain ?? undefined}
-										id={monitor.id}
 										key={monitor.id}
-										lastCheckedAt={monitor.lastCheckedAt}
-										name={monitor.name}
-										freshness={monitor.freshness}
-										status={monitor.currentStatus}
-										uptimePercentage={monitor.uptimePercentage ?? undefined}
+										monitor={monitor}
 									/>
 								))}
-							</Status.MonitorList>
+							</div>
 
-							<Status.Footer
-								incidents={data.incidents}
-								timestamp={latestTimestamp}
+							<PastIncidents
+								incidents={data.incidents.filter(
+									(incident) => incident.status === "resolved"
+								)}
 							/>
-						</Status>
+						</div>
 					</div>
 				</main>
 
 				<footer className="shrink-0 border-border/50 border-t bg-background">
 					<div className="mx-auto flex max-w-[822px] items-center justify-center px-4 py-6 sm:px-6">
-						<p className="text-muted-foreground text-sm">
-							Powered by{" "}
-							<a
-								className="font-semibold text-foreground underline-offset-4 transition-colors duration-(--duration-quick) ease-(--ease-smooth) hover:underline"
-								href="https://www.databuddy.cc"
-								rel="noopener noreferrer dofollow"
-								target="_blank"
-							>
-								Databuddy
-							</a>
-						</p>
+						<a
+							className="flex items-center gap-2 text-muted-foreground text-sm transition-opacity duration-(--duration-quick) ease-(--ease-smooth) hover:opacity-70"
+							href="https://www.databuddy.cc"
+							rel="noopener noreferrer dofollow"
+							target="_blank"
+						>
+							Powered by
+							<Branding heightPx={16} variant="wordmark" />
+						</a>
 					</div>
 				</footer>
 			</div>

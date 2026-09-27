@@ -32,12 +32,12 @@ import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
 import { requireLinkAccess, requireOrganizationId } from "./link-access";
 import {
 	createLinkSchema,
-	deleteLinkSchema,
 	getLinkSchema,
 	linkOutputSchema,
 	listLinksPageOutputSchema,
 	listLinksPageSchema,
 	listLinksSchema,
+	slugifyFolderName,
 	updateLinkSchema,
 } from "./links.schemas";
 
@@ -176,6 +176,58 @@ async function validateFolderId(
 	}
 
 	throw rpcError.badRequest("Link folder does not exist in this organization");
+}
+
+async function findOrCreateFolderId(
+	db: Context["db"],
+	folder: { name: string; slug?: string },
+	organizationId: string,
+	createdBy: Promise<string>
+): Promise<string> {
+	const slug = folder.slug ?? slugifyFolderName(folder.name).slice(0, 64);
+	const findActiveFolderId = async () => {
+		const [existing] = await db
+			.select({ id: linkFolders.id })
+			.from(linkFolders)
+			.where(
+				and(
+					eq(linkFolders.organizationId, organizationId),
+					eq(linkFolders.slug, slug),
+					isNull(linkFolders.deletedAt)
+				)
+			)
+			.limit(1);
+		return existing?.id;
+	};
+
+	const existingId = await findActiveFolderId();
+	if (existingId) {
+		return existingId;
+	}
+
+	const [created] = await db
+		.insert(linkFolders)
+		.values({
+			id: randomUUIDv7(),
+			organizationId,
+			createdBy: await createdBy,
+			name: folder.name,
+			slug,
+		})
+		.onConflictDoNothing({
+			target: [linkFolders.organizationId, linkFolders.slug],
+		})
+		.returning({ id: linkFolders.id });
+	if (created) {
+		return created.id;
+	}
+
+	const concurrentId = await findActiveFolderId();
+	if (concurrentId) {
+		return concurrentId;
+	}
+
+	throw rpcError.conflict("This folder slug is already taken");
 }
 
 function toCachedLink(link: CacheableLink): CachedLink {
@@ -551,7 +603,8 @@ export const linksRouter = {
 			path: "/links/create",
 			tags: ["Links"],
 			summary: "Create link",
-			description: "Creates a new short link. Requires write:links scope.",
+			description:
+				"Creates a new short link. To file it, pass folderId for an existing folder, or folder ({ name, slug? }) to use the folder with that slug and create it if missing; the slug defaults to one derived from name. Requires write:links scope.",
 			spec: (s) => ({ ...s, "x-required-scopes": ["write:links"] as const }),
 		})
 		.input(createLinkSchema)
@@ -561,6 +614,9 @@ export const linksRouter = {
 				has_expiry: !!input.expiresAt,
 				has_og: !!(input.ogTitle || input.ogImageUrl),
 			});
+			if (input.folder && input.folderId) {
+				throw rpcError.badRequest("Pass either folderId or folder, not both");
+			}
 			const organizationId = requireOrganizationId(
 				input.organizationId?.trim() || context.organizationId
 			);
@@ -572,9 +628,17 @@ export const linksRouter = {
 			);
 
 			validateDeepLinkConfiguration(input.deepLinkApp, input.targetUrl);
+			const createdByPromise = workspace.getCreatedBy();
 			const [createdBy, resolvedFolderId] = await Promise.all([
-				workspace.getCreatedBy(),
-				validateFolderId(context.db, input.folderId, organizationId),
+				createdByPromise,
+				input.folder
+					? findOrCreateFolderId(
+							context.db,
+							input.folder,
+							organizationId,
+							createdByPromise
+						)
+					: validateFolderId(context.db, input.folderId, organizationId),
 			]);
 			const targetDomain =
 				normalizeTargetDomain(input.targetDomain) ??
@@ -965,7 +1029,7 @@ export const linksRouter = {
 			description: "Deletes a link by id. Requires write:links scope.",
 			spec: (s) => ({ ...s, "x-required-scopes": ["write:links"] as const }),
 		})
-		.input(deleteLinkSchema)
+		.input(getLinkSchema)
 		.output(z.object({ success: z.literal(true) }))
 		.handler(async ({ context, input }) => {
 			const link = await getLinkOrThrow(context, input.id);

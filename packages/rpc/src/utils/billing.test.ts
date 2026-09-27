@@ -119,20 +119,17 @@ describe("resolveBillingOwner", () => {
 		["admin", true],
 		["member", false],
 		[null, false],
-	])(
-		"lets a non-owner with role %p upgrade=%p",
-		async (role, canUserUpgrade) => {
-			memberRole = role;
+	])("lets a non-owner with role %p upgrade=%p", async (role, canUserUpgrade) => {
+		memberRole = role;
 
-			const owner = await resolveBillingOwner("user-4", ORGANIZATION_ID);
+		const owner = await resolveBillingOwner("user-4", ORGANIZATION_ID);
 
-			expect(owner).toMatchObject({
-				canUserUpgrade,
-				customerId: OWNER_ID,
-				isOrganization: true,
-			});
-		}
-	);
+		expect(owner).toMatchObject({
+			canUserUpgrade,
+			customerId: OWNER_ID,
+			isOrganization: true,
+		});
+	});
 
 	it("falls back to personal billing when the organization owner cannot be resolved", async () => {
 		ownerId = null;

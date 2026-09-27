@@ -187,8 +187,7 @@ const buildFilterSQL = (
 ): string => {
 	const parts: string[] = [];
 
-	for (let i = 0; i < filters.length; i++) {
-		const { field, operator, value } = filters[i];
+	for (const [i, { field, operator, value }] of filters.entries()) {
 		if (!(FIELDS.has(field) && OPS.has(operator))) {
 			continue;
 		}
@@ -404,7 +403,7 @@ function buildIdentifiedEventStream(
 			step.type === "PAGE_VIEW"
 				? `row.source_kind = 1
 					AND row.event_name = 'screen_view'
-					AND ${normalizedPathExpression("row.path")} = {${targetKey}:String}`
+					AND row.normalized_path = {${targetKey}:String}`
 				: `row.event_name = {${targetKey}:String}`;
 		let matches = baseMatch;
 		if (index === 0 && filters.length > 0) {
@@ -479,6 +478,7 @@ identified_rows AS (
 context_rows AS (
 	SELECT
 		context.*,
+		${normalizedPathExpression("context.path")} AS normalized_path,
 		if(
 			context.session_id != '',
 			context.last_matching_session_context_ms,
@@ -865,7 +865,8 @@ export const processGoalAnalytics = async (
 export const processFunnelAnalyticsByReferrer = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
-	params: ClickhouseQueryParams
+	params: ClickhouseQueryParams,
+	abortSignal?: AbortSignal
 ): Promise<{ referrer_analytics: ReferrerAnalytics[] }> => {
 	const totalSteps = steps.length;
 	if (totalSteps === 0) {
@@ -886,7 +887,9 @@ FROM step_events
 GROUP BY vid
 HAVING max_step >= 1`;
 
-	const rows = await chQuery<ReferrerRow>(fullQuery, params);
+	const rows = await chQuery<ReferrerRow>(fullQuery, params, {
+		abort_signal: abortSignal,
+	});
 
 	const groups = new Map<
 		string,

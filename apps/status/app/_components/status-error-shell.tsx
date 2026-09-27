@@ -7,40 +7,8 @@ import {
 	ArrowRightIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
+import Image from "next/image";
 import { DATABUDDY_UPTIME_URL, DATABUDDY_URL } from "@/lib/status-url";
-import { Branding } from "./branding";
-
-const PARTICLES = [
-	{
-		className: "left-[20%] top-[15%] animate-[float-a_4s_ease-in-out_infinite]",
-		color: "bg-purple-500",
-	},
-	{
-		className:
-			"right-[18%] top-[25%] animate-[float-b_5s_ease-in-out_infinite]",
-		color: "bg-indigo-500",
-	},
-	{
-		className:
-			"left-[15%] bottom-[30%] animate-[float-a_6s_ease-in-out_infinite_reverse]",
-		color: "bg-purple-400",
-	},
-	{
-		className:
-			"right-[22%] bottom-[20%] animate-[float-b_4.5s_ease-in-out_infinite]",
-		color: "bg-indigo-400",
-	},
-	{
-		className:
-			"left-[10%] top-[40%] animate-[float-a_5.5s_ease-in-out_infinite]",
-		color: "bg-purple-300",
-	},
-	{
-		className:
-			"right-[12%] top-[60%] animate-[float-b_3.5s_ease-in-out_infinite_reverse]",
-		color: "bg-violet-600",
-	},
-] as const;
 
 interface StatusErrorShellProps {
 	action?: ReactNode;
@@ -59,34 +27,6 @@ export function StatusErrorShell({
 }: StatusErrorShellProps) {
 	return (
 		<div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-background p-4 sm:p-6">
-			<style
-				dangerouslySetInnerHTML={{
-					__html: `
-						@keyframes float-a {
-							0%, 100% { transform: translateY(0) translateX(0); }
-							50% { transform: translateY(-12px) translateX(6px); }
-						}
-						@keyframes float-b {
-							0%, 100% { transform: translateY(0) translateX(0); }
-							50% { transform: translateY(8px) translateX(-8px); }
-						}
-						@keyframes bobble {
-							0%, 100% { transform: translateY(0) rotate(0deg); }
-							25% { transform: translateY(-4px) rotate(5deg); }
-							75% { transform: translateY(-2px) rotate(-3deg); }
-						}
-					`,
-				}}
-			/>
-
-			{PARTICLES.map((p) => (
-				<div
-					aria-hidden="true"
-					className={`absolute size-1.5 rounded-full opacity-30 ${p.color} ${p.className}`}
-					key={p.className}
-				/>
-			))}
-
 			<div
 				aria-hidden="true"
 				className="pointer-events-none absolute select-none font-extrabold text-[120px] text-foreground opacity-[0.04] sm:text-[180px]"
@@ -100,16 +40,26 @@ export function StatusErrorShell({
 						aria-hidden="true"
 						className="absolute inset-[-20px] rounded-full bg-[radial-gradient(circle,rgba(139,92,246,0.15)_0%,transparent_70%)]"
 					/>
-					<Branding
-						className="relative"
-						heightPx={72}
+					<Image
+						alt="Databuddy"
+						className="relative block dark:hidden"
+						height={72}
 						priority
-						variant="logomark"
+						src="/brand/logomark/black.svg"
+						width={72}
+					/>
+					<Image
+						alt=""
+						aria-hidden
+						className="relative hidden dark:block"
+						height={72}
+						priority
+						src="/brand/logomark/white.svg"
+						width={72}
 					/>
 					<span
 						aria-hidden="true"
-						className="absolute -top-2 -right-3.5 text-destructive opacity-70"
-						style={{ animation: "bobble 2s ease-in-out infinite" }}
+						className="absolute -top-2 -right-3.5 text-destructive opacity-70 motion-safe:animate-bounce"
 					>
 						<WarningCircleIcon className="size-5" />
 					</span>

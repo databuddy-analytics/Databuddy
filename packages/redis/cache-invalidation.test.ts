@@ -323,9 +323,7 @@ describe("flag read cache invalidation", () => {
 		expect(redisStore.has("cacheable:flags-client:[site-1]")).toBe(false);
 		expect(redisStore.has("cacheable:flags-definitions:[site-1]")).toBe(false);
 		expect(redisStore.has("cacheable:flags-user:[user-1,site-1]")).toBe(false);
-		expect(redisStore.has("cacheable:flags-user:[user-2,site-1]")).toBe(
-			true
-		);
+		expect(redisStore.has("cacheable:flags-user:[user-2,site-1]")).toBe(true);
 	});
 });
 
@@ -352,11 +350,7 @@ describe("organization membership cache invalidation", () => {
 				cacheNamespaces.organizationOwner,
 				"org-1"
 			),
-			role: getCacheableKey(
-				cacheNamespaces.memberRole,
-				"user-1",
-				"org-1"
-			),
+			role: getCacheableKey(cacheNamespaces.memberRole, "user-1", "org-1"),
 		};
 		redisStore.set(keys.role, {
 			value: "member",
@@ -415,9 +409,16 @@ describe("agent context snapshot invalidation", () => {
 	it("marks every owner snapshot for a website stale", async () => {
 		const orgKey = getAgentContextSnapshotKey("user-1", "site-1", "org-1");
 		const userKey = getAgentContextSnapshotKey("user-2", "site-1", null);
-		const otherSiteKey = getAgentContextSnapshotKey("user-1", "site-2", "org-1");
+		const otherSiteKey = getAgentContextSnapshotKey(
+			"user-1",
+			"site-2",
+			"org-1"
+		);
 		redisStore.set(orgKey, { value: freshSnapshot("org site one"), ttl: 100 });
-		redisStore.set(userKey, { value: freshSnapshot("user site one"), ttl: 100 });
+		redisStore.set(userKey, {
+			value: freshSnapshot("user site one"),
+			ttl: 100,
+		});
 		redisStore.set(otherSiteKey, {
 			value: freshSnapshot("org site two"),
 			ttl: 100,
@@ -444,9 +445,7 @@ describe("agent context snapshot invalidation", () => {
 		const count = await invalidateAgentContextSnapshotsForOwner("org-1");
 
 		expect(count).toBe(2);
-		expect(readSnapshot(firstKey).refreshedAt).toBe(
-			"1970-01-01T00:00:00.000Z"
-		);
+		expect(readSnapshot(firstKey).refreshedAt).toBe("1970-01-01T00:00:00.000Z");
 		expect(readSnapshot(secondKey).refreshedAt).toBe(
 			"1970-01-01T00:00:00.000Z"
 		);

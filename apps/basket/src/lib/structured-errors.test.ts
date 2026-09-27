@@ -185,7 +185,10 @@ describe("buildBasketErrorPayload", () => {
 		const original = process.env.NODE_ENV;
 		process.env.NODE_ENV = "production";
 		try {
-			const err = createError({ message: "Origin not authorized", status: 403 });
+			const err = createError({
+				message: "Origin not authorized",
+				status: 403,
+			});
 			const { payload } = buildBasketErrorPayload(err);
 			expect(payload.error).toBe("Origin not authorized");
 			expect(payload.message).toBe("Origin not authorized");

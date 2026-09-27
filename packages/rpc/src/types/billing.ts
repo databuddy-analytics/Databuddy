@@ -8,11 +8,15 @@ import {
 	isWithinLimit,
 } from "@databuddy/shared/types/features";
 import { rpcError } from "../errors";
+import { hasHostedBilling } from "../lib/autumn-client";
 
 function requireFeature(
 	planId: string | undefined,
 	feature: GatedFeatureId
 ): void {
+	if (!hasHostedBilling()) {
+		return;
+	}
 	if (!isFeatureAvailable(planId ?? null, feature)) {
 		const nextPlan = getNextPlanForFeature(planId ?? null, feature);
 		throw rpcError.featureUnavailable(
@@ -37,6 +41,9 @@ export function requireUsageWithinLimit(
 	feature: GatedFeatureId,
 	currentUsage: number
 ): void {
+	if (!hasHostedBilling()) {
+		return;
+	}
 	if (!isWithinLimit(planId ?? null, feature, currentUsage)) {
 		const limit = getPlanFeatureLimit(planId ?? null, feature);
 		const nextPlan = getNextPlanForFeature(planId ?? null, feature);

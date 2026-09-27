@@ -1,7 +1,9 @@
 import { describe, expect, it } from "bun:test";
+import { AI_AGENT_CLASSIFICATION, AI_AGENTS, matchAiAgent } from "../ai-agents";
 import { detectBot } from "../detector";
 import { BotAction, BotCategory } from "../types";
 import { extractBotName, matchCategory, parseUserAgent } from "../user-agent";
+import wellKnownBots from "../well-known-bots.json";
 
 function expectBot(ua: string, category: BotCategory, action: BotAction) {
 	const result = detectBot(ua);
@@ -14,11 +16,20 @@ function expectBot(ua: string, category: BotCategory, action: BotAction) {
 describe("detectBot", () => {
 	describe("AI crawlers — every major provider", () => {
 		it.each([
-			["OpenAI GPTBot", "Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)"],
+			[
+				"OpenAI GPTBot",
+				"Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)",
+			],
 			["OpenAI SearchBot", "Mozilla/5.0 (compatible; OAI-SearchBot/1.0)"],
-			["Anthropic ClaudeBot", "Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)"],
+			[
+				"Anthropic ClaudeBot",
+				"Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
+			],
 			["Anthropic Claude-Web", "Mozilla/5.0 (compatible; Claude-Web/1.0)"],
-			["Anthropic Claude-SearchBot", "Mozilla/5.0 (compatible; Claude-SearchBot/1.0)"],
+			[
+				"Anthropic Claude-SearchBot",
+				"Mozilla/5.0 (compatible; Claude-SearchBot/1.0)",
+			],
 			["Google-Extended", "Mozilla/5.0 (compatible; Google-Extended)"],
 			["GoogleOther", "GoogleOther"],
 			["Google-CloudVertexBot", "Google-CloudVertexBot"],
@@ -29,11 +40,13 @@ describe("detectBot", () => {
 			["Amazonbot", "Amazonbot/0.1"],
 			["Applebot", "Applebot/0.1"],
 			["DeepSeekBot", "DeepSeekBot/1.0"],
-			["Bytespider", "Mozilla/5.0 (compatible; Bytespider; spider-feedback@bytedance.com)"],
+			[
+				"Bytespider",
+				"Mozilla/5.0 (compatible; Bytespider; spider-feedback@bytedance.com)",
+			],
 			["TikTokSpider", "TikTokSpider"],
 			["Bravebot", "Bravebot"],
 			["YouBot", "YouBot/1.0"],
-			["v0bot", "v0bot"],
 			["HuggingFace-Bot", "HuggingFace-Bot"],
 			["CCBot", "CCBot/2.0"],
 			["Diffbot", "Diffbot/0.1"],
@@ -41,7 +54,6 @@ describe("detectBot", () => {
 			["ChatGLM-Spider", "ChatGLM-Spider"],
 			["Together-Bot", "Together-Bot"],
 			["Replicate-Bot", "Replicate-Bot"],
-			["FirecrawlAgent", "FirecrawlAgent"],
 			["Cohere crawler", "cohere-training-data-crawler"],
 			["Cloudflare-AI-Search", "Cloudflare-AI-Search/1.0"],
 			["SBIntuitionsBot", "SBIntuitionsBot/1.0"],
@@ -63,6 +75,8 @@ describe("detectBot", () => {
 			["Perplexity-User", "Perplexity-User/1.0"],
 			["Cohere-AI", "Cohere-AI/1.0"],
 			["Meta ExternalFetcher", "meta-externalfetcher/1.0"],
+			["FirecrawlAgent", "FirecrawlAgent"],
+			["v0bot", "v0bot"],
 		])("detects %s as track-only AI assistant", (_label, ua) => {
 			expectBot(ua, BotCategory.AI_ASSISTANT, BotAction.TRACK_ONLY);
 		});
@@ -70,9 +84,18 @@ describe("detectBot", () => {
 
 	describe("search engines", () => {
 		it.each([
-			["Googlebot", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"],
-			["Bingbot", "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)"],
-			["YandexBot", "Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)"],
+			[
+				"Googlebot",
+				"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+			],
+			[
+				"Bingbot",
+				"Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)",
+			],
+			[
+				"YandexBot",
+				"Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)",
+			],
 			["DuckDuckBot", "DuckDuckBot/1.0"],
 			["Baiduspider", "Mozilla/5.0 (compatible; Baiduspider/2.0)"],
 		])("allows %s", (_label, ua) => {
@@ -96,9 +119,18 @@ describe("detectBot", () => {
 
 	describe("SEO tools", () => {
 		it.each([
-			["AhrefsBot", "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)"],
-			["SemrushBot", "Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)"],
-			["MJ12bot", "Mozilla/5.0 (compatible; MJ12bot/v1.4.8; http://mj12bot.com/)"],
+			[
+				"AhrefsBot",
+				"Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)",
+			],
+			[
+				"SemrushBot",
+				"Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)",
+			],
+			[
+				"MJ12bot",
+				"Mozilla/5.0 (compatible; MJ12bot/v1.4.8; http://mj12bot.com/)",
+			],
 			["DotBot", "Mozilla/5.0 (compatible; DotBot/1.2)"],
 		])("blocks %s", (_label, ua) => {
 			expectBot(ua, BotCategory.SEO_TOOL, BotAction.BLOCK);
@@ -131,7 +163,10 @@ describe("detectBot", () => {
 
 	describe("regex patterns (from UA2.json)", () => {
 		it.each([
-			["Googlebot with slash", "Googlebot/2.1 (+http://www.google.com/bot.html)"],
+			[
+				"Googlebot with slash",
+				"Googlebot/2.1 (+http://www.google.com/bot.html)",
+			],
 			["AdsBot-Google", "AdsBot-Google (+http://www.google.com/adsbot.html)"],
 			["Facebot regex", "Facebot/1.0"],
 			["BingPreview", "BingPreview/1.0b"],
@@ -143,19 +178,58 @@ describe("detectBot", () => {
 
 	describe("human traffic — no false positives", () => {
 		it.each([
-			["Chrome Desktop", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"],
-			["Chrome Android", "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.43 Mobile Safari/537.36"],
-			["Safari macOS", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"],
-			["Safari iOS", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"],
-			["Firefox Desktop", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0"],
-			["Firefox Android", "Mozilla/5.0 (Android 14; Mobile; rv:121.0) Gecko/121.0 Firefox/121.0"],
-			["Edge", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.2210.91"],
-			["Opera", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0"],
-			["Samsung Internet", "Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/23.0 Chrome/115.0.0.0 Mobile Safari/537.36"],
-			["Brave Browser", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"],
-			["Arc Browser", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"],
-			["Vivaldi", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Vivaldi/6.5"],
-			["iPad Safari", "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"],
+			[
+				"Chrome Desktop",
+				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+			],
+			[
+				"Chrome Android",
+				"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.43 Mobile Safari/537.36",
+			],
+			[
+				"Safari macOS",
+				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+			],
+			[
+				"Safari iOS",
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+			],
+			[
+				"Firefox Desktop",
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+			],
+			[
+				"Firefox Android",
+				"Mozilla/5.0 (Android 14; Mobile; rv:121.0) Gecko/121.0 Firefox/121.0",
+			],
+			[
+				"Edge",
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.2210.91",
+			],
+			[
+				"Opera",
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0",
+			],
+			[
+				"Samsung Internet",
+				"Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/23.0 Chrome/115.0.0.0 Mobile Safari/537.36",
+			],
+			[
+				"Brave Browser",
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+			],
+			[
+				"Arc Browser",
+				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+			],
+			[
+				"Vivaldi",
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Vivaldi/6.5",
+			],
+			[
+				"iPad Safari",
+				"Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+			],
 		])("does not flag %s as a bot", (_label, ua) => {
 			const result = detectBot(ua);
 			expect(result.isBot).toBe(false);
@@ -253,7 +327,10 @@ describe("matchCategory", () => {
 	});
 
 	it.each([
-		["human UA", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/120.0.0.0"],
+		[
+			"human UA",
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/120.0.0.0",
+		],
 		["empty string", ""],
 	])("returns null for %s", (_label, ua) => {
 		expect(matchCategory(ua)).toBeNull();
@@ -295,7 +372,88 @@ describe("parseUserAgent", () => {
 		expect(result.osName).toBe("iOS");
 	});
 
+	it.each([
+		[
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Claude/2.2553.1 Chrome/152.0.7977.76 Safari/537.36",
+			"Claude",
+			"2.2553.1",
+		],
+		[
+			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Cursor/3.6.31 Chrome/142.0.7444.265 Electron/39.8.1 Safari/537.36",
+			"Cursor",
+			"3.6.31",
+		],
+	])("reports the AI desktop app as the browser for %s", (ua, name, version) => {
+		const result = parseUserAgent(ua);
+		expect(result.browserName).toBe(name);
+		expect(result.browserVersion).toBe(version);
+	});
+
 	it("returns only the raw value for an empty string", () => {
 		expect(parseUserAgent("")).toEqual({ raw: "" });
+	});
+});
+
+describe("AI agent registry", () => {
+	it("classifies exactly the vendored bots tagged ai", () => {
+		const upstreamIds = new Set(wellKnownBots.map((bot) => bot.id));
+		const unclassified = wellKnownBots
+			.filter((bot) => bot.categories.includes("ai"))
+			.map((bot) => bot.id)
+			.filter((id) => !(id in AI_AGENT_CLASSIFICATION));
+		const stale = Object.keys(AI_AGENT_CLASSIFICATION).filter(
+			(id) => !upstreamIds.has(id)
+		);
+		expect({ stale, unclassified }).toEqual({ stale: [], unclassified: [] });
+	});
+
+	it("matches every agent's upstream sample user agents", () => {
+		const mismatches = AI_AGENTS.flatMap((agent) => {
+			const instances = wellKnownBots.find(
+				(bot) => bot.id === agent.id
+			)?.instances;
+			return [
+				...(instances?.accepted ?? [])
+					.filter((ua) => detectBot(ua).agent?.id !== agent.id)
+					.map((ua) => `${agent.id} missed ${ua}`),
+				...(instances?.rejected ?? [])
+					.filter((ua) => matchAiAgent(ua)?.id === agent.id)
+					.map((ua) => `${agent.id} matched rejected ${ua}`),
+			];
+		});
+		expect(mismatches).toEqual([]);
+	});
+
+	it.each([
+		[
+			"Claude-User (claude-code/2.1.280; +https://support.anthropic.com/)",
+			"Claude Code",
+		],
+		[
+			"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-User/1.0; +Claude-User@anthropic.com)",
+			"Claude",
+		],
+		[
+			"Mozilla/5.0 (compatible; Google-Gemini-CLI/1.0; +https://github.com/google-gemini/gemini-cli)",
+			"Gemini CLI",
+		],
+		[
+			"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)",
+			"ChatGPT",
+		],
+		[
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+			null,
+		],
+		[
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Claude/2.2553.1 Chrome/152.0.7977.76 Safari/537.36",
+			null,
+		],
+		[
+			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Cursor/3.6.31 Chrome/142.0.7444.265 Electron/39.8.1 Safari/537.36",
+			null,
+		],
+	])("attributes %s to %p", (userAgent, product) => {
+		expect(matchAiAgent(userAgent)?.product ?? null).toBe(product);
 	});
 });

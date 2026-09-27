@@ -26,12 +26,15 @@ const TOOL_NAME_RE = /^[a-z][a-z0-9_]*$/;
 const MAX_DESCRIPTION_LEN = 240;
 
 describe("MCP transport", () => {
-	test("keeps API-key authentication separate from unimplemented OAuth", async () => {
+	test("points unauthenticated callers at the protected resource metadata", async () => {
 		const response = createMcpUnauthorizedResponse();
 
 		expect(response.status).toBe(401);
-		expect(response.headers.get("www-authenticate")).not.toContain(
-			"resource_metadata"
+		expect(response.headers.get("www-authenticate")).toContain(
+			'resource_metadata="'
+		);
+		expect(response.headers.get("www-authenticate")).toContain(
+			"/.well-known/oauth-protected-resource"
 		);
 		expect(await response.json()).toMatchObject({
 			id: null,
@@ -40,11 +43,11 @@ describe("MCP transport", () => {
 	});
 });
 
-async function listToolsForPrincipal(
-	principal: ReturnType<typeof createInternalPrincipal>
+async function listTools(
+	context: Pick<McpRequestContext, "apiKey" | "oauthScopes" | "userId">
 ) {
 	const response = await handleDatabuddyMcpRequest({
-		apiKey: principal.apiKey,
+		...context,
 		organizationId: "org-1",
 		request: new Request("https://api.databuddy.test/v1/mcp", {
 			body: JSON.stringify({
@@ -60,7 +63,6 @@ async function listToolsForPrincipal(
 			method: "POST",
 		}),
 		requestHeaders: new Headers(),
-		userId: null,
 	});
 	const body = (await response.json()) as {
 		result?: {
@@ -76,11 +78,41 @@ async function listToolsForPrincipal(
 	};
 }
 
+function listToolsForPrincipal(
+	principal: ReturnType<typeof createInternalPrincipal>
+) {
+	return listTools({ apiKey: principal.apiKey, userId: null });
+}
+
 async function listToolsForScopes(scopes: ApiScope[]) {
 	return listToolsForPrincipal(
 		createInternalPrincipal({ organizationId: "org-1", scopes })
 	);
 }
+
+describe("MCP OAuth scopes", () => {
+	test("a scoped OAuth token lists the same tools as an API key with those scopes", async () => {
+		const oauth = await listTools({
+			apiKey: null,
+			oauthScopes: ["read:links"],
+			userId: "user-1",
+		});
+		const apiKey = await listToolsForScopes(["read:links"]);
+		expect(oauth.tools.map((tool) => tool.name).sort()).toEqual(
+			apiKey.tools.map((tool) => tool.name).sort()
+		);
+		expect(oauth.tools.length).toBeLessThan(tools.length);
+	});
+
+	test("an OAuth token without Databuddy scopes keeps full user access", async () => {
+		const oauth = await listTools({
+			apiKey: null,
+			oauthScopes: [],
+			userId: "user-1",
+		});
+		expect(oauth.tools.length).toBe(tools.length);
+	});
+});
 
 describe("MCP tool invariants", () => {
 	test("dynamic analytics output schemas work through the installed MCP SDK", async () => {
@@ -136,7 +168,8 @@ describe("MCP tool invariants", () => {
 		const tool = defineMcpTool(
 			{
 				name: "literal_string_input",
-				description: "Test that literal string inputs reach the handler unchanged.",
+				description:
+					"Test that literal string inputs reach the handler unchanged.",
 				inputSchema: z.object({
 					enabled: z.boolean(),
 					literal: z.string(),
@@ -161,7 +194,8 @@ describe("MCP tool invariants", () => {
 		const tool = defineMcpTool(
 			{
 				name: "internal_error_test",
-				description: "Test that internal exception text is not returned to callers.",
+				description:
+					"Test that internal exception text is not returned to callers.",
 				inputSchema: z.object({}),
 			},
 			() => {
@@ -279,8 +313,11 @@ describe("MCP tool invariants", () => {
 		}
 	});
 
-	test("resolves MCP date presets instead of ignoring them", () => {
-		const { from, to } = resolveMcpDateRange({ preset: "last_30d" });
+	test.each([
+		{},
+		{ preset: "last_30d" as const },
+	])("resolves MCP presets and defaults to 30 days: %j", (range) => {
+		const { from, to } = resolveMcpDateRange(range);
 		expect(from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 		expect(to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 		expect(
@@ -329,7 +366,6 @@ describe("MCP tool invariants", () => {
 			}
 		}
 	});
-
 });
 
 describe("investigation tools", () => {
@@ -350,18 +386,11 @@ describe("investigation tools", () => {
 		expect(readDataNames.has("create_link")).toBe(false);
 		expect(readDataNames.has("create_flag")).toBe(false);
 
-		const flagManager = await listToolsForScopes([
-			"read:data",
-			"manage:flags",
-		]);
+		const flagManager = await listToolsForScopes(["read:data", "manage:flags"]);
 		const flagManagerNames = new Set(
 			flagManager.tools.map((tool) => tool.name)
 		);
-		for (const name of [
-			"create_flag",
-			"update_flag",
-			"add_users_to_flag",
-		]) {
+		for (const name of ["create_flag", "update_flag", "add_users_to_flag"]) {
 			expect(flagManagerNames.has(name)).toBe(true);
 		}
 
@@ -396,10 +425,7 @@ describe("investigation tools", () => {
 			expect(workspaceWriterWithoutReadNames.has(name)).toBe(false);
 		}
 
-		const linkReader = await listToolsForScopes([
-			"read:data",
-			"read:links",
-		]);
+		const linkReader = await listToolsForScopes(["read:data", "read:links"]);
 		expect(
 			new Set(linkReader.tools.map((tool) => tool.name)).has("list_links")
 		).toBe(true);
@@ -423,9 +449,7 @@ describe("investigation tools", () => {
 			"read:links",
 			"write:links",
 		]);
-		const linkWriterNames = new Set(
-			linkWriter.tools.map((tool) => tool.name)
-		);
+		const linkWriterNames = new Set(linkWriter.tools.map((tool) => tool.name));
 		for (const name of ["create_link", "update_link", "delete_link"]) {
 			expect(linkWriterNames.has(name)).toBe(true);
 		}
@@ -436,11 +460,7 @@ describe("investigation tools", () => {
 			createInternalPrincipal({
 				metadata: {
 					resources: {
-						"website:site-1": [
-							"read:data",
-							"read:links",
-							"write:links",
-						],
+						"website:site-1": ["read:data", "read:links", "write:links"],
 					},
 				},
 				organizationId: "org-1",
@@ -530,38 +550,18 @@ describe("investigation tools", () => {
 	});
 
 	test("publishes the investigation lifecycle to a website-scoped key", async () => {
-		const principal = createInternalPrincipal({
-			metadata: {
-				resources: {
-					"website:site-1": ["read:data", "manage:websites"],
+		const { response, tools: listed } = await listToolsForPrincipal(
+			createInternalPrincipal({
+				metadata: {
+					resources: {
+						"website:site-1": ["read:data", "manage:websites"],
+					},
 				},
-			},
-			organizationId: "org-1",
-			scopes: [],
-		});
-		const response = await handleDatabuddyMcpRequest({
-			apiKey: principal.apiKey,
-			organizationId: "org-1",
-			request: new Request("https://api.databuddy.test/v1/mcp", {
-				body: JSON.stringify({
-					id: 1,
-					jsonrpc: "2.0",
-					method: "tools/list",
-					params: {},
-				}),
-				headers: {
-					accept: "application/json, text/event-stream",
-					"content-type": "application/json",
-				},
-				method: "POST",
-			}),
-			requestHeaders: new Headers(),
-			userId: null,
-		});
-		const body = (await response.json()) as {
-			result?: { tools?: Array<{ name: string }> };
-		};
-		const names = new Set(body.result?.tools?.map((tool) => tool.name));
+				organizationId: "org-1",
+				scopes: [],
+			})
+		);
+		const names = new Set(listed.map((tool) => tool.name));
 
 		expect(response.status).toBe(200);
 		for (const name of [
@@ -573,5 +573,4 @@ describe("investigation tools", () => {
 			expect(names.has(name)).toBe(true);
 		}
 	});
-
 });

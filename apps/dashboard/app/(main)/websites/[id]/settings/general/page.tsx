@@ -43,7 +43,7 @@ import {
 function GeneralSettingsSkeleton() {
 	return (
 		<div className="flex-1 overflow-y-auto">
-			<div className="mx-auto max-w-2xl space-y-6 p-5">
+			<div className="mx-auto max-w-4xl space-y-6 p-5">
 				{[1, 2, 3].map((index) => (
 					<Card key={`general-settings-skeleton-${index}`}>
 						<Card.Header>
@@ -252,7 +252,7 @@ export default function GeneralSettingsPage() {
 	return (
 		<div className="flex h-full flex-col">
 			<div className="flex-1 overflow-y-auto">
-				<div className="mx-auto max-w-2xl space-y-6 p-5">
+				<div className="mx-auto max-w-4xl space-y-6 p-5">
 					<Card>
 						<Card.Header>
 							<Card.Title>Website Details</Card.Title>

@@ -99,9 +99,9 @@ function deriveEventName(path: string): string {
 		return `${singular}_${verb}`;
 	}
 
-	const toggleMatch = method.match(TOGGLE_PREFIX);
-	if (toggleMatch) {
-		return `${singular}_toggled_${toSnakeCase(toggleMatch[1])}`;
+	const toggled = method.match(TOGGLE_PREFIX)?.[1];
+	if (toggled) {
+		return `${singular}_toggled_${toSnakeCase(toggled)}`;
 	}
 
 	return `${singular}_${method}`;

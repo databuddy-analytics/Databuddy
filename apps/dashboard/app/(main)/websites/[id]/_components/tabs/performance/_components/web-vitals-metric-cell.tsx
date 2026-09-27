@@ -7,7 +7,7 @@ import {
 } from "@databuddy/ui/icons";
 
 interface WebVitalsMetricCellProps {
-	metric: "lcp" | "fcp" | "fid" | "inp" | "cls";
+	metric: "lcp" | "fcp" | "inp" | "cls";
 	value?: number;
 }
 
@@ -17,8 +17,6 @@ const getWebVitalsThresholds = (metric: string) => {
 			return { good: 2500, poor: 4000 };
 		case "fcp":
 			return { good: 1800, poor: 3000 };
-		case "fid":
-			return { good: 100, poor: 300 };
 		case "inp":
 			return { good: 200, poor: 500 };
 		case "cls":

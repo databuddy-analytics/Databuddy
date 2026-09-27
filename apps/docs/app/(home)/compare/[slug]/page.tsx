@@ -24,7 +24,7 @@ export async function generateMetadata({
 	const data = getComparisonData(slug);
 
 	if (!data) {
-		return { title: "Comparison Not Found | Databuddy" };
+		return { title: "Comparison Not Found" };
 	}
 
 	const compareUrl = `${SITE_URL}/compare/${slug}`;
@@ -49,18 +49,7 @@ export default async function ComparisonPage({ params }: PageProps) {
 		notFound();
 	}
 
-	const {
-		competitor,
-		features,
-		hero,
-		seo,
-		faqs,
-		pricingTiers,
-		migrationSection,
-	} = data;
-	const featuresWin = features.filter(
-		(f) => f.databuddy && !f.competitor
-	).length;
+	const { competitor, features, hero, seo, faqs, pricingTiers } = data;
 
 	const pageUrl = `${SITE_URL}/compare/${slug}`;
 	const titleParts = hero.title.split(" vs ");
@@ -70,7 +59,6 @@ export default async function ComparisonPage({ params }: PageProps) {
 			competitor={competitor}
 			faqs={faqs}
 			features={features}
-			featuresWin={featuresWin}
 			heroDescription={hero.description}
 			heroHeading={
 				<>
@@ -78,10 +66,9 @@ export default async function ComparisonPage({ params }: PageProps) {
 					<span className="text-muted-foreground">{titleParts.at(1)}</span>
 				</>
 			}
-			migrationSection={migrationSection}
-			pageType="compare"
 			pageUrl={pageUrl}
 			pricingTiers={pricingTiers}
+			sources={data.sources}
 			structuredDescription={seo.description}
 			structuredTitle={seo.title}
 		/>

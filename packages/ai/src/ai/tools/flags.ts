@@ -56,7 +56,7 @@ const updateFlagInputSchema = createFlagInputSchema
 const addUsersToFlagInputSchema = z.object({
 	flagId: z.string(),
 	websiteId: z.string(),
-	users: z.array(z.string().min(1)).min(1).max(500),
+	users: z.array(z.string().trim().min(1)).min(1).max(500),
 	matchBy: z.enum(["user_id", "email"]).optional().default("email"),
 	mode: z.enum(["append", "replace"]).optional().default("append"),
 	confirmed: z.boolean().describe("false=preview, true=apply"),

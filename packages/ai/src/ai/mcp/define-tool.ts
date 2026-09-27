@@ -54,6 +54,8 @@ export class McpToolError extends Error {
 
 export interface McpRequestContext {
 	apiKey: ApiKeyRow | null;
+	oauthScopes?: ApiScope[] | null;
+	oauthUserId?: string | null;
 	organizationId?: string | null;
 	requestHeaders: Headers;
 	userId: string | null;
@@ -276,11 +278,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 						if (resolvedId instanceof Error) {
 							throw new McpToolError("not_found", resolvedId.message);
 						}
-						const access = await ensureWebsiteAccess(
-							resolvedId,
-							ctx.requestHeaders,
-							ctx.apiKey
-						);
+						const access = await ensureWebsiteAccess(resolvedId, ctx);
 						if (access instanceof Error) {
 							throw new McpToolError("unauthorized", access.message);
 						}

@@ -24,6 +24,7 @@ import {
 	ToolDetail,
 	ToolInput,
 	ToolOutput,
+	ToolQuery,
 	type ToolStatus,
 } from "@/components/ai-elements/tool";
 import { useChat, useChatLoading } from "@/contexts/chat-context";
@@ -32,6 +33,7 @@ import { parseContentSegments } from "@/lib/ai-components";
 import {
 	getAIComponentInputFromPart,
 	getAIComponentInputFromToolOutput,
+	isRecord,
 } from "@/lib/ai-components/message-parts";
 import { isAbortError } from "@/lib/is-abort-error";
 import { formatToolLabel } from "@/lib/tool-display";
@@ -46,7 +48,17 @@ type ToolMessagePart = MessagePart & {
 	input?: Record<string, unknown>;
 	output?: unknown;
 	state?: string;
+	toolCallId?: string;
 };
+
+interface ToolQueryEntry {
+	id: string;
+	label: string;
+	params?: Record<string, unknown>;
+	sql: string;
+}
+
+const SQL_INPUT_KEYS = new Set(["params", "sql"]);
 
 const TOOL_PREFIX_REGEX = /^tool-/;
 
@@ -56,6 +68,61 @@ function isToolPart(part: MessagePart): part is ToolMessagePart {
 
 function getToolName(part: ToolMessagePart): string {
 	return part.type.replace(TOOL_PREFIX_REGEX, "");
+}
+
+function getToolQueries(tool: ToolMessagePart): ToolQueryEntry[] {
+	const name = getToolName(tool);
+	const callId = tool.toolCallId ?? name;
+	if (name === "execute_sql_query") {
+		const sql = tool.input?.sql;
+		const params = tool.input?.params;
+		return typeof sql === "string"
+			? [
+					{
+						id: callId,
+						label: "Custom query",
+						params: isRecord(params) ? params : undefined,
+						sql,
+					},
+				]
+			: [];
+	}
+	if (
+		name !== "get_data" ||
+		!isRecord(tool.output) ||
+		!isRecord(tool.output.results)
+	) {
+		return [];
+	}
+	return Object.entries(tool.output.results).flatMap(([key, result]) => {
+		if (
+			!(
+				isRecord(result) &&
+				isRecord(result.query) &&
+				typeof result.query.sql === "string"
+			)
+		) {
+			return [];
+		}
+		return [
+			{
+				id: `${callId}:${key}`,
+				label: typeof result.summary === "string" ? result.summary : key,
+				params: isRecord(result.query.params) ? result.query.params : undefined,
+				sql: result.query.sql,
+			},
+		];
+	});
+}
+
+function getDisplayInput(tool: ToolMessagePart): Record<string, unknown> {
+	const input = tool.input ?? {};
+	if (getToolName(tool) !== "execute_sql_query") {
+		return input;
+	}
+	return Object.fromEntries(
+		Object.entries(input).filter(([key]) => !SQL_INPUT_KEYS.has(key))
+	);
 }
 
 function getMessageText(message: UIMessage): string {
@@ -99,18 +166,18 @@ function ReasoningMessage({
 
 function mergeConsecutiveToolStepsForDisplay(
 	tools: ToolMessagePart[]
-): Array<{ repeatCount: number; tool: ToolMessagePart }> {
-	const merged: Array<{ repeatCount: number; tool: ToolMessagePart }> = [];
+): Array<{ steps: ToolMessagePart[]; tool: ToolMessagePart }> {
+	const merged: Array<{ steps: ToolMessagePart[]; tool: ToolMessagePart }> = [];
 	for (const tool of tools) {
 		const label = formatToolLabel(getToolName(tool), tool.input ?? {});
 		const last = merged.at(-1);
 		const lastLabel =
 			last && formatToolLabel(getToolName(last.tool), last.tool.input ?? {});
 		if (last && lastLabel === label) {
-			last.repeatCount += 1;
+			last.steps.push(tool);
 			last.tool = tool;
 		} else {
-			merged.push({ repeatCount: 1, tool });
+			merged.push({ steps: [tool], tool });
 		}
 	}
 	return merged;
@@ -152,25 +219,34 @@ function getToolStatus(tool: ToolMessagePart, isActive: boolean): ToolStatus {
 function InspectableToolStep({
 	tool,
 	label,
-	repeatCount,
+	steps,
 	status,
 }: {
 	tool: ToolMessagePart;
 	label: string;
-	repeatCount: number;
+	steps: ToolMessagePart[];
 	status: ToolStatus;
 }) {
-	const displayLabel = repeatCount > 1 ? `${label} · ${repeatCount}×` : label;
+	const displayLabel = steps.length > 1 ? `${label} · ${steps.length}×` : label;
 	const hasOutput = tool.output != null;
 	const isActive = status === "running";
+	const queries = steps.flatMap(getToolQueries);
 
 	return (
 		<Tool status={status} title={displayLabel}>
 			<ToolDetail>
-				<ToolInput input={tool.input ?? {}} />
+				<ToolInput input={getDisplayInput(tool)} />
 				{hasOutput || !isActive ? (
 					<ToolOutput error={status === "error"} output={tool.output} />
 				) : null}
+				{queries.map((query) => (
+					<ToolQuery
+						key={query.id}
+						label={query.label}
+						params={query.params}
+						sql={query.sql}
+					/>
+				))}
 			</ToolDetail>
 		</Tool>
 	);
@@ -208,8 +284,8 @@ function renderToolGroup(
 					<InspectableToolStep
 						key={`${key}-${idx}`}
 						label={baseLabel}
-						repeatCount={entry.repeatCount}
 						status={getToolStatus(entry.tool, isActive)}
+						steps={entry.steps}
 						tool={entry.tool}
 					/>
 				);
@@ -324,8 +400,8 @@ function renderMessagePart(
 			<div className="py-1" key={key}>
 				<InspectableToolStep
 					label={baseLabel}
-					repeatCount={1}
 					status={getToolStatus(part, isActive)}
+					steps={[part]}
 					tool={part}
 				/>
 			</div>

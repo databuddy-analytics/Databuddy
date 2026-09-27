@@ -18,14 +18,14 @@ import {
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-	title: "Changelog | Databuddy",
+	title: "Changelog",
 	description:
 		"Stay up to date with the latest features, improvements, and fixes shipped to Databuddy.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/changelog",
 	},
 	openGraph: {
-		title: "Changelog | Databuddy",
+		title: "Changelog",
 		description:
 			"Stay up to date with the latest features, improvements, and fixes shipped to Databuddy.",
 		url: "https://www.databuddy.cc/changelog",
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
 	},
 	twitter: {
 		card: "summary_large_image",
-		title: "Changelog | Databuddy",
+		title: "Changelog",
 		description:
 			"Stay up to date with the latest features, improvements, and fixes shipped to Databuddy.",
 		images: ["/og-image.png"],
@@ -98,7 +98,7 @@ export default async function ChangelogPage() {
 		<div>
 			<StructuredData
 				page={{
-					title: "Changelog | Databuddy",
+					title: "Changelog",
 					description:
 						"Stay up to date with the latest features, improvements, and fixes shipped to Databuddy.",
 					url: "https://www.databuddy.cc/changelog",
@@ -173,7 +173,7 @@ export default async function ChangelogPage() {
 							aria-hidden
 							className="shrink-0"
 							height={16}
-							src="/notra.svg"
+							src="/social/notra.svg"
 							width={16}
 						/>
 						<span className="font-medium text-xs tracking-wide">Notra</span>

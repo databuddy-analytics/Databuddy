@@ -24,18 +24,18 @@ const NULLABLE_PATTERN = /^Nullable\((.*)\)$/i;
 function tsType(rawType: string): string {
 	let t = rawType.trim();
 	let nullable = false;
-	const lc = t.match(LOW_CARDINALITY_PATTERN);
-	if (lc) {
-		t = lc[1].trim();
+	const lowCardinalityInner = t.match(LOW_CARDINALITY_PATTERN)?.[1];
+	if (lowCardinalityInner !== undefined) {
+		t = lowCardinalityInner.trim();
 	}
-	const nul = t.match(NULLABLE_PATTERN);
-	if (nul) {
+	const nullableInner = t.match(NULLABLE_PATTERN)?.[1];
+	if (nullableInner !== undefined) {
 		nullable = true;
-		t = nul[1].trim();
+		t = nullableInner.trim();
 	}
-	const arrayMatch = t.match(ARRAY_PATTERN);
-	if (arrayMatch) {
-		return `${tsType(arrayMatch[1])}[]`;
+	const arrayInner = t.match(ARRAY_PATTERN)?.[1];
+	if (arrayInner !== undefined) {
+		return `${tsType(arrayInner)}[]`;
 	}
 	let base: string;
 	if (INT_PATTERN.test(t) || FLOAT_PATTERN.test(t)) {
@@ -57,9 +57,9 @@ function pascal(name: string): string {
 
 function insertTsType(rawType: string): string {
 	let t = rawType.replace(LOW_CARDINALITY_PATTERN, "$1").trim();
-	const nul = t.match(NULLABLE_PATTERN);
-	if (nul) {
-		t = nul[1].trim();
+	const nullableInner = t.match(NULLABLE_PATTERN)?.[1];
+	if (nullableInner !== undefined) {
+		t = nullableInner.trim();
 	}
 	if (DATE_PATTERN.test(t)) {
 		const base = "number | string";

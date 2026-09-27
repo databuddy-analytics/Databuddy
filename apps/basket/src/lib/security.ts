@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { IMPORTED_VISITOR_PREFIX } from "@databuddy/db/clickhouse";
 import { cacheable } from "@databuddy/redis/cacheable";
 import { redis } from "@databuddy/redis/redis";
 import { captureError, record } from "@lib/tracing";
@@ -194,14 +195,19 @@ export function shouldAnonymizeVisitorIds(
 	return !RAW_VISITOR_ID_COUNTRIES.includes(code ?? "");
 }
 
+function reserveImportedVisitorPrefix(sanitized: string): string {
+	return sanitized.startsWith(IMPORTED_VISITOR_PREFIX)
+		? sanitized.slice(IMPORTED_VISITOR_PREFIX.length)
+		: sanitized;
+}
+
 export function applyVisitorIdPrivacy(
 	anonymousId: unknown,
 	anonymizeVisitorIds: boolean,
 	salt?: string
 ): string {
-	const sanitized = sanitizeString(
-		anonymousId,
-		VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
+	const sanitized = reserveImportedVisitorPrefix(
+		sanitizeString(anonymousId, VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH)
 	);
 	if (!sanitized) {
 		// Required ClickHouse String columns use "" for missing IDs; do not

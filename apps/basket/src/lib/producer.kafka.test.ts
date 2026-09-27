@@ -146,7 +146,9 @@ describe("producer Kafka send failure handling", () => {
 		expect(mockProducer).toHaveBeenCalledTimes(1);
 		expect(mockAdmin).toHaveBeenCalledTimes(1);
 		expect(mockAdmin).toHaveBeenCalledWith(
-			expect.objectContaining({ retry: expect.objectContaining({ retries: 0 }) })
+			expect.objectContaining({
+				retry: expect.objectContaining({ retries: 0 }),
+			})
 		);
 		expect(mockAdminConnect).not.toHaveBeenCalled();
 		expect(mockAdminDescribeCluster).not.toHaveBeenCalled();

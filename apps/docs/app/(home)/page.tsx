@@ -5,10 +5,9 @@ import { Footer } from "@/components/footer";
 import { AiSection } from "@/components/landing/ai-section";
 import { DemoPreconnectLinks } from "@/components/landing/demo-preconnect-links";
 import { Description } from "@/components/landing/description";
-import FAQ from "@/components/landing/faq";
+import { FaqSection } from "@/components/landing/faq-section";
 import { GridCards } from "@/components/landing/grid-cards";
 import Hero from "@/components/landing/hero";
-import { MidPageCta } from "@/components/landing/mid-page-cta";
 import { PricingPreview } from "@/components/landing/pricing-preview";
 import Section from "@/components/landing/section";
 import Testimonials from "@/components/landing/testimonials";
@@ -17,6 +16,7 @@ import { StructuredData } from "@/components/structured-data";
 import { createAgentJson, developerResources } from "@/lib/agent-discovery";
 import { getDemoEmbedBaseUrl, hostFromNextHeaders } from "@/lib/demo-embed-url";
 import { homeFaqItems, homePageSeo } from "@/lib/home-seo";
+import { getGithubStars } from "@/lib/utils";
 
 export const metadata: Metadata = {
 	title: homePageSeo.title,
@@ -41,31 +41,6 @@ interface HomePageProps {
 
 function firstValue(value: string | string[] | undefined) {
 	return Array.isArray(value) ? value[0] : value;
-}
-
-async function getGithubStars(): Promise<number | null> {
-	try {
-		const response = await fetch(
-			"https://api.github.com/repos/databuddy-analytics/databuddy",
-			{
-				headers: {
-					Accept: "application/vnd.github+json",
-				},
-				next: { revalidate: 3600 },
-			}
-		);
-
-		if (!response.ok) {
-			return null;
-		}
-
-		const data = (await response.json()) as { stargazers_count?: number };
-		return typeof data.stargazers_count === "number"
-			? data.stargazers_count
-			: null;
-	} catch {
-		return null;
-	}
 }
 
 function AgentModeView() {
@@ -207,12 +182,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 					</div>
 				</Section>
 
-				<Section className="border-border border-b" id="mid-cta">
-					<div className={container}>
-						<MidPageCta />
-					</div>
-				</Section>
-
 				<Section className="border-border border-b py-16 lg:py-24" id="pricing">
 					<div className={container}>
 						<PricingPreview />
@@ -220,21 +189,27 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 				</Section>
 
 				<Section
-					className="border-border border-b bg-background/30"
+					className="border-border border-b bg-background/30 py-16 lg:py-20"
+					customPaddings
+					id="faq"
+				>
+					<div className={container}>
+						<FaqSection
+							className="max-w-full"
+							items={homeFaqItems}
+							title="We give a FAQ"
+						/>
+					</div>
+				</Section>
+
+				<Section
+					className="border-border border-b"
 					customPaddings
 					id="desc-border"
 				>
 					<div className={container}>
-						<Section className="pt-8 lg:pt-12" customPaddings id="description">
+						<Section className="py-12 lg:py-16" customPaddings id="description">
 							<Description />
-						</Section>
-
-						<div className="w-full">
-							<div className="h-px bg-linear-to-r from-transparent via-border to-transparent" />
-						</div>
-
-						<Section className="py-16 lg:py-20" customPaddings id="faq">
-							<FAQ />
 						</Section>
 					</div>
 				</Section>

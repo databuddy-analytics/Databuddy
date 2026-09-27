@@ -1,10 +1,11 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { Databuddy } from "@databuddy/sdk/node";
 
 const apiKey = process.env.DATABUDDY_API_KEY;
 const websiteId = process.env.DATABUDDY_WEBSITE_ID;
 
 function createClient(source: string, namespace?: string) {
-	if (!(apiKey && websiteId)) {
+	if (readBooleanEnv("SELFHOST") || !(apiKey && websiteId)) {
 		return null;
 	}
 	return new Databuddy({
