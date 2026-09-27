@@ -141,9 +141,7 @@ function sourceFromDocument(
 	};
 }
 
-export function mergeBusinessContext(
-	...contexts: BusinessContext[]
-): BusinessContext {
+function prepareBusinessContext(contexts: BusinessContext[]) {
 	const sources = new Map<string, BusinessSource>();
 	// Later contexts contain exact/recalled context and canonical reply text.
 	// Preserve that priority instead of replacing relevance with global recency.
@@ -189,6 +187,14 @@ export function mergeBusinessContext(
 				4000
 		)
 	);
+	return { prioritized, characterLimit, homepageId: homepage?.id };
+}
+
+function packBusinessContext(
+	contexts: BusinessContext[],
+	prioritized: BusinessSource[],
+	characterLimit: number
+): BusinessContext {
 	const selected: BusinessSource[] = [];
 	let characters = 0;
 	for (const source of prioritized) {
@@ -202,7 +208,7 @@ export function mergeBusinessContext(
 		characters += source.content.length;
 	}
 	const issues = [...new Set(contexts.flatMap((item) => item.issues))];
-	if (selected.length < sources.size) {
+	if (selected.length < prioritized.length) {
 		issues.push("Context is bounded; additional source records were omitted.");
 	}
 	const available = contexts.some(
@@ -225,6 +231,78 @@ export function mergeBusinessContext(
 		sources: selected,
 		issues: issues.slice(0, 20),
 	};
+}
+
+export function mergeBusinessContext(
+	...contexts: BusinessContext[]
+): BusinessContext {
+	const { prioritized, characterLimit } = prepareBusinessContext(contexts);
+	return packBusinessContext(contexts, prioritized, characterLimit);
+}
+
+/** Rank eligible optional pages only; native packing and protected records still win. */
+export async function prioritizeBusinessContext(
+	contexts: BusinessContext[],
+	rank: (input: {
+		baseline: BusinessContext;
+		pages: BusinessSource[];
+	}) => Promise<ReadonlyMap<string, number> | null>
+): Promise<BusinessContext> {
+	const { prioritized, characterLimit, homepageId } =
+		prepareBusinessContext(contexts);
+	const baseline = packBusinessContext(contexts, prioritized, characterLimit);
+	const optional = (source: BusinessSource) =>
+		source.kind === "website" && source.id !== homepageId;
+	const pages = prioritized.filter(optional);
+	const selected = new Set(baseline.sources.map((source) => source.id));
+	const protectedSources = baseline.sources.filter(
+		(source) => !optional(source)
+	);
+	const availableCharacters =
+		characterLimit -
+		protectedSources.reduce(
+			(total, source) => total + source.content.length,
+			0
+		);
+	if (
+		!["ready", "partial"].includes(baseline.status) ||
+		pages.length < 2 ||
+		protectedSources.length === 16 ||
+		!pages.some(
+			(source) =>
+				!selected.has(source.id) && source.content.length <= availableCharacters
+		)
+	) {
+		return baseline;
+	}
+	const scores = await rank({ baseline, pages });
+	if (
+		!scores ||
+		scores.size !== pages.length ||
+		pages.some((source) => {
+			const score = scores.get(source.id);
+			return (
+				score === undefined || !Number.isFinite(score) || score < 0 || score > 1
+			);
+		})
+	) {
+		return baseline;
+	}
+	const ranked = [...pages].sort(
+		(a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0)
+	);
+	let index = 0;
+	const candidate = packBusinessContext(
+		contexts,
+		prioritized.map((source) =>
+			optional(source) ? (ranked[index++] ?? source) : source
+		),
+		characterLimit
+	);
+	// Differently sized pages must not evict a canonical reply or profile.
+	return protectedSources.every((source) => candidate.sources.includes(source))
+		? candidate
+		: baseline;
 }
 
 interface ReadOptions {
