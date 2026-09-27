@@ -488,8 +488,9 @@ describe("withWorkspace plan resolution", () => {
 	});
 });
 
-it("self-hosting skips billing without relaxing workspace permissions", async () => {
+it("self-hosting and keyless development skip billing without relaxing workspace permissions", async () => {
 	const original = process.env.SELFHOST;
+	const originalNodeEnv = process.env.NODE_ENV;
 	process.env.SELFHOST = "true";
 	try {
 		const context = await createRPCContext(
@@ -546,7 +547,22 @@ it("self-hosting skips billing without relaxing workspace permissions", async ()
 			requireFeatureWithLimit("free", "error_tracking", 0)
 		).toThrow();
 		expect(() => requireUsageWithinLimit("free", "goals", 10_000)).toThrow();
+
+		Reflect.deleteProperty(process.env, "AUTUMN_SECRET_KEY");
+		expect(() =>
+			requireFeatureWithLimit("free", "error_tracking", 0)
+		).not.toThrow();
+		expect(() =>
+			requireUsageWithinLimit("free", "goals", 10_000)
+		).not.toThrow();
+
+		process.env.NODE_ENV = "production";
+		expect(() =>
+			requireFeatureWithLimit("free", "error_tracking", 0)
+		).toThrow();
 	} finally {
+		process.env.AUTUMN_SECRET_KEY = "synthetic-plan-gating";
+		process.env.NODE_ENV = originalNodeEnv;
 		if (original === undefined) {
 			Reflect.deleteProperty(process.env, "SELFHOST");
 		} else {
