@@ -10,12 +10,7 @@ export default function FeaturesSettingsPage() {
 			<div className="flex flex-col">
 				<ComingSoon
 					description="Get early access to new features, beta UI experiments, and experimental performance optimizations. We're working on bringing these options to you soon."
-					icon={
-						<RocketIcon
-							className="size-8 text-muted-foreground"
-							weight="duotone"
-						/>
-					}
+					icon={<RocketIcon className="size-8 text-muted-foreground" />}
 					title="Feature Access Coming Soon"
 				/>
 			</div>

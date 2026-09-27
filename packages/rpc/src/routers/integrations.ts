@@ -37,9 +37,9 @@ async function getUserProviderToken(
 ): Promise<string | null> {
 	const [row] = await database
 		.select({
+			accountId: account.id,
 			accessToken: account.accessToken,
 			accessTokenExpiresAt: account.accessTokenExpiresAt,
-			providerAccountId: account.accountId,
 			refreshToken: account.refreshToken,
 		})
 		.from(account)
@@ -62,8 +62,7 @@ async function getUserProviderToken(
 	try {
 		const refreshed = await auth.api.getAccessToken({
 			body: {
-				providerId,
-				accountId: row.providerAccountId,
+				accountId: row.accountId,
 				userId,
 			},
 		});

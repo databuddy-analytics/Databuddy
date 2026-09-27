@@ -2,7 +2,7 @@ import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { SimpleQueryConfig } from "../types";
 
-export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
+export const SummaryBuilders = {
 	summary_metrics: {
 		meta: {
 			title: "Summary Metrics",
@@ -53,7 +53,6 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "metric",
 			supports_granularity: ["day"],
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const {
@@ -172,7 +171,6 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "metric",
 			supports_granularity: [],
-			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: [
@@ -241,7 +239,6 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "timeseries",
 			supports_granularity: ["hour", "day"],
-			version: "1.0",
 		},
 		customSql: (ctx) => {
 			const {
@@ -363,7 +360,6 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			],
 			default_visualization: "metric",
 			supports_granularity: [],
-			version: "1.0",
 		},
 		table: Analytics.events,
 		fields: [
@@ -380,4 +376,4 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 		noCache: true,
 		customizable: false,
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

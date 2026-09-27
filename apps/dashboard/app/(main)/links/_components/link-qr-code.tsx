@@ -149,11 +149,11 @@ export function LinkQrCode({
 				<>
 					<div className="flex justify-center gap-2">
 						<Button onClick={copyQrCode} size="sm" variant="secondary">
-							<CopyIcon size={16} weight="duotone" />
+							<CopyIcon size={16} />
 							Copy
 						</Button>
 						<Button onClick={downloadQrCode} size="sm">
-							<DownloadSimpleIcon size={16} weight="bold" />
+							<DownloadSimpleIcon size={16} />
 							Download PNG
 						</Button>
 					</div>
@@ -298,7 +298,7 @@ export function LinkQrCode({
 								onClick={() => fileInputRef.current?.click()}
 								type="button"
 							>
-								<ImageIcon aria-hidden="true" size={20} weight="duotone" />
+								<ImageIcon aria-hidden="true" size={20} />
 								<span className="text-sm">Upload logo</span>
 							</button>
 						)}

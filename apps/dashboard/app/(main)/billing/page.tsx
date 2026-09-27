@@ -1,15 +1,22 @@
 "use client";
 
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+
 import AttachDialog from "@/components/autumn/attach-dialog";
 import { useBillingContext } from "@/components/providers/billing-provider";
+import {
+	getBillingAddOns,
+	isManageableAddOn,
+} from "@/lib/autumn/billing-add-ons";
 import { getCustomerPlanName } from "@/lib/autumn/customer-plan-name";
+import { getSubscriptionPriceText } from "@/lib/autumn/subscription-price";
 import { orpc } from "@/lib/orpc";
-import { TOPUP_PRODUCT_ID } from "@/lib/topup-math";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import type { UsageResponse } from "@/types/billing";
 import { INTELLIGENCE_PLAN_IDS } from "@databuddy/shared/types/features";
 import { useQuery } from "@tanstack/react-query";
 import type { PreviewAttachResponse } from "autumn-js";
+import type { UseCustomerResult } from "autumn-js/react";
 import { useCustomer } from "autumn-js/react";
 import { useRouter } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
@@ -19,11 +26,11 @@ import { CancelSubscriptionDialog } from "./components/cancel-subscription-dialo
 import { ConsumptionChart } from "./components/consumption-chart";
 import { ErrorState } from "./components/empty-states";
 import { PlanStatusBadge } from "./components/plan-status-badge";
+import { InvestigationTopupCard } from "./components/investigation-topup-card";
 import { TopupCard } from "./components/topup-card";
 import { UsageBreakdownTable } from "./components/usage-breakdown-table";
 import { UsageRow } from "./components/usage-row";
 import { useBilling, useBillingData } from "./hooks/use-billing";
-import type { CustomerWithPaymentMethod } from "./types/billing";
 import type { OverageInfo } from "./utils/billing-utils";
 import type { PricingTier } from "./utils/feature-usage";
 import {
@@ -47,10 +54,9 @@ import {
 	dayjs,
 } from "@databuddy/ui";
 
-const PLANS_WITHOUT_SELF_SERVE_UPGRADES = new Set([
-	"scale",
-	...Object.values(INTELLIGENCE_PLAN_IDS),
-]);
+const INTELLIGENCE_PLAN_ID_SET = new Set<string>(
+	Object.values(INTELLIGENCE_PLAN_IDS)
+);
 
 interface OrgUsageData {
 	balance?: number | null;
@@ -89,14 +95,6 @@ function calculateOverageInfo(
 	};
 }
 
-function isSSOPlan(plan: { id: string; name: string }): boolean {
-	const id = plan.id.toLowerCase();
-	if (id === "sso" || id.includes("sso")) {
-		return true;
-	}
-	return plan.name.toLowerCase().includes("single sign-on");
-}
-
 interface AddOnPriceDisplay {
 	primaryText?: string;
 	secondaryText?: string;
@@ -118,11 +116,10 @@ interface AddOn {
 	price?: { display?: AddOnPriceDisplay | null } | null;
 }
 
-interface AddOnSubscription {
-	canceledAt?: number | null;
-	currentPeriodEnd?: number | null;
-	status?: string;
-}
+type AddOnSubscription = Pick<
+	NonNullable<UseCustomerResult["data"]>["subscriptions"][number],
+	"canceledAt" | "currentPeriodEnd" | "status" | "plan"
+>;
 
 interface AddOnRowProps {
 	addOn: AddOn;
@@ -149,7 +146,9 @@ function AddOnRow({
 	const [preview, setPreview] = useState<PreviewAttachResponse | null>(null);
 	const [dialogOpen, setDialogOpen] = useState(false);
 
-	const priceText = formatPriceDisplay(addOn.price?.display);
+	const priceText = subscription
+		? getSubscriptionPriceText(subscription)
+		: formatPriceDisplay(addOn.price?.display);
 	const benefitText = formatPriceDisplay(addOn.items.at(0)?.display);
 
 	const description =
@@ -192,7 +191,15 @@ function AddOnRow({
 					<Badge variant="muted">Cancellation scheduled</Badge>
 				) : isActive ? (
 					<div className="flex items-center gap-2">
-						<Badge variant="success">Active</Badge>
+						<Badge
+							variant={subscription?.status === "active" ? "success" : "muted"}
+						>
+							{subscription?.status === "past_due"
+								? "Past due"
+								: subscription?.status === "scheduled"
+									? "Scheduled"
+									: "Active"}
+						</Badge>
 						{canUserUpgrade && (
 							<Button
 								aria-label={`Cancel ${addOn.name}`}
@@ -238,11 +245,7 @@ function AddOnRow({
 
 function getAddOnStatus(
 	plan: { customerEligibility?: { status?: string } | null },
-	subscription?: {
-		canceledAt?: number | null;
-		currentPeriodEnd?: number | null;
-		status?: string;
-	}
+	subscription?: AddOnSubscription
 ) {
 	const isCancelled =
 		subscription?.canceledAt &&
@@ -252,10 +255,10 @@ function getAddOnStatus(
 	const eligibility = plan.customerEligibility;
 	const isActive =
 		!isCancelled &&
-		(eligibility?.status === "active" ||
-			eligibility?.status === "scheduled" ||
-			subscription?.status === "active" ||
-			subscription?.status === "scheduled");
+		(subscription
+			? isManageableAddOn(subscription)
+			: eligibility?.status === "active" ||
+				eligibility?.status === "scheduled");
 
 	return { isCancelled, isActive };
 }
@@ -310,26 +313,30 @@ export default function BillingPage() {
 		getSubscriptionStatusDetails,
 	} = useBilling(refetch);
 
-	const addOns = useMemo(() => {
-		const allAddOns = plans?.filter((p) => p.addOn) ?? [];
-		return allAddOns.filter((p) => !isSSOPlan(p) && p.id !== TOPUP_PRODUCT_ID);
-	}, [plans]);
-
 	const { currentPlan, currentSubscription, usageStats, statusDetails } =
 		useMemo(() => {
-			const activeSub = customer?.subscriptions?.find((s) => {
-				if (s.canceledAt && s.currentPeriodEnd) {
-					return dayjs(s.currentPeriodEnd).isAfter(dayjs());
-				}
-				return !s.canceledAt || s.status === "scheduled";
-			});
+			const activeSub =
+				customer?.subscriptions?.find(
+					(s) => !s.addOn && (s.status === "active" || s.status === "past_due")
+				) ??
+				customer?.subscriptions?.find(
+					(s) => !s.addOn && s.status === "scheduled"
+				);
 
-			const activePlan = activeSub
+			const listedPlan = activeSub
 				? plans?.find((p) => p.id === activeSub.planId)
 				: plans?.find((p) => {
 						const action = p.customerEligibility?.attachAction;
 						return !(action && ["upgrade", "downgrade"].includes(action));
 					});
+			const activePlan = activeSub
+				? {
+						...listedPlan,
+						...activeSub.plan,
+						id: activeSub.planId,
+						price: activeSub.plan?.price,
+					}
+				: listedPlan;
 
 			const planStatusDetails = activeSub
 				? getSubscriptionStatusDetails(activeSub)
@@ -338,7 +345,10 @@ export default function BillingPage() {
 			return {
 				currentPlan: activePlan,
 				currentSubscription: activeSub,
-				usageStats: usage?.features ?? [],
+				usageStats:
+					usage?.features.filter(
+						(feature) => feature.id !== INVESTIGATION_USAGE.featureId
+					) ?? [],
 				statusDetails: planStatusDetails,
 			};
 		}, [
@@ -347,6 +357,18 @@ export default function BillingPage() {
 			customer?.subscriptions,
 			getSubscriptionStatusDetails,
 		]);
+
+	const isFree = currentPlan?.id === "free" || currentPlan?.autoEnable === true;
+	const addOns = useMemo(
+		() =>
+			getBillingAddOns(plans, customer?.subscriptions ?? [], {
+				hideCreditOffers:
+					currentPlan?.id != null &&
+					INTELLIGENCE_PLAN_ID_SET.has(currentPlan.id),
+				isFree,
+			}),
+		[plans, customer?.subscriptions, currentPlan?.id, isFree]
+	);
 
 	if (isLoading) {
 		return (
@@ -359,26 +381,26 @@ export default function BillingPage() {
 	if (error) {
 		return (
 			<main className="min-h-0 flex-1 overflow-y-auto">
-				<div className="mx-auto max-w-2xl p-5">
+				<div className="mx-auto max-w-4xl p-5">
 					<ErrorState error={error} onRetry={refetch} />
 				</div>
 			</main>
 		);
 	}
 
-	const isFree = currentPlan?.id === "free" || currentPlan?.autoEnable === true;
 	const isCanceled = Boolean(
 		currentSubscription?.canceledAt ||
 			currentPlan?.customerEligibility?.canceling === true
 	);
-	const showUsageUpgrade = !(
-		currentPlan?.id && PLANS_WITHOUT_SELF_SERVE_UPGRADES.has(currentPlan.id)
+	const canSelfServeUpgrade = plans.some(
+		(plan) => plan.customerEligibility?.attachAction === "upgrade"
 	);
-	const showAddOns = addOns.length > 0 && !isFree;
+	const showAddOns = addOns.length > 0;
 	const currentPlanDisplayName = getCustomerPlanName(
 		currentPlan?.id,
 		currentPlan?.name || "Free"
 	);
+	const currentPriceText = getSubscriptionPriceText(currentSubscription);
 
 	return (
 		<main className="min-h-0 flex-1 overflow-y-auto">
@@ -395,7 +417,7 @@ export default function BillingPage() {
 				}
 			/>
 
-			<div className="mx-auto max-w-2xl space-y-6 p-5">
+			<div className="motion-safe:fade-in mx-auto max-w-4xl space-y-6 p-5 motion-safe:animate-in motion-safe:duration-200">
 				<Card>
 					<Card.Header className="flex-row items-start justify-between gap-4">
 						<div>
@@ -413,17 +435,13 @@ export default function BillingPage() {
 						<div className="flex items-center justify-between gap-3">
 							<div className="flex items-center gap-3">
 								<div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-secondary">
-									<CrownIcon
-										className="text-accent-foreground"
-										size={16}
-										weight="duotone"
-									/>
+									<CrownIcon className="text-accent-foreground" size={16} />
 								</div>
 								<div>
 									<Text variant="label">{currentPlanDisplayName}</Text>
-									{!isFree && currentPlan?.price?.display?.primaryText && (
+									{!isFree && currentPriceText && (
 										<Text tone="muted" variant="caption">
-											{currentPlan.price.display.primaryText}
+											{currentPriceText}
 										</Text>
 									)}
 								</div>
@@ -440,7 +458,7 @@ export default function BillingPage() {
 
 						<Divider />
 
-						<PaymentMethodRow customer={customer ?? null} />
+						<PaymentMethodRow card={customer?.paymentMethod?.card} />
 
 						<Divider />
 
@@ -513,6 +531,7 @@ export default function BillingPage() {
 					</Card.Content>
 				</Card>
 
+				<InvestigationTopupCard />
 				{!isFree && <TopupCard />}
 				{!isFree && <BillingControlsCard />}
 
@@ -520,11 +539,7 @@ export default function BillingPage() {
 					<Card>
 						<Card.Header>
 							<Card.Title className="flex items-center gap-2">
-								<PuzzlePieceIcon
-									className="text-muted-foreground"
-									size={14}
-									weight="duotone"
-								/>
+								<PuzzlePieceIcon className="text-muted-foreground" size={14} />
 								Enterprise Add-ons
 							</Card.Title>
 							<Card.Description>
@@ -533,10 +548,7 @@ export default function BillingPage() {
 						</Card.Header>
 						<Card.Content className="p-0">
 							<div className="divide-y">
-								{addOns.map((addOn) => {
-									const sub = customer?.subscriptions?.find(
-										(s) => s.planId === addOn.id
-									);
+								{addOns.map(({ plan: addOn, subscription: sub }) => {
 									const { isCancelled, isActive } = getAddOnStatus(addOn, sub);
 
 									return (
@@ -593,7 +605,7 @@ export default function BillingPage() {
 						<Card.Content className="py-8">
 							<EmptyState
 								description="Start using features to see your consumption stats here"
-								icon={<TrendUpIcon weight="duotone" />}
+								icon={<TrendUpIcon />}
 								title="No usage data yet"
 							/>
 						</Card.Content>
@@ -612,7 +624,7 @@ export default function BillingPage() {
 									<UsageRow
 										feature={feature}
 										key={feature.id}
-										showUpgrade={showUsageUpgrade}
+										canSelfServeUpgrade={canSelfServeUpgrade}
 									/>
 								))}
 							</Card.Content>
@@ -647,21 +659,20 @@ export default function BillingPage() {
 }
 
 function PaymentMethodRow({
-	customer,
+	card,
 }: {
-	customer: CustomerWithPaymentMethod | null;
+	card?: {
+		brand?: string;
+		exp_month?: number;
+		exp_year?: number;
+		last4?: string;
+	} | null;
 }) {
-	const card = customer?.paymentMethod?.card;
-
 	if (!card) {
 		return (
 			<div className="flex items-center gap-3">
 				<div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-dashed bg-secondary">
-					<CreditCardIcon
-						className="text-muted-foreground"
-						size={16}
-						weight="duotone"
-					/>
+					<CreditCardIcon className="text-muted-foreground" size={16} />
 				</div>
 				<Text tone="muted" variant="caption">
 					No payment method on file
@@ -671,8 +682,10 @@ function PaymentMethodRow({
 	}
 
 	const last4 = card.last4 || "****";
-	const expMonth = card.expMonth?.toString().padStart(2, "0") || "00";
-	const expYear = card.expYear?.toString().slice(-2) || "00";
+	const expiry =
+		card.exp_month && card.exp_year
+			? `${card.exp_month.toString().padStart(2, "0")}/${card.exp_year.toString().slice(-2)}`
+			: null;
 	const brand =
 		(card.brand || "card").charAt(0).toUpperCase() +
 		(card.brand || "card").slice(1);
@@ -681,19 +694,17 @@ function PaymentMethodRow({
 		<div className="flex items-center justify-between gap-3">
 			<div className="flex items-center gap-3">
 				<div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-secondary">
-					<CreditCardIcon
-						className="text-accent-foreground"
-						size={16}
-						weight="duotone"
-					/>
+					<CreditCardIcon className="text-accent-foreground" size={16} />
 				</div>
 				<div>
 					<Text variant="label">
 						{brand} ending in {last4}
 					</Text>
-					<Text tone="muted" variant="caption">
-						Expires {expMonth}/{expYear}
-					</Text>
+					{expiry && (
+						<Text tone="muted" variant="caption">
+							Expires {expiry}
+						</Text>
+					)}
 				</div>
 			</div>
 		</div>
@@ -702,7 +713,7 @@ function PaymentMethodRow({
 
 function OverviewSkeleton() {
 	return (
-		<div className="mx-auto max-w-2xl space-y-6 p-5">
+		<div className="mx-auto max-w-4xl space-y-6 p-5">
 			<Card>
 				<Card.Header className="flex-row items-start justify-between gap-4">
 					<div className="space-y-1">

@@ -22,14 +22,14 @@ import { StructuredData } from "@/components/structured-data";
 export const metadata: Metadata = {
 	title: "Feature Flags & A/B Testing - Built Into Your Analytics",
 	description:
-		"Ship features safely with instant rollouts, percentage-based releases, A/B testing, and user targeting. No deploys needed. Built into your analytics dashboard.",
+		"Ship features safely with controlled rollouts, percentage-based releases, A/B testing, and user targeting. No deploys needed. Built into your analytics dashboard.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/feature-flags",
 	},
 	openGraph: {
 		title: "Feature Flags & A/B Testing - Built Into Your Analytics",
 		description:
-			"Ship features safely with instant rollouts, percentage-based releases, A/B testing, and user targeting. No deploys needed. Built into your analytics dashboard.",
+			"Ship features safely with controlled rollouts, percentage-based releases, A/B testing, and user targeting. No deploys needed. Built into your analytics dashboard.",
 		url: "https://www.databuddy.cc/feature-flags",
 		images: ["/og-image.png"],
 	},
@@ -39,7 +39,7 @@ const FAQ_ITEMS = [
 	{
 		question: "Will feature flags slow down my app?",
 		answer:
-			"No. Flags are cached locally with request batching, so after the first load your users never see a delay. There is no separate SDK to ship either; flags ride in the same script as your analytics.",
+			"The SDK caches flag evaluations and batches requests. Initial loading and refreshes can involve a network request. Analytics and flags are available through the same SDK; the standalone tracking script does not evaluate flags.",
 	},
 	{
 		question: "Can I roll out a feature to just one team or customer first?",
@@ -49,7 +49,7 @@ const FAQ_ITEMS = [
 	{
 		question: "What happens if something goes wrong after a release?",
 		answer:
-			"One click and the feature is off - no deploy, no rollback, no downtime. Server caches are purged instantly and clients pick up the change within about a minute.",
+			"Turn the flag off in the dashboard without a code deploy. Clients pick up the change when their cached flags refresh.",
 	},
 	{
 		question: "Can I run A/B tests to see which version performs better?",
@@ -77,7 +77,7 @@ export default function FeatureFlagsPage() {
 				page={{
 					title: "Feature Flags & A/B Testing",
 					description:
-						"Ship features safely with instant rollouts, percentage-based releases, A/B testing, and user targeting.",
+						"Ship features safely with controlled rollouts, percentage-based releases, A/B testing, and user targeting.",
 					url: "https://www.databuddy.cc/feature-flags",
 				}}
 			/>
@@ -85,14 +85,14 @@ export default function FeatureFlagsPage() {
 				<FeatureHero
 					docsHref="/docs/sdk/feature-flags"
 					footnote="3 flags free. Evaluations never count toward your event quota."
-					subtitle="Boolean toggles, percentage rollouts, and A/B experiments in the same script as your analytics. No second SDK, no second vendor, no deploys to flip a flag."
-					title="Feature flags, minus the second SDK."
+					subtitle="Boolean toggles, percentage rollouts, and weighted variants in the same SDK and dashboard as your analytics."
+					title="Release features on your terms."
 				/>
 
 				<Section className="border-border border-b" id="how-it-works">
 					<div className={container}>
 						<SectionHeader
-							subtitle="Create a flag, set your rules, and ship. Changes reach clients without a deploy. No CI pipeline, no waiting."
+							subtitle="Add the flag to your code once, then change its targeting and rollout rules from the dashboard."
 							title="One dashboard,"
 							titleMuted="zero deploys."
 						/>
@@ -131,7 +131,7 @@ export default function FeatureFlagsPage() {
 							</GridCell>
 							<GridCell>
 								<h3 className={CELL_TITLE_CLASS}>
-									Ramp up gradually. Roll back instantly.
+									Ramp up gradually. Turn a flag off when needed.
 								</h3>
 								<FFPercentageRolloutsDemo />
 							</GridCell>

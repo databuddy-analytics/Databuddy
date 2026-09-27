@@ -59,7 +59,9 @@ describe("e2e db lifecycle helpers", () => {
 	});
 
 	it("derives admin and target DSNs", () => {
-		const base = new URL("postgres://u:p@localhost:5432/databuddy?sslmode=disable");
+		const base = new URL(
+			"postgres://u:p@localhost:5432/databuddy?sslmode=disable"
+		);
 		expect(deriveAdminDatabaseUrl(base).pathname).toBe("/postgres");
 		expect(deriveDatabaseUrl(base, "databuddy_e2e_run").pathname).toBe(
 			"/databuddy_e2e_run"

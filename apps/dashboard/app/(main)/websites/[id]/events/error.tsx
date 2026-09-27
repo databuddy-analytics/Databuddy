@@ -22,7 +22,7 @@ export default function EventsError({
 	return (
 		<div className="flex h-full flex-col items-center justify-center gap-4 p-8">
 			<div className="flex size-12 items-center justify-center rounded-2xl bg-destructive/10">
-				<LightningIcon className="size-6 text-destructive" weight="fill" />
+				<LightningIcon className="size-6 text-destructive" />
 			</div>
 			<div className="max-w-sm space-y-2 text-center">
 				<h2 className="font-semibold text-lg">Error loading events</h2>
@@ -38,14 +38,14 @@ export default function EventsError({
 			</div>
 			<div className="flex gap-2">
 				<Button onClick={reset} variant="secondary">
-					<ArrowCounterClockwiseIcon className="mr-2 size-4" weight="duotone" />
+					<ArrowCounterClockwiseIcon className="mr-2 size-4" />
 					Try again
 				</Button>
 				<Button
 					onClick={() => router.push(`/websites/${websiteId}`)}
 					variant="ghost"
 				>
-					<ArrowLeftIcon className="mr-2 size-4" weight="duotone" />
+					<ArrowLeftIcon className="mr-2 size-4" />
 					Back to overview
 				</Button>
 			</div>

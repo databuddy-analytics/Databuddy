@@ -8,11 +8,13 @@ import {
 	hasWebsiteScopeForOrganization,
 } from "@databuddy/api-keys/resolve";
 import { websitesApi } from "@databuddy/auth";
+import { roleHasPermission } from "@databuddy/auth/permissions";
 import { getRedisCache } from "@databuddy/redis";
+import { getMemberRole } from "@databuddy/rpc/organization";
 import type { AppContext } from "../config/context";
-import { getCachedWebsite, validateWebsite } from "../../lib/website-utils";
+import { getCachedWebsite } from "../../lib/website-utils";
+import { matchesWebsiteDomain } from "../../lib/website-domain";
 
-const PROTOCOL_RE = /^https?:\/\//;
 const ACCESSIBLE_WEBSITES_TTL_SEC = 30;
 const ACCESSIBLE_WEBSITES_KEY_PREFIX = "mcp:accessible_websites:v2:";
 
@@ -24,20 +26,38 @@ export interface WebsiteSelectorInput {
 
 export interface RequestPrincipal {
 	apiKey: ApiKeyRow | null;
+	oauthUserId?: string | null;
 	organizationId?: string | null;
 	userId: string | null;
 }
 
+export type AuthorizedPrincipal = RequestPrincipal & {
+	requestHeaders: Headers;
+};
+
 export async function ensureWebsiteAccess(
 	websiteId: string,
-	headers: Headers,
-	apiKey: ApiKeyRow | null
+	principal: AuthorizedPrincipal
 ): Promise<{ domain: string } | Error> {
-	const validation = await validateWebsite(websiteId);
-	if (!(validation.success && validation.website)) {
-		return new Error(validation.error ?? "Website not found");
+	const { apiKey, oauthUserId, organizationId } = principal;
+	const website = await getCachedWebsite(websiteId);
+	if (!website) {
+		return new Error("Website not found");
 	}
-	const { website } = validation;
+	if (organizationId && website.organizationId !== organizationId) {
+		return new Error("Website is not in this organization");
+	}
+
+	if (oauthUserId) {
+		if (!website.organizationId) {
+			return new Error("Access denied to this website");
+		}
+		const role = await getMemberRole(oauthUserId, website.organizationId);
+		if (!(role && roleHasPermission(role, "website", ["read"]))) {
+			return new Error("Access denied to this website");
+		}
+		return { domain: website.domain ?? "unknown" };
+	}
 
 	if (apiKey) {
 		const hasWebsiteAccess = hasWebsiteScopeForOrganization(
@@ -55,7 +75,7 @@ export async function ensureWebsiteAccess(
 		website.organizationId &&
 		(
 			await websitesApi.hasPermission({
-				headers,
+				headers: principal.requestHeaders,
 				body: {
 					organizationId: website.organizationId,
 					permissions: { website: ["read"] },
@@ -131,9 +151,11 @@ export async function resolveWebsiteId(
 
 	const list = await getCachedAccessibleWebsites(principal);
 
-	if (input.websiteDomain) {
-		const domain = input.websiteDomain.toLowerCase().replace(PROTOCOL_RE, "");
-		const match = list.find((w) => w.domain?.toLowerCase() === domain);
+	const domain = input.websiteDomain;
+	if (domain) {
+		const match = list.find((website) =>
+			matchesWebsiteDomain(website.domain, domain)
+		);
 		if (match) {
 			return match.id;
 		}
@@ -223,13 +245,9 @@ export async function resolveOrganizationIds(
 	return new Error("Could not determine organization");
 }
 
-export function buildRpcContext(
-	principal: RequestPrincipal & {
-		requestHeaders: Headers;
-	}
-): AppContext {
+export function buildRpcContext(principal: AuthorizedPrincipal): AppContext {
 	return {
-		userId: principal.userId ?? "",
+		userId: principal.userId,
 		websiteId: "",
 		websiteDomain: "",
 		timezone: "UTC",

@@ -1,5 +1,6 @@
 "use client";
 
+import { EmailUnavailable, useAuthCapabilities } from "../../auth-capabilities";
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,6 +13,7 @@ import { OtpInput } from "@databuddy/ui/client";
 import { safeCallbackPath } from "@/lib/safe-callback";
 
 function ForgotPasswordPage() {
+	const capabilities = useAuthCapabilities();
 	const router = useRouter();
 	const [callback] = useQueryState(
 		"callback",
@@ -111,6 +113,10 @@ function ForgotPasswordPage() {
 		setIsResending(false);
 		toast.success("OTP resent to your email address.");
 	};
+
+	if (!capabilities.email) {
+		return <EmailUnavailable loginHref={loginHref} />;
+	}
 
 	if (step === "email") {
 		return (

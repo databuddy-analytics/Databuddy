@@ -1,9 +1,10 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
+import { invalidateMonitorQueries } from "@/components/monitors/monitor-sheet";
 import { TransferToOrgDialog } from "@/components/transfer-to-org-dialog";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { getStatusPageUrl } from "@/lib/app-url";
@@ -20,65 +21,90 @@ import {
 import { Badge, Field } from "@databuddy/ui";
 import { DropdownMenu, Switch } from "@databuddy/ui/client";
 
-export interface StatusPage {
-	createdAt: Date | string;
-	description: string | null;
-	faviconUrl?: string | null;
-	id: string;
-	logoUrl?: string | null;
-	monitorCount: number;
-	name: string;
-	organizationId: string;
-	slug: string;
-	supportUrl?: string | null;
-	theme?: string | null;
-	updatedAt: Date | string;
-	websiteUrl?: string | null;
-}
+export type StatusPage = Awaited<
+	ReturnType<typeof orpc.statusPage.list.call>
+>[number];
 
 interface StatusPageRowProps {
 	onDeleteAction: () => void;
 	onEditAction: () => void;
-	onTransferSuccessAction?: () => void;
 	statusPage: StatusPage;
+}
+
+export function StatusPageTransferDialog({
+	onOpenChangeAction,
+	onTransferredAction,
+	open,
+	statusPage,
+}: {
+	onOpenChangeAction: (open: boolean) => void;
+	onTransferredAction?: () => void;
+	open: boolean;
+	statusPage: Pick<StatusPage, "id" | "name" | "organizationId">;
+}) {
+	const queryClient = useQueryClient();
+	const [includeMonitors, setIncludeMonitors] = useState(true);
+	const transferMutation = useMutation({
+		...orpc.statusPage.transfer.mutationOptions(),
+		onSuccess: () => {
+			toast.success("Status page transferred");
+			onOpenChangeAction(false);
+			onTransferredAction?.();
+			return invalidateMonitorQueries(queryClient);
+		},
+	});
+
+	return (
+		<TransferToOrgDialog
+			currentOrganizationId={statusPage.organizationId}
+			description={`Move "${statusPage.name}" to a different organization.`}
+			isPending={transferMutation.isPending}
+			onOpenChangeAction={onOpenChangeAction}
+			onTransferAction={(targetOrganizationId) =>
+				transferMutation.mutate({
+					statusPageId: statusPage.id,
+					targetOrganizationId,
+					includeMonitors,
+				})
+			}
+			open={open}
+			title="Transfer Status Page"
+			warning="The status page and its configuration will be transferred to {orgName}."
+		>
+			<div className="flex items-center justify-between gap-3 rounded border p-3">
+				<div className="min-w-0">
+					<Field.Label
+						className="cursor-pointer text-sm"
+						htmlFor={`include-monitors-${statusPage.id}`}
+					>
+						Include all linked monitors
+					</Field.Label>
+					<p className="text-muted-foreground text-xs">
+						If off, monitors are removed from this page and stay in the current
+						organization.
+					</p>
+				</div>
+				<Switch
+					checked={includeMonitors}
+					id={`include-monitors-${statusPage.id}`}
+					onCheckedChange={setIncludeMonitors}
+				/>
+			</div>
+		</TransferToOrgDialog>
+	);
 }
 
 function StatusPageActions({
 	statusPage,
 	onEditAction,
 	onDeleteAction,
-	onTransferSuccessAction,
 }: StatusPageRowProps) {
 	const url = getStatusPageUrl(statusPage.slug);
 	const [isTransferOpen, setIsTransferOpen] = useState(false);
-	const [includeMonitors, setIncludeMonitors] = useState(true);
 
 	const { copyToClipboard } = useCopyToClipboard({
 		onCopy: () => toast.success("URL copied to clipboard"),
 	});
-
-	const transferMutation = useMutation({
-		...orpc.statusPage.transfer.mutationOptions(),
-	});
-
-	const handleTransfer = async (targetOrganizationId: string) => {
-		try {
-			await transferMutation.mutateAsync({
-				statusPageId: statusPage.id,
-				targetOrganizationId,
-				includeMonitors,
-			});
-			toast.success("Status page transferred");
-			setIsTransferOpen(false);
-			onTransferSuccessAction?.();
-		} catch (error) {
-			const errorMessage =
-				error instanceof Error
-					? error.message
-					: "Failed to transfer status page";
-			toast.error(errorMessage);
-		}
-	};
 
 	return (
 		<>
@@ -88,7 +114,7 @@ function StatusPageActions({
 					className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-interactive-hover hover:text-foreground group-hover:opacity-100 data-popup-open:opacity-100"
 					data-dropdown-trigger
 				>
-					<DotsThreeIcon className="size-4" weight="bold" />
+					<DotsThreeIcon className="size-4" />
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Content align="end" className="w-52">
 					<DropdownMenu.Item
@@ -99,38 +125,42 @@ function StatusPageActions({
 							/>
 						}
 					>
-						<PencilSimpleIcon className="size-4" weight="duotone" />
+						<PencilSimpleIcon className="size-4" />
 						Manage Monitors
 					</DropdownMenu.Item>
 					<DropdownMenu.Item className="gap-2" onClick={onEditAction}>
-						<PencilSimpleIcon className="size-4" weight="duotone" />
+						<PencilSimpleIcon className="size-4" />
 						Edit Details
 					</DropdownMenu.Item>
-					<DropdownMenu.Item
-						className="gap-2"
-						onClick={() => copyToClipboard(url)}
-					>
-						<CopyIcon className="size-4" weight="duotone" />
-						Copy URL
-					</DropdownMenu.Item>
-					<DropdownMenu.Item
-						render={
-							<Link
+					{url && (
+						<>
+							<DropdownMenu.Item
 								className="gap-2"
-								href={url}
-								rel="noopener noreferrer"
-								target="_blank"
-							/>
-						}
-					>
-						<ArrowSquareOutIcon className="size-4" weight="duotone" />
-						View Page
-					</DropdownMenu.Item>
+								onClick={() => copyToClipboard(url)}
+							>
+								<CopyIcon className="size-4" />
+								Copy URL
+							</DropdownMenu.Item>
+							<DropdownMenu.Item
+								render={
+									<Link
+										className="gap-2"
+										href={url}
+										rel="noopener noreferrer"
+										target="_blank"
+									/>
+								}
+							>
+								<ArrowSquareOutIcon className="size-4" />
+								View Page
+							</DropdownMenu.Item>
+						</>
+					)}
 					<DropdownMenu.Item
 						className="gap-2"
 						onClick={() => setIsTransferOpen(true)}
 					>
-						<ArrowSquareOutIcon className="size-4" weight="duotone" />
+						<ArrowSquareOutIcon className="size-4" />
 						Transfer to Organization
 					</DropdownMenu.Item>
 					<DropdownMenu.Separator />
@@ -139,42 +169,17 @@ function StatusPageActions({
 						onClick={onDeleteAction}
 						variant="destructive"
 					>
-						<TrashIcon className="size-4 fill-destructive" weight="duotone" />
+						<TrashIcon className="size-4 fill-destructive" />
 						Delete
 					</DropdownMenu.Item>
 				</DropdownMenu.Content>
 			</DropdownMenu>
 
-			<TransferToOrgDialog
-				currentOrganizationId={statusPage.organizationId}
-				description={`Move "${statusPage.name}" to a different organization.`}
-				isPending={transferMutation.isPending}
+			<StatusPageTransferDialog
 				onOpenChangeAction={setIsTransferOpen}
-				onTransferAction={handleTransfer}
 				open={isTransferOpen}
-				title="Transfer Status Page"
-				warning="The status page and its configuration will be transferred to {orgName}."
-			>
-				<div className="flex items-center justify-between gap-3 rounded border p-3">
-					<div className="min-w-0">
-						<Field.Label
-							className="cursor-pointer text-sm"
-							htmlFor="include-monitors-row"
-						>
-							Include all linked monitors
-						</Field.Label>
-						<p className="text-muted-foreground text-xs">
-							If off, monitors are removed from this page and stay in the
-							current organization.
-						</p>
-					</div>
-					<Switch
-						checked={includeMonitors}
-						id="include-monitors-row"
-						onCheckedChange={setIncludeMonitors}
-					/>
-				</div>
-			</TransferToOrgDialog>
+				statusPage={statusPage}
+			/>
 		</>
 	);
 }
@@ -183,13 +188,14 @@ export function StatusPageRow({
 	statusPage,
 	onEditAction,
 	onDeleteAction,
-	onTransferSuccessAction,
 }: StatusPageRowProps) {
 	const hasMonitors = statusPage.monitorCount > 0;
 
 	const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-		const target = e.target as HTMLElement;
-		if (target.closest("[data-dropdown-trigger]")) {
+		if (
+			e.target instanceof Element &&
+			e.target.closest("[data-dropdown-trigger]")
+		) {
 			e.preventDefault();
 		}
 	};
@@ -209,7 +215,7 @@ export function StatusPageRow({
 							: "bg-secondary text-muted-foreground"
 					)}
 				>
-					<BrowserIcon className="size-5" weight="duotone" />
+					<BrowserIcon className="size-5" />
 				</div>
 				<div className="min-w-0 flex-1">
 					<div className="flex items-center gap-2">
@@ -248,7 +254,6 @@ export function StatusPageRow({
 				<StatusPageActions
 					onDeleteAction={onDeleteAction}
 					onEditAction={onEditAction}
-					onTransferSuccessAction={onTransferSuccessAction}
 					statusPage={statusPage}
 				/>
 			</div>

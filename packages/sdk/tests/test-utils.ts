@@ -1,4 +1,46 @@
-import type { Page, Request } from "@playwright/test";
+import {
+	expect,
+	type Page,
+	type Request,
+	test as base,
+} from "@playwright/test";
+
+const DEFAULT_REQUEST_BUDGET = 25;
+
+export const test = base.extend<{ requestBudget: number }>({
+	requestBudget: [DEFAULT_REQUEST_BUDGET, { option: true }],
+	page: async ({ page, requestBudget }, use, testInfo) => {
+		const callsByPath = new Map<string, number>();
+		page.on("request", (request) => {
+			const type = request.resourceType();
+			if (type !== "fetch" && type !== "xhr") {
+				return;
+			}
+			const { pathname } = new URL(request.url());
+			callsByPath.set(pathname, (callsByPath.get(pathname) ?? 0) + 1);
+		});
+
+		await use(page);
+
+		let total = 0;
+		for (const count of callsByPath.values()) {
+			total += count;
+		}
+		const breakdown =
+			Array.from(callsByPath, ([path, count]) => `${path} x${count}`).join(
+				", "
+			) || "none";
+		const summary = `[requests] ${total}/${requestBudget} — ${breakdown}`;
+		console.log(summary);
+		testInfo.annotations.push({ type: "requests", description: summary });
+		expect(
+			total,
+			`SDK made ${total} API requests, budget is ${requestBudget} (${breakdown}). Raise it deliberately with test.use({ requestBudget: N }) if the traffic is expected.`
+		).toBeLessThanOrEqual(requestBudget);
+	},
+});
+
+export { expect } from "@playwright/test";
 
 export function getFlagRequestBody(request: Request): Record<string, unknown> {
 	const data = request.postData();

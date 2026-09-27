@@ -86,7 +86,7 @@ export function GoalItem({
 		<List.Row className={cn(!goal.isActive && "opacity-50")}>
 			<List.Cell>
 				<div className="flex size-8 shrink-0 items-center justify-center rounded border border-transparent bg-muted text-muted-foreground">
-					<TargetIcon className="size-4" weight="duotone" />
+					<TargetIcon className="size-4" />
 				</div>
 			</List.Cell>
 
@@ -114,7 +114,7 @@ export function GoalItem({
 					</>
 				) : analyticsError ? (
 					<div className="flex w-72 items-center justify-end gap-2 text-destructive text-xs">
-						<WarningCircleIcon className="size-4 shrink-0" weight="duotone" />
+						<WarningCircleIcon className="size-4 shrink-0" />
 						<span className="truncate">{analyticsError}</span>
 					</div>
 				) : (
@@ -140,10 +140,7 @@ export function GoalItem({
 				{isLoadingAnalytics ? (
 					<Skeleton className="ms-auto h-4 w-12 rounded" />
 				) : analyticsError ? (
-					<WarningCircleIcon
-						className="ms-auto size-4 text-destructive"
-						weight="duotone"
-					/>
+					<WarningCircleIcon className="ms-auto size-4 text-destructive" />
 				) : (
 					<span className="font-semibold text-sm tabular-nums">
 						{rate.toFixed(1)}%
@@ -159,11 +156,11 @@ export function GoalItem({
 							className="inline-flex size-8 items-center justify-center gap-1.5 rounded-md bg-transparent p-0 font-medium text-muted-foreground opacity-50 transition-all duration-(--duration-quick) ease-(--ease-smooth) hover:bg-interactive-hover hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 data-[state=open]:opacity-100"
 							data-dropdown-trigger
 						>
-							<DotsThreeIcon className="size-5" weight="bold" />
+							<DotsThreeIcon className="size-5" />
 						</DropdownMenu.Trigger>
 						<DropdownMenu.Content align="end" className="w-40">
 							<DropdownMenu.Item className="gap-2" onClick={() => onEdit(goal)}>
-								<PencilSimpleIcon className="size-4" weight="duotone" />
+								<PencilSimpleIcon className="size-4" />
 								Edit
 							</DropdownMenu.Item>
 							<DropdownMenu.Separator />
@@ -172,10 +169,7 @@ export function GoalItem({
 								onClick={() => onDelete(goal.id)}
 								variant="destructive"
 							>
-								<TrashIcon
-									className="size-4 fill-destructive"
-									weight="duotone"
-								/>
+								<TrashIcon className="size-4 fill-destructive" />
 								Delete
 							</DropdownMenu.Item>
 						</DropdownMenu.Content>

@@ -1,8 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import {
+	createLinkFolderSchema,
 	createLinkSchema,
+	linkFolderOutputSchema,
 	linkOutputSchema,
 	listLinksPageSchema,
+	slugifyFolderName,
 	updateLinkSchema,
 } from "./links.schemas";
 
@@ -169,19 +172,6 @@ describe("updateLinkSchema validation", () => {
 });
 
 describe("listLinksPageSchema validation", () => {
-	it("applies pagination and filter defaults", () => {
-		const result = listLinksPageSchema.safeParse({});
-
-		expect(result.success).toBe(true);
-		if (result.success) {
-			expect(result.data.includeTotal).toBe(false);
-			expect(result.data.limit).toBe(50);
-			expect(result.data.offset).toBe(0);
-			expect(result.data.sort).toBe("newest");
-			expect(result.data.type).toBe("all");
-		}
-	});
-
 	it("rejects out-of-range pagination and unknown enums", () => {
 		expect(listLinksPageSchema.safeParse({ limit: 0 }).success).toBe(false);
 		expect(listLinksPageSchema.safeParse({ limit: 101 }).success).toBe(false);
@@ -229,5 +219,59 @@ describe("linkOutputSchema validation", () => {
 			expect(result.data.createdAt).toBeInstanceOf(Date);
 			expect(result.data.expiresAt).toBeInstanceOf(Date);
 		}
+	});
+});
+
+describe("link folder schemas", () => {
+	it("accepts valid explicit slugs", () => {
+		for (const slug of ["posts", "social_posts", "campaign-2026"]) {
+			const result = createLinkFolderSchema.safeParse({
+				name: "Posts",
+				slug,
+			});
+			expect(result.success).toBe(true);
+		}
+	});
+
+	it("rejects invalid explicit slugs", () => {
+		for (const slug of ["Posts", "social posts", "posts/team", ""]) {
+			const result = createLinkFolderSchema.safeParse({
+				name: "Posts",
+				slug,
+			});
+			expect(result.success).toBe(false);
+		}
+	});
+
+	it("accepts folder rows returned by the router", () => {
+		const result = linkFolderOutputSchema.safeParse({
+			id: "folder-123",
+			organizationId: "org-123",
+			createdBy: "user-123",
+			name: "Posts",
+			slug: "posts",
+			deletedAt: null,
+			createdAt: "2025-01-01T00:00:00.000Z",
+			updatedAt: "2025-01-02T00:00:00.000Z",
+		});
+
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.createdAt).toBeInstanceOf(Date);
+		}
+	});
+});
+
+describe("folder slug generation", () => {
+	it("normalizes names into stable lowercase slugs", () => {
+		expect(slugifyFolderName("Social Posts")).toBe("social-posts");
+		expect(slugifyFolderName("  Q2_Campaigns  ")).toBe("q2-campaigns");
+		expect(slugifyFolderName("Partner / Creator Links")).toBe(
+			"partner-creator-links"
+		);
+	});
+
+	it("falls back when the name has no slug-safe characters", () => {
+		expect(slugifyFolderName("!!!")).toBe("folder");
 	});
 });

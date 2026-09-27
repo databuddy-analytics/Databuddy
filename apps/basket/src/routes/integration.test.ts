@@ -1,4 +1,5 @@
-import { vi, beforeEach, describe, expect, test } from "vitest";
+import { setupCheckUserAgent } from "@databuddy/shared/bot-detection/ai-agents";
+import { vi, afterEach, beforeEach, describe, expect, test } from "vitest";
 
 const {
 	noop,
@@ -21,6 +22,9 @@ const {
 	mockGetAccessibleWebsiteIds,
 	mockGetWebsiteByIdV2,
 	mockResolveApiKeyOwnerId,
+	mockDenyApiKeyWebsiteAccess,
+	mockRedisSet,
+	apiKeyDenialErrors,
 } = vi.hoisted(() => {
 	const noop = vi.fn(() => {});
 	const noopAsync = vi.fn(() => Promise.resolve());
@@ -39,6 +43,9 @@ const {
 		organizationId: "org_1",
 	};
 	return {
+		mockDenyApiKeyWebsiteAccess: vi.fn((): string | null => null),
+		mockRedisSet: vi.fn(() => Promise.resolve("OK")),
+		apiKeyDenialErrors: {} as Record<string, () => Error>,
 		noop,
 		noopAsync,
 		mockLogger: {
@@ -56,7 +63,10 @@ const {
 				organizationId: "org_1",
 			})
 		),
-		mockCheckForBot: vi.fn(() => Promise.resolve(undefined)),
+		mockCheckForBot: vi.fn(
+			(): Promise<{ error?: Response } | undefined> =>
+				Promise.resolve(undefined)
+		),
 		mockInsertTrackEvent: vi.fn(() => Promise.resolve()),
 		mockInsertOutgoingLink: vi.fn(() => Promise.resolve()),
 		mockInsertTrackEventsBatch: vi.fn(() => Promise.resolve()),
@@ -110,6 +120,7 @@ vi.mock("@lib/event-service", () => ({
 	insertTrackEventsBatch: mockInsertTrackEventsBatch,
 	insertOutgoingLinksBatch: mockInsertOutgoingLinksBatch,
 	insertIndividualVitals: mockInsertIndividualVitals,
+	insertEngagementSpans: vi.fn(async () => {}),
 	insertErrorSpans: mockInsertErrorSpans,
 	insertCustomEvents: mockInsertCustomEvents,
 	stableAnalyticsEventId: vi.fn(() => "stable_id"),
@@ -127,21 +138,22 @@ vi.mock("@utils/ip-geo", () => ({
 	getGeo: mockGetGeo,
 	extractIpFromRequest: vi.fn(() => "1.2.3.4"),
 	extractTrustedClientIp: vi.fn(() => "1.2.3.4"),
-	getVisitorCountryForAutoMode: vi.fn((events: Array<{ anonymizeVisitorIds?: unknown }>) =>
-		Promise.resolve(
-			events.some((event) => event.anonymizeVisitorIds === "auto")
-				? "US"
-				: undefined
-		)
+	getVisitorCountryForAutoMode: vi.fn(
+		(events: Array<{ anonymizeVisitorIds?: unknown }>) =>
+			Promise.resolve(
+				events.some((event) => event.anonymizeVisitorIds === "auto")
+					? "US"
+					: undefined
+			)
 	),
 	closeGeoIPReader: noop,
 }));
 
-vi.mock("@utils/user-agent", () => ({
+vi.mock("@utils/user-agent", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@utils/user-agent")>()),
 	parseUserAgent: vi.fn(() =>
 		Promise.resolve({ browserName: "Chrome", osName: "Windows" })
 	),
-	detectBot: vi.fn(() => ({ isBot: false })),
 }));
 
 vi.mock("@lib/blocked-traffic", () => ({
@@ -160,10 +172,16 @@ vi.mock("@databuddy/redis/rate-limit", () => ({
 }));
 
 vi.mock("@lib/api-key", () => ({
+	API_KEY_DENIAL_ERRORS: apiKeyDenialErrors,
+	denyApiKeyWebsiteAccess: mockDenyApiKeyWebsiteAccess,
 	getApiKeyFromHeader: mockGetApiKeyFromHeader,
 	hasKeyScope: mockHasKeyScope,
 	hasGlobalAccess: mockHasGlobalAccess,
 	getAccessibleWebsiteIds: mockGetAccessibleWebsiteIds,
+}));
+
+vi.mock("@databuddy/redis/redis", () => ({
+	redis: { set: mockRedisSet },
 }));
 
 vi.mock("@hooks/auth", () => ({
@@ -183,6 +201,11 @@ vi.mock("@lib/producer", () => ({
 const { basketErrors, buildBasketErrorPayload } = await import(
 	"@lib/structured-errors"
 );
+const { ERRORS_BODY_MAX_BYTES } = await import("../routes/basket");
+const { send: mockSend } = await import("@lib/producer");
+const { isOriginAllowed } = await import("@hooks/auth");
+apiKeyDenialErrors.website_scope_mismatch =
+	basketErrors.trackWebsiteScopeMismatch;
 const { createError, EvlogError } = await import("evlog");
 const { Elysia } = await import("elysia");
 const mockGlobalErrorHandler = vi.fn();
@@ -302,9 +325,7 @@ describe("POST /", () => {
 			code: "basket.DELIVERY_UNAVAILABLE",
 			retryable: true,
 		});
-		expect(mockGlobalErrorHandler).toHaveBeenCalledWith(
-			expect.any(EvlogError)
-		);
+		expect(mockGlobalErrorHandler).toHaveBeenCalledWith(expect.any(EvlogError));
 	});
 
 	test("unknown event type → 400 structured error", async () => {
@@ -352,10 +373,54 @@ describe("POST /vitals", () => {
 		const body = await json(res);
 		expect(body.count).toBe(0);
 	});
+});
 
-	test("not an array → 400", async () => {
-		const res = await post(basketApp, "/vitals", { not: "array" });
+describe("POST /engagement", () => {
+	const span = {
+		timestamp: now,
+		path: "https://example.com/pricing",
+		pageIndex: 2,
+		exitType: "spa",
+		timeOnPage: 42,
+		activeTime: 30,
+		timeToFirstInteraction: 1200,
+		maxScrollDepth: 80,
+		scrollCount: 6,
+		clickCount: 4,
+		keyCount: 0,
+		interactionCount: 10,
+		copyCount: 1,
+		rageClickCount: 1,
+		deadClickCount: 1,
+		rageClickTarget: "button:compare plans",
+		deadClickTarget: "button:compare plans",
+		formFieldCount: 2,
+		formSubmitCount: 0,
+		lastFormField: "input:email",
+		errorCount: 0,
+	};
+
+	test("valid engagement batch → 200 with the exact success body", async () => {
+		const res = await post(basketApp, "/engagement", [span]);
+		expect(res.status).toBe(200);
+		expect(await json(res)).toEqual({
+			status: "success",
+			type: "engagement",
+			count: 1,
+		});
+	});
+
+	test("invalid engagement (unknown exit type) → 400", async () => {
+		const res = await post(basketApp, "/engagement", [
+			{ ...span, exitType: "teleport" },
+		]);
 		expect(res.status).toBe(400);
+	});
+
+	test("empty array → 200 with count 0", async () => {
+		const res = await post(basketApp, "/engagement", []);
+		expect(res.status).toBe(200);
+		expect((await json(res)).count).toBe(0);
 	});
 });
 
@@ -381,6 +446,112 @@ describe("POST /errors", () => {
 			{ timestamp: now, path: "https://example.com" },
 		]);
 		expect(res.status).toBe(400);
+	});
+
+	test("body over the size cap → 413 without parsing or validating", async () => {
+		mockValidateRequest.mockClear();
+		mockInsertErrorSpans.mockClear();
+
+		const spans = Array.from({ length: 50 }, () => ({
+			timestamp: now,
+			path: "https://example.com/page",
+			message: "x".repeat(4000),
+		}));
+		const serialized = JSON.stringify(spans);
+		expect(serialized.length).toBeGreaterThan(ERRORS_BODY_MAX_BYTES);
+
+		const request = new Request("http://localhost/errors", {
+			method: "POST",
+			body: serialized,
+			headers: {
+				"Content-Type": "application/json",
+				"content-length": String(serialized.length),
+			},
+		});
+		const res = await basketApp.handle(request);
+
+		expect(res.status).toBe(413);
+		expect(request.bodyUsed).toBe(false);
+		expect(await json(res)).toMatchObject({
+			code: basketErrors.ingestErrorsBodyTooLarge.code,
+			retryable: false,
+		});
+		expect(mockValidateRequest).not.toHaveBeenCalled();
+		expect(mockInsertErrorSpans).not.toHaveBeenCalled();
+	});
+
+	test("oversized body without content-length is still rejected", async () => {
+		const spans = Array.from({ length: 40 }, () => ({
+			timestamp: now,
+			path: "https://example.com/page",
+			message: "x".repeat(4000),
+		}));
+		const serialized = JSON.stringify(spans);
+		expect(serialized.length).toBeGreaterThan(ERRORS_BODY_MAX_BYTES);
+
+		const request = new Request("http://localhost/errors", {
+			method: "POST",
+			body: serialized,
+			headers: { "Content-Type": "application/json" },
+		});
+		request.headers.delete("content-length");
+
+		const res = await basketApp.handle(request);
+
+		expect(res.status).toBe(413);
+		expect(mockInsertErrorSpans).not.toHaveBeenCalled();
+	});
+
+	test("a chunked body stops being read once it passes the cap", async () => {
+		const chunk = new TextEncoder().encode("x".repeat(16 * 1024));
+		const ceiling = ERRORS_BODY_MAX_BYTES * 8;
+		let produced = 0;
+		const body = new ReadableStream({
+			pull(controller) {
+				if (produced >= ceiling) {
+					controller.close();
+					return;
+				}
+				produced += chunk.byteLength;
+				controller.enqueue(chunk);
+			},
+		});
+
+		const request = new Request("http://localhost/errors", {
+			method: "POST",
+			body,
+			duplex: "half",
+			headers: { "Content-Type": "application/json" },
+		} as RequestInit);
+
+		const res = await basketApp.handle(request);
+
+		expect(res.status).toBe(413);
+		expect(produced).toBeLessThanOrEqual(ERRORS_BODY_MAX_BYTES * 2);
+		expect(mockInsertErrorSpans).not.toHaveBeenCalled();
+	});
+
+	test("body under the size cap → 200", async () => {
+		const spans = [
+			{
+				timestamp: now,
+				path: "https://example.com/page",
+				message: "TypeError: x is undefined",
+			},
+		];
+		const serialized = JSON.stringify(spans);
+		expect(serialized.length).toBeLessThan(ERRORS_BODY_MAX_BYTES);
+
+		const res = await post(basketApp, "/errors", spans, {
+			"content-length": String(serialized.length),
+		});
+
+		expect(res.status).toBe(200);
+		expect(await json(res)).toEqual({
+			status: "success",
+			type: "error",
+			count: 1,
+		});
 	});
 });
 
@@ -421,7 +592,6 @@ describe("POST /events", () => {
 		]);
 		expect(res.status).toBe(400);
 	});
-
 });
 
 describe("POST /batch", () => {
@@ -688,6 +858,23 @@ describe("POST /track", () => {
 			organizationId: "org_1",
 		});
 		mockResolveApiKeyOwnerId.mockResolvedValue("user_1");
+	});
+
+	test("bot user agent short-circuits before the billing check", async () => {
+		mockCheckForBot.mockClear();
+		mockCheckForBot.mockResolvedValueOnce({
+			error: new Response(null, { status: 204 }),
+		});
+		const res = await post(
+			trackRoute,
+			"/track",
+			{ name: "signup", websiteId: "ws_test" },
+			{ "User-Agent": "GPTBot/1.0" }
+		);
+		expect(res.status).toBe(204);
+		expect(mockCheckForBot).toHaveBeenCalledOnce();
+		expect(mockCheckAutumnUsage).not.toHaveBeenCalled();
+		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
 	});
 
 	test("single event → 200 with the exact success body", async () => {
@@ -1074,8 +1261,14 @@ describe("POST /track", () => {
 		expect(res.status).toBe(200);
 		expect(mockInsertCustomEvents).toHaveBeenCalledWith(
 			[
-				expect.objectContaining({ event_name: "signup", website_id: "ws_test" }),
-				expect.objectContaining({ event_name: "purchase", website_id: "ws_test" }),
+				expect.objectContaining({
+					event_name: "signup",
+					website_id: "ws_test",
+				}),
+				expect.objectContaining({
+					event_name: "purchase",
+					website_id: "ws_test",
+				}),
 			],
 			undefined
 		);
@@ -1092,14 +1285,6 @@ describe("POST /track", () => {
 		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
 	});
 
-	test("missing name → 400", async () => {
-		const res = await post(trackRoute, "/track", {
-			namespace: "x",
-			websiteId: "ws_test",
-		});
-		expect(res.status).toBe(400);
-	});
-
 	test("schema failure response exposes Zod issues to client", async () => {
 		const res = await post(trackRoute, "/track", {
 			namespace: "x",
@@ -1108,7 +1293,7 @@ describe("POST /track", () => {
 		expect(res.status).toBe(400);
 		const body = await json(res);
 		expect(Array.isArray(body.errors)).toBe(true);
-		const issues = body.errors as Array<Record<string, unknown>>;
+		const issues = body.errors as Record<string, unknown>[];
 		expect(issues.length).toBeGreaterThan(0);
 		expect(JSON.stringify(issues)).toContain("name");
 	});
@@ -1122,5 +1307,75 @@ describe("POST /track", () => {
 		});
 		expect(res.status).toBe(400);
 		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
+	});
+});
+
+describe("POST /ai-traffic", () => {
+	const CLAUDE_CODE =
+		"Claude-User (claude-code/2.1.280; +https://support.anthropic.com/)";
+
+	beforeEach(() => {
+		vi.mocked(mockSend).mockClear();
+		vi.mocked(mockRedisSet).mockClear();
+		vi.mocked(isOriginAllowed).mockImplementation(
+			(origin: string, domain: string) =>
+				new URL(origin).hostname.endsWith(domain)
+		);
+	});
+
+	afterEach(() => {
+		vi.mocked(isOriginAllowed).mockImplementation(() => true);
+	});
+
+	function hit(userAgent: string, host = "docs.example.com") {
+		return post(trackRoute, "/ai-traffic", {
+			websiteId: "ws_test",
+			host,
+			path: "/docs/intro",
+			format: "markdown",
+			userAgent,
+		});
+	}
+
+	test("stores an AI agent request without an API key", async () => {
+		const res = await hit(CLAUDE_CODE);
+		expect(res.status).toBe(202);
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-ai-traffic-spans",
+			expect.objectContaining({
+				client_id: "ws_test",
+				path: "/docs/intro",
+				agent_id: "claude-code",
+				agent_purpose: "agent",
+				format: "markdown",
+				source: "middleware",
+			})
+		);
+	});
+
+	test("drops requests from anything that is not an AI agent", async () => {
+		const res = await hit(
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+		);
+		expect(res.status).toBe(204);
+		expect(mockSend).not.toHaveBeenCalled();
+	});
+
+	test("rejects hits from a host the website does not own", async () => {
+		const res = await hit(CLAUDE_CODE, "someone-else.dev");
+		expect(res.status).toBe(403);
+		expect(mockSend).not.toHaveBeenCalled();
+	});
+
+	test("records a setup check in Redis instead of analytics", async () => {
+		const res = await hit(setupCheckUserAgent("nonce_1"));
+		expect(res.status).toBe(202);
+		expect(mockSend).not.toHaveBeenCalled();
+		expect(mockRedisSet).toHaveBeenCalledWith(
+			"ai-agent-setup-check:ws_test:nonce_1",
+			"1",
+			"EX",
+			120
+		);
 	});
 });

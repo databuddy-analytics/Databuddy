@@ -1,6 +1,7 @@
 import type { InvestigationSignal } from "@databuddy/shared/insights";
 import type { DetectedSignal } from "./detection";
 import {
+	isRegression,
 	normalizedErrorSubject,
 	rankSignals,
 	signalKeyForDetectedSignal,
@@ -65,6 +66,8 @@ export interface CoveragePortfolioOptions {
 	dueSignalKey?: string | null;
 	preferredSignalKeys?: ReadonlySet<string>;
 	reason: CoveragePortfolioReason;
+	/** A validated model preference; due work and reliability remain code-owned. */
+	selectedSignalKeys?: readonly string[];
 }
 
 interface Candidate {
@@ -81,6 +84,9 @@ export function coveragePortfolioLimit(
 }
 
 function signalGroup(signal: DetectedSignal): string {
+	if (signal.subjectKey?.includes(":referrer:")) {
+		return signal.subjectKey;
+	}
 	if (signal.subjectKey?.startsWith("route:") && signal.entityId) {
 		return `route-health:${signal.entityId}`;
 	}
@@ -153,6 +159,18 @@ export function planCoveragePortfolio(
 	options: CoveragePortfolioOptions
 ): DetectedSignal[] {
 	const candidates = rankedCandidates(signals);
+	const selection = options.selectedSignalKeys
+		? new Map(options.selectedSignalKeys.map((key, index) => [key, index]))
+		: null;
+	if (selection) {
+		candidates.sort(
+			(a, b) =>
+				Number(isCriticalReliabilitySignal(b.signal)) -
+					Number(isCriticalReliabilitySignal(a.signal)) ||
+				(selection.get(a.key) ?? Number.POSITIVE_INFINITY) -
+					(selection.get(b.key) ?? Number.POSITIVE_INFINITY)
+		);
+	}
 	const selected: Candidate[] = [];
 	const usedFamilies = new Set<InsightPortfolioFamily>();
 	const usedGroups = new Set<string>();
@@ -176,12 +194,23 @@ export function planCoveragePortfolio(
 			(candidate) =>
 				!(usedKeys.has(candidate.key) || usedGroups.has(candidate.group))
 		);
-		const preferred = options.preferredSignalKeys
-			? available.filter((candidate) =>
-					options.preferredSignalKeys?.has(candidate.key)
+		const wanted = selection
+			? available.filter(
+					(candidate) =>
+						selection.has(candidate.key) ||
+						isCriticalReliabilitySignal(candidate.signal) ||
+						(options.reason === "manual" &&
+							candidate.family !== "general" &&
+							!usedFamilies.has(candidate.family))
 				)
 			: available;
-		const pool = preferred.length > 0 ? preferred : available;
+		const preferred =
+			!selection && options.preferredSignalKeys
+				? wanted.filter((candidate) =>
+						options.preferredSignalKeys?.has(candidate.key)
+					)
+				: wanted;
+		const pool = preferred.length > 0 ? preferred : wanted;
 		const next =
 			options.reason === "manual"
 				? (pool.find((candidate) => !usedFamilies.has(candidate.family)) ??
@@ -194,4 +223,12 @@ export function planCoveragePortfolio(
 	}
 
 	return selected.map((candidate) => candidate.signal);
+}
+
+function isCriticalReliabilitySignal(signal: DetectedSignal): boolean {
+	return (
+		portfolioFamilyForDetectedSignal(signal) === "reliability" &&
+		signal.severity === "critical" &&
+		isRegression(signal)
+	);
 }

@@ -4,11 +4,13 @@ import type { RequestLogger } from "evlog";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
 import { getSlackApiErrorCode, setSlackLog, toError } from "@/lib/evlog-slack";
 import {
+	type Block,
 	ComponentStreamSplitter,
 	componentsToBlocks,
 	feedbackButtonsBlock,
 } from "@/slack/blocks";
 import { SLACK_COPY } from "@/slack/messages";
+import { queryEvidenceBlocks } from "@/slack/query-evidence";
 import type { SlackAgentClient } from "@/slack/types";
 
 const STREAM_FLUSH_INTERVAL_MS = 900;
@@ -89,6 +91,18 @@ export async function streamAgentToSlack({
 	let chunkCount = 0;
 	let lastFlushAt = Date.now();
 	let thinkingResolved = false;
+	let progressUpdate = Promise.resolve();
+	let latestProgress = 0;
+	let evidenceBlocks: Block[] = [];
+
+	const finishThinking = async (status: "complete" | "error") => {
+		if (!streamTs || thinkingResolved) {
+			return;
+		}
+		thinkingResolved = true;
+		await progressUpdate;
+		await resolveThinking(client, run.channelId, streamTs, status);
+	};
 
 	const flush = async (force = false) => {
 		if (!(pending && streamTs)) {
@@ -103,15 +117,14 @@ export async function streamAgentToSlack({
 		}
 
 		do {
+			abortSignal?.throwIfAborted();
 			const text = pending.slice(0, STREAM_APPEND_LIMIT_CHARS);
 			pending = pending.slice(text.length);
 			lastFlushAt = Date.now();
 
 			if (text.trim()) {
-				if (!thinkingResolved) {
-					await resolveThinking(client, run.channelId, streamTs, "complete");
-					thinkingResolved = true;
-				}
+				await finishThinking("complete");
+				abortSignal?.throwIfAborted();
 				await client.chat.appendStream({
 					channel: run.channelId,
 					chunks: [markdownChunk(text)],
@@ -122,25 +135,42 @@ export async function streamAgentToSlack({
 	};
 
 	const updateThinkingStatus = (toolNames: string[]) => {
-		if (!streamTs || thinkingResolved) {
+		if (!streamTs || thinkingResolved || abortSignal?.aborted) {
 			return;
 		}
-		client.chat
-			.appendStream({
-				channel: run.channelId,
-				chunks: [thinkingTaskChunk("in_progress", toolStatusLabel(toolNames))],
-				ts: streamTs,
-			})
-			.catch(() => {
-				// Progress updates are best-effort; the card keeps its last title.
-			});
+		const update = ++latestProgress;
+		progressUpdate = progressUpdate.then(async () => {
+			if (
+				thinkingResolved ||
+				abortSignal?.aborted ||
+				update !== latestProgress
+			) {
+				return;
+			}
+			await client.chat
+				.appendStream({
+					channel: run.channelId,
+					chunks: [
+						thinkingTaskChunk("in_progress", toolStatusLabel(toolNames)),
+					],
+					ts: streamTs,
+				})
+				.catch(() => {
+					// Progress updates are best-effort; the card keeps its last title.
+				});
+		});
 	};
 
 	try {
+		abortSignal?.throwIfAborted();
 		for await (const chunk of agent.stream(run, {
 			abortSignal,
 			onToolEvent: updateThinkingStatus,
+			onToolTrace: (trace) => {
+				evidenceBlocks = queryEvidenceBlocks(trace);
+			},
 		})) {
+			abortSignal?.throwIfAborted();
 			chunkCount++;
 			const prose = splitter.push(chunk);
 			fullText += prose;
@@ -154,32 +184,35 @@ export async function streamAgentToSlack({
 
 		const finalText = fullText.trim();
 		const componentBlocks = componentsToBlocks(tail.components);
-		const trailingBlocks = [...componentBlocks, feedbackButtonsBlock()];
+		const footerBlocks = [...evidenceBlocks, feedbackButtonsBlock()];
+		const trailingBlocks = [...componentBlocks, ...footerBlocks];
+		const fallbackBlocks = componentBlocks.some(
+			(block) => block.type === "data_visualization"
+		)
+			? [...componentsToBlocks(tail.components, false), ...footerBlocks]
+			: undefined;
 		setSlackLog(eventLog, {
 			slack_component_count: tail.components.length,
 			slack_block_count: componentBlocks.length,
 		});
 		if (streamTs) {
-			if (!thinkingResolved) {
-				await resolveThinking(client, run.channelId, streamTs, "complete");
-			}
-			const result = await finishStreamedResponse({
+			await finishThinking("complete");
+			abortSignal?.throwIfAborted();
+			return await finishStreamedResponse({
+				abortSignal,
+				blocks: trailingBlocks,
+				fallbackBlocks,
 				client,
 				eventLog,
 				finalText,
+				logger,
 				run,
 				chunkCount,
 				startedAt,
 				streamTs,
 			});
-			await postComponentBlocks({
-				blocks: trailingBlocks,
-				client,
-				logger,
-				run,
-			});
-			return result;
 		}
+		abortSignal?.throwIfAborted();
 		const result = await sendFinalMessage({
 			eventLog,
 			finalText,
@@ -188,7 +221,15 @@ export async function streamAgentToSlack({
 			chunkCount,
 			startedAt,
 		});
-		await postComponentBlocks({ blocks: trailingBlocks, client, logger, run });
+		abortSignal?.throwIfAborted();
+		await postComponentBlocks({
+			abortSignal,
+			blocks: trailingBlocks,
+			fallbackBlocks,
+			client,
+			logger,
+			run,
+		});
 		return result;
 	} catch (error) {
 		const abortReason =
@@ -203,7 +244,7 @@ export async function streamAgentToSlack({
 					isSlackUserCancellation(error))
 					? "complete"
 					: "error";
-			await resolveThinking(client, run.channelId, streamTs, status);
+			await finishThinking(status);
 		}
 
 		if (abortSignal?.aborted || isAbortError(error)) {
@@ -212,7 +253,7 @@ export async function streamAgentToSlack({
 					client,
 					run.channelId,
 					streamTs,
-					pending,
+					"",
 					logger,
 					abortStopText(abortReason)
 				);
@@ -250,12 +291,16 @@ export async function streamAgentToSlack({
 }
 
 async function postComponentBlocks({
+	abortSignal,
 	blocks,
+	fallbackBlocks,
 	client,
 	logger,
 	run,
 }: {
-	blocks: Record<string, unknown>[];
+	abortSignal?: AbortSignal;
+	blocks: Block[];
+	fallbackBlocks?: Block[];
 	client: Pick<SlackAgentClient, "apiCall">;
 	logger: LoggerLike;
 	run: SlackAgentRun;
@@ -264,14 +309,38 @@ async function postComponentBlocks({
 		return;
 	}
 	try {
-		await client.apiCall("chat.postMessage", {
+		await sendWithChartFallback(
+			(payload) =>
+				client.apiCall("chat.postMessage", {
+					blocks: payload,
+					channel: run.channelId,
+					text: SLACK_COPY.blockFallback,
+					thread_ts: run.threadTs ?? run.messageTs,
+				}),
 			blocks,
-			channel: run.channelId,
-			text: SLACK_COPY.blockFallback,
-			thread_ts: run.threadTs ?? run.messageTs,
-		});
+			fallbackBlocks,
+			abortSignal
+		);
 	} catch (error) {
+		abortSignal?.throwIfAborted();
 		logger.warn("Failed to post Slack data blocks", error);
+	}
+}
+
+async function sendWithChartFallback(
+	send: (blocks: Block[]) => Promise<unknown>,
+	blocks: Block[],
+	fallbackBlocks: Block[] | undefined,
+	abortSignal: AbortSignal | undefined
+): Promise<void> {
+	try {
+		await send(blocks);
+	} catch (error) {
+		if (!fallbackBlocks || getSlackApiErrorCode(error) !== "invalid_blocks") {
+			throw error;
+		}
+		abortSignal?.throwIfAborted();
+		await send(fallbackBlocks);
 	}
 }
 
@@ -303,7 +372,7 @@ const TOOL_STATUS_LABELS: [RegExp, string][] = [
 	[/investigation|insight/, "Reviewing investigations..."],
 ];
 
-export function toolStatusLabel(toolNames: string[]): string {
+function toolStatusLabel(toolNames: string[]): string {
 	for (const name of toolNames) {
 		const match = TOOL_STATUS_LABELS.find(([pattern]) => pattern.test(name));
 		if (match) {
@@ -388,18 +457,43 @@ function logSuccess(
 
 async function finishStreamedResponse(
 	options: SuccessLogOptions & {
+		abortSignal?: AbortSignal;
+		blocks: Block[];
+		fallbackBlocks?: Block[];
 		client: Pick<SlackAgentClient, "chat">;
+		logger: LoggerLike;
 		run: SlackAgentRun;
 		streamTs: string;
 	}
 ): Promise<StreamAgentToSlackResult> {
-	await options.client.chat.stopStream({
+	const stop = {
 		channel: options.run.channelId,
 		ts: options.streamTs,
 		...(options.finalText
 			? {}
 			: { chunks: [markdownChunk(SLACK_COPY.noAnswer)] }),
-	});
+	};
+	try {
+		await sendWithChartFallback(
+			(blocks) => options.client.chat.stopStream({ ...stop, blocks }),
+			options.blocks,
+			options.fallbackBlocks,
+			options.abortSignal
+		);
+	} catch (error) {
+		const code = getSlackApiErrorCode(error);
+		if (
+			code !== "invalid_blocks" &&
+			code !== "msg_blocks_too_many" &&
+			code !== "msg_blocks_too_long"
+		) {
+			throw error;
+		}
+		// A rejected component must not prevent the prose response from completing.
+		options.logger.warn("Slack rejected response blocks", error);
+		options.abortSignal?.throwIfAborted();
+		await options.client.chat.stopStream(stop);
+	}
 	logSuccess(options, { slack_streamed: true });
 	return {
 		answerChars: options.finalText.length,

@@ -255,6 +255,10 @@ export const contents: SidebarSection[] = [
 						href: "/docs/sdk/tracker",
 					},
 					{
+						title: "AI Agents",
+						href: "/docs/sdk/ai-agents",
+					},
+					{
 						title: "DevTools",
 						href: "/docs/sdk/devtools",
 					},
@@ -354,20 +358,43 @@ export const contents: SidebarSection[] = [
 				icon: MonitorIcon,
 			},
 			{
-				title: "Core Web Vitals",
-				href: "/docs/performance/core-web-vitals-guide",
+				title: "Performance",
 				icon: GaugeIcon,
+				children: [
+					{ title: "Overview", href: "/docs/performance" },
+					{
+						title: "Core Web Vitals",
+						href: "/docs/performance/core-web-vitals-guide",
+					},
+				],
 			},
 			{
-				title: "Cookieless Analytics",
-				href: "/docs/privacy/cookieless-analytics-guide",
+				title: "Privacy",
 				icon: IdBadgeIcon,
+				children: [
+					{ title: "Overview", href: "/docs/privacy" },
+					{
+						title: "Cookieless Analytics",
+						href: "/docs/privacy/cookieless-analytics-guide",
+					},
+					{
+						title: "Event Scanner Data",
+						href: "/docs/privacy/event-scanner",
+					},
+				],
 			},
 			{
-				title: "GDPR Compliance",
-				href: "/docs/compliance/gdpr-compliance-guide",
+				title: "Compliance",
 				icon: ShieldCheckIcon,
+				children: [
+					{ title: "Overview", href: "/docs/compliance" },
+					{
+						title: "GDPR Compliance",
+						href: "/docs/compliance/gdpr-compliance-guide",
+					},
+				],
 			},
+			{ title: "Uptime", href: "/docs/uptime", icon: GlobeSimpleIcon },
 			{
 				title: "Security Guide",
 				href: "/docs/security",

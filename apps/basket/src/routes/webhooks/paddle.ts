@@ -5,7 +5,12 @@ import { evlog, useLogger } from "evlog/elysia";
 import { getDailySalt, saltAnonymousId } from "@lib/security";
 import { basketErrors } from "@lib/structured-errors";
 import { sanitizeString, VALIDATION_LIMITS } from "@utils/validation";
-import { formatDate, getWebhookConfig, resolveWebsiteId } from "./shared";
+import {
+	formatDate,
+	getWebhookConfig,
+	recordWebhookDelivery,
+	resolveWebsiteId,
+} from "./shared";
 
 interface PaddleTransaction {
 	billed_at: string | null;
@@ -53,6 +58,7 @@ async function extractAnalyticsMetadata(
 
 interface PaddleEvent {
 	data: PaddleTransaction;
+	event_id?: string;
 	event_type: string;
 }
 
@@ -238,17 +244,35 @@ export const paddleWebhook = new Elysia().use(evlog()).post(
 
 		log.set({ eventType: event.event_type });
 
+		let recordCount = 0;
+		let status: "failed" | "processed" = "failed";
 		try {
 			if (event.event_type === "transaction.completed") {
 				await handleTransaction(event.data, result);
+				recordCount = 1;
 			} else {
 				log.set({ unhandled: true });
 			}
+			status = "processed";
 
 			return { received: true, type: event.event_type };
 		} catch (error) {
 			log.error(error instanceof Error ? error : new Error(String(error)));
 			throw basketErrors.webhookProcessingFailed();
+		} finally {
+			await recordWebhookDelivery({
+				eventId: event.event_id ?? "",
+				eventType: event.event_type,
+				ownerId: result.ownerId,
+				provider: "paddle",
+				recordCount,
+				status,
+				websiteId: result.websiteId,
+			}).catch((error) => {
+				log.error(error instanceof Error ? error : new Error(String(error)), {
+					webhookDeliveryLog: "write_failed",
+				});
+			});
 		}
 	},
 	{ parse: "none" }

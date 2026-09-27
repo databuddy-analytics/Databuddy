@@ -63,7 +63,7 @@ export function EventsPageHeader() {
 								{getDropdownLabel(websiteFilterMode, selectedWebsite)}
 							</span>
 						)}
-						<CaretDownIcon className="ml-2 size-4 shrink-0" weight="fill" />
+						<CaretDownIcon className="ml-2 size-4 shrink-0" />
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end" className="w-[200px]">
 						<DropdownMenu.Item onClick={() => setWebsiteFilterMode("all")}>

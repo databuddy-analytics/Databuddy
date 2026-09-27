@@ -142,10 +142,7 @@ export function FunnelAnalytics({
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-3">
 						<div className="flex size-9 items-center justify-center rounded bg-destructive/10">
-							<WarningCircleIcon
-								className="size-5 text-destructive"
-								weight="fill"
-							/>
+							<WarningCircleIcon className="size-5 text-destructive" />
 						</div>
 						<div>
 							<div className="font-medium text-destructive text-sm">
@@ -162,7 +159,7 @@ export function FunnelAnalytics({
 						size="sm"
 						variant="secondary"
 					>
-						<ArrowClockwiseIcon className="size-3.5" weight="fill" />
+						<ArrowClockwiseIcon className="size-3.5" />
 						Retry
 					</Button>
 				</div>
@@ -227,7 +224,7 @@ export function FunnelAnalytics({
 			{hasErrorCorrelation && (
 				<div className="amber-angled-rectangle-gradient flex items-center gap-3 rounded border border-warning/20 bg-warning/5 p-3">
 					<div className="flex size-8 shrink-0 items-center justify-center rounded bg-warning/10">
-						<BugIcon className="size-4 text-warning" weight="duotone" />
+						<BugIcon className="size-4 text-warning" />
 					</div>
 					<div className="min-w-0 flex-1">
 						<p className="font-medium text-foreground text-sm">

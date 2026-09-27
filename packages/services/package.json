@@ -4,22 +4,30 @@
   "version": "1.0.0",
   "type": "module",
   "exports": {
+    "./business-memory": "./src/business-memory.ts",
     "./billing-lifecycle": "./src/billing-lifecycle.ts",
     "./audit": "./src/audit.ts",
     "./feedback": "./src/feedback.ts",
     "./github-app": "./src/github-app.ts",
     "./identity": "./src/identity.ts",
-    "./websites": "./src/websites.ts"
+    "./import": "./src/import/runner.ts",
+    "./websites": "./src/websites.ts",
+    "./storage": "./src/storage.ts",
+    "./organization-business-context": "./src/organization-business-context.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",
-    "test": "bun test src"
+    "test": "bun test src",
+    "test:integration": "BUSINESS_CONTEXT_INTEGRATION_TESTS=true bun test src/organization-business-context.integration.test.ts src/business-memory.integration.test.ts src/measurement-plan.integration.test.ts"
   },
   "dependencies": {
     "@databuddy/db": "workspace:*",
     "@databuddy/encryption": "workspace:*",
+    "@databuddy/env": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/shared": "workspace:*",
+    "jszip": "^3.10.2",
+    "supermemory": "^4.17.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

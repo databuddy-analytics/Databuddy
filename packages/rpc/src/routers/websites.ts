@@ -1,7 +1,18 @@
 import { successOutputSchema } from "../lib/schemas";
+import { BusinessMemoryRetirementError } from "@databuddy/services/business-memory";
 import { db } from "@databuddy/db";
 import { chQuery, purgeWebsiteAnalyticsData } from "@databuddy/db/clickhouse";
-import { cacheable } from "@databuddy/redis";
+import { setTimeout as sleep } from "node:timers/promises";
+import { cacheable, redis } from "@databuddy/redis";
+import {
+	setupCheckKey,
+	setupCheckUserAgent,
+} from "@databuddy/shared/bot-detection/ai-agents";
+import {
+	ROBOTS_ACCESS,
+	type RobotsAccess,
+} from "@databuddy/shared/bot-detection/types";
+import { safeFetch } from "@databuddy/shared/ssrf-guard";
 import { auditActions } from "@databuddy/shared/audit";
 import {
 	getTrackingBlockOriginHost,
@@ -51,9 +62,108 @@ import {
 	processChartData,
 } from "./websites-chart";
 
+const ROBOTS_COMMENT = /#.*$/;
+const ROBOTS_ROOT_PATHS = new Set(["/", "/*", "*"]);
+const ROBOTS_MAX_BYTES = 512_000;
+
+interface RobotsGroup {
+	agents: string[];
+	rules: { isAllow: boolean; path: string }[];
+}
+
+function parseRobotsTxt(robotsTxt: string): RobotsGroup[] {
+	const groups: RobotsGroup[] = [];
+	let current: RobotsGroup | undefined;
+	let isReadingAgents = false;
+	for (const line of robotsTxt.split("\n")) {
+		const [rawKey = "", ...rest] = line.replace(ROBOTS_COMMENT, "").split(":");
+		const key = rawKey.trim().toLowerCase();
+		const value = rest.join(":").trim();
+		if (key === "user-agent") {
+			if (!(current && isReadingAgents)) {
+				current = { agents: [], rules: [] };
+				groups.push(current);
+			}
+			if (value) {
+				current.agents.push(value.toLowerCase());
+			}
+			isReadingAgents = true;
+		} else if (key) {
+			isReadingAgents = false;
+			if ((key === "allow" || key === "disallow") && value && current) {
+				current.rules.push({ isAllow: key === "allow", path: value });
+			}
+		}
+	}
+	return groups;
+}
+
+function robotsAccessFor(
+	groups: RobotsGroup[],
+	userAgent: string
+): RobotsAccess {
+	const ua = userAgent.toLowerCase();
+	const token =
+		groups
+			.flatMap((group) => group.agents)
+			.filter((agent) => agent !== "*" && ua.includes(agent))
+			.sort((a, b) => b.length - a.length)[0] ?? "*";
+	const rules = groups
+		.filter((group) => group.agents.includes(token))
+		.flatMap((group) => group.rules);
+	const isRootBlocked = rules.some(
+		(rule) => !rule.isAllow && ROBOTS_ROOT_PATHS.has(rule.path)
+	);
+	const isRootAllowed = rules.some(
+		(rule) => rule.isAllow && ROBOTS_ROOT_PATHS.has(rule.path)
+	);
+	if (isRootBlocked && !isRootAllowed) {
+		return "blocked";
+	}
+	return rules.some((rule) => !rule.isAllow) ? "partial" : "allowed";
+}
+
+const fetchRobotsTxt = cacheable(
+	async (domain: string): Promise<string | null> => {
+		const response = await safeFetch(`https://${domain}/robots.txt`, {
+			timeoutMs: 5000,
+		}).catch(() => null);
+		if (!response?.ok) {
+			await response?.body?.cancel();
+			return null;
+		}
+		return (await response.text()).slice(0, ROBOTS_MAX_BYTES);
+	},
+	{ expireInSec: 600, prefix: "robots_txt" }
+);
+
+async function isAgentRequestRecorded(
+	websiteId: string,
+	url: string
+): Promise<boolean> {
+	const nonce = crypto.randomUUID();
+	await safeFetch(url, {
+		headers: { "user-agent": setupCheckUserAgent(nonce) },
+		timeoutMs: 8000,
+	})
+		.then((response) => response.body?.cancel())
+		.catch(() => undefined);
+	const key = setupCheckKey(websiteId, nonce);
+	for (let attempt = 0; attempt < 10; attempt++) {
+		if (await redis.exists(key)) {
+			return true;
+		}
+		await sleep(300);
+	}
+	return false;
+}
+
 const websiteService = new WebsiteService(db);
 
 function handleServiceError(error: unknown): never {
+	if (error instanceof BusinessMemoryRetirementError) {
+		throw rpcError.serviceUnavailable(4, error.message);
+	}
 	if (error instanceof ValidationError) {
 		throw rpcError.badRequest(error.message);
 	}
@@ -1089,6 +1199,74 @@ export const websitesRouter = {
 			};
 		}),
 
+	checkAgentSetup: protectedProcedure
+		.route({
+			description:
+				"Requests the website's homepage and llms.txt as GPTBot and reports whether @databuddy/sdk/agents recorded each request. Requires website read permission.",
+			method: "POST",
+			path: "/websites/checkAgentSetup",
+			summary: "Check AI agent tracking setup",
+			tags: ["Websites"],
+		})
+		.input(z.object({ websiteId: z.string() }))
+		.output(z.object({ homepage: z.boolean(), llmsTxt: z.boolean() }))
+		.handler(async ({ context, input }) => {
+			const { website } = await withWorkspace(context, {
+				websiteId: input.websiteId,
+				permissions: ["read"],
+			});
+			if (!website) {
+				throw rpcError.notFound("website");
+			}
+			const [homepage, llmsTxt] = await Promise.all([
+				isAgentRequestRecorded(website.id, `https://${website.domain}/`),
+				isAgentRequestRecorded(
+					website.id,
+					`https://${website.domain}/llms.txt`
+				),
+			]);
+			return { homepage, llmsTxt };
+		}),
+
+	checkAiRobots: protectedProcedure
+		.route({
+			description:
+				"Reads the website's robots.txt and reports, for each AI crawler user agent, whether it is allowed, partly blocked, or blocked. Requires website read permission.",
+			method: "POST",
+			path: "/websites/checkAiRobots",
+			summary: "Check robots.txt rules for AI crawlers",
+			tags: ["Websites"],
+		})
+		.input(
+			z.object({
+				websiteId: z.string(),
+				userAgents: z.array(z.string().max(512)).max(100),
+			})
+		)
+		.output(
+			z.object({
+				hasRobotsTxt: z.boolean(),
+				access: z.array(z.enum(ROBOTS_ACCESS)),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const { website } = await withWorkspace(context, {
+				websiteId: input.websiteId,
+				permissions: ["read"],
+			});
+			if (!website) {
+				throw rpcError.notFound("website");
+			}
+			const robotsTxt = await fetchRobotsTxt(website.domain);
+			const groups = robotsTxt ? parseRobotsTxt(robotsTxt) : [];
+			return {
+				hasRobotsTxt: robotsTxt !== null,
+				access: input.userAgents.map((userAgent) =>
+					robotsAccessFor(groups, userAgent)
+				),
+			};
+		}),
+
 	updateSettings: trackedProcedure
 		.route({
 			description: "Updates website settings. Requires update permission.",
@@ -1223,7 +1401,7 @@ export const websitesRouter = {
 			return {
 				filename: exportResult.filename,
 				data: exportResult.buffer.toString("base64"),
-				metadata: exportResult.meta as unknown as Record<string, unknown>,
+				metadata: { ...exportResult.meta },
 			};
 		}),
 };

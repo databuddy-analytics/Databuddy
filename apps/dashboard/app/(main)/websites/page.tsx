@@ -128,7 +128,7 @@ export default function WebsitesPage() {
 							}}
 							className="h-full"
 							description={`${organizationName} does not have any websites yet. Add one to start collecting analytics for this organization.`}
-							icon={<GlobeIcon weight="duotone" />}
+							icon={<GlobeIcon />}
 							title="No websites in this organization"
 							variant="minimal"
 						/>

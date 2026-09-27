@@ -4,16 +4,16 @@ import type { Context } from "../orpc";
 
 const statusPageRow = {
 	statusPageId: "sp_1",
-	orgName: "Acme",
-	orgSlug: "acme",
-	orgLogo: null,
-	statusPageName: "Acme Status",
-	statusPageDescription: null,
-	logoUrl: null,
-	faviconUrl: null,
-	websiteUrl: null,
-	supportUrl: null,
-	theme: "system",
+	organization: { name: "Acme", slug: "acme", logo: null },
+	statusPage: {
+		name: "Acme Status",
+		description: null,
+		logoUrl: null,
+		faviconUrl: null,
+		websiteUrl: null,
+		supportUrl: null,
+		theme: "system",
+	},
 	statusPageMonitorId: "spm_1",
 	scheduleId: "sched_1",
 	websiteId: null,
@@ -78,7 +78,8 @@ beforeAll(async () => {
 		db: { select, query: { incidents: { findMany: async () => [incident] } } },
 	}));
 	mock.module("@databuddy/db/clickhouse", () => ({
-		chQuery: async (sql: string) => (sql.includes("argMax") ? [latestCheck] : []),
+		chQuery: async (sql: string) =>
+			sql.includes("argMax") ? [latestCheck] : [],
 	}));
 	mock.module("@databuddy/redis/redis", () => ({
 		...realRedis,
@@ -91,7 +92,7 @@ beforeAll(async () => {
 	({ statusPageRouter } = await import("./status-page"));
 
 	mock.restore();
-});
+}, 30_000);
 
 function getBySlug() {
 	return createProcedureClient(statusPageRouter.getBySlug, {
@@ -109,4 +110,30 @@ test("getBySlug cache hit returns the same validated payload as the miss", async
 	const hit = await getBySlug();
 	expect(select).toHaveBeenCalledTimes(1);
 	expect(hit).toEqual(miss);
+});
+
+test("getBySlug hides a website domain behind hideUrl for an unnamed monitor", async () => {
+	redisStore.clear();
+	select
+		.mockImplementationOnce(() =>
+			queryReturning([
+				{
+					...statusPageRow,
+					websiteId: "site_1",
+					scheduleName: null,
+					monitorDisplayName: null,
+					hideUrl: true,
+				},
+			])
+		)
+		.mockImplementationOnce(() =>
+			queryReturning([{ id: "site_1", domain: "acme.test", name: null }])
+		);
+
+	const page = await getBySlug();
+
+	expect(page.monitors[0]?.name).toBe("Monitor");
+	expect(page.monitors[0]?.domain).toBeUndefined();
+	expect(page.incidents[0]?.affectedMonitors[0]?.monitorName).toBe("Monitor");
+	expect(JSON.stringify(page)).not.toContain("acme.test");
 });

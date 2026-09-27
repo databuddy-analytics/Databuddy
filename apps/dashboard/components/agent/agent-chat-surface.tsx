@@ -220,7 +220,7 @@ function WelcomeState({
 							variant="secondary"
 						>
 							<span className="flex size-7 shrink-0 items-center justify-center rounded bg-accent/60 text-muted-foreground">
-								<Icon className="size-3.5" weight="duotone" />
+								<Icon className="size-3.5" />
 							</span>
 							<span className="min-w-0 flex-1">
 								<span className="line-clamp-2 text-sm leading-tight">

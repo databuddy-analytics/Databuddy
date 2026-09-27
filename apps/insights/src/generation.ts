@@ -1,17 +1,32 @@
-import type { AppContext } from "@databuddy/ai/config/context";
 import {
-	ensureAgentCreditsAvailable,
-	isAgentBillingConfigured,
-	resolveAgentBillingCustomerId,
-	trackAgentUsageAndBill,
-} from "@databuddy/ai/agents/execution";
+	detectAiAgentSignals,
+	remeasureAiAgentSignal,
+} from "./ai-agent-detection";
+import {
+	type BusinessContext,
+	type BusinessScope,
+	businessContextSchema,
+	mergeBusinessContext,
+} from "@databuddy/ai/lib/business-context";
+import {
+	loadCurrentBusinessScope,
+	loadWebsiteBusinessProfile,
+	recallWebsiteBusinessContext,
+	unavailableBusinessContext,
+	withBusinessContextSnapshot,
+} from "./business-context";
+import { rankInvestigationBusinessContext } from "./business-context-ranking";
+import type { AppContext } from "@databuddy/ai/config/context";
+import { trackAgentUsage } from "@databuddy/ai/agents/execution";
 import { and, between, db, eq, gt, isNull, lte, or } from "@databuddy/db";
 import { annotations, websites } from "@databuddy/db/schema";
+import { canonicalBusinessScope } from "@databuddy/services/business-memory";
 import type { InsightGenerationReason } from "@databuddy/redis";
 import { createServiceAuth } from "@databuddy/rpc";
 import type {
 	InvestigationOutcome,
 	InvestigationSignal,
+	InvestigationEvidenceSnapshot,
 } from "@databuddy/shared/insights";
 import { randomUUIDv7 } from "bun";
 import dayjs from "dayjs";
@@ -23,6 +38,7 @@ import {
 	detectSignals,
 	remeasureMetricSignal,
 } from "./detection";
+import { detectRetentionSignals } from "./measurement-plan";
 import {
 	detectFunnelGoalSignals,
 	type FunnelGoalDeps,
@@ -47,6 +63,7 @@ import {
 import {
 	eligibleSignalsForInvestigation,
 	findRunObservations,
+	settleRunInvestigationCharges,
 	type DueOpenInvestigation,
 	type LatestInsightObservation,
 	loadDueOpenInvestigation,
@@ -67,6 +84,7 @@ import {
 	type InsightAgentInput,
 	type InsightAgentResult,
 	runInsightAgent,
+	savedVerificationCheck,
 } from "./agent";
 import {
 	errorCustomerImpactEvidence,
@@ -79,20 +97,36 @@ import {
 } from "./run-candidate-plan";
 import {
 	planCoveragePortfolio,
+	coveragePortfolioLimit,
+	type CoveragePortfolioOptions,
 	portfolioFamilyForDetectedSignal,
 	portfolioFamilyForInvestigationSignal,
 	type InsightPortfolioFamily,
 } from "./coverage-planner";
+import {
+	chooseInvestigationSignals,
+	investigationSelectionSchema,
+} from "./business-aware-selection";
 import type { WebsiteInvestigation } from "./persistence";
 import {
 	isInterruptingInvestigation,
 	persistInvestigation,
+	retireObsoleteRetentionObservation,
 } from "./persistence";
 import {
 	captureInsightsError,
 	emitInsightsEvent,
 	setInsightsLog,
 } from "./lib/evlog-insights";
+import {
+	canRunInvestigation,
+	type InvestigationBilling,
+	resolveInvestigationBilling,
+	reserveInvestigationCharge,
+	releaseInvestigationCharge,
+	settleInvestigationCharge,
+	assertInvestigationReservationActive,
+} from "./investigation-billing";
 
 interface GenerateWebsiteInsightsInput {
 	finalAttempt: boolean;
@@ -123,11 +157,13 @@ interface InvestigateWebsiteInput {
 	websiteId: string;
 }
 
-export interface WebsiteInvestigationArtifact {
+interface WebsiteInvestigationArtifact {
 	asOf: string;
+	completion?: "complete" | "incomplete";
 	evidence: string[];
 	outcome: InvestigationOutcome | null;
 	signal: InvestigationSignal | null;
+	snapshot?: InvestigationEvidenceSnapshot;
 	status: "completed" | "deferred" | "no_signals";
 }
 
@@ -154,17 +190,10 @@ const COVERAGE_FAMILIES: readonly InsightPortfolioFamily[] = [
 	"general",
 ];
 
-const COVERAGE_COUNT_STAGES = [
-	"detected",
-	"eligible",
-	"selected",
-	"completed",
-	"published",
-] as const satisfies ReadonlyArray<
-	keyof Omit<InvestigationCoverage, "noSignalReason">
+type InvestigationCoverageCountStage = keyof Omit<
+	InvestigationCoverage,
+	"noSignalReason"
 >;
-
-type InvestigationCoverageCountStage = (typeof COVERAGE_COUNT_STAGES)[number];
 
 function emptyCoverageCounts(): InvestigationCoverageCounts {
 	return Object.fromEntries(
@@ -172,7 +201,7 @@ function emptyCoverageCounts(): InvestigationCoverageCounts {
 	) as InvestigationCoverageCounts;
 }
 
-export function emptyInvestigationCoverage(
+function emptyInvestigationCoverage(
 	noSignalReason: InvestigationCoverage["noSignalReason"] = null
 ): InvestigationCoverage {
 	return {
@@ -277,6 +306,7 @@ const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 interface InvestigationRuntime {
 	canRunAgent?: () => Promise<boolean>;
+	history?: InsightAgentInput["history"];
 	mode: "production" | "shadow";
 	onUsage?: (
 		result: Required<Pick<InsightAgentResult, "modelId" | "usage">>
@@ -285,8 +315,10 @@ interface InvestigationRuntime {
 }
 
 export interface InvestigationSources {
+	detectAiAgentSignals?: typeof detectAiAgentSignals;
 	detectDefinitionSignals: typeof detectFunnelGoalSignals;
 	detectMetricSignals: typeof detectSignals;
+	detectRetentionSignals?: typeof detectRetentionSignals;
 	detectRouteHealthSignals: typeof detectRouteHealthSignals;
 	fetchAnnotations: (
 		websiteId: string,
@@ -295,6 +327,7 @@ export interface InvestigationSources {
 		timezone: string
 	) => Promise<InvestigationAnnotation[]>;
 	investigateSignal: (input: InsightAgentInput) => Promise<InsightAgentResult>;
+	loadBusinessProfile?: typeof loadWebsiteBusinessProfile;
 	loadDueInvestigation: (params: {
 		asOf: Date;
 		organizationId: string;
@@ -310,12 +343,15 @@ export interface InvestigationSources {
 	}) => Promise<Map<string, LatestInsightObservation>>;
 	loadOtherOpenWork: typeof loadOtherOpenWork;
 	loadRouteVitalContinuation: typeof loadRouteVitalContinuation;
+	rankBusinessContext?: typeof rankInvestigationBusinessContext;
+	recallBusinessContext?: typeof recallWebsiteBusinessContext;
 	remeasureSignal: (
 		params: DetectSignalsParams,
 		prior: InvestigationSignal,
 		today: dayjs.Dayjs,
 		abortSignal?: AbortSignal
 	) => Promise<DetectedSignal | null>;
+	selectCandidates?: typeof chooseInvestigationSignals;
 }
 
 export function remeasureStoredSignal(
@@ -325,10 +361,23 @@ export function remeasureStoredSignal(
 	abortSignal?: AbortSignal,
 	dependencies: {
 		funnelGoal?: FunnelGoalDeps;
+		retention?: Parameters<typeof detectRetentionSignals>[3];
 		query?: Parameters<typeof remeasureMetricSignal>[2];
 		routeHealth?: RouteHealthDetectionDeps;
 	} = {}
 ): Promise<DetectedSignal | null> {
+	if (prior.signalKey.startsWith("ai_agents:")) {
+		return remeasureAiAgentSignal(params, prior, today, undefined, abortSignal);
+	}
+	if (prior.signalKey.startsWith("retention:")) {
+		return detectRetentionSignals(
+			params,
+			today,
+			abortSignal,
+			dependencies.retention,
+			prior
+		).then((signals) => signals[0] ?? null);
+	}
 	return prior.signalKey.startsWith("goal:") ||
 		prior.signalKey.startsWith("funnel:")
 		? remeasureFunnelGoalSignal(
@@ -366,10 +415,12 @@ function normalizeAsOf(asOf: Date | string, timezone: string): dayjs.Dayjs {
 	return value;
 }
 
-function emptyInvestigationArtifact(params: {
+function emptyInvestigationArtifact<
+	S extends "deferred" | "no_signals",
+>(params: {
 	asOf: dayjs.Dayjs;
-	status: "deferred" | "no_signals";
-}): WebsiteInvestigationArtifact {
+	status: S;
+}): WebsiteInvestigationArtifact & { status: S } {
 	return {
 		asOf: params.asOf.toISOString(),
 		evidence: [],
@@ -443,6 +494,10 @@ export async function refreshInvestigationSignal(params: {
 }
 
 const productionInvestigationSources: InvestigationSources = {
+	detectAiAgentSignals,
+	detectRetentionSignals,
+	loadBusinessProfile: loadWebsiteBusinessProfile,
+	recallBusinessContext: recallWebsiteBusinessContext,
 	detectDefinitionSignals: detectFunnelGoalSignals,
 	detectMetricSignals: detectSignals,
 	detectRouteHealthSignals,
@@ -468,7 +523,9 @@ interface WebsiteSignalDiscovery {
 
 type WebsiteDiscoveryResult =
 	| {
-			artifact: WebsiteInvestigationArtifact;
+			artifact: WebsiteInvestigationArtifact & {
+				status: "deferred" | "no_signals";
+			};
 			coverage: InvestigationCoverage;
 			kind: "empty";
 	  }
@@ -483,6 +540,7 @@ function toPlannedCandidate(
 	);
 	return {
 		evidence: investigation.evidence,
+		investigationObjective: investigation.investigationObjective,
 		signal: investigation.signal,
 	};
 }
@@ -497,7 +555,7 @@ function annotationEvidence(rows: InvestigationAnnotation[]): string | null {
 	return value.length <= 500 ? value : `${value.slice(0, 499).trimEnd()}…`;
 }
 
-async function discoverWebsiteSignals(
+export async function discoverWebsiteSignals(
 	input: InvestigateWebsiteInput,
 	runtime: InvestigationRuntime,
 	options: { allowCoolingFallback?: boolean } = {}
@@ -535,13 +593,11 @@ async function discoverWebsiteSignals(
 			return await work();
 		} catch (error) {
 			discoveryController.abort(error);
-			if (runtime.mode === "production") {
-				captureInsightsError(error, "generation.detection.source_failed", {
-					family,
-					organization_id: input.organizationId,
-					website_id: input.websiteId,
-				});
-			}
+			captureInsightsError(error, "generation.detection.source_failed", {
+				family,
+				organization_id: input.organizationId,
+				website_id: input.websiteId,
+			});
 			throw error;
 		}
 	}
@@ -579,6 +635,25 @@ async function discoverWebsiteSignals(
 				sourceAbortSignal
 			)
 		),
+		detectSource(
+			"ai_agents",
+			() =>
+				runtime.sources.detectAiAgentSignals?.(
+					detectParams,
+					asOf,
+					undefined,
+					sourceAbortSignal
+				) ?? Promise.resolve([])
+		),
+		detectSource(
+			"retention",
+			() =>
+				runtime.sources.detectRetentionSignals?.(
+					detectParams,
+					asOf,
+					sourceAbortSignal
+				) ?? Promise.resolve([])
+		),
 	] as const;
 	const settledDetections = await Promise.allSettled(detectionTasks);
 	const failedDetection = settledDetections.find(
@@ -587,8 +662,14 @@ async function discoverWebsiteSignals(
 	if (failedDetection?.status === "rejected") {
 		throw discoveryController.signal.reason ?? failedDetection.reason;
 	}
-	const [remeasuredDue, metricSignals, funnelGoalSignals, routeHealthSignals] =
-		await Promise.all(detectionTasks);
+	const [
+		remeasuredDue,
+		metricSignals,
+		funnelGoalSignals,
+		routeHealthSignals,
+		aiAgentSignals,
+		retentionSignals,
+	] = await Promise.all(detectionTasks);
 	if (
 		due &&
 		remeasuredDue &&
@@ -604,48 +685,61 @@ async function discoverWebsiteSignals(
 			`Insight detection was incomplete (${metricDiagnostics.failedFamilies} metric families and ${definitionDiagnostics.failedDefinitions} conversion definitions failed)`
 		);
 	}
+	const retiredDue =
+		due &&
+		!remeasuredDue &&
+		runtime.mode === "production" &&
+		(await retireObsoleteRetentionObservation({
+			asOf: asOf.toDate(),
+			domain: input.domain,
+			observation: due,
+			organizationId: input.organizationId,
+			websiteId: input.websiteId,
+		}));
 	const signalsByKey = new Map<string, DetectedSignal>();
 	for (const signal of [
 		...(remeasuredDue ? [remeasuredDue] : []),
 		...metricSignals,
 		...funnelGoalSignals,
 		...routeHealthSignals,
+		...aiAgentSignals,
+		...retentionSignals,
 	]) {
 		const key = signalKeyForDetectedSignal(signal);
 		if (!signalsByKey.has(key)) {
 			signalsByKey.set(key, signal);
 		}
 	}
+	if (retiredDue && due) {
+		// A parallel detector may have read the definition before it was edited.
+		signalsByKey.delete(due.signal.signalKey);
+	}
 	const detectedSignals = rankSignals([...signalsByKey.values()]);
 	if (detectedSignals.length === 0) {
 		const coverage = emptyInvestigationCoverage(
-			due ? "due_recheck_unmeasurable" : "no_detected_signals"
+			due && !retiredDue ? "due_recheck_unmeasurable" : "no_detected_signals"
 		);
-		if (due) {
-			if (runtime.mode === "production") {
-				emitInsightsEvent(
-					"info",
-					"generation.investigation.deferred_incomplete_detection",
-					{
-						organization_id: input.organizationId,
-						website_id: input.websiteId,
-						duration_ms: Math.round(performance.now() - startedAt),
-					}
-				);
-			}
+		if (due && !retiredDue) {
+			emitInsightsEvent(
+				"info",
+				"generation.investigation.deferred_incomplete_detection",
+				{
+					organization_id: input.organizationId,
+					website_id: input.websiteId,
+					duration_ms: Math.round(performance.now() - startedAt),
+				}
+			);
 			return {
 				artifact: emptyInvestigationArtifact({ asOf, status: "deferred" }),
 				coverage,
 				kind: "empty",
 			};
 		}
-		if (runtime.mode === "production") {
-			emitInsightsEvent("info", "generation.investigation.skipped_no_signals", {
-				organization_id: input.organizationId,
-				website_id: input.websiteId,
-				duration_ms: Math.round(performance.now() - startedAt),
-			});
-		}
+		emitInsightsEvent("info", "generation.investigation.skipped_no_signals", {
+			organization_id: input.organizationId,
+			website_id: input.websiteId,
+			duration_ms: Math.round(performance.now() - startedAt),
+		});
 		return {
 			artifact: emptyInvestigationArtifact({ asOf, status: "no_signals" }),
 			coverage,
@@ -664,24 +758,38 @@ async function discoverWebsiteSignals(
 		observations,
 		asOf.toDate()
 	);
+	const eligibleKeys = new Set(
+		automaticEligibleSignals.map(signalKeyForDetectedSignal)
+	);
+	const detectedKeys = detectedSignals.map(signalKeyForDetectedSignal);
+	emitInsightsEvent("info", "generation.candidate.eligibility", {
+		organization_id: input.organizationId,
+		website_id: input.websiteId,
+		eligible_new: detectedKeys.filter(
+			(key) => eligibleKeys.has(key) && !observations.has(key)
+		),
+		eligible_repeat: detectedKeys.filter(
+			(key) => eligibleKeys.has(key) && observations.has(key)
+		),
+		cooling: detectedKeys.filter(
+			(key) => !eligibleKeys.has(key) && observations.has(key)
+		),
+	});
 	const dueSignalKey = remeasuredDue
 		? signalKeyForDetectedSignal(remeasuredDue)
 		: null;
-	const candidateAutomaticEligibleSignals = automaticEligibleSignals.filter(
-		(signal) =>
-			isInvestigationCandidate(signal) ||
-			signalKeyForDetectedSignal(signal) === dueSignalKey
-	);
+	const isPlannable = (signal: DetectedSignal) =>
+		isInvestigationCandidate(signal) ||
+		signalKeyForDetectedSignal(signal) === dueSignalKey;
+	const candidateAutomaticEligibleSignals =
+		automaticEligibleSignals.filter(isPlannable);
 	const eligibleSignals = options.allowCoolingFallback
-		? detectedSignals.filter(
-				(signal) =>
-					isInvestigationCandidate(signal) ||
-					signalKeyForDetectedSignal(signal) === dueSignalKey
-			)
+		? detectedSignals.filter(isPlannable)
 		: candidateAutomaticEligibleSignals;
 	const hasDetectedCandidate = detectedSignals.some(isInvestigationCandidate);
 	const hasPlannableCandidate = eligibleSignals.length > 0;
-	const hasUnmeasuredDue = due !== null && remeasuredDue === null;
+	const hasUnmeasuredDue =
+		due !== null && remeasuredDue === null && !retiredDue;
 	if (
 		(hasUnmeasuredDue && !hasPlannableCandidate) ||
 		(eligibleSignals.length === 0 && !options.allowCoolingFallback)
@@ -695,20 +803,18 @@ async function discoverWebsiteSignals(
 		);
 		const status =
 			hasUnmeasuredDue || hasDetectedCandidate ? "deferred" : "no_signals";
-		if (runtime.mode === "production") {
-			emitInsightsEvent(
-				"info",
-				status === "deferred"
-					? "generation.investigation.deferred_recheck"
-					: "generation.investigation.skipped_no_actionable_signals",
-				{
-					organization_id: input.organizationId,
-					website_id: input.websiteId,
-					detected_signal_count: detectedSignals.length,
-					duration_ms: Math.round(performance.now() - startedAt),
-				}
-			);
-		}
+		emitInsightsEvent(
+			"info",
+			status === "deferred"
+				? "generation.investigation.deferred_recheck"
+				: "generation.investigation.skipped_no_actionable_signals",
+			{
+				organization_id: input.organizationId,
+				website_id: input.websiteId,
+				detected_signal_count: detectedSignals.length,
+				duration_ms: Math.round(performance.now() - startedAt),
+			}
+		);
 		return {
 			artifact: emptyInvestigationArtifact({ asOf, status }),
 			coverage,
@@ -753,18 +859,16 @@ async function investigatePlannedCandidate(
 	const startedAt = performance.now();
 	const asOf = normalizeAsOf(input.asOf, input.timezone);
 	if (runtime.canRunAgent && !(await runtime.canRunAgent())) {
-		if (runtime.mode === "production") {
-			emitInsightsEvent(
-				"info",
-				"generation.investigation.deferred_agent_access",
-				{
-					organization_id: input.organizationId,
-					website_id: input.websiteId,
-					detected_signal_count: relatedSignals.length + 1,
-					duration_ms: Math.round(performance.now() - startedAt),
-				}
-			);
-		}
+		emitInsightsEvent(
+			"info",
+			"generation.investigation.deferred_agent_access",
+			{
+				organization_id: input.organizationId,
+				website_id: input.websiteId,
+				detected_signal_count: relatedSignals.length + 1,
+				duration_ms: Math.round(performance.now() - startedAt),
+			}
+		);
 		return emptyInvestigationArtifact({ asOf, status: "deferred" });
 	}
 	let evidence = [...candidate.evidence];
@@ -784,13 +888,11 @@ async function investigatePlannedCandidate(
 					websiteId: input.websiteId,
 				})
 				.catch((error) => {
-					if (runtime.mode === "production") {
-						captureInsightsError(error, "generation.customer_impact.failed", {
-							organization_id: input.organizationId,
-							signal_key: candidate.signal.signalKey,
-							website_id: input.websiteId,
-						});
-					}
+					captureInsightsError(error, "generation.customer_impact.failed", {
+						organization_id: input.organizationId,
+						signal_key: candidate.signal.signalKey,
+						website_id: input.websiteId,
+					});
 					return null;
 				}),
 			runtime.sources
@@ -800,17 +902,15 @@ async function investigatePlannedCandidate(
 					websiteId: input.websiteId,
 				})
 				.catch((error) => {
-					if (runtime.mode === "production") {
-						captureInsightsError(
-							error,
-							"generation.route_vital_continuation.failed",
-							{
-								organization_id: input.organizationId,
-								signal_key: candidate.signal.signalKey,
-								website_id: input.websiteId,
-							}
-						);
-					}
+					captureInsightsError(
+						error,
+						"generation.route_vital_continuation.failed",
+						{
+							organization_id: input.organizationId,
+							signal_key: candidate.signal.signalKey,
+							website_id: input.websiteId,
+						}
+					);
 					return null;
 				}),
 		]);
@@ -825,7 +925,7 @@ async function investigatePlannedCandidate(
 		evidence = [...evidence, annotation];
 	}
 	const appContext: AppContext = {
-		userId: input.userId ?? "system",
+		userId: input.userId,
 		organizationId: input.organizationId,
 		websiteId: input.websiteId,
 		defaultWebsiteId: input.websiteId,
@@ -838,12 +938,14 @@ async function investigatePlannedCandidate(
 		websiteName: input.name ?? null,
 	};
 	const [history, otherOpenWork] = await Promise.all([
-		runtime.sources.loadHistory({
-			organizationId: input.organizationId,
-			signalKey: candidate.signal.signalKey,
-			through: asOf.toDate(),
-			websiteId: input.websiteId,
-		}),
+		runtime.history
+			? Promise.resolve(runtime.history)
+			: runtime.sources.loadHistory({
+					organizationId: input.organizationId,
+					signalKey: candidate.signal.signalKey,
+					through: asOf.toDate(),
+					websiteId: input.websiteId,
+				}),
 		runtime.sources.loadOtherOpenWork({
 			organizationId: input.organizationId,
 			signalKey: candidate.signal.signalKey,
@@ -855,6 +957,9 @@ async function investigatePlannedCandidate(
 	try {
 		investigationResult = await runtime.sources.investigateSignal({
 			appContext,
+			...(candidate.businessContext
+				? { businessContext: candidate.businessContext }
+				: {}),
 			customerImpact,
 			evidence,
 			githubRepository: input.githubRepository ?? null,
@@ -863,6 +968,7 @@ async function investigatePlannedCandidate(
 				: {}),
 			history,
 			otherOpenWork: [...otherOpenWork, ...siblingOpenWork],
+			investigationObjective: candidate.investigationObjective,
 			relatedSignals,
 			signal: candidate.signal,
 		});
@@ -873,15 +979,13 @@ async function investigatePlannedCandidate(
 				usage: error.usage,
 			});
 		}
-		if (runtime.mode === "production") {
-			captureInsightsError(error, "generation.agent.failed", {
-				organization_id: input.organizationId,
-				website_id: input.websiteId,
-				duration_ms: Math.round(performance.now() - startedAt),
-				error_type:
-					error instanceof Error ? error.constructor.name : typeof error,
-			});
-		}
+		captureInsightsError(error, "generation.agent.failed", {
+			organization_id: input.organizationId,
+			website_id: input.websiteId,
+			duration_ms: Math.round(performance.now() - startedAt),
+			error_type:
+				error instanceof Error ? error.constructor.name : typeof error,
+		});
 		throw error;
 	}
 	if (investigationResult.modelId && investigationResult.usage) {
@@ -890,52 +994,237 @@ async function investigatePlannedCandidate(
 			usage: investigationResult.usage,
 		});
 	}
-	if (runtime.mode === "production") {
-		emitInsightsEvent("info", "generation.agent.completed", {
-			organization_id: input.organizationId,
-			website_id: input.websiteId,
-			duration_ms: Math.round(performance.now() - startedAt),
-			next: investigationResult.outcome.next.type,
-			output_count: 1,
-			evidence_count: evidence.length,
-			tool_call_count: investigationResult.toolCallCount,
-		});
-		setInsightsLog({
-			generation_mode: "agent",
-			generated_candidate_count: 1,
-			tool_call_count: investigationResult.toolCallCount,
-		});
-	}
+	emitInsightsEvent("info", "generation.agent.completed", {
+		organization_id: input.organizationId,
+		website_id: input.websiteId,
+		duration_ms: Math.round(performance.now() - startedAt),
+		next: investigationResult.outcome.next.type,
+		output_count: 1,
+		evidence_count: evidence.length,
+		tool_call_count: investigationResult.toolCallCount,
+	});
+	setInsightsLog({
+		generation_mode: "agent",
+		generated_candidate_count: 1,
+		tool_call_count: investigationResult.toolCallCount,
+	});
 	return {
 		asOf: asOf.toISOString(),
 		evidence,
-		outcome: investigationResult.outcome,
+		completion: investigationResult.completion,
+		snapshot: investigationResult.snapshot,
+		outcome: withBusinessContextSnapshot(
+			investigationResult.outcome,
+			candidate.businessContext
+		),
 		signal: candidate.signal,
 		status: "completed",
 	};
 }
 
-function plannedPortfolio(
-	discovery: WebsiteSignalDiscovery,
-	reason: InsightGenerationReason
-): PlannedInvestigationCandidate[] {
-	const manual = reason === "manual";
-	const eligibleSignalKeys = new Set(
-		discovery.automaticEligibleSignals.map(signalKeyForDetectedSignal)
-	);
-	return planCoveragePortfolio(
-		discovery.eligibleSignals.filter(
-			(signal) =>
-				isInvestigationCandidate(signal) ||
-				signalKeyForDetectedSignal(signal) === discovery.dueSignalKey
-		),
-		{
-			dueSignalKey: discovery.dueSignalKey,
-			preferredSignalKeys: manual ? eligibleSignalKeys : undefined,
-			reason,
-		}
-	).map(toPlannedCandidate);
+function portfolioOptions(
+	reason: InsightGenerationReason,
+	discovery: WebsiteSignalDiscovery
+): CoveragePortfolioOptions {
+	return {
+		reason,
+		dueSignalKey: discovery.dueSignalKey,
+		preferredSignalKeys:
+			reason === "manual"
+				? new Set(
+						discovery.automaticEligibleSignals.map(signalKeyForDetectedSignal)
+					)
+				: undefined,
+	};
 }
+
+export async function planInvestigationsWithBusinessContext(
+	input: InvestigateWebsiteInput,
+	signals: DetectedSignal[],
+	sources: Pick<
+		InvestigationSources,
+		| "loadBusinessProfile"
+		| "recallBusinessContext"
+		| "selectCandidates"
+		| "rankBusinessContext"
+	>,
+	allowRefresh: boolean,
+	scope: BusinessScope | null = {
+		organizationId: input.organizationId,
+		websiteId: input.websiteId,
+		domain: input.domain,
+	},
+	options: CoveragePortfolioOptions = { reason: "manual" }
+): Promise<PlannedInvestigationCandidate[]> {
+	let candidates = planCoveragePortfolio(signals, options).map(
+		toPlannedCandidate
+	);
+	if (candidates.length === 0) {
+		return candidates;
+	}
+	const asOf = allowRefresh
+		? new Date()
+		: normalizeAsOf(input.asOf, input.timezone).toDate();
+	if (!scope) {
+		return candidates.map((candidate) => ({
+			...candidate,
+			businessContext: {
+				capturedAt: asOf.toISOString(),
+				status: "unavailable",
+				sources: [],
+				issues: ["Current website business scope could not be established."],
+			},
+		}));
+	}
+	const disabled: BusinessContext = {
+		capturedAt: asOf.toISOString(),
+		status: "disabled",
+		sources: [],
+		issues: [],
+	};
+	const profile = sources.loadBusinessProfile
+		? await sources
+				.loadBusinessProfile({ scope, asOf, allowRefresh })
+				.then((context) => businessContextSchema.parse(context))
+				.catch((error) => unavailableBusinessContext(error, scope, asOf))
+		: disabled;
+	// The shared profile already contains bounded, scoped PostgreSQL team replies.
+	// Only selected subjects incur recall, analytics enrichment and investigation loops.
+	// Descriptive context, priorities, exclusions or replies can change what matters.
+	// Only a standalone saved measurement can skip contextual selection safely.
+	const plannedKeys = profile.sources.every((source) =>
+		source.id.startsWith("organization-measurement-plan:")
+	)
+		? signals
+				.filter((signal) => signal.metric === "identified_retention")
+				.map(signalKeyForDetectedSignal)
+		: [];
+
+	if (plannedKeys.length) {
+		// A saved exact measurement already supplies the question; preserve critical
+		// reliability and due work without spending a model call to rediscover it.
+		candidates = planCoveragePortfolio(signals, {
+			...options,
+			selectedSignalKeys: plannedKeys,
+		}).map(toPlannedCandidate);
+	}
+	const protectedCount = candidates.filter(
+		(candidate) =>
+			candidate.signal.signalKey === options.dueSignalKey ||
+			(candidate.signal.severity === "critical" &&
+				candidate.signal.sentiment === "negative" &&
+				portfolioFamilyForInvestigationSignal(candidate.signal) ===
+					"reliability")
+	).length;
+	if (
+		sources.selectCandidates &&
+		plannedKeys.length === 0 &&
+		profile.sources.length > 0 &&
+		(profile.status === "ready" || profile.status === "partial") &&
+		signals.length > 1 &&
+		protectedCount < coveragePortfolioLimit(options.reason)
+	) {
+		const started = performance.now();
+		try {
+			const result = await sources.selectCandidates({
+				businessContext: profile,
+				limit: coveragePortfolioLimit(options.reason),
+				candidates: signals.map((signal) => ({
+					signal: toPlannedCandidate(signal).signal,
+					definition: signal.definitionEvidence,
+					investigationObjective: signal.investigationObjective,
+				})),
+			});
+			if (result) {
+				const { selections } = investigationSelectionSchema(
+					signals.map(signalKeyForDetectedSignal),
+					coveragePortfolioLimit(options.reason)
+				).parse(result.output);
+				const objectives = new Map(
+					selections.map((item) => [item.signalKey, item.objective])
+				);
+				const fallbackCount = candidates.length;
+				candidates = planCoveragePortfolio(signals, {
+					...options,
+					selectedSignalKeys: [...objectives.keys()],
+				}).map((signal) => {
+					const hypothesis = objectives.get(signalKeyForDetectedSignal(signal));
+					return {
+						...toPlannedCandidate(signal),
+						investigationObjective:
+							[
+								signal.investigationObjective,
+								hypothesis && `Unverified planning hypothesis: ${hypothesis}`,
+							]
+								.filter(Boolean)
+								.join("\n") || undefined,
+					};
+				});
+				emitInsightsEvent("info", "generation.candidate_portfolio.selected", {
+					organization_id: input.organizationId,
+					website_id: input.websiteId,
+					duration_ms: Math.round(performance.now() - started),
+					selection_model_calls: 1,
+					selection_input_tokens: result.usage.inputTokens,
+					selection_output_tokens: result.usage.outputTokens,
+					candidate_count: candidates.length,
+					investigations_avoided: fallbackCount - candidates.length,
+				});
+			}
+		} catch (error) {
+			captureInsightsError(
+				error,
+				"generation.candidate_portfolio.selection_fallback",
+				{
+					organization_id: input.organizationId,
+					website_id: input.websiteId,
+				}
+			);
+		}
+	}
+
+	// Fresh production context has its own capture time. Keep plan.asOf for
+	// analytics windows; historical injected sources retain their frozen cutoff.
+	const recalledAt = allowRefresh ? new Date() : asOf;
+	return await Promise.all(
+		candidates.map(async (candidate) => {
+			const query = [
+				candidate.signal.signalKey,
+				candidate.signal.entity.type,
+				candidate.signal.entity.id,
+				candidate.signal.entity.label,
+				candidate.investigationObjective,
+			]
+				.filter(Boolean)
+				.join("\n");
+			const related = sources.recallBusinessContext
+				? await sources
+						.recallBusinessContext({
+							scope,
+							allowWrite: allowRefresh,
+							asOf: recalledAt,
+							subjectKey: candidate.signal.signalKey,
+							query,
+						})
+						.then((context) => businessContextSchema.parse(context))
+						.catch((error) =>
+							unavailableBusinessContext(error, scope, recalledAt)
+						)
+				: disabled;
+			return {
+				...candidate,
+				businessContext: sources.rankBusinessContext
+					? await sources.rankBusinessContext({
+							contexts: [profile, related],
+							query,
+							subjectKey: candidate.signal.signalKey,
+						})
+					: mergeBusinessContext(profile, related),
+			};
+		})
+	);
+}
+
 async function runPlannedCandidatePortfolio(params: {
 	candidates: PlannedInvestigationCandidate[];
 	completedSignalKeys: ReadonlySet<string>;
@@ -969,6 +1258,8 @@ async function runPlannedCandidatePortfolio(params: {
 		throw firstCandidateFailure;
 	}
 }
+// Shadow callers must inject both business context and selection explicitly;
+// missing sources never fall through to live profile, memory or model calls.
 export async function investigateWebsitePortfolioWithSources(
 	input: InvestigateWebsiteInput,
 	sources: InvestigationSources,
@@ -988,7 +1279,14 @@ export async function investigateWebsitePortfolioWithSources(
 		onCoverage?.(discovered.coverage);
 		return [discovered.artifact];
 	}
-	const candidates = plannedPortfolio(discovered.value, reason);
+	const candidates = await planInvestigationsWithBusinessContext(
+		input,
+		discovered.value.eligibleSignals,
+		sources,
+		false,
+		undefined,
+		portfolioOptions(reason, discovered.value)
+	);
 	if (candidates.length === 0) {
 		onCoverage?.({
 			...discovered.value.coverage,
@@ -1058,9 +1356,22 @@ export async function generateWebsiteInsights(
 		runId: input.runId,
 		websiteId: input.websiteId,
 	};
+	let settlementError: unknown;
+	try {
+		await settleRunInvestigationCharges({
+			organizationId: input.organizationId,
+			runId: input.runId,
+			websiteId: input.websiteId,
+		});
+	} catch (error) {
+		settlementError = error;
+	}
 	const prepared = await loadPreparedInsightRun(runIdentity);
 	if (prepared) {
 		await drainInsightRunEffects(runIdentity, input.finalAttempt);
+		if (settlementError) {
+			throw settlementError;
+		}
 		return prepared;
 	}
 	const [site] = await db
@@ -1069,6 +1380,7 @@ export async function generateWebsiteInsights(
 			name: websites.name,
 			domain: websites.domain,
 			integrations: websites.integrations,
+			settings: websites.settings,
 		})
 		.from(websites)
 		.where(
@@ -1113,29 +1425,51 @@ export async function generateWebsiteInsights(
 		userId: input.requestedByUserId ?? undefined,
 		websiteId: site.id,
 	};
-	let plan = await loadInsightRunCandidatePlan(runIdentity, input.reason);
-	if (!plan && existingObservations.length > 0) {
-		// A run created before candidate portfolios existed can contain at most
-		// one observation. Freeze that completed legacy work explicitly rather
-		// than silently treating a missing plan as a completed new portfolio.
-		plan = await freezeInsightRunCandidatePlan(runIdentity, input.reason, {
-			asOf: new Date().toISOString(),
-			candidates: existingObservations.map((observation) => ({
-				evidence: [],
-				signal: observation.signal,
-			})),
-		});
-		emitInsightsEvent(
-			"info",
-			"generation.candidate_portfolio.legacy_reconciled",
-			{
+	let businessScope = canonicalBusinessScope({
+		organizationId: input.organizationId,
+		websiteId: site.id,
+		domain: site.domain,
+		startedAt: site.settings?.businessContextStartedAt,
+	});
+	let billingCheckError: unknown;
+	let billing: InvestigationBilling | null = null;
+	let noCredits = false;
+	const canRunAgent = async () => {
+		try {
+			billing ??= await resolveInvestigationBilling({
+				organizationId: input.organizationId,
+				userId: input.requestedByUserId,
+			});
+			noCredits = !(await canRunInvestigation(billing));
+			return !noCredits;
+		} catch (error) {
+			billingCheckError = error;
+			noCredits = false;
+			captureInsightsError(error, "generation.billing_check.failed", {
 				organization_id: input.organizationId,
 				website_id: site.id,
 				run_id: input.runId,
-				candidate_count: plan.candidates.length,
-			}
-		);
-	}
+			});
+			return false;
+		}
+	};
+	const recordUsage = (
+		usage: Required<Pick<InsightAgentResult, "modelId" | "usage">>
+	) =>
+		trackAgentUsage({
+			modelId: usage.modelId,
+			usage: usage.usage,
+			organizationId: input.organizationId,
+			source: "insights",
+			userId: input.requestedByUserId,
+			websiteId: site.id,
+		});
+	let plan = await loadInsightRunCandidatePlan(
+		runIdentity,
+		input.reason,
+		businessScope
+	);
+
 	let discoveredCoverage: InvestigationCoverage | null = null;
 	if (!plan) {
 		const discovered = await discoverWebsiteSignals(
@@ -1146,45 +1480,60 @@ export async function generateWebsiteInsights(
 			},
 			{ allowCoolingFallback: input.reason === "manual" }
 		);
+		discoveredCoverage =
+			discovered.kind === "empty"
+				? discovered.coverage
+				: discovered.value.coverage;
+		emitInvestigationCoverage({
+			coverage: discoveredCoverage,
+			organizationId: input.organizationId,
+			phase: "discovery",
+			runId: input.runId,
+			stages: ["detected", "eligible"],
+			websiteId: site.id,
+		});
 		if (discovered.kind === "empty") {
-			discoveredCoverage = discovered.coverage;
-			emitInvestigationCoverage({
-				coverage: discovered.coverage,
-				organizationId: input.organizationId,
-				phase: "discovery",
-				runId: input.runId,
-				stages: ["detected", "eligible"],
-				websiteId: site.id,
-			});
-			if (
-				discovered.artifact.status !== "deferred" &&
-				discovered.artifact.status !== "no_signals"
-			) {
-				throw new Error(
-					"An empty investigation discovery had an invalid status"
-				);
-			}
 			plan = await freezeInsightRunCandidatePlan(runIdentity, input.reason, {
 				asOf: discovered.artifact.asOf,
 				candidates: [],
 				emptyStatus: discovered.artifact.status,
 			});
 		} else {
-			discoveredCoverage = discovered.value.coverage;
-			emitInvestigationCoverage({
-				coverage: discovered.value.coverage,
-				organizationId: input.organizationId,
-				phase: "discovery",
-				runId: input.runId,
-				stages: ["detected", "eligible"],
-				websiteId: site.id,
-			});
-			const selectedCandidates = plannedPortfolio(
-				discovered.value,
-				input.reason
+			const currentScope = discovered.value.eligibleSignals.length
+				? await loadCurrentBusinessScope(businessScope, true)
+				: null;
+			businessScope = currentScope ?? businessScope;
+			const selectedCandidates = await planInvestigationsWithBusinessContext(
+				investigationInput,
+				discovered.value.eligibleSignals,
+				{
+					...productionInvestigationSources,
+					rankBusinessContext: (rankingInput) =>
+						rankInvestigationBusinessContext({
+							...rankingInput,
+							canRun: canRunAgent,
+							onUsage: (usage) => {
+								recordUsage(usage);
+							},
+						}),
+					selectCandidates: async (selectionInput) => {
+						if (!(await canRunAgent())) {
+							return null;
+						}
+						const result = await chooseInvestigationSignals(selectionInput);
+						if (result) {
+							recordUsage(result);
+						}
+						return result;
+					},
+				},
+				true,
+				currentScope,
+				portfolioOptions(input.reason, discovered.value)
 			);
 			plan = await freezeInsightRunCandidatePlan(runIdentity, input.reason, {
 				asOf: discovered.value.asOf.toISOString(),
+				businessScope,
 				candidates: selectedCandidates,
 				...(selectedCandidates.length === 0
 					? { emptyStatus: "no_signals" as const }
@@ -1199,7 +1548,7 @@ export async function generateWebsiteInsights(
 			});
 		}
 	}
-	if (plan && discoveredCoverage) {
+	if (discoveredCoverage) {
 		emitInvestigationCoverage({
 			coverage: {
 				...discoveredCoverage,
@@ -1214,10 +1563,9 @@ export async function generateWebsiteInsights(
 			websiteId: site.id,
 		});
 	}
-	const emptyStatus = plan?.emptyStatus ?? null;
-	let billingCheckError: unknown;
-	let billingCustomerId: string | null = null;
-	let noCredits = false;
+	const emptyStatus = plan.emptyStatus ?? null;
+	// These keys account for durable terminal observations in this run.
+	// Completed results retain their native evidence snapshot for replay.
 	const completedSignalKeys = new Set(
 		existingObservations.map((observation) => observation.signal.signalKey)
 	);
@@ -1231,7 +1579,7 @@ export async function generateWebsiteInsights(
 	): void => {
 		emitInvestigationCoverage({
 			coverage: portfolioExecutionCoverage(
-				plan?.candidates ?? [],
+				plan.candidates,
 				completedSignalKeys,
 				publishedSignalKeys
 			),
@@ -1298,146 +1646,181 @@ export async function generateWebsiteInsights(
 
 	await enqueueInterruptingEffects(interruptingInvestigations);
 	try {
-		if (plan) {
-			const frozenInput = { ...investigationInput, asOf: plan.asOf };
-			await runPlannedCandidatePortfolio({
-				candidates: plan.candidates,
-				completedSignalKeys,
-				runCandidate: async (plannedCandidate, relatedSignals) => {
-					if (noCredits) {
+		const frozenInput = { ...investigationInput, asOf: plan.asOf };
+		await runPlannedCandidatePortfolio({
+			candidates: plan.candidates,
+			completedSignalKeys,
+			runCandidate: async (plannedCandidate, relatedSignals) => {
+				if (plan.businessScope?.startedAt) {
+					await loadCurrentBusinessScope(plan.businessScope);
+				}
+				// Freeze the history used by the native deterministic continuation.
+				// Rechecking its exact saved condition is included, even on a manual scan.
+				const history = ["goal", "funnel"].includes(
+					plannedCandidate.signal.entity.type
+				)
+					? await productionInvestigationSources.loadHistory({
+							organizationId: input.organizationId,
+							signalKey: plannedCandidate.signal.signalKey,
+							through: new Date(plan.asOf),
+							websiteId: site.id,
+						})
+					: undefined;
+				const included = Boolean(
+					history &&
+						savedVerificationCheck({
+							history,
+							signal: plannedCandidate.signal,
+						})
+				);
+				if (noCredits && !included) {
+					return;
+				}
+				const operation = {
+					organizationId: input.organizationId,
+					websiteId: site.id,
+					operationKey: JSON.stringify([
+						"run",
+						input.runId,
+						site.id,
+						plannedCandidate.signal.signalKey,
+					]),
+				};
+				let charge: Awaited<
+					ReturnType<typeof reserveInvestigationCharge>
+				> | null = null;
+				if (!included) {
+					try {
+						billing ??= await resolveInvestigationBilling({
+							organizationId: input.organizationId,
+							userId: input.requestedByUserId,
+						});
+						charge = await reserveInvestigationCharge({
+							...operation,
+							billing,
+							startedAt: new Date(plan.asOf),
+						});
+					} catch (error) {
+						// Included continuations can still finish; report the unpaid
+						// fresh work as a partial failure after the portfolio runs.
+						billingCheckError = error;
+						noCredits = true;
 						return;
 					}
-					const usageIdempotencyKey = `insights:${input.runId}:${site.id}:${randomUUIDv7()}`;
-					const agentUsage: {
-						value: Required<
-							Pick<InsightAgentResult, "modelId" | "usage">
-						> | null;
-					} = { value: null };
-					try {
-						const analysis = await investigatePlannedCandidate(
-							frozenInput,
-							plannedCandidate,
-							relatedSignals,
-							{
-								canRunAgent: async () => {
-									if (!isAgentBillingConfigured()) {
-										return true;
-									}
-									try {
-										billingCustomerId = await resolveAgentBillingCustomerId({
-											organizationId: input.organizationId,
-											userId: input.requestedByUserId,
-										});
-										noCredits =
-											!(await ensureAgentCreditsAvailable(billingCustomerId));
-										return !noCredits;
-									} catch (error) {
-										billingCheckError = error;
-										noCredits = false;
-										captureInsightsError(
-											error,
-											"generation.billing_check.failed",
-											{
-												organization_id: input.organizationId,
-												website_id: site.id,
-												run_id: input.runId,
-											}
-										);
-										return false;
-									}
-								},
-								mode: "production",
-								sources: productionInvestigationSources,
-								onUsage: (usage) => {
-									agentUsage.value = usage;
-								},
+				}
+				let outcomeSaved = false;
+				const agentUsage: {
+					value: Required<Pick<InsightAgentResult, "modelId" | "usage">> | null;
+				} = { value: null };
+				try {
+					const analysis = await investigatePlannedCandidate(
+						frozenInput,
+						plannedCandidate,
+						relatedSignals,
+						{
+							mode: "production",
+							history,
+							sources: productionInvestigationSources,
+							onUsage: (usage) => {
+								agentUsage.value = usage;
 							},
-							siblingOpenWork
+						},
+						siblingOpenWork
+					);
+					if (!(analysis.outcome && analysis.signal)) {
+						if (noCredits) {
+							return;
+						}
+						throw (
+							billingCheckError ??
+							new Error(
+								"Insight agent access is unavailable before the candidate portfolio is complete"
+							)
 						);
-						if (!(analysis.outcome && analysis.signal)) {
-							if (noCredits) {
-								return;
-							}
-							throw (
-								billingCheckError ??
-								new Error(
-									noCredits
-										? "AI usage allowance is empty"
-										: "Insight agent access is unavailable before the candidate portfolio is complete"
-								)
-							);
-						}
-						const candidate: WebsiteInvestigation = {
-							id: randomUUIDv7(),
-							outcome: analysis.outcome,
-							signal: analysis.signal,
-							websiteDomain: site.domain,
-							websiteId: site.id,
-							websiteName: site.name,
-						};
-						const asOf = new Date(analysis.asOf);
-						const saved = await persistInvestigation({
-							evidence: analysis.evidence,
-							investigation: candidate,
-							notNewerThan: asOf,
-							organizationId: input.organizationId,
-							recheckAt: nextRecheckAt(asOf, candidate.outcome.next),
-							runId: input.runId,
-							timezone: input.timezone,
-						});
-						completedSignalKeys.add(candidate.signal.signalKey);
-						if (candidate.outcome.publish) {
-							publishedSignalKeys.add(candidate.signal.signalKey);
-						}
-						outcomes.push(candidate.outcome);
-						const openWorkItem = interruptingOpenWorkItem(
-							analysis.asOf,
-							candidate.outcome
-						);
-						if (openWorkItem) {
-							siblingOpenWork.push(openWorkItem);
-						}
-						if (saved) {
-							interruptingInvestigations.push(saved);
-							await enqueueInterruptingEffects([saved]);
-						}
-					} finally {
-						const billableUsage = agentUsage.value;
-						if (billableUsage) {
-							try {
-								await trackAgentUsageAndBill({
-									billingCustomerId,
-									chatId: `insights:${input.organizationId}:${site.id}:${plannedCandidate.signal.signalKey}`,
-									idempotencyKey: usageIdempotencyKey,
-									modelId: billableUsage.modelId,
-									organizationId: input.organizationId,
-									source: "insights",
-									usage: billableUsage.usage,
-									userId: input.requestedByUserId,
-									websiteId: site.id,
-								});
-							} catch (error) {
-								captureInsightsError(error, "generation.billing.failed", {
-									organization_id: input.organizationId,
-									run_id: input.runId,
-									website_id: site.id,
-								});
-							}
+					}
+					const candidate: WebsiteInvestigation = {
+						id: randomUUIDv7(),
+						outcome: analysis.outcome,
+						signal: analysis.signal,
+						websiteDomain: site.domain,
+						websiteId: site.id,
+						websiteName: site.name,
+					};
+					const asOf = new Date(analysis.asOf);
+					if (charge) {
+						assertInvestigationReservationActive(charge);
+					}
+					const saved = await persistInvestigation({
+						completion: analysis.completion,
+						snapshot: analysis.snapshot,
+						businessScope: plan.businessScope ?? businessScope,
+						evidence: analysis.evidence,
+						investigation: candidate,
+						notNewerThan: asOf,
+						organizationId: input.organizationId,
+						recheckAt: nextRecheckAt(asOf, candidate.outcome.next),
+						runId: input.runId,
+						timezone: input.timezone,
+					});
+					outcomeSaved = true;
+					completedSignalKeys.add(candidate.signal.signalKey);
+					if (candidate.outcome.publish) {
+						publishedSignalKeys.add(candidate.signal.signalKey);
+					}
+					outcomes.push(candidate.outcome);
+					const openWorkItem = interruptingOpenWorkItem(
+						analysis.asOf,
+						candidate.outcome
+					);
+					if (openWorkItem) {
+						siblingOpenWork.push(openWorkItem);
+					}
+					if (saved) {
+						interruptingInvestigations.push(saved);
+						await enqueueInterruptingEffects([saved]);
+					}
+					if (charge?.mode === "fixed") {
+						try {
+							await settleInvestigationCharge({
+								...operation,
+								complete:
+									analysis.completion === "complete" &&
+									analysis.snapshot?.completion === "complete",
+							});
+						} catch (error) {
+							settlementError = error;
 						}
 					}
-				},
-			});
-			if (
-				noCredits &&
-				completedSignalKeys.size > 0 &&
-				plan.candidates.some(
-					(candidate) => !completedSignalKeys.has(candidate.signal.signalKey)
-				)
-			) {
-				throw new Error(
-					"AI usage allowance ran out before the candidate portfolio completed"
-				);
-			}
+				} catch (error) {
+					if (charge && !outcomeSaved) {
+						try {
+							await releaseInvestigationCharge(charge);
+						} catch (releaseError) {
+							captureInsightsError(
+								releaseError,
+								"generation.billing.release_pending",
+								{ charge_id: charge.id }
+							);
+						}
+					}
+					throw error;
+				} finally {
+					if (agentUsage.value) {
+						recordUsage(agentUsage.value);
+					}
+				}
+			},
+		});
+		if (
+			noCredits &&
+			completedSignalKeys.size > 0 &&
+			plan.candidates.some(
+				(candidate) => !completedSignalKeys.has(candidate.signal.signalKey)
+			)
+		) {
+			throw new Error(
+				"AI usage allowance ran out before the candidate portfolio completed"
+			);
 		}
 	} catch (error) {
 		emitExecutionCoverage("partial_failure");
@@ -1445,7 +1828,12 @@ export async function generateWebsiteInsights(
 		throw error;
 	}
 
-	if (billingCheckError) {
+	if (
+		billingCheckError &&
+		plan.candidates.some(
+			(candidate) => !completedSignalKeys.has(candidate.signal.signalKey)
+		)
+	) {
 		emitExecutionCoverage("partial_failure");
 		throw billingCheckError;
 	}
@@ -1483,6 +1871,9 @@ export async function generateWebsiteInsights(
 			run_id: input.runId,
 		});
 		throw error;
+	}
+	if (settlementError) {
+		throw settlementError;
 	}
 	emitInsightsEvent("info", "generation.website.completed", {
 		organization_id: input.organizationId,

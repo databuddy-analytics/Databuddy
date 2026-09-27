@@ -29,13 +29,7 @@ export default function PublicDashboardPage() {
 			<div className="select-none py-8">
 				<EmptyState
 					description="This dashboard is not available or has been set to private."
-					icon={
-						<WarningIcon
-							aria-hidden="true"
-							className="size-12"
-							weight="duotone"
-						/>
-					}
+					icon={<WarningIcon aria-hidden="true" className="size-12" />}
 					title="Dashboard not available"
 				/>
 			</div>

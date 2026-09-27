@@ -372,7 +372,7 @@ export function FlagSheet({
 				<Sheet.Header>
 					<div className="flex items-center gap-4">
 						<div className="flex size-11 items-center justify-center rounded border bg-secondary">
-							<FlagIcon className="size-5 text-primary" weight="fill" />
+							<FlagIcon className="size-5 text-primary" />
 						</div>
 						<div>
 							<Sheet.Title className="text-lg">
@@ -601,7 +601,6 @@ export function FlagSheet({
 																				? "text-primary"
 																				: "text-muted-foreground"
 																		)}
-																		weight="duotone"
 																	/>
 																	<span className="font-medium text-xs">
 																		{option.label}
@@ -747,10 +746,7 @@ export function FlagSheet({
 							<div className="overflow-hidden rounded-md border border-border/60">
 								<Accordion>
 									<Accordion.Trigger>
-										<UsersThreeIcon
-											className="size-4 shrink-0 text-muted-foreground"
-											weight="duotone"
-										/>
+										<UsersThreeIcon className="size-4 shrink-0 text-muted-foreground" />
 										<Text variant="label">Target Groups</Text>
 										{(form.watch("targetGroupIds")?.length ?? 0) > 0 && (
 											<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
@@ -777,10 +773,7 @@ export function FlagSheet({
 							<div className="overflow-hidden rounded-md border border-border/60">
 								<Accordion>
 									<Accordion.Trigger>
-										<UsersIcon
-											className="size-4 shrink-0 text-muted-foreground"
-											weight="duotone"
-										/>
+										<UsersIcon className="size-4 shrink-0 text-muted-foreground" />
 										<Text variant="label">User Targeting</Text>
 										{watchedRules.length > 0 && (
 											<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
@@ -806,10 +799,7 @@ export function FlagSheet({
 							<div className="overflow-hidden rounded-md border border-border/60">
 								<Accordion>
 									<Accordion.Trigger>
-										<GitBranchIcon
-											className="size-4 shrink-0 text-muted-foreground"
-											weight="duotone"
-										/>
+										<GitBranchIcon className="size-4 shrink-0 text-muted-foreground" />
 										<Text variant="label">Dependencies</Text>
 										{watchedDependencies.length > 0 && (
 											<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
@@ -837,10 +827,7 @@ export function FlagSheet({
 							<div className="overflow-hidden rounded-md border border-border/60">
 								<Accordion>
 									<Accordion.Trigger>
-										<CodeIcon
-											className="size-4 shrink-0 text-muted-foreground"
-											weight="duotone"
-										/>
+										<CodeIcon className="size-4 shrink-0 text-muted-foreground" />
 										<Text variant="label">Code</Text>
 									</Accordion.Trigger>
 									<Accordion.Content>

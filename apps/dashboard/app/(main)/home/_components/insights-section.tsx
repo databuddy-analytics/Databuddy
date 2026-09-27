@@ -24,7 +24,7 @@ function EmptyState() {
 	return (
 		<div className="flex items-center gap-3 px-5 py-5">
 			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-				<LightbulbIcon className="size-5 text-primary" weight="duotone" />
+				<LightbulbIcon className="size-5 text-primary" />
 			</div>
 			<div className="min-w-0 flex-1">
 				<p className="font-medium text-foreground text-sm">No insights yet</p>
@@ -39,8 +39,8 @@ function EmptyState() {
 function ErrorState({ onRetryAction }: { onRetryAction: () => void }) {
 	return (
 		<div className="flex items-center gap-3 px-5 py-5">
-			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-500/10">
-				<WarningCircleIcon className="size-5 text-red-500" weight="duotone" />
+			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
+				<WarningCircleIcon className="size-5 text-destructive" />
 			</div>
 			<div className="min-w-0 flex-1">
 				<p className="font-medium text-foreground text-sm">
@@ -93,7 +93,7 @@ function InsightRow({ insight }: { insight: BriefInsight }) {
 			<span
 				className={`flex size-7 shrink-0 items-center justify-center rounded ${tone}`}
 			>
-				<Icon className="size-4" weight="duotone" />
+				<Icon className="size-4" />
 			</span>
 			<span className="min-w-0 flex-1">
 				<span className="block truncate font-medium text-foreground text-sm">
@@ -152,10 +152,7 @@ export function InsightsSection({
 		<Card>
 			<Card.Header className="flex-row items-center justify-between gap-3">
 				<div className="flex min-w-0 flex-1 items-center gap-2">
-					<LightbulbIcon
-						className="size-4 shrink-0 text-primary"
-						weight="duotone"
-					/>
+					<LightbulbIcon className="size-4 shrink-0 text-primary" />
 					<Card.Title className="text-sm">Insights</Card.Title>
 				</div>
 				<Link

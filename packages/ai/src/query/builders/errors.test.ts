@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { SimpleQueryBuilder } from "../simple-builder";
 import { QueryBuilders } from "./index";
 
@@ -78,7 +78,9 @@ describe("error customer impact query", () => {
 			"Failed to fetch dynamically imported module"
 		);
 		const config = QueryBuilders.error_customer_impact;
-		const outputFields = config?.meta?.output_fields?.map((field) => field.name);
+		const outputFields = config?.meta?.output_fields?.map(
+			(field) => field.name
+		);
 
 		expect(sql).toContain("matched_errors AS");
 		expect(sql).toContain("identity_rows AS");

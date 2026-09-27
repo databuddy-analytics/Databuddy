@@ -1,9 +1,12 @@
 "use client";
 
+import { APP_EVENTS } from "@databuddy/shared/custom-events";
+import { trackAppEvent } from "@/lib/app-events";
 import { authClient } from "@databuddy/auth/client";
 import { useMutation } from "@tanstack/react-query";
-import { QRCodeSVG } from "qrcode.react";
+import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
+import { QRCode } from "react-qrcode-logo";
 import { toast } from "sonner";
 import { setPasswordForOAuthUser } from "@/app/actions/users";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
@@ -38,6 +41,9 @@ interface TwoFactorDialogProps {
 
 const MIN_PASSWORD_LENGTH = 8;
 const TOTP_SECRET_REGEX = /secret=([A-Z2-7]+)/i;
+const QR_SIZE = 160;
+const QR_FOREGROUND_DARK = "#e7e8eb";
+const QR_FOREGROUND_LIGHT = "#27282d";
 
 function extractSecretFromTotpUri(uri: string): string {
 	const match = uri.match(TOTP_SECRET_REGEX);
@@ -61,6 +67,7 @@ export function TwoFactorDialog({
 		return "password";
 	}, [isEnabled, hasCredentialAccount]);
 
+	const { resolvedTheme } = useTheme();
 	const [step, setStep] = useState<TwoFactorStep>(initialStep);
 	const [password, setPassword] = useState("");
 	const [newPassword, setNewPassword] = useState("");
@@ -120,18 +127,19 @@ export function TwoFactorDialog({
 
 	const enableMutation = useMutation({
 		mutationFn: async () => {
-			const result = await authClient.twoFactor.enable({ password });
+			const result = await authClient.twoFactor.enable({
+				method: "totp",
+				password,
+			});
 			if (result.error) {
 				throw new Error(result.error.message);
 			}
 			return result.data;
 		},
 		onSuccess: (data) => {
-			if (data?.totpURI) {
+			if (data?.method === "totp") {
 				setTotpUri(data.totpURI);
 				setSecret(extractSecretFromTotpUri(data.totpURI));
-			}
-			if (data?.backupCodes) {
 				setBackupCodes(data.backupCodes);
 			}
 			setStep("setup");
@@ -149,6 +157,7 @@ export function TwoFactorDialog({
 			return result.data;
 		},
 		onSuccess: () => {
+			trackAppEvent(APP_EVENTS.twoFactorEnabled);
 			toast.success("Two-factor authentication enabled!");
 			setStep("backup");
 			onSuccess();
@@ -164,6 +173,7 @@ export function TwoFactorDialog({
 			return result.data;
 		},
 		onSuccess: () => {
+			trackAppEvent(APP_EVENTS.twoFactorDisabled);
 			toast.success("Two-factor authentication disabled");
 			onSuccess();
 			onOpenChange(false);
@@ -316,11 +326,16 @@ export function TwoFactorDialog({
 
 						<Dialog.Body className="space-y-4">
 							<div className="flex justify-center rounded-md border border-border/60 p-4">
-								<QRCodeSVG
+								<QRCode
 									bgColor="transparent"
-									fgColor="currentColor"
-									level="M"
-									size={160}
+									ecLevel="M"
+									fgColor={
+										resolvedTheme === "dark"
+											? QR_FOREGROUND_DARK
+											: QR_FOREGROUND_LIGHT
+									}
+									quietZone={0}
+									size={QR_SIZE}
 									value={totpUri}
 								/>
 							</div>
@@ -331,10 +346,7 @@ export function TwoFactorDialog({
 									onClick={() => setShowSecret(!showSecret)}
 									type="button"
 								>
-									<DeviceMobileIcon
-										className="size-4 text-muted-foreground"
-										weight="duotone"
-									/>
+									<DeviceMobileIcon className="size-4 text-muted-foreground" />
 									<span className="flex-1 text-muted-foreground">
 										Can't scan? Enter code manually
 									</span>

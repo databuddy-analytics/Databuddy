@@ -59,8 +59,16 @@ describe("parseReferrer", () => {
 
 	it.each([
 		["same host", "https://app.example.com/page", "app.example.com"],
-		["subdomain of current domain", "https://staging.example.com/x", "example.com"],
-		["current domain given as URL", "https://example.com/page", "https://example.com"],
+		[
+			"subdomain of current domain",
+			"https://staging.example.com/x",
+			"example.com",
+		],
+		[
+			"current domain given as URL",
+			"https://example.com/page",
+			"https://example.com",
+		],
 		["localhost", "http://localhost:3000/", null],
 		["loopback", "http://127.0.0.1:3000/", null],
 	])("treats internal navigation as direct (%s)", (_label, url, domain) => {
@@ -70,9 +78,9 @@ describe("parseReferrer", () => {
 	});
 
 	it("does not treat lookalike domains as internal", () => {
-		expect(parseReferrer("https://notexample.com/page", "example.com").type).toBe(
-			"unknown"
-		);
+		expect(
+			parseReferrer("https://notexample.com/page", "example.com").type
+		).toBe("unknown");
 	});
 
 	it("labels unparseable non-URL values as unknown with the raw value", () => {
@@ -91,9 +99,9 @@ describe("parseReferrer", () => {
 
 describe("isInternalReferrer", () => {
 	it("flags same-site and subdomain referrers", () => {
-		expect(
-			isInternalReferrer("https://example.com/page", "example.com")
-		).toBe(true);
+		expect(isInternalReferrer("https://example.com/page", "example.com")).toBe(
+			true
+		);
 		expect(
 			isInternalReferrer("https://app.example.com/page", "example.com")
 		).toBe(true);

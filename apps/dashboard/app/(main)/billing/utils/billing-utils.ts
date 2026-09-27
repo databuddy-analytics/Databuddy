@@ -28,7 +28,8 @@ export function calculateOverageCost(
 	return (
 		calculateGraduatedOverageCost(
 			overageInfo.overageEvents,
-			overageInfo.pricingTiers
+			overageInfo.pricingTiers,
+			overageInfo.includedEvents
 		) * ratio
 	);
 }

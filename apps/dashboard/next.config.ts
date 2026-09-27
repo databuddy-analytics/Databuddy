@@ -1,4 +1,5 @@
 import path from "node:path";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import type { NextConfig } from "next";
 
 function joinCspSources(...sources: (string | false)[]): string {
@@ -13,7 +14,36 @@ const demoFrameAncestorSources = [
 	"https://staging.databuddy.cc",
 ] as const;
 
+const apiProxyUrl = readBooleanEnv("SELFHOST")
+	? process.env.API_PROXY_URL?.trim()
+	: undefined;
+const e2eDevelopmentBuild =
+	readBooleanEnv("DATABUDDY_E2E_SERVE_BUILD") &&
+	process.env.NODE_ENV === "development";
+
 const nextConfig: NextConfig = {
+	async rewrites() {
+		if (!apiProxyUrl) {
+			return [];
+		}
+		return ["/rpc/:path*", "/v1/:path*"].map((source) => ({
+			source,
+			destination: new URL(source, apiProxyUrl).href,
+		}));
+	},
+	experimental: {
+		...(apiProxyUrl ? { proxyTimeout: 600_000 } : {}),
+		...(e2eDevelopmentBuild ? { allowDevelopmentBuild: true } : {}),
+	},
+	env: {
+		...(apiProxyUrl && process.env.NEXT_PUBLIC_APP_URL
+			? { NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_APP_URL }
+			: {}),
+		NEXT_PUBLIC_SELFHOST: String(readBooleanEnv("SELFHOST")),
+		NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID: readBooleanEnv("SELFHOST")
+			? ""
+			: process.env.NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID,
+	},
 	outputFileTracingRoot: path.join(process.cwd(), "../.."),
 	outputFileTracingIncludes: {
 		"/dby/og": ["./fonts/lt-superior/*.otf"],
@@ -56,7 +86,17 @@ const nextConfig: NextConfig = {
 		],
 	},
 	transpilePackages: [],
-	output: "standalone",
+	output: process.env.VERCEL || e2eDevelopmentBuild ? undefined : "standalone",
+	typescript: { ignoreBuildErrors: e2eDevelopmentBuild },
+	async redirects() {
+		return [
+			{
+				source: "/websites/:id/realtime",
+				destination: "/websites/:id/map",
+				permanent: true,
+			},
+		];
+	},
 	async headers() {
 		const securityHeaders = [
 			{
@@ -87,11 +127,19 @@ const nextConfig: NextConfig = {
 		const connectSources = joinCspSources(
 			"'self'",
 			localhostSources,
+			...(readBooleanEnv("SELFHOST")
+				? [
+						process.env.NEXT_PUBLIC_API_URL?.trim() || "http://localhost:3001",
+						process.env.NEXT_PUBLIC_BASKET_URL?.trim() ||
+							"http://localhost:4000",
+					].map((url) => new URL(url).origin)
+				: []),
 			"https://*.databuddy.cc",
 			"https://*.useautumn.com",
 			"https://api.openai.com",
 			"https://bzr.openai.com",
 			"https://hooks.slack.com",
+			"https://api.dub.co",
 			"wss://*.databuddy.cc"
 		);
 		const scriptSources = joinCspSources(
@@ -100,7 +148,8 @@ const nextConfig: NextConfig = {
 			isDev && "'unsafe-eval'",
 			"'wasm-unsafe-eval'",
 			"https://cdn.databuddy.cc",
-			"https://bzrcdn.openai.com"
+			"https://bzrcdn.openai.com",
+			"https://www.dubcdn.com"
 		);
 
 		const cspDirectives = [

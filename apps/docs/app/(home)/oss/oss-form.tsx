@@ -177,10 +177,7 @@ export default function OssForm() {
 				className={`border border-border bg-card/40 p-5 backdrop-blur-sm ${FIELD_RADIUS}`}
 			>
 				<div className="flex items-start gap-3">
-					<CheckIcon
-						className="mt-0.5 size-5 shrink-0 text-foreground"
-						weight="duotone"
-					/>
+					<CheckIcon className="mt-0.5 size-5 shrink-0 text-foreground" />
 					<div>
 						<p className="font-medium text-foreground text-sm">
 							Application received
@@ -331,7 +328,7 @@ export default function OssForm() {
 							</>
 						) : (
 							<>
-								<PaperPlaneIcon className="size-4" weight="duotone" />
+								<PaperPlaneIcon className="size-4" />
 								Apply
 							</>
 						)}

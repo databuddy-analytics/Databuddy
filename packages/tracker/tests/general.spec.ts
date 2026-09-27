@@ -1,7 +1,6 @@
 import { expect, findEvent, hasEvent, test } from "./test-utils";
 
 test.describe("General Tracking", () => {
-
 	test("loads and initializes successfully via window.databuddyConfig", async ({
 		page,
 	}) => {
@@ -67,7 +66,6 @@ test.describe("General Tracking", () => {
 	});
 
 	test("sends screen_view event on load", async ({ page }) => {
-		// Match exactly the root endpoint for track events
 		const requestPromise = page.waitForRequest(
 			(request) =>
 				request.url().includes("basket.databuddy.cc") &&
@@ -128,11 +126,6 @@ test.describe("General Tracking", () => {
 	test("blocks tracking when bot detection is active (default)", async ({
 		page,
 	}) => {
-		// Should NOT send a request if ignoreBotDetection is not set (default false)
-		// We need to make sure the browser context actually looks like a bot to Playwright (headless usually does)
-		// or we rely on the fact that we are NOT setting ignoreBotDetection: true.
-		// However, standard Playwright headless chrome matches HEADLESS_CHROME_REGEX.
-
 		let requestSent = false;
 		page.on("request", (req) => {
 			if (req.url().includes("/basket.databuddy.cc/")) {
@@ -142,11 +135,10 @@ test.describe("General Tracking", () => {
 
 		await page.goto("/test");
 		await page.evaluate(() => {
-			(window as any).databuddyConfig = { clientId: "test-client-id" }; // ignoreBotDetection defaults to false
+			(window as any).databuddyConfig = { clientId: "test-client-id" };
 		});
 		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
-		// Wait a bit to ensure no request is fired
 		await page.waitForTimeout(1000);
 
 		expect(requestSent).toBe(false);

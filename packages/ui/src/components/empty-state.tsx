@@ -6,7 +6,6 @@ interface EmptyStateIconProps {
 	"aria-hidden"?: boolean | "false" | "true";
 	className?: string;
 	size?: number | string;
-	weight?: string;
 }
 
 export interface EmptyStateAction {
@@ -59,7 +58,6 @@ export function EmptyState({
 					),
 					"aria-hidden": "true",
 					size: 24,
-					weight: "duotone",
 				})}
 			</div>
 		);

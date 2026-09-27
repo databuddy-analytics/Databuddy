@@ -318,7 +318,7 @@ export function EditFunnelDialog({
 				<Sheet.Header>
 					<div className="flex items-center gap-4">
 						<div className="flex size-11 items-center justify-center rounded border bg-secondary">
-							<FunnelIcon className="size-5 text-primary" weight="fill" />
+							<FunnelIcon className="size-5 text-primary" />
 						</div>
 						<div>
 							<Sheet.Title className="text-lg">
@@ -504,10 +504,7 @@ export function EditFunnelDialog({
 							<div className="overflow-hidden rounded-md border border-border/60">
 								<Accordion>
 									<Accordion.Trigger>
-										<GearIcon
-											className="size-4 shrink-0 text-muted-foreground"
-											weight="duotone"
-										/>
+										<GearIcon className="size-4 shrink-0 text-muted-foreground" />
 										<Text variant="label">Settings</Text>
 									</Accordion.Trigger>
 									<Accordion.Content>

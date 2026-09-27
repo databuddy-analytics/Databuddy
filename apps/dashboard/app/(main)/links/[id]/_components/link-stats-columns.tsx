@@ -43,12 +43,7 @@ export function createGeoColumns(
 					if (type === "country" && name && name !== "Unknown") {
 						return <CountryFlag country={name} size={18} />;
 					}
-					return (
-						<MapPinIcon
-							className="size-[18px] text-muted-foreground"
-							weight="duotone"
-						/>
-					);
+					return <MapPinIcon className="size-[18px] text-muted-foreground" />;
 				};
 
 				const formatName = () => {

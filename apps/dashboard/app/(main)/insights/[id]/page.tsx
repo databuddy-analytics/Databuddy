@@ -1,26 +1,38 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
+import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { TopBar } from "@/components/layout/top-bar";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
+import { MessageResponse } from "@/components/ai-elements/message";
 import { insightQueries, type InsightByIdResponse } from "@/lib/insight-api";
 import { orpc } from "@/lib/orpc";
 import {
 	ArrowLeftIcon,
 	ArrowSquareOutIcon,
 	CaretDownIcon,
+	CopyIcon,
+	GlobeIcon,
 	LightbulbIcon,
+	LinkBreakIcon,
+	LinkIcon,
 	PaperPlaneIcon,
 	RobotIcon,
+	ShareNetworkIcon,
 	UserIcon,
 } from "@databuddy/ui/icons";
+import { DropdownMenu } from "@databuddy/ui/client";
 import {
 	Button,
+	buttonVariants,
 	Card,
-	dayjs,
 	EmptyState,
 	Field,
 	formatDateTime,
@@ -30,11 +42,13 @@ import {
 	StatusDot,
 	Textarea,
 } from "@databuddy/ui";
-import { ExecuteDefinitionAction } from "../_components/investigation-row";
+import {
+	CaseState,
+	InvestigationActivity,
+} from "../_components/investigation-row";
 
 type TimelineItem = InsightByIdResponse["timeline"][number];
 type InvestigationItem = Extract<TimelineItem, { kind: "investigation" }>;
-type InvestigationNext = InvestigationItem["outcome"]["next"];
 
 export default function InsightDetailPage() {
 	const params = useParams();
@@ -64,8 +78,16 @@ export default function InsightDetailPage() {
 			<TopBar.Title>
 				<h1 className="font-semibold text-sm">Investigation</h1>
 			</TopBar.Title>
+			{insight ? (
+				<TopBar.Actions>
+					<ShareMenu
+						insightId={insight.id}
+						latestFindingAt={latest?.createdAt ?? null}
+					/>
+				</TopBar.Actions>
+			) : null}
 
-			<div className="mx-auto w-full max-w-2xl space-y-3 px-3 pt-3 pb-20 sm:space-y-4 sm:p-5">
+			<div className="mx-auto w-full max-w-4xl space-y-3 px-3 pt-3 pb-20 sm:space-y-4 sm:p-5">
 				<Link
 					className="inline-flex w-fit items-center gap-1.5 text-muted-foreground text-xs transition-colors hover:text-foreground"
 					href="/insights/investigations"
@@ -128,7 +150,7 @@ export default function InsightDetailPage() {
 								? "This investigation is unavailable, or it belongs to a workspace you can't access."
 								: "This investigation no longer exists."
 						}
-						icon={<LightbulbIcon weight="duotone" />}
+						icon={<LightbulbIcon />}
 						className="min-h-[50dvh]"
 						title="Investigation not available"
 						variant="minimal"
@@ -139,54 +161,146 @@ export default function InsightDetailPage() {
 	);
 }
 
-function CaseState({
-	items,
-	latest,
+function ShareMenu({
+	insightId,
+	latestFindingAt,
 }: {
-	items: TimelineItem[];
-	latest: InvestigationItem | null;
+	insightId: string;
+	latestFindingAt: string | null;
 }) {
-	if (!latest) {
-		return null;
-	}
-	const reported = items.findLast(
-		(item): item is Extract<TimelineItem, { kind: "reply" }> =>
-			item.kind === "reply"
+	const queryClient = useQueryClient();
+	const { copyToClipboard } = useCopyToClipboard();
+	const shareInput = { input: { insightId } };
+	const { data, isPending } = useQuery(
+		orpc.insights.getShare.queryOptions(shareInput)
 	);
-	const verifying =
-		reported &&
-		reported.status !== "failed" &&
-		reported.createdAt > latest.createdAt;
-	const label = verifying
-		? "Measuring"
-		: latest.outcome.next.type === "act"
-			? "Needs attention"
-			: latest.outcome.next.type === "ask"
-				? "Needs your input"
-				: latest.outcome.next.type === "watch"
-					? "Measuring"
-					: "Verified";
+	const share = data?.share ?? null;
+	const canPublish = data?.canPublish ?? false;
+	const publicUrl = (shareId: string) =>
+		`${window.location.origin}/public/investigations/${shareId}`;
+	const refreshShare = () =>
+		queryClient.invalidateQueries({
+			queryKey: orpc.insights.getShare.key(shareInput),
+		});
+
+	const publish = useMutation({
+		...orpc.insights.publishShare.mutationOptions(),
+		onError: (error) => {
+			toast.error(error instanceof Error ? error.message : "Could not publish");
+		},
+		onSuccess: (published) => {
+			refreshShare();
+			copyToClipboard(publicUrl(published.id));
+			toast.success(
+				published.version === 1
+					? "Public link copied"
+					: `Version ${published.version} published`,
+				{
+					description:
+						"Anyone with the link sees this version until you publish again.",
+				}
+			);
+		},
+	});
+	const unpublish = useMutation({
+		...orpc.insights.unpublishShare.mutationOptions(),
+		onError: (error) => {
+			toast.error(
+				error instanceof Error ? error.message : "Could not turn off the link"
+			);
+		},
+		onSuccess: () => {
+			refreshShare();
+			toast.success("Public link turned off");
+		},
+	});
+	const busy = publish.isPending || unpublish.isPending;
+	const hasUnpublishedFindings = Boolean(
+		share && latestFindingAt && latestFindingAt > share.publishedAt
+	);
 
 	return (
-		<section
-			className="border-b bg-muted/20 px-4 py-4 sm:px-5"
-			aria-label="Current state"
-		>
-			<div className="flex items-center justify-between gap-3">
-				<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-					{label}
-				</p>
-				<StatusDot
-					color={
-						verifying
-							? "warning"
-							: latest.outcome.next.type === "resolve"
-								? "success"
-								: "warning"
-					}
-				/>
-			</div>
-		</section>
+		<DropdownMenu>
+			<DropdownMenu.Trigger
+				className={buttonVariants({ size: "sm", variant: "secondary" })}
+			>
+				<ShareNetworkIcon className="size-4" />
+				Share
+			</DropdownMenu.Trigger>
+			<DropdownMenu.Content align="end" className="w-64">
+				<DropdownMenu.Item
+					onClick={() => {
+						copyToClipboard(window.location.href);
+						toast.success("Link copied", {
+							description: "Members of your organization can open it.",
+						});
+					}}
+				>
+					<LinkIcon className="size-3.5" />
+					Copy link for your team
+				</DropdownMenu.Item>
+				<DropdownMenu.Separator />
+				<DropdownMenu.Group>
+					<DropdownMenu.GroupLabel>
+						{share
+							? `Public · V${share.version} published ${formatDateTime(share.publishedAt)}`
+							: "Public link off"}
+					</DropdownMenu.GroupLabel>
+					{share ? (
+						<>
+							<DropdownMenu.Item
+								onClick={() => {
+									copyToClipboard(publicUrl(share.id));
+									toast.success("Public link copied");
+								}}
+							>
+								<CopyIcon className="size-3.5" />
+								Copy public link
+							</DropdownMenu.Item>
+							<DropdownMenu.Item
+								onClick={() =>
+									window.open(publicUrl(share.id), "_blank", "noopener")
+								}
+							>
+								<ArrowSquareOutIcon className="size-3.5" />
+								View as a visitor
+							</DropdownMenu.Item>
+							{canPublish ? (
+								<>
+									<DropdownMenu.Item
+										disabled={busy}
+										onClick={() => publish.mutate({ insightId })}
+									>
+										<GlobeIcon className="size-3.5" />
+										{hasUnpublishedFindings
+											? "Publish new findings"
+											: "Publish new version"}
+									</DropdownMenu.Item>
+									<DropdownMenu.Item
+										disabled={busy}
+										onClick={() => unpublish.mutate({ insightId })}
+										variant="destructive"
+									>
+										<LinkBreakIcon className="size-3.5" />
+										Turn off public link
+									</DropdownMenu.Item>
+								</>
+							) : null}
+						</>
+					) : (
+						<DropdownMenu.Item
+							disabled={isPending || busy || !canPublish}
+							onClick={() => publish.mutate({ insightId })}
+						>
+							<GlobeIcon className="size-3.5" />
+							{canPublish || isPending
+								? "Publish a public link"
+								: "Editors can publish a public link"}
+						</DropdownMenu.Item>
+					)}
+				</DropdownMenu.Group>
+			</DropdownMenu.Content>
+		</DropdownMenu>
 	);
 }
 
@@ -281,13 +395,12 @@ function CaseActivity({
 							: `Show ${items.length - 1} earlier update${items.length === 2 ? "" : "s"}`}
 						<CaretDownIcon
 							className={historyExpanded ? "rotate-180" : undefined}
-							weight="bold"
 						/>
 					</Button>
 				</div>
 			) : null}
 
-			{canReply && !isResolved && (
+			{canReply && (
 				<ContextReply
 					disabled={active}
 					insightId={insightId}
@@ -326,11 +439,11 @@ function TimelineEntry({
 				<header className="flex min-w-0 items-center gap-2 text-xs">
 					{item.kind === "reply" ? (
 						<span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground">
-							<UserIcon className="size-3" weight="duotone" />
+							<UserIcon className="size-3" />
 						</span>
 					) : (
 						<span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-							<RobotIcon className="size-3" weight="duotone" />
+							<RobotIcon className="size-3" />
 						</span>
 					)}
 					<div className="flex min-w-0 items-center gap-2">
@@ -355,17 +468,30 @@ function TimelineEntry({
 						<p className="whitespace-pre-wrap text-foreground/85 text-sm leading-relaxed">
 							{item.body}
 						</p>
+						{item.assistantText && (
+							<div className="space-y-1 border-t pt-3">
+								<p className="font-medium text-xs">Databuddy</p>
+								<MessageResponse
+									className="text-sm leading-relaxed"
+									mode="static"
+								>
+									{item.assistantText}
+								</MessageResponse>
+							</div>
+						)}
 						{(item.status === "queued" || item.status === "running") && (
 							<p className="flex items-center gap-2 text-muted-foreground text-xs">
 								<Spinner size="sm" />
 								{item.status === "queued"
-									? "Queued for investigation…"
-									: "Databuddy is investigating…"}
+									? "Reply queued…"
+									: item.intent === "clarification"
+										? "Databuddy is answering…"
+										: "Databuddy is investigating…"}
 							</p>
 						)}
 						{item.status === "failed" && (
 							<div className="flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
-								<span>Investigation failed.</span>
+								<span>Reply failed.</span>
 								{onRetry && (
 									<Button
 										disabled={retrying}
@@ -393,224 +519,6 @@ function TimelineEntry({
 	);
 }
 
-function InvestigationActivity({
-	collapseEvidence,
-	insightId,
-	item,
-	websiteId,
-}: {
-	collapseEvidence: boolean;
-	insightId: string | null;
-	item: InvestigationItem;
-	websiteId: string;
-}) {
-	const { outcome } = item;
-	const sourceLink = investigationSourceLink(item, websiteId);
-	const execution =
-		outcome.next.type === "act" ? outcome.next.execution : undefined;
-	const definitionType =
-		item.entity.type === "goal" || item.entity.type === "funnel"
-			? item.entity.type
-			: null;
-	const executable = Boolean(
-		insightId && execution?.operation && definitionType
-	);
-
-	return (
-		<div className="space-y-3">
-			<div className="text-muted-foreground text-xs">
-				<p>
-					{formatPeriod(item.period.current)} compared with{" "}
-					{formatPeriod(item.period.previous)}
-				</p>
-			</div>
-
-			<div>
-				<h3 className="text-pretty font-medium text-foreground text-sm leading-snug">
-					{outcome.title}
-				</h3>
-			</div>
-
-			<dl className="grid gap-3 sm:grid-cols-2">
-				<div className="sm:col-span-2">
-					<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-						What happened
-					</dt>
-					<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
-						{outcome.summary}
-					</dd>
-				</div>
-				{outcome.impact && (
-					<div>
-						<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-							Why it matters
-						</dt>
-						<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
-							{outcome.impact}
-						</dd>
-					</div>
-				)}
-				{outcome.rootCause && (
-					<div>
-						<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-							Why it happened
-						</dt>
-						<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
-							{outcome.rootCause}
-						</dd>
-					</div>
-				)}
-			</dl>
-
-			<Evidence
-				evidence={outcome.evidence}
-				initiallyCollapsed={collapseEvidence}
-				sourceHref={
-					outcome.next.type === "act" && !executable
-						? null
-						: (sourceLink?.href ?? null)
-				}
-			/>
-
-			<NextStep
-				hideAction={executable}
-				next={outcome.next}
-				sourceLink={sourceLink}
-			/>
-
-			{insightId && execution?.operation && definitionType ? (
-				<div className="flex flex-wrap">
-					<ExecuteDefinitionAction
-						action={outcome.next.type === "act" ? outcome.next.action : ""}
-						definitionType={definitionType}
-						execution={execution}
-						insightId={insightId}
-					/>
-				</div>
-			) : null}
-		</div>
-	);
-}
-
-function Evidence({
-	evidence,
-	initiallyCollapsed,
-	sourceHref,
-}: {
-	evidence: string[];
-	initiallyCollapsed: boolean;
-	sourceHref: string | null;
-}) {
-	const [expanded, setExpanded] = useState(!initiallyCollapsed);
-	const evidenceId = useId();
-
-	return (
-		<div>
-			<div className="flex items-center justify-between gap-3">
-				<Button
-					aria-controls={evidenceId}
-					aria-expanded={expanded}
-					onClick={() => setExpanded((open) => !open)}
-					size="sm"
-					type="button"
-					variant="ghost"
-				>
-					Evidence
-					<CaretDownIcon
-						aria-hidden
-						className={expanded ? "rotate-180" : undefined}
-						weight="bold"
-					/>
-				</Button>
-				{sourceHref ? (
-					<Link
-						className="inline-flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
-						href={sourceHref}
-					>
-						View source
-						<ArrowSquareOutIcon aria-hidden className="size-3" />
-					</Link>
-				) : null}
-			</div>
-			{expanded ? (
-				<ul className="mt-1 space-y-1" id={evidenceId}>
-					{evidence.map((entry) => (
-						<li
-							className="flex gap-2 text-muted-foreground text-sm leading-relaxed"
-							key={entry}
-						>
-							<span aria-hidden className="text-muted-foreground/50">
-								•
-							</span>
-							<span>{entry}</span>
-						</li>
-					))}
-				</ul>
-			) : null}
-		</div>
-	);
-}
-
-function investigationSourceLink(
-	item: InvestigationItem,
-	websiteId: string
-): { href: string; label: string } | null {
-	const base = `/websites/${encodeURIComponent(websiteId)}`;
-	switch (item.entity.type) {
-		case "event":
-			return {
-				href: `${base}/events/${encodeURIComponent(item.entity.id)}`,
-				label: "Open event",
-			};
-		case "funnel":
-		case "funnel_step":
-			return { href: `${base}/funnels`, label: "Open funnel" };
-		case "goal":
-			return { href: `${base}/goals`, label: "Open goal" };
-		default:
-			return null;
-	}
-}
-
-function NextStep({
-	hideAction,
-	next,
-	sourceLink,
-}: {
-	hideAction: boolean;
-	next: InvestigationNext;
-	sourceLink: { href: string; label: string } | null;
-}) {
-	const copy = nextCopy(next, { executable: hideAction });
-	return (
-		<div className="rounded-md border border-primary/15 bg-primary/5 px-3 py-3">
-			<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-				{copy.label}
-			</p>
-			{!hideAction || next.type !== "act" ? (
-				<p className="mt-1 font-medium text-foreground/85 text-sm leading-relaxed">
-					{copy.body}
-				</p>
-			) : null}
-			{copy.detail && (
-				<p className="mt-1.5 text-muted-foreground text-xs leading-relaxed">
-					{copy.detail}
-				</p>
-			)}
-			{next.type === "act" && !hideAction && sourceLink ? (
-				<div className="mt-2">
-					<Button asChild size="sm" variant="secondary">
-						<Link href={sourceLink.href}>
-							{sourceLink.label}
-							<ArrowSquareOutIcon aria-hidden className="size-3.5" />
-						</Link>
-					</Button>
-				</div>
-			) : null}
-		</div>
-	);
-}
-
 function ContextReply({
 	disabled,
 	insightId,
@@ -632,7 +540,7 @@ function ContextReply({
 					type="button"
 					variant="ghost"
 				>
-					Reply with context
+					Ask about this investigation
 				</Button>
 			</div>
 		);
@@ -683,14 +591,25 @@ function ReplyComposer({
 		if (!trimmed) {
 			return;
 		}
-		sendReply(trimmed, "Databuddy is checking the latest context");
+		sendReply(trimmed, "Databuddy is answering your clarification");
 	};
-	const sendReply = (message: string, successMessage: string) => {
+	const sendReply = (
+		message: string,
+		successMessage: string,
+		intent: "clarification" | "analysis" = "clarification"
+	) => {
 		if (disabled || replyMutation.isPending) {
 			return;
 		}
 		replyMutation.mutate(
-			{ body: message, insightId },
+			{
+				body: message,
+				insightId,
+				intent,
+				...(intent === "analysis"
+					? { acceptedPriceUsd: INVESTIGATION_USAGE.priceUsd }
+					: {}),
+			},
 			{
 				onSuccess: (data) => {
 					if (data.reply.status !== "failed") {
@@ -703,17 +622,33 @@ function ReplyComposer({
 	return (
 		<form className="border-t px-4 py-4 sm:px-5" onSubmit={submitReply}>
 			<Field>
-				<Field.Label className="sr-only">Add context</Field.Label>
+				<Field.Label className="sr-only">Question</Field.Label>
 				<Textarea
 					disabled={disabled}
 					maxLength={2000}
 					maxRows={8}
 					minRows={2}
 					onChange={(event) => setBody(event.target.value)}
-					placeholder="Add context, a correction, or what changed…"
+					placeholder="Ask about this result, or write a new question…"
 					value={body}
 				/>
-				<div className="flex justify-end gap-2">
+				<p className="text-pretty text-muted-foreground text-xs">
+					{isSelfHosted
+						? "Ask a follow-up question or start a new investigation."
+						: "Clarifications are included. New investigations use your allowance, then cost $1 each."}
+				</p>
+				<div className="flex flex-wrap justify-end gap-2">
+					<Button
+						disabled={disabled || !body.trim() || replyMutation.isPending}
+						onClick={() =>
+							sendReply(body.trim(), "New analysis queued", "analysis")
+						}
+						size="sm"
+						type="button"
+						variant="secondary"
+					>
+						New analysis · 1 investigation
+					</Button>
 					<Button
 						disabled={replyMutation.isPending}
 						onClick={onClose}
@@ -729,62 +664,11 @@ function ReplyComposer({
 						size="sm"
 						type="submit"
 					>
-						<PaperPlaneIcon className="size-3.5" weight="bold" />
-						Check latest context
+						<PaperPlaneIcon className="size-3.5" />
+						Send clarification
 					</Button>
 				</div>
 			</Field>
 		</form>
 	);
-}
-
-function formatPeriod(period: { from: string; to: string }): string {
-	const from = dayjs.utc(period.from).format("MMM D, YYYY");
-	const to = dayjs.utc(period.to).format("MMM D, YYYY");
-	return from === to ? from : `${from}–${to}`;
-}
-
-function nextCopy(
-	next: InvestigationNext,
-	options?: { executable?: boolean }
-): {
-	body: string;
-	detail?: string;
-	label: string;
-} {
-	switch (next.type) {
-		case "act":
-			return {
-				body: next.action,
-				detail: [`Checks: ${next.verification}`, scheduledRecheck(next)]
-					.filter(Boolean)
-					.join(" · "),
-				label: options?.executable ? "Ready to apply" : "Review needed",
-			};
-		case "ask":
-			return {
-				body: next.question,
-				label: "Needs your input",
-			};
-		case "watch":
-			return {
-				body: next.escalation,
-				detail: scheduledRecheck(next),
-				label: "Measuring",
-			};
-		case "resolve":
-			return { body: next.reason, label: "Verified" };
-		default:
-			throw new Error("Unknown investigation outcome");
-	}
-}
-
-function scheduledRecheck(
-	next: Extract<InvestigationNext, { type: "act" | "watch" }>
-): string | undefined {
-	if (!next.recheckAt) {
-		return;
-	}
-
-	return `Databuddy will check again ${dayjs.utc(next.recheckAt).format("MMM D")}`;
 }

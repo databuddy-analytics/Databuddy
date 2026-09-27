@@ -26,10 +26,7 @@ function StatCard({
 }) {
 	return (
 		<SciFiCard className="flex h-32 w-full flex-col items-center justify-center rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:h-36 lg:h-40">
-			<Icon
-				className="mb-2 size-6 text-muted-foreground duration-300 group-hover:text-foreground sm:h-7 sm:w-7 lg:h-8 lg:w-8"
-				weight="duotone"
-			/>
+			<Icon className="mb-2 size-6 text-muted-foreground duration-300 group-hover:text-foreground sm:h-7 sm:w-7 lg:h-8 lg:w-8" />
 			<div className="text-center">
 				<div className="font-bold text-2xl sm:text-3xl lg:text-4xl">
 					{formatNumber(value)}

@@ -11,15 +11,20 @@ import {
 } from "@databuddy/db/schema";
 import {
 	appRouter,
+	type Context,
 	createInternalPrincipal,
 	createRPCContext,
 } from "@databuddy/rpc";
+import { getAutumn } from "@databuddy/rpc/autumn";
 import {
 	closeInsightsQueue,
 	getInsightsQueue,
 	insightsResumeJobId,
 } from "@databuddy/redis";
-import type { InvestigationOutcome } from "@databuddy/shared/insights";
+import type {
+	InsightDefinitionEditChanges,
+	InvestigationOutcome,
+} from "@databuddy/shared/insights";
 import {
 	addToOrganization,
 	cleanup,
@@ -32,17 +37,45 @@ import {
 	signUp,
 	userContext,
 } from "@databuddy/test";
+import { RPCHandler } from "@orpc/server/fetch";
 import { randomUUIDv7 } from "bun";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { call } from "./helpers";
 
 const iit = hasTestDb ? it : it.skip;
+
+async function expectBadReplyRequest(
+	context: Context,
+	input: {
+		body: string;
+		insightId: string;
+		intent: string;
+		acceptedPriceUsd?: number;
+		replyId?: string;
+	}
+) {
+	const handler = new RPCHandler({ reply: appRouter.insights.reply });
+	const result = await handler.handle(
+		new Request("https://api.example.invalid/reply", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ json: input }),
+		}),
+		{ context }
+	);
+	expect(result.matched).toBe(true);
+	expect(result.response?.status).toBe(400);
+	expect(await result.response?.json()).toMatchObject({
+		json: { code: "BAD_REQUEST" },
+	});
+}
 
 function investigationOutcome(nextType: "act" | "watch"): InvestigationOutcome {
 	const next: InvestigationOutcome["next"] =
 		nextType === "act"
 			? {
-					action: "Restore signup_completed emission in the signup submit handler.",
+					action:
+						"Restore signup_completed emission in the signup submit handler.",
 					target: "Signup submit handler",
 					type: "act",
 					verification:
@@ -66,7 +99,12 @@ function investigationOutcome(nextType: "act" | "watch"): InvestigationOutcome {
 	};
 }
 
-async function seedExecutableGoalAction() {
+async function seedExecutableGoalAction(
+	changes: InsightDefinitionEditChanges = {
+		description: "Counts navigation activity across the site.",
+		name: "Navigation clicks",
+	}
+) {
 	const member = await signUp();
 	const organization = await insertOrganization();
 	await addToOrganization(member.id, organization.id, "member");
@@ -76,54 +114,57 @@ async function seedExecutableGoalAction() {
 	const subjectKey = `goal:${goalId}`;
 	const generatedAt = new Date("2026-01-10T00:00:00.000Z");
 
-	await db().insert(goals).values({
-		createdBy: member.id,
-		description: "A narrow description.",
-		id: goalId,
-		name: "Clicked Nav",
-		target: "nav_clicked",
-		type: "EVENT",
-		updatedAt: new Date("2026-01-01T00:00:00.000Z"),
-		websiteId: website.id,
-	});
-	await db().insert(analyticsInsights).values(
-		insightRow({
-			id: insightId,
-			organizationId: organization.id,
-			subjectKey,
+	await db()
+		.insert(goals)
+		.values({
+			createdBy: member.id,
+			description: "A narrow description.",
+			id: goalId,
+			name: "Clicked Nav",
+			target: "nav_clicked",
+			type: "EVENT",
+			updatedAt: new Date("2026-01-01T00:00:00.000Z"),
 			websiteId: website.id,
-		})
-	);
-	await db().insert(insightObservations).values({
-		asOf: generatedAt,
-		createdAt: generatedAt,
-		id: randomUUIDv7(),
-		insightId,
-		organizationId: organization.id,
-		outcome: {
-			...investigationOutcome("act"),
-			next: {
-				action: "Rename Clicked Nav to Navigation clicks.",
-				execution: {
-					changes: {
-						description: "Counts navigation activity across the site.",
-						name: "Navigation clicks",
+		});
+	await db()
+		.insert(analyticsInsights)
+		.values(
+			insightRow({
+				id: insightId,
+				organizationId: organization.id,
+				subjectKey,
+				websiteId: website.id,
+			})
+		);
+	await db()
+		.insert(insightObservations)
+		.values({
+			asOf: generatedAt,
+			createdAt: generatedAt,
+			id: randomUUIDv7(),
+			insightId,
+			organizationId: organization.id,
+			outcome: {
+				...investigationOutcome("act"),
+				next: {
+					action: "Rename Clicked Nav to Navigation clicks.",
+					execution: {
+						changes,
+						operation: "edit",
 					},
-					operation: "edit",
+					target: "Goal: Clicked Nav",
+					type: "act",
+					verification: "The goal definition matches the navigation metric.",
 				},
-				target: "Goal: Clicked Nav",
-				type: "act",
-				verification: "The goal definition matches the navigation metric.",
 			},
-		},
-		recheckAt: new Date("2026-01-17T00:00:00.000Z"),
-		signal: {
-			...signal(subjectKey),
-			entity: { id: goalId, label: "Clicked Nav", type: "goal" },
-		},
-		signalKey: subjectKey,
-		websiteId: website.id,
-	});
+			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+			signal: {
+				...signal(subjectKey),
+				entity: { id: goalId, label: "Clicked Nav", type: "goal" },
+			},
+			signalKey: subjectKey,
+			websiteId: website.id,
+		});
 
 	return { goalId, insightId, member, organization };
 }
@@ -147,79 +188,87 @@ describe("insight investigation timeline", () => {
 			activation: randomUUIDv7(),
 			legacy: randomUUIDv7(),
 		};
-		await db().insert(analyticsInsights).values([
-			{
-				...insightRow({
-					id: ids.olderSignup,
-					organizationId: organization.id,
-					subjectKey: "goal:signup",
-					websiteId: website.id,
-				}),
-				createdAt: new Date("2026-01-01T00:00:00.000Z"),
-				dedupeKey: `${website.id}|legacy|signup|older`,
-				title: "Older signup finding",
-			},
-			{
-				...insightRow({
-					id: ids.latestSignup,
-					organizationId: organization.id,
-					subjectKey: "goal:signup",
-					websiteId: website.id,
-				}),
-				createdAt: new Date("2026-01-04T00:00:00.000Z"),
-				dedupeKey: `${website.id}|legacy|signup|latest`,
-				title: "Latest signup finding",
-			},
-			{
-				...insightRow({
-					id: ids.checkout,
-					organizationId: organization.id,
-					subjectKey: "goal:checkout",
-					websiteId: website.id,
-				}),
-				createdAt: new Date("2026-01-03T00:00:00.000Z"),
-			},
-			{
-				...insightRow({
-					id: ids.activation,
-					organizationId: organization.id,
-					subjectKey: "goal:activation",
-					websiteId: website.id,
-				}),
-				createdAt: new Date("2026-01-02T00:00:00.000Z"),
-			},
-			{
-				...insightRow({
-					id: ids.legacy,
-					organizationId: organization.id,
-					subjectKey: "legacy:card",
-					websiteId: website.id,
-				}),
-				createdAt: new Date("2026-01-05T00:00:00.000Z"),
-			},
-		]);
-		await db().insert(insightObservations).values(
-			(["goal:signup", "goal:checkout", "goal:activation"] as const).map(
-				(subjectKey, index) => ({
-					asOf: new Date(`2026-01-0${index + 1}T12:00:00.000Z`),
-					id: randomUUIDv7(),
-					insightId:
-						subjectKey === "goal:signup"
-							? ids.latestSignup
-							: subjectKey === "goal:checkout"
-								? ids.checkout
-								: ids.activation,
-					organizationId: organization.id,
-					outcome: investigationOutcome("act"),
-					recheckAt: new Date("2026-01-10T00:00:00.000Z"),
-					signal: signal(subjectKey),
-					signalKey: subjectKey,
-					websiteId: website.id,
-				}))
-		);
+		await db()
+			.insert(analyticsInsights)
+			.values([
+				{
+					...insightRow({
+						id: ids.olderSignup,
+						organizationId: organization.id,
+						subjectKey: "goal:signup",
+						websiteId: website.id,
+					}),
+					createdAt: new Date("2026-01-01T00:00:00.000Z"),
+					dedupeKey: `${website.id}|legacy|signup|older`,
+					title: "Older signup finding",
+				},
+				{
+					...insightRow({
+						id: ids.latestSignup,
+						organizationId: organization.id,
+						subjectKey: "goal:signup",
+						websiteId: website.id,
+					}),
+					createdAt: new Date("2026-01-04T00:00:00.000Z"),
+					dedupeKey: `${website.id}|legacy|signup|latest`,
+					title: "Latest signup finding",
+				},
+				{
+					...insightRow({
+						id: ids.checkout,
+						organizationId: organization.id,
+						subjectKey: "goal:checkout",
+						websiteId: website.id,
+					}),
+					createdAt: new Date("2026-01-03T00:00:00.000Z"),
+				},
+				{
+					...insightRow({
+						id: ids.activation,
+						organizationId: organization.id,
+						subjectKey: "goal:activation",
+						websiteId: website.id,
+					}),
+					createdAt: new Date("2026-01-02T00:00:00.000Z"),
+				},
+				{
+					...insightRow({
+						id: ids.legacy,
+						organizationId: organization.id,
+						subjectKey: "legacy:card",
+						websiteId: website.id,
+					}),
+					createdAt: new Date("2026-01-05T00:00:00.000Z"),
+				},
+			]);
+		await db()
+			.insert(insightObservations)
+			.values(
+				(["goal:signup", "goal:checkout", "goal:activation"] as const).map(
+					(subjectKey, index) => ({
+						asOf: new Date(`2026-01-0${index + 1}T12:00:00.000Z`),
+						id: randomUUIDv7(),
+						insightId:
+							subjectKey === "goal:signup"
+								? ids.latestSignup
+								: subjectKey === "goal:checkout"
+									? ids.checkout
+									: ids.activation,
+						organizationId: organization.id,
+						outcome: investigationOutcome("act"),
+						recheckAt: new Date("2026-01-10T00:00:00.000Z"),
+						signal: signal(subjectKey),
+						signalKey: subjectKey,
+						websiteId: website.id,
+					})
+				)
+			);
 
 		const context = userContext(member, organization.id);
-		const firstPage = await call(appRouter.insights.history, context)({
+		const firstPage = await call(
+			appRouter.insights.history,
+			context
+		)({
 			limit: 2,
 			offset: 0,
 			organizationId: organization.id,
@@ -230,7 +279,10 @@ describe("insight investigation timeline", () => {
 		]);
 		expect(firstPage.hasMore).toBe(true);
 
-		const secondPage = await call(appRouter.insights.history, context)({
+		const secondPage = await call(
+			appRouter.insights.history,
+			context
+		)({
 			limit: 2,
 			offset: 2,
 			organizationId: organization.id,
@@ -241,151 +293,294 @@ describe("insight investigation timeline", () => {
 		expect(secondPage.hasMore).toBe(false);
 	});
 
-	iit("does not promote a watch-only legacy row through another case's history", async () => {
-		const member = await signUp();
-		const organization = await insertOrganization();
-		await addToOrganization(member.id, organization.id, "member");
-		const website = await insertWebsite({ organizationId: organization.id });
-		const actionableId = randomUUIDv7();
-		const watchOnlyId = randomUUIDv7();
-		const subjectKey = "goal:signup";
-		await db().insert(analyticsInsights).values([
-			{
-				...insightRow({
-					id: actionableId,
-					organizationId: organization.id,
-					subjectKey,
-					websiteId: website.id,
-				}),
-				createdAt: new Date("2026-01-01T00:00:00.000Z"),
-				dedupeKey: `${website.id}|actionable`,
-			},
-			{
-				...insightRow({
-					id: watchOnlyId,
-					organizationId: organization.id,
-					subjectKey,
-					websiteId: website.id,
-				}),
-				createdAt: new Date("2026-01-02T00:00:00.000Z"),
-				dedupeKey: `${website.id}|watch-only`,
-			},
-		]);
-		await db().insert(insightObservations).values([
-			{
-				asOf: new Date("2026-01-01T00:00:00.000Z"),
-				id: randomUUIDv7(),
-				insightId: actionableId,
-				organizationId: organization.id,
-				outcome: investigationOutcome("act"),
-				recheckAt: new Date("2026-01-08T00:00:00.000Z"),
-				signal: signal(subjectKey),
-				signalKey: subjectKey,
-				websiteId: website.id,
-			},
-			{
-				asOf: new Date("2026-01-02T00:00:00.000Z"),
-				id: randomUUIDv7(),
-				insightId: watchOnlyId,
-				organizationId: organization.id,
-				outcome: investigationOutcome("watch"),
-				recheckAt: new Date("2026-01-09T00:00:00.000Z"),
-				signal: signal(subjectKey),
-				signalKey: subjectKey,
-				websiteId: website.id,
-			},
-		]);
-
-		const result = await call(
-			appRouter.insights.history,
-			userContext(member, organization.id)
-		)({
-			limit: 10,
-			offset: 0,
-			organizationId: organization.id,
-		});
-		expect(result.insights.map((insight) => insight.id)).toEqual([
-			actionableId,
-		]);
-	});
-
-	iit("hides a case from the action inbox while a reply is being verified", async () => {
-		const member = await signUp();
-		const organization = await insertOrganization();
-		await addToOrganization(member.id, organization.id, "member");
-		const website = await insertWebsite({ organizationId: organization.id });
-		const insightId = randomUUIDv7();
-		const subjectKey = "goal:signup";
-		await db().insert(analyticsInsights).values(
-			insightRow({
-				id: insightId,
-				organizationId: organization.id,
-				subjectKey,
-				websiteId: website.id,
-			})
-		);
-		await db().insert(insightObservations).values({
-			asOf: new Date("2026-01-01T00:00:00.000Z"),
-			id: randomUUIDv7(),
-			insightId,
-			organizationId: organization.id,
-			outcome: investigationOutcome("act"),
-			recheckAt: new Date("2026-01-08T00:00:00.000Z"),
-			signal: signal(subjectKey),
-			signalKey: subjectKey,
-			websiteId: website.id,
-		});
-		await db().insert(insightReplies).values({
-			authorId: member.id,
-			authorName: "Test member",
-			body: "Databuddy applied the suggested action.",
-			id: randomUUIDv7(),
-			insightId,
-			status: "running",
-		});
-
-		const result = await call(
-			appRouter.insights.history,
-			userContext(member, organization.id)
-		)({
-			limit: 10,
-			offset: 0,
-			organizationId: organization.id,
-		});
-
-		expect(result.insights).toEqual([]);
-	});
-
-	iit("applies an executable goal action and queues verification together", async () => {
-		const { goalId, insightId, member, organization } =
-			await seedExecutableGoalAction();
-
-		const applied = await call(
-			appRouter.insights.applyGoalAction,
-			userContext(member, organization.id)
-		)({ insightId });
-
-		expect(applied.reply).toMatchObject({
-			body: "Databuddy applied the goal action. Recheck its verification condition against current data.",
-			kind: "reply",
-			status: "queued",
-		});
-		expect(
+	iit(
+		"does not promote a watch-only legacy row through another case's history",
+		async () => {
+			const member = await signUp();
+			const organization = await insertOrganization();
+			await addToOrganization(member.id, organization.id, "member");
+			const website = await insertWebsite({ organizationId: organization.id });
+			const actionableId = randomUUIDv7();
+			const watchOnlyId = randomUUIDv7();
+			const subjectKey = "goal:signup";
 			await db()
-				.select({ description: goals.description, name: goals.name })
+				.insert(analyticsInsights)
+				.values([
+					{
+						...insightRow({
+							id: actionableId,
+							organizationId: organization.id,
+							subjectKey,
+							websiteId: website.id,
+						}),
+						createdAt: new Date("2026-01-01T00:00:00.000Z"),
+						dedupeKey: `${website.id}|actionable`,
+					},
+					{
+						...insightRow({
+							id: watchOnlyId,
+							organizationId: organization.id,
+							subjectKey,
+							websiteId: website.id,
+						}),
+						createdAt: new Date("2026-01-02T00:00:00.000Z"),
+						dedupeKey: `${website.id}|watch-only`,
+					},
+				]);
+			await db()
+				.insert(insightObservations)
+				.values([
+					{
+						asOf: new Date("2026-01-01T00:00:00.000Z"),
+						id: randomUUIDv7(),
+						insightId: actionableId,
+						organizationId: organization.id,
+						outcome: investigationOutcome("act"),
+						recheckAt: new Date("2026-01-08T00:00:00.000Z"),
+						signal: signal(subjectKey),
+						signalKey: subjectKey,
+						websiteId: website.id,
+					},
+					{
+						asOf: new Date("2026-01-02T00:00:00.000Z"),
+						id: randomUUIDv7(),
+						insightId: watchOnlyId,
+						organizationId: organization.id,
+						outcome: investigationOutcome("watch"),
+						recheckAt: new Date("2026-01-09T00:00:00.000Z"),
+						signal: signal(subjectKey),
+						signalKey: subjectKey,
+						websiteId: website.id,
+					},
+				]);
+
+			const result = await call(
+				appRouter.insights.history,
+				userContext(member, organization.id)
+			)({
+				limit: 10,
+				offset: 0,
+				organizationId: organization.id,
+			});
+			expect(result.insights.map((insight) => insight.id)).toEqual([
+				actionableId,
+			]);
+		}
+	);
+
+	iit.each(["verification", "clarification"] as const)(
+		"keeps clarification independent of case visibility: %s",
+		async (intent) => {
+			const member = await signUp();
+			const organization = await insertOrganization();
+			await addToOrganization(member.id, organization.id, "member");
+			const website = await insertWebsite({ organizationId: organization.id });
+			const insightId = randomUUIDv7();
+			const subjectKey = "goal:signup";
+			await db()
+				.insert(analyticsInsights)
+				.values(
+					insightRow({
+						id: insightId,
+						organizationId: organization.id,
+						subjectKey,
+						websiteId: website.id,
+					})
+				);
+			await db()
+				.insert(insightObservations)
+				.values({
+					asOf: new Date("2026-01-01T00:00:00.000Z"),
+					id: randomUUIDv7(),
+					insightId,
+					organizationId: organization.id,
+					outcome: investigationOutcome("act"),
+					recheckAt: new Date("2026-01-08T00:00:00.000Z"),
+					signal: signal(subjectKey),
+					signalKey: subjectKey,
+					websiteId: website.id,
+				});
+			await db().insert(insightReplies).values({
+				authorId: member.id,
+				authorName: "Test member",
+				body: "Databuddy applied the suggested action.",
+				intent,
+				id: randomUUIDv7(),
+				insightId,
+				status: "running",
+			});
+
+			const result = await call(
+				appRouter.insights.history,
+				userContext(member, organization.id)
+			)({
+				limit: 10,
+				offset: 0,
+				organizationId: organization.id,
+			});
+
+			expect(result.insights).toHaveLength(intent === "verification" ? 0 : 1);
+		}
+	);
+
+	iit(
+		"applies an executable goal action and queues verification together",
+		async () => {
+			const { goalId, insightId, member, organization } =
+				await seedExecutableGoalAction();
+
+			const applied = await call(
+				appRouter.insights.applyGoalAction,
+				userContext(member, organization.id)
+			)({ insightId });
+
+			expect(applied.reply).toMatchObject({
+				body: "Databuddy applied the goal action. Recheck its verification condition against current data.",
+				kind: "reply",
+				status: "queued",
+			});
+			expect(
+				await db()
+					.select({ description: goals.description, name: goals.name })
+					.from(goals)
+					.where(eq(goals.id, goalId))
+			).toEqual([
+				{
+					description: "Counts navigation activity across the site.",
+					name: "Navigation clicks",
+				},
+			]);
+			expect(
+				(await getInsightsQueue().getJob(insightsResumeJobId(applied.reply.id)))
+					?.data
+			).toEqual({ replyId: applied.reply.id });
+		}
+	);
+
+	iit(
+		"repairs a goal target, type and cohort, then queues its recheck",
+		async () => {
+			const changes: InsightDefinitionEditChanges = {
+				target: "/workspace",
+				type: "PAGE_VIEW",
+				filters: [
+					{ field: "device_type", operator: "equals", value: "mobile" },
+				],
+			};
+			const { goalId, insightId, member, organization } =
+				await seedExecutableGoalAction(changes);
+			const applied = await call(
+				appRouter.insights.applyAction,
+				userContext(member, organization.id)
+			)({ insightId });
+			const [goal] = await db()
+				.select()
 				.from(goals)
-				.where(eq(goals.id, goalId))
-		).toEqual([
-			{
-				description: "Counts navigation activity across the site.",
-				name: "Navigation clicks",
-			},
-		]);
-		expect(
-			(await getInsightsQueue().getJob(insightsResumeJobId(applied.reply.id)))
-				?.data
-		).toEqual({ replyId: applied.reply.id });
+				.where(eq(goals.id, goalId));
+			expect(goal).toMatchObject({
+				target: changes.target,
+				type: changes.type,
+				filters: changes.filters,
+				name: "Clicked Nav",
+				description: "A narrow description.",
+			});
+			expect(
+				(await getInsightsQueue().getJob(insightsResumeJobId(applied.reply.id)))
+					?.data
+			).toEqual({ replyId: applied.reply.id });
+		}
+	);
+
+	iit("rejects an unchanged goal patch without queuing a recheck", async () => {
+		const { insightId, member, organization } = await seedExecutableGoalAction({
+			name: "Clicked Nav",
+			description: "A narrow description.",
+			target: "nav_clicked",
+			filters: [],
+		});
+		await expectCode(
+			call(
+				appRouter.insights.applyAction,
+				userContext(member, organization.id)
+			)({ insightId }),
+			"BAD_REQUEST"
+		);
+		expect(await db().select().from(insightReplies)).toHaveLength(0);
 	});
+
+	iit(
+		"rejects an equivalent event goal type without queuing a recheck",
+		async () => {
+			const { goalId, insightId, member, organization } =
+				await seedExecutableGoalAction({ type: "CUSTOM" });
+			await expectCode(
+				call(
+					appRouter.insights.applyAction,
+					userContext(member, organization.id)
+				)({ insightId }),
+				"BAD_REQUEST"
+			);
+			const [goal] = await db()
+				.select()
+				.from(goals)
+				.where(eq(goals.id, goalId));
+			expect(goal?.type).toBe("EVENT");
+			expect(await db().select().from(insightReplies)).toHaveLength(0);
+		}
+	);
+
+	iit(
+		"rejects a cosmetic rename disguised by repeating the current goal target",
+		async () => {
+			const { goalId, insightId, member, organization } =
+				await seedExecutableGoalAction({
+					name: "Workspace reached",
+					description: null,
+					target: "nav_clicked",
+				});
+			await expectCode(
+				call(
+					appRouter.insights.applyAction,
+					userContext(member, organization.id)
+				)({ insightId }),
+				"BAD_REQUEST"
+			);
+			const [goal] = await db()
+				.select()
+				.from(goals)
+				.where(eq(goals.id, goalId));
+			expect(goal?.name).toBe("Clicked Nav");
+			expect(await db().select().from(insightReplies)).toHaveLength(0);
+		}
+	);
+
+	iit(
+		"rejects funnel steps applied to a goal without changing it",
+		async () => {
+			const { goalId, insightId, member, organization } =
+				await seedExecutableGoalAction({
+					name: "Should not change",
+					description: null,
+					steps: [
+						{ name: "Start", target: "/", type: "PAGE_VIEW" },
+						{ name: "End", target: "/workspace", type: "PAGE_VIEW" },
+					],
+				});
+			await expectCode(
+				call(
+					appRouter.insights.applyAction,
+					userContext(member, organization.id)
+				)({ insightId }),
+				"BAD_REQUEST"
+			);
+			const [goal] = await db()
+				.select()
+				.from(goals)
+				.where(eq(goals.id, goalId));
+			expect(goal?.name).toBe("Clicked Nav");
+			expect(await db().select().from(insightReplies)).toHaveLength(0);
+		}
+	);
 
 	iit("does not apply a goal action after its definition changes", async () => {
 		const { goalId, insightId, member, organization } =
@@ -399,7 +594,10 @@ describe("insight investigation timeline", () => {
 			.where(eq(goals.id, goalId));
 
 		await expectCode(
-			call(appRouter.insights.applyAction, userContext(member, organization.id))({
+			call(
+				appRouter.insights.applyAction,
+				userContext(member, organization.id)
+			)({
 				insightId,
 			}),
 			"CONFLICT"
@@ -415,564 +613,901 @@ describe("insight investigation timeline", () => {
 		expect(await db().select().from(insightReplies)).toHaveLength(0);
 	});
 
-	iit("applies an executable funnel action and queues verification together", async () => {
-		const member = await signUp();
-		const organization = await insertOrganization();
-		await addToOrganization(member.id, organization.id, "member");
-		const website = await insertWebsite({ organizationId: organization.id });
-		const funnelId = randomUUIDv7();
-		const insightId = randomUUIDv7();
-		const subjectKey = `funnel:${funnelId}`;
-		const outcome: InvestigationOutcome = {
-			...investigationOutcome("act"),
-			next: {
-				action: "Rename Documentation journey to Account creation journey.",
-				execution: {
-					changes: {
-						description: "Tracks visitors who complete account creation.",
-						name: "Account creation journey",
+	iit(
+		"applies an executable funnel action and queues verification together",
+		async () => {
+			const member = await signUp();
+			const organization = await insertOrganization();
+			await addToOrganization(member.id, organization.id, "member");
+			const website = await insertWebsite({ organizationId: organization.id });
+			const funnelId = randomUUIDv7();
+			const insightId = randomUUIDv7();
+			const subjectKey = `funnel:${funnelId}`;
+			const outcome: InvestigationOutcome = {
+				...investigationOutcome("act"),
+				next: {
+					action: "Rename Documentation journey to Account creation journey.",
+					execution: {
+						changes: {
+							description: "Tracks visitors who complete account creation.",
+							name: "Account creation journey",
+							filters: [],
+							steps: [
+								{ name: "Landing", target: "/start", type: "PAGE_VIEW" },
+								{
+									name: "Account created",
+									target: "signup_completed",
+									type: "EVENT",
+									conditions: { plan: "paid" },
+								},
+							],
+						},
+						operation: "edit",
 					},
-					operation: "edit",
+					target: "Funnel: Documentation journey",
+					type: "act",
+					verification:
+						"The funnel definition describes account creation and keeps its verified steps.",
 				},
-				target: "Funnel: Documentation journey",
-				type: "act",
-				verification:
-					"The funnel definition describes account creation and keeps its verified steps.",
-			},
-			rootCause:
-				"The saved funnel label conflicts with its configured account-creation purpose.",
-		};
-		const actionSignal = {
-			...signal(subjectKey),
-			entity: {
-				id: funnelId,
-				label: "Documentation journey",
-				type: "funnel" as const,
-			},
-		};
-
-		await db().insert(funnelDefinitions).values({
-			createdBy: member.id,
-			description: "A vague journey.",
-			id: funnelId,
-			name: "Documentation journey",
-			steps: [
-				{ name: "Landing", target: "/", type: "PAGE_VIEW" },
-				{
-					name: "Account created",
-					target: "account_created",
-					type: "EVENT",
-				},
-			],
-			websiteId: website.id,
-		});
-		await db().insert(analyticsInsights).values(
-			insightRow({
-				id: insightId,
-				organizationId: organization.id,
-				subjectKey,
-				websiteId: website.id,
-			})
-		);
-		await db().insert(insightObservations).values({
-			asOf: new Date("2026-01-10T00:00:00.000Z"),
-			id: randomUUIDv7(),
-			insightId,
-			organizationId: organization.id,
-			outcome,
-			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
-			signal: actionSignal,
-			signalKey: subjectKey,
-			websiteId: website.id,
-		});
-
-		const applied = await call(
-			appRouter.insights.applyAction,
-			userContext(member, organization.id)
-		)({ insightId });
-
-		expect(applied.reply).toMatchObject({
-			body: "Databuddy applied the funnel action. Recheck its verification condition against current data.",
-			kind: "reply",
-			status: "queued",
-		});
-		expect(
-			await db()
-				.select({
-					description: funnelDefinitions.description,
-					name: funnelDefinitions.name,
-				})
-				.from(funnelDefinitions)
-				.where(eq(funnelDefinitions.id, funnelId))
-		).toEqual([
-			{
-				description: "Tracks visitors who complete account creation.",
-				name: "Account creation journey",
-			},
-		]);
-		expect(
-			(await getInsightsQueue().getJob(insightsResumeJobId(applied.reply.id)))
-				?.data
-		).toEqual({ replyId: applied.reply.id });
-	});
-
-	iit("remeasures an open goal investigation after a teammate edits its definition", async () => {
-		const member = await signUp();
-		const organization = await insertOrganization();
-		await addToOrganization(member.id, organization.id, "member");
-		const website = await insertWebsite({ organizationId: organization.id });
-		const goalId = randomUUIDv7();
-		const insightId = randomUUIDv7();
-		const subjectKey = `goal:${goalId}`;
-		await db().insert(goals).values({
-			createdBy: member.id,
-			id: goalId,
-			name: "Signup complete",
-			target: "signup_completed",
-			type: "EVENT",
-			websiteId: website.id,
-		});
-		await db().insert(analyticsInsights).values(
-			insightRow({
-				id: insightId,
-				organizationId: organization.id,
-				subjectKey,
-				websiteId: website.id,
-			})
-		);
-		await db().insert(insightObservations).values({
-			asOf: new Date("2026-01-10T00:00:00.000Z"),
-			id: randomUUIDv7(),
-			insightId,
-			organizationId: organization.id,
-			outcome: investigationOutcome("act"),
-			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
-			signal: {
-				...signal(subjectKey),
-				entity: { id: goalId, label: "Signup complete", type: "goal" },
-			},
-			signalKey: subjectKey,
-			websiteId: website.id,
-		});
-
-		const context = userContext(member, organization.id);
-		await call(appRouter.goals.update, context)({
-			id: goalId,
-			name: "Signup conversion",
-		});
-		await call(appRouter.goals.update, context)({
-			description: "Counts completed signup events.",
-			id: goalId,
-		});
-
-		const replies = await db()
-			.select({
-				authorName: insightReplies.authorName,
-				body: insightReplies.body,
-				id: insightReplies.id,
-				status: insightReplies.status,
-			})
-			.from(insightReplies);
-		expect(replies).toEqual([
-			expect.objectContaining({
-				authorName: "Databuddy",
-				body: "Databuddy detected a goal definition change. Recheck the current evidence and resolve this investigation if the change addressed it.",
-				status: "queued",
-			}),
-		]);
-		expect(
-			(await getInsightsQueue().getJob(insightsResumeJobId(replies[0]?.id ?? "")))
-				?.data
-		).toEqual({ replyId: replies[0]?.id });
-	});
-
-	iit("remeasures an open funnel-step investigation after its funnel changes", async () => {
-		const member = await signUp();
-		const organization = await insertOrganization();
-		await addToOrganization(member.id, organization.id, "member");
-		const website = await insertWebsite({ organizationId: organization.id });
-		const funnelId = randomUUIDv7();
-		const insightId = randomUUIDv7();
-		const subjectKey = `funnel:${funnelId}:step:2`;
-		await db().insert(funnelDefinitions).values({
-			createdBy: member.id,
-			id: funnelId,
-			name: "Signup funnel",
-			steps: [
-				{ name: "Register", target: "/register", type: "PAGE_VIEW" },
-				{ name: "Website", target: "/websites", type: "PAGE_VIEW" },
-			],
-			websiteId: website.id,
-		});
-		await db().insert(analyticsInsights).values(
-			insightRow({
-				id: insightId,
-				organizationId: organization.id,
-				subjectKey,
-				websiteId: website.id,
-			})
-		);
-		await db().insert(insightObservations).values({
-			asOf: new Date("2026-01-10T00:00:00.000Z"),
-			id: randomUUIDv7(),
-			insightId,
-			organizationId: organization.id,
-			outcome: investigationOutcome("act"),
-			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
-			signal: {
+				rootCause:
+					"The saved funnel label conflicts with its configured account-creation purpose.",
+			};
+			const actionSignal = {
 				...signal(subjectKey),
 				entity: {
-					id: `${funnelId}:step:2`,
-					label: "Signup funnel → Website",
-					type: "funnel_step",
+					id: funnelId,
+					label: "Documentation journey",
+					type: "funnel" as const,
 				},
-			},
-			signalKey: subjectKey,
-			websiteId: website.id,
-		});
+			};
 
-		await call(appRouter.funnels.update, userContext(member, organization.id))({
-			description: "Tracks signup progress to the websites page.",
-			id: funnelId,
-		});
-
-		expect(
 			await db()
-				.select({ body: insightReplies.body, status: insightReplies.status })
-				.from(insightReplies)
-		).toEqual([
-			{
-				body: "Databuddy detected a funnel definition change. Recheck the current evidence and resolve this investigation if the change addressed it.",
-				status: "queued",
-			},
-		]);
-	});
-
-	iit("returns chronological insights without turning every observation into a case", async () => {
-		const member = await signUp();
-		const organization = await insertOrganization();
-		await addToOrganization(member.id, organization.id, "member");
-		const website = await insertWebsite({ organizationId: organization.id });
-		const secondWebsite = await insertWebsite({
-			organizationId: organization.id,
-		});
-		const otherOrganization = await insertOrganization();
-		const otherWebsite = await insertWebsite({
-			organizationId: otherOrganization.id,
-		});
-		const investigationId = randomUUIDv7();
-		await db().insert(analyticsInsights).values(
-			insightRow({
-				id: investigationId,
-				organizationId: organization.id,
-				subjectKey: "goal:signup",
-				websiteId: website.id,
-			})
-		);
-		const improvedSignal = {
-			...signal("goal:signup"),
-			changePercent: 25,
-			metric: {
-				...signal("goal:signup").metric,
-				current: 50,
-				previous: 40,
-			},
-			sentiment: "positive" as const,
-		};
-		const improved: InvestigationOutcome = {
-			evidence: ["Signup conversion rose from 40% to 50%."],
-			impact: "Ten more visitors completed signup per 100 entrants.",
-			next: {
-				reason: "The improvement does not require corrective work.",
-				type: "resolve",
-			},
-			publish: true,
-			rootCause: null,
-			summary: "Signup conversion improved from 40% to 50%.",
-			title: "Signup conversion improved",
-		};
-		const legacyOutcome = investigationOutcome("watch");
-		delete legacyOutcome.publish;
-		await db().insert(insightObservations).values([
-			{
-				asOf: new Date("2025-12-01T00:00:00.000Z"),
-				createdAt: new Date("2026-01-11T12:00:00.000Z"),
-				id: randomUUIDv7(),
-				insightId: null,
-				organizationId: organization.id,
-				outcome: improved,
-				recheckAt: new Date("2026-02-10T00:00:00.000Z"),
-				signal: improvedSignal,
-				signalKey: "goal:signup",
-				websiteId: website.id,
-			},
-			{
-				asOf: new Date("2026-01-10T00:00:00.000Z"),
-				createdAt: new Date("2026-01-10T12:00:00.000Z"),
-				id: randomUUIDv7(),
-				insightId: investigationId,
-				organizationId: organization.id,
-				outcome: investigationOutcome("act"),
-				recheckAt: new Date("2026-01-11T00:00:00.000Z"),
-				signal: signal("goal:signup"),
-				signalKey: "goal:signup",
-				websiteId: website.id,
-			},
-			{
-				asOf: new Date("2026-01-09T00:00:00.000Z"),
-				createdAt: new Date("2026-01-09T12:00:00.000Z"),
-				id: randomUUIDv7(),
-				insightId: null,
-				organizationId: organization.id,
-				outcome: investigationOutcome("watch"),
-				recheckAt: new Date("2026-01-10T00:00:00.000Z"),
-				signal: signal("goal:activation"),
-				signalKey: "goal:activation",
-				websiteId: secondWebsite.id,
-			},
-			{
-				asOf: new Date("2026-01-08T00:00:00.000Z"),
-				createdAt: new Date("2026-01-08T12:00:00.000Z"),
-				id: randomUUIDv7(),
-				insightId: null,
-				organizationId: organization.id,
-				outcome: {
-					...investigationOutcome("watch"),
-					publish: false,
-					title: "Routine activation recheck",
-				},
-				recheckAt: new Date("2026-01-10T00:00:00.000Z"),
-				signal: signal("goal:activation-routine"),
-				signalKey: "goal:activation-routine",
-				websiteId: secondWebsite.id,
-			},
-			{
-				asOf: new Date("2026-01-07T00:00:00.000Z"),
-				createdAt: new Date("2026-01-07T12:00:00.000Z"),
-				id: randomUUIDv7(),
-				insightId: null,
-				organizationId: organization.id,
-				outcome: legacyOutcome,
-				recheckAt: new Date("2026-01-10T00:00:00.000Z"),
-				signal: signal("goal:legacy"),
-				signalKey: "goal:legacy",
-				websiteId: secondWebsite.id,
-			},
-			{
-				asOf: new Date("2026-01-12T00:00:00.000Z"),
-				createdAt: new Date("2026-01-12T12:00:00.000Z"),
-				id: randomUUIDv7(),
-				insightId: null,
-				organizationId: otherOrganization.id,
-				outcome: investigationOutcome("watch"),
-				recheckAt: new Date("2026-01-13T00:00:00.000Z"),
-				signal: signal("goal:other"),
-				signalKey: "goal:other",
-				websiteId: otherWebsite.id,
-			},
-		]);
-
-		const context = userContext(member, organization.id);
-		const firstPage = await call(appRouter.insights.brief, context)({
-			limit: 1,
-			offset: 0,
-			organizationId: organization.id,
-		});
-		expect(firstPage.hasMore).toBe(true);
-		expect(firstPage.insights[0]).toMatchObject({
-			impact: "Ten more visitors completed signup per 100 entrants.",
-			investigationId: null,
-			signal: {
-				changePercent: 25,
-				sentiment: "positive",
-			},
-			title: "Signup conversion improved",
-			websiteId: website.id,
-		});
-		expect(firstPage.insights[0]).not.toHaveProperty("next");
-
-		const secondPage = await call(appRouter.insights.brief, context)({
-			limit: 1,
-			offset: 1,
-			organizationId: organization.id,
-		});
-		expect(secondPage.insights[0]?.investigationId).toBe(investigationId);
-
-		const websiteOnly = await call(appRouter.insights.brief, context)({
-			limit: 10,
-			offset: 0,
-			organizationId: organization.id,
-			websiteId: secondWebsite.id,
-		});
-		expect(websiteOnly.insights).toHaveLength(1);
-		expect(websiteOnly.insights[0]?.websiteId).toBe(secondWebsite.id);
-	});
-
-	iit("persists a reply beside every observation for the same signal", async () => {
-		const member = await signUp();
-		const organization = await insertOrganization();
-		await addToOrganization(member.id, organization.id, "member");
-		const website = await insertWebsite({ organizationId: organization.id });
-		const previousInsightId = randomUUIDv7();
-		const insightId = randomUUIDv7();
-		const signalKey = "goal:signup";
-
-		await db().insert(analyticsInsights).values([
-			{
-				...insightRow({
-					id: previousInsightId,
-					organizationId: organization.id,
-					subjectKey: signalKey,
+				.insert(funnelDefinitions)
+				.values({
+					createdBy: member.id,
+					description: "A vague journey.",
+					id: funnelId,
+					name: "Documentation journey",
+					steps: [
+						{ name: "Landing", target: "/", type: "PAGE_VIEW" },
+						{
+							name: "Account created",
+							target: "account_created",
+							type: "EVENT",
+							conditions: { plan: "paid" },
+						},
+					],
 					websiteId: website.id,
-				}),
-				dedupeKey: `${website.id}|previous|${signalKey}`,
-			},
-			insightRow({
-				id: insightId,
-				organizationId: organization.id,
-				subjectKey: signalKey,
-				websiteId: website.id,
-			}),
-		]);
+				});
+			await db()
+				.insert(analyticsInsights)
+				.values(
+					insightRow({
+						id: insightId,
+						organizationId: organization.id,
+						subjectKey,
+						websiteId: website.id,
+					})
+				);
+			await db()
+				.insert(insightObservations)
+				.values({
+					asOf: new Date("2026-01-10T00:00:00.000Z"),
+					id: randomUUIDv7(),
+					insightId,
+					organizationId: organization.id,
+					outcome,
+					recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+					signal: actionSignal,
+					signalKey: subjectKey,
+					websiteId: website.id,
+				});
 
-		const firstObservationId = randomUUIDv7();
-		const secondObservationId = randomUUIDv7();
-		await db().insert(insightObservations).values([
-			{
-				id: firstObservationId,
-				organizationId: organization.id,
-				websiteId: website.id,
-				insightId,
-				signalKey,
-				asOf: new Date("2026-01-10T00:00:00.000Z"),
-				createdAt: new Date("2026-01-10T12:00:00.000Z"),
-				signal: signal(signalKey),
-				outcome: investigationOutcome("act"),
-				recheckAt: new Date("2026-01-17T00:00:00.000Z"),
-			},
-			{
-				id: secondObservationId,
-				organizationId: organization.id,
-				websiteId: website.id,
-				insightId: null,
-				signalKey,
-				asOf: new Date("2026-01-01T00:00:00.000Z"),
-				createdAt: new Date("2026-01-11T12:00:00.000Z"),
-				signal: signal(signalKey),
-				outcome: investigationOutcome("watch"),
-				recheckAt: new Date("2026-01-18T00:00:00.000Z"),
-			},
-		]);
+			const applied = await call(
+				appRouter.insights.applyAction,
+				userContext(member, organization.id)
+			)({ insightId });
 
-		const context = userContext(member, organization.id);
-		const added = await call(appRouter.insights.reply, context)({
-			body: "  The signup form changed in yesterday's deploy.  ",
-			insightId: previousInsightId,
-		});
-		expect(added.reply.body).toBe(
-			"The signup form changed in yesterday's deploy."
-		);
-		expect(added.reply.status).toBe("queued");
-		expect(
-			(await getInsightsQueue().getJob(insightsResumeJobId(added.reply.id)))?.data
-		).toEqual({ replyId: added.reply.id });
-
-		const result = await call(appRouter.insights.getById, context)({
-			insightId: previousInsightId,
-		});
-		expect(result.canReply).toBe(true);
-		expect(result.insight?.id).toBe(insightId);
-		expect(result.timeline.map((item) => item.id)).toEqual([
-			firstObservationId,
-			secondObservationId,
-			added.reply.id,
-		]);
-		expect(result.timeline[1]).toMatchObject({
-			entity: { id: "signup", label: "Signup", type: "goal" },
-			kind: "investigation",
-			metric: {
-				current: 20,
-				format: "percent",
-				label: "Signup conversion",
-				previous: 40,
-			},
-			period: {
-				current: { from: "2026-01-04", to: "2026-01-10" },
-				previous: { from: "2025-12-28", to: "2026-01-03" },
-			},
-		});
-		expect(result.timeline[0]).toMatchObject({
-			outcome: {
-				next: { type: "act" },
-				title: "Signup conversion changed",
-			},
-		});
-		expect(result.timeline[0]).not.toHaveProperty("asOf");
-		expect(result.timeline[2]).toMatchObject({
-			author: "test",
-			body: "The signup form changed in yesterday's deploy.",
-			kind: "reply",
-			status: "queued",
-		});
-		expect(
-			await db().select().from(insightReplies)
-		).toEqual([
-			expect.objectContaining({
-				authorId: member.id,
-				authorName: "test",
-				body: "The signup form changed in yesterday's deploy.",
-				insightId,
+			expect(applied.reply).toMatchObject({
+				body: "Databuddy applied the funnel action. Recheck its verification condition against current data.",
+				kind: "reply",
 				status: "queued",
-			}),
-		]);
+			});
+			expect(
+				await db()
+					.select({
+						description: funnelDefinitions.description,
+						name: funnelDefinitions.name,
+						steps: funnelDefinitions.steps,
+						filters: funnelDefinitions.filters,
+					})
+					.from(funnelDefinitions)
+					.where(eq(funnelDefinitions.id, funnelId))
+			).toEqual([
+				{
+					description: "Tracks visitors who complete account creation.",
+					name: "Account creation journey",
+					filters: [],
+					steps: [
+						{ name: "Landing", target: "/start", type: "PAGE_VIEW" },
+						{
+							name: "Account created",
+							target: "signup_completed",
+							type: "EVENT",
+							conditions: { plan: "paid" },
+						},
+					],
+				},
+			]);
+			expect(
+				(await getInsightsQueue().getJob(insightsResumeJobId(applied.reply.id)))
+					?.data
+			).toEqual({ replyId: applied.reply.id });
+		}
+	);
 
-		await db()
-			.update(insightReplies)
-			.set({ status: "succeeded" })
-			.where(eq(insightReplies.id, added.reply.id));
-		const competing = await Promise.allSettled([
-			call(appRouter.insights.reply, context)({
-				body: "First simultaneous reply",
-				insightId,
-			}),
-			call(appRouter.insights.reply, context)({
-				body: "Second simultaneous reply",
-				insightId,
-			}),
-		]);
-		expect(competing.filter((item) => item.status === "fulfilled")).toHaveLength(
-			1
-		);
-		expect(competing.filter((item) => item.status === "rejected")).toHaveLength(
-			1
-		);
-		expect(await db().select().from(insightReplies)).toHaveLength(2);
-	});
+	iit.each(["dropped conditions", "changed conditions", "renamed steps"])(
+		"rejects a funnel repair with %s",
+		async (variant) => {
+			const member = await signUp();
+			const organization = await insertOrganization();
+			await addToOrganization(member.id, organization.id, "member");
+			const website = await insertWebsite({ organizationId: organization.id });
+			const funnelId = randomUUIDv7();
+			const insightId = randomUUIDv7();
+			const subjectKey = `funnel:${funnelId}`;
+			const steps = [
+				{ name: "Start", type: "PAGE_VIEW" as const, target: "/start" },
+				{
+					name: "Finish",
+					type: "EVENT" as const,
+					target: "account_created",
+					conditions: { plan: "paid" },
+				},
+			];
+			const replacement =
+				variant === "renamed steps"
+					? steps.map((step) => ({ ...step, name: `${step.name} renamed` }))
+					: [
+							steps[0],
+							{
+								name: "Finish",
+								type: "EVENT" as const,
+								target: "signup_completed",
+								...(variant === "changed conditions"
+									? { conditions: { plan: "free" } }
+									: {}),
+							},
+						];
+			await db()
+				.insert(funnelDefinitions)
+				.values({
+					id: funnelId,
+					websiteId: website.id,
+					createdBy: member.id,
+					name: "Account journey",
+					steps,
+					updatedAt: new Date("2026-01-01T00:00:00Z"),
+				});
+			await db()
+				.insert(analyticsInsights)
+				.values(
+					insightRow({
+						id: insightId,
+						organizationId: organization.id,
+						subjectKey,
+						websiteId: website.id,
+					})
+				);
+			await db()
+				.insert(insightObservations)
+				.values({
+					id: randomUUIDv7(),
+					insightId,
+					organizationId: organization.id,
+					websiteId: website.id,
+					signalKey: subjectKey,
+					asOf: new Date("2026-01-10T00:00:00Z"),
+					recheckAt: new Date("2026-01-17T00:00:00Z"),
+					signal: {
+						...signal(subjectKey),
+						entity: { type: "funnel", id: funnelId, label: "Account journey" },
+					},
+					outcome: {
+						...investigationOutcome("act"),
+						next: {
+							type: "act",
+							action: "Repair the account journey.",
+							target: "Account journey",
+							verification: "Matching account counts recover.",
+							execution: { operation: "edit", changes: { steps: replacement } },
+						},
+					},
+				});
+			await expectCode(
+				call(
+					appRouter.insights.applyAction,
+					userContext(member, organization.id)
+				)({ insightId }),
+				"BAD_REQUEST"
+			);
+			const [unchanged] = await db()
+				.select()
+				.from(funnelDefinitions)
+				.where(eq(funnelDefinitions.id, funnelId));
+			expect(unchanged?.steps).toEqual(steps);
+			expect(await db().select().from(insightReplies)).toHaveLength(0);
+		}
+	);
+
+	iit(
+		"remeasures an open goal investigation after a teammate edits its definition",
+		async () => {
+			const member = await signUp();
+			const organization = await insertOrganization();
+			await addToOrganization(member.id, organization.id, "member");
+			const website = await insertWebsite({ organizationId: organization.id });
+			const goalId = randomUUIDv7();
+			const insightId = randomUUIDv7();
+			const subjectKey = `goal:${goalId}`;
+			await db().insert(goals).values({
+				createdBy: member.id,
+				id: goalId,
+				name: "Signup complete",
+				target: "signup_completed",
+				type: "EVENT",
+				websiteId: website.id,
+			});
+			await db()
+				.insert(analyticsInsights)
+				.values(
+					insightRow({
+						id: insightId,
+						organizationId: organization.id,
+						subjectKey,
+						websiteId: website.id,
+					})
+				);
+			await db()
+				.insert(insightObservations)
+				.values({
+					asOf: new Date("2026-01-10T00:00:00.000Z"),
+					id: randomUUIDv7(),
+					insightId,
+					organizationId: organization.id,
+					outcome: investigationOutcome("act"),
+					recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+					signal: {
+						...signal(subjectKey),
+						entity: { id: goalId, label: "Signup complete", type: "goal" },
+					},
+					signalKey: subjectKey,
+					websiteId: website.id,
+				});
+
+			const context = userContext(member, organization.id);
+			await call(
+				appRouter.goals.update,
+				context
+			)({
+				id: goalId,
+				name: "Signup conversion",
+			});
+			await call(
+				appRouter.goals.update,
+				context
+			)({
+				description: "Counts completed signup events.",
+				id: goalId,
+			});
+
+			const replies = await db()
+				.select({
+					authorName: insightReplies.authorName,
+					body: insightReplies.body,
+					id: insightReplies.id,
+					status: insightReplies.status,
+				})
+				.from(insightReplies);
+			expect(replies).toEqual([
+				expect.objectContaining({
+					authorName: "Databuddy",
+					body: "Databuddy detected a goal definition change. Recheck the current evidence and resolve this investigation if the change addressed it.",
+					status: "queued",
+				}),
+			]);
+			expect(
+				(
+					await getInsightsQueue().getJob(
+						insightsResumeJobId(replies[0]?.id ?? "")
+					)
+				)?.data
+			).toEqual({ replyId: replies[0]?.id });
+		}
+	);
+
+	iit(
+		"remeasures an open funnel-step investigation after its funnel changes",
+		async () => {
+			const member = await signUp();
+			const organization = await insertOrganization();
+			await addToOrganization(member.id, organization.id, "member");
+			const website = await insertWebsite({ organizationId: organization.id });
+			const funnelId = randomUUIDv7();
+			const insightId = randomUUIDv7();
+			const subjectKey = `funnel:${funnelId}:step:2`;
+			await db()
+				.insert(funnelDefinitions)
+				.values({
+					createdBy: member.id,
+					id: funnelId,
+					name: "Signup funnel",
+					steps: [
+						{ name: "Register", target: "/register", type: "PAGE_VIEW" },
+						{ name: "Website", target: "/websites", type: "PAGE_VIEW" },
+					],
+					websiteId: website.id,
+				});
+			await db()
+				.insert(analyticsInsights)
+				.values(
+					insightRow({
+						id: insightId,
+						organizationId: organization.id,
+						subjectKey,
+						websiteId: website.id,
+					})
+				);
+			await db()
+				.insert(insightObservations)
+				.values({
+					asOf: new Date("2026-01-10T00:00:00.000Z"),
+					id: randomUUIDv7(),
+					insightId,
+					organizationId: organization.id,
+					outcome: investigationOutcome("act"),
+					recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+					signal: {
+						...signal(subjectKey),
+						entity: {
+							id: `${funnelId}:step:2`,
+							label: "Signup funnel → Website",
+							type: "funnel_step",
+						},
+					},
+					signalKey: subjectKey,
+					websiteId: website.id,
+				});
+
+			await call(
+				appRouter.funnels.update,
+				userContext(member, organization.id)
+			)({
+				description: "Tracks signup progress to the websites page.",
+				id: funnelId,
+			});
+
+			expect(
+				await db()
+					.select({ body: insightReplies.body, status: insightReplies.status })
+					.from(insightReplies)
+			).toEqual([
+				{
+					body: "Databuddy detected a funnel definition change. Recheck the current evidence and resolve this investigation if the change addressed it.",
+					status: "queued",
+				},
+			]);
+		}
+	);
+
+	iit(
+		"returns chronological insights without turning every observation into a case",
+		async () => {
+			const member = await signUp();
+			const organization = await insertOrganization();
+			await addToOrganization(member.id, organization.id, "member");
+			const website = await insertWebsite({ organizationId: organization.id });
+			const secondWebsite = await insertWebsite({
+				organizationId: organization.id,
+			});
+			const otherOrganization = await insertOrganization();
+			const otherWebsite = await insertWebsite({
+				organizationId: otherOrganization.id,
+			});
+			const investigationId = randomUUIDv7();
+			await db()
+				.insert(analyticsInsights)
+				.values(
+					insightRow({
+						id: investigationId,
+						organizationId: organization.id,
+						subjectKey: "goal:signup",
+						websiteId: website.id,
+					})
+				);
+			const improvedSignal = {
+				...signal("goal:signup"),
+				changePercent: 25,
+				metric: {
+					...signal("goal:signup").metric,
+					current: 50,
+					previous: 40,
+				},
+				sentiment: "positive" as const,
+			};
+			const improved: InvestigationOutcome = {
+				evidence: ["Signup conversion rose from 40% to 50%."],
+				impact: "Ten more visitors completed signup per 100 entrants.",
+				next: {
+					reason: "The improvement does not require corrective work.",
+					type: "resolve",
+				},
+				publish: true,
+				rootCause: null,
+				summary: "Signup conversion improved from 40% to 50%.",
+				title: "Signup conversion improved",
+			};
+			const legacyOutcome = investigationOutcome("watch");
+			legacyOutcome.publish = undefined;
+			await db()
+				.insert(insightObservations)
+				.values([
+					{
+						asOf: new Date("2025-12-01T00:00:00.000Z"),
+						createdAt: new Date("2026-01-11T12:00:00.000Z"),
+						id: randomUUIDv7(),
+						insightId: null,
+						organizationId: organization.id,
+						outcome: improved,
+						recheckAt: new Date("2026-02-10T00:00:00.000Z"),
+						signal: improvedSignal,
+						signalKey: "goal:signup",
+						websiteId: website.id,
+					},
+					{
+						asOf: new Date("2026-01-10T00:00:00.000Z"),
+						createdAt: new Date("2026-01-10T12:00:00.000Z"),
+						id: randomUUIDv7(),
+						insightId: investigationId,
+						organizationId: organization.id,
+						outcome: investigationOutcome("act"),
+						recheckAt: new Date("2026-01-11T00:00:00.000Z"),
+						signal: signal("goal:signup"),
+						signalKey: "goal:signup",
+						websiteId: website.id,
+					},
+					{
+						asOf: new Date("2026-01-09T00:00:00.000Z"),
+						createdAt: new Date("2026-01-09T12:00:00.000Z"),
+						id: randomUUIDv7(),
+						insightId: null,
+						organizationId: organization.id,
+						outcome: investigationOutcome("watch"),
+						recheckAt: new Date("2026-01-10T00:00:00.000Z"),
+						signal: signal("goal:activation"),
+						signalKey: "goal:activation",
+						websiteId: secondWebsite.id,
+					},
+					{
+						asOf: new Date("2026-01-08T00:00:00.000Z"),
+						createdAt: new Date("2026-01-08T12:00:00.000Z"),
+						id: randomUUIDv7(),
+						insightId: null,
+						organizationId: organization.id,
+						outcome: {
+							...investigationOutcome("watch"),
+							publish: false,
+							title: "Routine activation recheck",
+						},
+						recheckAt: new Date("2026-01-10T00:00:00.000Z"),
+						signal: signal("goal:activation-routine"),
+						signalKey: "goal:activation-routine",
+						websiteId: secondWebsite.id,
+					},
+					{
+						asOf: new Date("2026-01-07T00:00:00.000Z"),
+						createdAt: new Date("2026-01-07T12:00:00.000Z"),
+						id: randomUUIDv7(),
+						insightId: null,
+						organizationId: organization.id,
+						outcome: legacyOutcome,
+						recheckAt: new Date("2026-01-10T00:00:00.000Z"),
+						signal: signal("goal:legacy"),
+						signalKey: "goal:legacy",
+						websiteId: secondWebsite.id,
+					},
+					{
+						asOf: new Date("2026-01-12T00:00:00.000Z"),
+						createdAt: new Date("2026-01-12T12:00:00.000Z"),
+						id: randomUUIDv7(),
+						insightId: null,
+						organizationId: otherOrganization.id,
+						outcome: investigationOutcome("watch"),
+						recheckAt: new Date("2026-01-13T00:00:00.000Z"),
+						signal: signal("goal:other"),
+						signalKey: "goal:other",
+						websiteId: otherWebsite.id,
+					},
+				]);
+
+			const context = userContext(member, organization.id);
+			const firstPage = await call(
+				appRouter.insights.brief,
+				context
+			)({
+				limit: 1,
+				offset: 0,
+				organizationId: organization.id,
+			});
+			expect(firstPage.hasMore).toBe(true);
+			expect(firstPage.insights[0]).toMatchObject({
+				impact: "Ten more visitors completed signup per 100 entrants.",
+				investigationId: null,
+				signal: {
+					changePercent: 25,
+					sentiment: "positive",
+				},
+				title: "Signup conversion improved",
+				websiteId: website.id,
+			});
+			expect(firstPage.insights[0]).not.toHaveProperty("next");
+
+			const secondPage = await call(
+				appRouter.insights.brief,
+				context
+			)({
+				limit: 1,
+				offset: 1,
+				organizationId: organization.id,
+			});
+			expect(secondPage.insights[0]?.investigationId).toBe(investigationId);
+
+			const websiteOnly = await call(
+				appRouter.insights.brief,
+				context
+			)({
+				limit: 10,
+				offset: 0,
+				organizationId: organization.id,
+				websiteId: secondWebsite.id,
+			});
+			expect(websiteOnly.insights).toHaveLength(1);
+			expect(websiteOnly.insights[0]?.websiteId).toBe(secondWebsite.id);
+		}
+	);
+
+	iit(
+		"requires explicit $1 consent and replays the same analysis without storing a price",
+		async () => {
+			const { member, organization, insightId } =
+				await seedExecutableGoalAction();
+			const context = userContext(member, organization.id);
+			const originalSecret = process.env.AUTUMN_SECRET_KEY;
+			process.env.AUTUMN_SECRET_KEY = "synthetic-local-only";
+			const getCustomer = vi
+				.spyOn(getAutumn().customers, "get")
+				.mockResolvedValue({
+					id: member.id,
+					name: null,
+					email: null,
+					createdAt: 0,
+					fingerprint: null,
+					stripeId: null,
+					env: "sandbox",
+					metadata: {},
+					sendEmailReceipts: false,
+					billingControls: {},
+					subscriptions: [],
+					purchases: [],
+					flags: {},
+					balances: {
+						investigation_runs: {
+							featureId: "investigation_runs",
+							granted: 1,
+							remaining: 1,
+							usage: 0,
+							unlimited: false,
+							overageAllowed: false,
+							maxPurchase: null,
+							nextResetAt: null,
+						},
+					},
+				});
+			try {
+				const input = {
+					body: "Run a fresh signup analysis",
+					insightId,
+					intent: "analysis" as const,
+					acceptedPriceUsd: 1 as const,
+					replyId: randomUUIDv7(),
+				};
+				for (const acceptedPriceUsd of [undefined, 0, 2]) {
+					await expectBadReplyRequest(context, { ...input, acceptedPriceUsd });
+				}
+				expect(getCustomer).not.toHaveBeenCalled();
+				expect(
+					await db()
+						.select()
+						.from(insightReplies)
+						.where(eq(insightReplies.id, input.replyId))
+				).toHaveLength(0);
+				expect(
+					await getInsightsQueue().getJob(insightsResumeJobId(input.replyId))
+				).toBeUndefined();
+				const first = await call(appRouter.insights.reply, context)(input);
+				const [stored] = await db()
+					.select()
+					.from(insightReplies)
+					.where(eq(insightReplies.id, first.reply.id));
+				expect(stored).toMatchObject({
+					body: input.body,
+					intent: "analysis",
+					status: "queued",
+				});
+				expect(stored?.sourceObservationId).toBeTruthy();
+				expect(stored).not.toHaveProperty("acceptedPriceCents");
+				const retry = await call(appRouter.insights.reply, context)(input);
+				expect(retry.reply).toEqual(first.reply);
+				expect(
+					await db()
+						.select()
+						.from(insightReplies)
+						.where(eq(insightReplies.id, input.replyId))
+				).toHaveLength(1);
+				const customerChecks = getCustomer.mock.calls.length;
+				for (const acceptedPriceUsd of [undefined, 0, 2]) {
+					await expectBadReplyRequest(context, { ...input, acceptedPriceUsd });
+				}
+				expect(getCustomer).toHaveBeenCalledTimes(customerChecks);
+				await expectCode(
+					call(
+						appRouter.insights.reply,
+						context
+					)({
+						...input,
+						body: "Run a different signup analysis",
+					}),
+					"CONFLICT"
+				);
+				await expectCode(
+					call(
+						appRouter.insights.reply,
+						context
+					)({
+						...input,
+						intent: "clarification",
+					}),
+					"CONFLICT"
+				);
+				const [unchanged] = await db()
+					.select()
+					.from(insightReplies)
+					.where(eq(insightReplies.id, first.reply.id));
+				expect(unchanged).toEqual(stored);
+			} finally {
+				getCustomer.mockRestore();
+				if (originalSecret === undefined) {
+					delete process.env.AUTUMN_SECRET_KEY;
+				} else {
+					process.env.AUTUMN_SECRET_KEY = originalSecret;
+				}
+			}
+		}
+	);
+
+	iit(
+		"persists a reply beside every observation for the same signal",
+		async () => {
+			const member = await signUp();
+			const organization = await insertOrganization();
+			await addToOrganization(member.id, organization.id, "member");
+			const website = await insertWebsite({ organizationId: organization.id });
+			const previousInsightId = randomUUIDv7();
+			const insightId = randomUUIDv7();
+			const signalKey = "goal:signup";
+
+			await db()
+				.insert(analyticsInsights)
+				.values([
+					{
+						...insightRow({
+							id: previousInsightId,
+							organizationId: organization.id,
+							subjectKey: signalKey,
+							websiteId: website.id,
+						}),
+						dedupeKey: `${website.id}|previous|${signalKey}`,
+					},
+					insightRow({
+						id: insightId,
+						organizationId: organization.id,
+						subjectKey: signalKey,
+						websiteId: website.id,
+					}),
+				]);
+
+			const firstObservationId = randomUUIDv7();
+			const secondObservationId = randomUUIDv7();
+			await db()
+				.insert(insightObservations)
+				.values([
+					{
+						id: firstObservationId,
+						organizationId: organization.id,
+						websiteId: website.id,
+						insightId,
+						signalKey,
+						asOf: new Date("2026-01-10T00:00:00.000Z"),
+						createdAt: new Date("2026-01-10T12:00:00.000Z"),
+						signal: signal(signalKey),
+						outcome: investigationOutcome("act"),
+						recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+					},
+					{
+						id: secondObservationId,
+						organizationId: organization.id,
+						websiteId: website.id,
+						insightId: null,
+						signalKey,
+						asOf: new Date("2026-01-01T00:00:00.000Z"),
+						createdAt: new Date("2026-01-11T12:00:00.000Z"),
+						signal: signal(signalKey),
+						outcome: investigationOutcome("watch"),
+						recheckAt: new Date("2026-01-18T00:00:00.000Z"),
+					},
+				]);
+
+			const context = userContext(member, organization.id);
+			await expectCode(
+				call(
+					appRouter.insights.reply,
+					context
+				)({
+					body: "Fresh analysis",
+					insightId: previousInsightId,
+					intent: "analysis",
+				}),
+				"BAD_REQUEST"
+			);
+			await expectBadReplyRequest(context, {
+				body: "Verify",
+				insightId: previousInsightId,
+				intent: "verification",
+			});
+			const added = await call(
+				appRouter.insights.reply,
+				context
+			)({
+				body: "  The signup form changed in yesterday's deploy.  ",
+				insightId: previousInsightId,
+			});
+			expect(added.reply.body).toBe(
+				"The signup form changed in yesterday's deploy."
+			);
+			expect(added.reply.status).toBe("queued");
+			const [includedReply] = await db()
+				.select()
+				.from(insightReplies)
+				.where(eq(insightReplies.id, added.reply.id));
+			expect(includedReply).toMatchObject({
+				intent: "clarification",
+				sourceObservationId: secondObservationId,
+			});
+			expect(
+				(await getInsightsQueue().getJob(insightsResumeJobId(added.reply.id)))
+					?.data
+			).toEqual({ replyId: added.reply.id });
+
+			const result = await call(
+				appRouter.insights.getById,
+				context
+			)({
+				insightId: previousInsightId,
+			});
+			expect(result.canReply).toBe(true);
+			expect(result.insight?.id).toBe(insightId);
+			expect(result.timeline.map((item) => item.id)).toEqual([
+				firstObservationId,
+				secondObservationId,
+				added.reply.id,
+			]);
+			expect(result.timeline[1]).toMatchObject({
+				entity: { id: "signup", label: "Signup", type: "goal" },
+				kind: "investigation",
+				metric: {
+					current: 20,
+					format: "percent",
+					label: "Signup conversion",
+					previous: 40,
+				},
+				period: {
+					current: { from: "2026-01-04", to: "2026-01-10" },
+					previous: { from: "2025-12-28", to: "2026-01-03" },
+				},
+			});
+			expect(result.timeline[0]).toMatchObject({
+				outcome: {
+					next: { type: "act" },
+					title: "Signup conversion changed",
+				},
+			});
+			expect(result.timeline[0]).not.toHaveProperty("asOf");
+			expect(result.timeline[2]).toMatchObject({
+				author: "test",
+				body: "The signup form changed in yesterday's deploy.",
+				kind: "reply",
+				status: "queued",
+			});
+			expect(await db().select().from(insightReplies)).toEqual([
+				expect.objectContaining({
+					authorId: member.id,
+					authorName: "test",
+					body: "The signup form changed in yesterday's deploy.",
+					insightId,
+					intent: "clarification",
+					sourceObservationId: secondObservationId,
+					status: "queued",
+				}),
+			]);
+
+			await db()
+				.update(insightReplies)
+				.set({ status: "succeeded" })
+				.where(eq(insightReplies.id, added.reply.id));
+			const competing = await Promise.allSettled([
+				call(
+					appRouter.insights.reply,
+					context
+				)({
+					body: "First simultaneous reply",
+					insightId,
+				}),
+				call(
+					appRouter.insights.reply,
+					context
+				)({
+					body: "Second simultaneous reply",
+					insightId,
+				}),
+			]);
+			expect(
+				competing.filter((item) => item.status === "fulfilled")
+			).toHaveLength(1);
+			expect(
+				competing.filter((item) => item.status === "rejected")
+			).toHaveLength(1);
+			expect(await db().select().from(insightReplies)).toHaveLength(2);
+		}
+	);
 
 	iit("uses one scoped API-key reply across retries", async () => {
 		const organization = await insertOrganization();
 		const website = await insertWebsite({ organizationId: organization.id });
 		await insertWebsite({ organizationId: organization.id });
 		const insightId = randomUUIDv7();
-		await db().insert(analyticsInsights).values(
-			insightRow({
-				id: insightId,
+		await db()
+			.insert(analyticsInsights)
+			.values(
+				insightRow({
+					id: insightId,
+					organizationId: organization.id,
+					subjectKey: "goal:signup",
+					websiteId: website.id,
+				})
+			);
+		await db()
+			.insert(insightObservations)
+			.values({
+				asOf: new Date("2026-01-10T00:00:00.000Z"),
+				id: randomUUIDv7(),
+				insightId,
 				organizationId: organization.id,
-				subjectKey: "goal:signup",
+				outcome: investigationOutcome("act"),
+				recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+				signal: signal("goal:signup"),
+				signalKey: "goal:signup",
 				websiteId: website.id,
-			})
-		);
-		await db().insert(insightObservations).values({
-			asOf: new Date("2026-01-10T00:00:00.000Z"),
-			id: randomUUIDv7(),
-			insightId,
-			organizationId: organization.id,
-			outcome: investigationOutcome("act"),
-			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
-			signal: signal("goal:signup"),
-			signalKey: "goal:signup",
-			websiteId: website.id,
-		});
+			});
 
 		const principal = createInternalPrincipal({
 			metadata: {
@@ -1020,18 +1555,21 @@ describe("insight investigation timeline", () => {
 		expect(retry?.isError).toBe(false);
 		expect(retry?.structuredContent).toEqual({ reply: first.reply });
 		expect(
-			(await mcpTools.find((tool) => tool.name === "list_websites")?.handler({}))
-				?.structuredContent
+			(
+				await mcpTools
+					.find((tool) => tool.name === "list_websites")
+					?.handler({})
+			)?.structuredContent
 		).toEqual({
 			total: 1,
 			websites: [expect.objectContaining({ id: website.id })],
 		});
-		const listedWhileVerifying = await mcpTools
+		const listedWhileClarifying = await mcpTools
 			.find((tool) => tool.name === "list_investigations")
 			?.handler({ limit: 20, offset: 0, websiteId: website.id });
-		expect(listedWhileVerifying?.isError).toBe(false);
-		expect(listedWhileVerifying?.structuredContent).toMatchObject({
-			investigations: [],
+		expect(listedWhileClarifying?.isError).toBe(false);
+		expect(listedWhileClarifying?.structuredContent).toMatchObject({
+			investigations: [expect.objectContaining({ id: insightId })],
 		});
 		expect(await db().select().from(insightReplies)).toEqual([
 			expect.objectContaining({
@@ -1057,7 +1595,10 @@ describe("insight investigation timeline", () => {
 				.canReply
 		).toBe(false);
 		await expectCode(
-			call(appRouter.insights.reply, readOnlyContext)({
+			call(
+				appRouter.insights.reply,
+				readOnlyContext
+			)({
 				body: "I should not be able to reply.",
 				insightId,
 			}),
@@ -1090,28 +1631,35 @@ describe("insight investigation timeline", () => {
 		await addToOrganization(member.id, organization.id, "member");
 		const website = await insertWebsite({ organizationId: organization.id });
 		const insightId = randomUUIDv7();
-		await db().insert(analyticsInsights).values(
-			insightRow({
-				id: insightId,
+		await db()
+			.insert(analyticsInsights)
+			.values(
+				insightRow({
+					id: insightId,
+					organizationId: organization.id,
+					subjectKey: "goal:signup",
+					websiteId: website.id,
+				})
+			);
+		await db()
+			.insert(insightObservations)
+			.values({
+				asOf: new Date("2026-01-10T00:00:00.000Z"),
+				id: randomUUIDv7(),
+				insightId,
 				organizationId: organization.id,
-				subjectKey: "goal:signup",
+				outcome: investigationOutcome("watch"),
+				recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+				signal: signal("goal:signup"),
+				signalKey: "goal:signup",
 				websiteId: website.id,
-			})
-		);
-		await db().insert(insightObservations).values({
-			asOf: new Date("2026-01-10T00:00:00.000Z"),
-			id: randomUUIDv7(),
-			insightId,
-			organizationId: organization.id,
-			outcome: investigationOutcome("watch"),
-			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
-			signal: signal("goal:signup"),
-			signalKey: "goal:signup",
-			websiteId: website.id,
-		});
+			});
 
 		await expectCode(
-			call(appRouter.insights.reply, userContext(viewer, organization.id))({
+			call(
+				appRouter.insights.reply,
+				userContext(viewer, organization.id)
+			)({
 				body: "Viewer context",
 				insightId,
 			}),
@@ -1120,25 +1668,29 @@ describe("insight investigation timeline", () => {
 		expect(await db().select().from(insightReplies)).toHaveLength(0);
 
 		const failedReplyId = randomUUIDv7();
-		await db().insert(insightReplies).values({
-			authorId: viewer.id,
-			authorName: "Viewer",
-			body: "Retry this",
-			createdAt: new Date("2026-01-10T00:00:00.000Z"),
-			id: failedReplyId,
-			insightId,
-			status: "failed",
-		});
+		await db()
+			.insert(insightReplies)
+			.values({
+				authorId: viewer.id,
+				authorName: "Viewer",
+				body: "Retry this",
+				createdAt: new Date("2026-01-10T00:00:00.000Z"),
+				id: failedReplyId,
+				insightId,
+				status: "failed",
+			});
 		const newerReplyId = randomUUIDv7();
-		await db().insert(insightReplies).values({
-			authorId: member.id,
-			authorName: "Member",
-			body: "Newer context",
-			createdAt: new Date("2026-01-11T00:00:00.000Z"),
-			id: newerReplyId,
-			insightId,
-			status: "succeeded",
-		});
+		await db()
+			.insert(insightReplies)
+			.values({
+				authorId: member.id,
+				authorName: "Member",
+				body: "Newer context",
+				createdAt: new Date("2026-01-11T00:00:00.000Z"),
+				id: newerReplyId,
+				insightId,
+				status: "succeeded",
+			});
 		await expectCode(
 			call(
 				appRouter.insights.retryReply,
@@ -1177,47 +1729,59 @@ describe("insight investigation timeline", () => {
 		)({ replyId: failedReplyId });
 		expect(retried.status).toBe("queued");
 		expect(
-			(await getInsightsQueue().getJob(insightsResumeJobId(failedReplyId)))?.data
+			(await getInsightsQueue().getJob(insightsResumeJobId(failedReplyId)))
+				?.data
 		).toEqual({ replyId: failedReplyId });
 	});
 
-	iit("does not expose or mutate another organization's investigation", async () => {
-		const owner = await signUp();
-		const outsider = await signUp();
-		const organization = await insertOrganization();
-		const outsiderOrganization = await insertOrganization();
-		await addToOrganization(owner.id, organization.id, "owner");
-		await addToOrganization(outsider.id, outsiderOrganization.id, "owner");
-		const website = await insertWebsite({ organizationId: organization.id });
-		const insightId = randomUUIDv7();
-		await db().insert(analyticsInsights).values(
-			insightRow({
-				id: insightId,
-				organizationId: organization.id,
-				subjectKey: "goal:purchase",
-				websiteId: website.id,
-			})
-		);
-		const unavailable = await call(
-			appRouter.insights.getById,
-			userContext(owner, organization.id)
-		)({ insightId });
-		expect(unavailable.canReply).toBe(false);
-		expect(unavailable.insight).toBeNull();
+	iit(
+		"does not expose or mutate another organization's investigation",
+		async () => {
+			const owner = await signUp();
+			const outsider = await signUp();
+			const organization = await insertOrganization();
+			const outsiderOrganization = await insertOrganization();
+			await addToOrganization(owner.id, organization.id, "owner");
+			await addToOrganization(outsider.id, outsiderOrganization.id, "owner");
+			const website = await insertWebsite({ organizationId: organization.id });
+			const insightId = randomUUIDv7();
+			await db()
+				.insert(analyticsInsights)
+				.values(
+					insightRow({
+						id: insightId,
+						organizationId: organization.id,
+						subjectKey: "goal:purchase",
+						websiteId: website.id,
+					})
+				);
+			const unavailable = await call(
+				appRouter.insights.getById,
+				userContext(owner, organization.id)
+			)({ insightId });
+			expect(unavailable.canReply).toBe(false);
+			expect(unavailable.insight).toBeNull();
 
-		const context = userContext(outsider, outsiderOrganization.id);
-		const hidden = await call(appRouter.insights.getById, context)({ insightId });
-		expect(hidden).toEqual({
-			canReply: false,
-			insight: null,
-			timeline: [],
-		});
-		await expectCode(
-			call(appRouter.insights.reply, context)({ body: "Not mine", insightId }),
-			"FORBIDDEN"
-		);
-		expect(await db().select().from(insightReplies)).toHaveLength(0);
-	});
+			const context = userContext(outsider, outsiderOrganization.id);
+			const hidden = await call(
+				appRouter.insights.getById,
+				context
+			)({ insightId });
+			expect(hidden).toEqual({
+				canReply: false,
+				insight: null,
+				timeline: [],
+			});
+			await expectCode(
+				call(
+					appRouter.insights.reply,
+					context
+				)({ body: "Not mine", insightId }),
+				"FORBIDDEN"
+			);
+			expect(await db().select().from(insightReplies)).toHaveLength(0);
+		}
+	);
 });
 
 function insightRow(input: {

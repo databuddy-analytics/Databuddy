@@ -1,9 +1,7 @@
+import { conversationModelOptions } from "../config/conversation-model";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
-import {
-	ANTHROPIC_CACHE_1H,
-	createModelFromId,
-	getDefaultAgentModelId,
-} from "../config/models";
+import type { WebsiteSummary } from "../../lib/accessible-websites";
+import { createModelFromId, getDefaultAgentModelId } from "../config/models";
 import { createMcpAgentTools } from "../mcp/agent-tools";
 import type { DatabuddyAgentSlackContext } from "../mcp/slack-context";
 import { buildAnalyticsInstructionsForMcp } from "../prompts/analytics";
@@ -12,9 +10,10 @@ import { stopAtMaxSteps } from "./stop-conditions";
 import type { AgentConfig } from "./types";
 
 export function createMcpAgentConfig(context: {
+	accessibleWebsites?: WebsiteSummary[];
 	billingCustomerId?: string | null;
 	requestHeaders: Headers;
-	apiKey: unknown;
+	apiKey: ApiKeyRow | null;
 	userId: string | null;
 	timezone?: string;
 	chatId?: string;
@@ -36,12 +35,9 @@ export function createMcpAgentConfig(context: {
 	const selectedModelId =
 		context.modelOverride ?? getDefaultAgentModelId(context.source);
 
-	const useAnthropicPromptCache = selectedModelId.startsWith("anthropic/");
+	const modelOptions = conversationModelOptions(selectedModelId);
 
-	const apiKey =
-		context.apiKey && typeof context.apiKey === "object"
-			? (context.apiKey as ApiKeyRow)
-			: null;
+	const apiKey = context.apiKey;
 	const serviceAuth: ServiceAuth | undefined = apiKey
 		? { apiKey, session: null }
 		: undefined;
@@ -57,7 +53,7 @@ export function createMcpAgentConfig(context: {
 				websiteDomain,
 				websiteId,
 			}),
-			providerOptions: useAnthropicPromptCache ? ANTHROPIC_CACHE_1H : undefined,
+			providerOptions: modelOptions.systemProviderOptions,
 		},
 		tools: createMcpAgentTools({
 			slackContext: context.slackContext,
@@ -67,8 +63,10 @@ export function createMcpAgentConfig(context: {
 		}),
 		activeTools: context.activeTools,
 		stopWhen: stopAtMaxSteps,
-		temperature: 0.1,
+		temperature: modelOptions.temperature,
+		providerOptions: modelOptions.providerOptions,
 		experimental_context: {
+			accessibleWebsites: context.accessibleWebsites,
 			apiKey,
 			billingCustomerId: context.billingCustomerId,
 			chatId,
@@ -80,7 +78,7 @@ export function createMcpAgentConfig(context: {
 			serviceAuth,
 			source: context.source ?? "mcp",
 			timezone,
-			userId: context.userId ?? "",
+			userId: context.userId,
 			websiteId,
 			websiteDomain,
 		},

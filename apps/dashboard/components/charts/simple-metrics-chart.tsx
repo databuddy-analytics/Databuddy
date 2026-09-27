@@ -23,6 +23,7 @@ interface SimpleMetricsChartProps {
 	metrics: MetricConfig[];
 	partialLastSegment?: boolean;
 	seriesKind?: ChartSeriesKind;
+	showYAxis?: boolean;
 	title?: string;
 }
 
@@ -42,6 +43,7 @@ export function SimpleMetricsChart({
 	partialLastSegment = false,
 	chartStepType = "monotone",
 	seriesKind = "area",
+	showYAxis = false,
 }: SimpleMetricsChartProps) {
 	const metricsWithColors = useMemo(
 		() =>
@@ -70,7 +72,7 @@ export function SimpleMetricsChart({
 			<Chart.Content<SimpleChartReadyPayload>
 				emptyProps={{
 					description: "No samples in this range.",
-					icon: <ChartLineIcon weight="duotone" />,
+					icon: <ChartLineIcon />,
 					title: "No data",
 				}}
 				loading={<Chart.DefaultLoading height={height} />}
@@ -86,6 +88,7 @@ export function SimpleMetricsChart({
 								metrics={series}
 								partialLastSegment={partialLastSegment}
 								seriesKind={seriesKind}
+								showYAxis={showYAxis}
 							/>
 						</Chart.Plot>
 

@@ -1,9 +1,11 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { MIN_AGENT_CREDIT_CHECK_BALANCE } from "@databuddy/shared/agent-credits";
 import { getAutumn } from "@databuddy/rpc/autumn";
 import { getBillingCustomerId } from "@databuddy/rpc/billing";
 import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
 import type { LanguageModelUsage } from "ai";
+import type { RequestLogger } from "evlog";
 import { trackAgentEvent } from "../../lib/databuddy";
 import { captureError, mergeWideEvent } from "../../lib/tracing";
 import {
@@ -13,19 +15,29 @@ import {
 
 interface AgentUsageTrackingInput {
 	agentType?: string;
+	billingAccess?: AgentBillingAccess;
 	billingCustomerId?: string | null;
 	chatId?: string;
 	idempotencyKey?: string;
 	modelId: string;
 	organizationId?: string | null;
+	requestLogger?: RequestLogger;
 	source: "dashboard" | "mcp" | "slack" | "insights";
 	usage: LanguageModelUsage;
 	userId?: string | null;
 	websiteId?: string;
 }
 
+export interface AgentBillingAccess {
+	allowed: boolean;
+	customerId: string | null;
+}
+
 export function isAgentBillingConfigured(): boolean {
-	return Boolean(process.env.AUTUMN_SECRET_KEY?.trim());
+	return (
+		!readBooleanEnv("SELFHOST") &&
+		Boolean(process.env.AUTUMN_SECRET_KEY?.trim())
+	);
 }
 
 export async function resolveAgentBillingCustomerId(principal: {
@@ -82,25 +94,46 @@ export async function resolveAgentBillingCustomerId(principal: {
 	return customerId;
 }
 
-export async function ensureAgentCreditsAvailable(
+export async function getAgentBillingAccess(
 	billingCustomerId: string | null
-): Promise<boolean> {
-	if (!(isAgentBillingConfigured() && billingCustomerId)) {
+): Promise<AgentBillingAccess> {
+	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
+		throw new Error(
+			"Ask your administrator to configure AI before using Databunny."
+		);
+	}
+	if (!isAgentBillingConfigured()) {
 		mergeWideEvent({
 			agent_credits_allowed: true,
 			agent_credits_check_skipped: true,
 		});
-		return true;
+		return { allowed: true, customerId: billingCustomerId };
+	}
+	if (!billingCustomerId) {
+		throw new Error("The agent billing customer is unavailable");
 	}
 
 	const startedAt = performance.now();
 	try {
-		const result = await getAutumn().check({
+		const autumn = getAutumn({ strict: true });
+		const customer = await autumn.customers.get({
+			customerId: billingCustomerId,
+		});
+		if (customer.id !== billingCustomerId) {
+			throw new Error("The agent billing customer could not be verified");
+		}
+		const result = await autumn.check({
 			customerId: billingCustomerId,
 			featureId: "agent_credits",
 			requiredBalance: MIN_AGENT_CREDIT_CHECK_BALANCE,
 		});
-		const allowed = result.allowed !== false;
+		if (
+			result.customerId !== billingCustomerId ||
+			(result.allowed && result.balance?.featureId !== "agent_credits")
+		) {
+			throw new Error("The agent credit balance could not be verified");
+		}
+		const allowed = result.allowed === true;
 		const balance = result.balance;
 		mergeWideEvent({
 			agent_credits_allowed: allowed,
@@ -118,7 +151,7 @@ export async function ensureAgentCreditsAvailable(
 					}
 				: {}),
 		});
-		return allowed;
+		return { allowed, customerId: billingCustomerId };
 	} catch (error) {
 		captureError(error, {
 			agent_credit_check_error: true,
@@ -149,11 +182,15 @@ function mergeAgentBillingFields(input: {
 	});
 }
 
-export async function trackAgentUsageAndBill(
+export function trackAgentUsage(
 	input: AgentUsageTrackingInput
-): Promise<UsageTelemetry> {
+): UsageTelemetry {
 	const summary = summarizeAgentUsage(input.modelId, input.usage);
-	mergeWideEvent(summary);
+	if (input.requestLogger) {
+		input.requestLogger.set(summary);
+	} else {
+		mergeWideEvent(summary);
+	}
 
 	trackAgentEvent("agent_activity", {
 		action: "chat_usage",
@@ -164,9 +201,24 @@ export async function trackAgentUsageAndBill(
 		user_id: input.userId ?? null,
 		...summary,
 	});
+	return summary;
+}
+
+export async function trackAgentUsageAndBill(
+	input: AgentUsageTrackingInput
+): Promise<UsageTelemetry> {
+	const summary = trackAgentUsage(input);
 
 	if (!(isAgentBillingConfigured() && input.billingCustomerId)) {
 		return summary;
+	}
+	if (input.source !== "insights") {
+		const access =
+			input.billingAccess ??
+			(await getAgentBillingAccess(input.billingCustomerId));
+		if (access.customerId !== input.billingCustomerId) {
+			throw new Error("The agent billing access belongs to another customer");
+		}
 	}
 
 	const autumn = getAutumn();
@@ -204,7 +256,16 @@ export async function trackAgentUsageAndBill(
 				headers: { "Idempotency-Key": input.idempotencyKey },
 			})
 		: autumn.track(request);
-	await tracked.catch((err) => captureError(err, billingErrorContext));
+	await tracked.catch((err) => {
+		if (input.requestLogger) {
+			input.requestLogger.error(
+				err instanceof Error ? err : new Error(String(err)),
+				billingErrorContext
+			);
+		} else {
+			captureError(err, billingErrorContext);
+		}
+	});
 
 	return summary;
 }

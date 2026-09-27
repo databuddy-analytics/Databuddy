@@ -7,7 +7,7 @@ export const TOPUP_TIERS: readonly TopupTier[] = [
 	{ to: 100, amount: 0.12 },
 	{ to: 1000, amount: 0.1 },
 	{ to: 5000, amount: 0.08 },
-	{ to: "inf", amount: 0.0654 },
+	{ to: "inf", amount: 0.08 },
 ];
 
 export const TOPUP_MIN_QUANTITY = 10;

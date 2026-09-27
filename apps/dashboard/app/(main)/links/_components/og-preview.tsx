@@ -158,10 +158,7 @@ export function OgPreview({
 
 								{imageStatus === "idle" && (
 									<div className="flex size-full items-center justify-center">
-										<ImageIcon
-											className="size-10 text-muted-foreground/50"
-											weight="duotone"
-										/>
+										<ImageIcon className="size-10 text-muted-foreground/50" />
 									</div>
 								)}
 							</div>
@@ -181,10 +178,7 @@ export function OgPreview({
 
 						{showNoImage && (
 							<div className="flex aspect-video w-full flex-col items-center justify-center gap-2 bg-muted">
-								<ImageIcon
-									className="size-10 text-muted-foreground/50"
-									weight="duotone"
-								/>
+								<ImageIcon className="size-10 text-muted-foreground/50" />
 								<p className="text-pretty text-muted-foreground text-xs">
 									Enter a URL to generate preview
 								</p>
@@ -286,11 +280,8 @@ export function OgPreview({
 									)}
 									{imageStatus === "success" && (
 										<>
-											<CheckCircleIcon
-												className="size-3 text-green-600"
-												weight="fill"
-											/>
-											<span className="text-green-600">Valid</span>
+											<CheckCircleIcon className="size-3 text-success" />
+											<span className="text-success">Valid</span>
 										</>
 									)}
 									{imageStatus === "error" && (
@@ -298,7 +289,6 @@ export function OgPreview({
 											<WarningCircleIcon
 												aria-hidden="true"
 												className="size-3 text-destructive"
-												weight="fill"
 											/>
 											<span className="text-destructive">Invalid</span>
 											<button
@@ -335,7 +325,7 @@ export function OgPreview({
 							className="flex items-center gap-1.5 text-xs"
 							htmlFor="og-video"
 						>
-							<VideoIcon size={12} weight="duotone" />
+							<VideoIcon size={12} />
 							Video URL (optional)
 						</Field.Label>
 						<Input

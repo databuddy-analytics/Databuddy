@@ -1,6 +1,7 @@
 import { chQuery } from "@databuddy/db/clickhouse";
 import { domainSchema } from "@databuddy/validation";
 import {
+	DATE_ONLY_RE,
 	normalizeClickHouseDateTime,
 	padToClickHouseDateTime,
 } from "./date-utils";
@@ -16,8 +17,10 @@ import type {
 	CompiledQuery,
 	ConfigField,
 	CTEDefinition,
+	CustomSqlContext,
 	Filter,
 	Granularity,
+	QueryHelpers,
 	QueryRequest,
 	SimpleQueryConfig,
 	TimeBucketConfig,
@@ -69,14 +72,17 @@ export function isFilterFieldAllowed(
 	field: string
 ): boolean {
 	return (
-		GLOBAL_ALLOWED_FILTERS.has(field) ||
+		(config.commonFilters !== false && GLOBAL_ALLOWED_FILTERS.has(field)) ||
 		(config.allowedFilters?.includes(field) ?? false)
 	);
 }
 
 export function allowedFilterFields(config: SimpleQueryConfig): string[] {
 	return [
-		...new Set([...GLOBAL_ALLOWED_FILTERS, ...(config.allowedFilters ?? [])]),
+		...new Set([
+			...(config.commonFilters === false ? [] : GLOBAL_ALLOWED_FILTERS),
+			...(config.allowedFilters ?? []),
+		]),
 	];
 }
 
@@ -166,6 +172,10 @@ const END_OF_DAY_WITH_TZ_REGEX = new RegExp(
 );
 const END_OF_DAY_REGEX = new RegExp(
 	`toDateTime\\(concat\\(\\{(${DATE_PARAM_PATTERN}):String\\}, ' 23:59:59'\\)\\)`,
+	"g"
+);
+const TZ_DATE_TIME_REGEX = new RegExp(
+	`parseDateTimeBestEffort\\(\\{(${DATE_PARAM_PATTERN}):String\\}, \\{timezone:String\\}\\)`,
 	"g"
 );
 const TO_DATE_TIME_REGEX = new RegExp(
@@ -617,6 +627,13 @@ export class SimpleQueryBuilder {
 			}
 		}
 
+		const isDateOnlyRequest = (bound: string | undefined) =>
+			bound !== undefined && DATE_ONLY_RE.test(bound.trim());
+		const dateOnlyParams = new Set([
+			...(isDateOnlyRequest(this.request.from) ? ["from", "startDate"] : []),
+			...(isDateOnlyRequest(this.request.to) ? ["to", "endDate"] : []),
+		]);
+
 		const promoteToEndOfDay = (paramName: string): void => {
 			const value = finalParams[paramName];
 			if (typeof value === "string") {
@@ -630,8 +647,12 @@ export class SimpleQueryBuilder {
 			END_OF_DAY_WITH_TZ_REGEX,
 			(_match, paramName) => {
 				promoteToEndOfDay(paramName);
-				return dateBindingExpression(paramName, true);
+				return dateBindingExpression(paramName, dateOnlyParams.has(paramName));
 			}
+		);
+
+		finalSql = finalSql.replace(TZ_DATE_TIME_REGEX, (match, paramName) =>
+			dateOnlyParams.has(paramName) ? match : dateBindingExpression(paramName)
 		);
 
 		finalSql = finalSql.replace(END_OF_DAY_REGEX, (_match, paramName) => {
@@ -669,7 +690,24 @@ export class SimpleQueryBuilder {
 		return { sql: finalSql, params: finalParams };
 	}
 
-	compile(): CompiledQuery {
+	compile(preparedKeys?: Record<string, string[]>): CompiledQuery {
+		for (const filter of this.request.filters ?? []) {
+			if (
+				filter.target &&
+				(this.config.customSql ||
+					filter.having ||
+					!this.config.with?.some((cte) => cte.name === filter.target))
+			) {
+				throw new Error(
+					`Filter target '${filter.target}' is not permitted for ${this.request.type}. Omit target to filter the selected rows; target is only supported for a configured CTE.`
+				);
+			}
+			if (filter.having && this.config.customSql) {
+				throw new Error(
+					`Having filters are not supported for ${this.request.type}. Use a row filter instead.`
+				);
+			}
+		}
 		this.validateRequiredFilters();
 
 		if (this.config.customSql) {
@@ -698,28 +736,23 @@ export class SimpleQueryBuilder {
 					}
 				: undefined;
 
-			const result = this.config.customSql({
-				websiteId: this.request.projectId,
-				startDate: normalizeClickHouseDateTime(this.request.from),
-				endDate: normalizeClickHouseDateTime(this.request.to),
-				filters: this.request.filters,
-				granularity: this.request.timeUnit,
-				limit: this.request.limit,
-				offset: this.request.offset,
-				timezone: this.request.timezone,
-				filterConditions: whereClause,
-				filterParams: whereClauseParams,
-				helpers,
-				orderBy: this.request.orderBy,
-			});
+			const result = this.config.customSql(
+				this.customSqlContext(
+					whereClause,
+					whereClauseParams,
+					helpers,
+					preparedKeys
+				)
+			);
 
 			if (typeof result === "string") {
 				return this.finalizeCompiledQuery(result, {});
 			}
-			return this.finalizeCompiledQuery(
-				result.sql,
-				result.params as Record<string, Filter["value"]>
-			);
+			const params = result.params as Record<string, Filter["value"]>;
+			if (preparedKeys) {
+				Object.assign(params, preparedKeys);
+			}
+			return this.finalizeCompiledQuery(result.sql, params);
 		}
 
 		return this.buildStandardQuery();
@@ -1140,11 +1173,74 @@ export class SimpleQueryBuilder {
 		return this.request.offset ? ` OFFSET ${this.request.offset}` : "";
 	}
 
-	async execute(abortSignal?: AbortSignal): Promise<Record<string, unknown>[]> {
-		const { sql, params } = this.compile();
+	private customSqlContext(
+		filterConditions: string[],
+		filterParams: Record<string, Filter["value"]>,
+		helpers: QueryHelpers | undefined,
+		preparedKeys?: Record<string, string[]>
+	): CustomSqlContext {
+		return {
+			websiteId: this.request.projectId,
+			startDate: normalizeClickHouseDateTime(this.request.from),
+			endDate: normalizeClickHouseDateTime(this.request.to),
+			filters: this.request.filters,
+			granularity: this.request.timeUnit,
+			groupBy: this.request.groupBy,
+			limit: this.request.limit,
+			offset: this.request.offset,
+			timezone: this.request.timezone,
+			filterConditions,
+			filterParams,
+			helpers,
+			orderBy: this.request.orderBy,
+			preparedKeys,
+		};
+	}
+
+	private async resolvePreparedKeys(
+		abortSignal?: AbortSignal
+	): Promise<Record<string, string[]> | undefined> {
+		if (!this.config.prepareSql) {
+			return;
+		}
+		const filterParams: Record<string, Filter["value"]> = {};
+		const filterConditions = this.buildWhereClauseFromFilters(filterParams);
+		const stages = this.config.prepareSql(
+			this.customSqlContext(filterConditions, filterParams, undefined)
+		);
+		const resolved = await Promise.all(
+			stages.map(async (stage) => {
+				const rows = await chQuery<Record<string, unknown>>(
+					stage.sql,
+					stage.params,
+					{
+						abort_signal: abortSignal,
+						clickhouse_settings: getClickHouseQuerySettings(
+							this.config.noCache
+						),
+						label: `${this.request.type}:prepare`,
+					}
+				);
+				return [
+					stage.as,
+					rows.map((row) => String(row[stage.column] ?? "")),
+				] as const;
+			})
+		);
+		return Object.fromEntries(resolved);
+	}
+
+	async execute(
+		abortSignal?: AbortSignal,
+		onCompiled?: (query: CompiledQuery) => void
+	): Promise<Record<string, unknown>[]> {
+		const preparedKeys = await this.resolvePreparedKeys(abortSignal);
+		const { sql, params } = this.compile(preparedKeys);
+		onCompiled?.({ sql, params });
 		const rawData = await chQuery<Record<string, unknown>>(sql, params, {
 			abort_signal: abortSignal,
 			clickhouse_settings: getClickHouseQuerySettings(this.config.noCache),
+			label: this.request.type,
 		});
 		return applyPlugins(rawData, this.config, this.websiteDomain);
 	}

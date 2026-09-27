@@ -37,7 +37,7 @@ const FAQ_ITEMS = [
 	{
 		question: "Will error tracking slow down my site?",
 		answer:
-			"No. The error tracking SDK is tiny and runs asynchronously. It only activates when something goes wrong - there's no polling, no impact on your page load time.",
+			"Error handlers capture exceptions and unhandled rejections, then send them asynchronously. Measure the tracker alongside the rest of your site to check its performance impact.",
 	},
 	{
 		question: "How does Databuddy group errors?",
@@ -52,7 +52,7 @@ const FAQ_ITEMS = [
 	{
 		question: "Does it capture noise from browser extensions?",
 		answer:
-			"No. Extension errors, cross-origin script noise, and known browser runtime junk are filtered before they reach your dashboard, so you only see errors from your own code.",
+			"Known extension errors and browser runtime noise are filtered before ingestion. Filters reduce noise but cannot distinguish every third-party error.",
 	},
 	{
 		question: "Is error tracking included in all plans?",
@@ -84,8 +84,8 @@ export default function ErrorsPage() {
 					docsHref="/docs/dashboard"
 					footnote="Error tracking starts on the Hobby plan. Free includes analytics for 10,000 events/mo."
 					primaryLabel="Start Monitoring"
-					subtitle="Every JavaScript error tied to the session and the page where it happened, ranked by how many users it hit. Stack traces and impact without a second tool."
-					title="See which errors are costing you users."
+					subtitle="Captured JavaScript errors tied to the session and page where they happened. Use stack traces and affected-user counts to prioritize fixes."
+					title="Find the errors affecting your users."
 				/>
 
 				<Section className="border-border border-b" id="impact">

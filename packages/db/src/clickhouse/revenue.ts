@@ -1,3 +1,24 @@
+export function paymentIntentIdExpression(alias = ""): string {
+	const prefix = alias ? `${alias}.` : "";
+	return `if(
+	JSONExtractString(${prefix}metadata, 'stripe_payment_intent_id') != '',
+	JSONExtractString(${prefix}metadata, 'stripe_payment_intent_id'),
+	if(${prefix}provider = 'stripe' AND startsWith(${prefix}transaction_id, 'pi_'), ${prefix}transaction_id, '')
+)`;
+}
+
+export function stripeContextAggregates(prefix = ""): string {
+	const latestNonEmpty = (column: string, value: string) =>
+		`argMaxIf(${value}, synced_at, ${value} != '') AS ${prefix}${column}`;
+	return [
+		latestNonEmpty("website_id", "ifNull(website_id, '')"),
+		latestNonEmpty("anonymous_id", "ifNull(anonymous_id, '')"),
+		latestNonEmpty("session_id", "ifNull(session_id, '')"),
+		latestNonEmpty("customer_id", "customer_id"),
+		latestNonEmpty("product_name", "ifNull(product_name, '')"),
+	].join(",\n\t\t\t\t");
+}
+
 interface RevenueLatestCteOptions {
 	candidateWhere?: string;
 	name?: string;

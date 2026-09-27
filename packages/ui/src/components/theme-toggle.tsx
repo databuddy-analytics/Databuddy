@@ -4,9 +4,13 @@ import { useTheme } from "next-themes";
 import { Button } from "./button";
 import { Tooltip } from "./tooltip";
 import { cn } from "../lib/utils";
-import { MonitorIcon, MoonIcon, SunIcon } from "./icons/nucleo";
+import { MonitorIcon, MoonIcon, SunIcon } from "./icons";
 
-const CYCLE = ["system", "light", "dark"] as const;
+const NEXT_THEME = new Map<string, "system" | "light" | "dark">([
+	["system", "light"],
+	["light", "dark"],
+	["dark", "system"],
+]);
 
 const LABELS: Record<string, string> = {
 	light: "Light mode",
@@ -22,10 +26,7 @@ interface ThemeToggleProps {
 export function ThemeToggle({ className, tooltip = false }: ThemeToggleProps) {
 	const { theme, setTheme } = useTheme();
 	const current = theme ?? "system";
-	const next =
-		CYCLE[
-			(CYCLE.indexOf(current as (typeof CYCLE)[number]) + 1) % CYCLE.length
-		];
+	const next = NEXT_THEME.get(current) ?? "system";
 
 	const switchTheme = () => {
 		if ("startViewTransition" in document) {
@@ -45,21 +46,21 @@ export function ThemeToggle({ className, tooltip = false }: ThemeToggleProps) {
 		>
 			<SunIcon
 				className={cn(
-					"size-4 shrink-0",
+					"size-4 shrink-0 transition-transform duration-(--duration-quick) ease-(--ease-smooth) motion-reduce:transition-none",
 					current === "light" ? "scale-100" : "scale-0"
 				)}
 				suppressHydrationWarning
 			/>
 			<MoonIcon
 				className={cn(
-					"absolute size-4 shrink-0",
+					"absolute size-4 shrink-0 transition-transform duration-(--duration-quick) ease-(--ease-smooth) motion-reduce:transition-none",
 					current === "dark" ? "scale-100" : "scale-0"
 				)}
 				suppressHydrationWarning
 			/>
 			<MonitorIcon
 				className={cn(
-					"absolute size-4 shrink-0",
+					"absolute size-4 shrink-0 transition-transform duration-(--duration-quick) ease-(--ease-smooth) motion-reduce:transition-none",
 					current === "system" ? "scale-100" : "scale-0"
 				)}
 				suppressHydrationWarning

@@ -63,7 +63,10 @@ describe("getUserFacingErrorMessage", () => {
 
 	it("ignores non-sentence server messages for authored codes", () => {
 		expect(
-			getUserFacingErrorMessage({ data: { code: "FORBIDDEN" }, message: "Forbidden" })
+			getUserFacingErrorMessage({
+				data: { code: "FORBIDDEN" },
+				message: "Forbidden",
+			})
 		).toBe("You do not have permission to do that.");
 	});
 });

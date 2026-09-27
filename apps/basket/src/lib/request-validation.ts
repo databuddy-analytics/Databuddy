@@ -1,3 +1,4 @@
+import type { AiTrafficSpansInsert } from "@databuddy/db/clickhouse/tables";
 import {
 	getWebsiteByIdV2,
 	isOriginAllowed,
@@ -8,7 +9,7 @@ import { logBlockedTraffic } from "@lib/blocked-traffic";
 import { runFork, send } from "@lib/producer";
 import { basketErrors } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
-import { extractIpFromRequest, extractTrustedClientIp } from "@utils/ip-geo";
+import { extractAllowlistClientIp, extractIpFromRequest } from "@utils/ip-geo";
 import { detectBot } from "@utils/user-agent";
 import {
 	sanitizeString,
@@ -140,12 +141,29 @@ export function validateRequest(
 
 		log.set({ website: { domain: website.domain, status: website.status } });
 
-		if (website.ownerId && options.checkUsage !== false) {
-			await checkAutumnUsage(website.ownerId, "events", {
-				website_domain: website.domain,
-				website_id: website.id,
-				website_name: website.name,
-			});
+		const userAgent =
+			sanitizeString(
+				request.headers.get("user-agent"),
+				VALIDATION_LIMITS.STRING_MAX_LENGTH
+			) || "";
+
+		const botCheck = detectBot(userAgent, request);
+		const isBlockedBot = botCheck.isBot && botCheck.action !== "allow";
+
+		if (website.ownerId && options.checkUsage !== false && !isBlockedBot) {
+			const eventCount = Array.isArray(body)
+				? Math.min(Math.max(body.length, 1), VALIDATION_LIMITS.BATCH_MAX_SIZE)
+				: 1;
+			await checkAutumnUsage(
+				website.ownerId,
+				"events",
+				{
+					website_domain: website.domain,
+					website_id: website.id,
+					website_name: website.name,
+				},
+				eventCount
+			);
 		}
 
 		const origin = request.headers.get("origin");
@@ -207,7 +225,7 @@ export function validateRequest(
 		}
 
 		if (allowedIps && allowedIps.length > 0) {
-			const trustedIp = extractTrustedClientIp(request);
+			const trustedIp = extractAllowlistClientIp(request);
 			const isAllowed =
 				trustedIp &&
 				(await record("isValidIpFromSettings", () =>
@@ -229,12 +247,6 @@ export function validateRequest(
 				throw basketErrors.ingestIpNotAuthorized();
 			}
 		}
-
-		const userAgent =
-			sanitizeString(
-				request.headers.get("user-agent"),
-				VALIDATION_LIMITS.STRING_MAX_LENGTH
-			) || "";
 
 		return {
 			clientId,
@@ -265,8 +277,15 @@ export function checkForBot(
 		}
 
 		const { action, result } = botCheck;
+		const agent = result?.agent;
 		log.set({
-			bot: { name: botCheck.botName, category: botCheck.category, action },
+			bot: {
+				name: botCheck.botName,
+				category: botCheck.category,
+				action,
+				agent: agent?.id,
+				purpose: agent?.purpose,
+			},
 		});
 
 		if (action === "allow") {
@@ -287,18 +306,20 @@ export function checkForBot(
 				request.headers.get("referer") ||
 				undefined;
 
-			runFork(
-				send("analytics-ai-traffic-spans", {
-					client_id: clientId,
-					timestamp: Date.now(),
-					bot_type: result?.category || "unknown",
-					bot_name: botCheck.botName || "unknown",
-					user_agent: userAgent,
-					path,
-					referrer,
-					action: "tracked",
-				})
-			);
+			const span: AiTrafficSpansInsert = {
+				client_id: clientId,
+				timestamp: Date.now(),
+				bot_type: result?.category || "unknown",
+				bot_name: botCheck.botName || "unknown",
+				user_agent: userAgent,
+				path,
+				referrer,
+				agent_id: agent?.id,
+				agent_purpose: agent?.purpose,
+				source: "tracker",
+				format: "html",
+			};
+			runFork(send("analytics-ai-traffic-spans", span));
 
 			return {
 				error: new Response(null, { status: 204 }),

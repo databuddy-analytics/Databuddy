@@ -17,7 +17,6 @@ test.describe("Network & Batching", () => {
 
 		await page.goto("/test");
 		await page.evaluate(() => {
-			// Disable beacon to force fetch usage, which supports retries
 			navigator.sendBeacon = () => false;
 
 			(window as any).databuddyConfig = {
@@ -26,7 +25,7 @@ test.describe("Network & Batching", () => {
 				batchTimeout: 200,
 				enableRetries: true,
 				maxRetries: 3,
-				initialRetryDelay: 100, // Fast retry for test
+				initialRetryDelay: 100,
 			};
 		});
 		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
@@ -35,7 +34,6 @@ test.describe("Network & Batching", () => {
 	});
 
 	test("batches events when enabled", async ({ page, browserName }) => {
-		// WebKit has issues intercepting bodies of keepalive requests or beacons in Playwright
 		test.skip(
 			browserName === "webkit",
 			"WebKit/Playwright issue with intercepting keepalive/beacon request bodies"
@@ -48,7 +46,6 @@ test.describe("Network & Batching", () => {
 			});
 		});
 
-		// db.track queues events and POSTs an array to /track (screen_view uses /batch)
 		const requestPromise = page.waitForRequest(
 			(req) =>
 				req.url().includes("/track") &&
@@ -68,7 +65,6 @@ test.describe("Network & Batching", () => {
 		});
 		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
-		// Fire 3 events quickly
 		await page.evaluate(() => {
 			(window as any).db.track("event1");
 			(window as any).db.track("event2");
@@ -80,9 +76,7 @@ test.describe("Network & Batching", () => {
 		if (!payload) {
 			try {
 				payload = JSON.parse(request.postData() || "[]");
-			} catch (_e) {
-				// ignore
-			}
+			} catch {}
 		}
 
 		expect(Array.isArray(payload)).toBe(true);

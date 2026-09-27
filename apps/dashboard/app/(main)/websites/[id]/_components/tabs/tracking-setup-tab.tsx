@@ -114,9 +114,9 @@ function CodeBlock({
 				variant="ghost"
 			>
 				{copied ? (
-					<CheckIcon className="size-3.5 text-emerald-400" weight="bold" />
+					<CheckIcon className="size-3.5 text-success" />
 				) : (
-					<ClipboardIcon className="size-3.5 text-white/70" weight="duotone" />
+					<ClipboardIcon className="size-3.5 text-white/70" />
 				)}
 			</Button>
 		</div>
@@ -346,15 +346,9 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 			>
 				<div className="flex min-w-0 items-start gap-2.5">
 					{statusIsHealthy ? (
-						<PulseIcon
-							className="mt-0.5 size-4 text-success"
-							weight="duotone"
-						/>
+						<PulseIcon className="mt-0.5 size-4 text-success" />
 					) : (
-						<WarningCircleIcon
-							className="mt-0.5 size-4 text-amber-500"
-							weight="duotone"
-						/>
+						<WarningCircleIcon className="mt-0.5 size-4 text-warning" />
 					)}
 					<div className="min-w-0 space-y-1">
 						<div className="flex flex-wrap items-center gap-2">
@@ -384,7 +378,6 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 				>
 					<ArrowClockwiseIcon
 						className={cn("size-3.5", isRefreshing && "animate-spin")}
-						weight="bold"
 					/>
 					{isRefreshing ? "Checking..." : "Check Status"}
 				</Button>
@@ -396,11 +389,11 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 						<div className="flex items-center justify-between gap-4">
 							<Tabs.List className="max-w-full overflow-x-auto">
 								<Tabs.Tab value="script">
-									<CodeIcon className="size-3.5" weight="duotone" />
+									<CodeIcon className="size-3.5" />
 									Script Tag
 								</Tabs.Tab>
 								<Tabs.Tab value="react">
-									<PackageIcon className="size-3.5" weight="duotone" />
+									<PackageIcon className="size-3.5" />
 									React
 								</Tabs.Tab>
 								<Tabs.Tab value="vue">
@@ -408,7 +401,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 									Vue
 								</Tabs.Tab>
 								<Tabs.Tab value="node">
-									<PackageIcon className="size-3.5" weight="duotone" />
+									<PackageIcon className="size-3.5" />
 									Node.js
 								</Tabs.Tab>
 							</Tabs.List>
@@ -425,12 +418,9 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								<span className="text-muted-foreground">ID:</span>
 								<span className="min-w-0 truncate">{websiteId}</span>
 								{copiedBlockId === "client-id" ? (
-									<CheckIcon className="size-3 text-success" weight="bold" />
+									<CheckIcon className="size-3 text-success" />
 								) : (
-									<ClipboardIcon
-										className="size-3 opacity-50 transition-opacity group-hover:opacity-100"
-										weight="duotone"
-									/>
+									<ClipboardIcon className="size-3 opacity-50 transition-opacity group-hover:opacity-100" />
 								)}
 							</button>
 						</div>
@@ -473,10 +463,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 												}
 											}}
 										/>
-										<ShieldCheckIcon
-											className="size-4 shrink-0 text-muted-foreground"
-											weight="duotone"
-										/>
+										<ShieldCheckIcon className="size-4 shrink-0 text-muted-foreground" />
 										<div className="min-w-0">
 											<span className="font-medium text-sm">
 												Pin version with SRI
@@ -513,10 +500,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 							)}
 
 							<div className="flex items-start gap-2 rounded-lg bg-accent/50 p-3">
-								<LightningIcon
-									className="mt-0.5 size-3.5 shrink-0 text-amber-500"
-									weight="duotone"
-								/>
+								<LightningIcon className="mt-0.5 size-3.5 shrink-0 text-warning" />
 								<p className="text-muted-foreground text-xs leading-relaxed">
 									{usePinnedVersion
 										? "Pinned and verified with SRI. The browser will reject the script if contents change. Update the version manually for new features."
@@ -621,7 +605,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								rel="noreferrer"
 								target="_blank"
 							>
-								<BookOpenIcon className="size-3.5" weight="duotone" />
+								<BookOpenIcon className="size-3.5" />
 								Read the Node SDK docs
 							</a>
 						</Tabs.Panel>
@@ -693,10 +677,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 						type="button"
 					>
 						<div className="flex items-center gap-2.5">
-							<WarningCircleIcon
-								className="size-4 text-muted-foreground"
-								weight="duotone"
-							/>
+							<WarningCircleIcon className="size-4 text-muted-foreground" />
 							<span className="font-medium text-sm">Troubleshooting</span>
 						</div>
 						<CaretDownIcon
@@ -704,7 +685,6 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								"size-4 text-muted-foreground transition-transform",
 								troubleshootingOpen && "rotate-180"
 							)}
-							weight="bold"
 						/>
 					</button>
 
@@ -713,10 +693,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 							<div className="space-y-3">
 								{TROUBLESHOOTING_ITEMS.map((item) => (
 									<div className="flex items-start gap-2.5" key={item.title}>
-										<WarningCircleIcon
-											className="mt-0.5 size-3.5 shrink-0 text-amber-500"
-											weight="duotone"
-										/>
+										<WarningCircleIcon className="mt-0.5 size-3.5 shrink-0 text-warning" />
 										<div className="min-w-0">
 											<p className="font-medium text-sm">{item.title}</p>
 											<p className="text-pretty text-muted-foreground text-xs leading-relaxed">
@@ -728,10 +705,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 							</div>
 
 							<div className="mt-4 flex items-center gap-2 rounded-lg bg-accent/50 p-3">
-								<BookOpenIcon
-									className="size-4 shrink-0 text-muted-foreground"
-									weight="duotone"
-								/>
+								<BookOpenIcon className="size-4 shrink-0 text-muted-foreground" />
 								<p className="text-muted-foreground text-xs">
 									Still stuck?{" "}
 									<a

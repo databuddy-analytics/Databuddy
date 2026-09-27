@@ -49,10 +49,7 @@ export default function ContactHero() {
 						className="flex h-18 w-full flex-col items-center justify-center rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:h-20"
 						key={feature.title}
 					>
-						<feature.icon
-							className="mb-1 size-4 text-muted-foreground duration-300 group-hover:text-foreground sm:size-5"
-							weight="duotone"
-						/>
+						<feature.icon className="mb-1 size-4 text-muted-foreground duration-300 group-hover:text-foreground sm:size-5" />
 						<div className="px-2 text-center">
 							<div className="font-semibold text-foreground text-xs sm:text-sm">
 								{feature.title}

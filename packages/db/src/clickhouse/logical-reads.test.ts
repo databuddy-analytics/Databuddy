@@ -25,9 +25,7 @@ describe("finalizeDeliveryTables", () => {
 		`);
 
 		expect(result.query).toContain("FROM `analytics`.`events`");
-		expect(result.query).toContain(
-			'FROM "analytics.custom_events" AS custom'
-		);
+		expect(result.query).toContain('FROM "analytics.custom_events" AS custom');
 	});
 
 	it("leaves an explicit FINAL modifier untouched", () => {

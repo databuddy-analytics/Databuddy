@@ -2,12 +2,13 @@ import { describe, expect, it } from "bun:test";
 import { validateUrl } from "./ssrf-guard";
 
 describe("validateUrl", () => {
-	it.each([["not a url"], [""], ["http://"]])(
-		"rejects invalid URL %j",
-		async (url) => {
-			expect((await validateUrl(url)).safe).toBe(false);
-		}
-	);
+	it.each([
+		["not a url"],
+		[""],
+		["http://"],
+	])("rejects invalid URL %j", async (url) => {
+		expect((await validateUrl(url)).safe).toBe(false);
+	});
 
 	it.each([
 		["ftp://example.com"],

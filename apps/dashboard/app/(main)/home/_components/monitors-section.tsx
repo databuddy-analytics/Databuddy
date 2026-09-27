@@ -2,111 +2,32 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo } from "react";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
-import { buildUptimeHeatmapDays } from "@databuddy/ui/uptime";
-import { UptimeHeatmapStrip } from "@databuddy/ui/uptime";
+import { useUptimeHeatmap } from "@/components/monitors/monitor-row";
+import type { orpc } from "@/lib/orpc";
+import {
+	buildUptimeHeatmapDays,
+	UptimeHeatmapStrip,
+} from "@databuddy/ui/uptime";
 import { cn } from "@/lib/utils";
 import { HeartbeatIcon, PlusIcon } from "@databuddy/ui/icons";
-import { Button, Card, Skeleton, dayjs, formatDateOnly } from "@databuddy/ui";
+import { Button, Card, Skeleton } from "@databuddy/ui";
 
 interface MonitorsSectionProps {
 	activeMonitors: number;
 	isLoading: boolean;
-	monitors: Array<{
-		id: string;
-		name: string | null;
-		url: string;
-		websiteId: string | null;
-		isPaused: boolean;
-		granularity: string;
-	}>;
-	onCreateMonitorAction?: () => void;
+	monitors: Awaited<ReturnType<typeof orpc.uptime.listSchedules.call>>;
 	totalMonitors: number;
-}
-
-function HomeMonitorHeatmap({
-	data,
-	isActive,
-}: {
-	data: Array<{ date: string; uptime_percentage?: number }>;
-	isActive: boolean;
-}) {
-	const heatmapData = useMemo(() => buildUptimeHeatmapDays(data, 30), [data]);
-
-	return (
-		<UptimeHeatmapStrip
-			days={heatmapData}
-			emptyLabel="No data"
-			getDateLabel={(d) => formatDateOnly(d)}
-			interactive={false}
-			isActive={isActive}
-			stripClassName="mt-1.5 grid h-1.5 w-full gap-x-px"
-			tooltipHasData={(day) => day.hasData && isActive}
-		/>
-	);
 }
 
 function MonitorRow({
 	monitor,
 }: {
-	monitor: {
-		id: string;
-		name: string | null;
-		url: string;
-		websiteId: string | null;
-		isPaused: boolean;
-		granularity: string;
-	};
+	monitor: MonitorsSectionProps["monitors"][number];
 }) {
 	const isActive = !monitor.isPaused;
 	const displayName = monitor.name || monitor.url || "Unknown";
 
-	const heatmapDateRange = useMemo(
-		() => ({
-			start_date: dayjs()
-				.subtract(29, "day")
-				.startOf("day")
-				.format("YYYY-MM-DD"),
-			end_date: dayjs().startOf("day").format("YYYY-MM-DD"),
-			granularity: "daily" as const,
-		}),
-		[]
-	);
-
-	const queryIdOptions = useMemo(
-		() =>
-			monitor.websiteId
-				? { websiteId: monitor.websiteId }
-				: { scheduleId: monitor.id },
-		[monitor.websiteId, monitor.id]
-	);
-
-	const heatmapQueries = useMemo(
-		() => [
-			{
-				id: "uptime-heatmap",
-				parameters: ["uptime_time_series"],
-				granularity: "daily" as const,
-			},
-		],
-		[]
-	);
-
-	const { getDataForQuery, isLoading: isLoadingHeatmap } = useBatchDynamicQuery(
-		queryIdOptions,
-		heatmapDateRange,
-		heatmapQueries,
-		{
-			enabled: isActive,
-		}
-	);
-
-	const heatmapData =
-		(getDataForQuery("uptime-heatmap", "uptime_time_series") as Array<{
-			date: string;
-			uptime_percentage?: number;
-		}>) || [];
+	const heatmap = useUptimeHeatmap(monitor, 30, isActive);
 
 	return (
 		<Link
@@ -122,7 +43,7 @@ function MonitorRow({
 							: "bg-muted text-muted-foreground"
 					)}
 				>
-					<HeartbeatIcon className="size-4" weight="duotone" />
+					<HeartbeatIcon className="size-4" />
 				</div>
 				<div className="min-w-0 flex-1">
 					<p className="truncate font-medium text-foreground text-sm">
@@ -133,10 +54,16 @@ function MonitorRow({
 					</p>
 				</div>
 			</div>
-			{isLoadingHeatmap ? (
+			{heatmap.isLoading ? (
 				<Skeleton className="mt-1.5 h-5 w-full rounded" />
 			) : (
-				<HomeMonitorHeatmap data={heatmapData} isActive={isActive} />
+				<UptimeHeatmapStrip
+					days={buildUptimeHeatmapDays(heatmap.data, 30)}
+					emptyLabel="No data"
+					interactive={false}
+					isActive={isActive}
+					stripClassName="mt-1.5 grid h-3 w-full gap-x-px"
+				/>
 			)}
 		</Link>
 	);
@@ -161,10 +88,7 @@ function MonitorsEmptyState({ onAdd }: { onAdd: () => void }) {
 	return (
 		<div className="flex items-center gap-3 px-5 py-4">
 			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
-				<HeartbeatIcon
-					className="size-5 text-muted-foreground"
-					weight="duotone"
-				/>
+				<HeartbeatIcon className="size-5 text-muted-foreground" />
 			</div>
 			<div className="min-w-0 flex-1">
 				<p className="font-medium text-foreground text-sm">No monitors yet</p>
@@ -187,23 +111,15 @@ export function MonitorsSection({
 	totalMonitors,
 	activeMonitors,
 	isLoading,
-	onCreateMonitorAction,
 }: MonitorsSectionProps) {
 	const router = useRouter();
-
-	const handleAddMonitor = () => {
-		if (onCreateMonitorAction) {
-			onCreateMonitorAction();
-		} else {
-			router.push("/monitors");
-		}
-	};
+	const handleAddMonitor = () => router.push("/monitors");
 
 	if (isLoading) {
 		return (
 			<Card>
 				<Card.Header className="flex-row items-center gap-3">
-					<HeartbeatIcon className="size-4 text-primary" weight="duotone" />
+					<HeartbeatIcon className="size-4 text-primary" />
 					<Skeleton className="h-4 w-20" />
 				</Card.Header>
 				<div className="divide-y">
@@ -218,7 +134,7 @@ export function MonitorsSection({
 		<Card>
 			<Card.Header className="flex-row items-center justify-between gap-3">
 				<div className="flex items-center gap-2">
-					<HeartbeatIcon className="size-4 text-primary" weight="duotone" />
+					<HeartbeatIcon className="size-4 text-primary" />
 					<Card.Title className="text-sm">Monitors</Card.Title>
 				</div>
 				{totalMonitors > 0 ? (

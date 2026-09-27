@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { AskAgentButton } from "@/components/agent/new-chat-button";
 import { AnnotationModal } from "@/components/charts/annotation-modal";
 import { AnnotationsPanel } from "@/components/charts/annotations-panel";
 import {
@@ -402,7 +403,7 @@ function TrafficTrendsRechartsPlot({
 								type="button"
 								variant="secondary"
 							>
-								<NoteIcon className="size-3" weight="duotone" />
+								<NoteIcon className="size-3" />
 								<span>Drag to annotate</span>
 								<XIcon className="size-2.5" />
 							</Button>
@@ -791,11 +792,7 @@ export function TrafficTrendsChart({
 							</p>
 							{dateRange.granularity === "hourly" && dateDiff > 7 ? (
 								<div className="mt-1 flex items-start gap-1 text-amber-600 text-xs">
-									<WarningIcon
-										className="mt-0.5 shrink-0"
-										size={14}
-										weight="fill"
-									/>
+									<WarningIcon className="mt-0.5 shrink-0" size={14} />
 									<span className="leading-relaxed">
 										Large date ranges may affect performance
 									</span>
@@ -807,46 +804,52 @@ export function TrafficTrendsChart({
 					title="Traffic Trends"
 					titleClassName="font-semibold text-base text-sidebar-foreground sm:text-lg"
 				>
-					{annotations.length > 0 && (
-						<div className="flex items-center gap-0.5">
-							<Button
-								aria-label={
-									showAnnotations ? "Hide annotations" : "Show annotations"
-								}
-								className="size-7 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-								onClick={() => setShowAnnotations(!showAnnotations)}
-								size="icon"
-								type="button"
-								variant="ghost"
-							>
-								{showAnnotations ? (
-									<EyeIcon className="size-3.5" />
-								) : (
-									<EyeSlashIcon className="size-3.5" />
-								)}
-							</Button>
-							<AnnotationsPanel
-								annotations={annotations}
-								granularity={granularity}
-								onDelete={handleDeleteAnnotation}
-								onEdit={setEditingAnnotation}
-								onOpenChange={setIsAnnotationsPanelOpen}
-								open={isAnnotationsPanelOpen}
-							/>
-						</div>
-					)}
+					<div className="flex items-center gap-0.5">
+						<AskAgentButton
+							className="text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+							subject="the Traffic Trends chart"
+						/>
+						{annotations.length > 0 && (
+							<>
+								<Button
+									aria-label={
+										showAnnotations ? "Hide annotations" : "Show annotations"
+									}
+									className="size-7 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+									onClick={() => setShowAnnotations(!showAnnotations)}
+									size="icon"
+									type="button"
+									variant="ghost"
+								>
+									{showAnnotations ? (
+										<EyeIcon className="size-3.5" />
+									) : (
+										<EyeSlashIcon className="size-3.5" />
+									)}
+								</Button>
+								<AnnotationsPanel
+									annotations={annotations}
+									granularity={granularity}
+									onDelete={handleDeleteAnnotation}
+									onEdit={setEditingAnnotation}
+									onOpenChange={setIsAnnotationsPanelOpen}
+									open={isAnnotationsPanelOpen}
+								/>
+							</>
+						)}
+					</div>
 				</Chart.Header>
 				<Chart.Content<ChartDataRow[]>
 					emptyProps={{
 						description:
 							"Your analytics data will appear here as visitors interact with your website",
-						icon: <ChartLineIcon className="size-12" weight="duotone" />,
+						icon: <ChartLineIcon className="size-12" />,
 						title: "No data available",
 					}}
 					errorProps={{
 						description:
 							"We couldn't load traffic data. Try again in a moment.",
-						icon: <WarningCircleIcon className="size-12" weight="duotone" />,
+						icon: <WarningCircleIcon className="size-12" />,
 						title: "Something went wrong",
 						variant: "error",
 					}}

@@ -1,7 +1,8 @@
 import { checkBotId } from "botid/server";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { enforceFormRateLimit, getClientIp } from "@/lib/rate-limit";
+import { enforceFormRateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import {
 	createSlackField,
 	escapeMrkdwn,
@@ -152,7 +153,10 @@ export async function POST(request: NextRequest) {
 		}
 
 		await postSlackBlocks(
-			buildSlackBlocks(validation.data, getClientIp(request.headers))
+			buildSlackBlocks(
+				validation.data,
+				getClientIp(request.headers) ?? "unknown"
+			)
 		);
 
 		return NextResponse.json({
@@ -166,8 +170,4 @@ export async function POST(request: NextRequest) {
 			{ status: 502 }
 		);
 	}
-}
-
-export function GET() {
-	return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
 }

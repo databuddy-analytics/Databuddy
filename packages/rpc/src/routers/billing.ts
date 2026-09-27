@@ -1,4 +1,5 @@
-import { chQuery } from "@databuddy/db/clickhouse";
+import { readBooleanEnv } from "@databuddy/env/boolean";
+import { chQuery, EXCLUDE_IMPORTED_ROWS } from "@databuddy/db/clickhouse";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { getAutumn } from "../lib/autumn-client";
@@ -41,6 +42,7 @@ interface EventSource {
 	category: EventCategory;
 	dateColumn: string;
 	filterColumn?: string;
+	rowFilter?: string;
 	table: string;
 }
 
@@ -49,6 +51,7 @@ const EVENT_SOURCES: EventSource[] = [
 		table: "analytics.events",
 		dateColumn: "time",
 		category: EVENT_CATEGORIES.EVENT,
+		rowFilter: EXCLUDE_IMPORTED_ROWS,
 	},
 	{
 		table: "analytics.error_spans",
@@ -84,13 +87,14 @@ const getDefaultDateRange = () => {
 const buildEventSourceQuery = (source: EventSource): string => {
 	const filterCol = source.filterColumn ?? "client_id";
 	return `
-		SELECT 
+		SELECT
 			toDate(${source.dateColumn}) as date,
 			'${source.category}' as event_category
 		FROM ${source.table}
 		WHERE ${filterCol} IN {websiteIds:Array(String)}
 			AND ${source.dateColumn} >= parseDateTimeBestEffort({startDate:String})
-			AND ${source.dateColumn} <= parseDateTimeBestEffort({endDate:String})`;
+			AND ${source.dateColumn} <= parseDateTimeBestEffort({endDate:String})
+			${source.rowFilter ? `AND ${source.rowFilter}` : ""}`;
 };
 
 const getDailyUsageByTypeQuery = (): string => {
@@ -156,15 +160,14 @@ const aggregateUsageData = (
 
 const AUTO_TOPUP_FEATURE_ID = "agent_credits";
 const EVENTS_FEATURE_ID = "events";
-const SPEND_LIMIT_FEATURE_ID = "agent_credits";
 const MIN_AUTO_TOPUP_THRESHOLD = 10;
 const MAX_AUTO_TOPUP_THRESHOLD = 50_000;
 const MIN_AUTO_TOPUP_QUANTITY = 100;
 const MAX_AUTO_TOPUP_QUANTITY = 75_000;
 const MIN_ALERT_PERCENTAGE = 1;
 const MAX_ALERT_PERCENTAGE = 99;
-const MIN_SPEND_LIMIT_USD = 1;
-const MAX_SPEND_LIMIT_USD = 10_000;
+const MIN_OVERAGE_UNITS = 1;
+const MAX_OVERAGE_UNITS = 10_000;
 
 const autoTopupConfigSchema = z
 	.object({
@@ -211,16 +214,19 @@ const usageAlertConfigSchema = z
 
 const spendLimitConfigSchema = z
 	.object({
+		featureId: z
+			.enum(["agent_credits", "investigation_runs"])
+			.default("agent_credits"),
 		enabled: z.boolean(),
 		overageLimit: z.number().int(),
 	})
 	.refine(
 		(v) =>
 			!v.enabled ||
-			(v.overageLimit >= MIN_SPEND_LIMIT_USD &&
-				v.overageLimit <= MAX_SPEND_LIMIT_USD),
+			(v.overageLimit >= MIN_OVERAGE_UNITS &&
+				v.overageLimit <= MAX_OVERAGE_UNITS),
 		{
-			message: `overageLimit must be between ${MIN_SPEND_LIMIT_USD} and ${MAX_SPEND_LIMIT_USD}`,
+			message: `overageLimit must be between ${MIN_OVERAGE_UNITS} and ${MAX_OVERAGE_UNITS}`,
 			path: ["overageLimit"],
 		}
 	);
@@ -253,6 +259,9 @@ async function upsertBillingControl<
 	entry: BillingControlEntries[K];
 	operation: string;
 }): Promise<void> {
+	if (readBooleanEnv("SELFHOST")) {
+		throw rpcError.badRequest("Billing is disabled for self-hosted instances");
+	}
 	const { customerId, canUserUpgrade } = await getBillingOwner(
 		args.context.user.id,
 		args.context.organizationId
@@ -264,8 +273,11 @@ async function upsertBillingControl<
 	}
 
 	try {
-		const autumn = getAutumn();
+		const autumn = getAutumn({ strict: true });
 		const customer = await autumn.customers.getOrCreate({ customerId });
+		if (customer.id !== customerId) {
+			throw new Error("The billing customer could not be verified");
+		}
 		const existing = (customer.billingControls?.[args.key] ?? []) as Array<{
 			featureId: string;
 		}>;
@@ -290,7 +302,7 @@ export const billingRouter = {
 	setAutoTopup: trackedSessionProcedure
 		.route({
 			description:
-				"Configures automatic investigation credit top-ups for the current billing customer.",
+				"Configures automatic AI credit top-ups for the current billing customer.",
 			method: "POST",
 			path: "/billing/setAutoTopup",
 			summary: "Set auto top-up",
@@ -344,7 +356,7 @@ export const billingRouter = {
 	setSpendLimit: trackedSessionProcedure
 		.route({
 			description:
-				"Configures a spend limit (maximum overage in USD) for investigation credits.",
+				"Limits additional investigation or AI credit units per billing cycle.",
 			method: "POST",
 			path: "/billing/setSpendLimit",
 			summary: "Set spend limit",
@@ -358,7 +370,7 @@ export const billingRouter = {
 				context,
 				key: "spendLimits",
 				entry: {
-					featureId: SPEND_LIMIT_FEATURE_ID,
+					featureId: input.featureId,
 					enabled: input.enabled,
 					overageLimit: input.overageLimit,
 				},

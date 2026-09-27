@@ -48,7 +48,7 @@ export function QueryTypeSelector({
 							onClick={onClearSelection}
 							type="button"
 						>
-							<XIcon className="size-3" weight="duotone" />
+							<XIcon className="size-3" />
 						</button>
 					</Badge>
 				)}

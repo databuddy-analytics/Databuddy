@@ -2,11 +2,12 @@
 
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { headers } from "next/headers";
-import { getClientIp } from "@/lib/rate-limit";
-import type {
-	BatchQueryResponse,
-	DynamicQueryRequest,
-	DynamicQueryResponse,
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
+import {
+	type BatchQueryResponse,
+	DEMO_QUERY_TYPES,
+	type DynamicQueryRequest,
+	type DynamicQueryResponse,
 } from "./types";
 
 const DEMO_WEBSITE_ID = "OXmNQsViBT-FOS_wZCTHc";
@@ -45,7 +46,7 @@ function clampDates(
 }
 
 async function enforceDemoRateLimit(): Promise<void> {
-	const ip = getClientIp(await headers());
+	const ip = getClientIp(await headers()) ?? "unknown";
 	const rl = await ratelimit(`docs:query-demo:${ip}`, 20, 60);
 	if (!rl.success) {
 		throw new DemoRateLimitError();
@@ -82,7 +83,11 @@ async function executeDynamicQuery(
 		const url = `https://api.databuddy.cc/v1/query?${params}`;
 
 		const capQuery = (query: DynamicQueryRequest) => ({
-			...query,
+			id: query.id,
+			parameters: query.parameters.filter(
+				(parameter) =>
+					typeof parameter === "string" && DEMO_QUERY_TYPES.has(parameter)
+			),
 			startDate: safeDates.startDate,
 			endDate: safeDates.endDate,
 			timeZone: timezone,

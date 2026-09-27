@@ -95,11 +95,11 @@ function GroupActions({
 					"opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
 				)}
 			>
-				<DotsThreeIcon className="size-5" weight="bold" />
+				<DotsThreeIcon className="size-5" />
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Content align="end" className="w-40">
 				<DropdownMenu.Item className="gap-2" onClick={() => onEdit(group)}>
-					<PencilSimpleIcon className="size-4" weight="duotone" />
+					<PencilSimpleIcon className="size-4" />
 					Edit
 				</DropdownMenu.Item>
 				<DropdownMenu.Separator />
@@ -108,7 +108,7 @@ function GroupActions({
 					onClick={() => onDelete(group.id)}
 					variant="destructive"
 				>
-					<TrashIcon className="size-4" weight="duotone" />
+					<TrashIcon className="size-4" />
 					Delete
 				</DropdownMenu.Item>
 			</DropdownMenu.Content>
@@ -139,11 +139,7 @@ function RuleIndicators({ group }: { group: TargetGroup }) {
 						className="flex items-center gap-0.5 rounded bg-muted px-1 py-px font-mono text-[11px] text-muted-foreground leading-tight"
 						key={type}
 					>
-						<RuleIcon
-							className="size-3"
-							style={{ color: group.color }}
-							weight="duotone"
-						/>
+						<RuleIcon className="size-3" style={{ color: group.color }} />
 						{count} {getRuleTypeLabel(type, count)}
 					</span>
 				);
@@ -185,11 +181,7 @@ export function GroupItem({
 					className="shrink-0 rounded p-1.5"
 					style={{ backgroundColor: `${group.color}20` }}
 				>
-					<UsersThreeIcon
-						className="size-4"
-						style={{ color: group.color }}
-						weight="duotone"
-					/>
+					<UsersThreeIcon className="size-4" style={{ color: group.color }} />
 				</span>
 
 				<span className="flex min-w-0 flex-1 items-center gap-2">

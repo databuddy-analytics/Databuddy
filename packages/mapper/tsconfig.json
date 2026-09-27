@@ -1,9 +1,7 @@
 {
   "extends": "../../tsconfig/default.json",
   "compilerOptions": {
-    "allowJs": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true
+    "allowJs": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]

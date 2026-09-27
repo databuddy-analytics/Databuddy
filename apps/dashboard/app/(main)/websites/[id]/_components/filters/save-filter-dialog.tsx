@@ -86,10 +86,7 @@ export function SaveFilterDialog({
 				<Dialog.Header>
 					<div className="flex items-center gap-2">
 						<div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10">
-							<FloppyDiskIcon
-								className="size-3.5 text-primary"
-								weight="duotone"
-							/>
+							<FloppyDiskIcon className="size-3.5 text-primary" />
 						</div>
 						<div>
 							<Dialog.Title>

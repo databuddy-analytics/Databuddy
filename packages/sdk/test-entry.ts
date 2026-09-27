@@ -6,7 +6,6 @@
 import { BrowserFlagStorage } from "./src/core/flags/browser-storage";
 import { BrowserFlagsManager } from "./src/core/flags/flags-manager";
 import {
-	buildQueryParams,
 	DEFAULT_RESULT,
 	fetchAllFlags,
 	fetchFlags,
@@ -59,7 +58,6 @@ const sdkExports = {
 	BrowserFlagsManager,
 	BrowserFlagStorage,
 	getCacheKey,
-	buildQueryParams,
 	DEFAULT_RESULT,
 	RequestBatcher,
 	createCacheEntry,

@@ -2,8 +2,9 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { TopBar } from "@/components/layout/top-bar";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import {
@@ -11,6 +12,7 @@ import {
 	StatusPageRow,
 } from "@/components/status-pages/status-page-row";
 import { StatusPageSheet } from "@/components/status-pages/status-page-sheet";
+import { invalidateMonitorQueries } from "@/components/monitors/monitor-sheet";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import {
@@ -20,13 +22,25 @@ import {
 	PlusIcon,
 } from "@databuddy/ui/icons";
 import { DeleteDialog } from "@databuddy/ui/client";
-import { Badge, Button, Card, EmptyState, Skeleton } from "@databuddy/ui";
-import { StatusPagesSearchBar } from "../_components/status-pages-search-bar";
+import { List } from "@/components/ui/composables/list";
+import { Button, Card, EmptyState } from "@databuddy/ui";
+import { ListSearchBar } from "../_components/monitors-search-bar";
 import {
 	type SortOption,
-	type StatusFilter,
-	useFilteredStatusPages,
-} from "../_components/use-filtered-status-pages";
+	useFilteredList,
+} from "../_components/use-filtered-monitors";
+
+type StatusFilter = "all" | "active" | "empty";
+
+const STATUS_LABELS: Record<StatusFilter, string> = {
+	all: "All",
+	active: "Active",
+	empty: "Empty",
+};
+
+const statusPageSearchFields = (
+	page: StatusPage
+): [string, ...(string | null)[]] => [page.name, page.slug, page.description];
 
 export default function StatusPagesListPage() {
 	return (
@@ -65,32 +79,15 @@ function StatusPagesListPageContent() {
 	const deleteMutation = useMutation({
 		...orpc.statusPage.delete.mutationOptions(),
 		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.statusPage.list.key(),
-			});
 			toast.success("Status page deleted");
-			setStatusPageToDelete(null);
-		},
-		onError: (error) => {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to delete status page"
-			);
+			return invalidateMonitorQueries(queryClient);
 		},
 	});
 
-	const clearCommandParam = useCallback(() => {
-		const params = new URLSearchParams(searchParams.toString());
-		params.delete("command");
-		const query = params.toString();
-		router.replace(query ? `${pathname}?${query}` : pathname, {
-			scroll: false,
-		});
-	}, [pathname, router, searchParams]);
-
-	const handleCreate = useCallback(() => {
+	const handleCreate = () => {
 		setEditingStatusPage(null);
 		setIsSheetOpen(true);
-	}, []);
+	};
 
 	const handleEdit = (statusPage: StatusPage) => {
 		setEditingStatusPage(statusPage);
@@ -113,16 +110,26 @@ function StatusPagesListPageContent() {
 		if (searchParams.get("command") !== "create-status-page") {
 			return;
 		}
-		handleCreate();
-		clearCommandParam();
-	}, [clearCommandParam, handleCreate, searchParams]);
+		setEditingStatusPage(null);
+		setIsSheetOpen(true);
+		const params = new URLSearchParams(searchParams.toString());
+		params.delete("command");
+		const query = params.toString();
+		router.replace(query ? `${pathname}?${query}` : pathname, {
+			scroll: false,
+		});
+	}, [pathname, router, searchParams]);
 
 	const statusPages = statusPagesQuery.data ?? [];
-	const filtered = useFilteredStatusPages(
-		statusPages,
+	const filtered = useFilteredList(
+		statusFilter === "all"
+			? statusPages
+			: statusPages.filter(
+					(p) => p.monitorCount > 0 === (statusFilter === "active")
+				),
 		search,
 		sort,
-		statusFilter
+		statusPageSearchFields
 	);
 	const isLoading = statusPagesQuery.isLoading || !resolvedOrgId;
 	const hasEmpty = statusPages.some((p) => p.monitorCount === 0);
@@ -131,68 +138,35 @@ function StatusPagesListPageContent() {
 
 	return (
 		<ErrorBoundary>
+			<TopBar.Title>
+				<h1 className="font-semibold text-sm">Status Pages</h1>
+			</TopBar.Title>
+			<TopBar.Actions>
+				<Button
+					aria-label="Refresh status pages"
+					disabled={statusPagesQuery.isLoading || statusPagesQuery.isFetching}
+					onClick={() => statusPagesQuery.refetch()}
+					size="sm"
+					variant="secondary"
+				>
+					<ArrowClockwiseIcon
+						className={cn(
+							"size-4 shrink-0",
+							(statusPagesQuery.isLoading || statusPagesQuery.isFetching) &&
+								"animate-spin"
+						)}
+					/>
+				</Button>
+				<Button onClick={handleCreate} size="sm">
+					<PlusIcon className="size-4 shrink-0" />
+					Create Status Page
+				</Button>
+			</TopBar.Actions>
 			<div className="flex-1 overflow-y-auto">
-				<div className="mx-auto max-w-2xl space-y-6 p-5">
+				<div className="space-y-6 p-5">
 					<Card>
-						<Card.Header className="flex-row items-start justify-between gap-4">
-							<div>
-								<div className="flex items-center gap-2">
-									<Card.Title>Status Pages</Card.Title>
-									<Badge variant="muted">Beta</Badge>
-								</div>
-								<Card.Description>
-									{isLoading
-										? "Loading status pages\u2026"
-										: statusPages.length === 0
-											? "Create and manage public status pages. Free while in beta."
-											: `${statusPages.length} status page${statusPages.length === 1 ? "" : "s"} \u00b7 Free while in beta`}
-								</Card.Description>
-							</div>
-							<div className="flex items-center gap-2">
-								<Button
-									aria-label="Refresh status pages"
-									disabled={
-										statusPagesQuery.isLoading || statusPagesQuery.isFetching
-									}
-									onClick={() => statusPagesQuery.refetch()}
-									size="sm"
-									variant="ghost"
-								>
-									<ArrowClockwiseIcon
-										className={cn(
-											"size-3.5",
-											(statusPagesQuery.isLoading ||
-												statusPagesQuery.isFetching) &&
-												"animate-spin"
-										)}
-									/>
-								</Button>
-								<Button onClick={handleCreate} size="sm">
-									<PlusIcon className="size-3.5" />
-									Create Status Page
-								</Button>
-							</div>
-						</Card.Header>
 						<Card.Content className="p-0">
-							{isLoading && (
-								<div className="divide-y">
-									{Array.from({ length: 3 }).map((_, i) => (
-										<div
-											className="flex items-center gap-4 px-5 py-3"
-											key={`skel-${i + 1}`}
-										>
-											<Skeleton className="size-10 shrink-0 rounded-lg" />
-											<div className="min-w-0 flex-1 space-y-2">
-												<div className="flex items-center gap-2">
-													<Skeleton className="h-4 w-40" />
-													<Skeleton className="h-4 w-16 rounded-full" />
-												</div>
-												<Skeleton className="h-3.5 w-56" />
-											</div>
-										</div>
-									))}
-								</div>
-							)}
+							{isLoading && <List.DefaultLoading />}
 
 							{!(isLoading || hasPages) && (
 								<div className="px-5 py-12">
@@ -208,7 +182,7 @@ function StatusPagesListPageContent() {
 											</Button>
 										}
 										description="Create a public status page to keep your users informed about system availability."
-										icon={<BrowserIcon weight="duotone" />}
+										icon={<BrowserIcon />}
 										title="No status pages yet"
 									/>
 								</div>
@@ -217,14 +191,16 @@ function StatusPagesListPageContent() {
 							{!isLoading && hasPages && (
 								<>
 									<div className="border-b px-4 py-2">
-										<StatusPagesSearchBar
-											hasEmpty={hasEmpty}
+										<ListSearchBar
 											onSearchQueryChangeAction={setSearch}
 											onSortByChangeAction={setSort}
 											onStatusFilterChangeAction={setStatusFilter}
+											placeholder="Search status pages"
 											searchQuery={search}
+											showStatusFilter={hasEmpty || statusFilter !== "all"}
 											sortBy={sort}
 											statusFilter={statusFilter}
+											statusLabels={STATUS_LABELS}
 										/>
 									</div>
 									{noResults ? (
@@ -235,7 +211,7 @@ function StatusPagesListPageContent() {
 														? `No status pages match \u201c${search}\u201d`
 														: "No status pages match the current filter"
 												}
-												icon={<MagnifyingGlassIcon weight="duotone" />}
+												icon={<MagnifyingGlassIcon />}
 												title="No results"
 												variant="minimal"
 											/>
@@ -249,7 +225,6 @@ function StatusPagesListPageContent() {
 														setStatusPageToDelete(statusPage)
 													}
 													onEditAction={() => handleEdit(statusPage)}
-													onTransferSuccessAction={statusPagesQuery.refetch}
 													statusPage={statusPage}
 												/>
 											))}

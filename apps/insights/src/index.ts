@@ -2,21 +2,27 @@ import { setAiRequestLoggerProvider } from "@databuddy/ai/lib/request-logger";
 import { isAiGatewayConfigured } from "@databuddy/ai/config/models";
 import { db, shutdownPostgres, sql } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import {
+	closeImportQueue,
 	closeInsightsQueue,
 	getBullMQWorkerConnectionOptions,
 	getInsightsQueue,
+	IMPORT_JOB_TIMEOUT_MS,
+	IMPORT_QUEUE_ENV_PREFIX,
+	IMPORT_QUEUE_NAME,
+	type ImportRunJobData,
 	INSIGHTS_JOB_TIMEOUT_MS,
 	INSIGHTS_QUEUE_ENV_PREFIX,
 	INSIGHTS_QUEUE_NAME,
 	type InsightsQueueJobData,
 } from "@databuddy/redis";
+import { PermanentImportError, runImportJob } from "@databuddy/services/import";
 import {
 	createDatabuddyEvlogEnv,
 	databuddyEvlogRedaction,
 } from "@databuddy/shared/evlog-redaction";
-import { Worker } from "bullmq";
+import { UnrecoverableError, Worker } from "bullmq";
 import { Elysia } from "elysia";
 import { initLogger } from "evlog";
 import { processInsightsJob } from "./jobs";
@@ -63,6 +69,7 @@ process.on("uncaughtException", (error) => {
 
 let shuttingDown = false;
 let insightsWorker: Worker<InsightsQueueJobData> | null = null;
+let importWorker: Worker<ImportRunJobData> | null = null;
 
 async function withTimeout<T>(
 	promise: Promise<T>,
@@ -90,7 +97,9 @@ async function drainAll() {
 	await withTimeout(
 		Promise.allSettled([
 			insightsWorker?.close() ?? Promise.resolve(),
+			importWorker?.close() ?? Promise.resolve(),
 			closeInsightsQueue(),
+			closeImportQueue(),
 			flushBatchedInsightsDrain(),
 			shutdownPostgres(),
 		]),
@@ -107,31 +116,61 @@ function exitAfterDrain(code: number) {
 		return;
 	}
 	shuttingDown = true;
-	drainAll()
-		.catch((error) => {
-			captureInsightsError(error, "lifecycle.shutdown_failed", {
-				lifecycle: "shutdown",
-			});
-		})
-		.finally(() => process.exit(code));
+	drainAll().finally(() => process.exit(code));
 }
 
-async function shutdown(signal: string) {
+function shutdown(signal: string) {
 	if (shuttingDown) {
 		return;
 	}
-	shuttingDown = true;
 	emitInsightsEvent("info", "lifecycle.shutdown_requested", {
 		lifecycle: "shutdown",
 		signal,
 	});
-	await drainAll();
-	process.exit(0);
+	exitAfterDrain(0);
 }
 
 async function startRuntime() {
 	emitInsightsEvent("info", "lifecycle.starting", {
 		worker_enabled: workerEnabled,
+	});
+	importWorker = new Worker<ImportRunJobData>(
+		IMPORT_QUEUE_NAME,
+		async (job) => {
+			const result = await runImportJob(job.data, ({ rows }) =>
+				job.updateProgress(rows)
+			).catch((error) => {
+				if (error instanceof PermanentImportError) {
+					throw new UnrecoverableError(error.message);
+				}
+				throw error;
+			});
+			emitInsightsEvent("info", "import.completed", {
+				run_id: job.data.runId,
+				website_id: job.data.websiteId,
+				provider_id: job.data.providerId,
+				rows: result.rows,
+				dates: result.dates,
+				skipped_rollups: result.skippedRollups,
+				dropped_visits: result.adjustments.droppedVisits,
+				duration_delta_seconds: result.adjustments.durationDeltaSeconds,
+			});
+			return result;
+		},
+		{
+			connection: getBullMQWorkerConnectionOptions({
+				envPrefix: IMPORT_QUEUE_ENV_PREFIX,
+			}),
+			concurrency: 1,
+			lockDuration: IMPORT_JOB_TIMEOUT_MS * 2,
+			stalledInterval: IMPORT_JOB_TIMEOUT_MS * 3,
+		}
+	);
+	importWorker.on("failed", (job, error) => {
+		captureInsightsError(error, "import.failed", {
+			run_id: job?.data.runId,
+			website_id: job?.data.websiteId,
+		});
 	});
 	if (workerEnabled) {
 		if (!isAiGatewayConfigured) {

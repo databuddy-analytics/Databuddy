@@ -1,3 +1,4 @@
+import type { BaseTracker } from "../src/core/tracker";
 import { expect, hasEvent, test } from "./test-utils";
 
 const IDENTITY_STORAGE_KEYS = ["did", "did_params", "did_profile"];
@@ -8,7 +9,9 @@ const SESSION_STORAGE_KEYS = [
 	"did_session_timestamp",
 ];
 
-async function readStoredTrackingIdentity(page: import("@playwright/test").Page) {
+async function readStoredTrackingIdentity(
+	page: import("@playwright/test").Page
+) {
 	return page.evaluate(
 		({ identityKeys, sessionKeys }) => ({
 			local: identityKeys.map((key) => localStorage.getItem(key)),
@@ -18,7 +21,9 @@ async function readStoredTrackingIdentity(page: import("@playwright/test").Page)
 	);
 }
 
-async function seedStoredTrackingIdentity(page: import("@playwright/test").Page) {
+async function seedStoredTrackingIdentity(
+	page: import("@playwright/test").Page
+) {
 	await page.evaluate(
 		({ identityKeys, sessionKeys }) => {
 			for (const key of identityKeys) {
@@ -106,7 +111,6 @@ test.describe("Privacy & Opt-out", () => {
 		await page.goto("/test?gclid=private-click-id");
 		await seedStoredTrackingIdentity(page);
 		await page.evaluate(() => {
-			// Pre-set opt-out in localStorage
 			localStorage.setItem("databuddy_opt_out", "true");
 			(window as any).databuddyConfig = {
 				clientId: "test-privacy",
@@ -117,7 +121,6 @@ test.describe("Privacy & Opt-out", () => {
 
 		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
-		// Try to track
 		await page.evaluate(() => {
 			if ((window as any).db) {
 				(window as any).db.track("should_fail");
@@ -152,7 +155,6 @@ test.describe("Privacy & Opt-out", () => {
 		});
 		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
-		// Ensure we are loaded
 		await expect
 			.poll(async () => await page.evaluate(() => !!(window as any).db))
 			.toBe(true);
@@ -161,13 +163,11 @@ test.describe("Privacy & Opt-out", () => {
 			(window as any).db.track("queued_before_opt_out");
 		});
 
-		// Call opt out
 		await page.evaluate(() => {
 			(window as any).databuddyOptOut();
 			window.dispatchEvent(new PageTransitionEvent("pagehide"));
 		});
 
-		// Verify flags
 		const isOptedOut = await page.evaluate(
 			() =>
 				localStorage.getItem("databuddy_opt_out") === "true" &&
@@ -179,7 +179,6 @@ test.describe("Privacy & Opt-out", () => {
 			session: [null, null, null, null],
 		});
 
-		// Try to track
 		let requestSent = false;
 		page.on("request", (req) => {
 			if (
@@ -197,5 +196,41 @@ test.describe("Privacy & Opt-out", () => {
 		await page.waitForTimeout(500);
 		expect(requestSent).toBe(false);
 		expect(queuedBeforeOptOutSent).toBe(false);
+	});
+
+	test("click descriptors never read rendered element text", async ({
+		page,
+	}) => {
+		await page.goto("/test");
+		await page.evaluate(() => {
+			document.body.innerHTML = `
+				<button>Reply to Jane Doe</button>
+				<a id="profile-4821" href="#jane">Jane Doe</a>
+				<button data-track="save_settings">Save</button>
+				<label>Email <input id="field-1234"></label>`;
+			window.databuddyConfig = {
+				clientId: "test-click-descriptors",
+				ignoreBotDetection: true,
+				trackInteractions: true,
+			};
+		});
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+		await expect
+			.poll(() => page.evaluate(() => Boolean(window.__tracker)))
+			.toBeTruthy();
+
+		const rageClickTarget = async (selector: string) => {
+			await page.click(selector, { clickCount: 3 });
+			return page.evaluate(
+				() => (window.__tracker as BaseTracker).rageClickTarget
+			);
+		};
+
+		expect(await rageClickTarget("text=Reply to Jane Doe")).toBe(
+			"button:unnamed"
+		);
+		expect(await rageClickTarget("a")).toBe("a:unnamed");
+		expect(await rageClickTarget("text=Save")).toBe("button:save_settings");
+		expect(await rageClickTarget("input")).toBe("input:text:email");
 	});
 });

@@ -41,26 +41,35 @@ function tripLinkCacheFailFast() {
 }
 
 describe("links.create under link cache failure", () => {
-	iit("creates with a generated slug while the cache is failing fast", async () => {
-		const { org, context } = await memberSetup();
-		await tripLinkCacheFailFast();
+	iit(
+		"creates with a generated slug while the cache is failing fast",
+		async () => {
+			const { org, context } = await memberSetup();
+			await tripLinkCacheFailFast();
 
-		const result = await call(appRouter.links.create, context)({
-			name: "Cache Down",
-			targetUrl: "https://example.com",
-			organizationId: org.id,
-		});
+			const result = await call(
+				appRouter.links.create,
+				context
+			)({
+				name: "Cache Down",
+				targetUrl: "https://example.com",
+				organizationId: org.id,
+			});
 
-		expect(result.slug).toBeDefined();
-		expect(result.organizationId).toBe(org.id);
-	});
+			expect(result.slug).toBeDefined();
+			expect(result.organizationId).toBe(org.id);
+		}
+	);
 
 	iit("rejects a custom slug while the cache is failing fast", async () => {
 		const { org, context } = await memberSetup();
 		await tripLinkCacheFailFast();
 
 		await expectCode(
-			call(appRouter.links.create, context)({
+			call(
+				appRouter.links.create,
+				context
+			)({
 				name: "Custom Down",
 				targetUrl: "https://example.com",
 				organizationId: org.id,
@@ -72,32 +81,44 @@ describe("links.create under link cache failure", () => {
 });
 
 describe("link mutation round-trip budget", () => {
-	iit("create, update, and delete run without transaction round-trips", async () => {
-		const { org, context } = await memberSetup("owner");
+	iit(
+		"create, update, and delete run without transaction round-trips",
+		async () => {
+			const { org, context } = await memberSetup("owner");
 
-		const warmup = await call(appRouter.links.create, context)({
-			name: "Warmup",
-			targetUrl: "https://example.com",
-			organizationId: org.id,
-		});
+			const warmup = await call(
+				appRouter.links.create,
+				context
+			)({
+				name: "Warmup",
+				targetUrl: "https://example.com",
+				organizationId: org.id,
+			});
 
-		const transactionSpy = vi.spyOn(db, "transaction");
+			const transactionSpy = vi.spyOn(db, "transaction");
 
-		const created = await call(appRouter.links.create, context)({
-			name: "Budget",
-			targetUrl: "https://example.com",
-			organizationId: org.id,
-		});
-		await call(appRouter.links.update, context)({
-			id: created.id,
-			name: "Budget Renamed",
-		});
-		await call(appRouter.links.delete, context)({ id: created.id });
-		await call(appRouter.links.delete, context)({ id: warmup.id });
+			const created = await call(
+				appRouter.links.create,
+				context
+			)({
+				name: "Budget",
+				targetUrl: "https://example.com",
+				organizationId: org.id,
+			});
+			await call(
+				appRouter.links.update,
+				context
+			)({
+				id: created.id,
+				name: "Budget Renamed",
+			});
+			await call(appRouter.links.delete, context)({ id: created.id });
+			await call(appRouter.links.delete, context)({ id: warmup.id });
 
-		expect(transactionSpy).not.toHaveBeenCalled();
-		transactionSpy.mockRestore();
-	});
+			expect(transactionSpy).not.toHaveBeenCalled();
+			transactionSpy.mockRestore();
+		}
+	);
 });
 
 describe("pool statement timeout", () => {

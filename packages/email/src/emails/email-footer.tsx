@@ -1,4 +1,4 @@
-import { Hr, Link, Section, Text } from "react-email";
+import { Hr, Link, Section, Text } from "@react-email/components";
 import { emailBrand } from "./email-brand";
 
 export const EmailFooter = () => (

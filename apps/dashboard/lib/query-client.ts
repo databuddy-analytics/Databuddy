@@ -22,7 +22,6 @@ const SILENCED_MESSAGE_FRAGMENTS = [
 	"unauthenticated",
 	"401",
 	"forbidden",
-	"invite-only",
 ];
 
 function isSilencedError(error: unknown): boolean {

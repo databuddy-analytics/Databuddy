@@ -11,6 +11,10 @@ const AGENT_LINK_HEADER =
 const config: NextConfig = {
 	reactStrictMode: true,
 	transpilePackages: ["@databuddy/ui"],
+	outputFileTracingIncludes: {
+		"/api/docs/raw/*": ["./content/docs/**/*.mdx"],
+		"/llms-full.txt": ["./content/docs/**/*.mdx"],
+	},
 	async headers() {
 		return await [
 			{
@@ -31,11 +35,6 @@ const config: NextConfig = {
 					{
 						key: "Referrer-Policy",
 						value: "strict-origin-when-cross-origin",
-					},
-					{
-						key: "X-Robots-Tag",
-						value:
-							"index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
 					},
 					{
 						key: "Link",
@@ -98,7 +97,27 @@ const config: NextConfig = {
 	}),
 
 	async redirects() {
-		return await [
+		return [
+			{
+				source: "/alternatives/:path*",
+				destination: "/compare/:path*",
+				permanent: true,
+			},
+			{
+				source: "/switch-from/:path*",
+				destination: "/compare/:path*",
+				permanent: true,
+			},
+			{
+				source: "/compare/posthog-vs-databuddy",
+				destination: "/compare/posthog",
+				permanent: true,
+			},
+			{
+				source: "/docs/features/feature-flags",
+				destination: "/docs/sdk/feature-flags",
+				permanent: true,
+			},
 			{
 				source: "/documentation/:path*",
 				destination: "/docs/:path*",

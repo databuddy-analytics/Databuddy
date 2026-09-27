@@ -28,7 +28,7 @@ import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { invalidateFlagCache } from "@databuddy/rpc/flags";
 import { appendAuditEvent } from "@databuddy/services/audit";
 import { auditActions } from "@databuddy/shared/audit";
-import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { randomUUIDv7 } from "bun";
 import { getRequestId } from "@/http/request-id";
 import { Elysia, t } from "elysia";
@@ -155,17 +155,12 @@ const getCachedFlag = cacheable(
 	async (key: string, clientId: string, environment?: string) => {
 		const flag = await db.query.flags.findFirst({
 			where: {
-				RAW: (t) =>
-					and(
-						eq(t.key, key),
-						environment
-							? eq(t.environment, environment)
-							: isNull(t.environment),
-						isNull(t.deletedAt),
-						eq(t.status, "active"),
-						isNull(t.userId),
-						or(eq(t.websiteId, clientId), eq(t.organizationId, clientId))
-					),
+				key,
+				environment: environment || { isNull: true },
+				deletedAt: { isNull: true },
+				status: "active",
+				userId: { isNull: true },
+				OR: [{ websiteId: clientId }, { organizationId: clientId }],
 			},
 			with: {
 				flagsToTargetGroups: {
@@ -201,16 +196,11 @@ const getCachedFlagsForClient = cacheable(
 	async (clientId: string, environment?: string) => {
 		const flagsList = await db.query.flags.findMany({
 			where: {
-				RAW: (t) =>
-					and(
-						isNull(t.deletedAt),
-						eq(t.status, "active"),
-						isNull(t.userId),
-						environment
-							? eq(t.environment, environment)
-							: isNull(t.environment),
-						or(eq(t.websiteId, clientId), eq(t.organizationId, clientId))
-					),
+				deletedAt: { isNull: true },
+				status: "active",
+				userId: { isNull: true },
+				environment: environment || { isNull: true },
+				OR: [{ websiteId: clientId }, { organizationId: clientId }],
 			},
 			with: {
 				flagsToTargetGroups: {
@@ -239,15 +229,10 @@ const getCachedFlagDefinitionsForClient = cacheable(
 	async (clientId: string, environment?: string) => {
 		const flagsList = await db.query.flags.findMany({
 			where: {
-				RAW: (t) =>
-					and(
-						isNull(t.deletedAt),
-						isNull(t.userId),
-						environment
-							? eq(t.environment, environment)
-							: isNull(t.environment),
-						or(eq(t.websiteId, clientId), eq(t.organizationId, clientId))
-					),
+				deletedAt: { isNull: true },
+				userId: { isNull: true },
+				environment: environment || { isNull: true },
+				OR: [{ websiteId: clientId }, { organizationId: clientId }],
 			},
 			orderBy: { createdAt: "desc" },
 		});
@@ -267,16 +252,11 @@ const getCachedFlagsForUser = cacheable(
 	async (userId: string, clientId: string, environment?: string) => {
 		const flagsList = await db.query.flags.findMany({
 			where: {
-				RAW: (t) =>
-					and(
-						isNull(t.deletedAt),
-						eq(t.status, "active"),
-						environment
-							? eq(t.environment, environment)
-							: isNull(t.environment),
-						eq(t.userId, userId),
-						or(eq(t.websiteId, clientId), eq(t.organizationId, clientId))
-					),
+				deletedAt: { isNull: true },
+				status: "active",
+				environment: environment || { isNull: true },
+				userId,
+				OR: [{ websiteId: clientId }, { organizationId: clientId }],
 			},
 			with: {
 				flagsToTargetGroups: {
@@ -380,7 +360,7 @@ export function evaluateValueRule(value: unknown, rule: FlagRule): boolean {
 	}
 }
 
-function getContextValue(
+function ruleTargetValue(
 	rule: FlagRule,
 	context: UserContext
 ): string | undefined {
@@ -398,7 +378,7 @@ function getContextValue(
 
 export function evaluateRule(rule: FlagRule, context: UserContext): boolean {
 	if (rule.batch && rule.batchValues?.length) {
-		const contextValue = getContextValue(rule, context);
+		const contextValue = ruleTargetValue(rule, context);
 
 		if (rule.operator === "in" || rule.operator === "not_in") {
 			const isInList = contextValue
@@ -486,14 +466,12 @@ export function selectVariant(
 	return { value: lastVariant.value, variant: lastVariant.key };
 }
 
-function dependencyFailure(): FlagResult {
-	return {
-		enabled: false,
-		value: false,
-		payload: null,
-		reason: "DEPENDENCY_NOT_SATISFIED",
-	};
-}
+const DEPENDENCY_NOT_SATISFIED: FlagResult = Object.freeze({
+	enabled: false,
+	value: false,
+	payload: null,
+	reason: "DEPENDENCY_NOT_SATISFIED",
+});
 
 function dependenciesSatisfiedFromList(
 	flag: EvaluableFlag,
@@ -615,15 +593,6 @@ export function evaluateFlag(
 
 const PUBLIC_EVAL_RATE_PER_MINUTE = 600;
 
-function clientIpForFlags(request: Request): string {
-	return (
-		request.headers.get("cf-connecting-ip") ||
-		request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-		request.headers.get("x-real-ip") ||
-		"unknown"
-	);
-}
-
 interface ElysiaSet {
 	headers: Record<string, unknown>;
 	status?: unknown;
@@ -634,11 +603,19 @@ async function enforcePublicFlagRateLimit(
 	clientId: string | undefined,
 	set: ElysiaSet
 ): Promise<boolean> {
-	const ip = clientIpForFlags(request);
-	const key = clientId
-		? `flags:eval:${clientId}:${ip}`
-		: `flags:eval:anon:${ip}`;
-	const rl = await ratelimit(key, PUBLIC_EVAL_RATE_PER_MINUTE, 60);
+	const ip = getClientIp(request.headers);
+	const rl = await ratelimit(
+		`flags:eval:${clientId || "anon"}:${ip ?? "shared"}`,
+		PUBLIC_EVAL_RATE_PER_MINUTE,
+		60
+	);
+
+	mergeWideEvent({
+		flag_client_id: clientId || "",
+		flag_rate_limit_scope: ip ? "ip" : "shared",
+		flag_rate_limited: !rl.success,
+	});
+
 	if (rl.success) {
 		return true;
 	}
@@ -725,7 +702,7 @@ async function recordPublicFlagAudit(input: {
 			outcome: input.action,
 			reason: input.reason,
 			request: {
-				ip: getTrustedClientIp(input.request.headers),
+				ip: getClientIp(input.request.headers),
 				requestId: getRequestId(input.request),
 				userAgent: input.request.headers.get("user-agent") ?? undefined,
 			},
@@ -755,7 +732,7 @@ function invalidateMemCacheForClient(clientId: string) {
 	}
 }
 
-function resolveScope(
+function resolveFlagOwnership(
 	apiKey: ApiKeyRow,
 	clientId: string
 ): { organizationId: string | null; websiteId: string | null } {
@@ -768,6 +745,12 @@ function resolveScope(
 	return { websiteId: null, organizationId: null };
 }
 
+function normalizeFlagEnvironment(environment?: string): string | undefined {
+	return environment && environment !== "undefined" && environment !== "null"
+		? environment
+		: undefined;
+}
+
 interface BulkFlagInput extends UserContext {
 	clientId: string;
 	environment?: string;
@@ -775,10 +758,14 @@ interface BulkFlagInput extends UserContext {
 }
 
 async function evaluateBulkFlags(
-	input: BulkFlagInput,
+	rawInput: BulkFlagInput,
 	set: ElysiaSet,
 	request: Request
 ) {
+	const input = {
+		...rawInput,
+		environment: normalizeFlagEnvironment(rawInput.environment),
+	};
 	if (!(await enforcePublicFlagRateLimit(request, input.clientId, set))) {
 		return { flags: {}, count: 0, reason: "RATE_LIMITED" };
 	}
@@ -868,7 +855,7 @@ async function evaluateBulkFlags(
 		for (const flag of flagsToEvaluate) {
 			results[flag.key] = dependenciesSatisfiedFromList(flag, allFlags)
 				? evaluateFlag(flag, context)
-				: dependencyFailure();
+				: DEPENDENCY_NOT_SATISFIED;
 		}
 
 		const count = Object.keys(results).length;
@@ -920,6 +907,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 	.get(
 		"/evaluate",
 		async function evaluateFlagEndpoint({ query, set, request }) {
+			query.environment = normalizeFlagEnvironment(query.environment);
 			if (!(await enforcePublicFlagRateLimit(request, query.clientId, set))) {
 				return {
 					enabled: false,
@@ -987,7 +975,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					query.environment
 				))
 					? evaluateFlag(flag, context)
-					: dependencyFailure();
+					: DEPENDENCY_NOT_SATISFIED;
 				mergeWideEvent({
 					flag_found: true,
 					flag_type: flag.type,
@@ -1045,6 +1033,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 	.get(
 		"/definitions",
 		async function getDefinitionsEndpoint({ query, set, request }) {
+			query.environment = normalizeFlagEnvironment(query.environment);
 			mergeWideEvent({
 				flag_client_id: query.clientId || "",
 				flag_environment: query.environment || "",
@@ -1159,7 +1148,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					return { error: "Forbidden" };
 				}
 
-				const scope = resolveScope(auth.apiKey, body.clientId);
+				const scope = resolveFlagOwnership(auth.apiKey, body.clientId);
 				if (!(scope.websiteId || scope.organizationId)) {
 					await recordPublicFlagAudit({
 						action: "denied",

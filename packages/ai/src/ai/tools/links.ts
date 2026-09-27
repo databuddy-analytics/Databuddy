@@ -1,5 +1,4 @@
 import { tool } from "ai";
-import dayjs from "dayjs";
 import { z } from "zod";
 import {
 	DEEP_LINK_APP_IDS,
@@ -300,8 +299,6 @@ export function createLinksTools() {
 					};
 				}
 
-				const currentFolder =
-					folders.find((folder) => folder.id === currentLink.folderId) ?? null;
 				const effectiveDeepLinkApp =
 					updates.deepLinkApp === undefined
 						? currentLink.deepLinkApp
@@ -318,80 +315,28 @@ export function createLinksTools() {
 					};
 				}
 
-				const changes: string[] = [];
-				if (updates.name && updates.name !== currentLink.name) {
-					changes.push(`Name: "${currentLink.name}" → "${updates.name}"`);
-				}
-				if (updates.targetUrl && updates.targetUrl !== currentLink.targetUrl) {
-					changes.push(
-						`Target: ${currentLink.targetUrl} → ${updates.targetUrl}`
-					);
-				}
-				if (updates.slug && updates.slug !== currentLink.slug) {
-					changes.push(`Slug: /${currentLink.slug} → /${updates.slug}`);
-				}
-				if (
-					updates.deepLinkApp !== undefined &&
-					updates.deepLinkApp !== currentLink.deepLinkApp
-				) {
-					changes.push(
-						`Deep link app: ${currentLink.deepLinkApp ?? "None"} → ${updates.deepLinkApp ?? "None"}`
-					);
-				}
-				if (updates.expiresAt !== undefined) {
-					const oldExpires = currentLink.expiresAt
-						? dayjs(currentLink.expiresAt).format("MMM D, YYYY")
-						: "Never";
-					const newExpires = updates.expiresAt
-						? dayjs(updates.expiresAt).format("MMM D, YYYY")
-						: "Never";
-					if (oldExpires !== newExpires) {
-						changes.push(`Expires: ${oldExpires} → ${newExpires}`);
-					}
-				}
-				if (
-					updates.externalId !== undefined &&
-					updates.externalId !== currentLink.externalId
-				) {
-					changes.push(
-						`External ID: ${currentLink.externalId ?? "None"} → ${updates.externalId ?? "None"}`
-					);
-				}
-				if (
-					folderSelection.folderId !== undefined &&
-					folderSelection.folderId !== currentLink.folderId
-				) {
-					changes.push(
-						`Folder: ${currentFolder?.name ?? "Unfiled"} → ${folderSelection.folder?.name ?? "Unfiled"}`
-					);
-				}
-
-				if (!confirmed) {
-					return {
-						preview: true,
-						message: `Please review the changes to "${currentLink.name}":`,
-						currentLink: {
-							name: currentLink.name,
-							slug: currentLink.slug,
-							targetUrl: currentLink.targetUrl,
-							deepLinkApp: currentLink.deepLinkApp ?? null,
-							folder: currentFolder
-								? summarizeLinkFolder(currentFolder)
-								: "Unfiled",
-						},
-						changes: changes.length > 0 ? changes : ["No changes detected"],
-						availableFolders: folders.map(summarizeLinkFolder),
-						confirmationRequired: true,
-						instruction:
-							"To apply these changes, the user must explicitly confirm. Only then call this tool again with confirmed=true.",
-					};
-				}
-
 				const cleanUpdates = Object.fromEntries(
 					Object.entries(updates).filter(([, value]) => value !== undefined)
 				);
 				if (folderSelection.folderId !== undefined) {
 					cleanUpdates.folderId = folderSelection.folderId;
+				}
+				const hasUpdates = Object.keys(cleanUpdates).length > 0;
+
+				if (!(confirmed && hasUpdates)) {
+					return {
+						preview: true,
+						message: hasUpdates
+							? `Please review the changes to "${currentLink.name}":`
+							: "No changes requested. The short link will remain unchanged.",
+						currentLink: summarizeLink(currentLink, folders),
+						updates: cleanUpdates,
+						availableFolders: folders.map(summarizeLinkFolder),
+						confirmationRequired: hasUpdates,
+						instruction: hasUpdates
+							? "To apply these changes, the user must explicitly confirm. Only then call this tool again with confirmed=true."
+							: undefined,
+					};
 				}
 
 				const updatedLink = parseLinkRow(
@@ -407,7 +352,7 @@ export function createLinksTools() {
 					success: true,
 					message: `Link "${updatedLink.name}" updated successfully!`,
 					link: summarizeLink(updatedLink, folderSelection.folders),
-					changes,
+					updates: cleanUpdates,
 				};
 			} catch (error) {
 				logger.error("Failed to update link", { id, websiteId, error });

@@ -1,7 +1,8 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readBooleanEnv } from "@databuddy/env/boolean";
-import type { DrainContext, EnrichContext } from "evlog";
+import { readBooleanEnv } from "@databuddy/env/app";
+import { createDatabuddyEvlogEnv } from "@databuddy/shared/evlog-redaction";
+import type { DrainContext, EnrichContext, WideEvent } from "evlog";
 import { log } from "evlog";
 import { createAxiomDrain } from "evlog/axiom";
 import { useLogger as getRequestLogger } from "evlog/elysia";
@@ -81,6 +82,24 @@ export async function drain(ctx: DrainContext): Promise<void> {
 
 export async function flushDrain(): Promise<void> {
 	await batchedAxiomDrain.flush();
+}
+
+const startupEnv = createDatabuddyEvlogEnv("links");
+
+export function emitServiceEvent(
+	level: "error" | "info",
+	fields: LogFields
+): void {
+	const event: WideEvent = {
+		timestamp: new Date().toISOString(),
+		level,
+		service: startupEnv.service,
+		environment: startupEnv.environment,
+		...(startupEnv.region ? { region: startupEnv.region } : {}),
+		...(startupEnv.commitHash ? { commitHash: startupEnv.commitHash } : {}),
+		...fields,
+	};
+	drain({ event }).catch(() => undefined);
 }
 
 const enrichers = [

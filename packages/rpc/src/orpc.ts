@@ -1,3 +1,4 @@
+import type { OrganizationBusinessContext } from "@databuddy/shared/organization-business-context";
 import {
 	type ApiKeyRow,
 	getApiKeyFromHeader,
@@ -13,6 +14,7 @@ import {
 	setRpcProcedureType,
 	setRpcAuthTiming,
 } from "./lib/rpc-log-context";
+import { hasHostedBilling } from "./lib/autumn-client";
 import { runTracked } from "./middleware/track-mutation";
 import { runAuditedMutation } from "./middleware/audit-mutation";
 import { type BillingOwner, getBillingOwner } from "./utils/billing";
@@ -75,7 +77,15 @@ export function createServiceAuth(
 }
 
 export const createRPCContext = async (
-	opts: { headers: Headers; requestId?: string },
+	opts: {
+		headers: Headers;
+		requestId?: string;
+		generateBusinessContext?: (input: {
+			organizationId: string;
+			generationId: string;
+			signal?: AbortSignal;
+		}) => AsyncGenerator<OrganizationBusinessContext, void, void>;
+	},
 	preResolved?: PreResolvedAuth
 ) => {
 	let session: PreResolvedAuth["session"];
@@ -101,6 +111,9 @@ export const createRPCContext = async (
 	let billingResolved = false;
 
 	const getBilling = async (): Promise<BillingOwner | undefined> => {
+		if (!hasHostedBilling()) {
+			return;
+		}
 		if (billingResolved) {
 			return billingCache;
 		}

@@ -1,5 +1,6 @@
 "use client";
 
+import { EmailUnavailable, useAuthCapabilities } from "../../auth-capabilities";
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,6 +12,7 @@ import { ArrowLeftIcon, EnvelopeSimpleIcon } from "@databuddy/ui/icons";
 import { Button, Field, Input, Spinner, Text } from "@databuddy/ui";
 
 function MagicLinkPage() {
+	const capabilities = useAuthCapabilities();
 	const router = useRouter();
 	const [callback] = useQueryState(
 		"callback",
@@ -50,6 +52,10 @@ function MagicLinkPage() {
 		setIsLoading(false);
 	};
 
+	if (!capabilities.email) {
+		return <EmailUnavailable loginHref={loginHref} />;
+	}
+
 	return (
 		<>
 			<div className="mb-8 space-y-1.5 px-6">
@@ -77,10 +83,7 @@ function MagicLinkPage() {
 					</Field>
 
 					<div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3">
-						<EnvelopeSimpleIcon
-							className="size-4 shrink-0 text-foreground"
-							weight="duotone"
-						/>
+						<EnvelopeSimpleIcon className="size-4 shrink-0 text-foreground" />
 						<Text tone="muted">
 							We&apos;ll send a secure link to your email that will sign you in
 							instantly — no password needed.
@@ -88,7 +91,7 @@ function MagicLinkPage() {
 					</div>
 
 					<Button className="w-full" loading={isLoading} type="submit">
-						<EnvelopeSimpleIcon className="size-4" weight="duotone" />
+						<EnvelopeSimpleIcon className="size-4" />
 						Send magic link
 					</Button>
 				</form>

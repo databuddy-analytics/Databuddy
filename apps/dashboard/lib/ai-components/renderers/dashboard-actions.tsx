@@ -43,7 +43,7 @@ function ActionButton({
 			<span className="truncate">{action.label}</span>
 			{action.filters && action.filters.length > 0 ? (
 				<span className="inline-flex shrink-0 items-center gap-1 rounded border border-border/60 bg-background/60 px-1 py-0.5 font-normal text-[10px] text-muted-foreground">
-					<FilterIcon className="size-2.5" weight="duotone" />
+					<FilterIcon className="size-2.5" />
 					{action.filters.length}
 				</span>
 			) : null}
@@ -108,11 +108,7 @@ export function DashboardActionsRenderer({
 			{showTitle ? (
 				<>
 					<span className="flex h-7 min-w-0 max-w-44 shrink-0 items-center gap-1.5 px-1.5 text-muted-foreground text-xs">
-						<CompassIcon
-							aria-hidden
-							className="size-3.5 shrink-0"
-							weight="duotone"
-						/>
+						<CompassIcon aria-hidden className="size-3.5 shrink-0" />
 						<span className="truncate">{title}</span>
 					</span>
 					<span aria-hidden className="h-4 w-px bg-border/70" />

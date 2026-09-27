@@ -48,7 +48,6 @@ export function DeviceTypeCell({ device_type }: DeviceTypeCellProps) {
 				className={colorClass}
 				size={20}
 				style={{ minWidth: 20, minHeight: 20 }}
-				weight="duotone"
 			/>
 			<span className="font-medium">{device_type ?? "Unknown"}</span>
 		</div>

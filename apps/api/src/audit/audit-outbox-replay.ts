@@ -1,6 +1,7 @@
 import { replayAuditOutbox } from "@databuddy/services/audit";
 import { db } from "@databuddy/db";
 import { log } from "evlog";
+import { getErrorLogFields } from "@databuddy/shared/evlog-fields";
 
 const REPLAY_INTERVAL_MS = 60_000;
 
@@ -35,7 +36,7 @@ export function startAuditOutboxReplayLoop(): AuditOutboxReplayLoop {
 				log.error({
 					service: "api",
 					component: "audit_outbox_replay",
-					error_message: error instanceof Error ? error.message : String(error),
+					...getErrorLogFields(error),
 				});
 			})
 			.finally(() => {

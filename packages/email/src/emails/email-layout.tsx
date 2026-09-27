@@ -6,7 +6,7 @@ import {
 	Preview,
 	Section,
 	Tailwind,
-} from "react-email";
+} from "@react-email/components";
 import { emailBrand } from "./email-brand";
 import { EmailFooter } from "./email-footer";
 import { EmailHeader } from "./email-header";

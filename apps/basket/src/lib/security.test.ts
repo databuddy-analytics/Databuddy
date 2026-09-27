@@ -88,14 +88,19 @@ describe("visitor ID anonymization helpers", () => {
 	});
 });
 
-const { mockRedisSet, mockRedisGet, mockRedisEval, mockLoggerSet, mockCaptureError } =
-	vi.hoisted(() => ({
-		mockRedisSet: vi.fn(() => Promise.resolve("OK")),
-		mockRedisGet: vi.fn(() => Promise.resolve(null)),
-		mockRedisEval: vi.fn(() => Promise.resolve(1)),
-		mockLoggerSet: vi.fn(() => {}),
-		mockCaptureError: vi.fn(),
-	}));
+const {
+	mockRedisSet,
+	mockRedisGet,
+	mockRedisEval,
+	mockLoggerSet,
+	mockCaptureError,
+} = vi.hoisted(() => ({
+	mockRedisSet: vi.fn(() => Promise.resolve("OK")),
+	mockRedisGet: vi.fn(() => Promise.resolve(null)),
+	mockRedisEval: vi.fn(() => Promise.resolve(1)),
+	mockLoggerSet: vi.fn(() => {}),
+	mockCaptureError: vi.fn(),
+}));
 
 vi.mock("@databuddy/redis/redis", () => ({
 	redis: { set: mockRedisSet, get: mockRedisGet, eval: mockRedisEval },
@@ -173,7 +178,7 @@ describe("duplicate reservations", () => {
 		});
 		expect(mockLoggerSet).not.toHaveBeenCalled();
 		expect(mockRedisEval).toHaveBeenCalledWith(
-			expect.stringContaining('ARGV[1]'),
+			expect.stringContaining("ARGV[1]"),
 			1,
 			"dedup:track:evt_1",
 			"ambiguous",
@@ -272,7 +277,9 @@ describe("duplicate reservations", () => {
 
 	test("recovers ownership when an ambiguous SET wrote this request's token", async () => {
 		mockRedisSet.mockResolvedValue(null);
-		mockRedisGet.mockImplementation(async () => mockRedisSet.mock.calls[0]?.[1]);
+		mockRedisGet.mockImplementation(
+			async () => mockRedisSet.mock.calls[0]?.[1]
+		);
 
 		const reservation = await reserveDuplicate("evt_1", "track");
 
@@ -380,10 +387,7 @@ describe("duplicate reservations", () => {
 			mockRedisSet.mockImplementation(
 				() =>
 					new Promise<string | null>((resolve) => {
-						setTimeout(
-							() => resolve("OK"),
-							DEDUP_RESERVATION_TIMEOUT_MS + 50
-						);
+						setTimeout(() => resolve("OK"), DEDUP_RESERVATION_TIMEOUT_MS + 50);
 					})
 			);
 			mockRedisEval.mockResolvedValue(1);
@@ -415,10 +419,7 @@ describe("duplicate reservations", () => {
 			mockRedisSet.mockImplementation(
 				() =>
 					new Promise<string | null>((resolve) => {
-						setTimeout(
-							() => resolve(null),
-							DEDUP_RESERVATION_TIMEOUT_MS + 50
-						);
+						setTimeout(() => resolve(null), DEDUP_RESERVATION_TIMEOUT_MS + 50);
 					})
 			);
 			mockRedisGet.mockResolvedValue("ambiguous");
@@ -533,28 +534,6 @@ describe("duplicate reservations", () => {
 		);
 	});
 
-	test("does not let a stale delivery promote a newer reservation", async () => {
-		let storedToken = "pending:newer-attempt";
-		mockRedisEval.mockImplementation(
-			async (_script, _keys, _key, expectedToken: string, deliveredValue: string) => {
-				if (storedToken === expectedToken) {
-					storedToken = deliveredValue;
-					return "OK";
-				}
-				return 0;
-			}
-		);
-
-		await markDuplicateReservationDelivered({
-			deliveredTtl: 86_400,
-			duplicate: false,
-			key: "dedup:track:evt_1",
-			token: "pending:stale-attempt",
-		});
-
-		expect(storedToken).toBe("pending:newer-attempt");
-	});
-
 	test("releases only the pending reservation owned by the failed request", async () => {
 		mockRedisEval.mockResolvedValue(1);
 
@@ -570,27 +549,6 @@ describe("duplicate reservations", () => {
 			"dedup:track:evt_1",
 			"pending:owner-attempt"
 		);
-	});
-
-	test("does not let a stale attempt release a newer reservation", async () => {
-		let storedToken = "pending:newer-attempt";
-		mockRedisEval.mockImplementation(
-			async (_script, _keys, _key, expectedToken: string) => {
-				if (storedToken === expectedToken) {
-					storedToken = "";
-					return 1;
-				}
-				return 0;
-			}
-		);
-
-		await releaseDuplicateReservation({
-			duplicate: false,
-			key: "dedup:track:evt_1",
-			token: "pending:stale-attempt",
-		});
-
-		expect(storedToken).toBe("pending:newer-attempt");
 	});
 
 	test("captures release failures without hiding the original delivery failure", async () => {

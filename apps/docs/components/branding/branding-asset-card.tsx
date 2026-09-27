@@ -55,7 +55,7 @@ function ActionButton({
 			onClick={handleClick}
 			type="button"
 		>
-			{flash ? <CheckIcon className="size-4" weight="bold" /> : children}
+			{flash ? <CheckIcon className="size-4" /> : children}
 		</button>
 	);
 }

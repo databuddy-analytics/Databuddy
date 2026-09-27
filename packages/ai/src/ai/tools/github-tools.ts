@@ -1,22 +1,14 @@
+import { and, db, eq, isNull, websites } from "@databuddy/db";
 import { getGithubTokenForOrg } from "@databuddy/services/github-app";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
-import { createCachedTokenFn } from "./utils/oauth-token";
-
-function createInstallationFirstTokenFn(
-	organizationId: string,
-	userId?: string
-): () => Promise<string | null> {
-	const legacy = createCachedTokenFn("github", organizationId, userId, "repo");
-	return async () =>
-		(await getGithubTokenForOrg(organizationId).catch(() => null)) ?? legacy();
-}
 
 const GITHUB_API = "https://api.github.com";
 const MAX_RESULTS = 10;
 const DEPLOY_FETCH_SIZE = 50;
 const MAX_DEPLOY_PAGES = 5;
 const MAX_COMMITS = 50;
+const MAX_FILE_CHARACTERS = 15_000;
 const SEARCH_SCOPE = /\b(?:repo|org|user):\S+/i;
 const DEPLOYMENT_RESULT_STATES = new Set(["error", "failure", "success"]);
 const DEPLOYMENT_TIMESTAMP = z
@@ -107,7 +99,6 @@ function githubApiError(value: unknown): string | null {
 export interface GitHubToolsParams {
 	organizationId: string;
 	repository?: GitHubRepository | null;
-	userId?: string;
 }
 
 export interface GitHubRepository {
@@ -116,6 +107,7 @@ export interface GitHubRepository {
 }
 
 export interface GitHubToolDependencies {
+	getLinkedRepositories?: () => Promise<GitHubRepository[]>;
 	getToken?: () => Promise<string | null>;
 	request?: (path: string, token: string) => Promise<unknown>;
 }
@@ -130,24 +122,35 @@ function createRepositorySchema<T extends z.ZodRawShape>(
 	return z.object({ ...REPOSITORY_FIELDS, ...shape });
 }
 
-function resolveRepository(
-	repository: GitHubRepository | undefined,
-	input: unknown
-): GitHubRepository {
-	if (repository) {
-		return repository;
-	}
+async function resolveLinkedRepository(
+	input: unknown,
+	getLinkedRepositories: () => Promise<GitHubRepository[]>
+): Promise<GitHubRepository> {
 	if (
-		input &&
-		typeof input === "object" &&
-		"owner" in input &&
-		"repo" in input &&
-		typeof input.owner === "string" &&
-		typeof input.repo === "string"
+		!(
+			input &&
+			typeof input === "object" &&
+			"owner" in input &&
+			"repo" in input &&
+			typeof input.owner === "string" &&
+			typeof input.repo === "string"
+		)
 	) {
-		return { owner: input.owner, repo: input.repo };
+		throw new Error("GitHub repository is required");
 	}
-	throw new Error("GitHub repository is required");
+	const requested = { owner: input.owner, repo: input.repo };
+	const linked = await getLinkedRepositories();
+	const isLinked = linked.some(
+		(candidate) =>
+			candidate.owner.toLowerCase() === requested.owner.toLowerCase() &&
+			candidate.repo.toLowerCase() === requested.repo.toLowerCase()
+	);
+	if (!isLinked) {
+		throw new Error(
+			"GitHub repository is not linked to a website in this workspace"
+		);
+	}
+	return requested;
 }
 
 function repositoryPath(repository: GitHubRepository): string {
@@ -169,8 +172,30 @@ export function createGitHubTools(
 	const repository = params.repository;
 	const getToken =
 		dependencies.getToken ??
-		createInstallationFirstTokenFn(params.organizationId, params.userId);
+		(() => getGithubTokenForOrg(params.organizationId).catch(() => null));
+	let linkedRepositories: Promise<GitHubRepository[]> | undefined;
+	const getLinkedRepositories =
+		dependencies.getLinkedRepositories ??
+		(() => {
+			linkedRepositories ??= db
+				.select({ integrations: websites.integrations })
+				.from(websites)
+				.where(
+					and(
+						eq(websites.organizationId, params.organizationId),
+						isNull(websites.deletedAt)
+					)
+				)
+				.then((rows) =>
+					rows.flatMap((row) =>
+						row.integrations?.github ? [row.integrations.github] : []
+					)
+				);
+			return linkedRepositories;
+		});
 	const request = dependencies.request ?? githubFetch;
+	// Toolkits are created per agent run; never share file identities across runs.
+	const fileShas = new Map<string, string | null>();
 	const deploymentInput = createRepositorySchema(repository, {
 		environment: z
 			.string()
@@ -214,7 +239,9 @@ export function createGitHubTools(
 			if (!token) {
 				return { error: "No GitHub account connected for this organization" };
 			}
-			const repo = resolveRepository(repository, input);
+			const repo =
+				repository ??
+				(await resolveLinkedRepository(input, getLinkedRepositories));
 
 			const envNeedle = input.environment?.toLowerCase();
 			const since = input.since ? Date.parse(input.since) : null;
@@ -348,7 +375,9 @@ export function createGitHubTools(
 			if (!token) {
 				return { error: "No GitHub account connected for this organization" };
 			}
-			const repo = resolveRepository(repository, input);
+			const repo =
+				repository ??
+				(await resolveLinkedRepository(input, getLinkedRepositories));
 
 			const queryParams = new URLSearchParams({
 				per_page: String(input.limit),
@@ -380,12 +409,15 @@ export function createGitHubTools(
 			return {
 				repo: `${repo.owner}/${repo.repo}`,
 				count: commits.length,
-				commits: commits.map((c) => ({
-					sha: c.sha,
-					message: c.commit.message.split("\n")[0].slice(0, 120),
-					author: c.commit.author?.name,
-					date: c.commit.author?.date,
-				})),
+				commits: commits.map((c) => {
+					const [subject = ""] = c.commit.message.split("\n", 1);
+					return {
+						sha: c.sha,
+						message: subject.slice(0, 120),
+						author: c.commit.author?.name,
+						date: c.commit.author?.date,
+					};
+				}),
 			};
 		},
 	});
@@ -412,7 +444,9 @@ export function createGitHubTools(
 			if (!token) {
 				return { error: "No GitHub account connected for this organization" };
 			}
-			const repo = resolveRepository(repository, input);
+			const repo =
+				repository ??
+				(await resolveLinkedRepository(input, getLinkedRepositories));
 			const apiState = input.state === "merged" ? "closed" : input.state;
 
 			const scanLimit = input.state === "merged" ? 100 : input.limit;
@@ -482,7 +516,9 @@ export function createGitHubTools(
 			if (!token) {
 				return { error: "No GitHub account connected for this organization" };
 			}
-			const repo = resolveRepository(repository, input);
+			const repo =
+				repository ??
+				(await resolveLinkedRepository(input, getLinkedRepositories));
 			const path = repositoryPath(repo);
 			const data = await request(`/repos/${path}/pulls/${input.number}`, token);
 			if (data && typeof data === "object" && "error" in data) {
@@ -586,7 +622,7 @@ export function createGitHubTools(
 
 	const listReposTool = tool({
 		description:
-			"List GitHub repos the connected account can access, sorted by last push. Call this first to find the repo name before querying deploys or commits.",
+			"List the GitHub repos linked to websites in this workspace. Call this first to find the repo name before querying deploys or commits.",
 		inputSchema: z.object({
 			limit: z
 				.number()
@@ -597,42 +633,17 @@ export function createGitHubTools(
 				.describe("Number of repos to return"),
 		}),
 		execute: async ({ limit }) => {
-			const token = await getToken();
-			if (!token) {
-				return { error: "No GitHub account connected for this organization" };
-			}
-
-			const data = await request(
-				`/user/repos?sort=pushed&direction=desc&per_page=${limit}`,
-				token
-			);
-
-			if (data && typeof data === "object" && "error" in data) {
-				return data;
-			}
-
-			const repos = data as Array<{
-				full_name: string;
-				private: boolean;
-				pushed_at: string | null;
-				default_branch: string;
-			}>;
-
+			const repos = (await getLinkedRepositories()).slice(0, limit);
 			return {
 				count: repos.length,
-				repos: repos.map((r) => ({
-					name: r.full_name,
-					private: r.private,
-					lastPush: r.pushed_at,
-					defaultBranch: r.default_branch,
-				})),
+				repos: repos.map((r) => ({ name: `${r.owner}/${r.repo}` })),
 			};
 		},
 	});
 
 	const readFileTool = tool({
 		description:
-			"Read a file from a GitHub repo. Use to inspect source code when investigating a bug or tracking issue. Returns the file content as text.",
+			"Read source code to inspect a bug, tracking predicate or event meaning. Start at offset 0, then follow nextOffset with the same path/ref instead of repeating the prefix. Returns at most 15,000 UTF-16 source characters. The tool checks file identity across windows in this run; if it changes or is unavailable, restart at offset 0. truncated means more content follows this window. ref is the requested branch/tag/commit (null means default branch); blobSha identifies file content, not a deployed commit. Pin a known deployed commit for historical claims.",
 		inputSchema: createRepositorySchema(repository, {
 			path: REPOSITORY_PATH.describe(
 				"File path in the repo (e.g. 'src/components/navbar.tsx')"
@@ -643,19 +654,36 @@ export function createGitHubTools(
 				.describe(
 					"Branch, tag, or commit SHA. Defaults to the default branch."
 				),
+			offset: z
+				.number()
+				.int()
+				.nonnegative()
+				.optional()
+				.describe(
+					"Zero-based UTF-16 character offset; defaults to 0. Use nextOffset to continue."
+				),
+			length: z
+				.number()
+				.int()
+				.min(1)
+				.max(MAX_FILE_CHARACTERS)
+				.optional()
+				.describe("Maximum UTF-16 characters to return; defaults to 15,000."),
 		}),
 		execute: async (input) => {
+			const repo =
+				repository ??
+				(await resolveLinkedRepository(input, getLinkedRepositories));
+			const refParam = input.ref ? `?ref=${encodeURIComponent(input.ref)}` : "";
+			const requestPath = `/repos/${repositoryPath(repo)}/contents/${filePath(input.path)}${refParam}`;
+			// Bind this read before auth can yield to a concurrent first-window read.
+			const previousSha = fileShas.get(requestPath);
+			const continuation = (input.offset ?? 0) > 0;
 			const token = await getToken();
 			if (!token) {
 				return { error: "No GitHub account connected" };
 			}
-			const repo = resolveRepository(repository, input);
-
-			const refParam = input.ref ? `?ref=${encodeURIComponent(input.ref)}` : "";
-			const data = await request(
-				`/repos/${repositoryPath(repo)}/contents/${filePath(input.path)}${refParam}`,
-				token
-			);
+			const data = await request(requestPath, token);
 
 			if (data && typeof data === "object" && "error" in data) {
 				return data;
@@ -666,19 +694,47 @@ export function createGitHubTools(
 				encoding?: string;
 				size?: number;
 				name?: string;
+				sha?: string;
 			};
-			if (!file.content || file.encoding !== "base64") {
+			if (typeof file?.content !== "string" || file.encoding !== "base64") {
 				return { error: "File not found or not a regular file" };
+			}
+			const blobSha = file.sha?.toLowerCase() || null;
+			const currentSha = fileShas.get(requestPath);
+			if (
+				(continuation && (!previousSha || previousSha !== blobSha)) ||
+				(currentSha !== previousSha && currentSha !== blobSha)
+			) {
+				return {
+					error:
+						"File identity changed or is unavailable for continuation. Read this path/ref again at offset 0, then follow the new nextOffset.",
+				};
+			}
+			if (!continuation) {
+				fileShas.set(requestPath, blobSha);
 			}
 
 			const decoded = Buffer.from(file.content, "base64").toString("utf-8");
+			const offset = Math.min(input.offset ?? 0, decoded.length);
+			const end = Math.min(
+				offset + (input.length ?? MAX_FILE_CHARACTERS),
+				decoded.length
+			);
+			const content = decoded.slice(offset, end);
+			const truncated = end < decoded.length;
 			return {
 				path: input.path,
 				size: file.size,
+				ref: input.ref ?? null,
+				blobSha,
+				offset,
+				nextOffset: truncated ? end : null,
+				totalCharacters: decoded.length,
+				truncated,
 				content:
-					decoded.length > 15_000
-						? `${decoded.slice(0, 15_000)}\n…[truncated at 15KB]`
-						: decoded,
+					truncated && input.offset === undefined && input.length === undefined
+						? `${content}\n…[truncated at 15KB]`
+						: content,
 			};
 		},
 	});
@@ -697,7 +753,9 @@ export function createGitHubTools(
 			if (!token) {
 				return { error: "No GitHub account connected" };
 			}
-			const repo = resolveRepository(repository, input);
+			const repo =
+				repository ??
+				(await resolveLinkedRepository(input, getLinkedRepositories));
 
 			const data = await request(
 				input.base
@@ -788,7 +846,9 @@ export function createGitHubTools(
 			if (!token) {
 				return { error: "No GitHub account connected" };
 			}
-			const repo = resolveRepository(repository, input);
+			const repo =
+				repository ??
+				(await resolveLinkedRepository(input, getLinkedRepositories));
 
 			const data = await request(
 				`/search/code?q=${encodeURIComponent(input.query)}+repo:${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}&per_page=10`,

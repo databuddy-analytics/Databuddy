@@ -1,4 +1,4 @@
-export { render } from "react-email";
+export { render } from "@react-email/render";
 export * from "./auth-email-expiry";
 export * from "./blocked-traffic-alert-email";
 export * from "./delete-account-email";
@@ -14,7 +14,6 @@ export * from "./magic-link-email";
 export * from "./otp-email";
 export * from "./reset-password-email";
 export { emailTailwindConfig } from "./tailwind.config";
-export * from "./uptime-alert-email";
 export * from "./usage-alert-email";
 export * from "./usage-email-utils";
 export * from "./usage-limit-email";

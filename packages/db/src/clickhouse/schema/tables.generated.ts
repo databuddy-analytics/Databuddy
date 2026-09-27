@@ -13,6 +13,11 @@ export interface AiTrafficSpansRow {
 	user_agent: string;
 	path: string;
 	referrer: string | null;
+	agent_id: string;
+	agent_purpose: string;
+	verification: string;
+	source: string;
+	format: string;
 }
 
 export interface AiTrafficSpansInsert {
@@ -23,6 +28,11 @@ export interface AiTrafficSpansInsert {
 	user_agent: string;
 	path: string;
 	referrer?: string | null;
+	agent_id?: string;
+	agent_purpose?: string;
+	verification?: string;
+	source?: string;
+	format?: string;
 }
 
 export interface BlockedTrafficRow {
@@ -91,7 +101,6 @@ export interface CustomEventsRow {
 	session_id: string | null;
 	source: string | null;
 	profile_id: string;
-	delivery_id: string;
 }
 
 export interface CustomEventsInsert {
@@ -106,7 +115,6 @@ export interface CustomEventsInsert {
 	session_id?: string | null;
 	source?: string | null;
 	profile_id?: string;
-	delivery_id?: string;
 }
 
 export interface DailyPageviewsRow {
@@ -119,6 +127,70 @@ export interface DailyPageviewsInsert {
 	client_id: string;
 	date: number | string;
 	pageviews: number;
+}
+
+export interface EngagementSpansRow {
+	client_id: string;
+	anonymous_id: string;
+	session_id: string;
+	timestamp: string;
+	path: string;
+	device_type: string;
+	browser_name: string;
+	country: string;
+	page_index: number;
+	exit_type: string;
+	time_on_page: number;
+	active_time: number;
+	time_to_first_interaction: number;
+	max_scroll_depth: number;
+	scroll_count: number;
+	click_count: number;
+	key_count: number;
+	interaction_count: number;
+	copy_count: number;
+	rage_click_count: number;
+	dead_click_count: number;
+	rage_click_target: string;
+	dead_click_target: string;
+	form_field_count: number;
+	form_submit_count: number;
+	last_form_field: string;
+	form_abandoned: number;
+	error_count: number;
+	delivery_id: string;
+}
+
+export interface EngagementSpansInsert {
+	client_id: string;
+	anonymous_id: string;
+	session_id: string;
+	timestamp: number | string;
+	path: string;
+	device_type: string;
+	browser_name: string;
+	country: string;
+	page_index: number;
+	exit_type: string;
+	time_on_page: number;
+	active_time: number;
+	time_to_first_interaction: number;
+	max_scroll_depth: number;
+	scroll_count: number;
+	click_count: number;
+	key_count: number;
+	interaction_count: number;
+	copy_count: number;
+	rage_click_count: number;
+	dead_click_count: number;
+	rage_click_target: string;
+	dead_click_target: string;
+	form_field_count: number;
+	form_submit_count: number;
+	last_form_field: string;
+	form_abandoned: number;
+	error_count: number;
+	delivery_id?: string;
 }
 
 export interface ErrorSpansRow {
@@ -387,6 +459,30 @@ export interface WebVitalsSpansInsert {
 	delivery_id?: string;
 }
 
+export interface WebhookDeliveriesRow {
+	owner_id: string;
+	website_id: string | null;
+	provider: string;
+	event_type: string;
+	event_id: string;
+	api_version: string;
+	record_count: number;
+	status: string;
+	received_at: string;
+}
+
+export interface WebhookDeliveriesInsert {
+	owner_id: string;
+	website_id?: string | null;
+	provider: string;
+	event_type: string;
+	event_id: string;
+	api_version?: string;
+	record_count?: number;
+	status?: string;
+	received_at: number | string;
+}
+
 export interface UptimeMonitorRow {
 	site_id: string;
 	url: string;
@@ -442,6 +538,7 @@ export interface ClickHouseTables {
 	blocked_traffic: BlockedTrafficRow;
 	custom_events: CustomEventsRow;
 	daily_pageviews: DailyPageviewsRow;
+	engagement_spans: EngagementSpansRow;
 	error_spans: ErrorSpansRow;
 	events: EventsRow;
 	identity_anon_pairs: IdentityAnonPairsRow;
@@ -450,14 +547,16 @@ export interface ClickHouseTables {
 	outgoing_links: OutgoingLinksRow;
 	revenue: RevenueRow;
 	web_vitals_spans: WebVitalsSpansRow;
+	webhook_deliveries: WebhookDeliveriesRow;
 	uptime_monitor: UptimeMonitorRow;
 }
 
 export const TABLE_COLUMNS = {
-	"analytics.ai_traffic_spans": ["client_id", "timestamp", "bot_type", "bot_name", "user_agent", "path", "referrer"],
+	"analytics.ai_traffic_spans": ["client_id", "timestamp", "bot_type", "bot_name", "user_agent", "path", "referrer", "agent_id", "agent_purpose", "verification", "source", "format"],
 	"analytics.blocked_traffic": ["id", "client_id", "timestamp", "path", "url", "referrer", "method", "origin", "ip", "user_agent", "accept_header", "language", "block_reason", "block_category", "bot_name", "country", "region", "browser_name", "browser_version", "os_name", "os_version", "device_type", "payload_size", "created_at"],
-	"analytics.custom_events": ["owner_id", "website_id", "timestamp", "event_name", "namespace", "path", "properties", "anonymous_id", "session_id", "source", "profile_id", "delivery_id"],
+	"analytics.custom_events": ["owner_id", "website_id", "timestamp", "event_name", "namespace", "path", "properties", "anonymous_id", "session_id", "source", "profile_id"],
 	"analytics.daily_pageviews": ["client_id", "date", "pageviews"],
+	"analytics.engagement_spans": ["client_id", "anonymous_id", "session_id", "timestamp", "path", "device_type", "browser_name", "country", "page_index", "exit_type", "time_on_page", "active_time", "time_to_first_interaction", "max_scroll_depth", "scroll_count", "click_count", "key_count", "interaction_count", "copy_count", "rage_click_count", "dead_click_count", "rage_click_target", "dead_click_target", "form_field_count", "form_submit_count", "last_form_field", "form_abandoned", "error_count", "delivery_id"],
 	"analytics.error_spans": ["client_id", "anonymous_id", "session_id", "timestamp", "path", "message", "filename", "lineno", "colno", "stack", "error_type", "delivery_id"],
 	"analytics.events": ["id", "client_id", "event_name", "anonymous_id", "time", "session_id", "referrer", "url", "path", "title", "ip", "user_agent", "browser_name", "browser_version", "os_name", "os_version", "device_type", "device_brand", "device_model", "viewport_size", "language", "timezone", "time_on_page", "country", "region", "city", "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "dom_ready_time", "ttfb", "request_time", "render_time", "scroll_depth", "interaction_count", "page_count", "properties", "created_at", "timestamp", "profile_id"],
 	"analytics.identity_anon_pairs": ["client_id", "anonymous_id", "identity_time", "profile_id"],
@@ -466,5 +565,6 @@ export const TABLE_COLUMNS = {
 	"analytics.outgoing_links": ["id", "client_id", "anonymous_id", "session_id", "href", "text", "properties", "timestamp"],
 	"analytics.revenue": ["owner_id", "website_id", "transaction_id", "provider", "type", "status", "amount", "original_amount", "original_currency", "currency", "anonymous_id", "session_id", "customer_id", "product_id", "product_name", "metadata", "created", "synced_at", "profile_id"],
 	"analytics.web_vitals_spans": ["client_id", "anonymous_id", "session_id", "timestamp", "path", "metric_name", "metric_value", "delivery_id"],
+	"analytics.webhook_deliveries": ["owner_id", "website_id", "provider", "event_type", "event_id", "api_version", "record_count", "status", "received_at"],
 	"uptime.uptime_monitor": ["site_id", "url", "timestamp", "status", "http_code", "ttfb_ms", "total_ms", "attempt", "retries", "failure_streak", "response_bytes", "content_hash", "redirect_count", "probe_region", "probe_ip", "ssl_expiry", "ssl_valid", "env", "check_type", "user_agent", "error", "json_data"],
 } as const satisfies Record<string, readonly string[]>;

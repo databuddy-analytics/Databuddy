@@ -26,8 +26,6 @@ export interface ModuleOptions {
 	trackHashChanges?: boolean;
 	trackInteractions?: boolean;
 	trackOutgoingLinks?: boolean;
-	/** @deprecated Use trackWebVitals. This remains as a compatibility alias. */
-	trackPerformance?: boolean;
 	trackWebVitals?: boolean;
 	usePixel?: boolean;
 }

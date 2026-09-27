@@ -17,16 +17,21 @@ export interface ResolvedAgentModelCost {
 	id: string;
 }
 
+export const AGENT_PRICING_BASELINE_MODEL_ID =
+	"anthropic/claude-sonnet-4.6" as const;
+
+const AGENT_PRICING_BASELINE_COST: AgentModelCostUsdPerMillion = {
+	input: 3,
+	output: 15,
+	cache_read: 0.3,
+	cache_write: 6,
+};
+
 export const AGENT_MODEL_COSTS_USD_PER_MILLION: Record<
 	string,
 	AgentModelCostUsdPerMillion
 > = {
-	"anthropic/claude-sonnet-4.6": {
-		input: 3,
-		output: 15,
-		cache_read: 0.3,
-		cache_write: 6,
-	},
+	[AGENT_PRICING_BASELINE_MODEL_ID]: AGENT_PRICING_BASELINE_COST,
 	"google/gemini-2.5-flash-lite": {
 		input: 0.1,
 		output: 0.4,
@@ -51,10 +56,19 @@ export const AGENT_MODEL_COSTS_USD_PER_MILLION: Record<
 		cache_read: 0.25,
 		cache_write: 3.125,
 	},
+	"typesafe-ai/jev": {
+		input: 0.042,
+		output: 0,
+		cache_read: 0,
+		cache_write: 0,
+	},
+	"openai/gpt-5.6-luna": {
+		input: 0.2,
+		output: 1.2,
+		cache_read: 0.02,
+		cache_write: 0.25,
+	},
 };
-
-export const AGENT_PRICING_BASELINE_MODEL_ID =
-	"anthropic/claude-sonnet-4.6" as const;
 
 export function lookupAgentModelCost(
 	modelId: string
@@ -66,7 +80,7 @@ export function lookupAgentModelCost(
 export function resolveAgentModelCost(modelId: string): ResolvedAgentModelCost {
 	return (
 		lookupAgentModelCost(modelId) ?? {
-			cost: AGENT_MODEL_COSTS_USD_PER_MILLION[AGENT_PRICING_BASELINE_MODEL_ID],
+			cost: AGENT_PRICING_BASELINE_COST,
 			fallback: true,
 			id: AGENT_PRICING_BASELINE_MODEL_ID,
 		}

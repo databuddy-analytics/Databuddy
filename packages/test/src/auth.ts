@@ -28,10 +28,18 @@ export async function signUp(
 		.getSetCookie()
 		.find((c) => c.startsWith("databuddy-dev.session_token="))
 		?.split(";")[0];
+	if (!sessionCookie) {
+		throw new Error(`signUp: no session cookie returned for ${email}`);
+	}
+
+	const userId = res.response.user.id;
+	if (!userId) {
+		throw new Error(`signUp: sign-in returned no user id for ${email}`);
+	}
 
 	return {
-		headers: new Headers(sessionCookie ? { cookie: sessionCookie } : {}),
-		id: (res.response as { user?: { id?: string } })?.user?.id ?? "",
+		headers: new Headers({ cookie: sessionCookie }),
+		id: userId,
 		email,
 	};
 }

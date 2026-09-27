@@ -69,7 +69,6 @@ export function FaviconImage({
 						aria-label={altText || "Website icon"}
 						className="absolute inset-0 m-auto text-muted-foreground"
 						size={size}
-						weight="duotone"
 					/>
 				))}
 			{valid && (

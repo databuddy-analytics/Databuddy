@@ -14,6 +14,7 @@ sources:
       - analytics-events
       - analytics-error-spans
       - analytics-vitals-spans
+      - analytics-engagement-spans
       - analytics-custom-events
       - analytics-ai-traffic-spans
       - analytics-outgoing-links
@@ -42,6 +43,7 @@ transforms:
       error_spans: '.topic == "analytics-error-spans"'
       web_vitals: '.topic == "analytics-web-vitals"'
       vitals_spans: '.topic == "analytics-vitals-spans"'
+      engagement_spans: '.topic == "analytics-engagement-spans"'
       custom_events: '.topic == "analytics-custom-events"'
       ai_traffic_spans: '.topic == "analytics-ai-traffic-spans"'
       outgoing_links: '.topic == "analytics-outgoing-links"'
@@ -137,6 +139,26 @@ sinks:
     endpoint: "${CLICKHOUSE_URL}"
     database: analytics
     table: web_vitals_spans
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    batch:
+      max_events: 5000
+      max_bytes: 5000000
+      timeout_secs: 5
+    date_time_best_effort: true
+    skip_unknown_fields: true
+    encoding:
+      timestamp_format: unix_ms
+
+  clickhouse_engagement_spans:
+    type: clickhouse
+    inputs:
+      - route_analytics.engagement_spans
+    endpoint: "${CLICKHOUSE_URL}"
+    database: analytics
+    table: engagement_spans
     auth:
       strategy: basic
       user: "${CLICKHOUSE_USER}"

@@ -13,11 +13,18 @@ on:
       - "bun.lock"
       - "package.json"
       - "turbo.json"
+      - "tsconfig/**"
       - ".github/workflows/docker-publish.yml"
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      init-only:
+        description: Publish only the self-host database initialization image
+        type: boolean
+        default: false
 
 concurrency:
-  group: docker-${{ github.ref }}
+  group: docker-${{ github.ref }}${{ inputs.init-only && '-init' || '' }}
   cancel-in-progress: ${{ github.event_name != 'release' }}
 
 env:
@@ -32,13 +39,13 @@ jobs:
     outputs:
       services: ${{ steps.detect.outputs.services }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: "1.3.14"
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+          bun-version: "1.4.1"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
@@ -46,24 +53,34 @@ jobs:
       - run: bun install --frozen-lockfile --ignore-scripts
       - id: detect
         env:
+          INIT_ONLY: ${{ inputs.init-only }}
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
         run: |
-          ALL='["api","basket","dashboard","insights","links","uptime"]'
+          if [[ "$INIT_ONLY" == "true" ]]; then
+            echo 'services=["init"]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ALL='["api","basket","insights","links","uptime"]'
           if [[ "$EVENT_NAME" != "push" ]]; then
             echo "services=$ALL" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [[ -z "$BEFORE_SHA" || "$BEFORE_SHA" == "0000000000000000000000000000000000000000" ]]; then
+          if [[ -z "$BEFORE_SHA" || "$BEFORE_SHA" == "0000000000000000000000000000000000000000" ]] || ! git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null || ! git merge-base --is-ancestor "$BEFORE_SHA" HEAD; then
+            echo "services=$ALL" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only --no-renames "$BEFORE_SHA" HEAD)
+          if grep -qE '^(\.dockerignore|package\.json|turbo\.json|\.github/workflows/docker-publish\.yml)$' <<< "$changed"; then
             echo "services=$ALL" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           export TURBO_SCM_BASE="$BEFORE_SHA"
           export TURBO_SCM_HEAD="HEAD"
           affected=()
-          for svc in api basket dashboard insights links uptime; do
+          for svc in api basket insights links uptime; do
             count=$(bunx turbo ls --affected --filter="@databuddy/$svc" --output=json | jq -r '.packages.count')
-            if [[ "$count" != "0" ]]; then
+            if [[ "$count" != "0" ]] || grep -qxF "$svc.Dockerfile" <<< "$changed"; then
               affected+=("\"$svc\"")
             fi
           done
@@ -96,33 +113,20 @@ jobs:
           - arch: arm64
             os: linux/arm64
             runner: blacksmith-4vcpu-ubuntu-2404-arm
-        include:
-          - service: api
-            description: "Databuddy API service - analytics backend"
-          - service: basket
-            description: "Databuddy Basket service - event ingestion"
-          - service: dashboard
-            description: "Databuddy Dashboard service - web analytics UI"
-          - service: insights
-            description: "Databuddy Insights service - queued insight generation"
-          - service: links
-            description: "Databuddy Links service - URL shortening and tracking"
-          - service: uptime
-            description: "Databuddy Uptime service - availability monitoring"
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Mount Docker build cache
-        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+        uses: useblacksmith/stickydisk@94697d49e77d0dd78b77deb85ad3de63a28b4b8a # v1.7.1
         with:
           key: ${{ github.repository }}-${{ matrix.service }}-${{ matrix.platform.arch }}
           path: /tmp/docker-build-cache
 
       - name: Set up Docker Builder
-        uses: useblacksmith/setup-docker-builder@722e97d12b1d06a961800dd6c05d79d951ad3c80 # v1
+        uses: useblacksmith/setup-docker-builder@e4c1c000c95f9cc255f72940e9c56bcbd1239436 # v1.13.0
 
-      - uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -140,6 +144,22 @@ jobs:
             echo "tag=edge" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Resolve service description
+        id: description
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          case "$SERVICE" in
+            api) text="Databuddy API service - analytics backend" ;;
+            basket) text="Databuddy Basket service - event ingestion" ;;
+            init) text="Databuddy database initialization and schema tools" ;;
+            insights) text="Databuddy Insights service - queued insight generation" ;;
+            links) text="Databuddy Links service - URL shortening and tracking" ;;
+            uptime) text="Databuddy Uptime service - availability monitoring" ;;
+            *) echo "Unknown service $SERVICE" >&2; exit 1 ;;
+          esac
+          echo "text=$text" >> "$GITHUB_OUTPUT"
+
       - name: Extract metadata (labels)
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
@@ -147,13 +167,13 @@ jobs:
           images: ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
           labels: |
             org.opencontainers.image.title=databuddy-${{ matrix.service }}
-            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.description=${{ steps.description.outputs.text }}
             org.opencontainers.image.vendor=Databuddy Analytics
             org.opencontainers.image.licenses=AGPL-3.0
 
       - name: Build and push
         id: build
-        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
+        uses: useblacksmith/build-push-action@9b0579bbec7a6cad2f171596c57e7ac1e7658850 # v2.3.0
         with:
           context: .
           file: ${{ matrix.service }}.Dockerfile
@@ -179,7 +199,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload scan results to GitHub Security
-        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4
+        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         if: always() && hashFiles('trivy-results.sarif') != ''
         with:
           sarif_file: trivy-results.sarif
@@ -212,7 +232,7 @@ jobs:
         service: ${{ fromJson(needs.detect.outputs.services) }}
 
     steps:
-      - uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}

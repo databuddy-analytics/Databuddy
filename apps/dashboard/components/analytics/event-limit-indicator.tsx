@@ -1,5 +1,7 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
+
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -15,25 +17,24 @@ export function EventLimitIndicator() {
 
 	const { data } = useQuery({
 		...orpc.organizations.getUsage.queryOptions(),
-		enabled: !isDemoRoute,
+		enabled: !(isDemoRoute || isSelfHosted),
 	});
 
-	if (!data || data.unlimited) {
+	if (isSelfHosted || !data || data.unlimited) {
 		return null;
 	}
 
-	const balance = Number(data.balance ?? 0);
 	const planLimit = Number(data.includedUsage ?? 0);
 	const overageAllowed = Boolean(data.overageAllowed);
+	const used = Number(data.used ?? 0);
+	const overage = Math.max(0, used - planLimit);
+	const isOverage = overage > 0;
 
-	if (balance < 0 && overageAllowed) {
+	if (isOverage && overageAllowed) {
 		return null;
 	}
 
-	const isOverage = balance < 0;
-	const overage = Math.abs(balance);
-	const remaining = balance;
-	const used = planLimit > 0 ? planLimit - balance : 0;
+	const remaining = Math.max(0, planLimit - used);
 	const percentage = planLimit > 0 ? (used / planLimit) * 100 : 0;
 
 	if (!isOverage && percentage < 80) {
@@ -57,7 +58,6 @@ export function EventLimitIndicator() {
 						"size-4 shrink-0",
 						isDestructive ? "text-destructive" : "text-warning"
 					)}
-					weight="fill"
 				/>
 				{isOverage ? (
 					<p className="font-medium text-destructive text-xs">

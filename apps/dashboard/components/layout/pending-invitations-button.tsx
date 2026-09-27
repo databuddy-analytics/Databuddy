@@ -31,7 +31,7 @@ export function PendingInvitationsButton() {
 						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 					)}
 				>
-					<EnvelopeIcon className="size-4" weight="duotone" />
+					<EnvelopeIcon className="size-4" />
 					<Badge
 						className={cn(
 							"absolute -top-1 -right-1 flex size-4 items-center justify-center bg-destructive p-0 text-[10px] text-destructive-foreground",
@@ -59,7 +59,7 @@ export function PendingInvitationsButton() {
 						}
 					>
 						<div className="flex size-8 shrink-0 items-center justify-center rounded bg-primary/10">
-							<BuildingsIcon className="size-4 text-primary" weight="duotone" />
+							<BuildingsIcon className="size-4 text-primary" />
 						</div>
 						<div className="min-w-0 flex-1">
 							<p className="truncate font-medium text-sm">

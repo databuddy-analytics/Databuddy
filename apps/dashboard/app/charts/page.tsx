@@ -67,7 +67,7 @@ export default function ChartsPage() {
 				<Card className="gap-4">
 					<Card.Header>
 						<div className="flex items-center gap-2">
-							<WaveformIcon className="size-5" weight="duotone" />
+							<WaveformIcon className="size-5" />
 							<Card.Title>Area Chart</Card.Title>
 						</div>
 						<Card.Description>Filled area under the line</Card.Description>
@@ -129,7 +129,7 @@ export default function ChartsPage() {
 				<Card className="gap-4">
 					<Card.Header>
 						<div className="flex items-center gap-2">
-							<ChartLineIcon className="size-5" weight="duotone" />
+							<ChartLineIcon className="size-5" />
 							<Card.Title>Line Chart</Card.Title>
 						</div>
 						<Card.Description>Simple line without fill</Card.Description>
@@ -191,7 +191,7 @@ export default function ChartsPage() {
 				<Card className="gap-4">
 					<Card.Header>
 						<div className="flex items-center gap-2">
-							<ChartBarIcon className="size-5" weight="duotone" />
+							<ChartBarIcon className="size-5" />
 							<Card.Title>Bar Chart</Card.Title>
 						</div>
 						<Card.Description>
@@ -249,7 +249,7 @@ export default function ChartsPage() {
 				<Card className="gap-4">
 					<Card.Header>
 						<div className="flex items-center gap-2">
-							<ChartPieIcon className="size-5" weight="duotone" />
+							<ChartPieIcon className="size-5" />
 							<Card.Title>Pie Chart</Card.Title>
 						</div>
 						<Card.Description>Distribution visualization</Card.Description>

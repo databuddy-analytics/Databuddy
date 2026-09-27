@@ -309,15 +309,9 @@ export function AnnotationModal(props: AnnotationModalProps) {
 					<div className="flex items-center justify-between rounded border px-3 py-2">
 						<div className="flex items-center gap-2">
 							{isPublic ? (
-								<EyeIcon
-									className="size-3.5 text-foreground"
-									weight="duotone"
-								/>
+								<EyeIcon className="size-3.5 text-foreground" />
 							) : (
-								<EyeSlashIcon
-									className="size-3.5 text-muted-foreground"
-									weight="duotone"
-								/>
+								<EyeSlashIcon className="size-3.5 text-muted-foreground" />
 							)}
 							<span className="text-foreground text-sm">Public</span>
 						</div>

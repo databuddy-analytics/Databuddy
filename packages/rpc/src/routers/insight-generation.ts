@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import {
 	and,
 	db,
@@ -33,13 +34,15 @@ import {
 import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
-import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import { rpcError } from "../errors";
 import { setAuditOrganization } from "../lib/audit";
 import { logger } from "../lib/logger";
-import { requireFeatureWithLimit } from "../types/billing";
-import { getBillingOwner } from "../utils/billing";
 import { getOrganizationOwnerId } from "../utils/organization";
+import { getAutumn } from "../lib/autumn-client";
+import {
+	hasInvestigationAllowance,
+	INVESTIGATION_USAGE,
+} from "@databuddy/shared/billing";
 import { auditedProcedure, type Context, protectedProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 import {
@@ -975,22 +978,30 @@ async function insertInsightRunOrFindActive(
 	throw conflict;
 }
 
-async function getOrganizationPlanId(
-	organizationId: string
-): Promise<string | undefined> {
-	const ownerId = await getOrganizationOwnerId(organizationId);
-	if (!ownerId) {
-		return;
-	}
-	const billing = await getBillingOwner(ownerId, organizationId);
-	return billing?.planId;
-}
-
 async function requireInvestigationsAccess(
 	organizationId: string
 ): Promise<void> {
-	const planId = await getOrganizationPlanId(organizationId);
-	requireFeatureWithLimit(planId, GATED_FEATURES.INVESTIGATIONS, 0);
+	if (readBooleanEnv("SELFHOST")) {
+		if (!process.env.AI_GATEWAY_API_KEY?.trim()) {
+			throw rpcError.badRequest(
+				"Ask your administrator to configure AI before running investigations."
+			);
+		}
+		return;
+	}
+	const customerId = await getOrganizationOwnerId(organizationId);
+	const customer = customerId
+		? await getAutumn().customers.get({ customerId })
+		: null;
+	if (
+		!hasInvestigationAllowance(
+			customer?.balances[INVESTIGATION_USAGE.featureId]
+		)
+	) {
+		throw rpcError.featureUnavailable(
+			"Investigations require a plan with an investigation allowance."
+		);
+	}
 }
 
 async function hasInvestigationsAccess(

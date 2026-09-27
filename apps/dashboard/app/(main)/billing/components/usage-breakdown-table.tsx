@@ -87,10 +87,7 @@ export function UsageBreakdownTable({
 					<Card.Description>Breakdown of events by category</Card.Description>
 				</Card.Header>
 				<Card.Content className="py-8">
-					<EmptyState
-						icon={<TableIcon weight="duotone" />}
-						title="No data available"
-					/>
+					<EmptyState icon={<TableIcon />} title="No data available" />
 				</Card.Content>
 			</Card>
 		);
@@ -140,10 +137,7 @@ export function UsageBreakdownTable({
 								key={item.event_category}
 							>
 								<div className="flex size-8 shrink-0 items-center justify-center rounded border bg-secondary">
-									<IconComponent
-										className="size-3.5 text-accent-foreground"
-										weight="duotone"
-									/>
+									<IconComponent className="size-3.5 text-accent-foreground" />
 								</div>
 								<div className="min-w-0 flex-1">
 									<div className="flex items-center gap-2">

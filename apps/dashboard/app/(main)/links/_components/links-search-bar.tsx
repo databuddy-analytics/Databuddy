@@ -80,10 +80,7 @@ export function LinksSearchBar({
 	return (
 		<div className="flex w-full items-center gap-1.5">
 			<div className="relative flex-1">
-				<MagnifyingGlassIcon
-					className="absolute top-1/2 left-2.5 z-10 size-3.5 -translate-y-1/2 text-muted-foreground"
-					weight="bold"
-				/>
+				<MagnifyingGlassIcon className="absolute top-1/2 left-2.5 z-10 size-3.5 -translate-y-1/2 text-muted-foreground" />
 				<Input
 					className="h-7 pr-7 pl-8"
 					onChange={(e) => onSearchQueryChangeAction(e.target.value)}
@@ -108,10 +105,7 @@ export function LinksSearchBar({
 					<DropdownMenu.Trigger
 						className={`inline-flex h-7 max-w-32 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs transition-colors hover:bg-interactive-hover hover:text-foreground ${folderId === undefined ? "text-muted-foreground" : "text-foreground"}`}
 					>
-						<FolderSimpleIcon
-							size={14}
-							weight={folderId === undefined ? "bold" : "fill"}
-						/>
+						<FolderSimpleIcon size={14} />
 						<span className="hidden truncate sm:inline">
 							{folderFilterLabel(folderId, folders)}
 						</span>
@@ -152,10 +146,7 @@ export function LinksSearchBar({
 				<DropdownMenu.Trigger
 					className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs transition-colors hover:bg-interactive-hover hover:text-foreground ${typeFilter === "all" ? "text-muted-foreground" : "text-foreground"}`}
 				>
-					<FunnelIcon
-						size={14}
-						weight={typeFilter === "all" ? "bold" : "fill"}
-					/>
+					<FunnelIcon size={14} />
 					<span className="hidden sm:inline">{TYPE_LABELS[typeFilter]}</span>
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Content align="end" className="w-36">
@@ -182,7 +173,7 @@ export function LinksSearchBar({
 
 			<DropdownMenu>
 				<DropdownMenu.Trigger className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-muted-foreground text-xs transition-colors hover:bg-interactive-hover hover:text-foreground">
-					<SortAscendingIcon size={14} weight="bold" />
+					<SortAscendingIcon size={14} />
 					<span className="hidden sm:inline">{SORT_LABELS[sortBy]}</span>
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Content align="end" className="w-36">

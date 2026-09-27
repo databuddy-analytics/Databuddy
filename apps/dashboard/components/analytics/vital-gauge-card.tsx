@@ -331,7 +331,7 @@ export function VitalGaugeCard({
 							onClick={(e) => e.stopPropagation()}
 							type="button"
 						>
-							<InfoIcon className="size-3.5" weight="duotone" />
+							<InfoIcon className="size-3.5" />
 						</button>
 					</Tooltip>
 				</div>
@@ -347,9 +347,9 @@ export function VitalGaugeCard({
 						)}
 					>
 						{trendChange > 0 ? (
-							<TrendUpIcon className="size-3" weight="bold" />
+							<TrendUpIcon className="size-3" />
 						) : (
-							<TrendDownIcon className="size-3" weight="bold" />
+							<TrendDownIcon className="size-3" />
 						)}
 						<span>{Math.abs(Math.round(trendChange))}%</span>
 					</div>

@@ -60,7 +60,7 @@ export function PageNavigation(props: PageNavigationProps) {
 					href={props.breadcrumb.href}
 				>
 					<span className="inline-flex transition-transform duration-200 group-hover:-translate-x-0.5">
-						<ArrowLeftIcon aria-hidden className="size-3.5" weight="bold" />
+						<ArrowLeftIcon aria-hidden className="size-3.5" />
 					</span>
 					<span>{props.breadcrumb.label}</span>
 				</Link>
@@ -106,7 +106,6 @@ export function PageNavigation(props: PageNavigationProps) {
 										"size-4 transition-colors",
 										isActive && "text-primary"
 									)}
-									weight={isActive ? "fill" : "duotone"}
 								/>
 							</span>
 						)}

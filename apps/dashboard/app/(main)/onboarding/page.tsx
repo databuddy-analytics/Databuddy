@@ -1,8 +1,13 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { trackOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
+import {
+	useBillingContext,
+	useInvestigationUsage,
+} from "@/components/providers/billing-provider";
 import { useWebsitesLight } from "@/hooks/use-websites";
 import {
 	APP_EVENTS,
@@ -48,6 +53,10 @@ type StepId = (typeof STEPS)[number]["id"];
 
 export default function OnboardingPage() {
 	const router = useRouter();
+	const billing = useBillingContext();
+	const investigations = useInvestigationUsage();
+	const canReview =
+		!isSelfHosted || (!billing.isError && investigations.canUse);
 	const { websites } = useWebsitesLight();
 	const trackedStepRef = useRef<number>(-1);
 	const onboardingCompletedRef = useRef(false);
@@ -163,12 +172,15 @@ export default function OnboardingPage() {
 	}, [attribution, markComplete]);
 
 	const handleExploreComplete = useCallback(() => {
+		if (isSelfHosted && firstReviewWebsiteId && billing.isFetching) {
+			return;
+		}
 		recordExploreComplete();
 		const pendingPlan = localStorage.getItem("pendingPlanSelection");
 		if (pendingPlan) {
 			localStorage.removeItem("pendingPlanSelection");
 			router.replace(`/billing/plans?plan=${encodeURIComponent(pendingPlan)}`);
-		} else if (firstReviewWebsiteId) {
+		} else if (firstReviewWebsiteId && canReview) {
 			router.replace(
 				`/insights?firstReview=${encodeURIComponent(firstReviewWebsiteId)}`
 			);
@@ -177,7 +189,14 @@ export default function OnboardingPage() {
 		} else {
 			router.replace("/websites");
 		}
-	}, [firstReviewWebsiteId, recordExploreComplete, router, websiteId]);
+	}, [
+		billing.isFetching,
+		canReview,
+		firstReviewWebsiteId,
+		recordExploreComplete,
+		router,
+		websiteId,
+	]);
 
 	const handleSkipOnboarding = useCallback(() => {
 		trackAppEvent(APP_EVENTS.onboardingSkipped, {
@@ -255,9 +274,13 @@ export default function OnboardingPage() {
 			case "explore":
 				return (
 					<StepExplore
+						canReview={canReview}
+						hasError={isSelfHosted && billing.isError}
 						hasVerifiedTracking={firstReviewWebsiteId !== null}
+						isLoading={isSelfHosted && billing.isFetching}
 						onComplete={handleExploreComplete}
 						onEnterProduct={recordExploreComplete}
+						onRetry={billing.refetch}
 						websiteId={websiteId}
 					/>
 				);
@@ -348,7 +371,7 @@ export default function OnboardingPage() {
 										onClick={goBack}
 										variant="ghost"
 									>
-										<ArrowLeftIcon className="size-4" weight="bold" />
+										<ArrowLeftIcon className="size-4" />
 										Back
 									</Button>
 									<Button disabled={!canContinue} onClick={handleContinue}>
@@ -356,7 +379,7 @@ export default function OnboardingPage() {
 										!completedSteps.has("tracking")
 											? "Skip for now"
 											: "Continue"}
-										<ArrowRightIcon className="size-4" weight="bold" />
+										<ArrowRightIcon className="size-4" />
 									</Button>
 								</Card.Footer>
 							)}

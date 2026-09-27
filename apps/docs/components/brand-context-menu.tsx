@@ -99,11 +99,7 @@ function CopyMenuItem({
 
 	return (
 		<ContextMenuItem onClick={run}>
-			{flash ? (
-				<CheckIcon className="size-4 text-emerald-500" weight="bold" />
-			) : (
-				icon
-			)}
+			{flash ? <CheckIcon className="size-4 text-emerald-500" /> : icon}
 			{label}
 		</ContextMenuItem>
 	);
@@ -183,7 +179,7 @@ export function BrandContextMenu({ children }: BrandContextMenuProps) {
 				<ContextMenuSeparator />
 				<ContextMenuItem asChild>
 					<Link href="/branding">
-						<PaletteIcon className="size-4" weight="duotone" />
+						<PaletteIcon className="size-4" />
 						Brand guidelines
 					</Link>
 				</ContextMenuItem>

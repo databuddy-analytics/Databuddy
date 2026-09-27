@@ -1,4 +1,3 @@
-import { CheckIcon } from "@databuddy/ui/icons";
 import type { PricingTier } from "@/lib/comparison-config";
 
 export function PricingSection({
@@ -48,16 +47,7 @@ export function PricingSection({
 								{tier.competitor}
 							</span>
 							<span className="text-center font-medium text-sm">
-								{tier.databuddy === "Free" ||
-								tier.databuddy === "Included" ||
-								tier.databuddy === "Not needed" ? (
-									<span className="inline-flex items-center gap-1 text-primary">
-										<CheckIcon className="size-3.5" weight="bold" />
-										{tier.databuddy}
-									</span>
-								) : (
-									<span className="text-foreground">{tier.databuddy}</span>
-								)}
+								{tier.databuddy}
 							</span>
 						</div>
 
@@ -65,12 +55,12 @@ export function PricingSection({
 							<span className="block font-medium text-foreground text-sm">
 								{tier.pageviews}
 							</span>
-							<div className="flex items-center justify-between text-xs">
-								<span className="text-muted-foreground">
+							<div className="space-y-2 text-xs">
+								<span className="block text-muted-foreground">
 									{competitorName}: {tier.competitor}
 								</span>
-								<span className="font-medium text-primary">
-									{tier.databuddy}
+								<span className="block font-medium text-primary">
+									Databuddy: {tier.databuddy}
 								</span>
 							</div>
 						</div>

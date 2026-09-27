@@ -6,7 +6,15 @@ interface SlackMessageRef {
 	teamId?: string;
 }
 
-const activeRuns = new Map<string, AbortController>();
+const activeRuns = new Map<
+	string,
+	{
+		controller: AbortController;
+		shutdownController: AbortController;
+		threadKey: string;
+		requestTs: string;
+	}
+>();
 const inflightRuns = new Set<Promise<unknown>>();
 
 function runKey(ref: SlackMessageRef): string {
@@ -14,7 +22,9 @@ function runKey(ref: SlackMessageRef): string {
 }
 
 export function registerSlackActiveRun(
-	run: SlackAgentRun
+	run: SlackAgentRun,
+	controller = new AbortController(),
+	shutdownController = controller
 ): AbortController | null {
 	if (!run.messageTs) {
 		return null;
@@ -25,11 +35,33 @@ export function registerSlackActiveRun(
 		messageTs: run.messageTs,
 		teamId: run.teamId,
 	});
-	activeRuns.get(key)?.abort();
+	activeRuns.get(key)?.controller.abort();
 
-	const controller = new AbortController();
-	activeRuns.set(key, controller);
+	activeRuns.set(key, {
+		controller,
+		requestTs: run.requestTs ?? run.messageTs,
+		shutdownController,
+		threadKey: runKey({ ...run, messageTs: run.threadTs ?? run.messageTs }),
+	});
 	return controller;
+}
+
+export function abortSlackThreadRun(run: SlackAgentRun): boolean {
+	const key = runKey({
+		...run,
+		messageTs: run.threadTs ?? run.messageTs ?? "thread",
+	});
+	let aborted = false;
+	for (const active of activeRuns.values()) {
+		if (
+			active.threadKey === key &&
+			Number(active.requestTs) <= Number(run.requestTs ?? run.messageTs ?? 0)
+		) {
+			active.controller.abort("stop");
+			aborted = true;
+		}
+	}
+	return aborted;
 }
 
 export function abortSlackActiveRun(ref: SlackMessageRef): boolean {
@@ -44,12 +76,11 @@ export function abortSlackActiveRun(ref: SlackMessageRef): boolean {
 	].filter((key): key is string => key !== null);
 
 	for (const key of keys) {
-		const controller = activeRuns.get(key);
-		if (!controller) {
+		const active = activeRuns.get(key);
+		if (!active) {
 			continue;
 		}
-		controller.abort();
-		activeRuns.delete(key);
+		active.controller.abort();
 		return true;
 	}
 
@@ -67,8 +98,9 @@ export function trackSlackRunPromise(promise: Promise<unknown>): void {
 
 export function abortAllSlackActiveRuns(reason: string): number {
 	let aborted = 0;
-	for (const controller of activeRuns.values()) {
+	for (const { controller, shutdownController } of activeRuns.values()) {
 		controller.abort(reason);
+		shutdownController.abort(reason);
 		aborted++;
 	}
 	activeRuns.clear();

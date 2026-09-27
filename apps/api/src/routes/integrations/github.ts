@@ -1,9 +1,11 @@
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { auth } from "@databuddy/auth";
 import { and, db, eq } from "@databuddy/db";
 import { githubIntegrations, member } from "@databuddy/db/schema";
 import { config } from "@databuddy/env/app";
 import { invalidateGithubIntegrationCache } from "@databuddy/redis/cache-invalidation";
 import { ratelimit } from "@databuddy/redis/rate-limit";
+import { recordSelfAnalyticsEvent } from "@databuddy/services/billing-lifecycle";
 import {
 	buildInstallUrl,
 	exchangeInstallUserCode,
@@ -144,21 +146,12 @@ async function saveGithubInstallation(
 	await invalidateGithubIntegrationCache(state.organizationId);
 }
 
-function principalFromRequest(request: Request): string {
-	return (
-		request.headers.get("cf-connecting-ip") ||
-		request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-		request.headers.get("x-real-ip") ||
-		"unknown"
-	);
-}
-
 async function throttleGithubInstall(
 	action: "install" | "callback",
 	request: Request,
 	max: number
 ): Promise<Response | null> {
-	const ip = principalFromRequest(request);
+	const ip = getClientIp(request.headers) ?? "unknown";
 	const rl = await ratelimit(`github-app:${action}:${ip}`, max, 60);
 	if (rl.success) {
 		return null;
@@ -269,6 +262,17 @@ async function handleInstallCallback(
 		}
 
 		await saveGithubInstallation(state, account);
+		recordSelfAnalyticsEvent({
+			profileId: state.userId,
+			eventName: "integration_connected",
+			properties: { provider: "github" },
+			source: "integrations",
+		}).catch((error) => {
+			useLogger().warn("Integration event not recorded", {
+				integration: "github",
+				error: error instanceof Error ? error.message : String(error),
+			});
+		});
 
 		return integrationsRedirect("connected");
 	} catch (error) {

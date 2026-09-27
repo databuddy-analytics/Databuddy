@@ -6,5 +6,6 @@ initBotId({
 		{ path: "/api/contact/submit", method: "POST" },
 		{ path: "/api/ambassador/submit", method: "POST" },
 		{ path: "/api/oss/submit", method: "POST" },
+		{ path: "/api/startups/submit", method: "POST" },
 	],
 });

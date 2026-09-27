@@ -2,7 +2,7 @@
 
 import { type ComponentProps, useState } from "react";
 import { cn } from "../lib/utils";
-import { CheckIcon, CopyIcon } from "./icons/nucleo";
+import { CheckIcon, CopyIcon } from "./icons";
 import { Button } from "./button";
 import { Tooltip } from "./tooltip";
 

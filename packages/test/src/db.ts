@@ -1,3 +1,4 @@
+import { setPgTimingFn } from "@databuddy/db";
 import { relations } from "@databuddy/db/schema/relations";
 import { sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -21,7 +22,13 @@ export const hasTestDb = await (async () => {
 		const c = await p.connect();
 		c.release();
 		return true;
-	} catch {
+	} catch (error) {
+		if (process.env.CI) {
+			throw new Error(
+				"Integration tests could not reach the test database; CI must not skip them.",
+				{ cause: error }
+			);
+		}
 		return false;
 	} finally {
 		await p.end();
@@ -93,6 +100,21 @@ export async function truncatePostgres() {
 			}
 			await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
 		}
+	}
+}
+
+export async function countPgQueries<T>(
+	run: () => Promise<T>
+): Promise<{ queries: number; result: T }> {
+	let queries = 0;
+	setPgTimingFn(() => {
+		queries += 1;
+	});
+	try {
+		const result = await run();
+		return { queries, result };
+	} finally {
+		setPgTimingFn(() => undefined);
 	}
 }
 

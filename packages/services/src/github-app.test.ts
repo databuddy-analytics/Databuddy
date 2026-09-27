@@ -28,9 +28,8 @@ let savedEnv: Record<string, string | undefined>;
 function setAppEnv(): void {
 	process.env.GITHUB_APP_ID = "12345";
 	process.env.GITHUB_APP_SLUG = "databuddy";
-	process.env.GITHUB_APP_PRIVATE_KEY = Buffer.from(privateKey).toString(
-		"base64"
-	);
+	process.env.GITHUB_APP_PRIVATE_KEY =
+		Buffer.from(privateKey).toString("base64");
 	process.env.GITHUB_APP_CLIENT_ID = "Iv1.test";
 	process.env.GITHUB_APP_CLIENT_SECRET = "secret";
 }
@@ -116,7 +115,9 @@ describe("getInstallationToken", () => {
 			expect(await getInstallationToken("42")).toBe("ghs_test");
 			expect(fetchSpy).toHaveBeenCalledTimes(1);
 			const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
-			expect(url).toBe("https://api.github.com/app/installations/42/access_tokens");
+			expect(url).toBe(
+				"https://api.github.com/app/installations/42/access_tokens"
+			);
 			expect(init.method).toBe("POST");
 		} finally {
 			fetchSpy.mockRestore();
@@ -139,10 +140,9 @@ describe("getInstallationToken", () => {
 describe("userOwnsInstallation", () => {
 	it("matches installations by id", async () => {
 		const fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(
-			new Response(
-				JSON.stringify({ installations: [{ id: 42 }, { id: 7 }] }),
-				{ status: 200 }
-			)
+			new Response(JSON.stringify({ installations: [{ id: 42 }, { id: 7 }] }), {
+				status: 200,
+			})
 		);
 		try {
 			expect(await userOwnsInstallation("user-token", "42")).toBe(true);

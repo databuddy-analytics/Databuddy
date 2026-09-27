@@ -1,4 +1,4 @@
-import { Section, Text } from "react-email";
+import { Section, Text } from "@react-email/components";
 import { emailBrand } from "./email-brand";
 
 interface EmailNoteProps {

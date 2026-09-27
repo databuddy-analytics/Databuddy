@@ -94,10 +94,7 @@ export function PhoneInput({
 						<span className="text-muted-foreground text-xs tabular-nums">
 							+{getCountryCallingCode(country)}
 						</span>
-						<CaretDownIcon
-							className="size-3 text-muted-foreground"
-							weight="fill"
-						/>
+						<CaretDownIcon className="size-3 text-muted-foreground" />
 					</button>
 				</PopoverTrigger>
 				<PopoverContent

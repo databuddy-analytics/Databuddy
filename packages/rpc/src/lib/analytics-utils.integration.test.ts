@@ -1,16 +1,20 @@
-import { beforeAll, describe, expect, it } from "bun:test";
-import { chCommand } from "@databuddy/db/clickhouse";
+import { beforeAll, describe, expect, it, spyOn } from "bun:test";
+import { chCommand, clickHouse } from "@databuddy/db/clickhouse";
 import { randomUUIDv7 } from "bun";
 import {
 	getTotalWebsiteUsers,
 	processFunnelAnalytics,
+	processFunnelAnalyticsByReferrer,
 	processFunnelConversionCounts,
 	processGoalAnalytics,
+	processGoalsConversionCountsBatch,
 	queryLinkVisitorIds,
 } from "./analytics-utils";
 
 const describeIntegration =
-	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true" ? describe : describe.skip;
+	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"
+		? describe
+		: describe.skip;
 const testPrefix = randomUUIDv7();
 const profileWebsiteId = `identity-profile-${testPrefix}`;
 const sessionWebsiteId = `identity-session-${testPrefix}`;
@@ -211,11 +215,7 @@ describeIntegration("goal and funnel visitor identity", () => {
 
 	it("resolves row-time identity in direct event denominators and link cohorts", async () => {
 		const [totalUsers, linkVisitors] = await Promise.all([
-			getTotalWebsiteUsers(
-				profileWebsiteId,
-				startDate,
-				endDate
-			),
+			getTotalWebsiteUsers(profileWebsiteId, startDate, endDate),
 			queryLinkVisitorIds("missing-link", queryParams(profileWebsiteId)),
 		]);
 
@@ -249,6 +249,43 @@ describeIntegration("goal and funnel visitor identity", () => {
 			deep.steps_analytics.map((step) => step.users)
 		);
 	});
+
+	for (const [identity, websiteId] of [
+		["profile-only", profileWebsiteId],
+		["session-only", sessionWebsiteId],
+		["reassigned browser", reassignedAnonymousWebsiteId],
+	] as const) {
+		it(`keeps batched goal counts in parity with per-goal counts for ${identity} visitors`, async () => {
+			const goals = [
+				{ name: "Start", target: "/start", type: "PAGE_VIEW" as const },
+				{ name: "Start slash", target: "/start/", type: "PAGE_VIEW" as const },
+				{ name: "Purchase", target: "purchase", type: "EVENT" as const },
+				{ name: "Purchase again", target: "purchase", type: "EVENT" as const },
+				{ name: "Identify", target: "identify", type: "EVENT" as const },
+				{ name: "Missing", target: "missing", type: "EVENT" as const },
+			].map((goal, index) => ({ ...goal, step_number: index + 1 }));
+
+			const [batched, perGoal] = await Promise.all([
+				processGoalsConversionCountsBatch(goals, queryParams(websiteId)),
+				Promise.all(
+					goals.map((goal) =>
+						processGoalAnalytics(
+							[{ ...goal, step_number: 1 }],
+							[],
+							queryParams(websiteId),
+							1
+						)
+					)
+				),
+			]);
+			const purchase = goals.find((goal) => goal.name === "Purchase");
+
+			expect(goals.map((goal) => batched.get(goal.step_number) ?? 0)).toEqual(
+				perGoal.map((result) => result.total_users_completed)
+			);
+			expect(batched.get(purchase?.step_number ?? 0)).toBeGreaterThan(0);
+		});
+	}
 
 	it("attributes a conversion to the entry that actually began its matched sequence", async () => {
 		const result = await processFunnelAnalytics(
@@ -339,7 +376,11 @@ describeIntegration("goal and funnel visitor identity", () => {
 	for (const [name, websiteId, expected] of [
 		["rejects browser context after the conversion", afterContextWebsiteId, 0],
 		["does not leak context across sessions", crossSessionWebsiteId, 0],
-		["accepts browser context at the exact same timestamp", sameTimeWebsiteId, 1],
+		[
+			"accepts browser context at the exact same timestamp",
+			sameTimeWebsiteId,
+			1,
+		],
 	] as const) {
 		it(name, async () => {
 			const result = await processGoalAnalytics(
@@ -359,4 +400,58 @@ describeIntegration("goal and funnel visitor identity", () => {
 			expect(result.total_users_completed).toBe(expected);
 		});
 	}
+});
+
+describe("referrer query cancellation boundary", () => {
+	it.each([
+		false,
+		true,
+	])("forwards cancellation to the actual ClickHouse query (preaborted=%s)", async (preaborted) => {
+		const controller = new AbortController();
+		const reason = new Error("referrer read canceled");
+		let querySignal: AbortSignal | undefined;
+		const query = spyOn(clickHouse, "query").mockImplementation((options) => {
+			querySignal = options.abort_signal;
+			expect(options.query_params?.websiteId).toBe("synthetic-referrer-site");
+			expect(options.query_params?.startDate).toBe(startDate);
+			expect(options.query_params?.endDate).toBe(endDate);
+			return new Promise<never>((_resolve, reject) => {
+				querySignal?.addEventListener(
+					"abort",
+					() => reject(querySignal?.reason),
+					{ once: true }
+				);
+			});
+		});
+		try {
+			if (preaborted) {
+				controller.abort(reason);
+			}
+			const result = processFunnelAnalyticsByReferrer(
+				[
+					{
+						name: "Start",
+						step_number: 1,
+						target: "/start",
+						type: "PAGE_VIEW",
+					},
+				],
+				[],
+				queryParams("synthetic-referrer-site"),
+				controller.signal
+			);
+			if (!preaborted) {
+				expect(query).toHaveBeenCalledTimes(1);
+				expect(querySignal?.aborted).toBe(false);
+				controller.abort(reason);
+			}
+			await expect(result).rejects.toBe(reason);
+			expect(query).toHaveBeenCalledTimes(preaborted ? 0 : 1);
+			if (!preaborted) {
+				expect(querySignal?.reason).toBe(reason);
+			}
+		} finally {
+			query.mockRestore();
+		}
+	});
 });

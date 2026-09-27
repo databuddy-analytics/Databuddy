@@ -18,7 +18,7 @@ interface SummaryStatsProps {
 	activeMonitors: number;
 	averageTrend: number;
 	isLoading?: boolean;
-	pulseHealthPercentage: number;
+	pulseActivePercentage: number;
 	totalActiveUsers: number;
 	totalMonitors: number;
 	totalViews: number;
@@ -54,7 +54,7 @@ export function SummaryStats({
 	averageTrend,
 	trendDirection,
 	websiteCount,
-	pulseHealthPercentage,
+	pulseActivePercentage,
 	totalMonitors,
 	activeMonitors,
 	isLoading,
@@ -90,10 +90,7 @@ export function SummaryStats({
 				<Card.Content className="px-5 py-3">
 					<div className="flex items-center gap-3">
 						<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent">
-							<UsersIcon
-								className="size-4 text-muted-foreground"
-								weight="duotone"
-							/>
+							<UsersIcon className="size-4 text-muted-foreground" />
 						</div>
 						<div className="min-w-0 flex-1">
 							<p className="truncate font-medium text-foreground text-sm">
@@ -121,10 +118,7 @@ export function SummaryStats({
 				<Card.Content className="px-5 py-3">
 					<div className="flex items-center gap-3">
 						<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent">
-							<EyeIcon
-								className="size-4 text-muted-foreground"
-								weight="duotone"
-							/>
+							<EyeIcon className="size-4 text-muted-foreground" />
 						</div>
 						<div className="min-w-0 flex-1">
 							<p className="truncate font-medium text-foreground text-sm">
@@ -143,10 +137,7 @@ export function SummaryStats({
 									trendDirection === "neutral" && "text-muted-foreground"
 								)}
 							>
-								<TrendIcon
-									className="size-3.5"
-									weight={trendDirection === "neutral" ? "regular" : "fill"}
-								/>
+								<TrendIcon className="size-3.5" />
 								{trendDirection === "up" && "+"}
 								{trendDirection === "down" && "-"}
 								{(averageTrend == null || Number.isNaN(averageTrend)
@@ -172,10 +163,7 @@ export function SummaryStats({
 					<Card.Content className="px-5 py-3">
 						<div className="flex items-center gap-3">
 							<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent">
-								<GlobeIcon
-									className="size-4 text-muted-foreground"
-									weight="duotone"
-								/>
+								<GlobeIcon className="size-4 text-muted-foreground" />
 							</div>
 							<div className="min-w-0 flex-1">
 								<p className="truncate font-medium text-foreground text-sm">
@@ -208,10 +196,7 @@ export function SummaryStats({
 					<Card.Content className="px-5 py-3">
 						<div className="flex items-center gap-3">
 							<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent">
-								<HeartbeatIcon
-									className="size-4 text-muted-foreground"
-									weight="duotone"
-								/>
+								<HeartbeatIcon className="size-4 text-muted-foreground" />
 							</div>
 							<div className="min-w-0 flex-1">
 								<p className="truncate font-medium text-foreground text-sm">
@@ -219,14 +204,14 @@ export function SummaryStats({
 								</p>
 								<p className="truncate text-muted-foreground text-xs">
 									{totalMonitors > 0
-										? `${(pulseHealthPercentage == null || Number.isNaN(pulseHealthPercentage) ? 0 : pulseHealthPercentage).toFixed(0)}% healthy`
+										? `${(pulseActivePercentage == null || Number.isNaN(pulseActivePercentage) ? 0 : pulseActivePercentage).toFixed(0)}% active`
 										: "uptime monitoring"}
 								</p>
 							</div>
-							{totalMonitors > 0 && pulseHealthPercentage === 100 && (
+							{totalMonitors > 0 && pulseActivePercentage === 100 && (
 								<StatusDot color="success" size="md" />
 							)}
-							{totalMonitors > 0 && pulseHealthPercentage < 100 && (
+							{totalMonitors > 0 && pulseActivePercentage < 100 && (
 								<StatusDot color="warning" size="md" />
 							)}
 						</div>

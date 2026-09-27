@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { render } from "react-email";
+import { render } from "@react-email/render";
 import { AUTH_EMAIL_EXPIRY_LABELS } from "./auth-email-expiry";
 import { DeleteAccountEmail } from "./delete-account-email";
 import { InvitationEmail } from "./invitation-email";

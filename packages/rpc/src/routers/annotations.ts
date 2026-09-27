@@ -274,6 +274,10 @@ export const annotationsRouter = {
 				})
 				.returning();
 
+			if (!newAnnotation) {
+				throw rpcError.internal("Failed to create annotation");
+			}
+
 			await invalidateAnnotationCaches(input.websiteId);
 
 			return newAnnotation;
@@ -299,17 +303,12 @@ export const annotationsRouter = {
 		)
 		.output(annotationOutputSchema)
 		.handler(async ({ context, input }) => {
-			const existingAnnotation = await context.db
+			const [annotation] = await context.db
 				.select()
 				.from(annotations)
 				.where(and(eq(annotations.id, input.id), isNull(annotations.deletedAt)))
 				.limit(1);
 
-			if (existingAnnotation.length === 0) {
-				throw rpcError.notFound("annotation", input.id);
-			}
-
-			const annotation = existingAnnotation[0];
 			if (!annotation) {
 				throw rpcError.notFound("annotation", input.id);
 			}
@@ -345,6 +344,10 @@ export const annotationsRouter = {
 				.where(eq(annotations.id, input.id))
 				.returning();
 
+			if (!updatedAnnotation) {
+				throw rpcError.notFound("annotation", input.id);
+			}
+
 			await invalidateAnnotationCaches(annotation.websiteId);
 
 			return updatedAnnotation;
@@ -362,17 +365,12 @@ export const annotationsRouter = {
 		.input(z.object({ id: z.string() }))
 		.output(successOutputSchema)
 		.handler(async ({ context, input }) => {
-			const existingAnnotation = await context.db
+			const [annotation] = await context.db
 				.select()
 				.from(annotations)
 				.where(and(eq(annotations.id, input.id), isNull(annotations.deletedAt)))
 				.limit(1);
 
-			if (existingAnnotation.length === 0) {
-				throw rpcError.notFound("annotation", input.id);
-			}
-
-			const annotation = existingAnnotation[0];
 			if (!annotation) {
 				throw rpcError.notFound("annotation", input.id);
 			}

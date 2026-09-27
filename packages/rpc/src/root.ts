@@ -7,6 +7,7 @@ import { autocompleteRouter } from "./routers/autocomplete";
 import { billingRouter } from "./routers/billing";
 import { feedbackRouter } from "./routers/feedback";
 import { flagsRouter } from "./routers/flags";
+import { importsRouter } from "./routers/imports";
 import { funnelsRouter } from "./routers/funnels";
 import { goalsRouter } from "./routers/goals";
 import { insightGenerationRouter } from "./routers/insight-generation";
@@ -15,6 +16,7 @@ import { integrationsRouter } from "./routers/integrations";
 import { linkFoldersRouter } from "./routers/link-folders";
 import { linksRouter } from "./routers/links";
 import { organizationsRouter } from "./routers/organizations";
+import { businessContextRouter } from "./routers/business-context";
 import { profilesRouter } from "./routers/profiles";
 import { revenueRouter } from "./routers/revenue";
 import { statusPageRouter } from "./routers/status-page";
@@ -36,10 +38,12 @@ export const appRouter = {
 	integrations: integrationsRouter,
 	feedback: feedbackRouter,
 	flags: flagsRouter,
+	imports: importsRouter,
 	insightGeneration: insightGenerationRouter,
 	insights: insightsRouter,
 	targetGroups: targetGroupsRouter,
 	organizations: organizationsRouter,
+	businessContext: businessContextRouter,
 	profiles: profilesRouter,
 	billing: billingRouter,
 	statusPage: statusPageRouter,

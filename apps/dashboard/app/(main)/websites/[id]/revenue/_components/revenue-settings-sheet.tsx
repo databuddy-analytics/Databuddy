@@ -9,7 +9,14 @@ import { toast } from "sonner";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { orpc } from "@/lib/orpc";
 import { Accordion, Sheet } from "@databuddy/ui/client";
-import { Button, EmptyState, Field, Input } from "@databuddy/ui";
+import {
+	Button,
+	EmptyState,
+	Field,
+	fromNow,
+	Input,
+	Skeleton,
+} from "@databuddy/ui";
 import {
 	ArrowClockwiseIcon,
 	ArrowSquareOutIcon,
@@ -28,8 +35,52 @@ import {
 const BASKET_URL = publicConfig.urls.basket;
 
 const PADDLE_REQUIRED_EVENTS = ["transaction.completed"];
+const STRIPE_REQUIRED_EVENTS = STRIPE_WEBHOOK_EVENTS.required.map(
+	({ event }) => event
+);
 
 type ExpandedSection = "webhooks" | "stripe" | "paddle" | null;
+
+function RequiredEventList({
+	events,
+	lastReceived,
+	unavailable,
+}: {
+	events: readonly string[];
+	lastReceived: Map<string, string> | undefined;
+	unavailable: boolean;
+}) {
+	return (
+		<div className="space-y-1">
+			{events.map((event) => {
+				const receivedAt = lastReceived?.get(event);
+				let status: ReactNode = <Skeleton className="h-3 w-20 rounded" />;
+				if (unavailable) {
+					status = "Unavailable";
+				} else if (receivedAt) {
+					status = (
+						<>
+							<CheckCircleIcon className="size-3 text-success" />
+							{fromNow(receivedAt)}
+						</>
+					);
+				} else if (lastReceived) {
+					status = "No delivery in 90 days";
+				}
+				return (
+					<div className="flex items-center justify-between gap-2" key={event}>
+						<code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary">
+							{event}
+						</code>
+						<span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+							{status}
+						</span>
+					</div>
+				);
+			})}
+		</div>
+	);
+}
 
 function SettingsSection({
 	icon: Icon,
@@ -50,10 +101,7 @@ function SettingsSection({
 		<div className="overflow-hidden rounded-md border border-border/60">
 			<Accordion onOpenChange={onOpenChange} open={isOpen}>
 				<Accordion.Trigger>
-					<Icon
-						className="size-4 shrink-0 text-muted-foreground"
-						weight="duotone"
-					/>
+					<Icon className="size-4 shrink-0 text-muted-foreground" />
 					<span className="font-semibold text-sm">{title}</span>
 					{badge ? <span className="ml-auto">{badge}</span> : null}
 				</Accordion.Trigger>
@@ -94,10 +142,17 @@ export function RevenueSettingsSheet({
 		isError: isConfigError,
 		isLoading,
 		refetch: refetchConfig,
-	} = useQuery({
-		queryKey: ["revenue-config", websiteId],
-		queryFn: () => orpc.revenue.get.call({ websiteId }),
-	});
+	} = useQuery(orpc.revenue.get.queryOptions({ input: { websiteId } }));
+	const { data: webhookDeliveries, isError: isDeliveriesError } = useQuery(
+		orpc.revenue.webhookDeliveries.queryOptions({ input: { websiteId } })
+	);
+	const eventsReceived = (provider: "paddle" | "stripe") =>
+		webhookDeliveries &&
+		new Map(
+			webhookDeliveries
+				.filter((row) => row.provider === provider)
+				.map((row) => [row.eventType, row.lastReceivedAt])
+		);
 	const savedCurrency = normalizeCurrencyCode(config?.currency);
 	const configuredCurrency =
 		typeof config?.currency === "string"
@@ -126,7 +181,7 @@ export function RevenueSettingsSheet({
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: ["revenue-config", websiteId],
+				queryKey: orpc.revenue.get.key({ input: { websiteId } }),
 			});
 			toast.success("Webhook URLs generated");
 		},
@@ -141,7 +196,7 @@ export function RevenueSettingsSheet({
 		}) => orpc.revenue.upsert.call({ websiteId, ...data }),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: ["revenue-config", websiteId],
+				queryKey: orpc.revenue.get.key({ input: { websiteId } }),
 			});
 			setStripeSecret("");
 			setPaddleSecret("");
@@ -155,7 +210,7 @@ export function RevenueSettingsSheet({
 		mutationFn: () => orpc.revenue.regenerateHash.call({ websiteId }),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: ["revenue-config", websiteId],
+				queryKey: orpc.revenue.get.key({ input: { websiteId } }),
 			});
 			toast.success("Webhook URLs regenerated");
 		},
@@ -195,10 +250,7 @@ export function RevenueSettingsSheet({
 				<Sheet.Header>
 					<div className="flex items-center gap-4">
 						<div className="flex size-11 items-center justify-center rounded border bg-secondary">
-							<CurrencyDollarIcon
-								className="size-5 text-primary"
-								weight="duotone"
-							/>
+							<CurrencyDollarIcon className="size-5 text-primary" />
 						</div>
 						<div>
 							<Sheet.Title className="text-lg">Revenue Tracking</Sheet.Title>
@@ -264,10 +316,7 @@ export function RevenueSettingsSheet({
 									<SettingsSection
 										badge={
 											webhookHash ? (
-												<CheckCircleIcon
-													className="size-4 text-success"
-													weight="duotone"
-												/>
+												<CheckCircleIcon className="size-4 text-success" />
 											) : undefined
 										}
 										icon={LinkIcon}
@@ -309,10 +358,7 @@ export function RevenueSettingsSheet({
 															{copiedStripeUrl ? (
 																<CheckIcon className="size-4 text-success" />
 															) : (
-																<ClipboardIcon
-																	className="size-4"
-																	weight="duotone"
-																/>
+																<ClipboardIcon className="size-4" />
 															)}
 														</Button>
 													</div>
@@ -348,10 +394,7 @@ export function RevenueSettingsSheet({
 															{copiedPaddleUrl ? (
 																<CheckIcon className="size-4 text-success" />
 															) : (
-																<ClipboardIcon
-																	className="size-4"
-																	weight="duotone"
-																/>
+																<ClipboardIcon className="size-4" />
 															)}
 														</Button>
 													</div>
@@ -394,10 +437,7 @@ export function RevenueSettingsSheet({
 									<SettingsSection
 										badge={
 											config?.stripeConfigured ? (
-												<CheckCircleIcon
-													className="size-4 text-success"
-													weight="duotone"
-												/>
+												<CheckCircleIcon className="size-4 text-success" />
 											) : undefined
 										}
 										icon={StripeLogoIcon}
@@ -437,12 +477,9 @@ export function RevenueSettingsSheet({
 														variant="ghost"
 													>
 														{showStripeSecret ? (
-															<EyeSlashIcon
-																className="size-4"
-																weight="duotone"
-															/>
+															<EyeSlashIcon className="size-4" />
 														) : (
-															<EyeIcon className="size-4" weight="duotone" />
+															<EyeIcon className="size-4" />
 														)}
 													</Button>
 												</div>
@@ -452,45 +489,25 @@ export function RevenueSettingsSheet({
 												<p className="text-muted-foreground text-xs">
 													Required events
 												</p>
-												<div className="flex flex-wrap gap-1">
-													{STRIPE_WEBHOOK_EVENTS.required.map(({ event }) => (
-														<code
-															className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary"
-															key={event}
-														>
-															{event}
-														</code>
-													))}
-												</div>
+												<RequiredEventList
+													events={STRIPE_REQUIRED_EVENTS}
+													lastReceived={eventsReceived("stripe")}
+													unavailable={isDeliveriesError}
+												/>
+												<p className="text-[11px] text-muted-foreground">
+													Timestamps show when Databuddy last received each
+													event. An event that has not happened yet, such as a
+													refund, shows no delivery even when your endpoint is
+													subscribed to it.
+												</p>
 											</div>
-
-											{STRIPE_WEBHOOK_EVENTS.optional.length > 0 && (
-												<div className="space-y-2">
-													<p className="text-muted-foreground text-xs">
-														Optional
-													</p>
-													<div className="flex flex-wrap gap-1">
-														{STRIPE_WEBHOOK_EVENTS.optional.map(({ event }) => (
-															<code
-																className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
-																key={event}
-															>
-																{event}
-															</code>
-														))}
-													</div>
-												</div>
-											)}
 										</div>
 									</SettingsSection>
 
 									<SettingsSection
 										badge={
 											config?.paddleConfigured ? (
-												<CheckCircleIcon
-													className="size-4 text-success"
-													weight="duotone"
-												/>
+												<CheckCircleIcon className="size-4 text-success" />
 											) : undefined
 										}
 										icon={CurrencyDollarIcon}
@@ -530,12 +547,9 @@ export function RevenueSettingsSheet({
 														variant="ghost"
 													>
 														{showPaddleSecret ? (
-															<EyeSlashIcon
-																className="size-4"
-																weight="duotone"
-															/>
+															<EyeSlashIcon className="size-4" />
 														) : (
-															<EyeIcon className="size-4" weight="duotone" />
+															<EyeIcon className="size-4" />
 														)}
 													</Button>
 												</div>
@@ -545,16 +559,15 @@ export function RevenueSettingsSheet({
 												<p className="text-muted-foreground text-xs">
 													Required events
 												</p>
-												<div className="flex flex-wrap gap-1">
-													{PADDLE_REQUIRED_EVENTS.map((event) => (
-														<code
-															className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary"
-															key={event}
-														>
-															{event}
-														</code>
-													))}
-												</div>
+												<RequiredEventList
+													events={PADDLE_REQUIRED_EVENTS}
+													lastReceived={eventsReceived("paddle")}
+													unavailable={isDeliveriesError}
+												/>
+												<p className="text-[11px] text-muted-foreground">
+													Shows when Databuddy last recorded the event, not
+													whether Paddle is sending it.
+												</p>
 											</div>
 										</div>
 									</SettingsSection>

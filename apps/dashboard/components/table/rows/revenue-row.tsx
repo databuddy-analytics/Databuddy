@@ -84,10 +84,7 @@ export function createRevenueColumns({
 				const getIcon = () => {
 					if (isUnattributed) {
 						return (
-							<QuestionIcon
-								className="size-[18px] text-muted-foreground"
-								weight="duotone"
-							/>
+							<QuestionIcon className="size-[18px] text-muted-foreground" />
 						);
 					}
 
@@ -100,12 +97,7 @@ export function createRevenueColumns({
 						) {
 							return <CountryFlag country={countryCode} size={18} />;
 						}
-						return (
-							<MapPinIcon
-								className="size-[18px] text-muted-foreground"
-								weight="duotone"
-							/>
-						);
+						return <MapPinIcon className="size-[18px] text-muted-foreground" />;
 					}
 
 					if (type === "browser") {
@@ -117,10 +109,7 @@ export function createRevenueColumns({
 					}
 
 					return (
-						<CurrencyDollarIcon
-							className="size-[18px] text-muted-foreground"
-							weight="duotone"
-						/>
+						<CurrencyDollarIcon className="size-[18px] text-muted-foreground" />
 					);
 				};
 

@@ -321,8 +321,14 @@ describe("nextRecheckAt", () => {
 				{ escalation: "The failure recurs.", type: "watch" },
 				"2026-07-13T12:00:00.000Z",
 			],
-			[{ question: "Who owns this route?", type: "ask" }, "2026-08-11T12:00:00.000Z"],
-			[{ reason: "The metric recovered.", type: "resolve" }, "2026-08-11T12:00:00.000Z"],
+			[
+				{ question: "Who owns this route?", type: "ask" },
+				"2026-08-11T12:00:00.000Z",
+			],
+			[
+				{ reason: "The metric recovered.", type: "resolve" },
+				"2026-08-11T12:00:00.000Z",
+			],
 		];
 		for (const [next, expected] of cases) {
 			expect(nextRecheckAt(NOW, next).toISOString()).toBe(expected);

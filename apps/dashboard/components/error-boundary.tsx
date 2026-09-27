@@ -53,7 +53,6 @@ export function ErrorBoundary({ children, fallback }: ErrorBoundaryProps) {
 								aria-hidden="true"
 								className="size-6 text-destructive"
 								size={24}
-								weight="fill"
 							/>
 						</div>
 
@@ -75,7 +74,7 @@ export function ErrorBoundary({ children, fallback }: ErrorBoundaryProps) {
 									onClick={() => router.back()}
 									variant="secondary"
 								>
-									<ArrowLeftIcon className="mr-2 size-4" weight="duotone" />
+									<ArrowLeftIcon className="mr-2 size-4" />
 									Go Back
 								</Button>
 							)}

@@ -675,7 +675,7 @@ export default function AuditLogPage() {
 							? undefined
 							: { label: "Retry", onClick: () => query.refetch() }
 					}
-					icon={<ShieldCheckIcon size={18} weight="duotone" />}
+					icon={<ShieldCheckIcon size={18} />}
 					title="Audit log unavailable"
 					variant="error"
 				/>
@@ -745,7 +745,7 @@ export default function AuditLogPage() {
 									? "Try clearing the filters to see more activity."
 									: "New organization, access, flag, and workspace changes will appear here."
 							}
-							icon={<ShieldCheckIcon size={18} weight="duotone" />}
+							icon={<ShieldCheckIcon size={18} />}
 							title={
 								actionFilter !== "all" ||
 								outcomeFilter !== "all" ||

@@ -6,9 +6,12 @@ import {
 
 process.env.REDIS_URL = "redis://test-host:6379";
 
-const { getRedisCache, runLinkCacheCommand, runRateLimitCommand, shutdownRedis } = await import(
-	"./redis"
-);
+const {
+	getRedisCache,
+	runLinkCacheCommand,
+	runRateLimitCommand,
+	shutdownRedis,
+} = await import("./redis");
 
 describe("redis", () => {
 	describe("latency-sensitive rate limit options", () => {

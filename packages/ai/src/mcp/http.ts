@@ -1,9 +1,9 @@
 import {
-	API_KEY_AUTH_CHALLENGE,
 	getAccessibleWebsiteIds,
 	hasKeyAllScopes,
 	hasWebsiteAllScopes,
 } from "@databuddy/api-keys/resolve";
+import { config } from "@databuddy/env/app";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { AnySchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
@@ -21,6 +21,8 @@ export interface DatabuddyMcpHttpOptions extends McpRequestContext {
 	request: Request;
 }
 
+const MCP_AUTH_CHALLENGE = `Bearer realm="databuddy", resource_metadata="${config.urls.api}/.well-known/oauth-protected-resource"`;
+
 export function createMcpUnauthorizedResponse(): Response {
 	mergeWideEvent({ mcp_auth: "unauthorized" });
 
@@ -30,14 +32,14 @@ export function createMcpUnauthorizedResponse(): Response {
 			error: {
 				code: -32_001,
 				message:
-					"Authentication required. Use x-api-key or Authorization: Bearer with a valid Databuddy API key.",
+					"Authentication required. Use OAuth 2.1, or x-api-key / Authorization: Bearer with a valid Databuddy API key.",
 			},
 			id: null,
 		},
 		{
 			status: 401,
 			headers: {
-				"WWW-Authenticate": API_KEY_AUTH_CHALLENGE,
+				"WWW-Authenticate": MCP_AUTH_CHALLENGE,
 			},
 		}
 	);
@@ -69,7 +71,7 @@ export async function handleDatabuddyMcpRequest(
 	registerGuideResource(server);
 
 	for (const tool of createMcpTools(options)) {
-		if (!apiKeyCanCallTool(options.apiKey, tool)) {
+		if (!callerCanCallTool(options, tool)) {
 			continue;
 		}
 		server.registerTool(
@@ -103,16 +105,18 @@ export async function handleDatabuddyMcpRequest(
 	}
 }
 
-function apiKeyCanCallTool(
-	apiKey: McpRequestContext["apiKey"],
+function callerCanCallTool(
+	{ apiKey, oauthScopes }: McpRequestContext,
 	tool: RegisteredMcpTool
 ): boolean {
 	const required = tool.metadata.access.scopes;
 	if (!required?.length) {
 		return true;
 	}
+	if (oauthScopes?.length) {
+		return required.every((scope) => oauthScopes.includes(scope));
+	}
 	if (!apiKey) {
-		// Session-authenticated callers fall through to downstream role checks.
 		return true;
 	}
 	const globalScopes = tool.metadata.access.globalScopes;

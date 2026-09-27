@@ -13,7 +13,6 @@ const nextConfig: NextConfig = {
 				: [{ protocol: "http" as const, hostname: "localhost" }]),
 		],
 	},
-	output: "standalone",
 	async headers() {
 		return [
 			{
@@ -31,10 +30,6 @@ const nextConfig: NextConfig = {
 					{
 						key: "Permissions-Policy",
 						value: "camera=(), microphone=(), geolocation=()",
-					},
-					{
-						key: "Cache-Control",
-						value: "public, s-maxage=60, stale-while-revalidate=300",
 					},
 				],
 			},

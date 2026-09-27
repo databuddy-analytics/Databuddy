@@ -90,10 +90,7 @@ export function MiniMapRenderer({ title, countries, className }: MiniMapProps) {
 				<div className="flex flex-col gap-1">
 					<div className="flex items-center gap-2.5 rounded-md bg-background px-2.5 py-2">
 						<div className="flex size-6 items-center justify-center rounded bg-accent">
-							<GlobeIcon
-								className="size-3.5 text-muted-foreground"
-								weight="duotone"
-							/>
+							<GlobeIcon className="size-3.5 text-muted-foreground" />
 						</div>
 						<p className="min-w-0 flex-1 truncate font-medium text-sm">
 							{title ?? "Geographic distribution"}
@@ -101,10 +98,7 @@ export function MiniMapRenderer({ title, countries, className }: MiniMapProps) {
 					</div>
 					<div className="rounded-md bg-background px-3 py-3">
 						<div className="dotted-bg flex flex-col items-center justify-center gap-2 overflow-hidden rounded bg-accent/90 px-4 py-10 text-center">
-							<GlobeIcon
-								className="size-8 text-muted-foreground/40"
-								weight="duotone"
-							/>
+							<GlobeIcon className="size-8 text-muted-foreground/40" />
 							<p className="font-medium text-sm">No location data</p>
 							<p className="text-pretty text-muted-foreground text-xs">
 								Visitor locations will appear once traffic flows in
@@ -126,10 +120,7 @@ export function MiniMapRenderer({ title, countries, className }: MiniMapProps) {
 			<div className="flex flex-col gap-1">
 				<div className="flex items-center gap-2.5 rounded-md bg-background px-2 py-2">
 					<div className="flex size-6 items-center justify-center rounded bg-accent">
-						<GlobeIcon
-							className="size-3.5 text-muted-foreground"
-							weight="duotone"
-						/>
+						<GlobeIcon className="size-3.5 text-muted-foreground" />
 					</div>
 					<p className="min-w-0 flex-1 truncate font-medium text-sm">
 						{title ?? "Geographic distribution"}
@@ -143,11 +134,7 @@ export function MiniMapRenderer({ title, countries, className }: MiniMapProps) {
 							style={{ minHeight: MAP_PLOT_HEIGHT }}
 						>
 							<div className="h-[280px] [&>div]:rounded [&>div]:border-0">
-								<MapComponent
-									height="100%"
-									isLoading={false}
-									locationData={locationData}
-								/>
+								<MapComponent height="100%" locationData={locationData} />
 							</div>
 
 							<div className="absolute right-2 bottom-2 z-1 w-44 shrink-0 overflow-hidden rounded border border-border/50 bg-muted p-1">
@@ -169,7 +156,6 @@ export function MiniMapRenderer({ title, countries, className }: MiniMapProps) {
 												"size-3 shrink-0 text-muted-foreground transition-transform duration-200 ease-out",
 												topCountriesOpen && "rotate-180"
 											)}
-											weight="fill"
 										/>
 									</button>
 
@@ -230,10 +216,7 @@ export function MiniMapRenderer({ title, countries, className }: MiniMapProps) {
 													})
 												) : (
 													<div className="flex flex-col items-center justify-center bg-accent p-3 text-center">
-														<GlobeIcon
-															className="size-5 text-muted-foreground/30"
-															weight="duotone"
-														/>
+														<GlobeIcon className="size-5 text-muted-foreground/30" />
 														<p className="mt-1 text-[10px] text-muted-foreground">
 															No location data
 														</p>

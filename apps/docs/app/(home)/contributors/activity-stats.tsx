@@ -81,7 +81,7 @@ function StatCard({
 	const cardContent = (
 		<div className="relative flex h-24 flex-col justify-center rounded border border-border bg-card/50 px-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
 			<div className="flex items-center gap-3">
-				<Icon className={`size-5 ${color}`} weight="duotone" />
+				<Icon className={`size-5 ${color}`} />
 				<div>
 					<div className="font-bold text-xl">{value.toLocaleString()}</div>
 					<div className="font-medium text-foreground text-sm">{label}</div>

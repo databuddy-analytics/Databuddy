@@ -17,15 +17,17 @@ cases(
 );
 
 describe("parseTimestamp replaces non-numeric input with the current time", () => {
-	test.each([["not-a-number"], [null], [undefined], [{}]])(
-		"%j falls back to Date.now()",
-		(input) => {
-			const before = Date.now();
-			const result = parseTimestamp(input);
-			expect(result).toBeGreaterThanOrEqual(before);
-			expect(result).toBeLessThanOrEqual(Date.now());
-		}
-	);
+	test.each([
+		["not-a-number"],
+		[null],
+		[undefined],
+		[{}],
+	])("%j falls back to Date.now()", (input) => {
+		const before = Date.now();
+		const result = parseTimestamp(input);
+		expect(result).toBeGreaterThanOrEqual(before);
+		expect(result).toBeLessThanOrEqual(Date.now());
+	});
 });
 
 cases(

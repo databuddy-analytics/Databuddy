@@ -68,7 +68,6 @@ function PathCard({ path }: { path: Path }) {
 						className={`size-8 ${
 							path.highlight ? "text-primary" : "text-muted-foreground"
 						} duration-300 group-hover:text-foreground`}
-						weight="duotone"
 					/>
 					<span
 						className={`rounded-full px-2 py-1 font-medium text-xs ${

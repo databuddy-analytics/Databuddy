@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "@databuddy/db";
+import { chQuery } from "@databuddy/db/clickhouse";
 import { revenueConfig } from "@databuddy/db/schema";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -63,6 +64,63 @@ export const revenueRouter = {
 			};
 		}),
 
+	webhookDeliveries: protectedProcedure
+		.route({
+			description:
+				"Returns when each provider webhook event was last delivered. Requires read permission.",
+			method: "POST",
+			path: "/revenue/webhookDeliveries",
+			summary: "Get webhook delivery recency",
+			tags: ["Revenue"],
+		})
+		.input(z.object({ websiteId: z.string().optional() }))
+		.output(
+			z.array(
+				z.object({
+					eventType: z.string(),
+					lastReceivedAt: z.string(),
+					provider: z.string(),
+				})
+			)
+		)
+		.handler(async ({ context, input }) => {
+			const workspace = input.websiteId
+				? await withWorkspace(context, {
+						websiteId: input.websiteId,
+						permissions: ["read"],
+					})
+				: await withWorkspace(context, {
+						resource: "website",
+						permissions: ["update"],
+					});
+
+			const rows = await chQuery<{
+				event_type: string;
+				last_received_at: string;
+				provider: string;
+			}>(
+				`SELECT
+					provider,
+					event_type,
+					formatDateTime(max(received_at), '%Y-%m-%dT%H:%i:%SZ') AS last_received_at
+				FROM analytics.webhook_deliveries FINAL
+				WHERE owner_id = {ownerId:String}
+					${input.websiteId ? "AND (website_id = {websiteId:String} OR website_id IS NULL)" : ""}
+					AND received_at >= now() - INTERVAL 90 DAY
+				GROUP BY provider, event_type`,
+				{
+					ownerId: workspace.organizationId,
+					...(input.websiteId ? { websiteId: input.websiteId } : {}),
+				}
+			);
+
+			return rows.map((row) => ({
+				eventType: row.event_type,
+				lastReceivedAt: row.last_received_at,
+				provider: row.provider,
+			}));
+		}),
+
 	upsert: auditedSessionProcedure
 		.route({
 			description:
@@ -107,14 +165,16 @@ export const revenueRouter = {
 					.where(eq(revenueConfig.id, existing.id))
 					.returning();
 
-				return {
-					id: updated.id,
-					websiteId: updated.websiteId,
-					webhookHash: updated.webhookHash,
-					stripeConfigured: Boolean(updated.stripeWebhookSecret),
-					paddleConfigured: Boolean(updated.paddleWebhookSecret),
-					currency: updated.currency,
-				};
+				if (updated) {
+					return {
+						id: updated.id,
+						websiteId: updated.websiteId,
+						webhookHash: updated.webhookHash,
+						stripeConfigured: Boolean(updated.stripeWebhookSecret),
+						paddleConfigured: Boolean(updated.paddleWebhookSecret),
+						currency: updated.currency,
+					};
+				}
 			}
 
 			const [created] = await context.db
@@ -129,6 +189,10 @@ export const revenueRouter = {
 					currency: input.currency || "USD",
 				})
 				.returning();
+
+			if (!created) {
+				throw rpcError.internal("Failed to create revenue config");
+			}
 
 			return {
 				id: created.id,

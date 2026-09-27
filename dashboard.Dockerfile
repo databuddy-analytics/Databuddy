@@ -1,12 +1,12 @@
-FROM oven/bun:1.3.14-slim AS pruner
+FROM oven/bun:1.4.1-slim AS pruner
 
 WORKDIR /app
 
 COPY . .
 
-RUN bunx turbo prune @databuddy/dashboard --docker
+RUN bunx turbo@2.11.1 prune @databuddy/dashboard --docker
 
-FROM oven/bun:1.3.14-slim AS builder
+FROM oven/bun:1.4.1-slim AS builder
 
 WORKDIR /app
 
@@ -19,6 +19,10 @@ COPY turbo.json turbo.json
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG SELFHOST=false
+ENV SELFHOST=$SELFHOST
+ARG API_PROXY_URL=
+ENV API_PROXY_URL=$API_PROXY_URL
 # Build-time defaults keep the image buildable. Override these with real public
 # URLs when building environment-specific dashboard images.
 ARG NEXT_PUBLIC_API_URL=https://api.databuddy.cc
@@ -32,6 +36,7 @@ ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_BASKET_URL=$NEXT_PUBLIC_BASKET_URL
 ENV NEXT_PUBLIC_LINKS_URL=$NEXT_PUBLIC_LINKS_URL
 ENV NEXT_PUBLIC_STATUS_URL=$NEXT_PUBLIC_STATUS_URL
+ENV NEXT_PUBLIC_SELFHOST=$SELFHOST
 
 RUN DATABASE_URL=postgres://databuddy:databuddy@localhost:5432/databuddy \
 	REDIS_URL=redis://localhost:6379 \

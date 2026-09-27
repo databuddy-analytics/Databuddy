@@ -56,7 +56,7 @@ export function TemplateItem({ template, onUseAction }: TemplateItemProps) {
 			<Card.Header className="space-y-2">
 				<div className="flex items-start justify-between gap-2">
 					<div className="flex size-10 shrink-0 items-center justify-center rounded bg-primary/10">
-						<TemplateIcon className="size-5 text-primary" weight="duotone" />
+						<TemplateIcon className="size-5 text-primary" />
 					</div>
 					{template.isBuiltIn && (
 						<Badge className="shrink-0" variant="default">
@@ -84,7 +84,7 @@ export function TemplateItem({ template, onUseAction }: TemplateItemProps) {
 					size="sm"
 				>
 					Use Template
-					<ArrowRightIcon className="size-4" weight="bold" />
+					<ArrowRightIcon className="size-4" />
 				</Button>
 			</Card.Footer>
 		</Card>

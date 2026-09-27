@@ -1,3 +1,4 @@
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import type { NotificationClientConfig } from "./client";
 import type { NotificationChannel } from "./types";
 
@@ -87,12 +88,19 @@ export function buildAlarmNotificationConfig(destinations: AlarmDestination[]) {
 	return { clientConfig, channels: Array.from(channels) };
 }
 
+export const MAX_ALARM_DESTINATIONS = 10;
+
 export function buildAlarmNotificationTargets(
 	destinations: AlarmDestination[]
 ): AlarmNotificationTarget[] {
 	const targets: AlarmNotificationTarget[] = [];
+	const defaultEmailFrom =
+		(readBooleanEnv("SELFHOST") &&
+			(process.env.ALERTS_EMAIL_FROM?.trim() ||
+				process.env.EMAIL_FROM?.trim())) ||
+		"Databuddy <alerts@databuddy.cc>";
 
-	for (const dest of destinations) {
+	for (const dest of destinations.slice(0, MAX_ALARM_DESTINATIONS)) {
 		const cfg = (dest.config ?? {}) as Record<string, unknown>;
 
 		if (dest.type === "slack") {
@@ -123,16 +131,12 @@ export function buildAlarmNotificationTargets(
 				clientConfig: {
 					email: {
 						defaultTo: dest.identifier,
-						from:
-							typeof cfg.from === "string"
-								? cfg.from
-								: "Databuddy <alerts@databuddy.cc>",
+						from: defaultEmailFrom,
 						sendEmailAction: async (payload: {
 							to: string | string[];
 							subject: string;
 							html?: string;
 							text?: string;
-							from?: string;
 						}) => {
 							const { Resend } = await import("resend");
 							const apiKey = process.env.RESEND_API_KEY;
@@ -141,7 +145,7 @@ export function buildAlarmNotificationTargets(
 							}
 							const resend = new Resend(apiKey);
 							const result = await resend.emails.send({
-								from: payload.from || "Databuddy <alerts@databuddy.cc>",
+								from: defaultEmailFrom,
 								to: Array.isArray(payload.to) ? payload.to : [payload.to],
 								subject: payload.subject,
 								html: payload.html || payload.text || "",

@@ -2,151 +2,157 @@ import type { JSX } from "preact";
 
 type SvgProps = JSX.IntrinsicElements["svg"];
 
-const stroke: SvgProps = {
-	fill: "none",
-	stroke: "currentColor",
-	strokeWidth: 1.75,
-	strokeLinecap: "round",
-	strokeLinejoin: "round",
-	viewBox: "0 0 24 24",
-};
+function Svg(props: SvgProps) {
+	return (
+		<svg
+			aria-hidden="true"
+			fill="none"
+			stroke="currentColor"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			strokeWidth={1.75}
+			viewBox="0 0 24 24"
+			{...props}
+		/>
+	);
+}
 
 export function CloseIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<Svg {...props}>
 			<path d="M18 6 6 18M6 6l12 12" />
-		</svg>
+		</Svg>
 	);
 }
 
 export function TrashIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<Svg {...props}>
 			<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-		</svg>
+		</Svg>
 	);
 }
 
 export function PlayIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<Svg {...props}>
 			<path d="m6 4 14 8-14 8V4z" />
-		</svg>
+		</Svg>
 	);
 }
 
 export function PlusIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<Svg {...props}>
 			<path d="M12 5v14M5 12h14" />
-		</svg>
+		</Svg>
 	);
 }
 
 export function InboxIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<Svg {...props}>
 			<path d="M22 12h-6l-2 3h-4l-2-3H2" />
 			<path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z" />
-		</svg>
+		</Svg>
 	);
 }
 
-function ActivityIcon(props: SvgProps) {
+function _ActivityIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<Svg {...props}>
 			<path d="M3 12h4l3-9 4 18 3-9h4" />
-		</svg>
+		</Svg>
 	);
 }
 
 export function FlagIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<Svg {...props}>
 			<path d="M4 21V4M4 4h12l-2 4 2 4H4" />
-		</svg>
+		</Svg>
 	);
 }
 
-function UserIcon(props: SvgProps) {
+function _UserIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<Svg {...props}>
 			<circle cx="12" cy="8" r="4" />
 			<path d="M4 21a8 8 0 0 1 16 0" />
-		</svg>
+		</Svg>
 	);
 }
 
-function StethoscopeIcon(props: SvgProps) {
+function _StethoscopeIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<Svg {...props}>
 			<path d="M6 3v6a4 4 0 0 0 8 0V3" />
 			<path d="M10 17a4 4 0 0 0 8 0v-2" />
 			<circle cx="18" cy="13" r="2" />
-		</svg>
+		</Svg>
 	);
 }
 
 export function RefreshIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<Svg {...props}>
 			<path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
 			<path d="M21 3v5h-5" />
 			<path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
 			<path d="M3 21v-5h5" />
-		</svg>
+		</Svg>
 	);
 }
 
 export function CopyIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<Svg {...props}>
 			<rect x="9" y="9" width="13" height="13" rx="2" />
 			<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-		</svg>
+		</Svg>
 	);
 }
 
 export function CheckIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<Svg {...props}>
 			<path d="m5 12 5 5L20 7" />
-		</svg>
+		</Svg>
 	);
 }
 
 export function WarnIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<Svg {...props}>
 			<path d="M12 3 2 21h20L12 3z" />
 			<path d="M12 9v5M12 18h.01" />
-		</svg>
+		</Svg>
 	);
 }
 
 export function FailIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<Svg {...props}>
 			<circle cx="12" cy="12" r="9" />
 			<path d="m9 9 6 6M15 9l-6 6" />
-		</svg>
+		</Svg>
 	);
 }
 
 export function InfoIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<Svg {...props}>
 			<circle cx="12" cy="12" r="9" />
 			<path d="M12 8h.01M11 12h1v4h1" />
-		</svg>
+		</Svg>
 	);
 }
 
 export function ChevronIcon(props: SvgProps) {
 	return (
-		<svg {...stroke} {...props}>
+		<Svg {...props}>
 			<path d="m9 6 6 6-6 6" />
-		</svg>
+		</Svg>
 	);
 }
 

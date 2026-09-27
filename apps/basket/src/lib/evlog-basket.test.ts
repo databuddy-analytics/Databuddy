@@ -22,6 +22,27 @@ describe("normalizeWideEventForAxiom", () => {
 		expect(event.client_http_error).toBeUndefined();
 	});
 
+	test("downgrades the production shape: object error with numeric status", () => {
+		const event: Record<string, unknown> = {
+			level: "error",
+			status: 402,
+			error: { message: "Event quota exceeded", status: 402 },
+		};
+		normalizeWideEventForAxiom(event);
+		expect(event.level).toBe("warn");
+		expect(event.client_http_error).toBe(true);
+	});
+
+	test("keeps a 5xx object error at error level", () => {
+		const event: Record<string, unknown> = {
+			level: "error",
+			status: 503,
+			error: { message: "Website lookup temporarily unavailable" },
+		};
+		normalizeWideEventForAxiom(event);
+		expect(event.level).toBe("error");
+	});
+
 	test("flattens a string error onto error_message", () => {
 		const event: Record<string, unknown> = {
 			level: "error",

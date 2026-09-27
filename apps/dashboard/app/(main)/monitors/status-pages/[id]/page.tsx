@@ -7,30 +7,30 @@ import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { PageNavigation } from "@/components/layout/page-navigation";
-import { TransferToOrgDialog } from "@/components/transfer-to-org-dialog";
+import { invalidateMonitorQueries } from "@/components/monitors/monitor-sheet";
+import { StatusPageTransferDialog } from "@/components/status-pages/status-page-row";
+import { List } from "@/components/ui/composables/list";
 import { getStatusPageUrl } from "@/lib/app-url";
 import { orpc } from "@/lib/orpc";
+import { StatusPageSheet } from "@/components/status-pages/status-page-sheet";
 import { cn } from "@/lib/utils";
 import { AddMonitorDialog } from "./_components/add-monitor-dialog";
 import { IncidentsTab } from "./_components/incidents-tab";
-import {
-	type StatusPageMonitor,
-	StatusPageMonitorRow,
-} from "./_components/status-page-monitor-row";
+import { StatusPageMonitorRow } from "./_components/status-page-monitor-row";
 import {
 	ArrowClockwiseIcon,
 	ArrowSquareOutIcon,
+	GearIcon,
 	HeartbeatIcon,
 	OpenExternalIcon as BrowserIcon,
 	PlusIcon,
 	SirenIcon,
 } from "@databuddy/ui/icons";
-import { DeleteDialog, Switch } from "@databuddy/ui/client";
+import { DeleteDialog } from "@databuddy/ui/client";
 import {
 	Button,
 	Card,
 	EmptyState,
-	Field,
 	Skeleton,
 	buttonVariants,
 } from "@databuddy/ui";
@@ -38,15 +38,14 @@ import {
 type Tab = "monitors" | "incidents";
 
 export default function StatusPageDetailsPage() {
-	const params = useParams();
+	const { id: statusPageId } = useParams<{ id: string }>();
 	const router = useRouter();
-	const statusPageId = params.id as string;
 	const queryClient = useQueryClient();
 	const [activeTab, setActiveTab] = useState<Tab>("monitors");
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 	const [isIncidentSheetOpen, setIsIncidentSheetOpen] = useState(false);
+	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [isTransferOpen, setIsTransferOpen] = useState(false);
-	const [includeMonitors, setIncludeMonitors] = useState(true);
 	const [monitorToRemove, setMonitorToRemove] = useState<string | null>(null);
 
 	const statusPageQuery = useQuery({
@@ -54,54 +53,22 @@ export default function StatusPageDetailsPage() {
 		enabled: !!statusPageId,
 	});
 
-	const transferMutation = useMutation({
-		...orpc.statusPage.transfer.mutationOptions(),
-	});
+	const invalidate = () => invalidateMonitorQueries(queryClient);
 
 	const removeMutation = useMutation({
 		...orpc.statusPage.removeMonitor.mutationOptions(),
 		onSuccess: () => {
-			invalidate();
 			toast.success("Monitor removed");
-			setMonitorToRemove(null);
-		},
-		onError: (error) => {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to remove monitor"
-			);
+			return invalidate();
 		},
 	});
 
 	const statusPage = statusPageQuery.data;
+	const statusPageUrl = statusPage && getStatusPageUrl(statusPage.slug);
 
 	const monitorToRemoveData = statusPage?.monitors.find(
-		(m: StatusPageMonitor) => m.id === monitorToRemove
+		(m) => m.id === monitorToRemove
 	);
-
-	const invalidate = () => {
-		queryClient.invalidateQueries({
-			queryKey: orpc.statusPage.get.key({ input: { statusPageId } }),
-		});
-	};
-
-	const handleTransfer = async (targetOrganizationId: string) => {
-		try {
-			await transferMutation.mutateAsync({
-				statusPageId,
-				targetOrganizationId,
-				includeMonitors,
-			});
-			toast.success("Status page transferred successfully");
-			setIsTransferOpen(false);
-			router.push("/monitors/status-pages");
-		} catch (error) {
-			const errorMessage =
-				error instanceof Error
-					? error.message
-					: "Failed to transfer status page";
-			toast.error(errorMessage);
-		}
-	};
 
 	const handleConfirmRemove = async () => {
 		if (!monitorToRemoveData) {
@@ -117,37 +84,7 @@ export default function StatusPageDetailsPage() {
 
 	let monitorsContent: ReactNode;
 	if (isLoading) {
-		monitorsContent = (
-			<div className="divide-y">
-				{Array.from({ length: 3 }).map((_, i) => (
-					<div
-						className="flex items-center gap-4 px-5 py-3"
-						key={`skel-${i + 1}`}
-					>
-						<Skeleton className="size-8 shrink-0 rounded-lg" />
-						<div className="min-w-0 flex-1 space-y-1.5">
-							<Skeleton className="h-4 w-40" />
-							<Skeleton className="h-3 w-56" />
-						</div>
-					</div>
-				))}
-			</div>
-		);
-	} else if (statusPageQuery.isError) {
-		monitorsContent = (
-			<div className="px-5 py-12">
-				<EmptyState
-					action={{
-						label: "Retry",
-						onClick: () => statusPageQuery.refetch(),
-					}}
-					description="Something went wrong while loading the status page."
-					icon={<BrowserIcon weight="duotone" />}
-					title="Failed to load"
-					variant="error"
-				/>
-			</div>
-		);
+		monitorsContent = <List.DefaultLoading />;
 	} else if (statusPage?.monitors.length === 0) {
 		monitorsContent = (
 			<div className="px-5 py-12">
@@ -163,7 +100,7 @@ export default function StatusPageDetailsPage() {
 						</Button>
 					}
 					description="Add an existing monitor or create a new one to display on this status page."
-					icon={<HeartbeatIcon weight="duotone" />}
+					icon={<HeartbeatIcon />}
 					title="No monitors added"
 				/>
 			</div>
@@ -171,14 +108,31 @@ export default function StatusPageDetailsPage() {
 	} else {
 		monitorsContent = (
 			<div className="divide-y">
-				{statusPage?.monitors.map((monitor: StatusPageMonitor) => (
+				{statusPage?.monitors.map((monitor) => (
 					<StatusPageMonitorRow
 						key={monitor.id}
 						monitor={monitor}
-						onRemoveRequestAction={(id) => setMonitorToRemove(id)}
+						onRemoveRequestAction={setMonitorToRemove}
 						statusPageId={statusPageId}
 					/>
 				))}
+			</div>
+		);
+	}
+
+	if (statusPageQuery.isError && !statusPageQuery.data) {
+		return (
+			<div className="flex min-h-0 flex-1 items-center justify-center p-6">
+				<EmptyState
+					action={{
+						label: "Retry",
+						onClick: () => statusPageQuery.refetch(),
+					}}
+					description="The status page could not be loaded. It may not exist or you may not have access."
+					icon={<BrowserIcon />}
+					title="Failed to load status page"
+					variant="error"
+				/>
 			</div>
 		);
 	}
@@ -196,7 +150,7 @@ export default function StatusPageDetailsPage() {
 				/>
 
 				<div className="flex-1 overflow-y-auto">
-					<div className="mx-auto max-w-2xl space-y-6 p-5">
+					<div className="space-y-6 p-5">
 						<Card>
 							<Card.Header className="flex-row items-start justify-between gap-4">
 								<div>
@@ -212,17 +166,19 @@ export default function StatusPageDetailsPage() {
 								<div className="flex items-center gap-2">
 									{statusPage ? (
 										<>
-											<Link
-												className={buttonVariants({
-													size: "sm",
-													variant: "secondary",
-												})}
-												href={getStatusPageUrl(statusPage.slug)}
-												rel="noopener noreferrer"
-												target="_blank"
-											>
-												View Page
-											</Link>
+											{statusPageUrl && (
+												<Link
+													className={buttonVariants({
+														size: "sm",
+														variant: "secondary",
+													})}
+													href={statusPageUrl}
+													rel="noopener noreferrer"
+													target="_blank"
+												>
+													View Page
+												</Link>
+											)}
 											<Button
 												aria-label="Refresh data"
 												disabled={
@@ -243,14 +199,21 @@ export default function StatusPageDetailsPage() {
 												/>
 											</Button>
 											<Button
+												aria-label="Edit status page"
+												onClick={() => setIsEditOpen(true)}
+												size="sm"
+												variant="secondary"
+											>
+												<GearIcon className="size-3.5" />
+												<span className="hidden sm:inline">Edit</span>
+											</Button>
+											<Button
+												aria-label="Transfer status page"
 												onClick={() => setIsTransferOpen(true)}
 												size="sm"
 												variant="secondary"
 											>
-												<ArrowSquareOutIcon
-													className="size-3.5"
-													weight="duotone"
-												/>
+												<ArrowSquareOutIcon className="size-3.5" />
 												<span className="hidden sm:inline">Transfer</span>
 											</Button>
 											{activeTab === "monitors" ? (
@@ -289,10 +252,7 @@ export default function StatusPageDetailsPage() {
 									onClick={() => setActiveTab("monitors")}
 									type="button"
 								>
-									<HeartbeatIcon
-										className="size-4"
-										weight={activeTab === "monitors" ? "fill" : "duotone"}
-									/>
+									<HeartbeatIcon className="size-4" />
 									Monitors
 									{activeTab === "monitors" && (
 										<div className="absolute inset-x-0 bottom-0 h-0.5 bg-brand-purple" />
@@ -308,10 +268,7 @@ export default function StatusPageDetailsPage() {
 									onClick={() => setActiveTab("incidents")}
 									type="button"
 								>
-									<SirenIcon
-										className="size-4"
-										weight={activeTab === "incidents" ? "fill" : "duotone"}
-									/>
+									<SirenIcon className="size-4" />
 									Incidents
 									{activeTab === "incidents" && (
 										<div className="absolute inset-x-0 bottom-0 h-0.5 bg-brand-purple" />
@@ -334,11 +291,18 @@ export default function StatusPageDetailsPage() {
 					</div>
 				</div>
 
+				{statusPage ? (
+					<StatusPageSheet
+						onCloseAction={setIsEditOpen}
+						onSaveAction={() => statusPageQuery.refetch()}
+						open={isEditOpen}
+						statusPage={statusPage}
+					/>
+				) : null}
+
 				<AddMonitorDialog
 					existingMonitorIds={
-						statusPage?.monitors.map(
-							(m: StatusPageMonitor) => m.uptimeScheduleId
-						) ?? []
+						statusPage?.monitors.map((m) => m.uptimeScheduleId) ?? []
 					}
 					onCompleteAction={invalidate}
 					onOpenChangeAction={setIsDialogOpen}
@@ -362,36 +326,12 @@ export default function StatusPageDetailsPage() {
 				/>
 
 				{statusPage ? (
-					<TransferToOrgDialog
-						currentOrganizationId={statusPage.organizationId}
-						description={`Move "${statusPage.name}" to a different organization.`}
-						isPending={transferMutation.isPending}
+					<StatusPageTransferDialog
 						onOpenChangeAction={setIsTransferOpen}
-						onTransferAction={handleTransfer}
+						onTransferredAction={() => router.push("/monitors/status-pages")}
 						open={isTransferOpen}
-						title="Transfer Status Page"
-						warning="The status page and its configuration will be transferred to {orgName}."
-					>
-						<div className="flex items-center justify-between gap-3 rounded border p-3">
-							<div className="min-w-0">
-								<Field.Label
-									className="cursor-pointer text-sm"
-									htmlFor="include-monitors-detail"
-								>
-									Include all linked monitors
-								</Field.Label>
-								<p className="text-muted-foreground text-xs">
-									If off, monitors are removed from this page and stay in the
-									current organization.
-								</p>
-							</div>
-							<Switch
-								checked={includeMonitors}
-								id="include-monitors-detail"
-								onCheckedChange={setIncludeMonitors}
-							/>
-						</div>
-					</TransferToOrgDialog>
+						statusPage={statusPage}
+					/>
 				) : null}
 			</div>
 		</ErrorBoundary>

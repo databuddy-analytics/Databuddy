@@ -14,9 +14,9 @@ describe("getTrackingHealthErrorLogLevel", () => {
 	});
 
 	it("keeps non-timeout errors at error", () => {
-		expect(getTrackingHealthErrorLogLevel(new Error("ClickHouse is down"))).toBe(
-			"error"
-		);
+		expect(
+			getTrackingHealthErrorLogLevel(new Error("ClickHouse is down"))
+		).toBe("error");
 	});
 
 	it("keeps non-Error values at error", () => {

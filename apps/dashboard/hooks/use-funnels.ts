@@ -18,7 +18,7 @@ import type {
 	FunnelStep,
 } from "@/types/funnels";
 
-export function useFunnelActions(websiteId: string) {
+function useFunnelActions(websiteId: string) {
 	const queryClient = useQueryClient();
 	const invalidateAll = () =>
 		Promise.all([

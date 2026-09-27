@@ -2,7 +2,8 @@ import { Databuddy } from "@databuddy/sdk/node";
 import { FEEDBACK_CATEGORIES } from "@databuddy/shared/agent-discovery";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { enforceFormRateLimit, getClientIp } from "@/lib/rate-limit";
+import { enforceFormRateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { escapeMrkdwn, postSlackBlocks } from "@/lib/slack-format";
 
 const databuddyApiKey = process.env.DATABUDDY_API_KEY;
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
 	try {
 		await Promise.all([
 			postSlackBlocks(
-				buildSlackBlocks(parsed.data, getClientIp(request.headers))
+				buildSlackBlocks(parsed.data, getClientIp(request.headers) ?? "unknown")
 			),
 			databuddy
 				? databuddy

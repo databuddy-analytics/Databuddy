@@ -1,12 +1,17 @@
 /** biome-ignore-all lint/performance/noBarrelFile: this is a barrel file */
 import { z } from "zod";
-import { QueryBuilders, suggestQueryTypes } from "./builders";
+import { getQueryBuilder, suggestQueryTypes } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
 import {
 	invalidFilterFieldError,
 	resolveRequestTraitFilters,
 } from "./trait-filters";
-import type { FilterOperators, QueryRequest, TimeGranularity } from "./types";
+import type {
+	CompiledQuery,
+	FilterOperators,
+	QueryRequest,
+	TimeGranularity,
+} from "./types";
 
 const FILTER_OPS = [
 	"eq",
@@ -58,8 +63,8 @@ const QuerySchema = z.object({
 		.optional(),
 	groupBy: z.array(z.string()).optional(),
 	orderBy: z.string().optional(),
-	limit: z.number().min(1).max(1000).optional(),
-	offset: z.number().min(0).optional(),
+	limit: z.number().int().min(1).max(1000).optional(),
+	offset: z.number().int().min(0).optional(),
 	timezone: z.string().optional(),
 });
 
@@ -72,7 +77,7 @@ function createBuilder(
 	websiteDomain?: string | null,
 	timezone?: string
 ) {
-	const config = QueryBuilders[validated.type];
+	const config = getQueryBuilder(validated.type);
 	if (!config) {
 		const suggestions = suggestQueryTypes(validated.type);
 		const hint = suggestions.length
@@ -91,7 +96,8 @@ export const executeQuery = async (
 	request: QueryRequest,
 	websiteDomain?: string | null,
 	timezone?: string,
-	abortSignal?: AbortSignal
+	abortSignal?: AbortSignal,
+	onCompiled?: (query: CompiledQuery) => void
 ) => {
 	const validated = parseRequest(request);
 	const filterError = invalidFilterFieldError(
@@ -102,7 +108,10 @@ export const executeQuery = async (
 		throw new Error(filterError);
 	}
 	const resolved = await resolveRequestTraitFilters(validated);
-	return createBuilder(resolved, websiteDomain, timezone).execute(abortSignal);
+	return createBuilder(resolved, websiteDomain, timezone).execute(
+		abortSignal,
+		onCompiled
+	);
 };
 
 export const compileQuery = (
@@ -116,6 +125,7 @@ export {
 	executeBatch,
 	getCompatibleQueries,
 	getSchemaGroups,
+	truncateQueryErrorForLog,
 } from "./batch-executor";
 export * from "./builders";
 export * from "./expressions";

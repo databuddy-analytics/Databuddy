@@ -1,4 +1,5 @@
 import { log } from "evlog";
+import { getErrorLogFields } from "@databuddy/shared/evlog-fields";
 import {
 	deleteCompletedAutumnWebhooks,
 	deleteDeadLetterAutumnWebhooks,
@@ -50,6 +51,12 @@ export async function runAutumnWebhookMaintenance(
 			component: "autumn_webhook_replay",
 			dead_letter_count: deadLetters.length,
 			dead_letter_ids: deadLetters.map((row) => row.id),
+			dead_letters: deadLetters.slice(0, 10).map((row) => ({
+				id: row.id,
+				type: row.type,
+				attempts: row.attempts,
+				errorMessage: row.errorMessage,
+			})),
 			error_message: "Autumn webhooks exhausted replay attempts",
 		});
 		await markAutumnWebhookDeadLettersAlerted(deadLetters.map((row) => row.id));
@@ -88,7 +95,7 @@ export function startAutumnWebhookReplayLoop(
 				log.error({
 					service: "api",
 					component: "autumn_webhook_replay",
-					error_message: error instanceof Error ? error.message : String(error),
+					...getErrorLogFields(error),
 				});
 			})
 			.finally(() => {

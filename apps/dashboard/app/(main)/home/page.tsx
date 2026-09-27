@@ -74,7 +74,7 @@ export default function HomePage() {
 		monitors,
 		totalMonitors,
 		activeMonitors,
-		healthPercentage,
+		activePercentage,
 		isLoading: isPulseLoading,
 		isFetching: isPulseFetching,
 		refetch: refetchMonitors,
@@ -152,7 +152,7 @@ export default function HomePage() {
 					activeMonitors={activeMonitors}
 					averageTrend={averageTrend}
 					isLoading={isLoading || isPulseLoading}
-					pulseHealthPercentage={healthPercentage}
+					pulseActivePercentage={activePercentage}
 					totalActiveUsers={totalActiveUsers}
 					totalMonitors={totalMonitors}
 					totalViews={totalViews}
@@ -223,7 +223,7 @@ export default function HomePage() {
 								onClick: () => setDialogOpen(true),
 							}}
 							description="Start tracking your website analytics by adding your first website."
-							icon={<GlobeIcon weight="duotone" />}
+							icon={<GlobeIcon />}
 							title="No websites yet"
 							variant="minimal"
 						/>

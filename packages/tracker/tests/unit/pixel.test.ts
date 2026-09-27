@@ -17,9 +17,7 @@ afterEach(() => {
 	Reflect.deleteProperty(globalThis, "Image");
 });
 
-function createTracker(
-	overrides: Partial<TrackerOptions> = {}
-): BaseTracker {
+function createTracker(overrides: Partial<TrackerOptions> = {}): BaseTracker {
 	return {
 		options: {
 			apiUrl: "https://basket.example",
@@ -71,7 +69,6 @@ function installImageOutcomes(
 	});
 	return requests;
 }
-
 
 describe("pixel transport", () => {
 	test("retries an unacknowledged pixel load with the same event identity", async () => {

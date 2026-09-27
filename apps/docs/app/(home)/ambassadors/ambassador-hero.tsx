@@ -21,10 +21,7 @@ function FeatureCard({
 }) {
 	return (
 		<SciFiCard className="flex h-20 w-full flex-col items-center justify-center rounded border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:h-24 lg:h-28">
-			<Icon
-				className="mb-1 size-5 text-muted-foreground duration-300 group-hover:text-foreground sm:h-6 sm:w-6 lg:h-7 lg:w-7"
-				weight="duotone"
-			/>
+			<Icon className="mb-1 size-5 text-muted-foreground duration-300 group-hover:text-foreground sm:h-6 sm:w-6 lg:h-7 lg:w-7" />
 			<div className="px-3 text-center">
 				<div className="font-semibold text-foreground text-xs sm:text-sm lg:text-base">
 					{title}

@@ -60,10 +60,7 @@ export function FolderDropdown({
 				type="button"
 			>
 				<span className="flex min-w-0 items-center gap-2">
-					<ArchiveIcon
-						className="size-3.5 shrink-0 text-muted-foreground"
-						weight="duotone"
-					/>
+					<ArchiveIcon className="size-3.5 shrink-0 text-muted-foreground" />
 					<span className="truncate">{selectedLabel}</span>
 				</span>
 				<CaretDownIcon className="size-3.5 shrink-0 text-muted-foreground" />

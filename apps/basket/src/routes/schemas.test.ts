@@ -20,7 +20,10 @@ schemaTable(
 		["single event with delivery id", { eventId: "evt_1", name: "signup" }],
 		["single event, websiteId", { name: "ev", websiteId: "ws_123" }],
 		["array of events", [{ name: "a" }, { name: "b" }]],
-		["auto visitor ID anonymization", { name: "ev", anonymizeVisitorIds: "auto" }],
+		[
+			"auto visitor ID anonymization",
+			{ name: "ev", anonymizeVisitorIds: "auto" },
+		],
 		["timestamp as string", { name: "ev", timestamp: "2024-01-01T00:00:00Z" }],
 	],
 	[
@@ -53,9 +56,7 @@ const validAnalyticsEvent = {
 schemaTable(
 	"analyticsEventSchema",
 	analyticsEventSchema,
-	[
-		["minimal valid", validAnalyticsEvent],
-	],
+	[["minimal valid", validAnalyticsEvent]],
 	[
 		["missing eventId", { name: "pageview", path: "https://example.com" }],
 		["missing name", { eventId: "x", path: "https://example.com" }],
@@ -74,9 +75,7 @@ const validOutgoingLink = {
 schemaTable(
 	"outgoingLinkSchema",
 	outgoingLinkSchema,
-	[
-		["minimal valid", validOutgoingLink],
-	],
+	[["minimal valid", validOutgoingLink]],
 	[
 		["missing eventId", { href: "https://x.com" }],
 		["missing href", { eventId: "x" }],

@@ -1,5 +1,6 @@
 import { db, shutdownPostgres, sql } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { redis } from "@databuddy/redis";
 import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
 import {
@@ -10,11 +11,6 @@ import { Elysia, redirect } from "elysia";
 import { createError, initLogger, log } from "evlog";
 import { evlog } from "evlog/elysia";
 import { drain, enrich, flushDrain } from "./lib/logging";
-import {
-	checkLinkVisitQueueHealth,
-	closeLinkVisitDelivery,
-	startLinkVisitDeliveryWorker,
-} from "./lib/link-visit-delivery";
 import { calculateLinkReadiness } from "./lib/health";
 import {
 	disconnectProducer,
@@ -38,7 +34,6 @@ initLogger({
 const rootRedirectUrl =
 	process.env.LINKS_ROOT_REDIRECT_URL || "https://databuddy.cc";
 preloadGeoDatabase();
-startLinkVisitDeliveryWorker();
 
 async function warmProducerConnectionOnStartup() {
 	try {
@@ -76,6 +71,8 @@ function getSharedHealthProbe<T>(
 	pending.then(clear, clear);
 	return pending;
 }
+const selfHost = readBooleanEnv("SELFHOST");
+const pendingSelfHostRequests = new Set<Promise<Response>>();
 let shuttingDown = false;
 
 const app = new Elysia()
@@ -175,37 +172,33 @@ const app = new Elysia()
 				state,
 			};
 		});
-		const [postgres, clickhouse, cache, deliveryQueue, redpanda] =
-			await Promise.all([
-				ping("postgres", async () => {
-					await db
-						.execute(sql`SELECT "deep_link_app" FROM "links" LIMIT 0`)
-						.then(() => {});
-				}),
-				ping("clickhouse", async (signal) => {
-					const { success } = await clickHouse.ping({
-						abort_signal: signal,
-						select: false,
-					});
-					if (!success) {
-						throw new Error("ping failed");
-					}
-				}),
-				ping("redis", () => redis.ping().then(() => {})),
-				ping("link_visit_queue", () => checkLinkVisitQueueHealth()),
-				redpandaProbe,
-			]);
+		const [postgres, clickhouse, cache, redpanda] = await Promise.all([
+			ping("postgres", async () => {
+				await db
+					.execute(sql`SELECT "deep_link_app" FROM "links" LIMIT 0`)
+					.then(() => {});
+			}),
+			ping("clickhouse", async (signal) => {
+				const { success } = await clickHouse.ping({
+					abort_signal: signal,
+					select: false,
+				});
+				if (!success) {
+					throw new Error("ping failed");
+				}
+			}),
+			ping("redis", () => redis.ping().then(() => {})),
+			redpandaProbe,
+		]);
 
 		const services = {
 			postgres,
 			clickhouse,
 			redis: cache,
-			link_visit_queue: deliveryQueue,
 			redpanda,
 		};
 		const readiness = calculateLinkReadiness({
 			clickhouse: clickhouse.status,
-			deliveryQueue: deliveryQueue.status,
 			postgres: postgres.status,
 			redis: cache.status,
 			redpanda: redpanda.status,
@@ -220,7 +213,7 @@ const app = new Elysia()
 	})
 	.use(redirectRoute);
 
-const SHUTDOWN_TIMEOUT_MS = 20_000;
+const SHUTDOWN_TIMEOUT_MS = selfHost ? 30_000 : 20_000;
 
 async function withTimeout<T>(
 	promise: Promise<T>,
@@ -278,20 +271,23 @@ async function shutdown(signal: string) {
 	try {
 		await withTimeout(
 			(async () => {
-				// Stop admission/processing before disconnecting their dependencies.
-				const queueFailure = await runCleanupStep(
-					"linkVisitDeliveryClose",
-					closeLinkVisitDelivery,
-					6000
-				);
-				if (queueFailure) {
-					failures.push(queueFailure);
+				if (selfHost) {
+					const requestFailure = await runCleanupStep(
+						"httpRequestDrain",
+						async () => {
+							await Promise.allSettled(pendingSelfHostRequests);
+						},
+						10_000
+					);
+					if (requestFailure) {
+						failures.push(requestFailure);
+					}
 				}
 
 				const producerFailure = await runCleanupStep(
 					"redpandaDisconnect",
 					disconnectProducer,
-					3000
+					selfHost ? 11_000 : 3000
 				);
 				if (producerFailure) {
 					failures.push(producerFailure);
@@ -343,4 +339,13 @@ async function shutdown(signal: string) {
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-export default { port: 2500, fetch: app.fetch };
+function fetchSelfHosted(request: Request) {
+	if (shuttingDown) {
+		return app.fetch(request);
+	}
+	const response = Promise.resolve(app.fetch(request));
+	pendingSelfHostRequests.add(response);
+	return response.finally(() => pendingSelfHostRequests.delete(response));
+}
+
+export default { port: 2500, fetch: selfHost ? fetchSelfHosted : app.fetch };

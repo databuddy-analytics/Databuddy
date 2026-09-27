@@ -9,7 +9,7 @@ import { SciFiCard } from "@/components/scifi-card";
 import { StructuredData } from "@/components/structured-data";
 
 export const metadata: Metadata = {
-	title: "Thanks for Reaching Out | Databuddy",
+	title: "Thanks for Reaching Out",
 	description: "We've received your message and will get back to you soon.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/contact/thanks",
@@ -22,7 +22,7 @@ export default function ContactThanksPage() {
 		<div className="overflow-hidden">
 			<StructuredData
 				page={{
-					title: "Thanks for Reaching Out | Databuddy",
+					title: "Thanks for Reaching Out",
 					description:
 						"We've received your message and will get back to you soon.",
 					url: "https://www.databuddy.cc/contact/thanks",
@@ -35,10 +35,7 @@ export default function ContactThanksPage() {
 						cornerColor="bg-green-500"
 					>
 						<div className="text-center">
-							<CheckIcon
-								className="mx-auto mb-4 size-12 text-green-500"
-								weight="duotone"
-							/>
+							<CheckIcon className="mx-auto mb-4 size-12 text-green-500" />
 							<h1 className="mb-2 font-semibold text-foreground text-xl sm:text-2xl">
 								Message Sent!
 							</h1>

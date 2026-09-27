@@ -28,7 +28,10 @@ import {
 	type VitalsBreakdownData,
 } from "./columns";
 import { HeartbeatIcon } from "@databuddy/ui/icons";
-import { calculatePercentChange } from "../_components/utils/analytics-helpers";
+import {
+	calculatePercentChange,
+	calculatePreviousPeriod,
+} from "../_components/utils/analytics-helpers";
 
 interface VitalMetric {
 	avg_value: number;
@@ -86,21 +89,6 @@ const PERCENTILE_OPTIONS: {
 	{ value: "p95", label: "p95", description: "95th percentile" },
 	{ value: "p99", label: "p99", description: "99th percentile" },
 ];
-
-function calculatePreviousPeriod(dateRange: {
-	start_date: string;
-	end_date: string;
-	granularity: "daily" | "hourly";
-}) {
-	const startDate = dayjs(dateRange.start_date);
-	const daysDiff = dayjs(dateRange.end_date).diff(startDate, "day");
-
-	return {
-		start_date: startDate.subtract(daysDiff + 1, "day").format("YYYY-MM-DD"),
-		end_date: startDate.subtract(1, "day").format("YYYY-MM-DD"),
-		granularity: dateRange.granularity as "daily" | "hourly",
-	};
-}
 
 export default function VitalsPage() {
 	const { id } = useParams();
@@ -557,10 +545,7 @@ export default function VitalsPage() {
 
 				{!isLoading && overviewData.length === 0 && (
 					<div className="rounded border bg-card p-8 text-center">
-						<HeartbeatIcon
-							className="mx-auto size-12 text-muted-foreground/40"
-							weight="duotone"
-						/>
+						<HeartbeatIcon className="mx-auto size-12 text-muted-foreground/40" />
 						<h3 className="mt-4 font-medium text-foreground">
 							No Web Vitals yet
 						</h3>

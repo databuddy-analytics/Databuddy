@@ -1,3 +1,5 @@
+import { analyticsCohortSchema } from "@databuddy/shared/analytics-filters";
+import { insightMeasurementSchema } from "@databuddy/shared/insights";
 import { successOutputSchema } from "../lib/schemas";
 import { and, desc, eq, isNull, sql } from "@databuddy/db";
 import { funnelDefinitions } from "@databuddy/db/schema";
@@ -56,10 +58,12 @@ const filterSchema = z.object({
 type Filter = z.infer<typeof filterSchema>;
 
 const funnelAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
+	cohort: analyticsCohortSchema.optional(),
 	funnelId: z.string(),
 	websiteId: z.string(),
 });
 const funnelAnalyticsByLinkInputSchema = funnelAnalyticsInputSchema.safeExtend({
+	cohort: z.undefined(),
 	linkId: z.string(),
 });
 
@@ -72,7 +76,7 @@ const getEffectiveStartDate = (
 		return requestedStartDate;
 	}
 
-	const createdDate = new Date(createdAt).toISOString().split("T")[0];
+	const createdDate = new Date(createdAt).toISOString().slice(0, 10);
 	return new Date(requestedStartDate) > new Date(createdDate)
 		? requestedStartDate
 		: createdDate;
@@ -107,10 +111,25 @@ async function loadFunnelAnalyticsQuery(
 		funnel.ignoreHistoricData
 	);
 
+	const filters = [
+		...((funnel.filters as Filter[]) || []),
+		...(input.cohort?.filters ?? []),
+	];
 	return {
+		savedDefinition: insightMeasurementSchema.shape.definition.parse({
+			...funnel,
+			filters: funnel.filters ?? [],
+		}),
+		measurement: insightMeasurementSchema.parse({
+			websiteId: input.websiteId,
+			definitionId: funnel.id,
+			startDate: effectiveStartDate,
+			endDate,
+			definition: { ...funnel, filters },
+		}),
 		effectiveStartDate,
 		endDate,
-		filters: (funnel.filters as Filter[]) || [],
+		filters,
 		queryParams: {
 			endDate: `${endDate} 23:59:59`,
 			startDate: effectiveStartDate,
@@ -377,6 +396,10 @@ export const funnelsRouter = {
 				})
 				.returning();
 
+			if (!newFunnel) {
+				throw rpcError.internal("Failed to create funnel");
+			}
+
 			await invalidateFunnelsCache(input.websiteId);
 			return newFunnel;
 		}),
@@ -431,6 +454,10 @@ export const funnelsRouter = {
 					and(eq(funnelDefinitions.id, id), isNull(funnelDefinitions.deletedAt))
 				)
 				.returning();
+
+			if (!updatedFunnel) {
+				throw rpcError.notFound("funnel", id);
+			}
 
 			await invalidateFunnelsCache(existingFunnel.websiteId, id);
 			await queueDefinitionChangeRechecks({
@@ -501,19 +528,31 @@ export const funnelsRouter = {
 			tags: ["Funnels"],
 		})
 		.input(funnelAnalyticsInputSchema)
-		.output(funnelAnalyticsOutputSchema)
+		.output(
+			funnelAnalyticsOutputSchema.extend({
+				measurement: insightMeasurementSchema,
+				savedDefinition: insightMeasurementSchema.shape.definition,
+				cohort: analyticsCohortSchema.optional(),
+			})
+		)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-			const { effectiveStartDate, endDate, filters, queryParams, steps } =
+			const { filters, queryParams, steps, measurement, savedDefinition } =
 				await loadFunnelAnalyticsQuery(context.db, input);
 
-			return funnelCache.withCache({
-				key: `analytics:${input.funnelId}:${effectiveStartDate}:${endDate}`,
+			const analytics = await funnelCache.withCache({
+				key: `analytics:${JSON.stringify(measurement)}`,
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				tag: `funnel:${input.funnelId}`,
 				queryFn: () => processFunnelAnalytics(steps, filters, queryParams),
 			});
+			return {
+				...analytics,
+				measurement,
+				savedDefinition,
+				cohort: input.cohort,
+			};
 		}),
 
 	getAnalyticsByReferrer: publicProcedure
@@ -526,20 +565,32 @@ export const funnelsRouter = {
 			tags: ["Funnels"],
 		})
 		.input(funnelAnalyticsInputSchema)
-		.output(funnelAnalyticsByReferrerOutputSchema)
+		.output(
+			funnelAnalyticsByReferrerOutputSchema.extend({
+				measurement: insightMeasurementSchema,
+				savedDefinition: insightMeasurementSchema.shape.definition,
+				cohort: analyticsCohortSchema.optional(),
+			})
+		)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-			const { effectiveStartDate, endDate, filters, queryParams, steps } =
+			const { filters, queryParams, steps, measurement, savedDefinition } =
 				await loadFunnelAnalyticsQuery(context.db, input);
 
-			return funnelCache.withCache({
-				key: `analyticsByReferrer:${input.funnelId}:${effectiveStartDate}:${endDate}`,
+			const analytics = await funnelCache.withCache({
+				key: `analyticsByReferrer:${JSON.stringify(measurement)}`,
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["funnelDefinitions"],
 				tag: `funnel:${input.funnelId}`,
 				queryFn: () =>
 					processFunnelAnalyticsByReferrer(steps, filters, queryParams),
 			});
+			return {
+				...analytics,
+				measurement,
+				savedDefinition,
+				cohort: input.cohort,
+			};
 		}),
 
 	getAnalyticsByLink: publicProcedure

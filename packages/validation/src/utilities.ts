@@ -31,12 +31,14 @@ const DURATION_UNIT_SECONDS: Record<string, number> = {
 };
 
 export function parseDurationToSeconds(duration: string): number {
-	const match = DURATION_REGEX.exec(duration);
-	if (!match) {
+	const [, amount, unit] = DURATION_REGEX.exec(duration) ?? [];
+	const unitSeconds =
+		unit === undefined ? undefined : DURATION_UNIT_SECONDS[unit];
+	if (amount === undefined || unitSeconds === undefined) {
 		throw new Error(`Invalid duration format: ${duration}`);
 	}
 
-	return Number.parseInt(match[1], 10) * DURATION_UNIT_SECONDS[match[2]];
+	return Number.parseInt(amount, 10) * unitSeconds;
 }
 
 const HTML_TAG_REGEX = /<[^>]*>/g;

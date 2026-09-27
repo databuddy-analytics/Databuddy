@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { createRedisModuleMock } from "../test-redis-mock";
 
 interface RedisEntry {
@@ -18,13 +18,13 @@ const getSnapshotKey = (
 ) => `agent:context-snapshot:${organizationId ?? userId}:${websiteId}`;
 
 const mockRedisClient = {
-	get: vi.fn(async (key: string) => {
+	get: mock(async (key: string) => {
 		if (failGet) {
 			throw new Error("redis get failed");
 		}
 		return redisStore.get(key)?.value ?? null;
 	}),
-	setex: vi.fn(async (key: string, ttl: number, value: string) => {
+	setex: mock(async (key: string, ttl: number, value: string) => {
 		if (failSet) {
 			throw new Error("redis set failed");
 		}
@@ -33,11 +33,11 @@ const mockRedisClient = {
 	}),
 };
 
-const mockCaptureError = vi.fn(
+const mockCaptureError = mock(
 	(_error: unknown, _fields?: Record<string, string | number | boolean>) => {}
 );
 
-const mockEnrichAgentContext = vi.fn(
+const mockEnrichAgentContext = mock(
 	async (opts: {
 		organizationId: string | null;
 		userId: string;
@@ -48,14 +48,14 @@ const mockEnrichAgentContext = vi.fn(
 const passthroughCacheable = <T extends (...args: never[]) => unknown>(fn: T) =>
 	fn;
 
-vi.mock("@databuddy/auth", () => ({
+mock.module("@databuddy/auth", () => ({
 	auth: {},
 	websitesApi: {
-		hasPermission: vi.fn(async () => ({ success: true })),
+		hasPermission: mock(async () => ({ success: true })),
 	},
 }));
 
-vi.mock("@databuddy/redis", () =>
+mock.module("@databuddy/redis", () =>
 	createRedisModuleMock({
 		cacheable: passthroughCacheable,
 		getAgentContextSnapshotKey: getSnapshotKey,
@@ -64,25 +64,24 @@ vi.mock("@databuddy/redis", () =>
 	})
 );
 
-vi.mock("../../lib/supermemory", () => ({
-	formatMemoryForPrompt: vi.fn(() => ""),
-	forgetMemory: vi.fn(async () => ({ success: true })),
-	getMemoryContext: vi.fn(async () => null),
+mock.module("../../lib/supermemory", () => ({
+	formatMemoryForPrompt: mock(() => ""),
+	forgetMemory: mock(async () => ({ success: true })),
+	getMemoryContext: mock(async () => null),
 	isMemoryEnabled: () => memoryEnabled,
-	sanitizeMemoryContent: vi.fn((content: string) => content),
-	saveCuratedMemory: vi.fn(async () => ({ id: "memory-1" })),
-	searchMemories: vi.fn(async () => []),
-	storeAnalyticsSummary: vi.fn(async () => undefined),
-	storeConversation: vi.fn(async () => undefined),
+	sanitizeMemoryContent: mock((content: string) => content),
+	saveCuratedMemory: mock(async () => ({ id: "memory-1" })),
+	searchMemories: mock(async () => []),
+	storeConversation: mock(async () => undefined),
 }));
 
-vi.mock("../../lib/tracing", () => ({
+mock.module("../../lib/tracing", () => ({
 	captureError: mockCaptureError,
-	captureWarning: vi.fn(() => {}),
-	mergeWideEvent: vi.fn(() => {}),
+	captureWarning: mock(() => {}),
+	mergeWideEvent: mock(() => {}),
 }));
 
-vi.mock("../config/enrich-context", () => ({
+mock.module("../config/enrich-context", () => ({
 	enrichAgentContext: mockEnrichAgentContext,
 }));
 
@@ -106,12 +105,6 @@ beforeEach(() => {
 	mockRedisClient.setex.mockClear();
 	mockEnrichAgentContext.mockClear();
 	mockCaptureError.mockClear();
-});
-
-afterEach(() => {
-	failGet = false;
-	failSet = false;
-	memoryEnabled = true;
 });
 
 describe("shouldLoadMemoryContext", () => {

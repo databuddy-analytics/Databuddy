@@ -128,6 +128,12 @@ const BASKET_ERROR_SPEC = {
 		why: "The batch exceeds the maximum number of events per request.",
 		fix: "Split the batch into smaller requests.",
 	},
+	INGEST_ERRORS_BODY_TOO_LARGE: {
+		message: "Error batch too large",
+		status: 413,
+		why: "The /errors request body exceeds the maximum allowed size.",
+		fix: "Send fewer error spans per request or trim stack traces and messages.",
+	},
 	BILLING_LIMIT_EXCEEDED: {
 		message: "Event quota exceeded",
 		status: 402,
@@ -215,6 +221,7 @@ export const basketErrors = {
 	ingestUnknownEventType: basketErrorCatalog.INGEST_UNKNOWN_EVENT_TYPE,
 	ingestBatchNotArray: basketErrorCatalog.INGEST_BATCH_NOT_ARRAY,
 	ingestBatchTooLarge: basketErrorCatalog.INGEST_BATCH_TOO_LARGE,
+	ingestErrorsBodyTooLarge: basketErrorCatalog.INGEST_ERRORS_BODY_TOO_LARGE,
 	billingLimitExceeded: basketErrorCatalog.BILLING_LIMIT_EXCEEDED,
 	billingCheckUnavailable: basketErrorCatalog.BILLING_CHECK_UNAVAILABLE,
 	webhookEndpointNotFound: basketErrorCatalog.WEBHOOK_ENDPOINT_NOT_FOUND,

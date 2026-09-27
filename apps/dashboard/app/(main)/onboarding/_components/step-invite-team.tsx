@@ -86,7 +86,7 @@ export function StepInviteTeam() {
 		<div className="mx-auto max-w-2xl space-y-6">
 			<div className="flex items-center gap-3">
 				<div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
-					<UsersIcon className="size-5 text-primary" weight="duotone" />
+					<UsersIcon className="size-5 text-primary" />
 				</div>
 				<div>
 					<h2 className="text-balance font-semibold text-lg">
@@ -171,7 +171,7 @@ export function StepInviteTeam() {
 								key={invite.email}
 								variant="muted"
 							>
-								<EnvelopeSimpleIcon className="size-3" weight="duotone" />
+								<EnvelopeSimpleIcon className="size-3" />
 								<span className="text-xs">
 									{invite.email} · {roleLabel(invite.role as FormData["role"])}
 								</span>

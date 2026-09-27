@@ -31,16 +31,19 @@ describe("analyticsDateRangeSchema", () => {
 	});
 
 	it("computes the default range in UTC across month boundaries", () => {
-		expect(resolveAnalyticsDateRange({}, new Date("2026-03-03T00:30:00.000Z"))).toEqual(
-			{ startDate: "2026-02-25", endDate: "2026-03-03" }
-		);
+		expect(
+			resolveAnalyticsDateRange({}, new Date("2026-03-03T00:30:00.000Z"))
+		).toEqual({ startDate: "2026-02-25", endDate: "2026-03-03" });
 		expect(
 			resolveAnalyticsDateRange({}, new Date("2026-01-02T23:59:59.999Z"))
 		).toEqual({ startDate: "2025-12-27", endDate: "2026-01-02" });
 	});
 
 	it.each([
-		["impossible calendar date", { startDate: "2026-02-30", endDate: "2026-03-01" }],
+		[
+			"impossible calendar date",
+			{ startDate: "2026-02-30", endDate: "2026-03-01" },
+		],
 		["start without end", { startDate: "2026-02-01" }],
 		["end without start", { endDate: "2026-02-01" }],
 		["reversed range", { startDate: "2026-03-02", endDate: "2026-03-01" }],
@@ -112,8 +115,10 @@ describe("analyticsEventSchema referrer validation", () => {
 describe("analyticsEventSchema timestamp bounds", () => {
 	it("accepts the minimum timestamp and null", () => {
 		expect(
-			analyticsEventSchema.safeParse({ ...validEvent, timestamp: MIN_TIMESTAMP })
-				.success
+			analyticsEventSchema.safeParse({
+				...validEvent,
+				timestamp: MIN_TIMESTAMP,
+			}).success
 		).toBe(true);
 		expect(
 			analyticsEventSchema.safeParse({ ...validEvent, timestamp: null }).success

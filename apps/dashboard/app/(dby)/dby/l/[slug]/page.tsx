@@ -6,7 +6,7 @@ import {
 	setCachedLinkIfAbsent,
 	setCachedLinkNotFoundIfAbsent,
 } from "@databuddy/redis";
-import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
@@ -33,7 +33,7 @@ const getLinkBySlug = cache(
 		}
 
 		const requestHeaders = await headers();
-		const clientIp = getTrustedClientIp(requestHeaders) ?? "unverified";
+		const clientIp = getClientIp(requestHeaders) ?? "unverified";
 		const cacheMissLimit = await ratelimit(
 			`link-proxy-cache-miss:${clientIp}`,
 			60,

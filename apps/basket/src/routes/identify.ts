@@ -7,9 +7,9 @@ import {
 import { identifyPayloadSchema } from "@databuddy/validation";
 import { getWebsiteByIdV2 } from "@hooks/auth";
 import {
-	type ApiKeyRow,
+	API_KEY_DENIAL_ERRORS,
+	denyApiKeyWebsiteAccess,
 	getApiKeyFromHeader,
-	hasWebsiteScope,
 } from "@lib/api-key";
 import { checkForBot, validateRequest } from "@lib/request-validation";
 import {
@@ -22,47 +22,6 @@ import { sanitizeString, VALIDATION_LIMITS } from "@utils/validation";
 import { Elysia } from "elysia";
 import { parseError } from "evlog";
 import { useLogger } from "evlog/elysia";
-
-export type ApiKeyIdentifyDenial =
-	| "missing_website_id"
-	| "missing_scope"
-	| "website_not_found"
-	| "website_scope_mismatch"
-	| "website_not_active";
-
-export function denyApiKeyIdentify(
-	apiKey: ApiKeyRow,
-	websiteId: string | undefined,
-	website: { organizationId: string | null; status: string } | null
-): ApiKeyIdentifyDenial | null {
-	if (!websiteId) {
-		return "missing_website_id";
-	}
-	if (!hasWebsiteScope(apiKey, websiteId, "track:events")) {
-		return "missing_scope";
-	}
-	if (!website) {
-		return "website_not_found";
-	}
-	if (
-		!apiKey.organizationId ||
-		website.organizationId !== apiKey.organizationId
-	) {
-		return "website_scope_mismatch";
-	}
-	if (website.status !== "ACTIVE") {
-		return "website_not_active";
-	}
-	return null;
-}
-
-const DENIAL_ERRORS: Record<ApiKeyIdentifyDenial, () => Error> = {
-	missing_website_id: basketErrors.identifyMissingWebsiteId,
-	missing_scope: basketErrors.trackMissingScope,
-	website_not_found: basketErrors.trackWebsiteNotFound,
-	website_scope_mismatch: basketErrors.trackWebsiteScopeMismatch,
-	website_not_active: basketErrors.trackWebsiteNotFound,
-};
 
 type IdentifyTarget =
 	| {
@@ -89,10 +48,10 @@ async function resolveIdentifyTarget(
 		const website = websiteIdFromBody
 			? await getWebsiteByIdV2(websiteIdFromBody)
 			: null;
-		const denial = denyApiKeyIdentify(apiKey, websiteIdFromBody, website);
+		const denial = denyApiKeyWebsiteAccess(apiKey, websiteIdFromBody, website);
 		if (denial) {
 			log.set({ rejected: denial });
-			throw DENIAL_ERRORS[denial]();
+			throw API_KEY_DENIAL_ERRORS[denial]();
 		}
 		log.set({ auth: { method: "api_key" }, websiteId: websiteIdFromBody });
 		return {

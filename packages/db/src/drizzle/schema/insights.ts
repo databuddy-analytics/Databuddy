@@ -1,9 +1,12 @@
 import { inArray } from "drizzle-orm";
 import type {
 	InsightReplySlackDelivery,
+	InvestigationEvidenceSnapshot,
 	InvestigationOutcome,
+	InvestigationShareSnapshot,
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
+import type { OrganizationBusinessContext } from "@databuddy/shared/organization-business-context";
 import {
 	boolean,
 	foreignKey,
@@ -272,6 +275,7 @@ export const insightObservations = pgTable(
 		asOf: timestamp("as_of", { precision: 3, withTimezone: true }).notNull(),
 		signal: jsonb().$type<InvestigationSignal>().notNull(),
 		evidence: jsonb().$type<string[]>().default([]).notNull(),
+		snapshot: jsonb().$type<InvestigationEvidenceSnapshot>(),
 		outcome: jsonb("decision").$type<InvestigationOutcome>().notNull(),
 		recheckAt: timestamp("recheck_at", {
 			precision: 3,
@@ -322,6 +326,12 @@ export const insightReplies = pgTable(
 		id: text().primaryKey(),
 		insightId: text("insight_id").notNull(),
 		observationId: text("observation_id"),
+		sourceObservationId: text("source_observation_id"),
+		intent: text()
+			.$type<"clarification" | "analysis" | "verification">()
+			.default("clarification")
+			.notNull(),
+		assistantText: text("assistant_text"),
 		authorId: text("author_id"),
 		authorName: text("author_name").notNull(),
 		body: text().notNull(),
@@ -352,6 +362,71 @@ export const insightReplies = pgTable(
 			foreignColumns: [user.id],
 			name: "insight_replies_author_id_fkey",
 		}).onDelete("set null"),
+	]
+);
+
+export const investigationShares = pgTable(
+	"investigation_shares",
+	{
+		id: text().primaryKey(),
+		organizationId: text("organization_id").notNull(),
+		websiteId: text("website_id").notNull(),
+		subjectKey: text("subject_key").notNull(),
+		insightId: text("insight_id").notNull(),
+		version: integer().notNull(),
+		snapshot: jsonb().$type<InvestigationShareSnapshot>().notNull(),
+		publishedBy: text("published_by"),
+		publishedAt: timestamp("published_at", { precision: 3, withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("investigation_shares_case_uidx").on(
+			table.organizationId,
+			table.websiteId,
+			table.subjectKey
+		),
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "investigation_shares_organization_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: "investigation_shares_website_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.insightId],
+			foreignColumns: [analyticsInsights.id],
+			name: "investigation_shares_insight_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.publishedBy],
+			foreignColumns: [user.id],
+			name: "investigation_shares_published_by_fkey",
+		}).onDelete("set null"),
+	]
+);
+
+export const organizationBusinessContexts = pgTable(
+	"organization_business_contexts",
+	{
+		organizationId: text("organization_id").primaryKey(),
+		state: jsonb().$type<OrganizationBusinessContext>().notNull(),
+		updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "organization_business_contexts_organization_id_fkey",
+		}).onDelete("cascade"),
 	]
 );
 

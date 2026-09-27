@@ -29,6 +29,7 @@ import {
 	INSTALL_COMMANDS,
 } from "../../websites/[id]/_components/constants/settings-constants";
 import {
+	generateAgentPrompt,
 	generateNpmCode,
 	generateScriptTag,
 } from "../../websites/[id]/_components/utils/code-generators";
@@ -74,105 +75,6 @@ async function copyTextToClipboard(value: string): Promise<boolean> {
 			selection.addRange(selectedRange);
 		}
 	}
-}
-
-function generateAgentPrompt(websiteId: string): string {
-	return `Add Databuddy analytics to this repository. Client ID: ${websiteId}
-
-## References
-- Docs: https://www.databuddy.cc/docs/getting-started
-- LLMs.txt: https://www.databuddy.cc/llms.txt
-- Full docs: https://www.databuddy.cc/docs
-
-## Installation
-
-Choose the right method for this website's framework:
-
-**React / Next.js** — \`bun add @databuddy/sdk\` (or npm/yarn/pnpm)
-\`\`\`tsx
-import { Databuddy } from "@databuddy/sdk/react";
-// Mount at the app root (layout.tsx or _app.tsx)
-<Databuddy clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!} />
-\`\`\`
-
-**Vue** — \`bun add @databuddy/sdk\`
-\`\`\`vue
-<script setup>
-import { Databuddy } from "@databuddy/sdk/vue";
-</script>
-<template>
-  <Databuddy :client-id="import.meta.env.VITE_DATABUDDY_CLIENT_ID" />
-</template>
-\`\`\`
-
-**Vanilla JS / HTML** — CDN script in \`<head>\`:
-\`\`\`html
-<script src="https://cdn.databuddy.cc/databuddy.js" data-client-id="${websiteId}" crossorigin="anonymous" async></script>
-\`\`\`
-
-Store the Client ID in an env var — never hardcode it.
-- Next.js: NEXT_PUBLIC_DATABUDDY_CLIENT_ID
-- Vue/Vite: VITE_DATABUDDY_CLIENT_ID
-
-## Configuration Options
-
-All options work as React/Vue props or \`data-*\` attributes on the script tag.
-| Option | Type | Default | What it does |
-|--------|------|---------|-------------|
-| trackWebVitals | bool | false | Core Web Vitals (LCP, CLS, INP, TTFB) |
-| trackErrors | bool | false | JavaScript errors and exceptions |
-| trackHashChanges | bool | false | URL hash changes (SPA routing) |
-| trackAttributes | bool | false | Auto-track elements with data-track attribute |
-| trackOutgoingLinks | bool | false | Clicks to external sites |
-| trackInteractions | bool | false | Button clicks and form submissions |
-| disabled | bool | false | Master kill switch |
-| samplingRate | 0-1 | 1.0 | Fraction of events to capture |
-| enableBatching | bool | true | Batch events before sending |
-| batchSize | num | 10 | Events per batch |
-| batchTimeout | num | 5000 | Max ms before flushing batch |
-| enableRetries | bool | true | Retry failed requests |
-| maxRetries | num | 3 | Max retry attempts |
-
-Page views and sessions are tracked automatically; they are not configuration options.
-
-Enable what makes sense for this website. A good starting point:
-\`\`\`tsx
-<Databuddy clientId={...} trackWebVitals trackErrors />
-\`\`\`
-
-## Custom Events
-
-\`\`\`tsx
-import { track } from "@databuddy/sdk";
-track("signup_completed", { method: "google", plan: "pro" });
-\`\`\`
-
-Use snake_case event names. Track decisions and milestones (signup_completed, purchase_completed, feature_used), not every click. Keep properties low-cardinality. Never track PII.
-
-## Verification — How to Confirm It Works
-
-1. Open DevTools → Network tab, reload the page
-2. Look for a request to cdn.databuddy.cc/databuddy.js (script loading)
-3. Look for requests to basket.databuddy.cc (events being sent)
-4. Both should return 200. If events show the correct Client ID in the payload, tracking is working.
-
-## Common Issues & Fixes
-
-**Domain mismatch**: Events are rejected if sent from a domain that doesn't match the website configured in Databuddy. The domain in settings must match the domain the script runs on.
-
-**Content Security Policy (CSP)**: If the site has strict CSP headers, add these directives:
-- script-src: https://cdn.databuddy.cc
-- connect-src: https://basket.databuddy.cc
-
-**Ad blockers**: uBlock Origin, Privacy Badger, and similar extensions may block analytics scripts. Test with extensions disabled. For production, consider a custom tracking domain (proxy through your own domain).
-
-**Localhost is ignored by default**: Events from localhost are not sent unless you use the tracker's debug build. Deploy or open the site on a non-localhost host to see data.
-
-**Script not loading**: Verify the script tag is in <head> (not <body>), the src URL is correct, and no CSP or network error appears in the console.
-
-**Events not appearing in dashboard**: Data typically appears within a few minutes. Check the Network tab for failed requests to basket.databuddy.cc. Verify the Client ID matches. Check for console errors.
-
-**If another analytics tool is present**: Both can run in parallel. No conflicts. Optionally disable the other tool's page view tracking if Databuddy handles it.`;
 }
 
 function ClaudeLogo({ color }: { color: string }) {
@@ -296,12 +198,9 @@ function CodeBlock({
 					variant="ghost"
 				>
 					{copied ? (
-						<CheckIcon className="size-3.5 text-emerald-400" weight="bold" />
+						<CheckIcon className="size-3.5 text-success" />
 					) : (
-						<ClipboardIcon
-							className="size-3.5 text-white/70"
-							weight="duotone"
-						/>
+						<ClipboardIcon className="size-3.5 text-white/70" />
 					)}
 				</Button>
 			</div>
@@ -396,7 +295,7 @@ export function StepInstallTracking({
 		<div className="space-y-6">
 			<div className="flex items-center gap-3">
 				<div className="flex size-10 items-center justify-center rounded bg-primary/10">
-					<CodeIcon className="size-5 text-primary" weight="duotone" />
+					<CodeIcon className="size-5 text-primary" />
 				</div>
 				<div>
 					<h2 className="text-balance font-semibold text-lg">
@@ -421,17 +320,11 @@ export function StepInstallTracking({
 				<Card.Content className="flex items-center justify-between p-3">
 					<div className="flex items-center gap-3">
 						{isTrackingSetupError ? (
-							<WarningCircleIcon
-								className="size-5 text-destructive"
-								weight="duotone"
-							/>
+							<WarningCircleIcon className="size-5 text-destructive" />
 						) : isSetup ? (
-							<PulseIcon className="size-5 text-success" weight="duotone" />
+							<PulseIcon className="size-5 text-success" />
 						) : (
-							<WarningCircleIcon
-								className="size-5 text-warning"
-								weight="duotone"
-							/>
+							<WarningCircleIcon className="size-5 text-warning" />
 						)}
 						<div className="flex items-center gap-2">
 							<span className="font-medium text-sm">
@@ -470,7 +363,6 @@ export function StepInstallTracking({
 					>
 						<ArrowClockwiseIcon
 							className={cn("size-3.5", isRefreshing && "animate-spin")}
-							weight="bold"
 						/>
 						{isRefreshing || isTrackingSetupLoading
 							? "Checking..."
@@ -484,15 +376,15 @@ export function StepInstallTracking({
 			<Tabs className="w-full" defaultValue="ai">
 				<Tabs.List>
 					<Tabs.Tab value="ai">
-						<RobotIcon className="size-3.5" weight="duotone" />
+						<RobotIcon className="size-3.5" />
 						Install with AI
 					</Tabs.Tab>
 					<Tabs.Tab value="npm">
-						<PackageIcon className="size-3.5" weight="duotone" />
+						<PackageIcon className="size-3.5" />
 						SDK Package
 					</Tabs.Tab>
 					<Tabs.Tab value="script">
-						<CodeIcon className="size-3.5" weight="duotone" />
+						<CodeIcon className="size-3.5" />
 						Script Tag
 					</Tabs.Tab>
 				</Tabs.List>
@@ -542,13 +434,9 @@ export function StepInstallTracking({
 										<CheckIcon
 											className="size-4"
 											style={{ color: tool.color }}
-											weight="bold"
 										/>
 									) : (
-										<ClipboardIcon
-											className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100"
-											weight="duotone"
-										/>
+										<ClipboardIcon className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100" />
 									)}
 								</div>
 							</button>
@@ -623,12 +511,9 @@ export function StepInstallTracking({
 				>
 					<span className="truncate">{websiteId}</span>
 					{copiedBlockId === "client-id" ? (
-						<CheckIcon className="size-3 text-success" weight="bold" />
+						<CheckIcon className="size-3 text-success" />
 					) : (
-						<ClipboardIcon
-							className="size-3 opacity-50 group-hover:opacity-100"
-							weight="duotone"
-						/>
+						<ClipboardIcon className="size-3 opacity-50 group-hover:opacity-100" />
 					)}
 				</button>
 			</div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuthCapabilities } from "../auth-capabilities";
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -22,6 +23,9 @@ import {
 import { storeVerificationEmail } from "./verification-email-storage";
 
 function LoginPage() {
+	const capabilities = useAuthCapabilities();
+	const hasAlternatives =
+		capabilities.github || capabilities.google || capabilities.email;
 	const router = useRouter();
 	const [callback] = useQueryState(
 		"callback",
@@ -128,77 +132,87 @@ function LoginPage() {
 			</div>
 
 			<div className="space-y-6 px-6">
-				<div className="grid w-full grid-cols-1 gap-3 lg:grid-cols-2">
-					<Button
-						className="relative w-full"
-						disabled={isLoading}
-						onClick={() => handleSocialLogin("github")}
-						size="lg"
-						variant="outline"
-					>
-						<GithubMark className="size-4" />
-						Sign in with GitHub
-						{lastUsed === "github" && (
-							<Badge
-								className="absolute -top-3 -right-0.5 z-10 rounded-full px-1 py-0 text-[10px]"
-								variant="muted"
-							>
-								Last used
-							</Badge>
-						)}
-					</Button>
-					<Button
-						className="relative w-full"
-						disabled={isLoading}
-						onClick={() => handleSocialLogin("google")}
-						size="lg"
-						variant="outline"
-					>
-						<GoogleMark className="size-4" />
-						Sign in with Google
-						{lastUsed === "google" && (
-							<Badge
-								className="absolute -top-3 -right-0.5 z-10 rounded-full px-1 py-0 text-[10px]"
-								variant="muted"
-							>
-								Last used
-							</Badge>
-						)}
-					</Button>
-					<div className="relative lg:col-span-2">
-						<Button
-							asChild
-							className="w-full"
-							disabled={isLoading}
-							size="lg"
-							variant="outline"
-						>
-							<Link href={`/login/magic${callbackQuery}`}>
-								<EnvelopeSimpleIcon className="size-4" weight="duotone" />
-								Sign in with Magic Link
-							</Link>
-						</Button>
-						{lastUsed === "magic-link" && (
-							<Badge
-								className="absolute -top-3 -right-0.5 z-10 rounded-full px-1 py-0 text-[10px]"
-								variant="muted"
-							>
-								Last used
-							</Badge>
-						)}
-					</div>
-				</div>
+				{hasAlternatives && (
+					<>
+						<div className="grid w-full grid-cols-1 gap-3 lg:grid-cols-2">
+							{capabilities.github && (
+								<Button
+									className="relative w-full"
+									disabled={isLoading}
+									onClick={() => handleSocialLogin("github")}
+									size="lg"
+									variant="outline"
+								>
+									<GithubMark className="size-4" />
+									Sign in with GitHub
+									{lastUsed === "github" && (
+										<Badge
+											className="absolute -top-3 -right-0.5 z-10 rounded-full px-1 py-0 text-[10px]"
+											variant="muted"
+										>
+											Last used
+										</Badge>
+									)}
+								</Button>
+							)}
+							{capabilities.google && (
+								<Button
+									className="relative w-full"
+									disabled={isLoading}
+									onClick={() => handleSocialLogin("google")}
+									size="lg"
+									variant="outline"
+								>
+									<GoogleMark className="size-4" />
+									Sign in with Google
+									{lastUsed === "google" && (
+										<Badge
+											className="absolute -top-3 -right-0.5 z-10 rounded-full px-1 py-0 text-[10px]"
+											variant="muted"
+										>
+											Last used
+										</Badge>
+									)}
+								</Button>
+							)}
+							{capabilities.email && (
+								<div className="relative lg:col-span-2">
+									<Button
+										asChild
+										className="w-full"
+										disabled={isLoading}
+										size="lg"
+										variant="outline"
+									>
+										<Link href={`/login/magic${callbackQuery}`}>
+											<EnvelopeSimpleIcon className="size-4" />
+											Sign in with Magic Link
+										</Link>
+									</Button>
+									{lastUsed === "magic-link" && (
+										<Badge
+											className="absolute -top-3 -right-0.5 z-10 rounded-full px-1 py-0 text-[10px]"
+											variant="muted"
+										>
+											Last used
+										</Badge>
+									)}
+								</div>
+							)}
+						</div>
 
-				<div className="flex items-center gap-3">
-					<Divider className="flex-1 opacity-70" />
-					<Text
-						className="text-nowrap text-muted-foreground/50"
-						variant="label"
-					>
-						Or
-					</Text>
-					<Divider className="flex-1 opacity-70" />
-				</div>
+						<div className="flex items-center gap-3">
+							<Divider className="flex-1 opacity-70" />
+							<Text
+								className="text-nowrap text-muted-foreground/50"
+								variant="label"
+							>
+								Or
+							</Text>
+							<Divider className="flex-1 opacity-70" />
+						</div>
+					</>
+				)}
 
 				<form className="space-y-5" onSubmit={handleEmailPasswordLogin}>
 					<Field className="relative">
@@ -270,12 +284,14 @@ function LoginPage() {
 						Sign up
 					</Link>
 				</Text>
-				<Link
-					className="flex-1 text-right text-[13px] text-accent-foreground/60 duration-200 hover:text-accent-foreground"
-					href={`/login/forgot${callbackQuery}`}
-				>
-					Forgot password?
-				</Link>
+				{capabilities.email && (
+					<Link
+						className="flex-1 text-right text-[13px] text-accent-foreground/60 duration-200 hover:text-accent-foreground"
+						href={`/login/forgot${callbackQuery}`}
+					>
+						Forgot password?
+					</Link>
+				)}
 			</div>
 		</>
 	);

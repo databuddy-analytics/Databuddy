@@ -1,20 +1,9 @@
-import Supermemory from "supermemory";
+import { getMemoryClient } from "@databuddy/services/business-memory";
+export { getMemoryClient } from "@databuddy/services/business-memory";
 import { stripHtmlTags } from "./sanitize";
 
 const apiKey = process.env.SUPERMEMORY_API_KEY;
 const MAX_MEMORY_LENGTH = 2000;
-
-let _client: Supermemory | null = null;
-
-function getClient(): Supermemory | null {
-	if (!apiKey) {
-		return null;
-	}
-	if (!_client) {
-		_client = new Supermemory({ apiKey });
-	}
-	return _client;
-}
 
 export function isMemoryEnabled(): boolean {
 	return Boolean(apiKey);
@@ -34,13 +23,6 @@ export function memoryContainerTag(
 	id: string
 ): string {
 	return `${kind}_${id}`;
-}
-
-function legacyMemoryContainerTag(
-	kind: MemoryContainerKind,
-	id: string
-): string {
-	return `${kind}:${id}`;
 }
 
 function identityContainerTag(
@@ -88,23 +70,6 @@ export function primaryContainerTag(
 	return "anonymous";
 }
 
-function readContainerTags(
-	userId: string | null,
-	apiKeyId: string | null,
-	websiteId?: string | null
-): string[] {
-	const tags = buildContainerTags(userId, apiKeyId, websiteId);
-	if (userId) {
-		tags.push(legacyMemoryContainerTag("user", userId));
-	} else if (apiKeyId) {
-		tags.push(legacyMemoryContainerTag("apikey", apiKeyId));
-	}
-	if (websiteId) {
-		tags.push(legacyMemoryContainerTag("website", websiteId));
-	}
-	return [...new Set(tags)];
-}
-
 function uniqueNonEmpty(values: string[]): string[] {
 	return [...new Set(values.filter(Boolean))];
 }
@@ -127,12 +92,16 @@ export async function getMemoryContext(
 	apiKeyId: string | null,
 	options?: { websiteId?: string; threshold?: number }
 ): Promise<MemoryContext> {
-	const client = getClient();
+	const client = getMemoryClient();
 	if (!client) {
 		return { staticProfile: [], dynamicProfile: [], relevantMemories: [] };
 	}
 
-	const containerTags = readContainerTags(userId, apiKeyId, options?.websiteId);
+	const containerTags = buildContainerTags(
+		userId,
+		apiKeyId,
+		options?.websiteId
+	);
 	const threshold = options?.threshold ?? 0.25;
 
 	try {
@@ -182,7 +151,7 @@ export function storeConversation(
 		domain?: string;
 	}
 ): void {
-	const client = getClient();
+	const client = getMemoryClient();
 	if (!client) {
 		return;
 	}
@@ -213,32 +182,6 @@ export function storeConversation(
 		.catch(() => {});
 }
 
-export function storeAnalyticsSummary(
-	summary: string,
-	websiteId: string,
-	metadata?: Record<string, string>
-): Promise<void> {
-	const client = getClient();
-	if (!client) {
-		return Promise.resolve();
-	}
-
-	return client
-		.add({
-			content: sanitizeMemoryContent(summary),
-			containerTag: memoryContainerTag("website", websiteId),
-			metadata: {
-				source: "databuddy",
-				type: "analytics_summary",
-				websiteId,
-				...metadata,
-			},
-			entityContext:
-				"Weekly analytics summary for a website. Extract trends, anomalies, and key metrics.",
-		})
-		.then(() => undefined);
-}
-
 export function saveCuratedMemory(
 	content: string,
 	userId: string | null,
@@ -248,7 +191,7 @@ export function saveCuratedMemory(
 		websiteId?: string;
 	}
 ): void {
-	const client = getClient();
+	const client = getMemoryClient();
 	if (!client) {
 		return;
 	}
@@ -284,19 +227,21 @@ export async function searchMemories(
 		websiteId?: string;
 	}
 ): Promise<MemorySearchResult[]> {
-	const client = getClient();
+	const client = getMemoryClient();
 	if (!client) {
 		return [];
 	}
 
-	const containerTags = readContainerTags(userId, apiKeyId, options?.websiteId);
+	const containerTags = buildContainerTags(
+		userId,
+		apiKeyId,
+		options?.websiteId
+	);
 	const primaryTags = new Set<string>();
 	if (userId) {
 		primaryTags.add(memoryContainerTag("user", userId));
-		primaryTags.add(legacyMemoryContainerTag("user", userId));
 	} else if (apiKeyId) {
 		primaryTags.add(memoryContainerTag("apikey", apiKeyId));
-		primaryTags.add(legacyMemoryContainerTag("apikey", apiKeyId));
 	} else if (!options?.websiteId) {
 		primaryTags.add("anonymous");
 	}
@@ -370,7 +315,7 @@ export async function forgetMemory(
 	containerTag: string,
 	memoryContent: string
 ): Promise<{ success: boolean }> {
-	const client = getClient();
+	const client = getMemoryClient();
 	if (!client) {
 		return { success: false };
 	}

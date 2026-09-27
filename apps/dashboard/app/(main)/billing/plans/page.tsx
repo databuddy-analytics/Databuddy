@@ -22,7 +22,7 @@ export default function PlansPage() {
 		<Suspense
 			fallback={
 				<main className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto">
-					<SpinnerIcon className="size-8 animate-spin text-primary" />
+					<SpinnerIcon className="size-8 animate-spin text-primary motion-reduce:animate-none" />
 				</main>
 			}
 		>

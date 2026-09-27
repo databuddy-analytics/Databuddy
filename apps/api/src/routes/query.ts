@@ -1,3 +1,4 @@
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { auth } from "@databuddy/auth";
 import {
 	API_KEY_AUTH_CHALLENGE,
@@ -19,7 +20,7 @@ import {
 	TraitFilterError,
 } from "@databuddy/services/identity";
 import { validateTimezone } from "@databuddy/validation";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { readBooleanEnv } from "@databuddy/env/app";
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { getBillingOwner } from "@databuddy/rpc/billing";
 import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
@@ -35,9 +36,11 @@ import {
 	compileQuery,
 	executeBatch,
 	isFilterFieldAllowed,
+	truncateQueryErrorForLog,
 } from "@databuddy/ai/query";
 import {
 	canReadQueryTypesPublicly,
+	getQueryBuilder,
 	QueryBuilders,
 } from "@databuddy/ai/query/builders";
 import {
@@ -62,6 +65,7 @@ import {
 } from "../schemas/query-schemas";
 import { handleAppError } from "../http/errors";
 import { getRequestId } from "../http/request-id";
+import { getResolvedAuth } from "../lib/auth-wide-event";
 
 const PER_WEBSITE_QUERY_CONCURRENCY = 8;
 
@@ -195,7 +199,7 @@ function validateQueryParameters(
 	const queryTypes = Object.keys(QueryBuilders);
 	return parameters.flatMap((param, index) => {
 		const name = typeof param === "string" ? param : param?.name;
-		if (!(name && !QueryBuilders[name])) {
+		if (!(name && !getQueryBuilder(name))) {
 			return [];
 		}
 
@@ -293,14 +297,21 @@ function validatePaginationFields(
 	request: DynamicQueryRequestType
 ): ValidationError[] {
 	const errors: ValidationError[] = [];
-	if (request.limit !== undefined && request.limit < 1) {
-		errors.push({ field: "limit", message: "Limit must be at least 1" });
+	if (request.limit !== undefined) {
+		if (!Number.isInteger(request.limit)) {
+			errors.push({ field: "limit", message: "Limit must be an integer" });
+		} else if (request.limit < 1) {
+			errors.push({ field: "limit", message: "Limit must be at least 1" });
+		} else if (request.limit > 10_000) {
+			errors.push({ field: "limit", message: "Limit cannot exceed 10000" });
+		}
 	}
-	if (request.limit !== undefined && request.limit > 10_000) {
-		errors.push({ field: "limit", message: "Limit cannot exceed 10000" });
-	}
-	if (request.page !== undefined && request.page < 1) {
-		errors.push({ field: "page", message: "Page must be at least 1" });
+	if (request.page !== undefined) {
+		if (!Number.isInteger(request.page)) {
+			errors.push({ field: "page", message: "Page must be an integer" });
+		} else if (request.page < 1) {
+			errors.push({ field: "page", message: "Page must be at least 1" });
+		}
 	}
 	return errors;
 }
@@ -329,15 +340,6 @@ type ProjectAccessResult =
 			status?: number;
 	  };
 
-function clientIpForQuery(request: Request): string {
-	return (
-		request.headers.get("cf-connecting-ip") ||
-		request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-		request.headers.get("x-real-ip") ||
-		"unknown"
-	);
-}
-
 async function enforceQueryRateLimit(
 	ctx: AuthContext,
 	endpoint: "compile" | "execute",
@@ -353,7 +355,7 @@ async function enforceQueryRateLimit(
 		? `apikey:${ctx.apiKey.id}`
 		: ctx.user
 			? `user:${ctx.user.id}`
-			: `anon:${clientIpForQuery(request)}`;
+			: `anon:${getClientIp(request.headers) ?? "unknown"}`;
 	const effectiveLimit = ctx.isAuthenticated ? limit : Math.min(limit, 60);
 	const rl = await ratelimit(
 		`query:${endpoint}:${principal}`,
@@ -461,6 +463,9 @@ async function enforceFeatureGatesForQueryTypes(
 	queryTypes: string[],
 	website: { organizationId: string | null }
 ): Promise<{ error: string; feature: GatedFeatureId } | null> {
+	if (readBooleanEnv("SELFHOST")) {
+		return null;
+	}
 	const required = new Set<GatedFeatureId>();
 	for (const type of queryTypes) {
 		const feature = FEATURE_GATED_QUERY_TYPES[type];
@@ -931,6 +936,8 @@ async function executeDynamicQuery(
 	};
 }> {
 	const { startDate: from, endDate: to } = request;
+	const limit = request.limit ?? 100;
+	const page = request.page ?? 1;
 
 	const domain =
 		projectType === "website"
@@ -994,7 +1001,7 @@ async function executeDynamicQuery(
 		const paramFrom = start ? normalizeDate(start) : from;
 		const paramTo = end ? normalizeDate(end) : to;
 
-		const config = QueryBuilders[name];
+		const config = getQueryBuilder(name);
 		if (!config) {
 			return { id, error: `Unknown query type: ${name}` };
 		}
@@ -1044,8 +1051,8 @@ async function executeDynamicQuery(
 				filters: effectiveFilters.filter((f) =>
 					isFilterFieldAllowed(config, f.field)
 				),
-				limit: request.limit || 100,
-				offset: request.page ? (request.page - 1) * (request.limit || 100) : 0,
+				limit,
+				offset: (page - 1) * limit,
 				timezone,
 				organizationWebsiteIds: isOrgCustomEvents
 					? (organizationWebsiteIds ?? [])
@@ -1087,7 +1094,7 @@ async function executeDynamicQuery(
 			const result = results[i];
 			if (param) {
 				if (result?.error) {
-					captureError(new Error(result.error), {
+					captureError(new Error(truncateQueryErrorForLog(result.error)), {
 						query_type: param.request.type,
 						route: "v1/query",
 						step: "execute_batch",
@@ -1147,8 +1154,8 @@ async function executeDynamicQuery(
 		meta: {
 			parameters: request.parameters as (string | Record<string, unknown>)[],
 			total_parameters: request.parameters.length,
-			page: request.page || 1,
-			limit: request.limit || 100,
+			page,
+			limit,
 			filters_applied: request.filters?.length || 0,
 		},
 	};
@@ -1156,11 +1163,22 @@ async function executeDynamicQuery(
 
 export const query = new Elysia({ prefix: "/v1/query" })
 	.derive(async ({ request }): Promise<{ auth: AuthContext }> => {
+		const preResolved = getResolvedAuth(request.headers);
 		const hasApiKey = isApiKeyPresent(request.headers);
-		const [apiKey, session] = await Promise.all([
-			hasApiKey ? getApiKeyFromHeader(request.headers) : null,
-			auth.api.getSession({ headers: request.headers }),
-		]);
+
+		let apiKey: ApiKeyRow | null;
+		let session: Awaited<ReturnType<typeof auth.api.getSession>> | null;
+
+		if (preResolved) {
+			session = preResolved.session;
+			apiKey = preResolved.apiKeyResult?.key ?? null;
+		} else {
+			[apiKey, session] = await Promise.all([
+				hasApiKey ? getApiKeyFromHeader(request.headers) : null,
+				auth.api.getSession({ headers: request.headers }).catch(() => null),
+			]);
+		}
+
 		const user = session?.user ?? null;
 
 		if (
@@ -1428,8 +1446,8 @@ export const query = new Elysia({ prefix: "/v1/query" })
 									meta: {
 										parameters: req.parameters,
 										total_parameters: req.parameters.length,
-										page: req.page || 1,
-										limit: req.limit || 100,
+										page: req.page ?? 1,
+										limit: req.limit ?? 100,
 										filters_applied: req.filters?.length || 0,
 									},
 								};
@@ -1465,8 +1483,8 @@ export const query = new Elysia({ prefix: "/v1/query" })
 									meta: {
 										parameters: req.parameters,
 										total_parameters: req.parameters.length,
-										page: req.page || 1,
-										limit: req.limit || 100,
+										page: req.page ?? 1,
+										limit: req.limit ?? 100,
 										filters_applied: req.filters?.length || 0,
 									},
 								};

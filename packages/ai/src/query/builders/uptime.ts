@@ -19,7 +19,7 @@ import type { SimpleQueryConfig } from "../types";
 
 const UPTIME_TABLE = "uptime.uptime_monitor";
 
-export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
+export const UptimeBuilders = {
 	uptime_time_series: {
 		meta: {
 			description: "Uptime check results plotted over time.",
@@ -113,6 +113,7 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
+			const tz = ctx.timezone || "UTC";
 			const limit = ctx.limit ?? 50;
 			const offset = ctx.offset ?? 0;
 			return {
@@ -132,13 +133,13 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 					FROM ${UPTIME_TABLE}
 					WHERE 
 						site_id = {websiteId:String}
-						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						AND timestamp >= parseDateTimeBestEffort({startDate:String}, {timezone:String})
+						AND timestamp <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'), {timezone:String})
 					ORDER BY timestamp DESC
 					LIMIT {limit:UInt32}
 					OFFSET {offset:UInt32}
 				`,
-				params: { websiteId, startDate, endDate, limit, offset },
+				params: { websiteId, startDate, endDate, limit, offset, timezone: tz },
 			};
 		},
 		timeField: "timestamp",
@@ -153,6 +154,7 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
+			const tz = ctx.timezone || "UTC";
 			const granularity = ctx.granularity ?? "hour";
 			const timeGroup =
 				granularity === "minute"
@@ -160,7 +162,7 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 					: granularity === "hour"
 						? "toStartOfHour(timestamp)"
 						: granularity === "day"
-							? "toDate(timestamp)"
+							? "toDate(toTimeZone(timestamp, {timezone:String}))"
 							: "toStartOfHour(timestamp)";
 
 			return {
@@ -179,16 +181,16 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 					FROM ${UPTIME_TABLE}
 					WHERE 
 						site_id = {websiteId:String}
-						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						AND timestamp >= parseDateTimeBestEffort({startDate:String}, {timezone:String})
+						AND timestamp <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'), {timezone:String})
 						AND status = 1
 					GROUP BY date
 					ORDER BY date ASC
 				`,
-				params: { websiteId, startDate, endDate },
+				params: { websiteId, startDate, endDate, timezone: tz },
 			};
 		},
 		timeField: "timestamp",
 		customizable: true,
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

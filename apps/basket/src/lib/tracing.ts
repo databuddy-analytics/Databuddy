@@ -17,9 +17,18 @@ export async function record<T>(
 	try {
 		return await fn();
 	} finally {
-		const ms = Math.round((performance.now() - start) * 100) / 100;
+		const elapsed = performance.now() - start;
 		try {
-			useLogger().set({ [`timing.${name}`]: ms });
+			const logger = useLogger();
+			const key = `timing.${name}`;
+			let total = elapsed;
+			try {
+				const previous = logger.getContext()[key];
+				if (typeof previous === "number") {
+					total += previous;
+				}
+			} catch {}
+			logger.set({ [key]: Math.round(total * 100) / 100 });
 		} catch {}
 	}
 }

@@ -187,8 +187,7 @@ const buildFilterSQL = (
 ): string => {
 	const parts: string[] = [];
 
-	for (let i = 0; i < filters.length; i++) {
-		const { field, operator, value } = filters[i];
+	for (const [i, { field, operator, value }] of filters.entries()) {
 		if (!(FIELDS.has(field) && OPS.has(operator))) {
 			continue;
 		}
@@ -287,16 +286,53 @@ const customEventRows = (projection: string): string => `SELECT ${projection}
 		AND owner_id != {websiteId:String}
 		AND ${buildTimeRangeWhere("timestamp")}`;
 
+const EVENT_CONTEXT_COLUMNS = [
+	"referrer",
+	"country",
+	"city",
+	"device_type",
+	"browser_name",
+	"os_name",
+	"language",
+	"utm_source",
+	"utm_medium",
+	"utm_campaign",
+	"utm_term",
+	"utm_content",
+	"user_agent",
+	"viewport_size",
+] as const;
+
+const contextColumns = EVENT_CONTEXT_COLUMNS.join(",\n\t\t");
+
+const nullContextColumns = EVENT_CONTEXT_COLUMNS.map(
+	(column) => `CAST(NULL, 'Nullable(String)') AS ${column}`
+).join(",\n\t\t");
+
 const directSessionMetaCtes = `identity_source_rows AS (
-	SELECT profile_id, anonymous_id, session_id, time AS identity_time
+	SELECT
+		toUInt8(1) AS source_kind,
+		profile_id,
+		anonymous_id,
+		session_id,
+		time AS identity_time,
+		url,
+		event_name,
+		path,
+		${contextColumns}
 	FROM analytics.events
 	WHERE ${buildBaseWhere("time")}
 	UNION ALL
 	${customEventRows(`
+		toUInt8(2) AS source_kind,
 		profile_id,
 		ifNull(anonymous_id, '') AS anonymous_id,
 		ifNull(session_id, '') AS session_id,
-		timestamp AS identity_time`)}
+		timestamp AS identity_time,
+		CAST(NULL, 'Nullable(String)') AS url,
+		event_name,
+		path,
+		${nullContextColumns}`)}
 ),
 ${sessionMetaCte("identity_source_rows")}`;
 
@@ -367,7 +403,7 @@ function buildIdentifiedEventStream(
 			step.type === "PAGE_VIEW"
 				? `row.source_kind = 1
 					AND row.event_name = 'screen_view'
-					AND ${normalizedPathExpression("row.path")} = {${targetKey}:String}`
+					AND row.normalized_path = {${targetKey}:String}`
 				: `row.event_name = {${targetKey}:String}`;
 		let matches = baseMatch;
 		if (index === 0 && filters.length > 0) {
@@ -397,20 +433,7 @@ function buildIdentifiedEventStream(
 		time AS identity_time,
 		event_name,
 		path,
-		referrer,
-		country,
-		city,
-		device_type,
-		browser_name,
-		os_name,
-		language,
-		utm_source,
-		utm_medium,
-		utm_campaign,
-		utm_term,
-		utm_content,
-		user_agent,
-		viewport_size
+		${contextColumns}
 	FROM analytics.events
 	WHERE ${buildBaseWhere("time")}
 	UNION ALL
@@ -422,20 +445,7 @@ function buildIdentifiedEventStream(
 		timestamp AS identity_time,
 		event_name,
 		path,
-		CAST(NULL, 'Nullable(String)') AS referrer,
-		CAST(NULL, 'Nullable(String)') AS country,
-		CAST(NULL, 'Nullable(String)') AS city,
-		CAST(NULL, 'Nullable(String)') AS device_type,
-		CAST(NULL, 'Nullable(String)') AS browser_name,
-		CAST(NULL, 'Nullable(String)') AS os_name,
-		CAST(NULL, 'Nullable(String)') AS language,
-		CAST(NULL, 'Nullable(String)') AS utm_source,
-		CAST(NULL, 'Nullable(String)') AS utm_medium,
-		CAST(NULL, 'Nullable(String)') AS utm_campaign,
-		CAST(NULL, 'Nullable(String)') AS utm_term,
-		CAST(NULL, 'Nullable(String)') AS utm_content,
-		CAST(NULL, 'Nullable(String)') AS user_agent,
-		CAST(NULL, 'Nullable(String)') AS viewport_size`)}
+		${nullContextColumns}`)}
 ),
 ${sessionMetaCte("analytics_rows")},
 identified_rows AS (
@@ -462,12 +472,13 @@ identified_rows AS (
 		source_row.user_agent AS user_agent,
 		source_row.viewport_size AS viewport_size,
 		${visitor} AS vid
-	FROM analytics_rows source_row${identityJoins("source_row")}
+	FROM identity_rows source_row${identityJoins("source_row")}
 	WHERE ${visitor} != ''
 ),
 context_rows AS (
 	SELECT
 		context.*,
+		${normalizedPathExpression("context.path")} AS normalized_path,
 		if(
 			context.session_id != '',
 			context.last_matching_session_context_ms,
@@ -542,9 +553,8 @@ export const queryLinkVisitorIds = async (
 		`WITH ${visitorIdentityCtes},
 ${directSessionMetaCtes}
 		 SELECT DISTINCT ${eventVisitor} as vid
-		 FROM analytics.events event${identityJoins("event", "event.time")}
-		 WHERE event.client_id = {websiteId:String}
-			AND ${buildTimeRangeWhere("event.time")}
+		 FROM identity_rows event${identityJoins("event")}
+		 WHERE event.source_kind = 1
 			AND event.url LIKE {linkRefPattern:String}
 			AND ${eventVisitor} != ''`,
 		refParams
@@ -799,6 +809,44 @@ ORDER BY step_num, date`;
 	};
 };
 
+export const buildGoalAnalyticsResult = (
+	stepName: string,
+	completions: number,
+	totalWebsiteUsers: number
+): FunnelAnalytics => ({
+	overall_conversion_rate: pct(completions, totalWebsiteUsers),
+	total_users_entered: totalWebsiteUsers,
+	total_users_completed: completions,
+	avg_completion_time: 0,
+	avg_completion_time_formatted: "—",
+	biggest_dropoff_step: 1,
+	biggest_dropoff_rate: 0,
+	duration_available: false,
+	steps_analytics: [
+		{
+			step_number: 1,
+			step_name: stepName,
+			users: completions,
+			total_users: totalWebsiteUsers,
+			conversion_rate: pct(completions, totalWebsiteUsers),
+			dropoffs: 0,
+			dropoff_rate: 0,
+			avg_time_to_complete: 0,
+			error_context_available: false,
+			error_count: 0,
+			error_rate: 0,
+			top_errors: [],
+		},
+	],
+	error_insights: {
+		available: false,
+		total_errors: 0,
+		sessions_with_errors: 0,
+		dropoffs_with_errors: 0,
+		error_correlation_rate: 0,
+	},
+});
+
 export const processGoalAnalytics = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
@@ -817,45 +865,44 @@ export const processGoalAnalytics = async (
 		abortSignal
 	);
 
-	return {
-		overall_conversion_rate: pct(completions, totalWebsiteUsers),
-		total_users_entered: totalWebsiteUsers,
-		total_users_completed: completions,
-		avg_completion_time: 0,
-		avg_completion_time_formatted: "—",
-		biggest_dropoff_step: 1,
-		biggest_dropoff_rate: 0,
-		duration_available: false,
-		steps_analytics: [
-			{
-				step_number: 1,
-				step_name: step.name,
-				users: completions,
-				total_users: totalWebsiteUsers,
-				conversion_rate: pct(completions, totalWebsiteUsers),
-				dropoffs: 0,
-				dropoff_rate: 0,
-				avg_time_to_complete: 0,
-				error_context_available: false,
-				error_count: 0,
-				error_rate: 0,
-				top_errors: [],
-			},
-		],
-		error_insights: {
-			available: false,
-			total_errors: 0,
-			sessions_with_errors: 0,
-			dropoffs_with_errors: 0,
-			error_correlation_rate: 0,
-		},
-	};
+	return buildGoalAnalyticsResult(step.name, completions, totalWebsiteUsers);
+};
+
+export const processGoalsConversionCountsBatch = async (
+	steps: AnalyticsStep[],
+	params: ClickhouseQueryParams,
+	abortSignal?: AbortSignal
+): Promise<Map<number, number>> => {
+	if (steps.length === 0) {
+		return new Map();
+	}
+
+	const query = `WITH ${visitorIdentityCtes},
+${buildIdentifiedEventStream(steps, [], params)}
+SELECT step AS step_num, uniqExact(vid) AS completions
+FROM events
+GROUP BY step_num`;
+	const rows = await chQuery<{ step_num: number; completions: number }>(
+		query,
+		params,
+		{ abort_signal: abortSignal }
+	);
+
+	const result = new Map<number, number>();
+	for (const row of rows) {
+		result.set(
+			toFiniteNumber(row.step_num, 0),
+			toFiniteNumber(row.completions, 0)
+		);
+	}
+	return result;
 };
 
 export const processFunnelAnalyticsByReferrer = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
-	params: ClickhouseQueryParams
+	params: ClickhouseQueryParams,
+	abortSignal?: AbortSignal
 ): Promise<{ referrer_analytics: ReferrerAnalytics[] }> => {
 	const totalSteps = steps.length;
 	if (totalSteps === 0) {
@@ -876,7 +923,9 @@ FROM step_events
 GROUP BY vid
 HAVING max_step >= 1`;
 
-	const rows = await chQuery<ReferrerRow>(fullQuery, params);
+	const rows = await chQuery<ReferrerRow>(fullQuery, params, {
+		abort_signal: abortSignal,
+	});
 
 	const groups = new Map<
 		string,
@@ -940,10 +989,8 @@ export const getTotalWebsiteUsers = async (
 		`WITH ${visitorIdentityCtes},
 ${directSessionMetaCtes}
 		 SELECT COUNT(DISTINCT ${eventVisitor}) as count
-		 FROM analytics.events event${identityJoins("event", "event.time")}
-		 WHERE event.client_id = {websiteId:String}
-			AND event.time >= parseDateTimeBestEffort({startDate:String})
-			AND event.time <= parseDateTimeBestEffort({endDate:String})
+		 FROM identity_rows event${identityJoins("event")}
+		 WHERE event.source_kind = 1
 			AND event.event_name = 'screen_view'
 			AND ${eventVisitor} != ''${filterSQL}`,
 		params,

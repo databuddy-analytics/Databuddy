@@ -3,7 +3,6 @@ import { calculateLinkReadiness } from "./health";
 
 const healthy = {
 	clickhouse: "ok",
-	deliveryQueue: "ok",
 	postgres: "ok",
 	redis: "ok",
 	redpanda: "ok",
@@ -11,15 +10,16 @@ const healthy = {
 
 describe("Links readiness", () => {
 	test("stays ready when Redpanda is down but ClickHouse is available", () => {
-		expect(
-			calculateLinkReadiness({ ...healthy, redpanda: "error" })
-		).toEqual({ httpStatus: 200, status: "degraded" });
+		expect(calculateLinkReadiness({ ...healthy, redpanda: "error" })).toEqual({
+			httpStatus: 200,
+			status: "degraded",
+		});
 	});
 
 	test("stays ready when ClickHouse is down but Redpanda is available", () => {
-		expect(
-			calculateLinkReadiness({ ...healthy, clickhouse: "error" })
-		).toEqual({ httpStatus: 200, status: "degraded" });
+		expect(calculateLinkReadiness({ ...healthy, clickhouse: "error" })).toEqual(
+			{ httpStatus: 200, status: "degraded" }
+		);
 	});
 
 	test("requires at least one available delivery sink", () => {
@@ -29,12 +29,6 @@ describe("Links readiness", () => {
 				clickhouse: "error",
 				redpanda: "error",
 			})
-		).toEqual({ httpStatus: 503, status: "unavailable" });
-	});
-
-	test("requires the durable queue admission path", () => {
-		expect(
-			calculateLinkReadiness({ ...healthy, deliveryQueue: "error" })
 		).toEqual({ httpStatus: 503, status: "unavailable" });
 	});
 

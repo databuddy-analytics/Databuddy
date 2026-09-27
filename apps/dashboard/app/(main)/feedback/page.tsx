@@ -1,6 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { isSelfHosted } from "@databuddy/env/public";
+import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
 import { orpc } from "@/lib/orpc";
@@ -26,9 +28,10 @@ const AGENT_TIERS = REWARD_TIERS.filter(
 );
 
 export default function FeedbackPage() {
-	const { data: balance, isLoading: isBalanceLoading } = useQuery(
-		orpc.feedback.getCreditsBalance.queryOptions()
-	);
+	const { data: balance, isLoading: isBalanceLoading } = useQuery({
+		...orpc.feedback.getCreditsBalance.queryOptions(),
+		enabled: !isSelfHosted,
+	});
 
 	const [redeemTier, setRedeemTier] = useState<number | null>(null);
 
@@ -42,25 +45,32 @@ export default function FeedbackPage() {
 			</TopBar.Actions>
 
 			<div className="flex-1 overflow-y-auto">
-				<div className="mx-auto grid max-w-6xl gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:p-5">
+				<div
+					className={cn(
+						"mx-auto grid max-w-6xl gap-4 p-4 lg:p-5",
+						!isSelfHosted && "lg:grid-cols-[minmax(0,1fr)_360px]"
+					)}
+				>
 					<FeedbackList />
 
-					<div className="lg:sticky lg:top-4 lg:self-start">
-						<CreditsPanel
-							agentTiers={AGENT_TIERS}
-							available={balance?.available ?? 0}
-							eventTiers={EVENT_TIERS}
-							isLoading={isBalanceLoading}
-							onRedeemAction={setRedeemTier}
-							redeemingTier={redeemTier}
-							totalEarned={balance?.totalEarned ?? 0}
-							totalSpent={balance?.totalSpent ?? 0}
-						/>
-					</div>
+					{!isSelfHosted && (
+						<div className="lg:sticky lg:top-4 lg:self-start">
+							<CreditsPanel
+								agentTiers={AGENT_TIERS}
+								available={balance?.available ?? 0}
+								eventTiers={EVENT_TIERS}
+								isLoading={isBalanceLoading}
+								onRedeemAction={setRedeemTier}
+								redeemingTier={redeemTier}
+								totalEarned={balance?.totalEarned ?? 0}
+								totalSpent={balance?.totalSpent ?? 0}
+							/>
+						</div>
+					)}
 				</div>
 			</div>
 
-			{redeemTier !== null && (
+			{!isSelfHosted && redeemTier !== null && (
 				<RedeemDialog
 					creditsRequired={REWARD_TIERS[redeemTier].creditsRequired}
 					onOpenChangeAction={(open) => {

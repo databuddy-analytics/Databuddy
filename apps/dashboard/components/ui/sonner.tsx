@@ -23,25 +23,21 @@ function Toaster({ ...props }: ToasterProps) {
 				success: (
 					<CheckCircleIcon
 						className="size-5 text-emerald-600 dark:text-emerald-400"
-						weight="fill"
 					/>
 				),
 				error: (
 					<XCircleIcon
 						className="size-5 text-red-600 dark:text-red-400"
-						weight="fill"
 					/>
 				),
 				warning: (
 					<WarningCircleIcon
 						className="size-5 text-amber-600 dark:text-amber-400"
-						weight="fill"
 					/>
 				),
 				info: (
 					<InfoIcon
 						className="size-5 text-blue-600 dark:text-blue-400"
-						weight="fill"
 					/>
 				),
 				loading: (
