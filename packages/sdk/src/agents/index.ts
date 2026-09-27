@@ -54,25 +54,27 @@ export async function trackAgents(
 			: process.env.DATABUDDY_WEBSITE_ID);
 	const method = request.method ?? "GET";
 	const userAgent = header(request, "user-agent");
-	const url = new URL(
-		("originalUrl" in request && request.originalUrl) || request.url || "/",
-		"http://localhost"
-	);
-	const { pathname } = url;
-	const host =
-		header(request, "x-forwarded-host").split(",")[0]?.trim() ||
-		header(request, "host") ||
-		url.host;
 	if (
 		!(
 			websiteId &&
 			(method === "GET" || method === "HEAD") &&
 			AI_AGENT_USER_AGENT.test(userAgent)
-		) ||
-		ASSET_PATH.test(pathname)
+		)
 	) {
 		return;
 	}
+	const url = new URL(
+		("originalUrl" in request && request.originalUrl) || request.url || "/",
+		"http://localhost"
+	);
+	const { pathname } = url;
+	if (ASSET_PATH.test(pathname)) {
+		return;
+	}
+	const host =
+		header(request, "x-forwarded-host").split(",")[0]?.trim() ||
+		header(request, "host") ||
+		url.host;
 	await fetch(`${options.apiUrl ?? DEFAULT_API_URL}/ai-traffic`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },

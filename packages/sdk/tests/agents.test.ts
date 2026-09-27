@@ -46,6 +46,11 @@ describe("trackAgents", () => {
 			agent.patterns.map((pattern) => pattern.source)
 		).join("|");
 		expect(AI_AGENT_USER_AGENT.source).toBe(registry);
+		expect(
+			AI_AGENTS.flatMap((agent) => agent.patterns).filter(
+				(pattern) => pattern.flags !== ""
+			)
+		).toEqual([]);
 	});
 
 	it.each([
