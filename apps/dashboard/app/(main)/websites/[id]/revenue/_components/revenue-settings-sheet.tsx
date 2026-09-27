@@ -9,7 +9,14 @@ import { toast } from "sonner";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { orpc } from "@/lib/orpc";
 import { Accordion, Sheet } from "@databuddy/ui/client";
-import { Button, EmptyState, Field, fromNow, Input } from "@databuddy/ui";
+import {
+	Button,
+	EmptyState,
+	Field,
+	fromNow,
+	Input,
+	Skeleton,
+} from "@databuddy/ui";
 import {
 	ArrowClockwiseIcon,
 	ArrowSquareOutIcon,
@@ -37,28 +44,36 @@ type ExpandedSection = "webhooks" | "stripe" | "paddle" | null;
 function RequiredEventList({
 	events,
 	lastReceived,
+	unavailable,
 }: {
 	events: readonly string[];
-	lastReceived: Map<string, string>;
+	lastReceived: Map<string, string> | undefined;
+	unavailable: boolean;
 }) {
 	return (
 		<div className="space-y-1">
 			{events.map((event) => {
-				const receivedAt = lastReceived.get(event);
+				const receivedAt = lastReceived?.get(event);
+				let status: ReactNode = <Skeleton className="h-3 w-20 rounded" />;
+				if (receivedAt) {
+					status = (
+						<>
+							<CheckCircleIcon className="size-3 text-success" />
+							{fromNow(receivedAt)}
+						</>
+					);
+				} else if (lastReceived) {
+					status = "No delivery in 90 days";
+				} else if (unavailable) {
+					status = "Unavailable";
+				}
 				return (
 					<div className="flex items-center justify-between gap-2" key={event}>
 						<code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary">
 							{event}
 						</code>
 						<span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-							{receivedAt ? (
-								<>
-									<CheckCircleIcon className="size-3 text-success" />
-									{fromNow(receivedAt)}
-								</>
-							) : (
-								"No delivery in 90 days"
-							)}
+							{status}
 						</span>
 					</div>
 				);
@@ -128,19 +143,16 @@ export function RevenueSettingsSheet({
 		isLoading,
 		refetch: refetchConfig,
 	} = useQuery(orpc.revenue.get.queryOptions({ input: { websiteId } }));
-	const { data: webhookDeliveries } = useQuery(
+	const { data: webhookDeliveries, isError: isDeliveriesError } = useQuery(
 		orpc.revenue.webhookDeliveries.queryOptions({ input: { websiteId } })
 	);
-	const stripeEventsReceived = new Map(
-		(webhookDeliveries ?? [])
-			.filter((row) => row.provider === "stripe")
-			.map((row) => [row.eventType, row.lastReceivedAt])
-	);
-	const paddleEventsReceived = new Map(
-		(webhookDeliveries ?? [])
-			.filter((row) => row.provider === "paddle")
-			.map((row) => [row.eventType, row.lastReceivedAt])
-	);
+	const eventsReceived = (provider: "paddle" | "stripe") =>
+		webhookDeliveries &&
+		new Map(
+			webhookDeliveries
+				.filter((row) => row.provider === provider)
+				.map((row) => [row.eventType, row.lastReceivedAt])
+		);
 	const savedCurrency = normalizeCurrencyCode(config?.currency);
 	const configuredCurrency =
 		typeof config?.currency === "string"
@@ -479,7 +491,8 @@ export function RevenueSettingsSheet({
 												</p>
 												<RequiredEventList
 													events={STRIPE_REQUIRED_EVENTS}
-													lastReceived={stripeEventsReceived}
+													lastReceived={eventsReceived("stripe")}
+													unavailable={isDeliveriesError}
 												/>
 												<p className="text-[11px] text-muted-foreground">
 													Timestamps show when Databuddy last received each
@@ -548,7 +561,8 @@ export function RevenueSettingsSheet({
 												</p>
 												<RequiredEventList
 													events={PADDLE_REQUIRED_EVENTS}
-													lastReceived={paddleEventsReceived}
+													lastReceived={eventsReceived("paddle")}
+													unavailable={isDeliveriesError}
 												/>
 												<p className="text-[11px] text-muted-foreground">
 													Shows when Databuddy last recorded the event, not
