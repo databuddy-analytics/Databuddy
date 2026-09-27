@@ -22,9 +22,11 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
+	type AgentPurpose,
 	CONTENT_FORMATS,
 	type ContentFormat,
 	FEATURED_AI_PRODUCTS,
+	type RobotsAccess,
 } from "@databuddy/shared/bot-detection/types";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -146,38 +148,6 @@ const pageColumns: ColumnDef<AgentPageRow>[] = [
 	numberColumn<AgentPageRow>("pageviews", "Human views"),
 ];
 
-const otherProductColumns: ColumnDef<ProductRow & { name: string }>[] = [
-	{
-		id: "name",
-		accessorKey: "name",
-		header: "Product",
-		cell: ({ row }) => (
-			<div className="flex min-w-0 items-center gap-2">
-				<AiProductIcon name={row.original.name} size="sm" />
-				<span className="truncate font-medium text-[15px]">
-					{row.original.name}
-				</span>
-			</div>
-		),
-	},
-	numberColumn<ProductRow & { name: string }>("requests", "Requests"),
-	numberColumn<ProductRow & { name: string }>("pages", "Pages read"),
-	numberColumn<ProductRow & { name: string }>("visitors", "Visitors sent"),
-	{
-		id: "last_seen",
-		accessorKey: "last_seen",
-		header: "Last read",
-		cell: ({ getValue }) => {
-			const value = getValue() as string;
-			return (
-				<span className="text-[15px] text-muted-foreground">
-					{value.startsWith(NEVER_SEEN) ? "Never" : fromNow(value)}
-				</span>
-			);
-		},
-	},
-];
-
 interface OutcomeRow {
 	engaged_rate: number;
 	name: string;
@@ -253,15 +223,13 @@ interface CrawlerRow {
 	last_seen: string;
 	name: string;
 	product: string;
-	purpose: string;
+	purpose: AgentPurpose;
 	requests: number;
 	robots: RobotsAccess | undefined;
 	user_agent: string;
 }
 
-type RobotsAccess = "allowed" | "partial" | "blocked";
-
-const PURPOSE_LABELS: Record<string, string> = {
+const PURPOSE_LABELS: Record<AgentPurpose, string> = {
 	agent: "Agent",
 	search_index: "Search",
 	training: "Training",
@@ -294,7 +262,7 @@ const crawlerColumns: ColumnDef<CrawlerRow>[] = [
 		header: "Reads for",
 		cell: ({ getValue }) => (
 			<span className="text-[15px] text-muted-foreground">
-				{PURPOSE_LABELS[getValue() as string] ?? ""}
+				{PURPOSE_LABELS[getValue() as AgentPurpose]}
 			</span>
 		),
 	},
@@ -454,11 +422,11 @@ function AgentSetup({
 
 function mainPurpose(row: ProductRow): string | null {
 	const purposes = [
-		{ label: "training", value: row.training },
-		{ label: "search", value: row.search_index },
-		{ label: "answers", value: row.on_demand },
+		{ label: PURPOSE_LABELS.training, value: row.training },
+		{ label: PURPOSE_LABELS.search_index, value: row.search_index },
+		{ label: PURPOSE_LABELS.user_fetch, value: row.on_demand },
 	].sort((a, b) => b.value - a.value);
-	return purposes[0].value > 0 ? purposes[0].label : null;
+	return purposes[0].value > 0 ? purposes[0].label.toLowerCase() : null;
 }
 
 function emptyProduct(product: string): ProductRow {
@@ -528,10 +496,12 @@ function FormatCard({
 }
 
 function ProductCard({
+	isHourly,
 	isLoading,
 	row,
 	trend,
 }: {
+	isHourly: boolean;
 	isLoading: boolean;
 	row: ProductRow;
 	trend: TrendPoint[];
@@ -571,7 +541,8 @@ function ProductCard({
 						height={36}
 						id={`ai-product-${row.product.replace(NON_ID_CHARS, "-")}`}
 						tooltip={{
-							formatLabelAction: (label) => dayjs(label).format("ddd, MMM D"),
+							formatLabelAction: (label) =>
+								dayjs(label).format(isHourly ? "ddd HH:mm" : "ddd, MMM D"),
 							formatValue: formatNumber,
 							valueSuffixLabel: "visitors",
 						}}
@@ -957,20 +928,16 @@ export default function AgentsPage() {
 	const featured = FEATURED_AI_PRODUCTS.map(
 		(name) => products.find((row) => row.product === name) ?? emptyProduct(name)
 	);
-	const others = products
-		.filter((row) => !FEATURED_AI_PRODUCTS.includes(row.product))
-		.map((row) => ({ ...row, name: row.product }));
-
-	const outcomeRows = outcomes.map(({ product, ...row }): OutcomeRow => {
-		const earned = revenue.find((item) => item.name === product);
-		return {
+	const outcomeRows = outcomes.map(
+		({ product, ...row }): OutcomeRow => ({
 			...row,
 			name: product,
-			revenue: earned
-				? formatRevenueCurrency(earned.revenue, earned.currency)
-				: "",
-		};
-	});
+			revenue: revenue
+				.filter((item) => item.name === product)
+				.map((item) => formatRevenueCurrency(item.revenue, item.currency))
+				.join(", "),
+		})
+	);
 
 	const pageRows = useMemo(
 		(): AgentPageRow[] =>
@@ -998,6 +965,7 @@ export default function AgentsPage() {
 				<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-3">
 					{featured.map((row) => (
 						<ProductCard
+							isHourly={isHourly}
 							isLoading={isLoading}
 							key={row.product}
 							row={row}
@@ -1076,17 +1044,6 @@ export default function AgentsPage() {
 					isLoading={isLoading}
 					title="Pages"
 				/>
-
-				{isLoading || others.length > 0 ? (
-					<DataTable
-						columns={otherProductColumns}
-						data={others}
-						description="Coding agents, crawlers and other AI products"
-						initialPageSize={5}
-						isLoading={isLoading}
-						title="Other AI"
-					/>
-				) : null}
 
 				<div className="space-y-2">
 					<p className="text-pretty text-muted-foreground text-xs">
