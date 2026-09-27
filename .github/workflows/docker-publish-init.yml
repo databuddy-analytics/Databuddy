@@ -8,7 +8,6 @@ on:
     paths:
       - "init.Dockerfile"
       - ".dockerignore"
-      - "apps/**"
       - "packages/**"
       - "tsconfig/**"
       - "bun.lock"

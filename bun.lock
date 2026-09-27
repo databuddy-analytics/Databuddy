@@ -436,12 +436,12 @@
         "@databuddy/shared": "workspace:*",
         "@faker-js/faker": "^10.5.0",
         "@neondatabase/serverless": "^1.0.2",
+        "drizzle-kit": "^1.0.0-rc.1",
         "drizzle-orm": "catalog:",
         "pg": "^8.16.3",
       },
       "devDependencies": {
         "@types/pg": "^8.16.0",
-        "drizzle-kit": "^1.0.0-rc.1",
         "tsx": "^4.21.0",
       },
     },
