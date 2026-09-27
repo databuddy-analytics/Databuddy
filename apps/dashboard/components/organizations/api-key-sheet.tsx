@@ -203,6 +203,7 @@ export function ApiKeySheet({
 			return;
 		}
 		lastResetKeyId.current = resetKey;
+		setNewSecret(null);
 		setExpiryOpen(!apiKey);
 
 		if (!apiKey) {
@@ -252,13 +253,7 @@ export function ApiKeySheet({
 		setShowRotateConfirm(false);
 		setShowRevokeConfirm(false);
 		onOpenChangeAction(false);
-		setTimeout(() => {
-			lastResetKeyId.current = null;
-			setNewSecret(null);
-			setTags([]);
-			setWebsiteAccess([]);
-			form.reset();
-		}, 200);
+		lastResetKeyId.current = null;
 	};
 
 	const invalidateQueries = () => {
