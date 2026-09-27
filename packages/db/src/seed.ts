@@ -66,6 +66,15 @@ const SESSION_POOL = Array.from({ length: TOTAL_SESSIONS }, () => {
 	};
 });
 
+function sessionFor(index: number, total: number) {
+	const sessionIndex = Math.floor(index / (total / TOTAL_SESSIONS));
+	const session = SESSION_POOL[Math.min(sessionIndex, SESSION_POOL.length - 1)];
+	if (!session) {
+		throw new Error("Seed session pool is empty");
+	}
+	return session;
+}
+
 function generatePageTitle(path: string): string {
 	if (path === "/") {
 		return "Home";
@@ -83,9 +92,7 @@ function generatePageTitle(path: string): string {
 	const domain = website?.domain || "example.com";
 
 	const events = Array.from({ length: eventCount }, (_, index) => {
-		const sessionIndex = Math.floor(index / (eventCount / TOTAL_SESSIONS));
-		const session =
-			SESSION_POOL[Math.min(sessionIndex, SESSION_POOL.length - 1)];
+		const session = sessionFor(index, eventCount);
 		const user = session.user;
 
 		const maxSessionDuration = 2 * 60 * 60 * 1000;
@@ -195,11 +202,7 @@ function generatePageTitle(path: string): string {
 	const outgoingLinks = Array.from(
 		{ length: Math.floor(eventCount / 10) },
 		(_, index) => {
-			const sessionIndex = Math.floor(
-				index / (Math.floor(eventCount / 10) / TOTAL_SESSIONS)
-			);
-			const session =
-				SESSION_POOL[Math.min(sessionIndex, SESSION_POOL.length - 1)];
+			const session = sessionFor(index, Math.floor(eventCount / 10));
 
 			const maxSessionDuration = 2 * 60 * 60 * 1000;
 			const sessionProgress =
@@ -228,11 +231,7 @@ function generatePageTitle(path: string): string {
 	const errors = Array.from(
 		{ length: Math.floor(eventCount / 20) },
 		(_, index) => {
-			const sessionIndex = Math.floor(
-				index / (Math.floor(eventCount / 20) / TOTAL_SESSIONS)
-			);
-			const session =
-				SESSION_POOL[Math.min(sessionIndex, SESSION_POOL.length - 1)];
+			const session = sessionFor(index, Math.floor(eventCount / 20));
 
 			const maxSessionDuration = 2 * 60 * 60 * 1000;
 			const sessionProgress =
@@ -288,11 +287,7 @@ function generatePageTitle(path: string): string {
 	const webVitals = Array.from(
 		{ length: Math.floor(eventCount / 5) },
 		(_, index) => {
-			const sessionIndex = Math.floor(
-				index / (Math.floor(eventCount / 5) / TOTAL_SESSIONS)
-			);
-			const session =
-				SESSION_POOL[Math.min(sessionIndex, SESSION_POOL.length - 1)];
+			const session = sessionFor(index, Math.floor(eventCount / 5));
 
 			const maxSessionDuration = 2 * 60 * 60 * 1000;
 			const sessionProgress =

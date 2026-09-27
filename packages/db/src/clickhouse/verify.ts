@@ -26,8 +26,7 @@ const c = {
 };
 
 function dbNameOf(sql: string): string {
-	const m = sql.match(DATABASE_PATTERN);
-	return m ? m[1] : "analytics";
+	return sql.match(DATABASE_PATTERN)?.[1] ?? "analytics";
 }
 
 async function fetchLive(): Promise<Map<string, ParsedTable>> {
