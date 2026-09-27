@@ -8,6 +8,10 @@ import {
 	setupCheckKey,
 	setupCheckUserAgent,
 } from "@databuddy/shared/bot-detection/ai-agents";
+import {
+	ROBOTS_ACCESS,
+	type RobotsAccess,
+} from "@databuddy/shared/bot-detection/types";
 import { safeFetch } from "@databuddy/shared/ssrf-guard";
 import { auditActions } from "@databuddy/shared/audit";
 import {
@@ -62,8 +66,6 @@ const ROBOTS_COMMENT = /#.*$/;
 const ROBOTS_ROOT_PATHS = new Set(["/", "/*", "*"]);
 const ROBOTS_MAX_BYTES = 512_000;
 
-type RobotsAccess = "allowed" | "partial" | "blocked";
-
 interface RobotsGroup {
 	agents: string[];
 	rules: { isAllow: boolean; path: string }[];
@@ -82,7 +84,9 @@ function parseRobotsTxt(robotsTxt: string): RobotsGroup[] {
 				current = { agents: [], rules: [] };
 				groups.push(current);
 			}
-			current.agents.push(value.toLowerCase());
+			if (value) {
+				current.agents.push(value.toLowerCase());
+			}
 			isReadingAgents = true;
 		} else if (key) {
 			isReadingAgents = false;
@@ -1242,7 +1246,7 @@ export const websitesRouter = {
 		.output(
 			z.object({
 				hasRobotsTxt: z.boolean(),
-				access: z.array(z.enum(["allowed", "partial", "blocked"])),
+				access: z.array(z.enum(ROBOTS_ACCESS)),
 			})
 		)
 		.handler(async ({ context, input }) => {
