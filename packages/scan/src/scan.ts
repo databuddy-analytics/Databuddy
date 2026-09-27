@@ -35,7 +35,8 @@ export const scanOptionsSchema = z.object({
 });
 const concurrency = 8;
 const batchFiles = 2;
-const timeoutMs = 15_000;
+const gatewayTimeoutMs = 15_000;
+const hostedTimeoutMs = 2 * gatewayTimeoutMs + 5000;
 const maxRequestBytes = 48_000;
 const attemptSchema = z.object({
 	attempt: z.number(),
@@ -862,6 +863,7 @@ export async function scan(
 			?.trim()
 			.replace(quoted, "$2") ||
 		undefined;
+	const timeoutMs = apiKey ? gatewayTimeoutMs : hostedTimeoutMs;
 	const destination: Destination = apiKey
 		? { host: "ai-gateway.vercel.sh", kind: "gateway" }
 		: { host: new URL(hostedScanUrl).host, kind: "databuddy" };
