@@ -3,6 +3,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 const PORT = Number(process.env.DATABUDDY_E2E_PORT ?? 3000);
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
+const API_PORT = Number(process.env.DATABUDDY_E2E_API_PORT ?? 3001);
+const apiURL = `http://localhost:${API_PORT}`;
 const serveBuild = readBooleanEnv("DATABUDDY_E2E_SERVE_BUILD");
 const dashboardCommand = serveBuild
 	? `NODE_ENV=development bun run build && NODE_ENV=development bun next start -p ${PORT}`
@@ -22,7 +24,7 @@ export default defineConfig({
 		video: "retain-on-failure",
 	},
 	webServer: {
-		command: `bash -c 'bun --cwd ../api src/index.ts --port 3001 & api_pid=$!; trap "kill $api_pid 2>/dev/null || true" EXIT; until curl -sf http://localhost:3001/health >/dev/null; do sleep 0.2; done; ${dashboardCommand}'`,
+		command: `bash -c 'PORT=${API_PORT} bun --cwd ../api src/index.ts & api_pid=$!; trap "kill $api_pid 2>/dev/null || true" EXIT; until curl -sf --max-time 2 ${apiURL}/health >/dev/null; do kill -0 $api_pid 2>/dev/null || { echo "The e2e API exited before it became healthy." >&2; exit 1; }; sleep 0.2; done; ${dashboardCommand}'`,
 		env: {
 			DATABUDDY_E2E_MODE: process.env.DATABUDDY_E2E_MODE ?? "true",
 			NEXT_PUBLIC_DATABUDDY_E2E_MODE:
@@ -50,10 +52,9 @@ export default defineConfig({
 				process.env.GOOGLE_CLIENT_SECRET ?? "e2e-google-client-secret",
 			BETTER_AUTH_URL: baseURL,
 			DASHBOARD_URL: baseURL,
-			API_URL: process.env.API_URL ?? "http://localhost:3001",
+			API_URL: process.env.API_URL ?? apiURL,
 			NEXT_PUBLIC_APP_URL: baseURL,
-			NEXT_PUBLIC_API_URL:
-				process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001",
+			NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? apiURL,
 		},
 		reuseExistingServer: readBooleanEnv("DATABUDDY_E2E_REUSE_SERVER"),
 		stdout: serveBuild ? "pipe" : "ignore",
