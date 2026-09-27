@@ -125,11 +125,16 @@ export function matchesTrackingBlockIgnoredOrigin(
 
 function isPrivateIpv4(host: string): boolean {
 	const parts = host.split(".").map((part) => Number.parseInt(part, 10));
-	if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) {
+	const [a, b] = parts;
+	if (
+		a === undefined ||
+		b === undefined ||
+		parts.length !== 4 ||
+		parts.some((part) => Number.isNaN(part))
+	) {
 		return false;
 	}
 
-	const [a, b] = parts;
 	if (a === 10) {
 		return true;
 	}

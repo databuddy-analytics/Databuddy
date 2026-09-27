@@ -271,10 +271,10 @@ function flagsChanged(a: DatabuddyFlagsSnapshot, b: DatabuddyFlagsSnapshot) {
 	if (a.flags.length !== b.flags.length) {
 		return true;
 	}
-	for (let i = 0; i < a.flags.length; i += 1) {
-		const x = a.flags[i];
+	for (const [i, x] of a.flags.entries()) {
 		const y = b.flags[i];
 		if (
+			y === undefined ||
 			x.key !== y.key ||
 			x.enabled !== y.enabled ||
 			x.value !== y.value ||
@@ -291,11 +291,13 @@ function diagnosticsChanged(a: DiagnosticItem[], b: DiagnosticItem[]) {
 	if (a.length !== b.length) {
 		return true;
 	}
-	for (let i = 0; i < a.length; i += 1) {
+	for (const [i, x] of a.entries()) {
+		const y = b[i];
 		if (
-			a[i].id !== b[i].id ||
-			a[i].status !== b[i].status ||
-			a[i].label !== b[i].label
+			y === undefined ||
+			x.id !== y.id ||
+			x.status !== y.status ||
+			x.label !== y.label
 		) {
 			return true;
 		}

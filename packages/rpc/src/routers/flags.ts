@@ -625,7 +625,7 @@ export const flagsRouter = {
 				);
 			}
 
-			const existingFlag = await context.db
+			const [existingFlag] = await context.db
 				.select()
 				.from(flags)
 				.where(
@@ -641,8 +641,8 @@ export const flagsRouter = {
 			);
 
 			const finalStatus = hasInactiveDependency ? "inactive" : input.status;
-			if (existingFlag.length > 0) {
-				if (!existingFlag[0].deletedAt) {
+			if (existingFlag) {
+				if (!existingFlag.deletedAt) {
 					throw rpcError.conflict(
 						"A flag with this key already exists in this scope"
 					);
@@ -660,7 +660,7 @@ export const flagsRouter = {
 							rules: input.rules,
 							persistAcrossAuth:
 								input.persistAcrossAuth ??
-								existingFlag[0].persistAcrossAuth ??
+								existingFlag.persistAcrossAuth ??
 								false,
 							rolloutPercentage: input.rolloutPercentage,
 							rolloutBy: input.rolloutBy,
@@ -670,12 +670,18 @@ export const flagsRouter = {
 							deletedAt: null,
 							updatedAt: new Date(),
 						})
-						.where(eq(flags.id, existingFlag[0].id))
+						.where(eq(flags.id, existingFlag.id))
 						.returning();
+
+					if (!restored) {
+						throw rpcError.conflict(
+							"The flag changed while it was being restored. Try again."
+						);
+					}
 
 					await tx
 						.delete(flagsToTargetGroups)
-						.where(eq(flagsToTargetGroups.flagId, existingFlag[0].id));
+						.where(eq(flagsToTargetGroups.flagId, existingFlag.id));
 
 					if (input.targetGroupIds && input.targetGroupIds.length > 0) {
 						const ids = input.targetGroupIds;
@@ -700,7 +706,7 @@ export const flagsRouter = {
 
 						await tx.insert(flagsToTargetGroups).values(
 							input.targetGroupIds.map((targetGroupId) => ({
-								flagId: existingFlag[0].id,
+								flagId: existingFlag.id,
 								targetGroupId,
 							}))
 						);
@@ -712,7 +718,7 @@ export const flagsRouter = {
 						websiteId: restored.websiteId,
 						organizationId: restored.organizationId,
 						changeType: "restored",
-						before: buildFlagChangeSnapshot(existingFlag[0]),
+						before: buildFlagChangeSnapshot(existingFlag),
 						after: buildFlagChangeSnapshot(restored),
 						changedBy: createdBy,
 					});
@@ -753,11 +759,15 @@ export const flagsRouter = {
 						dependencies: input.dependencies || [],
 						websiteId: input.websiteId || null,
 						organizationId: input.organizationId || null,
-						environment: input.environment || existingFlag?.[0]?.environment,
+						environment: input.environment || null,
 						userId: null,
 						createdBy,
 					})
 					.returning();
+
+				if (!createdFlag) {
+					throw rpcError.internal("Failed to create flag");
+				}
 
 				if (input.targetGroupIds && input.targetGroupIds.length > 0) {
 					const ids = input.targetGroupIds;
@@ -830,17 +840,15 @@ export const flagsRouter = {
 					...(input.status && { status: input.status }),
 				});
 			}
-			const existingFlag = await context.db
+			const [flag] = await context.db
 				.select()
 				.from(flags)
 				.where(and(eq(flags.id, input.id), isNull(flags.deletedAt)))
 				.limit(1);
 
-			if (existingFlag.length === 0) {
+			if (!flag) {
 				throw rpcError.notFound("Flag", input.id);
 			}
-
-			const flag = existingFlag[0];
 
 			let workspace: AuthedWorkspaceWithPlan | undefined;
 			if (flag.websiteId) {
@@ -950,6 +958,10 @@ export const flagsRouter = {
 					.where(and(eq(flags.id, id), notDeleted(flags)))
 					.returning();
 
+				if (!updated) {
+					throw rpcError.notFound("Flag", id);
+				}
+
 				if (targetGroupIds !== undefined) {
 					// Validate that all target groups exist and belong to the same website
 					if (targetGroupIds.length > 0) {
@@ -1025,17 +1037,16 @@ export const flagsRouter = {
 		.input(z.object({ id: z.string() }))
 		.output(successOutputSchema)
 		.handler(async ({ context, input }) => {
-			const existingFlag = await context.db
+			const [flag] = await context.db
 				.select()
 				.from(flags)
 				.where(and(eq(flags.id, input.id), isNull(flags.deletedAt)))
 				.limit(1);
 
-			if (existingFlag.length === 0) {
+			if (!flag) {
 				throw rpcError.notFound("Flag", input.id);
 			}
 
-			const flag = existingFlag[0];
 			let workspace: Workspace | undefined;
 
 			if (flag.websiteId) {
@@ -1067,6 +1078,10 @@ export const flagsRouter = {
 					})
 					.where(and(eq(flags.id, input.id), isNull(flags.deletedAt)))
 					.returning();
+
+				if (!archivedFlag) {
+					throw rpcError.notFound("Flag", input.id);
+				}
 
 				await tx.insert(flagChangeEvents).values({
 					id: randomUUIDv7(),

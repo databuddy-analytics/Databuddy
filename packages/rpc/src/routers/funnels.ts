@@ -76,7 +76,7 @@ const getEffectiveStartDate = (
 		return requestedStartDate;
 	}
 
-	const createdDate = new Date(createdAt).toISOString().split("T")[0];
+	const createdDate = new Date(createdAt).toISOString().slice(0, 10);
 	return new Date(requestedStartDate) > new Date(createdDate)
 		? requestedStartDate
 		: createdDate;
@@ -396,6 +396,10 @@ export const funnelsRouter = {
 				})
 				.returning();
 
+			if (!newFunnel) {
+				throw rpcError.internal("Failed to create funnel");
+			}
+
 			await invalidateFunnelsCache(input.websiteId);
 			return newFunnel;
 		}),
@@ -450,6 +454,10 @@ export const funnelsRouter = {
 					and(eq(funnelDefinitions.id, id), isNull(funnelDefinitions.deletedAt))
 				)
 				.returning();
+
+			if (!updatedFunnel) {
+				throw rpcError.notFound("funnel", id);
+			}
 
 			await invalidateFunnelsCache(existingFunnel.websiteId, id);
 			await queueDefinitionChangeRechecks({

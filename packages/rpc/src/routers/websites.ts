@@ -1214,11 +1214,13 @@ export const websitesRouter = {
 			if (!website) {
 				throw rpcError.notFound("website");
 			}
-			const [homepage, llmsTxt] = await Promise.all(
-				["/", "/llms.txt"].map((path) =>
-					isAgentRequestRecorded(website.id, `https://${website.domain}${path}`)
-				)
-			);
+			const [homepage, llmsTxt] = await Promise.all([
+				isAgentRequestRecorded(website.id, `https://${website.domain}/`),
+				isAgentRequestRecorded(
+					website.id,
+					`https://${website.domain}/llms.txt`
+				),
+			]);
 			return { homepage, llmsTxt };
 		}),
 

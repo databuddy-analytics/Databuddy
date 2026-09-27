@@ -201,12 +201,14 @@ export const retentionMeasurementSchema = z
 			const end = calendar.format(new Date(overall.cohortEnd));
 			if (
 				Date.parse(end) - Date.parse(from) !== 7 * 86_400_000 ||
-				rows.some(
-					(row, index) =>
+				rows.some((row, index) => {
+					const previous = rows[index - 1];
+					return (
 						row.date < from ||
 						row.date >= end ||
-						(index > 0 && row.date <= rows[index - 1].date)
-				) ||
+						(previous !== undefined && row.date <= previous.date)
+					);
+				}) ||
 				(
 					[
 						"eligible",

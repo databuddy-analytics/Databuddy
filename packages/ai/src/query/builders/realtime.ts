@@ -1,7 +1,7 @@
 import { Analytics } from "../../types/tables";
 import type { SimpleQueryConfig } from "../types";
 
-export const RealtimeBuilders: Record<string, SimpleQueryConfig> = {
+export const RealtimeBuilders = {
 	realtime_pages: {
 		meta: {
 			title: "Realtime Top Pages",
@@ -385,4 +385,4 @@ export const RealtimeBuilders: Record<string, SimpleQueryConfig> = {
 		noCache: true,
 		customizable: false,
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

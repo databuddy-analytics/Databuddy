@@ -153,13 +153,16 @@ export async function measureActivationRetention(
 			.min(1)
 			.max(8)
 			.parse(await query(request, plan.domain, timezone, abortSignal));
-		const overall = rows.filter((row) => row.row_type === "overall");
+		const [overall, ...otherOverall] = rows.filter(
+			(row) => row.row_type === "overall"
+		);
 		const daily = rows.filter((row) => row.row_type === "cohort");
 		const start = dayjs.tz(from, timezone).valueOf();
 		const end = dayjs.tz(to, timezone).add(1, "day").startOf("day").valueOf();
 		if (
-			overall.length !== 1 ||
-			overall[0].cohort_date !== null ||
+			!overall ||
+			otherOverall.length > 0 ||
+			overall.cohort_date !== null ||
 			new Set(daily.map((row) => row.cohort_date)).size !== daily.length ||
 			rows.some(
 				(row) =>
@@ -194,13 +197,13 @@ export async function measureActivationRetention(
 		if (
 			fields.some(
 				(field) =>
-					daily.reduce((sum, row) => sum + row[field], 0) !== overall[0][field]
+					daily.reduce((sum, row) => sum + row[field], 0) !== overall[field]
 			)
 		) {
 			throw new Error("Retention cohort rows are incomplete");
 		}
 		return {
-			overall: retentionWindow(overall[0]),
+			overall: retentionWindow(overall),
 			daily: daily
 				.map((row) => ({
 					date: z.iso.date().parse(row.cohort_date),

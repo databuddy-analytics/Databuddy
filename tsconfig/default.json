@@ -5,7 +5,9 @@
     "lib": ["ES2022", "DOM"],
     "types": ["bun"],
     "jsx": "react-jsx",
+    "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
     "allowImportingTsExtensions": true,
     "noEmit": true
   },

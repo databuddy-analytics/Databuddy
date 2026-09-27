@@ -67,16 +67,13 @@ export function processChartData(
 ): Record<string, ProcessedMiniChartData> {
 	const historicalIds = new Set(historicalRows.map((r) => r.websiteId));
 
-	const grouped: Record<
+	const grouped = new Map<
 		string,
 		{ points: { date: string; value: number }[]; hasAnyData: boolean }
-	> = {};
-	for (const id of websiteIds) {
-		grouped[id] = { points: [], hasAnyData: false };
-	}
+	>(websiteIds.map((id) => [id, { points: [], hasAnyData: false }]));
 
 	for (const row of queryResults) {
-		const entry = grouped[row.websiteId];
+		const entry = grouped.get(row.websiteId);
 		if (!entry) {
 			continue;
 		}
@@ -87,8 +84,7 @@ export function processChartData(
 	}
 
 	const result: Record<string, ProcessedMiniChartData> = {};
-	for (const id of websiteIds) {
-		const { points, hasAnyData } = grouped[id];
+	for (const [id, { points, hasAnyData }] of grouped) {
 		result[id] = {
 			data: points,
 			totalViews: points.reduce((sum, p) => sum + p.value, 0),

@@ -12,7 +12,7 @@ const selectors = z.strictObject({
 	namespace: z.string().min(1).max(256).optional(),
 });
 
-export const RetentionBuilders: Record<string, SimpleQueryConfig> = {
+export const RetentionBuilders = {
 	identified_profile_retention: {
 		commonFilters: false,
 		allowedFilters: [
@@ -249,4 +249,4 @@ export const RetentionBuilders: Record<string, SimpleQueryConfig> = {
 			};
 		},
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

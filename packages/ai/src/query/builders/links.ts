@@ -67,7 +67,7 @@ const OUTBOUND_LINK_CONTEXT_CTES = `
 	)
 `;
 
-export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
+export const LinkShortenerBuilders = {
 	link_total_clicks: {
 		meta: {
 			title: "Link Total Clicks",
@@ -457,11 +457,11 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 		idField: "link_id",
 		customizable: false,
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;
 
 // Outbound Links Query Builders (Website Analytics)
 
-export const LinksBuilders: Record<string, SimpleQueryConfig> = {
+export const LinksBuilders = {
 	outbound_links: {
 		meta: {
 			title: "Outbound Links",
@@ -651,4 +651,4 @@ export const LinksBuilders: Record<string, SimpleQueryConfig> = {
 		allowedFilters: ["client_id", "anonymous_id", "session_id", "href", "text"],
 		customizable: true,
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

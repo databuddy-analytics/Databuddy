@@ -1,10 +1,8 @@
 import { t } from "elysia";
-import { QueryBuilders } from "@databuddy/ai/query/builders";
+import { QueryBuilders, type QueryType } from "@databuddy/ai/query/builders";
 import { DatePresets, type DatePreset } from "@databuddy/ai/lib/date-presets";
 
-const QUERY_BUILDER_TYPES = Object.keys(QueryBuilders) as Array<
-	keyof typeof QueryBuilders
->;
+const QUERY_BUILDER_TYPES = Object.keys(QueryBuilders) as QueryType[];
 
 export { DatePresets } from "@databuddy/ai/lib/date-presets";
 

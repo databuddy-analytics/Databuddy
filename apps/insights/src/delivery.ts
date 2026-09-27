@@ -328,9 +328,9 @@ export async function deliverInsightSlackEffect(
 		.where(eq(slackChannelBindings.slackChannelId, context.channelId))
 		.limit(2);
 	const bindingCount = integrations.length;
+	const binding = bindingCount === 1 ? integrations[0] : undefined;
 	const key = process.env.DATABUDDY_ENCRYPTION_KEY;
-	const token =
-		bindingCount === 1 && key ? decrypt(integrations[0].ciphertext, key) : null;
+	const token = binding && key ? decrypt(binding.ciphertext, key) : null;
 	if (bindingCount !== 1) {
 		emitInsightsEvent(
 			"warn",

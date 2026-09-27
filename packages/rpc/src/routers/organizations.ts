@@ -115,6 +115,10 @@ export const organizationsRouter = {
 				.where(eq(organization.id, input.organizationId))
 				.returning();
 
+			if (!updatedOrganization) {
+				throw rpcError.notFound("Organization", input.organizationId);
+			}
+
 			return { organization: updatedOrganization };
 		}),
 

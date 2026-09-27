@@ -1,5 +1,5 @@
 import { bench, describe } from "vitest";
-import { QueryBuilders } from "./builders";
+import { getQueryBuilder } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
 import type { QueryRequest } from "./types";
 
@@ -21,7 +21,7 @@ const BENCH_BUILDERS = [
 
 describe("SimpleQueryBuilder.compile (cold per-request)", () => {
 	for (const type of BENCH_BUILDERS) {
-		const config = QueryBuilders[type];
+		const config = getQueryBuilder(type);
 		if (!config) {
 			continue;
 		}
@@ -42,7 +42,7 @@ describe("SimpleQueryBuilder.compile with filters", () => {
 	};
 
 	for (const type of ["country", "top_pages", "vitals_by_country"]) {
-		const config = QueryBuilders[type];
+		const config = getQueryBuilder(type);
 		if (!config) {
 			continue;
 		}
@@ -59,7 +59,7 @@ describe("SimpleQueryBuilder.compile org-scope", () => {
 	};
 
 	for (const type of ["country", "top_pages", "revenue_by_country"]) {
-		const config = QueryBuilders[type];
+		const config = getQueryBuilder(type);
 		if (!config) {
 			continue;
 		}

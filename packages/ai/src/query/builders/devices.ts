@@ -1,7 +1,7 @@
 import { Analytics } from "../../types/tables";
 import type { SimpleQueryConfig } from "../types";
 
-export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
+export const DevicesBuilders = {
 	browser_name: {
 		meta: {
 			title: "Browser Usage",
@@ -507,4 +507,4 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		customizable: true,
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;
