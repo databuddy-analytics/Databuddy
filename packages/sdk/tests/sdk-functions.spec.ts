@@ -169,10 +169,7 @@ test.describe("SDK Functions", () => {
 		test("returns did_session when the session is fresh", async ({ page }) => {
 			const result = await page.evaluate(() => {
 				sessionStorage.setItem("did_session", "sess-456");
-				sessionStorage.setItem(
-					"did_session_timestamp",
-					Date.now().toString()
-				);
+				sessionStorage.setItem("did_session_timestamp", Date.now().toString());
 				return window.__SDK__.getSessionId();
 			});
 			expect(result).toBe("sess-456");
@@ -307,10 +304,7 @@ test.describe("SDK Functions", () => {
 			const result = await page.evaluate(() => {
 				localStorage.setItem("did", "anon-x");
 				sessionStorage.setItem("did_session", "sess-y");
-				sessionStorage.setItem(
-					"did_session_timestamp",
-					Date.now().toString()
-				);
+				sessionStorage.setItem("did_session_timestamp", Date.now().toString());
 				return window.__SDK__.getTrackingIds();
 			});
 			expect(result.anonId).toBe("anon-x");
@@ -329,10 +323,7 @@ test.describe("SDK Functions", () => {
 			const result = await page.evaluate(() => {
 				localStorage.setItem("did", "anon-a");
 				sessionStorage.setItem("did_session", "sess-b");
-				sessionStorage.setItem(
-					"did_session_timestamp",
-					Date.now().toString()
-				);
+				sessionStorage.setItem("did_session_timestamp", Date.now().toString());
 				return window.__SDK__.getTrackingParams();
 			});
 
@@ -415,10 +406,7 @@ test.describe("SDK Functions", () => {
 		}) => {
 			const result = await page.evaluate(() => {
 				sessionStorage.setItem("did_session", "sess-ok");
-				sessionStorage.setItem(
-					"did_session_timestamp",
-					Date.now().toString()
-				);
+				sessionStorage.setItem("did_session_timestamp", Date.now().toString());
 				const { getItem } = Storage.prototype;
 				localStorage.getItem = () => {
 					throw new DOMException("Access denied", "SecurityError");
