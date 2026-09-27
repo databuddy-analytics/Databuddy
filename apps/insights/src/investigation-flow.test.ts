@@ -4547,6 +4547,8 @@ describe("completed answer measurement boundary", () => {
 				"original-cohort",
 				"other-cohort",
 				"cited-other-cohort",
+				"reordered-cohort",
+				"reordered-changed-cohort",
 				"other-parent",
 				"wrong-site",
 				"wrong-definition",
@@ -4717,8 +4719,35 @@ describe("completed answer measurement boundary", () => {
 						: {}
 			);
 		}
+		if (mode.startsWith("reordered-")) {
+			const browser = {
+				field: "browser_name",
+				operator: "equals",
+				value: "Firefox",
+			};
+			for (const [id, period, filters] of [
+				[
+					"cohort-previous",
+					signal.period.previous,
+					[...cohort.filters, browser],
+				],
+				["cohort-current", signal.period.current, [browser, ...cohort.filters]],
+			] as const) {
+				const segment = measurement(period);
+				segment.measurement.definition.filters = [...filters];
+				if (mode === "reordered-changed-cohort" && id === "cohort-current") {
+					if ("steps" in segment.measurement.definition) {
+						segment.measurement.definition.steps[1].target = "/changed";
+					} else {
+						segment.measurement.definition.target = "/changed";
+					}
+				}
+				read(id, name, period, segment, true, { cohort: { filters } });
+			}
+		}
 		const publish = [
 			"other-cohort",
+			"reordered-cohort",
 			"other-parent",
 			"uncited-referrer",
 			"full-unknown-cause",
@@ -4792,6 +4821,9 @@ describe("completed answer measurement boundary", () => {
 		} else {
 			expect(errors).toHaveLength(1);
 			expect(errors[0]).toContain("Native definition measurement contradicts");
+			if (mode === "reordered-changed-cohort") {
+				expect(errors[0]).toContain("evaluated definition or filters changed");
+			}
 			if (clipsOriginal || mode.startsWith("cited-")) {
 				const period = mode.endsWith("previous")
 					? signal.period.previous

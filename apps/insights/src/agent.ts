@@ -1187,6 +1187,24 @@ function validateRepositoryAsk(
 	}
 }
 
+function evaluatedFilters(
+	filters: readonly {
+		field: string;
+		operator: string;
+		value: string | string[];
+	}[]
+) {
+	return filters
+		.map(({ field, operator, value }) =>
+			JSON.stringify({
+				field,
+				operator,
+				value: Array.isArray(value) ? [...value].sort() : value,
+			})
+		)
+		.sort();
+}
+
 function definitionMeasurementConflict(
 	input: Pick<InsightAgentInput, "signal" | "appContext">,
 	results: StepResult<ToolSet>["toolResults"],
@@ -1225,10 +1243,7 @@ function definitionMeasurementConflict(
 		endDate: z.iso.date(),
 		cohort: analyticsCohortSchema.nullish(),
 	});
-	const definitions = new Map<
-		string,
-		z.infer<typeof insightVerificationDefinitionSchema>
-	>();
+	const definitions = new Map<string, string>();
 	for (const result of results) {
 		if (
 			!(
@@ -1276,18 +1291,26 @@ function definitionMeasurementConflict(
 		const definition = insightVerificationDefinitionSchema.parse(
 			measurement.definition
 		);
+		const evaluated = JSON.stringify({
+			...definition,
+			filters: evaluatedFilters(definition.filters),
+		});
 		const population = JSON.stringify(request.cohort ?? null);
-		const previous = definitions.get(population);
+		const populationKey = JSON.stringify(
+			request.cohort ? evaluatedFilters(request.cohort.filters) : null
+		);
+		const previous = definitions.get(populationKey);
+		const changed = previous !== undefined && previous !== evaluated;
 		if (
 			measurement.websiteId !== websiteId ||
 			measurement.definitionId !== definitionId ||
 			measurement.startDate !== request.startDate ||
 			measurement.endDate !== request.endDate ||
-			(previous !== undefined && !isDeepStrictEqual(previous, definition))
+			changed
 		) {
-			return `Native definition measurement contradicts the requested comparison for ${type} ${definitionId} on ${websiteId}, cohort ${population}: requested ${request.startDate}–${request.endDate}; actual ${measurement.startDate}–${measurement.endDate}, definition ${measurement.definitionId} on ${measurement.websiteId}${previous !== undefined && !isDeepStrictEqual(previous, definition) ? "; evaluated definition or filters changed" : ""}. Resolve privately with publish=false and publicationBasis=null using the existing evidence and its actual coverage.`;
+			return `Native definition measurement contradicts the requested comparison for ${type} ${definitionId} on ${websiteId}, cohort ${population}: requested ${request.startDate}–${request.endDate}; actual ${measurement.startDate}–${measurement.endDate}, definition ${measurement.definitionId} on ${measurement.websiteId}${changed ? "; evaluated definition or filters changed" : ""}. Resolve privately with publish=false and publicationBasis=null using the existing evidence and its actual coverage.`;
 		}
-		definitions.set(population, definition);
+		definitions.set(populationKey, evaluated);
 	}
 }
 
