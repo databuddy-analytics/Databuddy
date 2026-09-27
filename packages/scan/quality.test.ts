@@ -945,7 +945,7 @@ export function Manage() { return <a href={portalUrl()}>Upgrade billing</a>; }`;
 	assert.deepEqual(sites("href={portalUrl()}"), ["api/billing.ts:4"]);
 });
 
-test("a bound or applied action reaches its write only when it is invoked", () => {
+test("a handler is an action once it writes: an invoked bind or apply, or a cookie", () => {
 	const actions = (body: string) => {
 		const source = `import { save } from "./save";
 export function Page() {
@@ -959,6 +959,8 @@ export function Page() {
 	assert.equal(actions("const run = save.bind(null, id); run();").length, 1);
 	assert.equal(actions("save.apply(null, [id]);").length, 1);
 	assert.equal(actions("const later = save.bind(null, id);").length, 0);
+	assert.equal(actions('document.cookie = "consent=1";').length, 1);
+	assert.equal(actions("open = true;").length, 0);
 });
 
 test("a product callback on a component is an action at its origin, not where it is forwarded", () => {

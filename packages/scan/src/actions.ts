@@ -494,6 +494,7 @@ const submitButton =
 const markupLabel = /\blabel\s*=\s*["']([^"']+)["']/i;
 const reference = /^[\w$.]+$/;
 const navigation = /(?:^|\.)(?:location|href)$/;
+const cookieWrite = /(?:^|\.)document\.cookie$/;
 const classicScript = /\.c?js$/i;
 const moduleSyntax = /^[ \t]*(?:import|export)\b/m;
 const topLevelName =
@@ -1105,7 +1106,8 @@ export function groupActions(
 			if (
 				ts.isBinaryExpression(node) &&
 				node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-				navigation.test(node.left.getText(owner.file))
+				(navigation.test(node.left.getText(owner.file)) ||
+					cookieWrite.test(node.left.getText(owner.file)))
 			) {
 				navigates = true;
 			}
@@ -2042,6 +2044,14 @@ export function groupActions(
 							followingLink = linking;
 						}
 					}
+				}
+				if (
+					ts.isBinaryExpression(child) &&
+					child.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+					cookieWrite.test(child.left.getText(owner.file))
+				) {
+					commits = true;
+					addSite(owner, child);
 				}
 				if (!ts.isCallExpression(child)) {
 					return;
