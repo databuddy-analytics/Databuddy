@@ -13,6 +13,7 @@ on:
       - "bun.lock"
       - "package.json"
       - "turbo.json"
+      - "tsconfig/**"
       - ".github/workflows/docker-publish.yml"
   workflow_dispatch:
   workflow_call:
@@ -65,7 +66,12 @@ jobs:
             echo "services=$ALL" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [[ -z "$BEFORE_SHA" || "$BEFORE_SHA" == "0000000000000000000000000000000000000000" ]]; then
+          if [[ -z "$BEFORE_SHA" || "$BEFORE_SHA" == "0000000000000000000000000000000000000000" ]] || ! git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null || ! git merge-base --is-ancestor "$BEFORE_SHA" HEAD; then
+            echo "services=$ALL" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only --no-renames "$BEFORE_SHA" HEAD)
+          if grep -qE '^(\.dockerignore|package\.json|turbo\.json|\.github/workflows/docker-publish\.yml)$' <<< "$changed"; then
             echo "services=$ALL" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -74,7 +80,7 @@ jobs:
           affected=()
           for svc in api basket insights links uptime; do
             count=$(bunx turbo ls --affected --filter="@databuddy/$svc" --output=json | jq -r '.packages.count')
-            if [[ "$count" != "0" ]]; then
+            if [[ "$count" != "0" ]] || grep -qxF "$svc.Dockerfile" <<< "$changed"; then
               affected+=("\"$svc\"")
             fi
           done
