@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/scan",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Find product analytics tracking opportunities in your codebase.",
   "license": "MIT",
   "type": "module",
