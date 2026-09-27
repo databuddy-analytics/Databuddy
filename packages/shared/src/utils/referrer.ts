@@ -132,6 +132,9 @@ export function parseReferrer(
 	}
 
 	const match = lookupReferrer(hostname);
+	if (match?.type === "direct") {
+		return directReferrer(raw);
+	}
 	if (match) {
 		return {
 			type: match.type,
