@@ -191,15 +191,15 @@ export const DEEP_LINK_APPS: readonly DeepLinkApp[] = [
 		placeholder: "https://t.me/username",
 		resolveUri: (url) => {
 			const path = url.pathname.replace(TRAILING_SLASH, "");
-			const parts = path.split("/").filter(Boolean);
-			if (parts[0] === "joinchat" && parts[1]) {
-				return `tg://join?invite=${parts[1]}`;
+			const [first, second, ...rest] = path.split("/").filter(Boolean);
+			if (first === "joinchat" && second) {
+				return `tg://join?invite=${second}`;
 			}
-			if (parts.length === 1) {
-				return `tg://resolve?domain=${parts[0]}`;
+			if (first && second === undefined) {
+				return `tg://resolve?domain=${first}`;
 			}
-			if (parts.length === 2 && DIGITS_ONLY.test(parts[1])) {
-				return `tg://resolve?domain=${parts[0]}&post=${parts[1]}`;
+			if (second && rest.length === 0 && DIGITS_ONLY.test(second)) {
+				return `tg://resolve?domain=${first}&post=${second}`;
 			}
 			return null;
 		},

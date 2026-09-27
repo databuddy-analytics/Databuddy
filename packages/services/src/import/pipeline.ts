@@ -295,10 +295,12 @@ function assignDimension(
 	let session = 0;
 	for (const total of [...totals].sort((a, b) => b.pageviews - a.pageviews)) {
 		let budget = total.pageviews;
-		while (budget > 0 && session < sessions.length) {
+		let planned = sessions[session];
+		while (budget > 0 && planned !== undefined) {
 			assigned[session] = total.value;
-			budget -= sessions[session].pageviews;
+			budget -= planned.pageviews;
 			session += 1;
+			planned = sessions[session];
 		}
 	}
 	return assigned;

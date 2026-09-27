@@ -57,8 +57,7 @@ export function matchCategory(userAgent: string): string | null {
 		return null;
 	}
 	const lower = userAgent.toLowerCase();
-	for (const cat of Object.keys(UA_PATTERNS)) {
-		const literals = UA_PATTERNS[cat];
+	for (const [cat, literals] of Object.entries(UA_PATTERNS)) {
 		if (literals.some((p) => lower.includes(p))) {
 			return cat;
 		}

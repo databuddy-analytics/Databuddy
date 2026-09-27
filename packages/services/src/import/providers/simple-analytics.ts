@@ -38,17 +38,18 @@ async function sourceText(source: ImportSource): Promise<string[]> {
 }
 
 function hasSimpleAnalyticsHeader(text: string): boolean {
-	const [header] = text.split("\n", 1);
+	const [header = ""] = text.split("\n", 1);
 	return header.includes("added_iso") && header.includes("is_unique");
 }
 
 function findOpenVisit(open: Visit[], timeMs: number): Visit | undefined {
-	for (let i = open.length - 1; i >= 0; i -= 1) {
-		const candidate = open[i];
+	let candidate = open.at(-1);
+	while (candidate) {
 		if (timeMs - candidate.lastSeenMs <= SESSION_WINDOW_MS) {
 			return candidate;
 		}
-		open.splice(i, 1);
+		open.pop();
+		candidate = open.at(-1);
 	}
 	return;
 }
@@ -68,16 +69,21 @@ export const simpleAnalyticsProvider: ImportProvider = {
 		const rows = texts
 			.filter(hasSimpleAnalyticsHeader)
 			.flatMap((text) => parseCsv(text))
-			.filter((row) => row.added_iso && row.path && !isTruthy(row.is_robot))
-			.map((row) => ({ row, timeMs: Date.parse(row.added_iso) }))
-			.filter(({ timeMs }) => Number.isFinite(timeMs))
+			.flatMap((row) => {
+				const { added_iso: addedIso, path } = row;
+				if (!(addedIso && path) || isTruthy(row.is_robot)) {
+					return [];
+				}
+				const timeMs = Date.parse(addedIso);
+				return Number.isFinite(timeMs) ? [{ row, path, timeMs }] : [];
+			})
 			.sort((a, b) => a.timeMs - b.timeMs);
 
 		const open: Visit[] = [];
 		const closed: Visit[] = [];
 		let counter = 0;
 
-		for (const { row, timeMs } of rows) {
+		for (const { row, path, timeMs } of rows) {
 			let visit = isTruthy(row.is_unique)
 				? undefined
 				: findOpenVisit(open, timeMs);
@@ -87,7 +93,7 @@ export const simpleAnalyticsProvider: ImportProvider = {
 					lastSeenMs: timeMs,
 					pageviews: 0,
 					durationSeconds: 0,
-					path: row.path,
+					path,
 				};
 				counter += 1;
 				open.push(visit);
@@ -96,13 +102,13 @@ export const simpleAnalyticsProvider: ImportProvider = {
 			visit.lastSeenMs = timeMs;
 			visit.pageviews += 1;
 			visit.durationSeconds += csvNumber(row.duration_seconds);
-			visit.path = row.path;
+			visit.path = path;
 			visit.hostname = row.hostname || undefined;
 
 			const event: ImportedEvent = {
 				time: new Date(timeMs),
 				eventName: PAGEVIEW_EVENT_NAME,
-				path: row.path,
+				path,
 				hostname: row.hostname || undefined,
 				visitorKey: visit.key,
 				sessionKey: visit.key,

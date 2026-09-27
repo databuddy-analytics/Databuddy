@@ -409,12 +409,15 @@ export function createGitHubTools(
 			return {
 				repo: `${repo.owner}/${repo.repo}`,
 				count: commits.length,
-				commits: commits.map((c) => ({
-					sha: c.sha,
-					message: c.commit.message.split("\n")[0].slice(0, 120),
-					author: c.commit.author?.name,
-					date: c.commit.author?.date,
-				})),
+				commits: commits.map((c) => {
+					const [subject = ""] = c.commit.message.split("\n", 1);
+					return {
+						sha: c.sha,
+						message: subject.slice(0, 120),
+						author: c.commit.author?.name,
+						date: c.commit.author?.date,
+					};
+				}),
 			};
 		},
 	});
