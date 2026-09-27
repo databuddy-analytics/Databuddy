@@ -169,45 +169,9 @@ jobs:
       - name: Self-hosted billing UI
         if: ${{ !cancelled() }}
         run: bun test --no-env-file --isolate apps/dashboard/components/providers/selfhost-billing.test.tsx
-      - name: Business context integration
-        if: ${{ !cancelled() }}
-        env:
-          NODE_ENV: test
-          BUSINESS_CONTEXT_INTEGRATION_TESTS: "true"
-        run: |
-          bun test packages/services/src/organization-business-context.integration.test.ts packages/services/src/business-memory.integration.test.ts packages/services/src/measurement-plan.integration.test.ts packages/ai/src/lib/business-context.test.ts
-          bun test packages/auth/src/organization-metadata.integration.test.ts
-      - name: MCP OAuth integration
-        if: ${{ !cancelled() }}
-        env:
-          NODE_ENV: test
-          MCP_OAUTH_INTEGRATION_TESTS: "true"
-          REQUIRE_EMAIL_VERIFICATION: "false"
-        run: |
-          bun test packages/auth/src/mcp-oauth.integration.test.ts
-          bun test packages/ai/src/ai/mcp/oauth-website-access.integration.test.ts
-      - name: Insights integration
-        if: ${{ !cancelled() }}
-        env:
-          NODE_ENV: test
-          BULLMQ_REDIS_URL: redis://localhost:6379/4
-        run: bun run --cwd apps/insights test:integration
-      - name: API integration
-        if: ${{ !cancelled() }}
-        env:
-          NODE_ENV: test
-          UPTIME_ROUTER_INTEGRATION: "true"
-          BULLMQ_REDIS_URL: redis://localhost:6379/3
-        run: bun run --cwd apps/api test:integration
-      - name: Uptime scheduler integration
-        if: ${{ !cancelled() }}
-        env:
-          NODE_ENV: test
-          BULLMQ_REDIS_URL: redis://localhost:6379/5
-        run: bun run --cwd packages/rpc test:integration
-      - name: Stripe revenue pipeline
+      - name: Integration
         if: ${{ !cancelled() }}
         env:
           NODE_ENV: test
           CLICKHOUSE_URL: http://default:@localhost:8123
-        run: bun run --cwd packages/ai test:stripe-revenue:e2e
+        run: bun run test:integration

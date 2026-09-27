@@ -1,3 +1,4 @@
+import "@databuddy/db/test-env";
 import {
 	afterAll,
 	afterEach,
@@ -31,9 +32,10 @@ async function waitFor(
 const TEST_SCHEDULE_PREFIX = "bullmq-integration-";
 const TEST_SCHEDULER_KEY_PREFIX = `uptime-${TEST_SCHEDULE_PREFIX}`;
 
-const describeIntegration = process.env.BULLMQ_REDIS_URL
-	? describe
-	: describe.skip;
+const describeIntegration =
+	process.env.UPTIME_SCHEDULER_INTEGRATION_TESTS === "true"
+		? describe
+		: describe.skip;
 
 describeIntegration("uptime scheduler BullMQ integration", () => {
 	let redis: typeof import("@databuddy/redis") | undefined;

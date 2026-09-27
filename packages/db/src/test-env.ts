@@ -29,6 +29,10 @@ process.env.BULLMQ_REDIS_URL =
 	useCiUrls && process.env.BULLMQ_REDIS_URL
 		? localTestUrl("BULLMQ_REDIS_URL", process.env.BULLMQ_REDIS_URL)
 		: process.env.REDIS_URL;
+process.env.CLICKHOUSE_URL =
+	useCiUrls && process.env.CLICKHOUSE_URL
+		? localTestUrl("CLICKHOUSE_URL", process.env.CLICKHOUSE_URL)
+		: "http://default:@localhost:8123";
 process.env.BETTER_AUTH_SECRET ??= "test-auth-secret-for-integration";
 process.env.BETTER_AUTH_URL ??= "http://localhost:3001";
 process.env.NODE_ENV = "test";
