@@ -1,8 +1,6 @@
 import { z } from "zod";
-import { AI_PRODUCT_BY_OPERATOR } from "./types";
+import { AI_PRODUCT_BY_OPERATOR, type AgentPurpose } from "./types";
 import wellKnownBots from "./well-known-bots.json";
-
-export type AgentPurpose = "training" | "search_index" | "user_fetch" | "agent";
 
 export const AI_AGENT_CLASSIFICATION: Record<
 	string,
@@ -104,10 +102,6 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"zanista-bot": { operator: "Zanista", purpose: "search_index" },
 };
 
-function aiProductOf(operator: string): string {
-	return AI_PRODUCT_BY_OPERATOR[operator] ?? operator;
-}
-
 const TRAILING_SEPARATORS = /[\s/]+$/;
 const HAS_UPPERCASE = /[A-Z]/;
 
@@ -167,7 +161,7 @@ const CODING_AGENTS: AiAgent[] = [
 	codingAgent("opencode", "OpenCode", "OpenCode", /^opencode$/),
 	codingAgent("devin", "Cognition", "Devin", /\bDevin\/\d/),
 	codingAgent("v0", "Vercel", "v0", /\bv0bot\b/),
-	codingAgent("manus", "Manus", "Manus", /Manus-User/i),
+	codingAgent("manus", "Manus", "Manus", /Manus-User/),
 ];
 
 function crawlerName(bot: z.infer<typeof wellKnownBotSchema>): string {
@@ -191,7 +185,9 @@ function toAiAgent(bot: z.infer<typeof wellKnownBotSchema>): AiAgent | null {
 		...classification,
 		id: bot.id,
 		name: crawlerName(bot),
-		product: aiProductOf(classification.operator),
+		product:
+			AI_PRODUCT_BY_OPERATOR[classification.operator] ??
+			classification.operator,
 		patterns: bot.pattern.accepted.map((p) => new RegExp(p)),
 		excludePatterns: bot.pattern.forbidden.map((p) => new RegExp(p)),
 	};
