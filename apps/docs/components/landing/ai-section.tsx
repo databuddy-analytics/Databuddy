@@ -111,7 +111,7 @@ function useOnScreen(ref: React.RefObject<HTMLDivElement | null>) {
 	return onScreen;
 }
 
-function McpTerminalDemo() {
+export function McpTerminalDemo() {
 	const { ref, visible } = useRevealOnScroll();
 	const onScreen = useOnScreen(ref);
 	const [scenarioIndex, setScenarioIndex] = useState(0);
@@ -239,12 +239,13 @@ export function AiSection() {
 					<span className="mt-1.5 hidden sm:block">
 						<SectionBullet color="#6E56CF" />
 					</span>
-					<span className="text-foreground">Analysis. Not just chat.</span>
+					<span className="text-foreground">A morning read, not a pager.</span>
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
-					When a metric moves, Databunny checks every source, finds the cause,
-					and tells you what to fix. Findings land in Slack, and it rechecks
-					until the fix holds.
+					Every morning, Databunny compares your metrics with recent history.
+					When something really moves, it investigates across your data, code,
+					and revenue and tells you what to do. Actions and questions land in
+					Slack with the evidence behind them.
 				</p>
 			</div>
 

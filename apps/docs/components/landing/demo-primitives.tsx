@@ -133,6 +133,7 @@ export function FeatureHero({
 	docsHref = "/docs",
 	badge,
 	footnote = "Free up to 10,000 events/mo. No credit card required.",
+	visual,
 }: {
 	title: string;
 	subtitle: string;
@@ -141,12 +142,18 @@ export function FeatureHero({
 	docsHref?: string;
 	badge?: ReactNode;
 	footnote?: string | null;
+	visual?: ReactNode;
 }) {
 	const pathname = usePathname();
 
 	return (
 		<Section className="border-border border-b" id="hero">
-			<div className={container}>
+			<div
+				className={cn(
+					container,
+					visual && "grid items-center gap-10 lg:grid-cols-[5fr_6fr] lg:gap-16"
+				)}
+			>
 				<div className="flex max-w-3xl flex-col items-start space-y-4">
 					{badge}
 					<h1 className="text-balance font-semibold text-3xl sm:text-5xl md:text-6xl">
@@ -178,6 +185,7 @@ export function FeatureHero({
 						<p className="text-muted-foreground/60 text-xs">{footnote}</p>
 					) : null}
 				</div>
+				{visual}
 			</div>
 		</Section>
 	);

@@ -1,20 +1,6 @@
 "use client";
 
 import {
-	ArrowRightIcon,
-	ArrowUpIcon,
-	ArrowDownIcon,
-	BugIcon,
-	ChartLineUpIcon,
-	EyeIcon,
-	LightbulbIcon,
-	LightningIcon,
-	RobotIcon,
-	TrendUpIcon,
-	TrendDownIcon,
-	TriangleWarningIcon,
-} from "@databuddy/ui/icons";
-import {
 	AnimatePresence,
 	MotionConfig,
 	motion,
@@ -22,625 +8,16 @@ import {
 	useReducedMotion,
 } from "motion/react";
 import Image from "next/image";
-import { type FC, useEffect, useId, useRef, useState } from "react";
 import {
-	BottomFade,
-	CardChrome,
-	useRevealOnScroll,
-} from "@/components/landing/demo-primitives";
+	type FC,
+	type ReactNode,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { cn } from "@/lib/utils";
-import { EASE } from "@/components/landing/demo-constants";
-
-const CHAT_MESSAGES = [
-	{
-		role: "user" as const,
-		text: "What caused the traffic spike last Tuesday?",
-	},
-	{
-		role: "assistant" as const,
-		text: "Your /pricing page saw a 340% traffic increase on Tuesday between 2–5 PM. The spike was driven by a Hacker News post linking to your launch announcement. 68% of visitors were new, primarily from the US and Germany.",
-	},
-	{
-		role: "user" as const,
-		text: "How did those visitors convert?",
-	},
-	{
-		role: "assistant" as const,
-		text: "12.4% signed up (vs. your 4.1% baseline). The /pricing → /signup funnel had a 3x higher completion rate than organic traffic. Most churned visitors dropped off at the email verification step.",
-	},
-] as const;
-
-export function AgentChatDemo() {
-	const { ref, visible } = useRevealOnScroll();
-
-	return (
-		<div aria-hidden className="relative mt-3 w-full overflow-hidden" ref={ref}>
-			<div className="space-y-3">
-				<div className="flex items-center gap-2.5 pb-1">
-					<div className="flex size-7 items-center justify-center rounded bg-violet-500/15">
-						<RobotIcon className="size-3.5 text-violet-400" />
-					</div>
-					<span className="font-medium text-foreground text-sm">Databunny</span>
-					<span className="rounded-full bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] text-emerald-400">
-						online
-					</span>
-				</div>
-
-				{CHAT_MESSAGES.map((msg, i) => (
-					<div
-						className={cn(
-							"transition-all duration-500",
-							visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
-						)}
-						key={i}
-						style={{
-							transitionDelay: visible ? `${i * 120}ms` : "0ms",
-							transitionTimingFunction: EASE,
-						}}
-					>
-						{msg.role === "user" ? (
-							<div className="flex justify-end">
-								<div className="max-w-[85%] rounded-lg border border-border/40 bg-muted/30 px-3 py-2">
-									<p className="font-medium text-foreground text-xs leading-relaxed sm:text-sm">
-										{msg.text}
-									</p>
-								</div>
-							</div>
-						) : (
-							<div className="max-w-[90%]">
-								<p className="font-medium text-muted-foreground text-xs leading-relaxed sm:text-sm">
-									{msg.text}
-								</p>
-							</div>
-						)}
-					</div>
-				))}
-			</div>
-
-			<BottomFade />
-		</div>
-	);
-}
-
-const SUGGESTED_PROMPTS = [
-	{
-		icon: LightbulbIcon,
-		label: "Why did signups drop this week?",
-		source: "From your investigations",
-		color: "bg-amber-500/10 text-amber-400",
-	},
-	{
-		icon: ChartLineUpIcon,
-		label: "How does this month compare to last?",
-		source: "Suggested",
-		color: "bg-blue-500/10 text-blue-400",
-	},
-	{
-		icon: BugIcon,
-		label: "Which pages have the most errors?",
-		source: "Suggested",
-		color: "bg-red-500/10 text-red-400",
-	},
-	{
-		icon: LightningIcon,
-		label: "What are my top converting events?",
-		source: "From your investigations",
-		color: "bg-amber-500/10 text-amber-400",
-	},
-] as const;
-
-export function SuggestedPromptsDemo() {
-	const { ref, visible } = useRevealOnScroll();
-
-	return (
-		<div aria-hidden className="relative mt-3 w-full overflow-hidden" ref={ref}>
-			<div className="grid gap-2 sm:grid-cols-2">
-				{SUGGESTED_PROMPTS.map((item, i) => (
-					<CardChrome
-						className={cn(
-							"group flex cursor-default items-start gap-3 p-3 transition-all duration-500",
-							visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
-						)}
-						key={item.label}
-					>
-						<span
-							className={cn(
-								"flex size-7 shrink-0 items-center justify-center rounded",
-								item.color
-							)}
-							style={{
-								transitionDelay: visible ? `${i * 80}ms` : "0ms",
-								transitionTimingFunction: EASE,
-							}}
-						>
-							<item.icon className="size-3.5" />
-						</span>
-						<span className="min-w-0 flex-1">
-							<span className="line-clamp-2 font-medium text-foreground text-xs leading-tight sm:text-sm">
-								{item.label}
-							</span>
-							<span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">
-								{item.source}
-							</span>
-						</span>
-						<ArrowRightIcon className="mt-0.5 size-3.5 shrink-0 text-transparent transition-colors group-hover:text-muted-foreground" />
-					</CardChrome>
-				))}
-			</div>
-		</div>
-	);
-}
-
-type InsightTone = "positive" | "negative" | "warning";
-
-interface InsightItem {
-	change: string;
-	description: string;
-	icon: typeof TrendUpIcon;
-	metric: string;
-	metricValue: string;
-	title: string;
-	tone: InsightTone;
-}
-
-const TONE_STYLES: Record<
-	InsightTone,
-	{ dot: string; text: string; bg: string }
-> = {
-	positive: {
-		dot: "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]",
-		text: "text-emerald-400",
-		bg: "bg-emerald-500/10",
-	},
-	negative: {
-		dot: "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]",
-		text: "text-red-400",
-		bg: "bg-red-500/10",
-	},
-	warning: {
-		dot: "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]",
-		text: "text-amber-400",
-		bg: "bg-amber-500/10",
-	},
-};
-
-const INSIGHT_ITEMS: InsightItem[] = [
-	{
-		icon: TrendUpIcon,
-		title: "Traffic surge on /pricing",
-		description:
-			"Pageviews up 340% compared to last week, driven by external referral traffic",
-		change: "+340%",
-		tone: "positive",
-		metric: "Pageviews",
-		metricValue: "12,847",
-	},
-	{
-		icon: BugIcon,
-		title: "Error rate climbing on /checkout",
-		description: "Unhandled exceptions increased 2.8x since yesterday's deploy",
-		change: "+180%",
-		tone: "negative",
-		metric: "Errors",
-		metricValue: "847",
-	},
-	{
-		icon: TrendDownIcon,
-		title: "Signup conversion dipping",
-		description:
-			"Free trial signups down 18% week-over-week, primarily on mobile Safari",
-		change: "-18%",
-		tone: "warning",
-		metric: "Signups",
-		metricValue: "234",
-	},
-];
-
-export function InsightCardsDemo() {
-	const { ref, visible } = useRevealOnScroll();
-
-	return (
-		<div aria-hidden className="relative mt-3 w-full overflow-hidden" ref={ref}>
-			<div className="space-y-2 sm:space-y-2.5">
-				{INSIGHT_ITEMS.map((item, i) => {
-					const tone = TONE_STYLES[item.tone];
-					return (
-						<CardChrome
-							className={cn(
-								"p-3 transition-all duration-500 sm:p-3.5",
-								visible
-									? "translate-y-0 opacity-100"
-									: "translate-y-3 opacity-0"
-							)}
-							key={item.title}
-						>
-							<div
-								style={{
-									transitionDelay: visible ? `${i * 100}ms` : "0ms",
-									transitionTimingFunction: EASE,
-								}}
-							>
-								<div className="flex gap-2.5">
-									<span
-										className={cn(
-											"mt-0.5 flex size-7 shrink-0 items-center justify-center rounded",
-											tone.bg
-										)}
-									>
-										<item.icon className={cn("size-3.5", tone.text)} />
-									</span>
-									<div className="min-w-0 flex-1 space-y-1">
-										<div className="flex items-start justify-between gap-2">
-											<span className="font-medium text-foreground text-xs sm:text-sm">
-												{item.title}
-											</span>
-											<span
-												className={cn(
-													"shrink-0 font-mono text-xs tabular-nums",
-													tone.text
-												)}
-											>
-												{item.change}
-											</span>
-										</div>
-										<p className="font-mono text-[11px] text-muted-foreground leading-snug sm:text-xs">
-											{item.description}
-										</p>
-										<div className="flex items-center gap-3 pt-0.5">
-											<span className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-												{item.metric}
-											</span>
-											<span className="font-medium text-foreground text-xs tabular-nums">
-												{item.metricValue}
-											</span>
-										</div>
-									</div>
-								</div>
-							</div>
-						</CardChrome>
-					);
-				})}
-			</div>
-
-			<BottomFade />
-		</div>
-	);
-}
-
-const PROACTIVE_ALERTS = [
-	{
-		icon: TriangleWarningIcon,
-		title: "Action: /api/auth errors spike after deploy",
-		description:
-			"Exceptions rose 4.2x versus baseline. Next: roll back the session refactor, then verify recovery",
-		time: "Today",
-		tone: "danger" as const,
-		channel: "Slack #alerts",
-	},
-	{
-		icon: LightbulbIcon,
-		title: "Question: did the pricing experiment ship?",
-		description:
-			"Signup conversion moved with no matching deploy or annotation. One answer unblocks the case",
-		time: "Today",
-		tone: "info" as const,
-		channel: "Slack #insights",
-	},
-	{
-		icon: TrendUpIcon,
-		title: "Resolved: signup funnel recovered",
-		description:
-			"Verified on recheck: completion is back at baseline after the copy fix",
-		time: "Yesterday",
-		tone: "success" as const,
-		channel: "Slack #alerts",
-	},
-] as const;
-
-const ALERT_TONE = {
-	danger: {
-		dot: "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.65)]",
-		icon: "text-red-400",
-		badge: "bg-red-500/10 text-red-400",
-	},
-	info: {
-		dot: "bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.55)]",
-		icon: "text-blue-400",
-		badge: "bg-blue-500/10 text-blue-400",
-	},
-	success: {
-		dot: "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.55)]",
-		icon: "text-emerald-400",
-		badge: "bg-emerald-500/10 text-emerald-400",
-	},
-} as const;
-
-export function ProactiveAlertsDemo() {
-	const { ref, visible } = useRevealOnScroll();
-
-	return (
-		<div aria-hidden className="relative mt-3 w-full overflow-hidden" ref={ref}>
-			<div className="space-y-2 sm:space-y-2.5">
-				{PROACTIVE_ALERTS.map((alert, i) => {
-					const tone = ALERT_TONE[alert.tone];
-					return (
-						<CardChrome
-							className={cn(
-								"p-3 transition-all duration-500 sm:p-3.5",
-								visible
-									? "translate-y-0 opacity-100"
-									: "translate-y-3 opacity-0"
-							)}
-							key={alert.title}
-						>
-							<div
-								style={{
-									transitionDelay: visible ? `${i * 100}ms` : "0ms",
-									transitionTimingFunction: EASE,
-								}}
-							>
-								<div className="flex gap-2.5">
-									<span
-										aria-hidden
-										className={cn(
-											"mt-1.5 size-2 shrink-0 rounded-full",
-											tone.dot,
-											i === 0 && "animate-pulse motion-reduce:animate-none"
-										)}
-									/>
-									<div className="min-w-0 flex-1 space-y-1">
-										<div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
-											<span className="font-medium text-foreground text-xs sm:text-sm">
-												{alert.title}
-											</span>
-											<span className="shrink-0 font-medium text-[11px] text-muted-foreground tabular-nums sm:text-xs">
-												{alert.time}
-											</span>
-										</div>
-										<p className="font-mono text-[11px] text-muted-foreground leading-snug sm:text-xs">
-											{alert.description}
-										</p>
-										<span
-											className={cn(
-												"inline-block rounded-full px-2 py-0.5 font-mono text-[10px]",
-												tone.badge
-											)}
-										>
-											{alert.channel}
-										</span>
-									</div>
-								</div>
-							</div>
-						</CardChrome>
-					);
-				})}
-			</div>
-
-			<BottomFade />
-		</div>
-	);
-}
-
-type AnomalySeverity = "critical" | "warning";
-type AnomalyDirection = "spike" | "drop";
-
-interface AnomalyItem {
-	baseline: string;
-	change: string;
-	current: string;
-	direction: AnomalyDirection;
-	metric: string;
-	metricColor: string;
-	metricIcon: typeof EyeIcon;
-	period: string;
-	severity: AnomalySeverity;
-}
-
-const SEVERITY_STYLES: Record<AnomalySeverity, string> = {
-	critical: "bg-red-500/15 text-red-400",
-	warning: "bg-amber-500/15 text-amber-400",
-};
-
-const ANOMALY_ITEMS: AnomalyItem[] = [
-	{
-		metric: "Errors",
-		metricIcon: BugIcon,
-		metricColor: "bg-red-500/15 text-red-400",
-		severity: "critical",
-		direction: "spike",
-		current: "847",
-		baseline: "92",
-		change: "+820%",
-		period: "Apr 28 vs weekday baseline",
-	},
-	{
-		metric: "Pageviews",
-		metricIcon: EyeIcon,
-		metricColor: "bg-blue-500/15 text-blue-400",
-		severity: "warning",
-		direction: "drop",
-		current: "1,204",
-		baseline: "4,820",
-		change: "-75%",
-		period: "Apr 27 vs prior Sundays",
-	},
-	{
-		metric: "Custom events",
-		metricIcon: LightningIcon,
-		metricColor: "bg-violet-500/15 text-violet-400",
-		severity: "warning",
-		direction: "spike",
-		current: "3,412",
-		baseline: "890",
-		change: "+283%",
-		period: "Apr 27 vs prior week",
-	},
-];
-
-export function AnomalyDetectionDemo() {
-	const { ref, visible } = useRevealOnScroll();
-
-	return (
-		<div aria-hidden className="relative mt-3 w-full overflow-hidden" ref={ref}>
-			<div className="space-y-2 sm:space-y-2.5">
-				{ANOMALY_ITEMS.map((item, i) => (
-					<CardChrome
-						className={cn(
-							"p-3 transition-all duration-500 sm:p-3.5",
-							visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
-						)}
-						key={item.metric}
-					>
-						<div
-							style={{
-								transitionDelay: visible ? `${i * 100}ms` : "0ms",
-								transitionTimingFunction: EASE,
-							}}
-						>
-							<div className="flex items-start gap-2.5">
-								<span
-									className={cn(
-										"flex size-7 shrink-0 items-center justify-center rounded",
-										item.metricColor
-									)}
-								>
-									<item.metricIcon className="size-3.5" />
-								</span>
-								<div className="min-w-0 flex-1">
-									<div className="flex flex-wrap items-center gap-2">
-										<span className="font-medium text-foreground text-xs sm:text-sm">
-											{item.metric}
-										</span>
-										<span
-											className={cn(
-												"rounded-full px-1.5 py-0.5 font-mono text-[10px] capitalize",
-												SEVERITY_STYLES[item.severity]
-											)}
-										>
-											{item.severity}
-										</span>
-										<span className="inline-flex items-center gap-0.5 font-mono text-[10px] text-muted-foreground">
-											{item.direction === "spike" ? (
-												<ArrowUpIcon className="size-2.5 text-red-400" />
-											) : (
-												<ArrowDownIcon className="size-2.5 text-blue-400" />
-											)}
-											{item.direction}
-										</span>
-									</div>
-									<div className="mt-1.5 flex items-center gap-4">
-										<div>
-											<span className="block font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-												Current
-											</span>
-											<span className="font-medium text-foreground text-xs tabular-nums">
-												{item.current}
-											</span>
-										</div>
-										<div>
-											<span className="block font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-												Baseline
-											</span>
-											<span className="font-medium text-muted-foreground text-xs tabular-nums">
-												{item.baseline}
-											</span>
-										</div>
-										<span
-											className={cn(
-												"font-mono text-xs tabular-nums",
-												item.direction === "spike"
-													? "text-red-400"
-													: "text-blue-400"
-											)}
-										>
-											{item.change}
-										</span>
-									</div>
-									<span className="mt-1 block font-mono text-[10px] text-muted-foreground">
-										{item.period}
-									</span>
-								</div>
-							</div>
-						</div>
-					</CardChrome>
-				))}
-			</div>
-
-			<BottomFade />
-		</div>
-	);
-}
-
-const CASE_TIMELINE = [
-	{
-		label: "Opened",
-		time: "Mon",
-		text: "Checkout exceptions rose 2.8x after Tuesday's deploy, concentrated on iOS Safari.",
-		tone: "danger" as const,
-	},
-	{
-		label: "Reply",
-		time: "Mon",
-		text: "alex: Rolled back address autocomplete in v2.14.1.",
-		tone: "info" as const,
-	},
-	{
-		label: "Verified",
-		time: "Tue",
-		text: "Recheck passed: step-two completion is back at baseline. Case resolved.",
-		tone: "success" as const,
-	},
-] as const;
-
-const CASE_TONE = {
-	danger: "bg-red-500/15 text-red-400",
-	info: "bg-blue-500/15 text-blue-400",
-	success: "bg-emerald-500/15 text-emerald-400",
-} as const;
-
-export function CaseFollowUpDemo() {
-	const { ref, visible } = useRevealOnScroll();
-
-	return (
-		<div aria-hidden className="relative mt-3 w-full overflow-hidden" ref={ref}>
-			<div className="space-y-2 sm:space-y-2.5">
-				{CASE_TIMELINE.map((step, i) => (
-					<CardChrome
-						className={cn(
-							"p-3 transition-all duration-500 sm:p-3.5",
-							visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
-						)}
-						key={step.label}
-					>
-						<div
-							style={{
-								transitionDelay: visible ? `${i * 100}ms` : "0ms",
-								transitionTimingFunction: EASE,
-							}}
-						>
-							<div className="flex items-start gap-2.5">
-								<span
-									className={cn(
-										"rounded-full px-2 py-0.5 font-mono text-[10px]",
-										CASE_TONE[step.tone]
-									)}
-								>
-									{step.label}
-								</span>
-								<p className="min-w-0 flex-1 font-mono text-[11px] text-muted-foreground leading-snug sm:text-xs">
-									{step.text}
-								</p>
-								<span className="shrink-0 font-medium text-[11px] text-muted-foreground tabular-nums">
-									{step.time}
-								</span>
-							</div>
-						</div>
-					</CardChrome>
-				))}
-			</div>
-		</div>
-	);
-}
 
 const IN_OUT = [0.65, 0, 0.35, 1] as const;
 
@@ -651,7 +28,7 @@ const INCIDENT_SOURCES = [
 	"Errors",
 	"Web Vitals",
 	"Deploys",
-	"Flags",
+	"Revenue",
 ] as const;
 type IncidentSource = (typeof INCIDENT_SOURCES)[number];
 
@@ -662,7 +39,7 @@ const QUIET_RESULTS: Record<IncidentSource, string> = {
 	Errors: "no new errors",
 	"Web Vitals": "normal",
 	Deploys: "no deploys",
-	Flags: "no changes",
+	Revenue: "no change",
 };
 
 interface IncidentLane {
@@ -670,7 +47,7 @@ interface IncidentLane {
 	title: string;
 }
 
-export interface Incident {
+interface Incident {
 	answer: {
 		headline: string;
 		next: string;
@@ -689,7 +66,7 @@ export interface Incident {
 	split: number;
 }
 
-export const INCIDENTS: Incident[] = [
+const INCIDENTS: [Incident, ...Incident[]] = [
 	{
 		id: "checkout",
 		metric: "Checkout conversion",
@@ -719,12 +96,12 @@ export const INCIDENTS: Incident[] = [
 		metric: "Signup completion",
 		change: "−18%",
 		findings: {
-			Sessions: "rage clicks · /signup/verify",
+			Events: "verification_sent −28% · mobile",
 			Funnels: "verify step −31% · mobile",
 		},
 		lanes: [
 			{ title: "Funnels", sub: "verify step · mobile" },
-			{ title: "Sessions", sub: "rage clicks · /signup/verify" },
+			{ title: "Events", sub: "verification_sent · mobile" },
 		],
 		cause: { sha: "a41f0c2", label: "verification copy", time: "09:12" },
 		captionLead: "Mobile drop-off starts the minute",
@@ -748,7 +125,7 @@ export const INCIDENTS: Incident[] = [
 		},
 		lanes: [
 			{ title: "Web Vitals", sub: "INP p75 · /signup" },
-			{ title: "Long tasks", sub: "plan selector" },
+			{ title: "Funnels", sub: "plan step · /signup" },
 		],
 		cause: { sha: "e90b7d4", label: "pricing calculator", time: "16:40" },
 		captionLead: "INP climbs the minute",
@@ -764,14 +141,20 @@ export const INCIDENTS: Incident[] = [
 	},
 ];
 
+const HASH_MODULUS = 2_147_483_647;
+
 const pseudoRandom = (seed: string) => {
-	let total = 0;
-	for (const [position, char] of [...seed].entries()) {
-		total += char.charCodeAt(0) * (position + 1) * 31;
+	let hash = 7;
+	for (const char of seed) {
+		hash = (hash * 31 + char.charCodeAt(0)) % HASH_MODULUS;
 	}
-	const value = Math.sin(total) * 10_000;
-	return value - Math.floor(value);
+	for (let round = 0; round < 3; round++) {
+		hash = (hash * 48_271) % HASH_MODULUS;
+	}
+	return hash / HASH_MODULUS;
 };
+
+const rounded = (value: number) => Math.round(value * 100) / 100;
 
 const checksFor = (incident: Incident) =>
 	INCIDENT_SOURCES.map((name, order) => {
@@ -810,9 +193,10 @@ const withDots = (text: string) =>
 		);
 
 const toPath = (points: [number, number][]) =>
-	`M ${points.map(([x, y]) => `${x} ${y}`).join(" L ")}`;
+	`M ${points.map(([x, y]) => `${rounded(x)} ${rounded(y)}`).join(" L ")}`;
 
-const percent = (value: number, of: number) => `${(value / of) * 100}%`;
+const percent = (value: number, of: number) =>
+	`${rounded((value / of) * 100)}%`;
 
 const enter = (delay: number, distance = 8) => ({
 	initial: { opacity: 0, y: distance },
@@ -829,23 +213,114 @@ const useAfter = (seconds: number, key: unknown = seconds) => {
 	return doneFor === key;
 };
 
-const useFinishedChecks = (incident: Incident) => {
-	const [finished, setFinished] = useState<string[]>([]);
+const useCount = (times: readonly number[]) => {
+	const [count, setCount] = useState(0);
 	useEffect(() => {
-		const ids = checksFor(incident).map((check) =>
-			window.setTimeout(
-				() => setFinished((names) => [...names, check.name]),
-				check.finish * 1000
-			)
+		const ids = times.map((time) =>
+			window.setTimeout(() => setCount((current) => current + 1), time * 1000)
 		);
 		return () => {
 			for (const id of ids) {
 				window.clearTimeout(id);
 			}
 		};
-	}, [incident]);
-	return finished;
+	}, [times]);
+	return count;
 };
+
+const FRAME = "border border-white/[0.06] bg-white/[0.02]";
+const REWIND = { duration: 0.4, ease: IN_OUT } as const;
+
+const pick = <T,>(items: readonly [T, ...T[]], index: number) =>
+	items[index % items.length] ?? items[0];
+
+const useTimeline = (events: readonly number[], seconds: number) => {
+	const ref = useRef<HTMLDivElement>(null);
+	const visible = useInView(ref, { amount: 0.35 });
+	const reduce = useReducedMotion();
+	const [cycle, setCycle] = useState(0);
+	const [step, setStep] = useState(0);
+	useEffect(() => {
+		if (reduce) {
+			setStep(events.length);
+			return;
+		}
+		setStep(0);
+		if (!visible) {
+			return;
+		}
+		const ids = events.map((time, index) =>
+			window.setTimeout(() => setStep(index + 1), time * 1000)
+		);
+		ids.push(
+			window.setTimeout(() => {
+				setStep(0);
+				setCycle((current) => current + 1);
+			}, seconds * 1000)
+		);
+		return () => {
+			for (const id of ids) {
+				window.clearTimeout(id);
+			}
+		};
+	}, [events, seconds, visible, reduce, cycle]);
+	return { ref, step, cycle };
+};
+
+function StatusLine({
+	tone,
+	children,
+}: {
+	tone: "amber" | "red" | "emerald" | "muted";
+	children: string;
+}) {
+	return (
+		<AnimatePresence initial={false} mode="wait">
+			<motion.span
+				animate={{ opacity: 1, y: 0 }}
+				className={cn(
+					"flex items-center gap-2 text-xs sm:text-sm",
+					tone === "amber" && "text-brand-amber",
+					tone === "red" && "text-red-500",
+					tone === "emerald" && "text-emerald-500",
+					tone === "muted" && "text-muted-foreground"
+				)}
+				exit={{ opacity: 0, y: -4 }}
+				initial={{ opacity: 0, y: 4 }}
+				key={children}
+				transition={{ duration: 0.25, ease: IN_OUT }}
+			>
+				<span className="size-2 shrink-0 bg-current" />
+				{children}
+			</motion.span>
+		</AnimatePresence>
+	);
+}
+
+function Reveal({
+	shown,
+	delay = 0,
+	distance = 6,
+	className,
+	children,
+}: {
+	shown: boolean;
+	delay?: number;
+	distance?: number;
+	className?: string;
+	children: ReactNode;
+}) {
+	return (
+		<motion.div
+			animate={shown ? { opacity: 1, y: 0 } : { opacity: 0, y: distance }}
+			className={className}
+			initial={false}
+			transition={shown ? { duration: 0.45, ease: IN_OUT, delay } : REWIND}
+		>
+			{children}
+		</motion.div>
+	);
+}
 
 const RECOVERED_AT = 3.4;
 const EXIT_SECONDS = 0.3;
@@ -906,9 +381,24 @@ function MomentHeadline({
 	);
 }
 
-export function IncidentScan({ incident }: { incident: Incident }) {
-	const checks = checksFor(incident);
-	const finished = useFinishedChecks(incident);
+function IncidentScan({
+	incident,
+	live,
+}: {
+	incident: Incident;
+	live: boolean;
+}) {
+	const checks = useMemo(() => checksFor(incident), [incident]);
+	const byFinish = useMemo(
+		() => [...checks].sort((a, b) => a.finish - b.finish),
+		[checks]
+	);
+	const finishTimes = useMemo(
+		() => (live ? byFinish.map((check) => check.finish) : []),
+		[byFinish, live]
+	);
+	const finishedCount = useCount(finishTimes);
+	const finished = byFinish.slice(0, finishedCount).map((check) => check.name);
 	const signals = checks.filter(
 		(check) => check.hit && finished.includes(check.name)
 	).length;
@@ -952,7 +442,7 @@ export function IncidentScan({ incident }: { incident: Incident }) {
 							</span>
 							<span className="relative hidden h-0.5 bg-border md:block">
 								<motion.span
-									animate={{ scaleX: 1 }}
+									animate={{ scaleX: live ? 1 : 0 }}
 									className={cn(
 										"absolute inset-y-0 left-0 w-full origin-left transition-colors duration-300",
 										found ? "bg-brand-amber" : "bg-muted-foreground/50"
@@ -1022,7 +512,7 @@ const pointAt = (incident: Incident, index: number) => {
 	};
 };
 
-export function IncidentEvidence({ incident }: { incident: Incident }) {
+function IncidentEvidence({ incident }: { incident: Incident }) {
 	const series = Array.from({ length: COLUMNS }, (_, index) =>
 		pointAt(incident, index)
 	);
@@ -1200,7 +690,7 @@ const sparkFor = (incident: Incident) => {
 	};
 };
 
-export function IncidentAnswer({ incident }: { incident: Incident }) {
+function IncidentAnswer({ incident }: { incident: Incident }) {
 	const recovered = useAfter(RECOVERED_AT);
 	const spark = sparkFor(incident);
 	return (
@@ -1291,22 +781,22 @@ const STAGE_PHASES: {
 	label: string;
 	status: string;
 	seconds: number;
-	Moment: FC<{ incident: Incident }>;
+	Moment: FC<{ incident: Incident; live: boolean }>;
 }[] = [
 	{
-		label: "Checks every source",
+		label: "Checks your sources",
 		status: "Investigating",
 		seconds: 4.2,
 		Moment: IncidentScan,
 	},
 	{
-		label: "Finds the cause",
-		status: "Cause found",
+		label: "Finds what changed",
+		status: "Change found",
 		seconds: 4.6,
 		Moment: IncidentEvidence,
 	},
 	{
-		label: "Tells you what to fix",
+		label: "Tells you what to do",
 		status: "Posted to #eng-alerts",
 		seconds: 7.5,
 		Moment: IncidentAnswer,
@@ -1318,18 +808,17 @@ export function InvestigationStage() {
 	const indicator = useId();
 	const visible = useInView(ref, { amount: 0.3 });
 	const reduce = useReducedMotion();
-	const [step, setStep] = useState<number | null>(null);
+	const [step, setStep] = useState(0);
+	const [live, setLive] = useState(false);
 	useEffect(() => {
+		if (reduce) {
+			setStep(STAGE_PHASES.length - 1);
+			return;
+		}
 		if (!visible) {
 			return;
 		}
-		if (step === null) {
-			setStep(reduce ? STAGE_PHASES.length - 1 : 0);
-			return;
-		}
-		if (reduce) {
-			return;
-		}
+		setLive(true);
 		const seconds = STAGE_PHASES[step % STAGE_PHASES.length]?.seconds ?? 4;
 		const id = window.setTimeout(
 			() => setStep(step + 1),
@@ -1337,20 +826,17 @@ export function InvestigationStage() {
 		);
 		return () => window.clearTimeout(id);
 	}, [visible, reduce, step]);
-	const position = step === null ? -1 : step % STAGE_PHASES.length;
-	const caseStart = step === null ? 0 : step - position;
+	const position = step % STAGE_PHASES.length;
+	const caseStart = step - position;
 	const phase = STAGE_PHASES[position];
 	const recovered =
 		useAfter(RECOVERED_AT + EXIT_SECONDS, step) &&
 		position === STAGE_PHASES.length - 1;
 	const status = recovered ? "Recovered" : phase?.status;
-	const incident =
-		step === null
-			? undefined
-			: INCIDENTS[Math.floor(step / STAGE_PHASES.length) % INCIDENTS.length];
+	const incident = pick(INCIDENTS, Math.floor(step / STAGE_PHASES.length));
 	return (
 		<MotionConfig reducedMotion="user">
-			<div className="border border-white/[0.06] bg-white/[0.02]" ref={ref}>
+			<div className={FRAME} ref={ref}>
 				<ol className="grid grid-cols-3 divide-x divide-white/[0.06] border-white/[0.06] border-b">
 					{STAGE_PHASES.map((item, order) => (
 						<li key={item.label}>
@@ -1413,28 +899,15 @@ export function InvestigationStage() {
 								Databuddy's AI agent
 							</span>
 						</div>
-						<AnimatePresence initial={false} mode="wait">
-							{status && (
-								<motion.div
-									animate={{ opacity: 1, y: 0 }}
-									className={cn(
-										"flex items-center gap-2 text-sm",
-										recovered ? "text-emerald-500" : "text-brand-amber"
-									)}
-									exit={{ opacity: 0, y: -4 }}
-									initial={{ opacity: 0, y: 4 }}
-									key={status}
-									transition={{ duration: 0.25, ease: IN_OUT }}
-								>
-									<span className="size-2 bg-current" />
-									{status}
-								</motion.div>
-							)}
-						</AnimatePresence>
+						{status && (
+							<StatusLine tone={recovered ? "emerald" : "amber"}>
+								{status}
+							</StatusLine>
+						)}
 					</div>
 					<div className="grid min-h-[310px] md:min-h-[345px] [&>*]:col-start-1 [&>*]:row-start-1">
 						<AnimatePresence initial={false} mode="wait">
-							{phase && incident && (
+							{phase && (
 								<motion.div
 									className="flex flex-col"
 									exit={{
@@ -1444,11 +917,1031 @@ export function InvestigationStage() {
 									}}
 									key={step}
 								>
-									<phase.Moment incident={incident} />
+									<phase.Moment incident={incident} live={live} />
 								</motion.div>
 							)}
 						</AnimatePresence>
 					</div>
+				</div>
+			</div>
+		</MotionConfig>
+	);
+}
+
+const WATCHED = [
+	{ id: "visitors", label: "Visitors" },
+	{ id: "checkout", label: "Checkout funnel" },
+	{ id: "errors", label: "Errors · /checkout" },
+	{ id: "lcp", label: "LCP p75 · /pricing" },
+	{ id: "revenue", label: "Revenue · USD" },
+	{ id: "signups", label: "Signup goal" },
+	{ id: "chatgpt", label: "ChatGPT referrals" },
+	{ id: "inp", label: "INP p75 · /signup" },
+] as const;
+
+interface Breakout {
+	change: string;
+	good: boolean;
+	id: (typeof WATCHED)[number]["id"];
+	name: string;
+	rises: boolean;
+}
+
+const BREAKOUTS: [Breakout, ...Breakout[]] = [
+	{
+		id: "checkout",
+		name: "the checkout funnel",
+		change: "−24%",
+		rises: false,
+		good: false,
+	},
+	{
+		id: "revenue",
+		name: "revenue",
+		change: "+42%",
+		rises: true,
+		good: true,
+	},
+	{
+		id: "errors",
+		name: "checkout errors",
+		change: "+3.4×",
+		rises: true,
+		good: false,
+	},
+	{
+		id: "lcp",
+		name: "LCP on /pricing",
+		change: "+1.2 s",
+		rises: true,
+		good: false,
+	},
+];
+
+const BAND_WINDOW = 24;
+const BAND_STEP = 100 / (BAND_WINDOW - 1);
+const BAND_START = 40;
+const BAND_DAYS = 5;
+const BAND_EVENTS = [0.8, 1.4, 2, 2.6, 3.2, 3.9, 5.3] as const;
+
+const bandCenter = (id: string, day: number) =>
+	20 + Math.sin((day / 7) * Math.PI * 2 + pseudoRandom(id) * 6) * 5;
+
+const anomalyAt = (id: string, day: number) => {
+	const cycle = Math.floor((day - BAND_START - 1) / BAND_DAYS);
+	if (cycle < 0) {
+		return;
+	}
+	const breakout = pick(BREAKOUTS, cycle);
+	const offset = day - (BAND_START + (cycle + 1) * BAND_DAYS);
+	if (breakout.id !== id || offset < -1) {
+		return;
+	}
+	return { breakout, drift: offset === 0 ? 1 : 0.5 };
+};
+
+type BandTone = "calm" | "good" | "bad";
+
+function BandRow({
+	id,
+	label,
+	end,
+	dim,
+	flagged,
+}: {
+	id: string;
+	label: string;
+	end: number;
+	dim: boolean;
+	flagged?: Breakout;
+}) {
+	const points = Array.from({ length: BAND_WINDOW + 1 }, (_, index) => {
+		const day = end - BAND_WINDOW + index;
+		const center = bandCenter(id, day);
+		const anomaly = anomalyAt(id, day);
+		const offset = anomaly
+			? (anomaly.breakout.rises ? -1 : 1) * 15 * anomaly.drift
+			: (pseudoRandom(`${id}-${day}`) - 0.5) * 7;
+		const tone: BandTone | undefined = anomaly
+			? anomaly.breakout.good
+				? "good"
+				: "bad"
+			: undefined;
+		return {
+			x: (index - 1) * BAND_STEP,
+			center,
+			y: center + offset,
+			tone,
+		};
+	});
+	const runs: { tone: BandTone; points: [number, number][] }[] = [];
+	for (const [index, point] of points.entries()) {
+		const previous = points[index - 1];
+		if (!previous) {
+			continue;
+		}
+		const tone = point.tone ?? previous.tone ?? "calm";
+		const run = runs.at(-1);
+		if (run?.tone === tone) {
+			run.points.push([point.x, point.y]);
+		} else {
+			runs.push({
+				tone,
+				points: [
+					[previous.x, previous.y],
+					[point.x, point.y],
+				],
+			});
+		}
+	}
+	const band = `${toPath(points.map((p) => [p.x, p.center - 7]))} L ${[
+		...points,
+	]
+		.reverse()
+		.map((p) => `${rounded(p.x)} ${rounded(p.center + 7)}`)
+		.join(" L ")} Z`;
+	return (
+		<div
+			className={cn(
+				"grid grid-cols-[104px_1fr_48px] items-center gap-3 transition-opacity duration-500 sm:grid-cols-[150px_1fr_60px] sm:gap-4",
+				dim && "opacity-35"
+			)}
+		>
+			<span
+				className={cn(
+					"truncate font-mono text-[11px] transition-colors duration-500 sm:text-xs",
+					flagged ? "text-foreground" : "text-muted-foreground"
+				)}
+			>
+				{withDots(label)}
+			</span>
+			<div className="relative h-7 sm:h-8">
+				<svg
+					aria-hidden="true"
+					className="absolute inset-0 size-full"
+					preserveAspectRatio="none"
+					viewBox="0 0 100 40"
+				>
+					<motion.g
+						animate={{ x: 0 }}
+						initial={{ x: end === BAND_START ? 0 : BAND_STEP }}
+						key={end}
+						transition={{ duration: 0.45, ease: IN_OUT }}
+					>
+						<path className="fill-muted-foreground/10" d={band} />
+						{runs.map((run) => (
+							<path
+								className={cn(
+									run.tone === "calm" && "stroke-foreground/60",
+									run.tone === "good" && "stroke-emerald-500",
+									run.tone === "bad" && "stroke-red-500"
+								)}
+								d={toPath(run.points)}
+								fill="none"
+								key={`${run.tone}-${run.points[0]?.[0]}`}
+								strokeWidth={run.tone === "calm" ? 1.5 : 2}
+								vectorEffect="non-scaling-stroke"
+							/>
+						))}
+					</motion.g>
+				</svg>
+			</div>
+			<span
+				className={cn(
+					"text-right font-mono text-[11px] transition-colors duration-500 sm:text-xs",
+					flagged
+						? flagged.good
+							? "text-emerald-500"
+							: "text-red-500"
+						: "text-muted-foreground/50"
+				)}
+			>
+				{flagged ? flagged.change : "normal"}
+			</span>
+		</div>
+	);
+}
+
+export function BaselineBands() {
+	const { ref, step, cycle } = useTimeline(BAND_EVENTS, 7.8);
+	const breakout = pick(BREAKOUTS, cycle);
+	const found = step > BAND_DAYS;
+	const opened = step > BAND_DAYS + 1;
+	const end = BAND_START + cycle * BAND_DAYS + Math.min(step, BAND_DAYS);
+	let status = (
+		<StatusLine tone="muted">Comparing each day with recent history</StatusLine>
+	);
+	if (opened) {
+		status = (
+			<StatusLine tone="amber">{`Opened a case on ${breakout.name}`}</StatusLine>
+		);
+	} else if (found) {
+		status = (
+			<StatusLine tone={breakout.good ? "emerald" : "red"}>
+				Well outside its recent range
+			</StatusLine>
+		);
+	}
+	return (
+		<MotionConfig reducedMotion="user">
+			<div className={cn(FRAME, "flex flex-col gap-5 p-5 sm:p-6")} ref={ref}>
+				<div className="flex items-center justify-between gap-4">
+					<div className="flex items-center gap-2.5">
+						<Image
+							alt=""
+							height={18}
+							src="/brand/bunny/white.svg"
+							unoptimized
+							width={18}
+						/>
+						<span className="font-medium text-foreground text-sm">
+							Watching {WATCHED.length} metrics
+						</span>
+					</div>
+					<span className="font-mono text-[11px] text-muted-foreground sm:text-xs">
+						last 3 weeks
+					</span>
+				</div>
+				<div className="flex flex-col gap-2.5">
+					{WATCHED.map((metric) => (
+						<BandRow
+							dim={found && metric.id !== breakout.id}
+							end={end}
+							flagged={
+								found && metric.id === breakout.id ? breakout : undefined
+							}
+							id={metric.id}
+							key={metric.id}
+							label={metric.label}
+						/>
+					))}
+				</div>
+				<div className="flex h-5 items-center border-white/[0.06] border-t pt-4">
+					{status}
+				</div>
+			</div>
+		</MotionConfig>
+	);
+}
+
+const WEEK_CHANGES = [
+	{
+		change: "Visitors −6%",
+		context: "yesterday",
+		verdict: "Usual for a weekday",
+		sent: false,
+	},
+	{
+		change: "Errors +12",
+		context: "/blog/rss",
+		verdict: "Too small: 3 visitors",
+		sent: false,
+	},
+	{
+		change: "Signups −9%",
+		context: "signup goal",
+		verdict: "Within its usual swing",
+		sent: false,
+	},
+	{
+		change: "LCP +1.2 s",
+		context: "/pricing",
+		verdict: "Already open since Monday",
+		sent: false,
+	},
+	{
+		change: "Checkout conversion −37%",
+		context: "checkout funnel",
+		verdict: "Sent to #eng-alerts",
+		sent: true,
+	},
+	{
+		change: "newsletter_signup −60%",
+		context: "custom event",
+		verdict: "Not a priority for your team",
+		sent: false,
+	},
+	{
+		change: "demo_requested −4%",
+		context: "custom event",
+		verdict: "Too small to matter",
+		sent: false,
+	},
+] as const;
+const VERDICT_EVENTS = WEEK_CHANGES.map((_, index) => 0.9 + index * 0.45);
+
+export function ChangeVerdicts() {
+	const { ref, step } = useTimeline(VERDICT_EVENTS, 7.2);
+	const judged = WEEK_CHANGES.slice(0, step);
+	const sent = judged.filter((row) => row.sent).length;
+	return (
+		<MotionConfig reducedMotion="user">
+			<div className={FRAME} ref={ref}>
+				<div className="flex items-center justify-between gap-4 border-white/[0.06] border-b px-5 py-3 sm:px-6">
+					<span className="font-medium text-foreground text-sm">
+						How Databunny decides
+					</span>
+					<span className="font-mono text-[11px] text-muted-foreground sm:text-xs">
+						weekly 9:00 run
+					</span>
+				</div>
+				<ul>
+					{WEEK_CHANGES.map((row, index) => {
+						const done = index < step;
+						return (
+							<motion.li
+								animate={{ opacity: done && !row.sent ? 0.4 : 1 }}
+								className="relative grid grid-cols-[10px_1fr_auto] items-center gap-3 border-white/[0.04] border-b px-5 py-3 last:border-b-0 sm:grid-cols-[10px_1fr_150px_210px] sm:gap-4 sm:px-6"
+								initial={false}
+								key={row.change}
+								transition={REWIND}
+							>
+								<motion.span
+									animate={{ opacity: done && row.sent ? 1 : 0 }}
+									className="pointer-events-none absolute inset-0 bg-brand-amber/[0.07]"
+									initial={false}
+									transition={REWIND}
+								/>
+								<span className="relative size-2.5 border border-muted-foreground/40">
+									<motion.span
+										animate={{ scale: done ? 1 : 0 }}
+										className={cn(
+											"absolute -inset-px",
+											row.sent ? "bg-brand-amber" : "bg-muted-foreground/40"
+										)}
+										initial={false}
+										transition={{ duration: 0.3, ease: IN_OUT }}
+									/>
+								</span>
+								<span className="relative text-foreground text-sm">
+									{row.change}
+								</span>
+								<span className="relative hidden truncate font-mono text-muted-foreground text-xs sm:block">
+									{row.context}
+								</span>
+								<span className="relative flex justify-end text-right">
+									<AnimatePresence initial={false} mode="wait">
+										<motion.span
+											animate={{ opacity: 1, x: 0 }}
+											className={cn(
+												"text-xs sm:text-sm",
+												done && row.sent && "text-brand-amber",
+												done && !row.sent && "text-muted-foreground",
+												!done && "text-muted-foreground/40"
+											)}
+											exit={{ opacity: 0, x: -6 }}
+											initial={{ opacity: 0, x: 6 }}
+											key={done ? "verdict" : "pending"}
+											transition={{ duration: 0.3, ease: IN_OUT }}
+										>
+											{done ? row.verdict : "·"}
+										</motion.span>
+									</AnimatePresence>
+								</span>
+							</motion.li>
+						);
+					})}
+				</ul>
+				<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-white/[0.06] border-t px-5 py-3 font-mono text-[11px] tabular-nums sm:px-6 sm:text-xs">
+					<span className="text-muted-foreground">
+						{judged.length} of {WEEK_CHANGES.length} checked
+					</span>
+					<span>
+						<span className="text-muted-foreground">
+							{judged.length - sent} kept quiet ·{" "}
+						</span>
+						<span className="text-brand-amber">{sent} sent</span>
+					</span>
+				</div>
+			</div>
+		</MotionConfig>
+	);
+}
+
+const ZOOM = 3.2;
+const CAUSE_X = 58;
+const COMMITS = [
+	{ sha: "b81e0d4", x: 5 },
+	{ sha: "0c7a2e9", x: 11 },
+	{ sha: "5d19f30", x: 18 },
+	{ sha: "a2e8c61", x: 24 },
+	{ sha: "91bb7f2", x: 31 },
+	{ sha: "3f0d5a8", x: 37 },
+	{ sha: "c6e41b0", x: 44 },
+	{ sha: "e41c9a2", x: 49, labeled: true },
+	{ sha: "8d2f6c1", x: 54, labeled: true },
+	{ sha: "7c2e9f1", x: CAUSE_X, labeled: true },
+	{ sha: "2fd0b17", x: 63, labeled: true },
+	{ sha: "6a90d3e", x: 70 },
+	{ sha: "f13b8e5", x: 78 },
+	{ sha: "4e7c0a9", x: 85 },
+	{ sha: "d58a1f6", x: 92 },
+] as const;
+const COMMIT_EVENTS = [0.9, 1.7, 2.4, 3.4, 3.8, 5] as const;
+const zoomed = (x: number) => CAUSE_X + (x - CAUSE_X) * ZOOM;
+const CONVERSION = Array.from({ length: 80 }, (_, index): [number, number] => {
+	const x = (index / 79) * 1000;
+	const fall = Math.min(1, Math.max(0, (x - CAUSE_X * 10 - 6) / 40));
+	return [x, 60 + fall * 90 + (pseudoRandom(`conv-${index}`) - 0.5) * 10];
+});
+const CONVERSION_CUT = CONVERSION.findIndex(([x]) => x > CAUSE_X * 10 + 6);
+const DIFF = [
+	{ mark: "-", text: "const parts = place.address_components ?? []" },
+	{ mark: "+", text: "const parts = place.addressComponents.toArray()" },
+	{ mark: "+", text: "setAddress(parts.map(formatPart))" },
+] as const;
+
+export function CommitZoom() {
+	const { ref, step } = useTimeline(COMMIT_EVENTS, 8.4);
+	const flagged = step >= 1;
+	const suspect = step >= 2;
+	const zoomIn = step >= 3;
+	const linked = step >= 4;
+	const detailed = step >= 5;
+	const concluded = step >= 6;
+	const zoomTransition = { duration: 0.9, ease: IN_OUT } as const;
+	return (
+		<MotionConfig reducedMotion="user">
+			<div className={FRAME} ref={ref}>
+				<div className="flex items-center justify-between gap-4 px-5 pt-5 sm:px-6 sm:pt-6">
+					<span className="font-medium text-foreground text-sm">
+						Checkout conversion
+					</span>
+					<span className="font-mono text-[11px] text-muted-foreground sm:text-xs">
+						Mar 3 to 9 · github
+					</span>
+				</div>
+				<div className="relative mx-5 mt-4 sm:mx-6">
+					<div className="relative h-32 overflow-hidden sm:h-40">
+						<motion.svg
+							animate={{
+								viewBox: zoomIn
+									? `${CAUSE_X * 10 - (CAUSE_X * 10) / ZOOM} 0 ${1000 / ZOOM} 200`
+									: "0 0 1000 200",
+							}}
+							aria-hidden="true"
+							className="absolute inset-0 size-full"
+							initial={false}
+							preserveAspectRatio="none"
+							transition={zoomTransition}
+						>
+							<path
+								className="stroke-foreground/70"
+								d={toPath(CONVERSION)}
+								fill="none"
+								strokeWidth={2}
+								vectorEffect="non-scaling-stroke"
+							/>
+							<motion.path
+								animate={{ opacity: flagged ? 1 : 0 }}
+								className="stroke-red-500"
+								d={toPath(CONVERSION.slice(CONVERSION_CUT))}
+								fill="none"
+								initial={false}
+								strokeWidth={2.5}
+								transition={REWIND}
+								vectorEffect="non-scaling-stroke"
+							/>
+						</motion.svg>
+					</div>
+					<div className="relative h-14 overflow-hidden border-white/[0.06] border-t">
+						{COMMITS.map((commit) => {
+							const cause = commit.x === CAUSE_X;
+							return (
+								<motion.div
+									animate={{ left: `${zoomIn ? zoomed(commit.x) : commit.x}%` }}
+									className="absolute top-3 flex -translate-x-1/2 flex-col items-center gap-1.5"
+									initial={false}
+									key={commit.sha}
+									transition={zoomTransition}
+								>
+									<span
+										className={cn(
+											"size-2.5 rotate-45 transition-colors duration-500",
+											cause && suspect
+												? "bg-brand-amber"
+												: "bg-muted-foreground/50"
+										)}
+									/>
+									{"labeled" in commit && (
+										<motion.span
+											animate={{ opacity: zoomIn ? 1 : 0 }}
+											className={cn(
+												"whitespace-nowrap font-mono text-[10px] sm:text-[11px]",
+												cause
+													? "text-brand-amber"
+													: "text-muted-foreground max-sm:hidden"
+											)}
+											initial={false}
+											transition={REWIND}
+										>
+											{commit.sha}
+										</motion.span>
+									)}
+								</motion.div>
+							);
+						})}
+					</div>
+					<motion.span
+						animate={{ scaleY: linked ? 1 : 0 }}
+						className="absolute top-0 bottom-9 w-0.5 origin-top -translate-x-1/2 bg-brand-amber"
+						initial={false}
+						style={{
+							left: `${CAUSE_X}%`,
+							filter: "drop-shadow(0 0 6px var(--brand-amber))",
+						}}
+						transition={{ duration: 0.4, ease: IN_OUT }}
+					/>
+				</div>
+				<div className="grid border-white/[0.06] border-t px-5 py-4 sm:px-6 [&>*]:col-start-1 [&>*]:row-start-1">
+					<Reveal className="flex flex-col gap-1.5" shown={!detailed}>
+						<span className="text-muted-foreground text-sm">
+							{COMMITS.length} commits merged between Mar 3 and 9
+						</span>
+						<span className="font-mono text-[11px] text-muted-foreground/60 sm:text-xs">
+							Reading the ones around the drop
+						</span>
+					</Reveal>
+					<div className="flex flex-col gap-2">
+						<Reveal
+							className="flex flex-wrap items-baseline gap-x-3 gap-y-1"
+							shown={detailed}
+						>
+							<span className="font-mono text-brand-amber text-xs sm:text-sm">
+								7c2e9f1
+							</span>
+							<span className="text-foreground text-sm">
+								address autocomplete, merged 13:52
+							</span>
+							<span className="font-mono text-[11px] text-muted-foreground">
+								checkout/address-autocomplete.tsx
+							</span>
+						</Reveal>
+						<div className="flex flex-col gap-1 font-mono text-[11px] sm:text-xs">
+							{DIFF.map((line, order) => (
+								<Reveal
+									className="flex min-w-0 gap-3"
+									delay={0.2 + order * 0.15}
+									key={line.text}
+									shown={detailed}
+								>
+									<span
+										className={
+											line.mark === "+" ? "text-emerald-500" : "text-red-500"
+										}
+									>
+										{line.mark}
+									</span>
+									<span className="truncate text-foreground/80">
+										{line.text}
+									</span>
+								</Reveal>
+							))}
+						</div>
+						<Reveal className="pt-1" shown={concluded}>
+							<p className="text-muted-foreground text-sm">
+								Conversion started falling 6 minutes after this merge.
+							</p>
+						</Reveal>
+					</div>
+				</div>
+			</div>
+		</MotionConfig>
+	);
+}
+
+const SLACK_EVENTS = [1.5, 2.3, 3.1] as const;
+
+export function SlackThread() {
+	const { ref, step } = useTimeline(SLACK_EVENTS, 7.4);
+	const thursday = step >= 1;
+	const replied = step >= 2;
+	const explained = step >= 3;
+	return (
+		<MotionConfig reducedMotion="user">
+			<div className={FRAME} ref={ref}>
+				<div className="flex items-center justify-between gap-4 border-white/[0.06] border-b px-5 py-3 sm:px-6">
+					<span className="font-mono text-foreground text-xs sm:text-sm">
+						# eng-alerts
+					</span>
+					<StatusLine tone="muted">
+						{thursday ? "Thursday" : "Monday"}
+					</StatusLine>
+				</div>
+				<div className="grid sm:grid-cols-[3fr_2fr]">
+					<div className="flex gap-3 px-5 py-5 sm:px-6">
+						<Image
+							alt=""
+							className="mt-0.5 size-7 shrink-0"
+							height={28}
+							src="/brand/bunny/white.svg"
+							unoptimized
+							width={28}
+						/>
+						<div className="flex min-w-0 flex-col gap-1.5">
+							<div className="flex items-baseline gap-2">
+								<span className="font-semibold text-foreground text-sm">
+									Databuddy
+								</span>
+								<span className="bg-white/[0.06] px-1 font-mono text-[9px] text-muted-foreground uppercase">
+									App
+								</span>
+								<span className="font-mono text-[11px] text-muted-foreground">
+									Mon 9:02
+								</span>
+							</div>
+							<span className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
+								<span className="size-2 bg-red-500" />
+								Action · Checkout funnel
+							</span>
+							<p className="font-medium text-foreground text-sm sm:text-base">
+								Checkout conversion fell 37% after Tuesday's deploy
+							</p>
+							<div className="flex flex-col gap-1 border-white/10 border-l-2 pl-3 text-muted-foreground text-xs sm:text-sm">
+								<p>
+									<span className="text-foreground/80">Impact:</span> 847
+									sessions hit a TypeError on the shipping step
+								</p>
+								<p>
+									<span className="text-foreground/80">Next:</span> Roll back
+									address autocomplete
+								</p>
+							</div>
+							<div className="mt-1 flex h-5 items-center gap-2 text-xs">
+								<AnimatePresence initial={false} mode="wait">
+									<motion.span
+										animate={{ opacity: 1, y: 0 }}
+										className={
+											replied
+												? "font-medium text-brand-amber"
+												: "text-muted-foreground/50"
+										}
+										exit={{ opacity: 0, y: -4 }}
+										initial={{ opacity: 0, y: 4 }}
+										key={replied ? "reply" : "none"}
+										transition={{ duration: 0.25, ease: IN_OUT }}
+									>
+										{replied ? "1 reply" : "No replies"}
+									</motion.span>
+								</AnimatePresence>
+							</div>
+						</div>
+					</div>
+					<div className="flex flex-col gap-3 border-white/[0.06] border-t px-5 py-5 sm:border-t-0 sm:border-l sm:px-6">
+						<span className="font-mono text-[11px] text-muted-foreground">
+							Thread
+						</span>
+						<p className="truncate text-muted-foreground text-xs">
+							Checkout conversion fell 37% after Tuesday's deploy
+						</p>
+						<Reveal className="flex gap-2.5" shown={replied}>
+							<Image
+								alt=""
+								className="mt-0.5 size-5 shrink-0"
+								height={20}
+								src="/brand/bunny/white.svg"
+								unoptimized
+								width={20}
+							/>
+							<div className="flex min-w-0 flex-col gap-1">
+								<span className="font-mono text-[11px] text-muted-foreground">
+									Thu 9:01
+								</span>
+								<p className="text-foreground text-sm">
+									Errors are back on iOS 18.1 after the partial fix.
+								</p>
+							</div>
+						</Reveal>
+					</div>
+				</div>
+				<div className="flex h-11 items-center border-white/[0.06] border-t px-5 sm:px-6">
+					<StatusLine tone={explained ? "amber" : "muted"}>
+						{explained
+							? "Same problem, same thread. The channel stays quiet."
+							: "A new problem gets one post"}
+					</StatusLine>
+				</div>
+			</div>
+		</MotionConfig>
+	);
+}
+
+const FIX_EVENTS = [1.6, 2.2, 4.3] as const;
+const MEASURE_SECONDS = 1.8;
+const FUNNEL_STEPS = [
+	{ path: "/cart", before: "1,204", after: "1,204" },
+	{ path: "/checkout", before: "846", after: "846" },
+	{
+		path: "/checkout/pay",
+		fixed: "/checkout/payment",
+		before: "0",
+		after: "318",
+	},
+	{ path: "purchase", before: "0", after: "291" },
+] as const;
+
+export function FixVerify() {
+	const { ref, step } = useTimeline(FIX_EVENTS, 7.6);
+	const applied = step >= 1;
+	const measuring = step >= 2;
+	const verified = step >= 3;
+	let status = (
+		<StatusLine tone="muted">Waiting for you to apply the fix</StatusLine>
+	);
+	if (verified) {
+		status = (
+			<StatusLine tone="emerald">
+				Check passed: 24% of 1,204 visitors completed checkout
+			</StatusLine>
+		);
+	} else if (applied) {
+		status = <StatusLine tone="amber">Measuring against the check</StatusLine>;
+	}
+	return (
+		<MotionConfig reducedMotion="user">
+			<div className={FRAME} ref={ref}>
+				<div className="flex items-center justify-between gap-4 border-white/[0.06] border-b px-5 py-3 sm:px-6">
+					<span className="font-medium text-foreground text-sm">
+						Checkout funnel
+					</span>
+					<StatusLine tone={verified ? "emerald" : "amber"}>
+						{verified ? "Verified" : "Needs attention"}
+					</StatusLine>
+				</div>
+				<ol className="flex flex-col gap-2.5 px-5 py-4 sm:px-6">
+					{FUNNEL_STEPS.map((funnelStep, order) => (
+						<li
+							className="grid grid-cols-[20px_1fr_auto] items-baseline gap-3"
+							key={funnelStep.path}
+						>
+							<span className="font-mono text-muted-foreground text-xs">
+								{order + 1}
+							</span>
+							<span className="flex min-w-0 flex-wrap items-baseline gap-x-2 font-mono text-xs sm:text-sm">
+								<span
+									className={cn(
+										"transition-colors duration-300",
+										"fixed" in funnelStep && applied
+											? "text-muted-foreground line-through decoration-red-500"
+											: "text-foreground"
+									)}
+								>
+									{funnelStep.path}
+								</span>
+								{"fixed" in funnelStep && (
+									<motion.span
+										animate={
+											applied ? { opacity: 1, x: 0 } : { opacity: 0, x: -4 }
+										}
+										className="text-emerald-500"
+										initial={false}
+										transition={{ duration: 0.35, ease: IN_OUT }}
+									>
+										{funnelStep.fixed}
+									</motion.span>
+								)}
+							</span>
+							<AnimatePresence initial={false} mode="wait">
+								<motion.span
+									animate={{ opacity: 1, y: 0 }}
+									className={cn(
+										"font-mono text-xs tabular-nums sm:text-sm",
+										!verified && funnelStep.before === "0"
+											? "text-red-500"
+											: "text-foreground"
+									)}
+									exit={{ opacity: 0, y: -4 }}
+									initial={{ opacity: 0, y: 4 }}
+									key={verified ? "after" : "before"}
+									transition={{ duration: 0.25, ease: IN_OUT }}
+								>
+									{verified ? funnelStep.after : funnelStep.before}
+								</motion.span>
+							</AnimatePresence>
+						</li>
+					))}
+				</ol>
+				<div className="mx-5 flex gap-4 border-white/[0.06] border-t py-4 sm:mx-6">
+					<span className="w-1 shrink-0 self-stretch bg-brand-amber" />
+					<div className="flex min-w-0 flex-col gap-2">
+						<p className="text-foreground text-sm">
+							Step 3 points at /checkout/pay, which stopped getting traffic on
+							Mar 4. Checkout moved to /checkout/payment.
+						</p>
+						<p className="font-mono text-[11px] text-muted-foreground sm:text-xs">
+							Check: funnel converts above 20% · 50+ entrants · 3 days
+						</p>
+						<motion.span
+							animate={applied ? { scale: [1, 0.94, 1] } : { scale: 1 }}
+							className={cn(
+								"mt-1 w-fit px-3 py-1.5 font-medium text-xs transition-colors duration-300",
+								applied
+									? "bg-white/[0.06] text-muted-foreground"
+									: "bg-foreground text-background"
+							)}
+							initial={false}
+							transition={{ duration: 0.3, ease: IN_OUT }}
+						>
+							{applied ? "Applied" : "Apply fix"}
+						</motion.span>
+					</div>
+				</div>
+				<div className="flex flex-col gap-2 border-white/[0.06] border-t px-5 py-4 sm:px-6">
+					<div className="relative h-1 bg-white/[0.06]">
+						<motion.span
+							animate={{ scaleX: measuring ? 1 : 0 }}
+							className={cn(
+								"absolute inset-0 origin-left transition-colors duration-300",
+								verified ? "bg-emerald-500" : "bg-brand-amber"
+							)}
+							initial={false}
+							transition={
+								measuring ? { duration: MEASURE_SECONDS, ease: IN_OUT } : REWIND
+							}
+						/>
+					</div>
+					<div className="flex justify-between font-mono text-[11px] text-muted-foreground">
+						<span>Day 1</span>
+						<span>Day 2</span>
+						<span>Day 3</span>
+					</div>
+					<div className="flex h-5 items-center">{status}</div>
+				</div>
+			</div>
+		</MotionConfig>
+	);
+}
+
+const QUESTION = "Which referrers brought paying customers last month?";
+const TOOL_STEPS = [
+	"revenue by referrer · last 30 days",
+	"visitors by referrer · last 30 days",
+] as const;
+const CHAT_EVENTS = [0.9, 1.3, 1.9, 2.9, 3.4, 4.4] as const;
+const SQL = [
+	"SELECT referrer_name AS name, currency,",
+	"       sumIf(amount, type != 'refund') AS revenue,",
+	"       uniq(r_customer_id) AS customers",
+	"FROM referrer_agg",
+	"GROUP BY referrer_name, currency ORDER BY revenue DESC",
+] as const;
+const REFERRERS = [
+	{ name: "news.ycombinator.com", customers: 38, revenue: 4180 },
+	{ name: "google.com", customers: 21, revenue: 2310 },
+	{ name: "chatgpt.com", customers: 9, revenue: 1340 },
+	{ name: "x.com", customers: 12, revenue: 1020 },
+] as const;
+
+export function ChatQuery() {
+	const { ref, step } = useTimeline(CHAT_EVENTS, 8.2);
+	const queried = step >= 3;
+	const tabled = step >= 4;
+	const charted = step >= 5;
+	const answered = step >= 6;
+	const top = REFERRERS[0]?.revenue ?? 1;
+	return (
+		<MotionConfig reducedMotion="user">
+			<div
+				className={cn(
+					FRAME,
+					"flex min-h-[450px] flex-col gap-5 p-5 sm:min-h-[470px] sm:p-6 lg:min-h-[510px]"
+				)}
+				ref={ref}
+			>
+				<div className="flex flex-col gap-1.5">
+					<span className="text-muted-foreground text-xs">You</span>
+					<p className="text-foreground text-sm sm:text-base">{QUESTION}</p>
+				</div>
+				<div className="flex flex-col gap-2.5">
+					<div className="flex items-center justify-between gap-2">
+						<span className="flex items-center gap-2">
+							<Image
+								alt=""
+								height={18}
+								src="/brand/bunny/white.svg"
+								unoptimized
+								width={18}
+							/>
+							<span className="font-medium text-foreground text-sm">
+								Databunny
+							</span>
+						</span>
+						<StatusLine tone={answered ? "emerald" : "amber"}>
+							{answered ? "Answered" : "Working"}
+						</StatusLine>
+					</div>
+					{TOOL_STEPS.map((label, order) => (
+						<div className="flex flex-col gap-2" key={label}>
+							<div className="flex items-center gap-2.5 font-mono text-[11px] sm:text-xs">
+								<span
+									className={cn(
+										"size-2 shrink-0 transition-colors duration-300",
+										step > order ? "bg-emerald-500" : "bg-brand-amber"
+									)}
+								/>
+								<span className="text-foreground">get_data</span>
+								<span className="truncate text-muted-foreground">
+									{withDots(label)}
+								</span>
+								{order === 0 && (
+									<span
+										className={cn(
+											"ml-auto shrink-0 transition-colors duration-300",
+											queried ? "text-foreground" : "text-muted-foreground"
+										)}
+									>
+										View query
+									</span>
+								)}
+							</div>
+							{order === 0 && (
+								<motion.div
+									animate={
+										queried
+											? { height: "auto", opacity: 1 }
+											: { height: 0, opacity: 0 }
+									}
+									className="overflow-hidden"
+									initial={false}
+									transition={{ duration: 0.5, ease: IN_OUT }}
+								>
+									<div className="flex flex-col border-white/10 border-l-2 py-1 pl-3 font-mono text-[10px] text-muted-foreground sm:text-[11px]">
+										{SQL.map((line) => (
+											<span className="truncate whitespace-pre" key={line}>
+												{line}
+											</span>
+										))}
+									</div>
+								</motion.div>
+							)}
+						</div>
+					))}
+				</div>
+				<div className="flex flex-col gap-1.5">
+					{REFERRERS.map((row, order) => (
+						<div
+							className="relative grid grid-cols-[1fr_auto_auto] gap-4 px-2 py-1.5 font-mono text-[11px] sm:text-xs"
+							key={row.name}
+						>
+							<motion.span
+								animate={{ opacity: tabled ? 0 : 1 }}
+								className="absolute inset-0 bg-white/[0.03]"
+								initial={false}
+								transition={REWIND}
+							/>
+							<motion.span
+								animate={{ scaleX: charted ? row.revenue / top : 0 }}
+								className={cn(
+									"absolute inset-0 origin-left",
+									order === 0 ? "bg-brand-amber/20" : "bg-white/[0.05]"
+								)}
+								initial={false}
+								transition={
+									charted
+										? { delay: order * 0.08, duration: 0.6, ease: IN_OUT }
+										: REWIND
+								}
+							/>
+							<motion.span
+								animate={{ opacity: tabled ? 1 : 0 }}
+								className="relative col-span-3 grid grid-cols-subgrid"
+								initial={false}
+								transition={
+									tabled
+										? { delay: order * 0.06, duration: 0.35, ease: IN_OUT }
+										: REWIND
+								}
+							>
+								<span className="truncate text-foreground">{row.name}</span>
+								<span className="text-foreground tabular-nums">
+									{row.customers}
+								</span>
+								<span className="text-muted-foreground tabular-nums">
+									${row.revenue.toLocaleString("en-US")}
+								</span>
+							</motion.span>
+						</div>
+					))}
+				</div>
+				<div className="grid [&>*]:col-start-1 [&>*]:row-start-1">
+					<motion.div
+						animate={{ opacity: answered ? 0 : 1 }}
+						className="flex flex-col gap-2 pt-1"
+						initial={false}
+						transition={REWIND}
+					>
+						<span className="h-3 w-full bg-white/[0.04]" />
+						<span className="h-3 w-2/3 bg-white/[0.04]" />
+					</motion.div>
+					<Reveal shown={answered}>
+						<p className="text-foreground text-sm sm:text-base">
+							Hacker News brought{" "}
+							<span className="text-brand-amber">
+								38 paying customers and $4,180
+							</span>{" "}
+							last month, more than Google and ChatGPT combined.
+						</p>
+					</Reveal>
 				</div>
 			</div>
 		</MotionConfig>
