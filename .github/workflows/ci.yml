@@ -190,14 +190,19 @@ jobs:
           NODE_ENV: test
           BULLMQ_REDIS_URL: redis://localhost:6379/4
         run: bun run --cwd apps/insights test:integration
-      - name: Uptime router integration
+      - name: API integration
         env:
           NODE_ENV: test
           UPTIME_ROUTER_INTEGRATION: "true"
           BULLMQ_REDIS_URL: redis://localhost:6379/3
-        run: cd apps/api && bun test src/integration/uptime-handlers.test.ts
-      - name: Insights router integration
+        run: bun run --cwd apps/api test:integration
+      - name: Uptime scheduler integration
         env:
           NODE_ENV: test
           BULLMQ_REDIS_URL: redis://localhost:6379/5
-        run: cd apps/api && bun test src/integration/insights-handlers.test.ts
+        run: bun run --cwd packages/rpc test:integration
+      - name: Stripe revenue pipeline
+        env:
+          NODE_ENV: test
+          CLICKHOUSE_URL: http://default:@localhost:8123
+        run: bun run --cwd packages/ai test:stripe-revenue:e2e
