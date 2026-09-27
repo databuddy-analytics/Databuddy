@@ -11,7 +11,7 @@ import {
 	MCP_DATE_PRESETS,
 	resolveDatePreset,
 } from "../../lib/date-presets";
-import { QueryBuilders } from "../../query/builders";
+import { getQueryBuilder, QueryBuilders } from "../../query/builders";
 import {
 	invalidFilterFieldError,
 	publicQueryErrorMessage,
@@ -177,7 +177,7 @@ export function buildBatchQueryRequests(
 			});
 		};
 
-		if (!(resolvedType in QueryBuilders)) {
+		if (!getQueryBuilder(resolvedType)) {
 			const hint = suggestQueryTypes(q.type.replace(TOP_QUERY_PREFIX, ""));
 			const message = hint.length
 				? `Unknown type: ${q.type}. Did you mean: ${hint.join(", ")}?`
@@ -262,14 +262,14 @@ export function formatMcpQueryResults(
 			}
 			const rowCount = result.data.length;
 			const data =
-				QueryBuilders[request.type]?.meta?.default_visualization ===
+				getQueryBuilder(request.type)?.meta?.default_visualization ===
 				"timeseries"
 					? result.data.slice(-AGENT_RESULT_ROW_LIMIT)
 					: result.data.slice(0, AGENT_RESULT_ROW_LIMIT);
 			return {
 				inputIndex: request.inputIndex,
 				type: result.type,
-				definition: QueryBuilders[request.type]?.meta?.description,
+				definition: getQueryBuilder(request.type)?.meta?.description,
 				summary: querySummary(request),
 				data,
 				rowCount,

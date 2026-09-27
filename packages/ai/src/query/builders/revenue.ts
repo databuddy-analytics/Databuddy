@@ -652,8 +652,9 @@ const REVENUE_GEO_BREAKDOWN_FIELDS = [
 	{ name: "percentage", type: "number" as const, label: "Share", unit: "%" },
 ];
 
-const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
+export const RevenueBuilders = {
 	revenue_overview: {
+		allowedFilters: REVENUE_OVERVIEW_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue Overview",
 			description:
@@ -924,6 +925,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_time_series: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue Time Series",
 			description:
@@ -971,6 +973,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_provider: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Provider",
 			description: "Revenue breakdown by payment provider.",
@@ -990,6 +993,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_product: {
+		allowedFilters: [...REVENUE_ALLOWED_FILTERS, "product_id", "product_name"],
 		meta: {
 			title: "Revenue by Product",
 			description:
@@ -1026,6 +1030,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_attribution_overview: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue Attribution Overview",
 			description: "Attributed vs unattributed revenue split.",
@@ -1045,6 +1050,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_country: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Country",
 			description: "Attributed revenue breakdown by country.",
@@ -1069,6 +1075,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_region: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Region",
 			description: "Attributed revenue breakdown by region/state.",
@@ -1094,6 +1101,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_city: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by City",
 			description: "Attributed revenue breakdown by city.",
@@ -1119,6 +1127,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_browser: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Browser",
 			description: "Attributed revenue breakdown by browser.",
@@ -1142,6 +1151,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_device: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Device",
 			description: "Attributed revenue breakdown by device type.",
@@ -1165,6 +1175,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_os: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by OS",
 			description: "Attributed revenue breakdown by operating system.",
@@ -1188,6 +1199,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_referrer: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Referrer",
 			description: "Attributed revenue breakdown by referrer domain.",
@@ -1223,6 +1235,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_ai_product: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by AI Product",
 			description:
@@ -1276,6 +1289,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_utm_source: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by UTM Source",
 			description: "Attributed revenue breakdown by UTM source.",
@@ -1299,6 +1313,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_utm_medium: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by UTM Medium",
 			description: "Attributed revenue breakdown by UTM medium.",
@@ -1322,6 +1337,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_utm_campaign: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by UTM Campaign",
 			description: "Attributed revenue breakdown by UTM campaign.",
@@ -1345,6 +1361,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_entry_page: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Entry Page",
 			description: "Attributed revenue breakdown by entry page path.",
@@ -1368,6 +1385,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	recent_transactions: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Recent Transactions",
 			description:
@@ -1421,20 +1439,4 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 		customizable: true,
 		plugins: { normalizeGeo: true },
 	},
-};
-
-export const RevenueBuilders: Record<string, SimpleQueryConfig> =
-	Object.fromEntries(
-		Object.entries(revenueBuilderDefinitions).map(([name, config]) => [
-			name,
-			{
-				...config,
-				allowedFilters:
-					name === "revenue_overview"
-						? REVENUE_OVERVIEW_ALLOWED_FILTERS
-						: name === "revenue_by_product"
-							? [...REVENUE_ALLOWED_FILTERS, "product_id", "product_name"]
-							: REVENUE_ALLOWED_FILTERS,
-			},
-		])
-	);
+} satisfies Record<string, SimpleQueryConfig>;

@@ -40,6 +40,7 @@ import {
 } from "@databuddy/ai/query";
 import {
 	canReadQueryTypesPublicly,
+	getQueryBuilder,
 	QueryBuilders,
 } from "@databuddy/ai/query/builders";
 import {
@@ -198,7 +199,7 @@ function validateQueryParameters(
 	const queryTypes = Object.keys(QueryBuilders);
 	return parameters.flatMap((param, index) => {
 		const name = typeof param === "string" ? param : param?.name;
-		if (!(name && !QueryBuilders[name])) {
+		if (!(name && !getQueryBuilder(name))) {
 			return [];
 		}
 
@@ -991,7 +992,7 @@ async function executeDynamicQuery(
 		const paramFrom = start ? normalizeDate(start) : from;
 		const paramTo = end ? normalizeDate(end) : to;
 
-		const config = QueryBuilders[name];
+		const config = getQueryBuilder(name);
 		if (!config) {
 			return { id, error: `Unknown query type: ${name}` };
 		}

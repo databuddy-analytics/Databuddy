@@ -8,7 +8,7 @@ function inclusiveEndDate(endDate: string): string {
 	return DATE_ONLY_RE.test(endDate) ? `${endDate} 23:59:59` : endDate;
 }
 
-export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
+export const SessionsBuilders = {
 	session_metrics: {
 		meta: {
 			default_order: null,
@@ -533,4 +533,4 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		requiredFilters: ["session_id"],
 		customizable: true,
 	} satisfies SimpleQueryConfig,
-};
+} satisfies Record<string, SimpleQueryConfig>;

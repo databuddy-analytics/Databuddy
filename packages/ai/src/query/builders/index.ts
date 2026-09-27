@@ -104,14 +104,25 @@ export const PUBLIC_QUERY_TYPES = new Set<string>([
 	"vitals_by_browser",
 	"vitals_by_region",
 	"vitals_by_city",
-] as const);
+] satisfies QueryType[]);
 
-export const QueryBuilders = Object.fromEntries(
-	Object.entries(BASE_QUERY_BUILDERS).map(([type, config]) => [
-		type,
-		PUBLIC_QUERY_TYPES.has(type) ? { ...config, publicAccess: true } : config,
-	])
-) as typeof BASE_QUERY_BUILDERS;
+export type QueryType = keyof typeof BASE_QUERY_BUILDERS;
+
+export const QueryBuilders: Record<QueryType, SimpleQueryConfig> =
+	Object.fromEntries(
+		Object.entries(BASE_QUERY_BUILDERS).map(([type, config]) => [
+			type,
+			PUBLIC_QUERY_TYPES.has(type) ? { ...config, publicAccess: true } : config,
+		])
+	) as typeof BASE_QUERY_BUILDERS;
+
+function isQueryType(type: string): type is QueryType {
+	return Object.hasOwn(QueryBuilders, type);
+}
+
+export function getQueryBuilder(type: string): SimpleQueryConfig | undefined {
+	return isQueryType(type) ? QueryBuilders[type] : undefined;
+}
 
 const TOKEN_SEPARATOR = /[\s_]+/;
 
@@ -151,8 +162,6 @@ export function canReadQueryTypesPublicly(
 ): boolean {
 	return (
 		queryTypes.length > 0 &&
-		queryTypes.every((type) => QueryBuilders[type]?.publicAccess === true)
+		queryTypes.every((type) => getQueryBuilder(type)?.publicAccess === true)
 	);
 }
-
-export type QueryType = keyof typeof QueryBuilders;

@@ -96,7 +96,7 @@ const VITALS_P50_FIELDS = [
 	{ name: "samples", type: "number" as const, label: "Samples" },
 ];
 
-export const VitalsBuilders: Record<string, SimpleQueryConfig> = {
+export const VitalsBuilders = {
 	vitals_overview: {
 		meta: {
 			title: "Vitals Overview",
@@ -314,4 +314,4 @@ export const VitalsBuilders: Record<string, SimpleQueryConfig> = {
 		customizable: true,
 		plugins: { normalizeGeo: true, deduplicateGeo: true },
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

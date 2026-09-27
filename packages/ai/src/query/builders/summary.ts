@@ -2,7 +2,7 @@ import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { SimpleQueryConfig } from "../types";
 
-export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
+export const SummaryBuilders = {
 	summary_metrics: {
 		meta: {
 			title: "Summary Metrics",
@@ -376,4 +376,4 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 		noCache: true,
 		customizable: false,
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

@@ -1,6 +1,6 @@
 /** biome-ignore-all lint/performance/noBarrelFile: this is a barrel file */
 import { z } from "zod";
-import { QueryBuilders, suggestQueryTypes } from "./builders";
+import { getQueryBuilder, suggestQueryTypes } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
 import {
 	invalidFilterFieldError,
@@ -77,7 +77,7 @@ function createBuilder(
 	websiteDomain?: string | null,
 	timezone?: string
 ) {
-	const config = QueryBuilders[validated.type];
+	const config = getQueryBuilder(validated.type);
 	if (!config) {
 		const suggestions = suggestQueryTypes(validated.type);
 		const hint = suggestions.length

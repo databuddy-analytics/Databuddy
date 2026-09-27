@@ -37,7 +37,7 @@ const WEB_VITALS_BREAKDOWN_FIELDS = [
 	{ name: "measurements", type: "number" as const, label: "Measurements" },
 ];
 
-export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
+export const PerformanceBuilders = {
 	web_vitals_by_page: {
 		meta: {
 			title: "Web Vitals by Page",
@@ -320,4 +320,4 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "timestamp",
 		customizable: true,
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

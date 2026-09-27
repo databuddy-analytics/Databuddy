@@ -2,7 +2,7 @@ import { Analytics } from "../../types/tables";
 import { Expressions } from "../expressions";
 import type { SimpleQueryConfig } from "../types";
 
-export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
+export const EngagementBuilders = {
 	frustration_by_page: {
 		meta: {
 			title: "Frustration by Page",
@@ -431,4 +431,4 @@ export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		customizable: true,
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

@@ -6,7 +6,9 @@ import { getWebsiteDomain } from "../../lib/website-utils";
 import {
 	executeQuery,
 	publicQueryErrorMessage,
+	getQueryBuilder,
 	QueryBuilders,
+	type QueryType,
 	SANITIZED_QUERY_ERROR,
 } from "../../query";
 import { resolveDatePreset } from "../../lib/date-presets";
@@ -19,7 +21,6 @@ import {
 	toolDateRangeError,
 } from "./utils/context";
 
-type QueryType = Extract<keyof typeof QueryBuilders, string>;
 const QUERY_TYPES = Object.keys(QueryBuilders) as [QueryType, ...QueryType[]];
 
 const queryItemSchema = agentDataInputSchema.shape.queries.element
@@ -83,7 +84,7 @@ function buildResultSummary(
 	filters: QueryItem["filters"],
 	groupBy: string[] | undefined
 ): string {
-	const meta = QueryBuilders[type]?.meta;
+	const meta = getQueryBuilder(type)?.meta;
 	const title = meta?.title ?? type;
 	const range = from === to ? from : `${from} → ${to}`;
 	const filterPart = filters?.length
@@ -235,7 +236,7 @@ export const getDataTool = tool({
 					const returnedRows = Math.min(data.length, MAX_MODEL_ROWS);
 					return {
 						type: item.type,
-						definition: QueryBuilders[item.type]?.meta?.description,
+						definition: getQueryBuilder(item.type)?.meta?.description,
 						websiteId,
 						filters: item.filters ?? [],
 						from,

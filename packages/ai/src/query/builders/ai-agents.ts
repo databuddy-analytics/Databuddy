@@ -50,7 +50,7 @@ function productParams(ctx: CustomSqlContext) {
 	};
 }
 
-export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
+export const AiAgentsBuilders = {
 	ai_products: {
 		meta: {
 			title: "AI Products",
@@ -310,4 +310,4 @@ export const AiAgentsBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "timestamp",
 		customizable: false,
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

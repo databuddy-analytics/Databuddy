@@ -4,7 +4,7 @@ import {
 	type TraitFilter,
 	TraitFilterError,
 } from "@databuddy/services/identity";
-import { QueryBuilders } from "./builders";
+import { getQueryBuilder } from "./builders";
 import { allowedFilterFields, isFilterFieldAllowed } from "./simple-builder";
 import type { Filter, QueryRequest } from "./types";
 
@@ -51,7 +51,7 @@ export function invalidFilterFieldError(
 	type: string,
 	filters: Filter[] | undefined
 ): string | null {
-	const config = QueryBuilders[type];
+	const config = getQueryBuilder(type);
 	if (!(config && filters?.length)) {
 		return null;
 	}
@@ -82,7 +82,7 @@ export async function resolveRequestTraitFilters(
 			"Trait filters are only supported for website-scoped queries."
 		);
 	}
-	const config = QueryBuilders[request.type];
+	const config = getQueryBuilder(request.type);
 	if (!(config && isFilterFieldAllowed(config, "profile_id"))) {
 		throw new TraitFilterError(
 			`Trait filters are not supported for ${request.type}. Query types that support them accept a profile_id filter.`
