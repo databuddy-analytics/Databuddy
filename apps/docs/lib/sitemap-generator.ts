@@ -37,6 +37,7 @@ export async function generateSitemapEntries(): Promise<MetadataRoute.Sitemap> {
 		"/data-policy",
 		"/dpa",
 		"/oss",
+		"/startups",
 		"/branding",
 		...source.getPages().map((page) => page.url),
 		"/compare",
