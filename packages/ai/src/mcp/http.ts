@@ -71,7 +71,7 @@ export async function handleDatabuddyMcpRequest(
 	registerGuideResource(server);
 
 	for (const tool of createMcpTools(options)) {
-		if (!apiKeyCanCallTool(options.apiKey, tool)) {
+		if (!callerCanCallTool(options, tool)) {
 			continue;
 		}
 		server.registerTool(
@@ -105,16 +105,18 @@ export async function handleDatabuddyMcpRequest(
 	}
 }
 
-function apiKeyCanCallTool(
-	apiKey: McpRequestContext["apiKey"],
+function callerCanCallTool(
+	{ apiKey, oauthScopes }: McpRequestContext,
 	tool: RegisteredMcpTool
 ): boolean {
 	const required = tool.metadata.access.scopes;
 	if (!required?.length) {
 		return true;
 	}
+	if (oauthScopes?.length) {
+		return required.every((scope) => oauthScopes.includes(scope));
+	}
 	if (!apiKey) {
-		// Session-authenticated callers fall through to downstream role checks.
 		return true;
 	}
 	const globalScopes = tool.metadata.access.globalScopes;
