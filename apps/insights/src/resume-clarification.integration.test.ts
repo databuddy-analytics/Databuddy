@@ -8,6 +8,8 @@ import {
 	mock,
 	spyOn,
 } from "bun:test";
+import * as execution from "@databuddy/ai/agents/execution";
+import type { BusinessContext } from "@databuddy/ai/lib/business-context";
 import { db, eq, inArray, shutdownPostgres } from "@databuddy/db";
 import {
 	analyticsInsights,
@@ -21,6 +23,7 @@ import type {
 	InvestigationOutcome,
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
+import { rankInvestigationBusinessContext } from "./business-context-ranking";
 import { createEvidenceSnapshot } from "./evidence-snapshot";
 import { resumeInsightReply, recordInsightReplyFailure } from "./resume";
 import * as billing from "./investigation-billing";
@@ -644,6 +647,107 @@ integration("included saved-evidence replies", () => {
 		).toBe("succeeded");
 		expect(model).toHaveBeenCalledTimes(1);
 		expect(remote.state().confirmed).toBe(0);
+	});
+
+	it("ranks an oversized analysis context, records the ranking usage, and completes the reply", async () => {
+		const f = await fixture({ intent: "analysis" });
+		const remote = nativeProvider();
+		wireProvider(remote);
+		const usage = spyOn(execution, "trackAgentUsage");
+		const capturedAt = new Date().toISOString();
+		const page = (id: string, path = `/${id}`) => ({
+			id,
+			kind: "website" as const,
+			observedAt: capturedAt,
+			url: `https://evidence.example.invalid${path}`,
+			content: id.padEnd(path === "/" ? 4000 : 3000, "."),
+		});
+		const context = (sources: BusinessContext["sources"]): BusinessContext => ({
+			capturedAt,
+			status: "ready",
+			issues: [],
+			sources,
+		});
+		const profile = context([
+			{
+				id: "profile",
+				kind: "organization_profile",
+				observedAt: capturedAt,
+				content: "Saved profile".padEnd(4000, "."),
+			},
+			page("home", "/"),
+		]);
+		const related = context([
+			{
+				id: "reply",
+				kind: "team_reply",
+				observedAt: capturedAt,
+				content: "Original correction".padEnd(4000, "."),
+			},
+			page("decoration"),
+			page("old-plan"),
+			page("exception"),
+		]);
+		const ranked = ["profile", "reply", "home", "exception"];
+		const model = mock(async (input: { businessContext?: BusinessContext }) => {
+			expect(input.businessContext?.sources.map((s) => s.id)).toEqual(ranked);
+			return {
+				outcome,
+				completion: "complete" as const,
+				snapshot: { ...f.snapshot, completion: "complete" as const },
+				toolCallCount: 1,
+			};
+		});
+		const refresh = mock(async () => ({ signal, evidence: [] }));
+		expect(
+			await resumeInsightReply(
+				f.replyId,
+				model,
+				forbidden,
+				refresh,
+				{
+					...freshBusiness,
+					loadBusinessProfile: async () => profile,
+					recallBusinessContext: async () => related,
+					rankBusinessContext: (options) =>
+						rankInvestigationBusinessContext(options, async () => ({
+							answers: {
+								q0: { type: "boolean", probability: 0.1 },
+								q1: { type: "boolean", probability: 0.1 },
+								q2: { type: "boolean", probability: 0.9 },
+							},
+							usage: { inputTokens: 100, outputTokens: 3 },
+						})),
+				},
+				forbidden
+			)
+		).toBe("succeeded");
+		expect(model).toHaveBeenCalledTimes(1);
+		expect(usage).toHaveBeenCalledTimes(1);
+		expect(usage.mock.calls[0]?.[0]).toMatchObject({
+			modelId: "typesafe-ai/jev",
+			usage: { totalTokens: 103 },
+			organizationId: f.organizationId,
+			websiteId: f.websiteId,
+			chatId: `insights:analysis:${f.replyId}`,
+		});
+		const [saved] = await db
+			.select()
+			.from(insightReplies)
+			.where(eq(insightReplies.id, f.replyId));
+		const [observation] = await db
+			.select()
+			.from(insightObservations)
+			.where(eq(insightObservations.id, saved!.observationId!));
+		expect(
+			observation?.outcome.contextSnapshot?.sources.map((s) => s.id)
+		).toEqual(ranked);
+		expect(remote.state()).toEqual({
+			reserved: 1,
+			confirmed: 1,
+			released: 0,
+			holds: 0,
+		});
 	});
 
 	it("keeps trusted verification free while refreshing the original investigation", async () => {
