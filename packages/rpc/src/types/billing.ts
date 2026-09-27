@@ -1,4 +1,3 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
 import type { GatedFeatureId } from "@databuddy/shared/types/features";
 import {
 	getFeatureUnavailableMessage,
@@ -9,12 +8,13 @@ import {
 	isWithinLimit,
 } from "@databuddy/shared/types/features";
 import { rpcError } from "../errors";
+import { hasHostedBilling } from "../lib/autumn-client";
 
 function requireFeature(
 	planId: string | undefined,
 	feature: GatedFeatureId
 ): void {
-	if (readBooleanEnv("SELFHOST")) {
+	if (!hasHostedBilling()) {
 		return;
 	}
 	if (!isFeatureAvailable(planId ?? null, feature)) {
@@ -41,7 +41,7 @@ export function requireUsageWithinLimit(
 	feature: GatedFeatureId,
 	currentUsage: number
 ): void {
-	if (readBooleanEnv("SELFHOST")) {
+	if (!hasHostedBilling()) {
 		return;
 	}
 	if (!isWithinLimit(planId ?? null, feature, currentUsage)) {

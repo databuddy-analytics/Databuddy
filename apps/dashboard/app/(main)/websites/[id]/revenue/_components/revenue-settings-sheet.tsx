@@ -55,7 +55,9 @@ function RequiredEventList({
 			{events.map((event) => {
 				const receivedAt = lastReceived?.get(event);
 				let status: ReactNode = <Skeleton className="h-3 w-20 rounded" />;
-				if (receivedAt) {
+				if (unavailable) {
+					status = "Unavailable";
+				} else if (receivedAt) {
 					status = (
 						<>
 							<CheckCircleIcon className="size-3 text-success" />
@@ -64,8 +66,6 @@ function RequiredEventList({
 					);
 				} else if (lastReceived) {
 					status = "No delivery in 90 days";
-				} else if (unavailable) {
-					status = "Unavailable";
 				}
 				return (
 					<div className="flex items-center justify-between gap-2" key={event}>
