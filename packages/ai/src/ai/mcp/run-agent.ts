@@ -264,11 +264,20 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		: session?.user.id === mcpUserId
 			? (session?.session.activeOrganizationId ?? null)
 			: null;
-	const accessibleWebsites = await getAccessibleWebsites({
-		apiKey: options.apiKey,
-		organizationId,
-		user: session?.user.id === mcpUserId ? session.user : null,
-	});
+	const [accessibleWebsites, billingCustomerId] = await Promise.all([
+		getAccessibleWebsites({
+			apiKey: options.apiKey,
+			organizationId,
+			user: session?.user.id === mcpUserId ? session.user : null,
+		}),
+		options.billingMode === "skip"
+			? Promise.resolve(null)
+			: resolveAgentBillingCustomerId({
+					userId: mcpUserId,
+					apiKey: options.apiKey,
+					organizationId,
+				}),
+	]);
 	const websiteDomain = options.websiteDomain;
 	// A caller-supplied site must not bind another organization's brief or tools.
 	if (
@@ -289,14 +298,6 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 
 	const apiKeyId = options.apiKey?.id ?? null;
 
-	const billingCustomerId =
-		options.billingMode === "skip"
-			? null
-			: await resolveAgentBillingCustomerId({
-					userId: mcpUserId,
-					apiKey: options.apiKey,
-					organizationId,
-				});
 	mergeWideEvent({
 		agent_billing_mode: options.billingMode === "skip" ? "skip" : "bill",
 	});
