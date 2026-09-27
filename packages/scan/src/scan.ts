@@ -408,9 +408,9 @@ export function suggestEvent(
 		phraseEvent(quotedText.exec(label)?.[1] ?? "", path) ||
 		(route &&
 			phraseEvent(
-				routeWords(route[2].split("/")),
+				routeWords((route[2] ?? "").split("/")),
 				path,
-				methodTense[route[1].toLowerCase()]
+				methodTense[(route[1] ?? "").toLowerCase()]
 			)) ||
 		(next &&
 			phraseEvent(routeWords(next), path, methodTense[label.toLowerCase()])) ||
