@@ -629,10 +629,13 @@ integration("included saved-evidence replies", () => {
 			.select()
 			.from(insightReplies)
 			.where(eq(insightReplies.id, f.replyId));
+		if (!saved?.observationId) {
+			throw new Error("The reply was saved without an observation");
+		}
 		const [observation] = await db
 			.select()
 			.from(insightObservations)
-			.where(eq(insightObservations.id, saved!.observationId!));
+			.where(eq(insightObservations.id, saved.observationId));
 		expect(observation?.outcome.publish).toBe(true);
 		expect(observation?.snapshot?.completion).toBe("incomplete");
 		expect(
@@ -735,10 +738,13 @@ integration("included saved-evidence replies", () => {
 			.select()
 			.from(insightReplies)
 			.where(eq(insightReplies.id, f.replyId));
+		if (!saved?.observationId) {
+			throw new Error("The reply was saved without an observation");
+		}
 		const [observation] = await db
 			.select()
 			.from(insightObservations)
-			.where(eq(insightObservations.id, saved!.observationId!));
+			.where(eq(insightObservations.id, saved.observationId));
 		expect(
 			observation?.outcome.contextSnapshot?.sources.map((s) => s.id)
 		).toEqual(ranked);
