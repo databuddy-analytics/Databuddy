@@ -131,6 +131,7 @@ const nativeReadingSchema = z.object({
 	),
 	data: z.array(z.record(z.string(), z.unknown())),
 });
+type NativeRow = z.infer<typeof nativeReadingSchema>["data"][number];
 
 export function formatDayRange(from: string, to: string) {
 	const start = dayjs(from);
@@ -164,14 +165,17 @@ export function renderRevenueEvidence(
 		.length(2)
 		.parse(sources)
 		.sort((a, b) => a.from.localeCompare(b.from));
-	const first = readings[0];
+	const [first, second] = readings;
+	if (!(first && second)) {
+		throw new Error("Revenue comparisons require exactly two cited readings.");
+	}
 	const today = new Intl.DateTimeFormat("en-CA", {
 		timeZone: first.timezone,
 		year: "numeric",
 		month: "2-digit",
 		day: "2-digit",
 	}).format(new Date(input.appContext.currentDateTime));
-	const rows = readings.map((reading, index) => {
+	const selectRow = (reading: typeof first, index: number) => {
 		if (
 			reading.from > reading.to ||
 			reading.to >= today ||
@@ -187,31 +191,35 @@ export function renderRevenueEvidence(
 				"Revenue comparisons require complete equal-duration windows with the same timezone and filters, and distinct non-overlapping periods."
 			);
 		}
-		const matching = reading.data.filter(
-			(row) => row.currency === selection.currency
+		const [row, ...others] = reading.data.filter(
+			(entry) => entry.currency === selection.currency
 		);
-		if (matching.length !== 1) {
+		if (!row || others.length > 0) {
 			throw new Error(
 				"Revenue evidence requires one unambiguous row for the selected currency in every cited result."
 			);
 		}
-		return matching[0];
-	});
+		return row;
+	};
+	const rows: [NativeRow, NativeRow] = [
+		selectRow(first, 0),
+		selectRow(second, 1),
+	];
 	const format = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 	const facts = [...new Set(selection.fields)].map((name) => {
 		const field = revenueFields.find((entry) => entry.name === name);
 		if (!field) {
 			throw new Error("Revenue evidence must select a declared numeric field.");
 		}
-		const values = rows.map((row) =>
+		const parseField = (row: NativeRow) =>
 			z
 				.union([z.number(), z.string().trim().min(1)])
 				.pipe(z.coerce.number<string | number>().finite())
 				.parse(row[name], {
 					error: () =>
 						`${name} is unavailable for a cited ${selection.currency} period. Omit this field; preserve other supported comparisons. Unavailable is not zero.`,
-				})
-		);
+				});
+		const values: [number, number] = [parseField(rows[0]), parseField(rows[1])];
 		const delta = values[1] - values[0];
 		return `${field.label ?? name.replaceAll("_", " ")}${field.unit ? ` (${field.unit})` : ""}: ${values.map((value) => format.format(value)).join(" → ")}${delta === 0 ? "" : ` (${delta > 0 ? "+" : ""}${format.format(delta)}${field.unit === "%" ? " pp" : ""})`}`;
 	});
@@ -303,7 +311,10 @@ function renderToolRetentionEvidence(
 		.length(2)
 		.parse(sources)
 		.sort((a, b) => a.from.localeCompare(b.from));
-	const first = readings[0];
+	const [first, second] = readings;
+	if (!(first && second)) {
+		throw new Error("Retention comparisons require exactly two cited cohorts.");
+	}
 	const scope = (reading: z.infer<typeof nativeReadingSchema>) => ({
 		type: reading.type,
 		websiteId: reading.websiteId,
@@ -381,8 +392,10 @@ function renderToolRetentionEvidence(
 		};
 	}
 	const [previous, current] = z
-		.array(retentionMeasurementSchema.shape.previous)
-		.length(2)
+		.tuple([
+			retentionMeasurementSchema.shape.previous,
+			retentionMeasurementSchema.shape.previous,
+		])
 		.parse(windows, {
 			error: () =>
 				`Retention publication requires at least ${RETENTION_MINIMUM_PROFILES} eligible profiles and no incomplete follow-up in each cohort. Resolve this comparison privately; preserve independently supported findings.`,
@@ -422,7 +435,7 @@ function renderToolRetentionEvidence(
 				observationEnd: filters.observation_end,
 				timezone: first.timezone,
 			},
-			{ previous: first, current: readings[1] },
+			{ previous: first, current: second },
 			filters.horizon_days
 		),
 	};
@@ -671,14 +684,16 @@ function hasProductRevenueEvidence(
 				isDeepStrictEqual(reading.filters, wholeFilters)
 		)
 	);
+	const withinWhole = (row: NativeRow, wholeRow: NativeRow) => {
+		const amount = Number(row.total_revenue);
+		const total = Number(wholeRow.total_revenue);
+		return amount >= 0 && total > 0 && amount <= total;
+	};
 	return Boolean(
 		product &&
 			whole &&
-			product.rows.every((row, index) => {
-				const amount = Number(row.total_revenue);
-				const total = Number(whole.rows[index].total_revenue);
-				return amount >= 0 && total > 0 && amount <= total;
-			})
+			withinWhole(product.rows[0], whole.rows[0]) &&
+			withinWhole(product.rows[1], whole.rows[1])
 	);
 }
 
@@ -1314,92 +1329,99 @@ function resolveEvidenceReferences(
 	results: StepResult<ToolSet>["toolResults"]
 ): unknown[][] {
 	return outcome.evidenceRefs.map((refs) =>
-		(Array.isArray(refs) ? refs : [refs]).map((ref) => {
-			if (ref.source === "history") {
-				const prior = input.history[ref.index];
-				if (
-					prior?.kind !== "investigation" ||
-					prior.outcome.next.type !== "act" ||
-					prior.signal.signalKey !== input.signal.signalKey ||
-					prior.signal.entity.id !== input.signal.entity.id ||
-					prior.signal.entity.type !== input.signal.entity.type
-				) {
-					throw new Error(
-						"The cited history must be an investigation for this exact signal, not a human reply or another subject."
-					);
-				}
-				return {
-					condition: prior.outcome.next.verification,
-					check: prior.outcome.next.check,
-				};
-			}
-			if (ref.source === "signal") {
-				return promptSignal(input.signal);
-			}
-			if (ref.source === "customer_impact") {
-				if (!input.customerImpact) {
-					throw new Error("No customer impact measurement was supplied.");
-				}
-				return input.customerImpact;
-			}
-			if (ref.source === "related_signal") {
-				const signal = input.relatedSignals?.[ref.index];
-				if (!signal) {
-					throw new Error("The cited related signal was not supplied.");
-				}
-				return promptSignal(signal);
-			}
-			if (ref.source === "provided") {
-				if (ref.index >= input.evidence.length) {
-					throw new Error(
-						`Insights agent cited supplied evidence index ${ref.index}, but only ${input.evidence.length} supplied entries exist. Cite source signal for the supplied measurement.`
-					);
-				}
-				return input.evidence[ref.index];
-			}
-			const result = results.find(
-				(item) =>
-					item.toolName === ref.name && item.toolCallId === ref.toolCallId
-			);
-			if (!result) {
-				throw new Error(
-					`Insights agent cited a read tool result that does not exist: ${ref.name}/${ref.toolCallId}. Cite a completed successful call or source signal. If a read was sent alongside this finish call, use its result next turn without repeating it.`
-				);
-			}
-			let output = result.output;
-			if (ref.name === "get_data") {
-				if (
-					!(ref.resultKey && output) ||
-					typeof output !== "object" ||
-					!("results" in output) ||
-					!output.results ||
-					typeof output.results !== "object" ||
-					!Object.hasOwn(output.results, ref.resultKey)
-				) {
-					throw new Error(
-						`get_data evidence requires an exact resultKey from that call's results: ${output && typeof output === "object" && "results" in output && output.results && typeof output.results === "object" ? Object.keys(output.results).join(", ") : "none"}.`
-					);
-				}
-				output = Object.entries(output.results).find(
-					([key]) => key === ref.resultKey
-				)?.[1];
-			} else if (ref.resultKey !== null) {
-				throw new Error(
-					"Only get_data evidence uses a resultKey; use null for other read tools."
-				);
-			}
-			if (!isSuccessfulRead(output)) {
-				throw new Error(
-					`Insights agent cited a failed read: ${ref.name}/${ref.toolCallId}. Failed queries and missing connectors cannot support factual claims.`
-				);
-			}
-			const verification =
-				ref.name === `get_${input.signal.entity.type}_analytics`
-					? verificationFor(input, [result])
-					: undefined;
-			return verification?.source ? { result: output, verification } : output;
-		})
+		resolveEvidenceSources(refs, input, results)
 	);
+}
+
+function resolveEvidenceSources(
+	refs: AgentInvestigationOutcome["evidenceRefs"][number],
+	input: InsightAgentInput,
+	results: StepResult<ToolSet>["toolResults"]
+): unknown[] {
+	return (Array.isArray(refs) ? refs : [refs]).map((ref) => {
+		if (ref.source === "history") {
+			const prior = input.history[ref.index];
+			if (
+				prior?.kind !== "investigation" ||
+				prior.outcome.next.type !== "act" ||
+				prior.signal.signalKey !== input.signal.signalKey ||
+				prior.signal.entity.id !== input.signal.entity.id ||
+				prior.signal.entity.type !== input.signal.entity.type
+			) {
+				throw new Error(
+					"The cited history must be an investigation for this exact signal, not a human reply or another subject."
+				);
+			}
+			return {
+				condition: prior.outcome.next.verification,
+				check: prior.outcome.next.check,
+			};
+		}
+		if (ref.source === "signal") {
+			return promptSignal(input.signal);
+		}
+		if (ref.source === "customer_impact") {
+			if (!input.customerImpact) {
+				throw new Error("No customer impact measurement was supplied.");
+			}
+			return input.customerImpact;
+		}
+		if (ref.source === "related_signal") {
+			const signal = input.relatedSignals?.[ref.index];
+			if (!signal) {
+				throw new Error("The cited related signal was not supplied.");
+			}
+			return promptSignal(signal);
+		}
+		if (ref.source === "provided") {
+			if (ref.index >= input.evidence.length) {
+				throw new Error(
+					`Insights agent cited supplied evidence index ${ref.index}, but only ${input.evidence.length} supplied entries exist. Cite source signal for the supplied measurement.`
+				);
+			}
+			return input.evidence[ref.index];
+		}
+		const result = results.find(
+			(item) => item.toolName === ref.name && item.toolCallId === ref.toolCallId
+		);
+		if (!result) {
+			throw new Error(
+				`Insights agent cited a read tool result that does not exist: ${ref.name}/${ref.toolCallId}. Cite a completed successful call or source signal. If a read was sent alongside this finish call, use its result next turn without repeating it.`
+			);
+		}
+		let output = result.output;
+		if (ref.name === "get_data") {
+			if (
+				!(ref.resultKey && output) ||
+				typeof output !== "object" ||
+				!("results" in output) ||
+				!output.results ||
+				typeof output.results !== "object" ||
+				!Object.hasOwn(output.results, ref.resultKey)
+			) {
+				throw new Error(
+					`get_data evidence requires an exact resultKey from that call's results: ${output && typeof output === "object" && "results" in output && output.results && typeof output.results === "object" ? Object.keys(output.results).join(", ") : "none"}.`
+				);
+			}
+			output = Object.entries(output.results).find(
+				([key]) => key === ref.resultKey
+			)?.[1];
+		} else if (ref.resultKey !== null) {
+			throw new Error(
+				"Only get_data evidence uses a resultKey; use null for other read tools."
+			);
+		}
+		if (!isSuccessfulRead(output)) {
+			throw new Error(
+				`Insights agent cited a failed read: ${ref.name}/${ref.toolCallId}. Failed queries and missing connectors cannot support factual claims.`
+			);
+		}
+		const verification =
+			ref.name === `get_${input.signal.entity.type}_analytics`
+				? verificationFor(input, [result])
+				: undefined;
+		return verification?.source ? { result: output, verification } : output;
+	});
 }
 
 function isReferrerFunnel(signal: InvestigationSignal) {
@@ -2337,19 +2359,20 @@ export async function runInsightAgent(
 					});
 					const verification = verificationFor(input, results);
 					const evidenceRefs = candidate.evidence.map((item) => item.sources);
-					const citedEvidence = resolveEvidenceReferences(
-						{ evidenceRefs },
-						input,
-						results
-					);
+					const citedItems = candidate.evidence.map((item) => ({
+						item,
+						sources: resolveEvidenceSources(item.sources, input, results),
+					}));
+					const citedEvidence = citedItems.map(({ sources }) => sources);
 					const nativeRevenue: ReturnType<typeof renderRevenueEvidence>[] = [];
-					const evidence = candidate.evidence.map((item, index) => {
+					const evidence = citedItems.map(({ item, sources }) => {
 						if (typeof item.claim !== "string") {
 							if ("retentionDetail" in item.claim) {
+								const [onlySource, ...otherSources] = item.sources;
 								if (
-									!nativeRetentionDetail ||
-									item.sources.length !== 1 ||
-									item.sources[0].source !== "signal"
+									!(nativeRetentionDetail && onlySource) ||
+									otherSources.length > 0 ||
+									onlySource.source !== "signal"
 								) {
 									throw new Error(
 										"Retention date detail requires the supported frozen signal comparison."
@@ -2368,24 +2391,20 @@ export async function runInsightAgent(
 							}
 							if ("retention" in item.claim) {
 								return renderToolRetentionEvidence(
-									citedEvidence[index],
+									sources,
 									input,
 									successfulReads,
 									candidate.publish
 								).text;
 							}
-							const native = renderRevenueEvidence(
-								item.claim,
-								citedEvidence[index],
-								input
-							);
+							const native = renderRevenueEvidence(item.claim, sources, input);
 							nativeRevenue.push(native);
 							return native.text;
 						}
 						if (
 							!nativeRetention &&
 							candidate.publish &&
-							citedEvidence[index].some(
+							sources.some(
 								(source) => retentionReadingType.safeParse(source).success
 							)
 						) {
@@ -2396,7 +2415,7 @@ export async function runInsightAgent(
 						if (
 							nativeRetention &&
 							numericTokens(item.claim).length > 0 &&
-							citedEvidence[index].some(
+							sources.some(
 								(source) => retentionEvidenceSource.safeParse(source).success
 							)
 						) {
@@ -2405,7 +2424,7 @@ export async function runInsightAgent(
 							);
 						}
 						if (
-							citedEvidence[index].some(
+							sources.some(
 								(source) =>
 									z
 										.object({ type: z.literal("revenue_overview") })
@@ -2559,8 +2578,8 @@ export async function runInsightAgent(
 							verification,
 						})
 					);
-					for (const [index, source] of citedEvidence.entries()) {
-						if (typeof candidate.evidence[index].claim !== "string") {
+					for (const [index, { item, sources }] of citedItems.entries()) {
+						if (typeof item.claim !== "string") {
 							continue;
 						}
 						validateNumericGrounding(
@@ -2568,9 +2587,9 @@ export async function runInsightAgent(
 								title: "",
 								summary: "",
 								impact: null,
-								evidence: [evidence[index]],
+								evidence: [item.claim],
 							},
-							serialize(source),
+							serialize(sources),
 							index
 						);
 					}
@@ -2591,11 +2610,11 @@ export async function runInsightAgent(
 								input.signal.signalKey.startsWith("route:inp:"))) ||
 						hasCompleteDefinitionMeasurement(
 							input,
-							candidate.evidence.flatMap((entry, index) =>
-								entry.sources.flatMap((ref, sourceIndex) =>
+							citedItems.flatMap(({ item, sources }) =>
+								item.sources.flatMap((ref, sourceIndex) =>
 									ref.source === "tool" &&
 									ref.name === `get_${input.signal.entity.type}_analytics`
-										? [citedEvidence[index][sourceIndex]]
+										? [sources[sourceIndex]]
 										: []
 								)
 							),

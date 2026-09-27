@@ -43,7 +43,8 @@ export async function retireObsoleteRetentionObservation(params: {
 	const { observation } = params;
 	const signalKey = observation.signal.signalKey;
 	const insightId = observation.insightId;
-	if (!(signalKey.startsWith("retention:") && observation.id && insightId)) {
+	const observationId = observation.id;
+	if (!(signalKey.startsWith("retention:") && observationId && insightId)) {
 		return false;
 	}
 	const retired = await db.transaction(async (tx) => {
@@ -113,7 +114,7 @@ export async function retireObsoleteRetentionObservation(params: {
 			)
 			.limit(1);
 		if (
-			latest?.id !== observation.id ||
+			latest?.id !== observationId ||
 			latest.insightId !== current.id ||
 			latest.asOf > params.asOf ||
 			latest.createdAt > params.asOf ||

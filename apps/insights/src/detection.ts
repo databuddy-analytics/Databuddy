@@ -114,14 +114,16 @@ function isImprovement(
 }
 
 function median(values: number[]): number {
-	if (values.length === 0) {
-		return 0;
-	}
 	const sorted = [...values].sort((a, b) => a - b);
 	const mid = Math.floor(sorted.length / 2);
-	return sorted.length % 2 === 0
-		? (sorted[mid - 1] + sorted[mid]) / 2
-		: sorted[mid];
+	const upper = sorted[mid];
+	if (upper === undefined) {
+		return 0;
+	}
+	const lower = sorted[mid - 1];
+	return sorted.length % 2 === 0 && lower !== undefined
+		? (lower + upper) / 2
+		: upper;
 }
 
 function mad(values: number[]): number {
@@ -668,7 +670,13 @@ function errorBehaviorCandidates(params: {
 	const week = Math.floor(
 		Date.parse(`${params.detectedAt}T00:00:00.000Z`) / (7 * 24 * 60 * 60 * 1000)
 	);
-	return [...alwaysProbe, rotatingCandidates[week % rotatingCandidates.length]];
+	const rotating = rotatingCandidates[week % rotatingCandidates.length];
+	if (!rotating) {
+		throw new Error(
+			`Error behavior detection needs a valid detectedAt date, got ${params.detectedAt}.`
+		);
+	}
+	return [...alwaysProbe, rotating];
 }
 
 async function detectErrorBehaviorSignals(params: {
@@ -1041,15 +1049,18 @@ export async function remeasureMetricSignal(
 		const [current, previous] = product.value.map((rows) =>
 			productRevenueRows(rows).get(key)
 		);
-		const wholeRows = whole.value.map((rows) =>
-			rows.filter((row) => row.currency === currency)
-		);
-		return current && previous && wholeRows.every((rows) => rows.length === 1)
+		const [currentWhole, previousWhole] = whole.value.map((rows) => {
+			const [row, ...others] = rows.filter(
+				(entry) => entry.currency === currency
+			);
+			return others.length === 0 ? row : undefined;
+		});
+		return current && previous && currentWhole && previousWhole
 			? makeProductRevenueSignal(
 					current,
 					previous,
-					wholeRows[0][0],
-					wholeRows[1][0],
+					currentWhole,
+					previousWhole,
 					currentTo,
 					false
 				)
@@ -1756,10 +1767,8 @@ async function detectWow(
 			currentProbe.status === "fulfilled" &&
 			previousProbe.status === "fulfilled"
 		) {
-			const [currentRows, previousRows] = [
-				currentProbe.value,
-				previousProbe.value,
-			].map(productRevenueRows);
+			const currentRows = productRevenueRows(currentProbe.value);
+			const previousRows = productRevenueRows(previousProbe.value);
 			const currentWhole = mapRowsByStringField(currentRevenue, "currency");
 			const movements: DetectedSignal[] = [];
 			for (const [key, current] of currentRows) {
