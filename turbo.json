@@ -81,7 +81,10 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "env": ["CLICKHOUSE_INTEGRATION_TESTS"]
+      "env": [
+        "CLICKHOUSE_INTEGRATION_TESTS",
+        "WEBSITE_READER_INTEGRATION_TESTS"
+      ]
     },
     "check-types": {
       "dependsOn": ["^build"]
