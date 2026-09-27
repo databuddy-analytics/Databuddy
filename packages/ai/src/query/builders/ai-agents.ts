@@ -5,7 +5,7 @@ import { Analytics } from "../../types/tables";
 import type { CustomSqlContext, SimpleQueryConfig } from "../types";
 
 const AGENT_PRODUCT =
-	"transform(agent_id, {agentIds:Array(String)}, {agentProducts:Array(String)}, bot_name)";
+	"transform(agent_id, {agentIds:Array(String)}, {agentProducts:Array(String)}, agent_id)";
 export function aiVisitProduct(referrerDomain: string): string {
 	return `if(has({aiApps:Array(String)}, browser_name), browser_name, transform(${referrerDomain}, {aiDomains:Array(String)}, {aiNames:Array(String)}, transform(utm_source, {aiDomains:Array(String)}, {aiNames:Array(String)}, '')))`;
 }
@@ -29,8 +29,15 @@ function pageOf(column: string): string {
 	return `decodeURLComponent(if(trimRight(path(${column}), '/') = '', '/', trimRight(path(${column}), '/')))`;
 }
 
-const SPAN_RANGE = `client_id = {websiteId:String}
+const COUNTED_SPAN = `client_id = {websiteId:String}
 	AND agent_id != ''
+	AND (source = 'middleware' OR timestamp < (
+		SELECT ifNull(minOrNull(timestamp), toDateTime64('2100-01-01', 3))
+		FROM ${Analytics.ai_traffic_spans}
+		WHERE client_id = {websiteId:String} AND source = 'middleware'
+	))`;
+
+const SPAN_RANGE = `${COUNTED_SPAN}
 	AND timestamp >= toDateTime({startDate:String})
 	AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))`;
 
@@ -43,6 +50,7 @@ function productParams(ctx: CustomSqlContext) {
 		websiteId: ctx.websiteId,
 		startDate: ctx.startDate,
 		endDate: ctx.endDate,
+		timezone: ctx.timezone || "UTC",
 		agentIds: AI_AGENTS.map((agent) => agent.id),
 		agentProducts: AI_AGENTS.map((agent) => agent.product),
 		agentNames: AI_AGENTS.map((agent) => agent.name),
@@ -88,7 +96,7 @@ export const AiAgentsBuilders = {
 					GROUP BY product
 				) AS c
 				FULL OUTER JOIN (
-					SELECT ${VISIT_PRODUCT} AS product, uniq(session_id) AS visitors
+					SELECT ${VISIT_PRODUCT} AS product, uniq(anonymous_id) AS visitors
 					FROM ${Analytics.events}
 					WHERE ${EVENT_RANGE}
 					GROUP BY product
@@ -153,10 +161,12 @@ export const AiAgentsBuilders = {
 		},
 		customSql: (ctx) => {
 			const bucket =
-				ctx.granularity === "hour" ? "toStartOfHour(time)" : "toDate(time)";
+				ctx.granularity === "hour"
+					? "toStartOfHour(toTimeZone(time, {timezone:String}))"
+					: "toDate(toTimeZone(time, {timezone:String}))";
 			return {
 				sql: `
-					SELECT ${bucket} AS date, ${VISIT_PRODUCT} AS product, uniq(session_id) AS visitors
+					SELECT ${bucket} AS date, ${VISIT_PRODUCT} AS product, uniq(anonymous_id) AS visitors
 					FROM ${Analytics.events}
 					WHERE ${EVENT_RANGE}
 					GROUP BY date, product
@@ -206,7 +216,7 @@ export const AiAgentsBuilders = {
 					SELECT
 						${pageOf("path")} AS page,
 						countIf(event_name = 'screen_view') AS pageviews,
-						uniqIf(session_id, ${VISIT_PRODUCT} != '') AS visitors
+						uniqIf(anonymous_id, ${VISIT_PRODUCT} != '') AS visitors
 					FROM ${Analytics.events}
 					WHERE ${EVENT_RANGE} AND path != ''
 					GROUP BY page
@@ -245,16 +255,17 @@ export const AiAgentsBuilders = {
 			sql: `
 				SELECT
 					if(grouping(ai_product) = 1, 'All visitors', ai_product) AS product,
-					count() AS visitors,
+					uniq(visitor) AS visitors,
 					round(avg(pageviews), 2) AS pages_per_visit,
 					round(countIf(pageviews > 1) / count() * 100, 1) AS engaged_rate
 				FROM (
 					SELECT
 						session_id,
+						any(visitor) AS visitor,
 						anyIf(visit_product, visit_product != '') AS ai_product,
 						countIf(event_name = 'screen_view') AS pageviews
 					FROM (
-						SELECT session_id, event_name, ${VISIT_PRODUCT} AS visit_product
+						SELECT session_id, anonymous_id AS visitor, event_name, ${VISIT_PRODUCT} AS visit_product
 						FROM ${Analytics.events}
 						WHERE ${EVENT_RANGE}
 					)
