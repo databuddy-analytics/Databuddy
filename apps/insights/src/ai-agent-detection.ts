@@ -113,7 +113,6 @@ function aiActivitySignal(
 	baseline: number,
 	detectedAt: string
 ): DetectedSignal {
-	const unit = metric === "requests" ? "requests" : "visitors";
 	return {
 		...makeWowSignal(
 			`ai_${metric}`,
@@ -124,8 +123,8 @@ function aiActivitySignal(
 		),
 		definitionEvidence:
 			metric === "requests"
-				? `${product}'s crawlers and agents made ${current} ${unit} to the site's pages, compared with ${baseline} in the preceding period. Requests are counted from server-side AI agent tracking and AI agents that run JavaScript.`
-				: `${product} sent ${current} ${unit} through referrals or its desktop app, compared with ${baseline} in the preceding period.`,
+				? `${product}'s crawlers and agents made ${current} ${metric} to the site's pages, compared with ${baseline} in the preceding period. Requests are counted from server-side AI agent tracking and AI agents that run JavaScript.`
+				: `${product} sent ${current} ${metric} through referrals or its desktop app, compared with ${baseline} in the preceding period.`,
 		entityId: product,
 		entityLabel: product,
 		subjectKey: `ai_agents:${metric}:${product}`,
