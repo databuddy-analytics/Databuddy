@@ -1373,7 +1373,7 @@ describe("POST /ai-traffic", () => {
 		expect(mockSend).not.toHaveBeenCalled();
 		expect(mockRedisSet).toHaveBeenCalledWith(
 			"ai-agent-setup-check:ws_test:nonce_1",
-			"/docs/intro",
+			"1",
 			"EX",
 			120
 		);

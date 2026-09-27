@@ -470,7 +470,7 @@ export const trackRoute = new Elysia()
 			if (setupNonce) {
 				await redis.set(
 					setupCheckKey(hit.websiteId, setupNonce),
-					hit.path,
+					"1",
 					"EX",
 					120
 				);
