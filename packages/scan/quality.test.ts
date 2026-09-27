@@ -64,21 +64,26 @@ test("a user callback and its mutation form one candidate with response guards",
 	assert.match(actions[0]!.source, /result\.status === "skipped"/);
 });
 
-test("a setup copy is an action while copying an ID through the same callback is not", () => {
+test("a setup copy is an action while copying an ID or an awaited link is not", () => {
 	const source = `export function TrackingSettings() {
   function handleCopy(value) {
     navigator.clipboard.writeText(value);
     toast.success("Copied");
   }
+  async function copyLink(url) {
+    await navigator.clipboard.writeText(url);
+  }
   return <section>
     <CodeBlock onCopy={() => handleCopy(script)} />
-    <CodeBlock onCopy={() => handleCopy(clientId)} />
+    <CodeBlock key="key" onCopy={() => handleCopy(clientId)} />
+    <Button onClick={() => copyLink(shareUrl)}>Copy</Button>
   </section>;
 }`;
 	const actions = groups(source);
 	assert.equal(actions.length, 1);
 	assert.equal(at(actions, source, "handleCopy(script)").length, 1);
 	assert.equal(at(actions, source, "handleCopy(clientId)").length, 0);
+	assert.equal(at(actions, source, "copyLink(shareUrl)").length, 0);
 	for (const action of actions) {
 		assert.match(action.source, /navigator\.clipboard\.writeText\(value\)/);
 		assert.doesNotMatch(action.source, /await navigator\.clipboard/);
@@ -988,7 +993,7 @@ test("NextAuth events and Better-Auth after hooks are server actions", () => {
 	const source = `export const auth = NextAuth({
 	events: {
 		async signIn({ user }) { await db.update(users).set({ seenAt: new Date() }); },
-		createUser: async ({ user }) => { await sendWelcome(user); },
+		"createUser": async ({ user }) => { await sendWelcome(user); },
 	},
 	callbacks: { async signIn() { return true; } },
 });
@@ -1018,6 +1023,16 @@ test("a finding gets a past-tense snake_case event name and only enum-like prope
 		"status_saved"
 	);
 	assert.equal(name("post /v1/invites/:id/accept"), "invite_accepted");
+	assert.equal(name("post /v1/links"), "link_created");
+	assert.equal(name("POST", "", "app/api/v2/links/route.ts"), "link_created");
+	assert.deepEqual(
+		suggestEvent(
+			"routers/links.ts",
+			"handler create",
+			'os.route({ method: "POST" }).handler(() => create({ plan }))'
+		)?.properties,
+		["plan"]
+	);
 	assert.equal(
 		name("handler list", "", "packages/rpc/src/routers/links.ts"),
 		undefined

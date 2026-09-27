@@ -271,10 +271,10 @@ const mutationCall =
 	/\b[\w$]+\.(\w+)\.(\w+)\.(?:mutationOptions|call|mutate|mutateAsync)\b/;
 const exportedMethod = /^(?:GET|POST|PUT|PATCH|DELETE)$/;
 const labelRoute = /^(get|post|put|patch|delete|all) (\/\S*)/i;
-const nextRoute =
-	/(?:^|\/)(?:app|pages)\/(?:api\/)?(.*?)\/?(?:route|index)?\.[cm]?[jt]sx?$/;
 const pathParam = /^[:[{(]/;
-const extension = /\.[\w.]+$/;
+const apiVersion = /^v\d+$/;
+const routeConfig = /\.route\(\s*\{[^{}]*\}\s*\)/g;
+const routeFile = new Set(["route", "index", "page"]);
 const genericPathWords = new Set([
 	"page",
 	"index",
@@ -343,7 +343,7 @@ function pathObject(path: string) {
 	for (const part of path.split("/").reverse()) {
 		const words = pathParam.test(part)
 			? []
-			: objectWords(eventWords(part.replace(extension, ""))).filter(
+			: objectWords(eventWords(part.split(".")[0] ?? "")).filter(
 					(word) => !genericPathWords.has(word)
 				);
 		if (words.length) {
@@ -382,40 +382,47 @@ export function suggestEvent(
 ): { name: string; properties: string[] } | undefined {
 	const mutation = mutationCall.exec(source);
 	const route = labelRoute.exec(label);
-	const next = exportedMethod.test(label)
-		? nextRoute.exec(path)?.[1]
-		: undefined;
+	const parts = path.split("/");
+	const appAt = Math.max(parts.lastIndexOf("app"), parts.lastIndexOf("pages"));
+	const next =
+		exportedMethod.test(label) && appAt !== -1
+			? parts
+					.slice(appAt + 1)
+					.map((part) => part.split(".")[0] ?? "")
+					.filter((part) => !routeFile.has(part))
+			: undefined;
+	const routeWords = (segments: string[]) =>
+		segments
+			.filter(
+				(part) =>
+					part &&
+					part !== "api" &&
+					!pathParam.test(part) &&
+					!apiVersion.test(part)
+			)
+			.slice(-2)
+			.join(" ");
 	const name =
 		(mutation && phraseEvent(`${mutation[1]} ${mutation[2]}`, path)) ||
 		phraseEvent(handlerName.exec(label)?.[1] ?? "", path) ||
 		phraseEvent(quotedText.exec(label)?.[1] ?? "", path) ||
 		(route &&
 			phraseEvent(
-				route[2]
-					.split("/")
-					.filter((part) => part && !pathParam.test(part))
-					.slice(-2)
-					.join(" "),
+				routeWords(route[2].split("/")),
 				path,
 				methodTense[route[1].toLowerCase()]
 			)) ||
 		(next &&
-			phraseEvent(
-				next
-					.split("/")
-					.filter((part) => part && !pathParam.test(part))
-					.slice(-2)
-					.join(" "),
-				path,
-				methodTense[label.toLowerCase()]
-			)) ||
+			phraseEvent(routeWords(next), path, methodTense[label.toLowerCase()])) ||
 		phraseEvent(label, path);
 	if (!name) {
 		return;
 	}
 	const properties = [
 		...new Set(
-			[...source.matchAll(eventProperty)].map((match) => match[1] ?? "")
+			[...source.replace(routeConfig, "").matchAll(eventProperty)].map(
+				(match) => match[1] ?? ""
+			)
 		),
 	].slice(0, 3);
 	return { name, properties };

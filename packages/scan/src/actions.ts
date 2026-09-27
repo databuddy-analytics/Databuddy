@@ -71,6 +71,7 @@ const writes = new Set([
 const httpWrites = new Set(["post", "put", "patch"]);
 const boundCall = new Set(["bind", "call", "apply"]);
 const camelBoundary = /([a-z])([A-Z])/g;
+const structuralAttribute = /^(?:key|id|ref|className|style|size|variant)$/;
 const setupCopy =
 	/\b(?:install(?:ation)?|snippet|script|command|cli|config(?:uration)?|setup|sdk|embed|curl|npm|npx|bunx|yarn|pnpm|env|api[\s_-]?key|apikey|key|token|secret|webhook|mcp|code)\b/i;
 const readCall =
@@ -185,9 +186,23 @@ function attributeText(node: ts.Node, file: ts.SourceFile) {
 	const element = ts.isJsxElement(node) ? node.openingElement : node;
 	return ts.isJsxOpeningElement(element) || ts.isJsxSelfClosingElement(element)
 		? element.attributes.properties
+				.filter(
+					(attribute) =>
+						!(
+							ts.isJsxAttribute(attribute) &&
+							structuralAttribute.test(attribute.name.getText(file))
+						)
+				)
 				.map((attribute) => attribute.getText(file))
 				.join(" ")
 		: "";
+}
+function keyName(name: ts.PropertyName, file: ts.SourceFile) {
+	return ts.isIdentifier(name) ||
+		ts.isStringLiteral(name) ||
+		ts.isNoSubstitutionTemplateLiteral(name)
+		? name.text
+		: name.getText(file);
 }
 function walk(node: ts.Node, visit: (node: ts.Node) => void) {
 	visit(node);
@@ -1884,12 +1899,12 @@ export function groupActions(
 			(ts.isMethodDeclaration(node) || ts.isPropertyAssignment(node)) &&
 			ts.isObjectLiteralExpression(node.parent)
 		) {
-			const name = node.name.getText(unit.file);
+			const name = keyName(node.name, unit.file);
 			const container = node.parent.parent;
 			if (
 				authEvent.test(name) &&
 				ts.isPropertyAssignment(container) &&
-				container.name.getText(unit.file) === "events"
+				keyName(container.name, unit.file) === "events"
 			) {
 				roots.push({
 					node,
@@ -1907,7 +1922,7 @@ export function groupActions(
 					if (!ts.isPropertyAssignment(ancestor)) {
 						continue;
 					}
-					const key = ancestor.name.getText(unit.file);
+					const key = keyName(ancestor.name, unit.file);
 					if (hookContainer.test(key)) {
 						roots.push({
 							node,
@@ -2011,7 +2026,10 @@ export function groupActions(
 								.getText(owner.file)
 								.split(".")
 								.at(-1) ?? ""
-						)) ||
+						) &&
+						!(unwrap(child.expression) as ts.CallExpression).expression
+							.getText(owner.file)
+							.endsWith(".writeText")) ||
 						(ts.isPropertyAccessExpression(child) &&
 							downloadSignal.test(child.getText(owner.file))) ||
 						(ts.isCallExpression(child) &&
