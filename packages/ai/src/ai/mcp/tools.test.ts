@@ -43,11 +43,11 @@ describe("MCP transport", () => {
 	});
 });
 
-async function listToolsForPrincipal(
-	principal: ReturnType<typeof createInternalPrincipal>
+async function listTools(
+	context: Pick<McpRequestContext, "apiKey" | "oauthScopes" | "userId">
 ) {
 	const response = await handleDatabuddyMcpRequest({
-		apiKey: principal.apiKey,
+		...context,
 		organizationId: "org-1",
 		request: new Request("https://api.databuddy.test/v1/mcp", {
 			body: JSON.stringify({
@@ -63,7 +63,6 @@ async function listToolsForPrincipal(
 			method: "POST",
 		}),
 		requestHeaders: new Headers(),
-		userId: null,
 	});
 	const body = (await response.json()) as {
 		result?: {
@@ -79,11 +78,41 @@ async function listToolsForPrincipal(
 	};
 }
 
+function listToolsForPrincipal(
+	principal: ReturnType<typeof createInternalPrincipal>
+) {
+	return listTools({ apiKey: principal.apiKey, userId: null });
+}
+
 async function listToolsForScopes(scopes: ApiScope[]) {
 	return listToolsForPrincipal(
 		createInternalPrincipal({ organizationId: "org-1", scopes })
 	);
 }
+
+describe("MCP OAuth scopes", () => {
+	test("a scoped OAuth token lists the same tools as an API key with those scopes", async () => {
+		const oauth = await listTools({
+			apiKey: null,
+			oauthScopes: ["read:links"],
+			userId: "user-1",
+		});
+		const apiKey = await listToolsForScopes(["read:links"]);
+		expect(oauth.tools.map((tool) => tool.name).sort()).toEqual(
+			apiKey.tools.map((tool) => tool.name).sort()
+		);
+		expect(oauth.tools.length).toBeLessThan(tools.length);
+	});
+
+	test("an OAuth token without Databuddy scopes keeps full user access", async () => {
+		const oauth = await listTools({
+			apiKey: null,
+			oauthScopes: [],
+			userId: "user-1",
+		});
+		expect(oauth.tools.length).toBe(tools.length);
+	});
+});
 
 describe("MCP tool invariants", () => {
 	test("dynamic analytics output schemas work through the installed MCP SDK", async () => {

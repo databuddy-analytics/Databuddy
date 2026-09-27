@@ -7,6 +7,7 @@ import {
 	handleDatabuddyMcpRequest,
 } from "@databuddy/ai/mcp/http";
 import { auth } from "@databuddy/auth";
+import { isApiScope } from "@databuddy/shared/api-scopes";
 import { config } from "@databuddy/env/app";
 import { createMcpProtectedRequestHandler } from "@better-auth/mcp";
 import { Elysia } from "elysia";
@@ -36,6 +37,10 @@ const handleOAuthMcpRequest = createMcpProtectedRequestHandler(
 			request,
 			requestHeaders: request.headers,
 			userId: subject,
+			oauthScopes:
+				typeof claims.scope === "string"
+					? claims.scope.split(" ").filter(isApiScope)
+					: [],
 			oauthUserId: subject,
 			apiKey: null,
 			organizationId: null,

@@ -54,6 +54,7 @@ export class McpToolError extends Error {
 
 export interface McpRequestContext {
 	apiKey: ApiKeyRow | null;
+	oauthScopes?: ApiScope[] | null;
 	oauthUserId?: string | null;
 	organizationId?: string | null;
 	requestHeaders: Headers;
