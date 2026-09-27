@@ -32,7 +32,7 @@ function separatePropertyKeyConditions(filterConditions?: string[]): {
 	};
 }
 
-export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
+export const CustomEventsBuilders = {
 	custom_events: {
 		meta: {
 			description: "Custom event names with occurrence counts.",
@@ -922,4 +922,4 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "timestamp",
 		allowedFilters: ["profile_id", "path", "event_name", "website_id"],
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS analytics.ai_traffic_spans
 	`agent_purpose` LowCardinality(String) DEFAULT '' CODEC(ZSTD(1)),
 	`verification` LowCardinality(String) DEFAULT '' CODEC(ZSTD(1)),
 	`source` LowCardinality(String) DEFAULT 'tracker' CODEC(ZSTD(1)),
+	`format` LowCardinality(String) DEFAULT '' CODEC(ZSTD(1)),
 	INDEX idx_client_id client_id TYPE bloom_filter(0.01) GRANULARITY 1,
 	INDEX idx_bot_type bot_type TYPE bloom_filter(0.01) GRANULARITY 1,
 	INDEX idx_bot_name bot_name TYPE bloom_filter(0.01) GRANULARITY 1

@@ -1,4 +1,5 @@
 import "@databuddy/test/env";
+import type { JsonValue, Segment } from "@databuddy/scan/src/evaluate";
 import { Elysia } from "elysia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -35,8 +36,8 @@ const segment = {
 };
 
 interface GatewayBody {
-	questions: Record<string, unknown>;
-	state: { segments: unknown[] };
+	questions: Record<string, JsonValue>;
+	state: { segments: Segment[] };
 }
 let gatewayBodies: GatewayBody[] = [];
 let gatewayStatus = 200;
@@ -63,7 +64,7 @@ beforeEach(() => {
 		if (gatewayStatus !== 200) {
 			return new Response(null, { status: gatewayStatus });
 		}
-		const answers: Record<string, unknown> = {};
+		const answers: Record<string, JsonValue> = {};
 		for (const [index] of body.state.segments.entries()) {
 			answers[`coverage_${index}`] = {
 				choice: "missing",

@@ -1,7 +1,7 @@
 import { Analytics } from "../../types/tables";
 import type { SimpleQueryConfig } from "../types";
 
-export const GeoBuilders: Record<string, SimpleQueryConfig> = {
+export const GeoBuilders = {
 	country: {
 		meta: {
 			title: "Countries",
@@ -217,4 +217,4 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 		customizable: true,
 		plugins: { normalizeGeo: true },
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

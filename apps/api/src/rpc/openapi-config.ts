@@ -1,4 +1,5 @@
 import type { AppRouter } from "@databuddy/rpc";
+import type { OpenAPI } from "@orpc/openapi";
 
 export const PUBLIC_OPENAPI_ROUTERS = [
 	"alarms",
@@ -49,7 +50,7 @@ export const API_KEY_DESCRIPTION = `API key for programmatic access. Use instead
 
 **Creating keys:** Keys are created in the dashboard (Organization -> API Keys) and must be scoped to an organization. Store the secret securely; it is shown only once.`;
 
-export const OPENAPI_TAGS = [
+export const OPENAPI_TAGS: OpenAPI.TagObject[] = [
 	{
 		name: "Alarms",
 		description:
@@ -125,4 +126,4 @@ export const OPENAPI_TAGS = [
 		description:
 			"Website management: create, list, update, delete websites; transfer between organizations; configure settings, tracking, and data export.",
 	},
-] as const;
+];

@@ -8,6 +8,10 @@ export function visitorMatch(param = "visitorId"): string {
 	return `(anonymous_id = {${param}:String} OR profile_id = {${param}:String})`;
 }
 
+export const IMPORTED_VISITOR_PREFIX = "imp_";
+
+export const EXCLUDE_IMPORTED_ROWS = `NOT startsWith(anonymous_id, '${IMPORTED_VISITOR_PREFIX}')`;
+
 export const PROFILE_ID_TABLES = [
 	"analytics.events",
 	"analytics.custom_events",

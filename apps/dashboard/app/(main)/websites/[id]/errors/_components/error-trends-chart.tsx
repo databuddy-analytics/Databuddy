@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useState } from "react";
+import { AskAgentButton } from "@/components/agent/new-chat-button";
 import { Chart } from "@/components/ui/composables/chart";
 import {
 	chartAxisTickDefault,
@@ -179,17 +180,20 @@ export const ErrorTrendsChart = ({
 						</div>
 					</div>
 				</div>
-				{isZoomed && (
-					<Button
-						className="h-7 gap-1 px-2"
-						onClick={resetZoom}
-						size="sm"
-						variant="secondary"
-					>
-						<ArrowCounterClockwiseIcon className="size-3" />
-						Reset
-					</Button>
-				)}
+				<div className="flex items-center gap-1">
+					{isZoomed && (
+						<Button
+							className="h-7 gap-1 px-2"
+							onClick={resetZoom}
+							size="sm"
+							variant="secondary"
+						>
+							<ArrowCounterClockwiseIcon className="size-3" />
+							Reset
+						</Button>
+					)}
+					<AskAgentButton subject="the Error Trends chart" />
+				</div>
 			</Card.Header>
 
 			<div className="flex-1 overflow-x-auto p-2">

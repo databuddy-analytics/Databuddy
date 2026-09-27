@@ -83,6 +83,18 @@ const folderSlugSchema = z
 		"Folder slug can only contain lowercase letters, numbers, hyphens, and underscores"
 	);
 
+export const createLinkFolderSchema = linkFolderInsertSchema
+	.pick({
+		organizationId: true,
+		name: true,
+		slug: true,
+	})
+	.extend({
+		organizationId: z.string().optional(),
+		name: z.string().trim().min(1).max(80),
+		slug: folderSlugSchema.optional(),
+	});
+
 export const createLinkSchema = linkInsertSchema
 	.pick({
 		organizationId: true,
@@ -123,18 +135,7 @@ export const createLinkSchema = linkInsertSchema
 		sourceOwnerId: z.string().max(255).nullable().optional(),
 		targetDomain: z.string().max(255).nullable().optional(),
 		deepLinkApp: z.enum(DEEP_LINK_APP_IDS).nullable().optional(),
-	});
-
-export const createLinkFolderSchema = linkFolderInsertSchema
-	.pick({
-		organizationId: true,
-		name: true,
-		slug: true,
-	})
-	.extend({
-		organizationId: z.string().optional(),
-		name: z.string().trim().min(1).max(80),
-		slug: folderSlugSchema.optional(),
+		folder: createLinkFolderSchema.pick({ name: true, slug: true }).optional(),
 	});
 
 export const updateLinkSchema = linkUpdateSchema

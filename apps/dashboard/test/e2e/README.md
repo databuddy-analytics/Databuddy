@@ -29,6 +29,7 @@ Useful toggles:
 DATABUDDY_E2E_START_CLICKHOUSE=false  # do not start docker compose clickhouse
 DATABUDDY_E2E_SEED_CLICKHOUSE=false  # do not seed per-test analytics data
 DATABUDDY_E2E_CLICKHOUSE_EVENTS=500   # seed size per test website
+DATABUDDY_E2E_SERVE_BUILD=true        # build once and serve with next start, as CI does
 CLICKHOUSE_URL=http://default:@localhost:8123/databuddy_analytics
 ```
 

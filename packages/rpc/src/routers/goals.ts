@@ -144,7 +144,7 @@ const getEffectiveStartDate = (
 		return requestedStartDate;
 	}
 
-	const createdDate = new Date(createdAt).toISOString().split("T")[0];
+	const createdDate = new Date(createdAt).toISOString().slice(0, 10);
 	return new Date(requestedStartDate) > new Date(createdDate)
 		? requestedStartDate
 		: createdDate;
@@ -276,6 +276,10 @@ export const goalsRouter = {
 				})
 				.returning();
 
+			if (!newGoal) {
+				throw rpcError.internal("Failed to create goal");
+			}
+
 			await invalidateGoalsCache(input.websiteId);
 
 			return newGoal;
@@ -325,6 +329,10 @@ export const goalsRouter = {
 				.set({ ...updates, updatedAt: new Date() })
 				.where(and(eq(goals.id, id), isNull(goals.deletedAt)))
 				.returning();
+
+			if (!updatedGoal) {
+				throw rpcError.notFound("goal", id);
+			}
 
 			await invalidateGoalsCache(existingGoal.websiteId);
 			await queueDefinitionChangeRechecks({

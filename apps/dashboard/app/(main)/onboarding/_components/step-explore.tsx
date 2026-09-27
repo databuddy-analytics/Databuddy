@@ -24,7 +24,7 @@ const FEATURES = [
 		icon: UsersIcon,
 		title: "Live Visitors",
 		description: "See who's on your site right now with real-time data.",
-		tab: "/realtime",
+		tab: "/map",
 	},
 	{
 		icon: CursorClickIcon,

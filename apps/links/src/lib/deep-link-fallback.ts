@@ -17,13 +17,16 @@ const SCRIPT_ESCAPES: Record<string, string> = {
 };
 
 function escapeHtml(value: string): string {
-	return value.replace(/[&<>"']/g, (character) => HTML_ESCAPES[character]);
+	return value.replace(
+		/[&<>"']/g,
+		(character) => HTML_ESCAPES[character] ?? character
+	);
 }
 
 function serializeForScript(value: string): string {
 	return JSON.stringify(value).replace(
 		/[<>&\u2028\u2029]/g,
-		(character) => SCRIPT_ESCAPES[character]
+		(character) => SCRIPT_ESCAPES[character] ?? character
 	);
 }
 

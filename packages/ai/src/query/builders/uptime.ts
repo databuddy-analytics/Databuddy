@@ -19,7 +19,7 @@ import type { SimpleQueryConfig } from "../types";
 
 const UPTIME_TABLE = "uptime.uptime_monitor";
 
-export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
+export const UptimeBuilders = {
 	uptime_time_series: {
 		meta: {
 			description: "Uptime check results plotted over time.",
@@ -191,4 +191,4 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "timestamp",
 		customizable: true,
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

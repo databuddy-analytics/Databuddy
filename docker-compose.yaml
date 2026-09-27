@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:17
     container_name: databuddy-postgres
+    command: postgres -c max_connections=600
     environment:
       POSTGRES_DB: databuddy
       POSTGRES_USER: databuddy
@@ -34,7 +35,7 @@ services:
         soft: 262144
         hard: 262144
     healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping" ]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8123/ping" ]
       interval: 10s
       timeout: 5s
       retries: 5

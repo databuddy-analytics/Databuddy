@@ -1,5 +1,5 @@
 import { readBooleanEnv } from "@databuddy/env/boolean";
-import { chQuery } from "@databuddy/db/clickhouse";
+import { chQuery, EXCLUDE_IMPORTED_ROWS } from "@databuddy/db/clickhouse";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { getAutumn } from "../lib/autumn-client";
@@ -42,6 +42,7 @@ interface EventSource {
 	category: EventCategory;
 	dateColumn: string;
 	filterColumn?: string;
+	rowFilter?: string;
 	table: string;
 }
 
@@ -50,6 +51,7 @@ const EVENT_SOURCES: EventSource[] = [
 		table: "analytics.events",
 		dateColumn: "time",
 		category: EVENT_CATEGORIES.EVENT,
+		rowFilter: EXCLUDE_IMPORTED_ROWS,
 	},
 	{
 		table: "analytics.error_spans",
@@ -85,13 +87,14 @@ const getDefaultDateRange = () => {
 const buildEventSourceQuery = (source: EventSource): string => {
 	const filterCol = source.filterColumn ?? "client_id";
 	return `
-		SELECT 
+		SELECT
 			toDate(${source.dateColumn}) as date,
 			'${source.category}' as event_category
 		FROM ${source.table}
 		WHERE ${filterCol} IN {websiteIds:Array(String)}
 			AND ${source.dateColumn} >= parseDateTimeBestEffort({startDate:String})
-			AND ${source.dateColumn} <= parseDateTimeBestEffort({endDate:String})`;
+			AND ${source.dateColumn} <= parseDateTimeBestEffort({endDate:String})
+			${source.rowFilter ? `AND ${source.rowFilter}` : ""}`;
 };
 
 const getDailyUsageByTypeQuery = (): string => {

@@ -10,13 +10,13 @@ const DATABASE_PATTERN =
 	/CREATE\s+(?:TABLE|MATERIALIZED\s+VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\./i;
 
 function databaseOf(sql: string): string {
-	const m = sql.match(DATABASE_PATTERN);
-	if (!m) {
+	const database = sql.match(DATABASE_PATTERN)?.[1];
+	if (database === undefined) {
 		throw new Error(
 			`Could not determine database for statement: ${sql.slice(0, 80)}`
 		);
 	}
-	return m[1];
+	return database;
 }
 
 function toSingleNode(sql: string): string {

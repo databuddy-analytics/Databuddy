@@ -22,12 +22,12 @@ export const pricingFaqItems = [
 	{
 		question: "Is there a free trial?",
 		answer:
-			"The Free plan has no trial period and requires no credit card. It includes 10,000 events per month and 10 AI credits for Databunny chat. Monthly investigations are available on the invite-only Business and Scale plans.",
+			"The Free plan has no trial period and requires no credit card. It includes 10,000 events per month and 10 AI credits for Databunny chat. Monthly investigations are included on the Business and Scale plans.",
 	},
 	{
 		question: "Can I switch plans?",
 		answer:
-			"Self-serve upgrades take effect immediately; downgrades start next billing cycle. Contact us for Business, Scale, or Enterprise access.",
+			"Upgrades take effect immediately; downgrades start next billing cycle. Contact us for Enterprise.",
 	},
 	{
 		question: "Do you offer annual billing?",

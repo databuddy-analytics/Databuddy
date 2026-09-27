@@ -21,7 +21,7 @@ import {
 	type InsightSlackEffectPayload,
 } from "./delivery";
 
-export interface InsightRunEffectInput {
+interface InsightRunEffectInput {
 	effectKey: string;
 	payload: InsightSlackEffectPayload;
 }

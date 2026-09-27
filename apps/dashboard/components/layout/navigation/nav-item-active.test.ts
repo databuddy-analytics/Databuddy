@@ -99,7 +99,6 @@ describe("demo website navigation", () => {
 
 	it("hides demo-unsafe or unavailable website surfaces", () => {
 		const hiddenHrefs = new Set([
-			"/realtime",
 			"/users",
 			"/flags",
 			"/revenue",

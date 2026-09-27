@@ -1,13 +1,20 @@
+FROM oven/bun:1.4.1-slim AS pruner
+
+WORKDIR /app
+
+COPY . .
+
+RUN bunx turbo@2.11.1 prune @databuddy/db --docker
+
 FROM oven/bun:1.4.1-slim
 
 WORKDIR /app
 
-COPY package.json bun.lock turbo.json ./
-COPY packages ./packages
-COPY apps ./apps
-COPY tsconfig ./tsconfig
+COPY --from=pruner /app/out/json/ .
+RUN bun install --production --frozen-lockfile --ignore-scripts
 
-RUN bun install --frozen-lockfile --ignore-scripts
+COPY --from=pruner /app/out/full/ .
+COPY tsconfig ./tsconfig
 
 ENV NODE_ENV=production
 

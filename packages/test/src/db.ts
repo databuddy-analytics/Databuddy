@@ -22,7 +22,13 @@ export const hasTestDb = await (async () => {
 		const c = await p.connect();
 		c.release();
 		return true;
-	} catch {
+	} catch (error) {
+		if (process.env.CI) {
+			throw new Error(
+				"Integration tests could not reach the test database; CI must not skip them.",
+				{ cause: error }
+			);
+		}
 		return false;
 	} finally {
 		await p.end();

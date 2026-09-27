@@ -74,9 +74,7 @@ const frozenInvestigationPlanSchema = z
 export type PlannedInvestigationCandidate = z.infer<
 	typeof plannedCandidateSchema
 >;
-export type FrozenInvestigationPlan = z.infer<
-	typeof frozenInvestigationPlanSchema
->;
+type FrozenInvestigationPlan = z.infer<typeof frozenInvestigationPlanSchema>;
 
 export function parseFrozenInvestigationPlan(
 	value: unknown,

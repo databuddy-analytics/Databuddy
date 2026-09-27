@@ -80,8 +80,11 @@ export async function querySearchAnalytics(
 
 	const rows: SearchConsoleRow[] = (data.rows ?? []).map((row) => {
 		const entry: Record<string, string | number> = {};
-		for (let i = 0; i < input.dimensions.length; i++) {
-			entry[input.dimensions[i]] = row.keys[i];
+		for (const [index, dimension] of input.dimensions.entries()) {
+			const key = row.keys[index];
+			if (key !== undefined) {
+				entry[dimension] = key;
+			}
 		}
 		entry.clicks = row.clicks;
 		entry.impressions = row.impressions;

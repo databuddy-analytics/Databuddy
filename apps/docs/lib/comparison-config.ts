@@ -3,7 +3,7 @@ import {
 	INVESTIGATION_USAGE,
 } from "@databuddy/shared/billing";
 
-const investigationPrice = `Invite only · ${INVESTIGATION_ALLOWANCES.intelligence}/month on Business, ${INVESTIGATION_ALLOWANCES.intelligence_scale}/month on Scale · $${INVESTIGATION_USAGE.priceUsd} per additional investigation, billed monthly`;
+const investigationPrice = `${INVESTIGATION_ALLOWANCES.intelligence}/month on Business, ${INVESTIGATION_ALLOWANCES.intelligence_scale}/month on Scale · $${INVESTIGATION_USAGE.priceUsd} per additional investigation, billed monthly`;
 
 export interface ComparisonFeature {
 	benefit: string;
@@ -555,7 +555,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "What does Databuddy add?",
 				answer:
-					"Databuddy brings feature flags, error tracking, uptime monitoring, Databunny chat, and scheduled investigation workflows into the same dashboard. Investigation access is invite only.",
+					"Databuddy brings feature flags, error tracking, uptime monitoring, Databunny chat, and scheduled investigation workflows into the same dashboard. Investigations are included on the Business and Scale plans.",
 			},
 		],
 		pricingTiers: [

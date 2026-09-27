@@ -364,6 +364,10 @@ function normalizePaymentIntent(
 	];
 }
 
+// Stripe rejects payment_intent_data in subscription mode, so the invoice is the
+// only carrier for our ids. invoice_payment.paid references its invoice by bare
+// string id and webhooks never expand, so this zero-amount row is what lets the
+// query side join the money row back to a visitor.
 function buildInvoiceLinkRecord(
 	event: StripeWebhookEvent,
 	invoice: WebhookInvoice,
@@ -432,6 +436,12 @@ function normalizeFailedInvoice(
 	];
 }
 
+// Charge.refunds is "not returned by default; request it with expand", so it is
+// absent from every webhook. amount_refunded is always present and cumulative,
+// so one row per charge keyed {charge.id}:refund converges on the right total.
+// created comes from the charge, not the event: analytics.revenue partitions by
+// toYYYYMM(created) and ReplacingMergeTree only dedupes within a partition, so an
+// event-dated key would double count refunds that straddle a month boundary.
 function normalizeRefund(event: StripeWebhookEvent): NormalizedStripeRecord[] {
 	const charge = event.data.object as WebhookCharge;
 	if (

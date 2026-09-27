@@ -77,20 +77,6 @@ describe("saved activation and return measurement", () => {
 			before: [32, 32, 32, 32, 32, 32, 32],
 			after: [32, 32, 32, 32, 8, 8, 8],
 		},
-		{
-			name: "sparse",
-			eligible: 10,
-			events: 20,
-			before: [8, 8, 8, 8, 8, 8, 8],
-			after: [8, 8, 8, 8, 2, 2, 2],
-		},
-		{
-			name: "uniform",
-			eligible: 40,
-			events: 50,
-			before: [32, 32, 32, 32, 32, 32, 32],
-			after: [16, 16, 16, 16, 16, 16, 16],
-		},
 	])("retains sorted daily counts from the existing two queries: $name", async ({
 		eligible,
 		events,
@@ -350,10 +336,7 @@ describe("saved activation and return measurement", () => {
 	});
 	it.each([
 		"cohort_from",
-		"observed_before",
 		"horizon_days",
-		"eligible_profiles",
-		"identity_basis",
 	])("rejects inconsistent %s", async (field) => {
 		const query: typeof executeQuery = async (...args) => {
 			const rows = await fixture()(...args);

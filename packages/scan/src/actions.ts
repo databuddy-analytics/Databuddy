@@ -1556,7 +1556,11 @@ export function groupActions(
 					}
 				}
 			}
-			const [ariaLabel, labelProp, title]: string[][] = [[], [], []];
+			const [ariaLabel, labelProp, title]: [string[], string[], string[]] = [
+				[],
+				[],
+				[],
+			];
 			const ariaNode = attributeValue("aria-label"),
 				labelNode = attributeValue("label"),
 				titleNode = attributeValue("title"),

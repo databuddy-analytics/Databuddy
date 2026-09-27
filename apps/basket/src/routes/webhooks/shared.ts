@@ -1,9 +1,39 @@
 import { db } from "@databuddy/db";
+import { clickHouse } from "@databuddy/db/clickhouse";
 
 const DATE_REGEX = /\.\d{3}Z$/;
 
 export function formatDate(date: Date): string {
 	return date.toISOString().replace("T", " ").replace(DATE_REGEX, "");
+}
+
+export async function recordWebhookDelivery(input: {
+	apiVersion?: string;
+	eventId: string;
+	eventType: string;
+	ownerId: string;
+	provider: string;
+	recordCount: number;
+	status: "failed" | "processed";
+	websiteId: string | null;
+}): Promise<void> {
+	await clickHouse.insert({
+		table: "analytics.webhook_deliveries",
+		format: "JSONEachRow",
+		values: [
+			{
+				owner_id: input.ownerId,
+				website_id: input.websiteId ?? undefined,
+				provider: input.provider,
+				event_type: input.eventType,
+				event_id: input.eventId,
+				api_version: input.apiVersion ?? "",
+				record_count: input.recordCount,
+				status: input.status,
+				received_at: formatDate(new Date()),
+			},
+		],
+	});
 }
 
 const STRIPE_API_VERSION = /^\d{4}-\d{2}-\d{2}(\.[a-z]+)?$/;

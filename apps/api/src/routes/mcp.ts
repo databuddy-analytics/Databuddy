@@ -7,12 +7,46 @@ import {
 	handleDatabuddyMcpRequest,
 } from "@databuddy/ai/mcp/http";
 import { auth } from "@databuddy/auth";
+import { isApiScope } from "@databuddy/shared/api-scopes";
+import { config } from "@databuddy/env/app";
+import { createMcpProtectedRequestHandler } from "@better-auth/mcp";
 import { Elysia } from "elysia";
 import {
 	rejectInvalidMcpOrigin,
 	rejectUnsupportedMcpMethod,
 } from "@/http/cors";
 import { getResolvedAuth } from "@/lib/auth-wide-event";
+
+function isOAuthBearer(headers: Headers): boolean {
+	const authorization = headers.get("authorization");
+	if (!authorization?.toLowerCase().startsWith("bearer ")) {
+		return false;
+	}
+	return !authorization.slice("bearer ".length).trim().startsWith("dbdy_");
+}
+
+const handleOAuthMcpRequest = createMcpProtectedRequestHandler(
+	{
+		issuer: config.urls.authorizationServer,
+		audience: config.urls.mcp,
+		jwksUrl: `${config.urls.authorizationServer}/jwks`,
+	},
+	(request, claims) => {
+		const subject = typeof claims.sub === "string" ? claims.sub : null;
+		return handleDatabuddyMcpRequest({
+			request,
+			requestHeaders: request.headers,
+			userId: subject,
+			oauthScopes:
+				typeof claims.scope === "string"
+					? claims.scope.split(" ").filter(isApiScope)
+					: [],
+			oauthUserId: subject,
+			apiKey: null,
+			organizationId: null,
+		});
+	}
+);
 
 function handleMcpRequest({
 	request,
@@ -35,10 +69,16 @@ function handleMcpRequest({
 }
 
 export const mcp = new Elysia({ name: "mcp" })
-	.onRequest(
-		({ request }) =>
-			rejectInvalidMcpOrigin(request) ?? rejectUnsupportedMcpMethod(request)
-	)
+	.onRequest(({ request }) => {
+		const rejected =
+			rejectInvalidMcpOrigin(request) ?? rejectUnsupportedMcpMethod(request);
+		if (rejected) {
+			return rejected;
+		}
+		if (isOAuthBearer(request.headers)) {
+			return handleOAuthMcpRequest(request);
+		}
+	})
 	.derive(async ({ request }) => {
 		const preResolved = getResolvedAuth(request.headers);
 		const hasApiKey = isApiKeyPresent(request.headers);

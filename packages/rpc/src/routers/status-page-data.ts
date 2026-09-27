@@ -250,7 +250,8 @@ async function _fetchStatusPageData(
 		.where(eq(statusPages.slug, slug))
 		.orderBy(statusPageMonitors.order, statusPageMonitors.id);
 
-	if (rows.length === 0) {
+	const [pageRow] = rows;
+	if (!pageRow) {
 		return { page: null };
 	}
 
@@ -304,7 +305,7 @@ async function _fetchStatusPageData(
 				: Promise.resolve([]),
 			db.query.incidents.findMany({
 				where: {
-					statusPageId: rows[0].statusPageId,
+					statusPageId: pageRow.statusPageId,
 					OR: [
 						{ createdAt: { gte: daysAgo(HISTORY_DAYS) } },
 						{ status: { ne: "resolved" } },
@@ -443,10 +444,10 @@ async function _fetchStatusPageData(
 	return {
 		page: {
 			organization: {
-				...rows[0].organization,
-				slug: rows[0].organization.slug ?? slug,
+				...pageRow.organization,
+				slug: pageRow.organization.slug ?? slug,
 			},
-			statusPage: rows[0].statusPage,
+			statusPage: pageRow.statusPage,
 			overallStatus: deriveOverallStatus(monitors, formattedIncidents),
 			monitors,
 			incidents: formattedIncidents,

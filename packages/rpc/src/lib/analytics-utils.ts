@@ -187,8 +187,7 @@ const buildFilterSQL = (
 ): string => {
 	const parts: string[] = [];
 
-	for (let i = 0; i < filters.length; i++) {
-		const { field, operator, value } = filters[i];
+	for (const [i, { field, operator, value }] of filters.entries()) {
 		if (!(FIELDS.has(field) && OPS.has(operator))) {
 			continue;
 		}

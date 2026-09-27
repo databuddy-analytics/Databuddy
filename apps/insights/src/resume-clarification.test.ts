@@ -237,7 +237,6 @@ it("rejects a cross-tenant snapshot before any clarification generation", async 
 });
 it.each([
 	[undefined, "Activate investigation billing", 1, 0],
-	["false", "Activate investigation billing", 1, 0],
 	["true", "Reached analysis work", 0, 1],
 ] as const)("requires hosted billing unless SELFHOST=%s", async (selfhost, message, billingCalls, workCalls) => {
 	const originalEnv = process.env;

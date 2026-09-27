@@ -3,11 +3,7 @@ import type {
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
 import { describe, expect, it } from "bun:test";
-import {
-	buildBlocks,
-	buildInsightReplyText,
-	insightSlackEffectPayloadSchema,
-} from "./delivery";
+import { buildBlocks, buildInsightReplyText } from "./delivery";
 import type { WebsiteInvestigation } from "./persistence";
 
 type Blocks = ReturnType<typeof buildBlocks>;
@@ -74,22 +70,6 @@ function investigationWith(
 }
 
 describe("Slack investigation delivery", () => {
-	it("keeps the canonical insight id in new effects without breaking old ones", () => {
-		expect(
-			insightSlackEffectPayloadSchema.parse({
-				blocks: [],
-				insightId: "case-1",
-				text: "Checkout conversion fell",
-			}).insightId
-		).toBe("case-1");
-		expect(
-			insightSlackEffectPayloadSchema.parse({
-				blocks: [],
-				text: "Legacy delivery",
-			}).insightId
-		).toBeUndefined();
-	});
-
 	it("renders a specific question without unproven impact", () => {
 		const next: InvestigationOutcome["next"] = {
 			type: "ask",

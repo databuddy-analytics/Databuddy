@@ -1,5 +1,32 @@
 import type { AiAgent } from "./ai-agents";
 
+export const AI_PRODUCT_BY_OPERATOR: Record<string, string> = {
+	OpenAI: "ChatGPT",
+	Anthropic: "Claude",
+	Google: "Google Gemini",
+	Perplexity: "Perplexity",
+	Microsoft: "Microsoft Copilot",
+	Meta: "Meta AI",
+	"Moonshot AI": "Kimi",
+};
+
+export const FEATURED_AI_PRODUCTS = [
+	"ChatGPT",
+	"Claude",
+	"Google Gemini",
+	"Perplexity",
+	"Microsoft Copilot",
+	"Meta AI",
+];
+
+export type AgentPurpose = "training" | "search_index" | "user_fetch" | "agent";
+
+export const CONTENT_FORMATS = ["markdown", "llms", "html"] as const;
+export type ContentFormat = (typeof CONTENT_FORMATS)[number];
+
+export const ROBOTS_ACCESS = ["allowed", "partial", "blocked"] as const;
+export type RobotsAccess = (typeof ROBOTS_ACCESS)[number];
+
 export const BotCategory = {
 	AI_CRAWLER: "ai_crawler",
 	AI_ASSISTANT: "ai_assistant",

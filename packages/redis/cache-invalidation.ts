@@ -48,6 +48,7 @@ export const cacheNamespaces = {
 	flagsDefinitions: "flags-definitions",
 	flagsUser: "flags-user",
 	githubIntegrationByOrg: "github-integration-by-org",
+	investigationShare: "investigation-share",
 	mcpInsights: "mcp:insights",
 	memberRole: "rpc:member_role",
 	organizationOwner: "rpc:org_owner",

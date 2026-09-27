@@ -7,6 +7,7 @@
   },
   "ui": "tui",
   "envMode": "strict",
+  "globalDependencies": ["tsconfig/**"],
   "globalEnv": [
     "ALERTS_EMAIL_FROM",
     "API_PROXY_URL",
@@ -80,7 +81,10 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "env": ["CLICKHOUSE_INTEGRATION_TESTS"]
+      "env": [
+        "CLICKHOUSE_INTEGRATION_TESTS",
+        "WEBSITE_READER_INTEGRATION_TESTS"
+      ]
     },
     "check-types": {
       "dependsOn": ["^build"]

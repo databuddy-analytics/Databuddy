@@ -1,5 +1,4 @@
 import { and, db, eq } from "@databuddy/db";
-import dayjs from "dayjs";
 import {
 	insightGenerationConfigs,
 	slackChannelBindings,
@@ -15,6 +14,7 @@ import {
 } from "@databuddy/shared/insights";
 import { WebClient } from "@slack/web-api";
 import { z } from "zod";
+import { formatDayRange } from "./agent";
 import type { WebsiteInvestigation } from "./persistence";
 import { emitInsightsEvent } from "./lib/evlog-insights";
 
@@ -135,11 +135,6 @@ export function buildInsightReplyText(
 	return truncate(lines.join("\n"), SLACK_SECTION_TEXT_MAX);
 }
 
-function formatPeriodDay(value: string): string {
-	const parsed = dayjs(value);
-	return parsed.isValid() ? parsed.format("MMM D") : value;
-}
-
 export function buildBlocks(
 	websiteName: string | null | undefined,
 	websiteDomain: string,
@@ -163,7 +158,7 @@ export function buildBlocks(
 					text: truncate(
 						escapeMrkdwn(
 							userVisibleCopy(
-								`${label} · ${insight.signal.entity.label} · ${formatPeriodDay(insight.signal.period.current.from)} to ${formatPeriodDay(insight.signal.period.current.to)}`
+								`${label} · ${insight.signal.entity.label} · ${formatDayRange(insight.signal.period.current.from, insight.signal.period.current.to)}`
 							)
 						),
 						255
@@ -333,9 +328,9 @@ export async function deliverInsightSlackEffect(
 		.where(eq(slackChannelBindings.slackChannelId, context.channelId))
 		.limit(2);
 	const bindingCount = integrations.length;
+	const binding = bindingCount === 1 ? integrations[0] : undefined;
 	const key = process.env.DATABUDDY_ENCRYPTION_KEY;
-	const token =
-		bindingCount === 1 && key ? decrypt(integrations[0].ciphertext, key) : null;
+	const token = binding && key ? decrypt(binding.ciphertext, key) : null;
 	if (bindingCount !== 1) {
 		emitInsightsEvent(
 			"warn",

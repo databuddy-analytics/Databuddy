@@ -155,17 +155,12 @@ const getCachedFlag = cacheable(
 	async (key: string, clientId: string, environment?: string) => {
 		const flag = await db.query.flags.findFirst({
 			where: {
-				RAW: (t) =>
-					and(
-						eq(t.key, key),
-						environment
-							? eq(t.environment, environment)
-							: isNull(t.environment),
-						isNull(t.deletedAt),
-						eq(t.status, "active"),
-						isNull(t.userId),
-						or(eq(t.websiteId, clientId), eq(t.organizationId, clientId))
-					),
+				key,
+				environment: environment || { isNull: true },
+				deletedAt: { isNull: true },
+				status: "active",
+				userId: { isNull: true },
+				OR: [{ websiteId: clientId }, { organizationId: clientId }],
 			},
 			with: {
 				flagsToTargetGroups: {
@@ -201,16 +196,11 @@ const getCachedFlagsForClient = cacheable(
 	async (clientId: string, environment?: string) => {
 		const flagsList = await db.query.flags.findMany({
 			where: {
-				RAW: (t) =>
-					and(
-						isNull(t.deletedAt),
-						eq(t.status, "active"),
-						isNull(t.userId),
-						environment
-							? eq(t.environment, environment)
-							: isNull(t.environment),
-						or(eq(t.websiteId, clientId), eq(t.organizationId, clientId))
-					),
+				deletedAt: { isNull: true },
+				status: "active",
+				userId: { isNull: true },
+				environment: environment || { isNull: true },
+				OR: [{ websiteId: clientId }, { organizationId: clientId }],
 			},
 			with: {
 				flagsToTargetGroups: {
@@ -239,15 +229,10 @@ const getCachedFlagDefinitionsForClient = cacheable(
 	async (clientId: string, environment?: string) => {
 		const flagsList = await db.query.flags.findMany({
 			where: {
-				RAW: (t) =>
-					and(
-						isNull(t.deletedAt),
-						isNull(t.userId),
-						environment
-							? eq(t.environment, environment)
-							: isNull(t.environment),
-						or(eq(t.websiteId, clientId), eq(t.organizationId, clientId))
-					),
+				deletedAt: { isNull: true },
+				userId: { isNull: true },
+				environment: environment || { isNull: true },
+				OR: [{ websiteId: clientId }, { organizationId: clientId }],
 			},
 			orderBy: { createdAt: "desc" },
 		});
@@ -267,16 +252,11 @@ const getCachedFlagsForUser = cacheable(
 	async (userId: string, clientId: string, environment?: string) => {
 		const flagsList = await db.query.flags.findMany({
 			where: {
-				RAW: (t) =>
-					and(
-						isNull(t.deletedAt),
-						eq(t.status, "active"),
-						environment
-							? eq(t.environment, environment)
-							: isNull(t.environment),
-						eq(t.userId, userId),
-						or(eq(t.websiteId, clientId), eq(t.organizationId, clientId))
-					),
+				deletedAt: { isNull: true },
+				status: "active",
+				environment: environment || { isNull: true },
+				userId,
+				OR: [{ websiteId: clientId }, { organizationId: clientId }],
 			},
 			with: {
 				flagsToTargetGroups: {

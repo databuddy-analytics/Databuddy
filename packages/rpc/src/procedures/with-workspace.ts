@@ -1,4 +1,3 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
 import { hasKeyScope } from "@databuddy/api-keys/resolve";
 import { requiredScopesForResource } from "@databuddy/api-keys/scopes";
 import type { User } from "@databuddy/auth";
@@ -12,6 +11,7 @@ import { cacheNamespaces, cacheable } from "@databuddy/redis";
 import { normalizePlanId, type PlanId } from "@databuddy/shared/types/features";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { hasHostedBilling } from "../lib/autumn-client";
 import { type Context, os } from "../orpc";
 import { getMemberRole, getOrganizationOwnerId } from "../utils/organization";
 
@@ -129,7 +129,7 @@ async function getPlanId(context: Context): Promise<PlanId> {
 }
 
 function requirePlan(plan: PlanId, requiredPlans: PlanId[] | undefined): void {
-	if (readBooleanEnv("SELFHOST") || !requiredPlans?.length) {
+	if (!(hasHostedBilling() && requiredPlans?.length)) {
 		return;
 	}
 	if (!requiredPlans.includes(plan)) {

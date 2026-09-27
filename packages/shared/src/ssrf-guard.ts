@@ -64,7 +64,8 @@ async function resolveFirstPublicIp(
 		return { error: "DNS resolution timed out" };
 	}
 	const all = [...v4, ...v6];
-	if (all.length === 0) {
+	const [firstIp] = all;
+	if (firstIp === undefined) {
 		return { error: "DNS resolution failed" };
 	}
 	for (const ip of all) {
@@ -72,7 +73,7 @@ async function resolveFirstPublicIp(
 			return { error: `Resolves to private IP: ${ip}` };
 		}
 	}
-	return { ip: all[0] };
+	return { ip: firstIp };
 }
 
 export interface UrlValidationOptions {

@@ -1,11 +1,11 @@
 import {
 	and,
 	asc,
+	count,
 	eq,
 	getTableColumns,
 	isNull,
 	isUniqueViolationFor,
-	sql,
 	withTransaction,
 } from "@databuddy/db";
 import { linkFolders, links } from "@databuddy/db/schema";
@@ -72,21 +72,24 @@ export const linkFoldersRouter = {
 			return context.db
 				.select({
 					...getTableColumns(linkFolders),
-					linkCount: sql<number>`(
-						select count(*)::int
-						from ${links}
-						where ${links.organizationId} = ${organizationId}
-							and ${links.folderId} = ${linkFolders.id}
-							and ${links.deletedAt} is null
-					)`.mapWith(Number),
+					linkCount: count(links.id),
 				})
 				.from(linkFolders)
+				.leftJoin(
+					links,
+					and(
+						eq(links.organizationId, organizationId),
+						eq(links.folderId, linkFolders.id),
+						isNull(links.deletedAt)
+					)
+				)
 				.where(
 					and(
 						eq(linkFolders.organizationId, organizationId),
 						isNull(linkFolders.deletedAt)
 					)
 				)
+				.groupBy(linkFolders.id)
 				.orderBy(asc(linkFolders.name));
 		}),
 

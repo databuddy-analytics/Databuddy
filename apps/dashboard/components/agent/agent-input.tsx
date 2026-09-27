@@ -84,6 +84,16 @@ export function AgentInput() {
 		inputSyncRef.current = input;
 	}, [input]);
 
+	useEffect(() => {
+		const ta = textareaRef.current;
+		const draftLength = inputSyncRef.current.length;
+		if (!ta || draftLength === 0) {
+			return;
+		}
+		ta.focus();
+		ta.setSelectionRange(draftLength, draftLength);
+	}, []);
+
 	const cancelPlaceholderReplay = useCallback(() => {
 		if (replayFrameRef.current === null) {
 			return;

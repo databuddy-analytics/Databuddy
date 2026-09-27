@@ -2,6 +2,7 @@ import { getString, isRecord } from "@/lib/guards";
 import type {
 	DatabuddyAgentSlackContext,
 	DatabuddyAgentSlackMessage,
+	DatabuddyAgentSlackThreadResult,
 } from "@databuddy/ai/agent";
 import type { SlackAgentRun } from "@/agent/agent-client";
 import type { SlackAgentClient } from "@/slack/types";
@@ -19,22 +20,31 @@ export function createSlackConversationContext(
 	if (!threadTs) {
 		return null;
 	}
+	let currentThread: Promise<DatabuddyAgentSlackThreadResult> | undefined;
 
 	return {
-		readCurrentThread: async () => {
-			const result = await client.conversations.replies({
-				channel: run.channelId,
-				inclusive: true,
-				limit: MAX_SLACK_CONTEXT_MESSAGES,
-				ts: threadTs,
+		readCurrentThread: () => {
+			if (currentThread) {
+				return currentThread;
+			}
+			const request = client.conversations
+				.replies({
+					channel: run.channelId,
+					inclusive: true,
+					limit: MAX_SLACK_CONTEXT_MESSAGES,
+					ts: threadTs,
+				})
+				.then((result) => ({
+					channelId: run.channelId,
+					hasMore: getBoolean(result, "has_more"),
+					messages: mapSlackApiMessages(result),
+					threadTs,
+				}));
+			currentThread = request.catch((error) => {
+				currentThread = undefined;
+				throw error;
 			});
-
-			return {
-				channelId: run.channelId,
-				hasMore: getBoolean(result, "has_more"),
-				messages: mapSlackApiMessages(result),
-				threadTs,
-			};
+			return currentThread;
 		},
 		readRecentChannelMessages: async ({ limit }) => {
 			const result = await client.conversations.history({

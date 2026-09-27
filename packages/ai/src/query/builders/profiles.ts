@@ -832,7 +832,7 @@ function profileListQueries(ctx: CustomSqlContext) {
 	};
 }
 
-export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
+export const ProfilesBuilders = {
 	profile_list: {
 		meta: {
 			description:
@@ -1237,4 +1237,4 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 			normalizeGeo: true,
 		},
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

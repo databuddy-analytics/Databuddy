@@ -13,7 +13,10 @@ export const CLIENT_ID_PURGE_TABLES = [
 	"analytics.identity_session_pairs",
 ] as const;
 
-export const WEBSITE_ID_PURGE_TABLES = ["analytics.custom_events"] as const;
+export const WEBSITE_ID_PURGE_TABLES = [
+	"analytics.custom_events",
+	"analytics.webhook_deliveries",
+] as const;
 
 export async function purgeWebsiteAnalyticsData(
 	websiteId: string

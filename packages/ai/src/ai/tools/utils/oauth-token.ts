@@ -11,7 +11,7 @@ const SCOPE_SEPARATOR = /[\s,]+/;
 interface TokenCandidate {
 	accessToken: string | null;
 	accessTokenExpiresAt: Date | null;
-	providerAccountId: string;
+	accountId: string;
 	refreshToken: string | null;
 	scope: string | null;
 	userId: string;
@@ -34,7 +34,6 @@ function hasScope(scope: string | null, required: string): boolean {
 }
 
 async function resolveCandidateToken(
-	providerId: string,
 	candidate: TokenCandidate
 ): Promise<ResolvedToken | null> {
 	if (candidate.accessToken && !isExpired(candidate)) {
@@ -49,8 +48,7 @@ async function resolveCandidateToken(
 	try {
 		const refreshed = await auth.api.getAccessToken({
 			body: {
-				providerId,
-				accountId: candidate.providerAccountId,
+				accountId: candidate.accountId,
 				userId: candidate.userId,
 			},
 		});
@@ -74,9 +72,9 @@ async function resolveOAuthToken(
 ): Promise<ResolvedToken | null> {
 	const candidates: TokenCandidate[] = await db
 		.select({
+			accountId: account.id,
 			accessToken: account.accessToken,
 			accessTokenExpiresAt: account.accessTokenExpiresAt,
-			providerAccountId: account.accountId,
 			refreshToken: account.refreshToken,
 			scope: account.scope,
 			userId: account.userId,
@@ -96,7 +94,7 @@ async function resolveOAuthToken(
 		if (requiredScope && !hasScope(candidate.scope, requiredScope)) {
 			continue;
 		}
-		const resolved = await resolveCandidateToken(providerId, candidate);
+		const resolved = await resolveCandidateToken(candidate);
 		if (resolved) {
 			return resolved;
 		}

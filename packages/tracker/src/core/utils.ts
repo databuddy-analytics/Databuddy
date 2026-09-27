@@ -18,8 +18,14 @@ export const isLocalhost = () => {
 	);
 };
 
-const DATA_ATTR_REGEX = /-./g;
+const DATA_ATTR_REGEX = /-(.)/g;
 const NUMBER_REGEX = /^\d+$/;
+
+export function dataAttributeKey(name: string): string {
+	return name
+		.slice(5)
+		.replace(DATA_ATTR_REGEX, (_, letter: string) => letter.toUpperCase());
+}
 
 function parseConfigValue(
 	value: string,
@@ -93,25 +99,25 @@ function applyMaskPattern(pathname: string, pattern: string): string | null {
 	const pathSegments = pathname.split("/");
 	const masked: string[] = [];
 
-	for (let i = 0; i < patternSegments.length; i++) {
-		const patternSegment = patternSegments[i];
+	for (const [i, patternSegment] of patternSegments.entries()) {
 		if (patternSegment === "**") {
 			if (pathSegments.slice(i).some((segment) => segment.length > 0)) {
 				masked.push("*");
 			}
 			return masked.join("/") || "/";
 		}
-		if (i >= pathSegments.length) {
+		const pathSegment = pathSegments[i];
+		if (pathSegment === undefined) {
 			return null;
 		}
 		if (!patternSegment.includes("*")) {
-			if (patternSegment !== pathSegments[i]) {
+			if (patternSegment !== pathSegment) {
 				return null;
 			}
-			masked.push(pathSegments[i]);
+			masked.push(pathSegment);
 			continue;
 		}
-		if (!segmentMatches(patternSegment, pathSegments[i])) {
+		if (!segmentMatches(patternSegment, pathSegment)) {
 			return null;
 		}
 		masked.push(patternSegment);
@@ -154,11 +160,15 @@ export const generateUUIDv4 = () => {
 		const bytes = new Uint8Array(16);
 		crypto.getRandomValues(bytes);
 		// Set RFC 4122 version (4) and variant (10xx) bits
-		bytes[6] = (bytes[6] & 0x0f) | 0x40;
-		bytes[8] = (bytes[8] & 0x3f) | 0x80;
-		const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(
-			""
-		);
+		const hex = Array.from(bytes, (byte, index) => {
+			if (index === 6) {
+				return ((byte & 0x0f) | 0x40).toString(16);
+			}
+			if (index === 8) {
+				return ((byte & 0x3f) | 0x80).toString(16);
+			}
+			return byte.toString(16).padStart(2, "0");
+		}).join("");
 		return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 	}
 	throw new Error("No secure random source available for UUID generation");
@@ -242,9 +252,7 @@ export function getTrackerConfig(): TrackerOptions {
 	if (script) {
 		for (const attr of script.attributes) {
 			if (attr.name.startsWith("data-")) {
-				const key = attr.name
-					.slice(5)
-					.replace(DATA_ATTR_REGEX, (x: string) => x[1].toUpperCase());
+				const key = dataAttributeKey(attr.name);
 				config[key] =
 					key === "skipPatterns" || key === "maskPatterns"
 						? parseJsonAttribute(attr.value)

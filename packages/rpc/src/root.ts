@@ -7,6 +7,7 @@ import { autocompleteRouter } from "./routers/autocomplete";
 import { billingRouter } from "./routers/billing";
 import { feedbackRouter } from "./routers/feedback";
 import { flagsRouter } from "./routers/flags";
+import { importsRouter } from "./routers/imports";
 import { funnelsRouter } from "./routers/funnels";
 import { goalsRouter } from "./routers/goals";
 import { insightGenerationRouter } from "./routers/insight-generation";
@@ -37,6 +38,7 @@ export const appRouter = {
 	integrations: integrationsRouter,
 	feedback: feedbackRouter,
 	flags: flagsRouter,
+	imports: importsRouter,
 	insightGeneration: insightGenerationRouter,
 	insights: insightsRouter,
 	targetGroups: targetGroupsRouter,

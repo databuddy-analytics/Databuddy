@@ -29,6 +29,16 @@ function createClient(strict = false): Autumn {
 	});
 }
 
+export function hasHostedBilling(): boolean {
+	if (readBooleanEnv("SELFHOST")) {
+		return false;
+	}
+	return Boolean(
+		process.env.AUTUMN_SECRET_KEY?.trim() ||
+			process.env.NODE_ENV === "production"
+	);
+}
+
 let instance: Autumn | null = null;
 let strictInstance: Autumn | null = null;
 

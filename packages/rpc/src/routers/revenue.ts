@@ -67,7 +67,7 @@ export const revenueRouter = {
 	webhookDeliveries: protectedProcedure
 		.route({
 			description:
-				"Returns when each provider webhook last produced a record. Requires read permission.",
+				"Returns when each provider webhook event was last delivered. Requires read permission.",
 			method: "POST",
 			path: "/revenue/webhookDeliveries",
 			summary: "Get webhook delivery recency",
@@ -101,20 +101,12 @@ export const revenueRouter = {
 			}>(
 				`SELECT
 					provider,
-					if(
-						provider = 'stripe',
-						JSONExtractString(metadata, 'stripe_event_type'),
-						''
-					) AS event_type,
-					formatDateTime(max(synced_at), '%Y-%m-%dT%H:%i:%SZ') AS last_received_at
-				FROM analytics.revenue
+					event_type,
+					formatDateTime(max(received_at), '%Y-%m-%dT%H:%i:%SZ') AS last_received_at
+				FROM analytics.webhook_deliveries FINAL
 				WHERE owner_id = {ownerId:String}
 					${input.websiteId ? "AND (website_id = {websiteId:String} OR website_id IS NULL)" : ""}
-					AND synced_at >= now() - INTERVAL 90 DAY
-					AND (
-						provider != 'stripe'
-						OR JSONExtractString(metadata, 'stripe_event_type') != ''
-					)
+					AND received_at >= now() - INTERVAL 90 DAY
 				GROUP BY provider, event_type`,
 				{
 					ownerId: workspace.organizationId,
@@ -173,14 +165,16 @@ export const revenueRouter = {
 					.where(eq(revenueConfig.id, existing.id))
 					.returning();
 
-				return {
-					id: updated.id,
-					websiteId: updated.websiteId,
-					webhookHash: updated.webhookHash,
-					stripeConfigured: Boolean(updated.stripeWebhookSecret),
-					paddleConfigured: Boolean(updated.paddleWebhookSecret),
-					currency: updated.currency,
-				};
+				if (updated) {
+					return {
+						id: updated.id,
+						websiteId: updated.websiteId,
+						webhookHash: updated.webhookHash,
+						stripeConfigured: Boolean(updated.stripeWebhookSecret),
+						paddleConfigured: Boolean(updated.paddleWebhookSecret),
+						currency: updated.currency,
+					};
+				}
 			}
 
 			const [created] = await context.db
@@ -195,6 +189,10 @@ export const revenueRouter = {
 					currency: input.currency || "USD",
 				})
 				.returning();
+
+			if (!created) {
+				throw rpcError.internal("Failed to create revenue config");
+			}
 
 			return {
 				id: created.id,

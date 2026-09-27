@@ -3,11 +3,13 @@ import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import {
 	OpenExternalIcon as ArrowSquareOutIcon,
 	BellIcon,
+	BrainIcon,
 	BugIcon,
 	ChartPieIcon as ChartPieSliceIcon,
 	CodeIcon,
 	CreditCardIcon,
 	CurrencyDollarIcon,
+	DatabaseIcon,
 	EyeIcon,
 	FileDownloadIcon as FileArrowDownIcon,
 	FlagIcon,
@@ -31,7 +33,6 @@ import {
 	ChartActivityIcon as PulseIcon,
 	ReceiptIcon,
 	RobotIcon,
-	SignalIcon,
 	ShieldCheckIcon,
 	TargetIcon,
 	UserIcon,
@@ -135,12 +136,25 @@ export const websiteNavigation: NavigationGroup[] = [
 		label: "",
 		items: [
 			createNavItem("Dashboard", ChartPieSliceIcon, "", { rootLevel: false }),
-			createNavItem("Realtime", SignalIcon, "/realtime", {
+			createNavItem("Map", MapPinIcon, "/map", {
 				rootLevel: false,
-				hideFromDemo: true,
+				gatedFeature: GATED_FEATURES.GEOGRAPHIC,
+				searchTags: [
+					"realtime",
+					"geographic",
+					"countries",
+					"live",
+					"locations",
+				],
 			}),
 			createNavItem("Audience", UsersThreeIcon, "/audience", {
 				rootLevel: false,
+			}),
+			createNavItem("AI Agents", BrainIcon, "/agents", {
+				alpha: true,
+				hideFromDemo: true,
+				rootLevel: false,
+				searchTags: ["ai crawlers", "bots", "gptbot", "claudebot", "llm"],
 			}),
 			createNavItem("Error Tracking", BugIcon, "/errors", {
 				rootLevel: false,
@@ -154,10 +168,6 @@ export const websiteNavigation: NavigationGroup[] = [
 			createNavItem("Web Vitals", GaugeIcon, "/vitals", {
 				rootLevel: false,
 				gatedFeature: GATED_FEATURES.WEB_VITALS,
-			}),
-			createNavItem("Geographic", MapPinIcon, "/map", {
-				rootLevel: false,
-				gatedFeature: GATED_FEATURES.GEOGRAPHIC,
 			}),
 			createNavItem("Pulse", PulseIcon, "/pulse", {
 				rootLevel: false,
@@ -241,6 +251,17 @@ export const websiteNavigation: NavigationGroup[] = [
 			createNavItem("Data Export", FileArrowDownIcon, "/settings/export", {
 				rootLevel: false,
 				hideFromDemo: true,
+			}),
+			createNavItem("Data Import", DatabaseIcon, "/settings/import", {
+				rootLevel: false,
+				hideFromDemo: true,
+				searchTags: [
+					"import",
+					"migrate",
+					"plausible",
+					"simple analytics",
+					"switch from",
+				],
 			}),
 			createNavItem("Setup", CodeIcon, "/settings/tracking", {
 				rootLevel: false,

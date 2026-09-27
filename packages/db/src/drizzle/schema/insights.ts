@@ -3,6 +3,7 @@ import type {
 	InsightReplySlackDelivery,
 	InvestigationEvidenceSnapshot,
 	InvestigationOutcome,
+	InvestigationShareSnapshot,
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
 import type { OrganizationBusinessContext } from "@databuddy/shared/organization-business-context";
@@ -360,6 +361,53 @@ export const insightReplies = pgTable(
 			columns: [table.authorId],
 			foreignColumns: [user.id],
 			name: "insight_replies_author_id_fkey",
+		}).onDelete("set null"),
+	]
+);
+
+export const investigationShares = pgTable(
+	"investigation_shares",
+	{
+		id: text().primaryKey(),
+		organizationId: text("organization_id").notNull(),
+		websiteId: text("website_id").notNull(),
+		subjectKey: text("subject_key").notNull(),
+		insightId: text("insight_id").notNull(),
+		version: integer().notNull(),
+		snapshot: jsonb().$type<InvestigationShareSnapshot>().notNull(),
+		publishedBy: text("published_by"),
+		publishedAt: timestamp("published_at", { precision: 3, withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("investigation_shares_case_uidx").on(
+			table.organizationId,
+			table.websiteId,
+			table.subjectKey
+		),
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "investigation_shares_organization_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: "investigation_shares_website_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.insightId],
+			foreignColumns: [analyticsInsights.id],
+			name: "investigation_shares_insight_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.publishedBy],
+			foreignColumns: [user.id],
+			name: "investigation_shares_published_by_fkey",
 		}).onDelete("set null"),
 	]
 );
