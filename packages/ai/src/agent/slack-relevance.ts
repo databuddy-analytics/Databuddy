@@ -1,21 +1,19 @@
-import { createGateway } from "@ai-sdk/gateway";
 import { z } from "zod";
-import { isAiGatewayConfigured } from "../ai/config/models";
 import type { DatabuddyAgentSlackMessage } from "../ai/mcp/slack-context";
 
+const RELEVANCE_ENDPOINT =
+	"https://ai-gateway.vercel.sh/v4/ai/evaluation-model";
 const DEFAULT_TIMEOUT_MS = 2000;
 const MAX_THREAD_MESSAGES = 30;
 const MAX_THREAD_MESSAGE_CHARS = 1000;
 const REPLY_THRESHOLD = 0.5;
 
-const relevanceModel = createGateway({
-	apiKey: (process.env.AI_GATEWAY_API_KEY ?? "").trim(),
-}).evaluationModel("typesafe-ai/jev");
-
-const ReplyAnswerSchema = z.strictObject({
-	reply: z.strictObject({
-		type: z.literal("boolean"),
-		probability: z.number().finite().min(0).max(1),
+const ReplyEvaluationSchema = z.object({
+	answers: z.strictObject({
+		reply: z.object({
+			type: z.literal("boolean"),
+			probability: z.number().min(0).max(1),
+		}),
 	}),
 });
 
@@ -40,15 +38,15 @@ export async function classifySlackThreadReplyRelevance({
 	threadMessages = [],
 	timeoutMs = DEFAULT_TIMEOUT_MS,
 }: SlackThreadReplyRelevanceInput): Promise<SlackThreadReplyRelevance | null> {
-	if (!isAiGatewayConfigured) {
+	const apiKey = (process.env.AI_GATEWAY_API_KEY ?? "").trim();
+	if (!apiKey) {
 		return null;
 	}
 
 	const signal = AbortSignal.timeout(timeoutMs);
 
 	try {
-		const result = await relevanceModel.doEvaluate({
-			abortSignal: signal,
+		const body = JSON.stringify({
 			providerOptions: { gateway: { zeroDataRetention: true } },
 			questions: {
 				reply: {
@@ -77,14 +75,29 @@ export async function classifySlackThreadReplyRelevance({
 					})),
 			},
 		});
+		const response = await fetch(RELEVANCE_ENDPOINT, {
+			method: "POST",
+			signal,
+			headers: {
+				authorization: `Bearer ${apiKey}`,
+				"content-type": "application/json",
+				"ai-evaluation-model-specification-version": "4",
+				"ai-gateway-auth-method": "api-key",
+				"ai-gateway-protocol-version": "0.0.1",
+				"ai-model-id": "typesafe-ai/jev",
+			},
+			body,
+		});
+		if (!response.ok) {
+			return null;
+		}
+		const parsed = ReplyEvaluationSchema.safeParse(await response.json());
 		signal.throwIfAborted();
-		// The low-level provider does not validate question IDs or probability bounds.
-		const parsed = ReplyAnswerSchema.safeParse(result.answers);
 		if (!parsed.success) {
 			return null;
 		}
 
-		const probability = parsed.data.reply.probability;
+		const probability = parsed.data.answers.reply.probability;
 		const shouldReply = probability >= REPLY_THRESHOLD;
 		return {
 			confidence: shouldReply ? probability : 1 - probability,
@@ -92,7 +105,6 @@ export async function classifySlackThreadReplyRelevance({
 			shouldReply,
 		};
 	} catch {
-		// Preserve the caller's deterministic fallback on provider errors/timeouts.
 		return null;
 	}
 }
