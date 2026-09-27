@@ -765,10 +765,7 @@ describe("canonical measurement plan context", () => {
 
 describe("shared Slack/MCP agent billing before model work", () => {
 	it("resolves billing and accessible websites concurrently", async () => {
-		let release!: () => void;
-		const gate = new Promise<void>((resolve) => {
-			release = resolve;
-		});
+		const { promise: gate, resolve: release } = Promise.withResolvers<void>();
 		let websitesStarted = false;
 		let billingStarted = false;
 		accessible.mockImplementationOnce(async () => {
