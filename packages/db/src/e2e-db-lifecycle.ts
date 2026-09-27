@@ -8,9 +8,9 @@ const LOCAL_DATABASE_HOSTS = new Set([
 ]);
 const DEFAULT_E2E_DB_PREFIX = "databuddy_e2e";
 const INVALID_DB_IDENTIFIER_PARTS = /[^A-Za-z0-9_]+/g;
-const LEADING_UNDERSCORES = /^_+/;
-const TRAILING_UNDERSCORES = /_+$/;
 const REPEATED_UNDERSCORES = /_+/g;
+const LEADING_UNDERSCORE = /^_/;
+const TRAILING_UNDERSCORE = /_$/;
 
 export type LifecycleCommand = "create" | "drop";
 
@@ -95,9 +95,9 @@ export function parseLifecycleArgs(
 export function sanitizeDbIdentifierPart(value: string): string {
 	return value
 		.replaceAll(INVALID_DB_IDENTIFIER_PARTS, "_")
-		.replace(LEADING_UNDERSCORES, "")
-		.replace(TRAILING_UNDERSCORES, "")
-		.replaceAll(REPEATED_UNDERSCORES, "_");
+		.replaceAll(REPEATED_UNDERSCORES, "_")
+		.replace(LEADING_UNDERSCORE, "")
+		.replace(TRAILING_UNDERSCORE, "");
 }
 
 export function resolveE2EDatabaseName(input: {
