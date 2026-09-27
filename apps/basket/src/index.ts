@@ -202,7 +202,11 @@ const app = new Elysia()
 			} catch (err) {
 				log.error({
 					health_probe: name,
-					error_message: err instanceof Error ? err.message : String(err),
+					error_message:
+						err instanceof Error
+							? err.message ||
+								(err.cause instanceof Error ? err.cause.message : err.name)
+							: String(err),
 				});
 				return {
 					status: "error" as const,
