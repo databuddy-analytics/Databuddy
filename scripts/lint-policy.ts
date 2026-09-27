@@ -45,6 +45,8 @@ const SCRIPT_TOKEN_SEPARATOR = /\s+/u;
 const SCRIPT_SEGMENT_SEPARATOR = /\s*(?:&&|\|\||;)\s*/u;
 const SCRIPT_PATH_IGNORE_FLAG = "--path-ignore-patterns=";
 const SCRIPT_RUNNERS = new Set(["vitest", "playwright"]);
+const CI_PACKAGE_SCRIPTS = ["test", "test:integration"];
+const CI_ROOT_SCRIPTS = [...CI_PACKAGE_SCRIPTS, "lint"];
 const GLOB_ESCAPE = /[.+?^${}()|[\]\\]/gu;
 const QUOTES = /^["']|["']$/gu;
 const LEADING_DOT_SLASH = /^\.\//u;
@@ -270,7 +272,12 @@ export function findTestWiringViolations(
 				.map((file) => file.split("/")[0])
 		);
 		const covered = new Set<string>();
+		const ciScripts = ciReachableScripts(
+			pkg.scripts,
+			packageDir === "." ? CI_ROOT_SCRIPTS : CI_PACKAGE_SCRIPTS
+		);
 		for (const [name, script] of Object.entries(pkg.scripts)) {
+			const runByCi = ciScripts.has(name);
 			for (const segment of script.split(SCRIPT_SEGMENT_SEPARATOR)) {
 				const tokens = segment.split(SCRIPT_TOKEN_SEPARATOR);
 				const ignores = tokens
@@ -303,6 +310,9 @@ export function findTestWiringViolations(
 						);
 					}
 				}
+				if (!runByCi) {
+					continue;
+				}
 				for (const file of files) {
 					if (ignores.some((ignore) => ignore.test(file))) {
 						continue;
@@ -321,11 +331,35 @@ export function findTestWiringViolations(
 		);
 		if (unreachable.length > 0) {
 			report(
-				`${unreachable.length} test file(s) are not run by any script in this package: ${unreachable.slice(0, 3).join(", ")}. Add them to a test script.`
+				`${unreachable.length} test file(s) are not run by this package's test, test:integration or lint scripts, which CI runs: ${unreachable.slice(0, 3).join(", ")}. Add them to one of those scripts.`
 			);
 		}
 		return violations;
 	});
+}
+
+function ciReachableScripts(
+	scripts: Record<string, string>,
+	entrypoints: string[]
+) {
+	const reachable = new Set(
+		entrypoints.filter((name) => Object.hasOwn(scripts, name))
+	);
+	for (const name of reachable) {
+		for (const segment of (scripts[name] ?? "").split(
+			SCRIPT_SEGMENT_SEPARATOR
+		)) {
+			const tokens = segment.split(SCRIPT_TOKEN_SEPARATOR);
+			const run = tokens.indexOf("run");
+			const target = tokens
+				.slice(run + 1)
+				.find((candidate) => Object.hasOwn(scripts, candidate));
+			if (run >= 0 && target) {
+				reachable.add(target);
+			}
+		}
+	}
+	return reachable;
 }
 
 function normalizeScriptPath(token: string) {

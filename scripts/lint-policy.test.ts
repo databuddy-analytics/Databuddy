@@ -246,7 +246,10 @@ describe("policy lint", () => {
 		const violations = findTestWiringViolations([
 			{
 				manifest: "packages/example/package.json",
-				scripts: { test: "bun test --isolate src/routers src/utils/*.test.ts" },
+				scripts: {
+					test: "bun test --isolate src/routers src/utils/*.test.ts",
+					"test:manual": "bun test src/services",
+				},
 				testFiles: [
 					"packages/example/src/routers/a.test.ts",
 					"packages/example/src/utils/b.test.ts",
@@ -256,7 +259,7 @@ describe("policy lint", () => {
 		]);
 
 		expect(violations.map((violation) => violation.message)).toEqual([
-			"1 test file(s) are not run by any script in this package: src/services/c.test.ts. Add them to a test script.",
+			"1 test file(s) are not run by this package's test, test:integration or lint scripts, which CI runs: src/services/c.test.ts. Add them to one of those scripts.",
 		]);
 	});
 
@@ -294,7 +297,7 @@ describe("policy lint", () => {
 
 		expect(violations.map((violation) => violation.message)).toEqual([
 			'Script "test:integration" references src/b.integration.test.ts, which does not exist.',
-			"1 test file(s) are not run by any script in this package: src/orphan.integration.test.ts. Add them to a test script.",
+			"1 test file(s) are not run by this package's test, test:integration or lint scripts, which CI runs: src/orphan.integration.test.ts. Add them to one of those scripts.",
 		]);
 	});
 
@@ -328,12 +331,18 @@ describe("policy lint", () => {
 			findTestWiringViolations([
 				{
 					manifest: "package.json",
-					scripts: { "lint:policies": "bun test scripts/lint-policy.test.ts" },
+					scripts: {
+						lint: "bunx ultracite check && bun run lint:policies",
+						"lint:policies": "bun test scripts/lint-policy.test.ts",
+					},
 					testFiles: ["scripts/lint-policy.test.ts"],
 				},
 				{
 					manifest: "packages/example/package.json",
-					scripts: { test: "bun test src" },
+					scripts: {
+						test: "bun run --cwd . test:unit",
+						"test:unit": "bun test src",
+					},
 					testFiles: ["packages/example/src/index.test.ts"],
 				},
 				{
