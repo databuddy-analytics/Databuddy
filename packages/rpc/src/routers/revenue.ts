@@ -165,14 +165,16 @@ export const revenueRouter = {
 					.where(eq(revenueConfig.id, existing.id))
 					.returning();
 
-				return {
-					id: updated.id,
-					websiteId: updated.websiteId,
-					webhookHash: updated.webhookHash,
-					stripeConfigured: Boolean(updated.stripeWebhookSecret),
-					paddleConfigured: Boolean(updated.paddleWebhookSecret),
-					currency: updated.currency,
-				};
+				if (updated) {
+					return {
+						id: updated.id,
+						websiteId: updated.websiteId,
+						webhookHash: updated.webhookHash,
+						stripeConfigured: Boolean(updated.stripeWebhookSecret),
+						paddleConfigured: Boolean(updated.paddleWebhookSecret),
+						currency: updated.currency,
+					};
+				}
 			}
 
 			const [created] = await context.db
@@ -187,6 +189,10 @@ export const revenueRouter = {
 					currency: input.currency || "USD",
 				})
 				.returning();
+
+			if (!created) {
+				throw rpcError.internal("Failed to create revenue config");
+			}
 
 			return {
 				id: created.id,

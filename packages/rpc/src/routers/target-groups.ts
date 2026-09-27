@@ -135,6 +135,10 @@ export const targetGroupsRouter = {
 				})
 				.returning();
 
+			if (!newGroup) {
+				throw rpcError.internal("Failed to create target group");
+			}
+
 			await targetGroupsCache.invalidateByTables(["target_groups"]);
 
 			return newGroup;
@@ -152,7 +156,7 @@ export const targetGroupsRouter = {
 		.input(updateSchema)
 		.output(targetGroupOutputSchema)
 		.handler(async ({ context, input }) => {
-			const existingGroup = await context.db
+			const [group] = await context.db
 				.select()
 				.from(targetGroups)
 				.where(
@@ -160,11 +164,9 @@ export const targetGroupsRouter = {
 				)
 				.limit(1);
 
-			if (existingGroup.length === 0) {
+			if (!group) {
 				throw rpcError.notFound("Target group", input.id);
 			}
-
-			const group = existingGroup[0];
 
 			await withWorkspace(context, {
 				websiteId: group.websiteId,
@@ -181,6 +183,10 @@ export const targetGroupsRouter = {
 				})
 				.where(and(eq(targetGroups.id, id), isNull(targetGroups.deletedAt)))
 				.returning();
+
+			if (!updatedGroup) {
+				throw rpcError.notFound("Target group", id);
+			}
 
 			await targetGroupsCache.invalidateByTables(["target_groups"]);
 			await invalidateFlagEvaluationCaches(group.websiteId);
@@ -200,7 +206,7 @@ export const targetGroupsRouter = {
 		.input(deleteSchema)
 		.output(successOutputSchema)
 		.handler(async ({ context, input }) => {
-			const existingGroup = await context.db
+			const [group] = await context.db
 				.select()
 				.from(targetGroups)
 				.where(
@@ -208,11 +214,9 @@ export const targetGroupsRouter = {
 				)
 				.limit(1);
 
-			if (existingGroup.length === 0) {
+			if (!group) {
 				throw rpcError.notFound("Target group", input.id);
 			}
-
-			const group = existingGroup[0];
 
 			await withWorkspace(context, {
 				websiteId: group.websiteId,
