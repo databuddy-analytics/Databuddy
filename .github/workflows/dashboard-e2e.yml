@@ -37,6 +37,7 @@ jobs:
     env:
       DATABUDDY_E2E_BASE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       DATABUDDY_E2E_START_CLICKHOUSE: "false"
+      DATABUDDY_E2E_SERVE_BUILD: "true"
       DATABUDDY_E2E_SEED_CLICKHOUSE: "true"
       DATABUDDY_E2E_CLICKHOUSE_EVENTS: "150"
       CLICKHOUSE_URL: http://default:@localhost:8123/databuddy_analytics
@@ -99,6 +100,12 @@ jobs:
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
           restore-keys: ${{ runner.os }}-bun-
       - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Mount dashboard build cache
+        uses: useblacksmith/stickydisk@4c034ba57b706cf0e3b4b0ce098c2a3b1071580c # v1
+        with:
+          key: ${{ github.repository }}-dashboard-e2e-next-cache
+          path: apps/dashboard/.next/cache
+          commit: ${{ github.event_name == 'push' && 'true' || 'false' }}
       - name: Build dashboard runtime packages
         run: bunx turbo run build --filter @databuddy/devtools --filter @databuddy/sdk
       - name: Install dashboard Playwright browser

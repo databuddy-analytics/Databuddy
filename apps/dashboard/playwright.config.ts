@@ -3,13 +3,17 @@ import { defineConfig, devices } from "@playwright/test";
 
 const PORT = Number(process.env.DATABUDDY_E2E_PORT ?? 3000);
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
+const serveBuild = readBooleanEnv("DATABUDDY_E2E_SERVE_BUILD");
+const dashboardCommand = serveBuild
+	? `NODE_ENV=development bun run build && NODE_ENV=development bun next start -p ${PORT}`
+	: `bun next dev -p ${PORT}`;
 
 export default defineConfig({
 	testDir: "./test/e2e/specs",
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,
-	workers: process.env.CI ? 1 : undefined,
+	workers: process.env.CI ? "50%" : undefined,
 	reporter: process.env.CI ? "github" : "list",
 	use: {
 		baseURL,
@@ -18,7 +22,7 @@ export default defineConfig({
 		video: "retain-on-failure",
 	},
 	webServer: {
-		command: `bash -c 'bun --cwd ../api src/index.ts --port 3001 & api_pid=$!; trap "kill $api_pid 2>/dev/null || true" EXIT; until curl -sf http://localhost:3001/health >/dev/null; do sleep 0.2; done; bun next dev -p ${PORT}'`,
+		command: `bash -c 'bun --cwd ../api src/index.ts --port 3001 & api_pid=$!; trap "kill $api_pid 2>/dev/null || true" EXIT; until curl -sf http://localhost:3001/health >/dev/null; do sleep 0.2; done; ${dashboardCommand}'`,
 		env: {
 			DATABUDDY_E2E_MODE: process.env.DATABUDDY_E2E_MODE ?? "true",
 			NEXT_PUBLIC_DATABUDDY_E2E_MODE:
@@ -52,7 +56,8 @@ export default defineConfig({
 				process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001",
 		},
 		reuseExistingServer: readBooleanEnv("DATABUDDY_E2E_REUSE_SERVER"),
-		timeout: 120_000,
+		stdout: serveBuild ? "pipe" : "ignore",
+		timeout: serveBuild ? 300_000 : 120_000,
 		url: baseURL,
 	},
 	projects: [
