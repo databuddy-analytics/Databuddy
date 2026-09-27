@@ -512,7 +512,15 @@ export function ApiKeySheet({
 
 	return (
 		<>
-			<Sheet onOpenChange={handleClose} open={open}>
+			<Sheet
+				onOpenChange={handleClose}
+				onOpenChangeComplete={(isOpen) => {
+					if (!isOpen) {
+						setNewSecret(null);
+					}
+				}}
+				open={open}
+			>
 				<Sheet.Content className="sm:max-w-lg" side="right">
 					<Sheet.Header>
 						<div className="flex items-start gap-3">
