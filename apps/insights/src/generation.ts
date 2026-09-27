@@ -1512,12 +1512,8 @@ export async function generateWebsiteInsights(
 						rankInvestigationBusinessContext({
 							...rankingInput,
 							canRun: canRunAgent,
-							onUsage: async (usage) => {
-								await billUsage(
-									usage,
-									rankingInput.subjectKey,
-									`insights:${input.runId}:${site.id}:context:${rankingInput.subjectKey}`
-								);
+							onUsage: (usage) => {
+								recordUsage(usage);
 							},
 						}),
 					selectCandidates: async (selectionInput) => {

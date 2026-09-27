@@ -1,4 +1,3 @@
-import { createGateway } from "@ai-sdk/gateway";
 import { isAiGatewayConfigured } from "@databuddy/ai/config/models";
 import {
 	type BusinessContext,
@@ -6,12 +5,10 @@ import {
 } from "@databuddy/ai/lib/business-context";
 import type { LanguageModelUsage } from "ai";
 import { z } from "zod";
+import { evaluateWithJev } from "./business-aware-selection";
 import { emitInsightsEvent } from "./lib/evlog-insights";
 
 const modelId = "typesafe-ai/jev";
-const model = createGateway({
-	apiKey: (process.env.AI_GATEWAY_API_KEY ?? "").trim(),
-}).evaluationModel(modelId);
 
 interface RankingInput {
 	abortSignal?: AbortSignal;
@@ -28,12 +25,12 @@ interface RankingInput {
 /** One optional ranking call; no generated content enters the investigation. */
 export function rankInvestigationBusinessContext(
 	input: RankingInput,
-	evaluator?: Pick<typeof model, "doEvaluate">
+	evaluate?: typeof evaluateWithJev
 ): Promise<BusinessContext> {
 	return prioritizeBusinessContext(
 		input.contexts,
 		async ({ baseline, pages }) => {
-			if (!(evaluator || isAiGatewayConfigured) || input.abortSignal?.aborted) {
+			if (!(evaluate || isAiGatewayConfigured) || input.abortSignal?.aborted) {
 				return null;
 			}
 			const questions = Object.fromEntries(
@@ -82,7 +79,7 @@ export function rankInvestigationBusinessContext(
 					? AbortSignal.any([input.abortSignal, deadline])
 					: deadline;
 				abortSignal.throwIfAborted();
-				const result = await (evaluator ?? model).doEvaluate({
+				const result = await (evaluate ?? evaluateWithJev)({
 					state,
 					questions,
 					abortSignal,
@@ -117,9 +114,9 @@ export function rankInvestigationBusinessContext(
 						Object.fromEntries(
 							Object.keys(questions).map((key) => [
 								key,
-								z.strictObject({
+								z.object({
 									type: z.literal("boolean"),
-									probability: z.number().finite().min(0).max(1),
+									probability: z.number().min(0).max(1),
 								}),
 							])
 						)

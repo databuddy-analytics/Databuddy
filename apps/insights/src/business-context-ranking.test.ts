@@ -53,7 +53,7 @@ const input = {
 	contexts: [profile, related],
 	query: "Does checkout_completed always establish payment?",
 };
-type Evaluator = NonNullable<
+type Evaluate = NonNullable<
 	Parameters<typeof rankInvestigationBusinessContext>[1]
 >;
 const response = {
@@ -63,7 +63,6 @@ const response = {
 		q2: { type: "boolean" as const, probability: 0.9 },
 	},
 	usage: { inputTokens: 100, outputTokens: 3 },
-	warnings: [],
 };
 
 describe("Jev optional context ranking", () => {
@@ -100,9 +99,10 @@ describe("Jev optional context ranking", () => {
 					rankingCalls++;
 					expect(options.query).toContain("checkout_completed");
 					expect(options.contexts).toEqual([profile, related]);
-					return rankInvestigationBusinessContext(options, {
-						doEvaluate: async () => response,
-					});
+					return rankInvestigationBusinessContext(
+						options,
+						async () => response
+					);
 				},
 			},
 			false
@@ -118,26 +118,24 @@ describe("Jev optional context ranking", () => {
 	it("uses full scoped sources, accounts for usage, and recovers the relevant page", async () => {
 		let calls = 0;
 		let usageCalls = 0;
-		const model: Evaluator = {
-			doEvaluate: async (request) => {
-				calls++;
-				expect(request.providerOptions).toEqual({
-					gateway: { zeroDataRetention: true },
-				});
-				expect(
-					(typeof request.state === "string"
-						? JSON.parse(request.state)
-						: request.state
-					).optionalSources
-				).toEqual(
-					related.sources.slice(1).map((source, index) => ({
-						...source,
-						selectionId: `source_${index}`,
-					}))
-				);
-				expect(request.questions.q2?.instructions).toContain('"source_2"');
-				return response;
-			},
+		const evaluate: Evaluate = async (request) => {
+			calls++;
+			expect(request.providerOptions).toEqual({
+				gateway: { zeroDataRetention: true },
+			});
+			expect(
+				(typeof request.state === "string"
+					? JSON.parse(request.state)
+					: request.state
+				).optionalSources
+			).toEqual(
+				related.sources.slice(1).map((source, index) => ({
+					...source,
+					selectionId: `source_${index}`,
+				}))
+			);
+			expect(request.questions.q2?.instructions).toContain('"source_2"');
+			return response;
 		};
 		const result = await rankInvestigationBusinessContext(
 			{
@@ -148,7 +146,7 @@ describe("Jev optional context ranking", () => {
 					expect(usage.usage.totalTokens).toBe(103);
 				},
 			},
-			model
+			evaluate
 		);
 		expect(calls).toBe(1);
 		expect(usageCalls).toBe(1);
@@ -161,18 +159,16 @@ describe("Jev optional context ranking", () => {
 	});
 	it("never calls the model when no pages compete, input is oversized, or cancelled", async () => {
 		let calls = 0;
-		const model: Evaluator = {
-			doEvaluate: () => {
-				calls++;
-				throw new Error("Unexpected model request");
-			},
+		const evaluate: Evaluate = () => {
+			calls++;
+			throw new Error("Unexpected model request");
 		};
 		for (const options of [
 			{ ...input, contexts: [profile] },
 			{ ...input, query: "🙂".repeat(16_000) },
 			{ ...input, abortSignal: AbortSignal.abort() },
 		]) {
-			expect(await rankInvestigationBusinessContext(options, model)).toEqual(
+			expect(await rankInvestigationBusinessContext(options, evaluate)).toEqual(
 				mergeBusinessContext(...options.contexts)
 			);
 			expect(calls).toBe(0);
@@ -195,7 +191,7 @@ describe("Jev optional context ranking", () => {
 						tracked = true;
 					},
 				},
-				{ doEvaluate: async () => ({ ...response, answers }) }
+				async () => ({ ...response, answers })
 			);
 			expect(tracked).toBe(true);
 			expect(result).toEqual(mergeBusinessContext(...input.contexts));
@@ -203,45 +199,42 @@ describe("Jev optional context ranking", () => {
 	});
 	it("skips unavailable billing without a provider request", async () => {
 		let calls = 0;
-		const model: Evaluator = {
-			doEvaluate: async () => {
-				calls++;
-				return response;
-			},
+		const evaluate: Evaluate = async () => {
+			calls++;
+			return response;
 		};
 		for (const canRun of [
 			async () => false,
 			() => Promise.reject(new Error("Synthetic availability failure")),
 		]) {
 			expect(
-				await rankInvestigationBusinessContext({ ...input, canRun }, model)
+				await rankInvestigationBusinessContext({ ...input, canRun }, evaluate)
 			).toEqual(mergeBusinessContext(...input.contexts));
 		}
 		expect(calls).toBe(0);
 	});
 	it("falls back after a provider failure without retrying", async () => {
 		let calls = 0;
-		const result = await rankInvestigationBusinessContext(input, {
-			doEvaluate: () => {
-				calls++;
-				return Promise.reject(new Error("Synthetic provider failure"));
-			},
+		const result = await rankInvestigationBusinessContext(input, () => {
+			calls++;
+			return Promise.reject(new Error("Synthetic provider failure"));
 		});
 		expect(calls).toBe(1);
 		expect(result).toEqual(mergeBusinessContext(...input.contexts));
 	});
 	it("aborts the optional request after one second", async () => {
 		const started = performance.now();
-		const result = await rankInvestigationBusinessContext(input, {
-			doEvaluate: ({ abortSignal }) =>
+		const result = await rankInvestigationBusinessContext(
+			input,
+			({ abortSignal }) =>
 				new Promise((_, reject) => {
-					abortSignal?.addEventListener(
+					abortSignal.addEventListener(
 						"abort",
 						() => reject(abortSignal.reason),
 						{ once: true }
 					);
-				}),
-		});
+				})
+		);
 		expect(performance.now() - started).toBeLessThan(1500);
 		expect(result).toEqual(mergeBusinessContext(...input.contexts));
 	});
