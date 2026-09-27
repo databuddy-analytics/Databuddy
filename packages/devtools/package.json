@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/devtools",
-  "version": "0.0.1-beta.0",
+  "version": "0.0.1",
   "description": "Moveable Databuddy browser devtools overlay",
   "main": "./dist/core/index.mjs",
   "types": "./dist/core/index.d.ts",
