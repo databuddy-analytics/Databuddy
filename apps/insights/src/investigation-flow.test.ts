@@ -4702,21 +4702,25 @@ describe("completed answer measurement boundary", () => {
 			if (mode.includes("cohort")) {
 				diagnostic.measurement.definition.filters = cohort.filters;
 			}
+			let diagnosticTool = name;
+			if (mode.includes("referrer")) {
+				diagnosticTool = "get_funnel_analytics_by_referrer";
+			} else if (mode === "lookalike") {
+				diagnosticTool = "scrape_page";
+			}
+			let diagnosticInput: Record<string, unknown> = {};
+			if (mode.includes("cohort")) {
+				diagnosticInput = { cohort };
+			} else if (mode === "other-parent") {
+				diagnosticInput = { [`${nativeType}Id`]: "another-parent" };
+			}
 			read(
 				"diagnostic",
-				mode.includes("referrer")
-					? "get_funnel_analytics_by_referrer"
-					: mode === "lookalike"
-						? "scrape_page"
-						: name,
+				diagnosticTool,
 				signal.period.current,
 				diagnostic,
 				mode.startsWith("cited"),
-				mode.includes("cohort")
-					? { cohort }
-					: mode === "other-parent"
-						? { [`${nativeType}Id`]: "another-parent" }
-						: {}
+				diagnosticInput
 			);
 		}
 		if (mode.startsWith("reordered-")) {
