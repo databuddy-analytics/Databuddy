@@ -183,7 +183,7 @@ function nativeChart(spec: ComponentSpec): Block | null {
 		rows.length === 0 ||
 		rows.length > (type === "pie" ? 12 : 20) ||
 		!rows.every(
-			(row): row is [string, ...number[]] =>
+			(row): row is [string, number, ...number[]] =>
 				Array.isArray(row) &&
 				row.length === names.length + 1 &&
 				isChartLabel(row[0]) &&
@@ -211,10 +211,10 @@ function nativeChart(spec: ComponentSpec): Block | null {
 						axis_config: { categories: rows.map(([label]) => label) },
 						series: names.map((name, index) => ({
 							name,
-							data: rows.map(([label, ...values]) => ({
-								label,
-								value: values[index],
-							})),
+							data: rows.flatMap(([label, ...values]) => {
+								const value = values[index];
+								return value === undefined ? [] : [{ label, value }];
+							}),
 						})),
 					},
 	};

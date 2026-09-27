@@ -6,7 +6,11 @@ import { Tooltip } from "./tooltip";
 import { cn } from "../lib/utils";
 import { MonitorIcon, MoonIcon, SunIcon } from "./icons";
 
-const CYCLE = ["system", "light", "dark"] as const;
+const NEXT_THEME = new Map<string, "system" | "light" | "dark">([
+	["system", "light"],
+	["light", "dark"],
+	["dark", "system"],
+]);
 
 const LABELS: Record<string, string> = {
 	light: "Light mode",
@@ -22,10 +26,7 @@ interface ThemeToggleProps {
 export function ThemeToggle({ className, tooltip = false }: ThemeToggleProps) {
 	const { theme, setTheme } = useTheme();
 	const current = theme ?? "system";
-	const next =
-		CYCLE[
-			(CYCLE.indexOf(current as (typeof CYCLE)[number]) + 1) % CYCLE.length
-		];
+	const next = NEXT_THEME.get(current) ?? "system";
 
 	const switchTheme = () => {
 		if ("startViewTransition" in document) {
