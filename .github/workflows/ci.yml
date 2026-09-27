@@ -9,10 +9,6 @@ on:
       - ".github/FUNDING.yml"
   pull_request:
     branches: [main, staging]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - ".github/FUNDING.yml"
 
 permissions:
   contents: read
