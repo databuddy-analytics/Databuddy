@@ -7,6 +7,7 @@ import {
 	processFunnelAnalyticsByReferrer,
 	processFunnelConversionCounts,
 	processGoalAnalytics,
+	processGoalsConversionCountsBatch,
 	queryLinkVisitorIds,
 } from "./analytics-utils";
 
@@ -248,6 +249,43 @@ describeIntegration("goal and funnel visitor identity", () => {
 			deep.steps_analytics.map((step) => step.users)
 		);
 	});
+
+	for (const [identity, websiteId] of [
+		["profile-only", profileWebsiteId],
+		["session-only", sessionWebsiteId],
+		["reassigned browser", reassignedAnonymousWebsiteId],
+	] as const) {
+		it(`keeps batched goal counts in parity with per-goal counts for ${identity} visitors`, async () => {
+			const goals = [
+				{ name: "Start", target: "/start", type: "PAGE_VIEW" as const },
+				{ name: "Start slash", target: "/start/", type: "PAGE_VIEW" as const },
+				{ name: "Purchase", target: "purchase", type: "EVENT" as const },
+				{ name: "Purchase again", target: "purchase", type: "EVENT" as const },
+				{ name: "Identify", target: "identify", type: "EVENT" as const },
+				{ name: "Missing", target: "missing", type: "EVENT" as const },
+			].map((goal, index) => ({ ...goal, step_number: index + 1 }));
+
+			const [batched, perGoal] = await Promise.all([
+				processGoalsConversionCountsBatch(goals, queryParams(websiteId)),
+				Promise.all(
+					goals.map((goal) =>
+						processGoalAnalytics(
+							[{ ...goal, step_number: 1 }],
+							[],
+							queryParams(websiteId),
+							1
+						)
+					)
+				),
+			]);
+			const purchase = goals.find((goal) => goal.name === "Purchase");
+
+			expect(goals.map((goal) => batched.get(goal.step_number) ?? 0)).toEqual(
+				perGoal.map((result) => result.total_users_completed)
+			);
+			expect(batched.get(purchase?.step_number ?? 0)).toBeGreaterThan(0);
+		});
+	}
 
 	it("attributes a conversion to the entry that actually began its matched sequence", async () => {
 		const result = await processFunnelAnalytics(
