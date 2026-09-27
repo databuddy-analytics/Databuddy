@@ -65,7 +65,7 @@ const OS_ICON_EXT: Record<string, "svg" | "png" | "webp"> = {
 	macOS: "svg",
 };
 
-const AI_ICON_COLORS: Record<string, string | null> = {
+export const AI_ICON_COLORS: Record<string, string | null> = {
 	Ai2: "#F0529C",
 	Amazon: "#FF9900",
 	Apple: null,
@@ -86,10 +86,10 @@ const AI_ICON_COLORS: Record<string, string | null> = {
 	Gemini: "#8E75B2",
 	Huawei: "#FF0000",
 	Kagi: "#FFB319",
+	Kimi: "#1783FF",
 	Manus: null,
 	Meta: "#0467DF",
 	Mistral: "#FA520F",
-	Moonshot: null,
 	Mozilla: null,
 	OpenCode: null,
 	Parallel: null,
