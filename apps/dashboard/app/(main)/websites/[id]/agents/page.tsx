@@ -300,6 +300,20 @@ interface VisitorSeriesRow {
 	visitors: number;
 }
 
+interface ActivityRow {
+	date: string;
+	html: number;
+	llms: number;
+	markdown: number;
+	requests: number;
+}
+
+interface ActivityTimeline {
+	bucketFormat: string;
+	buckets: string[];
+	isHourly: boolean;
+}
+
 interface TrendPoint {
 	date: string;
 	value: number;
@@ -989,12 +1003,69 @@ function formatSplit(agent: ReadingAgent): string {
 		.join(" · ");
 }
 
+function activityTrend(
+	rows: ActivityRow[],
+	timeline: ActivityTimeline,
+	focus: ReadFocus
+): TrendPoint[] {
+	const key = focus === "all" ? "requests" : focus;
+	const valueByBucket = new Map(
+		rows.map((row) => [
+			dayjs(row.date).format(timeline.bucketFormat),
+			Number(row[key]) || 0,
+		])
+	);
+	return timeline.buckets.map((date) => ({
+		date,
+		value: valueByBucket.get(date) ?? 0,
+	}));
+}
+
+function ActivitySparkline({
+	id,
+	isHourly,
+	label,
+	trend,
+}: {
+	id: string;
+	isHourly: boolean;
+	label: string;
+	trend: TrendPoint[] | null;
+}) {
+	if (!trend) {
+		return <Skeleton className="h-9 w-full" />;
+	}
+	return (
+		<div className="h-9">
+			<Chart.SingleSeries
+				color="var(--color-foreground)"
+				data={trend}
+				height={36}
+				id={id}
+				tooltip={{
+					formatLabelAction: (value) =>
+						dayjs(value).format(isHourly ? "ddd HH:mm" : "ddd, MMM D"),
+					formatValue: formatNumber,
+					valueSuffixLabel: `${label} requests`,
+				}}
+				yDomain={[0, "dataMax + 1"]}
+			/>
+		</div>
+	);
+}
+
 function AgentDetail({
 	agent,
+	isHourly,
+	label,
 	robots,
+	trend,
 }: {
 	agent: ReadingAgent;
+	isHourly: boolean;
+	label: string;
 	robots: RobotsCheck;
+	trend: TrendPoint[] | null;
 }) {
 	const status = robotsStatus(agent);
 	const robotsLabel =
@@ -1026,6 +1097,12 @@ function AgentDetail({
 					</span>
 				) : null}
 			</div>
+			<ActivitySparkline
+				id={`ai-agent-${agent.agent_id.replace(NON_ID_CHARS, "-")}`}
+				isHourly={isHourly}
+				label={label}
+				trend={trend}
+			/>
 			<Tooltip
 				content={<Tip lines={[agent.user_agent]} title="User agent" />}
 				delay={TIP_DELAY_MS}
@@ -1039,18 +1116,25 @@ function AgentDetail({
 }
 
 function AgentReadsPanel({
+	activity,
 	agents,
 	formats,
 	isLoading,
 	reads,
 	robots,
+	timeline,
+	websiteId,
 }: {
+	activity: ActivityRow[];
 	agents: ReadingAgent[];
 	formats: FormatRow[];
 	isLoading: boolean;
 	reads: PageRead[];
 	robots: RobotsCheck;
+	timeline: ActivityTimeline;
+	websiteId: string;
 }) {
+	const { dateRange } = useDateFilters();
 	const available = READ_FORMATS.filter((format) =>
 		formats.some((row) => row.format === format && Number(row.requests) > 0)
 	);
@@ -1125,7 +1209,9 @@ function AgentReadsPanel({
 		Math.min(READ_ROWS, Math.max(agents.length, distinctPages)),
 		1
 	);
-	const listStyle = { minHeight: listHeight(rowSlots) };
+	const listStyle = {
+		"--list-height": `${listHeight(rowSlots)}px`,
+	} as React.CSSProperties;
 
 	const total =
 		focus === "all"
@@ -1148,6 +1234,24 @@ function AgentReadsPanel({
 		: rankedAgents.slice(0, READ_ROWS);
 	const visiblePages = arePagesExpanded ? pages : pages.slice(0, READ_ROWS);
 	const pageNoun = focus === "llms" ? "files" : "pages";
+	const agentActivity = useBatchDynamicQuery(
+		websiteId,
+		dateRange,
+		[
+			{
+				id: "agent-activity",
+				parameters: ["ai_crawler_activity"],
+				filters: selectedId
+					? [{ field: "agent_id", operator: "eq", value: selectedId }]
+					: [],
+			},
+		],
+		{ enabled: Boolean(selectedId) }
+	);
+	const agentActivityRows = agentActivity.getDataForQuery(
+		"agent-activity",
+		"ai_crawler_activity"
+	) as ActivityRow[] | undefined;
 	const readScope = focus === "all" ? "the site" : `${label} content`;
 	const askSubject = selected
 		? `${selected.name} (${selected.product}) reading ${readScope}`
@@ -1203,7 +1307,13 @@ function AgentReadsPanel({
 						<AskAgentButton subject={askSubject} />
 					</div>
 				</div>
-				<div style={listStyle}>
+				<ActivitySparkline
+					id="ai-reads-trend"
+					isHourly={timeline.isHourly}
+					label={label}
+					trend={isLoading ? null : activityTrend(activity, timeline, focus)}
+				/>
+				<div className="lg:min-h-(--list-height)" style={listStyle}>
 					{isLoading ? (
 						<ListSkeleton rows={rowSlots} />
 					) : (
@@ -1315,8 +1425,20 @@ function AgentReadsPanel({
 						</Button>
 					) : null}
 				</div>
-				{selected ? <AgentDetail agent={selected} robots={robots} /> : null}
-				<div style={listStyle}>
+				{selected ? (
+					<AgentDetail
+						agent={selected}
+						isHourly={timeline.isHourly}
+						label={label}
+						robots={robots}
+						trend={
+							agentActivity.isLoading || !agentActivityRows
+								? null
+								: activityTrend(agentActivityRows, timeline, focus)
+						}
+					/>
+				) : null}
+				<div className="lg:min-h-(--list-height)" style={listStyle}>
 					{isLoading ? (
 						<ListSkeleton rows={rowSlots} />
 					) : (
@@ -1411,6 +1533,7 @@ export default function AgentsPage() {
 			{ id: "outcomes", parameters: ["ai_visitor_outcomes"] },
 			{ id: "revenue", parameters: ["revenue_by_ai_product"] },
 			{ id: "crawlers", parameters: ["ai_crawlers"] },
+			{ id: "activity", parameters: ["ai_crawler_activity"] },
 		]
 	);
 
@@ -1430,6 +1553,8 @@ export default function AgentsPage() {
 		[];
 	const crawlers =
 		(getDataForQuery("crawlers", "ai_crawlers") as CrawlerResult[]) ?? [];
+	const activity =
+		(getDataForQuery("activity", "ai_crawler_activity") as ActivityRow[]) ?? [];
 	const robots = useQuery({
 		...orpc.websites.checkAiRobots.queryOptions({
 			input: {
@@ -1620,6 +1745,7 @@ export default function AgentsPage() {
 
 				{isLoading || reads.length > 0 ? (
 					<AgentReadsPanel
+						activity={activity}
 						agents={readingAgents}
 						formats={formats}
 						isLoading={isLoading}
@@ -1628,6 +1754,8 @@ export default function AgentsPage() {
 							hasRobotsTxt: robots.data?.hasRobotsTxt,
 							isPending: robots.isFetching,
 						}}
+						timeline={{ bucketFormat, buckets, isHourly }}
+						websiteId={websiteId}
 					/>
 				) : null}
 
