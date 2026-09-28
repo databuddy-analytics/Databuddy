@@ -49,7 +49,12 @@ configureApiLogger();
 configureApiInstrumentation();
 registerProcessErrorHandlers();
 assertConfigured();
-await assertAuthSecretMatchesDashboard();
+const authSecretCheck = assertAuthSecretMatchesDashboard().catch(
+	(error: unknown) => {
+		console.error(error);
+		process.exit(1);
+	}
+);
 
 const BUN_IDLE_TIMEOUT_SECONDS = 255;
 interface RequestContext {
@@ -177,7 +182,10 @@ registerShutdownHooks(async () => {
 });
 
 export default {
-	fetch: app.fetch,
+	fetch: async (request: Request) => {
+		await authSecretCheck;
+		return app.fetch(request);
+	},
 	port: Number.parseInt(process.env.PORT ?? "3001", 10) || 3001,
 	idleTimeout: BUN_IDLE_TIMEOUT_SECONDS,
 };
