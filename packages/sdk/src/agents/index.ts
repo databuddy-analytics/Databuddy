@@ -27,8 +27,12 @@ const DEFAULT_TIMEOUT_MS = 3000;
 const MAX_HEADER_LENGTH = 512;
 const MAX_REFERRER_LENGTH = 2048;
 
+function isFetchRequest(request: Request | NodeRequest): request is Request {
+	return typeof Request !== "undefined" && request instanceof Request;
+}
+
 function header(request: Request | NodeRequest, name: string): string {
-	if (request instanceof Request) {
+	if (isFetchRequest(request)) {
 		return request.headers.get(name) ?? "";
 	}
 	const value = request.headers[name];
@@ -47,9 +51,9 @@ function contentFormat(
 		: "html";
 }
 
-export async function trackAgents(
+async function sendAgentHit(
 	request: Request | NodeRequest,
-	options: TrackAgentsOptions = {}
+	options: TrackAgentsOptions
 ): Promise<void> {
 	const websiteId =
 		detectClientId(options.websiteId) ??
@@ -101,12 +105,22 @@ export async function trackAgents(
 				header(request, "referer").slice(0, MAX_REFERRER_LENGTH) || undefined,
 		}),
 		signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
-	}).catch(() => undefined);
+	});
+}
+
+export function trackAgents(
+	request: Request | NodeRequest,
+	options: TrackAgentsOptions = {}
+): Promise<void> {
+	return sendAgentHit(request, options).catch(() => undefined);
 }
 
 export function proxy(
 	request: Request,
-	event: { waitUntil(promise: Promise<unknown>): void }
+	event?: { waitUntil?(promise: Promise<unknown>): void }
 ): void {
-	event.waitUntil(trackAgents(request));
+	const tracking = trackAgents(request);
+	if (typeof event?.waitUntil === "function") {
+		event.waitUntil(tracking);
+	}
 }
