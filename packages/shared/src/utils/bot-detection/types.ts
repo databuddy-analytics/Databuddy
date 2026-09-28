@@ -27,6 +27,9 @@ export type ContentFormat = (typeof CONTENT_FORMATS)[number];
 export const ROBOTS_ACCESS = ["allowed", "partial", "blocked"] as const;
 export type RobotsAccess = (typeof ROBOTS_ACCESS)[number];
 
+export const UNIDENTIFIED_AGENT_PREFIX = "unidentified:";
+export const UNIDENTIFIED_AGENTS_PRODUCT = "Unidentified agents";
+
 export const BotCategory = {
 	AI_CRAWLER: "ai_crawler",
 	AI_ASSISTANT: "ai_assistant",

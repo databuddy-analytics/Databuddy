@@ -3,17 +3,24 @@ import {
 	AI_PRODUCT_BY_OPERATOR,
 	type AgentPurpose,
 	BotCategory,
+	UNIDENTIFIED_AGENT_PREFIX,
+	UNIDENTIFIED_AGENTS_PRODUCT,
 } from "./types";
 import wellKnownBots from "./well-known-bots.json";
 
 export const AI_AGENT_CLASSIFICATION: Record<
 	string,
 	{
+		name?: string;
 		operator: string;
 		purpose: AgentPurpose;
 	} | null
 > = {
-	"ai-search-bot": { operator: "AISearchBot", purpose: "search_index" },
+	"ai-search-bot": {
+		name: "AISearchBot",
+		operator: "AISearchBot",
+		purpose: "search_index",
+	},
 	"ai2-crawler": { operator: "Ai2", purpose: "training" },
 	"ai2-crawler-dolma": { operator: "Ai2", purpose: "training" },
 	"aihit-crawler": null,
@@ -38,9 +45,13 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"bytedance-crawler": { operator: "ByteDance", purpose: "training" },
 	"channel3-bot": { operator: "Channel3", purpose: "search_index" },
 	"cloudflare-ai-search": { operator: "Cloudflare", purpose: "search_index" },
-	"cohere-crawler": { operator: "Cohere", purpose: "user_fetch" },
+	"cohere-crawler": {
+		name: "cohere-ai",
+		operator: "Cohere",
+		purpose: "user_fetch",
+	},
 	"commoncrawl-crawler": { operator: "Common Crawl", purpose: "training" },
-	crawl4ai: { operator: "Crawl4AI", purpose: "agent" },
+	crawl4ai: { name: "Crawl4AI", operator: "Crawl4AI", purpose: "agent" },
 	crawlspace: { operator: "Crawlspace", purpose: "agent" },
 	"diffbot-crawler": { operator: "Diffbot", purpose: "training" },
 	"duckassist-bot": { operator: "DuckDuckGo", purpose: "user_fetch" },
@@ -56,7 +67,11 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"google-crawler-other": { operator: "Google", purpose: "training" },
 	"google-gemini-deep-research": { operator: "Google", purpose: "user_fetch" },
 	"google-gemini-notebook": { operator: "Google", purpose: "user_fetch" },
-	"iask-crawler": { operator: "iAsk", purpose: "search_index" },
+	"iask-crawler": {
+		name: "iAskSpider",
+		operator: "iAsk",
+		purpose: "search_index",
+	},
 	"imagesift-crawler": { operator: "Hive", purpose: "training" },
 	imagespider: { operator: "imageSpider", purpose: "training" },
 	img2dataset: { operator: "img2dataset", purpose: "training" },
@@ -70,8 +85,16 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"leadcrunch-crawler": null,
 	"linkup-bot": { operator: "Linkup", purpose: "user_fetch" },
 	"mediatoolkit-crawler": null,
-	"meta-crawler": { operator: "Meta", purpose: "training" },
-	"meta-crawler-user": { operator: "Meta", purpose: "user_fetch" },
+	"meta-crawler": {
+		name: "Meta-ExternalAgent",
+		operator: "Meta",
+		purpose: "training",
+	},
+	"meta-crawler-user": {
+		name: "Meta-ExternalFetcher",
+		operator: "Meta",
+		purpose: "user_fetch",
+	},
 	"mistral-ai-index": { operator: "Mistral", purpose: "search_index" },
 	"mistral-ai-training": { operator: "Mistral", purpose: "training" },
 	"mistral-ai-user": { operator: "Mistral", purpose: "user_fetch" },
@@ -79,7 +102,11 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	newsai: null,
 	"nict-crawler": { operator: "NICT", purpose: "training" },
 	"ntent-crawler": null,
-	"omgili-crawler": { operator: "Webz.io", purpose: "training" },
+	"omgili-crawler": {
+		name: "Omgilibot",
+		operator: "Webz.io",
+		purpose: "training",
+	},
 	"openai-crawler": { operator: "OpenAI", purpose: "training" },
 	"openai-crawler-search": { operator: "OpenAI", purpose: "search_index" },
 	"openai-crawler-user": { operator: "OpenAI", purpose: "user_fetch" },
@@ -101,7 +128,11 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"timpi-crawler": { operator: "Timpi", purpose: "search_index" },
 	"turnitin-crawler": null,
 	"velen-crawler": { operator: "Velen", purpose: "training" },
-	"webzio-crawler-ai": { operator: "Webz.io", purpose: "training" },
+	"webzio-crawler-ai": {
+		name: "Webzio-Extended",
+		operator: "Webz.io",
+		purpose: "training",
+	},
 	"you-crawler": { operator: "You.com", purpose: "search_index" },
 	"zanista-bot": { operator: "Zanista", purpose: "search_index" },
 };
@@ -189,7 +220,7 @@ function toAiAgent(bot: z.infer<typeof wellKnownBotSchema>): AiAgent | null {
 	return {
 		...classification,
 		id: bot.id,
-		name: crawlerName(bot),
+		name: classification.name ?? crawlerName(bot),
 		product:
 			AI_PRODUCT_BY_OPERATOR[classification.operator] ??
 			classification.operator,
@@ -258,9 +289,6 @@ function matchSignedAgent(signatureAgent: string): AiAgent | null {
 const MARKDOWN_MEDIA_TYPE = /^\s*text\/(?:x-)?markdown\b/i;
 const ZERO_QUALITY = /;\s*q\s*=\s*0(?:\.0{0,3})?\s*$/i;
 const USER_AGENT_TOKEN = /^[\w.-]{1,40}/;
-
-export const UNIDENTIFIED_AGENT_PREFIX = "unidentified:";
-export const UNIDENTIFIED_AGENTS_PRODUCT = "Unidentified agents";
 
 export function isMarkdownFirstAccept(accept: string): boolean {
 	const [first = ""] = accept.split(",");
