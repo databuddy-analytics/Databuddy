@@ -18,6 +18,7 @@ import { runFork, send } from "@lib/producer";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { redis } from "@databuddy/redis/redis";
 import {
+	agentBotCategory,
 	identifyAiAgent,
 	setupCheckKey,
 	setupCheckNonce,
@@ -514,10 +515,9 @@ export const trackRoute = new Elysia()
 			const span: AiTrafficSpansInsert = {
 				client_id: hit.websiteId,
 				timestamp: Date.now(),
-				bot_type:
-					result?.agent || !agent
-						? (result?.category ?? "unknown")
-						: "ai_assistant",
+				bot_type: agent
+					? agentBotCategory(agent)
+					: (result?.category ?? "unknown"),
 				bot_name: botName ?? agent?.operator ?? "",
 				user_agent: hit.userAgent,
 				path: hit.path,

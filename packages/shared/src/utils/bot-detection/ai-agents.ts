@@ -231,6 +231,12 @@ export function matchAiAgent(userAgent: string): AiAgent | null {
 	);
 }
 
+export function agentBotCategory(agent: AiAgent): BotCategory {
+	return agent.purpose === "training" || agent.purpose === "search_index"
+		? BotCategory.AI_CRAWLER
+		: BotCategory.AI_ASSISTANT;
+}
+
 function matchSignedAgent(signatureAgent: string): AiAgent | null {
 	const host = URL.parse(signatureAgent.replaceAll('"', "").trim())?.hostname;
 	if (!host) {
