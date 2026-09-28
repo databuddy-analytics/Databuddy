@@ -30,6 +30,7 @@ import {
 } from "@databuddy/shared/bot-detection/types";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
+import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
 import {
 	Chart,
@@ -223,6 +224,7 @@ interface CrawlerRow {
 	last_seen: string;
 	name: string;
 	product: string;
+	proxied_requests: number;
 	purpose: AgentPurpose;
 	requests: number;
 	robots: RobotsAccess | undefined;
@@ -959,9 +961,28 @@ export default function AgentsPage() {
 		);
 	}
 
+	const topSender = products.reduce<ProductRow | null>(
+		(top, row) => (row.visitors > (top?.visitors ?? 0) ? row : top),
+		null
+	);
+	const needsProxy =
+		!isLoading &&
+		topSender !== null &&
+		!crawlers.some((crawler) => crawler.proxied_requests > 0);
+
 	return (
 		<div className="relative flex h-full flex-col">
 			<div className="space-y-4 p-4">
+				{needsProxy && topSender ? (
+					<NoticeBanner
+						description="Add one line to your site to also see which pages AI reads, and whether it gets markdown or HTML."
+						icon={<BrainIcon />}
+						title={`${topSender.product} sent you ${formatNumber(topSender.visitors)} ${topSender.visitors === 1 ? "visitor" : "visitors"}`}
+					>
+						<AgentSetup websiteId={websiteId} />
+					</NoticeBanner>
+				) : null}
+
 				<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-3">
 					{featured.map((row) => (
 						<ProductCard
@@ -1045,13 +1066,15 @@ export default function AgentsPage() {
 					title="Pages"
 				/>
 
-				<div className="space-y-2">
-					<p className="text-pretty text-muted-foreground text-xs">
-						Crawlers that don't run JavaScript, like GPTBot and ClaudeBot, only
-						appear once @databuddy/sdk/agents runs on your server.
-					</p>
-					<AgentSetup websiteId={websiteId} />
-				</div>
+				{needsProxy ? null : (
+					<div className="space-y-2">
+						<p className="text-pretty text-muted-foreground text-xs">
+							Crawlers that don't run JavaScript, like GPTBot and ClaudeBot,
+							only appear once @databuddy/sdk/agents runs on your server.
+						</p>
+						<AgentSetup websiteId={websiteId} />
+					</div>
+				)}
 			</div>
 		</div>
 	);
