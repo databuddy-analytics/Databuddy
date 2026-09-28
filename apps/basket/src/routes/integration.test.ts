@@ -1410,6 +1410,21 @@ describe("POST /ai-traffic", () => {
 		expect(mockSend).not.toHaveBeenCalled();
 	});
 
+	test("drops named search and SEO bots even when they sign requests or ask for markdown", async () => {
+		const signed = await hit(
+			"Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)",
+			"docs.example.com",
+			{ signatureAgent: '"https://ahrefs.com"' }
+		);
+		const markdown = await hit(
+			"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+			"docs.example.com",
+			{ accept: "text/markdown" }
+		);
+		expect([signed.status, markdown.status]).toEqual([204, 204]);
+		expect(mockSend).not.toHaveBeenCalled();
+	});
+
 	test("records an unknown signed agent under its domain", async () => {
 		const res = await hit(CHROME_UA, "docs.example.com", {
 			signatureAgent: '"https://agents.example.dev"',
