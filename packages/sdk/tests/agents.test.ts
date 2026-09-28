@@ -105,6 +105,8 @@ describe("trackAgents", () => {
 			"text/markdown, text/html, */*",
 			"text/x-markdown",
 			"text/html, text/markdown",
+			"text/markdown;q=0, text/html",
+			"text/markdown; q=0.5, text/html",
 			"*/*",
 			"application/json",
 		];

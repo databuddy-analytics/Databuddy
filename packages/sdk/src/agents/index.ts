@@ -20,7 +20,8 @@ const ASSET_PATH =
 	/^\/_next\/|\.(?:js|mjs|css|map|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|eot|mp4|webm|mp3|wav|pdf|zip)$/i;
 const LLMS_TXT_PATH = /\/llms(-full)?\.txt$/i;
 const MARKDOWN_PATH = /\.mdx?$/i;
-const MARKDOWN_FIRST_ACCEPT = /^\s*text\/(?:x-)?markdown\b/i;
+const MARKDOWN_MEDIA_TYPE = /^\s*text\/(?:x-)?markdown\b/i;
+const ZERO_QUALITY = /;\s*q\s*=\s*0(?:\.0{0,3})?\s*$/i;
 const DEFAULT_API_URL = "https://basket.databuddy.cc";
 const DEFAULT_TIMEOUT_MS = 3000;
 const MAX_HEADER_LENGTH = 512;
@@ -59,8 +60,11 @@ export async function trackAgents(
 	const userAgent = header(request, "user-agent");
 	const signatureAgent = header(request, "signature-agent");
 	const accept = header(request, "accept").slice(0, MAX_HEADER_LENGTH);
+	const [firstMediaType = ""] = accept.split(",");
 	const isAgentLike =
-		MARKDOWN_FIRST_ACCEPT.test(accept) && !header(request, "sec-fetch-mode");
+		MARKDOWN_MEDIA_TYPE.test(firstMediaType) &&
+		!ZERO_QUALITY.test(firstMediaType) &&
+		!header(request, "sec-fetch-mode");
 	if (
 		!(
 			websiteId &&
