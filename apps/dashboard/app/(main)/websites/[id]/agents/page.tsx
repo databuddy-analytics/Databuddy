@@ -71,6 +71,7 @@ interface ProductRow {
 
 const NEVER_SEEN = "1970";
 const ALL_VISITORS = "All visitors";
+const ALL_AI_VISITORS = "All AI visitors";
 
 interface PageReader {
 	agent_id: string;
@@ -1408,6 +1409,7 @@ function OutcomeLine({
 	row: OutcomeRow;
 }) {
 	const isBaseline = row.name === ALL_VISITORS;
+	const isSummary = isBaseline || row.name === ALL_AI_VISITORS;
 	const comparison = (value: string, base: string | undefined) =>
 		base && !isBaseline ? `${value} (all visitors ${base})` : value;
 	return (
@@ -1426,7 +1428,7 @@ function OutcomeLine({
 						),
 						row.revenue ? `Revenue ${row.revenue}` : "",
 					].filter(Boolean)}
-					title={isBaseline ? "All visitors" : `Visitors from ${row.name}`}
+					title={isSummary ? row.name : `Visitors from ${row.name}`}
 				/>
 			}
 			delay={TIP_DELAY_MS}
@@ -1435,14 +1437,12 @@ function OutcomeLine({
 				className={cn(
 					OUTCOME_GRID,
 					"h-10 cursor-default rounded px-1 hover:bg-interactive-hover",
-					isBaseline && "text-muted-foreground"
+					isSummary && "text-muted-foreground"
 				)}
 			>
 				<span className="flex min-w-0 items-center gap-2">
-					{isBaseline ? null : <AiProductIcon name={row.name} size="sm" />}
-					<span
-						className={cn("truncate text-sm", !isBaseline && "font-medium")}
-					>
+					{isSummary ? null : <AiProductIcon name={row.name} size="sm" />}
+					<span className={cn("truncate text-sm", !isSummary && "font-medium")}>
 						{row.name}
 					</span>
 				</span>
@@ -1477,7 +1477,10 @@ function AiVisitorsPanel({
 }) {
 	const [areLandingExpanded, setAreLandingExpanded] = useState(false);
 	const baseline = outcomes.find((row) => row.name === ALL_VISITORS);
-	const aiOutcomes = outcomes.filter((row) => row.name !== ALL_VISITORS);
+	const allAi = outcomes.find((row) => row.name === ALL_AI_VISITORS);
+	const aiOutcomes = outcomes.filter(
+		(row) => row.name !== ALL_VISITORS && row.name !== ALL_AI_VISITORS
+	);
 	const maxLanding = Number(landing[0]?.visitors) || 1;
 	const visibleLanding = areLandingExpanded
 		? landing
@@ -1489,9 +1492,35 @@ function AiVisitorsPanel({
 				<div className="flex items-start justify-between gap-3">
 					<div>
 						<p className="font-semibold text-sm">What AI visitors do</p>
-						<p className="text-muted-foreground text-xs">
-							Hover a row to compare it with all visitors
-						</p>
+						{isLoading ? (
+							<>
+								<Skeleton className="mt-2 h-7 w-28" />
+								<Skeleton className="mt-1 h-4 w-56" />
+							</>
+						) : allAi && baseline ? (
+							<>
+								<div className="mt-2 flex h-8 items-center gap-2">
+									<p className="font-semibold text-2xl tabular-nums">
+										{allAi.pages_per_visit.toFixed(1)}
+										<span className="ml-1.5 font-normal text-muted-foreground text-xs">
+											pages per visit from AI
+										</span>
+									</p>
+									<TotalChange
+										current={allAi.pages_per_visit}
+										previous={baseline.pages_per_visit}
+									/>
+								</div>
+								<p className="mt-1 text-muted-foreground text-xs">
+									{allAi.engaged_rate}% viewed 2+ pages, against{" "}
+									{baseline.engaged_rate}% of all visitors
+								</p>
+							</>
+						) : (
+							<p className="text-muted-foreground text-xs">
+								Visitors from AI products, next to everyone else
+							</p>
+						)}
 					</div>
 					<AskAgentButton subject="what visitors from AI products do on the site" />
 				</div>
@@ -1513,7 +1542,11 @@ function AiVisitorsPanel({
 								Pages per visit
 							</span>
 						</div>
-						{[...aiOutcomes, ...(baseline ? [baseline] : [])].map((row) => (
+						{[
+							...aiOutcomes,
+							...(allAi && aiOutcomes.length > 1 ? [allAi] : []),
+							...(baseline ? [baseline] : []),
+						].map((row) => (
 							<OutcomeLine baseline={baseline} key={row.name} row={row} />
 						))}
 					</div>
