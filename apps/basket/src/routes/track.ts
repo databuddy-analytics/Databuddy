@@ -18,6 +18,7 @@ import { runFork, send } from "@lib/producer";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { redis } from "@databuddy/redis/redis";
 import {
+	matchSignedAgent,
 	setupCheckKey,
 	setupCheckNonce,
 } from "@databuddy/shared/bot-detection/ai-agents";
@@ -55,7 +56,9 @@ const agentHitSchema = z.object({
 	host: z.string().min(1).max(253),
 	path: z.string().max(2048),
 	format: z.enum(CONTENT_FORMATS).default("html"),
-	userAgent: z.string().min(1).max(512),
+	userAgent: z.string().max(512),
+	accept: z.string().max(512).optional(),
+	signatureAgent: z.string().max(512).optional(),
 	referrer: z.string().max(2048).optional(),
 });
 
@@ -478,7 +481,9 @@ export const trackRoute = new Elysia()
 			}
 
 			const { botName, result } = detectBot(hit.userAgent, request);
-			const agent = result?.agent;
+			const agent =
+				result?.agent ??
+				(hit.signatureAgent ? matchSignedAgent(hit.signatureAgent) : null);
 			if (!agent) {
 				log.set({ rejected: "not_ai_agent" });
 				return new Response(null, { status: 204 });
@@ -489,17 +494,22 @@ export const trackRoute = new Elysia()
 					name: botName,
 					agent: agent.id,
 					purpose: agent.purpose,
+					signed: Boolean(hit.signatureAgent),
 				},
 			});
 
 			const span: AiTrafficSpansInsert = {
 				client_id: hit.websiteId,
 				timestamp: Date.now(),
-				bot_type: result.category ?? "unknown",
+				bot_type: result?.agent
+					? (result.category ?? "unknown")
+					: "ai_assistant",
 				bot_name: botName ?? agent.operator,
 				user_agent: hit.userAgent,
 				path: hit.path,
 				format: hit.format,
+				host: hit.host,
+				accept: hit.accept ?? "",
 				referrer: hit.referrer,
 				agent_id: agent.id,
 				agent_purpose: agent.purpose,
