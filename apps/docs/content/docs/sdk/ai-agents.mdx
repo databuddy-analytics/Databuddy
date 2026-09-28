@@ -10,10 +10,16 @@ The AI Agents page shows ChatGPT, Claude, Perplexity, Gemini, Meta AI, Claude Co
 Agents that run JavaScript and visitors referred by AI assistants show up automatically through the Databuddy script. Crawlers and coding agents like GPTBot, ClaudeBot and Claude Code don't run JavaScript, so they only show up once `@databuddy/sdk/agents` runs on your server.
 
 <Callout type="info">
-  **Package**: `@databuddy/sdk` | **Import**: `@databuddy/sdk/agents`
+  **Package**: `@databuddy/sdk` 3.0.0+ | **Import**: `@databuddy/sdk/agents`
 </Callout>
 
 ## Setup
+
+Install the SDK, or upgrade it if you're on 2.x, which doesn't include `@databuddy/sdk/agents`:
+
+<CodeBlock language="bash">
+  {`bun add @databuddy/sdk@latest`}
+</CodeBlock>
 
 No API key is needed, only your website ID. If you already use the Databuddy SDK, it's set:
 
