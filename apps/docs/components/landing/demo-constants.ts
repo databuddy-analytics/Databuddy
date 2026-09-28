@@ -8,3 +8,5 @@ export const TH =
 
 export const TH_RIGHT =
 	"px-2 py-2 text-right font-medium font-mono text-xs text-muted-foreground capitalize";
+
+export const SECTION_SPACING = "py-12 sm:py-14 lg:py-20";
