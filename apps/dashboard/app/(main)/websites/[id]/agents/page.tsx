@@ -457,7 +457,13 @@ function SetupCode({
 	);
 }
 
-function AgentSetupSheet({ websiteId }: { websiteId: string }) {
+function AgentSetupSheet({
+	label = "Set up",
+	websiteId,
+}: {
+	label?: string;
+	websiteId: string;
+}) {
 	const [isOpen, setIsOpen] = useState(false);
 	const check = useMutation(orpc.websites.checkAgentSetup.mutationOptions());
 	const isWorking = check.data?.homepage && check.data.llmsTxt;
@@ -465,7 +471,7 @@ function AgentSetupSheet({ websiteId }: { websiteId: string }) {
 	return (
 		<>
 			<Button onClick={() => setIsOpen(true)} size="md" variant="secondary">
-				Set up
+				{label}
 			</Button>
 			<Sheet onOpenChange={setIsOpen} open={isOpen}>
 				<Sheet.Content side="right">
@@ -1110,7 +1116,8 @@ export default function AgentsPage() {
 		(top, row) => (row.visitors > (top?.visitors ?? 0) ? row : top),
 		null
 	);
-	const needsProxy = !isLoading && topSender !== null && !topSender.has_proxy;
+	const hasProxy = products.some((row) => Boolean(row.has_proxy));
+	const needsProxy = !isLoading && topSender !== null && !hasProxy;
 
 	return (
 		<div className="relative flex h-full flex-col">
@@ -1211,10 +1218,14 @@ export default function AgentsPage() {
 				{needsProxy ? null : (
 					<div className="space-y-2">
 						<p className="text-pretty text-muted-foreground text-xs">
-							Crawlers that don't run JavaScript, like GPTBot and ClaudeBot,
-							only appear once @databuddy/sdk/agents runs on your server.
+							{hasProxy
+								? "Server-side tracking is on, so crawlers that don't run JavaScript, like GPTBot and ClaudeBot, show up here."
+								: "Crawlers that don't run JavaScript, like GPTBot and ClaudeBot, only appear once @databuddy/sdk/agents runs on your server."}
 						</p>
-						<AgentSetupSheet websiteId={websiteId} />
+						<AgentSetupSheet
+							label={hasProxy ? "Test setup" : "Set up"}
+							websiteId={websiteId}
+						/>
 					</div>
 				)}
 			</div>
