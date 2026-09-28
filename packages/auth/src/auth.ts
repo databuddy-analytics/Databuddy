@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { redisStorage } from "@better-auth/redis-storage";
 import { runWithTransaction } from "@better-auth/core/context";
 import { and, db, eq, like } from "@databuddy/db";
@@ -42,7 +42,8 @@ import {
 	type AuditActor,
 } from "@databuddy/shared/audit";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError } from "better-auth/api";
+import type { BetterAuthPlugin } from "better-auth";
+import { APIError, createAuthEndpoint } from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
 import {
 	emailOTP,
@@ -132,6 +133,24 @@ function isProduction() {
 function isSelfHosted() {
 	return readBooleanEnv("SELFHOST");
 }
+
+function fingerprintSecret(secret: string): string {
+	return createHmac("sha256", secret)
+		.update("databuddy:auth-secret-fingerprint")
+		.digest("hex")
+		.slice(0, 16);
+}
+
+const secretFingerprint = {
+	id: "secret-fingerprint",
+	endpoints: {
+		getSecretFingerprint: createAuthEndpoint(
+			"/secret-fingerprint",
+			{ method: "GET" },
+			(ctx) => ctx.json({ fingerprint: fingerprintSecret(ctx.context.secret) })
+		),
+	},
+} satisfies BetterAuthPlugin;
 
 function shouldRequireEmailVerification() {
 	if (process.env.REQUIRE_EMAIL_VERIFICATION != null) {
@@ -995,10 +1014,41 @@ export const baseAuthOptions = {
 				});
 			},
 		}),
+		secretFingerprint,
 	],
 } satisfies Parameters<typeof betterAuth>[0];
 
 export const auth = betterAuth(baseAuthOptions);
+
+export async function assertAuthSecretMatchesDashboard(): Promise<void> {
+	if (!isProduction() || isSelfHosted()) {
+		return;
+	}
+
+	const url = `${config.urls.authorizationServer}/secret-fingerprint`;
+	const response = await fetch(url, {
+		signal: AbortSignal.timeout(5000),
+	}).catch(() => null);
+	const body: unknown = response?.ok ? await response.json() : null;
+	const dashboardFingerprint =
+		body && typeof body === "object" && "fingerprint" in body
+			? body.fingerprint
+			: undefined;
+
+	if (typeof dashboardFingerprint !== "string") {
+		log.warn({
+			auth: { secretCheck: "skipped", url, status: response?.status ?? null },
+		});
+		return;
+	}
+
+	const { secret } = await auth.$context;
+	if (dashboardFingerprint !== fingerprintSecret(secret)) {
+		throw new Error(
+			`BETTER_AUTH_SECRET does not match the dashboard at ${config.urls.dashboard}, so every signed-in request would fail with 401. Copy the dashboard's BETTER_AUTH_SECRET to this service.`
+		);
+	}
+}
 
 export const websitesApi = {
 	hasPermission: auth.api.hasPermission,

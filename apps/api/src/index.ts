@@ -1,4 +1,5 @@
 import "./polyfills/compression";
+import { assertAuthSecretMatchesDashboard } from "@databuddy/auth";
 import { assertStorageConfigured } from "@databuddy/env/app";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
@@ -48,6 +49,7 @@ configureApiLogger();
 configureApiInstrumentation();
 registerProcessErrorHandlers();
 assertStorageConfigured();
+await assertAuthSecretMatchesDashboard();
 
 const BUN_IDLE_TIMEOUT_SECONDS = 255;
 interface RequestContext {
