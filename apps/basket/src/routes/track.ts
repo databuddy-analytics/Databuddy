@@ -443,6 +443,17 @@ export const trackRoute = new Elysia()
 			rethrowOrWrap(error, log);
 		}
 	})
+	.get(
+		"/ai-traffic/setup-check/:websiteId/:nonce",
+		async ({ params: { nonce, websiteId } }) => {
+			if (websiteId.length > 128 || nonce.length > 64) {
+				return new Response(null, { status: 400 });
+			}
+			const recorded =
+				(await redis.exists(setupCheckKey(websiteId, nonce))) === 1;
+			return { recorded };
+		}
+	)
 	.post("/ai-traffic", async ({ body, request }) => {
 		const log = useLogger();
 		log.set({ route: "ai-traffic" });

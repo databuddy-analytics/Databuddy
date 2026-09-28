@@ -23,6 +23,7 @@ const {
 	mockGetWebsiteByIdV2,
 	mockResolveApiKeyOwnerId,
 	mockDenyApiKeyWebsiteAccess,
+	mockRedisExists,
 	mockRedisSet,
 	apiKeyDenialErrors,
 } = vi.hoisted(() => {
@@ -44,6 +45,7 @@ const {
 	};
 	return {
 		mockDenyApiKeyWebsiteAccess: vi.fn((): string | null => null),
+		mockRedisExists: vi.fn((_key: string) => Promise.resolve(0)),
 		mockRedisSet: vi.fn(() => Promise.resolve("OK")),
 		apiKeyDenialErrors: {} as Record<string, () => Error>,
 		noop,
@@ -181,7 +183,7 @@ vi.mock("@lib/api-key", () => ({
 }));
 
 vi.mock("@databuddy/redis/redis", () => ({
-	redis: { set: mockRedisSet },
+	redis: { exists: mockRedisExists, set: mockRedisSet },
 }));
 
 vi.mock("@hooks/auth", () => ({
@@ -1412,5 +1414,20 @@ describe("POST /ai-traffic", () => {
 			"EX",
 			120
 		);
+	});
+	test("reports whether basket recorded a setup check", async () => {
+		vi.mocked(mockRedisExists).mockImplementation(async (key: string) =>
+			key === "ai-agent-setup-check:ws_test:nonce_1" ? 1 : 0
+		);
+		const check = (path: string) =>
+			trackRoute.handle(new Request(`http://localhost${path}`));
+		const recorded = await check("/ai-traffic/setup-check/ws_test/nonce_1");
+		const missing = await check("/ai-traffic/setup-check/ws_test/nonce_2");
+		const oversized = await check(
+			`/ai-traffic/setup-check/ws_test/${"n".repeat(65)}`
+		);
+		expect(await recorded.json()).toEqual({ recorded: true });
+		expect(await missing.json()).toEqual({ recorded: false });
+		expect(oversized.status).toBe(400);
 	});
 });

@@ -76,13 +76,19 @@ For Vite, Astro or any other site on Vercel, add `middleware.ts` at the project 
 
 export default {
   async fetch(request, env, ctx) {
-    ctx.waitUntil(trackAgents(request, { websiteId: "your_website_id" }));
+    const websiteId = env.DATABUDDY_WEBSITE_ID;
+    ctx.waitUntil(trackAgents(request, { websiteId }));
     return fetch(request);
   },
 };`}
 </CodeBlock>
 
-Workers don't have `process.env`, so pass the website ID as an option.
+Workers don't have `process.env`, so set the website ID as a variable in `wrangler.toml` and pass it as an option:
+
+<CodeBlock language="bash">
+  {`[vars]
+DATABUDDY_WEBSITE_ID = "your_website_id"`}
+</CodeBlock>
 
 ### Express and Node
 
