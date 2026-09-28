@@ -192,52 +192,80 @@ export const AiAgentsBuilders = {
 
 	ai_agent_pages: {
 		meta: {
-			title: "Pages Read by or Visited from AI",
+			title: "Pages Read by AI",
 			description:
-				"Pages AI products send visitors to or read, ranked by AI-referred visitors then AI requests, with the products reading each page and its human pageviews.",
+				"What AI crawlers and agents read: one row per page, content format (markdown, llms.txt or HTML, as the agent asked for it) and agent, with its product, request count and last request. Up to 300 rows per format, most requested first.",
 			category: "AI Agents",
-			tags: ["ai", "agents", "crawlers", "pages", "referrals"],
+			tags: ["ai", "agents", "crawlers", "pages", "markdown", "llms.txt"],
 			output_fields: [
 				{ name: "page", type: "string", label: "Page" },
-				{ name: "visitors", type: "number", label: "AI-referred visitors" },
-				{ name: "products", type: "json", label: "Read by" },
-				{ name: "requests", type: "number", label: "AI requests" },
 				{ name: "format", type: "string", label: "Format" },
-				{ name: "pageviews", type: "number", label: "Human pageviews" },
+				{ name: "agent_id", type: "string", label: "Agent ID" },
+				{ name: "name", type: "string", label: "Agent" },
+				{ name: "product", type: "string", label: "Product" },
+				{ name: "requests", type: "number", label: "Requests" },
+				{ name: "last_seen", type: "datetime", label: "Last request" },
 			],
 			default_visualization: "table",
 		},
 		customSql: (ctx) => ({
 			sql: `
 				SELECT
-					if(a.page != '', a.page, h.page) AS page,
-					h.visitors, a.products, a.requests, a.format, h.pageviews
+					${PAGE} AS page,
+					${CONTENT_FORMAT} AS format,
+					agent_id,
+					${AGENT_NAME} AS name,
+					${AGENT_PRODUCT} AS product,
+					count() AS requests,
+					max(timestamp) AS last_seen
+				FROM ${Analytics.ai_traffic_spans}
+				WHERE ${AGENT_REQUEST_IN_RANGE} AND path != ''
+				GROUP BY page, format, agent_id
+				ORDER BY requests DESC, page ASC
+				LIMIT 300 BY format
+				LIMIT {limit:UInt32}
+			`,
+			params: { ...queryParams(ctx), limit: ctx.limit ?? 1000 },
+		}),
+		timeField: "timestamp",
+		customizable: false,
+	},
+
+	ai_landing_pages: {
+		meta: {
+			title: "Pages AI Sends Visitors To",
+			description:
+				"Pages that visitors from AI products (referrals and AI app browsers such as Claude or Cursor) viewed, with the products that sent them and each page's pageviews from all visitors.",
+			category: "AI Agents",
+			tags: ["ai", "referrals", "pages", "visitors"],
+			output_fields: [
+				{ name: "page", type: "string", label: "Page" },
+				{ name: "visitors", type: "number", label: "AI visitors" },
+				{ name: "products", type: "json", label: "Sent by" },
+				{ name: "pageviews", type: "number", label: "Pageviews" },
+			],
+			default_visualization: "table",
+		},
+		customSql: (ctx) => ({
+			sql: `
+				SELECT
+					${PAGE} AS page,
+					uniqIf(anonymous_id, visit_product != '') AS visitors,
+					topKIf(3)(visit_product, visit_product != '') AS products,
+					countIf(event_name = 'screen_view') AS pageviews
 				FROM (
-					SELECT
-						${PAGE} AS page,
-						count() AS requests,
-						topK(3)(${AGENT_PRODUCT}) AS products,
-						topK(1)(${CONTENT_FORMAT})[1] AS format
-					FROM ${Analytics.ai_traffic_spans}
-					WHERE ${AGENT_REQUEST_IN_RANGE} AND path != ''
-					GROUP BY page
-				) AS a
-				FULL OUTER JOIN (
-					SELECT
-						${PAGE} AS page,
-						countIf(event_name = 'screen_view') AS pageviews,
-						uniqIf(anonymous_id, ${VISIT_PRODUCT} != '') AS visitors
+					SELECT path, anonymous_id, event_name, ${VISIT_PRODUCT} AS visit_product
 					FROM ${Analytics.events}
 					WHERE ${EVENT_IN_RANGE} AND path != ''
-					GROUP BY page
-				) AS h ON a.page = h.page
-				WHERE a.requests > 0 OR h.visitors > 0
-				ORDER BY h.visitors DESC, a.requests DESC
+				)
+				GROUP BY page
+				HAVING visitors > 0
+				ORDER BY visitors DESC, pageviews DESC
 				LIMIT {limit:UInt32}
 			`,
 			params: { ...queryParams(ctx), limit: ctx.limit ?? 100 },
 		}),
-		timeField: "timestamp",
+		timeField: "time",
 		customizable: false,
 	},
 
@@ -296,7 +324,7 @@ export const AiAgentsBuilders = {
 		meta: {
 			title: "AI Crawlers",
 			description:
-				"Each AI crawler or agent that requested your pages, with its product, purpose, request count, last request, and a sample user agent for checking robots.txt rules.",
+				"Each AI crawler or agent that requested your pages, with its product, purpose, request count, how many of those requests asked for markdown or llms.txt, last request, and a sample user agent for checking robots.txt rules.",
 			category: "AI Agents",
 			tags: ["ai", "crawlers", "robots.txt", "bots"],
 			output_fields: [
@@ -305,6 +333,8 @@ export const AiAgentsBuilders = {
 				{ name: "product", type: "string", label: "Product" },
 				{ name: "purpose", type: "string", label: "Purpose" },
 				{ name: "requests", type: "number", label: "Requests" },
+				{ name: "markdown", type: "number", label: "Markdown requests" },
+				{ name: "llms", type: "number", label: "llms.txt requests" },
 				{ name: "last_seen", type: "datetime", label: "Last request" },
 				{ name: "user_agent", type: "string", label: "User agent" },
 			],
@@ -318,6 +348,8 @@ export const AiAgentsBuilders = {
 					any(${AGENT_PRODUCT}) AS product,
 					any(agent_purpose) AS purpose,
 					count() AS requests,
+					countIf(${CONTENT_FORMAT} = 'markdown') AS markdown,
+					countIf(${CONTENT_FORMAT} = 'llms') AS llms,
 					max(timestamp) AS last_seen,
 					any(user_agent) AS user_agent
 				FROM ${Analytics.ai_traffic_spans}
