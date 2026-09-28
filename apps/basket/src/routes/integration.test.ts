@@ -1393,6 +1393,23 @@ describe("POST /ai-traffic", () => {
 		);
 	});
 
+	test("records clients that ask for markdown first as unidentified agents", async () => {
+		const res = await hit("axios/1.7.2", "docs.example.com", {
+			accept: "text/markdown, text/html, */*",
+		});
+		expect(res.status).toBe(202);
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-ai-traffic-spans",
+			expect.objectContaining({ agent_id: "unidentified:axios" })
+		);
+		vi.mocked(mockSend).mockClear();
+		const html = await hit("axios/1.7.2", "docs.example.com", {
+			accept: "text/html",
+		});
+		expect(html.status).toBe(204);
+		expect(mockSend).not.toHaveBeenCalled();
+	});
+
 	test("records an unknown signed agent under its domain", async () => {
 		const res = await hit(CHROME_UA, "docs.example.com", {
 			signatureAgent: '"https://agents.example.dev"',
