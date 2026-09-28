@@ -24,6 +24,7 @@ import {
 	type ContentFormat,
 	FEATURED_AI_PRODUCTS,
 	type RobotsAccess,
+	UNIDENTIFIED_AGENTS_PRODUCT,
 } from "@databuddy/shared/bot-detection/types";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -93,6 +94,7 @@ interface CrawlerResult {
 	llms: number;
 	markdown: number;
 	name: string;
+	operator: string;
 	pages: number;
 	product: string;
 	purpose: AgentPurpose;
@@ -118,6 +120,20 @@ const READ_FORMATS: ContentFormat[] = ["llms", "markdown", "html"];
 const READ_ROWS = 8;
 const ROW_HEIGHT_PX = 36;
 const ROW_GAP_PX = 4;
+const TIP_DELAY_MS = 200;
+
+function Tip({ lines = [], title }: { lines?: string[]; title: string }) {
+	return (
+		<div className="max-w-72 space-y-0.5 py-0.5">
+			<p className="break-words font-medium">{title}</p>
+			{lines.map((line) => (
+				<p className="break-words text-background/70" key={line}>
+					{line}
+				</p>
+			))}
+		</div>
+	);
+}
 
 function numberColumn<TRow>(
 	key: keyof TRow & string,
@@ -153,9 +169,15 @@ const landingColumns: ColumnDef<LandingPageRow>[] = [
 		cell: ({ row }) => (
 			<div className="flex items-center gap-1">
 				{row.original.products.map((product) => (
-					<span key={product} title={product}>
-						<AiProductIcon name={product} size="sm" />
-					</span>
+					<Tooltip
+						content={<Tip title={product} />}
+						delay={TIP_DELAY_MS}
+						key={product}
+					>
+						<span>
+							<AiProductIcon name={product} size="sm" />
+						</span>
+					</Tooltip>
 				))}
 			</div>
 		),
@@ -571,13 +593,22 @@ function ProductCard({
 				/>
 				<p className="truncate font-semibold text-sm">{row.product}</p>
 				{row.requests > 0 && row.visitors > 0 ? (
-					<span
-						className="ml-auto shrink-0 text-muted-foreground text-xs tabular-nums"
-						title="AI requests for every visitor it sent you"
+					<Tooltip
+						content={
+							<Tip
+								lines={[
+									`${row.product} made ${formatNumber(row.requests)} requests to your pages and sent ${formatNumber(row.visitors)} ${row.visitors === 1 ? "visitor" : "visitors"}`,
+								]}
+								title="Reads per visitor"
+							/>
+						}
+						delay={TIP_DELAY_MS}
 					>
-						{formatNumber(Math.round(row.requests / row.visitors) || 1)} reads
-						per visitor
-					</span>
+						<span className="ml-auto shrink-0 cursor-default text-muted-foreground text-xs tabular-nums">
+							{formatNumber(Math.round(row.requests / row.visitors) || 1)} reads
+							per visitor
+						</span>
+					</Tooltip>
 				) : null}
 			</div>
 			<div>
@@ -664,7 +695,16 @@ function ShareBars({ rows }: { rows: ShareRow[] }) {
 			<div className="flex h-48 items-end gap-3 border-b">
 				{rows.map((row) => (
 					<Tooltip
-						content={`${row.product}: ${formatNumber(row.visitors)} visitors`}
+						content={
+							<Tip
+								lines={[
+									`${formatNumber(row.visitors)} ${row.visitors === 1 ? "visitor" : "visitors"}`,
+									`${formatShare(row.share)} of AI visitors`,
+								]}
+								title={row.product}
+							/>
+						}
+						delay={TIP_DELAY_MS}
 						key={row.product}
 					>
 						<div className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
@@ -821,6 +861,7 @@ function BarRow({
 	isSelected = false,
 	onClick,
 	rank,
+	tooltip,
 	value,
 }: {
 	children: React.ReactNode;
@@ -829,6 +870,7 @@ function BarRow({
 	isSelected?: boolean;
 	onClick?: () => void;
 	rank: number;
+	tooltip: React.ReactNode;
 	value: number;
 }) {
 	const content = (
@@ -839,10 +881,12 @@ function BarRow({
 			<span className="relative flex h-9 min-w-0 flex-1 items-center gap-2 px-2.5">
 				<span
 					className={cn(
-						"absolute inset-y-0 left-0 rounded",
-						isSelected ? "bg-foreground/15" : "bg-secondary"
+						"absolute inset-0 origin-left rounded transition-[transform,background-color] duration-(--duration-base) ease-(--ease-smooth) motion-reduce:transition-none",
+						isSelected
+							? "bg-foreground/15"
+							: "bg-secondary group-hover:bg-interactive-hover"
 					)}
-					style={{ width: `${Math.max(fraction * 100, 2)}%` }}
+					style={{ transform: `scaleX(${Math.max(fraction, 0.02)})` }}
 				/>
 				{children}
 			</span>
@@ -852,24 +896,47 @@ function BarRow({
 		</>
 	);
 	const className = cn(
-		"flex w-full items-center gap-3 text-left transition-opacity",
+		"group flex w-full items-center gap-3 text-left transition-opacity duration-(--duration-quick) ease-(--ease-smooth)",
 		isDimmed && "opacity-40"
 	);
-	return onClick ? (
-		<Button
-			aria-pressed={isSelected}
-			className={cn(
-				className,
-				"h-auto justify-start px-0 font-normal text-foreground hover:bg-transparent hover:opacity-100 active:scale-100 active:bg-transparent"
+	return (
+		<Tooltip content={tooltip} delay={TIP_DELAY_MS}>
+			{onClick ? (
+				<Button
+					aria-pressed={isSelected}
+					className={cn(
+						className,
+						"h-auto justify-start px-0 font-normal text-foreground hover:bg-transparent hover:opacity-100 active:scale-100 active:bg-transparent"
+					)}
+					onClick={onClick}
+					variant="ghost"
+				>
+					{content}
+				</Button>
+			) : (
+				<div className={cn(className, "cursor-default")}>{content}</div>
 			)}
-			onClick={onClick}
-			variant="ghost"
-		>
-			{content}
-		</Button>
-	) : (
-		<div className={className}>{content}</div>
+		</Tooltip>
 	);
+}
+
+function purposeDescription(agent: ReadingAgent): string {
+	if (agent.product === UNIDENTIFIED_AGENTS_PRODUCT) {
+		return "Not a known agent. It asked for markdown before HTML, which AI tools do.";
+	}
+	if (!agent.operator) {
+		return `Signed its requests as ${agent.product}`;
+	}
+	switch (agent.purpose) {
+		case "training":
+			return `Collects pages to train ${agent.operator}'s AI models`;
+		case "search_index":
+			return `Indexes pages for ${agent.product} search results`;
+		case "user_fetch":
+			return `Opens a page when someone asks ${agent.product} about it`;
+		default:
+			return "Reads pages while doing a task for someone";
+	}
 }
 
 interface RobotsCheck {
@@ -959,12 +1026,14 @@ function AgentDetail({
 					</span>
 				) : null}
 			</div>
-			<p
-				className="truncate font-mono text-muted-foreground text-xs"
-				title={agent.user_agent}
+			<Tooltip
+				content={<Tip lines={[agent.user_agent]} title="User agent" />}
+				delay={TIP_DELAY_MS}
 			>
-				{agent.user_agent}
-			</p>
+				<p className="cursor-default truncate font-mono text-muted-foreground text-xs">
+					{agent.user_agent}
+				</p>
+			</Tooltip>
 		</div>
 	);
 }
@@ -1026,11 +1095,21 @@ function AgentReadsPanel({
 			const readers = selected
 				? row.readers.filter((reader) => reader.agent_id === selected.agent_id)
 				: row.readers;
+			const requestsByReader = new Map<string, number>();
+			for (const reader of readers) {
+				requestsByReader.set(
+					reader.name,
+					(requestsByReader.get(reader.name) ?? 0) +
+						(Number(reader.requests) || 0)
+				);
+			}
 			return {
 				page: row.page,
-				readers: [...new Set(readers.map((reader) => reader.name))],
-				value: readers.reduce(
-					(sum, reader) => sum + (Number(reader.requests) || 0),
+				readers: [...requestsByReader]
+					.map(([name, requests]) => ({ name, requests }))
+					.sort((a, b) => b.requests - a.requests),
+				value: [...requestsByReader.values()].reduce(
+					(sum, requests) => sum + requests,
 					0
 				),
 			};
@@ -1138,6 +1217,23 @@ function AgentReadsPanel({
 											setSelectedId(isSelected ? null : agent.agent_id)
 										}
 										rank={index + 1}
+										tooltip={
+											<Tip
+												lines={[
+													purposeDescription(agent),
+													`${formatNumber(agent.requests)} requests · ${formatNumber(agent.pages)} pages · last read ${fromNow(agent.last_seen)}`,
+													status ? `robots.txt: ${status.label}` : "",
+													isSelected
+														? "Click to show every agent"
+														: "Click to see what it read",
+												].filter(Boolean)}
+												title={
+													agent.operator
+														? `${agent.name} by ${agent.operator}`
+														: agent.name
+												}
+											/>
+										}
 										value={agent.value}
 									>
 										<span className="relative shrink-0">
@@ -1156,10 +1252,7 @@ function AgentReadsPanel({
 												? formatSplit(agent)
 												: PURPOSE_LABELS[agent.purpose]}
 										</span>
-										<span
-											className="relative flex w-2 shrink-0 justify-center"
-											title={status ? `robots.txt: ${status.label}` : undefined}
-										>
+										<span className="relative flex w-2 shrink-0 justify-center">
 											{status && status.color !== "success" ? (
 												<StatusDot color={status.color} />
 											) : null}
@@ -1229,17 +1322,36 @@ function AgentReadsPanel({
 									fraction={page.value / maxPageValue}
 									key={page.page}
 									rank={index + 1}
+									tooltip={
+										<Tip
+											lines={
+												selected
+													? [
+															`${formatNumber(page.value)} ${label} requests from ${selected.name}`,
+														]
+													: [
+															...page.readers
+																.slice(0, 5)
+																.map(
+																	(reader) =>
+																		`${reader.name} · ${formatNumber(reader.requests)}`
+																),
+															page.readers.length > 5
+																? `+${page.readers.length - 5} more agents`
+																: "",
+														].filter(Boolean)
+											}
+											title={page.page}
+										/>
+									}
 									value={page.value}
 								>
-									<span
-										className="relative min-w-0 flex-1 truncate text-sm"
-										title={page.page}
-									>
+									<span className="relative min-w-0 flex-1 truncate text-sm">
 										{page.page}
 									</span>
 									{selected ? null : (
 										<span className="relative hidden max-w-[45%] shrink-0 truncate text-muted-foreground text-xs sm:inline">
-											{page.readers.join(", ")}
+											{page.readers.map((reader) => reader.name).join(", ")}
 										</span>
 									)}
 								</BarRow>
