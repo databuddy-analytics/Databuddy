@@ -2,13 +2,13 @@ export const revalidate = false;
 
 const SKILL = `---
 name: databuddy
-description: Privacy-first analytics SDK. Browser tracking, server-side events, feature flags, and REST API.
-version: 2.6.0
+description: Privacy-first analytics SDK. Browser tracking, server-side events, feature flags, AI agent tracking, and REST API.
+version: 3.0.0
 ---
 
-# Databuddy SDK (v2.6)
+# Databuddy SDK (v3)
 
-Privacy-first analytics SDK. Covers browser tracking, server-side events, feature flags, and a REST API.
+Privacy-first analytics SDK. Covers browser tracking, server-side events, feature flags, AI agent tracking, and a REST API.
 
 ## External Documentation
 
@@ -16,7 +16,7 @@ Privacy-first analytics SDK. Covers browser tracking, server-side events, featur
 - Docs index: https://www.databuddy.cc/llms.txt
 - Framework guides: https://www.databuddy.cc/docs/Integrations
 
-> There is **no** \`@databuddy/sdk/ai/vercel\` entry point. AI/LLM tracking is not part of the SDK.
+> There is **no** \`@databuddy/sdk/ai/vercel\` entry point. The SDK does not trace LLM calls; tracking AI crawlers and agents that read your site is \`@databuddy/sdk/agents\`.
 
 ## SDK Entry Points
 
