@@ -115,7 +115,7 @@ export const AiAgentsBuilders = {
 		meta: {
 			title: "How AI Reads Your Content",
 			description:
-				"AI requests split by the content format served: markdown (.md pages or markdown requested through the Accept header), llms.txt files, and HTML pages, with pages and the AI products fetching each format.",
+				"AI requests split by the content format each agent asked for: markdown (.md pages or markdown requested through the Accept header), llms.txt files, and HTML pages, with pages and the AI products fetching each format.",
 			category: "AI Agents",
 			tags: ["ai", "agents", "markdown", "llms.txt", "docs"],
 			output_fields: [
