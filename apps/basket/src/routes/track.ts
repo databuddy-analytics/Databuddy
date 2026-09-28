@@ -482,15 +482,20 @@ export const trackRoute = new Elysia()
 			const hit = parsed.data;
 			log.set({ websiteId: hit.websiteId, host: hit.host });
 
-			const website = await getWebsiteByIdV2(hit.websiteId);
-			if (!website) {
+			const website = await getWebsiteByIdV2(hit.websiteId).catch(() => {
+				log.set({ website_lookup: "unavailable" });
+				return;
+			});
+			if (website === null) {
 				throw basketErrors.trackWebsiteNotFound();
 			}
-			const allowedOrigins = getWebsiteSecuritySettings(
-				website.settings
-			)?.allowedOrigins;
 			if (
-				!isOriginAllowed(`https://${hit.host}`, website.domain, allowedOrigins)
+				website &&
+				!isOriginAllowed(
+					`https://${hit.host}`,
+					website.domain,
+					getWebsiteSecuritySettings(website.settings)?.allowedOrigins
+				)
 			) {
 				log.set({ rejected: "host_not_authorized" });
 				throw basketErrors.ingestOriginNotAuthorized();
@@ -547,6 +552,7 @@ export const trackRoute = new Elysia()
 				agent_id: agent?.id ?? "",
 				agent_purpose: agent?.purpose ?? "",
 				source: "middleware",
+				verification: website ? "" : "host_unchecked",
 			};
 			runFork(send("analytics-ai-traffic-spans", span));
 
