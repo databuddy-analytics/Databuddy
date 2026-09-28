@@ -24,7 +24,10 @@ import {
 	setupCheckNonce,
 	unidentifiedAgent,
 } from "@databuddy/shared/bot-detection/ai-agents";
-import { CONTENT_FORMATS } from "@databuddy/shared/bot-detection/types";
+import {
+	BotCategory,
+	CONTENT_FORMATS,
+} from "@databuddy/shared/bot-detection/types";
 import {
 	checkForBot,
 	getWebsiteSecuritySettings,
@@ -52,6 +55,13 @@ import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
 import { z } from "zod";
 import { type TrackEventPayload, trackEventSchema } from "./track-event-schema";
+
+const NAMED_NON_AI_BOT_CATEGORIES = new Set<BotCategory>([
+	BotCategory.MONITORING,
+	BotCategory.SEARCH_ENGINE,
+	BotCategory.SEO_TOOL,
+	BotCategory.SOCIAL_MEDIA,
+]);
 
 const agentHitSchema = z.object({
 	websiteId: z.string().min(1).max(128),
@@ -494,12 +504,19 @@ export const trackRoute = new Elysia()
 			}
 
 			const { botName, result } = detectBot(hit.userAgent, request);
+			const isNamedOtherBot =
+				result?.category !== undefined &&
+				NAMED_NON_AI_BOT_CATEGORIES.has(result.category);
 			const agent =
 				result?.agent ??
-				(hit.signatureAgent ? matchSignedAgent(hit.signatureAgent) : null) ??
-				(hit.accept && isMarkdownFirstAccept(hit.accept)
-					? unidentifiedAgent(hit.userAgent)
-					: null);
+				(isNamedOtherBot
+					? null
+					: ((hit.signatureAgent
+							? matchSignedAgent(hit.signatureAgent)
+							: null) ??
+						(hit.accept && isMarkdownFirstAccept(hit.accept)
+							? unidentifiedAgent(hit.userAgent)
+							: null)));
 			if (!agent) {
 				log.set({ rejected: "not_ai_agent" });
 				return new Response(null, { status: 204 });
