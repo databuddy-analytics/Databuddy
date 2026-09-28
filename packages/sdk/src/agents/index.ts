@@ -22,6 +22,8 @@ const LLMS_TXT_PATH = /\/llms(-full)?\.txt$/i;
 const MARKDOWN_PATH = /\.mdx?$/i;
 const DEFAULT_API_URL = "https://basket.databuddy.cc";
 const DEFAULT_TIMEOUT_MS = 3000;
+const MAX_HEADER_LENGTH = 512;
+const MAX_REFERRER_LENGTH = 2048;
 
 function header(request: Request | NodeRequest, name: string): string {
 	if (request instanceof Request) {
@@ -54,11 +56,12 @@ export async function trackAgents(
 			: process.env.DATABUDDY_WEBSITE_ID);
 	const method = request.method ?? "GET";
 	const userAgent = header(request, "user-agent");
+	const signatureAgent = header(request, "signature-agent");
 	if (
 		!(
 			websiteId &&
 			(method === "GET" || method === "HEAD") &&
-			AI_AGENT_USER_AGENT.test(userAgent)
+			(signatureAgent || AI_AGENT_USER_AGENT.test(userAgent))
 		)
 	) {
 		return;
@@ -75,6 +78,7 @@ export async function trackAgents(
 		header(request, "x-forwarded-host").split(",")[0]?.trim() ||
 		header(request, "host") ||
 		url.host;
+	const accept = header(request, "accept");
 	await fetch(`${options.apiUrl ?? DEFAULT_API_URL}/ai-traffic`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
@@ -82,9 +86,12 @@ export async function trackAgents(
 			websiteId,
 			host,
 			path: pathname,
-			format: contentFormat(pathname, header(request, "accept")),
-			userAgent,
-			referrer: header(request, "referer") || undefined,
+			format: contentFormat(pathname, accept),
+			userAgent: userAgent.slice(0, MAX_HEADER_LENGTH),
+			accept: accept.slice(0, MAX_HEADER_LENGTH) || undefined,
+			signatureAgent: signatureAgent.slice(0, MAX_HEADER_LENGTH) || undefined,
+			referrer:
+				header(request, "referer").slice(0, MAX_REFERRER_LENGTH) || undefined,
 		}),
 		signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
 	}).catch(() => undefined);
