@@ -196,7 +196,7 @@ export const AiAgentsBuilders = {
 		meta: {
 			title: "Pages Read by AI",
 			description:
-				"What AI crawlers and agents read: one row per page and content format (markdown, llms.txt or HTML, as the agent asked for it), with the request count, last request, and the agents that read it (id, name, product, requests), most requested first. Up to 300 pages per format.",
+				"What AI crawlers and agents read: one row per page and content format (markdown, llms.txt or HTML, as the agent asked for it), with the request count, last request, and every agent that read it (id, name, product, requests), most requested first. Up to 300 pages per format.",
 			category: "AI Agents",
 			tags: [
 				"ai",
@@ -224,15 +224,12 @@ export const AiAgentsBuilders = {
 					format,
 					sum(agent_requests) AS requests,
 					max(agent_last_seen) AS last_seen,
-					arraySlice(
-						arrayReverseSort(
-							agent -> agent.requests,
-							groupArray(CAST(
-								(agent_id, name, product, agent_requests),
-								'Tuple(agent_id String, name String, product String, requests UInt64)'
-							))
-						),
-						1, 10
+					arrayReverseSort(
+						agent -> agent.requests,
+						groupArray(CAST(
+							(agent_id, name, product, agent_requests),
+							'Tuple(agent_id String, name String, product String, requests UInt64)'
+						))
 					) AS agents
 				FROM (
 					SELECT
@@ -262,7 +259,7 @@ export const AiAgentsBuilders = {
 		meta: {
 			title: "Pages AI Sends Visitors To",
 			description:
-				"Pages that visitors from AI products (referrals and AI app browsers such as Claude or Cursor) viewed, with the products that sent them and each page's pageviews from all visitors.",
+				"Pages that visitors from AI products (referrals and AI app browsers such as Claude or Cursor) viewed, counting page views only, with the products that sent them and each page's pageviews from all visitors.",
 			category: "AI Agents",
 			tags: ["ai", "referrals", "pages", "visitors"],
 			output_fields: [
@@ -277,8 +274,8 @@ export const AiAgentsBuilders = {
 			sql: `
 				SELECT
 					${PAGE} AS page,
-					uniqIf(anonymous_id, visit_product != '') AS visitors,
-					topKIf(3)(visit_product, visit_product != '') AS products,
+					uniqIf(anonymous_id, visit_product != '' AND event_name = 'screen_view') AS visitors,
+					topKIf(3)(visit_product, visit_product != '' AND event_name = 'screen_view') AS products,
 					countIf(event_name = 'screen_view') AS pageviews
 				FROM (
 					SELECT path, anonymous_id, event_name, ${VISIT_PRODUCT} AS visit_product
