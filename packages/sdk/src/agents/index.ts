@@ -20,6 +20,8 @@ const ASSET_PATH =
 	/^\/_next\/|\.(?:js|mjs|css|map|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|eot|mp4|webm|mp3|wav|pdf|zip)$/i;
 const LLMS_TXT_PATH = /\/llms(-full)?\.txt$/i;
 const MARKDOWN_PATH = /\.mdx?$/i;
+const MARKDOWN_MEDIA_TYPE = /^\s*text\/(?:x-)?markdown\b/i;
+const ZERO_QUALITY = /;\s*q\s*=\s*0(?:\.0{0,3})?\s*$/i;
 const DEFAULT_API_URL = "https://basket.databuddy.cc";
 const DEFAULT_TIMEOUT_MS = 3000;
 const MAX_HEADER_LENGTH = 512;
@@ -57,11 +59,17 @@ export async function trackAgents(
 	const method = request.method ?? "GET";
 	const userAgent = header(request, "user-agent");
 	const signatureAgent = header(request, "signature-agent");
+	const accept = header(request, "accept").slice(0, MAX_HEADER_LENGTH);
+	const [firstMediaType = ""] = accept.split(",");
+	const isAgentLike =
+		MARKDOWN_MEDIA_TYPE.test(firstMediaType) &&
+		!ZERO_QUALITY.test(firstMediaType) &&
+		!header(request, "sec-fetch-mode");
 	if (
 		!(
 			websiteId &&
 			(method === "GET" || method === "HEAD") &&
-			(signatureAgent || AI_AGENT_USER_AGENT.test(userAgent))
+			(signatureAgent || isAgentLike || AI_AGENT_USER_AGENT.test(userAgent))
 		)
 	) {
 		return;
@@ -78,7 +86,6 @@ export async function trackAgents(
 		header(request, "x-forwarded-host").split(",")[0]?.trim() ||
 		header(request, "host") ||
 		url.host;
-	const accept = header(request, "accept").slice(0, MAX_HEADER_LENGTH);
 	await fetch(`${options.apiUrl ?? DEFAULT_API_URL}/ai-traffic`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },

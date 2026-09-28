@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
-import { AI_AGENTS } from "@databuddy/shared/bot-detection/ai-agents";
+import {
+	AI_AGENTS,
+	isMarkdownFirstAccept,
+} from "@databuddy/shared/bot-detection/ai-agents";
 import { AI_AGENT_USER_AGENT, proxy, trackAgents } from "../src/agents/index";
 
 const GPTBOT =
@@ -95,6 +98,38 @@ describe("trackAgents", () => {
 				userAgent: CHROME,
 			}),
 		]);
+	});
+
+	it("reports unknown clients that ask for markdown first, the way basket classifies them", async () => {
+		const accepts = [
+			"text/markdown, text/html, */*",
+			"text/x-markdown",
+			"text/html, text/markdown",
+			"text/markdown;q=0, text/html",
+			"text/markdown; q=0.5, text/html",
+			"*/*",
+			"application/json",
+		];
+		for (const accept of accepts) {
+			const bodies = captureBodies();
+			await trackAgents(
+				request("/docs", { accept, userAgent: "axios/1.7.2" }),
+				OPTIONS
+			);
+			expect(bodies.length).toBe(isMarkdownFirstAccept(accept) ? 1 : 0);
+		}
+		const browserBodies = captureBodies();
+		await trackAgents(
+			new Request("https://example.com/docs", {
+				headers: {
+					accept: "text/markdown",
+					"sec-fetch-mode": "navigate",
+					"user-agent": CHROME,
+				},
+			}),
+			OPTIONS
+		);
+		expect(browserBodies).toEqual([]);
 	});
 
 	it("caps headers to the lengths basket accepts", async () => {

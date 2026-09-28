@@ -18,9 +18,11 @@ import { runFork, send } from "@lib/producer";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { redis } from "@databuddy/redis/redis";
 import {
+	isMarkdownFirstAccept,
 	matchSignedAgent,
 	setupCheckKey,
 	setupCheckNonce,
+	unidentifiedAgent,
 } from "@databuddy/shared/bot-detection/ai-agents";
 import { CONTENT_FORMATS } from "@databuddy/shared/bot-detection/types";
 import {
@@ -494,7 +496,10 @@ export const trackRoute = new Elysia()
 			const { botName, result } = detectBot(hit.userAgent, request);
 			const agent =
 				result?.agent ??
-				(hit.signatureAgent ? matchSignedAgent(hit.signatureAgent) : null);
+				(hit.signatureAgent ? matchSignedAgent(hit.signatureAgent) : null) ??
+				(hit.accept && isMarkdownFirstAccept(hit.accept)
+					? unidentifiedAgent(hit.userAgent)
+					: null);
 			if (!agent) {
 				log.set({ rejected: "not_ai_agent" });
 				return new Response(null, { status: 204 });

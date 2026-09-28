@@ -103,7 +103,7 @@ app.use((req, _res, next) => {
 
 ## What gets recorded
 
-`trackAgents` only reports `GET` and `HEAD` requests from known AI products, and skips images, scripts, styles and fonts. Agent browsers such as ChatGPT agent send a regular Chrome user agent, so they're recognized by the `Signature-Agent` header they sign their requests with instead. Each request records the page path without its query string, the host, the user agent, the `Accept` header, the referrer, the agent, and the format it asked for:
+`trackAgents` reports `GET` and `HEAD` requests from AI agents and skips images, scripts, styles and fonts. It recognizes three kinds: known AI products by their user agent; agent browsers such as ChatGPT agent, which send a regular Chrome user agent but sign their requests with a `Signature-Agent` header; and clients that aren't browsers and ask for markdown first in their `Accept` header, as tools built for AI do, which are recorded as unidentified agents named after their user agent. Each request records the page path without its query string, the host, the user agent, the `Accept` header, the referrer, the agent, and the format it asked for:
 
 | Format | When |
 | --- | --- |
