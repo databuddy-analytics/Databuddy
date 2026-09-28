@@ -28,6 +28,7 @@ import {
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
+import { AskAgentButton } from "@/components/agent/new-chat-button";
 import {
 	CodeBlock,
 	CodeBlockCopyButton,
@@ -1064,6 +1065,10 @@ function AgentReadsPanel({
 		: rankedAgents.slice(0, READ_ROWS);
 	const visiblePages = arePagesExpanded ? pages : pages.slice(0, READ_ROWS);
 	const pageNoun = focus === "llms" ? "files" : "pages";
+	const readScope = focus === "all" ? "the site" : `${label} content`;
+	const askSubject = selected
+		? `${selected.name} (${selected.product}) reading ${readScope}`
+		: `AI crawlers and agents reading ${readScope}`;
 
 	return (
 		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-2">
@@ -1093,24 +1098,27 @@ function AgentReadsPanel({
 							</p>
 						)}
 					</div>
-					{isLoading ? (
-						<Skeleton className="h-8 w-56" />
-					) : options.length > 1 ? (
-						<SegmentedControl
-							onChange={(value) => {
-								setChosenFocus(value);
-								setSelectedId(null);
-								setAreAgentsExpanded(false);
-								setArePagesExpanded(false);
-							}}
-							options={options.map((value) => ({
-								label: value === "all" ? "All" : FORMAT_LABELS[value],
-								value,
-							}))}
-							size="sm"
-							value={focus}
-						/>
-					) : null}
+					<div className="flex items-center gap-1">
+						{isLoading ? (
+							<Skeleton className="h-8 w-56" />
+						) : options.length > 1 ? (
+							<SegmentedControl
+								onChange={(value) => {
+									setChosenFocus(value);
+									setSelectedId(null);
+									setAreAgentsExpanded(false);
+									setArePagesExpanded(false);
+								}}
+								options={options.map((value) => ({
+									label: value === "all" ? "All" : FORMAT_LABELS[value],
+									value,
+								}))}
+								size="sm"
+								value={focus}
+							/>
+						) : null}
+						<AskAgentButton subject={askSubject} />
+					</div>
 				</div>
 				<div style={listStyle}>
 					{isLoading ? (
