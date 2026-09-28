@@ -298,7 +298,7 @@ export const AiAgentsBuilders = {
 		meta: {
 			title: "What AI Visitors Do",
 			description:
-				"Visitors each AI product sent, how many pages they viewed per visit, and the share that viewed two or more pages, next to the same numbers for all visitors.",
+				"Visitors each AI product sent, how many pages they viewed per visit, and the share that viewed two or more pages, plus the same numbers for all AI visitors combined ('All AI visitors', each visit counted once) and for all visitors ('All visitors').",
 			category: "AI Agents",
 			tags: ["ai", "referrals", "engagement", "outcomes"],
 			output_fields: [
@@ -317,7 +317,11 @@ export const AiAgentsBuilders = {
 		customSql: (ctx) => ({
 			sql: `
 				SELECT
-					if(grouping(ai_product) = 1, 'All visitors', ai_product) AS product,
+					multiIf(
+						grouping(ai_product) = 0, ai_product,
+						grouping(is_ai) = 0, 'All AI visitors',
+						'All visitors'
+					) AS product,
 					uniqArray(session_visitors) AS visitors,
 					round(avg(pageviews), 2) AS pages_per_visit,
 					round(countIf(pageviews > 1) / count() * 100, 1) AS engaged_rate
@@ -326,6 +330,7 @@ export const AiAgentsBuilders = {
 						session_id,
 						groupUniqArray(anonymous_id) AS session_visitors,
 						anyIf(visit_product, visit_product != '') AS ai_product,
+						ai_product != '' AS is_ai,
 						countIf(event_name = 'screen_view') AS pageviews
 					FROM (
 						SELECT session_id, anonymous_id, event_name, ${VISIT_PRODUCT} AS visit_product
@@ -334,9 +339,11 @@ export const AiAgentsBuilders = {
 					)
 					GROUP BY session_id
 				)
-				GROUP BY GROUPING SETS ((ai_product), ())
-				HAVING ai_product != '' OR grouping(ai_product) = 1
-				ORDER BY grouping(ai_product) DESC, visitors DESC
+				GROUP BY GROUPING SETS ((ai_product), (is_ai), ())
+				HAVING (grouping(ai_product) = 0 AND ai_product != '')
+					OR (grouping(ai_product) = 1 AND grouping(is_ai) = 0 AND is_ai)
+					OR (grouping(ai_product) = 1 AND grouping(is_ai) = 1)
+				ORDER BY grouping(ai_product) DESC, grouping(is_ai) DESC, visitors DESC
 				LIMIT {limit:UInt32}
 			`,
 			params: { ...queryParams(ctx), limit: ctx.limit ?? 20 },
