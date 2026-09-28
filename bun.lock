@@ -537,7 +537,7 @@
       "name": "@databuddy/nuxt",
       "version": "2.4.20",
       "dependencies": {
-        "@databuddy/sdk": "^3.0.0",
+        "@databuddy/sdk": "^2.4.20",
         "@nuxt/kit": "^4.4.5",
         "@nuxt/schema": "^4.4.5",
       },
