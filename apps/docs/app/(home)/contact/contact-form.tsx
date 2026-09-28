@@ -232,7 +232,7 @@ export default function ContactForm() {
 						className={errors.fullName ? "border-destructive" : ""}
 						id="full-name"
 						maxLength={100}
-						placeholder="Jane Doe"
+						placeholder="Your name"
 						type="text"
 						{...register("fullName")}
 					/>
@@ -250,7 +250,7 @@ export default function ContactForm() {
 						className={errors.businessName ? "border-destructive" : ""}
 						id="business-name"
 						maxLength={200}
-						placeholder="Acme Inc. or acme.com"
+						placeholder="Company name or website"
 						type="text"
 						{...register("businessName")}
 					/>
@@ -268,7 +268,7 @@ export default function ContactForm() {
 						className={errors.website ? "border-destructive" : ""}
 						id="domain"
 						maxLength={500}
-						placeholder="example.com"
+						placeholder="yourcompany.com"
 						type="text"
 						{...register("website")}
 					/>
@@ -286,7 +286,7 @@ export default function ContactForm() {
 						className={errors.email ? "border-destructive" : ""}
 						id="email"
 						maxLength={255}
-						placeholder="jane@acme.com"
+						placeholder="you@company.com"
 						type="email"
 						{...register("email")}
 					/>
