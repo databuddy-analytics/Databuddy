@@ -196,7 +196,16 @@ export const AiAgentsBuilders = {
 			description:
 				"What AI crawlers and agents read: one row per page and content format (markdown, llms.txt or HTML, as the agent asked for it), with the request count, last request, and the agents that read it (id, name, product, requests), most requested first. Up to 300 pages per format.",
 			category: "AI Agents",
-			tags: ["ai", "agents", "crawlers", "pages", "markdown", "llms.txt"],
+			tags: [
+				"ai",
+				"agents",
+				"crawlers",
+				"pages",
+				"markdown",
+				"llms.txt",
+				"llms-full.txt",
+				"docs",
+			],
 			output_fields: [
 				{ name: "page", type: "string", label: "Page" },
 				{ name: "format", type: "string", label: "Format" },
@@ -342,7 +351,18 @@ export const AiAgentsBuilders = {
 			description:
 				"Each AI crawler or agent that requested your pages, with its product, purpose, request count, distinct pages read, how many of those requests asked for markdown or llms.txt, last request, and a sample user agent for checking robots.txt rules.",
 			category: "AI Agents",
-			tags: ["ai", "crawlers", "robots.txt", "bots"],
+			tags: [
+				"ai",
+				"crawlers",
+				"agents",
+				"bots",
+				"robots.txt",
+				"gptbot",
+				"claudebot",
+				"perplexitybot",
+				"chatgpt-user",
+				"claude code",
+			],
 			output_fields: [
 				{ name: "agent_id", type: "string", label: "Agent" },
 				{ name: "name", type: "string", label: "Crawler" },
