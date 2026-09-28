@@ -1,11 +1,15 @@
-import { AI_AGENTS } from "@databuddy/shared/bot-detection/ai-agents";
+import {
+	AI_AGENTS,
+	UNIDENTIFIED_AGENT_PREFIX,
+	UNIDENTIFIED_AGENTS_PRODUCT,
+} from "@databuddy/shared/bot-detection/ai-agents";
 import { AI_APP_BROWSERS } from "@databuddy/shared/bot-detection/user-agent";
 import { AI_REFERRERS } from "@databuddy/shared/utils/referrer";
 import { Analytics } from "../../types/tables";
 import type { CustomSqlContext, SimpleQueryConfig } from "../types";
 
-const AGENT_PRODUCT =
-	"transform(agent_id, {agentIds:Array(String)}, {agentProducts:Array(String)}, agent_id)";
+const AGENT_PRODUCT = `if(startsWith(agent_id, '${UNIDENTIFIED_AGENT_PREFIX}'), '${UNIDENTIFIED_AGENTS_PRODUCT}', transform(agent_id, {agentIds:Array(String)}, {agentProducts:Array(String)}, agent_id))`;
+const AGENT_NAME = `if(startsWith(agent_id, '${UNIDENTIFIED_AGENT_PREFIX}'), substring(agent_id, ${UNIDENTIFIED_AGENT_PREFIX.length + 1}), transform(agent_id, {agentIds:Array(String)}, {agentNames:Array(String)}, agent_id))`;
 export function aiVisitProduct(referrerDomain: string): string {
 	return `if(has({aiApps:Array(String)}, browser_name), browser_name, transform(${referrerDomain}, {aiDomains:Array(String)}, {aiNames:Array(String)}, transform(utm_source, {aiDomains:Array(String)}, {aiNames:Array(String)}, '')))`;
 }
@@ -314,7 +318,7 @@ export const AiAgentsBuilders = {
 			sql: `
 				SELECT
 					agent_id,
-					transform(agent_id, {agentIds:Array(String)}, {agentNames:Array(String)}, agent_id) AS name,
+					${AGENT_NAME} AS name,
 					any(${AGENT_PRODUCT}) AS product,
 					any(agent_purpose) AS purpose,
 					count() AS requests,
