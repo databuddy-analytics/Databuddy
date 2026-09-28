@@ -1,15 +1,16 @@
+import { AI_AGENTS } from "@databuddy/shared/bot-detection/ai-agents";
 import {
-	AI_AGENTS,
 	UNIDENTIFIED_AGENT_PREFIX,
 	UNIDENTIFIED_AGENTS_PRODUCT,
-} from "@databuddy/shared/bot-detection/ai-agents";
+} from "@databuddy/shared/bot-detection/types";
 import { AI_APP_BROWSERS } from "@databuddy/shared/bot-detection/user-agent";
 import { AI_REFERRERS } from "@databuddy/shared/utils/referrer";
 import { Analytics } from "../../types/tables";
 import type { CustomSqlContext, SimpleQueryConfig } from "../types";
 
 const AGENT_PRODUCT = `if(startsWith(agent_id, '${UNIDENTIFIED_AGENT_PREFIX}'), '${UNIDENTIFIED_AGENTS_PRODUCT}', transform(agent_id, {agentIds:Array(String)}, {agentProducts:Array(String)}, agent_id))`;
-const AGENT_NAME = `if(startsWith(agent_id, '${UNIDENTIFIED_AGENT_PREFIX}'), substring(agent_id, ${UNIDENTIFIED_AGENT_PREFIX.length + 1}), transform(agent_id, {agentIds:Array(String)}, {agentNames:Array(String)}, agent_id))`;
+const AGENT_OPERATOR = `if(startsWith(agent_id, '${UNIDENTIFIED_AGENT_PREFIX}'), '', transform(agent_id, {agentIds:Array(String)}, {agentOperators:Array(String)}, ''))`;
+const AGENT_NAME = `multiIf(agent_id = '${UNIDENTIFIED_AGENT_PREFIX}mozilla', 'Unnamed browser client', startsWith(agent_id, '${UNIDENTIFIED_AGENT_PREFIX}'), substring(agent_id, ${UNIDENTIFIED_AGENT_PREFIX.length + 1}), transform(agent_id, {agentIds:Array(String)}, {agentNames:Array(String)}, agent_id))`;
 export function aiVisitProduct(referrerDomain: string): string {
 	return `if(has({aiApps:Array(String)}, browser_name), browser_name, transform(${referrerDomain}, {aiDomains:Array(String)}, {aiNames:Array(String)}, transform(utm_source, {aiDomains:Array(String)}, {aiNames:Array(String)}, '')))`;
 }
@@ -54,6 +55,7 @@ function queryParams(ctx: CustomSqlContext) {
 		agentIds: AI_AGENTS.map((agent) => agent.id),
 		agentProducts: AI_AGENTS.map((agent) => agent.product),
 		agentNames: AI_AGENTS.map((agent) => agent.name),
+		agentOperators: AI_AGENTS.map((agent) => agent.operator),
 		...AI_VISIT_PARAMS,
 	};
 }
@@ -349,7 +351,7 @@ export const AiAgentsBuilders = {
 		meta: {
 			title: "AI Crawlers",
 			description:
-				"Each AI crawler or agent that requested your pages, with its product, purpose, request count, distinct pages read, how many of those requests asked for markdown or llms.txt, last request, and a sample user agent for checking robots.txt rules.",
+				"Each AI crawler or agent that requested your pages, with its product, the company operating it (empty for unidentified agents), purpose, request count, distinct pages read, how many of those requests asked for markdown or llms.txt, last request, and a sample user agent for checking robots.txt rules.",
 			category: "AI Agents",
 			tags: [
 				"ai",
@@ -367,6 +369,7 @@ export const AiAgentsBuilders = {
 				{ name: "agent_id", type: "string", label: "Agent" },
 				{ name: "name", type: "string", label: "Crawler" },
 				{ name: "product", type: "string", label: "Product" },
+				{ name: "operator", type: "string", label: "Operator" },
 				{ name: "purpose", type: "string", label: "Purpose" },
 				{ name: "requests", type: "number", label: "Requests" },
 				{ name: "pages", type: "number", label: "Pages read" },
@@ -383,6 +386,7 @@ export const AiAgentsBuilders = {
 					agent_id,
 					${AGENT_NAME} AS name,
 					any(${AGENT_PRODUCT}) AS product,
+					${AGENT_OPERATOR} AS operator,
 					any(agent_purpose) AS purpose,
 					count() AS requests,
 					uniq(${PAGE}) AS pages,
