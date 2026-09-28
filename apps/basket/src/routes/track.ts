@@ -18,16 +18,11 @@ import { runFork, send } from "@lib/producer";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { redis } from "@databuddy/redis/redis";
 import {
-	isMarkdownFirstAccept,
-	matchSignedAgent,
+	identifyAiAgent,
 	setupCheckKey,
 	setupCheckNonce,
-	unidentifiedAgent,
 } from "@databuddy/shared/bot-detection/ai-agents";
-import {
-	BotCategory,
-	CONTENT_FORMATS,
-} from "@databuddy/shared/bot-detection/types";
+import { CONTENT_FORMATS } from "@databuddy/shared/bot-detection/types";
 import {
 	checkForBot,
 	getWebsiteSecuritySettings,
@@ -55,13 +50,6 @@ import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
 import { z } from "zod";
 import { type TrackEventPayload, trackEventSchema } from "./track-event-schema";
-
-const NAMED_NON_AI_BOT_CATEGORIES = new Set<BotCategory>([
-	BotCategory.MONITORING,
-	BotCategory.SEARCH_ENGINE,
-	BotCategory.SEO_TOOL,
-	BotCategory.SOCIAL_MEDIA,
-]);
 
 function truncated(maxLength: number) {
 	return z.string().transform((value) => value.slice(0, maxLength));
@@ -513,19 +501,7 @@ export const trackRoute = new Elysia()
 			}
 
 			const { botName, result } = detectBot(hit.userAgent, request);
-			const isNamedOtherBot =
-				result?.category !== undefined &&
-				NAMED_NON_AI_BOT_CATEGORIES.has(result.category);
-			const agent =
-				result?.agent ??
-				(isNamedOtherBot
-					? null
-					: ((hit.signatureAgent
-							? matchSignedAgent(hit.signatureAgent)
-							: null) ??
-						(hit.accept && isMarkdownFirstAccept(hit.accept)
-							? unidentifiedAgent(hit.userAgent)
-							: null)));
+			const agent = identifyAiAgent(hit, result?.category);
 			log.set({
 				bot: {
 					name: botName,
