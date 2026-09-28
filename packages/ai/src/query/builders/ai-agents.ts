@@ -6,6 +6,7 @@ import {
 import { AI_APP_BROWSERS } from "@databuddy/shared/bot-detection/user-agent";
 import { AI_REFERRERS } from "@databuddy/shared/utils/referrer";
 import { Analytics } from "../../types/tables";
+import { appendFilterClause } from "../simple-builder";
 import type { CustomSqlContext, SimpleQueryConfig } from "../types";
 
 const AGENT_PRODUCT = `if(startsWith(agent_id, '${UNIDENTIFIED_AGENT_PREFIX}'), '${UNIDENTIFIED_AGENTS_PRODUCT}', transform(agent_id, {agentIds:Array(String)}, {agentProducts:Array(String)}, agent_id))`;
@@ -399,6 +400,50 @@ export const AiAgentsBuilders = {
 			`,
 			params: { ...queryParams(ctx), limit: ctx.limit ?? 50 },
 		}),
+		timeField: "timestamp",
+		customizable: false,
+	},
+
+	ai_crawler_activity: {
+		meta: {
+			title: "AI Requests Over Time",
+			description:
+				"AI crawler and agent requests per day (or hour), split into markdown, llms.txt and HTML requests. Filter by agent_id to follow one agent.",
+			category: "AI Agents",
+			tags: ["ai", "crawlers", "agents", "time-series", "trend"],
+			output_fields: [
+				{ name: "date", type: "string", label: "Date" },
+				{ name: "requests", type: "number", label: "Requests" },
+				{ name: "markdown", type: "number", label: "Markdown requests" },
+				{ name: "llms", type: "number", label: "llms.txt requests" },
+				{ name: "html", type: "number", label: "HTML requests" },
+			],
+			default_visualization: "timeseries",
+			supports_granularity: ["hour", "day"],
+		},
+		commonFilters: false,
+		allowedFilters: ["agent_id"],
+		customSql: (ctx) => {
+			const bucket =
+				ctx.granularity === "hour"
+					? "toStartOfHour(toTimeZone(timestamp, {timezone:String}))"
+					: "toDate(toTimeZone(timestamp, {timezone:String}))";
+			return {
+				sql: `
+					SELECT
+						${bucket} AS date,
+						count() AS requests,
+						countIf(${CONTENT_FORMAT} = 'markdown') AS markdown,
+						countIf(${CONTENT_FORMAT} = 'llms') AS llms,
+						countIf(${CONTENT_FORMAT} = 'html') AS html
+					FROM ${Analytics.ai_traffic_spans}
+					WHERE ${AGENT_REQUEST_IN_RANGE} ${appendFilterClause(ctx.filterConditions)}
+					GROUP BY date
+					ORDER BY date ASC
+				`,
+				params: { ...queryParams(ctx), ...ctx.filterParams },
+			};
+		},
 		timeField: "timestamp",
 		customizable: false,
 	},
