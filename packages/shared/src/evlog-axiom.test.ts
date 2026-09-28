@@ -19,6 +19,25 @@ describe("normalizeWideEventForAxiom", () => {
 		expect(event.duration_ms).toBe(1250);
 	});
 
+	test("keeps a plain Error cause readable after serialization", () => {
+		const event: Record<string, unknown> = {
+			error: {
+				message: "Analytics delivery temporarily unavailable",
+				cause: Object.assign(new Error("Could not reserve 1 of 2 events"), {
+					topic: "analytics-events",
+				}),
+			},
+		};
+
+		normalizeWideEventForAxiom(event);
+
+		expect(JSON.parse(JSON.stringify(event)).error.cause).toEqual({
+			message: "Could not reserve 1 of 2 events",
+			name: "Error",
+			topic: "analytics-events",
+		});
+	});
+
 	test("downgrades structured 4xx errors", () => {
 		const event: Record<string, unknown> = {
 			error: { status: 429 },

@@ -39,6 +39,13 @@ export function normalizeWideEventForAxiom(
 		event.error_message = event.error;
 		event.error = undefined;
 	}
+	const error = event.error;
+	if (error && typeof error === "object" && "cause" in error) {
+		const { cause } = error;
+		if (cause instanceof Error) {
+			error.cause = { ...cause, name: cause.name, message: cause.message };
+		}
+	}
 
 	const durationMs = parseDurationMs(event.duration);
 	if (durationMs !== undefined) {
