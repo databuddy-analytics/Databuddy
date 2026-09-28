@@ -319,7 +319,7 @@ describe("event-service producer handoff", () => {
 		expect(mockSend).not.toHaveBeenCalled();
 	});
 
-	test("atomically reserves a sorted batch and rejects a conflict", async () => {
+	test("reserves a sorted batch and publishes nothing when no item is reserved", async () => {
 		mockReserveDuplicateBatch.mockImplementationOnce(async (inputs) =>
 			inputs.map(() => ({ duplicate: false, retryable: true as const }))
 		);
@@ -339,6 +339,42 @@ describe("event-service producer handoff", () => {
 		]);
 		expect(mockReleaseDuplicateReservation).not.toHaveBeenCalled();
 		expect(mockSendBatch).not.toHaveBeenCalled();
+	});
+
+	test("delivers reserved items before rejecting the unreserved ones", async () => {
+		mockReserveDuplicateBatch.mockImplementationOnce(async (inputs) =>
+			inputs.map(({ eventId, eventType }) =>
+				eventId === "a"
+					? { duplicate: false, retryable: true as const }
+					: {
+							deliveredTtl: 86_400,
+							duplicate: false,
+							key: `dedup:${eventType}:${eventId}`,
+							token: "pending:beacon",
+						}
+			)
+		);
+		const batchItem = (id: string) => ({
+			event: { id } as EventsInsert,
+			sourceEventId: id,
+		});
+
+		await expect(
+			insertTrackEventsBatch([batchItem("a"), batchItem("m")])
+		).rejects.toMatchObject({
+			status: 503,
+			cause: {
+				message: "Could not reserve 1 of 2 events in this analytics batch",
+			},
+		});
+		expect(mockSendBatch).toHaveBeenCalledWith(
+			"analytics-events",
+			[{ id: "m" }],
+			["m"],
+			{ allowDirectFallback: true }
+		);
+		expect(mockMarkDuplicateReservationDelivered).toHaveBeenCalledOnce();
+		expect(mockReleaseDuplicateReservation).not.toHaveBeenCalled();
 	});
 
 	test("uses a stable UUID for a retried source event", () => {

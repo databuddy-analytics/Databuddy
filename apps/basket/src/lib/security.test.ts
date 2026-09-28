@@ -228,18 +228,21 @@ describe("duplicate reservations", () => {
 		);
 	});
 
-	test("does not partially acquire a batch when another owner is pending", async () => {
-		mockRedisEval.mockResolvedValue(["retryable"]);
+	test("marks only the items another owner holds as retryable", async () => {
+		mockRedisEval.mockResolvedValue(["pending", "acquired"]);
 
-		await expect(
-			reserveDuplicateBatch([
-				{ eventId: "a", eventType: "error" },
-				{ eventId: "b", eventType: "error" },
-			])
-		).resolves.toEqual([
-			{ duplicate: false, retryable: true },
-			{ duplicate: false, retryable: true },
+		const reservations = await reserveDuplicateBatch([
+			{ eventId: "a", eventType: "error" },
+			{ eventId: "b", eventType: "error" },
 		]);
+
+		expect(reservations[0]).toEqual({ duplicate: false, retryable: true });
+		expect(reservations[1]).toMatchObject({
+			duplicate: false,
+			key: "dedup:error:b",
+			token: expect.stringMatching(/^pending:/),
+		});
+		expect(reservations[1]).not.toHaveProperty("retryable");
 	});
 
 	test("does not publish after an unknown batch EVAL outcome", async () => {

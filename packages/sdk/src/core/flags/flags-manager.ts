@@ -119,25 +119,30 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		return false;
 	}
 
+	protected canFetchOnRead(): boolean {
+		return true;
+	}
+
 	protected onCacheUpdated(): void {}
 
 	protected onContextCleared(): void {}
 
 	protected onFlagEvaluated(_key: string, _result: FlagResult): void {}
 
+	protected shouldFetchOnInit(): boolean {
+		return Boolean(this.config.autoFetch && !this.config.isPending);
+	}
+
 	protected async runInit(): Promise<void> {
-		if (this.storage && !this.config.skipStorage) {
-			this.hydrate();
-		}
-		if (this.config.autoFetch && !this.config.isPending) {
+		if (this.shouldFetchOnInit()) {
 			await this.fetchAllFlags();
 		}
 		this.ready = true;
 		this.emit();
 	}
 
-	private hydrate(): void {
-		if (!this.storage) {
+	protected hydrate(): void {
+		if (!this.storage || this.config.skipStorage) {
 			return;
 		}
 		try {
@@ -527,7 +532,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			};
 		}
 
-		if (!entry) {
+		if (!entry && this.canFetchOnRead()) {
 			this.getFlag(key).catch((err) =>
 				logger.error(`Background fetch error: ${key}`, err)
 			);
@@ -557,7 +562,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			return entry.result.value as T;
 		}
 
-		if (!entry) {
+		if (!entry && this.canFetchOnRead()) {
 			this.getFlag(key).catch((err) =>
 				logger.error(`Background fetch error: ${key}`, err)
 			);
@@ -825,14 +830,29 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 	private isVisible = true;
 	private visibilityCleanup?: () => void;
 	private readonly trackedFlags = new Set<string>();
+	private started = false;
 
 	constructor(options: FlagsManagerOptions) {
 		super(options);
 		this.config.user = this.enrichUser(this.config.user ?? {});
 		this.config.autoFetch = options.config.autoFetch !== false;
 		this.loadOverrides();
+		this.hydrate();
+		if (!this.shouldFetchOnInit()) {
+			this.runInit();
+		}
+	}
+
+	// React builds managers in renders it may discard; only a mounted owner fetches.
+	start(): void {
+		if (this.started) {
+			return;
+		}
+		this.started = true;
 		this.setupVisibilityListener();
-		this.runInit();
+		if (this.shouldFetchOnInit()) {
+			this.runInit();
+		}
 	}
 
 	protected override onOverridesChanged(): void {
@@ -873,6 +893,10 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 
 	protected override shouldSkipFetch(): boolean {
 		return !this.isVisible;
+	}
+
+	protected override canFetchOnRead(): boolean {
+		return this.started;
 	}
 
 	protected override onCacheUpdated(): void {
@@ -959,6 +983,7 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 		super.destroy();
 		this.visibilityCleanup?.();
 		this.trackedFlags.clear();
+		this.started = false;
 	}
 
 	private getOrCreateAnonId(): string | null {
@@ -982,6 +1007,7 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 		if (typeof document === "undefined") {
 			return;
 		}
+		this.isVisible = document.visibilityState === "visible";
 		const handler = (): void => {
 			this.isVisible = document.visibilityState === "visible";
 			if (this.isVisible) {

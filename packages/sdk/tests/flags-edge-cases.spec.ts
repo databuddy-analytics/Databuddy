@@ -32,6 +32,45 @@ function bulkOnlyRoute(
 }
 
 test.describe("BrowserFlagsManager — edge cases", () => {
+	test("managers from discarded renders stay silent until start()", async ({
+		page,
+	}) => {
+		let requests = 0;
+		await bulkOnlyRoute(page, (keys) => {
+			requests++;
+			return Object.fromEntries(keys.map((k) => [k, MOCK_FLAG_ENABLED]));
+		});
+
+		await page.goto("/test");
+		await waitForSDK(page);
+
+		await page.evaluate(async () => {
+			const SDK = window.__SDK__;
+			for (let i = 0; i < 50; i++) {
+				const discarded = new SDK.BrowserFlagsManager({
+					config: { clientId: "discarded", user: { userId: "u" } },
+				});
+				discarded.isEnabled("feature");
+				discarded.getValue("feature");
+			}
+			await new Promise((r) => setTimeout(r, 100));
+		});
+		const beforeStart = requests;
+
+		await page.evaluate(async () => {
+			const manager = new window.__SDK__.BrowserFlagsManager({
+				config: { clientId: "mounted", user: { userId: "u" } },
+			});
+			manager.start();
+			manager.start();
+			await new Promise((r) => setTimeout(r, 100));
+			manager.destroy();
+		});
+
+		expect(beforeStart).toBe(0);
+		expect(requests).toBe(1);
+	});
+
 	test("skipStorage: does not hydrate cache from BrowserFlagStorage", async ({
 		page,
 	}) => {
@@ -58,6 +97,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 				config: { clientId: "skip-test", autoFetch: false, skipStorage: true },
 				storage,
 			});
+			manager.start();
 
 			await new Promise((r) => setTimeout(r, 50));
 			const beforeFetch = Object.keys(manager.getMemoryFlags()).length;
@@ -94,6 +134,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 					user: { userId: "api-user" },
 				},
 			});
+			manager.start();
 
 			const forUserA = await manager.getFlag("shared-flag", {
 				userId: "user-a",
@@ -151,6 +192,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 			const manager = new SDK.BrowserFlagsManager({
 				config: { clientId: "dedup-test", autoFetch: false },
 			});
+			manager.start();
 
 			await Promise.all([
 				manager.getFlag("same-key"),
@@ -189,6 +231,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 			const manager = new SDK.BrowserFlagsManager({
 				config: { clientId: "colon-test", autoFetch: false },
 			});
+			manager.start();
 
 			await manager.getFlag("x:y");
 			await manager.getFlag("x:z");
@@ -240,6 +283,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 			const manager = new SDK.BrowserFlagsManager({
 				config: { clientId: "empty-bulk", autoFetch: false },
 			});
+			manager.start();
 
 			await manager.fetchAllFlags();
 			const afterFirst = Object.keys(manager.getMemoryFlags());
@@ -291,6 +335,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 			const manager = new SDK.BrowserFlagsManager({
 				config: { clientId: "err-status", autoFetch: false },
 			});
+			manager.start();
 
 			await manager.getFlag("errFlag");
 			const state = manager.isEnabled("errFlag");
@@ -333,6 +378,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 			const manager = new SDK.BrowserFlagsManager({
 				config: { clientId: "vis-test", autoFetch: false },
 			});
+			manager.start();
 			await manager.fetchAllFlags();
 			(window as unknown as { __tm: typeof manager }).__tm = manager;
 		});
@@ -396,6 +442,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 			const manager = new SDK.BrowserFlagsManager({
 				config: { clientId: "net-fail", autoFetch: false },
 			});
+			manager.start();
 
 			let rejected = false;
 			try {
@@ -432,6 +479,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 			const manager = new SDK.BrowserFlagsManager({
 				config: { clientId: "rate-limited", autoFetch: false },
 			});
+			manager.start();
 			let count = 0;
 			for (let i = 0; i < 40; i++) {
 				try {
@@ -474,6 +522,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 			const manager = new SDK.BrowserFlagsManager({
 				config: { clientId: "retry-after", autoFetch: false },
 			});
+			manager.start();
 			const attempt = async () => {
 				try {
 					await manager.getFlag("some-flag");
@@ -506,6 +555,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 			const manager = new SDK.BrowserFlagsManager({
 				config: { clientId: "backoff-recovery", autoFetch: false },
 			});
+			manager.start();
 			const attempt = async () => {
 				try {
 					await manager.getFlag("some-flag");
@@ -541,6 +591,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 			const manager = new SDK.BrowserFlagsManager({
 				config: { clientId: "anon-fail", autoFetch: false },
 			});
+			manager.start();
 
 			const flag = await manager.getFlag("x");
 			manager.destroy();
