@@ -341,6 +341,48 @@ describe("event-service producer handoff", () => {
 		expect(mockSendBatch).not.toHaveBeenCalled();
 	});
 
+	test("delivers owned items before rejecting the ones a concurrent attempt owns", async () => {
+		mockReserveDuplicateBatch.mockImplementationOnce(async (inputs) =>
+			inputs.map(({ eventId, eventType }) =>
+				eventId === "a"
+					? { duplicate: false, retryable: true as const }
+					: {
+							deliveredTtl: 86_400,
+							duplicate: false,
+							key: `dedup:${eventType}:${eventId}`,
+							token: "pending:beacon",
+						}
+			)
+		);
+		const batchItem = (id: string) => ({
+			event: { id } as EventsInsert,
+			sourceEventId: id,
+		});
+
+		const error = await insertTrackEventsBatch([
+			batchItem("a"),
+			batchItem("m"),
+		]).catch((caught: unknown) => caught);
+
+		expect(error).toMatchObject({
+			status: 503,
+			internal: {
+				cause: {
+					message:
+						"A concurrent attempt owns 1 of 2 events in this analytics batch",
+				},
+			},
+		});
+		expect(mockSendBatch).toHaveBeenCalledWith(
+			"analytics-events",
+			[{ id: "m" }],
+			["m"],
+			{ allowDirectFallback: true }
+		);
+		expect(mockMarkDuplicateReservationDelivered).toHaveBeenCalledOnce();
+		expect(mockReleaseDuplicateReservation).not.toHaveBeenCalled();
+	});
+
 	test("uses a stable UUID for a retried source event", () => {
 		const first = stableAnalyticsEventId("ws_1", "track", "evt_1");
 		const retry = stableAnalyticsEventId("ws_1", "track", "evt_1");

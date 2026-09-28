@@ -242,13 +242,15 @@ export function createIngestSchemaValidationError(
 	return Object.assign(err, { issues });
 }
 export function deliveryUnavailable(cause: unknown) {
+	const error = cause instanceof Error ? cause : new Error(String(cause));
 	return createError({
 		code: "basket.DELIVERY_UNAVAILABLE",
 		message: "Analytics delivery temporarily unavailable",
 		status: 503,
 		why: "Databuddy could not durably accept the event.",
 		fix: "Retry the same event after a short delay.",
-		cause: cause instanceof Error ? cause : new Error(String(cause)),
+		cause: error,
+		internal: { cause: { name: error.name, message: error.message } },
 	});
 }
 

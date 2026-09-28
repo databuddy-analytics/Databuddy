@@ -59,10 +59,10 @@ for i, key in ipairs(KEYS) do
 		if claimed_at and claimed_at <= tonumber(ARGV[6]) then
 			states[i] = "ambiguous-acquired"
 		else
-			return { "retryable" }
+			states[i] = "pending"
 		end
 	else
-		return { "retryable" }
+		states[i] = "pending"
 	end
 end
 for i, key in ipairs(KEYS) do
@@ -445,7 +445,7 @@ type BatchDedupReservationState =
 	| "acquired"
 	| "ambiguous-acquired"
 	| "delivered"
-	| "retryable";
+	| "pending";
 
 function parseBatchReservationStates(
 	value: unknown,
@@ -454,13 +454,11 @@ function parseBatchReservationStates(
 	if (!Array.isArray(value)) {
 		throw new Error("Redis returned an invalid batch reservation result");
 	}
-	if (value.length === 1 && value[0] === "retryable") {
-		return ["retryable"];
-	}
 	const validStates = new Set<BatchDedupReservationState>([
 		"acquired",
 		"ambiguous-acquired",
 		"delivered",
+		"pending",
 	]);
 	if (
 		value.length !== expectedCount ||
@@ -534,13 +532,13 @@ export function reserveDuplicateBatch(
 
 		try {
 			const states = await withDedupDeadline(reservationOperation);
-			if (states[0] === "retryable") {
-				return inputs.map(() => ({ duplicate: false, retryable: true }));
-			}
 			return inputs.map((_input, index) => {
 				const state = states[index];
 				if (state === "delivered") {
 					return { duplicate: true };
+				}
+				if (state === "pending") {
+					return { duplicate: false, retryable: true };
 				}
 				return {
 					...(state === "ambiguous-acquired"
