@@ -3,11 +3,9 @@ import { BusinessMemoryRetirementError } from "@databuddy/services/business-memo
 import { db } from "@databuddy/db";
 import { chQuery, purgeWebsiteAnalyticsData } from "@databuddy/db/clickhouse";
 import { setTimeout as sleep } from "node:timers/promises";
-import { cacheable, redis } from "@databuddy/redis";
-import {
-	setupCheckKey,
-	setupCheckUserAgent,
-} from "@databuddy/shared/bot-detection/ai-agents";
+import { config } from "@databuddy/env/app";
+import { cacheable } from "@databuddy/redis";
+import { setupCheckUserAgent } from "@databuddy/shared/bot-detection/ai-agents";
 import {
 	ROBOTS_ACCESS,
 	type RobotsAccess,
@@ -148,9 +146,15 @@ async function isAgentRequestRecorded(
 	})
 		.then((response) => response.body?.cancel())
 		.catch(() => undefined);
-	const key = setupCheckKey(websiteId, nonce);
+	const statusUrl = `${config.urls.basket}/ai-traffic/setup-check/${encodeURIComponent(websiteId)}/${nonce}`;
 	for (let attempt = 0; attempt < 10; attempt++) {
-		if (await redis.exists(key)) {
+		const isRecorded = await fetch(statusUrl, {
+			signal: AbortSignal.timeout(2000),
+		})
+			.then((response) => (response.ok ? response.json() : null))
+			.then((body) => body?.recorded === true)
+			.catch(() => false);
+		if (isRecorded) {
 			return true;
 		}
 		await sleep(300);
