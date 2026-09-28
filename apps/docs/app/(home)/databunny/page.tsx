@@ -5,7 +5,6 @@ import {
 } from "@databuddy/shared/billing";
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { Footer } from "@/components/footer";
 import { McpTerminalDemo } from "@/components/landing/ai-section";
 import {
@@ -19,14 +18,14 @@ import {
 } from "@/components/landing/databunny-demo-visuals";
 import {
 	FeatureHero,
+	FeatureRow,
 	SectionHeader,
 } from "@/components/landing/demo-primitives";
 import { FaqSection } from "@/components/landing/faq-section";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import Section from "@/components/landing/section";
 import { StructuredData } from "@/components/structured-data";
-import { cn } from "@/lib/utils";
-import { RAW_PLANS } from "../pricing/data";
+import { planIncludedEvents, planMonthlyPrice } from "../pricing/data";
 
 const TITLE = "Databunny: the AI analyst that stays quiet until it matters";
 const DESCRIPTION =
@@ -46,45 +45,22 @@ export const metadata: Metadata = {
 	},
 };
 
-const planItems = (planId: string) =>
-	RAW_PLANS.find((plan) => plan.id === planId)?.items ?? [];
-
-const monthlyPrice = (planId: string) => {
-	for (const item of planItems(planId)) {
-		if (item.type === "price") {
-			return item.price;
-		}
-	}
-};
-
-const includedEvents = (planId: string) => {
-	for (const item of planItems(planId)) {
-		if (
-			item.type === "priced_feature" &&
-			item.feature_id === "events" &&
-			typeof item.included_usage === "number"
-		) {
-			return item.included_usage;
-		}
-	}
-};
-
 const PLANS = [
 	{
 		id: "intelligence",
 		name: "Business",
-		price: monthlyPrice("intelligence"),
+		price: planMonthlyPrice("intelligence"),
 		investigations: INVESTIGATION_ALLOWANCES.intelligence,
-		events: includedEvents("intelligence"),
+		events: planIncludedEvents("intelligence"),
 		credits: AGENT_CREDIT_ALLOWANCES.intelligence.month,
 		extra: null,
 	},
 	{
 		id: "intelligence_scale",
 		name: "Scale",
-		price: monthlyPrice("intelligence_scale"),
+		price: planMonthlyPrice("intelligence_scale"),
 		investigations: INVESTIGATION_ALLOWANCES.intelligence_scale,
-		events: includedEvents("intelligence_scale"),
+		events: planIncludedEvents("intelligence_scale"),
 		credits: AGENT_CREDIT_ALLOWANCES.intelligence_scale.month,
 		extra: "SSO, audit logs, and guided onboarding",
 	},
@@ -137,56 +113,6 @@ const FAQ_ITEMS = [
 
 const container = "mx-auto w-full max-w-400 px-4 sm:px-14 lg:px-20";
 
-function FeatureRow({
-	id,
-	title,
-	titleMuted,
-	body,
-	points,
-	visual,
-	flip = false,
-	children,
-}: {
-	id: string;
-	title: string;
-	titleMuted: string;
-	body: string;
-	points: readonly string[];
-	visual: ReactNode;
-	flip?: boolean;
-	children?: ReactNode;
-}) {
-	return (
-		<Section className="border-border border-b" id={id}>
-			<div
-				className={cn(
-					container,
-					"grid items-center gap-10 lg:grid-cols-2 lg:gap-16"
-				)}
-			>
-				<div className={cn("flex flex-col", flip && "lg:order-2")}>
-					<h2 className="text-balance font-semibold text-3xl leading-tight sm:text-4xl">
-						{title} <span className="text-muted-foreground">{titleMuted}</span>
-					</h2>
-					<p className="mt-3 max-w-xl text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
-						{body}
-					</p>
-					<ul className="mt-6 flex flex-col gap-2.5">
-						{points.map((point) => (
-							<li className="flex gap-3 text-foreground/90 text-sm" key={point}>
-								<span className="mt-1.5 size-1.5 shrink-0 bg-brand-amber" />
-								{point}
-							</li>
-						))}
-					</ul>
-					{children}
-				</div>
-				{visual}
-			</div>
-		</Section>
-	);
-}
-
 export default function DatabunnyPage() {
 	return (
 		<>
@@ -209,7 +135,7 @@ export default function DatabunnyPage() {
 					footnote={
 						<div className="flex flex-col gap-1.5">
 							<span>
-								Business is ${monthlyPrice("intelligence")} a month with{" "}
+								Business is ${planMonthlyPrice("intelligence")} a month with{" "}
 								{INVESTIGATION_ALLOWANCES.intelligence} investigations. $
 								{INVESTIGATION_USAGE.priceUsd} per extra, charged only when one
 								completes.

@@ -8,18 +8,25 @@ import {
 	useReducedMotion,
 } from "motion/react";
 import Image from "next/image";
+import { type FC, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
-	type FC,
-	type ReactNode,
-	useEffect,
-	useId,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+	enter,
+	FRAME,
+	IN_OUT,
+	percent,
+	pick,
+	pseudoRandom,
+	REWIND,
+	Reveal,
+	rounded,
+	StatusLine,
+	toPath,
+	useAfter,
+	useCount,
+	useTimeline,
+	withDots,
+} from "@/components/landing/demo-primitives";
 import { cn } from "@/lib/utils";
-
-const IN_OUT = [0.65, 0, 0.35, 1] as const;
 
 const INCIDENT_SOURCES = [
 	"Sessions",
@@ -145,21 +152,6 @@ const INCIDENTS: [Incident, ...Incident[]] = [
 	},
 ];
 
-const HASH_MODULUS = 2_147_483_647;
-
-const pseudoRandom = (seed: string) => {
-	let hash = 7;
-	for (const char of seed) {
-		hash = (hash * 31 + char.charCodeAt(0)) % HASH_MODULUS;
-	}
-	for (let round = 0; round < 3; round++) {
-		hash = (hash * 48_271) % HASH_MODULUS;
-	}
-	return hash / HASH_MODULUS;
-};
-
-const rounded = (value: number) => Math.round(value * 100) / 100;
-
 const checksFor = (incident: Incident) =>
 	INCIDENT_SOURCES.map((name, order) => {
 		const finding =
@@ -180,151 +172,6 @@ const checksFor = (incident: Incident) =>
 				(hit ? 0.25 : 0),
 		};
 	});
-
-const withDots = (text: string) =>
-	text
-		.split("·")
-		.map((part, position) => ({ part, position }))
-		.flatMap(({ part, position }) =>
-			position === 0
-				? [part]
-				: [
-						<span className="font-sans" key={position}>
-							·
-						</span>,
-						part,
-					]
-		);
-
-const toPath = (points: [number, number][]) =>
-	`M ${points.map(([x, y]) => `${rounded(x)} ${rounded(y)}`).join(" L ")}`;
-
-const percent = (value: number, of: number) =>
-	`${rounded((value / of) * 100)}%`;
-
-const enter = (delay: number, distance = 8) => ({
-	initial: { opacity: 0, y: distance },
-	animate: { opacity: 1, y: 0 },
-	transition: { duration: 0.5, ease: IN_OUT, delay },
-});
-
-const useAfter = (seconds: number, key: unknown = seconds) => {
-	const [doneFor, setDoneFor] = useState<unknown>(undefined);
-	useEffect(() => {
-		const id = window.setTimeout(() => setDoneFor(key), seconds * 1000);
-		return () => window.clearTimeout(id);
-	}, [seconds, key]);
-	return doneFor === key;
-};
-
-const useCount = (times: readonly number[]) => {
-	const [count, setCount] = useState(0);
-	useEffect(() => {
-		const ids = times.map((time) =>
-			window.setTimeout(() => setCount((current) => current + 1), time * 1000)
-		);
-		return () => {
-			for (const id of ids) {
-				window.clearTimeout(id);
-			}
-		};
-	}, [times]);
-	return count;
-};
-
-const FRAME = "border border-white/[0.06] bg-white/[0.02]";
-const REWIND = { duration: 0.4, ease: IN_OUT } as const;
-
-const pick = <T,>(items: readonly [T, ...T[]], index: number) =>
-	items[index % items.length] ?? items[0];
-
-const useTimeline = (events: readonly number[], seconds: number) => {
-	const ref = useRef<HTMLDivElement>(null);
-	const visible = useInView(ref, { amount: 0.35 });
-	const reduce = useReducedMotion();
-	const [cycle, setCycle] = useState(0);
-	const [step, setStep] = useState(0);
-	useEffect(() => {
-		if (reduce) {
-			setStep(events.length);
-			return;
-		}
-		setStep(0);
-		if (!visible) {
-			return;
-		}
-		const ids = events.map((time, index) =>
-			window.setTimeout(() => setStep(index + 1), time * 1000)
-		);
-		ids.push(
-			window.setTimeout(() => {
-				setStep(0);
-				setCycle((current) => current + 1);
-			}, seconds * 1000)
-		);
-		return () => {
-			for (const id of ids) {
-				window.clearTimeout(id);
-			}
-		};
-	}, [events, seconds, visible, reduce, cycle]);
-	return { ref, step, cycle };
-};
-
-function StatusLine({
-	tone,
-	children,
-}: {
-	tone: "amber" | "red" | "emerald" | "muted";
-	children: string;
-}) {
-	return (
-		<AnimatePresence initial={false} mode="wait">
-			<motion.span
-				animate={{ opacity: 1, y: 0 }}
-				className={cn(
-					"flex items-center gap-2 text-[12px] sm:text-sm",
-					tone === "amber" && "text-brand-amber",
-					tone === "red" && "text-red-500",
-					tone === "emerald" && "text-emerald-500",
-					tone === "muted" && "text-muted-foreground"
-				)}
-				exit={{ opacity: 0, y: -4 }}
-				initial={{ opacity: 0, y: 4 }}
-				key={children}
-				transition={{ duration: 0.25, ease: IN_OUT }}
-			>
-				<span className="size-2 shrink-0 bg-current" />
-				{children}
-			</motion.span>
-		</AnimatePresence>
-	);
-}
-
-function Reveal({
-	shown,
-	delay = 0,
-	distance = 6,
-	className,
-	children,
-}: {
-	shown: boolean;
-	delay?: number;
-	distance?: number;
-	className?: string;
-	children: ReactNode;
-}) {
-	return (
-		<motion.div
-			animate={shown ? { opacity: 1, y: 0 } : { opacity: 0, y: distance }}
-			className={className}
-			initial={false}
-			transition={shown ? { duration: 0.45, ease: IN_OUT, delay } : REWIND}
-		>
-			{children}
-		</motion.div>
-	);
-}
 
 const RECOVERED_AT = 3.4;
 const EXIT_SECONDS = 0.3;
