@@ -163,11 +163,11 @@ function PreferencePicker<T extends string>({
 	return (
 		<DropdownMenu>
 			<DropdownMenu.Trigger
-				aria-label={label}
+				aria-label={`${label}: ${selected?.label}`}
 				disabled={disabled}
 				render={
 					<Button
-						className="w-32 justify-between"
+						className="w-full justify-between sm:w-32"
 						size="sm"
 						variant="secondary"
 					>
@@ -232,6 +232,11 @@ export default function AppearanceSettingsPage() {
 		"system";
 	const globalPrefs =
 		preferences["overview-stats"] ?? DEFAULT_LOCATION_PREFERENCES;
+	const everyPageIsBar = CHART_LOCATIONS.every(
+		(location) =>
+			(preferences[location] ?? DEFAULT_LOCATION_PREFERENCES).chartType ===
+			"bar"
+	);
 	const previewedLocation = showOverrides ? previewLocation : null;
 	const previewPrefs = previewedLocation
 		? (preferences[previewedLocation] ?? globalPrefs)
@@ -251,6 +256,7 @@ export default function AppearanceSettingsPage() {
 							title="Theme"
 						>
 							<SegmentedControl
+								aria-label="Theme"
 								onChange={setTheme}
 								options={THEME_SEGMENTS}
 								size="sm"
@@ -339,14 +345,14 @@ export default function AppearanceSettingsPage() {
 						</PreferenceRow>
 						<PreferenceRow
 							description={
-								globalPrefs.chartType === "bar"
+								everyPageIsBar
 									? "Bar charts have no curve"
 									: "How lines connect between data points"
 							}
 							title="Curve"
 						>
 							<PreferencePicker
-								disabled={globalPrefs.chartType === "bar"}
+								disabled={everyPageIsBar}
 								label="Curve"
 								onChange={(chartStepType) =>
 									updateAllPreferences({ chartStepType })
@@ -378,14 +384,15 @@ export default function AppearanceSettingsPage() {
 								return (
 									<div
 										className={cn(
-											"flex items-center gap-2 py-2 pr-5 pl-3",
+											"flex flex-col gap-1.5 py-2 pr-5 pl-3 sm:flex-row sm:items-center sm:gap-2",
 											"transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
 											isPreviewed && "bg-interactive-hover"
 										)}
 										key={location}
 									>
 										<Button
-											className="min-w-0 flex-1 justify-start gap-2.5 px-2 hover:bg-transparent"
+											aria-pressed={isPreviewed}
+											className="min-w-0 justify-start gap-2.5 px-2 hover:bg-transparent sm:flex-1"
 											onClick={() =>
 												setPreviewLocation(isPreviewed ? null : location)
 											}
@@ -402,25 +409,29 @@ export default function AppearanceSettingsPage() {
 												{CHART_LOCATION_LABELS[location]}
 											</span>
 										</Button>
-										<PreferencePicker
-											label={`${CHART_LOCATION_LABELS[location]} chart type`}
-											onChange={(chartType) => {
-												updateLocationPreferences(location, { chartType });
-												setPreviewLocation(location);
-											}}
-											options={CHART_TYPE_OPTIONS}
-											value={prefs.chartType}
-										/>
-										<PreferencePicker
-											disabled={prefs.chartType === "bar"}
-											label={`${CHART_LOCATION_LABELS[location]} curve`}
-											onChange={(chartStepType) => {
-												updateLocationPreferences(location, { chartStepType });
-												setPreviewLocation(location);
-											}}
-											options={CURVE_OPTIONS}
-											value={prefs.chartStepType}
-										/>
+										<div className="grid grid-cols-2 gap-2 pl-2 sm:flex sm:pl-0">
+											<PreferencePicker
+												label={`${CHART_LOCATION_LABELS[location]} chart type`}
+												onChange={(chartType) => {
+													updateLocationPreferences(location, { chartType });
+													setPreviewLocation(location);
+												}}
+												options={CHART_TYPE_OPTIONS}
+												value={prefs.chartType}
+											/>
+											<PreferencePicker
+												disabled={prefs.chartType === "bar"}
+												label={`${CHART_LOCATION_LABELS[location]} curve`}
+												onChange={(chartStepType) => {
+													updateLocationPreferences(location, {
+														chartStepType,
+													});
+													setPreviewLocation(location);
+												}}
+												options={CURVE_OPTIONS}
+												value={prefs.chartStepType}
+											/>
+										</div>
 									</div>
 								);
 							})}
