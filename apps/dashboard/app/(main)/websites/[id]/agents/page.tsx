@@ -68,6 +68,7 @@ const FORMATS: Record<
 };
 
 interface ProductRow {
+	has_proxy: number;
 	last_seen: string;
 	on_demand: number;
 	pages: number;
@@ -224,7 +225,6 @@ interface CrawlerRow {
 	last_seen: string;
 	name: string;
 	product: string;
-	proxied_requests: number;
 	purpose: AgentPurpose;
 	requests: number;
 	robots: RobotsAccess | undefined;
@@ -433,6 +433,7 @@ function mainPurpose(row: ProductRow): string | null {
 
 function emptyProduct(product: string): ProductRow {
 	return {
+		has_proxy: 0,
 		last_seen: NEVER_SEEN,
 		on_demand: 0,
 		pages: 0,
@@ -965,10 +966,7 @@ export default function AgentsPage() {
 		(top, row) => (row.visitors > (top?.visitors ?? 0) ? row : top),
 		null
 	);
-	const needsProxy =
-		!isLoading &&
-		topSender !== null &&
-		!crawlers.some((crawler) => crawler.proxied_requests > 0);
+	const needsProxy = !isLoading && topSender !== null && !topSender.has_proxy;
 
 	return (
 		<div className="relative flex h-full flex-col">
