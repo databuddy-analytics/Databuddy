@@ -21,19 +21,15 @@ export const AI_VISIT_PARAMS = {
 };
 
 const VISIT_PRODUCT = aiVisitProduct("domainWithoutWWW(referrer)");
-const CONTENT_FORMAT = `if(format != '', format, multiIf(
-	endsWith(lower(path(path)), 'llms.txt') OR endsWith(lower(path(path)), 'llms-full.txt'), 'llms',
-	endsWith(lower(path(path)), '.md') OR endsWith(lower(path(path)), '.mdx'), 'markdown',
-	'html'))`;
+const CONTENT_FORMAT = "if(format = '', 'html', format)";
 const PURPOSE_COUNTS = `countIf(agent_purpose = 'training') AS training,
 	countIf(agent_purpose = 'search_index') AS search_index,
 	countIf(agent_purpose IN ('user_fetch', 'agent')) AS on_demand`;
 
-function pageOf(column: string): string {
-	return `decodeURLComponent(if(trimRight(path(${column}), '/') = '', '/', trimRight(path(${column}), '/')))`;
-}
+const PAGE =
+	"decodeURLComponent(if(trimRight(path(path), '/') = '', '/', trimRight(path(path), '/')))";
 
-const COUNTED_SPAN = `client_id = {websiteId:String}
+const AGENT_REQUEST = `client_id = {websiteId:String}
 	AND agent_id != ''
 	AND (source = 'middleware' OR timestamp < (
 		SELECT ifNull(minOrNull(timestamp), toDateTime64('2100-01-01', 3))
@@ -41,15 +37,15 @@ const COUNTED_SPAN = `client_id = {websiteId:String}
 		WHERE client_id = {websiteId:String} AND source = 'middleware'
 	))`;
 
-const SPAN_RANGE = `${COUNTED_SPAN}
+const AGENT_REQUEST_IN_RANGE = `${AGENT_REQUEST}
 	AND timestamp >= toDateTime({startDate:String})
 	AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))`;
 
-const EVENT_RANGE = `client_id = {websiteId:String}
+const EVENT_IN_RANGE = `client_id = {websiteId:String}
 	AND time >= toDateTime({startDate:String})
 	AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))`;
 
-function productParams(ctx: CustomSqlContext) {
+function queryParams(ctx: CustomSqlContext) {
 	return {
 		websiteId: ctx.websiteId,
 		startDate: ctx.startDate,
@@ -102,24 +98,24 @@ export const AiAgentsBuilders = {
 					SELECT
 						${AGENT_PRODUCT} AS product,
 						count() AS requests,
-						uniq(${pageOf("path")}) AS pages,
+						uniq(${PAGE}) AS pages,
 						${PURPOSE_COUNTS},
 						max(timestamp) AS last_seen
 					FROM ${Analytics.ai_traffic_spans}
-					WHERE ${SPAN_RANGE}
+					WHERE ${AGENT_REQUEST_IN_RANGE}
 					GROUP BY product
 				) AS c
 				FULL OUTER JOIN (
 					SELECT ${VISIT_PRODUCT} AS product, uniq(anonymous_id) AS visitors
 					FROM ${Analytics.events}
-					WHERE ${EVENT_RANGE}
+					WHERE ${EVENT_IN_RANGE}
 					GROUP BY product
 					HAVING product != ''
 				) AS v ON c.product = v.product
 				ORDER BY c.requests + v.visitors DESC
 				LIMIT {limit:UInt32}
 			`,
-			params: { ...productParams(ctx), limit: ctx.limit ?? 50 },
+			params: { ...queryParams(ctx), limit: ctx.limit ?? 50 },
 		}),
 		timeField: "timestamp",
 		customizable: false,
@@ -129,7 +125,7 @@ export const AiAgentsBuilders = {
 		meta: {
 			title: "How AI Reads Your Content",
 			description:
-				"AI requests split by content format: markdown and llms.txt as the agent asked for them through the path or the Accept header, and HTML for everything else, including page loads recorded by the browser tracker: markdown (.md pages or markdown requested through the Accept header), llms.txt files, and HTML pages, with pages and the AI products fetching each format.",
+				"AI requests split by content format (markdown, llms.txt, or HTML, as the agent asked for it through the path or the Accept header; page loads recorded by the browser tracker count as HTML), with the pages and the AI products fetching each format.",
 			category: "AI Agents",
 			tags: ["ai", "agents", "markdown", "llms.txt", "docs"],
 			output_fields: [
@@ -145,14 +141,14 @@ export const AiAgentsBuilders = {
 				SELECT
 					${CONTENT_FORMAT} AS format,
 					count() AS requests,
-					uniq(${pageOf("path")}) AS pages,
+					uniq(${PAGE}) AS pages,
 					topK(4)(${AGENT_PRODUCT}) AS products
 				FROM ${Analytics.ai_traffic_spans}
-				WHERE ${SPAN_RANGE}
+				WHERE ${AGENT_REQUEST_IN_RANGE}
 				GROUP BY format
 				ORDER BY requests DESC
 			`,
-			params: productParams(ctx),
+			params: queryParams(ctx),
 		}),
 		timeField: "timestamp",
 		customizable: false,
@@ -182,12 +178,12 @@ export const AiAgentsBuilders = {
 				sql: `
 					SELECT ${bucket} AS date, ${VISIT_PRODUCT} AS product, uniq(anonymous_id) AS visitors
 					FROM ${Analytics.events}
-					WHERE ${EVENT_RANGE}
+					WHERE ${EVENT_IN_RANGE}
 					GROUP BY date, product
 					HAVING product != ''
 					ORDER BY date ASC
 				`,
-				params: productParams(ctx),
+				params: queryParams(ctx),
 			};
 		},
 		timeField: "time",
@@ -218,28 +214,28 @@ export const AiAgentsBuilders = {
 					h.visitors, a.products, a.requests, a.format, h.pageviews
 				FROM (
 					SELECT
-						${pageOf("path")} AS page,
+						${PAGE} AS page,
 						count() AS requests,
 						topK(3)(${AGENT_PRODUCT}) AS products,
 						topK(1)(${CONTENT_FORMAT})[1] AS format
 					FROM ${Analytics.ai_traffic_spans}
-					WHERE ${SPAN_RANGE} AND path != ''
+					WHERE ${AGENT_REQUEST_IN_RANGE} AND path != ''
 					GROUP BY page
 				) AS a
 				FULL OUTER JOIN (
 					SELECT
-						${pageOf("path")} AS page,
+						${PAGE} AS page,
 						countIf(event_name = 'screen_view') AS pageviews,
 						uniqIf(anonymous_id, ${VISIT_PRODUCT} != '') AS visitors
 					FROM ${Analytics.events}
-					WHERE ${EVENT_RANGE} AND path != ''
+					WHERE ${EVENT_IN_RANGE} AND path != ''
 					GROUP BY page
 				) AS h ON a.page = h.page
 				WHERE a.requests > 0 OR h.visitors > 0
 				ORDER BY h.visitors DESC, a.requests DESC
 				LIMIT {limit:UInt32}
 			`,
-			params: { ...productParams(ctx), limit: ctx.limit ?? 100 },
+			params: { ...queryParams(ctx), limit: ctx.limit ?? 100 },
 		}),
 		timeField: "timestamp",
 		customizable: false,
@@ -281,7 +277,7 @@ export const AiAgentsBuilders = {
 					FROM (
 						SELECT session_id, anonymous_id AS visitor, event_name, ${VISIT_PRODUCT} AS visit_product
 						FROM ${Analytics.events}
-						WHERE ${EVENT_RANGE}
+						WHERE ${EVENT_IN_RANGE}
 					)
 					GROUP BY session_id
 				)
@@ -290,7 +286,7 @@ export const AiAgentsBuilders = {
 				ORDER BY grouping(ai_product) DESC, visitors DESC
 				LIMIT {limit:UInt32}
 			`,
-			params: { ...productParams(ctx), limit: ctx.limit ?? 20 },
+			params: { ...queryParams(ctx), limit: ctx.limit ?? 20 },
 		}),
 		timeField: "time",
 		customizable: false,
@@ -325,12 +321,12 @@ export const AiAgentsBuilders = {
 					max(timestamp) AS last_seen,
 					any(user_agent) AS user_agent
 				FROM ${Analytics.ai_traffic_spans}
-				WHERE ${SPAN_RANGE}
+				WHERE ${AGENT_REQUEST_IN_RANGE}
 				GROUP BY agent_id
 				ORDER BY requests DESC
 				LIMIT {limit:UInt32}
 			`,
-			params: { ...productParams(ctx), limit: ctx.limit ?? 50 },
+			params: { ...queryParams(ctx), limit: ctx.limit ?? 50 },
 		}),
 		timeField: "timestamp",
 		customizable: false,
@@ -387,7 +383,7 @@ export const AiAgentsBuilders = {
 						toUInt64(countIf(timestamp < current_start)) AS requests_before,
 						toUInt64(0) AS pages_new
 					FROM ${Analytics.ai_traffic_spans}
-					WHERE ${COUNTED_SPAN}
+					WHERE ${AGENT_REQUEST}
 						AND timestamp >= previous_start AND timestamp < period_end
 					GROUP BY product
 					UNION ALL
@@ -412,9 +408,9 @@ export const AiAgentsBuilders = {
 						toUInt64(0),
 						toUInt64(countIf(first_read >= current_start))
 					FROM (
-						SELECT ${AGENT_PRODUCT} AS product, ${pageOf("path")} AS page, min(timestamp) AS first_read
+						SELECT ${AGENT_PRODUCT} AS product, ${PAGE} AS page, min(timestamp) AS first_read
 						FROM ${Analytics.ai_traffic_spans}
-						WHERE ${COUNTED_SPAN} AND path != ''
+						WHERE ${AGENT_REQUEST} AND path != ''
 							AND timestamp >= current_start - INTERVAL 90 DAY AND timestamp < period_end
 						GROUP BY product, page
 					)
@@ -425,7 +421,7 @@ export const AiAgentsBuilders = {
 				ORDER BY visitors + requests DESC
 				LIMIT {limit:UInt32}
 			`,
-			params: { ...productParams(ctx), limit: ctx.limit ?? 20 },
+			params: { ...queryParams(ctx), limit: ctx.limit ?? 20 },
 		}),
 		timeField: "timestamp",
 		customizable: false,
