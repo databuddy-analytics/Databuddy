@@ -63,15 +63,19 @@ const NAMED_NON_AI_BOT_CATEGORIES = new Set<BotCategory>([
 	BotCategory.SOCIAL_MEDIA,
 ]);
 
+function truncated(maxLength: number) {
+	return z.string().transform((value) => value.slice(0, maxLength));
+}
+
 const agentHitSchema = z.object({
 	websiteId: z.string().min(1).max(128),
 	host: z.string().min(1).max(253),
-	path: z.string().max(2048),
-	format: z.enum(CONTENT_FORMATS).default("html"),
-	userAgent: z.string().max(512),
-	accept: z.string().max(512).optional(),
-	signatureAgent: z.string().max(512).optional(),
-	referrer: z.string().max(2048).optional(),
+	path: truncated(2048),
+	format: z.enum(CONTENT_FORMATS).catch("html"),
+	userAgent: truncated(512),
+	accept: truncated(512).optional(),
+	signatureAgent: truncated(512).optional(),
+	referrer: truncated(2048).optional(),
 });
 
 interface ResolvedAuth {
@@ -517,16 +521,11 @@ export const trackRoute = new Elysia()
 						(hit.accept && isMarkdownFirstAccept(hit.accept)
 							? unidentifiedAgent(hit.userAgent)
 							: null)));
-			if (!agent) {
-				log.set({ rejected: "not_ai_agent" });
-				return new Response(null, { status: 204 });
-			}
-
 			log.set({
 				bot: {
 					name: botName,
-					agent: agent.id,
-					purpose: agent.purpose,
+					agent: agent?.id ?? null,
+					purpose: agent?.purpose ?? null,
 					signed: Boolean(hit.signatureAgent),
 				},
 			});
@@ -534,18 +533,19 @@ export const trackRoute = new Elysia()
 			const span: AiTrafficSpansInsert = {
 				client_id: hit.websiteId,
 				timestamp: Date.now(),
-				bot_type: result?.agent
-					? (result.category ?? "unknown")
-					: "ai_assistant",
-				bot_name: botName ?? agent.operator,
+				bot_type:
+					result?.agent || !agent
+						? (result?.category ?? "unknown")
+						: "ai_assistant",
+				bot_name: botName ?? agent?.operator ?? "",
 				user_agent: hit.userAgent,
 				path: hit.path,
 				format: hit.format,
 				host: hit.host,
 				accept: hit.accept ?? "",
 				referrer: hit.referrer,
-				agent_id: agent.id,
-				agent_purpose: agent.purpose,
+				agent_id: agent?.id ?? "",
+				agent_purpose: agent?.purpose ?? "",
 				source: "middleware",
 			};
 			runFork(send("analytics-ai-traffic-spans", span));

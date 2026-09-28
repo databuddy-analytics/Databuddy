@@ -1362,12 +1362,35 @@ describe("POST /ai-traffic", () => {
 		);
 	});
 
-	test("drops requests from anything that is not an AI agent", async () => {
+	test("keeps requests it can't classify as AI, without an agent id", async () => {
 		const res = await hit(
 			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
 		);
-		expect(res.status).toBe(204);
-		expect(mockSend).not.toHaveBeenCalled();
+		expect(res.status).toBe(202);
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-ai-traffic-spans",
+			expect.objectContaining({ agent_id: "", agent_purpose: "" })
+		);
+	});
+
+	test("truncates over-long fields instead of rejecting the request", async () => {
+		const res = await post(trackRoute, "/ai-traffic", {
+			websiteId: "ws_test",
+			host: "docs.example.com",
+			path: `/${"p".repeat(3000)}`,
+			format: "unknown-format",
+			userAgent: `${CLAUDE_CODE} ${"x".repeat(600)}`,
+		});
+		expect(res.status).toBe(202);
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-ai-traffic-spans",
+			expect.objectContaining({
+				agent_id: "claude-code",
+				format: "html",
+				path: `/${"p".repeat(3000)}`.slice(0, 2048),
+				user_agent: `${CLAUDE_CODE} ${"x".repeat(600)}`.slice(0, 512),
+			})
+		);
 	});
 
 	test("rejects hits from a host the website does not own", async () => {
@@ -1406,11 +1429,14 @@ describe("POST /ai-traffic", () => {
 		const html = await hit("axios/1.7.2", "docs.example.com", {
 			accept: "text/html",
 		});
-		expect(html.status).toBe(204);
-		expect(mockSend).not.toHaveBeenCalled();
+		expect(html.status).toBe(202);
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-ai-traffic-spans",
+			expect.objectContaining({ agent_id: "" })
+		);
 	});
 
-	test("drops named search and SEO bots even when they sign requests or ask for markdown", async () => {
+	test("keeps named search and SEO bots out of AI agents even when they sign requests or ask for markdown", async () => {
 		const signed = await hit(
 			"Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)",
 			"docs.example.com",
@@ -1421,8 +1447,15 @@ describe("POST /ai-traffic", () => {
 			"docs.example.com",
 			{ accept: "text/markdown" }
 		);
-		expect([signed.status, markdown.status]).toEqual([204, 204]);
-		expect(mockSend).not.toHaveBeenCalled();
+		expect([signed.status, markdown.status]).toEqual([202, 202]);
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-ai-traffic-spans",
+			expect.objectContaining({ agent_id: "", bot_name: "AhrefsBot" })
+		);
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-ai-traffic-spans",
+			expect.objectContaining({ agent_id: "", bot_type: "search_engine" })
+		);
 	});
 
 	test("records an unknown signed agent under its domain", async () => {
