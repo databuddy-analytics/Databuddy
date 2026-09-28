@@ -7,6 +7,12 @@ import {
 	useInView,
 	useReducedMotion,
 } from "motion/react";
+import {
+	SiGithub,
+	SiGoogle,
+	SiX,
+	SiYcombinator,
+} from "@icons-pack/react-simple-icons";
 import Image from "next/image";
 import { type FC, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
@@ -19,6 +25,7 @@ import {
 	REWIND,
 	Reveal,
 	rounded,
+	SlackLogo,
 	StatusLine,
 	toPath,
 	useAfter,
@@ -284,10 +291,13 @@ function IncidentScan({
 							</span>
 							<span
 								className={cn(
-									"font-medium text-sm transition-colors duration-300 sm:text-base",
+									"flex items-center gap-2 font-medium text-sm transition-colors duration-300 sm:text-base",
 									found ? "text-foreground" : "text-muted-foreground"
 								)}
 							>
+								{check.name === "Deploys" && (
+									<SiGithub className="size-3.5 shrink-0" />
+								)}
 								{check.name}
 							</span>
 							<span className="relative hidden h-0.5 bg-border md:block">
@@ -393,7 +403,10 @@ function IncidentEvidence({ incident }: { incident: Incident }) {
 							className="flex flex-col justify-center gap-0.5"
 							key={lane.title}
 						>
-							<span className="font-medium text-foreground text-xs sm:text-base">
+							<span className="flex items-center gap-2 font-medium text-foreground text-xs sm:text-base">
+								{lane.title === "Deploys" && (
+									<SiGithub className="size-3.5 shrink-0" />
+								)}
 								{lane.title}
 							</span>
 							<span className="hidden font-mono text-muted-foreground text-xs sm:block">
@@ -595,7 +608,7 @@ function IncidentAnswer({ incident }: { incident: Incident }) {
 								key={recovered ? "recovered" : "watching"}
 								transition={{ duration: 0.25, ease: IN_OUT }}
 							>
-								{recovered ? incident.answer.outcomeValue : "Watching the fix"}
+								{recovered ? incident.answer.outcomeValue : "Measuring"}
 							</motion.span>
 						</AnimatePresence>
 					</div>
@@ -640,19 +653,19 @@ const STAGE_PHASES: {
 	Moment: FC<{ incident: Incident; live: boolean }>;
 }[] = [
 	{
-		label: "Checks your sources",
+		label: "Checks",
 		status: "Investigating",
 		seconds: 4.2,
 		Moment: IncidentScan,
 	},
 	{
-		label: "Finds what changed",
+		label: "Evidence",
 		status: "Change found",
 		seconds: 4.6,
 		Moment: IncidentEvidence,
 	},
 	{
-		label: "Tells you what to do",
+		label: "Next step",
 		status: "Posted to #analytics",
 		seconds: 7.5,
 		Moment: IncidentAnswer,
@@ -688,7 +701,7 @@ export function InvestigationStage() {
 	const recovered =
 		useAfter(RECOVERED_AT + EXIT_SECONDS, step) &&
 		position === STAGE_PHASES.length - 1;
-	const status = recovered ? "Recovered after your fix" : phase?.status;
+	const status = recovered ? "Recovered" : phase?.status;
 	const incident = pick(INCIDENTS, Math.floor(step / STAGE_PHASES.length));
 	return (
 		<MotionConfig reducedMotion="user">
@@ -974,9 +987,7 @@ export function BaselineBands() {
 	const found = step > BAND_DAYS;
 	const opened = step > BAND_DAYS + 1;
 	const end = BAND_START + cycle * BAND_DAYS + Math.min(step, BAND_DAYS);
-	let status = (
-		<StatusLine tone="muted">Comparing each day with recent history</StatusLine>
-	);
+	let status = <StatusLine tone="muted">Daily check at 09:00</StatusLine>;
 	if (opened) {
 		status = (
 			<StatusLine tone="amber">{`Opened an investigation into ${breakout.name}`}</StatusLine>
@@ -984,7 +995,7 @@ export function BaselineBands() {
 	} else if (found) {
 		status = (
 			<StatusLine tone={breakout.good ? "emerald" : "red"}>
-				Well outside its recent range
+				Outside its usual range
 			</StatusLine>
 		);
 	}
@@ -1017,37 +1028,37 @@ export function BaselineBands() {
 const WEEK_CHANGES = [
 	{
 		change: "Visitors −6%",
-		verdict: "Usual for a weekday",
+		verdict: "Normal for a weekday",
 		sent: false,
 	},
 	{
 		change: "Errors +12",
-		verdict: "Too small: 3 visitors",
+		verdict: "3 visitors affected",
 		sent: false,
 	},
 	{
 		change: "Revenue +4%",
-		verdict: "Within its usual swing",
+		verdict: "Within its usual range",
 		sent: false,
 	},
 	{
 		change: "Errors +2×",
-		verdict: "Investigating since Monday",
+		verdict: "Already investigating",
 		sent: false,
 	},
 	{
 		change: "Signup completion −18%",
-		verdict: "Sent to #analytics",
+		verdict: "#analytics",
 		sent: true,
 	},
 	{
 		change: "newsletter_signup −60%",
-		verdict: "Not a priority for your team",
+		verdict: "Low volume",
 		sent: false,
 	},
 	{
 		change: "demo_requested −4%",
-		verdict: "Too small to matter",
+		verdict: "Small change",
 		sent: false,
 	},
 ] as const;
@@ -1096,7 +1107,7 @@ export function ChangeVerdicts() {
 										<motion.span
 											animate={{ opacity: 1, x: 0 }}
 											className={cn(
-												"text-sm",
+												"flex items-center gap-2 text-sm",
 												done && row.sent && "text-brand-amber",
 												done && !row.sent && "text-muted-foreground",
 												!done && "text-muted-foreground/40"
@@ -1106,6 +1117,9 @@ export function ChangeVerdicts() {
 											key={done ? "verdict" : "pending"}
 											transition={{ duration: 0.3, ease: IN_OUT }}
 										>
+											{done && row.sent && (
+												<SlackLogo className="size-3.5 shrink-0" />
+											)}
 											{done ? row.verdict : ""}
 										</motion.span>
 									</AnimatePresence>
@@ -1138,7 +1152,7 @@ const COMMITS = [
 	{ sha: "4e7c0a9", x: 85 },
 	{ sha: "d58a1f6", x: 92 },
 ] as const;
-const COMMIT_EVENTS = [0.9, 1.7, 2.4, 3.4, 3.8, 5] as const;
+const COMMIT_EVENTS = [0.9, 1.7, 2.4, 3.4, 3.8] as const;
 const zoomed = (x: number) => CAUSE_X + (x - CAUSE_X) * ZOOM;
 const CONVERSION = Array.from({ length: 80 }, (_, index): [number, number] => {
 	const x = (index / 79) * 1000;
@@ -1153,13 +1167,12 @@ const DIFF = [
 ] as const;
 
 export function CommitZoom() {
-	const { ref, step } = useTimeline(COMMIT_EVENTS, 8.4);
+	const { ref, step } = useTimeline(COMMIT_EVENTS, 7.6);
 	const flagged = step >= 1;
 	const suspect = step >= 2;
 	const zoomIn = step >= 3;
 	const linked = step >= 4;
 	const detailed = step >= 5;
-	const concluded = step >= 6;
 	const zoomTransition = { duration: 0.9, ease: IN_OUT } as const;
 	return (
 		<MotionConfig reducedMotion="user">
@@ -1167,6 +1180,10 @@ export function CommitZoom() {
 				<div className="flex items-center justify-between gap-4 px-5 pt-5 sm:px-6 sm:pt-6">
 					<span className="font-medium text-foreground text-sm">
 						Signup completion
+					</span>
+					<span className="flex items-center gap-2 font-mono text-muted-foreground text-xs">
+						<SiGithub className="size-3.5" />
+						main
 					</span>
 				</div>
 				<div className="relative mx-5 mt-4 sm:mx-6">
@@ -1254,7 +1271,7 @@ export function CommitZoom() {
 				<div className="grid border-white/[0.06] border-t px-5 py-4 sm:px-6 [&>*]:col-start-1 [&>*]:row-start-1">
 					<Reveal className="flex flex-col gap-1.5" shown={!detailed}>
 						<span className="text-muted-foreground text-sm">
-							{COMMITS.length} commits merged between Mar 3 and 9
+							{COMMITS.length} commits this week
 						</span>
 					</Reveal>
 					<div className="flex flex-col gap-2">
@@ -1266,7 +1283,7 @@ export function CommitZoom() {
 								a41f0c2
 							</span>
 							<span className="text-foreground text-sm">
-								verification copy, merged Tue 09:12
+								Update verification email copy
 							</span>
 							<span className="font-mono text-[11px] text-muted-foreground">
 								app/signup/verify.tsx
@@ -1293,11 +1310,6 @@ export function CommitZoom() {
 								</Reveal>
 							))}
 						</div>
-						<Reveal className="pt-1" shown={concluded}>
-							<p className="text-muted-foreground text-sm">
-								Mobile signups started falling right after this merge.
-							</p>
-						</Reveal>
 					</div>
 				</div>
 			</div>
@@ -1313,9 +1325,10 @@ export function SlackThread() {
 	return (
 		<MotionConfig reducedMotion="user">
 			<div className={FRAME} ref={ref}>
-				<div className="border-white/[0.06] border-b px-5 py-3 sm:px-6">
+				<div className="flex items-center gap-2 border-white/[0.06] border-b px-5 py-3 sm:px-6">
+					<SlackLogo className="size-3.5 text-foreground" />
 					<span className="font-mono text-foreground text-xs sm:text-sm">
-						# analytics
+						#analytics
 					</span>
 				</div>
 				<div className="grid">
@@ -1416,17 +1429,15 @@ export function FixVerify() {
 	const applied = step >= 1;
 	const measuring = step >= 2;
 	const verified = step >= 3;
-	let status = (
-		<StatusLine tone="muted">Waiting for you to apply the fix</StatusLine>
-	);
+	let status = <StatusLine tone="muted">Needs review</StatusLine>;
 	if (verified) {
 		status = (
 			<StatusLine tone="emerald">
-				Check passed: 24% of 1,204 visitors completed the funnel
+				Verified: 24% of visitors now complete the funnel
 			</StatusLine>
 		);
 	} else if (applied) {
-		status = <StatusLine tone="amber">Measuring against the check</StatusLine>;
+		status = <StatusLine tone="amber">Measuring</StatusLine>;
 	}
 	return (
 		<MotionConfig reducedMotion="user">
@@ -1493,8 +1504,8 @@ export function FixVerify() {
 					<span className="w-1 shrink-0 self-stretch bg-brand-amber" />
 					<div className="flex min-w-0 flex-col gap-2">
 						<p className="text-foreground text-sm">
-							Step 3 points at /checkout/pay, which stopped getting traffic on
-							Mar 4. Checkout moved to /checkout/payment.
+							Step 3 points at /checkout/pay, which stopped getting traffic when
+							checkout moved to /checkout/payment.
 						</p>
 						<motion.span
 							animate={applied ? { scale: [1, 0.94, 1] } : { scale: 1 }}
@@ -1543,11 +1554,29 @@ const SQL = [
 	"WHERE created >= now() - INTERVAL 30 DAY",
 	"GROUP BY name ORDER BY revenue DESC",
 ] as const;
+function OpenaiLogo({ className }: { className?: string }) {
+	return (
+		<Image
+			alt=""
+			className={cn("invert", className)}
+			height={14}
+			src="/social/openai.svg"
+			unoptimized
+			width={14}
+		/>
+	);
+}
+
 const REFERRERS = [
-	{ name: "news.ycombinator.com", customers: 38, revenue: 4180 },
-	{ name: "google.com", customers: 21, revenue: 2310 },
-	{ name: "chatgpt.com", customers: 9, revenue: 1340 },
-	{ name: "x.com", customers: 12, revenue: 1020 },
+	{
+		name: "news.ycombinator.com",
+		Logo: SiYcombinator,
+		customers: 38,
+		revenue: 4180,
+	},
+	{ name: "google.com", Logo: SiGoogle, customers: 21, revenue: 2310 },
+	{ name: "chatgpt.com", Logo: OpenaiLogo, customers: 9, revenue: 1340 },
+	{ name: "x.com", Logo: SiX, customers: 12, revenue: 1020 },
 ] as const;
 
 export function ChatQuery() {
@@ -1665,7 +1694,10 @@ export function ChatQuery() {
 										: REWIND
 								}
 							>
-								<span className="truncate text-foreground">{row.name}</span>
+								<span className="flex min-w-0 items-center gap-2 text-foreground">
+									<row.Logo className="size-3.5 shrink-0" />
+									<span className="truncate">{row.name}</span>
+								</span>
 								<span className="text-foreground tabular-nums">
 									{row.customers}
 								</span>

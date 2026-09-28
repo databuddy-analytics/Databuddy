@@ -85,7 +85,7 @@ export default function ErrorsPage() {
 					footnote="Included from Hobby."
 					primaryLabel="Start tracking errors"
 					secondaryLabel="Read the setup docs"
-					subtitle="See which errors hit the most people, and where. Built into your analytics, so there's no extra tool to add."
+					subtitle="See which errors hit the most people and where, in the analytics you already use."
 					title="Every error happened to someone."
 					visual={<ErrorJourney />}
 				/>
@@ -98,16 +98,16 @@ export default function ErrorsPage() {
 					<div className={container}>
 						<SectionHeader
 							subtitle="One stuck tab can throw a thousand errors. Databuddy shows how many people each error hit."
-							title="Fix the error that hits the most people."
+							title="Fix what hurts the most people first."
 						/>
 						<LoudVersusWide />
 					</div>
 				</Section>
 
 				<FeatureRow
-					body="Every error comes with the page, browser, and device it happened on."
+					body="Every error comes with the page, browser, and device it happened on, so you know where to start looking."
 					id="context"
-					title="See where the visit broke."
+					title="Reproduce bugs without guessing."
 					visual={<VisitTimeline />}
 				/>
 
@@ -118,8 +118,8 @@ export default function ErrorsPage() {
 				>
 					<div className={container}>
 						<SectionHeader
-							subtitle="On Business and Scale, Databunny checks and posts the answer to Slack."
-							title="Find out if people left because of it."
+							subtitle="On Business and Scale, Databunny compares visits that hit the error with similar visits that didn't."
+							title="Know which errors make people leave."
 						/>
 						<KeptGoing />
 					</div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowRightIcon, CheckIcon, PlugIcon } from "@databuddy/ui/icons";
+import { SiClaude, SiCursor } from "@icons-pack/react-simple-icons";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SectionBullet } from "../icons/section-bullet";
@@ -19,6 +20,8 @@ function revealStyle(visible: boolean, delayMs: number) {
 
 const TERMINAL_SCENARIOS = [
 	{
+		client: "Claude Code",
+		Logo: SiClaude,
 		question:
 			"How did the launch land? Set up tracking for the new pricing page.",
 		calls: [
@@ -33,6 +36,8 @@ const TERMINAL_SCENARIOS = [
 			"Launch week traffic is up 64%. I created a pricing funnel and a plan_upgraded goal; both are live in your dashboard.",
 	},
 	{
+		client: "Cursor",
+		Logo: SiCursor,
 		question: "Anything I should know before we ship today?",
 		calls: [
 			{
@@ -135,9 +140,15 @@ export function McpTerminalDemo() {
 	return (
 		<div aria-hidden className="relative mt-3 w-full" ref={ref}>
 			<CardChrome className="overflow-hidden">
-				<div className="flex items-center gap-2 border-white/[0.06] border-b px-3 py-2">
+				<div
+					className={cn(
+						"flex items-center gap-2 border-white/[0.06] border-b px-3 py-2 transition-opacity duration-300",
+						fading ? "opacity-0" : "opacity-100"
+					)}
+				>
+					<scenario.Logo className="size-3 text-muted-foreground" />
 					<span className="font-mono text-[10px] text-muted-foreground">
-						your agent
+						{scenario.client}
 					</span>
 				</div>
 				<div
@@ -215,11 +226,13 @@ export function AiSection() {
 					<span className="mt-1.5 hidden sm:block">
 						<SectionBullet color="#6E56CF" />
 					</span>
-					<span className="text-foreground">A morning read, not a pager.</span>
+					<span className="text-foreground">
+						Start the day knowing what changed.
+					</span>
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
-					Every morning, Databunny checks your metrics. When something really
-					moves, it finds out why and tells you what to do, in Slack.
+					Every morning, Databunny checks your metrics. When one moves, you get
+					the reason and the next step in Slack.
 				</p>
 			</div>
 
@@ -237,12 +250,12 @@ export function AiSection() {
 			<div className="mt-16 grid grid-cols-1 items-center gap-8 lg:mt-24 lg:grid-cols-[2fr_3fr] lg:gap-12">
 				<div className="flex flex-col">
 					<h3 className="font-semibold text-foreground text-lg sm:text-xl">
-						Analytics run by your agent
+						Check your numbers without leaving your editor
 					</h3>
 					<p className="mt-1.5 max-w-xl text-muted-foreground text-sm">
-						Connect Claude Code, Cursor, or any MCP client with a scoped key.
-						Your agent can query traffic, read investigations, and create goals,
-						funnels, and flags.
+						Connect Claude Code, Cursor, or any MCP client with a scoped key,
+						and your agent can pull traffic, read investigations, and set up
+						funnels, goals, and flags for you.
 					</p>
 					<div className="mt-5 flex flex-wrap items-center gap-4">
 						<SciFiButton asChild>

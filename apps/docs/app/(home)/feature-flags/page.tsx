@@ -22,7 +22,7 @@ import { TrackOnMount } from "@/components/track-on-mount";
 
 const TITLE = "Feature Flags, Built Into Your Analytics";
 const DESCRIPTION =
-	"Roll out features to a few people first, flip whole teams at once, and turn anything off without a deploy. Pay per flag, not per check.";
+	"Release features to a few people first, give whole teams access at once, and switch anything off without a deploy.";
 
 export const metadata: Metadata = {
 	title: TITLE,
@@ -86,38 +86,38 @@ export default function FeatureFlagsPage() {
 					footnote={`${flagLimit(PLAN_IDS.FREE)} flags free.`}
 					primaryLabel="Create your first flag"
 					secondaryLabel="Read the docs"
-					subtitle="Roll out features slowly, flip whole teams at once, and turn anything off without a deploy. Same SDK and dashboard as your analytics."
-					title="Turn it on for a few people first."
+					subtitle="Start with a small group, widen the rollout once it holds up, and switch it off without a deploy if it breaks. It runs on the same SDK as your analytics."
+					title="Ship new features to a few people first."
 					visual={<RolloutGrid />}
 				/>
 
 				<FeatureRow
-					body="Flip the switch in the dashboard. Browsers pick it up on their next refresh."
+					body="Flip the switch and browsers drop the feature on their next refresh, with no deploy."
 					id="off"
-					title="Turn it off without a deploy."
+					title="Kill a bad release from the dashboard."
 					visual={<KillSwitch />}
 				/>
 
 				<FeatureRow
-					body="Bucket by organization or team, and everyone on that team gets the feature together."
+					body="Roll out by organization, so everyone at the same company sees the same thing."
 					id="teams"
 					flip
-					title="Flip a whole team at once."
+					title="Give a customer's whole team the feature at once."
 					visual={<TeamRollout />}
 				/>
 
 				<FeatureRow
-					body="Target by user ID, email, or any property you send. Save a set of rules as a group and reuse it."
+					body="Target by email, plan, or any property you send, and reuse the same group on every flag."
 					id="targeting"
-					title="Pick who sees it."
+					title="Give beta testers early access."
 					visual={<WhoSeesIt />}
 				/>
 
 				<FeatureRow
-					body="Turn off the parent, and the flags that depend on it turn off too. Turn it back on, and they come back."
+					body="Make smaller flags depend on a parent, and switching the parent off takes them all down together."
 					flip
 					id="dependencies"
-					title="Flags can depend on other flags."
+					title="Turn off a whole feature with one switch."
 					visual={<DependentFlags />}
 				/>
 
