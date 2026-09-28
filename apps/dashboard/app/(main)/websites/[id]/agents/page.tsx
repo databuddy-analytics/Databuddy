@@ -13,9 +13,6 @@ import {
 import { Sheet, Tabs } from "@databuddy/ui/client";
 import {
 	BrainIcon,
-	FileTextIcon,
-	GlobeIcon,
-	ListBulletsIcon,
 	MinusIcon,
 	TrendDownIcon,
 	TrendUpIcon,
@@ -24,7 +21,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
 	type AgentPurpose,
-	CONTENT_FORMATS,
 	type ContentFormat,
 	FEATURED_AI_PRODUCTS,
 	type RobotsAccess,
@@ -55,21 +51,10 @@ import {
 	calculatePreviousPeriod,
 } from "../_components/utils/analytics-helpers";
 
-const FORMATS: Record<
-	ContentFormat,
-	{ description: string; icon: typeof GlobeIcon; label: string }
-> = {
-	markdown: {
-		description: ".md pages and markdown requests",
-		icon: FileTextIcon,
-		label: "Markdown",
-	},
-	llms: {
-		description: "llms.txt and llms-full.txt",
-		icon: ListBulletsIcon,
-		label: "llms.txt",
-	},
-	html: { description: "Regular web pages", icon: GlobeIcon, label: "HTML" },
+const FORMAT_LABELS: Record<ContentFormat, string> = {
+	html: "HTML",
+	llms: "llms.txt",
+	markdown: "Markdown",
 };
 
 interface ProductRow {
@@ -101,15 +86,22 @@ interface PageRead {
 	requests: number;
 }
 
-interface AgentFormats {
+interface CrawlerResult {
 	agent_id: string;
-	html: number;
+	last_seen: string;
 	llms: number;
 	markdown: number;
 	name: string;
+	pages: number;
 	product: string;
 	purpose: AgentPurpose;
 	requests: number;
+	user_agent: string;
+}
+
+interface ReadingAgent extends CrawlerResult {
+	html: number;
+	robots: RobotsAccess | undefined;
 }
 
 type ReadFocus = ContentFormat | "all";
@@ -123,6 +115,8 @@ interface LandingPageRow {
 
 const READ_FORMATS: ContentFormat[] = ["llms", "markdown", "html"];
 const READ_ROWS = 8;
+const ROW_HEIGHT_PX = 36;
+const ROW_GAP_PX = 4;
 
 function numberColumn<TRow>(
 	key: keyof TRow & string,
@@ -239,19 +233,6 @@ const outcomeColumns: ColumnDef<OutcomeRow>[] = [
 	},
 ];
 
-interface CrawlerRow {
-	agent_id: string;
-	last_seen: string;
-	llms: number;
-	markdown: number;
-	name: string;
-	product: string;
-	purpose: AgentPurpose;
-	requests: number;
-	robots: RobotsAccess | undefined;
-	user_agent: string;
-}
-
 const PURPOSE_LABELS: Record<AgentPurpose, string> = {
 	agent: "Agent",
 	search_index: "Search",
@@ -265,74 +246,28 @@ const ROBOTS_LABELS: Record<RobotsAccess, string> = {
 	partial: "Partly blocked",
 };
 
-const crawlerColumns: ColumnDef<CrawlerRow>[] = [
-	{
-		id: "name",
-		accessorKey: "name",
-		header: "Crawler",
-		cell: ({ row }) => (
-			<div className="flex min-w-0 items-center gap-2">
-				<AiProductIcon name={row.original.product} size="sm" />
-				<span className="truncate font-medium text-[15px]">
-					{row.original.name}
-				</span>
-			</div>
-		),
-	},
-	{
-		id: "purpose",
-		accessorKey: "purpose",
-		header: "Reads for",
-		cell: ({ getValue }) => (
-			<span className="text-[15px] text-muted-foreground">
-				{PURPOSE_LABELS[getValue() as AgentPurpose]}
-			</span>
-		),
-	},
-	numberColumn<CrawlerRow>("requests", "Requests"),
-	{
-		id: "robots",
-		accessorKey: "robots",
-		header: "robots.txt",
-		cell: ({ row }) => {
-			const { last_seen, robots } = row.original;
-			if (!robots) {
-				return null;
-			}
-			const isStillCrawling =
-				robots === "blocked" && dayjs().diff(last_seen, "hour") < 24;
-			return (
-				<span className="flex items-center gap-1.5 text-[15px] text-muted-foreground">
-					<StatusDot
-						color={
-							robots === "allowed"
-								? "success"
-								: isStillCrawling
-									? "destructive"
-									: "warning"
-						}
-					/>
-					{isStillCrawling ? "Blocked, still crawling" : ROBOTS_LABELS[robots]}
-				</span>
-			);
-		},
-	},
-	{
-		id: "last_seen",
-		accessorKey: "last_seen",
-		header: "Last read",
-		cell: ({ getValue }) => (
-			<span className="text-[15px] text-muted-foreground">
-				{fromNow(getValue() as string)}
-			</span>
-		),
-	},
-];
+function robotsStatus(agent: ReadingAgent): {
+	color: "destructive" | "success" | "warning";
+	label: string;
+} | null {
+	if (!agent.robots) {
+		return null;
+	}
+	if (
+		agent.robots === "blocked" &&
+		dayjs().diff(agent.last_seen, "hour") < 24
+	) {
+		return { color: "destructive", label: "Blocked, still crawling" };
+	}
+	return {
+		color: agent.robots === "allowed" ? "success" : "warning",
+		label: ROBOTS_LABELS[agent.robots],
+	};
+}
 
 interface FormatRow {
 	format: ContentFormat;
 	pages: number;
-	products: string[];
 	requests: number;
 }
 
@@ -612,59 +547,6 @@ function emptyProduct(product: string): ProductRow {
 	};
 }
 
-function FormatCard({
-	format,
-	isLoading,
-	row,
-}: {
-	format: ContentFormat;
-	isLoading: boolean;
-	row: FormatRow | undefined;
-}) {
-	const { description, icon: Icon, label } = FORMATS[format];
-	return (
-		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
-			<div className="flex items-center gap-2.5">
-				<div className="flex size-7 items-center justify-center rounded bg-accent">
-					<Icon className="size-4 text-muted-foreground" />
-				</div>
-				<div className="min-w-0">
-					<p className="truncate font-semibold text-sm">{label}</p>
-					<p className="truncate text-muted-foreground text-xs">
-						{description}
-					</p>
-				</div>
-			</div>
-			<div>
-				<p className="font-semibold text-xl tabular-nums">
-					{formatNumber(row?.requests ?? 0)}
-					<span className="ml-1.5 font-normal text-muted-foreground text-xs">
-						requests
-					</span>
-				</p>
-				<div className="mt-1.5 flex h-5 items-center gap-1.5">
-					{row && row.requests > 0 ? (
-						<>
-							<span className="text-muted-foreground text-xs">
-								{formatNumber(row.pages)} pages, read by
-							</span>
-							{row.products.map((product) => (
-								<span key={product} title={product}>
-									<AiProductIcon name={product} size="sm" />
-								</span>
-							))}
-						</>
-					) : (
-						<span className="text-muted-foreground text-xs">
-							{isLoading ? "Checking…" : "Not fetched yet"}
-						</span>
-					)}
-				</div>
-			</div>
-		</div>
-	);
-}
-
 function ProductCard({
 	isHourly,
 	isLoading,
@@ -851,10 +733,12 @@ function ShareRanking({ rows }: { rows: ShareRow[] }) {
 }
 
 function VisitorSharePanel({
+	children,
 	isLoading,
 	previousRange,
 	share,
 }: {
+	children?: React.ReactNode;
 	isLoading: boolean;
 	previousRange: { end_date: string; start_date: string };
 	share: VisitorShare;
@@ -924,6 +808,7 @@ function VisitorSharePanel({
 					<ShareRanking rows={share.rows} />
 				)}
 			</div>
+			{children ? <div className="lg:col-span-2">{children}</div> : null}
 		</div>
 	);
 }
@@ -986,13 +871,24 @@ function BarRow({
 	);
 }
 
+interface RobotsCheck {
+	hasRobotsTxt: boolean | undefined;
+	isPending: boolean;
+}
+
+function listHeight(rows: number): number {
+	return rows * ROW_HEIGHT_PX + Math.max(rows - 1, 0) * ROW_GAP_PX;
+}
+
 function ShowAllButton({
 	count,
 	isExpanded,
+	label,
 	onToggle,
 }: {
 	count: number;
 	isExpanded: boolean;
+	label: string;
 	onToggle: () => void;
 }) {
 	return count > READ_ROWS ? (
@@ -1002,25 +898,74 @@ function ShowAllButton({
 			size="sm"
 			variant="ghost"
 		>
-			{isExpanded ? "Show less" : `Show all ${count}`}
+			{isExpanded ? "Show less" : label}
 		</Button>
-	) : null;
+	) : (
+		<div aria-hidden className="h-8" />
+	);
 }
 
-function ListSkeleton() {
+function ListSkeleton({ rows }: { rows: number }) {
 	return (
-		<div className="space-y-1">
-			{Array.from({ length: READ_ROWS }, (_, index) => (
+		<div className="flex flex-col gap-1">
+			{Array.from({ length: rows }, (_, index) => (
 				<Skeleton className="h-9 w-full" key={index} />
 			))}
 		</div>
 	);
 }
 
-function formatSplit(agent: AgentFormats): string {
+function formatSplit(agent: ReadingAgent): string {
 	return READ_FORMATS.filter((format) => agent[format] > 0)
-		.map((format) => `${FORMATS[format].label} ${formatNumber(agent[format])}`)
+		.map((format) => `${FORMAT_LABELS[format]} ${formatNumber(agent[format])}`)
 		.join(" · ");
+}
+
+function AgentDetail({
+	agent,
+	robots,
+}: {
+	agent: ReadingAgent;
+	robots: RobotsCheck;
+}) {
+	const status = robotsStatus(agent);
+	const robotsLabel =
+		status?.label ??
+		(robots.isPending
+			? "Checking…"
+			: robots.hasRobotsTxt === false
+				? "No robots.txt"
+				: null);
+	const facts = [
+		{ label: "Formats", value: formatSplit(agent) },
+		{ label: "Pages", value: formatNumber(agent.pages) },
+		{ label: "Last read", value: fromNow(agent.last_seen) },
+	];
+	return (
+		<div className="space-y-2">
+			<div className="flex flex-wrap gap-x-5 gap-y-1">
+				{facts.map((fact) => (
+					<span className="flex items-center gap-1.5 text-xs" key={fact.label}>
+						<span className="text-muted-foreground">{fact.label}</span>
+						<span className="font-medium tabular-nums">{fact.value}</span>
+					</span>
+				))}
+				{robotsLabel ? (
+					<span className="flex items-center gap-1.5 text-xs">
+						<span className="text-muted-foreground">robots.txt</span>
+						{status ? <StatusDot color={status.color} /> : null}
+						<span className="font-medium">{robotsLabel}</span>
+					</span>
+				) : null}
+			</div>
+			<p
+				className="truncate font-mono text-muted-foreground text-xs"
+				title={agent.user_agent}
+			>
+				{agent.user_agent}
+			</p>
+		</div>
+	);
 }
 
 function AgentReadsPanel({
@@ -1028,11 +973,13 @@ function AgentReadsPanel({
 	formats,
 	isLoading,
 	reads,
+	robots,
 }: {
-	agents: AgentFormats[];
+	agents: ReadingAgent[];
 	formats: FormatRow[];
 	isLoading: boolean;
 	reads: PageRead[];
+	robots: RobotsCheck;
 }) {
 	const available = READ_FORMATS.filter((format) =>
 		formats.some((row) => row.format === format && Number(row.requests) > 0)
@@ -1047,7 +994,7 @@ function AgentReadsPanel({
 		chosenFocus && options.includes(chosenFocus)
 			? chosenFocus
 			: (options[0] ?? "all");
-	const label = focus === "all" ? "AI" : FORMATS[focus].label;
+	const label = focus === "all" ? "AI" : FORMAT_LABELS[focus];
 
 	const rankedAgents = agents
 		.map((agent) => ({
@@ -1057,8 +1004,11 @@ function AgentReadsPanel({
 		.filter((agent) => agent.value > 0)
 		.sort((a, b) => b.value - a.value);
 	const selected = rankedAgents.find((agent) => agent.agent_id === selectedId);
+	const restricted = rankedAgents.filter(
+		(agent) => agent.robots === "blocked" || agent.robots === "partial"
+	).length;
 
-	const pages = useMemo(() => {
+	const pagesByFocus = useMemo(() => {
 		const byPage = new Map<string, { page: string; readers: PageReader[] }>();
 		for (const read of reads) {
 			if (focus !== "all" && read.format !== focus) {
@@ -1068,36 +1018,52 @@ function AgentReadsPanel({
 			row.readers.push(...(read.agents ?? []));
 			byPage.set(read.page, row);
 		}
-		return [...byPage.values()]
-			.map((row) => {
-				const readers = selected
-					? row.readers.filter(
-							(reader) => reader.agent_id === selected.agent_id
-						)
-					: row.readers;
-				return {
-					page: row.page,
-					readers: [...new Set(readers.map((reader) => reader.name))],
-					value: readers.reduce(
-						(sum, reader) => sum + (Number(reader.requests) || 0),
-						0
-					),
-				};
-			})
-			.filter((row) => row.value > 0)
-			.sort((a, b) => b.value - a.value);
-	}, [reads, focus, selected]);
+		return [...byPage.values()];
+	}, [reads, focus]);
+	const pages = pagesByFocus
+		.map((row) => {
+			const readers = selected
+				? row.readers.filter((reader) => reader.agent_id === selected.agent_id)
+				: row.readers;
+			return {
+				page: row.page,
+				readers: [...new Set(readers.map((reader) => reader.name))],
+				value: readers.reduce(
+					(sum, reader) => sum + (Number(reader.requests) || 0),
+					0
+				),
+			};
+		})
+		.filter((row) => row.value > 0)
+		.sort((a, b) => b.value - a.value);
+
+	const distinctPages = useMemo(
+		() => new Set(reads.map((read) => read.page)).size,
+		[reads]
+	);
+	const rowSlots = Math.max(
+		Math.min(READ_ROWS, Math.max(agents.length, distinctPages)),
+		1
+	);
+	const listStyle = { minHeight: listHeight(rowSlots) };
 
 	const total =
 		focus === "all"
 			? formats.reduce((sum, row) => sum + (Number(row.requests) || 0), 0)
 			: Number(formats.find((row) => row.format === focus)?.requests) || 0;
+	const focusPageTotal =
+		focus === "all"
+			? distinctPages
+			: Number(formats.find((row) => row.format === focus)?.pages) ||
+				pages.length;
+	const pageTotal = selected ? pages.length : focusPageTotal;
 	const maxAgentValue = rankedAgents[0]?.value || 1;
 	const maxPageValue = pages[0]?.value || 1;
 	const visibleAgents = areAgentsExpanded
 		? rankedAgents
 		: rankedAgents.slice(0, READ_ROWS);
 	const visiblePages = arePagesExpanded ? pages : pages.slice(0, READ_ROWS);
+	const pageNoun = focus === "llms" ? "files" : "pages";
 
 	return (
 		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-2">
@@ -1105,27 +1071,31 @@ function AgentReadsPanel({
 				<div className="flex flex-wrap items-start justify-between gap-3">
 					<div>
 						<p className="font-semibold text-sm">Who reads your content</p>
-						{isLoading ? (
-							<>
-								<Skeleton className="mt-2 h-7 w-28" />
-								<Skeleton className="mt-1 h-4 w-40" />
-							</>
-						) : (
-							<>
-								<p className="mt-2 font-semibold text-2xl tabular-nums">
+						<div className="mt-2 flex h-8 items-center">
+							{isLoading ? (
+								<Skeleton className="h-7 w-28" />
+							) : (
+								<p className="font-semibold text-2xl tabular-nums">
 									{formatNumber(total)}
 									<span className="ml-1.5 font-normal text-muted-foreground text-xs">
 										{label} requests
 									</span>
 								</p>
-								<p className="mt-1 text-muted-foreground text-xs">
-									from {rankedAgents.length}{" "}
-									{rankedAgents.length === 1 ? "agent" : "agents"}
-								</p>
-							</>
+							)}
+						</div>
+						{isLoading ? (
+							<Skeleton className="mt-1 h-4 w-40" />
+						) : (
+							<p className="mt-1 text-muted-foreground text-xs">
+								from {rankedAgents.length}{" "}
+								{rankedAgents.length === 1 ? "agent" : "agents"}
+								{restricted > 0 ? ` · ${restricted} limited by robots.txt` : ""}
+							</p>
 						)}
 					</div>
-					{options.length > 1 ? (
+					{isLoading ? (
+						<Skeleton className="h-8 w-56" />
+					) : options.length > 1 ? (
 						<SegmentedControl
 							onChange={(value) => {
 								setChosenFocus(value);
@@ -1134,7 +1104,7 @@ function AgentReadsPanel({
 								setArePagesExpanded(false);
 							}}
 							options={options.map((value) => ({
-								label: value === "all" ? "All" : FORMATS[value].label,
+								label: value === "all" ? "All" : FORMAT_LABELS[value],
 								value,
 							}))}
 							size="sm"
@@ -1142,40 +1112,60 @@ function AgentReadsPanel({
 						/>
 					) : null}
 				</div>
-				{isLoading ? (
-					<ListSkeleton />
-				) : (
-					<div className="flex flex-col gap-1">
-						{visibleAgents.map((agent, index) => (
-							<BarRow
-								fraction={agent.value / maxAgentValue}
-								isDimmed={Boolean(selected) && selected !== agent}
-								isSelected={selected === agent}
-								key={agent.agent_id}
-								onClick={() =>
-									setSelectedId(selected === agent ? null : agent.agent_id)
-								}
-								rank={index + 1}
-								value={agent.value}
-							>
-								<span className="relative shrink-0">
-									<AiProductIcon name={agent.product} size="sm" />
-								</span>
-								<span className="relative min-w-0 truncate font-medium text-sm">
-									{agent.name}
-								</span>
-								<span className="relative ml-auto hidden shrink-0 text-muted-foreground text-xs sm:inline">
-									{focus === "all" && agent.markdown + agent.llms > 0
-										? formatSplit(agent)
-										: PURPOSE_LABELS[agent.purpose]}
-								</span>
-							</BarRow>
-						))}
-					</div>
-				)}
+				<div style={listStyle}>
+					{isLoading ? (
+						<ListSkeleton rows={rowSlots} />
+					) : (
+						<div className="flex flex-col gap-1">
+							{visibleAgents.map((agent, index) => {
+								const status = robotsStatus(agent);
+								const isSelected = selected?.agent_id === agent.agent_id;
+								return (
+									<BarRow
+										fraction={agent.value / maxAgentValue}
+										isDimmed={Boolean(selected) && !isSelected}
+										isSelected={isSelected}
+										key={agent.agent_id}
+										onClick={() =>
+											setSelectedId(isSelected ? null : agent.agent_id)
+										}
+										rank={index + 1}
+										value={agent.value}
+									>
+										<span className="relative shrink-0">
+											<AiProductIcon name={agent.product} size="sm" />
+										</span>
+										<span className="relative min-w-0 truncate font-medium text-sm">
+											{agent.name}
+										</span>
+										{agent.product === agent.name ? null : (
+											<span className="relative hidden shrink-0 text-muted-foreground text-xs md:inline">
+												{agent.product}
+											</span>
+										)}
+										<span className="relative ml-auto hidden shrink-0 text-muted-foreground text-xs sm:inline">
+											{focus === "all" && agent.markdown + agent.llms > 0
+												? formatSplit(agent)
+												: PURPOSE_LABELS[agent.purpose]}
+										</span>
+										<span
+											className="relative flex w-2 shrink-0 justify-center"
+											title={status ? `robots.txt: ${status.label}` : undefined}
+										>
+											{status && status.color !== "success" ? (
+												<StatusDot color={status.color} />
+											) : null}
+										</span>
+									</BarRow>
+								);
+							})}
+						</div>
+					)}
+				</div>
 				<ShowAllButton
 					count={rankedAgents.length}
 					isExpanded={areAgentsExpanded}
+					label={`Show all ${rankedAgents.length} agents`}
 					onToggle={() => setAreAgentsExpanded((expanded) => !expanded)}
 				/>
 			</div>
@@ -1183,19 +1173,31 @@ function AgentReadsPanel({
 			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
 				<div className="flex items-start justify-between gap-3">
 					<div className="min-w-0">
-						<p className="truncate font-semibold text-sm">
-							{selected
-								? `What ${selected.name} read`
-								: focus === "llms"
+						{selected ? (
+							<div className="flex items-center gap-2">
+								<AiProductIcon name={selected.product} size="sm" />
+								<p className="truncate font-semibold text-sm">
+									{selected.name}
+								</p>
+								<span className="shrink-0 text-muted-foreground text-xs">
+									{selected.product === selected.name
+										? PURPOSE_LABELS[selected.purpose]
+										: `${selected.product} · ${PURPOSE_LABELS[selected.purpose]}`}
+								</span>
+							</div>
+						) : (
+							<p className="font-semibold text-sm">
+								{focus === "llms"
 									? "llms.txt files"
 									: focus === "all"
 										? "Pages"
 										: `${label} pages`}
-						</p>
+							</p>
+						)}
 						<p className="text-muted-foreground text-xs">
 							{selected
-								? `${formatNumber(selected.value)} ${label} requests`
-								: "Pick an agent to see only what it read"}
+								? `${formatNumber(selected.value)} ${label} requests across ${formatNumber(pages.length)} ${pageNoun}`
+								: `${formatNumber(pageTotal)} ${pageNoun} · pick an agent to see what it read`}
 						</p>
 					</div>
 					{selected ? (
@@ -1208,32 +1210,43 @@ function AgentReadsPanel({
 						</Button>
 					) : null}
 				</div>
-				{isLoading ? (
-					<ListSkeleton />
-				) : (
-					<div className="flex flex-col gap-1">
-						{visiblePages.map((page, index) => (
-							<BarRow
-								fraction={page.value / maxPageValue}
-								key={page.page}
-								rank={index + 1}
-								value={page.value}
-							>
-								<span className="relative min-w-0 flex-1 truncate text-sm">
-									{page.page}
-								</span>
-								{selected ? null : (
-									<span className="relative hidden max-w-[45%] shrink-0 truncate text-muted-foreground text-xs sm:inline">
-										{page.readers.join(", ")}
+				{selected ? <AgentDetail agent={selected} robots={robots} /> : null}
+				<div style={listStyle}>
+					{isLoading ? (
+						<ListSkeleton rows={rowSlots} />
+					) : (
+						<div className="flex flex-col gap-1">
+							{visiblePages.map((page, index) => (
+								<BarRow
+									fraction={page.value / maxPageValue}
+									key={page.page}
+									rank={index + 1}
+									value={page.value}
+								>
+									<span
+										className="relative min-w-0 flex-1 truncate text-sm"
+										title={page.page}
+									>
+										{page.page}
 									</span>
-								)}
-							</BarRow>
-						))}
-					</div>
-				)}
+									{selected ? null : (
+										<span className="relative hidden max-w-[45%] shrink-0 truncate text-muted-foreground text-xs sm:inline">
+											{page.readers.join(", ")}
+										</span>
+									)}
+								</BarRow>
+							))}
+						</div>
+					)}
+				</div>
 				<ShowAllButton
 					count={pages.length}
 					isExpanded={arePagesExpanded}
+					label={
+						pages.length < pageTotal
+							? `Show top ${formatNumber(pages.length)} of ${formatNumber(pageTotal)}`
+							: `Show all ${formatNumber(pages.length)} ${pageNoun}`
+					}
 					onToggle={() => setArePagesExpanded((expanded) => !expanded)}
 				/>
 			</div>
@@ -1292,10 +1305,7 @@ export default function AgentsPage() {
 		(getDataForQuery("outcomes", "ai_visitor_outcomes") as OutcomeResult[]) ??
 		[];
 	const crawlers =
-		(getDataForQuery("crawlers", "ai_crawlers") as Omit<
-			CrawlerRow,
-			"robots"
-		>[]) ?? [];
+		(getDataForQuery("crawlers", "ai_crawlers") as CrawlerResult[]) ?? [];
 	const robots = useQuery({
 		...orpc.websites.checkAiRobots.queryOptions({
 			input: {
@@ -1306,12 +1316,6 @@ export default function AgentsPage() {
 		enabled: crawlers.length > 0,
 		staleTime: 10 * 60 * 1000,
 	});
-	const crawlerRows = crawlers.map(
-		(crawler, index): CrawlerRow => ({
-			...crawler,
-			robots: robots.data?.access[index],
-		})
-	);
 	const revenue =
 		(getDataForQuery("revenue", "revenue_by_ai_product") as RevenueRow[]) ?? [];
 
@@ -1426,19 +1430,18 @@ export default function AgentsPage() {
 		})
 	);
 
-	const agentFormats = crawlers.map((crawler): AgentFormats => {
+	const readingAgents = crawlers.map((crawler, index): ReadingAgent => {
 		const markdown = Number(crawler.markdown) || 0;
 		const llms = Number(crawler.llms) || 0;
 		const requests = Number(crawler.requests) || 0;
 		return {
-			agent_id: crawler.agent_id,
-			html: requests - markdown - llms,
+			...crawler,
+			html: Math.max(requests - markdown - llms, 0),
 			llms,
 			markdown,
-			name: crawler.name,
-			product: crawler.product,
-			purpose: crawler.purpose,
+			pages: Number(crawler.pages) || 0,
 			requests,
+			robots: robots.data?.access[index],
 		};
 	});
 	const landingRows = landingPages.map(
@@ -1491,27 +1494,25 @@ export default function AgentsPage() {
 					))}
 				</div>
 
+				{isLoading || reads.length > 0 ? (
+					<AgentReadsPanel
+						agents={readingAgents}
+						formats={formats}
+						isLoading={isLoading}
+						reads={reads}
+						robots={{
+							hasRobotsTxt: robots.data?.hasRobotsTxt,
+							isPending: robots.isFetching,
+						}}
+					/>
+				) : null}
+
 				{isLoading || visitorShare.rows.length > 0 ? (
 					<VisitorSharePanel
 						isLoading={isLoading}
 						previousRange={previousRange}
 						share={visitorShare}
-					/>
-				) : null}
-
-				<div className="space-y-1.5 rounded-xl bg-secondary p-1.5">
-					<div className="grid gap-1.5 sm:grid-cols-3">
-						{CONTENT_FORMATS.map((format) => (
-							<FormatCard
-								format={format}
-								isLoading={isLoading}
-								key={format}
-								row={formats.find((row) => row.format === format)}
-							/>
-						))}
-					</div>
-
-					{isLoading || chart.metrics.length > 0 ? (
+					>
 						<SimpleMetricsChart
 							chartStepType={chartStepType}
 							className="rounded-lg border-0 bg-background"
@@ -1525,31 +1526,7 @@ export default function AgentsPage() {
 							showYAxis
 							title="AI visitors"
 						/>
-					) : null}
-				</div>
-
-				{isLoading || reads.length > 0 ? (
-					<AgentReadsPanel
-						agents={agentFormats}
-						formats={formats}
-						isLoading={isLoading}
-						reads={reads}
-					/>
-				) : null}
-
-				{isLoading || crawlerRows.length > 0 ? (
-					<DataTable
-						columns={crawlerColumns}
-						data={crawlerRows}
-						description={
-							robots.data && !robots.data.hasRobotsTxt
-								? "Your site has no robots.txt, so every crawler is allowed"
-								: "Each AI crawler and what your robots.txt lets it read"
-						}
-						initialPageSize={10}
-						isLoading={isLoading}
-						title="AI crawlers"
-					/>
+					</VisitorSharePanel>
 				) : null}
 
 				{isLoading || outcomeRows.length > 1 ? (
