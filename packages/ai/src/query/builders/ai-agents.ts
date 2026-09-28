@@ -265,17 +265,17 @@ export const AiAgentsBuilders = {
 			sql: `
 				SELECT
 					if(grouping(ai_product) = 1, 'All visitors', ai_product) AS product,
-					uniq(visitor) AS visitors,
+					uniqArray(session_visitors) AS visitors,
 					round(avg(pageviews), 2) AS pages_per_visit,
 					round(countIf(pageviews > 1) / count() * 100, 1) AS engaged_rate
 				FROM (
 					SELECT
 						session_id,
-						any(visitor) AS visitor,
+						groupUniqArray(anonymous_id) AS session_visitors,
 						anyIf(visit_product, visit_product != '') AS ai_product,
 						countIf(event_name = 'screen_view') AS pageviews
 					FROM (
-						SELECT session_id, anonymous_id AS visitor, event_name, ${VISIT_PRODUCT} AS visit_product
+						SELECT session_id, anonymous_id, event_name, ${VISIT_PRODUCT} AS visit_product
 						FROM ${Analytics.events}
 						WHERE ${EVENT_IN_RANGE}
 					)
