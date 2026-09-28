@@ -484,7 +484,7 @@ function AgentSetupSheet({
 					</Sheet.Header>
 					<Sheet.Body className="space-y-5">
 						<Tabs defaultValue={SETUP_STACKS[0].id}>
-							<Tabs.List>
+							<Tabs.List className="max-w-full overflow-x-auto">
 								{SETUP_STACKS.map((stack) => (
 									<Tabs.Tab key={stack.id} value={stack.id}>
 										{stack.label}
