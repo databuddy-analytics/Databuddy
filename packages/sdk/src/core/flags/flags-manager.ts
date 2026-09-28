@@ -119,7 +119,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		return false;
 	}
 
-	protected canFetchFromReads(): boolean {
+	protected canFetchOnRead(): boolean {
 		return true;
 	}
 
@@ -531,7 +531,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			};
 		}
 
-		if (!entry && this.canFetchFromReads()) {
+		if (!entry && this.canFetchOnRead()) {
 			this.getFlag(key).catch((err) =>
 				logger.error(`Background fetch error: ${key}`, err)
 			);
@@ -561,7 +561,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			return entry.result.value as T;
 		}
 
-		if (!entry && this.canFetchFromReads()) {
+		if (!entry && this.canFetchOnRead()) {
 			this.getFlag(key).catch((err) =>
 				logger.error(`Background fetch error: ${key}`, err)
 			);
@@ -838,8 +838,7 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 		this.loadOverrides();
 	}
 
-	// React may construct managers in renders it never commits; network and
-	// listeners wait for a mounted owner so discarded renders stay inert.
+	// React builds managers in renders it may discard; only a mounted owner starts one.
 	start(): void {
 		if (this.started) {
 			return;
@@ -889,7 +888,7 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 		return !this.isVisible;
 	}
 
-	protected override canFetchFromReads(): boolean {
+	protected override canFetchOnRead(): boolean {
 		return this.started;
 	}
 
@@ -976,7 +975,6 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 	override destroy(): void {
 		super.destroy();
 		this.visibilityCleanup?.();
-		this.visibilityCleanup = undefined;
 		this.trackedFlags.clear();
 		this.started = false;
 	}
