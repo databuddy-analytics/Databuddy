@@ -8,6 +8,7 @@ export const AGENT_TENANT_COLUMN_BY_TABLE: Readonly<Record<string, string>> = {
 	"analytics.custom_events": "owner_id",
 	"analytics.revenue": "owner_id",
 	"analytics.blocked_traffic": "client_id",
+	"analytics.ai_traffic_spans": "client_id",
 };
 
 export const AGENT_TABLE_COLUMNS: Readonly<
@@ -123,6 +124,22 @@ export const AGENT_TABLE_COLUMNS: Readonly<
 		"block_reason",
 		"bot_name",
 		"path",
+	]),
+	"analytics.ai_traffic_spans": new Set([
+		"client_id",
+		"timestamp",
+		"agent_id",
+		"agent_purpose",
+		"bot_name",
+		"bot_type",
+		"format",
+		"path",
+		"host",
+		"referrer",
+		"user_agent",
+		"accept",
+		"source",
+		"verification",
 	]),
 };
 export function buildAdditionalTableFilters(
