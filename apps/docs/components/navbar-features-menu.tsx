@@ -37,7 +37,7 @@ const FEATURE_ITEMS: FeatureItem[] = [
 	},
 	{
 		title: "Error Tracking",
-		description: "Stack traces, context, and real-time alerts",
+		description: "Stack traces, page context, and affected people",
 		href: "/errors",
 		icon: BugIcon,
 		trackId: "errors",
