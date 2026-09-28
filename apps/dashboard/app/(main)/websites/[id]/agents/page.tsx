@@ -5,6 +5,7 @@ import {
 	dayjs,
 	EmptyState,
 	fromNow,
+	SegmentedControl,
 	Skeleton,
 	StatusDot,
 	Tooltip,
@@ -86,22 +87,32 @@ interface ProductRow {
 const NEVER_SEEN = "1970";
 const ALL_VISITORS = "All visitors";
 
-interface PageRead {
+interface PageReader {
 	agent_id: string;
-	format: ContentFormat;
-	last_seen: string;
 	name: string;
-	page: string;
 	product: string;
 	requests: number;
 }
 
-interface PageReadRow {
-	agents: PageRead[];
-	last_seen: string;
-	name: string;
+interface PageRead {
+	agents: PageReader[];
+	format: ContentFormat;
+	page: string;
 	requests: number;
 }
+
+interface AgentFormats {
+	agent_id: string;
+	html: number;
+	llms: number;
+	markdown: number;
+	name: string;
+	product: string;
+	purpose: AgentPurpose;
+	requests: number;
+}
+
+type ReadFocus = ContentFormat | "all";
 
 interface LandingPageRow {
 	name: string;
@@ -110,8 +121,8 @@ interface LandingPageRow {
 	visitors: number;
 }
 
-const READ_FORMATS: ContentFormat[] = ["markdown", "llms", "html"];
-const SHOWN_READERS = 3;
+const READ_FORMATS: ContentFormat[] = ["llms", "markdown", "html"];
+const READ_ROWS = 8;
 
 function numberColumn<TRow>(
 	key: keyof TRow & string,
@@ -129,21 +140,8 @@ function numberColumn<TRow>(
 	};
 }
 
-function lastReadColumn<TRow>(): ColumnDef<TRow> {
-	return {
-		id: "last_seen",
-		accessorKey: "last_seen",
-		header: "Last read",
-		cell: ({ getValue }) => (
-			<span className="text-[15px] text-muted-foreground">
-				{fromNow(getValue() as string)}
-			</span>
-		),
-	};
-}
-
-function pageColumn<TRow extends { name: string }>(): ColumnDef<TRow> {
-	return {
+const landingColumns: ColumnDef<LandingPageRow>[] = [
+	{
 		id: "name",
 		accessorKey: "name",
 		header: "Page",
@@ -152,50 +150,7 @@ function pageColumn<TRow extends { name: string }>(): ColumnDef<TRow> {
 				{getValue() as string}
 			</span>
 		),
-	};
-}
-
-function Readers({ agents }: { agents: PageRead[] }) {
-	const hidden = agents.slice(SHOWN_READERS);
-	return (
-		<div className="flex min-w-0 items-center gap-3">
-			{agents.slice(0, SHOWN_READERS).map((agent) => (
-				<span
-					className="flex min-w-0 items-center gap-1.5"
-					key={agent.agent_id}
-					title={`${agent.name}: ${formatNumber(Number(agent.requests))} requests`}
-				>
-					<AiProductIcon name={agent.product} size="sm" />
-					<span className="truncate text-[15px] text-muted-foreground">
-						{agent.name}
-					</span>
-				</span>
-			))}
-			{hidden.length > 0 ? (
-				<Tooltip content={hidden.map((agent) => agent.name).join(", ")}>
-					<span className="shrink-0 text-muted-foreground text-xs">
-						+{hidden.length}
-					</span>
-				</Tooltip>
-			) : null}
-		</div>
-	);
-}
-
-const readColumns: ColumnDef<PageReadRow>[] = [
-	pageColumn<PageReadRow>(),
-	{
-		id: "agents",
-		accessorKey: "agents",
-		header: "Read by",
-		cell: ({ row }) => <Readers agents={row.original.agents} />,
 	},
-	numberColumn<PageReadRow>("requests", "Requests"),
-	lastReadColumn<PageReadRow>(),
-];
-
-const landingColumns: ColumnDef<LandingPageRow>[] = [
-	pageColumn<LandingPageRow>(),
 	{
 		id: "products",
 		accessorKey: "products",
@@ -336,30 +291,6 @@ const crawlerColumns: ColumnDef<CrawlerRow>[] = [
 	},
 	numberColumn<CrawlerRow>("requests", "Requests"),
 	{
-		id: "formats",
-		header: "Formats",
-		cell: ({ row }) => {
-			const markdown = Number(row.original.markdown);
-			const llms = Number(row.original.llms);
-			const counts: [ContentFormat, number][] = [
-				["markdown", markdown],
-				["llms", llms],
-				["html", Number(row.original.requests) - markdown - llms],
-			];
-			return (
-				<span className="text-[15px] text-muted-foreground">
-					{counts
-						.filter(([, count]) => count > 0)
-						.map(
-							([format, count]) =>
-								`${FORMATS[format].label} ${formatNumber(count)}`
-						)
-						.join(" · ")}
-				</span>
-			);
-		},
-	},
-	{
 		id: "robots",
 		accessorKey: "robots",
 		header: "robots.txt",
@@ -386,7 +317,16 @@ const crawlerColumns: ColumnDef<CrawlerRow>[] = [
 			);
 		},
 	},
-	lastReadColumn<CrawlerRow>(),
+	{
+		id: "last_seen",
+		accessorKey: "last_seen",
+		header: "Last read",
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground">
+				{fromNow(getValue() as string)}
+			</span>
+		),
+	},
 ];
 
 interface FormatRow {
@@ -988,6 +928,319 @@ function VisitorSharePanel({
 	);
 }
 
+function BarRow({
+	children,
+	fraction,
+	isDimmed = false,
+	isSelected = false,
+	onClick,
+	rank,
+	value,
+}: {
+	children: React.ReactNode;
+	fraction: number;
+	isDimmed?: boolean;
+	isSelected?: boolean;
+	onClick?: () => void;
+	rank: number;
+	value: number;
+}) {
+	const content = (
+		<>
+			<span className="w-5 shrink-0 text-muted-foreground text-sm tabular-nums">
+				{rank}
+			</span>
+			<span className="relative flex h-9 min-w-0 flex-1 items-center gap-2 px-2.5">
+				<span
+					className={cn(
+						"absolute inset-y-0 left-0 rounded",
+						isSelected ? "bg-foreground/15" : "bg-secondary"
+					)}
+					style={{ width: `${Math.max(fraction * 100, 2)}%` }}
+				/>
+				{children}
+			</span>
+			<span className="w-10 shrink-0 text-right font-medium text-sm tabular-nums">
+				{formatNumber(value)}
+			</span>
+		</>
+	);
+	const className = cn(
+		"flex w-full items-center gap-3 text-left transition-opacity",
+		isDimmed && "opacity-40"
+	);
+	return onClick ? (
+		<Button
+			aria-pressed={isSelected}
+			className={cn(
+				className,
+				"h-auto justify-start px-0 font-normal text-foreground hover:bg-transparent hover:opacity-100 active:scale-100 active:bg-transparent"
+			)}
+			onClick={onClick}
+			variant="ghost"
+		>
+			{content}
+		</Button>
+	) : (
+		<div className={className}>{content}</div>
+	);
+}
+
+function ShowAllButton({
+	count,
+	isExpanded,
+	onToggle,
+}: {
+	count: number;
+	isExpanded: boolean;
+	onToggle: () => void;
+}) {
+	return count > READ_ROWS ? (
+		<Button
+			className="self-center"
+			onClick={onToggle}
+			size="sm"
+			variant="ghost"
+		>
+			{isExpanded ? "Show less" : `Show all ${count}`}
+		</Button>
+	) : null;
+}
+
+function ListSkeleton() {
+	return (
+		<div className="space-y-1">
+			{Array.from({ length: READ_ROWS }, (_, index) => (
+				<Skeleton className="h-9 w-full" key={index} />
+			))}
+		</div>
+	);
+}
+
+function formatSplit(agent: AgentFormats): string {
+	return READ_FORMATS.filter((format) => agent[format] > 0)
+		.map((format) => `${FORMATS[format].label} ${formatNumber(agent[format])}`)
+		.join(" · ");
+}
+
+function AgentReadsPanel({
+	agents,
+	formats,
+	isLoading,
+	reads,
+}: {
+	agents: AgentFormats[];
+	formats: FormatRow[];
+	isLoading: boolean;
+	reads: PageRead[];
+}) {
+	const available = READ_FORMATS.filter((format) =>
+		formats.some((row) => row.format === format && Number(row.requests) > 0)
+	);
+	const options: ReadFocus[] =
+		available.length > 1 ? [...available, "all"] : available;
+	const [chosenFocus, setChosenFocus] = useState<ReadFocus | null>(null);
+	const [selectedId, setSelectedId] = useState<string | null>(null);
+	const [areAgentsExpanded, setAreAgentsExpanded] = useState(false);
+	const [arePagesExpanded, setArePagesExpanded] = useState(false);
+	const focus: ReadFocus =
+		chosenFocus && options.includes(chosenFocus)
+			? chosenFocus
+			: (options[0] ?? "all");
+	const label = focus === "all" ? "AI" : FORMATS[focus].label;
+
+	const rankedAgents = agents
+		.map((agent) => ({
+			...agent,
+			value: focus === "all" ? agent.requests : agent[focus],
+		}))
+		.filter((agent) => agent.value > 0)
+		.sort((a, b) => b.value - a.value);
+	const selected = rankedAgents.find((agent) => agent.agent_id === selectedId);
+
+	const pages = useMemo(() => {
+		const byPage = new Map<string, { page: string; readers: PageReader[] }>();
+		for (const read of reads) {
+			if (focus !== "all" && read.format !== focus) {
+				continue;
+			}
+			const row = byPage.get(read.page) ?? { page: read.page, readers: [] };
+			row.readers.push(...(read.agents ?? []));
+			byPage.set(read.page, row);
+		}
+		return [...byPage.values()]
+			.map((row) => {
+				const readers = selected
+					? row.readers.filter(
+							(reader) => reader.agent_id === selected.agent_id
+						)
+					: row.readers;
+				return {
+					page: row.page,
+					readers: [...new Set(readers.map((reader) => reader.name))],
+					value: readers.reduce(
+						(sum, reader) => sum + (Number(reader.requests) || 0),
+						0
+					),
+				};
+			})
+			.filter((row) => row.value > 0)
+			.sort((a, b) => b.value - a.value);
+	}, [reads, focus, selected]);
+
+	const total =
+		focus === "all"
+			? formats.reduce((sum, row) => sum + (Number(row.requests) || 0), 0)
+			: Number(formats.find((row) => row.format === focus)?.requests) || 0;
+	const maxAgentValue = rankedAgents[0]?.value || 1;
+	const maxPageValue = pages[0]?.value || 1;
+	const visibleAgents = areAgentsExpanded
+		? rankedAgents
+		: rankedAgents.slice(0, READ_ROWS);
+	const visiblePages = arePagesExpanded ? pages : pages.slice(0, READ_ROWS);
+
+	return (
+		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-2">
+			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
+				<div className="flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<p className="font-semibold text-sm">Who reads your content</p>
+						{isLoading ? (
+							<>
+								<Skeleton className="mt-2 h-7 w-28" />
+								<Skeleton className="mt-1 h-4 w-40" />
+							</>
+						) : (
+							<>
+								<p className="mt-2 font-semibold text-2xl tabular-nums">
+									{formatNumber(total)}
+									<span className="ml-1.5 font-normal text-muted-foreground text-xs">
+										{label} requests
+									</span>
+								</p>
+								<p className="mt-1 text-muted-foreground text-xs">
+									from {rankedAgents.length}{" "}
+									{rankedAgents.length === 1 ? "agent" : "agents"}
+								</p>
+							</>
+						)}
+					</div>
+					{options.length > 1 ? (
+						<SegmentedControl
+							onChange={(value) => {
+								setChosenFocus(value);
+								setSelectedId(null);
+								setAreAgentsExpanded(false);
+								setArePagesExpanded(false);
+							}}
+							options={options.map((value) => ({
+								label: value === "all" ? "All" : FORMATS[value].label,
+								value,
+							}))}
+							size="sm"
+							value={focus}
+						/>
+					) : null}
+				</div>
+				{isLoading ? (
+					<ListSkeleton />
+				) : (
+					<div className="flex flex-col gap-1">
+						{visibleAgents.map((agent, index) => (
+							<BarRow
+								fraction={agent.value / maxAgentValue}
+								isDimmed={Boolean(selected) && selected !== agent}
+								isSelected={selected === agent}
+								key={agent.agent_id}
+								onClick={() =>
+									setSelectedId(selected === agent ? null : agent.agent_id)
+								}
+								rank={index + 1}
+								value={agent.value}
+							>
+								<span className="relative shrink-0">
+									<AiProductIcon name={agent.product} size="sm" />
+								</span>
+								<span className="relative min-w-0 truncate font-medium text-sm">
+									{agent.name}
+								</span>
+								<span className="relative ml-auto hidden shrink-0 text-muted-foreground text-xs sm:inline">
+									{focus === "all" && agent.markdown + agent.llms > 0
+										? formatSplit(agent)
+										: PURPOSE_LABELS[agent.purpose]}
+								</span>
+							</BarRow>
+						))}
+					</div>
+				)}
+				<ShowAllButton
+					count={rankedAgents.length}
+					isExpanded={areAgentsExpanded}
+					onToggle={() => setAreAgentsExpanded((expanded) => !expanded)}
+				/>
+			</div>
+
+			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
+				<div className="flex items-start justify-between gap-3">
+					<div className="min-w-0">
+						<p className="truncate font-semibold text-sm">
+							{selected
+								? `What ${selected.name} read`
+								: focus === "llms"
+									? "llms.txt files"
+									: focus === "all"
+										? "Pages"
+										: `${label} pages`}
+						</p>
+						<p className="text-muted-foreground text-xs">
+							{selected
+								? `${formatNumber(selected.value)} ${label} requests`
+								: "Pick an agent to see only what it read"}
+						</p>
+					</div>
+					{selected ? (
+						<Button
+							onClick={() => setSelectedId(null)}
+							size="sm"
+							variant="ghost"
+						>
+							Show all agents
+						</Button>
+					) : null}
+				</div>
+				{isLoading ? (
+					<ListSkeleton />
+				) : (
+					<div className="flex flex-col gap-1">
+						{visiblePages.map((page, index) => (
+							<BarRow
+								fraction={page.value / maxPageValue}
+								key={page.page}
+								rank={index + 1}
+								value={page.value}
+							>
+								<span className="relative min-w-0 flex-1 truncate text-sm">
+									{page.page}
+								</span>
+								{selected ? null : (
+									<span className="relative hidden max-w-[45%] shrink-0 truncate text-muted-foreground text-xs sm:inline">
+										{page.readers.join(", ")}
+									</span>
+								)}
+							</BarRow>
+						))}
+					</div>
+				)}
+				<ShowAllButton
+					count={pages.length}
+					isExpanded={arePagesExpanded}
+					onToggle={() => setArePagesExpanded((expanded) => !expanded)}
+				/>
+			</div>
+		</div>
+	);
+}
+
 export default function AgentsPage() {
 	const { id } = useParams();
 	const websiteId = id as string;
@@ -1173,36 +1426,21 @@ export default function AgentsPage() {
 		})
 	);
 
-	const readTabs = useMemo(
-		() =>
-			READ_FORMATS.map((format) => {
-				const byPage = new Map<string, PageReadRow>();
-				for (const read of reads) {
-					if (read.format !== format) {
-						continue;
-					}
-					const row = byPage.get(read.page) ?? {
-						agents: [],
-						last_seen: read.last_seen,
-						name: read.page,
-						requests: 0,
-					};
-					row.agents.push(read);
-					row.requests += Number(read.requests) || 0;
-					if (read.last_seen > row.last_seen) {
-						row.last_seen = read.last_seen;
-					}
-					byPage.set(read.page, row);
-				}
-				return {
-					columns: readColumns,
-					data: [...byPage.values()].sort((a, b) => b.requests - a.requests),
-					id: format,
-					label: FORMATS[format].label,
-				};
-			}).filter((tab) => tab.data.length > 0),
-		[reads]
-	);
+	const agentFormats = crawlers.map((crawler): AgentFormats => {
+		const markdown = Number(crawler.markdown) || 0;
+		const llms = Number(crawler.llms) || 0;
+		const requests = Number(crawler.requests) || 0;
+		return {
+			agent_id: crawler.agent_id,
+			html: requests - markdown - llms,
+			llms,
+			markdown,
+			name: crawler.name,
+			product: crawler.product,
+			purpose: crawler.purpose,
+			requests,
+		};
+	});
 	const landingRows = landingPages.map(
 		({ page, ...row }): LandingPageRow => ({ ...row, name: page })
 	);
@@ -1290,14 +1528,12 @@ export default function AgentsPage() {
 					) : null}
 				</div>
 
-				{isLoading || readTabs.length > 0 ? (
-					<DataTable
-						description="Pages AI crawlers and agents read, in the format they asked for"
-						initialPageSize={10}
+				{isLoading || reads.length > 0 ? (
+					<AgentReadsPanel
+						agents={agentFormats}
+						formats={formats}
 						isLoading={isLoading}
-						key={readTabs.map((tab) => tab.id).join()}
-						tabs={readTabs}
-						title="What AI reads"
+						reads={reads}
 					/>
 				) : null}
 
