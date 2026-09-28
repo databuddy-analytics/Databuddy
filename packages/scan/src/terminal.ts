@@ -180,7 +180,7 @@ export function createTerminal({ json = false }: { json?: boolean } = {}) {
 			...notes(s.warnings),
 			...visible.map(
 				(row) =>
-					`  ${location(row)} · ${row.action ? `${clean(row.action.label)} · ` : ""}${row.coverage}${area(row)}`
+					`  ${location(row)} · ${row.action ? `${clean(row.action.label)} · ` : ""}${row.coverage}${area(row)}${row.suggestedEvent ? ` → ${clean(row.suggestedEvent.name)}` : ""}`
 			),
 		];
 		if (flagged.length > visible.length || quiet) {

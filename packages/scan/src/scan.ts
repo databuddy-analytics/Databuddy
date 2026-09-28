@@ -35,7 +35,8 @@ export const scanOptionsSchema = z.object({
 });
 const concurrency = 8;
 const batchFiles = 2;
-const timeoutMs = 15_000;
+const gatewayTimeoutMs = 15_000;
+const hostedTimeoutMs = 2 * gatewayTimeoutMs + 5000;
 const maxRequestBytes = 48_000;
 const attemptSchema = z.object({
 	attempt: z.number(),
@@ -118,6 +119,314 @@ const routeArrow = / -> /;
 const packageManifest = /(?:^|\/)package\.json$/;
 const procedureCall =
 	/\b[\w$]+\.(\w+)\.(\w+)\.(?:mutationOptions|queryOptions|infiniteOptions|call|mutate|mutateAsync)\b/g;
+const pastTense: Record<string, string> = {
+	create: "created",
+	add: "added",
+	new: "created",
+	insert: "created",
+	delete: "deleted",
+	remove: "removed",
+	destroy: "deleted",
+	update: "updated",
+	edit: "updated",
+	save: "saved",
+	set: "updated",
+	change: "changed",
+	rename: "renamed",
+	invite: "invited",
+	send: "sent",
+	submit: "submitted",
+	publish: "published",
+	connect: "connected",
+	install: "installed",
+	disconnect: "disconnected",
+	export: "exported",
+	download: "downloaded",
+	import: "imported",
+	upload: "uploaded",
+	upgrade: "upgraded",
+	downgrade: "downgraded",
+	checkout: "checkout_started",
+	purchase: "purchased",
+	buy: "purchased",
+	pay: "paid",
+	subscribe: "subscribed",
+	unsubscribe: "unsubscribed",
+	login: "signed_in",
+	logout: "signed_out",
+	register: "signed_up",
+	signup: "signed_up",
+	signin: "signed_in",
+	signout: "signed_out",
+	enable: "enabled",
+	disable: "disabled",
+	toggle: "toggled",
+	generate: "generated",
+	regenerate: "regenerated",
+	copy: "copied",
+	accept: "accepted",
+	decline: "declined",
+	reject: "rejected",
+	deny: "denied",
+	approve: "approved",
+	cancel: "cancelled",
+	archive: "archived",
+	restore: "restored",
+	transfer: "transferred",
+	verify: "verified",
+	reset: "reset",
+	run: "run",
+	trigger: "triggered",
+	start: "started",
+	stop: "stopped",
+	pause: "paused",
+	resume: "resumed",
+	share: "shared",
+	request: "requested",
+	redeem: "redeemed",
+	rotate: "rotated",
+	revoke: "revoked",
+	test: "tested",
+	schedule: "scheduled",
+	book: "booked",
+	vote: "voted",
+	reply: "replied",
+	comment: "commented",
+	follow: "followed",
+	unfollow: "unfollowed",
+	like: "liked",
+	bookmark: "bookmarked",
+	join: "joined",
+	leave: "left",
+	apply: "applied",
+	clear: "cleared",
+	sync: "synced",
+	duplicate: "duplicated",
+	resolve: "resolved",
+	assign: "assigned",
+	retry: "retried",
+	resend: "resent",
+	allow: "allowed",
+	compile: "compiled",
+	discard: "discarded",
+};
+const methodTense: Record<string, string> = {
+	post: "created",
+	put: "updated",
+	patch: "updated",
+	delete: "deleted",
+};
+const fillerWords = new Set([
+	"a",
+	"an",
+	"the",
+	"to",
+	"and",
+	"or",
+	"of",
+	"for",
+	"on",
+	"in",
+	"my",
+	"your",
+	"this",
+	"with",
+	"handle",
+	"handler",
+	"action",
+	"click",
+	"button",
+	"form",
+	"dialog",
+	"modal",
+	"sheet",
+	"item",
+	"data",
+	"value",
+	"values",
+	"async",
+	"fn",
+	"app",
+	"v",
+	"route",
+	"now",
+	"all",
+	"it",
+	"is",
+	"after",
+	"before",
+	"event",
+	"events",
+	"hook",
+	"hooks",
+	"continue",
+	"change",
+	"changes",
+	"settings",
+	"setting",
+]);
+const eventProperty =
+	/[{,]\s*(plan|role|provider|method|type|status|interval|tier|channel|format|kind|visibility|currency|environment|frequency|template|source|reason)\s*[:,}]/g;
+const mutationCall =
+	/\b[\w$]+\.(\w+)\.(\w+)\.(?:mutationOptions|call|mutate|mutateAsync)\b/;
+const exportedMethod = /^(?:GET|POST|PUT|PATCH|DELETE)$/;
+const labelRoute = /^(get|post|put|patch|delete|all) (\/\S*)/i;
+const pathParam = /^[:[{(]/;
+const apiVersion = /^v\d+$/;
+const routeConfig = /\.route\(\s*\{[^{}]*\}\s*\)/g;
+const routeFile = new Set(["route", "index", "page"]);
+const genericPathWords = new Set([
+	"page",
+	"index",
+	"route",
+	"routes",
+	"component",
+	"components",
+	"client",
+	"content",
+	"section",
+	"view",
+	"list",
+	"table",
+	"src",
+	"lib",
+	"ui",
+	"hook",
+	"hooks",
+	"server",
+	"main",
+	"layout",
+	"use",
+	"apps",
+	"packages",
+	"dashboard",
+	"web",
+	"feature",
+	"features",
+	"destructive",
+	"api",
+	"v",
+]);
+const quotedText = /"([^"]+)"/;
+const handlerName = /^(?:[\w$.]+\.[\w$]+|handler) ([\w$]+)$/;
+const nonLetters = /[^A-Za-z]+/g;
+const camelSplit = /([a-z])([A-Z])/g;
+const authCompound = /\b(sign|log)\s+(in|up|out)\b/gi;
+
+function eventWords(text: string) {
+	return text
+		.replace(camelSplit, "$1 $2")
+		.replace(authCompound, "$1$2")
+		.replace(nonLetters, " ")
+		.toLowerCase()
+		.split(" ")
+		.filter(Boolean);
+}
+function singular(word: string) {
+	if (word.endsWith("ies")) {
+		return `${word.slice(0, -3)}y`;
+	}
+	if (word.endsWith("sses") || word.endsWith("xes")) {
+		return word.slice(0, -2);
+	}
+	return word.endsWith("s") && !word.endsWith("ss") && !word.endsWith("us")
+		? word.slice(0, -1)
+		: word;
+}
+const objectWords = (words: string[]) =>
+	words
+		.filter((word) => !(fillerWords.has(word) || word in pastTense))
+		.map(singular)
+		.filter((word, index, all) => word !== all[index - 1])
+		.slice(0, 3);
+function pathObject(path: string) {
+	for (const part of path.split("/").reverse()) {
+		const words = pathParam.test(part)
+			? []
+			: objectWords(eventWords(part.split(".")[0] ?? "")).filter(
+					(word) => !genericPathWords.has(word)
+				);
+		if (words.length) {
+			return words.slice(0, 2);
+		}
+	}
+	return [];
+}
+function phraseEvent(phrase: string, path: string, fallbackVerb?: string) {
+	const words = eventWords(phrase);
+	const verbAt = words.findIndex((word) => word in pastTense);
+	const verb = pastTense[words[verbAt] ?? ""];
+	if (!(verb || fallbackVerb)) {
+		return;
+	}
+	const nouns = objectWords(words);
+	const object = nouns.length
+		? nouns
+		: words
+				.slice(verbAt + 1)
+				.filter((word) => word in pastTense)
+				.slice(0, 1);
+	const subject = object.length
+		? object
+		: verb?.startsWith("signed_")
+			? ["user"]
+			: pathObject(path);
+	return subject.length
+		? [...subject, verb ?? fallbackVerb].join("_")
+		: undefined;
+}
+export function suggestEvent(
+	path: string,
+	label: string,
+	source: string
+): { name: string; properties: string[] } | undefined {
+	const mutation = mutationCall.exec(source);
+	const route = labelRoute.exec(label);
+	const parts = path.split("/");
+	const appAt = Math.max(parts.lastIndexOf("app"), parts.lastIndexOf("pages"));
+	const next =
+		exportedMethod.test(label) && appAt !== -1
+			? parts
+					.slice(appAt + 1)
+					.map((part) => part.split(".")[0] ?? "")
+					.filter((part) => !routeFile.has(part))
+			: undefined;
+	const routeWords = (segments: string[]) =>
+		segments
+			.filter(
+				(part) =>
+					part &&
+					part !== "api" &&
+					!pathParam.test(part) &&
+					!apiVersion.test(part)
+			)
+			.slice(-2)
+			.join(" ");
+	const name =
+		(mutation && phraseEvent(`${mutation[1]} ${mutation[2]}`, path)) ||
+		phraseEvent(handlerName.exec(label)?.[1] ?? "", path) ||
+		phraseEvent(quotedText.exec(label)?.[1] ?? "", path) ||
+		(route &&
+			phraseEvent(
+				routeWords((route[2] ?? "").split("/")),
+				path,
+				methodTense[(route[1] ?? "").toLowerCase()]
+			)) ||
+		(next &&
+			phraseEvent(routeWords(next), path, methodTense[label.toLowerCase()])) ||
+		phraseEvent(label, path);
+	if (!name) {
+		return;
+	}
+	const properties = [
+		...new Set(
+			[...source.replace(routeConfig, "").matchAll(eventProperty)].map(
+				(match) => match[1] ?? ""
+			)
+		),
+	].slice(0, 3);
+	return { name, properties };
+}
 function firstArgument(text: string) {
 	const open: string[] = [];
 	let argument = "";
@@ -561,6 +870,7 @@ export async function scan(
 			?.trim()
 			.replace(quoted, "$2") ||
 		undefined;
+	const timeoutMs = apiKey ? gatewayTimeoutMs : hostedTimeoutMs;
 	const destination: Destination = apiKey
 		? { host: "ai-gateway.vercel.sh", kind: "gateway" }
 		: { host: new URL(hostedScanUrl).host, kind: "databuddy" };
@@ -837,14 +1147,26 @@ export async function scan(
 		};
 		const round = (value: number | null) =>
 			value === null ? null : Math.round(value * 100) / 100;
+		const sourceAt = new Map(
+			found.map((segment) => [`${segment.path}:${segment.start}`, segment])
+		);
 		const result = {
 			summary,
-			rows: rows.map((row) => ({
-				...row,
-				priority: round(row.priority) ?? 0,
-				coverageProbability: round(row.coverageProbability),
-				categoryProbability: round(row.categoryProbability),
-			})),
+			rows: rows.map((row) => {
+				const segment = sourceAt.get(`${row.path}:${row.start}`);
+				const suggestedEvent =
+					segment?.action &&
+					(row.coverage === "missing" || row.coverage === "partial")
+						? suggestEvent(row.path, segment.action.label, segment.source)
+						: undefined;
+				return {
+					...row,
+					...(suggestedEvent && { suggestedEvent }),
+					priority: round(row.priority) ?? 0,
+					coverageProbability: round(row.coverageProbability),
+					categoryProbability: round(row.categoryProbability),
+				};
+			}),
 		};
 		await saveJSON(join(output, "results.json"), result);
 		log("finished", { summary });
