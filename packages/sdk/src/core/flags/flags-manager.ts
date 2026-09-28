@@ -119,6 +119,10 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		return false;
 	}
 
+	protected canFetchFromReads(): boolean {
+		return true;
+	}
+
 	protected onCacheUpdated(): void {}
 
 	protected onContextCleared(): void {}
@@ -527,7 +531,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			};
 		}
 
-		if (!entry) {
+		if (!entry && this.canFetchFromReads()) {
 			this.getFlag(key).catch((err) =>
 				logger.error(`Background fetch error: ${key}`, err)
 			);
@@ -557,7 +561,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			return entry.result.value as T;
 		}
 
-		if (!entry) {
+		if (!entry && this.canFetchFromReads()) {
 			this.getFlag(key).catch((err) =>
 				logger.error(`Background fetch error: ${key}`, err)
 			);
@@ -883,6 +887,10 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 
 	protected override shouldSkipFetch(): boolean {
 		return !this.isVisible;
+	}
+
+	protected override canFetchFromReads(): boolean {
+		return this.started;
 	}
 
 	protected override onCacheUpdated(): void {
