@@ -643,7 +643,7 @@ export async function discoverWebsiteSignals(
 					undefined,
 					sourceAbortSignal
 				) ?? Promise.resolve([])
-			).catch((error: unknown) => {
+			).catch((error) => {
 				captureInsightsError(
 					error,
 					"generation.detection.optional_source_failed",
