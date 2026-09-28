@@ -30,6 +30,7 @@ export function createFlagsPlugin(options: FlagsConfig) {
 					state.lastError = snapshot?.lastError ?? null;
 				}
 			});
+			currentManager.start();
 
 			if (typeof window !== "undefined") {
 				window.__databuddyFlags = currentManager;

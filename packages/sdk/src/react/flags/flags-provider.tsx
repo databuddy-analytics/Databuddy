@@ -90,7 +90,10 @@ export function FlagsProvider({ children, ...config }: FlagsProviderProps) {
 		}
 	}, [manager, config]);
 
-	useEffect(() => () => manager.destroy(), [manager]);
+	useEffect(() => {
+		manager.start();
+		return () => manager.destroy();
+	}, [manager]);
 
 	const store = useSyncExternalStore(
 		manager.subscribe,
