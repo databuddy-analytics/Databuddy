@@ -431,12 +431,6 @@ async function deliverItems<T>(
 			sourceEventId: item.sourceEventId,
 		}))
 	);
-	if (reservations.some((reservation) => reservation.retryable)) {
-		throw deliveryUnavailable(
-			new Error("A concurrent attempt owns this analytics batch")
-		);
-	}
-
 	const reservationById = new Map(
 		acquisitionItems.map((item, index) => [
 			item.deliveryId,
@@ -445,12 +439,10 @@ async function deliverItems<T>(
 	);
 	const accepted = uniqueItems.flatMap((item) => {
 		const reservation = reservationById.get(item.deliveryId);
-		return reservation && !reservation.duplicate ? [{ item, reservation }] : [];
+		return reservation && !reservation.duplicate && !reservation.retryable
+			? [{ item, reservation }]
+			: [];
 	});
-	if (accepted.length === 0) {
-		return;
-	}
-
 	const groups = [
 		accepted.filter(({ reservation }) => !reservation.ambiguous),
 		accepted.filter(({ reservation }) => reservation.ambiguous),
@@ -487,6 +479,17 @@ async function deliverItems<T>(
 	);
 	if (failure) {
 		throw deliveryUnavailable(failure.reason);
+	}
+
+	const ownedElsewhere = reservations.filter(
+		(reservation) => reservation.retryable
+	).length;
+	if (ownedElsewhere > 0) {
+		throw deliveryUnavailable(
+			new Error(
+				`A concurrent attempt owns ${ownedElsewhere} of ${uniqueItems.length} events in this analytics batch`
+			)
+		);
 	}
 }
 
