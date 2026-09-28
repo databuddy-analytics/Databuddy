@@ -75,6 +75,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", autoFetch: false },
 				});
+				manager.start();
 				await new Promise((r) => setTimeout(r, 50));
 				const result = manager.isReady();
 				manager.destroy();
@@ -103,6 +104,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id" },
 				});
+				manager.start();
 				await new Promise((r) => setTimeout(r, 200));
 				manager.destroy();
 			});
@@ -128,6 +130,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", autoFetch: false },
 				});
+				manager.start();
 				await new Promise((r) => setTimeout(r, 200));
 				manager.destroy();
 			});
@@ -142,6 +145,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", autoFetch: false },
 				});
+				manager.start();
 				const flag = await manager.getFlag("feature-on");
 				manager.destroy();
 				return flag;
@@ -157,6 +161,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", autoFetch: false },
 				});
+				manager.start();
 				const flag = await manager.getFlag("feature-off");
 				manager.destroy();
 				return flag;
@@ -173,6 +178,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", autoFetch: false },
 				});
+				manager.start();
 				const flag = await manager.getFlag("feature-variant");
 				manager.destroy();
 				return flag;
@@ -188,6 +194,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", autoFetch: false, disabled: true },
 				});
+				manager.start();
 				const flag = await manager.getFlag("feature-on");
 				manager.destroy();
 				return flag;
@@ -206,6 +213,7 @@ test.describe("BrowserFlagsManager", () => {
 						isPending: true,
 					},
 				});
+				manager.start();
 				const flag = await manager.getFlag("feature-on");
 				manager.destroy();
 				return flag;
@@ -232,6 +240,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", autoFetch: false },
 				});
+				manager.start();
 				await manager.fetchAllFlags();
 				manager.isEnabled("feature-on");
 				manager.destroy();
@@ -265,6 +274,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", autoFetch: false },
 				});
+				manager.start();
 				await manager.fetchAllFlags();
 				manager.isEnabled("feature-on");
 				manager.updateUser({ userId: "user-1" });
@@ -282,6 +292,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", autoFetch: false },
 				});
+				manager.start();
 				const result = manager.isEnabled("uncached-flag");
 				manager.destroy();
 				return result;
@@ -297,6 +308,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", autoFetch: false },
 				});
+				manager.start();
 				await manager.getFlag("feature-on");
 				const result = manager.isEnabled("feature-on");
 				manager.destroy();
@@ -315,6 +327,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", autoFetch: false },
 				});
+				manager.start();
 				await manager.getFlag("feature-variant");
 				const result = manager.getValue("feature-variant");
 				manager.destroy();
@@ -329,6 +342,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", autoFetch: false },
 				});
+				manager.start();
 				const result = manager.getValue("unknown-flag", 42);
 				manager.destroy();
 				return result;
@@ -359,6 +373,7 @@ test.describe("BrowserFlagsManager", () => {
 						staleTime: 30_000,
 					},
 				});
+				manager.start();
 
 				await manager.getFlag("feature-on");
 				await manager.getFlag("feature-on");
@@ -386,6 +401,7 @@ test.describe("BrowserFlagsManager", () => {
 						staleTime: 25,
 					},
 				});
+				manager.start();
 
 				await manager.getFlag("feature-on");
 				const cached = manager.isEnabled("feature-on");
@@ -433,6 +449,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", autoFetch: false },
 				});
+				manager.start();
 
 				const [a, b, c] = await Promise.all([
 					manager.getFlag("flag-a"),
@@ -476,6 +493,7 @@ test.describe("BrowserFlagsManager", () => {
 						user: { userId: "user-123", email: "test@example.com" },
 					},
 				});
+				manager.start();
 				await new Promise((r) => setTimeout(r, 200));
 				manager.destroy();
 			});
@@ -510,6 +528,7 @@ test.describe("BrowserFlagsManager", () => {
 						user: { userId: "user-1" },
 					},
 				});
+				manager.start();
 				await new Promise((r) => setTimeout(r, 200));
 				manager.updateUser({ userId: "user-2" });
 				await new Promise((r) => setTimeout(r, 200));
@@ -561,6 +580,7 @@ test.describe("BrowserFlagsManager", () => {
 					},
 					storage,
 				});
+				manager.start();
 				await new Promise((resolve) => setTimeout(resolve, 100));
 				const before = manager.getSnapshot().flags["user-a-only"];
 
@@ -620,6 +640,7 @@ test.describe("BrowserFlagsManager", () => {
 					},
 					storage,
 				});
+				manager.start();
 				await new Promise((resolve) => setTimeout(resolve, 20));
 				const flags = manager.getSnapshot().flags;
 				const persisted = storage.getAll();
@@ -656,6 +677,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id" },
 				});
+				manager.start();
 				await new Promise((r) => setTimeout(r, 200));
 				manager.destroy();
 			});
@@ -685,6 +707,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id" },
 				});
+				manager.start();
 				await new Promise((r) => setTimeout(r, 200));
 				await manager.refresh();
 				manager.destroy();
@@ -702,6 +725,7 @@ test.describe("BrowserFlagsManager", () => {
 					config: { clientId: "test-id" },
 					storage,
 				});
+				manager.start();
 				await new Promise((r) => setTimeout(r, 200));
 
 				const flagsBefore = manager.getMemoryFlags();
@@ -727,6 +751,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", autoFetch: false },
 				});
+				manager.start();
 				await manager.getFlag("feature-on");
 				const beforeDestroy = Object.keys(manager.getMemoryFlags()).length;
 
@@ -747,6 +772,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id" },
 				});
+				manager.start();
 				await new Promise((r) => setTimeout(r, 300));
 				const result = manager.getMemoryFlags();
 				manager.destroy();
@@ -773,6 +799,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", autoFetch: false },
 				});
+				manager.start();
 				let message = "";
 				try {
 					await manager.getFlag("feature-on");
@@ -816,6 +843,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", disabled: true },
 				});
+				manager.start();
 				await new Promise((r) => setTimeout(r, 100));
 				manager.updateConfig({ clientId: "test-id", disabled: false });
 				await new Promise((r) => setTimeout(r, 300));
@@ -847,6 +875,7 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", isPending: true },
 				});
+				manager.start();
 				await new Promise((r) => setTimeout(r, 100));
 				manager.updateConfig({ clientId: "test-id", isPending: false });
 				await new Promise((r) => setTimeout(r, 300));
@@ -879,6 +908,7 @@ test.describe("BrowserFlagsManager", () => {
 						environment: "staging",
 					},
 				});
+				manager.start();
 				await new Promise((r) => setTimeout(r, 200));
 				manager.destroy();
 			});

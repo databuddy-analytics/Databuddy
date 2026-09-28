@@ -825,12 +825,22 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 	private isVisible = true;
 	private visibilityCleanup?: () => void;
 	private readonly trackedFlags = new Set<string>();
+	private started = false;
 
 	constructor(options: FlagsManagerOptions) {
 		super(options);
 		this.config.user = this.enrichUser(this.config.user ?? {});
 		this.config.autoFetch = options.config.autoFetch !== false;
 		this.loadOverrides();
+	}
+
+	// React may construct managers in renders it never commits; network and
+	// listeners wait for a mounted owner so discarded renders stay inert.
+	start(): void {
+		if (this.started) {
+			return;
+		}
+		this.started = true;
 		this.setupVisibilityListener();
 		this.runInit();
 	}
@@ -958,7 +968,9 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 	override destroy(): void {
 		super.destroy();
 		this.visibilityCleanup?.();
+		this.visibilityCleanup = undefined;
 		this.trackedFlags.clear();
+		this.started = false;
 	}
 
 	private getOrCreateAnonId(): string | null {
