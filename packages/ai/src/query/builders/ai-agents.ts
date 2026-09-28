@@ -295,6 +295,11 @@ export const AiAgentsBuilders = {
 				{ name: "product", type: "string", label: "Product" },
 				{ name: "purpose", type: "string", label: "Purpose" },
 				{ name: "requests", type: "number", label: "Requests" },
+				{
+					name: "proxied_requests",
+					type: "number",
+					label: "Requests seen by @databuddy/sdk/agents",
+				},
 				{ name: "last_seen", type: "datetime", label: "Last request" },
 				{ name: "user_agent", type: "string", label: "User agent" },
 			],
@@ -308,6 +313,7 @@ export const AiAgentsBuilders = {
 					any(${AGENT_PRODUCT}) AS product,
 					any(agent_purpose) AS purpose,
 					count() AS requests,
+					countIf(source = 'middleware') AS proxied_requests,
 					max(timestamp) AS last_seen,
 					any(user_agent) AS user_agent
 				FROM ${Analytics.ai_traffic_spans}
