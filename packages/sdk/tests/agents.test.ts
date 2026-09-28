@@ -198,12 +198,42 @@ describe("trackAgents", () => {
 		expect(bodies).toEqual([]);
 	});
 
-	it("never rejects when basket is unreachable", async () => {
-		globalThis.fetch = mock(() =>
-			Promise.reject(new Error("network down"))
-		) as typeof fetch;
-		await expect(
-			trackAgents(request("/pricing"), OPTIONS)
-		).resolves.toBeUndefined();
+	it.each([
+		[
+			"basket is unreachable",
+			() => {
+				globalThis.fetch = mock(() =>
+					Promise.reject(new Error("network down"))
+				) as typeof fetch;
+				return trackAgents(request("/pricing"), OPTIONS);
+			},
+		],
+		[
+			"the runtime has no fetch",
+			() => {
+				globalThis.fetch = undefined as never;
+				return trackAgents(request("/pricing"), OPTIONS);
+			},
+		],
+		[
+			"a Node request has a malformed URL",
+			() =>
+				trackAgents(
+					{ headers: { "user-agent": GPTBOT }, url: "http://[::1" },
+					OPTIONS
+				),
+		],
+		[
+			"a Node request has no headers",
+			() => trackAgents({ url: "/" } as never, OPTIONS),
+		],
+	])("never rejects when %s", async (_case, run) => {
+		await expect(run()).resolves.toBeUndefined();
+	});
+
+	it("never throws as a proxy, even without waitUntil", () => {
+		captureBodies();
+		expect(() => proxy(request("/pricing"))).not.toThrow();
+		expect(() => proxy(request("/pricing"), {})).not.toThrow();
 	});
 });
