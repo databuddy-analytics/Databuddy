@@ -46,7 +46,7 @@ function isValidStepType(value: unknown): value is ChartCurveType {
 	);
 }
 
-interface LocationPreferences {
+export interface LocationPreferences {
 	chartStepType: ChartCurveType;
 	chartType: ChartSeriesKind;
 }
