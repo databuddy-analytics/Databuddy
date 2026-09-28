@@ -194,33 +194,49 @@ export const AiAgentsBuilders = {
 		meta: {
 			title: "Pages Read by AI",
 			description:
-				"What AI crawlers and agents read: one row per page, content format (markdown, llms.txt or HTML, as the agent asked for it) and agent, with its product, request count and last request. Up to 300 rows per format, most requested first.",
+				"What AI crawlers and agents read: one row per page and content format (markdown, llms.txt or HTML, as the agent asked for it), with the request count, last request, and the agents that read it (id, name, product, requests), most requested first. Up to 300 pages per format.",
 			category: "AI Agents",
 			tags: ["ai", "agents", "crawlers", "pages", "markdown", "llms.txt"],
 			output_fields: [
 				{ name: "page", type: "string", label: "Page" },
 				{ name: "format", type: "string", label: "Format" },
-				{ name: "agent_id", type: "string", label: "Agent ID" },
-				{ name: "name", type: "string", label: "Agent" },
-				{ name: "product", type: "string", label: "Product" },
 				{ name: "requests", type: "number", label: "Requests" },
 				{ name: "last_seen", type: "datetime", label: "Last request" },
+				{ name: "agents", type: "json", label: "Read by" },
 			],
 			default_visualization: "table",
 		},
 		customSql: (ctx) => ({
 			sql: `
 				SELECT
-					${PAGE} AS page,
-					${CONTENT_FORMAT} AS format,
-					agent_id,
-					${AGENT_NAME} AS name,
-					${AGENT_PRODUCT} AS product,
-					count() AS requests,
-					max(timestamp) AS last_seen
-				FROM ${Analytics.ai_traffic_spans}
-				WHERE ${AGENT_REQUEST_IN_RANGE} AND path != ''
-				GROUP BY page, format, agent_id
+					page,
+					format,
+					sum(agent_requests) AS requests,
+					max(agent_last_seen) AS last_seen,
+					arraySlice(
+						arrayReverseSort(
+							agent -> agent.requests,
+							groupArray(CAST(
+								(agent_id, name, product, agent_requests),
+								'Tuple(agent_id String, name String, product String, requests UInt64)'
+							))
+						),
+						1, 10
+					) AS agents
+				FROM (
+					SELECT
+						${PAGE} AS page,
+						${CONTENT_FORMAT} AS format,
+						agent_id,
+						${AGENT_NAME} AS name,
+						${AGENT_PRODUCT} AS product,
+						count() AS agent_requests,
+						max(timestamp) AS agent_last_seen
+					FROM ${Analytics.ai_traffic_spans}
+					WHERE ${AGENT_REQUEST_IN_RANGE} AND path != ''
+					GROUP BY page, format, agent_id
+				)
+				GROUP BY page, format
 				ORDER BY requests DESC, page ASC
 				LIMIT 300 BY format
 				LIMIT {limit:UInt32}
