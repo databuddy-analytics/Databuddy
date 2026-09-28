@@ -57,7 +57,9 @@ export interface BillingContextValue {
 	) => string | null;
 	getUsage: (featureId: FeatureId | string) => FeatureAccess;
 	hasActiveSubscription: boolean;
+	isError: boolean;
 	isFeatureEnabled: (feature: GatedFeatureId) => boolean;
+	isFetching: boolean;
 	isFree: boolean;
 	isLoading: boolean;
 	isOrganizationBilling: boolean;
@@ -76,6 +78,8 @@ interface BillingProviderProps {
 const DEMO_BILLING_VALUE: BillingContextValue = {
 	customer: null,
 	plans: [],
+	isError: false,
+	isFetching: false,
 	isLoading: false,
 	hasActiveSubscription: true,
 	currentPlanId: PLAN_IDS.SCALE,
@@ -129,7 +133,7 @@ export function BillingProvider({
 }
 
 function SelfHostedBillingProvider({ children }: { children: ReactNode }) {
-	const { data, isLoading, refetch } = useQuery({
+	const { data, isError, isFetching, isLoading, refetch } = useQuery({
 		...orpc.organizations.getBillingContext.queryOptions(),
 		retry: false,
 	});
@@ -140,6 +144,8 @@ function SelfHostedBillingProvider({ children }: { children: ReactNode }) {
 		currentPlanId: null,
 		hasActiveSubscription: false,
 		canUserUpgrade: false,
+		isError,
+		isFetching,
 		isLoading,
 		canUse,
 		getUsage: (feature) => ({
@@ -302,6 +308,8 @@ function AuthenticatedBillingProvider({
 		return {
 			customer: customer ?? null,
 			plans: plans ?? [],
+			isError: false,
+			isFetching: false,
 			isLoading: isCustomerLoading || isPlansLoading || isBillingContextLoading,
 			hasActiveSubscription: Boolean(billingContext?.hasActiveSubscription),
 			currentPlanId,

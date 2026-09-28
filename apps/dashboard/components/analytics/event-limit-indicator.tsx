@@ -24,18 +24,17 @@ export function EventLimitIndicator() {
 		return null;
 	}
 
-	const balance = Number(data.balance ?? 0);
 	const planLimit = Number(data.includedUsage ?? 0);
 	const overageAllowed = Boolean(data.overageAllowed);
+	const used = Number(data.used ?? 0);
+	const overage = Math.max(0, used - planLimit);
+	const isOverage = overage > 0;
 
-	if (balance < 0 && overageAllowed) {
+	if (isOverage && overageAllowed) {
 		return null;
 	}
 
-	const isOverage = balance < 0;
-	const overage = Math.abs(balance);
-	const remaining = balance;
-	const used = planLimit > 0 ? planLimit - balance : 0;
+	const remaining = Math.max(0, planLimit - used);
 	const percentage = planLimit > 0 ? (used / planLimit) * 100 : 0;
 
 	if (!isOverage && percentage < 80) {

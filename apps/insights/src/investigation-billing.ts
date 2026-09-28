@@ -93,7 +93,7 @@ interface InvestigationOperation {
 	websiteId: string;
 }
 
-export interface InvestigationReservation extends InvestigationBilling {
+interface InvestigationReservation extends InvestigationBilling {
 	expiresAt: Date;
 	id: string;
 }

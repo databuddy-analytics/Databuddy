@@ -26,7 +26,7 @@ const ABSENCE_CLAIM =
 	/\b(?:does not exist|no longer exists|retired route|absent from the site|nonexistent route|(?:route|path|page) (?:is |was |has been )?(?:missing|removed|deleted|retired|unavailable)|(?:missing|removed|deleted|retired) (?:route|path|page))\b/i;
 
 const STEADY_ARRIVALS =
-	/\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained|held)\s+)?(?:unchanged|steady|stable)\b|\b(?:unchanged|steady|stable)\s+(?:new-user\s+)?(?:visits|arrivals)\b|\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained|held)\s+)?(?:at\s+)?1[,.]?200\s+(?:(?:in|across|for)\s+)?(?:both|each)\b/i;
+	/\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained|held)\s+)?(?:unchanged|steady|stable)\b|\b(?:unchanged|steady|stable)\s+(?:new-user\s+)?(?:visits|arrivals)\b|\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained|held)\s+(?:at\s+)?1[,.]?200\b(?!\s+(?:this|that|last|during|in\s+the\s+(?:current|latest)))|(?:at\s+)?1[,.]?200\s+(?:(?:in|across|for)\s+)?(?:both|each)\b)/i;
 const SOURCE_COHORT = /\bgoogle(?:\.com)?\b/i;
 const WORD_SEPARATOR = /\s+/;
 
@@ -80,7 +80,14 @@ function readTool(description: string, output: unknown) {
 		execute: () => output,
 	});
 }
-const goalTools: ToolSet = {
+function requireTool(tools: ToolSet, name: string) {
+	const found = tools[name];
+	if (!found) {
+		throw new Error(`The eval toolkit has no ${name} tool.`);
+	}
+	return found;
+}
+const goalTools = {
 	list_goals: readTool(
 		"Inspect the current goal, including its exact target and purpose.",
 		{ goals: [goal] }
@@ -94,18 +101,22 @@ const goalTools: ToolSet = {
 	),
 	get_data: tool({
 		description:
-			"Inspect page traffic. An exact path filter returns the full count for that path; otherwise returns a partial top-pages table.",
+			"Inspect page traffic for the current window. An exact path filter returns the full count for that path; otherwise returns a partial top-pages table.",
 		inputSchema: z.object({ path: z.string().nullable() }).strict(),
 		execute: ({ path }) => ({
 			results: {
 				pages: path
 					? {
+							...period.current,
+							timezone: "UTC",
 							data: [{ path, visitors: path === "/workspace" ? 164 : 0 }],
 							returnedRows: 1,
 							rowCount: 1,
 							truncated: false,
 						}
 					: {
+							...period.current,
+							timezone: "UTC",
 							data: [
 								{ path: "/", visitors: 680 },
 								{ path: "/workspace", visitors: 164 },
@@ -117,7 +128,7 @@ const goalTools: ToolSet = {
 			},
 		}),
 	}),
-};
+} satisfies ToolSet;
 
 const analyticsTools = createToolkit({ capabilities: ["analytics"] });
 const signupFunnel = {
@@ -408,12 +419,18 @@ export const qualityCases: QualityCase[] = [
 					"Authenticated visitors reach /workspace. Tracking is present. This is the correct destination for the saved workspace goal; no code or definition mismatch has been established.",
 			}),
 		},
-		check: ({ outcome }) =>
-			outcome.next.type === "act"
+		check: ({ outcome }) => [
+			...(outcome.next.type === "act"
 				? [
 						"Proposed another repair although the inspected definition already measures the correct route",
 					]
-				: [],
+				: []),
+			...(outcome.publish
+				? [
+						"Published a stale-signal conflict although the inspected goal and route are correct",
+					]
+				: []),
+		],
 	},
 	...[false, true].map(
 		(native): QualityCase => ({
@@ -442,7 +459,7 @@ export const qualityCases: QualityCase[] = [
 				...(native
 					? {
 							get_funnel_analytics: {
-								...analyticsTools.get_funnel_analytics,
+								...requireTool(analyticsTools, "get_funnel_analytics"),
 								execute: (query) => {
 									const window = z
 										.object({
@@ -688,11 +705,11 @@ export const qualityCases: QualityCase[] = [
 		}),
 		tools: {
 			list_funnels: {
-				...analyticsTools.list_funnels,
+				...requireTool(analyticsTools, "list_funnels"),
 				execute: () => ({ funnels: [signupFunnel], count: 1 }),
 			},
 			get_funnel_analytics_by_referrer: {
-				...analyticsTools.get_funnel_analytics_by_referrer,
+				...requireTool(analyticsTools, "get_funnel_analytics_by_referrer"),
 				execute: (value: unknown) => {
 					// The production input schema validates the call; these checks select only the synthetic windows.
 					const query = z
@@ -826,7 +843,7 @@ qualityCases.push({
 	}),
 	tools: {
 		github_read_file: {
-			...repositoryTools.github_read_file,
+			...requireTool(repositoryTools, "github_read_file"),
 			execute: (query) => {
 				if (
 					query.path !== "src/checkout.ts" ||
@@ -939,7 +956,7 @@ for (const repaired of [false, true]) {
 				{ goals: [{ ...goal, target: "/workspace" }] }
 			),
 			get_goal_analytics: {
-				...analyticsTools.get_goal_analytics,
+				...requireTool(analyticsTools, "get_goal_analytics"),
 				execute: (query) => {
 					if (
 						query.goalId !== goal.id ||
@@ -1056,9 +1073,14 @@ for (const scenario of [
 	};
 	const status =
 		scenario === "passed" || scenario === "failed" ? scenario : "inconclusive";
+	const originalGoalAnalytics = requireTool(
+		original.tools,
+		"get_goal_analytics"
+	);
 	qualityCases.push({
 		...original,
 		id: `check-${scenario}`,
+		reviewRequired: undefined,
 		input: {
 			...original.input,
 			appContext: {
@@ -1096,12 +1118,9 @@ for (const scenario of [
 		tools: {
 			...original.tools,
 			get_goal_analytics: {
-				...original.tools.get_goal_analytics,
+				...originalGoalAnalytics,
 				execute: async (query, options) => {
-					const output = await original.tools.get_goal_analytics.execute?.(
-						query,
-						options
-					);
+					const output = await originalGoalAnalytics.execute?.(query, options);
 					if (
 						!output ||
 						typeof output !== "object" ||
@@ -1138,13 +1157,43 @@ for (const scenario of [
 				},
 			},
 		},
-		reviewRequired: `Expected ${status}. Check that the customer copy agrees with the code verdict and preserves the reason, exact dates, measured count and threshold. A small sample or unfinished window cannot prove recovery.`,
-		check: (result, calls) => [
-			...original.check(result, calls),
-			...(result.outcome.verification?.status === status
-				? []
-				: [`Expected persisted verification status ${status}`]),
-		],
+		check: (result, calls) => {
+			const verification = result.outcome.verification;
+			const copy = [
+				result.outcome.title,
+				result.outcome.summary,
+				result.outcome.impact,
+				result.outcome.rootCause,
+				...result.outcome.evidence,
+			].join(" ");
+			const mentions = (value: number) =>
+				new RegExp(
+					`\\b${value.toLocaleString("en-US")}\\b|\\b${value}\\b`
+				).test(copy);
+			return [
+				...original.check(result, calls),
+				...(verification?.status === status
+					? []
+					: [`Expected persisted verification status ${status}`]),
+				...(verification && !isDeepStrictEqual(verification.check, check)
+					? [
+							"Persisted verification check drifted from the requested definition, window, threshold or minimum entrants",
+						]
+					: []),
+				...(verification?.measured !== null &&
+				verification?.measured !== undefined &&
+				!mentions(verification.measured)
+					? [
+							`Customer copy omits the measured count ${verification.measured} the verdict rests on`,
+						]
+					: []),
+				...(verification && !mentions(check.threshold.value)
+					? [
+							`Customer copy omits the ${check.threshold.value} threshold the verdict rests on`,
+						]
+					: []),
+			];
+		},
 	});
 }
 
@@ -1188,7 +1237,7 @@ for (const scenario of [
 		}),
 		tools: {
 			list_goals: {
-				...analyticsTools.list_goals,
+				...requireTool(analyticsTools, "list_goals"),
 				execute: () => ({ goals: [definition] }),
 			},
 			scrape_page: readTool("Inspect the workspace route and tracking.", {
@@ -1196,7 +1245,7 @@ for (const scenario of [
 					"Authenticated visitors reach /workspace. Tracking is present. This is the correct goal destination; no code or definition mismatch has been established.",
 			}),
 			get_goal_analytics: {
-				...analyticsTools.get_goal_analytics,
+				...requireTool(analyticsTools, "get_goal_analytics"),
 				execute: (query) => {
 					const previous =
 						query.startDate === period.previous.from &&
@@ -1309,7 +1358,7 @@ qualityCases.push({
 	}),
 	tools: {
 		list_funnels: {
-			...analyticsTools.list_funnels,
+			...requireTool(analyticsTools, "list_funnels"),
 			execute: (value: unknown) => {
 				z.object({
 					websiteId: z.literal(appContext.websiteId).optional(),
@@ -1318,7 +1367,7 @@ qualityCases.push({
 			},
 		},
 		get_funnel_analytics_by_referrer: {
-			...analyticsTools.get_funnel_analytics_by_referrer,
+			...requireTool(analyticsTools, "get_funnel_analytics_by_referrer"),
 			execute: (value: unknown) => {
 				const query = z
 					.object({
@@ -1504,9 +1553,9 @@ for (const scenario of [
 						],
 					}),
 		tools: {
-			discover_query_types: analyticsTools.discover_query_types,
+			discover_query_types: requireTool(analyticsTools, "discover_query_types"),
 			get_data: {
-				...analyticsTools.get_data,
+				...requireTool(analyticsTools, "get_data"),
 				execute: (value: unknown) => {
 					if (scenario === "native-unavailable") {
 						return { error: "Current revenue measurement is unavailable." };
@@ -1659,7 +1708,9 @@ qualityCases.push({
 			createdAt: appContext.currentDateTime,
 		},
 	}),
-	tools: { discover_query_types: analyticsTools.discover_query_types },
+	tools: {
+		discover_query_types: requireTool(analyticsTools, "discover_query_types"),
+	},
 	reviewRequired:
 		"Manually verify that discovery inspected cohort-retention capability: an unrelated revenue or language lookup is insufficient, and a narrow empty match does not prove catalog-wide absence. Check the stated missing cohort denominator and complete follow-up window. Native discovery currently exposes no acquisition-cohort retention builder. Keep unsupported retention/churn claims private with no invented cause or query. The automatic check only verifies a successful catalog read; it cannot judge search intent. Discovery is real and read-only; no analytics client is called.",
 	check: ({ outcome }, calls) => [
@@ -1710,7 +1761,7 @@ const depthInput = input({
 
 function depthRevenueTool(reordered: boolean, available = true) {
 	return {
-		...analyticsTools.get_data,
+		...requireTool(analyticsTools, "get_data"),
 		execute: (value: unknown) => {
 			// The model sees the native get_data schema; this boundary restricts synthetic responses.
 			const { queries } = z
@@ -1744,8 +1795,13 @@ function depthRevenueTool(reordered: boolean, available = true) {
 					query.from === depthPeriod.current.from &&
 					query.to === depthPeriod.current.to;
 				const key = `${query.type}@${appContext.websiteId}#${index + 1}`;
+				if (!available) {
+					results[key] = {
+						error: `${query.type} is not available in this workspace.`,
+					};
+					continue;
+				}
 				if (
-					!available ||
 					query.type !== "revenue_overview" ||
 					!(previous || current) ||
 					query.timezone !== "UTC" ||
@@ -1807,7 +1863,7 @@ for (const reordered of [false, true]) {
 			: "holdout-revenue-competing",
 		input: depthInput,
 		tools: {
-			discover_query_types: analyticsTools.discover_query_types,
+			discover_query_types: requireTool(analyticsTools, "discover_query_types"),
 			get_data: depthRevenueTool(reordered),
 		},
 		reviewRequired:
@@ -1833,9 +1889,7 @@ for (const reordered of [false, true]) {
 					)
 				: [];
 			const usdEvidence = outcome.evidence.filter((entry) =>
-				entry.startsWith(
-					"USD, 2026-08-25–2026-08-31 → 2026-09-01–2026-09-07 UTC:"
-				)
+				entry.startsWith("USD, Aug 25–31 → Sep 1–7:")
 			);
 			return [
 				...(outcome.publish
@@ -1844,11 +1898,11 @@ for (const reordered of [false, true]) {
 				...(outcome.rootCause === null && outcome.next.type === "resolve"
 					? []
 					: ["Invented a revenue cause or next move"]),
-				...[
-					["total_revenue", "Gross Revenue: 12,000 → 12,000"],
-					["attributed_revenue", "Attributed Revenue: 10,800 → 3,600"],
-					["refund_amount", "Refund Amount: 120 → 960"],
-				].flatMap(([field, comparison]) => [
+				...Object.entries({
+					total_revenue: "Gross Revenue: 12,000 → 12,000",
+					attributed_revenue: "Attributed Revenue: 10,800 → 3,600",
+					refund_amount: "Refund Amount: 120 → 960",
+				}).flatMap(([field, comparison]) => [
 					...(fields.includes(field)
 						? []
 						: [`Accepted finish omitted USD ${field}`]),
@@ -1875,7 +1929,7 @@ for (const available of [true, false]) {
 		},
 		tools: {
 			discover_query_types: {
-				...analyticsTools.discover_query_types,
+				...requireTool(analyticsTools, "discover_query_types"),
 				execute: async (value: unknown, options) => {
 					const { category, search } = z
 						.object({
@@ -1883,7 +1937,10 @@ for (const available of [true, false]) {
 							search: z.string().nullish(),
 						})
 						.parse(value);
-					const discover = analyticsTools.discover_query_types.execute;
+					const discover = requireTool(
+						analyticsTools,
+						"discover_query_types"
+					).execute;
 					if (!discover) {
 						throw new Error("Missing native catalog discovery");
 					}
@@ -1981,8 +2038,26 @@ for (const available of [true, false]) {
 						: !query.data.category && relevant)
 				);
 			});
+			const directRead = calls.some(
+				(call) =>
+					call.name === "get_data" &&
+					Object.entries(
+						z
+							.object({
+								results: z.record(
+									z.string(),
+									z.object({ data: z.array(z.unknown()).optional() }).catch({})
+								),
+							})
+							.safeParse(call.output).data?.results ?? {}
+					).some(
+						([key, result]) =>
+							key.startsWith("revenue_overview@") &&
+							(!available || Array.isArray(result.data))
+					)
+			);
 			return [
-				...(widened
+				...(widened || directRead
 					? []
 					: ["Did not inspect capabilities beyond the wrong category"]),
 				...(outcome.publish === available
@@ -2211,16 +2286,16 @@ if (import.meta.main) {
 		}
 	}
 
-	for (const [name, path] of [
-		["agent.ts", agentPath],
-		[
-			"insights.ts",
-			resolveSync("@databuddy/shared/insights", dirname(agentPath)),
-		],
-		["quality.ts", import.meta.path],
-		["detection.ts", resolve(import.meta.dir, "../detection.ts")],
-		["investigation.ts", resolve(import.meta.dir, "../investigation.ts")],
-	]) {
+	for (const [name, path] of Object.entries({
+		"agent.ts": agentPath,
+		"insights.ts": resolveSync(
+			"@databuddy/shared/insights",
+			dirname(agentPath)
+		),
+		"quality.ts": import.meta.path,
+		"detection.ts": resolve(import.meta.dir, "../detection.ts"),
+		"investigation.ts": resolve(import.meta.dir, "../investigation.ts"),
+	})) {
 		copyFileSync(path, resolve(directory, name));
 	}
 

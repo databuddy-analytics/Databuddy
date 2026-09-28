@@ -326,6 +326,20 @@ export default function DataPolicyPage() {
 								</dd>
 							</div>
 							<div className="py-3">
+								<dt className="font-semibold">Cloudflare</dt>
+								<dd className="text-muted-foreground">
+									Network edge and proxying for ingestion and APIs. Receives
+									visitor IP addresses in transit.
+								</dd>
+							</div>
+							<div className="py-3">
+								<dt className="font-semibold">PlanetScale</dt>
+								<dd className="text-muted-foreground">
+									Database hosting for account, workspace, and identified
+									profile data.
+								</dd>
+							</div>
+							<div className="py-3">
 								<dt className="font-semibold">Resend</dt>
 								<dd className="text-muted-foreground">Email delivery.</dd>
 							</div>
@@ -349,9 +363,56 @@ export default function DataPolicyPage() {
 								</dd>
 							</div>
 							<div className="py-3">
+								<dt className="font-semibold">Supermemory</dt>
+								<dd className="text-muted-foreground">
+									Memory for the AI assistant, including questions asked in
+									chat.
+								</dd>
+							</div>
+							<div className="py-3">
+								<dt className="font-semibold">The Context Company</dt>
+								<dd className="text-muted-foreground">
+									Tracing of AI feature requests and responses.
+								</dd>
+							</div>
+							<div className="py-3">
+								<dt className="font-semibold">context.dev</dt>
+								<dd className="text-muted-foreground">
+									Web page retrieval and search for AI investigations of a
+									customer's own website.
+								</dd>
+							</div>
+							<div className="py-3">
 								<dt className="font-semibold">Axiom</dt>
 								<dd className="text-muted-foreground">
 									Application observability and diagnostic telemetry.
+								</dd>
+							</div>
+							<div className="py-3">
+								<dt className="font-semibold">Superlog</dt>
+								<dd className="text-muted-foreground">
+									Application logs and diagnostic telemetry.
+								</dd>
+							</div>
+							<div className="py-3">
+								<dt className="font-semibold">Microlink</dt>
+								<dd className="text-muted-foreground">
+									Link preview metadata for short links created in the
+									dashboard.
+								</dd>
+							</div>
+							<div className="py-3">
+								<dt className="font-semibold">Dub</dt>
+								<dd className="text-muted-foreground">
+									Referral attribution. When you sign up through a referral
+									link, receives your account ID, name, email, and avatar.
+								</dd>
+							</div>
+							<div className="py-3">
+								<dt className="font-semibold">OpenAI</dt>
+								<dd className="text-muted-foreground">
+									Advertising measurement. A pixel on the Databuddy dashboard
+									records visits and sign-up conversions.
 								</dd>
 							</div>
 						</dl>

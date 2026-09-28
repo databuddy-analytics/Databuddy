@@ -8,7 +8,7 @@ import {
 	EMAIL_SEGMENTS,
 	type SegmentUser,
 	type SegmentWebsite,
-	type SegmentedUser,
+	type SegmentsByName,
 	type WebsiteActivity,
 	segmentRowsToCsv,
 	segmentUsers,
@@ -461,7 +461,7 @@ function segmentFileName(segment: string): string {
 
 async function writeSegments(
 	outputDir: string,
-	segments: Record<string, SegmentedUser[]>,
+	segments: SegmentsByName,
 	summary: ExportSummary
 ) {
 	await mkdir(outputDir, { recursive: true });

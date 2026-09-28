@@ -6,11 +6,13 @@ import { getWebsiteDomain } from "../../lib/website-utils";
 import {
 	executeQuery,
 	publicQueryErrorMessage,
+	getQueryBuilder,
 	QueryBuilders,
+	type QueryType,
 	SANITIZED_QUERY_ERROR,
 } from "../../query";
 import { resolveDatePreset } from "../../lib/date-presets";
-import type { QueryRequest } from "../../query/types";
+import type { CompiledQuery, QueryRequest } from "../../query/types";
 import { agentDataInputSchema } from "../mcp/agent-query-schema";
 import { normalizeClickHouseDateTime } from "../../query/date-utils";
 import {
@@ -19,7 +21,6 @@ import {
 	toolDateRangeError,
 } from "./utils/context";
 
-type QueryType = Extract<keyof typeof QueryBuilders, string>;
 const QUERY_TYPES = Object.keys(QueryBuilders) as [QueryType, ...QueryType[]];
 
 const queryItemSchema = agentDataInputSchema.shape.queries.element
@@ -59,6 +60,7 @@ interface QueryItemResult {
 	error?: string;
 	filters?: QueryItem["filters"];
 	from?: string;
+	query?: CompiledQuery;
 	returnedRows?: number;
 	rowCount: number;
 	summary?: string;
@@ -82,7 +84,7 @@ function buildResultSummary(
 	filters: QueryItem["filters"],
 	groupBy: string[] | undefined
 ): string {
-	const meta = QueryBuilders[type]?.meta;
+	const meta = getQueryBuilder(type)?.meta;
 	const title = meta?.title ?? type;
 	const range = from === to ? from : `${from} → ${to}`;
 	const filterPart = filters?.length
@@ -93,6 +95,38 @@ function buildResultSummary(
 }
 
 const MAX_MODEL_ROWS = 20;
+const MAX_DISPLAY_PARAM_VALUES = 10;
+
+function displayQuery({ sql, params }: CompiledQuery): CompiledQuery {
+	return {
+		sql,
+		params: Object.fromEntries(
+			Object.entries(params).map(([name, value]) => [
+				name,
+				Array.isArray(value) && value.length > MAX_DISPLAY_PARAM_VALUES
+					? `${value.length} values`
+					: value,
+			])
+		),
+	};
+}
+
+export function getDataModelOutput({
+	output,
+}: {
+	output: { results: Record<string, QueryItemResult> };
+}) {
+	return {
+		type: "text" as const,
+		value: JSON.stringify({
+			results: Object.fromEntries(
+				Object.entries(output.results).map(
+					([key, { query: _query, ...result }]) => [key, result]
+				)
+			),
+		}),
+	};
+}
 
 function describeQueryError(error: unknown): string {
 	if (error instanceof TraitFilterError) {
@@ -135,6 +169,7 @@ export const getDataTool = tool({
 	}),
 	execute: async ({ queries }, options) => {
 		const ctx = getAppContext(options);
+		const showQueries = ctx.source === "dashboard";
 
 		const results = await Promise.all(
 			queries.map(async (item): Promise<QueryItemResult> => {
@@ -186,16 +221,22 @@ export const getDataTool = tool({
 						timezone,
 					};
 
+					const executed: { query?: CompiledQuery } = {};
 					const data = await executeQuery(
 						req,
 						domain,
 						timezone,
-						options.abortSignal
+						options.abortSignal,
+						showQueries
+							? (query) => {
+									executed.query = displayQuery(query);
+								}
+							: undefined
 					);
 					const returnedRows = Math.min(data.length, MAX_MODEL_ROWS);
 					return {
 						type: item.type,
-						definition: QueryBuilders[item.type]?.meta?.description,
+						definition: getQueryBuilder(item.type)?.meta?.description,
 						websiteId,
 						filters: item.filters ?? [],
 						from,
@@ -209,6 +250,7 @@ export const getDataTool = tool({
 							item.groupBy
 						),
 						data: data.slice(0, MAX_MODEL_ROWS),
+						query: executed.query,
 						returnedRows,
 						rowCount: data.length,
 						truncated: returnedRows < data.length,

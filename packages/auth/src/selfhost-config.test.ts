@@ -32,7 +32,12 @@ describe("auth deployment settings", () => {
 		},
 		{
 			name: "self-hosted verification opt-in",
-			env: { SELFHOST: "true", REQUIRE_EMAIL_VERIFICATION: "true" },
+			env: {
+				SELFHOST: "true",
+				REQUIRE_EMAIL_VERIFICATION: "true",
+				RESEND_API_KEY: "synthetic-resend-key",
+				EMAIL_FROM: "Databuddy <no-reply@example.com>",
+			},
 			domain: undefined,
 			verify: true,
 			sendVerification: true,
@@ -42,6 +47,13 @@ describe("auth deployment settings", () => {
 			env: { REQUIRE_EMAIL_VERIFICATION: "false" },
 			domain: ".databuddy.cc",
 			verify: false,
+			sendVerification: true,
+		},
+		{
+			name: "hosted explicit verification keeps existing configuration rules",
+			env: { SELFHOST: "false", REQUIRE_EMAIL_VERIFICATION: "true" },
+			domain: ".databuddy.cc",
+			verify: true,
 			sendVerification: true,
 		},
 		{
@@ -58,7 +70,18 @@ describe("auth deployment settings", () => {
 			verify: true,
 			sendVerification: true,
 		},
-	])("$name", async ({ env, domain, verify, sendVerification }) => {
+		...[
+			{},
+			{ RESEND_API_KEY: "synthetic-resend-key" },
+			{ EMAIL_FROM: "Databuddy <no-reply@example.com>" },
+			{ RESEND_API_KEY: "synthetic-resend-key", EMAIL_FROM: "  " },
+			{ RESEND_API_KEY: "  ", EMAIL_FROM: "Databuddy <no-reply@example.com>" },
+		].map((env) => ({
+			name: "rejects self-hosted verification with incomplete email setup",
+			env: { SELFHOST: "true", REQUIRE_EMAIL_VERIFICATION: "true", ...env },
+			rejects: true,
+		})),
+	])("$name", async ({ env, domain, verify, sendVerification, rejects }) => {
 		// Import the real auth options with only inert local service URLs.
 		const child = Bun.spawn([process.execPath, "--no-env-file", "-"], {
 			cwd: import.meta.dir,
@@ -126,6 +149,13 @@ process.exit(0);
 			child.exited,
 			new Response(child.stderr).text(),
 		]);
-		expect(exitCode, stderr).toBe(0);
+		if (rejects) {
+			expect(exitCode).not.toBe(0);
+			expect(stderr).toContain(
+				"Self-hosted email verification requires RESEND_API_KEY and EMAIL_FROM on a verified domain."
+			);
+		} else {
+			expect(exitCode, stderr).toBe(0);
+		}
 	}, 30_000);
 });

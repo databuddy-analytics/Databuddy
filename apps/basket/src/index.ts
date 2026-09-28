@@ -12,10 +12,9 @@ import { readBooleanEnv } from "@databuddy/env/boolean";
 import { getRedisCache } from "@databuddy/redis/redis";
 import {
 	checkProducerConnection,
-	disconnect,
-	disposeRuntime,
 	runPromise,
 	ShutdownDrainError,
+	shutDownProducer,
 } from "@lib/producer";
 import {
 	createDatabuddyEvlogEnv,
@@ -91,7 +90,7 @@ async function gracefulShutdown(signal: string, exitCode = 0) {
 		const { shutdownRedis } = await import("@databuddy/redis");
 		// Wait for acknowledged delivery before tearing down its dependencies.
 		try {
-			await runPromise(disconnect);
+			await runPromise(shutDownProducer);
 		} catch (error) {
 			finalExitCode = 1;
 			if (error instanceof ShutdownDrainError) {
@@ -104,13 +103,6 @@ async function gracefulShutdown(signal: string, exitCode = 0) {
 				});
 			} else {
 				logErr("producerDrain")(error);
-			}
-		} finally {
-			try {
-				await disposeRuntime();
-			} catch (error) {
-				finalExitCode = 1;
-				logErr("runtimeDispose")(error);
 			}
 		}
 		await Promise.all([
@@ -202,7 +194,11 @@ const app = new Elysia()
 			} catch (err) {
 				log.error({
 					health_probe: name,
-					error_message: err instanceof Error ? err.message : String(err),
+					error_message:
+						err instanceof Error
+							? err.message ||
+								(err.cause instanceof Error ? err.cause.message : err.name)
+							: String(err),
 				});
 				return {
 					status: "error" as const,

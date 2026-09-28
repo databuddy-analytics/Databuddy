@@ -255,6 +255,10 @@ export const contents: SidebarSection[] = [
 						href: "/docs/sdk/tracker",
 					},
 					{
+						title: "AI Agents",
+						href: "/docs/sdk/ai-agents",
+					},
+					{
 						title: "DevTools",
 						href: "/docs/sdk/devtools",
 					},
@@ -372,6 +376,10 @@ export const contents: SidebarSection[] = [
 					{
 						title: "Cookieless Analytics",
 						href: "/docs/privacy/cookieless-analytics-guide",
+					},
+					{
+						title: "Event Scanner Data",
+						href: "/docs/privacy/event-scanner",
 					},
 				],
 			},

@@ -21,6 +21,8 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ARG SELFHOST=false
 ENV SELFHOST=$SELFHOST
+ARG API_PROXY_URL=
+ENV API_PROXY_URL=$API_PROXY_URL
 # Build-time defaults keep the image buildable. Override these with real public
 # URLs when building environment-specific dashboard images.
 ARG NEXT_PUBLIC_API_URL=https://api.databuddy.cc

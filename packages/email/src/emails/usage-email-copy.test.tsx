@@ -64,7 +64,7 @@ describe("billing usage email copy", () => {
 			{ plainText: true }
 		);
 
-		expect(text).toContain("Access to Databunny chat is currently paused");
+		expect(text).toContain("Access to Databunny chat is paused");
 		expect(text).toContain("350 of 350 AI credits");
 		expect(text).not.toContain("AI credits is");
 		expect(text).not.toContain("1.5x");

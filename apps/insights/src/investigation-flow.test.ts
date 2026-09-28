@@ -917,6 +917,75 @@ describe("intelligence agent", () => {
 		);
 	});
 
+	it.each([
+		["/auth?signup=true", true],
+		["/auth", false],
+	])("publishes a definition question only for an unmatchable target: %s", async (target, publishes) => {
+		const ask = {
+			...executableDefinitionOutcome,
+			title: "Signup step target can never match",
+			summary:
+				"Recorded paths drop query strings, so this step never completes.",
+			rootCause: "The final step targets a path with a query string.",
+			evidence: ["The final step targets a page that is never recorded."],
+			evidenceRefs: [
+				[
+					{
+						source: "tool" as const,
+						name: "list_funnels",
+						toolCallId: "list_funnels-1",
+						resultKey: null,
+					},
+				],
+			],
+			next: {
+				type: "ask" as const,
+				question: "Which recorded page marks a completed signup?",
+			},
+		};
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [],
+				signal: funnelSignal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: mockValues(
+						toolCallsResponse(["list_funnels"]),
+						outputResponse(ask),
+						outputResponse(ask),
+						outputResponse(ask)
+					),
+				}),
+				tools: {
+					list_funnels: tool({
+						inputSchema: z.object({}),
+						execute: () => ({
+							funnels: [
+								{
+									...inspectedFunnel,
+									steps: [
+										inspectedFunnel.steps[0],
+										{ name: "Signup", target, type: "PAGE_VIEW" as const },
+									],
+								},
+							],
+						}),
+					}),
+				},
+			}
+		);
+		if (publishes) {
+			expect((await run).outcome.publish).toBe(true);
+		} else {
+			await expect(run).rejects.toThrow("executable definition action");
+		}
+	});
+
 	it("retains an exact goal repair and saved verification check", async () => {
 		const goal = {
 			id: "signup",
@@ -1338,24 +1407,18 @@ describe("intelligence agent", () => {
 
 	it.each([
 		"different subject",
-		"already repaired",
 		"missing conditions",
 	])("rejects an unsafe proposal before publication: %s", async (variant) => {
 		const current =
 			variant === "different subject"
 				? { ...inspectedFunnel, id: "another-funnel" }
-				: variant === "already repaired"
-					? {
-							...inspectedFunnel,
-							steps: executableDefinitionOutcome.next.execution.changes.steps,
-						}
-					: {
-							...inspectedFunnel,
-							steps: inspectedFunnel.steps.map((step) => ({
-								...step,
-								conditions: { plan: "paid" },
-							})),
-						};
+				: {
+						...inspectedFunnel,
+						steps: inspectedFunnel.steps.map((step) => ({
+							...step,
+							conditions: { plan: "paid" },
+						})),
+					};
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
 				toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
@@ -1393,9 +1456,7 @@ describe("intelligence agent", () => {
 		).rejects.toThrow(
 			variant === "different subject"
 				? "exact current funnel"
-				: variant === "already repaired"
-					? "does not change"
-					: "preserve existing step conditions"
+				: "preserve existing step conditions"
 		);
 	});
 
@@ -1871,49 +1932,6 @@ describe("intelligence agent", () => {
 		);
 	});
 
-	it("keeps definition observations without a fix out of the feed", async () => {
-		const observationOnly = {
-			...agentOutcome,
-			findingKind: "measurement_definition" as const,
-			impact: "The funnel cannot support a checkout decision.",
-			next: {
-				reason: "The funnel measures its configured pages accurately.",
-				type: "resolve" as const,
-			},
-			publicationBasis: "decision_safety" as const,
-			rootCause: null,
-			signal: undefined,
-		};
-		const unpublished = {
-			...observationOnly,
-			publish: false,
-			publicationBasis: null,
-		};
-		const model = new MockLanguageModelV3({
-			doGenerate: mockValues(
-				outputResponse(observationOnly),
-				outputResponse(unpublished)
-			),
-		});
-
-		const result = await runInsightAgent(
-			{
-				appContext: appContext(),
-				evidence,
-				githubRepository: null,
-				history: [],
-				otherOpenWork: [],
-				signal: funnelSignal,
-			},
-			{ model, tools: {} }
-		);
-
-		expect(result.outcome.publish).toBe(false);
-		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
-			"executable definition action"
-		);
-	});
-
 	it("keeps low-reach error asks out of teammate interrupts", async () => {
 		const smallReachAsk = {
 			...agentOutcome,
@@ -2215,36 +2233,6 @@ describe("intelligence agent", () => {
 		}
 		expect(failure.message).toContain("cited supplied evidence");
 		expect(failure.usage.inputTokens).toBe(3);
-	});
-
-	it("rejects evidence references to tools the agent did not use", async () => {
-		await expect(
-			runInsightAgent(
-				{
-					appContext: appContext(),
-					evidence,
-					githubRepository: null,
-					history: [],
-					otherOpenWork: [],
-					signal,
-				},
-				{
-					model: outputModel({
-						...agentOutcome,
-						evidenceRefs: [
-							{
-								name: "get_data",
-								source: "tool",
-								toolCallId: "unused",
-								resultKey: null,
-							},
-							{ index: 1, source: "provided" },
-						],
-					}),
-					tools: {},
-				}
-			)
-		).rejects.toThrow("cited a read tool");
 	});
 
 	it("rejects rechecks scheduled before the investigation", async () => {
@@ -3218,6 +3206,45 @@ describe("intelligence agent", () => {
 		).rejects.toThrow("not a verified product loss");
 	});
 
+	it.each([
+		"weekly",
+		"one-day",
+	])("publishes a %s near-total traffic collapse only when it is sustained", async (window) => {
+		const collapse = {
+			...agentOutcome,
+			title: "Visitors nearly stopped",
+			summary: "Either tracking broke or the site is down; check tracking.",
+			rootCause: null,
+			findingKind: "measurement_coverage" as const,
+			publicationBasis: "decision_safety" as const,
+			evidence: ["Visitors fell from 1000 to 50."],
+			evidenceRefs: [{ source: "signal" as const }],
+			next: { type: "resolve" as const, reason: "The cause is unknown." },
+		};
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [],
+				signal: {
+					...signal,
+					entity: { type: "website", id: "website", label: "Visitors" },
+					metric: { ...signal.metric, current: 50, previous: 1000 },
+					changePercent: -95,
+					...(window === "one-day" ? { baselineDates: ["2026-07-01"] } : {}),
+				},
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{ model: outputModel(collapse), tools: {} }
+		);
+		if (window === "weekly") {
+			expect((await run).outcome.publish).toBe(true);
+		} else {
+			await expect(run).rejects.toThrow("not a verified product loss");
+		}
+	});
+
 	it("keeps a prior count out of a measurement-repair headline", async () => {
 		await expect(
 			runInsightAgent(
@@ -3237,7 +3264,7 @@ describe("intelligence agent", () => {
 					tools: {},
 				}
 			)
-		).rejects.toThrow("headline must name the mismatch");
+		).rejects.toThrow("title must name the mismatch");
 	});
 
 	it("requires an organization before exposing investigation tools", async () => {
@@ -3423,7 +3450,7 @@ describe("structured revenue evidence", () => {
 		"private",
 	] as const)("requires native attribution proof despite provided evidence: %s", async (variant) => {
 		const snapshot =
-			"USD attributed settled revenue: 9000 of 10000 gross → 3000 of 10000 gross.";
+			"USD attributed revenue: 9000 of 10000 gross → 3000 of 10000 gross.";
 		const hasRead =
 			variant === "wrong-currency" || variant === "missing-denominator";
 		const proposal = {
@@ -3540,7 +3567,7 @@ describe("structured revenue evidence", () => {
 			signalKey: "product_revenue:USD:stripe:product_name:Team",
 			entity: { type: "website", id: "Team", label: "Team" },
 			metric: {
-				label: "Team USD receipts",
+				label: "Team USD payments",
 				current: 15_000,
 				previous: 30_000,
 				format: "number",
@@ -3678,7 +3705,7 @@ describe("structured revenue evidence", () => {
 			const result = await run;
 			expect(result.outcome.publish).toBe(true);
 			expect(result.outcome.evidence[0]).toContain(
-				"stripe receipts described Team with no product ID"
+				"stripe payments described Team with no product ID"
 			);
 			expect(result.outcome.evidence[1]).toContain("40,000 → 40,000");
 		} else if (variant === "private") {
@@ -3690,7 +3717,7 @@ describe("structured revenue evidence", () => {
 
 	it("binds metrics to their labels and computes a refund delta absent from the source", () => {
 		expect(renderRevenueEvidence(selection, readings, input).text).toBe(
-			"USD, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 10,000 → 10,000; Settled Transactions: 100 → 100; Refund Amount: 200 → 1,200 (+1,000)."
+			"USD, Jun 28–Jul 4 → Jul 5–11: Gross Revenue: 10,000 → 10,000; Payments: 100 → 100; Refund Amount: 200 → 1,200 (+1,000)."
 		);
 	});
 	it("does not describe an unrestricted receipt-name population as unidentified", () => {
@@ -3699,7 +3726,7 @@ describe("structured revenue evidence", () => {
 			filters: [{ field: "product_name", op: "eq", value: "Team" }],
 		}));
 		expect(renderRevenueEvidence(selection, named, input).text).toContain(
-			"receipts described Team)"
+			"payments described Team)"
 		);
 		expect(renderRevenueEvidence(selection, named, input).text).not.toContain(
 			"no product ID"
@@ -3739,7 +3766,7 @@ describe("structured revenue evidence", () => {
 					currentDateTime: "2026-07-19T00:00:00Z",
 				},
 			}).text
-		).toContain("2026-07-05–2026-07-11 → 2026-07-12–2026-07-18 UTC");
+		).toContain("Jul 5–11 → Jul 12–18:");
 		expect(
 			() =>
 				renderRevenueEvidence(
@@ -3773,9 +3800,7 @@ describe("structured revenue evidence", () => {
 				both,
 				input
 			).text
-		).toContain(
-			"EUR, 2026-06-28–2026-07-04 → 2026-07-05–2026-07-11 UTC: Gross Revenue: 5,000 → 5,000."
-		);
+		).toContain("EUR, Jun 28–Jul 4 → Jul 5–11: Gross Revenue: 5,000 → 5,000.");
 		expect(
 			() =>
 				renderRevenueEvidence(

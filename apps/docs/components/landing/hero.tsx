@@ -148,7 +148,7 @@ const tabLabels = new Map<HeroTabId, string>(
 );
 
 const proofChips = [
-	{ icon: LightningIcon, label: "13 KB script, 12× smaller than GA4" },
+	{ icon: LightningIcon, label: "13 KB script, 11× smaller than GA4" },
 	{ icon: LockSimpleIcon, label: "Cookieless analytics" },
 	{ icon: ShieldCheckIcon, label: "Privacy controls" },
 ] as const;

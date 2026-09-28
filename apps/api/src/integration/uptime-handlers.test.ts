@@ -277,4 +277,28 @@ describe("uptime router BullMQ integration", () => {
 		expect(await scheduleRow(scheduleId)).toBeTruthy();
 		expect(await scheduler(scheduleId)).toBeTruthy();
 	});
+
+	iit(
+		"does not attach a monitor to another organization's website",
+		async () => {
+			const source = await workspace();
+			const other = await workspace();
+			const website = await insertWebsite({ organizationId: other.org.id });
+
+			await expectCode(
+				createSchedule({
+					context: source.context,
+					organizationId: source.org.id,
+					websiteId: website.id,
+				}),
+				"FORBIDDEN"
+			);
+
+			expect(
+				await db().query.uptimeSchedules.findFirst({
+					where: { websiteId: website.id },
+				})
+			).toBeUndefined();
+		}
+	);
 });

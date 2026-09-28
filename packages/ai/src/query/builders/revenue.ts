@@ -1,6 +1,11 @@
-import { buildRevenueLatestCte } from "@databuddy/db/clickhouse";
+import {
+	buildRevenueLatestCte,
+	paymentIntentIdExpression,
+	stripeContextAggregates,
+} from "@databuddy/db/clickhouse";
 import { STRIPE_FAILURE_WEBHOOK_EVENTS } from "@databuddy/shared/stripe-webhooks";
 import { Analytics } from "../../types/tables";
+import { AI_VISIT_PARAMS, aiVisitProduct } from "./ai-agents";
 import { escapeLikePattern } from "../simple-builder";
 import type { CustomSqlFn, Filter, SimpleQueryConfig } from "../types";
 
@@ -186,6 +191,17 @@ function isOrgScope(filterParams?: Record<string, Filter["value"]>): boolean {
 	return filterParams?.__orgLevel === "true";
 }
 
+// join_use_nulls is 0 on our cluster, so an unmatched LEFT JOIN yields '' rather
+// than NULL. coalesce() therefore returns the empty direct side and never reaches
+// ft_customer, which silently blanked every dimension on customer-path rows.
+function attributedDimension(column: string, alias: string): string {
+	return `if(ft_direct.session_id != '', ft_direct.${column}, ft_customer.${column}) as ${alias}`;
+}
+
+function fromContexts(column: string, alias: string, base: string): string {
+	return `coalesce(${base}, nullIf(payment_context.${column}, ''), nullIf(invoice_context.linked_${column}, '')) as ${alias}`;
+}
+
 function buildAttributionCte(
 	filterParams?: Record<string, Filter["value"]>
 ): string {
@@ -196,11 +212,7 @@ function buildAttributionCte(
 	const eventScope = orgScope
 		? "client_id IN {websiteIds:Array(String)}"
 		: "client_id = {websiteId:String}";
-	const paymentIntentIdExpression = `if(
-		JSONExtractString(metadata, 'stripe_payment_intent_id') != '',
-		JSONExtractString(metadata, 'stripe_payment_intent_id'),
-		if(startsWith(transaction_id, 'pi_'), transaction_id, '')
-	)`;
+	const paymentIntentId = paymentIntentIdExpression();
 	const relatedStripeScope = `(
 		${directScope}
 		OR (
@@ -231,44 +243,62 @@ function buildAttributionCte(
 		scoped_stripe_payment_intents AS (
 			SELECT DISTINCT
 				owner_id,
-				${paymentIntentIdExpression} AS payment_intent_id
+				${paymentIntentId} AS payment_intent_id
 			FROM ${Analytics.revenue} FINAL
 			WHERE ${directScope}
 				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 				AND provider = 'stripe'
-				AND ${paymentIntentIdExpression} != ''
+				AND ${paymentIntentId} != ''
 		),
 		linked_payment_intents AS (
 			SELECT DISTINCT
 				owner_id,
-				${paymentIntentIdExpression} AS payment_intent_id
+				${paymentIntentId} AS payment_intent_id
 			FROM revenue_latest_range
 			WHERE provider = 'stripe'
 				AND type IN ('sale', 'subscription')
 				AND status = 'completed'
 				AND JSONExtractString(metadata, 'stripe_record_kind') = 'money'
 				AND JSONExtractString(metadata, 'stripe_invoice_id') != ''
-				AND ${paymentIntentIdExpression} != ''
+				AND ${paymentIntentId} != ''
 		),
 		stripe_payment_context AS (
 			SELECT
 				owner_id,
-				${paymentIntentIdExpression} AS payment_intent_id,
-				argMaxIf(ifNull(website_id, ''), synced_at, ifNull(website_id, '') != '') AS website_id,
-				argMaxIf(ifNull(anonymous_id, ''), synced_at, ifNull(anonymous_id, '') != '') AS anonymous_id,
-				argMaxIf(ifNull(session_id, ''), synced_at, ifNull(session_id, '') != '') AS session_id,
-				argMaxIf(customer_id, synced_at, customer_id != '') AS customer_id,
-				argMaxIf(ifNull(product_name, ''), synced_at, ifNull(product_name, '') != '') AS product_name
+				${paymentIntentId} AS payment_intent_id,
+				${stripeContextAggregates()}
 			FROM ${Analytics.revenue} FINAL
 			WHERE provider = 'stripe'
+				-- refunds share the payment intent and carry product_name 'Refund',
+				-- which would relabel the original payment in the product breakdown
+				AND type != 'refund'
 				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				AND (owner_id, ${paymentIntentIdExpression}) IN (
+				AND (owner_id, ${paymentIntentId}) IN (
 					SELECT owner_id, payment_intent_id FROM scoped_stripe_payment_intents
 					UNION DISTINCT
 					SELECT owner_id, payment_intent_id FROM linked_payment_intents
 				)
-				AND ${paymentIntentIdExpression} != ''
+				AND ${paymentIntentId} != ''
 			GROUP BY owner_id, payment_intent_id
+		),
+		-- Aliases are prefixed linked_ because directScope references the raw
+		-- website_id column; aliasing an aggregate to that name makes ClickHouse
+		-- reject the CTE with ILLEGAL_AGGREGATION.
+		stripe_invoice_context AS (
+			SELECT
+				owner_id,
+				JSONExtractString(metadata, 'stripe_invoice_id') AS invoice_id,
+				${stripeContextAggregates("linked_")}
+			FROM ${Analytics.revenue} FINAL
+			WHERE ${directScope}
+				AND provider = 'stripe'
+				AND created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
+				-- invoice.paid and invoice_payment.paid are separate events seconds
+				-- apart, so the link row can land just past the report cutoff
+				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59')) + INTERVAL 1 DAY
+				AND JSONExtractString(metadata, 'stripe_record_kind') = 'link'
+				AND JSONExtractString(metadata, 'stripe_invoice_id') != ''
+			GROUP BY owner_id, invoice_id
 		),
 		stripe_payment_attempt_rows AS (
 			SELECT
@@ -355,11 +385,11 @@ function buildAttributionCte(
 				r.transaction_id,
 				r.amount AS amount,
 				r.type AS type,
-				coalesce(r.anonymous_id, nullIf(payment_context.anonymous_id, '')) as r_anonymous_id,
-				coalesce(r.session_id, nullIf(payment_context.session_id, '')) as r_session_id,
-				coalesce(nullIf(r.customer_id, ''), nullIf(payment_context.customer_id, '')) as r_customer_id,
+				${fromContexts("anonymous_id", "r_anonymous_id", "r.anonymous_id")},
+				${fromContexts("session_id", "r_session_id", "r.session_id")},
+				${fromContexts("customer_id", "r_customer_id", "nullIf(r.customer_id, '')")},
 				r.product_id,
-				coalesce(r.product_name, nullIf(payment_context.product_name, '')) as product_name,
+				${fromContexts("product_name", "product_name", "r.product_name")},
 				r.provider,
 				r.currency,
 				r.metadata,
@@ -367,10 +397,14 @@ function buildAttributionCte(
 			FROM revenue_latest_range r
 			LEFT JOIN stripe_payment_context payment_context
 				ON payment_context.owner_id = r.owner_id
-				AND payment_context.payment_intent_id = ${paymentIntentIdExpression.replaceAll("metadata", "r.metadata").replaceAll("transaction_id", "r.transaction_id")}
+				AND payment_context.payment_intent_id = ${paymentIntentIdExpression("r")}
+			LEFT JOIN stripe_invoice_context invoice_context
+				ON invoice_context.owner_id = r.owner_id
+				AND invoice_context.invoice_id = JSONExtractString(r.metadata, 'stripe_invoice_id')
 			WHERE
 				(${attributedWebsiteScope}
-					OR payment_context.website_id = {websiteId:String})
+					OR payment_context.website_id = {websiteId:String}
+					OR invoice_context.linked_website_id = {websiteId:String})
 				AND r.created >= toDateTime({startDate:String})
 				AND r.created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 				AND r.type != 'subscription_event'
@@ -378,6 +412,8 @@ function buildAttributionCte(
 					(r.type = 'refund' AND r.status = 'refunded')
 					OR (r.type != 'refund' AND r.status = 'completed')
 				)
+				-- a pi_ row and its inpay_ row are the same payment; the invoice
+				-- payment is canonical, so drop the duplicate rather than double count
 				AND NOT (
 					r.provider = 'stripe'
 					AND startsWith(r.transaction_id, 'pi_')
@@ -410,6 +446,12 @@ function buildAttributionCte(
 			UNION DISTINCT
 			SELECT mapped_session_id AS session_id FROM customer_session_map
 			WHERE mapped_session_id IS NOT NULL AND mapped_session_id != ''
+			UNION DISTINCT
+			SELECT session_id FROM stripe_payment_context
+			WHERE session_id != ''
+			UNION DISTINCT
+			SELECT linked_session_id AS session_id FROM stripe_invoice_context
+			WHERE linked_session_id != ''
 		),
 		first_touch_by_session AS (
 			SELECT
@@ -451,17 +493,17 @@ function buildAttributionCte(
 					WHEN ft_customer.session_id != '' THEN 1
 					ELSE 0
 				END as is_attributed,
-				coalesce(ft_direct.first_country, ft_customer.first_country) as country,
-				coalesce(ft_direct.first_region, ft_customer.first_region) as region,
-				coalesce(ft_direct.first_city, ft_customer.first_city) as city,
-				coalesce(ft_direct.first_browser, ft_customer.first_browser) as browser_name,
-				coalesce(ft_direct.first_device, ft_customer.first_device) as device_type,
-				coalesce(ft_direct.first_os, ft_customer.first_os) as os_name,
-				coalesce(ft_direct.first_referrer, ft_customer.first_referrer) as referrer_domain,
-				coalesce(ft_direct.first_utm_source, ft_customer.first_utm_source) as utm_source,
-				coalesce(ft_direct.first_utm_medium, ft_customer.first_utm_medium) as utm_medium,
-				coalesce(ft_direct.first_utm_campaign, ft_customer.first_utm_campaign) as utm_campaign,
-				coalesce(ft_direct.first_path, ft_customer.first_path) as entry_path
+				${attributedDimension("first_country", "country")},
+				${attributedDimension("first_region", "region")},
+				${attributedDimension("first_city", "city")},
+				${attributedDimension("first_browser", "browser_name")},
+				${attributedDimension("first_device", "device_type")},
+				${attributedDimension("first_os", "os_name")},
+				${attributedDimension("first_referrer", "referrer_domain")},
+				${attributedDimension("first_utm_source", "utm_source")},
+				${attributedDimension("first_utm_medium", "utm_medium")},
+				${attributedDimension("first_utm_campaign", "utm_campaign")},
+				${attributedDimension("first_path", "entry_path")}
 			FROM revenue_base rb
 			LEFT JOIN first_touch_by_session ft_direct
 				ON rb.r_session_id = ft_direct.session_id
@@ -587,17 +629,8 @@ const REVENUE_METRICS = `
 function dimensionCase(column: string, fallback: string): string {
 	return `CASE
 		WHEN is_attributed = 0 THEN 'Unattributed'
-		WHEN ${column} = '' OR ${column} IS NULL THEN '${fallback}'
-		ELSE ${column}
+		ELSE coalesce(nullIf(${column}, ''), '${fallback}')
 	END`;
-}
-
-function recentTransactionDimension(
-	column: string,
-	fallback: string,
-	alias: string
-): string {
-	return `CASE WHEN is_attributed = 0 THEN 'Unattributed' ELSE coalesce(nullIf(${column}, ''), '${fallback}') END as ${alias}`;
 }
 
 const REVENUE_BREAKDOWN_FIELDS = [
@@ -619,8 +652,9 @@ const REVENUE_GEO_BREAKDOWN_FIELDS = [
 	{ name: "percentage", type: "number" as const, label: "Share", unit: "%" },
 ];
 
-const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
+export const RevenueBuilders = {
 	revenue_overview: {
+		allowedFilters: REVENUE_OVERVIEW_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue Overview",
 			description:
@@ -633,7 +667,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 				{
 					name: "total_transactions",
 					type: "number",
-					label: "Settled Transactions",
+					label: "Payments",
 				},
 				{ name: "refund_amount", type: "number", label: "Refund Amount" },
 				{ name: "refund_count", type: "number", label: "Refund Count" },
@@ -891,6 +925,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_time_series: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue Time Series",
 			description:
@@ -938,6 +973,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_provider: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Provider",
 			description: "Revenue breakdown by payment provider.",
@@ -957,6 +993,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_product: {
+		allowedFilters: [...REVENUE_ALLOWED_FILTERS, "product_id", "product_name"],
 		meta: {
 			title: "Revenue by Product",
 			description:
@@ -984,6 +1021,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 				groupBy: "revenue_provider, product_name, product_id, currency",
 				orderBy: "revenue DESC",
 				limit,
+				extraConditions: ["type != 'refund'"],
 			}),
 			50
 		),
@@ -992,6 +1030,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_attribution_overview: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue Attribution Overview",
 			description: "Attributed vs unattributed revenue split.",
@@ -1011,6 +1050,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_country: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Country",
 			description: "Attributed revenue breakdown by country.",
@@ -1035,6 +1075,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_region: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Region",
 			description: "Attributed revenue breakdown by region/state.",
@@ -1060,6 +1101,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_city: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by City",
 			description: "Attributed revenue breakdown by city.",
@@ -1085,6 +1127,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_browser: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Browser",
 			description: "Attributed revenue breakdown by browser.",
@@ -1108,6 +1151,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_device: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Device",
 			description: "Attributed revenue breakdown by device type.",
@@ -1131,6 +1175,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_os: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by OS",
 			description: "Attributed revenue breakdown by operating system.",
@@ -1154,6 +1199,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_referrer: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Referrer",
 			description: "Attributed revenue breakdown by referrer domain.",
@@ -1188,7 +1234,62 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 		customizable: true,
 	},
 
+	revenue_by_ai_product: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
+		meta: {
+			title: "Revenue by AI Product",
+			description:
+				"Attributed revenue from visitors sent by AI products (ChatGPT, Claude, Perplexity and others) through referrals or their desktop app browser.",
+			category: "Revenue",
+			tags: ["revenue", "ai", "referrer", "chatgpt", "claude"],
+			output_fields: REVENUE_BREAKDOWN_FIELDS,
+			default_visualization: "table",
+		},
+		customSql: ({
+			websiteId,
+			startDate,
+			endDate,
+			filters,
+			limit,
+			filterParams,
+		}) => {
+			const query = buildRevenueQuery(
+				{
+					select: `SELECT
+				ai_product as name,${REVENUE_METRICS}`,
+					groupBy: "ai_product, currency",
+					orderBy: "revenue DESC",
+					limit: limit ?? 20,
+					innerCte: {
+						name: "ai_product_agg",
+						body: (source) => `
+						SELECT * FROM (
+							SELECT
+								${aiVisitProduct("replaceRegexpOne(referrer_domain, '^www\\\\.', '')")} as ai_product,
+								currency,
+								amount,
+								type,
+								r_customer_id
+							FROM ${source}
+						)
+						WHERE ai_product != ''
+					`,
+					},
+				},
+				websiteId,
+				startDate,
+				endDate,
+				filters,
+				filterParams
+			);
+			return { ...query, params: { ...query.params, ...AI_VISIT_PARAMS } };
+		},
+		timeField: "created",
+		customizable: false,
+	},
+
 	revenue_by_utm_source: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by UTM Source",
 			description: "Attributed revenue breakdown by UTM source.",
@@ -1212,6 +1313,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_utm_medium: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by UTM Medium",
 			description: "Attributed revenue breakdown by UTM medium.",
@@ -1235,6 +1337,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_utm_campaign: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by UTM Campaign",
 			description: "Attributed revenue breakdown by UTM campaign.",
@@ -1258,6 +1361,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_entry_page: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Entry Page",
 			description: "Attributed revenue breakdown by entry page path.",
@@ -1281,6 +1385,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 	},
 
 	recent_transactions: {
+		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Recent Transactions",
 			description:
@@ -1318,12 +1423,12 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 				product_name,
 				created,
 				is_attributed,
-				${recentTransactionDimension("country", "Unknown", "country")},
-				${recentTransactionDimension("browser_name", "Unknown", "browser_name")},
-				${recentTransactionDimension("device_type", "Unknown", "device_type")},
-				${recentTransactionDimension("referrer_domain", "Direct", "referrer")},
-				${recentTransactionDimension("utm_source", "None", "utm_source")},
-				${recentTransactionDimension("utm_campaign", "None", "utm_campaign")}`,
+				${dimensionCase("country", "Unknown")} as country,
+				${dimensionCase("browser_name", "Unknown")} as browser_name,
+				${dimensionCase("device_type", "Unknown")} as device_type,
+				${dimensionCase("referrer_domain", "Direct")} as referrer,
+				${dimensionCase("utm_source", "None")} as utm_source,
+				${dimensionCase("utm_campaign", "None")} as utm_campaign`,
 				orderBy: "created DESC",
 				limit,
 				extraConditions: ["type != 'refund'"],
@@ -1334,20 +1439,4 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 		customizable: true,
 		plugins: { normalizeGeo: true },
 	},
-};
-
-export const RevenueBuilders: Record<string, SimpleQueryConfig> =
-	Object.fromEntries(
-		Object.entries(revenueBuilderDefinitions).map(([name, config]) => [
-			name,
-			{
-				...config,
-				allowedFilters:
-					name === "revenue_overview"
-						? REVENUE_OVERVIEW_ALLOWED_FILTERS
-						: name === "revenue_by_product"
-							? [...REVENUE_ALLOWED_FILTERS, "product_id", "product_name"]
-							: REVENUE_ALLOWED_FILTERS,
-			},
-		])
-	);
+} satisfies Record<string, SimpleQueryConfig>;

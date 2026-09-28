@@ -134,11 +134,7 @@ export function MiniMapRenderer({ title, countries, className }: MiniMapProps) {
 							style={{ minHeight: MAP_PLOT_HEIGHT }}
 						>
 							<div className="h-[280px] [&>div]:rounded [&>div]:border-0">
-								<MapComponent
-									height="100%"
-									isLoading={false}
-									locationData={locationData}
-								/>
+								<MapComponent height="100%" locationData={locationData} />
 							</div>
 
 							<div className="absolute right-2 bottom-2 z-1 w-44 shrink-0 overflow-hidden rounded border border-border/50 bg-muted p-1">

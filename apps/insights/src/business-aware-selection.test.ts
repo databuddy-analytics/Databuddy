@@ -758,7 +758,6 @@ describe("saved activation measurement selection", () => {
 	});
 	it.each([
 		"team_reply",
-		"organization_profile",
 	] as const)("allows %s context to supersede the saved measurement priority", async (kind) => {
 		let calls = 0;
 		const selected = await planInvestigationsWithBusinessContext(

@@ -390,7 +390,6 @@ describe("checkForBot", () => {
 				bot_name: "GPTBot",
 				bot_type: "ai_crawler",
 				path: "/about",
-				action: "tracked",
 			})
 		);
 		expect(mockRunFork).toHaveBeenCalledOnce();

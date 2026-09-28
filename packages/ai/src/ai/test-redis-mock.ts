@@ -37,7 +37,7 @@ export function createRedisModuleMock(
 			organizationRole: "rpc:org_role",
 			slackChannelBinding: "slack-channel-binding",
 			slackIntegrationByTeam: "slack-integration-by-team",
-			statusPage: "status-page",
+			statusPage: "status-page-v2",
 			userPreferences: "user-prefs",
 			websiteById: "website_by_id",
 			websiteCache: "website-cache",

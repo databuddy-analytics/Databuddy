@@ -1,11 +1,14 @@
 "use client";
 
+import { APP_EVENTS } from "@databuddy/shared/custom-events";
+import { trackAppEvent } from "@/lib/app-events";
 import {
 	INVESTIGATION_USAGE,
 	investigationQuantitySchema,
 } from "@databuddy/shared/billing";
 import { Button, Card, dayjs, Field, Input, Skeleton } from "@databuddy/ui";
 import { useCustomer } from "autumn-js/react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -44,6 +47,10 @@ export function InvestigationTopupCard() {
 			return;
 		}
 		setIsAttaching(true);
+		trackAppEvent(APP_EVENTS.topupPurchaseStarted, {
+			feature: "investigation_runs",
+			quantity: parsedQuantity.data,
+		});
 		try {
 			await attach({
 				planId: INVESTIGATION_USAGE.topupPlanId,
@@ -144,16 +151,16 @@ export function InvestigationTopupCard() {
 							</p>
 						)}
 					</div>
-				) : (
+				) : canUserUpgrade ? (
 					<Button asChild variant="secondary">
-						<a
-							href="https://www.databuddy.cc/contact?topic=intelligence-business"
-							rel="noopener noreferrer"
-							target="_blank"
-						>
-							Request investigation access
-						</a>
+						<Link href="/billing/plans?plan=intelligence">
+							Upgrade to Business
+						</Link>
 					</Button>
+				) : (
+					<p className="text-muted-foreground text-sm">
+						Ask an organization owner or admin to upgrade to Business.
+					</p>
 				)}
 			</Card.Content>
 		</Card>

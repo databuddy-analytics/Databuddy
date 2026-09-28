@@ -258,6 +258,9 @@ export const feedbackRouter = {
 			}
 
 			const tier = REWARD_TIERS[input.tierIndex];
+			if (!tier) {
+				throw rpcError.badRequest("Unknown reward tier");
+			}
 			const userId = context.user.id;
 			const organizationId = context.organizationId;
 

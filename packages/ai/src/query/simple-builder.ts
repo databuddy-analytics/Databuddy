@@ -1214,9 +1214,13 @@ export class SimpleQueryBuilder {
 		return Object.fromEntries(resolved);
 	}
 
-	async execute(abortSignal?: AbortSignal): Promise<Record<string, unknown>[]> {
+	async execute(
+		abortSignal?: AbortSignal,
+		onCompiled?: (query: CompiledQuery) => void
+	): Promise<Record<string, unknown>[]> {
 		const preparedKeys = await this.resolvePreparedKeys(abortSignal);
 		const { sql, params } = this.compile(preparedKeys);
+		onCompiled?.({ sql, params });
 		const rawData = await chQuery<Record<string, unknown>>(sql, params, {
 			abort_signal: abortSignal,
 			clickhouse_settings: getClickHouseQuerySettings(this.config.noCache),

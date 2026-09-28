@@ -136,8 +136,9 @@ export default function PrivacyPage() {
 								owner.
 							</li>
 							<li>
-								<strong>No data sales:</strong> We never sell or share user data
-								with third parties for advertising or marketing purposes.
+								<strong>No data sales:</strong> We never sell end user data or
+								share it with third parties for advertising or marketing
+								purposes.
 							</li>
 						</ul>
 					</section>
@@ -247,6 +248,10 @@ export default function PrivacyPage() {
 							<li>Send important service updates and security notifications</li>
 							<li>Provide customer support and respond to inquiries</li>
 							<li>Improve our service based on usage patterns</li>
+							<li>
+								Measure sign-ups from our advertising and referral programs
+								through OpenAI and Dub
+							</li>
 							<li>Ensure compliance with legal obligations</li>
 						</ul>
 

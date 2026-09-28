@@ -3,7 +3,7 @@ import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { SimpleQueryConfig } from "../types";
 
-export const PagesBuilders: Record<string, SimpleQueryConfig> = {
+export const PagesBuilders = {
 	top_pages: {
 		table: Analytics.events,
 		fields: [
@@ -490,4 +490,4 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			supports_granularity: ["hour", "day"],
 		},
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

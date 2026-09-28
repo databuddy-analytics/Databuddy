@@ -35,7 +35,7 @@ export async function businessContextGenerationAccess(
 	if (
 		!(
 			process.env.AI_GATEWAY_API_KEY?.trim() &&
-			process.env.FIRECRAWL_API_KEY?.trim()
+			process.env.CONTEXT_DEV_API_KEY?.trim()
 		) ||
 		(!(readBooleanEnv("SELFHOST") || process.env.AUTUMN_SECRET_KEY?.trim()) &&
 			process.env.NODE_ENV === "production")

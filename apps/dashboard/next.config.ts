@@ -14,8 +14,31 @@ const demoFrameAncestorSources = [
 	"https://staging.databuddy.cc",
 ] as const;
 
+const apiProxyUrl = readBooleanEnv("SELFHOST")
+	? process.env.API_PROXY_URL?.trim()
+	: undefined;
+const e2eDevelopmentBuild =
+	readBooleanEnv("DATABUDDY_E2E_SERVE_BUILD") &&
+	process.env.NODE_ENV === "development";
+
 const nextConfig: NextConfig = {
+	async rewrites() {
+		if (!apiProxyUrl) {
+			return [];
+		}
+		return ["/rpc/:path*", "/v1/:path*"].map((source) => ({
+			source,
+			destination: new URL(source, apiProxyUrl).href,
+		}));
+	},
+	experimental: {
+		...(apiProxyUrl ? { proxyTimeout: 600_000 } : {}),
+		...(e2eDevelopmentBuild ? { allowDevelopmentBuild: true } : {}),
+	},
 	env: {
+		...(apiProxyUrl && process.env.NEXT_PUBLIC_APP_URL
+			? { NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_APP_URL }
+			: {}),
 		NEXT_PUBLIC_SELFHOST: String(readBooleanEnv("SELFHOST")),
 		NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID: readBooleanEnv("SELFHOST")
 			? ""
@@ -63,7 +86,17 @@ const nextConfig: NextConfig = {
 		],
 	},
 	transpilePackages: [],
-	output: process.env.VERCEL ? undefined : "standalone",
+	output: process.env.VERCEL || e2eDevelopmentBuild ? undefined : "standalone",
+	typescript: { ignoreBuildErrors: e2eDevelopmentBuild },
+	async redirects() {
+		return [
+			{
+				source: "/websites/:id/realtime",
+				destination: "/websites/:id/map",
+				permanent: true,
+			},
+		];
+	},
 	async headers() {
 		const securityHeaders = [
 			{
@@ -95,9 +128,11 @@ const nextConfig: NextConfig = {
 			"'self'",
 			localhostSources,
 			...(readBooleanEnv("SELFHOST")
-				? [process.env.NEXT_PUBLIC_API_URL, process.env.NEXT_PUBLIC_BASKET_URL]
-						.filter((url): url is string => Boolean(url?.trim()))
-						.map((url) => new URL(url).origin)
+				? [
+						process.env.NEXT_PUBLIC_API_URL?.trim() || "http://localhost:3001",
+						process.env.NEXT_PUBLIC_BASKET_URL?.trim() ||
+							"http://localhost:4000",
+					].map((url) => new URL(url).origin)
 				: []),
 			"https://*.databuddy.cc",
 			"https://*.useautumn.com",

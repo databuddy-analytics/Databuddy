@@ -5,7 +5,10 @@ import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import { dayjs } from "@databuddy/ui";
 import { trackCancelFeedbackAction } from "../actions/cancel-feedback-action";
 import type { CancelFeedback } from "../components/cancel-subscription-dialog";
-import { calculateFeatureUsage } from "../utils/feature-usage";
+import {
+	calculateFeatureUsage,
+	findPlanPricingTiers,
+} from "../utils/feature-usage";
 export interface CancelTarget {
 	currentPeriodEnd?: number;
 	id: string;
@@ -114,11 +117,14 @@ export function useBillingData() {
 		() => ({
 			features: customer?.balances
 				? Object.values(customer.balances).map((bal) =>
-						calculateFeatureUsage(bal)
+						calculateFeatureUsage(
+							bal,
+							findPlanPricingTiers(plans, bal.featureId)
+						)
 					)
 				: [],
 		}),
-		[customer?.balances]
+		[customer?.balances, plans]
 	);
 
 	const refetch = () => {

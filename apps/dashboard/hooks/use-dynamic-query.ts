@@ -19,6 +19,8 @@ export const dynamicQueryKeys = {
 export const batchDynamicQueryKeys = {
 	all: () => ["batch-dynamic-query"] as const,
 	byWebsite: (websiteId: string) => ["batch-dynamic-query", websiteId] as const,
+	byTarget: (target: { scheduleId?: string; websiteId?: string }) =>
+		["batch-dynamic-query", target.websiteId, target.scheduleId] as const,
 };
 
 interface QueryTarget {
@@ -106,7 +108,7 @@ function buildRequest(
 	};
 }
 
-async function fetchDynamicQuery(
+export async function fetchDynamicQuery(
 	idOrOptions: string | QueryTarget,
 	dateRange: DateRange,
 	queryData: DynamicQueryRequest | DynamicQueryRequest[],

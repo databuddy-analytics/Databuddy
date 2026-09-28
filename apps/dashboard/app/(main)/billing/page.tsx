@@ -54,10 +54,6 @@ import {
 	dayjs,
 } from "@databuddy/ui";
 
-const PLANS_WITHOUT_SELF_SERVE_UPGRADES = new Set([
-	"scale",
-	...Object.values(INTELLIGENCE_PLAN_IDS),
-]);
 const INTELLIGENCE_PLAN_ID_SET = new Set<string>(
 	Object.values(INTELLIGENCE_PLAN_IDS)
 );
@@ -396,8 +392,8 @@ export default function BillingPage() {
 		currentSubscription?.canceledAt ||
 			currentPlan?.customerEligibility?.canceling === true
 	);
-	const showUsageUpgrade = !(
-		currentPlan?.id && PLANS_WITHOUT_SELF_SERVE_UPGRADES.has(currentPlan.id)
+	const canSelfServeUpgrade = plans.some(
+		(plan) => plan.customerEligibility?.attachAction === "upgrade"
 	);
 	const showAddOns = addOns.length > 0;
 	const currentPlanDisplayName = getCustomerPlanName(
@@ -628,7 +624,7 @@ export default function BillingPage() {
 									<UsageRow
 										feature={feature}
 										key={feature.id}
-										showUpgrade={showUsageUpgrade}
+										canSelfServeUpgrade={canSelfServeUpgrade}
 									/>
 								))}
 							</Card.Content>

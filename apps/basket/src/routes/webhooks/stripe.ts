@@ -10,7 +10,13 @@ import {
 	type StripeWebhookEvent,
 	normalizeStripeEvent,
 } from "./stripe-normalization";
-import { formatDate, getWebhookConfig, resolveWebsiteId } from "./shared";
+import {
+	formatDate,
+	getWebhookConfig,
+	recordWebhookDelivery,
+	resolveWebsiteId,
+	stripeApiVersion,
+} from "./shared";
 
 const SIGNATURE_TOLERANCE_SECONDS = 300;
 
@@ -114,10 +120,13 @@ function buildAnalyticsMetadata(
 
 export function buildStripeMetadata(
 	metadata: AnalyticsMetadata,
-	context: NormalizedStripeRecord["context"]
+	context: NormalizedStripeRecord["context"],
+	apiVersion?: unknown
 ): Record<string, string | number> {
+	const version = stripeApiVersion(apiVersion);
 	return {
 		...metadata,
+		...(version ? { stripe_api_version: version } : {}),
 		...(context.cancellationReason
 			? { stripe_cancellation_reason: context.cancellationReason }
 			: {}),
@@ -149,7 +158,8 @@ function loadStripeConfig(
 
 async function insertStripeRevenue(
 	config: WebhookConfig,
-	records: NormalizedStripeRecord[]
+	records: NormalizedStripeRecord[],
+	apiVersion?: unknown
 ): Promise<void> {
 	if (records.length === 0) {
 		return;
@@ -192,7 +202,9 @@ async function insertStripeRevenue(
 				session_id: metadata.session_id,
 				customer_id: record.customerId,
 				product_name: record.productName,
-				metadata: JSON.stringify(buildStripeMetadata(metadata, record.context)),
+				metadata: JSON.stringify(
+					buildStripeMetadata(metadata, record.context, apiVersion)
+				),
 				created: formatDate(new Date(record.createdUnix * 1000)),
 				synced_at: syncedAt,
 			};
@@ -239,9 +251,13 @@ export const stripeWebhook = new Elysia().use(evlog()).post(
 			eventType: event.type,
 			stripeApiVersion: event.api_version,
 		});
+		let recordCount = 0;
+		let status: "failed" | "processed" = "failed";
 		try {
 			const records = normalizeStripeEvent(event);
-			await insertStripeRevenue(config, records);
+			await insertStripeRevenue(config, records, event.api_version);
+			recordCount = records.length;
+			status = "processed";
 			log.set({
 				recordCount: records.length,
 				moneyRecordCount: records.filter(
@@ -255,6 +271,21 @@ export const stripeWebhook = new Elysia().use(evlog()).post(
 		} catch (error) {
 			log.error(error instanceof Error ? error : new Error(String(error)));
 			throw basketErrors.webhookProcessingFailed();
+		} finally {
+			await recordWebhookDelivery({
+				apiVersion: stripeApiVersion(event.api_version),
+				eventId: event.id,
+				eventType: event.type,
+				ownerId: config.ownerId,
+				provider: "stripe",
+				recordCount,
+				status,
+				websiteId: config.websiteId,
+			}).catch((error) => {
+				log.error(error instanceof Error ? error : new Error(String(error)), {
+					webhookDeliveryLog: "write_failed",
+				});
+			});
 		}
 	},
 	{ parse: "none" }

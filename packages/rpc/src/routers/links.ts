@@ -11,6 +11,7 @@ import {
 } from "@databuddy/db";
 import { links } from "@databuddy/db/schema";
 import { z } from "zod";
+import { rpcError } from "../errors";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
 import { requireLinkAccess, requireOrganizationId } from "./link-access";
@@ -229,6 +230,9 @@ export const linksRouter = {
 				has_expiry: !!input.expiresAt,
 				has_og: !!(input.ogTitle || input.ogImageUrl),
 			});
+			if (input.folder && input.folderId) {
+				throw rpcError.badRequest("Pass either folderId or folder, not both");
+			}
 			const organizationId = requireOrganizationId(
 				input.organizationId?.trim() || context.organizationId
 			);

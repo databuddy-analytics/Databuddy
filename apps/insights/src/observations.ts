@@ -460,17 +460,18 @@ export async function settleRunInvestigationCharges(params: {
 	}
 }
 
-/** Source evidence is loaded independently of the bounded conversation tail. */
-export async function loadClarificationContext(params: {
+export async function loadSourceObservation(params: {
 	sourceObservationId: string | null;
 	organizationId: string;
 	websiteId: string;
 	signalKey: string;
-	beforeReply: { createdAt: Date; id: string };
+	createdAtOrBefore: Date;
 }) {
 	const [source] = await db
 		.select({
 			id: insightObservations.id,
+			asOf: insightObservations.asOf,
+			evidence: insightObservations.evidence,
 			snapshot: insightObservations.snapshot,
 			outcome: insightObservations.outcome,
 			signal: insightObservations.signal,
@@ -483,13 +484,30 @@ export async function loadClarificationContext(params: {
 				eq(insightObservations.signalKey, params.signalKey),
 				params.sourceObservationId
 					? eq(insightObservations.id, params.sourceObservationId)
-					: lte(insightObservations.createdAt, params.beforeReply.createdAt)
+					: lte(insightObservations.createdAt, params.createdAtOrBefore)
 			)
 		)
 		.orderBy(desc(insightObservations.createdAt), desc(insightObservations.id))
 		.limit(1);
-	const outcome = parseInvestigationOutcome(source?.outcome);
-	const signal = parseInvestigationSignal(source?.signal);
+	return {
+		source,
+		outcome: parseInvestigationOutcome(source?.outcome),
+		signal: parseInvestigationSignal(source?.signal),
+	};
+}
+
+/** Source evidence is loaded independently of the bounded conversation tail. */
+export async function loadClarificationContext(params: {
+	sourceObservationId: string | null;
+	organizationId: string;
+	websiteId: string;
+	signalKey: string;
+	beforeReply: { createdAt: Date; id: string };
+}) {
+	const { source, outcome, signal } = await loadSourceObservation({
+		...params,
+		createdAtOrBefore: params.beforeReply.createdAt,
+	});
 	if (!(source && outcome && signal)) {
 		throw new Error("The saved investigation is unavailable for this reply");
 	}

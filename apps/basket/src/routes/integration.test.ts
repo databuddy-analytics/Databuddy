@@ -1,4 +1,5 @@
-import { vi, beforeEach, describe, expect, test } from "vitest";
+import { setupCheckUserAgent } from "@databuddy/shared/bot-detection/ai-agents";
+import { vi, afterEach, beforeEach, describe, expect, test } from "vitest";
 
 const {
 	noop,
@@ -21,6 +22,9 @@ const {
 	mockGetAccessibleWebsiteIds,
 	mockGetWebsiteByIdV2,
 	mockResolveApiKeyOwnerId,
+	mockDenyApiKeyWebsiteAccess,
+	mockRedisSet,
+	apiKeyDenialErrors,
 } = vi.hoisted(() => {
 	const noop = vi.fn(() => {});
 	const noopAsync = vi.fn(() => Promise.resolve());
@@ -39,6 +43,9 @@ const {
 		organizationId: "org_1",
 	};
 	return {
+		mockDenyApiKeyWebsiteAccess: vi.fn((): string | null => null),
+		mockRedisSet: vi.fn(() => Promise.resolve("OK")),
+		apiKeyDenialErrors: {} as Record<string, () => Error>,
 		noop,
 		noopAsync,
 		mockLogger: {
@@ -113,6 +120,7 @@ vi.mock("@lib/event-service", () => ({
 	insertTrackEventsBatch: mockInsertTrackEventsBatch,
 	insertOutgoingLinksBatch: mockInsertOutgoingLinksBatch,
 	insertIndividualVitals: mockInsertIndividualVitals,
+	insertEngagementSpans: vi.fn(async () => {}),
 	insertErrorSpans: mockInsertErrorSpans,
 	insertCustomEvents: mockInsertCustomEvents,
 	stableAnalyticsEventId: vi.fn(() => "stable_id"),
@@ -141,11 +149,11 @@ vi.mock("@utils/ip-geo", () => ({
 	closeGeoIPReader: noop,
 }));
 
-vi.mock("@utils/user-agent", () => ({
+vi.mock("@utils/user-agent", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@utils/user-agent")>()),
 	parseUserAgent: vi.fn(() =>
 		Promise.resolve({ browserName: "Chrome", osName: "Windows" })
 	),
-	detectBot: vi.fn(() => ({ isBot: false })),
 }));
 
 vi.mock("@lib/blocked-traffic", () => ({
@@ -164,10 +172,16 @@ vi.mock("@databuddy/redis/rate-limit", () => ({
 }));
 
 vi.mock("@lib/api-key", () => ({
+	API_KEY_DENIAL_ERRORS: apiKeyDenialErrors,
+	denyApiKeyWebsiteAccess: mockDenyApiKeyWebsiteAccess,
 	getApiKeyFromHeader: mockGetApiKeyFromHeader,
 	hasKeyScope: mockHasKeyScope,
 	hasGlobalAccess: mockHasGlobalAccess,
 	getAccessibleWebsiteIds: mockGetAccessibleWebsiteIds,
+}));
+
+vi.mock("@databuddy/redis/redis", () => ({
+	redis: { set: mockRedisSet },
 }));
 
 vi.mock("@hooks/auth", () => ({
@@ -188,6 +202,10 @@ const { basketErrors, buildBasketErrorPayload } = await import(
 	"@lib/structured-errors"
 );
 const { ERRORS_BODY_MAX_BYTES } = await import("../routes/basket");
+const { send: mockSend } = await import("@lib/producer");
+const { isOriginAllowed } = await import("@hooks/auth");
+apiKeyDenialErrors.website_scope_mismatch =
+	basketErrors.trackWebsiteScopeMismatch;
 const { createError, EvlogError } = await import("evlog");
 const { Elysia } = await import("elysia");
 const mockGlobalErrorHandler = vi.fn();
@@ -354,6 +372,55 @@ describe("POST /vitals", () => {
 		expect(res.status).toBe(200);
 		const body = await json(res);
 		expect(body.count).toBe(0);
+	});
+});
+
+describe("POST /engagement", () => {
+	const span = {
+		timestamp: now,
+		path: "https://example.com/pricing",
+		pageIndex: 2,
+		exitType: "spa",
+		timeOnPage: 42,
+		activeTime: 30,
+		timeToFirstInteraction: 1200,
+		maxScrollDepth: 80,
+		scrollCount: 6,
+		clickCount: 4,
+		keyCount: 0,
+		interactionCount: 10,
+		copyCount: 1,
+		rageClickCount: 1,
+		deadClickCount: 1,
+		rageClickTarget: "button:compare plans",
+		deadClickTarget: "button:compare plans",
+		formFieldCount: 2,
+		formSubmitCount: 0,
+		lastFormField: "input:email",
+		errorCount: 0,
+	};
+
+	test("valid engagement batch → 200 with the exact success body", async () => {
+		const res = await post(basketApp, "/engagement", [span]);
+		expect(res.status).toBe(200);
+		expect(await json(res)).toEqual({
+			status: "success",
+			type: "engagement",
+			count: 1,
+		});
+	});
+
+	test("invalid engagement (unknown exit type) → 400", async () => {
+		const res = await post(basketApp, "/engagement", [
+			{ ...span, exitType: "teleport" },
+		]);
+		expect(res.status).toBe(400);
+	});
+
+	test("empty array → 200 with count 0", async () => {
+		const res = await post(basketApp, "/engagement", []);
+		expect(res.status).toBe(200);
+		expect((await json(res)).count).toBe(0);
 	});
 });
 
@@ -1240,5 +1307,110 @@ describe("POST /track", () => {
 		});
 		expect(res.status).toBe(400);
 		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
+	});
+});
+
+describe("POST /ai-traffic", () => {
+	const CLAUDE_CODE =
+		"Claude-User (claude-code/2.1.280; +https://support.anthropic.com/)";
+	const CHROME_UA =
+		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+
+	beforeEach(() => {
+		vi.mocked(mockSend).mockClear();
+		vi.mocked(mockRedisSet).mockClear();
+		vi.mocked(isOriginAllowed).mockImplementation(
+			(origin: string, domain: string) =>
+				new URL(origin).hostname.endsWith(domain)
+		);
+	});
+
+	afterEach(() => {
+		vi.mocked(isOriginAllowed).mockImplementation(() => true);
+	});
+
+	function hit(
+		userAgent: string,
+		host = "docs.example.com",
+		signals: { accept?: string; signatureAgent?: string } = {}
+	) {
+		return post(trackRoute, "/ai-traffic", {
+			websiteId: "ws_test",
+			host,
+			path: "/docs/intro",
+			format: "markdown",
+			userAgent,
+			...signals,
+		});
+	}
+
+	test("stores an AI agent request without an API key", async () => {
+		const res = await hit(CLAUDE_CODE);
+		expect(res.status).toBe(202);
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-ai-traffic-spans",
+			expect.objectContaining({
+				client_id: "ws_test",
+				path: "/docs/intro",
+				agent_id: "claude-code",
+				agent_purpose: "agent",
+				format: "markdown",
+				source: "middleware",
+			})
+		);
+	});
+
+	test("drops requests from anything that is not an AI agent", async () => {
+		const res = await hit(
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+		);
+		expect(res.status).toBe(204);
+		expect(mockSend).not.toHaveBeenCalled();
+	});
+
+	test("rejects hits from a host the website does not own", async () => {
+		const res = await hit(CLAUDE_CODE, "someone-else.dev");
+		expect(res.status).toBe(403);
+		expect(mockSend).not.toHaveBeenCalled();
+	});
+
+	test("stores a signed agent browser under its registry id with host and accept", async () => {
+		const res = await hit(CHROME_UA, "docs.example.com", {
+			accept: "text/html,application/xhtml+xml",
+			signatureAgent: '"https://chatgpt.com"',
+		});
+		expect(res.status).toBe(202);
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-ai-traffic-spans",
+			expect.objectContaining({
+				accept: "text/html,application/xhtml+xml",
+				agent_id: "chatgpt-agent",
+				agent_purpose: "agent",
+				host: "docs.example.com",
+			})
+		);
+	});
+
+	test("records an unknown signed agent under its domain", async () => {
+		const res = await hit(CHROME_UA, "docs.example.com", {
+			signatureAgent: '"https://agents.example.dev"',
+		});
+		expect(res.status).toBe(202);
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-ai-traffic-spans",
+			expect.objectContaining({ agent_id: "agents.example.dev" })
+		);
+	});
+
+	test("records a setup check in Redis instead of analytics", async () => {
+		const res = await hit(setupCheckUserAgent("nonce_1"));
+		expect(res.status).toBe(202);
+		expect(mockSend).not.toHaveBeenCalled();
+		expect(mockRedisSet).toHaveBeenCalledWith(
+			"ai-agent-setup-check:ws_test:nonce_1",
+			"1",
+			"EX",
+			120
+		);
 	});
 });

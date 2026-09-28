@@ -1,6 +1,6 @@
 "use client";
 
-import type { SortOption, StatusFilter } from "./use-filtered-monitors";
+import type { SortOption } from "./use-filtered-monitors";
 import {
 	ArrowsDownUpIcon as SortAscendingIcon,
 	FunnelIcon,
@@ -13,35 +13,33 @@ import { DropdownMenu } from "@databuddy/ui/client";
 const SORT_LABELS: Record<SortOption, string> = {
 	newest: "Newest",
 	oldest: "Oldest",
-	"name-asc": "A \u2192 Z",
-	"name-desc": "Z \u2192 A",
+	"name-asc": "A → Z",
+	"name-desc": "Z → A",
 };
 
-const STATUS_LABELS: Record<StatusFilter, string> = {
-	all: "All",
-	active: "Active",
-	paused: "Paused",
-};
-
-interface MonitorsSearchBarProps {
-	hasPaused: boolean;
+interface ListSearchBarProps<TStatus extends string> {
 	onSearchQueryChangeAction: (query: string) => void;
 	onSortByChangeAction: (sort: SortOption) => void;
-	onStatusFilterChangeAction: (status: StatusFilter) => void;
+	onStatusFilterChangeAction: (status: TStatus) => void;
+	placeholder: string;
 	searchQuery: string;
+	showStatusFilter: boolean;
 	sortBy: SortOption;
-	statusFilter: StatusFilter;
+	statusFilter: TStatus;
+	statusLabels: Record<TStatus, string>;
 }
 
-export function MonitorsSearchBar({
+export function ListSearchBar<TStatus extends string>({
 	searchQuery,
 	onSearchQueryChangeAction,
+	placeholder,
 	sortBy,
 	onSortByChangeAction,
 	statusFilter,
+	statusLabels,
 	onStatusFilterChangeAction,
-	hasPaused,
-}: MonitorsSearchBarProps) {
+	showStatusFilter,
+}: ListSearchBarProps<TStatus>) {
 	return (
 		<div className="flex w-full items-center gap-1.5">
 			<div className="relative flex-1">
@@ -49,7 +47,7 @@ export function MonitorsSearchBar({
 				<Input
 					className="h-7 pr-7 pl-8"
 					onChange={(e) => onSearchQueryChangeAction(e.target.value)}
-					placeholder="Search monitors"
+					placeholder={placeholder}
 					value={searchQuery}
 					variant="ghost"
 				/>
@@ -65,14 +63,14 @@ export function MonitorsSearchBar({
 				)}
 			</div>
 
-			{hasPaused && (
+			{showStatusFilter && (
 				<DropdownMenu>
 					<DropdownMenu.Trigger
 						className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs transition-colors hover:bg-interactive-hover hover:text-foreground ${statusFilter === "all" ? "text-muted-foreground" : "text-foreground"}`}
 					>
 						<FunnelIcon size={14} />
 						<span className="hidden sm:inline">
-							{STATUS_LABELS[statusFilter]}
+							{statusLabels[statusFilter]}
 						</span>
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end" className="w-36">
@@ -81,18 +79,16 @@ export function MonitorsSearchBar({
 						</DropdownMenu.Group>
 						<DropdownMenu.Separator />
 						<DropdownMenu.RadioGroup
-							onValueChange={(value) =>
-								onStatusFilterChangeAction(value as StatusFilter)
-							}
+							onValueChange={onStatusFilterChangeAction}
 							value={statusFilter}
 						>
-							<DropdownMenu.RadioItem value="all">All</DropdownMenu.RadioItem>
-							<DropdownMenu.RadioItem value="active">
-								Active
-							</DropdownMenu.RadioItem>
-							<DropdownMenu.RadioItem value="paused">
-								Paused
-							</DropdownMenu.RadioItem>
+							{(Object.entries(statusLabels) as [TStatus, string][]).map(
+								([value, label]) => (
+									<DropdownMenu.RadioItem key={value} value={value}>
+										{label}
+									</DropdownMenu.RadioItem>
+								)
+							)}
 						</DropdownMenu.RadioGroup>
 					</DropdownMenu.Content>
 				</DropdownMenu>
@@ -109,7 +105,7 @@ export function MonitorsSearchBar({
 					</DropdownMenu.Group>
 					<DropdownMenu.Separator />
 					<DropdownMenu.RadioGroup
-						onValueChange={(value) => onSortByChangeAction(value as SortOption)}
+						onValueChange={onSortByChangeAction}
 						value={sortBy}
 					>
 						<DropdownMenu.RadioItem value="newest">

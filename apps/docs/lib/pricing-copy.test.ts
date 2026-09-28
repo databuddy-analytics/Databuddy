@@ -117,7 +117,7 @@ describe("public pricing copy", () => {
 		);
 	});
 
-	it("shows the completed-unit price and access gate on every investigation comparison row", () => {
+	it("shows the completed-unit price on every investigation comparison row", () => {
 		const rows = Object.values(competitors).flatMap((competitor) =>
 			competitor.pricingTiers.filter(
 				(row) => row.pageviews === "Automatic investigations"
@@ -131,7 +131,6 @@ describe("public pricing copy", () => {
 			expect(row.databuddy).toContain("100/month on Business");
 			expect(row.databuddy).toContain("250/month on Scale");
 			expect(row.databuddy).toContain("billed monthly");
-			expect(row.databuddy).toContain("Invite only");
 			expect(["Free", "Included"]).not.toContain(row.databuddy);
 		}
 	});
@@ -161,7 +160,6 @@ describe("public pricing copy", () => {
 		expect(markdown).toContain("AI credits");
 		expect(markdown).not.toContain("investigation credits");
 		expect(markdown).toContain("Databunny chat");
-		expect(markdown).toContain("Invite only");
 		expect(markdown).toContain(
 			"$1 per additional investigation, billed monthly"
 		);
@@ -263,8 +261,9 @@ describe("public pricing copy", () => {
 			);
 			expect(estimator).toContain("Investigations included / month");
 			expect(estimator).toContain(`>${allowance}</span>`);
-			expect(estimator).toContain("REQUEST ACCESS");
-			expect(estimator).toContain('href="/contact?topic=');
+			expect(estimator).toContain(
+				`href="https://app.databuddy.cc/register?plan=${id}"`
+			);
 			const structured = renderToStaticMarkup(
 				createElement(StructuredData, {
 					page: { title: "Pricing", url: "/pricing" },
@@ -330,7 +329,7 @@ describe("public pricing copy", () => {
 			expect(output).not.toContain("legacy billing");
 		}
 	});
-	it("restores a visible comparison table with all six plans and accurate request-access links", () => {
+	it("restores a visible comparison table with all six plans and accurate get-started links", () => {
 		const plans = normalizePlans(RAW_PLANS);
 		const markup = renderToStaticMarkup(
 			createElement(PlansComparisonTable, { plans })
@@ -340,15 +339,11 @@ describe("public pricing copy", () => {
 		for (const plan of plans) {
 			expect(markup).toContain(`id="${plan.id}"`);
 		}
-		for (const id of ["hobby", "pro"]) {
+		for (const id of ["hobby", "pro", "intelligence", "intelligence_scale"]) {
 			expect(markup).toContain(
 				`href="https://app.databuddy.cc/register?plan=${id}"`
 			);
 		}
-		for (const topic of ["intelligence-business", "intelligence-scale"]) {
-			expect(markup).toContain(`href="/contact?topic=${topic}"`);
-		}
-		expect(markup).not.toContain("register?plan=intelligence");
 		expect(markup).not.toContain("Most popular");
 		const comparison = markup;
 		expect(comparison).toStartWith("<section ");
@@ -366,7 +361,7 @@ describe("public pricing copy", () => {
 		expect(comparison).not.toContain("Automatic investigations");
 	});
 
-	it("anchors columns high-to-low and marks the recommended invite-only tier", () => {
+	it("anchors columns high-to-low and marks the recommended tier", () => {
 		const markup = renderToStaticMarkup(
 			createElement(PlansComparisonTable, { plans: normalizePlans(RAW_PLANS) })
 		);
@@ -393,12 +388,6 @@ describe("public pricing copy", () => {
 		expect(header("intelligence")).toContain(
 			"An always-on product investigator"
 		);
-		for (const id of ["intelligence", "intelligence_scale"]) {
-			expect(header(id)).toContain("Invite only");
-		}
-		for (const id of ["free", "hobby", "pro", "enterprise"]) {
-			expect(header(id)).not.toContain("Invite only");
-		}
 		for (const plan of normalizePlans(RAW_PLANS)) {
 			expect(plan.description).toBeTruthy();
 			expect(header(plan.id)).toContain(plan.description ?? "");

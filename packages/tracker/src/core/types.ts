@@ -88,6 +88,33 @@ export type WebVitalEvent = {
 	sessionId?: string;
 };
 
+export type EngagementSpan = {
+	timestamp: number;
+	path: string;
+	anonymousId?: string;
+	anonymizeVisitorIds?: boolean | "auto";
+	sessionId?: string;
+	pageIndex: number;
+	exitType: "spa" | "unload";
+	timeOnPage: number;
+	activeTime: number;
+	timeToFirstInteraction: number;
+	maxScrollDepth: number;
+	scrollCount: number;
+	clickCount: number;
+	keyCount: number;
+	interactionCount: number;
+	copyCount: number;
+	rageClickCount: number;
+	deadClickCount: number;
+	rageClickTarget: string;
+	deadClickTarget: string;
+	formFieldCount: number;
+	formSubmitCount: number;
+	lastFormField: string;
+	errorCount: number;
+};
+
 export type ErrorSpan = {
 	eventId?: string;
 	timestamp: number;

@@ -1,12 +1,18 @@
 "use client";
 
+import { RESERVED_STATUS_PAGE_SLUGS } from "@databuddy/shared/uptime";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import {
+	MAX_UPLOAD_BYTES,
+	UPLOAD_CONTENT_TYPES,
+} from "@databuddy/shared/uploads";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
+import type { StatusPage } from "@/components/status-pages/status-page-row";
 import { orpc } from "@/lib/orpc";
 import {
 	Button,
@@ -18,10 +24,9 @@ import {
 } from "@databuddy/ui";
 import { Sheet } from "@databuddy/ui/client";
 
-const URL_REGEX = /^https?:\/\/.+/;
+const HTTPS_URL_REGEX = /^https:\/\/.+/;
 
-const UPLOAD_ACCEPT =
-	"image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon";
+const UPLOAD_ACCEPT = UPLOAD_CONTENT_TYPES.join(",");
 
 const ASSET_FIELDS = {
 	logo: { label: "Logo", field: "logoUrl" },
@@ -70,6 +75,45 @@ function AssetUploadButton({
 	);
 }
 
+const optionalHttpsUrl = z
+	.string()
+	.refine(
+		(v) => v === "" || HTTPS_URL_REGEX.test(v),
+		"Must start with https://"
+	);
+
+const URL_FIELDS = [
+	{
+		name: "logoUrl",
+		label: "Logo",
+		placeholder: "https://example.com/logo.svg",
+		asset: "logo",
+		description:
+			"Displayed in the navbar and page header. Upload a file or paste an https URL.",
+	},
+	{
+		name: "faviconUrl",
+		label: "Favicon",
+		placeholder: "https://example.com/favicon.ico",
+		asset: "favicon",
+		description: null,
+	},
+	{
+		name: "websiteUrl",
+		label: "Website URL",
+		placeholder: "https://example.com",
+		asset: null,
+		description: "Logo and name link to this URL",
+	},
+	{
+		name: "supportUrl",
+		label: "Support URL",
+		placeholder: "https://example.com/support",
+		asset: null,
+		description: 'Shown as a "Get Support" link in the navbar',
+	},
+] as const;
+
 const statusPageFormSchema = z.object({
 	name: z
 		.string()
@@ -82,23 +126,19 @@ const statusPageFormSchema = z.object({
 		.regex(
 			/^[a-z0-9-]+$/,
 			"Slug must only contain lowercase letters, numbers, and dashes"
+		)
+		.refine(
+			(slug) => !RESERVED_STATUS_PAGE_SLUGS.has(slug),
+			"This slug is reserved"
 		),
 	description: z
 		.string()
 		.max(500, "Description must be 500 characters or fewer")
 		.optional(),
-	logoUrl: z
-		.string()
-		.refine((v) => v === "" || URL_REGEX.test(v), "Must be a valid URL"),
-	faviconUrl: z
-		.string()
-		.refine((v) => v === "" || URL_REGEX.test(v), "Must be a valid URL"),
-	websiteUrl: z
-		.string()
-		.refine((v) => v === "" || URL_REGEX.test(v), "Must be a valid URL"),
-	supportUrl: z
-		.string()
-		.refine((v) => v === "" || URL_REGEX.test(v), "Must be a valid URL"),
+	logoUrl: optionalHttpsUrl,
+	faviconUrl: optionalHttpsUrl,
+	websiteUrl: optionalHttpsUrl,
+	supportUrl: optionalHttpsUrl,
 	theme: z.enum(["system", "light", "dark"]),
 });
 
@@ -114,17 +154,18 @@ interface StatusPageSheetProps {
 	onCloseAction: (open: boolean) => void;
 	onSaveAction?: () => void;
 	open: boolean;
-	statusPage?: {
-		description?: string | null;
-		faviconUrl?: string | null;
-		id: string;
-		logoUrl?: string | null;
-		name: string;
-		slug: string;
-		supportUrl?: string | null;
-		theme?: string | null;
-		websiteUrl?: string | null;
-	} | null;
+	statusPage?: Pick<
+		StatusPage,
+		| "description"
+		| "faviconUrl"
+		| "id"
+		| "logoUrl"
+		| "name"
+		| "slug"
+		| "supportUrl"
+		| "theme"
+		| "websiteUrl"
+	> | null;
 }
 
 export function StatusPageSheet({
@@ -148,17 +189,27 @@ export function StatusPageSheet({
 		}
 	}, [open, statusPage, form]);
 
-	const uploadUrlMutation = useMutation({
-		...orpc.statusPage.createAssetUploadUrl.mutationOptions(),
-	});
+	const uploadUrlMutation = useMutation(
+		orpc.statusPage.createAssetUploadUrl.mutationOptions()
+	);
 	const [uploading, setUploading] = useState<AssetKind | null>(null);
+	const organizationId = activeOrganization?.id ?? activeOrganizationId ?? null;
 
 	const uploadAsset = async (asset: AssetKind, file: File) => {
-		const organizationId =
-			activeOrganization?.id ?? activeOrganizationId ?? null;
-
 		if (!organizationId) {
 			toast.error("No active organization selected");
+			return;
+		}
+
+		const contentType = UPLOAD_CONTENT_TYPES.find((type) => type === file.type);
+
+		if (!contentType) {
+			toast.error("Unsupported file type. Use PNG, JPEG, WebP, or ICO.");
+			return;
+		}
+
+		if (file.size > MAX_UPLOAD_BYTES) {
+			toast.error("File is too large. The limit is 2 MB.");
 			return;
 		}
 
@@ -169,18 +220,19 @@ export function StatusPageSheet({
 			const { publicUrl, uploadUrl } = await uploadUrlMutation.mutateAsync({
 				asset,
 				contentLength: file.size,
-				contentType: file.type,
+				contentType,
 				organizationId,
 			});
 
 			const response = await fetch(uploadUrl, {
 				body: file,
-				headers: { "Content-Type": file.type },
+				headers: { "Content-Type": contentType },
 				method: "PUT",
-			});
+			}).catch(() => null);
 
-			if (!response.ok) {
-				throw new Error(`Upload failed with status ${response.status}`);
+			if (!response?.ok) {
+				toast.error("Upload failed, try again");
+				return;
 			}
 
 			form.setValue(field, publicUrl, {
@@ -188,70 +240,45 @@ export function StatusPageSheet({
 				shouldValidate: true,
 			});
 			toast.success(`${label} uploaded`);
-		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Upload failed, try again"
-			);
+		} catch {
 		} finally {
 			setUploading(null);
 		}
 	};
 
-	const createMutation = useMutation({
-		...orpc.statusPage.create.mutationOptions(),
-	});
-	const updateMutation = useMutation({
-		...orpc.statusPage.update.mutationOptions(),
-	});
+	const createMutation = useMutation(orpc.statusPage.create.mutationOptions());
+	const updateMutation = useMutation(orpc.statusPage.update.mutationOptions());
 
 	const handleSubmit = async () => {
 		const data = form.getValues();
-		const urlOrNull = (v: string | undefined) =>
-			v && v.trim() !== "" ? v : null;
+		const details = {
+			name: data.name,
+			slug: data.slug,
+			description: data.description,
+			logoUrl: urlOrNull(data.logoUrl),
+			faviconUrl: urlOrNull(data.faviconUrl),
+			websiteUrl: urlOrNull(data.websiteUrl),
+			supportUrl: urlOrNull(data.supportUrl),
+			theme: data.theme,
+		};
 
 		try {
-			if (isEditing && statusPage) {
+			if (statusPage) {
 				await updateMutation.mutateAsync({
 					statusPageId: statusPage.id,
-					name: data.name,
-					slug: data.slug,
-					description: data.description,
-					logoUrl: urlOrNull(data.logoUrl),
-					faviconUrl: urlOrNull(data.faviconUrl),
-					websiteUrl: urlOrNull(data.websiteUrl),
-					supportUrl: urlOrNull(data.supportUrl),
-					theme: data.theme,
+					...details,
 				});
-				toast.success("Status page updated");
 			} else {
-				const resolvedOrganizationId =
-					activeOrganization?.id ?? activeOrganizationId ?? null;
-
-				if (!resolvedOrganizationId) {
+				if (!organizationId) {
 					toast.error("No active organization selected");
 					return;
 				}
-
-				await createMutation.mutateAsync({
-					organizationId: resolvedOrganizationId,
-					name: data.name,
-					slug: data.slug,
-					description: data.description,
-					logoUrl: urlOrNull(data.logoUrl),
-					faviconUrl: urlOrNull(data.faviconUrl),
-					websiteUrl: urlOrNull(data.websiteUrl),
-					supportUrl: urlOrNull(data.supportUrl),
-					theme: data.theme,
-				});
-				toast.success("Status page created");
+				await createMutation.mutateAsync({ organizationId, ...details });
 			}
+			toast.success(`Status page ${statusPage ? "updated" : "created"}`);
 			onSaveAction?.();
 			onCloseAction(false);
-		} catch (error) {
-			const errorMessage =
-				error instanceof Error ? error.message : "Failed to save status page";
-			toast.error(errorMessage);
-		}
+		} catch {}
 	};
 
 	const isPending = createMutation.isPending || updateMutation.isPending;
@@ -333,94 +360,38 @@ export function StatusPageSheet({
 								</p>
 							</div>
 
-							<Controller
-								control={form.control}
-								name="logoUrl"
-								render={({ field, fieldState }) => (
-									<Field error={!!fieldState.error}>
-										<Field.Label>Logo</Field.Label>
-										<div className="flex items-center gap-2">
-											<Input
-												placeholder="https://example.com/logo.svg"
-												{...field}
-											/>
-											<AssetUploadButton
-												busy={uploading !== null}
-												onPickAction={(file) => uploadAsset("logo", file)}
-												uploading={uploading === "logo"}
-											/>
-										</div>
-										<Field.Description>
-											Displayed in the navbar and page header. Upload a file or
-											paste an https URL.
-										</Field.Description>
-										{fieldState.error && (
-											<Field.Error>{fieldState.error.message}</Field.Error>
+							{URL_FIELDS.map(
+								({ name, label, placeholder, asset, description }) => (
+									<Controller
+										control={form.control}
+										key={name}
+										name={name}
+										render={({ field, fieldState }) => (
+											<Field error={!!fieldState.error}>
+												<Field.Label>{label}</Field.Label>
+												{asset ? (
+													<div className="flex items-center gap-2">
+														<Input placeholder={placeholder} {...field} />
+														<AssetUploadButton
+															busy={uploading !== null}
+															onPickAction={(file) => uploadAsset(asset, file)}
+															uploading={uploading === asset}
+														/>
+													</div>
+												) : (
+													<Input placeholder={placeholder} {...field} />
+												)}
+												{description && (
+													<Field.Description>{description}</Field.Description>
+												)}
+												{fieldState.error && (
+													<Field.Error>{fieldState.error.message}</Field.Error>
+												)}
+											</Field>
 										)}
-									</Field>
-								)}
-							/>
-
-							<Controller
-								control={form.control}
-								name="faviconUrl"
-								render={({ field, fieldState }) => (
-									<Field error={!!fieldState.error}>
-										<Field.Label>Favicon</Field.Label>
-										<div className="flex items-center gap-2">
-											<Input
-												placeholder="https://example.com/favicon.ico"
-												{...field}
-											/>
-											<AssetUploadButton
-												busy={uploading !== null}
-												onPickAction={(file) => uploadAsset("favicon", file)}
-												uploading={uploading === "favicon"}
-											/>
-										</div>
-										{fieldState.error && (
-											<Field.Error>{fieldState.error.message}</Field.Error>
-										)}
-									</Field>
-								)}
-							/>
-
-							<Controller
-								control={form.control}
-								name="websiteUrl"
-								render={({ field, fieldState }) => (
-									<Field error={!!fieldState.error}>
-										<Field.Label>Website URL</Field.Label>
-										<Input placeholder="https://example.com" {...field} />
-										<Field.Description>
-											Logo and name link to this URL
-										</Field.Description>
-										{fieldState.error && (
-											<Field.Error>{fieldState.error.message}</Field.Error>
-										)}
-									</Field>
-								)}
-							/>
-
-							<Controller
-								control={form.control}
-								name="supportUrl"
-								render={({ field, fieldState }) => (
-									<Field error={!!fieldState.error}>
-										<Field.Label>Support URL</Field.Label>
-										<Input
-											placeholder="https://example.com/support"
-											{...field}
-										/>
-										<Field.Description>
-											Shown as a "Get Support" link in the navbar
-										</Field.Description>
-										{fieldState.error && (
-											<Field.Error>{fieldState.error.message}</Field.Error>
-										)}
-									</Field>
-								)}
-							/>
+									/>
+								)
+							)}
 						</div>
 
 						<Divider />
@@ -474,6 +445,10 @@ export function StatusPageSheet({
 	);
 }
 
+function urlOrNull(value: string | undefined) {
+	return value && value.trim() !== "" ? value : null;
+}
+
 function buildDefaults(
 	sp: StatusPageSheetProps["statusPage"]
 ): StatusPageFormData {
@@ -485,6 +460,6 @@ function buildDefaults(
 		faviconUrl: sp?.faviconUrl ?? "",
 		websiteUrl: sp?.websiteUrl ?? "",
 		supportUrl: sp?.supportUrl ?? "",
-		theme: (sp?.theme as "system" | "light" | "dark") ?? "system",
+		theme: statusPageFormSchema.shape.theme.catch("system").parse(sp?.theme),
 	};
 }

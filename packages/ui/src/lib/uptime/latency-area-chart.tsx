@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo } from "react";
+import { useId } from "react";
 import {
 	Area,
 	AreaChart,
@@ -16,8 +16,6 @@ import {
 	formatMs,
 	METRICS,
 } from "./latency-chart-data";
-
-const CHART_HEIGHT_PX = CHART_BLOCK_MIN_PX;
 
 function detectGranularity(data: ChartDataPoint[]): "hourly" | "daily" {
 	if (data.length < 2) {
@@ -116,7 +114,9 @@ function LatencyTooltipContent({
 							{getMetricLabel(entry.dataKey)}
 						</span>
 						<span className="ml-auto font-semibold tabular-nums">
-							{typeof entry.value === "number" ? formatMs(entry.value) : "—"}
+							{typeof entry.value === "number"
+								? formatMs(entry.value)
+								: "No data"}
 						</span>
 					</div>
 				))}
@@ -127,14 +127,14 @@ function LatencyTooltipContent({
 
 function LatencyAreaChart({ data }: { data: ChartDataPoint[] }) {
 	const chartId = useId().replaceAll(":", "");
-	const granularity = useMemo(() => detectGranularity(data), [data]);
+	const granularity = detectGranularity(data);
 	const gradientId = (key: (typeof METRICS)[number]["key"]) =>
 		`latency-g-${chartId}-${key}`;
 
 	const hasVariation = METRICS.some((m) => {
 		const values = data
-			.map((d) => d[m.key as keyof ChartDataPoint])
-			.filter((v) => v != null) as number[];
+			.map((d) => d[m.key])
+			.filter((v): v is number => v != null);
 		return values.length > 1 && values.some((v) => v !== values.at(0));
 	});
 
@@ -152,7 +152,7 @@ function LatencyAreaChart({ data }: { data: ChartDataPoint[] }) {
 	return (
 		<div className="relative w-full" style={{ minHeight: CHART_BLOCK_MIN_PX }}>
 			<div className="h-[140px] w-full min-w-0">
-				<ResponsiveContainer height={CHART_HEIGHT_PX} width="100%">
+				<ResponsiveContainer height={CHART_BLOCK_MIN_PX} width="100%">
 					<AreaChart
 						data={data}
 						margin={{ top: 8, right: 6, left: 0, bottom: 18 }}

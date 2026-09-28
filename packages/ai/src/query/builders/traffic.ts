@@ -80,7 +80,7 @@ function utmDimension(options: {
 	};
 }
 
-export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
+export const TrafficBuilders = {
 	// SQL output only; parseReferrers plugin adds referrer/source/domain/referrer_type/parsed_referrer at runtime.
 	top_referrers: {
 		meta: {
@@ -279,4 +279,4 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 			sessionAttribution: true,
 		},
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

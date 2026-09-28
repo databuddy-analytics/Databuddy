@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuthCapabilities } from "../auth-capabilities";
 import { isSelfHosted } from "@databuddy/env/public";
 
 import { authClient } from "@databuddy/auth/client";
@@ -38,6 +39,8 @@ import {
 } from "@databuddy/ui";
 
 function RegisterPageContent() {
+	const capabilities = useAuthCapabilities();
+	const hasSocialLogin = capabilities.github || capabilities.google;
 	const [selectedPlan] = useQueryState("plan", parseAsString);
 	const [callback] = useQueryState(
 		"callback",
@@ -121,9 +124,9 @@ function RegisterPageContent() {
 					trackSignup(APP_EVENTS.signupCompleted, signupProperties);
 					trackOpenAiRegistrationCompleted();
 					toast.success(
-						isSelfHosted
-							? "Account created. Check your inbox for any verification steps, then sign in."
-							: "Account created! Please check your email to verify your account."
+						capabilities.verifyEmail
+							? "Account created! Please check your email to verify your account."
+							: "Account created. You can sign in now."
 					);
 					setRegistrationStep("verification-needed");
 				},
@@ -206,18 +209,20 @@ function RegisterPageContent() {
 				return (
 					<>
 						<Text as="h1" className="text-balance font-medium text-2xl">
-							{isSelfHosted ? "Account created" : "Verify your email"}
+							{capabilities.verifyEmail
+								? "Verify your email"
+								: "Account created"}
 						</Text>
 						<Text tone="muted">
-							{isSelfHosted
-								? "If verification is required, check your email:"
-								: "Please check your email:"}{" "}
+							{capabilities.verifyEmail
+								? "Please check your email:"
+								: "Sign in with"}{" "}
 							<span className="font-medium text-accent-foreground">
 								{formData.email}
 							</span>{" "}
-							{isSelfHosted
-								? "and click the verification link. Otherwise, you can sign in now."
-								: "and click the verification link to activate your account. If you don't see the email, check your spam folder."}
+							{capabilities.verifyEmail
+								? "and click the verification link to activate your account. If you don't see the email, check your spam folder."
+								: "and your password."}
 						</Text>
 					</>
 				);
@@ -237,15 +242,17 @@ function RegisterPageContent() {
 
 	const renderVerificationContent = () => (
 		<div className="flex flex-col gap-3">
-			<Button
-				className="w-full"
-				loading={isLoading}
-				onClick={resendVerificationEmail}
-				size="lg"
-			>
-				<span className="hidden sm:inline">Resend verification email</span>
-				<span className="sm:hidden">Resend email</span>
-			</Button>
+			{capabilities.email && capabilities.verifyEmail && (
+				<Button
+					className="w-full"
+					loading={isLoading}
+					onClick={resendVerificationEmail}
+					size="lg"
+				>
+					<span className="hidden sm:inline">Resend verification email</span>
+					<span className="sm:hidden">Resend email</span>
+				</Button>
+			)}
 			<Button
 				onClick={() => setRegistrationStep("form")}
 				size="lg"
@@ -260,34 +267,45 @@ function RegisterPageContent() {
 
 	const renderFormContent = () => (
 		<div className="space-y-4">
-			<div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-				<Button
-					disabled={isLoading}
-					onClick={() => handleSocialLogin("github")}
-					size="lg"
-					variant="outline"
-				>
-					<GithubMark className="size-4" />
-					Sign up with GitHub
-				</Button>
-				<Button
-					disabled={isLoading}
-					onClick={() => handleSocialLogin("google")}
-					size="lg"
-					variant="outline"
-				>
-					<GoogleMark className="size-4" />
-					Sign up with Google
-				</Button>
-			</div>
+			{hasSocialLogin && (
+				<>
+					<div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+						{capabilities.github && (
+							<Button
+								disabled={isLoading}
+								onClick={() => handleSocialLogin("github")}
+								size="lg"
+								variant="outline"
+							>
+								<GithubMark className="size-4" />
+								Sign up with GitHub
+							</Button>
+						)}
+						{capabilities.google && (
+							<Button
+								disabled={isLoading}
+								onClick={() => handleSocialLogin("google")}
+								size="lg"
+								variant="outline"
+							>
+								<GoogleMark className="size-4" />
+								Sign up with Google
+							</Button>
+						)}
+					</div>
 
-			<div className="flex items-center gap-3">
-				<Divider className="flex-1 opacity-70" />
-				<Text className="text-nowrap text-muted-foreground/50" variant="label">
-					Or
-				</Text>
-				<Divider className="flex-1 opacity-70" />
-			</div>
+					<div className="flex items-center gap-3">
+						<Divider className="flex-1 opacity-70" />
+						<Text
+							className="text-nowrap text-muted-foreground/50"
+							variant="label"
+						>
+							Or
+						</Text>
+						<Divider className="flex-1 opacity-70" />
+					</div>
+				</>
+			)}
 
 			<form className="space-y-5" onSubmit={handleSubmit}>
 				<Field>

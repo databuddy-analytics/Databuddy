@@ -10,6 +10,7 @@ import {
 } from "react";
 import { createHighlighterCoreSync, type ShikiTransformer } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
+import sql from "shiki/langs/sql.mjs";
 import tsx from "shiki/langs/tsx.mjs";
 import oneDarkPro from "shiki/themes/one-dark-pro.mjs";
 import oneLight from "shiki/themes/one-light.mjs";
@@ -17,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { CheckIcon, CopyIcon } from "@databuddy/ui/icons";
 import { Button } from "@databuddy/ui";
 
-type CodeBlockLanguage = "tsx";
+type CodeBlockLanguage = "sql" | "tsx";
 
 type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
 	code: string;
@@ -27,7 +28,7 @@ type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
 
 const highlighter = createHighlighterCoreSync({
 	engine: createJavaScriptRegexEngine(),
-	langs: [tsx],
+	langs: [sql, tsx],
 	themes: [oneLight, oneDarkPro],
 });
 

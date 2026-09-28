@@ -302,17 +302,12 @@ function refundedCharge(day: number, paymentIntentId: string): StripeEvent {
 	return stripeEvent("charge.refunded", day, {
 		amount_refunded: 500,
 		amount: 2500,
+		created: eventUnix(day),
 		currency: "usd",
 		customer: null,
 		id: `ch_${randomUUIDv7()}`,
 		metadata: {},
 		payment_intent: paymentIntentId,
-		refunds: {
-			data: [
-				{ amount: 300, created: eventUnix(day), id: `re_${randomUUIDv7()}` },
-				{ amount: 200, created: eventUnix(day), id: `re_${randomUUIDv7()}` },
-			],
-		},
 	});
 }
 
@@ -437,6 +432,10 @@ async function createFixture(): Promise<FixtureIds> {
 async function deleteFixture(fixture: FixtureIds): Promise<void> {
 	await chCommand(
 		"ALTER TABLE analytics.revenue DELETE WHERE owner_id = {ownerId:String} SETTINGS mutations_sync = 1",
+		{ ownerId: fixture.ownerId }
+	);
+	await chCommand(
+		"ALTER TABLE analytics.webhook_deliveries DELETE WHERE owner_id = {ownerId:String} SETTINGS mutations_sync = 1",
 		{ ownerId: fixture.ownerId }
 	);
 	await chCommand(
@@ -721,6 +720,30 @@ describeStripeE2E("Stripe revenue end-to-end matrix", () => {
 				expect(response.status, event.type).toBe(200);
 			}
 
+			const deliveries = await chQuery<{
+				event_type: string;
+				record_count: string;
+			}>(
+				`SELECT event_type, sum(record_count) AS record_count
+				FROM analytics.webhook_deliveries FINAL
+				WHERE owner_id = {ownerId:String}
+				GROUP BY event_type`,
+				{ ownerId: fixture.ownerId }
+			);
+			const deliveredTypes = new Set(
+				deliveries.map((delivery) => delivery.event_type)
+			);
+			for (const event of events) {
+				expect(deliveredTypes.has(event.type), event.type).toBe(true);
+			}
+			expect(
+				Number(
+					deliveries.find(
+						(delivery) => delivery.event_type === "customer.created"
+					)?.record_count
+				)
+			).toBe(0);
+
 			// A replay has the same Stripe event and transaction identity. The
 			// current model must remain one logical payment after two deliveries.
 			for (const replay of [
@@ -835,12 +858,12 @@ describeStripeE2E("Stripe revenue end-to-end matrix", () => {
 			const [jpy] = await revenueOverview(fixture.siteId, [
 				{ field: "currency", op: "eq", value: "JPY" },
 			]);
-			expect(Number(usd?.total_revenue)).toBe(356);
-			expect(Number(usd?.total_transactions)).toBe(12);
-			expect(Number(usd?.subscription_revenue)).toBe(174);
+			expect(Number(usd?.total_revenue)).toBe(336);
+			expect(Number(usd?.total_transactions)).toBe(11);
+			expect(Number(usd?.subscription_revenue)).toBe(154);
 			expect(Number(usd?.sale_revenue)).toBe(182);
 			expect(Number(usd?.refund_amount)).toBe(-5);
-			expect(Number(usd?.refund_count)).toBe(2);
+			expect(Number(usd?.refund_count)).toBe(1);
 			expect(Number(jpy?.total_revenue)).toBe(500);
 			expect(Number(jpy?.total_transactions)).toBe(1);
 
@@ -913,7 +936,7 @@ describeStripeE2E("Stripe revenue end-to-end matrix", () => {
 					)
 				)
 				.reduce((total, row) => total + Number(row.amount), 0);
-			expect(legacyBrokenUsdGross).toBe(446);
+			expect(legacyBrokenUsdGross).toBe(426);
 			expect(linkedPaymentIntentGross).toBe(90);
 			expect(legacyBrokenUsdGross).toBe(
 				Number(usd?.total_revenue) + linkedPaymentIntentGross

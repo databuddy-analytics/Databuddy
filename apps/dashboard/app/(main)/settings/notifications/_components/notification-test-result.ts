@@ -9,7 +9,7 @@ interface DeliveryResult {
 	success: boolean;
 }
 
-export interface DeliverySummary {
+interface DeliverySummary {
 	description?: string;
 	kind: "error" | "success" | "warning";
 	title: string;

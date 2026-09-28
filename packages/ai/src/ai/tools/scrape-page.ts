@@ -47,7 +47,6 @@ const pageSchema = z.object({
 	fetchedAt: z.iso.datetime({ offset: true }),
 	title: z.string().max(512).nullable(),
 	description: z.string().max(2000).nullable(),
-	statusCode: z.number().int().min(200).max(299).nullable(),
 	content: z
 		.string()
 		.min(1)
@@ -60,32 +59,30 @@ export type WebsitePageResult =
 	| { success: false; error: string };
 
 const scrapeSchema = z.object({
-	success: z.literal(true),
-	data: z.object({
-		markdown: z.string().trim().min(1),
-		links: z.array(z.string()).nullish(),
-		metadata: z.object({
-			url: z.string(),
-			sourceURL: z.string().nullish(),
-			title: z.string().nullish(),
-			description: z.string().nullish(),
-			statusCode: z.number().int().min(100).max(599).nullish(),
-			cachedAt: z.iso.datetime({ offset: true }).nullish(),
-			cacheState: z.string().nullish(),
-		}),
+	url: z.string(),
+	markdown: z.object({ data: z.string().trim().min(1) }),
+	parsed: z.object({
+		data: z.object({ links: z.array(z.string()).nullish() }).nullish(),
 	}),
+	metadata: z.object({
+		title: z.string().nullish(),
+		description: z.string().nullish(),
+	}),
+	cache_metadata: z
+		.object({
+			status: z.enum(["hit", "miss", "zdr"]),
+			age_ms: z.number().int().min(0),
+		})
+		.nullish(),
 });
 const searchSchema = z.object({
-	success: z.literal(true),
-	data: z.object({
-		web: z.array(
-			z.object({
-				url: z.string(),
-				title: z.string().nullish(),
-				description: z.string().nullish(),
-			})
-		),
-	}),
+	results: z.array(
+		z.object({
+			url: z.string(),
+			title: z.string().nullish(),
+			description: z.string().nullish(),
+		})
+	),
 });
 
 function siteUrl(value: string, domain: string, base?: string): URL | null {
@@ -235,12 +232,12 @@ export async function readWebsitePage(
 			error: "No cached page is available at the requested reference time",
 		};
 	}
-	const apiKey = process.env.FIRECRAWL_API_KEY;
+	const apiKey = process.env.CONTEXT_DEV_API_KEY;
 	if (!apiKey) {
 		return { success: false, error: "Page scraping is not configured" };
 	}
 	try {
-		const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
+		const res = await fetch("https://api.context.dev/v1/web/scrape", {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -248,10 +245,13 @@ export async function readWebsitePage(
 			},
 			body: JSON.stringify({
 				url: url.href,
-				formats: ["markdown", "links"],
-				onlyMainContent: true,
-				maxAge: 0,
-				timeout: TIMEOUT_MS,
+				formats: { markdown: true, parse: true },
+				sharedParams: { mainContentOnly: true },
+				parseParams: {
+					rules: { links: { selector: "a", type: "list", output: "@href" } },
+				},
+				maxAgeMs: 0,
+				timeoutOpts: { milliseconds: TIMEOUT_MS },
 			}),
 			signal,
 			redirect: "error",
@@ -266,40 +266,34 @@ export async function readWebsitePage(
 				error: "Page returned invalid or incomplete content",
 			};
 		}
-		const { markdown, metadata: meta, links } = parsed.data.data;
-		const finalUrl = siteUrl(meta.url, domain.data);
-		if (
-			!finalUrl ||
-			(meta.sourceURL && !siteUrl(meta.sourceURL, domain.data))
-		) {
+		const {
+			url: providerUrl,
+			markdown,
+			metadata: meta,
+			parsed: parseResult,
+			cache_metadata: providerCache,
+		} = parsed.data;
+		const finalUrl = siteUrl(providerUrl, domain.data);
+		if (!finalUrl) {
 			return {
 				success: false,
 				error: "Page redirected outside the target website",
 			};
 		}
+		const providerAgeMs = providerCache?.age_ms ?? 0;
+		const fetchedAt = new Date(Date.now() - providerAgeMs).toISOString();
 		if (
-			meta.statusCode != null &&
-			(meta.statusCode < 200 || meta.statusCode >= 300)
-		) {
-			return { success: false, error: `Page returned HTTP ${meta.statusCode}` };
-		}
-		const fetchedAt = meta.cachedAt ?? new Date().toISOString();
-		const age = Date.now() - Date.parse(fetchedAt);
-		if (
-			!Number.isFinite(age) ||
-			(meta.cacheState === "hit" && !meta.cachedAt) ||
 			(input.freshAfter &&
 				Date.parse(fetchedAt) < input.freshAfter.getTime()) ||
-			age < 0 ||
-			age >= CACHE_TTL_SECONDS * 1000
+			providerAgeMs >= CACHE_TTL_SECONDS * 1000
 		) {
 			return {
 				success: false,
-				error: "Provider returned stale or undated cached content",
+				error: "Provider returned stale cached content",
 			};
 		}
 		const internalLinks = new Set<string>();
-		for (const link of links ?? []) {
+		for (const link of parseResult.data?.links ?? []) {
 			const internal = siteUrl(link, domain.data, finalUrl.href);
 			const path = internal ? `${internal.pathname}${internal.search}` : null;
 			if (path && path.length <= 2048) {
@@ -317,11 +311,10 @@ export async function readWebsitePage(
 			fetchedAt,
 			title: meta.title?.slice(0, 512) ?? null,
 			description: meta.description?.slice(0, 2000) ?? null,
-			statusCode: meta.statusCode ?? null,
 			content:
-				markdown.length > MAX_CONTENT_CHARS
-					? `${markdown.slice(0, MAX_CONTENT_CHARS)}\n…[truncated]`
-					: markdown,
+				markdown.data.length > MAX_CONTENT_CHARS
+					? `${markdown.data.slice(0, MAX_CONTENT_CHARS)}\n…[truncated]`
+					: markdown.data,
 			internalLinks: [...internalLinks],
 		};
 		if (signal.aborted) {
@@ -410,7 +403,7 @@ export function createScrapeTools(cache: ScrapeCache = DEFAULT_SCRAPE_CACHE) {
 						error: "Could not resolve a domain for the target website",
 					};
 				}
-				const apiKey = process.env.FIRECRAWL_API_KEY;
+				const apiKey = process.env.CONTEXT_DEV_API_KEY;
 				if (!apiKey) {
 					return { success: false, error: "Website search is not configured" };
 				}
@@ -420,7 +413,7 @@ export function createScrapeTools(cache: ScrapeCache = DEFAULT_SCRAPE_CACHE) {
 				]);
 				try {
 					signal.throwIfAborted();
-					const res = await fetch("https://api.firecrawl.dev/v2/search", {
+					const res = await fetch("https://api.context.dev/v1/web/search", {
 						method: "POST",
 						headers: {
 							"Content-Type": "application/json",
@@ -429,9 +422,8 @@ export function createScrapeTools(cache: ScrapeCache = DEFAULT_SCRAPE_CACHE) {
 						body: JSON.stringify({
 							query,
 							includeDomains: [domain.data],
-							sources: ["web"],
-							limit: 5,
-							timeout: TIMEOUT_MS,
+							numResults: 10,
+							timeoutOpts: { milliseconds: TIMEOUT_MS },
 						}),
 						signal,
 						redirect: "error",
@@ -450,7 +442,7 @@ export function createScrapeTools(cache: ScrapeCache = DEFAULT_SCRAPE_CACHE) {
 						};
 					}
 					const seen = new Set<string>();
-					const results = parsed.data.data.web.flatMap((item) => {
+					const results = parsed.data.results.flatMap((item) => {
 						const url = siteUrl(item.url, domain.data);
 						if (!url || seen.has(url.href) || seen.size === 5) {
 							return [];

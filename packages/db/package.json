@@ -21,11 +21,11 @@
     "generate": "bun src/clickhouse/codegen.ts",
     "ch:verify": "bun src/clickhouse/verify.ts",
     "ch:check": "bun run generate && git diff --exit-code src/clickhouse/schema/tables.generated.ts",
-    "db:push": "dotenv -- drizzle-kit push",
-    "db:studio": "dotenv -- drizzle-kit studio",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/seed.ts",
-    "email:segments": "dotenv -- bun src/scripts/export-user-email-segments.ts",
-    "clickhouse:init": "tsx src/clickhouse/setup.ts",
+    "email:segments": "bun src/scripts/export-user-email-segments.ts",
+    "clickhouse:init": "bun src/clickhouse/setup.ts",
     "test": "bun test src",
     "e2e:db:create": "bun ./scripts/e2e-db-lifecycle.ts create",
     "e2e:db:drop": "bun ./scripts/e2e-db-lifecycle.ts drop"
@@ -36,12 +36,12 @@
     "@databuddy/shared": "workspace:*",
     "@faker-js/faker": "^10.5.0",
     "@neondatabase/serverless": "^1.0.2",
+    "drizzle-kit": "^1.0.0-rc.1",
     "drizzle-orm": "catalog:",
     "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/pg": "^8.16.0",
-    "drizzle-kit": "^1.0.0-rc.1",
     "tsx": "^4.21.0"
   }
 }

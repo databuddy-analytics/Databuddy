@@ -16,6 +16,7 @@ const footerSections = [
 			{ href: "/docs", label: "Docs", navItem: "docs" },
 			{ href: "/developers", label: "Developers", navItem: "developers" },
 			{ href: "/pricing", label: "Pricing", navItem: "pricing" },
+			{ href: "/startups", label: "Startups", navItem: "startups" },
 			{
 				href: "/calculator",
 				label: "Measurement gap calculator",

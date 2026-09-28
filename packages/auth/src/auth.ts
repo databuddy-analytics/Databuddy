@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { redisStorage } from "@better-auth/redis-storage";
-import { sso } from "@better-auth/sso";
 import { runWithTransaction } from "@better-auth/core/context";
 import { and, db, eq, like } from "@databuddy/db";
 // biome-ignore lint/performance/noNamespaceImport: Better Auth's Drizzle adapter expects a schema object map.
@@ -136,7 +135,17 @@ function isSelfHosted() {
 
 function shouldRequireEmailVerification() {
 	if (process.env.REQUIRE_EMAIL_VERIFICATION != null) {
-		return readBooleanEnv("REQUIRE_EMAIL_VERIFICATION");
+		const required = readBooleanEnv("REQUIRE_EMAIL_VERIFICATION");
+		if (
+			required &&
+			isSelfHosted() &&
+			!(process.env.RESEND_API_KEY?.trim() && process.env.EMAIL_FROM?.trim())
+		) {
+			throw new Error(
+				"Self-hosted email verification requires RESEND_API_KEY and EMAIL_FROM on a verified domain."
+			);
+		}
+		return required;
 	}
 	return isProduction() && !isSelfHosted();
 }
@@ -425,7 +434,7 @@ function forwardAuthLog(
 	log.info(fields);
 }
 
-export const auth = betterAuth({
+export const baseAuthOptions = {
 	logger: {
 		log: forwardAuthLog,
 	},
@@ -449,12 +458,14 @@ export const auth = betterAuth({
 		window: 60,
 		max: 100,
 		customStorage: {
-			get: async (key) => {
-				const value = await getRedisCache().get(key);
-				return value ? JSON.parse(value) : null;
-			},
-			set: async (key, value) => {
-				await getRedisCache().set(key, JSON.stringify(value), "EX", 120);
+			consume: async (key, rule) => {
+				const result = await ratelimit(key, rule.max, rule.window);
+				return {
+					allowed: result.success,
+					retryAfter: result.success
+						? null
+						: Math.max(1, Math.ceil((result.reset - Date.now()) / 1000)),
+				};
 			},
 		},
 		customRules: {
@@ -619,6 +630,7 @@ export const auth = betterAuth({
 		},
 	},
 	appName: "databuddy.cc",
+	baseURL: config.urls.dashboard,
 	onAPIError: {
 		throw: false,
 		onError: (error) => {
@@ -765,12 +777,6 @@ export const auth = betterAuth({
 					subject: "Your sign-in link for Databuddy",
 					template: MagicLinkEmail({ url }),
 				});
-			},
-		}),
-		sso({
-			organizationProvisioning: {
-				disabled: false,
-				defaultRole: "member",
 			},
 		}),
 		twoFactor(),
@@ -990,7 +996,9 @@ export const auth = betterAuth({
 			},
 		}),
 	],
-});
+} satisfies Parameters<typeof betterAuth>[0];
+
+export const auth = betterAuth(baseAuthOptions);
 
 export const websitesApi = {
 	hasPermission: auth.api.hasPermission,

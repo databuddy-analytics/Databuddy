@@ -1,6 +1,6 @@
 import { isValid, parse } from "ipaddr.js";
 import { Resolver } from "node:dns/promises";
-import type { Agent, RequestInit as UndiciRequestInit } from "undici";
+import type { RequestInit as UndiciRequestInit } from "undici";
 
 const BLOCKED_HOSTNAMES = new Set([
 	"localhost",
@@ -64,7 +64,8 @@ async function resolveFirstPublicIp(
 		return { error: "DNS resolution timed out" };
 	}
 	const all = [...v4, ...v6];
-	if (all.length === 0) {
+	const [firstIp] = all;
+	if (firstIp === undefined) {
 		return { error: "DNS resolution failed" };
 	}
 	for (const ip of all) {
@@ -72,7 +73,7 @@ async function resolveFirstPublicIp(
 			return { error: `Resolves to private IP: ${ip}` };
 		}
 	}
-	return { ip: all[0] };
+	return { ip: firstIp };
 }
 
 export interface UrlValidationOptions {
@@ -152,12 +153,41 @@ export interface SafeFetchInit
 	timeoutMs?: number;
 }
 
-function pinnedAgent(
-	AgentCtor: typeof import("undici").Agent,
+type PinnedFetchInit = Omit<SafeFetchInit, keyof SafeFetchOptions> & {
+	redirect: "manual";
+	signal: AbortSignal;
+};
+
+type SafeFetchOptions = Pick<
+	SafeFetchInit,
+	"followRedirects" | "maxRedirects" | "signal" | "timeoutMs"
+>;
+
+function fetchPinnedWithBun(
+	url: string,
+	ip: string,
+	init: PinnedFetchInit
+): Promise<Response> {
+	const target = new URL(url);
+	const headers = new Headers(init.headers as HeadersInit | undefined);
+	headers.set("Host", target.host);
+	const serverName = target.hostname;
+	target.hostname = ip.includes(":") ? `[${ip}]` : ip;
+	return fetch(target, {
+		...(init as RequestInit),
+		headers,
+		tls: { serverName },
+	} as RequestInit);
+}
+
+async function fetchPinnedWithUndici(
+	url: string,
 	hostname: string,
-	ip: string
-): Agent {
-	return new AgentCtor({
+	ip: string,
+	init: PinnedFetchInit
+): Promise<Response> {
+	const { Agent: UndiciAgent, fetch: undiciFetch } = await import("undici");
+	const dispatcher = new UndiciAgent({
 		connect: {
 			lookup: (host, _options, cb) => {
 				if (host.toLowerCase() !== hostname) {
@@ -168,6 +198,14 @@ function pinnedAgent(
 			},
 		},
 	});
+	try {
+		return (await undiciFetch(url, {
+			...init,
+			dispatcher,
+		})) as unknown as Response;
+	} finally {
+		dispatcher.close().catch(() => undefined);
+	}
 }
 
 export async function safeFetch(
@@ -187,7 +225,6 @@ export async function safeFetch(
 		? AbortSignal.any([timeoutSignal, externalSignal])
 		: timeoutSignal;
 
-	const { Agent: UndiciAgent, fetch: undiciFetch } = await import("undici");
 	let current = url;
 
 	for (let hop = 0; hop <= maxRedirects; hop++) {
@@ -199,15 +236,21 @@ export async function safeFetch(
 			);
 		}
 
-		const dispatcher = pinnedAgent(UndiciAgent, check.hostname, check.ip);
+		const pinnedInit: PinnedFetchInit = {
+			...fetchInit,
+			redirect: "manual",
+			signal,
+		};
 		let response: Response;
 		try {
-			response = (await undiciFetch(current, {
-				...fetchInit,
-				redirect: "manual",
-				signal,
-				dispatcher,
-			})) as unknown as Response;
+			response = process.versions.bun
+				? await fetchPinnedWithBun(current, check.ip, pinnedInit)
+				: await fetchPinnedWithUndici(
+						current,
+						check.hostname,
+						check.ip,
+						pinnedInit
+					);
 		} catch (error) {
 			if (timeoutSignal.aborted) {
 				throw new Error(`Request timed out after ${timeoutMs}ms`);
@@ -223,6 +266,7 @@ export async function safeFetch(
 		if (!location) {
 			return response;
 		}
+		await response.body?.cancel().catch(() => undefined);
 
 		try {
 			current = new URL(location, current).toString();

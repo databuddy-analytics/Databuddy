@@ -4,12 +4,14 @@
   "version": "1.0.1",
   "type": "module",
   "scripts": {
+    "check-types": "tsc --noEmit",
     "dev": "NODE_ENV=development dotenv -e ../../.env -- bun --hot src/index.ts",
     "test": "TZ=UTC bunx --bun vitest run",
     "test:integration": "TZ=UTC bunx --bun vitest run --config vitest.integration.config.ts",
     "test:watch": "TZ=UTC bunx --bun vitest"
   },
   "dependencies": {
+    "@better-auth/mcp": "1.7.5",
     "@contextcompany/otel": "^1.0.13",
     "@databuddy/ai": "workspace:*",
     "@databuddy/api-keys": "workspace:*",
@@ -21,6 +23,7 @@
     "@databuddy/notifications": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/rpc": "workspace:*",
+    "@databuddy/scan": "workspace:*",
     "@databuddy/services": "workspace:*",
     "@databuddy/shared": "workspace:*",
     "@databuddy/validation": "workspace:*",

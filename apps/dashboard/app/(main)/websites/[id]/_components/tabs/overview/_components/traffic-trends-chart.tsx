@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { AskAgentButton } from "@/components/agent/new-chat-button";
 import { AnnotationModal } from "@/components/charts/annotation-modal";
 import { AnnotationsPanel } from "@/components/charts/annotations-panel";
 import {
@@ -803,34 +804,40 @@ export function TrafficTrendsChart({
 					title="Traffic Trends"
 					titleClassName="font-semibold text-base text-sidebar-foreground sm:text-lg"
 				>
-					{annotations.length > 0 && (
-						<div className="flex items-center gap-0.5">
-							<Button
-								aria-label={
-									showAnnotations ? "Hide annotations" : "Show annotations"
-								}
-								className="size-7 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-								onClick={() => setShowAnnotations(!showAnnotations)}
-								size="icon"
-								type="button"
-								variant="ghost"
-							>
-								{showAnnotations ? (
-									<EyeIcon className="size-3.5" />
-								) : (
-									<EyeSlashIcon className="size-3.5" />
-								)}
-							</Button>
-							<AnnotationsPanel
-								annotations={annotations}
-								granularity={granularity}
-								onDelete={handleDeleteAnnotation}
-								onEdit={setEditingAnnotation}
-								onOpenChange={setIsAnnotationsPanelOpen}
-								open={isAnnotationsPanelOpen}
-							/>
-						</div>
-					)}
+					<div className="flex items-center gap-0.5">
+						<AskAgentButton
+							className="text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+							subject="the Traffic Trends chart"
+						/>
+						{annotations.length > 0 && (
+							<>
+								<Button
+									aria-label={
+										showAnnotations ? "Hide annotations" : "Show annotations"
+									}
+									className="size-7 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+									onClick={() => setShowAnnotations(!showAnnotations)}
+									size="icon"
+									type="button"
+									variant="ghost"
+								>
+									{showAnnotations ? (
+										<EyeIcon className="size-3.5" />
+									) : (
+										<EyeSlashIcon className="size-3.5" />
+									)}
+								</Button>
+								<AnnotationsPanel
+									annotations={annotations}
+									granularity={granularity}
+									onDelete={handleDeleteAnnotation}
+									onEdit={setEditingAnnotation}
+									onOpenChange={setIsAnnotationsPanelOpen}
+									open={isAnnotationsPanelOpen}
+								/>
+							</>
+						)}
+					</div>
 				</Chart.Header>
 				<Chart.Content<ChartDataRow[]>
 					emptyProps={{

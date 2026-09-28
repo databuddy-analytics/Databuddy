@@ -19,14 +19,7 @@ import type { TokenCryptoConfig } from "@/config";
 import { createSlackEventLog, setSlackLog, toError } from "@/lib/evlog-slack";
 import { SLACK_COPY } from "@/slack/messages";
 
-const SLACK_AGENT_SCOPES = [
-	"read:data",
-	"read:links",
-	"write:links",
-	"manage:websites",
-	"manage:flags",
-	"manage:config",
-] as const;
+const SLACK_AGENT_SCOPES = ["read:data", "read:links"] as const;
 const SLACK_AGENT_RESOURCES = { global: [...SLACK_AGENT_SCOPES] };
 
 function buildSlackApiKey(installation: ActiveSlackIntegration): ApiKeyRow {

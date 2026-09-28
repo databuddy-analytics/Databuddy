@@ -13,19 +13,13 @@ import {
 type UptimeScheduleInsert = typeof uptimeSchedules.$inferInsert;
 type UptimeScheduleRow = typeof uptimeSchedules.$inferSelect;
 
-export interface UptimeScheduleUpdate {
-	cacheBust?: boolean;
-	cron?: string;
-	granularity?: UptimeGranularity;
-	name?: string | null;
-	timeout?: number | null;
-	updatedAt: Date;
-}
-
 export type UptimeScheduleSnapshot = Pick<
 	UptimeScheduleRow,
 	"cacheBust" | "cron" | "granularity" | "name" | "timeout"
 >;
+
+export type UptimeScheduleUpdate = Partial<UptimeScheduleSnapshot> &
+	Pick<UptimeScheduleRow, "updatedAt">;
 
 export interface UptimeLifecycleDeps {
 	now: () => Date;
@@ -35,7 +29,7 @@ export interface UptimeLifecycleDeps {
 		insert: (values: UptimeScheduleInsert) => Promise<void>;
 		update: (
 			scheduleId: string,
-			values: Partial<UptimeScheduleRow> | UptimeScheduleUpdate
+			values: Partial<UptimeScheduleRow>
 		) => Promise<void>;
 	};
 	upsertScheduler: (
@@ -178,11 +172,23 @@ export async function resumeScheduleWithScheduler(
 	granularity: UptimeGranularity,
 	deps: UptimeLifecycleDeps = uptimeLifecycleDeps
 ): Promise<void> {
-	await deps.upsertScheduler(scheduleId, granularity);
 	await deps.store.update(scheduleId, {
 		isPaused: false,
 		updatedAt: deps.now(),
 	});
+	try {
+		await deps.upsertScheduler(scheduleId, granularity);
+	} catch (error) {
+		await deps.store
+			.update(scheduleId, { isPaused: true, updatedAt: deps.now() })
+			.catch((rollbackError) =>
+				logger.error(
+					{ scheduleId, error: rollbackError },
+					"Failed to roll back monitor pause after scheduler resume failure"
+				)
+			);
+		throw error;
+	}
 }
 
 export async function triggerManualUptimeCheck(

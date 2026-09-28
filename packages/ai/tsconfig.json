@@ -1,9 +1,5 @@
 {
   "extends": "../../tsconfig/default.json",
-  "compilerOptions": {
-    "lib": ["ES2022", "DOM"],
-    "noUncheckedIndexedAccess": false
-  },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }

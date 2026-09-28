@@ -119,7 +119,7 @@ export async function authorizeTransfer<K extends TransferableResource>(
 	await withWorkspace(context, {
 		organizationId: row.organizationId,
 		resource: entry.authResource,
-		permissions: ["update"],
+		permissions: ["delete"],
 		allowCrossOrg: true,
 	});
 

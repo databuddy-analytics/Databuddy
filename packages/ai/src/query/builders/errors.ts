@@ -4,7 +4,7 @@ import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { SimpleQueryConfig } from "../types";
 
-export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
+export const ErrorsBuilders = {
 	recent_errors: {
 		meta: {
 			default_order: "timestamp DESC",
@@ -831,4 +831,4 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 		allowedFilters: ["path", "message", "error_type"],
 		customizable: true,
 	},
-};
+} satisfies Record<string, SimpleQueryConfig>;

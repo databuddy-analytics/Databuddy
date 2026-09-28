@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentType, ReactElement, ReactNode } from "react";
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import {
 	Area,
 	AreaChart,
@@ -648,7 +648,10 @@ interface ChartMultiSeriesProps {
 	metrics: Array<MetricConfig & { color: string }>;
 	partialLastSegment?: boolean;
 	seriesKind?: ChartSeriesKind;
+	showYAxis?: boolean;
 }
+
+const NON_ID_CHARS = /[^a-zA-Z0-9_-]/g;
 
 function ChartMultiSeries({
 	data: points,
@@ -660,7 +663,9 @@ function ChartMultiSeries({
 	hideXAxis = false,
 	barLayout = "grouped",
 	barStackId = "stack",
+	showYAxis = false,
 }: ChartMultiSeriesProps) {
+	const gradientPrefix = `gradient-${useId().replace(NON_ID_CHARS, "")}`;
 	const seriesUsesDashSplit = seriesKind !== "bar";
 
 	const [DasharrayCalculator, lineDasharrays] = useDynamicDasharray({
@@ -688,6 +693,7 @@ function ChartMultiSeries({
 
 	const sharedAxes = (
 		<>
+			{showYAxis ? <CartesianGrid {...chartCartesianGridDefault} /> : null}
 			<XAxis
 				axisLine={false}
 				dataKey="date"
@@ -695,7 +701,18 @@ function ChartMultiSeries({
 				tick={hideXAxis ? false : chartAxisTickDefault}
 				tickLine={false}
 			/>
-			<YAxis domain={["dataMin", "dataMax"]} hide />
+			{showYAxis ? (
+				<YAxis
+					axisLine={false}
+					domain={[0, "auto"]}
+					tick={chartAxisTickDefault}
+					tickFormatter={formatNumber}
+					tickLine={false}
+					width={chartAxisYWidthDefault}
+				/>
+			) : (
+				<YAxis domain={["dataMin", "dataMax"]} hide />
+			)}
 			<Tooltip
 				content={(props) => (
 					<ChartTooltip
@@ -746,9 +763,9 @@ function ChartMultiSeries({
 				<ComposedChart data={points} margin={ZERO_MARGIN}>
 					{seriesKind === "area" ? (
 						<defs>
-							{series.map((metric) => (
+							{series.map((metric, index) => (
 								<linearGradient
-									id={`gradient-${metric.key}`}
+									id={`${gradientPrefix}-${index}`}
 									key={metric.key}
 									x1="0"
 									x2="0"
@@ -758,12 +775,12 @@ function ChartMultiSeries({
 									<stop
 										offset="0%"
 										stopColor={metric.color}
-										stopOpacity={0.4}
+										stopOpacity={0.3}
 									/>
 									<stop
 										offset="100%"
 										stopColor={metric.color}
-										stopOpacity={0}
+										stopOpacity={0.02}
 									/>
 								</linearGradient>
 							))}
@@ -786,7 +803,7 @@ function ChartMultiSeries({
 									type={curveType}
 								/>
 							))
-						: series.map((metric) => (
+						: series.map((metric, index) => (
 								<Area
 									activeDot={{
 										r: 2.5,
@@ -796,7 +813,7 @@ function ChartMultiSeries({
 									}}
 									dataKey={metric.key}
 									dot={false}
-									fill={`url(#gradient-${metric.key})`}
+									fill={`url(#${gradientPrefix}-${index})`}
 									key={metric.key}
 									name={metric.label}
 									stroke={metric.color}

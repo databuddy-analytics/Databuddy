@@ -18,7 +18,7 @@ describe("buildAlarmNotificationTargets", () => {
 			"true",
 			"Alerts <alerts@example.com>",
 			"alarm@example.com",
-			"alarm@example.com",
+			"Alerts <alerts@example.com>",
 		],
 		["true", "Alerts <alerts@example.com>", "", "Alerts <alerts@example.com>"],
 		[
@@ -37,9 +37,9 @@ describe("buildAlarmNotificationTargets", () => {
 			"false",
 			"Alerts <alerts@example.com>",
 			"alarm@example.com",
-			"alarm@example.com",
+			"Databuddy <alerts@databuddy.cc>",
 		],
-	] as const)("delivers alarms with SELFHOST=%s, sender %s and destination override %s", async (selfhost, alertsFrom, destinationFrom, expectedFrom) => {
+	] as const)("delivers alarms with SELFHOST=%s, sender %s and ignored destination override %s", async (selfhost, alertsFrom, destinationFrom, expectedFrom) => {
 		const previousEnv = process.env;
 		process.env = {
 			...previousEnv,

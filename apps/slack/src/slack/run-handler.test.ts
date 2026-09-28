@@ -142,6 +142,13 @@ describe("Slack agent run handler", () => {
 		const { chatCalls, client, reactionAdds } = createClient();
 		let acquireAttempts = 0;
 		let drained = false;
+		const initialSlackContext = {
+			readCurrentThread: async () => ({
+				channelId: "C123",
+				messages: [],
+				threadTs: "171234.000",
+			}),
+		};
 		const queue = createQueue({
 			drain: async () => {
 				if (drained) {
@@ -166,7 +173,7 @@ describe("Slack agent run handler", () => {
 			agent,
 			client,
 			logger,
-			run: createRun(),
+			run: createRun({ slackContext: initialSlackContext }),
 			say,
 			threadQueue: queue,
 		});
@@ -180,6 +187,7 @@ describe("Slack agent run handler", () => {
 				userId: "U999",
 			},
 		]);
+		expect(runs[0]?.slackContext).not.toBe(initialSlackContext);
 		expect(reactionAdds).toMatchObject([{ timestamp: "171234.999" }]);
 		expect(chatCalls.map((call) => call.method)).toContain("chat.startStream");
 		expect(queue.releaseCount).toBe(1);

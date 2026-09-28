@@ -4,9 +4,8 @@ import { CompressionTypes, Kafka, type Producer } from "kafkajs";
 import { captureError, setAttributes } from "./logging";
 
 const TOPIC = "analytics-link-visits";
-const broker = readBooleanEnv("SELFHOST")
-	? undefined
-	: process.env.REDPANDA_BROKER;
+const selfHost = readBooleanEnv("SELFHOST");
+const broker = selfHost ? undefined : process.env.REDPANDA_BROKER;
 const username = process.env.REDPANDA_USER;
 const password = process.env.REDPANDA_PASSWORD;
 const reconnectCooldownMs = 60_000;
@@ -15,6 +14,7 @@ const kafkaRequestTimeoutMs = 10_000;
 const fallbackTimeoutMs = 10_000;
 const dependencyErrorLogIntervalMs = 300_000;
 const ASYNC_INSERT_BUSY_TIMEOUT_MS = 50;
+const pendingSelfHostVisits = new Set<Promise<boolean>>();
 
 let producer: Producer | null = null;
 let connectPromise: Promise<boolean> | null = null;
@@ -245,6 +245,15 @@ export async function sendLinkVisit(
 	event: LinkVisitEvent,
 	key?: string
 ): Promise<boolean> {
+	if (selfHost) {
+		if (shuttingDown) {
+			return false;
+		}
+		const delivery = persistLinkVisitDirectly(event);
+		pendingSelfHostVisits.add(delivery);
+		return delivery.finally(() => pendingSelfHostVisits.delete(delivery));
+	}
+
 	const eventKey = key ?? event.link_id;
 	setAttributes({
 		kafka_broker_configured: Boolean(broker),
@@ -296,6 +305,10 @@ export async function sendLinkVisit(
 
 export async function disconnectProducer(): Promise<void> {
 	shuttingDown = true;
+	if (selfHost) {
+		await Promise.all(pendingSelfHostVisits);
+		return;
+	}
 	if (connectPromise) {
 		await connectPromise;
 	}

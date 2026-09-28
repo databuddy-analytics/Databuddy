@@ -151,9 +151,9 @@ export function InvestigationSettings({
 				<Sheet.Body className="space-y-6">
 					<FeatureGate
 						allowed={hasAccess}
-						description="Databunny runs scheduled investigations on the invite-only Business plan. Request access to turn them on for your organization."
+						description="Databunny runs scheduled investigations on the Business and Scale plans. Upgrade to turn them on for your organization."
 						requiredPlan={PLAN_IDS.SCALE}
-						title="Automatic investigations are invite only"
+						title="Automatic investigations need Business"
 					>
 						{!configReady && configQuery.isError && !configQuery.isFetching ? (
 							<EmptyState

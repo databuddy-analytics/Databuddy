@@ -5,6 +5,7 @@ import { githubIntegrations, member } from "@databuddy/db/schema";
 import { config } from "@databuddy/env/app";
 import { invalidateGithubIntegrationCache } from "@databuddy/redis/cache-invalidation";
 import { ratelimit } from "@databuddy/redis/rate-limit";
+import { recordSelfAnalyticsEvent } from "@databuddy/services/billing-lifecycle";
 import {
 	buildInstallUrl,
 	exchangeInstallUserCode,
@@ -261,6 +262,17 @@ async function handleInstallCallback(
 		}
 
 		await saveGithubInstallation(state, account);
+		recordSelfAnalyticsEvent({
+			profileId: state.userId,
+			eventName: "integration_connected",
+			properties: { provider: "github" },
+			source: "integrations",
+		}).catch((error) => {
+			useLogger().warn("Integration event not recorded", {
+				integration: "github",
+				error: error instanceof Error ? error.message : String(error),
+			});
+		});
 
 		return integrationsRedirect("connected");
 	} catch (error) {
