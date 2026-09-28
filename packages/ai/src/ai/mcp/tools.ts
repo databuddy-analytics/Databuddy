@@ -371,7 +371,7 @@ const getDataTool = defineMcpTool(
 				.max(10)
 				.optional()
 				.describe(
-					"Batch mode: 2-10 query items, each with type + preset or from/to. Omit 'type' when using this."
+					"Batch mode: 2-10 query items, each with type and optionally its own preset or from/to. Items without a date range use the top-level preset or from/to. Omit 'type' when using this."
 				),
 			timezone: z
 				.string()
@@ -417,7 +417,17 @@ const getDataTool = defineMcpTool(
 
 		const items: McpQueryItem[] =
 			rawQueries && rawQueries.length >= 2
-				? rawQueries
+				? rawQueries.map((query) =>
+						query.preset || query.from || query.to
+							? query
+							: {
+									...query,
+									preset: input.preset,
+									from: input.from,
+									to: input.to,
+									timeUnit: query.timeUnit ?? input.timeUnit,
+								}
+					)
 				: input.type
 					? [
 							{
