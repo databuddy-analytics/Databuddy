@@ -1,35 +1,37 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
-import { TrackOnMount } from "@/components/track-on-mount";
-import { CELL_TITLE_CLASS } from "@/components/landing/demo-constants";
 import {
 	FeatureHero,
-	GridCell,
+	FeatureRow,
 	SectionHeader,
-	TwoColumnGrid,
 } from "@/components/landing/demo-primitives";
+import { SECTION_SPACING } from "@/components/landing/demo-constants";
 import { FaqSection } from "@/components/landing/faq-section";
-import { MidPageCta } from "@/components/landing/mid-page-cta";
 import Section from "@/components/landing/section";
 import {
-	UptimeAlertsStackVisual,
-	UptimeIncidentTimelineVisual,
-	UptimeRegionsHubDiagram,
-	UptimeStatusPageMiniVisual,
-} from "@/components/landing/uptime-landing-visuals";
+	CertCountdown,
+	CheckStrip,
+	RetryCheck,
+	StatusAlerts,
+	StatusPagePreview,
+} from "@/components/landing/uptime-demo-visuals";
 import { StructuredData } from "@/components/structured-data";
+import { TrackOnMount } from "@/components/track-on-mount";
+import { cn } from "@/lib/utils";
+
+const TITLE = "Uptime Monitoring: Know the Minute Your Site Goes Down";
+const DESCRIPTION =
+	"Know the minute your site goes down, alert your team in Slack, email, or a webhook, and keep customers updated on a public status page. Free on every plan.";
 
 export const metadata: Metadata = {
-	title: "Uptime Monitoring - Status Pages & 1-Minute Checks",
-	description:
-		"1-minute HTTP checks, one alert per status change to Slack, email, or webhook, and public branded status pages. Included with Databuddy on every plan.",
+	title: TITLE,
+	description: DESCRIPTION,
 	alternates: {
 		canonical: "https://www.databuddy.cc/uptime",
 	},
 	openGraph: {
-		title: "Uptime Monitoring - Status Pages & 1-Minute Checks",
-		description:
-			"1-minute HTTP checks, one alert per status change to Slack, email, or webhook, and public branded status pages. Included with Databuddy on every plan.",
+		title: TITLE,
+		description: DESCRIPTION,
 		url: "https://www.databuddy.cc/uptime",
 		images: ["/og-image.png"],
 	},
@@ -37,29 +39,29 @@ export const metadata: Metadata = {
 
 const FAQ_ITEMS = [
 	{
-		question: "How quickly will I know if my site goes down?",
+		question: "How often does it check?",
 		answer:
-			"Checks run as often as every 60 seconds, and an alert fires on the first check that sees your site go from up to down.",
+			"As often as every minute, or as rarely as once a day. You pick for each monitor.",
 	},
 	{
-		question: "Can my customers see the status page?",
+		question: "What counts as down?",
 		answer:
-			"Yes. You get a public, branded status page that shows real-time uptime data. Share it with customers so they can check service health themselves instead of filing support tickets.",
+			"A response of 400 or above, no response, or a timeout. Before a failure counts, it gets two retries two seconds apart, unless it timed out.",
 	},
 	{
-		question: "Will I get spammed with alerts?",
+		question: "Where do alerts go?",
 		answer:
-			"Alerts fire when a monitor changes from up to down or back up. Repeated checks with the same status stay quiet; an intermittent service can trigger multiple status changes.",
+			"Slack, email, or a webhook. Link an alarm to the monitor and choose where it sends.",
 	},
 	{
-		question: "What kind of services can I monitor?",
+		question: "Can I post incidents?",
 		answer:
-			"Any public website, API, or web service. Point a monitor at a page or health endpoint and the check passes or fails on the HTTP response.",
+			"Yes. Post an incident on your status page and update it as you go, from investigating to resolved.",
 	},
 	{
-		question: "Is uptime monitoring included in all plans?",
+		question: "Does it cost extra?",
 		answer:
-			"Yes, including the free plan. Uptime checks never count toward your event quota, so monitoring stays free no matter how often your sites are checked.",
+			"No. It's on every plan, including free, and checks don't count toward your event quota.",
 	},
 ] as const;
 
@@ -75,70 +77,65 @@ export default function UptimePage() {
 			<StructuredData
 				elements={[{ type: "faq", items: [...FAQ_ITEMS] }]}
 				page={{
-					title: "Uptime Monitoring",
-					description:
-						"1-minute checks, public status pages, and one alert per status change. Included with Databuddy.",
+					title: TITLE,
+					description: DESCRIPTION,
 					url: "https://www.databuddy.cc/uptime",
 				}}
 			/>
 			<div className="overflow-x-hidden">
 				<FeatureHero
 					docsHref="/docs/uptime"
-					footnote="Included on every plan. Checks never count toward your event quota."
-					primaryLabel="Start Monitoring"
-					subtitle="1-minute HTTP checks, one alert per status change, and a public status page your customers can check themselves. In the same dashboard as your analytics."
-					title="Get alerted when your site goes down."
+					footnote="On every plan, including free."
+					primaryLabel="Start monitoring"
+					secondaryLabel="Read the docs"
+					subtitle="Databuddy checks your site as often as every minute, alerts your team in Slack or email when it breaks, and keeps customers updated on your status page."
+					title="Know the minute your site goes down."
+					visual={<CheckStrip />}
 				/>
 
-				<Section className="border-border border-b" id="how-it-works">
+				<FeatureRow
+					body="A failed check is retried twice before anyone is alerted, so you only hear about failures that stick."
+					id="retries"
+					title="No 3am alerts for a one-second blip."
+					visual={<RetryCheck />}
+				/>
+
+				<FeatureRow
+					body="Alerts go to Slack, email, or a webhook, and a second message lets everyone know when it's back up."
+					flip
+					id="alerts"
+					title="The whole team knows the moment it breaks."
+					visual={<StatusAlerts />}
+				/>
+
+				<Section
+					className={cn("border-border border-b", SECTION_SPACING)}
+					customPaddings
+					id="status-page"
+				>
 					<div className={container}>
 						<SectionHeader
-							subtitle="Checks every 60 seconds with one alert per status change. No repeat pages during an incident, and a clear signal when it recovers."
-							title="Catch issues"
-							titleMuted="before your users do."
+							subtitle="Your public status page shows what's working and what you're fixing, with your logo and 90 days of history."
+							title="Tell customers what's happening before they ask."
 						/>
-
-						<TwoColumnGrid>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									HTTP checks on your sites, as often as every 60 seconds.
-								</h3>
-								<UptimeRegionsHubDiagram />
-							</GridCell>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Status-change alerts to Slack, email, or webhook.
-								</h3>
-								<UptimeAlertsStackVisual />
-							</GridCell>
-						</TwoColumnGrid>
-
-						<TwoColumnGrid>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Publish a status page without leaking internals.
-								</h3>
-								<UptimeStatusPageMiniVisual />
-							</GridCell>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Post incident updates your users can follow.
-								</h3>
-								<UptimeIncidentTimelineVisual />
-							</GridCell>
-						</TwoColumnGrid>
+						<StatusPagePreview />
 					</div>
 				</Section>
 
-				<Section className="border-border border-b" id="faq">
+				<FeatureRow
+					body="You get a heads-up 14 days before it runs out, with time to renew before visitors see a security warning."
+					id="ssl"
+					title="Never let a certificate expire by surprise."
+					visual={<CertCountdown />}
+				/>
+
+				<Section
+					className={cn("border-border border-b", SECTION_SPACING)}
+					customPaddings
+					id="faq"
+				>
 					<div className={container}>
 						<FaqSection items={[...FAQ_ITEMS]} />
-					</div>
-				</Section>
-
-				<Section className="border-border border-b" id="cta">
-					<div className={container}>
-						<MidPageCta />
 					</div>
 				</Section>
 
