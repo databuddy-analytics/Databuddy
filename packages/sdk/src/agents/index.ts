@@ -39,6 +39,10 @@ function header(request: Request | NodeRequest, name: string): string {
 	return (Array.isArray(value) ? value[0] : value) ?? "";
 }
 
+function isMarkdownMediaType(mediaType: string): boolean {
+	return MARKDOWN_MEDIA_TYPE.test(mediaType) && !ZERO_QUALITY.test(mediaType);
+}
+
 function contentFormat(
 	pathname: string,
 	accept: string
@@ -46,73 +50,90 @@ function contentFormat(
 	if (LLMS_TXT_PATH.test(pathname)) {
 		return "llms";
 	}
-	return MARKDOWN_PATH.test(pathname) || accept.includes("text/markdown")
+	return MARKDOWN_PATH.test(pathname) ||
+		accept.split(",").some(isMarkdownMediaType)
 		? "markdown"
 		: "html";
 }
 
-async function sendAgentHit(
+interface AgentHit {
+	accept?: string;
+	format: "llms" | "markdown" | "html";
+	host: string;
+	path: string;
+	referrer?: string;
+	signatureAgent?: string;
+	userAgent: string;
+	websiteId: string;
+}
+
+function readAgentHit(
 	request: Request | NodeRequest,
-	options: TrackAgentsOptions
-): Promise<void> {
-	const websiteId =
-		detectClientId(options.websiteId) ??
-		(typeof process === "undefined"
-			? undefined
-			: process.env.DATABUDDY_WEBSITE_ID);
+	websiteId: string
+): AgentHit | null {
 	const method = request.method ?? "GET";
 	const userAgent = header(request, "user-agent");
 	const signatureAgent = header(request, "signature-agent");
 	const accept = header(request, "accept").slice(0, MAX_HEADER_LENGTH);
-	const [firstMediaType = ""] = accept.split(",");
-	const isAgentLike =
-		MARKDOWN_MEDIA_TYPE.test(firstMediaType) &&
-		!ZERO_QUALITY.test(firstMediaType) &&
+	const isMarkdownFirstClient =
+		isMarkdownMediaType(accept.split(",")[0] ?? "") &&
 		!header(request, "sec-fetch-mode");
 	if (
 		!(
-			websiteId &&
 			(method === "GET" || method === "HEAD") &&
-			(signatureAgent || isAgentLike || AI_AGENT_USER_AGENT.test(userAgent))
+			(signatureAgent ||
+				isMarkdownFirstClient ||
+				AI_AGENT_USER_AGENT.test(userAgent))
 		)
 	) {
-		return;
+		return null;
 	}
 	const url = new URL(
 		("originalUrl" in request && request.originalUrl) || request.url || "/",
 		"http://localhost"
 	);
-	const { pathname } = url;
-	if (ASSET_PATH.test(pathname)) {
-		return;
+	if (ASSET_PATH.test(url.pathname)) {
+		return null;
 	}
-	const host =
-		header(request, "x-forwarded-host").split(",")[0]?.trim() ||
-		header(request, "host") ||
-		url.host;
-	await fetch(`${options.apiUrl ?? DEFAULT_API_URL}/ai-traffic`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({
-			websiteId,
-			host,
-			path: pathname,
-			format: contentFormat(pathname, accept),
-			userAgent: userAgent.slice(0, MAX_HEADER_LENGTH),
-			accept: accept || undefined,
-			signatureAgent: signatureAgent.slice(0, MAX_HEADER_LENGTH) || undefined,
-			referrer:
-				header(request, "referer").slice(0, MAX_REFERRER_LENGTH) || undefined,
-		}),
-		signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
-	});
+	return {
+		accept: accept || undefined,
+		format: contentFormat(url.pathname, accept),
+		host:
+			header(request, "x-forwarded-host").split(",")[0]?.trim() ||
+			header(request, "host") ||
+			url.host,
+		path: url.pathname,
+		referrer:
+			header(request, "referer").slice(0, MAX_REFERRER_LENGTH) || undefined,
+		signatureAgent: signatureAgent.slice(0, MAX_HEADER_LENGTH) || undefined,
+		userAgent: userAgent.slice(0, MAX_HEADER_LENGTH),
+		websiteId,
+	};
 }
 
-export function trackAgents(
+export async function trackAgents(
 	request: Request | NodeRequest,
 	options: TrackAgentsOptions = {}
 ): Promise<void> {
-	return sendAgentHit(request, options).catch(() => undefined);
+	try {
+		const websiteId =
+			detectClientId(options.websiteId) ??
+			(typeof process === "undefined"
+				? undefined
+				: process.env.DATABUDDY_WEBSITE_ID);
+		const hit = websiteId ? readAgentHit(request, websiteId) : null;
+		if (!hit) {
+			return;
+		}
+		await fetch(`${options.apiUrl ?? DEFAULT_API_URL}/ai-traffic`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(hit),
+			signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+		});
+	} catch {
+		return;
+	}
 }
 
 export function proxy(

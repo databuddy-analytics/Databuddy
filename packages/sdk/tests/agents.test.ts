@@ -62,6 +62,11 @@ describe("trackAgents", () => {
 		["/docs/intro.md", {}, { format: "markdown" }],
 		[
 			"/docs/intro",
+			{ accept: "text/html, text/markdown;q=0" },
+			{ format: "html" },
+		],
+		[
+			"/docs/intro",
 			{ accept: "text/markdown, text/html, */*", userAgent: CLAUDE_CODE },
 			{ format: "markdown" },
 		],
