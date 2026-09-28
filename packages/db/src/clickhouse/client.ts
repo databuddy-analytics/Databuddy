@@ -225,6 +225,7 @@ async function readJsonResponse<T>(
 }
 
 const CH_QUERY_MAX_MS = 25_000;
+const SCALAR_INT_TYPE = /^(?:Nullable\()?U?Int\d+\)?$/;
 
 async function chQueryWithMeta<T>(
 	query: string,
@@ -265,7 +266,9 @@ async function chQueryWithMeta<T>(
 	);
 
 	const intColumns = new Set(
-		(json.meta ?? []).filter((m) => m.type.includes("Int")).map((m) => m.name)
+		(json.meta ?? [])
+			.filter((m) => SCALAR_INT_TYPE.test(m.type))
+			.map((m) => m.name)
 	);
 	if (intColumns.size === 0) {
 		return json;
