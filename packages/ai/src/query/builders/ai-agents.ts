@@ -340,7 +340,7 @@ export const AiAgentsBuilders = {
 		meta: {
 			title: "AI Crawlers",
 			description:
-				"Each AI crawler or agent that requested your pages, with its product, purpose, request count, how many of those requests asked for markdown or llms.txt, last request, and a sample user agent for checking robots.txt rules.",
+				"Each AI crawler or agent that requested your pages, with its product, purpose, request count, distinct pages read, how many of those requests asked for markdown or llms.txt, last request, and a sample user agent for checking robots.txt rules.",
 			category: "AI Agents",
 			tags: ["ai", "crawlers", "robots.txt", "bots"],
 			output_fields: [
@@ -349,6 +349,7 @@ export const AiAgentsBuilders = {
 				{ name: "product", type: "string", label: "Product" },
 				{ name: "purpose", type: "string", label: "Purpose" },
 				{ name: "requests", type: "number", label: "Requests" },
+				{ name: "pages", type: "number", label: "Pages read" },
 				{ name: "markdown", type: "number", label: "Markdown requests" },
 				{ name: "llms", type: "number", label: "llms.txt requests" },
 				{ name: "last_seen", type: "datetime", label: "Last request" },
@@ -364,6 +365,7 @@ export const AiAgentsBuilders = {
 					any(${AGENT_PRODUCT}) AS product,
 					any(agent_purpose) AS purpose,
 					count() AS requests,
+					uniq(${PAGE}) AS pages,
 					countIf(${CONTENT_FORMAT} = 'markdown') AS markdown,
 					countIf(${CONTENT_FORMAT} = 'llms') AS llms,
 					max(timestamp) AS last_seen,
