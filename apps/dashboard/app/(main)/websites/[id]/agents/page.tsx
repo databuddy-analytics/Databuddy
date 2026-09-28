@@ -18,7 +18,6 @@ import {
 	TrendUpIcon,
 } from "@databuddy/ui/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
 import {
 	type AgentPurpose,
 	type ContentFormat,
@@ -40,7 +39,6 @@ import {
 	type ChartMultiSeriesDataPoint,
 } from "@/components/ui/composables/chart";
 import { AiProductIcon, aiProductColor } from "@/components/icon";
-import { DataTable } from "@/components/table/data-table";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
@@ -118,8 +116,6 @@ interface LandingPageRow {
 
 const READ_FORMATS: ContentFormat[] = ["llms", "markdown", "html"];
 const READ_ROWS = 8;
-const ROW_HEIGHT_PX = 36;
-const ROW_GAP_PX = 4;
 const TIP_DELAY_MS = 200;
 
 function Tip({ lines = [], title }: { lines?: string[]; title: string }) {
@@ -135,57 +131,6 @@ function Tip({ lines = [], title }: { lines?: string[]; title: string }) {
 	);
 }
 
-function numberColumn<TRow>(
-	key: keyof TRow & string,
-	header: string
-): ColumnDef<TRow> {
-	return {
-		id: key,
-		accessorKey: key,
-		header,
-		cell: ({ getValue }) => (
-			<span className="text-[15px] text-muted-foreground tabular-nums">
-				{formatNumber((getValue() as number) ?? 0)}
-			</span>
-		),
-	};
-}
-
-const landingColumns: ColumnDef<LandingPageRow>[] = [
-	{
-		id: "name",
-		accessorKey: "name",
-		header: "Page",
-		cell: ({ getValue }) => (
-			<span className="truncate font-medium text-[15px]">
-				{getValue() as string}
-			</span>
-		),
-	},
-	{
-		id: "products",
-		accessorKey: "products",
-		header: "Sent by",
-		cell: ({ row }) => (
-			<div className="flex items-center gap-1">
-				{row.original.products.map((product) => (
-					<Tooltip
-						content={<Tip title={product} />}
-						delay={TIP_DELAY_MS}
-						key={product}
-					>
-						<span>
-							<AiProductIcon name={product} size="sm" />
-						</span>
-					</Tooltip>
-				))}
-			</div>
-		),
-	},
-	numberColumn<LandingPageRow>("visitors", "AI visitors"),
-	numberColumn<LandingPageRow>("pageviews", "Pageviews"),
-];
-
 interface OutcomeRow {
 	engaged_rate: number;
 	name: string;
@@ -194,67 +139,14 @@ interface OutcomeRow {
 	visitors: number;
 }
 
+const OUTCOME_GRID =
+	"grid grid-cols-[minmax(0,1fr)_3.5rem_minmax(0,1.2fr)_5.5rem] items-center gap-3";
+
 interface RevenueRow {
 	currency: string;
 	name: string;
 	revenue: number;
 }
-
-const outcomeColumns: ColumnDef<OutcomeRow>[] = [
-	{
-		id: "name",
-		accessorKey: "name",
-		header: "Visitors from",
-		cell: ({ row }) => (
-			<div className="flex min-w-0 items-center gap-2">
-				{row.original.name === ALL_VISITORS ? null : (
-					<AiProductIcon name={row.original.name} size="sm" />
-				)}
-				<span
-					className={cn(
-						"truncate text-[15px]",
-						row.original.name === ALL_VISITORS
-							? "text-muted-foreground"
-							: "font-medium"
-					)}
-				>
-					{row.original.name}
-				</span>
-			</div>
-		),
-	},
-	numberColumn<OutcomeRow>("visitors", "Visitors"),
-	{
-		id: "pages_per_visit",
-		accessorKey: "pages_per_visit",
-		header: "Pages per visit",
-		cell: ({ getValue }) => (
-			<span className="text-[15px] text-muted-foreground tabular-nums">
-				{(getValue() as number).toFixed(1)}
-			</span>
-		),
-	},
-	{
-		id: "engaged_rate",
-		accessorKey: "engaged_rate",
-		header: "Viewed 2+ pages",
-		cell: ({ getValue }) => (
-			<span className="text-[15px] text-muted-foreground tabular-nums">
-				{getValue() as number}%
-			</span>
-		),
-	},
-	{
-		id: "revenue",
-		accessorKey: "revenue",
-		header: "Revenue",
-		cell: ({ getValue }) => (
-			<span className="text-[15px] text-muted-foreground tabular-nums">
-				{getValue() as string}
-			</span>
-		),
-	},
-];
 
 const PURPOSE_LABELS: Record<AgentPurpose, string> = {
 	agent: "Agent",
@@ -958,10 +850,6 @@ interface RobotsCheck {
 	isPending: boolean;
 }
 
-function listHeight(rows: number): number {
-	return rows * ROW_HEIGHT_PX + Math.max(rows - 1, 0) * ROW_GAP_PX;
-}
-
 function ShowAllButton({
 	count,
 	isExpanded,
@@ -1209,9 +1097,6 @@ function AgentReadsPanel({
 		Math.min(READ_ROWS, Math.max(agents.length, distinctPages)),
 		1
 	);
-	const listStyle = {
-		"--list-height": `${listHeight(rowSlots)}px`,
-	} as React.CSSProperties;
 
 	const total =
 		focus === "all"
@@ -1313,7 +1198,7 @@ function AgentReadsPanel({
 					label={label}
 					trend={isLoading ? null : activityTrend(activity, timeline, focus)}
 				/>
-				<div className="lg:min-h-(--list-height)" style={listStyle}>
+				<div>
 					{isLoading ? (
 						<ListSkeleton rows={rowSlots} />
 					) : (
@@ -1438,7 +1323,7 @@ function AgentReadsPanel({
 						}
 					/>
 				) : null}
-				<div className="lg:min-h-(--list-height)" style={listStyle}>
+				<div>
 					{isLoading ? (
 						<ListSkeleton rows={rowSlots} />
 					) : (
@@ -1494,6 +1379,198 @@ function AgentReadsPanel({
 							: `Show all ${formatNumber(pages.length)} ${pageNoun}`
 					}
 					onToggle={() => setArePagesExpanded((expanded) => !expanded)}
+				/>
+			</div>
+		</div>
+	);
+}
+
+function RateBar({ baseline, rate }: { baseline: number; rate: number }) {
+	return (
+		<span className="relative flex h-1.5 min-w-0 flex-1 rounded-full bg-secondary">
+			<span
+				className="absolute inset-0 origin-left rounded-full bg-foreground/70 transition-transform duration-(--duration-base) ease-(--ease-smooth) motion-reduce:transition-none"
+				style={{ transform: `scaleX(${Math.min(rate, 100) / 100})` }}
+			/>
+			<span
+				className="absolute -inset-y-1 w-px bg-foreground"
+				style={{ left: `${Math.min(baseline, 100)}%` }}
+			/>
+		</span>
+	);
+}
+
+function OutcomeLine({
+	baseline,
+	row,
+}: {
+	baseline: OutcomeRow | undefined;
+	row: OutcomeRow;
+}) {
+	const isBaseline = row.name === ALL_VISITORS;
+	const comparison = (value: string, base: string | undefined) =>
+		base && !isBaseline ? `${value} (all visitors ${base})` : value;
+	return (
+		<Tooltip
+			content={
+				<Tip
+					lines={[
+						`${formatNumber(row.visitors)} ${row.visitors === 1 ? "visitor" : "visitors"}`,
+						comparison(
+							`${row.pages_per_visit.toFixed(1)} pages per visit`,
+							baseline?.pages_per_visit.toFixed(1)
+						),
+						comparison(
+							`${row.engaged_rate}% viewed 2+ pages`,
+							baseline ? `${baseline.engaged_rate}%` : undefined
+						),
+						row.revenue ? `Revenue ${row.revenue}` : "",
+					].filter(Boolean)}
+					title={isBaseline ? "All visitors" : `Visitors from ${row.name}`}
+				/>
+			}
+			delay={TIP_DELAY_MS}
+		>
+			<div
+				className={cn(
+					OUTCOME_GRID,
+					"h-10 cursor-default rounded px-1 hover:bg-interactive-hover",
+					isBaseline && "text-muted-foreground"
+				)}
+			>
+				<span className="flex min-w-0 items-center gap-2">
+					{isBaseline ? null : <AiProductIcon name={row.name} size="sm" />}
+					<span
+						className={cn("truncate text-sm", !isBaseline && "font-medium")}
+					>
+						{row.name}
+					</span>
+				</span>
+				<span className="text-right text-sm tabular-nums">
+					{formatNumber(row.visitors)}
+				</span>
+				<span className="flex items-center gap-2">
+					<RateBar
+						baseline={baseline?.engaged_rate ?? row.engaged_rate}
+						rate={row.engaged_rate}
+					/>
+					<span className="w-11 shrink-0 text-right text-xs tabular-nums">
+						{row.engaged_rate}%
+					</span>
+				</span>
+				<span className="text-right text-sm tabular-nums">
+					{row.pages_per_visit.toFixed(1)}
+				</span>
+			</div>
+		</Tooltip>
+	);
+}
+
+function AiVisitorsPanel({
+	isLoading,
+	landing,
+	outcomes,
+}: {
+	isLoading: boolean;
+	landing: LandingPageRow[];
+	outcomes: OutcomeRow[];
+}) {
+	const [areLandingExpanded, setAreLandingExpanded] = useState(false);
+	const baseline = outcomes.find((row) => row.name === ALL_VISITORS);
+	const aiOutcomes = outcomes.filter((row) => row.name !== ALL_VISITORS);
+	const maxLanding = Number(landing[0]?.visitors) || 1;
+	const visibleLanding = areLandingExpanded
+		? landing
+		: landing.slice(0, READ_ROWS);
+
+	return (
+		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-2">
+			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
+				<div className="flex items-start justify-between gap-3">
+					<div>
+						<p className="font-semibold text-sm">What AI visitors do</p>
+						<p className="text-muted-foreground text-xs">
+							Hover a row to compare it with all visitors
+						</p>
+					</div>
+					<AskAgentButton subject="what visitors from AI products do on the site" />
+				</div>
+				{isLoading ? (
+					<ListSkeleton rows={3} />
+				) : aiOutcomes.length === 0 ? (
+					<p className="text-muted-foreground text-sm">
+						No visitors from AI products in this period.
+					</p>
+				) : (
+					<div className="flex flex-col gap-1">
+						<div
+							className={cn(OUTCOME_GRID, "px-1 text-muted-foreground text-xs")}
+						>
+							<span>Visitors from</span>
+							<span className="text-right">Visitors</span>
+							<span>Viewed 2+ pages</span>
+							<span className="whitespace-nowrap text-right">
+								Pages per visit
+							</span>
+						</div>
+						{[...aiOutcomes, ...(baseline ? [baseline] : [])].map((row) => (
+							<OutcomeLine baseline={baseline} key={row.name} row={row} />
+						))}
+					</div>
+				)}
+			</div>
+
+			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
+				<div className="flex items-start justify-between gap-3">
+					<div>
+						<p className="font-semibold text-sm">Where AI sends visitors</p>
+						<p className="text-muted-foreground text-xs">
+							Pages people from AI products view
+						</p>
+					</div>
+					<AskAgentButton subject="the pages AI products send visitors to" />
+				</div>
+				{isLoading ? (
+					<ListSkeleton rows={3} />
+				) : landing.length === 0 ? (
+					<p className="text-muted-foreground text-sm">
+						No visitors from AI products in this period.
+					</p>
+				) : (
+					<div className="flex flex-col gap-1">
+						{visibleLanding.map((row, index) => (
+							<BarRow
+								fraction={Number(row.visitors) / maxLanding}
+								key={row.name}
+								rank={index + 1}
+								tooltip={
+									<Tip
+										lines={[
+											`${formatNumber(Number(row.visitors))} AI ${Number(row.visitors) === 1 ? "visitor" : "visitors"} · ${formatNumber(Number(row.pageviews))} pageviews from everyone`,
+											`Sent by ${row.products.join(", ")}`,
+										]}
+										title={row.name}
+									/>
+								}
+								value={Number(row.visitors)}
+							>
+								<span className="relative min-w-0 flex-1 truncate text-sm">
+									{row.name}
+								</span>
+								<span className="relative flex shrink-0 items-center gap-1">
+									{row.products.map((product) => (
+										<AiProductIcon key={product} name={product} size="sm" />
+									))}
+								</span>
+							</BarRow>
+						))}
+					</div>
+				)}
+				<ShowAllButton
+					count={landing.length}
+					isExpanded={areLandingExpanded}
+					label={`Show all ${formatNumber(landing.length)} pages`}
+					onToggle={() => setAreLandingExpanded((expanded) => !expanded)}
 				/>
 			</div>
 		</div>
@@ -1781,24 +1858,11 @@ export default function AgentsPage() {
 					</VisitorSharePanel>
 				) : null}
 
-				{isLoading || outcomeRows.length > 1 ? (
-					<DataTable
-						columns={outcomeColumns}
-						data={outcomeRows}
-						description="How visitors from AI browse and buy, next to everyone else"
+				{isLoading || outcomeRows.length > 1 || landingRows.length > 0 ? (
+					<AiVisitorsPanel
 						isLoading={isLoading}
-						title="What AI visitors do"
-					/>
-				) : null}
-
-				{isLoading || landingRows.length > 0 ? (
-					<DataTable
-						columns={landingColumns}
-						data={landingRows}
-						description="Pages people from AI products view"
-						initialPageSize={10}
-						isLoading={isLoading}
-						title="Where AI sends visitors"
+						landing={landingRows}
+						outcomes={outcomeRows}
 					/>
 				) : null}
 
