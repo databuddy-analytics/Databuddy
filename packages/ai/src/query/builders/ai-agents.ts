@@ -1,15 +1,16 @@
+import { AI_AGENTS } from "@databuddy/shared/bot-detection/ai-agents";
 import {
-	AI_AGENTS,
 	UNIDENTIFIED_AGENT_PREFIX,
 	UNIDENTIFIED_AGENTS_PRODUCT,
-} from "@databuddy/shared/bot-detection/ai-agents";
+} from "@databuddy/shared/bot-detection/types";
 import { AI_APP_BROWSERS } from "@databuddy/shared/bot-detection/user-agent";
 import { AI_REFERRERS } from "@databuddy/shared/utils/referrer";
 import { Analytics } from "../../types/tables";
 import type { CustomSqlContext, SimpleQueryConfig } from "../types";
 
 const AGENT_PRODUCT = `if(startsWith(agent_id, '${UNIDENTIFIED_AGENT_PREFIX}'), '${UNIDENTIFIED_AGENTS_PRODUCT}', transform(agent_id, {agentIds:Array(String)}, {agentProducts:Array(String)}, agent_id))`;
-const AGENT_NAME = `if(startsWith(agent_id, '${UNIDENTIFIED_AGENT_PREFIX}'), substring(agent_id, ${UNIDENTIFIED_AGENT_PREFIX.length + 1}), transform(agent_id, {agentIds:Array(String)}, {agentNames:Array(String)}, agent_id))`;
+const AGENT_OPERATOR = `if(startsWith(agent_id, '${UNIDENTIFIED_AGENT_PREFIX}'), '', transform(agent_id, {agentIds:Array(String)}, {agentOperators:Array(String)}, ''))`;
+const AGENT_NAME = `multiIf(agent_id = '${UNIDENTIFIED_AGENT_PREFIX}mozilla', 'Unnamed browser client', startsWith(agent_id, '${UNIDENTIFIED_AGENT_PREFIX}'), substring(agent_id, ${UNIDENTIFIED_AGENT_PREFIX.length + 1}), transform(agent_id, {agentIds:Array(String)}, {agentNames:Array(String)}, agent_id))`;
 export function aiVisitProduct(referrerDomain: string): string {
 	return `if(has({aiApps:Array(String)}, browser_name), browser_name, transform(${referrerDomain}, {aiDomains:Array(String)}, {aiNames:Array(String)}, transform(utm_source, {aiDomains:Array(String)}, {aiNames:Array(String)}, '')))`;
 }
@@ -54,6 +55,7 @@ function queryParams(ctx: CustomSqlContext) {
 		agentIds: AI_AGENTS.map((agent) => agent.id),
 		agentProducts: AI_AGENTS.map((agent) => agent.product),
 		agentNames: AI_AGENTS.map((agent) => agent.name),
+		agentOperators: AI_AGENTS.map((agent) => agent.operator),
 		...AI_VISIT_PARAMS,
 	};
 }
@@ -192,52 +194,102 @@ export const AiAgentsBuilders = {
 
 	ai_agent_pages: {
 		meta: {
-			title: "Pages Read by or Visited from AI",
+			title: "Pages Read by AI",
 			description:
-				"Pages AI products send visitors to or read, ranked by AI-referred visitors then AI requests, with the products reading each page and its human pageviews.",
+				"What AI crawlers and agents read: one row per page and content format (markdown, llms.txt or HTML, as the agent asked for it), with the request count, last request, and every agent that read it (id, name, product, requests), most requested first. Up to 300 pages per format.",
 			category: "AI Agents",
-			tags: ["ai", "agents", "crawlers", "pages", "referrals"],
+			tags: [
+				"ai",
+				"agents",
+				"crawlers",
+				"pages",
+				"markdown",
+				"llms.txt",
+				"llms-full.txt",
+				"docs",
+			],
 			output_fields: [
 				{ name: "page", type: "string", label: "Page" },
-				{ name: "visitors", type: "number", label: "AI-referred visitors" },
-				{ name: "products", type: "json", label: "Read by" },
-				{ name: "requests", type: "number", label: "AI requests" },
 				{ name: "format", type: "string", label: "Format" },
-				{ name: "pageviews", type: "number", label: "Human pageviews" },
+				{ name: "requests", type: "number", label: "Requests" },
+				{ name: "last_seen", type: "datetime", label: "Last request" },
+				{ name: "agents", type: "json", label: "Read by" },
 			],
 			default_visualization: "table",
 		},
 		customSql: (ctx) => ({
 			sql: `
 				SELECT
-					if(a.page != '', a.page, h.page) AS page,
-					h.visitors, a.products, a.requests, a.format, h.pageviews
+					page,
+					format,
+					sum(agent_requests) AS requests,
+					max(agent_last_seen) AS last_seen,
+					arrayReverseSort(
+						agent -> agent.requests,
+						groupArray(CAST(
+							(agent_id, name, product, agent_requests),
+							'Tuple(agent_id String, name String, product String, requests UInt64)'
+						))
+					) AS agents
 				FROM (
 					SELECT
 						${PAGE} AS page,
-						count() AS requests,
-						topK(3)(${AGENT_PRODUCT}) AS products,
-						topK(1)(${CONTENT_FORMAT})[1] AS format
+						${CONTENT_FORMAT} AS format,
+						agent_id,
+						${AGENT_NAME} AS name,
+						${AGENT_PRODUCT} AS product,
+						count() AS agent_requests,
+						max(timestamp) AS agent_last_seen
 					FROM ${Analytics.ai_traffic_spans}
 					WHERE ${AGENT_REQUEST_IN_RANGE} AND path != ''
-					GROUP BY page
-				) AS a
-				FULL OUTER JOIN (
-					SELECT
-						${PAGE} AS page,
-						countIf(event_name = 'screen_view') AS pageviews,
-						uniqIf(anonymous_id, ${VISIT_PRODUCT} != '') AS visitors
+					GROUP BY page, format, agent_id
+				)
+				GROUP BY page, format
+				ORDER BY requests DESC, page ASC
+				LIMIT 300 BY format
+				LIMIT {limit:UInt32}
+			`,
+			params: { ...queryParams(ctx), limit: ctx.limit ?? 1000 },
+		}),
+		timeField: "timestamp",
+		customizable: false,
+	},
+
+	ai_landing_pages: {
+		meta: {
+			title: "Pages AI Sends Visitors To",
+			description:
+				"Pages that visitors from AI products (referrals and AI app browsers such as Claude or Cursor) viewed, counting page views only, with the products that sent them and each page's pageviews from all visitors.",
+			category: "AI Agents",
+			tags: ["ai", "referrals", "pages", "visitors"],
+			output_fields: [
+				{ name: "page", type: "string", label: "Page" },
+				{ name: "visitors", type: "number", label: "AI visitors" },
+				{ name: "products", type: "json", label: "Sent by" },
+				{ name: "pageviews", type: "number", label: "Pageviews" },
+			],
+			default_visualization: "table",
+		},
+		customSql: (ctx) => ({
+			sql: `
+				SELECT
+					${PAGE} AS page,
+					uniqIf(anonymous_id, visit_product != '' AND event_name = 'screen_view') AS visitors,
+					topKIf(3)(visit_product, visit_product != '' AND event_name = 'screen_view') AS products,
+					countIf(event_name = 'screen_view') AS pageviews
+				FROM (
+					SELECT path, anonymous_id, event_name, ${VISIT_PRODUCT} AS visit_product
 					FROM ${Analytics.events}
 					WHERE ${EVENT_IN_RANGE} AND path != ''
-					GROUP BY page
-				) AS h ON a.page = h.page
-				WHERE a.requests > 0 OR h.visitors > 0
-				ORDER BY h.visitors DESC, a.requests DESC
+				)
+				GROUP BY page
+				HAVING visitors > 0
+				ORDER BY visitors DESC, pageviews DESC
 				LIMIT {limit:UInt32}
 			`,
 			params: { ...queryParams(ctx), limit: ctx.limit ?? 100 },
 		}),
-		timeField: "timestamp",
+		timeField: "time",
 		customizable: false,
 	},
 
@@ -296,15 +348,30 @@ export const AiAgentsBuilders = {
 		meta: {
 			title: "AI Crawlers",
 			description:
-				"Each AI crawler or agent that requested your pages, with its product, purpose, request count, last request, and a sample user agent for checking robots.txt rules.",
+				"Each AI crawler or agent that requested your pages, with its product, the company operating it (empty for unidentified agents), purpose, request count, distinct pages read, how many of those requests asked for markdown or llms.txt, last request, and a sample user agent for checking robots.txt rules.",
 			category: "AI Agents",
-			tags: ["ai", "crawlers", "robots.txt", "bots"],
+			tags: [
+				"ai",
+				"crawlers",
+				"agents",
+				"bots",
+				"robots.txt",
+				"gptbot",
+				"claudebot",
+				"perplexitybot",
+				"chatgpt-user",
+				"claude code",
+			],
 			output_fields: [
 				{ name: "agent_id", type: "string", label: "Agent" },
 				{ name: "name", type: "string", label: "Crawler" },
 				{ name: "product", type: "string", label: "Product" },
+				{ name: "operator", type: "string", label: "Operator" },
 				{ name: "purpose", type: "string", label: "Purpose" },
 				{ name: "requests", type: "number", label: "Requests" },
+				{ name: "pages", type: "number", label: "Pages read" },
+				{ name: "markdown", type: "number", label: "Markdown requests" },
+				{ name: "llms", type: "number", label: "llms.txt requests" },
 				{ name: "last_seen", type: "datetime", label: "Last request" },
 				{ name: "user_agent", type: "string", label: "User agent" },
 			],
@@ -316,8 +383,12 @@ export const AiAgentsBuilders = {
 					agent_id,
 					${AGENT_NAME} AS name,
 					any(${AGENT_PRODUCT}) AS product,
+					${AGENT_OPERATOR} AS operator,
 					any(agent_purpose) AS purpose,
 					count() AS requests,
+					uniq(${PAGE}) AS pages,
+					countIf(${CONTENT_FORMAT} = 'markdown') AS markdown,
+					countIf(${CONTENT_FORMAT} = 'llms') AS llms,
 					max(timestamp) AS last_seen,
 					any(user_agent) AS user_agent
 				FROM ${Analytics.ai_traffic_spans}

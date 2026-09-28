@@ -51,6 +51,7 @@ ${INVESTIGATION_TOOL_RULES}
 6. Mutations: call with confirmed=false first for a preview, then confirmed=true after explicit user approval.
 7. Product/session diagnosis: prefer interesting_sessions, session_list, session_events, profile_list, profile_sessions, session_flow (page-to-page), session_pages (pages ranked by sessions) before SQL.
 8. Custom events live in a separate table keyed by owner_id, not client_id — use get_data custom_events_* builders, never raw SQL. Use custom_events for inventory and filtered custom_events_discovery for properties; both are bounded results.
+9. AI crawlers, AI agents and AI referrals: use get_data ai_* builders: ai_products (per product: requests, pages read, purpose split, visitors sent), ai_crawlers (per agent: requests, pages, markdown/llms.txt requests, last read, user agent), ai_agent_pages (pages and files each agent read, by format), ai_content_formats, ai_product_visitors, ai_visitor_outcomes, ai_landing_pages, ai_weekly_digest, plus revenue_by_ai_product. Crawler requests are not visitors and never appear in pageview or visitor builders. robots.txt rules are not queryable; send the user to /websites/{websiteId}/agents, which shows each crawler's robots.txt status.
 
 ${FEEDBACK_TOOL_RULES}
 
@@ -59,9 +60,9 @@ ${FEEDBACK_TOOL_RULES}
 - Never SELECT *. Always LIMIT non-aggregated queries. Batch related questions in one query with CTEs instead of multiple round-trips.
 
 **External research tools (when available):**
-9. scrape_page: Scrape a page on the website to see its content, CTAs, and structure. Use when investigating page-specific issues (bounce rate, errors, conversion drops) or to understand what the product does.
-10. search_console: Query Google Search Console for keyword rankings, impressions, clicks, CTR. Use when investigating traffic changes to find which search queries drove them.
-11. github_commits / github_commit_diff / github_search_code / github_read_file: Correlate code changes with metric anomalies. Use when a deploy or code change may have caused an issue.
+10. scrape_page: Scrape a page on the website to see its content, CTAs, and structure. Use when investigating page-specific issues (bounce rate, errors, conversion drops) or to understand what the product does.
+11. search_console: Query Google Search Console for keyword rankings, impressions, clicks, CTR. Use when investigating traffic changes to find which search queries drove them.
+12. github_commits / github_commit_diff / github_search_code / github_read_file: Correlate code changes with metric anomalies. Use when a deploy or code change may have caused an issue.
 
 **Analysis:**
 - Before answering analytics questions, classify each requested metric as directly supported by tool output, available only as a proxy, or missing/not answerable.
@@ -112,7 +113,7 @@ Other types:
 - links-list: {"type":"links-list","title":"…","links":[{"id":"…","name":"…","slug":"…","targetUrl":"…","createdAt":"…","expiresAt":null}]}
 - link-preview: {"type":"link-preview","mode":"create","link":{"name":"…","targetUrl":"…","slug":"…","expiresAt":"Never"}}
 - feedback-preview: {"type":"feedback-preview","mode":"offer","feedback":{"title":"…","category":"bug_report","description":"…"}} — emit with mode "offer" when offering to send feedback (instead of restating the report in prose; the card has a send button), and again with mode "sent" as the receipt after submit_feedback succeeds. category: bug_report | feature_request | ux_improvement | performance | documentation | other.
-- dashboard-actions: clickable dashboard navigation. In the dashboard agent, call dashboard_actions instead of writing this JSON. Prefer safe relative hrefs. Known semantic targets are only shortcuts: website.dashboard, website.realtime, website.audience, website.events, website.events.stream, website.event (requires eventName), website.funnels, website.goals, website.users, website.errors, website.vitals, website.map, website.flags, website.revenue, website.settings.tracking, website.agent, global.events, global.events.stream, links, insights, websites, home. Include params/filters only when they materially scope the destination.
+- dashboard-actions: clickable dashboard navigation. In the dashboard agent, call dashboard_actions instead of writing this JSON. Prefer safe relative hrefs. Known semantic targets are only shortcuts: website.dashboard, website.realtime, website.audience, website.events, website.events.stream, website.event (requires eventName), website.funnels, website.goals, website.users, website.errors, website.vitals, website.map, website.flags, website.revenue, website.settings.tracking, website.agent (the AI chat), website.agents (AI crawlers, agents and AI visitors), global.events, global.events.stream, links, insights, websites, home. Include params/filters only when they materially scope the destination.
 - suggested-actions: {"type":"suggested-actions","actions":[{"label":"Break down by referrer","prompt":"break /pricing down by referrer"}]} — offer 1-3 tailored follow-up questions as buttons. label is the button text (short); prompt is the exact question run when clicked. Only offer genuinely useful next steps, never generic filler.
 
 Rules: Pick JSON component OR markdown table for the same data, never both. Output the raw JSON directly on its own line with no surrounding markup. NEVER wrap in \`\`\`json code fences.
@@ -126,6 +127,11 @@ Rules: Pick JSON component OR markdown table for the same data, never both. Outp
 - conversion: completing a goal target (page view or custom event)
 - pageviews ≠ unique users; events ≠ sessions; source visitor counts ≠ attribution or incrementality
 - revenue, CAC, LTV, payback, and revenue impact require instrumented revenue and spend data
+- AI request: one fetch by an AI crawler or agent (GPTBot, ClaudeBot, Claude Code); not a visitor or pageview
+- AI visitor: a person who arrived from an AI product's referral or its app browser (ChatGPT Atlas, Claude, Cursor), counted with uniq(anonymous_id) like every visitor
+- agent purpose: training (model training crawls), search_index (AI search indexing), user_fetch (fetched live to answer a user's question), agent (acting for a user, such as coding agents)
+- content format: markdown (.md paths or Accept: text/markdown), llms (llms.txt and llms-full.txt), html (everything else)
+- server-side AI tracking: crawlers that don't run JavaScript appear only when @databuddy/sdk/agents runs on the site's server; ai_products.has_proxy says whether it ever has
 </glossary>`;
 
 const ANALYTICS_MCP_BODY = `<agent-specific-rules>
@@ -136,7 +142,8 @@ ${INVESTIGATION_TOOL_RULES}
 3. Analytics: use get_data and batch builders after resolving scope. Use SQL for recorded-history bounds, joins, ordered pathing, or cross-table work builders cannot answer.
 4. Product/session investigations: start with interesting_sessions, session_list, session_events, profile_list, or profile_sessions. session_flow is page-to-page transitions; session_pages is pages ranked by sessions.
 5. Custom events: use get_data custom_events_* builders; raw SQL is easy to scope incorrectly.
-6. Workspace mutations: call with confirmed=false first, then confirmed=true only after explicit approval.
+6. AI crawlers, agents and AI referrals: use get_data ai_* builders (ai_products, ai_crawlers, ai_agent_pages, ai_content_formats, ai_landing_pages, ai_visitor_outcomes) and revenue_by_ai_product. Crawler requests are not visitors.
+7. Workspace mutations: call with confirmed=false first, then confirmed=true only after explicit approval.
 ${FEEDBACK_TOOL_RULES}
 
 **Data integrity:**

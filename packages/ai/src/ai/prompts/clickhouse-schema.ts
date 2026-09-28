@@ -15,6 +15,7 @@ export const SCHEMA_SECTIONS = [
 	"outgoing",
 	"revenue",
 	"blocked_traffic",
+	"ai_traffic",
 ] as const;
 type SchemaSection = (typeof SCHEMA_SECTIONS)[number];
 
@@ -213,13 +214,37 @@ export const ANALYTICS_TABLES: TableDef[] = [
 		name: "analytics.blocked_traffic",
 		section: "blocked_traffic",
 		description:
-			"Requests rejected by the ingestion edge (bots, abuse, rate-limit). Useful for sizing junk traffic; never count as real visitors.",
+			"Requests rejected by the ingestion edge (bots, abuse, rate-limit). Useful for sizing junk traffic; never count as real visitors. AI crawlers and agents are not here; they are in analytics.ai_traffic_spans.",
 		keyColumns: [
 			"client_id (String)",
 			"timestamp (DateTime64)",
 			"block_reason (LowCardinality String) - Why the request was rejected",
 			"bot_name (Nullable String) - Detected bot, if any",
 			"path (Nullable String)",
+		],
+	},
+	{
+		name: "analytics.ai_traffic_spans",
+		section: "ai_traffic",
+		description:
+			"One row per request from an AI crawler or agent (GPTBot, ClaudeBot, ChatGPT-User, Claude Code...), recorded server-side by @databuddy/sdk/agents (source = 'middleware') or by the browser tracker (source = 'tracker'). These are bot reads, never visitors or pageviews. Prefer get_data ai_* builders (ai_crawlers, ai_agent_pages, ai_content_formats, ai_products): they name agents and products and skip duplicate rows.",
+		additionalInfo:
+			"Count AI requests with agent_id != ''; '' marks forwarded hits from bots that are not AI agents (search, SEO, monitoring). Once a site has a middleware row, tracker rows from then on repeat the same requests, so count tracker rows only before the site's first middleware row. Name agents by agent_id, not bot_name.",
+		keyColumns: [
+			"client_id (String)",
+			"timestamp (DateTime64)",
+			"agent_id (LowCardinality String) - Registry id such as 'openai-crawler' (GPTBot), 'anthropic-crawler' (ClaudeBot) or 'claude-code'; 'unidentified:<token>' for unknown clients that asked for markdown first; '' when no AI agent was identified",
+			"agent_purpose (LowCardinality String) - training | search_index | user_fetch (fetched live to answer a user) | agent (acting for a user)",
+			"bot_name (String) - Detector bot name; older rows hold engine names, so use agent_id instead",
+			"bot_type (LowCardinality String) - ai_crawler | ai_assistant, or the detector category for other bots",
+			"format (LowCardinality String) - markdown | llms (llms.txt, llms-full.txt) | html, as the agent asked for it; '' on tracker rows before 2026-09-27, which are html",
+			"path (String) - Requested path, or full URL on tracker rows",
+			"host (LowCardinality String) - Host the request was made to; '' on tracker rows",
+			"referrer (Nullable String)",
+			"user_agent (String)",
+			"accept (String) - Request Accept header; '' when absent or on tracker rows",
+			"source (LowCardinality String) - middleware | tracker",
+			"verification (LowCardinality String) - 'host_unchecked' when stored during a website lookup outage, otherwise ''",
 		],
 	},
 ];
@@ -230,6 +255,7 @@ const GUIDELINES = `## Query Guidelines
 - Use toStartOfDay(), toStartOfHour() for time grouping.
 - Geographic data (country, region, city) exists only on analytics.events, NOT on web_vitals_spans or error_spans. Join via session_id if needed.
 - All timestamps are in UTC.
+- AI crawler and agent requests (GPTBot, ClaudeBot, Claude Code) live in analytics.ai_traffic_spans, not analytics.events or analytics.blocked_traffic.
 - analytics.custom_events.properties contains JSON strings — use JSONExtractString(properties, 'key') to parse.
 - Identity: \`anonymous_id\` is a per-device id; \`profile_id\` is the customer-assigned user id ('' when anonymous, on analytics.events, analytics.custom_events, and analytics.revenue). To count people, dedupe identified users across devices with \`uniq(${EVENTS_VISITOR_KEY})\`; on custom_events/revenue use \`uniq(${CUSTOM_EVENTS_VISITOR_KEY})\` because anonymous_id is Nullable and rows missing both identifiers must not count as a person. To count only identified users: \`uniqIf(profile_id, profile_id != '')\`. error_spans/web_vitals_spans/outgoing_links have no profile_id — resolve an identified user's rows there via their anonymous_ids from analytics.events.
 
@@ -350,6 +376,22 @@ WHERE client_id = {websiteId:String}
   AND timestamp >= now() - INTERVAL 7 DAY
 GROUP BY block_reason, bot_name
 ORDER BY blocked DESC`,
+	ai_traffic: `-- AI agents that asked for markdown or llms.txt. For request totals, products
+-- and per-page reads prefer get_data ai_crawlers / ai_agent_pages, which skip
+-- duplicate tracker rows.
+SELECT
+  agent_id,
+  format,
+  count() as requests,
+  uniq(path) as pages
+FROM analytics.ai_traffic_spans
+WHERE client_id = {websiteId:String}
+  AND agent_id != ''
+  AND format IN ('markdown', 'llms')
+  AND timestamp >= now() - INTERVAL 7 DAY
+GROUP BY agent_id, format
+ORDER BY requests DESC
+LIMIT 20`,
 };
 
 const STATEMENT_SEPARATOR = /\n\s*\n/;

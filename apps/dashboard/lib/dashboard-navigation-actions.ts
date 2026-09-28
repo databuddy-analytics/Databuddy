@@ -20,6 +20,7 @@ export const DASHBOARD_ACTION_TARGETS = [
 	"links",
 	"websites",
 	"website.agent",
+	"website.agents",
 	"website.audience",
 	"website.dashboard",
 	"website.errors",
@@ -83,6 +84,7 @@ const FILTER_OPERATORS = new Set<DynamicQueryFilter["operator"]>([
 
 const WEBSITE_TARGET_PATHS = {
 	"website.agent": "/agent",
+	"website.agents": "/agents",
 	"website.audience": "/audience",
 	"website.dashboard": "",
 	"website.errors": "/errors",
