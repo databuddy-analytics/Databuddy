@@ -1511,13 +1511,13 @@ function AiVisitorsPanel({
 										previous={baseline.pages_per_visit}
 									/>
 								</div>
-								<p className="mt-1 text-muted-foreground text-xs">
+								<p className="mt-1 text-pretty text-muted-foreground text-xs tabular-nums">
 									{allAi.engaged_rate}% viewed 2+ pages, against{" "}
 									{baseline.engaged_rate}% of all visitors
 								</p>
 							</>
 						) : (
-							<p className="text-muted-foreground text-xs">
+							<p className="text-pretty text-muted-foreground text-xs">
 								Visitors from AI products, next to everyone else
 							</p>
 						)}
