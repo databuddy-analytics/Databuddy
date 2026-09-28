@@ -730,6 +730,31 @@ describe("fixture investigation sources", () => {
 		);
 	});
 
+	it("finishes the scan when the optional AI agents source fails", async () => {
+		const sources = fixtureSources({
+			loadDueInvestigation: async () => null,
+			detectAiAgentSignals: async () => {
+				throw new Error("ClickHouse unavailable");
+			},
+			detectDefinitionSignals: async (_params, _today, _deps, options) => {
+				if (options?.diagnostics) {
+					options.diagnostics.failedDefinitions = 0;
+				}
+				return [];
+			},
+			detectMetricSignals: async () => [],
+		});
+
+		await expect(
+			investigateWebsitePortfolioWithSources(
+				fixtureInput,
+				sources,
+				"manual",
+				async () => true
+			)
+		).resolves.toBeDefined();
+	});
+
 	it("keeps informational traffic context-only even in a manual run", async () => {
 		const sources = fixtureSources({
 			loadDueInvestigation: async () => null,

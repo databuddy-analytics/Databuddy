@@ -635,15 +635,26 @@ export async function discoverWebsiteSignals(
 				sourceAbortSignal
 			)
 		),
-		detectSource(
-			"ai_agents",
-			() =>
+		detectSource("ai_agents", () =>
+			(
 				runtime.sources.detectAiAgentSignals?.(
 					detectParams,
 					asOf,
 					undefined,
 					sourceAbortSignal
 				) ?? Promise.resolve([])
+			).catch((error: unknown) => {
+				captureInsightsError(
+					error,
+					"generation.detection.optional_source_failed",
+					{
+						family: "ai_agents",
+						organization_id: input.organizationId,
+						website_id: input.websiteId,
+					}
+				);
+				return [];
+			})
 		),
 		detectSource(
 			"retention",
