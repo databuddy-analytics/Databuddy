@@ -86,14 +86,32 @@ interface ProductRow {
 const NEVER_SEEN = "1970";
 const ALL_VISITORS = "All visitors";
 
-interface AgentPageRow {
-	format: ContentFormat | null;
+interface PageRead {
+	agent_id: string;
+	format: ContentFormat;
+	last_seen: string;
+	name: string;
+	page: string;
+	product: string;
+	requests: number;
+}
+
+interface PageReadRow {
+	agents: PageRead[];
+	last_seen: string;
+	name: string;
+	requests: number;
+}
+
+interface LandingPageRow {
 	name: string;
 	pageviews: number;
 	products: string[];
-	requests: number;
 	visitors: number;
 }
+
+const READ_FORMATS: ContentFormat[] = ["markdown", "llms", "html"];
+const SHOWN_READERS = 3;
 
 function numberColumn<TRow>(
 	key: keyof TRow & string,
@@ -111,8 +129,21 @@ function numberColumn<TRow>(
 	};
 }
 
-const pageColumns: ColumnDef<AgentPageRow>[] = [
-	{
+function lastReadColumn<TRow>(): ColumnDef<TRow> {
+	return {
+		id: "last_seen",
+		accessorKey: "last_seen",
+		header: "Last read",
+		cell: ({ getValue }) => (
+			<span className="text-[15px] text-muted-foreground">
+				{fromNow(getValue() as string)}
+			</span>
+		),
+	};
+}
+
+function pageColumn<TRow extends { name: string }>(): ColumnDef<TRow> {
+	return {
 		id: "name",
 		accessorKey: "name",
 		header: "Page",
@@ -121,12 +152,54 @@ const pageColumns: ColumnDef<AgentPageRow>[] = [
 				{getValue() as string}
 			</span>
 		),
+	};
+}
+
+function Readers({ agents }: { agents: PageRead[] }) {
+	const hidden = agents.slice(SHOWN_READERS);
+	return (
+		<div className="flex min-w-0 items-center gap-3">
+			{agents.slice(0, SHOWN_READERS).map((agent) => (
+				<span
+					className="flex min-w-0 items-center gap-1.5"
+					key={agent.agent_id}
+					title={`${agent.name}: ${formatNumber(Number(agent.requests))} requests`}
+				>
+					<AiProductIcon name={agent.product} size="sm" />
+					<span className="truncate text-[15px] text-muted-foreground">
+						{agent.name}
+					</span>
+				</span>
+			))}
+			{hidden.length > 0 ? (
+				<Tooltip content={hidden.map((agent) => agent.name).join(", ")}>
+					<span className="shrink-0 text-muted-foreground text-xs">
+						+{hidden.length}
+					</span>
+				</Tooltip>
+			) : null}
+		</div>
+	);
+}
+
+const readColumns: ColumnDef<PageReadRow>[] = [
+	pageColumn<PageReadRow>(),
+	{
+		id: "agents",
+		accessorKey: "agents",
+		header: "Read by",
+		cell: ({ row }) => <Readers agents={row.original.agents} />,
 	},
-	numberColumn<AgentPageRow>("visitors", "AI visitors"),
+	numberColumn<PageReadRow>("requests", "Requests"),
+	lastReadColumn<PageReadRow>(),
+];
+
+const landingColumns: ColumnDef<LandingPageRow>[] = [
+	pageColumn<LandingPageRow>(),
 	{
 		id: "products",
 		accessorKey: "products",
-		header: "Read by",
+		header: "Sent by",
 		cell: ({ row }) => (
 			<div className="flex items-center gap-1">
 				{row.original.products.map((product) => (
@@ -137,21 +210,8 @@ const pageColumns: ColumnDef<AgentPageRow>[] = [
 			</div>
 		),
 	},
-	numberColumn<AgentPageRow>("requests", "AI requests"),
-	{
-		id: "format",
-		accessorKey: "format",
-		header: "Format",
-		cell: ({ getValue }) => {
-			const format = getValue() as ContentFormat | null;
-			return (
-				<span className="text-[15px] text-muted-foreground">
-					{format ? FORMATS[format].label : ""}
-				</span>
-			);
-		},
-	},
-	numberColumn<AgentPageRow>("pageviews", "Human views"),
+	numberColumn<LandingPageRow>("visitors", "AI visitors"),
+	numberColumn<LandingPageRow>("pageviews", "Pageviews"),
 ];
 
 interface OutcomeRow {
@@ -227,6 +287,8 @@ const outcomeColumns: ColumnDef<OutcomeRow>[] = [
 interface CrawlerRow {
 	agent_id: string;
 	last_seen: string;
+	llms: number;
+	markdown: number;
 	name: string;
 	product: string;
 	purpose: AgentPurpose;
@@ -274,6 +336,30 @@ const crawlerColumns: ColumnDef<CrawlerRow>[] = [
 	},
 	numberColumn<CrawlerRow>("requests", "Requests"),
 	{
+		id: "formats",
+		header: "Formats",
+		cell: ({ row }) => {
+			const markdown = Number(row.original.markdown);
+			const llms = Number(row.original.llms);
+			const counts: [ContentFormat, number][] = [
+				["markdown", markdown],
+				["llms", llms],
+				["html", Number(row.original.requests) - markdown - llms],
+			];
+			return (
+				<span className="text-[15px] text-muted-foreground">
+					{counts
+						.filter(([, count]) => count > 0)
+						.map(
+							([format, count]) =>
+								`${FORMATS[format].label} ${formatNumber(count)}`
+						)
+						.join(" · ")}
+				</span>
+			);
+		},
+	},
+	{
 		id: "robots",
 		accessorKey: "robots",
 		header: "robots.txt",
@@ -300,16 +386,7 @@ const crawlerColumns: ColumnDef<CrawlerRow>[] = [
 			);
 		},
 	},
-	{
-		id: "last_seen",
-		accessorKey: "last_seen",
-		header: "Last read",
-		cell: ({ getValue }) => (
-			<span className="text-[15px] text-muted-foreground">
-				{fromNow(getValue() as string)}
-			</span>
-		),
-	},
+	lastReadColumn<CrawlerRow>(),
 ];
 
 interface FormatRow {
@@ -330,7 +407,7 @@ interface TrendPoint {
 	value: number;
 }
 
-type PageResult = Omit<AgentPageRow, "name"> & { page: string };
+type LandingPageResult = Omit<LandingPageRow, "name"> & { page: string };
 type OutcomeResult = Omit<OutcomeRow, "name" | "revenue"> & {
 	product: string;
 };
@@ -939,7 +1016,8 @@ export default function AgentsPage() {
 			},
 			{ id: "visitors", parameters: ["ai_product_visitors"] },
 			{ id: "formats", parameters: ["ai_content_formats"] },
-			{ id: "pages", parameters: ["ai_agent_pages"] },
+			{ id: "reads", parameters: ["ai_agent_pages"], limit: 1000 },
+			{ id: "landing", parameters: ["ai_landing_pages"] },
 			{ id: "outcomes", parameters: ["ai_visitor_outcomes"] },
 			{ id: "revenue", parameters: ["revenue_by_ai_product"] },
 			{ id: "crawlers", parameters: ["ai_crawlers"] },
@@ -952,8 +1030,11 @@ export default function AgentsPage() {
 		(getDataForQuery("products", "previous_ai_products") as ProductRow[]) ?? [];
 	const formats =
 		(getDataForQuery("formats", "ai_content_formats") as FormatRow[]) ?? [];
-	const pages =
-		(getDataForQuery("pages", "ai_agent_pages") as PageResult[]) ?? [];
+	const reads =
+		(getDataForQuery("reads", "ai_agent_pages") as PageRead[]) ?? [];
+	const landingPages =
+		(getDataForQuery("landing", "ai_landing_pages") as LandingPageResult[]) ??
+		[];
 	const outcomes =
 		(getDataForQuery("outcomes", "ai_visitor_outcomes") as OutcomeResult[]) ??
 		[];
@@ -1092,10 +1173,38 @@ export default function AgentsPage() {
 		})
 	);
 
-	const pageRows = useMemo(
-		(): AgentPageRow[] =>
-			pages.map(({ page, ...row }) => ({ ...row, name: page })),
-		[pages]
+	const readTabs = useMemo(
+		() =>
+			READ_FORMATS.map((format) => {
+				const byPage = new Map<string, PageReadRow>();
+				for (const read of reads) {
+					if (read.format !== format) {
+						continue;
+					}
+					const row = byPage.get(read.page) ?? {
+						agents: [],
+						last_seen: read.last_seen,
+						name: read.page,
+						requests: 0,
+					};
+					row.agents.push(read);
+					row.requests += Number(read.requests) || 0;
+					if (read.last_seen > row.last_seen) {
+						row.last_seen = read.last_seen;
+					}
+					byPage.set(read.page, row);
+				}
+				return {
+					columns: readColumns,
+					data: [...byPage.values()].sort((a, b) => b.requests - a.requests),
+					id: format,
+					label: FORMATS[format].label,
+				};
+			}).filter((tab) => tab.data.length > 0),
+		[reads]
+	);
+	const landingRows = landingPages.map(
+		({ page, ...row }): LandingPageRow => ({ ...row, name: page })
 	);
 
 	if (!isLoading && products.length === 0) {
@@ -1181,13 +1290,14 @@ export default function AgentsPage() {
 					) : null}
 				</div>
 
-				{isLoading || outcomeRows.length > 1 ? (
+				{isLoading || readTabs.length > 0 ? (
 					<DataTable
-						columns={outcomeColumns}
-						data={outcomeRows}
-						description="How visitors from AI browse and buy, next to everyone else"
+						description="Pages AI crawlers and agents read, in the format they asked for"
+						initialPageSize={10}
 						isLoading={isLoading}
-						title="What AI visitors do"
+						key={readTabs.map((tab) => tab.id).join()}
+						tabs={readTabs}
+						title="What AI reads"
 					/>
 				) : null}
 
@@ -1206,14 +1316,26 @@ export default function AgentsPage() {
 					/>
 				) : null}
 
-				<DataTable
-					columns={pageColumns}
-					data={pageRows}
-					description="Where AI sends visitors, and what it reads"
-					emptyMessage="No AI visitors or reads yet"
-					isLoading={isLoading}
-					title="Pages"
-				/>
+				{isLoading || outcomeRows.length > 1 ? (
+					<DataTable
+						columns={outcomeColumns}
+						data={outcomeRows}
+						description="How visitors from AI browse and buy, next to everyone else"
+						isLoading={isLoading}
+						title="What AI visitors do"
+					/>
+				) : null}
+
+				{isLoading || landingRows.length > 0 ? (
+					<DataTable
+						columns={landingColumns}
+						data={landingRows}
+						description="Pages people from AI products view"
+						initialPageSize={10}
+						isLoading={isLoading}
+						title="Where AI sends visitors"
+					/>
+				) : null}
 
 				{needsProxy ? null : (
 					<div className="space-y-2">
