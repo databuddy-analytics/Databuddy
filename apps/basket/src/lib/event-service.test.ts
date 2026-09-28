@@ -319,7 +319,7 @@ describe("event-service producer handoff", () => {
 		expect(mockSend).not.toHaveBeenCalled();
 	});
 
-	test("atomically reserves a sorted batch and rejects a conflict", async () => {
+	test("reserves a sorted batch and publishes nothing when no item is reserved", async () => {
 		mockReserveDuplicateBatch.mockImplementationOnce(async (inputs) =>
 			inputs.map(() => ({ duplicate: false, retryable: true as const }))
 		);
@@ -363,10 +363,8 @@ describe("event-service producer handoff", () => {
 			insertTrackEventsBatch([batchItem("a"), batchItem("m")])
 		).rejects.toMatchObject({
 			status: 503,
-			internal: {
-				cause: {
-					message: "Could not reserve 1 of 2 events in this analytics batch",
-				},
+			cause: {
+				message: "Could not reserve 1 of 2 events in this analytics batch",
 			},
 		});
 		expect(mockSendBatch).toHaveBeenCalledWith(

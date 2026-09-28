@@ -294,7 +294,7 @@ export function insertTrackEvent(
 		}
 		if (reservation.retryable) {
 			throw deliveryUnavailable(
-				new Error("A concurrent attempt owns this analytics event")
+				new Error("Could not reserve this analytics event")
 			);
 		}
 
@@ -384,7 +384,7 @@ export function insertOutgoingLink(
 		}
 		if (reservation.retryable) {
 			throw deliveryUnavailable(
-				new Error("A concurrent attempt owns this analytics event")
+				new Error("Could not reserve this analytics event")
 			);
 		}
 
