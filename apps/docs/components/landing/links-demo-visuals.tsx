@@ -1,373 +1,485 @@
 "use client";
 
+import { CursorClickIcon, DesktopIcon } from "@databuddy/ui/icons";
 import {
-	SiInstagram,
-	SiSpotify,
+	SiAndroid,
+	SiApple,
+	SiAppstore,
+	SiDiscord,
+	SiFirefox,
+	SiGmail,
+	SiGoogle,
+	SiGooglechrome,
+	SiGoogleplay,
+	SiSafari,
 	SiX,
-	SiYoutube,
 } from "@icons-pack/react-simple-icons";
-import { motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { MotionConfig, motion } from "motion/react";
+import Image from "next/image";
+import type { ComponentType, ReactNode } from "react";
+import {
+	FRAME,
+	IN_OUT,
+	LinkedinLogo,
+	REWIND,
+	SlackLogo,
+	pseudoRandom,
+	useTimeline,
+} from "@/components/landing/demo-primitives";
 import { cn } from "@/lib/utils";
 
-const LINKS_DATA = [
-	{ slug: "/launch", clicks: 2847, country: "us", ref: "twitter" },
-	{ slug: "/pricing", clicks: 1203, country: "de", ref: "linkedin" },
-	{ slug: "/demo", clicks: 956, country: "jp", ref: "newsletter" },
-	{ slug: "/app", clicks: 412, country: "gb", ref: "direct" },
-	{ slug: "/changes", clicks: 289, country: "fr", ref: "twitter" },
-	{ slug: "/docs", clicks: 178, country: "br", ref: "github" },
-	{ slug: "/signup", clicks: 1540, country: "in", ref: "google" },
-	{ slug: "/blog", clicks: 634, country: "ca", ref: "rss" },
-];
+type Logo = ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
 
-const VISIBLE_LINKS = 5;
+const LINK = "dby.sh/launch";
+const DESTINATION = "databuddy.cc";
 
-export function LinksTableDemo() {
-	const [offset, setOffset] = useState(0);
-
-	useEffect(() => {
-		if (LINKS_DATA.length <= VISIBLE_LINKS) {
-			return;
-		}
-		const id = setInterval(
-			() => setOffset((o) => (o + 1) % LINKS_DATA.length),
-			3000
-		);
-		return () => clearInterval(id);
-	}, []);
-
-	const links: typeof LINKS_DATA = [];
-	for (let i = 0; i < VISIBLE_LINKS; i++) {
-		links.push(LINKS_DATA[(offset + i) % LINKS_DATA.length]);
-	}
-
+function Count({ value }: { value: number }) {
 	return (
-		<div className="space-y-0">
-			<div className="mb-3 flex items-center justify-between">
-				<div className="space-y-0.5">
-					<div className="font-medium font-mono text-2xl text-foreground tabular-nums tracking-tighter">
-						6,847
-					</div>
-					<div className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-						Total Clicks
-					</div>
-				</div>
-				<span className="rounded bg-green-500/10 px-2 py-0.5 font-mono text-green-400 text-xs">
-					+12.4%
-				</span>
-			</div>
-			<div className="space-y-1">
-				{links.map((link, i) => (
-					<div
-						className="flex items-center gap-3 rounded border border-border/30 bg-card/50 px-3 py-2 transition-opacity duration-500"
-						key={`slot-${String(i)}`}
-					>
-						<img
-							alt={link.country}
-							className="h-3 w-5 shrink-0 rounded-[2px] object-cover"
-							height={12}
-							src={`https://flagcdn.com/40x30/${link.country}.png`}
-							width={20}
+		<motion.span
+			animate={{ opacity: 1, y: 0 }}
+			className="inline-block tabular-nums"
+			initial={{ opacity: 0.35, y: -5 }}
+			key={value}
+			transition={{ duration: 0.35, ease: IN_OUT }}
+		>
+			{value.toLocaleString("en-US")}
+		</motion.span>
+	);
+}
+
+const SOURCES: { name: string; clicks: number; y: number; logo: Logo }[] = [
+	{ name: "X", clicks: 121, y: 20, logo: SiX },
+	{ name: "LinkedIn", clicks: 43, y: 40, logo: LinkedinLogo },
+	{ name: "Gmail", clicks: 184, y: 60, logo: SiGmail },
+	{ name: "Direct", clicks: 96, y: 80, logo: CursorClickIcon },
+];
+const SOURCE_ORDER = [0, 1, 3, 0, 2, 1, 0, 3, 1, 0, 2, 3] as const;
+const LANE_START = 38;
+const NODE_X = 66;
+const LANE_END = 95;
+const CLICK_EVENTS = [0.5, 1, 1.5, 2, 2.5, 3, 3.5] as const;
+const CLICKS_PER_CYCLE = CLICK_EVENTS.length + 1;
+const IN_FLIGHT = 4;
+
+const sourceOf = (click: number) =>
+	SOURCE_ORDER[click % SOURCE_ORDER.length] ?? 0;
+
+const arrivedFrom = (source: number, arrived: number) => {
+	const perRound = SOURCE_ORDER.filter((order) => order === source).length;
+	const partial = SOURCE_ORDER.slice(0, arrived % SOURCE_ORDER.length).filter(
+		(order) => order === source
+	).length;
+	return Math.floor(arrived / SOURCE_ORDER.length) * perRound + partial;
+};
+
+export function ClickSources() {
+	const { ref, step, cycle } = useTimeline(CLICK_EVENTS, 4);
+	const sent = cycle * CLICKS_PER_CYCLE + step;
+	const arrived = Math.max(0, sent - 1);
+	const inFlight = Array.from(
+		{ length: IN_FLIGHT },
+		(_, offset) => sent - offset
+	).filter((click) => click >= 0);
+	return (
+		<MotionConfig reducedMotion="user">
+			<div className={cn(FRAME, "relative h-60 sm:h-72")} ref={ref}>
+				<svg
+					aria-hidden="true"
+					className="absolute inset-0 size-full"
+					preserveAspectRatio="none"
+					viewBox="0 0 100 100"
+				>
+					{SOURCES.map((source) => (
+						<path
+							className="stroke-white/10"
+							d={`M ${LANE_START} ${source.y} L ${NODE_X} 50`}
+							fill="none"
+							key={source.name}
+							strokeWidth={1}
+							vectorEffect="non-scaling-stroke"
 						/>
-						<div className="min-w-0 flex-1">
-							<span className="font-mono text-foreground text-xs">
-								dby.sh{link.slug}
-							</span>
-						</div>
-						<span className="font-mono text-[10px] text-muted-foreground uppercase">
-							{link.ref}
-						</span>
-						<span className="w-12 text-right font-mono text-foreground text-xs tabular-nums">
-							{link.clicks.toLocaleString()}
-						</span>
-					</div>
-				))}
-			</div>
-		</div>
-	);
-}
-
-const REFERRERS = [
-	{ source: "X / Twitter", clicks: 1247, pct: 44, color: "bg-blue-400" },
-	{ source: "LinkedIn", clicks: 682, pct: 24, color: "bg-purple-400" },
-	{ source: "Newsletter", clicks: 512, pct: 18, color: "bg-amber-400" },
-	{ source: "Direct", clicks: 406, pct: 14, color: "bg-muted-foreground" },
-];
-
-export function ReferrerBreakdownDemo() {
-	const [animated, setAnimated] = useState(false);
-
-	useEffect(() => {
-		const id = setTimeout(() => setAnimated(true), 300);
-		return () => clearTimeout(id);
-	}, []);
-
-	return (
-		<div className="space-y-0">
-			<div className="mb-4 space-y-0.5">
-				<div className="font-medium font-mono text-2xl text-foreground tabular-nums tracking-tighter">
-					2,847
-				</div>
-				<div className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-					Clicks by Source
-				</div>
-			</div>
-
-			<div className="mb-4 flex h-2 w-full overflow-hidden rounded-full">
-				{REFERRERS.map((ref) => (
-					<div
-						className={cn(
-							"h-full transition-all duration-700 ease-out",
-							ref.color
-						)}
-						key={ref.source}
-						style={{ width: animated ? `${String(ref.pct)}%` : "0%" }}
+					))}
+					<path
+						className="stroke-white/10"
+						d={`M ${NODE_X} 50 L ${LANE_END} 50`}
+						fill="none"
+						strokeWidth={1}
+						vectorEffect="non-scaling-stroke"
 					/>
-				))}
-			</div>
-
-			<div className="space-y-2">
-				{REFERRERS.map((ref) => (
-					<div className="flex items-center gap-3" key={ref.source}>
-						<div className={cn("size-2 shrink-0 rounded-full", ref.color)} />
-						<span className="flex-1 font-mono text-foreground text-xs">
-							{ref.source}
+				</svg>
+				{SOURCES.map((source, index) => (
+					<div
+						className="absolute flex -translate-y-1/2 items-baseline justify-between gap-2 pr-3 pl-4 sm:pl-6"
+						key={source.name}
+						style={{ top: `${source.y}%`, left: 0, width: `${LANE_START}%` }}
+					>
+						<span className="flex min-w-0 items-center gap-2 text-muted-foreground text-xs sm:text-sm">
+							<source.logo
+								aria-hidden
+								className="size-3.5 shrink-0 sm:size-4"
+							/>
+							<span className="truncate">{source.name}</span>
 						</span>
-						<span className="font-mono text-muted-foreground text-xs tabular-nums">
-							{ref.clicks.toLocaleString()}
-						</span>
-						<span className="w-8 text-right font-mono text-[10px] text-muted-foreground tabular-nums">
-							{ref.pct}%
+						<span className="font-medium text-foreground text-xs sm:text-sm">
+							<Count value={source.clicks + arrivedFrom(index, arrived)} />
 						</span>
 					</div>
 				))}
-			</div>
-		</div>
-	);
-}
-
-const FUNNEL_STEPS = [
-	{ label: "Link Clicked", count: 2847, pct: 100 },
-	{ label: "Page Viewed", count: 2103, pct: 73.8 },
-	{ label: "Signed Up", count: 412, pct: 14.5 },
-	{ label: "Converted", count: 89, pct: 3.1 },
-];
-
-export function LinkFunnelDemo() {
-	const [animated, setAnimated] = useState(false);
-
-	useEffect(() => {
-		const id = setTimeout(() => setAnimated(true), 300);
-		return () => clearTimeout(id);
-	}, []);
-
-	return (
-		<div className="space-y-0">
-			<div className="mb-4 flex items-center justify-between">
-				<div className="space-y-0.5">
-					<div className="font-medium font-mono text-2xl text-foreground tabular-nums tracking-tighter">
-						3.1%
-					</div>
-					<div className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-						Link to Conversion
-					</div>
-				</div>
-				<span className="rounded bg-green-500/10 px-2 py-0.5 font-mono text-green-400 text-xs">
-					+0.8%
+				{inFlight.map((click) => {
+					const source = SOURCES[sourceOf(click)] ?? SOURCES[0];
+					if (!source) {
+						return null;
+					}
+					return (
+						<motion.span
+							animate={{
+								left: [`${LANE_START}%`, `${NODE_X}%`, `${LANE_END}%`],
+								top: [`${source.y}%`, "50%", "50%"],
+								opacity: [0, 1, 1, 0],
+							}}
+							className="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground/85 motion-reduce:hidden"
+							initial={{
+								left: `${LANE_START}%`,
+								top: `${source.y}%`,
+								opacity: 0,
+							}}
+							key={click}
+							transition={{ duration: 1.8, ease: IN_OUT }}
+						/>
+					);
+				})}
+				<span
+					className="absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap border border-white/15 bg-background px-3 py-1.5 font-mono text-foreground text-xs sm:text-sm"
+					style={{ left: `${NODE_X}%` }}
+				>
+					{LINK}
+				</span>
+				<span
+					className="absolute size-2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-muted-foreground/60"
+					style={{ left: `${LANE_END}%`, top: "50%" }}
+				/>
+				<span
+					className="absolute whitespace-nowrap font-mono text-[11px] text-muted-foreground sm:text-xs"
+					style={{ right: `${100 - LANE_END}%`, top: "calc(50% + 22px)" }}
+				>
+					{DESTINATION}
 				</span>
 			</div>
-			<div className="space-y-2">
-				{FUNNEL_STEPS.map((step, i) => (
-					<div className="space-y-1" key={step.label}>
-						<div className="flex items-center justify-between">
-							<span className="font-mono text-foreground text-xs">
-								{step.label}
-							</span>
-							<span className="font-mono text-[10px] text-muted-foreground tabular-nums">
-								{step.count.toLocaleString()} ({step.pct}%)
-							</span>
-						</div>
-						<div className="h-1.5 w-full overflow-hidden rounded-full bg-border/30">
-							<div
-								className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
-								style={{
-									width: animated ? `${String(step.pct)}%` : "0%",
-									opacity: 1 - i * 0.15,
-									transitionDelay: `${String(i * 150)}ms`,
-								}}
-							/>
-						</div>
-					</div>
-				))}
-			</div>
+		</MotionConfig>
+	);
+}
+
+const DEVICE_EVENTS = [1, 1.8, 2.6] as const;
+const DEVICE_X = [17, 50, 83] as const;
+
+function Phone({
+	lit,
+	store,
+	logo: StoreLogo,
+}: {
+	lit: boolean;
+	store: string;
+	logo: Logo;
+}) {
+	return (
+		<div className="flex h-28 w-14 flex-col rounded-[10px] border border-white/15 bg-white/[0.02] p-1 sm:h-36 sm:w-20 sm:p-1.5">
+			<motion.div
+				animate={{ opacity: lit ? 1 : 0 }}
+				className="flex flex-1 flex-col items-center justify-center gap-2"
+				initial={false}
+				transition={lit ? { duration: 0.45, ease: IN_OUT } : REWIND}
+			>
+				<StoreLogo aria-hidden className="size-6 text-foreground sm:size-8" />
+				<span className="text-[9px] text-muted-foreground sm:text-[10px]">
+					{store}
+				</span>
+			</motion.div>
 		</div>
 	);
 }
 
-const UTM_TAGS = [
-	{ key: "source", value: "twitter", color: "bg-blue-500/20 text-blue-400" },
-	{ key: "medium", value: "social", color: "bg-purple-500/20 text-purple-400" },
-	{
-		key: "campaign",
-		value: "launch-2026",
-		color: "bg-amber-500/20 text-amber-400",
-	},
-];
-
-export function UtmBuilderDemo() {
-	const [activeIdx, setActiveIdx] = useState(0);
-
-	useEffect(() => {
-		const id = setInterval(
-			() => setActiveIdx((i) => (i + 1) % UTM_TAGS.length),
-			2000
-		);
-		return () => clearInterval(id);
-	}, []);
-
-	const params = UTM_TAGS.slice(0, activeIdx + 1)
-		.map((t) => `utm_${t.key}=${t.value}`)
-		.join("&");
-
+function Laptop({ lit }: { lit: boolean }) {
 	return (
-		<div className="space-y-4">
-			<div className="space-y-1.5">
-				{UTM_TAGS.map((tag, i) => (
-					<motion.div
-						animate={{ opacity: i <= activeIdx ? 1 : 0.3 }}
-						className="flex items-center gap-2 rounded border border-border/30 bg-card/50 px-3 py-2"
-						key={tag.key}
-						transition={{ duration: 0.3 }}
-					>
-						<span className="w-16 font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-							{tag.key}
-						</span>
-						<span
-							className={cn("rounded px-2 py-0.5 font-mono text-xs", tag.color)}
-						>
-							{tag.value}
-						</span>
-					</motion.div>
-				))}
-			</div>
-			<div className="space-y-2 rounded border border-border/30 bg-muted/20 px-3 py-2">
-				<div>
-					<div className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-						Short link
-					</div>
-					<div className="mt-1 font-mono text-foreground text-xs">
-						dby.sh/launch
-					</div>
-				</div>
-				<div>
-					<div className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-						Destination
-					</div>
-					<div className="mt-1 break-all font-mono text-foreground text-xs">
-						yourapp.com/pricing
-						<span className="text-muted-foreground">?{params}</span>
-					</div>
-				</div>
-			</div>
-		</div>
-	);
-}
-
-const DEEP_LINKS = [
-	{
-		app: "Instagram",
-		color: "#E4405F",
-		url: "instagram.com/databuddy",
-		resolved: "instagram://user?username=databuddy",
-		Icon: SiInstagram,
-	},
-	{
-		app: "YouTube",
-		color: "#FF0000",
-		url: "youtube.com/watch?v=abc123",
-		resolved: "vnd.youtube://abc123",
-		Icon: SiYoutube,
-	},
-	{
-		app: "Spotify",
-		color: "#1DB954",
-		url: "open.spotify.com/track/xyz",
-		resolved: "spotify://track/xyz",
-		Icon: SiSpotify,
-	},
-	{
-		app: "X",
-		color: "#fff",
-		url: "x.com/trydatabuddy",
-		resolved: "twitter://user?screen_name=trydatabuddy",
-		Icon: SiX,
-	},
-];
-
-export function DeepLinkDemo() {
-	const [activeIdx, setActiveIdx] = useState(0);
-
-	useEffect(() => {
-		const id = setInterval(
-			() => setActiveIdx((i) => (i + 1) % DEEP_LINKS.length),
-			2500
-		);
-		return () => clearInterval(id);
-	}, []);
-
-	const active = DEEP_LINKS[activeIdx];
-
-	return (
-		<div className="space-y-3">
-			<div className="flex items-center gap-2">
-				{DEEP_LINKS.map((dl, i) => (
-					<button
-						className={cn(
-							"flex size-8 items-center justify-center rounded-lg border transition-all duration-300",
-							i === activeIdx
-								? "border-border bg-card"
-								: "border-transparent opacity-40"
-						)}
-						key={dl.app}
-						onClick={() => setActiveIdx(i)}
-						type="button"
-					>
-						<dl.Icon className="size-4" title={dl.app} />
-					</button>
-				))}
-			</div>
-
-			<div className="space-y-2 rounded border border-border/30 bg-card/50 p-3">
-				<div className="flex items-center justify-between">
-					<span className="font-medium font-mono text-foreground text-xs">
-						{active.app}
+		<div className="flex flex-col items-center">
+			<div className="flex h-20 w-28 flex-col border border-white/15 bg-white/[0.02] sm:h-24 sm:w-40">
+				<motion.div
+					animate={{ opacity: lit ? 1 : 0 }}
+					className="flex flex-1 flex-col"
+					initial={false}
+					transition={lit ? { duration: 0.45, ease: IN_OUT } : REWIND}
+				>
+					<span className="truncate border-white/10 border-b px-1.5 py-1 font-mono text-[9px] text-muted-foreground">
+						{DESTINATION}
 					</span>
-					<span
-						className="size-2 rounded-full"
-						style={{ backgroundColor: active.color }}
-					/>
-				</div>
-				<div>
-					<div className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-						Input
-					</div>
-					<div className="font-mono text-foreground text-xs">{active.url}</div>
-				</div>
-				<div className="border-border/30 border-t pt-2">
-					<div className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-						Opens as
-					</div>
-					<div className="font-mono text-primary text-xs">
-						{active.resolved}
-					</div>
+					<span className="flex flex-1 items-center justify-center">
+						<Image
+							alt=""
+							className="size-6 sm:size-8"
+							height={32}
+							src="/brand/logomark/white.svg"
+							unoptimized
+							width={32}
+						/>
+					</span>
+				</motion.div>
+			</div>
+			<span className="h-1.5 w-32 bg-white/15 sm:w-48" />
+		</div>
+	);
+}
+
+export function DeviceRoutes() {
+	const { ref, step } = useTimeline(DEVICE_EVENTS, 6.4);
+	const devices: { name: string; logo: Logo; screen: ReactNode }[] = [
+		{
+			name: "iPhone",
+			logo: SiApple,
+			screen: <Phone lit={step >= 1} logo={SiAppstore} store="App Store" />,
+		},
+		{
+			name: "Android",
+			logo: SiAndroid,
+			screen: <Phone lit={step >= 2} logo={SiGoogleplay} store="Google Play" />,
+		},
+		{ name: "Desktop", logo: DesktopIcon, screen: <Laptop lit={step >= 3} /> },
+	];
+	return (
+		<MotionConfig reducedMotion="user">
+			<div className="flex flex-col items-center" ref={ref}>
+				<span className="border border-white/15 px-4 py-2 font-mono text-foreground text-sm">
+					{LINK}
+				</span>
+				<svg
+					aria-hidden="true"
+					className="h-12 w-full"
+					preserveAspectRatio="none"
+					viewBox="0 0 100 48"
+				>
+					{DEVICE_X.map((x, index) => (
+						<path
+							className={cn(
+								"transition-colors duration-500 ease-in-out",
+								step > index ? "stroke-foreground/50" : "stroke-white/10"
+							)}
+							d={`M 50 0 L 50 22 L ${x} 22 L ${x} 48`}
+							fill="none"
+							key={x}
+							strokeWidth={1}
+							vectorEffect="non-scaling-stroke"
+						/>
+					))}
+				</svg>
+				<div className="grid w-full grid-cols-3 items-end pt-3">
+					{devices.map((device, index) => (
+						<div className="flex flex-col items-center gap-3" key={device.name}>
+							{device.screen}
+							<span
+								className={cn(
+									"flex items-center gap-1.5 text-sm transition-colors duration-500 ease-in-out",
+									step > index ? "text-foreground" : "text-muted-foreground"
+								)}
+							>
+								<device.logo aria-hidden className="size-3.5" />
+								{device.name}
+							</span>
+						</div>
+					))}
 				</div>
 			</div>
+		</MotionConfig>
+	);
+}
 
-			<p className="text-muted-foreground text-xs">
-				Paste any link from a supported app. Databuddy resolves it to a native
-				URI so mobile users land in the app, not a browser tab.
-			</p>
-		</div>
+const VISITS: { agent: string; person: boolean; logo: Logo }[] = [
+	{ agent: "Safari on iPhone", person: true, logo: SiSafari },
+	{ agent: "Googlebot", person: false, logo: SiGoogle },
+	{ agent: "Chrome on Mac", person: true, logo: SiGooglechrome },
+	{ agent: "Slackbot", person: false, logo: SlackLogo },
+	{ agent: "Firefox on Windows", person: true, logo: SiFirefox },
+	{ agent: "Discordbot", person: false, logo: SiDiscord },
+];
+const VISIT_EVENTS = VISITS.map((_, index) => 0.7 + index * 0.6);
+const CLICKS_BEFORE = 57;
+
+export function BotCount() {
+	const { ref, step } = useTimeline(VISIT_EVENTS, 6.8);
+	const counted = VISITS.slice(0, step).filter((visit) => visit.person).length;
+	return (
+		<MotionConfig reducedMotion="user">
+			<div className={cn(FRAME, "grid sm:grid-cols-[1fr_auto]")} ref={ref}>
+				<ul className="flex flex-col px-5 py-4 sm:px-6">
+					{VISITS.map((visit, index) => {
+						const shown = step > index;
+						let opacity = 0.12;
+						if (shown) {
+							opacity = visit.person ? 1 : 0.45;
+						}
+						return (
+							<motion.li
+								animate={{ opacity }}
+								className="flex items-center justify-between gap-4 py-2"
+								initial={false}
+								key={visit.agent}
+								transition={shown ? { duration: 0.4, ease: IN_OUT } : REWIND}
+							>
+								<span className="flex items-center gap-3 text-sm">
+									<visit.logo
+										aria-hidden
+										className={cn(
+											"size-4 shrink-0",
+											visit.person ? "text-foreground" : "text-muted-foreground"
+										)}
+									/>
+									<span
+										className={
+											visit.person ? "text-foreground" : "text-muted-foreground"
+										}
+									>
+										{visit.agent}
+									</span>
+								</span>
+								{visit.person && (
+									<span className="font-mono text-foreground text-xs">+1</span>
+								)}
+							</motion.li>
+						);
+					})}
+				</ul>
+				<div className="flex flex-col justify-center gap-1 border-white/[0.06] border-t px-5 py-5 sm:border-t-0 sm:border-l sm:px-10">
+					<span className="font-semibold text-5xl text-foreground tracking-tight sm:text-6xl">
+						<Count value={CLICKS_BEFORE + counted} />
+					</span>
+					<span className="text-muted-foreground text-sm">clicks</span>
+				</div>
+			</div>
+		</MotionConfig>
+	);
+}
+
+const QR_SIZE = 21;
+const FINDERS = [
+	[0, 0],
+	[0, QR_SIZE - 7],
+	[QR_SIZE - 7, 0],
+] as const;
+
+const qrCellIsDark = (row: number, column: number) => {
+	for (const [top, left] of FINDERS) {
+		if (
+			row >= top - 1 &&
+			row <= top + 7 &&
+			column >= left - 1 &&
+			column <= left + 7
+		) {
+			const y = row - top;
+			const x = column - left;
+			if (y < 0 || y > 6 || x < 0 || x > 6) {
+				return false;
+			}
+			const ring = y === 0 || y === 6 || x === 0 || x === 6;
+			const center = y >= 2 && y <= 4 && x >= 2 && x <= 4;
+			return ring || center;
+		}
+	}
+	return pseudoRandom(`qr-${row}-${column}`) < 0.5;
+};
+
+const QR_PATH = Array.from({ length: QR_SIZE * QR_SIZE }, (_, index) => ({
+	row: Math.floor(index / QR_SIZE),
+	column: index % QR_SIZE,
+}))
+	.filter(({ row, column }) => qrCellIsDark(row, column))
+	.map(({ row, column }) => `M${column} ${row}h1v1h-1z`)
+	.join("");
+
+const REPOINT_EVENTS = [1.6, 2.4] as const;
+
+export function RepointQr() {
+	const { ref, step } = useTimeline(REPOINT_EVENTS, 6.2);
+	const moved = step >= 1;
+	const landed = step >= 2;
+	return (
+		<MotionConfig reducedMotion="user">
+			<div
+				className="flex flex-col items-center gap-8 sm:flex-row sm:justify-center sm:gap-6"
+				ref={ref}
+			>
+				<div className="flex flex-col items-center gap-3 border border-white/10 bg-white/[0.02] p-5 sm:p-6">
+					<svg
+						aria-hidden="true"
+						className="size-28 fill-foreground sm:size-32"
+						shapeRendering="crispEdges"
+						viewBox={`-1 -1 ${QR_SIZE + 2} ${QR_SIZE + 2}`}
+					>
+						<path d={QR_PATH} />
+					</svg>
+					<span className="font-mono text-foreground text-sm">{LINK}</span>
+				</div>
+				<span className="hidden h-px w-12 bg-white/15 sm:block" />
+				<div className="flex flex-col gap-3 font-mono text-sm">
+					<span
+						className={cn(
+							"transition-colors duration-300 ease-in-out",
+							moved ? "text-muted-foreground line-through" : "text-foreground"
+						)}
+					>
+						{DESTINATION}/waitlist
+					</span>
+					<motion.span
+						animate={{ opacity: landed ? 1 : 0.12, x: landed ? 0 : -4 }}
+						className="text-foreground"
+						initial={false}
+						transition={landed ? { duration: 0.45, ease: IN_OUT } : REWIND}
+					>
+						{DESTINATION}/pricing
+					</motion.span>
+				</div>
+			</div>
+		</MotionConfig>
+	);
+}
+
+const UTM = [
+	{ key: "utm_source", value: "newsletter" },
+	{ key: "utm_medium", value: "email" },
+	{ key: "utm_campaign", value: "launch" },
+] as const;
+const UTM_EVENTS = [1, 1.7, 2.4] as const;
+
+export function UtmTags() {
+	const { ref, step } = useTimeline(UTM_EVENTS, 6.2);
+	return (
+		<MotionConfig reducedMotion="user">
+			<div className={cn(FRAME, "flex flex-col")} ref={ref}>
+				<span className="border-white/[0.06] border-b px-5 py-4 font-mono text-base text-foreground sm:px-6 sm:text-lg">
+					{LINK}
+				</span>
+				<p className="px-5 py-5 font-mono text-xs leading-7 sm:px-6 sm:text-sm">
+					<span className="text-muted-foreground">
+						https://{DESTINATION}/launch
+					</span>
+					{UTM.map((tag, index) => (
+						<motion.span
+							animate={{
+								clipPath:
+									step > index ? "inset(0 0% 0 0)" : "inset(0 100% 0 0)",
+							}}
+							className="inline-block"
+							initial={false}
+							key={tag.key}
+							transition={
+								step > index ? { duration: 0.5, ease: IN_OUT } : REWIND
+							}
+						>
+							<span className="text-muted-foreground">
+								{index === 0 ? "?" : "&"}
+								{tag.key}=
+							</span>
+							<span className="text-brand-amber">{tag.value}</span>
+						</motion.span>
+					))}
+				</p>
+			</div>
+		</MotionConfig>
 	);
 }
