@@ -1373,6 +1373,24 @@ describe("POST /ai-traffic", () => {
 		);
 	});
 
+	test("stores hits unverified when the website lookup is down, and still rejects unknown websites", async () => {
+		vi.mocked(mockGetWebsiteByIdV2).mockRejectedValueOnce(
+			new Error("Postgres unavailable")
+		);
+		const outage = await hit(CLAUDE_CODE);
+		expect(outage.status).toBe(202);
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-ai-traffic-spans",
+			expect.objectContaining({
+				agent_id: "claude-code",
+				verification: "host_unchecked",
+			})
+		);
+		vi.mocked(mockGetWebsiteByIdV2).mockResolvedValueOnce(null);
+		const unknown = await hit(CLAUDE_CODE);
+		expect(unknown.status).toBe(404);
+	});
+
 	test("truncates over-long fields instead of rejecting the request", async () => {
 		const res = await post(trackRoute, "/ai-traffic", {
 			websiteId: "ws_test",
