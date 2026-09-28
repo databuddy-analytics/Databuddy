@@ -158,16 +158,9 @@ export function KillSwitch() {
 	);
 }
 
-const TEAMS = [
-	"Acme",
-	"Globex",
-	"Initech",
-	"Hooli",
-	"Umbrella",
-	"Stark",
-] as const;
+const TEAMS = [0, 1, 2, 3, 4, 5] as const;
 const TEAM_SIZE = 12;
-const TEAMS_ON = ["Acme", "Hooli"] as const;
+const TEAMS_ON = [0, 3] as const;
 const TEAM_EVENTS = [1, 2.4] as const;
 
 function TeamBlocks({
@@ -175,17 +168,17 @@ function TeamBlocks({
 	isOn,
 }: {
 	title: string;
-	isOn: (team: string, person: number) => boolean;
+	isOn: (team: number, person: number) => boolean;
 }) {
 	return (
-		<div className="flex flex-col gap-3">
+		<div className="flex flex-col gap-4">
 			<span className="text-muted-foreground text-sm">{title}</span>
-			<div className="grid grid-cols-3 gap-3">
+			<div className="grid w-fit grid-cols-3 gap-4">
 				{TEAMS.map((team) => (
-					<div className="flex flex-col gap-1.5" key={team}>
-						<span className="font-mono text-[11px] text-muted-foreground">
-							{team}
-						</span>
+					<div
+						className="border border-white/[0.08] bg-background/40 p-2"
+						key={team}
+					>
 						<div className="grid w-fit grid-cols-4 gap-1">
 							{Array.from({ length: TEAM_SIZE }, (_, person) => (
 								<span
@@ -215,7 +208,7 @@ export function TeamRollout() {
 				<div className="grid gap-8 px-5 py-6 sm:grid-cols-2 sm:px-6">
 					<TeamBlocks
 						isOn={(team, person) =>
-							byPerson && pseudoRandom(`${team}-${person}`) < 0.33
+							byPerson && pseudoRandom(`org-${team}-${person}`) < 0.33
 						}
 						title="By person"
 					/>
@@ -223,7 +216,7 @@ export function TeamRollout() {
 						isOn={(team) =>
 							byTeam && TEAMS_ON.some((teamOn) => teamOn === team)
 						}
-						title="By team"
+						title="By organization"
 					/>
 				</div>
 			</div>
@@ -231,24 +224,25 @@ export function TeamRollout() {
 	);
 }
 
+const TEAM_DOMAIN = "@databuddy.cc";
 const RULES = [
-	{ field: "email", test: "ends with", value: "@acme.com" },
+	{ field: "email", test: "ends with", value: TEAM_DOMAIN },
 	{ field: "plan", test: "is", value: "pro" },
 ] as const;
 const PEOPLE = [
-	{ email: "maya@acme.com", plan: "free" },
-	{ email: "jon@acme.com", plan: "pro" },
-	{ email: "li@globex.io", plan: "pro" },
-	{ email: "sam@initech.co", plan: "free" },
-	{ email: "ana@acme.com", plan: "free" },
-	{ email: "dev@hooli.xyz", plan: "free" },
+	{ email: "i•••@databuddy.cc", plan: "free" },
+	{ email: "m•••@gmail.com", plan: "pro" },
+	{ email: "k•••@outlook.com", plan: "free" },
+	{ email: "s•••@proton.me", plan: "pro" },
+	{ email: "j•••@databuddy.cc", plan: "free" },
+	{ email: "t•••@gmail.com", plan: "free" },
 ] as const;
 const RULE_EVENTS = [1, 2.2] as const;
 
 export function WhoSeesIt() {
 	const { ref, step } = useTimeline(RULE_EVENTS, 6.4);
 	const matches = (person: (typeof PEOPLE)[number]) =>
-		(step >= 1 && person.email.endsWith("@acme.com")) ||
+		(step >= 1 && person.email.endsWith(TEAM_DOMAIN)) ||
 		(step >= 2 && person.plan === "pro");
 	return (
 		<MotionConfig reducedMotion="user">

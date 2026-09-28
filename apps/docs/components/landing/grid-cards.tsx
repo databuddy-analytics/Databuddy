@@ -14,43 +14,44 @@ import { SciFiGridCard } from "./card";
 const cards = [
 	{
 		id: 1,
-		title: "One connected platform",
+		title: "See the whole story in one place",
 		description:
-			"One tracker collects analytics, errors, and vitals. Funnels, flags, links, and AI analysis live in the same dashboard.",
+			"A new error, a slow page, and a drop in signups show up side by side, so you can see how they connect.",
 		icon: StackIcon,
 	},
 	{
 		id: 2,
-		title: "Cookieless analytics",
+		title: "Respect your visitors' privacy",
 		description:
-			"Collect activity without analytics cookies. Choose whether to link events to your own user profiles.",
+			"No analytics cookies, and you decide whether events link to your own user profiles.",
 		icon: ShieldCheckIcon,
 	},
 	{
 		id: 3,
-		title: "About 13 KB gzip",
+		title: "Keep your pages fast",
 		description:
-			"An asynchronous browser tracker for analytics, errors, and web vitals. Measure its impact in your own performance budget.",
+			"The tracker is about 13 KB gzipped and loads asynchronously, so it stays out of your visitors' way.",
 		icon: LightningIcon,
 	},
 	{
 		id: 4,
-		title: "Open source",
+		title: "Never get locked in",
 		description:
-			"Read the code, contribute, or run Databuddy on your own infrastructure.",
+			"Databuddy is open source. Read the code, or run it on your own servers.",
 		icon: CodeIcon,
 	},
 	{
 		id: 5,
-		title: "Real-time",
-		description: "Follow incoming traffic and events in the live dashboard.",
+		title: "Watch launches as they happen",
+		description:
+			"Follow visitors and events live while a launch or campaign goes out.",
 		icon: WaveformIcon,
 	},
 	{
 		id: 6,
-		title: "Ask Databunny",
+		title: "Get answers in plain words",
 		description:
-			"Ask about traffic, conversions, errors, and performance. Follow the evidence behind each answer.",
+			"Ask Databunny about traffic, conversions, errors, or performance, and see the evidence behind each answer.",
 		icon: RobotIcon,
 	},
 ];
@@ -62,13 +63,11 @@ export const GridCards = () => (
 				<span className="mt-1.5 hidden sm:block">
 					<SectionBullet color="#B24A7E" />
 				</span>
-				<span className="text-foreground">
-					One platform. Fewer tools to stitch together.
-				</span>
+				<span className="text-foreground">Swap a stack of tools for one.</span>
 			</h2>
 			<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
-				Collect analytics, errors, and vitals with one tracker, then manage
-				funnels, flags, links, and AI analysis from the same dashboard.
+				One tracker collects analytics, errors, and web vitals, and the same
+				dashboard runs your funnels, flags, links, and uptime.
 			</p>
 		</div>
 

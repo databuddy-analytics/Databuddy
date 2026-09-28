@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import { SiApple, SiSafari } from "@icons-pack/react-simple-icons";
 import Image from "next/image";
 import {
 	FRAME,
@@ -55,11 +56,22 @@ export function ErrorJourney() {
 	return (
 		<MotionConfig reducedMotion="user">
 			<div className={cn(FRAME, "flex flex-col")} ref={ref}>
-				<div className="border-white/[0.06] border-b px-5 py-4 sm:px-6">
-					<p className="font-semibold text-base text-foreground sm:text-lg">
-						{TYPE_ERROR.people} people hit this error.{" "}
-						<span className="text-red-500">184 left at checkout.</span>
-					</p>
+				<div className="flex items-center justify-between gap-4 border-white/[0.06] border-b px-5 py-4 sm:px-6">
+					<span className="min-w-0 truncate font-mono text-red-500 text-xs sm:text-sm">
+						{TYPE_ERROR.message}
+					</span>
+					<span className="flex shrink-0 items-baseline gap-4 text-sm tabular-nums">
+						<span>
+							<span className="font-semibold text-foreground">
+								{TYPE_ERROR.people}
+							</span>{" "}
+							<span className="text-muted-foreground">people</span>
+						</span>
+						<span>
+							<span className="font-semibold text-red-500">184</span>{" "}
+							<span className="text-muted-foreground">left</span>
+						</span>
+					</span>
 				</div>
 				<div className="relative mx-5 h-48 sm:mx-8 sm:h-56">
 					<span
@@ -224,7 +236,9 @@ export function LoudVersusWide() {
 						initial={false}
 						transition={REWIND}
 					>
-						<span className="text-muted-foreground text-sm">One stuck tab</span>
+						<span className="truncate font-mono text-muted-foreground text-xs sm:text-sm">
+							Unhandled rejection: Failed to fetch
+						</span>
 						<Tally
 							highlight={false}
 							occurrences={Math.round(LOUD_OCCURRENCES * progress)}
@@ -258,8 +272,8 @@ export function LoudVersusWide() {
 							initial={false}
 							transition={REWIND}
 						/>
-						<span className="relative text-muted-foreground text-sm">
-							One real bug
+						<span className="relative truncate font-mono text-foreground text-xs sm:text-sm">
+							TypeError: reading 'map'
 						</span>
 						<Tally
 							highlight={decided}
@@ -307,8 +321,15 @@ export function VisitTimeline() {
 		<MotionConfig reducedMotion="user">
 			<div className={FRAME} ref={ref}>
 				<div className="border-white/[0.06] border-b px-5 py-3 sm:px-6">
-					<span className="font-medium text-foreground text-sm">
-						One visit, Safari on iPhone
+					<span className="flex items-center gap-4 font-medium text-foreground text-sm">
+						<span className="flex items-center gap-1.5">
+							<SiSafari className="size-3.5" />
+							Safari
+						</span>
+						<span className="flex items-center gap-1.5">
+							<SiApple className="size-3.5" />
+							iPhone
+						</span>
 					</span>
 				</div>
 				<ol className="relative flex flex-col gap-3.5 px-5 py-5 sm:px-6">
@@ -490,12 +511,12 @@ const SNIPPET = [
 	{ text: "></script>", attribute: false },
 ] as const;
 const PILLS = [
-	{ label: "TypeError: reading 'map'", noise: null },
-	{ label: "Error at chrome-extension://", noise: "extension" },
-	{ label: "Unhandled rejection: Failed to fetch", noise: null },
-	{ label: "Script error.", noise: "no details" },
-	{ label: "ResizeObserver loop completed", noise: "runtime noise" },
-	{ label: "RangeError: Invalid time value", noise: null },
+	{ label: "TypeError: reading 'map'", noise: false },
+	{ label: "Error at chrome-extension://", noise: true },
+	{ label: "Unhandled rejection: Failed to fetch", noise: false },
+	{ label: "Script error.", noise: true },
+	{ label: "ResizeObserver loop completed", noise: true },
+	{ label: "RangeError: Invalid time value", noise: false },
 ] as const;
 const NOISE_EVENTS = [0.9, 1.7, 2.1, 2.5, 2.9, 3.3, 3.7] as const;
 
@@ -538,8 +559,8 @@ export function NoiseGate() {
 					)}
 				</pre>
 				<div className="grid grid-cols-2 gap-4 border-white/[0.06] border-t px-5 pt-3 font-mono text-[10px] text-muted-foreground sm:px-6 sm:text-[11px]">
-					<span>your site</span>
-					<span className="text-right">your dashboard</span>
+					<span>Browser</span>
+					<span className="text-right">Databuddy</span>
 				</div>
 				<ul className="relative flex flex-col gap-1.5 px-5 py-3 sm:px-6">
 					<span className="absolute inset-y-2 left-1/2 w-px bg-brand-amber/50" />
@@ -561,14 +582,6 @@ export function NoiseGate() {
 										transition={REWIND}
 									>
 										{pill.label}
-									</motion.span>
-									<motion.span
-										animate={{ opacity: moved ? 1 : 0 }}
-										className="hidden whitespace-nowrap font-mono text-[10px] text-muted-foreground sm:inline sm:text-[11px]"
-										initial={false}
-										transition={REWIND}
-									>
-										filtered
 									</motion.span>
 								</li>
 							);

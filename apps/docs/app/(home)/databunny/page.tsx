@@ -21,9 +21,9 @@ import Section from "@/components/landing/section";
 import { StructuredData } from "@/components/structured-data";
 import { cn } from "@/lib/utils";
 
-const TITLE = "Databunny: the AI analyst that stays quiet until it matters";
+const TITLE = "Databunny: the AI analyst that tells you why your numbers moved";
 const DESCRIPTION =
-	"Databunny compares your analytics with recent history, investigates real changes with your commits and revenue, and sends what it found and the next step to Slack.";
+	"Databunny checks your analytics every morning, finds out why a number moved, and tells your team what to do next in Slack.";
 
 export const metadata: Metadata = {
 	title: TITLE,
@@ -85,8 +85,8 @@ export default function DatabunnyPage() {
 					primaryHref="https://app.databuddy.cc/register?plan=intelligence"
 					primaryLabel="Start with Business"
 					secondaryLabel="Try chat free"
-					subtitle="Every morning, Databunny checks your traffic, funnels, errors, and revenue. When something really moves, it tells you why and what to do."
-					title="The analyst that stays quiet until something matters."
+					subtitle="Every morning, Databunny checks your traffic, funnels, errors, and revenue. If something moves, it tells you why and what to do about it."
+					title="Wake up to the reason your numbers moved."
 					visual={<BaselineBands />}
 				/>
 
@@ -97,8 +97,8 @@ export default function DatabunnyPage() {
 				>
 					<div className={container}>
 						<SectionHeader
-							subtitle="Normal swings and small numbers stay out of your Slack."
-							title="Most changes never reach you."
+							subtitle="Normal swings and small numbers get filtered out, so what reaches you is worth acting on."
+							title="Stop refreshing dashboards."
 						/>
 						<ChangeVerdicts />
 					</div>
@@ -119,17 +119,17 @@ export default function DatabunnyPage() {
 				</Section>
 
 				<FeatureRow
-					body="Only things worth acting on get posted. If a problem comes back, the update goes in the same thread."
+					body="Databunny posts what broke and what to do next, and keeps follow-ups on the same problem in one thread."
 					id="slack"
-					title="One Slack thread per problem."
+					title="Your team hears about it in Slack."
 					visual={<SlackThread />}
 				/>
 
 				<FeatureRow
-					body="When a funnel or goal breaks, Databunny proposes the fix. Apply it, and it checks the result for free."
+					body="When a funnel or goal stops matching real traffic, Databunny proposes the fix and confirms it worked after you apply it."
 					flip
 					id="fixes"
-					title="Broken funnels and goals come with a fix."
+					title="Fix broken tracking in one click."
 					visual={<FixVerify />}
 				/>
 
@@ -140,25 +140,25 @@ export default function DatabunnyPage() {
 				>
 					<div className={container}>
 						<SectionHeader
-							subtitle="Link a GitHub repo and Databunny reads the commits and diffs around a change."
-							title="It knows what you shipped."
+							subtitle="Link a GitHub repo and Databunny points to the change that likely caused it."
+							title="Find the commit that moved the numbers."
 						/>
 						<CommitZoom />
 					</div>
 				</Section>
 
 				<FeatureRow
-					body="Ask about your traffic, funnels, errors, or revenue, and see the query behind every answer."
+					body="Ask about traffic, funnels, errors, or revenue in plain words, and check the query behind every answer."
 					id="chat"
-					title="Ask it a question."
+					title="Get answers without writing SQL."
 					visual={<ChatQuery />}
 				/>
 
 				<FeatureRow
-					body="Connect Claude Code, Cursor, or any MCP client with a scoped key."
+					body="Connect any MCP client with a scoped key, and your agent can read your data and set up funnels and goals."
 					flip
 					id="mcp"
-					title="Use it from your own agent."
+					title="Bring your analytics into Claude Code and Cursor."
 					visual={<McpTerminalDemo />}
 				/>
 
