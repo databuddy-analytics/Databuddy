@@ -13,7 +13,6 @@ import { evlog } from "evlog/elysia";
 import { drain, enrich, flushDrain } from "./lib/logging";
 import { calculateLinkReadiness } from "./lib/health";
 import {
-	didKafkaConnectFail,
 	disconnectProducer,
 	getProducerHealthState,
 	refreshProducerConnection,
@@ -204,9 +203,6 @@ const app = new Elysia()
 			redis: cache.status,
 			redpanda: redpanda.status,
 		});
-		if (didKafkaConnectFail()) {
-			return Response.json({ status: "unavailable", services }, { status: 503 });
-		}
 		return Response.json(
 			{
 				status: readiness.status,

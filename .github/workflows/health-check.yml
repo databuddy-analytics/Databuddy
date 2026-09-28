@@ -846,14 +846,16 @@ jobs:
             sleep 1
           done
 
-          for i in {1..30}; do
+          # A failed Kafka connect arms a 60s reconnect cooldown in the producer;
+          # poll past the cooldown so one transient first-connect failure is not fatal.
+          for i in {1..90}; do
             STATUS_BODY=$(curl -sS http://localhost:2500/health/status)
             echo "Links /health/status: $STATUS_BODY"
             if echo "$STATUS_BODY" | jq -e '.status == "ok" or .status == "degraded"' > /dev/null; then
               echo "Links dependency health is valid"
               break
             fi
-            if [ $i -eq 30 ]; then
+            if [ $i -eq 90 ]; then
               docker logs links-health-check
               exit 1
             fi
