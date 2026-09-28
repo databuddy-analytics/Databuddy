@@ -100,6 +100,12 @@ function makeFakeDb(
 							if (opts.selectImpl) {
 								return opts.selectImpl();
 							}
+							// Full-row selects (no column projection: link
+							// reconciliation and getLinkOrThrow) must not receive
+							// the folder-check stub row.
+							if (_args.length === 0) {
+								return [];
+							}
 							// folder check path — called with { id: linkFolders.id }
 							// distinguish by checking if we are in folder validation context:
 							// the service checks folder existence: return 1 row if folderExists
@@ -311,6 +317,40 @@ describe("LinkService", () => {
 		expect(link.slug).toBeDefined();
 		expect(call).toBe(2);
 		expect(mockBegin).not.toHaveBeenCalled();
+	});
+
+	it("rejects passing both folderId and folder", async () => {
+		const { db } = makeFakeDb();
+		const svc = new LinkService({ db });
+
+		await expect(
+			svc.create({
+				organizationId: "org-1",
+				createdBy: "user-1",
+				name: "Both Folders",
+				targetUrl: "https://example.com",
+				folderId: "folder-1",
+				folder: { name: "New Folder" },
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+		expect(mockBegin).not.toHaveBeenCalled();
+	});
+
+	it("files into the existing folder when folder name matches by slug", async () => {
+		const { db, links } = makeFakeDb({ folderExists: true });
+		const svc = new LinkService({ db });
+
+		const link = await svc.create({
+			organizationId: "org-1",
+			createdBy: "user-1",
+			name: "Filed Link",
+			targetUrl: "https://example.com/a",
+			folder: { name: "My Folder" },
+		});
+
+		expect(link.folderId).toBe("folder-1");
+		expect(links.size).toBe(1);
 	});
 
 	it("publishes via backfill when generated slug skips lease", async () => {

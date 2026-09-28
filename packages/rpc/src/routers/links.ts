@@ -218,7 +218,8 @@ export const linksRouter = {
 			path: "/links/create",
 			tags: ["Links"],
 			summary: "Create link",
-			description: "Creates a new short link. Requires write:links scope.",
+			description:
+				"Creates a new short link. To file it, pass folderId for an existing folder, or folder ({ name, slug? }) to use the folder with that slug and create it if missing; the slug defaults to one derived from name. Requires write:links scope.",
 			spec: (s) => ({ ...s, "x-required-scopes": ["write:links"] as const }),
 		})
 		.input(createLinkSchema)
@@ -244,6 +245,7 @@ export const linksRouter = {
 				targetUrl: input.targetUrl,
 				slug: input.slug,
 				folderId: input.folderId,
+				folder: input.folder,
 				expiresAt: input.expiresAt ?? null,
 				expiredRedirectUrl: input.expiredRedirectUrl ?? null,
 				ogTitle: input.ogTitle ?? null,

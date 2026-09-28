@@ -16,6 +16,7 @@ import { customAlphabet } from "nanoid";
 import { rpcError } from "../errors";
 import { logger } from "../lib/logger";
 import type { Context } from "../orpc";
+import { slugifyFolderName } from "../routers/links.schemas";
 
 type LinkRow = typeof links.$inferSelect;
 type CacheableLink = Pick<
@@ -142,6 +143,58 @@ async function validateFolderId(
 		return normalizedFolderId;
 	}
 	throw rpcError.badRequest("Link folder does not exist in this organization");
+}
+
+async function findOrCreateFolderId(
+	db: Context["db"],
+	folder: { name: string; slug?: string },
+	organizationId: string,
+	createdBy: Promise<string>
+): Promise<string> {
+	const slug = folder.slug ?? slugifyFolderName(folder.name).slice(0, 64);
+	const findActiveFolderId = async () => {
+		const [existing] = await db
+			.select({ id: linkFolders.id })
+			.from(linkFolders)
+			.where(
+				and(
+					eq(linkFolders.organizationId, organizationId),
+					eq(linkFolders.slug, slug),
+					isNull(linkFolders.deletedAt)
+				)
+			)
+			.limit(1);
+		return existing?.id;
+	};
+
+	const existingId = await findActiveFolderId();
+	if (existingId) {
+		return existingId;
+	}
+
+	const [created] = await db
+		.insert(linkFolders)
+		.values({
+			id: randomUUIDv7(),
+			organizationId,
+			createdBy: await createdBy,
+			name: folder.name,
+			slug,
+		})
+		.onConflictDoNothing({
+			target: [linkFolders.organizationId, linkFolders.slug],
+		})
+		.returning({ id: linkFolders.id });
+	if (created) {
+		return created.id;
+	}
+
+	const concurrentId = await findActiveFolderId();
+	if (concurrentId) {
+		return concurrentId;
+	}
+
+	throw rpcError.conflict("This folder slug is already taken");
 }
 
 function toCachedLink(link: CacheableLink): CachedLink {
@@ -354,6 +407,7 @@ export class LinkService {
 		targetUrl: string;
 		slug?: string;
 		folderId?: string | null;
+		folder?: { name: string; slug?: string };
 		expiresAt?: string | Date | null;
 		expiredRedirectUrl?: string | null;
 		ogTitle?: string | null;
@@ -370,22 +424,33 @@ export class LinkService {
 		deepLinkApp?: string | null;
 	}): Promise<LinkRow> {
 		validateDeepLinkConfiguration(input.deepLinkApp, input.targetUrl);
-		const resolvedFolderId = await validateFolderId(
-			this.db,
-			input.folderId,
-			input.organizationId
-		);
+		if (input.folder && input.folderId) {
+			throw rpcError.badRequest("Pass either folderId or folder, not both");
+		}
+		// Resolve owner lazily alongside folder resolution so deep-link and
+		// folder/file validation errors keep their BAD_REQUEST precedence and
+		// an existing folder can be reused without forcing owner resolution.
+		const createdByPromise = input.getCreatedBy
+			? input.getCreatedBy()
+			: input.createdBy
+				? Promise.resolve(input.createdBy)
+				: Promise.reject(
+						rpcError.internal("createdBy or getCreatedBy required")
+					);
+		const [createdBy, resolvedFolderId] = await Promise.all([
+			createdByPromise,
+			input.folder
+				? findOrCreateFolderId(
+						this.db,
+						input.folder,
+						input.organizationId,
+						createdByPromise
+					)
+				: validateFolderId(this.db, input.folderId, input.organizationId),
+		]);
 		const targetDomain =
 			normalizeTargetDomain(input.targetDomain) ??
 			getTargetDomain(input.targetUrl);
-		let createdBy: string;
-		if (input.getCreatedBy) {
-			createdBy = await input.getCreatedBy();
-		} else if (input.createdBy) {
-			createdBy = input.createdBy;
-		} else {
-			throw rpcError.internal("createdBy or getCreatedBy required");
-		}
 
 		const slugsToTry = input.slug
 			? [input.slug]
