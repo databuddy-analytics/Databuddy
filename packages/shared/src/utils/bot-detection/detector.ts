@@ -1,5 +1,5 @@
 import { isAIBot, isBot } from "ua-parser-js/helpers";
-import { type AiAgent, matchAiAgent } from "./ai-agents";
+import { agentBotCategory, matchAiAgent } from "./ai-agents";
 import {
 	BotAction,
 	BotCategory,
@@ -125,7 +125,7 @@ function detect(
 
 	const agent = matchAiAgent(userAgent);
 	if (agent) {
-		const category = agentCategory(agent);
+		const category = agentBotCategory(agent);
 		const { id, operator, purpose } = agent;
 		return {
 			isBot: true,
@@ -181,16 +181,10 @@ function detect(
 	};
 }
 
-function agentCategory(agent: AiAgent): BotCategory {
-	return agent.purpose === "training" || agent.purpose === "search_index"
-		? BotCategory.AI_CRAWLER
-		: BotCategory.AI_ASSISTANT;
-}
-
 function resolveCategory(userAgent: string): BotCategory {
 	const agent = matchAiAgent(userAgent);
 	if (agent) {
-		return agentCategory(agent);
+		return agentBotCategory(agent);
 	}
 	const patternCat = matchCategory(userAgent);
 	if (patternCat) {
