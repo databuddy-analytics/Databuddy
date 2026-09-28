@@ -359,12 +359,9 @@ describe("event-service producer handoff", () => {
 			sourceEventId: id,
 		});
 
-		const error = await insertTrackEventsBatch([
-			batchItem("a"),
-			batchItem("m"),
-		]).catch((caught: unknown) => caught);
-
-		expect(error).toMatchObject({
+		await expect(
+			insertTrackEventsBatch([batchItem("a"), batchItem("m")])
+		).rejects.toMatchObject({
 			status: 503,
 			internal: {
 				cause: {
