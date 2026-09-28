@@ -1,7 +1,8 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { StatCard } from "@/components/analytics/stat-card";
 import type {
 	ChartCurveType,
@@ -20,7 +21,7 @@ import {
 } from "@/hooks/use-default-date-range";
 import { cn } from "@/lib/utils";
 import {
-	CaretDownIcon,
+	CaretUpDownIcon,
 	ChartBarIcon,
 	ChartLineIcon,
 	CursorClickIcon,
@@ -32,9 +33,16 @@ import {
 	StackIcon,
 	SunIcon,
 } from "@databuddy/ui/icons";
-import { Select } from "@databuddy/ui/client";
-import { Card, Text, Tooltip } from "@databuddy/ui";
-import { ChartTypeOption } from "./_components/chart-type-option";
+import { DropdownMenu, Switch } from "@databuddy/ui/client";
+import {
+	Button,
+	Card,
+	SegmentedControl,
+	Text,
+	useHydrated,
+} from "@databuddy/ui";
+
+type IconComponent = typeof ChartBarIcon;
 
 const MOCK_CHART_DATA = [
 	{ date: "2024-01-01", value: 186 },
@@ -46,49 +54,48 @@ const MOCK_CHART_DATA = [
 ];
 
 const THEME_OPTIONS = [
-	{ id: "light", name: "Light", icon: SunIcon },
-	{ id: "dark", name: "Dark", icon: MoonIcon },
-	{ id: "system", name: "System", icon: DesktopIcon },
+	{ value: "light", label: "Light", icon: SunIcon },
+	{ value: "dark", label: "Dark", icon: MoonIcon },
+	{ value: "system", label: "System", icon: DesktopIcon },
 ] as const;
 
-const CHART_TYPE_OPTIONS: {
-	id: ChartSeriesKind;
-	name: string;
-	icon: typeof ChartBarIcon;
-}[] = [
-	{ id: "bar", name: "Bar", icon: ChartBarIcon },
-	{ id: "line", name: "Line", icon: ChartLineIcon },
-	{ id: "area", name: "Area", icon: StackIcon },
-];
+type ThemeValue = (typeof THEME_OPTIONS)[number]["value"];
 
-const STEP_TYPE_OPTIONS: { id: ChartCurveType; name: string }[] = [
-	{ id: "monotone", name: "Smooth" },
-	{ id: "linear", name: "Linear" },
-	{ id: "step", name: "Step" },
-	{ id: "stepBefore", name: "Step Before" },
-	{ id: "stepAfter", name: "Step After" },
-];
-
-const CHART_TYPE_ITEMS = CHART_TYPE_OPTIONS.map(({ id, name }) => ({
-	label: name,
-	value: id,
+const THEME_SEGMENTS = THEME_OPTIONS.map(({ value, label, icon: Icon }) => ({
+	value,
+	label: (
+		<span className="flex items-center gap-1.5">
+			<Icon className="size-3.5" />
+			{label}
+		</span>
+	),
 }));
 
-const STEP_TYPE_ITEMS = STEP_TYPE_OPTIONS.map(({ id, name }) => ({
-	label: name,
-	value: id,
-}));
+interface PickerOption<T extends string> {
+	icon?: IconComponent;
+	label: string;
+	value: T;
+}
 
-const DEFAULT_DATE_RANGE_OPTIONS: DefaultDateRangePreset[] = [
-	"24h",
-	"7d",
-	"30d",
-	"90d",
-	"180d",
-	"365d",
+const CHART_TYPE_OPTIONS: PickerOption<ChartSeriesKind>[] = [
+	{ value: "area", label: "Area", icon: StackIcon },
+	{ value: "line", label: "Line", icon: ChartLineIcon },
+	{ value: "bar", label: "Bar", icon: ChartBarIcon },
 ];
 
-const LOCATION_ICONS: Record<ChartLocation, typeof ChartLineIcon> = {
+const CURVE_OPTIONS: PickerOption<ChartCurveType>[] = [
+	{ value: "monotone", label: "Smooth" },
+	{ value: "linear", label: "Linear" },
+	{ value: "step", label: "Step" },
+	{ value: "stepBefore", label: "Step before" },
+	{ value: "stepAfter", label: "Step after" },
+];
+
+const DATE_RANGE_OPTIONS: PickerOption<DefaultDateRangePreset>[] = (
+	["24h", "7d", "30d", "90d", "180d", "365d"] as const
+).map((value) => ({ value, label: getPresetLabel(value) }));
+
+const LOCATION_ICONS: Record<ChartLocation, IconComponent> = {
 	"overview-stats": SquaresFourIcon,
 	"overview-main": PresentationChartIcon,
 	funnels: FunnelIcon,
@@ -96,96 +103,186 @@ const LOCATION_ICONS: Record<ChartLocation, typeof ChartLineIcon> = {
 	events: CursorClickIcon,
 };
 
-const CHART_LOCATION_ITEMS = CHART_LOCATIONS.map((value) => ({
-	label: CHART_LOCATION_LABELS[value],
+const DEFAULT_LOCATION_PREFERENCES = {
+	chartType: "area" as ChartSeriesKind,
+	chartStepType: "monotone" as ChartCurveType,
+};
+
+const HOMEPAGE_REDIRECT_COOKIE = "databuddy-home-redirect";
+
+function readOpensDashboard() {
+	return !document.cookie
+		.split("; ")
+		.includes(`${HOMEPAGE_REDIRECT_COOKIE}=off`);
+}
+
+function writeOpensDashboard(opensDashboard: boolean) {
+	const lifetime = opensDashboard ? "max-age=0" : "max-age=34560000";
+	const scope = location.hostname.endsWith(".databuddy.cc")
+		? "; domain=.databuddy.cc; secure"
+		: "";
+	document.cookie = `${HOMEPAGE_REDIRECT_COOKIE}=off; path=/; ${lifetime}; samesite=lax${scope}`;
+}
+
+function PreferenceRow({
+	children,
+	description,
+	title,
+}: {
+	children: ReactNode;
+	description: ReactNode;
+	title: ReactNode;
+}) {
+	return (
+		<div className="flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+			<div className="min-w-0">
+				<p className="font-medium text-[13px] text-foreground">{title}</p>
+				<p className="text-muted-foreground text-xs">{description}</p>
+			</div>
+			<div className="shrink-0">{children}</div>
+		</div>
+	);
+}
+
+function PreferencePicker<T extends string>({
+	disabled,
+	label,
+	onChange,
+	options,
 	value,
-}));
+}: {
+	disabled?: boolean;
+	label: string;
+	onChange: (value: T) => void;
+	options: PickerOption<T>[];
+	value: T;
+}) {
+	const selected = options.find((option) => option.value === value);
+	const SelectedIcon = selected?.icon;
+
+	return (
+		<DropdownMenu>
+			<DropdownMenu.Trigger
+				aria-label={label}
+				disabled={disabled}
+				render={
+					<Button
+						className="w-32 justify-between"
+						size="sm"
+						variant="secondary"
+					>
+						<span className="flex min-w-0 items-center gap-1.5">
+							{SelectedIcon && (
+								<SelectedIcon className="size-3.5 shrink-0 text-muted-foreground" />
+							)}
+							<span className="truncate">{selected?.label}</span>
+						</span>
+						<CaretUpDownIcon
+							aria-hidden="true"
+							className="size-3 shrink-0 text-muted-foreground"
+						/>
+					</Button>
+				}
+			/>
+			<DropdownMenu.Content align="end" className="min-w-32">
+				<DropdownMenu.RadioGroup
+					onValueChange={(next) => {
+						const option = options.find((item) => item.value === next);
+						if (option) {
+							onChange(option.value);
+						}
+					}}
+					value={value}
+				>
+					{options.map(
+						({ icon: Icon, label: optionLabel, value: optionValue }) => (
+							<DropdownMenu.RadioItem
+								className={cn(optionValue === value && "font-medium")}
+								key={optionValue}
+								value={optionValue}
+							>
+								{Icon && <Icon className="size-3.5 text-muted-foreground" />}
+								{optionLabel}
+							</DropdownMenu.RadioItem>
+						)
+					)}
+				</DropdownMenu.RadioGroup>
+			</DropdownMenu.Content>
+		</DropdownMenu>
+	);
+}
 
 export default function AppearanceSettingsPage() {
+	const isHydrated = useHydrated();
 	const { theme, setTheme } = useTheme();
 	const { defaultDateRange, setDefaultDateRange } = useDefaultDateRange();
 	const { preferences, updateLocationPreferences, updateAllPreferences } =
 		useAllChartPreferences();
-	const [previewLocation, setPreviewLocation] =
-		useState<ChartLocation>("overview-stats");
-	const [showGranular, setShowGranular] = useState(false);
+	const [opensDashboard, setOpensDashboard] = useState(true);
+	const [showOverrides, setShowOverrides] = useState(false);
+	const [previewLocation, setPreviewLocation] = useState<ChartLocation | null>(
+		null
+	);
 
-	const globalPrefs = preferences["overview-stats"] ?? {
-		chartType: "area" as ChartSeriesKind,
-		chartStepType: "monotone" as ChartCurveType,
-	};
+	useEffect(() => setOpensDashboard(readOpensDashboard()), []);
 
-	const previewPrefs = showGranular
-		? (preferences[previewLocation] ?? globalPrefs)
+	const themeValue: ThemeValue =
+		(isHydrated &&
+			THEME_OPTIONS.find((option) => option.value === theme)?.value) ||
+		"system";
+	const globalPrefs =
+		preferences["overview-stats"] ?? DEFAULT_LOCATION_PREFERENCES;
+	const previewedLocation = showOverrides ? previewLocation : null;
+	const previewPrefs = previewedLocation
+		? (preferences[previewedLocation] ?? globalPrefs)
 		: globalPrefs;
-
-	const isGlobalBar = globalPrefs.chartType === "bar";
 
 	return (
 		<div className="flex-1 overflow-y-auto">
 			<div className="mx-auto max-w-4xl space-y-6 p-5">
 				<Card>
 					<Card.Header>
-						<Card.Title>Theme</Card.Title>
-						<Card.Description>
-							Choose your preferred color scheme
-						</Card.Description>
+						<Card.Title>General</Card.Title>
+						<Card.Description>Saved in this browser</Card.Description>
 					</Card.Header>
-					<Card.Content>
-						<div className="inline-flex rounded-md bg-secondary p-1">
-							{THEME_OPTIONS.map(({ id, name, icon: Icon }) => {
-								const isActive = theme === id;
-								return (
-									<button
-										className={cn(
-											"flex items-center gap-1.5 rounded px-3 py-1.5",
-											"transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
-											isActive
-												? "bg-card text-foreground shadow-sm"
-												: "text-muted-foreground hover:text-foreground"
-										)}
-										key={id}
-										onClick={() => setTheme(id)}
-										type="button"
-									>
-										<Icon className="size-3.5" />
-										<Text variant="label">{name}</Text>
-									</button>
-								);
-							})}
-						</div>
-					</Card.Content>
-				</Card>
-
-				<Card>
-					<Card.Header>
-						<Card.Title>Default Date Range</Card.Title>
-						<Card.Description>
-							Default time range when opening analytics pages
-						</Card.Description>
-					</Card.Header>
-					<Card.Content>
-						<div className="inline-flex flex-wrap gap-1.5">
-							{DEFAULT_DATE_RANGE_OPTIONS.map((id) => {
-								const isActive = defaultDateRange === id;
-								return (
-									<button
-										className={cn(
-											"rounded-md border px-3 py-1.5",
-											"transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
-											isActive
-												? "border-primary bg-primary/10 text-foreground"
-												: "border-border/60 text-muted-foreground hover:bg-interactive-hover hover:text-foreground"
-										)}
-										key={id}
-										onClick={() => setDefaultDateRange(id)}
-										type="button"
-									>
-										<Text variant="label">{getPresetLabel(id)}</Text>
-									</button>
-								);
-							})}
-						</div>
+					<Card.Content className="divide-y divide-border/60 p-0">
+						<PreferenceRow
+							description="Follow your system or pick one"
+							title="Theme"
+						>
+							<SegmentedControl
+								onChange={setTheme}
+								options={THEME_SEGMENTS}
+								size="sm"
+								value={themeValue}
+							/>
+						</PreferenceRow>
+						<PreferenceRow
+							description="Where analytics pages start when you open them"
+							title="Default date range"
+						>
+							<PreferencePicker
+								label="Default date range"
+								onChange={setDefaultDateRange}
+								options={DATE_RANGE_OPTIONS}
+								value={defaultDateRange}
+							/>
+						</PreferenceRow>
+						{!isSelfHosted && (
+							<PreferenceRow
+								description="Visiting databuddy.cc while signed in opens the dashboard. Links from the dashboard and docs still show the homepage."
+								title="Skip the homepage"
+							>
+								<Switch
+									aria-label="Skip the homepage"
+									checked={opensDashboard}
+									onCheckedChange={(checked) => {
+										writeOpensDashboard(checked);
+										setOpensDashboard(checked);
+									}}
+								/>
+							</PreferenceRow>
+						)}
 					</Card.Content>
 				</Card>
 
@@ -193,237 +290,141 @@ export default function AppearanceSettingsPage() {
 					<Card.Header>
 						<Card.Title>Charts</Card.Title>
 						<Card.Description>
-							Configure chart styles across the app
+							How charts look across your analytics pages
 						</Card.Description>
 					</Card.Header>
-					<Card.Content className="space-y-4">
-						<div className="overflow-hidden rounded-md border border-border/60 bg-secondary/30 p-4">
-							<div className="mb-3 flex items-center justify-between">
-								<Text tone="muted" variant="caption">
-									Preview
-								</Text>
-								{showGranular && (
-									<Select
-										items={CHART_LOCATION_ITEMS}
-										onValueChange={(v) =>
-											setPreviewLocation(v as ChartLocation)
-										}
-										value={previewLocation}
-									>
-										<Select.Trigger className="w-40 [--control-h:--spacing(7)]" />
-										<Select.Content>
-											{CHART_LOCATIONS.map((loc) => (
-												<Select.Item key={loc} value={loc}>
-													{CHART_LOCATION_LABELS[loc]}
-												</Select.Item>
-											))}
-										</Select.Content>
-									</Select>
-								)}
-							</div>
-							<div className="grid gap-3 sm:grid-cols-2">
-								<StatCard
-									chartData={MOCK_CHART_DATA}
-									chartStepType={previewPrefs.chartStepType}
-									chartType={previewPrefs.chartType}
-									icon={ChartLineIcon}
-									id="preview-1"
-									showChart
-									title="Visitors"
-									value="1,234"
-								/>
-								<StatCard
-									chartData={MOCK_CHART_DATA.map((d) => ({
-										...d,
-										value: d.value * 1.5,
-									}))}
-									chartStepType={previewPrefs.chartStepType}
-									chartType={previewPrefs.chartType}
-									icon={StackIcon}
-									id="preview-2"
-									showChart
-									title="Pageviews"
-									value="3,456"
-								/>
-							</div>
-						</div>
-
-						<div className="overflow-hidden rounded-md border border-border/60">
-							<div className="flex items-center justify-between bg-muted px-4 py-2.5">
-								<Text variant="label">All Charts</Text>
-								<div className="flex items-center gap-2">
-									<Select
-										items={CHART_TYPE_ITEMS}
-										onValueChange={(v) =>
-											updateAllPreferences({
-												chartType: v as ChartSeriesKind,
-											})
-										}
-										value={globalPrefs.chartType}
-									>
-										<Select.Trigger className="w-max [--control-h:--spacing(7)]" />
-										<Select.Content>
-											{CHART_TYPE_OPTIONS.map(({ id, name, icon: OptIcon }) => (
-												<Select.Item key={id} value={id}>
-													<ChartTypeOption icon={OptIcon} label={name} />
-												</Select.Item>
-											))}
-										</Select.Content>
-									</Select>
-									<Select
-										disabled={isGlobalBar}
-										items={STEP_TYPE_ITEMS}
-										onValueChange={(v) =>
-											updateAllPreferences({
-												chartStepType: v as ChartCurveType,
-											})
-										}
-										value={globalPrefs.chartStepType}
-									>
-										{isGlobalBar ? (
-											<Tooltip content="Bar charts do not support style">
-												<Select.Trigger
-													className={cn("h-7 w-28", "opacity-50")}
-												/>
-											</Tooltip>
-										) : (
-											<Select.Trigger className="h-7 w-28" />
-										)}
-										<Select.Content>
-											{STEP_TYPE_OPTIONS.map(({ id, name }) => (
-												<Select.Item key={id} value={id}>
-													{name}
-												</Select.Item>
-											))}
-										</Select.Content>
-									</Select>
-								</div>
-							</div>
-
-							<button
-								className={cn(
-									"flex w-full items-center justify-between px-4 py-2.5",
-									"transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
-									"hover:bg-interactive-hover",
-									showGranular && "border-border/60 border-b"
-								)}
-								onClick={() => setShowGranular(!showGranular)}
-								type="button"
-							>
-								<Text tone="muted" variant="caption">
-									{showGranular
-										? "Hide per-location settings"
-										: "Customize per location"}
-								</Text>
-								<CaretDownIcon
-									className={cn(
-										"size-3.5 text-muted-foreground",
-										"transition-transform duration-(--duration-quick) ease-(--ease-smooth)",
-										showGranular && "rotate-180"
-									)}
-								/>
-							</button>
-
-							{showGranular && (
-								<div>
-									{CHART_LOCATIONS.map((location, i) => {
-										const prefs = preferences[location] ?? {
-											chartType: "area" as ChartSeriesKind,
-											chartStepType: "monotone" as ChartCurveType,
-										};
-										const isBar = prefs.chartType === "bar";
-										const isActive = location === previewLocation;
-										const LocationIcon = LOCATION_ICONS[location];
-
-										return (
-											<div
-												className={cn(
-													"flex w-full items-center gap-3 px-4 py-2.5",
-													i < CHART_LOCATIONS.length - 1 &&
-														"border-border/60 border-b",
-													isActive && "bg-secondary/50"
-												)}
-												key={location}
-											>
-												<button
-													className={cn(
-														"flex min-w-0 flex-1 items-center gap-2",
-														"transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
-														"rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-													)}
-													onClick={() => setPreviewLocation(location)}
-													type="button"
-												>
-													<LocationIcon className="size-4 shrink-0 text-muted-foreground" />
-													<Text
-														className={cn(
-															"truncate text-left",
-															isActive && "font-medium"
-														)}
-														variant="body"
-													>
-														{CHART_LOCATION_LABELS[location]}
-													</Text>
-												</button>
-												<div className="flex shrink-0 items-center gap-2">
-													<Select
-														items={CHART_TYPE_ITEMS}
-														onValueChange={(v) =>
-															updateLocationPreferences(location, {
-																chartType: v as ChartSeriesKind,
-															})
-														}
-														value={prefs.chartType}
-													>
-														<Select.Trigger className="w-[6.5rem] [--control-h:--spacing(7)]" />
-														<Select.Content>
-															{CHART_TYPE_OPTIONS.map(
-																({ id, name, icon: OptIcon }) => (
-																	<Select.Item key={id} value={id}>
-																		<ChartTypeOption
-																			icon={OptIcon}
-																			label={name}
-																		/>
-																	</Select.Item>
-																)
-															)}
-														</Select.Content>
-													</Select>
-													<Select
-														disabled={isBar}
-														items={STEP_TYPE_ITEMS}
-														onValueChange={(v) =>
-															updateLocationPreferences(location, {
-																chartStepType: v as ChartCurveType,
-															})
-														}
-														value={prefs.chartStepType}
-													>
-														{isBar ? (
-															<Tooltip content="Bar charts do not support style">
-																<Select.Trigger
-																	className={cn("h-7 w-[7.5rem]", "opacity-50")}
-																/>
-															</Tooltip>
-														) : (
-															<Select.Trigger className="h-7 w-[7.5rem]" />
-														)}
-														<Select.Content>
-															{STEP_TYPE_OPTIONS.map(({ id, name }) => (
-																<Select.Item key={id} value={id}>
-																	{name}
-																</Select.Item>
-															))}
-														</Select.Content>
-													</Select>
-												</div>
-											</div>
-										);
-									})}
-								</div>
-							)}
+					<Card.Content className="space-y-2.5">
+						<Text tone="muted" variant="caption">
+							{previewedLocation
+								? `Preview · ${CHART_LOCATION_LABELS[previewedLocation]}`
+								: "Preview"}
+						</Text>
+						<div className="grid gap-3 sm:grid-cols-2">
+							<StatCard
+								chartData={MOCK_CHART_DATA}
+								chartStepType={previewPrefs.chartStepType}
+								chartType={previewPrefs.chartType}
+								icon={ChartLineIcon}
+								id="preview-1"
+								showChart
+								title="Visitors"
+								value="1,234"
+							/>
+							<StatCard
+								chartData={MOCK_CHART_DATA.map((d) => ({
+									...d,
+									value: d.value * 1.5,
+								}))}
+								chartStepType={previewPrefs.chartStepType}
+								chartType={previewPrefs.chartType}
+								icon={StackIcon}
+								id="preview-2"
+								showChart
+								title="Pageviews"
+								value="3,456"
+							/>
 						</div>
 					</Card.Content>
+					<div className="divide-y divide-border/60 border-border/60 border-t">
+						<PreferenceRow
+							description="Applies to every page and replaces overrides"
+							title="Chart type"
+						>
+							<PreferencePicker
+								label="Chart type"
+								onChange={(chartType) => updateAllPreferences({ chartType })}
+								options={CHART_TYPE_OPTIONS}
+								value={globalPrefs.chartType}
+							/>
+						</PreferenceRow>
+						<PreferenceRow
+							description={
+								globalPrefs.chartType === "bar"
+									? "Bar charts have no curve"
+									: "How lines connect between data points"
+							}
+							title="Curve"
+						>
+							<PreferencePicker
+								disabled={globalPrefs.chartType === "bar"}
+								label="Curve"
+								onChange={(chartStepType) =>
+									updateAllPreferences({ chartStepType })
+								}
+								options={CURVE_OPTIONS}
+								value={globalPrefs.chartStepType}
+							/>
+						</PreferenceRow>
+						<PreferenceRow
+							description="Give specific pages their own style"
+							title="Per-page overrides"
+						>
+							<Button
+								aria-expanded={showOverrides}
+								onClick={() => setShowOverrides((open) => !open)}
+								size="sm"
+								variant="secondary"
+							>
+								{showOverrides ? "Done" : "Customize"}
+							</Button>
+						</PreferenceRow>
+						{showOverrides &&
+							CHART_LOCATIONS.map((location) => {
+								const prefs =
+									preferences[location] ?? DEFAULT_LOCATION_PREFERENCES;
+								const LocationIcon = LOCATION_ICONS[location];
+								const isPreviewed = location === previewedLocation;
+
+								return (
+									<div
+										className={cn(
+											"flex items-center gap-2 py-2 pr-5 pl-3",
+											"transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
+											isPreviewed && "bg-interactive-hover"
+										)}
+										key={location}
+									>
+										<Button
+											className="min-w-0 flex-1 justify-start gap-2.5 px-2 hover:bg-transparent"
+											onClick={() =>
+												setPreviewLocation(isPreviewed ? null : location)
+											}
+											size="sm"
+											variant="ghost"
+										>
+											<LocationIcon className="size-4 shrink-0 text-muted-foreground" />
+											<span
+												className={cn(
+													"truncate text-[13px] text-foreground",
+													isPreviewed ? "font-medium" : "font-normal"
+												)}
+											>
+												{CHART_LOCATION_LABELS[location]}
+											</span>
+										</Button>
+										<PreferencePicker
+											label={`${CHART_LOCATION_LABELS[location]} chart type`}
+											onChange={(chartType) => {
+												updateLocationPreferences(location, { chartType });
+												setPreviewLocation(location);
+											}}
+											options={CHART_TYPE_OPTIONS}
+											value={prefs.chartType}
+										/>
+										<PreferencePicker
+											disabled={prefs.chartType === "bar"}
+											label={`${CHART_LOCATION_LABELS[location]} curve`}
+											onChange={(chartStepType) => {
+												updateLocationPreferences(location, { chartStepType });
+												setPreviewLocation(location);
+											}}
+											options={CURVE_OPTIONS}
+											value={prefs.chartStepType}
+										/>
+									</div>
+								);
+							})}
+					</div>
 				</Card>
 			</div>
 		</div>
