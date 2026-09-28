@@ -74,10 +74,10 @@ export function AskAgentButton({ className, subject }: AskAgentButtonProps) {
 
 	const websitePath =
 		typeof params.id === "string" ? `/websites/${params.id}` : null;
-	if (
-		!(websitePath && pathname.startsWith(websitePath)) ||
-		pathname.startsWith(`${websitePath}/agent`)
-	) {
+	const isChatPage =
+		pathname === `${websitePath}/agent` ||
+		pathname.startsWith(`${websitePath}/agent/`);
+	if (!(websitePath && pathname.startsWith(websitePath)) || isChatPage) {
 		return null;
 	}
 
