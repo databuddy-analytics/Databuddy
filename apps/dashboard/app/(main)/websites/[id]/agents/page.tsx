@@ -9,7 +9,7 @@ import {
 	StatusDot,
 	Tooltip,
 } from "@databuddy/ui";
-import { CopyButton } from "@databuddy/ui/client";
+import { Sheet, Tabs } from "@databuddy/ui/client";
 import {
 	BrainIcon,
 	FileTextIcon,
@@ -31,6 +31,10 @@ import {
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
+import {
+	CodeBlock,
+	CodeBlockCopyButton,
+} from "@/components/ai-elements/code-block";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
 import {
 	Chart,
@@ -355,70 +359,210 @@ function formatShare(share: number): string {
 	return `${share.toFixed(1)}%`;
 }
 
-function setupSnippet(websiteId: string): string {
-	return `// proxy.ts
-export { proxy } from "@databuddy/sdk/agents";
+const SETUP_STACKS = [
+	{
+		env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
+		file: "proxy.ts",
+		id: "next",
+		label: "Next.js 16",
+		code: 'export { proxy } from "@databuddy/sdk/agents";',
+	},
+	{
+		env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
+		file: "middleware.ts",
+		id: "next15",
+		label: "Next.js 15",
+		code: 'export { proxy as middleware } from "@databuddy/sdk/agents";',
+	},
+	{
+		env: "DATABUDDY_WEBSITE_ID",
+		file: "middleware.ts",
+		id: "vercel",
+		label: "Vercel",
+		code: 'export { proxy as default } from "@databuddy/sdk/agents";',
+	},
+	{
+		env: "DATABUDDY_WEBSITE_ID",
+		file: "worker.ts",
+		id: "workers",
+		label: "Cloudflare",
+		code: `import { trackAgents } from "@databuddy/sdk/agents";
 
-// .env
-NEXT_PUBLIC_DATABUDDY_CLIENT_ID=${websiteId}
-`;
+export default {
+	async fetch(request, env, ctx) {
+		const websiteId = env.DATABUDDY_WEBSITE_ID;
+		ctx.waitUntil(trackAgents(request, { websiteId }));
+		return fetch(request);
+	},
+};`,
+	},
+	{
+		env: "DATABUDDY_WEBSITE_ID",
+		file: "server.ts",
+		id: "express",
+		label: "Express",
+		code: `import { trackAgents } from "@databuddy/sdk/agents";
+
+app.use((req, _res, next) => {
+	trackAgents(req);
+	next();
+});`,
+	},
+] as const;
+
+const SETUP_CHECKS = [
+	{
+		key: "homepage",
+		label: "Homepage",
+		hint: "deploy the file above and set the environment variable",
+	},
+	{
+		key: "llmsTxt",
+		label: "llms.txt",
+		hint: "make sure your proxy or middleware matcher doesn't skip .txt files",
+	},
+] as const;
+
+function SetupStep({
+	children,
+	step,
+	title,
+}: {
+	children: React.ReactNode;
+	step: number;
+	title: string;
+}) {
+	return (
+		<div className="space-y-2">
+			<p className="font-medium text-sm">
+				<span className="mr-2 text-muted-foreground tabular-nums">{step}</span>
+				{title}
+			</p>
+			{children}
+		</div>
+	);
 }
 
-function AgentSetup({
-	className,
-	websiteId,
+function SetupCode({
+	code,
+	language,
 }: {
-	className?: string;
-	websiteId: string;
+	code: string;
+	language: "bash" | "tsx";
 }) {
+	return (
+		<CodeBlock code={code} language={language}>
+			<CodeBlockCopyButton aria-label="Copy" />
+		</CodeBlock>
+	);
+}
+
+function AgentSetupSheet({ websiteId }: { websiteId: string }) {
+	const [isOpen, setIsOpen] = useState(false);
 	const check = useMutation(orpc.websites.checkAgentSetup.mutationOptions());
-	const results = check.data
-		? [
-				{
-					label: "Homepage",
-					isRecorded: check.data.homepage,
-					hint: "deploy proxy.ts with NEXT_PUBLIC_DATABUDDY_CLIENT_ID set",
-				},
-				{
-					label: "llms.txt",
-					isRecorded: check.data.llmsTxt,
-					hint: "make sure your proxy matcher doesn't skip .txt files",
-				},
-			]
-		: [];
+	const isWorking = check.data?.homepage && check.data.llmsTxt;
 
 	return (
-		<div className={cn("flex flex-col gap-2", className)}>
-			<div className="flex gap-2">
-				<CopyButton
-					label="Copy setup"
-					size="md"
-					value={setupSnippet(websiteId)}
-					variant="secondary"
-				/>
-				<Button
-					loading={check.isPending}
-					onClick={() => check.mutate({ websiteId })}
-					size="md"
-					variant="secondary"
-				>
-					Test setup
-				</Button>
-			</div>
-			{results.map((result) => (
-				<p className="flex items-center gap-1.5 text-xs" key={result.label}>
-					<StatusDot color={result.isRecorded ? "success" : "warning"} />
-					{result.isRecorded
-						? `${result.label} recorded`
-						: `${result.label} not recorded: ${result.hint}`}
-				</p>
-			))}
-			{check.isError ? (
-				<p className="text-destructive text-xs">
-					Couldn't run the check. Try again in a moment.
-				</p>
-			) : null}
-		</div>
+		<>
+			<Button onClick={() => setIsOpen(true)} size="md" variant="secondary">
+				Set up
+			</Button>
+			<Sheet onOpenChange={setIsOpen} open={isOpen}>
+				<Sheet.Content side="right">
+					<Sheet.Header>
+						<Sheet.Title>Track AI crawlers</Sheet.Title>
+						<Sheet.Description>
+							Crawlers like GPTBot and ClaudeBot don't run JavaScript. Add one
+							line to your server to see which pages they read.
+						</Sheet.Description>
+					</Sheet.Header>
+					<Sheet.Body className="space-y-5">
+						<Tabs defaultValue={SETUP_STACKS[0].id}>
+							<Tabs.List>
+								{SETUP_STACKS.map((stack) => (
+									<Tabs.Tab key={stack.id} value={stack.id}>
+										{stack.label}
+									</Tabs.Tab>
+								))}
+							</Tabs.List>
+							{SETUP_STACKS.map((stack) => (
+								<Tabs.Panel
+									className="mt-4 space-y-5"
+									key={stack.id}
+									value={stack.id}
+								>
+									<SetupStep step={1} title="Install the SDK">
+										<SetupCode
+											code="bun add @databuddy/sdk@latest"
+											language="bash"
+										/>
+									</SetupStep>
+									<SetupStep step={2} title={`Add ${stack.file}`}>
+										<SetupCode code={stack.code} language="tsx" />
+									</SetupStep>
+									<SetupStep step={3} title="Set your website ID">
+										<SetupCode
+											code={
+												stack.id === "workers"
+													? `# wrangler.toml\n[vars]\n${stack.env} = "${websiteId}"`
+													: `${stack.env}=${websiteId}`
+											}
+											language="bash"
+										/>
+									</SetupStep>
+								</Tabs.Panel>
+							))}
+						</Tabs>
+
+						<SetupStep step={4} title="Deploy, then test it">
+							<Button
+								loading={check.isPending}
+								onClick={() => check.mutate({ websiteId })}
+								size="md"
+								variant="secondary"
+							>
+								Test setup
+							</Button>
+							{check.data
+								? SETUP_CHECKS.map((item) => (
+										<p
+											className="flex items-center gap-1.5 text-xs"
+											key={item.key}
+										>
+											<StatusDot
+												color={check.data[item.key] ? "success" : "warning"}
+											/>
+											{check.data[item.key]
+												? `${item.label} recorded`
+												: `${item.label} not recorded: ${item.hint}`}
+										</p>
+									))
+								: null}
+							{isWorking ? (
+								<p className="text-pretty text-muted-foreground text-xs">
+									Setup works. Crawler data shows up here as soon as an AI agent
+									visits.
+								</p>
+							) : null}
+							{check.isError ? (
+								<p className="text-destructive text-xs">
+									Couldn't run the check. Try again in a moment.
+								</p>
+							) : null}
+						</SetupStep>
+
+						<a
+							className="block text-muted-foreground text-xs underline underline-offset-2 hover:text-foreground"
+							href="https://www.databuddy.cc/docs/sdk/ai-agents"
+							rel="noopener"
+							target="_blank"
+						>
+							Other setups and details in the docs
+						</a>
+					</Sheet.Body>
+				</Sheet.Content>
+			</Sheet>
+		</>
 	);
 }
 
@@ -952,8 +1096,8 @@ export default function AgentsPage() {
 		return (
 			<div className="flex h-full flex-col p-4">
 				<EmptyState
-					action={<AgentSetup className="items-center" websiteId={websiteId} />}
-					description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers skip JavaScript, so add one file to your site, deploy, then test it."
+					action={<AgentSetupSheet websiteId={websiteId} />}
+					description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers don't run JavaScript, so they need one line on your server."
 					icon={<BrainIcon />}
 					isMainContent
 					title="No AI activity yet"
@@ -977,7 +1121,7 @@ export default function AgentsPage() {
 						icon={<BrainIcon />}
 						title={`${topSender.product} sent you ${formatNumber(topSender.visitors)} ${topSender.visitors === 1 ? "visitor" : "visitors"}`}
 					>
-						<AgentSetup websiteId={websiteId} />
+						<AgentSetupSheet websiteId={websiteId} />
 					</NoticeBanner>
 				) : null}
 
@@ -1070,7 +1214,7 @@ export default function AgentsPage() {
 							Crawlers that don't run JavaScript, like GPTBot and ClaudeBot,
 							only appear once @databuddy/sdk/agents runs on your server.
 						</p>
-						<AgentSetup websiteId={websiteId} />
+						<AgentSetupSheet websiteId={websiteId} />
 					</div>
 				)}
 			</div>
