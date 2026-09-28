@@ -75,6 +75,11 @@ export const AiAgentsBuilders = {
 				{ name: "on_demand", type: "number", label: "On demand" },
 				{ name: "visitors", type: "number", label: "Visitors referred" },
 				{ name: "last_seen", type: "datetime", label: "Last request" },
+				{
+					name: "has_proxy",
+					type: "boolean",
+					label: "Site has ever sent requests through @databuddy/sdk/agents",
+				},
 			],
 			default_visualization: "table",
 		},
@@ -83,7 +88,12 @@ export const AiAgentsBuilders = {
 				SELECT
 					if(c.product != '', c.product, v.product) AS product,
 					c.requests, c.pages, c.training, c.search_index, c.on_demand,
-					v.visitors, c.last_seen
+					v.visitors, c.last_seen,
+					(
+						SELECT count() > 0
+						FROM ${Analytics.ai_traffic_spans}
+						WHERE client_id = {websiteId:String} AND source = 'middleware'
+					) AS has_proxy
 				FROM (
 					SELECT
 						${AGENT_PRODUCT} AS product,
@@ -115,7 +125,7 @@ export const AiAgentsBuilders = {
 		meta: {
 			title: "How AI Reads Your Content",
 			description:
-				"AI requests split by the content format served: markdown (.md pages or markdown requested through the Accept header), llms.txt files, and HTML pages, with pages and the AI products fetching each format.",
+				"AI requests split by content format: markdown and llms.txt as the agent asked for them through the path or the Accept header, and HTML for everything else, including page loads recorded by the browser tracker: markdown (.md pages or markdown requested through the Accept header), llms.txt files, and HTML pages, with pages and the AI products fetching each format.",
 			category: "AI Agents",
 			tags: ["ai", "agents", "markdown", "llms.txt", "docs"],
 			output_fields: [

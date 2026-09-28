@@ -124,6 +124,7 @@ export interface AiAgent {
 	patterns: RegExp[];
 	product: string;
 	purpose: AgentPurpose;
+	signatureAgent?: string;
 }
 
 function codingAgent(
@@ -193,8 +194,22 @@ function toAiAgent(bot: z.infer<typeof wellKnownBotSchema>): AiAgent | null {
 	};
 }
 
+const SIGNED_AGENTS: AiAgent[] = [
+	{
+		excludePatterns: [],
+		id: "chatgpt-agent",
+		name: "ChatGPT agent",
+		operator: "OpenAI",
+		patterns: [],
+		product: "ChatGPT",
+		purpose: "agent",
+		signatureAgent: "chatgpt.com",
+	},
+];
+
 export const AI_AGENTS: AiAgent[] = [
 	...CODING_AGENTS,
+	...SIGNED_AGENTS,
 	...z
 		.array(wellKnownBotSchema)
 		.parse(wellKnownBots.filter((bot) => bot.id in AI_AGENT_CLASSIFICATION))
@@ -209,6 +224,24 @@ export function matchAiAgent(userAgent: string): AiAgent | null {
 				agent.patterns.some((p) => p.test(userAgent)) &&
 				!agent.excludePatterns.some((p) => p.test(userAgent))
 		) ?? null
+	);
+}
+
+export function matchSignedAgent(signatureAgent: string): AiAgent | null {
+	const host = URL.parse(signatureAgent.replaceAll('"', "").trim())?.hostname;
+	if (!host) {
+		return null;
+	}
+	return (
+		AI_AGENTS.find((agent) => agent.signatureAgent === host) ?? {
+			excludePatterns: [],
+			id: host,
+			name: host,
+			operator: host,
+			patterns: [],
+			product: host,
+			purpose: "agent",
+		}
 	);
 }
 

@@ -76,6 +76,42 @@ describe("trackAgents", () => {
 		);
 	});
 
+	it("reports a signed agent browser that sends a Chrome user agent", async () => {
+		const bodies = captureBodies();
+		await trackAgents(
+			new Request("https://example.com/pricing", {
+				headers: {
+					accept: "text/html",
+					"signature-agent": '"https://chatgpt.com"',
+					"user-agent": CHROME,
+				},
+			}),
+			OPTIONS
+		);
+		expect(bodies).toEqual([
+			expect.objectContaining({
+				accept: "text/html",
+				signatureAgent: '"https://chatgpt.com"',
+				userAgent: CHROME,
+			}),
+		]);
+	});
+
+	it("caps headers to the lengths basket accepts", async () => {
+		const bodies = captureBodies();
+		await trackAgents(
+			request("/pricing", {
+				accept: "a".repeat(600),
+				userAgent: `${GPTBOT} ${"x".repeat(600)}`,
+			}),
+			OPTIONS
+		);
+		expect(bodies[0]).toMatchObject({
+			accept: "a".repeat(512),
+			userAgent: `${GPTBOT} ${"x".repeat(600)}`.slice(0, 512),
+		});
+	});
+
 	it("accepts an Express request behind a proxy", async () => {
 		const bodies = captureBodies();
 		await trackAgents(
