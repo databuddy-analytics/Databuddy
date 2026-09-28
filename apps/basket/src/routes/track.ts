@@ -69,7 +69,7 @@ function truncated(maxLength: number) {
 
 const agentHitSchema = z.object({
 	websiteId: z.string().min(1).max(128),
-	host: truncated(253).pipe(z.string().min(1)),
+	host: z.string().min(1).max(253),
 	path: truncated(2048),
 	format: z.enum(CONTENT_FORMATS).catch("html"),
 	userAgent: truncated(512),
