@@ -78,7 +78,7 @@ export async function trackAgents(
 		header(request, "x-forwarded-host").split(",")[0]?.trim() ||
 		header(request, "host") ||
 		url.host;
-	const accept = header(request, "accept");
+	const accept = header(request, "accept").slice(0, MAX_HEADER_LENGTH);
 	await fetch(`${options.apiUrl ?? DEFAULT_API_URL}/ai-traffic`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
@@ -88,7 +88,7 @@ export async function trackAgents(
 			path: pathname,
 			format: contentFormat(pathname, accept),
 			userAgent: userAgent.slice(0, MAX_HEADER_LENGTH),
-			accept: accept.slice(0, MAX_HEADER_LENGTH) || undefined,
+			accept: accept || undefined,
 			signatureAgent: signatureAgent.slice(0, MAX_HEADER_LENGTH) || undefined,
 			referrer:
 				header(request, "referer").slice(0, MAX_REFERRER_LENGTH) || undefined,
