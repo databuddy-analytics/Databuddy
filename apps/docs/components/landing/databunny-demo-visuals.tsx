@@ -24,7 +24,6 @@ import {
 	useAfter,
 	useCount,
 	useTimeline,
-	withDots,
 } from "@/components/landing/demo-primitives";
 import { cn } from "@/lib/utils";
 
@@ -80,12 +79,12 @@ const INCIDENTS: [Incident, ...Incident[]] = [
 		metric: "Signup completion",
 		change: "−18%",
 		findings: {
-			Events: "verification_sent −28% · mobile",
-			Funnels: "verify step −31% · mobile",
+			Events: "verification_sent −28% on mobile",
+			Funnels: "verify step −31% on mobile",
 		},
 		lanes: [
-			{ title: "Funnels", sub: "verify step · mobile" },
-			{ title: "Events", sub: "verification_sent · mobile" },
+			{ title: "Funnels", sub: "verify step, mobile" },
+			{ title: "Events", sub: "verification_sent, mobile" },
 		],
 		cause: { sha: "a41f0c2", label: "verification copy", time: "09:12" },
 		barsRise: false,
@@ -105,11 +104,11 @@ const INCIDENTS: [Incident, ...Incident[]] = [
 		metric: "Checkout conversion",
 		change: "−37%",
 		findings: {
-			Funnels: "payment step −31% · iOS Safari",
-			Errors: "TypeError spike · /checkout/shipping",
+			Funnels: "payment step −31% on iOS Safari",
+			Errors: "TypeError spike on /checkout/shipping",
 		},
 		lanes: [
-			{ title: "Funnels", sub: "payment step · iOS Safari" },
+			{ title: "Funnels", sub: "payment step, iOS Safari" },
 			{ title: "Errors", sub: "/checkout/shipping" },
 		],
 		cause: { sha: "7c2e9f1", label: "address autocomplete", time: "13:58" },
@@ -130,12 +129,12 @@ const INCIDENTS: [Incident, ...Incident[]] = [
 		metric: "Signup INP, p75",
 		change: "+42%",
 		findings: {
-			Funnels: "plan step −12% · /signup",
-			"Web Vitals": "INP 284 ms p75 · /signup",
+			Funnels: "plan step −12% on /signup",
+			"Web Vitals": "INP 284 ms p75 on /signup",
 		},
 		lanes: [
-			{ title: "Web Vitals", sub: "INP p75 · /signup" },
-			{ title: "Funnels", sub: "plan step · /signup" },
+			{ title: "Web Vitals", sub: "INP p75, /signup" },
+			{ title: "Funnels", sub: "plan step, /signup" },
 		],
 		cause: { sha: "e90b7d4", label: "pricing calculator", time: "16:40" },
 		barsRise: false,
@@ -156,7 +155,7 @@ const checksFor = (incident: Incident) =>
 	INCIDENT_SOURCES.map((name, order) => {
 		const finding =
 			name === "Deploys"
-				? `${incident.cause.sha} · ${incident.cause.label} · ${incident.cause.time}`
+				? `${incident.cause.sha} ${incident.cause.label} at ${incident.cause.time}`
 				: incident.findings[name];
 		const hit = finding !== undefined;
 		const start = 0.45 + order * 0.17;
@@ -315,7 +314,7 @@ function IncidentScan({
 								initial={false}
 								transition={{ duration: 0.35, ease: IN_OUT }}
 							>
-								{withDots(check.result)}
+								{check.result}
 							</motion.span>
 						</motion.li>
 					);
@@ -398,7 +397,7 @@ function IncidentEvidence({ incident }: { incident: Incident }) {
 								{lane.title}
 							</span>
 							<span className="hidden font-mono text-muted-foreground text-xs sm:block">
-								{withDots(lane.sub)}
+								{lane.sub}
 							</span>
 						</div>
 					))}
@@ -711,16 +710,6 @@ export function InvestigationStage() {
 								)}
 								<span
 									className={cn(
-										"font-mono text-xs tabular-nums transition-colors duration-500",
-										order === position
-											? "text-brand-amber"
-											: "text-muted-foreground"
-									)}
-								>
-									{String(order + 1).padStart(2, "0")}
-								</span>
-								<span
-									className={cn(
 										"text-[12px] transition-colors duration-500 sm:text-sm",
 										order === position
 											? "text-foreground"
@@ -751,9 +740,6 @@ export function InvestigationStage() {
 							</motion.div>
 							<span className="font-semibold text-foreground text-sm sm:text-base">
 								Databunny
-							</span>
-							<span className="hidden text-muted-foreground text-sm sm:inline">
-								Databuddy's AI agent
 							</span>
 						</div>
 						{status && (
@@ -788,12 +774,12 @@ export function InvestigationStage() {
 const WATCHED = [
 	{ id: "visitors", label: "Visitors" },
 	{ id: "checkout", label: "Checkout funnel" },
-	{ id: "errors", label: "Errors · /checkout" },
-	{ id: "lcp", label: "LCP p75 · /pricing" },
-	{ id: "revenue", label: "Revenue · USD" },
+	{ id: "errors", label: "Checkout errors" },
+	{ id: "lcp", label: "Pricing page LCP" },
+	{ id: "revenue", label: "Revenue" },
 	{ id: "signups", label: "Signup completion" },
 	{ id: "chatgpt", label: "ChatGPT referrals" },
-	{ id: "inp", label: "INP p75 · /signup" },
+	{ id: "inp", label: "Signup page INP" },
 ] as const;
 
 interface Breakout {
@@ -933,7 +919,7 @@ function BandRow({
 					flagged ? "text-foreground" : "text-muted-foreground"
 				)}
 			>
-				{withDots(label)}
+				{label}
 			</span>
 			<div className="relative h-7 sm:h-8">
 				<svg
@@ -976,7 +962,7 @@ function BandRow({
 						: "text-muted-foreground/70"
 				)}
 			>
-				{flagged ? flagged.change : "normal"}
+				{flagged ? flagged.change : ""}
 			</span>
 		</div>
 	);
@@ -1005,23 +991,6 @@ export function BaselineBands() {
 	return (
 		<MotionConfig reducedMotion="user">
 			<div className={cn(FRAME, "flex flex-col gap-5 p-5 sm:p-6")} ref={ref}>
-				<div className="flex items-center justify-between gap-4">
-					<div className="flex items-center gap-2.5">
-						<Image
-							alt=""
-							height={18}
-							src="/brand/bunny/white.svg"
-							unoptimized
-							width={18}
-						/>
-						<span className="font-medium text-foreground text-sm">
-							Watching {WATCHED.length} metrics
-						</span>
-					</div>
-					<span className="font-mono text-[11px] text-muted-foreground sm:text-xs">
-						last 3 weeks
-					</span>
-				</div>
 				<div className="flex flex-col gap-2.5">
 					{WATCHED.map((metric) => (
 						<BandRow
@@ -1048,43 +1017,36 @@ export function BaselineBands() {
 const WEEK_CHANGES = [
 	{
 		change: "Visitors −6%",
-		context: "yesterday",
 		verdict: "Usual for a weekday",
 		sent: false,
 	},
 	{
 		change: "Errors +12",
-		context: "/blog/rss",
 		verdict: "Too small: 3 visitors",
 		sent: false,
 	},
 	{
 		change: "Revenue +4%",
-		context: "all products",
 		verdict: "Within its usual swing",
 		sent: false,
 	},
 	{
 		change: "Errors +2×",
-		context: "/settings",
 		verdict: "Investigating since Monday",
 		sent: false,
 	},
 	{
 		change: "Signup completion −18%",
-		context: "signup funnel",
 		verdict: "Sent to #analytics",
 		sent: true,
 	},
 	{
 		change: "newsletter_signup −60%",
-		context: "custom event",
 		verdict: "Not a priority for your team",
 		sent: false,
 	},
 	{
 		change: "demo_requested −4%",
-		context: "custom event",
 		verdict: "Too small to matter",
 		sent: false,
 	},
@@ -1093,25 +1055,15 @@ const VERDICT_EVENTS = WEEK_CHANGES.map((_, index) => 0.9 + index * 0.45);
 
 export function ChangeVerdicts() {
 	const { ref, step } = useTimeline(VERDICT_EVENTS, 7.2);
-	const judged = WEEK_CHANGES.slice(0, step);
-	const sent = judged.filter((row) => row.sent).length;
 	return (
 		<MotionConfig reducedMotion="user">
 			<div className={FRAME} ref={ref}>
-				<div className="flex items-center justify-between gap-4 border-white/[0.06] border-b px-5 py-3 sm:px-6">
-					<span className="font-medium text-foreground text-sm">
-						How Databunny decides
-					</span>
-					<span className="font-mono text-[11px] text-muted-foreground sm:text-xs">
-						daily run · Wed 9:00
-					</span>
-				</div>
 				<ul>
 					{WEEK_CHANGES.map((row, index) => {
 						const done = index < step;
 						return (
 							<motion.li
-								className="relative grid grid-cols-[10px_1fr_auto] items-center gap-3 border-white/[0.04] border-b px-5 py-3 last:border-b-0 sm:grid-cols-[10px_1fr_150px_210px] sm:gap-4 sm:px-6"
+								className="relative grid grid-cols-[10px_1fr_auto] items-center gap-3 border-white/[0.04] border-b px-5 py-3 last:border-b-0 sm:gap-4 sm:px-6"
 								key={row.change}
 							>
 								<motion.span
@@ -1139,14 +1091,6 @@ export function ChangeVerdicts() {
 								>
 									{row.change}
 								</motion.span>
-								<motion.span
-									animate={{ opacity: done && !row.sent ? 0.6 : 1 }}
-									className="relative hidden truncate font-mono text-muted-foreground text-xs sm:block"
-									initial={false}
-									transition={REWIND}
-								>
-									{row.context}
-								</motion.span>
 								<span className="relative flex justify-end text-right">
 									<AnimatePresence initial={false} mode="wait">
 										<motion.span
@@ -1162,7 +1106,7 @@ export function ChangeVerdicts() {
 											key={done ? "verdict" : "pending"}
 											transition={{ duration: 0.3, ease: IN_OUT }}
 										>
-											{done ? row.verdict : "·"}
+											{done ? row.verdict : ""}
 										</motion.span>
 									</AnimatePresence>
 								</span>
@@ -1170,17 +1114,6 @@ export function ChangeVerdicts() {
 						);
 					})}
 				</ul>
-				<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-white/[0.06] border-t px-5 py-3 font-mono text-[11px] tabular-nums sm:px-6 sm:text-xs">
-					<span className="text-muted-foreground">
-						{judged.length} of {WEEK_CHANGES.length} changes checked
-					</span>
-					<span>
-						<span className="text-muted-foreground">
-							{judged.length - sent} kept quiet ·{" "}
-						</span>
-						<span className="text-brand-amber">{sent} sent</span>
-					</span>
-				</div>
 			</div>
 		</MotionConfig>
 	);
@@ -1234,9 +1167,6 @@ export function CommitZoom() {
 				<div className="flex items-center justify-between gap-4 px-5 pt-5 sm:px-6 sm:pt-6">
 					<span className="font-medium text-foreground text-sm">
 						Signup completion
-					</span>
-					<span className="font-mono text-[11px] text-muted-foreground sm:text-xs">
-						Mar 3 to 9 · github
 					</span>
 				</div>
 				<div className="relative mx-5 mt-4 sm:mx-6">
@@ -1326,9 +1256,6 @@ export function CommitZoom() {
 						<span className="text-muted-foreground text-sm">
 							{COMMITS.length} commits merged between Mar 3 and 9
 						</span>
-						<span className="font-mono text-[11px] text-muted-foreground/60 sm:text-xs">
-							Reading the ones around the drop
-						</span>
 					</Reveal>
 					<div className="flex flex-col gap-2">
 						<Reveal
@@ -1378,23 +1305,18 @@ export function CommitZoom() {
 	);
 }
 
-const SLACK_EVENTS = [1.5, 2.3, 3.1] as const;
+const SLACK_EVENTS = [2.2] as const;
 
 export function SlackThread() {
-	const { ref, step } = useTimeline(SLACK_EVENTS, 7.4);
-	const friday = step >= 1;
-	const replied = step >= 2;
-	const explained = step >= 3;
+	const { ref, step } = useTimeline(SLACK_EVENTS, 6.4);
+	const replied = step >= 1;
 	return (
 		<MotionConfig reducedMotion="user">
 			<div className={FRAME} ref={ref}>
-				<div className="flex items-center justify-between gap-4 border-white/[0.06] border-b px-5 py-3 sm:px-6">
+				<div className="border-white/[0.06] border-b px-5 py-3 sm:px-6">
 					<span className="font-mono text-foreground text-xs sm:text-sm">
 						# analytics
 					</span>
-					<StatusLine tone="muted">
-						{friday ? "Friday" : "Wednesday"}
-					</StatusLine>
 				</div>
 				<div className="grid">
 					<div className="flex gap-3 px-5 py-5 sm:px-6">
@@ -1411,17 +1333,10 @@ export function SlackThread() {
 								<span className="font-semibold text-foreground text-sm">
 									Databuddy
 								</span>
-								<span className="bg-white/[0.06] px-1 font-mono text-[9px] text-muted-foreground uppercase">
-									App
-								</span>
 								<span className="font-mono text-[11px] text-muted-foreground">
 									Wed 9:00
 								</span>
 							</div>
-							<span className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
-								<span className="size-2 bg-red-500" />
-								Action · Signup funnel
-							</span>
 							<p className="font-medium text-foreground text-sm sm:text-base">
 								Signup completion fell 18% after Tuesday's copy change
 							</p>
@@ -1456,12 +1371,6 @@ export function SlackThread() {
 						</div>
 					</div>
 					<div className="flex flex-col gap-3 border-white/[0.06] border-t px-5 py-5 sm:px-6">
-						<span className="font-mono text-[11px] text-muted-foreground">
-							Thread
-						</span>
-						<p className="truncate text-muted-foreground text-xs">
-							Signup completion fell 18% after Tuesday's copy change
-						</p>
 						<Reveal className="flex gap-2.5" shown={replied}>
 							<Image
 								alt=""
@@ -1482,13 +1391,6 @@ export function SlackThread() {
 							</div>
 						</Reveal>
 					</div>
-				</div>
-				<div className="flex h-11 items-center border-white/[0.06] border-t px-5 sm:px-6">
-					<StatusLine tone={explained ? "amber" : "muted"}>
-						{explained
-							? "Same problem, same thread. The channel stays quiet."
-							: "A new problem gets one post"}
-					</StatusLine>
 				</div>
 			</div>
 		</MotionConfig>
@@ -1529,13 +1431,10 @@ export function FixVerify() {
 	return (
 		<MotionConfig reducedMotion="user">
 			<div className={FRAME} ref={ref}>
-				<div className="flex items-center justify-between gap-4 border-white/[0.06] border-b px-5 py-3 sm:px-6">
+				<div className="border-white/[0.06] border-b px-5 py-3 sm:px-6">
 					<span className="font-medium text-foreground text-sm">
 						Upgrade funnel
 					</span>
-					<StatusLine tone={verified ? "emerald" : "amber"}>
-						{verified ? "Verified" : "Needs attention"}
-					</StatusLine>
 				</div>
 				<ol className="flex flex-col gap-2.5 px-5 py-4 sm:px-6">
 					{FUNNEL_STEPS.map((funnelStep, order) => (
@@ -1597,9 +1496,6 @@ export function FixVerify() {
 							Step 3 points at /checkout/pay, which stopped getting traffic on
 							Mar 4. Checkout moved to /checkout/payment.
 						</p>
-						<p className="font-mono text-[11px] text-muted-foreground sm:text-xs">
-							Check: funnel converts above 20% · 50+ entrants · 3 days
-						</p>
 						<motion.span
 							animate={applied ? { scale: [1, 0.94, 1] } : { scale: 1 }}
 							className={cn(
@@ -1629,11 +1525,6 @@ export function FixVerify() {
 							}
 						/>
 					</div>
-					<div className="flex justify-between font-mono text-[11px] text-muted-foreground">
-						<span>Day 1</span>
-						<span>Day 2</span>
-						<span>Day 3</span>
-					</div>
 					<div className="flex h-5 items-center">{status}</div>
 				</div>
 			</div>
@@ -1642,7 +1533,7 @@ export function FixVerify() {
 }
 
 const QUESTION = "Which referrers brought paying customers last month?";
-const TOOL_STEPS = ["revenue by referrer · last 30 days"] as const;
+const TOOL_STEPS = ["revenue by referrer, last 30 days"] as const;
 const CHAT_EVENTS = [0.9, 1.6, 2.6, 3.1, 4.1] as const;
 const SQL = [
 	"SELECT referrer_name AS name,",
@@ -1693,9 +1584,6 @@ export function ChatQuery() {
 								Databunny
 							</span>
 						</span>
-						<StatusLine tone={answered ? "emerald" : "amber"}>
-							{answered ? "Answered" : "Working"}
-						</StatusLine>
 					</div>
 					{TOOL_STEPS.map((label, order) => (
 						<div className="flex flex-col gap-2" key={label}>
@@ -1707,9 +1595,7 @@ export function ChatQuery() {
 									)}
 								/>
 								<span className="text-foreground">get_data</span>
-								<span className="truncate text-muted-foreground">
-									{withDots(label)}
-								</span>
+								<span className="truncate text-muted-foreground">{label}</span>
 								{order === 0 && (
 									<span
 										className={cn(

@@ -1,11 +1,6 @@
 "use client";
 
-import {
-	ArrowRightIcon,
-	CheckIcon,
-	PlugIcon,
-	RobotIcon,
-} from "@databuddy/ui/icons";
+import { ArrowRightIcon, CheckIcon, PlugIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SectionBullet } from "../icons/section-bullet";
@@ -14,15 +9,6 @@ import { EASE } from "./demo-constants";
 import { CardChrome, useRevealOnScroll } from "./demo-primitives";
 import { SciFiButton } from "./scifi-btn";
 import { cn } from "@/lib/utils";
-
-const MCP_CLIENTS = [
-	"Claude Code",
-	"Claude Desktop",
-	"Cursor",
-	"Windsurf",
-	"VS Code",
-	"Zed",
-] as const;
 
 function revealStyle(visible: boolean, delayMs: number) {
 	return {
@@ -36,7 +22,7 @@ const TERMINAL_SCENARIOS = [
 		question:
 			"How did the launch land? Set up tracking for the new pricing page.",
 		calls: [
-			{ tool: "get_data", detail: "traffic and conversions · launch week" },
+			{ tool: "get_data", detail: "traffic and conversions, launch week" },
 			{
 				tool: "create_funnel",
 				detail: "/pricing → /checkout/payment → purchase",
@@ -51,9 +37,9 @@ const TERMINAL_SCENARIOS = [
 		calls: [
 			{
 				tool: "get_investigation",
-				detail: "checkout errors +180% · opened this morning",
+				detail: "checkout errors +180%, opened this morning",
 			},
-			{ tool: "get_data", detail: "errors by device · past 24h" },
+			{ tool: "get_data", detail: "errors by device, past 24h" },
 			{ tool: "reply_to_investigation", detail: "rolled back in v2.14.1" },
 		],
 		answer:
@@ -150,22 +136,8 @@ export function McpTerminalDemo() {
 		<div aria-hidden className="relative mt-3 w-full" ref={ref}>
 			<CardChrome className="overflow-hidden">
 				<div className="flex items-center gap-2 border-white/[0.06] border-b px-3 py-2">
-					<span className="flex gap-1.5">
-						<span className="size-2 rounded-full bg-red-500/60" />
-						<span className="size-2 rounded-full bg-amber-500/60" />
-						<span className="size-2 rounded-full bg-emerald-500/60" />
-					</span>
 					<span className="font-mono text-[10px] text-muted-foreground">
 						your agent
-					</span>
-					<span className="ml-auto inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] text-emerald-400">
-						<span
-							className={cn(
-								"size-1.5 rounded-full bg-emerald-400",
-								visible && "animate-pulse motion-reduce:animate-none"
-							)}
-						/>
-						databuddy · scoped key
 					</span>
 				</div>
 				<div
@@ -246,19 +218,13 @@ export function AiSection() {
 					<span className="text-foreground">A morning read, not a pager.</span>
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
-					Every morning, Databunny compares your metrics with recent history.
-					When something really moves, it investigates across your data, code,
-					and revenue and tells you what to do. Actions and questions land in
-					Slack with the evidence behind them.
+					Every morning, Databunny checks your metrics. When something really
+					moves, it finds out why and tells you what to do, in Slack.
 				</p>
 			</div>
 
 			<InvestigationStage />
-			<div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-				<span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground uppercase tracking-widest">
-					<RobotIcon className="size-3.5 text-violet-400" />
-					Proactive · Business and Scale
-				</span>
+			<div className="mt-4 flex justify-end">
 				<Link
 					className="inline-flex items-center gap-1 text-foreground text-sm transition-opacity hover:opacity-80"
 					href="/databunny"
@@ -270,29 +236,14 @@ export function AiSection() {
 
 			<div className="mt-16 grid grid-cols-1 items-center gap-8 lg:mt-24 lg:grid-cols-[2fr_3fr] lg:gap-12">
 				<div className="flex flex-col">
-					<span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground uppercase tracking-widest">
-						<PlugIcon className="size-3.5 text-violet-400" />
-						MCP
-					</span>
-					<h3 className="mt-2 font-semibold text-foreground text-lg sm:text-xl">
+					<h3 className="font-semibold text-foreground text-lg sm:text-xl">
 						Analytics run by your agent
 					</h3>
 					<p className="mt-1.5 max-w-xl text-muted-foreground text-sm">
 						Connect Claude Code, Cursor, or any MCP client with a scoped key.
-						Your agent can query live traffic, triage errors, create goals,
-						funnels, and flags, and pick up any investigation Databunny opened.
-						It gets exactly the permissions you grant.
+						Your agent can query traffic, read investigations, and create goals,
+						funnels, and flags.
 					</p>
-					<div className="mt-4 flex flex-wrap gap-1.5">
-						{MCP_CLIENTS.map((client) => (
-							<span
-								className="rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-muted-foreground text-xs"
-								key={client}
-							>
-								{client}
-							</span>
-						))}
-					</div>
 					<div className="mt-5 flex flex-wrap items-center gap-4">
 						<SciFiButton asChild>
 							<Link href="/docs/api/mcp">Set up MCP</Link>

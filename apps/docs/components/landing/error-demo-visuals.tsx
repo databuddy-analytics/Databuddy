@@ -9,15 +9,11 @@ import {
 	StatusLine,
 	pseudoRandom,
 	useTimeline,
-	withDots,
 } from "@/components/landing/demo-primitives";
 import { cn } from "@/lib/utils";
 
 const TYPE_ERROR = {
 	message: "TypeError: Cannot read properties of undefined (reading 'map')",
-	page: "/checkout",
-	where: "app-3f2c1.js:1:48213",
-	browser: "Safari 18 · iOS",
 	occurrences: 486,
 	people: 312,
 } as const;
@@ -290,13 +286,6 @@ export function LoudVersusWide() {
 						</div>
 					</div>
 				</div>
-				<div className="flex h-12 items-center border-white/[0.06] border-t px-5 sm:px-6">
-					<StatusLine tone={decided ? "amber" : "muted"}>
-						{decided
-							? "Fix the one that hits more people"
-							: "Same kind of error, very different reach"}
-					</StatusLine>
-				</div>
 			</div>
 		</MotionConfig>
 	);
@@ -307,28 +296,19 @@ const VISIT = [
 	{ time: "14:02:52", label: "Viewed /pricing", kind: "page" },
 	{ time: "14:03:25", label: "Viewed /checkout", kind: "page" },
 	{ time: "14:03:28", label: TYPE_ERROR.message, kind: "error" },
-	{ time: "never reached", label: "/payment", kind: "ghost" },
-	{ time: "never happened", label: "Paid", kind: "ghost" },
+	{ time: "", label: "/payment", kind: "ghost" },
+	{ time: "", label: "Paid", kind: "ghost" },
 ] as const;
-const VISIT_EVENTS = [...VISIT.map((_, index) => 0.6 + index * 0.6), 4.6];
+const VISIT_EVENTS = VISIT.map((_, index) => 0.6 + index * 0.6);
 
 export function VisitTimeline() {
 	const { ref, step } = useTimeline(VISIT_EVENTS, 7.2);
-	const ended = step > VISIT.length;
 	return (
 		<MotionConfig reducedMotion="user">
 			<div className={FRAME} ref={ref}>
-				<div className="flex items-center justify-between gap-4 border-white/[0.06] border-b px-5 py-3 sm:px-6">
-					<div className="flex flex-col gap-0.5">
-						<span className="font-medium text-foreground text-sm">
-							One visit
-						</span>
-						<span className="font-mono text-[11px] text-muted-foreground">
-							{withDots("Safari · iPhone · Germany")}
-						</span>
-					</div>
-					<span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-						{ended ? "14:13:28" : "14:03:28"}
+				<div className="border-white/[0.06] border-b px-5 py-3 sm:px-6">
+					<span className="font-medium text-foreground text-sm">
+						One visit, Safari on iPhone
 					</span>
 				</div>
 				<ol className="relative flex flex-col gap-3.5 px-5 py-5 sm:px-6">
@@ -367,23 +347,16 @@ export function VisitTimeline() {
 									>
 										{entry.label}
 									</span>
-									<span className="font-mono text-[11px] text-muted-foreground">
-										{isError
-											? `${entry.time} · ${TYPE_ERROR.where}`
-											: entry.time}
-									</span>
+									{entry.time && (
+										<span className="font-mono text-[11px] text-muted-foreground">
+											{entry.time}
+										</span>
+									)}
 								</div>
 							</motion.li>
 						);
 					})}
 				</ol>
-				<div className="flex h-12 items-center border-white/[0.06] border-t px-5 sm:px-6">
-					<StatusLine tone={ended ? "red" : "muted"}>
-						{ended
-							? "Ten minutes later, the visit ended at /checkout"
-							: "Visit in progress"}
-					</StatusLine>
-				</div>
 			</div>
 		</MotionConfig>
 	);
@@ -399,7 +372,6 @@ const SESSION_CELLS = Array.from(
 	(_, index) => index
 );
 const KEPT_EVENTS = [0.8, 1.8, 2.8, 3.8, 5] as const;
-const PER_HUNDRED = "fewer out of every 100 kept going";
 
 export function KeptGoing() {
 	const { ref, step } = useTimeline(KEPT_EVENTS, 8.4);
@@ -414,12 +386,6 @@ export function KeptGoing() {
 		status = "Resolved";
 	} else if (posted) {
 		status = "Posted to #analytics";
-	}
-	let story = "Each dot is 1 in 100 visits";
-	if (resolved) {
-		story = "Fixed Friday. No one has hit it since.";
-	} else if (measured) {
-		story = `${gap} ${PER_HUNDRED}`;
 	}
 	return (
 		<MotionConfig reducedMotion="user">
@@ -436,18 +402,10 @@ export function KeptGoing() {
 						<span className="font-medium text-foreground text-sm">
 							Databunny
 						</span>
-						<span className="hidden text-muted-foreground text-xs sm:inline">
-							Business and Scale
-						</span>
 					</span>
 					<StatusLine tone={resolved ? "emerald" : "amber"}>
 						{status}
 					</StatusLine>
-				</div>
-				<div className="flex flex-col gap-2 px-5 pt-5 sm:px-6 sm:pt-6">
-					<p className="font-semibold text-foreground text-lg tracking-tight sm:text-2xl">
-						312 people hit this error. Did they keep going?
-					</p>
 				</div>
 				<div className="grid gap-8 px-5 py-6 sm:grid-cols-2 sm:gap-12 sm:px-6 lg:grid-cols-[auto_auto_1fr]">
 					{SESSION_GRIDS.map((grid, gridIndex) => {
@@ -498,9 +456,6 @@ export function KeptGoing() {
 										);
 									})}
 								</div>
-								<span className="text-muted-foreground text-xs">
-									kept going
-								</span>
 							</div>
 						);
 					})}
@@ -514,19 +469,12 @@ export function KeptGoing() {
 							{gap}
 						</span>
 						<span className="text-foreground text-sm sm:text-base">
-							{PER_HUNDRED}
+							fewer out of every 100 kept going
 						</span>
 						<span className="text-muted-foreground text-xs">
 							Compared with visits on the same page, day, and device.
 						</span>
 					</motion.div>
-				</div>
-				<div className="flex h-12 items-center border-white/[0.06] border-t px-5 sm:px-6">
-					<StatusLine
-						tone={resolved ? "emerald" : measured ? "amber" : "muted"}
-					>
-						{story}
-					</StatusLine>
 				</div>
 			</div>
 		</MotionConfig>
@@ -555,16 +503,11 @@ export function NoiseGate() {
 	const { ref, step } = useTimeline(NOISE_EVENTS, 7.2);
 	const added = step >= 1;
 	const sent = Math.max(0, step - 1);
-	const arrived = PILLS.slice(0, sent);
-	const real = arrived.filter((pill) => !pill.noise).length;
 	return (
 		<MotionConfig reducedMotion="user">
 			<div className={FRAME} ref={ref}>
 				<div className="flex items-center justify-between gap-4 border-white/[0.06] border-b px-5 py-3 sm:px-6">
 					<span className="font-mono text-foreground text-xs">index.html</span>
-					<span className="font-mono text-[11px] text-muted-foreground">
-						or &lt;Databuddy trackErrors /&gt;
-					</span>
 				</div>
 				<pre className="flex flex-col px-5 py-4 font-mono text-[11px] leading-6 sm:px-6 sm:text-xs">
 					{SNIPPET.map((line) =>
@@ -647,13 +590,6 @@ export function NoiseGate() {
 						);
 					})}
 				</ul>
-				<div className="flex h-12 items-center border-white/[0.06] border-t px-5 sm:px-6">
-					<StatusLine tone={sent > 0 ? "emerald" : "muted"}>
-						{sent > 0
-							? `${real} real errors in, ${arrived.length - real} filtered out`
-							: "Add one line to start"}
-					</StatusLine>
-				</div>
 			</div>
 		</MotionConfig>
 	);

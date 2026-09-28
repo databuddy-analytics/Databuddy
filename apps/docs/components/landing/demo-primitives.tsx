@@ -15,6 +15,8 @@ import { Button } from "@databuddy/ui";
 import { flush, track } from "@databuddy/sdk";
 import { cn } from "@/lib/utils";
 
+import { SECTION_SPACING } from "@/components/landing/demo-constants";
+
 export {
 	EASE,
 	TH,
@@ -216,21 +218,6 @@ export const pseudoRandom = (seed: string) => {
 
 export const rounded = (value: number) => Math.round(value * 100) / 100;
 
-export const withDots = (text: string) =>
-	text
-		.split("·")
-		.map((part, position) => ({ part, position }))
-		.flatMap(({ part, position }) =>
-			position === 0
-				? [part]
-				: [
-						<span className="font-sans" key={position}>
-							·
-						</span>,
-						part,
-					]
-		);
-
 export const toPath = (points: [number, number][]) =>
 	`M ${points.map(([x, y]) => `${rounded(x)} ${rounded(y)}`).join(" L ")}`;
 
@@ -364,24 +351,22 @@ export function Reveal({
 export function FeatureRow({
 	id,
 	title,
-	titleMuted,
 	body,
-	points,
 	visual,
 	flip = false,
-	children,
 }: {
 	id: string;
 	title: string;
-	titleMuted: string;
 	body: string;
-	points: readonly string[];
 	visual: ReactNode;
 	flip?: boolean;
-	children?: ReactNode;
 }) {
 	return (
-		<Section className="border-border border-b" id={id}>
+		<Section
+			className={cn("border-border border-b", SECTION_SPACING)}
+			customPaddings
+			id={id}
+		>
 			<div
 				className={cn(
 					container,
@@ -390,20 +375,11 @@ export function FeatureRow({
 			>
 				<div className={cn("flex flex-col", flip && "lg:order-2")}>
 					<h2 className="text-balance font-semibold text-3xl leading-tight sm:text-4xl">
-						{title} <span className="text-muted-foreground">{titleMuted}</span>
+						{title}
 					</h2>
 					<p className="mt-3 max-w-xl text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
 						{body}
 					</p>
-					<ul className="mt-6 flex flex-col gap-2.5">
-						{points.map((point) => (
-							<li className="flex gap-3 text-foreground/90 text-sm" key={point}>
-								<span className="mt-1.5 size-1.5 shrink-0 bg-brand-amber" />
-								{point}
-							</li>
-						))}
-					</ul>
-					{children}
 				</div>
 				<div className="min-w-0">{visual}</div>
 			</div>

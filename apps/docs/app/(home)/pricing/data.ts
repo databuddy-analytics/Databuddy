@@ -199,26 +199,3 @@ export const RAW_PLANS: RawPlan[] = [
 		items: [{ type: "enterprise" }],
 	},
 ];
-
-const planItems = (planId: string) =>
-	RAW_PLANS.find((plan) => plan.id === planId)?.items ?? [];
-
-export const planMonthlyPrice = (planId: string) => {
-	for (const item of planItems(planId)) {
-		if (item.type === "price") {
-			return item.price;
-		}
-	}
-};
-
-export const planIncludedEvents = (planId: string) => {
-	for (const item of planItems(planId)) {
-		if (
-			item.type === "priced_feature" &&
-			item.feature_id === "events" &&
-			typeof item.included_usage === "number"
-		) {
-			return item.included_usage;
-		}
-	}
-};
