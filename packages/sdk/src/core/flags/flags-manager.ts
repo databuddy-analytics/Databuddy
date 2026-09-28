@@ -129,19 +129,20 @@ export abstract class BaseFlagsManager implements FlagsManager {
 
 	protected onFlagEvaluated(_key: string, _result: FlagResult): void {}
 
+	protected shouldFetchOnInit(): boolean {
+		return Boolean(this.config.autoFetch && !this.config.isPending);
+	}
+
 	protected async runInit(): Promise<void> {
-		if (this.storage && !this.config.skipStorage) {
-			this.hydrate();
-		}
-		if (this.config.autoFetch && !this.config.isPending) {
+		if (this.shouldFetchOnInit()) {
 			await this.fetchAllFlags();
 		}
 		this.ready = true;
 		this.emit();
 	}
 
-	private hydrate(): void {
-		if (!this.storage) {
+	protected hydrate(): void {
+		if (!this.storage || this.config.skipStorage) {
 			return;
 		}
 		try {
@@ -836,16 +837,22 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 		this.config.user = this.enrichUser(this.config.user ?? {});
 		this.config.autoFetch = options.config.autoFetch !== false;
 		this.loadOverrides();
+		this.hydrate();
+		if (!this.shouldFetchOnInit()) {
+			this.runInit();
+		}
 	}
 
-	// React builds managers in renders it may discard; only a mounted owner starts one.
+	// React builds managers in renders it may discard; only a mounted owner fetches.
 	start(): void {
 		if (this.started) {
 			return;
 		}
 		this.started = true;
 		this.setupVisibilityListener();
-		this.runInit();
+		if (this.shouldFetchOnInit()) {
+			this.runInit();
+		}
 	}
 
 	protected override onOverridesChanged(): void {
@@ -1000,6 +1007,7 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 		if (typeof document === "undefined") {
 			return;
 		}
+		this.isVisible = document.visibilityState === "visible";
 		const handler = (): void => {
 			this.isVisible = document.visibilityState === "visible";
 			if (this.isVisible) {
