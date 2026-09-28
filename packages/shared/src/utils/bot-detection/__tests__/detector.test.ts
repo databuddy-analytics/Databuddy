@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { AI_AGENT_CLASSIFICATION, AI_AGENTS, matchAiAgent } from "../ai-agents";
+import {
+	AI_AGENT_CLASSIFICATION,
+	AI_AGENTS,
+	identifyAiAgent,
+	matchAiAgent,
+} from "../ai-agents";
 import { detectBot } from "../detector";
 import { BotAction, BotCategory } from "../types";
 import { extractBotName, matchCategory, parseUserAgent } from "../user-agent";
@@ -455,5 +460,57 @@ describe("AI agent registry", () => {
 		],
 	])("attributes %s to %p", (userAgent, product) => {
 		expect(matchAiAgent(userAgent)?.product ?? null).toBe(product);
+	});
+});
+
+describe("identifyAiAgent", () => {
+	const CHROME =
+		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+	const AHREFS =
+		"Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)";
+
+	it.each([
+		[
+			"a known user agent",
+			{
+				userAgent:
+					"Claude-User (claude-code/2.1.280; +https://support.anthropic.com/)",
+			},
+			undefined,
+			"claude-code",
+		],
+		[
+			"a registered signer",
+			{ signatureAgent: '"https://chatgpt.com"', userAgent: CHROME },
+			undefined,
+			"chatgpt-agent",
+		],
+		[
+			"an unknown signer, by domain",
+			{ signatureAgent: '"https://agents.example.dev"', userAgent: CHROME },
+			undefined,
+			"agents.example.dev",
+		],
+		[
+			"a named SEO bot that signs",
+			{ signatureAgent: '"https://ahrefs.com"', userAgent: AHREFS },
+			BotCategory.SEO_TOOL,
+			null,
+		],
+		[
+			"a library asking for markdown first",
+			{ accept: "text/markdown, */*", userAgent: "axios/1.7.2" },
+			BotCategory.SCRAPER,
+			"unidentified:axios",
+		],
+		[
+			"a library excluding markdown with q=0",
+			{ accept: "text/markdown;q=0, text/html", userAgent: "axios/1.7.2" },
+			BotCategory.SCRAPER,
+			null,
+		],
+		["a browser", { accept: "text/html", userAgent: CHROME }, undefined, null],
+	])("identifies %s", (_case, signals, category, expected) => {
+		expect(identifyAiAgent(signals, category)?.id ?? null).toBe(expected);
 	});
 });

@@ -112,10 +112,7 @@ function robotsAccessFor(
 	const isRootBlocked = rules.some(
 		(rule) => !rule.isAllow && ROBOTS_ROOT_PATHS.has(rule.path)
 	);
-	const isRootAllowed = rules.some(
-		(rule) => rule.isAllow && ROBOTS_ROOT_PATHS.has(rule.path)
-	);
-	if (isRootBlocked && !isRootAllowed) {
+	if (isRootBlocked && !rules.some((rule) => rule.isAllow)) {
 		return "blocked";
 	}
 	return rules.some((rule) => !rule.isAllow) ? "partial" : "allowed";
@@ -130,7 +127,8 @@ const fetchRobotsTxt = cacheable(
 			await response?.body?.cancel();
 			return null;
 		}
-		return (await response.text()).slice(0, ROBOTS_MAX_BYTES);
+		const robotsTxt = await response.text().catch(() => null);
+		return robotsTxt?.slice(0, ROBOTS_MAX_BYTES) ?? null;
 	},
 	{ expireInSec: 600, prefix: "robots_txt" }
 );

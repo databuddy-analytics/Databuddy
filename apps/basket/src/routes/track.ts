@@ -18,16 +18,12 @@ import { runFork, send } from "@lib/producer";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { redis } from "@databuddy/redis/redis";
 import {
-	isMarkdownFirstAccept,
-	matchSignedAgent,
+	agentBotCategory,
+	identifyAiAgent,
 	setupCheckKey,
 	setupCheckNonce,
-	unidentifiedAgent,
 } from "@databuddy/shared/bot-detection/ai-agents";
-import {
-	BotCategory,
-	CONTENT_FORMATS,
-} from "@databuddy/shared/bot-detection/types";
+import { CONTENT_FORMATS } from "@databuddy/shared/bot-detection/types";
 import {
 	checkForBot,
 	getWebsiteSecuritySettings,
@@ -55,13 +51,6 @@ import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
 import { z } from "zod";
 import { type TrackEventPayload, trackEventSchema } from "./track-event-schema";
-
-const NAMED_NON_AI_BOT_CATEGORIES = new Set<BotCategory>([
-	BotCategory.MONITORING,
-	BotCategory.SEARCH_ENGINE,
-	BotCategory.SEO_TOOL,
-	BotCategory.SOCIAL_MEDIA,
-]);
 
 function truncated(maxLength: number) {
 	return z.string().transform((value) => value.slice(0, maxLength));
@@ -482,15 +471,20 @@ export const trackRoute = new Elysia()
 			const hit = parsed.data;
 			log.set({ websiteId: hit.websiteId, host: hit.host });
 
-			const website = await getWebsiteByIdV2(hit.websiteId);
-			if (!website) {
+			const website = await getWebsiteByIdV2(hit.websiteId).catch(() => {
+				log.set({ website_lookup: "unavailable" });
+				return;
+			});
+			if (website === null) {
 				throw basketErrors.trackWebsiteNotFound();
 			}
-			const allowedOrigins = getWebsiteSecuritySettings(
-				website.settings
-			)?.allowedOrigins;
 			if (
-				!isOriginAllowed(`https://${hit.host}`, website.domain, allowedOrigins)
+				website &&
+				!isOriginAllowed(
+					`https://${hit.host}`,
+					website.domain,
+					getWebsiteSecuritySettings(website.settings)?.allowedOrigins
+				)
 			) {
 				log.set({ rejected: "host_not_authorized" });
 				throw basketErrors.ingestOriginNotAuthorized();
@@ -508,19 +502,7 @@ export const trackRoute = new Elysia()
 			}
 
 			const { botName, result } = detectBot(hit.userAgent, request);
-			const isNamedOtherBot =
-				result?.category !== undefined &&
-				NAMED_NON_AI_BOT_CATEGORIES.has(result.category);
-			const agent =
-				result?.agent ??
-				(isNamedOtherBot
-					? null
-					: ((hit.signatureAgent
-							? matchSignedAgent(hit.signatureAgent)
-							: null) ??
-						(hit.accept && isMarkdownFirstAccept(hit.accept)
-							? unidentifiedAgent(hit.userAgent)
-							: null)));
+			const agent = identifyAiAgent(hit, result?.category);
 			log.set({
 				bot: {
 					name: botName,
@@ -533,10 +515,9 @@ export const trackRoute = new Elysia()
 			const span: AiTrafficSpansInsert = {
 				client_id: hit.websiteId,
 				timestamp: Date.now(),
-				bot_type:
-					result?.agent || !agent
-						? (result?.category ?? "unknown")
-						: "ai_assistant",
+				bot_type: agent
+					? agentBotCategory(agent)
+					: (result?.category ?? "unknown"),
 				bot_name: botName ?? agent?.operator ?? "",
 				user_agent: hit.userAgent,
 				path: hit.path,
@@ -547,6 +528,7 @@ export const trackRoute = new Elysia()
 				agent_id: agent?.id ?? "",
 				agent_purpose: agent?.purpose ?? "",
 				source: "middleware",
+				verification: website ? "" : "host_unchecked",
 			};
 			runFork(send("analytics-ai-traffic-spans", span));
 

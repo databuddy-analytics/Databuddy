@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { AI_PRODUCT_BY_OPERATOR, type AgentPurpose } from "./types";
+import {
+	AI_PRODUCT_BY_OPERATOR,
+	type AgentPurpose,
+	BotCategory,
+} from "./types";
 import wellKnownBots from "./well-known-bots.json";
 
 export const AI_AGENT_CLASSIFICATION: Record<
@@ -227,7 +231,13 @@ export function matchAiAgent(userAgent: string): AiAgent | null {
 	);
 }
 
-export function matchSignedAgent(signatureAgent: string): AiAgent | null {
+export function agentBotCategory(agent: AiAgent): BotCategory {
+	return agent.purpose === "training" || agent.purpose === "search_index"
+		? BotCategory.AI_CRAWLER
+		: BotCategory.AI_ASSISTANT;
+}
+
+function matchSignedAgent(signatureAgent: string): AiAgent | null {
 	const host = URL.parse(signatureAgent.replaceAll('"', "").trim())?.hostname;
 	if (!host) {
 		return null;
@@ -257,7 +267,7 @@ export function isMarkdownFirstAccept(accept: string): boolean {
 	return MARKDOWN_MEDIA_TYPE.test(first) && !ZERO_QUALITY.test(first);
 }
 
-export function unidentifiedAgent(userAgent: string): AiAgent {
+function unidentifiedAgent(userAgent: string): AiAgent {
 	const token =
 		USER_AGENT_TOKEN.exec(userAgent.trim())?.[0].toLowerCase() || "unknown";
 	return {
@@ -269,6 +279,39 @@ export function unidentifiedAgent(userAgent: string): AiAgent {
 		product: UNIDENTIFIED_AGENTS_PRODUCT,
 		purpose: "agent",
 	};
+}
+
+const NAMED_NON_AI_BOT_CATEGORIES = new Set<BotCategory>([
+	BotCategory.MONITORING,
+	BotCategory.SEARCH_ENGINE,
+	BotCategory.SEO_TOOL,
+	BotCategory.SOCIAL_MEDIA,
+]);
+
+export interface AgentSignals {
+	accept?: string;
+	signatureAgent?: string;
+	userAgent: string;
+}
+
+export function identifyAiAgent(
+	{ accept, signatureAgent, userAgent }: AgentSignals,
+	botCategory?: BotCategory
+): AiAgent | null {
+	const known = matchAiAgent(userAgent);
+	if (known) {
+		return known;
+	}
+	if (botCategory && NAMED_NON_AI_BOT_CATEGORIES.has(botCategory)) {
+		return null;
+	}
+	const signed = signatureAgent ? matchSignedAgent(signatureAgent) : null;
+	if (signed) {
+		return signed;
+	}
+	return accept && isMarkdownFirstAccept(accept)
+		? unidentifiedAgent(userAgent)
+		: null;
 }
 
 const SETUP_CHECK_TOKEN = /DatabuddySetupCheck\/([\w-]{1,64})/;
