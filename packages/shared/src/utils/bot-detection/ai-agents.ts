@@ -245,6 +245,30 @@ export function matchSignedAgent(signatureAgent: string): AiAgent | null {
 	);
 }
 
+const MARKDOWN_FIRST_ACCEPT = /^\s*text\/(?:x-)?markdown\b/i;
+const USER_AGENT_TOKEN = /^[\w.-]{1,40}/;
+
+export const UNIDENTIFIED_AGENT_PREFIX = "unidentified:";
+export const UNIDENTIFIED_AGENTS_PRODUCT = "Unidentified agents";
+
+export function isMarkdownFirstAccept(accept: string): boolean {
+	return MARKDOWN_FIRST_ACCEPT.test(accept);
+}
+
+export function unidentifiedAgent(userAgent: string): AiAgent {
+	const token =
+		USER_AGENT_TOKEN.exec(userAgent.trim())?.[0].toLowerCase() || "unknown";
+	return {
+		excludePatterns: [],
+		id: `${UNIDENTIFIED_AGENT_PREFIX}${token}`,
+		name: token,
+		operator: UNIDENTIFIED_AGENTS_PRODUCT,
+		patterns: [],
+		product: UNIDENTIFIED_AGENTS_PRODUCT,
+		purpose: "agent",
+	};
+}
+
 const SETUP_CHECK_TOKEN = /DatabuddySetupCheck\/([\w-]{1,64})/;
 
 export function setupCheckUserAgent(nonce: string): string {
