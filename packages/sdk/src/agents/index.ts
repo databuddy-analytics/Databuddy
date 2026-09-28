@@ -72,20 +72,20 @@ function readAgentHit(
 	websiteId: string
 ): AgentHit | null {
 	const method = request.method ?? "GET";
+	if (method !== "GET" && method !== "HEAD") {
+		return null;
+	}
 	const userAgent = header(request, "user-agent");
 	const signatureAgent = header(request, "signature-agent");
 	const accept = header(request, "accept").slice(0, MAX_HEADER_LENGTH);
 	const isMarkdownFirstClient =
 		isMarkdownMediaType(accept.split(",")[0] ?? "") &&
 		!header(request, "sec-fetch-mode");
-	if (
-		!(
-			(method === "GET" || method === "HEAD") &&
-			(signatureAgent ||
-				isMarkdownFirstClient ||
-				AI_AGENT_USER_AGENT.test(userAgent))
-		)
-	) {
+	const isAgent =
+		signatureAgent !== "" ||
+		isMarkdownFirstClient ||
+		AI_AGENT_USER_AGENT.test(userAgent);
+	if (!isAgent) {
 		return null;
 	}
 	const url = new URL(
