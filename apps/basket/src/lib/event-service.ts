@@ -481,13 +481,13 @@ async function deliverItems<T>(
 		throw deliveryUnavailable(failure.reason);
 	}
 
-	const ownedElsewhere = reservations.filter(
+	const unreserved = reservations.filter(
 		(reservation) => reservation.retryable
 	).length;
-	if (ownedElsewhere > 0) {
+	if (unreserved > 0) {
 		throw deliveryUnavailable(
 			new Error(
-				`A concurrent attempt owns ${ownedElsewhere} of ${uniqueItems.length} events in this analytics batch`
+				`Could not reserve ${unreserved} of ${uniqueItems.length} events in this analytics batch`
 			)
 		);
 	}

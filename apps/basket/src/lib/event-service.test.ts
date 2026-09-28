@@ -341,7 +341,7 @@ describe("event-service producer handoff", () => {
 		expect(mockSendBatch).not.toHaveBeenCalled();
 	});
 
-	test("delivers owned items before rejecting the ones a concurrent attempt owns", async () => {
+	test("delivers reserved items before rejecting the unreserved ones", async () => {
 		mockReserveDuplicateBatch.mockImplementationOnce(async (inputs) =>
 			inputs.map(({ eventId, eventType }) =>
 				eventId === "a"
@@ -365,8 +365,7 @@ describe("event-service producer handoff", () => {
 			status: 503,
 			internal: {
 				cause: {
-					message:
-						"A concurrent attempt owns 1 of 2 events in this analytics batch",
+					message: "Could not reserve 1 of 2 events in this analytics batch",
 				},
 			},
 		});
