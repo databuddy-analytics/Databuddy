@@ -26,6 +26,7 @@ Privacy-first analytics SDK. Covers browser tracking, server-side events, featur
 | \`@databuddy/sdk/react\` | React/Next.js | \`<Databuddy />\` component, flags hooks, core re-exports |
 | \`@databuddy/sdk/node\` | Node.js/Server | \`Databuddy\` class (API-key auth), \`ServerFlagsManager\` |
 | \`@databuddy/sdk/vue\` | Vue 3 | \`<Databuddy />\` component, flags plugin and composables |
+| \`@databuddy/sdk/agents\` | Server proxy/middleware | \`trackAgents\` and a drop-in \`proxy\` that report AI crawlers and agents (GPTBot, ClaudeBot, Claude Code) |
 
 ## Quick Start
 
@@ -76,6 +77,17 @@ await client.track({
 
 await client.flush();
 \`\`\`
+
+### AI Agent Tracking (server-side, 3.0.0+)
+
+Crawlers and AI agents don't run JavaScript, so the browser script never sees them. Add one line on the server; no API key is needed:
+
+\`\`\`typescript
+// proxy.ts (Next.js 16). Next.js 15: middleware.ts with export { proxy as middleware }
+export { proxy } from "@databuddy/sdk/agents";
+\`\`\`
+
+It reads the website ID from \`NEXT_PUBLIC_DATABUDDY_CLIENT_ID\` (or \`DATABUDDY_WEBSITE_ID\`). Inside an existing proxy call \`event.waitUntil(trackAgents(request))\`; in Express, \`trackAgents(req)\` in a middleware. If the proxy has a \`matcher\`, don't exclude \`.md\` and \`.txt\` paths. Other stacks: https://www.databuddy.cc/docs/sdk/ai-agents.md
 
 ### Feature Flags (React)
 
