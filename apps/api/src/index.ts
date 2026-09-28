@@ -1,5 +1,5 @@
 import "./polyfills/compression";
-import { assertStorageConfigured } from "@databuddy/env/app";
+import { assertConfigured } from "@databuddy/env/app";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
 import cors from "@elysiajs/cors";
@@ -47,7 +47,7 @@ import { webhooks } from "./routes/webhooks/index";
 configureApiLogger();
 configureApiInstrumentation();
 registerProcessErrorHandlers();
-assertStorageConfigured();
+assertConfigured();
 
 const BUN_IDLE_TIMEOUT_SECONDS = 255;
 interface RequestContext {

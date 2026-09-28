@@ -1,5 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import { createConfig, readBooleanEnv } from "./app";
+import { assertConfigured, createConfig, readBooleanEnv } from "./app";
+
+const HOSTED = {
+	AUTUMN_SECRET_KEY: "am_sk_test",
+	BETTER_AUTH_SECRET: "a-secret-longer-than-32-characters-ok",
+	NODE_ENV: "production",
+};
 
 describe("createConfig", () => {
 	it("keeps production URL defaults local only when self-hosting", () => {
@@ -146,6 +152,50 @@ describe("createConfig", () => {
 				},
 			}
 		);
+	});
+});
+
+describe("assertConfigured", () => {
+	it("accepts a complete hosted production environment", () => {
+		expect(() => assertConfigured(HOSTED)).not.toThrow();
+	});
+
+	it("rejects an empty or missing secret instead of booting without it", () => {
+		expect(() =>
+			assertConfigured({ ...HOSTED, BETTER_AUTH_SECRET: "" })
+		).toThrow("BETTER_AUTH_SECRET is unset or empty");
+		expect(() =>
+			assertConfigured({ ...HOSTED, AUTUMN_SECRET_KEY: undefined })
+		).toThrow("AUTUMN_SECRET_KEY is unset or empty");
+	});
+
+	it("rejects a dashboard URL that falls back to loopback", () => {
+		expect(() =>
+			assertConfigured({ ...HOSTED, BETTER_AUTH_URL: "http://localhost:3000" })
+		).toThrow("DASHBOARD_URL resolves to http://localhost:3000");
+	});
+
+	it("requires only the auth secret when self-hosting on loopback", () => {
+		expect(() =>
+			assertConfigured({
+				BETTER_AUTH_SECRET: HOSTED.BETTER_AUTH_SECRET,
+				NODE_ENV: "production",
+				SELFHOST: "true",
+			})
+		).not.toThrow();
+		expect(() =>
+			assertConfigured({ NODE_ENV: "production", SELFHOST: "true" })
+		).toThrow("BETTER_AUTH_SECRET is unset or empty");
+	});
+
+	it("still rejects half-configured object storage", () => {
+		expect(() =>
+			assertConfigured({ ...HOSTED, AWS_ACCESS_KEY_ID: "only-the-id" })
+		).toThrow("Object storage is half-configured");
+	});
+
+	it("leaves development environments alone", () => {
+		expect(() => assertConfigured({})).not.toThrow();
 	});
 });
 
