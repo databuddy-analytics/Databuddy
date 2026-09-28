@@ -131,6 +131,7 @@ export function FeatureHero({
 	primaryLabel = "Start Free",
 	primaryHref = "https://app.databuddy.cc/register",
 	docsHref = "/docs",
+	secondaryLabel = "Read Docs",
 	badge,
 	footnote = "Free up to 10,000 events/mo. No credit card required.",
 	visual,
@@ -140,8 +141,9 @@ export function FeatureHero({
 	primaryLabel?: string;
 	primaryHref?: string;
 	docsHref?: string;
+	secondaryLabel?: string;
 	badge?: ReactNode;
-	footnote?: string | null;
+	footnote?: ReactNode;
 	visual?: ReactNode;
 }) {
 	const pathname = usePathname();
@@ -178,11 +180,11 @@ export function FeatureHero({
 							</a>
 						</Button>
 						<Button asChild variant="secondary">
-							<Link href={docsHref}>Read Docs</Link>
+							<Link href={docsHref}>{secondaryLabel}</Link>
 						</Button>
 					</div>
 					{footnote ? (
-						<p className="text-muted-foreground/60 text-xs">{footnote}</p>
+						<div className="text-muted-foreground text-xs">{footnote}</div>
 					) : null}
 				</div>
 				{visual}

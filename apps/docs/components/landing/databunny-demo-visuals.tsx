@@ -55,6 +55,7 @@ interface Incident {
 		outcomeValue: string;
 		why: string;
 	};
+	barsRise: boolean;
 	captionLead: string;
 	cause: { label: string; sha: string; time: string };
 	change: string;
@@ -68,30 +69,6 @@ interface Incident {
 
 const INCIDENTS: [Incident, ...Incident[]] = [
 	{
-		id: "checkout",
-		metric: "Checkout conversion",
-		change: "−37%",
-		findings: {
-			Funnels: "payment step −31% · iOS Safari",
-			Errors: "TypeError spike · /checkout/shipping",
-		},
-		lanes: [
-			{ title: "Funnels", sub: "payment step · iOS Safari" },
-			{ title: "Errors", sub: "/checkout/shipping" },
-		],
-		cause: { sha: "7c2e9f1", label: "address autocomplete", time: "13:58" },
-		captionLead: "Errors and the drop start the minute",
-		split: 28,
-		rises: false,
-		answer: {
-			headline: "A deploy broke checkout on iOS Safari",
-			why: "Address autocomplete throws a TypeError on Safari 18, so shoppers never reach payment.",
-			next: "Roll back address autocomplete",
-			outcomeLabel: "Checkout conversion, iOS Safari",
-			outcomeValue: "Back to 4.0%",
-		},
-	},
-	{
 		id: "signup",
 		metric: "Signup completion",
 		change: "−18%",
@@ -104,7 +81,8 @@ const INCIDENTS: [Incident, ...Incident[]] = [
 			{ title: "Events", sub: "verification_sent · mobile" },
 		],
 		cause: { sha: "a41f0c2", label: "verification copy", time: "09:12" },
-		captionLead: "Mobile drop-off starts the minute",
+		barsRise: false,
+		captionLead: "Mobile drop-off starts right after",
 		split: 34,
 		rises: false,
 		answer: {
@@ -113,6 +91,31 @@ const INCIDENTS: [Incident, ...Incident[]] = [
 			next: "Restore the shorter verification copy for mobile",
 			outcomeLabel: "Signup completion, mobile",
 			outcomeValue: "Back to 62%",
+		},
+	},
+	{
+		id: "checkout",
+		metric: "Checkout conversion",
+		change: "−37%",
+		findings: {
+			Funnels: "payment step −31% · iOS Safari",
+			Errors: "TypeError spike · /checkout/shipping",
+		},
+		lanes: [
+			{ title: "Funnels", sub: "payment step · iOS Safari" },
+			{ title: "Errors", sub: "/checkout/shipping" },
+		],
+		cause: { sha: "7c2e9f1", label: "address autocomplete", time: "13:58" },
+		barsRise: true,
+		captionLead: "Errors and the drop start the minute",
+		split: 28,
+		rises: false,
+		answer: {
+			headline: "A deploy broke checkout on iOS Safari",
+			why: "Address autocomplete throws a TypeError on Safari 18, so shoppers never reach payment.",
+			next: "Roll back address autocomplete",
+			outcomeLabel: "Checkout conversion, iOS Safari",
+			outcomeValue: "Back to 4.0%",
 		},
 	},
 	{
@@ -128,6 +131,7 @@ const INCIDENTS: [Incident, ...Incident[]] = [
 			{ title: "Funnels", sub: "plan step · /signup" },
 		],
 		cause: { sha: "e90b7d4", label: "pricing calculator", time: "16:40" },
+		barsRise: false,
 		captionLead: "INP climbs the minute",
 		split: 22,
 		rises: true,
@@ -279,7 +283,7 @@ function StatusLine({
 			<motion.span
 				animate={{ opacity: 1, y: 0 }}
 				className={cn(
-					"flex items-center gap-2 text-xs sm:text-sm",
+					"flex items-center gap-2 text-[12px] sm:text-sm",
 					tone === "amber" && "text-brand-amber",
 					tone === "red" && "text-red-500",
 					tone === "emerald" && "text-emerald-500",
@@ -458,7 +462,7 @@ function IncidentScan({
 							<motion.span
 								animate={{ opacity: done ? 1 : 0, x: done ? 0 : -6 }}
 								className={cn(
-									"font-mono text-xs sm:text-sm",
+									"font-mono text-[12px] sm:text-sm",
 									check.hit ? "text-foreground" : "text-muted-foreground/60"
 								)}
 								initial={false}
@@ -507,7 +511,13 @@ const pointAt = (incident: Incident, index: number) => {
 		y:
 			(incident.rises ? 72 - badness * 44 : 28 + badness * 44) +
 			(pseudoRandom(`${incident.id}-l${index}`) - 0.5) * 5,
-		bar: before ? 4 + height * 8 : 38 + height * 44,
+		bar: incident.barsRise
+			? before
+				? 4 + height * 8
+				: 38 + height * 44
+			: before
+				? 50 + height * 30
+				: 8 + height * 10,
 		before,
 	};
 };
@@ -797,7 +807,7 @@ const STAGE_PHASES: {
 	},
 	{
 		label: "Tells you what to do",
-		status: "Posted to #eng-alerts",
+		status: "Posted to #analytics",
 		seconds: 7.5,
 		Moment: IncidentAnswer,
 	},
@@ -832,7 +842,7 @@ export function InvestigationStage() {
 	const recovered =
 		useAfter(RECOVERED_AT + EXIT_SECONDS, step) &&
 		position === STAGE_PHASES.length - 1;
-	const status = recovered ? "Recovered" : phase?.status;
+	const status = recovered ? "Recovered after your fix" : phase?.status;
 	const incident = pick(INCIDENTS, Math.floor(step / STAGE_PHASES.length));
 	return (
 		<MotionConfig reducedMotion="user">
@@ -864,7 +874,7 @@ export function InvestigationStage() {
 								</span>
 								<span
 									className={cn(
-										"text-xs transition-colors duration-500 sm:text-sm",
+										"text-[12px] transition-colors duration-500 sm:text-sm",
 										order === position
 											? "text-foreground"
 											: "text-muted-foreground group-hover:text-foreground"
@@ -934,7 +944,7 @@ const WATCHED = [
 	{ id: "errors", label: "Errors · /checkout" },
 	{ id: "lcp", label: "LCP p75 · /pricing" },
 	{ id: "revenue", label: "Revenue · USD" },
-	{ id: "signups", label: "Signup goal" },
+	{ id: "signups", label: "Signup completion" },
 	{ id: "chatgpt", label: "ChatGPT referrals" },
 	{ id: "inp", label: "INP p75 · /signup" },
 ] as const;
@@ -949,9 +959,9 @@ interface Breakout {
 
 const BREAKOUTS: [Breakout, ...Breakout[]] = [
 	{
-		id: "checkout",
-		name: "the checkout funnel",
-		change: "−24%",
+		id: "signups",
+		name: "signup completion",
+		change: "−18%",
 		rises: false,
 		good: false,
 	},
@@ -997,7 +1007,7 @@ const anomalyAt = (id: string, day: number) => {
 	if (breakout.id !== id || offset < -1) {
 		return;
 	}
-	return { breakout, drift: offset === 0 ? 1 : 0.5 };
+	return { breakout, cycle, drift: offset === 0 ? 1 : 0.5 };
 };
 
 type BandTone = "calm" | "good" | "bad";
@@ -1006,19 +1016,22 @@ function BandRow({
 	id,
 	label,
 	end,
+	cycle,
 	dim,
 	flagged,
 }: {
 	id: string;
 	label: string;
 	end: number;
+	cycle: number;
 	dim: boolean;
 	flagged?: Breakout;
 }) {
 	const points = Array.from({ length: BAND_WINDOW + 1 }, (_, index) => {
 		const day = end - BAND_WINDOW + index;
 		const center = bandCenter(id, day);
-		const anomaly = anomalyAt(id, day);
+		const found = anomalyAt(id, day);
+		const anomaly = found?.cycle === cycle ? found : undefined;
 		const offset = anomaly
 			? (anomaly.breakout.rises ? -1 : 1) * 15 * anomaly.drift
 			: (pseudoRandom(`${id}-${day}`) - 0.5) * 7;
@@ -1064,7 +1077,7 @@ function BandRow({
 		<div
 			className={cn(
 				"grid grid-cols-[104px_1fr_48px] items-center gap-3 transition-opacity duration-500 sm:grid-cols-[150px_1fr_60px] sm:gap-4",
-				dim && "opacity-35"
+				dim && "opacity-50"
 			)}
 		>
 			<span
@@ -1113,7 +1126,7 @@ function BandRow({
 						? flagged.good
 							? "text-emerald-500"
 							: "text-red-500"
-						: "text-muted-foreground/50"
+						: "text-muted-foreground/70"
 				)}
 			>
 				{flagged ? flagged.change : "normal"}
@@ -1133,7 +1146,7 @@ export function BaselineBands() {
 	);
 	if (opened) {
 		status = (
-			<StatusLine tone="amber">{`Opened a case on ${breakout.name}`}</StatusLine>
+			<StatusLine tone="amber">{`Opened an investigation into ${breakout.name}`}</StatusLine>
 		);
 	} else if (found) {
 		status = (
@@ -1165,6 +1178,7 @@ export function BaselineBands() {
 				<div className="flex flex-col gap-2.5">
 					{WATCHED.map((metric) => (
 						<BandRow
+							cycle={cycle}
 							dim={found && metric.id !== breakout.id}
 							end={end}
 							flagged={
@@ -1198,21 +1212,21 @@ const WEEK_CHANGES = [
 		sent: false,
 	},
 	{
-		change: "Signups −9%",
-		context: "signup goal",
+		change: "Revenue +4%",
+		context: "all products",
 		verdict: "Within its usual swing",
 		sent: false,
 	},
 	{
-		change: "LCP +1.2 s",
-		context: "/pricing",
-		verdict: "Already open since Monday",
+		change: "Errors +2×",
+		context: "/settings",
+		verdict: "Investigating since Monday",
 		sent: false,
 	},
 	{
-		change: "Checkout conversion −37%",
-		context: "checkout funnel",
-		verdict: "Sent to #eng-alerts",
+		change: "Signup completion −18%",
+		context: "signup funnel",
+		verdict: "Sent to #analytics",
 		sent: true,
 	},
 	{
@@ -1242,7 +1256,7 @@ export function ChangeVerdicts() {
 						How Databunny decides
 					</span>
 					<span className="font-mono text-[11px] text-muted-foreground sm:text-xs">
-						weekly 9:00 run
+						daily run · Wed 9:00
 					</span>
 				</div>
 				<ul>
@@ -1250,11 +1264,8 @@ export function ChangeVerdicts() {
 						const done = index < step;
 						return (
 							<motion.li
-								animate={{ opacity: done && !row.sent ? 0.4 : 1 }}
 								className="relative grid grid-cols-[10px_1fr_auto] items-center gap-3 border-white/[0.04] border-b px-5 py-3 last:border-b-0 sm:grid-cols-[10px_1fr_150px_210px] sm:gap-4 sm:px-6"
-								initial={false}
 								key={row.change}
-								transition={REWIND}
 							>
 								<motion.span
 									animate={{ opacity: done && row.sent ? 1 : 0 }}
@@ -1273,18 +1284,28 @@ export function ChangeVerdicts() {
 										transition={{ duration: 0.3, ease: IN_OUT }}
 									/>
 								</span>
-								<span className="relative text-foreground text-sm">
+								<motion.span
+									animate={{ opacity: done && !row.sent ? 0.6 : 1 }}
+									className="relative text-foreground text-sm"
+									initial={false}
+									transition={REWIND}
+								>
 									{row.change}
-								</span>
-								<span className="relative hidden truncate font-mono text-muted-foreground text-xs sm:block">
+								</motion.span>
+								<motion.span
+									animate={{ opacity: done && !row.sent ? 0.6 : 1 }}
+									className="relative hidden truncate font-mono text-muted-foreground text-xs sm:block"
+									initial={false}
+									transition={REWIND}
+								>
 									{row.context}
-								</span>
+								</motion.span>
 								<span className="relative flex justify-end text-right">
 									<AnimatePresence initial={false} mode="wait">
 										<motion.span
 											animate={{ opacity: 1, x: 0 }}
 											className={cn(
-												"text-xs sm:text-sm",
+												"text-sm",
 												done && row.sent && "text-brand-amber",
 												done && !row.sent && "text-muted-foreground",
 												!done && "text-muted-foreground/40"
@@ -1304,7 +1325,7 @@ export function ChangeVerdicts() {
 				</ul>
 				<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-white/[0.06] border-t px-5 py-3 font-mono text-[11px] tabular-nums sm:px-6 sm:text-xs">
 					<span className="text-muted-foreground">
-						{judged.length} of {WEEK_CHANGES.length} checked
+						{judged.length} of {WEEK_CHANGES.length} changes checked
 					</span>
 					<span>
 						<span className="text-muted-foreground">
@@ -1330,7 +1351,7 @@ const COMMITS = [
 	{ sha: "c6e41b0", x: 44 },
 	{ sha: "e41c9a2", x: 49, labeled: true },
 	{ sha: "8d2f6c1", x: 54, labeled: true },
-	{ sha: "7c2e9f1", x: CAUSE_X, labeled: true },
+	{ sha: "a41f0c2", x: CAUSE_X, labeled: true },
 	{ sha: "2fd0b17", x: 63, labeled: true },
 	{ sha: "6a90d3e", x: 70 },
 	{ sha: "f13b8e5", x: 78 },
@@ -1346,9 +1367,9 @@ const CONVERSION = Array.from({ length: 80 }, (_, index): [number, number] => {
 });
 const CONVERSION_CUT = CONVERSION.findIndex(([x]) => x > CAUSE_X * 10 + 6);
 const DIFF = [
-	{ mark: "-", text: "const parts = place.address_components ?? []" },
-	{ mark: "+", text: "const parts = place.addressComponents.toArray()" },
-	{ mark: "+", text: "setAddress(parts.map(formatPart))" },
+	{ mark: "-", text: "<p>Check your inbox to continue.</p>" },
+	{ mark: "+", text: "<p>We sent a verification link to {email}.</p>" },
+	{ mark: "+", text: "<p>Open it on this device to finish setting up.</p>" },
 ] as const;
 
 export function CommitZoom() {
@@ -1365,7 +1386,7 @@ export function CommitZoom() {
 			<div className={FRAME} ref={ref}>
 				<div className="flex items-center justify-between gap-4 px-5 pt-5 sm:px-6 sm:pt-6">
 					<span className="font-medium text-foreground text-sm">
-						Checkout conversion
+						Signup completion
 					</span>
 					<span className="font-mono text-[11px] text-muted-foreground sm:text-xs">
 						Mar 3 to 9 · github
@@ -1468,13 +1489,13 @@ export function CommitZoom() {
 							shown={detailed}
 						>
 							<span className="font-mono text-brand-amber text-xs sm:text-sm">
-								7c2e9f1
+								a41f0c2
 							</span>
 							<span className="text-foreground text-sm">
-								address autocomplete, merged 13:52
+								verification copy, merged Tue 09:12
 							</span>
 							<span className="font-mono text-[11px] text-muted-foreground">
-								checkout/address-autocomplete.tsx
+								app/signup/verify.tsx
 							</span>
 						</Reveal>
 						<div className="flex flex-col gap-1 font-mono text-[11px] sm:text-xs">
@@ -1500,7 +1521,7 @@ export function CommitZoom() {
 						</div>
 						<Reveal className="pt-1" shown={concluded}>
 							<p className="text-muted-foreground text-sm">
-								Conversion started falling 6 minutes after this merge.
+								Mobile signups started falling right after this merge.
 							</p>
 						</Reveal>
 					</div>
@@ -1514,7 +1535,7 @@ const SLACK_EVENTS = [1.5, 2.3, 3.1] as const;
 
 export function SlackThread() {
 	const { ref, step } = useTimeline(SLACK_EVENTS, 7.4);
-	const thursday = step >= 1;
+	const friday = step >= 1;
 	const replied = step >= 2;
 	const explained = step >= 3;
 	return (
@@ -1522,13 +1543,13 @@ export function SlackThread() {
 			<div className={FRAME} ref={ref}>
 				<div className="flex items-center justify-between gap-4 border-white/[0.06] border-b px-5 py-3 sm:px-6">
 					<span className="font-mono text-foreground text-xs sm:text-sm">
-						# eng-alerts
+						# analytics
 					</span>
 					<StatusLine tone="muted">
-						{thursday ? "Thursday" : "Monday"}
+						{friday ? "Friday" : "Wednesday"}
 					</StatusLine>
 				</div>
-				<div className="grid sm:grid-cols-[3fr_2fr]">
+				<div className="grid">
 					<div className="flex gap-3 px-5 py-5 sm:px-6">
 						<Image
 							alt=""
@@ -1547,24 +1568,24 @@ export function SlackThread() {
 									App
 								</span>
 								<span className="font-mono text-[11px] text-muted-foreground">
-									Mon 9:02
+									Wed 9:00
 								</span>
 							</div>
 							<span className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
 								<span className="size-2 bg-red-500" />
-								Action · Checkout funnel
+								Action · Signup funnel
 							</span>
 							<p className="font-medium text-foreground text-sm sm:text-base">
-								Checkout conversion fell 37% after Tuesday's deploy
+								Signup completion fell 18% after Tuesday's copy change
 							</p>
 							<div className="flex flex-col gap-1 border-white/10 border-l-2 pl-3 text-muted-foreground text-xs sm:text-sm">
 								<p>
-									<span className="text-foreground/80">Impact:</span> 847
-									sessions hit a TypeError on the shipping step
+									<span className="text-foreground/80">Impact:</span> 412 mobile
+									visitors stopped at email verification
 								</p>
 								<p>
-									<span className="text-foreground/80">Next:</span> Roll back
-									address autocomplete
+									<span className="text-foreground/80">Next:</span> Restore the
+									shorter verification copy for mobile
 								</p>
 							</div>
 							<div className="mt-1 flex h-5 items-center gap-2 text-xs">
@@ -1587,12 +1608,12 @@ export function SlackThread() {
 							</div>
 						</div>
 					</div>
-					<div className="flex flex-col gap-3 border-white/[0.06] border-t px-5 py-5 sm:border-t-0 sm:border-l sm:px-6">
+					<div className="flex flex-col gap-3 border-white/[0.06] border-t px-5 py-5 sm:px-6">
 						<span className="font-mono text-[11px] text-muted-foreground">
 							Thread
 						</span>
 						<p className="truncate text-muted-foreground text-xs">
-							Checkout conversion fell 37% after Tuesday's deploy
+							Signup completion fell 18% after Tuesday's copy change
 						</p>
 						<Reveal className="flex gap-2.5" shown={replied}>
 							<Image
@@ -1605,10 +1626,11 @@ export function SlackThread() {
 							/>
 							<div className="flex min-w-0 flex-col gap-1">
 								<span className="font-mono text-[11px] text-muted-foreground">
-									Thu 9:01
+									Fri 9:00
 								</span>
 								<p className="text-foreground text-sm">
-									Errors are back on iOS 18.1 after the partial fix.
+									Signup completion is back to 62% after the shorter copy
+									returned.
 								</p>
 							</div>
 						</Reveal>
@@ -1629,7 +1651,7 @@ export function SlackThread() {
 const FIX_EVENTS = [1.6, 2.2, 4.3] as const;
 const MEASURE_SECONDS = 1.8;
 const FUNNEL_STEPS = [
-	{ path: "/cart", before: "1,204", after: "1,204" },
+	{ path: "/pricing", before: "1,204", after: "1,204" },
 	{ path: "/checkout", before: "846", after: "846" },
 	{
 		path: "/checkout/pay",
@@ -1651,7 +1673,7 @@ export function FixVerify() {
 	if (verified) {
 		status = (
 			<StatusLine tone="emerald">
-				Check passed: 24% of 1,204 visitors completed checkout
+				Check passed: 24% of 1,204 visitors completed the funnel
 			</StatusLine>
 		);
 	} else if (applied) {
@@ -1662,7 +1684,7 @@ export function FixVerify() {
 			<div className={FRAME} ref={ref}>
 				<div className="flex items-center justify-between gap-4 border-white/[0.06] border-b px-5 py-3 sm:px-6">
 					<span className="font-medium text-foreground text-sm">
-						Checkout funnel
+						Upgrade funnel
 					</span>
 					<StatusLine tone={verified ? "emerald" : "amber"}>
 						{verified ? "Verified" : "Needs attention"}
@@ -1773,17 +1795,15 @@ export function FixVerify() {
 }
 
 const QUESTION = "Which referrers brought paying customers last month?";
-const TOOL_STEPS = [
-	"revenue by referrer · last 30 days",
-	"visitors by referrer · last 30 days",
-] as const;
-const CHAT_EVENTS = [0.9, 1.3, 1.9, 2.9, 3.4, 4.4] as const;
+const TOOL_STEPS = ["revenue by referrer · last 30 days"] as const;
+const CHAT_EVENTS = [0.9, 1.6, 2.6, 3.1, 4.1] as const;
 const SQL = [
-	"SELECT referrer_name AS name, currency,",
+	"SELECT referrer_name AS name,",
 	"       sumIf(amount, type != 'refund') AS revenue,",
 	"       uniq(r_customer_id) AS customers",
 	"FROM referrer_agg",
-	"GROUP BY referrer_name, currency ORDER BY revenue DESC",
+	"WHERE created >= now() - INTERVAL 30 DAY",
+	"GROUP BY name ORDER BY revenue DESC",
 ] as const;
 const REFERRERS = [
 	{ name: "news.ycombinator.com", customers: 38, revenue: 4180 },
@@ -1794,10 +1814,10 @@ const REFERRERS = [
 
 export function ChatQuery() {
 	const { ref, step } = useTimeline(CHAT_EVENTS, 8.2);
-	const queried = step >= 3;
-	const tabled = step >= 4;
-	const charted = step >= 5;
-	const answered = step >= 6;
+	const queried = step >= 2;
+	const tabled = step >= 3;
+	const charted = step >= 4;
+	const answered = step >= 5;
 	const top = REFERRERS[0]?.revenue ?? 1;
 	return (
 		<MotionConfig reducedMotion="user">

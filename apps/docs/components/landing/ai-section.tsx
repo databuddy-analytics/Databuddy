@@ -33,27 +33,31 @@ function revealStyle(visible: boolean, delayMs: number) {
 
 const TERMINAL_SCENARIOS = [
 	{
-		question: "How did the launch land? Set up tracking for the new checkout.",
+		question:
+			"How did the launch land? Set up tracking for the new pricing page.",
 		calls: [
 			{ tool: "get_data", detail: "traffic and conversions · launch week" },
-			{ tool: "create_funnel", detail: "/checkout → /pay → purchase" },
-			{ tool: "create_goal", detail: "checkout_completed" },
+			{
+				tool: "create_funnel",
+				detail: "/pricing → /checkout/payment → purchase",
+			},
+			{ tool: "create_goal", detail: "plan_upgraded" },
 		],
 		answer:
-			"Launch week traffic is up 64% and signup conversion held at 4.1%. I created the checkout funnel and a checkout_completed goal; both are live in your dashboard.",
+			"Launch week traffic is up 64%. I created a pricing funnel and a plan_upgraded goal; both are live in your dashboard.",
 	},
 	{
 		question: "Anything I should know before we ship today?",
 		calls: [
 			{
 				tool: "get_investigation",
-				detail: "checkout errors +180% · opened 2h ago",
+				detail: "checkout errors +180% · opened this morning",
 			},
 			{ tool: "get_data", detail: "errors by device · past 24h" },
 			{ tool: "reply_to_investigation", detail: "rolled back in v2.14.1" },
 		],
 		answer:
-			"Yes. Databunny opened a case two hours ago: checkout exceptions are up 2.8x since yesterday's deploy, concentrated on iOS Safari. I rolled back address autocomplete and replied to the case.",
+			"Yes. Databunny opened an investigation this morning: checkout exceptions are up 2.8x since yesterday's deploy, concentrated on iOS Safari. I rolled back address autocomplete and replied to the investigation.",
 	},
 ] as const;
 

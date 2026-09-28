@@ -1,7 +1,7 @@
 import {
+	AGENT_CREDIT_ALLOWANCES,
 	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
-	PLAN_COPY,
 } from "@databuddy/shared/billing";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -46,10 +46,28 @@ export const metadata: Metadata = {
 	},
 };
 
-const monthlyPrice = (planId: string) =>
-	RAW_PLANS.find((plan) => plan.id === planId)?.items.find(
-		(item) => item.type === "price"
-	)?.price;
+const planItems = (planId: string) =>
+	RAW_PLANS.find((plan) => plan.id === planId)?.items ?? [];
+
+const monthlyPrice = (planId: string) => {
+	for (const item of planItems(planId)) {
+		if (item.type === "price") {
+			return item.price;
+		}
+	}
+};
+
+const includedEvents = (planId: string) => {
+	for (const item of planItems(planId)) {
+		if (
+			item.type === "priced_feature" &&
+			item.feature_id === "events" &&
+			typeof item.included_usage === "number"
+		) {
+			return item.included_usage;
+		}
+	}
+};
 
 const PLANS = [
 	{
@@ -57,22 +75,29 @@ const PLANS = [
 		name: "Business",
 		price: monthlyPrice("intelligence"),
 		investigations: INVESTIGATION_ALLOWANCES.intelligence,
-		description: PLAN_COPY.intelligence.description,
+		events: includedEvents("intelligence"),
+		credits: AGENT_CREDIT_ALLOWANCES.intelligence.month,
+		extra: null,
 	},
 	{
 		id: "intelligence_scale",
 		name: "Scale",
 		price: monthlyPrice("intelligence_scale"),
 		investigations: INVESTIGATION_ALLOWANCES.intelligence_scale,
-		description: PLAN_COPY.intelligence_scale.description,
+		events: includedEvents("intelligence_scale"),
+		credits: AGENT_CREDIT_ALLOWANCES.intelligence_scale.month,
+		extra: "SSO, audit logs, and guided onboarding",
 	},
 ] as const;
 
+const count = (value: number | undefined) =>
+	value === undefined ? "" : value.toLocaleString("en-US");
+
 const FAQ_ITEMS = [
 	{
-		question: "What can I ask Databunny?",
+		question: "What do I need to set up?",
 		answer:
-			"Anything about your analytics: traffic, funnels, errors, revenue, user segments, page performance. You get an answer with real data behind it, plus the steps and queries it ran.",
+			"Databunny works on the analytics Databuddy collects, so start with the Databuddy tracker or SDK. You can run it next to your current tool. Automatic investigations need about two weeks of data to learn what normal looks like. GitHub, Stripe or Paddle, and Search Console are optional and connect in settings.",
 	},
 	{
 		question: "How does automatic analysis work?",
@@ -82,7 +107,22 @@ const FAQ_ITEMS = [
 	{
 		question: "What becomes an investigation?",
 		answer:
-			"A change that clears its thresholds, reaches enough visitors, isn't already being tracked, and, once you've added business context, matches your priorities. Routine changes stay out of your way.",
+			"An investigation is one change Databunny looks into end to end, from evidence to next step. A change qualifies when it clears its thresholds, reaches enough visitors, isn't already being tracked, and, once you've added business context, matches your priorities. Routine changes stay out of your way.",
+	},
+	{
+		question: "Does Databunny change anything on its own?",
+		answer:
+			"No. It only reads your analytics and the repo you link. Chat asks you to confirm before it creates or changes goals, funnels, flags, or links, and a proposed fix only applies when you click Apply.",
+	},
+	{
+		question: "What if Databunny gets it wrong?",
+		answer:
+			"Reply to the investigation to question it. Clarifications are free and answer from the saved evidence, and every number in a finding is checked against data it actually read. Since nothing changes without you, a wrong call costs you a read, not an incident.",
+	},
+	{
+		question: "What data does Databunny send to AI models?",
+		answer:
+			"Your question and the data needed to answer it are sent through an AI gateway to the model provider. The GitHub connection only reads the repo you link to each website. Our data policy lists every AI subprocessor and what it receives.",
 	},
 	{
 		question: "Can investigations go to Slack?",
@@ -90,13 +130,8 @@ const FAQ_ITEMS = [
 			"Yes. Databunny posts actions and questions to the Slack channels you connect. When the same problem comes back, the update goes into the original thread instead of a new alert.",
 	},
 	{
-		question: "Does Databunny change anything on its own?",
-		answer:
-			"No. Chat asks you to confirm before it creates or changes goals, funnels, flags, or links, and a proposed fix only applies when you click Apply.",
-	},
-	{
-		question: "Is Databunny included in all plans?",
-		answer: `Databunny chat runs on AI credits, and every plan includes a monthly allowance. Business includes ${INVESTIGATION_ALLOWANCES.intelligence} investigations per month and Scale includes ${INVESTIGATION_ALLOWANCES.intelligence_scale}, with $${INVESTIGATION_USAGE.priceUsd} per extra.`,
+		question: "What can I ask Databunny in chat?",
+		answer: `Anything about your analytics: traffic, funnels, errors, revenue, user segments, page performance. Chat runs on AI credits included on every plan, and you see the steps and queries behind each answer. Business includes ${INVESTIGATION_ALLOWANCES.intelligence} investigations a month and Scale ${INVESTIGATION_ALLOWANCES.intelligence_scale}, with $${INVESTIGATION_USAGE.priceUsd} per extra.`,
 	},
 ] as const;
 
@@ -170,10 +205,24 @@ export default function DatabunnyPage() {
 							Databunny · AI analyst
 						</span>
 					}
-					docsHref="/docs"
-					footnote={`Business: ${INVESTIGATION_ALLOWANCES.intelligence} investigations a month. Scale: ${INVESTIGATION_ALLOWANCES.intelligence_scale}. $${INVESTIGATION_USAGE.priceUsd} per extra, charged only when one completes.`}
+					docsHref="https://app.databuddy.cc/register"
+					footnote={
+						<div className="flex flex-col gap-1.5">
+							<span>
+								Business is ${monthlyPrice("intelligence")} a month with{" "}
+								{INVESTIGATION_ALLOWANCES.intelligence} investigations. $
+								{INVESTIGATION_USAGE.priceUsd} per extra, charged only when one
+								completes.
+							</span>
+							<span>
+								Runs on your Databuddy analytics · Read-only on your code ·
+								Nothing changes until you click Apply
+							</span>
+						</div>
+					}
 					primaryHref="https://app.databuddy.cc/register?plan=intelligence"
 					primaryLabel="Start with Business"
+					secondaryLabel="Try chat free"
 					subtitle="Every morning at 9, or once a week, Databunny compares your traffic, funnels, errors, vitals, and revenue with recent history. When something really moves, it investigates and hands you what it found, the evidence, and the next step."
 					title="The analyst that stays quiet until something matters."
 					visual={<BaselineBands />}
@@ -201,24 +250,8 @@ export default function DatabunnyPage() {
 					</div>
 				</Section>
 
-				<Section className="border-border border-b" id="github">
-					<div className={container}>
-						<SectionHeader
-							subtitle="Link a GitHub repo and Databunny reads the commits, deploys, and pull requests around a change, down to the diff."
-							title="Knows what shipped"
-							titleMuted="when the numbers moved."
-						/>
-						<CommitZoom />
-						<p className="mt-6 font-mono text-muted-foreground text-xs">
-							Also reads Stripe and Paddle revenue, Search Console once
-							connected, your annotations, your own pages, and your business
-							context.
-						</p>
-					</div>
-				</Section>
-
 				<FeatureRow
-					body="Only actions and questions are posted. When a problem comes back, the update lands in its original thread instead of a new alert."
+					body="Only actions and questions are posted, from the Databuddy Slack app. When a problem comes back, the update lands in its original thread instead of a new alert."
 					id="slack"
 					points={[
 						"The next step in every post, with impact and evidence underneath",
@@ -231,7 +264,7 @@ export default function DatabunnyPage() {
 				/>
 
 				<FeatureRow
-					body="When a goal or funnel measures the wrong thing, Databunny proposes the fix and, when it can, an exact check. Apply it, and it measures the result against that check once the window closes."
+					body="Funnels and goals break quietly when pages move. Databunny spots the broken step, proposes the fix and, when it can, an exact check. Apply it, and it measures the result against that check once the window closes."
 					flip
 					id="fixes"
 					points={[
@@ -239,10 +272,26 @@ export default function DatabunnyPage() {
 						"Verifying an applied fix is free",
 						"Nothing changes until you click Apply",
 					]}
-					title="Fix it in one click,"
+					title="Fix broken funnels and goals,"
 					titleMuted="then prove it worked."
 					visual={<FixVerify />}
 				/>
+
+				<Section className="border-border border-b" id="github">
+					<div className={container}>
+						<SectionHeader
+							subtitle="Link a GitHub repo and Databunny reads the commits, deploys, and pull requests around a change, down to the diff. Copy changes count too."
+							title="Knows what shipped"
+							titleMuted="when the numbers moved."
+						/>
+						<CommitZoom />
+						<p className="mt-6 text-muted-foreground text-sm">
+							Also reads Stripe and Paddle revenue, Search Console once
+							connected, your annotations, your own pages, and your business
+							context.
+						</p>
+					</div>
+				</Section>
 
 				<FeatureRow
 					body="Ask about your traffic, funnels, errors, or revenue. Databunny picks from more than a hundred built-in queries or writes read-only SQL, shows every step it took, and answers with charts and tables."
@@ -280,14 +329,14 @@ export default function DatabunnyPage() {
 				<Section className="border-border border-b" id="pricing">
 					<div className={container}>
 						<SectionHeader
-							subtitle={`Investigations are charged only when one completes, at $${INVESTIGATION_USAGE.priceUsd} beyond your monthly allowance. Clarifications and checks on applied goal or funnel fixes are free.`}
+							subtitle={`An investigation is one change Databunny looks into end to end, from evidence to next step. You're charged only when one completes, at $${INVESTIGATION_USAGE.priceUsd} beyond your monthly allowance. Clarifications and checks on applied goal or funnel fixes are free.`}
 							title="Pay for answers,"
 							titleMuted="not attempts."
 						/>
 						<div className="grid border-border border-t lg:grid-cols-2">
 							{PLANS.map((plan) => (
 								<div
-									className="flex flex-col gap-3 border-border border-b py-8 lg:border-b-0 lg:even:pl-12 lg:odd:border-r lg:odd:pr-12"
+									className="flex flex-col gap-4 border-border border-b py-8 lg:border-b-0 lg:even:pl-12 lg:odd:border-r lg:odd:pr-12"
 									key={plan.id}
 								>
 									<div className="flex items-baseline justify-between gap-4">
@@ -301,12 +350,18 @@ export default function DatabunnyPage() {
 											/ month
 										</span>
 									</div>
-									<p className="text-muted-foreground text-sm">
-										{plan.description}
-									</p>
-									<p className="font-mono text-foreground text-sm">
-										{plan.investigations} investigations a month
-									</p>
+									<ul className="flex flex-col gap-2 text-sm">
+										<li className="text-foreground">
+											{plan.investigations} investigations a month
+										</li>
+										<li className="text-muted-foreground">
+											{count(plan.events)} events and {count(plan.credits)} AI
+											credits a month
+										</li>
+										{plan.extra && (
+											<li className="text-muted-foreground">{plan.extra}</li>
+										)}
+									</ul>
 								</div>
 							))}
 						</div>
