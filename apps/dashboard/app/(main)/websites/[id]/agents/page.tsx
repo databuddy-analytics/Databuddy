@@ -1136,7 +1136,11 @@ function AgentReadsPanel({
 			? distinctPages
 			: Number(formats.find((row) => row.format === focus)?.pages) ||
 				pages.length;
-	const pageTotal = selected ? pages.length : focusPageTotal;
+	const selectedPageTotal =
+		focus === "all" && selected
+			? Math.max(pages.length, selected.pages)
+			: pages.length;
+	const pageTotal = selected ? selectedPageTotal : focusPageTotal;
 	const maxAgentValue = rankedAgents[0]?.value || 1;
 	const maxPageValue = pages[0]?.value || 1;
 	const visibleAgents = areAgentsExpanded
@@ -1297,7 +1301,7 @@ function AgentReadsPanel({
 						)}
 						<p className="text-muted-foreground text-xs">
 							{selected
-								? `${formatNumber(selected.value)} ${label} requests across ${formatNumber(pages.length)} ${pageNoun}`
+								? `${formatNumber(selected.value)} ${label} requests across ${formatNumber(pageTotal)} ${pageNoun}`
 								: `${formatNumber(pageTotal)} ${pageNoun} · pick an agent to see what it read`}
 						</p>
 					</div>
