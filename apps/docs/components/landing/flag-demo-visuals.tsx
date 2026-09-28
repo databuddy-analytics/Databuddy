@@ -64,57 +64,55 @@ export function RolloutGrid() {
 	const percent = ROLLOUT_STEPS[index] ?? ROLLOUT_STEPS[0];
 	return (
 		<MotionConfig reducedMotion="user">
-			<div className={FRAME} ref={ref}>
-				<div className="flex items-center justify-between gap-4 border-white/[0.06] border-b px-5 py-4 sm:px-6">
+			<div className="flex flex-col gap-6" ref={ref}>
+				<div className="flex items-center justify-between gap-4">
 					<FlagName>{FLAG}</FlagName>
 					<span className="text-foreground text-sm sm:text-base">
 						On for <Count value={percent} />% of visitors
 					</span>
 				</div>
-				<div className="flex flex-col gap-6 px-5 py-6 sm:px-6">
-					<div
-						className="grid justify-center gap-1.5"
-						style={{
-							gridTemplateColumns: `repeat(${ROLLOUT_COLUMNS}, 10px)`,
-						}}
-					>
-						{ROLLOUT_PEOPLE.map((bucket, person) => (
-							<span
-								className={cn(
-									"size-2.5 rounded-full transition-colors duration-500 ease-in-out",
-									bucket < percent ? ON : OFF
-								)}
-								key={person}
-								style={{ transitionDelay: `${(bucket % 25) * 12}ms` }}
-							/>
-						))}
+				<div
+					className="grid justify-center gap-1.5"
+					style={{
+						gridTemplateColumns: `repeat(${ROLLOUT_COLUMNS}, 10px)`,
+					}}
+				>
+					{ROLLOUT_PEOPLE.map((bucket, person) => (
+						<span
+							className={cn(
+								"size-2.5 rounded-full transition-colors duration-500 ease-in-out",
+								bucket < percent ? ON : OFF
+							)}
+							key={person}
+							style={{ transitionDelay: `${(bucket % 25) * 12}ms` }}
+						/>
+					))}
+				</div>
+				<div className="flex flex-col gap-2">
+					<div className="relative h-1.5 bg-white/[0.06]">
+						<motion.span
+							animate={{ width: `${percent}%` }}
+							className="absolute inset-y-0 left-0 bg-emerald-500"
+							initial={false}
+							transition={{ duration: 0.8, ease: IN_OUT }}
+						/>
+						<motion.span
+							animate={{ left: `${percent}%` }}
+							className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 border-2 border-emerald-500 bg-background"
+							initial={false}
+							transition={{ duration: 0.8, ease: IN_OUT }}
+						/>
 					</div>
-					<div className="flex flex-col gap-2">
-						<div className="relative h-1.5 bg-white/[0.06]">
-							<motion.span
-								animate={{ width: `${percent}%` }}
-								className="absolute inset-y-0 left-0 bg-emerald-500"
-								initial={false}
-								transition={{ duration: 0.8, ease: IN_OUT }}
-							/>
-							<motion.span
-								animate={{ left: `${percent}%` }}
-								className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 border-2 border-emerald-500 bg-background"
-								initial={false}
-								transition={{ duration: 0.8, ease: IN_OUT }}
-							/>
-						</div>
-						<div className="relative h-4 font-mono text-[11px] text-muted-foreground">
-							{ROLLOUT_STEPS.map((mark) => (
-								<span
-									className="absolute -translate-x-1/2"
-									key={mark}
-									style={{ left: `${mark}%` }}
-								>
-									{mark}%
-								</span>
-							))}
-						</div>
+					<div className="relative h-4 font-mono text-[11px] text-muted-foreground">
+						{ROLLOUT_STEPS.map((mark) => (
+							<span
+								className="absolute -translate-x-1/2"
+								key={mark}
+								style={{ left: `${mark}%` }}
+							>
+								{mark}%
+							</span>
+						))}
 					</div>
 				</div>
 			</div>
@@ -133,13 +131,13 @@ export function KillSwitch() {
 	const off = step >= 1;
 	return (
 		<MotionConfig reducedMotion="user">
-			<div className={FRAME} ref={ref}>
-				<div className="flex items-center justify-between gap-4 border-white/[0.06] border-b px-5 py-4 sm:px-6">
+			<div className="flex flex-col items-center gap-6" ref={ref}>
+				<div className="flex items-center gap-3">
 					<FlagName>{FLAG}</FlagName>
 					<Switch on={!off} />
 				</div>
 				<div
-					className="grid justify-center gap-2 px-5 py-8 sm:px-6"
+					className="grid justify-center gap-2"
 					style={{ gridTemplateColumns: "repeat(12, 18px)" }}
 				>
 					{BROWSERS.map((browser) => (
@@ -214,10 +212,6 @@ export function TeamRollout() {
 	return (
 		<MotionConfig reducedMotion="user">
 			<div className={FRAME} ref={ref}>
-				<div className="flex items-center justify-between gap-4 border-white/[0.06] border-b px-5 py-4 sm:px-6">
-					<FlagName>{FLAG}</FlagName>
-					<span className="text-muted-foreground text-sm">33% rollout</span>
-				</div>
 				<div className="grid gap-8 px-5 py-6 sm:grid-cols-2 sm:px-6">
 					<TeamBlocks
 						isOn={(team, person) =>
