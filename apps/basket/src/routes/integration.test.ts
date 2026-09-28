@@ -1313,6 +1313,8 @@ describe("POST /track", () => {
 describe("POST /ai-traffic", () => {
 	const CLAUDE_CODE =
 		"Claude-User (claude-code/2.1.280; +https://support.anthropic.com/)";
+	const CHROME_UA =
+		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
 
 	beforeEach(() => {
 		vi.mocked(mockSend).mockClear();
@@ -1327,13 +1329,18 @@ describe("POST /ai-traffic", () => {
 		vi.mocked(isOriginAllowed).mockImplementation(() => true);
 	});
 
-	function hit(userAgent: string, host = "docs.example.com") {
+	function hit(
+		userAgent: string,
+		host = "docs.example.com",
+		signals: { accept?: string; signatureAgent?: string } = {}
+	) {
 		return post(trackRoute, "/ai-traffic", {
 			websiteId: "ws_test",
 			host,
 			path: "/docs/intro",
 			format: "markdown",
 			userAgent,
+			...signals,
 		});
 	}
 
@@ -1365,6 +1372,34 @@ describe("POST /ai-traffic", () => {
 		const res = await hit(CLAUDE_CODE, "someone-else.dev");
 		expect(res.status).toBe(403);
 		expect(mockSend).not.toHaveBeenCalled();
+	});
+
+	test("stores a signed agent browser under its registry id with host and accept", async () => {
+		const res = await hit(CHROME_UA, "docs.example.com", {
+			accept: "text/html,application/xhtml+xml",
+			signatureAgent: '"https://chatgpt.com"',
+		});
+		expect(res.status).toBe(202);
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-ai-traffic-spans",
+			expect.objectContaining({
+				accept: "text/html,application/xhtml+xml",
+				agent_id: "chatgpt-agent",
+				agent_purpose: "agent",
+				host: "docs.example.com",
+			})
+		);
+	});
+
+	test("records an unknown signed agent under its domain", async () => {
+		const res = await hit(CHROME_UA, "docs.example.com", {
+			signatureAgent: '"https://agents.example.dev"',
+		});
+		expect(res.status).toBe(202);
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-ai-traffic-spans",
+			expect.objectContaining({ agent_id: "agents.example.dev" })
+		);
 	});
 
 	test("records a setup check in Redis instead of analytics", async () => {
