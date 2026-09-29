@@ -1,4 +1,4 @@
-const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+export const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const LOCAL_DATE_TIME_RE =
 	/^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/;
 const TZ_DATE_TIME_RE =

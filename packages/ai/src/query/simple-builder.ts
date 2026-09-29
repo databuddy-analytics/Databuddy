@@ -1,6 +1,7 @@
 import { chQuery } from "@databuddy/db/clickhouse";
 import { domainSchema } from "@databuddy/validation";
 import {
+	DATE_ONLY_RE,
 	normalizeClickHouseDateTime,
 	padToClickHouseDateTime,
 } from "./date-utils";
@@ -171,6 +172,10 @@ const END_OF_DAY_WITH_TZ_REGEX = new RegExp(
 );
 const END_OF_DAY_REGEX = new RegExp(
 	`toDateTime\\(concat\\(\\{(${DATE_PARAM_PATTERN}):String\\}, ' 23:59:59'\\)\\)`,
+	"g"
+);
+const TZ_DATE_TIME_REGEX = new RegExp(
+	`parseDateTimeBestEffort\\(\\{(${DATE_PARAM_PATTERN}):String\\}, \\{timezone:String\\}\\)`,
 	"g"
 );
 const TO_DATE_TIME_REGEX = new RegExp(
@@ -622,6 +627,17 @@ export class SimpleQueryBuilder {
 			}
 		}
 
+		const isDateOnlyRequest = (bound: string | undefined) =>
+			bound !== undefined && DATE_ONLY_RE.test(bound.trim());
+		const dateOnlyParams = new Set([
+			...(isDateOnlyRequest(this.request.from) ? ["from", "startDate"] : []),
+			...(isDateOnlyRequest(this.request.to) ? ["to", "endDate"] : []),
+		]);
+		const isLocalTimezone =
+			Boolean(this.request.timezone) && this.request.timezone !== "UTC";
+		const bindsLocalDay = (paramName: string) =>
+			isLocalTimezone && dateOnlyParams.has(paramName);
+
 		const promoteToEndOfDay = (paramName: string): void => {
 			const value = finalParams[paramName];
 			if (typeof value === "string") {
@@ -635,17 +651,21 @@ export class SimpleQueryBuilder {
 			END_OF_DAY_WITH_TZ_REGEX,
 			(_match, paramName) => {
 				promoteToEndOfDay(paramName);
-				return dateBindingExpression(paramName, true);
+				return dateBindingExpression(paramName, dateOnlyParams.has(paramName));
 			}
+		);
+
+		finalSql = finalSql.replace(TZ_DATE_TIME_REGEX, (match, paramName) =>
+			dateOnlyParams.has(paramName) ? match : dateBindingExpression(paramName)
 		);
 
 		finalSql = finalSql.replace(END_OF_DAY_REGEX, (_match, paramName) => {
 			promoteToEndOfDay(paramName);
-			return dateBindingExpression(paramName);
+			return dateBindingExpression(paramName, bindsLocalDay(paramName));
 		});
 
 		finalSql = finalSql.replace(TO_DATE_TIME_REGEX, (_match, paramName) =>
-			dateBindingExpression(paramName)
+			dateBindingExpression(paramName, bindsLocalDay(paramName))
 		);
 
 		if (finalSql.includes("{timezone:String}") && !finalParams.timezone) {

@@ -238,7 +238,7 @@ export const CustomEventsBuilders = {
 			return {
 				sql: `
 					SELECT
-						toDate(timestamp) as date,
+						toDate(toTimeZone(timestamp, {timezone:String})) as date,
 						COUNT(*) as total_events,
 						uniq(event_name) as unique_event_types,
 						uniq(${CUSTOM_EVENTS_VISITOR_KEY}) as unique_users,
@@ -251,7 +251,7 @@ export const CustomEventsBuilders = {
 						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND event_name != ''
 						${filterClause}
-					GROUP BY toDate(timestamp)
+					GROUP BY toDate(toTimeZone(timestamp, {timezone:String}))
 					ORDER BY date ASC
 					LIMIT {limit:UInt32}
 				`,
@@ -288,7 +288,7 @@ export const CustomEventsBuilders = {
 			return {
 				sql: `
 					SELECT
-						toDate(timestamp) as date,
+						toDate(toTimeZone(timestamp, {timezone:String})) as date,
 						event_name,
 						COUNT(*) as total_events
 					FROM ${Analytics.custom_events}
@@ -298,7 +298,7 @@ export const CustomEventsBuilders = {
 						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND event_name != ''
 						${filterClause}
-					GROUP BY toDate(timestamp), event_name
+					GROUP BY toDate(toTimeZone(timestamp, {timezone:String})), event_name
 					ORDER BY date ASC, total_events DESC
 					LIMIT {limit:UInt32}
 				`,

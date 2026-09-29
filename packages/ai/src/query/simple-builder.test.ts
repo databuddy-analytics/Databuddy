@@ -595,6 +595,51 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.timezone).toBeUndefined();
 	});
 
+	it("binds timestamp bounds as UTC in timezone-aware custom SQL", () => {
+		const customSql = ({
+			startDate,
+			endDate,
+		}: {
+			startDate: string;
+			endDate: string;
+		}) => ({
+			sql: `
+				SELECT count() as total
+				FROM uptime.uptime_monitor
+				WHERE timestamp >= parseDateTimeBestEffort({startDate:String}, {timezone:String})
+					AND timestamp <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'), {timezone:String})
+			`,
+			params: { startDate, endDate },
+		});
+
+		const exact = compile(
+			{ customSql },
+			{
+				from: "2026-04-27T12:00:00.000Z",
+				to: "2026-04-27T13:28:59.000Z",
+				timezone: "America/Los_Angeles",
+			}
+		);
+		expect(exact.sql).toContain("{startDate:DateTime}");
+		expect(exact.sql).toContain("{endDate:DateTime}");
+		expect(exact.params.startDate).toBe("2026-04-27 12:00:00");
+		expect(exact.params.endDate).toBe("2026-04-27 13:28:59");
+
+		const local = compile(
+			{ customSql },
+			{ from: "2026-04-27", to: "2026-04-28", timezone: "America/Los_Angeles" }
+		);
+		expect(local.sql).toContain(
+			"parseDateTimeBestEffort({startDate:String}, {timezone:String})"
+		);
+		expect(local.sql).toContain(
+			"parseDateTimeBestEffort({endDate:String}, {timezone:String})"
+		);
+		expect(local.params.startDate).toBe("2026-04-27 00:00:00");
+		expect(local.params.endDate).toBe("2026-04-28 23:59:59");
+		expect(local.params.timezone).toBe("America/Los_Angeles");
+	});
+
 	it("keeps date-only ranges inclusive through the end of the end date", () => {
 		const { sql, params } = compile();
 
