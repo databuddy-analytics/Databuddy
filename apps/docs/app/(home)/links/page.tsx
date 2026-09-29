@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
-import { FeatureHero, FeatureRow } from "@/components/landing/demo-primitives";
-import { SECTION_SPACING } from "@/components/landing/demo-constants";
+import {
+	FeatureHero,
+	FeatureRow,
+	FeatureSection,
+} from "@/components/landing/demo-primitives";
 import { FaqSection } from "@/components/landing/faq-section";
 import {
 	BotCount,
@@ -10,9 +13,7 @@ import {
 	RepointQr,
 	UtmTags,
 } from "@/components/landing/links-demo-visuals";
-import Section from "@/components/landing/section";
 import { StructuredData } from "@/components/structured-data";
-import { cn } from "@/lib/utils";
 import { TrackOnMount } from "@/components/track-on-mount";
 
 const TITLE = "Short Links With Click Analytics";
@@ -59,8 +60,6 @@ const FAQ_ITEMS = [
 			"Yes, through the API with a key scoped to write:links, or with the create_link tool over MCP.",
 	},
 ] as const;
-
-const container = "mx-auto w-full max-w-400 px-4 sm:px-14 lg:px-20";
 
 export default function LinksPage() {
 	return (
@@ -118,15 +117,9 @@ export default function LinksPage() {
 					visual={<UtmTags />}
 				/>
 
-				<Section
-					className={cn("border-border border-b", SECTION_SPACING)}
-					customPaddings
-					id="faq"
-				>
-					<div className={container}>
-						<FaqSection items={[...FAQ_ITEMS]} />
-					</div>
-				</Section>
+				<FeatureSection id="faq">
+					<FaqSection items={[...FAQ_ITEMS]} />
+				</FeatureSection>
 
 				<Footer />
 			</div>

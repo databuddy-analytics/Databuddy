@@ -3,7 +3,7 @@ import { Footer } from "@/components/footer";
 import {
 	FeatureHero,
 	FeatureRow,
-	SectionHeader,
+	FeatureSection,
 } from "@/components/landing/demo-primitives";
 import {
 	ErrorJourney,
@@ -12,11 +12,8 @@ import {
 	NoiseGate,
 	VisitTimeline,
 } from "@/components/landing/error-demo-visuals";
-import { SECTION_SPACING } from "@/components/landing/demo-constants";
 import { FaqSection } from "@/components/landing/faq-section";
-import Section from "@/components/landing/section";
 import { StructuredData } from "@/components/structured-data";
-import { cn } from "@/lib/utils";
 import { TrackOnMount } from "@/components/track-on-mount";
 
 const TITLE = "JavaScript Error Tracking: Every Error Happened to Someone";
@@ -62,8 +59,6 @@ const FAQ_ITEMS = [
 	},
 ] as const;
 
-const container = "mx-auto w-full max-w-400 px-4 sm:px-14 lg:px-20";
-
 export default function ErrorsPage() {
 	return (
 		<>
@@ -90,19 +85,13 @@ export default function ErrorsPage() {
 					visual={<ErrorJourney />}
 				/>
 
-				<Section
-					className={cn("border-border border-b", SECTION_SPACING)}
-					customPaddings
+				<FeatureSection
 					id="people"
+					subtitle="One stuck tab can throw a thousand errors. Databuddy shows how many people each error hit."
+					title="Fix what hurts the most people first."
 				>
-					<div className={container}>
-						<SectionHeader
-							subtitle="One stuck tab can throw a thousand errors. Databuddy shows how many people each error hit."
-							title="Fix what hurts the most people first."
-						/>
-						<LoudVersusWide />
-					</div>
-				</Section>
+					<LoudVersusWide />
+				</FeatureSection>
 
 				<FeatureRow
 					body="Every error comes with the page, browser, and device it happened on, so you know where to start looking."
@@ -111,19 +100,13 @@ export default function ErrorsPage() {
 					visual={<VisitTimeline />}
 				/>
 
-				<Section
-					className={cn("border-border border-b", SECTION_SPACING)}
-					customPaddings
+				<FeatureSection
 					id="impact"
+					subtitle="On Business and Scale, Databunny compares visits that hit the error with similar visits that didn't."
+					title="Know which errors make people leave."
 				>
-					<div className={container}>
-						<SectionHeader
-							subtitle="On Business and Scale, Databunny compares visits that hit the error with similar visits that didn't."
-							title="Know which errors make people leave."
-						/>
-						<KeptGoing />
-					</div>
-				</Section>
+					<KeptGoing />
+				</FeatureSection>
 
 				<FeatureRow
 					body="Add data-track-errors to the script you already have. Noise from browser extensions is filtered out for you."
@@ -133,15 +116,9 @@ export default function ErrorsPage() {
 					visual={<NoiseGate />}
 				/>
 
-				<Section
-					className={cn("border-border border-b", SECTION_SPACING)}
-					customPaddings
-					id="faq"
-				>
-					<div className={container}>
-						<FaqSection items={[...FAQ_ITEMS]} />
-					</div>
-				</Section>
+				<FeatureSection id="faq">
+					<FaqSection items={[...FAQ_ITEMS]} />
+				</FeatureSection>
 
 				<Footer />
 			</div>
