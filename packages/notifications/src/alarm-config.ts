@@ -183,6 +183,9 @@ export function buildAlarmNotificationTargets(
 		AlarmDestinationBuilder | undefined
 	>;
 	for (const dest of destinations.slice(0, MAX_ALARM_DESTINATIONS)) {
+		if (!Object.hasOwn(builders, dest.type)) {
+			continue;
+		}
 		const target = builders[dest.type]?.(dest, ctx);
 		if (target) {
 			targets.push(target);

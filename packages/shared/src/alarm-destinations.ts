@@ -32,34 +32,31 @@ export function isForbiddenWebhookHeaderName(name: string): boolean {
 }
 
 /**
- * Validates custom webhook headers at write time. A header rejected here
- * must never be one the delivery builder silently drops at send time -
- * `sanitizeWebhookHeaders` in `@databuddy/notifications` uses the same
- * forbidden-name set as a defense-in-depth filter for rows written before
- * this validation existed, not as the primary gate.
+ * Drops forbidden or malformed custom webhook headers instead of rejecting
+ * the whole request. An update resubmits every destination's full config,
+ * including ones written before this filter existed (e.g. a legacy
+ * `Content-Type` header); rejecting the request would permanently block
+ * editing that alarm until the offending header was removed by hand. Every
+ * header name and value this schema keeps also passes
+ * `sanitizeWebhookHeaders`'s identical filter in `@databuddy/notifications`
+ * at send time, so nothing dropped here could have been delivered anyway.
  */
 export const webhookHeadersSchema = z
-	.record(
-		z
-			.string()
-			.min(1)
-			.max(128)
-			.refine((name) => !isForbiddenWebhookHeaderName(name), {
-				message: "Header name is not allowed.",
-			})
-			.refine((name) => !CRLF_PATTERN.test(name), {
-				message: "Header name must not contain line breaks.",
-			}),
-		z
-			.string()
-			.max(2048)
-			.refine((value) => !CRLF_PATTERN.test(value), {
-				message: "Header value must not contain line breaks.",
-			})
-	)
-	.refine((rec) => Object.keys(rec).length <= MAX_WEBHOOK_HEADERS, {
-		message: `At most ${MAX_WEBHOOK_HEADERS} custom webhook headers are allowed.`,
-	});
+	.record(z.string().min(1).max(128), z.string().max(2048))
+	.transform((headers) =>
+		Object.fromEntries(
+			Object.entries(headers)
+				.filter(
+					([name, value]) =>
+						!(
+							isForbiddenWebhookHeaderName(name) ||
+							CRLF_PATTERN.test(name) ||
+							CRLF_PATTERN.test(value)
+						)
+				)
+				.slice(0, MAX_WEBHOOK_HEADERS)
+		)
+	);
 
 export function maskTail(value: string, keep = 4): string {
 	if (value.length <= keep) {
@@ -130,7 +127,7 @@ export const ALARM_DESTINATION_REGISTRY: {
 				SLACK_WEBHOOK_PATTERN,
 				"Slack destination must be a hooks.slack.com webhook URL"
 			),
-		configSchema: z.record(z.string(), z.unknown()).default({}),
+		configSchema: z.strictObject({}).default({}),
 		secretFields: [],
 		maskIdentifier: true,
 	},
@@ -140,7 +137,7 @@ export const ALARM_DESTINATION_REGISTRY: {
 		fieldLabel: "Email address",
 		placeholder: "alerts@example.com",
 		identifierSchema: z.string().email(),
-		configSchema: z.record(z.string(), z.unknown()).default({}),
+		configSchema: z.strictObject({}).default({}),
 		secretFields: [],
 		maskIdentifier: false,
 	},

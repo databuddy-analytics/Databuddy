@@ -31,39 +31,45 @@ describe("isForbiddenWebhookHeaderName", () => {
 });
 
 describe("webhookHeadersSchema", () => {
-	test("rejects a header named Content-Type", () => {
+	test("drops a header named Content-Type instead of rejecting the whole request", () => {
 		const result = webhookHeadersSchema.safeParse({
 			"Content-Type": "application/json",
+			"X-Alarm": "keep-me",
 		});
-		expect(result.success).toBe(false);
+		expect(result.success).toBe(true);
+		expect(result.data).toEqual({ "X-Alarm": "keep-me" });
 	});
 
-	test("rejects a header named X-Original-URL", () => {
+	test("drops a header named X-Original-URL", () => {
 		const result = webhookHeadersSchema.safeParse({
 			"X-Original-URL": "/admin",
 		});
-		expect(result.success).toBe(false);
+		expect(result.success).toBe(true);
+		expect(result.data).toEqual({});
 	});
 
-	test("rejects header names or values containing line breaks", () => {
+	test("drops header names or values containing line breaks", () => {
 		expect(
-			webhookHeadersSchema.safeParse({ "X-Bad\r\nName": "value" }).success
-		).toBe(false);
+			webhookHeadersSchema.safeParse({ "X-Bad\r\nName": "value" }).data
+		).toEqual({});
 		expect(
-			webhookHeadersSchema.safeParse({ "X-Header": "bad\r\nvalue" }).success
-		).toBe(false);
+			webhookHeadersSchema.safeParse({ "X-Header": "bad\r\nvalue" }).data
+		).toEqual({});
 	});
 
 	test("accepts an allowed custom header", () => {
 		const result = webhookHeadersSchema.safeParse({ "X-Alarm": "keep-me" });
 		expect(result.success).toBe(true);
+		expect(result.data).toEqual({ "X-Alarm": "keep-me" });
 	});
 
-	test("rejects more than 20 headers", () => {
+	test("caps stored headers at 20 instead of rejecting the request", () => {
 		const headers = Object.fromEntries(
 			Array.from({ length: 21 }, (_, i) => [`X-Header-${i}`, "value"])
 		);
-		expect(webhookHeadersSchema.safeParse(headers).success).toBe(false);
+		const result = webhookHeadersSchema.safeParse(headers);
+		expect(result.success).toBe(true);
+		expect(Object.keys(result.data as Record<string, string>)).toHaveLength(20);
 	});
 });
 
@@ -136,5 +142,21 @@ describe("ALARM_DESTINATION_REGISTRY", () => {
 		expect(ALARM_DESTINATION_REGISTRY.webhook.secretFields).toEqual([
 			"headers",
 		]);
+	});
+
+	test("slack and email reject any config, so an empty secretFields list can't leak a stored value", () => {
+		expect(
+			ALARM_DESTINATION_REGISTRY.slack.configSchema.safeParse({
+				headers: { Authorization: "Bearer secret" },
+			}).success
+		).toBe(false);
+		expect(
+			ALARM_DESTINATION_REGISTRY.email.configSchema.safeParse({
+				headers: { Authorization: "Bearer secret" },
+			}).success
+		).toBe(false);
+		expect(
+			ALARM_DESTINATION_REGISTRY.slack.configSchema.parse(undefined)
+		).toEqual({});
 	});
 });

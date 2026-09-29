@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./types": "./src/types.ts",
     "./client": "./src/client.ts",
-    "./providers": "./src/providers/index.ts"
+    "./providers": "./src/providers/index.ts",
+    "./alarm-config": "./src/alarm-config.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",

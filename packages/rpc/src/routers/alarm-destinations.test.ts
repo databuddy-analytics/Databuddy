@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { alarmDestinationTypeValues } from "@databuddy/db/schema";
-import { ALARM_DESTINATION_BUILDERS } from "@databuddy/notifications";
+import { ALARM_DESTINATION_BUILDERS } from "@databuddy/notifications/alarm-config";
 import { ALARM_DESTINATION_TYPES } from "@databuddy/shared/alarm-destinations";
 import { destinationSchema } from "./alarms";
 
@@ -25,22 +25,30 @@ describe("alarm destination type registry", () => {
 });
 
 describe("webhook destination header validation", () => {
-	test("rejects a Content-Type header instead of silently dropping it at send time", () => {
+	test("drops a Content-Type header instead of blocking the whole save", () => {
 		const result = destinationSchema.safeParse({
 			type: "webhook",
 			identifier: "https://example.com/hook",
-			config: { headers: { "Content-Type": "application/xml" } },
+			config: {
+				headers: { "Content-Type": "application/xml", "X-Alarm": "keep-me" },
+			},
 		});
-		expect(result.success).toBe(false);
+		expect(result.success).toBe(true);
+		if (result.success && result.data.type === "webhook") {
+			expect(result.data.config.headers).toEqual({ "X-Alarm": "keep-me" });
+		}
 	});
 
-	test("rejects an X-Original-URL header instead of silently dropping it at send time", () => {
+	test("drops an X-Original-URL header instead of blocking the whole save", () => {
 		const result = destinationSchema.safeParse({
 			type: "webhook",
 			identifier: "https://example.com/hook",
 			config: { headers: { "X-Original-URL": "/admin" } },
 		});
-		expect(result.success).toBe(false);
+		expect(result.success).toBe(true);
+		if (result.success && result.data.type === "webhook") {
+			expect(result.data.config.headers).toEqual({});
+		}
 	});
 
 	test("accepts an allowed custom header", () => {
@@ -50,5 +58,8 @@ describe("webhook destination header validation", () => {
 			config: { headers: { "X-Alarm": "keep-me" } },
 		});
 		expect(result.success).toBe(true);
+		if (result.success && result.data.type === "webhook") {
+			expect(result.data.config.headers).toEqual({ "X-Alarm": "keep-me" });
+		}
 	});
 });
