@@ -1,4 +1,3 @@
-// RES uses Lighthouse 10 mobile weights: FCP 15%, LCP 30%, INP 30%, CLS 25%.
 const RES_WEIGHTS = {
 	FCP: 0.15,
 	LCP: 0.3,
