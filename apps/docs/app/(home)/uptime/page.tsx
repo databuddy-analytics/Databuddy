@@ -16,9 +16,9 @@ import {
 import { StructuredData } from "@/components/structured-data";
 import { TrackOnMount } from "@/components/track-on-mount";
 
-const TITLE = "Uptime Monitoring: Know the Minute Your Site Goes Down";
+const TITLE = "Free Uptime Monitoring and Status Pages";
 const DESCRIPTION =
-	"Know the minute your site goes down, alert your team in Slack, email, or a webhook, and keep customers updated on a public status page. Free on every plan.";
+	"Check your site as often as every minute on the free plan, get alerts in Slack, email, or a webhook, and keep customers updated on a public status page.";
 
 export const metadata: Metadata = {
 	title: TITLE,
@@ -56,6 +56,10 @@ const FAQ_ITEMS = [
 			"Yes. Post an incident on your status page and update it as you go, from investigating to resolved.",
 	},
 	{
+		question: "Can the status page use my own domain?",
+		answer: "Not yet. Status pages live at status.databuddy.cc/your-name.",
+	},
+	{
 		question: "Does it cost extra?",
 		answer:
 			"No. It's on every plan, including free, and checks don't count toward your event quota.",
@@ -80,16 +84,16 @@ export default function UptimePage() {
 			<div className="overflow-x-hidden">
 				<FeatureHero
 					docsHref="/docs/uptime"
-					footnote="On every plan, including free."
+					footnote="Free on every plan, including 1-minute checks."
 					primaryLabel="Start monitoring"
 					secondaryLabel="Read the docs"
-					subtitle="Databuddy checks your site as often as every minute, alerts your team in Slack or email when it breaks, and keeps customers updated on your status page."
-					title="Know the minute your site goes down."
+					subtitle="Databuddy checks your site as often as every minute, even on the free plan, alerts your team the moment it fails, and shows uptime in the same dashboard as your traffic."
+					title="Know your site is down before a customer tells you."
 					visual={<CheckStrip />}
 				/>
 
 				<FeatureRow
-					body="A failed check is retried twice before anyone is alerted, so you only hear about failures that stick."
+					body="An error gets two more checks, two seconds apart, before anyone is alerted, so a brief blip stays quiet."
 					id="retries"
 					title="No 3am alerts for a one-second blip."
 					visual={<RetryCheck />}

@@ -65,7 +65,7 @@ const FEATURE_ITEMS: FeatureItem[] = [
 	},
 	{
 		title: "Databunny",
-		description: "Tells you what changed and why",
+		description: "Watches your metrics and flags real changes",
 		href: "/databunny",
 		icon: RobotIcon,
 		trackId: "databunny",

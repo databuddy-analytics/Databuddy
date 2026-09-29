@@ -21,9 +21,9 @@ import {
 import { StructuredData } from "@/components/structured-data";
 import { TrackOnMount } from "@/components/track-on-mount";
 
-const TITLE = "Feature Flags, Built Into Your Analytics";
+const TITLE = "Feature Flags With Analytics Built In";
 const DESCRIPTION =
-	"Release features to a few people first, give whole teams access at once, and switch anything off without a deploy.";
+	"Roll out by percentage, user, or company, switch features off from the dashboard, and see who got each flag, in the same SDK as your analytics.";
 
 export const metadata: Metadata = {
 	title: TITLE,
@@ -58,9 +58,19 @@ const FAQ_ITEMS = [
 			"You can split people across weighted variants. A results view isn't built in yet.",
 	},
 	{
+		question: "Can I find flags nobody uses?",
+		answer:
+			"Yes. Each flag shows when it was last seen and roughly how many people it reached.",
+	},
+	{
+		question: "Is it open source?",
+		answer:
+			"Yes. Databuddy is open source under AGPL, so you can read the code or run it on your own servers.",
+	},
+	{
 		question: "Are flag checks billed?",
 		answer:
-			"No. Each browser logs a flag once so you can see who got it, and that log counts as one event.",
+			"No. Each page load logs a flag once so you can see who got it, and that log counts as one event.",
 	},
 ] as const;
 
