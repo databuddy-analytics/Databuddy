@@ -4,6 +4,7 @@ export { NotificationClient } from "./client";
 export * from "./providers";
 export * from "./types";
 export {
+	ALARM_DESTINATION_BUILDERS,
 	buildAlarmNotificationConfig,
 	buildAlarmNotificationTargets,
 	MAX_ALARM_DESTINATIONS,
