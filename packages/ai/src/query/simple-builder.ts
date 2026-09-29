@@ -633,6 +633,10 @@ export class SimpleQueryBuilder {
 			...(isDateOnlyRequest(this.request.from) ? ["from", "startDate"] : []),
 			...(isDateOnlyRequest(this.request.to) ? ["to", "endDate"] : []),
 		]);
+		const isLocalTimezone =
+			Boolean(this.request.timezone) && this.request.timezone !== "UTC";
+		const bindsLocalDay = (paramName: string) =>
+			isLocalTimezone && dateOnlyParams.has(paramName);
 
 		const promoteToEndOfDay = (paramName: string): void => {
 			const value = finalParams[paramName];
@@ -657,11 +661,11 @@ export class SimpleQueryBuilder {
 
 		finalSql = finalSql.replace(END_OF_DAY_REGEX, (_match, paramName) => {
 			promoteToEndOfDay(paramName);
-			return dateBindingExpression(paramName);
+			return dateBindingExpression(paramName, bindsLocalDay(paramName));
 		});
 
 		finalSql = finalSql.replace(TO_DATE_TIME_REGEX, (_match, paramName) =>
-			dateBindingExpression(paramName)
+			dateBindingExpression(paramName, bindsLocalDay(paramName))
 		);
 
 		if (finalSql.includes("{timezone:String}") && !finalParams.timezone) {
