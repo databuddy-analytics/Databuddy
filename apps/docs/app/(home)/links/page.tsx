@@ -16,9 +16,9 @@ import {
 import { StructuredData } from "@/components/structured-data";
 import { TrackOnMount } from "@/components/track-on-mount";
 
-const TITLE = "Short Links With Click Analytics";
+const TITLE = "Free Link Shortener With Click Analytics";
 const DESCRIPTION =
-	"Share one short link everywhere and see which post, email, or channel brings people in. Phones go to the right app store, and bots never count as clicks.";
+	"Shorten links for free and see clicks by source, country, and device. Phones go to the right app store, and bots stay out of your counts.";
 
 export const metadata: Metadata = {
 	title: TITLE,
@@ -35,6 +35,10 @@ export const metadata: Metadata = {
 };
 
 const FAQ_ITEMS = [
+	{
+		question: "Is there an ad page before my site?",
+		answer: "No. People go straight to your page, on every plan.",
+	},
 	{
 		question: "Which domain do links use?",
 		answer:
@@ -79,10 +83,10 @@ export default function LinksPage() {
 			<div className="overflow-x-hidden">
 				<FeatureHero
 					docsHref="/docs/api/links"
-					footnote="Included on every plan."
+					footnote="Free on every plan."
 					primaryLabel="Create your first link"
-					secondaryLabel="Read the docs"
-					subtitle="Share one short link everywhere and see which post, email, or channel brings people in, right next to your site analytics."
+					secondaryLabel="Read the API docs"
+					subtitle="Share one short link everywhere and see which post, email, or channel brings people in, in the same dashboard as your site analytics."
 					title="Know where every click came from."
 					visual={<ClickSources />}
 				/>
@@ -95,15 +99,15 @@ export default function LinksPage() {
 				/>
 
 				<FeatureRow
-					body="Only people show up in your click counts, even after Slack and Discord load the link to build their previews."
+					body="When Slack or Discord loads your link, it shows your own title and image and adds nothing to the count."
 					flip
 					id="bots"
-					title="Click counts you can trust."
+					title="Bots and link previews stay out of your click counts."
 					visual={<BotCount />}
 				/>
 
 				<FeatureRow
-					body="Point the link somewhere new any time, and every QR code already printed follows it."
+					body="Point the link somewhere new any time, and every printed QR code follows it. Add your logo and color before you download."
 					id="qr"
 					title="Never reprint a QR code."
 					visual={<RepointQr />}

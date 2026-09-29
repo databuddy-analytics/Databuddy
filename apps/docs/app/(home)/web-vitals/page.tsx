@@ -16,9 +16,9 @@ import {
 import { StructuredData } from "@/components/structured-data";
 import { TrackOnMount } from "@/components/track-on-mount";
 
-const TITLE = "Core Web Vitals From Real Visits";
+const TITLE = "Core Web Vitals Monitoring From Real Users";
 const DESCRIPTION =
-	"Core Web Vitals from every real visit, graded against the thresholds Google uses for search, with the slow pages called out. Free on every plan.";
+	"Real user monitoring for LCP, INP, CLS, FCP, and TTFB, with p75 by page, browser, and country against the thresholds Google uses for search. On every plan.";
 
 export const metadata: Metadata = {
 	title: TITLE,
@@ -45,18 +45,24 @@ const FAQ_ITEMS = [
 		answer: "LCP, INP, CLS, FCP, and TTFB, plus frame rate.",
 	},
 	{
-		question: "Why p75?",
+		question: "Why does PageSpeed Insights show no data for my site?",
 		answer:
-			"Google judges Core Web Vitals at the 75th percentile, so p75 is the default. You can switch to p50, p90, p95, or p99.",
+			"Google's field data only covers Chrome users on sites with enough traffic. Databuddy measures every visit to your site.",
+	},
+	{
+		question: "Do Safari and Firefox report vitals?",
+		answer:
+			"Current versions report LCP, INP, FCP, and TTFB. CLS comes from Chromium browsers.",
 	},
 	{
 		question: "Can I get alerts?",
 		answer:
-			"On Business and Scale, Databunny flags pages whose LCP or INP got much worse than the week before.",
+			"Not for fixed thresholds yet. On Business and Scale, Databunny flags pages whose LCP or INP got much worse than the week before.",
 	},
 	{
 		question: "Which plans include it?",
-		answer: "Every plan, including free.",
+		answer:
+			"Every plan, including free. Each metric reading counts as one event.",
 	},
 ] as const;
 

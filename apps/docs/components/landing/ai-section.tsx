@@ -212,12 +212,12 @@ export function AiSection() {
 						<SectionBullet color="#6E56CF" />
 					</span>
 					<span className="text-foreground">
-						Start the day knowing what changed.
+						Know what changed without opening a dashboard.
 					</span>
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
-					Every morning, Databunny checks your metrics. When one moves, you get
-					the reason and the next step in Slack.
+					Every day or week, Databunny checks your metrics. When one really
+					moves, you get what it found and the next step in Slack.
 				</p>
 			</div>
 
