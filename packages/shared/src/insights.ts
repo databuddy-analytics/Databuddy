@@ -638,9 +638,8 @@ const agentInvestigationNextSchema = z.discriminatedUnion("type", [
 			.object(insightVerificationCheckSchema.shape)
 			.omit({ definition: true })
 			.nullable()
-			.optional()
 			.describe(
-				"Save a structured check when its metric, future dates and healthy threshold are known. Databuddy binds the expected definition; do not repeat it."
+				"Required: save a structured check when its metric, future dates, population and healthy threshold are known; otherwise explicitly use null. Databuddy binds the expected definition; do not repeat it. Preserve a supported check when correcting other fields."
 			),
 		recheckAt: z.iso.datetime(),
 		execution: agentInsightDefinitionExecutionSchema

@@ -540,6 +540,7 @@ it("rejects the observed repair workaround even after its structured check is dr
 										publicationBasis: "decision_safety",
 										next: {
 											type: "act",
+											check: null,
 											action: "Remove the read-time referrer filter.",
 											target: "Workspace analytics measurement",
 											verification: "The saved unfiltered condition passes.",
