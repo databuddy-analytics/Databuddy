@@ -259,7 +259,7 @@ export default function AmbassadorForm() {
 								maxLength={100}
 								name="name"
 								onChange={handleInputChange}
-								placeholder="John Doe"
+								placeholder="Your name"
 								required
 								type="text"
 								value={formData.name}
@@ -280,7 +280,7 @@ export default function AmbassadorForm() {
 								maxLength={255}
 								name="email"
 								onChange={handleInputChange}
-								placeholder="john@example.com"
+								placeholder="you@example.com"
 								required
 								type="email"
 								value={formData.email}
@@ -299,7 +299,7 @@ export default function AmbassadorForm() {
 								maxLength={50}
 								name="xHandle"
 								onChange={handleInputChange}
-								placeholder="johndoe"
+								placeholder="yourhandle"
 								type="text"
 								value={formData.xHandle}
 							/>
@@ -315,7 +315,7 @@ export default function AmbassadorForm() {
 								maxLength={500}
 								name="website"
 								onChange={handleInputChange}
-								placeholder="https://johndoe.com"
+								placeholder="https://yoursite.com"
 								type="url"
 								value={formData.website}
 							/>

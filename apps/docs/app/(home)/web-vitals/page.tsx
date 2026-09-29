@@ -1,34 +1,34 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
-import { TrackOnMount } from "@/components/track-on-mount";
-import { CELL_TITLE_CLASS } from "@/components/landing/demo-constants";
 import {
 	FeatureHero,
-	GridCell,
-	SectionHeader,
-	TwoColumnGrid,
+	FeatureRow,
+	FeatureSection,
 } from "@/components/landing/demo-primitives";
 import { FaqSection } from "@/components/landing/faq-section";
-import { MidPageCta } from "@/components/landing/mid-page-cta";
-import Section from "@/components/landing/section";
-import { WebVitalsAlertCycleDemo } from "@/components/landing/web-vitals-alert-cycle-demo";
-import { WebVitalsBreakdownDemo } from "@/components/landing/web-vitals-breakdown-demo";
-import { WebVitalsGraphsDemo } from "@/components/landing/web-vitals-graphs-demo";
-import { WebVitalsPercentileCycleDemo } from "@/components/landing/web-vitals-percentile-cycle-demo";
-import { WebVitalsTrendsSparklinesDemo } from "@/components/landing/web-vitals-trends-sparklines-demo";
+import {
+	ExperienceScore,
+	PageBreakdown,
+	SetupSignals,
+	SlowdownFinding,
+	VisitSpread,
+} from "@/components/landing/web-vitals-demo-visuals";
 import { StructuredData } from "@/components/structured-data";
+import { TrackOnMount } from "@/components/track-on-mount";
+
+const TITLE = "Core Web Vitals From Real Visits";
+const DESCRIPTION =
+	"Core Web Vitals from every real visit, graded against the thresholds Google uses for search, with the slow pages called out. Free on every plan.";
 
 export const metadata: Metadata = {
-	title: "Core Web Vitals Monitoring - Real User Performance Analytics",
-	description:
-		"Monitor LCP, CLS, INP, FCP, and TTFB from real users in production. Percentile breakdowns by page, browser, and country. Field data, not lab simulations. Built into your analytics.",
+	title: TITLE,
+	description: DESCRIPTION,
 	alternates: {
 		canonical: "https://www.databuddy.cc/web-vitals",
 	},
 	openGraph: {
-		title: "Core Web Vitals Monitoring - Real User Performance Analytics",
-		description:
-			"Monitor LCP, CLS, INP, FCP, and TTFB from real users in production. Percentile breakdowns by page, browser, and country. Field data, not lab simulations. Built into your analytics.",
+		title: TITLE,
+		description: DESCRIPTION,
 		url: "https://www.databuddy.cc/web-vitals",
 		images: ["/og-image.png"],
 	},
@@ -36,33 +36,29 @@ export const metadata: Metadata = {
 
 const FAQ_ITEMS = [
 	{
-		question: "What is the difference between lab data and field data?",
+		question: "Is this lab data or real visits?",
 		answer:
-			"Lab data (like Lighthouse) runs in a controlled environment. Field data - what Databuddy collects - comes from real users on real devices and connections. Google uses field data for rankings, so that's what matters.",
+			"Real visits. The tracker runs Google's web-vitals library in your visitors' browsers, not a simulated test.",
 	},
 	{
-		question: "Which percentile does Google use to score my site?",
-		answer:
-			"Google scores your site at the 75th percentile, meaning 75% of your users need to have a Good experience. Databuddy shows p75 prominently so you always know where you stand.",
+		question: "Which metrics do you collect?",
+		answer: "LCP, INP, CLS, FCP, and TTFB, plus frame rate.",
 	},
 	{
-		question: "How does Databuddy measure INP?",
+		question: "Why p75?",
 		answer:
-			"Interaction to Next Paint is captured with Google's own web-vitals library, the same measurement Chrome uses. It covers all interactions - clicks, taps, and keyboard input.",
+			"Google judges Core Web Vitals at the 75th percentile, so p75 is the default. You can switch to p50, p90, p95, or p99.",
 	},
 	{
-		question: "Can I see which specific pages are failing?",
+		question: "Can I get alerts?",
 		answer:
-			"Yes. Vitals are tracked per URL, so you can see exactly which routes have poor LCP, high CLS, or slow INP. No more guessing which page is dragging down your overall score.",
+			"On Business and Scale, Databunny flags pages whose LCP or INP got much worse than the week before.",
 	},
 	{
-		question: "Is web vitals monitoring included in all plans?",
-		answer:
-			"Yes, web vitals are included on every plan. Enable them with a single prop on the tracker (trackWebVitals) and data starts flowing from your next visitor.",
+		question: "Which plans include it?",
+		answer: "Every plan, including free.",
 	},
 ] as const;
-
-const container = "mx-auto w-full max-w-400 px-4 sm:px-14 lg:px-20";
 
 export default function WebVitalsPage() {
 	return (
@@ -74,95 +70,55 @@ export default function WebVitalsPage() {
 			<StructuredData
 				elements={[{ type: "faq", items: [...FAQ_ITEMS] }]}
 				page={{
-					title: "Core Web Vitals Monitoring - Real User Performance Analytics",
-					description:
-						"Monitor LCP, CLS, INP, FCP, and TTFB from real users in production. Percentile breakdowns by page, browser, and country.",
+					title: TITLE,
+					description: DESCRIPTION,
 					url: "https://www.databuddy.cc/web-vitals",
 				}}
 			/>
 			<div className="overflow-x-hidden">
 				<FeatureHero
-					docsHref="/docs/performance/core-web-vitals-guide"
-					subtitle="LCP, INP, CLS, FCP, and TTFB from real users in production. Sliced by page, browser, and country. No lab simulations."
-					title="Core Web Vitals, tracked from real users."
+					docsHref="/docs/sdk/configuration"
+					footnote="On every plan, including free."
+					primaryLabel="Measure your pages"
+					secondaryLabel="Read the setup docs"
+					subtitle="Databuddy measures every real visit and grades your p75 against the thresholds Google uses for search, so you know which pages to fix first."
+					title="Pass Core Web Vitals on real traffic."
+					visual={<VisitSpread />}
 				/>
 
-				<Section className="border-border border-b" id="breakdown">
-					<div className={container}>
-						<SectionHeader
-							subtitle="Every vital, sliced by page, browser, and percentile, so you fix the right thing, not just the average."
-							title="Every vital,"
-							titleMuted="by page and browser."
-						/>
+				<FeatureRow
+					body="The Real Experience Score rolls LCP, INP, CLS, and FCP into one number out of 100 and shows how it moved since the last period."
+					id="score"
+					title="Know at a glance when your site gets slower."
+					visual={<ExperienceScore />}
+				/>
 
-						<TwoColumnGrid>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Re-measured on every SPA route change.
-								</h3>
-								<WebVitalsGraphsDemo />
-							</GridCell>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									See which browsers are making users wait.
-								</h3>
-								<WebVitalsBreakdownDemo compact variant="browser" />
-							</GridCell>
-						</TwoColumnGrid>
+				<FeatureSection
+					id="pages"
+					subtitle="Split your vitals by page, browser, or country, and fix the one that drags your score down."
+					title="Find the page that's slowing you down."
+				>
+					<PageBreakdown />
+				</FeatureSection>
 
-						<TwoColumnGrid>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Pinpoint the pages hurting your score before users notice.
-								</h3>
-								<WebVitalsBreakdownDemo compact />
-							</GridCell>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Optimize for the threshold Google actually uses to rank you.
-								</h3>
-								<WebVitalsPercentileCycleDemo />
-							</GridCell>
-						</TwoColumnGrid>
-					</div>
-				</Section>
+				<FeatureRow
+					body="On Business and Scale, Databunny flags pages that got much slower than the week before and checks whether visitors on slow loads browsed less."
+					flip
+					id="slowdowns"
+					title="Catch slowdowns the week they ship."
+					visual={<SlowdownFinding />}
+				/>
 
-				<Section className="border-border border-b" id="monitoring">
-					<div className={container}>
-						<SectionHeader
-							subtitle="Databunny compares this week to last on every route and only flags LCP or INP regressions with enough samples to matter. Findings land in Slack."
-							title="A daily check,"
-							titleMuted="not a noisy pager."
-						/>
+				<FeatureRow
+					body="Add data-track-web-vitals to the script you already have, or pass trackWebVitals to the Databuddy component."
+					id="setup"
+					title="Turn it on with one attribute."
+					visual={<SetupSignals />}
+				/>
 
-						<TwoColumnGrid>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Get a finding when a route regresses.
-								</h3>
-								<WebVitalsAlertCycleDemo />
-							</GridCell>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Confirm the fix actually held.
-								</h3>
-								<WebVitalsTrendsSparklinesDemo />
-							</GridCell>
-						</TwoColumnGrid>
-					</div>
-				</Section>
-
-				<Section className="border-border border-b" id="faq">
-					<div className={container}>
-						<FaqSection items={[...FAQ_ITEMS]} />
-					</div>
-				</Section>
-
-				<Section className="border-border border-b" id="cta">
-					<div className={container}>
-						<MidPageCta />
-					</div>
-				</Section>
+				<FeatureSection id="faq">
+					<FaqSection items={[...FAQ_ITEMS]} />
+				</FeatureSection>
 
 				<Footer />
 			</div>

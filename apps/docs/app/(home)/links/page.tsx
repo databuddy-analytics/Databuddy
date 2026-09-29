@@ -1,36 +1,34 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
-import { TrackOnMount } from "@/components/track-on-mount";
-import { CELL_TITLE_CLASS } from "@/components/landing/demo-constants";
 import {
 	FeatureHero,
-	GridCell,
-	SectionHeader,
-	TwoColumnGrid,
+	FeatureRow,
+	FeatureSection,
 } from "@/components/landing/demo-primitives";
 import { FaqSection } from "@/components/landing/faq-section";
-import { MidPageCta } from "@/components/landing/mid-page-cta";
 import {
-	DeepLinkDemo,
-	LinkFunnelDemo,
-	LinksTableDemo,
-	ReferrerBreakdownDemo,
-	UtmBuilderDemo,
+	BotCount,
+	ClickSources,
+	DeviceRoutes,
+	RepointQr,
+	UtmTags,
 } from "@/components/landing/links-demo-visuals";
-import Section from "@/components/landing/section";
 import { StructuredData } from "@/components/structured-data";
+import { TrackOnMount } from "@/components/track-on-mount";
+
+const TITLE = "Short Links With Click Analytics";
+const DESCRIPTION =
+	"Share one short link everywhere and see which post, email, or channel brings people in. Phones go to the right app store, and bots never count as clicks.";
 
 export const metadata: Metadata = {
-	title: "Short Links & Click Analytics",
-	description:
-		"Short links with built-in click analytics, UTM tagging, QR codes, deep linking, and referrer tracking. Every click tracked inside your analytics dashboard.",
+	title: TITLE,
+	description: DESCRIPTION,
 	alternates: {
 		canonical: "https://www.databuddy.cc/links",
 	},
 	openGraph: {
-		title: "Short Links & Click Analytics",
-		description:
-			"Short links with built-in click analytics, UTM tagging, QR codes, deep linking, and referrer tracking. Every click tracked inside your analytics dashboard.",
+		title: TITLE,
+		description: DESCRIPTION,
 		url: "https://www.databuddy.cc/links",
 		images: ["/og-image.png"],
 	},
@@ -38,33 +36,30 @@ export const metadata: Metadata = {
 
 const FAQ_ITEMS = [
 	{
-		question: "How is this different from Bitly or Dub?",
+		question: "Which domain do links use?",
 		answer:
-			"Databuddy links live inside your analytics stack. Every click is connected to the same dashboard where you track pageviews, errors, and conversions. No separate tool, no data silos.",
+			"dby.sh, with a slug you choose or one we generate. Custom domains aren't available.",
 	},
 	{
-		question: "Are click counts accurate?",
+		question: "Do clicks count toward my events?",
 		answer:
-			"Yes. Bots and crawlers are detected and redirected without counting, so your numbers reflect real people. Visitor IPs are hashed with a rotating daily salt and never stored raw.",
+			"No. Link clicks are stored on their own and don't use your monthly events.",
 	},
 	{
-		question: "Do links expire?",
+		question: "Can a link open the Instagram or TikTok app?",
 		answer:
-			"Optionally. You can set an expiration date and a redirect URL for expired links. Links without an expiration last forever.",
+			"Yes. Links to Instagram, TikTok, YouTube, X, Spotify, LinkedIn, Facebook, WhatsApp, and Telegram open the app on phones, and fall back to the browser.",
 	},
 	{
-		question: "How do deep links work?",
-		answer:
-			"Set an iOS URL and an Android URL on any link. When someone clicks on mobile, they go to the right app store or deep into your native app. Desktop users get the web fallback automatically.",
+		question: "Can a link stop working after a date?",
+		answer: "Yes. Set an end date and the page people land on after it.",
 	},
 	{
-		question: "Can I manage links from the API?",
+		question: "Can I create links from code?",
 		answer:
-			"Yes. Create, update, and search links with a scoped API key, or let your AI agent do it over MCP. Folders keep campaigns organized either way.",
+			"Yes, through the API with a key scoped to write:links, or with the create_link tool over MCP.",
 	},
 ] as const;
-
-const container = "mx-auto w-full max-w-400 px-4 sm:px-14 lg:px-20";
 
 export default function LinksPage() {
 	return (
@@ -76,110 +71,55 @@ export default function LinksPage() {
 			<StructuredData
 				elements={[{ type: "faq", items: [...FAQ_ITEMS] }]}
 				page={{
-					title: "Short Links & Click Analytics",
-					description:
-						"Short links with built-in click analytics, UTM tagging, QR codes, and deep linking.",
+					title: TITLE,
+					description: DESCRIPTION,
 					url: "https://www.databuddy.cc/links",
 				}}
 			/>
 			<div className="overflow-x-hidden">
 				<FeatureHero
 					docsHref="/docs/api/links"
-					primaryLabel="Create Your First Link"
-					subtitle="Click analytics, UTM tagging, deep linking, and QR codes, with every click in the same dashboard as your pageviews, errors, and conversions."
-					title="Short links in the dashboard you already use."
+					footnote="Included on every plan."
+					primaryLabel="Create your first link"
+					secondaryLabel="Read the docs"
+					subtitle="Share one short link everywhere and see which post, email, or channel brings people in, right next to your site analytics."
+					title="Know where every click came from."
+					visual={<ClickSources />}
 				/>
 
-				<Section className="border-border border-b" id="tracking">
-					<div className={container}>
-						<SectionHeader
-							subtitle="Every click captured with referrer, device, location, and timestamp. No extra setup, no third-party tool."
-							title="Every click,"
-							titleMuted="full context."
-						/>
-						<TwoColumnGrid>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									See which links drive traffic.
-								</h3>
-								<LinksTableDemo />
-							</GridCell>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Know where your clicks come from.
-								</h3>
-								<ReferrerBreakdownDemo />
-							</GridCell>
-						</TwoColumnGrid>
-						<TwoColumnGrid>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Connect link clicks to your funnels.
-								</h3>
-								<LinkFunnelDemo />
-							</GridCell>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Paste a link, open the native app.
-								</h3>
-								<DeepLinkDemo />
-							</GridCell>
-						</TwoColumnGrid>
-					</div>
-				</Section>
+				<FeatureRow
+					body="iPhone visitors go to the App Store, Android visitors to Google Play, and everyone else to your site."
+					id="devices"
+					title="One link gets every phone to the right app store."
+					visual={<DeviceRoutes />}
+				/>
 
-				<Section className="border-border border-b" id="tools">
-					<div className={container}>
-						<SectionHeader
-							subtitle="UTM tagging, expiration dates, QR codes, and per-link social previews. Bots are filtered from your counts, and IPs are hashed, never stored."
-							title="Clean links,"
-							titleMuted="honest numbers."
-						/>
-						<TwoColumnGrid>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Build UTM-tagged destinations behind clean short links.
-								</h3>
-								<UtmBuilderDemo />
-							</GridCell>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Set expiration dates and custom redirect URLs.
-								</h3>
-								<div className="space-y-2">
-									<div className="rounded border border-border/30 bg-card/50 px-3 py-2.5">
-										<div className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-											Expires
-										</div>
-										<div className="font-mono text-foreground text-xs">
-											June 30, 2026 at 11:59 PM
-										</div>
-									</div>
-									<div className="rounded border border-border/30 bg-card/50 px-3 py-2.5">
-										<div className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-											After expiry, redirect to
-										</div>
-										<div className="font-mono text-foreground text-xs">
-											yourapp.com/offer-ended
-										</div>
-									</div>
-								</div>
-							</GridCell>
-						</TwoColumnGrid>
-					</div>
-				</Section>
+				<FeatureRow
+					body="Only people show up in your click counts, even after Slack and Discord load the link to build their previews."
+					flip
+					id="bots"
+					title="Click counts you can trust."
+					visual={<BotCount />}
+				/>
 
-				<Section className="border-border border-b" id="faq">
-					<div className={container}>
-						<FaqSection items={[...FAQ_ITEMS]} />
-					</div>
-				</Section>
+				<FeatureRow
+					body="Point the link somewhere new any time, and every QR code already printed follows it."
+					id="qr"
+					title="Never reprint a QR code."
+					visual={<RepointQr />}
+				/>
 
-				<Section className="border-border border-b" id="cta">
-					<div className={container}>
-						<MidPageCta />
-					</div>
-				</Section>
+				<FeatureRow
+					body="Add UTM tags as you create the link, and the visits it brings show up under that campaign in your analytics."
+					flip
+					id="utm"
+					title="Credit every visit to the right campaign."
+					visual={<UtmTags />}
+				/>
+
+				<FeatureSection id="faq">
+					<FaqSection items={[...FAQ_ITEMS]} />
+				</FeatureSection>
 
 				<Footer />
 			</div>

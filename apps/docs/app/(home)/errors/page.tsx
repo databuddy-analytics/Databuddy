@@ -1,33 +1,34 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
-import { TrackOnMount } from "@/components/track-on-mount";
-import { CELL_TITLE_CLASS } from "@/components/landing/demo-constants";
 import {
 	FeatureHero,
-	GridCell,
-	SectionHeader,
-	TwoColumnGrid,
+	FeatureRow,
+	FeatureSection,
 } from "@/components/landing/demo-primitives";
-import { ErrorAutoCaptureAlertsStackDemo } from "@/components/landing/error-auto-capture-alerts-stack-demo";
-import { ErrorFrequencyChartDemo } from "@/components/landing/error-frequency-chart-demo";
-import { ErrorPerPageBreakdownDemo } from "@/components/landing/error-per-page-breakdown-demo";
-import { ErrorImpactTableArtifact } from "@/components/landing/error-who-it-affects-artifacts";
+import {
+	ErrorJourney,
+	KeptGoing,
+	LoudVersusWide,
+	NoiseGate,
+	VisitTimeline,
+} from "@/components/landing/error-demo-visuals";
 import { FaqSection } from "@/components/landing/faq-section";
-import { MidPageCta } from "@/components/landing/mid-page-cta";
-import Section from "@/components/landing/section";
 import { StructuredData } from "@/components/structured-data";
+import { TrackOnMount } from "@/components/track-on-mount";
+
+const TITLE = "JavaScript Error Tracking: Every Error Happened to Someone";
+const DESCRIPTION =
+	"See which JavaScript errors hit the most people, and where. Built into your analytics, no extra tool.";
 
 export const metadata: Metadata = {
-	title: "JavaScript Error Tracking - Built Into Your Analytics",
-	description:
-		"Catch and group JavaScript errors with stack traces, session context, and affected-user impact. No second tool, no extra script.",
+	title: TITLE,
+	description: DESCRIPTION,
 	alternates: {
 		canonical: "https://www.databuddy.cc/errors",
 	},
 	openGraph: {
-		title: "JavaScript Error Tracking - Built Into Your Analytics",
-		description:
-			"Catch and group JavaScript errors with stack traces, session context, and affected-user impact. No second tool, no extra script.",
+		title: TITLE,
+		description: DESCRIPTION,
 		url: "https://www.databuddy.cc/errors",
 		images: ["/og-image.png"],
 	},
@@ -35,33 +36,28 @@ export const metadata: Metadata = {
 
 const FAQ_ITEMS = [
 	{
-		question: "Will error tracking slow down my site?",
+		question: "How do I turn it on?",
 		answer:
-			"Error handlers capture exceptions and unhandled rejections, then send them asynchronously. Measure the tracker alongside the rest of your site to check its performance impact.",
+			"Add data-track-errors to the Databuddy script, or pass trackErrors to the Databuddy component.",
 	},
 	{
-		question: "How does Databuddy group errors?",
-		answer:
-			"Errors are grouped by message, so the same bug hitting thousands of users shows up as one issue ranked by how many people it affects - not thousands of duplicate rows.",
+		question: "Do you support source maps?",
+		answer: "Not yet. You see the file, line, and column the browser reports.",
 	},
 	{
-		question: "Can I see how many users an error affected?",
+		question: "Can I get alerts?",
 		answer:
-			"Yes. Every error shows affected users, occurrences, and errors per affected user. Impact analysis stays privacy-safe: aggregate counts, never a list of identified individuals.",
+			"Not yet for errors. On Business and Scale, Databunny posts error spikes to Slack.",
 	},
 	{
-		question: "Does it capture noise from browser extensions?",
-		answer:
-			"Known extension errors and browser runtime noise are filtered before ingestion. Filters reduce noise but cannot distinguish every third-party error.",
+		question: "Do you record sessions?",
+		answer: "No. You see counts and context, never a recording.",
 	},
 	{
-		question: "Is error tracking included in all plans?",
-		answer:
-			"Error tracking starts on the Hobby plan. Every paid plan includes it with no separate error quota.",
+		question: "Which plans include it?",
+		answer: "Hobby and up. Each error counts as one event.",
 	},
 ] as const;
-
-const container = "mx-auto w-full max-w-400 px-4 sm:px-14 lg:px-20";
 
 export default function ErrorsPage() {
 	return (
@@ -73,73 +69,56 @@ export default function ErrorsPage() {
 			<StructuredData
 				elements={[{ type: "faq", items: [...FAQ_ITEMS] }]}
 				page={{
-					title: "JavaScript Error Tracking - Built Into Your Analytics",
-					description:
-						"Catch and group JavaScript errors with stack traces, session context, and affected-user impact.",
+					title: TITLE,
+					description: DESCRIPTION,
 					url: "https://www.databuddy.cc/errors",
 				}}
 			/>
 			<div className="overflow-x-hidden">
 				<FeatureHero
-					docsHref="/docs/dashboard"
-					footnote="Error tracking starts on the Hobby plan. Free includes analytics for 10,000 events/mo."
-					primaryLabel="Start Monitoring"
-					subtitle="Captured JavaScript errors tied to the session and page where they happened. Use stack traces and affected-user counts to prioritize fixes."
-					title="Find the errors affecting your users."
+					docsHref="/docs/sdk/configuration"
+					footnote="Included from Hobby."
+					primaryLabel="Start tracking errors"
+					secondaryLabel="Read the setup docs"
+					subtitle="See which errors hit the most people and where, in the analytics you already use."
+					title="Every error happened to someone."
+					visual={<ErrorJourney />}
 				/>
 
-				<Section className="border-border border-b" id="impact">
-					<div className={container}>
-						<SectionHeader
-							subtitle="Every error shows affected users, occurrences, and errors per affected user, so the bug hurting the most people rises to the top."
-							title="Prioritize by"
-							titleMuted="affected users."
-						/>
+				<FeatureSection
+					id="people"
+					subtitle="One stuck tab can throw a thousand errors. Databuddy shows how many people each error hit."
+					title="Fix what hurts the most people first."
+				>
+					<LoudVersusWide />
+				</FeatureSection>
 
-						<TwoColumnGrid>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Find the one page generating all the errors.
-								</h3>
-								<ErrorPerPageBreakdownDemo />
-							</GridCell>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Exceptions and rejections, captured automatically.
-								</h3>
-								<ErrorAutoCaptureAlertsStackDemo />
-							</GridCell>
-						</TwoColumnGrid>
+				<FeatureRow
+					body="Every error comes with the page, browser, and device it happened on, so you know where to start looking."
+					id="context"
+					title="Reproduce bugs without guessing."
+					visual={<VisitTimeline />}
+				/>
 
-						<TwoColumnGrid>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									An error hitting 500 users matters more than one hitting 1
-									user 500 times.
-								</h3>
-								<ErrorImpactTableArtifact />
-							</GridCell>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									See when the error stops hitting users.
-								</h3>
-								<ErrorFrequencyChartDemo />
-							</GridCell>
-						</TwoColumnGrid>
-					</div>
-				</Section>
+				<FeatureSection
+					id="impact"
+					subtitle="On Business and Scale, Databunny compares visits that hit the error with similar visits that didn't."
+					title="Know which errors make people leave."
+				>
+					<KeptGoing />
+				</FeatureSection>
 
-				<Section className="border-border border-b" id="faq">
-					<div className={container}>
-						<FaqSection items={[...FAQ_ITEMS]} />
-					</div>
-				</Section>
+				<FeatureRow
+					body="Add data-track-errors to the script you already have. Noise from browser extensions is filtered out for you."
+					flip
+					id="setup"
+					title="Turn it on with one line."
+					visual={<NoiseGate />}
+				/>
 
-				<Section className="border-border border-b" id="cta">
-					<div className={container}>
-						<MidPageCta />
-					</div>
-				</Section>
+				<FeatureSection id="faq">
+					<FaqSection items={[...FAQ_ITEMS]} />
+				</FeatureSection>
 
 				<Footer />
 			</div>

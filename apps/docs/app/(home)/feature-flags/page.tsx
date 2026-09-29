@@ -1,69 +1,68 @@
+import {
+	GATED_FEATURES,
+	PLAN_FEATURE_LIMITS,
+	PLAN_IDS,
+} from "@databuddy/shared/types/features";
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
-import { TrackOnMount } from "@/components/track-on-mount";
-import { CELL_TITLE_CLASS } from "@/components/landing/demo-constants";
 import {
 	FeatureHero,
-	GridCell,
-	SectionHeader,
-	TwoColumnGrid,
+	FeatureRow,
+	FeatureSection,
 } from "@/components/landing/demo-primitives";
 import { FaqSection } from "@/components/landing/faq-section";
-import { FFAbTestingDemo } from "@/components/landing/ff-ab-testing-demo";
-import { FFCompactFlagsDashboardDemo } from "@/components/landing/ff-compact-flags-dashboard-demo";
-import { FFInstantRolloutsDemo } from "@/components/landing/ff-instant-rollouts-demo";
-import { FFPercentageRolloutsDemo } from "@/components/landing/ff-percentage-rollouts-demo";
-import { FFTemplatesMiniGridDemo } from "@/components/landing/ff-templates-mini-grid-demo";
-import { FFUserTargetingDemo } from "@/components/landing/ff-user-targeting-demo";
-import { MidPageCta } from "@/components/landing/mid-page-cta";
-import Section from "@/components/landing/section";
+import {
+	DependentFlags,
+	KillSwitch,
+	RolloutGrid,
+	TeamRollout,
+	WhoSeesIt,
+} from "@/components/landing/flag-demo-visuals";
 import { StructuredData } from "@/components/structured-data";
+import { TrackOnMount } from "@/components/track-on-mount";
+
+const TITLE = "Feature Flags, Built Into Your Analytics";
+const DESCRIPTION =
+	"Release features to a few people first, give whole teams access at once, and switch anything off without a deploy.";
 
 export const metadata: Metadata = {
-	title: "Feature Flags & A/B Testing - Built Into Your Analytics",
-	description:
-		"Ship features safely with controlled rollouts, percentage-based releases, A/B testing, and user targeting. No deploys needed. Built into your analytics dashboard.",
+	title: TITLE,
+	description: DESCRIPTION,
 	alternates: {
 		canonical: "https://www.databuddy.cc/feature-flags",
 	},
 	openGraph: {
-		title: "Feature Flags & A/B Testing - Built Into Your Analytics",
-		description:
-			"Ship features safely with controlled rollouts, percentage-based releases, A/B testing, and user targeting. No deploys needed. Built into your analytics dashboard.",
+		title: TITLE,
+		description: DESCRIPTION,
 		url: "https://www.databuddy.cc/feature-flags",
 		images: ["/og-image.png"],
 	},
 };
 
+const flagLimit = (plan: (typeof PLAN_IDS)[keyof typeof PLAN_IDS]) =>
+	PLAN_FEATURE_LIMITS[plan][GATED_FEATURES.FEATURE_FLAGS];
+
 const FAQ_ITEMS = [
 	{
-		question: "Will feature flags slow down my app?",
+		question: "How fast does a change reach people?",
 		answer:
-			"The SDK caches flag evaluations and batches requests. Initial loading and refreshes can involve a network request. Analytics and flags are available through the same SDK; the standalone tracking script does not evaluate flags.",
+			"On their browser's next refresh, usually within a minute. No deploy.",
 	},
 	{
-		question: "Can I roll out a feature to just one team or customer first?",
-		answer:
-			"Yes. Target specific users by ID, email, or any property you pass, and bucket percentage rollouts by user, organization, or team so a whole workspace flips together.",
+		question: "Does the same person always get the same answer?",
+		answer: "Yes, as long as their ID stays the same.",
 	},
 	{
-		question: "What happens if something goes wrong after a release?",
+		question: "Can I run A/B tests?",
 		answer:
-			"Turn the flag off in the dashboard without a code deploy. Clients pick up the change when their cached flags refresh.",
+			"You can split people across weighted variants. A results view isn't built in yet.",
 	},
 	{
-		question: "Can I run A/B tests to see which version performs better?",
+		question: "Are flag checks billed?",
 		answer:
-			"Yes. Create multiple variants, split traffic by weight, and each user consistently sees the same variant across sessions. Every evaluation is tracked with its variant, so you can segment any metric by variant in your analytics.",
-	},
-	{
-		question: "Are feature flags included in all plans?",
-		answer:
-			"Every plan includes feature flags - the free plan gives you 3 flags to start, and paid plans scale from there. Flag evaluations never count toward your event quota.",
+			"No. Each browser logs a flag once so you can see who got it, and that log counts as one event.",
 	},
 ] as const;
-
-const container = "mx-auto w-full max-w-400 px-4 sm:px-14 lg:px-20";
 
 export default function FeatureFlagsPage() {
 	return (
@@ -75,96 +74,55 @@ export default function FeatureFlagsPage() {
 			<StructuredData
 				elements={[{ type: "faq", items: [...FAQ_ITEMS] }]}
 				page={{
-					title: "Feature Flags & A/B Testing",
-					description:
-						"Ship features safely with controlled rollouts, percentage-based releases, A/B testing, and user targeting.",
+					title: TITLE,
+					description: DESCRIPTION,
 					url: "https://www.databuddy.cc/feature-flags",
 				}}
 			/>
 			<div className="overflow-x-hidden">
 				<FeatureHero
 					docsHref="/docs/sdk/feature-flags"
-					footnote="3 flags free. Evaluations never count toward your event quota."
-					subtitle="Boolean toggles, percentage rollouts, and weighted variants in the same SDK and dashboard as your analytics."
-					title="Release features on your terms."
+					footnote={`${flagLimit(PLAN_IDS.FREE)} flags free.`}
+					primaryLabel="Create your first flag"
+					secondaryLabel="Read the docs"
+					subtitle="Start with a small group, widen the rollout once it holds up, and switch it off without a deploy if it breaks. It runs on the same SDK as your analytics."
+					title="Ship new features to a few people first."
+					visual={<RolloutGrid />}
 				/>
 
-				<Section className="border-border border-b" id="how-it-works">
-					<div className={container}>
-						<SectionHeader
-							subtitle="Add the flag to your code once, then change its targeting and rollout rules from the dashboard."
-							title="One dashboard,"
-							titleMuted="zero deploys."
-						/>
+				<FeatureRow
+					body="Flip the switch and browsers drop the feature on their next refresh, with no deploy."
+					id="off"
+					title="Kill a bad release from the dashboard."
+					visual={<KillSwitch />}
+				/>
 
-						<TwoColumnGrid>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Every flag, with a full audit trail of changes.
-								</h3>
-								<FFCompactFlagsDashboardDemo />
-							</GridCell>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Start from a template or build from scratch.
-								</h3>
-								<FFTemplatesMiniGridDemo />
-							</GridCell>
-						</TwoColumnGrid>
-					</div>
-				</Section>
+				<FeatureRow
+					body="Roll out by organization, so everyone at the same company sees the same thing."
+					id="teams"
+					flip
+					title="Give a customer's whole team the feature at once."
+					visual={<TeamRollout />}
+				/>
 
-				<Section className="border-border border-b" id="capabilities">
-					<div className={container}>
-						<SectionHeader
-							subtitle="Kill switches, gradual ramps, flag dependencies, and reusable target groups. Every change is logged with who made it and what it was before."
-							title="From kill switch"
-							titleMuted="to experiment."
-						/>
+				<FeatureRow
+					body="Target by email, plan, or any property you send, and reuse the same group on every flag."
+					id="targeting"
+					title="Give beta testers early access."
+					visual={<WhoSeesIt />}
+				/>
 
-						<TwoColumnGrid>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Toggle any feature on or off without deploying.
-								</h3>
-								<FFInstantRolloutsDemo />
-							</GridCell>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Ramp up gradually. Turn a flag off when needed.
-								</h3>
-								<FFPercentageRolloutsDemo />
-							</GridCell>
-						</TwoColumnGrid>
+				<FeatureRow
+					body="Make smaller flags depend on a parent, and switching the parent off takes them all down together."
+					flip
+					id="dependencies"
+					title="Turn off a whole feature with one switch."
+					visual={<DependentFlags />}
+				/>
 
-						<TwoColumnGrid>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Same user, same variant, every session.
-								</h3>
-								<FFAbTestingDemo />
-							</GridCell>
-							<GridCell>
-								<h3 className={CELL_TITLE_CLASS}>
-									Target by user ID, email, or any property.
-								</h3>
-								<FFUserTargetingDemo />
-							</GridCell>
-						</TwoColumnGrid>
-					</div>
-				</Section>
-
-				<Section className="border-border border-b" id="faq">
-					<div className={container}>
-						<FaqSection items={[...FAQ_ITEMS]} />
-					</div>
-				</Section>
-
-				<Section className="border-border border-b" id="cta">
-					<div className={container}>
-						<MidPageCta />
-					</div>
-				</Section>
+				<FeatureSection id="faq">
+					<FaqSection items={[...FAQ_ITEMS]} />
+				</FeatureSection>
 
 				<Footer />
 			</div>

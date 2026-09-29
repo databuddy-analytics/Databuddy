@@ -64,7 +64,7 @@ const startupsSchema = z.object({
 			} catch {
 				return false;
 			}
-		}, "Enter a full URL, like https://acme.com"),
+		}, "Enter a full URL, like https://yourcompany.com"),
 	funding: z.string(),
 	accelerator: z.string(),
 	notes: z.string().max(800, "Keep notes under 800 characters").optional(),
@@ -210,7 +210,7 @@ export default function StartupsForm() {
 						className={errors.name ? "border-destructive" : ""}
 						id="name"
 						maxLength={100}
-						placeholder="Jane Doe"
+						placeholder="Your name"
 						type="text"
 						{...register("name")}
 					/>
@@ -228,7 +228,7 @@ export default function StartupsForm() {
 						className={errors.email ? "border-destructive" : ""}
 						id="email"
 						maxLength={255}
-						placeholder="jane@acme.com"
+						placeholder="you@company.com"
 						type="email"
 						{...register("email")}
 					/>
@@ -246,7 +246,7 @@ export default function StartupsForm() {
 						className={errors.companyName ? "border-destructive" : ""}
 						id="companyName"
 						maxLength={120}
-						placeholder="Acme"
+						placeholder="Your company"
 						type="text"
 						{...register("companyName")}
 					/>
@@ -264,7 +264,7 @@ export default function StartupsForm() {
 						className={errors.website ? "border-destructive" : ""}
 						id="website"
 						maxLength={500}
-						placeholder="https://acme.com"
+						placeholder="https://yourcompany.com"
 						type="url"
 						{...register("website")}
 					/>
