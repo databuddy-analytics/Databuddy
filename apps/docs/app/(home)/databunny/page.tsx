@@ -17,6 +17,7 @@ import {
 } from "@/components/landing/demo-primitives";
 import { FaqSection } from "@/components/landing/faq-section";
 import { StructuredData } from "@/components/structured-data";
+import { TrackOnMount } from "@/components/track-on-mount";
 
 const TITLE = "Databunny: The AI Analyst That Watches Your Metrics";
 const DESCRIPTION =
@@ -70,6 +71,10 @@ const FAQ_ITEMS = [
 export default function DatabunnyPage() {
 	return (
 		<>
+			<TrackOnMount
+				event="feature_landing_viewed"
+				properties={{ feature: "databunny" }}
+			/>
 			<StructuredData
 				elements={[{ type: "faq", items: [...FAQ_ITEMS] }]}
 				page={{
