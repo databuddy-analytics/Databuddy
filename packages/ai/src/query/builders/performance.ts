@@ -294,7 +294,7 @@ export const PerformanceBuilders = {
 			return {
 				sql: `
 				SELECT 
-					toDate(timestamp) as date,
+					toDate(toTimeZone(timestamp, {timezone:String})) as date,
 					avgIf(metric_value, metric_name = 'FCP' AND metric_value > 0) as avg_fcp,
 					quantileTDigestIf(0.50)(metric_value, metric_name = 'FCP' AND metric_value > 0) as p50_fcp,
 					avgIf(metric_value, metric_name = 'LCP' AND metric_value > 0) as avg_lcp,
@@ -311,7 +311,7 @@ export const PerformanceBuilders = {
 					client_id = {websiteId:String}
 					AND timestamp >= toDateTime({startDate:String})
 					AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				GROUP BY toDate(timestamp)
+				GROUP BY toDate(toTimeZone(timestamp, {timezone:String}))
 				ORDER BY date ASC
 			`,
 				params: { websiteId, startDate, endDate },
