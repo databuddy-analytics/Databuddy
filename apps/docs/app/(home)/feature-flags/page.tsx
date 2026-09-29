@@ -5,8 +5,11 @@ import {
 } from "@databuddy/shared/types/features";
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
-import { FeatureHero, FeatureRow } from "@/components/landing/demo-primitives";
-import { SECTION_SPACING } from "@/components/landing/demo-constants";
+import {
+	FeatureHero,
+	FeatureRow,
+	FeatureSection,
+} from "@/components/landing/demo-primitives";
 import { FaqSection } from "@/components/landing/faq-section";
 import {
 	DependentFlags,
@@ -15,9 +18,7 @@ import {
 	TeamRollout,
 	WhoSeesIt,
 } from "@/components/landing/flag-demo-visuals";
-import Section from "@/components/landing/section";
 import { StructuredData } from "@/components/structured-data";
-import { cn } from "@/lib/utils";
 import { TrackOnMount } from "@/components/track-on-mount";
 
 const TITLE = "Feature Flags, Built Into Your Analytics";
@@ -62,8 +63,6 @@ const FAQ_ITEMS = [
 			"No. Each browser logs a flag once so you can see who got it, and that log counts as one event.",
 	},
 ] as const;
-
-const container = "mx-auto w-full max-w-400 px-4 sm:px-14 lg:px-20";
 
 export default function FeatureFlagsPage() {
 	return (
@@ -121,15 +120,9 @@ export default function FeatureFlagsPage() {
 					visual={<DependentFlags />}
 				/>
 
-				<Section
-					className={cn("border-border border-b", SECTION_SPACING)}
-					customPaddings
-					id="faq"
-				>
-					<div className={container}>
-						<FaqSection items={[...FAQ_ITEMS]} />
-					</div>
-				</Section>
+				<FeatureSection id="faq">
+					<FaqSection items={[...FAQ_ITEMS]} />
+				</FeatureSection>
 
 				<Footer />
 			</div>

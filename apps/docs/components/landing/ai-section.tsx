@@ -2,19 +2,19 @@
 
 import { ArrowRightIcon, CheckIcon, PlugIcon } from "@databuddy/ui/icons";
 import { SiClaude, SiCursor } from "@icons-pack/react-simple-icons";
+import { useInView, useReducedMotion } from "motion/react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SectionBullet } from "../icons/section-bullet";
 import { InvestigationStage } from "./databunny-demo-visuals";
-import { EASE } from "./demo-constants";
-import { CardChrome, useRevealOnScroll } from "./demo-primitives";
+import { FRAME } from "./demo-primitives";
 import { SciFiButton } from "./scifi-btn";
 import { cn } from "@/lib/utils";
 
 function revealStyle(visible: boolean, delayMs: number) {
 	return {
 		transitionDelay: visible ? `${delayMs}ms` : "0ms",
-		transitionTimingFunction: EASE,
+		transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
 	};
 }
 
@@ -59,6 +59,7 @@ const FADE_MS = 350;
 
 function useTypewriter(text: string, active: boolean) {
 	const [typed, setTyped] = useState(0);
+	const reduce = useReducedMotion();
 
 	useEffect(() => {
 		setTyped(0);
@@ -68,7 +69,7 @@ function useTypewriter(text: string, active: boolean) {
 		if (!active) {
 			return;
 		}
-		if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+		if (reduce) {
 			setTyped(text.length);
 			return;
 		}
@@ -82,33 +83,20 @@ function useTypewriter(text: string, active: boolean) {
 			});
 		}, TYPE_TICK_MS);
 		return () => window.clearInterval(id);
-	}, [active, text.length]);
+	}, [active, reduce, text.length]);
 
 	return { text: text.slice(0, typed), done: typed >= text.length };
 }
 
-function useOnScreen(ref: React.RefObject<HTMLDivElement | null>) {
-	const [onScreen, setOnScreen] = useState(false);
-
-	useEffect(() => {
-		const el = ref.current;
-		if (!el) {
-			return;
-		}
-		const observer = new IntersectionObserver(
-			(entries) => setOnScreen(entries[0]?.isIntersecting ?? false),
-			{ threshold: 0.2 }
-		);
-		observer.observe(el);
-		return () => observer.disconnect();
-	}, [ref]);
-
-	return onScreen;
-}
-
 export function McpTerminalDemo() {
-	const { ref, visible } = useRevealOnScroll();
-	const onScreen = useOnScreen(ref);
+	const ref = useRef<HTMLDivElement>(null);
+	const visible = useInView(ref, {
+		once: true,
+		amount: 0.2,
+		margin: "0px 0px -60px 0px",
+	});
+	const onScreen = useInView(ref, { amount: 0.2 });
+	const reduce = useReducedMotion();
 	const [scenarioIndex, setScenarioIndex] = useState(0);
 	const [fading, setFading] = useState(false);
 	const scenario = TERMINAL_SCENARIOS[scenarioIndex];
@@ -116,15 +104,12 @@ export function McpTerminalDemo() {
 	const showing = visible && question.done && !fading;
 
 	useEffect(() => {
-		if (!(question.done && onScreen) || fading) {
-			return;
-		}
-		if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+		if (!(question.done && onScreen) || fading || reduce) {
 			return;
 		}
 		const id = window.setTimeout(() => setFading(true), HOLD_MS);
 		return () => window.clearTimeout(id);
-	}, [question.done, onScreen, fading]);
+	}, [question.done, onScreen, fading, reduce]);
 
 	useEffect(() => {
 		if (!fading) {
@@ -139,7 +124,7 @@ export function McpTerminalDemo() {
 
 	return (
 		<div aria-hidden className="relative mt-3 w-full" ref={ref}>
-			<CardChrome className="overflow-hidden">
+			<div className={cn(FRAME, "overflow-hidden rounded")}>
 				<div
 					className={cn(
 						"flex items-center gap-2 border-white/[0.06] border-b px-3 py-2 transition-opacity duration-300",
@@ -213,7 +198,7 @@ export function McpTerminalDemo() {
 						{scenario.answer}
 					</p>
 				</div>
-			</CardChrome>
+			</div>
 		</div>
 	);
 }

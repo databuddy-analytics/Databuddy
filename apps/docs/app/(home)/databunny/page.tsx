@@ -13,13 +13,10 @@ import {
 import {
 	FeatureHero,
 	FeatureRow,
-	SectionHeader,
+	FeatureSection,
 } from "@/components/landing/demo-primitives";
-import { SECTION_SPACING } from "@/components/landing/demo-constants";
 import { FaqSection } from "@/components/landing/faq-section";
-import Section from "@/components/landing/section";
 import { StructuredData } from "@/components/structured-data";
-import { cn } from "@/lib/utils";
 
 const TITLE = "Databunny: the AI analyst that tells you why your numbers moved";
 const DESCRIPTION =
@@ -65,8 +62,6 @@ const FAQ_ITEMS = [
 	},
 ] as const;
 
-const container = "mx-auto w-full max-w-400 px-4 sm:px-14 lg:px-20";
-
 export default function DatabunnyPage() {
 	return (
 		<>
@@ -90,33 +85,21 @@ export default function DatabunnyPage() {
 					visual={<BaselineBands />}
 				/>
 
-				<Section
-					className={cn("border-border border-b", SECTION_SPACING)}
-					customPaddings
+				<FeatureSection
 					id="quiet"
+					subtitle="Normal swings and small numbers get filtered out, so what reaches you is worth acting on."
+					title="Stop refreshing dashboards."
 				>
-					<div className={container}>
-						<SectionHeader
-							subtitle="Normal swings and small numbers get filtered out, so what reaches you is worth acting on."
-							title="Stop refreshing dashboards."
-						/>
-						<ChangeVerdicts />
-					</div>
-				</Section>
+					<ChangeVerdicts />
+				</FeatureSection>
 
-				<Section
-					className={cn("border-border border-b", SECTION_SPACING)}
-					customPaddings
+				<FeatureSection
 					id="investigations"
+					subtitle="Each investigation ends with what to do next."
+					title="When a number moves, Databunny finds out why."
 				>
-					<div className={container}>
-						<SectionHeader
-							subtitle="Each investigation ends with what to do next."
-							title="When a number moves, Databunny finds out why."
-						/>
-						<InvestigationStage />
-					</div>
-				</Section>
+					<InvestigationStage />
+				</FeatureSection>
 
 				<FeatureRow
 					body="Databunny posts what broke and what to do next, and keeps follow-ups on the same problem in one thread."
@@ -133,19 +116,13 @@ export default function DatabunnyPage() {
 					visual={<FixVerify />}
 				/>
 
-				<Section
-					className={cn("border-border border-b", SECTION_SPACING)}
-					customPaddings
+				<FeatureSection
 					id="github"
+					subtitle="Link a GitHub repo and Databunny points to the change that likely caused it."
+					title="Find the commit that moved the numbers."
 				>
-					<div className={container}>
-						<SectionHeader
-							subtitle="Link a GitHub repo and Databunny points to the change that likely caused it."
-							title="Find the commit that moved the numbers."
-						/>
-						<CommitZoom />
-					</div>
-				</Section>
+					<CommitZoom />
+				</FeatureSection>
 
 				<FeatureRow
 					body="Ask about traffic, funnels, errors, or revenue in plain words, and check the query behind every answer."
@@ -162,15 +139,9 @@ export default function DatabunnyPage() {
 					visual={<McpTerminalDemo />}
 				/>
 
-				<Section
-					className={cn("border-border border-b", SECTION_SPACING)}
-					customPaddings
-					id="faq"
-				>
-					<div className={container}>
-						<FaqSection items={[...FAQ_ITEMS]} />
-					</div>
-				</Section>
+				<FeatureSection id="faq">
+					<FaqSection items={[...FAQ_ITEMS]} />
+				</FeatureSection>
 
 				<Footer />
 			</div>

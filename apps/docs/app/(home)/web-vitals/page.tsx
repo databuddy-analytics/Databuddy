@@ -1,13 +1,11 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
-import { SECTION_SPACING } from "@/components/landing/demo-constants";
 import {
 	FeatureHero,
 	FeatureRow,
-	SectionHeader,
+	FeatureSection,
 } from "@/components/landing/demo-primitives";
 import { FaqSection } from "@/components/landing/faq-section";
-import Section from "@/components/landing/section";
 import {
 	ExperienceScore,
 	PageBreakdown,
@@ -17,7 +15,6 @@ import {
 } from "@/components/landing/web-vitals-demo-visuals";
 import { StructuredData } from "@/components/structured-data";
 import { TrackOnMount } from "@/components/track-on-mount";
-import { cn } from "@/lib/utils";
 
 const TITLE = "Core Web Vitals From Real Visits";
 const DESCRIPTION =
@@ -63,8 +60,6 @@ const FAQ_ITEMS = [
 	},
 ] as const;
 
-const container = "mx-auto w-full max-w-400 px-4 sm:px-14 lg:px-20";
-
 export default function WebVitalsPage() {
 	return (
 		<>
@@ -98,19 +93,13 @@ export default function WebVitalsPage() {
 					visual={<ExperienceScore />}
 				/>
 
-				<Section
-					className={cn("border-border border-b", SECTION_SPACING)}
-					customPaddings
+				<FeatureSection
 					id="pages"
+					subtitle="Split your vitals by page, browser, or country, and fix the one that drags your score down."
+					title="Find the page that's slowing you down."
 				>
-					<div className={container}>
-						<SectionHeader
-							subtitle="Split your vitals by page, browser, or country, and fix the one that drags your score down."
-							title="Find the page that's slowing you down."
-						/>
-						<PageBreakdown />
-					</div>
-				</Section>
+					<PageBreakdown />
+				</FeatureSection>
 
 				<FeatureRow
 					body="On Business and Scale, Databunny flags pages that got much slower than the week before and checks whether visitors on slow loads browsed less."
@@ -127,15 +116,9 @@ export default function WebVitalsPage() {
 					visual={<SetupSignals />}
 				/>
 
-				<Section
-					className={cn("border-border border-b", SECTION_SPACING)}
-					customPaddings
-					id="faq"
-				>
-					<div className={container}>
-						<FaqSection items={[...FAQ_ITEMS]} />
-					</div>
-				</Section>
+				<FeatureSection id="faq">
+					<FaqSection items={[...FAQ_ITEMS]} />
+				</FeatureSection>
 
 				<Footer />
 			</div>

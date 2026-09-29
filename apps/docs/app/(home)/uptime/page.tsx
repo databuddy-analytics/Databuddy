@@ -3,11 +3,9 @@ import { Footer } from "@/components/footer";
 import {
 	FeatureHero,
 	FeatureRow,
-	SectionHeader,
+	FeatureSection,
 } from "@/components/landing/demo-primitives";
-import { SECTION_SPACING } from "@/components/landing/demo-constants";
 import { FaqSection } from "@/components/landing/faq-section";
-import Section from "@/components/landing/section";
 import {
 	CertCountdown,
 	CheckStrip,
@@ -17,7 +15,6 @@ import {
 } from "@/components/landing/uptime-demo-visuals";
 import { StructuredData } from "@/components/structured-data";
 import { TrackOnMount } from "@/components/track-on-mount";
-import { cn } from "@/lib/utils";
 
 const TITLE = "Uptime Monitoring: Know the Minute Your Site Goes Down";
 const DESCRIPTION =
@@ -65,8 +62,6 @@ const FAQ_ITEMS = [
 	},
 ] as const;
 
-const container = "mx-auto w-full max-w-400 px-4 sm:px-14 lg:px-20";
-
 export default function UptimePage() {
 	return (
 		<>
@@ -108,19 +103,13 @@ export default function UptimePage() {
 					visual={<StatusAlerts />}
 				/>
 
-				<Section
-					className={cn("border-border border-b", SECTION_SPACING)}
-					customPaddings
+				<FeatureSection
 					id="status-page"
+					subtitle="Your public status page shows what's working and what you're fixing, with your logo and 90 days of history."
+					title="Tell customers what's happening before they ask."
 				>
-					<div className={container}>
-						<SectionHeader
-							subtitle="Your public status page shows what's working and what you're fixing, with your logo and 90 days of history."
-							title="Tell customers what's happening before they ask."
-						/>
-						<StatusPagePreview />
-					</div>
-				</Section>
+					<StatusPagePreview />
+				</FeatureSection>
 
 				<FeatureRow
 					body="You get a heads-up 14 days before it runs out, with time to renew before visitors see a security warning."
@@ -129,15 +118,9 @@ export default function UptimePage() {
 					visual={<CertCountdown />}
 				/>
 
-				<Section
-					className={cn("border-border border-b", SECTION_SPACING)}
-					customPaddings
-					id="faq"
-				>
-					<div className={container}>
-						<FaqSection items={[...FAQ_ITEMS]} />
-					</div>
-				</Section>
+				<FeatureSection id="faq">
+					<FaqSection items={[...FAQ_ITEMS]} />
+				</FeatureSection>
 
 				<Footer />
 			</div>

@@ -17,6 +17,7 @@ import {
 	pseudoRandom,
 	rounded,
 	useTimeline,
+	Count,
 } from "@/components/landing/demo-primitives";
 import { cn } from "@/lib/utils";
 
@@ -531,20 +532,6 @@ const CERT_EVENTS = [
 	...Array.from({ length: CERT_TICKS }, (_, tick) => 0.6 + tick * 0.16),
 	0.6 + CERT_TICKS * 0.16 + 0.4,
 ];
-
-function Count({ value }: { value: number }) {
-	return (
-		<motion.span
-			animate={{ opacity: 1, y: 0 }}
-			className="inline-block tabular-nums"
-			initial={{ opacity: 0.35, y: -5 }}
-			key={value}
-			transition={{ duration: 0.3, ease: IN_OUT }}
-		>
-			{value}
-		</motion.span>
-	);
-}
 
 export function CertCountdown() {
 	const { ref, step } = useTimeline(CERT_EVENTS, 7.6);

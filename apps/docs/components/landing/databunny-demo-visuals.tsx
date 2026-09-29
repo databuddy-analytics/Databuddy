@@ -16,11 +16,8 @@ import {
 import Image from "next/image";
 import { type FC, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
-	enter,
 	FRAME,
 	IN_OUT,
-	percent,
-	pick,
 	pseudoRandom,
 	REWIND,
 	Reveal,
@@ -28,11 +25,45 @@ import {
 	SlackLogo,
 	StatusLine,
 	toPath,
-	useAfter,
-	useCount,
 	useTimeline,
 } from "@/components/landing/demo-primitives";
 import { cn } from "@/lib/utils";
+
+const percent = (value: number, of: number) =>
+	`${rounded((value / of) * 100)}%`;
+
+const enter = (delay: number, distance = 8) => ({
+	initial: { opacity: 0, y: distance },
+	animate: { opacity: 1, y: 0 },
+	transition: { duration: 0.5, ease: IN_OUT, delay },
+});
+
+const useAfter = (seconds: number, key: unknown = seconds) => {
+	const [doneFor, setDoneFor] = useState<unknown>(undefined);
+	useEffect(() => {
+		const id = window.setTimeout(() => setDoneFor(key), seconds * 1000);
+		return () => window.clearTimeout(id);
+	}, [seconds, key]);
+	return doneFor === key;
+};
+
+const useCount = (times: readonly number[]) => {
+	const [count, setCount] = useState(0);
+	useEffect(() => {
+		const ids = times.map((time) =>
+			window.setTimeout(() => setCount((current) => current + 1), time * 1000)
+		);
+		return () => {
+			for (const id of ids) {
+				window.clearTimeout(id);
+			}
+		};
+	}, [times]);
+	return count;
+};
+
+const pick = <T,>(items: readonly [T, ...T[]], index: number) =>
+	items[index % items.length] ?? items[0];
 
 const INCIDENT_SOURCES = [
 	"Sessions",

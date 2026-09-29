@@ -10,6 +10,7 @@ import {
 	StatusLine,
 	pseudoRandom,
 	useTimeline,
+	Count,
 } from "@/components/landing/demo-primitives";
 import { cn } from "@/lib/utils";
 
@@ -18,20 +19,6 @@ const TYPE_ERROR = {
 	occurrences: 486,
 	people: 312,
 } as const;
-
-function Count({ value, className }: { value: number; className?: string }) {
-	return (
-		<motion.span
-			animate={{ opacity: 1, y: 0 }}
-			className={cn("inline-block tabular-nums", className)}
-			initial={{ opacity: 0.35, y: -5 }}
-			key={value}
-			transition={{ duration: 0.35, ease: IN_OUT }}
-		>
-			{value.toLocaleString("en-US")}
-		</motion.span>
-	);
-}
 
 const PATH = ["/", "/pricing", "/checkout", "/payment", "Paid"] as const;
 const PATH_X = [7, 28, 50, 72, 93] as const;

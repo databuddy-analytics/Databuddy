@@ -7,26 +7,13 @@ import {
 	REWIND,
 	pseudoRandom,
 	useTimeline,
+	Count,
 } from "@/components/landing/demo-primitives";
 import { cn } from "@/lib/utils";
 
 const FLAG = "new-checkout";
 const ON = "bg-emerald-500";
 const OFF = "bg-white/[0.07]";
-
-function Count({ value }: { value: number }) {
-	return (
-		<motion.span
-			animate={{ opacity: 1, y: 0 }}
-			className="inline-block tabular-nums"
-			initial={{ opacity: 0.35, y: -5 }}
-			key={value}
-			transition={{ duration: 0.35, ease: IN_OUT }}
-		>
-			{value}
-		</motion.span>
-	);
-}
 
 function FlagName({ children }: { children: string }) {
 	return <span className="font-mono text-foreground text-sm">{children}</span>;
