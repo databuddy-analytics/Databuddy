@@ -16,9 +16,9 @@ import { FaqSection } from "@/components/landing/faq-section";
 import { StructuredData } from "@/components/structured-data";
 import { TrackOnMount } from "@/components/track-on-mount";
 
-const TITLE = "JavaScript Error Tracking: Every Error Happened to Someone";
+const TITLE = "Open Source JavaScript Error Tracking";
 const DESCRIPTION =
-	"See which JavaScript errors hit the most people, and where. Built into your analytics, no extra tool.";
+	"Track JavaScript errors in the script you already use for analytics. See the stack trace, page, browser, and how many people each error hit.";
 
 export const metadata: Metadata = {
 	title: TITLE,
@@ -36,9 +36,14 @@ export const metadata: Metadata = {
 
 const FAQ_ITEMS = [
 	{
-		question: "How do I turn it on?",
+		question: "What does it catch?",
 		answer:
-			"Add data-track-errors to the Databuddy script, or pass trackErrors to the Databuddy component.",
+			"Uncaught errors and unhandled promise rejections, with the message, stack trace, file, line, and column.",
+	},
+	{
+		question: "Are errors grouped?",
+		answer:
+			"Errors with the same message are counted together, with the number of people each one reached.",
 	},
 	{
 		question: "Do you support source maps?",
@@ -80,7 +85,7 @@ export default function ErrorsPage() {
 					footnote="Included from Hobby."
 					primaryLabel="Start tracking errors"
 					secondaryLabel="Read the setup docs"
-					subtitle="See which errors hit the most people and where, in the analytics you already use."
+					subtitle="Uncaught errors and failed promises land in your analytics with the stack trace, the page, and how many people each one hit."
 					title="Every error happened to someone."
 					visual={<ErrorJourney />}
 				/>
@@ -88,15 +93,15 @@ export default function ErrorsPage() {
 				<FeatureSection
 					id="people"
 					subtitle="One stuck tab can throw a thousand errors. Databuddy shows how many people each error hit."
-					title="Fix what hurts the most people first."
+					title="Find the errors that hit the most people."
 				>
 					<LoudVersusWide />
 				</FeatureSection>
 
 				<FeatureRow
-					body="Every error comes with the page, browser, and device it happened on, so you know where to start looking."
+					body="Open an error for its stack trace, file and line, browser, device, and country, so you know where to start looking."
 					id="context"
-					title="Reproduce bugs without guessing."
+					title="Get the stack trace and where it happened."
 					visual={<VisitTimeline />}
 				/>
 
@@ -109,7 +114,7 @@ export default function ErrorsPage() {
 				</FeatureSection>
 
 				<FeatureRow
-					body="Add data-track-errors to the script you already have. Noise from browser extensions is filtered out for you."
+					body={`Add data-track-errors to the script you already have. Errors from browser extensions, cross-origin "Script error." messages, and ResizeObserver warnings stay out of your list.`}
 					flip
 					id="setup"
 					title="Turn it on with one line."

@@ -17,10 +17,11 @@ import {
 } from "@/components/landing/demo-primitives";
 import { FaqSection } from "@/components/landing/faq-section";
 import { StructuredData } from "@/components/structured-data";
+import { TrackOnMount } from "@/components/track-on-mount";
 
-const TITLE = "Databunny: the AI analyst that tells you why your numbers moved";
+const TITLE = "Databunny: The AI Analyst That Watches Your Metrics";
 const DESCRIPTION =
-	"Databunny checks your analytics every morning, finds out why a number moved, and tells your team what to do next in Slack.";
+	"Databunny checks traffic, funnels, errors, page speed, and revenue on a schedule, investigates real changes, and posts the evidence and next step in Slack.";
 
 export const metadata: Metadata = {
 	title: TITLE,
@@ -54,7 +55,12 @@ const FAQ_ITEMS = [
 	{
 		question: "What data goes to AI models?",
 		answer:
-			"Your question and the data needed to answer it. Our data policy lists every AI provider.",
+			"Your question and the data needed to answer it, sent to the AI model provider. Our data policy explains how that data is handled.",
+	},
+	{
+		question: "Does it always find the cause?",
+		answer:
+			"No. When the data doesn't show one, Databunny says so and tells you what to keep watching.",
 	},
 	{
 		question: "What does chat cost?",
@@ -65,6 +71,10 @@ const FAQ_ITEMS = [
 export default function DatabunnyPage() {
 	return (
 		<>
+			<TrackOnMount
+				event="feature_landing_viewed"
+				properties={{ feature: "databunny" }}
+			/>
 			<StructuredData
 				elements={[{ type: "faq", items: [...FAQ_ITEMS] }]}
 				page={{
@@ -80,29 +90,29 @@ export default function DatabunnyPage() {
 					primaryHref="https://app.databuddy.cc/register?plan=intelligence"
 					primaryLabel="Start with Business"
 					secondaryLabel="Try chat free"
-					subtitle="Every morning, Databunny checks your traffic, funnels, errors, and revenue. If something moves, it tells you why and what to do about it."
-					title="Wake up to the reason your numbers moved."
+					subtitle="Every day or week, Databunny checks your traffic, funnels, errors, page speed, and revenue. When a change is real, it investigates and posts what it found and what to do next in Slack."
+					title="The analyst that checks your numbers for you."
 					visual={<BaselineBands />}
 				/>
 
 				<FeatureSection
 					id="quiet"
-					subtitle="Normal swings and small numbers get filtered out, so what reaches you is worth acting on."
-					title="Stop refreshing dashboards."
+					subtitle="Normal weekday and weekend swings and changes on small numbers are filtered out before anything reaches Slack."
+					title="Hear only about changes worth acting on."
 				>
 					<ChangeVerdicts />
 				</FeatureSection>
 
 				<FeatureSection
 					id="investigations"
-					subtitle="Each investigation ends with what to do next."
-					title="When a number moves, Databunny finds out why."
+					subtitle="Each investigation shows what Databunny checked and found, then ends with an action, a question for you, or a note to keep watching."
+					title="See the evidence behind every finding."
 				>
 					<InvestigationStage />
 				</FeatureSection>
 
 				<FeatureRow
-					body="Databunny posts what broke and what to do next, and keeps follow-ups on the same problem in one thread."
+					body="Databunny posts changes that need an action or an answer, and keeps updates on the same problem in one thread."
 					id="slack"
 					title="Your team hears about it in Slack."
 					visual={<SlackThread />}
@@ -125,14 +135,14 @@ export default function DatabunnyPage() {
 				</FeatureSection>
 
 				<FeatureRow
-					body="Ask about traffic, funnels, errors, or revenue in plain words, and check the query behind every answer."
+					body="Ask about traffic, funnels, errors, or revenue in plain words, and open the query behind every number."
 					id="chat"
 					title="Get answers without writing SQL."
 					visual={<ChatQuery />}
 				/>
 
 				<FeatureRow
-					body="Connect any MCP client with a scoped key, and your agent can read your data and set up funnels and goals."
+					body="Connect any MCP client with a scoped key, and your agent can read your data and investigations and set up funnels, goals, and flags."
 					flip
 					id="mcp"
 					title="Bring your analytics into Claude Code and Cursor."
