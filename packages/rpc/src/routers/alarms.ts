@@ -165,6 +165,45 @@ export function parseTriggerConditions(
 	return result.data.triggerConditions;
 }
 
+interface TriggerUpdateInput {
+	triggerConditions?: Record<string, unknown>;
+	triggerType?: string;
+}
+
+interface CurrentTrigger {
+	triggerConditions: Record<string, unknown>;
+	triggerType: string;
+}
+
+/**
+ * An update can send just one of triggerType/triggerConditions (e.g. the
+ * monitor-linking flow only patches triggerConditions), so the other side
+ * has to be resolved from the stored row before re-validating the pair.
+ * Returns undefined when neither field was part of the update at all.
+ */
+export function resolveTriggerUpdate(
+	input: TriggerUpdateInput,
+	current: CurrentTrigger
+):
+	| { triggerConditions: Record<string, unknown>; triggerType?: string }
+	| undefined {
+	if (
+		input.triggerType === undefined &&
+		input.triggerConditions === undefined
+	) {
+		return;
+	}
+
+	const triggerType = input.triggerType ?? current.triggerType;
+	const triggerConditions =
+		input.triggerConditions ?? current.triggerConditions;
+
+	return {
+		triggerConditions: parseTriggerConditions(triggerType, triggerConditions),
+		...(input.triggerType === undefined ? {} : { triggerType }),
+	};
+}
+
 function maskTail(value: string, keep = 4): string {
 	if (value.length <= keep) {
 		return "•".repeat(value.length);
@@ -371,24 +410,13 @@ export const alarmsRouter = {
 			const now = new Date();
 
 			const { alarmId, destinations, ...fields } = input;
-			const updateData: Record<string, unknown> = Object.fromEntries(
+			const updateData = Object.fromEntries(
 				Object.entries(fields).filter(([_, v]) => v !== undefined)
 			);
 
-			if (
-				input.triggerType !== undefined ||
-				input.triggerConditions !== undefined
-			) {
-				const triggerType = input.triggerType ?? current.triggerType;
-				const triggerConditions =
-					input.triggerConditions ?? current.triggerConditions;
-				updateData.triggerConditions = parseTriggerConditions(
-					triggerType,
-					triggerConditions
-				);
-				if (input.triggerType !== undefined) {
-					updateData.triggerType = triggerType;
-				}
+			const resolvedTrigger = resolveTriggerUpdate(input, current);
+			if (resolvedTrigger) {
+				Object.assign(updateData, resolvedTrigger);
 			}
 
 			await withTransaction(async (tx) => {

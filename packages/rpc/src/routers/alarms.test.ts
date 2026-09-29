@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
 
-const { parseTriggerConditions } = await import("./alarms");
+const { parseTriggerConditions, resolveTriggerUpdate } = await import(
+	"./alarms"
+);
 
 describe("parseTriggerConditions", () => {
 	it("accepts a uptime alarm with monitorIds", () => {
@@ -66,6 +68,48 @@ describe("parseTriggerConditions", () => {
 		let error: unknown;
 		try {
 			parseTriggerConditions("something_else", {});
+		} catch (caught) {
+			error = caught;
+		}
+
+		expect(error).toMatchObject({ code: "BAD_REQUEST" });
+	});
+});
+
+describe("resolveTriggerUpdate", () => {
+	const current = {
+		triggerType: "uptime",
+		triggerConditions: { monitorIds: ["sched_1"] },
+	};
+
+	it("returns undefined when neither field is part of the update", () => {
+		expect(resolveTriggerUpdate({}, current)).toBeUndefined();
+	});
+
+	it("resolves triggerType from the stored row when only triggerConditions is sent (monitor-linking flow)", () => {
+		const result = resolveTriggerUpdate(
+			{ triggerConditions: { monitorIds: ["sched_1", "sched_2"] } },
+			current
+		);
+
+		expect(result).toEqual({
+			triggerConditions: { monitorIds: ["sched_1", "sched_2"] },
+		});
+	});
+
+	it("resolves triggerConditions from the stored row when only triggerType is sent", () => {
+		const result = resolveTriggerUpdate({ triggerType: "uptime" }, current);
+
+		expect(result).toEqual({
+			triggerType: "uptime",
+			triggerConditions: { monitorIds: ["sched_1"] },
+		});
+	});
+
+	it("re-validates the resolved pair, rejecting a switch to an unsupported trigger type", () => {
+		let error: unknown;
+		try {
+			resolveTriggerUpdate({ triggerType: "traffic_spike" }, current);
 		} catch (caught) {
 			error = caught;
 		}
