@@ -179,7 +179,7 @@ export const VitalsBuilders = {
 					_q[4] as p95, _q[5] as p99, samples
 				FROM (
 					SELECT
-						toDate(timestamp) as date,
+						toDate(toTimeZone(timestamp, {timezone:String})) as date,
 						metric_name,
 						quantilesTDigest(0.50, 0.75, 0.90, 0.95, 0.99)(metric_value) as _q,
 						count() as samples

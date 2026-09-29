@@ -956,7 +956,7 @@ export const RevenueBuilders = {
 		},
 		customSql: makeRevenueBuilder(() => ({
 			select: `SELECT
-				toDate(created) as date,
+				toDate(toTimeZone(created, {timezone:String})) as date,
 				currency,
 				sumIf(amount, type != 'refund') as revenue,
 				countIf(type != 'refund') as transactions,
