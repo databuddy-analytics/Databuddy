@@ -2,8 +2,42 @@ import { faker } from "@faker-js/faker";
 import { clickHouse, TABLE_NAMES } from "./clickhouse/client";
 import { db } from "./client";
 
-const clientId = process.argv[2] || faker.string.uuid();
-const eventCount = Number(process.argv[3]) || 10_000;
+const DEFAULT_SEED = 42;
+
+function extractFlag(args: string[], name: string): string | undefined {
+	const eqPrefix = `--${name}=`;
+	const index = args.findIndex(
+		(arg) => arg === `--${name}` || arg.startsWith(eqPrefix)
+	);
+	if (index === -1) {
+		return;
+	}
+	const arg = args[index] as string;
+	if (arg.startsWith(eqPrefix)) {
+		const value = arg.slice(eqPrefix.length);
+		args.splice(index, 1);
+		return value;
+	}
+	const value = args[index + 1];
+	args.splice(index, value === undefined ? 1 : 2);
+	return value;
+}
+
+// Positional args (website id, event count) after CLI flags are stripped out.
+const positionalArgs = process.argv.slice(2);
+const seedArg = extractFlag(positionalArgs, "seed");
+const seedValue =
+	seedArg !== undefined &&
+	seedArg.trim() !== "" &&
+	Number.isFinite(Number(seedArg))
+		? Number(seedArg)
+		: DEFAULT_SEED;
+
+// Must run before any faker call below so the whole run is reproducible.
+faker.seed(seedValue);
+
+const clientId = positionalArgs[0] || faker.string.uuid();
+const eventCount = Number(positionalArgs[1]) || 10_000;
 
 const PATHS = [
 	"/",
@@ -28,6 +62,142 @@ const REFERRERS = [
 	"https://twitter.com",
 	"https://github.com",
 ];
+
+// Weighted page-to-page transitions so a meaningful, stable share of visitors
+// who view one page go on to view a related next page (e.g. pricing -> signup),
+// instead of every event picking an independent, uncorrelated random path.
+interface PathTransition {
+	path: string;
+	weight: number;
+}
+
+const START_TRANSITIONS: PathTransition[] = [
+	{ path: "/", weight: 35 },
+	{ path: "/home", weight: 15 },
+	{ path: "/pricing", weight: 10 },
+	{ path: "/features", weight: 10 },
+	{ path: "/blog", weight: 10 },
+	{ path: "/docs", weight: 8 },
+	{ path: "/about", weight: 7 },
+	{ path: "/login", weight: 5 },
+];
+
+const PAGE_TRANSITIONS: Record<string, PathTransition[]> = {
+	"/": [
+		{ path: "/features", weight: 25 },
+		{ path: "/pricing", weight: 25 },
+		{ path: "/docs", weight: 10 },
+		{ path: "/blog", weight: 10 },
+		{ path: "/login", weight: 10 },
+		{ path: "/about", weight: 10 },
+		{ path: "/contact", weight: 5 },
+		{ path: "/", weight: 5 },
+	],
+	"/home": [
+		{ path: "/features", weight: 25 },
+		{ path: "/pricing", weight: 25 },
+		{ path: "/docs", weight: 10 },
+		{ path: "/blog", weight: 10 },
+		{ path: "/login", weight: 10 },
+		{ path: "/about", weight: 10 },
+		{ path: "/contact", weight: 5 },
+		{ path: "/home", weight: 5 },
+	],
+	"/features": [
+		{ path: "/pricing", weight: 40 },
+		{ path: "/docs", weight: 20 },
+		{ path: "/signup", weight: 10 },
+		{ path: "/blog", weight: 10 },
+		{ path: "/contact", weight: 10 },
+		{ path: "/", weight: 10 },
+	],
+	"/pricing": [
+		{ path: "/signup", weight: 45 },
+		{ path: "/features", weight: 15 },
+		{ path: "/login", weight: 10 },
+		{ path: "/contact", weight: 10 },
+		{ path: "/about", weight: 10 },
+		{ path: "/", weight: 10 },
+	],
+	"/signup": [
+		{ path: "/dashboard", weight: 65 },
+		{ path: "/pricing", weight: 15 },
+		{ path: "/login", weight: 10 },
+		{ path: "/", weight: 10 },
+	],
+	"/login": [
+		{ path: "/dashboard", weight: 60 },
+		{ path: "/signup", weight: 15 },
+		{ path: "/", weight: 15 },
+		{ path: "/contact", weight: 10 },
+	],
+	"/dashboard": [
+		{ path: "/dashboard", weight: 35 },
+		{ path: "/settings", weight: 25 },
+		{ path: "/profile", weight: 20 },
+		{ path: "/docs", weight: 10 },
+		{ path: "/", weight: 10 },
+	],
+	"/settings": [
+		{ path: "/dashboard", weight: 50 },
+		{ path: "/profile", weight: 20 },
+		{ path: "/settings", weight: 15 },
+		{ path: "/", weight: 15 },
+	],
+	"/profile": [
+		{ path: "/dashboard", weight: 50 },
+		{ path: "/settings", weight: 20 },
+		{ path: "/profile", weight: 15 },
+		{ path: "/", weight: 15 },
+	],
+	"/docs": [
+		{ path: "/docs", weight: 25 },
+		{ path: "/features", weight: 20 },
+		{ path: "/pricing", weight: 20 },
+		{ path: "/", weight: 20 },
+		{ path: "/dashboard", weight: 15 },
+	],
+	"/blog": [
+		{ path: "/blog", weight: 25 },
+		{ path: "/", weight: 25 },
+		{ path: "/pricing", weight: 15 },
+		{ path: "/features", weight: 15 },
+		{ path: "/about", weight: 10 },
+		{ path: "/contact", weight: 10 },
+	],
+	"/about": [
+		{ path: "/", weight: 25 },
+		{ path: "/about", weight: 20 },
+		{ path: "/pricing", weight: 20 },
+		{ path: "/contact", weight: 20 },
+		{ path: "/features", weight: 15 },
+	],
+	"/contact": [
+		{ path: "/", weight: 35 },
+		{ path: "/contact", weight: 30 },
+		{ path: "/pricing", weight: 20 },
+		{ path: "/about", weight: 15 },
+	],
+};
+
+function pickWeightedPath(transitions: PathTransition[]): string {
+	const total = transitions.reduce((sum, entry) => sum + entry.weight, 0);
+	let roll = faker.number.float({ min: 0, max: total });
+	for (const entry of transitions) {
+		if (roll < entry.weight) {
+			return entry.path;
+		}
+		roll -= entry.weight;
+	}
+	return transitions.at(-1)?.path ?? (PATHS[0] as string);
+}
+
+function nextPath(previousPath: string | undefined): string {
+	const transitions = previousPath
+		? (PAGE_TRANSITIONS[previousPath] ?? START_TRANSITIONS)
+		: START_TRANSITIONS;
+	return pickWeightedPath(transitions);
+}
 
 const UNIQUE_USERS = Math.max(10, Math.floor(eventCount / 8));
 const TOTAL_SESSIONS = Math.floor(UNIQUE_USERS * 2.5);
@@ -91,6 +261,12 @@ function generatePageTitle(path: string): string {
 
 	const domain = website?.domain || "example.com";
 
+	// Sessions occupy contiguous index ranges (see sessionFor), so tracking the
+	// previous session/path as the loop advances reconstructs each visitor's
+	// page sequence instead of picking an independent path per event.
+	let previousSessionId: string | undefined;
+	let currentPath: string | undefined;
+
 	const events = Array.from({ length: eventCount }, (_, index) => {
 		const session = sessionFor(index, eventCount);
 		const user = session.user;
@@ -102,7 +278,7 @@ function generatePageTitle(path: string): string {
 		const baseTime =
 			session.sessionStartTime + sessionProgress * maxSessionDuration;
 
-		const path = faker.helpers.arrayElement(PATHS);
+		const isNewSession = session.sessionId !== previousSessionId;
 		const isLastEvent =
 			sessionProgress > 0.8 || faker.datatype.boolean({ probability: 0.2 });
 		const eventName =
@@ -110,6 +286,16 @@ function generatePageTitle(path: string): string {
 				? "page_exit"
 				: "screen_view";
 		const isPageExit = eventName === "page_exit";
+
+		// A page_exit event exits the page currently being viewed rather than
+		// jumping to a new one; only screen_view events advance the journey.
+		const path =
+			!isNewSession && isPageExit && currentPath
+				? currentPath
+				: nextPath(isNewSession ? undefined : currentPath);
+		previousSessionId = session.sessionId;
+		currentPath = path;
+
 		const fullUrl = `https://${domain}${path}`;
 
 		return {
@@ -333,7 +519,7 @@ function generatePageTitle(path: string): string {
 	webVitals.sort((a, b) => a.timestamp - b.timestamp);
 
 	console.log(
-		`Generating seed data for client: ${clientId} on domain: ${domain}`
+		`Generating seed data for client: ${clientId} on domain: ${domain} (seed: ${seedValue})`
 	);
 	console.log(
 		`Creating ${UNIQUE_USERS} users across ${TOTAL_SESSIONS} sessions`
