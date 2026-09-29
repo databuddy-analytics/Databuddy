@@ -1,6 +1,6 @@
 ---
 title: Feature Flags (Client)
-description: Control feature rollouts and A/B testing with React and Vue hooks
+description: Control feature rollouts and variant splits with React and Vue hooks
 ---
 
 import { Tab, Tabs } from "@/components/docs";
@@ -8,7 +8,7 @@ import { Callout } from "@/components/docs";
 import { CodeBlock } from "@/components/docs";
 import { Card, Cards } from "@/components/docs";
 
-Feature flags allow you to control feature rollouts and conduct A/B testing without deploying new code. Enable or disable features instantly from your dashboard.
+Feature flags allow you to control feature rollouts and split people across variants without deploying new code. Enable or disable features instantly from your dashboard.
 
 <Callout type="info">
   **Dashboard-controlled Rollouts** | **Client-side Caching** | **Stale-While-Revalidate**
@@ -248,7 +248,7 @@ Control how users are grouped for rollouts. In the dashboard, choose the **Rollo
 
 ### Multivariant Flags (A/B/n Testing)
 
-Run experiments with multiple variants. Each user is consistently assigned to a variant based on their identifier. Use the `variant` field from `useFlag`:
+Split people across multiple variants. Each user is consistently assigned to a variant based on their identifier. There's no built-in results view yet, so compare variants with your own events. Use the `variant` field from `useFlag`:
 
 <CodeBlock language="tsx" filename="export-flow.tsx">
   {`import { useFlag } from '@databuddy/sdk/react';
