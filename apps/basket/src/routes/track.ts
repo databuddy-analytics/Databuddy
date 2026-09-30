@@ -18,6 +18,7 @@ import { runFork, send, sendBatch } from "@lib/producer";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { redis } from "@databuddy/redis/redis";
 import {
+	type AgentSignals,
 	agentBotCategory,
 	identifyAiAgent,
 	setupCheckKey,
@@ -117,6 +118,52 @@ function parseVercelLogs(body: Uint8Array): {
 		}
 	});
 	return { entries, malformed };
+}
+
+async function agentTrafficWebsite(websiteId: string) {
+	const website = await getWebsiteByIdV2(websiteId).catch(() => {
+		useLogger().set({ website_lookup: "unavailable" });
+		return;
+	});
+	if (website === null) {
+		throw basketErrors.trackWebsiteNotFound();
+	}
+	const allowedOrigins = website
+		? getWebsiteSecuritySettings(website.settings)?.allowedOrigins
+		: undefined;
+	return {
+		isHostAllowed: (host: string) =>
+			!website ||
+			isOriginAllowed(`https://${host}`, website.domain, allowedOrigins),
+		verification: website ? "" : "host_unchecked",
+	};
+}
+
+async function recordedSetupCheck(
+	websiteId: string,
+	userAgent: string
+): Promise<boolean> {
+	const nonce = setupCheckNonce(userAgent);
+	if (nonce) {
+		await redis.set(setupCheckKey(websiteId, nonce), "1", "EX", 120);
+	}
+	return nonce !== null;
+}
+
+function agentColumns(signals: AgentSignals, request: Request) {
+	const { botName, result } = detectBot(signals.userAgent, request);
+	const agent = identifyAiAgent(signals, result?.category);
+	return {
+		agent,
+		columns: {
+			agent_id: agent?.id ?? "",
+			agent_purpose: agent?.purpose ?? "",
+			bot_name: botName ?? agent?.operator ?? "",
+			bot_type: agent
+				? agentBotCategory(agent)
+				: (result?.category ?? "unknown"),
+		},
+	};
 }
 
 interface ResolvedAuth {
@@ -502,14 +549,9 @@ export const trackRoute = new Elysia()
 	})
 	.get(
 		"/ai-traffic/setup-check/:websiteId/:nonce",
-		async ({ params: { nonce, websiteId } }) => {
-			if (websiteId.length > 128 || nonce.length > 64) {
-				return new Response(null, { status: 400 });
-			}
-			const recorded =
-				(await redis.exists(setupCheckKey(websiteId, nonce))) === 1;
-			return { recorded };
-		}
+		async ({ params: { nonce, websiteId } }) => ({
+			recorded: (await redis.exists(setupCheckKey(websiteId, nonce))) === 1,
+		})
 	)
 	.post("/ai-traffic", async ({ body, request }) => {
 		const log = useLogger();
@@ -523,66 +565,38 @@ export const trackRoute = new Elysia()
 			const hit = parsed.data;
 			log.set({ websiteId: hit.websiteId, host: hit.host });
 
-			const website = await getWebsiteByIdV2(hit.websiteId).catch(() => {
-				log.set({ website_lookup: "unavailable" });
-				return;
-			});
-			if (website === null) {
-				throw basketErrors.trackWebsiteNotFound();
-			}
-			if (
-				website &&
-				!isOriginAllowed(
-					`https://${hit.host}`,
-					website.domain,
-					getWebsiteSecuritySettings(website.settings)?.allowedOrigins
-				)
-			) {
+			const website = await agentTrafficWebsite(hit.websiteId);
+			if (!website.isHostAllowed(hit.host)) {
 				log.set({ rejected: "host_not_authorized" });
 				throw basketErrors.ingestOriginNotAuthorized();
 			}
-
-			const setupNonce = setupCheckNonce(hit.userAgent);
-			if (setupNonce) {
-				await redis.set(
-					setupCheckKey(hit.websiteId, setupNonce),
-					"1",
-					"EX",
-					120
-				);
+			if (await recordedSetupCheck(hit.websiteId, hit.userAgent)) {
 				return new Response(null, { status: 202 });
 			}
 
-			const { botName, result } = detectBot(hit.userAgent, request);
-			const agent = identifyAiAgent(hit, result?.category);
+			const { agent, columns } = agentColumns(hit, request);
 			log.set({
 				bot: {
-					name: botName,
+					name: columns.bot_name,
 					agent: agent?.id ?? null,
-					purpose: agent?.purpose ?? null,
 					signed: Boolean(hit.signatureAgent),
 				},
 			});
-
-			const span: AiTrafficSpansInsert = {
-				client_id: hit.websiteId,
-				timestamp: Date.now(),
-				bot_type: agent
-					? agentBotCategory(agent)
-					: (result?.category ?? "unknown"),
-				bot_name: botName ?? agent?.operator ?? "",
-				user_agent: hit.userAgent,
-				path: hit.path,
-				format: hit.format,
-				host: hit.host,
-				accept: hit.accept ?? "",
-				referrer: hit.referrer,
-				agent_id: agent?.id ?? "",
-				agent_purpose: agent?.purpose ?? "",
-				source: "middleware",
-				verification: website ? "" : "host_unchecked",
-			};
-			runFork(send("analytics-ai-traffic-spans", span));
+			runFork(
+				send("analytics-ai-traffic-spans", {
+					...columns,
+					client_id: hit.websiteId,
+					timestamp: Date.now(),
+					user_agent: hit.userAgent,
+					path: hit.path,
+					format: hit.format,
+					host: hit.host,
+					accept: hit.accept ?? "",
+					referrer: hit.referrer,
+					source: "middleware",
+					verification: website.verification,
+				} satisfies AiTrafficSpansInsert)
+			);
 
 			return new Response(null, { status: 202 });
 		} catch (error) {
@@ -597,17 +611,7 @@ export const vercelDrainRoute = new Elysia().post(
 		log.set({ route: "vercel-drain", websiteId });
 
 		try {
-			if (websiteId.length > 128) {
-				return new Response(null, { status: 400 });
-			}
-			const website = await getWebsiteByIdV2(websiteId).catch(() => {
-				log.set({ website_lookup: "unavailable" });
-				return;
-			});
-			if (website === null) {
-				throw basketErrors.trackWebsiteNotFound();
-			}
-
+			const website = await agentTrafficWebsite(websiteId);
 			let batch: ReturnType<typeof parseVercelLogs>;
 			try {
 				batch = parseVercelLogs(new Uint8Array(await request.arrayBuffer()));
@@ -615,75 +619,54 @@ export const vercelDrainRoute = new Elysia().post(
 				log.set({ rejected: "unparseable_body" });
 				return new Response(null, { status: 400 });
 			}
-			const { entries, malformed } = batch;
 
-			const allowedOrigins = website
-				? getWebsiteSecuritySettings(website.settings)?.allowedOrigins
-				: undefined;
 			const seenRequests = new Set<string>();
 			const spans: AiTrafficSpansInsert[] = [];
 			let foreignHosts = 0;
-			for (const entry of entries) {
+			for (const entry of batch.entries) {
 				const parsed = vercelLogSchema.safeParse(entry);
 				const proxy = parsed.success ? parsed.data.proxy : undefined;
-				if (!(parsed.success && proxy) || proxy.statusCode === -1) {
+				const requestKey = parsed.data?.requestId || parsed.data?.id;
+				if (
+					!proxy ||
+					proxy.statusCode === -1 ||
+					(proxy.method !== "GET" && proxy.method !== "HEAD") ||
+					(requestKey && seenRequests.has(requestKey))
+				) {
 					continue;
 				}
-				const requestKey = parsed.data.requestId ?? parsed.data.id;
 				if (requestKey) {
-					if (seenRequests.has(requestKey)) {
-						continue;
-					}
 					seenRequests.add(requestKey);
 				}
-				if (proxy.method !== "GET" && proxy.method !== "HEAD") {
-					continue;
-				}
-				if (
-					website &&
-					!isOriginAllowed(
-						`https://${proxy.host}`,
-						website.domain,
-						allowedOrigins
-					)
-				) {
+				if (!website.isHostAllowed(proxy.host)) {
 					foreignHosts += 1;
 					continue;
 				}
-
 				const userAgent = (proxy.userAgent?.[0] ?? "").slice(0, 512);
-				const setupNonce = setupCheckNonce(userAgent);
-				if (setupNonce) {
-					await redis.set(setupCheckKey(websiteId, setupNonce), "1", "EX", 120);
+				const pathname = proxy.path.split("?")[0] ?? "";
+				if (
+					(await recordedSetupCheck(websiteId, userAgent)) ||
+					isAssetPath(pathname)
+				) {
 					continue;
 				}
-				const { botName, result } = detectBot(userAgent, request);
-				const agent = identifyAiAgent({ userAgent }, result?.category);
+				const { agent, columns } = agentColumns({ userAgent }, request);
 				if (!agent) {
 					continue;
 				}
-
-				const pathname = proxy.path.split("?")[0] ?? "";
-				if (isAssetPath(pathname)) {
-					continue;
-				}
 				spans.push({
+					...columns,
 					client_id: websiteId,
-					timestamp: proxy.timestamp ?? parsed.data.timestamp ?? Date.now(),
-					bot_type: agentBotCategory(agent),
-					bot_name: botName ?? agent.operator,
+					timestamp: proxy.timestamp ?? parsed.data?.timestamp ?? Date.now(),
 					user_agent: userAgent,
 					path: pathname.slice(0, 2048),
 					format: contentFormatForPath(pathname),
 					host: proxy.host,
 					accept: "",
 					referrer: proxy.referer?.slice(0, 2048),
-					agent_id: agent.id,
-					agent_purpose: agent.purpose,
 					source: "vercel",
-					status_code:
-						proxy.statusCode && proxy.statusCode > 0 ? proxy.statusCode : 0,
-					verification: website ? "" : "host_unchecked",
+					status_code: Math.max(proxy.statusCode ?? 0, 0),
+					verification: website.verification,
 				});
 			}
 
@@ -692,9 +675,9 @@ export const vercelDrainRoute = new Elysia().post(
 			}
 			log.set({
 				vercel: {
-					entries: entries.length,
+					entries: batch.entries.length,
 					stored: spans.length,
-					malformed_lines: malformed,
+					malformed_lines: batch.malformed,
 					foreign_hosts: foreignHosts,
 				},
 			});

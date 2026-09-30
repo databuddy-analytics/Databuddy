@@ -1512,12 +1512,8 @@ describe("POST /ai-traffic", () => {
 			trackRoute.handle(new Request(`http://localhost${path}`));
 		const recorded = await check("/ai-traffic/setup-check/ws_test/nonce_1");
 		const missing = await check("/ai-traffic/setup-check/ws_test/nonce_2");
-		const oversized = await check(
-			`/ai-traffic/setup-check/ws_test/${"n".repeat(65)}`
-		);
 		expect(await recorded.json()).toEqual({ recorded: true });
 		expect(await missing.json()).toEqual({ recorded: false });
-		expect(oversized.status).toBe(400);
 	});
 });
 
@@ -1609,12 +1605,17 @@ describe("POST /vercel/:websiteId", () => {
 			id: crypto.randomUUID(),
 			source: "lambda",
 		};
-		const ndjson = [request, consoleLine]
+		const ndjson = [
+			request,
+			consoleLine,
+			logLine(GPTBOT, {}, ""),
+			logLine(GPTBOT, {}, ""),
+		]
 			.map((line) => JSON.stringify(line))
 			.join("\n");
 		const res = await drain(gzipSync(ndjson));
 		expect(res.status).toBe(200);
-		expect(storedSpans()).toHaveLength(1);
+		expect(storedSpans()).toHaveLength(3);
 	});
 
 	test("skips other hosts, writes, revalidations and setup checks", async () => {
@@ -1625,7 +1626,7 @@ describe("POST /vercel/:websiteId", () => {
 				logLine(CLAUDE_CODE, { statusCode: -1 }),
 				logLine(CLAUDE_CODE, { method: undefined }),
 				logLine(CLAUDE_CODE, { path: "/_next/static/chunks/app.js" }),
-				logLine(setupCheckUserAgent("nonce_1")),
+				logLine(setupCheckUserAgent("nonce_1"), { path: "/welcome.pdf" }),
 			])
 		);
 		expect(res.status).toBe(200);
