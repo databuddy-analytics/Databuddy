@@ -14,7 +14,6 @@ import { chQuery } from "@databuddy/db/clickhouse";
 import {
 	AiDigestEmail,
 	type AiDigestEmailProps,
-	type AiDigestPage,
 	render,
 } from "@databuddy/email";
 import { config } from "@databuddy/env/app";
@@ -24,11 +23,14 @@ import {
 	aiDigestJobId,
 	getInsightsQueue,
 } from "@databuddy/redis";
-import { aiProductIcon } from "@databuddy/shared/bot-detection/types";
+import {
+	aiProductIcon,
+	CONTENT_FORMATS,
+} from "@databuddy/shared/bot-detection/types";
 import { numberField, stringField } from "./detection";
 import { setInsightsLog } from "./lib/evlog-insights";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const DAY_MS = 86_400_000;
 const PRODUCT_ROWS = 5;
 const PAGE_ROWS = 3;
 const LANDING_ROWS = 3;
@@ -39,8 +41,6 @@ const ROLES: Record<string, string> = {
 	training: "Trains AI models",
 	user_fetch: "Answers questions",
 };
-
-type Row = Record<string, unknown>;
 
 interface DigestOutcome {
 	reason?: string;
@@ -57,44 +57,35 @@ function outcome(result: DigestOutcome): DigestOutcome {
 	return result;
 }
 
-interface DigestWeek {
-	from: string;
-	to: string;
-	until: string;
-}
+const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
-const isoDay = (date: Date) => date.toISOString().slice(0, 10);
-
-function digestWeek(weekStart: string): DigestWeek {
-	const start = Date.parse(`${weekStart}T00:00:00Z`);
-	return {
-		from: weekStart,
-		to: isoDay(new Date(start + 6 * DAY_MS)),
-		until: isoDay(new Date(start + 7 * DAY_MS)),
-	};
-}
-
-function previousWeekStart(now: Date): string {
+function lastWeekStart(now: Date): string {
 	const today = Date.UTC(
 		now.getUTCFullYear(),
 		now.getUTCMonth(),
 		now.getUTCDate()
 	);
-	const daysSinceMonday = (now.getUTCDay() + 6) % 7;
-	return isoDay(new Date(today - (daysSinceMonday + 7) * DAY_MS));
+	return isoDay(today - (((now.getUTCDay() + 6) % 7) + 7) * DAY_MS);
 }
 
-function periodLabel(week: DigestWeek): string {
-	const format = (day: string, options: Intl.DateTimeFormatOptions) =>
+function weekOf(weekStart: string) {
+	const start = Date.parse(`${weekStart}T00:00:00Z`);
+	return {
+		from: weekStart,
+		to: isoDay(start + 6 * DAY_MS),
+		until: isoDay(start + 7 * DAY_MS),
+	};
+}
+
+function periodLabel({ from, to }: { from: string; to: string }): string {
+	const label = (day: string, month?: "short") =>
 		new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", {
-			...options,
+			day: "numeric",
+			month,
 			timeZone: "UTC",
 		});
-	const sameMonth = week.from.slice(0, 7) === week.to.slice(0, 7);
-	return `${format(week.from, { day: "numeric", month: "short" })} to ${format(
-		week.to,
-		sameMonth ? { day: "numeric" } : { day: "numeric", month: "short" }
-	)}`;
+	const toMonth = from.slice(0, 7) === to.slice(0, 7) ? undefined : "short";
+	return `${label(from, "short")} to ${label(to, toMonth)}`;
 }
 
 const logoUrl = (product: string) => {
@@ -106,7 +97,7 @@ export async function dispatchAiDigests(now = new Date()) {
 	if (!config.email.resendApiKey) {
 		return outcome({ reason: "email_not_configured", status: "skipped" });
 	}
-	const week = digestWeek(previousWeekStart(now));
+	const week = weekOf(lastWeekStart(now));
 	const { sql, params } = aiActiveWebsitesQuery(
 		`${week.from} 00:00:00`,
 		`${week.until} 00:00:00`
@@ -127,7 +118,7 @@ async function buildAiDigest(
 	domain: string,
 	weekStart: string
 ): Promise<AiDigestEmailProps | null> {
-	const week = digestWeek(weekStart);
+	const week = weekOf(weekStart);
 	const query = (type: string, limit: number) =>
 		executeQuery(
 			{
@@ -140,7 +131,7 @@ async function buildAiDigest(
 			},
 			domain,
 			"UTC"
-		) as Promise<Row[]>;
+		);
 	const [digest, crawlers, landing, reads] = await Promise.all([
 		query("ai_weekly_digest", 50),
 		query("ai_crawlers", 100),
@@ -167,7 +158,7 @@ async function buildAiDigest(
 
 	const pageRows = reads
 		.map((row) => ({
-			format: (stringField(row, "format") ?? "html") as AiDigestPage["format"],
+			format: CONTENT_FORMATS.find((format) => format === row.format) ?? "html",
 			page: stringField(row, "page") ?? "",
 			reads: numberField(row, "requests"),
 		}))
@@ -182,8 +173,8 @@ async function buildAiDigest(
 	return {
 		agentsUrl: `${config.urls.dashboard}/websites/${websiteId}/agents`,
 		landingPages: landing.map((row) => {
-			const senders = Array.isArray(row.senders) ? (row.senders as Row[]) : [];
-			const sender = stringField(senders[0], "product");
+			const [first] = Array.isArray(row.senders) ? row.senders : [];
+			const sender = stringField(first, "product");
 			return {
 				logoUrl: sender ? logoUrl(sender) : undefined,
 				page: stringField(row, "page") ?? "",
