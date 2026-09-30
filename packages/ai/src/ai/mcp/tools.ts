@@ -497,7 +497,10 @@ const getDataTool = defineMcpTool(
 					? "query_failed"
 					: "invalid_input",
 				`All ${failures.length} queries failed. ${formatted
-					.map((result, index) => `${result.type}: ${failures[index]?.message}`)
+					.map(
+						(result, index) =>
+							`Query ${index + 1} (${result.type}): ${failures[index]?.message}`
+					)
 					.join(" ")}`
 			);
 		}
