@@ -7,6 +7,9 @@ import {
 	handleDatabuddyMcpRequest,
 } from "@databuddy/ai/mcp/http";
 import { auth } from "@databuddy/auth";
+import { and, db, eq } from "@databuddy/db";
+import { oauthClient, oauthConsent } from "@databuddy/db/schema";
+import { cacheable } from "@databuddy/redis";
 import { isApiScope } from "@databuddy/shared/api-scopes";
 import { config } from "@databuddy/env/app";
 import { createMcpProtectedRequestHandler } from "@better-auth/mcp";
@@ -26,14 +29,48 @@ function isOAuthBearer(headers: Headers): boolean {
 	return !authorization.slice("bearer ".length).trim().startsWith("dbdy_");
 }
 
+const hasActiveOAuthGrant = cacheable(
+	async function hasActiveOAuthGrant(
+		userId: string,
+		clientId: string
+	): Promise<boolean> {
+		const [consent] = await db
+			.select({ id: oauthConsent.id })
+			.from(oauthConsent)
+			.where(
+				and(
+					eq(oauthConsent.userId, userId),
+					eq(oauthConsent.clientId, clientId)
+				)
+			)
+			.limit(1);
+		if (consent) {
+			return true;
+		}
+		const [client] = await db
+			.select({ skipConsent: oauthClient.skipConsent })
+			.from(oauthClient)
+			.where(eq(oauthClient.clientId, clientId))
+			.limit(1);
+		return client?.skipConsent === true;
+	},
+	{ expireInSec: 15, prefix: "mcp-oauth-grant" }
+);
+
 const handleOAuthMcpRequest = createMcpProtectedRequestHandler(
 	{
 		issuer: config.urls.authorizationServer,
 		audience: config.urls.mcp,
 		jwksUrl: `${config.urls.authorizationServer}/jwks`,
 	},
-	(request, claims) => {
+	async (request, claims) => {
 		const subject = typeof claims.sub === "string" ? claims.sub : null;
+		const clientId = typeof claims.azp === "string" ? claims.azp : null;
+		if (
+			!(subject && clientId && (await hasActiveOAuthGrant(subject, clientId)))
+		) {
+			return createMcpUnauthorizedResponse();
+		}
 		return handleDatabuddyMcpRequest({
 			request,
 			requestHeaders: request.headers,
