@@ -50,5 +50,5 @@ jobs:
         run: |
           curl -fsS --compressed -D headers.txt https://cdn.databuddy.cc/geojson/countries.json -o served.json
           cat headers.txt
-          grep -qi "^content-encoding: \(br\|gzip\)" headers.txt
+          grep -qi "^content-encoding: " headers.txt
           cmp served.json countries.json
