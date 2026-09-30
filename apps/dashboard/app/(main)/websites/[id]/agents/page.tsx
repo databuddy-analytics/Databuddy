@@ -552,19 +552,13 @@ function ProductCard({
 						visitors sent
 					</span>
 				</p>
-				<div className="my-1.5 h-9">
-					<Chart.SingleSeries
+				<div className="my-1.5">
+					<Sparkline
 						color={aiProductColor(row.product)}
-						data={trend}
-						height={36}
-						id={`ai-product-${row.product.replace(NON_ID_CHARS, "-")}`}
-						tooltip={{
-							formatLabelAction: (label) =>
-								dayjs(label).format(isHourly ? "ddd HH:mm" : "ddd, MMM D"),
-							formatValue: formatNumber,
-							valueSuffixLabel: "visitors",
-						}}
-						yDomain={[0, "dataMax + 1"]}
+						id={`ai-product-${row.product}`}
+						isHourly={isHourly}
+						trend={trend}
+						unit="visitors"
 					/>
 				</div>
 				<p className="truncate text-muted-foreground text-xs">
@@ -970,16 +964,18 @@ function activityTrend(
 	}));
 }
 
-function ActivitySparkline({
+function Sparkline({
+	color = "var(--color-foreground)",
 	id,
 	isHourly,
-	label,
 	trend,
+	unit,
 }: {
+	color?: string;
 	id: string;
 	isHourly: boolean;
-	label: string;
 	trend: TrendPoint[] | null;
+	unit: string;
 }) {
 	if (!trend) {
 		return <Skeleton className="h-9 w-full" />;
@@ -987,15 +983,15 @@ function ActivitySparkline({
 	return (
 		<div className="h-9">
 			<Chart.SingleSeries
-				color="var(--color-foreground)"
+				color={color}
 				data={trend}
 				height={36}
-				id={id}
+				id={id.replace(NON_ID_CHARS, "-")}
 				tooltip={{
 					formatLabelAction: (value) =>
 						dayjs(value).format(isHourly ? "ddd HH:mm" : "ddd, MMM D"),
 					formatValue: formatNumber,
-					valueSuffixLabel: `${label} requests`,
+					valueSuffixLabel: unit,
 				}}
 				yDomain={[0, "dataMax + 1"]}
 			/>
@@ -1046,11 +1042,11 @@ function AgentDetail({
 					</span>
 				) : null}
 			</div>
-			<ActivitySparkline
-				id={`ai-agent-${agent.agent_id.replace(NON_ID_CHARS, "-")}`}
+			<Sparkline
+				id={`ai-agent-${agent.agent_id}`}
 				isHourly={isHourly}
-				label={label}
 				trend={trend}
+				unit={`${label} requests`}
 			/>
 			<Tooltip
 				content={<Tip lines={[agent.user_agent]} title="User agent" />}
@@ -1212,11 +1208,11 @@ function AgentReadsPanel({
 					unit={`${label} requests`}
 					value={formatNumber(total)}
 				/>
-				<ActivitySparkline
+				<Sparkline
 					id="ai-reads-trend"
 					isHourly={timeline.isHourly}
-					label={label}
 					trend={isLoading ? null : activityTrend(activity, timeline, focus)}
+					unit={`${label} requests`}
 				/>
 				<div>
 					{isLoading ? (
