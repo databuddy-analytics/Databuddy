@@ -1679,6 +1679,7 @@ describe("intelligence agent", () => {
 		expect(result.outcome).toEqual(outcome);
 		expect(result.usage?.inputTokens).toBe(2);
 		expect(result.usage?.outputTokens).toBe(2);
+		expect(result.usage?.stepUsages).toHaveLength(2);
 		expect(model.doGenerateCalls).toHaveLength(2);
 		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
 			"finish_investigation"
@@ -1749,6 +1750,7 @@ describe("intelligence agent", () => {
 			throw failure;
 		}
 		expect(failure.usage.inputTokens).toBe(model.doGenerateCalls.length);
+		expect(failure.usage.stepUsages).toHaveLength(model.doGenerateCalls.length);
 	});
 
 	it("can inspect missing context after a malformed response follows a read", async () => {
@@ -2188,6 +2190,7 @@ describe("intelligence agent", () => {
 		expect(failure.toolCallCount).toBe(1);
 		expect(failure.usage.inputTokens).toBe(1);
 		expect(failure.usage.outputTokens).toBe(1);
+		expect(failure.usage.stepUsages).toHaveLength(1);
 		expect(model.doGenerateCalls).toHaveLength(2);
 	});
 

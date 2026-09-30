@@ -40,8 +40,8 @@ function lookupTokenlensModel(modelId: string): CostModel | null {
 	};
 }
 
-function resolveCostModel(modelId: string): CostModel {
-	const configured = lookupAgentModelCost(modelId);
+function resolveCostModel(modelId: string, inputTokens = 0): CostModel {
+	const configured = lookupAgentModelCost(modelId, inputTokens);
 	if (configured) {
 		return createCostModel(configured.id, configured.cost);
 	}
@@ -55,15 +55,26 @@ function resolveCostModel(modelId: string): CostModel {
 	return createCostModel(fallback.id, fallback.cost, true);
 }
 
-function toCostUsage(usage: LanguageModelUsage, freshInputTokens: number) {
+function toCostUsage(usage: LanguageModelUsage) {
 	return {
-		input_tokens: freshInputTokens,
+		input_tokens:
+			num(usage.inputTokenDetails?.noCacheTokens) ||
+			Math.max(
+				0,
+				num(usage.inputTokens) -
+					num(usage.inputTokenDetails?.cacheReadTokens) -
+					num(usage.inputTokenDetails?.cacheWriteTokens)
+			),
 		output_tokens: usage.outputTokens,
 		cache_read_tokens: usage.inputTokenDetails?.cacheReadTokens,
 		cache_write_tokens: usage.inputTokenDetails?.cacheWriteTokens,
 		reasoning_tokens: usage.outputTokenDetails?.reasoningTokens,
 	};
 }
+
+export type AgentUsage = LanguageModelUsage & {
+	stepUsages?: LanguageModelUsage[];
+};
 
 export interface UsageTelemetry {
 	agent_credits_used: number;
@@ -90,21 +101,33 @@ const num = (value: number | undefined): number =>
 
 export function summarizeAgentUsage(
 	modelId: string,
-	usage: LanguageModelUsage
+	usage: AgentUsage
 ): UsageTelemetry {
 	const inputTokens = num(usage.inputTokens);
 	const outputTokens = num(usage.outputTokens);
 	const cacheReadTokens = num(usage.inputTokenDetails?.cacheReadTokens);
 	const cacheWriteTokens = num(usage.inputTokenDetails?.cacheWriteTokens);
-	const freshInputTokens =
-		num(usage.inputTokenDetails?.noCacheTokens) ||
-		Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens);
-
+	const freshInputTokens = toCostUsage(usage).input_tokens;
 	const costModel = resolveCostModel(modelId);
-	const costs = computeTokenCostsForModel({
-		model: costModel.model,
-		usage: toCostUsage(usage, freshInputTokens),
-	});
+	const costs = {
+		inputTokenCostUSD: 0,
+		outputTokenCostUSD: 0,
+		totalTokenCostUSD: 0,
+		cacheReadTokenCostUSD: 0,
+		cacheWriteTokenCostUSD: 0,
+		reasoningTokenCostUSD: 0,
+	};
+	// Context pricing is per request, never the sum of an agent's steps.
+	const usages = usage.stepUsages?.length ? usage.stepUsages : [usage];
+	for (const stepUsage of usages) {
+		const stepCosts = computeTokenCostsForModel({
+			model: resolveCostModel(modelId, num(stepUsage.inputTokens)).model,
+			usage: toCostUsage(stepUsage),
+		});
+		for (const key of Object.keys(costs) as (keyof typeof costs)[]) {
+			costs[key] += num(stepCosts?.[key]);
+		}
+	}
 	const costTotalUsd = num(costs?.totalTokenCostUSD);
 
 	return {

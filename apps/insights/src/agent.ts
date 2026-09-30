@@ -1,3 +1,4 @@
+import type { AgentUsage } from "@databuddy/ai/lib/usage-telemetry";
 import type { AppContext } from "@databuddy/ai/config/context";
 import {
 	businessContextSchema,
@@ -59,7 +60,7 @@ import {
 const MAX_STEPS = 8;
 const TIMEOUT_MS = 2 * 60_000;
 const MAX_FINISH_ATTEMPTS = 3;
-export const INSIGHTS_MODEL_ID = "openai/gpt-5.6-luna";
+export const INSIGHTS_MODEL_ID = "openai/gpt-6.1-sol";
 const INSIGHTS_MODEL = createModelFromId(INSIGHTS_MODEL_ID);
 
 const revenueFields = (
@@ -712,10 +713,11 @@ function hasProductRevenueEvidence(
 	);
 }
 
-function aggregateUsage(usages: LanguageModelUsage[]): LanguageModelUsage {
+function aggregateUsage(usages: LanguageModelUsage[]): AgentUsage {
 	const sum = (values: Array<number | undefined>) =>
 		values.reduce<number>((total, value) => total + (value ?? 0), 0);
 	return {
+		...(usages.length > 0 ? { stepUsages: usages } : {}),
 		cachedInputTokens: sum(usages.map((usage) => usage.cachedInputTokens)),
 		inputTokenDetails: {
 			cacheReadTokens: sum(
@@ -808,19 +810,19 @@ export interface InsightAgentResult {
 	outcome: InvestigationOutcome;
 	snapshot?: InvestigationEvidenceSnapshot;
 	toolCallCount: number;
-	usage?: LanguageModelUsage;
+	usage?: AgentUsage;
 	verificationRead?: VerificationRead;
 }
 export class InsightAgentExecutionError extends Error {
 	readonly modelId: string;
 	readonly toolCallCount: number;
-	readonly usage: LanguageModelUsage;
+	readonly usage: AgentUsage;
 
 	constructor(params: {
 		cause: unknown;
 		modelId: string;
 		toolCallCount: number;
-		usage: LanguageModelUsage;
+		usage: AgentUsage;
 	}) {
 		super(
 			params.cause instanceof Error
@@ -2979,14 +2981,14 @@ export async function runInsightAgent(
 							),
 				modelId,
 				toolCallCount,
-				usage: result.totalUsage,
+				usage: aggregateUsage(result.steps.map((step) => step.usage)),
 			});
 		}
 		return {
 			modelId,
 			outcome,
 			toolCallCount,
-			usage: result.totalUsage,
+			usage: aggregateUsage(result.steps.map((step) => step.usage)),
 			completion,
 			snapshot: snapshot(
 				input,
