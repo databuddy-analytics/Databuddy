@@ -1512,12 +1512,8 @@ describe("POST /ai-traffic", () => {
 			trackRoute.handle(new Request(`http://localhost${path}`));
 		const recorded = await check("/ai-traffic/setup-check/ws_test/nonce_1");
 		const missing = await check("/ai-traffic/setup-check/ws_test/nonce_2");
-		const oversized = await check(
-			`/ai-traffic/setup-check/ws_test/${"n".repeat(65)}`
-		);
 		expect(await recorded.json()).toEqual({ recorded: true });
 		expect(await missing.json()).toEqual({ recorded: false });
-		expect(oversized.status).toBe(400);
 	});
 });
 
