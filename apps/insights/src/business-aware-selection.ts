@@ -7,6 +7,7 @@ import type { BusinessContext } from "@databuddy/ai/lib/business-context";
 import type { InvestigationSignal } from "@databuddy/shared/insights";
 import { generateText, type LanguageModel, Output } from "ai";
 import { z } from "zod";
+import { INSIGHTS_MODEL_ID } from "./agent";
 
 export function investigationSelectionSchema(keys: string[], limit: number) {
 	return z.strictObject({
@@ -221,7 +222,7 @@ export async function chooseInvestigationSignals(
 	const shortlistKeys = shortlist.map(
 		(candidate) => candidate.signal.signalKey
 	);
-	const modelId = "openai/gpt-5.6-luna";
+	const modelId = INSIGHTS_MODEL_ID;
 	const result = await generateText({
 		model: model ?? getAILogger().wrap(createModelFromId(modelId)),
 		maxRetries: 0,

@@ -2047,16 +2047,10 @@ describe("intelligence agent", () => {
 		);
 	});
 
-	it("retries a published measurement finding with the wrong publication basis", async () => {
-		const invalidOutcome = {
-			...agentOutcome,
-			findingKind: "measurement_definition" as const,
-			publicationBasis: "measured_impact" as const,
-		};
+	it("derives the publication basis instead of trusting the model's value", async () => {
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
-				outputResponse(invalidOutcome),
-				outputResponse(agentOutcome)
+				outputResponse({ ...agentOutcome, publicationBasis: "decision_safety" })
 			),
 		});
 
@@ -2073,10 +2067,7 @@ describe("intelligence agent", () => {
 		);
 
 		expect(result.outcome).toEqual(outcome);
-		expect(model.doGenerateCalls).toHaveLength(2);
-		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
-			"publicationBasis"
-		);
+		expect(model.doGenerateCalls).toHaveLength(1);
 	});
 
 	it("repairs a truncated finish call inside the same tool loop", async () => {
