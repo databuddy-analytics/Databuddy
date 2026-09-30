@@ -202,7 +202,6 @@ export const AiDigestEmail = ({
 	visitors,
 }: AiDigestEmailProps) => {
 	const senders = products.filter((product) => product.visitors > 0);
-	const hasVisitors = visitors > 0;
 
 	return (
 		<Html lang="en">
@@ -212,9 +211,7 @@ export const AiDigestEmail = ({
 					<meta content="light" name="supported-color-schemes" />
 				</Head>
 				<Preview>
-					{hasVisitors
-						? `${senders[0]?.name ?? "AI"} sent you ${n(visitors)} ${visitors === 1 ? "visitor" : "visitors"}. AI read your site ${n(reads)} times.`
-						: `AI read ${site} ${n(reads)} times this week.`}
+					{`${n(visitors)} ${visitors === 1 ? "visitor" : "visitors"} from AI, and AI read ${site} ${n(reads)} times.`}
 				</Preview>
 				<Body className={`m-0 bg-canvas py-10 ${FONT}`}>
 					<Container className="mx-auto max-w-[560px] px-4">
@@ -229,36 +226,25 @@ export const AiDigestEmail = ({
 							</Row>
 
 							<Text className="m-0 mt-10 text-[14px] text-sub">
-								{hasVisitors
-									? `Visitors from AI on ${site}`
-									: `Times AI read ${site}`}
+								Visitors from AI on {site}
 							</Text>
 							<Text className="m-0 mt-1 font-semibold text-[48px] text-ink leading-[52px] tracking-tight">
-								{n(hasVisitors ? visitors : reads)}
+								{n(visitors)}
 							</Text>
-							{hasVisitors ? (
-								<Text className="m-0 mt-2 text-[14px] text-sub">
-									<span
-										className={
-											visitors > previousVisitors ? "font-medium text-up" : ""
-										}
-									>
-										{visitorChange(visitors, previousVisitors)}
-									</span>
-									{senders.length === 1 ? `, all from ${senders[0]?.name}` : ""}
-								</Text>
-							) : null}
+							<Text className="m-0 mt-2 text-[14px] text-sub">
+								<span
+									className={
+										visitors > previousVisitors ? "font-medium text-up" : ""
+									}
+								>
+									{visitorChange(visitors, previousVisitors)}
+								</span>
+								{senders.length === 1 ? `, all from ${senders[0]?.name}` : ""}
+							</Text>
 
 							<Hr className="my-8 border-line" />
 							<Row>
-								{hasVisitors ? (
-									<Stat label="Times AI read your site" value={reads} />
-								) : (
-									<Stat
-										label="AI products reading it"
-										value={products.length}
-									/>
-								)}
+								<Stat label="Times AI read your site" value={reads} />
 								<Stat
 									label="Pages AI hadn't read in 90 days"
 									value={newPages}
