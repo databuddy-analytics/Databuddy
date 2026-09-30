@@ -108,6 +108,8 @@ const listFlagsSchema = z
 	.object({
 		...flagScopeFields,
 		status: z.enum(["active", "inactive", "archived"]).optional(),
+		limit: z.number().int().min(1).max(200).default(200),
+		offset: z.number().int().min(0).default(0),
 	})
 	.refine(requireScope, scopeRefinement);
 
@@ -335,7 +337,7 @@ export const flagsRouter = {
 					"list",
 					workspace,
 					scope,
-					`status:${input.status || "all"}`
+					`status:${input.status || "all"}:limit:${input.limit}:offset:${input.offset}`
 				),
 				ttl: CACHE_DURATION,
 				tables: ["flags", "flags_to_target_groups", "target_groups"],
@@ -359,7 +361,8 @@ export const flagsRouter = {
 							},
 						},
 						orderBy: { createdAt: "desc" },
-						limit: 200,
+						limit: input.limit,
+						offset: input.offset,
 						with: { flagsToTargetGroups: { with: { targetGroup: true } } },
 					});
 

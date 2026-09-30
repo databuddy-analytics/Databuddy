@@ -1310,11 +1310,21 @@ const listFlagsTool = defineMcpTool(
 		const result = await callRPCProcedure(
 			"flags",
 			"list",
-			{ websiteId: ctx.websiteId, status: input.status },
+			{
+				websiteId: ctx.websiteId,
+				status: input.status,
+				limit: input.limit + 1,
+				offset: input.offset,
+			},
 			buildRpcContext(ctx)
 		);
-		const page = paginate(Array.isArray(result) ? result : [], input);
-		return { flags: page.items, count: page.total, hasMore: page.hasMore };
+		const rows = Array.isArray(result) ? result : [];
+		const flags = rows.slice(0, input.limit);
+		return {
+			flags,
+			count: flags.length,
+			hasMore: rows.length > input.limit,
+		};
 	}
 );
 
