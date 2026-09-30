@@ -32,6 +32,7 @@ export type McpErrorCode =
 	| "invalid_input"
 	| "unauthorized"
 	| "not_found"
+	| "query_failed"
 	| "rate_limited"
 	| "upstream_timeout"
 	| "internal";
@@ -78,7 +79,7 @@ interface McpToolAccess {
 }
 
 interface McpToolAccessInput {
-	kind?: McpToolMutationKind;
+	kind: McpToolMutationKind;
 	scopes?: ApiScope[];
 	scopeTarget?: ApiKeyScopeTarget;
 }
@@ -88,7 +89,7 @@ export interface McpToolMetadata {
 }
 
 export interface McpToolMetadataInput {
-	access?: McpToolAccessInput;
+	access: McpToolAccessInput;
 }
 export function metadataForResource(
 	resource: string,
@@ -110,7 +111,7 @@ export function metadataForResource(
 export interface McpToolMeta<S extends z.ZodTypeAny = z.ZodTypeAny> {
 	description: string;
 	inputSchema: S;
-	metadata?: McpToolMetadataInput;
+	metadata: McpToolMetadataInput;
 	name: string;
 	outputSchema?: z.ZodType<Record<string, unknown>>;
 	ratelimit?: { limit: number; windowSec: number };
@@ -260,7 +261,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 				const parseResult = meta.inputSchema.safeParse(rawInput ?? {});
 				if (!parseResult.success) {
 					const issue = parseResult.error.issues[0];
-					const path = issue?.path.join(".") ?? "input";
+					const path = issue?.path.length ? issue.path.join(".") : "input";
 					throw new McpToolError(
 						"invalid_input",
 						issue ? `${path}: ${issue.message}` : "Invalid input",
@@ -365,10 +366,10 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 }
 
 function normalizeToolMetadata(
-	metadata: McpToolMetadataInput | undefined,
+	metadata: McpToolMetadataInput,
 	resolvesWebsite: boolean
 ): McpToolMetadata {
-	const configuredScopes = metadata?.access?.scopes ?? [];
+	const configuredScopes = metadata.access.scopes ?? [];
 	const scopes: ApiScope[] = [
 		...(resolvesWebsite ? (["read:data"] as const) : []),
 		...configuredScopes,
@@ -376,8 +377,8 @@ function normalizeToolMetadata(
 	return {
 		access: {
 			globalScopes:
-				metadata?.access?.scopeTarget === "global" ? configuredScopes : [],
-			kind: metadata?.access?.kind ?? "read",
+				metadata.access.scopeTarget === "global" ? configuredScopes : [],
+			kind: metadata.access.kind,
 			scopes: [...new Set(scopes)],
 		},
 	};

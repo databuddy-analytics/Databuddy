@@ -28,6 +28,8 @@ import {
 	getResolvedWebsiteId,
 	McpDateRangeSchema,
 	MutationResultSchema,
+	PageSchema,
+	paginate,
 	resolveMcpDateRange,
 	WebsiteSelectorSchema,
 	WorkflowFilterSchema,
@@ -45,28 +47,42 @@ const getFunnelAnalyticsByReferrerTool = defineMcpTool(
 	{
 		name: "get_funnel_analytics_by_referrer",
 		description:
-			"Return funnel conversion analytics broken down by referrer/source. Use after list_funnels to see which sources convert best.",
+			"Return one funnel's conversion broken down by referrer, by funnelId from list_funnels. Paginated over referrers.",
 		inputSchema: McpDateRangeSchema.safeExtend({
 			...WebsiteSelectorSchema,
 			funnelId: z.string().describe("Funnel ID from list_funnels"),
+			...PageSchema,
 		}),
 		outputSchema: DynamicObjectSchema,
+		metadata: { access: { kind: "read" } },
 		resolveWebsite: true,
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
-	(input, ctx) => {
+	async (input, ctx) => {
 		const { from, to } = resolveMcpDateRange(input);
-		return callRPCProcedure(
-			"funnels",
-			"getAnalyticsByReferrer",
-			{
-				funnelId: input.funnelId,
-				websiteId: getResolvedWebsiteId(ctx),
-				startDate: from,
-				endDate: to,
-			},
-			buildRpcContext(ctx)
-		);
+		const result = z
+			.object({ referrer_analytics: z.array(z.unknown()) })
+			.passthrough()
+			.parse(
+				await callRPCProcedure(
+					"funnels",
+					"getAnalyticsByReferrer",
+					{
+						funnelId: input.funnelId,
+						websiteId: getResolvedWebsiteId(ctx),
+						startDate: from,
+						endDate: to,
+					},
+					buildRpcContext(ctx)
+				)
+			);
+		const page = paginate(result.referrer_analytics, input);
+		return {
+			...result,
+			referrer_analytics: page.items,
+			referrerCount: page.total,
+			hasMore: page.hasMore,
+		};
 	}
 );
 
@@ -74,7 +90,7 @@ const updateGoalTool = defineMcpTool(
 	{
 		name: "update_goal",
 		description:
-			"Update a conversion goal. Call with confirmed=false to preview changes, then confirmed=true after explicit user approval.",
+			"Update a conversion goal. confirmed=false (default) returns the current goal and the changes without writing; confirmed=true applies them.",
 		inputSchema: z.object({
 			id: z.string(),
 			type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]).optional(),
@@ -137,7 +153,7 @@ const deleteGoalTool = defineMcpTool(
 	{
 		name: "delete_goal",
 		description:
-			"Delete a conversion goal. Call with confirmed=false to preview, then confirmed=true after explicit user approval.",
+			"Delete a conversion goal. confirmed=false (default) returns the goal without deleting it; confirmed=true deletes it.",
 		inputSchema: z.object({
 			id: z.string(),
 			confirmed: ConfirmedSchema,
@@ -168,7 +184,7 @@ const updateAnnotationTool = defineMcpTool(
 	{
 		name: "update_annotation",
 		description:
-			"Update annotation text, tags, color, or visibility. Preview changes before applying them.",
+			"Update an annotation's text, tags, color, or visibility. confirmed=false (default) returns the changes without writing; confirmed=true applies them.",
 		inputSchema: z.object({
 			id: z.string(),
 			text: z.string().min(1).max(500).optional(),
@@ -232,7 +248,7 @@ const deleteAnnotationTool = defineMcpTool(
 	{
 		name: "delete_annotation",
 		description:
-			"Delete a chart annotation. Call with confirmed=false to preview, then confirmed=true after explicit user approval.",
+			"Delete a chart annotation. confirmed=false (default) returns the annotation without deleting it; confirmed=true deletes it.",
 		inputSchema: z.object({
 			id: z.string(),
 			confirmed: ConfirmedSchema,
@@ -282,7 +298,7 @@ const updateLinkTool = defineMcpTool(
 	{
 		name: "update_link",
 		description:
-			"Update a short link. Call with confirmed=false to preview changes, then confirmed=true after explicit user approval.",
+			"Update a short link. confirmed=false (default) returns the current link and the changes without writing; confirmed=true applies them.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			id: z.string(),
@@ -373,7 +389,7 @@ const deleteLinkTool = defineMcpTool(
 	{
 		name: "delete_link",
 		description:
-			"Delete a short link. Call with confirmed=false to preview, then confirmed=true after explicit user approval.",
+			"Delete a short link. confirmed=false (default) returns the link without deleting it; confirmed=true deletes it.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			id: z.string(),
