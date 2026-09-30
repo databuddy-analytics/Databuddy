@@ -590,14 +590,19 @@ describe("investigationOutcomeSchema", () => {
 				findingKind: "measurement_definition",
 			}).success
 		).toBe(false);
-		expect(
-			agentInvestigationOutcomeSchema.safeParse({
-				...published,
-				findingKind: "measurement_definition",
-				impact: null,
-				publicationBasis: "decision_safety",
-			}).success
-		).toBe(true);
+		for (const findingKind of [
+			"measurement_definition",
+			"measurement_coverage",
+		] as const) {
+			expect(
+				agentInvestigationOutcomeSchema.safeParse({
+					...published,
+					findingKind,
+					impact: null,
+					publicationBasis: "decision_safety",
+				}).success
+			).toBe(true);
+		}
 		expect(
 			agentInvestigationOutcomeSchema.safeParse({
 				...published,
