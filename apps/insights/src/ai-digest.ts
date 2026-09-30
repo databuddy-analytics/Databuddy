@@ -295,11 +295,16 @@ export async function sendAiDigest({
 			to: owners.map((owner) => owner.ownerEmail),
 		}),
 	});
-	if (response.status === 409) {
-		return outcome({ reason: "already_sent", status: "skipped" });
-	}
 	if (!response.ok) {
-		throw new Error(`Resend AI digest failed: ${response.status}`);
+		const error = (await response.json().catch(() => null)) as {
+			name?: string;
+		} | null;
+		if (error?.name === "invalid_idempotent_request") {
+			return outcome({ reason: "already_sent", status: "skipped" });
+		}
+		throw new Error(
+			`Resend AI digest failed: ${response.status} ${error?.name ?? ""}`
+		);
 	}
 	return outcome({ status: "sent" });
 }
