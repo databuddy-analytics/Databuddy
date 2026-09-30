@@ -109,9 +109,6 @@ async function fixture(
 				output: { total_users_entered: 200, total_users_completed: 20 },
 			},
 		],
-		descriptions: {
-			get_goal_analytics: "Counts eligible website visitors, not attempts.",
-		},
 	});
 	await db.insert(insightObservations).values({
 		id: observationId,

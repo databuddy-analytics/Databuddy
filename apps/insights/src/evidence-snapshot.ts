@@ -238,7 +238,6 @@ export function createEvidenceSnapshot(input: {
 		input: unknown;
 		output: unknown;
 	}[];
-	descriptions: Record<string, string | undefined>;
 }): InvestigationEvidenceSnapshot {
 	const snapshot: InvestigationEvidenceSnapshot = {
 		version: 1,

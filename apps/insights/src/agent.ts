@@ -2373,12 +2373,6 @@ export async function runInsightAgent(
 			signal: source.signal,
 			evidence: source.evidence,
 			reads,
-			descriptions: Object.fromEntries(
-				Object.entries(availableTools).map(([name, definition]) => [
-					name,
-					definition.description,
-				])
-			),
 		}),
 		completion,
 	});
