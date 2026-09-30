@@ -131,7 +131,7 @@ Rules: Pick JSON component OR markdown table for the same data, never both. Outp
 - AI visitor: a person who arrived from an AI product's referral or its app browser (ChatGPT Atlas, Claude, Cursor), counted with uniq(anonymous_id) like every visitor
 - agent purpose: training (model training crawls), search_index (AI search indexing), user_fetch (fetched live to answer a user's question), agent (acting for a user, such as coding agents)
 - content format: markdown (.md paths or Accept: text/markdown), llms (llms.txt and llms-full.txt), html (everything else)
-- server-side AI tracking: crawlers that don't run JavaScript appear only when @databuddy/sdk/agents runs on the site's server; ai_products.has_proxy says whether it ever has
+- server-side AI tracking: crawlers that don't run JavaScript appear only when @databuddy/sdk/agents runs on the site's server or a Vercel log drain sends its logs; ai_products.has_proxy says whether either ever has
 </glossary>`;
 
 const ANALYTICS_MCP_BODY = `<agent-specific-rules>
