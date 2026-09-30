@@ -1,17 +1,33 @@
 "use client";
 
-import { useTheme } from "next-themes";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { usePrefersReducedMotion } from "@/components/ui/dotmatrix/hooks";
 import { formatNumber } from "@/lib/formatters";
 import { type Country, featureCountryCode, useCountries } from "@/lib/geo";
 import { cn } from "@/lib/utils";
 
-export interface GlobeCountry {
+interface GlobeCountry {
 	code: string;
 	name: string;
 	value: number;
+}
+
+export interface CountryRow {
+	country_code?: string;
+	country_name?: string;
+	name: string;
+	visitors: number;
+}
+
+export function toGlobeCountries(rows: CountryRow[]): GlobeCountry[] {
+	return rows
+		.filter((row) => row.name.trim() !== "")
+		.map((row) => ({
+			code: (row.country_code || row.name).toUpperCase(),
+			name: row.country_name || row.name,
+			value: row.visitors,
+		}))
+		.sort((a, b) => b.value - a.value);
 }
 
 interface GlobeMapProps {
@@ -202,8 +218,6 @@ export function GlobeMap({
 }: GlobeMapProps) {
 	const { data: geo } = useCountries();
 	const globe = useMemo(() => (geo ? buildGlobe(geo) : null), [geo]);
-	const reduceMotion = usePrefersReducedMotion();
-	const { resolvedTheme } = useTheme();
 
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const sceneRef = useRef({
@@ -259,12 +273,7 @@ export function GlobeMap({
 		if (!globe || scene.aimed) {
 			return;
 		}
-		const top = countries
-			.filter((c) => indexByCode.has(c.code))
-			.reduce<GlobeCountry | null>(
-				(a, b) => (a && a.value >= b.value ? a : b),
-				null
-			);
+		const top = countries.find((c) => indexByCode.has(c.code));
 		const center = top
 			? globe.countries[indexByCode.get(top.code) ?? -1]?.center
 			: undefined;
@@ -291,6 +300,7 @@ export function GlobeMap({
 			return;
 		}
 		const scene = sceneRef.current;
+		const motion = matchMedia("(prefers-reduced-motion: reduce)");
 		const style = getComputedStyle(canvas);
 		let colors: { data: string; land: string } | null = null;
 		const size = { dpr: 1, height: 0, width: 0 };
@@ -366,6 +376,7 @@ export function GlobeMap({
 			const dt = last ? Math.min((time - last) / 1000, 0.1) : 0;
 			last = time;
 			const { view, target, drag } = scene;
+			const reduceMotion = motion.matches;
 
 			let isEasing = false;
 			const isSpinning = !(
@@ -425,18 +436,26 @@ export function GlobeMap({
 				last = 0;
 			}
 		});
+		const theme = new MutationObserver(() => {
+			colors = null;
+			draw();
+		});
 		resize.observe(canvas);
 		visibility.observe(canvas);
+		theme.observe(document.documentElement, { attributeFilter: ["class"] });
+		motion.addEventListener("change", wake);
 
 		return () => {
 			isOnScreen = false;
 			resize.disconnect();
 			visibility.disconnect();
+			theme.disconnect();
+			motion.removeEventListener("change", wake);
 			if (frame !== null) {
 				cancelAnimationFrame(frame);
 			}
 		};
-	}, [globe, reduceMotion, resolvedTheme]);
+	}, [globe]);
 
 	const setHover = (next: typeof tooltip) => {
 		setTooltip(next);
@@ -445,18 +464,8 @@ export function GlobeMap({
 		onHoverChange?.(next ? (globe?.countries[next.index]?.code ?? null) : null);
 	};
 
-	const pointerOffset = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-		const bounds = event.currentTarget.getBoundingClientRect();
-		return {
-			height: bounds.height,
-			width: bounds.width,
-			x: event.clientX - bounds.left,
-			y: event.clientY - bounds.top,
-		};
-	};
-
 	const hoverAt = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-		const { width, x, y } = pointerOffset(event);
+		const { offsetX: x, offsetY: y } = event.nativeEvent;
 		let nearest: Dot | null = null;
 		let best = HOVER_RADIUS_PX ** 2;
 		for (const dot of globe?.dots ?? []) {
@@ -466,7 +475,11 @@ export function GlobeMap({
 				nearest = dot;
 			}
 		}
-		setHover(nearest ? { index: nearest.country, x: x / width, y } : null);
+		setHover(
+			nearest
+				? { index: nearest.country, x: x / event.currentTarget.clientWidth, y }
+				: null
+		);
 	};
 
 	const tooltipCountry = tooltip ? globe?.countries[tooltip.index] : undefined;
@@ -493,8 +506,11 @@ export function GlobeMap({
 						return;
 					}
 					event.currentTarget.setPointerCapture(event.pointerId);
-					const { x, y } = pointerOffset(event);
-					sceneRef.current.drag = { ...sceneRef.current.view, x, y };
+					sceneRef.current.drag = {
+						...sceneRef.current.view,
+						x: event.nativeEvent.offsetX,
+						y: event.nativeEvent.offsetY,
+					};
 					setHover(null);
 				}}
 				onPointerEnter={() => {
@@ -517,8 +533,9 @@ export function GlobeMap({
 						scene.drag = null;
 						return;
 					}
-					const { height, width, x, y } = pointerOffset(event);
-					const radius = Math.min(width, height) * SPHERE_SCALE;
+					const { offsetX: x, offsetY: y } = event.nativeEvent;
+					const { clientWidth, clientHeight } = event.currentTarget;
+					const radius = Math.min(clientWidth, clientHeight) * SPHERE_SCALE;
 					scene.view = {
 						lat: Math.max(
 							-60,
@@ -533,7 +550,7 @@ export function GlobeMap({
 					const { drag } = sceneRef.current;
 					sceneRef.current.drag = null;
 					wakeRef.current();
-					const { x, y } = pointerOffset(event);
+					const { offsetX: x, offsetY: y } = event.nativeEvent;
 					if (drag && Math.hypot(x - drag.x, y - drag.y) < TAP_SLOP_PX) {
 						hoverAt(event);
 					}
