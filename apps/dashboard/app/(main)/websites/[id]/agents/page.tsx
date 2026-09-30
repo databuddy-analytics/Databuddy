@@ -116,7 +116,7 @@ interface LandingSender {
 }
 
 interface LandingPageRow {
-	name: string;
+	page: string;
 	pageviews: number;
 	senders: LandingSender[];
 	visitors: number;
@@ -141,9 +141,9 @@ function Tip({ lines = [], title }: { lines?: string[]; title: string }) {
 
 interface OutcomeRow {
 	engaged_rate: number;
-	name: string;
 	pages_per_visit: number;
-	revenue: string;
+	product: string;
+	revenue?: string;
 	visitors: number;
 }
 
@@ -218,11 +218,6 @@ interface TrendPoint {
 	date: string;
 	value: number;
 }
-
-type LandingPageResult = Omit<LandingPageRow, "name"> & { page: string };
-type OutcomeResult = Omit<OutcomeRow, "name" | "revenue"> & {
-	product: string;
-};
 
 const NON_ID_CHARS = /[^a-zA-Z0-9_-]/g;
 
@@ -605,9 +600,11 @@ function ShareChange({ change }: { change: ShareRow["change"] }) {
 function TotalChange({
 	current,
 	previous,
+	suffix,
 }: {
 	current: number;
 	previous: number;
+	suffix?: string;
 }) {
 	const change = calculatePercentChange(current, previous);
 	if (Math.abs(change) < 0.5) {
@@ -615,15 +612,107 @@ function TotalChange({
 	}
 	const Icon = change > 0 ? TrendUpIcon : TrendDownIcon;
 	return (
-		<span
-			className={cn(
-				"flex items-center gap-1 font-medium text-xs tabular-nums",
-				change > 0 ? "text-success" : "text-destructive"
-			)}
-		>
-			<Icon className="size-3.5" />
-			{Math.abs(change).toFixed(0)}%
+		<span className="flex items-center gap-1.5 text-xs">
+			<span
+				className={cn(
+					"flex items-center gap-1 font-medium tabular-nums",
+					change > 0 ? "text-success" : "text-destructive"
+				)}
+			>
+				<Icon className="size-3.5" />
+				{Math.abs(change).toFixed(0)}%
+			</span>
+			{suffix ? <span className="text-muted-foreground">{suffix}</span> : null}
 		</span>
+	);
+}
+
+function Headline({
+	aside,
+	change,
+	detail,
+	isLoading = false,
+	title,
+	unit,
+	value,
+}: {
+	aside?: React.ReactNode;
+	change?: React.ReactNode;
+	detail: string;
+	isLoading?: boolean;
+	title: string;
+	unit?: string;
+	value?: string;
+}) {
+	const hasValue = isLoading || value !== undefined;
+	return (
+		<div className="flex flex-wrap items-start justify-between gap-3">
+			<div>
+				<p className="font-semibold text-sm">{title}</p>
+				{hasValue ? (
+					<div className="mt-2 flex h-8 items-center gap-2">
+						{isLoading ? (
+							<Skeleton className="h-7 w-28" />
+						) : (
+							<>
+								<p className="font-semibold text-2xl tabular-nums">
+									{value}
+									<span className="ml-1.5 font-normal text-muted-foreground text-xs">
+										{unit}
+									</span>
+								</p>
+								{change}
+							</>
+						)}
+					</div>
+				) : null}
+				{isLoading ? (
+					<Skeleton className="mt-1 h-4 w-48" />
+				) : (
+					<p
+						className={cn(
+							"text-pretty text-muted-foreground text-xs tabular-nums",
+							hasValue && "mt-1"
+						)}
+					>
+						{detail}
+					</p>
+				)}
+			</div>
+			{aside}
+		</div>
+	);
+}
+
+function useShowAll<T>(items: T[], rows = READ_ROWS) {
+	const [isExpanded, setIsExpanded] = useState(false);
+	return {
+		canExpand: items.length > rows,
+		collapse: () => setIsExpanded(false),
+		isExpanded,
+		toggle: () => setIsExpanded((expanded) => !expanded),
+		visible: isExpanded ? items : items.slice(0, rows),
+	};
+}
+
+function ShowAllButton({
+	label,
+	list,
+}: {
+	label: string;
+	list: { canExpand: boolean; isExpanded: boolean; toggle: () => void };
+}) {
+	return list.canExpand ? (
+		<Button
+			className="self-center"
+			onClick={list.toggle}
+			size="sm"
+			variant="ghost"
+		>
+			{list.isExpanded ? "Show less" : label}
+		</Button>
+	) : (
+		<div aria-hidden className="h-8" />
 	);
 }
 
@@ -672,12 +761,11 @@ function ShareBars({ rows }: { rows: ShareRow[] }) {
 }
 
 function ShareRanking({ rows }: { rows: ShareRow[] }) {
-	const [isExpanded, setIsExpanded] = useState(false);
-	const visibleRows = isExpanded ? rows : rows.slice(0, RANKED_ROWS);
+	const list = useShowAll(rows, RANKED_ROWS);
 	return (
-		<div className="flex flex-col">
+		<div className="flex flex-col gap-2">
 			<ol className="divide-y">
-				{visibleRows.map((row, index) => (
+				{list.visible.map((row, index) => (
 					<li className="flex h-11 items-center gap-3" key={row.product}>
 						<span className="w-5 text-muted-foreground text-sm tabular-nums">
 							{index + 1}
@@ -698,16 +786,7 @@ function ShareRanking({ rows }: { rows: ShareRow[] }) {
 					</li>
 				))}
 			</ol>
-			{rows.length > RANKED_ROWS ? (
-				<Button
-					className="mt-2 self-center"
-					onClick={() => setIsExpanded((expanded) => !expanded)}
-					size="sm"
-					variant="ghost"
-				>
-					{isExpanded ? "Show less" : `Show all ${rows.length}`}
-				</Button>
-			) : null}
+			<ShowAllButton label={`Show all ${rows.length}`} list={list} />
 		</div>
 	);
 }
@@ -727,38 +806,21 @@ function VisitorSharePanel({
 	return (
 		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-2">
 			<div className="flex flex-col gap-5 rounded-lg bg-background p-4">
-				<div>
-					<p className="font-semibold text-sm">Share of AI visitors</p>
-					<div className="mt-2 flex h-8 items-center gap-2">
-						{isLoading ? (
-							<Skeleton className="h-7 w-28" />
-						) : (
-							<>
-								<p className="font-semibold text-2xl tabular-nums">
-									{formatNumber(share.total)}
-									<span className="ml-1.5 font-normal text-muted-foreground text-xs">
-										AI visitors
-									</span>
-								</p>
-								{hasComparison ? (
-									<TotalChange
-										current={share.total}
-										previous={share.previousTotal}
-									/>
-								) : null}
-							</>
-						)}
-					</div>
-					{isLoading ? (
-						<Skeleton className="mt-1 h-4 w-48" />
-					) : (
-						<p className="mt-1 text-muted-foreground text-xs">
-							{share.rows.length} AI products · compared with{" "}
-							{dayjs(previousRange.start_date).format("MMM D")} to{" "}
-							{dayjs(previousRange.end_date).format("MMM D")}
-						</p>
-					)}
-				</div>
+				<Headline
+					change={
+						hasComparison ? (
+							<TotalChange
+								current={share.total}
+								previous={share.previousTotal}
+							/>
+						) : null
+					}
+					detail={`${share.rows.length} AI products · compared with ${dayjs(previousRange.start_date).format("MMM D")} to ${dayjs(previousRange.end_date).format("MMM D")}`}
+					isLoading={isLoading}
+					title="Share of AI visitors"
+					unit="AI visitors"
+					value={formatNumber(share.total)}
+				/>
 				{isLoading ? (
 					<Skeleton className="h-56 w-full" />
 				) : (
@@ -772,18 +834,12 @@ function VisitorSharePanel({
 				)}
 			</div>
 			<div className="flex flex-col gap-3 rounded-lg bg-background p-4">
-				<div>
-					<p className="font-semibold text-sm">Ranking</p>
-					<p className="text-muted-foreground text-xs">
-						Change in share since the previous period
-					</p>
-				</div>
+				<Headline
+					detail="Change in share since the previous period"
+					title="Ranking"
+				/>
 				{isLoading ? (
-					<div className="space-y-2">
-						{Array.from({ length: RANKED_ROWS }, (_, index) => (
-							<Skeleton className="h-9 w-full" key={index} />
-						))}
-					</div>
+					<ListSkeleton rows={RANKED_ROWS} />
 				) : (
 					<ShareRanking rows={share.rows} />
 				)}
@@ -883,31 +939,6 @@ interface RobotsCheck {
 	isPending: boolean;
 }
 
-function ShowAllButton({
-	count,
-	isExpanded,
-	label,
-	onToggle,
-}: {
-	count: number;
-	isExpanded: boolean;
-	label: string;
-	onToggle: () => void;
-}) {
-	return count > READ_ROWS ? (
-		<Button
-			className="self-center"
-			onClick={onToggle}
-			size="sm"
-			variant="ghost"
-		>
-			{isExpanded ? "Show less" : label}
-		</Button>
-	) : (
-		<div aria-hidden className="h-8" />
-	);
-}
-
 function ListSkeleton({ rows }: { rows: number }) {
 	return (
 		<div className="flex flex-col gap-1">
@@ -931,10 +962,7 @@ function activityTrend(
 ): TrendPoint[] {
 	const key = focus === "all" ? "requests" : focus;
 	const valueByBucket = new Map(
-		rows.map((row) => [
-			dayjs(row.date).format(timeline.bucketFormat),
-			Number(row[key]) || 0,
-		])
+		rows.map((row) => [dayjs(row.date).format(timeline.bucketFormat), row[key]])
 	);
 	return timeline.buckets.map((date) => ({
 		date,
@@ -1057,14 +1085,12 @@ function AgentReadsPanel({
 }) {
 	const { dateRange } = useDateFilters();
 	const available = READ_FORMATS.filter((format) =>
-		formats.some((row) => row.format === format && Number(row.requests) > 0)
+		formats.some((row) => row.format === format && row.requests > 0)
 	);
 	const options: ReadFocus[] =
 		available.length > 1 ? [...available, "all"] : available;
 	const [chosenFocus, setChosenFocus] = useState<ReadFocus | null>(null);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
-	const [areAgentsExpanded, setAreAgentsExpanded] = useState(false);
-	const [arePagesExpanded, setArePagesExpanded] = useState(false);
 	const focus: ReadFocus =
 		chosenFocus && options.includes(chosenFocus)
 			? chosenFocus
@@ -1083,74 +1109,52 @@ function AgentReadsPanel({
 		(agent) => agent.robots === "blocked" || agent.robots === "partial"
 	).length;
 
-	const pagesByFocus = useMemo(() => {
-		const byPage = new Map<string, { page: string; readers: PageReader[] }>();
-		for (const read of reads) {
-			if (focus !== "all" && read.format !== focus) {
-				continue;
-			}
-			const row = byPage.get(read.page) ?? { page: read.page, readers: [] };
-			row.readers.push(...(read.agents ?? []));
-			byPage.set(read.page, row);
+	const readersByPage = new Map<string, Map<string, number>>();
+	for (const read of reads) {
+		if (focus !== "all" && read.format !== focus) {
+			continue;
 		}
-		return [...byPage.values()];
-	}, [reads, focus]);
-	const pages = pagesByFocus
-		.map((row) => {
-			const readers = selected
-				? row.readers.filter((reader) => reader.agent_id === selected.agent_id)
-				: row.readers;
-			const requestsByReader = new Map<string, number>();
-			for (const reader of readers) {
-				requestsByReader.set(
+		const readers = readersByPage.get(read.page) ?? new Map<string, number>();
+		for (const reader of read.agents ?? []) {
+			if (!selected || reader.agent_id === selected.agent_id) {
+				readers.set(
 					reader.name,
-					(requestsByReader.get(reader.name) ?? 0) +
-						(Number(reader.requests) || 0)
+					(readers.get(reader.name) ?? 0) + Number(reader.requests)
 				);
 			}
-			return {
-				page: row.page,
-				readers: [...requestsByReader]
-					.map(([name, requests]) => ({ name, requests }))
-					.sort((a, b) => b.requests - a.requests),
-				value: [...requestsByReader.values()].reduce(
-					(sum, requests) => sum + requests,
-					0
-				),
-			};
-		})
+		}
+		readersByPage.set(read.page, readers);
+	}
+	const pages = [...readersByPage]
+		.map(([page, readers]) => ({
+			page,
+			readers: [...readers]
+				.map(([name, requests]) => ({ name, requests }))
+				.sort((a, b) => b.requests - a.requests),
+			value: [...readers.values()].reduce((sum, requests) => sum + requests, 0),
+		}))
 		.filter((row) => row.value > 0)
 		.sort((a, b) => b.value - a.value);
 
-	const distinctPages = useMemo(
-		() => new Set(reads.map((read) => read.page)).size,
-		[reads]
-	);
+	const distinctPages = new Set(reads.map((read) => read.page)).size;
 	const rowSlots = Math.max(
 		Math.min(READ_ROWS, Math.max(agents.length, distinctPages)),
 		1
 	);
-
+	const focusFormat = formats.find((row) => row.format === focus);
 	const total =
 		focus === "all"
-			? formats.reduce((sum, row) => sum + (Number(row.requests) || 0), 0)
-			: Number(formats.find((row) => row.format === focus)?.requests) || 0;
-	const focusPageTotal =
-		focus === "all"
+			? formats.reduce((sum, row) => sum + row.requests, 0)
+			: (focusFormat?.requests ?? 0);
+	const pageTotal = selected
+		? Math.max(pages.length, focus === "all" ? selected.pages : 0)
+		: focus === "all"
 			? distinctPages
-			: Number(formats.find((row) => row.format === focus)?.pages) ||
-				pages.length;
-	const selectedPageTotal =
-		focus === "all" && selected
-			? Math.max(pages.length, selected.pages)
-			: pages.length;
-	const pageTotal = selected ? selectedPageTotal : focusPageTotal;
+			: focusFormat?.pages || pages.length;
 	const maxAgentValue = rankedAgents[0]?.value || 1;
 	const maxPageValue = pages[0]?.value || 1;
-	const visibleAgents = areAgentsExpanded
-		? rankedAgents
-		: rankedAgents.slice(0, READ_ROWS);
-	const visiblePages = arePagesExpanded ? pages : pages.slice(0, READ_ROWS);
+	const agentList = useShowAll(rankedAgents);
+	const pageList = useShowAll(pages);
 	const pageNoun = focus === "llms" ? "files" : "pages";
 	const agentActivity = useBatchDynamicQuery(
 		websiteId,
@@ -1169,7 +1173,7 @@ function AgentReadsPanel({
 	const agentActivityRows = agentActivity.getDataForQuery(
 		"agent-activity",
 		"ai_crawler_activity"
-	) as ActivityRow[] | undefined;
+	) as ActivityRow[];
 	const readScope = focus === "all" ? "the site" : `${label} content`;
 	const askSubject = selected
 		? `${selected.name} (${selected.product}) reading ${readScope}`
@@ -1178,53 +1182,36 @@ function AgentReadsPanel({
 	return (
 		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-2">
 			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
-				<div className="flex flex-wrap items-start justify-between gap-3">
-					<div>
-						<p className="font-semibold text-sm">Who reads your content</p>
-						<div className="mt-2 flex h-8 items-center">
+				<Headline
+					aside={
+						<div className="flex items-center gap-1">
 							{isLoading ? (
-								<Skeleton className="h-7 w-28" />
-							) : (
-								<p className="font-semibold text-2xl tabular-nums">
-									{formatNumber(total)}
-									<span className="ml-1.5 font-normal text-muted-foreground text-xs">
-										{label} requests
-									</span>
-								</p>
-							)}
+								<Skeleton className="h-8 w-56" />
+							) : options.length > 1 ? (
+								<SegmentedControl
+									onChange={(value) => {
+										setChosenFocus(value);
+										setSelectedId(null);
+										agentList.collapse();
+										pageList.collapse();
+									}}
+									options={options.map((value) => ({
+										label: value === "all" ? "All" : FORMAT_LABELS[value],
+										value,
+									}))}
+									size="sm"
+									value={focus}
+								/>
+							) : null}
+							<AskAgentButton subject={askSubject} />
 						</div>
-						{isLoading ? (
-							<Skeleton className="mt-1 h-4 w-40" />
-						) : (
-							<p className="mt-1 text-muted-foreground text-xs">
-								from {rankedAgents.length}{" "}
-								{rankedAgents.length === 1 ? "agent" : "agents"}
-								{restricted > 0 ? ` · ${restricted} limited by robots.txt` : ""}
-							</p>
-						)}
-					</div>
-					<div className="flex items-center gap-1">
-						{isLoading ? (
-							<Skeleton className="h-8 w-56" />
-						) : options.length > 1 ? (
-							<SegmentedControl
-								onChange={(value) => {
-									setChosenFocus(value);
-									setSelectedId(null);
-									setAreAgentsExpanded(false);
-									setArePagesExpanded(false);
-								}}
-								options={options.map((value) => ({
-									label: value === "all" ? "All" : FORMAT_LABELS[value],
-									value,
-								}))}
-								size="sm"
-								value={focus}
-							/>
-						) : null}
-						<AskAgentButton subject={askSubject} />
-					</div>
-				</div>
+					}
+					detail={`from ${rankedAgents.length} ${rankedAgents.length === 1 ? "agent" : "agents"}${restricted > 0 ? ` · ${restricted} limited by robots.txt` : ""}`}
+					isLoading={isLoading}
+					title="Who reads your content"
+					unit={`${label} requests`}
+					value={formatNumber(total)}
+				/>
 				<ActivitySparkline
 					id="ai-reads-trend"
 					isHourly={timeline.isHourly}
@@ -1236,7 +1223,7 @@ function AgentReadsPanel({
 						<ListSkeleton rows={rowSlots} />
 					) : (
 						<div className="flex flex-col gap-1">
-							{visibleAgents.map((agent, index) => {
+							{agentList.visible.map((agent, index) => {
 								const status = robotsStatus(agent);
 								const isSelected = selected?.agent_id === agent.agent_id;
 								return (
@@ -1296,10 +1283,8 @@ function AgentReadsPanel({
 					)}
 				</div>
 				<ShowAllButton
-					count={rankedAgents.length}
-					isExpanded={areAgentsExpanded}
 					label={`Show all ${rankedAgents.length} agents`}
-					onToggle={() => setAreAgentsExpanded((expanded) => !expanded)}
+					list={agentList}
 				/>
 			</div>
 
@@ -1350,7 +1335,7 @@ function AgentReadsPanel({
 						label={label}
 						robots={robots}
 						trend={
-							agentActivity.isLoading || !agentActivityRows
+							agentActivity.isLoading
 								? null
 								: activityTrend(agentActivityRows, timeline, focus)
 						}
@@ -1361,7 +1346,7 @@ function AgentReadsPanel({
 						<ListSkeleton rows={rowSlots} />
 					) : (
 						<div className="flex flex-col gap-1">
-							{visiblePages.map((page, index) => (
+							{pageList.visible.map((page, index) => (
 								<BarRow
 									fraction={page.value / maxPageValue}
 									key={page.page}
@@ -1404,14 +1389,12 @@ function AgentReadsPanel({
 					)}
 				</div>
 				<ShowAllButton
-					count={pages.length}
-					isExpanded={arePagesExpanded}
 					label={
 						pages.length < pageTotal
 							? `Show top ${formatNumber(pages.length)} of ${formatNumber(pageTotal)}`
 							: `Show all ${formatNumber(pages.length)} ${pageNoun}`
 					}
-					onToggle={() => setArePagesExpanded((expanded) => !expanded)}
+					list={pageList}
 				/>
 			</div>
 		</div>
@@ -1440,8 +1423,8 @@ function OutcomeLine({
 	baseline: OutcomeRow | undefined;
 	row: OutcomeRow;
 }) {
-	const isBaseline = row.name === ALL_VISITORS;
-	const isSummary = isBaseline || row.name === ALL_AI_VISITORS;
+	const isBaseline = row.product === ALL_VISITORS;
+	const isSummary = isBaseline || row.product === ALL_AI_VISITORS;
 	const comparison = (value: string, base: string | undefined) =>
 		base && !isBaseline ? `${value} (all visitors ${base})` : value;
 	return (
@@ -1460,7 +1443,7 @@ function OutcomeLine({
 						),
 						row.revenue ? `Revenue ${row.revenue}` : "",
 					].filter(Boolean)}
-					title={isSummary ? row.name : `Visitors from ${row.name}`}
+					title={isSummary ? row.product : `Visitors from ${row.product}`}
 				/>
 			}
 			delay={TIP_DELAY_MS}
@@ -1473,9 +1456,9 @@ function OutcomeLine({
 				)}
 			>
 				<span className="flex min-w-0 items-center gap-2">
-					{isSummary ? null : <AiProductIcon name={row.name} size="sm" />}
+					{isSummary ? null : <AiProductIcon name={row.product} size="sm" />}
 					<span className={cn("truncate text-sm", !isSummary && "font-medium")}>
-						{row.name}
+						{row.product}
 					</span>
 				</span>
 				<span className="text-right text-sm tabular-nums">
@@ -1507,67 +1490,42 @@ function AiVisitorsPanel({
 	landing: LandingPageRow[];
 	outcomes: OutcomeRow[];
 }) {
-	const [areLandingExpanded, setAreLandingExpanded] = useState(false);
-	const baseline = outcomes.find((row) => row.name === ALL_VISITORS);
-	const allAi = outcomes.find((row) => row.name === ALL_AI_VISITORS);
+	const landingList = useShowAll(landing);
+	const baseline = outcomes.find((row) => row.product === ALL_VISITORS);
+	const allAi = outcomes.find((row) => row.product === ALL_AI_VISITORS);
 	const aiOutcomes = outcomes.filter(
-		(row) => row.name !== ALL_VISITORS && row.name !== ALL_AI_VISITORS
+		(row) => row.product !== ALL_VISITORS && row.product !== ALL_AI_VISITORS
 	);
-	const maxLanding = Number(landing[0]?.visitors) || 1;
-	const visibleLanding = areLandingExpanded
-		? landing
-		: landing.slice(0, READ_ROWS);
+	const maxLanding = landing[0]?.visitors || 1;
 
 	return (
 		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-2">
 			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
-				<div className="flex items-start justify-between gap-3">
-					<div>
-						<p className="font-semibold text-sm">What AI visitors do</p>
-						{isLoading ? (
-							<>
-								<Skeleton className="mt-2 h-7 w-28" />
-								<Skeleton className="mt-1 h-4 w-56" />
-							</>
-						) : allAi && baseline ? (
-							<>
-								<div className="mt-2 flex h-8 items-center gap-2">
-									<p className="font-semibold text-2xl tabular-nums">
-										{allAi.pages_per_visit.toFixed(1)}
-										<span className="ml-1.5 font-normal text-muted-foreground text-xs">
-											pages per visit from AI
-										</span>
-									</p>
-									{Math.abs(
-										calculatePercentChange(
-											allAi.pages_per_visit,
-											baseline.pages_per_visit
-										)
-									) >= 0.5 ? (
-										<span className="flex items-center gap-1.5">
-											<TotalChange
-												current={allAi.pages_per_visit}
-												previous={baseline.pages_per_visit}
-											/>
-											<span className="text-muted-foreground text-xs">
-												vs all visitors
-											</span>
-										</span>
-									) : null}
-								</div>
-								<p className="mt-1 text-pretty text-muted-foreground text-xs tabular-nums">
-									{allAi.engaged_rate}% viewed 2+ pages, against{" "}
-									{baseline.engaged_rate}% of all visitors
-								</p>
-							</>
-						) : (
-							<p className="text-pretty text-muted-foreground text-xs">
-								Visitors from AI products, next to everyone else
-							</p>
-						)}
-					</div>
-					<AskAgentButton subject="what visitors from AI products do on the site" />
-				</div>
+				<Headline
+					aside={
+						<AskAgentButton subject="what visitors from AI products do on the site" />
+					}
+					change={
+						allAi && baseline ? (
+							<TotalChange
+								current={allAi.pages_per_visit}
+								previous={baseline.pages_per_visit}
+								suffix="vs all visitors"
+							/>
+						) : null
+					}
+					detail={
+						allAi && baseline
+							? `${allAi.engaged_rate}% viewed 2+ pages, against ${baseline.engaged_rate}% of all visitors`
+							: "Visitors from AI products, next to everyone else"
+					}
+					isLoading={isLoading}
+					title="What AI visitors do"
+					unit="pages per visit from AI"
+					value={
+						allAi && baseline ? allAi.pages_per_visit.toFixed(1) : undefined
+					}
+				/>
 				{isLoading ? (
 					<ListSkeleton rows={3} />
 				) : aiOutcomes.length === 0 ? (
@@ -1591,23 +1549,20 @@ function AiVisitorsPanel({
 							...(allAi && aiOutcomes.length > 1 ? [allAi] : []),
 							...(baseline ? [baseline] : []),
 						].map((row) => (
-							<OutcomeLine baseline={baseline} key={row.name} row={row} />
+							<OutcomeLine baseline={baseline} key={row.product} row={row} />
 						))}
 					</div>
 				)}
 			</div>
 
 			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
-				<div className="flex items-start justify-between gap-3">
-					<div>
-						<p className="font-semibold text-sm">Where AI sends visitors</p>
-						<p className="text-muted-foreground text-xs">
-							Pages people from AI products view, and how often those products
-							read them
-						</p>
-					</div>
-					<AskAgentButton subject="the pages AI products send visitors to" />
-				</div>
+				<Headline
+					aside={
+						<AskAgentButton subject="the pages AI products send visitors to" />
+					}
+					detail="Pages people from AI products view, and how often those products read them"
+					title="Where AI sends visitors"
+				/>
 				{isLoading ? (
 					<ListSkeleton rows={3} />
 				) : landing.length === 0 ? (
@@ -1616,33 +1571,37 @@ function AiVisitorsPanel({
 					</p>
 				) : (
 					<div className="flex flex-col gap-1">
-						{visibleLanding.map((row, index) => {
-							const senders = row.senders ?? [];
+						{landingList.visible.map((row, index) => {
+							const senders = (row.senders ?? []).map((sender) => ({
+								product: sender.product,
+								reads: Number(sender.reads),
+								visitors: Number(sender.visitors),
+							}));
 							const reads = senders.reduce(
-								(sum, sender) => sum + (Number(sender.reads) || 0),
+								(sum, sender) => sum + sender.reads,
 								0
 							);
 							return (
 								<BarRow
-									fraction={Number(row.visitors) / maxLanding}
-									key={row.name}
+									fraction={row.visitors / maxLanding}
+									key={row.page}
 									rank={index + 1}
 									tooltip={
 										<Tip
 											lines={[
 												...senders.map(
 													(sender) =>
-														`${sender.product} · ${formatNumber(Number(sender.visitors))} ${Number(sender.visitors) === 1 ? "visitor" : "visitors"} · ${Number(sender.reads) > 0 ? `read ${formatNumber(Number(sender.reads))} ${Number(sender.reads) === 1 ? "time" : "times"}` : "no reads recorded"}`
+														`${sender.product} · ${formatNumber(sender.visitors)} ${sender.visitors === 1 ? "visitor" : "visitors"} · ${sender.reads > 0 ? `read ${formatNumber(sender.reads)} ${sender.reads === 1 ? "time" : "times"}` : "no reads recorded"}`
 												),
-												`${formatNumber(Number(row.pageviews))} pageviews from everyone`,
+												`${formatNumber(row.pageviews)} pageviews from everyone`,
 											]}
-											title={row.name}
+											title={row.page}
 										/>
 									}
-									value={Number(row.visitors)}
+									value={row.visitors}
 								>
 									<span className="relative min-w-0 flex-1 truncate text-sm">
-										{row.name}
+										{row.page}
 									</span>
 									{reads > 0 ? (
 										<span className="relative hidden shrink-0 text-muted-foreground text-xs tabular-nums sm:inline">
@@ -1664,10 +1623,8 @@ function AiVisitorsPanel({
 					</div>
 				)}
 				<ShowAllButton
-					count={landing.length}
-					isExpanded={areLandingExpanded}
 					label={`Show all ${formatNumber(landing.length)} pages`}
-					onToggle={() => setAreLandingExpanded((expanded) => !expanded)}
+					list={landingList}
 				/>
 			</div>
 		</div>
@@ -1703,32 +1660,32 @@ export default function AgentsPage() {
 			{ id: "visitors", parameters: ["ai_product_visitors"] },
 			{ id: "formats", parameters: ["ai_content_formats"] },
 			{ id: "reads", parameters: ["ai_agent_pages"], limit: 1000 },
-			{ id: "landing", parameters: ["ai_landing_pages"] },
+			{ id: "landing", parameters: ["ai_landing_pages"], limit: 1000 },
 			{ id: "outcomes", parameters: ["ai_visitor_outcomes"] },
 			{ id: "revenue", parameters: ["revenue_by_ai_product"] },
-			{ id: "crawlers", parameters: ["ai_crawlers"] },
+			{ id: "crawlers", parameters: ["ai_crawlers"], limit: 1000 },
 			{ id: "activity", parameters: ["ai_crawler_activity"] },
 		]
 	);
 
-	const products =
-		(getDataForQuery("products", "ai_products") as ProductRow[]) ?? [];
-	const previousProducts =
-		(getDataForQuery("products", "previous_ai_products") as ProductRow[]) ?? [];
-	const formats =
-		(getDataForQuery("formats", "ai_content_formats") as FormatRow[]) ?? [];
-	const reads =
-		(getDataForQuery("reads", "ai_agent_pages") as PageRead[]) ?? [];
-	const landingPages =
-		(getDataForQuery("landing", "ai_landing_pages") as LandingPageResult[]) ??
-		[];
-	const outcomes =
-		(getDataForQuery("outcomes", "ai_visitor_outcomes") as OutcomeResult[]) ??
-		[];
-	const crawlers =
-		(getDataForQuery("crawlers", "ai_crawlers") as CrawlerResult[]) ?? [];
-	const activity =
-		(getDataForQuery("activity", "ai_crawler_activity") as ActivityRow[]) ?? [];
+	const rowsOf = <T,>(queryId: string, name: string) =>
+		getDataForQuery(queryId, name) as T[];
+	const products = rowsOf<ProductRow>("products", "ai_products");
+	const previousProducts = rowsOf<ProductRow>(
+		"products",
+		"previous_ai_products"
+	);
+	const formats = rowsOf<FormatRow>("formats", "ai_content_formats");
+	const reads = rowsOf<PageRead>("reads", "ai_agent_pages");
+	const landingPages = rowsOf<LandingPageRow>("landing", "ai_landing_pages");
+	const outcomes = rowsOf<OutcomeRow>("outcomes", "ai_visitor_outcomes");
+	const crawlers = rowsOf<CrawlerResult>("crawlers", "ai_crawlers");
+	const activity = rowsOf<ActivityRow>("activity", "ai_crawler_activity");
+	const revenue = rowsOf<RevenueRow>("revenue", "revenue_by_ai_product");
+	const visitorSeries = rowsOf<VisitorSeriesRow>(
+		"visitors",
+		"ai_product_visitors"
+	);
 	const robots = useQuery({
 		...orpc.websites.checkAiRobots.queryOptions({
 			input: {
@@ -1739,14 +1696,6 @@ export default function AgentsPage() {
 		enabled: crawlers.length > 0,
 		staleTime: 10 * 60 * 1000,
 	});
-	const revenue =
-		(getDataForQuery("revenue", "revenue_by_ai_product") as RevenueRow[]) ?? [];
-
-	const visitorSeries =
-		(getDataForQuery(
-			"visitors",
-			"ai_product_visitors"
-		) as VisitorSeriesRow[]) ?? [];
 
 	const isHourly = dateRange.granularity === "hourly";
 	const bucketFormat = isHourly ? "YYYY-MM-DD HH:00" : "YYYY-MM-DD";
@@ -1768,10 +1717,7 @@ export default function AgentsPage() {
 		const counts = new Map<string, Map<string, number>>();
 		for (const row of visitorSeries) {
 			const byBucket = counts.get(row.product) ?? new Map<string, number>();
-			byBucket.set(
-				dayjs(row.date).format(bucketFormat),
-				Number(row.visitors) || 0
-			);
+			byBucket.set(dayjs(row.date).format(bucketFormat), row.visitors);
 			counts.set(row.product, byBucket);
 		}
 		return counts;
@@ -1805,17 +1751,14 @@ export default function AgentsPage() {
 
 	const visitorShare = useMemo((): VisitorShare => {
 		const previousVisitors = new Map(
-			previousProducts.map((row) => [row.product, Number(row.visitors) || 0])
+			previousProducts.map((row) => [row.product, row.visitors])
 		);
-		const previousTotal = [...previousVisitors.values()].reduce(
-			(sum, visitors) => sum + visitors,
+		const previousTotal = previousProducts.reduce(
+			(sum, row) => sum + row.visitors,
 			0
 		);
 		const ranked = products
-			.map((row) => ({
-				product: row.product,
-				visitors: Number(row.visitors) || 0,
-			}))
+			.map(({ product, visitors }) => ({ product, visitors }))
 			.filter((row) => row.visitors > 0)
 			.sort((a, b) => b.visitors - a.visitors);
 		const total = ranked.reduce((sum, row) => sum + row.visitors, 0);
@@ -1842,33 +1785,19 @@ export default function AgentsPage() {
 	const featured = FEATURED_AI_PRODUCTS.map(
 		(name) => products.find((row) => row.product === name) ?? emptyProduct(name)
 	);
-	const outcomeRows = outcomes.map(
-		({ product, ...row }): OutcomeRow => ({
-			...row,
-			name: product,
-			revenue: revenue
-				.filter((item) => item.name === product)
-				.map((item) => formatRevenueCurrency(item.revenue, item.currency))
-				.join(", "),
-		})
-	);
-
-	const readingAgents = crawlers.map((crawler, index): ReadingAgent => {
-		const markdown = Number(crawler.markdown) || 0;
-		const llms = Number(crawler.llms) || 0;
-		const requests = Number(crawler.requests) || 0;
-		return {
+	const outcomeRows = outcomes.map((row) => ({
+		...row,
+		revenue: revenue
+			.filter((item) => item.name === row.product)
+			.map((item) => formatRevenueCurrency(item.revenue, item.currency))
+			.join(", "),
+	}));
+	const readingAgents = crawlers.map(
+		(crawler, index): ReadingAgent => ({
 			...crawler,
-			html: Math.max(requests - markdown - llms, 0),
-			llms,
-			markdown,
-			pages: Number(crawler.pages) || 0,
-			requests,
+			html: Math.max(crawler.requests - crawler.markdown - crawler.llms, 0),
 			robots: robots.data?.access[index],
-		};
-	});
-	const landingRows = landingPages.map(
-		({ page, ...row }): LandingPageRow => ({ ...row, name: page })
+		})
 	);
 
 	if (!isLoading && products.length === 0) {
@@ -1955,10 +1884,10 @@ export default function AgentsPage() {
 					</VisitorSharePanel>
 				) : null}
 
-				{isLoading || outcomeRows.length > 1 || landingRows.length > 0 ? (
+				{isLoading || outcomeRows.length > 1 || landingPages.length > 0 ? (
 					<AiVisitorsPanel
 						isLoading={isLoading}
-						landing={landingRows}
+						landing={landingPages}
 						outcomes={outcomeRows}
 					/>
 				) : null}
