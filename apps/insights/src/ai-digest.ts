@@ -175,6 +175,7 @@ async function buildAiDigest(
 
 	return {
 		agentsUrl: `${config.urls.dashboard}/websites/${websiteId}/agents`,
+		hasServerTracking: numberField(digest[0], "site_has_server_tracking") > 0,
 		landingPages: landing.map((row) => {
 			const [sender] = Array.isArray(row.senders) ? row.senders : [];
 			return {
