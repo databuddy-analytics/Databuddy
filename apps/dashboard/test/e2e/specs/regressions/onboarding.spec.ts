@@ -127,7 +127,7 @@ for (const aiConfigured of [false, true]) {
 				}
 			}
 
-			const opensInsights = !selfHosted || aiConfigured;
+			const opensInsights = selfHosted && aiConfigured;
 			await expect(
 				page.getByRole("heading", {
 					name: opensInsights

@@ -500,12 +500,20 @@ function FirstReview({
 					Ask your administrator to configure AI before running a review.
 				</p>
 			);
-		} else {
+		} else if (fixedPrice) {
 			action = (
 				<Button asChild size="sm">
 					<Link href="/billing#topup">
 						<CoinsIcon className="size-3.5" />
 						Add investigation balance
+					</Link>
+				</Button>
+			);
+		} else {
+			action = (
+				<Button asChild size="sm">
+					<Link href="/billing/plans?plan=intelligence">
+						Upgrade to Business
 					</Link>
 				</Button>
 			);
