@@ -1,4 +1,5 @@
 export { render } from "@react-email/render";
+export * from "./ai-digest-email";
 export * from "./auth-email-expiry";
 export * from "./blocked-traffic-alert-email";
 export * from "./delete-account-email";
