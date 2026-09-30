@@ -17,6 +17,7 @@ import {
 	type TailwindConfig,
 	Text,
 } from "@react-email/components";
+import { render } from "@react-email/render";
 import type { ContentFormat } from "@databuddy/shared/bot-detection/types";
 
 export interface AiDigestProduct {
@@ -163,8 +164,9 @@ function PathList({
 				<Row className={DIVIDER} key={`${row.page}-${row.tag ?? ""}`}>
 					<Column className="py-[9px] font-mono text-[13px] text-ink">
 						{shortPath(row.page)}
+						{row.tag ? " " : null}
 						{row.tag ? (
-							<span className="ml-2 rounded bg-canvas px-[6px] py-[1px] font-sans text-[11px] text-sub">
+							<span className="ml-1 rounded bg-canvas px-[6px] py-[1px] font-sans text-[11px] text-sub">
 								{row.tag}
 							</span>
 						) : null}
@@ -398,5 +400,26 @@ AiDigestEmail.PreviewProps = {
 	site: "www.example.com",
 	visitors: 13,
 } satisfies AiDigestEmailProps;
+
+export async function renderAiDigestEmail(props: AiDigestEmailProps) {
+	const email = <AiDigestEmail {...props} />;
+	const [html, text] = await Promise.all([
+		render(email),
+		render(email, {
+			htmlToTextOptions: {
+				selectors: [
+					{ format: "skip", selector: "img" },
+					{
+						format: "dataTable",
+						options: { colSpacing: 3, uppercaseHeaderCells: false },
+						selector: "table",
+					},
+				],
+			},
+			plainText: true,
+		}),
+	]);
+	return { html, text };
+}
 
 export default AiDigestEmail;
