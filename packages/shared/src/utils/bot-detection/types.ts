@@ -24,6 +24,16 @@ export type AgentPurpose = "training" | "search_index" | "user_fetch" | "agent";
 export const CONTENT_FORMATS = ["markdown", "llms", "html"] as const;
 export type ContentFormat = (typeof CONTENT_FORMATS)[number];
 
+const LLMS_TXT_PATH = /\/llms(-full)?\.txt$/i;
+const MARKDOWN_PATH = /\.mdx?$/i;
+
+export function contentFormatForPath(pathname: string): ContentFormat {
+	if (LLMS_TXT_PATH.test(pathname)) {
+		return "llms";
+	}
+	return MARKDOWN_PATH.test(pathname) ? "markdown" : "html";
+}
+
 export const ROBOTS_ACCESS = ["allowed", "partial", "blocked"] as const;
 export type RobotsAccess = (typeof ROBOTS_ACCESS)[number];
 
