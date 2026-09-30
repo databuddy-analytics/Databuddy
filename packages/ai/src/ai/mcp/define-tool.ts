@@ -4,6 +4,7 @@ import {
 	type ApiKeyScopeTarget,
 } from "@databuddy/api-keys/scopes";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
+import type { User } from "@databuddy/auth";
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import type { ApiScope } from "@databuddy/shared/api-scopes";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -13,6 +14,7 @@ import { trackAgentEvent } from "../../lib/databuddy";
 import { captureError, mergeWideEvent } from "../../lib/tracing";
 import {
 	ensureWebsiteAccess,
+	loadOAuthUser,
 	resolveWebsiteId,
 	type WebsiteSelectorInput,
 } from "./tool-context";
@@ -62,6 +64,7 @@ export interface McpRequestContext {
 }
 
 export interface McpHandlerContext extends McpRequestContext {
+	oauthUser?: User;
 	websiteDomain?: string;
 	websiteId?: string;
 }
@@ -205,12 +208,12 @@ function toSuccessResult(
 function getAttribution(ctx: McpRequestContext): {
 	organization_id: string | null;
 	user_id: string | null;
-	auth_type: "session" | "api_key";
+	auth_type: "session" | "api_key" | "oauth";
 } {
 	return {
 		organization_id: ctx.organizationId ?? ctx.apiKey?.organizationId ?? null,
 		user_id: ctx.userId ?? ctx.apiKey?.userId ?? null,
-		auth_type: ctx.apiKey ? "api_key" : "session",
+		auth_type: ctx.apiKey ? "api_key" : ctx.oauthUserId ? "oauth" : "session",
 	};
 }
 
@@ -267,6 +270,16 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 				const input = parseResult.data;
 
 				const handlerCtx: McpHandlerContext = { ...ctx };
+				if (ctx.oauthUserId) {
+					const oauthUser = await loadOAuthUser(ctx.oauthUserId);
+					if (!oauthUser) {
+						throw new McpToolError(
+							"unauthorized",
+							"The Databuddy account for this connection no longer exists. Reconnect Databuddy to continue."
+						);
+					}
+					handlerCtx.oauthUser = oauthUser;
+				}
 				if (meta.resolveWebsite) {
 					const inputObj = input as WebsiteSelectorInput;
 					const optional = meta.resolveWebsite === "optional";
@@ -284,6 +297,9 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 						}
 						handlerCtx.websiteId = resolvedId;
 						handlerCtx.websiteDomain = access.domain;
+						if (ctx.oauthUserId) {
+							handlerCtx.organizationId = access.organizationId;
+						}
 						mergeWideEvent({ mcp_website_id: resolvedId });
 					}
 				}
