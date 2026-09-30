@@ -516,7 +516,7 @@ export const AiAgentsBuilders = {
 		meta: {
 			title: "AI Activity Digest",
 			description:
-				"Per AI product, visitors sent and requests made in the selected period and the equally long period before it, plus the pages it read in the selected period that it had not read in the 90 days before. Every row also carries site-wide totals that count each visitor and page once (site_visitors, site_previous_visitors, site_new_pages); use those for whole-site numbers instead of summing the per-product columns. site_has_server_tracking says whether the site has ever sent server-side requests (@databuddy/sdk/agents or a Vercel log drain); without it, crawlers that don't run JavaScript are missing from the request counts.",
+				"Per AI product, visitors sent and requests made in the selected period and the equally long period before it, plus the pages it read in the selected period that it had not read in the 90 days before. Every row also carries site-wide totals that count each visitor and page once (site_visitors, site_previous_visitors, site_new_pages); use those for whole-site numbers instead of summing the per-product columns. site_has_server_tracking says whether the site sent server-side requests (@databuddy/sdk/agents or a Vercel log drain) in the selected period; without them, crawlers that don't run JavaScript are missing from that period's request counts.",
 			category: "AI Agents",
 			tags: ["ai", "digest", "summary", "week-over-week"],
 			output_fields: [
@@ -552,7 +552,7 @@ export const AiAgentsBuilders = {
 				{
 					name: "site_has_server_tracking",
 					type: "boolean",
-					label: "Site sends server-side requests",
+					label: "Site sent server-side requests in the period",
 				},
 			],
 			default_visualization: "table",
@@ -584,6 +584,7 @@ export const AiAgentsBuilders = {
 						SELECT count() > 0
 						FROM ${Analytics.ai_traffic_spans}
 						WHERE client_id = {websiteId:String} AND source IN ${SERVER_SIDE_SOURCES}
+							AND timestamp >= current_start AND timestamp < period_end
 					) AS site_has_server_tracking
 				SELECT
 					product,
