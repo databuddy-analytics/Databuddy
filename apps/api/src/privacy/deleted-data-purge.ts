@@ -12,8 +12,10 @@ import { audit, log } from "evlog";
 
 const PURGE_INTERVAL_SECONDS = 6 * 60 * 60;
 const PURGE_LOCK_KEY = "deleted-data-purge:lock";
-// A missing or wrong Postgres would make every owner look deleted.
+// A missing or wrong Postgres would make every owner look deleted. Small
+// installs can legitimately delete a large share of a few websites.
 const MAX_DELETED_SHARE = 0.25;
+const MIN_DELETED_FOR_SHARE_GUARD = 10;
 
 const isAnyOf = (column: AnyColumn, ids: string[]) =>
 	sql`${column} = any(${sql.param(ids)})`;
@@ -55,7 +57,10 @@ async function findDeletedOwners(target: (typeof TARGETS)[number]) {
 		)
 	);
 	const deleted = stored.filter((owner) => !existing.has(owner.id));
-	if (deleted.length > stored.length * MAX_DELETED_SHARE) {
+	if (
+		deleted.length > MIN_DELETED_FOR_SHARE_GUARD &&
+		deleted.length > stored.length * MAX_DELETED_SHARE
+	) {
 		throw new Error(
 			`${deleted.length} of ${stored.length} ${target.kind} ids with stored data are missing from Postgres; refusing to purge`
 		);
