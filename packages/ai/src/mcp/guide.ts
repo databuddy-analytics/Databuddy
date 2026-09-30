@@ -1,51 +1,43 @@
-import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
-
 export const GUIDE_URI = "databuddy://guide";
 
-export const MCP_INSTRUCTIONS = `Databuddy gives agents product analytics and durable investigations.
+export const MCP_INSTRUCTIONS = `Databuddy provides product analytics, published insights, and durable investigations for the websites this account can access.
 
-- Use get_data for current analytics. Batch related queries.
-- Use list_insights for published findings. Preserve each returned next step exactly; if next is null, do not add advice.
-- Use list_investigations to find cases, then get_investigation for evidence and history.
-- Use reply_to_investigation for a clarification of the same question using saved evidence. It is not billed, does not fetch new measurements, and does not change actions. Start a new question or fresh analysis explicitly in the dashboard.
-- After a queued reply, poll get_investigation and reuse the same replyId on retries.
-- Use capabilities only when you need to discover query types, and get_schema only when a field is uncertain.
-- Most website-scoped tools accept websiteId, websiteName, or websiteDomain; tools that operate by a returned ID may not.
-- Use either a date preset or both from and to (YYYY-MM-DD).
-- Never invent a metric, cause, or action that the returned evidence does not support.`;
+- get_data runs analytics queries. Related queries can run as one batch.
+- list_insights returns published findings. Each carries the next step recorded when it was generated; next is null when none was recorded.
+- list_investigations lists cases. get_investigation returns one case's evidence, status, and replies.
+- reply_to_investigation adds a clarification that is answered from the case's saved evidence. It does not fetch new measurements, change actions, or start a new investigation. get_investigation shows the reply's status, and reusing a replyId returns the original reply.
+- capabilities lists query types. get_schema lists analytics columns.
+- Website-scoped tools accept websiteId, websiteName, or websiteDomain. Tools that take a returned ID do not.
+- Date ranges use a preset or both from and to (YYYY-MM-DD).
+- Write tools return a preview when confirmed is false (the default) and write only when confirmed is true.`;
 
 export const GUIDE_MARKDOWN = `# Databuddy MCP guide
 
 ## Analytics
 
-Use \`get_data\` for analytics. It can run one query or batch related queries. Prefer small aggregate queries before raw event rows.
+\`get_data\` runs one query or a batch of related queries against Databuddy's analytics API. Aggregate query types return smaller payloads than raw event rows.
 
-- Call \`capabilities\` when you need the query catalog.
-- Call \`get_schema\` when a filter or SQL field is uncertain.
-- Use either a date preset or both \`from\` and \`to\`.
-- Batch current and comparison windows when you need to explain a change.
+- \`capabilities\` returns the query catalog.
+- \`get_schema\` returns the column names used by filters, \`groupBy\`, and \`orderBy\`.
+- Date ranges use a preset or both \`from\` and \`to\`.
+- One batch can hold a current and a comparison window.
+- Each query returns at most 20 rows; \`rowCount\` reports how many the query produced.
 
 ## Insights
 
-\`list_insights\` returns published findings, including quiet findings that did not need an open investigation. Each finding carries the evidence-backed next step chosen when it was generated: \`next.type\` is \`act\`, \`ask\`, or \`watch\`, and \`next\` is null when nothing needs doing.
-
-Present the returned title, summary, evidence, impact, root cause, and next step as existing intelligence. Do not append a new diagnosis, recommendation, checklist, or next step. When \`next\` is null, do not invent one.
+\`list_insights\` returns published findings, including quiet findings that did not open an investigation. Each finding carries the next step recorded when it was generated: \`next.type\` is \`act\`, \`ask\`, or \`watch\`, and \`next\` is null when no action was recorded. Title, summary, evidence, impact, root cause, and next step are stored results from the analysis that produced the finding.
 
 ## Investigations
 
-Investigations are durable cases, not generated summaries.
+Investigations are durable cases with saved evidence.
 
 1. \`list_investigations\` returns the latest case for each subject.
 2. \`get_investigation\` returns its evidence, observations, status, and human replies.
-3. \`reply_to_investigation\` adds human context for an included clarification using that case's saved evidence. It does not fetch new measurements or change actions.
+3. \`reply_to_investigation\` adds human context to a case. It is answered from that case's saved evidence, does not fetch new measurements or change actions, and cannot start a new investigation. New investigations start from the Databuddy dashboard.
 
-Start a new question or separate fresh analysis explicitly in the dashboard. ${INVESTIGATION_USAGE.description}
+Replies are asynchronous. \`get_investigation\` reports each reply's status until it succeeds or fails. A retry with the same \`replyId\` returns the original reply instead of creating another.
 
-Replies are asynchronous. When a reply is queued or running, poll \`get_investigation\` until its durable status succeeds or fails; do not submit the same context under a new reply ID.
+## Permissions and writes
 
-Do not recreate an investigation with ad hoc anomaly math when a durable case already exists. Do not claim a root cause or recommend a fix unless the evidence supports it.
-
-## Mutations
-
-Analytics and schema/discovery tools require \`read:data\`. Website writes and investigation replies require \`manage:websites\`; flag mutations require \`manage:flags\`. Short-link reads and previews are organization-wide and require \`read:links\`; every link mutation also requires \`write:links\`. Preview goal, annotation, and link mutations with \`confirmed=false\`, then apply only after explicit approval with \`confirmed=true\`.
+Analytics and discovery tools require \`read:data\`. Website writes and investigation replies require \`manage:websites\`; flag mutations require \`manage:flags\`. Short-link reads are organization-wide and require \`read:links\`; link mutations also require \`write:links\`. Goal, funnel, annotation, link, and flag writes return a preview when \`confirmed\` is false (the default) and write only when \`confirmed\` is true.
 `;

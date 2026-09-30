@@ -78,6 +78,38 @@ export const WorkflowFilterSchema = z.object({
 	value: z.union([z.string(), z.array(z.string())]),
 });
 
+export const PageSchema = {
+	limit: z
+		.number()
+		.int()
+		.min(1)
+		.max(100)
+		.optional()
+		.default(50)
+		.describe("Maximum items to return, 1-100. Defaults to 50."),
+	offset: z
+		.number()
+		.int()
+		.min(0)
+		.optional()
+		.default(0)
+		.describe(
+			"Items to skip. Use the previous offset plus limit for the next page."
+		),
+} as const;
+
+export function paginate<T>(
+	items: readonly T[],
+	page: { limit: number; offset: number }
+): { hasMore: boolean; items: T[]; total: number } {
+	const pageItems = items.slice(page.offset, page.offset + page.limit);
+	return {
+		hasMore: page.offset + pageItems.length < items.length,
+		items: pageItems,
+		total: items.length,
+	};
+}
+
 export const ConfirmedSchema = z.boolean().optional().default(false);
 export const DynamicObjectSchema = z.object({}).passthrough();
 export const MutationResultSchema = z
