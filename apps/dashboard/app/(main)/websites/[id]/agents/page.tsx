@@ -1619,12 +1619,12 @@ function AiVisitorsPanel({
 										{row.name}
 									</span>
 									{reads > 0 ? (
-										<span className="relative shrink-0 text-muted-foreground text-xs tabular-nums">
+										<span className="relative hidden shrink-0 text-muted-foreground text-xs tabular-nums sm:inline">
 											read {formatNumber(reads)}×
 										</span>
 									) : null}
 									<span className="relative flex shrink-0 items-center gap-1">
-										{senders.map((sender) => (
+										{senders.slice(0, 3).map((sender) => (
 											<AiProductIcon
 												key={sender.product}
 												name={sender.product}
