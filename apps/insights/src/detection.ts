@@ -157,6 +157,7 @@ const SIGNIFICANT_AFFECTED_USERS = 20;
 const ERROR_MIN_SESSION_RATE = 1;
 const MIN_ERROR_BEHAVIOR_CANDIDATE_SESSIONS = 30;
 const MAX_ERROR_BEHAVIOR_COMPARISONS = 3;
+const ERROR_FINGERPRINT_LIMIT = 50;
 const LOW_TRAFFIC_WEEKLY_SESSIONS = 50;
 const LOW_TRAFFIC_MIN_VALUE = 10;
 const FILTER_TRAFFIC_MIN_PEAK = 80;
@@ -1488,10 +1489,14 @@ async function detectWow(
 	const errors = await readDetectorPair({
 		abortSignal,
 		current: () =>
-			query("error_fingerprints", currentFrom, currentTo, { limit: 50 }),
+			query("error_fingerprints", currentFrom, currentTo, {
+				limit: ERROR_FINGERPRINT_LIMIT,
+			}),
 		family: "errors",
 		previous: () =>
-			query("error_fingerprints", previousFrom, previousTo, { limit: 50 }),
+			query("error_fingerprints", previousFrom, previousTo, {
+				limit: ERROR_FINGERPRINT_LIMIT,
+			}),
 		websiteId,
 	});
 	const revenue = await readDetectorPair({
@@ -1588,6 +1593,59 @@ async function detectWow(
 
 	const currentByFingerprint = mapRowsByStringField(currentErrors, "name");
 	const previousByFingerprint = mapRowsByStringField(previousErrors, "name");
+	// The native query caps each window at 50. Read omitted counterparts before
+	// interpreting absence as zero; each filtered set has at most 50 names.
+	const errorWindows = [
+		[
+			currentByFingerprint,
+			previousByFingerprint,
+			currentErrors,
+			currentFrom,
+			currentTo,
+		],
+		[
+			previousByFingerprint,
+			currentByFingerprint,
+			previousErrors,
+			previousFrom,
+			previousTo,
+		],
+	] as const;
+	const missingFingerprints = errorWindows.map(([window, other, rows]) =>
+		rows.length < ERROR_FINGERPRINT_LIMIT
+			? []
+			: [...other.keys()].filter((name) => !window.has(name))
+	);
+	const errorCompletionFailures = await Promise.all(
+		errorWindows.map(async ([window, , , from, to], index) => {
+			const names = missingFingerprints[index] ?? [];
+			if (names.length === 0) {
+				return false;
+			}
+			const completed = await readDetectorFamily({
+				abortSignal,
+				family: "errors",
+				read: () =>
+					query("error_fingerprints", from, to, {
+						filters: [{ field: "message", op: "in", value: names }],
+						limit: ERROR_FINGERPRINT_LIMIT,
+					}),
+				websiteId,
+			});
+			for (const [name, row] of mapRowsByStringField(
+				completed.value ?? [],
+				"name"
+			)) {
+				window.set(name, row);
+			}
+			return completed.failed;
+		})
+	);
+	if (errorCompletionFailures.some(Boolean)) {
+		errors.failed = true;
+		currentByFingerprint.clear();
+		previousByFingerprint.clear();
+	}
 	for (const fingerprint of new Set([
 		...currentByFingerprint.keys(),
 		...previousByFingerprint.keys(),
