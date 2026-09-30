@@ -42,6 +42,7 @@ export interface ParsedTable {
 	partitionBy: string;
 	primaryKey: string;
 	settings: string;
+	ttl: string;
 }
 
 export function sqlFiles(dir: string, includeViews = true): string[] {
@@ -168,6 +169,9 @@ function parseIndexes(sql: string): ParsedIndex[] {
 	return indexes;
 }
 
+// ClickHouse stores `INTERVAL 90 DAY` as `toIntervalDay(90)`.
+const INTERVAL_PATTERN = /INTERVAL\s+(\d+)\s+([A-Za-z]+)/gi;
+
 function clause(tail: string, keyword: string, stops: string[]): string {
 	const lookahead = stops.length ? `(?=(?:${stops.join("|")})\\b|$)` : "(?=$)";
 	const re = new RegExp(`${keyword}\\s+([\\s\\S]*?)\\s*${lookahead}`, "i");
@@ -217,6 +221,11 @@ export function parseTable(sql: string): ParsedTable {
 			"SETTINGS",
 		]),
 		settings: clause(tail, "SETTINGS", []),
+		ttl: clause(tail, "TTL", ["SETTINGS"]).replace(
+			INTERVAL_PATTERN,
+			(_, amount: string, unit: string) =>
+				`toInterval${unit[0]?.toUpperCase()}${unit.slice(1).toLowerCase()}(${amount})`
+		),
 	};
 }
 

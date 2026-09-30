@@ -1,5 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { CLICKHOUSE_OPTIONS } from "./client";
 import {
 	type ParsedTable,
 	parseTable,
@@ -35,17 +36,13 @@ async function fetchLive(): Promise<Map<string, ParsedTable>> {
 		throw new Error("CLICKHOUSE_READONLY_URL or CLICKHOUSE_URL must be set");
 	}
 	const url = new URL(raw);
-	const headers: Record<string, string> = {};
+	const headers: Record<string, string> = {
+		...CLICKHOUSE_OPTIONS.http_headers,
+	};
 	if (url.username) {
 		headers.Authorization = `Basic ${Buffer.from(`${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`, "utf-8").toString("base64")}`;
 		url.username = "";
 		url.password = "";
-	}
-	const accessClientId = process.env.CLICKHOUSE_ACCESS_CLIENT_ID;
-	const accessClientSecret = process.env.CLICKHOUSE_ACCESS_CLIENT_SECRET;
-	if (accessClientId && accessClientSecret) {
-		headers["CF-Access-Client-Id"] = accessClientId;
-		headers["CF-Access-Client-Secret"] = accessClientSecret;
 	}
 	const dbList = DATABASES.map((d) => `'${d}'`).join(",");
 	const query = `SELECT database, name, create_table_query FROM system.tables WHERE database IN (${dbList}) AND NOT is_temporary FORMAT JSONEachRow`;
@@ -144,6 +141,7 @@ function diffTable(repo: ParsedTable, live: ParsedTable): string[] {
 		"primaryKey",
 		"orderBy",
 		"settings",
+		"ttl",
 	] as const) {
 		if (repo[key] !== live[key]) {
 			lines.push(
