@@ -14,7 +14,7 @@ const urls = {
 	dashboardUrl: "https://app.databuddy.cc",
 	openapiSpecUrl: "https://www.databuddy.cc/openapi.json",
 	apiOpenapiSpecUrl: "https://api.databuddy.cc/openapi.json",
-	mcpServerUrl: "https://api.databuddy.cc/v1/mcp/",
+	mcpServerUrl: "https://api.databuddy.cc/v1/mcp",
 	mcpManifestUrl: "https://www.databuddy.cc/.well-known/mcp.json",
 } satisfies AgentDiscoveryUrls;
 

@@ -41,6 +41,16 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
 	});
 }
 
+function protectedResourceMetadata() {
+	return jsonResponse({
+		resource: config.urls.mcp,
+		authorization_servers: [config.urls.authorizationServer],
+		bearer_methods_supported: ["header"],
+		scopes_supported: API_SCOPES,
+		resource_documentation: `${SITE_URL}/docs/api/mcp`,
+	});
+}
+
 function noStoreJsonResponse(body: unknown, init?: ResponseInit) {
 	return Response.json(body, {
 		...init,
@@ -127,14 +137,10 @@ export const discovery = new Elysia({ name: "agent-discovery" })
 	.get("/.well-known/mcp", () =>
 		jsonResponse(createMcpServerCard(discoveryUrls))
 	)
-	.get("/.well-known/oauth-protected-resource", () =>
-		jsonResponse({
-			resource: config.urls.mcp,
-			authorization_servers: [config.urls.authorizationServer],
-			bearer_methods_supported: ["header"],
-			scopes_supported: API_SCOPES,
-			resource_documentation: `${SITE_URL}/docs/mcp`,
-		})
+	.get("/.well-known/oauth-protected-resource", protectedResourceMetadata)
+	.get(
+		`/.well-known/oauth-protected-resource${new URL(config.urls.mcp).pathname}`,
+		protectedResourceMetadata
 	)
 	.get("/.well-known/ucp", () => jsonResponse(createUcpProfile(discoveryUrls)))
 	.get("/sandbox", () => jsonResponse(createSandboxDiscovery(discoveryUrls)))
