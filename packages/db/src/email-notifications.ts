@@ -5,6 +5,9 @@ import type {
 } from "./drizzle/schema/auth";
 
 export interface EmailNotificationSettings {
+	aiAgents: {
+		weeklyDigest: boolean;
+	};
 	billing: {
 		usageWarnings: boolean;
 	};
@@ -21,6 +24,9 @@ export interface EmailNotificationSettings {
 }
 
 export const DEFAULT_EMAIL_NOTIFICATION_SETTINGS = {
+	aiAgents: {
+		weeklyDigest: true,
+	},
 	billing: {
 		usageWarnings: true,
 	},
@@ -58,6 +64,10 @@ export function normalizeEmailNotificationSettings(
 ): EmailNotificationSettings {
 	const current = settings ?? {};
 	return {
+		aiAgents: {
+			...DEFAULT_EMAIL_NOTIFICATION_SETTINGS.aiAgents,
+			...current.aiAgents,
+		},
 		billing: {
 			...DEFAULT_EMAIL_NOTIFICATION_SETTINGS.billing,
 			...current.billing,
