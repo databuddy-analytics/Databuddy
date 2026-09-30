@@ -17,6 +17,7 @@ import { detectSignals, type QueryFn } from "../detection";
 import { prepareInvestigation } from "../investigation";
 import { resolveSync } from "bun";
 import {
+	INSIGHTS_MODEL_ID,
 	runInsightAgent,
 	type InsightAgentInput,
 	type InsightAgentResult,
@@ -155,6 +156,40 @@ const repairFunnel = {
 		},
 	],
 };
+function nearTotalDropFailures(
+	outcome: InsightAgentResult["outcome"],
+	acceptedFinish: unknown,
+	isUnrelatedSource: (source: Record<string, unknown>) => boolean
+): string[] {
+	const finish = z
+		.object({
+			evidence: z.array(
+				z.object({ sources: z.array(z.record(z.string(), z.unknown())) })
+			),
+		})
+		.safeParse(acceptedFinish);
+	const sources = finish.success
+		? finish.data.evidence.flatMap((item) => item.sources)
+		: [];
+	return [
+		...(outcome.rootCause === null
+			? []
+			: ["Invented a cause from the signal alone"]),
+		...(outcome.publish
+			? []
+			: ["Hid a near-total drop that may be a tracking break"]),
+		...(outcome.findingKind === "measurement_coverage"
+			? []
+			: ["Treated an unexplained near-total drop as a product outcome"]),
+		...(outcome.next.type === "ask"
+			? []
+			: ["Did not ask the team to confirm tracking still loads"]),
+		...(sources.some(isUnrelatedSource)
+			? ["Cited unrelated context as proof of the drop"]
+			: []),
+	];
+}
+
 interface QualityCase {
 	// Observable expectations, independent of exact wording.
 	check: (
@@ -173,14 +208,8 @@ export const qualityCases: QualityCase[] = [
 		id: "empty-evidence-signal",
 		input: input(),
 		tools: {},
-		check: ({ outcome }) => [
-			...(outcome.rootCause === null
-				? []
-				: ["Invented a cause from the signal alone"]),
-			...(outcome.publish
-				? ["Published unverified traffic loss from the signal alone"]
-				: []),
-		],
+		check: ({ outcome }, _calls, acceptedFinish) =>
+			nearTotalDropFailures(outcome, acceptedFinish, () => false),
 	},
 
 	{
@@ -197,10 +226,8 @@ export const qualityCases: QualityCase[] = [
 				{ goals: [goal] }
 			),
 		},
-		check: ({ outcome }) =>
-			outcome.publish
-				? ["An unrelated goal lookup unlocked an unsupported website finding"]
-				: [],
+		check: ({ outcome }, _calls, acceptedFinish) =>
+			nearTotalDropFailures(outcome, acceptedFinish, () => false),
 	},
 	{
 		id: "sibling-metric-traffic",
@@ -224,12 +251,12 @@ export const qualityCases: QualityCase[] = [
 			],
 		}),
 		tools: {},
-		check: ({ outcome }) =>
-			outcome.publish
-				? [
-						"A sibling product result was published as proof for the website traffic subject",
-					]
-				: [],
+		check: ({ outcome }, _calls, acceptedFinish) =>
+			nearTotalDropFailures(
+				outcome,
+				acceptedFinish,
+				(source) => source.source === "related_signal"
+			),
 	},
 	{
 		id: "coverage-without-definition",
@@ -2258,7 +2285,7 @@ if (import.meta.main) {
 			runs: { type: "string", default: "2" },
 			agent: { type: "string" },
 			cases: { type: "string" },
-			model: { type: "string", default: "openai/gpt-5.6-terra" },
+			model: { type: "string", default: INSIGHTS_MODEL_ID },
 		},
 	});
 	if (!values.out) {

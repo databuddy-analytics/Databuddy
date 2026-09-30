@@ -10,7 +10,7 @@ import { createModelFromId } from "@databuddy/ai/config/models";
 import type { BusinessContext } from "@databuddy/shared/insights";
 import { wrapLanguageModel } from "ai";
 import { spawnSync } from "bun";
-import { runInsightAgent } from "../agent";
+import { INSIGHTS_MODEL_ID, runInsightAgent } from "../agent";
 import { chooseInvestigationSignals } from "../business-aware-selection";
 import { organizationProfileContext } from "../business-context";
 import type { DetectedSignal } from "../detection";
@@ -31,7 +31,7 @@ interface SelectionResult {
 // Frozen synthetic measurements and native selection/investigation entry points.
 // Only gateway model requests are live. No persistence, billing or delivery runs.
 const asOf = "2026-09-05T00:00:00.000Z";
-const modelId = "openai/gpt-5.6-terra";
+const modelId = INSIGHTS_MODEL_ID;
 const input = {
 	organizationId: "synthetic-org",
 	websiteId: "synthetic-site",
