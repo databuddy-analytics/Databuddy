@@ -1,5 +1,7 @@
 import {
 	getAccessibleWebsites,
+	getMemberWebsites,
+	getReadableOrganizationIds,
 	type WebsiteSummary,
 } from "../../lib/accessible-websites";
 import {
@@ -7,8 +9,9 @@ import {
 	hasKeyScope,
 	hasWebsiteScopeForOrganization,
 } from "@databuddy/api-keys/resolve";
-import { websitesApi } from "@databuddy/auth";
+import { type User, websitesApi } from "@databuddy/auth";
 import { roleHasPermission } from "@databuddy/auth/permissions";
+import { db } from "@databuddy/db";
 import { getRedisCache } from "@databuddy/redis";
 import { getMemberRole } from "@databuddy/rpc/organization";
 import type { AppContext } from "../config/context";
@@ -32,13 +35,24 @@ export interface RequestPrincipal {
 }
 
 export type AuthorizedPrincipal = RequestPrincipal & {
+	oauthUser?: User | null;
 	requestHeaders: Headers;
 };
+
+export async function loadOAuthUser(userId: string): Promise<User | null> {
+	const user = await db.query.user.findFirst({ where: { id: userId } });
+	return user ?? null;
+}
+
+interface WebsiteAccess {
+	domain: string;
+	organizationId: string | null;
+}
 
 export async function ensureWebsiteAccess(
 	websiteId: string,
 	principal: AuthorizedPrincipal
-): Promise<{ domain: string } | Error> {
+): Promise<WebsiteAccess | Error> {
 	const { apiKey, oauthUserId, organizationId } = principal;
 	const website = await getCachedWebsite(websiteId);
 	if (!website) {
@@ -56,7 +70,10 @@ export async function ensureWebsiteAccess(
 		if (!(role && roleHasPermission(role, "website", ["read"]))) {
 			return new Error("Access denied to this website");
 		}
-		return { domain: website.domain ?? "unknown" };
+		return {
+			domain: website.domain ?? "unknown",
+			organizationId: website.organizationId,
+		};
 	}
 
 	if (apiKey) {
@@ -68,7 +85,10 @@ export async function ensureWebsiteAccess(
 		if (!hasWebsiteAccess) {
 			return new Error("Access denied to this website");
 		}
-		return { domain: website.domain ?? "unknown" };
+		return {
+			domain: website.domain ?? "unknown",
+			organizationId: website.organizationId,
+		};
 	}
 
 	const hasPermission =
@@ -85,7 +105,10 @@ export async function ensureWebsiteAccess(
 	if (!hasPermission) {
 		return new Error("Access denied to this website");
 	}
-	return { domain: website.domain ?? "unknown" };
+	return {
+		domain: website.domain ?? "unknown",
+		organizationId: website.organizationId,
+	};
 }
 function accessibleWebsitesCacheKey(
 	principal: RequestPrincipal
@@ -94,6 +117,9 @@ function accessibleWebsitesCacheKey(
 		principal.organizationId ?? principal.apiKey?.organizationId;
 	if (principal.apiKey) {
 		return `apikey:${principal.apiKey.id}:org:${organizationId ?? "none"}`;
+	}
+	if (principal.oauthUserId && !organizationId) {
+		return `oauth:${principal.oauthUserId}`;
 	}
 	if (principal.userId && organizationId) {
 		return `user:${principal.userId}:org:${organizationId}`;
@@ -112,10 +138,15 @@ export async function getCachedAccessibleWebsites(
 			: (principal.organizationId ?? principal.apiKey?.organizationId ?? null),
 		user: principal.userId ? { id: principal.userId } : null,
 	};
+	const { oauthUserId } = principal;
+	const loadWebsites = () =>
+		oauthUserId && !authCtx.organizationId
+			? getMemberWebsites(oauthUserId)
+			: getAccessibleWebsites(authCtx);
 	const cacheKey = accessibleWebsitesCacheKey(principal);
 	const redis = cacheKey ? getRedisCache() : null;
 	if (!(cacheKey && redis)) {
-		return getAccessibleWebsites(authCtx);
+		return loadWebsites();
 	}
 
 	const redisKey = `${ACCESSIBLE_WEBSITES_KEY_PREFIX}${cacheKey}`;
@@ -128,7 +159,7 @@ export async function getCachedAccessibleWebsites(
 		// Cache read failure — fall through to DB
 	}
 
-	const result = await getAccessibleWebsites(authCtx);
+	const result = await loadWebsites();
 	try {
 		await redis.setex(
 			redisKey,
@@ -201,6 +232,7 @@ export async function getOrganizationId(
  * 1. If websiteId provided → resolve via getOrganizationId (single org)
  * 2. If an organization is scoped on the request → use that organization
  * 3. If API key → use apiKey.organizationId (single org)
+ * 4. If OAuth user → their only readable organization, or ask for a website
  * Session users must have an active organization; never fan out across all memberships.
  */
 export async function resolveOrganizationIds(
@@ -239,6 +271,19 @@ export async function resolveOrganizationIds(
 			"Scoped API key requires a websiteId for org-level queries"
 		);
 	}
+	if (principal.oauthUserId) {
+		const organizationIds = await getReadableOrganizationIds(
+			principal.oauthUserId
+		);
+		if (organizationIds.length === 1) {
+			return organizationIds;
+		}
+		return new Error(
+			organizationIds.length === 0
+				? "This account is not a member of any organization with website access."
+				: `This account belongs to ${organizationIds.length} organizations. Pass websiteId, websiteName, or websiteDomain from list_websites to choose one.`
+		);
+	}
 	if (principal.userId) {
 		return new Error("Session requests require an active organization");
 	}
@@ -258,6 +303,15 @@ export function buildRpcContext(principal: AuthorizedPrincipal): AppContext {
 		requestHeaders: principal.requestHeaders,
 		serviceAuth: principal.apiKey
 			? { apiKey: principal.apiKey, session: null }
-			: undefined,
+			: principal.oauthUser
+				? {
+						apiKey: null,
+						oauth: {
+							organizationId: principal.organizationId ?? null,
+							user: principal.oauthUser,
+						},
+						session: null,
+					}
+				: undefined,
 	};
 }

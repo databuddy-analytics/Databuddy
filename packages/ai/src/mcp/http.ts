@@ -53,7 +53,11 @@ export async function handleDatabuddyMcpRequest(
 	}
 
 	mergeWideEvent({
-		mcp_auth: options.userId ? "session" : "api_key",
+		mcp_auth: options.apiKey
+			? "api_key"
+			: options.oauthUserId
+				? "oauth"
+				: "session",
 		mcp_session: Boolean(options.userId),
 		mcp_api_key: Boolean(options.apiKey),
 	});
