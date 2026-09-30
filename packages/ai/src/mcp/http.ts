@@ -53,7 +53,11 @@ export async function handleDatabuddyMcpRequest(
 	}
 
 	mergeWideEvent({
-		mcp_auth: options.userId ? "session" : "api_key",
+		mcp_auth: options.apiKey
+			? "api_key"
+			: options.oauthUserId
+				? "oauth"
+				: "session",
 		mcp_session: Boolean(options.userId),
 		mcp_api_key: Boolean(options.apiKey),
 	});
@@ -113,7 +117,7 @@ function callerCanCallTool(
 	if (!required?.length) {
 		return true;
 	}
-	if (oauthScopes?.length) {
+	if (oauthScopes) {
 		return required.every((scope) => oauthScopes.includes(scope));
 	}
 	if (!apiKey) {
@@ -147,6 +151,7 @@ function deriveAnnotations(metadata: McpToolMetadata): ToolAnnotations {
 		readOnlyHint: isRead,
 		destructiveHint: !isRead,
 		idempotentHint: isRead,
+		openWorldHint: false,
 	};
 }
 
@@ -157,7 +162,7 @@ function registerGuideResource(server: McpServer): void {
 		{
 			title: "Databuddy MCP guide",
 			description:
-				"Workflow tips, query conventions, and known footguns. Read after the session-start instructions when you want more depth.",
+				"Reference for Databuddy MCP tools: query conventions, what insight and investigation fields mean, and the scopes each tool needs.",
 			mimeType: "text/markdown",
 		},
 		(uri) => ({

@@ -4,6 +4,7 @@ import {
 	type ApiKeyScopeTarget,
 } from "@databuddy/api-keys/scopes";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
+import type { User } from "@databuddy/auth";
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import type { ApiScope } from "@databuddy/shared/api-scopes";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -13,6 +14,7 @@ import { trackAgentEvent } from "../../lib/databuddy";
 import { captureError, mergeWideEvent } from "../../lib/tracing";
 import {
 	ensureWebsiteAccess,
+	loadOAuthUser,
 	resolveWebsiteId,
 	type WebsiteSelectorInput,
 } from "./tool-context";
@@ -30,6 +32,7 @@ export type McpErrorCode =
 	| "invalid_input"
 	| "unauthorized"
 	| "not_found"
+	| "query_failed"
 	| "rate_limited"
 	| "upstream_timeout"
 	| "internal";
@@ -62,6 +65,7 @@ export interface McpRequestContext {
 }
 
 export interface McpHandlerContext extends McpRequestContext {
+	oauthUser?: User;
 	websiteDomain?: string;
 	websiteId?: string;
 }
@@ -75,7 +79,7 @@ interface McpToolAccess {
 }
 
 interface McpToolAccessInput {
-	kind?: McpToolMutationKind;
+	kind: McpToolMutationKind;
 	scopes?: ApiScope[];
 	scopeTarget?: ApiKeyScopeTarget;
 }
@@ -85,7 +89,7 @@ export interface McpToolMetadata {
 }
 
 export interface McpToolMetadataInput {
-	access?: McpToolAccessInput;
+	access: McpToolAccessInput;
 }
 export function metadataForResource(
 	resource: string,
@@ -107,7 +111,7 @@ export function metadataForResource(
 export interface McpToolMeta<S extends z.ZodTypeAny = z.ZodTypeAny> {
 	description: string;
 	inputSchema: S;
-	metadata?: McpToolMetadataInput;
+	metadata: McpToolMetadataInput;
 	name: string;
 	outputSchema?: z.ZodType<Record<string, unknown>>;
 	ratelimit?: { limit: number; windowSec: number };
@@ -205,12 +209,12 @@ function toSuccessResult(
 function getAttribution(ctx: McpRequestContext): {
 	organization_id: string | null;
 	user_id: string | null;
-	auth_type: "session" | "api_key";
+	auth_type: "session" | "api_key" | "oauth";
 } {
 	return {
 		organization_id: ctx.organizationId ?? ctx.apiKey?.organizationId ?? null,
 		user_id: ctx.userId ?? ctx.apiKey?.userId ?? null,
-		auth_type: ctx.apiKey ? "api_key" : "session",
+		auth_type: ctx.apiKey ? "api_key" : ctx.oauthUserId ? "oauth" : "session",
 	};
 }
 
@@ -257,7 +261,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 				const parseResult = meta.inputSchema.safeParse(rawInput ?? {});
 				if (!parseResult.success) {
 					const issue = parseResult.error.issues[0];
-					const path = issue?.path.join(".") ?? "input";
+					const path = issue?.path.length ? issue.path.join(".") : "input";
 					throw new McpToolError(
 						"invalid_input",
 						issue ? `${path}: ${issue.message}` : "Invalid input",
@@ -267,6 +271,16 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 				const input = parseResult.data;
 
 				const handlerCtx: McpHandlerContext = { ...ctx };
+				if (ctx.oauthUserId) {
+					const oauthUser = await loadOAuthUser(ctx.oauthUserId);
+					if (!oauthUser) {
+						throw new McpToolError(
+							"unauthorized",
+							"The Databuddy account for this connection no longer exists. Reconnect Databuddy to continue."
+						);
+					}
+					handlerCtx.oauthUser = oauthUser;
+				}
 				if (meta.resolveWebsite) {
 					const inputObj = input as WebsiteSelectorInput;
 					const optional = meta.resolveWebsite === "optional";
@@ -284,6 +298,9 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 						}
 						handlerCtx.websiteId = resolvedId;
 						handlerCtx.websiteDomain = access.domain;
+						if (ctx.oauthUserId) {
+							handlerCtx.organizationId = access.organizationId;
+						}
 						mergeWideEvent({ mcp_website_id: resolvedId });
 					}
 				}
@@ -349,10 +366,10 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 }
 
 function normalizeToolMetadata(
-	metadata: McpToolMetadataInput | undefined,
+	metadata: McpToolMetadataInput,
 	resolvesWebsite: boolean
 ): McpToolMetadata {
-	const configuredScopes = metadata?.access?.scopes ?? [];
+	const configuredScopes = metadata.access.scopes ?? [];
 	const scopes: ApiScope[] = [
 		...(resolvesWebsite ? (["read:data"] as const) : []),
 		...configuredScopes,
@@ -360,8 +377,8 @@ function normalizeToolMetadata(
 	return {
 		access: {
 			globalScopes:
-				metadata?.access?.scopeTarget === "global" ? configuredScopes : [],
-			kind: metadata?.access?.kind ?? "read",
+				metadata.access.scopeTarget === "global" ? configuredScopes : [],
+			kind: metadata.access.kind,
 			scopes: [...new Set(scopes)],
 		},
 	};

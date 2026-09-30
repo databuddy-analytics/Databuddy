@@ -11,8 +11,8 @@ The Databuddy MCP server lets AI agents (Claude, Cursor, Windsurf, or any MCP-co
 
 | Environment | URL |
 |-------------|-----|
-| Production | `https://api.databuddy.cc/v1/mcp/` |
-| Local | `http://localhost:3001/v1/mcp/` |
+| Production | `https://api.databuddy.cc/v1/mcp` |
+| Local | `http://localhost:3001/v1/mcp` |
 
 The server uses the **Streamable HTTP** transport (JSON-RPC over HTTP). No SSE or WebSocket connection required. Configure clients with the canonical URL above. `/.well-known/mcp` is discovery metadata, not an MCP transport endpoint.
 
@@ -32,6 +32,13 @@ The manifest includes the Streamable HTTP endpoint, API-key auth header, require
 
 ## Authentication
 
+The server accepts two kinds of credentials:
+
+- **Your Databuddy account (OAuth).** Claude, Claude Code, and other clients that support MCP authorization sign you in through Databuddy and ask you to approve access. The connection can reach every website your account can reach, with the same role you have in each organization. Disconnect it at any time from [Account settings → Connected apps](https://app.databuddy.cc/settings/account).
+- **An API key.** Best for automation and clients without OAuth support. The key decides which organization, websites, and actions the client can use.
+
+### API keys
+
 Pass an API key with the `read:data` scope:
 
 <CodeBlock 
@@ -40,7 +47,7 @@ Pass an API key with the `read:data` scope:
   "mcpServers": {
     "databuddy": {
       "type": "http",
-      "url": "https://api.databuddy.cc/v1/mcp/",
+      "url": "https://api.databuddy.cc/v1/mcp",
       "headers": {
         "x-api-key": "dbdy_your_api_key_here"
       }
@@ -61,9 +68,22 @@ For clients that support environment-variable interpolation in remote MCP header
 
 ## Client Setup
 
-### Claude Code / Claude Desktop
+### Claude (web, desktop, and mobile)
 
-Add to your `.mcp.json` or Claude Desktop config:
+1. In Claude, open **Customize → Connectors** and choose **Add custom connector**.
+2. Enter `https://api.databuddy.cc/v1/mcp` and select **Connect**.
+3. Sign in to Databuddy and choose **Allow access**.
+
+No API key is needed. Claude asks before it runs any tool that changes data.
+
+### Claude Code
+
+<CodeBlock
+  language="bash"
+  code={`claude mcp add --transport http databuddy https://api.databuddy.cc/v1/mcp`}
+/>
+
+Then run `/mcp` in Claude Code, select **databuddy**, and sign in. To use an API key instead, add it to your `.mcp.json`:
 
 <CodeBlock 
   language="json"
@@ -71,7 +91,7 @@ Add to your `.mcp.json` or Claude Desktop config:
   "mcpServers": {
     "databuddy": {
       "type": "http",
-      "url": "https://api.databuddy.cc/v1/mcp/",
+      "url": "https://api.databuddy.cc/v1/mcp",
       "headers": {
         "x-api-key": "dbdy_your_api_key_here"
       }
@@ -90,7 +110,7 @@ Add to your MCP settings (typically `.cursor/mcp.json` or workspace settings):
   "mcpServers": {
     "databuddy": {
       "type": "http",
-      "url": "https://api.databuddy.cc/v1/mcp/",
+      "url": "https://api.databuddy.cc/v1/mcp",
       "headers": {
         "x-api-key": "dbdy_your_api_key_here"
       }
@@ -108,7 +128,7 @@ Add to your MCP settings (typically `.cursor/mcp.json` or workspace settings):
 | `get_data` | Typed analytics queries (top_pages, recent_errors, errors_by_type, etc.). Batch 2-10 queries in one call. |
 | `capabilities` | Query types, date presets, categories, and compact schema hints. Filter by category. |
 | `get_schema` | ClickHouse column definitions. Use when a field name is uncertain. |
-| `list_websites` | List websites accessible to the authenticated key. |
+| `list_websites` | List the websites the signed-in account or API key can access. |
 
 ### Investigations
 

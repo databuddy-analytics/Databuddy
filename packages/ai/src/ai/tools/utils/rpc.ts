@@ -60,19 +60,25 @@ export async function callRPCProcedure(
 				message: error.message,
 			});
 
-			const userMessage =
+			const fallbackMessage =
 				error.code === "UNAUTHORIZED"
 					? "You don't have permission to perform this action."
 					: error.code === "NOT_FOUND"
 						? "The requested resource was not found."
-						: error.code === "BAD_REQUEST"
-							? `Invalid request: ${error.message}`
-							: error.code === "FORBIDDEN"
-								? "You don't have permission to access this resource."
-								: error.code === "CONFLICT"
-									? "This resource already exists or conflicts with an existing one."
-									: error.message ||
-										"An error occurred while processing your request.";
+						: error.code === "FORBIDDEN"
+							? "You don't have permission to access this resource."
+							: error.code === "CONFLICT"
+								? "This resource already exists or conflicts with an existing one."
+								: "An error occurred while processing your request.";
+			const hasSpecificMessage =
+				error.message !== "" &&
+				error.message !== new ORPCError(error.code).message;
+			const userMessage =
+				error.code === "BAD_REQUEST"
+					? `Invalid request: ${error.message}`
+					: hasSpecificMessage
+						? error.message
+						: fallbackMessage;
 
 			throw new ORPCError(error.code, { message: userMessage });
 		}

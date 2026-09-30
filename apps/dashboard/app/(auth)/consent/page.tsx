@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
+import { SCOPE_OPTIONS } from "@/components/organizations/api-key-types";
 
 interface PublicClient {
 	icon?: string | null;
@@ -14,12 +15,22 @@ interface PublicClient {
 	uri?: string | null;
 }
 
-function redirectHost(redirectUri: string | null): string | null {
-	if (!redirectUri) {
+const IDENTITY_LABEL = "Your name and email address";
+
+const SCOPE_LABELS = new Map<string, string>([
+	...SCOPE_OPTIONS.map(({ value, label }) => [value, label] as const),
+	["openid", IDENTITY_LABEL],
+	["profile", IDENTITY_LABEL],
+	["email", IDENTITY_LABEL],
+	["offline_access", "Stay connected until you disconnect it"],
+]);
+
+function urlHost(value: string | null): string | null {
+	if (!value) {
 		return null;
 	}
 	try {
-		return new URL(redirectUri).host;
+		return new URL(value).host;
 	} catch {
 		return null;
 	}
@@ -33,8 +44,17 @@ function ConsentPage() {
 
 	const oauthQuery = searchParams.toString();
 	const clientId = searchParams.get("client_id");
-	const host = redirectHost(searchParams.get("redirect_uri"));
-	const scopes = (searchParams.get("scope") ?? "").split(" ").filter(Boolean);
+	const clientHost = urlHost(clientId);
+	const host = urlHost(searchParams.get("redirect_uri"));
+	const requestedScopes = searchParams
+		.get("scope")
+		?.split(" ")
+		.filter(Boolean) ?? [...SCOPE_LABELS.keys()];
+	const permissions = [
+		...new Set(
+			requestedScopes.map((scope) => SCOPE_LABELS.get(scope) ?? scope)
+		),
+	];
 
 	const { data: client, isPending } = useQuery<PublicClient | null>({
 		enabled: Boolean(clientId),
@@ -84,15 +104,17 @@ function ConsentPage() {
 					<Skeleton className="h-8 w-48" />
 				) : (
 					<Text as="h1" className="text-balance font-medium text-2xl">
-						{client?.name ?? clientId} wants to connect
+						{client?.name ?? clientHost ?? clientId}
+						{client?.name && clientHost ? ` (${clientHost})` : ""} wants to
+						connect
 					</Text>
 				)}
 			</div>
 
 			<Text tone="muted">
 				It will be able to read and act on your Databuddy data using your
-				permissions. You can revoke access at any time from your account
-				settings.
+				permissions. Disconnect it at any time from Connected apps in your
+				account settings.
 			</Text>
 
 			{host && (
@@ -102,12 +124,12 @@ function ConsentPage() {
 				</Text>
 			)}
 
-			{scopes.length > 0 && (
-				<ul className="flex flex-col gap-2">
-					{scopes.map((scope) => (
-						<li className="flex items-center gap-2" key={scope}>
-							<CheckCircleIcon className="size-4 text-muted-foreground" />
-							<Text>{scope}</Text>
+			{permissions.length > 0 && (
+				<ul className="grid gap-2 sm:grid-cols-2">
+					{permissions.map((permission) => (
+						<li className="flex items-center gap-2" key={permission}>
+							<CheckCircleIcon className="size-4 shrink-0 text-muted-foreground" />
+							<Text>{permission}</Text>
 						</li>
 					))}
 				</ul>
