@@ -28,23 +28,6 @@ function resolveCostModel(modelId: string, inputTokens = 0) {
 	} satisfies SourceModel;
 }
 
-function toCostUsage(usage: LanguageModelUsage) {
-	return {
-		input_tokens:
-			num(usage.inputTokenDetails?.noCacheTokens) ||
-			Math.max(
-				0,
-				num(usage.inputTokens) -
-					num(usage.inputTokenDetails?.cacheReadTokens) -
-					num(usage.inputTokenDetails?.cacheWriteTokens)
-			),
-		output_tokens: usage.outputTokens,
-		cache_read_tokens: usage.inputTokenDetails?.cacheReadTokens,
-		cache_write_tokens: usage.inputTokenDetails?.cacheWriteTokens,
-		reasoning_tokens: usage.outputTokenDetails?.reasoningTokens,
-	};
-}
-
 export type AgentUsage = LanguageModelUsage & {
 	stepUsages?: LanguageModelUsage[];
 };
@@ -55,52 +38,73 @@ const num = (value: number | undefined): number =>
 	typeof value === "number" && Number.isFinite(value) ? value : 0;
 
 export function summarizeAgentUsage(modelId: string, usage: AgentUsage) {
-	const inputTokens = num(usage.inputTokens);
-	const outputTokens = num(usage.outputTokens);
-	const cacheReadTokens = num(usage.inputTokenDetails?.cacheReadTokens);
-	const cacheWriteTokens = num(usage.inputTokenDetails?.cacheWriteTokens);
-	const freshInputTokens = toCostUsage(usage).input_tokens;
 	const costModel = resolveCostModel(modelId);
-	const costs = {
-		inputTokenCostUSD: 0,
-		outputTokenCostUSD: 0,
-		totalTokenCostUSD: 0,
-		cacheReadTokenCostUSD: 0,
-		cacheWriteTokenCostUSD: 0,
-		reasoningTokenCostUSD: 0,
-	};
-	// Context pricing is per request, never the sum of an agent's steps.
-	const usages = usage.stepUsages?.length ? usage.stepUsages : [usage];
-	for (const stepUsage of usages) {
-		const stepCosts = computeTokenCostsForModel({
-			model: resolveCostModel(modelId, num(stepUsage.inputTokens)),
-			usage: toCostUsage(stepUsage),
-		});
-		costs.inputTokenCostUSD += num(stepCosts.inputTokenCostUSD);
-		costs.outputTokenCostUSD += num(stepCosts.outputTokenCostUSD);
-		costs.totalTokenCostUSD += num(stepCosts.totalTokenCostUSD);
-		costs.cacheReadTokenCostUSD += num(stepCosts.cacheReadTokenCostUSD);
-		costs.cacheWriteTokenCostUSD += num(stepCosts.cacheWriteTokenCostUSD);
-		costs.reasoningTokenCostUSD += num(stepCosts.reasoningTokenCostUSD);
-	}
-	const costTotalUsd = num(costs.totalTokenCostUSD);
-
-	return {
-		input_tokens: inputTokens,
-		fresh_input_tokens: freshInputTokens,
-		output_tokens: outputTokens,
-		total_tokens: inputTokens + outputTokens,
-		cache_read_tokens: cacheReadTokens,
-		cache_write_tokens: cacheWriteTokens,
-		reasoning_tokens: num(usage.outputTokenDetails?.reasoningTokens),
-		cost_input_usd: num(costs.inputTokenCostUSD),
-		cost_output_usd: num(costs.outputTokenCostUSD),
-		cost_total_usd: costTotalUsd,
-		cost_cache_read_usd: num(costs.cacheReadTokenCostUSD),
-		cost_cache_write_usd: num(costs.cacheWriteTokenCostUSD),
-		cost_reasoning_usd: num(costs.reasoningTokenCostUSD),
+	const summary = {
+		input_tokens: 0,
+		fresh_input_tokens: 0,
+		output_tokens: 0,
+		cache_read_tokens: 0,
+		cache_write_tokens: 0,
+		reasoning_tokens: 0,
+		cost_input_usd: 0,
+		cost_output_usd: 0,
+		cost_total_usd: 0,
+		cost_cache_read_usd: 0,
+		cost_cache_write_usd: 0,
+		cost_reasoning_usd: 0,
 		cost_model_id: costModel.id,
 		cost_fallback: costModel.fallback,
-		agent_credits_used: usdToAgentCredits(costTotalUsd),
+	};
+	// Completed requests are authoritative, including after a stream abort.
+	const usages = usage.stepUsages?.length ? usage.stepUsages : [usage];
+	for (const stepUsage of usages) {
+		const model = resolveCostModel(modelId, num(stepUsage.inputTokens));
+		const inputTokens = num(stepUsage.inputTokens);
+		const outputTokens = num(stepUsage.outputTokens);
+		const cacheReadTokens = num(stepUsage.inputTokenDetails?.cacheReadTokens);
+		const cacheWriteTokens = num(stepUsage.inputTokenDetails?.cacheWriteTokens);
+		const reasoningTokens = num(stepUsage.outputTokenDetails?.reasoningTokens);
+		const freshInputTokens = num(
+			stepUsage.inputTokenDetails?.noCacheTokens ??
+				Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens)
+		);
+		// Context tiers and rounding apply to each request, never the run total.
+		const costs = computeTokenCostsForModel({
+			model,
+			usage: {
+				input_tokens: freshInputTokens,
+				// Native output totals include reasoning; separate rates must not overlap.
+				output_tokens:
+					model.cost.reasoning === undefined
+						? outputTokens
+						: Math.max(0, outputTokens - reasoningTokens),
+				cache_read_tokens: cacheReadTokens,
+				cache_write_tokens: cacheWriteTokens,
+				reasoning_tokens: reasoningTokens,
+			},
+		});
+		summary.input_tokens += inputTokens;
+		summary.fresh_input_tokens += freshInputTokens;
+		summary.output_tokens += outputTokens;
+		summary.cache_read_tokens += cacheReadTokens;
+		summary.cache_write_tokens += cacheWriteTokens;
+		summary.reasoning_tokens += reasoningTokens;
+		summary.cost_input_usd += num(costs.inputTokenCostUSD);
+		summary.cost_output_usd += num(costs.outputTokenCostUSD);
+		summary.cost_total_usd += num(costs.totalTokenCostUSD);
+		summary.cost_cache_read_usd += num(costs.cacheReadTokenCostUSD);
+		summary.cost_cache_write_usd += num(costs.cacheWriteTokenCostUSD);
+		summary.cost_reasoning_usd += num(costs.reasoningTokenCostUSD);
+	}
+	return {
+		...summary,
+		total_tokens: summary.input_tokens + summary.output_tokens,
+		cost_input_usd: num(summary.cost_input_usd),
+		cost_output_usd: num(summary.cost_output_usd),
+		cost_total_usd: num(summary.cost_total_usd),
+		cost_cache_read_usd: num(summary.cost_cache_read_usd),
+		cost_cache_write_usd: num(summary.cost_cache_write_usd),
+		cost_reasoning_usd: num(summary.cost_reasoning_usd),
+		agent_credits_used: usdToAgentCredits(summary.cost_total_usd),
 	};
 }
