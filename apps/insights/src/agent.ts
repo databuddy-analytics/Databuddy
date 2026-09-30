@@ -2128,6 +2128,7 @@ function validateAgentOutcome(
 				websiteId: z.string().nullish(),
 				startDate: z.iso.date().nullish(),
 				endDate: z.iso.date().nullish(),
+				cohort: z.null().optional(),
 			})
 			.safeParse(baselineRead?.input);
 		const measured = z
@@ -2160,11 +2161,14 @@ function validateAgentOutcome(
 			baseline.check.startDate > baseline.check.endDate ||
 			Date.parse(baseline.check.endDate) + 86_400_000 > asOf.getTime() ||
 			!(check.metric === "total_users_completed"
-				? check.threshold.value === baseline.measured
+				? check.threshold.value === baseline.measured &&
+					Date.parse(baseline.check.endDate) -
+						Date.parse(baseline.check.startDate) ===
+						Date.parse(check.endDate) - Date.parse(check.startDate)
 				: isGroundedValue(check.threshold.value, [baseline.measured]))
 		) {
 			throw new Error(
-				"Native prior-baseline thresholds require the selected metric from the exact cited goal or funnel, inspected population and complete historical window. Use check: null when that baseline is unavailable; a number in another field is not the baseline."
+				"Native prior-baseline thresholds require the selected metric from the exact cited goal or funnel, unsegmented inspected population and complete historical window. Count baselines also require equal-length verification windows. Use check: null when that baseline is unavailable; a number in another field is not the baseline."
 			);
 		}
 	}

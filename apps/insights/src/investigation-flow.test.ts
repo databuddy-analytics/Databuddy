@@ -1056,6 +1056,15 @@ describe("intelligence agent", () => {
 			],
 			next,
 		};
+		const missingCheck = outputResponse({
+			...proposal,
+			next: { ...next, check: undefined },
+		});
+		if (correctFormatting) {
+			expect(
+				JSON.parse(missingCheck.content.at(0)?.input ?? "{}").next
+			).not.toHaveProperty("check");
+		}
 		const generate = mockValues(
 			toolCallsResponse(["list_goals", "scrape_page"]),
 			...(correctFormatting
@@ -1065,10 +1074,7 @@ describe("intelligence agent", () => {
 							execution: next.execution,
 							next: { ...next, execution: undefined },
 						}),
-						outputResponse({
-							...proposal,
-							next: { ...next, check: undefined },
-						}),
+						missingCheck,
 					]
 				: []),
 			outputResponse({
@@ -1150,6 +1156,9 @@ describe("intelligence agent", () => {
 					["overall_conversion_rate", 80, false, "wrong-field"],
 					["total_users_completed", 80, true, "baseline"],
 					["total_users_completed", 400, false, "wrong-field"],
+					["total_users_completed", 80, false, "different-window"],
+					["total_users_completed", 80, false, "cohort"],
+					["overall_conversion_rate", 20, false, "cohort"],
 					["overall_conversion_rate", 20, false, "website"],
 					["overall_conversion_rate", 20, false, "definition"],
 					["overall_conversion_rate", 20, false, "population"],
@@ -1209,6 +1218,13 @@ describe("intelligence agent", () => {
 							: subject.period.previous;
 		const request = {
 			[`${type}Id`]: subject.entity.id,
+			...(scope === "cohort"
+				? {
+						cohort: {
+							filters: [{ field: "country", operator: "equals", value: "US" }],
+						},
+					}
+				: {}),
 			...(scope === "null-defaults"
 				? { websiteId: null, startDate: null, endDate: null }
 				: scope === "native-defaults"
@@ -1226,13 +1242,12 @@ describe("intelligence agent", () => {
 			startDate: z.iso.date().nullish(),
 			endDate: z.iso.date().nullish(),
 		});
-		const nativeSchema =
-			scope === "native-defaults"
-				? (await import("@databuddy/ai/tools/toolkit")).createToolkit({
-						capabilities: ["analytics"],
-					})[nativeTool]?.inputSchema
-				: undefined;
-		if (scope === "native-defaults") {
+		const nativeSchema = ["native-defaults", "cohort"].includes(scope)
+			? (await import("@databuddy/ai/tools/toolkit")).createToolkit({
+					capabilities: ["analytics"],
+				})[nativeTool]?.inputSchema
+			: undefined;
+		if (["native-defaults", "cohort"].includes(scope)) {
 			expect(nativeSchema).toBeDefined();
 		}
 		const listTool = type === "goal" ? "list_goals" : "list_funnels";
@@ -1259,6 +1274,10 @@ describe("intelligence agent", () => {
 			],
 			next: {
 				...executableDefinitionOutcome.next,
+				recheckAt:
+					metric === "total_users_completed" && scope !== "different-window"
+						? "2026-07-20T00:00:00.000Z"
+						: executableDefinitionOutcome.next.recheckAt,
 				...(type === "goal"
 					? {
 							execution: {
@@ -1270,7 +1289,10 @@ describe("intelligence agent", () => {
 				check: {
 					metric,
 					startDate: "2026-07-13",
-					endDate: "2026-07-14",
+					endDate:
+						metric === "total_users_completed" && scope !== "different-window"
+							? "2026-07-19"
+							: "2026-07-14",
 					minimumEntrants: metric === "total_users_completed" ? 1 : 100,
 					threshold: {
 						anchor:
