@@ -295,6 +295,9 @@ export async function sendAiDigest({
 			to: owners.map((owner) => owner.ownerEmail),
 		}),
 	});
+	if (response.status === 409) {
+		return outcome({ reason: "already_sent", status: "skipped" });
+	}
 	if (!response.ok) {
 		throw new Error(`Resend AI digest failed: ${response.status}`);
 	}
