@@ -46,12 +46,13 @@ function ConsentPage() {
 	const clientId = searchParams.get("client_id");
 	const clientHost = urlHost(clientId);
 	const host = urlHost(searchParams.get("redirect_uri"));
+	const requestedScopes = searchParams
+		.get("scope")
+		?.split(" ")
+		.filter(Boolean) ?? [...SCOPE_LABELS.keys()];
 	const permissions = [
 		...new Set(
-			(searchParams.get("scope") ?? "")
-				.split(" ")
-				.filter(Boolean)
-				.map((scope) => SCOPE_LABELS.get(scope) ?? scope)
+			requestedScopes.map((scope) => SCOPE_LABELS.get(scope) ?? scope)
 		),
 	];
 
