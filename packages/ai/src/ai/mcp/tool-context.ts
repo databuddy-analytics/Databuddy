@@ -172,6 +172,22 @@ export async function getCachedAccessibleWebsites(
 	return result;
 }
 
+function singleMatch(
+	matches: WebsiteSummary[],
+	selector: string
+): string | Error {
+	const [match, ...others] = matches;
+	if (!match) {
+		return new Error(`No accessible website found with ${selector}`);
+	}
+	if (others.length > 0) {
+		return new Error(
+			`${matches.length} accessible websites match ${selector}. Pass websiteId from list_websites to choose one.`
+		);
+	}
+	return match.id;
+}
+
 export async function resolveWebsiteId(
 	input: WebsiteSelectorInput,
 	principal: RequestPrincipal
@@ -184,25 +200,17 @@ export async function resolveWebsiteId(
 
 	const domain = input.websiteDomain;
 	if (domain) {
-		const match = list.find((website) =>
-			matchesWebsiteDomain(website.domain, domain)
-		);
-		if (match) {
-			return match.id;
-		}
-		return new Error(
-			`No accessible website found with domain "${input.websiteDomain}"`
+		return singleMatch(
+			list.filter((website) => matchesWebsiteDomain(website.domain, domain)),
+			`domain "${domain}"`
 		);
 	}
 
 	if (input.websiteName) {
 		const name = input.websiteName.toLowerCase();
-		const match = list.find((w) => w.name?.toLowerCase() === name);
-		if (match) {
-			return match.id;
-		}
-		return new Error(
-			`No accessible website found with name "${input.websiteName}"`
+		return singleMatch(
+			list.filter((website) => website.name?.toLowerCase() === name),
+			`name "${input.websiteName}"`
 		);
 	}
 
