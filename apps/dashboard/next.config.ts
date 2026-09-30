@@ -48,7 +48,7 @@ const nextConfig: NextConfig = {
 	outputFileTracingIncludes: {
 		"/dby/og": ["./fonts/lt-superior/*.otf"],
 	},
-	serverExternalPackages: ["pg"],
+	serverExternalPackages: ["pg", "evlog"],
 	images: {
 		remotePatterns: [
 			{
