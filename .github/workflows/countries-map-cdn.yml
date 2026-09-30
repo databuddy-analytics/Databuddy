@@ -46,8 +46,9 @@ jobs:
             -H "Content-Type: application/json" \
             --data-binary @countries.json \
             "https://${BUNNY_STORAGE_REGION:+$BUNNY_STORAGE_REGION.}storage.bunnycdn.com/$BUNNY_STORAGE_ZONE_NAME/geojson/countries.json"
-      - name: Verify it is served compressed
+      - name: Verify the CDN serves this upload compressed
         run: |
-          headers=$(curl -fsSI -H "Accept-Encoding: br, gzip" https://cdn.databuddy.cc/geojson/countries.json)
-          echo "$headers"
-          echo "$headers" | grep -qi "^content-encoding: \(br\|gzip\)"
+          curl -fsS --compressed -D headers.txt https://cdn.databuddy.cc/geojson/countries.json -o served.json
+          cat headers.txt
+          grep -qi "^content-encoding: \(br\|gzip\)" headers.txt
+          cmp served.json countries.json
