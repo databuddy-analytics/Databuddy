@@ -108,10 +108,16 @@ interface ReadingAgent extends CrawlerResult {
 
 type ReadFocus = ContentFormat | "all";
 
+interface LandingSender {
+	product: string;
+	reads: number;
+	visitors: number;
+}
+
 interface LandingPageRow {
 	name: string;
 	pageviews: number;
-	products: string[];
+	senders: LandingSender[];
 	visitors: number;
 }
 
@@ -1506,10 +1512,22 @@ function AiVisitorsPanel({
 											pages per visit from AI
 										</span>
 									</p>
-									<TotalChange
-										current={allAi.pages_per_visit}
-										previous={baseline.pages_per_visit}
-									/>
+									{Math.abs(
+										calculatePercentChange(
+											allAi.pages_per_visit,
+											baseline.pages_per_visit
+										)
+									) >= 0.5 ? (
+										<span className="flex items-center gap-1.5">
+											<TotalChange
+												current={allAi.pages_per_visit}
+												previous={baseline.pages_per_visit}
+											/>
+											<span className="text-muted-foreground text-xs">
+												vs all visitors
+											</span>
+										</span>
+									) : null}
 								</div>
 								<p className="mt-1 text-pretty text-muted-foreground text-xs tabular-nums">
 									{allAi.engaged_rate}% viewed 2+ pages, against{" "}
@@ -1558,7 +1576,8 @@ function AiVisitorsPanel({
 					<div>
 						<p className="font-semibold text-sm">Where AI sends visitors</p>
 						<p className="text-muted-foreground text-xs">
-							Pages people from AI products view
+							Pages people from AI products view, and how often those products
+							read them
 						</p>
 					</div>
 					<AskAgentButton subject="the pages AI products send visitors to" />
@@ -1571,32 +1590,51 @@ function AiVisitorsPanel({
 					</p>
 				) : (
 					<div className="flex flex-col gap-1">
-						{visibleLanding.map((row, index) => (
-							<BarRow
-								fraction={Number(row.visitors) / maxLanding}
-								key={row.name}
-								rank={index + 1}
-								tooltip={
-									<Tip
-										lines={[
-											`${formatNumber(Number(row.visitors))} AI ${Number(row.visitors) === 1 ? "visitor" : "visitors"} · ${formatNumber(Number(row.pageviews))} pageviews from everyone`,
-											`Sent by ${row.products.join(", ")}`,
-										]}
-										title={row.name}
-									/>
-								}
-								value={Number(row.visitors)}
-							>
-								<span className="relative min-w-0 flex-1 truncate text-sm">
-									{row.name}
-								</span>
-								<span className="relative flex shrink-0 items-center gap-1">
-									{row.products.map((product) => (
-										<AiProductIcon key={product} name={product} size="sm" />
-									))}
-								</span>
-							</BarRow>
-						))}
+						{visibleLanding.map((row, index) => {
+							const senders = row.senders ?? [];
+							const reads = senders.reduce(
+								(sum, sender) => sum + (Number(sender.reads) || 0),
+								0
+							);
+							return (
+								<BarRow
+									fraction={Number(row.visitors) / maxLanding}
+									key={row.name}
+									rank={index + 1}
+									tooltip={
+										<Tip
+											lines={[
+												...senders.map(
+													(sender) =>
+														`${sender.product} · ${formatNumber(Number(sender.visitors))} ${Number(sender.visitors) === 1 ? "visitor" : "visitors"} · ${Number(sender.reads) > 0 ? `read ${formatNumber(Number(sender.reads))} ${Number(sender.reads) === 1 ? "time" : "times"}` : "no reads recorded"}`
+												),
+												`${formatNumber(Number(row.pageviews))} pageviews from everyone`,
+											]}
+											title={row.name}
+										/>
+									}
+									value={Number(row.visitors)}
+								>
+									<span className="relative min-w-0 flex-1 truncate text-sm">
+										{row.name}
+									</span>
+									{reads > 0 ? (
+										<span className="relative hidden shrink-0 text-muted-foreground text-xs tabular-nums sm:inline">
+											read {formatNumber(reads)}×
+										</span>
+									) : null}
+									<span className="relative flex shrink-0 items-center gap-1">
+										{senders.slice(0, 3).map((sender) => (
+											<AiProductIcon
+												key={sender.product}
+												name={sender.product}
+												size="sm"
+											/>
+										))}
+									</span>
+								</BarRow>
+							);
+						})}
 					</div>
 				)}
 				<ShowAllButton

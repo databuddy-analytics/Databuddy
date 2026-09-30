@@ -260,28 +260,63 @@ export const AiAgentsBuilders = {
 		meta: {
 			title: "Pages AI Sends Visitors To",
 			description:
-				"Pages that visitors from AI products (referrals and AI app browsers such as Claude or Cursor) viewed, counting page views only, with the products that sent them and each page's pageviews from all visitors.",
+				"Pages that visitors from AI products (referrals and AI app browsers such as Claude or Cursor) viewed, counting page views only, with each page's pageviews from all visitors and, per AI product that sent visitors, its visitors and how many times its crawlers and agents read that page in the same period.",
 			category: "AI Agents",
-			tags: ["ai", "referrals", "pages", "visitors"],
+			tags: ["ai", "referrals", "pages", "visitors", "reads", "citations"],
 			output_fields: [
 				{ name: "page", type: "string", label: "Page" },
 				{ name: "visitors", type: "number", label: "AI visitors" },
-				{ name: "products", type: "json", label: "Sent by" },
 				{ name: "pageviews", type: "number", label: "Pageviews" },
+				{
+					name: "senders",
+					type: "json",
+					label: "Sent by (product, visitors, reads)",
+				},
 			],
 			default_visualization: "table",
 		},
 		customSql: (ctx) => ({
 			sql: `
 				SELECT
-					${PAGE} AS page,
-					uniqIf(anonymous_id, visit_product != '' AND event_name = 'screen_view') AS visitors,
-					topKIf(3)(visit_product, visit_product != '' AND event_name = 'screen_view') AS products,
-					countIf(event_name = 'screen_view') AS pageviews
+					page,
+					uniqMergeIf(visitor_state, product != '') AS visitors,
+					sum(views) AS pageviews,
+					arrayReverseSort(
+						sender -> sender.visitors,
+						groupArrayIf(
+							CAST(
+								(product, finalizeAggregation(visitor_state), reads),
+								'Tuple(product String, visitors UInt64, reads UInt64)'
+							),
+							product != ''
+						)
+					) AS senders
 				FROM (
-					SELECT path, anonymous_id, event_name, ${VISIT_PRODUCT} AS visit_product
-					FROM ${Analytics.events}
-					WHERE ${EVENT_IN_RANGE} AND path != ''
+					SELECT
+						e.page AS page,
+						e.product AS product,
+						e.visitor_state AS visitor_state,
+						e.views AS views,
+						ifNull(r.reads, 0) AS reads
+					FROM (
+						SELECT
+							${PAGE} AS page,
+							visit_product AS product,
+							uniqState(anonymous_id) AS visitor_state,
+							count() AS views
+						FROM (
+							SELECT path, anonymous_id, ${VISIT_PRODUCT} AS visit_product
+							FROM ${Analytics.events}
+							WHERE ${EVENT_IN_RANGE} AND path != '' AND event_name = 'screen_view'
+						)
+						GROUP BY page, product
+					) AS e
+					LEFT JOIN (
+						SELECT ${PAGE} AS page, ${AGENT_PRODUCT} AS product, count() AS reads
+						FROM ${Analytics.ai_traffic_spans}
+						WHERE ${AGENT_REQUEST_IN_RANGE} AND path != ''
+						GROUP BY page, product
+					) AS r ON e.page = r.page AND e.product = r.product
 				)
 				GROUP BY page
 				HAVING visitors > 0
