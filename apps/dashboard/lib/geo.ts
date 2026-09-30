@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-const countriesGeoUrl = "https://cdn.databuddy.cc/geojson/countries.geojson";
+const countriesGeoUrl = "https://cdn.databuddy.cc/geojson/countries.json";
 
 export interface Country {
 	features: Array<{
@@ -8,8 +8,6 @@ export interface Country {
 		properties: {
 			ISO_A2: string;
 			ADMIN: string;
-			ISO_A3: string;
-			BORDER: number;
 		};
 		geometry:
 			| { type: "Polygon"; coordinates: number[][][] }
