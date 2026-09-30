@@ -522,7 +522,7 @@ export const AiAgentsBuilders = {
 		meta: {
 			title: "AI Activity Digest",
 			description:
-				"Per AI product, visitors sent and requests made in the selected period and the equally long period before it, plus the pages it read in the selected period that it had not read in the 90 days before.",
+				"Per AI product, visitors sent and requests made in the selected period and the equally long period before it, plus the pages it read in the selected period that it had not read in the 90 days before. Every row also carries site-wide totals that count each visitor and page once (site_visitors, site_previous_visitors, site_new_pages); use those for whole-site numbers instead of summing the per-product columns.",
 			category: "AI Agents",
 			tags: ["ai", "digest", "summary", "week-over-week"],
 			output_fields: [
@@ -542,7 +542,18 @@ export const AiAgentsBuilders = {
 				{
 					name: "new_pages",
 					type: "number",
-					label: "Pages read for the first time",
+					label: "Pages not read in the previous 90 days",
+				},
+				{ name: "site_visitors", type: "number", label: "Site AI visitors" },
+				{
+					name: "site_previous_visitors",
+					type: "number",
+					label: "Site AI visitors, previous period",
+				},
+				{
+					name: "site_new_pages",
+					type: "number",
+					label: "Site pages not read in the previous 90 days",
 				},
 			],
 			default_visualization: "table",
@@ -552,14 +563,34 @@ export const AiAgentsBuilders = {
 				WITH
 					toDate({startDate:String}) AS current_start,
 					toDate({endDate:String}) + 1 AS period_end,
-					current_start - (period_end - current_start) AS previous_start
+					current_start - (period_end - current_start) AS previous_start,
+					(
+						SELECT (uniqIf(anonymous_id, time >= current_start), uniqIf(anonymous_id, time < current_start))
+						FROM ${Analytics.events}
+						WHERE client_id = {websiteId:String}
+							AND time >= previous_start AND time < period_end
+							AND ${VISIT_PRODUCT} != ''
+					) AS site_visitor_counts,
+					(
+						SELECT countIf(first_read >= current_start)
+						FROM (
+							SELECT ${PAGE} AS page, min(timestamp) AS first_read
+							FROM ${Analytics.ai_traffic_spans}
+							WHERE ${AGENT_REQUEST} AND path != ''
+								AND timestamp >= current_start - INTERVAL 90 DAY AND timestamp < period_end
+							GROUP BY page
+						)
+					) AS site_new_pages
 				SELECT
 					product,
 					sum(visitors_now) AS visitors,
 					sum(visitors_before) AS previous_visitors,
 					sum(requests_now) AS requests,
 					sum(requests_before) AS previous_requests,
-					sum(pages_new) AS new_pages
+					sum(pages_new) AS new_pages,
+					site_visitor_counts.1 AS site_visitors,
+					site_visitor_counts.2 AS site_previous_visitors,
+					site_new_pages
 				FROM (
 					SELECT
 						${AGENT_PRODUCT} AS product,
