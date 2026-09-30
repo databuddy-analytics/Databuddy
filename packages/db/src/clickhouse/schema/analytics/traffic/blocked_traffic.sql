@@ -28,4 +28,5 @@ CREATE TABLE IF NOT EXISTS analytics.blocked_traffic
 ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/analytics_blocked_traffic', '{replica}')
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (timestamp, client_id, id)
+TTL timestamp + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192
