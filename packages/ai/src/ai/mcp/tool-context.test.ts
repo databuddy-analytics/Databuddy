@@ -36,6 +36,8 @@ mock.module("../../lib/website-utils", () => ({
 }));
 mock.module("../../lib/accessible-websites", () => ({
 	getAccessibleWebsites: async () => sites,
+	getMemberWebsites: async () => sites,
+	getReadableOrganizationIds: async () => [],
 }));
 mock.module("@databuddy/api-keys/resolve", () => ({
 	hasKeyScope: () => true,
@@ -111,7 +113,10 @@ describe("shared agent's business-context organization boundary", () => {
 			requestHeaders: new Headers(),
 			userId: null,
 		});
-		expect(result).toEqual({ domain: "other.example.com" });
+		expect(result).toEqual({
+			domain: "other.example.com",
+			organizationId: "org-other",
+		});
 		expect(permission).toHaveBeenCalledWith(
 			expect.objectContaining({
 				body: {
