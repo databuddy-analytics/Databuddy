@@ -48,7 +48,7 @@ function VisitorLocations({ countries }: { countries: CountryDataItem[] }) {
 			countries
 				.filter((item) => item.name.trim() !== "")
 				.map((item) => ({
-					code: (item.country_code ?? item.name).toUpperCase(),
+					code: (item.country_code || item.name).toUpperCase(),
 					name: item.country_name || item.name,
 					value: item.visitors,
 				}))
