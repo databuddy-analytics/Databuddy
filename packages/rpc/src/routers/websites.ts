@@ -145,7 +145,7 @@ async function isAgentRequestRecorded(
 		.then((response) => response.body?.cancel())
 		.catch(() => undefined);
 	const statusUrl = `${config.urls.basket}/ai-traffic/setup-check/${encodeURIComponent(websiteId)}/${nonce}`;
-	for (let attempt = 0; attempt < 10; attempt++) {
+	for (let attempt = 0; attempt < 25; attempt++) {
 		const isRecorded = await fetch(statusUrl, {
 			signal: AbortSignal.timeout(2000),
 		})
@@ -155,7 +155,7 @@ async function isAgentRequestRecorded(
 		if (isRecorded) {
 			return true;
 		}
-		await sleep(300);
+		await sleep(600);
 	}
 	return false;
 }
