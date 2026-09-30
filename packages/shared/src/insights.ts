@@ -962,6 +962,12 @@ export const insightBriefItemSchema = z.object({
 	id: z.string(),
 	impact: z.string().trim().min(1).nullable(),
 	investigationId: z.string().nullable(),
+	next: z
+		.object({
+			text: z.string().trim().min(1),
+			type: z.enum(["act", "ask", "watch"]),
+		})
+		.nullable(),
 	rootCause: z.string().trim().min(1).nullable(),
 	signal: investigationSignalSchema,
 	summary: z.string().trim().min(1),

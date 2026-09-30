@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { BriefInsight } from "@/lib/insight-api";
+import { BRIEF_NEXT_LABELS, type BriefInsight } from "@/lib/insight-api";
 import {
 	LightbulbIcon,
 	TrendDownIcon,
@@ -100,7 +100,16 @@ function InsightRow({ insight }: { insight: BriefInsight }) {
 					{insight.title}
 				</span>
 				<span className="mt-0.5 line-clamp-2 block text-muted-foreground text-xs leading-relaxed">
-					{insight.summary}
+					{insight.next ? (
+						<>
+							<span className="font-medium text-foreground/80">
+								{BRIEF_NEXT_LABELS[insight.next.type]}:
+							</span>{" "}
+							{insight.next.text}
+						</>
+					) : (
+						insight.summary
+					)}
 				</span>
 				<span className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
 					<span>{insight.websiteName ?? insight.websiteDomain}</span>

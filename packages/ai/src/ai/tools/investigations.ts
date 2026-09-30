@@ -281,7 +281,7 @@ export function createInvestigationTools() {
 	return {
 		investigations: tool({
 			description:
-				"Read existing intelligence. brief returns published insights with their recommendations; list/get/reply handles durable cases. Preserve returned advice instead of adding more.",
+				"Read existing intelligence. brief returns published insights with their next steps; list/get/reply handles durable cases. Preserve returned advice instead of adding more.",
 			inputSchema: investigationActionSchema,
 			execute: (input, options) =>
 				runInvestigationAction(

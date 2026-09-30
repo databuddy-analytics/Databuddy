@@ -11,7 +11,11 @@ import {
 	useBillingContext,
 	useInvestigationUsage,
 } from "@/components/providers/billing-provider";
-import { type BriefInsight, insightQueries } from "@/lib/insight-api";
+import {
+	BRIEF_NEXT_LABELS,
+	type BriefInsight,
+	insightQueries,
+} from "@/lib/insight-api";
 import { APP_EVENTS, trackAppEvent } from "@/lib/app-events";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
@@ -849,6 +853,14 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 						</Badge>
 					) : null}
 				</div>
+				{insight.next ? (
+					<p className="mt-2 line-clamp-2 max-w-3xl text-foreground/85 text-sm leading-relaxed">
+						<span className="font-semibold text-foreground">
+							{BRIEF_NEXT_LABELS[insight.next.type]}:
+						</span>{" "}
+						{insight.next.text}
+					</p>
+				) : null}
 				<dl className="mt-3 grid gap-2 border-muted border-l-2 pl-3 text-xs leading-relaxed sm:grid-cols-2 sm:gap-x-5">
 					<div className="sm:col-span-2">
 						<dt className="font-semibold text-foreground/75">What happened</dt>

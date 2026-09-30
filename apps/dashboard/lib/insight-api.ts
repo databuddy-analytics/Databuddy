@@ -94,6 +94,15 @@ function fetchInsightsBriefPage(
 type InsightsBriefPage = Awaited<ReturnType<typeof fetchInsightsBriefPage>>;
 export type BriefInsight = InsightsBriefPage["insights"][number];
 
+export const BRIEF_NEXT_LABELS: Record<
+	NonNullable<BriefInsight["next"]>["type"],
+	string
+> = {
+	act: "Next step",
+	ask: "Needs your input",
+	watch: "Measuring",
+};
+
 function fetchInsightsHistoryPage(
 	organizationId: string,
 	offset: number,

@@ -5,9 +5,9 @@ export const GUIDE_URI = "databuddy://guide";
 export const MCP_INSTRUCTIONS = `Databuddy gives agents product analytics and durable investigations.
 
 - Use get_data for current analytics. Batch related queries.
-- Use list_insights for published findings. Preserve each returned recommendation exactly; if it is null, do not add advice.
+- Use list_insights for published findings. Preserve each returned next step exactly; if next is null, do not add advice.
 - Use list_investigations to find cases, then get_investigation for evidence and history.
-- Use reply_to_investigation for an included clarification of the same question using saved evidence. It does not fetch new measurements or change actions. Start a new question or fresh analysis explicitly in the dashboard. It uses one included investigation; additional investigations cost $${INVESTIGATION_USAGE.priceUsd} each after the allowance.
+- Use reply_to_investigation for a clarification of the same question using saved evidence. It is not billed, does not fetch new measurements, and does not change actions. Start a new question or fresh analysis explicitly in the dashboard.
 - After a queued reply, poll get_investigation and reuse the same replyId on retries.
 - Use capabilities only when you need to discover query types, and get_schema only when a field is uncertain.
 - Most website-scoped tools accept websiteId, websiteName, or websiteDomain; tools that operate by a returned ID may not.
@@ -27,9 +27,9 @@ Use \`get_data\` for analytics. It can run one query or batch related queries. P
 
 ## Insights
 
-\`list_insights\` returns published findings, including quiet findings that did not need an open investigation. It preserves the evidence-backed recommendation selected when the insight was generated.
+\`list_insights\` returns published findings, including quiet findings that did not need an open investigation. Each finding carries the evidence-backed next step chosen when it was generated: \`next.type\` is \`act\`, \`ask\`, or \`watch\`, and \`next\` is null when nothing needs doing.
 
-Present the returned title, summary, evidence, impact, root cause, and recommendation as existing intelligence. Do not append a new diagnosis, recommendation, checklist, or next step. When \`recommendation\` is null, do not invent one.
+Present the returned title, summary, evidence, impact, root cause, and next step as existing intelligence. Do not append a new diagnosis, recommendation, checklist, or next step. When \`next\` is null, do not invent one.
 
 ## Investigations
 

@@ -37,6 +37,7 @@ import {
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { getWebsiteBusinessScope } from "@databuddy/services/business-memory";
 import {
+	formatInvestigationNext,
 	historyInsightSchema,
 	insightBriefItemSchema,
 	insightReplySlackDeliverySchema,
@@ -362,6 +363,11 @@ const insightBriefSelection = {
 	investigationId: analyticsInsights.id,
 	outcome: insightObservations.outcome,
 	signal: insightObservations.signal,
+	superseded: sql<boolean>`exists (
+		select 1 from insight_observations later
+		where later.insight_id = ${insightObservations.insightId}
+			and (later.created_at, later.id) > (${insightObservations.createdAt}, ${insightObservations.id})
+	)`,
 	websiteDomain: websites.domain,
 	websiteId: insightObservations.websiteId,
 	websiteName: websites.name,
@@ -374,6 +380,7 @@ interface InsightBriefRow {
 	investigationId: string | null;
 	outcome: (typeof insightObservations.$inferSelect)["outcome"];
 	signal: (typeof insightObservations.$inferSelect)["signal"];
+	superseded: boolean;
 	websiteDomain: string;
 	websiteId: string;
 	websiteName: string | null;
@@ -394,6 +401,13 @@ function serializeInsightBrief(
 		id: row.id,
 		impact: outcome.impact,
 		investigationId: row.investigationId ?? null,
+		next:
+			row.superseded || outcome.next.type === "resolve"
+				? null
+				: {
+						text: formatInvestigationNext(outcome, signal),
+						type: outcome.next.type,
+					},
 		rootCause: outcome.rootCause,
 		signal,
 		summary: outcome.summary,

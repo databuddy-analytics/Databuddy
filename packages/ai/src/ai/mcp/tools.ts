@@ -156,7 +156,7 @@ const listInsightsTool = defineMcpTool(
 	{
 		name: "list_insights",
 		description:
-			"List published insights, including quiet findings and their evidence-backed recommendations. Present the returned intelligence as written without adding advice.",
+			"List published insights, including quiet findings and their evidence-backed next steps. Present the returned intelligence as written without adding advice.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			limit: z.number().int().min(1).max(100).optional().default(20),

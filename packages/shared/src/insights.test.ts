@@ -433,7 +433,11 @@ describe("insightBriefItemSchema", () => {
 			id: "observation-1",
 			impact: outcomeBase.impact,
 			investigationId: null,
-			next: outcomeBase.next,
+			next: {
+				recheckAt: "2026-07-14T00:00:00.000Z",
+				text: "Set the signup goal target to /welcome.",
+				type: "act",
+			},
 			rootCause: outcomeBase.rootCause,
 			signal,
 			summary: outcomeBase.summary,
@@ -445,7 +449,10 @@ describe("insightBriefItemSchema", () => {
 
 		expect(parsed.investigationId).toBeNull();
 		expect(parsed.signal.entity.label).toBe("Signup completed");
-		expect(parsed).not.toHaveProperty("next");
+		expect(parsed.next).toEqual({
+			text: "Set the signup goal target to /welcome.",
+			type: "act",
+		});
 	});
 
 	it("rejects incomplete observations", () => {
