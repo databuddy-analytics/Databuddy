@@ -1,7 +1,9 @@
 "use client";
 
+import { useTheme } from "next-themes";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePrefersReducedMotion } from "@/components/ui/dotmatrix/hooks";
 import { formatNumber } from "@/lib/formatters";
 import { type Country, featureCountryCode, useCountries } from "@/lib/geo";
 import { cn } from "@/lib/utils";
@@ -15,70 +17,40 @@ export interface GlobeCountry {
 interface GlobeMapProps {
 	className?: string;
 	countries: GlobeCountry[];
-	/** Rotates the globe to face this country and highlights it. */
 	focusCode?: string | null;
 	onHoverChange?: (code: string | null) => void;
 }
 
-interface Dot {
-	country: number;
-	sx: number;
-	sy: number;
-	visible: boolean;
+interface Point {
 	x: number;
 	y: number;
 	z: number;
 }
 
-interface LandCountry {
-	center: { lat: number; lon: number };
-	code: string;
-	name: string;
+interface Dot extends Point {
+	country: number;
+	sx: number;
+	sy: number;
+	visible: boolean;
 }
 
-type Ring = number[][];
+interface LatLon {
+	lat: number;
+	lon: number;
+}
 
 const RAD = Math.PI / 180;
-/** Angular distance between dots, in degrees. */
 const DOT_SPACING = 1.5;
-/** Sphere radius as a share of the canvas size; the CSS sphere uses the same inset. */
 const SPHERE_SCALE = 0.45;
 const SPIN_DEG_PER_SEC = 6;
+const SPIN_FRAME_MS = 1000 / 80;
+const MAX_DPR = 2;
 const EMPTY_ALPHA = 0.16;
 const ALPHA_LEVELS = 20;
 const HOVER_RADIUS_PX = 10;
+const TAP_SLOP_PX = 4;
 
-function polygonsOf(geometry: {
-	coordinates: unknown;
-	type: string;
-}): Ring[][] {
-	return geometry.type === "MultiPolygon"
-		? (geometry.coordinates as Ring[][])
-		: [geometry.coordinates as Ring[]];
-}
-
-// Even-odd ray cast in lon/lat space, holes included. Planar is fine at
-// Natural Earth 1:110m, which already splits shapes at the antimeridian.
-function inPolygon(rings: Ring[], lon: number, lat: number): boolean {
-	let inside = false;
-	for (const ring of rings) {
-		let prev = ring.at(-1);
-		for (const point of ring) {
-			const [xi = 0, yi = 0] = point;
-			const [xj = 0, yj = 0] = prev ?? point;
-			if (
-				yi > lat !== yj > lat &&
-				lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi
-			) {
-				inside = !inside;
-			}
-			prev = point;
-		}
-	}
-	return inside;
-}
-
-function toUnit(lon: number, lat: number) {
+function toUnit(lon: number, lat: number): Point {
 	return {
 		x: Math.cos(lat * RAD) * Math.sin(lon * RAD),
 		y: Math.sin(lat * RAD),
@@ -86,85 +58,103 @@ function toUnit(lon: number, lat: number) {
 	};
 }
 
-/** Samples the land as evenly spaced dots on the sphere, each tagged with its country. */
-function buildGlobe(geo: Country): { countries: LandCountry[]; dots: Dot[] } {
-	const shapes = geo.features
-		.filter((feature) => feature.properties.ISO_A2 !== "AQ")
-		.map((feature) => {
-			const polygons = polygonsOf(feature.geometry);
-			let [west, south, east, north] = [180, 90, -180, -90];
-			for (const polygon of polygons) {
-				for (const [lon = 0, lat = 0] of polygon[0] ?? []) {
-					west = Math.min(west, lon);
-					east = Math.max(east, lon);
-					south = Math.min(south, lat);
-					north = Math.max(north, lat);
-				}
-			}
-			return { east, feature, north, polygons, south, west };
-		});
+function centerOf(points: Point[]): LatLon {
+	let [x, y, z] = [0, 0, 0];
+	for (const point of points) {
+		x += point.x;
+		y += point.y;
+		z += point.z;
+	}
+	return {
+		lat: Math.asin(y / Math.hypot(x, y, z)) / RAD,
+		lon: Math.atan2(x, z) / RAD,
+	};
+}
 
-	const dots: Dot[] = [];
-	const addDot = (country: number, lon: number, lat: number) =>
-		dots.push({ country, sx: 0, sy: 0, visible: false, ...toUnit(lon, lat) });
+function dotAt(country: number, lon: number, lat: number): Dot {
+	return { country, sx: 0, sy: 0, visible: false, ...toUnit(lon, lat) };
+}
+
+function buildGlobe(geo: Country) {
+	const features = geo.features.filter(
+		(feature) => feature.properties.ISO_A2 !== "AQ"
+	);
+	const shapes = features.map(({ geometry }) =>
+		(geometry.type === "MultiPolygon"
+			? geometry.coordinates
+			: [geometry.coordinates]
+		).map((rings) => {
+			const lats = rings[0].map(([, lat]) => lat);
+			return {
+				dots: [] as Dot[],
+				north: Math.max(...lats),
+				rings,
+				south: Math.min(...lats),
+			};
+		})
+	);
 
 	for (let lat = -58 + DOT_SPACING / 2; lat < 84; lat += DOT_SPACING) {
 		const count = Math.round((360 * Math.cos(lat * RAD)) / DOT_SPACING);
-		for (let i = 0; i < count; i++) {
-			const lon = -180 + ((i + 0.5) * 360) / count;
-			const country = shapes.findIndex(
-				(s) =>
-					lon >= s.west &&
-					lon <= s.east &&
-					lat >= s.south &&
-					lat <= s.north &&
-					s.polygons.some((polygon) => inPolygon(polygon, lon, lat))
-			);
-			if (country !== -1) {
-				addDot(country, lon, lat);
+		const taken = new Uint8Array(count);
+		for (const [country, polygons] of shapes.entries()) {
+			for (const polygon of polygons) {
+				if (lat < polygon.south || lat > polygon.north) {
+					continue;
+				}
+				const crossings: number[] = [];
+				for (const ring of polygon.rings) {
+					let [xj, yj] = ring.at(-1) ?? [0, 0];
+					for (const [xi, yi] of ring) {
+						if (yi > lat !== yj > lat) {
+							crossings.push(((xj - xi) * (lat - yi)) / (yj - yi) + xi);
+						}
+						[xj, yj] = [xi, yi];
+					}
+				}
+				crossings.sort((a, b) => a - b);
+				for (let k = 1; k < crossings.length; k += 2) {
+					const first = Math.ceil(
+						((crossings[k - 1] + 180) * count) / 360 - 0.5
+					);
+					const end = Math.ceil(((crossings[k] + 180) * count) / 360 - 0.5);
+					for (let i = Math.max(first, 0); i < Math.min(end, count); i++) {
+						if (!taken[i]) {
+							taken[i] = 1;
+							polygon.dots.push(
+								dotAt(country, -180 + ((i + 0.5) * 360) / count, lat)
+							);
+						}
+					}
+				}
 			}
 		}
 	}
 
-	const sums = shapes.map(() => ({ n: 0, x: 0, y: 0, z: 0 }));
-	for (const dot of dots) {
-		const sum = sums[dot.country];
-		if (sum) {
-			sum.n += 1;
-			sum.x += dot.x;
-			sum.y += dot.y;
-			sum.z += dot.z;
-		}
-	}
-
-	const countries = shapes.map((shape, index) => {
-		const sum = sums[index];
-		let center = {
-			lat: (shape.south + shape.north) / 2,
-			lon: (shape.west + shape.east) / 2,
-		};
-		if (sum && sum.n > 0) {
-			const length = Math.hypot(sum.x, sum.y, sum.z);
-			center = {
-				lat: Math.asin(sum.y / length) / RAD,
-				lon: Math.atan2(sum.x, sum.z) / RAD,
-			};
-		} else {
-			// Too small for the grid; one dot keeps it visible.
-			addDot(index, center.lon, center.lat);
+	const dots = shapes.flatMap((polygons) => polygons.flatMap((p) => p.dots));
+	const countries = shapes.map((polygons, country) => {
+		const main = polygons.reduce((a, b) =>
+			b.dots.length > a.dots.length ? b : a
+		);
+		const center = centerOf(
+			main.dots.length > 0
+				? main.dots
+				: main.rings[0].map(([lon, lat]) => toUnit(lon, lat))
+		);
+		if (main.dots.length === 0) {
+			dots.push(dotAt(country, center.lon, center.lat));
 		}
 		return {
 			center,
-			code: featureCountryCode(shape.feature.properties),
-			name: shape.feature.properties.ADMIN,
+			code: featureCountryCode(features[country].properties),
+			name: features[country].properties.ADMIN,
 		};
 	});
 
 	return { countries, dots };
 }
 
-/** Where the camera looks when facing a country; tilt is capped so the poles stay tidy. */
-function viewOf(center: { lat: number; lon: number }) {
+function viewOf(center: LatLon): LatLon {
 	return { lat: Math.max(-20, Math.min(20, center.lat)), lon: center.lon };
 }
 
@@ -176,18 +166,21 @@ export function GlobeMap({
 }: GlobeMapProps) {
 	const { data: geo } = useCountries();
 	const globe = useMemo(() => (geo ? buildGlobe(geo) : null), [geo]);
+	const reduceMotion = usePrefersReducedMotion();
+	const { resolvedTheme } = useTheme();
 
 	const canvasRef = useRef<HTMLCanvasElement>(null);
-	const viewRef = useRef({ lat: 15, lon: 0 });
-	const targetRef = useRef<{ lat: number; lon: number } | null>(null);
-	const styleRef = useRef({ highlight: -1, intensity: [] as number[] });
-	const dirtyRef = useRef(true);
-	const aimedRef = useRef(false);
-	const pointerRef = useRef({
+	const sceneRef = useRef({
+		aimed: false,
+		dirty: true,
+		drag: null as null | (LatLon & { x: number; y: number }),
+		highlight: -1,
 		inside: false,
-		drag: null as null | { lat: number; lon: number; x: number; y: number },
+		intensity: [] as number[],
+		target: null as LatLon | null,
+		view: { lat: 15, lon: 0 },
 	});
-	const hoverRef = useRef<string | null>(null);
+	const wakeRef = useRef(() => {});
 	const [tooltip, setTooltip] = useState<{
 		index: number;
 		x: number;
@@ -195,7 +188,7 @@ export function GlobeMap({
 	} | null>(null);
 
 	const valueByCode = useMemo(
-		() => new Map(countries.map((c) => [c.code.toUpperCase(), c] as const)),
+		() => new Map(countries.map((c) => [c.code, c] as const)),
 		[countries]
 	);
 
@@ -214,27 +207,30 @@ export function GlobeMap({
 			return;
 		}
 		const max = Math.max(0, ...countries.map((c) => c.value));
-		styleRef.current = {
-			highlight: highlightCode ? (indexByCode.get(highlightCode) ?? -1) : -1,
-			intensity: globe.countries.map((c) => {
-				const value = valueByCode.get(c.code)?.value ?? 0;
-				return value > 0 && max > 0 ? Math.sqrt(value / max) : -1;
-			}),
-		};
-		dirtyRef.current = true;
+		const scene = sceneRef.current;
+		scene.highlight = highlightCode
+			? (indexByCode.get(highlightCode) ?? -1)
+			: -1;
+		scene.intensity = globe.countries.map((c) => {
+			const value = valueByCode.get(c.code)?.value ?? 0;
+			return value > 0 ? Math.sqrt(value / max) : -1;
+		});
+		scene.dirty = true;
+		wakeRef.current();
 	}, [globe, countries, valueByCode, indexByCode, highlightCode]);
 
 	useEffect(() => {
-		if (!globe || aimedRef.current || countries.length === 0) {
+		const scene = sceneRef.current;
+		if (!globe || scene.aimed || countries.length === 0) {
 			return;
 		}
 		const top = countries.reduce((a, b) => (b.value > a.value ? b : a));
-		const center =
-			globe.countries[indexByCode.get(top.code.toUpperCase()) ?? -1]?.center;
+		const center = globe.countries[indexByCode.get(top.code) ?? -1]?.center;
 		if (center) {
-			viewRef.current = viewOf(center);
-			aimedRef.current = true;
-			dirtyRef.current = true;
+			scene.view = viewOf(center);
+			scene.aimed = true;
+			scene.dirty = true;
+			wakeRef.current();
 		}
 	}, [globe, countries, indexByCode]);
 
@@ -242,7 +238,8 @@ export function GlobeMap({
 		const center = focusCode
 			? globe?.countries[indexByCode.get(focusCode) ?? -1]?.center
 			: undefined;
-		targetRef.current = center ? viewOf(center) : null;
+		sceneRef.current.target = center ? viewOf(center) : null;
+		wakeRef.current();
 	}, [globe, focusCode, indexByCode]);
 
 	useEffect(() => {
@@ -251,8 +248,10 @@ export function GlobeMap({
 		if (!(canvas && ctx && globe)) {
 			return;
 		}
-		const color = getComputedStyle(canvas).getPropertyValue("--info");
-		const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+		const scene = sceneRef.current;
+		const style = getComputedStyle(canvas);
+		const landColor = style.getPropertyValue("--globe-land");
+		const dataColor = style.getPropertyValue("--globe-data");
 		const size = { dpr: 1, height: 0, width: 0 };
 
 		const draw = () => {
@@ -263,14 +262,12 @@ export function GlobeMap({
 			const radius = Math.min(width, height) * SPHERE_SCALE;
 			const cx = width / 2;
 			const cy = height / 2;
-			const { lon, lat } = viewRef.current;
+			const { lon, lat } = scene.view;
 			const [cosL, sinL] = [Math.cos(lon * RAD), Math.sin(lon * RAD)];
 			const [cosT, sinT] = [Math.cos(lat * RAD), Math.sin(lat * RAD)];
-			const { highlight, intensity } = styleRef.current;
-			// One path per opacity step keeps it to a handful of fills per frame.
-			const layers = Array.from(
-				{ length: ALPHA_LEVELS + 1 },
-				() => new Path2D()
+			const { highlight, intensity } = scene;
+			const [land, data] = [0, 1].map(() =>
+				Array.from({ length: ALPHA_LEVELS + 1 }, () => new Path2D())
 			);
 
 			for (const dot of globe.dots) {
@@ -294,116 +291,119 @@ export function GlobeMap({
 				const r =
 					radius * (t < 0 ? 0.0065 : 0.007 + 0.003 * t) * (0.55 + 0.45 * depth);
 
-				const layer = layers[Math.round(alpha * ALPHA_LEVELS)];
-				layer?.moveTo(dot.sx + r, dot.sy);
-				layer?.arc(dot.sx, dot.sy, r, 0, Math.PI * 2);
+				const layer = (t < 0 ? land : data)[Math.round(alpha * ALPHA_LEVELS)];
+				layer.moveTo(dot.sx + r, dot.sy);
+				layer.arc(dot.sx, dot.sy, r, 0, Math.PI * 2);
 			}
 
-			ctx.fillStyle = color;
-			for (const [level, layer] of layers.entries()) {
-				if (level > 0) {
-					ctx.globalAlpha = level / ALPHA_LEVELS;
-					ctx.fill(layer);
+			for (const [layers, color] of [
+				[land, landColor],
+				[data, dataColor],
+			] as const) {
+				ctx.fillStyle = color;
+				for (const [level, layer] of layers.entries()) {
+					if (level > 0) {
+						ctx.globalAlpha = level / ALPHA_LEVELS;
+						ctx.fill(layer);
+					}
 				}
 			}
 			ctx.globalAlpha = 1;
 		};
 
 		let frame: number | null = null;
+		let isOnScreen = false;
 		let last = 0;
+		let lastDraw = 0;
 		const tick = (time: number) => {
+			frame = null;
 			const dt = last ? Math.min((time - last) / 1000, 0.1) : 0;
 			last = time;
-			const view = viewRef.current;
-			const target = targetRef.current;
-			const { inside, drag } = pointerRef.current;
+			const { view, target, drag } = scene;
 
+			let isEasing = false;
+			const isSpinning = !(target || drag || scene.inside || reduceMotion);
 			if (target && !drag) {
 				const ease = reduceMotion ? 1 : Math.min(1, dt * 6);
 				const dLon = ((((target.lon - view.lon) % 360) + 540) % 360) - 180;
-				if (Math.abs(dLon) + Math.abs(target.lat - view.lat) > 0.01) {
+				isEasing = Math.abs(dLon) + Math.abs(target.lat - view.lat) > 0.01;
+				if (isEasing) {
 					view.lon += dLon * ease;
 					view.lat += (target.lat - view.lat) * ease;
-					dirtyRef.current = true;
 				}
-			} else if (!(inside || reduceMotion)) {
+			} else if (isSpinning) {
 				view.lon -= SPIN_DEG_PER_SEC * dt;
-				dirtyRef.current = true;
 			}
 
-			if (dirtyRef.current && size.width > 0) {
-				dirtyRef.current = false;
+			const isMoving = isEasing || isSpinning;
+			const isThrottled = isSpinning && time - lastDraw < SPIN_FRAME_MS;
+			if ((isMoving || scene.dirty) && size.width > 0 && !isThrottled) {
+				scene.dirty = false;
+				lastDraw = time;
 				draw();
 			}
-			frame = requestAnimationFrame(tick);
-		};
-		const start = () => {
-			frame ??= requestAnimationFrame(tick);
-		};
-		const stop = () => {
-			if (frame !== null) {
-				cancelAnimationFrame(frame);
+			if (isMoving || scene.dirty) {
+				frame = requestAnimationFrame(tick);
+			} else {
+				last = 0;
 			}
-			frame = null;
-			last = 0;
 		};
+		const wake = () => {
+			if (isOnScreen) {
+				frame ??= requestAnimationFrame(tick);
+			}
+		};
+		wakeRef.current = wake;
 
 		const resize = new ResizeObserver(([entry]) => {
-			if (!entry) {
-				return;
-			}
 			size.width = entry.contentRect.width;
 			size.height = entry.contentRect.height;
-			size.dpr = window.devicePixelRatio || 1;
+			size.dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
 			canvas.width = Math.round(size.width * size.dpr);
 			canvas.height = Math.round(size.height * size.dpr);
-			dirtyRef.current = true;
+			scene.dirty = true;
+			wake();
 		});
 		const visibility = new IntersectionObserver(([entry]) => {
-			if (entry?.isIntersecting) {
-				start();
-			} else {
-				stop();
+			isOnScreen = entry.isIntersecting;
+			if (isOnScreen) {
+				wake();
+			} else if (frame !== null) {
+				cancelAnimationFrame(frame);
+				frame = null;
+				last = 0;
 			}
 		});
 		resize.observe(canvas);
 		visibility.observe(canvas);
 
 		return () => {
+			isOnScreen = false;
 			resize.disconnect();
 			visibility.disconnect();
-			stop();
+			if (frame !== null) {
+				cancelAnimationFrame(frame);
+			}
 		};
-	}, [globe]);
+	}, [globe, reduceMotion, resolvedTheme]);
 
-	const setHover = (next: { index: number; x: number; y: number } | null) => {
+	const setHover = (next: typeof tooltip) => {
 		setTooltip(next);
-		const code = next ? (globe?.countries[next.index]?.code ?? null) : null;
-		if (code !== hoverRef.current) {
-			hoverRef.current = code;
-			onHoverChange?.(code);
-		}
+		onHoverChange?.(next ? (globe?.countries[next.index]?.code ?? null) : null);
 	};
 
-	const handlePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+	const pointerOffset = (event: ReactPointerEvent<HTMLCanvasElement>) => {
 		const bounds = event.currentTarget.getBoundingClientRect();
-		const x = event.clientX - bounds.left;
-		const y = event.clientY - bounds.top;
-		const { drag } = pointerRef.current;
+		return {
+			height: bounds.height,
+			width: bounds.width,
+			x: event.clientX - bounds.left,
+			y: event.clientY - bounds.top,
+		};
+	};
 
-		if (drag) {
-			const radius = Math.min(bounds.width, bounds.height) * SPHERE_SCALE;
-			viewRef.current = {
-				lat: Math.max(
-					-60,
-					Math.min(60, drag.lat + (y - drag.y) / radius / RAD)
-				),
-				lon: drag.lon - (x - drag.x) / radius / RAD,
-			};
-			dirtyRef.current = true;
-			return;
-		}
-
+	const hoverAt = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+		const { height, width, x, y } = pointerOffset(event);
 		let nearest: Dot | null = null;
 		let best = HOVER_RADIUS_PX ** 2;
 		for (const dot of globe?.dots ?? []) {
@@ -413,7 +413,9 @@ export function GlobeMap({
 				nearest = dot;
 			}
 		}
-		setHover(nearest ? { index: nearest.country, x, y } : null);
+		setHover(
+			nearest ? { index: nearest.country, x: x / width, y: y / height } : null
+		);
 	};
 
 	const tooltipCountry = tooltip ? globe?.countries[tooltip.index] : undefined;
@@ -425,53 +427,82 @@ export function GlobeMap({
 		<div className={cn("relative aspect-square w-full", className)}>
 			<div
 				aria-hidden
-				className="absolute inset-[5%] rounded-full ring-1 ring-border/60"
-				style={{
-					background:
-						"radial-gradient(circle at 34% 28%, var(--card) 28%, var(--muted) 62%, var(--accent-disabled) 100%)",
-				}}
+				className="absolute rounded-full bg-[radial-gradient(circle_at_34%_28%,var(--card)_28%,var(--muted)_62%,var(--accent-disabled))] ring-1 ring-border/60 dark:bg-[radial-gradient(circle_at_34%_28%,var(--muted),var(--card)_70%)]"
+				style={{ inset: `${(0.5 - SPHERE_SCALE) * 100}%` }}
 			/>
 			<canvas
 				aria-label="Globe of visitors by country"
-				className="absolute inset-0 size-full cursor-grab touch-none active:cursor-grabbing"
+				className="absolute inset-0 size-full cursor-grab touch-pan-y [--globe-data:var(--info)] [--globe-land:var(--info)] active:cursor-grabbing dark:[--globe-data:var(--chart-4)] dark:[--globe-land:var(--muted-foreground)]"
 				onPointerCancel={() => {
-					pointerRef.current.drag = null;
+					sceneRef.current.drag = null;
 				}}
 				onPointerDown={(event) => {
-					const bounds = event.currentTarget.getBoundingClientRect();
+					if (event.button !== 0) {
+						return;
+					}
 					event.currentTarget.setPointerCapture(event.pointerId);
-					pointerRef.current.drag = {
-						...viewRef.current,
-						x: event.clientX - bounds.left,
-						y: event.clientY - bounds.top,
-					};
+					const { x, y } = pointerOffset(event);
+					sceneRef.current.drag = { ...sceneRef.current.view, x, y };
 					setHover(null);
 				}}
 				onPointerEnter={() => {
-					pointerRef.current.inside = true;
+					sceneRef.current.inside = true;
 				}}
-				onPointerLeave={() => {
-					pointerRef.current.inside = false;
-					setHover(null);
+				onPointerLeave={(event) => {
+					if (event.pointerType === "mouse") {
+						sceneRef.current.inside = false;
+						setHover(null);
+						wakeRef.current();
+					}
 				}}
-				onPointerMove={handlePointerMove}
-				onPointerUp={() => {
-					pointerRef.current.drag = null;
+				onPointerMove={(event) => {
+					const scene = sceneRef.current;
+					if (!scene.drag) {
+						hoverAt(event);
+						return;
+					}
+					if (event.buttons === 0) {
+						scene.drag = null;
+						return;
+					}
+					const { height, width, x, y } = pointerOffset(event);
+					const radius = Math.min(width, height) * SPHERE_SCALE;
+					scene.view = {
+						lat: Math.max(
+							-60,
+							Math.min(60, scene.drag.lat + (y - scene.drag.y) / radius / RAD)
+						),
+						lon: scene.drag.lon - (x - scene.drag.x) / radius / RAD,
+					};
+					scene.dirty = true;
+					wakeRef.current();
+				}}
+				onPointerUp={(event) => {
+					const { drag } = sceneRef.current;
+					sceneRef.current.drag = null;
+					const { x, y } = pointerOffset(event);
+					if (drag && Math.hypot(x - drag.x, y - drag.y) < TAP_SLOP_PX) {
+						hoverAt(event);
+					}
 				}}
 				ref={canvasRef}
 				role="img"
 			/>
 			{tooltip && tooltipCountry && (
 				<div
-					className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-md border bg-popover px-2.5 py-1.5 text-xs shadow-sm"
-					style={{ left: tooltip.x, top: tooltip.y - 10 }}
+					className="pointer-events-none absolute z-10 whitespace-nowrap rounded-md border bg-popover px-2.5 py-1.5 text-xs shadow-sm"
+					style={{
+						left: `${tooltip.x * 100}%`,
+						top: `${tooltip.y * 100}%`,
+						transform: `translate(${tooltip.x * -100}%, calc(-100% - 10px))`,
+					}}
 				>
 					<p className="font-medium text-foreground">
 						{tooltipData?.name || tooltipCountry.name}
 					</p>
 					<p className="text-muted-foreground tabular-nums">
 						{tooltipData
-							? `${formatNumber(tooltipData.value)} visitors`
+							? `${formatNumber(tooltipData.value)} ${tooltipData.value === 1 ? "visitor" : "visitors"}`
 							: "No visitors"}
 					</p>
 				</div>
