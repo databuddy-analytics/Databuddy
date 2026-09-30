@@ -3,6 +3,8 @@ import { getBullMQConnectionOptions } from "./bullmq";
 
 export const INSIGHTS_QUEUE_ENV_PREFIX = "INSIGHTS";
 export const INSIGHTS_QUEUE_NAME = "insights-generation";
+export const AI_DIGEST_DISPATCH_JOB_NAME = "ai-digest-dispatch";
+export const AI_DIGEST_WEBSITE_JOB_NAME = "ai-digest-website";
 export const INSIGHTS_DISPATCH_JOB_NAME = "insights-dispatch";
 export const INSIGHTS_GENERATE_WEBSITE_JOB_NAME = "insights-generate-website";
 export const INSIGHTS_MAINTENANCE_JOB_NAME = "insights-maintenance";
@@ -39,6 +41,16 @@ export interface InsightsMaintenanceJobData {
 	triggeredAt: string;
 }
 
+export interface AiDigestDispatchJobData {
+	reason: "ai_digest";
+	triggeredAt: string;
+}
+
+export interface AiDigestWebsiteJobData {
+	websiteId: string;
+	weekStart: string;
+}
+
 export interface InsightsResumeJobData {
 	replyId: string;
 }
@@ -53,6 +65,8 @@ export interface InsightsGenerateWebsiteJobData {
 }
 
 export type InsightsQueueJobData =
+	| AiDigestDispatchJobData
+	| AiDigestWebsiteJobData
 	| InsightsDispatchJobData
 	| InsightsGenerateWebsiteJobData
 	| InsightsMaintenanceJobData
@@ -82,6 +96,10 @@ export async function closeInsightsQueue(): Promise<void> {
 
 export function insightsWebsiteJobId(runId: string, websiteId: string): string {
 	return `insights-website-${runId}-${websiteId}`;
+}
+
+export function aiDigestJobId(weekStart: string, websiteId: string): string {
+	return `ai-digest-${weekStart}-${websiteId}`;
 }
 
 export function insightsResumeJobId(replyId: string): string {

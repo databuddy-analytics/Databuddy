@@ -10,15 +10,16 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@slack/web-api": "8.1.1",
     "@databuddy/ai": "workspace:*",
     "@databuddy/db": "workspace:*",
+    "@databuddy/email": "workspace:*",
     "@databuddy/encryption": "workspace:*",
     "@databuddy/env": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/rpc": "workspace:*",
     "@databuddy/services": "workspace:*",
     "@databuddy/shared": "workspace:*",
+    "@slack/web-api": "8.1.1",
     "ai": "^6.0.188",
     "autumn-js": "catalog:",
     "bullmq": "^5.78.0",

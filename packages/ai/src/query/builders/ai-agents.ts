@@ -74,6 +74,21 @@ function queryParams(ctx: CustomSqlContext) {
 	};
 }
 
+export function aiActiveWebsitesQuery(from: string, to: string) {
+	return {
+		sql: `
+			SELECT client_id FROM ${Analytics.ai_traffic_spans}
+			WHERE timestamp >= toDateTime({from:String}) AND timestamp < toDateTime({to:String}) AND agent_id != ''
+			GROUP BY client_id
+			UNION DISTINCT
+			SELECT client_id FROM ${Analytics.events}
+			WHERE time >= toDateTime({from:String}) AND time < toDateTime({to:String}) AND ${VISIT_PRODUCT} != ''
+			GROUP BY client_id
+		`,
+		params: { from, to, ...AI_VISIT_PARAMS },
+	};
+}
+
 export const AiAgentsBuilders = {
 	ai_products: {
 		meta: {
