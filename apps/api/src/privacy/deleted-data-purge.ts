@@ -1,10 +1,9 @@
-import { db, inArray } from "@databuddy/db";
+import { type AnyColumn, db, sql } from "@databuddy/db";
 import {
 	listLinksWithStoredVisits,
 	listOwnersWithStoredData,
 	purgeAnalyticsData,
 	purgeLinkVisits,
-	type StoredDataOwner,
 } from "@databuddy/db/clickhouse";
 import { links, organization, user, websites } from "@databuddy/db/schema";
 import { redis } from "@databuddy/redis";
@@ -15,31 +14,26 @@ const PURGE_INTERVAL_SECONDS = 6 * 60 * 60;
 const PURGE_LOCK_KEY = "deleted-data-purge:lock";
 // A missing or wrong Postgres would make every owner look deleted.
 const MAX_DELETED_SHARE = 0.25;
-const EXISTENCE_CHUNK_SIZE = 10_000;
 
-interface PurgeTarget {
-	kind: "owner" | "link";
-	listExisting: (ids: string[]) => Promise<{ id: string }[]>;
-	listStored: () => Promise<StoredDataOwner[]>;
-	purge: (ids: string[]) => Promise<void>;
-}
+const isAnyOf = (column: AnyColumn, ids: string[]) =>
+	sql`${column} = any(${sql.param(ids)})`;
 
-const TARGETS: PurgeTarget[] = [
+const TARGETS = [
 	{
 		kind: "owner",
 		listStored: listOwnersWithStoredData,
-		listExisting: async (ids) =>
+		listExisting: async (ids: string[]) =>
 			(
 				await Promise.all([
 					db
 						.select({ id: websites.id })
 						.from(websites)
-						.where(inArray(websites.id, ids)),
+						.where(isAnyOf(websites.id, ids)),
 					db
 						.select({ id: organization.id })
 						.from(organization)
-						.where(inArray(organization.id, ids)),
-					db.select({ id: user.id }).from(user).where(inArray(user.id, ids)),
+						.where(isAnyOf(organization.id, ids)),
+					db.select({ id: user.id }).from(user).where(isAnyOf(user.id, ids)),
 				])
 			).flat(),
 		purge: purgeAnalyticsData,
@@ -47,21 +41,19 @@ const TARGETS: PurgeTarget[] = [
 	{
 		kind: "link",
 		listStored: listLinksWithStoredVisits,
-		listExisting: (ids) =>
-			db.select({ id: links.id }).from(links).where(inArray(links.id, ids)),
+		listExisting: (ids: string[]) =>
+			db.select({ id: links.id }).from(links).where(isAnyOf(links.id, ids)),
 		purge: purgeLinkVisits,
 	},
-];
+] as const;
 
-async function findDeletedOwners(target: PurgeTarget) {
+async function findDeletedOwners(target: (typeof TARGETS)[number]) {
 	const stored = await target.listStored();
-	const existing = new Set<string>();
-	for (let i = 0; i < stored.length; i += EXISTENCE_CHUNK_SIZE) {
-		const ids = stored.slice(i, i + EXISTENCE_CHUNK_SIZE).map((o) => o.id);
-		for (const row of await target.listExisting(ids)) {
-			existing.add(row.id);
-		}
-	}
+	const existing = new Set(
+		(await target.listExisting(stored.map((owner) => owner.id))).map(
+			(row) => row.id
+		)
+	);
 	const deleted = stored.filter((owner) => !existing.has(owner.id));
 	if (deleted.length > stored.length * MAX_DELETED_SHARE) {
 		throw new Error(
@@ -116,11 +108,7 @@ async function purgeDeletedData(): Promise<void> {
 	}
 }
 
-export interface DeletedDataPurgeLoop {
-	stop(): Promise<void>;
-}
-
-export function startDeletedDataPurgeLoop(): DeletedDataPurgeLoop {
+export function startDeletedDataPurgeLoop() {
 	let active: Promise<void> | null = null;
 	const run = () => {
 		active ??= purgeDeletedData()
