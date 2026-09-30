@@ -23,6 +23,7 @@ describe("summarizeAgentUsage", () => {
 			inputTokens: 3000,
 			outputTokens: 1000,
 			inputTokenDetails: {
+				noCacheTokens: 1000,
 				cacheReadTokens: 1000,
 				cacheWriteTokens: 1000,
 			},
