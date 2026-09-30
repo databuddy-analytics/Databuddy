@@ -123,8 +123,11 @@ const getWebsiteById = cacheable(
 	}
 );
 
-async function getPlanId(context: Context): Promise<PlanId> {
-	const billing = await context.getBilling();
+async function getPlanId(
+	context: Context,
+	organizationId: string
+): Promise<PlanId> {
+	const billing = await context.getBilling(organizationId);
 	return normalizePlanId(billing?.planId ?? null);
 }
 
@@ -282,7 +285,7 @@ async function resolveWorkspace(
 		input.resource ?? (input.websiteId ? "website" : "organization");
 	const getCreatedBy = () => resolveCreatedBy(context, organizationId);
 	const planPromise = shouldResolvePlan(input)
-		? getPlanId(context)
+		? getPlanId(context, context.organizationId ?? organizationId)
 		: Promise.resolve(null);
 
 	const [grant, plan] = await Promise.all([
