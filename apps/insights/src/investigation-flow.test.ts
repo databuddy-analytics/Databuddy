@@ -13,6 +13,7 @@ import { MockLanguageModelV3, mockValues } from "ai/test";
 import { z } from "zod";
 import dayjs from "dayjs";
 import type { QueryRequest } from "@databuddy/ai/query";
+import { resolveDatePreset } from "@databuddy/ai/lib/date-presets";
 import { detectRetentionSignals } from "./measurement-plan";
 import { prepareInvestigation } from "./investigation";
 import {
@@ -115,6 +116,7 @@ const agentOutcome = {
 	...outcome,
 	next: {
 		action: "Resume campaign cmp_search_1.",
+		check: null,
 		execution: null,
 		recheckAt: "2026-07-15T00:00:00.000Z",
 		target: "campaign cmp_search_1",
@@ -217,6 +219,13 @@ function outputResponse(value: unknown) {
 		const { evidence, evidenceRefs, ...outcome } = value;
 		payload = {
 			...outcome,
+			...("next" in outcome &&
+			typeof outcome.next === "object" &&
+			outcome.next !== null &&
+			"type" in outcome.next &&
+			outcome.next.type === "act"
+				? { next: { check: null, ...outcome.next } }
+				: {}),
 			evidence: evidence.map((claim, index) => ({
 				claim,
 				sources: Array.isArray(evidenceRefs[index])
@@ -593,6 +602,7 @@ describe("intelligence agent", () => {
 					next: {
 						anyOf: [
 							{
+								required: expect.arrayContaining(["check", "execution"]),
 								properties: {
 									check: { type: "null" },
 									execution: { type: "null" },
@@ -986,7 +996,12 @@ describe("intelligence agent", () => {
 		}
 	});
 
-	it("retains an exact goal repair and saved verification check", async () => {
+	it.each([
+		"complete",
+		"corrected",
+		"derived",
+	])("retains an exact goal repair and verification check: %s", async (formatting) => {
+		const correctFormatting = formatting === "corrected";
 		const goal = {
 			id: "signup",
 			name: "Account creation",
@@ -1041,6 +1056,38 @@ describe("intelligence agent", () => {
 			],
 			next,
 		};
+		const missingCheck = outputResponse({
+			...proposal,
+			next: { ...next, check: undefined },
+		});
+		if (correctFormatting) {
+			expect(
+				JSON.parse(missingCheck.content.at(0)?.input ?? "{}").next
+			).not.toHaveProperty("check");
+		}
+		const generate = mockValues(
+			toolCallsResponse(["list_goals", "scrape_page"]),
+			...(correctFormatting
+				? [
+						outputResponse({
+							...proposal,
+							execution: next.execution,
+							next: { ...next, execution: undefined },
+						}),
+						missingCheck,
+					]
+				: []),
+			outputResponse({
+				...proposal,
+				next: {
+					...next,
+					recheckAt: formatting === "derived" ? undefined : next.recheckAt,
+				},
+			})
+		);
+		const model = new MockLanguageModelV3({
+			doGenerate: async () => generate(),
+		});
 		const result = await runInsightAgent(
 			{
 				appContext: appContext(),
@@ -1057,12 +1104,7 @@ describe("intelligence agent", () => {
 				},
 			},
 			{
-				model: new MockLanguageModelV3({
-					doGenerate: mockValues(
-						toolCallsResponse(["list_goals", "scrape_page"]),
-						outputResponse(proposal)
-					),
-				}),
+				model,
 				tools: {
 					scrape_page: tool({
 						inputSchema: z.object({}),
@@ -1078,6 +1120,17 @@ describe("intelligence agent", () => {
 				},
 			}
 		);
+		expect(result.toolCallCount).toBe(2);
+		expect(result.outcome.evidence).toEqual(proposal.evidence);
+		expect(model.doGenerateCalls).toHaveLength(correctFormatting ? 4 : 2);
+		if (correctFormatting) {
+			expect(JSON.stringify(model.doGenerateCalls[2]?.prompt)).toContain(
+				"execution"
+			);
+			expect(JSON.stringify(model.doGenerateCalls[3]?.prompt)).toContain(
+				"check"
+			);
+		}
 		expect(result.outcome.next).toMatchObject({
 			...next,
 			action: describeInsightDefinitionAction(goal.name, {
@@ -1093,6 +1146,276 @@ describe("intelligence agent", () => {
 				},
 			},
 		});
+	});
+
+	it.each(
+		(["goal", "funnel"] as const).flatMap((type) =>
+			(
+				[
+					["overall_conversion_rate", 20, true, "baseline"],
+					["overall_conversion_rate", 80, false, "wrong-field"],
+					["total_users_completed", 80, true, "baseline"],
+					["total_users_completed", 400, false, "wrong-field"],
+					["total_users_completed", 80, false, "different-window"],
+					["total_users_completed", 80, false, "cohort"],
+					["overall_conversion_rate", 20, false, "cohort"],
+					["overall_conversion_rate", 20, false, "website"],
+					["overall_conversion_rate", 20, false, "definition"],
+					["overall_conversion_rate", 20, false, "population"],
+					["overall_conversion_rate", 20, false, "clipped-window"],
+					["overall_conversion_rate", 20, false, "unfinished-window"],
+					["overall_conversion_rate", 20, false, "reversed-window"],
+					["overall_conversion_rate", 20, true, "current-window"],
+					["overall_conversion_rate", 20, true, "default-dates"],
+					["overall_conversion_rate", 20, true, "null-defaults"],
+					["overall_conversion_rate", 20, true, "native-defaults"],
+					["overall_conversion_rate", 20.1, true, "rounded-rate"],
+					["total_users_completed", 400, true, "configured"],
+					["overall_conversion_rate", 80, true, "provided"],
+					["overall_conversion_rate", 80, false, "another-read"],
+				] as const
+			).map(([metric, value, valid, scope]) => ({
+				type,
+				metric,
+				value,
+				valid,
+				scope,
+			}))
+		)
+	)("binds $type native prior baselines to $metric: $scope ($value)", async ({
+		type,
+		metric,
+		value,
+		valid,
+		scope,
+	}) => {
+		const subject = {
+			...funnelSignal,
+			signalKey: `${type}:checkout`,
+			entity: { ...funnelSignal.entity, type },
+		};
+		const current =
+			type === "goal"
+				? { id: "checkout", type: "PAGE_VIEW", target: "/docs", filters: [] }
+				: inspectedFunnel;
+		const context = appContext();
+		if (scope === "native-defaults") {
+			context.timezone = "America/Los_Angeles";
+		}
+		const window =
+			scope === "native-defaults"
+				? resolveDatePreset(
+						"last_30d",
+						context.timezone,
+						new Date(context.currentDateTime)
+					)
+				: scope === "current-window"
+					? subject.period.current
+					: scope === "unfinished-window"
+						? { from: "2026-07-12", to: "2026-07-14" }
+						: scope === "reversed-window"
+							? { from: "2026-07-09", to: "2026-07-04" }
+							: subject.period.previous;
+		const request = {
+			[`${type}Id`]: subject.entity.id,
+			...(scope === "cohort"
+				? {
+						cohort: {
+							filters: [{ field: "country", operator: "equals", value: "US" }],
+						},
+					}
+				: {}),
+			...(scope === "null-defaults"
+				? { websiteId: null, startDate: null, endDate: null }
+				: scope === "native-defaults"
+					? { cohort: null }
+					: { websiteId: "site-1" }),
+			...(["default-dates", "null-defaults", "native-defaults"].includes(scope)
+				? {}
+				: { startDate: window.from, endDate: window.to }),
+		};
+		const nativeTool = `get_${type}_analytics`;
+		const requestSchema = z.object({
+			goalId: z.string().optional(),
+			funnelId: z.string().optional(),
+			websiteId: z.string().nullish(),
+			startDate: z.iso.date().nullish(),
+			endDate: z.iso.date().nullish(),
+		});
+		const nativeSchema = ["native-defaults", "cohort"].includes(scope)
+			? (await import("@databuddy/ai/tools/toolkit")).createToolkit({
+					capabilities: ["analytics"],
+				})[nativeTool]?.inputSchema
+			: undefined;
+		if (["native-defaults", "cohort"].includes(scope)) {
+			expect(nativeSchema).toBeDefined();
+		}
+		const listTool = type === "goal" ? "list_goals" : "list_funnels";
+		const nativeRead = toolCallResponse(nativeTool, JSON.stringify(request));
+		const proposal = {
+			...executableDefinitionOutcome,
+			title: "Account creation measurement targets documentation",
+			summary: "Completed account creation is not the saved outcome.",
+			rootCause:
+				"The saved definition targets documentation instead of account creation.",
+			evidence: [
+				"The saved measurement reaches documentation instead of account creation.",
+			],
+			evidenceRefs: [
+				[
+					{ source: "provided", index: 0 },
+					{
+						source: "tool",
+						name: listTool,
+						toolCallId: `${listTool}-1`,
+						resultKey: null,
+					},
+				],
+			],
+			next: {
+				...executableDefinitionOutcome.next,
+				recheckAt:
+					metric === "total_users_completed" && scope !== "different-window"
+						? "2026-07-20T00:00:00.000Z"
+						: executableDefinitionOutcome.next.recheckAt,
+				...(type === "goal"
+					? {
+							execution: {
+								operation: "edit",
+								changes: { target: "/account-created" },
+							},
+						}
+					: {}),
+				check: {
+					metric,
+					startDate: "2026-07-13",
+					endDate:
+						metric === "total_users_completed" && scope !== "different-window"
+							? "2026-07-19"
+							: "2026-07-14",
+					minimumEntrants: metric === "total_users_completed" ? 1 : 100,
+					threshold: {
+						anchor:
+							scope === "configured" ? "configured_target" : "prior_baseline",
+						comparison: "at_or_above" as const,
+						value,
+						evidenceRef:
+							scope === "provided" || scope === "configured"
+								? { source: "provided", index: scope === "configured" ? 2 : 1 }
+								: {
+										source: "tool",
+										name: nativeTool,
+										toolCallId: `${nativeTool}-1`,
+										resultKey: null,
+									},
+					},
+				},
+			},
+		};
+		const generate = mockValues(
+			{
+				...nativeRead,
+				content: [
+					...nativeRead.content,
+					...(scope === "another-read"
+						? toolCallResponse(
+								nativeTool,
+								JSON.stringify({
+									...request,
+									startDate: subject.period.current.from,
+									endDate: subject.period.current.to,
+								}),
+								"native-later"
+							).content
+						: []),
+					...toolCallResponse(listTool).content,
+				],
+			},
+			outputResponse(proposal),
+			outputResponse(proposal),
+			outputResponse(proposal)
+		);
+		const run = runInsightAgent(
+			{
+				appContext: context,
+				evidence: [
+					"Business meaning: account creation finishes at /account-created, or at the account_created event for the journey.",
+					"Team-provided healthy baseline: 80 percent.",
+					"Configured recovery target: 400 completed visitors.",
+				],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: subject,
+			},
+			{
+				model: new MockLanguageModelV3({ doGenerate: async () => generate() }),
+				tools: {
+					[nativeTool]: tool({
+						inputSchema: nativeSchema ?? requestSchema,
+						execute: (raw: unknown) => {
+							const query = requestSchema.parse(raw);
+							return {
+								measurement: {
+									websiteId:
+										scope === "website" ? "another-site" : context.websiteId,
+									definitionId:
+										scope === "definition"
+											? "another-definition"
+											: subject.entity.id,
+									startDate:
+										scope === "clipped-window"
+											? "2026-07-01"
+											: (query.startDate ?? window.from),
+									endDate: query.endDate ?? window.to,
+									definition:
+										scope === "population"
+											? {
+													...current,
+													filters: [
+														{
+															field: "country",
+															operator: "equals",
+															value: "US",
+														},
+													],
+												}
+											: current,
+								},
+								total_users_entered: scope === "rounded-rate" ? 399 : 400,
+								total_users_completed:
+									scope === "another-read" &&
+									query.startDate === subject.period.current.from
+										? 320
+										: 80,
+								overall_conversion_rate:
+									scope === "rounded-rate"
+										? (100 * 80) / 399
+										: scope === "another-read" &&
+												query.startDate === subject.period.current.from
+											? 80
+											: 20,
+							};
+						},
+					}),
+					[listTool]: tool({
+						inputSchema: z.object({}),
+						execute: () => ({
+							[type === "goal" ? "goals" : "funnels"]: [current],
+						}),
+					}),
+				},
+			}
+		);
+		if (valid) {
+			expect((await run).outcome.next).toMatchObject({
+				check: proposal.next.check,
+			});
+		} else {
+			await expect(run).rejects.toThrow(
+				"Native prior-baseline thresholds require"
+			);
+		}
 	});
 
 	it.each([
@@ -1934,6 +2257,51 @@ describe("intelligence agent", () => {
 		);
 	});
 
+	it("allows a traffic-collapse question without error reach capabilities", async () => {
+		const candidate = {
+			...agentOutcome,
+			title: "Site activity recording stopped",
+			summary: "Tracking may have broken or the site may be unavailable.",
+			impact: null,
+			rootCause: null,
+			findingKind: "measurement_coverage" as const,
+			publicationBasis: "decision_safety" as const,
+			evidence: ["Recorded visitors fell from 1000 to 0."],
+			evidenceRefs: [{ source: "signal" as const }],
+			next: {
+				type: "ask" as const,
+				question:
+					"Can you confirm tracking still loads on the site? This distinguishes a collection break from an outage.",
+			},
+		};
+		const model = outputModel(candidate);
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: {
+					...signal,
+					entity: { type: "website", id: "site-1", label: "Visitors" },
+					metric: { ...signal.metric, current: 0 },
+					changePercent: -100,
+				},
+			},
+			{ model, tools: {} }
+		);
+
+		expect(result.outcome.next).toEqual(candidate.next);
+		const prompt = model.doGenerateCalls[0]?.prompt.find(
+			(item) => item.role === "user"
+		);
+		expect(JSON.stringify(prompt)).not.toContain("canAskAboutError");
+		expect(JSON.stringify(prompt)).not.toContain(
+			"errorAskMinimumVisitorIdentifiers"
+		);
+	});
+
 	it("keeps low-reach error asks out of teammate interrupts", async () => {
 		const smallReachAsk = {
 			...agentOutcome,
@@ -1991,6 +2359,18 @@ describe("intelligence agent", () => {
 		);
 
 		expect(result.outcome.next.type).toBe("resolve");
+		const message = model.doGenerateCalls[0]?.prompt
+			.find((item) => item.role === "user")
+			?.content.find((item) => item.type === "text");
+		if (message?.type !== "text") {
+			throw new Error("Missing evidence prompt");
+		}
+		expect(JSON.parse(message.text)).toMatchObject({
+			capabilities: {
+				canAskAboutError: false,
+				errorAskMinimumVisitorIdentifiers: 25,
+			},
+		});
 		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
 			"below the 25-visitor threshold"
 		);
