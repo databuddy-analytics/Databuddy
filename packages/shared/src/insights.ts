@@ -781,47 +781,20 @@ export const investigationOutcomeSchema = z
 				path: ["publicationBasis"],
 			});
 		}
-		const isPublishedMeasurementFinding =
-			outcome.publish === true &&
-			(outcome.findingKind === "measurement_definition" ||
-				outcome.findingKind === "measurement_coverage");
-		const isPublishedMeasuredFinding =
-			outcome.publish === true &&
-			(outcome.findingKind === "user_experience" ||
-				outcome.findingKind === "product_outcome");
-		const isPublishedReliabilityFinding =
-			outcome.publish === true &&
-			outcome.findingKind === "reliability_exposure";
-		if (
-			isPublishedMeasurementFinding &&
-			outcome.publicationBasis !== "decision_safety"
-		) {
+		const expectedBasis = outcome.findingKind
+			? publicationBasisFor(outcome.findingKind, outcome.publish === true)
+			: null;
+		if (expectedBasis !== null && outcome.publicationBasis !== expectedBasis) {
 			context.addIssue({
 				code: "custom",
-				message:
-					"Published measurement findings must be published for decision safety",
-				path: ["publicationBasis"],
-			});
-		}
-		if (
-			isPublishedMeasuredFinding &&
-			outcome.publicationBasis !== "measured_impact"
-		) {
-			context.addIssue({
-				code: "custom",
-				message:
-					"Published experience and product findings require measured impact",
-				path: ["publicationBasis"],
-			});
-		}
-		if (
-			isPublishedReliabilityFinding &&
-			outcome.publicationBasis !== "measured_reliability"
-		) {
-			context.addIssue({
-				code: "custom",
-				message:
-					"Published reliability exposure findings require measured reliability",
+				message: {
+					decision_safety:
+						"Published measurement findings must be published for decision safety",
+					measured_impact:
+						"Published experience and product findings require measured impact",
+					measured_reliability:
+						"Published reliability exposure findings require measured reliability",
+				}[expectedBasis],
 				path: ["publicationBasis"],
 			});
 		}
