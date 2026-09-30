@@ -105,11 +105,11 @@ vi.mock("@lib/tracing", () => ({
 	mergeWideEvent: noop,
 }));
 
-vi.mock("@lib/request-validation", () => ({
+vi.mock("@lib/request-validation", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@lib/request-validation")>()),
 	validateRequest: mockValidateRequest,
 	checkForBot: mockCheckForBot,
 	getWebsiteSecuritySettings: vi.fn(() => null),
-	ValidatedRequest: {},
 }));
 
 vi.mock("@lib/event-service", () => ({
