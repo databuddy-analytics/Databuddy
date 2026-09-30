@@ -60,6 +60,12 @@ const EVENT_IN_RANGE = `client_id = {websiteId:String}
 	AND time >= toDateTime({startDate:String})
 	AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))`;
 
+function timeBucket(ctx: CustomSqlContext, column: string): string {
+	return ctx.granularity === "hour"
+		? `toStartOfHour(toTimeZone(${column}, {timezone:String}))`
+		: `toDate(toTimeZone(${column}, {timezone:String}))`;
+}
+
 function queryParams(ctx: CustomSqlContext) {
 	return {
 		websiteId: ctx.websiteId,
@@ -201,23 +207,17 @@ export const AiAgentsBuilders = {
 			default_visualization: "timeseries",
 			supports_granularity: ["hour", "day"],
 		},
-		customSql: (ctx) => {
-			const bucket =
-				ctx.granularity === "hour"
-					? "toStartOfHour(toTimeZone(time, {timezone:String}))"
-					: "toDate(toTimeZone(time, {timezone:String}))";
-			return {
-				sql: `
-					SELECT ${bucket} AS date, ${VISIT_PRODUCT} AS product, uniq(anonymous_id) AS visitors
-					FROM ${Analytics.events}
-					WHERE ${EVENT_IN_RANGE}
-					GROUP BY date, product
-					HAVING product != ''
-					ORDER BY date ASC
-				`,
-				params: queryParams(ctx),
-			};
-		},
+		customSql: (ctx) => ({
+			sql: `
+				SELECT ${timeBucket(ctx, "time")} AS date, ${VISIT_PRODUCT} AS product, uniq(anonymous_id) AS visitors
+				FROM ${Analytics.events}
+				WHERE ${EVENT_IN_RANGE}
+				GROUP BY date, product
+				HAVING product != ''
+				ORDER BY date ASC
+			`,
+			params: queryParams(ctx),
+		}),
 		timeField: "time",
 		customizable: false,
 	},
@@ -493,27 +493,21 @@ export const AiAgentsBuilders = {
 		},
 		commonFilters: false,
 		allowedFilters: ["agent_id"],
-		customSql: (ctx) => {
-			const bucket =
-				ctx.granularity === "hour"
-					? "toStartOfHour(toTimeZone(timestamp, {timezone:String}))"
-					: "toDate(toTimeZone(timestamp, {timezone:String}))";
-			return {
-				sql: `
-					SELECT
-						${bucket} AS date,
-						count() AS requests,
-						countIf(${CONTENT_FORMAT} = 'markdown') AS markdown,
-						countIf(${CONTENT_FORMAT} = 'llms') AS llms,
-						countIf(${CONTENT_FORMAT} = 'html') AS html
-					FROM ${Analytics.ai_traffic_spans}
-					WHERE ${AGENT_REQUEST_IN_RANGE} ${appendFilterClause(ctx.filterConditions)}
-					GROUP BY date
-					ORDER BY date ASC
-				`,
-				params: { ...queryParams(ctx), ...ctx.filterParams },
-			};
-		},
+		customSql: (ctx) => ({
+			sql: `
+				SELECT
+					${timeBucket(ctx, "timestamp")} AS date,
+					count() AS requests,
+					countIf(${CONTENT_FORMAT} = 'markdown') AS markdown,
+					countIf(${CONTENT_FORMAT} = 'llms') AS llms,
+					countIf(${CONTENT_FORMAT} = 'html') AS html
+				FROM ${Analytics.ai_traffic_spans}
+				WHERE ${AGENT_REQUEST_IN_RANGE} ${appendFilterClause(ctx.filterConditions)}
+				GROUP BY date
+				ORDER BY date ASC
+			`,
+			params: { ...queryParams(ctx), ...ctx.filterParams },
+		}),
 		timeField: "timestamp",
 		customizable: false,
 	},
