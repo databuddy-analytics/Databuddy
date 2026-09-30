@@ -104,13 +104,19 @@ describe("MCP OAuth scopes", () => {
 		expect(oauth.tools.length).toBeLessThan(tools.length);
 	});
 
-	test("an OAuth token without Databuddy scopes keeps full user access", async () => {
+	test("an OAuth token without Databuddy scopes only lists tools that need none", async () => {
 		const oauth = await listTools({
 			apiKey: null,
 			oauthScopes: [],
 			userId: "user-1",
 		});
-		expect(oauth.tools.length).toBe(tools.length);
+		expect(oauth.tools.map((tool) => tool.name).sort()).toEqual(
+			tools
+				.filter((tool) => !tool.metadata.access.scopes?.length)
+				.map((tool) => tool.name)
+				.sort()
+		);
+		expect(oauth.tools.length).toBeLessThan(tools.length);
 	});
 });
 
