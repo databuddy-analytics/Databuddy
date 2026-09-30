@@ -88,8 +88,8 @@ function periodLabel({ from, to }: { from: string; to: string }): string {
 	return `${label(from, "short")} to ${label(to, toMonth)}`;
 }
 
-const logoUrl = (product: string) => {
-	const icon = aiProductIcon(product);
+const logoUrl = (product: string | null) => {
+	const icon = aiProductIcon(product ?? "");
 	return icon ? `${config.urls.dashboard}/ai/email/${icon}.png` : undefined;
 };
 
@@ -132,19 +132,24 @@ async function buildAiDigest(
 			domain,
 			"UTC"
 		);
-	const [digest, crawlers, landing, reads] = await Promise.all([
+	const [digest, crawlers, landing, agentPages] = await Promise.all([
 		query("ai_weekly_digest", 50),
 		query("ai_crawlers", 100),
 		query("ai_landing_pages", LANDING_ROWS),
 		query("ai_agent_pages", 30),
 	]);
 
+	const products = digest
+		.map((row) => ({
+			name: stringField(row, "product") ?? "",
+			reads: numberField(row, "requests"),
+			visitors: numberField(row, "visitors"),
+		}))
+		.filter((product) => product.reads + product.visitors > 0)
+		.sort((a, b) => b.visitors - a.visitors || b.reads - a.reads);
 	const visitors = numberField(digest[0], "site_visitors");
-	const readCount = digest.reduce(
-		(sum, row) => sum + numberField(row, "requests"),
-		0
-	);
-	if (visitors === 0 && readCount === 0) {
+	const reads = products.reduce((sum, product) => sum + product.reads, 0);
+	if (visitors === 0 && reads === 0) {
 		return null;
 	}
 
@@ -156,7 +161,7 @@ async function buildAiDigest(
 		}
 	}
 
-	const pageRows = reads
+	const pageRows = agentPages
 		.map((row) => ({
 			format: CONTENT_FORMATS.find((format) => format === row.format) ?? "html",
 			page: stringField(row, "page") ?? "",
@@ -173,10 +178,9 @@ async function buildAiDigest(
 	return {
 		agentsUrl: `${config.urls.dashboard}/websites/${websiteId}/agents`,
 		landingPages: landing.map((row) => {
-			const [first] = Array.isArray(row.senders) ? row.senders : [];
-			const sender = stringField(first, "product");
+			const [sender] = Array.isArray(row.senders) ? row.senders : [];
 			return {
-				logoUrl: sender ? logoUrl(sender) : undefined,
+				logoUrl: logoUrl(stringField(sender, "product")),
 				page: stringField(row, "page") ?? "",
 				visitors: numberField(row, "visitors"),
 			};
@@ -185,43 +189,30 @@ async function buildAiDigest(
 		pages,
 		period: periodLabel(week),
 		previousVisitors: numberField(digest[0], "site_previous_visitors"),
-		products: digest
-			.filter(
-				(row) => numberField(row, "requests") + numberField(row, "visitors") > 0
-			)
-			.sort(
-				(a, b) =>
-					numberField(b, "visitors") - numberField(a, "visitors") ||
-					numberField(b, "requests") - numberField(a, "requests")
-			)
-			.slice(0, PRODUCT_ROWS)
-			.map((row) => {
-				const name = stringField(row, "product") ?? "";
-				return {
-					logoUrl: logoUrl(name),
-					name,
-					reads: numberField(row, "requests"),
-					role: ROLES[purposeByProduct.get(name) ?? ""] ?? "Sends visitors",
-					visitors: numberField(row, "visitors"),
-				};
-			}),
-		reads: readCount,
+		products: products.slice(0, PRODUCT_ROWS).map((product) => ({
+			...product,
+			logoUrl: logoUrl(product.name),
+			role: ROLES[purposeByProduct.get(product.name) ?? ""] ?? "Sends visitors",
+		})),
+		reads,
 		settingsUrl: `${config.urls.dashboard}/settings/notifications`,
 		site: domain,
 		visitors,
 	};
 }
 
-function digestSubject(digest: AiDigestEmailProps): string {
-	const senders = digest.products.filter((product) => product.visitors > 0);
-	const visitors = `${digest.visitors.toLocaleString("en-US")} ${digest.visitors === 1 ? "visitor" : "visitors"}`;
-	if (senders.length === 1) {
-		return `${senders[0]?.name} sent ${visitors} to ${digest.site} this week`;
+function digestSubject({
+	products,
+	reads,
+	site,
+	visitors,
+}: AiDigestEmailProps) {
+	if (visitors === 0) {
+		return `AI read ${site} ${reads.toLocaleString("en-US")} times this week`;
 	}
-	if (digest.visitors > 0) {
-		return `AI sent ${visitors} to ${digest.site} this week`;
-	}
-	return `AI read ${digest.site} ${digest.reads.toLocaleString("en-US")} times this week`;
+	const senders = products.filter((product) => product.visitors > 0);
+	const sender = senders.length === 1 ? senders[0]?.name : "AI";
+	return `${sender} sent ${visitors.toLocaleString("en-US")} ${visitors === 1 ? "visitor" : "visitors"} to ${site} this week`;
 }
 
 export async function sendAiDigest({
