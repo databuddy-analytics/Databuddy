@@ -11,11 +11,7 @@ import {
 	websites,
 } from "@databuddy/db";
 import { chQuery } from "@databuddy/db/clickhouse";
-import {
-	AiDigestEmail,
-	type AiDigestEmailProps,
-	render,
-} from "@databuddy/email";
+import { type AiDigestEmailProps, renderAiDigestEmail } from "@databuddy/email";
 import { config } from "@databuddy/env/app";
 import {
 	AI_DIGEST_WEBSITE_JOB_NAME,
@@ -258,11 +254,7 @@ export async function sendAiDigest({
 		return outcome({ reason: "quiet_week", status: "skipped" });
 	}
 
-	const email = AiDigestEmail(digest);
-	const [html, text] = await Promise.all([
-		render(email),
-		render(email, { plainText: true }),
-	]);
+	const { html, text } = await renderAiDigestEmail(digest);
 	const response = await fetch("https://api.resend.com/emails", {
 		method: "POST",
 		headers: {

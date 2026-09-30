@@ -49,6 +49,35 @@ const EMPTY_ALPHA = 0.16;
 const ALPHA_LEVELS = 20;
 const HOVER_RADIUS_PX = 10;
 const TAP_SLOP_PX = 4;
+const TOOLTIP_CLEARANCE_PX = 56;
+const SMALL_COUNTRIES: Record<
+	string,
+	[name: string, lon: number, lat: number]
+> = {
+	AD: ["Andorra", 1.52, 42.51],
+	BB: ["Barbados", -59.54, 13.19],
+	BH: ["Bahrain", 50.56, 26.07],
+	CV: ["Cape Verde", -23.62, 15.12],
+	GP: ["Guadeloupe", -61.55, 16.25],
+	GU: ["Guam", 144.79, 13.44],
+	HK: ["Hong Kong", 114.17, 22.32],
+	KM: ["Comoros", 43.87, -11.88],
+	LI: ["Liechtenstein", 9.55, 47.17],
+	MC: ["Monaco", 7.42, 43.74],
+	MO: ["Macau", 113.54, 22.2],
+	MQ: ["Martinique", -61.02, 14.64],
+	MT: ["Malta", 14.44, 35.9],
+	MU: ["Mauritius", 57.55, -20.35],
+	MV: ["Maldives", 73.51, 4.18],
+	PF: ["French Polynesia", -149.41, -17.68],
+	RE: ["Réunion", 55.54, -21.12],
+	SC: ["Seychelles", 55.49, -4.68],
+	SG: ["Singapore", 103.82, 1.35],
+	SM: ["San Marino", 12.46, 43.94],
+	ST: ["São Tomé and Príncipe", 6.61, 0.19],
+	TO: ["Tonga", -175.2, -21.18],
+	WS: ["Samoa", -172.1, -13.76],
+};
 
 function toUnit(lon: number, lat: number): Point {
 	return {
@@ -151,6 +180,13 @@ function buildGlobe(geo: Country) {
 		};
 	});
 
+	for (const [code, [name, lon, lat]] of Object.entries(SMALL_COUNTRIES)) {
+		if (!countries.some((c) => c.code === code)) {
+			dots.push(dotAt(countries.length, lon, lat));
+			countries.push({ center: { lat, lon }, code, name });
+		}
+	}
+
 	return { countries, dots };
 }
 
@@ -174,7 +210,8 @@ export function GlobeMap({
 		aimed: false,
 		dirty: true,
 		drag: null as null | (LatLon & { x: number; y: number }),
-		highlight: -1,
+		hasTooltip: false,
+		highlight: null as string | null,
 		inside: false,
 		intensity: [] as number[],
 		target: null as LatLon | null,
@@ -208,24 +245,29 @@ export function GlobeMap({
 		}
 		const max = Math.max(0, ...countries.map((c) => c.value));
 		const scene = sceneRef.current;
-		scene.highlight = highlightCode
-			? (indexByCode.get(highlightCode) ?? -1)
-			: -1;
+		scene.highlight = highlightCode;
 		scene.intensity = globe.countries.map((c) => {
 			const value = valueByCode.get(c.code)?.value ?? 0;
 			return value > 0 ? Math.sqrt(value / max) : -1;
 		});
 		scene.dirty = true;
 		wakeRef.current();
-	}, [globe, countries, valueByCode, indexByCode, highlightCode]);
+	}, [globe, countries, valueByCode, highlightCode]);
 
 	useEffect(() => {
 		const scene = sceneRef.current;
-		if (!globe || scene.aimed || countries.length === 0) {
+		if (!globe || scene.aimed) {
 			return;
 		}
-		const top = countries.reduce((a, b) => (b.value > a.value ? b : a));
-		const center = globe.countries[indexByCode.get(top.code) ?? -1]?.center;
+		const top = countries
+			.filter((c) => indexByCode.has(c.code))
+			.reduce<GlobeCountry | null>(
+				(a, b) => (a && a.value >= b.value ? a : b),
+				null
+			);
+		const center = top
+			? globe.countries[indexByCode.get(top.code) ?? -1]?.center
+			: undefined;
 		if (center) {
 			scene.view = viewOf(center);
 			scene.aimed = true;
@@ -250,11 +292,14 @@ export function GlobeMap({
 		}
 		const scene = sceneRef.current;
 		const style = getComputedStyle(canvas);
-		const landColor = style.getPropertyValue("--globe-land");
-		const dataColor = style.getPropertyValue("--globe-data");
+		let colors: { data: string; land: string } | null = null;
 		const size = { dpr: 1, height: 0, width: 0 };
 
 		const draw = () => {
+			colors ??= {
+				data: style.getPropertyValue("--globe-data"),
+				land: style.getPropertyValue("--globe-land"),
+			};
 			const { width, height, dpr } = size;
 			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 			ctx.clearRect(0, 0, width, height);
@@ -284,8 +329,9 @@ export function GlobeMap({
 
 				const t = intensity[dot.country] ?? -1;
 				let alpha = t < 0 ? EMPTY_ALPHA : 0.35 + 0.65 * t;
-				if (highlight !== -1) {
-					alpha = dot.country === highlight ? 1 : alpha * 0.45;
+				if (highlight) {
+					alpha =
+						globe.countries[dot.country].code === highlight ? 1 : alpha * 0.45;
 				}
 				alpha *= Math.min(1, depth / 0.35);
 				const r =
@@ -297,8 +343,8 @@ export function GlobeMap({
 			}
 
 			for (const [layers, color] of [
-				[land, landColor],
-				[data, dataColor],
+				[land, colors.land],
+				[data, colors.data],
 			] as const) {
 				ctx.fillStyle = color;
 				for (const [level, layer] of layers.entries()) {
@@ -322,7 +368,13 @@ export function GlobeMap({
 			const { view, target, drag } = scene;
 
 			let isEasing = false;
-			const isSpinning = !(target || drag || scene.inside || reduceMotion);
+			const isSpinning = !(
+				target ||
+				drag ||
+				scene.inside ||
+				scene.hasTooltip ||
+				reduceMotion
+			);
 			if (target && !drag) {
 				const ease = reduceMotion ? 1 : Math.min(1, dt * 6);
 				const dLon = ((((target.lon - view.lon) % 360) + 540) % 360) - 180;
@@ -361,8 +413,7 @@ export function GlobeMap({
 			size.dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
 			canvas.width = Math.round(size.width * size.dpr);
 			canvas.height = Math.round(size.height * size.dpr);
-			scene.dirty = true;
-			wake();
+			draw();
 		});
 		const visibility = new IntersectionObserver(([entry]) => {
 			isOnScreen = entry.isIntersecting;
@@ -389,6 +440,8 @@ export function GlobeMap({
 
 	const setHover = (next: typeof tooltip) => {
 		setTooltip(next);
+		sceneRef.current.hasTooltip = next !== null;
+		wakeRef.current();
 		onHoverChange?.(next ? (globe?.countries[next.index]?.code ?? null) : null);
 	};
 
@@ -403,7 +456,7 @@ export function GlobeMap({
 	};
 
 	const hoverAt = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-		const { height, width, x, y } = pointerOffset(event);
+		const { width, x, y } = pointerOffset(event);
 		let nearest: Dot | null = null;
 		let best = HOVER_RADIUS_PX ** 2;
 		for (const dot of globe?.dots ?? []) {
@@ -413,9 +466,7 @@ export function GlobeMap({
 				nearest = dot;
 			}
 		}
-		setHover(
-			nearest ? { index: nearest.country, x: x / width, y: y / height } : null
-		);
+		setHover(nearest ? { index: nearest.country, x: x / width, y } : null);
 	};
 
 	const tooltipCountry = tooltip ? globe?.countries[tooltip.index] : undefined;
@@ -449,10 +500,10 @@ export function GlobeMap({
 					sceneRef.current.inside = true;
 				}}
 				onPointerLeave={(event) => {
+					sceneRef.current.inside = false;
+					wakeRef.current();
 					if (event.pointerType === "mouse") {
-						sceneRef.current.inside = false;
 						setHover(null);
-						wakeRef.current();
 					}
 				}}
 				onPointerMove={(event) => {
@@ -493,8 +544,8 @@ export function GlobeMap({
 					className="pointer-events-none absolute z-10 whitespace-nowrap rounded-md border bg-popover px-2.5 py-1.5 text-xs shadow-sm"
 					style={{
 						left: `${tooltip.x * 100}%`,
-						top: `${tooltip.y * 100}%`,
-						transform: `translate(${tooltip.x * -100}%, calc(-100% - 10px))`,
+						top: tooltip.y,
+						transform: `translate(${tooltip.x * -100}%, ${tooltip.y < TOOLTIP_CLEARANCE_PX ? "10px" : "calc(-100% - 10px)"})`,
 					}}
 				>
 					<p className="font-medium text-foreground">
