@@ -148,10 +148,11 @@ async function buildAiDigest(
 		query("ai_agent_pages", 30),
 	]);
 
-	const total = (key: string) =>
-		digest.reduce((sum, row) => sum + numberField(row, key), 0);
-	const visitors = total("visitors");
-	const readCount = total("requests");
+	const visitors = numberField(digest[0], "site_visitors");
+	const readCount = digest.reduce(
+		(sum, row) => sum + numberField(row, "requests"),
+		0
+	);
 	if (visitors === 0 && readCount === 0) {
 		return null;
 	}
@@ -189,10 +190,10 @@ async function buildAiDigest(
 				visitors: numberField(row, "visitors"),
 			};
 		}),
-		newPages: total("new_pages"),
+		newPages: numberField(digest[0], "site_new_pages"),
 		pages,
 		period: periodLabel(week),
-		previousVisitors: total("previous_visitors"),
+		previousVisitors: numberField(digest[0], "site_previous_visitors"),
 		products: digest
 			.filter(
 				(row) => numberField(row, "requests") + numberField(row, "visitors") > 0
@@ -240,7 +241,7 @@ export async function sendAiDigest({
 	if (!apiKey) {
 		return outcome({ reason: "email_not_configured", status: "skipped" });
 	}
-	const [site] = await db
+	const owners = await db
 		.select({
 			domain: websites.domain,
 			emailNotifications: organization.emailNotifications,
@@ -256,8 +257,8 @@ export async function sendAiDigest({
 			)
 		)
 		.innerJoin(user, eq(user.id, member.userId))
-		.where(and(eq(websites.id, websiteId), isNull(websites.deletedAt)))
-		.limit(1);
+		.where(and(eq(websites.id, websiteId), isNull(websites.deletedAt)));
+	const site = owners[0];
 	if (!site) {
 		return outcome({ reason: "website_or_owner_missing", status: "skipped" });
 	}
@@ -291,7 +292,7 @@ export async function sendAiDigest({
 			html,
 			subject: digestSubject(digest),
 			text,
-			to: site.ownerEmail,
+			to: owners.map((owner) => owner.ownerEmail),
 		}),
 	});
 	if (!response.ok) {
