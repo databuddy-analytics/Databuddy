@@ -35,6 +35,7 @@ const DAY_MS = 86_400_000;
 const PRODUCT_ROWS = 5;
 const PAGE_ROWS = 3;
 const LANDING_ROWS = 3;
+const MIN_READS_WITHOUT_VISITORS = 10;
 
 const ROLES: Record<string, string> = {
 	agent: "AI agent",
@@ -150,7 +151,7 @@ async function buildAiDigest(
 		.sort((a, b) => b.visitors - a.visitors || b.reads - a.reads);
 	const visitors = numberField(digest[0], "site_visitors");
 	const reads = products.reduce((sum, product) => sum + product.reads, 0);
-	if (visitors === 0 && reads === 0) {
+	if (visitors === 0 && reads < MIN_READS_WITHOUT_VISITORS) {
 		return null;
 	}
 
@@ -254,7 +255,7 @@ export async function sendAiDigest({
 
 	const digest = await buildAiDigest(websiteId, site.domain, weekStart);
 	if (!digest) {
-		return outcome({ reason: "no_activity", status: "skipped" });
+		return outcome({ reason: "quiet_week", status: "skipped" });
 	}
 
 	const email = AiDigestEmail(digest);
