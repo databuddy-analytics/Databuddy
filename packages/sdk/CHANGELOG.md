@@ -1,5 +1,12 @@
 # @databuddy/sdk
 
+## 3.0.1
+
+### Patch Changes
+
+- 937c4f2: `trackAgents` now reports agent browsers that send a regular Chrome user agent but sign their requests with a `Signature-Agent` header, such as ChatGPT agent, and sends the request's `Accept` header so you can see which agents ask for markdown. Clients that aren't browsers and ask for markdown first are reported too, so AI tools with generic user agents show up as unidentified agents. The user agent, `Accept` and referrer are capped to the lengths Databuddy accepts, so an unusually long user agent no longer drops the request. `trackAgents` never throws or rejects, even on a malformed URL or in a runtime without `fetch`, and the drop-in `proxy` works when the runtime passes no `waitUntil`, so tracking can never break a request or crash a Node server.
+- React's `FlagsProvider` and the Vue flags plugin no longer send flag requests from renders that React throws away. Creating the flags manager no longer fetches or adds a visibility listener; the provider starts it after mounting, and flags read before then report loading instead of queuing a request. A burst of discarded renders (StrictMode, Suspense, concurrent rendering) now sends one request instead of one per render. Stored flags still load on the first render, so returning visitors don't see flags flash off.
+
 ## 3.0.0
 
 ### Major Changes

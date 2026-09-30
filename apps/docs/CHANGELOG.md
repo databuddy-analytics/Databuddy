@@ -1,5 +1,13 @@
 # @databuddy/docs
 
+## 0.0.2
+
+### Patch Changes
+
+- Updated dependencies [937c4f2]
+- Updated dependencies
+  - @databuddy/sdk@3.0.1
+
 ## 0.0.1
 
 ### Patch Changes
