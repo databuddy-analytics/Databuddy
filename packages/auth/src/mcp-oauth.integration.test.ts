@@ -173,10 +173,11 @@ integration("MCP OAuth authorization round trip", () => {
 		const [, payload] = issued.access_token.split(".");
 		const claims = JSON.parse(
 			Buffer.from(payload, "base64url").toString("utf8")
-		) as { aud: string | string[]; iss: string; sub: string };
+		) as { aud: string | string[]; azp: string; iss: string; sub: string };
 		const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
 		expect(audiences).toContain(config.urls.mcp);
 		expect(claims.sub).toBe(createdUserIds[0]);
+		expect(claims.azp).toBe(client.client_id);
 	});
 
 	test("issues a token to a public client with PKCE and no secret", async () => {
@@ -212,6 +213,7 @@ integration("MCP OAuth authorization round trip", () => {
 			),
 			code_challenge_method: "S256",
 			state: "public-client-state",
+			scope: "read:data offline_access",
 			resource: config.urls.mcp,
 		});
 
@@ -259,13 +261,38 @@ integration("MCP OAuth authorization round trip", () => {
 			})
 		);
 		expect(token.status).toBe(200);
-		const issued = (await token.json()) as { access_token: string };
-		const [, payload] = issued.access_token.split(".");
-		const claims = JSON.parse(
-			Buffer.from(payload, "base64url").toString("utf8")
-		) as { aud: string | string[] };
-		const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-		expect(audiences).toContain(config.urls.mcp);
+		const issued = (await token.json()) as {
+			access_token: string;
+			refresh_token: string;
+		};
+
+		const refreshed = await auth.handler(
+			new Request(`${baseURL}/api/auth/oauth2/token`, {
+				method: "POST",
+				headers: {
+					"content-type": "application/x-www-form-urlencoded",
+					origin: baseURL,
+				},
+				body: new URLSearchParams({
+					grant_type: "refresh_token",
+					refresh_token: issued.refresh_token,
+					client_id: client.client_id,
+					resource: config.urls.mcp,
+				}).toString(),
+			})
+		);
+		expect(refreshed.status).toBe(200);
+		const renewed = (await refreshed.json()) as { access_token: string };
+
+		for (const accessToken of [issued.access_token, renewed.access_token]) {
+			const [, payload] = accessToken.split(".");
+			const claims = JSON.parse(
+				Buffer.from(payload, "base64url").toString("utf8")
+			) as { aud: string | string[]; azp: string };
+			const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+			expect(audiences).toContain(config.urls.mcp);
+			expect(claims.azp).toBe(client.client_id);
+		}
 	});
 
 	test("rejects a public client token request that replays a bad verifier", async () => {
