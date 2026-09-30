@@ -82,6 +82,7 @@ mock.module("../../lib/ai-logger", () => ({
 const captureError = mock((_error: unknown, _context: unknown) => {});
 mock.module("../../lib/tracing", () => ({
 	mergeWideEvent: () => {},
+	captureWarning: () => {},
 	captureError,
 }));
 const billing = mock(async () => ({
