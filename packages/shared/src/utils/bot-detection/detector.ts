@@ -1,12 +1,6 @@
 import { isAIBot, isBot } from "ua-parser-js/helpers";
 import { agentBotCategory, matchAiAgent } from "./ai-agents";
-import {
-	BotAction,
-	BotCategory,
-	type BotDetectionConfig,
-	type BotDetectionResult,
-	DEFAULT_BOT_CONFIG,
-} from "./types";
+import { BotAction, BotCategory, type BotDetectionResult } from "./types";
 import { extractBotName, matchCategory } from "./user-agent";
 
 const CATEGORY_MAP: Record<string, BotCategory> = {
@@ -20,178 +14,83 @@ const CATEGORY_MAP: Record<string, BotCategory> = {
 	SCRAPER: BotCategory.SCRAPER,
 };
 
+const ACTION_BY_CATEGORY: Record<BotCategory, BotAction> = {
+	[BotCategory.AI_CRAWLER]: BotAction.TRACK_ONLY,
+	[BotCategory.AI_ASSISTANT]: BotAction.TRACK_ONLY,
+	[BotCategory.SEARCH_ENGINE]: BotAction.ALLOW,
+	[BotCategory.SOCIAL_MEDIA]: BotAction.ALLOW,
+	[BotCategory.SEO_TOOL]: BotAction.BLOCK,
+	[BotCategory.MONITORING]: BotAction.ALLOW,
+	[BotCategory.SCRAPER]: BotAction.BLOCK,
+	[BotCategory.UNKNOWN_BOT]: BotAction.BLOCK,
+};
+
 const cache = new Map<string, BotDetectionResult>();
 const CACHE_MAX = 1000;
 
-function getAction(
-	category: BotCategory,
-	config: Required<BotDetectionConfig>
-): BotAction {
-	if (config.trackOnlyCategories.includes(category)) {
-		return BotAction.TRACK_ONLY;
-	}
-	switch (category) {
-		case BotCategory.AI_CRAWLER:
-			return config.allowAICrawlers ? BotAction.ALLOW : BotAction.TRACK_ONLY;
-		case BotCategory.AI_ASSISTANT:
-			return BotAction.TRACK_ONLY;
-		case BotCategory.SEARCH_ENGINE:
-			return config.allowSearchEngines ? BotAction.ALLOW : BotAction.BLOCK;
-		case BotCategory.SOCIAL_MEDIA:
-			return config.allowSocialMedia ? BotAction.ALLOW : BotAction.BLOCK;
-		case BotCategory.SEO_TOOL:
-			return config.allowSEOTools ? BotAction.ALLOW : BotAction.BLOCK;
-		case BotCategory.MONITORING:
-			return config.allowMonitoring ? BotAction.ALLOW : BotAction.BLOCK;
-		default:
-			return BotAction.BLOCK;
-	}
-}
-
-export function detectBot(
-	userAgent: string,
-	config?: BotDetectionConfig
-): BotDetectionResult {
+export function detectBot(userAgent: string): BotDetectionResult {
 	const cached = cache.get(userAgent);
-	if (cached && !config) {
+	if (cached) {
 		return cached;
 	}
-
-	const cfg: Required<BotDetectionConfig> = {
-		...DEFAULT_BOT_CONFIG,
-		...config,
-	};
-	const result = detect(userAgent, cfg);
-
-	if (!config) {
-		if (cache.size >= CACHE_MAX) {
-			const first = cache.keys().next().value;
-			if (first) {
-				cache.delete(first);
-			}
+	const result = detect(userAgent);
+	if (cache.size >= CACHE_MAX) {
+		const first = cache.keys().next().value;
+		if (first !== undefined) {
+			cache.delete(first);
 		}
-		cache.set(userAgent, result);
 	}
-
+	cache.set(userAgent, result);
 	return result;
 }
 
-function detect(
-	userAgent: string,
-	config: Required<BotDetectionConfig>
-): BotDetectionResult {
+function detect(userAgent: string): BotDetectionResult {
 	if (!userAgent) {
 		return {
-			isBot: true,
+			action: BotAction.BLOCK,
 			category: BotCategory.UNKNOWN_BOT,
-			action: config.blockMissingUserAgent ? BotAction.BLOCK : BotAction.ALLOW,
-			confidence: 100,
+			isBot: true,
 			reason: "missing_user_agent",
 		};
 	}
 
 	const name = extractBotName(userAgent);
-	const lowerName = name?.toLowerCase();
-
-	if (
-		lowerName &&
-		config.allowedBots.some((b) => b.toLowerCase() === lowerName)
-	) {
-		const cat = resolveCategory(userAgent);
-		return {
-			isBot: true,
-			category: cat,
-			name,
-			action: BotAction.ALLOW,
-			confidence: 100,
-			reason: "explicit_allowlist",
-		};
-	}
-
-	if (
-		lowerName &&
-		config.blockedBots.some((b) => b.toLowerCase() === lowerName)
-	) {
-		const cat = resolveCategory(userAgent);
-		return {
-			isBot: true,
-			category: cat,
-			name,
-			action: BotAction.BLOCK,
-			confidence: 100,
-			reason: "explicit_blocklist",
-		};
-	}
-
 	const agent = matchAiAgent(userAgent);
 	if (agent) {
 		const category = agentBotCategory(agent);
-		const { id, operator, purpose } = agent;
 		return {
-			isBot: true,
+			action: ACTION_BY_CATEGORY[category],
+			agent,
 			category,
-			name: name ?? operator,
-			agent: { id, operator, purpose },
-			action: getAction(category, config),
-			confidence: 95,
+			isBot: true,
+			name: name ?? agent.operator,
 			reason: "ai_agent_registry",
 		};
 	}
 
-	const patternCat = matchCategory(userAgent);
-	if (patternCat) {
-		const category = CATEGORY_MAP[patternCat] ?? BotCategory.UNKNOWN_BOT;
+	const patternCategory = matchCategory(userAgent);
+	if (patternCategory || isAIBot(userAgent)) {
+		const category = patternCategory
+			? (CATEGORY_MAP[patternCategory] ?? BotCategory.UNKNOWN_BOT)
+			: BotCategory.AI_CRAWLER;
 		return {
-			isBot: true,
+			action: ACTION_BY_CATEGORY[category],
 			category,
-			name,
-			action: getAction(category, config),
-			confidence: category === BotCategory.UNKNOWN_BOT ? 75 : 90,
-			reason: `${category}_pattern`,
-		};
-	}
-
-	if (isAIBot(userAgent)) {
-		return {
 			isBot: true,
-			category: BotCategory.AI_CRAWLER,
 			name,
-			action: getAction(BotCategory.AI_CRAWLER, config),
-			confidence: 90,
-			reason: "ai_crawler_pattern",
+			reason: `${category}_pattern`,
 		};
 	}
 
 	if (isBot(userAgent)) {
 		return {
-			isBot: true,
+			action: BotAction.BLOCK,
 			category: BotCategory.UNKNOWN_BOT,
+			isBot: true,
 			name,
-			action: getAction(BotCategory.UNKNOWN_BOT, config),
-			confidence: 70,
 			reason: "general_bot_pattern",
 		};
 	}
 
-	return {
-		isBot: false,
-		action: BotAction.ALLOW,
-		confidence: 100,
-		reason: "human",
-	};
-}
-
-function resolveCategory(userAgent: string): BotCategory {
-	const agent = matchAiAgent(userAgent);
-	if (agent) {
-		return agentBotCategory(agent);
-	}
-	const patternCat = matchCategory(userAgent);
-	if (patternCat) {
-		return CATEGORY_MAP[patternCat] ?? BotCategory.UNKNOWN_BOT;
-	}
-	if (isAIBot(userAgent)) {
-		return BotCategory.AI_CRAWLER;
-	}
-	return BotCategory.UNKNOWN_BOT;
+	return { action: BotAction.ALLOW, isBot: false, reason: "human" };
 }

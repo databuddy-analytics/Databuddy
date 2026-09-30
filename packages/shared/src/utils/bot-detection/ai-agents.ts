@@ -1,12 +1,21 @@
 import { z } from "zod";
 import {
-	AI_PRODUCT_BY_OPERATOR,
 	type AgentPurpose,
 	BotCategory,
 	UNIDENTIFIED_AGENT_PREFIX,
 	UNIDENTIFIED_AGENTS_PRODUCT,
 } from "./types";
 import wellKnownBots from "./well-known-bots.json";
+
+const AI_PRODUCT_BY_OPERATOR: Record<string, string> = {
+	OpenAI: "ChatGPT",
+	Anthropic: "Claude",
+	Google: "Google Gemini",
+	Perplexity: "Perplexity",
+	Microsoft: "Microsoft Copilot",
+	Meta: "Meta AI",
+	"Moonshot AI": "Kimi",
+};
 
 export const AI_AGENT_CLASSIFICATION: Record<
 	string,
