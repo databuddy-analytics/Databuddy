@@ -9,7 +9,7 @@ const AI_APP_BROWSER = new RegExp(
 
 export function parseUserAgent(userAgent: string): ParsedUserAgent {
 	if (!userAgent) {
-		return { raw: "" };
+		return {};
 	}
 
 	try {
@@ -25,10 +25,9 @@ export function parseUserAgent(userAgent: string): ParsedUserAgent {
 			deviceType: result.device.type || undefined,
 			deviceBrand: result.device.vendor || undefined,
 			deviceModel: result.device.model || undefined,
-			raw: userAgent,
 		};
 	} catch {
-		return { raw: userAgent };
+		return {};
 	}
 }
 
