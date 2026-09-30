@@ -3,8 +3,6 @@ import { CLIENT_ID_PURGE_TABLES, WEBSITE_ID_PURGE_TABLES } from "./purge";
 import { TABLE_COLUMNS } from "./schema/tables.generated";
 
 const PURGE_EXEMPT: Record<string, string> = {
-	"analytics.link_visits":
-		"no tenant column; rows are keyed by link and removed with link deletion",
 	"analytics.revenue":
 		"pending decision: financial rows may need retention after website deletion",
 };
@@ -39,9 +37,11 @@ describe("website purge coverage", () => {
 			]).toContain("client_id");
 		}
 		for (const table of WEBSITE_ID_PURGE_TABLES) {
-			expect([
+			const columns = [
 				...(TABLE_COLUMNS[table as keyof typeof TABLE_COLUMNS] ?? []),
-			]).toContain("website_id");
+			];
+			expect(columns).toContain("website_id");
+			expect(columns).toContain("owner_id");
 		}
 	});
 });

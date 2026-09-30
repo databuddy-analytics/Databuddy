@@ -9,6 +9,7 @@ import { evlog } from "evlog/elysia";
 import { handleAutumnRequest } from "@/billing/autumn";
 import { startAutumnWebhookReplayLoop } from "@/billing/autumn-webhook-replay";
 import { startAuditOutboxReplayLoop } from "@/audit/audit-outbox-replay";
+import { startDeletedDataPurgeLoop } from "@/privacy/deleted-data-purge";
 import { configureApiInstrumentation } from "@/bootstrap/instrumentation";
 import { configureApiLogger } from "@/bootstrap/logger";
 import { registerProcessErrorHandlers } from "@/bootstrap/process-errors";
@@ -176,9 +177,15 @@ const autumnWebhookReplay = readBooleanEnv("SELFHOST")
 	? null
 	: startAutumnWebhookReplayLoop();
 const auditOutboxReplay = startAuditOutboxReplayLoop();
+const deletedDataPurge =
+	process.env.NODE_ENV === "production" ? startDeletedDataPurgeLoop() : null;
 warmPostgresConnection();
 registerShutdownHooks(async () => {
-	await Promise.all([autumnWebhookReplay?.stop(), auditOutboxReplay.stop()]);
+	await Promise.all([
+		autumnWebhookReplay?.stop(),
+		auditOutboxReplay.stop(),
+		deletedDataPurge?.stop(),
+	]);
 });
 
 export default {
