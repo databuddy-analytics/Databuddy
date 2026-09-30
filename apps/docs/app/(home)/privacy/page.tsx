@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 };
 
 export default function PrivacyPage() {
-	const lastUpdated = new Date("2026-09-15");
+	const lastUpdated = new Date("2026-09-30");
 
 	return (
 		<>
@@ -254,6 +254,18 @@ export default function PrivacyPage() {
 							</li>
 							<li>Ensure compliance with legal obligations</li>
 						</ul>
+
+						<h3 className="mb-3 font-semibold text-xl">Apps You Connect</h3>
+						<p className="mb-6 text-pretty">
+							When you connect an app such as Claude to your account through our
+							MCP server, it receives the analytics data and results of the
+							actions you ask it to take, limited to the permissions you approve
+							and to the websites your account can access. Databuddy only sees
+							the requests the app sends, never your conversations in it. The
+							app handles what it receives under its own provider&apos;s terms.
+							You can disconnect it at any time from Connected apps in your
+							account settings.
+						</p>
 
 						<h3 className="mb-3 font-semibold text-xl">End User Data Usage</h3>
 						<p className="mb-4 text-pretty">
