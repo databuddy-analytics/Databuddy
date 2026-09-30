@@ -1623,6 +1623,8 @@ describe("POST /vercel/:websiteId", () => {
 				logLine(CLAUDE_CODE, { host: "other-site.dev" }),
 				logLine(CLAUDE_CODE, { method: "POST" }),
 				logLine(CLAUDE_CODE, { statusCode: -1 }),
+				logLine(CLAUDE_CODE, { method: undefined }),
+				logLine(CLAUDE_CODE, { path: "/_next/static/chunks/app.js" }),
 				logLine(setupCheckUserAgent("nonce_1")),
 			])
 		);
@@ -1636,9 +1638,12 @@ describe("POST /vercel/:websiteId", () => {
 		);
 	});
 
-	test("rejects an unknown website and an unreadable body", async () => {
+	test("rejects an unknown website, an unreadable body and a gzip bomb", async () => {
 		mockGetWebsiteByIdV2.mockResolvedValueOnce(null as never);
 		expect((await drain("[]")).status).toBe(404);
 		expect((await drain("[not json")).status).toBe(400);
+		expect((await drain(gzipSync(" ".repeat(11 * 1024 * 1024)))).status).toBe(
+			400
+		);
 	});
 });

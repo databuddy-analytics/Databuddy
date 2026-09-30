@@ -26,6 +26,7 @@ import {
 import {
 	CONTENT_FORMATS,
 	contentFormatForPath,
+	isAssetPath,
 } from "@databuddy/shared/bot-detection/types";
 import {
 	checkForBot,
@@ -88,20 +89,34 @@ const vercelLogSchema = z.object({
 		.optional(),
 });
 
-function parseVercelLogs(body: Uint8Array): unknown[] {
-	const bytes = body[0] === 0x1f && body[1] === 0x8b ? gunzipSync(body) : body;
+const VERCEL_LOGS_MAX_BYTES = 10 * 1024 * 1024;
+
+function parseVercelLogs(body: Uint8Array): {
+	entries: unknown[];
+	malformed: number;
+} {
+	const bytes =
+		body[0] === 0x1f && body[1] === 0x8b
+			? gunzipSync(body, { maxOutputLength: VERCEL_LOGS_MAX_BYTES })
+			: body;
 	const text = new TextDecoder().decode(bytes).trim();
 	if (text.startsWith("[")) {
 		const parsed: unknown = JSON.parse(text);
-		return Array.isArray(parsed) ? parsed : [];
+		return { entries: Array.isArray(parsed) ? parsed : [], malformed: 0 };
 	}
-	return text.split("\n").flatMap((line) => {
+	let malformed = 0;
+	const entries = text.split("\n").flatMap((line) => {
+		if (!line.trim()) {
+			return [];
+		}
 		try {
-			return line.trim() ? [JSON.parse(line) as unknown] : [];
+			return [JSON.parse(line) as unknown];
 		} catch {
+			malformed += 1;
 			return [];
 		}
 	});
+	return { entries, malformed };
 }
 
 interface ResolvedAuth {
@@ -593,13 +608,14 @@ export const vercelDrainRoute = new Elysia().post(
 				throw basketErrors.trackWebsiteNotFound();
 			}
 
-			let entries: unknown[];
+			let batch: ReturnType<typeof parseVercelLogs>;
 			try {
-				entries = parseVercelLogs(new Uint8Array(await request.arrayBuffer()));
+				batch = parseVercelLogs(new Uint8Array(await request.arrayBuffer()));
 			} catch {
 				log.set({ rejected: "unparseable_body" });
 				return new Response(null, { status: 400 });
 			}
+			const { entries, malformed } = batch;
 
 			const allowedOrigins = website
 				? getWebsiteSecuritySettings(website.settings)?.allowedOrigins
@@ -620,7 +636,7 @@ export const vercelDrainRoute = new Elysia().post(
 					}
 					seenRequests.add(requestKey);
 				}
-				if (proxy.method && proxy.method !== "GET" && proxy.method !== "HEAD") {
+				if (proxy.method !== "GET" && proxy.method !== "HEAD") {
 					continue;
 				}
 				if (
@@ -648,6 +664,9 @@ export const vercelDrainRoute = new Elysia().post(
 				}
 
 				const pathname = proxy.path.split("?")[0] ?? "";
+				if (isAssetPath(pathname)) {
+					continue;
+				}
 				spans.push({
 					client_id: websiteId,
 					timestamp: proxy.timestamp ?? parsed.data.timestamp ?? Date.now(),
@@ -675,6 +694,7 @@ export const vercelDrainRoute = new Elysia().post(
 				vercel: {
 					entries: entries.length,
 					stored: spans.length,
+					malformed_lines: malformed,
 					foreign_hosts: foreignHosts,
 				},
 			});
