@@ -165,7 +165,7 @@ export const AiDigestEmail = ({
 				<Preview>
 					{hasVisitors
 						? `${senders[0]?.name ?? "AI"} sent you ${n(visitors)} ${visitors === 1 ? "visitor" : "visitors"}. AI read your site ${n(reads)} times.`
-						: `AI read ${site} ${n(reads)} times and found ${n(newPages)} new pages.`}
+						: `AI read ${site} ${n(reads)} times this week.`}
 				</Preview>
 				<Body className={`m-0 bg-canvas py-10 ${FONT}`}>
 					<Container className="mx-auto max-w-[560px] px-4">
@@ -211,7 +211,7 @@ export const AiDigestEmail = ({
 									/>
 								)}
 								<Stat
-									label="Pages AI read for the first time"
+									label="Pages AI hadn't read in 90 days"
 									value={newPages}
 								/>
 							</Row>
@@ -370,7 +370,7 @@ AiDigestEmail.PreviewProps = {
 			visitors: 2,
 		},
 	],
-	newPages: 343,
+	newPages: 10,
 	pages: [
 		{ format: "html", page: "/", reads: 126 },
 		{ format: "html", page: "/pricing", reads: 89 },
