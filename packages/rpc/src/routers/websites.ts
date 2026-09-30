@@ -1242,7 +1242,7 @@ export const websitesRouter = {
 		.input(
 			z.object({
 				websiteId: z.string(),
-				userAgents: z.array(z.string().max(512)).max(100),
+				userAgents: z.array(z.string()),
 			})
 		)
 		.output(
