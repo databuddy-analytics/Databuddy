@@ -116,7 +116,7 @@ function WebsiteMapPage() {
 
 	const isLoading = isRealtime
 		? realtime.isLoading && !realtime.data.active_stats
-		: historical.isLoading;
+		: historical.isLoading && !historical.data.country;
 	const focusCode = countries.some((c) => c.code === focused) ? focused : null;
 	const lastMinute = realtime.data.realtime_velocity?.at(-1);
 	const topVisitors = Math.max(0, ...countries.map((c) => c.value));

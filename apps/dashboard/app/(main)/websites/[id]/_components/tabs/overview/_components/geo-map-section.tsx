@@ -57,6 +57,9 @@ function VisitorLocations({ countries }: { countries: CountryDataItem[] }) {
 	);
 
 	const topCountries = globeCountries.slice(0, TOP_COUNTRIES);
+	const focusCode = topCountries.some((c) => c.code === focused)
+		? focused
+		: null;
 	const totalVisitors = globeCountries.reduce((sum, c) => sum + c.value, 0);
 
 	return (
@@ -76,7 +79,7 @@ function VisitorLocations({ countries }: { countries: CountryDataItem[] }) {
 							<GlobeMap
 								className="max-w-[320px]"
 								countries={globeCountries}
-								focusCode={focused}
+								focusCode={focusCode}
 								onHoverChange={setHovered}
 							/>
 						</ChartErrorBoundary>
@@ -91,7 +94,7 @@ function VisitorLocations({ countries }: { countries: CountryDataItem[] }) {
 											? (country.value / totalVisitors) * 100
 											: 0;
 									const isActive =
-										country.code === hovered || country.code === focused;
+										country.code === hovered || country.code === focusCode;
 
 									return (
 										// biome-ignore lint/a11y/noNoninteractiveElementInteractions: hover only turns the globe; the row stays plain data
