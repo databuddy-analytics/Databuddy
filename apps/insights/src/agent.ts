@@ -1023,7 +1023,7 @@ function validateDefinitionRecommendation(
 
 const MONTH_NAME =
 	"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)";
-// Compact comparison days must end the date label, not hide a measured range.
+// ponytail: numeric-colon tails stay grounded; use full dates to disambiguate.
 const MONTH_FIRST_DATE_RANGE = new RegExp(
 	String.raw`\b${MONTH_NAME} \d{1,2}(?:\s*(?:to|through|[–—-])\s*(?:${MONTH_NAME} )?\d{1,2}(?:\s*→\s*(?:[12]\d|3[01]|[1-9])\s*[–—-]\s*(?:[12]\d|3[01]|[1-9])(?=(?:,? \d{4})?(?:,? UTC)?\s*(?:$|[;)\]]|:(?!\s*\d)|,(?!\s*\d)|\.(?!\d))))?)?(?:,? \d{4})?\b`,
 	"gi"

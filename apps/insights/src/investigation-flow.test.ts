@@ -4452,6 +4452,7 @@ describe("validateNumericGrounding", () => {
 		["22–28.5%", 22],
 		["22–28, 2026 visits", 22],
 		["22–28: 23 visitors", 22],
+		["22–28: 2200 origin responses", 22],
 	] as const)("keeps measurements after a date grounded: %s", (tail, value) => {
 		expect(() =>
 			validateNumericGrounding(
@@ -4460,7 +4461,7 @@ describe("validateNumericGrounding", () => {
 					summary: `September 15–21 → ${tail}.`,
 					evidence: [],
 				},
-				'{"visitors":40}'
+				'{"visitors":40,"originResponses":2200}'
 			)
 		).toThrow(`number ${value}`);
 	});
