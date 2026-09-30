@@ -851,7 +851,7 @@ export default function AccountSettingsPage() {
 										No apps connected yet.
 									</Text>
 								)}
-							{connectedApps.length > 0 && (
+							{!isConnectedAppsError && connectedApps.length > 0 && (
 								<div className="space-y-3">
 									{connectedApps.map((app, index) => {
 										const host = urlHost(app.clientId);
