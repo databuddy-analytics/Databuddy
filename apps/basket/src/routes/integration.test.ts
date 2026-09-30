@@ -1,4 +1,5 @@
 import { setupCheckUserAgent } from "@databuddy/shared/bot-detection/ai-agents";
+import { gzipSync } from "node:zlib";
 import { vi, afterEach, beforeEach, describe, expect, test } from "vitest";
 
 const {
@@ -204,7 +205,9 @@ const { basketErrors, buildBasketErrorPayload } = await import(
 	"@lib/structured-errors"
 );
 const { ERRORS_BODY_MAX_BYTES } = await import("../routes/basket");
-const { send: mockSend } = await import("@lib/producer");
+const { send: mockSend, sendBatch: mockSendBatch } = await import(
+	"@lib/producer"
+);
 const { isOriginAllowed } = await import("@hooks/auth");
 apiKeyDenialErrors.website_scope_mismatch =
 	basketErrors.trackWebsiteScopeMismatch;
@@ -233,7 +236,9 @@ const basketApp = new Elysia()
 	})
 	.use(rawBasket);
 
-const rawTrack = (await import("./track")).trackRoute;
+const { trackRoute: rawTrack, vercelDrainRoute: rawVercelDrain } = await import(
+	"./track"
+);
 const trackRoute = new Elysia()
 	.onError(({ error, code }) => {
 		if (code === "NOT_FOUND") {
@@ -247,7 +252,8 @@ const trackRoute = new Elysia()
 			headers: { "Content-Type": "application/json" },
 		});
 	})
-	.use(rawTrack);
+	.use(rawTrack)
+	.use(rawVercelDrain);
 
 const now = Date.now();
 
@@ -1512,5 +1518,132 @@ describe("POST /ai-traffic", () => {
 		expect(await recorded.json()).toEqual({ recorded: true });
 		expect(await missing.json()).toEqual({ recorded: false });
 		expect(oversized.status).toBe(400);
+	});
+});
+
+describe("POST /vercel/:websiteId", () => {
+	const CLAUDE_CODE =
+		"Claude-User (claude-code/2.1.280; +https://support.anthropic.com/)";
+	const GPTBOT =
+		"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)";
+	const CHROME_UA =
+		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+
+	beforeEach(() => {
+		vi.mocked(mockSendBatch).mockClear();
+		vi.mocked(mockRedisSet).mockClear();
+		vi.mocked(isOriginAllowed).mockImplementation(
+			(origin: string, domain: string) =>
+				new URL(origin).hostname.endsWith(domain)
+		);
+	});
+
+	afterEach(() => {
+		vi.mocked(isOriginAllowed).mockImplementation(() => true);
+	});
+
+	function logLine(
+		userAgent: string,
+		proxy: Record<string, unknown> = {},
+		requestId: string = crypto.randomUUID()
+	) {
+		return {
+			id: crypto.randomUUID(),
+			requestId,
+			source: "static",
+			timestamp: 1_790_700_000_000,
+			proxy: {
+				host: "docs.example.com",
+				method: "GET",
+				path: "/docs/intro.md?ref=chat",
+				statusCode: 200,
+				timestamp: 1_790_700_000_000,
+				userAgent: [userAgent],
+				...proxy,
+			},
+		};
+	}
+
+	function drain(body: BodyInit) {
+		return trackRoute.handle(
+			new Request("http://localhost/vercel/ws_test", { method: "POST", body })
+		);
+	}
+
+	function storedSpans() {
+		return vi.mocked(mockSendBatch).mock.calls[0]?.[1] ?? [];
+	}
+
+	test("stores AI agent requests from a JSON batch with their status and format", async () => {
+		const res = await drain(
+			JSON.stringify([
+				logLine(CLAUDE_CODE),
+				logLine(GPTBOT, { path: "/llms.txt", statusCode: 404 }),
+				logLine(CHROME_UA),
+			])
+		);
+		expect(res.status).toBe(200);
+		expect(storedSpans()).toEqual([
+			expect.objectContaining({
+				client_id: "ws_test",
+				agent_id: "claude-code",
+				path: "/docs/intro.md",
+				format: "markdown",
+				host: "docs.example.com",
+				status_code: 200,
+				source: "vercel",
+			}),
+			expect.objectContaining({
+				agent_id: "openai-crawler",
+				path: "/llms.txt",
+				format: "llms",
+				status_code: 404,
+			}),
+		]);
+	});
+
+	test("reads gzipped NDJSON and counts a request's repeated log lines once", async () => {
+		const request = logLine(CLAUDE_CODE);
+		const consoleLine = {
+			...request,
+			id: crypto.randomUUID(),
+			source: "lambda",
+		};
+		const ndjson = [request, consoleLine]
+			.map((line) => JSON.stringify(line))
+			.join("\n");
+		const res = await drain(gzipSync(ndjson));
+		expect(res.status).toBe(200);
+		expect(storedSpans()).toHaveLength(1);
+	});
+
+	test("skips other hosts, writes, revalidations and setup checks", async () => {
+		const res = await drain(
+			JSON.stringify([
+				logLine(CLAUDE_CODE, { host: "other-site.dev" }),
+				logLine(CLAUDE_CODE, { method: "POST" }),
+				logLine(CLAUDE_CODE, { statusCode: -1 }),
+				logLine(CLAUDE_CODE, { method: undefined }),
+				logLine(CLAUDE_CODE, { path: "/_next/static/chunks/app.js" }),
+				logLine(setupCheckUserAgent("nonce_1")),
+			])
+		);
+		expect(res.status).toBe(200);
+		expect(mockSendBatch).not.toHaveBeenCalled();
+		expect(mockRedisSet).toHaveBeenCalledWith(
+			"ai-agent-setup-check:ws_test:nonce_1",
+			"1",
+			"EX",
+			120
+		);
+	});
+
+	test("rejects an unknown website, an unreadable body and a gzip bomb", async () => {
+		mockGetWebsiteByIdV2.mockResolvedValueOnce(null as never);
+		expect((await drain("[]")).status).toBe(404);
+		expect((await drain("[not json")).status).toBe(400);
+		expect((await drain(gzipSync(" ".repeat(11 * 1024 * 1024)))).status).toBe(
+			400
+		);
 	});
 });

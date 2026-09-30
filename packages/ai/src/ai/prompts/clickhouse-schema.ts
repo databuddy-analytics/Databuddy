@@ -227,9 +227,9 @@ export const ANALYTICS_TABLES: TableDef[] = [
 		name: "analytics.ai_traffic_spans",
 		section: "ai_traffic",
 		description:
-			"One row per request from an AI crawler or agent (GPTBot, ClaudeBot, ChatGPT-User, Claude Code...), recorded server-side by @databuddy/sdk/agents (source = 'middleware') or by the browser tracker (source = 'tracker'). These are bot reads, never visitors or pageviews. Prefer get_data ai_* builders (ai_crawlers, ai_agent_pages, ai_content_formats, ai_products): they name agents and products and skip duplicate rows.",
+			"One row per request from an AI crawler or agent (GPTBot, ClaudeBot, ChatGPT-User, Claude Code...), recorded server-side by @databuddy/sdk/agents (source = 'middleware') or a Vercel log drain (source = 'vercel'), or by the browser tracker (source = 'tracker'). These are bot reads, never visitors or pageviews. Prefer get_data ai_* builders (ai_crawlers, ai_agent_pages, ai_content_formats, ai_products): they name agents and products and skip duplicate rows.",
 		additionalInfo:
-			"Count AI requests with agent_id != ''; '' marks forwarded hits from bots that are not AI agents (search, SEO, monitoring). Once a site has a middleware row, tracker rows from then on repeat the same requests, so count tracker rows only before the site's first middleware row. Name agents by agent_id, not bot_name.",
+			"Count AI requests with agent_id != ''; '' marks forwarded hits from bots that are not AI agents (search, SEO, monitoring). Server-side sources repeat requests the tracker also saw: when a site has both middleware and vercel rows, the source whose first row is newer counts from then on and the other only before it, and tracker rows count only before the first middleware or vercel row. Name agents by agent_id, not bot_name.",
 		keyColumns: [
 			"client_id (String)",
 			"timestamp (DateTime64)",
@@ -242,8 +242,9 @@ export const ANALYTICS_TABLES: TableDef[] = [
 			"host (LowCardinality String) - Host the request was made to; '' on tracker rows",
 			"referrer (Nullable String)",
 			"user_agent (String)",
-			"accept (String) - Request Accept header; '' when absent or on tracker rows",
-			"source (LowCardinality String) - middleware | tracker",
+			"accept (String) - Request Accept header; '' when absent, on tracker rows and on vercel rows",
+			"status_code (UInt16) - HTTP status returned to the agent (vercel rows only); 0 when unknown",
+			"source (LowCardinality String) - middleware | vercel | tracker",
 			"verification (LowCardinality String) - 'host_unchecked' when stored during a website lookup outage, otherwise ''",
 		],
 	},

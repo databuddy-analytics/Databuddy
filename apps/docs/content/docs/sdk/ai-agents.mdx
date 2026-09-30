@@ -69,6 +69,18 @@ For Vite, Astro or any other site on Vercel, add `middleware.ts` at the project 
   {`export { proxy as default } from "@databuddy/sdk/agents";`}
 </CodeBlock>
 
+### Vercel log drain (no code)
+
+On a Vercel Pro or Enterprise plan you can send your request logs instead of adding code. In Vercel, open **Team Settings → Drains → Add Drain**, choose **Logs** and **Custom Endpoint**, and paste:
+
+<CodeBlock language="bash">
+  {`https://basket.databuddy.cc/vercel/your_website_id`}
+</CodeBlock>
+
+Select the **Static Files**, **Functions**, **Edge Functions** and **Rewrites** sources and the **Production** environment, choose JSON or NDJSON, and leave sampling off. Databuddy keeps only requests from AI agents, from hosts that belong to your website. Vercel bills drains by volume.
+
+Logs don't include the `Accept` header, so markdown is recognized from `.md` and `.mdx` paths only, and signed agent browsers look like regular Chrome. In exchange you also get the HTTP status each agent received, so pages that return 404 to AI crawlers show up.
+
 ### Cloudflare Workers, Hono and other fetch handlers
 
 <CodeBlock language="ts">
@@ -117,4 +129,4 @@ It never throws and never delays your response: requests to Databuddy run in the
 
 Deploy, then open the AI Agents page in your dashboard and click **Test setup**. Databuddy requests your homepage and `/llms.txt` as GPTBot and tells you whether each request was recorded. Test requests never show up in your data.
 
-Static hosts without middleware (GitHub Pages, S3) and hosted docs platforms that don't let you run code can't report crawler requests.
+Static hosts without middleware (GitHub Pages, S3) and hosted docs platforms that don't let you run code can't report crawler requests, unless they run on Vercel and can use a log drain.

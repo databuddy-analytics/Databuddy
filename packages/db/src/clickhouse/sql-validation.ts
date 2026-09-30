@@ -138,6 +138,7 @@ export const AGENT_TABLE_COLUMNS: Readonly<
 		"referrer",
 		"user_agent",
 		"accept",
+		"status_code",
 		"source",
 		"verification",
 	]),

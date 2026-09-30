@@ -14,7 +14,7 @@ import {
 import { checkAutumnUsage } from "@lib/billing";
 import { parseCorsSafeJson } from "@lib/cors-safe-json";
 import { insertCustomEvents } from "@lib/event-service";
-import { runFork, send } from "@lib/producer";
+import { runFork, send, sendBatch } from "@lib/producer";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { redis } from "@databuddy/redis/redis";
 import {
@@ -23,7 +23,11 @@ import {
 	setupCheckKey,
 	setupCheckNonce,
 } from "@databuddy/shared/bot-detection/ai-agents";
-import { CONTENT_FORMATS } from "@databuddy/shared/bot-detection/types";
+import {
+	CONTENT_FORMATS,
+	contentFormatForPath,
+	isAssetPath,
+} from "@databuddy/shared/bot-detection/types";
 import {
 	checkForBot,
 	getWebsiteSecuritySettings,
@@ -47,6 +51,7 @@ import {
 	validatePayloadSize,
 } from "@utils/validation";
 import { detectBot } from "@utils/user-agent";
+import { gunzipSync } from "node:zlib";
 import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
 import { z } from "zod";
@@ -66,6 +71,53 @@ const agentHitSchema = z.object({
 	signatureAgent: truncated(512).optional(),
 	referrer: truncated(2048).optional(),
 });
+
+const vercelLogSchema = z.object({
+	id: z.string().optional(),
+	requestId: z.string().optional(),
+	timestamp: z.number().optional(),
+	proxy: z
+		.object({
+			host: z.string().min(1).max(253),
+			method: z.string().optional(),
+			path: z.string(),
+			referer: z.string().optional(),
+			statusCode: z.number().int().optional(),
+			timestamp: z.number().optional(),
+			userAgent: z.array(z.string()).optional(),
+		})
+		.optional(),
+});
+
+const VERCEL_LOGS_MAX_BYTES = 10 * 1024 * 1024;
+
+function parseVercelLogs(body: Uint8Array): {
+	entries: unknown[];
+	malformed: number;
+} {
+	const bytes =
+		body[0] === 0x1f && body[1] === 0x8b
+			? gunzipSync(body, { maxOutputLength: VERCEL_LOGS_MAX_BYTES })
+			: body;
+	const text = new TextDecoder().decode(bytes).trim();
+	if (text.startsWith("[")) {
+		const parsed: unknown = JSON.parse(text);
+		return { entries: Array.isArray(parsed) ? parsed : [], malformed: 0 };
+	}
+	let malformed = 0;
+	const entries = text.split("\n").flatMap((line) => {
+		if (!line.trim()) {
+			return [];
+		}
+		try {
+			return [JSON.parse(line) as unknown];
+		} catch {
+			malformed += 1;
+			return [];
+		}
+	});
+	return { entries, malformed };
+}
 
 interface ResolvedAuth {
 	apiKey?: ApiKeyRow;
@@ -537,3 +589,119 @@ export const trackRoute = new Elysia()
 			rethrowOrWrap(error, log);
 		}
 	});
+
+export const vercelDrainRoute = new Elysia().post(
+	"/vercel/:websiteId",
+	async ({ params: { websiteId }, request }) => {
+		const log = useLogger();
+		log.set({ route: "vercel-drain", websiteId });
+
+		try {
+			if (websiteId.length > 128) {
+				return new Response(null, { status: 400 });
+			}
+			const website = await getWebsiteByIdV2(websiteId).catch(() => {
+				log.set({ website_lookup: "unavailable" });
+				return;
+			});
+			if (website === null) {
+				throw basketErrors.trackWebsiteNotFound();
+			}
+
+			let batch: ReturnType<typeof parseVercelLogs>;
+			try {
+				batch = parseVercelLogs(new Uint8Array(await request.arrayBuffer()));
+			} catch {
+				log.set({ rejected: "unparseable_body" });
+				return new Response(null, { status: 400 });
+			}
+			const { entries, malformed } = batch;
+
+			const allowedOrigins = website
+				? getWebsiteSecuritySettings(website.settings)?.allowedOrigins
+				: undefined;
+			const seenRequests = new Set<string>();
+			const spans: AiTrafficSpansInsert[] = [];
+			let foreignHosts = 0;
+			for (const entry of entries) {
+				const parsed = vercelLogSchema.safeParse(entry);
+				const proxy = parsed.success ? parsed.data.proxy : undefined;
+				if (!(parsed.success && proxy) || proxy.statusCode === -1) {
+					continue;
+				}
+				const requestKey = parsed.data.requestId ?? parsed.data.id;
+				if (requestKey) {
+					if (seenRequests.has(requestKey)) {
+						continue;
+					}
+					seenRequests.add(requestKey);
+				}
+				if (proxy.method !== "GET" && proxy.method !== "HEAD") {
+					continue;
+				}
+				if (
+					website &&
+					!isOriginAllowed(
+						`https://${proxy.host}`,
+						website.domain,
+						allowedOrigins
+					)
+				) {
+					foreignHosts += 1;
+					continue;
+				}
+
+				const userAgent = (proxy.userAgent?.[0] ?? "").slice(0, 512);
+				const setupNonce = setupCheckNonce(userAgent);
+				if (setupNonce) {
+					await redis.set(setupCheckKey(websiteId, setupNonce), "1", "EX", 120);
+					continue;
+				}
+				const { botName, result } = detectBot(userAgent, request);
+				const agent = identifyAiAgent({ userAgent }, result?.category);
+				if (!agent) {
+					continue;
+				}
+
+				const pathname = proxy.path.split("?")[0] ?? "";
+				if (isAssetPath(pathname)) {
+					continue;
+				}
+				spans.push({
+					client_id: websiteId,
+					timestamp: proxy.timestamp ?? parsed.data.timestamp ?? Date.now(),
+					bot_type: agentBotCategory(agent),
+					bot_name: botName ?? agent.operator,
+					user_agent: userAgent,
+					path: pathname.slice(0, 2048),
+					format: contentFormatForPath(pathname),
+					host: proxy.host,
+					accept: "",
+					referrer: proxy.referer?.slice(0, 2048),
+					agent_id: agent.id,
+					agent_purpose: agent.purpose,
+					source: "vercel",
+					status_code:
+						proxy.statusCode && proxy.statusCode > 0 ? proxy.statusCode : 0,
+					verification: website ? "" : "host_unchecked",
+				});
+			}
+
+			if (spans.length > 0) {
+				runFork(sendBatch("analytics-ai-traffic-spans", spans));
+			}
+			log.set({
+				vercel: {
+					entries: entries.length,
+					stored: spans.length,
+					malformed_lines: malformed,
+					foreign_hosts: foreignHosts,
+				},
+			});
+			return new Response(null, { status: 200 });
+		} catch (error) {
+			rethrowOrWrap(error, log);
+		}
+	},
+	{ parse: "none" }
+);
