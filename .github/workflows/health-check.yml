@@ -157,7 +157,8 @@ jobs:
             -e CLICKHOUSE_URL=http://localhost:8123 \
             -e CLICKHOUSE_USER=default \
             -e CLICKHOUSE_PASSWORD=vector-test-password \
-            timberio/vector:0.50.0-alpine \
+            -e VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION=true \
+            timberio/vector:0.58.0-alpine \
             validate --deny-warnings --no-environment /etc/vector/vector.yaml
 
       - name: Prove Redpanda to Vector to ClickHouse delivery
@@ -238,7 +239,8 @@ jobs:
             -e CLICKHOUSE_URL=http://localhost:8123 \
             -e CLICKHOUSE_USER=default \
             -e CLICKHOUSE_PASSWORD= \
-            timberio/vector:0.50.0-alpine \
+            -e VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION=true \
+            timberio/vector:0.58.0-alpine \
             --config /etc/vector/vector.yaml
 
           CANARY_ID="ci-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}"

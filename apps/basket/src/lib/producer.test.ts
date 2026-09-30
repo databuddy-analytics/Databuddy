@@ -693,7 +693,7 @@ test("Vector consumes every produced topic into its ClickHouse table", async () 
 		)?.[1];
 		const sink = vectorConfig.match(
 			new RegExp(
-				`- route_analytics\\.${route}\\n[\\s\\S]*?database: (\\w+)\\n\\s*table: (\\w+)`
+				`- route_analytics\\.${route}\\n[\\s\\S]*?INSERT\\+INTO\\+(\\w+)\\.(\\w+)\\+FORMAT`
 			)
 		);
 		expect(`${sink?.[1]}.${sink?.[2]}`, topic).toBe(table);
