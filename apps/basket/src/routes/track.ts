@@ -17,6 +17,7 @@ import { insertCustomEvents } from "@lib/event-service";
 import { runFork, send, sendBatch } from "@lib/producer";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { redis } from "@databuddy/redis/redis";
+import { detectBot } from "@databuddy/shared/bot-detection";
 import {
 	type AgentSignals,
 	agentBotCategory,
@@ -51,7 +52,6 @@ import {
 	VALIDATION_LIMITS,
 	validatePayloadSize,
 } from "@utils/validation";
-import { detectBot } from "@utils/user-agent";
 import { gunzipSync } from "node:zlib";
 import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
@@ -150,18 +150,16 @@ async function recordedSetupCheck(
 	return nonce !== null;
 }
 
-function agentColumns(signals: AgentSignals, request: Request) {
-	const { botName, result } = detectBot(signals.userAgent, request);
-	const agent = identifyAiAgent(signals, result?.category);
+function agentColumns(signals: AgentSignals) {
+	const bot = detectBot(signals.userAgent);
+	const agent = identifyAiAgent(signals, bot.category);
 	return {
 		agent,
 		columns: {
 			agent_id: agent?.id ?? "",
 			agent_purpose: agent?.purpose ?? "",
-			bot_name: botName ?? agent?.operator ?? "",
-			bot_type: agent
-				? agentBotCategory(agent)
-				: (result?.category ?? "unknown"),
+			bot_name: bot.name ?? agent?.operator ?? "",
+			bot_type: agent ? agentBotCategory(agent) : (bot.category ?? "unknown"),
 		},
 	};
 }
@@ -553,7 +551,7 @@ export const trackRoute = new Elysia()
 			recorded: (await redis.exists(setupCheckKey(websiteId, nonce))) === 1,
 		})
 	)
-	.post("/ai-traffic", async ({ body, request }) => {
+	.post("/ai-traffic", async ({ body }) => {
 		const log = useLogger();
 		log.set({ route: "ai-traffic" });
 
@@ -574,7 +572,7 @@ export const trackRoute = new Elysia()
 				return new Response(null, { status: 202 });
 			}
 
-			const { agent, columns } = agentColumns(hit, request);
+			const { agent, columns } = agentColumns(hit);
 			log.set({
 				bot: {
 					name: columns.bot_name,
@@ -650,7 +648,7 @@ export const vercelDrainRoute = new Elysia().post(
 				) {
 					continue;
 				}
-				const { agent, columns } = agentColumns({ userAgent }, request);
+				const { agent, columns } = agentColumns({ userAgent });
 				if (!agent) {
 					continue;
 				}

@@ -1,4 +1,5 @@
 import type { AiTrafficSpansInsert } from "@databuddy/db/clickhouse/tables";
+import { detectBot } from "@databuddy/shared/bot-detection";
 import {
 	getWebsiteByIdV2,
 	isOriginAllowed,
@@ -10,7 +11,6 @@ import { runFork, send } from "@lib/producer";
 import { basketErrors } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
 import { extractAllowlistClientIp, extractIpFromRequest } from "@utils/ip-geo";
-import { detectBot } from "@utils/user-agent";
 import {
 	sanitizeString,
 	VALIDATION_LIMITS,
@@ -147,8 +147,8 @@ export function validateRequest(
 				VALIDATION_LIMITS.STRING_MAX_LENGTH
 			) || "";
 
-		const botCheck = detectBot(userAgent, request);
-		const isBlockedBot = botCheck.isBot && botCheck.action !== "allow";
+		const bot = detectBot(userAgent);
+		const isBlockedBot = bot.isBot && bot.action !== "allow";
 
 		if (website.ownerId && options.checkUsage !== false && !isBlockedBot) {
 			const eventCount = Array.isArray(body)
@@ -270,29 +270,27 @@ export function checkForBot(
 		const bodyRecord = asRecord(body);
 		const queryRecord = asRecord(query);
 
-		const botCheck = detectBot(userAgent, request);
+		const bot = detectBot(userAgent);
 
-		if (!botCheck.isBot) {
+		if (!bot.isBot) {
 			return;
 		}
 
-		const { action, result } = botCheck;
-		const agent = result?.agent;
 		log.set({
 			bot: {
-				name: botCheck.botName,
-				category: botCheck.category,
-				action,
-				agent: agent?.id,
-				purpose: agent?.purpose,
+				name: bot.name,
+				category: bot.category,
+				action: bot.action,
+				agent: bot.agent?.id,
+				purpose: bot.agent?.purpose,
 			},
 		});
 
-		if (action === "allow") {
+		if (bot.action === "allow") {
 			return;
 		}
 
-		if (action === "track_only") {
+		if (bot.action === "track_only") {
 			const path =
 				(typeof bodyRecord.path === "string" ? bodyRecord.path : undefined) ||
 				(typeof bodyRecord.url === "string" ? bodyRecord.url : undefined) ||
@@ -309,13 +307,13 @@ export function checkForBot(
 			const span: AiTrafficSpansInsert = {
 				client_id: clientId,
 				timestamp: Date.now(),
-				bot_type: result?.category || "unknown",
-				bot_name: botCheck.botName || "unknown",
+				bot_type: bot.category ?? "unknown",
+				bot_name: bot.name ?? "unknown",
 				user_agent: userAgent,
 				path,
 				referrer,
-				agent_id: agent?.id,
-				agent_purpose: agent?.purpose,
+				agent_id: bot.agent?.id,
+				agent_purpose: bot.agent?.purpose,
 				source: "tracker",
 				format: "html",
 			};
@@ -330,9 +328,9 @@ export function checkForBot(
 			request,
 			body,
 			query,
-			botCheck.reason || "unknown_bot",
-			botCheck.category || "Bot Detection",
-			botCheck.botName,
+			bot.reason,
+			"Known Bot",
+			bot.name,
 			clientId
 		);
 
