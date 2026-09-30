@@ -31,6 +31,7 @@ interface RealtimeData extends Record<string, unknown[] | undefined> {
 
 interface HistoricalData extends Record<string, unknown[] | undefined> {
 	country?: GeoRow[];
+	summary_metrics?: { unique_visitors: number }[];
 }
 
 const REALTIME_QUERY = {
@@ -76,7 +77,12 @@ function WebsiteMapPage() {
 	const historical = useDynamicQuery<HistoricalData>(
 		id,
 		dateRange,
-		{ id: "map-countries", parameters: ["country"], limit: 200, filters },
+		{
+			id: "map-countries",
+			parameters: ["country", "summary_metrics"],
+			limit: 200,
+			filters,
+		},
 		{ enabled: !isRealtime }
 	);
 
@@ -113,10 +119,6 @@ function WebsiteMapPage() {
 		: historical.isLoading;
 	const focusCode = countries.some((c) => c.code === focused) ? focused : null;
 	const lastMinute = realtime.data.realtime_velocity?.at(-1);
-	const totalVisitors = countries.reduce(
-		(sum, country) => sum + country.value,
-		0
-	);
 	const topVisitors = Math.max(0, ...countries.map((c) => c.value));
 
 	return (
@@ -163,7 +165,12 @@ function WebsiteMapPage() {
 						</>
 					) : (
 						<>
-							<Stat label="visitors" value={totalVisitors} />
+							<Stat
+								label="visitors"
+								value={
+									historical.data.summary_metrics?.[0]?.unique_visitors ?? 0
+								}
+							/>
 							<Stat label="countries" value={countries.length} />
 						</>
 					)}
