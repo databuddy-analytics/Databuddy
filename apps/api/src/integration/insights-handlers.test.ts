@@ -1579,6 +1579,7 @@ describe("insight investigation timeline", () => {
 					?.handler({})
 			)?.structuredContent
 		).toEqual({
+			hasMore: false,
 			total: 1,
 			websites: [expect.objectContaining({ id: website.id })],
 		});
