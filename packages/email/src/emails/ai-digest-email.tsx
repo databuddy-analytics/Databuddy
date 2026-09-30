@@ -42,6 +42,7 @@ export interface AiDigestPage {
 
 export interface AiDigestEmailProps {
 	agentsUrl: string;
+	hasServerTracking: boolean;
 	landingPages: AiDigestLandingPage[];
 	newPages: number;
 	pages: AiDigestPage[];
@@ -192,6 +193,7 @@ function PathList({
 
 export const AiDigestEmail = ({
 	agentsUrl,
+	hasServerTracking,
 	landingPages,
 	newPages,
 	pages,
@@ -326,6 +328,25 @@ export const AiDigestEmail = ({
 								title="Most read by AI"
 							/>
 
+							{hasServerTracking ? null : (
+								<Section className="mt-9 rounded-lg bg-canvas px-5 py-4">
+									<Text className="m-0 font-medium text-[14px] text-ink">
+										See every AI crawler, not just some
+									</Text>
+									<Text className="m-0 mt-1 text-[13px] text-sub leading-[20px]">
+										GPTBot, ClaudeBot and most AI crawlers don't run JavaScript,
+										so they're missing from these reads. One line on your server
+										adds them.{" "}
+										<Link
+											className="font-medium text-ink underline"
+											href={agentsUrl}
+										>
+											Set it up
+										</Link>
+									</Text>
+								</Section>
+							)}
+
 							<Section className="mt-9">
 								<Button
 									className="rounded-md bg-ink px-5 py-[11px] font-medium text-[14px] text-paper"
@@ -352,6 +373,7 @@ export const AiDigestEmail = ({
 
 AiDigestEmail.PreviewProps = {
 	agentsUrl: "https://app.databuddy.cc/websites/example/agents",
+	hasServerTracking: false,
 	landingPages: [
 		{
 			logoUrl: "https://app.databuddy.cc/ai/email/ChatGPT.png",
