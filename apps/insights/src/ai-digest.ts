@@ -296,7 +296,15 @@ export async function sendAiDigest({
 		}),
 	});
 	if (!response.ok) {
-		throw new Error(`Resend AI digest failed: ${response.status}`);
+		const error = (await response.json().catch(() => null)) as {
+			name?: string;
+		} | null;
+		if (error?.name === "invalid_idempotent_request") {
+			return outcome({ reason: "already_sent", status: "skipped" });
+		}
+		throw new Error(
+			`Resend AI digest failed: ${response.status} ${error?.name ?? ""}`
+		);
 	}
 	return outcome({ status: "sent" });
 }
