@@ -13,7 +13,7 @@ export async function register() {
 		redaction,
 		axiom,
 	] = await Promise.all([
-		import("evlog"),
+		import("@databuddy/auth/logger"),
 		import("evlog/axiom"),
 		import("@vercel/functions"),
 		import("@databuddy/shared/evlog-redaction"),
