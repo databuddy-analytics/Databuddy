@@ -3,7 +3,7 @@ import {
 	type ApiKeyRow,
 	getApiKeyFromHeader,
 } from "@databuddy/api-keys/resolve";
-import { auth } from "@databuddy/auth";
+import { auth, type User } from "@databuddy/auth";
 import { db } from "@databuddy/db";
 import { os as createOS } from "@orpc/server";
 import { baseErrors } from "./errors";
@@ -22,6 +22,7 @@ import { getOrganizationOwnerId } from "./utils/organization";
 
 export interface PreResolvedAuth {
 	apiKey: ApiKeyRow | null;
+	oauth?: { organizationId: string | null; user: User } | null;
 	session: Awaited<ReturnType<typeof auth.api.getSession>> | null;
 }
 
@@ -90,6 +91,7 @@ export const createRPCContext = async (
 ) => {
 	let session: PreResolvedAuth["session"];
 	let apiKey: PreResolvedAuth["apiKey"];
+	const oauth = preResolved?.oauth ?? null;
 	if (preResolved) {
 		session = preResolved.session;
 		apiKey = preResolved.apiKey;
@@ -102,17 +104,25 @@ export const createRPCContext = async (
 		setRpcAuthTiming(performance.now() - authStartedAt);
 	}
 
-	const user = session?.user;
+	const user = session?.user ?? oauth?.user;
 
 	const organizationId =
-		apiKey?.organizationId ?? session?.session.activeOrganizationId ?? null;
+		apiKey?.organizationId ??
+		session?.session.activeOrganizationId ??
+		oauth?.organizationId ??
+		null;
 
 	let billingCache: BillingOwner | undefined;
 	let billingResolved = false;
 
-	const getBilling = async (): Promise<BillingOwner | undefined> => {
+	const getBilling = async (
+		billingOrganizationId: string | null = organizationId
+	): Promise<BillingOwner | undefined> => {
 		if (!hasHostedBilling()) {
 			return;
+		}
+		if (user && billingOrganizationId !== organizationId) {
+			return getBillingOwner(user.id, billingOrganizationId);
 		}
 		if (billingResolved) {
 			return billingCache;
