@@ -40,6 +40,7 @@ export const AI_ICON_COLORS: Record<string, string | null> = {
 	Perplexity: "#1FB8CD",
 	Phind: null,
 	Poe: "#5D5CDE",
+	Qwen: "#6F69F7",
 	Tavily: "#FE363B",
 	v0: null,
 	Zed: "#084CCF",
