@@ -516,7 +516,7 @@ export const AiAgentsBuilders = {
 		meta: {
 			title: "AI Activity Digest",
 			description:
-				"Per AI product, visitors sent and requests made in the selected period and the equally long period before it, plus the pages it read in the selected period that it had not read in the 90 days before. Every row also carries site-wide totals that count each visitor and page once (site_visitors, site_previous_visitors, site_new_pages); use those for whole-site numbers instead of summing the per-product columns.",
+				"Per AI product, visitors sent and requests made in the selected period and the equally long period before it, plus the pages it read in the selected period that it had not read in the 90 days before. Every row also carries site-wide totals that count each visitor and page once (site_visitors, site_previous_visitors, site_new_pages); use those for whole-site numbers instead of summing the per-product columns. site_has_server_tracking says whether the site sent server-side requests (@databuddy/sdk/agents or a Vercel log drain) in the selected period; without them, crawlers that don't run JavaScript are missing from that period's request counts.",
 			category: "AI Agents",
 			tags: ["ai", "digest", "summary", "week-over-week"],
 			output_fields: [
@@ -549,6 +549,11 @@ export const AiAgentsBuilders = {
 					type: "number",
 					label: "Site pages not read in the previous 90 days",
 				},
+				{
+					name: "site_has_server_tracking",
+					type: "boolean",
+					label: "Site sent server-side requests in the period",
+				},
 			],
 			default_visualization: "table",
 		},
@@ -574,7 +579,13 @@ export const AiAgentsBuilders = {
 								AND timestamp >= current_start - INTERVAL 90 DAY AND timestamp < period_end
 							GROUP BY page
 						)
-					) AS site_new_pages
+					) AS site_new_pages,
+					(
+						SELECT count() > 0
+						FROM ${Analytics.ai_traffic_spans}
+						WHERE client_id = {websiteId:String} AND source IN ${SERVER_SIDE_SOURCES}
+							AND timestamp >= current_start AND timestamp < period_end
+					) AS site_has_server_tracking
 				SELECT
 					product,
 					sum(visitors_now) AS visitors,
@@ -584,7 +595,8 @@ export const AiAgentsBuilders = {
 					sum(pages_new) AS new_pages,
 					site_visitor_counts.1 AS site_visitors,
 					site_visitor_counts.2 AS site_previous_visitors,
-					site_new_pages
+					site_new_pages,
+					site_has_server_tracking
 				FROM (
 					SELECT
 						${AGENT_PRODUCT} AS product,
