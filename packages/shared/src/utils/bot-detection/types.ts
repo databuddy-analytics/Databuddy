@@ -9,6 +9,54 @@ export const FEATURED_AI_PRODUCTS = [
 	"Meta AI",
 ];
 
+export const AI_ICON_COLORS: Record<string, string | null> = {
+	Ai2: "#F0529C",
+	Amazon: "#FF9900",
+	Apple: null,
+	Atlassian: "#0052CC",
+	ByteDance: "#3C8CFF",
+	ChatGPT: null,
+	Claude: "#D97757",
+	Cloudflare: "#F38020",
+	Cohere: "#FF7759",
+	Copilot: "#0D91E1",
+	Cursor: null,
+	DeepSeek: "#5786FE",
+	Devin: "#0294DE",
+	Doubao: "#1E37FC",
+	DuckDuckGo: "#DE5833",
+	Exa: "#1F40ED",
+	Firecrawl: null,
+	Gemini: "#8E75B2",
+	Huawei: "#FF0000",
+	Kagi: "#FFB319",
+	Kimi: "#1783FF",
+	Manus: null,
+	Meta: "#0467DF",
+	Mistral: "#FA520F",
+	Mozilla: null,
+	OpenCode: null,
+	Parallel: null,
+	Perplexity: "#1FB8CD",
+	Phind: null,
+	Poe: "#5D5CDE",
+	Tavily: "#FE363B",
+	v0: null,
+	Zed: "#084CCF",
+};
+
+export function aiProductIcon(product: string): string | undefined {
+	const name = product.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+	const icons = Object.keys(AI_ICON_COLORS);
+	return (
+		icons.find((icon) => icon.toLowerCase() === name) ??
+		icons.find(
+			(icon) =>
+				icon.toLowerCase().includes(name) || name.includes(icon.toLowerCase())
+		)
+	);
+}
+
 export type AgentPurpose = "training" | "search_index" | "user_fetch" | "agent";
 
 export const CONTENT_FORMATS = ["markdown", "llms", "html"] as const;

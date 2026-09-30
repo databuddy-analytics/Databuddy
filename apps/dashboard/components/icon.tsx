@@ -1,6 +1,10 @@
 "use client";
 
 import "flag-icons/css/flag-icons.min.css";
+import {
+	AI_ICON_COLORS,
+	aiProductIcon,
+} from "@databuddy/shared/bot-detection/types";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
@@ -65,41 +69,6 @@ const OS_ICON_EXT: Record<string, "svg" | "png" | "webp"> = {
 	macOS: "svg",
 };
 
-export const AI_ICON_COLORS: Record<string, string | null> = {
-	Ai2: "#F0529C",
-	Amazon: "#FF9900",
-	Apple: null,
-	Atlassian: "#0052CC",
-	ByteDance: "#3C8CFF",
-	ChatGPT: null,
-	Claude: "#D97757",
-	Cloudflare: "#F38020",
-	Cohere: "#FF7759",
-	Copilot: "#0D91E1",
-	Cursor: null,
-	DeepSeek: "#5786FE",
-	Devin: "#0294DE",
-	Doubao: "#1E37FC",
-	DuckDuckGo: "#DE5833",
-	Exa: "#1F40ED",
-	Firecrawl: null,
-	Gemini: "#8E75B2",
-	Huawei: "#FF0000",
-	Kagi: "#FFB319",
-	Kimi: "#1783FF",
-	Manus: null,
-	Meta: "#0467DF",
-	Mistral: "#FA520F",
-	Mozilla: null,
-	OpenCode: null,
-	Parallel: null,
-	Perplexity: "#1FB8CD",
-	Phind: null,
-	Poe: "#5D5CDE",
-	Tavily: "#FE363B",
-	v0: null,
-	Zed: "#084CCF",
-};
 const AI_ICONS = Object.keys(AI_ICON_COLORS);
 
 const BROWSER_ICONS = Object.keys(BROWSER_ICON_EXT);
@@ -297,7 +266,7 @@ export function OSIcon({
 }
 
 export function aiProductColor(name: string): string | undefined {
-	const icon = findIconMatch(normalizeIconName(name), AI_ICONS);
+	const icon = aiProductIcon(name);
 	if (!icon) {
 		return;
 	}
