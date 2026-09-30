@@ -39,7 +39,7 @@ const URLS = {
 	},
 } as const;
 
-const MCP_SERVER_PATH = "/v1/mcp/";
+const MCP_SERVER_PATH = "/v1/mcp";
 
 // Email sender defaults. Env fallback order works the same way as URLS.
 const EMAIL = {

@@ -9,7 +9,7 @@ describe("createConfig", () => {
 			basket: "https://basket.databuddy.cc",
 			dashboard: "https://app.databuddy.cc",
 			links: "https://dby.sh",
-			mcp: "https://api.databuddy.cc/v1/mcp/",
+			mcp: "https://api.databuddy.cc/v1/mcp",
 			status: "https://status.databuddy.cc",
 		});
 		expect(
@@ -20,7 +20,7 @@ describe("createConfig", () => {
 			basket: "http://localhost:4000",
 			dashboard: "http://localhost:3000",
 			links: "http://localhost:2500",
-			mcp: "http://localhost:3001/v1/mcp/",
+			mcp: "http://localhost:3001/v1/mcp",
 			status: "http://localhost:3002",
 		});
 	});
@@ -37,7 +37,7 @@ describe("createConfig", () => {
 			urls: {
 				api: "https://api.example.com",
 				dashboard: "https://app.example.com",
-				mcp: "https://api.example.com/v1/mcp/",
+				mcp: "https://api.example.com/v1/mcp",
 			},
 		});
 	});
