@@ -20,16 +20,14 @@ bun run diff
 This fetches the current script from `https://databuddy.b-cdn.net`, compares hashes, and highlights differences.
 
 ### 3. Deployment
-To deploy the built artifacts to Bunny.net (Production CDN):
+Merging tracker changes to `main` deploys them. The `Deploy Tracker` job in `.github/workflows/sdk-e2e.yml` builds, runs the Playwright suite, attests build provenance, and uploads to Bunny.net from the `tracker-cdn` environment. Run it by hand from the Actions tab (`dry_run` reports changes without uploading, `force` re-uploads every file).
+
+Unversioned scripts (`databuddy.js`) are cached for 5 minutes at the edge and 1 hour in browsers, so a deploy reaches every visitor within about an hour with no cache purge. Versioned scripts (`databuddy.v8.js`) are immutable. To roll back, revert the change on `main`.
+
+Verify a CDN file was built from this repo:
 ```bash
-bun run release
+curl -sO https://cdn.databuddy.cc/databuddy.js && gh attestation verify databuddy.js -R databuddy-analytics/Databuddy
 ```
-
-Release variables belong in the root `.env`:
-
-- Required: `BUNNY_STORAGE_ZONE_NAME`, `BUNNY_STORAGE_ACCESS_KEY`
-- Optional cache purge: `BUNNY_API_KEY`, `BUNNY_PULL_ZONE_ID`
-- Optional: `BUNNY_STORAGE_REGION`, `DISCORD_WEBHOOK_URL`
 
 ## Project Structure
 
@@ -37,7 +35,7 @@ Release variables belong in the root `.env`:
 - **`src/plugins/`**: Modular feature extensions (Web Vitals, Errors, etc.).
 - **`src/index.ts`**: The main entry point that assembles the `databuddy.js` bundle.
 - **`build.ts`**: Bun build script configuration.
-- **`deploy.ts`**: Internal CLI for handling Bunny.net uploads.
+- **`deploy.ts`**: Uploads `dist/` to Bunny.net and records versions; runs in CI only.
 - **`compare-release.ts`**: Internal tool for auditing local vs. remote scripts.
 
 ## Adding New Features
