@@ -428,32 +428,36 @@ export default function AccountSettingsPage() {
 		},
 	});
 
-	const { data: connectedApps = [], isLoading: isConnectedAppsLoading } =
-		useQuery({
-			queryKey: ["oauth-connected-apps"],
-			queryFn: async () => {
-				const result = await authClient.$fetch<Omit<ConnectedApp, "name">[]>(
-					"/oauth2/get-consents"
-				);
-				if (result.error) {
-					throw new Error(result.error.message);
-				}
-				return Promise.all(
-					(result.data ?? []).map(async (consent) => {
-						const client = await authClient.$fetch<{ name?: string | null }>(
-							`/oauth2/public-client?client_id=${encodeURIComponent(consent.clientId)}`
-						);
-						return {
-							...consent,
-							name:
-								client.data?.name ??
-								urlHost(consent.clientId) ??
-								consent.clientId,
-						};
-					})
-				);
-			},
-		});
+	const {
+		data: connectedApps = [],
+		isError: isConnectedAppsError,
+		isLoading: isConnectedAppsLoading,
+		refetch: refetchConnectedApps,
+	} = useQuery({
+		queryKey: ["oauth-connected-apps"],
+		queryFn: async () => {
+			const result = await authClient.$fetch<Omit<ConnectedApp, "name">[]>(
+				"/oauth2/get-consents"
+			);
+			if (result.error) {
+				throw new Error(result.error.message);
+			}
+			return Promise.all(
+				(result.data ?? []).map(async (consent) => {
+					const client = await authClient.$fetch<{ name?: string | null }>(
+						`/oauth2/public-client?client_id=${encodeURIComponent(consent.clientId)}`
+					);
+					return {
+						...consent,
+						name:
+							client.data?.name ??
+							urlHost(consent.clientId) ??
+							consent.clientId,
+					};
+				})
+			);
+		},
+	});
 
 	const disconnectApp = useMutation({
 		mutationFn: async (consentId: string) => {
@@ -827,11 +831,26 @@ export default function AccountSettingsPage() {
 									<Skeleton className="h-5 w-full" />
 								</div>
 							)}
-							{!isConnectedAppsLoading && connectedApps.length === 0 && (
-								<Text tone="muted" variant="caption">
-									No apps connected yet.
-								</Text>
+							{isConnectedAppsError && (
+								<div className="flex items-center justify-between gap-3">
+									<Text tone="muted" variant="caption">
+										Could not load connected apps.
+									</Text>
+									<Button
+										onClick={() => refetchConnectedApps()}
+										size="sm"
+										variant="secondary"
+									>
+										Retry
+									</Button>
+								</div>
 							)}
+							{!(isConnectedAppsLoading || isConnectedAppsError) &&
+								connectedApps.length === 0 && (
+									<Text tone="muted" variant="caption">
+										No apps connected yet.
+									</Text>
+								)}
 							{connectedApps.length > 0 && (
 								<div className="space-y-3">
 									{connectedApps.map((app, index) => {
