@@ -34,6 +34,7 @@ import {
 	insightsLoggerDrain,
 } from "./lib/evlog-insights";
 import {
+	ensureAiDigestSchedule,
 	ensureInsightsDispatchSchedule,
 	ensureInsightsMaintenanceSchedule,
 } from "./scheduler";
@@ -215,6 +216,7 @@ async function startRuntime() {
 			});
 		});
 		await Promise.all([
+			ensureAiDigestSchedule(),
 			ensureInsightsDispatchSchedule(),
 			ensureInsightsMaintenanceSchedule(),
 		]);

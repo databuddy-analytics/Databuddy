@@ -18,6 +18,8 @@ import { UptimeBuilders } from "./uptime";
 import { VitalsBuilders } from "./vitals";
 import type { SimpleQueryConfig } from "../types";
 
+export { aiActiveWebsitesQuery } from "./ai-agents";
+
 const BASE_QUERY_BUILDERS = {
 	...SummaryBuilders,
 	...PagesBuilders,

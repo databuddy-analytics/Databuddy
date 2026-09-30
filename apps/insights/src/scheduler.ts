@@ -6,6 +6,7 @@ import {
 	normalizeInsightScheduleFrequency,
 } from "@databuddy/rpc/insight-schedule";
 import {
+	AI_DIGEST_DISPATCH_JOB_NAME,
 	getInsightsQueue,
 	INSIGHTS_DISPATCH_JOB_NAME,
 	INSIGHTS_MAINTENANCE_JOB_NAME,
@@ -99,6 +100,20 @@ export function ensureInsightsMaintenanceSchedule(): Promise<void> {
 		{ reason: "maintenance" },
 		"scheduler.maintenance_ensured"
 	);
+}
+
+export async function ensureAiDigestSchedule(): Promise<void> {
+	await getInsightsQueue().upsertJobScheduler(
+		AI_DIGEST_DISPATCH_JOB_NAME,
+		{ pattern: "0 9 * * 1", tz: "UTC" },
+		{
+			name: AI_DIGEST_DISPATCH_JOB_NAME,
+			data: { reason: "ai_digest", triggeredAt: new Date().toISOString() },
+		}
+	);
+	emitInsightsEvent("info", "scheduler.ai_digest_ensured", {
+		pattern: "0 9 * * 1",
+	});
 }
 
 export async function dispatchDueInsightRuns(now = new Date()) {
