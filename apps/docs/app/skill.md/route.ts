@@ -231,7 +231,7 @@ Accepts single event or array (max 100). Max payload: 1MB (2MB request body hard
 | API | https://api.databuddy.cc |
 | OpenAPI spec | https://www.databuddy.cc/openapi.json |
 | API reference | https://api.databuddy.cc/ |
-| MCP server | https://api.databuddy.cc/v1/mcp/ |
+| MCP server | https://api.databuddy.cc/v1/mcp |
 | MCP manifest | https://www.databuddy.cc/.well-known/mcp.json |
 | Event ingestion | https://basket.databuddy.cc |
 | CDN script | https://cdn.databuddy.cc/databuddy.js |
