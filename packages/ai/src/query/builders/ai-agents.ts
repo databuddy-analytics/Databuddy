@@ -211,7 +211,7 @@ export const AiAgentsBuilders = {
 		meta: {
 			title: "Pages Read by AI",
 			description:
-				"What AI crawlers and agents read: one row per page and content format (markdown, llms.txt or HTML, as the agent asked for it), with the request count, last request, and every agent that read it (id, name, product, requests), most requested first. Up to 300 pages per format.",
+				"What AI crawlers and agents read: one row per page and content format (markdown, llms.txt or HTML, as the agent asked for it), with the request count, last request, and every agent that read it (id, name, product, requests), most requested first. Up to `limit` pages per format (1000 by default).",
 			category: "AI Agents",
 			tags: [
 				"ai",
@@ -261,8 +261,7 @@ export const AiAgentsBuilders = {
 				)
 				GROUP BY page, format
 				ORDER BY requests DESC, page ASC
-				LIMIT 300 BY format
-				LIMIT {limit:UInt32}
+				LIMIT {limit:UInt32} BY format
 			`,
 			params: { ...queryParams(ctx), limit: ctx.limit ?? 1000 },
 		}),
