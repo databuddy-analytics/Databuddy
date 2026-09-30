@@ -2,7 +2,12 @@
 
 import { isSelfHosted } from "@databuddy/env/public";
 
-import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, type ReactNode, useEffect, useRef, useState } from "react";
@@ -19,7 +24,15 @@ import {
 import { APP_EVENTS, trackAppEvent } from "@/lib/app-events";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
-import { Badge, Button, Card, EmptyState, fromNow } from "@databuddy/ui";
+import {
+	Badge,
+	Button,
+	Card,
+	dayjs,
+	EmptyState,
+	fromNow,
+	guessTimezone,
+} from "@databuddy/ui";
 import {
 	ArrowRightIcon,
 	CheckCircleIcon,
@@ -59,6 +72,10 @@ function InsightsPageContent() {
 		searchParams.get("firstReview")?.trim() || undefined;
 	const { canUse: canUseInvestigations, fixedPrice } = useInvestigationUsage();
 	const { isLoading: billingLoading } = useBillingContext();
+	const reviewSchedule = useReviewScheduleEmptyState(
+		organizationId,
+		!firstReviewWebsiteId
+	);
 	const latestRun = useQuery({
 		...orpc.insightGeneration.getLatestRun.queryOptions({
 			input: { organizationId },
@@ -316,15 +333,16 @@ function InsightsPageContent() {
 							? "Findings from this review only."
 							: latestRunDescription(latestRun.data)
 					}
+					emptyAction={reviewSchedule.action}
 					emptyDescription={
 						isFirstReviewComplete(firstReviewState)
 							? "The review found nothing that needs your attention."
-							: undefined
+							: reviewSchedule.description
 					}
 					emptyTitle={
 						isFirstReviewComplete(firstReviewState)
 							? "No material findings"
-							: undefined
+							: reviewSchedule.title
 					}
 					hasNextPage={brief.hasNextPage ?? false}
 					insights={insights}
@@ -699,8 +717,82 @@ function formatFirstReviewDate(value: string) {
 	return PERIOD_DATE_FORMATTER.format(new Date(value));
 }
 
+function useReviewScheduleEmptyState(
+	organizationId: string | undefined,
+	enabled: boolean
+): { action?: ReactNode; description?: string; title?: string } {
+	const queryClient = useQueryClient();
+	const { canUserUpgrade, isLoading: billingLoading } = useBillingContext();
+	const { hasAccess } = useInvestigationUsage();
+	const config = useQuery({
+		...orpc.insightGeneration.getConfig.queryOptions({
+			input: { organizationId },
+		}),
+		enabled: Boolean(organizationId) && enabled && !isSelfHosted,
+	});
+	const enableReviews = useMutation({
+		...orpc.insightGeneration.upsertConfig.mutationOptions(),
+		onError: (error) =>
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "Could not turn on weekly reviews"
+			),
+		onSuccess: () =>
+			queryClient.invalidateQueries({
+				queryKey: orpc.insightGeneration.key(),
+			}),
+	});
+
+	if (
+		!enabled ||
+		isSelfHosted ||
+		billingLoading ||
+		!hasAccess ||
+		!config.data
+	) {
+		return {};
+	}
+	if (config.data.enabled) {
+		return config.data.nextRunAt
+			? {
+					description: `Your next review runs ${dayjs(config.data.nextRunAt).format("dddd, MMM D")}.`,
+				}
+			: {};
+	}
+	if (!canUserUpgrade) {
+		return {
+			description:
+				"Ask an owner or admin to turn on weekly reviews so Databunny can tell you what changed on your sites.",
+			title: "Automatic reviews are off",
+		};
+	}
+	return {
+		action: (
+			<Button
+				loading={enableReviews.isPending}
+				onClick={() =>
+					enableReviews.mutate({
+						enabled: true,
+						frequency: "weekly",
+						organizationId,
+						timezone: guessTimezone(),
+					})
+				}
+				size="sm"
+			>
+				Turn on weekly reviews
+			</Button>
+		),
+		description:
+			"Turn on weekly reviews and Databunny will tell you what changed on your sites and what to do next.",
+		title: "Automatic reviews are off",
+	};
+}
+
 function InsightBrief({
 	description,
+	emptyAction,
 	emptyDescription,
 	emptyTitle,
 	hasNextPage,
@@ -712,6 +804,7 @@ function InsightBrief({
 	title,
 }: {
 	description: string;
+	emptyAction?: ReactNode;
 	emptyDescription?: string;
 	emptyTitle?: string;
 	hasNextPage: boolean;
@@ -754,6 +847,7 @@ function InsightBrief({
 		content = (
 			<div className="px-5 py-8">
 				<EmptyState
+					action={emptyAction}
 					description={
 						emptyDescription ??
 						"Noteworthy changes, improvements, and recoveries will appear here."
