@@ -63,6 +63,8 @@ jobs:
       - name: ClickHouse schema matches cluster
         env:
           CLICKHOUSE_READONLY_URL: ${{ secrets.CLICKHOUSE_READONLY_URL }}
+          CLICKHOUSE_ACCESS_CLIENT_ID: ${{ secrets.CLICKHOUSE_ACCESS_CLIENT_ID }}
+          CLICKHOUSE_ACCESS_CLIENT_SECRET: ${{ secrets.CLICKHOUSE_ACCESS_CLIENT_SECRET }}
         run: |
           if [[ -n "$CLICKHOUSE_READONLY_URL" ]]; then
             bun run --cwd packages/db ch:verify

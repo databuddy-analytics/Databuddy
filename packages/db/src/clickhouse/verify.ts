@@ -41,6 +41,12 @@ async function fetchLive(): Promise<Map<string, ParsedTable>> {
 		url.username = "";
 		url.password = "";
 	}
+	const accessClientId = process.env.CLICKHOUSE_ACCESS_CLIENT_ID;
+	const accessClientSecret = process.env.CLICKHOUSE_ACCESS_CLIENT_SECRET;
+	if (accessClientId && accessClientSecret) {
+		headers["CF-Access-Client-Id"] = accessClientId;
+		headers["CF-Access-Client-Secret"] = accessClientSecret;
+	}
 	const dbList = DATABASES.map((d) => `'${d}'`).join(",");
 	const query = `SELECT database, name, create_table_query FROM system.tables WHERE database IN (${dbList}) AND NOT is_temporary FORMAT JSONEachRow`;
 	url.searchParams.set("query", query);
