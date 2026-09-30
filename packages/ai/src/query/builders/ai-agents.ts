@@ -31,13 +31,23 @@ const PURPOSE_COUNTS = `countIf(agent_purpose = 'training') AS training,
 const PAGE =
 	"decodeURLComponent(if(trimRight(path(path), '/') = '', '/', trimRight(path(path), '/')))";
 
-const AGENT_REQUEST = `client_id = {websiteId:String}
-	AND agent_id != ''
-	AND (source = 'middleware' OR timestamp < (
+const SERVER_SIDE_SOURCES = "('middleware', 'vercel')";
+
+function firstRowFrom(sources: string): string {
+	return `(
 		SELECT ifNull(minOrNull(timestamp), toDateTime64('2100-01-01', 3))
 		FROM ${Analytics.ai_traffic_spans}
-		WHERE client_id = {websiteId:String} AND source = 'middleware'
-	))`;
+		WHERE client_id = {websiteId:String} AND source IN ${sources}
+	)`;
+}
+
+const AGENT_REQUEST = `client_id = {websiteId:String}
+	AND agent_id != ''
+	AND multiIf(
+		source = 'vercel', 1,
+		source = 'middleware', timestamp < ${firstRowFrom("('vercel')")},
+		timestamp < ${firstRowFrom(SERVER_SIDE_SOURCES)}
+	)`;
 
 const AGENT_REQUEST_IN_RANGE = `${AGENT_REQUEST}
 	AND timestamp >= toDateTime({startDate:String})
@@ -81,7 +91,8 @@ export const AiAgentsBuilders = {
 				{
 					name: "has_proxy",
 					type: "boolean",
-					label: "Site has ever sent requests through @databuddy/sdk/agents",
+					label:
+						"Site has ever sent server-side requests (@databuddy/sdk/agents or a Vercel log drain)",
 				},
 			],
 			default_visualization: "table",
@@ -95,7 +106,7 @@ export const AiAgentsBuilders = {
 					(
 						SELECT count() > 0
 						FROM ${Analytics.ai_traffic_spans}
-						WHERE client_id = {websiteId:String} AND source = 'middleware'
+						WHERE client_id = {websiteId:String} AND source IN ${SERVER_SIDE_SOURCES}
 					) AS has_proxy
 				FROM (
 					SELECT
