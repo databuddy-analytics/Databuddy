@@ -62,6 +62,13 @@ export const AGENT_MODEL_COSTS_USD_PER_MILLION: Record<
 		cache_read: 0,
 		cache_write: 0,
 	},
+	// ponytail: standard context rates; use tier-aware pricing above 272,000 input tokens.
+	"openai/gpt-6.1-sol": {
+		input: 2,
+		output: 10,
+		cache_read: 0.1,
+		cache_write: 2.5,
+	},
 	"openai/gpt-5.6-luna": {
 		input: 0.2,
 		output: 1.2,

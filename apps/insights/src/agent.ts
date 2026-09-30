@@ -59,7 +59,7 @@ import {
 const MAX_STEPS = 8;
 const TIMEOUT_MS = 2 * 60_000;
 const MAX_FINISH_ATTEMPTS = 3;
-export const INSIGHTS_MODEL_ID = "openai/gpt-5.6-luna";
+export const INSIGHTS_MODEL_ID = "openai/gpt-6.1-sol";
 const INSIGHTS_MODEL = createModelFromId(INSIGHTS_MODEL_ID);
 
 const revenueFields = (
