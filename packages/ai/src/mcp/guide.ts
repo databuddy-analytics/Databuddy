@@ -3,7 +3,7 @@ export const GUIDE_URI = "databuddy://guide";
 export const MCP_INSTRUCTIONS = `Databuddy provides product analytics, published insights, and durable investigations for the websites this account can access.
 
 - get_data runs analytics queries. Related queries can run as one batch.
-- list_insights returns published findings. Each carries the recommendation recorded when it was generated; recommendation is null when none was recorded.
+- list_insights returns published findings. Each carries the next step recorded when it was generated; next is null when none was recorded.
 - list_investigations lists cases. get_investigation returns one case's evidence, status, and replies.
 - reply_to_investigation adds a clarification that is answered from the case's saved evidence. It does not fetch new measurements, change actions, or start a new investigation. get_investigation shows the reply's status, and reusing a replyId returns the original reply.
 - capabilities lists query types. get_schema lists analytics columns.
@@ -25,7 +25,7 @@ export const GUIDE_MARKDOWN = `# Databuddy MCP guide
 
 ## Insights
 
-\`list_insights\` returns published findings, including quiet findings that did not open an investigation. Each finding carries the recommendation recorded when it was generated, and \`recommendation\` is null when none was recorded. Title, summary, evidence, impact, root cause, and recommendation are stored results from the analysis that produced the finding.
+\`list_insights\` returns published findings, including quiet findings that did not open an investigation. Each finding carries the next step recorded when it was generated: \`next.type\` is \`act\`, \`ask\`, or \`watch\`, and \`next\` is null when no action was recorded. Title, summary, evidence, impact, root cause, and next step are stored results from the analysis that produced the finding.
 
 ## Investigations
 

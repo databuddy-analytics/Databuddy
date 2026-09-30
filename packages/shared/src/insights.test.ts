@@ -433,7 +433,11 @@ describe("insightBriefItemSchema", () => {
 			id: "observation-1",
 			impact: outcomeBase.impact,
 			investigationId: null,
-			next: outcomeBase.next,
+			next: {
+				recheckAt: "2026-07-14T00:00:00.000Z",
+				text: "Set the signup goal target to /welcome.",
+				type: "act",
+			},
 			rootCause: outcomeBase.rootCause,
 			signal,
 			summary: outcomeBase.summary,
@@ -445,7 +449,10 @@ describe("insightBriefItemSchema", () => {
 
 		expect(parsed.investigationId).toBeNull();
 		expect(parsed.signal.entity.label).toBe("Signup completed");
-		expect(parsed).not.toHaveProperty("next");
+		expect(parsed.next).toEqual({
+			text: "Set the signup goal target to /welcome.",
+			type: "act",
+		});
 	});
 
 	it("rejects incomplete observations", () => {
@@ -583,14 +590,19 @@ describe("investigationOutcomeSchema", () => {
 				findingKind: "measurement_definition",
 			}).success
 		).toBe(false);
-		expect(
-			agentInvestigationOutcomeSchema.safeParse({
-				...published,
-				findingKind: "measurement_definition",
-				impact: null,
-				publicationBasis: "decision_safety",
-			}).success
-		).toBe(true);
+		for (const findingKind of [
+			"measurement_definition",
+			"measurement_coverage",
+		] as const) {
+			expect(
+				agentInvestigationOutcomeSchema.safeParse({
+					...published,
+					findingKind,
+					impact: null,
+					publicationBasis: "decision_safety",
+				}).success
+			).toBe(true);
+		}
 		expect(
 			agentInvestigationOutcomeSchema.safeParse({
 				...published,
@@ -665,6 +677,7 @@ describe("investigationOutcomeSchema", () => {
 	it("requires an exact future measurement window from the agent", () => {
 		const action = {
 			action: "Roll back the checkout handler.",
+			check: null,
 			execution: null,
 			target: "Checkout handler",
 			type: "act" as const,
@@ -691,9 +704,39 @@ describe("investigationOutcomeSchema", () => {
 		).toBe(true);
 	});
 
+	it("requires an explicit verification choice while accepting legacy stored actions", () => {
+		const action = {
+			action: "Roll back the checkout handler.",
+			execution: null,
+			recheckAt: "2026-07-20T12:00:00.000Z",
+			target: "Checkout handler",
+			type: "act" as const,
+			verification: "Checkout attempts succeed again.",
+		};
+		const candidate = {
+			...outcomeBase,
+			...agentFields,
+			next: action,
+			publish: true,
+			rootCause: "The handler rejected valid checkout submissions.",
+		};
+
+		expect(investigationOutcomeSchema.safeParse(candidate).success).toBe(true);
+		expect(agentInvestigationOutcomeSchema.safeParse(candidate).success).toBe(
+			false
+		);
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+				...candidate,
+				next: { ...action, check: null },
+			}).success
+		).toBe(true);
+	});
+
 	it("keeps executable definition changes separate from display copy", () => {
 		const action = {
 			action: "Rename Clicked Nav to Navigation clicks.",
+			check: null,
 			execution: {
 				action: "Rename Clicked Nav to Navigation clicks.",
 				changes: { description: null, name: "Navigation clicks" },

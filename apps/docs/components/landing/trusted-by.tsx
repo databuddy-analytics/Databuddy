@@ -15,6 +15,13 @@ const companies = [
 		invert: true,
 	},
 	{
+		name: "Orchid",
+		ycBatch: "P25",
+		url: "https://orchid.ai",
+		logo: "/social/orchid.svg",
+		invert: true,
+	},
+	{
 		name: "Context.dev",
 		ycBatch: "S26",
 		url: "https://www.context.dev",

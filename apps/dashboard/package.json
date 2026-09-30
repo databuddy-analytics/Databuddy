@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/dashboard",
-  "version": "0.1.1-beta.0",
+  "version": "0.1.2",
   "private": true,
   "scripts": {
     "dev": "dotenv -e ../../.env -- next dev -p 3000",
@@ -45,12 +45,14 @@
     "@tanstack/react-query-persist-client": "5.100.10",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.14.5",
+    "@vercel/functions": "^3.9.9",
     "ai": "^6.0.188",
     "autumn-js": "catalog:",
     "better-auth": "1.7.5",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
     "cn": "^0.2.4",
+    "evlog": "catalog:",
     "flag-icons": "^7.5.0",
     "geist": "^1.7.0",
     "jotai": "^2.18.1",

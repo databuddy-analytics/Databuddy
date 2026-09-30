@@ -1077,6 +1077,22 @@ describe("insight investigation timeline", () => {
 						websiteId: website.id,
 					},
 					{
+						asOf: new Date("2026-01-10T00:00:00.000Z"),
+						createdAt: new Date("2026-01-10T13:00:00.000Z"),
+						id: randomUUIDv7(),
+						insightId: investigationId,
+						organizationId: organization.id,
+						outcome: {
+							...investigationOutcome("act"),
+							next: { reason: "The goal target was fixed.", type: "resolve" },
+							publish: false,
+						},
+						recheckAt: new Date("2026-01-11T00:00:00.000Z"),
+						signal: signal("goal:signup"),
+						signalKey: "goal:signup",
+						websiteId: website.id,
+					},
+					{
 						asOf: new Date("2026-01-09T00:00:00.000Z"),
 						createdAt: new Date("2026-01-09T12:00:00.000Z"),
 						id: randomUUIDv7(),
@@ -1150,7 +1166,7 @@ describe("insight investigation timeline", () => {
 				title: "Signup conversion improved",
 				websiteId: website.id,
 			});
-			expect(firstPage.insights[0]).not.toHaveProperty("next");
+			expect(firstPage.insights[0]?.next).toBeNull();
 
 			const secondPage = await call(
 				appRouter.insights.brief,
@@ -1161,6 +1177,7 @@ describe("insight investigation timeline", () => {
 				organizationId: organization.id,
 			});
 			expect(secondPage.insights[0]?.investigationId).toBe(investigationId);
+			expect(secondPage.insights[0]?.next).toBeNull();
 
 			const websiteOnly = await call(
 				appRouter.insights.brief,
@@ -1173,6 +1190,7 @@ describe("insight investigation timeline", () => {
 			});
 			expect(websiteOnly.insights).toHaveLength(1);
 			expect(websiteOnly.insights[0]?.websiteId).toBe(secondWebsite.id);
+			expect(websiteOnly.insights[0]?.next?.type).toBe("watch");
 		}
 	);
 

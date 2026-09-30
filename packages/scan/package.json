@@ -26,7 +26,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/databuddy-analytics/databuddy.git",
+    "url": "git+https://github.com/databuddy-analytics/Databuddy.git",
     "directory": "packages/scan"
   },
   "bugs": "https://github.com/databuddy-analytics/databuddy/issues",

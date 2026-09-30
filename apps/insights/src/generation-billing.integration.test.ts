@@ -190,7 +190,6 @@ integration("native generation fixed-unit persistence", () => {
 				signal: input.signal,
 				evidence: input.evidence,
 				reads: [],
-				descriptions: {},
 			});
 			snapshot.completion = complete ? "complete" : "incomplete";
 			return {
@@ -826,7 +825,6 @@ integration("native generation fixed-unit persistence", () => {
 					signal: agentInput.signal,
 					evidence: agentInput.evidence,
 					reads: [],
-					descriptions: {},
 				}),
 			};
 		};

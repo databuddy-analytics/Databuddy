@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "bun:test";
 import { groupActions } from "./src/actions";
 import { collectCoverage } from "./src/catalog";
+import { suggestEvent } from "./src/scan";
 
 // Behavioral extraction regressions from the reviewed action audit, not model-accuracy tests.
 // Source fixtures contain executable code only; review labels and rationales stay in test names.
@@ -63,21 +64,26 @@ test("a user callback and its mutation form one candidate with response guards",
 	assert.match(actions[0]!.source, /result\.status === "skipped"/);
 });
 
-test("separate uses of the same callback remain separate surface actions", () => {
+test("a setup copy is an action while copying an ID or an awaited link is not", () => {
 	const source = `export function TrackingSettings() {
   function handleCopy(value) {
     navigator.clipboard.writeText(value);
     toast.success("Copied");
   }
+  async function copyLink(url) {
+    await navigator.clipboard.writeText(url);
+  }
   return <section>
     <CodeBlock onCopy={() => handleCopy(script)} />
-    <CodeBlock onCopy={() => handleCopy(clientId)} />
+    <CodeBlock key="key" onCopy={() => handleCopy(clientId)} />
+    <Button onClick={() => copyLink(shareUrl)}>Copy</Button>
   </section>;
 }`;
 	const actions = groups(source);
-	assert.equal(actions.length, 2);
+	assert.equal(actions.length, 1);
 	assert.equal(at(actions, source, "handleCopy(script)").length, 1);
-	assert.equal(at(actions, source, "handleCopy(clientId)").length, 1);
+	assert.equal(at(actions, source, "handleCopy(clientId)").length, 0);
+	assert.equal(at(actions, source, "copyLink(shareUrl)").length, 0);
 	for (const action of actions) {
 		assert.match(action.source, /navigator\.clipboard\.writeText\(value\)/);
 		assert.doesNotMatch(action.source, /await navigator\.clipboard/);
@@ -944,7 +950,7 @@ export function Manage() { return <a href={portalUrl()}>Upgrade billing</a>; }`;
 	assert.deepEqual(sites("href={portalUrl()}"), ["api/billing.ts:4"]);
 });
 
-test("a bound or applied action reaches its write only when it is invoked", () => {
+test("a handler is an action once it writes: an invoked bind or apply, or a cookie", () => {
 	const actions = (body: string) => {
 		const source = `import { save } from "./save";
 export function Page() {
@@ -958,4 +964,85 @@ export function Page() {
 	assert.equal(actions("const run = save.bind(null, id); run();").length, 1);
 	assert.equal(actions("save.apply(null, [id]);").length, 1);
 	assert.equal(actions("const later = save.bind(null, id);").length, 0);
+	assert.equal(actions('document.cookie = "consent=1";').length, 1);
+	assert.equal(actions("open = true;").length, 0);
+});
+
+test("a product callback on a component is an action at its origin, not where it is forwarded", () => {
+	const source = `import { remove } from "./remove";
+export function Page() {
+	return <DeleteDialog onConfirm={() => remove(id)} onOpenChange={() => setOpen(false)} />;
+}
+export function Row({ onDelete }) {
+	return <Actions onDelete={onDelete} />;
+}
+export function Filters() {
+	return <SaveDialog onSave={() => setDraft(null)} />;
+}`;
+	const actions = groups(source, {
+		"app/remove.ts":
+			"export async function remove(id: string) { await db.delete(items).where(eq(items.id, id)); }",
+	});
+	assert.deepEqual(
+		actions.map((action) => action.label),
+		["DeleteDialog.onConfirm"]
+	);
+});
+
+test("NextAuth events and Better-Auth after hooks are server actions", () => {
+	const source = `export const auth = NextAuth({
+	events: {
+		async signIn({ user }) { await db.update(users).set({ seenAt: new Date() }); },
+		"createUser": async ({ user }) => { await sendWelcome(user); },
+	},
+	callbacks: { async signIn() { return true; } },
+});
+export const better = betterAuth({
+	databaseHooks: { user: { create: { after: async (user) => { await sendWelcome(user); } } } },
+});`;
+	assert.deepEqual(
+		groups(source, {}, "lib/auth.ts").map((action) => action.label),
+		["events.signIn", "events.createUser", "user.create.after"]
+	);
+});
+
+test("a finding gets a past-tense snake_case event name and only enum-like properties", () => {
+	const name = (label: string, source = "", path = "app/billing/page.tsx") =>
+		suggestEvent(path, label, source)?.name;
+	assert.equal(
+		name("Button.onClick", "orpc.apiKeys.revokeKey.mutate({ id })"),
+		"api_key_revoked"
+	);
+	assert.equal(
+		name("handler create", "", "packages/rpc/src/routers/links.ts"),
+		"link_created"
+	);
+	assert.equal(name('Link.intent "Upgrade to Business"'), "business_upgraded");
+	assert.equal(
+		name("Button.onClick handleSave", "", "app/monitors/status-form.tsx"),
+		"status_saved"
+	);
+	assert.equal(name("post /v1/invites/:id/accept"), "invite_accepted");
+	assert.equal(name("post /v1/links"), "link_created");
+	assert.equal(name("POST", "", "app/api/v2/links/route.ts"), "link_created");
+	assert.deepEqual(
+		suggestEvent(
+			"routers/links.ts",
+			"handler create",
+			'os.route({ method: "POST" }).handler(() => create({ plan }))'
+		)?.properties,
+		["plan"]
+	);
+	assert.equal(
+		name("handler list", "", "packages/rpc/src/routers/links.ts"),
+		undefined
+	);
+	assert.deepEqual(
+		suggestEvent(
+			"app/page.tsx",
+			"form.onSubmit createTeam",
+			"save({ name, email, plan: form.plan, role })"
+		)?.properties,
+		["plan", "role"]
+	);
 });

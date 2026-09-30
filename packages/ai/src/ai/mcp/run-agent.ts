@@ -13,7 +13,7 @@ import { getAILogger } from "../../lib/ai-logger";
 import { getAccessibleWebsites } from "../../lib/accessible-websites";
 import { loadOrganizationBusinessContext } from "../../lib/organization-business-context";
 import { matchesWebsiteDomain } from "../../lib/website-domain";
-import { mergeWideEvent } from "../../lib/tracing";
+import { captureError, mergeWideEvent } from "../../lib/tracing";
 import {
 	getAgentBillingAccess,
 	resolveAgentBillingCustomerId,
@@ -88,6 +88,7 @@ export async function runMcpAgent(
 		return answer;
 	} finally {
 		abort.cleanup();
+		await settleRemainingUsage(prepared);
 	}
 }
 
@@ -126,6 +127,7 @@ export async function runMcpAgentWithTrace(
 		throw err;
 	} finally {
 		abort.cleanup();
+		await settleRemainingUsage(prepared);
 	}
 }
 
@@ -217,6 +219,7 @@ export async function* streamMcpAgentText(
 		}
 	} finally {
 		abort.cleanup();
+		await settleRemainingUsage(prepared);
 	}
 }
 
@@ -244,6 +247,7 @@ function createRunAbortController(options: RunMcpAgentOptions): {
 
 	return {
 		cleanup: () => {
+			controller.abort();
 			clearTimeout(timeout);
 			externalSignal?.removeEventListener("abort", abortFromExternalSignal);
 		},
@@ -399,6 +403,7 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		billingCustomerId,
 		billingAccess,
 		capturedSteps,
+		usageSettlementAttempted: false,
 		memoryUserId,
 		mcpUserId,
 		messages,
@@ -415,8 +420,18 @@ async function trackPreparedUsage(
 	prepared: Awaited<ReturnType<typeof prepareMcpAgentRun>>,
 	usage: LanguageModelUsage
 ): Promise<void> {
+	if (prepared.usageSettlementAttempted) {
+		return;
+	}
+	// An uncertain charge must not be replayed by cleanup.
+	prepared.usageSettlementAttempted = true;
 	await trackAgentUsageAndBill({
-		usage,
+		usage: {
+			...usage,
+			...(prepared.capturedSteps.length > 0
+				? { stepUsages: prepared.capturedSteps.map((step) => step.usage) }
+				: {}),
+		},
 		modelId: prepared.modelId,
 		source: prepared.source,
 		organizationId: prepared.organizationId,
@@ -425,6 +440,30 @@ async function trackPreparedUsage(
 		billingCustomerId: prepared.billingCustomerId,
 		billingAccess: prepared.billingAccess,
 	});
+}
+
+async function settleRemainingUsage(
+	prepared: Awaited<ReturnType<typeof prepareMcpAgentRun>>
+): Promise<void> {
+	if (
+		prepared.usageSettlementAttempted ||
+		prepared.capturedSteps.length === 0
+	) {
+		return;
+	}
+	try {
+		await trackPreparedUsage(
+			prepared,
+			aggregateStepUsage(prepared.capturedSteps)
+		);
+	} catch (error) {
+		// Preserve the model error or consumer cancellation that entered cleanup.
+		captureError(error, {
+			agent_usage_billing_error: true,
+			agent_source: prepared.source,
+			agent_chat_id: prepared.sessionId,
+		});
+	}
 }
 
 function collectToolTrace(

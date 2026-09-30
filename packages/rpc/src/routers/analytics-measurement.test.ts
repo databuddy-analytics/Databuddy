@@ -4,6 +4,7 @@ import type { Context } from "../orpc";
 import type {
 	processFunnelAnalytics,
 	processGoalAnalytics,
+	processGoalsConversionCountsBatch,
 	getTotalWebsiteUsers,
 } from "../lib/analytics-utils";
 
@@ -56,10 +57,16 @@ const referrerQuery = mock(
 const entrants = mock(
 	async (..._args: Parameters<typeof getTotalWebsiteUsers>) => 200
 );
+const batchQuery = mock(
+	async (
+		..._args: Parameters<typeof processGoalsConversionCountsBatch>
+	): Promise<Map<number, number>> => new Map()
+);
 let goalsRouter: typeof import("./goals").goalsRouter;
 let funnelsRouter: typeof import("./funnels").funnelsRouter;
 
 beforeAll(async () => {
+	const { buildGoalAnalyticsResult } = await import("../lib/analytics-utils");
 	mock.module("../orpc", () => ({
 		publicProcedure: procedure,
 		protectedProcedure: procedure,
@@ -82,7 +89,9 @@ beforeAll(async () => {
 		invalidateFunnelsCache: async () => undefined,
 	}));
 	mock.module("../lib/analytics-utils", () => ({
+		buildGoalAnalyticsResult,
 		processGoalAnalytics: goalQuery,
+		processGoalsConversionCountsBatch: batchQuery,
 		processFunnelAnalytics: query,
 		getTotalWebsiteUsers: entrants,
 		processFunnelAnalyticsByReferrer: referrerQuery,
@@ -108,6 +117,8 @@ beforeEach(() => {
 	goalQuery.mockClear();
 	entrants.mockClear();
 	referrerQuery.mockClear();
+	batchQuery.mockReset();
+	batchQuery.mockImplementation(async () => new Map());
 });
 
 const savedFilter = { field: "country", operator: "equals", value: "US" };
@@ -267,6 +278,90 @@ for (const kind of ["goal", "funnel"] as const) {
 		expect(row.filters).toEqual([savedFilter]);
 	});
 }
+
+function bulkGoals() {
+	const goal = (
+		id: string,
+		target: string,
+		filters: (typeof savedFilter)[]
+	) => ({
+		id,
+		websiteId: period.websiteId,
+		type: "EVENT" as const,
+		target,
+		name: id,
+		filters,
+		createdAt: new Date("2026-08-01T00:00:00Z"),
+		ignoreHistoricData: false,
+	});
+	return [
+		goal("signup", "signup", []),
+		goal("purchase", "purchase", []),
+		goal("filtered", "signup", [savedFilter]),
+	];
+}
+function bulkContext(rows: ReturnType<typeof bulkGoals>): Context {
+	return {
+		db: {
+			select: () => ({
+				from: () => ({ where: () => ({ orderBy: async () => rows }) }),
+			}),
+		},
+	} as Context;
+}
+function readBulk(rows: ReturnType<typeof bulkGoals>) {
+	return createProcedureClient(goalsRouter.bulkAnalytics, {
+		context: bulkContext(rows),
+	})({ ...period, goalIds: rows.map((row) => row.id) });
+}
+
+test("bulk goal analytics counts unfiltered goals in one query and filtered goals alone", async () => {
+	batchQuery.mockImplementation(async () => new Map([[1, 30]]));
+
+	const result = await readBulk(bulkGoals());
+
+	expect(batchQuery).toHaveBeenCalledTimes(1);
+	expect(
+		batchQuery.mock.calls
+			.at(0)?.[0]
+			.map((step) => [step.step_number, step.target])
+	).toEqual([
+		[1, "signup"],
+		[2, "purchase"],
+	]);
+	expect(goalQuery).toHaveBeenCalledTimes(1);
+	expect(goalQuery.mock.calls.at(0)?.[1]).toEqual([savedFilter]);
+	expect(result.signup).toMatchObject({
+		ok: true,
+		data: { total_users_completed: 30, total_users_entered: 200 },
+	});
+	expect(result.purchase).toMatchObject({
+		ok: true,
+		data: { total_users_completed: 0, overall_conversion_rate: 0 },
+	});
+	expect(result.filtered).toEqual({ ok: true, data: metrics });
+});
+
+test("bulk goal analytics falls back to per-goal queries when the batched query fails", async () => {
+	batchQuery.mockImplementation(async () => {
+		throw new Error("batched query failed");
+	});
+
+	const result = await readBulk(bulkGoals());
+
+	expect(goalQuery).toHaveBeenCalledTimes(3);
+	expect(
+		Object.fromEntries(
+			goalQuery.mock.calls.map((call) => [call[0].at(0)?.name, call[1]])
+		)
+	).toEqual({ signup: [], purchase: [], filtered: [savedFilter] });
+	expect(Object.values(result).every((entry) => entry.ok)).toBe(true);
+	expect(Object.keys(result).sort()).toEqual([
+		"filtered",
+		"purchase",
+		"signup",
+	]);
+});
 
 test("link analytics rejects a cohort before querying definitions or analytics", async () => {
 	const row = definition();

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { redisStorage } from "@better-auth/redis-storage";
 import { runWithTransaction } from "@better-auth/core/context";
 import { and, db, eq, like } from "@databuddy/db";
@@ -42,7 +42,12 @@ import {
 	type AuditActor,
 } from "@databuddy/shared/audit";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError } from "better-auth/api";
+import type { BetterAuthPlugin } from "better-auth";
+import {
+	APIError,
+	createAuthEndpoint,
+	createAuthMiddleware,
+} from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
 import {
 	emailOTP,
@@ -52,7 +57,8 @@ import {
 	organization,
 	twoFactor,
 } from "better-auth/plugins";
-import { log } from "evlog";
+import { audit, createLogger, log } from "evlog";
+import { maskEmail } from "evlog/better-auth";
 import { Resend } from "resend";
 import { ac, admin, member, owner, viewer } from "./permissions";
 import { getAuthAuditContext } from "./audit-context";
@@ -132,6 +138,24 @@ function isProduction() {
 function isSelfHosted() {
 	return readBooleanEnv("SELFHOST");
 }
+
+function fingerprintSecret(secret: string): string {
+	return createHmac("sha256", secret)
+		.update("databuddy:auth-secret-fingerprint")
+		.digest("hex")
+		.slice(0, 16);
+}
+
+const secretFingerprint = {
+	id: "secret-fingerprint",
+	endpoints: {
+		getSecretFingerprint: createAuthEndpoint(
+			"/secret-fingerprint",
+			{ method: "GET" },
+			(ctx) => ctx.json({ fingerprint: fingerprintSecret(ctx.context.secret) })
+		),
+	},
+} satisfies BetterAuthPlugin;
 
 function shouldRequireEmailVerification() {
 	if (process.env.REQUIRE_EMAIL_VERIFICATION != null) {
@@ -410,6 +434,63 @@ async function recordAuthAudit<TAction extends AuditActionDefinition>(
 	});
 }
 
+async function planAccountDeletion(userId: string) {
+	const memberships = await db.query.member.findMany({
+		where: { userId },
+		columns: { role: true },
+		with: {
+			organization: {
+				columns: { id: true, name: true },
+				with: { members: { columns: { userId: true, role: true } } },
+			},
+		},
+	});
+	for (const { role, organization } of memberships) {
+		const others = organization.members.filter((m) => m.userId !== userId);
+		if (
+			role === "owner" &&
+			others.length > 0 &&
+			!others.some((m) => m.role === "owner")
+		) {
+			throw new APIError("BAD_REQUEST", {
+				message: `Transfer ownership of ${organization.name} or delete it before deleting your account.`,
+			});
+		}
+	}
+	return memberships
+		.map((m) => m.organization)
+		.filter((org) => org.members.every((m) => m.userId === userId));
+}
+
+async function deleteSoleMemberOrganizations(user: {
+	id: string;
+	name?: string | null;
+}): Promise<void> {
+	for (const org of await planAccountDeletion(user.id)) {
+		try {
+			await deleteOrganizationWithBusinessMemory(org.id);
+		} catch (error) {
+			if (!(error instanceof BusinessMemoryRetirementError)) {
+				throw error;
+			}
+			throw new APIError("SERVICE_UNAVAILABLE", {
+				message:
+					"Business memory could not be removed. Retry deleting your account.",
+			});
+		}
+		await recordAuthAudit(
+			org.id,
+			{
+				action: auditActions.ORGANIZATION_DELETED,
+				target: { id: org.id, displayName: org.name },
+				changes: { deleted: { after: true } },
+				reason: "account_deleted",
+			},
+			toAuditActor(user)
+		);
+	}
+}
+
 type AuthLogLevel = "info" | "warn" | "error" | "debug";
 
 function forwardAuthLog(
@@ -434,7 +515,52 @@ function forwardAuthLog(
 	log.info(fields);
 }
 
+const recordAuthOutcome = createAuthMiddleware((ctx) => {
+	const { newSession, returned, session } = ctx.context;
+	const failure =
+		returned instanceof APIError && returned.statusCode >= 400
+			? returned
+			: null;
+	const userId = newSession?.user.id ?? session?.user.id;
+	const email = (ctx.body as { email?: unknown } | undefined)?.email;
+	if (
+		!ctx.request ||
+		(ctx.method === "GET" && !(newSession || failure)) ||
+		!(userId || failure || typeof email === "string")
+	) {
+		return Promise.resolve();
+	}
+	const logger = createLogger({
+		service: "auth",
+		ip:
+			newSession?.session.ipAddress ||
+			ctx.request.headers.get("x-forwarded-for")?.split(",")[0]?.trim(),
+		user_agent: ctx.request.headers.get("user-agent") ?? undefined,
+		...(ctx.params && { route_params: ctx.params }),
+	});
+	logger.audit({
+		action: `auth${ctx.path.replaceAll("/", ".").replaceAll("-", "_").replaceAll(":", "")}`,
+		actor: userId
+			? { type: "user", id: userId }
+			: { type: "user", id: "unauthenticated" },
+		...(typeof email === "string" && {
+			target: { type: "account", id: maskEmail(email) },
+		}),
+		outcome: failure ? "failure" : "success",
+		...(failure && {
+			reason:
+				(failure.body as { code?: string } | undefined)?.code ??
+				String(failure.status),
+		}),
+	});
+	logger.emit();
+	return Promise.resolve();
+});
+
 export const baseAuthOptions = {
+	hooks: {
+		after: recordAuthOutcome,
+	},
 	logger: {
 		log: forwardAuthLog,
 	},
@@ -609,6 +735,7 @@ export const baseAuthOptions = {
 			enabled: true,
 			deleteTokenExpiresIn: AUTH_EMAIL_EXPIRY_SECONDS.accountDeletion,
 			sendDeleteAccountVerification: async ({ user: targetUser, url }) => {
+				await planAccountDeletion(targetUser.id);
 				await sendAuthEmail({
 					to: targetUser.email,
 					subject: "[Action required] Confirm account deletion",
@@ -616,6 +743,12 @@ export const baseAuthOptions = {
 				});
 			},
 			beforeDelete: async (userToDelete) => {
+				await deleteSoleMemberOrganizations(userToDelete);
+				audit({
+					action: "auth.account_deleted",
+					actor: { type: "user", id: userToDelete.id },
+					target: { type: "user", id: userToDelete.id },
+				});
 				await notifySlack(
 					"Account deleted",
 					"A user deleted their account.",
@@ -995,10 +1128,41 @@ export const baseAuthOptions = {
 				});
 			},
 		}),
+		secretFingerprint,
 	],
 } satisfies Parameters<typeof betterAuth>[0];
 
 export const auth = betterAuth(baseAuthOptions);
+
+export async function assertAuthSecretMatchesDashboard(): Promise<void> {
+	if (!isProduction() || isSelfHosted()) {
+		return;
+	}
+
+	const url = `${config.urls.authorizationServer}/secret-fingerprint`;
+	const response = await fetch(url, {
+		signal: AbortSignal.timeout(5000),
+	}).catch(() => null);
+	const body: unknown = response?.ok ? await response.json() : null;
+	const dashboardFingerprint =
+		body && typeof body === "object" && "fingerprint" in body
+			? body.fingerprint
+			: undefined;
+
+	if (typeof dashboardFingerprint !== "string") {
+		log.warn({
+			auth: { secretCheck: "skipped", url, status: response?.status ?? null },
+		});
+		return;
+	}
+
+	const { secret } = await auth.$context;
+	if (dashboardFingerprint !== fingerprintSecret(secret)) {
+		throw new Error(
+			`BETTER_AUTH_SECRET does not match the dashboard at ${config.urls.dashboard}, so every signed-in request would fail with 401. Copy the dashboard's BETTER_AUTH_SECRET to this service.`
+		);
+	}
+}
 
 export const websitesApi = {
 	hasPermission: auth.api.hasPermission,

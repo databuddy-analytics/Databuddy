@@ -91,6 +91,10 @@ export interface Config {
 	};
 }
 
+const REQUIRED_IN_PRODUCTION = ["BETTER_AUTH_SECRET"] as const;
+const REQUIRED_IN_HOSTED_CLOUD = ["AUTUMN_SECRET_KEY"] as const;
+const LOOPBACK_HOSTS = new Set(["0.0.0.0", "127.0.0.1", "[::1]", "localhost"]);
+
 function isHostedCloud(env: Env): boolean {
 	return env.NODE_ENV === "production" && !readBooleanEnv("SELFHOST", env);
 }
@@ -199,15 +203,49 @@ export function createConfig(env: Env = process.env): Config {
 	};
 }
 
-export function assertStorageConfigured(): void {
-	const hasAccessKeyId = Boolean(
-		readOptional(process.env, "AWS_ACCESS_KEY_ID")
+export function assertConfigured(env: Env = process.env): void {
+	const problems: string[] = [];
+	const hasAccessKeyId = Boolean(readOptional(env, "AWS_ACCESS_KEY_ID"));
+	const hasSecretAccessKey = Boolean(
+		readOptional(env, "AWS_SECRET_ACCESS_KEY")
 	);
-	const hasSecret = Boolean(readOptional(process.env, "AWS_SECRET_ACCESS_KEY"));
 
-	if (hasAccessKeyId !== hasSecret) {
-		throw new Error(
+	if (hasAccessKeyId !== hasSecretAccessKey) {
+		problems.push(
 			"Object storage is half-configured. Set both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or neither."
+		);
+	}
+
+	const hostedCloud = isHostedCloud(env);
+	const required = hostedCloud
+		? [...REQUIRED_IN_PRODUCTION, ...REQUIRED_IN_HOSTED_CLOUD]
+		: REQUIRED_IN_PRODUCTION;
+
+	if (env.NODE_ENV === "production") {
+		for (const key of required) {
+			if (!readOptional(env, key)) {
+				problems.push(`${key} is unset or empty.`);
+			}
+		}
+	}
+
+	if (hostedCloud) {
+		const { api, dashboard } = createConfig(env).urls;
+		for (const [key, url] of [
+			["API_URL", api],
+			["DASHBOARD_URL", dashboard],
+		] as const) {
+			if (LOOPBACK_HOSTS.has(new URL(url).hostname)) {
+				problems.push(
+					`${key} resolves to ${url}. Set it to the public origin; a local fallback leaks into OAuth metadata and redirects.`
+				);
+			}
+		}
+	}
+
+	if (problems.length > 0) {
+		throw new Error(
+			`Environment is not usable:\n- ${problems.join("\n- ")}\n\nSee CONTRIBUTING.md for the expected values.`
 		);
 	}
 }

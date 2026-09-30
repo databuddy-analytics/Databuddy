@@ -39,7 +39,7 @@ A completed investigation costs **$1**. The billable unit is one explicitly star
 analysis of a selected signal or new question, not the durable case that may hold
 several analyses over time. A supported measured answer, concrete inspected repair,
 or verified no-action conclusion can complete it. Failed, interrupted, inconclusive
-work and an unanswered necessary question are not completed investigations.
+work and an unanswered necessary question are not completed investigations. Funnel-step completion requires both exact native comparison windows with the same definition and population; step conversion uses the preceding step’s visitors as its denominator.
 
 Reserve one investigation before starting new analysis. Confirm that reservation
 only after its complete result is saved and readable; release it when the work is
@@ -125,7 +125,13 @@ recent and exact-subject PostgreSQL replies remain available during indexing del
 outages. Recalled meaning takes priority over unrelated recent conversation. Public
 copy explains the offering and audience; it does not establish completed behavior from
 an event name. Explicit team corrections, guesses, and historical metrics remain
-distinct from current measured evidence.
+distinct from current measured evidence. When the final profile/recall merge would
+omit optional pages, one bounded Jev call may rank those pages for the exact subject.
+Native code keeps the source budget, original records, and baseline-selected profile,
+team replies and homepage. Complete contexts skip ranking; oversized, failed, invalid
+or late rankings retain native ordering. This changes context priority, not evidence
+validity, tool access or publication. Clarifications and deterministic verification
+remain outside this ranking path.
 
 Public excerpts expire after seven days; a missing profile reads the homepage and
 exposes links plus site-scoped search for further inspection. Coverage is limited to
@@ -204,6 +210,8 @@ Reject output that merely restates a percentage, invents a cause, asks for data 
 Stop gathering when further reads cannot change the decision, while retaining established changes and controls that change its interpretation. An overview of the current subject can reveal independent business facts even when its headline metric is stable: stable gross revenue does not erase falling attribution or rising refunds. Prefer these distinct comparisons over redundant counts. Capability discovery can inspect a compact complete catalog, then retrieve the relevant query contract; an empty search in one category cannot establish that a capability is unavailable everywhere.
 
 A detected signal is a snapshot. Conflicting current evidence must be reconciled against the same definition, population and measured dates; a current definition listing alone cannot validate old counts. Unresolved measurement conflicts remain private without an invented cause.
+
+Published product findings for goals, funnels and funnel steps reject observed native measurement metadata that contradicts the requested subject, population, dates or evaluated definition, including uncited reads of the original population; independently inspected definition repairs remain allowed.
 
 Summary, cause, and evidence each contribute a different fact. Routine or unchanged rechecks remain in internal history with `publish: false`. Raw website traffic is not a verified product outcome: it can publish only a measurement-coverage finding with cited collection or implementation evidence. Uncited context, goal listings, and sibling metrics cannot establish visitor loss; a product result belongs to its own signal and subject.
 

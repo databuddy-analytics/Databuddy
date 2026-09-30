@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/nuxt",
-  "version": "2.4.20",
+  "version": "3.0.0",
   "description": "Official Databuddy Nuxt module",
   "type": "module",
   "license": "MIT",
@@ -18,12 +18,13 @@
   ],
   "scripts": {
     "build": "nuxt-module-build build",
+    "prepack": "bun run build",
     "dev": "nuxt dev playground",
     "stub": "nuxt-module-build build --stub",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@databuddy/sdk": "^2.4.20",
+    "@databuddy/sdk": "^3.0.0",
     "@nuxt/kit": "^4.4.5",
     "@nuxt/schema": "^4.4.5"
   },
@@ -50,6 +51,6 @@
   "homepage": "https://databuddy.cc",
   "repository": {
     "type": "git",
-    "url": "https://github.com/databuddy-analytics/databuddy.git"
+    "url": "https://github.com/databuddy-analytics/Databuddy.git"
   }
 }

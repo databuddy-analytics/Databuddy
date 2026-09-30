@@ -12,6 +12,7 @@ import {
 	CHART_LOCATION_LABELS,
 	CHART_LOCATIONS,
 	type ChartLocation,
+	type LocationPreferences,
 	useAllChartPreferences,
 } from "@/hooks/use-chart-preferences";
 import {
@@ -27,9 +28,9 @@ import {
 	CursorClickIcon,
 	DesktopIcon,
 	FunnelIcon,
+	LayoutIcon,
 	MoonIcon,
 	PresentationChartIcon,
-	SquaresFourIcon,
 	StackIcon,
 	SunIcon,
 } from "@databuddy/ui/icons";
@@ -42,9 +43,15 @@ import {
 	useHydrated,
 } from "@databuddy/ui";
 
-type IconComponent = typeof ChartBarIcon;
+type Icon = typeof ChartBarIcon;
 
-const MOCK_CHART_DATA = [
+interface PickerOption<T extends string> {
+	icon?: Icon;
+	label: string;
+	value: T;
+}
+
+const VISITORS_DATA = [
 	{ date: "2024-01-01", value: 186 },
 	{ date: "2024-01-02", value: 305 },
 	{ date: "2024-01-03", value: 237 },
@@ -53,29 +60,28 @@ const MOCK_CHART_DATA = [
 	{ date: "2024-01-06", value: 214 },
 ];
 
+const PAGEVIEWS_DATA = VISITORS_DATA.map((point) => ({
+	...point,
+	value: point.value * 1.5,
+}));
+
 const THEME_OPTIONS = [
 	{ value: "light", label: "Light", icon: SunIcon },
 	{ value: "dark", label: "Dark", icon: MoonIcon },
 	{ value: "system", label: "System", icon: DesktopIcon },
-] as const;
-
-type ThemeValue = (typeof THEME_OPTIONS)[number]["value"];
-
-const THEME_SEGMENTS = THEME_OPTIONS.map(({ value, label, icon: Icon }) => ({
+].map(({ value, label, icon: ThemeIcon }) => ({
 	value,
 	label: (
 		<span className="flex items-center gap-1.5">
-			<Icon className="size-3.5" />
+			<ThemeIcon className="size-3.5" />
 			{label}
 		</span>
 	),
 }));
 
-interface PickerOption<T extends string> {
-	icon?: IconComponent;
-	label: string;
-	value: T;
-}
+const DATE_RANGE_OPTIONS: PickerOption<DefaultDateRangePreset>[] = (
+	["24h", "7d", "30d", "90d", "180d", "365d"] as const
+).map((value) => ({ value, label: getPresetLabel(value) }));
 
 const CHART_TYPE_OPTIONS: PickerOption<ChartSeriesKind>[] = [
 	{ value: "area", label: "Area", icon: StackIcon },
@@ -91,37 +97,33 @@ const CURVE_OPTIONS: PickerOption<ChartCurveType>[] = [
 	{ value: "stepAfter", label: "Step after" },
 ];
 
-const DATE_RANGE_OPTIONS: PickerOption<DefaultDateRangePreset>[] = (
-	["24h", "7d", "30d", "90d", "180d", "365d"] as const
-).map((value) => ({ value, label: getPresetLabel(value) }));
-
-const LOCATION_ICONS: Record<ChartLocation, IconComponent> = {
-	"overview-stats": SquaresFourIcon,
+const LOCATION_ICONS: Record<ChartLocation, Icon> = {
+	"overview-stats": LayoutIcon,
 	"overview-main": PresentationChartIcon,
 	funnels: FunnelIcon,
 	"website-list": ChartLineIcon,
 	events: CursorClickIcon,
 };
 
-const DEFAULT_LOCATION_PREFERENCES = {
-	chartType: "area" as ChartSeriesKind,
-	chartStepType: "monotone" as ChartCurveType,
+const DEFAULT_PREFERENCES: LocationPreferences = {
+	chartType: "area",
+	chartStepType: "monotone",
 };
 
 const HOMEPAGE_REDIRECT_COOKIE = "databuddy-home-redirect";
 
-function readOpensDashboard() {
+function readSkipsHomepage() {
 	return !document.cookie
 		.split("; ")
 		.includes(`${HOMEPAGE_REDIRECT_COOKIE}=off`);
 }
 
-function writeOpensDashboard(opensDashboard: boolean) {
-	const lifetime = opensDashboard ? "max-age=0" : "max-age=34560000";
+function saveSkipsHomepage(skips: boolean) {
+	const maxAge = skips ? 0 : 400 * 24 * 60 * 60;
 	const scope = location.hostname.endsWith(".databuddy.cc")
 		? "; domain=.databuddy.cc; secure"
 		: "";
-	document.cookie = `${HOMEPAGE_REDIRECT_COOKIE}=off; path=/; ${lifetime}; samesite=lax${scope}`;
+	document.cookie = `${HOMEPAGE_REDIRECT_COOKIE}=off; path=/; max-age=${maxAge}; samesite=lax${scope}`;
 }
 
 function PreferenceRow({
@@ -194,21 +196,81 @@ function PreferencePicker<T extends string>({
 					}}
 					value={value}
 				>
-					{options.map(
-						({ icon: Icon, label: optionLabel, value: optionValue }) => (
-							<DropdownMenu.RadioItem
-								className={cn(optionValue === value && "font-medium")}
-								key={optionValue}
-								value={optionValue}
-							>
-								{Icon && <Icon className="size-3.5 text-muted-foreground" />}
-								{optionLabel}
-							</DropdownMenu.RadioItem>
-						)
-					)}
+					{options.map((option) => (
+						<DropdownMenu.RadioItem
+							className={cn(option.value === value && "font-medium")}
+							key={option.value}
+							value={option.value}
+						>
+							{option.icon && (
+								<option.icon className="size-3.5 text-muted-foreground" />
+							)}
+							{option.label}
+						</DropdownMenu.RadioItem>
+					))}
 				</DropdownMenu.RadioGroup>
 			</DropdownMenu.Content>
 		</DropdownMenu>
+	);
+}
+
+function OverrideRow({
+	isPreviewed,
+	location,
+	onChange,
+	onPreview,
+	preferences,
+}: {
+	isPreviewed: boolean;
+	location: ChartLocation;
+	onChange: (preferences: Partial<LocationPreferences>) => void;
+	onPreview: () => void;
+	preferences: LocationPreferences;
+}) {
+	const label = CHART_LOCATION_LABELS[location];
+	const LocationIcon = LOCATION_ICONS[location];
+
+	return (
+		<div
+			className={cn(
+				"flex flex-col gap-1.5 py-2 pr-5 pl-3 sm:flex-row sm:items-center sm:gap-2",
+				"transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
+				isPreviewed && "bg-interactive-hover"
+			)}
+		>
+			<Button
+				aria-pressed={isPreviewed}
+				className="min-w-0 justify-start gap-2.5 px-2 hover:bg-transparent sm:flex-1"
+				onClick={onPreview}
+				size="sm"
+				variant="ghost"
+			>
+				<LocationIcon className="size-4 shrink-0 text-muted-foreground" />
+				<span
+					className={cn(
+						"truncate text-[13px] text-foreground",
+						isPreviewed ? "font-medium" : "font-normal"
+					)}
+				>
+					{label}
+				</span>
+			</Button>
+			<div className="grid grid-cols-2 gap-2 pl-2 sm:flex sm:pl-0">
+				<PreferencePicker
+					label={`${label} chart type`}
+					onChange={(chartType) => onChange({ chartType })}
+					options={CHART_TYPE_OPTIONS}
+					value={preferences.chartType}
+				/>
+				<PreferencePicker
+					disabled={preferences.chartType === "bar"}
+					label={`${label} curve`}
+					onChange={(chartStepType) => onChange({ chartStepType })}
+					options={CURVE_OPTIONS}
+					value={preferences.chartStepType}
+				/>
+			</div>
+		</div>
 	);
 }
 
@@ -218,29 +280,25 @@ export default function AppearanceSettingsPage() {
 	const { defaultDateRange, setDefaultDateRange } = useDefaultDateRange();
 	const { preferences, updateLocationPreferences, updateAllPreferences } =
 		useAllChartPreferences();
-	const [opensDashboard, setOpensDashboard] = useState(true);
+	const [skipsHomepage, setSkipsHomepage] = useState(true);
 	const [showOverrides, setShowOverrides] = useState(false);
 	const [previewLocation, setPreviewLocation] = useState<ChartLocation | null>(
 		null
 	);
 
-	useEffect(() => setOpensDashboard(readOpensDashboard()), []);
+	useEffect(() => setSkipsHomepage(readSkipsHomepage()), []);
 
-	const themeValue: ThemeValue =
-		(isHydrated &&
-			THEME_OPTIONS.find((option) => option.value === theme)?.value) ||
-		"system";
-	const globalPrefs =
-		preferences["overview-stats"] ?? DEFAULT_LOCATION_PREFERENCES;
+	const themeValue =
+		isHydrated && (theme === "light" || theme === "dark") ? theme : "system";
+	const preferencesFor = (location: ChartLocation) =>
+		preferences[location] ?? DEFAULT_PREFERENCES;
+	const globalPreferences = preferencesFor("overview-stats");
+	const previewPreferences = previewLocation
+		? preferencesFor(previewLocation)
+		: globalPreferences;
 	const everyPageIsBar = CHART_LOCATIONS.every(
-		(location) =>
-			(preferences[location] ?? DEFAULT_LOCATION_PREFERENCES).chartType ===
-			"bar"
+		(location) => preferencesFor(location).chartType === "bar"
 	);
-	const previewedLocation = showOverrides ? previewLocation : null;
-	const previewPrefs = previewedLocation
-		? (preferences[previewedLocation] ?? globalPrefs)
-		: globalPrefs;
 
 	return (
 		<div className="flex-1 overflow-y-auto">
@@ -258,7 +316,7 @@ export default function AppearanceSettingsPage() {
 							<SegmentedControl
 								aria-label="Theme"
 								onChange={setTheme}
-								options={THEME_SEGMENTS}
+								options={THEME_OPTIONS}
 								size="sm"
 								value={themeValue}
 							/>
@@ -281,10 +339,10 @@ export default function AppearanceSettingsPage() {
 							>
 								<Switch
 									aria-label="Skip the homepage"
-									checked={opensDashboard}
+									checked={skipsHomepage}
 									onCheckedChange={(checked) => {
-										writeOpensDashboard(checked);
-										setOpensDashboard(checked);
+										saveSkipsHomepage(checked);
+										setSkipsHomepage(checked);
 									}}
 								/>
 							</PreferenceRow>
@@ -301,37 +359,34 @@ export default function AppearanceSettingsPage() {
 					</Card.Header>
 					<Card.Content className="space-y-2.5">
 						<Text tone="muted" variant="caption">
-							{previewedLocation
-								? `Preview · ${CHART_LOCATION_LABELS[previewedLocation]}`
+							{previewLocation
+								? `Preview · ${CHART_LOCATION_LABELS[previewLocation]}`
 								: "Preview"}
 						</Text>
 						<div className="grid gap-3 sm:grid-cols-2">
 							<StatCard
-								chartData={MOCK_CHART_DATA}
-								chartStepType={previewPrefs.chartStepType}
-								chartType={previewPrefs.chartType}
+								chartData={VISITORS_DATA}
+								chartStepType={previewPreferences.chartStepType}
+								chartType={previewPreferences.chartType}
 								icon={ChartLineIcon}
-								id="preview-1"
+								id="preview-visitors"
 								showChart
 								title="Visitors"
 								value="1,234"
 							/>
 							<StatCard
-								chartData={MOCK_CHART_DATA.map((d) => ({
-									...d,
-									value: d.value * 1.5,
-								}))}
-								chartStepType={previewPrefs.chartStepType}
-								chartType={previewPrefs.chartType}
+								chartData={PAGEVIEWS_DATA}
+								chartStepType={previewPreferences.chartStepType}
+								chartType={previewPreferences.chartType}
 								icon={StackIcon}
-								id="preview-2"
+								id="preview-pageviews"
 								showChart
 								title="Pageviews"
 								value="3,456"
 							/>
 						</div>
 					</Card.Content>
-					<div className="divide-y divide-border/60 border-border/60 border-t">
+					<Card.Content className="divide-y divide-border/60 border-border/60 border-t p-0">
 						<PreferenceRow
 							description="Applies to every page and replaces overrides"
 							title="Chart type"
@@ -340,7 +395,7 @@ export default function AppearanceSettingsPage() {
 								label="Chart type"
 								onChange={(chartType) => updateAllPreferences({ chartType })}
 								options={CHART_TYPE_OPTIONS}
-								value={globalPrefs.chartType}
+								value={globalPreferences.chartType}
 							/>
 						</PreferenceRow>
 						<PreferenceRow
@@ -358,7 +413,7 @@ export default function AppearanceSettingsPage() {
 									updateAllPreferences({ chartStepType })
 								}
 								options={CURVE_OPTIONS}
-								value={globalPrefs.chartStepType}
+								value={globalPreferences.chartStepType}
 							/>
 						</PreferenceRow>
 						<PreferenceRow
@@ -367,7 +422,10 @@ export default function AppearanceSettingsPage() {
 						>
 							<Button
 								aria-expanded={showOverrides}
-								onClick={() => setShowOverrides((open) => !open)}
+								onClick={() => {
+									setShowOverrides((open) => !open);
+									setPreviewLocation(null);
+								}}
 								size="sm"
 								variant="secondary"
 							>
@@ -375,67 +433,24 @@ export default function AppearanceSettingsPage() {
 							</Button>
 						</PreferenceRow>
 						{showOverrides &&
-							CHART_LOCATIONS.map((location) => {
-								const prefs =
-									preferences[location] ?? DEFAULT_LOCATION_PREFERENCES;
-								const LocationIcon = LOCATION_ICONS[location];
-								const isPreviewed = location === previewedLocation;
-
-								return (
-									<div
-										className={cn(
-											"flex flex-col gap-1.5 py-2 pr-5 pl-3 sm:flex-row sm:items-center sm:gap-2",
-											"transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
-											isPreviewed && "bg-interactive-hover"
-										)}
-										key={location}
-									>
-										<Button
-											aria-pressed={isPreviewed}
-											className="min-w-0 justify-start gap-2.5 px-2 hover:bg-transparent sm:flex-1"
-											onClick={() =>
-												setPreviewLocation(isPreviewed ? null : location)
-											}
-											size="sm"
-											variant="ghost"
-										>
-											<LocationIcon className="size-4 shrink-0 text-muted-foreground" />
-											<span
-												className={cn(
-													"truncate text-[13px] text-foreground",
-													isPreviewed ? "font-medium" : "font-normal"
-												)}
-											>
-												{CHART_LOCATION_LABELS[location]}
-											</span>
-										</Button>
-										<div className="grid grid-cols-2 gap-2 pl-2 sm:flex sm:pl-0">
-											<PreferencePicker
-												label={`${CHART_LOCATION_LABELS[location]} chart type`}
-												onChange={(chartType) => {
-													updateLocationPreferences(location, { chartType });
-													setPreviewLocation(location);
-												}}
-												options={CHART_TYPE_OPTIONS}
-												value={prefs.chartType}
-											/>
-											<PreferencePicker
-												disabled={prefs.chartType === "bar"}
-												label={`${CHART_LOCATION_LABELS[location]} curve`}
-												onChange={(chartStepType) => {
-													updateLocationPreferences(location, {
-														chartStepType,
-													});
-													setPreviewLocation(location);
-												}}
-												options={CURVE_OPTIONS}
-												value={prefs.chartStepType}
-											/>
-										</div>
-									</div>
-								);
-							})}
-					</div>
+							CHART_LOCATIONS.map((location) => (
+								<OverrideRow
+									isPreviewed={location === previewLocation}
+									key={location}
+									location={location}
+									onChange={(changes) => {
+										updateLocationPreferences(location, changes);
+										setPreviewLocation(location);
+									}}
+									onPreview={() =>
+										setPreviewLocation(
+											location === previewLocation ? null : location
+										)
+									}
+									preferences={preferencesFor(location)}
+								/>
+							))}
+					</Card.Content>
 				</Card>
 			</div>
 		</div>

@@ -170,7 +170,7 @@ const listInsightsTool = defineMcpTool(
 	{
 		name: "list_insights",
 		description:
-			"List published insights for an organization or website: title, summary, evidence, impact, and the recommendation recorded when each was generated (null when none).",
+			"List published insights for an organization or website: title, summary, evidence, impact, and the next step recorded when each was generated (null when none).",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			limit: z.number().int().min(1).max(100).optional().default(20),

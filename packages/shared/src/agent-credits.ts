@@ -56,6 +56,18 @@ export const AGENT_MODEL_COSTS_USD_PER_MILLION: Record<
 		cache_read: 0.25,
 		cache_write: 3.125,
 	},
+	"typesafe-ai/jev": {
+		input: 0.042,
+		output: 0,
+		cache_read: 0,
+		cache_write: 0,
+	},
+	"openai/gpt-6.1-sol": {
+		input: 2,
+		output: 10,
+		cache_read: 0.1,
+		cache_write: 2.5,
+	},
 	"openai/gpt-5.6-luna": {
 		input: 0.2,
 		output: 1.2,
@@ -65,8 +77,16 @@ export const AGENT_MODEL_COSTS_USD_PER_MILLION: Record<
 };
 
 export function lookupAgentModelCost(
-	modelId: string
+	modelId: string,
+	inputTokens = 0
 ): ResolvedAgentModelCost | null {
+	if (modelId === "openai/gpt-6.1-sol" && inputTokens > 272_000) {
+		return {
+			cost: { input: 4, output: 15, cache_read: 0.2, cache_write: 5 },
+			fallback: false,
+			id: modelId,
+		};
+	}
 	const cost = AGENT_MODEL_COSTS_USD_PER_MILLION[modelId];
 	return cost ? { cost, fallback: false, id: modelId } : null;
 }

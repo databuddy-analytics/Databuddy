@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/devtools",
-  "version": "0.0.1-beta.0",
+  "version": "0.0.1",
   "description": "Moveable Databuddy browser devtools overlay",
   "main": "./dist/core/index.mjs",
   "types": "./dist/core/index.d.ts",
@@ -10,6 +10,7 @@
   "type": "module",
   "scripts": {
     "build": "unbuild",
+    "prepack": "bun run build",
     "check-types": "tsc --noEmit"
   },
   "devDependencies": {
@@ -60,7 +61,7 @@
   "homepage": "https://databuddy.cc",
   "repository": {
     "type": "git",
-    "url": "https://github.com/databuddy-analytics/databuddy.git"
+    "url": "https://github.com/databuddy-analytics/Databuddy.git"
   },
   "bugs": {
     "type": "git",

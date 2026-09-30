@@ -4,12 +4,12 @@ import { MIN_AGENT_CREDIT_CHECK_BALANCE } from "@databuddy/shared/agent-credits"
 import { getAutumn } from "@databuddy/rpc/autumn";
 import { getBillingCustomerId } from "@databuddy/rpc/billing";
 import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
-import type { LanguageModelUsage } from "ai";
 import type { RequestLogger } from "evlog";
 import { trackAgentEvent } from "../../lib/databuddy";
 import { captureError, mergeWideEvent } from "../../lib/tracing";
 import {
 	summarizeAgentUsage,
+	type AgentUsage,
 	type UsageTelemetry,
 } from "../../lib/usage-telemetry";
 
@@ -23,7 +23,7 @@ interface AgentUsageTrackingInput {
 	organizationId?: string | null;
 	requestLogger?: RequestLogger;
 	source: "dashboard" | "mcp" | "slack" | "insights";
-	usage: LanguageModelUsage;
+	usage: AgentUsage;
 	userId?: string | null;
 	websiteId?: string;
 }

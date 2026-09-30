@@ -13,6 +13,7 @@ import { MockLanguageModelV3, mockValues } from "ai/test";
 import { z } from "zod";
 import dayjs from "dayjs";
 import type { QueryRequest } from "@databuddy/ai/query";
+import { resolveDatePreset } from "@databuddy/ai/lib/date-presets";
 import { detectRetentionSignals } from "./measurement-plan";
 import { prepareInvestigation } from "./investigation";
 import {
@@ -115,6 +116,7 @@ const agentOutcome = {
 	...outcome,
 	next: {
 		action: "Resume campaign cmp_search_1.",
+		check: null,
 		execution: null,
 		recheckAt: "2026-07-15T00:00:00.000Z",
 		target: "campaign cmp_search_1",
@@ -217,6 +219,13 @@ function outputResponse(value: unknown) {
 		const { evidence, evidenceRefs, ...outcome } = value;
 		payload = {
 			...outcome,
+			...("next" in outcome &&
+			typeof outcome.next === "object" &&
+			outcome.next !== null &&
+			"type" in outcome.next &&
+			outcome.next.type === "act"
+				? { next: { check: null, ...outcome.next } }
+				: {}),
 			evidence: evidence.map((claim, index) => ({
 				claim,
 				sources: Array.isArray(evidenceRefs[index])
@@ -593,6 +602,7 @@ describe("intelligence agent", () => {
 					next: {
 						anyOf: [
 							{
+								required: expect.arrayContaining(["check", "execution"]),
 								properties: {
 									check: { type: "null" },
 									execution: { type: "null" },
@@ -986,7 +996,12 @@ describe("intelligence agent", () => {
 		}
 	});
 
-	it("retains an exact goal repair and saved verification check", async () => {
+	it.each([
+		"complete",
+		"corrected",
+		"derived",
+	])("retains an exact goal repair and verification check: %s", async (formatting) => {
+		const correctFormatting = formatting === "corrected";
 		const goal = {
 			id: "signup",
 			name: "Account creation",
@@ -1041,6 +1056,38 @@ describe("intelligence agent", () => {
 			],
 			next,
 		};
+		const missingCheck = outputResponse({
+			...proposal,
+			next: { ...next, check: undefined },
+		});
+		if (correctFormatting) {
+			expect(
+				JSON.parse(missingCheck.content.at(0)?.input ?? "{}").next
+			).not.toHaveProperty("check");
+		}
+		const generate = mockValues(
+			toolCallsResponse(["list_goals", "scrape_page"]),
+			...(correctFormatting
+				? [
+						outputResponse({
+							...proposal,
+							execution: next.execution,
+							next: { ...next, execution: undefined },
+						}),
+						missingCheck,
+					]
+				: []),
+			outputResponse({
+				...proposal,
+				next: {
+					...next,
+					recheckAt: formatting === "derived" ? undefined : next.recheckAt,
+				},
+			})
+		);
+		const model = new MockLanguageModelV3({
+			doGenerate: async () => generate(),
+		});
 		const result = await runInsightAgent(
 			{
 				appContext: appContext(),
@@ -1057,12 +1104,7 @@ describe("intelligence agent", () => {
 				},
 			},
 			{
-				model: new MockLanguageModelV3({
-					doGenerate: mockValues(
-						toolCallsResponse(["list_goals", "scrape_page"]),
-						outputResponse(proposal)
-					),
-				}),
+				model,
 				tools: {
 					scrape_page: tool({
 						inputSchema: z.object({}),
@@ -1078,6 +1120,17 @@ describe("intelligence agent", () => {
 				},
 			}
 		);
+		expect(result.toolCallCount).toBe(2);
+		expect(result.outcome.evidence).toEqual(proposal.evidence);
+		expect(model.doGenerateCalls).toHaveLength(correctFormatting ? 4 : 2);
+		if (correctFormatting) {
+			expect(JSON.stringify(model.doGenerateCalls[2]?.prompt)).toContain(
+				"execution"
+			);
+			expect(JSON.stringify(model.doGenerateCalls[3]?.prompt)).toContain(
+				"check"
+			);
+		}
 		expect(result.outcome.next).toMatchObject({
 			...next,
 			action: describeInsightDefinitionAction(goal.name, {
@@ -1093,6 +1146,276 @@ describe("intelligence agent", () => {
 				},
 			},
 		});
+	});
+
+	it.each(
+		(["goal", "funnel"] as const).flatMap((type) =>
+			(
+				[
+					["overall_conversion_rate", 20, true, "baseline"],
+					["overall_conversion_rate", 80, false, "wrong-field"],
+					["total_users_completed", 80, true, "baseline"],
+					["total_users_completed", 400, false, "wrong-field"],
+					["total_users_completed", 80, false, "different-window"],
+					["total_users_completed", 80, false, "cohort"],
+					["overall_conversion_rate", 20, false, "cohort"],
+					["overall_conversion_rate", 20, false, "website"],
+					["overall_conversion_rate", 20, false, "definition"],
+					["overall_conversion_rate", 20, false, "population"],
+					["overall_conversion_rate", 20, false, "clipped-window"],
+					["overall_conversion_rate", 20, false, "unfinished-window"],
+					["overall_conversion_rate", 20, false, "reversed-window"],
+					["overall_conversion_rate", 20, true, "current-window"],
+					["overall_conversion_rate", 20, true, "default-dates"],
+					["overall_conversion_rate", 20, true, "null-defaults"],
+					["overall_conversion_rate", 20, true, "native-defaults"],
+					["overall_conversion_rate", 20.1, true, "rounded-rate"],
+					["total_users_completed", 400, true, "configured"],
+					["overall_conversion_rate", 80, true, "provided"],
+					["overall_conversion_rate", 80, false, "another-read"],
+				] as const
+			).map(([metric, value, valid, scope]) => ({
+				type,
+				metric,
+				value,
+				valid,
+				scope,
+			}))
+		)
+	)("binds $type native prior baselines to $metric: $scope ($value)", async ({
+		type,
+		metric,
+		value,
+		valid,
+		scope,
+	}) => {
+		const subject = {
+			...funnelSignal,
+			signalKey: `${type}:checkout`,
+			entity: { ...funnelSignal.entity, type },
+		};
+		const current =
+			type === "goal"
+				? { id: "checkout", type: "PAGE_VIEW", target: "/docs", filters: [] }
+				: inspectedFunnel;
+		const context = appContext();
+		if (scope === "native-defaults") {
+			context.timezone = "America/Los_Angeles";
+		}
+		const window =
+			scope === "native-defaults"
+				? resolveDatePreset(
+						"last_30d",
+						context.timezone,
+						new Date(context.currentDateTime)
+					)
+				: scope === "current-window"
+					? subject.period.current
+					: scope === "unfinished-window"
+						? { from: "2026-07-12", to: "2026-07-14" }
+						: scope === "reversed-window"
+							? { from: "2026-07-09", to: "2026-07-04" }
+							: subject.period.previous;
+		const request = {
+			[`${type}Id`]: subject.entity.id,
+			...(scope === "cohort"
+				? {
+						cohort: {
+							filters: [{ field: "country", operator: "equals", value: "US" }],
+						},
+					}
+				: {}),
+			...(scope === "null-defaults"
+				? { websiteId: null, startDate: null, endDate: null }
+				: scope === "native-defaults"
+					? { cohort: null }
+					: { websiteId: "site-1" }),
+			...(["default-dates", "null-defaults", "native-defaults"].includes(scope)
+				? {}
+				: { startDate: window.from, endDate: window.to }),
+		};
+		const nativeTool = `get_${type}_analytics`;
+		const requestSchema = z.object({
+			goalId: z.string().optional(),
+			funnelId: z.string().optional(),
+			websiteId: z.string().nullish(),
+			startDate: z.iso.date().nullish(),
+			endDate: z.iso.date().nullish(),
+		});
+		const nativeSchema = ["native-defaults", "cohort"].includes(scope)
+			? (await import("@databuddy/ai/tools/toolkit")).createToolkit({
+					capabilities: ["analytics"],
+				})[nativeTool]?.inputSchema
+			: undefined;
+		if (["native-defaults", "cohort"].includes(scope)) {
+			expect(nativeSchema).toBeDefined();
+		}
+		const listTool = type === "goal" ? "list_goals" : "list_funnels";
+		const nativeRead = toolCallResponse(nativeTool, JSON.stringify(request));
+		const proposal = {
+			...executableDefinitionOutcome,
+			title: "Account creation measurement targets documentation",
+			summary: "Completed account creation is not the saved outcome.",
+			rootCause:
+				"The saved definition targets documentation instead of account creation.",
+			evidence: [
+				"The saved measurement reaches documentation instead of account creation.",
+			],
+			evidenceRefs: [
+				[
+					{ source: "provided", index: 0 },
+					{
+						source: "tool",
+						name: listTool,
+						toolCallId: `${listTool}-1`,
+						resultKey: null,
+					},
+				],
+			],
+			next: {
+				...executableDefinitionOutcome.next,
+				recheckAt:
+					metric === "total_users_completed" && scope !== "different-window"
+						? "2026-07-20T00:00:00.000Z"
+						: executableDefinitionOutcome.next.recheckAt,
+				...(type === "goal"
+					? {
+							execution: {
+								operation: "edit",
+								changes: { target: "/account-created" },
+							},
+						}
+					: {}),
+				check: {
+					metric,
+					startDate: "2026-07-13",
+					endDate:
+						metric === "total_users_completed" && scope !== "different-window"
+							? "2026-07-19"
+							: "2026-07-14",
+					minimumEntrants: metric === "total_users_completed" ? 1 : 100,
+					threshold: {
+						anchor:
+							scope === "configured" ? "configured_target" : "prior_baseline",
+						comparison: "at_or_above" as const,
+						value,
+						evidenceRef:
+							scope === "provided" || scope === "configured"
+								? { source: "provided", index: scope === "configured" ? 2 : 1 }
+								: {
+										source: "tool",
+										name: nativeTool,
+										toolCallId: `${nativeTool}-1`,
+										resultKey: null,
+									},
+					},
+				},
+			},
+		};
+		const generate = mockValues(
+			{
+				...nativeRead,
+				content: [
+					...nativeRead.content,
+					...(scope === "another-read"
+						? toolCallResponse(
+								nativeTool,
+								JSON.stringify({
+									...request,
+									startDate: subject.period.current.from,
+									endDate: subject.period.current.to,
+								}),
+								"native-later"
+							).content
+						: []),
+					...toolCallResponse(listTool).content,
+				],
+			},
+			outputResponse(proposal),
+			outputResponse(proposal),
+			outputResponse(proposal)
+		);
+		const run = runInsightAgent(
+			{
+				appContext: context,
+				evidence: [
+					"Business meaning: account creation finishes at /account-created, or at the account_created event for the journey.",
+					"Team-provided healthy baseline: 80 percent.",
+					"Configured recovery target: 400 completed visitors.",
+				],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: subject,
+			},
+			{
+				model: new MockLanguageModelV3({ doGenerate: async () => generate() }),
+				tools: {
+					[nativeTool]: tool({
+						inputSchema: nativeSchema ?? requestSchema,
+						execute: (raw: unknown) => {
+							const query = requestSchema.parse(raw);
+							return {
+								measurement: {
+									websiteId:
+										scope === "website" ? "another-site" : context.websiteId,
+									definitionId:
+										scope === "definition"
+											? "another-definition"
+											: subject.entity.id,
+									startDate:
+										scope === "clipped-window"
+											? "2026-07-01"
+											: (query.startDate ?? window.from),
+									endDate: query.endDate ?? window.to,
+									definition:
+										scope === "population"
+											? {
+													...current,
+													filters: [
+														{
+															field: "country",
+															operator: "equals",
+															value: "US",
+														},
+													],
+												}
+											: current,
+								},
+								total_users_entered: scope === "rounded-rate" ? 399 : 400,
+								total_users_completed:
+									scope === "another-read" &&
+									query.startDate === subject.period.current.from
+										? 320
+										: 80,
+								overall_conversion_rate:
+									scope === "rounded-rate"
+										? (100 * 80) / 399
+										: scope === "another-read" &&
+												query.startDate === subject.period.current.from
+											? 80
+											: 20,
+							};
+						},
+					}),
+					[listTool]: tool({
+						inputSchema: z.object({}),
+						execute: () => ({
+							[type === "goal" ? "goals" : "funnels"]: [current],
+						}),
+					}),
+				},
+			}
+		);
+		if (valid) {
+			expect((await run).outcome.next).toMatchObject({
+				check: proposal.next.check,
+			});
+		} else {
+			await expect(run).rejects.toThrow(
+				"Native prior-baseline thresholds require"
+			);
+		}
 	});
 
 	it.each([
@@ -1679,6 +2002,7 @@ describe("intelligence agent", () => {
 		expect(result.outcome).toEqual(outcome);
 		expect(result.usage?.inputTokens).toBe(2);
 		expect(result.usage?.outputTokens).toBe(2);
+		expect(result.usage?.stepUsages).toHaveLength(2);
 		expect(model.doGenerateCalls).toHaveLength(2);
 		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
 			"finish_investigation"
@@ -1749,6 +2073,7 @@ describe("intelligence agent", () => {
 			throw failure;
 		}
 		expect(failure.usage.inputTokens).toBe(model.doGenerateCalls.length);
+		expect(failure.usage.stepUsages).toHaveLength(model.doGenerateCalls.length);
 	});
 
 	it("can inspect missing context after a malformed response follows a read", async () => {
@@ -1932,6 +2257,51 @@ describe("intelligence agent", () => {
 		);
 	});
 
+	it("allows a traffic-collapse question without error reach capabilities", async () => {
+		const candidate = {
+			...agentOutcome,
+			title: "Site activity recording stopped",
+			summary: "Tracking may have broken or the site may be unavailable.",
+			impact: null,
+			rootCause: null,
+			findingKind: "measurement_coverage" as const,
+			publicationBasis: "decision_safety" as const,
+			evidence: ["Recorded visitors fell from 1000 to 0."],
+			evidenceRefs: [{ source: "signal" as const }],
+			next: {
+				type: "ask" as const,
+				question:
+					"Can you confirm tracking still loads on the site? This distinguishes a collection break from an outage.",
+			},
+		};
+		const model = outputModel(candidate);
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: {
+					...signal,
+					entity: { type: "website", id: "site-1", label: "Visitors" },
+					metric: { ...signal.metric, current: 0 },
+					changePercent: -100,
+				},
+			},
+			{ model, tools: {} }
+		);
+
+		expect(result.outcome.next).toEqual(candidate.next);
+		const prompt = model.doGenerateCalls[0]?.prompt.find(
+			(item) => item.role === "user"
+		);
+		expect(JSON.stringify(prompt)).not.toContain("canAskAboutError");
+		expect(JSON.stringify(prompt)).not.toContain(
+			"errorAskMinimumVisitorIdentifiers"
+		);
+	});
+
 	it("keeps low-reach error asks out of teammate interrupts", async () => {
 		const smallReachAsk = {
 			...agentOutcome,
@@ -1989,6 +2359,18 @@ describe("intelligence agent", () => {
 		);
 
 		expect(result.outcome.next.type).toBe("resolve");
+		const message = model.doGenerateCalls[0]?.prompt
+			.find((item) => item.role === "user")
+			?.content.find((item) => item.type === "text");
+		if (message?.type !== "text") {
+			throw new Error("Missing evidence prompt");
+		}
+		expect(JSON.parse(message.text)).toMatchObject({
+			capabilities: {
+				canAskAboutError: false,
+				errorAskMinimumVisitorIdentifiers: 25,
+			},
+		});
 		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
 			"below the 25-visitor threshold"
 		);
@@ -2047,16 +2429,10 @@ describe("intelligence agent", () => {
 		);
 	});
 
-	it("retries a published measurement finding with the wrong publication basis", async () => {
-		const invalidOutcome = {
-			...agentOutcome,
-			findingKind: "measurement_definition" as const,
-			publicationBasis: "measured_impact" as const,
-		};
+	it("derives the publication basis instead of trusting the model's value", async () => {
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
-				outputResponse(invalidOutcome),
-				outputResponse(agentOutcome)
+				outputResponse({ ...agentOutcome, publicationBasis: "decision_safety" })
 			),
 		});
 
@@ -2073,10 +2449,7 @@ describe("intelligence agent", () => {
 		);
 
 		expect(result.outcome).toEqual(outcome);
-		expect(model.doGenerateCalls).toHaveLength(2);
-		expect(JSON.stringify(model.doGenerateCalls[1])).toContain(
-			"publicationBasis"
-		);
+		expect(model.doGenerateCalls).toHaveLength(1);
 	});
 
 	it("repairs a truncated finish call inside the same tool loop", async () => {
@@ -2197,6 +2570,7 @@ describe("intelligence agent", () => {
 		expect(failure.toolCallCount).toBe(1);
 		expect(failure.usage.inputTokens).toBe(1);
 		expect(failure.usage.outputTokens).toBe(1);
+		expect(failure.usage.stepUsages).toHaveLength(1);
 		expect(model.doGenerateCalls).toHaveLength(2);
 	});
 
@@ -4033,11 +4407,16 @@ describe("validateNumericGrounding", () => {
 		"29 Aug–4 Sep",
 		"29–31 August, 2026",
 		"August 29–September 4",
+		"September 15–21 → 22–28",
+		"Sep 15–21 → 22–28, 2026",
+		"September 15–21 → 22–28, 2026 UTC",
+		"September 15–21 → 22–28, UTC",
+		"December 1–7 → 8–14",
 		"2026-08-29",
 	])("does not treat %s as a count", (date) => {
 		const claim = {
 			title: "Collection gap",
-			summary: `${date}: 2200 origin responses, zero events.`,
+			summary: `${date}: measured 2200 origin responses, zero events.`,
 			evidence: [],
 		};
 		expect(() =>
@@ -4049,6 +4428,42 @@ describe("validateNumericGrounding", () => {
 				"2200 origin responses; zero events."
 			)
 		).toThrow("number 29");
+		expect(() =>
+			validateNumericGrounding(
+				{ title: "", summary: "22 visitors", evidence: [] },
+				date
+			)
+		).toThrow("number 22");
+	});
+
+	it.each([
+		["22 visitors", 22],
+		["22–28 visitors", 22],
+		["22–28%", 22],
+		["2–3:1 odds", 2],
+		["22–23:00 hours", 22],
+		["2–3: 1 odds", 2],
+		["22–23: 00 hours", 22],
+		["22.5–28.4%", 22.5],
+		["220–280", 220],
+		["0–7", 0],
+		["32–38", 32],
+		["22–28,000 visitors", 22],
+		["22–28.5%", 22],
+		["22–28, 2026 visits", 22],
+		["22–28: 23 visitors", 22],
+		["22–28: 2200 origin responses", 22],
+	] as const)("keeps measurements after a date grounded: %s", (tail, value) => {
+		expect(() =>
+			validateNumericGrounding(
+				{
+					title: "Comparison",
+					summary: `September 15–21 → ${tail}.`,
+					evidence: [],
+				},
+				'{"visitors":40,"originResponses":2200}'
+			)
+		).toThrow(`number ${value}`);
 	});
 
 	it.each([
@@ -4537,6 +4952,617 @@ describe("investigation completion and retained evidence", () => {
 });
 
 describe("completed answer measurement boundary", () => {
+	it.each(
+		(["goal", "funnel", "funnel_step"] as const).flatMap((type) =>
+			[
+				"cited-current",
+				"cited-previous",
+				"uncited-current",
+				"uncited-previous",
+				"original-cohort",
+				"other-cohort",
+				"cited-other-cohort",
+				"reordered-cohort",
+				"reordered-changed-cohort",
+				"other-parent",
+				"wrong-site",
+				"wrong-definition",
+				"changed-definition",
+				"changed-filters",
+				"full-unknown-cause",
+				"no-native-read",
+				"unavailable-metadata",
+				"lookalike",
+				...(type === "goal" ? [] : ["cited-referrer", "uncited-referrer"]),
+			].map((mode) => [type, mode] as const)
+		)
+	)("guards native measurement publication (%s, %s)", async (type, mode) => {
+		const nativeType = type === "goal" ? "goal" : "funnel";
+		const name = `get_${nativeType}_analytics`;
+		const subject: InvestigationSignal = {
+			...funnelSignal,
+			signalKey:
+				type === "funnel_step" ? "funnel:checkout:step:2" : `${type}:checkout`,
+			entity: {
+				type,
+				id: type === "funnel_step" ? "checkout:step:2" : "checkout",
+				label: "Report delivery",
+			},
+		};
+		const cohort = {
+			filters: [{ field: "country", operator: "equals", value: "US" }],
+		};
+		const definition =
+			nativeType === "goal"
+				? {
+						type: "PAGE_VIEW",
+						target: "/report",
+						filters: mode === "original-cohort" ? cohort.filters : [],
+					}
+				: {
+						...inspectedFunnel,
+						filters: mode === "original-cohort" ? cohort.filters : [],
+					};
+		const measurement = (period: typeof signal.period.current) => ({
+			measurement: {
+				websiteId: "site-1",
+				definitionId: "checkout",
+				startDate: period.from,
+				endDate: period.to,
+				definition: structuredClone(definition),
+			},
+			total_users_entered: 1200,
+			total_users_completed:
+				period.from === signal.period.previous.from ? 240 : 120,
+		});
+		const previous = measurement(signal.period.previous);
+		const current = measurement(signal.period.current);
+		const clipsOriginal = [
+			"cited-current",
+			"cited-previous",
+			"uncited-current",
+			"uncited-previous",
+			"original-cohort",
+		].includes(mode);
+		if (clipsOriginal) {
+			const clipped = mode.endsWith("previous") ? previous : current;
+			clipped.measurement.startDate = dayjs(clipped.measurement.startDate)
+				.add(3, "day")
+				.format("YYYY-MM-DD");
+		}
+		if (mode === "wrong-site") {
+			current.measurement.websiteId = "another-site";
+		}
+		if (mode === "wrong-definition") {
+			current.measurement.definitionId = "another-definition";
+		}
+		if (mode === "changed-definition") {
+			if ("steps" in current.measurement.definition) {
+				current.measurement.definition.steps[1].target = "/changed";
+			} else {
+				current.measurement.definition.target = "/changed";
+			}
+		}
+		if (mode === "changed-filters") {
+			current.measurement.definition.filters = cohort.filters;
+		}
+		const reads: ReturnType<typeof toolCallResponse>[] = [];
+		const references: z.infer<typeof agentEvidenceReferenceSchema>[] = [
+			{ source: "signal" },
+		];
+		const outputs: Record<string, unknown> = {};
+		const read = (
+			id: string,
+			toolName: string,
+			period: typeof signal.period.current,
+			output: unknown,
+			cite: boolean,
+			extra: Record<string, unknown> = {}
+		) => {
+			outputs[id] = output;
+			reads.push(
+				toolCallResponse(
+					toolName,
+					JSON.stringify({
+						[`${nativeType}Id`]: "checkout",
+						startDate: period.from,
+						endDate: period.to,
+						...extra,
+					}),
+					id
+				)
+			);
+			if (cite) {
+				references.push({
+					source: "tool",
+					name: toolName,
+					toolCallId: id,
+					resultKey: null,
+				});
+			}
+		};
+		if (mode !== "no-native-read") {
+			read(
+				"previous",
+				name,
+				signal.period.previous,
+				previous,
+				mode !== "uncited-previous"
+			);
+			read(
+				"current",
+				name,
+				signal.period.current,
+				mode === "unavailable-metadata"
+					? { total_users_entered: 1200 }
+					: current,
+				mode !== "uncited-current"
+			);
+		}
+		if (
+			[
+				"other-cohort",
+				"cited-other-cohort",
+				"other-parent",
+				"cited-referrer",
+				"uncited-referrer",
+				"lookalike",
+			].includes(mode)
+		) {
+			const diagnostic = measurement(signal.period.current);
+			diagnostic.measurement.startDate = "2026-07-08";
+			if (mode === "other-parent") {
+				diagnostic.measurement.definitionId = "another-parent";
+			}
+			if (mode.includes("cohort")) {
+				diagnostic.measurement.definition.filters = cohort.filters;
+			}
+			let diagnosticTool = name;
+			if (mode.includes("referrer")) {
+				diagnosticTool = "get_funnel_analytics_by_referrer";
+			} else if (mode === "lookalike") {
+				diagnosticTool = "scrape_page";
+			}
+			let diagnosticInput: Record<string, unknown> = {};
+			if (mode.includes("cohort")) {
+				diagnosticInput = { cohort };
+			} else if (mode === "other-parent") {
+				diagnosticInput = { [`${nativeType}Id`]: "another-parent" };
+			}
+			read(
+				"diagnostic",
+				diagnosticTool,
+				signal.period.current,
+				diagnostic,
+				mode.startsWith("cited"),
+				diagnosticInput
+			);
+		}
+		if (mode.startsWith("reordered-")) {
+			const browser = {
+				field: "browser_name",
+				operator: "equals",
+				value: "Firefox",
+			};
+			for (const [id, period, filters] of [
+				[
+					"cohort-previous",
+					signal.period.previous,
+					[...cohort.filters, browser],
+				],
+				["cohort-current", signal.period.current, [browser, ...cohort.filters]],
+			] as const) {
+				const segment = measurement(period);
+				segment.measurement.definition.filters = [...filters];
+				if (mode === "reordered-changed-cohort" && id === "cohort-current") {
+					if ("steps" in segment.measurement.definition) {
+						segment.measurement.definition.steps[1].target = "/changed";
+					} else {
+						segment.measurement.definition.target = "/changed";
+					}
+				}
+				read(id, name, period, segment, true, { cohort: { filters } });
+			}
+		}
+		const publish = [
+			"other-cohort",
+			"reordered-cohort",
+			"other-parent",
+			"uncited-referrer",
+			"full-unknown-cause",
+			"no-native-read",
+			"unavailable-metadata",
+			"lookalike",
+		].includes(mode);
+		const proposed = {
+			...agentOutcome,
+			completion: "incomplete",
+			title: "Report delivery declined",
+			summary: "Fewer entrants reached the report; its cause is unknown.",
+			rootCause: null,
+			impact: null,
+			evidence: ["The supplied comparison reports lower report delivery."],
+			evidenceRefs: [references],
+			next: {
+				type: "resolve",
+				reason: "The measured result does not establish a repair.",
+			},
+		};
+		const corrected = {
+			...proposed,
+			publish: false,
+			publicationBasis: null,
+			evidence: [
+				"Available native coverage cannot validate the requested comparison.",
+			],
+		};
+		const generate = mockValues(
+			...reads,
+			outputResponse(proposed),
+			outputResponse(corrected)
+		);
+		const errors: string[] = [];
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [],
+				signal: subject,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model: new MockLanguageModelV3({ doGenerate: async () => generate() }),
+				tools: Object.fromEntries(
+					[name, "get_funnel_analytics_by_referrer", "scrape_page"].map(
+						(toolName) => [
+							toolName,
+							tool({
+								inputSchema: z.object({}).passthrough(),
+								execute: (_query, options) => outputs[options.toolCallId],
+							}),
+						]
+					)
+				),
+				onStepFinish: (step) => {
+					for (const part of step.content) {
+						if (part.type === "tool-error") {
+							errors.push(String(part.error));
+						}
+					}
+				},
+			}
+		);
+		expect(result.outcome.publish).toBe(publish);
+		expect(result.completion).toBe("incomplete");
+		if (publish) {
+			expect(errors).toEqual([]);
+		} else {
+			expect(errors).toHaveLength(1);
+			expect(errors[0]).toContain("Native definition measurement contradicts");
+			if (mode === "reordered-changed-cohort") {
+				expect(errors[0]).toContain("evaluated definition or filters changed");
+			}
+			if (clipsOriginal || mode.startsWith("cited-")) {
+				const period = mode.endsWith("previous")
+					? signal.period.previous
+					: signal.period.current;
+				expect(errors[0]).toContain(`${period.from}–${period.to}`);
+				expect(errors[0]).toContain(
+					`${dayjs(period.from).add(3, "day").format("YYYY-MM-DD")}–${period.to}`
+				);
+			}
+		}
+	});
+	it("preserves an inspected decision-safety repair despite clipped analytics", async () => {
+		const generate = mockValues(
+			toolCallResponse(
+				"get_funnel_analytics",
+				JSON.stringify({
+					funnelId: "checkout",
+					startDate: signal.period.current.from,
+					endDate: signal.period.current.to,
+				})
+			),
+			outputResponse(executableDefinitionOutcome)
+		);
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [...evidence, "Business meaning: Tracks account creation."],
+				signal: funnelSignal,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{
+				model: new MockLanguageModelV3({ doGenerate: async () => generate() }),
+				tools: {
+					get_funnel_analytics: tool({
+						inputSchema: z.object({}).passthrough(),
+						execute: () => ({
+							measurement: {
+								websiteId: "site-1",
+								definitionId: "checkout",
+								startDate: "2026-07-08",
+								endDate: signal.period.current.to,
+								definition: inspectedFunnel,
+							},
+						}),
+					}),
+				},
+			}
+		);
+		expect(result.outcome.publish).toBe(true);
+		expect(result.outcome.findingKind).toBe("measurement_definition");
+		expect(result.outcome.next.type).toBe("act");
+	});
+	it.each([
+		"exact",
+		"reversed-rows",
+		"first-predecessor-mismatch",
+		"last-step-mismatch",
+		"overview-only",
+		"missing-previous",
+		"wrong-parent",
+		"wrong-site",
+		"changed-definition",
+		"changed-filters",
+		"missing-step",
+		"missing-predecessor",
+		"duplicate-step",
+		"invalid-count",
+		"wrong-denominator-rate",
+		"unrounded-rate",
+		"clipped-current",
+		"clipped-previous",
+		"earlier-clipped-current",
+		"earlier-clipped-previous",
+		"conflicting-current",
+		"conflicting-previous",
+		"failed-current",
+		"native-lookalike",
+		"mismatched-identity",
+		"unknown-step",
+		"open-window",
+	])("requires the exact native funnel-step populations: %s", async (mode) => {
+		const prepared = prepareInvestigation(
+			{
+				metric: "funnel:checkout",
+				subjectKey: "funnel:checkout:step:3",
+				label: "Checkout payment conversion",
+				current: 20,
+				baseline: 40,
+				deltaPercent: -50,
+				direction: "down",
+				method: "wow",
+				severity: "warning",
+				detectedAt: signal.period.current.to,
+				period: signal.period,
+			},
+			7
+		);
+		const stepSignal = prepared.signal;
+		if (
+			mode === "first-predecessor-mismatch" ||
+			mode === "last-step-mismatch"
+		) {
+			const stepNumber = mode === "first-predecessor-mismatch" ? 2 : 4;
+			stepSignal.entity.id = `checkout:step:${stepNumber}`;
+			stepSignal.signalKey = `funnel:checkout:step:${stepNumber}`;
+		}
+		if (mode === "mismatched-identity") {
+			stepSignal.entity.id = "another:step:3";
+		}
+		if (mode === "unknown-step") {
+			stepSignal.entity.id = "checkout:step:9";
+			stepSignal.signalKey = "funnel:checkout:step:9";
+		}
+		const measurement = (period: typeof signal.period.current) => {
+			const previous = period.from === signal.period.previous.from;
+			const counts = previous ? [1000, 600, 480, 400] : [1000, 600, 300, 200];
+			return {
+				measurement: {
+					websiteId: "site-1",
+					definitionId: "checkout",
+					startDate: period.from,
+					endDate: period.to,
+					definition: {
+						steps: ["entry", "cart", "payment", "receipt"].map((name) => ({
+							name,
+							target: `/${name}`,
+							type: "PAGE_VIEW" as const,
+						})),
+						filters: [] as {
+							field: string;
+							operator: "equals";
+							value: string;
+						}[],
+					},
+				},
+				total_users_entered: 1000,
+				total_users_completed: counts[3],
+				steps_analytics: counts.map((users, index) => ({
+					step_number: index + 1,
+					users,
+					total_users: 1000,
+					conversion_rate:
+						index === 0
+							? 100
+							: Math.round((users / counts[index - 1]) * 10_000) / 100,
+				})),
+			};
+		};
+		const current = measurement(signal.period.current);
+		const previous = measurement(signal.period.previous);
+		if (mode === "first-predecessor-mismatch") {
+			current.steps_analytics[0].users = 999;
+			current.steps_analytics[1].conversion_rate = 60.06;
+		}
+		if (mode === "last-step-mismatch") {
+			current.total_users_completed = 199;
+		}
+		if (mode === "wrong-parent") {
+			current.measurement.definitionId = "another";
+		}
+		if (mode === "wrong-site") {
+			current.measurement.websiteId = "another";
+		}
+		if (mode === "changed-definition") {
+			previous.measurement.definition.steps[2].target = "/old";
+		}
+		if (mode === "changed-filters") {
+			previous.measurement.definition.filters.push({
+				field: "country",
+				operator: "equals",
+				value: "US",
+			});
+		}
+		if (mode === "missing-step") {
+			current.steps_analytics.splice(2, 1);
+		}
+		if (mode === "missing-predecessor") {
+			previous.steps_analytics.splice(1, 1);
+		}
+		if (mode === "duplicate-step") {
+			current.steps_analytics.push(current.steps_analytics[2]);
+		}
+		if (mode === "invalid-count") {
+			current.steps_analytics[2].users = 601;
+		}
+		if (mode === "wrong-denominator-rate") {
+			current.steps_analytics[2].conversion_rate = 30;
+		}
+		if (mode === "unrounded-rate") {
+			current.steps_analytics[2].conversion_rate = 50.001;
+		}
+		if (mode === "clipped-current") {
+			current.measurement.startDate = "2026-07-06";
+		}
+		if (mode === "clipped-previous") {
+			previous.measurement.startDate = "2026-06-29";
+		}
+		if (mode === "reversed-rows") {
+			current.steps_analytics.reverse();
+		}
+		const name =
+			mode === "native-lookalike" ? "scrape_page" : "get_funnel_analytics";
+		const reads: ReturnType<typeof toolCallResponse>[] = [];
+		const sources: z.infer<typeof agentEvidenceReferenceSchema>[] = [];
+		const outputs: Record<string, unknown> = {};
+		const read = (
+			id: string,
+			period: typeof signal.period.current,
+			output: unknown,
+			cite = true
+		) => {
+			outputs[id] = output;
+			reads.push(
+				toolCallResponse(
+					name,
+					JSON.stringify({
+						funnelId: "checkout",
+						startDate: period.from,
+						endDate: period.to,
+					}),
+					id
+				)
+			);
+			if (cite) {
+				sources.push({ source: "tool", name, toolCallId: id, resultKey: null });
+			}
+		};
+		if (
+			mode.startsWith("earlier-clipped") ||
+			mode.startsWith("conflicting") ||
+			mode === "failed-current"
+		) {
+			const period = mode.endsWith("previous")
+				? signal.period.previous
+				: signal.period.current;
+			const earlier = measurement(period);
+			if (mode.startsWith("earlier-clipped")) {
+				earlier.measurement.startDate = dayjs(period.from)
+					.add(1, "day")
+					.format("YYYY-MM-DD");
+			}
+			if (mode.startsWith("conflicting")) {
+				earlier.steps_analytics[2].users = mode.endsWith("previous")
+					? 420
+					: 240;
+				earlier.steps_analytics[2].conversion_rate = mode.endsWith("previous")
+					? 70
+					: 40;
+			}
+			read(
+				"earlier",
+				period,
+				mode === "failed-current" ? { error: "Unavailable" } : earlier,
+				false
+			);
+		}
+		if (mode !== "missing-previous") {
+			read("previous", signal.period.previous, previous);
+		}
+		read(
+			"current",
+			signal.period.current,
+			mode === "overview-only" ? { ...current, steps_analytics: [] } : current
+		);
+		const finish = {
+			completion: "complete",
+			findingKind: "product_outcome",
+			title: "Payment progression inspected",
+			summary: "The step comparison was inspected; no repair was established.",
+			rootCause: null,
+			impact: null,
+			publish: false,
+			publicationBasis: null,
+			next: { type: "resolve", reason: "No inspected repair is established." },
+			evidence: [
+				{
+					claim:
+						"Payment progression was compared across the requested windows.",
+					sources,
+				},
+			],
+		};
+		const generate = mockValues(...reads, outputResponse(finish));
+		const result = await runInsightAgent(
+			{
+				appContext: {
+					...appContext(),
+					...(mode === "open-window"
+						? { currentDateTime: "2026-07-11T12:00:00Z" }
+						: {}),
+				},
+				signal: stepSignal,
+				evidence: [],
+				history: [],
+				otherOpenWork: [],
+				githubRepository: null,
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: async () => generate(),
+				}),
+				tools: {
+					[name]: tool({
+						inputSchema: z.object({
+							funnelId: z.string(),
+							startDate: z.string(),
+							endDate: z.string(),
+						}),
+						execute: (_query, options) => outputs[options.toolCallId],
+					}),
+				},
+			}
+		);
+		const complete = mode === "exact" || mode === "reversed-rows";
+		expect(result.completion).toBe(complete ? "complete" : "incomplete");
+		expect(result.snapshot?.completion).toBe(result.completion);
+		expect(result.outcome.publish).toBe(false);
+	});
 	it.each([
 		"interleaved",
 		"reversed",

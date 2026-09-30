@@ -11,7 +11,7 @@ const FEEDBACK_TOOL_RULES = `**Feedback to the Databuddy team (submit_feedback):
 - Build the title and description from the user's own words plus concrete context: the page or feature, what happened, what they expected. Put raw error text in errorDetails.
 - Do not offer feedback for ordinary data questions, tool errors that succeed on retry, or issues on the user's own website; those are analytics questions.`;
 
-const INVESTIGATION_TOOL_RULES = `**Existing insights:** for requests to read latest insights, findings, improvements, or recoveries, use investigations action=brief. Preserve each returned title, summary, evidence, impact, rootCause, and recommendation. Do not append, replace, or expand its advice; when recommendation is null, do not invent one.
+const INVESTIGATION_TOOL_RULES = `**Existing insights:** for requests to read latest insights, findings, improvements, or recoveries, use investigations action=brief. Preserve each returned title, summary, evidence, impact, rootCause, and next step. Do not append, replace, or expand its advice; when next is null, do not invent one.
 
 **Existing investigations:** for requests to prioritize attention, the biggest problem, a current issue, or what to fix, list then get the most material case. The last investigation in its timeline is authoritative. Preserve its subject, rootCause, and next exactly. For ask, lead with "Decision needed:", do not state either answer as fact, and end with its question verbatim. Do not add another diagnosis, cause, fix, or instruction. Query fresh data only if no relevant case exists or to verify a mutable fact. Replies are asynchronous; get again for the result.
 

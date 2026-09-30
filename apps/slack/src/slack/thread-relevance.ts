@@ -1,102 +1,53 @@
 import {
 	classifySlackThreadReplyRelevance,
-	type SlackThreadReplyMessage,
+	type DatabuddyAgentSlackMessage,
 	type SlackThreadReplyRelevance,
 } from "@databuddy/ai/agent";
 import type { SlackAgentRun } from "@/agent/agent-client";
 
-const MODEL_TIMEOUT_MS = 6000;
-
-type SlackThreadReplyDecisionSource = "fallback" | "model";
-
 export interface SlackThreadReplyDecision {
 	confidence: number;
-	reason: SlackThreadReplyRelevance["reason"];
+	reason:
+		| SlackThreadReplyRelevance["reason"]
+		| "bot_mentioned"
+		| "side_chatter"
+		| "ambiguous";
 	shouldReply: boolean;
-	source: SlackThreadReplyDecisionSource;
+	source: "fallback" | "model";
 }
-
-export interface SlackThreadReplyGateContext {
-	botUserId?: string;
-	readThreadMessages?: () => Promise<SlackThreadReplyMessage[]>;
-}
-
-export interface SlackThreadReplyGate {
-	shouldReply(
-		run: SlackAgentRun,
-		context: SlackThreadReplyGateContext
-	): Promise<SlackThreadReplyDecision>;
-}
-
-export const slackThreadReplyGate: SlackThreadReplyGate = {
-	shouldReply: shouldReplyToSlackThreadFollowUp,
-};
 
 export async function shouldReplyToSlackThreadFollowUp(
 	run: SlackAgentRun,
-	context: SlackThreadReplyGateContext = {}
+	context: {
+		botUserId?: string;
+		readThreadMessages?: () => Promise<DatabuddyAgentSlackMessage[]>;
+	} = {}
 ): Promise<SlackThreadReplyDecision> {
-	const threadMessages = await readThreadMessages(context);
+	let threadMessages: DatabuddyAgentSlackMessage[] = [];
+	try {
+		threadMessages = (await context.readThreadMessages?.()) ?? [];
+	} catch {
+		// Missing Slack history must not prevent classifying the latest message.
+	}
 	const modelDecision = await classifySlackThreadReplyRelevance({
 		botUserId: context.botUserId,
 		currentUserId: run.userId,
 		text: run.text,
 		threadMessages,
-		timeoutMs: MODEL_TIMEOUT_MS,
 	});
 
 	if (modelDecision) {
-		return {
-			confidence: modelDecision.confidence,
-			reason: modelDecision.reason,
-			shouldReply: modelDecision.shouldReply,
-			source: "model",
-		};
+		return { ...modelDecision, source: "model" };
 	}
 
-	return getFallbackDecision(run.text, context.botUserId);
-}
-
-function getFallbackDecision(
-	text: string,
-	botUserId?: string
-): SlackThreadReplyDecision {
-	const normalized = text.trim().toLowerCase();
-
-	if (!normalized) {
-		return decision(false, "side_chatter", 0.5);
-	}
-
-	if (mentionsBot(normalized, botUserId)) {
-		return decision(true, "bot_mentioned", 0.65);
-	}
-
-	return decision(false, "ambiguous", 0.5);
-}
-
-function decision(
-	shouldReply: boolean,
-	reason: SlackThreadReplyDecision["reason"],
-	confidence: number
-): SlackThreadReplyDecision {
+	const text = run.text.trim().toLowerCase();
+	const mentioned = Boolean(
+		context.botUserId && text.includes(`<@${context.botUserId.toLowerCase()}>`)
+	);
 	return {
-		confidence,
-		reason,
-		shouldReply,
+		confidence: mentioned ? 0.65 : 0.5,
+		reason: mentioned ? "bot_mentioned" : text ? "ambiguous" : "side_chatter",
+		shouldReply: mentioned,
 		source: "fallback",
 	};
-}
-
-async function readThreadMessages(
-	context: SlackThreadReplyGateContext
-): Promise<SlackThreadReplyMessage[]> {
-	try {
-		return (await context.readThreadMessages?.()) ?? [];
-	} catch {
-		return [];
-	}
-}
-
-function mentionsBot(text: string, botUserId?: string): boolean {
-	return Boolean(botUserId && text.includes(`<@${botUserId.toLowerCase()}>`));
 }

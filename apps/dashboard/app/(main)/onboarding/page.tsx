@@ -1,6 +1,5 @@
 "use client";
 
-import { isSelfHosted } from "@databuddy/env/public";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { trackOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
@@ -55,8 +54,8 @@ export default function OnboardingPage() {
 	const router = useRouter();
 	const billing = useBillingContext();
 	const investigations = useInvestigationUsage();
-	const canReview =
-		!isSelfHosted || (!billing.isError && investigations.canUse);
+	const billingPending = billing.isLoading || billing.isFetching;
+	const canReview = !billing.isError && investigations.hasAccess;
 	const { websites } = useWebsitesLight();
 	const trackedStepRef = useRef<number>(-1);
 	const onboardingCompletedRef = useRef(false);
@@ -172,7 +171,7 @@ export default function OnboardingPage() {
 	}, [attribution, markComplete]);
 
 	const handleExploreComplete = useCallback(() => {
-		if (isSelfHosted && firstReviewWebsiteId && billing.isFetching) {
+		if (firstReviewWebsiteId && billingPending) {
 			return;
 		}
 		recordExploreComplete();
@@ -190,7 +189,7 @@ export default function OnboardingPage() {
 			router.replace("/websites");
 		}
 	}, [
-		billing.isFetching,
+		billingPending,
 		canReview,
 		firstReviewWebsiteId,
 		recordExploreComplete,
@@ -275,9 +274,9 @@ export default function OnboardingPage() {
 				return (
 					<StepExplore
 						canReview={canReview}
-						hasError={isSelfHosted && billing.isError}
+						hasError={billing.isError}
 						hasVerifiedTracking={firstReviewWebsiteId !== null}
-						isLoading={isSelfHosted && billing.isFetching}
+						isLoading={billingPending}
 						onComplete={handleExploreComplete}
 						onEnterProduct={recordExploreComplete}
 						onRetry={billing.refetch}

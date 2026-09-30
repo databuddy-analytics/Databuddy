@@ -3,8 +3,6 @@ import { CLIENT_ID_PURGE_TABLES, WEBSITE_ID_PURGE_TABLES } from "./purge";
 import { TABLE_COLUMNS } from "./schema/tables.generated";
 
 const PURGE_EXEMPT: Record<string, string> = {
-	"analytics.link_visits":
-		"no tenant column; rows are keyed by link and removed with link deletion",
 	"analytics.revenue":
 		"pending decision: financial rows may need retention after website deletion",
 };
@@ -12,8 +10,8 @@ const PURGE_EXEMPT: Record<string, string> = {
 describe("website purge coverage", () => {
 	it("every tenant-keyed analytics table is purged or explicitly exempt", () => {
 		const purged = new Set<string>([
-			...CLIENT_ID_PURGE_TABLES,
-			...WEBSITE_ID_PURGE_TABLES,
+			...Object.keys(CLIENT_ID_PURGE_TABLES),
+			...Object.keys(WEBSITE_ID_PURGE_TABLES),
 		]);
 		for (const [table, columns] of Object.entries(TABLE_COLUMNS)) {
 			if (!table.startsWith("analytics.")) {
@@ -32,16 +30,20 @@ describe("website purge coverage", () => {
 		}
 	});
 
-	it("purge lists only reference real tables with the key they delete by", () => {
-		for (const table of CLIENT_ID_PURGE_TABLES) {
-			expect([
-				...(TABLE_COLUMNS[table as keyof typeof TABLE_COLUMNS] ?? []),
-			]).toContain("client_id");
+	it("purge tables have the key they delete by and the arrival column they scan", () => {
+		const columnsOf = (table: string) => [
+			...(TABLE_COLUMNS[table as keyof typeof TABLE_COLUMNS] ?? []),
+		];
+		for (const [table, arrivedAt] of Object.entries(CLIENT_ID_PURGE_TABLES)) {
+			expect(columnsOf(table)).toContain("client_id");
+			if (arrivedAt) {
+				expect(columnsOf(table)).toContain(arrivedAt);
+			}
 		}
-		for (const table of WEBSITE_ID_PURGE_TABLES) {
-			expect([
-				...(TABLE_COLUMNS[table as keyof typeof TABLE_COLUMNS] ?? []),
-			]).toContain("website_id");
+		for (const [table, arrivedAt] of Object.entries(WEBSITE_ID_PURGE_TABLES)) {
+			expect(columnsOf(table)).toEqual(
+				expect.arrayContaining(["website_id", "owner_id", arrivedAt])
+			);
 		}
 	});
 });

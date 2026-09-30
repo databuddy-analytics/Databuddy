@@ -13,6 +13,9 @@ export const TABLE_NAMES = {
 	link_visits: "analytics.link_visits",
 };
 
+const accessClientId = process.env.CLICKHOUSE_ACCESS_CLIENT_ID;
+const accessClientSecret = process.env.CLICKHOUSE_ACCESS_CLIENT_SECRET;
+
 export const CLICKHOUSE_OPTIONS: NodeClickHouseClientConfigOptions = {
 	max_open_connections: 64,
 	request_timeout: 30_000,
@@ -24,6 +27,13 @@ export const CLICKHOUSE_OPTIONS: NodeClickHouseClientConfigOptions = {
 		request: true,
 		response: true,
 	},
+	http_headers:
+		accessClientId && accessClientSecret
+			? {
+					"CF-Access-Client-Id": accessClientId,
+					"CF-Access-Client-Secret": accessClientSecret,
+				}
+			: undefined,
 };
 
 export const FINAL_READ_SETTINGS = {

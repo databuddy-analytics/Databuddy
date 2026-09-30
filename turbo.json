@@ -15,6 +15,8 @@
     "BETTER_AUTH_SECRET",
     "BETTER_AUTH_URL",
     "BULLMQ_REDIS_URL",
+    "CLICKHOUSE_ACCESS_CLIENT_ID",
+    "CLICKHOUSE_ACCESS_CLIENT_SECRET",
     "CLICKHOUSE_DQL_URL",
     "CLICKHOUSE_URL",
     "DATABASE_URL",
@@ -85,6 +87,11 @@
         "CLICKHOUSE_INTEGRATION_TESTS",
         "WEBSITE_READER_INTEGRATION_TESTS"
       ]
+    },
+    "test:integration": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "passThroughEnv": ["*"]
     },
     "check-types": {
       "dependsOn": ["^build"]

@@ -159,7 +159,7 @@ Dashboard (Next.js) ←→ ORPC (rpc package) ←→ API (Elysia) → PostgreSQL
 
 Runners: `apps/api` and `apps/basket` use vitest; every other package uses `bun test`. Import helpers from the runner the package actually runs (`bun:test` vs `vitest`); `bun run lint:policies` rejects the wrong one. Biome and most `tsconfig.json` files exclude test files, so format tests by hand (tabs, no blank line before a closing `});`) and keep imports honest.
 
-**Every test file must be reachable.** A package that contains `*.test.ts(x)` needs a `test` script, and any file path named in a `test*` script must exist; `lint:policies` enforces both. Env-gated integration files must be listed in the package's `test:integration` script or in `.github/workflows/ci.yml`. A gated file nobody runs is dead, not "for later".
+**Every test file must be reachable.** A package that contains `*.test.ts(x)` needs a `test` script, and any file path named in a `test*` script must exist; `lint:policies` enforces both, and only counts a file as run when CI reaches it through the package's `test` or `test:integration` script. Env-gated integration files go in the package's `test:integration` script, which sets its own gate flags; CI runs every package's `test:integration` with one `turbo run test:integration` step, so never wire a suite as its own `ci.yml` step. A gated file nobody runs is dead, not "for later".
 
 **Integration tests use the shared services only.** Postgres `databuddy_test` on 5432, Redis on 6379, ClickHouse on 8123, via `import "@databuddy/test/env"` as the first import. Never pin a test to a scratch container port; `lint:policies` rejects five-digit loopback ports in test files. A test that needs isolation uses its own organization, website, or table names and cleans them up.
 
@@ -171,7 +171,10 @@ Runners: `apps/api` and `apps/basket` use vitest; every other package uses `bun 
 - `.skip` or `.todo` without an issue link, or a `describe.skip` that never turns on.
 
 ```bash
-# Run integration tests (requires Docker: postgres + redis)
+# Run every integration suite (requires Docker: postgres, redis, clickhouse)
+bun run test:integration
+
+# One package
 cd apps/api && bun run test:integration
 
 # One-time setup for test DB

@@ -9,7 +9,6 @@ const DASHBOARD_HOME_URL = "https://app.databuddy.cc/home";
 const SESSION_COOKIE = "__Secure-databuddy.session_token";
 const HOMEPAGE_REDIRECT_COOKIE = "databuddy-home-redirect";
 const HOMEPAGE_SEEN_COOKIE = "databuddy-home-seen";
-const HOMEPAGE_SEEN_SECONDS = 30 * 60;
 
 function isSignedInNavigation(request: NextRequest) {
 	return (
@@ -40,18 +39,16 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
 	}
 	const isSignedInHome = pathname === "/" && isSignedInNavigation(request);
 	if (isSignedInHome && shouldOpenDashboard(request)) {
-		const redirect = NextResponse.redirect(DASHBOARD_HOME_URL);
-		redirect.headers.set("Cache-Control", "private, no-store");
-		return redirect;
+		return NextResponse.redirect(DASHBOARD_HOME_URL, {
+			headers: { "Cache-Control": "private, no-store" },
+		});
 	}
 	const res = NextResponse.next();
 	res.headers.set("Vary", "Accept");
 	if (isSignedInHome) {
 		res.cookies.set(HOMEPAGE_SEEN_COOKIE, "1", {
 			httpOnly: true,
-			maxAge: HOMEPAGE_SEEN_SECONDS,
-			path: "/",
-			sameSite: "lax",
+			maxAge: 30 * 60,
 			secure: true,
 		});
 	}

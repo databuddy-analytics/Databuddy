@@ -81,7 +81,12 @@ mock.module("../../lib/supermemory", () => ({
 mock.module("../../lib/ai-logger", () => ({
 	getAILogger: () => ({ wrap: (model: LanguageModelV3) => model }),
 }));
-mock.module("../../lib/tracing", () => ({ mergeWideEvent: () => {} }));
+const captureError = mock((_error: unknown, _context: unknown) => {});
+mock.module("../../lib/tracing", () => ({
+	mergeWideEvent: () => {},
+	captureWarning: () => {},
+	captureError,
+}));
 const billing = mock(async () => ({
 	allowed: true,
 	customerId: "synthetic-owner",
@@ -122,6 +127,19 @@ const usage = {
 	inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
 	outputTokens: { total: 2, text: 2, reasoning: 0 },
 };
+const readStep = {
+	content: [
+		{
+			type: "tool-call",
+			toolCallId: "read",
+			toolName: "get_data",
+			input: '{"value":1}',
+		},
+	],
+	finishReason: { unified: "tool-calls", raw: "tool_calls" },
+	usage,
+	warnings: [],
+} satisfies Awaited<ReturnType<LanguageModelV3["doGenerate"]>>;
 const model = new MockLanguageModelV3({
 	doGenerate: async () => ({
 		content: [{ type: "text", text: "Synthetic response." }],
@@ -195,7 +213,8 @@ beforeEach(() => {
 		.mockReset()
 		.mockResolvedValue({ allowed: true, customerId: "synthetic-owner" });
 	resolveBillingCustomerId.mockReset().mockResolvedValue("synthetic-owner");
-	billedUsage.mockClear();
+	billedUsage.mockReset().mockResolvedValue(undefined);
+	captureError.mockClear();
 	read.mockReset();
 	read.mockImplementation(async () => saved);
 	accessible.mockClear();
@@ -810,6 +829,7 @@ describe("shared Slack/MCP agent billing before model work", () => {
 				source,
 				billingCustomerId: "synthetic-owner",
 				billingAccess: { allowed: true, customerId: "synthetic-owner" },
+				usage: { stepUsages: [expect.objectContaining({ inputTokens: 10 })] },
 			});
 		}
 	});
@@ -833,6 +853,184 @@ describe("shared Slack/MCP agent billing before model work", () => {
 		expect(model.doGenerateCalls).toHaveLength(0);
 		expect(model.doStreamCalls).toHaveLength(0);
 		expect(billedUsage).not.toHaveBeenCalled();
+	});
+});
+
+describe("completed shared-agent usage after failure or cancellation", () => {
+	it.each([
+		{ name: "ask", run: askDatabuddyAgent, settlementFails: false },
+		{ name: "trace", run: traceDatabuddyAgent, settlementFails: false },
+		{ name: "ask", run: askDatabuddyAgent, settlementFails: true },
+	])("retains $name usage and its model error (settlement fails: $settlementFails)", async ({
+		run,
+		settlementFails,
+	}) => {
+		const failure = new Error("Synthetic later-step failure");
+		const settlementFailure = new Error("Synthetic settlement setup failure");
+		const generate = spyOn(model, "doGenerate")
+			.mockResolvedValueOnce(readStep)
+			.mockRejectedValueOnce(failure);
+		if (settlementFails) {
+			billedUsage.mockRejectedValueOnce(settlementFailure);
+		}
+		try {
+			await expect(run({ ...options, billingMode: "bill" })).rejects.toBe(
+				failure
+			);
+			expect(billedUsage).toHaveBeenCalledTimes(1);
+			expect(billedUsage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					billingAccess: { allowed: true, customerId: "synthetic-owner" },
+					billingCustomerId: "synthetic-owner",
+					usage: expect.objectContaining({
+						stepUsages: [
+							expect.objectContaining({ inputTokens: 10, outputTokens: 2 }),
+						],
+					}),
+				})
+			);
+			if (settlementFails) {
+				expect(captureError).toHaveBeenCalledWith(
+					settlementFailure,
+					expect.any(Object)
+				);
+			}
+		} finally {
+			generate.mockRestore();
+		}
+	});
+	it("does not invent usage before a completed step", async () => {
+		const failure = new Error("Synthetic initial failure");
+		const generate = spyOn(model, "doGenerate").mockRejectedValueOnce(failure);
+		try {
+			await expect(
+				askDatabuddyAgent({ ...options, billingMode: "bill" })
+			).rejects.toBe(failure);
+			expect(billedUsage).not.toHaveBeenCalled();
+		} finally {
+			generate.mockRestore();
+		}
+	});
+	it("does not retry a failed primary settlement", async () => {
+		const failure = new Error("Synthetic primary settlement failure");
+		billedUsage.mockRejectedValueOnce(failure);
+		await expect(
+			askDatabuddyAgent({ ...options, billingMode: "bill" })
+		).rejects.toBe(failure);
+		expect(billedUsage).toHaveBeenCalledTimes(1);
+	});
+	it("retains the internal-timeout trace and settles it once", async () => {
+		const generate = spyOn(model, "doGenerate")
+			.mockResolvedValueOnce(readStep)
+			.mockRejectedValueOnce(
+				new DOMException("Synthetic timeout", "AbortError")
+			);
+		try {
+			const result = await traceDatabuddyAgent({
+				...options,
+				billingMode: "bill",
+			});
+			expect(result.answer).toContain("time budget");
+			expect(result.steps).toBe(1);
+			expect(result.usage.inputTokens).toBe(10);
+			expect(billedUsage).toHaveBeenCalledTimes(1);
+		} finally {
+			generate.mockRestore();
+		}
+	});
+	it.each([
+		{ completed: true, consumerFails: false },
+		{ completed: false, consumerFails: false },
+		{ completed: true, consumerFails: true },
+	])("stops the model on consumer exit (completed: $completed, consumer fails: $consumerFails)", async ({
+		completed,
+		consumerFails,
+	}) => {
+		let calls = 0;
+		let providerAborted = false;
+		const stream = spyOn(model, "doStream").mockImplementation(
+			async (input) => {
+				if (completed && ++calls === 1) {
+					return {
+						stream: convertArrayToReadableStream([
+							{
+								type: "tool-call",
+								toolCallId: "read",
+								toolName: "get_data",
+								input: '{"value":1}',
+							},
+							{
+								type: "finish",
+								finishReason: { unified: "tool-calls", raw: "tool_calls" },
+								usage,
+							},
+						]),
+					};
+				}
+				const signal = input.abortSignal;
+				if (!signal) {
+					throw new Error("Expected the run abort signal");
+				}
+				return {
+					stream: new ReadableStream({
+						start(controller) {
+							controller.enqueue({ type: "text-start", id: "text" });
+							controller.enqueue({
+								type: "text-delta",
+								id: "text",
+								delta: "Synthetic partial response.",
+							});
+							signal.addEventListener(
+								"abort",
+								() => {
+									providerAborted = true;
+									controller.error(
+										new DOMException("Synthetic provider abort", "AbortError")
+									);
+								},
+								{ once: true }
+							);
+						},
+					}),
+				};
+			}
+		);
+		const onToolTrace = mock((_trace: DatabuddyAgentToolTrace[]) => {});
+		if (consumerFails) {
+			billedUsage.mockRejectedValueOnce(
+				new Error("Synthetic settlement failure")
+			);
+		}
+		try {
+			const iterator = streamDatabuddyAgent({
+				...options,
+				billingMode: "bill",
+				onToolTrace,
+			});
+			expect((await iterator.next()).value).toBe("Synthetic partial response.");
+			if (consumerFails) {
+				const failure = new Error("Synthetic consumer failure");
+				await expect(iterator.throw(failure)).rejects.toBe(failure);
+			} else {
+				await iterator.return(undefined);
+			}
+			expect(providerAborted).toBe(true);
+			expect(billedUsage).toHaveBeenCalledTimes(Number(completed));
+			expect(onToolTrace).not.toHaveBeenCalled();
+			if (completed) {
+				expect(billedUsage).toHaveBeenCalledWith(
+					expect.objectContaining({
+						billingAccess: { allowed: true, customerId: "synthetic-owner" },
+						billingCustomerId: "synthetic-owner",
+						usage: expect.objectContaining({
+							stepUsages: [expect.objectContaining({ inputTokens: 10 })],
+						}),
+					})
+				);
+			}
+		} finally {
+			stream.mockRestore();
+		}
 	});
 });
 

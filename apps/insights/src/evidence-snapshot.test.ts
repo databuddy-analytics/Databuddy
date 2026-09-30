@@ -29,10 +29,6 @@ const input = {
 	capturedAt: "2026-09-12T00:00:00.000Z",
 	signal,
 	evidence: ["Earlier detection may be stale."],
-	descriptions: {
-		get_funnel_analytics:
-			"Counts entrants; stored step conditions are not evaluated.",
-	},
 };
 
 describe("saved investigation evidence", () => {
@@ -181,7 +177,6 @@ describe("saved investigation evidence", () => {
 		const saved = createEvidenceSnapshot({
 			...input,
 			evidence: privateValues,
-			descriptions: { get_funnel_analytics: privateValues.join(" ") },
 			reads: [
 				"get_data",
 				"get_profile",
@@ -218,7 +213,7 @@ describe("saved investigation evidence", () => {
 		expect(saved.limitations).toHaveLength(3);
 		expect(JSON.parse(JSON.stringify(saved))).toEqual(saved);
 	});
-	it("projects safe counts, actual dates and evaluated scope while dropping nested raw fields and dynamic descriptions", () => {
+	it("projects safe counts, actual dates and evaluated scope while retaining trusted descriptions and dropping nested raw fields", () => {
 		const privateText =
 			"alice@example.com visitor-private-42 -----BEGIN PRIVATE KEY----- unpublished source";
 		const cohort = {
@@ -251,7 +246,6 @@ describe("saved investigation evidence", () => {
 		const saved = createEvidenceSnapshot({
 			...input,
 			evidence: [privateText],
-			descriptions: { get_funnel_analytics: privateText },
 			reads: [
 				{
 					toolName: "get_funnel_analytics",

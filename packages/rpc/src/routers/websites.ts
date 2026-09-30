@@ -1,7 +1,7 @@
 import { successOutputSchema } from "../lib/schemas";
 import { BusinessMemoryRetirementError } from "@databuddy/services/business-memory";
 import { db } from "@databuddy/db";
-import { chQuery, purgeWebsiteAnalyticsData } from "@databuddy/db/clickhouse";
+import { chQuery, purgeAnalyticsData } from "@databuddy/db/clickhouse";
 import { setTimeout as sleep } from "node:timers/promises";
 import { config } from "@databuddy/env/app";
 import { cacheable } from "@databuddy/redis";
@@ -964,7 +964,7 @@ export const websitesRouter = {
 			}
 
 			try {
-				await purgeWebsiteAnalyticsData(input.id);
+				await purgeAnalyticsData([input.id]);
 			} catch (error) {
 				logger.error(
 					{
@@ -972,7 +972,7 @@ export const websitesRouter = {
 						error: String(error),
 						event: "Website Analytics Purge Failed",
 					},
-					`Analytics purge failed for deleted website ${input.id}; data must be purged manually`
+					`Analytics purge failed for deleted website ${input.id}; the API's deleted-data purge retries it`
 				);
 			}
 
