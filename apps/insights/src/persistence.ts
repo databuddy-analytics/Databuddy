@@ -256,7 +256,7 @@ export function caseValues(
 		resolvedAt: outcome.next.type === "resolve" ? at : null,
 		resolvedReason:
 			outcome.next.type === "resolve" &&
-			(!outcome.verification || outcome.verification.status === "passed")
+			outcome.verification?.status === "passed"
 				? ("recovered" as const)
 				: null,
 		status:

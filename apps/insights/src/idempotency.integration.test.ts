@@ -846,7 +846,7 @@ describeIntegration("insights idempotency integration", () => {
 					? { resolvedAt: null, resolvedReason: null, status: "open" }
 					: {
 							resolvedAt,
-							resolvedReason: "recovered",
+							resolvedReason: null,
 							status: "resolved",
 						}
 			);
@@ -1274,7 +1274,7 @@ describeIntegration("insights idempotency integration", () => {
 			"Older signup case"
 		);
 		expect(insights.find((row) => row.id === currentInsightId)).toMatchObject({
-			resolvedReason: "recovered",
+			resolvedReason: null,
 			status: "resolved",
 			title: resolution.title,
 		});
