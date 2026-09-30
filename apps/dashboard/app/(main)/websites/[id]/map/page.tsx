@@ -1,17 +1,17 @@
 "use client";
 
+import { type GlobeCountry, GlobeMap } from "@/components/analytics/globe-map";
 import { CountryFlag } from "@/components/icon";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useDynamicQuery } from "@/hooks/use-dynamic-query";
 import { formatNumber } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
-import type { CountryData } from "@/types/website";
 import { SegmentedControl, Skeleton } from "@databuddy/ui";
 import { useAtomValue } from "jotai";
-import dynamic from "next/dynamic";
 import { useParams, usePathname } from "next/navigation";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useState } from "react";
 
 const MAP_VIEWS = ["realtime", "historical"] as const;
 
@@ -19,7 +19,6 @@ interface GeoRow {
 	country_code?: string;
 	country_name?: string;
 	name: string;
-	pageviews?: number;
 	visitors: number;
 }
 
@@ -38,27 +37,11 @@ const REALTIME_QUERY = {
 	parameters: ["realtime_countries", "active_stats", "realtime_velocity"],
 };
 
-const MapComponent = dynamic(
-	() =>
-		import("@/components/analytics/map-component").then((mod) => ({
-			default: mod.MapComponent,
-		})),
-	{
-		loading: () => (
-			<div className="flex h-full items-center justify-center">
-				<Skeleton className="size-6 rounded-full" />
-			</div>
-		),
-		ssr: false,
-	}
-);
-
-function toCountries(rows: GeoRow[] = []): CountryData[] {
+function toCountries(rows: GeoRow[] = []): GlobeCountry[] {
 	return rows.map((row) => ({
-		country: row.country_name || row.name,
-		country_code: row.country_code || row.name,
-		visitors: row.visitors,
-		pageviews: row.pageviews ?? 0,
+		code: (row.country_code || row.name).toUpperCase(),
+		name: row.country_name || row.name,
+		value: row.visitors,
 	}));
 }
 
@@ -82,6 +65,9 @@ function WebsiteMapPage() {
 	);
 	const view = isDemo ? "historical" : selectedView;
 	const isRealtime = view === "realtime";
+
+	const [focused, setFocused] = useState<string | null>(null);
+	const [hovered, setHovered] = useState<string | null>(null);
 
 	const { dateRange } = useDateFilters();
 	const filters = useAtomValue(dynamicQueryFiltersAtom);
@@ -123,10 +109,10 @@ function WebsiteMapPage() {
 
 	const lastMinute = realtime.data.realtime_velocity?.at(-1);
 	const totalVisitors = countries.reduce(
-		(sum, country) => sum + country.visitors,
+		(sum, country) => sum + country.value,
 		0
 	);
-	const topVisitors = Math.max(0, ...countries.map((c) => c.visitors));
+	const topVisitors = Math.max(0, ...countries.map((c) => c.value));
 
 	return (
 		<div className="flex h-full w-full flex-col">
@@ -180,16 +166,12 @@ function WebsiteMapPage() {
 			</div>
 
 			<div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-				<div className="shrink-0 max-lg:aspect-video lg:min-h-0 lg:flex-1">
-					<MapComponent
-						height="100%"
-						isLoading={
-							isRealtime
-								? realtime.isLoading && !realtime.data.active_stats
-								: historical.isLoading
-						}
-						locationData={{ countries, regions: [] }}
-						showEmptyState={!isRealtime}
+				<div className="flex shrink-0 items-center justify-center p-6 [container-type:size] max-lg:aspect-square lg:min-h-0 lg:flex-1">
+					<GlobeMap
+						className="w-[min(100cqw,100cqh)]"
+						countries={countries}
+						focusCode={focused}
+						onHoverChange={setHovered}
 					/>
 				</div>
 
@@ -201,25 +183,29 @@ function WebsiteMapPage() {
 					{countries.length > 0 ? (
 						<ul className="min-h-0 flex-1 overflow-y-auto">
 							{countries.map((country) => (
+								// biome-ignore lint/a11y/noNoninteractiveElementInteractions: hover only turns the globe; the row stays plain data
 								<li
-									className="relative flex items-center gap-2.5 px-4 py-2 text-sm"
-									key={country.country_code}
+									className={cn(
+										"relative flex items-center gap-2.5 px-4 py-2 text-sm transition-colors",
+										(country.code === hovered || country.code === focused) &&
+											"bg-muted"
+									)}
+									key={country.code}
+									onMouseEnter={() => setFocused(country.code)}
+									onMouseLeave={() => setFocused(null)}
 								>
 									<span
 										className="absolute inset-y-1 left-0 rounded-r bg-accent"
 										style={{
-											width: `${(country.visitors / topVisitors) * 100}%`,
+											width: `${(country.value / topVisitors) * 100}%`,
 										}}
 									/>
-									<CountryFlag
-										country={country.country_code ?? country.country}
-										size="sm"
-									/>
+									<CountryFlag country={country.code} size="sm" />
 									<span className="relative min-w-0 flex-1 truncate text-foreground">
-										{country.country}
+										{country.name}
 									</span>
 									<span className="relative font-medium text-foreground tabular-nums">
-										{formatNumber(country.visitors)}
+										{formatNumber(country.value)}
 									</span>
 								</li>
 							))}
