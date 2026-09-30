@@ -1,7 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { redisStorage } from "@better-auth/redis-storage";
 import { runWithTransaction } from "@better-auth/core/context";
-import { and, db, eq, like } from "@databuddy/db";
+import { and, db, eq, like, ne } from "@databuddy/db";
 // biome-ignore lint/performance/noNamespaceImport: Better Auth's Drizzle adapter expects a schema object map.
 import * as schema from "@databuddy/db/schema";
 import {
@@ -429,6 +429,73 @@ async function recordAuthAudit<TAction extends AuditActionDefinition>(
 	});
 }
 
+async function planAccountDeletion(userId: string) {
+	const memberships = await db
+		.select({
+			id: organizationTable.id,
+			name: organizationTable.name,
+			role: memberTable.role,
+		})
+		.from(memberTable)
+		.innerJoin(
+			organizationTable,
+			eq(organizationTable.id, memberTable.organizationId)
+		)
+		.where(eq(memberTable.userId, userId));
+	const soleMember: typeof memberships = [];
+	for (const membership of memberships) {
+		const others = await db
+			.select({ role: memberTable.role })
+			.from(memberTable)
+			.where(
+				and(
+					eq(memberTable.organizationId, membership.id),
+					ne(memberTable.userId, userId)
+				)
+			);
+		if (others.length === 0) {
+			soleMember.push(membership);
+		} else if (
+			membership.role === "owner" &&
+			!others.some((other) => other.role === "owner")
+		) {
+			throw new APIError("BAD_REQUEST", {
+				message: `Transfer ownership of ${membership.name} or delete it before deleting your account.`,
+			});
+		}
+	}
+	return soleMember;
+}
+
+async function deleteSoleMemberOrganizations(user: {
+	id: string;
+	name?: string | null;
+}): Promise<void> {
+	for (const org of await planAccountDeletion(user.id)) {
+		try {
+			await deleteOrganizationWithBusinessMemory(org.id);
+		} catch (error) {
+			if (!(error instanceof BusinessMemoryRetirementError)) {
+				throw error;
+			}
+			throw new APIError("SERVICE_UNAVAILABLE", {
+				message:
+					"Business memory could not be removed. Retry deleting your account.",
+			});
+		}
+		await recordAuthAudit(
+			org.id,
+			{
+				action: auditActions.ORGANIZATION_DELETED,
+				target: { id: org.id, displayName: org.name },
+				changes: { deleted: { after: true } },
+				reason: "account_deleted",
+			},
+			toAuditActor(user)
+		);
+	}
+}
+
 type AuthLogLevel = "info" | "warn" | "error" | "debug";
 
 function forwardAuthLog(
@@ -628,6 +695,7 @@ export const baseAuthOptions = {
 			enabled: true,
 			deleteTokenExpiresIn: AUTH_EMAIL_EXPIRY_SECONDS.accountDeletion,
 			sendDeleteAccountVerification: async ({ user: targetUser, url }) => {
+				await planAccountDeletion(targetUser.id);
 				await sendAuthEmail({
 					to: targetUser.email,
 					subject: "[Action required] Confirm account deletion",
@@ -635,6 +703,7 @@ export const baseAuthOptions = {
 				});
 			},
 			beforeDelete: async (userToDelete) => {
+				await deleteSoleMemberOrganizations(userToDelete);
 				await notifySlack(
 					"Account deleted",
 					"A user deleted their account.",

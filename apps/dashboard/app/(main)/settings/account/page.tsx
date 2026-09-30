@@ -327,8 +327,9 @@ function DeleteAccountDialog({
 					<div className="flex items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3">
 						<WarningCircleIcon className="mt-0.5 size-5 shrink-0 text-destructive" />
 						<Text tone="muted" variant="caption">
-							You will lose access to all organizations you own. Transfer
-							ownership before deleting your account if needed.
+							Organizations where you are the only member are deleted with their
+							websites and analytics. Transfer ownership of shared organizations
+							first.
 						</Text>
 					</div>
 					<Field>
