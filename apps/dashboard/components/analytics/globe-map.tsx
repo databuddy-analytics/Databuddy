@@ -49,6 +49,7 @@ const EMPTY_ALPHA = 0.16;
 const ALPHA_LEVELS = 20;
 const HOVER_RADIUS_PX = 10;
 const TAP_SLOP_PX = 4;
+const TOOLTIP_CLEARANCE_PX = 56;
 
 function toUnit(lon: number, lat: number): Point {
 	return {
@@ -174,6 +175,7 @@ export function GlobeMap({
 		aimed: false,
 		dirty: true,
 		drag: null as null | (LatLon & { x: number; y: number }),
+		hasTooltip: false,
 		highlight: -1,
 		inside: false,
 		intensity: [] as number[],
@@ -221,11 +223,18 @@ export function GlobeMap({
 
 	useEffect(() => {
 		const scene = sceneRef.current;
-		if (!globe || scene.aimed || countries.length === 0) {
+		if (!globe || scene.aimed) {
 			return;
 		}
-		const top = countries.reduce((a, b) => (b.value > a.value ? b : a));
-		const center = globe.countries[indexByCode.get(top.code) ?? -1]?.center;
+		const top = countries
+			.filter((c) => indexByCode.has(c.code))
+			.reduce<GlobeCountry | null>(
+				(a, b) => (a && a.value >= b.value ? a : b),
+				null
+			);
+		const center = top
+			? globe.countries[indexByCode.get(top.code) ?? -1]?.center
+			: undefined;
 		if (center) {
 			scene.view = viewOf(center);
 			scene.aimed = true;
@@ -250,11 +259,14 @@ export function GlobeMap({
 		}
 		const scene = sceneRef.current;
 		const style = getComputedStyle(canvas);
-		const landColor = style.getPropertyValue("--globe-land");
-		const dataColor = style.getPropertyValue("--globe-data");
+		let colors: { data: string; land: string } | null = null;
 		const size = { dpr: 1, height: 0, width: 0 };
 
 		const draw = () => {
+			colors ??= {
+				data: style.getPropertyValue("--globe-data"),
+				land: style.getPropertyValue("--globe-land"),
+			};
 			const { width, height, dpr } = size;
 			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 			ctx.clearRect(0, 0, width, height);
@@ -297,8 +309,8 @@ export function GlobeMap({
 			}
 
 			for (const [layers, color] of [
-				[land, landColor],
-				[data, dataColor],
+				[land, colors.land],
+				[data, colors.data],
 			] as const) {
 				ctx.fillStyle = color;
 				for (const [level, layer] of layers.entries()) {
@@ -322,7 +334,13 @@ export function GlobeMap({
 			const { view, target, drag } = scene;
 
 			let isEasing = false;
-			const isSpinning = !(target || drag || scene.inside || reduceMotion);
+			const isSpinning = !(
+				target ||
+				drag ||
+				scene.inside ||
+				scene.hasTooltip ||
+				reduceMotion
+			);
 			if (target && !drag) {
 				const ease = reduceMotion ? 1 : Math.min(1, dt * 6);
 				const dLon = ((((target.lon - view.lon) % 360) + 540) % 360) - 180;
@@ -361,8 +379,7 @@ export function GlobeMap({
 			size.dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
 			canvas.width = Math.round(size.width * size.dpr);
 			canvas.height = Math.round(size.height * size.dpr);
-			scene.dirty = true;
-			wake();
+			draw();
 		});
 		const visibility = new IntersectionObserver(([entry]) => {
 			isOnScreen = entry.isIntersecting;
@@ -389,6 +406,8 @@ export function GlobeMap({
 
 	const setHover = (next: typeof tooltip) => {
 		setTooltip(next);
+		sceneRef.current.hasTooltip = next !== null;
+		wakeRef.current();
 		onHoverChange?.(next ? (globe?.countries[next.index]?.code ?? null) : null);
 	};
 
@@ -403,7 +422,7 @@ export function GlobeMap({
 	};
 
 	const hoverAt = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-		const { height, width, x, y } = pointerOffset(event);
+		const { width, x, y } = pointerOffset(event);
 		let nearest: Dot | null = null;
 		let best = HOVER_RADIUS_PX ** 2;
 		for (const dot of globe?.dots ?? []) {
@@ -413,9 +432,7 @@ export function GlobeMap({
 				nearest = dot;
 			}
 		}
-		setHover(
-			nearest ? { index: nearest.country, x: x / width, y: y / height } : null
-		);
+		setHover(nearest ? { index: nearest.country, x: x / width, y } : null);
 	};
 
 	const tooltipCountry = tooltip ? globe?.countries[tooltip.index] : undefined;
@@ -449,10 +466,10 @@ export function GlobeMap({
 					sceneRef.current.inside = true;
 				}}
 				onPointerLeave={(event) => {
+					sceneRef.current.inside = false;
+					wakeRef.current();
 					if (event.pointerType === "mouse") {
-						sceneRef.current.inside = false;
 						setHover(null);
-						wakeRef.current();
 					}
 				}}
 				onPointerMove={(event) => {
@@ -493,8 +510,8 @@ export function GlobeMap({
 					className="pointer-events-none absolute z-10 whitespace-nowrap rounded-md border bg-popover px-2.5 py-1.5 text-xs shadow-sm"
 					style={{
 						left: `${tooltip.x * 100}%`,
-						top: `${tooltip.y * 100}%`,
-						transform: `translate(${tooltip.x * -100}%, calc(-100% - 10px))`,
+						top: tooltip.y,
+						transform: `translate(${tooltip.x * -100}%, ${tooltip.y < TOOLTIP_CLEARANCE_PX ? "10px" : "calc(-100% - 10px)"})`,
 					}}
 				>
 					<p className="font-medium text-foreground">
