@@ -152,8 +152,7 @@ vi.mock("@utils/ip-geo", () => ({
 	closeGeoIPReader: noop,
 }));
 
-vi.mock("@utils/user-agent", async (importOriginal) => ({
-	...(await importOriginal<typeof import("@utils/user-agent")>()),
+vi.mock("@utils/user-agent", () => ({
 	parseUserAgent: vi.fn(() =>
 		Promise.resolve({ browserName: "Chrome", osName: "Windows" })
 	),
