@@ -486,9 +486,20 @@ const getDataTool = defineMcpTool(
 			timezone,
 		});
 		const formatted = formatMcpQueryResults(plan, results);
-		const failed = formatted.find((result) => result.error);
-		if (failed && formatted.every((result) => result.error)) {
-			throw queryFailure(failed);
+		if (formatted.length > 0 && formatted.every((result) => result.error)) {
+			const failures = formatted.map(queryFailure);
+			const [firstFailure] = failures;
+			if (firstFailure && failures.length === 1) {
+				throw firstFailure;
+			}
+			throw new McpToolError(
+				failures.some((failure) => failure.code === "query_failed")
+					? "query_failed"
+					: "invalid_input",
+				`All ${failures.length} queries failed. ${formatted
+					.map((result, index) => `${result.type}: ${failures[index]?.message}`)
+					.join(" ")}`
+			);
 		}
 
 		if (items.length > 1) {
@@ -1299,7 +1310,6 @@ const listFlagsTool = defineMcpTool(
 		}),
 		outputSchema: z.object({
 			flags: z.array(z.record(z.string(), z.unknown())),
-			count: z.number(),
 			hasMore: z.boolean(),
 		}),
 		metadata: { access: { kind: "read" } },
@@ -1319,10 +1329,8 @@ const listFlagsTool = defineMcpTool(
 			buildRpcContext(ctx)
 		);
 		const rows = Array.isArray(result) ? result : [];
-		const flags = rows.slice(0, input.limit);
 		return {
-			flags,
-			count: flags.length,
+			flags: rows.slice(0, input.limit),
 			hasMore: rows.length > input.limit,
 		};
 	}
