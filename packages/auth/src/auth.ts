@@ -43,7 +43,11 @@ import {
 } from "@databuddy/shared/audit";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type { BetterAuthPlugin } from "better-auth";
-import { APIError, createAuthEndpoint } from "better-auth/api";
+import {
+	APIError,
+	createAuthEndpoint,
+	createAuthMiddleware,
+} from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
 import {
 	emailOTP,
@@ -53,7 +57,8 @@ import {
 	organization,
 	twoFactor,
 } from "better-auth/plugins";
-import { log } from "evlog";
+import { createLogger, log } from "evlog";
+import { maskEmail } from "evlog/better-auth";
 import { Resend } from "resend";
 import { ac, admin, member, owner, viewer } from "./permissions";
 import { getAuthAuditContext } from "./audit-context";
@@ -520,7 +525,88 @@ function forwardAuthLog(
 	log.info(fields);
 }
 
+const AUDITED_AUTH_PATHS = new Set([
+	"/sign-up/email",
+	"/change-email",
+	"/change-password",
+	"/request-password-reset",
+	"/reset-password",
+	"/email-otp/request-password-reset",
+	"/email-otp/reset-password",
+	"/two-factor/enable",
+	"/two-factor/disable",
+	"/two-factor/generate-backup-codes",
+	"/link-social",
+	"/unlink-account",
+	"/revoke-session",
+	"/revoke-sessions",
+	"/revoke-other-sessions",
+	"/delete-user",
+	"/delete-user/callback",
+]);
+
+function isSignInAttempt(path: string): boolean {
+	return (
+		path.startsWith("/sign-in/") ||
+		path.startsWith("/callback/") ||
+		path.startsWith("/two-factor/verify-") ||
+		path === "/magic-link/verify"
+	);
+}
+
+const recordAuthOutcome = createAuthMiddleware((ctx) => {
+	const { newSession, returned, session } = ctx.context;
+	const failure =
+		returned instanceof APIError && returned.statusCode >= 400
+			? returned
+			: null;
+	const signIn = isSignInAttempt(ctx.path);
+	if (
+		!(AUDITED_AUTH_PATHS.has(ctx.path) || (signIn && (newSession || failure)))
+	) {
+		return Promise.resolve();
+	}
+	const email = (ctx.body as { email?: unknown } | undefined)?.email;
+	const logger = createLogger({
+		service: "auth",
+		auth_path: ctx.path,
+		ip:
+			newSession?.session.ipAddress ||
+			ctx.request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim(),
+		user_agent: ctx.request?.headers.get("user-agent") ?? undefined,
+	});
+	logger.audit({
+		action: signIn
+			? "auth.sign_in"
+			: `auth${ctx.path.replaceAll("/", ".").replaceAll("-", "_")}`,
+		actor: {
+			type: "user",
+			id:
+				newSession?.user.id ??
+				session?.user.id ??
+				(returned as { user?: { id?: string } } | undefined)?.user?.id ??
+				"anonymous",
+		},
+		target: {
+			type: "auth_endpoint",
+			id: ctx.path,
+			...(typeof email === "string" && { email: maskEmail(email) }),
+		},
+		outcome: failure ? "failure" : "success",
+		...(failure && {
+			reason:
+				(failure.body as { code?: string } | undefined)?.code ??
+				String(failure.status),
+		}),
+	});
+	logger.emit();
+	return Promise.resolve();
+});
+
 export const baseAuthOptions = {
+	hooks: {
+		after: recordAuthOutcome,
+	},
 	logger: {
 		log: forwardAuthLog,
 	},
