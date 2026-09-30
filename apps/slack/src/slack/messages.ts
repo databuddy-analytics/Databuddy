@@ -4,12 +4,12 @@ export const SLACK_SUGGESTED_PROMPTS = [
 		title: "Open investigations",
 	},
 	{
-		message: "Run a new investigation now.",
-		title: "Run an investigation",
+		message: "What changed on our sites this week, and why?",
+		title: "What changed",
 	},
 	{
-		message: "Send new investigations to this channel every week.",
-		title: "Weekly delivery",
+		message: "Where did our visitors come from in the last 7 days?",
+		title: "Traffic sources",
 	},
 ] as const;
 
@@ -35,7 +35,7 @@ export const SLACK_COPY = {
 	queueFull:
 		"There are too many queued follow-ups in this thread. Please wait for my response before sending this again.",
 	assistantGreeting:
-		"I'm in. Show open investigations, run one now, or send new investigations to this channel automatically.",
+		"I'm in. Ask what changed, where visitors came from, or what your open investigations mean.",
 	autoBindSuccess: "Ready here.",
 	blockFallback: "Open Slack to view this table.",
 	bindFailure:
@@ -47,7 +47,7 @@ export const SLACK_COPY = {
 		"I'm here. Ask after the mention, like `@Databuddy what changed this week?`",
 	help: [
 		"*Databuddy in Slack*",
-		"Mention `@Databuddy`, DM me, or use the Slack assistant to list, run, configure, or continue investigations. You can also ask about traffic, pages, conversions, campaigns, errors, and product usage.",
+		"Mention `@Databuddy`, DM me, or use the Slack assistant to check open investigations or ask about traffic, pages, conversions, campaigns, errors, and product usage.",
 		"Databuddy reads messages in approved channels and DMs to understand the current question and thread. Answers posted in a channel are visible to that channel's members.",
 		"Channels usually connect on first mention from the workspace where Databuddy is installed. Slack Connect may need approval from the installed side, or Databuddy connected in both workspaces.",
 		"Commands: `/databuddy-status`, `/databuddy-help`, `/databuddy-bind`.",
