@@ -17,6 +17,7 @@ import {
 	type TailwindConfig,
 	Text,
 } from "@react-email/components";
+import type { ContentFormat } from "@databuddy/shared/bot-detection/types";
 
 export interface AiDigestProduct {
 	logoUrl?: string;
@@ -33,7 +34,7 @@ export interface AiDigestLandingPage {
 }
 
 export interface AiDigestPage {
-	format: "html" | "llms" | "markdown";
+	format: ContentFormat;
 	page: string;
 	reads: number;
 }
@@ -53,7 +54,7 @@ export interface AiDigestEmailProps {
 }
 
 const LOGO_URL = "https://www.databuddy.cc/brand/primary-logo/black.png";
-const FORMAT_TAGS: Partial<Record<AiDigestPage["format"], string>> = {
+const FORMAT_TAGS: Partial<Record<ContentFormat, string>> = {
 	llms: "llms.txt",
 	markdown: "MD",
 };
@@ -77,6 +78,8 @@ const tailwindConfig = {
 
 const FONT =
 	"font-['-apple-system',BlinkMacSystemFont,'Segoe_UI',Helvetica,Arial,sans-serif]";
+
+const DIVIDER = "border-0 border-line border-t border-solid";
 
 const n = (value: number) => value.toLocaleString("en-US");
 
@@ -124,18 +127,64 @@ function Stat({ label, value }: { label: string; value: number }) {
 	);
 }
 
-function ListTitle({ hint, title }: { hint: string; title: string }) {
+interface PathRow {
+	logoUrl?: string;
+	page: string;
+	tag?: string;
+	value: number;
+}
+
+function PathList({
+	hint,
+	rows,
+	title,
+}: {
+	hint: string;
+	rows: PathRow[];
+	title: string;
+}) {
+	if (rows.length === 0) {
+		return null;
+	}
+	const hasLogos = rows.some((row) => row.logoUrl);
 	return (
-		<Row className="mb-1">
-			<Column>
-				<Heading as="h2" className="m-0 font-medium text-[13px] text-ink">
-					{title}
-				</Heading>
-			</Column>
-			<Column align="right" className="text-[12px] text-faint">
-				{hint}
-			</Column>
-		</Row>
+		<Section className="mt-9">
+			<Row className="mb-1">
+				<Column>
+					<Heading as="h2" className="m-0 font-medium text-[13px] text-ink">
+						{title}
+					</Heading>
+				</Column>
+				<Column align="right" className="text-[12px] text-faint">
+					{hint}
+				</Column>
+			</Row>
+			{rows.map((row) => (
+				<Row className={DIVIDER} key={`${row.page}-${row.tag ?? ""}`}>
+					<Column className="py-[9px] font-mono text-[13px] text-ink">
+						{shortPath(row.page)}
+						{row.tag ? (
+							<span className="ml-2 rounded bg-canvas px-[6px] py-[1px] font-sans text-[11px] text-sub">
+								{row.tag}
+							</span>
+						) : null}
+					</Column>
+					{hasLogos ? (
+						<Column align="right" className="w-[36px] py-[9px]">
+							{row.logoUrl ? (
+								<Img alt="" height={20} src={row.logoUrl} width={20} />
+							) : null}
+						</Column>
+					) : null}
+					<Column
+						align="right"
+						className="w-[56px] py-[9px] text-[14px] text-ink"
+					>
+						{n(row.value)}
+					</Column>
+				</Row>
+			))}
+		</Section>
 	);
 }
 
@@ -153,7 +202,6 @@ export const AiDigestEmail = ({
 	visitors,
 }: AiDigestEmailProps) => {
 	const senders = products.filter((product) => product.visitors > 0);
-	const hasVisitors = visitors > 0;
 
 	return (
 		<Html lang="en">
@@ -163,9 +211,7 @@ export const AiDigestEmail = ({
 					<meta content="light" name="supported-color-schemes" />
 				</Head>
 				<Preview>
-					{hasVisitors
-						? `${senders[0]?.name ?? "AI"} sent you ${n(visitors)} ${visitors === 1 ? "visitor" : "visitors"}. AI read your site ${n(reads)} times.`
-						: `AI read ${site} ${n(reads)} times this week.`}
+					{`${n(visitors)} ${visitors === 1 ? "visitor" : "visitors"} from AI, and AI read ${site} ${n(reads)} times.`}
 				</Preview>
 				<Body className={`m-0 bg-canvas py-10 ${FONT}`}>
 					<Container className="mx-auto max-w-[560px] px-4">
@@ -180,36 +226,25 @@ export const AiDigestEmail = ({
 							</Row>
 
 							<Text className="m-0 mt-10 text-[14px] text-sub">
-								{hasVisitors
-									? `Visitors from AI on ${site}`
-									: `Times AI read ${site}`}
+								Visitors from AI on {site}
 							</Text>
 							<Text className="m-0 mt-1 font-semibold text-[48px] text-ink leading-[52px] tracking-tight">
-								{n(hasVisitors ? visitors : reads)}
+								{n(visitors)}
 							</Text>
-							{hasVisitors ? (
-								<Text className="m-0 mt-2 text-[14px] text-sub">
-									<span
-										className={
-											visitors > previousVisitors ? "font-medium text-up" : ""
-										}
-									>
-										{visitorChange(visitors, previousVisitors)}
-									</span>
-									{senders.length === 1 ? `, all from ${senders[0]?.name}` : ""}
-								</Text>
-							) : null}
+							<Text className="m-0 mt-2 text-[14px] text-sub">
+								<span
+									className={
+										visitors > previousVisitors ? "font-medium text-up" : ""
+									}
+								>
+									{visitorChange(visitors, previousVisitors)}
+								</span>
+								{senders.length === 1 ? `, all from ${senders[0]?.name}` : ""}
+							</Text>
 
 							<Hr className="my-8 border-line" />
 							<Row>
-								{hasVisitors ? (
-									<Stat label="Times AI read your site" value={reads} />
-								) : (
-									<Stat
-										label="AI products reading it"
-										value={products.length}
-									/>
-								)}
+								<Stat label="Times AI read your site" value={reads} />
 								<Stat
 									label="Pages AI hadn't read in 90 days"
 									value={newPages}
@@ -235,10 +270,7 @@ export const AiDigestEmail = ({
 								</Column>
 							</Row>
 							{products.map((product) => (
-								<Row
-									className="border-0 border-line border-t border-solid"
-									key={product.name}
-								>
+								<Row className={DIVIDER} key={product.name}>
 									<Column className="py-[10px]">
 										<Row>
 											<Column className="w-[40px]">
@@ -273,64 +305,24 @@ export const AiDigestEmail = ({
 								</Row>
 							))}
 
-							{landingPages.length > 0 ? (
-								<Section className="mt-9">
-									<ListTitle hint="visitors" title="Where AI visitors landed" />
-									{landingPages.map((row) => (
-										<Row
-											className="border-0 border-line border-t border-solid"
-											key={row.page}
-										>
-											<Column className="py-[9px] font-mono text-[13px] text-ink">
-												{shortPath(row.page)}
-											</Column>
-											<Column align="right" className="w-[36px] py-[9px]">
-												{row.logoUrl ? (
-													<Img
-														alt=""
-														height={20}
-														src={row.logoUrl}
-														width={20}
-													/>
-												) : null}
-											</Column>
-											<Column
-												align="right"
-												className="w-[40px] py-[9px] text-[14px] text-ink"
-											>
-												{n(row.visitors)}
-											</Column>
-										</Row>
-									))}
-								</Section>
-							) : null}
-
-							{pages.length > 0 ? (
-								<Section className="mt-9">
-									<ListTitle hint="reads" title="Most read by AI" />
-									{pages.map((row) => (
-										<Row
-											className="border-0 border-line border-t border-solid"
-											key={`${row.page}-${row.format}`}
-										>
-											<Column className="py-[9px] font-mono text-[13px] text-ink">
-												{shortPath(row.page)}
-												{FORMAT_TAGS[row.format] ? (
-													<span className="ml-2 rounded bg-canvas px-[6px] py-[1px] font-sans text-[11px] text-sub">
-														{FORMAT_TAGS[row.format]}
-													</span>
-												) : null}
-											</Column>
-											<Column
-												align="right"
-												className="w-[60px] py-[9px] text-[14px] text-ink"
-											>
-												{n(row.reads)}
-											</Column>
-										</Row>
-									))}
-								</Section>
-							) : null}
+							<PathList
+								hint="visitors"
+								rows={landingPages.map((row) => ({
+									logoUrl: row.logoUrl,
+									page: row.page,
+									value: row.visitors,
+								}))}
+								title="Where AI visitors landed"
+							/>
+							<PathList
+								hint="reads"
+								rows={pages.map((row) => ({
+									page: row.page,
+									tag: FORMAT_TAGS[row.format],
+									value: row.reads,
+								}))}
+								title="Most read by AI"
+							/>
 
 							<Section className="mt-9">
 								<Button

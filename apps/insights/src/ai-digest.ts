@@ -14,7 +14,6 @@ import { chQuery } from "@databuddy/db/clickhouse";
 import {
 	AiDigestEmail,
 	type AiDigestEmailProps,
-	type AiDigestPage,
 	render,
 } from "@databuddy/email";
 import { config } from "@databuddy/env/app";
@@ -24,11 +23,15 @@ import {
 	aiDigestJobId,
 	getInsightsQueue,
 } from "@databuddy/redis";
-import { aiProductIcon } from "@databuddy/shared/bot-detection/types";
+import {
+	type AgentPurpose,
+	aiProductIcon,
+	CONTENT_FORMATS,
+} from "@databuddy/shared/bot-detection/types";
 import { numberField, stringField } from "./detection";
 import { setInsightsLog } from "./lib/evlog-insights";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const DAY_MS = 86_400_000;
 const PRODUCT_ROWS = 5;
 const PAGE_ROWS = 3;
 const LANDING_ROWS = 3;
@@ -38,9 +41,7 @@ const ROLES: Record<string, string> = {
 	search_index: "Search crawler",
 	training: "Trains AI models",
 	user_fetch: "Answers questions",
-};
-
-type Row = Record<string, unknown>;
+} satisfies Record<AgentPurpose, string>;
 
 interface DigestOutcome {
 	reason?: string;
@@ -57,48 +58,39 @@ function outcome(result: DigestOutcome): DigestOutcome {
 	return result;
 }
 
-interface DigestWeek {
-	from: string;
-	to: string;
-	until: string;
-}
+const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
-const isoDay = (date: Date) => date.toISOString().slice(0, 10);
-
-function digestWeek(weekStart: string): DigestWeek {
-	const start = Date.parse(`${weekStart}T00:00:00Z`);
-	return {
-		from: weekStart,
-		to: isoDay(new Date(start + 6 * DAY_MS)),
-		until: isoDay(new Date(start + 7 * DAY_MS)),
-	};
-}
-
-function previousWeekStart(now: Date): string {
+function lastWeekStart(now: Date): string {
 	const today = Date.UTC(
 		now.getUTCFullYear(),
 		now.getUTCMonth(),
 		now.getUTCDate()
 	);
-	const daysSinceMonday = (now.getUTCDay() + 6) % 7;
-	return isoDay(new Date(today - (daysSinceMonday + 7) * DAY_MS));
+	return isoDay(today - (((now.getUTCDay() + 6) % 7) + 7) * DAY_MS);
 }
 
-function periodLabel(week: DigestWeek): string {
-	const format = (day: string, options: Intl.DateTimeFormatOptions) =>
+function weekOf(weekStart: string) {
+	const start = Date.parse(`${weekStart}T00:00:00Z`);
+	return {
+		from: weekStart,
+		to: isoDay(start + 6 * DAY_MS),
+		until: isoDay(start + 7 * DAY_MS),
+	};
+}
+
+function periodLabel({ from, to }: { from: string; to: string }): string {
+	const label = (day: string, month?: "short") =>
 		new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", {
-			...options,
+			day: "numeric",
+			month,
 			timeZone: "UTC",
 		});
-	const sameMonth = week.from.slice(0, 7) === week.to.slice(0, 7);
-	return `${format(week.from, { day: "numeric", month: "short" })} to ${format(
-		week.to,
-		sameMonth ? { day: "numeric" } : { day: "numeric", month: "short" }
-	)}`;
+	const toMonth = from.slice(0, 7) === to.slice(0, 7) ? undefined : "short";
+	return `${label(from, "short")} to ${label(to, toMonth)}`;
 }
 
-const logoUrl = (product: string) => {
-	const icon = aiProductIcon(product);
+const logoUrl = (product: string | null) => {
+	const icon = aiProductIcon(product ?? "");
 	return icon ? `${config.urls.dashboard}/ai/email/${icon}.png` : undefined;
 };
 
@@ -106,7 +98,7 @@ export async function dispatchAiDigests(now = new Date()) {
 	if (!config.email.resendApiKey) {
 		return outcome({ reason: "email_not_configured", status: "skipped" });
 	}
-	const week = digestWeek(previousWeekStart(now));
+	const week = weekOf(lastWeekStart(now));
 	const { sql, params } = aiActiveWebsitesQuery(
 		`${week.from} 00:00:00`,
 		`${week.until} 00:00:00`
@@ -127,7 +119,7 @@ async function buildAiDigest(
 	domain: string,
 	weekStart: string
 ): Promise<AiDigestEmailProps | null> {
-	const week = digestWeek(weekStart);
+	const week = weekOf(weekStart);
 	const query = (type: string, limit: number) =>
 		executeQuery(
 			{
@@ -140,20 +132,25 @@ async function buildAiDigest(
 			},
 			domain,
 			"UTC"
-		) as Promise<Row[]>;
-	const [digest, crawlers, landing, reads] = await Promise.all([
+		);
+	const [digest, crawlers, landing, agentPages] = await Promise.all([
 		query("ai_weekly_digest", 50),
 		query("ai_crawlers", 100),
 		query("ai_landing_pages", LANDING_ROWS),
 		query("ai_agent_pages", 30),
 	]);
 
+	const products = digest
+		.map((row) => ({
+			name: stringField(row, "product") ?? "",
+			reads: numberField(row, "requests"),
+			visitors: numberField(row, "visitors"),
+		}))
+		.filter((product) => product.reads + product.visitors > 0)
+		.sort((a, b) => b.visitors - a.visitors || b.reads - a.reads);
 	const visitors = numberField(digest[0], "site_visitors");
-	const readCount = digest.reduce(
-		(sum, row) => sum + numberField(row, "requests"),
-		0
-	);
-	if (visitors === 0 && readCount === 0) {
+	const reads = products.reduce((sum, product) => sum + product.reads, 0);
+	if (visitors === 0 && reads === 0) {
 		return null;
 	}
 
@@ -165,9 +162,9 @@ async function buildAiDigest(
 		}
 	}
 
-	const pageRows = reads
+	const pageRows = agentPages
 		.map((row) => ({
-			format: (stringField(row, "format") ?? "html") as AiDigestPage["format"],
+			format: CONTENT_FORMATS.find((format) => format === row.format) ?? "html",
 			page: stringField(row, "page") ?? "",
 			reads: numberField(row, "requests"),
 		}))
@@ -182,10 +179,9 @@ async function buildAiDigest(
 	return {
 		agentsUrl: `${config.urls.dashboard}/websites/${websiteId}/agents`,
 		landingPages: landing.map((row) => {
-			const senders = Array.isArray(row.senders) ? (row.senders as Row[]) : [];
-			const sender = stringField(senders[0], "product");
+			const [sender] = Array.isArray(row.senders) ? row.senders : [];
 			return {
-				logoUrl: sender ? logoUrl(sender) : undefined,
+				logoUrl: logoUrl(stringField(sender, "product")),
 				page: stringField(row, "page") ?? "",
 				visitors: numberField(row, "visitors"),
 			};
@@ -194,43 +190,30 @@ async function buildAiDigest(
 		pages,
 		period: periodLabel(week),
 		previousVisitors: numberField(digest[0], "site_previous_visitors"),
-		products: digest
-			.filter(
-				(row) => numberField(row, "requests") + numberField(row, "visitors") > 0
-			)
-			.sort(
-				(a, b) =>
-					numberField(b, "visitors") - numberField(a, "visitors") ||
-					numberField(b, "requests") - numberField(a, "requests")
-			)
-			.slice(0, PRODUCT_ROWS)
-			.map((row) => {
-				const name = stringField(row, "product") ?? "";
-				return {
-					logoUrl: logoUrl(name),
-					name,
-					reads: numberField(row, "requests"),
-					role: ROLES[purposeByProduct.get(name) ?? ""] ?? "Sends visitors",
-					visitors: numberField(row, "visitors"),
-				};
-			}),
-		reads: readCount,
+		products: products.slice(0, PRODUCT_ROWS).map((product) => ({
+			...product,
+			logoUrl: logoUrl(product.name),
+			role: ROLES[purposeByProduct.get(product.name) ?? ""] ?? "Sends visitors",
+		})),
+		reads,
 		settingsUrl: `${config.urls.dashboard}/settings/notifications`,
 		site: domain,
 		visitors,
 	};
 }
 
-function digestSubject(digest: AiDigestEmailProps): string {
-	const senders = digest.products.filter((product) => product.visitors > 0);
-	const visitors = `${digest.visitors.toLocaleString("en-US")} ${digest.visitors === 1 ? "visitor" : "visitors"}`;
-	if (senders.length === 1) {
-		return `${senders[0]?.name} sent ${visitors} to ${digest.site} this week`;
+function digestSubject({
+	products,
+	reads,
+	site,
+	visitors,
+}: AiDigestEmailProps) {
+	if (visitors === 0) {
+		return `AI read ${site} ${reads.toLocaleString("en-US")} times this week`;
 	}
-	if (digest.visitors > 0) {
-		return `AI sent ${visitors} to ${digest.site} this week`;
-	}
-	return `AI read ${digest.site} ${digest.reads.toLocaleString("en-US")} times this week`;
+	const senders = products.filter((product) => product.visitors > 0);
+	const sender = senders.length === 1 ? senders[0]?.name : "AI";
+	return `${sender} sent ${visitors.toLocaleString("en-US")} ${visitors === 1 ? "visitor" : "visitors"} to ${site} this week`;
 }
 
 export async function sendAiDigest({

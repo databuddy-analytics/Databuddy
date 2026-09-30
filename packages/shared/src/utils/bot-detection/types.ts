@@ -47,6 +47,9 @@ export const AI_ICON_COLORS: Record<string, string | null> = {
 
 export function aiProductIcon(product: string): string | undefined {
 	const name = product.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+	if (!name) {
+		return;
+	}
 	const icons = Object.keys(AI_ICON_COLORS);
 	return (
 		icons.find((icon) => icon.toLowerCase() === name) ??
@@ -67,15 +70,28 @@ const ASSET_PATH =
 const LLMS_TXT_PATH = /\/llms(-full)?\.txt$/i;
 const MARKDOWN_PATH = /\.mdx?$/i;
 
+const MARKDOWN_MEDIA_TYPE = /^\s*text\/(?:x-)?markdown\b/i;
+const ZERO_QUALITY = /;\s*q\s*=\s*0(?:\.0{0,3})?\s*$/i;
+
 export function isAssetPath(pathname: string): boolean {
 	return ASSET_PATH.test(pathname);
 }
 
-export function contentFormatForPath(pathname: string): ContentFormat {
+function acceptsMarkdown(mediaType: string): boolean {
+	return MARKDOWN_MEDIA_TYPE.test(mediaType) && !ZERO_QUALITY.test(mediaType);
+}
+
+export function isMarkdownFirstAccept(accept: string): boolean {
+	return acceptsMarkdown(accept.split(",")[0] ?? "");
+}
+
+export function contentFormat(pathname: string, accept = ""): ContentFormat {
 	if (LLMS_TXT_PATH.test(pathname)) {
 		return "llms";
 	}
-	return MARKDOWN_PATH.test(pathname) ? "markdown" : "html";
+	return MARKDOWN_PATH.test(pathname) || accept.split(",").some(acceptsMarkdown)
+		? "markdown"
+		: "html";
 }
 
 export const ROBOTS_ACCESS = ["allowed", "partial", "blocked"] as const;

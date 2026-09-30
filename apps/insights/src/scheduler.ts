@@ -75,21 +75,22 @@ export async function retryConfigSoon(
 
 async function ensureSchedule(
 	name: string,
-	schedule: { reason: "scheduled" } | { reason: "maintenance" },
+	repeat: { every: number } | { pattern: string; tz: string },
+	reason: "ai_digest" | "maintenance" | "scheduled",
 	eventName: string
 ): Promise<void> {
-	await getInsightsQueue().upsertJobScheduler(
+	await getInsightsQueue().upsertJobScheduler(name, repeat, {
 		name,
-		{ every: SCHEDULE_INTERVAL_MS },
-		{ name, data: { ...schedule, triggeredAt: new Date().toISOString() } }
-	);
-	emitInsightsEvent("info", eventName, { interval_ms: SCHEDULE_INTERVAL_MS });
+		data: { reason, triggeredAt: new Date().toISOString() },
+	});
+	emitInsightsEvent("info", eventName, repeat);
 }
 
 export function ensureInsightsDispatchSchedule(): Promise<void> {
 	return ensureSchedule(
 		INSIGHTS_DISPATCH_JOB_NAME,
-		{ reason: "scheduled" },
+		{ every: SCHEDULE_INTERVAL_MS },
+		"scheduled",
 		"scheduler.dispatch_ensured"
 	);
 }
@@ -97,23 +98,19 @@ export function ensureInsightsDispatchSchedule(): Promise<void> {
 export function ensureInsightsMaintenanceSchedule(): Promise<void> {
 	return ensureSchedule(
 		INSIGHTS_MAINTENANCE_JOB_NAME,
-		{ reason: "maintenance" },
+		{ every: SCHEDULE_INTERVAL_MS },
+		"maintenance",
 		"scheduler.maintenance_ensured"
 	);
 }
 
-export async function ensureAiDigestSchedule(): Promise<void> {
-	await getInsightsQueue().upsertJobScheduler(
+export function ensureAiDigestSchedule(): Promise<void> {
+	return ensureSchedule(
 		AI_DIGEST_DISPATCH_JOB_NAME,
 		{ pattern: "0 9 * * 1", tz: "UTC" },
-		{
-			name: AI_DIGEST_DISPATCH_JOB_NAME,
-			data: { reason: "ai_digest", triggeredAt: new Date().toISOString() },
-		}
+		"ai_digest",
+		"scheduler.ai_digest_ensured"
 	);
-	emitInsightsEvent("info", "scheduler.ai_digest_ensured", {
-		pattern: "0 9 * * 1",
-	});
 }
 
 export async function dispatchDueInsightRuns(now = new Date()) {

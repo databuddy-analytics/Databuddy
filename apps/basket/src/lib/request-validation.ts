@@ -1,6 +1,11 @@
 import type { AiTrafficSpansInsert } from "@databuddy/db/clickhouse/tables";
 import { detectBot } from "@databuddy/shared/bot-detection";
 import {
+	type AgentSignals,
+	agentBotCategory,
+	identifyAiAgent,
+} from "@databuddy/shared/bot-detection/ai-agents";
+import {
 	getWebsiteByIdV2,
 	isOriginAllowed,
 	isValidIpFromSettings,
@@ -258,6 +263,20 @@ export function validateRequest(
 	});
 }
 
+export function agentColumns(signals: AgentSignals) {
+	const bot = detectBot(signals.userAgent);
+	const agent = identifyAiAgent(signals, bot.category);
+	return {
+		agent,
+		columns: {
+			agent_id: agent?.id ?? "",
+			agent_purpose: agent?.purpose ?? "",
+			bot_name: bot.name ?? agent?.operator ?? "",
+			bot_type: agent ? agentBotCategory(agent) : (bot.category ?? "unknown"),
+		},
+	};
+}
+
 export function checkForBot(
 	request: Request,
 	body: unknown,
@@ -305,15 +324,12 @@ export function checkForBot(
 				undefined;
 
 			const span: AiTrafficSpansInsert = {
+				...agentColumns({ userAgent }).columns,
 				client_id: clientId,
 				timestamp: Date.now(),
-				bot_type: bot.category ?? "unknown",
-				bot_name: bot.name ?? "unknown",
 				user_agent: userAgent,
 				path,
 				referrer,
-				agent_id: bot.agent?.id,
-				agent_purpose: bot.agent?.purpose,
 				source: "tracker",
 				format: "html",
 			};

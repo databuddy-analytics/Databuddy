@@ -17,20 +17,17 @@ import { insertCustomEvents } from "@lib/event-service";
 import { runFork, send, sendBatch } from "@lib/producer";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { redis } from "@databuddy/redis/redis";
-import { detectBot } from "@databuddy/shared/bot-detection";
 import {
-	type AgentSignals,
-	agentBotCategory,
-	identifyAiAgent,
 	setupCheckKey,
 	setupCheckNonce,
 } from "@databuddy/shared/bot-detection/ai-agents";
 import {
 	CONTENT_FORMATS,
-	contentFormatForPath,
+	contentFormat,
 	isAssetPath,
 } from "@databuddy/shared/bot-detection/types";
 import {
+	agentColumns,
 	checkForBot,
 	getWebsiteSecuritySettings,
 } from "@lib/request-validation";
@@ -148,20 +145,6 @@ async function recordedSetupCheck(
 		await redis.set(setupCheckKey(websiteId, nonce), "1", "EX", 120);
 	}
 	return nonce !== null;
-}
-
-function agentColumns(signals: AgentSignals) {
-	const bot = detectBot(signals.userAgent);
-	const agent = identifyAiAgent(signals, bot.category);
-	return {
-		agent,
-		columns: {
-			agent_id: agent?.id ?? "",
-			agent_purpose: agent?.purpose ?? "",
-			bot_name: bot.name ?? agent?.operator ?? "",
-			bot_type: agent ? agentBotCategory(agent) : (bot.category ?? "unknown"),
-		},
-	};
 }
 
 interface ResolvedAuth {
@@ -658,7 +641,7 @@ export const vercelDrainRoute = new Elysia().post(
 					timestamp: proxy.timestamp ?? parsed.data?.timestamp ?? Date.now(),
 					user_agent: userAgent,
 					path: pathname.slice(0, 2048),
-					format: contentFormatForPath(pathname),
+					format: contentFormat(pathname),
 					host: proxy.host,
 					accept: "",
 					referrer: proxy.referer?.slice(0, 2048),

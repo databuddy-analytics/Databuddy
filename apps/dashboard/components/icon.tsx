@@ -185,7 +185,10 @@ function PublicIcon({
 		searchName = getOSMappedName(normalizedName);
 	}
 
-	const ownIconName = findIconMatch(searchName, availableIcons);
+	const ownIconName =
+		type === "ai"
+			? aiProductIcon(name)
+			: findIconMatch(searchName, availableIcons);
 	const aiAppName =
 		type === "browser" && !ownIconName
 			? AI_ICONS.find((icon) => icon.toLowerCase() === searchName.toLowerCase())

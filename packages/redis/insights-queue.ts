@@ -31,18 +31,8 @@ export const INSIGHTS_JOB_OPTIONS = {
 
 export type InsightGenerationReason = "manual" | "scheduled";
 
-export interface InsightsDispatchJobData {
-	reason: "scheduled";
-	triggeredAt: string;
-}
-
-export interface InsightsMaintenanceJobData {
-	reason: "maintenance";
-	triggeredAt: string;
-}
-
-export interface AiDigestDispatchJobData {
-	reason: "ai_digest";
+export interface InsightsScheduledJobData {
+	reason: "ai_digest" | "maintenance" | "scheduled";
 	triggeredAt: string;
 }
 
@@ -65,12 +55,10 @@ export interface InsightsGenerateWebsiteJobData {
 }
 
 export type InsightsQueueJobData =
-	| AiDigestDispatchJobData
 	| AiDigestWebsiteJobData
-	| InsightsDispatchJobData
 	| InsightsGenerateWebsiteJobData
-	| InsightsMaintenanceJobData
-	| InsightsResumeJobData;
+	| InsightsResumeJobData
+	| InsightsScheduledJobData;
 
 let insightsQueue: Queue<InsightsQueueJobData> | null = null;
 

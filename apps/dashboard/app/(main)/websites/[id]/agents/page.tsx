@@ -52,10 +52,51 @@ import {
 	calculatePreviousPeriod,
 } from "../_components/utils/analytics-helpers";
 
-const FORMAT_LABELS: Record<ContentFormat, string> = {
-	html: "HTML",
-	llms: "llms.txt",
-	markdown: "Markdown",
+type ReadFocus = ContentFormat | "all";
+
+const FOCUS: Record<
+	ReadFocus,
+	{
+		column: "requests" | ContentFormat;
+		label: string;
+		noun: string;
+		scope: string;
+		tab: string;
+		title: string;
+	}
+> = {
+	all: {
+		column: "requests",
+		label: "AI",
+		noun: "pages",
+		scope: "the site",
+		tab: "All",
+		title: "Pages",
+	},
+	html: {
+		column: "html",
+		label: "HTML",
+		noun: "pages",
+		scope: "HTML content",
+		tab: "HTML",
+		title: "HTML pages",
+	},
+	llms: {
+		column: "llms",
+		label: "llms.txt",
+		noun: "files",
+		scope: "llms.txt content",
+		tab: "llms.txt",
+		title: "llms.txt files",
+	},
+	markdown: {
+		column: "markdown",
+		label: "Markdown",
+		noun: "pages",
+		scope: "Markdown content",
+		tab: "Markdown",
+		title: "Markdown pages",
+	},
 };
 
 interface ProductRow {
@@ -106,8 +147,6 @@ interface ReadingAgent extends CrawlerResult {
 	html: number;
 	robots: RobotsAccess | undefined;
 }
-
-type ReadFocus = ContentFormat | "all";
 
 interface LandingSender {
 	product: string;
@@ -945,7 +984,7 @@ function ListSkeleton({ rows }: { rows: number }) {
 
 function formatSplit(agent: ReadingAgent): string {
 	return READ_FORMATS.filter((format) => agent[format] > 0)
-		.map((format) => `${FORMAT_LABELS[format]} ${formatNumber(agent[format])}`)
+		.map((format) => `${FOCUS[format].label} ${formatNumber(agent[format])}`)
 		.join(" · ");
 }
 
@@ -954,9 +993,12 @@ function activityTrend(
 	timeline: ActivityTimeline,
 	focus: ReadFocus
 ): TrendPoint[] {
-	const key = focus === "all" ? "requests" : focus;
+	const { column } = FOCUS[focus];
 	const valueByBucket = new Map(
-		rows.map((row) => [dayjs(row.date).format(timeline.bucketFormat), row[key]])
+		rows.map((row) => [
+			dayjs(row.date).format(timeline.bucketFormat),
+			row[column],
+		])
 	);
 	return timeline.buckets.map((date) => ({
 		date,
@@ -1091,12 +1133,12 @@ function AgentReadsPanel({
 		chosenFocus && options.includes(chosenFocus)
 			? chosenFocus
 			: (options[0] ?? "all");
-	const label = focus === "all" ? "AI" : FORMAT_LABELS[focus];
+	const { column, label, noun, scope, title } = FOCUS[focus];
 
 	const rankedAgents = agents
 		.map((agent) => ({
 			...agent,
-			value: focus === "all" ? agent.requests : agent[focus],
+			value: agent[column],
 		}))
 		.filter((agent) => agent.value > 0)
 		.sort((a, b) => b.value - a.value);
@@ -1151,7 +1193,6 @@ function AgentReadsPanel({
 	const maxPageValue = pages[0]?.value || 1;
 	const agentList = useShowAll(rankedAgents);
 	const pageList = useShowAll(pages);
-	const pageNoun = focus === "llms" ? "files" : "pages";
 	const agentActivity = useBatchDynamicQuery(
 		websiteId,
 		dateRange,
@@ -1170,10 +1211,9 @@ function AgentReadsPanel({
 		"agent-activity",
 		"ai_crawler_activity"
 	) as ActivityRow[];
-	const readScope = focus === "all" ? "the site" : `${label} content`;
 	const askSubject = selected
-		? `${selected.name} (${selected.product}) reading ${readScope}`
-		: `AI crawlers and agents reading ${readScope}`;
+		? `${selected.name} (${selected.product}) reading ${scope}`
+		: `AI crawlers and agents reading ${scope}`;
 
 	return (
 		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-2">
@@ -1192,7 +1232,7 @@ function AgentReadsPanel({
 										pageList.collapse();
 									}}
 									options={options.map((value) => ({
-										label: value === "all" ? "All" : FORMAT_LABELS[value],
+										label: FOCUS[value].tab,
 										value,
 									}))}
 									size="sm"
@@ -1300,18 +1340,12 @@ function AgentReadsPanel({
 								</span>
 							</div>
 						) : (
-							<p className="font-semibold text-sm">
-								{focus === "llms"
-									? "llms.txt files"
-									: focus === "all"
-										? "Pages"
-										: `${label} pages`}
-							</p>
+							<p className="font-semibold text-sm">{title}</p>
 						)}
 						<p className="text-muted-foreground text-xs">
 							{selected
-								? `${formatNumber(selected.value)} ${label} requests across ${formatNumber(pageTotal)} ${pageNoun}`
-								: `${formatNumber(pageTotal)} ${pageNoun} · pick an agent to see what it read`}
+								? `${formatNumber(selected.value)} ${label} requests across ${formatNumber(pageTotal)} ${noun}`
+								: `${formatNumber(pageTotal)} ${noun} · pick an agent to see what it read`}
 						</p>
 					</div>
 					{selected ? (
@@ -1388,7 +1422,7 @@ function AgentReadsPanel({
 					label={
 						pages.length < pageTotal
 							? `Show top ${formatNumber(pages.length)} of ${formatNumber(pageTotal)}`
-							: `Show all ${formatNumber(pages.length)} ${pageNoun}`
+							: `Show all ${formatNumber(pages.length)} ${noun}`
 					}
 					list={pageList}
 				/>
