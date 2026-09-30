@@ -302,6 +302,15 @@ export function EmailPreferencesCard() {
 							<SectionTitle>Other emails</SectionTitle>
 							<SettingCardGroup>
 								<ToggleSetting
+									checked={settings.aiAgents.weeklyDigest}
+									description="Every Monday: which AI products read your sites, what they read, and who they sent to you."
+									disabled={disabled}
+									onChange={(weeklyDigest) =>
+										save(withSection(settings, "aiAgents", { weeklyDigest }))
+									}
+									title="Weekly AI digest"
+								/>
+								<ToggleSetting
 									checked={settings.billing.usageWarnings}
 									description="Email when usage crosses your configured billing threshold."
 									disabled={disabled}

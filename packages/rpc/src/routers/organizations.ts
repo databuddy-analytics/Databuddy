@@ -58,6 +58,9 @@ const ignoredOriginSchema = z
 	});
 
 const emailNotificationSettingsSchema = z.object({
+	aiAgents: z
+		.object({ weeklyDigest: z.boolean() })
+		.default({ weeklyDigest: true }),
 	billing: z.object({ usageWarnings: z.boolean() }),
 	trackingHealth: z.object({
 		cooldownMinutes: z
