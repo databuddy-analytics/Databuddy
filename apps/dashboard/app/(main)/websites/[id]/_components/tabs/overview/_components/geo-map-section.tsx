@@ -25,12 +25,27 @@ interface GeoMapSectionProps {
 const TOP_COUNTRIES = 10;
 
 export function GeoMapSection({ countries, isLoading }: GeoMapSectionProps) {
+	if (isLoading) {
+		return (
+			<Card>
+				<Card.Header className="py-3">
+					<Skeleton className="h-4 w-32 rounded" />
+					<Skeleton className="h-3 w-48 rounded" />
+				</Card.Header>
+				<Skeleton className="h-[350px] w-full rounded-none" />
+			</Card>
+		);
+	}
+	return <VisitorLocations countries={countries} />;
+}
+
+function VisitorLocations({ countries }: { countries: CountryDataItem[] }) {
 	const [focused, setFocused] = useState<string | null>(null);
 	const [hovered, setHovered] = useState<string | null>(null);
 
 	const globeCountries = useMemo<GlobeCountry[]>(
 		() =>
-			(countries ?? [])
+			countries
 				.filter((item) => item.name.trim() !== "")
 				.map((item) => ({
 					code: (item.country_code ?? item.name).toUpperCase(),
@@ -43,18 +58,6 @@ export function GeoMapSection({ countries, isLoading }: GeoMapSectionProps) {
 
 	const topCountries = globeCountries.slice(0, TOP_COUNTRIES);
 	const totalVisitors = globeCountries.reduce((sum, c) => sum + c.value, 0);
-
-	if (isLoading) {
-		return (
-			<Card>
-				<Card.Header className="py-3">
-					<Skeleton className="h-4 w-32 rounded" />
-					<Skeleton className="h-3 w-48 rounded" />
-				</Card.Header>
-				<Skeleton className="h-[350px] w-full rounded-none" />
-			</Card>
-		);
-	}
 
 	return (
 		<Card>
@@ -107,7 +110,7 @@ export function GeoMapSection({ countries, isLoading }: GeoMapSectionProps) {
 											</span>
 											<span className="h-1.5 w-2/5 shrink-0 overflow-hidden rounded-full bg-muted">
 												<span
-													className="block h-full rounded-full bg-[var(--info)]"
+													className="block h-full rounded-full bg-[var(--info)] dark:bg-chart-4"
 													style={{ width: `${Math.max(share, 1)}%` }}
 												/>
 											</span>
