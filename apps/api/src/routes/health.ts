@@ -10,7 +10,7 @@ import { useLogger } from "evlog/elysia";
 const STALE_BACKUP_AFTER_MINUTES = 150;
 // Bounds the ClickHouse query only. cacheable spends up to REDIS_TIMEOUT_MS
 // (2s) before this runs, so the handler's worst case is ~6s.
-const BACKUP_PROBE_TIMEOUT_MS = 4000;
+const CLICKHOUSE_PROBE_TIMEOUT_MS = 4000;
 const MISSING_TABLE_CODES = ["UNKNOWN_TABLE", "UNKNOWN_DATABASE"];
 
 type BackupFreshness =
@@ -30,7 +30,7 @@ const readBackupFreshness = cacheable(
 				 WHERE status = 'completed'`,
 				undefined,
 				{
-					abort_signal: AbortSignal.timeout(BACKUP_PROBE_TIMEOUT_MS),
+					abort_signal: AbortSignal.timeout(CLICKHOUSE_PROBE_TIMEOUT_MS),
 					label: "health.backups",
 					readonly: true,
 				}
@@ -58,6 +58,27 @@ const readBackupFreshness = cacheable(
 		}
 	},
 	{ expireInSec: 60, prefix: "health:backups", reviveDates: false }
+);
+
+const STALE_INGESTION_AFTER_SECONDS = 600;
+
+const readIngestionAgeSeconds = cacheable(
+	async function readIngestionAgeSeconds(): Promise<number | null> {
+		const rows = await chQuery<{ age_seconds: number | null }>(
+			`SELECT dateDiff('second', maxOrNull(created_at), now()) AS age_seconds
+			 FROM analytics.events
+			 WHERE time > now() - INTERVAL 2 HOUR
+			   AND created_at > now() - INTERVAL 1 HOUR`,
+			undefined,
+			{
+				abort_signal: AbortSignal.timeout(CLICKHOUSE_PROBE_TIMEOUT_MS),
+				label: "health.ingestion",
+				readonly: true,
+			}
+		);
+		return rows[0]?.age_seconds ?? null;
+	},
+	{ expireInSec: 60, prefix: "health:ingestion" }
 );
 
 type PingResult =
@@ -133,6 +154,32 @@ export const health = new Elysia()
 				status: fresh ? "ok" : "stale",
 				age_minutes: ageMinutes,
 				stale_after_minutes: STALE_BACKUP_AFTER_MINUTES,
+			},
+			{ status: fresh ? 200 : 503 }
+		);
+	})
+	.get("/health/ingestion", async () => {
+		let ageSeconds: number | null;
+		try {
+			ageSeconds = await readIngestionAgeSeconds();
+		} catch (err) {
+			useLogger().warn("Ingestion freshness probe unavailable", {
+				error_message: err instanceof Error ? err.message : String(err),
+			});
+			return Response.json(
+				{ status: "probe_failed", code: "UNAVAILABLE" },
+				{ status: 500 }
+			);
+		}
+
+		const fresh =
+			ageSeconds !== null && ageSeconds <= STALE_INGESTION_AFTER_SECONDS;
+
+		return Response.json(
+			{
+				status: fresh ? "ok" : "stale",
+				age_seconds: ageSeconds,
+				stale_after_seconds: STALE_INGESTION_AFTER_SECONDS,
 			},
 			{ status: fresh ? 200 : 503 }
 		);
