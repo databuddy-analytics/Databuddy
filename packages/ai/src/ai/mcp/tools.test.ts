@@ -174,6 +174,7 @@ describe("MCP tool invariants", () => {
 					enabled: z.boolean(),
 					literal: z.string(),
 				}),
+				metadata: { access: { kind: "read" } },
 			},
 			(input) => {
 				received = input;
@@ -197,6 +198,7 @@ describe("MCP tool invariants", () => {
 				description:
 					"Test that internal exception text is not returned to callers.",
 				inputSchema: z.object({}),
+				metadata: { access: { kind: "read" } },
 			},
 			() => {
 				throw new Error(sentinel);
