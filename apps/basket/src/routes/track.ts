@@ -626,16 +626,16 @@ export const vercelDrainRoute = new Elysia().post(
 			for (const entry of batch.entries) {
 				const parsed = vercelLogSchema.safeParse(entry);
 				const proxy = parsed.success ? parsed.data.proxy : undefined;
-				const requestKey = parsed.data?.requestId ?? parsed.data?.id;
+				const requestKey = parsed.data?.requestId || parsed.data?.id;
 				if (
 					!proxy ||
 					proxy.statusCode === -1 ||
 					(proxy.method !== "GET" && proxy.method !== "HEAD") ||
-					(requestKey !== undefined && seenRequests.has(requestKey))
+					(requestKey && seenRequests.has(requestKey))
 				) {
 					continue;
 				}
-				if (requestKey !== undefined) {
+				if (requestKey) {
 					seenRequests.add(requestKey);
 				}
 				if (!website.isHostAllowed(proxy.host)) {
@@ -645,8 +645,8 @@ export const vercelDrainRoute = new Elysia().post(
 				const userAgent = (proxy.userAgent?.[0] ?? "").slice(0, 512);
 				const pathname = proxy.path.split("?")[0] ?? "";
 				if (
-					isAssetPath(pathname) ||
-					(await recordedSetupCheck(websiteId, userAgent))
+					(await recordedSetupCheck(websiteId, userAgent)) ||
+					isAssetPath(pathname)
 				) {
 					continue;
 				}
