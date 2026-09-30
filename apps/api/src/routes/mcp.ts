@@ -12,6 +12,7 @@ import { config } from "@databuddy/env/app";
 import { createMcpProtectedRequestHandler } from "@better-auth/mcp";
 import { Elysia } from "elysia";
 import {
+	isMcpRequest,
 	rejectInvalidMcpOrigin,
 	rejectUnsupportedMcpMethod,
 } from "@/http/cors";
@@ -75,7 +76,7 @@ export const mcp = new Elysia({ name: "mcp" })
 		if (rejected) {
 			return rejected;
 		}
-		if (isOAuthBearer(request.headers)) {
+		if (isMcpRequest(request) && isOAuthBearer(request.headers)) {
 			return handleOAuthMcpRequest(request);
 		}
 	})
