@@ -24,6 +24,7 @@ import {
 	getInsightsQueue,
 } from "@databuddy/redis";
 import {
+	type AgentPurpose,
 	aiProductIcon,
 	CONTENT_FORMATS,
 } from "@databuddy/shared/bot-detection/types";
@@ -40,7 +41,7 @@ const ROLES: Record<string, string> = {
 	search_index: "Search crawler",
 	training: "Trains AI models",
 	user_fetch: "Answers questions",
-};
+} satisfies Record<AgentPurpose, string>;
 
 interface DigestOutcome {
 	reason?: string;
