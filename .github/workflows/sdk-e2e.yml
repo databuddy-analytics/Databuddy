@@ -128,8 +128,6 @@ jobs:
           BUNNY_STORAGE_ZONE_NAME: ${{ vars.BUNNY_STORAGE_ZONE_NAME }}
           BUNNY_STORAGE_REGION: ${{ vars.BUNNY_STORAGE_REGION }}
           BUNNY_STORAGE_ACCESS_KEY: ${{ secrets.BUNNY_STORAGE_ACCESS_KEY }}
-          BUNNY_API_KEY: ${{ secrets.BUNNY_API_KEY }}
-          BUNNY_PULL_ZONE_ID: ${{ vars.BUNNY_PULL_ZONE_ID }}
           DATABASE_URL: ${{ secrets.TRACKER_DATABASE_URL }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DB_POOL_MAX: "1"

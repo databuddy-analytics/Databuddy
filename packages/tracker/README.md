@@ -22,7 +22,7 @@ This fetches the current script from `https://databuddy.b-cdn.net`, compares has
 ### 3. Deployment
 Merging tracker changes to `main` deploys them. The `Deploy Tracker` job in `.github/workflows/sdk-e2e.yml` builds, runs the Playwright suite, attests build provenance, and uploads to Bunny.net from the `tracker-cdn` environment. Run it by hand from the Actions tab (`dry_run` reports changes without uploading, `force` re-uploads every file).
 
-After uploading, the job purges only the entry scripts it replaced (`databuddy.js` and friends). Browsers cache those for 1 hour, so a deploy or a rollback reaches every visitor within about an hour. Versioned scripts (`databuddy.v8.js`) are new URLs, cached for a year and never changed. To roll back, revert the change on `main`.
+Bunny edge rules cache the entry scripts (`databuddy.js` and friends) for 60 seconds at the edge and 1 hour in browsers, so a deploy reaches the edge within about 2 minutes and every visitor within about an hour, with no cache purge. Versioned scripts (`databuddy.v8.js`) are new URLs, cached for a year and never changed. To roll back, revert the change on `main`; purge the pull zone from the Bunny dashboard if the edge needs to update sooner.
 
 Verify a CDN file was built from this repo:
 ```bash
