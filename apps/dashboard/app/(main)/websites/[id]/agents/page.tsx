@@ -25,6 +25,7 @@ import {
 	type RobotsAccess,
 	UNIDENTIFIED_AGENTS_PRODUCT,
 } from "@databuddy/shared/bot-detection/types";
+import { publicConfig } from "@databuddy/env/public";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
@@ -367,7 +368,8 @@ function AgentSetupSheet({
 						<Sheet.Title>Track AI crawlers</Sheet.Title>
 						<Sheet.Description>
 							Crawlers like GPTBot and ClaudeBot don't run JavaScript. Add one
-							line to your server to see which pages they read.
+							line to your server, or send your Vercel logs, to see which pages
+							they read.
 						</Sheet.Description>
 					</Sheet.Header>
 					<Sheet.Body className="space-y-5">
@@ -378,6 +380,7 @@ function AgentSetupSheet({
 										{stack.label}
 									</Tabs.Tab>
 								))}
+								<Tabs.Tab value="vercel-drain">Vercel drain</Tabs.Tab>
 							</Tabs.List>
 							{SETUP_STACKS.map((stack) => (
 								<Tabs.Panel
@@ -406,6 +409,29 @@ function AgentSetupSheet({
 									</SetupStep>
 								</Tabs.Panel>
 							))}
+							<Tabs.Panel className="mt-4 space-y-5" value="vercel-drain">
+								<SetupStep step={1} title="Add a drain in Vercel">
+									<p className="text-pretty text-muted-foreground text-xs">
+										Team Settings → Drains → Add Drain, then choose Logs and
+										Custom Endpoint. No code change needed. Drains need a Pro or
+										Enterprise plan, and Vercel bills them by volume.
+									</p>
+								</SetupStep>
+								<SetupStep step={2} title="Paste this endpoint">
+									<SetupCode
+										code={`${publicConfig.urls.basket}/vercel/${websiteId}`}
+										language="bash"
+									/>
+								</SetupStep>
+								<SetupStep step={3} title="Choose what to send">
+									<p className="text-pretty text-muted-foreground text-xs">
+										Sources: Static Files, Functions, Edge Functions and
+										Rewrites. Environment: Production. Format: JSON or NDJSON.
+										Leave sampling off so every AI request arrives. Drains also
+										report the status each agent got, so you can see 404s.
+									</p>
+								</SetupStep>
+							</Tabs.Panel>
 						</Tabs>
 
 						<SetupStep step={4} title="Deploy, then test it">
@@ -1942,7 +1968,7 @@ export default function AgentsPage() {
 						<p className="text-pretty text-muted-foreground text-xs">
 							{hasProxy
 								? "Server-side tracking is on, so crawlers that don't run JavaScript, like GPTBot and ClaudeBot, show up here."
-								: "Crawlers that don't run JavaScript, like GPTBot and ClaudeBot, only appear once @databuddy/sdk/agents runs on your server."}
+								: "Crawlers that don't run JavaScript, like GPTBot and ClaudeBot, only appear once @databuddy/sdk/agents runs on your server or a Vercel log drain sends your logs."}
 						</p>
 						<AgentSetupSheet
 							label={hasProxy ? "Test setup" : "Set up"}
