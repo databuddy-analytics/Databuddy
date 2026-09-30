@@ -27,7 +27,7 @@ import {
 } from "@databuddy/shared/bot-detection/ai-agents";
 import {
 	CONTENT_FORMATS,
-	contentFormatForPath,
+	contentFormat,
 	isAssetPath,
 } from "@databuddy/shared/bot-detection/types";
 import {
@@ -658,7 +658,7 @@ export const vercelDrainRoute = new Elysia().post(
 					timestamp: proxy.timestamp ?? parsed.data?.timestamp ?? Date.now(),
 					user_agent: userAgent,
 					path: pathname.slice(0, 2048),
-					format: contentFormatForPath(pathname),
+					format: contentFormat(pathname),
 					host: proxy.host,
 					accept: "",
 					referrer: proxy.referer?.slice(0, 2048),

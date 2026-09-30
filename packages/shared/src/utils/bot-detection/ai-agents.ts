@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
 	type AgentPurpose,
 	BotCategory,
+	isMarkdownFirstAccept,
 	UNIDENTIFIED_AGENT_PREFIX,
 	UNIDENTIFIED_AGENTS_PRODUCT,
 } from "./types";
@@ -295,14 +296,7 @@ function matchSignedAgent(signatureAgent: string): AiAgent | null {
 	);
 }
 
-const MARKDOWN_MEDIA_TYPE = /^\s*text\/(?:x-)?markdown\b/i;
-const ZERO_QUALITY = /;\s*q\s*=\s*0(?:\.0{0,3})?\s*$/i;
 const USER_AGENT_TOKEN = /^[\w.-]{1,40}/;
-
-export function isMarkdownFirstAccept(accept: string): boolean {
-	const [first = ""] = accept.split(",");
-	return MARKDOWN_MEDIA_TYPE.test(first) && !ZERO_QUALITY.test(first);
-}
 
 function unidentifiedAgent(userAgent: string): AiAgent {
 	const token =
