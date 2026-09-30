@@ -405,7 +405,7 @@ jobs:
             -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/databuddy_test \
             -e REDIS_URL=redis://localhost:6379 \
             -e BETTER_AUTH_SECRET=test-auth-secret-for-ci \
-            -e BETTER_AUTH_URL=http://localhost:3000 \
+            -e BETTER_AUTH_URL=https://dashboard.example.test \
             -e GITHUB_CLIENT_ID=test-github-client-id \
             -e GITHUB_CLIENT_SECRET=test-github-client-secret \
             -e GOOGLE_CLIENT_ID=test-google-client-id \
