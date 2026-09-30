@@ -211,7 +211,7 @@ export const AiDigestEmail = ({
 					<meta content="light" name="supported-color-schemes" />
 				</Head>
 				<Preview>
-					{`${n(visitors)} ${visitors === 1 ? "visitor" : "visitors"} from AI, and AI read ${site} ${n(reads)} times.`}
+					{`${n(visitors)} ${visitors === 1 ? "visitor" : "visitors"} from AI, and AI read ${site} ${n(reads)} ${reads === 1 ? "time" : "times"}.`}
 				</Preview>
 				<Body className={`m-0 bg-canvas py-10 ${FONT}`}>
 					<Container className="mx-auto max-w-[560px] px-4">
