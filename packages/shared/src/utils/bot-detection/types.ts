@@ -24,8 +24,14 @@ export type AgentPurpose = "training" | "search_index" | "user_fetch" | "agent";
 export const CONTENT_FORMATS = ["markdown", "llms", "html"] as const;
 export type ContentFormat = (typeof CONTENT_FORMATS)[number];
 
+const ASSET_PATH =
+	/^\/_next\/|\.(?:js|mjs|css|map|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|eot|mp4|webm|mp3|wav|pdf|zip)$/i;
 const LLMS_TXT_PATH = /\/llms(-full)?\.txt$/i;
 const MARKDOWN_PATH = /\.mdx?$/i;
+
+export function isAssetPath(pathname: string): boolean {
+	return ASSET_PATH.test(pathname);
+}
 
 export function contentFormatForPath(pathname: string): ContentFormat {
 	if (LLMS_TXT_PATH.test(pathname)) {
