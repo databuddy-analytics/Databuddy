@@ -1,0 +1,54 @@
+name: Countries Map CDN
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    name: Upload slim countries map
+    if: github.ref == 'refs/heads/main'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    environment:
+      name: tracker-cdn
+      url: https://cdn.databuddy.cc/geojson/countries.json
+    steps:
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.4.1"
+      - name: Slim countries.geojson to the fields the globe reads
+        run: |
+          curl -fsS https://cdn.databuddy.cc/geojson/countries.geojson -o countries.geojson
+          bun -e '
+            const geo = await Bun.file("countries.geojson").json();
+            const round = (value) => (Array.isArray(value) ? value.map(round) : Math.round(value * 100) / 100);
+            await Bun.write("countries.json", JSON.stringify({
+              type: "FeatureCollection",
+              features: geo.features.map((feature) => ({
+                type: "Feature",
+                properties: { ADMIN: feature.properties.ADMIN, ISO_A2: feature.properties.ISO_A2 },
+                geometry: { type: feature.geometry.type, coordinates: round(feature.geometry.coordinates) },
+              })),
+            }));
+          '
+          ls -l countries.geojson countries.json
+      - name: Upload to Bunny
+        env:
+          BUNNY_STORAGE_ZONE_NAME: ${{ vars.BUNNY_STORAGE_ZONE_NAME }}
+          BUNNY_STORAGE_REGION: ${{ vars.BUNNY_STORAGE_REGION }}
+          BUNNY_STORAGE_ACCESS_KEY: ${{ secrets.BUNNY_STORAGE_ACCESS_KEY }}
+        run: |
+          curl -fsS -X PUT \
+            -H "AccessKey: $BUNNY_STORAGE_ACCESS_KEY" \
+            -H "Content-Type: application/json" \
+            --data-binary @countries.json \
+            "https://${BUNNY_STORAGE_REGION:+$BUNNY_STORAGE_REGION.}storage.bunnycdn.com/$BUNNY_STORAGE_ZONE_NAME/geojson/countries.json"
+      - name: Verify the CDN serves this upload compressed
+        run: |
+          curl -fsS --compressed -D headers.txt https://cdn.databuddy.cc/geojson/countries.json -o served.json
+          cat headers.txt
+          grep -qi "^content-encoding: \(br\|gzip\)" headers.txt
+          cmp served.json countries.json
