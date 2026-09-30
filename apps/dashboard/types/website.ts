@@ -13,21 +13,3 @@ export interface ProcessedMiniChartData {
 		value: number;
 	} | null;
 }
-
-export interface CountryData {
-	country: string;
-	country_code?: string;
-	pageviews: number;
-	visitors: number;
-}
-
-interface RegionData {
-	country: string;
-	pageviews: number;
-	visitors: number;
-}
-
-export interface LocationData {
-	countries: CountryData[];
-	regions: RegionData[];
-}
