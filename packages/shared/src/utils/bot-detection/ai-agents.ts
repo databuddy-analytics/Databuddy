@@ -23,6 +23,7 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	{
 		name?: string;
 		operator: string;
+		product?: string;
 		purpose: AgentPurpose;
 	} | null
 > = {
@@ -74,7 +75,11 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"glutenfreepleasure-crawler": null,
 	"google-agent": { operator: "Google", purpose: "agent" },
 	"google-crawler-cloudvertex": { operator: "Google", purpose: "search_index" },
-	"google-crawler-other": { operator: "Google", purpose: "training" },
+	"google-crawler-other": {
+		operator: "Google",
+		product: "Google",
+		purpose: "training",
+	},
 	"google-gemini-deep-research": { operator: "Google", purpose: "user_fetch" },
 	"google-gemini-notebook": { operator: "Google", purpose: "user_fetch" },
 	"iask-crawler": {
@@ -232,6 +237,7 @@ function toAiAgent(bot: z.infer<typeof wellKnownBotSchema>): AiAgent | null {
 		id: bot.id,
 		name: classification.name ?? crawlerName(bot),
 		product:
+			classification.product ??
 			AI_PRODUCT_BY_OPERATOR[classification.operator] ??
 			classification.operator,
 		patterns: bot.pattern.accepted.map((p) => new RegExp(p)),

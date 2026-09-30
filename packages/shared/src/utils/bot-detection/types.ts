@@ -28,6 +28,7 @@ export const AI_ICON_COLORS: Record<string, string | null> = {
 	Exa: "#1F40ED",
 	Firecrawl: null,
 	Gemini: "#8E75B2",
+	Google: "#4285F4",
 	Huawei: "#FF0000",
 	Kagi: "#FFB319",
 	Kimi: "#1783FF",
