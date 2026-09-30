@@ -9,7 +9,7 @@ import {
 import { links, organization, user, websites } from "@databuddy/db/schema";
 import { redis } from "@databuddy/redis";
 import { getErrorLogFields } from "@databuddy/shared/evlog-fields";
-import { log } from "evlog";
+import { audit, log } from "evlog";
 
 const PURGE_INTERVAL_SECONDS = 6 * 60 * 60;
 const PURGE_LOCK_KEY = "deleted-data-purge:lock";
@@ -89,13 +89,19 @@ async function purgeDeletedData(): Promise<void> {
 		try {
 			const { idle, recent } = await findDeletedOwners(target);
 			await target.purge(idle);
-			if (idle.length > 0 || recent.length > 0) {
-				log.info({
+			for (const id of idle) {
+				audit({
+					action: "analytics_data.purged",
+					actor: { type: "system", id: "deleted-data-purge" },
+					target: { type: target.kind, id },
+					reason: "owner_deleted",
+				});
+			}
+			if (recent.length > 0) {
+				log.warn({
 					service: "api",
 					component: "deleted_data_purge",
 					kind: target.kind,
-					purged_count: idle.length,
-					purged_ids: idle,
 					deferred_ids: recent,
 				});
 			}
