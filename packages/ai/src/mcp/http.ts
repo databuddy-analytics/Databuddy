@@ -117,7 +117,7 @@ function callerCanCallTool(
 	if (!required?.length) {
 		return true;
 	}
-	if (oauthScopes?.length) {
+	if (oauthScopes) {
 		return required.every((scope) => oauthScopes.includes(scope));
 	}
 	if (!apiKey) {
