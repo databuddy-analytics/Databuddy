@@ -930,10 +930,13 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 
 					result.consumeStream();
 
-					Promise.resolve(result.totalUsage)
-						.then(async (usage) => {
+					Promise.all([result.totalUsage, result.steps])
+						.then(async ([usage, steps]) => {
 							await trackAgentUsageAndBill({
-								usage,
+								usage: {
+									...usage,
+									stepUsages: steps.map((step) => step.usage),
+								},
 								modelId: config.model.modelId,
 								source: "dashboard",
 								agentType: AGENT_TYPE,

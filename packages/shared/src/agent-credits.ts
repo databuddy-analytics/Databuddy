@@ -62,7 +62,6 @@ export const AGENT_MODEL_COSTS_USD_PER_MILLION: Record<
 		cache_read: 0,
 		cache_write: 0,
 	},
-	// ponytail: standard context rates; use tier-aware pricing above 272,000 input tokens.
 	"openai/gpt-6.1-sol": {
 		input: 2,
 		output: 10,
@@ -78,8 +77,16 @@ export const AGENT_MODEL_COSTS_USD_PER_MILLION: Record<
 };
 
 export function lookupAgentModelCost(
-	modelId: string
+	modelId: string,
+	inputTokens = 0
 ): ResolvedAgentModelCost | null {
+	if (modelId === "openai/gpt-6.1-sol" && inputTokens > 272_000) {
+		return {
+			cost: { input: 4, output: 15, cache_read: 0.2, cache_write: 5 },
+			fallback: false,
+			id: modelId,
+		};
+	}
 	const cost = AGENT_MODEL_COSTS_USD_PER_MILLION[modelId];
 	return cost ? { cost, fallback: false, id: modelId } : null;
 }

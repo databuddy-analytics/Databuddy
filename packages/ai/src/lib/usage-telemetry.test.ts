@@ -38,6 +38,43 @@ describe("summarizeAgentUsage", () => {
 		expect(summary.cost_output_usd).toBeCloseTo(0.01, 9);
 		expect(summary.cost_total_usd).toBeCloseTo(0.0146, 9);
 	});
+
+	test.each([
+		{ inputTokens: 272_000, cost: 0.0415 },
+		{ inputTokens: 272_001, cost: 0.078 },
+	])("prices Sol's full request at its context tier: $inputTokens", ({
+		inputTokens,
+		cost,
+	}) => {
+		const summary = summarizeAgentUsage("openai/gpt-6.1-sol", {
+			inputTokens,
+			outputTokens: 1000,
+			inputTokenDetails: {
+				noCacheTokens: 1000,
+				cacheReadTokens: inputTokens - 2000,
+				cacheWriteTokens: 1000,
+			},
+		});
+		expect(summary.cost_total_usd).toBeCloseTo(cost, 9);
+		expect(summary.agent_credits_used).toBeCloseTo(cost * 20, 9);
+	});
+
+	test.each([
+		{ secondInput: 200_000, cost: 0.82 },
+		{ secondInput: 300_000, cost: 1.625 },
+	])("prices Sol steps separately: $secondInput", ({ secondInput, cost }) => {
+		const summary = summarizeAgentUsage("openai/gpt-6.1-sol", {
+			inputTokens: 200_000 + secondInput,
+			outputTokens: 2000,
+			stepUsages: [
+				{ inputTokens: 200_000, outputTokens: 1000 },
+				{ inputTokens: secondInput, outputTokens: 1000 },
+			],
+		});
+		expect(summary.input_tokens).toBe(200_000 + secondInput);
+		expect(summary.cost_total_usd).toBeCloseTo(cost, 9);
+		expect(summary.agent_credits_used).toBeCloseTo(cost * 20, 9);
+	});
 	test("records Luna fresh and cached costs without a model fallback", () => {
 		const summary = summarizeAgentUsage("openai/gpt-5.6-luna", {
 			inputTokens: 3_000_000,

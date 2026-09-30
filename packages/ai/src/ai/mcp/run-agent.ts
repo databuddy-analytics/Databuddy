@@ -416,7 +416,12 @@ async function trackPreparedUsage(
 	usage: LanguageModelUsage
 ): Promise<void> {
 	await trackAgentUsageAndBill({
-		usage,
+		usage: {
+			...usage,
+			...(prepared.capturedSteps.length > 0
+				? { stepUsages: prepared.capturedSteps.map((step) => step.usage) }
+				: {}),
+		},
 		modelId: prepared.modelId,
 		source: prepared.source,
 		organizationId: prepared.organizationId,

@@ -808,6 +808,7 @@ describe("shared Slack/MCP agent billing before model work", () => {
 				source,
 				billingCustomerId: "synthetic-owner",
 				billingAccess: { allowed: true, customerId: "synthetic-owner" },
+				usage: { stepUsages: [expect.objectContaining({ inputTokens: 10 })] },
 			});
 		}
 	});
