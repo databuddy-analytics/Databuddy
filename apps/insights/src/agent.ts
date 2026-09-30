@@ -1023,6 +1023,11 @@ function validateDefinitionRecommendation(
 
 const MONTH_NAME =
 	"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)";
+// Compact comparison days must end the date label, not hide a measured range.
+const MONTH_FIRST_DATE_RANGE = new RegExp(
+	String.raw`\b${MONTH_NAME} \d{1,2}(?:\s*(?:to|through|[–—-])\s*(?:${MONTH_NAME} )?\d{1,2}(?:\s*→\s*(?:[12]\d|3[01]|[1-9])\s*[–—-]\s*(?:[12]\d|3[01]|[1-9])(?=(?:,? \d{4})?(?:,? UTC)?\s*(?:$|[;)\]]|:(?!\s*\d)|,(?!\s*\d)|\.(?!\d))))?)?(?:,? \d{4})?\b`,
+	"gi"
+);
 // Bare "12 August completions" is ambiguous: keep the count for grounding.
 const DAY_FIRST_DATE_RANGE = new RegExp(
 	String.raw`\b(?:\d{1,2}\s*(?:to|through|[–—-])\s*\d{1,2} ${MONTH_NAME}|\d{1,2} ${MONTH_NAME}\s*(?:to|through|[–—-])\s*\d{1,2} ${MONTH_NAME})(?:,? \d{4})?\b`,
@@ -1035,10 +1040,7 @@ function numericTokens(text: string): number[] {
 			/\b\d{4}-\d{2}-\d{2}(?:\s*[–—]\s*(?:\d{2}-)?\d{2}|T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)?\b/g,
 			""
 		)
-		.replace(
-			/\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?) \d{1,2}(?:\s*(?:to|through|[–—-])\s*(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?) )?\d{1,2})?(?:,? \d{4})?\b/gi,
-			""
-		)
+		.replace(MONTH_FIRST_DATE_RANGE, "")
 		.replace(DAY_FIRST_DATE_RANGE, "");
 	const merged = withoutDates
 		.replace(/\bzero\b/gi, "0")

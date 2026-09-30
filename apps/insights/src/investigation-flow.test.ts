@@ -4407,11 +4407,16 @@ describe("validateNumericGrounding", () => {
 		"29 Aug–4 Sep",
 		"29–31 August, 2026",
 		"August 29–September 4",
+		"September 15–21 → 22–28",
+		"Sep 15–21 → 22–28, 2026",
+		"September 15–21 → 22–28, 2026 UTC",
+		"September 15–21 → 22–28, UTC",
+		"December 1–7 → 8–14",
 		"2026-08-29",
 	])("does not treat %s as a count", (date) => {
 		const claim = {
 			title: "Collection gap",
-			summary: `${date}: 2200 origin responses, zero events.`,
+			summary: `${date}: measured 2200 origin responses, zero events.`,
 			evidence: [],
 		};
 		expect(() =>
@@ -4423,6 +4428,41 @@ describe("validateNumericGrounding", () => {
 				"2200 origin responses; zero events."
 			)
 		).toThrow("number 29");
+		expect(() =>
+			validateNumericGrounding(
+				{ title: "", summary: "22 visitors", evidence: [] },
+				date
+			)
+		).toThrow("number 22");
+	});
+
+	it.each([
+		["22 visitors", 22],
+		["22–28 visitors", 22],
+		["22–28%", 22],
+		["2–3:1 odds", 2],
+		["22–23:00 hours", 22],
+		["2–3: 1 odds", 2],
+		["22–23: 00 hours", 22],
+		["22.5–28.4%", 22.5],
+		["220–280", 220],
+		["0–7", 0],
+		["32–38", 32],
+		["22–28,000 visitors", 22],
+		["22–28.5%", 22],
+		["22–28, 2026 visits", 22],
+		["22–28: 23 visitors", 22],
+	] as const)("keeps measurements after a date grounded: %s", (tail, value) => {
+		expect(() =>
+			validateNumericGrounding(
+				{
+					title: "Comparison",
+					summary: `September 15–21 → ${tail}.`,
+					evidence: [],
+				},
+				'{"visitors":40}'
+			)
+		).toThrow(`number ${value}`);
 	});
 
 	it.each([
