@@ -45,10 +45,7 @@ function queryErrors(
 			if (failFilteredRead && request.from === "2026-09-15") {
 				throw new Error("Synthetic exact-read failure");
 			}
-			expect(names.op).toBe("in");
-			expect(Array.isArray(names.value)).toBe(true);
-			const wanted = new Set(names.value as string[]);
-			expect(wanted.size).toBeLessThanOrEqual(50);
+			const wanted = new Set(Array.isArray(names.value) ? names.value : []);
 			rows = rows.filter((row) => wanted.has(row.name));
 		}
 		return [...rows]
@@ -98,40 +95,93 @@ describe("complete error fingerprint comparisons", () => {
 			movement === "enters" ? withTarget : withoutTarget,
 			movement === "enters" ? withoutTarget : withTarget
 		);
-		const signals = await detectSignals(params, query, today);
+		const diagnostics: DetectionDiagnostics = { failedFamilies: 0 };
+		const signals = await detectSignals(
+			params,
+			query,
+			today,
+			undefined,
+			diagnostics
+		);
+		expect(diagnostics.failedFamilies).toBe(0);
 		expect(errorSignals(signals)).toEqual([]);
 		const reads = requests.filter(
 			(request) => request.type === "error_fingerprints"
 		);
 		expect(reads).toHaveLength(4);
-		expect(reads.filter((request) => request.filters)).toHaveLength(2);
+		const exactReads = reads.filter((request) => request.filters);
+		expect(exactReads).toHaveLength(2);
+		for (const request of exactReads) {
+			expect(
+				request.filters?.map((filter) => [filter.field, filter.op])
+			).toEqual([["message", "in"]]);
+			expect(Array.isArray(request.filters?.[0]?.value)).toBe(true);
+			expect(request.limit).toBe(50);
+			expect(request.filters?.[0]?.value).toHaveLength(1);
+		}
 	});
 
 	it("keeps the measured baseline when a regressing fingerprint enters the top 50", async () => {
-		const { query } = queryErrors(
+		const { query, requests } = queryErrors(
 			[error(targetName, 100), ...fillers(19)],
 			[error(targetName, 20), ...fillers(21)]
 		);
-		const signals = await detectSignals(params, query, today);
+		const diagnostics: DetectionDiagnostics = { failedFamilies: 0 };
+		const signals = await detectSignals(
+			params,
+			query,
+			today,
+			undefined,
+			diagnostics
+		);
+		expect(diagnostics.failedFamilies).toBe(0);
 		expect(errorSignals(signals)).toMatchObject([
 			{ entityId: targetName, baseline: 20, current: 100, deltaPercent: 400 },
 		]);
+		const exactReads = requests.filter(
+			(request) => request.type === "error_fingerprints" && request.filters
+		);
+		expect(exactReads).toHaveLength(2);
+		for (const request of exactReads) {
+			expect(
+				request.filters?.map((filter) => [filter.field, filter.op])
+			).toEqual([["message", "in"]]);
+			expect(Array.isArray(request.filters?.[0]?.value)).toBe(true);
+			expect(request.limit).toBe(50);
+			expect(request.filters?.[0]?.value).toHaveLength(1);
+		}
 	});
 
 	it.each([
 		9, 10,
 	])("uses session reach for a completed low-user counterpart: %s", async (sessions) => {
-		const { query } = queryErrors(
+		const { query, requests } = queryErrors(
 			[error(targetName, 100, 5, sessions), ...fillers(6)],
 			[error(targetName, 20, 7), ...fillers(6)]
 		);
-		const signals = errorSignals(await detectSignals(params, query, today));
+		const diagnostics: DetectionDiagnostics = { failedFamilies: 0 };
+		const signals = errorSignals(
+			await detectSignals(params, query, today, undefined, diagnostics)
+		);
+		expect(diagnostics.failedFamilies).toBe(0);
 		if (sessions === 9) {
 			expect(signals).toEqual([]);
 		} else {
 			expect(signals).toMatchObject([
 				{ entityId: targetName, baseline: 20, current: 100, deltaPercent: 400 },
 			]);
+		}
+		const exactReads = requests.filter(
+			(request) => request.type === "error_fingerprints" && request.filters
+		);
+		expect(exactReads).toHaveLength(2);
+		for (const request of exactReads) {
+			expect(
+				request.filters?.map((filter) => [filter.field, filter.op])
+			).toEqual([["message", "in"]]);
+			expect(Array.isArray(request.filters?.[0]?.value)).toBe(true);
+			expect(request.limit).toBe(50);
+			expect(request.filters?.[0]?.value).toHaveLength(1);
 		}
 	});
 
@@ -141,11 +191,19 @@ describe("complete error fingerprint comparisons", () => {
 	] as const)("preserves a truly %s fingerprint after an exhaustive filtered read", async (state) => {
 		const present = [error(targetName), ...fillers(19)];
 		const absent = fillers(21);
-		const { query } = queryErrors(
+		const { query, requests } = queryErrors(
 			state === "new" ? present : absent,
 			state === "new" ? absent : present
 		);
-		const signals = await detectSignals(params, query, today);
+		const diagnostics: DetectionDiagnostics = { failedFamilies: 0 };
+		const signals = await detectSignals(
+			params,
+			query,
+			today,
+			undefined,
+			diagnostics
+		);
+		expect(diagnostics.failedFamilies).toBe(0);
 		expect(errorSignals(signals)).toMatchObject([
 			{
 				entityId: targetName,
@@ -154,6 +212,18 @@ describe("complete error fingerprint comparisons", () => {
 				direction: state === "new" ? "up" : "down",
 			},
 		]);
+		const exactReads = requests.filter(
+			(request) => request.type === "error_fingerprints" && request.filters
+		);
+		expect(exactReads).toHaveLength(2);
+		for (const request of exactReads) {
+			expect(
+				request.filters?.map((filter) => [filter.field, filter.op])
+			).toEqual([["message", "in"]]);
+			expect(Array.isArray(request.filters?.[0]?.value)).toBe(true);
+			expect(request.limit).toBe(50);
+			expect(request.filters?.[0]?.value).toHaveLength(1);
+		}
 	});
 
 	it("keeps an incomplete filtered read unknown and records the error-family failure", async () => {
@@ -182,13 +252,25 @@ describe("complete error fingerprint comparisons", () => {
 			error(`Synthetic previous ${index}`)
 		);
 		const { query, requests } = queryErrors(current, previous);
-		const signals = await detectSignals(params, query, today);
+		const diagnostics: DetectionDiagnostics = { failedFamilies: 0 };
+		const signals = await detectSignals(
+			params,
+			query,
+			today,
+			undefined,
+			diagnostics
+		);
+		expect(diagnostics.failedFamilies).toBe(0);
 		expect(errorSignals(signals)).toHaveLength(100);
 		const exactReads = requests.filter(
 			(request) => request.type === "error_fingerprints" && request.filters
 		);
 		expect(exactReads).toHaveLength(2);
 		for (const request of exactReads) {
+			expect(
+				request.filters?.map((filter) => [filter.field, filter.op])
+			).toEqual([["message", "in"]]);
+			expect(Array.isArray(request.filters?.[0]?.value)).toBe(true);
 			expect(request.filters?.[0]?.value).toHaveLength(50);
 			expect(request.limit).toBe(50);
 		}
@@ -199,7 +281,15 @@ describe("complete error fingerprint comparisons", () => {
 			[error(targetName, 100)],
 			[error(targetName, 20)]
 		);
-		const signals = await detectSignals(params, query, today);
+		const diagnostics: DetectionDiagnostics = { failedFamilies: 0 };
+		const signals = await detectSignals(
+			params,
+			query,
+			today,
+			undefined,
+			diagnostics
+		);
+		expect(diagnostics.failedFamilies).toBe(0);
 		expect(errorSignals(signals)).toMatchObject([
 			{ baseline: 20, current: 100 },
 		]);
