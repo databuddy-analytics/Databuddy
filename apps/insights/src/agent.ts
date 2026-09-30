@@ -1469,16 +1469,6 @@ function successfulReadOutputs(
 	return Object.values(output.results).filter(isSuccessfulRead);
 }
 
-function resolveEvidenceReferences(
-	outcome: Pick<AgentInvestigationOutcome, "evidenceRefs">,
-	input: InsightAgentInput,
-	results: StepResult<ToolSet>["toolResults"]
-): unknown[][] {
-	return outcome.evidenceRefs.map((refs) =>
-		resolveEvidenceSources(refs, input, results)
-	);
-}
-
 function resolveEvidenceSources(
 	refs: AgentInvestigationOutcome["evidenceRefs"][number],
 	input: InsightAgentInput,
@@ -2879,8 +2869,8 @@ export async function runInsightAgent(
 								)
 					);
 					if (proposed.next.type === "act" && proposed.next.check) {
-						const [basis] = resolveEvidenceReferences(
-							{ evidenceRefs: [proposed.next.check.threshold.evidenceRef] },
+						const basis = resolveEvidenceSources(
+							proposed.next.check.threshold.evidenceRef,
 							input,
 							results
 						);
