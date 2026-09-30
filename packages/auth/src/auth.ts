@@ -1,7 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { redisStorage } from "@better-auth/redis-storage";
 import { runWithTransaction } from "@better-auth/core/context";
-import { and, db, eq, like, ne } from "@databuddy/db";
+import { and, db, eq, like } from "@databuddy/db";
 // biome-ignore lint/performance/noNamespaceImport: Better Auth's Drizzle adapter expects a schema object map.
 import * as schema from "@databuddy/db/schema";
 import {
@@ -57,7 +57,7 @@ import {
 	organization,
 	twoFactor,
 } from "better-auth/plugins";
-import { createLogger, log } from "evlog";
+import { audit, createLogger, log } from "evlog";
 import { maskEmail } from "evlog/better-auth";
 import { Resend } from "resend";
 import { ac, admin, member, owner, viewer } from "./permissions";
@@ -435,41 +435,31 @@ async function recordAuthAudit<TAction extends AuditActionDefinition>(
 }
 
 async function planAccountDeletion(userId: string) {
-	const memberships = await db
-		.select({
-			id: organizationTable.id,
-			name: organizationTable.name,
-			role: memberTable.role,
-		})
-		.from(memberTable)
-		.innerJoin(
-			organizationTable,
-			eq(organizationTable.id, memberTable.organizationId)
-		)
-		.where(eq(memberTable.userId, userId));
-	const soleMember: typeof memberships = [];
-	for (const membership of memberships) {
-		const others = await db
-			.select({ role: memberTable.role })
-			.from(memberTable)
-			.where(
-				and(
-					eq(memberTable.organizationId, membership.id),
-					ne(memberTable.userId, userId)
-				)
-			);
-		if (others.length === 0) {
-			soleMember.push(membership);
-		} else if (
-			membership.role === "owner" &&
-			!others.some((other) => other.role === "owner")
+	const memberships = await db.query.member.findMany({
+		where: { userId },
+		columns: { role: true },
+		with: {
+			organization: {
+				columns: { id: true, name: true },
+				with: { members: { columns: { userId: true, role: true } } },
+			},
+		},
+	});
+	for (const { role, organization } of memberships) {
+		const others = organization.members.filter((m) => m.userId !== userId);
+		if (
+			role === "owner" &&
+			others.length > 0 &&
+			!others.some((m) => m.role === "owner")
 		) {
 			throw new APIError("BAD_REQUEST", {
-				message: `Transfer ownership of ${membership.name} or delete it before deleting your account.`,
+				message: `Transfer ownership of ${organization.name} or delete it before deleting your account.`,
 			});
 		}
 	}
-	return soleMember;
+	return memberships
+		.map((m) => m.organization)
+		.filter((org) => org.members.every((m) => m.userId === userId));
 }
 
 async function deleteSoleMemberOrganizations(user: {
@@ -525,73 +515,37 @@ function forwardAuthLog(
 	log.info(fields);
 }
 
-const AUDITED_AUTH_PATHS = new Set([
-	"/sign-up/email",
-	"/change-email",
-	"/change-password",
-	"/request-password-reset",
-	"/reset-password",
-	"/email-otp/request-password-reset",
-	"/email-otp/reset-password",
-	"/two-factor/enable",
-	"/two-factor/disable",
-	"/two-factor/generate-backup-codes",
-	"/link-social",
-	"/unlink-account",
-	"/revoke-session",
-	"/revoke-sessions",
-	"/revoke-other-sessions",
-	"/delete-user",
-	"/delete-user/callback",
-]);
-
-function isSignInAttempt(path: string): boolean {
-	return (
-		path.startsWith("/sign-in/") ||
-		path.startsWith("/callback/") ||
-		path.startsWith("/two-factor/verify-") ||
-		path === "/magic-link/verify"
-	);
-}
-
 const recordAuthOutcome = createAuthMiddleware((ctx) => {
 	const { newSession, returned, session } = ctx.context;
 	const failure =
 		returned instanceof APIError && returned.statusCode >= 400
 			? returned
 			: null;
-	const signIn = isSignInAttempt(ctx.path);
+	const userId = newSession?.user.id ?? session?.user.id;
+	const email = (ctx.body as { email?: unknown } | undefined)?.email;
 	if (
-		!(AUDITED_AUTH_PATHS.has(ctx.path) || (signIn && (newSession || failure)))
+		!ctx.request ||
+		(ctx.method === "GET" && !(newSession || failure)) ||
+		!(userId || failure || typeof email === "string")
 	) {
 		return Promise.resolve();
 	}
-	const email = (ctx.body as { email?: unknown } | undefined)?.email;
 	const logger = createLogger({
 		service: "auth",
-		auth_path: ctx.path,
 		ip:
 			newSession?.session.ipAddress ||
-			ctx.request?.headers.get("x-forwarded-for")?.split(",")[0]?.trim(),
-		user_agent: ctx.request?.headers.get("user-agent") ?? undefined,
+			ctx.request.headers.get("x-forwarded-for")?.split(",")[0]?.trim(),
+		user_agent: ctx.request.headers.get("user-agent") ?? undefined,
+		...(ctx.params && { route_params: ctx.params }),
 	});
 	logger.audit({
-		action: signIn
-			? "auth.sign_in"
-			: `auth${ctx.path.replaceAll("/", ".").replaceAll("-", "_")}`,
-		actor: {
-			type: "user",
-			id:
-				newSession?.user.id ??
-				session?.user.id ??
-				(returned as { user?: { id?: string } } | undefined)?.user?.id ??
-				"anonymous",
-		},
-		target: {
-			type: "auth_endpoint",
-			id: ctx.path,
-			...(typeof email === "string" && { email: maskEmail(email) }),
-		},
+		action: `auth${ctx.path.replaceAll("/", ".").replaceAll("-", "_").replaceAll(":", "")}`,
+		actor: userId
+			? { type: "user", id: userId }
+			: { type: "user", id: "unauthenticated" },
+		...(typeof email === "string" && {
+			target: { type: "account", id: maskEmail(email) },
+		}),
 		outcome: failure ? "failure" : "success",
 		...(failure && {
 			reason:
@@ -790,6 +744,11 @@ export const baseAuthOptions = {
 			},
 			beforeDelete: async (userToDelete) => {
 				await deleteSoleMemberOrganizations(userToDelete);
+				audit({
+					action: "auth.account_deleted",
+					actor: { type: "user", id: userToDelete.id },
+					target: { type: "user", id: userToDelete.id },
+				});
 				await notifySlack(
 					"Account deleted",
 					"A user deleted their account.",
