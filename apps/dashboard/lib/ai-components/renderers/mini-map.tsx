@@ -1,7 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import { type GlobeCountry, GlobeMap } from "@/components/analytics/globe-map";
+import {
+	type CountryRow,
+	GlobeMap,
+	toGlobeCountries,
+} from "@/components/analytics/globe-map";
 import { ChartErrorBoundary } from "@/components/chart-error-boundary";
 import { CountryFlag } from "@/components/icon";
 import { formatNumber } from "@/lib/formatters";
@@ -12,28 +16,14 @@ import { Card } from "@databuddy/ui";
 
 const TOP_COUNTRIES = 5;
 
-interface CountryItem {
-	country_code?: string;
-	name: string;
-	visitors: number;
-}
-
 export interface MiniMapProps extends BaseComponentProps {
-	countries: CountryItem[];
+	countries: CountryRow[];
 	title?: string;
 }
 
 export function MiniMapRenderer({ title, countries, className }: MiniMapProps) {
-	const globeCountries = useMemo<GlobeCountry[]>(
-		() =>
-			countries
-				.filter((item) => item.name.trim() !== "")
-				.map((item) => ({
-					code: (item.country_code || item.name).toUpperCase(),
-					name: item.name,
-					value: item.visitors,
-				}))
-				.sort((a, b) => b.value - a.value),
+	const globeCountries = useMemo(
+		() => toGlobeCountries(countries),
 		[countries]
 	);
 	const totalVisitors = globeCountries.reduce((sum, c) => sum + c.value, 0);

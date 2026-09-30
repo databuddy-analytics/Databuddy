@@ -1,6 +1,10 @@
 "use client";
 
-import { type GlobeCountry, GlobeMap } from "@/components/analytics/globe-map";
+import {
+	type CountryRow,
+	GlobeMap,
+	toGlobeCountries,
+} from "@/components/analytics/globe-map";
 import { ChartErrorBoundary } from "@/components/chart-error-boundary";
 import { CountryFlag } from "@/components/icon";
 import { useDateFilters } from "@/hooks/use-date-filters";
@@ -16,21 +20,14 @@ import { Suspense, useMemo, useState } from "react";
 
 const MAP_VIEWS = ["realtime", "historical"] as const;
 
-interface GeoRow {
-	country_code?: string;
-	country_name?: string;
-	name: string;
-	visitors: number;
-}
-
 interface RealtimeData extends Record<string, unknown[] | undefined> {
 	active_stats?: { active_users: number }[];
-	realtime_countries?: GeoRow[];
+	realtime_countries?: CountryRow[];
 	realtime_velocity?: { events: number; pageviews: number }[];
 }
 
 interface HistoricalData extends Record<string, unknown[] | undefined> {
-	country?: GeoRow[];
+	country?: CountryRow[];
 	summary_metrics?: { unique_visitors: number }[];
 }
 
@@ -38,14 +35,6 @@ const REALTIME_QUERY = {
 	id: "realtime-all",
 	parameters: ["realtime_countries", "active_stats", "realtime_velocity"],
 };
-
-function toCountries(rows: GeoRow[] = []): GlobeCountry[] {
-	return rows.map((row) => ({
-		code: (row.country_code || row.name).toUpperCase(),
-		name: row.country_name || row.name,
-		value: row.visitors,
-	}));
-}
 
 function Stat({ label, value }: { label: string; value: number }) {
 	return (
@@ -108,8 +97,10 @@ function WebsiteMapPage() {
 
 	const countries = useMemo(
 		() =>
-			toCountries(
-				isRealtime ? realtime.data.realtime_countries : historical.data.country
+			toGlobeCountries(
+				(isRealtime
+					? realtime.data.realtime_countries
+					: historical.data.country) ?? []
 			),
 		[isRealtime, realtime.data, historical.data]
 	);

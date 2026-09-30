@@ -3,22 +3,18 @@
 import { useMemo, useState } from "react";
 import { ChartErrorBoundary } from "@/components/chart-error-boundary";
 import { CountryFlag } from "@/components/icon";
-import { type GlobeCountry, GlobeMap } from "@/components/analytics/globe-map";
+import {
+	type CountryRow,
+	GlobeMap,
+	toGlobeCountries,
+} from "@/components/analytics/globe-map";
 import { formatNumber } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { GlobeIcon } from "@databuddy/ui/icons";
 import { Card, Skeleton } from "@databuddy/ui";
 
-interface CountryDataItem {
-	country_code?: string;
-	country_name?: string;
-	name: string;
-	pageviews: number;
-	visitors: number;
-}
-
 interface GeoMapSectionProps {
-	countries: CountryDataItem[];
+	countries: CountryRow[];
 	isLoading: boolean;
 }
 
@@ -39,20 +35,12 @@ export function GeoMapSection({ countries, isLoading }: GeoMapSectionProps) {
 	return <VisitorLocations countries={countries} />;
 }
 
-function VisitorLocations({ countries }: { countries: CountryDataItem[] }) {
+function VisitorLocations({ countries }: { countries: CountryRow[] }) {
 	const [focused, setFocused] = useState<string | null>(null);
 	const [hovered, setHovered] = useState<string | null>(null);
 
-	const globeCountries = useMemo<GlobeCountry[]>(
-		() =>
-			countries
-				.filter((item) => item.name.trim() !== "")
-				.map((item) => ({
-					code: (item.country_code || item.name).toUpperCase(),
-					name: item.country_name || item.name,
-					value: item.visitors,
-				}))
-				.sort((a, b) => b.value - a.value),
+	const globeCountries = useMemo(
+		() => toGlobeCountries(countries),
 		[countries]
 	);
 
