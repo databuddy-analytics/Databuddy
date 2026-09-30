@@ -1,7 +1,7 @@
 "use client";
 
 import { CountryFlag } from "@/components/icon";
-import { useCountries } from "@/lib/geo";
+import { featureCountryCode, useCountries } from "@/lib/geo";
 import type { LocationData } from "@/types/website";
 import { GlobeIcon } from "@databuddy/ui/icons";
 import { scalePow } from "d3-scale";
@@ -25,10 +25,6 @@ const WORLD_BOUNDS: [[number, number], [number, number]] = [
 	[-56, -170],
 	[80, 190],
 ];
-
-function toApiCode(geoJsonCode: string): string {
-	return geoJsonCode.toUpperCase() === "CN-TW" ? "TW" : geoJsonCode;
-}
 
 export function MapComponent({
 	height,
@@ -119,9 +115,9 @@ export function MapComponent({
 
 	const handleStyle = useCallback(
 		(feature?: Feature) => {
-			const geoJsonCode = feature?.properties?.ISO_A2 ?? "";
-			const visitors = visitorsByCode.get(toApiCode(geoJsonCode)) ?? 0;
-			const isHighlighted = visitors > 0 && hovered?.code === geoJsonCode;
+			const code = featureCountryCode(feature?.properties);
+			const visitors = visitorsByCode.get(code) ?? 0;
+			const isHighlighted = visitors > 0 && hovered?.code === code;
 
 			return {
 				color: `${isHighlighted ? themeColors.borderHover : themeColors.border} / 1)`,
@@ -139,7 +135,7 @@ export function MapComponent({
 		layer.on({
 			mouseover: () =>
 				setHovered({
-					code: feature.properties?.ISO_A2 ?? "",
+					code: featureCountryCode(feature.properties),
 					name: feature.properties?.ADMIN ?? "",
 				}),
 			mouseout: () => setHovered(null),
@@ -150,7 +146,7 @@ export function MapComponent({
 		});
 	};
 
-	const hoveredCode = hovered ? toApiCode(hovered.code) : null;
+	const hoveredCode = hovered?.code || null;
 	const hoveredVisitors = hoveredCode
 		? (visitorsByCode.get(hoveredCode) ?? 0)
 		: 0;
