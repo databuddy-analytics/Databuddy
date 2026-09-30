@@ -50,6 +50,34 @@ const ALPHA_LEVELS = 20;
 const HOVER_RADIUS_PX = 10;
 const TAP_SLOP_PX = 4;
 const TOOLTIP_CLEARANCE_PX = 56;
+const SMALL_COUNTRIES: Record<
+	string,
+	[name: string, lon: number, lat: number]
+> = {
+	AD: ["Andorra", 1.52, 42.51],
+	BB: ["Barbados", -59.54, 13.19],
+	BH: ["Bahrain", 50.56, 26.07],
+	CV: ["Cape Verde", -23.62, 15.12],
+	GP: ["Guadeloupe", -61.55, 16.25],
+	GU: ["Guam", 144.79, 13.44],
+	HK: ["Hong Kong", 114.17, 22.32],
+	KM: ["Comoros", 43.87, -11.88],
+	LI: ["Liechtenstein", 9.55, 47.17],
+	MC: ["Monaco", 7.42, 43.74],
+	MO: ["Macau", 113.54, 22.2],
+	MQ: ["Martinique", -61.02, 14.64],
+	MT: ["Malta", 14.44, 35.9],
+	MU: ["Mauritius", 57.55, -20.35],
+	MV: ["Maldives", 73.51, 4.18],
+	PF: ["French Polynesia", -149.41, -17.68],
+	RE: ["Réunion", 55.54, -21.12],
+	SC: ["Seychelles", 55.49, -4.68],
+	SG: ["Singapore", 103.82, 1.35],
+	SM: ["San Marino", 12.46, 43.94],
+	ST: ["São Tomé and Príncipe", 6.61, 0.19],
+	TO: ["Tonga", -175.2, -21.18],
+	WS: ["Samoa", -172.1, -13.76],
+};
 
 function toUnit(lon: number, lat: number): Point {
 	return {
@@ -152,6 +180,13 @@ function buildGlobe(geo: Country) {
 		};
 	});
 
+	for (const [code, [name, lon, lat]] of Object.entries(SMALL_COUNTRIES)) {
+		if (!countries.some((c) => c.code === code)) {
+			dots.push(dotAt(countries.length, lon, lat));
+			countries.push({ center: { lat, lon }, code, name });
+		}
+	}
+
 	return { countries, dots };
 }
 
@@ -176,7 +211,7 @@ export function GlobeMap({
 		dirty: true,
 		drag: null as null | (LatLon & { x: number; y: number }),
 		hasTooltip: false,
-		highlight: -1,
+		highlight: null as string | null,
 		inside: false,
 		intensity: [] as number[],
 		target: null as LatLon | null,
@@ -210,16 +245,14 @@ export function GlobeMap({
 		}
 		const max = Math.max(0, ...countries.map((c) => c.value));
 		const scene = sceneRef.current;
-		scene.highlight = highlightCode
-			? (indexByCode.get(highlightCode) ?? -1)
-			: -1;
+		scene.highlight = highlightCode;
 		scene.intensity = globe.countries.map((c) => {
 			const value = valueByCode.get(c.code)?.value ?? 0;
 			return value > 0 ? Math.sqrt(value / max) : -1;
 		});
 		scene.dirty = true;
 		wakeRef.current();
-	}, [globe, countries, valueByCode, indexByCode, highlightCode]);
+	}, [globe, countries, valueByCode, highlightCode]);
 
 	useEffect(() => {
 		const scene = sceneRef.current;
@@ -296,8 +329,9 @@ export function GlobeMap({
 
 				const t = intensity[dot.country] ?? -1;
 				let alpha = t < 0 ? EMPTY_ALPHA : 0.35 + 0.65 * t;
-				if (highlight !== -1) {
-					alpha = dot.country === highlight ? 1 : alpha * 0.45;
+				if (highlight) {
+					alpha =
+						globe.countries[dot.country].code === highlight ? 1 : alpha * 0.45;
 				}
 				alpha *= Math.min(1, depth / 0.35);
 				const r =
