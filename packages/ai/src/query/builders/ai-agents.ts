@@ -41,11 +41,14 @@ function firstRowFrom(sources: string): string {
 	)`;
 }
 
+const FIRST_VERCEL_ROW = firstRowFrom("('vercel')");
+const FIRST_MIDDLEWARE_ROW = firstRowFrom("('middleware')");
+
 const AGENT_REQUEST = `client_id = {websiteId:String}
 	AND agent_id != ''
 	AND multiIf(
-		source = 'vercel', 1,
-		source = 'middleware', timestamp < ${firstRowFrom("('vercel')")},
+		source = 'vercel', ${FIRST_MIDDLEWARE_ROW} <= ${FIRST_VERCEL_ROW} OR timestamp < ${FIRST_MIDDLEWARE_ROW},
+		source = 'middleware', ${FIRST_VERCEL_ROW} <= ${FIRST_MIDDLEWARE_ROW} OR timestamp < ${FIRST_VERCEL_ROW},
 		timestamp < ${firstRowFrom(SERVER_SIDE_SOURCES)}
 	)`;
 

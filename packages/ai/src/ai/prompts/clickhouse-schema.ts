@@ -229,7 +229,7 @@ export const ANALYTICS_TABLES: TableDef[] = [
 		description:
 			"One row per request from an AI crawler or agent (GPTBot, ClaudeBot, ChatGPT-User, Claude Code...), recorded server-side by @databuddy/sdk/agents (source = 'middleware') or a Vercel log drain (source = 'vercel'), or by the browser tracker (source = 'tracker'). These are bot reads, never visitors or pageviews. Prefer get_data ai_* builders (ai_crawlers, ai_agent_pages, ai_content_formats, ai_products): they name agents and products and skip duplicate rows.",
 		additionalInfo:
-			"Count AI requests with agent_id != ''; '' marks forwarded hits from bots that are not AI agents (search, SEO, monitoring). Server-side sources repeat requests the tracker also saw: count vercel rows always, middleware rows only before the site's first vercel row, and tracker rows only before its first middleware or vercel row. Name agents by agent_id, not bot_name.",
+			"Count AI requests with agent_id != ''; '' marks forwarded hits from bots that are not AI agents (search, SEO, monitoring). Server-side sources repeat requests the tracker also saw: when a site has both middleware and vercel rows, the source whose first row is newer counts from then on and the other only before it, and tracker rows count only before the first middleware or vercel row. Name agents by agent_id, not bot_name.",
 		keyColumns: [
 			"client_id (String)",
 			"timestamp (DateTime64)",
