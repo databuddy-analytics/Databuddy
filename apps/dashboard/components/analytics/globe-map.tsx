@@ -327,7 +327,7 @@ export function GlobeMap({
 				dot.sx = cx + radius * x;
 				dot.sy = cy - radius * y;
 
-				const t = intensity[dot.country] ?? -1;
+				const t = intensity[dot.country];
 				let alpha = t < 0 ? EMPTY_ALPHA : 0.35 + 0.65 * t;
 				if (highlight) {
 					alpha =
@@ -486,6 +486,7 @@ export function GlobeMap({
 				className="absolute inset-0 size-full cursor-grab touch-pan-y [--globe-data:var(--info)] [--globe-land:var(--info)] active:cursor-grabbing dark:[--globe-data:var(--chart-4)] dark:[--globe-land:var(--muted-foreground)]"
 				onPointerCancel={() => {
 					sceneRef.current.drag = null;
+					wakeRef.current();
 				}}
 				onPointerDown={(event) => {
 					if (event.button !== 0) {
@@ -531,6 +532,7 @@ export function GlobeMap({
 				onPointerUp={(event) => {
 					const { drag } = sceneRef.current;
 					sceneRef.current.drag = null;
+					wakeRef.current();
 					const { x, y } = pointerOffset(event);
 					if (drag && Math.hypot(x - drag.x, y - drag.y) < TAP_SLOP_PX) {
 						hoverAt(event);
