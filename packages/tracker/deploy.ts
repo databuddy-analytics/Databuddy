@@ -21,11 +21,13 @@ const options = new Command()
 const STORAGE_ZONE_NAME = process.env.BUNNY_STORAGE_ZONE_NAME;
 const ACCESS_KEY = process.env.BUNNY_STORAGE_ACCESS_KEY;
 const REGION = process.env.BUNNY_STORAGE_REGION;
+const API_KEY = process.env.BUNNY_API_KEY;
+const PULL_ZONE_ID = process.env.BUNNY_PULL_ZONE_ID;
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 
-if (!(STORAGE_ZONE_NAME && ACCESS_KEY)) {
+if (!(STORAGE_ZONE_NAME && ACCESS_KEY && API_KEY && PULL_ZONE_ID)) {
 	console.error(
-		"Missing BUNNY_STORAGE_ZONE_NAME or BUNNY_STORAGE_ACCESS_KEY. Deploys run from the tracker-cdn GitHub environment."
+		"Missing BUNNY_STORAGE_ZONE_NAME, BUNNY_STORAGE_ACCESS_KEY, BUNNY_API_KEY or BUNNY_PULL_ZONE_ID. Deploys run from the tracker-cdn GitHub environment."
 	);
 	process.exit(1);
 }
@@ -72,6 +74,39 @@ async function upload(filename: string, content: string) {
 		);
 	}
 	console.log(`uploaded ${filename}`);
+}
+
+async function bunnyApi(path: string, method = "GET"): Promise<Response> {
+	const response = await fetch(`https://api.bunny.net${path}`, {
+		method,
+		headers: { AccessKey: API_KEY as string },
+	});
+	if (!response.ok) {
+		throw new Error(
+			`Bunny ${method} ${path}: HTTP ${response.status} ${await response.text()}`
+		);
+	}
+	return response;
+}
+
+async function purge(filenames: string[]) {
+	const zone = (await (await bunnyApi(`/pullzone/${PULL_ZONE_ID}`)).json()) as {
+		Hostnames: { Value: string }[];
+	};
+	const hosts = zone.Hostnames.map((h) => h.Value);
+	if (options.dryRun) {
+		console.log(
+			`[dry run] would purge ${filenames.join(", ")} on ${hosts.join(", ")}`
+		);
+		return;
+	}
+	for (const host of hosts) {
+		for (const filename of filenames) {
+			const url = encodeURIComponent(`https://${host}/${filename}`);
+			await bunnyApi(`/purge?url=${url}&async=false`, "POST");
+		}
+	}
+	console.log(`purged ${filenames.join(", ")} on ${hosts.join(", ")}`);
 }
 
 async function findChangedFiles(): Promise<ChangedFile[]> {
@@ -166,25 +201,28 @@ async function deploy() {
 		await upload(f.filename, f.content);
 	}
 
-	if (options.dryRun || released.length === 0) {
-		return;
+	if (!options.dryRun && released.length > 0) {
+		const rows = await Promise.all(
+			released.map(async (f) => ({
+				filename: f.filename,
+				sriHash: await generateSriHash(f.content),
+				sizeBytes: Buffer.byteLength(f.content, "utf-8"),
+			}))
+		);
+		await recordVersions(version, rows);
+		for (const row of rows) {
+			console.log(`recorded ${row.filename} v${version} ${row.sriHash}`);
+		}
 	}
 
-	const rows = await Promise.all(
-		released.map(async (f) => ({
-			filename: f.filename,
-			sriHash: await generateSriHash(f.content),
-			sizeBytes: Buffer.byteLength(f.content, "utf-8"),
-		}))
-	);
-	await recordVersions(version, rows);
-	for (const row of rows) {
-		console.log(`recorded ${row.filename} v${version} ${row.sriHash}`);
+	await purge(changed.map((f) => f.filename));
+
+	if (released.length > 0) {
+		await announce(
+			version,
+			changed.map((f) => f.filename)
+		);
 	}
-	await announce(
-		version,
-		changed.map((f) => f.filename)
-	);
 }
 
 try {
