@@ -6,6 +6,7 @@ import {
 	KeyIcon,
 	LinkBreakIcon,
 	LinkIcon,
+	PlugIcon,
 	ShieldCheckIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
@@ -39,6 +40,13 @@ interface Account {
 	scopes: string[];
 	updatedAt: Date;
 	userId: string;
+}
+
+interface ConnectedApp {
+	clientId: string;
+	createdAt: string;
+	id: string;
+	name: string;
 }
 
 type SocialProvider = "google" | "github";
@@ -82,6 +90,14 @@ function formatAccountScopes(scopes: string[]): string {
 			})
 		),
 	].join(", ");
+}
+
+function urlHost(value: string): string | null {
+	try {
+		return new URL(value).host;
+	} catch {
+		return null;
+	}
 }
 
 function getInitials(name: string): string {
@@ -408,6 +424,48 @@ export default function AccountSettingsPage() {
 				throw new Error(result.error.message);
 			}
 			return (result.data ?? []) as Account[];
+		},
+	});
+
+	const { data: connectedApps = [], isLoading: isConnectedAppsLoading } =
+		useQuery({
+			queryKey: ["oauth-connected-apps"],
+			queryFn: async () => {
+				const result = await authClient.$fetch<Omit<ConnectedApp, "name">[]>(
+					"/oauth2/get-consents"
+				);
+				if (result.error) {
+					throw new Error(result.error.message);
+				}
+				return Promise.all(
+					(result.data ?? []).map(async (consent) => {
+						const client = await authClient.$fetch<{ name?: string | null }>(
+							`/oauth2/public-client?client_id=${encodeURIComponent(consent.clientId)}`
+						);
+						return {
+							...consent,
+							name:
+								client.data?.name ??
+								urlHost(consent.clientId) ??
+								consent.clientId,
+						};
+					})
+				);
+			},
+		});
+
+	const disconnectApp = useMutation({
+		mutationFn: async (consentId: string) => {
+			const result = await authClient.$fetch("/oauth2/delete-consent", {
+				method: "POST",
+				body: { id: consentId },
+			});
+			if (result.error) {
+				throw new Error(result.error.message);
+			}
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["oauth-connected-apps"] });
 		},
 	});
 
@@ -748,6 +806,69 @@ export default function AccountSettingsPage() {
 											</div>
 										</>
 									)}
+								</div>
+							)}
+						</Card.Content>
+					</Card>
+
+					<Card>
+						<Card.Header>
+							<Card.Title>Connected apps</Card.Title>
+							<Card.Description>
+								Apps you allowed to use Databuddy with your account, like
+								Claude. Disconnecting one revokes its access.
+							</Card.Description>
+						</Card.Header>
+						<Card.Content>
+							{isConnectedAppsLoading && (
+								<div className="space-y-3">
+									<Skeleton className="h-5 w-full" />
+									<Skeleton className="h-5 w-full" />
+								</div>
+							)}
+							{!isConnectedAppsLoading && connectedApps.length === 0 && (
+								<Text tone="muted" variant="caption">
+									No apps connected yet.
+								</Text>
+							)}
+							{connectedApps.length > 0 && (
+								<div className="space-y-3">
+									{connectedApps.map((app, index) => {
+										const host = urlHost(app.clientId);
+										const connectedOn = `Connected ${dayjs(app.createdAt).format("MMM D, YYYY")}`;
+										return (
+											<div key={app.id}>
+												{index > 0 && <Divider className="mb-3" />}
+												<div className="flex items-start justify-between gap-3">
+													<div className="flex min-w-0 items-start gap-3">
+														<PlugIcon className="size-4 text-muted-foreground" />
+														<div className="min-w-0">
+															<Text variant="label">{app.name}</Text>
+															<Text tone="muted" variant="caption">
+																{host
+																	? `${host} · ${connectedOn}`
+																	: connectedOn}
+															</Text>
+														</div>
+													</div>
+													<Button
+														aria-label={`Disconnect ${app.name}`}
+														disabled={disconnectApp.isPending}
+														loading={
+															disconnectApp.isPending &&
+															disconnectApp.variables === app.id
+														}
+														onClick={() => disconnectApp.mutate(app.id)}
+														size="sm"
+														variant="ghost"
+													>
+														<LinkBreakIcon className="size-3.5" />
+														Disconnect
+													</Button>
+												</div>
+											</div>
+										);
+									})}
 								</div>
 							)}
 						</Card.Content>
