@@ -13,6 +13,12 @@ import type { CustomSqlContext, SimpleQueryConfig } from "../types";
 const AGENT_PRODUCT = `if(startsWith(agent_id, '${UNIDENTIFIED_AGENT_PREFIX}'), '${UNIDENTIFIED_AGENTS_PRODUCT}', transform(agent_id, {agentIds:Array(String)}, {agentProducts:Array(String)}, agent_id))`;
 const AGENT_OPERATOR = `if(startsWith(agent_id, '${UNIDENTIFIED_AGENT_PREFIX}'), '', transform(agent_id, {agentIds:Array(String)}, {agentOperators:Array(String)}, ''))`;
 const AGENT_NAME = `multiIf(agent_id = '${UNIDENTIFIED_AGENT_PREFIX}mozilla', 'Unnamed browser client', startsWith(agent_id, '${UNIDENTIFIED_AGENT_PREFIX}'), substring(agent_id, ${UNIDENTIFIED_AGENT_PREFIX.length + 1}), transform(agent_id, {agentIds:Array(String)}, {agentNames:Array(String)}, agent_id))`;
+const CONTENT_FORMAT = "if(format = '', 'html', format)";
+
+const PAGE =
+	"decodeURLComponent(if(trimRight(path(path), '/') = '', '/', trimRight(path(path), '/')))";
+const IS_PAGE = `path != '' AND NOT match(${PAGE}, {nonPagePath:String})`;
+
 export function aiVisitProduct(referrerDomain: string): string {
 	return `if(has({aiApps:Array(String)}, browser_name), browser_name, transform(${referrerDomain}, {aiDomains:Array(String)}, {aiNames:Array(String)}, transform(utm_source, {aiDomains:Array(String)}, {aiNames:Array(String)}, '')))`;
 }
@@ -24,35 +30,27 @@ export const AI_VISIT_PARAMS = {
 };
 
 const VISIT_PRODUCT = aiVisitProduct("domainWithoutWWW(referrer)");
-const CONTENT_FORMAT = "if(format = '', 'html', format)";
-const PURPOSE_COUNTS = `countIf(agent_purpose = 'training') AS training,
-	countIf(agent_purpose = 'search_index') AS search_index,
-	countIf(agent_purpose IN ('user_fetch', 'agent')) AS on_demand`;
-
-const PAGE =
-	"decodeURLComponent(if(trimRight(path(path), '/') = '', '/', trimRight(path(path), '/')))";
-const PAGE_PATH = `path != '' AND NOT match(${PAGE}, {nonPagePath:String})`;
 
 const SERVER_SIDE_SOURCES = "('middleware', 'vercel')";
 
-function firstRowFrom(sources: string): string {
+function firstRequestFrom(source: string): string {
 	return `(
 		SELECT ifNull(minOrNull(timestamp), toDateTime64('2100-01-01', 3))
 		FROM ${Analytics.ai_traffic_spans}
-		WHERE client_id = {websiteId:String} AND source IN ${sources}
+		WHERE client_id = {websiteId:String} AND source = '${source}'
 	)`;
 }
 
-const FIRST_VERCEL_ROW = firstRowFrom("('vercel')");
-const FIRST_MIDDLEWARE_ROW = firstRowFrom("('middleware')");
-const FIRST_SERVER_ROW = firstRowFrom(SERVER_SIDE_SOURCES);
+const VERCEL_START = firstRequestFrom("vercel");
+const MIDDLEWARE_START = firstRequestFrom("middleware");
+const SERVER_SIDE_START = `least(${VERCEL_START}, ${MIDDLEWARE_START})`;
 
 const AGENT_REQUEST = `client_id = {websiteId:String}
 	AND agent_id != ''
 	AND multiIf(
-		source = 'vercel', ${FIRST_MIDDLEWARE_ROW} <= ${FIRST_VERCEL_ROW} OR timestamp < ${FIRST_MIDDLEWARE_ROW},
-		source = 'middleware', ${FIRST_VERCEL_ROW} <= ${FIRST_MIDDLEWARE_ROW} OR timestamp < ${FIRST_VERCEL_ROW},
-		timestamp < ${FIRST_SERVER_ROW}
+		source = 'vercel', ${MIDDLEWARE_START} <= ${VERCEL_START} OR timestamp < ${MIDDLEWARE_START},
+		source = 'middleware', ${VERCEL_START} <= ${MIDDLEWARE_START} OR timestamp < ${VERCEL_START},
+		timestamp < ${SERVER_SIDE_START}
 	)`;
 
 const AGENT_REQUEST_IN_RANGE = `${AGENT_REQUEST}
@@ -64,9 +62,8 @@ const EVENT_IN_RANGE = `client_id = {websiteId:String}
 	AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))`;
 
 function timeBucket(ctx: CustomSqlContext, column: string): string {
-	return ctx.granularity === "hour"
-		? `toStartOfHour(toTimeZone(${column}, {timezone:String}))`
-		: `toDate(toTimeZone(${column}, {timezone:String}))`;
+	const bucket = ctx.granularity === "hour" ? "toStartOfHour" : "toDate";
+	return `${bucket}(toTimeZone(${column}, {timezone:String}))`;
 }
 
 function queryParams(ctx: CustomSqlContext) {
@@ -140,8 +137,10 @@ export const AiAgentsBuilders = {
 					SELECT
 						${AGENT_PRODUCT} AS product,
 						count() AS requests,
-						uniqIf(${PAGE}, ${PAGE_PATH}) AS pages,
-						${PURPOSE_COUNTS},
+						uniqIf(${PAGE}, ${IS_PAGE}) AS pages,
+						countIf(agent_purpose = 'training') AS training,
+						countIf(agent_purpose = 'search_index') AS search_index,
+						countIf(agent_purpose IN ('user_fetch', 'agent')) AS on_demand,
 						max(timestamp) AS last_seen
 					FROM ${Analytics.ai_traffic_spans}
 					WHERE ${AGENT_REQUEST_IN_RANGE}
@@ -183,7 +182,7 @@ export const AiAgentsBuilders = {
 				SELECT
 					${CONTENT_FORMAT} AS format,
 					count() AS requests,
-					uniqIf(${PAGE}, ${PAGE_PATH}) AS pages,
+					uniqIf(${PAGE}, ${IS_PAGE}) AS pages,
 					topK(4)(${AGENT_PRODUCT}) AS products
 				FROM ${Analytics.ai_traffic_spans}
 				WHERE ${AGENT_REQUEST_IN_RANGE}
@@ -277,7 +276,7 @@ export const AiAgentsBuilders = {
 						count() AS agent_requests,
 						max(timestamp) AS agent_last_seen
 					FROM ${Analytics.ai_traffic_spans}
-					WHERE ${AGENT_REQUEST_IN_RANGE} AND ${PAGE_PATH} ${appendFilterClause(ctx.filterConditions)}
+					WHERE ${AGENT_REQUEST_IN_RANGE} AND ${IS_PAGE} ${appendFilterClause(ctx.filterConditions)}
 					GROUP BY page, format, agent_id
 				)
 				GROUP BY page, format
@@ -316,53 +315,45 @@ export const AiAgentsBuilders = {
 		customSql: (ctx) => ({
 			sql: `
 				SELECT
-					page,
-					uniqMerge(visitor_state) AS visitors,
-					any(views) AS pageviews,
+					l.page AS page,
+					uniqMerge(l.visitor_state) AS visitors,
+					any(v.views) AS pageviews,
 					arrayReverseSort(
 						sender -> sender.visitors,
 						groupArray(CAST(
-							(product, finalizeAggregation(visitor_state), reads),
+							(l.product, finalizeAggregation(l.visitor_state), r.reads),
 							'Tuple(product String, visitors UInt64, reads UInt64)'
 						))
 					) AS senders
 				FROM (
 					SELECT
-						l.page AS page,
-						l.product AS product,
-						l.visitor_state AS visitor_state,
-						v.views AS views,
-						ifNull(r.reads, 0) AS reads
+						landing.1 AS page,
+						landing.2 AS product,
+						uniqState(landing.3) AS visitor_state
 					FROM (
-						SELECT
-							landing.1 AS page,
-							landing.2 AS product,
-							uniqState(landing.3) AS visitor_state
+						SELECT argMin((page, visit_product, anonymous_id), time) AS landing
 						FROM (
-							SELECT argMin((page, visit_product, anonymous_id), time) AS landing
-							FROM (
-								SELECT session_id, time, anonymous_id, ${PAGE} AS page, ${VISIT_PRODUCT} AS visit_product
-								FROM ${Analytics.events}
-								WHERE ${EVENT_IN_RANGE} AND path != '' AND event_name = 'screen_view'
-							)
-							WHERE visit_product != ''
-							GROUP BY session_id
+							SELECT session_id, time, anonymous_id, ${PAGE} AS page, ${VISIT_PRODUCT} AS visit_product
+							FROM ${Analytics.events}
+							WHERE ${EVENT_IN_RANGE} AND path != '' AND event_name = 'screen_view'
 						)
-						GROUP BY page, product
-					) AS l
-					LEFT JOIN (
-						SELECT ${PAGE} AS page, count() AS views
-						FROM ${Analytics.events}
-						WHERE ${EVENT_IN_RANGE} AND path != '' AND event_name = 'screen_view'
-						GROUP BY page
-					) AS v ON l.page = v.page
-					LEFT JOIN (
-						SELECT ${PAGE} AS page, ${AGENT_PRODUCT} AS product, count() AS reads
-						FROM ${Analytics.ai_traffic_spans}
-						WHERE ${AGENT_REQUEST_IN_RANGE} AND path != ''
-						GROUP BY page, product
-					) AS r ON l.page = r.page AND l.product = r.product
-				)
+						WHERE visit_product != ''
+						GROUP BY session_id
+					)
+					GROUP BY page, product
+				) AS l
+				LEFT JOIN (
+					SELECT ${PAGE} AS page, count() AS views
+					FROM ${Analytics.events}
+					WHERE ${EVENT_IN_RANGE} AND path != '' AND event_name = 'screen_view'
+					GROUP BY page
+				) AS v ON l.page = v.page
+				LEFT JOIN (
+					SELECT ${PAGE} AS page, ${AGENT_PRODUCT} AS product, count() AS reads
+					FROM ${Analytics.ai_traffic_spans}
+					WHERE ${AGENT_REQUEST_IN_RANGE} AND path != ''
+					GROUP BY page, product
+				) AS r ON l.page = r.page AND l.product = r.product
 				GROUP BY page
 				ORDER BY visitors DESC, pageviews DESC
 				LIMIT {limit:UInt32}
@@ -424,9 +415,7 @@ export const AiAgentsBuilders = {
 					GROUP BY session_id
 				)
 				GROUP BY GROUPING SETS ((ai_product), (is_ai), ())
-				HAVING (grouping(ai_product) = 0 AND ai_product != '')
-					OR (grouping(ai_product) = 1 AND grouping(is_ai) = 0 AND is_ai)
-					OR (grouping(ai_product) = 1 AND grouping(is_ai) = 1)
+				HAVING multiIf(grouping(ai_product) = 0, ai_product != '', grouping(is_ai) = 0, is_ai, 1)
 				ORDER BY grouping(ai_product) DESC, grouping(is_ai) DESC, visitors DESC
 				LIMIT {limit:UInt32}
 			`,
@@ -481,14 +470,14 @@ export const AiAgentsBuilders = {
 				SELECT
 					agent_id,
 					${AGENT_NAME} AS name,
-					any(${AGENT_PRODUCT}) AS product,
+					${AGENT_PRODUCT} AS product,
 					${AGENT_OPERATOR} AS operator,
 					any(agent_purpose) AS purpose,
 					count() AS requests,
-					uniqIf(${PAGE}, ${PAGE_PATH}) AS pages,
-					uniqIf(${PAGE}, ${PAGE_PATH} AND ${CONTENT_FORMAT} = 'html') AS html_pages,
-					uniqIf(${PAGE}, ${PAGE_PATH} AND ${CONTENT_FORMAT} = 'markdown') AS markdown_pages,
-					uniqIf(${PAGE}, ${PAGE_PATH} AND ${CONTENT_FORMAT} = 'llms') AS llms_pages,
+					uniqIf(${PAGE}, ${IS_PAGE}) AS pages,
+					uniqIf(${PAGE}, ${IS_PAGE} AND ${CONTENT_FORMAT} = 'html') AS html_pages,
+					uniqIf(${PAGE}, ${IS_PAGE} AND ${CONTENT_FORMAT} = 'markdown') AS markdown_pages,
+					uniqIf(${PAGE}, ${IS_PAGE} AND ${CONTENT_FORMAT} = 'llms') AS llms_pages,
 					countIf(${CONTENT_FORMAT} = 'markdown') AS markdown,
 					countIf(${CONTENT_FORMAT} = 'llms') AS llms,
 					max(timestamp) AS last_seen,
@@ -601,21 +590,22 @@ export const AiAgentsBuilders = {
 					toDateTime({startDate:String}) AS current_start,
 					toDateTime(concat({endDate:String}, ' 23:59:59')) + 1 AS period_end,
 					current_start - toIntervalDay(dateDiff('day', current_start, period_end)) AS previous_start,
-					${FIRST_SERVER_ROW} AS first_server_row,
+					current_start - INTERVAL 90 DAY AS history_start,
+					${SERVER_SIDE_START} AS server_side_start,
 					if(
-						first_server_row < period_end,
-						first_server_row > current_start - INTERVAL 90 DAY,
+						server_side_start < period_end,
+						server_side_start > history_start,
 						(
 							SELECT count() = 0
 							FROM (
 								SELECT 1
 								FROM ${Analytics.events}
-								WHERE client_id = {websiteId:String} AND time <= current_start - INTERVAL 90 DAY
+								WHERE client_id = {websiteId:String} AND time <= history_start
 								LIMIT 1
 								SETTINGS max_threads = 1
 							)
 						)
-					) AS short_history,
+					) AS has_short_history,
 					(
 						SELECT (uniqIf(anonymous_id, time >= current_start), uniqIf(anonymous_id, time < current_start))
 						FROM ${Analytics.events}
@@ -624,15 +614,15 @@ export const AiAgentsBuilders = {
 							AND ${VISIT_PRODUCT} != ''
 					) AS site_visitor_counts,
 					if(
-						short_history,
+						has_short_history,
 						NULL,
 						(
 							SELECT countIf(first_read >= current_start)
 							FROM (
 								SELECT ${PAGE} AS page, min(timestamp) AS first_read
 								FROM ${Analytics.ai_traffic_spans}
-								WHERE ${AGENT_REQUEST} AND ${PAGE_PATH}
-									AND timestamp >= current_start - INTERVAL 90 DAY AND timestamp < period_end
+								WHERE ${AGENT_REQUEST} AND ${IS_PAGE}
+									AND timestamp >= history_start AND timestamp < period_end
 								GROUP BY page
 							)
 						)
@@ -650,7 +640,7 @@ export const AiAgentsBuilders = {
 					sum(visitors_before) AS previous_visitors,
 					sum(requests_now) AS requests,
 					sum(requests_before) AS previous_requests,
-					if(short_history, NULL, sum(pages_new)) AS new_pages,
+					if(has_short_history, NULL, sum(pages_new)) AS new_pages,
 					site_visitor_counts.1 AS site_visitors,
 					site_visitor_counts.2 AS site_previous_visitors,
 					site_new_pages,
@@ -659,43 +649,29 @@ export const AiAgentsBuilders = {
 					SELECT
 						${AGENT_PRODUCT} AS product,
 						toString(topKIf(4)(agent_purpose, timestamp >= current_start AND agent_purpose != '')[1]) AS main_purpose,
-						toUInt64(0) AS visitors_now,
-						toUInt64(0) AS visitors_before,
-						toUInt64(countIf(timestamp >= current_start)) AS requests_now,
-						toUInt64(countIf(timestamp < current_start)) AS requests_before,
-						toUInt64(0) AS pages_new
+						0 AS visitors_now,
+						0 AS visitors_before,
+						countIf(timestamp >= current_start) AS requests_now,
+						countIf(timestamp < current_start) AS requests_before,
+						0 AS pages_new
 					FROM ${Analytics.ai_traffic_spans}
 					WHERE ${AGENT_REQUEST}
 						AND timestamp >= previous_start AND timestamp < period_end
 					GROUP BY product
 					UNION ALL
-					SELECT
-						${VISIT_PRODUCT} AS product,
-						'',
-						toUInt64(uniqIf(anonymous_id, time >= current_start)),
-						toUInt64(uniqIf(anonymous_id, time < current_start)),
-						toUInt64(0),
-						toUInt64(0),
-						toUInt64(0)
+					SELECT ${VISIT_PRODUCT} AS product, '', uniqIf(anonymous_id, time >= current_start), uniqIf(anonymous_id, time < current_start), 0, 0, 0
 					FROM ${Analytics.events}
 					WHERE client_id = {websiteId:String}
 						AND time >= previous_start AND time < period_end
 					GROUP BY product
 					HAVING product != ''
 					UNION ALL
-					SELECT
-						product,
-						'',
-						toUInt64(0),
-						toUInt64(0),
-						toUInt64(0),
-						toUInt64(0),
-						toUInt64(countIf(first_read >= current_start))
+					SELECT product, '', 0, 0, 0, 0, countIf(first_read >= current_start)
 					FROM (
 						SELECT ${AGENT_PRODUCT} AS product, ${PAGE} AS page, min(timestamp) AS first_read
 						FROM ${Analytics.ai_traffic_spans}
-						WHERE ${AGENT_REQUEST} AND ${PAGE_PATH}
-							AND timestamp >= current_start - INTERVAL 90 DAY AND timestamp < period_end
+						WHERE ${AGENT_REQUEST} AND ${IS_PAGE}
+							AND timestamp >= history_start AND timestamp < period_end
 						GROUP BY product, page
 					)
 					GROUP BY product
