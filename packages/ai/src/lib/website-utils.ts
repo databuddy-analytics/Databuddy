@@ -2,16 +2,8 @@ import { db } from "@databuddy/db";
 import { cacheNamespaces, cacheTags, cacheable } from "@databuddy/redis";
 
 const getCachedWebsite = cacheable(
-	async (websiteId: string) => {
-		try {
-			const website = await db.query.websites.findFirst({
-				where: { id: websiteId },
-			});
-			return website || null;
-		} catch {
-			return null;
-		}
-	},
+	async (websiteId: string) =>
+		(await db.query.websites.findFirst({ where: { id: websiteId } })) ?? null,
 	{
 		expireInSec: 300,
 		prefix: cacheNamespaces.websiteCache,

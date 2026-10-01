@@ -22,6 +22,7 @@ import { matchesWebsiteDomain } from "../../lib/website-domain";
 
 const ACCESSIBLE_WEBSITES_TTL_SEC = 30;
 const ACCESSIBLE_WEBSITES_KEY_PREFIX = "mcp:accessible_websites:v2:";
+const UNAUTHORIZED_STATUS_CODES = new Set([401, 403]);
 
 export interface WebsiteSelectorInput {
 	websiteDomain?: string;
@@ -77,6 +78,15 @@ function accessDenied(): WebsiteSelectionError {
 		"unauthorized",
 		"Access denied to this website",
 		WEBSITE_LIST_HINT
+	);
+}
+
+function isAuthRejection(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		"statusCode" in error &&
+		typeof error.statusCode === "number" &&
+		UNAUTHORIZED_STATUS_CODES.has(error.statusCode)
 	);
 }
 
@@ -139,19 +149,25 @@ export async function ensureWebsiteAccess(
 		};
 	}
 
-	const hasPermission =
-		website.organizationId &&
-		(
-			await websitesApi.hasPermission({
-				headers: principal.requestHeaders,
-				body: {
-					organizationId: website.organizationId,
-					permissions: { website: ["read"] },
-				},
-			})
-		).success;
-	if (!hasPermission) {
+	if (!website.organizationId) {
 		return accessDenied();
+	}
+	try {
+		const permission = await websitesApi.hasPermission({
+			headers: principal.requestHeaders,
+			body: {
+				organizationId: website.organizationId,
+				permissions: { website: ["read"] },
+			},
+		});
+		if (!permission.success) {
+			return accessDenied();
+		}
+	} catch (error) {
+		if (isAuthRejection(error)) {
+			return accessDenied();
+		}
+		throw error;
 	}
 	return {
 		domain: website.domain ?? "unknown",
@@ -304,10 +320,12 @@ export async function resolveWebsiteId(
 
 export async function resolveOrganizationId(
 	principal: RequestPrincipal
-): Promise<string | Error> {
+): Promise<string | WebsiteSelectionError> {
 	if (principal.oauthGrant?.websiteIds) {
-		return new Error(
-			"This connection is limited to selected websites. Pass websiteId, websiteName, or websiteDomain from list_websites."
+		return new WebsiteSelectionError(
+			"invalid_input",
+			"This connection is limited to selected websites, so organization-wide data, including organization-wide flags, is not available.",
+			"Pass websiteId, websiteName, or websiteDomain from list_websites to use one of those websites."
 		);
 	}
 	if (principal.oauthGrant) {
@@ -318,12 +336,13 @@ export async function resolveOrganizationId(
 			principal.apiKey &&
 			principal.apiKey.organizationId !== principal.organizationId
 		) {
-			return new Error("API key does not belong to the requested organization");
+			return new WebsiteSelectionError(
+				"unauthorized",
+				"API key does not belong to the requested organization"
+			);
 		}
 		if (principal.apiKey && !hasKeyScope(principal.apiKey, "read:data")) {
-			return new Error(
-				"Scoped API key requires a websiteId for org-level queries"
-			);
+			return scopedApiKeyError();
 		}
 		return principal.organizationId;
 	}
@@ -331,7 +350,7 @@ export async function resolveOrganizationId(
 		return principal.apiKey.organizationId &&
 			hasKeyScope(principal.apiKey, "read:data")
 			? principal.apiKey.organizationId
-			: new Error("Scoped API key requires a websiteId for org-level queries");
+			: scopedApiKeyError();
 	}
 	if (principal.oauthUserId) {
 		const organizationIds = await getReadableOrganizationIds(
@@ -341,16 +360,35 @@ export async function resolveOrganizationId(
 		if (onlyOrganizationId && organizationIds.length === 1) {
 			return onlyOrganizationId;
 		}
-		return new Error(
-			organizationIds.length === 0
-				? "This account is not a member of any organization with website access."
-				: `This account belongs to ${organizationIds.length} organizations. Pass websiteId, websiteName, or websiteDomain from list_websites to choose one.`
-		);
+		return organizationIds.length === 0
+			? new WebsiteSelectionError(
+					"unauthorized",
+					"This account is not a member of any organization with website access."
+				)
+			: new WebsiteSelectionError(
+					"invalid_input",
+					`This account belongs to ${organizationIds.length} organizations, so organization-wide data, including organization-wide flags, cannot be selected over this connection.`,
+					"Pass websiteId, websiteName, or websiteDomain from list_websites to use one website's data."
+				);
 	}
 	if (principal.userId) {
-		return new Error("Session requests require an active organization");
+		return new WebsiteSelectionError(
+			"unauthorized",
+			"Session requests require an active organization"
+		);
 	}
-	return new Error("Could not determine organization");
+	return new WebsiteSelectionError(
+		"unauthorized",
+		"Could not determine organization"
+	);
+}
+
+function scopedApiKeyError(): WebsiteSelectionError {
+	return new WebsiteSelectionError(
+		"invalid_input",
+		"Scoped API key requires a websiteId for org-level queries",
+		WEBSITE_LIST_HINT
+	);
 }
 
 export function buildRpcContext(principal: AuthorizedPrincipal): AppContext {

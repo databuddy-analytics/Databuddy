@@ -125,7 +125,10 @@ describe("OAuth selected website grants", () => {
 	});
 
 	it("requires a website selector for aggregate organization data", async () => {
-		expect(await resolveOrganizationId(principal)).toBeInstanceOf(Error);
+		expect(await resolveOrganizationId(principal)).toMatchObject({
+			code: "invalid_input",
+			message: expect.stringContaining("organization-wide flags"),
+		});
 		expect(
 			await resolveOrganizationId({
 				...principal,
@@ -235,5 +238,27 @@ describe("shared agent's business-context organization boundary", () => {
 				userId: null,
 			})
 		).toBeInstanceOf(Error);
+	});
+	it("denies a session user outside the website's organization instead of failing", async () => {
+		const sessionWithoutOrganization = {
+			apiKey: null,
+			requestHeaders: new Headers(),
+			userId: "user",
+		};
+		permission.mockRejectedValueOnce(
+			Object.assign(new Error("User is not a member of the organization"), {
+				statusCode: 401,
+			})
+		);
+		expect(
+			await ensureWebsiteAccess("foreign-site", sessionWithoutOrganization)
+		).toMatchObject({
+			code: "unauthorized",
+			message: "Access denied to this website",
+		});
+		permission.mockRejectedValueOnce(new Error("connection reset"));
+		await expect(
+			ensureWebsiteAccess("foreign-site", sessionWithoutOrganization)
+		).rejects.toThrow("connection reset");
 	});
 });
