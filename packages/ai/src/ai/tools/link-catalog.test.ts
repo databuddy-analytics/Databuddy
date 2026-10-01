@@ -64,7 +64,9 @@ describe("resolveLinkFolderFromList", () => {
 
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
-			expect(result.message).toContain("couldn't find");
+			expect(result.message).toContain(
+				'No link folder with slug "new-campaigns"'
+			);
 			expect(result.message).toContain("Growth");
 			expect(result.message).toContain("Launches");
 		}

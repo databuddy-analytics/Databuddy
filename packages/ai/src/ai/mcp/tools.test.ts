@@ -520,21 +520,31 @@ describe("investigation tools", () => {
 			idempotentHint: true,
 			readOnlyHint: true,
 		});
+		for (const name of ["create_link", "create_goal", "create_flag"]) {
+			expect(byName.get(name)?.annotations).toMatchObject({
+				destructiveHint: false,
+				idempotentHint: false,
+				readOnlyHint: false,
+			});
+		}
 		for (const name of [
-			"create_link",
 			"update_link",
 			"delete_link",
 			"update_goal",
 			"delete_goal",
 			"update_flag",
-			"add_users_to_flag",
 		]) {
 			expect(byName.get(name)?.annotations).toMatchObject({
 				destructiveHint: true,
-				idempotentHint: false,
+				idempotentHint: true,
 				readOnlyHint: false,
 			});
 		}
+		expect(byName.get("add_users_to_flag")?.annotations).toMatchObject({
+			destructiveHint: true,
+			idempotentHint: false,
+			readOnlyHint: false,
+		});
 	});
 
 	test("rejects unsupported standalone SSE methods", async () => {
