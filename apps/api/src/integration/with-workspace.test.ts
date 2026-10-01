@@ -7,6 +7,7 @@ import {
 	withPublicWorkspace,
 	withWorkspace,
 } from "@databuddy/rpc";
+import { API_SCOPES } from "@databuddy/shared/api-scopes";
 import {
 	reset,
 	cleanup,
@@ -901,14 +902,22 @@ describe("withWorkspace", () => {
 	});
 
 	describe("OAuth path", () => {
-		async function oauthContext(userId: string) {
+		async function oauthContext(userId: string, organizationId: string) {
 			const user = await db().query.user.findFirst({ where: { id: userId } });
 			if (!user) {
 				throw new Error("Expected the signed-up user to exist");
 			}
 			return createRPCContext(
 				{ headers: new Headers() },
-				{ apiKey: null, session: null, oauth: { organizationId: null, user } }
+				{
+					apiKey: null,
+					session: null,
+					oauth: {
+						grant: { organizationId, websiteIds: null },
+						scopes: [...API_SCOPES],
+						user,
+					},
+				}
 			);
 		}
 
@@ -921,8 +930,8 @@ describe("withWorkspace", () => {
 				const member = await signUp();
 				await addToOrganization(viewer.id, org.id, "viewer");
 				await addToOrganization(member.id, org.id, "member");
-				const viewerContext = await oauthContext(viewer.id);
-				const memberContext = await oauthContext(member.id);
+				const viewerContext = await oauthContext(viewer.id, org.id);
+				const memberContext = await oauthContext(member.id, org.id);
 
 				const goal = {
 					name: "Signup",

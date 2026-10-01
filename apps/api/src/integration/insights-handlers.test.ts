@@ -8,6 +8,7 @@ import {
 	goals,
 	insightObservations,
 	insightReplies,
+	user,
 } from "@databuddy/db/schema";
 import {
 	appRouter,
@@ -1814,14 +1815,22 @@ describe("MCP OAuth workspace writes", () => {
 			const organization = await insertOrganization();
 			await addToOrganization(viewer.id, organization.id, "viewer");
 			const website = await insertWebsite({ organizationId: organization.id });
+			const [viewerUser] = await db()
+				.select()
+				.from(user)
+				.where(eq(user.id, viewer.id));
+			if (!viewerUser) {
+				throw new Error("Expected the signed-up viewer");
+			}
 			const createGoal = createMcpTools({
 				apiKey: null,
-				oauthGrant: { organizationId: organization.id, websiteIds: null },
-				oauthScopes: [...API_SCOPES],
-				oauthUserId: viewer.id,
-				organizationId: organization.id,
+				oauth: {
+					grant: { organizationId: organization.id, websiteIds: null },
+					scopes: [...API_SCOPES],
+					user: viewerUser,
+				},
 				requestHeaders: new Headers(),
-				userId: viewer.id,
+				userId: null,
 			}).find((tool) => tool.name === "create_goal");
 
 			const result = await createGoal?.handler({
