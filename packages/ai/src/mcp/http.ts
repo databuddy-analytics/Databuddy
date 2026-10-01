@@ -7,6 +7,11 @@ import { config } from "@databuddy/env/app";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { AnySchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
+import {
+	ListToolsRequestSchema,
+	type Tool,
+} from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
 import { captureError, mergeWideEvent } from "../lib/tracing";
 import type {
 	McpRequestContext,
@@ -121,10 +126,10 @@ export async function handleDatabuddyMcpRequest(
 
 	registerGuideResource(server);
 
-	for (const tool of createMcpTools(options)) {
-		if (!callerCanCallTool(options, tool)) {
-			continue;
-		}
+	const tools = createMcpTools(options).filter((tool) =>
+		callerCanCallTool(options, tool)
+	);
+	for (const tool of tools) {
 		server.registerTool(
 			tool.name,
 			{
@@ -138,6 +143,11 @@ export async function handleDatabuddyMcpRequest(
 			},
 			tool.handler
 		);
+	}
+	if (tools.length) {
+		server.server.setRequestHandler(ListToolsRequestSchema, () => ({
+			tools: tools.map(toListedTool),
+		}));
 	}
 
 	const transport = new WebStandardStreamableHTTPServerTransport({
@@ -211,4 +221,24 @@ function registerGuideResource(server: McpServer): void {
 
 function toMcpSchema(schema: RegisteredMcpTool["inputSchema"]): AnySchema {
 	return schema as unknown as AnySchema;
+}
+
+function toListedTool(tool: RegisteredMcpTool): Tool {
+	return {
+		name: tool.name,
+		title: tool.title,
+		description: tool.description,
+		inputSchema: z.toJSONSchema(tool.inputSchema, {
+			io: "input",
+			target: "draft-7",
+		}) as Tool["inputSchema"],
+		...(tool.outputSchema && {
+			outputSchema: z.toJSONSchema(tool.outputSchema, {
+				io: "output",
+				metadata: z.registry(),
+				target: "draft-7",
+			}) as Tool["outputSchema"],
+		}),
+		annotations: tool.annotations,
+	};
 }

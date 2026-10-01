@@ -73,6 +73,25 @@ describe("MCP transport", () => {
 			jsonrpc: "2.0",
 		});
 	});
+
+	test("lists parameter descriptions but keeps output schemas free of prompt text", async () => {
+		const { tools: listed } = await listTools({
+			apiKey: null,
+			userId: "user-1",
+		});
+		const getData = listed.find((tool) => tool.name === "get_data");
+		const getInvestigation = listed.find(
+			(tool) => tool.name === "get_investigation"
+		);
+
+		expect(getData?.inputSchema.properties?.websiteId?.description).toEqual(
+			expect.any(String)
+		);
+		expect(getInvestigation?.outputSchema).toBeDefined();
+		expect(JSON.stringify(getInvestigation?.outputSchema)).not.toContain(
+			'"description":"'
+		);
+	});
 });
 
 async function listTools(
@@ -100,7 +119,11 @@ async function listTools(
 		result?: {
 			tools?: Array<{
 				annotations?: Record<string, boolean>;
+				inputSchema: {
+					properties?: Record<string, { description?: string }>;
+				};
 				name: string;
+				outputSchema?: Record<string, unknown>;
 			}>;
 		};
 	};
