@@ -50,7 +50,9 @@ async function setupRestore() {
 			description: "Deleted description",
 			key: "restore-audience",
 			name: "Deleted flag",
+			organizationId: org.id,
 			payload: { variant: "deleted" },
+			persistAcrossAuth: true,
 			websiteId: site.id,
 		})
 		.returning();
@@ -145,7 +147,10 @@ describe("flag restoration target-group scope", () => {
 			deletedAt: null,
 			description: null,
 			name: "Restored flag",
+			organizationId: null,
 			payload: null,
+			persistAcrossAuth: false,
+			websiteId: fixture.site.id,
 		});
 		expect(
 			await db()

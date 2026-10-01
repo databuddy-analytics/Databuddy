@@ -665,14 +665,13 @@ export const flagsRouter = {
 							defaultValue: input.defaultValue,
 							payload: input.payload || null,
 							rules: input.rules || [],
-							persistAcrossAuth:
-								input.persistAcrossAuth ??
-								existingFlag.persistAcrossAuth ??
-								false,
+							persistAcrossAuth: input.persistAcrossAuth ?? false,
 							rolloutPercentage: input.rolloutPercentage || 0,
 							rolloutBy: input.rolloutBy || null,
 							variants: input.variants || [],
 							dependencies: input.dependencies || [],
+							websiteId: input.websiteId || null,
+							organizationId: orgId || null,
 							environment: input.environment || null,
 							deletedAt: null,
 							updatedAt: new Date(),
@@ -875,8 +874,8 @@ export const flagsRouter = {
 
 			if (
 				(input.type ?? flag.type) === "multivariant" &&
-				input.variants &&
-				hasUnbalancedVariantWeights(input.variants)
+				(input.variants || input.type) &&
+				hasUnbalancedVariantWeights(input.variants ?? flag.variants ?? [])
 			) {
 				throw rpcError.badRequest(VARIANT_WEIGHTS_ERROR);
 			}
