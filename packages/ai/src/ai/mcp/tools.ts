@@ -224,7 +224,7 @@ const listInsightsTool = defineMcpTool(
 	{
 		name: "list_insights",
 		description:
-			"List published insights for an organization or website: title, summary, evidence, impact, and the next step recorded when each was generated (null when none).",
+			"List published insights for an organization or website: title, summary, evidence, impact, and the recorded next step (null when no step was recorded, when a later finding for the same case superseded it, or when the case resolved).",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			...PageSchema,
@@ -268,7 +268,7 @@ const listInvestigationsTool = defineMcpTool(
 	{
 		name: "list_investigations",
 		description:
-			"List the latest durable investigations for an organization or website. Returns current case status and IDs; use get_investigation for evidence, history, and replies.",
+			"List the latest investigation per subject, with status and IDs. Cases with a dashboard analysis or verification queued or running are left out until it finishes, and an older case may appear instead; get_investigation reads one by ID.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			...PageSchema,

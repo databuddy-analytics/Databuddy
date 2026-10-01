@@ -134,7 +134,7 @@ Add to your MCP settings (typically `.cursor/mcp.json` or workspace settings):
 
 | Tool | Description |
 |------|-------------|
-| `list_investigations` | List durable investigations and their current status. |
+| `list_investigations` | List the latest investigation for each subject and its current status. Cases with a dashboard analysis or verification queued or running are left out until it finishes, and an older case for the same subject may appear instead; read a known case with `get_investigation` by ID. |
 | `get_investigation` | Read an investigation's evidence, outcome, and reply timeline. |
 | `reply_to_investigation` | Ask an included clarification using the saved investigation evidence. |
 | `list_insights` | List published findings, including quiet ones. |
