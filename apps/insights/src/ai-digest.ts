@@ -142,6 +142,7 @@ export async function dispatchAiDigests(now = new Date()) {
 
 async function buildAiDigest(
 	websiteId: string,
+	organizationId: string,
 	domain: string,
 	weekStart: string
 ): Promise<AiDigestEmailProps | null> {
@@ -175,6 +176,7 @@ async function buildAiDigest(
 		.filter((product) => product.reads + product.visitors > 0)
 		.sort((a, b) => b.visitors - a.visitors || b.reads - a.reads);
 	const visitors = numberField(digest[0], "site_visitors");
+	const siteNewPages = digest[0]?.site_new_pages;
 	const reads = products.reduce((sum, product) => sum + product.reads, 0);
 	if (visitors === 0 && reads < MIN_READS_WITHOUT_VISITORS) {
 		return null;
@@ -186,7 +188,6 @@ async function buildAiDigest(
 			page: stringField(row, "page") ?? "",
 			reads: numberField(row, "requests"),
 		}))
-		.filter((row) => row.page && row.page !== "/robots.txt")
 		.sort((a, b) => b.reads - a.reads);
 	const pages = pageRows.slice(0, PAGE_ROWS);
 	const agentReadPage = pageRows.find((row) => row.format !== "html");
@@ -205,7 +206,7 @@ async function buildAiDigest(
 				visitors: numberField(row, "visitors"),
 			};
 		}),
-		newPages: numberField(digest[0], "site_new_pages"),
+		newPages: typeof siteNewPages === "number" ? siteNewPages : null,
 		pages,
 		period: periodLabel(week),
 		previousVisitors: numberField(digest[0], "site_previous_visitors"),
@@ -214,7 +215,9 @@ async function buildAiDigest(
 			logoUrl: logoUrl(product.name),
 		})),
 		reads,
-		settingsUrl: appUrl("/settings/notifications"),
+		settingsUrl: appUrl(
+			`/settings/notifications?organization=${organizationId}`
+		),
 		site: domain,
 		visitors,
 	};
@@ -271,7 +274,12 @@ export async function sendAiDigest({
 		return outcome({ reason: "disabled", status: "skipped" });
 	}
 
-	const digest = await buildAiDigest(websiteId, site.domain, weekStart);
+	const digest = await buildAiDigest(
+		websiteId,
+		site.organizationId,
+		site.domain,
+		weekStart
+	);
 	if (!digest) {
 		return outcome({ reason: "quiet_week", status: "skipped" });
 	}
