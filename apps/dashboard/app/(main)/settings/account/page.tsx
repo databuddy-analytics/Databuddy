@@ -449,13 +449,15 @@ export default function AccountSettingsPage() {
 			}
 			return Promise.all(
 				(result.data ?? []).map(async (consent) => {
-					const client = await authClient.$fetch<{ name?: string | null }>(
+					const client = await authClient.$fetch<{
+						client_name?: string | null;
+					}>(
 						`/oauth2/public-client?client_id=${encodeURIComponent(consent.clientId)}`
 					);
 					return {
 						...consent,
 						name:
-							client.data?.name ??
+							client.data?.client_name ??
 							urlHost(consent.clientId) ??
 							consent.clientId,
 					};

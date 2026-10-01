@@ -1,6 +1,7 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
+import { MCP_API_SCOPES, type McpApiScope } from "@databuddy/shared/mcp-access";
 import {
 	Button,
 	Card,
@@ -19,14 +20,40 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
-import { SCOPE_OPTIONS } from "@/components/organizations/api-key-types";
 import { orpc } from "@/lib/orpc";
 
 interface PublicClient {
-	icon?: string | null;
-	name?: string | null;
-	uri?: string | null;
+	client_name?: string | null;
 }
+
+const LINK_SCOPE_DESCRIPTION =
+	"Applies to every short link in this organization, including when you choose specific websites.";
+const MCP_PERMISSIONS: Record<
+	McpApiScope,
+	{ label: string; description?: string }
+> = {
+	"read:data": {
+		label: "Read data",
+		description:
+			"Analytics, insights, investigations, goals, funnels, annotations, and feature flags.",
+	},
+	"manage:websites": {
+		label: "Manage goals, funnels, and annotations",
+		description: "Also lets the app reply to investigations.",
+	},
+	"manage:flags": {
+		label: "Manage flags",
+		description: "Create and update feature flags.",
+	},
+	"read:links": {
+		label: "Read short links",
+		description: LINK_SCOPE_DESCRIPTION,
+	},
+	"write:links": {
+		label: "Create, edit, and delete short links",
+		description: LINK_SCOPE_DESCRIPTION,
+	},
+};
 
 const IDENTITY_SCOPE_LABELS = new Map([
 	["openid", "Your name and email address"],
@@ -55,8 +82,8 @@ function ConsentPage() {
 	const host = urlHost(searchParams.get("redirect_uri"));
 	const requestedScopes =
 		searchParams.get("scope")?.split(SCOPE_SEPARATOR).filter(Boolean) ?? [];
-	const requestedActions = SCOPE_OPTIONS.filter(({ value }) =>
-		requestedScopes.includes(value)
+	const requestedActions = MCP_API_SCOPES.filter((scope) =>
+		requestedScopes.includes(scope)
 	);
 	const identityScopes = requestedScopes.filter((scope) =>
 		IDENTITY_SCOPE_LABELS.has(scope)
@@ -65,9 +92,7 @@ function ConsentPage() {
 		...new Set(identityScopes.map((scope) => IDENTITY_SCOPE_LABELS.get(scope))),
 	];
 	const [selectedScopes, setSelectedScopes] = useState<string[]>(() =>
-		requestedActions
-			.filter(({ value }) => value.startsWith("read:"))
-			.map(({ value }) => value)
+		requestedActions.filter((scope) => scope.startsWith("read:"))
 	);
 	const [organizationId, setOrganizationId] = useState<string | null>(null);
 	const [websiteIds, setWebsiteIds] = useState<string[] | null>(null);
@@ -75,9 +100,9 @@ function ConsentPage() {
 		"accept" | "deny" | null
 	>(null);
 	const busy = pendingDecision !== null;
-	const approvedActions = requestedActions
-		.filter(({ value }) => selectedScopes.includes(value))
-		.map(({ value }) => value);
+	const approvedActions = requestedActions.filter((scope) =>
+		selectedScopes.includes(scope)
+	);
 
 	const { data: client, isPending: isClientPending } = useQuery({
 		enabled: Boolean(clientId),
@@ -143,14 +168,18 @@ function ConsentPage() {
 						: { accept, oauth_query: oauthQuery },
 				}
 			);
-			if (!result.data?.url) {
-				throw new Error("Authorization did not return a redirect.");
+			if (result.data?.url) {
+				window.location.href = result.data.url;
+				return;
 			}
-			window.location.href = result.data.url;
+			toast.error(
+				result.error?.message ||
+					"Could not complete authorization. Try connecting again."
+			);
 		} catch {
-			setPendingDecision(null);
 			toast.error("Could not complete authorization. Try connecting again.");
 		}
+		setPendingDecision(null);
 	};
 
 	if (!clientId) {
@@ -175,9 +204,9 @@ function ConsentPage() {
 					<Skeleton className="h-8 w-48" />
 				) : (
 					<Text as="h1" className="text-balance font-medium text-2xl">
-						{client?.name ?? clientHost ?? clientId}
-						{client?.name && clientHost ? ` (${clientHost})` : ""} wants to
-						connect
+						{client?.client_name ?? clientHost ?? clientId}
+						{client?.client_name && clientHost ? ` (${clientHost})` : ""} wants
+						to connect
 					</Text>
 				)}
 			</div>
@@ -187,6 +216,13 @@ function ConsentPage() {
 				use. Your organization role still applies. Disconnect it at any time
 				from Connected apps in your account settings.
 			</Text>
+
+			{!(isClientPending || clientHost) && (
+				<Text role="alert" tone="destructive">
+					This app is not verified by a website address. Only continue if you
+					set up this connection yourself.
+				</Text>
+			)}
 
 			{host && (
 				<Text tone="muted">
@@ -303,17 +339,13 @@ function ConsentPage() {
 
 			<div className="space-y-3">
 				<Text variant="label">Permissions</Text>
-				{requestedActions.map(({ value, label }) => (
+				{requestedActions.map((value) => (
 					<Checkbox
 						checked={selectedScopes.includes(value)}
-						description={
-							value.endsWith(":links")
-								? "Applies to every short link in this organization, including when you choose specific websites."
-								: undefined
-						}
+						description={MCP_PERMISSIONS[value].description}
 						disabled={busy}
 						key={value}
-						label={label}
+						label={MCP_PERMISSIONS[value].label}
 						onCheckedChange={(checked) =>
 							setSelectedScopes((current) =>
 								checked

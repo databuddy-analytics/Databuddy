@@ -1,6 +1,17 @@
 import { z } from "zod";
+import type { ApiScope } from "./api-scopes";
 
 export const MCP_GRANT_CLAIM = "https://databuddy.cc/mcp/grant";
+
+export const MCP_API_SCOPES = [
+	"read:data",
+	"manage:websites",
+	"manage:flags",
+	"read:links",
+	"write:links",
+] as const satisfies readonly ApiScope[];
+
+export type McpApiScope = (typeof MCP_API_SCOPES)[number];
 
 export const mcpAccessGrantSchema = z
 	.object({
