@@ -178,7 +178,10 @@ export const SummaryBuilders = {
 			"uniq(anonymous_id) as visitors",
 			"uniq(session_id) as sessions",
 		],
-		where: ["event_name = 'screen_view'", "time >= toStartOfDay(now())"],
+		where: [
+			"event_name = 'screen_view'",
+			"time >= toStartOfDay(now(), {timezone:String})",
+		],
 		timeField: "time",
 		customizable: true,
 	},

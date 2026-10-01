@@ -184,6 +184,35 @@ describe("executeBatch single query retry", () => {
 	});
 });
 
+describe("executeBatch prepare stages", () => {
+	it("binds prepare-stage dates to the same local days as the main query", async () => {
+		mockChQuery.mockResolvedValue([]);
+
+		await executeBatch([
+			{
+				projectId: "test-website",
+				type: "profile_sessions",
+				from: "2026-04-01",
+				to: "2026-04-11",
+				timezone: "America/New_York",
+				filters: [{ field: "anonymous_id", op: "eq", value: "visitor-1" }],
+			},
+		]);
+
+		const prepareCalls = mockChQuery.mock.calls.filter(
+			([, , options]) => options?.label === "profile_sessions:prepare"
+		);
+		expect(prepareCalls.length).toBeGreaterThan(0);
+		for (const [sql, params] of prepareCalls) {
+			expect(sql).toContain(
+				"parseDateTimeBestEffort({startDate:String}, {timezone:String})"
+			);
+			expect(sql).not.toContain("toDateTime({startDate:String})");
+			expect(params?.timezone).toBe("America/New_York");
+		}
+	});
+});
+
 describe("executeBatch union fallback logging", () => {
 	it("logs batch union fallback as a warning when single queries recover", async () => {
 		const mockLogger = {

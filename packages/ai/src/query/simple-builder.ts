@@ -1209,17 +1209,15 @@ export class SimpleQueryBuilder {
 		);
 		const resolved = await Promise.all(
 			stages.map(async (stage) => {
-				const rows = await chQuery<Record<string, unknown>>(
+				const { sql, params } = this.finalizeCompiledQuery(
 					stage.sql,
-					stage.params,
-					{
-						abort_signal: abortSignal,
-						clickhouse_settings: getClickHouseQuerySettings(
-							this.config.noCache
-						),
-						label: `${this.request.type}:prepare`,
-					}
+					stage.params as Record<string, Filter["value"]>
 				);
+				const rows = await chQuery<Record<string, unknown>>(sql, params, {
+					abort_signal: abortSignal,
+					clickhouse_settings: getClickHouseQuerySettings(this.config.noCache),
+					label: `${this.request.type}:prepare`,
+				});
 				return [
 					stage.as,
 					rows.map((row) => String(row[stage.column] ?? "")),

@@ -952,6 +952,61 @@ describe("SimpleQueryBuilder.compile", () => {
 		}
 	});
 
+	it("starts today_metrics at midnight in the request timezone", () => {
+		const config = QueryBuilders.today_metrics;
+		if (!config) {
+			throw new Error("today_metrics builder is missing");
+		}
+
+		const { sql, params } = compileBuilder("today_metrics", config, {
+			timezone: "America/Los_Angeles",
+		});
+		expect(sql).toContain("time >= toStartOfDay(now(), {timezone:String})");
+		expect(params.timezone).toBe("America/Los_Angeles");
+	});
+
+	it.each([
+		[
+			"uptime_time_series",
+			"hourly",
+			"toStartOfHour(toTimeZone(ts, {timezone:String}))",
+		],
+		[
+			"uptime_time_series",
+			"week",
+			"toStartOfWeek(toTimeZone(ts, {timezone:String}))",
+		],
+		[
+			"uptime_response_time_trends",
+			"month",
+			"toStartOfMonth(toTimeZone(timestamp, {timezone:String}))",
+		],
+	] as const)("buckets %s by %s in the request timezone", (type, timeUnit, bucket) => {
+		const config = QueryBuilders[type];
+		if (!config) {
+			throw new Error(`${type} builder is missing`);
+		}
+
+		const { sql, params } = compileBuilder(type, config, {
+			timeUnit,
+			timezone: "America/New_York",
+		});
+		expect(sql).toContain(`${bucket} as date`);
+		expect(params.timezone).toBe("America/New_York");
+	});
+
+	it("measures week uptime against the whole week, not a minute", () => {
+		const config = QueryBuilders.uptime_time_series;
+		if (!config) {
+			throw new Error("uptime_time_series builder is missing");
+		}
+
+		const { sql } = compileBuilder("uptime_time_series", config, {
+			timeUnit: "week",
+		});
+		expect(sql).toContain("least(downtime_seconds, 604800) / 604800");
+	});
+
 	it("includes blank-valued desktop sessions in device breakdowns", () => {
 		const config = QueryBuilders.sessions_by_device;
 		if (!config) {
