@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { expect, test, waitForSDK } from "./test-utils";
 
 test.describe("SDK Functions", () => {
@@ -184,6 +185,84 @@ test.describe("SDK Functions", () => {
 	});
 
 	test.describe("getTrackingIds", () => {
+		test("keeps attribution IDs after tracker clear and respects opt-out", async ({
+			page,
+		}) => {
+			await page.route("**/track?*", (route) =>
+				route.fulfill({
+					status: 200,
+					contentType: "application/json",
+					body: "{}",
+				})
+			);
+			await page.evaluate(() => {
+				Reflect.set(window, "databuddyConfig", {
+					clientId: "website_example",
+					apiUrl: window.location.origin,
+					ignoreBotDetection: true,
+				});
+			});
+			await page.addScriptTag({
+				path: resolve(
+					import.meta.dirname,
+					"../../tracker/dist/databuddy-debug.js"
+				),
+			});
+			const before = await page.evaluate(() => window.__SDK__.getTrackingIds());
+			const after = await page.evaluate(() => {
+				window.__SDK__.clear();
+				return {
+					ids: window.__SDK__.getTrackingIds(),
+					storedAnonymous: localStorage.getItem("did"),
+					storedSession: sessionStorage.getItem("did_session"),
+				};
+			});
+			expect(after.ids.anonId).toMatch(/^anon_/);
+			expect(after.ids.sessionId).toMatch(/^sess_/);
+			expect(after.ids.anonId).not.toBe(before.anonId);
+			expect(after.ids.sessionId).not.toBe(before.sessionId);
+			expect(after.storedAnonymous).toBeNull();
+			expect(after.storedSession).toBeNull();
+			const requestPromise = page.waitForRequest(
+				(request) =>
+					new URL(request.url()).pathname === "/track" &&
+					(request.postData() ?? "").includes("attribution_after_clear")
+			);
+			await page.evaluate(() => {
+				window.__SDK__.track("attribution_after_clear");
+				window.__SDK__.flush();
+			});
+			const events = (await requestPromise).postDataJSON() as Record<
+				string,
+				unknown
+			>[];
+			expect(
+				events.find((event) => event.name === "attribution_after_clear")
+			).toMatchObject({
+				anonymousId: after.ids.anonId,
+				sessionId: after.ids.sessionId,
+			});
+			const optedOut = await page.evaluate(() => {
+				const optOut = Reflect.get(window, "databuddyOptOut") as () => void;
+				optOut();
+				localStorage.setItem("did", "stale-anonymous");
+				sessionStorage.setItem("did_session", "stale-session");
+				return window.__SDK__.getTrackingIds();
+			});
+			expect(optedOut).toEqual({ anonId: null, sessionId: null });
+			await page.reload();
+			await waitForSDK(page);
+			await page.addScriptTag({
+				path: resolve(
+					import.meta.dirname,
+					"../../tracker/dist/databuddy-debug.js"
+				),
+			});
+			expect(
+				await page.evaluate(() => window.__SDK__.getTrackingIds())
+			).toEqual({ anonId: null, sessionId: null });
+		});
+
 		test("returns both IDs", async ({ page }) => {
 			const result = await page.evaluate(() => {
 				localStorage.setItem("did", "anon-x");

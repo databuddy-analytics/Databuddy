@@ -155,7 +155,7 @@ export function trackError(
 	track("error", { message, ...properties });
 }
 
-/** Get anonymous user ID. Priority: URL params → localStorage. Persists across sessions. */
+/** Get anonymous user ID. Priority: URL params → active tracker → localStorage. */
 export function getAnonymousId(urlParams?: URLSearchParams): string | null {
 	if (typeof window === "undefined") {
 		return null;
@@ -165,13 +165,14 @@ export function getAnonymousId(urlParams?: URLSearchParams): string | null {
 		return fromParams;
 	}
 	try {
-		return localStorage.getItem("did") || null;
+		const activeIds = getTracker()?.getTrackingIds?.();
+		return activeIds ? activeIds.anonId : localStorage.getItem("did") || null;
 	} catch {
 		return null;
 	}
 }
 
-/** Get current session ID. Priority: URL params → sessionStorage. Resets after 30 min inactivity. */
+/** Get current session ID. Priority: URL params → active tracker → sessionStorage. */
 export function getSessionId(urlParams?: URLSearchParams): string | null {
 	if (typeof window === "undefined") {
 		return null;
@@ -181,7 +182,10 @@ export function getSessionId(urlParams?: URLSearchParams): string | null {
 		return fromParams;
 	}
 	try {
-		return sessionStorage.getItem("did_session") || null;
+		const activeIds = getTracker()?.getTrackingIds?.();
+		return activeIds
+			? activeIds.sessionId
+			: sessionStorage.getItem("did_session") || null;
 	} catch {
 		return null;
 	}
