@@ -1427,12 +1427,33 @@ async function readFlag(id: string, ctx: McpHandlerContext) {
 	if (organizationId instanceof Error) {
 		throw new McpToolError("invalid_input", organizationId.message);
 	}
-	return callRPCProcedure(
+	const flag = await callRPCProcedure(
 		"flags",
 		"getById",
 		{ id, organizationId },
 		{ ...rpcContext, organizationId }
-	);
+	).catch((error: unknown) => {
+		if (error instanceof ORPCError && error.code === "NOT_FOUND") {
+			throw new McpToolError("not_found", "Flag not found", {
+				hint: ctx.websiteId
+					? "Flag IDs come from list_flags for the same website."
+					: "Website flags need websiteId, websiteName, or websiteDomain. list_flags shows each website's flags.",
+			});
+		}
+		throw error;
+	});
+	const flagWebsiteId =
+		flag && typeof flag === "object" && "websiteId" in flag
+			? flag.websiteId
+			: null;
+	if (ctx.websiteId && flagWebsiteId) {
+		throw new McpToolError(
+			"not_found",
+			"This flag belongs to a different website than the one selected.",
+			{ hint: "Flag IDs come from list_flags for the same website." }
+		);
+	}
+	return flag;
 }
 
 const updateFlagTool = defineMcpTool(
@@ -1478,6 +1499,9 @@ const updateFlagTool = defineMcpTool(
 		if (!confirmed || Object.keys(updates).length === 0) {
 			const current = pickFields(await readFlag(id, ctx), FLAG_FIELDS);
 			return updatePreview("feature flag", current, updates);
+		}
+		if (ctx.websiteId) {
+			await readFlag(id, ctx);
 		}
 		const rpcContext = buildRpcContext(ctx);
 
