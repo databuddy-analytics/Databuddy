@@ -13,7 +13,7 @@ import {
 } from "@databuddy/shared/agent-discovery";
 import { API_KEY_AUTH_CHALLENGE } from "@databuddy/api-keys/resolve";
 import { config } from "@databuddy/env/app";
-import { API_SCOPES } from "@databuddy/shared/api-scopes";
+import { MCP_API_SCOPES } from "@databuddy/shared/mcp-access";
 import { Elysia } from "elysia";
 
 const SITE_URL = "https://www.databuddy.cc";
@@ -46,7 +46,7 @@ function protectedResourceMetadata() {
 		resource: config.urls.mcp,
 		authorization_servers: [config.urls.authorizationServer],
 		bearer_methods_supported: ["header"],
-		scopes_supported: API_SCOPES,
+		scopes_supported: MCP_API_SCOPES,
 		resource_documentation: `${SITE_URL}/docs/api/mcp`,
 	});
 }

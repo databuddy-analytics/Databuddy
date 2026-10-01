@@ -1,5 +1,6 @@
 import z from "zod";
 import { API_SCOPES } from "./api-scopes";
+import { MCP_API_SCOPES } from "./mcp-access";
 
 export { API_SCOPES } from "./api-scopes";
 
@@ -190,7 +191,7 @@ export function createMcpManifest(urls: AgentDiscoveryUrls) {
 			alternative: { type: "api_key", in: "header", name: "x-api-key" },
 			documentation_url: `${resolved.siteUrl}/docs/api/authentication`,
 			auth_md_url: resolved.authMdUrl,
-			scopes: API_SCOPES,
+			scopes: MCP_API_SCOPES,
 		},
 		capabilities: {
 			tools: true,
@@ -246,7 +247,7 @@ export function createMcpServerCard(urls: AgentDiscoveryUrls) {
 			protectedResourceMetadataUrl: `${resolved.apiUrl}/.well-known/oauth-protected-resource`,
 			alternative: { type: "api_key", header: "x-api-key" },
 			documentationUrl: resolved.authMdUrl,
-			scopes: API_SCOPES,
+			scopes: MCP_API_SCOPES,
 		},
 		resources: [
 			{

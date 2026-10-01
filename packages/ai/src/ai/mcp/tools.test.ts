@@ -1,5 +1,6 @@
 import { createInternalPrincipal } from "@databuddy/rpc";
 import type { ApiScope } from "@databuddy/shared/api-scopes";
+import { MCP_API_SCOPES } from "@databuddy/shared/mcp-access";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -293,6 +294,11 @@ describe("MCP tool invariants", () => {
 		const result = await tool.handler({});
 		expect(result).toMatchObject({ isError: true });
 		expect(JSON.stringify(result)).not.toContain(sentinel);
+	});
+
+	test("tools use exactly the scopes OAuth discovery advertises", () => {
+		const used = new Set(tools.flatMap((tool) => tool.metadata.access.scopes));
+		expect([...used].sort()).toEqual([...MCP_API_SCOPES].sort());
 	});
 
 	test("create_link matches the HTTP(S) and deep-link app contract", () => {
