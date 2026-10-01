@@ -1,4 +1,3 @@
-import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { tool, type ToolExecutionOptions, type ToolSet } from "ai";
 import { z } from "zod";
 import { executeBatch } from "../../query";
@@ -20,19 +19,16 @@ import {
 	type DatabuddyAgentSlackContext,
 } from "./slack-context";
 import {
+	type AuthorizedPrincipal,
 	ensureWebsiteAccess,
 	getCachedAccessibleWebsites,
 } from "./tool-context";
 import { agentDataInputSchema } from "./agent-query-schema";
 
-interface McpAgentContext {
-	apiKey: ApiKeyRow | null;
+type McpAgentContext = AuthorizedPrincipal & {
 	currentDateTime?: string;
-	organizationId?: string | null;
-	requestHeaders: Headers;
 	timezone?: string;
-	userId: string | null;
-}
+};
 
 function getToolContext({
 	experimental_context: ctx,
@@ -69,11 +65,7 @@ export function createMcpAgentTools(
 			inputSchema: z.object({}),
 			execute: async (_args, options) => {
 				const ctx = getToolContext(options);
-				const list = await getCachedAccessibleWebsites({
-					apiKey: ctx.apiKey,
-					organizationId: ctx.organizationId,
-					userId: ctx.userId,
-				});
+				const list = await getCachedAccessibleWebsites(ctx);
 				return {
 					websites: list.map((w) => ({
 						id: w.id,

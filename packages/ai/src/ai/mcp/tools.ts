@@ -196,18 +196,7 @@ const listWebsitesTool = defineMcpTool(
 	async (input, ctx) => {
 		const page = paginate(await getCachedAccessibleWebsites(ctx), input);
 
-		return {
-			websites: page.items.map((w) => ({
-				id: w.id,
-				name: w.name,
-				domain: w.domain,
-				isPublic: w.isPublic,
-				organizationId: w.organizationId,
-				organizationName: w.organizationName,
-			})),
-			total: page.total,
-			hasMore: page.hasMore,
-		};
+		return { websites: page.items, total: page.total, hasMore: page.hasMore };
 	}
 );
 
