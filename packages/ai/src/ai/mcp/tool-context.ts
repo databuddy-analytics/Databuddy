@@ -178,18 +178,22 @@ export async function ensureWebsiteAccess(
 
 type AccessibleWebsite = Pick<
 	WebsiteSummary,
-	"domain" | "id" | "isPublic" | "name"
+	"domain" | "id" | "isPublic" | "name" | "organizationId" | "organizationName"
 >;
 
 type WebsiteListPrincipal = "api_key" | "member" | "user";
 
 function toAccessibleWebsites(list: WebsiteSummary[]): AccessibleWebsite[] {
-	return list.map(({ domain, id, isPublic, name }) => ({
-		domain,
-		id,
-		isPublic,
-		name,
-	}));
+	return list.map(
+		({ domain, id, isPublic, name, organizationId, organizationName }) => ({
+			domain,
+			id,
+			isPublic,
+			name,
+			organizationId,
+			organizationName,
+		})
+	);
 }
 
 async function loadWebsiteList(
@@ -221,7 +225,7 @@ async function loadWebsiteList(
 
 const getCachedWebsiteList = cacheable(loadWebsiteList, {
 	expireInSec: ACCESSIBLE_WEBSITES_TTL_SEC,
-	prefix: "mcp:accessible-websites",
+	prefix: "mcp:accessible-website-list",
 	reviveDates: false,
 	staleTime: ACCESSIBLE_WEBSITES_STALE_SEC,
 	staleWhileRevalidate: true,
@@ -276,9 +280,12 @@ function singleMatch(
 		);
 	}
 	if (others.length > 0) {
+		const candidates = matches
+			.map((website) => `${website.id} in ${website.organizationName}`)
+			.join(", ");
 		return new WebsiteSelectionError(
 			"invalid_input",
-			`${matches.length} accessible websites match ${selector}. Pass websiteId from list_websites to choose one.`,
+			`${matches.length} accessible websites match ${selector}: ${candidates}. Pass websiteId to choose one.`,
 			WEBSITE_LIST_HINT
 		);
 	}

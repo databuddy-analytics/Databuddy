@@ -14,6 +14,8 @@ const sites: WebsiteSummary[] = [
 		name: "Reports",
 		createdAt: null,
 		isPublic: false,
+		organizationId: "org-other",
+		organizationName: "Other org",
 	},
 	{
 		id: "www-site",
@@ -21,6 +23,8 @@ const sites: WebsiteSummary[] = [
 		name: "WWW",
 		createdAt: null,
 		isPublic: false,
+		organizationId: "org-other",
+		organizationName: "Other org",
 	},
 	{
 		id: "port-site",
@@ -28,6 +32,8 @@ const sites: WebsiteSummary[] = [
 		name: "Port",
 		createdAt: null,
 		isPublic: false,
+		organizationId: "org-other",
+		organizationName: "Other org",
 	},
 ];
 mock.module("@databuddy/auth", () => ({
@@ -186,6 +192,28 @@ describe("MCP domain selector compatibility", () => {
 		expect(
 			await resolveWebsiteId({ websiteDomain }, sessionPrincipal)
 		).toBeInstanceOf(Error);
+	});
+	it("names each matching website's organization when a selector is ambiguous", async () => {
+		const [first] = sites;
+		if (!first) {
+			throw new Error("Expected a website fixture");
+		}
+		cachedWebsiteList = [
+			first,
+			{
+				...first,
+				id: "acme-site",
+				organizationId: "org-acme",
+				organizationName: "Acme",
+			},
+		];
+		expect(
+			await resolveWebsiteId({ websiteName: "Reports" }, sessionPrincipal)
+		).toMatchObject({
+			code: "invalid_input",
+			message:
+				'2 accessible websites match name "Reports": site in Other org, acme-site in Acme. Pass websiteId to choose one.',
+		});
 	});
 });
 

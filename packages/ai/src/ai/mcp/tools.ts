@@ -147,6 +147,8 @@ const WebsiteSummarySchema = z.object({
 	name: z.string().nullable(),
 	domain: z.string().nullable(),
 	isPublic: z.boolean().nullable(),
+	organizationId: z.string(),
+	organizationName: z.string(),
 });
 
 const FlagRuleSchema = userRuleSchema.extend({
@@ -190,7 +192,7 @@ const listWebsitesTool = defineMcpTool(
 	{
 		name: "list_websites",
 		description:
-			"List the websites this account can access, with IDs, names, and domains. Website-scoped tools accept websiteId, websiteName, or websiteDomain.",
+			"List the websites this account can access, with IDs, names, domains, and organizations. Website-scoped tools accept websiteId, websiteName, or websiteDomain.",
 		inputSchema: z.object({ ...PageSchema }),
 		outputSchema: z.object({
 			websites: z.array(WebsiteSummarySchema),
@@ -209,6 +211,8 @@ const listWebsitesTool = defineMcpTool(
 				name: w.name,
 				domain: w.domain,
 				isPublic: w.isPublic,
+				organizationId: w.organizationId,
+				organizationName: w.organizationName,
 			})),
 			total: page.total,
 			hasMore: page.hasMore,

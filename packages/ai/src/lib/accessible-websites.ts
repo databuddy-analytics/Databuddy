@@ -6,7 +6,7 @@ import {
 } from "@databuddy/api-keys/resolve";
 import { roleHasPermission } from "@databuddy/auth/permissions";
 import { and, db, eq, inArray, isNull } from "@databuddy/db";
-import { member, websites } from "@databuddy/db/schema";
+import { member, organization, websites } from "@databuddy/db/schema";
 
 export interface WebsiteSummary {
 	createdAt: Date | null;
@@ -14,6 +14,25 @@ export interface WebsiteSummary {
 	id: string;
 	isPublic: boolean | null;
 	name: string | null;
+	organizationId: string;
+	organizationName: string;
+}
+
+const websiteSummaryColumns = {
+	id: websites.id,
+	name: websites.name,
+	domain: websites.domain,
+	isPublic: websites.isPublic,
+	createdAt: websites.createdAt,
+	organizationId: organization.id,
+	organizationName: organization.name,
+};
+
+function selectWebsiteSummaries() {
+	return db
+		.select(websiteSummaryColumns)
+		.from(websites)
+		.innerJoin(organization, eq(websites.organizationId, organization.id));
 }
 
 export interface AccessibleWebsitesAuth {
@@ -26,13 +45,6 @@ export interface AccessibleWebsitesAuth {
 export async function getAccessibleWebsites(
 	authCtx: AccessibleWebsitesAuth
 ): Promise<WebsiteSummary[]> {
-	const select = {
-		id: websites.id,
-		name: websites.name,
-		domain: websites.domain,
-		isPublic: websites.isPublic,
-		createdAt: websites.createdAt,
-	};
 	const organizationId = authCtx.organizationId ?? authCtx.activeOrganizationId;
 
 	if (organizationId) {
@@ -47,9 +59,7 @@ export async function getAccessibleWebsites(
 				if (ids.length === 0) {
 					return [];
 				}
-				return db
-					.select(select)
-					.from(websites)
+				return selectWebsiteSummaries()
 					.where(
 						and(
 							eq(websites.organizationId, organizationId),
@@ -77,9 +87,7 @@ export async function getAccessibleWebsites(
 			return [];
 		}
 
-		return db
-			.select(select)
-			.from(websites)
+		return selectWebsiteSummaries()
 			.where(
 				and(
 					eq(websites.organizationId, organizationId),
@@ -94,9 +102,7 @@ export async function getAccessibleWebsites(
 			if (!authCtx.apiKey.organizationId) {
 				return [];
 			}
-			return db
-				.select(select)
-				.from(websites)
+			return selectWebsiteSummaries()
 				.where(
 					and(
 						eq(websites.organizationId, authCtx.apiKey.organizationId),
@@ -112,9 +118,7 @@ export async function getAccessibleWebsites(
 		if (ids.length === 0 || !authCtx.apiKey.organizationId) {
 			return [];
 		}
-		return db
-			.select(select)
-			.from(websites)
+		return selectWebsiteSummaries()
 			.where(
 				and(
 					eq(websites.organizationId, authCtx.apiKey.organizationId),
@@ -149,15 +153,7 @@ export async function getMemberWebsites(
 	if (organizationIds.length === 0) {
 		return [];
 	}
-	return db
-		.select({
-			id: websites.id,
-			name: websites.name,
-			domain: websites.domain,
-			isPublic: websites.isPublic,
-			createdAt: websites.createdAt,
-		})
-		.from(websites)
+	return selectWebsiteSummaries()
 		.where(
 			and(
 				inArray(websites.organizationId, organizationIds),
