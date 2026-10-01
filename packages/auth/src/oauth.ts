@@ -46,7 +46,7 @@ export const oauthAuthOptions = {
 	],
 	plugins: [
 		...baseAuthOptions.plugins,
-		jwt(),
+		jwt({ disableSettingJwtHeader: true }),
 		mcp({
 			loginPage: "/login",
 			consentPage: "/consent",
@@ -54,6 +54,7 @@ export const oauthAuthOptions = {
 			customAccessTokenClaims: mcpAccessTokenClaims,
 			resource: config.urls.mcp,
 			scopes: ["openid", "profile", "email", "offline_access", ...API_SCOPES],
+			rateLimit: { token: { window: 60, max: 600 } },
 		}),
 		cimd({
 			fetchClientMetadataResource,
