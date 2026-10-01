@@ -1,5 +1,5 @@
 import { analyticsCohortSchema } from "@databuddy/shared/analytics-filters";
-import { tool } from "ai";
+import { type ToolExecutionOptions, tool } from "ai";
 import { analyticsDateRangeSchema } from "@databuddy/validation";
 import { z } from "zod";
 import {
@@ -8,7 +8,7 @@ import {
 	getAppContext,
 	resolveToolWebsite,
 } from "./utils";
-import { goalFunnelFilterSchema } from "./goals";
+import { describeGoalFunnelFilters, goalFunnelFilterSchema } from "./goals";
 import { resolveToolDateRange } from "./utils/context";
 
 const logger = createToolLogger("Funnels Tools");
@@ -22,6 +22,47 @@ const funnelAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
 			"Additional cohort filters, or null to measure the saved definition without extra filtering."
 		),
 });
+
+function readFunnelAnalytics(
+	method: "getAnalytics" | "getAnalyticsByReferrer",
+	failure: string
+) {
+	return async (
+		{
+			funnelId,
+			websiteId: inputWebsiteId,
+			startDate,
+			endDate,
+			cohort,
+		}: z.infer<typeof funnelAnalyticsInputSchema>,
+		options: ToolExecutionOptions
+	) => {
+		const context = getAppContext(options);
+		const { websiteId } = resolveToolWebsite(context, inputWebsiteId);
+		try {
+			return await callRPCProcedure(
+				"funnels",
+				method,
+				{
+					funnelId,
+					websiteId,
+					...resolveToolDateRange({ startDate, endDate }, context),
+					cohort: cohort ?? undefined,
+				},
+				context
+			);
+		} catch (error) {
+			logger.error(failure, {
+				funnelId,
+				websiteId,
+				startDate,
+				endDate,
+				error,
+			});
+			throw error;
+		}
+	};
+}
 
 export function createFunnelTools() {
 	const listFunnelsTool = tool({
@@ -53,70 +94,20 @@ export function createFunnelTools() {
 		description:
 			"Funnel definition, measured dates and distinct visitor counts. savedDefinition is the saved configuration; measurement.definition includes read-time cohort filters. A filtered measurement alone does not establish a saved-definition change. Entrants match the first step; completions reach every ordered step within a 24-hour completion window. Final-step users are ordered-path completions, not all visitors to that page/event. These are visitors, not projects, occurrences or attempts. Optional cohort measures browser, device, country or campaign segments without editing the saved definition. Compare cohorts and periods with parallel calls. Omitted dates default to last 30 calendar days in the conversation timezone. Reuse matching verified measurements; remeasure stale or conflicting context.",
 		inputSchema: funnelAnalyticsInputSchema,
-		execute: async (
-			{ funnelId, websiteId: inputWebsiteId, startDate, endDate, cohort },
-			options
-		) => {
-			const context = getAppContext(options);
-			const { websiteId } = resolveToolWebsite(context, inputWebsiteId);
-			try {
-				return await callRPCProcedure(
-					"funnels",
-					"getAnalytics",
-					{
-						funnelId,
-						websiteId,
-						...resolveToolDateRange({ startDate, endDate }, context),
-						cohort: cohort ?? undefined,
-					},
-					context
-				);
-			} catch (error) {
-				logger.error("Failed to get funnel analytics", {
-					funnelId,
-					websiteId,
-					startDate,
-					endDate,
-					error,
-				});
-				throw error;
-			}
-		},
+		execute: readFunnelAnalytics(
+			"getAnalytics",
+			"Failed to get funnel analytics"
+		),
 	});
 
 	const getFunnelAnalyticsByReferrerTool = tool({
 		description:
 			"Distinct visitors entering the first funnel step and completing its ordered steps, within a 24-hour completion window, grouped by the visitor's earliest first-step referrer in the queried period. Counts are visitors, not projects or attempts. Omitted dates default to last 30 calendar days in the conversation timezone. Accepts one date range; compare periods with separate calls.",
 		inputSchema: funnelAnalyticsInputSchema,
-		execute: async (
-			{ funnelId, websiteId: inputWebsiteId, startDate, endDate, cohort },
-			options
-		) => {
-			const context = getAppContext(options);
-			const { websiteId } = resolveToolWebsite(context, inputWebsiteId);
-			try {
-				return await callRPCProcedure(
-					"funnels",
-					"getAnalyticsByReferrer",
-					{
-						funnelId,
-						websiteId,
-						...resolveToolDateRange({ startDate, endDate }, context),
-						cohort: cohort ?? undefined,
-					},
-					context
-				);
-			} catch (error) {
-				logger.error("Failed to get funnel analytics by referrer", {
-					funnelId,
-					websiteId,
-					startDate,
-					endDate,
-					error,
-				});
-				throw error;
-			}
-		},
+		execute: readFunnelAnalytics(
+			"getAnalyticsByReferrer",
+			"Failed to get funnel analytics by referrer"
+		),
 	});
 
 	const createFunnelTool = tool({
@@ -154,7 +145,6 @@ export function createFunnelTools() {
 		) => {
 			const context = getAppContext(options);
 			try {
-				// If not confirmed, return preview and ask for confirmation
 				if (!confirmed) {
 					const stepsPreview = steps
 						.map(
@@ -162,15 +152,6 @@ export function createFunnelTools() {
 								`${index + 1}. ${step.name} (${step.type}: ${step.target})`
 						)
 						.join("\n");
-					const filtersPreview =
-						filters && filters.length > 0
-							? filters
-									.map(
-										(filter) =>
-											`- ${filter.field} ${filter.operator} ${Array.isArray(filter.value) ? filter.value.join(", ") : filter.value}`
-									)
-									.join("\n")
-							: "None";
 
 					return {
 						preview: true,
@@ -180,7 +161,7 @@ export function createFunnelTools() {
 							name,
 							description: description || "No description",
 							steps: stepsPreview,
-							filters: filtersPreview,
+							filters: describeGoalFunnelFilters(filters),
 							ignoreHistoricData: ignoreHistoricData ?? false,
 						},
 						confirmationRequired: true,
@@ -189,7 +170,6 @@ export function createFunnelTools() {
 					};
 				}
 
-				// User confirmed - create the funnel
 				const result = await callRPCProcedure(
 					"funnels",
 					"create",

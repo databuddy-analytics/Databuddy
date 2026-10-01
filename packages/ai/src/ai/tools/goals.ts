@@ -30,6 +30,21 @@ export const goalFunnelFilterSchema = z.strictObject({
 	]),
 	value: z.union([z.string(), z.array(z.string())]),
 });
+
+export function describeGoalFunnelFilters(
+	filters: z.infer<typeof goalFunnelFilterSchema>[] | undefined
+): string {
+	if (!filters?.length) {
+		return "None";
+	}
+	return filters
+		.map(
+			(filter) =>
+				`- ${filter.field} ${filter.operator} ${Array.isArray(filter.value) ? filter.value.join(", ") : filter.value}`
+		)
+		.join("\n");
+}
+
 const goalAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
 	goalId: z.string(),
 	websiteId: z.string().optional(),
@@ -139,16 +154,6 @@ export function createGoalTools() {
 			const context = getAppContext(options);
 			try {
 				if (!confirmed) {
-					const filtersPreview =
-						filters && filters.length > 0
-							? filters
-									.map(
-										(filter) =>
-											`- ${filter.field} ${filter.operator} ${Array.isArray(filter.value) ? filter.value.join(", ") : filter.value}`
-									)
-									.join("\n")
-							: "None";
-
 					return {
 						preview: true,
 						message:
@@ -158,7 +163,7 @@ export function createGoalTools() {
 							description: description || null,
 							type,
 							target,
-							filters: filtersPreview,
+							filters: describeGoalFunnelFilters(filters),
 							ignoreHistoricData: ignoreHistoricData ?? false,
 						},
 						confirmationRequired: true,
