@@ -1373,14 +1373,28 @@ const FlagDependencyRowSchema = z.object({
 type FlagDependencyRow = z.infer<typeof FlagDependencyRowSchema>;
 
 const MAX_FLAG_CASCADE_DEPTH = 10;
+const FLAG_LIST_PAGE_SIZE = 200;
 
 async function listScopeFlags({
 	rpcContext,
 	scope,
 }: FlagScope): Promise<FlagDependencyRow[]> {
-	return z
-		.array(FlagDependencyRowSchema)
-		.parse(await callRPCProcedure("flags", "list", scope, rpcContext));
+	const rows: FlagDependencyRow[] = [];
+	let page: FlagDependencyRow[];
+	do {
+		page = z
+			.array(FlagDependencyRowSchema)
+			.parse(
+				await callRPCProcedure(
+					"flags",
+					"list",
+					{ ...scope, limit: FLAG_LIST_PAGE_SIZE, offset: rows.length },
+					rpcContext
+				)
+			);
+		rows.push(...page);
+	} while (page.length === FLAG_LIST_PAGE_SIZE);
+	return rows;
 }
 
 interface FlagStatusPlan {
@@ -1409,7 +1423,8 @@ function planFlagStatus(
 		dependentsDeactivated: [],
 		inactiveDependencies,
 		savedStatus:
-			change.status === "active" && inactiveDependencies.length > 0
+			inactiveDependencies.length > 0 &&
+			(change.status === "active" || !change.currentStatus)
 				? "inactive"
 				: change.status,
 	};
