@@ -1,5 +1,7 @@
 import {
 	buildRevenueLatestCte,
+	canonicalStripePaymentCondition,
+	linkedStripePaymentsCte,
 	paymentIntentIdExpression,
 	stripeContextAggregates,
 } from "@databuddy/db/clickhouse";
@@ -191,11 +193,48 @@ function isOrgScope(filterParams?: Record<string, Filter["value"]>): boolean {
 	return filterParams?.__orgLevel === "true";
 }
 
-// join_use_nulls is 0 on our cluster, so an unmatched LEFT JOIN yields '' rather
-// than NULL. coalesce() therefore returns the empty direct side and never reaches
-// ft_customer, which silently blanked every dimension on customer-path rows.
 function attributedDimension(column: string, alias: string): string {
-	return `if(ft_direct.session_id != '', ft_direct.${column}, ft_customer.${column}) as ${alias}`;
+	return `multiIf(
+		direct_match, ft_direct.${column},
+		profile_match, ft_profile.${column},
+		anonymous_match, ft_anonymous.${column},
+		customer_match, ft_customer.${column}, '') as ${alias}`;
+}
+
+function firstTouchCte(
+	name: string,
+	key: "session_id" | "profile_id" | "anonymous_id"
+): string {
+	return `${name} AS (
+		SELECT client_id, ${key}, min(time) as first_touch_time,
+			minMapIf(map(profile_id, time), profile_id != '') AS profile_first_touches,
+			argMin(ifNull(country, ''), time) as first_country,
+			argMin(ifNull(region, ''), time) as first_region,
+			argMin(ifNull(city, ''), time) as first_city,
+			argMin(ifNull(browser_name, ''), time) as first_browser,
+			argMin(ifNull(device_type, ''), time) as first_device,
+			argMin(ifNull(os_name, ''), time) as first_os,
+			argMin(domain(ifNull(referrer, '')), time) as first_referrer,
+			argMin(ifNull(utm_source, ''), time) as first_utm_source,
+			argMin(ifNull(utm_medium, ''), time) as first_utm_medium,
+			argMin(ifNull(utm_campaign, ''), time) as first_utm_campaign,
+			argMin(path, time) as first_path
+		FROM attribution_events WHERE ${key} != ''
+		GROUP BY client_id, ${key}
+	)`;
+}
+
+function trackedProfileCondition(
+	alias: string,
+	created: string,
+	profile: string
+): string {
+	const touches = `${alias}.profile_first_touches`;
+	const times = `arraySort(mapValues(${touches}))`;
+	const profileId = `ifNull(${profile}, '')`;
+	return `(length(${times}) < 2 OR ${times}[2] > ${created})
+		AND (${profileId} = '' OR empty(${times}) OR ${times}[1] > ${created}
+			OR (mapContains(${touches}, ${profileId}) AND ${touches}[${profileId}] <= ${created}))`;
 }
 
 function fromContexts(column: string, alias: string, base: string): string {
@@ -221,9 +260,11 @@ function buildAttributionCte(
 		)
 	)`;
 	const attributedWebsiteScope = orgScope
-		? "1"
-		: `(r.owner_id = {websiteId:String}
-			OR r.website_id = {websiteId:String})`;
+		? "(r_website_id IN {websiteIds:Array(String)} OR (r.owner_id = {organizationId:String} AND r_website_id = ''))"
+		: "r_website_id = {websiteId:String}";
+	const legacyWebsite = orgScope
+		? "if(owner_id IN {websiteIds:Array(String)}, owner_id, '')"
+		: "if(owner_id = {websiteId:String}, owner_id, '')";
 
 	return `
 			scoped_stripe_owners AS (
@@ -250,18 +291,7 @@ function buildAttributionCte(
 				AND provider = 'stripe'
 				AND ${paymentIntentId} != ''
 		),
-		linked_payment_intents AS (
-			SELECT DISTINCT
-				owner_id,
-				${paymentIntentId} AS payment_intent_id
-			FROM revenue_latest_range
-			WHERE provider = 'stripe'
-				AND type IN ('sale', 'subscription')
-				AND status = 'completed'
-				AND JSONExtractString(metadata, 'stripe_record_kind') = 'money'
-				AND JSONExtractString(metadata, 'stripe_invoice_id') != ''
-				AND ${paymentIntentId} != ''
-		),
+		${linkedStripePaymentsCte(relatedStripeScope)},
 		stripe_payment_context AS (
 			SELECT
 				owner_id,
@@ -383,8 +413,11 @@ function buildAttributionCte(
 		revenue_base AS (
 			SELECT
 				r.transaction_id,
+				r.owner_id as revenue_owner_id,
+				coalesce(r.website_id, nullIf(payment_context.website_id, ''), nullIf(invoice_context.linked_website_id, ''), ${legacyWebsite.replaceAll("owner_id", "r.owner_id")}) as r_website_id,
 				r.amount AS amount,
 				r.type AS type,
+				${fromContexts("profile_id", "r_profile_id", "nullIf(r.profile_id, '')")},
 				${fromContexts("anonymous_id", "r_anonymous_id", "r.anonymous_id")},
 				${fromContexts("session_id", "r_session_id", "r.session_id")},
 				${fromContexts("customer_id", "r_customer_id", "nullIf(r.customer_id, '')")},
@@ -402,9 +435,7 @@ function buildAttributionCte(
 				ON invoice_context.owner_id = r.owner_id
 				AND invoice_context.invoice_id = JSONExtractString(r.metadata, 'stripe_invoice_id')
 			WHERE
-				(${attributedWebsiteScope}
-					OR payment_context.website_id = {websiteId:String}
-					OR invoice_context.linked_website_id = {websiteId:String})
+				${attributedWebsiteScope}
 				AND r.created >= toDateTime({startDate:String})
 				AND r.created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 				AND r.type != 'subscription_event'
@@ -414,65 +445,47 @@ function buildAttributionCte(
 				)
 				-- a pi_ row and its inpay_ row are the same payment; the invoice
 				-- payment is canonical, so drop the duplicate rather than double count
-				AND NOT (
-					r.provider = 'stripe'
-					AND startsWith(r.transaction_id, 'pi_')
-					AND (r.owner_id, r.transaction_id) IN (
-						SELECT owner_id, payment_intent_id FROM linked_payment_intents
-					)
-				)
+				AND ${canonicalStripePaymentCondition("r")}
 		),
-		customer_session_map AS (
+		customer_session_candidates AS (
 			SELECT
-				provider,
-				customer_id,
-				argMin(session_id, created) as mapped_session_id,
-				min(created) as mapped_session_created
-			FROM ${Analytics.revenue}
+				owner_id, provider, customer_id, session_id, profile_id, created,
+				coalesce(nullIf(website_id, ''), ${legacyWebsite}) as client_id
+			FROM ${Analytics.revenue} FINAL
 			WHERE ${directScope}
-				AND created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
 				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 				AND customer_id != ''
 				AND session_id IS NOT NULL AND session_id != ''
-			GROUP BY provider, customer_id
+				AND (owner_id, provider, customer_id) IN (
+					SELECT revenue_owner_id, provider, r_customer_id FROM revenue_base
+				)
 		),
-		attributed_sessions AS (
-			SELECT DISTINCT session_id
-			FROM revenue_latest_range
-			WHERE ${directScope}
-				AND created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
-				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				AND session_id IS NOT NULL AND session_id != ''
-			UNION DISTINCT
-			SELECT mapped_session_id AS session_id FROM customer_session_map
-			WHERE mapped_session_id IS NOT NULL AND mapped_session_id != ''
-			UNION DISTINCT
-			SELECT session_id FROM stripe_payment_context
-			WHERE session_id != ''
-			UNION DISTINCT
-			SELECT linked_session_id AS session_id FROM stripe_invoice_context
-			WHERE linked_session_id != ''
+		attribution_identifiers AS (
+			SELECT session_id, profile_id, anonymous_id FROM ${Analytics.revenue} FINAL
+			WHERE ${relatedStripeScope}
+				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59')) + INTERVAL 1 DAY
 		),
-		first_touch_by_session AS (
-			SELECT
-				session_id,
-				min(time) as first_touch_time,
-				argMin(ifNull(country, ''), time) as first_country,
-				argMin(ifNull(region, ''), time) as first_region,
-				argMin(ifNull(city, ''), time) as first_city,
-				argMin(ifNull(browser_name, ''), time) as first_browser,
-				argMin(ifNull(device_type, ''), time) as first_device,
-				argMin(ifNull(os_name, ''), time) as first_os,
-				argMin(domain(ifNull(referrer, '')), time) as first_referrer,
-				argMin(ifNull(utm_source, ''), time) as first_utm_source,
-				argMin(ifNull(utm_medium, ''), time) as first_utm_medium,
-				argMin(ifNull(utm_campaign, ''), time) as first_utm_campaign,
-				argMin(path, time) as first_path
+		attribution_events AS (
+			SELECT *
 			FROM ${Analytics.events}
 			WHERE ${eventScope}
-				AND session_id IN (SELECT session_id FROM attributed_sessions)
+				AND (session_id IN (SELECT session_id FROM attribution_identifiers WHERE ifNull(session_id, '') != '')
+					OR profile_id IN (SELECT profile_id FROM attribution_identifiers WHERE profile_id != '')
+					OR anonymous_id IN (SELECT anonymous_id FROM attribution_identifiers WHERE ifNull(anonymous_id, '') != ''))
 				AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-			GROUP BY session_id
+		),
+		${firstTouchCte("first_touch_by_session", "session_id")},
+		${firstTouchCte("first_touch_by_profile", "profile_id")},
+		${firstTouchCte("first_touch_by_anonymous", "anonymous_id")},
+		customer_session_map AS (
+			SELECT c.owner_id, c.client_id, c.provider, c.customer_id,
+				argMin(c.session_id, tuple(c.created, c.session_id)) as mapped_session_id,
+				min(c.created) as mapped_session_created
+			FROM customer_session_candidates c
+			INNER JOIN first_touch_by_session ft ON c.client_id = ft.client_id AND c.session_id = ft.session_id
+			WHERE ft.first_touch_time <= c.created
+				AND ${trackedProfileCondition("ft", "c.created", "c.profile_id")}
+			GROUP BY c.owner_id, c.client_id, c.provider, c.customer_id
 		),
 		revenue_attributed AS (
 			SELECT
@@ -488,11 +501,11 @@ function buildAttributionCte(
 				rb.currency,
 				rb.metadata,
 				rb.created,
-				CASE
-					WHEN ft_direct.session_id != '' THEN 1
-					WHEN ft_customer.session_id != '' THEN 1
-					ELSE 0
-				END as is_attributed,
+				(ifNull(ft_direct.session_id, '') != '' AND ${trackedProfileCondition("ft_direct", "rb.created", "rb.r_profile_id")}) AS direct_match,
+				(ifNull(ft_profile.profile_id, '') != '') AS profile_match,
+				(ifNull(ft_anonymous.anonymous_id, '') != '' AND ${trackedProfileCondition("ft_anonymous", "rb.created", "rb.r_profile_id")}) AS anonymous_match,
+				(ifNull(ft_customer.session_id, '') != '' AND ${trackedProfileCondition("ft_customer", "rb.created", "rb.r_profile_id")}) AS customer_match,
+				if(direct_match OR profile_match OR anonymous_match OR customer_match, 1, 0) AS is_attributed,
 				${attributedDimension("first_country", "country")},
 				${attributedDimension("first_region", "region")},
 				${attributedDimension("first_city", "city")},
@@ -506,19 +519,24 @@ function buildAttributionCte(
 				${attributedDimension("first_path", "entry_path")}
 			FROM revenue_base rb
 			LEFT JOIN first_touch_by_session ft_direct
-				ON rb.r_session_id = ft_direct.session_id
+				ON rb.r_website_id = ft_direct.client_id AND rb.r_session_id = ft_direct.session_id
 				AND rb.r_session_id IS NOT NULL
 				AND rb.r_session_id != ''
 				AND ft_direct.first_touch_time <= rb.created
+			LEFT JOIN first_touch_by_profile ft_profile
+				ON rb.r_website_id = ft_profile.client_id AND rb.r_profile_id = ft_profile.profile_id
+				AND ft_profile.first_touch_time <= rb.created
+			LEFT JOIN first_touch_by_anonymous ft_anonymous
+				ON rb.r_website_id = ft_anonymous.client_id AND rb.r_anonymous_id = ft_anonymous.anonymous_id
+				AND ft_anonymous.first_touch_time <= rb.created
 			LEFT JOIN customer_session_map csm
-				ON rb.provider = csm.provider
+				ON rb.revenue_owner_id = csm.owner_id AND rb.r_website_id = csm.client_id AND rb.provider = csm.provider
 				AND rb.r_customer_id = csm.customer_id
 				AND rb.r_customer_id IS NOT NULL
 				AND rb.r_customer_id != ''
 				AND csm.mapped_session_created <= rb.created
-				AND ft_direct.session_id = ''
 			LEFT JOIN first_touch_by_session ft_customer
-				ON csm.mapped_session_id = ft_customer.session_id
+				ON csm.client_id = ft_customer.client_id AND csm.mapped_session_id = ft_customer.session_id
 				AND csm.mapped_session_id IS NOT NULL
 				AND csm.mapped_session_id != ''
 				AND ft_customer.first_touch_time <= rb.created

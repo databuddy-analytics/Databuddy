@@ -128,6 +128,589 @@ function attributionEvent(
 }
 
 describeIntegration("revenue query builders against ClickHouse", () => {
+	it("keeps earlier attribution stable when a session later changes profiles or salt", async () => {
+		const websiteId = `revenue-temporal-${randomUUIDv7()}`;
+		await clickHouse.insert({
+			table: "analytics.events",
+			format: "JSONEachRow",
+			values: [
+				{
+					...attributionEvent(
+						websiteId,
+						"shared-session",
+						"2026-08-01 11:00:00",
+						"first-person"
+					),
+					profile_id: "first-profile",
+					anonymous_id: "salt-first-day",
+				},
+				{
+					...attributionEvent(
+						websiteId,
+						"shared-session",
+						"2026-08-02 11:00:00",
+						"second-person"
+					),
+					profile_id: "second-profile",
+					anonymous_id: "salt-second-day",
+				},
+			],
+		});
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					websiteId,
+					"earlier-payment",
+					10,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-01 12:00:00",
+					{
+						session_id: "shared-session",
+						anonymous_id: "salt-next-day",
+						customer_id: "",
+					}
+				),
+				revenueRow(
+					websiteId,
+					"ambiguous-payment",
+					20,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-02 12:00:00",
+					{ session_id: "shared-session", customer_id: "" }
+				),
+				revenueRow(
+					websiteId,
+					"identified-payment",
+					30,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-02 12:00:00",
+					{
+						session_id: "shared-session",
+						profile_id: "second-profile",
+						customer_id: "",
+					}
+				),
+			],
+		});
+		const earlier = await revenueOverview(
+			websiteId,
+			"2026-08-01",
+			"2026-08-01"
+		);
+		expect(Number(earlier[0]?.attributed_revenue)).toBe(10);
+		const wider = await revenueOverview(websiteId, "2026-08-01", "2026-08-02");
+		expect(Number(wider[0]?.total_revenue)).toBe(60);
+		expect(Number(wider[0]?.attributed_revenue)).toBe(40);
+		const transactions = await recentTransactions(
+			websiteId,
+			"2026-08-01",
+			"2026-08-02"
+		);
+		expect(
+			transactions.find((row) => row.transaction_id === "earlier-payment")
+				?.utm_campaign
+		).toBe("first-person");
+		expect(
+			transactions.find((row) => row.transaction_id === "identified-payment")
+				?.utm_campaign
+		).toBe("second-person");
+		const detail = ProfilesBuilders.profile_revenue.customSql({
+			websiteId,
+			startDate: "2026-08-01",
+			endDate: "2026-08-02",
+			filters: [{ field: "anonymous_id", op: "eq", value: "first-profile" }],
+		});
+		const payments = await chQuery<{ transaction_id: string }>(
+			detail.sql,
+			detail.params
+		);
+		expect(payments.map((row) => row.transaction_id)).toEqual([]);
+	});
+
+	it("counts an invoice-tagged standalone intent and resolves conflicting websites once", async () => {
+		const ownerId = `organization-${randomUUIDv7()}`;
+		const websiteA = `revenue-site-a-${randomUUIDv7()}`;
+		const websiteB = `revenue-site-b-${randomUUIDv7()}`;
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					websiteA,
+					"pi_standalone",
+					100,
+					"sale",
+					"completed",
+					stripeMetadata("money", {
+						stripe_invoice_id: "in_standalone",
+						stripe_payment_intent_id: "pi_standalone",
+					}),
+					"2026-08-02 12:00:00",
+					{ owner_id: ownerId }
+				),
+				revenueRow(
+					websiteA,
+					"pi_conflicting",
+					50,
+					"sale",
+					"completed",
+					stripeMetadata("money", {
+						stripe_payment_intent_id: "pi_conflicting",
+					}),
+					"2026-08-02 12:00:00",
+					{ owner_id: ownerId }
+				),
+				revenueRow(
+					websiteB,
+					"inpay_conflicting",
+					50,
+					"subscription",
+					"completed",
+					stripeMetadata("money", {
+						stripe_invoice_id: "in_conflicting",
+						stripe_payment_intent_id: "pi_conflicting",
+					}),
+					"2026-08-02 12:00:00",
+					{ owner_id: ownerId }
+				),
+			],
+		});
+		const a = await revenueOverview(websiteA, "2026-08-02", "2026-08-02");
+		const b = await revenueOverview(websiteB, "2026-08-02", "2026-08-02");
+		expect(Number(a[0]?.total_revenue)).toBe(100);
+		expect(Number(b[0]?.total_revenue)).toBe(50);
+	});
+
+	it("keeps organization receipts without a website in unattributed gross revenue", async () => {
+		const ownerId = `organization-${randomUUIDv7()}`;
+		const websiteId = `revenue-unassigned-${randomUUIDv7()}`;
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					websiteId,
+					"unassigned-payment",
+					100,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-02 12:00:00",
+					{ owner_id: ownerId, website_id: null }
+				),
+			],
+		});
+		const overview = await organizationRevenueOverview(
+			ownerId,
+			[websiteId],
+			"2026-08-02",
+			"2026-08-02"
+		);
+		expect(Number(overview[0]?.total_revenue)).toBe(100);
+		expect(Number(overview[0]?.attributed_revenue)).toBe(0);
+		const site = await revenueOverview(websiteId, "2026-08-02", "2026-08-02");
+		expect(Number(site[0]?.total_revenue ?? 0)).toBe(0);
+	});
+
+	it("matches tracked identities without crediting future or conflicting visits", async () => {
+		const websiteId = `revenue-identities-${randomUUIDv7()}`;
+		await clickHouse.insert({
+			table: "analytics.events",
+			format: "JSONEachRow",
+			values: [
+				{
+					...attributionEvent(
+						websiteId,
+						"profile-session",
+						"2026-08-02 11:00:00",
+						"profile"
+					),
+					profile_id: "profile-example",
+				},
+				attributionEvent(
+					websiteId,
+					"anonymous-session",
+					"2026-08-02 11:00:00",
+					"anonymous"
+				),
+				{
+					...attributionEvent(
+						websiteId,
+						"future-session",
+						"2026-08-02 13:00:00",
+						"future"
+					),
+					profile_id: "future-profile",
+				},
+				{
+					...attributionEvent(
+						websiteId,
+						"shared-session",
+						"2026-08-02 10:00:00",
+						"wrong-person"
+					),
+					profile_id: "other-profile",
+				},
+				{
+					...attributionEvent(
+						websiteId,
+						"shared-session",
+						"2026-08-02 11:00:00",
+						"right-person"
+					),
+					profile_id: "right-profile",
+				},
+			],
+		});
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					websiteId,
+					"profile-invoice:link",
+					0,
+					"subscription_event",
+					"linked",
+					stripeMetadata("link", { stripe_invoice_id: "profile-invoice" }),
+					"2026-08-02 12:00:00",
+					{ profile_id: "profile-example", customer_id: "" }
+				),
+				revenueRow(
+					websiteId,
+					"profile-payment",
+					40,
+					"subscription",
+					"completed",
+					stripeMetadata("money", { stripe_invoice_id: "profile-invoice" }),
+					"2026-08-02 12:00:00",
+					{ customer_id: "" }
+				),
+				revenueRow(
+					websiteId,
+					"anonymous-payment",
+					30,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-02 12:00:00",
+					{ anonymous_id: "anon-anonymous-session", customer_id: "" }
+				),
+				revenueRow(
+					websiteId,
+					"unknown-payment",
+					20,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-02 12:00:00",
+					{ profile_id: "untracked-profile", customer_id: "" }
+				),
+				revenueRow(
+					websiteId,
+					"future-payment",
+					10,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-02 12:00:00",
+					{ profile_id: "future-profile", customer_id: "" }
+				),
+				revenueRow(
+					websiteId,
+					"shared-payment",
+					15,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-02 12:00:00",
+					{
+						profile_id: "right-profile",
+						session_id: "shared-session",
+						customer_id: "",
+					}
+				),
+			],
+		});
+		const [overview] = await revenueOverview(
+			websiteId,
+			"2026-08-02",
+			"2026-08-02"
+		);
+		expect(Number(overview?.total_revenue)).toBe(115);
+		expect(Number(overview?.attributed_revenue)).toBe(85);
+		const transactions = await recentTransactions(
+			websiteId,
+			"2026-08-02",
+			"2026-08-02"
+		);
+		expect(
+			transactions.find((row) => row.transaction_id === "shared-payment")
+				?.utm_campaign
+		).toBe("right-person");
+	});
+
+	it("uses the first valid current customer session independently of report start", async () => {
+		const websiteId = `revenue-customer-history-${randomUUIDv7()}`;
+		await clickHouse.insert({
+			table: "analytics.events",
+			format: "JSONEachRow",
+			values: [
+				attributionEvent(
+					websiteId,
+					"obsolete-session",
+					"2026-05-02 10:00:00",
+					"obsolete"
+				),
+				attributionEvent(
+					websiteId,
+					"valid-session",
+					"2026-06-01 10:00:00",
+					"valid-history"
+				),
+			],
+		});
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					websiteId,
+					"missing-seed",
+					0,
+					"subscription_event",
+					"failed",
+					"{}",
+					"2026-05-01 12:00:00",
+					{ session_id: "missing-session" }
+				),
+				revenueRow(
+					websiteId,
+					"corrected-seed",
+					0,
+					"subscription_event",
+					"failed",
+					"{}",
+					"2026-05-02 12:00:00",
+					{ session_id: "obsolete-session" }
+				),
+				revenueRow(
+					websiteId,
+					"corrected-seed",
+					0,
+					"subscription_event",
+					"failed",
+					"{}",
+					"2026-05-02 12:00:00",
+					{ session_id: null, synced_at: "2026-05-02 13:00:00" }
+				),
+				revenueRow(
+					websiteId,
+					"valid-seed",
+					0,
+					"subscription_event",
+					"failed",
+					"{}",
+					"2026-06-01 12:00:00",
+					{ session_id: "valid-session" }
+				),
+				revenueRow(
+					websiteId,
+					"renewal",
+					50,
+					"subscription",
+					"completed",
+					"{}",
+					"2026-09-02 12:00:00"
+				),
+			],
+		});
+		for (const start of ["2026-08-01", "2026-09-02"]) {
+			const [overview] = await revenueOverview(websiteId, start, "2026-09-02");
+			expect(Number(overview?.attributed_revenue)).toBe(50);
+			const transactions = await recentTransactions(
+				websiteId,
+				start,
+				"2026-09-02"
+			);
+			expect(
+				transactions.find((row) => row.transaction_id === "renewal")
+					?.utm_campaign
+			).toBe("valid-history");
+		}
+	});
+
+	it("keeps tracked sessions inside their website in organization reports", async () => {
+		const ownerId = `revenue-scope-owner-${randomUUIDv7()}`;
+		const siteA = `revenue-scope-a-${randomUUIDv7()}`;
+		const siteB = `revenue-scope-b-${randomUUIDv7()}`;
+		await clickHouse.insert({
+			table: "analytics.events",
+			format: "JSONEachRow",
+			values: [
+				attributionEvent(
+					siteA,
+					"shared-session",
+					"2026-08-02 11:00:00",
+					"site-a"
+				),
+			],
+		});
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					ownerId,
+					"site-a-payment",
+					25,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-02 12:00:00",
+					{ website_id: siteA, session_id: "shared-session" }
+				),
+				revenueRow(
+					ownerId,
+					"site-b-payment",
+					25,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-02 12:00:00",
+					{ website_id: siteB, session_id: "shared-session" }
+				),
+			],
+		});
+		const [organization] = await organizationRevenueOverview(
+			ownerId,
+			[siteA, siteB],
+			"2026-08-02",
+			"2026-08-02"
+		);
+		expect(Number(organization?.total_revenue)).toBe(50);
+		expect(Number(organization?.attributed_revenue)).toBe(25);
+		const [site] = await revenueOverview(siteB, "2026-08-02", "2026-08-02");
+		expect(Number(site?.attributed_revenue)).toBe(0);
+	});
+
+	it("reconciles canonical payments and session-only profile revenue across date windows", async () => {
+		const websiteId = `revenue-profile-parity-${randomUUIDv7()}`;
+		const profileId = "profile-example";
+		const metadata = stripeMetadata("money", {
+			stripe_payment_intent_id: "pi_example",
+			stripe_invoice_id: "in_example",
+		});
+		await clickHouse.insert({
+			table: "analytics.events",
+			format: "JSONEachRow",
+			values: [
+				{
+					...attributionEvent(
+						websiteId,
+						"profile-session",
+						"2026-08-01 11:00:00",
+						null
+					),
+					profile_id: profileId,
+				},
+			],
+		});
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					websiteId,
+					"pi_example",
+					100,
+					"sale",
+					"completed",
+					stripeMetadata("money", { stripe_payment_intent_id: "pi_example" }),
+					"2026-08-01 12:00:00",
+					{ profile_id: profileId }
+				),
+				revenueRow(
+					websiteId,
+					"inpay_example",
+					100,
+					"subscription",
+					"completed",
+					metadata,
+					"2026-08-02 12:00:00"
+				),
+				revenueRow(
+					websiteId,
+					"session-only",
+					25,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-02 12:00:00",
+					{ session_id: "profile-session", customer_id: "" }
+				),
+				revenueRow(
+					websiteId,
+					"refund-example",
+					-20,
+					"refund",
+					"refunded",
+					metadata,
+					"2026-08-02 13:00:00"
+				),
+			],
+		});
+		const [overview] = await revenueOverview(
+			websiteId,
+			"2026-08-01",
+			"2026-08-03"
+		);
+		expect(Number(overview?.total_revenue)).toBe(125);
+		const earlier = await revenueOverview(
+			websiteId,
+			"2026-08-01",
+			"2026-08-01"
+		);
+		expect(Number(earlier[0]?.total_revenue ?? 0)).toBe(0);
+		const list = ProfilesBuilders.profile_list.customSql({
+			websiteId,
+			startDate: "2026-08-01",
+			endDate: "2026-08-03",
+			limit: 10,
+			offset: 0,
+		});
+		const profiles = await chQuery<{ profile_id: string; ltv: number }>(
+			list.sql,
+			list.params
+		);
+		expect(
+			Number(profiles.find((profile) => profile.profile_id === profileId)?.ltv)
+		).toBe(105);
+		const detail = ProfilesBuilders.profile_revenue.customSql({
+			websiteId,
+			startDate: "2026-08-01",
+			endDate: "2026-08-03",
+			filters: [{ field: "anonymous_id", op: "eq", value: profileId }],
+		});
+		const payments = await chQuery<{ transaction_id: string }>(
+			detail.sql,
+			detail.params
+		);
+		expect(payments.map((payment) => payment.transaction_id).sort()).toEqual([
+			"inpay_example",
+			"refund-example",
+			"session-only",
+		]);
+	});
+
 	it("preserves null-ID payment descriptions and excludes identified receipts with the same label", async () => {
 		const websiteId = `revenue-descriptions-${randomUUIDv7()}`;
 		await clickHouse.insert({
