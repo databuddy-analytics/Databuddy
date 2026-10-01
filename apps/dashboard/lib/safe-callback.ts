@@ -11,6 +11,13 @@ export function safeCallbackPath(
 	return callback;
 }
 
+export function newUserCallbackPath(callback: string): string {
+	return callback.startsWith("/billing/plans") ||
+		callback.startsWith("/api/auth/oauth2/authorize?")
+		? callback
+		: "/onboarding";
+}
+
 function isSafePath(value: string): boolean {
 	if (hasUnsafePathSyntax(value)) {
 		return false;

@@ -8,7 +8,7 @@ import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { GithubMark, GoogleMark } from "@/components/ui/brand-icons";
-import { safeCallbackPath } from "@/lib/safe-callback";
+import { newUserCallbackPath, safeCallbackPath } from "@/lib/safe-callback";
 import { EnvelopeSimpleIcon, EyeIcon, EyeSlashIcon } from "@databuddy/ui/icons";
 import {
 	Badge,
@@ -72,14 +72,11 @@ function LoginPage() {
 
 	const handleSocialLogin = async (provider: "github" | "google") => {
 		setIsLoading(true);
-		const newUserCallbackURL =
-			safeCallback === "/websites" ? "/onboarding" : safeCallback;
-
 		try {
 			const result = await authClient.signIn.social({
 				provider,
 				callbackURL: safeCallback,
-				newUserCallbackURL,
+				newUserCallbackURL: newUserCallbackPath(safeCallback),
 				disableRedirect: true,
 			});
 
