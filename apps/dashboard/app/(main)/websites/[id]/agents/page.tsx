@@ -27,6 +27,7 @@ import {
 } from "@databuddy/shared/bot-detection/types";
 import { publicConfig } from "@databuddy/env/public";
 import { useParams } from "next/navigation";
+import { parseAsBoolean, useQueryState } from "nuqs";
 import { useMemo, useState } from "react";
 import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
 import { AskAgentButton } from "@/components/agent/new-chat-button";
@@ -386,7 +387,10 @@ function AgentSetupSheet({
 	label?: string;
 	websiteId: string;
 }) {
-	const [isOpen, setIsOpen] = useState(false);
+	const [isOpen, setIsOpen] = useQueryState(
+		"setup",
+		parseAsBoolean.withDefault(false)
+	);
 	const check = useMutation(orpc.websites.checkAgentSetup.mutationOptions());
 	const isWorking = check.data?.homepage && check.data.llmsTxt;
 
@@ -395,7 +399,7 @@ function AgentSetupSheet({
 			<Button onClick={() => setIsOpen(true)} size="md" variant="secondary">
 				{label}
 			</Button>
-			<Sheet onOpenChange={setIsOpen} open={isOpen}>
+			<Sheet onOpenChange={(open) => setIsOpen(open)} open={isOpen}>
 				<Sheet.Content side="right">
 					<Sheet.Header>
 						<Sheet.Title>Track AI crawlers</Sheet.Title>
