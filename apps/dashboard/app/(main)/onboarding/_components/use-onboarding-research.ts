@@ -256,6 +256,7 @@ export function useOnboardingResearch(
 		}),
 		start,
 		savePriority,
+		savedPriority: settings.data?.profile?.teamContext?.priority ?? "",
 		saving: save.isPending,
 		saveError: save.error
 			? getUserFacingErrorMessage(save.error, "Couldn't save your answers.")

@@ -1,6 +1,5 @@
 "use client";
 
-import type { OnboardingIntent } from "@databuddy/shared/custom-events";
 import type {
 	BusinessSuggestedFunnel,
 	BusinessSuggestedGoal,
@@ -34,7 +33,7 @@ import {
 	type SetupWebsite,
 } from "./_components/setup-checklist";
 import { useOnboardingResearch } from "./_components/use-onboarding-research";
-import { INTENT_OPTIONS } from "./_components/what-matters";
+import { INTENT_OPTIONS, intentFor } from "./_components/what-matters";
 
 const POLL_MS = 5000;
 
@@ -70,9 +69,7 @@ function OnboardingFlow() {
 	);
 	const [trackingCopied, setTrackingCopied] = useState(false);
 	const [trackingSkipped, setTrackingSkipped] = useState(false);
-	const [priority, setPriority] = useState("");
-	const [intent, setIntent] = useState<OnboardingIntent | null>(null);
-	const [prioritySaved, setPrioritySaved] = useState(false);
+	const [priorityDraft, setPriorityDraft] = useState<string | null>(null);
 	const [createdSuggestions, setCreatedSuggestions] = useState<Set<string>>(
 		() => new Set()
 	);
@@ -96,6 +93,10 @@ function OnboardingFlow() {
 	const websiteId = website?.id ?? null;
 
 	const research = useOnboardingResearch(organizationId, website);
+	const priority = priorityDraft ?? research.savedPriority;
+	const prioritySaved =
+		priority.trim() !== "" && priority.trim() === research.savedPriority;
+	const intent = intentFor(priority);
 
 	const trackingQuery = useQuery({
 		...orpc.websites.isTrackingSetup.queryOptions({
@@ -245,7 +246,6 @@ function OnboardingFlow() {
 		} catch {
 			return;
 		}
-		setPrioritySaved(true);
 		trackAppEvent(APP_EVENTS.onboardingStepCompleted, {
 			step: "finish",
 			origin: research.research.phase === "ready" ? "ai" : "manual",
@@ -313,9 +313,7 @@ function OnboardingFlow() {
 						}
 					: null
 			}
-			intent={intent}
-			onChangeIntent={setIntent}
-			onChangePriority={setPriority}
+			onChangePriority={setPriorityDraft}
 			onCopy={(method, agent) => {
 				setTrackingCopied(true);
 				trackAppEvent(APP_EVENTS.onboardingTrackingCopied, {

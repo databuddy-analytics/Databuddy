@@ -165,9 +165,21 @@ export function generateAgentPrompt(
 	setupSession?: string,
 	context?: AgentPromptContext
 ): string {
-	if (!isSelfHosted) {
-		return `Add Databuddy analytics to this repository. Client ID: ${websiteId}
-
+	// Cloud prompts always point at the public endpoints, whatever the dashboard
+	// build was configured with; self-hosted prompts carry the instance URLs.
+	const basketUrl = isSelfHosted
+		? publicConfig.urls.basket
+		: "https://basket.databuddy.cc";
+	const apiUrl = isSelfHosted
+		? publicConfig.urls.api
+		: "https://api.databuddy.cc";
+	const basketOrigin = new URL(basketUrl).origin;
+	return `Add Databuddy analytics to this repository. Client ID: ${websiteId}
+${
+	isSelfHosted
+		? `\nThis is a self-hosted Databuddy instance. Events go to ${basketUrl}, so keep the apiUrl / data-api-url shown in every snippet.\n`
+		: ""
+}
 ## References
 - Getting started: https://www.databuddy.cc/docs/getting-started
 - LLMs.txt: https://www.databuddy.cc/llms.txt
@@ -175,31 +187,24 @@ export function generateAgentPrompt(
 
 ## Installation
 
-Detect the framework from the codebase, then pick one method:
+Detect the framework from the codebase, then pick one method and follow the existing code style.
 
-**React / Next.js** — \`bun add @databuddy/sdk\` (or npm/yarn/pnpm, matching the repository's lockfile)
+**React / Next.js** — \`bun add @databuddy/sdk\` (or npm/yarn/pnpm, matching the repository's lockfile), then mount once at the app root (app/layout.tsx or _app.tsx):
 \`\`\`tsx
-import { Databuddy } from "@databuddy/sdk/react";
-// Mount once at the app root (app/layout.tsx or _app.tsx)
-<Databuddy clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!} trackWebVitals trackErrors />
+${generateNpmCode(websiteId, RECOMMENDED_DEFAULTS)}
 \`\`\`
 
 **Vue / Nuxt** — \`bun add @databuddy/sdk\`
 \`\`\`vue
-<script setup>
-import { Databuddy } from "@databuddy/sdk/vue";
-</script>
-<template>
-  <Databuddy :client-id="import.meta.env.VITE_DATABUDDY_CLIENT_ID" track-web-vitals track-errors />
-</template>
+${generateVueCode(websiteId, RECOMMENDED_DEFAULTS)}
 \`\`\`
 
-**Anything else (Astro, Svelte, static HTML, WordPress, Webflow)** — CDN script in \`<head>\` of every page:
+**Anything else (Astro, Svelte, static HTML, WordPress, Webflow)** — script in \`<head>\` of every page:
 \`\`\`html
-<script src="https://cdn.databuddy.cc/databuddy.js" data-client-id="${websiteId}" data-track-web-vitals="true" data-track-errors="true" crossorigin="anonymous" async></script>
+${generateScriptTag(websiteId, RECOMMENDED_DEFAULTS)}
 \`\`\`
 
-Store the Client ID in an env var and never hardcode it in React or Vue code:
+The snippets show the Client ID inline. Store the Client ID in an env var and read it from there in React and Vue code:
 - Next.js: NEXT_PUBLIC_DATABUDDY_CLIENT_ID
 - Vite / Vue: VITE_DATABUDDY_CLIENT_ID
 - Nuxt: NUXT_PUBLIC_DATABUDDY_CLIENT_ID
@@ -211,49 +216,19 @@ ${siteContextSection(context)}${AGENT_FEATURE_GUIDE}
 ## Verification
 
 1. Start the app and open it in a browser on a non-localhost host, or use the debug build (\`https://cdn.databuddy.cc/databuddy-debug.js\` or the \`debug\` prop) on localhost.
-2. In DevTools → Network, confirm \`cdn.databuddy.cc/databuddy.js\` loads and requests to \`basket.databuddy.cc\` return 200 with this Client ID in the payload.
+2. In DevTools → Network, confirm \`cdn.databuddy.cc/databuddy.js\` loads and requests to \`${basketOrigin}\` return 200 with this Client ID in the payload.
 3. The Databuddy setup page polls for the first page view and marks tracking verified on its own.
 
 ## Common issues
 
 - **Domain mismatch**: events from a domain that is not the website's configured domain are blocked. Add staging or preview domains under Settings → Security → Allowed origins, or install on the production domain.
-- **Content Security Policy**: allow \`https://cdn.databuddy.cc\` in script-src and \`https://basket.databuddy.cc\` in connect-src.
+- **Content Security Policy**: allow \`https://cdn.databuddy.cc\` in script-src and \`${basketOrigin}\` in connect-src.
 - **Ad blockers** can block the script locally. Test with extensions disabled; a custom tracking domain avoids it in production.
 - **Localhost is ignored by default**: deploy or use the debug build.
 - **Script not loading**: it belongs in \`<head>\`, not \`<body>\`; check the URL and the console.
 - **Another analytics tool is present**: both can run side by side. Leave the other tool in place unless the user asks to replace it.
 
-${agentFeedbackSection("https://api.databuddy.cc", websiteId, setupSession)}`;
-	}
-	return `Add Databuddy analytics to this repository. Choose one integration for its framework and follow the existing code style.
-Keep the client ID and API URL shown below so events reach this Databuddy instance.
-For React or Vue, install @databuddy/sdk with the repository's package manager and mount the component once at the app root.
-
-## React / Next.js
-\`\`\`tsx
-${generateNpmCode(websiteId, RECOMMENDED_DEFAULTS)}
-\`\`\`
-
-## Vue
-\`\`\`vue
-${generateVueCode(websiteId, RECOMMENDED_DEFAULTS)}
-\`\`\`
-
-## HTML (add to <head>)
-\`\`\`html
-${generateScriptTag(websiteId, RECOMMENDED_DEFAULTS)}
-\`\`\`
-
-${siteContextSection(context)}${AGENT_FEATURE_GUIDE}
-
-## Verify
-- Open the website and check for successful event requests to ${publicConfig.urls.basket}, then confirm events appear in the dashboard; the setup page polls for the first page view.
-- The website's domain must match its Databuddy settings. On localhost, use the SDK's debug prop or the databuddy-debug.js script.
-- If CSP is enabled, allow the tracker script's origin in script-src and ${new URL(publicConfig.urls.basket).origin} in connect-src. Check for blocked requests in DevTools.
-
-More options: https://www.databuddy.cc/docs/getting-started
-
-${agentFeedbackSection(publicConfig.urls.api, websiteId, setupSession)}`;
+${agentFeedbackSection(apiUrl, websiteId, setupSession)}`;
 }
 
 export function generateScriptTag(

@@ -339,9 +339,6 @@ const SCENARIOS: Scenario[] = [
 ];
 
 function Sample({ sample }: { sample: Sample }) {
-	const [intent, setIntent] = useState<OnboardingIntent | null>(
-		sample.intent ?? null
-	);
 	const [priority, setPriority] = useState(
 		INTENT_OPTIONS.find((option) => option.id === sample.intent)?.priority ?? ""
 	);
@@ -351,8 +348,6 @@ function Sample({ sample }: { sample: Sample }) {
 			agentProgress={sample.agentProgress ?? null}
 			creating={false}
 			finish={website ? (sample.finish ?? null) : null}
-			intent={intent}
-			onChangeIntent={setIntent}
 			onChangePriority={setPriority}
 			onCreateWebsite={() => Promise.resolve()}
 			onSavePriority={noop}
