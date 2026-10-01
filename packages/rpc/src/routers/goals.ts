@@ -447,12 +447,6 @@ export const goalsRouter = {
 						},
 					];
 
-					const totalWebsiteUsers = await getTotalWebsiteUsers(
-						input.websiteId,
-						effectiveStartDate,
-						endDate,
-						combinedFilters
-					);
 					return await processGoalAnalytics(
 						steps,
 						combinedFilters,
@@ -461,7 +455,12 @@ export const goalsRouter = {
 							startDate: effectiveStartDate,
 							endDate: `${endDate} 23:59:59`,
 						},
-						totalWebsiteUsers
+						getTotalWebsiteUsers(
+							input.websiteId,
+							effectiveStartDate,
+							endDate,
+							combinedFilters
+						)
 					);
 				},
 			});
@@ -543,10 +542,6 @@ export const goalsRouter = {
 				];
 
 				try {
-					const totalUsers = await memoizedTotalUsers(
-						effectiveStartDate,
-						combinedFilters
-					);
 					const analytics = await processGoalAnalytics(
 						steps,
 						combinedFilters,
@@ -555,7 +550,7 @@ export const goalsRouter = {
 							startDate: effectiveStartDate,
 							endDate: `${endDate} 23:59:59`,
 						},
-						totalUsers
+						memoizedTotalUsers(effectiveStartDate, combinedFilters)
 					);
 					analyticsByGoal[goal.id] = { ok: true, data: analytics };
 				} catch (error) {
