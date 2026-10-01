@@ -92,7 +92,7 @@ describe("shared agent's business-context organization boundary", () => {
 				requestHeaders: new Headers(),
 				userId: null,
 			})
-		).toEqual(new Error("Website not found"));
+		).toMatchObject({ code: "not_found", message: "Website not found" });
 		expect(permission).not.toHaveBeenCalled();
 	});
 	it("rejects a site in another organization even if the session could read both", async () => {

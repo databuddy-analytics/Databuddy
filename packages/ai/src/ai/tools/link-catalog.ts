@@ -106,6 +106,11 @@ type LinkPageFetcher = (input: {
 }) => Promise<unknown>;
 
 export type LinkPage = z.infer<typeof LinkPageSchema>;
+export interface LinkPageRequest {
+	includeTotal?: boolean;
+	limit: number;
+	offset: number;
+}
 export type LinkSummary = z.infer<typeof LinkSummarySchema>;
 
 export type LinkFolderResolution =
@@ -136,13 +141,15 @@ function parseLinkFolders(value: unknown): LinkFolder[] {
 
 export async function fetchLinkCatalogPage(
 	fetchPage: LinkPageFetcher,
-	filters: { folderId?: string | null; search?: string } = {}
+	filters: { folderId?: string | null; search?: string } = {},
+	page: LinkPageRequest = { limit: MODEL_LINK_LIMIT, offset: 0 }
 ): Promise<LinkPage> {
 	const result = LinkPageSchema.safeParse(
 		await fetchPage({
 			...filters,
-			limit: MODEL_LINK_LIMIT,
-			offset: 0,
+			limit: page.limit,
+			offset: page.offset,
+			...(page.includeTotal ? { includeTotal: true } : {}),
 		})
 	);
 	if (!result.success) {
@@ -183,7 +190,8 @@ export async function fetchLinkSummary(
 async function loadLinks(
 	context: AppContext,
 	organizationId: string,
-	filters: { folderId?: string | null; search?: string } = {}
+	filters: { folderId?: string | null; search?: string } = {},
+	page?: LinkPageRequest
 ): Promise<LinkPage> {
 	const { callRPCProcedure } = await import("./utils");
 	return fetchLinkCatalogPage(
@@ -199,23 +207,26 @@ async function loadLinks(
 				},
 				context
 			),
-		filters
+		filters,
+		page
 	);
 }
 
 export function listLinks(
 	context: AppContext,
-	organizationId: string
+	organizationId: string,
+	page?: LinkPageRequest
 ): Promise<LinkPage> {
-	return loadLinks(context, organizationId);
+	return loadLinks(context, organizationId, {}, page);
 }
 
 export function searchLinks(
 	context: AppContext,
 	organizationId: string,
-	query: string
+	query: string,
+	page?: LinkPageRequest
 ): Promise<LinkPage> {
-	return loadLinks(context, organizationId, { search: query });
+	return loadLinks(context, organizationId, { search: query }, page);
 }
 
 export async function getLinkSummary(
@@ -332,7 +343,7 @@ export function resolveLinkFolderFromList(
 		}
 		return {
 			folders,
-			message: `I couldn't find link folder id "${folderId}" in this organization. Available folders: ${formatLinkFolderOptions(folders)}. Use an existing folder or leave the link unfiled.`,
+			message: `No link folder with id "${folderId}" exists in this organization. Available folders: ${formatLinkFolderOptions(folders)}. Use an existing folder or leave the link unfiled.`,
 			ok: false,
 		};
 	}
@@ -350,7 +361,7 @@ export function resolveLinkFolderFromList(
 
 	return {
 		folders,
-		message: `I couldn't find an existing link folder slug "${requested}". Available folders: ${formatLinkFolderOptions(folders)}. Use an existing folder id/slug or leave the link unfiled.`,
+		message: `No link folder with slug "${requested}" exists in this organization. Available folders: ${formatLinkFolderOptions(folders)}. Use an existing folder id or slug, or leave the link unfiled.`,
 		ok: false,
 	};
 }
