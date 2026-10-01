@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import type { RequestPrincipal } from "./tool-context";
 import type { WebsiteSummary } from "../../lib/accessible-websites";
+import { createRedisModuleMock } from "../test-redis-mock";
 
 const permission = mock(async () => ({ success: true }));
 const readableOrganizations = mock(async () => ["org-other"]);
 const memberRole = mock(async () => "viewer" as string | null);
-let cachedWebsites: string | null = null;
 const sites: WebsiteSummary[] = [
 	{
 		id: "site",
@@ -55,14 +55,7 @@ mock.module("@databuddy/api-keys/resolve", () => ({
 	hasKeyScope: () => true,
 	hasWebsiteScopeForOrganization: () => true,
 }));
-const realRedis = await import("@databuddy/redis");
-mock.module("@databuddy/redis", () => ({
-	...realRedis,
-	getRedisCache: () =>
-		cachedWebsites
-			? { get: async () => cachedWebsites, setex: async () => {} }
-			: null,
-}));
+mock.module("@databuddy/redis", () => createRedisModuleMock({}));
 
 const {
 	ensureWebsiteAccess,
@@ -72,7 +65,6 @@ const {
 } = await import("./tool-context");
 
 beforeEach(() => {
-	cachedWebsites = null;
 	memberRole.mockClear();
 });
 
@@ -86,8 +78,7 @@ describe("OAuth selected website grants", () => {
 		userId: "user",
 	};
 
-	it("filters website discovery and selectors even when the cache contains more sites", async () => {
-		cachedWebsites = JSON.stringify(sites);
+	it("filters website discovery and selectors to the granted websites", async () => {
 		expect(
 			(await getCachedAccessibleWebsites(principal)).map((site) => site.id)
 		).toEqual(["site"]);
@@ -99,8 +90,7 @@ describe("OAuth selected website grants", () => {
 		).toBeInstanceOf(Error);
 	});
 
-	it("does not reuse discovery results after membership or scope access is removed", async () => {
-		cachedWebsites = JSON.stringify(sites);
+	it("checks membership and scope before returning discovery results", async () => {
 		readableOrganizations.mockResolvedValueOnce([]);
 		expect(await getCachedAccessibleWebsites(principal)).toEqual([]);
 		expect(
@@ -153,6 +143,11 @@ describe("OAuth selected website grants", () => {
 });
 
 describe("MCP domain selector compatibility", () => {
+	const sessionPrincipal: RequestPrincipal = {
+		apiKey: null,
+		organizationId: "org-other",
+		userId: "user",
+	};
 	it.each([
 		["reports.example.com", "site"],
 		["REPORTS.EXAMPLE.COM", "site"],
@@ -161,9 +156,9 @@ describe("MCP domain selector compatibility", () => {
 		["https://www.example.com", "www-site"],
 		["HtTpS://reports.example.com:8443", "port-site"],
 	])("resolves %s to %s", async (websiteDomain, expected) => {
-		expect(
-			await resolveWebsiteId({ websiteDomain }, { apiKey: null, userId: null })
-		).toBe(expected);
+		expect(await resolveWebsiteId({ websiteDomain }, sessionPrincipal)).toBe(
+			expected
+		);
 	});
 	it.each([
 		"www.reports.example.com",
@@ -176,7 +171,7 @@ describe("MCP domain selector compatibility", () => {
 		"ftp://reports.example.com",
 	])("does not rewrite unsupported selector %s", async (websiteDomain) => {
 		expect(
-			await resolveWebsiteId({ websiteDomain }, { apiKey: null, userId: null })
+			await resolveWebsiteId({ websiteDomain }, sessionPrincipal)
 		).toBeInstanceOf(Error);
 	});
 });

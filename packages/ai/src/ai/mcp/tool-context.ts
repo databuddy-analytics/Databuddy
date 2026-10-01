@@ -12,16 +12,16 @@ import {
 import { type User, websitesApi } from "@databuddy/auth";
 import { roleHasPermission } from "@databuddy/auth/permissions";
 import { db } from "@databuddy/db";
-import { getRedisCache } from "@databuddy/redis";
+import { cacheable } from "@databuddy/redis";
 import { getMemberRole } from "@databuddy/rpc/organization";
 import type { McpAccessGrant } from "@databuddy/shared/mcp-access";
 import type { AppContext } from "../config/context";
-import { mergeWideEvent } from "../../lib/tracing";
 import { getCachedWebsite } from "../../lib/website-utils";
 import { matchesWebsiteDomain } from "../../lib/website-domain";
 
+const OAUTH_USER_TTL_SEC = 15;
 const ACCESSIBLE_WEBSITES_TTL_SEC = 30;
-const ACCESSIBLE_WEBSITES_KEY_PREFIX = "mcp:accessible_websites:v2:";
+const ACCESSIBLE_WEBSITES_STALE_SEC = 10;
 const UNAUTHORIZED_STATUS_CODES = new Set([401, 403]);
 
 export interface WebsiteSelectorInput {
@@ -63,10 +63,11 @@ export class WebsiteSelectionError extends Error {
 
 const WEBSITE_LIST_HINT = "Website IDs come from list_websites.";
 
-export async function loadOAuthUser(userId: string): Promise<User | null> {
-	const user = await db.query.user.findFirst({ where: { id: userId } });
-	return user ?? null;
-}
+export const loadOAuthUser = cacheable(
+	async (userId: string): Promise<User | null> =>
+		(await db.query.user.findFirst({ where: { id: userId } })) ?? null,
+	{ expireInSec: OAUTH_USER_TTL_SEC, prefix: "mcp:oauth-user" }
+);
 
 interface WebsiteAccess {
 	domain: string;
@@ -174,97 +175,96 @@ export async function ensureWebsiteAccess(
 		organizationId: website.organizationId,
 	};
 }
-function accessibleWebsitesCacheKey(
-	principal: RequestPrincipal
-): string | null {
-	const organizationId =
-		principal.oauthGrant?.organizationId ??
-		principal.organizationId ??
-		principal.apiKey?.organizationId;
-	if (principal.apiKey) {
-		return `apikey:${principal.apiKey.id}:org:${organizationId ?? "none"}`;
-	}
-	if (principal.oauthUserId && !organizationId) {
-		return `oauth:${principal.oauthUserId}`;
-	}
-	if (principal.userId && organizationId) {
-		return `user:${principal.userId}:org:${organizationId}`;
-	}
-	return null;
+
+type AccessibleWebsite = Pick<
+	WebsiteSummary,
+	"domain" | "id" | "isPublic" | "name"
+>;
+
+type WebsiteListPrincipal = "api_key" | "member" | "user";
+
+function toAccessibleWebsites(list: WebsiteSummary[]): AccessibleWebsite[] {
+	return list.map(({ domain, id, isPublic, name }) => ({
+		domain,
+		id,
+		isPublic,
+		name,
+	}));
 }
-function mergeCacheFailure(operation: "read" | "write"): void {
-	mergeWideEvent({ [`mcp_websites_cache_${operation}_error`]: true });
+
+async function loadWebsiteList(
+	principal: WebsiteListPrincipal,
+	principalId: string,
+	organizationId: string | null
+): Promise<AccessibleWebsite[]> {
+	if (principal === "member") {
+		return toAccessibleWebsites(await getMemberWebsites(principalId));
+	}
+	if (principal === "user") {
+		return toAccessibleWebsites(
+			await getAccessibleWebsites({
+				apiKey: null,
+				organizationId,
+				user: { id: principalId },
+			})
+		);
+	}
+	const apiKey = await db.query.apikey.findFirst({
+		where: { id: principalId },
+	});
+	return apiKey
+		? toAccessibleWebsites(
+				await getAccessibleWebsites({ apiKey, organizationId, user: null })
+			)
+		: [];
 }
+
+const getCachedWebsiteList = cacheable(loadWebsiteList, {
+	expireInSec: ACCESSIBLE_WEBSITES_TTL_SEC,
+	prefix: "mcp:accessible-websites",
+	reviveDates: false,
+	staleTime: ACCESSIBLE_WEBSITES_STALE_SEC,
+	staleWhileRevalidate: true,
+});
 
 export async function getCachedAccessibleWebsites(
 	principal: RequestPrincipal
-): Promise<WebsiteSummary[]> {
-	const scopedApiKey =
-		principal.apiKey && !hasKeyScope(principal.apiKey, "read:data");
-	const authCtx = {
-		apiKey: principal.apiKey,
-		organizationId: scopedApiKey
+): Promise<AccessibleWebsite[]> {
+	const { apiKey, oauthUserId, userId } = principal;
+	const organizationId =
+		apiKey && !hasKeyScope(apiKey, "read:data")
 			? null
 			: (principal.oauthGrant?.organizationId ??
 				principal.organizationId ??
-				principal.apiKey?.organizationId ??
-				null),
-		user: principal.userId ? { id: principal.userId } : null,
-	};
-	const { oauthUserId } = principal;
+				apiKey?.organizationId ??
+				null);
 	if (oauthUserId) {
 		if (principal.oauthScopes && !principal.oauthScopes.includes("read:data")) {
 			return [];
 		}
 		if (
-			authCtx.organizationId &&
-			!(await getReadableOrganizationIds(oauthUserId)).includes(
-				authCtx.organizationId
-			)
+			organizationId &&
+			!(await getReadableOrganizationIds(oauthUserId)).includes(organizationId)
 		) {
 			return [];
 		}
 	}
+	let list: AccessibleWebsite[] = [];
+	if (apiKey) {
+		list = await getCachedWebsiteList("api_key", apiKey.id, organizationId);
+	} else if (oauthUserId && !organizationId) {
+		list = await getCachedWebsiteList("member", oauthUserId, null);
+	} else if (userId && organizationId) {
+		list = await getCachedWebsiteList("user", userId, organizationId);
+	}
 	const grantedWebsiteIds = principal.oauthGrant?.websiteIds;
-	const restrictWebsites = (list: WebsiteSummary[]) =>
-		grantedWebsiteIds
-			? list.filter((website) => grantedWebsiteIds.includes(website.id))
-			: list;
-	const loadWebsites = () =>
-		oauthUserId && !authCtx.organizationId
-			? getMemberWebsites(oauthUserId)
-			: getAccessibleWebsites(authCtx);
-	const cacheKey = accessibleWebsitesCacheKey(principal);
-	const redis = cacheKey ? getRedisCache() : null;
-	if (!(cacheKey && redis)) {
-		return restrictWebsites(await loadWebsites());
-	}
-
-	const redisKey = `${ACCESSIBLE_WEBSITES_KEY_PREFIX}${cacheKey}`;
-	try {
-		const cached = await redis.get(redisKey);
-		if (cached) {
-			return restrictWebsites(JSON.parse(cached) as WebsiteSummary[]);
-		}
-	} catch {
-		mergeCacheFailure("read");
-	}
-
-	const result = await loadWebsites();
-	try {
-		await redis.setex(
-			redisKey,
-			ACCESSIBLE_WEBSITES_TTL_SEC,
-			JSON.stringify(result)
-		);
-	} catch {
-		mergeCacheFailure("write");
-	}
-	return restrictWebsites(result);
+	return grantedWebsiteIds
+		? list.filter((website) => grantedWebsiteIds.includes(website.id))
+		: list;
 }
 
 function singleMatch(
-	matches: WebsiteSummary[],
+	matches: AccessibleWebsite[],
 	selector: string
 ): string | WebsiteSelectionError {
 	const [match, ...others] = matches;
