@@ -6,7 +6,7 @@ import {
 	CheckIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { createHighlighterCoreSync } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 import html from "shiki/langs/html.mjs";
@@ -98,12 +98,12 @@ export function agentProgressSummary(progress: AgentProgress): string {
 interface ConnectAppProps {
 	agentProgress: AgentProgress | null;
 	domain: string;
+	/** Replaces the script tag under "Or install it yourself"; false hides the disclosure. */
+	manualInstall?: ReactNode | false;
 	onCopy?: (method: TrackingCopyMethod, agent?: string) => void;
 	onSkip?: () => void;
 	research: SiteResearch;
 	setupSession: string;
-	/** The onboarding row shows the script tag inline; the website page has its own install card. */
-	showScript?: boolean;
 	tracking: TrackingStatus;
 	websiteId: string;
 }
@@ -115,7 +115,7 @@ export function ConnectApp({
 	onSkip,
 	research,
 	setupSession,
-	showScript = true,
+	manualInstall,
 	tracking,
 	websiteId,
 }: ConnectAppProps) {
@@ -198,7 +198,7 @@ export function ConnectApp({
 				</div>
 			</div>
 
-			{showScript ? (
+			{manualInstall === false ? null : (
 				<div>
 					<Button
 						className="-ml-2.5"
@@ -221,28 +221,30 @@ export function ConnectApp({
 						)}
 					>
 						<div className="min-h-0 overflow-hidden">
-							<div className="group relative mt-3 overflow-hidden rounded border border-border">
-								<div
-									className={cn(
-										"overflow-x-auto font-mono text-[13px] leading-relaxed",
-										"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
-										"[&>pre>code]:block [&>pre>code]:w-full"
-									)}
-									dangerouslySetInnerHTML={{ __html: highlighted }}
-								/>
-								<Button
-									className="absolute top-2 right-2"
-									onClick={() => copy("script", "script")}
-									size="sm"
-									variant="secondary"
-								>
-									{copied === "script" ? "Copied" : "Copy"}
-								</Button>
-							</div>
+							{manualInstall ?? (
+								<div className="group relative mt-3 overflow-hidden rounded border border-border">
+									<div
+										className={cn(
+											"overflow-x-auto font-mono text-[13px] leading-relaxed",
+											"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
+											"[&>pre>code]:block [&>pre>code]:w-full"
+										)}
+										dangerouslySetInnerHTML={{ __html: highlighted }}
+									/>
+									<Button
+										className="absolute top-2 right-2"
+										onClick={() => copy("script", "script")}
+										size="sm"
+										variant="secondary"
+									>
+										{copied === "script" ? "Copied" : "Copy"}
+									</Button>
+								</div>
+							)}
 						</div>
 					</div>
 				</div>
-			) : null}
+			)}
 
 			{agentProgress ? (
 				<ul className="space-y-1.5 border-border border-t pt-4">
