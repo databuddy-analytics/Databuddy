@@ -206,6 +206,8 @@ export const AiDigestEmail = ({
 	visitors,
 }: AiDigestEmailProps) => {
 	const senders = products.filter((product) => product.visitors > 0);
+	const setupUrl = new URL(agentsUrl);
+	setupUrl.searchParams.set("setup", "true");
 
 	return (
 		<Html lang="en">
@@ -339,7 +341,7 @@ export const AiDigestEmail = ({
 										adds them.{" "}
 										<Link
 											className="font-medium text-ink underline"
-											href={agentsUrl}
+											href={setupUrl.toString()}
 										>
 											Set it up
 										</Link>
