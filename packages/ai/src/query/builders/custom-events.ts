@@ -3,32 +3,33 @@ import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { Filter, SimpleQueryConfig } from "../types";
 
-function projectWhereClause(
+function customEventsScope(
 	filterParams?: Record<string, Filter["value"]>
 ): string {
 	// Org-level: owner_id is always the organizationId at ingestion, so a
 	// primary-key scan on owner_id alone covers all events for the org.
-	if (filterParams?.__orgLevel) {
-		return "owner_id = {projectId:String}";
-	}
 	// Website-level: match either owner_id or website_id (bloom-filter indexed).
-	return "(owner_id = {projectId:String} OR website_id = {projectId:String})";
+	const owner = filterParams?.__orgLevel
+		? "owner_id = {projectId:String}"
+		: "(owner_id = {projectId:String} OR website_id = {projectId:String})";
+	return `${owner}
+		AND timestamp >= toDateTime({startDate:String})
+		AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+		AND event_name != ''`;
 }
+
 function separatePropertyKeyConditions(filterConditions?: string[]): {
 	whereClause: string;
 	propertyKeyClause: string;
 } {
-	const propertyKeyConditions =
-		filterConditions?.filter((c) => c.includes("property_key")) ?? [];
-	const otherConditions =
-		filterConditions?.filter((c) => !c.includes("property_key")) ?? [];
+	const isPropertyKey = (c: string) => c.includes("property_key");
 	return {
-		whereClause: otherConditions.length
-			? `AND ${otherConditions.join(" AND ")}`
-			: "",
-		propertyKeyClause: propertyKeyConditions.length
-			? `AND ${propertyKeyConditions.join(" AND ")}`
-			: "",
+		whereClause: appendFilterClause(
+			filterConditions?.filter((c) => !isPropertyKey(c))
+		),
+		propertyKeyClause: appendFilterClause(
+			filterConditions?.filter(isPropertyKey)
+		),
 	};
 }
 
@@ -63,10 +64,7 @@ export const CustomEventsBuilders = {
 						ROUND((uniq(${CUSTOM_EVENTS_VISITOR_KEY}) / SUM(uniq(${CUSTOM_EVENTS_VISITOR_KEY})) OVER()) * 100, 2) as percentage
 					FROM ${Analytics.custom_events}
 					WHERE
-						${projectWhereClause(filterParams)}
-						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-						AND event_name != ''
+						${customEventsScope(filterParams)}
 						${filterClause}
 					GROUP BY event_name
 					ORDER BY unique_users DESC, total_events DESC
@@ -129,10 +127,7 @@ export const CustomEventsBuilders = {
 								arrayJoin(JSONExtractKeys(properties)) as property_key
 							FROM ${Analytics.custom_events}
 							WHERE
-								${projectWhereClause(filterParams)}
-								AND timestamp >= toDateTime({startDate:String})
-								AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-								AND event_name != ''
+								${customEventsScope(filterParams)}
 								AND properties != '{}'
 								AND isValidJSON(properties)
 								${whereClause}
@@ -198,10 +193,7 @@ export const CustomEventsBuilders = {
 						uniq(${CUSTOM_EVENTS_VISITOR_KEY}) as unique_users
 					FROM ${Analytics.custom_events}
 					WHERE
-						${projectWhereClause(filterParams)}
-						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-						AND event_name != ''
+						${customEventsScope(filterParams)}
 						AND path IS NOT NULL AND path != ''
 						${filterClause}
 					GROUP BY path
@@ -251,10 +243,7 @@ export const CustomEventsBuilders = {
 						uniq(path) as unique_pages
 					FROM ${Analytics.custom_events}
 					WHERE
-						${projectWhereClause(filterParams)}
-						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-						AND event_name != ''
+						${customEventsScope(filterParams)}
 						${filterClause}
 					GROUP BY toDate(toTimeZone(timestamp, {timezone:String}))
 					ORDER BY date ASC
@@ -299,10 +288,7 @@ export const CustomEventsBuilders = {
 						COUNT(*) as total_events
 					FROM ${Analytics.custom_events}
 					WHERE
-						${projectWhereClause(filterParams)}
-						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-						AND event_name != ''
+						${customEventsScope(filterParams)}
 						${filterClause}
 					GROUP BY toDate(toTimeZone(timestamp, {timezone:String})), event_name
 					ORDER BY date ASC, total_events DESC
@@ -349,10 +335,7 @@ export const CustomEventsBuilders = {
 						uniq(path) as unique_pages
 					FROM ${Analytics.custom_events}
 					WHERE
-						${projectWhereClause(filterParams)}
-						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-						AND event_name != ''
+						${customEventsScope(filterParams)}
 						${filterClause}
 				`,
 				params: {
@@ -400,10 +383,7 @@ export const CustomEventsBuilders = {
 								arrayJoin(JSONExtractKeys(properties)) as property_key
 							FROM ${Analytics.custom_events}
 							WHERE 
-								${projectWhereClause(filterParams)}
-								AND timestamp >= toDateTime({startDate:String})
-								AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-								AND event_name != ''
+								${customEventsScope(filterParams)}
 								AND properties != '{}'
 								AND isValidJSON(properties)
 								${whereClause}
@@ -476,10 +456,7 @@ export const CustomEventsBuilders = {
 						timestamp
 					FROM ${Analytics.custom_events}
 					WHERE
-						${projectWhereClause(filterParams)}
-						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-						AND event_name != ''
+						${customEventsScope(filterParams)}
 						${filterClause}
 					ORDER BY timestamp DESC
 					LIMIT {limit:UInt32}
@@ -529,10 +506,7 @@ export const CustomEventsBuilders = {
 						FROM ${Analytics.custom_events}
 						ARRAY JOIN arrayMap(k -> (k, JSONExtractRaw(properties, k)), JSONExtractKeys(properties)) as kv
 						WHERE
-							${projectWhereClause(filterParams)}
-							AND timestamp >= toDateTime({startDate:String})
-							AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-							AND event_name != ''
+							${customEventsScope(filterParams)}
 							AND properties != '{}'
 							AND isValidJSON(properties)
 							${whereClause}
@@ -668,10 +642,7 @@ export const CustomEventsBuilders = {
 						FROM ${Analytics.custom_events}
 						ARRAY JOIN arrayMap(k -> (k, JSONExtractRaw(properties, k)), JSONExtractKeys(properties)) as kv
 						WHERE
-							${projectWhereClause(filterParams)}
-							AND timestamp >= toDateTime({startDate:String})
-							AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-							AND event_name != ''
+							${customEventsScope(filterParams)}
 							AND properties != '{}'
 							AND isValidJSON(properties)
 							${whereClause}
@@ -761,10 +732,7 @@ export const CustomEventsBuilders = {
 						FROM ${Analytics.custom_events}
 						ARRAY JOIN arrayMap(k -> (k, JSONExtractRaw(properties, k)), JSONExtractKeys(properties)) as kv
 						WHERE
-							${projectWhereClause(filterParams)}
-							AND timestamp >= toDateTime({startDate:String})
-							AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-							AND event_name != ''
+							${customEventsScope(filterParams)}
 							AND properties != '{}'
 							AND isValidJSON(properties)
 							${whereClause}
@@ -847,10 +815,7 @@ export const CustomEventsBuilders = {
 							uniq(session_id) as unique_sessions
 						FROM ${Analytics.custom_events}
 						WHERE
-							${projectWhereClause(filterParams)}
-							AND timestamp >= toDateTime({startDate:String})
-							AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-							AND event_name != ''
+							${customEventsScope(filterParams)}
 							${filterClause}
 						GROUP BY event_name
 					),
@@ -866,10 +831,7 @@ export const CustomEventsBuilders = {
 								arrayJoin(JSONExtractKeys(properties)) as property_key
 							FROM ${Analytics.custom_events}
 							WHERE
-								${projectWhereClause(filterParams)}
-								AND timestamp >= toDateTime({startDate:String})
-								AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-								AND event_name != ''
+								${customEventsScope(filterParams)}
 								AND properties != '{}'
 								AND isValidJSON(properties)
 								${filterClause}
