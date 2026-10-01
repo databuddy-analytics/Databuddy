@@ -179,7 +179,7 @@ function SidebarSectionBlock({
 							{section.list.map((item) => (
 								<DocSidebarItem
 									item={item}
-									key={item.title}
+									key={item.href ?? item.title}
 									nestedOpen={nestedOpen}
 									onNestedToggle={onNestedToggle}
 								/>
@@ -244,7 +244,11 @@ function DocSidebarItem({
 						>
 							<div className="mx-2 mb-1 ml-5 border-sidebar-border/40 border-l pl-2">
 								{item.children.map((child) => (
-									<SidebarLink item={child} key={child.title} nested />
+									<SidebarLink
+										item={child}
+										key={child.href ?? child.title}
+										nested
+									/>
 								))}
 							</div>
 						</motion.div>

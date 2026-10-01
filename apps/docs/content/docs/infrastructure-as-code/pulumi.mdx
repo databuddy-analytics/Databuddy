@@ -175,11 +175,14 @@ When you rename a resource or move it under a parent, add `aliases` so Pulumi up
 
 ## Running in CI
 
-Export the key in the environment that runs `pulumi`:
+Store the key as a CI secret and pass it to the step that runs `pulumi`. In GitHub Actions:
 
-<CodeBlock language="bash">
-  {`export DATABUDDY_API_KEY="$DATABUDDY_API_KEY"
-pulumi up --yes --stack prod`}
+<CodeBlock language="yaml">
+  {`- name: Deploy
+  run: pulumi up --yes --stack prod
+  env:
+    PULUMI_ACCESS_TOKEN: \${{ secrets.PULUMI_ACCESS_TOKEN }}
+    DATABUDDY_API_KEY: \${{ secrets.DATABUDDY_API_KEY }}`}
 </CodeBlock>
 
 `DATABUDDY_API_KEY` and `DATABUDDY_API_URL` are read from the environment of the `pulumi` process (your shell, CI job, or Automation API `envVars`), not from variables set inside your program.
