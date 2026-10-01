@@ -3,6 +3,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { useAtom } from "jotai";
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { useCallback, useMemo } from "react";
 import { formatNumber } from "@/lib/formatters";
 import {
@@ -22,7 +23,10 @@ import {
 } from "@/components/table/rows";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
+import {
+	useBatchDynamicQuery,
+	useDynamicQuery,
+} from "@/hooks/use-dynamic-query";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { metricVisibilityAtom } from "@/stores/jotai/chartAtoms";
 import {
@@ -32,7 +36,10 @@ import {
 	formatDateByGranularity,
 } from "../utils/analytics-helpers";
 import type { FullTabProps, MetricPoint } from "../utils/types";
-import { AITrafficSection } from "./overview/_components/ai-traffic-section";
+import {
+	type AIProductRow,
+	AITrafficSection,
+} from "./overview/_components/ai-traffic-section";
 import { TrafficTrendsChart } from "./overview/_components/traffic-trends-chart";
 import {
 	ChartLineIcon,
@@ -136,6 +143,23 @@ export function WebsiteOverviewTab({
 	filters,
 	addFilter,
 }: WebsiteOverviewTabProps) {
+	const pathname = usePathname();
+	const isPublicView =
+		pathname.startsWith("/demo/") || pathname.startsWith("/public/");
+	const showAgentAnalytics = !isPublicView && filters.length === 0;
+	const { data: aiAnalytics, isLoading: isAILoading } = useDynamicQuery<{
+		ai_products: AIProductRow[];
+		ai_visitor_outcomes: { product: string; visitors: number }[];
+	}>(
+		websiteId,
+		dateRange,
+		{ parameters: ["ai_products", "ai_visitor_outcomes"], limit: 1000 },
+		{ enabled: showAgentAnalytics, retry: false }
+	);
+	const hasAgentAnalytics =
+		showAgentAnalytics &&
+		aiAnalytics.ai_products !== undefined &&
+		aiAnalytics.ai_visitor_outcomes !== undefined;
 	const { chartType, chartStepType } = useChartPreferences("overview-stats");
 	const isMobile = useMediaQuery("(max-width: 640px)");
 	const { setDateRangeAction } = useDateFilters();
@@ -950,8 +974,17 @@ export function WebsiteOverviewTab({
 			/>
 
 			<AITrafficSection
-				isLoading={isLoading}
+				agentsHref={isPublicView ? undefined : `/websites/${websiteId}/agents`}
+				isLoading={isLoading || (showAgentAnalytics && isAILoading)}
+				products={hasAgentAnalytics ? aiAnalytics.ai_products : undefined}
 				referrers={analytics.top_referrers || []}
+				totalVisitors={
+					hasAgentAnalytics
+						? (aiAnalytics.ai_visitor_outcomes.find(
+								(row) => row.product === "All AI visitors"
+							)?.visitors ?? 0)
+						: undefined
+				}
 			/>
 
 			<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
@@ -983,35 +1016,7 @@ export function WebsiteOverviewTab({
 			/>
 
 			<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
-				<DataTable
-					columns={deviceColumns}
-					data={analytics.device_types || []}
-					description="Device breakdown"
-					initialPageSize={8}
-					isLoading={isLoading}
-					minHeight={350}
-					onAddFilter={onAddFilter}
-					tabs={[
-						{
-							id: "devices",
-							label: "Devices",
-							data: analytics.device_types || [],
-							columns: deviceColumns,
-							getFilter: (row: TechnologyData) => {
-								const deviceDisplayToFilterMap: Record<string, string> = {
-									laptop: "mobile",
-									tablet: "tablet",
-									desktop: "desktop",
-								};
-								return {
-									field: "device_type",
-									value: deviceDisplayToFilterMap[row.name] || row.name,
-								};
-							},
-						},
-					]}
-					title="Devices"
-				/>
+				<GeoMapSection countries={geoData.countries} isLoading={isLoading} />
 
 				<DataTable
 					columns={browserColumns}
@@ -1059,7 +1064,35 @@ export function WebsiteOverviewTab({
 					title="Operating Systems"
 				/>
 
-				<GeoMapSection countries={geoData.countries} isLoading={isLoading} />
+				<DataTable
+					columns={deviceColumns}
+					data={analytics.device_types || []}
+					description="Device breakdown"
+					initialPageSize={8}
+					isLoading={isLoading}
+					minHeight={350}
+					onAddFilter={onAddFilter}
+					tabs={[
+						{
+							id: "devices",
+							label: "Devices",
+							data: analytics.device_types || [],
+							columns: deviceColumns,
+							getFilter: (row: TechnologyData) => {
+								const deviceDisplayToFilterMap: Record<string, string> = {
+									laptop: "mobile",
+									tablet: "tablet",
+									desktop: "desktop",
+								};
+								return {
+									field: "device_type",
+									value: deviceDisplayToFilterMap[row.name] || row.name,
+								};
+							},
+						},
+					]}
+					title="Devices"
+				/>
 			</div>
 		</div>
 	);
