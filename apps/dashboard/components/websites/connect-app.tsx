@@ -154,6 +154,14 @@ export function ConnectApp({
 		[websiteId]
 	);
 
+	const hint =
+		research.phase === "reading" || research.phase === "writing"
+			? `Databunny is still reading ${domain}. Once the brief is ready the prompt also names the events and funnels this site needs.`
+			: research.phase === "ready" &&
+					research.suggestedGoals.length + research.suggestedFunnels.length > 0
+				? "The prompt includes the brief and the events behind the suggested goals and funnels."
+				: null;
+
 	const copy = async (id: string, method: TrackingCopyMethod) => {
 		const text =
 			method === "ai"
@@ -201,18 +209,8 @@ export function ConnectApp({
 							Read my site
 						</Button>
 					</p>
-				) : research.phase === "reading" || research.phase === "writing" ? (
-					<p className="text-pretty text-muted-foreground text-xs">
-						Databunny is still reading {domain}. Once the brief is ready the
-						prompt also names the events and funnels this site needs.
-					</p>
-				) : research.phase === "ready" &&
-					(research.suggestedGoals.length ||
-						research.suggestedFunnels.length) ? (
-					<p className="text-pretty text-muted-foreground text-xs">
-						The prompt includes the brief and the events behind the suggested
-						goals and funnels.
-					</p>
+				) : hint ? (
+					<p className="text-pretty text-muted-foreground text-xs">{hint}</p>
 				) : null}
 				<div className="flex flex-wrap gap-2">
 					{AGENTS.map((agent) => (

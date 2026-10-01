@@ -38,7 +38,7 @@ import { AnalyticsToolbar } from "./_components/analytics-toolbar";
 import { AddFilterForm } from "./_components/filters/add-filters";
 import { FiltersSection } from "./_components/filters/filters-section";
 import { SavedFiltersToolbar } from "./_components/filters/saved-filters-toolbar";
-import { WebsiteTrackingSetupTab } from "./_components/tabs/tracking-setup-tab";
+import { WebsiteTrackingGate } from "./_components/tracking-gate";
 import { useTrackingSetup } from "./hooks/use-tracking-setup";
 import { Button, usePersistentState } from "@databuddy/ui";
 import {
@@ -444,7 +444,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 					) : null}
 					{showTrackingSetup ? (
 						<div className="p-4">
-							<WebsiteTrackingSetupTab variant="gate" websiteId={websiteId} />
+							<WebsiteTrackingGate websiteId={websiteId} />
 						</div>
 					) : (
 						children
