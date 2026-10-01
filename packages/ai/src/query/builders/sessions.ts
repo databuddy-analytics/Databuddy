@@ -62,26 +62,51 @@ export const SessionsBuilders = {
 
 	session_duration_distribution: {
 		meta: {
-			description: "Distribution of sessions by duration buckets.",
+			description:
+				"Distribution of sessions by total time on page, summed from page exits. Sessions without a recorded page exit are not counted.",
 			category: "Sessions",
 			tags: ["sessions", "duration", "distribution"],
 		},
-		table: Analytics.events,
-		fields: [
-			"CASE " +
-				"WHEN time_on_page < 30 THEN '0-30s' " +
-				"WHEN time_on_page < 60 THEN '30s-1m' " +
-				"WHEN time_on_page < 300 THEN '1m-5m' " +
-				"WHEN time_on_page < 900 THEN '5m-15m' " +
-				"WHEN time_on_page < 3600 THEN '15m-1h' " +
-				"ELSE '1h+' " +
-				"END as duration_range",
-			"uniq(session_id) as sessions",
-			"uniq(anonymous_id) as visitors",
-		],
-		where: ["event_name = 'screen_view'", "time_on_page > 0"],
-		groupBy: ["duration_range"],
-		orderBy: "sessions DESC",
+		customSql: (ctx) => {
+			const { websiteId, startDate, endDate, filterConditions, filterParams } =
+				ctx;
+			const filterClause = appendFilterClause(filterConditions);
+			return {
+				sql: `
+				WITH session_durations AS (
+					SELECT
+						session_id,
+						any(anonymous_id) as visitor_id,
+						sum(time_on_page) as duration
+					FROM ${Analytics.events}
+					WHERE
+						client_id = {websiteId:String}
+						AND time >= toDateTime({startDate:String})
+						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						AND event_name = 'page_exit'
+						AND session_id != ''
+						AND time_on_page > 0
+						${filterClause}
+					GROUP BY session_id
+				)
+				SELECT
+					CASE
+						WHEN duration < 30 THEN '0-30s'
+						WHEN duration < 60 THEN '30s-1m'
+						WHEN duration < 300 THEN '1m-5m'
+						WHEN duration < 900 THEN '5m-15m'
+						WHEN duration < 3600 THEN '15m-1h'
+						ELSE '1h+'
+					END as duration_range,
+					count() as sessions,
+					uniq(visitor_id) as visitors
+				FROM session_durations
+				GROUP BY duration_range
+				ORDER BY sessions DESC
+			`,
+				params: { websiteId, startDate, endDate, ...filterParams },
+			};
+		},
 		timeField: "time",
 		allowedFilters: ["profile_id", "anonymous_id"],
 		customizable: true,

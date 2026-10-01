@@ -390,7 +390,7 @@ export const EngagementBuilders = {
 		meta: {
 			title: "Interaction Summary",
 			description:
-				"Summary of user interactions including click, scroll, and keyboard events.",
+				"Summary of user interactions (clicks, scrolls, key presses) reported on page exit. Sessions without a recorded page exit are not counted.",
 			category: "Engagement",
 			tags: ["interactions", "engagement", "user behavior"],
 			output_fields: [
@@ -417,7 +417,7 @@ export const EngagementBuilders = {
 					name: "total_sessions",
 					type: "number",
 					label: "Total Sessions",
-					description: "Total sessions in the period",
+					description: "Sessions with a recorded page exit in the period",
 				},
 			],
 			default_visualization: "metric",
@@ -425,12 +425,16 @@ export const EngagementBuilders = {
 		},
 		table: Analytics.events,
 		fields: [
-			"ROUND(AVG(CASE WHEN interaction_count >= 0 THEN interaction_count ELSE NULL END), 1) as avg_interactions",
+			"ROUND(sum(interaction_count) / nullIf(uniq(session_id), 0), 1) as avg_interactions",
 			"uniqIf(session_id, interaction_count > 0) as interactive_sessions",
 			"ROUND((uniqIf(session_id, interaction_count > 0) / uniq(session_id)) * 100, 1) as interaction_rate",
 			"uniq(session_id) as total_sessions",
 		],
-		where: ["event_name = 'screen_view'", "interaction_count >= 0"],
+		where: [
+			"event_name = 'page_exit'",
+			"session_id != ''",
+			"interaction_count >= 0",
+		],
 		timeField: "time",
 		customizable: true,
 	},
