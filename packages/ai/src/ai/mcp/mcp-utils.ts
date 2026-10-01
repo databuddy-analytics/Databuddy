@@ -11,6 +11,7 @@ import {
 import { captureError } from "../../lib/tracing";
 import { getQueryBuilder, QueryBuilders } from "../../query/builders";
 import {
+	allowedFilterFields,
 	invalidFilterFieldError,
 	publicQueryErrorMessage,
 	SANITIZED_QUERY_ERROR,
@@ -466,9 +467,12 @@ function getDescription(
 }
 
 interface QueryTypeInfo {
-	allowedFilters?: string[];
+	allowedFilterOperators?: SimpleQueryConfig["allowedFilterOperators"];
+	allowedFilters: string[];
 	customizable?: boolean;
 	description: string;
+	requiredAnyFilter?: string[];
+	requiredFilters?: string[];
 }
 
 export function getQueryTypeDescriptions(): Record<string, string> {
@@ -484,10 +488,17 @@ export function getQueryTypeDetails(): Record<string, QueryTypeInfo> {
 	for (const [key, config] of Object.entries(QueryBuilders)) {
 		result[key] = {
 			description: getDescription(key, config),
-			...(config?.allowedFilters?.length && {
-				allowedFilters: config.allowedFilters,
+			allowedFilters: allowedFilterFields(config),
+			...(config.requiredFilters?.length && {
+				requiredFilters: config.requiredFilters,
 			}),
-			...(config?.customizable !== undefined && {
+			...(config.requiredAnyFilter?.length && {
+				requiredAnyFilter: config.requiredAnyFilter,
+			}),
+			...(config.allowedFilterOperators && {
+				allowedFilterOperators: config.allowedFilterOperators,
+			}),
+			...(config.customizable !== undefined && {
 				customizable: config.customizable,
 			}),
 		};
