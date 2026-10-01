@@ -305,16 +305,42 @@ const SCHEMA_SUMMARY = Object.keys(AGENT_TABLE_COLUMNS)
 
 const DIRECTIVE_CLAUSE_RE =
 	/^(use|uses|prefer|always|must|should|instead|do not|don't|never use)\b|\b(raw sql|quantile\w*|tofloat64)\b/i;
+const STORAGE_DETAIL_RE =
+	/\b(partitioned|ordered by|bloom filter|indexes?|count\(\*\)|divide by|toyyyymm)\b/i;
 const CLAUSE_BREAK_RE = /(?<=\.)\s+|\s+\u2014\s+|;\s+/;
 const TRAILING_PERIOD_RE = /\.$/;
+const LIST_ITEM_PREFIX = "- ";
 
-function withoutDirectives(text: string): string | null {
-	const clauses = text
+function factualClauses(text: string): string[] {
+	return text
 		.split(CLAUSE_BREAK_RE)
 		.map((clause) => clause.trim().replace(TRAILING_PERIOD_RE, ""))
-		.filter((clause) => clause && !DIRECTIVE_CLAUSE_RE.test(clause))
+		.filter(
+			(clause) =>
+				clause &&
+				!DIRECTIVE_CLAUSE_RE.test(clause) &&
+				!STORAGE_DETAIL_RE.test(clause)
+		)
 		.map((clause) => clause.charAt(0).toUpperCase() + clause.slice(1));
+}
+
+function withoutDirectives(text: string): string | null {
+	const clauses = factualClauses(text);
 	return clauses.length > 0 ? `${clauses.join(". ")}.` : null;
+}
+
+function factualNotes(text: string | undefined): string[] {
+	return (text ?? "")
+		.split("\n")
+		.map((line) => line.trim())
+		.flatMap((line) => {
+			if (line.startsWith(LIST_ITEM_PREFIX)) {
+				const [item] = factualClauses(line.slice(LIST_ITEM_PREFIX.length));
+				return item ? [`${LIST_ITEM_PREFIX}${item}`] : [];
+			}
+			const note = withoutDirectives(line);
+			return note ? [note] : [];
+		});
 }
 
 function columnLine(column: string): string {
@@ -334,6 +360,7 @@ export function getMcpSchemaDocumentation(
 				`## ${table.name}`,
 				...(description ? [description] : []),
 				...table.keyColumns.map(columnLine),
+				...factualNotes(table.additionalInfo),
 			].join("\n");
 		})
 		.join("\n\n");

@@ -1490,7 +1490,10 @@ const updateFlagTool = defineMcpTool(
 		return {
 			success: true,
 			message: "Feature flag updated successfully.",
-			flag: pickFields(result, FLAG_FIELDS),
+			flag: pickFields(
+				result,
+				FLAG_FIELDS.filter((field) => field !== "targetGroups")
+			),
 		};
 	}
 );
