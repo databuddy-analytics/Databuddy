@@ -75,6 +75,21 @@ const requireScope = <
 
 const scopeRefinement = { message: SCOPE_REQUIRED_ERROR, path: ["websiteId"] };
 
+const VARIANT_WEIGHTS_ERROR = "When specifying weights, they must sum to 100%";
+
+function hasUnbalancedVariantWeights(
+	variants: readonly { weight?: number }[]
+): boolean {
+	if (!variants.some((variant) => typeof variant.weight === "number")) {
+		return false;
+	}
+	const totalWeight = variants.reduce(
+		(sum, variant) => sum + (variant.weight ?? 0),
+		0
+	);
+	return totalWeight !== 100;
+}
+
 function authorizeFlagRead(
 	context: Context,
 	scope: { websiteId?: string; organizationId?: string }
@@ -139,52 +154,40 @@ const createFlagSchema = z
 		persistAcrossAuth: z.boolean().optional(),
 		...flagFormShape,
 	})
-	.refine(requireScope, scopeRefinement);
+	.refine(requireScope, scopeRefinement)
+	.refine(
+		(data) =>
+			!(
+				data.type === "multivariant" &&
+				data.variants &&
+				hasUnbalancedVariantWeights(data.variants)
+			),
+		{ message: VARIANT_WEIGHTS_ERROR, path: ["variants"] }
+	);
 
-const updateFlagSchema = z
-	.object({
-		id: z.string(),
-		name: z.string().min(1).max(100).optional(),
-		description: z.string().optional(),
-		type: z.enum(["boolean", "rollout", "multivariant"]).optional(),
-		status: z.enum(["active", "inactive", "archived"]).optional(),
-		defaultValue: z.boolean().optional(),
-		payload: z
-			.record(z.string(), z.unknown())
-			.refine(
-				(obj) => JSON.stringify(obj).length <= 32_768,
-				"Payload too large (max 32KB)"
-			)
-			.optional(),
-		rules: z.array(userRuleSchema).optional(),
-		persistAcrossAuth: z.boolean().optional(),
-		rolloutPercentage: z.number().min(0).max(100).optional(),
-		rolloutBy: z.string().optional(),
-		variants: z.array(variantSchema).optional(),
-		dependencies: z.array(z.string()).optional(),
-		environment: z.string().nullable().optional(),
-		targetGroupIds: z.array(z.string()).optional(),
-	})
-	.superRefine((data, ctx) => {
-		if (data.type === "multivariant" && data.variants) {
-			const hasAnyWeight = data.variants.some(
-				(v) => typeof v.weight === "number"
-			);
-			if (hasAnyWeight) {
-				const totalWeight = data.variants.reduce(
-					(sum, v) => sum + (typeof v.weight === "number" ? v.weight : 0),
-					0
-				);
-				if (totalWeight !== 100) {
-					ctx.addIssue({
-						code: z.ZodIssueCode.custom,
-						path: ["variants"],
-						message: "When specifying weights, they must sum to 100%",
-					});
-				}
-			}
-		}
-	});
+const updateFlagSchema = z.object({
+	id: z.string(),
+	name: z.string().min(1).max(100).optional(),
+	description: z.string().optional(),
+	type: z.enum(["boolean", "rollout", "multivariant"]).optional(),
+	status: z.enum(["active", "inactive", "archived"]).optional(),
+	defaultValue: z.boolean().optional(),
+	payload: z
+		.record(z.string(), z.unknown())
+		.refine(
+			(obj) => JSON.stringify(obj).length <= 32_768,
+			"Payload too large (max 32KB)"
+		)
+		.optional(),
+	rules: z.array(userRuleSchema).optional(),
+	persistAcrossAuth: z.boolean().optional(),
+	rolloutPercentage: z.number().min(0).max(100).optional(),
+	rolloutBy: z.string().optional(),
+	variants: z.array(variantSchema).optional(),
+	dependencies: z.array(z.string()).optional(),
+	environment: z.string().nullable().optional(),
+	targetGroupIds: z.array(z.string()).optional(),
+});
 
 const checkCircularDependency = async (
 	context: Context,
@@ -563,7 +566,7 @@ export const flagsRouter = {
 		.handler(async ({ context, input }) => {
 			setTrackProperties({ type: input.type });
 			const wsId = input.websiteId;
-			const orgId = input.organizationId;
+			const orgId = wsId ? undefined : input.organizationId;
 
 			const workspace = wsId
 				? await withWorkspace(context, {
@@ -586,7 +589,7 @@ export const flagsRouter = {
 				.from(flags)
 				.where(
 					and(
-						getScopeCondition(input.websiteId, input.organizationId),
+						getScopeCondition(input.websiteId, orgId),
 						isNull(flags.deletedAt),
 						ne(flags.status, "archived")
 					)
@@ -604,7 +607,7 @@ export const flagsRouter = {
 					input.key,
 					input.dependencies,
 					input.websiteId,
-					input.organizationId
+					orgId
 				);
 			}
 
@@ -616,7 +619,7 @@ export const flagsRouter = {
 						.where(
 							and(
 								inArray(flags.key, dependencyKeys),
-								getScopeCondition(input.websiteId, input.organizationId),
+								getScopeCondition(input.websiteId, orgId),
 								isNull(flags.deletedAt)
 							)
 						)
@@ -634,7 +637,7 @@ export const flagsRouter = {
 				.where(
 					and(
 						eq(flags.key, input.key),
-						getScopeCondition(input.websiteId, input.organizationId)
+						getScopeCondition(input.websiteId, orgId)
 					)
 				)
 				.limit(1);
@@ -655,21 +658,22 @@ export const flagsRouter = {
 					const [restored] = await tx
 						.update(flags)
 						.set({
-							name: input.name,
-							description: input.description,
+							name: input.name || null,
+							description: input.description || null,
 							type: input.type,
 							status: finalStatus,
 							defaultValue: input.defaultValue,
-							rules: input.rules,
+							payload: input.payload || null,
+							rules: input.rules || [],
 							persistAcrossAuth:
 								input.persistAcrossAuth ??
 								existingFlag.persistAcrossAuth ??
 								false,
-							rolloutPercentage: input.rolloutPercentage,
-							rolloutBy: input.rolloutBy,
-							variants: input.variants,
-							dependencies: input.dependencies,
-							environment: input.environment,
+							rolloutPercentage: input.rolloutPercentage || 0,
+							rolloutBy: input.rolloutBy || null,
+							variants: input.variants || [],
+							dependencies: input.dependencies || [],
+							environment: input.environment || null,
 							deletedAt: null,
 							updatedAt: new Date(),
 						})
@@ -732,7 +736,7 @@ export const flagsRouter = {
 				await invalidateFlagCache(
 					restoredFlag.id,
 					input.websiteId,
-					input.organizationId,
+					orgId,
 					input.key
 				);
 
@@ -761,7 +765,7 @@ export const flagsRouter = {
 						variants: input.variants || [],
 						dependencies: input.dependencies || [],
 						websiteId: input.websiteId || null,
-						organizationId: input.organizationId || null,
+						organizationId: orgId || null,
 						environment: input.environment || null,
 						userId: null,
 						createdBy,
@@ -815,12 +819,7 @@ export const flagsRouter = {
 				return createdFlag;
 			});
 
-			await invalidateFlagCache(
-				newFlag.id,
-				input.websiteId,
-				input.organizationId,
-				input.key
-			);
+			await invalidateFlagCache(newFlag.id, input.websiteId, orgId, input.key);
 
 			return newFlag;
 		}),
@@ -872,6 +871,14 @@ export const flagsRouter = {
 				throw rpcError.forbidden(
 					"Flags must be scoped to a website or organization"
 				);
+			}
+
+			if (
+				(input.type ?? flag.type) === "multivariant" &&
+				input.variants &&
+				hasUnbalancedVariantWeights(input.variants)
+			) {
+				throw rpcError.badRequest(VARIANT_WEIGHTS_ERROR);
 			}
 
 			const isUnarchiving =

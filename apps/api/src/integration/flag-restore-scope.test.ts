@@ -47,8 +47,10 @@ async function setupRestore() {
 			id: crypto.randomUUID(),
 			createdBy: user.id,
 			deletedAt: new Date("2026-01-01T00:00:00Z"),
+			description: "Deleted description",
 			key: "restore-audience",
 			name: "Deleted flag",
+			payload: { variant: "deleted" },
 			websiteId: site.id,
 		})
 		.returning();
@@ -141,7 +143,9 @@ describe("flag restoration target-group scope", () => {
 		expect(restored).toMatchObject({
 			id: fixture.flag.id,
 			deletedAt: null,
+			description: null,
 			name: "Restored flag",
+			payload: null,
 		});
 		expect(
 			await db()
