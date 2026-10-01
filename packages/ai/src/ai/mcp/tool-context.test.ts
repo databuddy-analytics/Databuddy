@@ -3,7 +3,9 @@ import type { RequestPrincipal } from "./tool-context";
 import type { WebsiteSummary } from "../../lib/accessible-websites";
 
 const permission = mock(async () => ({ success: true }));
-const readableOrganizations = mock(async () => ["org-other"]);
+const discoveryMembership = mock(
+	async (): Promise<{ role: string } | null> => ({ role: "viewer" })
+);
 const memberRole = mock(async () => "viewer" as string | null);
 let cachedWebsites: string | null = null;
 const sites: WebsiteSummary[] = [
@@ -45,8 +47,6 @@ mock.module("../../lib/website-utils", () => ({
 }));
 mock.module("../../lib/accessible-websites", () => ({
 	getAccessibleWebsites: async () => sites,
-	getMemberWebsites: async () => sites,
-	getReadableOrganizationIds: readableOrganizations,
 }));
 mock.module("@databuddy/rpc/organization", () => ({
 	getMemberRole: memberRole,
@@ -54,6 +54,11 @@ mock.module("@databuddy/rpc/organization", () => ({
 mock.module("@databuddy/api-keys/resolve", () => ({
 	hasKeyScope: () => true,
 	hasWebsiteScopeForOrganization: () => true,
+}));
+const realDb = await import("@databuddy/db");
+mock.module("@databuddy/db", () => ({
+	...realDb,
+	db: { query: { member: { findFirst: discoveryMembership } } },
 }));
 const realRedis = await import("@databuddy/redis");
 mock.module("@databuddy/redis", () => ({
@@ -65,6 +70,7 @@ mock.module("@databuddy/redis", () => ({
 }));
 
 const {
+	buildRpcContext,
 	ensureWebsiteAccess,
 	getCachedAccessibleWebsites,
 	resolveOrganizationId,
@@ -74,23 +80,48 @@ const {
 beforeEach(() => {
 	cachedWebsites = null;
 	memberRole.mockClear();
+	discoveryMembership.mockClear();
 });
 
 describe("OAuth selected website grants", () => {
-	const principal: RequestPrincipal = {
+	const principal = {
 		apiKey: null,
-		oauthGrant: { organizationId: "org-other", websiteIds: ["site"] },
-		oauthScopes: ["read:data"],
-		oauthUserId: "user",
-		organizationId: "org-other",
-		userId: "user",
-	};
+		oauth: {
+			grant: { organizationId: "org-other", websiteIds: ["site"] },
+			scopes: ["read:data"],
+			user: {
+				id: "user",
+				name: "User",
+				email: "user@example.com",
+				emailVerified: true,
+				image: null,
+				createdAt: new Date("2026-01-01"),
+				updatedAt: new Date("2026-01-01"),
+			},
+		},
+		userId: null,
+	} satisfies RequestPrincipal;
+
+	it("carries the same OAuth principal into RPC without session identity or active organization", () => {
+		const context = buildRpcContext({
+			...principal,
+			requestHeaders: new Headers(),
+		});
+		expect(context.userId).toBe("user");
+		expect(context.organizationId).toBe("org-other");
+		expect(context.serviceAuth?.oauth).toBe(principal.oauth);
+		expect(context.serviceAuth?.session).toBeNull();
+	});
 
 	it("filters website discovery and selectors even when the cache contains more sites", async () => {
 		cachedWebsites = JSON.stringify(sites);
 		expect(
 			(await getCachedAccessibleWebsites(principal)).map((site) => site.id)
 		).toEqual(["site"]);
+		expect(discoveryMembership).toHaveBeenCalledWith({
+			where: { userId: "user", organizationId: "org-other" },
+			columns: { role: true },
+		});
 		expect(await resolveWebsiteId({ websiteName: "Reports" }, principal)).toBe(
 			"site"
 		);
@@ -101,10 +132,13 @@ describe("OAuth selected website grants", () => {
 
 	it("does not reuse discovery results after membership or scope access is removed", async () => {
 		cachedWebsites = JSON.stringify(sites);
-		readableOrganizations.mockResolvedValueOnce([]);
+		discoveryMembership.mockResolvedValueOnce(null);
 		expect(await getCachedAccessibleWebsites(principal)).toEqual([]);
 		expect(
-			await getCachedAccessibleWebsites({ ...principal, oauthScopes: [] })
+			await getCachedAccessibleWebsites({
+				...principal,
+				oauth: { ...principal.oauth, scopes: [] },
+			})
 		).toEqual([]);
 	});
 
@@ -114,7 +148,10 @@ describe("OAuth selected website grants", () => {
 			Error
 		);
 		expect(
-			await ensureWebsiteAccess("site", { ...authorized, oauthScopes: [] })
+			await ensureWebsiteAccess("site", {
+				...authorized,
+				oauth: { ...authorized.oauth, scopes: [] },
+			})
 		).toBeInstanceOf(Error);
 		expect(memberRole).not.toHaveBeenCalled();
 		expect(await ensureWebsiteAccess("site", authorized)).not.toBeInstanceOf(
@@ -129,7 +166,10 @@ describe("OAuth selected website grants", () => {
 		expect(
 			await resolveOrganizationId({
 				...principal,
-				oauthGrant: { organizationId: "org-other", websiteIds: null },
+				oauth: {
+					...principal.oauth,
+					grant: { organizationId: "org-other", websiteIds: null },
+				},
 			})
 		).toBe("org-other");
 	});
@@ -138,9 +178,9 @@ describe("OAuth selected website grants", () => {
 		expect(
 			await ensureWebsiteAccess("deleted-site", {
 				...principal,
-				oauthGrant: {
-					organizationId: "org-other",
-					websiteIds: ["deleted-site"],
+				oauth: {
+					...principal.oauth,
+					grant: { organizationId: "org-other", websiteIds: ["deleted-site"] },
 				},
 				requestHeaders: new Headers(),
 			})

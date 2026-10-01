@@ -1,7 +1,5 @@
 import {
 	getAccessibleWebsites,
-	getMemberWebsites,
-	getReadableOrganizationIds,
 	type WebsiteSummary,
 } from "../../lib/accessible-websites";
 import {
@@ -9,13 +7,12 @@ import {
 	hasKeyScope,
 	hasWebsiteScopeForOrganization,
 } from "@databuddy/api-keys/resolve";
-import { type User, websitesApi } from "@databuddy/auth";
+import { websitesApi } from "@databuddy/auth";
 import { roleHasPermission } from "@databuddy/auth/permissions";
 import { db } from "@databuddy/db";
 import { getRedisCache } from "@databuddy/redis";
 import { getMemberRole } from "@databuddy/rpc/organization";
-import type { McpAccessGrant } from "@databuddy/shared/mcp-access";
-import type { AppContext } from "../config/context";
+import type { AppContext, ServiceAuth } from "../config/context";
 import { mergeWideEvent } from "../../lib/tracing";
 import { getCachedWebsite } from "../../lib/website-utils";
 import { matchesWebsiteDomain } from "../../lib/website-domain";
@@ -31,15 +28,12 @@ export interface WebsiteSelectorInput {
 
 export interface RequestPrincipal {
 	apiKey: ApiKeyRow | null;
-	oauthGrant?: McpAccessGrant;
-	oauthScopes?: string[] | null;
-	oauthUserId?: string | null;
+	oauth?: NonNullable<ServiceAuth["oauth"]>;
 	organizationId?: string | null;
 	userId: string | null;
 }
 
 export type AuthorizedPrincipal = RequestPrincipal & {
-	oauthUser?: User | null;
 	requestHeaders: Headers;
 };
 
@@ -62,11 +56,6 @@ export class WebsiteSelectionError extends Error {
 
 const WEBSITE_LIST_HINT = "Website IDs come from list_websites.";
 
-export async function loadOAuthUser(userId: string): Promise<User | null> {
-	const user = await db.query.user.findFirst({ where: { id: userId } });
-	return user ?? null;
-}
-
 interface WebsiteAccess {
 	domain: string;
 	organizationId: string | null;
@@ -84,12 +73,11 @@ export async function ensureWebsiteAccess(
 	websiteId: string,
 	principal: AuthorizedPrincipal
 ): Promise<WebsiteAccess | WebsiteSelectionError> {
-	const { apiKey, oauthGrant, oauthScopes, oauthUserId, organizationId } =
-		principal;
+	const { apiKey, oauth, organizationId } = principal;
 	if (
-		oauthUserId &&
-		((oauthScopes && !oauthScopes.includes("read:data")) ||
-			(oauthGrant?.websiteIds && !oauthGrant.websiteIds.includes(websiteId)))
+		oauth &&
+		(!oauth.scopes.includes("read:data") ||
+			(oauth.grant.websiteIds && !oauth.grant.websiteIds.includes(websiteId)))
 	) {
 		return accessDenied();
 	}
@@ -101,7 +89,7 @@ export async function ensureWebsiteAccess(
 			WEBSITE_LIST_HINT
 		);
 	}
-	const scopedOrganizationId = oauthGrant?.organizationId ?? organizationId;
+	const scopedOrganizationId = oauth?.grant.organizationId ?? organizationId;
 	if (scopedOrganizationId && website.organizationId !== scopedOrganizationId) {
 		return new WebsiteSelectionError(
 			"unauthorized",
@@ -110,11 +98,11 @@ export async function ensureWebsiteAccess(
 		);
 	}
 
-	if (oauthUserId) {
+	if (oauth) {
 		if (!website.organizationId) {
 			return accessDenied();
 		}
-		const role = await getMemberRole(oauthUserId, website.organizationId);
+		const role = await getMemberRole(oauth.user.id, website.organizationId);
 		if (!(role && roleHasPermission(role, "website", ["read"]))) {
 			return accessDenied();
 		}
@@ -162,17 +150,15 @@ function accessibleWebsitesCacheKey(
 	principal: RequestPrincipal
 ): string | null {
 	const organizationId =
-		principal.oauthGrant?.organizationId ??
+		principal.oauth?.grant.organizationId ??
 		principal.organizationId ??
 		principal.apiKey?.organizationId;
 	if (principal.apiKey) {
 		return `apikey:${principal.apiKey.id}:org:${organizationId ?? "none"}`;
 	}
-	if (principal.oauthUserId && !organizationId) {
-		return `oauth:${principal.oauthUserId}`;
-	}
-	if (principal.userId && organizationId) {
-		return `user:${principal.userId}:org:${organizationId}`;
+	const userId = principal.oauth?.user.id ?? principal.userId;
+	if (userId && organizationId) {
+		return `user:${userId}:org:${organizationId}`;
 	}
 	return null;
 }
@@ -185,43 +171,44 @@ export async function getCachedAccessibleWebsites(
 ): Promise<WebsiteSummary[]> {
 	const scopedApiKey =
 		principal.apiKey && !hasKeyScope(principal.apiKey, "read:data");
+	const userId = principal.oauth?.user.id ?? principal.userId;
 	const authCtx = {
 		apiKey: principal.apiKey,
 		organizationId: scopedApiKey
 			? null
-			: (principal.oauthGrant?.organizationId ??
+			: (principal.oauth?.grant.organizationId ??
 				principal.organizationId ??
 				principal.apiKey?.organizationId ??
 				null),
-		user: principal.userId ? { id: principal.userId } : null,
+		user: userId ? { id: userId } : null,
 	};
-	const { oauthUserId } = principal;
-	if (oauthUserId) {
-		if (principal.oauthScopes && !principal.oauthScopes.includes("read:data")) {
+	const { oauth } = principal;
+	if (oauth) {
+		if (!oauth.scopes.includes("read:data")) {
 			return [];
 		}
+		const membership = await db.query.member.findFirst({
+			where: {
+				userId: oauth.user.id,
+				organizationId: oauth.grant.organizationId,
+			},
+			columns: { role: true },
+		});
 		if (
-			authCtx.organizationId &&
-			!(await getReadableOrganizationIds(oauthUserId)).includes(
-				authCtx.organizationId
-			)
+			!(membership && roleHasPermission(membership.role, "website", ["read"]))
 		) {
 			return [];
 		}
 	}
-	const grantedWebsiteIds = principal.oauthGrant?.websiteIds;
+	const grantedWebsiteIds = oauth?.grant.websiteIds;
 	const restrictWebsites = (list: WebsiteSummary[]) =>
 		grantedWebsiteIds
 			? list.filter((website) => grantedWebsiteIds.includes(website.id))
 			: list;
-	const loadWebsites = () =>
-		oauthUserId && !authCtx.organizationId
-			? getMemberWebsites(oauthUserId)
-			: getAccessibleWebsites(authCtx);
 	const cacheKey = accessibleWebsitesCacheKey(principal);
 	const redis = cacheKey ? getRedisCache() : null;
 	if (!(cacheKey && redis)) {
-		return restrictWebsites(await loadWebsites());
+		return restrictWebsites(await getAccessibleWebsites(authCtx));
 	}
 
 	const redisKey = `${ACCESSIBLE_WEBSITES_KEY_PREFIX}${cacheKey}`;
@@ -234,7 +221,7 @@ export async function getCachedAccessibleWebsites(
 		mergeCacheFailure("read");
 	}
 
-	const result = await loadWebsites();
+	const result = await getAccessibleWebsites(authCtx);
 	try {
 		await redis.setex(
 			redisKey,
@@ -302,16 +289,16 @@ export async function resolveWebsiteId(
 	);
 }
 
-export async function resolveOrganizationId(
+export function resolveOrganizationId(
 	principal: RequestPrincipal
-): Promise<string | Error> {
-	if (principal.oauthGrant?.websiteIds) {
+): string | Error {
+	if (principal.oauth?.grant.websiteIds) {
 		return new Error(
 			"This connection is limited to selected websites. Pass websiteId, websiteName, or websiteDomain from list_websites."
 		);
 	}
-	if (principal.oauthGrant) {
-		return principal.oauthGrant.organizationId;
+	if (principal.oauth) {
+		return principal.oauth.grant.organizationId;
 	}
 	if (principal.organizationId) {
 		if (
@@ -333,20 +320,6 @@ export async function resolveOrganizationId(
 			? principal.apiKey.organizationId
 			: new Error("Scoped API key requires a websiteId for org-level queries");
 	}
-	if (principal.oauthUserId) {
-		const organizationIds = await getReadableOrganizationIds(
-			principal.oauthUserId
-		);
-		const [onlyOrganizationId] = organizationIds;
-		if (onlyOrganizationId && organizationIds.length === 1) {
-			return onlyOrganizationId;
-		}
-		return new Error(
-			organizationIds.length === 0
-				? "This account is not a member of any organization with website access."
-				: `This account belongs to ${organizationIds.length} organizations. Pass websiteId, websiteName, or websiteDomain from list_websites to choose one.`
-		);
-	}
 	if (principal.userId) {
 		return new Error("Session requests require an active organization");
 	}
@@ -355,33 +328,21 @@ export async function resolveOrganizationId(
 
 export function buildRpcContext(principal: AuthorizedPrincipal): AppContext {
 	return {
-		userId: principal.userId,
+		userId: principal.oauth?.user.id ?? principal.userId,
 		websiteId: "",
 		websiteDomain: "",
 		timezone: "UTC",
 		currentDateTime: new Date().toISOString(),
 		chatId: "",
 		organizationId:
-			principal.oauthGrant?.organizationId ??
+			principal.oauth?.grant.organizationId ??
 			principal.organizationId ??
 			principal.apiKey?.organizationId,
 		requestHeaders: principal.requestHeaders,
 		serviceAuth: principal.apiKey
 			? { apiKey: principal.apiKey, session: null }
-			: principal.oauthUser
-				? {
-						apiKey: null,
-						oauth: {
-							organizationId:
-								principal.oauthGrant?.organizationId ??
-								principal.organizationId ??
-								null,
-							grant: principal.oauthGrant,
-							scopes: principal.oauthScopes ?? undefined,
-							user: principal.oauthUser,
-						},
-						session: null,
-					}
+			: principal.oauth
+				? { apiKey: null, oauth: principal.oauth, session: null }
 				: undefined,
 	};
 }

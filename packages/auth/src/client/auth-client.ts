@@ -1,3 +1,4 @@
+import { oauthProviderClient } from "@better-auth/oauth-provider/client";
 import {
 	customSessionClient,
 	emailOTPClient,
@@ -13,6 +14,7 @@ import { ac, admin, member, owner } from "../permissions";
 
 export const authClient = createAuthClient({
 	plugins: [
+		oauthProviderClient(),
 		customSessionClient<typeof auth>(),
 		twoFactorClient(),
 		multiSessionClient(),
