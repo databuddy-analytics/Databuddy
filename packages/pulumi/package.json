@@ -1,0 +1,60 @@
+{
+  "name": "@databuddy/pulumi",
+  "version": "0.1.0",
+  "description": "Manage Databuddy uptime monitors and status pages from Pulumi.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "unbuild",
+    "check-types": "tsc --noEmit",
+    "prepack": "bun run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/databuddy-analytics/Databuddy.git",
+    "directory": "packages/pulumi"
+  },
+  "bugs": "https://github.com/databuddy-analytics/databuddy/issues",
+  "homepage": "https://databuddy.cc",
+  "keywords": [
+    "databuddy",
+    "pulumi",
+    "uptime",
+    "status-page",
+    "infrastructure-as-code"
+  ],
+  "devDependencies": {
+    "@databuddy/rpc": "workspace:*",
+    "@orpc/server": "^1.14.0",
+    "@pulumi/pulumi": "^3.266.0",
+    "typescript": "catalog:",
+    "unbuild": "^3.6.1"
+  },
+  "peerDependencies": {
+    "@pulumi/pulumi": "^3.139.0"
+  }
+}
