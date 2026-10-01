@@ -1,4 +1,8 @@
-import { analyticsDateRangeSchema } from "@databuddy/validation";
+import { LINK_SLUG_REGEX } from "@databuddy/shared/constants/links";
+import {
+	analyticsDateRangeSchema,
+	isoDateOrOffsetDateTimeSchema,
+} from "@databuddy/validation";
 import { z } from "zod";
 import {
 	type DatePreset,
@@ -110,6 +114,149 @@ export function paginate<T>(
 	};
 }
 
+export const GoalTypeSchema = z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]);
+
+export const LinkSlugSchema = z
+	.string()
+	.min(3)
+	.max(50)
+	.regex(LINK_SLUG_REGEX)
+	.describe("3-50 letters, digits, hyphens, or underscores.");
+
+export const LinkExpiresAtSchema = isoDateOrOffsetDateTimeSchema.describe(
+	"Expiry as YYYY-MM-DD or an ISO date-time with offset."
+);
+
+export function toIsoTimestamp(value: string): string {
+	return new Date(value).toISOString();
+}
+
+export function omitUndefined(
+	input: Record<string, unknown>
+): Record<string, unknown> {
+	return Object.fromEntries(
+		Object.entries(input).filter(([, value]) => value !== undefined)
+	);
+}
+
+type Row = Record<string, unknown>;
+
+function asRow(value: unknown): Row {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? Object.fromEntries(Object.entries(value))
+		: {};
+}
+
+function jsonValue(value: unknown): unknown {
+	return value instanceof Date ? value.toISOString() : (value ?? null);
+}
+
+export function pickFields(value: unknown, keys: readonly string[]): Row {
+	const row = asRow(value);
+	return Object.fromEntries(keys.map((key) => [key, jsonValue(row[key])]));
+}
+
+export const GOAL_FIELDS = [
+	"id",
+	"name",
+	"type",
+	"target",
+	"description",
+	"filters",
+	"isActive",
+	"ignoreHistoricData",
+	"updatedAt",
+] as const;
+
+export const FUNNEL_FIELDS = [
+	"id",
+	"name",
+	"description",
+	"steps",
+	"filters",
+	"isActive",
+	"ignoreHistoricData",
+	"updatedAt",
+] as const;
+
+export const ANNOTATION_FIELDS = [
+	"id",
+	"annotationType",
+	"text",
+	"xValue",
+	"xEndValue",
+	"tags",
+	"color",
+	"isPublic",
+	"updatedAt",
+] as const;
+
+export const FLAG_FIELDS = [
+	"id",
+	"key",
+	"name",
+	"description",
+	"type",
+	"status",
+	"defaultValue",
+	"rolloutPercentage",
+	"rolloutBy",
+	"rules",
+	"variants",
+	"dependencies",
+	"environment",
+	"persistAcrossAuth",
+	"payload",
+	"targetGroupIds",
+	"targetGroups",
+	"updatedAt",
+] as const;
+
+const MAX_TIME_SERIES_POINTS = 90;
+const ANALYTICS_INTERNAL_KEYS = new Set([
+	"measurement",
+	"savedDefinition",
+	"cohort",
+	"time_series",
+]);
+
+export function summarizeConversionAnalytics(
+	value: unknown,
+	range: { from?: string; to?: string }
+): Row {
+	const row = asRow(value);
+	const series = Array.isArray(row.time_series) ? row.time_series : null;
+	return {
+		...Object.fromEntries(
+			Object.entries(row).filter(([key]) => !ANALYTICS_INTERNAL_KEYS.has(key))
+		),
+		range,
+		...(series && {
+			time_series: series.slice(-MAX_TIME_SERIES_POINTS),
+			timeSeriesTruncated: series.length > MAX_TIME_SERIES_POINTS,
+		}),
+	};
+}
+
+export function updatePreview(
+	entity: string,
+	current: Row,
+	updates: Row,
+	extra: Row = {}
+): Row {
+	const hasChanges = Object.keys(updates).length > 0;
+	return {
+		preview: true,
+		message: hasChanges
+			? `Review this ${entity} update before applying it.`
+			: `No changes detected. The ${entity} will remain unchanged.`,
+		confirmationRequired: hasChanges,
+		current,
+		...(hasChanges ? { updates } : {}),
+		...extra,
+	};
+}
+
 export const ConfirmedSchema = z.boolean().optional().default(false);
 export const DynamicObjectSchema = z.object({}).passthrough();
 export const MutationResultSchema = z
@@ -126,4 +273,14 @@ export function getResolvedWebsiteId(ctx: McpHandlerContext): string {
 		throw new McpToolError("internal", "Website was not resolved.");
 	}
 	return ctx.websiteId;
+}
+
+export function getResolvedOrganizationId(ctx: McpHandlerContext): string {
+	if (!ctx.websiteOrganizationId) {
+		throw new McpToolError(
+			"not_found",
+			"This website is not associated with an organization."
+		);
+	}
+	return ctx.websiteOrganizationId;
 }

@@ -7,11 +7,15 @@ import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import type { User } from "@databuddy/auth";
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import type { ApiScope } from "@databuddy/shared/api-scopes";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type {
+	CallToolResult,
+	ToolAnnotations,
+} from "@modelcontextprotocol/sdk/types.js";
 import { ORPCError } from "@orpc/server";
 import type { z } from "zod";
 import { trackAgentEvent } from "../../lib/databuddy";
 import { captureError, mergeWideEvent } from "../../lib/tracing";
+import { formatValidationIssues } from "../tools/utils/rpc";
 import {
 	ensureWebsiteAccess,
 	loadOAuthUser,
@@ -34,6 +38,7 @@ export type McpErrorCode =
 	| "not_found"
 	| "query_failed"
 	| "rate_limited"
+	| "plan_limit"
 	| "upstream_timeout"
 	| "internal";
 
@@ -68,6 +73,7 @@ export interface McpHandlerContext extends McpRequestContext {
 	oauthUser?: User;
 	websiteDomain?: string;
 	websiteId?: string;
+	websiteOrganizationId?: string;
 }
 
 type McpToolMutationKind = "read" | "write";
@@ -108,7 +114,13 @@ export function metadataForResource(
 	};
 }
 
+interface McpToolAnnotationOverrides {
+	destructive?: boolean;
+	idempotent?: boolean;
+}
+
 export interface McpToolMeta<S extends z.ZodTypeAny = z.ZodTypeAny> {
+	annotations?: McpToolAnnotationOverrides;
 	description: string;
 	inputSchema: S;
 	metadata: McpToolMetadataInput;
@@ -116,6 +128,7 @@ export interface McpToolMeta<S extends z.ZodTypeAny = z.ZodTypeAny> {
 	outputSchema?: z.ZodType<Record<string, unknown>>;
 	ratelimit?: { limit: number; windowSec: number };
 	resolveWebsite?: boolean | "optional";
+	title?: string;
 }
 
 export type McpToolHandler<I> = (
@@ -124,12 +137,14 @@ export type McpToolHandler<I> = (
 ) => Promise<unknown> | unknown;
 
 export interface RegisteredMcpTool {
+	annotations: ToolAnnotations;
 	description: string;
 	handler: (rawInput: unknown) => Promise<CallToolResult>;
 	inputSchema: z.ZodTypeAny;
 	metadata: McpToolMetadata;
 	name: string;
 	outputSchema?: z.ZodTypeAny;
+	title: string;
 }
 
 export interface McpToolFactory {
@@ -161,23 +176,66 @@ function toErrorResult(err: McpToolError): CallToolResult {
 	};
 }
 
+function errorDetails(data: unknown): Record<string, unknown> | undefined {
+	if (!(data && typeof data === "object" && !Array.isArray(data))) {
+		return;
+	}
+	try {
+		const json: unknown = JSON.parse(JSON.stringify(data));
+		return json && typeof json === "object" && !Array.isArray(json)
+			? Object.fromEntries(Object.entries(json))
+			: undefined;
+	} catch {
+		return;
+	}
+}
+
 function fromORPCError(error: ORPCError<string, unknown>): McpToolError {
+	const details = errorDetails(error.data);
 	switch (error.code) {
 		case "UNAUTHORIZED":
 		case "FORBIDDEN":
-			return new McpToolError("unauthorized", error.message);
+			return new McpToolError("unauthorized", error.message, { details });
 		case "NOT_FOUND":
-			return new McpToolError("not_found", error.message);
+			return new McpToolError("not_found", error.message, { details });
 		case "BAD_REQUEST":
 		case "CONFLICT":
+			return new McpToolError("invalid_input", error.message, { details });
 		case "FEATURE_UNAVAILABLE":
+		case "PAYMENT_REQUIRED":
 		case "PLAN_LIMIT_EXCEEDED":
-			return new McpToolError("invalid_input", error.message);
+			return new McpToolError("plan_limit", error.message, { details });
 		case "RATE_LIMITED":
-			return new McpToolError("rate_limited", error.message);
+		case "TOO_MANY_REQUESTS":
+			return new McpToolError("rate_limited", error.message, { details });
+		case "SERVICE_UNAVAILABLE":
+		case "GATEWAY_TIMEOUT":
+		case "TIMEOUT":
+			return new McpToolError("upstream_timeout", error.message, {
+				details,
+				hint: "Retry the same call shortly.",
+			});
 		default:
 			return new McpToolError("internal", error.message);
 	}
+}
+
+function titleFromName(name: string): string {
+	const [head = name, ...rest] = name.split("_");
+	return [head.charAt(0).toUpperCase() + head.slice(1), ...rest].join(" ");
+}
+
+function toolAnnotations(
+	kind: McpToolMutationKind,
+	overrides: McpToolAnnotationOverrides = {}
+): ToolAnnotations {
+	const isRead = kind === "read";
+	return {
+		readOnlyHint: isRead,
+		destructiveHint: isRead ? false : (overrides.destructive ?? true),
+		idempotentHint: isRead ? true : (overrides.idempotent ?? false),
+		openWorldHint: false,
+	};
 }
 
 function toSuccessResult(
@@ -190,7 +248,6 @@ function toSuccessResult(
 			text: JSON.stringify(data),
 		},
 	];
-	// structuredContent must be an object (not array / primitive) per MCP spec.
 	if (
 		withStructured &&
 		data !== null &&
@@ -240,14 +297,18 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 		meta.metadata,
 		Boolean(meta.resolveWebsite)
 	);
-	const hasOutputSchema = meta.outputSchema !== undefined;
+	const annotations = toolAnnotations(metadata.access.kind, meta.annotations);
+	const title = meta.title ?? titleFromName(meta.name);
+	const { outputSchema } = meta;
 
 	const build = (ctx: McpRequestContext): RegisteredMcpTool => ({
 		name: meta.name,
+		title,
+		annotations,
 		description: meta.description,
 		inputSchema: meta.inputSchema,
 		metadata,
-		outputSchema: meta.outputSchema,
+		outputSchema,
 		handler: async (rawInput: unknown): Promise<CallToolResult> => {
 			const start = Date.now();
 			const attribution = getAttribution(ctx);
@@ -260,15 +321,35 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 			try {
 				const parseResult = meta.inputSchema.safeParse(rawInput ?? {});
 				if (!parseResult.success) {
-					const issue = parseResult.error.issues[0];
-					const path = issue?.path.length ? issue.path.join(".") : "input";
 					throw new McpToolError(
 						"invalid_input",
-						issue ? `${path}: ${issue.message}` : "Invalid input",
+						formatValidationIssues(parseResult.error.issues),
 						{ details: { issues: parseResult.error.issues } }
 					);
 				}
 				const input = parseResult.data;
+
+				if (meta.ratelimit) {
+					const id = rateLimitIdentifier(ctx, meta.name);
+					const limited = await ratelimit(
+						id,
+						meta.ratelimit.limit,
+						meta.ratelimit.windowSec
+					);
+					if (!limited.success) {
+						const headers = getRateLimitHeaders(limited);
+						const retryAfter = headers["Retry-After"] ?? "60";
+						mergeWideEvent({ mcp_rate_limited: true });
+						throw new McpToolError(
+							"rate_limited",
+							`Rate limit exceeded for ${meta.name}. Try again in ${retryAfter}s.`,
+							{
+								hint: `Limit: ${meta.ratelimit.limit} requests per ${meta.ratelimit.windowSec}s`,
+								details: { retryAfter },
+							}
+						);
+					}
+				}
 
 				const handlerCtx: McpHandlerContext = { ...ctx };
 				if (ctx.oauthUserId) {
@@ -290,14 +371,20 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					if (!optional || hasSelector) {
 						const resolvedId = await resolveWebsiteId(inputObj, ctx);
 						if (resolvedId instanceof Error) {
-							throw new McpToolError("not_found", resolvedId.message);
+							throw new McpToolError(resolvedId.code, resolvedId.message, {
+								hint: resolvedId.hint,
+							});
 						}
 						const access = await ensureWebsiteAccess(resolvedId, ctx);
 						if (access instanceof Error) {
-							throw new McpToolError("unauthorized", access.message);
+							throw new McpToolError(access.code, access.message, {
+								hint: access.hint,
+							});
 						}
 						handlerCtx.websiteId = resolvedId;
 						handlerCtx.websiteDomain = access.domain;
+						handlerCtx.websiteOrganizationId =
+							access.organizationId ?? undefined;
 						if (ctx.oauthUserId) {
 							handlerCtx.organizationId = access.organizationId;
 						}
@@ -305,29 +392,18 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					}
 				}
 
-				if (meta.ratelimit) {
-					const id = rateLimitIdentifier(ctx, meta.name);
-					const result = await ratelimit(
-						id,
-						meta.ratelimit.limit,
-						meta.ratelimit.windowSec
-					);
-					if (!result.success) {
-						const headers = getRateLimitHeaders(result);
-						const retryAfter = headers["Retry-After"] ?? "60";
-						mergeWideEvent({ mcp_rate_limited: true });
+				const handlerResult = await handler(input, handlerCtx);
+				let result = handlerResult;
+				if (outputSchema) {
+					const checked = outputSchema.safeParse(handlerResult);
+					if (!checked.success) {
 						throw new McpToolError(
-							"rate_limited",
-							`Rate limit exceeded for ${meta.name}. Try again in ${retryAfter}s.`,
-							{
-								hint: `Limit: ${meta.ratelimit.limit} requests per ${meta.ratelimit.windowSec}s`,
-								details: { retryAfter },
-							}
+							"internal",
+							`${meta.name} output did not match its schema: ${formatValidationIssues(checked.error.issues)}`
 						);
 					}
+					result = checked.data;
 				}
-
-				const result = await handler(input, handlerCtx);
 
 				trackMcpToolEvent(metadata, meta.name, true, attribution);
 				mergeWideEvent({
@@ -335,7 +411,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					mcp_duration_ms: Date.now() - start,
 				});
 
-				return toSuccessResult(result, hasOutputSchema);
+				return toSuccessResult(result, Boolean(outputSchema));
 			} catch (err) {
 				const toolError =
 					err instanceof McpToolError

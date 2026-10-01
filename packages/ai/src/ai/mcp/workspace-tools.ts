@@ -2,7 +2,6 @@ import {
 	DEEP_LINK_APP_IDS,
 	isDeepLinkTarget,
 } from "@databuddy/shared/constants/deep-link-apps";
-import { LINK_SLUG_REGEX } from "@databuddy/shared/constants/links";
 import { httpUrlSchema } from "@databuddy/validation";
 import { z } from "zod";
 import { callRPCProcedure } from "../tools/utils";
@@ -21,27 +20,32 @@ import {
 	McpToolError,
 	type McpToolFactory,
 } from "./define-tool";
-import { buildRpcContext, getOrganizationId } from "./tool-context";
+import { buildRpcContext } from "./tool-context";
 import {
+	ANNOTATION_FIELDS,
 	ConfirmedSchema,
 	DynamicObjectSchema,
+	GOAL_FIELDS,
+	GoalTypeSchema,
+	getResolvedOrganizationId,
 	getResolvedWebsiteId,
+	LinkExpiresAtSchema,
+	LinkSlugSchema,
 	McpDateRangeSchema,
 	MutationResultSchema,
+	omitUndefined,
 	PageSchema,
 	paginate,
+	pickFields,
 	resolveMcpDateRange,
+	summarizeConversionAnalytics,
+	toIsoTimestamp,
+	updatePreview,
 	WebsiteSelectorSchema,
 	WorkflowFilterSchema,
 } from "./tool-contracts";
 
-function omitUndefined(
-	input: Record<string, unknown>
-): Record<string, unknown> {
-	return Object.fromEntries(
-		Object.entries(input).filter(([, value]) => value !== undefined)
-	);
-}
+const IDEMPOTENT_WRITE = { idempotent: true } as const;
 
 const getFunnelAnalyticsByReferrerTool = defineMcpTool(
 	{
@@ -56,10 +60,10 @@ const getFunnelAnalyticsByReferrerTool = defineMcpTool(
 		outputSchema: DynamicObjectSchema,
 		metadata: { access: { kind: "read" } },
 		resolveWebsite: true,
-		ratelimit: { limit: 60, windowSec: 60 },
+		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
-		const { from, to } = resolveMcpDateRange(input);
+		const range = resolveMcpDateRange(input);
 		const result = z
 			.object({ referrer_analytics: z.array(z.unknown()) })
 			.passthrough()
@@ -70,17 +74,17 @@ const getFunnelAnalyticsByReferrerTool = defineMcpTool(
 					{
 						funnelId: input.funnelId,
 						websiteId: getResolvedWebsiteId(ctx),
-						startDate: from,
-						endDate: to,
+						startDate: range.from,
+						endDate: range.to,
 					},
 					buildRpcContext(ctx)
 				)
 			);
 		const page = paginate(result.referrer_analytics, input);
 		return {
-			...result,
+			...summarizeConversionAnalytics(result, range),
 			referrer_analytics: page.items,
-			referrerCount: page.total,
+			total: page.total,
 			hasMore: page.hasMore,
 		};
 	}
@@ -93,7 +97,7 @@ const updateGoalTool = defineMcpTool(
 			"Update a conversion goal. confirmed=false (default) returns the current goal and the changes without writing; confirmed=true applies them.",
 		inputSchema: z.object({
 			id: z.string(),
-			type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]).optional(),
+			type: GoalTypeSchema.optional(),
 			target: z.string().min(1).optional(),
 			name: z.string().min(1).max(100).optional(),
 			description: z.string().nullable().optional(),
@@ -103,40 +107,20 @@ const updateGoalTool = defineMcpTool(
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
-		// Preview loads the current goal before an update, so read:data is required too.
 		metadata: metadataForResource("website", ["read", "update"]),
+		annotations: IDEMPOTENT_WRITE,
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async ({ confirmed, id, ...input }, ctx) => {
 		const updates = omitUndefined(input);
 		const rpcContext = buildRpcContext(ctx);
-		const current = await callRPCProcedure(
-			"goals",
-			"getById",
-			{ id },
-			rpcContext
+		const current = pickFields(
+			await callRPCProcedure("goals", "getById", { id }, rpcContext),
+			GOAL_FIELDS
 		);
 
-		if (!confirmed) {
-			return {
-				preview: true,
-				message:
-					Object.keys(updates).length > 0
-						? "Review this goal update before applying it."
-						: "No changes detected. The goal will remain unchanged.",
-				confirmationRequired: Object.keys(updates).length > 0,
-				current,
-				updates,
-			};
-		}
-
-		if (Object.keys(updates).length === 0) {
-			return {
-				preview: true,
-				message: "No changes detected. The goal will remain unchanged.",
-				confirmationRequired: false,
-				current,
-			};
+		if (!confirmed || Object.keys(updates).length === 0) {
+			return updatePreview("goal", current, updates);
 		}
 
 		const goal = await callRPCProcedure(
@@ -145,7 +129,11 @@ const updateGoalTool = defineMcpTool(
 			{ id, ...updates },
 			rpcContext
 		);
-		return { success: true, message: "Goal updated successfully.", goal };
+		return {
+			success: true,
+			message: "Goal updated successfully.",
+			goal: pickFields(goal, GOAL_FIELDS),
+		};
 	}
 );
 
@@ -159,13 +147,16 @@ const deleteGoalTool = defineMcpTool(
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
-		// Preview loads the current goal before deletion, so read:data is required too.
 		metadata: metadataForResource("website", ["read", "delete"]),
+		annotations: IDEMPOTENT_WRITE,
 		ratelimit: { limit: 10, windowSec: 60 },
 	},
 	async ({ confirmed, id }, ctx) => {
 		const rpcContext = buildRpcContext(ctx);
-		const goal = await callRPCProcedure("goals", "getById", { id }, rpcContext);
+		const goal = pickFields(
+			await callRPCProcedure("goals", "getById", { id }, rpcContext),
+			GOAL_FIELDS
+		);
 		if (!confirmed) {
 			return {
 				preview: true,
@@ -194,40 +185,20 @@ const updateAnnotationTool = defineMcpTool(
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
-		// Preview loads the current annotation before an update, so read:data is required too.
 		metadata: metadataForResource("website", ["read", "update"]),
+		annotations: IDEMPOTENT_WRITE,
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async ({ confirmed, id, ...input }, ctx) => {
 		const updates = omitUndefined(input);
 		const rpcContext = buildRpcContext(ctx);
-		const current = await callRPCProcedure(
-			"annotations",
-			"getById",
-			{ id },
-			rpcContext
+		const current = pickFields(
+			await callRPCProcedure("annotations", "getById", { id }, rpcContext),
+			ANNOTATION_FIELDS
 		);
 
-		if (!confirmed) {
-			return {
-				preview: true,
-				message:
-					Object.keys(updates).length > 0
-						? "Review this annotation update before applying it."
-						: "No changes detected. The annotation will remain unchanged.",
-				confirmationRequired: Object.keys(updates).length > 0,
-				current,
-				updates,
-			};
-		}
-
-		if (Object.keys(updates).length === 0) {
-			return {
-				preview: true,
-				message: "No changes detected. The annotation will remain unchanged.",
-				confirmationRequired: false,
-				current,
-			};
+		if (!confirmed || Object.keys(updates).length === 0) {
+			return updatePreview("annotation", current, updates);
 		}
 
 		const annotation = await callRPCProcedure(
@@ -239,7 +210,7 @@ const updateAnnotationTool = defineMcpTool(
 		return {
 			success: true,
 			message: "Annotation updated successfully.",
-			annotation,
+			annotation: pickFields(annotation, ANNOTATION_FIELDS),
 		};
 	}
 );
@@ -254,17 +225,15 @@ const deleteAnnotationTool = defineMcpTool(
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
-		// Preview loads the current annotation before deletion, so read:data is required too.
 		metadata: metadataForResource("website", ["read", "delete"]),
+		annotations: IDEMPOTENT_WRITE,
 		ratelimit: { limit: 10, windowSec: 60 },
 	},
 	async ({ confirmed, id }, ctx) => {
 		const rpcContext = buildRpcContext(ctx);
-		const annotation = await callRPCProcedure(
-			"annotations",
-			"getById",
-			{ id },
-			rpcContext
+		const annotation = pickFields(
+			await callRPCProcedure("annotations", "getById", { id }, rpcContext),
+			ANNOTATION_FIELDS
 		);
 		if (!confirmed) {
 			return {
@@ -283,8 +252,8 @@ const deleteAnnotationTool = defineMcpTool(
 const linkUpdateFields = {
 	name: z.string().min(1).max(255).optional(),
 	targetUrl: httpUrlSchema.optional(),
-	slug: z.string().min(3).max(50).regex(LINK_SLUG_REGEX).optional(),
-	expiresAt: z.iso.datetime({ offset: true }).nullable().optional(),
+	slug: LinkSlugSchema.optional(),
+	expiresAt: LinkExpiresAtSchema.nullable().optional(),
 	expiredRedirectUrl: httpUrlSchema.nullable().optional(),
 	ogTitle: z.string().max(200).nullable().optional(),
 	ogDescription: z.string().max(500).nullable().optional(),
@@ -308,14 +277,11 @@ const updateLinkTool = defineMcpTool(
 		outputSchema: MutationResultSchema,
 		resolveWebsite: true,
 		metadata: metadataForResource("link", ["read", "update"]),
+		annotations: IDEMPOTENT_WRITE,
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
-	async ({ confirmed, id, folderId, folderSlug, ...input }, ctx) => {
-		const organizationId = await getOrganizationId(getResolvedWebsiteId(ctx));
-		if (organizationId instanceof Error) {
-			throw new McpToolError("not_found", organizationId.message);
-		}
-
+	async ({ confirmed, id, folderId, folderSlug, expiresAt, ...input }, ctx) => {
+		const organizationId = getResolvedOrganizationId(ctx);
 		const rpcContext = buildRpcContext(ctx);
 		const [current, folders] = await Promise.all([
 			callRPCProcedure("links", "get", { id, organizationId }, rpcContext).then(
@@ -346,32 +312,26 @@ const updateLinkTool = defineMcpTool(
 
 		const updates = omitUndefined({
 			...input,
+			...(expiresAt === undefined
+				? {}
+				: { expiresAt: expiresAt === null ? null : toIsoTimestamp(expiresAt) }),
 			...(hasLinkFolderSelector({ folderId, folderSlug })
 				? { folderId: folderSelection.folderId }
 				: {}),
 		});
 
-		if (!confirmed) {
-			return {
-				preview: true,
-				message:
-					Object.keys(updates).length > 0
-						? "Review this short-link update before applying it."
-						: "No changes detected. The short link will remain unchanged.",
-				confirmationRequired: Object.keys(updates).length > 0,
-				current: summarizeLink(current, folders),
+		if (!confirmed || Object.keys(updates).length === 0) {
+			return updatePreview(
+				"short link",
+				summarizeLink(current, folders),
 				updates,
-				availableFolders: folderSelection.folders.map(summarizeLinkFolder),
-			};
-		}
-
-		if (Object.keys(updates).length === 0) {
-			return {
-				preview: true,
-				message: "No changes detected. The short link will remain unchanged.",
-				confirmationRequired: false,
-				current: summarizeLink(current, folders),
-			};
+				confirmed
+					? {}
+					: {
+							availableFolders:
+								folderSelection.folders.map(summarizeLinkFolder),
+						}
+			);
 		}
 
 		const link = parseLinkRow(
@@ -398,14 +358,11 @@ const deleteLinkTool = defineMcpTool(
 		outputSchema: MutationResultSchema,
 		resolveWebsite: true,
 		metadata: metadataForResource("link", ["read", "delete"]),
+		annotations: IDEMPOTENT_WRITE,
 		ratelimit: { limit: 10, windowSec: 60 },
 	},
 	async ({ confirmed, id }, ctx) => {
-		const organizationId = await getOrganizationId(getResolvedWebsiteId(ctx));
-		if (organizationId instanceof Error) {
-			throw new McpToolError("not_found", organizationId.message);
-		}
-
+		const organizationId = getResolvedOrganizationId(ctx);
 		const rpcContext = buildRpcContext(ctx);
 		const [link, folders] = await Promise.all([
 			callRPCProcedure("links", "get", { id, organizationId }, rpcContext).then(

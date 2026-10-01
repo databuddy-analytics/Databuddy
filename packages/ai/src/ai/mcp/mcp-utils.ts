@@ -1,10 +1,7 @@
+import { AGENT_TABLE_COLUMNS } from "@databuddy/db/clickhouse";
 import {
-	AGENT_TABLE_COLUMNS,
-	AGENT_TENANT_COLUMN_BY_TABLE,
-} from "@databuddy/db/clickhouse";
-import {
-	type SchemaDocOptions,
-	generateSchemaDocumentation,
+	ANALYTICS_TABLES,
+	SCHEMA_SECTIONS,
 } from "../prompts/clickhouse-schema";
 import {
 	type DatePreset,
@@ -43,6 +40,8 @@ export const FilterSchema = z.object({
 export { MCP_DATE_PRESETS } from "../../lib/date-presets";
 
 export { SCHEMA_SECTIONS } from "../prompts/clickhouse-schema";
+
+export const MCP_RESULT_ROW_LIMIT = 20;
 
 export interface McpQueryItem {
 	filters?: Filter[];
@@ -111,7 +110,6 @@ export interface McpQueryResult {
 	type: string;
 }
 
-const AGENT_RESULT_ROW_LIMIT = 20;
 const DateOnlySchema = z.iso.date();
 
 function timezoneError(timezone: string): string | null {
@@ -264,8 +262,8 @@ export function formatMcpQueryResults(
 			const data =
 				getQueryBuilder(request.type)?.meta?.default_visualization ===
 				"timeseries"
-					? result.data.slice(-AGENT_RESULT_ROW_LIMIT)
-					: result.data.slice(0, AGENT_RESULT_ROW_LIMIT);
+					? result.data.slice(-MCP_RESULT_ROW_LIMIT)
+					: result.data.slice(0, MCP_RESULT_ROW_LIMIT);
 			return {
 				inputIndex: request.inputIndex,
 				type: result.type,
@@ -298,14 +296,75 @@ export function formatMcpQueryResults(
 		.map(({ inputIndex: _, ...result }) => result);
 }
 
-const SCHEMA_SUMMARY = Object.keys(AGENT_TENANT_COLUMN_BY_TABLE)
+const SCHEMA_SUMMARY = Object.keys(AGENT_TABLE_COLUMNS)
 	.sort()
-	.map((table) => {
-		const tenant = AGENT_TENANT_COLUMN_BY_TABLE[table];
-		const columns = [...(AGENT_TABLE_COLUMNS[table] ?? [])].join(", ");
-		return `${table} [tenant=${tenant}]: ${columns}`;
-	})
+	.map(
+		(table) => `${table}: ${[...(AGENT_TABLE_COLUMNS[table] ?? [])].join(", ")}`
+	)
 	.join("\n");
+
+const DIRECTIVE_CLAUSE_RE =
+	/^(use|uses|prefer|always|must|should|instead|do not|don't|never use)\b|\b(raw sql|quantile\w*|tofloat64)\b/i;
+const STORAGE_DETAIL_RE =
+	/\b(partitioned|ordered by|bloom filter|indexes?|count\(\*\)|divide by|toyyyymm)\b/i;
+const CLAUSE_BREAK_RE = /(?<=\.)\s+|\s+\u2014\s+|;\s+/;
+const TRAILING_PERIOD_RE = /\.$/;
+const LIST_ITEM_PREFIX = "- ";
+
+function factualClauses(text: string): string[] {
+	return text
+		.split(CLAUSE_BREAK_RE)
+		.map((clause) => clause.trim().replace(TRAILING_PERIOD_RE, ""))
+		.filter(
+			(clause) =>
+				clause &&
+				!DIRECTIVE_CLAUSE_RE.test(clause) &&
+				!STORAGE_DETAIL_RE.test(clause)
+		)
+		.map((clause) => clause.charAt(0).toUpperCase() + clause.slice(1));
+}
+
+function withoutDirectives(text: string): string | null {
+	const clauses = factualClauses(text);
+	return clauses.length > 0 ? `${clauses.join(". ")}.` : null;
+}
+
+function factualNotes(text: string | undefined): string[] {
+	return (text ?? "")
+		.split("\n")
+		.map((line) => line.trim())
+		.flatMap((line) => {
+			if (line.startsWith(LIST_ITEM_PREFIX)) {
+				const [item] = factualClauses(line.slice(LIST_ITEM_PREFIX.length));
+				return item ? [`${LIST_ITEM_PREFIX}${item}`] : [];
+			}
+			const note = withoutDirectives(line);
+			return note ? [note] : [];
+		});
+}
+
+function columnLine(column: string): string {
+	const [definition = column, ...rest] = column.split(" - ");
+	const note = withoutDirectives(rest.join(" - "));
+	return note ? `- ${definition} - ${note}` : `- ${definition}`;
+}
+
+export function getMcpSchemaDocumentation(
+	sections: readonly (typeof SCHEMA_SECTIONS)[number][] = SCHEMA_SECTIONS
+): string {
+	const selected = new Set(sections.length > 0 ? sections : SCHEMA_SECTIONS);
+	return ANALYTICS_TABLES.filter((table) => selected.has(table.section))
+		.map((table) => {
+			const description = withoutDirectives(table.description);
+			return [
+				`## ${table.name}`,
+				...(description ? [description] : []),
+				...table.keyColumns.map(columnLine),
+				...factualNotes(table.additionalInfo),
+			].join("\n");
+		})
+		.join("\n\n");
+}
 
 function getDescription(
 	key: string,
@@ -348,10 +407,6 @@ export function getSchemaSummary(): string {
 	return SCHEMA_SUMMARY;
 }
 
-export function getSchemaDocumentation(opts: SchemaDocOptions = {}): string {
-	return generateSchemaDocumentation(opts);
-}
-
 export const QUERY_CATEGORY_KEYS = [
 	...new Set(
 		Object.values(QueryBuilders)
@@ -360,13 +415,15 @@ export const QUERY_CATEGORY_KEYS = [
 	),
 ].sort();
 
-export function getFilteredQueryTypeDescriptions(opts: {
+export function getFilteredQueryTypes(opts: {
 	category?: string;
 	contains?: string;
-}): Record<string, string> {
-	const { category, contains } = opts;
+	detail: "summary" | "full";
+}): Record<string, string | QueryTypeInfo> {
+	const { category, contains, detail } = opts;
 	const needle = contains?.toLowerCase();
-	const result: Record<string, string> = {};
+	const details = detail === "full" ? getQueryTypeDetails() : null;
+	const result: Record<string, string | QueryTypeInfo> = {};
 	for (const [key, config] of Object.entries(QueryBuilders)) {
 		if (category && config.meta?.category !== category) {
 			continue;
@@ -374,7 +431,7 @@ export function getFilteredQueryTypeDescriptions(opts: {
 		if (needle && !key.toLowerCase().includes(needle)) {
 			continue;
 		}
-		result[key] = getDescription(key, config);
+		result[key] = details?.[key] ?? getDescription(key, config);
 	}
 	return result;
 }

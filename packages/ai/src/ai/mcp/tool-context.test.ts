@@ -85,14 +85,17 @@ describe("MCP domain selector compatibility", () => {
 describe("shared agent's business-context organization boundary", () => {
 	it("rejects a missing website before checking permissions", async () => {
 		permission.mockClear();
-		expect(
-			await ensureWebsiteAccess("missing-site", {
-				apiKey: null,
-				organizationId: "org-other",
-				requestHeaders: new Headers(),
-				userId: null,
-			})
-		).toEqual(new Error("Website not found"));
+		const access = await ensureWebsiteAccess("missing-site", {
+			apiKey: null,
+			organizationId: "org-other",
+			requestHeaders: new Headers(),
+			userId: null,
+		});
+		expect(access).toBeInstanceOf(Error);
+		expect(access).toMatchObject({
+			code: "not_found",
+			message: "Website not found",
+		});
 		expect(permission).not.toHaveBeenCalled();
 	});
 	it("rejects a site in another organization even if the session could read both", async () => {

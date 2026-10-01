@@ -39,5 +39,9 @@ Replies are asynchronous. \`get_investigation\` reports each reply's status unti
 
 ## Permissions and writes
 
-Analytics and discovery tools require \`read:data\`. Website writes and investigation replies require \`manage:websites\`; flag mutations require \`manage:flags\`. Short-link reads are organization-wide and require \`read:links\`; link mutations also require \`write:links\`. Goal, funnel, annotation, link, and flag writes return a preview when \`confirmed\` is false (the default) and write only when \`confirmed\` is true.
+Analytics and discovery tools require \`read:data\`. Website writes and investigation replies require \`manage:websites\`; flag mutations require \`manage:flags\`. Short-link tools act on the organization that owns the selected website: they take a website selector and need \`read:data\` plus \`read:links\`, and link mutations also need \`write:links\`. Goal, funnel, annotation, link, and flag writes return a preview when \`confirmed\` is false (the default) and write only when \`confirmed\` is true.
+
+## Lists and errors
+
+List tools take \`limit\` (1-100, default 50) and \`offset\`, and return \`hasMore\`; they also return \`total\` when the full count is known. Errors are JSON objects with \`error.code\` (\`invalid_input\`, \`not_found\`, \`unauthorized\`, \`rate_limited\`, \`plan_limit\`, \`upstream_timeout\`, \`query_failed\`, or \`internal\`), a message, and where available a \`hint\` or \`details\`.
 `;

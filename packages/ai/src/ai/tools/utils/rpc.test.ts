@@ -94,7 +94,11 @@ describe("AI tool RPC helper", () => {
 		["missing", "list", "Router missing not found"],
 		["links", "missing", "Procedure links.missing not found or not callable."],
 		["links", "create", "You don't have permission to access this resource."],
-		["links", "list", "Invalid request: Input validation failed"],
+		[
+			"links",
+			"list",
+			"Invalid request: websiteId: Invalid input: expected string, received undefined",
+		],
 	])("preserves the error for %s.%s", async (router, method, message) => {
 		await expect(
 			callRPCProcedure(router, method, {}, BASE_CONTEXT)

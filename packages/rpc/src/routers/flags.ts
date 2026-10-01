@@ -162,7 +162,7 @@ const updateFlagSchema = z
 		rolloutBy: z.string().optional(),
 		variants: z.array(variantSchema).optional(),
 		dependencies: z.array(z.string()).optional(),
-		environment: z.string().optional(),
+		environment: z.string().nullable().optional(),
 		targetGroupIds: z.array(z.string()).optional(),
 	})
 	.superRefine((data, ctx) => {

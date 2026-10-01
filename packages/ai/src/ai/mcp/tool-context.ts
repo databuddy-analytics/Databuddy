@@ -15,6 +15,7 @@ import { db } from "@databuddy/db";
 import { getRedisCache } from "@databuddy/redis";
 import { getMemberRole } from "@databuddy/rpc/organization";
 import type { AppContext } from "../config/context";
+import { mergeWideEvent } from "../../lib/tracing";
 import { getCachedWebsite } from "../../lib/website-utils";
 import { matchesWebsiteDomain } from "../../lib/website-domain";
 
@@ -39,6 +40,25 @@ export type AuthorizedPrincipal = RequestPrincipal & {
 	requestHeaders: Headers;
 };
 
+export type WebsiteSelectionErrorCode =
+	| "invalid_input"
+	| "not_found"
+	| "unauthorized";
+
+export class WebsiteSelectionError extends Error {
+	readonly code: WebsiteSelectionErrorCode;
+	readonly hint?: string;
+
+	constructor(code: WebsiteSelectionErrorCode, message: string, hint?: string) {
+		super(message);
+		this.name = "WebsiteSelectionError";
+		this.code = code;
+		this.hint = hint;
+	}
+}
+
+const WEBSITE_LIST_HINT = "Website IDs come from list_websites.";
+
 export async function loadOAuthUser(userId: string): Promise<User | null> {
 	const user = await db.query.user.findFirst({ where: { id: userId } });
 	return user ?? null;
@@ -49,26 +69,42 @@ interface WebsiteAccess {
 	organizationId: string | null;
 }
 
+function accessDenied(): WebsiteSelectionError {
+	return new WebsiteSelectionError(
+		"unauthorized",
+		"Access denied to this website",
+		WEBSITE_LIST_HINT
+	);
+}
+
 export async function ensureWebsiteAccess(
 	websiteId: string,
 	principal: AuthorizedPrincipal
-): Promise<WebsiteAccess | Error> {
+): Promise<WebsiteAccess | WebsiteSelectionError> {
 	const { apiKey, oauthUserId, organizationId } = principal;
 	const website = await getCachedWebsite(websiteId);
 	if (!website) {
-		return new Error("Website not found");
+		return new WebsiteSelectionError(
+			"not_found",
+			"Website not found",
+			WEBSITE_LIST_HINT
+		);
 	}
 	if (organizationId && website.organizationId !== organizationId) {
-		return new Error("Website is not in this organization");
+		return new WebsiteSelectionError(
+			"unauthorized",
+			"This website belongs to a different organization than this connection.",
+			WEBSITE_LIST_HINT
+		);
 	}
 
 	if (oauthUserId) {
 		if (!website.organizationId) {
-			return new Error("Access denied to this website");
+			return accessDenied();
 		}
 		const role = await getMemberRole(oauthUserId, website.organizationId);
 		if (!(role && roleHasPermission(role, "website", ["read"]))) {
-			return new Error("Access denied to this website");
+			return accessDenied();
 		}
 		return {
 			domain: website.domain ?? "unknown",
@@ -83,7 +119,7 @@ export async function ensureWebsiteAccess(
 			"read:data"
 		);
 		if (!hasWebsiteAccess) {
-			return new Error("Access denied to this website");
+			return accessDenied();
 		}
 		return {
 			domain: website.domain ?? "unknown",
@@ -103,7 +139,7 @@ export async function ensureWebsiteAccess(
 			})
 		).success;
 	if (!hasPermission) {
-		return new Error("Access denied to this website");
+		return accessDenied();
 	}
 	return {
 		domain: website.domain ?? "unknown",
@@ -126,6 +162,10 @@ function accessibleWebsitesCacheKey(
 	}
 	return null;
 }
+function mergeCacheFailure(operation: "read" | "write"): void {
+	mergeWideEvent({ [`mcp_websites_cache_${operation}_error`]: true });
+}
+
 export async function getCachedAccessibleWebsites(
 	principal: RequestPrincipal
 ): Promise<WebsiteSummary[]> {
@@ -156,7 +196,7 @@ export async function getCachedAccessibleWebsites(
 			return JSON.parse(cached) as WebsiteSummary[];
 		}
 	} catch {
-		// Cache read failure — fall through to DB
+		mergeCacheFailure("read");
 	}
 
 	const result = await loadWebsites();
@@ -167,7 +207,7 @@ export async function getCachedAccessibleWebsites(
 			JSON.stringify(result)
 		);
 	} catch {
-		// Cache write failure — non-fatal
+		mergeCacheFailure("write");
 	}
 	return result;
 }
@@ -175,14 +215,20 @@ export async function getCachedAccessibleWebsites(
 function singleMatch(
 	matches: WebsiteSummary[],
 	selector: string
-): string | Error {
+): string | WebsiteSelectionError {
 	const [match, ...others] = matches;
 	if (!match) {
-		return new Error(`No accessible website found with ${selector}`);
+		return new WebsiteSelectionError(
+			"not_found",
+			`No accessible website found with ${selector}`,
+			"list_websites shows the websites this connection can use."
+		);
 	}
 	if (others.length > 0) {
-		return new Error(
-			`${matches.length} accessible websites match ${selector}. Pass websiteId from list_websites to choose one.`
+		return new WebsiteSelectionError(
+			"invalid_input",
+			`${matches.length} accessible websites match ${selector}. Pass websiteId from list_websites to choose one.`,
+			WEBSITE_LIST_HINT
 		);
 	}
 	return match.id;
@@ -191,7 +237,7 @@ function singleMatch(
 export async function resolveWebsiteId(
 	input: WebsiteSelectorInput,
 	principal: RequestPrincipal
-): Promise<string | Error> {
+): Promise<string | WebsiteSelectionError> {
 	if (input.websiteId) {
 		return input.websiteId;
 	}
@@ -214,46 +260,16 @@ export async function resolveWebsiteId(
 		);
 	}
 
-	return new Error(
-		"One of websiteId, websiteName, or websiteDomain is required"
+	return new WebsiteSelectionError(
+		"invalid_input",
+		"One of websiteId, websiteName, or websiteDomain is required",
+		WEBSITE_LIST_HINT
 	);
 }
 
-export async function getOrganizationId(
-	websiteId: string
-): Promise<string | Error> {
-	const website = await getCachedWebsite(websiteId);
-	if (!website) {
-		return new Error("Website not found");
-	}
-	if (!website.organizationId) {
-		return new Error("Website is not associated with an organization");
-	}
-	return website.organizationId;
-}
-
-/**
- * Resolve the set of organization IDs to query, based on auth principal and
- * an optional explicit websiteId. Used by org-wide tools (insights, summaries).
- *
- * Resolution order:
- * 1. If websiteId provided → resolve via getOrganizationId (single org)
- * 2. If an organization is scoped on the request → use that organization
- * 3. If API key → use apiKey.organizationId (single org)
- * 4. If OAuth user → their only readable organization, or ask for a website
- * Session users must have an active organization; never fan out across all memberships.
- */
-export async function resolveOrganizationIds(
-	websiteId: string | undefined,
+export async function resolveOrganizationId(
 	principal: RequestPrincipal
-): Promise<string[] | Error> {
-	if (websiteId) {
-		const orgId = await getOrganizationId(websiteId);
-		if (orgId instanceof Error) {
-			return orgId;
-		}
-		return [orgId];
-	}
+): Promise<string | Error> {
 	if (principal.organizationId) {
 		if (
 			principal.apiKey &&
@@ -266,25 +282,21 @@ export async function resolveOrganizationIds(
 				"Scoped API key requires a websiteId for org-level queries"
 			);
 		}
-		return [principal.organizationId];
+		return principal.organizationId;
 	}
-	if (
-		principal.apiKey?.organizationId &&
-		hasKeyScope(principal.apiKey, "read:data")
-	) {
-		return [principal.apiKey.organizationId];
-	}
-	if (principal.apiKey && !hasKeyScope(principal.apiKey, "read:data")) {
-		return new Error(
-			"Scoped API key requires a websiteId for org-level queries"
-		);
+	if (principal.apiKey) {
+		return principal.apiKey.organizationId &&
+			hasKeyScope(principal.apiKey, "read:data")
+			? principal.apiKey.organizationId
+			: new Error("Scoped API key requires a websiteId for org-level queries");
 	}
 	if (principal.oauthUserId) {
 		const organizationIds = await getReadableOrganizationIds(
 			principal.oauthUserId
 		);
-		if (organizationIds.length === 1) {
-			return organizationIds;
+		const [onlyOrganizationId] = organizationIds;
+		if (onlyOrganizationId && organizationIds.length === 1) {
+			return onlyOrganizationId;
 		}
 		return new Error(
 			organizationIds.length === 0
