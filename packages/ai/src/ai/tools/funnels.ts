@@ -1,3 +1,4 @@
+import { funnelStepSchema } from "@databuddy/rpc/funnel-steps";
 import { analyticsCohortSchema } from "@databuddy/shared/analytics-filters";
 import { type ToolExecutionOptions, tool } from "ai";
 import { analyticsDateRangeSchema } from "@databuddy/validation";
@@ -118,13 +119,7 @@ export function createFunnelTools() {
 			name: z.string().min(1).max(100),
 			description: z.string().optional(),
 			steps: z
-				.array(
-					z.object({
-						type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
-						target: z.string().min(1),
-						name: z.string().min(1),
-					})
-				)
+				.array(funnelStepSchema.omit({ conditions: true }))
 				.min(2)
 				.max(10),
 			filters: z.array(goalFunnelFilterSchema).optional(),

@@ -6,7 +6,7 @@ import { httpUrlSchema } from "@databuddy/validation";
 import { z } from "zod";
 import { callRPCProcedure } from "../tools/utils";
 import type { AppContext } from "../config/context";
-import { goalFunnelFilterSchema } from "../tools/goals";
+import { goalFunnelFilterSchema, goalTypeSchema } from "../tools/goals";
 import {
 	getOrganizationLink,
 	LinkFolderSelectorSchema,
@@ -30,7 +30,6 @@ import {
 	ConfirmedSchema,
 	DynamicObjectSchema,
 	GOAL_FIELDS,
-	GoalTypeSchema,
 	getResolvedOrganizationId,
 	getResolvedWebsiteId,
 	LinkExpiresAtSchema,
@@ -104,7 +103,7 @@ const updateGoalTool = defineMcpTool(
 			"Update a conversion goal. confirmed=false (default) returns the current goal and the changes without writing; confirmed=true applies them.",
 		inputSchema: z.object({
 			id: z.string(),
-			type: GoalTypeSchema.optional(),
+			type: goalTypeSchema.optional(),
 			target: z.string().min(1).optional(),
 			name: z.string().min(1).max(100).optional(),
 			description: z.string().nullable().optional(),

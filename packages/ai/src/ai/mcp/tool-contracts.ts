@@ -112,8 +112,6 @@ export function paginate<T>(
 	};
 }
 
-export const GoalTypeSchema = z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]);
-
 export const LinkSlugSchema = z
 	.string()
 	.min(3)

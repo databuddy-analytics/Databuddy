@@ -30,7 +30,7 @@ import {
 	type FlagTargetRule,
 	flagRolloutBySchema,
 } from "../tools/flag-rules";
-import { goalFunnelFilterSchema } from "../tools/goals";
+import { goalFunnelFilterSchema, goalTypeSchema } from "../tools/goals";
 import { runInvestigationAction } from "../tools/investigations";
 import { callRPCProcedure } from "../tools/utils";
 import {
@@ -84,7 +84,6 @@ import {
 	FLAG_WRITE_FIELDS,
 	FUNNEL_FIELDS,
 	GOAL_FIELDS,
-	GoalTypeSchema,
 	getResolvedOrganizationId,
 	getResolvedWebsiteId,
 	LinkExpiresAtSchema,
@@ -909,7 +908,7 @@ const createGoalTool = defineMcpTool(
 			"Create a conversion goal. confirmed=false (default) returns a preview without writing; confirmed=true creates it.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			type: GoalTypeSchema,
+			type: goalTypeSchema,
 			target: z.string().min(1),
 			name: z.string().min(1).max(100),
 			description: z.string().nullable().optional(),

@@ -15,7 +15,7 @@ import { resolveToolDateRange } from "./utils/context";
 
 const logger = createToolLogger("Goals Tools");
 
-const goalTypeSchema = z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]);
+export const goalTypeSchema = z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]);
 export const goalFunnelFilterSchema = z.strictObject({
 	field: z.enum(goalFunnelFilterFields.map((field) => field.value)),
 	operator: z.enum([
