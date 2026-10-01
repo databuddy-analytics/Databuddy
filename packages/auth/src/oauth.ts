@@ -6,6 +6,7 @@ import { config } from "@databuddy/env/app";
 import { API_SCOPES } from "@databuddy/shared/api-scopes";
 import { betterAuth } from "better-auth/minimal";
 import { jwt } from "better-auth/plugins";
+import { log } from "evlog";
 import { baseAuthOptions } from "./auth";
 import {
 	mcpAccessTokenClaims,
@@ -36,6 +37,39 @@ const database: typeof baseAuthOptions.database = (options) => {
 	};
 };
 
+function createMcpOAuthPlugins() {
+	try {
+		return [
+			mcp({
+				loginPage: "/login",
+				consentPage: "/consent",
+				postLogin: mcpPostLogin,
+				customAccessTokenClaims: mcpAccessTokenClaims,
+				resource: config.urls.mcp,
+				scopes: ["openid", "profile", "email", "offline_access", ...API_SCOPES],
+				rateLimit: { token: { window: 60, max: 600 } },
+			}),
+			cimd({
+				fetchClientMetadataResource,
+				metadataProfile: "mcp-2026-07-28",
+			}),
+			mcpConsentAccess,
+		];
+	} catch (error) {
+		log.warn({
+			service: "auth",
+			mcp_oauth_disabled: true,
+			mcp_resource: config.urls.mcp,
+			error: error instanceof Error ? error.message : String(error),
+		});
+		return [];
+	}
+}
+
+const mcpOAuthPlugins = createMcpOAuthPlugins();
+
+export const mcpOAuthEnabled = mcpOAuthPlugins.length > 0;
+
 export const oauthAuthOptions = {
 	...baseAuthOptions,
 	database,
@@ -47,20 +81,7 @@ export const oauthAuthOptions = {
 	plugins: [
 		...baseAuthOptions.plugins,
 		jwt({ disableSettingJwtHeader: true }),
-		mcp({
-			loginPage: "/login",
-			consentPage: "/consent",
-			postLogin: mcpPostLogin,
-			customAccessTokenClaims: mcpAccessTokenClaims,
-			resource: config.urls.mcp,
-			scopes: ["openid", "profile", "email", "offline_access", ...API_SCOPES],
-			rateLimit: { token: { window: 60, max: 600 } },
-		}),
-		cimd({
-			fetchClientMetadataResource,
-			metadataProfile: "mcp-2026-07-28",
-		}),
-		mcpConsentAccess,
+		...mcpOAuthPlugins,
 	],
 };
 
