@@ -5,7 +5,11 @@ import {
 	userRuleSchema,
 } from "@databuddy/shared/flags";
 import { z } from "zod";
-import { createUserTargetRule, type FlagTargetRule } from "./flag-rules";
+import {
+	createUserTargetRule,
+	type FlagTargetRule,
+	flagRolloutBySchema,
+} from "./flag-rules";
 import { callRPCProcedure, createToolLogger, getAppContext } from "./utils";
 
 const logger = createToolLogger("Flags Tools");
@@ -40,7 +44,7 @@ const createFlagInputSchema = z.object({
 	payload: z.record(z.string(), z.unknown()).optional(),
 	persistAcrossAuth: z.boolean().optional(),
 	rolloutPercentage: flagFormShape.rolloutPercentage.optional(),
-	rolloutBy: flagFormShape.rolloutBy,
+	rolloutBy: flagRolloutBySchema.optional(),
 	rules: flagFormShape.rules,
 	variants: flagFormShape.variants,
 	dependencies: flagFormShape.dependencies,

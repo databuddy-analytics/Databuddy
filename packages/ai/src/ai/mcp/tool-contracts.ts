@@ -201,10 +201,70 @@ export const FLAG_FIELDS = [
 	"environment",
 	"persistAcrossAuth",
 	"payload",
-	"targetGroupIds",
 	"targetGroups",
 	"updatedAt",
 ] as const;
+
+export const FLAG_WRITE_FIELDS = FLAG_FIELDS.filter(
+	(field) => field !== "targetGroups"
+);
+
+const FLAG_RULE_VALUE_LIMIT = 10;
+const TARGET_GROUP_FIELDS = ["id", "name", "description", "rules"] as const;
+
+function stringValues(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.filter((item): item is string => typeof item === "string")
+		: [];
+}
+
+function summarizeFlagRules(rules: unknown, valueLimit: number): unknown {
+	if (!Array.isArray(rules)) {
+		return rules ?? null;
+	}
+	return rules.map((rule) => {
+		const { values, batchValues, ...rest } = asRow(rule);
+		const batchTargets = stringValues(batchValues);
+		const [key, targets] =
+			rest.batch === true && batchTargets.length > 0
+				? ["batchValues", batchTargets]
+				: ["values", stringValues(values)];
+		if (targets.length === 0) {
+			return rest;
+		}
+		return {
+			...rest,
+			[key]: targets.slice(0, valueLimit),
+			...(targets.length > valueLimit && {
+				valueCount: targets.length,
+				valuesTruncated: true,
+			}),
+		};
+	});
+}
+
+export function pickFlagFields(
+	value: unknown,
+	keys: readonly string[] = FLAG_FIELDS,
+	ruleValueLimit = FLAG_RULE_VALUE_LIMIT
+): Row {
+	const flag = pickFields(value, keys);
+	return {
+		...flag,
+		...("rules" in flag && {
+			rules: summarizeFlagRules(flag.rules, ruleValueLimit),
+		}),
+		...(Array.isArray(flag.targetGroups) && {
+			targetGroups: flag.targetGroups.map((group) => {
+				const summary = pickFields(group, TARGET_GROUP_FIELDS);
+				return {
+					...summary,
+					rules: summarizeFlagRules(summary.rules, ruleValueLimit),
+				};
+			}),
+		}),
+	};
+}
 
 const MAX_TIME_SERIES_POINTS = 90;
 const ANALYTICS_INTERNAL_KEYS = [

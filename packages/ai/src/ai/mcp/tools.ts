@@ -23,6 +23,12 @@ import {
 	variantSchema,
 } from "@databuddy/shared/flags";
 import { executeBatch, SANITIZED_QUERY_ERROR } from "../../query";
+import type { AppContext } from "../config/context";
+import {
+	createUserTargetRule,
+	type FlagTargetRule,
+	flagRolloutBySchema,
+} from "../tools/flag-rules";
 import { goalFunnelFilterSchema } from "../tools/goals";
 import { runInvestigationAction } from "../tools/investigations";
 import { callRPCProcedure } from "../tools/utils";
@@ -75,6 +81,7 @@ import {
 	ConfirmedSchema,
 	DynamicObjectSchema,
 	FLAG_FIELDS,
+	FLAG_WRITE_FIELDS,
 	FUNNEL_FIELDS,
 	GOAL_FIELDS,
 	GoalTypeSchema,
@@ -88,6 +95,7 @@ import {
 	PageSchema,
 	paginate,
 	pickFields,
+	pickFlagFields,
 	resolveMcpDateRange,
 	summarizeConversionAnalytics,
 	updatePreview,
@@ -1276,6 +1284,191 @@ const createAnnotationTool = defineMcpTool(
 	}
 );
 
+type FlagStatus = z.infer<typeof FlagStatusSchema>;
+
+interface FlagScope {
+	notFoundHint: string;
+	rpcContext: AppContext;
+	scope: { websiteId: string } | { organizationId: string };
+}
+
+async function resolveFlagScope(ctx: McpHandlerContext): Promise<FlagScope> {
+	if (ctx.websiteId) {
+		return {
+			notFoundHint:
+				"Flag IDs come from list_flags for the same website. Organization-wide flags are updated without a website.",
+			rpcContext: buildRpcContext(ctx),
+			scope: { websiteId: ctx.websiteId },
+		};
+	}
+	const organizationId = await resolveOrganizationId(ctx);
+	if (organizationId instanceof Error) {
+		throw new McpToolError("invalid_input", organizationId.message);
+	}
+	return {
+		notFoundHint:
+			"Website flags need websiteId, websiteName, or websiteDomain. list_flags shows each website's flags.",
+		rpcContext: buildRpcContext({ ...ctx, organizationId }),
+		scope: { organizationId },
+	};
+}
+
+function readFlag(
+	id: string,
+	{ notFoundHint, rpcContext, scope }: FlagScope
+): Promise<unknown> {
+	return callRPCProcedure(
+		"flags",
+		"getById",
+		{ id, ...scope },
+		rpcContext
+	).catch((error: unknown) => {
+		if (error instanceof ORPCError && error.code === "NOT_FOUND") {
+			throw new McpToolError("not_found", "Flag not found", {
+				hint: notFoundHint,
+			});
+		}
+		throw error;
+	});
+}
+
+const FlagDependencyRowSchema = z.object({
+	key: z.string(),
+	status: FlagStatusSchema,
+	dependencies: z.array(z.string()).nullable().optional(),
+});
+type FlagDependencyRow = z.infer<typeof FlagDependencyRowSchema>;
+
+const MAX_FLAG_CASCADE_DEPTH = 10;
+
+async function listScopeFlags({
+	rpcContext,
+	scope,
+}: FlagScope): Promise<FlagDependencyRow[]> {
+	return z
+		.array(FlagDependencyRowSchema)
+		.parse(await callRPCProcedure("flags", "list", scope, rpcContext));
+}
+
+interface FlagStatusPlan {
+	dependentsActivated: string[];
+	dependentsDeactivated: string[];
+	inactiveDependencies: string[];
+	savedStatus: FlagStatus;
+}
+
+function planFlagStatus(
+	scopeFlags: FlagDependencyRow[],
+	change: {
+		currentStatus?: FlagStatus;
+		dependencies: string[];
+		key: string;
+		status: FlagStatus;
+	}
+): FlagStatusPlan {
+	const statuses = new Map(scopeFlags.map((flag) => [flag.key, flag.status]));
+	const inactiveDependencies = change.dependencies.filter((key) => {
+		const status = statuses.get(key);
+		return status !== undefined && status !== "active";
+	});
+	const plan: FlagStatusPlan = {
+		dependentsActivated: [],
+		dependentsDeactivated: [],
+		inactiveDependencies,
+		savedStatus:
+			change.status === "active" && inactiveDependencies.length > 0
+				? "inactive"
+				: change.status,
+	};
+	if (!change.currentStatus || change.currentStatus === plan.savedStatus) {
+		return plan;
+	}
+
+	statuses.set(change.key, plan.savedStatus);
+	const visited = new Set<string>();
+	const cascade = (key: string, status: FlagStatus, depth: number) => {
+		if (
+			status === "archived" ||
+			depth >= MAX_FLAG_CASCADE_DEPTH ||
+			visited.has(key)
+		) {
+			return;
+		}
+		visited.add(key);
+		const changed = scopeFlags.filter((flag) => {
+			const dependencies = flag.dependencies ?? [];
+			if (!dependencies.includes(key)) {
+				return false;
+			}
+			const current = statuses.get(flag.key);
+			return status === "inactive"
+				? current === "active"
+				: current === "inactive" &&
+						dependencies.every(
+							(dependency) => statuses.get(dependency) === "active"
+						);
+		});
+		for (const flag of changed) {
+			statuses.set(flag.key, status);
+			if (status === "active") {
+				plan.dependentsActivated.push(flag.key);
+			} else {
+				plan.dependentsDeactivated.push(flag.key);
+			}
+		}
+		for (const flag of changed) {
+			cascade(flag.key, status, depth + 1);
+		}
+	};
+	cascade(change.key, plan.savedStatus, 0);
+	return plan;
+}
+
+function flagStatusNotes(
+	requestedStatus: FlagStatus | undefined,
+	savedStatus: unknown,
+	plan: FlagStatusPlan | null
+): string | undefined {
+	const notes: string[] = [];
+	if (requestedStatus && savedStatus !== requestedStatus) {
+		const reason = plan?.inactiveDependencies.length
+			? ` because these dependencies are not active: ${plan.inactiveDependencies.join(", ")}`
+			: "";
+		notes.push(
+			`Requested status ${requestedStatus} is stored as ${String(savedStatus)}${reason}.`
+		);
+	}
+	if (plan && savedStatus === plan.savedStatus) {
+		if (plan.dependentsActivated.length > 0) {
+			notes.push(
+				`Dependent flags turned on: ${plan.dependentsActivated.join(", ")}.`
+			);
+		}
+		if (plan.dependentsDeactivated.length > 0) {
+			notes.push(
+				`Dependent flags turned off: ${plan.dependentsDeactivated.join(", ")}.`
+			);
+		}
+	}
+	return notes.length > 0 ? notes.join(" ") : undefined;
+}
+
+const FLAG_IDENTITY_FIELDS = ["id", "key", "name", "status"] as const;
+
+function appendableFlagRules(rules: unknown[]): FlagTargetRule[] {
+	const parsed = z.array(FlagRuleSchema).safeParse(rules);
+	if (!parsed.success) {
+		throw new McpToolError(
+			"invalid_input",
+			"This flag's existing rules use an older format that cannot be appended to.",
+			{
+				hint: "Use mode=replace to start the rules over, or rewrite them with update_flag.",
+			}
+		);
+	}
+	return parsed.data;
+}
+
 const listFlagsTool = defineMcpTool(
 	{
 		name: "list_flags",
@@ -1300,32 +1493,16 @@ const listFlagsTool = defineMcpTool(
 			limit: input.limit + 1,
 			offset: input.offset,
 		};
-		const rpcContext = buildRpcContext(ctx);
-		let result: unknown;
-		if (ctx.websiteId) {
-			result = await callRPCProcedure(
-				"flags",
-				"list",
-				{ ...page, websiteId: ctx.websiteId },
-				rpcContext
-			);
-		} else {
-			const organizationId = await resolveOrganizationId(ctx);
-			if (organizationId instanceof Error) {
-				throw new McpToolError("invalid_input", organizationId.message);
-			}
-			result = await callRPCProcedure(
-				"flags",
-				"list",
-				{ ...page, organizationId },
-				{ ...rpcContext, organizationId }
-			);
-		}
+		const { rpcContext, scope } = await resolveFlagScope(ctx);
+		const result = await callRPCProcedure(
+			"flags",
+			"list",
+			{ ...page, ...scope },
+			rpcContext
+		);
 		const rows = Array.isArray(result) ? result : [];
 		return {
-			flags: rows
-				.slice(0, input.limit)
-				.map((flag) => pickFields(flag, FLAG_FIELDS)),
+			flags: rows.slice(0, input.limit).map((flag) => pickFlagFields(flag)),
 			hasMore: rows.length > input.limit,
 		};
 	}
@@ -1347,7 +1524,7 @@ const createFlagTool = defineMcpTool(
 			payload: z.record(z.string(), z.unknown()).optional(),
 			persistAcrossAuth: z.boolean().optional(),
 			rolloutPercentage: z.number().min(0).max(100).optional(),
-			rolloutBy: z.string().optional(),
+			rolloutBy: flagRolloutBySchema.optional(),
 			rules: z.array(FlagRuleSchema).optional(),
 			variants: z.array(FlagVariantSchema).optional(),
 			dependencies: z.array(z.string()).optional(),
@@ -1380,8 +1557,21 @@ const createFlagTool = defineMcpTool(
 			environment: input.environment,
 			targetGroupIds: input.targetGroupIds,
 		};
+		const flagScope = await resolveFlagScope(ctx);
+		const statusPlan = payload.dependencies?.length
+			? planFlagStatus(await listScopeFlags(flagScope), {
+					dependencies: payload.dependencies,
+					key: payload.key,
+					status: payload.status,
+				})
+			: null;
 
 		if (!input.confirmed) {
+			const warning = flagStatusNotes(
+				payload.status,
+				statusPlan?.savedStatus ?? payload.status,
+				statusPlan
+			);
 			return {
 				preview: true,
 				message: "Review this feature flag before creating it.",
@@ -1390,12 +1580,15 @@ const createFlagTool = defineMcpTool(
 					key: payload.key,
 					name: payload.name ?? payload.key,
 					type: payload.type,
-					status: payload.status,
+					status: statusPlan?.savedStatus ?? payload.status,
 					defaultValue: payload.defaultValue,
 					rolloutPercentage: payload.rolloutPercentage,
+					rolloutBy: payload.rolloutBy ?? "user",
+					dependencies: payload.dependencies ?? [],
 					ruleCount: payload.rules?.length ?? 0,
 					variantCount: payload.variants?.length ?? 0,
 				},
+				...(warning && { warning }),
 			};
 		}
 
@@ -1403,60 +1596,30 @@ const createFlagTool = defineMcpTool(
 			"flags",
 			"create",
 			payload,
-			buildRpcContext(ctx)
+			flagScope.rpcContext
 		);
+		const flag = pickFlagFields(result, FLAG_WRITE_FIELDS);
+		const notes = flagStatusNotes(payload.status, flag.status, statusPlan);
 		return {
 			success: true,
-			message: `Feature flag "${input.key}" created successfully.`,
-			flag: pickFields(result, FLAG_FIELDS),
+			message: [`Feature flag "${input.key}" created successfully.`, notes]
+				.filter(Boolean)
+				.join(" "),
+			flag: {
+				...flag,
+				...(payload.targetGroupIds && {
+					targetGroupIds: payload.targetGroupIds,
+				}),
+			},
 		};
 	}
 );
-
-function flagNotFound(error: unknown, hint: string): never {
-	if (error instanceof ORPCError && error.code === "NOT_FOUND") {
-		throw new McpToolError("not_found", "Flag not found", { hint });
-	}
-	throw error;
-}
-
-async function readFlag(id: string, ctx: McpHandlerContext) {
-	const rpcContext = buildRpcContext(ctx);
-	if (ctx.websiteId) {
-		return callRPCProcedure(
-			"flags",
-			"getById",
-			{ id, websiteId: ctx.websiteId },
-			rpcContext
-		).catch((error: unknown) =>
-			flagNotFound(
-				error,
-				"Flag IDs come from list_flags for the same website. Organization-wide flags are updated without a website."
-			)
-		);
-	}
-	const organizationId = await resolveOrganizationId(ctx);
-	if (organizationId instanceof Error) {
-		throw new McpToolError("invalid_input", organizationId.message);
-	}
-	return callRPCProcedure(
-		"flags",
-		"getById",
-		{ id, organizationId },
-		{ ...rpcContext, organizationId }
-	).catch((error: unknown) =>
-		flagNotFound(
-			error,
-			"Website flags need websiteId, websiteName, or websiteDomain. list_flags shows each website's flags."
-		)
-	);
-}
 
 const updateFlagTool = defineMcpTool(
 	{
 		name: "update_flag",
 		description:
-			"Update a feature flag's config, status, rollout, rules, or variants. confirmed=false (default) returns the current flag and the changes without writing; confirmed=true applies them.",
+			"Update a feature flag's config, status, rollout, rules, or variants. rules replaces every rule. confirmed=false (default) returns the current flag, with full rule targets, and the changes without writing; confirmed=true applies them.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			id: z.string(),
@@ -1469,7 +1632,7 @@ const updateFlagTool = defineMcpTool(
 			rules: z.array(FlagRuleSchema).optional(),
 			persistAcrossAuth: z.boolean().optional(),
 			rolloutPercentage: z.number().min(0).max(100).optional(),
-			rolloutBy: z.string().optional(),
+			rolloutBy: flagRolloutBySchema.optional(),
 			variants: z.array(FlagVariantSchema).optional(),
 			dependencies: z.array(z.string()).optional(),
 			environment: z.string().nullable().optional(),
@@ -1492,26 +1655,58 @@ const updateFlagTool = defineMcpTool(
 			...changes
 		} = input;
 		const updates = omitUndefined(changes);
+		const flagScope = await resolveFlagScope(ctx);
+		const current = await readFlag(id, flagScope);
+		const currentFlag = FlagDependencyRowSchema.parse(current);
+		const statusPlan = changes.status
+			? planFlagStatus(await listScopeFlags(flagScope), {
+					currentStatus: currentFlag.status,
+					dependencies: changes.dependencies ?? currentFlag.dependencies ?? [],
+					key: currentFlag.key,
+					status: changes.status,
+				})
+			: null;
+
 		if (!confirmed || Object.keys(updates).length === 0) {
-			const current = pickFields(await readFlag(id, ctx), FLAG_FIELDS);
-			return updatePreview("feature flag", current, updates);
+			const warning = flagStatusNotes(
+				changes.status,
+				statusPlan?.savedStatus,
+				statusPlan
+			);
+			return updatePreview(
+				"feature flag",
+				pickFlagFields(current, FLAG_FIELDS, Number.POSITIVE_INFINITY),
+				updates,
+				{
+					...(statusPlan && { statusChange: statusPlan }),
+					...(warning && { warning }),
+				}
+			);
 		}
-		await readFlag(id, ctx);
-		const rpcContext = buildRpcContext(ctx);
 
 		const result = await callRPCProcedure(
 			"flags",
 			"update",
 			{ id, ...updates },
-			rpcContext
+			flagScope.rpcContext
 		);
+		const flag = pickFlagFields(result, FLAG_WRITE_FIELDS);
+		const notes = flagStatusNotes(changes.status, flag.status, statusPlan);
 		return {
 			success: true,
-			message: "Feature flag updated successfully.",
-			flag: pickFields(
-				result,
-				FLAG_FIELDS.filter((field) => field !== "targetGroups")
-			),
+			message: ["Feature flag updated successfully.", notes]
+				.filter(Boolean)
+				.join(" "),
+			flag: {
+				...flag,
+				...(changes.targetGroupIds && {
+					targetGroupIds: changes.targetGroupIds,
+				}),
+			},
+			...(statusPlan &&
+				flag.status === statusPlan.savedStatus && {
+					statusChange: statusPlan,
+				}),
 		};
 	}
 );
@@ -1538,27 +1733,28 @@ const addUsersToFlagTool = defineMcpTool(
 		const uniqueUsers = [
 			...new Set(input.users.map((user) => user.trim())),
 		].filter(Boolean);
+		const flagScope = await resolveFlagScope(ctx);
 		const currentFlag = z
 			.object({
 				id: z.string(),
 				key: z.string(),
 				name: z.string().nullable().optional(),
-				rules: z.array(FlagRuleSchema).optional(),
+				rules: z.array(z.record(z.string(), z.unknown())).nullable().optional(),
 				status: FlagStatusSchema.optional(),
 			})
-			.passthrough()
-			.parse(await readFlag(input.flagId, ctx));
-		const currentRules = currentFlag.rules ?? [];
-		const nextRule = {
-			batch: true,
-			batchValues: uniqueUsers,
-			enabled: true,
-			operator: "in",
-			type: input.matchBy,
-			values: uniqueUsers,
-		} satisfies z.infer<typeof FlagRuleSchema>;
-		const nextRules =
-			input.mode === "replace" ? [nextRule] : [...currentRules, nextRule];
+			.parse(await readFlag(input.flagId, flagScope));
+		const existingRules = currentFlag.rules ?? [];
+		const nextRules = [
+			...(input.mode === "replace" ? [] : appendableFlagRules(existingRules)),
+			createUserTargetRule(input.matchBy, uniqueUsers),
+		];
+		const targeting = {
+			matchBy: input.matchBy,
+			mode: input.mode,
+			userCount: uniqueUsers.length,
+			ruleCountBefore: existingRules.length,
+			ruleCountAfter: nextRules.length,
+		};
 
 		if (!input.confirmed) {
 			return {
@@ -1566,19 +1762,8 @@ const addUsersToFlagTool = defineMcpTool(
 				message:
 					"Review this feature flag targeting change before applying it.",
 				confirmationRequired: true,
-				flag: {
-					id: currentFlag.id,
-					key: currentFlag.key,
-					name: currentFlag.name,
-					status: currentFlag.status,
-				},
-				targeting: {
-					matchBy: input.matchBy,
-					mode: input.mode,
-					userCount: uniqueUsers.length,
-					ruleCountBefore: currentRules.length,
-					ruleCountAfter: nextRules.length,
-				},
+				flag: pickFields(currentFlag, FLAG_IDENTITY_FIELDS),
+				targeting,
 			};
 		}
 
@@ -1586,12 +1771,13 @@ const addUsersToFlagTool = defineMcpTool(
 			"flags",
 			"update",
 			{ id: input.flagId, rules: nextRules },
-			buildRpcContext(ctx)
+			flagScope.rpcContext
 		);
 		return {
 			success: true,
 			message: `Added ${uniqueUsers.length} user target${uniqueUsers.length === 1 ? "" : "s"} to the flag.`,
-			flag: pickFields(result, FLAG_FIELDS),
+			flag: pickFields(result, FLAG_IDENTITY_FIELDS),
+			targeting,
 		};
 	}
 );

@@ -12,6 +12,7 @@ import {
 } from "../../mcp/http";
 import { defineMcpTool, type McpRequestContext } from "./define-tool";
 import {
+	pickFlagFields,
 	resolveMcpDateRange,
 	summarizeConversionAnalytics,
 } from "./tool-contracts";
@@ -369,6 +370,44 @@ describe("MCP tool invariants", () => {
 			time_series: [{ date: "2026-09-20", users: 8 }],
 			timeSeriesTruncated: false,
 		});
+	});
+
+	test("flag rules return each target list once and cap long lists", () => {
+		const users = Array.from({ length: 12 }, (_, index) => `u${index}@x.io`);
+		const flag = pickFlagFields({
+			id: "flag-1",
+			rules: [
+				{
+					batch: true,
+					batchValues: users,
+					enabled: true,
+					operator: "in",
+					type: "email",
+					values: users,
+				},
+				{ field: "country", operator: "equals", value: "US" },
+			],
+		});
+
+		expect(flag.rules).toEqual([
+			{
+				batch: true,
+				batchValues: users.slice(0, 10),
+				enabled: true,
+				operator: "in",
+				type: "email",
+				valueCount: 12,
+				valuesTruncated: true,
+			},
+			{ field: "country", operator: "equals", value: "US" },
+		]);
+		expect(
+			pickFlagFields(
+				{ rules: [{ batch: true, batchValues: users }] },
+				["rules"],
+				Number.POSITIVE_INFINITY
+			)
+		).toEqual({ rules: [{ batch: true, batchValues: users }] });
 	});
 
 	test("tool names are unique snake_case", () => {
