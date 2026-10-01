@@ -139,7 +139,7 @@ Stack config takes precedence. Monitors and status pages that already exist in t
 | `already exists` or `already taken` | The URL, website, or slug is in use elsewhere. After a rename, add `aliases` |
 | `was redirected` | Set `databuddy:apiUrl` to the API's final URL |
 | `Function serialization is not supported when using bun` | Use `runtime: nodejs` |
-| `fetch failed` behind a proxy | Export `NODE_USE_ENV_PROXY=1` (Node 22.21+), or `NODE_EXTRA_CA_CERTS` for TLS inspection |
+| `fetch failed` behind a proxy | Export `NODE_USE_ENV_PROXY=1` (Node 22.21+) with `HTTPS_PROXY`, or `NODE_EXTRA_CA_CERTS` for TLS inspection |
 
 ## What's Next?
 
