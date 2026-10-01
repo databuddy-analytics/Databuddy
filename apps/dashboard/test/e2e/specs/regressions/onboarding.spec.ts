@@ -51,12 +51,9 @@ for (const aiConfigured of [false, true]) {
 				}
 			);
 			await page.goto("/onboarding");
-			await expect(page).toHaveURL(/step=tracking$/);
 			await expect(
-				page.getByRole("heading", { name: "Tracking verified" })
+				page.getByText("Tracking verified", { exact: true })
 			).toBeVisible();
-			await page.getByRole("button", { name: "Continue", exact: true }).click();
-			await expect(page).toHaveURL(/step=finish$/);
 
 			const selfHosted = process.env.SELFHOST?.trim().toLowerCase() === "true";
 			try {
@@ -105,7 +102,6 @@ for (const aiConfigured of [false, true]) {
 					await expect(
 						page.getByRole("button", { name: "Try again" })
 					).toHaveCount(0);
-					await expect(page).toHaveURL(/step=finish$/);
 				} finally {
 					releaseRetry?.();
 				}

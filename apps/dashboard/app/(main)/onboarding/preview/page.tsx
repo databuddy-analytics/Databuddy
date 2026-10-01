@@ -4,24 +4,27 @@ import type { OnboardingIntent } from "@databuddy/shared/custom-events";
 import { Button } from "@databuddy/ui";
 import { notFound } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
-import { type ReactNode, Suspense, useState } from "react";
+import { Suspense, useState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
 import { isDashboardE2E } from "@/lib/e2e-mode";
 import { cn } from "@/lib/utils";
-import { OnboardingShell } from "../_components/onboarding-shell";
+import type { TrackingStatus } from "../_components/connect-app";
 import {
-	type FinishReview,
-	INTENT_OPTIONS,
-	StepFinish,
-} from "../_components/step-finish";
-import { StepInstall, type TrackingStatus } from "../_components/step-install";
-import { StepWebsite } from "../_components/step-website";
+	SetupChecklist,
+	type SetupChecklistProps,
+	type SetupWebsite,
+} from "../_components/setup-checklist";
 import {
 	EMPTY_RESEARCH,
 	type OnboardingResearch,
 } from "../_components/use-onboarding-research";
+import { INTENT_OPTIONS } from "../_components/what-matters";
 
-const WEBSITE = { id: "preview-website-id", domain: "acme.com", name: "Acme" };
+const WEBSITE: SetupWebsite = {
+	id: "preview-website-id",
+	domain: "acme.com",
+	name: "Acme",
+};
 
 const BRIEF = `# Acme
 
@@ -61,6 +64,37 @@ const RESEARCH = {
 				question: "What is the one outcome you most want to grow this quarter?",
 			},
 		],
+		sources: [
+			{ url: "https://acme.com/", title: "Acme" },
+			{ url: "https://acme.com/pricing", title: "Pricing" },
+			{ url: "https://acme.com/integrations", title: "Integrations" },
+		],
+		detectedTools: ["plausible"],
+		suggestedGoals: [
+			{
+				name: "Trial started",
+				type: "EVENT",
+				target: "trial_started",
+				reason: "The 14-day trial is the decision point on every plan.",
+			},
+			{
+				name: "Pricing viewed",
+				type: "PAGE_VIEW",
+				target: "/pricing",
+				reason: "Pricing is the clearest intent signal on the site.",
+			},
+		],
+		suggestedFunnels: [
+			{
+				name: "Homepage to trial",
+				reason: "Shows where visitors drop before starting a trial.",
+				steps: [
+					{ name: "Homepage", type: "PAGE_VIEW", target: "/" },
+					{ name: "Pricing", type: "PAGE_VIEW", target: "/pricing" },
+					{ name: "Trial started", type: "EVENT", target: "trial_started" },
+				],
+			},
+		],
 	}),
 	failed: research("failed", {
 		pagesRead: 1,
@@ -84,219 +118,224 @@ const TRACKING = {
 } satisfies Record<string, TrackingStatus>;
 
 const noop = () => undefined;
-const resolve = () => Promise.resolve();
+
+type Sample = Partial<
+	Pick<
+		SetupChecklistProps,
+		| "finish"
+		| "prioritySaved"
+		| "research"
+		| "saveError"
+		| "saving"
+		| "tracking"
+		| "trackingCopied"
+		| "trackingSkipped"
+		| "website"
+	>
+> & { intent?: OnboardingIntent | null };
 
 interface Scenario {
 	id: string;
-	next: string | null;
-	render: () => ReactNode;
-	step: 1 | 2 | 3;
+	sample: Sample;
 	title: string;
 }
 
-function FinishScenario({
-	initialIntent = null,
-	research: state,
-	review = null,
-	saveError = null,
-}: {
-	initialIntent?: OnboardingIntent | null;
-	research: OnboardingResearch;
-	review?: FinishReview | null;
-	saveError?: string | null;
-}) {
-	const [priority, setPriority] = useState(
-		INTENT_OPTIONS.find((option) => option.id === initialIntent)?.priority ?? ""
-	);
-	const [intent, setIntent] = useState<OnboardingIntent | null>(initialIntent);
-	return (
-		<StepFinish
-			intent={intent}
-			onChangeIntent={setIntent}
-			onChangePriority={setPriority}
-			onStartResearch={noop}
-			priority={priority}
-			research={state}
-			review={review}
-			saveError={saveError}
-			websiteName={WEBSITE.name}
-		/>
-	);
-}
-
-function install(tracking: TrackingStatus, state: OnboardingResearch) {
-	return (
-		<StepInstall
-			domain={WEBSITE.domain}
-			research={state}
-			tracking={tracking}
-			websiteId={WEBSITE.id}
-		/>
-	);
-}
+const FINISH = {
+	dashboard: { label: "Open dashboard", onClick: noop },
+	insights: {
+		label: "Open Insights",
+		onClick: noop,
+		note: "Your first review runs once there is enough history to compare.",
+	},
+	checking: {
+		label: "Checking Insights",
+		onClick: noop,
+		disabled: true,
+		loading: true,
+	},
+	failed: {
+		label: "Open dashboard",
+		onClick: noop,
+		note: "We couldn't check Insights.",
+		onRetry: noop,
+	},
+};
 
 const SCENARIOS: Scenario[] = [
+	{ id: "empty", title: "New account", sample: { website: null } },
 	{
-		id: "website",
-		step: 1,
-		title: "Empty form",
-		next: null,
-		render: () => <StepWebsite onCreate={resolve} pending={false} />,
+		id: "created",
+		title: "Website added, reading starts",
+		sample: { research: RESEARCH.readingStart, finish: FINISH.dashboard },
 	},
 	{
-		id: "website-creating",
-		step: 1,
-		title: "Creating",
-		next: null,
-		render: () => <StepWebsite onCreate={resolve} pending />,
-	},
-	{
-		id: "install-reading-start",
-		step: 2,
-		title: "Reading starts",
-		next: "Skip for now",
-		render: () => install(TRACKING.awaiting, RESEARCH.readingStart),
-	},
-	{
-		id: "install-reading",
-		step: 2,
+		id: "reading",
 		title: "Reading, pages found",
-		next: "Skip for now",
-		render: () => install(TRACKING.awaiting, RESEARCH.reading),
+		sample: { research: RESEARCH.reading, finish: FINISH.dashboard },
 	},
 	{
-		id: "install-writing",
-		step: 2,
-		title: "Writing the brief",
-		next: "Skip for now",
-		render: () => install(TRACKING.awaiting, RESEARCH.writing),
+		id: "copied",
+		title: "Prompt copied, waiting for events",
+		sample: {
+			research: RESEARCH.writing,
+			trackingCopied: true,
+			finish: FINISH.dashboard,
+		},
 	},
 	{
-		id: "install-brief-ready",
-		step: 2,
-		title: "Brief ready, waiting for events",
-		next: "Skip for now",
-		render: () => install(TRACKING.awaiting, RESEARCH.ready),
+		id: "brief-ready",
+		title: "Brief ready, still waiting",
+		sample: {
+			research: RESEARCH.ready,
+			trackingCopied: true,
+			finish: FINISH.dashboard,
+		},
 	},
 	{
-		id: "install-no-ai",
-		step: 2,
-		title: "No AI available",
-		next: "Skip for now",
-		render: () => install(TRACKING.awaiting, RESEARCH.unavailable),
-	},
-	{
-		id: "install-issue",
-		step: 2,
+		id: "blocked",
 		title: "Blocked origin",
-		next: "Skip for now",
-		render: () => install(TRACKING.issue, RESEARCH.ready),
+		sample: {
+			research: RESEARCH.ready,
+			tracking: TRACKING.issue,
+			trackingCopied: true,
+			finish: FINISH.dashboard,
+		},
 	},
 	{
-		id: "install-error",
-		step: 2,
-		title: "Check failed",
-		next: "Skip for now",
-		render: () => install(TRACKING.error, RESEARCH.failed),
+		id: "check-error",
+		title: "Tracking check failed",
+		sample: {
+			research: RESEARCH.ready,
+			tracking: TRACKING.error,
+			trackingCopied: true,
+			finish: FINISH.dashboard,
+		},
 	},
 	{
-		id: "install-verified",
-		step: 2,
-		title: "Verified",
-		next: "Continue",
-		render: () => install(TRACKING.verified, RESEARCH.ready),
+		id: "skipped",
+		title: "Tracking skipped",
+		sample: {
+			research: RESEARCH.ready,
+			trackingSkipped: true,
+			finish: FINISH.dashboard,
+		},
 	},
 	{
-		id: "finish-ready",
-		step: 3,
-		title: "Brief ready",
-		next: "Open Insights",
-		render: () => <FinishScenario research={RESEARCH.ready} />,
-	},
-	{
-		id: "finish-ready-answered",
-		step: 3,
-		title: "Brief ready, intent picked",
-		next: "Open Insights",
-		render: () => (
-			<FinishScenario initialIntent="conversions" research={RESEARCH.ready} />
-		),
-	},
-	{
-		id: "finish-writing",
-		step: 3,
-		title: "Still writing",
-		next: "Open dashboard",
-		render: () => <FinishScenario research={RESEARCH.writing} />,
-	},
-	{
-		id: "finish-reading",
-		step: 3,
-		title: "Still reading",
-		next: "Open dashboard",
-		render: () => <FinishScenario research={RESEARCH.reading} />,
-	},
-	{
-		id: "finish-idle",
-		step: 3,
-		title: "Not started",
-		next: "Open dashboard",
-		render: () => <FinishScenario research={RESEARCH.idle} />,
-	},
-	{
-		id: "finish-no-ai",
-		step: 3,
+		id: "no-ai",
 		title: "No AI available",
-		next: "Open dashboard",
-		render: () => <FinishScenario research={RESEARCH.unavailable} />,
+		sample: { research: RESEARCH.unavailable, finish: FINISH.dashboard },
 	},
 	{
-		id: "finish-failed",
-		step: 3,
+		id: "research-idle",
+		title: "Existing site, not read yet",
+		sample: { research: RESEARCH.idle, finish: FINISH.dashboard },
+	},
+	{
+		id: "research-failed",
 		title: "Research failed",
-		next: "Open dashboard",
-		render: () => <FinishScenario research={RESEARCH.failed} />,
+		sample: { research: RESEARCH.failed, finish: FINISH.dashboard },
 	},
 	{
-		id: "finish-checking-insights",
-		step: 3,
-		title: "Checking Insights",
-		next: "Checking Insights",
-		render: () => (
-			<FinishScenario
-				research={RESEARCH.ready}
-				review={{ error: false, loading: true, onRetry: noop }}
-			/>
-		),
+		id: "verified",
+		title: "Verified, answer pending",
+		sample: {
+			research: RESEARCH.ready,
+			tracking: TRACKING.verified,
+			finish: FINISH.insights,
+		},
 	},
 	{
-		id: "finish-insights-failed",
-		step: 3,
-		title: "Insights check failed",
-		next: "Open dashboard",
-		render: () => (
-			<FinishScenario
-				research={RESEARCH.ready}
-				review={{ error: true, loading: false, onRetry: noop }}
-			/>
-		),
+		id: "intent",
+		title: "Intent picked",
+		sample: {
+			research: RESEARCH.ready,
+			tracking: TRACKING.verified,
+			intent: "conversions",
+			finish: FINISH.insights,
+		},
 	},
 	{
-		id: "finish-save-error",
-		step: 3,
+		id: "save-error",
 		title: "Save failed",
-		next: "Open Insights",
-		render: () => (
-			<FinishScenario
-				initialIntent="traffic"
-				research={RESEARCH.ready}
-				saveError="A newer brief was saved. Review the update before saving your edits."
-			/>
-		),
+		sample: {
+			research: RESEARCH.ready,
+			tracking: TRACKING.verified,
+			intent: "traffic",
+			saveError:
+				"A newer brief was saved. Review the update before saving your edits.",
+			finish: FINISH.insights,
+		},
+	},
+	{
+		id: "all-done",
+		title: "Everything done",
+		sample: {
+			research: RESEARCH.ready,
+			tracking: TRACKING.verified,
+			prioritySaved: true,
+			finish: FINISH.insights,
+		},
+	},
+	{
+		id: "checking-insights",
+		title: "Checking Insights",
+		sample: {
+			research: RESEARCH.ready,
+			tracking: TRACKING.verified,
+			prioritySaved: true,
+			finish: FINISH.checking,
+		},
+	},
+	{
+		id: "insights-failed",
+		title: "Insights check failed",
+		sample: {
+			research: RESEARCH.ready,
+			tracking: TRACKING.verified,
+			prioritySaved: true,
+			finish: FINISH.failed,
+		},
 	},
 ];
 
-const STEP_TITLES = ["Website", "Install tracking", "Finish"];
+function Sample({ sample }: { sample: Sample }) {
+	const [intent, setIntent] = useState<OnboardingIntent | null>(
+		sample.intent ?? null
+	);
+	const [priority, setPriority] = useState(
+		INTENT_OPTIONS.find((option) => option.id === sample.intent)?.priority ?? ""
+	);
+	const website = sample.website === undefined ? WEBSITE : sample.website;
+	return (
+		<SetupChecklist
+			creating={false}
+			finish={website ? (sample.finish ?? null) : null}
+			intent={intent}
+			onChangeIntent={setIntent}
+			onChangePriority={setPriority}
+			onCreateWebsite={() => Promise.resolve()}
+			onSavePriority={noop}
+			onSkipSetup={noop}
+			onSkipTracking={noop}
+			onStartResearch={noop}
+			suggestions={{
+				created: new Set(["goal:Pricing viewed"]),
+				creating: null,
+				onCreateFunnel: noop,
+				onCreateGoal: noop,
+			}}
+			priority={priority}
+			prioritySaved={sample.prioritySaved ?? false}
+			research={sample.research ?? EMPTY_RESEARCH}
+			saveError={sample.saveError ?? null}
+			saving={sample.saving ?? false}
+			tracking={sample.tracking ?? TRACKING.awaiting}
+			trackingCopied={sample.trackingCopied ?? false}
+			trackingSkipped={sample.trackingSkipped ?? false}
+			website={website}
+		/>
+	);
+}
 
 function PreviewPage() {
 	const [scenarioId, setScenarioId] = useQueryState(
@@ -314,60 +353,29 @@ function PreviewPage() {
 			<TopBar.Title>
 				<h1 className="font-semibold text-sm">Onboarding preview</h1>
 			</TopBar.Title>
-			<aside className="flex w-60 shrink-0 flex-col overflow-y-auto border-border border-r bg-sidebar">
-				<p className="px-4 pt-4 pb-2 text-muted-foreground text-xs">
-					Every stage with sample data. Actions do nothing here.
+			<aside className="flex w-60 shrink-0 flex-col gap-0.5 overflow-y-auto border-border border-r bg-sidebar p-2">
+				<p className="px-2 pt-2 pb-2 text-muted-foreground text-xs">
+					Every state with sample data. Actions do nothing here.
 				</p>
-				{STEP_TITLES.map((title, index) => (
-					<div className="px-2 pb-2" key={title}>
-						<p className="px-2 py-1.5 font-semibold text-[11px] text-muted-foreground uppercase">
-							{index + 1}. {title}
-						</p>
-						<ul>
-							{SCENARIOS.filter((item) => item.step === index + 1).map(
-								(item) => (
-									<li key={item.id}>
-										<Button
-											aria-current={
-												item.id === scenario.id ? "page" : undefined
-											}
-											className={cn(
-												"w-full justify-start font-normal",
-												item.id === scenario.id &&
-													"bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-											)}
-											onClick={() => setScenarioId(item.id)}
-											size="sm"
-											variant="ghost"
-										>
-											{item.title}
-										</Button>
-									</li>
-								)
-							)}
-						</ul>
-					</div>
+				{SCENARIOS.map((item) => (
+					<Button
+						aria-current={item.id === scenario.id ? "page" : undefined}
+						className={cn(
+							"w-full justify-start font-normal",
+							item.id === scenario.id &&
+								"bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+						)}
+						key={item.id}
+						onClick={() => setScenarioId(item.id)}
+						size="sm"
+						variant="ghost"
+					>
+						{item.title}
+					</Button>
 				))}
 			</aside>
 			<div className="min-w-0 flex-1 overflow-hidden">
-				<OnboardingShell
-					back={scenario.step === 3 ? noop : null}
-					key={scenario.id}
-					next={
-						scenario.next
-							? {
-									label: scenario.next,
-									onClick: noop,
-									disabled: scenario.next === "Checking Insights",
-									loading: scenario.next === "Checking Insights",
-								}
-							: null
-					}
-					onSkip={noop}
-					step={scenario.step}
-				>
-					{scenario.render()}
-				</OnboardingShell>
+				<Sample key={scenario.id} sample={scenario.sample} />
 			</div>
 		</div>
 	);

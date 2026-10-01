@@ -1,19 +1,14 @@
 "use client";
 
+import type { OnboardingIntent } from "@databuddy/shared/custom-events";
 import type {
-	OnboardingIntent,
-	OnboardingStepId,
-} from "@databuddy/shared/custom-events";
-import { useQuery } from "@tanstack/react-query";
-import { useRouter, useSearchParams } from "next/navigation";
-import {
-	Suspense,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+	BusinessSuggestedFunnel,
+	BusinessSuggestedGoal,
+} from "@databuddy/shared/organization-business-context";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { trackOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
 import {
 	useBillingContext,
@@ -32,62 +27,67 @@ import {
 } from "@/lib/app-events";
 import { orpc } from "@/lib/orpc";
 import { showErrorToast } from "@/lib/user-facing-error";
-import { OnboardingShell } from "./_components/onboarding-shell";
-import { INTENT_OPTIONS, StepFinish } from "./_components/step-finish";
-import { StepInstall, type TrackingStatus } from "./_components/step-install";
+import type { WebsiteFormValues } from "./_components/add-website";
+import type { TrackingStatus } from "./_components/connect-app";
+import { suggestionKey } from "./_components/read-site";
 import {
-	StepWebsite,
-	type WebsiteFormValues,
-} from "./_components/step-website";
+	SetupChecklist,
+	type SetupWebsite,
+} from "./_components/setup-checklist";
 import { useOnboardingResearch } from "./_components/use-onboarding-research";
+import { INTENT_OPTIONS } from "./_components/what-matters";
 
-const STEP_IDS: OnboardingStepId[] = ["website", "tracking", "finish"];
 const TRACKING_POLL_MS = 5000;
 
-function isStepId(value: string | null): value is OnboardingStepId {
-	return STEP_IDS.includes(value as OnboardingStepId);
-}
-
-function OnboardingFlow() {
+export default function OnboardingPage() {
 	const router = useRouter();
-	const searchParams = useSearchParams();
 	const billing = useBillingContext();
 	const investigations = useInvestigationUsage();
 	const billingPending = billing.isLoading || billing.isFetching;
 	const canReview = !billing.isError && investigations.hasAccess;
 	const { activeOrganization } = useOrganizationsContext();
 	const organizationId = activeOrganization?.id;
-	const { websites, isLoading: websitesLoading } = useWebsitesLight();
+	const { websites } = useWebsitesLight();
 	const createWebsite = useCreateWebsite();
+	const queryClient = useQueryClient();
+	const createGoal = useMutation({
+		...orpc.goals.create.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
+	});
+	const createFunnel = useMutation({
+		...orpc.funnels.create.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
+	});
+	const [createdSuggestions, setCreatedSuggestions] = useState<Set<string>>(
+		() => new Set()
+	);
+	const [creatingSuggestion, setCreatingSuggestion] = useState<string | null>(
+		null
+	);
 
-	const trackedStepRef = useRef<OnboardingStepId | null>(null);
-	const completedRef = useRef(false);
 	const startedRef = useRef(false);
+	const completedRef = useRef(false);
 	const verifiedRef = useRef<string | null>(null);
 	const researchStartedRef = useRef<string | null>(null);
 
-	const [step, setStep] = useState<OnboardingStepId>(() => {
-		const requested = searchParams.get("step");
-		return isStepId(requested) ? requested : "website";
-	});
-	const [createdWebsite, setCreatedWebsite] = useState<{
-		domain: string;
-		id: string;
-		name: string;
-	} | null>(null);
+	const [createdWebsite, setCreatedWebsite] = useState<SetupWebsite | null>(
+		null
+	);
 	const [verifiedWebsiteId, setVerifiedWebsiteId] = useState<string | null>(
 		null
 	);
+	const [trackingCopied, setTrackingCopied] = useState(false);
 	const [trackingSkipped, setTrackingSkipped] = useState(false);
 	const [priority, setPriority] = useState("");
 	const [intent, setIntent] = useState<OnboardingIntent | null>(null);
+	const [prioritySaved, setPrioritySaved] = useState(false);
 	const [attribution, setAttribution] =
 		useState<OnboardingAttributionProperties>(() =>
 			readOnboardingAttribution()
 		);
 
 	const existingWebsite = websites[0];
-	const website = useMemo(
+	const website = useMemo<SetupWebsite | null>(
 		() =>
 			createdWebsite ??
 			(existingWebsite
@@ -107,29 +107,12 @@ function OnboardingFlow() {
 		...orpc.websites.isTrackingSetup.queryOptions({
 			input: { websiteId: websiteId ?? "" },
 		}),
-		enabled: websiteId !== null && step === "tracking",
+		enabled: websiteId !== null,
 		refetchInterval: ({ state }) =>
 			state.data?.tracking_setup ? false : TRACKING_POLL_MS,
 		staleTime: 0,
 	});
 	const trackingSetup = trackingQuery.data?.tracking_setup ?? false;
-
-	useEffect(() => {
-		window.history.replaceState(null, "", `/onboarding?step=${step}`);
-		if (trackedStepRef.current !== step) {
-			trackedStepRef.current = step;
-			trackAppEvent(APP_EVENTS.onboardingStepViewed, {
-				step,
-				step_number: STEP_IDS.indexOf(step) + 1,
-			});
-		}
-	}, [step]);
-
-	useEffect(() => {
-		if (!(websitesLoading || website)) {
-			setStep("website");
-		}
-	}, [website, websitesLoading]);
 
 	useEffect(() => {
 		if (startedRef.current) {
@@ -190,7 +173,6 @@ function OnboardingFlow() {
 				});
 				trackAppEvent(APP_EVENTS.onboardingWebsiteCreated, attribution);
 				trackAppEvent(APP_EVENTS.onboardingStepCompleted, { step: "website" });
-				setStep("tracking");
 			} catch (error: unknown) {
 				showErrorToast(error, "Failed to create website.");
 			}
@@ -198,16 +180,92 @@ function OnboardingFlow() {
 		[attribution, createWebsite, organizationId]
 	);
 
-	const handleTrackingContinue = useCallback(() => {
-		if (!(trackingSetup || trackingSkipped)) {
-			setTrackingSkipped(true);
-			trackAppEvent(APP_EVENTS.onboardingStepCompleted, {
-				step: "tracking",
-				verified: false,
-			});
+	const handleCreateGoal = useCallback(
+		async (goal: BusinessSuggestedGoal) => {
+			if (!websiteId) {
+				return;
+			}
+			const key = suggestionKey(goal);
+			setCreatingSuggestion(key);
+			try {
+				await createGoal.mutateAsync({
+					websiteId,
+					name: goal.name,
+					type: goal.type,
+					target: goal.target,
+					description: goal.reason || null,
+				});
+				setCreatedSuggestions((prev) => new Set([...prev, key]));
+				queryClient.invalidateQueries({ queryKey: orpc.goals.key() });
+				toast.success(`Goal "${goal.name}" created`);
+			} catch (error: unknown) {
+				showErrorToast(error, "Couldn't create the goal.");
+			} finally {
+				setCreatingSuggestion(null);
+			}
+		},
+		[createGoal, queryClient, websiteId]
+	);
+
+	const handleCreateFunnel = useCallback(
+		async (funnel: BusinessSuggestedFunnel) => {
+			if (!websiteId) {
+				return;
+			}
+			const key = suggestionKey(funnel);
+			setCreatingSuggestion(key);
+			try {
+				await createFunnel.mutateAsync({
+					websiteId,
+					name: funnel.name,
+					description: funnel.reason || undefined,
+					steps: funnel.steps.map((step) => ({
+						name: step.name,
+						type: step.type,
+						target: step.target,
+					})),
+				});
+				setCreatedSuggestions((prev) => new Set([...prev, key]));
+				queryClient.invalidateQueries({ queryKey: orpc.funnels.key() });
+				toast.success(`Funnel "${funnel.name}" created`);
+			} catch (error: unknown) {
+				showErrorToast(error, "Couldn't create the funnel.");
+			} finally {
+				setCreatingSuggestion(null);
+			}
+		},
+		[createFunnel, queryClient, websiteId]
+	);
+
+	const handleSkipTracking = useCallback(() => {
+		setTrackingSkipped(true);
+		trackAppEvent(APP_EVENTS.onboardingStepCompleted, {
+			step: "tracking",
+			verified: false,
+		});
+	}, []);
+
+	const handleSavePriority = useCallback(async () => {
+		const trimmed = priority.trim();
+		if (!trimmed) {
+			return;
 		}
-		setStep("finish");
-	}, [trackingSetup, trackingSkipped]);
+		try {
+			await research.saveTeamContext({
+				priority: trimmed,
+				successDefinition: "",
+				exclusions: "",
+			});
+		} catch {
+			return;
+		}
+		setPrioritySaved(true);
+		trackAppEvent(APP_EVENTS.onboardingStepCompleted, {
+			step: "finish",
+			origin: research.research.phase === "ready" ? "ai" : "manual",
+			intent: intent ?? undefined,
+		});
+	}, [intent, priority, research]);
 
 	const leave = useCallback(
 		(path: string) => {
@@ -221,27 +279,10 @@ function OnboardingFlow() {
 		[attribution, router]
 	);
 
-	const handleFinish = useCallback(async () => {
+	const handleFinish = useCallback(() => {
 		if (!websiteId) {
 			return;
 		}
-		const trimmed = priority.trim();
-		if (trimmed) {
-			try {
-				await research.saveTeamContext({
-					priority: trimmed,
-					successDefinition: "",
-					exclusions: "",
-				});
-			} catch {
-				return;
-			}
-		}
-		trackAppEvent(APP_EVENTS.onboardingStepCompleted, {
-			step: "finish",
-			origin: research.research.phase === "ready" ? "ai" : "manual",
-			intent: intent ?? undefined,
-		});
 		const pendingPlan = localStorage.getItem("pendingPlanSelection");
 		if (pendingPlan) {
 			localStorage.removeItem("pendingPlanSelection");
@@ -254,23 +295,19 @@ function OnboardingFlow() {
 		}
 		const path = INTENT_OPTIONS.find((option) => option.id === intent)?.path;
 		leave(`/websites/${websiteId}${path ?? ""}`);
-	}, [
-		canReview,
-		intent,
-		leave,
-		priority,
-		research,
-		verifiedWebsiteId,
-		websiteId,
-	]);
+	}, [canReview, intent, leave, verifiedWebsiteId, websiteId]);
 
-	const handleSkip = useCallback(() => {
+	const handleSkipSetup = useCallback(() => {
 		trackAppEvent(APP_EVENTS.onboardingSkipped, {
-			skipped_at_step: step,
-			step_number: STEP_IDS.indexOf(step) + 1,
+			skipped_at_step: website
+				? trackingSetup || trackingSkipped
+					? "finish"
+					: "tracking"
+				: "website",
+			step_number: website ? (trackingSetup || trackingSkipped ? 3 : 2) : 1,
 		});
 		router.push(websiteId ? `/websites/${websiteId}` : "/websites");
-	}, [router, step, websiteId]);
+	}, [router, trackingSetup, trackingSkipped, website, websiteId]);
 
 	const tracking: TrackingStatus = {
 		state: trackingSetup
@@ -291,81 +328,59 @@ function OnboardingFlow() {
 		verifiedWebsiteId !== null && billing.isError && !billingPending;
 	const opensInsights = verifiedWebsiteId !== null && canReview;
 
-	const next =
-		step === "tracking" && websiteId
-			? {
-					label: trackingSetup ? "Continue" : "Skip for now",
-					onClick: handleTrackingContinue,
-				}
-			: step === "finish" && websiteId
-				? {
-						label: reviewPending
-							? "Checking Insights"
-							: opensInsights
-								? "Open Insights"
-								: "Open dashboard",
-						onClick: handleFinish,
-						disabled: reviewPending,
-						loading: reviewPending || research.saving,
-					}
-				: null;
-
 	return (
-		<OnboardingShell
-			back={step === "finish" ? () => setStep("tracking") : null}
-			next={next}
-			onSkip={handleSkip}
-			step={STEP_IDS.indexOf(step) + 1}
-		>
-			{step === "website" ? (
-				<StepWebsite
-					onCreate={handleCreateWebsite}
-					pending={createWebsite.isPending}
-				/>
-			) : null}
-			{step === "tracking" && website ? (
-				<StepInstall
-					domain={website.domain}
-					onCopy={(method) =>
-						trackAppEvent(APP_EVENTS.onboardingTrackingCopied, {
-							block: method,
-							method,
-						})
-					}
-					research={research.research}
-					tracking={tracking}
-					websiteId={website.id}
-				/>
-			) : null}
-			{step === "finish" && website ? (
-				<StepFinish
-					intent={intent}
-					onChangeIntent={setIntent}
-					onChangePriority={setPriority}
-					onStartResearch={research.start}
-					priority={priority}
-					research={research.research}
-					review={
-						verifiedWebsiteId
-							? {
-									error: reviewFailed,
-									loading: reviewPending,
-									onRetry: billing.refetch,
-								}
-							: null
-					}
-					saveError={research.saveError}
-					websiteName={website.name}
-				/>
-			) : null}
-		</OnboardingShell>
-	);
-}
-
-export default function OnboardingPage() {
-	return (
-		<Suspense fallback={null}>
-			<OnboardingFlow />
-		</Suspense>
+		<SetupChecklist
+			creating={createWebsite.isPending}
+			finish={
+				websiteId
+					? {
+							label: reviewPending
+								? "Checking Insights"
+								: opensInsights
+									? "Open Insights"
+									: "Open dashboard",
+							onClick: handleFinish,
+							disabled: reviewPending,
+							loading: reviewPending,
+							note: reviewFailed
+								? "We couldn't check Insights."
+								: opensInsights
+									? "Your first review runs once there is enough history to compare."
+									: null,
+							onRetry: reviewFailed ? billing.refetch : undefined,
+						}
+					: null
+			}
+			intent={intent}
+			onChangeIntent={setIntent}
+			onChangePriority={setPriority}
+			onCopy={(method, agent) => {
+				setTrackingCopied(true);
+				trackAppEvent(APP_EVENTS.onboardingTrackingCopied, {
+					block: agent ?? method,
+					method,
+				});
+			}}
+			onCreateWebsite={handleCreateWebsite}
+			onSavePriority={handleSavePriority}
+			onSkipSetup={handleSkipSetup}
+			onSkipTracking={handleSkipTracking}
+			onStartResearch={research.start}
+			priority={priority}
+			prioritySaved={prioritySaved}
+			research={research.research}
+			saveError={research.saveError}
+			saving={research.saving}
+			suggestions={{
+				created: createdSuggestions,
+				creating: creatingSuggestion,
+				onCreateFunnel: handleCreateFunnel,
+				onCreateGoal: handleCreateGoal,
+			}}
+			tracking={tracking}
+			trackingCopied={trackingCopied}
+			trackingSkipped={trackingSkipped}
+			website={website}
+		/>
 	);
 }
