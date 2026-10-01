@@ -113,11 +113,13 @@ export function StatusRow({
 	);
 }
 
-export function ResearchStatus({
+export function ResearchPanel({
+	children,
 	domain,
 	pagesRead,
 	phase,
 }: {
+	children?: ReactNode;
 	domain: string | null;
 	pagesRead: number;
 	phase: "failed" | "idle" | "reading" | "ready" | "unavailable" | "writing";
@@ -127,30 +129,37 @@ export function ResearchStatus({
 	}
 	const pages = `${pagesRead} ${pagesRead === 1 ? "page" : "pages"}`;
 	const active = phase === "reading" || phase === "writing";
+	const title =
+		phase === "reading"
+			? `Reading ${domain}`
+			: phase === "writing"
+				? `Writing a brief about ${domain}`
+				: phase === "ready"
+					? `Read ${pages} on ${domain}`
+					: `Couldn't read ${domain}`;
+	const detail =
+		phase === "reading"
+			? pagesRead > 0
+				? `${pages} read so far`
+				: "Opening the homepage and the pages it links to"
+			: phase === "writing"
+				? "Turning what it found into a short brief"
+				: phase === "ready"
+					? "The brief is ready"
+					: "You can answer one question instead";
 	return (
-		<StatusRow
-			active={active}
-			color={active ? "info" : phase === "ready" ? "success" : "muted"}
-			detail={
-				phase === "reading"
-					? pagesRead > 0
-						? `${pages} read so far`
-						: "Opening the homepage and the pages it links to"
-					: phase === "writing"
-						? "Turning what it found into a short brief"
-						: phase === "ready"
-							? "The brief is waiting on the next step"
-							: "You can answer one question instead on the next step"
-			}
-			title={
-				phase === "reading"
-					? `Reading ${domain}`
-					: phase === "writing"
-						? `Writing a brief about ${domain}`
-						: phase === "ready"
-							? `Read ${pages} on ${domain}`
-							: `Couldn't read ${domain}`
-			}
-		/>
+		<div className="rounded border border-border bg-card" role="status">
+			<div className="space-y-1 px-4 py-3">
+				{active ? (
+					<Shimmer className="font-medium text-sm">{title}</Shimmer>
+				) : (
+					<p className="font-medium text-sm">{title}</p>
+				)}
+				<p className="text-muted-foreground text-xs">{detail}</p>
+			</div>
+			{children ? (
+				<div className="border-border border-t px-4 py-3">{children}</div>
+			) : null}
+		</div>
 	);
 }

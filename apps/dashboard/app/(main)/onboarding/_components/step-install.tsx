@@ -19,7 +19,7 @@ import {
 import { RECOMMENDED_DEFAULTS } from "../../websites/[id]/_components/utils/tracking-defaults";
 import {
 	OnboardingStepHeader,
-	ResearchStatus,
+	ResearchPanel,
 	StatusRow,
 } from "./onboarding-shell";
 import type { OnboardingResearch } from "./use-onboarding-research";
@@ -184,39 +184,36 @@ export function StepInstall({
 			/>
 
 			<div className="space-y-7">
-				<div className="space-y-4">
-					<ResearchStatus
-						domain={research.domain}
-						pagesRead={research.pagesRead}
-						phase={research.phase}
-					/>
-
-					<StatusRow
-						color={
-							verified
-								? "success"
+				<ResearchPanel
+					domain={research.domain}
+					pagesRead={research.pagesRead}
+					phase={research.phase}
+				/>
+				<StatusRow
+					color={
+						verified
+							? "success"
+							: tracking.state === "error"
+								? "destructive"
+								: "warning"
+					}
+					detail={
+						tracking.issue
+							? `${tracking.issue.message} ${tracking.issue.fix}`
+							: verified
+								? "Page views and sessions are being recorded."
 								: tracking.state === "error"
-									? "destructive"
-									: "warning"
-						}
-						detail={
-							tracking.issue
-								? `${tracking.issue.message} ${tracking.issue.fix}`
-								: verified
-									? "Page views and sessions are being recorded."
-									: tracking.state === "error"
-										? "Checking again shortly."
-										: "Open the site once after installing. Checks run every few seconds."
-						}
-						title={
-							verified
-								? "Tracking verified"
-								: tracking.state === "error"
-									? "Couldn't check for events"
-									: `Waiting for the first page view from ${domain}`
-						}
-					/>
-				</div>
+									? "Checking again shortly."
+									: "Open the site once after installing. Checks run every few seconds."
+					}
+					title={
+						verified
+							? "Tracking verified"
+							: tracking.state === "error"
+								? "Couldn't check for events"
+								: `Waiting for the first page view from ${domain}`
+					}
+				/>
 				{verified ? null : (
 					<div className="space-y-3">
 						<Button onClick={() => copy("ai")} size="lg">
