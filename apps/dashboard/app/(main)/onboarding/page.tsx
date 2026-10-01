@@ -5,7 +5,7 @@ import type {
 	BusinessSuggestedGoal,
 } from "@databuddy/shared/organization-business-context";
 import { authClient } from "@databuddy/auth/client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -33,10 +33,10 @@ import {
 	SetupChecklist,
 	type SetupWebsite,
 } from "./_components/setup-checklist";
-import { useOnboardingResearch } from "./_components/use-onboarding-research";
+import { useAgentInstall } from "@/hooks/use-agent-install";
+import { useSiteResearch } from "@/hooks/use-site-research";
 import { INTENT_OPTIONS, intentFor } from "./_components/what-matters";
 
-const POLL_MS = 5000;
 // Personal and throwaway providers seen in sign-ups and the referrer list; a
 // work address is the only one worth suggesting as the website.
 const FREE_MAIL_DOMAINS = new Set([
@@ -165,10 +165,6 @@ function OnboardingFlow() {
 	const [createdWebsite, setCreatedWebsite] = useState<SetupWebsite | null>(
 		null
 	);
-	const [setupSession] = useState(() =>
-		crypto.randomUUID().replaceAll("-", "").slice(0, 16)
-	);
-	const [trackingCopied, setTrackingCopied] = useState(false);
 	const [trackingSkipped, setTrackingSkipped] = useState(false);
 	const [priorityDraft, setPriorityDraft] = useState<string | null>(null);
 	const [createdSuggestions, setCreatedSuggestions] = useState<Set<string>>(
@@ -193,36 +189,14 @@ function OnboardingFlow() {
 	);
 	const websiteId = website?.id ?? null;
 
-	const research = useOnboardingResearch(organizationId, website);
+	const research = useSiteResearch(organizationId, website);
 	const priority = priorityDraft ?? research.savedPriority;
 	const prioritySaved =
 		priority.trim() !== "" && priority.trim() === research.savedPriority;
 	const intent = intentFor(priority);
 
-	const trackingQuery = useQuery({
-		...orpc.websites.isTrackingSetup.queryOptions({
-			input: { websiteId: websiteId ?? "" },
-		}),
-		enabled: websiteId !== null,
-		refetchInterval: ({ state }) =>
-			state.data?.tracking_setup ? false : POLL_MS,
-		staleTime: 0,
-	});
-	const trackingSetup = trackingQuery.data?.tracking_setup ?? false;
-	const verifiedWebsiteId = trackingSetup ? websiteId : null;
-
-	const agentProgressQuery = useQuery({
-		...orpc.websites.agentInstallProgress.queryOptions({
-			input: { websiteId: websiteId ?? "", setupSession },
-		}),
-		enabled: websiteId !== null && trackingCopied && !trackingSetup,
-		meta: { suppressGlobalErrorToast: true },
-		refetchInterval: ({ state }) =>
-			state.data?.status === "success" || state.data?.status === "failed"
-				? false
-				: POLL_MS,
-		staleTime: 0,
-	});
+	const install = useAgentInstall(websiteId);
+	const verifiedWebsiteId = install.verified ? websiteId : null;
 
 	useEffect(() => {
 		if (startedRef.current) {
@@ -393,7 +367,7 @@ function OnboardingFlow() {
 
 	return (
 		<SetupChecklist
-			agentProgress={agentProgressQuery.data ?? null}
+			agentProgress={install.agentProgress}
 			creating={createWebsite.isPending}
 			loadingWebsites={loadingWebsites && !createdWebsite}
 			finish={
@@ -417,7 +391,7 @@ function OnboardingFlow() {
 			}
 			onChangePriority={setPriorityDraft}
 			onCopy={(method, agent) => {
-				setTrackingCopied(true);
+				install.markCopied();
 				trackAppEvent(APP_EVENTS.onboardingTrackingCopied, {
 					block: agent ?? method,
 					method,
@@ -433,7 +407,7 @@ function OnboardingFlow() {
 			research={research.research}
 			saveError={research.saveError}
 			saving={research.saving}
-			setupSession={setupSession}
+			setupSession={install.setupSession}
 			suggestedDomain={domainFromEmail(session?.user.email)}
 			suggestions={{
 				created: createdSuggestions,
@@ -444,15 +418,8 @@ function OnboardingFlow() {
 						: null,
 				onCreate: createSuggestion,
 			}}
-			tracking={{
-				state: trackingSetup
-					? "verified"
-					: trackingQuery.isError
-						? "error"
-						: "awaiting",
-				issue: trackingQuery.data?.tracking_issue ?? null,
-			}}
-			trackingCopied={trackingCopied}
+			tracking={install.tracking}
+			trackingCopied={install.copied}
 			trackingSkipped={trackingSkipped}
 			website={website}
 		/>

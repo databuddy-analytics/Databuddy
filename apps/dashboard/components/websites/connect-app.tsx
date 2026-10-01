@@ -13,13 +13,13 @@ import html from "shiki/langs/html.mjs";
 import vesper from "shiki/themes/vesper.mjs";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { COPY_SUCCESS_TIMEOUT } from "../../websites/[id]/_components/constants/settings-constants";
+import { COPY_SUCCESS_TIMEOUT } from "@/app/(main)/websites/[id]/_components/constants/settings-constants";
 import {
 	generateAgentPrompt,
 	generateScriptTag,
-} from "../../websites/[id]/_components/utils/code-generators";
-import type { OnboardingResearch } from "./use-onboarding-research";
-import { RECOMMENDED_DEFAULTS } from "../../websites/[id]/_components/utils/tracking-defaults";
+} from "@/app/(main)/websites/[id]/_components/utils/code-generators";
+import type { SiteResearch } from "@/hooks/use-site-research";
+import { RECOMMENDED_DEFAULTS } from "@/app/(main)/websites/[id]/_components/utils/tracking-defaults";
 
 const AGENTS = [
 	{ id: "cursor", name: "Cursor", icon: "Cursor", invert: true },
@@ -99,9 +99,11 @@ interface ConnectAppProps {
 	agentProgress: AgentProgress | null;
 	domain: string;
 	onCopy?: (method: TrackingCopyMethod, agent?: string) => void;
-	onSkip: () => void;
-	research: OnboardingResearch;
+	onSkip?: () => void;
+	research: SiteResearch;
 	setupSession: string;
+	/** The onboarding row shows the script tag inline; the website page has its own install card. */
+	showScript?: boolean;
 	tracking: TrackingStatus;
 	websiteId: string;
 }
@@ -113,11 +115,12 @@ export function ConnectApp({
 	onSkip,
 	research,
 	setupSession,
+	showScript = true,
 	tracking,
 	websiteId,
 }: ConnectAppProps) {
 	const [copied, setCopied] = useState<string | null>(null);
-	const [showScript, setShowScript] = useState(false);
+	const [scriptOpen, setScriptOpen] = useState(false);
 	const scriptTag = generateScriptTag(websiteId, RECOMMENDED_DEFAULTS);
 	const highlighted = useMemo(
 		() => highlighter.codeToHtml(scriptTag, { lang: "html", theme: "vesper" }),
@@ -195,49 +198,51 @@ export function ConnectApp({
 				</div>
 			</div>
 
-			<div>
-				<Button
-					className="-ml-2.5"
-					onClick={() => setShowScript((value) => !value)}
-					size="sm"
-					variant="ghost"
-				>
-					<CaretRightIcon
+			{showScript ? (
+				<div>
+					<Button
+						className="-ml-2.5"
+						onClick={() => setScriptOpen((value) => !value)}
+						size="sm"
+						variant="ghost"
+					>
+						<CaretRightIcon
+							className={cn(
+								"size-3 transition-transform duration-150",
+								scriptOpen && "rotate-90"
+							)}
+						/>
+						Or install it yourself
+					</Button>
+					<div
 						className={cn(
-							"size-3 transition-transform duration-150",
-							showScript && "rotate-90"
+							"grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none",
+							scriptOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
 						)}
-					/>
-					Or install it yourself
-				</Button>
-				<div
-					className={cn(
-						"grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none",
-						showScript ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-					)}
-				>
-					<div className="min-h-0 overflow-hidden">
-						<div className="group relative mt-3 overflow-hidden rounded border border-border">
-							<div
-								className={cn(
-									"overflow-x-auto font-mono text-[13px] leading-relaxed",
-									"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
-									"[&>pre>code]:block [&>pre>code]:w-full"
-								)}
-								dangerouslySetInnerHTML={{ __html: highlighted }}
-							/>
-							<Button
-								className="absolute top-2 right-2"
-								onClick={() => copy("script", "script")}
-								size="sm"
-								variant="secondary"
-							>
-								{copied === "script" ? "Copied" : "Copy"}
-							</Button>
+					>
+						<div className="min-h-0 overflow-hidden">
+							<div className="group relative mt-3 overflow-hidden rounded border border-border">
+								<div
+									className={cn(
+										"overflow-x-auto font-mono text-[13px] leading-relaxed",
+										"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
+										"[&>pre>code]:block [&>pre>code]:w-full"
+									)}
+									dangerouslySetInnerHTML={{ __html: highlighted }}
+								/>
+								<Button
+									className="absolute top-2 right-2"
+									onClick={() => copy("script", "script")}
+									size="sm"
+									variant="secondary"
+								>
+									{copied === "script" ? "Copied" : "Copy"}
+								</Button>
+							</div>
 						</div>
 					</div>
 				</div>
-			</div>
+			) : null}
 
 			{agentProgress ? (
 				<ul className="space-y-1.5 border-border border-t pt-4">
@@ -307,11 +312,11 @@ export function ConnectApp({
 									: `Waiting for the first page view from ${domain}. Open the site once after installing.`}
 					</p>
 				</div>
-				{tracking.state === "verified" ? null : (
+				{onSkip && tracking.state !== "verified" ? (
 					<Button onClick={onSkip} size="sm" variant="ghost">
 						Skip for now
 					</Button>
-				)}
+				) : null}
 			</div>
 		</div>
 	);

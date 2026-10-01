@@ -11,9 +11,9 @@ import Link from "next/link";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { BusinessContextMarkdown } from "../../organizations/components/business-context-content";
-import type { OnboardingResearch } from "./use-onboarding-research";
+import type { SiteResearch } from "@/hooks/use-site-research";
 
-export function readSiteDetail(research: OnboardingResearch): string | null {
+export function readSiteDetail(research: SiteResearch): string | null {
 	const pages = `${research.pagesRead} ${research.pagesRead === 1 ? "page" : "pages"}`;
 	switch (research.phase) {
 		case "reading":
@@ -59,7 +59,7 @@ export function ReadSite({
 	websiteId,
 }: {
 	onStart: () => void;
-	research: OnboardingResearch;
+	research: SiteResearch;
 	suggestions: ReadSiteSuggestions;
 	websiteId: string;
 }) {
