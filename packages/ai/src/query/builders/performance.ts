@@ -72,7 +72,7 @@ export const PerformanceBuilders = {
 						AND timestamp >= toDateTime({startDate:String})
 						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND path != ''
-					GROUP BY path
+					GROUP BY name
 					ORDER BY p50_lcp DESC
 					LIMIT {limit:UInt32}
 				`,

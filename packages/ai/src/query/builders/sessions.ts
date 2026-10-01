@@ -19,7 +19,7 @@ export const SessionsBuilders = {
 				{ name: "total_events", type: "number", unit: "events" },
 			],
 			description:
-				"Aggregate session statistics including total sessions, avg duration, and pages per session.",
+				"Aggregate session statistics: total sessions, average session duration, bounce rate, and total events.",
 			category: "Sessions",
 			tags: ["sessions", "metrics", "overview"],
 		},

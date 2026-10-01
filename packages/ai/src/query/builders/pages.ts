@@ -54,7 +54,7 @@ export const PagesBuilders = {
 		meta: {
 			title: "Top Pages",
 			description:
-				"Most visited pages on your website, ranked by total pageviews with visitor counts and traffic percentage.",
+				"Most visited pages on your website, ranked by unique visitors, with pageviews and each page's share of visitors.",
 			category: "Content",
 			tags: ["pages", "content", "traffic"],
 			output_fields: [
@@ -309,7 +309,7 @@ export const PagesBuilders = {
 	page_performance: {
 		meta: {
 			description:
-				"Page load performance metrics (load time, TTFB, DOM ready) broken down by page.",
+				"Pageviews and unique visitors per page, ranked by visitors. Returns no load timing; use web_vitals_by_page or vitals_by_page for LCP, FCP, INP and TTFB per page.",
 			category: "Performance",
 			tags: ["pages", "performance", "load time"],
 		},

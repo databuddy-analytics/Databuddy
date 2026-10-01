@@ -890,14 +890,15 @@ export const CustomEventsBuilders = {
 							property_key,
 							property_value,
 							count,
-							row_number() OVER (PARTITION BY event_name, property_key ORDER BY count DESC) as rn
+							row_number() OVER (PARTITION BY event_name, property_key ORDER BY count DESC) as rn,
+							count() OVER (PARTITION BY event_name, property_key) as unique_values
 						FROM value_counts
 					),
 					property_summary AS (
-						SELECT 
+						SELECT
 							event_name,
 							property_key,
-							uniq(property_value) as unique_values,
+							any(unique_values) as unique_values,
 							groupArray(tuple(property_value, count)) as top_values
 						FROM ranked
 						WHERE rn <= 5
