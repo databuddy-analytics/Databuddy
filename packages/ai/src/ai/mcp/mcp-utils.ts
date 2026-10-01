@@ -8,11 +8,14 @@ import {
 	MCP_DATE_PRESETS,
 	resolveDatePreset,
 } from "../../lib/date-presets";
+import { captureError } from "../../lib/tracing";
 import { getQueryBuilder, QueryBuilders } from "../../query/builders";
 import {
 	invalidFilterFieldError,
 	publicQueryErrorMessage,
+	SANITIZED_QUERY_ERROR,
 	suggestQueryTypes,
+	truncateQueryErrorForLog,
 } from "../../query";
 import type {
 	Filter,
@@ -347,6 +350,12 @@ export function formatMcpQueryResults(
 			const data = request.keepNewestRows
 				? result.data.slice(Math.max(rowCount - request.rowLimit, 0))
 				: result.data.slice(0, request.rowLimit);
+			const error = result.error && publicQueryErrorMessage(result.error);
+			if (result.error && error === SANITIZED_QUERY_ERROR) {
+				captureError(new Error(truncateQueryErrorForLog(result.error)), {
+					query_type: result.type,
+				});
+			}
 			return {
 				inputIndex: request.inputIndex,
 				type: result.type,
@@ -356,7 +365,7 @@ export function formatMcpQueryResults(
 				rowCount,
 				returnedRows: data.length,
 				truncated: data.length < rowCount,
-				...(result.error && { error: publicQueryErrorMessage(result.error) }),
+				...(error && { error }),
 			};
 		}
 	);
