@@ -54,7 +54,6 @@ function detect(userAgent: string): BotDetectionResult {
 		};
 	}
 
-	const name = extractBotName(userAgent);
 	const agent = matchAiAgent(userAgent);
 	if (agent) {
 		const category = agentBotCategory(agent);
@@ -63,11 +62,12 @@ function detect(userAgent: string): BotDetectionResult {
 			agent,
 			category,
 			isBot: true,
-			name: name ?? agent.operator,
+			name: agent.name,
 			reason: "ai_agent_registry",
 		};
 	}
 
+	const name = extractBotName(userAgent);
 	const patternCategory = matchCategory(userAgent);
 	if (patternCategory || isAIBot(userAgent)) {
 		const category = patternCategory

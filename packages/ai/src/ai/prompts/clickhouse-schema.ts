@@ -235,7 +235,7 @@ export const ANALYTICS_TABLES: TableDef[] = [
 			"timestamp (DateTime64)",
 			"agent_id (LowCardinality String) - Registry id such as 'openai-crawler' (GPTBot), 'anthropic-crawler' (ClaudeBot) or 'claude-code'; 'unidentified:<token>' for unknown clients that asked for markdown first; '' when no AI agent was identified",
 			"agent_purpose (LowCardinality String) - training | search_index | user_fetch (fetched live to answer a user) | agent (acting for a user)",
-			"bot_name (String) - Detector bot name; older rows hold engine names, so use agent_id instead",
+			"bot_name (String) - Detector bot name; rows written before the October 2026 detector fix can hold browser engines such as 'WebKit', so use agent_id instead",
 			"bot_type (LowCardinality String) - ai_crawler | ai_assistant, or the detector category for other bots",
 			"format (LowCardinality String) - markdown | llms (llms.txt, llms-full.txt) | html, as the agent asked for it; '' on tracker rows before 2026-09-27, which are html",
 			"path (String) - Requested path, or full URL on tracker rows",

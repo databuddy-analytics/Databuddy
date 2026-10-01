@@ -272,7 +272,7 @@ export function agentColumns(signals: AgentSignals) {
 		columns: {
 			agent_id: agent?.id ?? "",
 			agent_purpose: agent?.purpose ?? "",
-			bot_name: bot.name ?? agent?.operator ?? "",
+			bot_name: agent?.name ?? bot.name ?? "",
 			bot_type: agent ? agentBotCategory(agent) : (bot.category ?? "unknown"),
 		},
 	};
