@@ -102,11 +102,6 @@ const ALLOWED_ORDERBY_FIELDS = new Set([
 	"unique_users",
 ]);
 
-const SQL_EXPRESSIONS = {
-	normalizedPath: Expressions.path.normalized,
-	normalizedReferrer: Expressions.referrer.normalized,
-};
-
 const REFERRER_MAPPINGS: Record<string, string> = {
 	direct: "direct",
 	google: "https://google.com",
@@ -133,7 +128,7 @@ const REFERRER_MAPPINGS: Record<string, string> = {
 };
 
 const DATE_PARAM_NAMES = new Set(["from", "to", "startDate", "endDate"]);
-const DATE_PARAM_PATTERN = "from|to|startDate|endDate";
+const DATE_PARAM_PATTERN = [...DATE_PARAM_NAMES].join("|");
 
 const END_OF_DAY_WITH_TZ_REGEX = new RegExp(
 	`parseDateTimeBestEffort\\(concat\\(\\{(${DATE_PARAM_PATTERN}):String\\}, ' 23:59:59'\\), \\{timezone:String\\}\\)`,
@@ -182,9 +177,7 @@ function normalizeReferrerValue(value: string, forLikeSearch = false): string {
 	const mapped = REFERRER_MAPPINGS[lower];
 
 	if (mapped) {
-		return forLikeSearch && lower !== "direct"
-			? lower.replace("https://", "")
-			: mapped;
+		return forLikeSearch ? lower : mapped;
 	}
 	if (value.startsWith("http://") || value.startsWith("https://")) {
 		return value;
@@ -287,25 +280,19 @@ function buildGenericFilter(
 	key: string,
 	operator: string,
 	fieldExpr: string,
-	valueTransform?: (v: string) => string
+	transform: (v: string) => string = (v) => v
 ): FilterResult {
-	const transform = valueTransform || ((v: string) => v);
-
-	if (filter.op === "contains" || filter.op === "not_contains") {
-		const value = transform(String(filter.value));
-		const escaped = escapeLikePattern(value);
+	if (
+		filter.op === "contains" ||
+		filter.op === "not_contains" ||
+		filter.op === "starts_with"
+	) {
+		const escaped = escapeLikePattern(transform(String(filter.value)));
 		return {
 			clause: `${fieldExpr} ${operator} {${key}:String}`,
-			params: { [key]: `%${escaped}%` },
-		};
-	}
-
-	if (filter.op === "starts_with") {
-		const value = transform(String(filter.value));
-		const escaped = escapeLikePattern(value);
-		return {
-			clause: `${fieldExpr} ${operator} {${key}:String}`,
-			params: { [key]: `${escaped}%` },
+			params: {
+				[key]: filter.op === "starts_with" ? `${escaped}%` : `%${escaped}%`,
+			},
 		};
 	}
 
@@ -361,23 +348,15 @@ export class SimpleQueryBuilder {
 
 		const key = `f${index}`;
 		const operator = FilterOperators[filter.op];
-		const sessionAttributionAlias = options?.sessionAttributionAlias;
-
-		if (sessionAttributionAlias && isSessionAttributionField(filter.field)) {
-			return this.buildSessionAttributionFilter(
-				filter,
-				key,
-				operator,
-				sessionAttributionAlias
-			);
-		}
+		const alias = options?.sessionAttributionAlias;
+		const attributed = alias && isSessionAttributionField(filter.field);
 
 		if (filter.field === "path") {
 			return buildGenericFilter(
 				filter,
 				key,
 				operator,
-				SQL_EXPRESSIONS.normalizedPath
+				Expressions.path.normalized
 			);
 		}
 
@@ -386,7 +365,12 @@ export class SimpleQueryBuilder {
 				filter,
 				key,
 				operator,
-				SQL_EXPRESSIONS.normalizedReferrer,
+				attributed
+					? Expressions.referrer.normalized.replace(
+							/\breferrer\b/g,
+							`${alias}.session_referrer`
+						)
+					: Expressions.referrer.normalized,
 				(v) =>
 					normalizeReferrerValue(
 						v,
@@ -396,7 +380,20 @@ export class SimpleQueryBuilder {
 		}
 
 		if (filter.field === "device_type") {
-			return buildDeviceTypeFilter(filter, key, "device_type");
+			return buildDeviceTypeFilter(
+				filter,
+				key,
+				attributed ? `${alias}.session_device_type` : "device_type"
+			);
+		}
+
+		if (attributed) {
+			return buildGenericFilter(
+				filter,
+				key,
+				operator,
+				`${alias}.session_${filter.field}`
+			);
 		}
 
 		if (
@@ -411,41 +408,6 @@ export class SimpleQueryBuilder {
 		}
 
 		return buildGenericFilter(filter, key, operator, filter.field);
-	}
-
-	private buildSessionAttributionFilter(
-		filter: Filter,
-		key: string,
-		operator: string,
-		alias: string
-	): FilterResult {
-		if (filter.field === "referrer") {
-			return buildGenericFilter(
-				filter,
-				key,
-				operator,
-				String(SQL_EXPRESSIONS.normalizedReferrer).replace(
-					/\breferrer\b/g,
-					`${alias}.session_referrer`
-				),
-				(v) =>
-					normalizeReferrerValue(
-						v,
-						filter.op === "contains" || filter.op === "not_contains"
-					)
-			);
-		}
-
-		if (filter.field === "device_type") {
-			return buildDeviceTypeFilter(filter, key, `${alias}.session_device_type`);
-		}
-
-		return buildGenericFilter(
-			filter,
-			key,
-			operator,
-			`${alias}.session_${filter.field}`
-		);
 	}
 
 	private getIdField(): string {
@@ -464,15 +426,6 @@ export class SimpleQueryBuilder {
 	}
 
 	private validateRequiredFilters(): void {
-		if (
-			!(
-				this.config.requiredFilters?.length ||
-				this.config.requiredAnyFilter?.length
-			)
-		) {
-			return;
-		}
-
 		const requestFilters = this.request.filters ?? [];
 		const missingFilters = (this.config.requiredFilters ?? []).filter(
 			(requiredField) =>
