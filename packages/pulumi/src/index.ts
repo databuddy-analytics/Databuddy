@@ -39,6 +39,16 @@ const MAX_IN_FLIGHT = 8;
 const MAX_ATTEMPTS = 5;
 const MAX_RETRY_DELAY_MS = 60_000;
 const REQUEST_TIMEOUT_MS = 60_000;
+const UPTIME_GRANULARITIES = [
+	"minute",
+	"five_minutes",
+	"ten_minutes",
+	"thirty_minutes",
+	"hour",
+	"six_hours",
+	"twelve_hours",
+	"day",
+] as const;
 const SLOTS_KEY = "__databuddyPulumiSlots";
 const TRANSIENT_STATUSES = [502, 503, 504];
 const IDEMPOTENT_ENDPOINTS: Endpoint[] = [
@@ -54,6 +64,8 @@ const IDEMPOTENT_ENDPOINTS: Endpoint[] = [
 const UNKNOWN_DURING_PREVIEW = "04da6b54-80e4-46f7-96ec-b56ff0331ba9";
 const MISSING_API_KEY =
 	"Missing Databuddy API key. Run `pulumi config set --secret databuddy:apiKey <key>` with Pulumi 3.216 or newer, or export DATABUDDY_API_KEY in the shell that runs pulumi.";
+const INVALID_API_URL =
+	"Invalid databuddy:apiUrl or DATABUDDY_API_URL: use an absolute HTTPS URL, or HTTP on localhost, 127.0.0.1, or [::1], without credentials, a query string, or a fragment.";
 const ALIAS_HINT =
 	". If you renamed this resource or moved it under another parent, add `aliases` so Pulumi updates it instead of creating a second one. Otherwise another stack or the dashboard already uses it.";
 const SLUG_HINT =
@@ -92,15 +104,32 @@ function resolveConnection(config: dynamic.Config): Connection {
 		config.get("databuddy:apiUrl") ??
 		process.env.DATABUDDY_API_URL ??
 		DEFAULT_API_URL;
+	let parsed: URL;
+	try {
+		parsed = new URL(apiUrl);
+	} catch {
+		throw new Error(INVALID_API_URL);
+	}
+	const { hostname, protocol } = parsed;
+	const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(hostname);
+	if (
+		(protocol !== "https:" && !(protocol === "http:" && loopback)) ||
+		parsed.username ||
+		parsed.password ||
+		parsed.href.includes("?") ||
+		parsed.href.includes("#")
+	) {
+		throw new Error(INVALID_API_URL);
+	}
 	return {
 		apiKey:
 			config.get("databuddy:apiKey") ?? process.env.DATABUDDY_API_KEY ?? "",
-		apiUrl: apiUrl.replace(TRAILING_SLASHES, ""),
+		apiUrl: parsed.href.replace(TRAILING_SLASHES, ""),
 	};
 }
 
 function slots(): Slots {
-	const store = globalThis as unknown as Record<string, Slots | undefined>;
+	const store = globalThis as typeof globalThis & { [SLOTS_KEY]?: Slots };
 	const existing = store[SLOTS_KEY];
 	if (existing) {
 		return existing;
@@ -159,10 +188,10 @@ function describeFailure(error: unknown): string {
 	return typeof code === "string" ? `${code} ${message}` : message;
 }
 
-async function send(
+async function send<E extends Endpoint>(
 	connection: Connection,
-	endpoint: Endpoint,
-	input: unknown,
+	endpoint: E,
+	input: EndpointInput<E>,
 	attempt = 1
 ): Promise<ApiResponse> {
 	if (!connection.apiKey) {
@@ -219,18 +248,109 @@ async function send(
 	return send(connection, endpoint, input, attempt + 1);
 }
 
-function parseBody<T>(
+function isObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isResourceId(value: unknown): boolean {
+	return typeof value === "string" && value.trim().length > 0;
+}
+
+function isNullableString(value: unknown): boolean {
+	return value === null || typeof value === "string";
+}
+
+function validMonitorSettings(body: Record<string, unknown>): boolean {
+	return (
+		isNullableString(body.displayName) &&
+		typeof body.hideLatency === "boolean" &&
+		typeof body.hideUptimePercentage === "boolean" &&
+		typeof body.hideUrl === "boolean" &&
+		Number.isInteger(body.order)
+	);
+}
+
+function validResponseBody(endpoint: Endpoint, body: Record<string, unknown>) {
+	switch (endpoint) {
+		case "uptime/createSchedule":
+		case "uptime/updateSchedule":
+			return isResourceId(body.scheduleId);
+		case "uptime/getSchedule":
+			return (
+				isResourceId(body.id) &&
+				typeof body.cacheBust === "boolean" &&
+				UPTIME_GRANULARITIES.some((value) => value === body.granularity) &&
+				isNullableString(body.name) &&
+				typeof body.isPaused === "boolean" &&
+				(body.timeout == null ||
+					(typeof body.timeout === "number" &&
+						Number.isFinite(body.timeout))) &&
+				typeof body.url === "string" &&
+				isNullableString(body.websiteId)
+			);
+		case "uptime/pauseSchedule":
+			return body.success === true && body.isPaused === true;
+		case "uptime/resumeSchedule":
+			return body.success === true && body.isPaused === false;
+		case "statusPage/create":
+			return isResourceId(body.id) && isResourceId(body.organizationId);
+		case "statusPage/get":
+			return (
+				isResourceId(body.id) &&
+				isResourceId(body.organizationId) &&
+				typeof body.name === "string" &&
+				typeof body.slug === "string" &&
+				[
+					"description",
+					"faviconUrl",
+					"logoUrl",
+					"supportUrl",
+					"websiteUrl",
+				].every((key) => isNullableString(body[key])) &&
+				(body.theme === null ||
+					["system", "light", "dark"].some((value) => value === body.theme)) &&
+				Array.isArray(body.monitors) &&
+				body.monitors.every(
+					(monitor) =>
+						isObject(monitor) &&
+						isResourceId(monitor.id) &&
+						isResourceId(monitor.uptimeScheduleId) &&
+						validMonitorSettings(monitor)
+				)
+			);
+		case "statusPage/addMonitor":
+			return isResourceId(body.id) && validMonitorSettings(body);
+		case "statusPage/update":
+		case "statusPage/updateMonitorSettings":
+			return isResourceId(body.id);
+		default:
+			return body.success === true;
+	}
+}
+
+function parseBody<E extends Endpoint>(
 	connection: Connection,
-	endpoint: Endpoint,
+	endpoint: E,
 	response: ApiResponse
-): T {
+): EndpointOutput<E> {
+	let body: unknown;
 	try {
-		return JSON.parse(response.text) as T;
+		body = JSON.parse(response.text);
 	} catch {
 		throw new Error(
 			`Databuddy ${endpoint} returned ${response.status} from ${connection.apiUrl} with a body that is not JSON: ${response.text.slice(0, 200)}`
 		);
 	}
+	if (!(isObject(body) && validResponseBody(endpoint, body))) {
+		const unsure = IDEMPOTENT_ENDPOINTS.includes(endpoint)
+			? ""
+			: " It may still have been applied, so check the dashboard before running again.";
+		throw new Error(
+			`Databuddy ${endpoint} returned ${response.status} from ${connection.apiUrl} with an invalid response body: ${response.text.slice(0, 200)}.${unsure}`
+		);
+	}
+	// Validate lifecycle fields while allowing unused fields and future additions.
+	return body as EndpointOutput<E>;
 }
 
 function readErrorBody(response: ApiResponse): ApiErrorBody {
@@ -293,7 +413,7 @@ async function call<E extends Endpoint>(
 	if (!response.ok) {
 		throw apiError(connection, endpoint, response, readErrorBody(response));
 	}
-	return parseBody<EndpointOutput<E>>(connection, endpoint, response);
+	return parseBody(connection, endpoint, response);
 }
 
 async function find<E extends Endpoint>(
@@ -303,7 +423,7 @@ async function find<E extends Endpoint>(
 ): Promise<EndpointOutput<E> | undefined> {
 	const response = await send(connection, endpoint, input);
 	if (response.ok) {
-		return parseBody<EndpointOutput<E>>(connection, endpoint, response);
+		return parseBody(connection, endpoint, response);
 	}
 	const body = readErrorBody(response);
 	if (isGone(response, body)) {
@@ -371,15 +491,7 @@ class DatabuddyProvider {
 	}
 }
 
-export type UptimeGranularity =
-	| "minute"
-	| "five_minutes"
-	| "ten_minutes"
-	| "thirty_minutes"
-	| "hour"
-	| "six_hours"
-	| "twelve_hours"
-	| "day";
+export type UptimeGranularity = (typeof UPTIME_GRANULARITIES)[number];
 
 export interface UptimeMonitorArgs {
 	cacheBust?: Input<boolean>;
@@ -422,12 +534,33 @@ class UptimeMonitorProvider
 {
 	check(_olds: Unwrap<UptimeMonitorArgs>, news: Unwrap<UptimeMonitorArgs>) {
 		const { url } = news;
-		const failures =
+		const failures: dynamic.CheckFailure[] =
 			typeof url === "string" &&
 			url !== UNKNOWN_DURING_PREVIEW &&
 			!isHttpUrl(url)
 				? [{ property: "url", reason: "url must be an http or https URL" }]
 				: [];
+		const timeout: unknown = news.timeout;
+		if (
+			timeout != null &&
+			timeout !== UNKNOWN_DURING_PREVIEW &&
+			(typeof timeout !== "number" ||
+				!Number.isInteger(timeout) ||
+				timeout < 1000 ||
+				timeout > 120_000)
+		) {
+			failures.push({
+				property: "timeout",
+				reason:
+					"timeout must be an integer between 1000 and 120000 milliseconds",
+			});
+		}
+		if (news.websiteId != null && typeof news.websiteId !== "string") {
+			failures.push({
+				property: "websiteId",
+				reason: "websiteId must be a string",
+			});
+		}
 		return Promise.resolve({ failures });
 	}
 
