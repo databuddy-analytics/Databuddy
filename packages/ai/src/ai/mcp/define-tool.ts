@@ -3,7 +3,6 @@ import {
 	requiredScopesForResource,
 	type ApiKeyScopeTarget,
 } from "@databuddy/api-keys/scopes";
-import type { User } from "@databuddy/auth";
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import type { ApiScope } from "@databuddy/shared/api-scopes";
 import type {
@@ -17,8 +16,7 @@ import { captureError, mergeWideEvent } from "../../lib/tracing";
 import { formatValidationIssues } from "../tools/utils/rpc";
 import {
 	ensureWebsiteAccess,
-	loadOAuthUser,
-	type RequestPrincipal,
+	type AuthorizedPrincipal,
 	resolveWebsiteId,
 	type WebsiteSelectorInput,
 } from "./tool-context";
@@ -60,14 +58,12 @@ export class McpToolError extends Error {
 	}
 }
 
-export interface McpRequestContext extends RequestPrincipal {
+export interface McpRequestContext extends AuthorizedPrincipal {
 	request?: Request;
-	requestHeaders: Headers;
 }
 
 export interface McpHandlerContext extends McpRequestContext {
 	abortSignal?: AbortSignal;
-	oauthUser?: User;
 	websiteDomain?: string;
 	websiteId?: string;
 	websiteOrganizationId?: string;
@@ -273,7 +269,7 @@ function toSuccessResult(
 }
 
 function authType(ctx: McpRequestContext): "session" | "api_key" | "oauth" {
-	return ctx.apiKey ? "api_key" : ctx.oauthUserId ? "oauth" : "session";
+	return ctx.apiKey ? "api_key" : ctx.oauth ? "oauth" : "session";
 }
 
 function getAttribution(ctx: McpHandlerContext): {
@@ -283,11 +279,12 @@ function getAttribution(ctx: McpHandlerContext): {
 } {
 	return {
 		organization_id:
+			ctx.oauth?.grant.organizationId ??
 			ctx.organizationId ??
 			ctx.websiteOrganizationId ??
 			ctx.apiKey?.organizationId ??
 			null,
-		user_id: ctx.userId ?? ctx.apiKey?.userId ?? null,
+		user_id: ctx.oauth?.user.id ?? ctx.userId ?? ctx.apiKey?.userId ?? null,
 		auth_type: authType(ctx),
 	};
 }
@@ -312,7 +309,8 @@ function callAbortSignal(
 }
 
 function rateLimitIdentifier(ctx: McpRequestContext, toolName: string): string {
-	const principal = ctx.apiKey?.id ?? ctx.userId ?? "anon";
+	const principal =
+		ctx.apiKey?.id ?? ctx.oauth?.user.id ?? ctx.userId ?? "anon";
 	return `mcp:tool:${toolName}:${principal}`;
 }
 
@@ -393,16 +391,6 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					}
 				}
 
-				if (ctx.oauthUserId) {
-					const oauthUser = await loadOAuthUser(ctx.oauthUserId);
-					if (!oauthUser) {
-						throw new McpToolError(
-							"unauthorized",
-							"The Databuddy account for this connection no longer exists. Reconnect Databuddy to continue."
-						);
-					}
-					handlerCtx.oauthUser = oauthUser;
-				}
 				if (meta.resolveWebsite) {
 					const inputObj = input as WebsiteSelectorInput;
 					const optional = meta.resolveWebsite === "optional";
@@ -426,9 +414,6 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 						handlerCtx.websiteDomain = access.domain;
 						handlerCtx.websiteOrganizationId =
 							access.organizationId ?? undefined;
-						if (ctx.oauthUserId) {
-							handlerCtx.organizationId = access.organizationId;
-						}
 						mergeWideEvent({ mcp_website_id: resolvedId });
 					}
 				}

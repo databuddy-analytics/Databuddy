@@ -172,9 +172,7 @@ async function resolveGrant(
 	const { organizationId, resource, permissions, allowCrossOrg } = input;
 	const oauth = context.oauth;
 	if (oauth) {
-		const grantedOrganizationId =
-			oauth.grant?.organizationId ?? oauth.organizationId;
-		if (grantedOrganizationId && grantedOrganizationId !== organizationId) {
+		if (oauth.grant.organizationId !== organizationId) {
 			return {
 				granted: false,
 				denied: rpcError.forbidden(
@@ -182,7 +180,7 @@ async function resolveGrant(
 				),
 			};
 		}
-		const websiteIds = oauth.grant?.websiteIds;
+		const websiteIds = oauth.grant.websiteIds;
 		if (
 			websiteIds &&
 			(input.websiteId
@@ -196,16 +194,14 @@ async function resolveGrant(
 				),
 			};
 		}
-		if (oauth.scopes) {
-			for (const scope of requiredScopesForResource(resource, permissions)) {
-				if (!oauth.scopes.includes(scope)) {
-					return {
-						granted: false,
-						denied: rpcError.forbidden(
-							`This connection is missing required scope: ${scope}`
-						),
-					};
-				}
+		for (const scope of requiredScopesForResource(resource, permissions)) {
+			if (!oauth.scopes.includes(scope)) {
+				return {
+					granted: false,
+					denied: rpcError.forbidden(
+						`This connection is missing required scope: ${scope}`
+					),
+				};
 			}
 		}
 	}

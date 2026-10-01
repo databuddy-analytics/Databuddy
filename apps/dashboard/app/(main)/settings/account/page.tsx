@@ -48,15 +48,6 @@ interface Account {
 	userId: string;
 }
 
-interface ConnectedApp {
-	clientId: string;
-	createdAt: string;
-	id: string;
-	name: string;
-	referenceId: string | null;
-	scopes: string[];
-}
-
 type SocialProvider = "google" | "github";
 
 const SOCIAL_PROVIDERS: SocialProvider[] = ["google", "github"];
@@ -444,19 +435,14 @@ export default function AccountSettingsPage() {
 	} = useQuery({
 		queryKey: ["oauth-connected-apps"],
 		queryFn: async () => {
-			const result = await authClient.$fetch<Omit<ConnectedApp, "name">[]>(
-				"/oauth2/get-consents"
-			);
-			if (result.error) {
-				throw new Error(result.error.message);
-			}
+			const consents = await authClient.oauth2.getConsents({
+				fetchOptions: { throw: true },
+			});
 			return Promise.all(
-				(result.data ?? []).map(async (consent) => {
-					const client = await authClient.$fetch<{
-						client_name?: string | null;
-					}>(
-						`/oauth2/public-client?client_id=${encodeURIComponent(consent.clientId)}`
-					);
+				consents.map(async (consent) => {
+					const client = await authClient.oauth2.publicClient({
+						query: { client_id: consent.clientId },
+					});
 					return {
 						...consent,
 						name:
@@ -470,18 +456,10 @@ export default function AccountSettingsPage() {
 	});
 
 	const disconnectApp = useMutation({
-		mutationFn: async (consentId: string) => {
-			const result = await authClient.$fetch("/oauth2/delete-consent", {
-				method: "POST",
-				body: { id: consentId },
-			});
-			if (result.error) {
-				throw new Error(result.error.message);
-			}
-		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["oauth-connected-apps"] });
-		},
+		mutationFn: (id: string) =>
+			authClient.oauth2.deleteConsent({ id }, { throw: true }),
+		onSuccess: () =>
+			queryClient.invalidateQueries({ queryKey: ["oauth-connected-apps"] }),
 	});
 
 	const updateProfileMutation = useMutation({

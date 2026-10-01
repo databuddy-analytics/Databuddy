@@ -11,9 +11,10 @@ import { captureWarning, mergeWideEvent } from "@databuddy/ai/lib/tracing";
 import { auth } from "@databuddy/auth";
 import { getMcpAccessGrant } from "@databuddy/auth/mcp-grant";
 import { MCP_GRANT_CLAIM } from "@databuddy/shared/mcp-access";
-import { isApiScope } from "@databuddy/shared/api-scopes";
 import type { ApiAuthWideEventFields } from "@databuddy/shared/evlog-fields";
+import { db } from "@databuddy/db";
 import { config } from "@databuddy/env/app";
+import { cacheable } from "@databuddy/redis";
 import { createMcpProtectedRequestHandler } from "@better-auth/mcp";
 import { type Context, Elysia } from "elysia";
 import {
@@ -29,6 +30,7 @@ const SIGNING_KEYS_MAX_AGE_MS = 300_000;
 const SIGNING_KEYS_RECHECK_MS = 30_000;
 const SIGNING_KEYS_TIMEOUT_MS = 5000;
 const SIGNING_KEYS_RETRY_AFTER_SECONDS = 5;
+const OAUTH_USER_TTL_SEC = 15;
 
 interface SigningKeyIds {
 	checkedAt: number;
@@ -44,6 +46,12 @@ let signingKeyIds: SigningKeyIds = {
 let signingKeyIdsRefresh: Promise<SigningKeyIds> | null = null;
 
 const oauthInFlight = new ApiKeyInFlightGate();
+
+const loadOAuthUser = cacheable(
+	async (userId: string) =>
+		(await db.query.user.findFirst({ where: { id: userId } })) ?? null,
+	{ expireInSec: OAUTH_USER_TTL_SEC, prefix: "mcp:oauth-user" }
+);
 
 function createOAuthMcpRequestHandler() {
 	try {
@@ -84,16 +92,12 @@ async function handleVerifiedOAuthRequest(
 	}
 	try {
 		const tokenScopes =
-			typeof claims.scope === "string"
-				? claims.scope.split(" ").filter(isApiScope)
-				: [];
-		const authorization = await getMcpAccessGrant(
-			subject,
-			clientId,
-			grantHash,
-			tokenScopes
-		);
-		if (!authorization) {
+			typeof claims.scope === "string" ? claims.scope.split(" ") : [];
+		const [authorization, user] = await Promise.all([
+			getMcpAccessGrant(subject, clientId, grantHash, tokenScopes),
+			loadOAuthUser(subject),
+		]);
+		if (!(authorization && user)) {
 			return createMcpUnauthorizedResponse();
 		}
 		mergeWideEvent<ApiAuthWideEventFields>({
@@ -104,12 +108,9 @@ async function handleVerifiedOAuthRequest(
 		return await handleDatabuddyMcpRequest({
 			request,
 			requestHeaders: request.headers,
-			userId: subject,
-			oauthScopes: authorization.scopes,
-			oauthGrant: authorization.grant,
-			oauthUserId: subject,
+			userId: null,
+			oauth: { ...authorization, user },
 			apiKey: null,
-			organizationId: authorization.grant.organizationId,
 		});
 	} finally {
 		oauthInFlight.release(request);

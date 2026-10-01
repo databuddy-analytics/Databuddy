@@ -9,6 +9,9 @@ integration("MCP OAuth website authorization", () => {
 	let toolContext: typeof import("./tool-context");
 	let dbModule: typeof import("@databuddy/db");
 	let schema: typeof import("@databuddy/db/schema");
+	let viewer: typeof schema.user.$inferSelect;
+	let outsider: typeof schema.user.$inferSelect;
+	let multiOrg: typeof schema.user.$inferSelect;
 
 	const suffix = randomUUID().slice(0, 8);
 	const organizationId = `mcp-oauth-org-${suffix}`;
@@ -22,14 +25,21 @@ integration("MCP OAuth website authorization", () => {
 
 	async function insertUser(id: string) {
 		const now = new Date();
-		await dbModule.db.insert(schema.user).values({
-			id,
-			name: id,
-			email: `${id}@example.com`,
-			emailVerified: true,
-			createdAt: now,
-			updatedAt: now,
-		});
+		const [user] = await dbModule.db
+			.insert(schema.user)
+			.values({
+				id,
+				name: id,
+				email: `${id}@example.com`,
+				emailVerified: true,
+				createdAt: now,
+				updatedAt: now,
+			})
+			.returning();
+		if (!user) {
+			throw new Error("Test user was not created");
+		}
+		return user;
 	}
 
 	beforeAll(async () => {
@@ -42,9 +52,9 @@ integration("MCP OAuth website authorization", () => {
 			{ id: organizationId, name: organizationId, createdAt: now },
 			{ id: otherOrganizationId, name: otherOrganizationId, createdAt: now },
 		]);
-		for (const id of userIds) {
-			await insertUser(id);
-		}
+		viewer = await insertUser(viewerId);
+		outsider = await insertUser(outsiderId);
+		multiOrg = await insertUser(multiOrgId);
 		await dbModule.db.insert(schema.member).values([
 			{
 				id: `member-${viewerId}`,
@@ -109,9 +119,13 @@ integration("MCP OAuth website authorization", () => {
 	test("grants a member of the website's organization", async () => {
 		const access = await toolContext.ensureWebsiteAccess(websiteId, {
 			apiKey: null,
-			oauthUserId: viewerId,
+			oauth: {
+				grant: { organizationId, websiteIds: [websiteId] },
+				scopes: ["read:data"],
+				user: viewer,
+			},
 			requestHeaders: new Headers(),
-			userId: viewerId,
+			userId: null,
 		});
 
 		expect(access).not.toBeInstanceOf(Error);
@@ -123,69 +137,75 @@ integration("MCP OAuth website authorization", () => {
 	test("denies a user who belongs to a different organization", async () => {
 		const access = await toolContext.ensureWebsiteAccess(websiteId, {
 			apiKey: null,
-			oauthUserId: outsiderId,
+			oauth: {
+				grant: { organizationId, websiteIds: [websiteId] },
+				scopes: ["read:data"],
+				user: outsider,
+			},
 			requestHeaders: new Headers(),
-			userId: outsiderId,
+			userId: null,
 		});
 
 		expect(access).toBeInstanceOf(Error);
 		expect((access as Error).message).toBe("Access denied to this website");
 	});
 
-	test("lists websites from every organization an ungranted principal can read", async () => {
-		const listed = await toolContext.getCachedAccessibleWebsites({
-			apiKey: null,
-			oauthUserId: multiOrgId,
-			userId: multiOrgId,
-		});
-		expect(listed.map((website) => website.id).sort()).toEqual(
-			[otherWebsiteId, websiteId].sort()
-		);
-		const viewerSites = await toolContext.getCachedAccessibleWebsites({
-			apiKey: null,
-			oauthUserId: viewerId,
-			userId: viewerId,
-		});
-		expect(viewerSites.map((website) => website.id)).toEqual([websiteId]);
-	});
-
-	test("keeps a granted principal inside the organization it consented to", async () => {
-		const listed = await toolContext.getCachedAccessibleWebsites({
-			apiKey: null,
-			oauthGrant: { organizationId, websiteIds: null },
-			oauthUserId: multiOrgId,
-			organizationId,
-			userId: multiOrgId,
-		});
-		expect(listed.map((website) => website.id)).toEqual([websiteId]);
-	});
-
-	test("resolves an organization only for a principal with exactly one", async () => {
-		expect(
-			await toolContext.resolveOrganizationId({
+	test("keeps a member of several organizations inside the one they consented to", async () => {
+		for (const [grantedOrganizationId, expected] of [
+			[organizationId, websiteId],
+			[otherOrganizationId, otherWebsiteId],
+		] as const) {
+			const listed = await toolContext.getCachedAccessibleWebsites({
 				apiKey: null,
-				oauthUserId: viewerId,
-				userId: viewerId,
-			})
+				oauth: {
+					grant: { organizationId: grantedOrganizationId, websiteIds: null },
+					scopes: ["read:data"],
+					user: multiOrg,
+				},
+				userId: null,
+			});
+			expect(listed.map((website) => website.id)).toEqual([expected]);
+		}
+		const outsiderSites = await toolContext.getCachedAccessibleWebsites({
+			apiKey: null,
+			oauth: {
+				grant: { organizationId, websiteIds: null },
+				scopes: ["read:data"],
+				user: outsider,
+			},
+			userId: null,
+		});
+		expect(outsiderSites).toEqual([]);
+	});
+
+	test("resolves the consented organization and asks website-limited grants for a website", () => {
+		const oauth = {
+			grant: { organizationId, websiteIds: null },
+			scopes: ["read:data"],
+			user: multiOrg,
+		};
+		expect(
+			toolContext.resolveOrganizationId({ apiKey: null, oauth, userId: null })
 		).toBe(organizationId);
 		expect(
-			await toolContext.resolveOrganizationId({
+			toolContext.resolveOrganizationId({
 				apiKey: null,
-				oauthUserId: multiOrgId,
-				userId: multiOrgId,
+				oauth: { ...oauth, grant: { organizationId, websiteIds: [websiteId] } },
+				userId: null,
 			})
-		).toMatchObject({
-			code: "invalid_input",
-			message: expect.stringContaining("2 organizations"),
-		});
+		).toMatchObject({ code: "invalid_input" });
 	});
 
 	test("denies a user with no membership at all", async () => {
 		const access = await toolContext.ensureWebsiteAccess(websiteId, {
 			apiKey: null,
-			oauthUserId: `ghost-${suffix}`,
+			oauth: {
+				grant: { organizationId, websiteIds: [websiteId] },
+				scopes: ["read:data"],
+				user: { ...viewer, id: `ghost-${suffix}` },
+			},
 			requestHeaders: new Headers(),
-			userId: `ghost-${suffix}`,
+			userId: null,
 		});
 
 		expect(access).toBeInstanceOf(Error);

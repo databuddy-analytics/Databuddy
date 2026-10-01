@@ -238,7 +238,7 @@ const listInsightsTool = defineMcpTool(
 	},
 	async (input, ctx) => {
 		const organizationId =
-			ctx.websiteOrganizationId ?? (await resolveOrganizationId(ctx));
+			ctx.websiteOrganizationId ?? resolveOrganizationId(ctx);
 		if (organizationId instanceof Error) {
 			throw new McpToolError(organizationId.code, organizationId.message, {
 				hint: organizationId.hint,
@@ -282,7 +282,7 @@ const listInvestigationsTool = defineMcpTool(
 	},
 	async (input, ctx) => {
 		const organizationId =
-			ctx.websiteOrganizationId ?? (await resolveOrganizationId(ctx));
+			ctx.websiteOrganizationId ?? resolveOrganizationId(ctx);
 		if (organizationId instanceof Error) {
 			throw new McpToolError(organizationId.code, organizationId.message, {
 				hint: organizationId.hint,
@@ -1323,7 +1323,7 @@ interface FlagScope {
 	scope: { websiteId: string } | { organizationId: string };
 }
 
-async function resolveFlagScope(ctx: McpHandlerContext): Promise<FlagScope> {
+function resolveFlagScope(ctx: McpHandlerContext): FlagScope {
 	if (ctx.websiteId) {
 		return {
 			notFoundHint:
@@ -1332,7 +1332,7 @@ async function resolveFlagScope(ctx: McpHandlerContext): Promise<FlagScope> {
 			scope: { websiteId: ctx.websiteId },
 		};
 	}
-	const organizationId = await resolveOrganizationId(ctx);
+	const organizationId = resolveOrganizationId(ctx);
 	if (organizationId instanceof Error) {
 		throw new McpToolError(organizationId.code, organizationId.message, {
 			hint: organizationId.hint,
@@ -1541,7 +1541,7 @@ const listFlagsTool = defineMcpTool(
 			limit: input.limit + 1,
 			offset: input.offset,
 		};
-		const { rpcContext, scope } = await resolveFlagScope(ctx);
+		const { rpcContext, scope } = resolveFlagScope(ctx);
 		const result = await callRPCProcedure(
 			"flags",
 			"list",
@@ -1605,7 +1605,7 @@ const createFlagTool = defineMcpTool(
 			environment: input.environment,
 			targetGroupIds: input.targetGroupIds,
 		};
-		const flagScope = await resolveFlagScope(ctx);
+		const flagScope = resolveFlagScope(ctx);
 		const statusPlan = payload.dependencies?.length
 			? planFlagStatus(await listScopeFlags(flagScope), {
 					dependencies: payload.dependencies,
@@ -1703,7 +1703,7 @@ const updateFlagTool = defineMcpTool(
 			...changes
 		} = input;
 		const updates = omitUndefined(changes);
-		const flagScope = await resolveFlagScope(ctx);
+		const flagScope = resolveFlagScope(ctx);
 		const current = await readFlag(id, flagScope);
 		const currentFlag = FlagDependencyRowSchema.parse(current);
 		const statusPlan = changes.status
@@ -1781,7 +1781,7 @@ const addUsersToFlagTool = defineMcpTool(
 		const uniqueUsers = [
 			...new Set(input.users.map((user) => user.trim())),
 		].filter(Boolean);
-		const flagScope = await resolveFlagScope(ctx);
+		const flagScope = resolveFlagScope(ctx);
 		const currentFlag = z
 			.object({
 				id: z.string(),

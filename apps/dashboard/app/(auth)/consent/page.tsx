@@ -16,15 +16,11 @@ import {
 	CheckCircleIcon,
 	PlugIcon,
 } from "@databuddy/ui/icons";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { orpc } from "@/lib/orpc";
-
-interface PublicClient {
-	client_name?: string | null;
-}
 
 const IDENTITY_SCOPE_LABELS = new Map([
 	["openid", "Your name and email address"],
@@ -67,10 +63,6 @@ function ConsentPage() {
 	);
 	const [organizationId, setOrganizationId] = useState<string | null>(null);
 	const [websiteIds, setWebsiteIds] = useState<string[] | null>(null);
-	const [pendingDecision, setPendingDecision] = useState<
-		"accept" | "deny" | null
-	>(null);
-	const busy = pendingDecision !== null;
 	const approvedActions = requestedActions.filter((scope) =>
 		selectedScopes.includes(scope)
 	);
@@ -78,23 +70,19 @@ function ConsentPage() {
 	const { data: client, isPending: isClientPending } = useQuery({
 		enabled: Boolean(clientId),
 		queryKey: ["oauth-public-client", clientId],
-		queryFn: async () => {
-			const result = await authClient.$fetch<PublicClient>(
-				`/oauth2/public-client?client_id=${encodeURIComponent(clientId as string)}`
-			);
-			return result.data ?? null;
-		},
+		queryFn: () =>
+			clientId
+				? authClient.oauth2.publicClient(
+						{ query: { client_id: clientId } },
+						{ throw: true }
+					)
+				: null,
 	});
 	const organizationsQuery = useQuery({
 		enabled: Boolean(clientId),
 		queryKey: ["oauth-organizations"],
-		queryFn: async () => {
-			const result = await authClient.organization.list();
-			if (result.error) {
-				throw new Error("Could not load organizations.");
-			}
-			return result.data ?? [];
-		},
+		queryFn: () =>
+			authClient.organization.list({ fetchOptions: { throw: true } }),
 	});
 	const organizations = organizationsQuery.data ?? [];
 	const organization =
@@ -118,40 +106,35 @@ function ConsentPage() {
 		validWebsiteSelection &&
 		approvedActions.length > 0;
 
-	const decide = async (accept: boolean) => {
-		if (busy || (accept && !canAllow)) {
-			return;
-		}
-		setPendingDecision(accept ? "accept" : "deny");
-		try {
-			const result = await authClient.$fetch<{ url?: string }>(
-				"/oauth2/consent",
+	const decision = useMutation({
+		meta: { suppressGlobalErrorToast: true },
+		mutationFn: (accept: boolean) =>
+			authClient.oauth2.consent(
 				{
-					method: "POST",
+					accept,
+					oauth_query: oauthQuery,
+					...(accept && {
+						scope: [...identityScopes, ...approvedActions].join(" "),
+					}),
+				},
+				{
+					throw: true,
 					body: accept
-						? {
-								accept,
-								oauth_query: oauthQuery,
-								organizationId: organization?.id,
-								websiteIds,
-								scope: [...identityScopes, ...approvedActions].join(" "),
-							}
-						: { accept, oauth_query: oauthQuery },
+						? { organizationId: organization?.id, websiteIds }
+						: undefined,
 				}
-			);
-			if (result.data?.url) {
-				window.location.href = result.data.url;
-				return;
-			}
+			),
+		onError: ({ cause }) => {
+			const message =
+				cause instanceof Object && "message" in cause ? cause.message : null;
 			toast.error(
-				result.error?.message ||
-					"Could not complete authorization. Try connecting again."
+				typeof message === "string" && message
+					? message
+					: "Could not complete authorization. Try connecting again."
 			);
-		} catch {
-			toast.error("Could not complete authorization. Try connecting again.");
-		}
-		setPendingDecision(null);
-	};
+		},
+	});
+	const busy = decision.isPending || decision.isSuccess;
 
 	if (!clientId) {
 		return (
@@ -351,15 +334,15 @@ function ConsentPage() {
 			<div className="flex gap-3">
 				<Button
 					disabled={busy || !canAllow}
-					loading={pendingDecision === "accept"}
-					onClick={() => decide(true)}
+					loading={busy && decision.variables === true}
+					onClick={() => decision.mutate(true)}
 				>
 					Allow access
 				</Button>
 				<Button
 					disabled={busy}
-					loading={pendingDecision === "deny"}
-					onClick={() => decide(false)}
+					loading={busy && decision.variables === false}
+					onClick={() => decision.mutate(false)}
 					variant="secondary"
 				>
 					Deny

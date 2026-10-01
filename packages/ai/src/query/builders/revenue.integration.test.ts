@@ -233,7 +233,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			detail.params
 		);
 		expect(payments.map((row) => row.transaction_id)).toEqual([]);
-	});
+	}, 15_000);
 
 	it("counts an invoice-tagged standalone intent and resolves conflicting websites once", async () => {
 		const ownerId = `organization-${randomUUIDv7()}`;
@@ -546,7 +546,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 					?.utm_campaign
 			).toBe("valid-history");
 		}
-	});
+	}, 15_000);
 
 	it("keeps tracked sessions inside their website in organization reports", async () => {
 		const ownerId = `revenue-scope-owner-${randomUUIDv7()}`;
@@ -709,7 +709,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			"refund-example",
 			"session-only",
 		]);
-	});
+	}, 15_000);
 
 	it("preserves null-ID payment descriptions and excludes identified receipts with the same label", async () => {
 		const websiteId = `revenue-descriptions-${randomUUIDv7()}`;

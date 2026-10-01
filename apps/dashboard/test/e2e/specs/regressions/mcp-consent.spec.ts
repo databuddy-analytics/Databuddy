@@ -14,7 +14,7 @@ test("approves only selected MCP access and resets websites when changing organi
 		route.fulfill({ json: null })
 	);
 	await page.route("**/api/auth/oauth2/public-client?*", (route) =>
-		route.fulfill({ json: { name: "Example MCP client" } })
+		route.fulfill({ json: { client_name: "Example MCP client" } })
 	);
 	await page.route("**/api/auth/organization/list*", (route) =>
 		route.fulfill({
@@ -51,6 +51,11 @@ test("approves only selected MCP access and resets websites when changing organi
 	]);
 	await page.goto(`/consent?${oauthQuery}`);
 	const allow = page.getByRole("button", { name: "Allow access" });
+	await expect(
+		page.getByRole("heading", {
+			name: "Example MCP client (example.com) wants to connect",
+		})
+	).toBeVisible();
 	await expect(allow).toBeDisabled();
 	await expect(page.getByRole("checkbox", { name: "Read Data" })).toBeChecked();
 	await expect(
@@ -75,6 +80,10 @@ test("approves only selected MCP access and resets websites when changing organi
 		.check();
 	await allow.click();
 	await expect(allow).toBeEnabled();
+	await expect(page.locator("[data-sonner-toast]")).toHaveCount(1);
+	await expect(page.locator("[data-sonner-toast]")).toContainText(
+		"Synthetic consent error"
+	);
 	expect(consentBodies[0]).toEqual({
 		accept: true,
 		oauth_query: oauthQuery.toString(),
@@ -108,4 +117,14 @@ test("approves only selected MCP access and resets websites when changing organi
 		accept: false,
 		oauth_query: oauthQuery.toString(),
 	});
+
+	const callbackURL = "https://example.com/callback?code=synthetic-code";
+	await page.route(callbackURL, (route) =>
+		route.fulfill({ contentType: "text/html", body: "Consent accepted" })
+	);
+	await page.route("**/api/auth/oauth2/consent", (route) =>
+		route.fulfill({ json: { redirect: true, url: callbackURL } })
+	);
+	await allow.click();
+	await expect(page).toHaveURL(callbackURL);
 });

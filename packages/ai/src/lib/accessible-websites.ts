@@ -4,7 +4,6 @@ import {
 	hasKeyScope,
 	hasWebsiteScope,
 } from "@databuddy/api-keys/resolve";
-import { roleHasPermission } from "@databuddy/auth/permissions";
 import { and, db, eq, inArray, isNull } from "@databuddy/db";
 import { member, organization, websites } from "@databuddy/db/schema";
 
@@ -129,35 +128,4 @@ export async function getAccessibleWebsites(
 	}
 
 	return [];
-}
-
-export async function getReadableOrganizationIds(
-	userId: string
-): Promise<string[]> {
-	const memberships = await db
-		.select({ organizationId: member.organizationId, role: member.role })
-		.from(member)
-		.where(eq(member.userId, userId));
-	return memberships
-		.filter((membership) =>
-			roleHasPermission(membership.role, "website", ["read"])
-		)
-		.map((membership) => membership.organizationId);
-}
-
-export async function getMemberWebsites(
-	userId: string
-): Promise<WebsiteSummary[]> {
-	const organizationIds = await getReadableOrganizationIds(userId);
-	if (organizationIds.length === 0) {
-		return [];
-	}
-	return selectWebsiteSummaries()
-		.where(
-			and(
-				inArray(websites.organizationId, organizationIds),
-				isNull(websites.deletedAt)
-			)
-		)
-		.orderBy((t) => t.createdAt);
 }
