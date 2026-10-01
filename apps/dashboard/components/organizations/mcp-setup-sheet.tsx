@@ -42,7 +42,7 @@ type McpExpiry = "90d" | "never";
 
 const CLIENT_OPTIONS: Array<{
 	description: string;
-	keyHint: string;
+	keyHint?: string;
 	label: string;
 	value: McpClient;
 }> = [
@@ -50,7 +50,6 @@ const CLIENT_OPTIONS: Array<{
 		value: "cursor",
 		label: "Cursor",
 		description: "Add it to .cursor/mcp.json or Cursor settings.",
-		keyHint: "Add it to .cursor/mcp.json or Cursor settings.",
 	},
 	{
 		value: "claude",
@@ -64,13 +63,11 @@ const CLIENT_OPTIONS: Array<{
 		value: "windsurf",
 		label: "Windsurf",
 		description: "Paste it into Windsurf's MCP configuration.",
-		keyHint: "Paste it into Windsurf's MCP configuration.",
 	},
 	{
 		value: "other",
 		label: "Other",
 		description: "Use any client that supports remote HTTP MCP servers.",
-		keyHint: "Use any client that supports remote HTTP MCP servers.",
 	},
 ];
 
@@ -123,6 +120,10 @@ function ClaudeSignIn() {
 					/>
 				</div>
 			</div>
+			<Text tone="muted" variant="caption">
+				Signed-in connections follow your role. The settings below only apply to
+				an API key for scripts or CI.
+			</Text>
 		</div>
 	);
 }
@@ -627,9 +628,8 @@ function ConnectionCreated({
 	secret: string;
 	useEnvironmentVariable: boolean;
 }) {
-	const clientDescription = CLIENT_OPTIONS.find(
-		(option) => option.value === client
-	)?.keyHint;
+	const clientOption = CLIENT_OPTIONS.find((option) => option.value === client);
+	const clientDescription = clientOption?.keyHint ?? clientOption?.description;
 
 	return (
 		<div className="space-y-5">

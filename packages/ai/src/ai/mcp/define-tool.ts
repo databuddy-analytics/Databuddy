@@ -15,6 +15,7 @@ import { ORPCError } from "@orpc/server";
 import type { z } from "zod";
 import { trackAgentEvent } from "../../lib/databuddy";
 import { captureError, mergeWideEvent } from "../../lib/tracing";
+import { formatValidationIssues } from "../tools/utils/rpc";
 import {
 	ensureWebsiteAccess,
 	loadOAuthUser,
@@ -176,9 +177,17 @@ function toErrorResult(err: McpToolError): CallToolResult {
 }
 
 function errorDetails(data: unknown): Record<string, unknown> | undefined {
-	return data && typeof data === "object" && !Array.isArray(data)
-		? (data as Record<string, unknown>)
-		: undefined;
+	if (!(data && typeof data === "object" && !Array.isArray(data))) {
+		return;
+	}
+	try {
+		const json: unknown = JSON.parse(JSON.stringify(data));
+		return json && typeof json === "object" && !Array.isArray(json)
+			? Object.fromEntries(Object.entries(json))
+			: undefined;
+	} catch {
+		return;
+	}
 }
 
 function fromORPCError(error: ORPCError<string, unknown>): McpToolError {
@@ -209,15 +218,6 @@ function fromORPCError(error: ORPCError<string, unknown>): McpToolError {
 		default:
 			return new McpToolError("internal", error.message);
 	}
-}
-
-function formatIssues(issues: readonly z.core.$ZodIssue[]): string {
-	return issues
-		.map(
-			(issue) =>
-				`${issue.path.length > 0 ? issue.path.join(".") : "input"}: ${issue.message}`
-		)
-		.join("; ");
 }
 
 function titleFromName(name: string): string {
@@ -323,7 +323,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 				if (!parseResult.success) {
 					throw new McpToolError(
 						"invalid_input",
-						formatIssues(parseResult.error.issues),
+						formatValidationIssues(parseResult.error.issues),
 						{ details: { issues: parseResult.error.issues } }
 					);
 				}
@@ -392,15 +392,17 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					}
 				}
 
-				const result = await handler(input, handlerCtx);
+				const handlerResult = await handler(input, handlerCtx);
+				let result = handlerResult;
 				if (outputSchema) {
-					const checked = outputSchema.safeParse(result);
+					const checked = outputSchema.safeParse(handlerResult);
 					if (!checked.success) {
 						throw new McpToolError(
 							"internal",
-							`${meta.name} output did not match its schema: ${formatIssues(checked.error.issues)}`
+							`${meta.name} output did not match its schema: ${formatValidationIssues(checked.error.issues)}`
 						);
 					}
+					result = checked.data;
 				}
 
 				trackMcpToolEvent(metadata, meta.name, true, attribution);
