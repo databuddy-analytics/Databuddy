@@ -455,9 +455,8 @@ export default function AccountSettingsPage() {
 	const disconnectApp = useMutation({
 		mutationFn: (id: string) =>
 			authClient.oauth2.deleteConsent({ id }, { throw: true }),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["oauth-connected-apps"] });
-		},
+		onSuccess: () =>
+			queryClient.invalidateQueries({ queryKey: ["oauth-connected-apps"] }),
 	});
 
 	const updateProfileMutation = useMutation({
