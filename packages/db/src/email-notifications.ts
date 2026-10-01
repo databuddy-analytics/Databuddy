@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type {
 	EmailAlertMode,
 	OrganizationEmailNotificationSettings,
@@ -84,4 +85,25 @@ export function normalizeEmailNotificationSettings(
 			...current.uptime,
 		},
 	};
+}
+
+export function aiDigestUnsubscribeToken(
+	organizationId: string,
+	secret: string
+): string {
+	return createHmac("sha256", secret)
+		.update(`ai-digest-unsubscribe:${organizationId}`)
+		.digest("base64url");
+}
+
+export function isAiDigestUnsubscribeToken(
+	organizationId: string,
+	token: string,
+	secret: string
+): boolean {
+	const expected = Buffer.from(
+		aiDigestUnsubscribeToken(organizationId, secret)
+	);
+	const actual = Buffer.from(token);
+	return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
