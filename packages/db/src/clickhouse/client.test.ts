@@ -1,7 +1,12 @@
 import { Readable } from "node:stream";
 import { ResultSet } from "@clickhouse/client";
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
-import { chQuery, clickHouse, setClickHouseReadMode } from "./client";
+import {
+	chQuery,
+	clickHouse,
+	clickHouseAccessHeaders,
+	setClickHouseReadMode,
+} from "./client";
 
 describe("chQuery", () => {
 	afterEach(() => {
@@ -202,5 +207,49 @@ describe("integration test loopback guard", () => {
 			CLICKHOUSE_URL: "http://default:@clickhouse.example.test:8123",
 		});
 		expect(result.exitCode).toBe(0);
+	});
+});
+
+describe("clickHouseAccessHeaders", () => {
+	afterEach(() => {
+		mock.restore();
+	});
+
+	test("trims a pasted trailing newline from both values", () => {
+		expect(
+			clickHouseAccessHeaders({
+				CLICKHOUSE_ACCESS_CLIENT_ID: " id.access\n",
+				CLICKHOUSE_ACCESS_CLIENT_SECRET: "secret\r\n",
+			})
+		).toEqual({
+			"CF-Access-Client-Id": "id.access",
+			"CF-Access-Client-Secret": "secret",
+		});
+	});
+
+	test("sends nothing and stays quiet when neither value is set", () => {
+		const warn = spyOn(console, "warn").mockImplementation(() => undefined);
+		expect(clickHouseAccessHeaders({})).toBeUndefined();
+		expect(
+			clickHouseAccessHeaders({
+				CLICKHOUSE_ACCESS_CLIENT_ID: " ",
+				CLICKHOUSE_ACCESS_CLIENT_SECRET: "\n",
+			})
+		).toBeUndefined();
+		expect(warn).not.toHaveBeenCalled();
+	});
+
+	test("warns when only one value is set", () => {
+		const warn = spyOn(console, "warn").mockImplementation(() => undefined);
+		expect(
+			clickHouseAccessHeaders({ CLICKHOUSE_ACCESS_CLIENT_ID: "id.access" })
+		).toBeUndefined();
+		expect(
+			clickHouseAccessHeaders({
+				CLICKHOUSE_ACCESS_CLIENT_ID: "  ",
+				CLICKHOUSE_ACCESS_CLIENT_SECRET: "secret",
+			})
+		).toBeUndefined();
+		expect(warn).toHaveBeenCalledTimes(2);
 	});
 });

@@ -13,8 +13,27 @@ export const TABLE_NAMES = {
 	link_visits: "analytics.link_visits",
 };
 
-const accessClientId = process.env.CLICKHOUSE_ACCESS_CLIENT_ID;
-const accessClientSecret = process.env.CLICKHOUSE_ACCESS_CLIENT_SECRET;
+// Warn instead of throwing: every service imports this module, and a half-set
+// pair keeps working until Cloudflare Access is enforced on ch-cluster.
+export function clickHouseAccessHeaders(
+	env: Record<string, string | undefined> = process.env
+): Record<string, string> | undefined {
+	const clientId = env.CLICKHOUSE_ACCESS_CLIENT_ID?.trim();
+	const clientSecret = env.CLICKHOUSE_ACCESS_CLIENT_SECRET?.trim();
+	if (!(clientId || clientSecret)) {
+		return;
+	}
+	if (!(clientId && clientSecret)) {
+		console.warn(
+			"[db] ClickHouse Access is half-configured: set both CLICKHOUSE_ACCESS_CLIENT_ID and CLICKHOUSE_ACCESS_CLIENT_SECRET; sending no Access headers"
+		);
+		return;
+	}
+	return {
+		"CF-Access-Client-Id": clientId,
+		"CF-Access-Client-Secret": clientSecret,
+	};
+}
 
 export const CLICKHOUSE_OPTIONS: NodeClickHouseClientConfigOptions = {
 	max_open_connections: 64,
@@ -27,13 +46,7 @@ export const CLICKHOUSE_OPTIONS: NodeClickHouseClientConfigOptions = {
 		request: true,
 		response: true,
 	},
-	http_headers:
-		accessClientId && accessClientSecret
-			? {
-					"CF-Access-Client-Id": accessClientId,
-					"CF-Access-Client-Secret": accessClientSecret,
-				}
-			: undefined,
+	http_headers: clickHouseAccessHeaders(),
 };
 
 export const FINAL_READ_SETTINGS = {
