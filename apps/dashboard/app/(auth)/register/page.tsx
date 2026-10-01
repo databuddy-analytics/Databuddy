@@ -83,6 +83,9 @@ function RegisterPageContent() {
 		trackAppEvent(eventName, properties, { flush: true });
 	};
 
+	const newUserCallbackUrl = (url: string) =>
+		url.startsWith("/billing/plans") ? url : "/onboarding";
+
 	const getCallbackUrl = () => {
 		if (selectedPlan) {
 			localStorage.setItem("pendingPlanSelection", selectedPlan);
@@ -117,7 +120,7 @@ function RegisterPageContent() {
 			email: formData.email,
 			password: formData.password,
 			name: formData.name,
-			callbackURL: getCallbackUrl(),
+			callbackURL: newUserCallbackUrl(getCallbackUrl()),
 			fetchOptions: {
 				onSuccess: () => {
 					storeOnboardingAttribution(signupProperties);
@@ -173,8 +176,7 @@ function RegisterPageContent() {
 			const result = await authClient.signIn.social({
 				provider,
 				callbackURL,
-				newUserCallbackURL:
-					callbackURL === "/websites" ? "/onboarding" : callbackURL,
+				newUserCallbackURL: newUserCallbackUrl(callbackURL),
 				disableRedirect: true,
 			});
 
