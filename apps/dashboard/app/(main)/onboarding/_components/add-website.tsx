@@ -2,6 +2,7 @@
 
 import { Button, Field, Input } from "@databuddy/ui";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect } from "react";
 import { useController, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -72,6 +73,18 @@ export function AddWebsite({
 	});
 	const domainField = useController({ control: form.control, name: "domain" });
 	const nameField = useController({ control: form.control, name: "name" });
+	// The session resolves after this form mounts on a cold load.
+	useEffect(() => {
+		if (suggestedDomain && !form.formState.isDirty) {
+			form.reset(
+				{
+					domain: suggestedDomain,
+					name: websiteNameFromDomain(suggestedDomain),
+				},
+				{ keepDefaultValues: false }
+			);
+		}
+	}, [form, suggestedDomain]);
 
 	return (
 		<form

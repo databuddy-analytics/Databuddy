@@ -280,8 +280,14 @@ export function ConnectApp({
 				<div className="flex items-start gap-2">
 					<StatusDot
 						className="mt-1"
-						color={tracking.state === "error" ? "destructive" : "warning"}
-						pulse={tracking.state !== "error"}
+						color={
+							tracking.state === "verified"
+								? "success"
+								: tracking.state === "error"
+									? "destructive"
+									: "warning"
+						}
+						pulse={tracking.state === "awaiting"}
 						size="sm"
 					/>
 					<p
@@ -292,16 +298,20 @@ export function ConnectApp({
 								: "text-muted-foreground"
 						)}
 					>
-						{tracking.issue
-							? `${tracking.issue.message} ${tracking.issue.fix}`
-							: tracking.state === "error"
-								? "Couldn't check for events. Checking again shortly."
-								: `Waiting for the first page view from ${domain}. Open the site once after installing.`}
+						{tracking.state === "verified"
+							? "Tracking verified. Page views and sessions are being recorded."
+							: tracking.issue
+								? `${tracking.issue.message} ${tracking.issue.fix}`
+								: tracking.state === "error"
+									? "Couldn't check for events. Checking again shortly."
+									: `Waiting for the first page view from ${domain}. Open the site once after installing.`}
 					</p>
 				</div>
-				<Button onClick={onSkip} size="sm" variant="ghost">
-					Skip for now
-				</Button>
+				{tracking.state === "verified" ? null : (
+					<Button onClick={onSkip} size="sm" variant="ghost">
+						Skip for now
+					</Button>
+				)}
 			</div>
 		</div>
 	);

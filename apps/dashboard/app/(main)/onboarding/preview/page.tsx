@@ -347,6 +347,7 @@ function Sample({ sample }: { sample: Sample }) {
 		<SetupChecklist
 			agentProgress={sample.agentProgress ?? null}
 			creating={false}
+			loadingWebsites={false}
 			finish={website ? (sample.finish ?? null) : null}
 			onChangePriority={setPriority}
 			onCreateWebsite={() => Promise.resolve()}
