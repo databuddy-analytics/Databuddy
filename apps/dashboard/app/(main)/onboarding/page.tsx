@@ -1,109 +1,141 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type {
+	OnboardingIntent,
+	OnboardingStepId,
+} from "@databuddy/shared/custom-events";
+import { useQuery } from "@tanstack/react-query";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+	Suspense,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { trackOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
 import {
 	useBillingContext,
 	useInvestigationUsage,
 } from "@/components/providers/billing-provider";
-import { useWebsitesLight } from "@/hooks/use-websites";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
+import { useCreateWebsite, useWebsitesLight } from "@/hooks/use-websites";
 import {
 	APP_EVENTS,
 	clearOnboardingAttribution,
 	consumePendingSocialSignup,
+	type OnboardingAttributionProperties,
 	readOnboardingAttribution,
 	toOnboardingAttribution,
-	type OnboardingAttributionProperties,
 	trackAppEvent,
 } from "@/lib/app-events";
-import { OnboardingStepIndicator } from "./_components/onboarding-step-indicator";
-import { StepCreateWebsite } from "./_components/step-create-website";
-import { StepExplore } from "./_components/step-explore";
-import { StepInstallTracking } from "./_components/step-install-tracking";
-import { StepInviteTeam } from "./_components/step-invite-team";
-import { ArrowLeftIcon, ArrowRightIcon } from "@databuddy/ui/icons";
-import { Button, Card } from "@databuddy/ui";
+import { orpc } from "@/lib/orpc";
+import { showErrorToast } from "@/lib/user-facing-error";
+import { OnboardingShell } from "./_components/onboarding-shell";
+import { INTENT_OPTIONS, StepFinish } from "./_components/step-finish";
+import { StepInstall, type TrackingStatus } from "./_components/step-install";
+import {
+	StepWebsite,
+	type WebsiteFormValues,
+} from "./_components/step-website";
+import { useOnboardingResearch } from "./_components/use-onboarding-research";
 
-const STEPS = [
-	{
-		id: "website",
-		title: "Add Website",
-		description: "Create the site you want Databuddy to watch.",
-	},
-	{
-		id: "tracking",
-		title: "Install Tracking",
-		description: "Connect the SDK or script tag so data starts flowing.",
-	},
-	{
-		id: "team",
-		title: "Invite Team",
-		description: "Bring collaborators in so they can see the same signals.",
-	},
-	{
-		id: "explore",
-		title: "Explore",
-		description: "Jump into the dashboard and get oriented.",
-	},
-] as const;
+const STEP_IDS: OnboardingStepId[] = ["website", "tracking", "finish"];
+const TRACKING_POLL_MS = 5000;
 
-type StepId = (typeof STEPS)[number]["id"];
+function isStepId(value: string | null): value is OnboardingStepId {
+	return STEP_IDS.includes(value as OnboardingStepId);
+}
 
-export default function OnboardingPage() {
+function OnboardingFlow() {
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const billing = useBillingContext();
 	const investigations = useInvestigationUsage();
 	const billingPending = billing.isLoading || billing.isFetching;
 	const canReview = !billing.isError && investigations.hasAccess;
-	const { websites } = useWebsitesLight();
-	const trackedStepRef = useRef<number>(-1);
-	const onboardingCompletedRef = useRef(false);
-	const onboardingStartedRef = useRef(false);
+	const { activeOrganization } = useOrganizationsContext();
+	const organizationId = activeOrganization?.id;
+	const { websites, isLoading: websitesLoading } = useWebsitesLight();
+	const createWebsite = useCreateWebsite();
 
-	const [currentStep, setCurrentStep] = useState(0);
-	const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
-	const [createdWebsiteId, setCreatedWebsiteId] = useState<string | null>(null);
-	const [firstReviewWebsiteId, setFirstReviewWebsiteId] = useState<
-		string | null
-	>(null);
+	const trackedStepRef = useRef<OnboardingStepId | null>(null);
+	const completedRef = useRef(false);
+	const startedRef = useRef(false);
+	const verifiedRef = useRef<string | null>(null);
+	const researchStartedRef = useRef<string | null>(null);
+
+	const [step, setStep] = useState<OnboardingStepId>(() => {
+		const requested = searchParams.get("step");
+		return isStepId(requested) ? requested : "website";
+	});
+	const [createdWebsite, setCreatedWebsite] = useState<{
+		domain: string;
+		id: string;
+		name: string;
+	} | null>(null);
+	const [verifiedWebsiteId, setVerifiedWebsiteId] = useState<string | null>(
+		null
+	);
+	const [trackingSkipped, setTrackingSkipped] = useState(false);
+	const [priority, setPriority] = useState("");
+	const [intent, setIntent] = useState<OnboardingIntent | null>(null);
 	const [attribution, setAttribution] =
 		useState<OnboardingAttributionProperties>(() =>
 			readOnboardingAttribution()
 		);
 
-	const hasWebsite = websites && websites.length > 0;
-	const websiteId = createdWebsiteId ?? websites?.[0]?.id ?? null;
+	const existingWebsite = websites[0];
+	const website = useMemo(
+		() =>
+			createdWebsite ??
+			(existingWebsite
+				? {
+						id: existingWebsite.id,
+						domain: existingWebsite.domain,
+						name: existingWebsite.name ?? existingWebsite.domain,
+					}
+				: null),
+		[createdWebsite, existingWebsite]
+	);
+	const websiteId = website?.id ?? null;
 
-	// Update URL and track step views
+	const research = useOnboardingResearch(organizationId, website);
+
+	const trackingQuery = useQuery({
+		...orpc.websites.isTrackingSetup.queryOptions({
+			input: { websiteId: websiteId ?? "" },
+		}),
+		enabled: websiteId !== null && step === "tracking",
+		refetchInterval: ({ state }) =>
+			state.data?.tracking_setup ? false : TRACKING_POLL_MS,
+		staleTime: 0,
+	});
+	const trackingSetup = trackingQuery.data?.tracking_setup ?? false;
+
 	useEffect(() => {
-		const stepId = STEPS[currentStep].id;
-		window.history.replaceState(null, "", `/onboarding?step=${stepId}`);
-
-		if (trackedStepRef.current !== currentStep) {
-			trackedStepRef.current = currentStep;
+		window.history.replaceState(null, "", `/onboarding?step=${step}`);
+		if (trackedStepRef.current !== step) {
+			trackedStepRef.current = step;
 			trackAppEvent(APP_EVENTS.onboardingStepViewed, {
-				step: stepId,
-				step_number: currentStep + 1,
+				step,
+				step_number: STEP_IDS.indexOf(step) + 1,
 			});
 		}
-	}, [currentStep]);
+	}, [step]);
 
 	useEffect(() => {
-		if (hasWebsite && !completedSteps.has("website")) {
-			setCompletedSteps((prev) => new Set([...prev, "website"]));
-			if (currentStep === 0) {
-				setCurrentStep(1);
-			}
+		if (!(websitesLoading || website)) {
+			setStep("website");
 		}
-	}, [hasWebsite, completedSteps, currentStep]);
+	}, [website, websitesLoading]);
 
-	// Track onboarding start once
 	useEffect(() => {
-		if (onboardingStartedRef.current) {
+		if (startedRef.current) {
 			return;
 		}
-		onboardingStartedRef.current = true;
+		startedRef.current = true;
 		const signupProperties = consumePendingSocialSignup();
 		const onboardingAttribution =
 			signupProperties === null
@@ -119,273 +151,221 @@ export default function OnboardingPage() {
 		trackAppEvent(APP_EVENTS.onboardingStarted, onboardingAttribution);
 	}, []);
 
-	const markComplete = useCallback((stepId: StepId) => {
-		setCompletedSteps((prev) => new Set([...prev, stepId]));
-	}, []);
+	useEffect(() => {
+		if (!(trackingSetup && websiteId) || verifiedRef.current === websiteId) {
+			return;
+		}
+		verifiedRef.current = websiteId;
+		setVerifiedWebsiteId(websiteId);
+		trackAppEvent(APP_EVENTS.onboardingTrackingVerified);
+		trackAppEvent(APP_EVENTS.onboardingStepCompleted, {
+			step: "tracking",
+			verified: true,
+		});
+	}, [trackingSetup, websiteId]);
 
-	const goNext = useCallback(() => {
-		setCurrentStep((prev) => Math.min(prev + 1, STEPS.length - 1));
-	}, []);
+	useEffect(() => {
+		if (
+			!(createdWebsite && research.research.canStart) ||
+			researchStartedRef.current === createdWebsite.id
+		) {
+			return;
+		}
+		researchStartedRef.current = createdWebsite.id;
+		research.start();
+	}, [createdWebsite, research.research.canStart, research.start]);
 
-	const goBack = useCallback(() => {
-		setCurrentStep((prev) => Math.max(prev - 1, 0));
-	}, []);
-
-	const handleWebsiteCreated = useCallback(
-		(id: string) => {
-			setCreatedWebsiteId(id);
-			markComplete("website");
-			trackAppEvent(APP_EVENTS.onboardingStepCompleted, { step: "website" });
-			goNext();
+	const handleCreateWebsite = useCallback(
+		async (values: WebsiteFormValues) => {
+			try {
+				const result = await createWebsite.mutateAsync({
+					name: values.name,
+					domain: values.domain,
+					organizationId,
+				});
+				setCreatedWebsite({
+					id: result.id,
+					domain: result.domain,
+					name: result.name ?? values.name,
+				});
+				trackAppEvent(APP_EVENTS.onboardingWebsiteCreated, attribution);
+				trackAppEvent(APP_EVENTS.onboardingStepCompleted, { step: "website" });
+				setStep("tracking");
+			} catch (error: unknown) {
+				showErrorToast(error, "Failed to create website.");
+			}
 		},
-		[markComplete, goNext]
+		[attribution, createWebsite, organizationId]
 	);
 
-	const handleTrackingComplete = useCallback(
-		(verifiedWebsiteId: string) => {
-			setFirstReviewWebsiteId(verifiedWebsiteId);
-			markComplete("tracking");
+	const handleTrackingContinue = useCallback(() => {
+		if (!(trackingSetup || trackingSkipped)) {
+			setTrackingSkipped(true);
 			trackAppEvent(APP_EVENTS.onboardingStepCompleted, {
 				step: "tracking",
-				verified: true,
+				verified: false,
 			});
-			goNext();
+		}
+		setStep("finish");
+	}, [trackingSetup, trackingSkipped]);
+
+	const leave = useCallback(
+		(path: string) => {
+			if (!completedRef.current) {
+				completedRef.current = true;
+				trackAppEvent(APP_EVENTS.onboardingCompleted, attribution);
+				clearOnboardingAttribution();
+			}
+			router.replace(path);
 		},
-		[markComplete, goNext]
+		[attribution, router]
 	);
 
-	const handleTeamComplete = useCallback(() => {
-		markComplete("team");
-		trackAppEvent(APP_EVENTS.onboardingStepCompleted, { step: "team" });
-		goNext();
-	}, [markComplete, goNext]);
-
-	const recordExploreComplete = useCallback(() => {
-		if (onboardingCompletedRef.current) {
+	const handleFinish = useCallback(async () => {
+		if (!websiteId) {
 			return;
 		}
-		onboardingCompletedRef.current = true;
-		markComplete("explore");
-		trackAppEvent(APP_EVENTS.onboardingCompleted, attribution);
-		clearOnboardingAttribution();
-	}, [attribution, markComplete]);
-
-	const handleExploreComplete = useCallback(() => {
-		if (firstReviewWebsiteId && billingPending) {
-			return;
+		const trimmed = priority.trim();
+		if (trimmed) {
+			try {
+				await research.saveTeamContext({
+					priority: trimmed,
+					successDefinition: "",
+					exclusions: "",
+				});
+			} catch {
+				return;
+			}
 		}
-		recordExploreComplete();
+		trackAppEvent(APP_EVENTS.onboardingStepCompleted, {
+			step: "finish",
+			origin: research.research.phase === "ready" ? "ai" : "manual",
+			intent: intent ?? undefined,
+		});
 		const pendingPlan = localStorage.getItem("pendingPlanSelection");
 		if (pendingPlan) {
 			localStorage.removeItem("pendingPlanSelection");
-			router.replace(`/billing/plans?plan=${encodeURIComponent(pendingPlan)}`);
-		} else if (firstReviewWebsiteId && canReview) {
-			router.replace(
-				`/insights?firstReview=${encodeURIComponent(firstReviewWebsiteId)}`
-			);
-		} else if (websiteId) {
-			router.replace(`/websites/${websiteId}`);
-		} else {
-			router.replace("/websites");
+			leave(`/billing/plans?plan=${encodeURIComponent(pendingPlan)}`);
+			return;
 		}
+		if (verifiedWebsiteId && canReview) {
+			leave(`/insights?firstReview=${encodeURIComponent(verifiedWebsiteId)}`);
+			return;
+		}
+		const path = INTENT_OPTIONS.find((option) => option.id === intent)?.path;
+		leave(`/websites/${websiteId}${path ?? ""}`);
 	}, [
-		billingPending,
 		canReview,
-		firstReviewWebsiteId,
-		recordExploreComplete,
-		router,
+		intent,
+		leave,
+		priority,
+		research,
+		verifiedWebsiteId,
 		websiteId,
 	]);
 
-	const handleSkipOnboarding = useCallback(() => {
+	const handleSkip = useCallback(() => {
 		trackAppEvent(APP_EVENTS.onboardingSkipped, {
-			skipped_at_step: STEPS[currentStep].id,
-			step_number: currentStep + 1,
+			skipped_at_step: step,
+			step_number: STEP_IDS.indexOf(step) + 1,
 		});
-		router.push("/websites");
-	}, [currentStep, router]);
+		router.push(websiteId ? `/websites/${websiteId}` : "/websites");
+	}, [router, step, websiteId]);
 
-	const canContinue = useMemo(() => {
-		const step = STEPS[currentStep];
-		switch (step.id) {
-			case "website":
-				return completedSteps.has("website");
-			case "tracking":
-				return true;
-			case "team":
-				return true;
-			case "explore":
-				return true;
-			default:
-				return false;
-		}
-	}, [currentStep, completedSteps]);
-
-	const handleContinue = useCallback(() => {
-		const step = STEPS[currentStep];
-		if (step.id === "explore") {
-			handleExploreComplete();
-			return;
-		}
-		if (step.id === "team") {
-			handleTeamComplete();
-			return;
-		}
-		if (step.id === "tracking") {
-			if (!completedSteps.has("tracking")) {
-				markComplete("tracking");
-				trackAppEvent(APP_EVENTS.onboardingStepCompleted, {
-					step: "tracking",
-					verified: false,
-				});
-			}
-			goNext();
-			return;
-		}
-		goNext();
-	}, [
-		currentStep,
-		completedSteps,
-		goNext,
-		markComplete,
-		handleExploreComplete,
-		handleTeamComplete,
-	]);
-
-	const renderStep = () => {
-		switch (STEPS[currentStep].id) {
-			case "website":
-				return (
-					<StepCreateWebsite
-						attribution={attribution}
-						onComplete={handleWebsiteCreated}
-					/>
-				);
-			case "tracking":
-				return (
-					<StepInstallTracking
-						onComplete={handleTrackingComplete}
-						websiteId={websiteId}
-					/>
-				);
-			case "team":
-				return <StepInviteTeam />;
-			case "explore":
-				return (
-					<StepExplore
-						canReview={canReview}
-						hasError={billing.isError}
-						hasVerifiedTracking={firstReviewWebsiteId !== null}
-						isLoading={billingPending}
-						onComplete={handleExploreComplete}
-						onEnterProduct={recordExploreComplete}
-						onRetry={billing.refetch}
-						websiteId={websiteId}
-					/>
-				);
-			default:
-				return null;
-		}
+	const tracking: TrackingStatus = {
+		state: trackingSetup
+			? "verified"
+			: trackingQuery.isError
+				? "error"
+				: "awaiting",
+		issue: trackingQuery.data?.tracking_issue
+			? {
+					message: trackingQuery.data.tracking_issue.message,
+					fix: trackingQuery.data.tracking_issue.fix,
+				}
+			: null,
 	};
 
-	const isFirstStep = currentStep === 0;
-	const showBottomNav = STEPS[currentStep].id !== "explore";
-	const currentStepConfig = STEPS[currentStep];
-	const completedCount = completedSteps.size;
+	const reviewPending = verifiedWebsiteId !== null && billingPending;
+	const reviewFailed =
+		verifiedWebsiteId !== null && billing.isError && !billingPending;
+	const opensInsights = verifiedWebsiteId !== null && canReview;
+
+	const next =
+		step === "tracking" && websiteId
+			? {
+					label: trackingSetup ? "Continue" : "Skip for now",
+					onClick: handleTrackingContinue,
+				}
+			: step === "finish" && websiteId
+				? {
+						label: reviewPending
+							? "Checking Insights"
+							: opensInsights
+								? "Open Insights"
+								: "Open dashboard",
+						onClick: handleFinish,
+						disabled: reviewPending,
+						loading: reviewPending || research.saving,
+					}
+				: null;
 
 	return (
-		<div className="h-full overflow-y-auto bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.06),transparent_28%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.05),transparent_24%)]">
-			<div className="mx-auto w-full max-w-6xl p-4 sm:p-6">
-				<Card className="border-border/60 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)]">
-					<Card.Header className="gap-4 border-border/60 border-b bg-muted/30 px-5 py-4 sm:px-6">
-						<div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-							<div className="space-y-1.5">
-								<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-[0.14em]">
-									Organization Setup
-								</p>
-								<h1 className="font-semibold text-base text-foreground sm:text-lg">
-									Get Databuddy running
-								</h1>
-								<p className="max-w-2xl text-pretty text-muted-foreground text-sm leading-5">
-									Create your first website, connect tracking, and invite your
-									team.
-								</p>
-							</div>
+		<OnboardingShell
+			back={step === "finish" ? () => setStep("tracking") : null}
+			next={next}
+			onSkip={handleSkip}
+			step={STEP_IDS.indexOf(step) + 1}
+		>
+			{step === "website" ? (
+				<StepWebsite
+					onCreate={handleCreateWebsite}
+					pending={createWebsite.isPending}
+				/>
+			) : null}
+			{step === "tracking" && website ? (
+				<StepInstall
+					domain={website.domain}
+					onCopy={(method) =>
+						trackAppEvent(APP_EVENTS.onboardingTrackingCopied, {
+							block: method,
+							method,
+						})
+					}
+					research={research.research}
+					tracking={tracking}
+					websiteId={website.id}
+				/>
+			) : null}
+			{step === "finish" && website ? (
+				<StepFinish
+					intent={intent}
+					onChangeIntent={setIntent}
+					onChangePriority={setPriority}
+					onStartResearch={research.start}
+					priority={priority}
+					research={research.research}
+					review={
+						verifiedWebsiteId
+							? {
+									error: reviewFailed,
+									loading: reviewPending,
+									onRetry: billing.refetch,
+								}
+							: null
+					}
+					saveError={research.saveError}
+					websiteName={website.name}
+				/>
+			) : null}
+		</OnboardingShell>
+	);
+}
 
-							<div className="flex items-center gap-3 self-start lg:self-auto">
-								<p className="font-medium text-[12px] text-muted-foreground">
-									{completedCount} of {STEPS.length} complete
-								</p>
-								<Button
-									className="h-8 px-2.5 text-muted-foreground"
-									onClick={handleSkipOnboarding}
-									size="sm"
-									variant="ghost"
-								>
-									Skip onboarding
-								</Button>
-							</div>
-						</div>
-
-						<OnboardingStepIndicator
-							completedSteps={completedSteps}
-							currentStep={currentStep}
-							steps={STEPS.map((s) => ({ id: s.id, title: s.title }))}
-						/>
-					</Card.Header>
-
-					<div className="p-4 sm:p-6 lg:p-8">
-						<Card className="border-border/60">
-							<Card.Header className="gap-1.5 border-border/60 border-b bg-muted/20 px-5 py-4 sm:px-6">
-								<div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-									<span className="font-medium">
-										Step {currentStep + 1} of {STEPS.length}
-									</span>
-									<span aria-hidden className="text-border">
-										/
-									</span>
-									<span>
-										{completedSteps.has(currentStepConfig.id)
-											? "Completed"
-											: "Active"}
-									</span>
-								</div>
-								<p className="font-medium text-[15px] text-foreground sm:text-base">
-									{currentStepConfig.title}
-								</p>
-								<p className="max-w-2xl text-pretty text-muted-foreground text-sm leading-5">
-									{currentStepConfig.description}
-								</p>
-							</Card.Header>
-
-							<Card.Content className="px-5 py-5 sm:px-6 sm:py-6">
-								<div className="mx-auto max-w-3xl">{renderStep()}</div>
-							</Card.Content>
-
-							{showBottomNav && (
-								<Card.Footer className="justify-between border-border/60 border-t bg-muted/20 px-5 py-3.5 sm:px-6">
-									<Button
-										className={isFirstStep ? "invisible" : ""}
-										disabled={isFirstStep}
-										onClick={goBack}
-										variant="ghost"
-									>
-										<ArrowLeftIcon className="size-4" />
-										Back
-									</Button>
-									<Button disabled={!canContinue} onClick={handleContinue}>
-										{STEPS[currentStep].id === "tracking" &&
-										!completedSteps.has("tracking")
-											? "Skip for now"
-											: "Continue"}
-										<ArrowRightIcon className="size-4" />
-									</Button>
-								</Card.Footer>
-							)}
-						</Card>
-					</div>
-				</Card>
-			</div>
-		</div>
+export default function OnboardingPage() {
+	return (
+		<Suspense fallback={null}>
+			<OnboardingFlow />
+		</Suspense>
 	);
 }

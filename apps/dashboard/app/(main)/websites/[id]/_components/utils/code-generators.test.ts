@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { generateNpmCode, generateScriptTag } from "./code-generators";
+import {
+	generateAgentPrompt,
+	generateNpmCode,
+	generateScriptTag,
+} from "./code-generators";
 import { RECOMMENDED_DEFAULTS } from "./tracking-defaults";
 
 describe("recommended tracking snippets", () => {
@@ -61,5 +65,16 @@ assert.equal(prompt.includes("basket.databuddy.cc"), ${selfhost !== "true"});
 		expect(npm).not.toContain("trackPerformance");
 		expect(npm).not.toContain("trackScreenViews");
 		expect(npm).not.toContain("trackSessions");
+	});
+
+	it("does not ask an AI assistant to send installation telemetry", () => {
+		const prompt = generateAgentPrompt("example-client-id");
+
+		expect(prompt).not.toContain("agent-telemetry");
+		expect(prompt).not.toContain("Report Back");
+		expect(prompt).not.toContain("Always send this report");
+		expect(prompt).not.toContain("trackPerformance");
+		expect(prompt).not.toContain("trackScreenViews");
+		expect(prompt).not.toContain("trackSessions");
 	});
 });
