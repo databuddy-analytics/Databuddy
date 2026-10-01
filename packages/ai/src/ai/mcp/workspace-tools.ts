@@ -11,7 +11,6 @@ import {
 	getOrganizationLink,
 	LinkFolderSelectorSchema,
 	type LinkRow,
-	hasLinkFolderSelector,
 	listLinkFolders,
 	parseLinkRow,
 	resolveLinkFolderFromList,
@@ -43,7 +42,6 @@ import {
 	readConversionAnalytics,
 	resolveMcpDateRange,
 	summarizeConversionAnalytics,
-	toIsoTimestamp,
 	updatePreview,
 	WebsiteSelectorSchema,
 } from "./tool-contracts";
@@ -343,12 +341,8 @@ const updateLinkTool = defineMcpTool(
 
 		const updates = omitUndefined({
 			...input,
-			...(expiresAt === undefined
-				? {}
-				: { expiresAt: expiresAt === null ? null : toIsoTimestamp(expiresAt) }),
-			...(hasLinkFolderSelector({ folderId, folderSlug })
-				? { folderId: folderSelection.folderId }
-				: {}),
+			expiresAt: expiresAt && new Date(expiresAt).toISOString(),
+			folderId: folderSelection.folderId,
 		});
 
 		if (!confirmed || Object.keys(updates).length === 0) {

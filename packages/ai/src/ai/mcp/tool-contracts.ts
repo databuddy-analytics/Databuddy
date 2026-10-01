@@ -123,10 +123,6 @@ export const LinkExpiresAtSchema = isoDateOrOffsetDateTimeSchema.describe(
 	"Expiry as YYYY-MM-DD or an ISO date-time with offset."
 );
 
-export function toIsoTimestamp(value: string): string {
-	return new Date(value).toISOString();
-}
-
 export function omitUndefined(
 	input: Record<string, unknown>
 ): Record<string, unknown> {

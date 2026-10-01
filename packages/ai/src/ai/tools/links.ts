@@ -13,7 +13,6 @@ import {
 	getOrganizationLink,
 	LinkFolderSelectorSchema,
 	type LinkRow,
-	hasLinkFolderSelector,
 	listLinkFolders,
 	listLinks,
 	parseLinkRow,
@@ -109,7 +108,7 @@ export function createLinksTools() {
 				return {
 					links: page.items.map((link) => summarizeLink(link, folders)),
 					count,
-					folders: summarizeLinkFoldersWithUsage(folders, page.items),
+					folders: summarizeLinkFoldersWithUsage(folders),
 					unfiledCount:
 						unfiledCount ?? page.items.filter((link) => !link.folderId).length,
 					hint:
@@ -191,7 +190,7 @@ export function createLinksTools() {
 					return {
 						success: false,
 						message: folderSelection.message,
-						folders: summarizeLinkFoldersWithUsage(folderSelection.folders, []),
+						folders: summarizeLinkFoldersWithUsage(folderSelection.folders),
 					};
 				}
 
@@ -285,20 +284,15 @@ export function createLinksTools() {
 					readOrganizationLink(context, organizationId, id),
 					listLinkFolders(context, organizationId),
 				]);
-				const folderSelection = hasLinkFolderSelector({
+				const folderSelection = resolveLinkFolderFromList(folders, {
 					folderId,
 					folderSlug,
-				})
-					? resolveLinkFolderFromList(folders, {
-							folderId,
-							folderSlug,
-						})
-					: { folder: null, folderId: undefined, folders, ok: true as const };
+				});
 				if (!folderSelection.ok) {
 					return {
 						success: false,
 						message: folderSelection.message,
-						folders: summarizeLinkFoldersWithUsage(folderSelection.folders, []),
+						folders: summarizeLinkFoldersWithUsage(folderSelection.folders),
 					};
 				}
 

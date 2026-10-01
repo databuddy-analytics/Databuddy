@@ -1001,7 +1001,7 @@ const listLinksTool = defineMcpTool(
 			links: page.items.map((link) => summarizeLink(link, folders)),
 			total: page.total,
 			hasMore: page.hasMore,
-			folders: summarizeLinkFoldersWithUsage(folders, page.items),
+			folders: summarizeLinkFoldersWithUsage(folders),
 			unfiledCount,
 			...(page.total === 0 && {
 				hint: "No links yet for this organization.",

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AppContext } from "../config/context";
+import { callRPCProcedure } from "./utils/rpc";
 
 const DateStringSchema = z
 	.union([z.string(), z.date()])
@@ -93,31 +94,23 @@ export const LinkFolderSelectorSchema = z.object({
 });
 
 export type LinkFolder = z.infer<typeof LinkFolderSchema>;
-export type LinkFolderSelector = z.infer<typeof LinkFolderSelectorSchema>;
+type LinkFolderSelector = z.infer<typeof LinkFolderSelectorSchema>;
 export type LinkRow = z.infer<typeof LinkRowSchema>;
-
-type LinkPageFetcher = (input: {
-	includeTotal?: boolean;
-	limit: number;
-	offset: number;
-	folderId?: string | null;
-	search?: string;
-}) => Promise<unknown>;
 
 interface LinkFilters {
 	folderId?: string | null;
 	search?: string;
 }
 
-export type LinkPage = z.infer<typeof LinkPageSchema>;
-export interface LinkPageRequest {
+type LinkPage = z.infer<typeof LinkPageSchema>;
+interface LinkPageRequest {
 	includeTotal?: boolean;
 	limit: number;
 	offset: number;
 }
-export type CountedLinkPage = LinkPage & { total: number };
+type CountedLinkPage = LinkPage & { total: number };
 
-export type LinkFolderResolution =
+type LinkFolderResolution =
 	| {
 			folder: LinkFolder | null;
 			folderId: string | null | undefined;
@@ -143,48 +136,32 @@ function parseLinkFolders(value: unknown): LinkFolder[] {
 	return result.success ? result.data : [];
 }
 
-export async function fetchLinkCatalogPage(
-	fetchPage: LinkPageFetcher,
+async function loadLinks(
+	context: AppContext,
+	organizationId: string,
 	filters: LinkFilters = {},
 	page: LinkPageRequest = { limit: MODEL_LINK_LIMIT, offset: 0 }
 ): Promise<LinkPage> {
 	const result = LinkPageSchema.safeParse(
-		await fetchPage({
-			...filters,
-			limit: page.limit,
-			offset: page.offset,
-			...(page.includeTotal ? { includeTotal: true } : {}),
-		})
+		await callRPCProcedure(
+			"links",
+			"paginated",
+			{
+				...filters,
+				limit: page.limit,
+				offset: page.offset,
+				...(page.includeTotal ? { includeTotal: true } : {}),
+				organizationId,
+				sort: "newest",
+				type: "all",
+			},
+			context
+		)
 	);
 	if (!result.success) {
 		throw new Error("Received an invalid paginated link response.");
 	}
 	return result.data;
-}
-
-async function loadLinks(
-	context: AppContext,
-	organizationId: string,
-	filters: LinkFilters = {},
-	page?: LinkPageRequest
-): Promise<LinkPage> {
-	const { callRPCProcedure } = await import("./utils");
-	return fetchLinkCatalogPage(
-		(input) =>
-			callRPCProcedure(
-				"links",
-				"paginated",
-				{
-					...input,
-					organizationId,
-					sort: "newest",
-					type: "all",
-				},
-				context
-			),
-		filters,
-		page
-	);
 }
 
 async function loadCountedLinks(
@@ -241,7 +218,6 @@ export async function getOrganizationLink(
 	organizationId: string,
 	id: string
 ): Promise<LinkRow | null> {
-	const { callRPCProcedure } = await import("./utils");
 	const link = parseLinkRow(
 		await callRPCProcedure("links", "get", { id }, context)
 	);
@@ -252,7 +228,6 @@ export async function listLinkFolders(
 	context: AppContext,
 	organizationId: string
 ): Promise<LinkFolder[]> {
-	const { callRPCProcedure } = await import("./utils");
 	return parseLinkFolders(
 		await callRPCProcedure("linkFolders", "list", { organizationId }, context)
 	);
@@ -268,19 +243,10 @@ export function summarizeLinkFolder(folder: LinkFolder) {
 	};
 }
 
-export function summarizeLinkFoldersWithUsage(
-	folders: LinkFolder[],
-	visibleLinks: LinkRow[] = []
-) {
-	const visibleCounts = visibleLinks.reduce(
-		(map, link) =>
-			map.set(link.folderId ?? null, (map.get(link.folderId ?? null) ?? 0) + 1),
-		new Map<string | null, number>()
-	);
-
+export function summarizeLinkFoldersWithUsage(folders: LinkFolder[]) {
 	return folders.map((folder) => ({
 		...summarizeLinkFolder(folder),
-		linkCount: folder.linkCount ?? visibleCounts.get(folder.id) ?? 0,
+		linkCount: folder.linkCount ?? 0,
 	}));
 }
 
@@ -312,10 +278,6 @@ function formatLinkFolderOptions(folders: LinkFolder[]): string {
 	return folders
 		.map((folder) => `${folder.name} (${folder.slug}, id: ${folder.id})`)
 		.join("; ");
-}
-
-export function hasLinkFolderSelector(selector: LinkFolderSelector): boolean {
-	return selector.folderId !== undefined || !!selector.folderSlug?.trim();
 }
 
 export function resolveLinkFolderFromList(
