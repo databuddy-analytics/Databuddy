@@ -1,12 +1,23 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { redisStorage } from "@better-auth/redis-storage";
-import { runWithTransaction } from "@better-auth/core/context";
-import { and, db, eq, like } from "@databuddy/db";
+import {
+	defineRequestState,
+	runWithTransaction,
+} from "@better-auth/core/context";
+import {
+	and,
+	db,
+	eq,
+	inArray,
+	like,
+	TransactionRollbackError,
+} from "@databuddy/db";
 // biome-ignore lint/performance/noNamespaceImport: Better Auth's Drizzle adapter expects a schema object map.
 import * as schema from "@databuddy/db/schema";
 import {
 	member as memberTable,
 	organization as organizationTable,
+	user as userTable,
 	verification as verificationTable,
 } from "@databuddy/db/schema";
 import {
@@ -22,7 +33,6 @@ import {
 import { config } from "@databuddy/env/app";
 import { readBooleanEnv } from "@databuddy/env/app";
 import { SlackProvider } from "@databuddy/notifications";
-import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import {
 	getRedisCache,
 	invalidateOrganizationMembershipCaches,
@@ -41,6 +51,7 @@ import {
 	auditActions,
 	type AuditActionDefinition,
 	type AuditActor,
+	type AuditRequestContext,
 } from "@databuddy/shared/audit";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type { BetterAuthPlugin } from "better-auth";
@@ -48,6 +59,9 @@ import {
 	APIError,
 	createAuthEndpoint,
 	createAuthMiddleware,
+	getAuthoritativeSessionFromCtx,
+	getIP,
+	getSessionFromCtx,
 } from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
 import {
@@ -58,11 +72,11 @@ import {
 	organization,
 	twoFactor,
 } from "better-auth/plugins";
-import { audit, createLogger, log } from "evlog";
+import { createLogger, log } from "evlog";
 import { maskEmail } from "evlog/better-auth";
 import { Resend } from "resend";
 import { ac, admin, member, owner, viewer } from "./permissions";
-import { getAuthAuditContext } from "./audit-context";
+import { getAuthAuditContext, runWithAuthAuditContext } from "./audit-context";
 
 function generateOrgSlug(name: string): string {
 	const base = name
@@ -435,6 +449,68 @@ async function recordAuthAudit<TAction extends AuditActionDefinition>(
 	});
 }
 
+const ipAddress = { ipAddressHeaders: ["x-forwarded-for", "x-real-ip"] };
+
+// Rate limiting buckets IPv6 by /64; audit keeps the full address.
+function getRequestIp(request: Request | Headers): string | undefined {
+	return (
+		getIP(request, {
+			advanced: { ipAddress: { ...ipAddress, ipv6Subnet: 128 } },
+		}) ?? undefined
+	);
+}
+
+function toAuditRequest(request: Request): AuditRequestContext {
+	return {
+		requestId: request.headers.get("x-request-id") ?? undefined,
+		ip: getRequestIp(request),
+		userAgent: request.headers.get("user-agent") ?? undefined,
+	};
+}
+
+function isOwnerRole(role: string): boolean {
+	return role.split(",").some((value) => value.trim() === "owner");
+}
+
+function foreignKeyViolationTable(error: unknown): string | undefined {
+	if (typeof error !== "object" || error === null) {
+		return;
+	}
+	if ("code" in error && error.code === "23503" && "table" in error) {
+		return String(error.table);
+	}
+	return "cause" in error ? foreignKeyViolationTable(error.cause) : undefined;
+}
+
+async function assertUserRowDeletable(
+	userId: string,
+	organizationIds: string[]
+): Promise<void> {
+	// Dry-run the cascade so a RESTRICT reference refuses deletion before any
+	// org is deleted, instead of failing after the solo orgs are already gone.
+	const outcome = await db
+		.transaction(async (tx) => {
+			if (organizationIds.length > 0) {
+				await tx
+					.delete(organizationTable)
+					.where(inArray(organizationTable.id, organizationIds));
+			}
+			await tx.delete(userTable).where(eq(userTable.id, userId));
+			tx.rollback();
+		})
+		.catch((error: unknown) => error);
+	if (outcome instanceof TransactionRollbackError) {
+		return;
+	}
+	const table = foreignKeyViolationTable(outcome);
+	if (!table) {
+		throw outcome;
+	}
+	throw new APIError("BAD_REQUEST", {
+		message: `Your account created ${table.replaceAll("_", " ")} in an organization you share, so it cannot be deleted automatically. Contact support to delete your account.`,
+	});
+}
+
 async function planAccountDeletion(userId: string) {
 	const memberships = await db.query.member.findMany({
 		where: { userId },
@@ -449,25 +525,27 @@ async function planAccountDeletion(userId: string) {
 	for (const { role, organization } of memberships) {
 		const others = organization.members.filter((m) => m.userId !== userId);
 		if (
-			role === "owner" &&
+			isOwnerRole(role) &&
 			others.length > 0 &&
-			!others.some((m) => m.role === "owner")
+			!others.some((m) => isOwnerRole(m.role))
 		) {
 			throw new APIError("BAD_REQUEST", {
 				message: `Transfer ownership of ${organization.name} or delete it before deleting your account.`,
 			});
 		}
 	}
-	return memberships
+	const soleMemberOrganizations = memberships
 		.map((m) => m.organization)
 		.filter((org) => org.members.every((m) => m.userId === userId));
+	await assertUserRowDeletable(
+		userId,
+		soleMemberOrganizations.map((org) => org.id)
+	);
+	return soleMemberOrganizations;
 }
 
-async function deleteSoleMemberOrganizations(user: {
-	id: string;
-	name?: string | null;
-}): Promise<void> {
-	for (const org of await planAccountDeletion(user.id)) {
+async function deleteSoleMemberOrganizations(userId: string): Promise<void> {
+	for (const org of await planAccountDeletion(userId)) {
 		try {
 			await deleteOrganizationWithBusinessMemory(org.id);
 		} catch (error) {
@@ -479,18 +557,30 @@ async function deleteSoleMemberOrganizations(user: {
 					"Business memory could not be removed. Retry deleting your account.",
 			});
 		}
-		await recordAuthAudit(
-			org.id,
-			{
-				action: auditActions.ORGANIZATION_DELETED,
-				target: { id: org.id, displayName: org.name },
-				changes: { deleted: { after: true } },
-				reason: "account_deleted",
-			},
-			toAuditActor(user)
-		);
+		await recordAuthAudit(org.id, {
+			action: auditActions.ORGANIZATION_DELETED,
+			target: { id: org.id, displayName: org.name },
+			changes: { deleted: { after: true } },
+			reason: "account_deleted",
+		});
 	}
 }
+
+const accountDeletionPaths = new Set(["/delete-user", "/delete-user/callback"]);
+
+const refuseBlockedAccountDeletion = createAuthMiddleware(async (ctx) => {
+	if (!accountDeletionPaths.has(ctx.path)) {
+		return;
+	}
+	const session = await getAuthoritativeSessionFromCtx(ctx);
+	if (session) {
+		await planAccountDeletion(session.user.id);
+	}
+});
+
+const deleteAccountEmailFailure = defineRequestState<APIError | null>(
+	() => null
+);
 
 type AuthLogLevel = "info" | "warn" | "error" | "debug";
 
@@ -516,49 +606,112 @@ function forwardAuthLog(
 	log.info(fields);
 }
 
-const recordAuthOutcome = createAuthMiddleware((ctx) => {
-	const { newSession, returned, session } = ctx.context;
+function toAuthAuditAction(path: string): string {
+	return `auth${path.replaceAll("/", ".").replaceAll("-", "_").replaceAll(":", "")}`;
+}
+
+const unauthenticatedActor = { type: "user", id: "unauthenticated" } as const;
+
+function auditRateLimitedRequest(key: string): void {
+	const separator = key.indexOf("|");
+	const logger = createLogger({ service: "auth", ip: key.slice(0, separator) });
+	logger.audit({
+		action: toAuthAuditAction(key.slice(separator + 1)),
+		actor: unauthenticatedActor,
+		outcome: "failure",
+		reason: "TOO_MANY_REQUESTS",
+	});
+	logger.emit();
+}
+
+function isTwoFactorChallenge(returned: unknown): boolean {
+	return (
+		typeof returned === "object" &&
+		returned !== null &&
+		"twoFactorRedirect" in returned &&
+		returned.twoFactorRedirect === true
+	);
+}
+
+const recordAuthOutcome = createAuthMiddleware(async (ctx) => {
+	const deleteEmailFailure =
+		ctx.path === "/delete-user" ? await deleteAccountEmailFailure.get() : null;
+	const { newSession, session } = ctx.context;
+	const returned = deleteEmailFailure ?? ctx.context.returned;
 	const failure =
 		returned instanceof APIError && returned.statusCode >= 400
 			? returned
 			: null;
-	const userId = newSession?.user.id ?? session?.user.id;
-	const email = (ctx.body as { email?: unknown } | undefined)?.email;
-	if (
-		!ctx.request ||
-		(ctx.method === "GET" && !(newSession || failure)) ||
-		!(userId || failure || typeof email === "string")
-	) {
-		return Promise.resolve();
+	const request =
+		ctx.method === "GET" && !(newSession || failure) ? undefined : ctx.request;
+	if (request) {
+		const secondFactorRequired = isTwoFactorChallenge(returned);
+		const email = (ctx.body as { email?: unknown } | undefined)?.email;
+		let userId = newSession?.user.id ?? session?.user.id;
+		if (!userId && ctx.path.startsWith("/organization/")) {
+			// The organization plugin runs its endpoints on a copy of the context,
+			// so the session it loaded never reaches this hook.
+			userId = (await getSessionFromCtx(ctx, { disableRefresh: true }))?.user
+				.id;
+		} else if (!userId && ctx.path.startsWith("/two-factor/")) {
+			const challenge = await ctx.getSignedCookie(
+				ctx.context.createAuthCookie("two_factor").name,
+				ctx.context.secret
+			);
+			userId = challenge
+				? (await ctx.context.internalAdapter.findVerificationValue(challenge))
+						?.value
+				: undefined;
+		} else if (!userId && secondFactorRequired && typeof email === "string") {
+			userId = (await ctx.context.internalAdapter.findUserByEmail(email))?.user
+				.id;
+		}
+		if (userId || failure || typeof email === "string") {
+			const logger = createLogger({
+				service: "auth",
+				ip: getRequestIp(request),
+				user_agent: request.headers.get("user-agent") ?? undefined,
+				...(ctx.params && { route_params: ctx.params }),
+			});
+			logger.audit({
+				action: secondFactorRequired
+					? `${toAuthAuditAction(ctx.path)}.second_factor_required`
+					: toAuthAuditAction(ctx.path),
+				actor: userId ? { type: "user", id: userId } : unauthenticatedActor,
+				...(typeof email === "string" && {
+					target: {
+						type:
+							ctx.path === "/organization/invite-member"
+								? "invitee"
+								: "account",
+						id: maskEmail(email),
+					},
+				}),
+				outcome: failure ? "failure" : "success",
+				...(failure && {
+					reason:
+						(failure.body as { code?: string } | undefined)?.code ??
+						String(failure.status),
+				}),
+			});
+			logger.emit();
+		}
 	}
-	const logger = createLogger({
-		service: "auth",
-		ip: newSession?.session.ipAddress || getClientIp(ctx.request.headers),
-		user_agent: ctx.request.headers.get("user-agent") ?? undefined,
-		...(ctx.params && { route_params: ctx.params }),
-	});
-	logger.audit({
-		action: `auth${ctx.path.replaceAll("/", ".").replaceAll("-", "_").replaceAll(":", "")}`,
-		actor: userId
-			? { type: "user", id: userId }
-			: { type: "user", id: "unauthenticated" },
-		...(typeof email === "string" && {
-			target: { type: "account", id: maskEmail(email) },
-		}),
-		outcome: failure ? "failure" : "success",
-		...(failure && {
-			reason:
-				(failure.body as { code?: string } | undefined)?.code ??
-				String(failure.status),
-		}),
-	});
-	logger.emit();
-	return Promise.resolve();
+	if (deleteEmailFailure) {
+		throw deleteEmailFailure;
+	}
 });
+
+// A plugin after hook, listed after twoFactor, so the audit sees a password-only
+// sign-in after twoFactor has replaced its session with a second-factor challenge.
+const authAudit = {
+	id: "auth-audit",
+	hooks: { after: [{ matcher: () => true, handler: recordAuthOutcome }] },
+} satisfies BetterAuthPlugin;
 
 export const baseAuthOptions = {
 	hooks: {
-		after: recordAuthOutcome,
+		before: refuseBlockedAccountDeletion,
 	},
 	logger: {
 		log: forwardAuthLog,
@@ -585,6 +738,9 @@ export const baseAuthOptions = {
 		customStorage: {
 			consume: async (key, rule) => {
 				const result = await ratelimit(key, rule.max, rule.window);
+				if (!result.success) {
+					auditRateLimitedRequest(key);
+				}
 				return {
 					allowed: result.success,
 					retryAfter: result.success
@@ -734,30 +890,59 @@ export const baseAuthOptions = {
 			enabled: true,
 			deleteTokenExpiresIn: AUTH_EMAIL_EXPIRY_SECONDS.accountDeletion,
 			sendDeleteAccountVerification: async ({ user: targetUser, url }) => {
-				await planAccountDeletion(targetUser.id);
-				await sendAuthEmail({
-					to: targetUser.email,
-					subject: "[Action required] Confirm account deletion",
-					template: DeleteAccountEmail({ url }),
-				});
+				try {
+					await sendAuthEmail({
+						to: targetUser.email,
+						subject: "[Action required] Confirm account deletion",
+						template: DeleteAccountEmail({ url }),
+					});
+				} catch (error) {
+					// Better Auth logs and swallows errors from this callback; the
+					// after hook turns the stored failure into the response.
+					await deleteAccountEmailFailure.set(
+						error instanceof APIError
+							? error
+							: new APIError("INTERNAL_SERVER_ERROR", {
+									message: "We could not send this email. Please try again.",
+								})
+					);
+					throw error;
+				}
 			},
-			beforeDelete: async (userToDelete) => {
-				await deleteSoleMemberOrganizations(userToDelete);
-				audit({
-					action: "auth.account_deleted",
-					actor: { type: "user", id: userToDelete.id },
-					target: { type: "user", id: userToDelete.id },
+			beforeDelete: (userToDelete, request) =>
+				runWithAuthAuditContext(
+					{
+						...getAuthAuditContext(),
+						actor: toAuditActor(userToDelete),
+						operation: "auth.deleteUser",
+						request: request ? toAuditRequest(request) : undefined,
+					},
+					() => deleteSoleMemberOrganizations(userToDelete.id)
+				),
+			afterDelete: (deletedUser, request) => {
+				const requestContext = request ? toAuditRequest(request) : undefined;
+				const logger = createLogger({
+					service: "auth",
+					ip: requestContext?.ip,
+					user_agent: requestContext?.userAgent,
 				});
-				await notifySlack(
+				logger.audit({
+					action: "auth.account_deleted",
+					actor: { type: "user", id: deletedUser.id },
+					target: { type: "user", id: deletedUser.id },
+				});
+				logger.emit();
+				notifySlack(
 					"Account deleted",
 					"A user deleted their account.",
 					"high",
 					{
-						email: userToDelete.email,
-						name: userToDelete.name ?? "—",
-						userId: userToDelete.id,
+						email: deletedUser.email,
+						name: deletedUser.name ?? "—",
+						userId: deletedUser.id,
 					}
 				);
+				return Promise.resolve();
 			},
 		},
 	},
@@ -771,6 +956,7 @@ export const baseAuthOptions = {
 		errorURL: "/auth/error",
 	},
 	advanced: {
+		ipAddress,
 		crossSubDomainCookies: {
 			enabled: isProduction() && (!isSelfHosted() || Boolean(cookieDomain)),
 			domain: cookieDomain,
@@ -1128,6 +1314,7 @@ export const baseAuthOptions = {
 			},
 		}),
 		secretFingerprint,
+		authAudit,
 	],
 } satisfies Parameters<typeof betterAuth>[0];
 

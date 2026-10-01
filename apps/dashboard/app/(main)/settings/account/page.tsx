@@ -294,10 +294,10 @@ function DeleteAccountDialog({
 			if (result.error) {
 				throw new Error(result.error.message);
 			}
-			return result;
+			return result.data;
 		},
-		onSuccess: () => {
-			if (hasPassword) {
+		onSuccess: (data) => {
+			if (data.message === "User deleted") {
 				toast.success("Your account has been deleted");
 				router.push("/login");
 			} else {
@@ -349,8 +349,8 @@ function DeleteAccountDialog({
 						<WarningCircleIcon className="mt-0.5 size-5 shrink-0 text-destructive" />
 						<Text tone="muted" variant="caption">
 							Organizations where you are the only member are deleted with their
-							websites and analytics. Transfer ownership of shared organizations
-							first.
+							websites and analytics. If you are the only owner of an
+							organization with other members, transfer ownership first.
 						</Text>
 					</div>
 					<Field>
@@ -375,11 +375,10 @@ function DeleteAccountDialog({
 								value={password}
 							/>
 						</Field>
-					) : (
-						<Text tone="muted" variant="caption">
-							We'll send a confirmation email to verify this is you.
-						</Text>
-					)}
+					) : null}
+					<Text tone="muted" variant="caption">
+						We'll send a confirmation email to verify this is you.
+					</Text>
 				</Dialog.Body>
 				<Dialog.Footer>
 					<Dialog.Close>
@@ -391,7 +390,7 @@ function DeleteAccountDialog({
 						onClick={() => deleteAccount.mutate()}
 						tone="destructive"
 					>
-						{hasPassword ? "Delete My Account" : "Send Confirmation Email"}
+						Send Confirmation Email
 					</Button>
 				</Dialog.Footer>
 			</Dialog.Content>
