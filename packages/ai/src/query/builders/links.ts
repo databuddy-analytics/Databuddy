@@ -1,8 +1,6 @@
 import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
-import type { SimpleQueryConfig } from "../types";
-
-// Link Shortener Query Builders
+import type { SimpleQueryConfig, TimeBucketConfig } from "../types";
 
 const LINK_VISIT_FILTERS = [
 	"referrer",
@@ -12,6 +10,22 @@ const LINK_VISIT_FILTERS = [
 	"device_type",
 	"browser_name",
 ];
+
+const LINK_VISITS = {
+	table: Analytics.link_visits,
+	timeField: "timestamp",
+	idField: "link_id",
+	commonFilters: false,
+	allowedFilters: LINK_VISIT_FILTERS,
+	customizable: false,
+} satisfies SimpleQueryConfig;
+
+const LINK_DAY_BUCKET = {
+	field: "timestamp",
+	granularity: "day",
+	alias: "date",
+	timezone: true,
+} satisfies TimeBucketConfig;
 
 const OUTBOUND_LINK_CONTEXT_CTES = `
 	WITH session_dimensions AS (
@@ -78,6 +92,7 @@ const OUTBOUND_LINK_CONTEXT_CTES = `
 
 export const LinkShortenerBuilders = {
 	link_total_clicks: {
+		...LINK_VISITS,
 		meta: {
 			title: "Link Total Clicks",
 			description: "Total clicks for a shortened link within the date range.",
@@ -94,19 +109,14 @@ export const LinkShortenerBuilders = {
 			default_visualization: "metric",
 			supports_granularity: [],
 		},
-		table: Analytics.link_visits,
 		// A broker retry can replay an event after an ambiguous Kafka
 		// acknowledgement. Count its immutable id so at-least-once delivery does
 		// not overstate click analytics.
 		fields: ["uniqExact(id) as total"],
-		timeField: "timestamp",
-		idField: "link_id",
-		commonFilters: false,
-		allowedFilters: LINK_VISIT_FILTERS,
-		customizable: false,
 	},
 
 	link_clicks_by_day: {
+		...LINK_VISITS,
 		meta: {
 			title: "Link Clicks by Day",
 			description: "Daily breakdown of clicks for a shortened link.",
@@ -129,24 +139,14 @@ export const LinkShortenerBuilders = {
 			default_visualization: "timeseries",
 			supports_granularity: ["hour", "day"],
 		},
-		table: Analytics.link_visits,
 		fields: ["uniqExact(id) as clicks"],
 		groupBy: ["date"],
 		orderBy: "date ASC",
-		timeField: "timestamp",
-		idField: "link_id",
-		commonFilters: false,
-		allowedFilters: LINK_VISIT_FILTERS,
-		timeBucket: {
-			field: "timestamp",
-			granularity: "day",
-			alias: "date",
-			timezone: true,
-		},
-		customizable: false,
+		timeBucket: LINK_DAY_BUCKET,
 	},
 
 	link_referrers_by_day: {
+		...LINK_VISITS,
 		meta: {
 			title: "Link Unique Referrers by Day",
 			description: "Daily count of unique referrers for a shortened link.",
@@ -169,24 +169,14 @@ export const LinkShortenerBuilders = {
 			default_visualization: "timeseries",
 			supports_granularity: ["hour", "day"],
 		},
-		table: Analytics.link_visits,
 		fields: ["uniq(referrer) as value"],
 		groupBy: ["date"],
 		orderBy: "date ASC",
-		timeField: "timestamp",
-		idField: "link_id",
-		commonFilters: false,
-		allowedFilters: LINK_VISIT_FILTERS,
-		timeBucket: {
-			field: "timestamp",
-			granularity: "day",
-			alias: "date",
-			timezone: true,
-		},
-		customizable: false,
+		timeBucket: LINK_DAY_BUCKET,
 	},
 
 	link_countries_by_day: {
+		...LINK_VISITS,
 		meta: {
 			title: "Link Unique Countries by Day",
 			description: "Daily count of unique countries for a shortened link.",
@@ -209,25 +199,15 @@ export const LinkShortenerBuilders = {
 			default_visualization: "timeseries",
 			supports_granularity: ["hour", "day"],
 		},
-		table: Analytics.link_visits,
 		fields: ["uniq(country) as value"],
 		groupBy: ["date"],
 		orderBy: "date ASC",
-		timeField: "timestamp",
-		idField: "link_id",
-		commonFilters: false,
-		allowedFilters: LINK_VISIT_FILTERS,
-		timeBucket: {
-			field: "timestamp",
-			granularity: "day",
-			alias: "date",
-			timezone: true,
-		},
-		customizable: false,
+		timeBucket: LINK_DAY_BUCKET,
 	},
 
 	// SQL output only; parseReferrers plugin adds source/domain/referrer_type/parsed_referrer at runtime.
 	link_top_referrers: {
+		...LINK_VISITS,
 		meta: {
 			title: "Link Top Referrers",
 			description: "Top referrers for a shortened link.",
@@ -256,7 +236,6 @@ export const LinkShortenerBuilders = {
 			default_visualization: "table",
 			supports_granularity: [],
 		},
-		table: Analytics.link_visits,
 		fields: [
 			"coalesce(nullIf(referrer, ''), 'Direct') as name",
 			"coalesce(nullIf(referrer, ''), 'Direct') as referrer",
@@ -265,16 +244,12 @@ export const LinkShortenerBuilders = {
 		groupBy: ["referrer"],
 		orderBy: "clicks DESC",
 		limit: 10,
-		timeField: "timestamp",
-		idField: "link_id",
-		commonFilters: false,
-		allowedFilters: LINK_VISIT_FILTERS,
-		customizable: false,
 		plugins: { deduplicateReferrers: true, parseReferrers: true },
 	},
 
 	// SQL output only; normalizeGeo plugin adds country_code/country_name at runtime.
 	link_top_countries: {
+		...LINK_VISITS,
 		meta: {
 			title: "Link Top Countries",
 			description: "Top countries for a shortened link.",
@@ -303,7 +278,6 @@ export const LinkShortenerBuilders = {
 			default_visualization: "table",
 			supports_granularity: [],
 		},
-		table: Analytics.link_visits,
 		fields: [
 			"coalesce(nullIf(country, ''), 'Unknown') as name",
 			"coalesce(nullIf(country, ''), 'Unknown') as country",
@@ -312,16 +286,12 @@ export const LinkShortenerBuilders = {
 		groupBy: ["country"],
 		orderBy: "clicks DESC",
 		limit: 10,
-		timeField: "timestamp",
-		idField: "link_id",
-		commonFilters: false,
-		allowedFilters: LINK_VISIT_FILTERS,
-		customizable: false,
 		plugins: { normalizeGeo: true },
 	},
 
 	// SQL output only; normalizeGeo plugin adds country_code/country_name at runtime.
 	link_top_regions: {
+		...LINK_VISITS,
 		meta: {
 			title: "Link Top Regions",
 			description: "Top regions for a shortened link.",
@@ -350,7 +320,6 @@ export const LinkShortenerBuilders = {
 			default_visualization: "table",
 			supports_granularity: [],
 		},
-		table: Analytics.link_visits,
 		fields: [
 			"coalesce(nullIf(region, ''), 'Unknown') as name",
 			"coalesce(nullIf(country, ''), 'Unknown') as country",
@@ -359,16 +328,12 @@ export const LinkShortenerBuilders = {
 		groupBy: ["region", "country"],
 		orderBy: "clicks DESC",
 		limit: 10,
-		timeField: "timestamp",
-		idField: "link_id",
-		commonFilters: false,
-		allowedFilters: LINK_VISIT_FILTERS,
-		customizable: false,
 		plugins: { normalizeGeo: true },
 	},
 
 	// SQL output only; normalizeGeo plugin adds country_code/country_name at runtime.
 	link_top_cities: {
+		...LINK_VISITS,
 		meta: {
 			title: "Link Top Cities",
 			description: "Top cities for a shortened link.",
@@ -397,7 +362,6 @@ export const LinkShortenerBuilders = {
 			default_visualization: "table",
 			supports_granularity: [],
 		},
-		table: Analytics.link_visits,
 		fields: [
 			"coalesce(nullIf(city, ''), 'Unknown') as name",
 			"coalesce(nullIf(country, ''), 'Unknown') as country",
@@ -406,15 +370,11 @@ export const LinkShortenerBuilders = {
 		groupBy: ["city", "country"],
 		orderBy: "clicks DESC",
 		limit: 10,
-		timeField: "timestamp",
-		idField: "link_id",
-		commonFilters: false,
-		allowedFilters: LINK_VISIT_FILTERS,
-		customizable: false,
 		plugins: { normalizeGeo: true },
 	},
 
 	link_top_devices: {
+		...LINK_VISITS,
 		meta: {
 			title: "Link Top Devices",
 			description:
@@ -438,21 +398,16 @@ export const LinkShortenerBuilders = {
 			default_visualization: "pie",
 			supports_granularity: [],
 		},
-		table: Analytics.link_visits,
 		fields: [
 			"coalesce(nullIf(device_type, ''), 'Unknown') as name",
 			"uniqExact(id) as clicks",
 		],
 		groupBy: ["device_type"],
 		orderBy: "clicks DESC",
-		timeField: "timestamp",
-		idField: "link_id",
-		commonFilters: false,
-		allowedFilters: LINK_VISIT_FILTERS,
-		customizable: false,
 	},
 
 	link_top_browsers: {
+		...LINK_VISITS,
 		meta: {
 			title: "Link Top Browsers",
 			description: "Browser breakdown for a shortened link.",
@@ -475,7 +430,6 @@ export const LinkShortenerBuilders = {
 			default_visualization: "table",
 			supports_granularity: [],
 		},
-		table: Analytics.link_visits,
 		fields: [
 			"coalesce(nullIf(browser_name, ''), 'Unknown') as name",
 			"uniqExact(id) as clicks",
@@ -483,15 +437,8 @@ export const LinkShortenerBuilders = {
 		groupBy: ["browser_name"],
 		orderBy: "clicks DESC",
 		limit: 10,
-		timeField: "timestamp",
-		idField: "link_id",
-		commonFilters: false,
-		allowedFilters: LINK_VISIT_FILTERS,
-		customizable: false,
 	},
 } satisfies Record<string, SimpleQueryConfig>;
-
-// Outbound Links Query Builders (Website Analytics)
 
 export const LinksBuilders = {
 	outbound_links: {
