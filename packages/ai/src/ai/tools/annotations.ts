@@ -8,6 +8,7 @@ import {
 	callRPCProcedure,
 	createToolLogger,
 	getAppContext,
+	omitUndefined,
 	resolveToolWebsite,
 } from "./utils";
 
@@ -343,12 +344,4 @@ function buildAnnotationChanges(
 	}
 
 	return changes;
-}
-
-function omitUndefined(
-	input: Record<string, unknown>
-): Record<string, unknown> {
-	return Object.fromEntries(
-		Object.entries(input).filter(([, value]) => value !== undefined)
-	);
 }

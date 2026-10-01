@@ -10,7 +10,12 @@ import {
 	type FlagTargetRule,
 	flagRolloutBySchema,
 } from "./flag-rules";
-import { callRPCProcedure, createToolLogger, getAppContext } from "./utils";
+import {
+	callRPCProcedure,
+	createToolLogger,
+	getAppContext,
+	omitUndefined,
+} from "./utils";
 
 const logger = createToolLogger("Flags Tools");
 const flagStatusSchema = flagFormShape.status;
@@ -291,12 +296,4 @@ function parseFlagRules(value: unknown): FlagTargetRule[] {
 		);
 	}
 	return result.data;
-}
-
-function omitUndefined(
-	input: Record<string, unknown>
-): Record<string, unknown> {
-	return Object.fromEntries(
-		Object.entries(input).filter(([, value]) => value !== undefined)
-	);
 }

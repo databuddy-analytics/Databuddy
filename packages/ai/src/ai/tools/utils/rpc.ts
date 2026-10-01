@@ -46,6 +46,14 @@ export function formatValidationIssues(issues: readonly unknown[]): string {
 		.join("; ");
 }
 
+export function omitUndefined(
+	input: Record<string, unknown>
+): Record<string, unknown> {
+	return Object.fromEntries(
+		Object.entries(input).filter(([, value]) => value !== undefined)
+	);
+}
+
 function messageWithoutQueryParams(error: Error): string {
 	if (!("params" in error)) {
 		return error.message;

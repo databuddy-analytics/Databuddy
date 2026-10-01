@@ -23,7 +23,12 @@ import {
 	summarizeLinkFolder,
 	summarizeLinkFoldersWithUsage,
 } from "./link-catalog";
-import { callRPCProcedure, createToolLogger, getAppContext } from "./utils";
+import {
+	callRPCProcedure,
+	createToolLogger,
+	getAppContext,
+	omitUndefined,
+} from "./utils";
 
 const logger = createToolLogger("Links Tools");
 
@@ -312,9 +317,7 @@ export function createLinksTools() {
 					};
 				}
 
-				const cleanUpdates = Object.fromEntries(
-					Object.entries(updates).filter(([, value]) => value !== undefined)
-				);
+				const cleanUpdates = omitUndefined(updates);
 				if (folderSelection.folderId !== undefined) {
 					cleanUpdates.folderId = folderSelection.folderId;
 				}

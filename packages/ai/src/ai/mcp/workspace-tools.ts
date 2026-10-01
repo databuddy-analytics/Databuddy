@@ -4,7 +4,7 @@ import {
 } from "@databuddy/shared/constants/deep-link-apps";
 import { httpUrlSchema } from "@databuddy/validation";
 import { z } from "zod";
-import { callRPCProcedure } from "../tools/utils";
+import { callRPCProcedure, omitUndefined } from "../tools/utils";
 import type { AppContext } from "../config/context";
 import { goalFunnelFilterSchema, goalTypeSchema } from "../tools/goals";
 import {
@@ -35,7 +35,6 @@ import {
 	LinkSlugSchema,
 	McpDateRangeSchema,
 	MutationResultSchema,
-	omitUndefined,
 	PageSchema,
 	paginate,
 	pickFields,

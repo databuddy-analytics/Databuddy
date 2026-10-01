@@ -123,14 +123,6 @@ export const LinkExpiresAtSchema = isoDateOrOffsetDateTimeSchema.describe(
 	"Expiry as YYYY-MM-DD or an ISO date-time with offset."
 );
 
-export function omitUndefined(
-	input: Record<string, unknown>
-): Record<string, unknown> {
-	return Object.fromEntries(
-		Object.entries(input).filter(([, value]) => value !== undefined)
-	);
-}
-
 type Row = Record<string, unknown>;
 
 function asRow(value: unknown): Row {

@@ -9,6 +9,7 @@ import {
 	callRPCProcedure,
 	createToolLogger,
 	getAppContext,
+	omitUndefined,
 	resolveToolWebsite,
 } from "./utils";
 import { resolveToolDateRange } from "./utils/context";
@@ -209,9 +210,7 @@ export function createGoalTools() {
 		inputSchema: updateGoalInputSchema,
 		execute: async ({ id, confirmed, ...input }, options) => {
 			const context = getAppContext(options);
-			const updates = Object.fromEntries(
-				Object.entries(input).filter(([, value]) => value !== undefined)
-			);
+			const updates = omitUndefined(input);
 			const hasUpdates = Object.keys(updates).length > 0;
 			try {
 				if (!(confirmed && hasUpdates)) {

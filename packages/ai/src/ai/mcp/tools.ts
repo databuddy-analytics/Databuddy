@@ -32,7 +32,7 @@ import {
 } from "../tools/flag-rules";
 import { goalFunnelFilterSchema, goalTypeSchema } from "../tools/goals";
 import { runInvestigationAction } from "../tools/investigations";
-import { callRPCProcedure } from "../tools/utils";
+import { callRPCProcedure, omitUndefined } from "../tools/utils";
 import {
 	countUnfiledLinks,
 	LinkFolderSelectorSchema,
@@ -90,7 +90,6 @@ import {
 	LinkSlugSchema,
 	McpDateRangeSchema,
 	MutationResultSchema,
-	omitUndefined,
 	PageSchema,
 	paginate,
 	pickFields,
