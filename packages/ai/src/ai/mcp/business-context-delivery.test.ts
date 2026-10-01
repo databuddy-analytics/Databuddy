@@ -68,6 +68,8 @@ const accessible = mock(async (auth: AccessibleWebsitesAuth) =>
 mock.module("../../lib/accessible-websites", () => ({
 	getAccessibleWebsites: accessible,
 	getMemberWebsites: accessible,
+	getOrganizationWebsites: async (organizationId: string) =>
+		allowed && organizationId === "org-synthetic" ? sites : [],
 	getReadableOrganizationIds: async () => [],
 }));
 mock.module("../../lib/supermemory", () => ({

@@ -1,6 +1,7 @@
 import {
 	getAccessibleWebsites,
 	getMemberWebsites,
+	getOrganizationWebsites,
 	getReadableOrganizationIds,
 	type WebsiteSummary,
 } from "../../lib/accessible-websites";
@@ -181,7 +182,7 @@ type AccessibleWebsite = Pick<
 	"domain" | "id" | "isPublic" | "name" | "organizationId" | "organizationName"
 >;
 
-type WebsiteListPrincipal = "api_key" | "member" | "user";
+type WebsiteListPrincipal = "member" | "organization" | "user";
 
 function toAccessibleWebsites(list: WebsiteSummary[]): AccessibleWebsite[] {
 	return list.map(
@@ -213,14 +214,7 @@ async function loadWebsiteList(
 			})
 		);
 	}
-	const apiKey = await db.query.apikey.findFirst({
-		where: { id: principalId },
-	});
-	return apiKey
-		? toAccessibleWebsites(
-				await getAccessibleWebsites({ apiKey, organizationId, user: null })
-			)
-		: [];
+	return toAccessibleWebsites(await getOrganizationWebsites(principalId));
 }
 
 const getCachedWebsiteList = cacheable(loadWebsiteList, {
@@ -255,7 +249,16 @@ export async function getCachedAccessibleWebsites(
 	}
 	let list: AccessibleWebsite[] = [];
 	if (apiKey) {
-		list = await getCachedWebsiteList("api_key", apiKey.id, organizationId);
+		const keyOrganizationId = apiKey.organizationId;
+		list =
+			keyOrganizationId &&
+			(!organizationId || organizationId === keyOrganizationId)
+				? (
+						await getCachedWebsiteList("organization", keyOrganizationId, null)
+					).filter((website) =>
+						hasWebsiteScopeForOrganization(apiKey, website, "read:data")
+					)
+				: [];
 	} else if (oauthUserId && !organizationId) {
 		list = await getCachedWebsiteList("member", oauthUserId, null);
 	} else if (userId && organizationId) {

@@ -35,6 +35,19 @@ function selectWebsiteSummaries() {
 		.innerJoin(organization, eq(websites.organizationId, organization.id));
 }
 
+export function getOrganizationWebsites(
+	organizationId: string
+): Promise<WebsiteSummary[]> {
+	return selectWebsiteSummaries()
+		.where(
+			and(
+				eq(websites.organizationId, organizationId),
+				isNull(websites.deletedAt)
+			)
+		)
+		.orderBy((t) => t.createdAt);
+}
+
 export interface AccessibleWebsitesAuth {
 	activeOrganizationId?: string | null;
 	apiKey: ApiKeyRow | null;
@@ -87,14 +100,7 @@ export async function getAccessibleWebsites(
 			return [];
 		}
 
-		return selectWebsiteSummaries()
-			.where(
-				and(
-					eq(websites.organizationId, organizationId),
-					isNull(websites.deletedAt)
-				)
-			)
-			.orderBy((t) => t.createdAt);
+		return getOrganizationWebsites(organizationId);
 	}
 
 	if (authCtx.apiKey) {
@@ -102,14 +108,7 @@ export async function getAccessibleWebsites(
 			if (!authCtx.apiKey.organizationId) {
 				return [];
 			}
-			return selectWebsiteSummaries()
-				.where(
-					and(
-						eq(websites.organizationId, authCtx.apiKey.organizationId),
-						isNull(websites.deletedAt)
-					)
-				)
-				.orderBy((t) => t.createdAt);
+			return getOrganizationWebsites(authCtx.apiKey.organizationId);
 		}
 
 		const ids = getAccessibleWebsiteIds(authCtx.apiKey).filter((id) =>

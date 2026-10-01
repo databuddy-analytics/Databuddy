@@ -53,6 +53,7 @@ mock.module("../../lib/website-utils", () => ({
 mock.module("../../lib/accessible-websites", () => ({
 	getAccessibleWebsites: async () => sites,
 	getMemberWebsites: async () => sites,
+	getOrganizationWebsites: async () => sites,
 	getReadableOrganizationIds: readableOrganizations,
 }));
 mock.module("@databuddy/rpc/organization", () => ({
