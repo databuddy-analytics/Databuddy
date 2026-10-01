@@ -6,6 +6,7 @@ import { createRedisModuleMock } from "../test-redis-mock";
 const permission = mock(async () => ({ success: true }));
 const readableOrganizations = mock(async () => ["org-other"]);
 const memberRole = mock(async () => "viewer" as string | null);
+let cachedWebsiteList: WebsiteSummary[] | null = null;
 const sites: WebsiteSummary[] = [
 	{
 		id: "site",
@@ -55,7 +56,14 @@ mock.module("@databuddy/api-keys/resolve", () => ({
 	hasKeyScope: () => true,
 	hasWebsiteScopeForOrganization: () => true,
 }));
-mock.module("@databuddy/redis", () => createRedisModuleMock({}));
+mock.module("@databuddy/redis", () =>
+	createRedisModuleMock({
+		cacheable:
+			(load: (...args: unknown[]) => Promise<unknown>) =>
+			async (...args: unknown[]) =>
+				cachedWebsiteList ?? load(...args),
+	})
+);
 
 const {
 	ensureWebsiteAccess,
@@ -65,6 +73,7 @@ const {
 } = await import("./tool-context");
 
 beforeEach(() => {
+	cachedWebsiteList = null;
 	memberRole.mockClear();
 });
 
@@ -78,7 +87,8 @@ describe("OAuth selected website grants", () => {
 		userId: "user",
 	};
 
-	it("filters website discovery and selectors to the granted websites", async () => {
+	it("filters website discovery and selectors even when the cache contains more sites", async () => {
+		cachedWebsiteList = sites;
 		expect(
 			(await getCachedAccessibleWebsites(principal)).map((site) => site.id)
 		).toEqual(["site"]);
@@ -90,7 +100,8 @@ describe("OAuth selected website grants", () => {
 		).toBeInstanceOf(Error);
 	});
 
-	it("checks membership and scope before returning discovery results", async () => {
+	it("does not reuse discovery results after membership or scope access is removed", async () => {
+		cachedWebsiteList = sites;
 		readableOrganizations.mockResolvedValueOnce([]);
 		expect(await getCachedAccessibleWebsites(principal)).toEqual([]);
 		expect(
