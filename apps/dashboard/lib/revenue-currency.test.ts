@@ -6,6 +6,12 @@ import {
 } from "./revenue-currency";
 
 describe("revenue currency", () => {
+	test("formats profile money in its recorded currency", () => {
+		expect(formatRevenueCurrency(100, "EUR")).toBe("€100.00");
+		expect(formatRevenueCurrency(100, "USD")).toBe("$100.00");
+		expect(formatRevenueCurrency(100, "jpy")).toBe("¥100");
+	});
+
 	test("formats invalid configuration as a neutral number instead of USD", () => {
 		expect(formatRevenueCurrency(1234.5, "ZZZ")).toBe("1,234.5");
 		expect(() => formatRevenueCurrency(1234.5, "not-a-code")).not.toThrow();
