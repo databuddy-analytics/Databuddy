@@ -43,7 +43,7 @@ import { AiProductIcon, aiProductColor } from "@/components/icon";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
-import { formatNumber } from "@/lib/formatters";
+import { formatCount, formatNumber } from "@/lib/formatters";
 import { formatRevenueCurrency } from "@/lib/revenue-currency";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
@@ -111,7 +111,6 @@ interface ProductRow {
 	visitors: number;
 }
 
-const NEVER_SEEN = "1970";
 const ALL_VISITORS = "All visitors";
 const ALL_AI_VISITORS = "All AI visitors";
 
@@ -532,7 +531,7 @@ function mainPurpose(row: ProductRow): string | null {
 function emptyProduct(product: string): ProductRow {
 	return {
 		has_proxy: 0,
-		last_seen: NEVER_SEEN,
+		last_seen: "",
 		on_demand: 0,
 		pages: 0,
 		product,
@@ -570,7 +569,7 @@ function ProductCard({
 						content={
 							<Tip
 								lines={[
-									`${row.product} made ${formatNumber(row.requests)} requests to your pages and sent ${formatNumber(row.visitors)} ${row.visitors === 1 ? "visitor" : "visitors"}`,
+									`${row.product} made ${formatCount(row.requests, "request")} to your pages and sent ${formatCount(row.visitors, "visitor")}`,
 								]}
 								title="Reads per visitor"
 							/>
@@ -602,7 +601,7 @@ function ProductCard({
 				</div>
 				<p className="truncate text-muted-foreground text-xs">
 					{row.requests > 0
-						? `Read ${formatNumber(row.pages)} pages${purpose ? ` for ${purpose}` : ""}, ${fromNow(row.last_seen)}`
+						? `Read ${formatCount(row.pages, "page")}${purpose ? ` for ${purpose}` : ""}, ${fromNow(row.last_seen)}`
 						: isActive
 							? "Hasn't read your pages"
 							: isLoading
@@ -759,7 +758,7 @@ function ShareBars({ rows }: { rows: ShareRow[] }) {
 						content={
 							<Tip
 								lines={[
-									`${formatNumber(row.visitors)} ${row.visitors === 1 ? "visitor" : "visitors"}`,
+									formatCount(row.visitors, "visitor"),
 									`${formatShare(row.share)} of AI visitors`,
 								]}
 								title={row.product}
@@ -1242,7 +1241,7 @@ function AgentReadsPanel({
 							<AskAgentButton subject={askSubject} />
 						</div>
 					}
-					detail={`from ${rankedAgents.length} ${rankedAgents.length === 1 ? "agent" : "agents"}${restricted > 0 ? ` · ${restricted} limited by robots.txt` : ""}`}
+					detail={`from ${formatCount(rankedAgents.length, "agent")}${restricted > 0 ? ` · ${restricted} limited by robots.txt` : ""}`}
 					isLoading={isLoading}
 					title="Who reads your content"
 					unit={`${label} requests`}
@@ -1276,7 +1275,7 @@ function AgentReadsPanel({
 											<Tip
 												lines={[
 													purposeDescription(agent),
-													`${formatNumber(agent.requests)} requests · ${formatNumber(agent.pages)} pages · last read ${fromNow(agent.last_seen)}`,
+													`${formatCount(agent.requests, "request")} · ${formatCount(agent.pages, "page")} · last read ${fromNow(agent.last_seen)}`,
 													status ? `robots.txt: ${status.label}` : "",
 													isSelected
 														? "Click to show every agent"
@@ -1462,7 +1461,7 @@ function OutcomeLine({
 			content={
 				<Tip
 					lines={[
-						`${formatNumber(row.visitors)} ${row.visitors === 1 ? "visitor" : "visitors"}`,
+						formatCount(row.visitors, "visitor"),
 						comparison(
 							`${row.pages_per_visit.toFixed(1)} pages per visit`,
 							baseline?.pages_per_visit.toFixed(1)
@@ -1621,9 +1620,9 @@ function AiVisitorsPanel({
 											lines={[
 												...senders.map(
 													(sender) =>
-														`${sender.product} · ${formatNumber(sender.visitors)} ${sender.visitors === 1 ? "visitor" : "visitors"} · ${sender.reads > 0 ? `read ${formatNumber(sender.reads)} ${sender.reads === 1 ? "time" : "times"}` : "no reads recorded"}`
+														`${sender.product} · ${formatCount(sender.visitors, "visitor")} · ${sender.reads > 0 ? `read ${formatCount(sender.reads, "time")}` : "no reads recorded"}`
 												),
-												`${formatNumber(row.pageviews)} pageviews from everyone`,
+												`${formatCount(row.pageviews, "pageview")} from everyone`,
 											]}
 											title={row.page}
 										/>
@@ -1858,7 +1857,7 @@ export default function AgentsPage() {
 					<NoticeBanner
 						description="Add one line to your site to also see which pages AI reads, and whether it gets markdown or HTML."
 						icon={<BrainIcon />}
-						title={`${topSender.product} sent you ${formatNumber(topSender.visitors)} ${topSender.visitors === 1 ? "visitor" : "visitors"}`}
+						title={`${topSender.product} sent you ${formatCount(topSender.visitors, "visitor")}`}
 					>
 						<AgentSetupSheet websiteId={websiteId} />
 					</NoticeBanner>

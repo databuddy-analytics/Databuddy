@@ -8,6 +8,9 @@ export const formatNumber = (value: number | null | undefined): string => {
 	}).format(value);
 };
 
+export const formatCount = (value: number, noun: string): string =>
+	`${formatNumber(value)} ${value === 1 ? noun : `${noun}s`}`;
+
 // Format currency values
 export const formatCurrency = (
 	amount: number | undefined | null,
