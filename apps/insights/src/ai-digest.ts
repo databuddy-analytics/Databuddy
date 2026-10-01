@@ -1,5 +1,6 @@
 import { aiActiveWebsitesQuery, executeQuery } from "@databuddy/ai/query";
 import {
+	aiDigestUnsubscribeToken,
 	and,
 	db,
 	eq,
@@ -84,6 +85,29 @@ function periodLabel({ from, to }: { from: string; to: string }): string {
 		});
 	const toMonth = from.slice(0, 7) === to.slice(0, 7) ? undefined : "short";
 	return `${label(from, "short")} to ${label(to, toMonth)}`;
+}
+
+function unsubscribeHeaders(
+	organizationId: string,
+	settingsUrl: string
+): Record<string, string> {
+	const secret = process.env.DATABUDDY_ENCRYPTION_KEY;
+	if (!secret) {
+		return { "List-Unsubscribe": `<${settingsUrl}>` };
+	}
+	const url = new URL(
+		"/public/v1/email-unsubscribe/ai-digest",
+		config.urls.api
+	);
+	url.searchParams.set("organization", organizationId);
+	url.searchParams.set(
+		"token",
+		aiDigestUnsubscribeToken(organizationId, secret)
+	);
+	return {
+		"List-Unsubscribe": `<${url}>`,
+		"List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+	};
 }
 
 function appUrl(path: string): string {
@@ -222,6 +246,7 @@ export async function sendAiDigest({
 		.select({
 			domain: websites.domain,
 			emailNotifications: organization.emailNotifications,
+			organizationId: websites.organizationId,
 			ownerEmail: user.email,
 		})
 		.from(websites)
@@ -261,7 +286,7 @@ export async function sendAiDigest({
 		},
 		body: JSON.stringify({
 			from: config.email.from,
-			headers: { "List-Unsubscribe": `<${digest.settingsUrl}>` },
+			headers: unsubscribeHeaders(site.organizationId, digest.settingsUrl),
 			html,
 			subject: digestSubject(digest),
 			text,
