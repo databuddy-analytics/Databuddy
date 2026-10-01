@@ -4,6 +4,7 @@ import {
 	eq,
 	inArray,
 	isNull,
+	isUniqueViolationFor,
 	ne,
 	notDeleted,
 	withTransaction,
@@ -816,6 +817,16 @@ export const flagsRouter = {
 				});
 
 				return createdFlag;
+			}).catch((error: unknown) => {
+				if (
+					isUniqueViolationFor(error, "flags_key_org_unique") ||
+					isUniqueViolationFor(error, "flags_key_website_unique")
+				) {
+					throw rpcError.conflict(
+						"A flag with this key already exists in this scope"
+					);
+				}
+				throw error;
 			});
 
 			await invalidateFlagCache(newFlag.id, input.websiteId, orgId, input.key);

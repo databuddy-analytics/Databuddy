@@ -165,4 +165,27 @@ describe("flag restoration target-group scope", () => {
 				.where(eq(flagChangeEvents.flagId, fixture.flag.id))
 		).toEqual([{ changeType: "restored" }]);
 	});
+
+	iit("rejects an org flag reusing a legacy website flag key", async () => {
+		const fixture = await setupRestore();
+		const create = call(
+			appRouter.flags.create,
+			apiKeyContext(fixture.org.id, ["read:data", "manage:flags"])
+		);
+
+		await expect(
+			create({
+				organizationId: fixture.org.id,
+				key: fixture.flag.key,
+				name: "Organization flag",
+				type: "boolean",
+				status: "inactive",
+				defaultValue: false,
+				rolloutPercentage: 0,
+			})
+		).rejects.toMatchObject({
+			code: "CONFLICT",
+			message: "A flag with this key already exists in this scope",
+		});
+	});
 });
