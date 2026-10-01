@@ -864,6 +864,13 @@ describeIntegration("insights idempotency integration", () => {
 		const quietRunId = randomUUIDv7();
 		const itemId = randomUUIDv7();
 		const queueJobId = randomUUIDv7();
+		const identity = {
+			itemId,
+			organizationId: org.id,
+			queueJobId,
+			runId: quietRunId,
+			websiteId: website.id,
+		};
 		await db()
 			.insert(insightRuns)
 			.values([
@@ -890,12 +897,17 @@ describeIntegration("insights idempotency integration", () => {
 			runId: openedRunId,
 			timezone: "UTC",
 		});
+		const quiet = websiteInvestigation({
+			next: "watch",
+			title: "Checkout is stable enough to watch",
+			website,
+		});
+		await freezeInsightRunCandidatePlan(identity, "manual", {
+			asOf: "2026-07-11T10:00:00.000Z",
+			candidates: [{ signal: quiet.signal, evidence: [] }],
+		});
 		await persistInvestigation({
-			investigation: websiteInvestigation({
-				next: "watch",
-				title: "Checkout is stable enough to watch",
-				website,
-			}),
+			investigation: quiet,
 			notNewerThan: new Date("2026-07-11T10:00:00.000Z"),
 			organizationId: org.id,
 			recheckAt: new Date("2026-07-18T10:00:00.000Z"),
@@ -904,15 +916,11 @@ describeIntegration("insights idempotency integration", () => {
 		});
 
 		const result = await generateWebsiteInsights({
+			...identity,
 			finalAttempt: false,
-			itemId,
-			organizationId: org.id,
-			queueJobId,
 			reason: "manual",
 			requestedByUserId: null,
-			runId: quietRunId,
 			timezone: "UTC",
-			websiteId: website.id,
 		});
 		const [item] = await db()
 			.select({
