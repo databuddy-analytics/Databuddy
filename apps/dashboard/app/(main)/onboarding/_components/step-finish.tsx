@@ -3,10 +3,9 @@
 import type { OnboardingIntent } from "@databuddy/shared/custom-events";
 import { Button, Field, Textarea } from "@databuddy/ui";
 import { useState } from "react";
-import { Shimmer } from "@/components/ai-elements/shimmer";
 import { cn } from "@/lib/utils";
 import { BusinessContextMarkdown } from "../../organizations/components/business-context-content";
-import { OnboardingStepHeader, ResearchStatus } from "./onboarding-shell";
+import { OnboardingStepHeader, ResearchPanel } from "./onboarding-shell";
 import type { OnboardingResearch } from "./use-onboarding-research";
 
 export const INTENT_OPTIONS: {
@@ -63,9 +62,7 @@ interface StepFinishProps {
 
 function Brief({ research }: { research: OnboardingResearch }) {
 	const [expanded, setExpanded] = useState(false);
-	const streaming =
-		research.phase === "reading" || research.phase === "writing";
-	if (!research.content) {
+	if (research.phase !== "ready" || !research.content) {
 		return null;
 	}
 	return (
@@ -73,26 +70,19 @@ function Brief({ research }: { research: OnboardingResearch }) {
 			<div
 				className={cn(
 					"rounded bg-muted/50 px-4 py-3",
-					!(expanded || streaming) && "max-h-48 overflow-hidden"
+					!expanded && "max-h-48 overflow-hidden"
 				)}
 			>
-				<BusinessContextMarkdown
-					content={research.content}
-					streaming={streaming}
-				/>
+				<BusinessContextMarkdown content={research.content} />
 			</div>
-			{streaming ? (
-				<Shimmer className="text-xs">Still writing</Shimmer>
-			) : (
-				<Button
-					className="h-auto px-0 text-xs underline underline-offset-2"
-					onClick={() => setExpanded((value) => !value)}
-					size="sm"
-					variant="ghost"
-				>
-					{expanded ? "Show less" : "Read the full brief"}
-				</Button>
-			)}
+			<Button
+				className="h-auto px-0 text-xs underline underline-offset-2"
+				onClick={() => setExpanded((value) => !value)}
+				size="sm"
+				variant="ghost"
+			>
+				{expanded ? "Show less" : "Read the full brief"}
+			</Button>
 		</div>
 	);
 }
@@ -130,11 +120,15 @@ export function StepFinish({
 
 			<div className="space-y-6">
 				{ready ? null : (
-					<ResearchStatus
+					<ResearchPanel
 						domain={research.domain}
 						pagesRead={research.pagesRead}
 						phase={research.phase}
-					/>
+					>
+						{research.phase === "writing" && research.content ? (
+							<BusinessContextMarkdown content={research.content} streaming />
+						) : null}
+					</ResearchPanel>
 				)}
 				{research.phase === "idle" && research.canStart ? (
 					<Button onClick={onStartResearch} size="sm" variant="secondary">
