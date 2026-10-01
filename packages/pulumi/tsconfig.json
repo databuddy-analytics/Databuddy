@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig/default.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "strict": true
+  },
+  "include": ["src/**/*.ts", "build.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}

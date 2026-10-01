@@ -319,18 +319,24 @@ export const statusPageRouter = {
 				"Creates a status page. Requires write:status_pages scope."
 			)
 		)
-		.input(statusPageFields.extend({ organizationId: z.string() }))
+		.input(statusPageFields.extend({ organizationId: z.string().optional() }))
 		.handler(async ({ context, input }) => {
 			setTrackProperties({ theme: input.theme ?? "default" });
+			const organizationId =
+				input.organizationId?.trim() || context.organizationId;
+			if (!organizationId) {
+				throw rpcError.badRequest("Organization ID is required");
+			}
+
 			await withWorkspace(context, {
-				organizationId: input.organizationId,
+				organizationId,
 				resource: "status_page",
 				permissions: ["create"],
 			});
 
 			const [page] = await db
 				.insert(statusPages)
-				.values({ id: randomUUIDv7(), ...input })
+				.values({ id: randomUUIDv7(), ...input, organizationId })
 				.returning()
 				.catch((error) => {
 					throw isSlugConflict(error)
