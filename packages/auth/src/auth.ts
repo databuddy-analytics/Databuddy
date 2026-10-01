@@ -22,6 +22,7 @@ import {
 import { config } from "@databuddy/env/app";
 import { readBooleanEnv } from "@databuddy/env/app";
 import { SlackProvider } from "@databuddy/notifications";
+import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import {
 	getRedisCache,
 	invalidateOrganizationMembershipCaches,
@@ -532,9 +533,7 @@ const recordAuthOutcome = createAuthMiddleware((ctx) => {
 	}
 	const logger = createLogger({
 		service: "auth",
-		ip:
-			newSession?.session.ipAddress ||
-			ctx.request.headers.get("x-forwarded-for")?.split(",")[0]?.trim(),
+		ip: newSession?.session.ipAddress || getClientIp(ctx.request.headers),
 		user_agent: ctx.request.headers.get("user-agent") ?? undefined,
 		...(ctx.params && { route_params: ctx.params }),
 	});
