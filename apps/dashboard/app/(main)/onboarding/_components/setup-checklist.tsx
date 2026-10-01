@@ -79,7 +79,7 @@ export function SetupChecklist(props: SetupChecklistProps) {
 						: "active"
 		: "pending";
 	const readStatus: SetupRowStatus = website
-		? research.phase === "reading" || research.phase === "writing"
+		? readingNow
 			? "waiting"
 			: research.phase === "ready"
 				? "done"
@@ -109,7 +109,6 @@ export function SetupChecklist(props: SetupChecklistProps) {
 		setLastFocus(focus);
 		setOpen(focus);
 	}
-	const isExpanded = (id: RowId) => open === id;
 	const toggle = (id: RowId) => () =>
 		setOpen((current) => (current === id ? null : id));
 
@@ -132,7 +131,7 @@ export function SetupChecklist(props: SetupChecklistProps) {
 
 					<SetupRow
 						detail={website?.domain}
-						expanded={isExpanded("website")}
+						expanded={open === "website"}
 						onToggle={website ? undefined : toggle("website")}
 						status={websiteStatus}
 						title="Add your website"
@@ -147,7 +146,7 @@ export function SetupChecklist(props: SetupChecklistProps) {
 
 					<SetupRow
 						detail={readSiteDetail(research)}
-						expanded={isExpanded("read")}
+						expanded={open === "read"}
 						onToggle={
 							website && research.phase !== "unavailable"
 								? toggle("read")
@@ -180,7 +179,7 @@ export function SetupChecklist(props: SetupChecklistProps) {
 												? "Ready once the brief is"
 												: undefined
 						}
-						expanded={isExpanded("connect")}
+						expanded={open === "connect"}
 						onToggle={website ? toggle("connect") : undefined}
 						status={connectStatus}
 						title="Connect your app"
@@ -201,7 +200,7 @@ export function SetupChecklist(props: SetupChecklistProps) {
 
 					<SetupRow
 						detail={props.prioritySaved ? "Saved" : undefined}
-						expanded={isExpanded("matters")}
+						expanded={open === "matters"}
 						onToggle={website ? toggle("matters") : undefined}
 						status={mattersStatus}
 						title="What matters to you"

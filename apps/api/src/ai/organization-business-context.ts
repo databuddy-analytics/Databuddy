@@ -27,8 +27,6 @@ import {
 	businessContextSourceUrlsSchema,
 	businessContextSourceBelongsToSite,
 	type BusinessContextResearch,
-	type BusinessSuggestedFunnel,
-	type BusinessSuggestedGoal,
 	businessSuggestedFunnelSchema,
 	businessSuggestedGoalSchema,
 	detectAnalyticsTools,
@@ -71,18 +69,10 @@ function rankPaths(paths: string[]): string[] {
 		.slice(0, CANDIDATE_LIMIT);
 }
 
-function usableTarget(type: "EVENT" | "PAGE_VIEW", target: string) {
-	return type === "EVENT"
-		? EVENT_NAME.test(target)
-		: target.startsWith("/") && !target.includes("://");
-}
-
-function usableGoal(goal: BusinessSuggestedGoal) {
-	return usableTarget(goal.type, goal.target);
-}
-
-function usableFunnel(funnel: BusinessSuggestedFunnel) {
-	return funnel.steps.every((step) => usableTarget(step.type, step.target));
+function isUsableTarget(step: { target: string; type: "EVENT" | "PAGE_VIEW" }) {
+	return step.type === "EVENT"
+		? EVENT_NAME.test(step.target)
+		: step.target.startsWith("/") && !step.target.includes("://");
 }
 const generationSchema = z.strictObject({
 	organizationId: z.string().min(1),
@@ -774,8 +764,10 @@ export async function* generateOrganizationBusinessContext(
 					fetchedAt: page.fetchedAt,
 				})),
 			detectedTools,
-			suggestedGoals: output.suggestedGoals.filter(usableGoal),
-			suggestedFunnels: output.suggestedFunnels.filter(usableFunnel),
+			suggestedGoals: output.suggestedGoals.filter(isUsableTarget),
+			suggestedFunnels: output.suggestedFunnels.filter((funnel) =>
+				funnel.steps.every(isUsableTarget)
+			),
 		});
 		requestSignal?.throwIfAborted();
 		const ready = await bounded(
