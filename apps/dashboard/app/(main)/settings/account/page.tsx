@@ -1,6 +1,9 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
+import { decodeMcpGrantReference } from "@databuddy/shared/mcp-access";
+import { SCOPE_OPTIONS } from "@/components/organizations/api-key-types";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import {
 	GlobeIcon,
 	KeyIcon,
@@ -47,6 +50,8 @@ interface ConnectedApp {
 	createdAt: string;
 	id: string;
 	name: string;
+	referenceId: string | null;
+	scopes: string[];
 }
 
 type SocialProvider = "google" | "github";
@@ -395,6 +400,7 @@ function DeleteAccountDialog({
 }
 
 export default function AccountSettingsPage() {
+	const { organizations } = useOrganizationsContext();
 	const queryClient = useQueryClient();
 	const { data: session, isPending: isSessionLoading } =
 		authClient.useSession();
@@ -821,7 +827,8 @@ export default function AccountSettingsPage() {
 							<Card.Title>Connected apps</Card.Title>
 							<Card.Description>
 								Apps you allowed to use Databuddy with your account, like
-								Claude. Disconnecting one revokes its access.
+								Claude. Disconnecting an app revokes all its connections.
+								Reconnect to change its approved access.
 							</Card.Description>
 						</Card.Header>
 						<Card.Content>
@@ -855,6 +862,20 @@ export default function AccountSettingsPage() {
 								<div className="space-y-3">
 									{connectedApps.map((app, index) => {
 										const host = urlHost(app.clientId);
+										const grant = app.referenceId
+											? decodeMcpGrantReference(app.referenceId)
+											: null;
+										const organization = organizations.find(
+											({ id }) => id === grant?.organizationId
+										);
+										const accessSummary = grant
+											? `${organization?.name ?? "Organization unavailable"} · ${grant.websiteIds === null ? "All websites" : `${grant.websiteIds.length} selected website${grant.websiteIds.length === 1 ? "" : "s"}`}`
+											: "Reconnect to choose access";
+										const permissions = SCOPE_OPTIONS.filter(({ value }) =>
+											app.scopes.includes(value)
+										)
+											.map(({ label }) => label)
+											.join(", ");
 										const connectedOn = `Connected ${dayjs(app.createdAt).format("MMM D, YYYY")}`;
 										return (
 											<div key={app.id}>
@@ -865,6 +886,14 @@ export default function AccountSettingsPage() {
 														<div className="min-w-0">
 															<Text variant="label">{app.name}</Text>
 															<Text tone="muted" variant="caption">
+																{accessSummary}
+															</Text>
+															{permissions && (
+																<Text tone="muted" variant="caption">
+																	{permissions}
+																</Text>
+															)}
+															<Text tone="muted" variant="caption">
 																{host
 																	? `${host} · ${connectedOn}`
 																	: connectedOn}
@@ -872,7 +901,7 @@ export default function AccountSettingsPage() {
 														</div>
 													</div>
 													<Button
-														aria-label={`Disconnect ${app.name}`}
+														aria-label={`Disconnect app ${app.name}`}
 														disabled={disconnectApp.isPending}
 														loading={
 															disconnectApp.isPending &&
@@ -883,7 +912,7 @@ export default function AccountSettingsPage() {
 														variant="ghost"
 													>
 														<LinkBreakIcon className="size-3.5" />
-														Disconnect
+														Disconnect app
 													</Button>
 												</div>
 											</div>

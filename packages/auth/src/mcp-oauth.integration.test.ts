@@ -1,6 +1,7 @@
 import "@databuddy/db/test-env";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { MCP_GRANT_CLAIM } from "@databuddy/shared/mcp-access";
 
 const integration =
 	process.env.MCP_OAUTH_INTEGRATION_TESTS === "true" ? describe : describe.skip;
@@ -18,11 +19,16 @@ integration("MCP OAuth authorization round trip", () => {
 	let dbModule: typeof import("@databuddy/db");
 	let schema: typeof import("@databuddy/db/schema");
 	let config: typeof import("@databuddy/env/app").config;
+	let getMcpAccessGrant: typeof import("./mcp-grant").getMcpAccessGrant;
 	const baseURL = "http://localhost:3001";
 	const redirectUri = "https://claude.ai/api/mcp/auth_callback";
 	const password = "SyntheticTestPassword123!";
 	const email = `mcp-oauth-${randomUUID()}@example.com`;
 	const createdUserIds: string[] = [];
+	const organizationId = `mcp-oauth-org-${randomUUID()}`;
+	const otherOrganizationId = `mcp-oauth-other-org-${randomUUID()}`;
+	const websiteId = `mcp-oauth-site-${randomUUID()}`;
+	const otherWebsiteId = `mcp-oauth-other-site-${randomUUID()}`;
 	let cookie: string;
 
 	beforeAll(async () => {
@@ -31,6 +37,7 @@ integration("MCP OAuth authorization round trip", () => {
 		schema = await import("@databuddy/db/schema");
 		config = (await import("@databuddy/env/app")).config;
 		auth = (await import("./oauth")).oauthAuth;
+		({ getMcpAccessGrant } = await import("./mcp-grant"));
 
 		const signUp = await auth.handler(
 			new Request(`${baseURL}/api/auth/sign-up/email`, {
@@ -56,14 +63,49 @@ integration("MCP OAuth authorization round trip", () => {
 			where: { email },
 			columns: { id: true },
 		});
-		if (created) {
-			createdUserIds.push(created.id);
+		if (!created) {
+			throw new Error("Synthetic user was not created");
 		}
+		createdUserIds.push(created.id);
+		const now = new Date();
+		await dbModule.db.insert(schema.organization).values([
+			{ id: organizationId, name: "MCP organization", createdAt: now },
+			{
+				id: otherOrganizationId,
+				name: "Other MCP organization",
+				createdAt: now,
+			},
+		]);
+		await dbModule.db.insert(schema.member).values(
+			[organizationId, otherOrganizationId].map((id) => ({
+				id: randomUUID(),
+				organizationId: id,
+				userId: created.id,
+				role: "owner",
+				createdAt: now,
+			}))
+		);
+		await dbModule.db.insert(schema.websites).values([
+			{ id: websiteId, domain: "mcp.example.com", organizationId },
+			{
+				id: otherWebsiteId,
+				domain: "other-mcp.example.com",
+				organizationId: otherOrganizationId,
+			},
+		]);
 	});
 
 	afterAll(async () => {
 		if (createdUserIds.length > 0) {
 			const { db, inArray } = dbModule;
+			await db
+				.delete(schema.websites)
+				.where(inArray(schema.websites.id, [websiteId, otherWebsiteId]));
+			await db
+				.delete(schema.organization)
+				.where(
+					inArray(schema.organization.id, [organizationId, otherOrganizationId])
+				);
 			await db
 				.delete(schema.session)
 				.where(inArray(schema.session.userId, createdUserIds));
@@ -77,7 +119,7 @@ integration("MCP OAuth authorization round trip", () => {
 		await dbModule.shutdownPostgres();
 	});
 
-	test("issues an audience-bound access token through consent and PKCE", async () => {
+	test("narrows token scopes and binds consent to the chosen organization and website", async () => {
 		const registration = await auth.handler(
 			new Request(`${baseURL}/api/auth/oauth2/create-client`, {
 				method: "POST",
@@ -110,6 +152,7 @@ integration("MCP OAuth authorization round trip", () => {
 			code_challenge: codeChallenge,
 			code_challenge_method: "S256",
 			state: "round-trip-state",
+			scope: "read:data read:links manage:websites offline_access",
 			resource: config.urls.mcp,
 		});
 
@@ -134,7 +177,13 @@ integration("MCP OAuth authorization round trip", () => {
 					origin: baseURL,
 					cookie,
 				},
-				body: JSON.stringify({ accept: true, oauth_query: oauthQuery }),
+				body: JSON.stringify({
+					accept: true,
+					oauth_query: oauthQuery,
+					organizationId,
+					websiteIds: [websiteId],
+					scope: "read:data offline_access",
+				}),
 			})
 		);
 		expect(consent.status).toBe(200);
@@ -173,14 +222,264 @@ integration("MCP OAuth authorization round trip", () => {
 		const [, payload] = issued.access_token.split(".");
 		const claims = JSON.parse(
 			Buffer.from(payload, "base64url").toString("utf8")
-		) as { aud: string | string[]; azp: string; iss: string; sub: string };
+		) as {
+			aud: string | string[];
+			azp: string;
+			iss: string;
+			sub: string;
+			scope: string;
+			[MCP_GRANT_CLAIM]: string;
+		};
 		const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
 		expect(audiences).toContain(config.urls.mcp);
 		expect(claims.sub).toBe(createdUserIds[0]);
 		expect(claims.azp).toBe(client.client_id);
+		expect(claims.scope.split(" ").sort()).toEqual([
+			"offline_access",
+			"read:data",
+		]);
+		const hash = claims[MCP_GRANT_CLAIM];
+		expect(hash).toMatch(/^[a-f0-9]{64}$/);
+		expect(
+			await getMcpAccessGrant(
+				claims.sub,
+				client.client_id,
+				hash,
+				claims.scope.split(" ")
+			)
+		).toEqual({
+			grant: { organizationId, websiteIds: [websiteId] },
+			scopes: ["read:data"],
+		});
+		for (const [userId, clientId, grantHash] of [
+			[randomUUID(), client.client_id, hash],
+			[claims.sub, randomUUID(), hash],
+			[claims.sub, client.client_id, "unrelated-grant"],
+		]) {
+			expect(
+				await getMcpAccessGrant(userId, clientId, grantHash, ["read:data"])
+			).toBeNull();
+		}
 	});
 
-	test("issues a token to a public client with PKCE and no secret", async () => {
+	test("preserves grants through refresh, disconnects the app, and isolates reconnects", async () => {
+		const clients: string[] = [];
+		for (const name of ["Scoped Public Client", "Unrelated Public Client"]) {
+			const registration = await auth.handler(
+				new Request(`${baseURL}/api/auth/oauth2/create-client`, {
+					method: "POST",
+					headers: {
+						"content-type": "application/json",
+						origin: baseURL,
+						cookie,
+					},
+					body: JSON.stringify({
+						client_name: name,
+						redirect_uris: [redirectUri],
+						token_endpoint_auth_method: "none",
+					}),
+				})
+			);
+			expect(registration.status).toBeLessThan(300);
+			const client = (await registration.json()) as {
+				client_id: string;
+				client_secret?: string;
+			};
+			expect(client.client_secret).toBeFalsy();
+			clients.push(client.client_id);
+		}
+
+		const grants = [
+			{ organizationId, websiteIds: [websiteId] },
+			{ organizationId: otherOrganizationId, websiteIds: [otherWebsiteId] },
+			{ organizationId, websiteIds: null },
+			{ organizationId, websiteIds: [websiteId] },
+		];
+		const issued: { clientId: string; hash: string; refreshToken: string }[] =
+			[];
+		for (const [index, grant] of grants.entries()) {
+			const clientId = clients[index === 2 ? 1 : 0];
+			const codeVerifier = base64Url(randomBytes(32));
+			const authorizeQuery = new URLSearchParams({
+				client_id: clientId,
+				response_type: "code",
+				redirect_uri: redirectUri,
+				code_challenge: base64Url(
+					createHash("sha256").update(codeVerifier).digest()
+				),
+				code_challenge_method: "S256",
+				state: `public-client-${index}`,
+				scope: "read:data offline_access",
+				resource: config.urls.mcp,
+			});
+			const authorize = await auth.handler(
+				new Request(`${baseURL}/api/auth/oauth2/authorize?${authorizeQuery}`, {
+					headers: { cookie, origin: baseURL },
+				})
+			);
+			expect(authorize.headers.get("location")).toContain("/consent");
+			const consent = await auth.handler(
+				new Request(`${baseURL}/api/auth/oauth2/consent`, {
+					method: "POST",
+					headers: {
+						"content-type": "application/json",
+						origin: baseURL,
+						cookie,
+					},
+					body: JSON.stringify({
+						accept: true,
+						oauth_query: (authorize.headers.get("location") ?? "").split(
+							"?"
+						)[1],
+						...grant,
+					}),
+				})
+			);
+			expect(consent.status).toBe(200);
+			const { url: callback } = (await consent.json()) as { url: string };
+			const code = new URL(callback).searchParams.get("code");
+			expect(code).toBeTruthy();
+			const token = await auth.handler(
+				new Request(`${baseURL}/api/auth/oauth2/token`, {
+					method: "POST",
+					headers: {
+						"content-type": "application/x-www-form-urlencoded",
+						origin: baseURL,
+					},
+					body: new URLSearchParams({
+						grant_type: "authorization_code",
+						code: code as string,
+						redirect_uri: redirectUri,
+						client_id: clientId,
+						code_verifier: codeVerifier,
+					}).toString(),
+				})
+			);
+			expect(token.status).toBe(200);
+			const initial = (await token.json()) as {
+				access_token: string;
+				refresh_token: string;
+			};
+			const refreshed = await auth.handler(
+				new Request(`${baseURL}/api/auth/oauth2/token`, {
+					method: "POST",
+					headers: {
+						"content-type": "application/x-www-form-urlencoded",
+						origin: baseURL,
+					},
+					body: new URLSearchParams({
+						grant_type: "refresh_token",
+						refresh_token: initial.refresh_token,
+						client_id: clientId,
+						resource: config.urls.mcp,
+					}).toString(),
+				})
+			);
+			expect(refreshed.status).toBe(200);
+			const renewed = (await refreshed.json()) as {
+				access_token: string;
+				refresh_token: string;
+			};
+			let hash = "";
+			for (const accessToken of [initial.access_token, renewed.access_token]) {
+				const [, payload] = accessToken.split(".");
+				const claims = JSON.parse(
+					Buffer.from(payload, "base64url").toString("utf8")
+				) as {
+					aud: string | string[];
+					azp: string;
+					scope: string;
+					[MCP_GRANT_CLAIM]: string;
+				};
+				expect(Array.isArray(claims.aud) ? claims.aud : [claims.aud]).toContain(
+					config.urls.mcp
+				);
+				expect(claims.azp).toBe(clientId);
+				if (hash) {
+					expect(claims[MCP_GRANT_CLAIM]).toBe(hash);
+				}
+				hash = claims[MCP_GRANT_CLAIM];
+				expect(
+					await getMcpAccessGrant(
+						createdUserIds[0],
+						clientId,
+						hash,
+						claims.scope.split(" ")
+					)
+				).toEqual({ grant, scopes: ["read:data"] });
+			}
+			issued.push({ clientId, hash, refreshToken: renewed.refresh_token });
+			if (index === 2) {
+				const consents = await dbModule.db
+					.select()
+					.from(schema.oauthConsent)
+					.where(
+						dbModule.and(
+							dbModule.eq(schema.oauthConsent.userId, createdUserIds[0]),
+							dbModule.eq(schema.oauthConsent.clientId, clients[0])
+						)
+					);
+				expect(consents).toHaveLength(2);
+				const disconnect = await auth.handler(
+					new Request(`${baseURL}/api/auth/oauth2/delete-consent`, {
+						method: "POST",
+						headers: {
+							"content-type": "application/json",
+							origin: baseURL,
+							cookie,
+						},
+						body: JSON.stringify({ id: consents[0].id }),
+					})
+				);
+				expect(disconnect.status).toBe(200);
+				for (const connection of issued) {
+					const access = await getMcpAccessGrant(
+						createdUserIds[0],
+						connection.clientId,
+						connection.hash,
+						["read:data"]
+					);
+					const unrelated = connection.clientId === clients[1];
+					if (unrelated) {
+						expect(access?.grant).toEqual(grants[2]);
+					} else {
+						expect(access).toBeNull();
+					}
+					const refresh = await auth.handler(
+						new Request(`${baseURL}/api/auth/oauth2/token`, {
+							method: "POST",
+							headers: {
+								"content-type": "application/x-www-form-urlencoded",
+								origin: baseURL,
+							},
+							body: new URLSearchParams({
+								grant_type: "refresh_token",
+								refresh_token: connection.refreshToken,
+								client_id: connection.clientId,
+								resource: config.urls.mcp,
+							}).toString(),
+						})
+					);
+					if (unrelated) {
+						expect(refresh.status).toBe(200);
+					} else {
+						expect(refresh.status).toBeGreaterThanOrEqual(400);
+						expect(await refresh.json()).not.toHaveProperty("access_token");
+					}
+				}
+			}
+		}
+		expect(issued[3].hash).not.toBe(issued[0].hash);
+		for (const old of issued.slice(0, 2)) {
+			expect(
+				await getMcpAccessGrant(createdUserIds[0], old.clientId, old.hash, [
+					"read:data",
+				])
+			).toBeNull();
+		}
+	});
+
+	test("rejects invalid selections, scope elevation, and a tampered authorization query", async () => {
 		const registration = await auth.handler(
 			new Request(`${baseURL}/api/auth/oauth2/create-client`, {
 				method: "POST",
@@ -190,43 +489,81 @@ integration("MCP OAuth authorization round trip", () => {
 					cookie,
 				},
 				body: JSON.stringify({
-					client_name: "Public Round Trip Client",
+					client_name: "Consent Validation Client",
 					redirect_uris: [redirectUri],
 					token_endpoint_auth_method: "none",
 				}),
 			})
 		);
 		expect(registration.status).toBeLessThan(300);
-		const client = (await registration.json()) as {
+		const { client_id: clientId } = (await registration.json()) as {
 			client_id: string;
-			client_secret?: string;
 		};
-		expect(client.client_secret).toBeFalsy();
-
-		const codeVerifier = base64Url(randomBytes(32));
-		const authorizeQuery = new URLSearchParams({
-			client_id: client.client_id,
+		const query = new URLSearchParams({
+			client_id: clientId,
 			response_type: "code",
 			redirect_uri: redirectUri,
 			code_challenge: base64Url(
-				createHash("sha256").update(codeVerifier).digest()
+				createHash("sha256")
+					.update(base64Url(randomBytes(32)))
+					.digest()
 			),
 			code_challenge_method: "S256",
-			state: "public-client-state",
-			scope: "read:data offline_access",
+			scope: "read:data",
 			resource: config.urls.mcp,
 		});
-
 		const authorize = await auth.handler(
-			new Request(
-				`${baseURL}/api/auth/oauth2/authorize?${authorizeQuery.toString()}`,
-				{ headers: { cookie, origin: baseURL } }
-			)
+			new Request(`${baseURL}/api/auth/oauth2/authorize?${query}`, {
+				headers: { cookie, origin: baseURL },
+			})
 		);
-		const consentLocation = authorize.headers.get("location") ?? "";
-		expect(consentLocation).toContain("/consent");
-
-		const consent = await auth.handler(
+		const oauthQuery = (authorize.headers.get("location") ?? "").split("?")[1];
+		expect(oauthQuery).toBeTruthy();
+		const tampered = new URLSearchParams(oauthQuery);
+		tampered.set("scope", "read:data manage:websites");
+		for (const invalid of [
+			{},
+			{ organizationId },
+			{ organizationId, websiteIds: [] },
+			{ organizationId: randomUUID(), websiteIds: null },
+			{ organizationId, websiteIds: [otherWebsiteId] },
+			{ organizationId, websiteIds: [randomUUID()] },
+			{
+				organizationId,
+				websiteIds: [websiteId],
+				scope: "read:data manage:websites",
+			},
+			{
+				organizationId,
+				websiteIds: [websiteId],
+				oauth_query: tampered.toString(),
+			},
+		]) {
+			const consent = await auth.handler(
+				new Request(`${baseURL}/api/auth/oauth2/consent`, {
+					method: "POST",
+					headers: {
+						"content-type": "application/json",
+						origin: baseURL,
+						cookie,
+					},
+					body: JSON.stringify({
+						accept: true,
+						oauth_query: oauthQuery,
+						...invalid,
+					}),
+				})
+			);
+			expect(consent.status).toBeGreaterThanOrEqual(400);
+			expect(await consent.json()).not.toHaveProperty("url");
+		}
+		expect(
+			await dbModule.db
+				.select()
+				.from(schema.oauthConsent)
+				.where(dbModule.eq(schema.oauthConsent.clientId, clientId))
+		).toEqual([]);
+		const denied = await auth.handler(
 			new Request(`${baseURL}/api/auth/oauth2/consent`, {
 				method: "POST",
 				headers: {
@@ -234,65 +571,13 @@ integration("MCP OAuth authorization round trip", () => {
 					origin: baseURL,
 					cookie,
 				},
-				body: JSON.stringify({
-					accept: true,
-					oauth_query: consentLocation.split("?")[1] ?? "",
-				}),
+				body: JSON.stringify({ accept: false, oauth_query: oauthQuery }),
 			})
 		);
-		const { url: callback } = (await consent.json()) as { url: string };
-		const code = new URL(callback).searchParams.get("code");
-		expect(code).toBeTruthy();
-
-		const token = await auth.handler(
-			new Request(`${baseURL}/api/auth/oauth2/token`, {
-				method: "POST",
-				headers: {
-					"content-type": "application/x-www-form-urlencoded",
-					origin: baseURL,
-				},
-				body: new URLSearchParams({
-					grant_type: "authorization_code",
-					code: code as string,
-					redirect_uri: redirectUri,
-					client_id: client.client_id,
-					code_verifier: codeVerifier,
-				}).toString(),
-			})
-		);
-		expect(token.status).toBe(200);
-		const issued = (await token.json()) as {
-			access_token: string;
-			refresh_token: string;
-		};
-
-		const refreshed = await auth.handler(
-			new Request(`${baseURL}/api/auth/oauth2/token`, {
-				method: "POST",
-				headers: {
-					"content-type": "application/x-www-form-urlencoded",
-					origin: baseURL,
-				},
-				body: new URLSearchParams({
-					grant_type: "refresh_token",
-					refresh_token: issued.refresh_token,
-					client_id: client.client_id,
-					resource: config.urls.mcp,
-				}).toString(),
-			})
-		);
-		expect(refreshed.status).toBe(200);
-		const renewed = (await refreshed.json()) as { access_token: string };
-
-		for (const accessToken of [issued.access_token, renewed.access_token]) {
-			const [, payload] = accessToken.split(".");
-			const claims = JSON.parse(
-				Buffer.from(payload, "base64url").toString("utf8")
-			) as { aud: string | string[]; azp: string };
-			const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-			expect(audiences).toContain(config.urls.mcp);
-			expect(claims.azp).toBe(client.client_id);
-		}
+		expect(denied.status).toBe(200);
+		const { url } = (await denied.json()) as { url: string };
+		expect(new URL(url).searchParams.get("error")).toBe("access_denied");
+		expect(new URL(url).searchParams.has("code")).toBe(false);
 	});
 
 	test("rejects a public client token request that replays a bad verifier", async () => {
@@ -341,6 +626,8 @@ integration("MCP OAuth authorization round trip", () => {
 				body: JSON.stringify({
 					accept: true,
 					oauth_query: (authorize.headers.get("location") ?? "").split("?")[1],
+					organizationId,
+					websiteIds: [websiteId],
 				}),
 			})
 		);

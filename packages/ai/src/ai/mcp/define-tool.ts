@@ -3,7 +3,6 @@ import {
 	requiredScopesForResource,
 	type ApiKeyScopeTarget,
 } from "@databuddy/api-keys/scopes";
-import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import type { User } from "@databuddy/auth";
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import type { ApiScope } from "@databuddy/shared/api-scopes";
@@ -19,6 +18,7 @@ import { formatValidationIssues } from "../tools/utils/rpc";
 import {
 	ensureWebsiteAccess,
 	loadOAuthUser,
+	type RequestPrincipal,
 	resolveWebsiteId,
 	type WebsiteSelectorInput,
 } from "./tool-context";
@@ -60,13 +60,8 @@ export class McpToolError extends Error {
 	}
 }
 
-export interface McpRequestContext {
-	apiKey: ApiKeyRow | null;
-	oauthScopes?: ApiScope[] | null;
-	oauthUserId?: string | null;
-	organizationId?: string | null;
+export interface McpRequestContext extends RequestPrincipal {
 	requestHeaders: Headers;
-	userId: string | null;
 }
 
 export interface McpHandlerContext extends McpRequestContext {

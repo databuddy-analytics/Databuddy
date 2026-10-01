@@ -142,7 +142,7 @@ function requirePlan(plan: PlanId, requiredPlans: PlanId[] | undefined): void {
 
 async function requireWebsite(websiteId: string): Promise<Website> {
 	const website = await getWebsiteById(websiteId);
-	if (!website) {
+	if (!website || website.deletedAt) {
 		throw rpcError.notFound("website", websiteId);
 	}
 	return website;
@@ -170,6 +170,45 @@ async function resolveGrant(
 	}
 ): Promise<Grant> {
 	const { organizationId, resource, permissions, allowCrossOrg } = input;
+	const oauth = context.oauth;
+	if (oauth) {
+		const grantedOrganizationId =
+			oauth.grant?.organizationId ?? oauth.organizationId;
+		if (grantedOrganizationId && grantedOrganizationId !== organizationId) {
+			return {
+				granted: false,
+				denied: rpcError.forbidden(
+					"This connection does not have access to this organization"
+				),
+			};
+		}
+		const websiteIds = oauth.grant?.websiteIds;
+		if (
+			websiteIds &&
+			(input.websiteId
+				? !websiteIds.includes(input.websiteId)
+				: resource !== "link")
+		) {
+			return {
+				granted: false,
+				denied: rpcError.forbidden(
+					"This connection is limited to its selected websites"
+				),
+			};
+		}
+		if (oauth.scopes) {
+			for (const scope of requiredScopesForResource(resource, permissions)) {
+				if (!oauth.scopes.includes(scope)) {
+					return {
+						granted: false,
+						denied: rpcError.forbidden(
+							`This connection is missing required scope: ${scope}`
+						),
+					};
+				}
+			}
+		}
+	}
 
 	if (context.user) {
 		if (
@@ -455,7 +494,11 @@ export async function withPublicWorkspace(
 			: workspace;
 	}
 
-	if (resolved.website?.isPublic && isReadOnly(resolved.permissions)) {
+	if (
+		!context.oauth &&
+		resolved.website?.isPublic &&
+		isReadOnly(resolved.permissions)
+	) {
 		const workspace: DemoWorkspace = {
 			tier: "demo",
 			organizationId: resolved.organizationId,

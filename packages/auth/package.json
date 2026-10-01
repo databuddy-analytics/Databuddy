@@ -10,7 +10,8 @@
     "./client": "./src/client/auth-client.ts",
     "./logger": "./src/logger.ts",
     "./permissions": "./src/permissions.ts",
-    "./oauth": "./src/oauth.ts"
+    "./oauth": "./src/oauth.ts",
+    "./mcp-grant": "./src/mcp-grant.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",

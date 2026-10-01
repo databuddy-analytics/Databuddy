@@ -37,6 +37,7 @@ const WEBSITE_ID = "site-test";
 const OTHER_WEBSITE_ID = "site-other";
 
 interface WebsiteRow {
+	deletedAt?: Date | null;
 	id: string;
 	isPublic: boolean;
 	organizationId: string;
@@ -250,6 +251,151 @@ describe("withWorkspace organization member grants", () => {
 			}),
 			"BAD_REQUEST",
 			/Workspace is required/
+		);
+	});
+});
+
+describe("withWorkspace OAuth connection grants", () => {
+	function oauthContext(
+		websiteIds: string[] | null = [WEBSITE_ID],
+		scopes = ["read:data", "manage:websites", "read:links", "write:links"]
+	): Context {
+		const context = userContext();
+		return {
+			...context,
+			oauth: {
+				grant: { organizationId: ORGANIZATION_ID, websiteIds },
+				organizationId: ORGANIZATION_ID,
+				scopes,
+				user: context.user!,
+			},
+		};
+	}
+
+	beforeEach(() => {
+		memberRoles.set(`${USER_ID}:${ORGANIZATION_ID}`, "owner");
+		memberRoles.set(`${USER_ID}:${OTHER_ORGANIZATION_ID}`, "owner");
+		for (const id of [WEBSITE_ID, OTHER_WEBSITE_ID]) {
+			websites.set(id, {
+				id,
+				isPublic: true,
+				organizationId: ORGANIZATION_ID,
+			});
+		}
+	});
+
+	it("carries the approved grant and scopes into RPC context", async () => {
+		const oauth = oauthContext().oauth!;
+		const context = await createRPCContext(
+			{ headers: new Headers() },
+			{ apiKey: null, oauth, session: null }
+		);
+		expect(context.oauth).toBe(oauth);
+		expect(context.organizationId).toBe(ORGANIZATION_ID);
+	});
+
+	it("grants a selected website and separately approved organization links", async () => {
+		const context = oauthContext();
+		expect(
+			(
+				await withWorkspace(context, {
+					permissions: ["read"],
+					websiteId: WEBSITE_ID,
+				})
+			).website.id
+		).toBe(WEBSITE_ID);
+		expect(
+			(await requireLinkAccess(context, ORGANIZATION_ID, "create"))
+				.organizationId
+		).toBe(ORGANIZATION_ID);
+	});
+
+	it("denies an unselected public website without falling back to demo access", async () => {
+		await expectRpcError(
+			withPublicWorkspace(oauthContext(), {
+				permissions: ["read"],
+				websiteId: OTHER_WEBSITE_ID,
+			}),
+			"FORBIDDEN",
+			/selected websites/
+		);
+	});
+
+	it("rejects a deleted selected website before member or public access", async () => {
+		websites.set(WEBSITE_ID, {
+			deletedAt: new Date("2026-01-01"),
+			id: WEBSITE_ID,
+			isPublic: true,
+			organizationId: ORGANIZATION_ID,
+		});
+		await expectRpcError(
+			withPublicWorkspace(oauthContext(), {
+				permissions: ["read"],
+				websiteId: WEBSITE_ID,
+			}),
+			"NOT_FOUND"
+		);
+		expect(mockGetMemberRole).not.toHaveBeenCalled();
+	});
+
+	it("keeps the organization boundary even for cross-organization procedures", async () => {
+		await expectRpcError(
+			withWorkspace(oauthContext(null), {
+				allowCrossOrg: true,
+				organizationId: OTHER_ORGANIZATION_ID,
+				permissions: ["read"],
+				resource: "organization",
+			}),
+			"FORBIDDEN",
+			/access to this organization/
+		);
+	});
+
+	it.each([
+		"organization",
+		"flag",
+		"website",
+	] as const)("denies organization-wide %s access from a selected-site grant", async (resource) => {
+		await expectRpcError(
+			withWorkspace(oauthContext(), {
+				organizationId: ORGANIZATION_ID,
+				permissions: ["read"],
+				resource,
+			}),
+			"FORBIDDEN",
+			/selected websites/
+		);
+	});
+
+	it("requires approved capability scopes even when the current role can write", async () => {
+		await expectRpcError(
+			withWorkspace(oauthContext([WEBSITE_ID], ["read:data"]), {
+				permissions: ["update"],
+				websiteId: WEBSITE_ID,
+			}),
+			"FORBIDDEN",
+			/missing required scope: manage:websites/
+		);
+	});
+
+	it("still applies the member's current role after consent", async () => {
+		memberRoles.set(`${USER_ID}:${ORGANIZATION_ID}`, "viewer");
+		await expectRpcError(
+			withWorkspace(oauthContext(), {
+				permissions: ["update"],
+				websiteId: WEBSITE_ID,
+			}),
+			"FORBIDDEN",
+			/Missing required website permissions/
+		);
+		memberRoles.delete(`${USER_ID}:${ORGANIZATION_ID}`);
+		await expectRpcError(
+			withPublicWorkspace(oauthContext(), {
+				permissions: ["read"],
+				websiteId: WEBSITE_ID,
+			}),
+			"FORBIDDEN",
+			/not a member/
 		);
 	});
 });

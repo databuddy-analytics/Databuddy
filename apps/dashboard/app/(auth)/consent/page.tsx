@@ -1,13 +1,26 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import { Button, Card, Skeleton, Spinner, Text } from "@databuddy/ui";
-import { CheckCircleIcon, PlugIcon } from "@databuddy/ui/icons";
+import {
+	Button,
+	Card,
+	Field,
+	FieldTriggerButton,
+	Skeleton,
+	Text,
+} from "@databuddy/ui";
+import { Checkbox, DropdownMenu, SegmentedControl } from "@databuddy/ui/client";
+import {
+	CaretUpDownIcon,
+	CheckCircleIcon,
+	PlugIcon,
+} from "@databuddy/ui/icons";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { SCOPE_OPTIONS } from "@/components/organizations/api-key-types";
+import { orpc } from "@/lib/orpc";
 
 interface PublicClient {
 	icon?: string | null;
@@ -15,15 +28,13 @@ interface PublicClient {
 	uri?: string | null;
 }
 
-const IDENTITY_LABEL = "Your name and email address";
-
-const SCOPE_LABELS = new Map<string, string>([
-	...SCOPE_OPTIONS.map(({ value, label }) => [value, label] as const),
-	["openid", IDENTITY_LABEL],
-	["profile", IDENTITY_LABEL],
-	["email", IDENTITY_LABEL],
+const IDENTITY_SCOPE_LABELS = new Map([
+	["openid", "Your name and email address"],
+	["profile", "Your name and email address"],
+	["email", "Your name and email address"],
 	["offline_access", "Stay connected until you disconnect it"],
 ]);
+const SCOPE_SEPARATOR = /\s+/;
 
 function urlHost(value: string | null): string | null {
 	if (!value) {
@@ -38,25 +49,37 @@ function urlHost(value: string | null): string | null {
 
 function ConsentPage() {
 	const searchParams = useSearchParams();
-	const [pendingDecision, setPendingDecision] = useState<
-		"accept" | "deny" | null
-	>(null);
-
 	const oauthQuery = searchParams.toString();
 	const clientId = searchParams.get("client_id");
 	const clientHost = urlHost(clientId);
 	const host = urlHost(searchParams.get("redirect_uri"));
-	const requestedScopes = searchParams
-		.get("scope")
-		?.split(" ")
-		.filter(Boolean) ?? [...SCOPE_LABELS.keys()];
-	const permissions = [
-		...new Set(
-			requestedScopes.map((scope) => SCOPE_LABELS.get(scope) ?? scope)
-		),
+	const requestedScopes =
+		searchParams.get("scope")?.split(SCOPE_SEPARATOR).filter(Boolean) ?? [];
+	const requestedActions = SCOPE_OPTIONS.filter(({ value }) =>
+		requestedScopes.includes(value)
+	);
+	const identityScopes = requestedScopes.filter((scope) =>
+		IDENTITY_SCOPE_LABELS.has(scope)
+	);
+	const identityPermissions = [
+		...new Set(identityScopes.map((scope) => IDENTITY_SCOPE_LABELS.get(scope))),
 	];
+	const [selectedScopes, setSelectedScopes] = useState<string[]>(() =>
+		requestedActions
+			.filter(({ value }) => value.startsWith("read:"))
+			.map(({ value }) => value)
+	);
+	const [organizationId, setOrganizationId] = useState<string | null>(null);
+	const [websiteIds, setWebsiteIds] = useState<string[] | null>(null);
+	const [pendingDecision, setPendingDecision] = useState<
+		"accept" | "deny" | null
+	>(null);
+	const busy = pendingDecision !== null;
+	const approvedActions = requestedActions
+		.filter(({ value }) => selectedScopes.includes(value))
+		.map(({ value }) => value);
 
-	const { data: client, isPending } = useQuery<PublicClient | null>({
+	const { data: client, isPending: isClientPending } = useQuery({
 		enabled: Boolean(clientId),
 		queryKey: ["oauth-public-client", clientId],
 		queryFn: async () => {
@@ -66,20 +89,68 @@ function ConsentPage() {
 			return result.data ?? null;
 		},
 	});
+	const organizationsQuery = useQuery({
+		enabled: Boolean(clientId),
+		queryKey: ["oauth-organizations"],
+		queryFn: async () => {
+			const result = await authClient.organization.list();
+			if (result.error) {
+				throw new Error("Could not load organizations.");
+			}
+			return result.data ?? [];
+		},
+	});
+	const organizations = organizationsQuery.data ?? [];
+	const organization =
+		organizations.find(({ id }) => id === organizationId) ??
+		(organizations.length === 1 ? organizations[0] : undefined);
+	const websitesQuery = useQuery({
+		...orpc.websites.list.queryOptions({
+			input: { organizationId: organization?.id },
+		}),
+		enabled: Boolean(organization),
+	});
+	const websites = websitesQuery.data ?? [];
+	const validWebsiteSelection =
+		websiteIds === null ||
+		(websiteIds.length > 0 &&
+			websiteIds.every((id) => websites.some((website) => website.id === id)));
+	const canAllow =
+		Boolean(organization) &&
+		organizationsQuery.isSuccess &&
+		websitesQuery.isSuccess &&
+		validWebsiteSelection &&
+		approvedActions.length > 0;
 
 	const decide = async (accept: boolean) => {
-		setPendingDecision(accept ? "accept" : "deny");
-		const result = await authClient.$fetch<{ url?: string }>(
-			"/oauth2/consent",
-			{ method: "POST", body: { accept, oauth_query: oauthQuery } }
-		);
-		const redirectUri = result.data?.url;
-		if (!redirectUri) {
-			setPendingDecision(null);
-			toast.error("Could not complete authorization. Try connecting again.");
+		if (busy || (accept && !canAllow)) {
 			return;
 		}
-		window.location.href = redirectUri;
+		setPendingDecision(accept ? "accept" : "deny");
+		try {
+			const result = await authClient.$fetch<{ url?: string }>(
+				"/oauth2/consent",
+				{
+					method: "POST",
+					body: accept
+						? {
+								accept,
+								oauth_query: oauthQuery,
+								organizationId: organization?.id,
+								websiteIds,
+								scope: [...identityScopes, ...approvedActions].join(" "),
+							}
+						: { accept, oauth_query: oauthQuery },
+				}
+			);
+			if (!result.data?.url) {
+				throw new Error("Authorization did not return a redirect.");
+			}
+			window.location.href = result.data.url;
+		} catch {
+			setPendingDecision(null);
+			toast.error("Could not complete authorization. Try connecting again.");
+		}
 	};
 
 	if (!clientId) {
@@ -97,10 +168,10 @@ function ConsentPage() {
 	}
 
 	return (
-		<Card className="flex flex-col gap-6 p-6">
+		<Card aria-busy={busy} className="flex flex-col gap-6 p-6">
 			<div className="flex items-center gap-3">
-				<PlugIcon className="size-5 text-muted-foreground" />
-				{isPending ? (
+				<PlugIcon className="size-5 shrink-0 text-muted-foreground" />
+				{isClientPending ? (
 					<Skeleton className="h-8 w-48" />
 				) : (
 					<Text as="h1" className="text-balance font-medium text-2xl">
@@ -112,9 +183,9 @@ function ConsentPage() {
 			</div>
 
 			<Text tone="muted">
-				It will be able to read and act on your Databuddy data using your
-				permissions. Disconnect it at any time from Connected apps in your
-				account settings.
+				Choose the organization, websites, and permissions this connection can
+				use. Your organization role still applies. Disconnect it at any time
+				from Connected apps in your account settings.
 			</Text>
 
 			{host && (
@@ -124,31 +195,170 @@ function ConsentPage() {
 				</Text>
 			)}
 
-			{permissions.length > 0 && (
-				<ul className="grid gap-2 sm:grid-cols-2">
-					{permissions.map((permission) => (
-						<li className="flex items-center gap-2" key={permission}>
-							<CheckCircleIcon className="size-4 shrink-0 text-muted-foreground" />
-							<Text>{permission}</Text>
-						</li>
-					))}
-				</ul>
+			<Field error={organizationsQuery.isError}>
+				<Field.Label htmlFor="consent-organization">Organization</Field.Label>
+				<DropdownMenu>
+					<DropdownMenu.Trigger
+						disabled={
+							busy || !organizationsQuery.isSuccess || !organizations.length
+						}
+						render={
+							<FieldTriggerButton
+								aria-describedby="consent-organization-description"
+								className="justify-between"
+								id="consent-organization"
+							>
+								{organizationsQuery.isPending
+									? "Loading organizations…"
+									: (organization?.name ?? "Choose an organization")}
+								<CaretUpDownIcon className="size-4 shrink-0 text-muted-foreground" />
+							</FieldTriggerButton>
+						}
+					/>
+					<DropdownMenu.Content align="start">
+						<DropdownMenu.RadioGroup
+							onValueChange={(value) => {
+								setOrganizationId(value);
+								setWebsiteIds(null);
+							}}
+							value={organization?.id ?? ""}
+						>
+							{organizations.map((item) => (
+								<DropdownMenu.RadioItem key={item.id} value={item.id}>
+									{item.name}
+								</DropdownMenu.RadioItem>
+							))}
+						</DropdownMenu.RadioGroup>
+					</DropdownMenu.Content>
+				</DropdownMenu>
+				{organizationsQuery.isError ? (
+					<Field.Error id="consent-organization-description">
+						Could not load organizations. Try connecting again.
+					</Field.Error>
+				) : organizationsQuery.isSuccess && !organizations.length ? (
+					<Field.Description id="consent-organization-description">
+						You need an organization to connect this app.
+					</Field.Description>
+				) : (
+					<Field.Description id="consent-organization-description">
+						This connection can access only the selected organization.
+					</Field.Description>
+				)}
+			</Field>
+
+			{organization && (
+				<div className="space-y-3">
+					<Text variant="label">Website access</Text>
+					<SegmentedControl
+						aria-label="Website access"
+						disabled={busy || !websitesQuery.isSuccess}
+						onChange={(value) => setWebsiteIds(value === "all" ? null : [])}
+						options={[
+							{ label: "All websites", value: "all" },
+							{ label: "Choose websites", value: "selected" },
+						]}
+						size="sm"
+						value={websiteIds === null ? "all" : "selected"}
+					/>
+					{websitesQuery.isPending ? (
+						<Text role="status" tone="muted">
+							Loading websites…
+						</Text>
+					) : websitesQuery.isError ? (
+						<Text role="alert" tone="destructive">
+							Could not load websites. Try connecting again.
+						</Text>
+					) : websiteIds === null ? (
+						<Text tone="muted" variant="caption">
+							Includes current and future websites in this organization that
+							your role can access.
+						</Text>
+					) : (
+						<div className="max-h-48 space-y-3 overflow-auto rounded border border-border/60 p-3">
+							{websites.map((website) => (
+								<Checkbox
+									checked={websiteIds.includes(website.id)}
+									description={website.domain}
+									disabled={busy}
+									key={website.id}
+									label={website.name || website.domain}
+									onCheckedChange={(checked) =>
+										setWebsiteIds((current) =>
+											checked
+												? [...(current ?? []), website.id]
+												: (current ?? []).filter((id) => id !== website.id)
+										)
+									}
+								/>
+							))}
+							{!websiteIds.length && (
+								<Text tone="muted" variant="caption">
+									Choose at least one website.
+								</Text>
+							)}
+						</div>
+					)}
+				</div>
 			)}
+
+			<div className="space-y-3">
+				<Text variant="label">Permissions</Text>
+				{requestedActions.map(({ value, label }) => (
+					<Checkbox
+						checked={selectedScopes.includes(value)}
+						description={
+							value.endsWith(":links")
+								? "Applies to every short link in this organization, including when you choose specific websites."
+								: undefined
+						}
+						disabled={busy}
+						key={value}
+						label={label}
+						onCheckedChange={(checked) =>
+							setSelectedScopes((current) =>
+								checked
+									? [...current, value]
+									: current.filter((scope) => scope !== value)
+							)
+						}
+					/>
+				))}
+				{requestedActions.length ? (
+					approvedActions.length ? null : (
+						<Text tone="muted" variant="caption">
+							Choose at least one permission.
+						</Text>
+					)
+				) : (
+					<Text role="alert" tone="destructive">
+						This app did not request Databuddy permissions. Connect again with
+						the permissions it needs.
+					</Text>
+				)}
+				{identityPermissions.map((permission) => (
+					<div className="flex items-center gap-2" key={permission}>
+						<CheckCircleIcon className="size-4 shrink-0 text-muted-foreground" />
+						<Text tone="muted" variant="caption">
+							{permission}
+						</Text>
+					</div>
+				))}
+			</div>
 
 			<div className="flex gap-3">
 				<Button
-					disabled={pendingDecision !== null}
+					disabled={busy || !canAllow}
+					loading={pendingDecision === "accept"}
 					onClick={() => decide(true)}
 				>
-					{pendingDecision === "accept" ? <Spinner /> : null}
 					Allow access
 				</Button>
 				<Button
-					disabled={pendingDecision !== null}
+					disabled={busy}
+					loading={pendingDecision === "deny"}
 					onClick={() => decide(false)}
-					variant="outline"
+					variant="secondary"
 				>
-					{pendingDecision === "deny" ? <Spinner /> : null}
 					Deny
 				</Button>
 			</div>

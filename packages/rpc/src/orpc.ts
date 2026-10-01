@@ -1,4 +1,5 @@
 import type { OrganizationBusinessContext } from "@databuddy/shared/organization-business-context";
+import type { McpAccessGrant } from "@databuddy/shared/mcp-access";
 import {
 	type ApiKeyRow,
 	getApiKeyFromHeader,
@@ -22,7 +23,12 @@ import { getOrganizationOwnerId } from "./utils/organization";
 
 export interface PreResolvedAuth {
 	apiKey: ApiKeyRow | null;
-	oauth?: { organizationId: string | null; user: User } | null;
+	oauth?: {
+		grant?: McpAccessGrant;
+		organizationId: string | null;
+		scopes?: string[];
+		user: User;
+	} | null;
 	session: Awaited<ReturnType<typeof auth.api.getSession>> | null;
 }
 
@@ -109,6 +115,7 @@ export const createRPCContext = async (
 	const organizationId =
 		apiKey?.organizationId ??
 		session?.session.activeOrganizationId ??
+		oauth?.grant?.organizationId ??
 		oauth?.organizationId ??
 		null;
 
@@ -146,6 +153,7 @@ export const createRPCContext = async (
 		session: session?.session,
 		user,
 		apiKey: apiKey ?? undefined,
+		oauth,
 		getBilling,
 		organizationId,
 		anonymousId: opts.headers.get("x-databuddy-anonymous-id"),

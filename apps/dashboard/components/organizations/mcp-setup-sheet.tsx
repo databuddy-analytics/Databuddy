@@ -90,8 +90,8 @@ function ClaudeSignIn() {
 						Connect Claude with your Databuddy account
 					</Text>
 					<Text className="mt-0.5" tone="muted" variant="caption">
-						No key to copy or rotate. Claude sees only what your role allows,
-						and you can disconnect it from Account settings.
+						Choose the organization, websites, and permissions when you sign in.
+						Disconnect it from Account settings at any time.
 					</Text>
 				</div>
 			</div>
@@ -121,8 +121,9 @@ function ClaudeSignIn() {
 				</div>
 			</div>
 			<Text tone="muted" variant="caption">
-				Signed-in connections follow your role. The settings below only apply to
-				an API key for scripts or CI.
+				Signed-in connections use the access you approve during sign-in.
+				Disconnect and reconnect to change it. The settings below configure an
+				API key for scripts or CI.
 			</Text>
 		</div>
 	);

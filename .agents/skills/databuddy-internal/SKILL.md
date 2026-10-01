@@ -237,6 +237,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 - Core auth setup: `packages/auth/src/auth.ts`
 - Client auth entrypoint: `packages/auth/src/client/auth-client.ts`
+- Better Auth OAuth tables have no Drizzle relational-query entries; use `db.select().from(oauthConsent)` and schema columns rather than `db.query.oauthConsent`.
 - Permission helpers often flow through `packages/rpc`
 
 ### SDK and tracker work

@@ -1,7 +1,11 @@
-import { describe, expect, it, mock } from "bun:test";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
+import type { RequestPrincipal } from "./tool-context";
 import type { WebsiteSummary } from "../../lib/accessible-websites";
 
 const permission = mock(async () => ({ success: true }));
+const readableOrganizations = mock(async () => ["org-other"]);
+const memberRole = mock(async () => "viewer" as string | null);
+let cachedWebsites: string | null = null;
 const sites: WebsiteSummary[] = [
 	{
 		id: "site",
@@ -32,12 +36,20 @@ mock.module("../../lib/website-utils", () => ({
 	getCachedWebsite: async (id: string) =>
 		id === "missing-site"
 			? null
-			: { id, organizationId: "org-other", domain: "other.example.com" },
+			: {
+					id,
+					organizationId: "org-other",
+					domain: "other.example.com",
+					deletedAt: id === "deleted-site" ? new Date("2026-01-01") : null,
+				},
 }));
 mock.module("../../lib/accessible-websites", () => ({
 	getAccessibleWebsites: async () => sites,
 	getMemberWebsites: async () => sites,
-	getReadableOrganizationIds: async () => [],
+	getReadableOrganizationIds: readableOrganizations,
+}));
+mock.module("@databuddy/rpc/organization", () => ({
+	getMemberRole: memberRole,
 }));
 mock.module("@databuddy/api-keys/resolve", () => ({
 	hasKeyScope: () => true,
@@ -46,12 +58,96 @@ mock.module("@databuddy/api-keys/resolve", () => ({
 const realRedis = await import("@databuddy/redis");
 mock.module("@databuddy/redis", () => ({
 	...realRedis,
-	getRedisCache: () => null,
+	getRedisCache: () =>
+		cachedWebsites
+			? { get: async () => cachedWebsites, setex: async () => {} }
+			: null,
 }));
 
-const { ensureWebsiteAccess, resolveWebsiteId } = await import(
-	"./tool-context"
-);
+const {
+	ensureWebsiteAccess,
+	getCachedAccessibleWebsites,
+	resolveOrganizationId,
+	resolveWebsiteId,
+} = await import("./tool-context");
+
+beforeEach(() => {
+	cachedWebsites = null;
+	memberRole.mockClear();
+});
+
+describe("OAuth selected website grants", () => {
+	const principal: RequestPrincipal = {
+		apiKey: null,
+		oauthGrant: { organizationId: "org-other", websiteIds: ["site"] },
+		oauthScopes: ["read:data"],
+		oauthUserId: "user",
+		organizationId: "org-other",
+		userId: "user",
+	};
+
+	it("filters website discovery and selectors even when the cache contains more sites", async () => {
+		cachedWebsites = JSON.stringify(sites);
+		expect(
+			(await getCachedAccessibleWebsites(principal)).map((site) => site.id)
+		).toEqual(["site"]);
+		expect(await resolveWebsiteId({ websiteName: "Reports" }, principal)).toBe(
+			"site"
+		);
+		expect(
+			await resolveWebsiteId({ websiteDomain: "www.example.com" }, principal)
+		).toBeInstanceOf(Error);
+	});
+
+	it("does not reuse discovery results after membership or scope access is removed", async () => {
+		cachedWebsites = JSON.stringify(sites);
+		readableOrganizations.mockResolvedValueOnce([]);
+		expect(await getCachedAccessibleWebsites(principal)).toEqual([]);
+		expect(
+			await getCachedAccessibleWebsites({ ...principal, oauthScopes: [] })
+		).toEqual([]);
+	});
+
+	it("requires a selected website, read scope, and current membership for direct data access", async () => {
+		const authorized = { ...principal, requestHeaders: new Headers() };
+		expect(await ensureWebsiteAccess("www-site", authorized)).toBeInstanceOf(
+			Error
+		);
+		expect(
+			await ensureWebsiteAccess("site", { ...authorized, oauthScopes: [] })
+		).toBeInstanceOf(Error);
+		expect(memberRole).not.toHaveBeenCalled();
+		expect(await ensureWebsiteAccess("site", authorized)).not.toBeInstanceOf(
+			Error
+		);
+		memberRole.mockResolvedValueOnce(null);
+		expect(await ensureWebsiteAccess("site", authorized)).toBeInstanceOf(Error);
+	});
+
+	it("requires a website selector for aggregate organization data", async () => {
+		expect(await resolveOrganizationId(principal)).toBeInstanceOf(Error);
+		expect(
+			await resolveOrganizationId({
+				...principal,
+				oauthGrant: { organizationId: "org-other", websiteIds: null },
+			})
+		).toBe("org-other");
+	});
+
+	it("rejects a deleted selected website before checking membership", async () => {
+		expect(
+			await ensureWebsiteAccess("deleted-site", {
+				...principal,
+				oauthGrant: {
+					organizationId: "org-other",
+					websiteIds: ["deleted-site"],
+				},
+				requestHeaders: new Headers(),
+			})
+		).toMatchObject({ code: "not_found", message: "Website not found" });
+		expect(memberRole).not.toHaveBeenCalled();
+	});
+});
 
 describe("MCP domain selector compatibility", () => {
 	it.each([

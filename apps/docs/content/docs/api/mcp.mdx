@@ -34,7 +34,7 @@ The manifest includes the Streamable HTTP endpoint, API-key auth header, require
 
 The server accepts two kinds of credentials:
 
-- **Your Databuddy account (OAuth).** Claude, Claude Code, and other clients that support MCP authorization sign you in through Databuddy and ask you to approve access. The connection can reach every website your account can reach, with the same role you have in each organization. Disconnect it at any time from [Account settings → Connected apps](https://app.databuddy.cc/settings/account).
+- **Your Databuddy account (OAuth).** Claude, Claude Code, and other clients that support MCP authorization sign you in through Databuddy and ask you to approve access. Choose one organization, all or selected websites, and the requested permissions you want to approve. Read permissions start selected; actions require your approval. Your current organization role continues to limit access. Disconnect and reconnect to change the approved access. Connections created before scoped consent must reconnect. Disconnect it at any time from [Account settings → Connected apps](https://app.databuddy.cc/settings/account).
 - **An API key.** Best for automation and clients without OAuth support. The key decides which organization, websites, and actions the client can use.
 
 ### API keys
@@ -72,7 +72,7 @@ For clients that support environment-variable interpolation in remote MCP header
 
 1. In Claude, open **Customize → Connectors** and choose **Add custom connector**.
 2. Enter `https://api.databuddy.cc/v1/mcp` and select **Connect**.
-3. Sign in to Databuddy and choose **Allow access**.
+3. Sign in to Databuddy, choose the organization, websites, and permissions, then choose **Allow access**.
 
 No API key is needed. Claude asks before it runs any tool that changes data.
 
@@ -128,7 +128,7 @@ Add to your MCP settings (typically `.cursor/mcp.json` or workspace settings):
 | `get_data` | Typed analytics queries (top_pages, recent_errors, errors_by_type, etc.). Batch 2-10 queries in one call. |
 | `capabilities` | Query types, date presets, categories, and compact schema hints. Filter by category. |
 | `get_schema` | ClickHouse column definitions. Use when a field name is uncertain. |
-| `list_websites` | List the websites the signed-in account or API key can access. |
+| `list_websites` | List the websites the approved OAuth connection or API key can access. |
 
 ### Investigations
 
@@ -238,7 +238,7 @@ The server exposes a `databuddy://guide` resource with extended workflow tips an
 
 ## Scopes & Access Control
 
-Tools are filtered based on your API key's scopes:
+Tools are filtered based on your approved OAuth permissions or API key scopes:
 
 | Scope | Tools |
 |-------|-------|
@@ -248,4 +248,4 @@ Tools are filtered based on your API key's scopes:
 | `read:links` | Organization-wide short-link, folder, and search reads; required by every link mutation for its preview |
 | `write:links` | With `read:links`, create, update, and delete short links organization-wide |
 
-Session-authenticated users (via the dashboard) get access based on their organization role instead.
+OAuth connections are limited to the organization and websites approved during sign-in, and your current organization role. Short-link permissions apply to every link in the selected organization, even when website access is limited. Session-authenticated users in the dashboard get access based on their organization role.

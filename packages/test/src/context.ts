@@ -55,6 +55,7 @@ export function context(overrides: ContextOverrides = {}): Context {
 		session,
 		user,
 		apiKey: overrides.apiKey,
+		oauth: null,
 		getBilling: async () => undefined,
 		organizationId: overrides.organizationId ?? null,
 		auditOrganizationId: undefined,
