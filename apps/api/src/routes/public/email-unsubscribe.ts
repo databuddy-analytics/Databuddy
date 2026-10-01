@@ -3,8 +3,8 @@ import {
 	db,
 	eq,
 	isAiDigestUnsubscribeToken,
+	mergeEmailNotificationSettings,
 	organization,
-	sql,
 } from "@databuddy/db";
 import { Elysia, t } from "elysia";
 
@@ -26,7 +26,9 @@ export const emailUnsubscribeRoute = new Elysia({
 			await db
 				.update(organization)
 				.set({
-					emailNotifications: sql`${organization.emailNotifications} || jsonb_build_object('aiAgents', coalesce(${organization.emailNotifications} -> 'aiAgents', '{}'::jsonb) || '{"weeklyDigest": false}'::jsonb)`,
+					emailNotifications: mergeEmailNotificationSettings({
+						aiAgents: { weeklyDigest: false },
+					}),
 				})
 				.where(eq(organization.id, query.organization));
 			return { success: true };
