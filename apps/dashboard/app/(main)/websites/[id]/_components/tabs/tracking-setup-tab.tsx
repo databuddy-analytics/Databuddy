@@ -40,7 +40,6 @@ import {
 	generateVueCode,
 	type VersionedScript,
 } from "../utils/code-generators";
-import { RECOMMENDED_DEFAULTS } from "../utils/tracking-defaults";
 import type { TrackingOptionConfig } from "../utils/types";
 import {
 	BookOpenIcon,
@@ -337,15 +336,6 @@ export function WebsiteTrackingSetupTab({
 			: install.copied
 				? "waiting"
 				: "pending";
-		const snippets = [
-			[
-				"script",
-				"Script tag",
-				generateScriptTag(websiteId, RECOMMENDED_DEFAULTS),
-			],
-			["react", "React", generateNpmCode(websiteId, RECOMMENDED_DEFAULTS)],
-			["vue", "Vue", generateVueCode(websiteId, RECOMMENDED_DEFAULTS)],
-		] as const;
 		return (
 			<div className="mx-auto w-full max-w-3xl py-2 lg:py-6">
 				<div className="mb-4 flex items-center justify-between gap-3">
@@ -402,29 +392,8 @@ export function WebsiteTrackingSetupTab({
 							<ConnectApp
 								agentProgress={install.agentProgress}
 								domain={website.domain}
-								manualInstall={
-									<Tabs className="mt-3 w-full" defaultValue="script">
-										<Tabs.List>
-											{snippets.map(([value, label]) => (
-												<Tabs.Tab key={value} value={value}>
-													{label}
-												</Tabs.Tab>
-											))}
-										</Tabs.List>
-										{snippets.map(([value, , code]) => (
-											<Tabs.Panel className="mt-3" key={value} value={value}>
-												<CodeBlock
-													code={code}
-													copied={copiedBlockId === `gate-${value}`}
-													onCopy={() =>
-														handleCopy(code, `gate-${value}`, "Copied!")
-													}
-												/>
-											</Tabs.Panel>
-										))}
-									</Tabs>
-								}
 								onCopy={install.markCopied}
+								onStartResearch={research.start}
 								research={research.research}
 								setupSession={install.setupSession}
 								tracking={install.tracking}
@@ -482,35 +451,33 @@ export function WebsiteTrackingSetupTab({
 							research={research.research}
 							setupSession={install.setupSession}
 							manualInstall={false}
+							onStartResearch={research.start}
 							tracking={install.tracking}
 							websiteId={websiteId}
 						/>
 					) : null}
 				</Card.Content>
-			</Card>
-
-			<Card className="gap-0 py-0">
-				<Card.Header className="flex-row items-center justify-between gap-3 border-border border-b bg-card px-5 py-3">
-					<Card.Title>Install it yourself</Card.Title>
-					{/* policy-ignore dashboard/no-raw-interactive-html: pre-existing compact copy chip; @databuddy/ui Button variants don't match this inline badge styling */}
-					<button
-						className="group flex min-w-0 items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 font-mono text-xs transition-colors hover:bg-accent-brighter"
-						onClick={() =>
-							handleCopy(websiteId, "client-id", "Client ID copied!")
-						}
-						title={websiteId}
-						type="button"
-					>
-						<span className="text-muted-foreground">ID:</span>
-						<span className="min-w-0 truncate">{websiteId}</span>
-						{copiedBlockId === "client-id" ? (
-							<CheckIcon className="size-3 text-success" />
-						) : (
-							<ClipboardIcon className="size-3 opacity-50 transition-opacity group-hover:opacity-100" />
-						)}
-					</button>
-				</Card.Header>
-				<Card.Content className="p-5">
+				<Card.Content className="border-border border-t p-5">
+					<div className="mb-4 flex items-center justify-between gap-3">
+						<h3 className="font-semibold text-sm">Install it yourself</h3>
+						{/* policy-ignore dashboard/no-raw-interactive-html: pre-existing compact copy chip; @databuddy/ui Button variants don't match this inline badge styling */}
+						<button
+							className="group flex min-w-0 items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 font-mono text-xs transition-colors hover:bg-accent-brighter"
+							onClick={() =>
+								handleCopy(websiteId, "client-id", "Client ID copied!")
+							}
+							title={websiteId}
+							type="button"
+						>
+							<span className="text-muted-foreground">ID:</span>
+							<span className="min-w-0 truncate">{websiteId}</span>
+							{copiedBlockId === "client-id" ? (
+								<CheckIcon className="size-3 text-success" />
+							) : (
+								<ClipboardIcon className="size-3 opacity-50 transition-opacity group-hover:opacity-100" />
+							)}
+						</button>
+					</div>
 					<Tabs className="w-full" defaultValue="script">
 						<Tabs.List className="max-w-full overflow-x-auto">
 							<Tabs.Tab value="script">

@@ -1,22 +1,27 @@
 "use client";
 
 import { Button, StatusDot } from "@databuddy/ui";
+import { Tabs } from "@databuddy/ui/client";
 import {
 	CaretRightIcon,
 	CheckIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
-import { type ReactNode, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { createHighlighterCoreSync } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 import html from "shiki/langs/html.mjs";
+import tsx from "shiki/langs/tsx.mjs";
+import vue from "shiki/langs/vue.mjs";
 import vesper from "shiki/themes/vesper.mjs";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { COPY_SUCCESS_TIMEOUT } from "@/app/(main)/websites/[id]/_components/constants/settings-constants";
 import {
 	generateAgentPrompt,
+	generateNpmCode,
 	generateScriptTag,
+	generateVueCode,
 } from "@/app/(main)/websites/[id]/_components/utils/code-generators";
 import type { SiteResearch } from "@/hooks/use-site-research";
 import { RECOMMENDED_DEFAULTS } from "@/app/(main)/websites/[id]/_components/utils/tracking-defaults";
@@ -34,11 +39,11 @@ function agentName(id: string): string {
 
 const highlighter = createHighlighterCoreSync({
 	themes: [vesper],
-	langs: [html],
+	langs: [html, tsx, vue],
 	engine: createJavaScriptRegexEngine(),
 });
 
-export type TrackingCopyMethod = "ai" | "script";
+export type TrackingCopyMethod = "ai" | "script" | "sdk";
 
 export interface TrackingStatus {
 	issue: { fix: string; message: string } | null;
@@ -98,10 +103,12 @@ export function agentProgressSummary(progress: AgentProgress): string {
 interface ConnectAppProps {
 	agentProgress: AgentProgress | null;
 	domain: string;
-	/** Replaces the script tag under "Or install it yourself"; false hides the disclosure. */
-	manualInstall?: ReactNode | false;
+	/** Hide "Or install it yourself" when the page has its own install section. */
+	manualInstall?: boolean;
 	onCopy?: (method: TrackingCopyMethod, agent?: string) => void;
 	onSkip?: () => void;
+	/** Offered when the organization has no brief yet, so the prompt can learn the site first. */
+	onStartResearch?: () => void;
 	research: SiteResearch;
 	setupSession: string;
 	tracking: TrackingStatus;
@@ -115,16 +122,36 @@ export function ConnectApp({
 	onSkip,
 	research,
 	setupSession,
-	manualInstall,
+	manualInstall = true,
+	onStartResearch,
 	tracking,
 	websiteId,
 }: ConnectAppProps) {
 	const [copied, setCopied] = useState<string | null>(null);
 	const [scriptOpen, setScriptOpen] = useState(false);
-	const scriptTag = generateScriptTag(websiteId, RECOMMENDED_DEFAULTS);
-	const highlighted = useMemo(
-		() => highlighter.codeToHtml(scriptTag, { lang: "html", theme: "vesper" }),
-		[scriptTag]
+	const snippets = useMemo(
+		() =>
+			[
+				[
+					"script",
+					"Script tag",
+					"html",
+					generateScriptTag(websiteId, RECOMMENDED_DEFAULTS),
+				],
+				[
+					"react",
+					"React",
+					"tsx",
+					generateNpmCode(websiteId, RECOMMENDED_DEFAULTS),
+				],
+				["vue", "Vue", "vue", generateVueCode(websiteId, RECOMMENDED_DEFAULTS)],
+			].map(([id, label, lang, code]) => ({
+				id,
+				label,
+				code,
+				html: highlighter.codeToHtml(code, { lang, theme: "vesper" }),
+			})),
+		[websiteId]
 	);
 
 	const copy = async (id: string, method: TrackingCopyMethod) => {
@@ -141,7 +168,7 @@ export function ConnectApp({
 								}
 							: undefined
 					)
-				: scriptTag;
+				: (snippets.find((snippet) => snippet.id === id)?.code ?? "");
 		try {
 			await navigator.clipboard.writeText(text);
 		} catch {
@@ -159,7 +186,22 @@ export function ConnectApp({
 				<p className="font-medium text-muted-foreground text-xs">
 					Send to your coding agent
 				</p>
-				{research.phase === "reading" || research.phase === "writing" ? (
+				{research.phase === "idle" && research.canStart && onStartResearch ? (
+					<p className="flex flex-wrap items-center gap-x-2 text-muted-foreground text-xs">
+						<span className="text-pretty">
+							Let Databunny read {domain} first and the prompt will name your
+							pages and events.
+						</span>
+						<Button
+							className="-mx-2.5"
+							onClick={onStartResearch}
+							size="sm"
+							variant="ghost"
+						>
+							Read my site
+						</Button>
+					</p>
+				) : research.phase === "reading" || research.phase === "writing" ? (
 					<p className="text-pretty text-muted-foreground text-xs">
 						Databunny is still reading {domain}. Once the brief is ready the
 						prompt also names the events and funnels this site needs.
@@ -198,7 +240,7 @@ export function ConnectApp({
 				</div>
 			</div>
 
-			{manualInstall === false ? null : (
+			{manualInstall ? (
 				<div>
 					<Button
 						className="-ml-2.5"
@@ -221,30 +263,50 @@ export function ConnectApp({
 						)}
 					>
 						<div className="min-h-0 overflow-hidden">
-							{manualInstall ?? (
-								<div className="group relative mt-3 overflow-hidden rounded border border-border">
-									<div
-										className={cn(
-											"overflow-x-auto font-mono text-[13px] leading-relaxed",
-											"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
-											"[&>pre>code]:block [&>pre>code]:w-full"
-										)}
-										dangerouslySetInnerHTML={{ __html: highlighted }}
-									/>
-									<Button
-										className="absolute top-2 right-2"
-										onClick={() => copy("script", "script")}
-										size="sm"
-										variant="secondary"
+							<Tabs className="mt-3 w-full" defaultValue="script">
+								<Tabs.List>
+									{snippets.map((snippet) => (
+										<Tabs.Tab key={snippet.id} value={snippet.id}>
+											{snippet.label}
+										</Tabs.Tab>
+									))}
+								</Tabs.List>
+								{snippets.map((snippet) => (
+									<Tabs.Panel
+										className="mt-3"
+										key={snippet.id}
+										value={snippet.id}
 									>
-										{copied === "script" ? "Copied" : "Copy"}
-									</Button>
-								</div>
-							)}
+										<div className="group relative overflow-hidden rounded border border-border">
+											<div
+												className={cn(
+													"overflow-x-auto font-mono text-[13px] leading-relaxed",
+													"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
+													"[&>pre>code]:block [&>pre>code]:w-full"
+												)}
+												dangerouslySetInnerHTML={{ __html: snippet.html }}
+											/>
+											<Button
+												className="absolute top-2 right-2"
+												onClick={() =>
+													copy(
+														snippet.id,
+														snippet.id === "script" ? "script" : "sdk"
+													)
+												}
+												size="sm"
+												variant="secondary"
+											>
+												{copied === snippet.id ? "Copied" : "Copy"}
+											</Button>
+										</div>
+									</Tabs.Panel>
+								))}
+							</Tabs>
 						</div>
 					</div>
 				</div>
-			)}
+			) : null}
 
 			{agentProgress ? (
 				<ul className="space-y-1.5 border-border border-t pt-4">
