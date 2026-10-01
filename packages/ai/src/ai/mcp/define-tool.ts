@@ -61,10 +61,12 @@ export class McpToolError extends Error {
 }
 
 export interface McpRequestContext extends RequestPrincipal {
+	request?: Request;
 	requestHeaders: Headers;
 }
 
 export interface McpHandlerContext extends McpRequestContext {
+	abortSignal?: AbortSignal;
 	oauthUser?: User;
 	websiteDomain?: string;
 	websiteId?: string;
@@ -131,10 +133,17 @@ export type McpToolHandler<I> = (
 	ctx: McpHandlerContext
 ) => Promise<unknown> | unknown;
 
+interface McpToolCallExtra {
+	signal?: AbortSignal;
+}
+
 export interface RegisteredMcpTool {
 	annotations: ToolAnnotations;
 	description: string;
-	handler: (rawInput: unknown) => Promise<CallToolResult>;
+	handler: (
+		rawInput: unknown,
+		extra?: McpToolCallExtra
+	) => Promise<CallToolResult>;
 	inputSchema: z.ZodTypeAny;
 	metadata: McpToolMetadata;
 	name: string;
@@ -292,6 +301,16 @@ function isPreviewResult(result: unknown): boolean {
 	);
 }
 
+function callAbortSignal(
+	ctx: McpRequestContext,
+	extra: McpToolCallExtra | undefined
+): AbortSignal | undefined {
+	const signals = [extra?.signal, ctx.request?.signal].filter(
+		(signal): signal is AbortSignal => signal !== undefined
+	);
+	return signals.length > 1 ? AbortSignal.any(signals) : signals[0];
+}
+
 function rateLimitIdentifier(ctx: McpRequestContext, toolName: string): string {
 	const principal = ctx.apiKey?.id ?? ctx.userId ?? "anon";
 	return `mcp:tool:${toolName}:${principal}`;
@@ -326,9 +345,15 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 		inputSchema: meta.inputSchema,
 		metadata,
 		outputSchema,
-		handler: async (rawInput: unknown): Promise<CallToolResult> => {
+		handler: async (
+			rawInput: unknown,
+			extra?: McpToolCallExtra
+		): Promise<CallToolResult> => {
 			const start = Date.now();
-			const handlerCtx: McpHandlerContext = { ...ctx };
+			const handlerCtx: McpHandlerContext = {
+				...ctx,
+				abortSignal: callAbortSignal(ctx, extra),
+			};
 
 			mergeWideEvent({
 				mcp_tool: meta.name,
