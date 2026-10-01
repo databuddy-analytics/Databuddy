@@ -1,7 +1,7 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import { MCP_API_SCOPES, type McpApiScope } from "@databuddy/shared/mcp-access";
+import { MCP_API_SCOPES, MCP_PERMISSIONS } from "@databuddy/shared/mcp-access";
 import {
 	Button,
 	Card,
@@ -25,35 +25,6 @@ import { orpc } from "@/lib/orpc";
 interface PublicClient {
 	client_name?: string | null;
 }
-
-const LINK_SCOPE_DESCRIPTION =
-	"Applies to every short link in this organization, including when you choose specific websites.";
-const MCP_PERMISSIONS: Record<
-	McpApiScope,
-	{ label: string; description?: string }
-> = {
-	"read:data": {
-		label: "Read data",
-		description:
-			"Analytics, insights, investigations, goals, funnels, annotations, and feature flags.",
-	},
-	"manage:websites": {
-		label: "Manage goals, funnels, and annotations",
-		description: "Also lets the app reply to investigations.",
-	},
-	"manage:flags": {
-		label: "Manage flags",
-		description: "Create and update feature flags.",
-	},
-	"read:links": {
-		label: "Read short links",
-		description: LINK_SCOPE_DESCRIPTION,
-	},
-	"write:links": {
-		label: "Create, edit, and delete short links",
-		description: LINK_SCOPE_DESCRIPTION,
-	},
-};
 
 const IDENTITY_SCOPE_LABELS = new Map([
 	["openid", "Your name and email address"],
