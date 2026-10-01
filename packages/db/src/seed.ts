@@ -1,6 +1,17 @@
 import { faker } from "@faker-js/faker";
 import { clickHouse, TABLE_NAMES } from "./clickhouse/client";
 import { db } from "./client";
+import { isLocalDbHostname } from "./e2e-db-lifecycle";
+
+for (const name of ["CLICKHOUSE_URL", "DATABASE_URL"] as const) {
+	const url = process.env[name];
+	const hostname = url && URL.canParse(url) ? new URL(url).hostname : "";
+	if (!isLocalDbHostname(hostname)) {
+		throw new Error(
+			`db:seed only runs against local databases; ${name} host is "${hostname || "unset"}"`
+		);
+	}
+}
 
 const clientId = process.argv[2] || faker.string.uuid();
 const eventCount = Number(process.argv[3]) || 10_000;
@@ -127,7 +138,7 @@ function generatePageTitle(path: string): string {
 			url: fullUrl,
 			path: fullUrl,
 			title: generatePageTitle(path),
-			ip: faker.internet.ip(),
+			ip: "",
 			user_agent: "",
 			browser_name: user.browser,
 			browser_version: faker.system.semver(),
