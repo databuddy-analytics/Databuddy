@@ -601,6 +601,7 @@ export const vercelDrainRoute = new Elysia().post(
 				return new Response(null, { status: 400 });
 			}
 
+			const now = Date.now();
 			const seenRequests = new Set<string>();
 			const spans: AiTrafficSpansInsert[] = [];
 			let foreignHosts = 0;
@@ -635,10 +636,16 @@ export const vercelDrainRoute = new Elysia().post(
 				if (!agent) {
 					continue;
 				}
+				const supplied = proxy.timestamp ?? parsed.data?.timestamp ?? now;
 				spans.push({
 					...columns,
 					client_id: websiteId,
-					timestamp: proxy.timestamp ?? parsed.data?.timestamp ?? Date.now(),
+					timestamp:
+						Number.isSafeInteger(supplied) &&
+						supplied >= now - 6 * 3_600_000 &&
+						supplied <= now + 300_000
+							? supplied
+							: now,
 					user_agent: userAgent,
 					path: pathname.slice(0, 2048),
 					format: contentFormat(pathname),
