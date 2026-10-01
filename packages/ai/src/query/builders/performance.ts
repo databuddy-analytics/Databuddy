@@ -200,7 +200,7 @@ export const PerformanceBuilders = {
 		meta: {
 			title: "Web Vitals by Device Type",
 			description:
-				"Average and p50 Core Web Vitals split by mobile / desktop / tablet — the right builder for mobile-vs-desktop comparisons.",
+				"Average and p50 Core Web Vitals split by mobile / desktop / tablet. Use it for mobile-vs-desktop comparisons.",
 			category: "Performance",
 			tags: ["vitals", "performance", "device", "mobile", "desktop"],
 			output_fields: WEB_VITALS_BREAKDOWN_FIELDS,
