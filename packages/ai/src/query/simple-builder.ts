@@ -85,34 +85,6 @@ export function allowedFilterFields(config: SimpleQueryConfig): string[] {
 	];
 }
 
-const ALLOWED_GROUPBY_FIELDS = new Set([
-	"country",
-	"region",
-	"city",
-	"timezone",
-	"language",
-	"browser_name",
-	"browser_version",
-	"os_name",
-	"os_version",
-	"viewport_size",
-	"device_type",
-	"path",
-	"date",
-	"name",
-	"referrer",
-	"utm_source",
-	"utm_medium",
-	"utm_campaign",
-	"utm_term",
-	"utm_content",
-	"source",
-	"message",
-	"error_type",
-	"duration_range",
-	"depth_range",
-]);
-
 const ALLOWED_ORDERBY_FIELDS = new Set([
 	"visitors",
 	"sessions",
@@ -233,14 +205,6 @@ export function appendFilterClause(conditions: string[] | undefined): string {
 
 function listAllowed(values: Iterable<string>): string {
 	return Array.from(values).sort().join(", ");
-}
-
-function validateGroupByField(field: string): void {
-	if (!ALLOWED_GROUPBY_FIELDS.has(field)) {
-		throw new Error(
-			`Grouping by '${field}' is not permitted. Allowed groupBy fields: ${listAllowed(ALLOWED_GROUPBY_FIELDS)}.`
-		);
-	}
 }
 
 const ORDER_BY_REGEX = /^(\w+)(?:\s+(ASC|DESC))?$/i;
@@ -541,6 +505,17 @@ export class SimpleQueryBuilder {
 		}
 	}
 
+	private validateRequestGroupBy(): void {
+		const fixedGroupBy = this.config.groupBy ?? [];
+		for (const field of this.request.groupBy ?? []) {
+			if (!fixedGroupBy.includes(field)) {
+				throw new Error(
+					`Grouping by '${field}' is not permitted for ${this.request.type}. Each query type returns a fixed breakdown; omit groupBy and choose a query type that already breaks down by ${field}.`
+				);
+			}
+		}
+	}
+
 	private needsSessionAttribution(): boolean {
 		if (!this.config.plugins?.sessionAttribution) {
 			return false;
@@ -550,12 +525,6 @@ export class SimpleQueryBuilder {
 			this.request.filters?.some((filter) =>
 				isSessionAttributionField(filter.field)
 			)
-		) {
-			return true;
-		}
-
-		if (
-			this.request.groupBy?.some((field) => isSessionAttributionField(field))
 		) {
 			return true;
 		}
@@ -743,6 +712,7 @@ export class SimpleQueryBuilder {
 					preparedKeys
 				)
 			);
+			this.validateRequestGroupBy();
 
 			if (typeof result === "string") {
 				return this.finalizeCompiledQuery(result, {});
@@ -754,6 +724,7 @@ export class SimpleQueryBuilder {
 			return this.finalizeCompiledQuery(result.sql, params);
 		}
 
+		this.validateRequestGroupBy();
 		return this.buildStandardQuery();
 	}
 
@@ -1137,12 +1108,7 @@ export class SimpleQueryBuilder {
 			groupByFields.push(timeBucketAlias);
 		}
 
-		if (this.request.groupBy?.length) {
-			for (const f of this.request.groupBy) {
-				validateGroupByField(f);
-			}
-			groupByFields.push(...this.request.groupBy);
-		} else if (this.config.groupBy?.length) {
+		if (this.config.groupBy?.length) {
 			groupByFields.push(...this.config.groupBy);
 		}
 

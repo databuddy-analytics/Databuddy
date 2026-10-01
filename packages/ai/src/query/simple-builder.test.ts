@@ -549,6 +549,22 @@ describe("SimpleQueryBuilder.compile", () => {
 		).toThrow("not permitted");
 	});
 
+	it("rejects a groupBy that would change the query type's fixed breakdown", () => {
+		expect(() => compile({}, { groupBy: ["country"] })).toThrow(
+			"Grouping by 'country' is not permitted for test"
+		);
+		expect(compile({}, { groupBy: ["path"] }).sql).toContain("GROUP BY path");
+		for (const type of ["summary_metrics", "entry_pages"]) {
+			const config = QueryBuilders[type];
+			if (!config) {
+				throw new Error(`${type} builder is missing`);
+			}
+			expect(() =>
+				compileBuilder(type, config, { groupBy: ["country"] })
+			).toThrow(`Grouping by 'country' is not permitted for ${type}`);
+		}
+	});
+
 	it("throws on SQL injection in orderBy", () => {
 		expect(() =>
 			compile({}, { orderBy: "total DESC; DELETE FROM analytics.events" })
