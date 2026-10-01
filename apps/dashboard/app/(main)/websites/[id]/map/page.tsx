@@ -175,6 +175,7 @@ function WebsiteMapPage() {
 							className="w-[min(100cqw,100cqh)]"
 							countries={countries}
 							focusCode={focusCode}
+							isLive={isRealtime && !isLoading}
 							onHoverChange={setHovered}
 						/>
 					</ChartErrorBoundary>
