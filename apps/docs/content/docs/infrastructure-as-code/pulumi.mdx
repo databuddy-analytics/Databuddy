@@ -128,7 +128,7 @@ Set environment variables on the `pulumi` process, not inside your program.
 | API key | `databuddy:apiKey` | `DATABUDDY_API_KEY` | Required |
 | API URL | `databuddy:apiUrl` | `DATABUDDY_API_URL` | `https://api.databuddy.cc` |
 
-Stack config takes precedence. Monitors and status pages that already exist in the dashboard can't be imported.
+Stack config takes precedence. The API URL must use HTTPS unless it points at `localhost`. Monitors and status pages that already exist in the dashboard can't be imported.
 
 ## Troubleshooting
 
