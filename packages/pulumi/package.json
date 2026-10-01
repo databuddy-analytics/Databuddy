@@ -51,6 +51,7 @@
     "@databuddy/rpc": "workspace:*",
     "@orpc/server": "^1.14.0",
     "@pulumi/pulumi": "^3.266.0",
+    "@types/node": "^26.0.0",
     "typescript": "catalog:",
     "unbuild": "^3.6.1"
   },
