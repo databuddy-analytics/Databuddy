@@ -38,6 +38,7 @@ export interface SetupChecklistProps {
 		onClick: () => void;
 		onRetry?: () => void;
 	} | null;
+	loadingWebsites: boolean;
 	onChangePriority: (value: string) => void;
 	onCopy?: (method: TrackingCopyMethod, agent?: string) => void;
 	onCreateWebsite: (values: WebsiteFormValues) => Promise<void>;
@@ -64,7 +65,11 @@ type RowId = "website" | "connect" | "read" | "matters";
 export function SetupChecklist(props: SetupChecklistProps) {
 	const { research, tracking, website } = props;
 
-	const websiteStatus: SetupRowStatus = website ? "done" : "active";
+	const websiteStatus: SetupRowStatus = website
+		? "done"
+		: props.loadingWebsites
+			? "pending"
+			: "active";
 	const readingNow =
 		research.phase === "reading" || research.phase === "writing";
 	const connectStatus: SetupRowStatus = website
@@ -107,7 +112,10 @@ export function SetupChecklist(props: SetupChecklistProps) {
 	const [lastFocus, setLastFocus] = useState(focus);
 	if (focus !== lastFocus) {
 		setLastFocus(focus);
-		setOpen(focus);
+		// A row that is still working (agent progress, reading) stays open.
+		if (rows.find((row) => row.id === open)?.status !== "waiting") {
+			setOpen(focus);
+		}
 	}
 	const toggle = (id: RowId) => () =>
 		setOpen((current) => (current === id ? null : id));
@@ -150,7 +158,7 @@ export function SetupChecklist(props: SetupChecklistProps) {
 						status={websiteStatus}
 						title="Add your website"
 					>
-						{website ? null : (
+						{website || props.loadingWebsites ? null : (
 							<AddWebsite
 								onCreate={props.onCreateWebsite}
 								pending={props.creating}

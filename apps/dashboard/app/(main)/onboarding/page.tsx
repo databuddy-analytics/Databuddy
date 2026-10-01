@@ -108,14 +108,31 @@ const FREE_MAIL_DOMAINS = new Set([
 	"zoho.com",
 ]);
 
+const SECOND_LEVEL_SUFFIXES = new Set([
+	"ac",
+	"co",
+	"com",
+	"edu",
+	"gov",
+	"net",
+	"org",
+]);
+
+/** jane@eu.acme.com suggests acme.com; jane@team.acme.co.uk suggests acme.co.uk. */
 function domainFromEmail(email: string | undefined): string | null {
-	const domain = email?.split("@")[1]?.toLowerCase();
-	if (!domain || domain.endsWith(".local")) {
+	const host = email?.split("@")[1]?.toLowerCase();
+	if (!host || host.endsWith(".local")) {
 		return null;
 	}
-	const labels = domain.split(".");
-	const root = labels.slice(-2).join(".");
-	return FREE_MAIL_DOMAINS.has(domain) || FREE_MAIL_DOMAINS.has(root)
+	const labels = host.split(".");
+	const tail =
+		labels.length > 2 &&
+		labels.at(-1)?.length === 2 &&
+		SECOND_LEVEL_SUFFIXES.has(labels.at(-2) ?? "")
+			? 3
+			: 2;
+	const domain = labels.slice(-tail).join(".");
+	return FREE_MAIL_DOMAINS.has(domain) || FREE_MAIL_DOMAINS.has(host)
 		? null
 		: domain;
 }
@@ -127,7 +144,7 @@ function OnboardingFlow() {
 	const investigations = useInvestigationUsage();
 	const { activeOrganization } = useOrganizationsContext();
 	const organizationId = activeOrganization?.id;
-	const { websites } = useWebsitesLight();
+	const { websites, isLoading: loadingWebsites } = useWebsitesLight();
 	const { data: session } = authClient.useSession();
 	const createWebsite = useCreateWebsite();
 	const queryClient = useQueryClient();
@@ -378,6 +395,7 @@ function OnboardingFlow() {
 		<SetupChecklist
 			agentProgress={agentProgressQuery.data ?? null}
 			creating={createWebsite.isPending}
+			loadingWebsites={loadingWebsites && !createdWebsite}
 			finish={
 				websiteId
 					? {
