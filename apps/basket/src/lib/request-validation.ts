@@ -24,16 +24,12 @@ import {
 } from "@utils/validation";
 import { useLogger } from "evlog/elysia";
 
-export interface ValidatedRequest {
+interface ValidatedRequest {
 	clientId: string;
 	ip: string;
 	organizationId?: string;
 	ownerId?: string;
 	userAgent: string;
-}
-
-export interface ValidateRequestOptions {
-	checkUsage?: boolean;
 }
 
 interface WebsiteSecuritySettings {
@@ -71,7 +67,7 @@ export function validateRequest(
 	body: unknown,
 	query: unknown,
 	request: Request,
-	options: ValidateRequestOptions = {}
+	options: { checkUsage?: boolean } = {}
 ): Promise<ValidatedRequest> {
 	return record("validateRequest", async () => {
 		const log = useLogger();
@@ -264,17 +260,58 @@ export function validateRequest(
 	});
 }
 
-export function agentColumns(signals: AgentSignals) {
+export function checkForBot(
+	request: Request,
+	body: unknown,
+	query: unknown,
+	clientId: string,
+	userAgent: string
+): Promise<{ error: Response; isTrackOnly: boolean } | undefined> {
+	return record("checkForBot", () => {
+		const bot = detectBot(userAgent);
+		if (!bot.isBot) {
+			return;
+		}
+
+		useLogger().set({
+			bot: {
+				name: bot.name,
+				category: bot.category,
+				action: bot.action,
+				agent: bot.agent?.id,
+				purpose: bot.agent?.purpose,
+			},
+		});
+
+		if (bot.action === "allow") {
+			return;
+		}
+
+		const isTrackOnly = bot.action === "track_only";
+		if (!isTrackOnly) {
+			logBlockedTraffic(
+				request,
+				body,
+				query,
+				bot.reason,
+				"Known Bot",
+				bot.name,
+				clientId
+			);
+		}
+
+		return { error: new Response(null, { status: 204 }), isTrackOnly };
+	});
+}
+
+export function agentSpanColumns(signals: AgentSignals) {
 	const bot = detectBot(signals.userAgent);
 	const agent = identifyAiAgent(signals, bot.category);
 	return {
-		agent,
-		columns: {
-			agent_id: agent?.id ?? "",
-			agent_purpose: agent?.purpose ?? "",
-			bot_name: agent?.name ?? bot.name ?? "",
-			bot_type: agent ? agentBotCategory(agent) : (bot.category ?? "unknown"),
-		},
+		agent_id: agent?.id ?? "",
+		agent_purpose: agent?.purpose ?? "",
+		bot_name: agent?.name ?? bot.name ?? "",
+		bot_type: agent ? agentBotCategory(agent) : (bot.category ?? "unknown"),
 	};
 }
 
@@ -289,7 +326,7 @@ export function recordAiPageView(
 	}
 	runFork(
 		send("analytics-ai-traffic-spans", {
-			...agentColumns({ userAgent }).columns,
+			...agentSpanColumns({ userAgent }),
 			client_id: clientId,
 			timestamp: Date.now(),
 			user_agent: userAgent,
@@ -300,57 +337,4 @@ export function recordAiPageView(
 			format: "html",
 		} satisfies AiTrafficSpansInsert)
 	);
-}
-
-export function checkForBot(
-	request: Request,
-	body: unknown,
-	query: unknown,
-	clientId: string,
-	userAgent: string
-): Promise<{ error: Response; trackOnly: boolean } | undefined> {
-	return record("checkForBot", () => {
-		const log = useLogger();
-		const bot = detectBot(userAgent);
-
-		if (!bot.isBot) {
-			return;
-		}
-
-		log.set({
-			bot: {
-				name: bot.name,
-				category: bot.category,
-				action: bot.action,
-				agent: bot.agent?.id,
-				purpose: bot.agent?.purpose,
-			},
-		});
-
-		if (bot.action === "allow") {
-			return;
-		}
-
-		if (bot.action === "track_only") {
-			return {
-				error: new Response(null, { status: 204 }),
-				trackOnly: true,
-			};
-		}
-
-		logBlockedTraffic(
-			request,
-			body,
-			query,
-			bot.reason,
-			"Known Bot",
-			bot.name,
-			clientId
-		);
-
-		return {
-			error: new Response(null, { status: 204 }),
-			trackOnly: false,
-		};
-	});
 }

@@ -27,7 +27,7 @@ import {
 	isAssetPath,
 } from "@databuddy/shared/bot-detection/types";
 import {
-	agentColumns,
+	agentSpanColumns,
 	checkForBot,
 	getWebsiteSecuritySettings,
 } from "@lib/request-validation";
@@ -74,17 +74,15 @@ const vercelLogSchema = z.object({
 	id: z.string().optional(),
 	requestId: z.string().optional(),
 	timestamp: z.number().optional(),
-	proxy: z
-		.object({
-			host: z.string().min(1).max(253),
-			method: z.string().optional(),
-			path: z.string(),
-			referer: z.string().optional(),
-			statusCode: z.number().int().optional(),
-			timestamp: z.number().optional(),
-			userAgent: z.array(z.string()).optional(),
-		})
-		.optional(),
+	proxy: z.object({
+		host: z.string().min(1).max(253),
+		method: z.enum(["GET", "HEAD"]),
+		path: z.string(),
+		referer: truncated(2048).optional(),
+		statusCode: z.number().int().optional(),
+		timestamp: z.number().optional(),
+		userAgent: z.array(truncated(512)).optional(),
+	}),
 });
 
 const VERCEL_LOGS_MAX_BYTES = 10 * 1024 * 1024;
@@ -108,7 +106,7 @@ function parseVercelLogs(body: Uint8Array): {
 			return [];
 		}
 		try {
-			return [JSON.parse(line) as unknown];
+			return [JSON.parse(line)];
 		} catch {
 			malformed += 1;
 			return [];
@@ -117,22 +115,21 @@ function parseVercelLogs(body: Uint8Array): {
 	return { entries, malformed };
 }
 
-async function agentTrafficWebsite(websiteId: string) {
+async function loadHostCheck(websiteId: string) {
 	const website = await getWebsiteByIdV2(websiteId).catch(() => {
 		useLogger().set({ website_lookup: "unavailable" });
-		return;
 	});
 	if (website === null) {
 		throw basketErrors.trackWebsiteNotFound();
 	}
-	const allowedOrigins = website
-		? getWebsiteSecuritySettings(website.settings)?.allowedOrigins
-		: undefined;
+	if (!website) {
+		return { isHostAllowed: () => true, verification: "host_unchecked" };
+	}
+	const { allowedOrigins } = getWebsiteSecuritySettings(website.settings) ?? {};
 	return {
 		isHostAllowed: (host: string) =>
-			!website ||
 			isOriginAllowed(`https://${host}`, website.domain, allowedOrigins),
-		verification: website ? "" : "host_unchecked",
+		verification: "",
 	};
 }
 
@@ -372,16 +369,16 @@ export const trackRoute = new Elysia()
 					request.headers.get("user-agent"),
 					VALIDATION_LIMITS.STRING_MAX_LENGTH
 				) || "";
-			const botError = await checkForBot(
+			const botRejection = await checkForBot(
 				request,
 				typedBody,
 				typedQuery,
-				auth.websiteId ?? websiteIdParam ?? "",
+				websiteIdParam ?? "",
 				userAgent
 			);
-			if (botError) {
+			if (botRejection) {
 				log.set({ rejected: "bot" });
-				return botError.error;
+				return botRejection.error;
 			}
 
 			const targets = events.map((event) => ({
@@ -546,8 +543,8 @@ export const trackRoute = new Elysia()
 			const hit = parsed.data;
 			log.set({ websiteId: hit.websiteId, host: hit.host });
 
-			const website = await agentTrafficWebsite(hit.websiteId);
-			if (!website.isHostAllowed(hit.host)) {
+			const hostCheck = await loadHostCheck(hit.websiteId);
+			if (!hostCheck.isHostAllowed(hit.host)) {
 				log.set({ rejected: "host_not_authorized" });
 				throw basketErrors.ingestOriginNotAuthorized();
 			}
@@ -555,11 +552,11 @@ export const trackRoute = new Elysia()
 				return new Response(null, { status: 202 });
 			}
 
-			const { agent, columns } = agentColumns(hit);
+			const columns = agentSpanColumns(hit);
 			log.set({
 				bot: {
 					name: columns.bot_name,
-					agent: agent?.id ?? null,
+					agent: columns.agent_id || null,
 					signed: Boolean(hit.signatureAgent),
 				},
 			});
@@ -575,7 +572,7 @@ export const trackRoute = new Elysia()
 					accept: hit.accept ?? "",
 					referrer: hit.referrer,
 					source: "middleware",
-					verification: website.verification,
+					verification: hostCheck.verification,
 				} satisfies AiTrafficSpansInsert)
 			);
 
@@ -592,11 +589,12 @@ export const vercelDrainRoute = new Elysia().post(
 		log.set({ route: "vercel-drain", websiteId });
 
 		try {
-			const website = await agentTrafficWebsite(websiteId);
-			let batch: ReturnType<typeof parseVercelLogs>;
-			try {
-				batch = parseVercelLogs(new Uint8Array(await request.arrayBuffer()));
-			} catch {
+			const hostCheck = await loadHostCheck(websiteId);
+			const batch = await request
+				.arrayBuffer()
+				.then((body) => parseVercelLogs(new Uint8Array(body)))
+				.catch(() => null);
+			if (!batch) {
 				log.set({ rejected: "unparseable_body" });
 				return new Response(null, { status: 400 });
 			}
@@ -607,12 +605,13 @@ export const vercelDrainRoute = new Elysia().post(
 			let foreignHosts = 0;
 			for (const entry of batch.entries) {
 				const parsed = vercelLogSchema.safeParse(entry);
-				const proxy = parsed.success ? parsed.data.proxy : undefined;
-				const requestKey = parsed.data?.requestId || parsed.data?.id;
+				if (!parsed.success) {
+					continue;
+				}
+				const { id, proxy, requestId, timestamp } = parsed.data;
+				const requestKey = requestId || id;
 				if (
-					!proxy ||
 					proxy.statusCode === -1 ||
-					(proxy.method !== "GET" && proxy.method !== "HEAD") ||
 					(requestKey && seenRequests.has(requestKey))
 				) {
 					continue;
@@ -620,11 +619,11 @@ export const vercelDrainRoute = new Elysia().post(
 				if (requestKey) {
 					seenRequests.add(requestKey);
 				}
-				if (!website.isHostAllowed(proxy.host)) {
+				if (!hostCheck.isHostAllowed(proxy.host)) {
 					foreignHosts += 1;
 					continue;
 				}
-				const userAgent = (proxy.userAgent?.[0] ?? "").slice(0, 512);
+				const userAgent = proxy.userAgent?.[0] ?? "";
 				const pathname = proxy.path.split("?")[0] ?? "";
 				if (
 					(await recordedSetupCheck(websiteId, userAgent)) ||
@@ -632,11 +631,11 @@ export const vercelDrainRoute = new Elysia().post(
 				) {
 					continue;
 				}
-				const { agent, columns } = agentColumns({ userAgent });
-				if (!agent) {
+				const columns = agentSpanColumns({ userAgent });
+				if (!columns.agent_id) {
 					continue;
 				}
-				const supplied = proxy.timestamp ?? parsed.data?.timestamp ?? now;
+				const supplied = proxy.timestamp ?? timestamp ?? now;
 				spans.push({
 					...columns,
 					client_id: websiteId,
@@ -651,10 +650,10 @@ export const vercelDrainRoute = new Elysia().post(
 					format: contentFormat(pathname),
 					host: proxy.host,
 					accept: "",
-					referrer: proxy.referer?.slice(0, 2048),
+					referrer: proxy.referer,
 					source: "vercel",
 					status_code: Math.max(proxy.statusCode ?? 0, 0),
-					verification: website.verification,
+					verification: hostCheck.verification,
 				});
 			}
 

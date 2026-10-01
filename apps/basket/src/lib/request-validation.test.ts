@@ -369,7 +369,7 @@ describe("checkForBot", () => {
 		const event = { name: "screen_view", path: "/about" };
 		const result = await checkForBot(makeReq(), event, {}, "ws_1", GPTBOT);
 		expect(result?.error?.status).toBe(204);
-		expect(result?.trackOnly).toBe(true);
+		expect(result?.isTrackOnly).toBe(true);
 		expect(mockSend).not.toHaveBeenCalled();
 		recordAiPageView(event, "ws_1", GPTBOT);
 		expect(mockSend).toHaveBeenCalledWith(
