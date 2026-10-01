@@ -80,18 +80,18 @@ function queryParams(ctx: CustomSqlContext) {
 	};
 }
 
-export function aiActiveWebsitesQuery(from: string, to: string) {
+export function aiActiveWebsitesQuery(fromDay: string, untilDay: string) {
 	return {
 		sql: `
 			SELECT client_id FROM ${Analytics.ai_traffic_spans}
-			WHERE timestamp >= toDateTime({from:String}) AND timestamp < toDateTime({to:String}) AND agent_id != ''
+			WHERE timestamp >= toDate({fromDay:String}) AND timestamp < toDate({untilDay:String}) AND agent_id != ''
 			GROUP BY client_id
 			UNION DISTINCT
 			SELECT client_id FROM ${Analytics.events}
-			WHERE time >= toDateTime({from:String}) AND time < toDateTime({to:String}) AND ${VISIT_PRODUCT} != ''
+			WHERE time >= toDate({fromDay:String}) AND time < toDate({untilDay:String}) AND ${VISIT_PRODUCT} != ''
 			GROUP BY client_id
 		`,
-		params: { from, to, ...AI_VISIT_PARAMS },
+		params: { fromDay, untilDay, ...AI_VISIT_PARAMS },
 	};
 }
 
@@ -521,6 +521,11 @@ export const AiAgentsBuilders = {
 			tags: ["ai", "digest", "summary", "week-over-week"],
 			output_fields: [
 				{ name: "product", type: "string", label: "Product" },
+				{
+					name: "purpose",
+					type: "string",
+					label: "Main crawler purpose (empty when it only sent visitors)",
+				},
 				{ name: "visitors", type: "number", label: "Visitors" },
 				{
 					name: "previous_visitors",
@@ -588,6 +593,7 @@ export const AiAgentsBuilders = {
 					) AS site_has_server_tracking
 				SELECT
 					product,
+					max(main_purpose) AS purpose,
 					sum(visitors_now) AS visitors,
 					sum(visitors_before) AS previous_visitors,
 					sum(requests_now) AS requests,
@@ -600,6 +606,7 @@ export const AiAgentsBuilders = {
 				FROM (
 					SELECT
 						${AGENT_PRODUCT} AS product,
+						toString(anyHeavy(agent_purpose)) AS main_purpose,
 						toUInt64(0) AS visitors_now,
 						toUInt64(0) AS visitors_before,
 						toUInt64(countIf(timestamp >= current_start)) AS requests_now,
@@ -612,6 +619,7 @@ export const AiAgentsBuilders = {
 					UNION ALL
 					SELECT
 						${VISIT_PRODUCT} AS product,
+						'',
 						toUInt64(uniqIf(anonymous_id, time >= current_start)),
 						toUInt64(uniqIf(anonymous_id, time < current_start)),
 						toUInt64(0),
@@ -625,6 +633,7 @@ export const AiAgentsBuilders = {
 					UNION ALL
 					SELECT
 						product,
+						'',
 						toUInt64(0),
 						toUInt64(0),
 						toUInt64(0),
