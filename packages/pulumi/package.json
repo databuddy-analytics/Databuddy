@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/pulumi",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Manage Databuddy uptime monitors and status pages from Pulumi.",
   "license": "MIT",
   "type": "module",
