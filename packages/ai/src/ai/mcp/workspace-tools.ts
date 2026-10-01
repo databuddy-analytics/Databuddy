@@ -5,8 +5,11 @@ import {
 import { httpUrlSchema } from "@databuddy/validation";
 import { z } from "zod";
 import { callRPCProcedure } from "../tools/utils";
+import type { AppContext } from "../config/context";
 import {
+	getOrganizationLink,
 	LinkFolderSelectorSchema,
+	type LinkRow,
 	hasLinkFolderSelector,
 	listLinkFolders,
 	parseLinkRow,
@@ -263,6 +266,24 @@ const linkUpdateFields = {
 	deepLinkApp: z.enum(DEEP_LINK_APP_IDS).nullable().optional(),
 };
 
+async function readOrganizationLink(
+	context: AppContext,
+	organizationId: string,
+	id: string
+): Promise<LinkRow> {
+	const link = await getOrganizationLink(context, organizationId, id);
+	if (!link) {
+		throw new McpToolError(
+			"not_found",
+			"Short link not found in this website's organization.",
+			{
+				hint: "Link IDs come from list_links or search_links for the same website.",
+			}
+		);
+	}
+	return link;
+}
+
 const updateLinkTool = defineMcpTool(
 	{
 		name: "update_link",
@@ -280,13 +301,24 @@ const updateLinkTool = defineMcpTool(
 		annotations: IDEMPOTENT_WRITE,
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
-	async ({ confirmed, id, folderId, folderSlug, expiresAt, ...input }, ctx) => {
+	async (
+		{
+			confirmed,
+			id,
+			folderId,
+			folderSlug,
+			expiresAt,
+			websiteId: _websiteId,
+			websiteName: _websiteName,
+			websiteDomain: _websiteDomain,
+			...input
+		},
+		ctx
+	) => {
 		const organizationId = getResolvedOrganizationId(ctx);
 		const rpcContext = buildRpcContext(ctx);
 		const [current, folders] = await Promise.all([
-			callRPCProcedure("links", "get", { id, organizationId }, rpcContext).then(
-				parseLinkRow
-			),
+			readOrganizationLink(rpcContext, organizationId, id),
 			listLinkFolders(rpcContext, organizationId),
 		]);
 		const folderSelection = resolveLinkFolderFromList(folders, {
@@ -365,9 +397,7 @@ const deleteLinkTool = defineMcpTool(
 		const organizationId = getResolvedOrganizationId(ctx);
 		const rpcContext = buildRpcContext(ctx);
 		const [link, folders] = await Promise.all([
-			callRPCProcedure("links", "get", { id, organizationId }, rpcContext).then(
-				parseLinkRow
-			),
+			readOrganizationLink(rpcContext, organizationId, id),
 			listLinkFolders(rpcContext, organizationId),
 		]);
 		if (!confirmed) {

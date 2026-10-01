@@ -66,6 +66,7 @@ test.each(
 		slug: "example",
 		targetUrl: "https://example.com",
 		expiresAt: "2026-10-01T08:00:00Z",
+		organizationId: "org-1",
 	};
 	invoke.mockImplementation(async (router) =>
 		router === "linkFolders" ? [folder] : current
@@ -139,6 +140,7 @@ test.each(
 		slug: "example",
 		targetUrl: "https://www.instagram.com/example/",
 		deepLinkApp: "instagram",
+		organizationId: "org-1",
 	};
 	invoke.mockImplementation(async (router) =>
 		router === "linkFolders" ? [] : current
@@ -167,4 +169,41 @@ test.each(
 	expect(invoke.mock.calls.filter(([, method]) => method === "update")).toEqual(
 		[]
 	);
+});
+
+test.each([
+	"update_link",
+	"delete_link",
+] as const)("%s rejects a link from another organization", async (name) => {
+	invoke.mockImplementation(async (router) =>
+		router === "linkFolders"
+			? []
+			: {
+					id: "link-1",
+					name: "Other org link",
+					slug: "other",
+					targetUrl: "https://example.com",
+					organizationId: "org-2",
+				}
+	);
+	const definition = createLinksTools()[name];
+	if (!definition.execute) {
+		throw new Error("Missing link tool executor");
+	}
+
+	await expect(
+		definition.execute(
+			{ confirmed: true, id: "link-1", websiteId: "site-1" },
+			{
+				toolCallId: "cross-org-link",
+				messages: [],
+				experimental_context: { mutationMode: "allow" },
+			}
+		)
+	).rejects.toThrow("Link not found in this website's organization.");
+	expect(
+		invoke.mock.calls.filter(
+			([, method]) => method === "update" || method === "delete"
+		)
+	).toEqual([]);
 });

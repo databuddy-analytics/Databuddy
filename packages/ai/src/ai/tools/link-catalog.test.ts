@@ -2,7 +2,6 @@ import { describe, expect, it } from "bun:test";
 import {
 	type LinkFolder,
 	fetchLinkCatalogPage,
-	fetchLinkSummary,
 	resolveLinkFolderFromList,
 } from "./link-catalog";
 
@@ -116,35 +115,5 @@ describe("paginated link catalog", () => {
 		expect(page.items[0]?.deepLinkApp).toBe("instagram");
 		expect(page.total).toBeUndefined();
 		expect(calls).toEqual([{ limit: 50, offset: 0, search: "Example 1000" }]);
-	});
-
-	it("loads exact catalog and unfiled totals from paginated counts", async () => {
-		const calls: Array<{
-			folderId?: null;
-			includeTotal?: boolean;
-			limit: number;
-			offset: number;
-			search?: string;
-		}> = [];
-		const summary = await fetchLinkSummary(async (input) => {
-			calls.push(input);
-			return {
-				hasMore: false,
-				items: [],
-				total: input.folderId === null ? 3 : 7,
-			};
-		}, "campaign");
-
-		expect(summary).toEqual({ total: 7, unfiledTotal: 3 });
-		expect(calls).toEqual([
-			{ includeTotal: true, limit: 1, offset: 0, search: "campaign" },
-			{
-				folderId: null,
-				includeTotal: true,
-				limit: 1,
-				offset: 0,
-				search: "campaign",
-			},
-		]);
 	});
 });

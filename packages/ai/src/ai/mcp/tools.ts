@@ -26,10 +26,10 @@ import { executeBatch, SANITIZED_QUERY_ERROR } from "../../query";
 import { runInvestigationAction } from "../tools/investigations";
 import { callRPCProcedure } from "../tools/utils";
 import {
+	countUnfiledLinks,
 	LinkFolderSelectorSchema,
 	LinkFolderWithUsageSchema,
 	LinkRowOutputSchema,
-	getLinkSummary,
 	listLinkFolders,
 	listLinks,
 	parseLinkRow,
@@ -952,9 +952,9 @@ const listLinkFoldersTool = defineMcpTool(
 	async (input, ctx) => {
 		const orgId = getResolvedOrganizationId(ctx);
 		const rpcContext = buildRpcContext(ctx);
-		const [folders, summary] = await Promise.all([
+		const [folders, unfiledCount] = await Promise.all([
 			listLinkFolders(rpcContext, orgId),
-			getLinkSummary(rpcContext, orgId),
+			countUnfiledLinks(rpcContext, orgId),
 		]);
 		const page = paginate(summarizeLinkFoldersWithUsage(folders), input);
 
@@ -962,7 +962,7 @@ const listLinkFoldersTool = defineMcpTool(
 			folders: page.items,
 			total: page.total,
 			hasMore: page.hasMore,
-			unfiledCount: summary.unfiledTotal,
+			unfiledCount,
 			hint:
 				folders.length === 0
 					? "This organization has no link folders. Folders are created in the Databuddy dashboard; links stay unfiled until then."
@@ -995,21 +995,21 @@ const listLinksTool = defineMcpTool(
 	async (input, ctx) => {
 		const orgId = getResolvedOrganizationId(ctx);
 		const rpcContext = buildRpcContext(ctx);
-		const [page, folders, summary] = await Promise.all([
+		const [page, folders, unfiledCount] = await Promise.all([
 			listLinks(rpcContext, orgId, {
 				limit: input.limit,
 				offset: input.offset,
 			}),
 			listLinkFolders(rpcContext, orgId),
-			getLinkSummary(rpcContext, orgId),
+			countUnfiledLinks(rpcContext, orgId),
 		]);
 		return {
 			links: page.items.map((link) => summarizeLink(link, folders)),
-			total: summary.total,
+			total: page.total,
 			hasMore: page.hasMore,
 			folders: summarizeLinkFoldersWithUsage(folders, page.items),
-			unfiledCount: summary.unfiledTotal,
-			...(summary.total === 0 && {
+			unfiledCount,
+			...(page.total === 0 && {
 				hint: "No links yet for this organization.",
 			}),
 		};
@@ -1116,9 +1116,12 @@ const createLinkTool = defineMcpTool(
 					name: input.name,
 					targetUrl: input.targetUrl,
 					slug: input.slug ?? "(auto-generated)",
+					deepLinkApp: input.deepLinkApp ?? null,
 					expiresAt: input.expiresAt ?? null,
+					expiredRedirectUrl: input.expiredRedirectUrl ?? null,
 					ogTitle: input.ogTitle ?? null,
 					ogDescription: input.ogDescription ?? null,
+					ogImageUrl: input.ogImageUrl ?? null,
 					externalId: input.externalId ?? null,
 					folder: folderSelection.folder
 						? summarizeLinkFolder(folderSelection.folder)

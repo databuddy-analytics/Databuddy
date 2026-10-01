@@ -27,10 +27,12 @@ export const LinkRowOutputSchema = z.object({
 	folder: LinkFolderSummarySchema.nullable().optional(),
 	externalId: z.string().nullable(),
 	expiresAt: z.string().nullable().optional(),
+	expiredRedirectUrl: z.string().nullable().optional(),
 	createdAt: z.string().optional(),
 	updatedAt: z.string().optional(),
 	ogTitle: z.string().nullable().optional(),
 	ogDescription: z.string().nullable().optional(),
+	ogImageUrl: z.string().nullable().optional(),
 });
 
 const LinkFolderSchema = z.object({
@@ -54,10 +56,12 @@ const LinkRowSchema = z.object({
 	folderId: z.string().nullable().optional(),
 	externalId: z.string().nullable().optional(),
 	expiresAt: DateStringSchema.nullable().optional(),
+	expiredRedirectUrl: z.string().nullable().optional(),
 	createdAt: DateStringSchema.optional(),
 	updatedAt: DateStringSchema.optional(),
 	ogTitle: z.string().nullable().optional(),
 	ogDescription: z.string().nullable().optional(),
+	ogImageUrl: z.string().nullable().optional(),
 	organizationId: z.string().optional(),
 });
 
@@ -65,11 +69,6 @@ const LinkPageSchema = z.object({
 	hasMore: z.boolean(),
 	items: z.array(LinkRowSchema),
 	total: z.number().int().nonnegative().optional(),
-});
-
-const LinkSummarySchema = z.object({
-	total: z.number().int().nonnegative(),
-	unfiledTotal: z.number().int().nonnegative(),
 });
 
 const MODEL_LINK_LIMIT = 50;
@@ -105,13 +104,18 @@ type LinkPageFetcher = (input: {
 	search?: string;
 }) => Promise<unknown>;
 
+interface LinkFilters {
+	folderId?: string | null;
+	search?: string;
+}
+
 export type LinkPage = z.infer<typeof LinkPageSchema>;
 export interface LinkPageRequest {
 	includeTotal?: boolean;
 	limit: number;
 	offset: number;
 }
-export type LinkSummary = z.infer<typeof LinkSummarySchema>;
+export type CountedLinkPage = LinkPage & { total: number };
 
 export type LinkFolderResolution =
 	| {
@@ -141,7 +145,7 @@ function parseLinkFolders(value: unknown): LinkFolder[] {
 
 export async function fetchLinkCatalogPage(
 	fetchPage: LinkPageFetcher,
-	filters: { folderId?: string | null; search?: string } = {},
+	filters: LinkFilters = {},
 	page: LinkPageRequest = { limit: MODEL_LINK_LIMIT, offset: 0 }
 ): Promise<LinkPage> {
 	const result = LinkPageSchema.safeParse(
@@ -158,39 +162,10 @@ export async function fetchLinkCatalogPage(
 	return result.data;
 }
 
-export async function fetchLinkSummary(
-	fetchPage: LinkPageFetcher,
-	search?: string
-): Promise<LinkSummary> {
-	const input = {
-		includeTotal: true,
-		limit: 1,
-		offset: 0,
-		...(search ? { search } : {}),
-	};
-	const [all, unfiled] = await Promise.all([
-		fetchPage(input),
-		fetchPage({ ...input, folderId: null }),
-	]);
-	const allResult = LinkPageSchema.safeParse(all);
-	const unfiledResult = LinkPageSchema.safeParse(unfiled);
-	if (
-		!(allResult.success && unfiledResult.success) ||
-		allResult.data.total === undefined ||
-		unfiledResult.data.total === undefined
-	) {
-		throw new Error("Received an invalid paginated link summary response.");
-	}
-	return {
-		total: allResult.data.total,
-		unfiledTotal: unfiledResult.data.total,
-	};
-}
-
 async function loadLinks(
 	context: AppContext,
 	organizationId: string,
-	filters: { folderId?: string | null; search?: string } = {},
+	filters: LinkFilters = {},
 	page?: LinkPageRequest
 ): Promise<LinkPage> {
 	const { callRPCProcedure } = await import("./utils");
@@ -212,12 +187,44 @@ async function loadLinks(
 	);
 }
 
+async function loadCountedLinks(
+	context: AppContext,
+	organizationId: string,
+	filters: LinkFilters,
+	page: { limit: number; offset: number }
+): Promise<CountedLinkPage> {
+	const result = await loadLinks(context, organizationId, filters, {
+		...page,
+		includeTotal: true,
+	});
+	if (result.total === undefined) {
+		throw new Error("Received an invalid paginated link count response.");
+	}
+	return { ...result, total: result.total };
+}
+
 export function listLinks(
 	context: AppContext,
 	organizationId: string,
-	page?: LinkPageRequest
-): Promise<LinkPage> {
-	return loadLinks(context, organizationId, {}, page);
+	page: { limit: number; offset: number } = {
+		limit: MODEL_LINK_LIMIT,
+		offset: 0,
+	}
+): Promise<CountedLinkPage> {
+	return loadCountedLinks(context, organizationId, {}, page);
+}
+
+export async function countUnfiledLinks(
+	context: AppContext,
+	organizationId: string
+): Promise<number> {
+	const page = await loadCountedLinks(
+		context,
+		organizationId,
+		{ folderId: null },
+		{ limit: 1, offset: 0 }
+	);
+	return page.total;
 }
 
 export function searchLinks(
@@ -229,27 +236,16 @@ export function searchLinks(
 	return loadLinks(context, organizationId, { search: query }, page);
 }
 
-export async function getLinkSummary(
+export async function getOrganizationLink(
 	context: AppContext,
 	organizationId: string,
-	search?: string
-): Promise<LinkSummary> {
+	id: string
+): Promise<LinkRow | null> {
 	const { callRPCProcedure } = await import("./utils");
-	return fetchLinkSummary(
-		(input) =>
-			callRPCProcedure(
-				"links",
-				"paginated",
-				{
-					...input,
-					organizationId,
-					sort: "newest",
-					type: "all",
-				},
-				context
-			),
-		search
+	const link = parseLinkRow(
+		await callRPCProcedure("links", "get", { id }, context)
 	);
+	return link.organizationId === organizationId ? link : null;
 }
 
 export async function listLinkFolders(
@@ -300,10 +296,12 @@ export function summarizeLink(link: LinkRow, folders: LinkFolder[]) {
 		folder: folder ? summarizeLinkFolder(folder) : null,
 		externalId: link.externalId ?? null,
 		expiresAt: link.expiresAt,
+		expiredRedirectUrl: link.expiredRedirectUrl ?? null,
 		createdAt: link.createdAt,
 		updatedAt: link.updatedAt,
 		ogTitle: link.ogTitle ?? null,
 		ogDescription: link.ogDescription ?? null,
+		ogImageUrl: link.ogImageUrl ?? null,
 	};
 }
 

@@ -7,9 +7,12 @@ import {
 import { LINK_SLUG_REGEX } from "@databuddy/shared/constants/links";
 import { httpUrlSchema } from "@databuddy/validation";
 import { getCachedWebsite } from "../../lib/website-utils";
+import type { AppContext } from "../config/context";
 import {
+	countUnfiledLinks,
+	getOrganizationLink,
 	LinkFolderSelectorSchema,
-	getLinkSummary,
+	type LinkRow,
 	hasLinkFolderSelector,
 	listLinkFolders,
 	listLinks,
@@ -40,6 +43,18 @@ async function getOrganizationIdFromWebsite(
 	return website.organizationId;
 }
 
+async function readOrganizationLink(
+	context: AppContext,
+	organizationId: string,
+	id: string
+): Promise<LinkRow> {
+	const link = await getOrganizationLink(context, organizationId, id);
+	if (!link) {
+		throw new Error("Link not found in this website's organization.");
+	}
+	return link;
+}
+
 export function createLinksTools() {
 	const listLinkFoldersTool = tool({
 		description:
@@ -49,15 +64,15 @@ export function createLinksTools() {
 			const context = getAppContext(options);
 			try {
 				const organizationId = await getOrganizationIdFromWebsite(websiteId);
-				const [folders, summary] = await Promise.all([
+				const [folders, unfiledCount] = await Promise.all([
 					listLinkFolders(context, organizationId),
-					getLinkSummary(context, organizationId),
+					countUnfiledLinks(context, organizationId),
 				]);
 
 				return {
 					folders: summarizeLinkFoldersWithUsage(folders),
 					count: folders.length,
-					unfiledCount: summary.unfiledTotal,
+					unfiledCount,
 					hint:
 						folders.length === 0
 							? "No link folders exist yet. Leave links unfiled unless the user creates a folder in Databuddy."
@@ -83,23 +98,22 @@ export function createLinksTools() {
 			const context = getAppContext(options);
 			try {
 				const organizationId = await getOrganizationIdFromWebsite(websiteId);
-				const [page, folders, summary] = await Promise.all([
+				const [page, folders, unfiledCount] = await Promise.all([
 					search
 						? searchLinks(context, organizationId, search)
 						: listLinks(context, organizationId),
 					listLinkFolders(context, organizationId),
 					search
 						? Promise.resolve(null)
-						: getLinkSummary(context, organizationId),
+						: countUnfiledLinks(context, organizationId),
 				]);
-				const count = summary?.total ?? page.items.length;
+				const count = page.total ?? page.items.length;
 				return {
 					links: page.items.map((link) => summarizeLink(link, folders)),
 					count,
 					folders: summarizeLinkFoldersWithUsage(folders, page.items),
 					unfiledCount:
-						summary?.unfiledTotal ??
-						page.items.filter((link) => !link.folderId).length,
+						unfiledCount ?? page.items.filter((link) => !link.folderId).length,
 					hint:
 						page.hasMore || count > page.items.length
 							? search
@@ -274,12 +288,7 @@ export function createLinksTools() {
 			try {
 				const organizationId = await getOrganizationIdFromWebsite(websiteId);
 				const [currentLink, folders] = await Promise.all([
-					callRPCProcedure(
-						"links",
-						"get",
-						{ id, organizationId },
-						context
-					).then(parseLinkRow),
+					readOrganizationLink(context, organizationId, id),
 					listLinkFolders(context, organizationId),
 				]);
 				const folderSelection = hasLinkFolderSelector({
@@ -375,14 +384,7 @@ export function createLinksTools() {
 			try {
 				const organizationId = await getOrganizationIdFromWebsite(websiteId);
 
-				const link = parseLinkRow(
-					await callRPCProcedure(
-						"links",
-						"get",
-						{ id, organizationId },
-						context
-					)
-				);
+				const link = await readOrganizationLink(context, organizationId, id);
 
 				if (!confirmed) {
 					return {
