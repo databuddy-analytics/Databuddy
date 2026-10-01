@@ -1,8 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type {
-	EmailAlertMode,
-	OrganizationEmailNotificationSettings,
-	TrackingAlertBlockReason,
+import { type SQL, sql } from "drizzle-orm";
+import {
+	type EmailAlertMode,
+	type OrganizationEmailNotificationSettings,
+	organization,
+	type TrackingAlertBlockReason,
 } from "./drizzle/schema/auth";
 
 export interface EmailNotificationSettings {
@@ -22,6 +24,26 @@ export interface EmailNotificationSettings {
 		downEmails: boolean;
 		recoveryEmails: boolean;
 	};
+}
+
+export type EmailNotificationSettingsPatch = {
+	[Section in keyof EmailNotificationSettings]?: Partial<
+		EmailNotificationSettings[Section]
+	>;
+};
+
+export function mergeEmailNotificationSettings(
+	patch: EmailNotificationSettingsPatch
+): SQL {
+	const column = organization.emailNotifications;
+	const sections = Object.entries(patch).filter(([, fields]) => fields);
+	return sql`${column} || jsonb_build_object(${sql.join(
+		sections.map(
+			([section, fields]) =>
+				sql`${section}::text, coalesce(${column} -> ${section}, '{}'::jsonb) || ${JSON.stringify(fields)}::jsonb`
+		),
+		sql`, `
+	)})`;
 }
 
 export const DEFAULT_EMAIL_NOTIFICATION_SETTINGS = {

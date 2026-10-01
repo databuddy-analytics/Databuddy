@@ -5,6 +5,7 @@ import {
 	eq,
 	gt,
 	lt,
+	mergeEmailNotificationSettings,
 	normalizeEmailNotificationSettings,
 	or,
 } from "@databuddy/db";
@@ -57,10 +58,8 @@ const ignoredOriginSchema = z
 		message: "Use a specific host or wildcard like *.example.com.",
 	});
 
-const emailNotificationSettingsSchema = z.object({
-	aiAgents: z
-		.object({ weeklyDigest: z.boolean() })
-		.default({ weeklyDigest: true }),
+const emailNotificationSections = {
+	aiAgents: z.object({ weeklyDigest: z.boolean() }),
 	billing: z.object({ usageWarnings: z.boolean() }),
 	trackingHealth: z.object({
 		cooldownMinutes: z
@@ -76,10 +75,22 @@ const emailNotificationSettingsSchema = z.object({
 		downEmails: z.boolean(),
 		recoveryEmails: z.boolean(),
 	}),
+};
+
+const emailNotificationSettingsSchema = z.object(emailNotificationSections);
+
+const emailNotificationSettingsPatchSchema = z.object({
+	aiAgents: emailNotificationSections.aiAgents.partial().optional(),
+	billing: emailNotificationSections.billing.partial().optional(),
+	trackingHealth: emailNotificationSections.trackingHealth.partial().optional(),
+	uptime: emailNotificationSections.uptime.partial().optional(),
 });
 
 export type EmailNotificationSettingsOutput = z.infer<
 	typeof emailNotificationSettingsSchema
+>;
+export type EmailNotificationSettingsPatch = z.infer<
+	typeof emailNotificationSettingsPatchSchema
 >;
 
 export const organizationsRouter = {
@@ -170,7 +181,7 @@ export const organizationsRouter = {
 		.input(
 			z.object({
 				organizationId: z.string().optional(),
-				settings: emailNotificationSettingsSchema,
+				settings: emailNotificationSettingsPatchSchema,
 			})
 		)
 		.output(emailNotificationSettingsSchema)
@@ -187,15 +198,21 @@ export const organizationsRouter = {
 			});
 
 			setTrackProperties({
-				tracking_health_mode: input.settings.trackingHealth.mode,
+				changed_fields: Object.entries(input.settings)
+					.flatMap(([section, fields]) =>
+						Object.keys(fields ?? {}).map((field) => `${section}.${field}`)
+					)
+					.join(","),
+				tracking_health_mode: input.settings.trackingHealth?.mode,
 				ignored_origin_count:
-					input.settings.trackingHealth.ignoredOrigins.length,
+					input.settings.trackingHealth?.ignoredOrigins?.length,
 			});
 
-			const settings = emailNotificationSettingsSchema.parse(input.settings);
 			const [row] = await db
 				.update(organization)
-				.set({ emailNotifications: settings })
+				.set({
+					emailNotifications: mergeEmailNotificationSettings(input.settings),
+				})
 				.where(eq(organization.id, organizationId))
 				.returning({ emailNotifications: organization.emailNotifications });
 

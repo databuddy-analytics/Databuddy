@@ -1005,6 +1005,12 @@ async function executeDynamicQuery(
 		if (!config) {
 			return { id, error: `Unknown query type: ${name}` };
 		}
+		if (
+			projectType === "organization" &&
+			config.meta?.category === "AI Agents"
+		) {
+			return { id, error: `${name} is only supported for website queries` };
+		}
 
 		if (traitError) {
 			return { id, error: traitError };

@@ -1,3 +1,4 @@
+import { AI_APP_BROWSERS } from "@databuddy/shared/bot-detection/user-agent";
 import type { AppContext } from "../config/context";
 import { formatContextForLLM } from "../config/context";
 import { COMMON_AGENT_RULES } from "./shared";
@@ -51,7 +52,7 @@ ${INVESTIGATION_TOOL_RULES}
 6. Mutations: call with confirmed=false first for a preview, then confirmed=true after explicit user approval.
 7. Product/session diagnosis: prefer interesting_sessions, session_list, session_events, profile_list, profile_sessions, session_flow (page-to-page), session_pages (pages ranked by sessions) before SQL.
 8. Custom events live in a separate table keyed by owner_id, not client_id — use get_data custom_events_* builders, never raw SQL. Use custom_events for inventory and filtered custom_events_discovery for properties; both are bounded results.
-9. AI crawlers, AI agents and AI referrals: use get_data ai_* builders: ai_products (per product: requests, pages read, purpose split, visitors sent), ai_crawlers (per agent: requests, pages, markdown/llms.txt requests, last read, user agent), ai_agent_pages (pages and files each agent read, by format), ai_crawler_activity (AI requests per day by format; filter agent_id for one agent), ai_content_formats, ai_product_visitors, ai_visitor_outcomes, ai_landing_pages, ai_weekly_digest, plus revenue_by_ai_product. Crawler requests are not visitors and never appear in pageview or visitor builders. robots.txt rules are not queryable; send the user to /websites/{websiteId}/agents, which shows each crawler's robots.txt status.
+9. AI crawlers, AI agents and AI referrals: use get_data ai_* builders: ai_products (per product: requests, pages read, purpose split, visitors sent), ai_crawlers (per agent: requests, pages, markdown/llms.txt requests, last read, user agent), ai_agent_pages (pages each agent read, by format; robots.txt, sitemaps and data files are excluded, so query analytics.ai_traffic_spans for those), ai_crawler_activity (AI requests per day by format; filter agent_id for one agent), ai_content_formats, ai_product_visitors, ai_visitor_outcomes, ai_landing_pages, ai_weekly_digest, plus revenue_by_ai_product. Crawler requests are not visitors and never appear in pageview or visitor builders. robots.txt rules are not queryable; send the user to /websites/{websiteId}/agents, which shows each crawler's robots.txt status.
 
 ${FEEDBACK_TOOL_RULES}
 
@@ -128,7 +129,7 @@ Rules: Pick JSON component OR markdown table for the same data, never both. Outp
 - pageviews ≠ unique users; events ≠ sessions; source visitor counts ≠ attribution or incrementality
 - revenue, CAC, LTV, payback, and revenue impact require instrumented revenue and spend data
 - AI request: one fetch by an AI crawler or agent (GPTBot, ClaudeBot, Claude Code); not a visitor or pageview
-- AI visitor: a person who arrived from an AI product's referral or its app browser (ChatGPT Atlas, Claude, Cursor), counted with uniq(anonymous_id) like every visitor
+- AI visitor: a person who arrived from an AI product's referral or its app browser (${AI_APP_BROWSERS.join(", ")}), counted with uniq(anonymous_id) like every visitor
 - agent purpose: training (model training crawls), search_index (AI search indexing), user_fetch (fetched live to answer a user's question), agent (acting for a user, such as coding agents)
 - content format: markdown (.md paths or Accept: text/markdown), llms (llms.txt and llms-full.txt), html (everything else)
 - server-side AI tracking: crawlers that don't run JavaScript appear only when @databuddy/sdk/agents runs on the site's server or a Vercel log drain sends its logs; ai_products.has_proxy says whether either ever has

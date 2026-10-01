@@ -60,91 +60,137 @@ import {
 	processChartData,
 } from "./websites-chart";
 
-const ROBOTS_COMMENT = /#.*$/;
+const ROBOTS_LINE_BREAK = /\r\n?|\n/;
+const ROBOTS_COMMENT = /#.*/;
 const ROBOTS_ROOT_PATHS = new Set(["/", "/*", "*"]);
 const ROBOTS_MAX_BYTES = 512_000;
+const ROBOTS_MAX_AGENTS = 500;
+const ROBOTS_MAX_AGENT_LENGTH = 128;
 
 interface RobotsGroup {
-	agents: string[];
-	rules: { isAllow: boolean; path: string }[];
+	hasAllow: boolean;
+	hasDisallow: boolean;
+	hasRootDisallow: boolean;
 }
 
-function parseRobotsTxt(robotsTxt: string): RobotsGroup[] {
-	const groups: RobotsGroup[] = [];
+function robotsAccessByAgent(robotsTxt: string): Map<string, RobotsAccess> {
+	const groupsByAgent = new Map<string, RobotsGroup[]>();
 	let current: RobotsGroup | undefined;
 	let isReadingAgents = false;
-	for (const line of robotsTxt.split("\n")) {
+	for (const line of robotsTxt.split(ROBOTS_LINE_BREAK)) {
 		const [rawKey = "", ...rest] = line.replace(ROBOTS_COMMENT, "").split(":");
 		const key = rawKey.trim().toLowerCase();
 		const value = rest.join(":").trim();
 		if (key === "user-agent") {
 			if (!(current && isReadingAgents)) {
-				current = { agents: [], rules: [] };
-				groups.push(current);
+				current = {
+					hasAllow: false,
+					hasDisallow: false,
+					hasRootDisallow: false,
+				};
 			}
-			if (value) {
-				current.agents.push(value.toLowerCase());
+			const agent = value.toLowerCase();
+			const agentGroups = groupsByAgent.get(agent);
+			if (agentGroups) {
+				agentGroups.push(current);
+			} else if (
+				agent &&
+				(agent === "*" ||
+					(agent.length <= ROBOTS_MAX_AGENT_LENGTH &&
+						groupsByAgent.size < ROBOTS_MAX_AGENTS))
+			) {
+				groupsByAgent.set(agent, [current]);
 			}
 			isReadingAgents = true;
 		} else if (key) {
 			isReadingAgents = false;
-			if ((key === "allow" || key === "disallow") && value && current) {
-				current.rules.push({ isAllow: key === "allow", path: value });
+			if (key === "allow" && value && current) {
+				current.hasAllow = true;
+			} else if (key === "disallow" && value && current) {
+				current.hasDisallow = true;
+				current.hasRootDisallow ||= ROBOTS_ROOT_PATHS.has(value);
 			}
 		}
 	}
-	return groups;
+	return new Map(
+		[...groupsByAgent]
+			.sort(([a], [b]) => b.length - a.length)
+			.map(([agent, groups]): [string, RobotsAccess] => {
+				const hasRootDisallow = groups.some((group) => group.hasRootDisallow);
+				if (hasRootDisallow && !groups.some((group) => group.hasAllow)) {
+					return [agent, "blocked"];
+				}
+				return [
+					agent,
+					groups.some((group) => group.hasDisallow) ? "partial" : "allowed",
+				];
+			})
+	);
 }
 
 function robotsAccessFor(
-	groups: RobotsGroup[],
+	accessByAgent: Map<string, RobotsAccess>,
 	userAgent: string
 ): RobotsAccess {
 	const ua = userAgent.toLowerCase();
-	const token =
-		groups
-			.flatMap((group) => group.agents)
-			.filter((agent) => agent !== "*" && ua.includes(agent))
-			.sort((a, b) => b.length - a.length)[0] ?? "*";
-	const rules = groups
-		.filter((group) => group.agents.includes(token))
-		.flatMap((group) => group.rules);
-	const isRootBlocked = rules.some(
-		(rule) => !rule.isAllow && ROBOTS_ROOT_PATHS.has(rule.path)
-	);
-	if (isRootBlocked && !rules.some((rule) => rule.isAllow)) {
-		return "blocked";
+	for (const [agent, access] of accessByAgent) {
+		if (agent !== "*" && ua.includes(agent)) {
+			return access;
+		}
 	}
-	return rules.some((rule) => !rule.isAllow) ? "partial" : "allowed";
+	return accessByAgent.get("*") ?? "allowed";
 }
 
 const fetchRobotsTxt = cacheable(
 	async (domain: string): Promise<string | null> => {
 		const response = await safeFetch(`https://${domain}/robots.txt`, {
+			decompress: false,
+			headers: { "accept-encoding": "identity" },
 			timeoutMs: 5000,
 		}).catch(() => null);
-		if (!response?.ok) {
+		if (
+			!(response?.ok && response.body) ||
+			(response.headers.get("content-encoding") ?? "identity") !== "identity" ||
+			Number(response.headers.get("content-length")) > ROBOTS_MAX_BYTES
+		) {
 			await response?.body?.cancel();
 			return null;
 		}
-		const robotsTxt = await response.text().catch(() => null);
-		return robotsTxt?.slice(0, ROBOTS_MAX_BYTES) ?? null;
+		const reader = response.body.getReader();
+		const chunks: Uint8Array[] = [];
+		let size = 0;
+		try {
+			while (size < ROBOTS_MAX_BYTES) {
+				const { done, value } = await reader.read();
+				if (done) {
+					break;
+				}
+				chunks.push(value.subarray(0, ROBOTS_MAX_BYTES - size));
+				size += value.byteLength;
+			}
+		} catch {
+			return null;
+		} finally {
+			await reader.cancel().catch(() => undefined);
+		}
+		return new TextDecoder().decode(Buffer.concat(chunks));
 	},
 	{ expireInSec: 600, prefix: "robots_txt" }
 );
 
 async function isAgentRequestRecorded(
-	websiteId: string,
-	url: string
+	website: Pick<Website, "domain" | "id">,
+	path: string
 ): Promise<boolean> {
 	const nonce = crypto.randomUUID();
-	await safeFetch(url, {
+	await safeFetch(`https://${website.domain}${path}`, {
+		decompress: false,
 		headers: { "user-agent": setupCheckUserAgent(nonce) },
 		timeoutMs: 8000,
 	})
 		.then((response) => response.body?.cancel())
 		.catch(() => undefined);
-	const statusUrl = `${config.urls.basket}/ai-traffic/setup-check/${encodeURIComponent(websiteId)}/${nonce}`;
+	const statusUrl = `${config.urls.basket}/ai-traffic/setup-check/${encodeURIComponent(website.id)}/${nonce}`;
 	for (let attempt = 0; attempt < 25; attempt++) {
 		const isRecorded = await fetch(statusUrl, {
 			signal: AbortSignal.timeout(2000),
@@ -1204,7 +1250,7 @@ export const websitesRouter = {
 	checkAgentSetup: protectedProcedure
 		.route({
 			description:
-				"Requests the website's homepage and llms.txt as GPTBot and reports whether @databuddy/sdk/agents recorded each request. Requires website read permission.",
+				"Requests the website's homepage and llms.txt as GPTBot and reports whether each request was recorded through @databuddy/sdk/agents or a Vercel log drain. Requires website read permission.",
 			method: "POST",
 			path: "/websites/checkAgentSetup",
 			summary: "Check AI agent tracking setup",
@@ -1221,11 +1267,8 @@ export const websitesRouter = {
 				throw rpcError.notFound("website");
 			}
 			const [homepage, llmsTxt] = await Promise.all([
-				isAgentRequestRecorded(website.id, `https://${website.domain}/`),
-				isAgentRequestRecorded(
-					website.id,
-					`https://${website.domain}/llms.txt`
-				),
+				isAgentRequestRecorded(website, "/"),
+				isAgentRequestRecorded(website, "/llms.txt"),
 			]);
 			return { homepage, llmsTxt };
 		}),
@@ -1242,7 +1285,9 @@ export const websitesRouter = {
 		.input(
 			z.object({
 				websiteId: z.string(),
-				userAgents: z.array(z.string()),
+				userAgents: z
+					.array(z.string().transform((userAgent) => userAgent.slice(0, 2048)))
+					.max(1000),
 			})
 		)
 		.output(
@@ -1260,11 +1305,11 @@ export const websitesRouter = {
 				throw rpcError.notFound("website");
 			}
 			const robotsTxt = await fetchRobotsTxt(website.domain);
-			const groups = robotsTxt ? parseRobotsTxt(robotsTxt) : [];
+			const accessByAgent = robotsAccessByAgent(robotsTxt ?? "");
 			return {
 				hasRobotsTxt: robotsTxt !== null,
 				access: input.userAgents.map((userAgent) =>
-					robotsAccessFor(groups, userAgent)
+					robotsAccessFor(accessByAgent, userAgent)
 				),
 			};
 		}),

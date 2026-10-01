@@ -69,10 +69,16 @@ async function resolveIdentifyTarget(
 	);
 	log.set({ clientId });
 
-	const botError = await checkForBot(request, body, query, clientId, userAgent);
-	if (botError) {
+	const botRejection = await checkForBot(
+		request,
+		body,
+		query,
+		clientId,
+		userAgent
+	);
+	if (botRejection) {
 		log.set({ identify_outcome: "blocked", http_status: 204, rejected: "bot" });
-		return { botResponse: botError.error };
+		return { botResponse: botRejection.response };
 	}
 
 	return {

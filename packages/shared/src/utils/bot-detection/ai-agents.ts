@@ -1,4 +1,3 @@
-import { z } from "zod";
 import {
 	type AgentPurpose,
 	BotCategory,
@@ -7,6 +6,23 @@ import {
 	UNIDENTIFIED_AGENTS_PRODUCT,
 } from "./types";
 import wellKnownBots from "./well-known-bots.json";
+
+export interface AiAgent {
+	excludePatterns: RegExp[];
+	id: string;
+	name: string;
+	operator: string;
+	patterns: RegExp[];
+	product: string;
+	purpose: AgentPurpose;
+	signatureAgent?: string;
+}
+
+export interface AgentSignals {
+	accept?: string;
+	signatureAgent?: string;
+	userAgent: string;
+}
 
 const AI_PRODUCT_BY_OPERATOR: Record<string, string> = {
 	OpenAI: "ChatGPT",
@@ -88,7 +104,7 @@ export const AI_AGENT_CLASSIFICATION: Record<
 		purpose: "search_index",
 	},
 	"imagesift-crawler": { operator: "Hive", purpose: "training" },
-	imagespider: { operator: "imageSpider", purpose: "training" },
+	imagespider: { operator: "ByteDance", purpose: "training" },
 	img2dataset: { operator: "img2dataset", purpose: "training" },
 	"infegy-crawler": null,
 	"integralads-crawler": null,
@@ -98,7 +114,7 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"kimi-user": { operator: "Moonshot AI", purpose: "user_fetch" },
 	"laion-huggingface-processor": { operator: "LAION", purpose: "training" },
 	"leadcrunch-crawler": null,
-	"linkup-bot": { operator: "Linkup", purpose: "user_fetch" },
+	"linkup-bot": { operator: "Linkup", purpose: "search_index" },
 	"mediatoolkit-crawler": null,
 	"meta-crawler": {
 		name: "Meta-ExternalAgent",
@@ -152,31 +168,6 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"zanista-bot": { operator: "Zanista", purpose: "search_index" },
 };
 
-const TRAILING_SEPARATORS = /[\s/]+$/;
-const HAS_UPPERCASE = /[A-Z]/;
-
-const wellKnownBotSchema = z.object({
-	id: z.string(),
-	instances: z
-		.object({ accepted: z.array(z.string()).default([]) })
-		.default({ accepted: [] }),
-	pattern: z.object({
-		accepted: z.array(z.string()),
-		forbidden: z.array(z.string()),
-	}),
-});
-
-export interface AiAgent {
-	excludePatterns: RegExp[];
-	id: string;
-	name: string;
-	operator: string;
-	patterns: RegExp[];
-	product: string;
-	purpose: AgentPurpose;
-	signatureAgent?: string;
-}
-
 function codingAgent(
 	id: string,
 	operator: string,
@@ -194,7 +185,30 @@ function codingAgent(
 	};
 }
 
-const CODING_AGENTS: AiAgent[] = [
+const TRAILING_SEPARATORS = /[\s/]+$/;
+const HAS_UPPERCASE = /[A-Z]/;
+
+function crawlerName(
+	sampleUserAgents: string[],
+	patterns: RegExp[]
+): string | undefined {
+	const names = sampleUserAgents.flatMap((userAgent) =>
+		patterns.flatMap(
+			(pattern) =>
+				pattern.exec(userAgent)?.[0].replace(TRAILING_SEPARATORS, "") ?? []
+		)
+	);
+	return names.find((name) => HAS_UPPERCASE.test(name)) ?? names[0];
+}
+
+const OPENCODE_AGENT = codingAgent(
+	"opencode",
+	"OpenCode",
+	"OpenCode",
+	/^opencode$/
+);
+
+export const AI_AGENTS: AiAgent[] = [
 	codingAgent(
 		"claude-code",
 		"Anthropic",
@@ -209,43 +223,10 @@ const CODING_AGENTS: AiAgent[] = [
 		/Aider\/[\d.]+ \+https:\/\/aider\.chat/
 	),
 	codingAgent("zed", "Zed", "Zed", /^Zed\/[\d.]+ \(/),
-	codingAgent("opencode", "OpenCode", "OpenCode", /^opencode$/),
+	OPENCODE_AGENT,
 	codingAgent("devin", "Cognition", "Devin", /\bDevin\/\d/),
 	codingAgent("v0", "Vercel", "v0", /\bv0bot\b/),
 	codingAgent("manus", "Manus", "Manus", /Manus-User/),
-];
-
-function crawlerName(bot: z.infer<typeof wellKnownBotSchema>): string {
-	const names = bot.instances.accepted.flatMap((userAgent) =>
-		bot.pattern.accepted.flatMap(
-			(pattern) =>
-				new RegExp(pattern)
-					.exec(userAgent)?.[0]
-					.replace(TRAILING_SEPARATORS, "") ?? []
-		)
-	);
-	return names.find((name) => HAS_UPPERCASE.test(name)) ?? names[0] ?? bot.id;
-}
-
-function toAiAgent(bot: z.infer<typeof wellKnownBotSchema>): AiAgent | null {
-	const classification = AI_AGENT_CLASSIFICATION[bot.id];
-	if (!classification) {
-		return null;
-	}
-	return {
-		...classification,
-		id: bot.id,
-		name: classification.name ?? crawlerName(bot),
-		product:
-			classification.product ??
-			AI_PRODUCT_BY_OPERATOR[classification.operator] ??
-			classification.operator,
-		patterns: bot.pattern.accepted.map((p) => new RegExp(p)),
-		excludePatterns: bot.pattern.forbidden.map((p) => new RegExp(p)),
-	};
-}
-
-const SIGNED_AGENTS: AiAgent[] = [
 	{
 		excludePatterns: [],
 		id: "chatgpt-agent",
@@ -256,24 +237,37 @@ const SIGNED_AGENTS: AiAgent[] = [
 		purpose: "agent",
 		signatureAgent: "chatgpt.com",
 	},
-];
-
-export const AI_AGENTS: AiAgent[] = [
-	...CODING_AGENTS,
-	...SIGNED_AGENTS,
-	...z
-		.array(wellKnownBotSchema)
-		.parse(wellKnownBots.filter((bot) => bot.id in AI_AGENT_CLASSIFICATION))
-		.map(toAiAgent)
-		.filter((agent) => agent !== null),
+	...wellKnownBots.flatMap((bot) => {
+		const classification = AI_AGENT_CLASSIFICATION[bot.id];
+		if (!classification) {
+			return [];
+		}
+		const patterns = bot.pattern.accepted.map((pattern) => new RegExp(pattern));
+		return {
+			...classification,
+			id: bot.id,
+			name:
+				classification.name ??
+				crawlerName(bot.instances?.accepted ?? [], patterns) ??
+				bot.id,
+			product:
+				classification.product ??
+				AI_PRODUCT_BY_OPERATOR[classification.operator] ??
+				classification.operator,
+			patterns,
+			excludePatterns: bot.pattern.forbidden.map(
+				(pattern) => new RegExp(pattern)
+			),
+		};
+	}),
 ];
 
 export function matchAiAgent(userAgent: string): AiAgent | null {
 	return (
 		AI_AGENTS.find(
 			(agent) =>
-				agent.patterns.some((p) => p.test(userAgent)) &&
-				!agent.excludePatterns.some((p) => p.test(userAgent))
+				agent.patterns.some((pattern) => pattern.test(userAgent)) &&
+				!agent.excludePatterns.some((pattern) => pattern.test(userAgent))
 		) ?? null
 	);
 }
@@ -284,7 +278,7 @@ export function agentBotCategory(agent: AiAgent): BotCategory {
 		: BotCategory.AI_ASSISTANT;
 }
 
-function matchSignedAgent(signatureAgent: string): AiAgent | null {
+function signedAgent(signatureAgent: string): AiAgent | null {
 	const host = URL.parse(signatureAgent.replaceAll('"', "").trim())?.hostname;
 	if (!host) {
 		return null;
@@ -325,11 +319,9 @@ const NAMED_NON_AI_BOT_CATEGORIES = new Set<BotCategory>([
 	BotCategory.SOCIAL_MEDIA,
 ]);
 
-export interface AgentSignals {
-	accept?: string;
-	signatureAgent?: string;
-	userAgent: string;
-}
+const WHITESPACE = /\s+/g;
+const OPENCODE_MARKDOWN_ACCEPT =
+	"text/markdown;q=1.0,text/x-markdown;q=0.9,text/plain;q=0.8,text/html;q=0.7,*/*;q=0.1";
 
 export function identifyAiAgent(
 	{ accept, signatureAgent, userAgent }: AgentSignals,
@@ -342,11 +334,17 @@ export function identifyAiAgent(
 	if (botCategory && NAMED_NON_AI_BOT_CATEGORIES.has(botCategory)) {
 		return null;
 	}
-	const signed = signatureAgent ? matchSignedAgent(signatureAgent) : null;
+	const signed = signatureAgent ? signedAgent(signatureAgent) : null;
 	if (signed) {
 		return signed;
 	}
-	return accept && isMarkdownFirstAccept(accept)
+	if (
+		userAgent.startsWith("Mozilla/") &&
+		accept?.replace(WHITESPACE, "") === OPENCODE_MARKDOWN_ACCEPT
+	) {
+		return OPENCODE_AGENT;
+	}
+	return isMarkdownFirstAccept(accept ?? "")
 		? unidentifiedAgent(userAgent)
 		: null;
 }

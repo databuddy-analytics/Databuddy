@@ -18,21 +18,18 @@ import { record } from "@lib/tracing";
 import { extractAllowlistClientIp, extractIpFromRequest } from "@utils/ip-geo";
 import {
 	sanitizeString,
+	sanitizeUrl,
 	VALIDATION_LIMITS,
 	validatePayloadSize,
 } from "@utils/validation";
 import { useLogger } from "evlog/elysia";
 
-export interface ValidatedRequest {
+interface ValidatedRequest {
 	clientId: string;
 	ip: string;
 	organizationId?: string;
 	ownerId?: string;
 	userAgent: string;
-}
-
-export interface ValidateRequestOptions {
-	checkUsage?: boolean;
 }
 
 interface WebsiteSecuritySettings {
@@ -70,7 +67,7 @@ export function validateRequest(
 	body: unknown,
 	query: unknown,
 	request: Request,
-	options: ValidateRequestOptions = {}
+	options: { checkUsage?: boolean } = {}
 ): Promise<ValidatedRequest> {
 	return record("validateRequest", async () => {
 		const log = useLogger();
@@ -263,39 +260,20 @@ export function validateRequest(
 	});
 }
 
-export function agentColumns(signals: AgentSignals) {
-	const bot = detectBot(signals.userAgent);
-	const agent = identifyAiAgent(signals, bot.category);
-	return {
-		agent,
-		columns: {
-			agent_id: agent?.id ?? "",
-			agent_purpose: agent?.purpose ?? "",
-			bot_name: bot.name ?? agent?.operator ?? "",
-			bot_type: agent ? agentBotCategory(agent) : (bot.category ?? "unknown"),
-		},
-	};
-}
-
 export function checkForBot(
 	request: Request,
 	body: unknown,
 	query: unknown,
 	clientId: string,
 	userAgent: string
-): Promise<{ error?: Response } | undefined> {
+): Promise<{ isTrackOnly: boolean; response: Response } | undefined> {
 	return record("checkForBot", () => {
-		const log = useLogger();
-		const bodyRecord = asRecord(body);
-		const queryRecord = asRecord(query);
-
 		const bot = detectBot(userAgent);
-
 		if (!bot.isBot) {
 			return;
 		}
 
-		log.set({
+		useLogger().set({
 			bot: {
 				name: bot.name,
 				category: bot.category,
@@ -309,49 +287,54 @@ export function checkForBot(
 			return;
 		}
 
-		if (bot.action === "track_only") {
-			const path =
-				(typeof bodyRecord.path === "string" ? bodyRecord.path : undefined) ||
-				(typeof bodyRecord.url === "string" ? bodyRecord.url : undefined) ||
-				(typeof queryRecord.path === "string" ? queryRecord.path : undefined) ||
-				request.headers.get("referer") ||
-				"";
-			const referrer =
-				(typeof bodyRecord.referrer === "string"
-					? bodyRecord.referrer
-					: undefined) ||
-				request.headers.get("referer") ||
-				undefined;
-
-			const span: AiTrafficSpansInsert = {
-				...agentColumns({ userAgent }).columns,
-				client_id: clientId,
-				timestamp: Date.now(),
-				user_agent: userAgent,
-				path,
-				referrer,
-				source: "tracker",
-				format: "html",
-			};
-			runFork(send("analytics-ai-traffic-spans", span));
-
-			return {
-				error: new Response(null, { status: 204 }),
-			};
+		const isTrackOnly = bot.action === "track_only";
+		if (!isTrackOnly) {
+			logBlockedTraffic(
+				request,
+				body,
+				query,
+				bot.reason,
+				"Known Bot",
+				bot.name,
+				clientId
+			);
 		}
 
-		logBlockedTraffic(
-			request,
-			body,
-			query,
-			bot.reason,
-			"Known Bot",
-			bot.name,
-			clientId
-		);
-
-		return {
-			error: new Response(null, { status: 204 }),
-		};
+		return { response: new Response(null, { status: 204 }), isTrackOnly };
 	});
+}
+
+export function agentSpanColumns(signals: AgentSignals) {
+	const bot = detectBot(signals.userAgent);
+	const agent = identifyAiAgent(signals, bot.category);
+	return {
+		agent_id: agent?.id ?? "",
+		agent_purpose: agent?.purpose ?? "",
+		bot_name: agent?.name ?? bot.name ?? "",
+		bot_type: agent ? agentBotCategory(agent) : (bot.category ?? "unknown"),
+	};
+}
+
+export function recordAiPageView(
+	event: unknown,
+	clientId: string,
+	userAgent: string
+): void {
+	const { name, path, referrer } = asRecord(event);
+	if (name !== "screen_view") {
+		return;
+	}
+	runFork(
+		send("analytics-ai-traffic-spans", {
+			...agentSpanColumns({ userAgent }),
+			client_id: clientId,
+			timestamp: Date.now(),
+			user_agent: userAgent,
+			path: sanitizeUrl(path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+			referrer:
+				sanitizeUrl(referrer, VALIDATION_LIMITS.STRING_MAX_LENGTH) || null,
+			source: "tracker",
+			format: "html",
+		} satisfies AiTrafficSpansInsert)
+	);
 }
