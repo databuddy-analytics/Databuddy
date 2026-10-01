@@ -168,7 +168,7 @@ function toErrorResult(err: McpToolError): CallToolResult {
 	return {
 		content: [
 			{
-				type: "text" as const,
+				type: "text",
 				text: JSON.stringify({ error: errorPayload }),
 			},
 		],
@@ -241,31 +241,6 @@ function toolAnnotations(
 		idempotentHint: isRead ? true : (overrides.idempotent ?? false),
 		openWorldHint: false,
 	};
-}
-
-function toSuccessResult(
-	data: unknown,
-	withStructured: boolean
-): CallToolResult {
-	const content = [
-		{
-			type: "text" as const,
-			text: JSON.stringify(data),
-		},
-	];
-	if (
-		withStructured &&
-		data !== null &&
-		typeof data === "object" &&
-		!Array.isArray(data)
-	) {
-		return {
-			content,
-			structuredContent: data as Record<string, unknown>,
-			isError: false,
-		};
-	}
-	return { content, isError: false };
 }
 
 function authType(ctx: McpRequestContext): "session" | "api_key" | "oauth" {
@@ -418,17 +393,18 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					}
 				}
 
-				const handlerResult = await handler(input, handlerCtx);
-				let result = handlerResult;
+				let result = await handler(input, handlerCtx);
+				let structuredContent: Record<string, unknown> | undefined;
 				if (outputSchema) {
-					const checked = outputSchema.safeParse(handlerResult);
+					const checked = outputSchema.safeParse(result);
 					if (!checked.success) {
 						throw new McpToolError(
 							"internal",
 							`${meta.name} output did not match its schema: ${formatValidationIssues(checked.error.issues)}`
 						);
 					}
-					result = checked.data;
+					structuredContent = checked.data;
+					result = structuredContent;
 				}
 
 				trackMcpToolEvent(metadata, meta.name, {
@@ -441,7 +417,11 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					mcp_duration_ms: Date.now() - start,
 				});
 
-				return toSuccessResult(result, Boolean(outputSchema));
+				return {
+					content: [{ type: "text", text: JSON.stringify(result) }],
+					...(structuredContent && { structuredContent }),
+					isError: false,
+				};
 			} catch (err) {
 				const toolError =
 					err instanceof McpToolError
