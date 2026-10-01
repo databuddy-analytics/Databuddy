@@ -3,6 +3,23 @@ import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { SimpleQueryConfig } from "../types";
 
+function separatePathConditions(filterConditions?: string[]): {
+	sessionFilterClause: string;
+	pageFilterClause: string;
+} {
+	const isPathCondition = (condition: string) =>
+		condition.startsWith(Expressions.path.normalized);
+	const pathConditions = filterConditions?.filter(isPathCondition) ?? [];
+	return {
+		sessionFilterClause: appendFilterClause(
+			filterConditions?.filter((condition) => !isPathCondition(condition))
+		),
+		pageFilterClause: pathConditions.length
+			? `WHERE ${pathConditions.join(" AND ")}`
+			: "",
+	};
+}
+
 export const PagesBuilders = {
 	top_pages: {
 		table: Analytics.events,
@@ -79,7 +96,7 @@ export const PagesBuilders = {
 	entry_pages: {
 		meta: {
 			description:
-				"First pages visitors land on when entering your site, ranked by entry frequency.",
+				"First pages visitors land on when entering your site, ranked by unique visitors. pageviews counts sessions that entered on the page. A path filter keeps sessions whose entry page matches.",
 			category: "Pages",
 			tags: ["pages", "entry", "landing"],
 		},
@@ -111,7 +128,8 @@ export const PagesBuilders = {
 			} = ctx;
 			const limit = ctx.limit;
 			const offset = ctx.offset;
-			const filterClause = appendFilterClause(filterConditions);
+			const { sessionFilterClause, pageFilterClause } =
+				separatePathConditions(filterConditions);
 
 			const sessionAttributionCTE = helpers?.sessionAttributionCTE
 				? `${helpers.sessionAttributionCTE("time")},`
@@ -122,37 +140,29 @@ export const PagesBuilders = {
             session_entry AS (
                 SELECT
                     e.session_id,
-                    argMin(CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END, e.time) as entry_page,
-                    argMin(e.anonymous_id, e.time) as visitor_id,
-                    any(sa.session_referrer) as referrer,
-                    any(sa.session_utm_source) as utm_source,
-                    any(sa.session_utm_medium) as utm_medium,
-                    any(sa.session_utm_campaign) as utm_campaign,
-                    any(sa.session_country) as country,
-                    any(sa.session_device_type) as device_type,
-                    any(sa.session_browser_name) as browser_name,
-                    any(sa.session_os_name) as os_name
+                    argMin(e.path, e.time) as entry_path,
+                    argMin(e.anonymous_id, e.time) as visitor_id
                 FROM analytics.events e
                 ${helpers.sessionAttributionJoin("e")}
                 WHERE e.client_id = {websiteId:String}
                     AND e.time >= toDateTime({startDate:String})
                     AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
                     AND e.event_name = 'screen_view'
-                    ${filterClause}
+                    ${sessionFilterClause}
                 GROUP BY e.session_id
             )`
 				: `
             session_entry AS (
                 SELECT
                     session_id,
-                    argMin(${Expressions.path.normalized}, time) as entry_page,
+                    argMin(path, time) as entry_path,
                     argMin(anonymous_id, time) as visitor_id
                 FROM analytics.events
                 WHERE client_id = {websiteId:String}
                     AND time >= toDateTime({startDate:String})
                     AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
                     AND event_name = 'screen_view'
-                    ${filterClause}
+                    ${sessionFilterClause}
                 GROUP BY session_id
             )`;
 
@@ -170,11 +180,12 @@ export const PagesBuilders = {
                 ROUND(visitors / sum(visitors) OVER () * 100, 2) AS percentage
             FROM (
                 SELECT
-                    entry_page as name,
+                    ${Expressions.path.normalized} as name,
                     COUNT(*) as pageviews,
                     uniq(visitor_id) as visitors
-                FROM session_entry
-                GROUP BY entry_page
+                FROM (SELECT entry_path AS path, visitor_id FROM session_entry)
+                ${pageFilterClause}
+                GROUP BY name
             )
             ORDER BY visitors DESC
             LIMIT {limit:Int32} OFFSET {offset:Int32}`,
@@ -193,7 +204,7 @@ export const PagesBuilders = {
 	exit_pages: {
 		meta: {
 			description:
-				"Last pages visitors view before leaving your site, ranked by exit frequency.",
+				"Last pages visitors view before leaving your site, ranked by unique visitors. pageviews counts sessions that exited on the page. A path filter keeps sessions whose exit page matches.",
 			category: "Pages",
 			tags: ["pages", "exit", "drop-off"],
 		},
@@ -225,7 +236,8 @@ export const PagesBuilders = {
 			} = ctx;
 			const limit = ctx.limit;
 			const offset = ctx.offset;
-			const filterClause = appendFilterClause(filterConditions);
+			const { sessionFilterClause, pageFilterClause } =
+				separatePathConditions(filterConditions);
 
 			const sessionAttributionCTE = helpers?.sessionAttributionCTE
 				? `${helpers.sessionAttributionCTE("time")},`
@@ -236,37 +248,29 @@ export const PagesBuilders = {
             session_exit AS (
                 SELECT
                     e.session_id,
-                    argMax(CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END, e.time) as exit_page,
-                    argMax(e.anonymous_id, e.time) as visitor_id,
-                    any(sa.session_referrer) as referrer,
-                    any(sa.session_utm_source) as utm_source,
-                    any(sa.session_utm_medium) as utm_medium,
-                    any(sa.session_utm_campaign) as utm_campaign,
-                    any(sa.session_country) as country,
-                    any(sa.session_device_type) as device_type,
-                    any(sa.session_browser_name) as browser_name,
-                    any(sa.session_os_name) as os_name
+                    argMax(e.path, e.time) as exit_path,
+                    argMax(e.anonymous_id, e.time) as visitor_id
                 FROM analytics.events e
                 ${helpers.sessionAttributionJoin("e")}
                 WHERE e.client_id = {websiteId:String}
                     AND e.time >= toDateTime({startDate:String})
                     AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
                     AND e.event_name = 'screen_view'
-					${filterClause}
+                    ${sessionFilterClause}
                 GROUP BY e.session_id
             )`
 				: `
             session_exit AS (
                 SELECT
                     session_id,
-                    argMax(${Expressions.path.normalized}, time) as exit_page,
+                    argMax(path, time) as exit_path,
                     argMax(anonymous_id, time) as visitor_id
                 FROM analytics.events
                 WHERE client_id = {websiteId:String}
                     AND time >= toDateTime({startDate:String})
                     AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
                     AND event_name = 'screen_view'
-					${filterClause}
+                    ${sessionFilterClause}
                 GROUP BY session_id
             )`;
 
@@ -281,11 +285,12 @@ export const PagesBuilders = {
                 ROUND(visitors / sum(visitors) OVER () * 100, 2) AS percentage
             FROM (
                 SELECT
-                    exit_page as name,
-                    uniq(session_id) as pageviews,
+                    ${Expressions.path.normalized} as name,
+                    COUNT(*) as pageviews,
                     uniq(visitor_id) as visitors
-                FROM session_exit
-                GROUP BY exit_page
+                FROM (SELECT exit_path AS path, visitor_id FROM session_exit)
+                ${pageFilterClause}
+                GROUP BY name
             )
             ORDER BY visitors DESC
             LIMIT {limit:Int32} OFFSET {offset:Int32}`,

@@ -774,6 +774,37 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.f0).toBe("visitor-1");
 	});
 
+	it.each([
+		["entry_pages", "entry_path"],
+		["exit_pages", "exit_path"],
+	])("picks the %s page from every screen view before applying a path filter", (type, column) => {
+		const config = QueryBuilders[type];
+		if (!config) {
+			throw new Error(`${type} builder is missing`);
+		}
+
+		const { sql } = new SimpleQueryBuilder(
+			config,
+			makeRequest({
+				filters: [
+					{ field: "path", op: "eq", value: "/pricing" },
+					{ field: "country", op: "eq", value: "US" },
+				],
+				type,
+			})
+		).compile();
+
+		const pagesSource = sql.indexOf(
+			`FROM (SELECT ${column} AS path, visitor_id FROM`
+		);
+		expect(pagesSource).toBeGreaterThan(-1);
+		expect(sql.indexOf("= {f0:String}")).toBeGreaterThan(pagesSource);
+		expect(sql.indexOf("sa.session_country = {f1:String}")).toBeGreaterThan(-1);
+		expect(sql.indexOf("sa.session_country = {f1:String}")).toBeLessThan(
+			pagesSource
+		);
+	});
+
 	it("normalizes standard session attribution queries", () => {
 		const { sql, params } = compile(
 			{
