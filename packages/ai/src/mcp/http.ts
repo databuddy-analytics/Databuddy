@@ -7,11 +7,9 @@ import { config } from "@databuddy/env/app";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { AnySchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
-import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { captureError, mergeWideEvent } from "../lib/tracing";
 import type {
 	McpRequestContext,
-	McpToolMetadata,
 	RegisteredMcpTool,
 } from "../ai/mcp/define-tool";
 import { createMcpTools } from "../ai/mcp/tools";
@@ -58,7 +56,7 @@ export async function handleDatabuddyMcpRequest(
 			: options.oauthUserId
 				? "oauth"
 				: "session",
-		mcp_session: Boolean(options.userId),
+		mcp_session: Boolean(options.userId && !options.oauthUserId),
 		mcp_api_key: Boolean(options.apiKey),
 	});
 
@@ -81,13 +79,13 @@ export async function handleDatabuddyMcpRequest(
 		server.registerTool(
 			tool.name,
 			{
-				title: titleFromName(tool.name),
+				title: tool.title,
 				description: tool.description,
 				inputSchema: toMcpSchema(tool.inputSchema),
 				...(tool.outputSchema && {
 					outputSchema: toMcpSchema(tool.outputSchema),
 				}),
-				annotations: deriveAnnotations(tool.metadata),
+				annotations: tool.annotations,
 			},
 			tool.handler
 		);
@@ -138,23 +136,6 @@ function callerCanCallTool(
 	);
 }
 
-function titleFromName(name: string): string {
-	// MCP tool names are validated against /^[a-z][a-z0-9_]*$/ in defineMcpTool,
-	// so split always returns at least one non-empty leading-alpha word.
-	const [head = name, ...rest] = name.split("_");
-	return [head.charAt(0).toUpperCase() + head.slice(1), ...rest].join(" ");
-}
-
-function deriveAnnotations(metadata: McpToolMetadata): ToolAnnotations {
-	const isRead = metadata.access.kind === "read";
-	return {
-		readOnlyHint: isRead,
-		destructiveHint: !isRead,
-		idempotentHint: isRead,
-		openWorldHint: false,
-	};
-}
-
 function registerGuideResource(server: McpServer): void {
 	server.registerResource(
 		"databuddy_guide",
@@ -178,6 +159,5 @@ function registerGuideResource(server: McpServer): void {
 }
 
 function toMcpSchema(schema: RegisteredMcpTool["inputSchema"]): AnySchema {
-	// The MCP SDK's zod-compat type targets a different Zod surface than this repo's Zod v4 types.
 	return schema as unknown as AnySchema;
 }

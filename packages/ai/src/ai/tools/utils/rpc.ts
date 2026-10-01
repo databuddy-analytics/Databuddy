@@ -6,6 +6,43 @@ const logger = createToolLogger("RPC");
 const MUTATION_METHOD_RE =
 	/^(add|archive|bulk|create|delete|detect|pause|publish|remove|reply|reset|restore|resume|revoke|rotate|send|set|trigger|unarchive|update|upsert)/i;
 
+function issuePath(path: unknown): string {
+	const segments = (Array.isArray(path) ? path : []).map((segment) =>
+		typeof segment === "object" && segment !== null && "key" in segment
+			? String((segment as { key: unknown }).key)
+			: String(segment)
+	);
+	return segments.length > 0 ? segments.join(".") : "input";
+}
+
+function validationIssueSummary(cause: unknown): string | null {
+	if (
+		!(
+			cause &&
+			typeof cause === "object" &&
+			"issues" in cause &&
+			Array.isArray(cause.issues)
+		) ||
+		cause.issues.length === 0
+	) {
+		return null;
+	}
+	const issues: unknown[] = cause.issues;
+	return issues
+		.map((issue) => {
+			if (!(issue && typeof issue === "object")) {
+				return "input: invalid value";
+			}
+			const path = "path" in issue ? issue.path : undefined;
+			const message =
+				"message" in issue && typeof issue.message === "string"
+					? issue.message
+					: "invalid value";
+			return `${issuePath(path)}: ${message}`;
+		})
+		.join("; ");
+}
+
 export async function callRPCProcedure(
 	routerName: string,
 	method: string,
@@ -73,14 +110,20 @@ export async function callRPCProcedure(
 			const hasSpecificMessage =
 				error.message !== "" &&
 				error.message !== new ORPCError(error.code).message;
+			const issues = validationIssueSummary(error.cause);
 			const userMessage =
 				error.code === "BAD_REQUEST"
-					? `Invalid request: ${error.message}`
+					? `Invalid request: ${issues ?? error.message}`
 					: hasSpecificMessage
 						? error.message
 						: fallbackMessage;
 
-			throw new ORPCError(error.code, { message: userMessage });
+			throw new ORPCError(error.code, {
+				message: userMessage,
+				data: error.data,
+				status: error.status,
+				cause: error.cause,
+			});
 		}
 
 		if (error instanceof Error) {
