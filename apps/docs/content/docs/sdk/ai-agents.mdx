@@ -10,12 +10,12 @@ The AI Agents page shows ChatGPT, Claude, Perplexity, Gemini, Meta AI, Claude Co
 Agents that run JavaScript and visitors referred by AI assistants show up automatically through the Databuddy script. Crawlers and coding agents like GPTBot, ClaudeBot and Claude Code don't run JavaScript, so they only show up once `@databuddy/sdk/agents` runs on your server.
 
 <Callout type="info">
-  **Package**: `@databuddy/sdk` 3.0.0+ | **Import**: `@databuddy/sdk/agents`
+  **Package**: `@databuddy/sdk` 3.0.1+ | **Import**: `@databuddy/sdk/agents`
 </Callout>
 
 ## Setup
 
-Install the SDK, or upgrade it if you're on 2.x, which doesn't include `@databuddy/sdk/agents`:
+Install the SDK, or upgrade it if you're on 2.x, which doesn't include `@databuddy/sdk/agents`, or 3.0.0, which misses signed agent browsers and markdown-first clients:
 
 <CodeBlock language="bash">
   {`bun add @databuddy/sdk@latest`}
@@ -79,7 +79,7 @@ On a Vercel Pro or Enterprise plan you can send your request logs instead of add
 
 Select the **Static Files**, **Functions**, **Edge Functions** and **Rewrites** sources and the **Production** environment, choose JSON or NDJSON, and leave sampling off. Databuddy keeps only requests from AI agents, from hosts that belong to your website. Vercel bills drains by volume.
 
-Logs don't include the `Accept` header, so markdown is recognized from `.md` and `.mdx` paths only, and signed agent browsers look like regular Chrome. In exchange you also get the HTTP status each agent received, so pages that return 404 to AI crawlers show up.
+Logs don't include the `Accept` header, so markdown is recognized from `.md` and `.mdx` paths only, and signed agent browsers look like regular Chrome. In exchange, drains also store the HTTP status each agent got, so you can ask the assistant which pages return 404 to AI crawlers.
 
 ### Cloudflare Workers, Hono and other fetch handlers
 
