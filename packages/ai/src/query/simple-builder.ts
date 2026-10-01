@@ -52,7 +52,6 @@ const SIMPLE_FIELD_PATTERN = /^[A-Za-z_][A-Za-z0-9_.]*$/;
 // Filters that are always allowed regardless of per-builder allowedFilters
 const GLOBAL_ALLOWED_FILTERS = new Set([
 	"path",
-	"query_string",
 	"country",
 	"region",
 	"city",
@@ -135,7 +134,6 @@ const ALLOWED_ORDERBY_FIELDS = new Set([
 const SQL_EXPRESSIONS = {
 	normalizedPath: Expressions.path.normalized,
 	normalizedReferrer: Expressions.referrer.normalized,
-	queryString: "queryString(url)",
 };
 
 const REFERRER_MAPPINGS: Record<string, string> = {
@@ -259,24 +257,52 @@ function normalizeOrderBy(orderBy: string): string {
 	return `${field} ${direction}`;
 }
 
-function buildDeviceTypeSQL(
-	value: string,
-	isNegative: boolean,
-	key: string
+const DESKTOP_DEVICE_TYPE = "desktop";
+
+function buildDeviceTypeFilter(
+	filter: Filter,
+	key: string,
+	fieldExpr: string
 ): FilterResult {
-	const lower = value.toLowerCase();
-	if (lower === "desktop") {
-		const clause = `(device_type = '' OR lower(device_type) = {${key}:String})`;
+	const normalizedExpr = `lower(ifNull(${fieldExpr}, ''))`;
+	const isNegative =
+		filter.op === "ne" ||
+		filter.op === "not_in" ||
+		filter.op === "not_contains";
+
+	if (
+		filter.op === "contains" ||
+		filter.op === "not_contains" ||
+		filter.op === "starts_with"
+	) {
+		const value = String(filter.value).toLowerCase();
+		const matchesDesktop =
+			filter.op === "starts_with"
+				? DESKTOP_DEVICE_TYPE.startsWith(value)
+				: DESKTOP_DEVICE_TYPE.includes(value);
+		const pattern =
+			filter.op === "starts_with"
+				? `${escapeLikePattern(value)}%`
+				: `%${escapeLikePattern(value)}%`;
+		const likeClause = `${normalizedExpr} LIKE {${key}:String}`;
+		const clause = matchesDesktop
+			? `(${normalizedExpr} = '' OR ${likeClause})`
+			: likeClause;
 		return {
 			clause: isNegative ? `NOT ${clause}` : clause,
-			params: { [key]: "desktop" },
+			params: { [key]: pattern },
 		};
 	}
+
+	const values = (
+		Array.isArray(filter.value) ? filter.value : [filter.value]
+	).flatMap((value) => {
+		const lower = String(value).toLowerCase();
+		return lower === DESKTOP_DEVICE_TYPE ? ["", DESKTOP_DEVICE_TYPE] : [lower];
+	});
 	return {
-		clause: isNegative
-			? `lower(device_type) != {${key}:String}`
-			: `lower(device_type) = {${key}:String}`,
-		params: { [key]: lower },
+		clause: `${normalizedExpr} ${isNegative ? "NOT IN" : "IN"} {${key}:Array(String)}`,
+		params: { [key]: values },
 	};
 }
 
@@ -392,15 +418,6 @@ export class SimpleQueryBuilder {
 			);
 		}
 
-		if (filter.field === "query_string") {
-			return buildGenericFilter(
-				filter,
-				key,
-				operator,
-				SQL_EXPRESSIONS.queryString
-			);
-		}
-
 		if (filter.field === "referrer") {
 			return buildGenericFilter(
 				filter,
@@ -415,12 +432,8 @@ export class SimpleQueryBuilder {
 			);
 		}
 
-		if (filter.field === "device_type" && typeof filter.value === "string") {
-			const isNegative =
-				filter.op === "ne" ||
-				filter.op === "not_in" ||
-				filter.op === "not_contains";
-			return buildDeviceTypeSQL(filter.value, isNegative, key);
+		if (filter.field === "device_type") {
+			return buildDeviceTypeFilter(filter, key, "device_type");
 		}
 
 		if (
@@ -460,26 +473,8 @@ export class SimpleQueryBuilder {
 			);
 		}
 
-		if (filter.field === "device_type" && typeof filter.value === "string") {
-			const fieldExpr = `${alias}.session_device_type`;
-			const isNegative =
-				filter.op === "ne" ||
-				filter.op === "not_in" ||
-				filter.op === "not_contains";
-			const lower = filter.value.toLowerCase();
-			if (lower === "desktop") {
-				const clause = `(${fieldExpr} = '' OR lower(${fieldExpr}) = {${key}:String})`;
-				return {
-					clause: isNegative ? `NOT ${clause}` : clause,
-					params: { [key]: "desktop" },
-				};
-			}
-			return {
-				clause: isNegative
-					? `lower(${fieldExpr}) != {${key}:String}`
-					: `lower(${fieldExpr}) = {${key}:String}`,
-				params: { [key]: lower },
-			};
+		if (filter.field === "device_type") {
+			return buildDeviceTypeFilter(filter, key, `${alias}.session_device_type`);
 		}
 
 		return buildGenericFilter(

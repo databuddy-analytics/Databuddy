@@ -19,7 +19,6 @@ export const PagesBuilders = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
-			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -86,7 +85,6 @@ export const PagesBuilders = {
 		},
 		allowedFilters: [
 			"path",
-			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -201,7 +199,6 @@ export const PagesBuilders = {
 		},
 		allowedFilters: [
 			"path",
-			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -324,7 +321,6 @@ export const PagesBuilders = {
 		timeField: "time",
 		allowedFilters: [
 			"path",
-			"query_string",
 			"country",
 			"device_type",
 			"browser_name",
@@ -345,7 +341,6 @@ export const PagesBuilders = {
 	page_time_analysis: {
 		allowedFilters: [
 			"path",
-			"query_string",
 			"country",
 			"device_type",
 			"browser_name",

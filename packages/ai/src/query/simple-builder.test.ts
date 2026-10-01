@@ -194,15 +194,41 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.f0).toBe("%a\\\\b%");
 	});
 
-	it("handles desktop device_type filter (empty string OR desktop)", () => {
-		const filters: Filter[] = [
-			{ field: "device_type", op: "eq", value: "desktop" },
-		];
-		const { sql, params } = compile({}, { filters });
-		expect(sql).toContain(
-			"(device_type = '' OR lower(device_type) = {f0:String})"
-		);
-		expect(params.f0).toBe("desktop");
+	it.each([
+		{
+			filter: { field: "device_type", op: "eq", value: "Desktop" },
+			clause: "lower(ifNull(device_type, '')) IN {f0:Array(String)}",
+			param: ["", "desktop"],
+		},
+		{
+			filter: { field: "device_type", op: "in", value: ["Mobile", "Tablet"] },
+			clause: "lower(ifNull(device_type, '')) IN {f0:Array(String)}",
+			param: ["mobile", "tablet"],
+		},
+		{
+			filter: { field: "device_type", op: "not_in", value: ["Desktop"] },
+			clause: "lower(ifNull(device_type, '')) NOT IN {f0:Array(String)}",
+			param: ["", "desktop"],
+		},
+		{
+			filter: { field: "device_type", op: "contains", value: "Mob" },
+			clause: "lower(ifNull(device_type, '')) LIKE {f0:String}",
+			param: "%mob%",
+		},
+		{
+			filter: { field: "device_type", op: "starts_with", value: "Desk" },
+			clause:
+				"(lower(ifNull(device_type, '')) = '' OR lower(ifNull(device_type, '')) LIKE {f0:String})",
+			param: "desk%",
+		},
+	] satisfies {
+		filter: Filter;
+		clause: string;
+		param: Filter["value"];
+	}[])("matches stored device types for %j", ({ filter, clause, param }) => {
+		const { sql, params } = compile({}, { filters: [filter] });
+		expect(sql).toContain(clause);
+		expect(params.f0).toEqual(param);
 	});
 
 	it("silently skips disallowed filter fields rather than throwing", () => {
