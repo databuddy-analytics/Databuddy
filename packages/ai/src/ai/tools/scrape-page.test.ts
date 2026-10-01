@@ -15,6 +15,7 @@ const PAGE = {
 	description: "Reports for teams",
 	content: "# Example",
 	internalLinks: ["/pricing"],
+	scriptHosts: [],
 };
 const PROVIDER_PAGE = {
 	url: "https://www.example.com/",
@@ -121,7 +122,10 @@ describe("readWebsitePage", () => {
 				formats: { markdown: true, parse: true },
 				sharedParams: { mainContentOnly: true },
 				parseParams: {
-					rules: { links: { selector: "a", type: "list", output: "@href" } },
+					rules: {
+						links: { selector: "a", type: "list", output: "@href" },
+						scripts: { selector: "script[src]", type: "list", output: "@src" },
+					},
 				},
 				maxAgeMs: 0,
 				timeoutOpts: { milliseconds: 10_000 },
