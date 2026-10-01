@@ -9,8 +9,11 @@ import {
 	TrashIcon,
 } from "@databuddy/ui/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useOrganizations } from "@/hooks/use-organizations";
+import { resetActiveOrganizationQueries } from "@/lib/active-organization-queries";
 import { orpc } from "@/lib/orpc";
 import {
 	type AlarmData,
@@ -32,11 +35,58 @@ import {
 } from "@databuddy/ui";
 
 export default function NotificationsSettingsPage() {
+	return (
+		<Suspense fallback={null}>
+			<NotificationsSettings />
+		</Suspense>
+	);
+}
+
+function NotificationsSettings() {
 	const queryClient = useQueryClient();
+	const router = useRouter();
+	const pathname = usePathname();
+	const searchParams = useSearchParams();
+	const {
+		activeOrganization,
+		isLoading: isLoadingOrganizations,
+		organizations,
+		setActiveOrganization,
+	} = useOrganizations();
 	const [sheetOpen, setSheetOpen] = useState(false);
 	const [editingAlarm, setEditingAlarm] = useState<AlarmData | null>(null);
 	const [deletingAlarm, setDeletingAlarm] = useState<AlarmData | null>(null);
 	const [testingAlarmId, setTestingAlarmId] = useState<string | null>(null);
+
+	useEffect(() => {
+		const organizationId = searchParams.get("organization");
+		if (!organizationId || isLoadingOrganizations) {
+			return;
+		}
+		if (
+			organizationId !== activeOrganization?.id &&
+			organizations.some((org) => org.id === organizationId)
+		) {
+			setActiveOrganization(organizationId, {
+				onSuccess: () => resetActiveOrganizationQueries(queryClient),
+			});
+		}
+		const params = new URLSearchParams(searchParams.toString());
+		params.delete("organization");
+		const query = params.toString();
+		router.replace(query ? `${pathname}?${query}` : pathname, {
+			scroll: false,
+		});
+	}, [
+		activeOrganization?.id,
+		isLoadingOrganizations,
+		organizations,
+		pathname,
+		queryClient,
+		router,
+		searchParams,
+		setActiveOrganization,
+	]);
 
 	const {
 		data: alarms,
