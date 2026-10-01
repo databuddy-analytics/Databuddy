@@ -147,6 +147,7 @@ export class SsrfError extends Error {
 
 export interface SafeFetchInit
 	extends Omit<UndiciRequestInit, "redirect" | "signal" | "dispatcher"> {
+	decompress?: boolean;
 	followRedirects?: boolean;
 	maxRedirects?: number;
 	signal?: AbortSignal | null;
