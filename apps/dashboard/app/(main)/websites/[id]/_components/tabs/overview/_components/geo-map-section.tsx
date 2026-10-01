@@ -114,7 +114,7 @@ function VisitorLocations({ countries }: { countries: CountryRow[] }) {
 						) : (
 							<div className="flex flex-col items-center justify-center gap-1 p-4 text-center">
 								<p className="font-medium text-foreground text-sm">
-									No visitors yet
+									No location data yet
 								</p>
 								<p className="text-pretty text-muted-foreground text-xs">
 									Countries light up on the globe as visitors arrive

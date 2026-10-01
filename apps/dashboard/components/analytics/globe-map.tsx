@@ -302,6 +302,7 @@ export function GlobeMap({
 	useEffect(() => {
 		if (!(isLive && globe)) {
 			liveBaselineRef.current = null;
+			sceneRef.current.pulses = [];
 			return;
 		}
 		const baseline = liveBaselineRef.current;
@@ -460,9 +461,13 @@ export function GlobeMap({
 				view.lon -= SPIN_DEG_PER_SEC * dt;
 			}
 
+			const pulseCount = scene.pulses.length;
 			scene.pulses = reduceMotion
 				? []
 				: scene.pulses.filter((pulse) => time - pulse.start < PULSE_MS);
+			if (scene.pulses.length < pulseCount) {
+				scene.dirty = true;
+			}
 			const isMoving = isEasing || isSpinning || scene.pulses.length > 0;
 			const isThrottled = isSpinning && time - lastDraw < SPIN_FRAME_MS;
 			if ((isMoving || scene.dirty) && size.width > 0 && !isThrottled) {
@@ -562,7 +567,7 @@ export function GlobeMap({
 			<canvas
 				aria-label="Globe of visitors by country"
 				className={cn(
-					"absolute inset-0 size-full cursor-grab touch-pan-y transition-opacity duration-500 ease-in-out [--globe-data:var(--info)] [--globe-land:var(--info)] active:cursor-grabbing dark:[--globe-data:var(--chart-4)] dark:[--globe-land:var(--muted-foreground)]",
+					"absolute inset-0 size-full cursor-grab touch-pan-y transition-opacity duration-500 ease-in-out [--globe-data:var(--info)] [--globe-land:var(--info)] active:cursor-grabbing motion-reduce:transition-none dark:[--globe-data:var(--chart-4)] dark:[--globe-land:var(--muted-foreground)]",
 					globe ? "opacity-100" : "opacity-0"
 				)}
 				onPointerCancel={() => {
