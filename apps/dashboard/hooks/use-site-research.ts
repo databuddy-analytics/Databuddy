@@ -77,17 +77,21 @@ function deriveResearch(input: {
 	if (!website) {
 		return EMPTY_RESEARCH;
 	}
-	const pages =
-		settings?.generation?.research?.pages ??
-		settings?.profile?.research?.pages ??
-		[];
+	// The brief belongs to the organization; only show it for the site it was read from.
+	const generation =
+		settings?.generation?.websiteId === website.id ? settings.generation : null;
+	const profile =
+		settings?.profile?.sourceWebsiteId === website.id ? settings.profile : null;
+	const pages = generation?.research?.pages ?? profile?.research?.pages ?? [];
 	const base = {
 		...EMPTY_RESEARCH,
 		domain: website.domain,
 		pagesRead: pages.filter((page) => page.status === "read").length,
 	};
-	const generation = settings?.generation ?? null;
-	if (generation && settings && businessContextIsGenerating(settings)) {
+	if (
+		generation &&
+		(generation.status === "queued" || generation.status === "running")
+	) {
 		return {
 			...base,
 			phase: generation.progress?.stage === "writing" ? "writing" : "reading",
@@ -108,10 +112,14 @@ function deriveResearch(input: {
 			canStart: input.accessStatus === "allowed",
 		};
 	}
-	if (settings?.profile) {
-		return { ...base, phase: "ready", ...briefFields(settings.profile) };
+	if (profile) {
+		return { ...base, phase: "ready", ...briefFields(profile) };
 	}
 	if (input.accessPending || !settings) {
+		return base;
+	}
+	if (settings.generation || settings.profile) {
+		// Another site's brief; reading this one would replace it, so don't offer it here.
 		return base;
 	}
 	if (input.accessStatus !== "allowed") {
