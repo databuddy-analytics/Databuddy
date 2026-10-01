@@ -60,6 +60,7 @@ import {
 	processChartData,
 } from "./websites-chart";
 
+const ROBOTS_LINE_BREAK = /\r\n?|\n/;
 const ROBOTS_COMMENT = /#.*/;
 const ROBOTS_ROOT_PATHS = new Set(["/", "/*", "*"]);
 const ROBOTS_MAX_BYTES = 512_000;
@@ -76,7 +77,7 @@ function robotsAccessByAgent(robotsTxt: string): Map<string, RobotsAccess> {
 	const groupsByAgent = new Map<string, RobotsGroup[]>();
 	let current: RobotsGroup | undefined;
 	let isReadingAgents = false;
-	for (const line of robotsTxt.split("\n")) {
+	for (const line of robotsTxt.split(ROBOTS_LINE_BREAK)) {
 		const [rawKey = "", ...rest] = line.replace(ROBOTS_COMMENT, "").split(":");
 		const key = rawKey.trim().toLowerCase();
 		const value = rest.join(":").trim();
