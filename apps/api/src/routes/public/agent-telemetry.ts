@@ -86,7 +86,9 @@ export const agentTelemetryRoute = new Elysia({
 		}
 
 		const clientIp = getClientIp(request.headers) ?? "unknown";
-		const ipRl = await ratelimit(`agent-telemetry:ip:${clientIp}`, 30, 3600);
+		// A setup-session run posts once per step plus a final report, and a
+		// developer may retry or try a second agent within the hour.
+		const ipRl = await ratelimit(`agent-telemetry:ip:${clientIp}`, 60, 3600);
 		if (!ipRl.success) {
 			mergeWideEvent({ agent_telemetry_rejected: "rate_limit_ip" });
 			set.status = 429;
@@ -99,7 +101,7 @@ export const agentTelemetryRoute = new Elysia({
 			};
 		}
 
-		const rl = await ratelimit(`agent-telemetry:${body.websiteId}`, 10, 3600);
+		const rl = await ratelimit(`agent-telemetry:${body.websiteId}`, 60, 3600);
 		const rlHeaders = getRateLimitHeaders(rl);
 		for (const [key, value] of Object.entries(rlHeaders)) {
 			set.headers[key] = value;
@@ -123,19 +125,20 @@ export const agentTelemetryRoute = new Elysia({
 			};
 		}
 
-		if (body.metadata) {
-			const serialized = JSON.stringify(body.metadata);
-			if (Buffer.byteLength(serialized, "utf8") > 4096) {
-				set.status = 413;
-				return { success: false, error: "metadata exceeds 4096 bytes" };
-			}
-		}
 		if (body.setupSession) {
 			mergeWideEvent({ agent_telemetry_setup_session: true });
 		}
 		const metadata = body.setupSession
 			? { ...body.metadata, setupSession: body.setupSession }
 			: body.metadata;
+		if (
+			metadata &&
+			Buffer.byteLength(JSON.stringify(metadata), "utf8") > 4096
+		) {
+			set.status = 413;
+			// policy-ignore http/no-custom-json-error-response: this public route answers every branch with { success, error }
+			return { success: false, error: "metadata exceeds 4096 bytes" };
+		}
 
 		try {
 			const [row] = await db
