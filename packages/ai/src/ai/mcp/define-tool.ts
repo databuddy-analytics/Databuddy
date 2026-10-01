@@ -177,9 +177,17 @@ function toErrorResult(err: McpToolError): CallToolResult {
 }
 
 function errorDetails(data: unknown): Record<string, unknown> | undefined {
-	return data && typeof data === "object" && !Array.isArray(data)
-		? (data as Record<string, unknown>)
-		: undefined;
+	if (!(data && typeof data === "object" && !Array.isArray(data))) {
+		return;
+	}
+	try {
+		const json: unknown = JSON.parse(JSON.stringify(data));
+		return json && typeof json === "object" && !Array.isArray(json)
+			? Object.fromEntries(Object.entries(json))
+			: undefined;
+	} catch {
+		return;
+	}
 }
 
 function fromORPCError(error: ORPCError<string, unknown>): McpToolError {
@@ -384,15 +392,17 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					}
 				}
 
-				const result = await handler(input, handlerCtx);
+				const handlerResult = await handler(input, handlerCtx);
+				let result = handlerResult;
 				if (outputSchema) {
-					const checked = outputSchema.safeParse(result);
+					const checked = outputSchema.safeParse(handlerResult);
 					if (!checked.success) {
 						throw new McpToolError(
 							"internal",
 							`${meta.name} output did not match its schema: ${formatValidationIssues(checked.error.issues)}`
 						);
 					}
+					result = checked.data;
 				}
 
 				trackMcpToolEvent(metadata, meta.name, true, attribution);
