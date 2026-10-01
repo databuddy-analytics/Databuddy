@@ -185,7 +185,10 @@ function errorDetails(data: unknown): Record<string, unknown> | undefined {
 	}
 }
 
-function fromORPCError(error: ORPCError<string, unknown>): McpToolError {
+function fromORPCError(
+	error: ORPCError<string, unknown>,
+	idempotent: boolean
+): McpToolError {
 	const details = errorDetails(error.data);
 	switch (error.code) {
 		case "UNAUTHORIZED":
@@ -208,7 +211,9 @@ function fromORPCError(error: ORPCError<string, unknown>): McpToolError {
 		case "TIMEOUT":
 			return new McpToolError("upstream_timeout", error.message, {
 				details,
-				hint: "Retry the same call shortly.",
+				hint: idempotent
+					? "Retry the same call shortly."
+					: "The change may already have been saved. Check the current state with the matching list or search tool before retrying.",
 			});
 		default:
 			return new McpToolError("internal", error.message);
@@ -432,7 +437,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					err instanceof McpToolError
 						? err
 						: err instanceof ORPCError
-							? fromORPCError(err)
+							? fromORPCError(err, annotations.idempotentHint ?? false)
 							: new McpToolError(
 									"internal",
 									err instanceof Error ? err.message : "Unexpected error"
