@@ -9,7 +9,10 @@ import {
 	Skeleton,
 	Text,
 } from "@databuddy/ui";
-import type { EmailNotificationSettingsOutput } from "@databuddy/rpc";
+import type {
+	EmailNotificationSettingsOutput,
+	EmailNotificationSettingsPatch,
+} from "@databuddy/rpc";
 import { Select, Switch, TagsInput } from "@databuddy/ui/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -18,8 +21,6 @@ import { orpc } from "@/lib/orpc";
 
 type EmailSettings = EmailNotificationSettingsOutput;
 type EmailAlertMode = EmailSettings["trackingHealth"]["mode"];
-
-type SettingsSection = Record<string, unknown>;
 
 const TRACKING_MODES: Array<{
 	description: string;
@@ -42,20 +43,6 @@ const TRACKING_MODES: Array<{
 		description: "Do not send tracking-health emails.",
 	},
 ];
-
-function withSection<K extends keyof EmailSettings>(
-	settings: EmailSettings,
-	section: K,
-	patch: Partial<EmailSettings[K]>
-): EmailSettings {
-	return {
-		...settings,
-		[section]: {
-			...(settings[section] as SettingsSection),
-			...patch,
-		},
-	};
-}
 
 function toggleMutedReason<T extends string>(
 	values: T[],
@@ -122,14 +109,14 @@ export function EmailPreferencesCard() {
 
 	const disabled = updateMutation.isPending || !activeOrganizationId;
 
-	const save = async (next: EmailSettings) => {
+	const save = async (patch: EmailNotificationSettingsPatch) => {
 		if (!activeOrganizationId) {
 			return;
 		}
 		try {
 			const updated = await updateMutation.mutateAsync({
 				organizationId: activeOrganizationId,
-				settings: next,
+				settings: patch,
 			});
 			queryClient.setQueryData(settingsQuery.queryKey, updated);
 		} catch {
@@ -182,12 +169,12 @@ export function EmailPreferencesCard() {
 									<Select
 										disabled={disabled}
 										onValueChange={(value) =>
-											save(
-												withSection(settings, "trackingHealth", {
+											save({
+												trackingHealth: {
 													mode: TRACKING_MODES.find((m) => m.value === value)
 														?.value,
-												})
-											)
+												},
+											})
 										}
 										value={settings.trackingHealth.mode}
 									>
@@ -210,11 +197,11 @@ export function EmailPreferencesCard() {
 											<TagsInput
 												disabled={disabled}
 												onChange={(ignoredOrigins) =>
-													save(
-														withSection(settings, "trackingHealth", {
+													save({
+														trackingHealth: {
 															ignoredOrigins,
-														})
-													)
+														},
+													})
 												}
 												placeholder="example.com or *.example.com"
 												values={settings.trackingHealth.ignoredOrigins}
@@ -241,15 +228,15 @@ export function EmailPreferencesCard() {
 									description="Origin does not match the website domain or allowed origins."
 									disabled={disabled}
 									onChange={(checked) =>
-										save(
-											withSection(settings, "trackingHealth", {
+										save({
+											trackingHealth: {
 												ignoredReasons: toggleMutedReason(
 													settings.trackingHealth.ignoredReasons,
 													"origin_not_authorized",
 													checked
 												),
-											})
-										)
+											},
+										})
 									}
 									title="Domain mismatch emails"
 								/>
@@ -262,15 +249,15 @@ export function EmailPreferencesCard() {
 									description="We received browser tracking requests without a website origin, so we could not verify the source domain."
 									disabled={disabled}
 									onChange={(checked) =>
-										save(
-											withSection(settings, "trackingHealth", {
+										save({
+											trackingHealth: {
 												ignoredReasons: toggleMutedReason(
 													settings.trackingHealth.ignoredReasons,
 													"origin_missing",
 													checked
 												),
-											})
-										)
+											},
+										})
 									}
 									title="Missing origin emails"
 								/>
@@ -283,15 +270,15 @@ export function EmailPreferencesCard() {
 									description="Request failed the website IP allowlist."
 									disabled={disabled}
 									onChange={(checked) =>
-										save(
-											withSection(settings, "trackingHealth", {
+										save({
+											trackingHealth: {
 												ignoredReasons: toggleMutedReason(
 													settings.trackingHealth.ignoredReasons,
 													"ip_not_authorized",
 													checked
 												),
-											})
-										)
+											},
+										})
 									}
 									title="IP allowlist emails"
 								/>
@@ -306,7 +293,7 @@ export function EmailPreferencesCard() {
 									description="Every Monday: which AI products read your sites, what they read, and who they sent to you."
 									disabled={disabled}
 									onChange={(weeklyDigest) =>
-										save(withSection(settings, "aiAgents", { weeklyDigest }))
+										save({ aiAgents: { weeklyDigest } })
 									}
 									title="Weekly AI digest"
 								/>
@@ -315,7 +302,7 @@ export function EmailPreferencesCard() {
 									description="Email when usage crosses your configured billing threshold."
 									disabled={disabled}
 									onChange={(usageWarnings) =>
-										save(withSection(settings, "billing", { usageWarnings }))
+										save({ billing: { usageWarnings } })
 									}
 									title="Billing usage warnings"
 								/>
@@ -323,9 +310,7 @@ export function EmailPreferencesCard() {
 									checked={settings.uptime.downEmails}
 									description="Email when a monitor transitions down."
 									disabled={disabled}
-									onChange={(downEmails) =>
-										save(withSection(settings, "uptime", { downEmails }))
-									}
+									onChange={(downEmails) => save({ uptime: { downEmails } })}
 									title="Monitor down emails"
 								/>
 								<ToggleSetting
@@ -333,7 +318,7 @@ export function EmailPreferencesCard() {
 									description="Email when a down monitor recovers."
 									disabled={disabled}
 									onChange={(recoveryEmails) =>
-										save(withSection(settings, "uptime", { recoveryEmails }))
+										save({ uptime: { recoveryEmails } })
 									}
 									title="Monitor recovery emails"
 								/>
