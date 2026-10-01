@@ -378,7 +378,7 @@ export const trackRoute = new Elysia()
 			);
 			if (botRejection) {
 				log.set({ rejected: "bot" });
-				return botRejection.error;
+				return botRejection.response;
 			}
 
 			const targets = events.map((event) => ({

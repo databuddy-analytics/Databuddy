@@ -266,7 +266,7 @@ export function checkForBot(
 	query: unknown,
 	clientId: string,
 	userAgent: string
-): Promise<{ error: Response; isTrackOnly: boolean } | undefined> {
+): Promise<{ isTrackOnly: boolean; response: Response } | undefined> {
 	return record("checkForBot", () => {
 		const bot = detectBot(userAgent);
 		if (!bot.isBot) {
@@ -300,7 +300,7 @@ export function checkForBot(
 			);
 		}
 
-		return { error: new Response(null, { status: 204 }), isTrackOnly };
+		return { response: new Response(null, { status: 204 }), isTrackOnly };
 	});
 }
 

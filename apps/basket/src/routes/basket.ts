@@ -309,7 +309,7 @@ const app = new Elysia()
 			);
 			if (botRejection) {
 				log.set({ rejected: "bot" });
-				return botRejection.error;
+				return botRejection.response;
 			}
 
 			const visitorCountry = await getVisitorCountryForAutoMode(
@@ -356,7 +356,7 @@ const app = new Elysia()
 			);
 			if (botRejection) {
 				log.set({ rejected: "bot" });
-				return botRejection.error;
+				return botRejection.response;
 			}
 
 			await insertEngagementSpans(
@@ -410,7 +410,7 @@ const app = new Elysia()
 			);
 			if (botRejection) {
 				log.set({ rejected: "bot" });
-				return botRejection.error;
+				return botRejection.response;
 			}
 
 			const visitorCountry = await getVisitorCountryForAutoMode(
@@ -471,7 +471,7 @@ const app = new Elysia()
 			);
 			if (botRejection) {
 				log.set({ rejected: "bot" });
-				return botRejection.error;
+				return botRejection.response;
 			}
 
 			const events = parseResult.data.map((event) => ({
@@ -534,7 +534,7 @@ const app = new Elysia()
 					if (botRejection.isTrackOnly) {
 						recordAiPageView(body, clientId, userAgent);
 					}
-					return botRejection.error;
+					return botRejection.response;
 				}
 
 				if (!parseResult.success) {
@@ -566,7 +566,7 @@ const app = new Elysia()
 
 				if (botRejection) {
 					log.set({ rejected: "bot" });
-					return botRejection.error;
+					return botRejection.response;
 				}
 
 				if (!parseResult.success) {
