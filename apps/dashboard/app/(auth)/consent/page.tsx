@@ -126,9 +126,6 @@ function ConsentPage() {
 						: undefined,
 				}
 			),
-		onSuccess: ({ url }) => {
-			window.location.href = url;
-		},
 		onError: () =>
 			toast.error("Could not complete authorization. Try connecting again."),
 	});
