@@ -18,6 +18,7 @@ import {
 import type {
 	Filter,
 	FilterOperator,
+	Granularity,
 	QueryRequest,
 	SimpleQueryConfig,
 } from "../../query/types";
@@ -46,7 +47,7 @@ export interface McpQueryItem {
 	limit?: number;
 	orderBy?: string;
 	preset?: DatePreset;
-	timeUnit?: "minute" | "hour" | "day" | "week" | "month";
+	timeUnit?: Granularity;
 	to?: string;
 	type: string;
 }
@@ -204,17 +205,7 @@ function queryShapeError(
 	return null;
 }
 
-function querySummary(input: {
-	filters?: Filter[];
-	from?: string;
-	groupBy?: string[];
-	limit?: number;
-	orderBy?: string;
-	timeUnit?: QueryRequest["timeUnit"];
-	timezone: string;
-	to?: string;
-	type: string;
-}): string {
+function querySummary(input: McpQueryItem & { timezone: string }): string {
 	const filters =
 		input.filters && input.filters.length > 0
 			? JSON.stringify(input.filters)
@@ -481,11 +472,8 @@ export function getMcpSchemaDocumentation(
 		.join("\n\n");
 }
 
-function getDescription(
-	key: string,
-	config: { meta?: { description?: string } }
-): string {
-	return config?.meta?.description ?? `Query: ${key.replace(/_/g, " ")}`;
+function getDescription(key: string, config: SimpleQueryConfig): string {
+	return config.meta?.description ?? `Query: ${key.replace(/_/g, " ")}`;
 }
 
 interface QueryTypeInfo {
@@ -497,27 +485,23 @@ interface QueryTypeInfo {
 	requiredFilters?: string[];
 }
 
-function getQueryTypeDetails(): Record<string, QueryTypeInfo> {
-	const result: Record<string, QueryTypeInfo> = {};
-	for (const [key, config] of WEBSITE_QUERY_BUILDERS) {
-		result[key] = {
-			description: getDescription(key, config),
-			allowedFilters: allowedFilterFields(config),
-			...(config.requiredFilters?.length && {
-				requiredFilters: config.requiredFilters,
-			}),
-			...(config.requiredAnyFilter?.length && {
-				requiredAnyFilter: config.requiredAnyFilter,
-			}),
-			...(config.allowedFilterOperators && {
-				allowedFilterOperators: config.allowedFilterOperators,
-			}),
-			...(config.customizable !== undefined && {
-				customizable: config.customizable,
-			}),
-		};
-	}
-	return result;
+function queryTypeInfo(key: string, config: SimpleQueryConfig): QueryTypeInfo {
+	return {
+		description: getDescription(key, config),
+		allowedFilters: allowedFilterFields(config),
+		...(config.requiredFilters?.length && {
+			requiredFilters: config.requiredFilters,
+		}),
+		...(config.requiredAnyFilter?.length && {
+			requiredAnyFilter: config.requiredAnyFilter,
+		}),
+		...(config.allowedFilterOperators && {
+			allowedFilterOperators: config.allowedFilterOperators,
+		}),
+		...(config.customizable !== undefined && {
+			customizable: config.customizable,
+		}),
+	};
 }
 
 export function getSchemaSummary(): string {
@@ -539,7 +523,6 @@ export function getFilteredQueryTypes(opts: {
 }): Record<string, string | QueryTypeInfo> {
 	const { category, contains, detail } = opts;
 	const needle = contains?.toLowerCase();
-	const details = detail === "full" ? getQueryTypeDetails() : null;
 	const result: Record<string, string | QueryTypeInfo> = {};
 	for (const [key, config] of WEBSITE_QUERY_BUILDERS) {
 		if (category && config.meta?.category !== category) {
@@ -548,7 +531,10 @@ export function getFilteredQueryTypes(opts: {
 		if (needle && !key.toLowerCase().includes(needle)) {
 			continue;
 		}
-		result[key] = details?.[key] ?? getDescription(key, config);
+		result[key] =
+			detail === "full"
+				? queryTypeInfo(key, config)
+				: getDescription(key, config);
 	}
 	return result;
 }
