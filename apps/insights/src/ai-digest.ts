@@ -92,13 +92,13 @@ function unsubscribeHeaders(
 	settingsUrl: string
 ): Record<string, string> {
 	const secret = process.env.DATABUDDY_ENCRYPTION_KEY;
-	if (!secret) {
-		return { "List-Unsubscribe": `<${settingsUrl}>` };
-	}
 	const url = new URL(
 		"/public/v1/email-unsubscribe/ai-digest",
 		config.urls.api
 	);
+	if (!secret || url.protocol !== "https:") {
+		return { "List-Unsubscribe": `<${settingsUrl}>` };
+	}
 	url.searchParams.set("organization", organizationId);
 	url.searchParams.set(
 		"token",
