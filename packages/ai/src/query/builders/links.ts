@@ -4,6 +4,15 @@ import type { SimpleQueryConfig } from "../types";
 
 // Link Shortener Query Builders
 
+const LINK_VISIT_FILTERS = [
+	"referrer",
+	"country",
+	"region",
+	"city",
+	"device_type",
+	"browser_name",
+];
+
 const OUTBOUND_LINK_CONTEXT_CTES = `
 	WITH session_dimensions AS (
 		SELECT
@@ -92,6 +101,8 @@ export const LinkShortenerBuilders = {
 		fields: ["uniqExact(id) as total"],
 		timeField: "timestamp",
 		idField: "link_id",
+		commonFilters: false,
+		allowedFilters: LINK_VISIT_FILTERS,
 		customizable: false,
 	},
 
@@ -124,6 +135,8 @@ export const LinkShortenerBuilders = {
 		orderBy: "date ASC",
 		timeField: "timestamp",
 		idField: "link_id",
+		commonFilters: false,
+		allowedFilters: LINK_VISIT_FILTERS,
 		timeBucket: {
 			field: "timestamp",
 			granularity: "day",
@@ -162,6 +175,8 @@ export const LinkShortenerBuilders = {
 		orderBy: "date ASC",
 		timeField: "timestamp",
 		idField: "link_id",
+		commonFilters: false,
+		allowedFilters: LINK_VISIT_FILTERS,
 		timeBucket: {
 			field: "timestamp",
 			granularity: "day",
@@ -200,6 +215,8 @@ export const LinkShortenerBuilders = {
 		orderBy: "date ASC",
 		timeField: "timestamp",
 		idField: "link_id",
+		commonFilters: false,
+		allowedFilters: LINK_VISIT_FILTERS,
 		timeBucket: {
 			field: "timestamp",
 			granularity: "day",
@@ -250,6 +267,8 @@ export const LinkShortenerBuilders = {
 		limit: 10,
 		timeField: "timestamp",
 		idField: "link_id",
+		commonFilters: false,
+		allowedFilters: LINK_VISIT_FILTERS,
 		customizable: false,
 		plugins: { deduplicateReferrers: true, parseReferrers: true },
 	},
@@ -295,6 +314,8 @@ export const LinkShortenerBuilders = {
 		limit: 10,
 		timeField: "timestamp",
 		idField: "link_id",
+		commonFilters: false,
+		allowedFilters: LINK_VISIT_FILTERS,
 		customizable: false,
 		plugins: { normalizeGeo: true },
 	},
@@ -340,6 +361,8 @@ export const LinkShortenerBuilders = {
 		limit: 10,
 		timeField: "timestamp",
 		idField: "link_id",
+		commonFilters: false,
+		allowedFilters: LINK_VISIT_FILTERS,
 		customizable: false,
 		plugins: { normalizeGeo: true },
 	},
@@ -385,6 +408,8 @@ export const LinkShortenerBuilders = {
 		limit: 10,
 		timeField: "timestamp",
 		idField: "link_id",
+		commonFilters: false,
+		allowedFilters: LINK_VISIT_FILTERS,
 		customizable: false,
 		plugins: { normalizeGeo: true },
 	},
@@ -422,6 +447,8 @@ export const LinkShortenerBuilders = {
 		orderBy: "clicks DESC",
 		timeField: "timestamp",
 		idField: "link_id",
+		commonFilters: false,
+		allowedFilters: LINK_VISIT_FILTERS,
 		customizable: false,
 	},
 
@@ -458,6 +485,8 @@ export const LinkShortenerBuilders = {
 		limit: 10,
 		timeField: "timestamp",
 		idField: "link_id",
+		commonFilters: false,
+		allowedFilters: LINK_VISIT_FILTERS,
 		customizable: false,
 	},
 } satisfies Record<string, SimpleQueryConfig>;

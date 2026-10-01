@@ -137,6 +137,28 @@ describe("invalidFilterFieldError", () => {
 		).toBeNull();
 	});
 
+	it.each([
+		["error_types", "country"],
+		["custom_events", "device_type"],
+		["web_vitals_by_page", "path"],
+		["link_total_clicks", "utm_source"],
+		["top_pages", "query_string"],
+	])("rejects %s filtered by %s, a column that query type cannot apply", (type, field) => {
+		expect(
+			invalidFilterFieldError(type, [{ field, op: "eq", value: "x" }])
+		).toContain(`Filter on field '${field}' is not permitted for ${type}`);
+	});
+
+	it("accepts session dimensions on vitals breakdowns", () => {
+		expect(
+			invalidFilterFieldError("vitals_by_page", [
+				{ field: "device_type", op: "eq", value: "mobile" },
+				{ field: "os_name", op: "eq", value: "iOS" },
+				{ field: "path", op: "eq", value: "/pricing" },
+			])
+		).toBeNull();
+	});
+
 	it("returns null for unknown query types and empty filters", () => {
 		expect(
 			invalidFilterFieldError("nope", [

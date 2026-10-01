@@ -82,8 +82,10 @@ export const CustomEventsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: [
 			"profile_id",
+			"path",
 			"namespace",
 			"website_id",
 			"anonymous_id",
@@ -154,8 +156,10 @@ export const CustomEventsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: [
 			"profile_id",
+			"path",
 			"namespace",
 			"website_id",
 			"anonymous_id",
@@ -214,6 +218,7 @@ export const CustomEventsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["profile_id", "path", "event_name", "website_id"],
 		customizable: true,
 	},
@@ -265,6 +270,7 @@ export const CustomEventsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["profile_id", "path", "event_name", "website_id"],
 	},
 
@@ -312,6 +318,7 @@ export const CustomEventsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["profile_id", "path", "event_name", "website_id"],
 	},
 
@@ -357,6 +364,7 @@ export const CustomEventsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["profile_id", "path", "event_name", "website_id"],
 	},
 
@@ -427,6 +435,7 @@ export const CustomEventsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: [
 			"profile_id",
 			"path",
@@ -487,6 +496,7 @@ export const CustomEventsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["profile_id", "path", "event_name", "website_id"],
 	},
 	custom_events_property_classification: {
@@ -620,6 +630,7 @@ export const CustomEventsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: [
 			"profile_id",
 			"path",
@@ -713,6 +724,7 @@ export const CustomEventsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: [
 			"profile_id",
 			"path",
@@ -804,6 +816,7 @@ export const CustomEventsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: [
 			"profile_id",
 			"path",
@@ -920,6 +933,7 @@ export const CustomEventsBuilders = {
 			tags: ["custom-events", "discovery", "properties"],
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["profile_id", "path", "event_name", "website_id"],
 	},
 } satisfies Record<string, SimpleQueryConfig>;

@@ -101,6 +101,7 @@ export const UptimeBuilders = {
 				params: { websiteId, startDate, endDate, timezone: tz },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 	},
@@ -142,6 +143,7 @@ export const UptimeBuilders = {
 				params: { websiteId, startDate, endDate, limit, offset, timezone: tz },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 	},
@@ -190,6 +192,7 @@ export const UptimeBuilders = {
 				params: { websiteId, startDate, endDate, timezone: tz },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 	},

@@ -76,6 +76,7 @@ export const EngagementBuilders = {
 				params: { websiteId, startDate, endDate, limit },
 			};
 		},
+		commonFilters: false,
 	},
 
 	form_abandonment_by_page: {
@@ -134,6 +135,7 @@ export const EngagementBuilders = {
 				params: { websiteId, startDate, endDate, limit },
 			};
 		},
+		commonFilters: false,
 	},
 
 	engagement_quality_by_page: {
@@ -214,6 +216,7 @@ export const EngagementBuilders = {
 				params: { websiteId, startDate, endDate, limit },
 			};
 		},
+		commonFilters: false,
 	},
 
 	scroll_depth_summary: {

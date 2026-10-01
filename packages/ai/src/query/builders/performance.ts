@@ -79,6 +79,7 @@ export const PerformanceBuilders = {
 				params: { websiteId, startDate, endDate, limit },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 	},
@@ -115,6 +116,7 @@ export const PerformanceBuilders = {
 				params: { websiteId, startDate, endDate, limit },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 	},
@@ -151,6 +153,7 @@ export const PerformanceBuilders = {
 				params: { websiteId, startDate, endDate, limit },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 		plugins: { normalizeGeo: true, deduplicateGeo: true },
@@ -188,6 +191,7 @@ export const PerformanceBuilders = {
 				params: { websiteId, startDate, endDate, limit },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 	},
@@ -225,6 +229,7 @@ export const PerformanceBuilders = {
 				params: { websiteId, startDate, endDate, limit },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 	},
@@ -261,6 +266,7 @@ export const PerformanceBuilders = {
 				params: { websiteId, startDate, endDate, limit },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 		plugins: { normalizeGeo: true, deduplicateGeo: true },
@@ -317,6 +323,7 @@ export const PerformanceBuilders = {
 				params: { websiteId, startDate, endDate },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 	},

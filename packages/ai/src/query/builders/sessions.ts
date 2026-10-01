@@ -249,11 +249,11 @@ export const SessionsBuilders = {
 						max(time) as last_visit,
 						dateDiff('second', min(time), max(time)) as duration_seconds,
 						any(anonymous_id) as visitor_id,
-						any(country) as country,
-						any(referrer) as referrer,
-						any(device_type) as device_type,
-						any(browser_name) as browser_name,
-						any(os_name) as os_name,
+						any(country) as session_country,
+						any(referrer) as session_referrer,
+						any(device_type) as session_device_type,
+						any(browser_name) as session_browser_name,
+						any(os_name) as session_os_name,
 						countIf(event_name = 'screen_view') as page_views,
 						uniqIf(path, event_name = 'screen_view' AND path != '') as unique_pages,
 						countIf(event_name NOT IN ('screen_view', 'page_exit', 'web_vitals', 'link_out')) as analytics_engagement_events
@@ -298,11 +298,11 @@ export const SessionsBuilders = {
 						bs.analytics_engagement_events AS analytics_engagement_events,
 						ifNull(cc.custom_events, 0) as custom_events,
 						ifNull(es.errors, 0) as errors,
-						bs.country AS country,
-						bs.referrer AS referrer,
-						bs.device_type AS device_type,
-						bs.browser_name AS browser_name,
-						bs.os_name AS os_name,
+						bs.session_country AS country,
+						bs.session_referrer AS referrer,
+						bs.session_device_type AS device_type,
+						bs.session_browser_name AS browser_name,
+						bs.session_os_name AS os_name,
 						(
 							least(bs.page_views, 10) * 2
 							+ least(bs.unique_pages, 8) * 3
@@ -402,11 +402,11 @@ export const SessionsBuilders = {
         MAX(time) as last_visit,
         countIf(event_name = 'screen_view') as page_views,
         any(anonymous_id) as visitor_id,
-        any(country) as country,
-        any(referrer) as referrer,
-        any(device_type) as device_type,
-        any(browser_name) as browser_name,
-        any(os_name) as os_name
+        any(country) as session_country,
+        any(referrer) as session_referrer,
+        any(device_type) as session_device_type,
+        any(browser_name) as session_browser_name,
+        any(os_name) as session_os_name
       FROM ${Analytics.events}
       WHERE
         client_id = {websiteId:String}
@@ -481,11 +481,11 @@ export const SessionsBuilders = {
       sl.last_visit,
       sl.page_views,
       sl.visitor_id,
-      sl.country,
-      sl.referrer,
-      sl.device_type,
-      sl.browser_name,
-      sl.os_name,
+      sl.session_country as country,
+      sl.session_referrer as referrer,
+      sl.session_device_type as device_type,
+      sl.session_browser_name as browser_name,
+      sl.session_os_name as os_name,
       COALESCE(se.events, []) as events
     FROM session_list sl
     LEFT JOIN session_events se ON sl.session_id = se.session_id
