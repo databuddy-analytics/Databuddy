@@ -1,10 +1,6 @@
 import { createInternalPrincipal } from "@databuddy/rpc";
 import type { ApiScope } from "@databuddy/shared/api-scopes";
 import { MCP_API_SCOPES } from "@databuddy/shared/mcp-access";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { AnySchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { ORPCError } from "@orpc/server";
 import { describe, expect, test } from "bun:test";
@@ -110,6 +106,34 @@ describe("MCP transport", () => {
 
 		expect(response.status).toBe(413);
 		expect(bytesSent).toBeLessThan(2_097_152);
+	});
+
+	test("answers invalid tool arguments with the invalid_input envelope", async () => {
+		const response = await handleDatabuddyMcpRequest({
+			apiKey: null,
+			organizationId: "org-1",
+			request: new Request("https://api.databuddy.test/v1/mcp", {
+				body: JSON.stringify({
+					id: 1,
+					jsonrpc: "2.0",
+					method: "tools/call",
+					params: { arguments: { limit: 5000 }, name: "list_insights" },
+				}),
+				headers: {
+					accept: "application/json, text/event-stream",
+					"content-type": "application/json",
+				},
+				method: "POST",
+			}),
+			requestHeaders: new Headers(),
+			userId: "user-1",
+		});
+		const body = (await response.json()) as { result: CallToolResult };
+
+		expect(response.status).toBe(200);
+		expect(readToolError(body.result)).toMatchObject({
+			code: "invalid_input",
+		});
 	});
 
 	test("lists parameter descriptions but keeps output schemas free of prompt text", async () => {
@@ -229,54 +253,6 @@ describe("MCP OAuth scopes", () => {
 });
 
 describe("MCP tool invariants", () => {
-	test("dynamic analytics output schemas work through the installed MCP SDK", async () => {
-		const dynamicTools = tools.filter((tool) =>
-			["get_funnel_analytics", "get_goal_analytics"].includes(tool.name)
-		);
-		expect(dynamicTools).toHaveLength(2);
-
-		const server = new McpServer({ name: "test", version: "1.0.0" });
-		for (const tool of dynamicTools) {
-			server.registerTool(
-				tool.name,
-				{
-					inputSchema: z.object({}),
-					outputSchema: tool.outputSchema as AnySchema,
-				},
-				() => ({
-					content: [{ type: "text", text: '{"value":"ok"}' }],
-					structuredContent: { value: "ok" },
-				})
-			);
-		}
-
-		const [clientTransport, serverTransport] =
-			InMemoryTransport.createLinkedPair();
-		const client = new Client({ name: "test", version: "1.0.0" });
-		await server.connect(serverTransport);
-		await client.connect(clientTransport);
-
-		try {
-			const listed = await client.listTools();
-			for (const tool of dynamicTools) {
-				expect(
-					listed.tools.find((listedTool) => listedTool.name === tool.name)
-						?.outputSchema
-				).toBeDefined();
-				const result = await client.callTool({
-					arguments: {},
-					name: tool.name,
-				});
-				expect(result).not.toMatchObject({ isError: true });
-				expect(result).toMatchObject({
-					structuredContent: { value: "ok" },
-				});
-			}
-		} finally {
-			await server.close();
-		}
-	});
-
 	test("preserves literal string tool arguments", async () => {
 		let received: { enabled: boolean; literal: string } | undefined;
 		const tool = defineMcpTool(

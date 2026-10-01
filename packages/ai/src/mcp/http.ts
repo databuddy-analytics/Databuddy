@@ -6,8 +6,8 @@ import {
 import { config } from "@databuddy/env/app";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import type { AnySchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import {
+	CallToolRequestSchema,
 	ListToolsRequestSchema,
 	type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
@@ -52,16 +52,11 @@ export function createMcpUnauthorizedResponse(): Response {
 
 async function readSingleMcpMessage(
 	request: Request
-): Promise<{ message: unknown } | { rejection: Response }> {
-	const tooLarge = {
-		rejection: createMcpErrorResponse(
-			413,
-			-32_600,
-			"Request body is larger than 1 MB."
-		),
-	};
+): Promise<Response | { message: unknown }> {
+	const tooLarge = () =>
+		createMcpErrorResponse(413, -32_600, "Request body is larger than 1 MB.");
 	if (Number(request.headers.get("content-length")) > MAX_MCP_REQUEST_BYTES) {
-		return tooLarge;
+		return tooLarge();
 	}
 	const decoder = new TextDecoder();
 	let body = "";
@@ -76,7 +71,7 @@ async function readSingleMcpMessage(
 			bodyBytes += chunk.value.byteLength;
 			if (bodyBytes > MAX_MCP_REQUEST_BYTES) {
 				await reader.cancel();
-				return tooLarge;
+				return tooLarge();
 			}
 			body += decoder.decode(chunk.value, { stream: true });
 		}
@@ -86,23 +81,15 @@ async function readSingleMcpMessage(
 	try {
 		message = JSON.parse(body);
 	} catch {
-		return {
-			rejection: createMcpErrorResponse(
-				400,
-				-32_700,
-				"Parse error: Invalid JSON"
-			),
-		};
+		return createMcpErrorResponse(400, -32_700, "Parse error: Invalid JSON");
 	}
 	if (Array.isArray(message)) {
 		mergeWideEvent({ mcp_batch_rejected: true });
-		return {
-			rejection: createMcpErrorResponse(
-				400,
-				-32_600,
-				"Batch requests are not supported. Send one JSON-RPC message per request."
-			),
-		};
+		return createMcpErrorResponse(
+			400,
+			-32_600,
+			"Batch requests are not supported. Send one JSON-RPC message per request."
+		);
 	}
 	return { message };
 }
@@ -115,8 +102,8 @@ export async function handleDatabuddyMcpRequest(
 	}
 
 	const parsed = await readSingleMcpMessage(options.request);
-	if ("rejection" in parsed) {
-		return parsed.rejection;
+	if (parsed instanceof Response) {
+		return parsed;
 	}
 
 	mergeWideEvent({
@@ -140,25 +127,25 @@ export async function handleDatabuddyMcpRequest(
 	const tools = createMcpTools(options).filter((tool) =>
 		callerCanCallTool(options, tool)
 	);
-	for (const tool of tools) {
-		server.registerTool(
-			tool.name,
-			{
-				title: tool.title,
-				description: tool.description,
-				inputSchema: toMcpSchema(tool.inputSchema),
-				...(tool.outputSchema && {
-					outputSchema: toMcpSchema(tool.outputSchema),
-				}),
-				annotations: tool.annotations,
-			},
-			tool.handler
-		);
-	}
 	if (tools.length) {
+		server.server.registerCapabilities({ tools: { listChanged: true } });
 		server.server.setRequestHandler(ListToolsRequestSchema, () => ({
 			tools: tools.map(toListedTool),
 		}));
+		server.server.setRequestHandler(CallToolRequestSchema, (request, extra) => {
+			const tool = tools.find(({ name }) => name === request.params.name);
+			return tool
+				? tool.handler(request.params.arguments, extra)
+				: {
+						content: [
+							{
+								type: "text",
+								text: `MCP error -32602: Tool ${request.params.name} not found`,
+							},
+						],
+						isError: true,
+					};
+		});
 	}
 
 	const transport = new WebStandardStreamableHTTPServerTransport({
@@ -183,8 +170,8 @@ function callerCanCallTool(
 	{ apiKey, oauth }: McpRequestContext,
 	tool: RegisteredMcpTool
 ): boolean {
-	const required = tool.metadata.access.scopes;
-	if (!required?.length) {
+	const { scopes: required, globalScopes } = tool.metadata.access;
+	if (!required.length) {
 		return true;
 	}
 	if (oauth) {
@@ -193,18 +180,17 @@ function callerCanCallTool(
 	if (!apiKey) {
 		return true;
 	}
-	const globalScopes = tool.metadata.access.globalScopes;
-	if (globalScopes.length && !hasKeyAllScopes(apiKey, globalScopes)) {
+	if (!hasKeyAllScopes(apiKey, globalScopes)) {
 		return false;
 	}
 	const websiteScopes = required.filter(
 		(scope) => !globalScopes.includes(scope)
 	);
-	if (!websiteScopes.length || hasKeyAllScopes(apiKey, websiteScopes)) {
-		return true;
-	}
-	return getAccessibleWebsiteIds(apiKey).some((websiteId) =>
-		hasWebsiteAllScopes(apiKey, websiteId, websiteScopes)
+	return (
+		hasKeyAllScopes(apiKey, websiteScopes) ||
+		getAccessibleWebsiteIds(apiKey).some((websiteId) =>
+			hasWebsiteAllScopes(apiKey, websiteId, websiteScopes)
+		)
 	);
 }
 
@@ -228,10 +214,6 @@ function registerGuideResource(server: McpServer): void {
 			],
 		})
 	);
-}
-
-function toMcpSchema(schema: RegisteredMcpTool["inputSchema"]): AnySchema {
-	return schema as unknown as AnySchema;
 }
 
 function toListedTool(tool: RegisteredMcpTool): Tool {
