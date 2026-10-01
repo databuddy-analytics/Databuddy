@@ -23,6 +23,7 @@ import {
 	variantSchema,
 } from "@databuddy/shared/flags";
 import { executeBatch, SANITIZED_QUERY_ERROR } from "../../query";
+import { goalFunnelFilterSchema } from "../tools/goals";
 import { runInvestigationAction } from "../tools/investigations";
 import { callRPCProcedure } from "../tools/utils";
 import {
@@ -91,7 +92,6 @@ import {
 	summarizeConversionAnalytics,
 	updatePreview,
 	WebsiteSelectorSchema,
-	WorkflowFilterSchema,
 } from "./tool-contracts";
 
 const TIME_UNIT = ["minute", "hour", "day", "week", "month"] as const;
@@ -120,6 +120,10 @@ const QueryItemSchema = z.object({
 	groupBy: z.array(z.string()).optional(),
 	orderBy: z.string().optional(),
 });
+
+const FunnelStepInputSchema = z.strictObject(
+	funnelStepSchema.omit({ conditions: true }).shape
+);
 
 const WebsiteSummarySchema = z.object({
 	id: z.string(),
@@ -711,7 +715,7 @@ const getFunnelAnalyticsTool = defineMcpTool(
 	{
 		name: "get_funnel_analytics",
 		description:
-			"Return per-step conversion, drop-off, and timing for one funnel, by funnelId from list_funnels. time_series holds at most the latest 90 points.",
+			"Return per-step conversion and drop-off for one funnel, by funnelId from list_funnels. range is the window measured. time_series holds at most the latest 90 points.",
 		inputSchema: McpDateRangeSchema.safeExtend({
 			...WebsiteSelectorSchema,
 			funnelId: z.string().describe("Funnel ID from list_funnels"),
@@ -749,8 +753,8 @@ const createFunnelTool = defineMcpTool(
 			...WebsiteSelectorSchema,
 			name: z.string().min(1).max(100),
 			description: z.string().optional(),
-			steps: z.array(funnelStepSchema).min(2).max(10),
-			filters: z.array(WorkflowFilterSchema).optional(),
+			steps: z.array(FunnelStepInputSchema).min(2).max(10),
+			filters: z.array(goalFunnelFilterSchema).optional(),
 			ignoreHistoricData: z.boolean().optional(),
 			confirmed: ConfirmedSchema,
 		}),
@@ -879,7 +883,7 @@ const createGoalTool = defineMcpTool(
 			target: z.string().min(1),
 			name: z.string().min(1).max(100),
 			description: z.string().nullable().optional(),
-			filters: z.array(WorkflowFilterSchema).optional(),
+			filters: z.array(goalFunnelFilterSchema).optional(),
 			ignoreHistoricData: z.boolean().optional(),
 			confirmed: ConfirmedSchema,
 		}),

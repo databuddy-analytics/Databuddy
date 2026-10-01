@@ -6,6 +6,7 @@ import { httpUrlSchema } from "@databuddy/validation";
 import { z } from "zod";
 import { callRPCProcedure } from "../tools/utils";
 import type { AppContext } from "../config/context";
+import { goalFunnelFilterSchema } from "../tools/goals";
 import {
 	getOrganizationLink,
 	LinkFolderSelectorSchema,
@@ -45,7 +46,6 @@ import {
 	toIsoTimestamp,
 	updatePreview,
 	WebsiteSelectorSchema,
-	WorkflowFilterSchema,
 } from "./tool-contracts";
 
 const IDEMPOTENT_WRITE = { idempotent: true } as const;
@@ -54,7 +54,7 @@ const getFunnelAnalyticsByReferrerTool = defineMcpTool(
 	{
 		name: "get_funnel_analytics_by_referrer",
 		description:
-			"Return one funnel's conversion broken down by referrer, by funnelId from list_funnels. Paginated over referrers.",
+			"Return one funnel's conversion broken down by referrer, by funnelId from list_funnels. Paginated over referrers. Referrers with a single visitor are omitted, so totals can be lower than get_funnel_analytics.",
 		inputSchema: McpDateRangeSchema.safeExtend({
 			...WebsiteSelectorSchema,
 			funnelId: z.string().describe("Funnel ID from list_funnels"),
@@ -89,6 +89,9 @@ const getFunnelAnalyticsByReferrerTool = defineMcpTool(
 			referrer_analytics: page.items,
 			total: page.total,
 			hasMore: page.hasMore,
+			...(page.total === 0 && {
+				hint: "No referrer had more than one visitor in this range. get_funnel_analytics reports the funnel's full entrant count.",
+			}),
 		};
 	}
 );
@@ -104,7 +107,7 @@ const updateGoalTool = defineMcpTool(
 			target: z.string().min(1).optional(),
 			name: z.string().min(1).max(100).optional(),
 			description: z.string().nullable().optional(),
-			filters: z.array(WorkflowFilterSchema).optional(),
+			filters: z.array(goalFunnelFilterSchema).optional(),
 			ignoreHistoricData: z.boolean().optional(),
 			isActive: z.boolean().optional(),
 			confirmed: ConfirmedSchema,
@@ -117,12 +120,11 @@ const updateGoalTool = defineMcpTool(
 	async ({ confirmed, id, ...input }, ctx) => {
 		const updates = omitUndefined(input);
 		const rpcContext = buildRpcContext(ctx);
-		const current = pickFields(
-			await callRPCProcedure("goals", "getById", { id }, rpcContext),
-			GOAL_FIELDS
-		);
-
 		if (!confirmed || Object.keys(updates).length === 0) {
+			const current = pickFields(
+				await callRPCProcedure("goals", "getById", { id }, rpcContext),
+				GOAL_FIELDS
+			);
 			return updatePreview("goal", current, updates);
 		}
 
@@ -156,16 +158,15 @@ const deleteGoalTool = defineMcpTool(
 	},
 	async ({ confirmed, id }, ctx) => {
 		const rpcContext = buildRpcContext(ctx);
-		const goal = pickFields(
-			await callRPCProcedure("goals", "getById", { id }, rpcContext),
-			GOAL_FIELDS
-		);
 		if (!confirmed) {
 			return {
 				preview: true,
 				message: "Review this goal deletion before applying it.",
 				confirmationRequired: true,
-				goal,
+				goal: pickFields(
+					await callRPCProcedure("goals", "getById", { id }, rpcContext),
+					GOAL_FIELDS
+				),
 			};
 		}
 
@@ -195,12 +196,11 @@ const updateAnnotationTool = defineMcpTool(
 	async ({ confirmed, id, ...input }, ctx) => {
 		const updates = omitUndefined(input);
 		const rpcContext = buildRpcContext(ctx);
-		const current = pickFields(
-			await callRPCProcedure("annotations", "getById", { id }, rpcContext),
-			ANNOTATION_FIELDS
-		);
-
 		if (!confirmed || Object.keys(updates).length === 0) {
+			const current = pickFields(
+				await callRPCProcedure("annotations", "getById", { id }, rpcContext),
+				ANNOTATION_FIELDS
+			);
 			return updatePreview("annotation", current, updates);
 		}
 
@@ -234,16 +234,15 @@ const deleteAnnotationTool = defineMcpTool(
 	},
 	async ({ confirmed, id }, ctx) => {
 		const rpcContext = buildRpcContext(ctx);
-		const annotation = pickFields(
-			await callRPCProcedure("annotations", "getById", { id }, rpcContext),
-			ANNOTATION_FIELDS
-		);
 		if (!confirmed) {
 			return {
 				preview: true,
 				message: "Review this annotation deletion before applying it.",
 				confirmationRequired: true,
-				annotation,
+				annotation: pickFields(
+					await callRPCProcedure("annotations", "getById", { id }, rpcContext),
+					ANNOTATION_FIELDS
+				),
 			};
 		}
 

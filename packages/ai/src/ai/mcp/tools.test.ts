@@ -11,7 +11,10 @@ import {
 	handleDatabuddyMcpRequest,
 } from "../../mcp/http";
 import { defineMcpTool, type McpRequestContext } from "./define-tool";
-import { resolveMcpDateRange } from "./tool-contracts";
+import {
+	resolveMcpDateRange,
+	summarizeConversionAnalytics,
+} from "./tool-contracts";
 import { createMcpTools } from "./tools";
 
 const ctx: McpRequestContext = {
@@ -333,6 +336,39 @@ describe("MCP tool invariants", () => {
 				86_400_000 +
 				1
 		).toBe(30);
+	});
+
+	test("conversion analytics report the measured window without unmeasured placeholders", () => {
+		const summary = summarizeConversionAnalytics(
+			{
+				avg_completion_time: 0,
+				avg_completion_time_formatted: "—",
+				duration_available: false,
+				error_insights: { available: false, total_errors: 0 },
+				measurement: { startDate: "2026-09-20", endDate: "2026-09-30" },
+				overall_conversion_rate: 12.5,
+				steps_analytics: [
+					{
+						avg_time_to_complete: 0,
+						error_count: 0,
+						step_number: 1,
+						top_errors: [],
+						users: 8,
+					},
+				],
+				time_series: [{ avg_time: 0, date: "2026-09-20", users: 8 }],
+			},
+			{ from: "2026-09-01", to: "2026-09-30" }
+		);
+
+		expect(summary).toEqual({
+			overall_conversion_rate: 12.5,
+			range: { from: "2026-09-20", to: "2026-09-30" },
+			requestedRange: { from: "2026-09-01", to: "2026-09-30" },
+			steps_analytics: [{ step_number: 1, users: 8 }],
+			time_series: [{ date: "2026-09-20", users: 8 }],
+			timeSeriesTruncated: false,
+		});
 	});
 
 	test("tool names are unique snake_case", () => {

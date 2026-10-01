@@ -1,4 +1,7 @@
-import { analyticsCohortSchema } from "@databuddy/shared/analytics-filters";
+import {
+	analyticsCohortSchema,
+	goalFunnelFilterFields,
+} from "@databuddy/shared/analytics-filters";
 import { tool } from "ai";
 import { analyticsDateRangeSchema } from "@databuddy/validation";
 import { z } from "zod";
@@ -13,9 +16,18 @@ import { resolveToolDateRange } from "./utils/context";
 const logger = createToolLogger("Goals Tools");
 
 const goalTypeSchema = z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]);
-const goalFilterSchema = z.object({
-	field: z.string(),
-	operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
+export const goalFunnelFilterSchema = z.strictObject({
+	field: z.enum(goalFunnelFilterFields.map((field) => field.value)),
+	operator: z.enum([
+		"equals",
+		"contains",
+		"not_contains",
+		"starts_with",
+		"ends_with",
+		"not_equals",
+		"in",
+		"not_in",
+	]),
 	value: z.union([z.string(), z.array(z.string())]),
 });
 const goalAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
@@ -33,7 +45,7 @@ const createGoalInputSchema = z.object({
 	description: z.string().optional(),
 	type: goalTypeSchema,
 	target: z.string().min(1),
-	filters: z.array(goalFilterSchema).optional(),
+	filters: z.array(goalFunnelFilterSchema).optional(),
 	ignoreHistoricData: z.boolean().optional(),
 	confirmed: z.boolean().describe("false=preview, true=apply"),
 });

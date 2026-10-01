@@ -76,12 +76,6 @@ export const WebsiteSelectorSchema = {
 		.describe("Website domain. Alternative to websiteId."),
 } as const;
 
-export const WorkflowFilterSchema = z.object({
-	field: z.string(),
-	operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
-	value: z.union([z.string(), z.array(z.string())]),
-});
-
 export const PageSchema = {
 	limit: z
 		.number()
@@ -213,26 +207,71 @@ export const FLAG_FIELDS = [
 ] as const;
 
 const MAX_TIME_SERIES_POINTS = 90;
-const ANALYTICS_INTERNAL_KEYS = new Set([
+const ANALYTICS_INTERNAL_KEYS = [
 	"measurement",
 	"savedDefinition",
 	"cohort",
 	"time_series",
-]);
+	"steps_analytics",
+];
+const UNMEASURED_TIMING_KEYS = [
+	"avg_completion_time",
+	"avg_completion_time_formatted",
+	"duration_available",
+	"avg_time_to_complete",
+	"avg_time",
+];
+const UNMEASURED_ERROR_KEYS = [
+	"error_insights",
+	"error_context_available",
+	"error_count",
+	"error_rate",
+	"top_errors",
+];
+
+function omitKeys(row: Row, keys: ReadonlySet<string>): Row {
+	return Object.fromEntries(
+		Object.entries(row).filter(([key]) => !keys.has(key))
+	);
+}
 
 export function summarizeConversionAnalytics(
 	value: unknown,
-	range: { from?: string; to?: string }
+	requestedRange: { from?: string; to?: string }
 ): Row {
 	const row = asRow(value);
+	const measurement = asRow(row.measurement);
+	const range = {
+		from:
+			typeof measurement.startDate === "string"
+				? measurement.startDate
+				: requestedRange.from,
+		to:
+			typeof measurement.endDate === "string"
+				? measurement.endDate
+				: requestedRange.to,
+	};
+	const omitted = new Set([
+		...ANALYTICS_INTERNAL_KEYS,
+		...(row.duration_available === true ? [] : UNMEASURED_TIMING_KEYS),
+		...(asRow(row.error_insights).available === true
+			? []
+			: UNMEASURED_ERROR_KEYS),
+	]);
+	const steps = Array.isArray(row.steps_analytics) ? row.steps_analytics : null;
 	const series = Array.isArray(row.time_series) ? row.time_series : null;
 	return {
-		...Object.fromEntries(
-			Object.entries(row).filter(([key]) => !ANALYTICS_INTERNAL_KEYS.has(key))
-		),
+		...omitKeys(row, omitted),
 		range,
+		...((range.from !== requestedRange.from ||
+			range.to !== requestedRange.to) && { requestedRange }),
+		...(steps && {
+			steps_analytics: steps.map((step) => omitKeys(asRow(step), omitted)),
+		}),
 		...(series && {
-			time_series: series.slice(-MAX_TIME_SERIES_POINTS),
+			time_series: series
+				.slice(-MAX_TIME_SERIES_POINTS)
+				.map((point) => omitKeys(asRow(point), omitted)),
 			timeSeriesTruncated: series.length > MAX_TIME_SERIES_POINTS,
 		}),
 	};

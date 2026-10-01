@@ -8,6 +8,7 @@ import {
 	getAppContext,
 	resolveToolWebsite,
 } from "./utils";
+import { goalFunnelFilterSchema } from "./goals";
 import { resolveToolDateRange } from "./utils/context";
 
 const logger = createToolLogger("Funnels Tools");
@@ -139,26 +140,11 @@ export function createFunnelTools() {
 						type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
 						target: z.string().min(1),
 						name: z.string().min(1),
-						conditions: z.record(z.string(), z.unknown()).optional(),
 					})
 				)
 				.min(2)
 				.max(10),
-			filters: z
-				.array(
-					z.object({
-						field: z.string(),
-						operator: z.enum([
-							"equals",
-							"contains",
-							"not_equals",
-							"in",
-							"not_in",
-						]),
-						value: z.union([z.string(), z.array(z.string())]),
-					})
-				)
-				.optional(),
+			filters: z.array(goalFunnelFilterSchema).optional(),
 			ignoreHistoricData: z.boolean().optional(),
 			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
