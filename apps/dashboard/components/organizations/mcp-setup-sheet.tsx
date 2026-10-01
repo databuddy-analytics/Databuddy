@@ -120,6 +120,10 @@ function ClaudeSignIn() {
 					/>
 				</div>
 			</div>
+			<Text tone="muted" variant="caption">
+				Signed-in connections follow your role. The settings below only apply to
+				an API key for scripts or CI.
+			</Text>
 		</div>
 	);
 }
