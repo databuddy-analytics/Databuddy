@@ -57,4 +57,4 @@ Changing a monitor's `url` or `websiteId` replaces it. Its check history starts 
 - Runs on Pulumi's `nodejs` runtime, in TypeScript or JavaScript, CommonJS or ESM. Bun works as the package manager, but `runtime: bun` can't run dynamic providers. The Pulumi CLI and `@pulumi/pulumi` both need to be 3.216 or newer.
 - `DATABUDDY_API_KEY` and `DATABUDDY_API_URL` are read from the environment that runs `pulumi` (your shell, CI, or Automation API `envVars`), not from variables set inside your program.
 - Behind a proxy, export `NODE_USE_ENV_PROXY=1` (Node 22.21 or newer) with `HTTPS_PROXY`. Behind TLS inspection, export `NODE_EXTRA_CA_CERTS` with your CA bundle.
-- Point at a self-hosted API with `pulumi config set databuddy:apiUrl https://api.your-domain.com`.
+- Point at a self-hosted API with `pulumi config set databuddy:apiUrl https://api.your-domain.com`. API URLs require HTTPS; HTTP is allowed only for `localhost`, `127.0.0.1`, and `[::1]`.
