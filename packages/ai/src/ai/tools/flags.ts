@@ -211,9 +211,7 @@ export function createFlagTools() {
 			options
 		) => {
 			const context = getAppContext(options);
-			const uniqueUsers = [...new Set(users.map((user) => user.trim()))].filter(
-				Boolean
-			);
+			const uniqueUsers = [...new Set(users)];
 			const newRule = createUserTargetRule(matchBy, uniqueUsers);
 
 			try {

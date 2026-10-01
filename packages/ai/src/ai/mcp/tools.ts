@@ -1715,9 +1715,7 @@ const addUsersToFlagTool = defineMcpTool(
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
-		const uniqueUsers = [
-			...new Set(input.users.map((user) => user.trim())),
-		].filter(Boolean);
+		const uniqueUsers = [...new Set(input.users)];
 		const flagScope = resolveFlagScope(ctx);
 		const currentFlag = z
 			.object({
