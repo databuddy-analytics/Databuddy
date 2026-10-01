@@ -52,6 +52,10 @@ export { SCHEMA_SECTIONS } from "../prompts/clickhouse-schema";
 
 export const MCP_RESULT_ROW_LIMIT = 20;
 
+export function queryFailedMessage(type: string): string {
+	return `The ${type} query failed to run. Retry, shorten the date range, or remove filters.`;
+}
+
 export interface McpQueryItem {
 	filters?: Filter[];
 	from?: string;

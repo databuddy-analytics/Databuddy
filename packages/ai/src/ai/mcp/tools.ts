@@ -65,6 +65,7 @@ import {
 	MCP_DATE_PRESETS,
 	MCP_RESULT_ROW_LIMIT,
 	QUERY_CATEGORY_KEYS,
+	queryFailedMessage,
 	SCHEMA_SECTIONS,
 	type McpQueryItem,
 } from "./mcp-utils";
@@ -94,6 +95,7 @@ import {
 	paginate,
 	pickFields,
 	pickFlagFields,
+	readConversionAnalytics,
 	resolveMcpDateRange,
 	summarizeConversionAnalytics,
 	updatePreview,
@@ -167,10 +169,7 @@ function createChartContext(input: {
 
 function queryFailure(result: { error?: string; type: string }): McpToolError {
 	if (result.error === SANITIZED_QUERY_ERROR) {
-		return new McpToolError(
-			"query_failed",
-			`The ${result.type} query failed to run. Retry, shorten the date range, or remove filters.`
-		);
+		return new McpToolError("query_failed", queryFailedMessage(result.type));
 	}
 	return new McpToolError(
 		"invalid_input",
@@ -229,7 +228,9 @@ const listInsightsTool = defineMcpTool(
 		const organizationId =
 			ctx.websiteOrganizationId ?? (await resolveOrganizationId(ctx));
 		if (organizationId instanceof Error) {
-			throw new McpToolError("invalid_input", organizationId.message);
+			throw new McpToolError(organizationId.code, organizationId.message, {
+				hint: organizationId.hint,
+			});
 		}
 		const result = await runInvestigationAction(
 			{
@@ -271,7 +272,9 @@ const listInvestigationsTool = defineMcpTool(
 		const organizationId =
 			ctx.websiteOrganizationId ?? (await resolveOrganizationId(ctx));
 		if (organizationId instanceof Error) {
-			throw new McpToolError("invalid_input", organizationId.message);
+			throw new McpToolError(organizationId.code, organizationId.message, {
+				hint: organizationId.hint,
+			});
 		}
 		const result = await runInvestigationAction(
 			{
@@ -525,6 +528,7 @@ const getDataTool = defineMcpTool(
 		const results = await executeBatch(plan.requests, {
 			websiteDomain: ctx.websiteDomain ?? "unknown",
 			timezone,
+			abortSignal: ctx.abortSignal,
 		});
 		const formatted = formatMcpQueryResults(plan, results);
 		if (formatted.length > 0 && formatted.every((result) => result.error)) {
@@ -547,7 +551,14 @@ const getDataTool = defineMcpTool(
 		}
 
 		if (items.length > 1) {
-			return { batch: true, results: formatted };
+			return {
+				batch: true,
+				results: formatted.map((result) =>
+					result.error === SANITIZED_QUERY_ERROR
+						? { ...result, error: queryFailedMessage(result.type) }
+						: result
+				),
+			};
 		}
 
 		const first = formatted[0];
@@ -755,16 +766,16 @@ const getFunnelAnalyticsTool = defineMcpTool(
 	async (input, ctx) => {
 		const range = resolveMcpDateRange(input);
 		return summarizeConversionAnalytics(
-			await callRPCProcedure(
-				"funnels",
-				"getAnalytics",
+			await readConversionAnalytics(
+				"get_funnel_analytics",
+				["funnels", "getAnalytics"],
 				{
 					funnelId: input.funnelId,
 					websiteId: ctx.websiteId,
 					startDate: range.from,
 					endDate: range.to,
 				},
-				buildRpcContext(ctx)
+				ctx
 			),
 			range
 		);
@@ -883,16 +894,16 @@ const getGoalAnalyticsTool = defineMcpTool(
 	async (input, ctx) => {
 		const range = resolveMcpDateRange(input);
 		return summarizeConversionAnalytics(
-			await callRPCProcedure(
-				"goals",
-				"getAnalytics",
+			await readConversionAnalytics(
+				"get_goal_analytics",
+				["goals", "getAnalytics"],
 				{
 					goalId: input.goalId,
 					websiteId: ctx.websiteId,
 					startDate: range.from,
 					endDate: range.to,
 				},
-				buildRpcContext(ctx)
+				ctx
 			),
 			range
 		);
@@ -1322,7 +1333,9 @@ async function resolveFlagScope(ctx: McpHandlerContext): Promise<FlagScope> {
 	}
 	const organizationId = await resolveOrganizationId(ctx);
 	if (organizationId instanceof Error) {
-		throw new McpToolError("invalid_input", organizationId.message);
+		throw new McpToolError(organizationId.code, organizationId.message, {
+			hint: organizationId.hint,
+		});
 	}
 	return {
 		notFoundHint:

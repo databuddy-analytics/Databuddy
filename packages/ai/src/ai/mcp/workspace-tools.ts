@@ -41,6 +41,7 @@ import {
 	PageSchema,
 	paginate,
 	pickFields,
+	readConversionAnalytics,
 	resolveMcpDateRange,
 	summarizeConversionAnalytics,
 	toIsoTimestamp,
@@ -71,16 +72,16 @@ const getFunnelAnalyticsByReferrerTool = defineMcpTool(
 			.object({ referrer_analytics: z.array(z.unknown()) })
 			.passthrough()
 			.parse(
-				await callRPCProcedure(
-					"funnels",
-					"getAnalyticsByReferrer",
+				await readConversionAnalytics(
+					"get_funnel_analytics_by_referrer",
+					["funnels", "getAnalyticsByReferrer"],
 					{
 						funnelId: input.funnelId,
 						websiteId: getResolvedWebsiteId(ctx),
 						startDate: range.from,
 						endDate: range.to,
 					},
-					buildRpcContext(ctx)
+					ctx
 				)
 			);
 		const page = paginate(result.referrer_analytics, input);

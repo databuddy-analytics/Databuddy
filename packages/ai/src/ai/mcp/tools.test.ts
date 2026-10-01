@@ -5,6 +5,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { AnySchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { ORPCError } from "@orpc/server";
 import { describe, expect, test } from "bun:test";
 import { z } from "zod";
 import {
@@ -26,6 +28,14 @@ const ctx: McpRequestContext = {
 };
 
 const tools = createMcpTools(ctx);
+
+function readToolError(result: CallToolResult): unknown {
+	const [content] = result.content;
+	if (!(result.isError && content?.type === "text")) {
+		throw new Error("Expected a text error result");
+	}
+	return (JSON.parse(content.text) as { error: unknown }).error;
+}
 
 const TOOL_NAME_RE = /^[a-z][a-z0-9_]*$/;
 const MAX_DESCRIPTION_LEN = 240;
@@ -294,6 +304,95 @@ describe("MCP tool invariants", () => {
 		const result = await tool.handler({});
 		expect(result).toMatchObject({ isError: true });
 		expect(JSON.stringify(result)).not.toContain(sentinel);
+	});
+
+	test.each([
+		{ code: "PLAN_LIMIT_EXCEEDED", data: { limit: 3 }, expected: "plan_limit" },
+		{
+			code: "FEATURE_UNAVAILABLE",
+			data: { feature: "funnels" },
+			expected: "plan_limit",
+		},
+		{
+			code: "RATE_LIMITED",
+			data: { retryAfter: 30 },
+			expected: "rate_limited",
+		},
+		{
+			code: "SERVICE_UNAVAILABLE",
+			data: { service: "analytics" },
+			expected: "upstream_timeout",
+		},
+		{ code: "NOT_FOUND", data: { id: "goal-1" }, expected: "not_found" },
+		{ code: "CONFLICT", data: { key: "flag_1" }, expected: "invalid_input" },
+	])("maps ORPC $code to $expected with its message and details", async ({
+		code,
+		data,
+		expected,
+	}) => {
+		const message = `Synthetic ${code} message`;
+		const tool = defineMcpTool(
+			{
+				name: "orpc_error_test",
+				description: "Test that ORPC errors keep their message and details.",
+				inputSchema: z.object({}),
+				metadata: { access: { kind: "read" } },
+			},
+			() => {
+				throw new ORPCError(code, { message, data });
+			}
+		).build(ctx);
+
+		expect(readToolError(await tool.handler({}))).toMatchObject({
+			code: expected,
+			details: data,
+			message,
+		});
+	});
+
+	test("only tells callers to retry upstream timeouts when the tool is idempotent", async () => {
+		const timeoutTool = (
+			name: string,
+			metadata: { access: { kind: "read" | "write" } },
+			annotations?: { destructive: boolean }
+		) =>
+			defineMcpTool(
+				{
+					annotations,
+					description: "Test the retry hint after an upstream timeout.",
+					inputSchema: z.object({}),
+					metadata,
+					name,
+				},
+				() => {
+					throw new ORPCError("SERVICE_UNAVAILABLE", {
+						message: "Upstream timed out",
+					});
+				}
+			).build(ctx);
+
+		expect(
+			readToolError(
+				await timeoutTool("idempotent_timeout", {
+					access: { kind: "read" },
+				}).handler({})
+			)
+		).toMatchObject({
+			code: "upstream_timeout",
+			hint: "Retry the same call shortly.",
+		});
+		expect(
+			readToolError(
+				await timeoutTool(
+					"create_timeout",
+					{ access: { kind: "write" } },
+					{ destructive: false }
+				).handler({})
+			)
+		).toMatchObject({
+			code: "upstream_timeout",
+			hint: expect.stringContaining("The change may already have been saved"),
+		});
 	});
 
 	test("tools use exactly the scopes OAuth discovery advertises", () => {

@@ -1,4 +1,5 @@
 import { LINK_SLUG_REGEX } from "@databuddy/shared/constants/links";
+import { ORPCError } from "@orpc/server";
 import {
 	analyticsDateRangeSchema,
 	isoDateOrOffsetDateTimeSchema,
@@ -9,7 +10,10 @@ import {
 	MCP_DATE_PRESETS,
 	resolveDatePreset,
 } from "../../lib/date-presets";
+import { captureError } from "../../lib/tracing";
+import { callRPCProcedure } from "../tools/utils";
 import { McpToolError, type McpHandlerContext } from "./define-tool";
+import { buildRpcContext } from "./tool-context";
 
 const DateOnlySchema = z.iso.date();
 
@@ -335,6 +339,32 @@ export function summarizeConversionAnalytics(
 			timeSeriesTruncated: series.length > MAX_TIME_SERIES_POINTS,
 		}),
 	};
+}
+
+export async function readConversionAnalytics(
+	tool: string,
+	procedure: readonly ["funnels" | "goals", string],
+	input: Record<string, unknown>,
+	ctx: McpHandlerContext
+): Promise<unknown> {
+	const [router, method] = procedure;
+	try {
+		return await callRPCProcedure(
+			router,
+			method,
+			input,
+			buildRpcContext(ctx),
+			ctx.abortSignal
+		);
+	} catch (error) {
+		if (error instanceof ORPCError || error instanceof McpToolError) {
+			throw error;
+		}
+		captureError(error, { mcp_tool: tool });
+		throw new McpToolError("query_failed", `The ${tool} query failed to run.`, {
+			hint: "Shorten the date range or retry.",
+		});
+	}
 }
 
 export function updatePreview(
