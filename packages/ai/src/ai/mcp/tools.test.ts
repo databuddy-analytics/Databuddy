@@ -74,6 +74,33 @@ describe("MCP transport", () => {
 		});
 	});
 
+	test("stops reading a body without Content-Length once it passes 1 MB", async () => {
+		const chunk = new Uint8Array(65_536);
+		let bytesSent = 0;
+		const response = await handleDatabuddyMcpRequest({
+			apiKey: null,
+			organizationId: "org-1",
+			request: new Request("https://api.databuddy.test/v1/mcp", {
+				body: new ReadableStream<Uint8Array>({
+					pull(controller) {
+						bytesSent += chunk.byteLength;
+						controller.enqueue(chunk);
+					},
+				}),
+				headers: {
+					accept: "application/json, text/event-stream",
+					"content-type": "application/json",
+				},
+				method: "POST",
+			}),
+			requestHeaders: new Headers(),
+			userId: "user-1",
+		});
+
+		expect(response.status).toBe(413);
+		expect(bytesSent).toBeLessThan(2_097_152);
+	});
+
 	test("lists parameter descriptions but keeps output schemas free of prompt text", async () => {
 		const { tools: listed } = await listTools({
 			apiKey: null,

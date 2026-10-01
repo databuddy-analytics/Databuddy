@@ -63,13 +63,28 @@ async function readSingleMcpMessage(
 	if (Number(request.headers.get("content-length")) > MAX_MCP_REQUEST_BYTES) {
 		return tooLarge;
 	}
-	const body = await request.arrayBuffer();
-	if (body.byteLength > MAX_MCP_REQUEST_BYTES) {
-		return tooLarge;
+	const decoder = new TextDecoder();
+	let body = "";
+	let bodyBytes = 0;
+	if (request.body) {
+		const reader = request.body.getReader();
+		for (
+			let chunk = await reader.read();
+			!chunk.done;
+			chunk = await reader.read()
+		) {
+			bodyBytes += chunk.value.byteLength;
+			if (bodyBytes > MAX_MCP_REQUEST_BYTES) {
+				await reader.cancel();
+				return tooLarge;
+			}
+			body += decoder.decode(chunk.value, { stream: true });
+		}
 	}
+	body += decoder.decode();
 	let message: unknown;
 	try {
-		message = JSON.parse(new TextDecoder().decode(body));
+		message = JSON.parse(body);
 	} catch {
 		return {
 			rejection: createMcpErrorResponse(
