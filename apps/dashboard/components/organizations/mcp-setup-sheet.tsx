@@ -2,6 +2,7 @@
 
 import type { ApiScope } from "@databuddy/api-keys/scopes";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { ApiKeyListItem } from "./api-key-types";
@@ -28,7 +29,13 @@ import {
 import { Badge, Button, Field, Input, Text, dayjs } from "@databuddy/ui";
 import { orpc } from "@/lib/orpc";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
-import { createMcpConfig, MCP_ENV_VAR, MCP_SERVER_URL } from "./mcp-config";
+import {
+	createMcpConfig,
+	MCP_ENV_VAR,
+	MCP_SERVER_URL,
+	type McpClient,
+	mcpEnvVarReference,
+} from "./mcp-config";
 import {
 	getMcpScopeGrant,
 	getMcpScopeSummary,
@@ -37,7 +44,6 @@ import {
 	type McpAction,
 } from "./mcp-capabilities";
 
-type McpClient = "cursor" | "claude" | "windsurf" | "other";
 type McpExpiry = "90d" | "never";
 
 const CLIENT_OPTIONS: Array<{
@@ -57,7 +63,7 @@ const CLIENT_OPTIONS: Array<{
 		description:
 			"Claude signs in with your Databuddy account. A key is only needed for automation.",
 		keyHint:
-			"Add it to Claude Code's .mcp.json or Claude Desktop's MCP settings.",
+			"Add it to Claude Code's .mcp.json. Claude on the web, desktop, and mobile connects by signing in instead, with no key.",
 	},
 	{
 		value: "windsurf",
@@ -130,7 +136,7 @@ function ClaudeSignIn() {
 }
 
 function defaultConnectionName(client: McpClient) {
-	return `MCP — ${CLIENT_LABELS[client]}`;
+	return `${CLIENT_LABELS[client]} MCP`;
 }
 
 function scopeSummary(key: ApiKeyListItem) {
@@ -174,8 +180,16 @@ export function McpConnectionDetails({
 		return (
 			<div className="rounded border border-border/60 bg-secondary/30 px-3 py-3">
 				<Text tone="muted" variant="caption">
-					No MCP keys yet. Claude signs in with your account; other AI clients
-					use a dedicated key instead of a personal API key.
+					No MCP keys yet. Claude and Claude Code sign in with your account and
+					show up under{" "}
+					<Link
+						className="text-primary hover:underline"
+						href="/settings/account"
+					>
+						Connected apps
+					</Link>{" "}
+					in your account settings. Cursor, Windsurf, and other clients use a
+					dedicated key instead of a personal API key.
 				</Text>
 			</div>
 		);
@@ -306,7 +320,7 @@ export function McpSetupSheet({
 		selectedActions.includes("links") && selectedWebsiteIds.length > 0;
 
 	const config = newSecret
-		? createMcpConfig(newSecret, useEnvironmentVariable)
+		? createMcpConfig(newSecret, client, useEnvironmentVariable)
 		: "";
 
 	const handleClientChange = (nextClient: McpClient) => {
@@ -388,7 +402,7 @@ export function McpSetupSheet({
 							<Sheet.Description>
 								{newSecret
 									? "Copy the config into your AI client, then ask it to list your websites."
-									: "Give your AI tools a safe, scoped connection to Databuddy analytics."}
+									: "Give your AI tools a scoped connection to your Databuddy analytics."}
 							</Sheet.Description>
 						</div>
 					</div>
@@ -473,8 +487,9 @@ export function McpSetupSheet({
 										<div>
 											<Text variant="label">Optional actions</Text>
 											<Text className="mt-0.5" tone="muted" variant="caption">
-												MCP previews every change first and requires explicit
-												approval before applying it.
+												Goal, funnel, annotation, flag, and link changes show a
+												preview first and apply only once confirmed.
+												Investigation replies post right away.
 											</Text>
 										</div>
 										<div className="space-y-2">
@@ -517,7 +532,7 @@ export function McpSetupSheet({
 											<div className="rounded border border-warning/30 bg-warning/5 px-3 py-2.5">
 												<Checkbox
 													checked={allowOrganizationWideLinks}
-													description="Short links belong to the organization, so this connection can manage every short link here—not only links associated with the selected websites."
+													description="Short links belong to the organization, so this connection can manage every short link here, not only links associated with the selected websites."
 													label="Allow organization-wide Short links access"
 													onCheckedChange={(checked) =>
 														setAllowOrganizationWideLinks(checked === true)
@@ -631,6 +646,7 @@ function ConnectionCreated({
 }) {
 	const clientOption = CLIENT_OPTIONS.find((option) => option.value === client);
 	const clientDescription = clientOption?.keyHint ?? clientOption?.description;
+	const envVarReference = mcpEnvVarReference(client);
 
 	return (
 		<div className="space-y-5">
@@ -689,19 +705,21 @@ function ConnectionCreated({
 				</div>
 			</div>
 
-			<div className="flex items-center justify-between gap-3 rounded border border-border/60 px-3 py-2.5">
-				<Checkbox
-					checked={useEnvironmentVariable}
-					description={`Set ${MCP_ENV_VAR} in your environment before launching the client.`}
-					label="Use an environment variable"
-					onCheckedChange={(checked) =>
-						onEnvironmentVariableChange(checked === true)
-					}
-				/>
-				<Badge size="sm" variant="muted">
-					{MCP_ENV_VAR}
-				</Badge>
-			</div>
+			{envVarReference ? (
+				<div className="flex items-center justify-between gap-3 rounded border border-border/60 px-3 py-2.5">
+					<Checkbox
+						checked={useEnvironmentVariable}
+						description={`Keep the key out of the config. Set ${MCP_ENV_VAR} in your environment before launching ${CLIENT_LABELS[client]}.`}
+						label="Use an environment variable"
+						onCheckedChange={(checked) =>
+							onEnvironmentVariableChange(checked === true)
+						}
+					/>
+					<Badge size="sm" variant="muted">
+						{envVarReference}
+					</Badge>
+				</div>
+			) : null}
 
 			<div className="space-y-2">
 				<Text variant="label">Test it</Text>
@@ -716,8 +734,8 @@ function ConnectionCreated({
 					/>
 				</div>
 				<Text tone="muted" variant="caption">
-					If the client returns a 401 or 403, rotate the key or check its access
-					in Organization Settings → API Keys.
+					If the client returns a 401, rotate the key. If a tool you expect is
+					missing, check the key's access in Organization Settings → API Keys.
 				</Text>
 			</div>
 

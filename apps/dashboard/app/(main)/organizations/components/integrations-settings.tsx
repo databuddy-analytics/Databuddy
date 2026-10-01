@@ -956,8 +956,8 @@ function McpIntegrationRow({ organizationId }: { organizationId: string }) {
 			Needs attention
 		</Badge>
 	) : (
-		<Badge size="sm" variant="warning">
-			Not connected
+		<Badge size="sm" variant="muted">
+			No API keys
 		</Badge>
 	);
 

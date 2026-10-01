@@ -18,7 +18,7 @@ export const MCP_ACTION_OPTIONS: Array<{
 		value: "workspace",
 		label: "Workspace actions",
 		description:
-			"Create, update, and delete goals and annotations; create funnels and reply to investigations.",
+			"Create, update, and delete goals and annotations; create funnels and reply to investigations. The key can also edit, publish, and delete the websites it can access through the Databuddy API.",
 		scopes: MCP_ACTION_SCOPES.workspace,
 	},
 	{
