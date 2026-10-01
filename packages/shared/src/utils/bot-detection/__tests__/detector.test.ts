@@ -15,11 +15,10 @@ function expectBot(ua: string, category: BotCategory, action: BotAction) {
 	expect(result.isBot).toBe(true);
 	expect(result.category).toBe(category);
 	expect(result.action).toBe(action);
-	return result;
 }
 
 describe("detectBot", () => {
-	describe("AI crawlers — every major provider", () => {
+	describe("AI crawlers from every major provider", () => {
 		it.each([
 			[
 				"OpenAI GPTBot",
@@ -181,7 +180,7 @@ describe("detectBot", () => {
 		});
 	});
 
-	describe("human traffic — no false positives", () => {
+	describe("human traffic without false positives", () => {
 		it.each([
 			[
 				"Chrome Desktop",

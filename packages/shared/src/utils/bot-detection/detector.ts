@@ -3,7 +3,7 @@ import { agentBotCategory, matchAiAgent } from "./ai-agents";
 import { BotAction, BotCategory, type BotDetectionResult } from "./types";
 import { extractBotName, matchCategory } from "./user-agent";
 
-const CATEGORY_MAP: Record<string, BotCategory> = {
+const CATEGORY_BY_PATTERN_GROUP: Record<string, BotCategory> = {
 	AI_CRAWLER: BotCategory.AI_CRAWLER,
 	AI_SEARCH: BotCategory.AI_CRAWLER,
 	AI_ASSISTANT: BotCategory.AI_ASSISTANT,
@@ -33,18 +33,18 @@ export function detectBot(userAgent: string): BotDetectionResult {
 	if (cached) {
 		return cached;
 	}
-	const result = detect(userAgent);
+	const result = classifyUserAgent(userAgent);
 	if (cache.size >= CACHE_MAX) {
-		const first = cache.keys().next().value;
-		if (first !== undefined) {
-			cache.delete(first);
+		const oldest = cache.keys().next().value;
+		if (oldest !== undefined) {
+			cache.delete(oldest);
 		}
 	}
 	cache.set(userAgent, result);
 	return result;
 }
 
-function detect(userAgent: string): BotDetectionResult {
+function classifyUserAgent(userAgent: string): BotDetectionResult {
 	if (!userAgent) {
 		return {
 			action: BotAction.BLOCK,
@@ -67,17 +67,16 @@ function detect(userAgent: string): BotDetectionResult {
 		};
 	}
 
-	const name = extractBotName(userAgent);
-	const patternCategory = matchCategory(userAgent);
-	if (patternCategory || isAIBot(userAgent)) {
-		const category = patternCategory
-			? (CATEGORY_MAP[patternCategory] ?? BotCategory.UNKNOWN_BOT)
+	const patternGroup = matchCategory(userAgent);
+	if (patternGroup || isAIBot(userAgent)) {
+		const category = patternGroup
+			? (CATEGORY_BY_PATTERN_GROUP[patternGroup] ?? BotCategory.UNKNOWN_BOT)
 			: BotCategory.AI_CRAWLER;
 		return {
 			action: ACTION_BY_CATEGORY[category],
 			category,
 			isBot: true,
-			name,
+			name: extractBotName(userAgent),
 			reason: `${category}_pattern`,
 		};
 	}
@@ -87,7 +86,7 @@ function detect(userAgent: string): BotDetectionResult {
 			action: BotAction.BLOCK,
 			category: BotCategory.UNKNOWN_BOT,
 			isBot: true,
-			name,
+			name: extractBotName(userAgent),
 			reason: "general_bot_pattern",
 		};
 	}

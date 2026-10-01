@@ -871,7 +871,7 @@ describe("POST /track", () => {
 		mockCheckForBot.mockClear();
 		mockCheckForBot.mockResolvedValueOnce({
 			error: new Response(null, { status: 204 }),
-			trackOnly: true,
+			isTrackOnly: true,
 		});
 		const res = await post(
 			trackRoute,
