@@ -130,8 +130,11 @@ const MAX_DAYS_BY_TIME_UNIT: Partial<
 	minute: { days: 1, wider: "hour" },
 	hour: { days: 30, wider: "day" },
 };
+const MAX_TIME_SERIES_DAYS = 400;
+const CUSTOM_SQL_ORDER_BY_TYPES = new Set(["profile_list"]);
 const LIST_OPERATORS: readonly FilterOperator[] = ["in", "not_in"];
 const TIME_SERIES_TAGS = new Set(["time-series", "timeseries", "trends"]);
+const BREAKDOWN_TAG = "breakdown";
 const DATE_ASCENDING_ORDER_RE = /^date ASC\b/i;
 
 function timezoneError(timezone: string): string | null {
@@ -182,25 +185,32 @@ function queryShapeError(
 	if (config.customSql && query.groupBy?.length) {
 		return `${type} returns fixed columns and does not support groupBy. Remove groupBy.`;
 	}
-	if (config.customSql && timeSeries && query.orderBy) {
-		return `${type} is always ordered by date and does not support orderBy. Remove orderBy.`;
-	}
-	if (!(timeSeries && query.timeUnit)) {
-		return null;
-	}
-	const supported = config.meta?.supports_granularity;
 	if (
+		config.customSql &&
+		query.orderBy &&
+		!CUSTOM_SQL_ORDER_BY_TYPES.has(type)
+	) {
+		return `${type} returns rows in a fixed order and does not support orderBy. Remove orderBy.`;
+	}
+	const supported = config.meta?.supports_granularity ?? [];
+	if (
+		query.timeUnit &&
 		!config.timeBucket &&
-		supported &&
 		!supported.some((unit) => unit === query.timeUnit)
 	) {
 		return supported.length > 0
 			? `timeUnit '${query.timeUnit}' is not supported for ${type}. Use ${supported.join(" or ")}.`
 			: `${type} does not take a timeUnit. Remove timeUnit.`;
 	}
-	const window = MAX_DAYS_BY_TIME_UNIT[query.timeUnit];
+	if (!timeSeries) {
+		return null;
+	}
+	const window = query.timeUnit && MAX_DAYS_BY_TIME_UNIT[query.timeUnit];
 	if (window && days > window.days) {
 		return `timeUnit '${query.timeUnit}' covers at most ${window.days + 1} calendar days. Use '${window.wider}' for longer ranges.`;
+	}
+	if (days > MAX_TIME_SERIES_DAYS) {
+		return `${type} is a time series, so from and to can be at most ${MAX_TIME_SERIES_DAYS} days apart. Split longer ranges into several queries.`;
 	}
 	return null;
 }
@@ -316,7 +326,8 @@ export function buildBatchQueryRequests(
 			reject(shapeError);
 			continue;
 		}
-		const keepNewestRows = timeSeries && !q.orderBy;
+		const keepNewestRows =
+			timeSeries && !q.orderBy && !config.meta?.tags?.includes(BREAKDOWN_TAG);
 		requests.push({
 			inputIndex,
 			keepNewestRows,
