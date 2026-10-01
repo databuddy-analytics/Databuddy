@@ -121,11 +121,6 @@ const QueryLimitSchema = z
 const DatePresetSchema = z.enum(
 	MCP_DATE_PRESETS as [DatePreset, ...DatePreset[]]
 );
-const QueryFilterSchema = FilterSchema.omit({
-	target: true,
-	having: true,
-}).strict();
-
 const QueryItemSchema = z.object({
 	type: z.string(),
 	preset: DatePresetSchema.optional(),
@@ -133,7 +128,7 @@ const QueryItemSchema = z.object({
 	to: z.string().optional(),
 	timeUnit: z.enum(TIME_UNIT).optional(),
 	limit: QueryLimitSchema,
-	filters: z.array(QueryFilterSchema).optional(),
+	filters: z.array(FilterSchema).optional(),
 	orderBy: z.string().optional(),
 });
 
@@ -421,7 +416,7 @@ const getDataTool = defineMcpTool(
 				.describe("Time granularity for time-series data."),
 			limit: QueryLimitSchema,
 			filters: z
-				.array(QueryFilterSchema)
+				.array(FilterSchema)
 				.optional()
 				.describe(
 					"Filters [{field, op, value}]. ops: eq, ne, contains, not_contains, starts_with, in, not_in. 'field' is a common dimension such as path, country, referrer, device_type, or utm_source, a query-specific field from capabilities detail='full', or trait:<key> (e.g. trait:plan) to segment by an identified-user trait. Rejected fields return the allowed list for this query."

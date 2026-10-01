@@ -10,6 +10,7 @@ import {
 	allowedFilterFields,
 	invalidFilterFieldError,
 	publicQueryErrorMessage,
+	QueryFilterSchema,
 	SANITIZED_QUERY_ERROR,
 	suggestQueryTypes,
 	truncateQueryErrorForLog,
@@ -22,25 +23,10 @@ import type {
 } from "../../query/types";
 import { z } from "zod";
 
-export const FilterSchema = z.object({
-	field: z.string(),
-	op: z.enum([
-		"eq",
-		"ne",
-		"contains",
-		"not_contains",
-		"starts_with",
-		"in",
-		"not_in",
-	]),
-	value: z.union([
-		z.string(),
-		z.number(),
-		z.array(z.union([z.string(), z.number()])),
-	]),
-	target: z.string().optional(),
-	having: z.boolean().optional(),
-}) satisfies z.ZodType<Filter>;
+export const FilterSchema = QueryFilterSchema.omit({
+	target: true,
+	having: true,
+}).strict() satisfies z.ZodType<Filter>;
 
 export { MCP_DATE_PRESETS } from "../../lib/date-presets";
 
@@ -171,9 +157,6 @@ function isTimeSeries(config: SimpleQueryConfig): boolean {
 
 function filterShapeError(filters: Filter[] | undefined): string | null {
 	for (const filter of filters ?? []) {
-		if (filter.target || filter.having) {
-			return `Filter '${filter.field}' sets target or having, which get_data does not accept. Pass field, op, and value only.`;
-		}
 		if (Array.isArray(filter.value) && !LIST_OPERATORS.includes(filter.op)) {
 			return `Filter '${filter.field}' uses op '${filter.op}' with a list of values. Use 'in' or 'not_in' for a list, or pass a single value.`;
 		}

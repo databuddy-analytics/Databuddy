@@ -40,27 +40,25 @@ const TIME_UNITS = [
 const filterOpEnum = z.enum(FILTER_OPS);
 const timeUnitEnum = z.enum(TIME_UNITS);
 
+export const QueryFilterSchema = z.object({
+	field: z.string(),
+	op: filterOpEnum,
+	value: z.union([
+		z.string(),
+		z.number(),
+		z.array(z.union([z.string(), z.number()])),
+	]),
+	target: z.string().optional(),
+	having: z.boolean().optional(),
+});
+
 const QuerySchema = z.object({
 	projectId: z.string(),
 	type: z.string(),
 	from: z.string(),
 	to: z.string(),
 	timeUnit: timeUnitEnum.default("day"),
-	filters: z
-		.array(
-			z.object({
-				field: z.string(),
-				op: filterOpEnum,
-				value: z.union([
-					z.string(),
-					z.number(),
-					z.array(z.union([z.string(), z.number()])),
-				]),
-				target: z.string().optional(),
-				having: z.boolean().optional(),
-			})
-		)
-		.optional(),
+	filters: z.array(QueryFilterSchema).optional(),
 	groupBy: z.array(z.string()).optional(),
 	orderBy: z.string().optional(),
 	limit: z.number().int().min(1).max(1000).optional(),

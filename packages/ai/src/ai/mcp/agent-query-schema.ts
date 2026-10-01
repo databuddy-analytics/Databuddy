@@ -29,9 +29,7 @@ export const agentDataInputSchema = z.object({
 					z.enum(["minute", "hour", "day", "week", "month"])
 				),
 				limit: optionalInput(z.number().min(1).max(1000)),
-				filters: optionalInput(
-					z.array(FilterSchema.omit({ target: true, having: true }).strict())
-				),
+				filters: optionalInput(z.array(FilterSchema)),
 				groupBy: optionalInput(z.array(z.string())),
 				orderBy: optionalInput(z.string()).describe(
 					"Null uses the builder's default. Otherwise an output column plus ASC or DESC; never count_desc."
