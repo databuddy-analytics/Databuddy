@@ -67,12 +67,16 @@ assert.equal(prompt.includes("basket.databuddy.cc"), ${selfhost !== "true"});
 		expect(npm).not.toContain("trackSessions");
 	});
 
-	it("does not ask an AI assistant to send installation telemetry", () => {
+	it("asks for optional install feedback without code or secrets, and only names real options", () => {
 		const prompt = generateAgentPrompt("example-client-id");
 
-		expect(prompt).not.toContain("agent-telemetry");
-		expect(prompt).not.toContain("Report Back");
+		expect(prompt).toContain("/public/v1/agent-telemetry");
+		expect(prompt).toContain("(optional)");
+		expect(prompt).toContain("never include source code, environment values");
+		expect(prompt).not.toContain("Required");
 		expect(prompt).not.toContain("Always send this report");
+		expect(prompt).toContain("@databuddy/sdk/agents");
+		expect(prompt).toContain("identify(");
 		expect(prompt).not.toContain("trackPerformance");
 		expect(prompt).not.toContain("trackScreenViews");
 		expect(prompt).not.toContain("trackSessions");
