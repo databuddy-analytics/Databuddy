@@ -79,11 +79,19 @@ import { withWorkspace } from "../procedures/with-workspace";
 
 const INSIGHT_TIMELINE_ROWS_PER_KIND = 50;
 
-function isAccessDenied(error: unknown): boolean {
-	return (
-		error instanceof ORPCError &&
-		(error.code === "FORBIDDEN" || error.code === "UNAUTHORIZED")
-	);
+async function hasAccess(check: Promise<unknown>): Promise<boolean> {
+	try {
+		await check;
+		return true;
+	} catch (error) {
+		if (
+			error instanceof ORPCError &&
+			(error.code === "FORBIDDEN" || error.code === "UNAUTHORIZED")
+		) {
+			return false;
+		}
+		throw error;
+	}
 }
 
 const appendInvestigationReplyInputSchema = z
@@ -119,8 +127,11 @@ const appendInvestigationReplyInputSchema = z
 
 type InsightTimelineItem = z.infer<typeof insightTimelineItemSchema>;
 
+const investigationAIMissing = () =>
+	readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim();
+
 function requireInvestigationAI() {
-	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
+	if (investigationAIMissing()) {
 		throw rpcError.badRequest(
 			"Ask your administrator to configure AI before continuing an investigation."
 		);
@@ -130,7 +141,7 @@ function requireInvestigationAI() {
 async function queueInsightReply(
 	replyId: string
 ): Promise<z.infer<typeof insightReplyStatusSchema>> {
-	try {
+	const enqueueAndRecord = async () => {
 		const status = await enqueueInsightsResume(replyId);
 		if (status === "succeeded") {
 			await db
@@ -139,18 +150,14 @@ async function queueInsightReply(
 				.where(eq(insightReplies.id, replyId));
 		}
 		return status;
+	};
+	try {
+		return await enqueueAndRecord();
 	} catch (error) {
 		logger.error({ error, replyId }, "Failed to queue investigation reply");
 		try {
 			if (await getInsightsQueue().getJob(insightsResumeJobId(replyId))) {
-				const status = await enqueueInsightsResume(replyId);
-				if (status === "succeeded") {
-					await db
-						.update(insightReplies)
-						.set({ status })
-						.where(eq(insightReplies.id, replyId));
-				}
-				return status;
+				return await enqueueAndRecord();
 			}
 		} catch (reconciliationError) {
 			logger.warn(
@@ -185,7 +192,7 @@ export async function queueDefinitionChangeRechecks(input: {
 	type: RecheckableDefinitionType;
 	websiteId: string;
 }): Promise<void> {
-	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
+	if (investigationAIMissing()) {
 		return;
 	}
 	const subjectPrefix = `${input.type}:${input.definitionId}`;
@@ -420,7 +427,7 @@ function serializeInsightBrief(
 
 async function authorizeInsightsRead(
 	context: Context,
-	input: { organizationId: string; runId?: string; websiteId?: string }
+	input: { organizationId: string; websiteId?: string }
 ) {
 	if (input.websiteId) {
 		await withWorkspace(context, {
@@ -621,9 +628,7 @@ export async function appendInvestigationReply(
 		60
 	);
 	if (!rate.success) {
-		throw rpcError.rateLimited(
-			Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000))
-		);
+		throw rpcError.rateLimited(rate.reset);
 	}
 	if (
 		parsed.intent === "analysis" &&
@@ -1425,18 +1430,14 @@ export const insightsRouter = {
 					)
 			);
 
-			const whereClause = input.websiteId
-				? and(
-						eq(analyticsInsights.organizationId, input.organizationId),
-						eq(analyticsInsights.websiteId, input.websiteId),
-						hasNoActiveReply,
-						isNull(websites.deletedAt)
-					)
-				: and(
-						eq(analyticsInsights.organizationId, input.organizationId),
-						hasNoActiveReply,
-						isNull(websites.deletedAt)
-					);
+			const whereClause = and(
+				eq(analyticsInsights.organizationId, input.organizationId),
+				input.websiteId
+					? eq(analyticsInsights.websiteId, input.websiteId)
+					: undefined,
+				hasNoActiveReply,
+				isNull(websites.deletedAt)
+			);
 
 			const latestCases = db
 				.selectDistinctOn(
@@ -1508,85 +1509,39 @@ export const insightsRouter = {
 			const principalId = context.user?.id ?? `apikey:${context.apiKey?.id}`;
 			const rate = await ratelimit(`insights:getById:${principalId}`, 120, 60);
 			if (!rate.success) {
-				throw rpcError.rateLimited(
-					Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000))
-				);
+				throw rpcError.rateLimited(rate.reset);
 			}
 
-			const [row] = await selectInsights()
-				.where(
-					and(
-						eq(analyticsInsights.id, input.insightId),
-						isNull(websites.deletedAt)
-					)
-				)
-				.limit(1);
-
-			if (!row) {
-				return {
-					canReply: false,
-					insight: null,
-					timeline: [],
-				};
+			const empty = { canReply: false, insight: null, timeline: [] };
+			const insight = await findCurrentInvestigation(input.insightId);
+			if (!insight) {
+				return empty;
 			}
-
-			const workspace = await withWorkspace(context, {
-				organizationId: row.organizationId,
-				websiteId: row.websiteId,
-				permissions: ["read"],
-				allowCrossOrg: true,
-			}).catch((error) => {
-				if (isAccessDenied(error)) {
-					return null;
-				}
-				throw error;
-			});
-
-			if (!workspace) {
-				return {
-					canReply: false,
-					insight: null,
-					timeline: [],
-				};
-			}
-
-			const [current] = await selectInsights()
-				.where(
-					and(
-						eq(analyticsInsights.organizationId, row.organizationId),
-						eq(analyticsInsights.websiteId, row.websiteId),
-						eq(analyticsInsights.subjectKey, row.subjectKey),
-						isNull(websites.deletedAt)
-					)
-				)
-				.orderBy(desc(analyticsInsights.createdAt), desc(analyticsInsights.id))
-				.limit(1);
-			const insight = current ?? row;
-			const timeline = await loadInsightTimeline(insight);
-			const hasInvestigation = timeline.some(
-				(item) => item.kind === "investigation"
+			const canRead = await hasAccess(
+				withWorkspace(context, {
+					allowCrossOrg: true,
+					organizationId: insight.organizationId,
+					permissions: ["read"],
+					websiteId: insight.websiteId,
+				})
 			);
-			if (!hasInvestigation) {
-				return {
-					canReply: false,
-					insight: null,
-					timeline: [],
-				};
+			if (!canRead) {
+				return empty;
 			}
 
-			const canReply = await withWorkspace(context, {
-				allowCrossOrg: true,
-				organizationId: row.organizationId,
-				permissions: ["update"],
-				websiteId: row.websiteId,
-			})
-				.then(() => true)
-				.catch((error) => {
-					if (isAccessDenied(error)) {
-						return false;
-					}
-					throw error;
-				});
+			const timeline = await loadInsightTimeline(insight);
+			if (!timeline.some((item) => item.kind === "investigation")) {
+				return empty;
+			}
+
+			const canReply = await hasAccess(
+				withWorkspace(context, {
+					allowCrossOrg: true,
+					organizationId: insight.organizationId,
+					permissions: ["update"],
+					websiteId: insight.websiteId,
+				})
+			);
 
 			return {
 				canReply,
@@ -1808,19 +1763,14 @@ export const insightsRouter = {
 				.where(investigationShareCase(insight))
 				.limit(1);
 			const canPublish = context.user
-				? await withWorkspace(context, {
-						allowCrossOrg: true,
-						organizationId: insight.organizationId,
-						permissions: ["update"],
-						websiteId: insight.websiteId,
-					})
-						.then(() => true)
-						.catch((error) => {
-							if (isAccessDenied(error)) {
-								return false;
-							}
-							throw error;
+				? await hasAccess(
+						withWorkspace(context, {
+							allowCrossOrg: true,
+							organizationId: insight.organizationId,
+							permissions: ["update"],
+							websiteId: insight.websiteId,
 						})
+					)
 				: false;
 			return {
 				canPublish,
