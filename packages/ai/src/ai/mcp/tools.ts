@@ -1406,54 +1406,43 @@ const createFlagTool = defineMcpTool(
 	}
 );
 
+function flagNotFound(error: unknown, hint: string): never {
+	if (error instanceof ORPCError && error.code === "NOT_FOUND") {
+		throw new McpToolError("not_found", "Flag not found", { hint });
+	}
+	throw error;
+}
+
 async function readFlag(id: string, ctx: McpHandlerContext) {
 	const rpcContext = buildRpcContext(ctx);
 	if (ctx.websiteId) {
-		try {
-			return await callRPCProcedure(
-				"flags",
-				"getById",
-				{ id, websiteId: ctx.websiteId },
-				rpcContext
-			);
-		} catch (error) {
-			if (!(error instanceof ORPCError && error.code === "NOT_FOUND")) {
-				throw error;
-			}
-		}
+		return callRPCProcedure(
+			"flags",
+			"getById",
+			{ id, websiteId: ctx.websiteId },
+			rpcContext
+		).catch((error: unknown) =>
+			flagNotFound(
+				error,
+				"Flag IDs come from list_flags for the same website. Organization-wide flags are updated without a website."
+			)
+		);
 	}
-	const organizationId =
-		ctx.websiteOrganizationId ?? (await resolveOrganizationId(ctx));
+	const organizationId = await resolveOrganizationId(ctx);
 	if (organizationId instanceof Error) {
 		throw new McpToolError("invalid_input", organizationId.message);
 	}
-	const flag = await callRPCProcedure(
+	return callRPCProcedure(
 		"flags",
 		"getById",
 		{ id, organizationId },
 		{ ...rpcContext, organizationId }
-	).catch((error: unknown) => {
-		if (error instanceof ORPCError && error.code === "NOT_FOUND") {
-			throw new McpToolError("not_found", "Flag not found", {
-				hint: ctx.websiteId
-					? "Flag IDs come from list_flags for the same website."
-					: "Website flags need websiteId, websiteName, or websiteDomain. list_flags shows each website's flags.",
-			});
-		}
-		throw error;
-	});
-	const flagWebsiteId =
-		flag && typeof flag === "object" && "websiteId" in flag
-			? flag.websiteId
-			: null;
-	if (ctx.websiteId && flagWebsiteId) {
-		throw new McpToolError(
-			"not_found",
-			"This flag belongs to a different website than the one selected.",
-			{ hint: "Flag IDs come from list_flags for the same website." }
-		);
-	}
-	return flag;
+	).catch((error: unknown) =>
+		flagNotFound(
+			error,
+			"Website flags need websiteId, websiteName, or websiteDomain. list_flags shows each website's flags."
+		)
+	);
 }
 
 const updateFlagTool = defineMcpTool(
@@ -1500,9 +1489,7 @@ const updateFlagTool = defineMcpTool(
 			const current = pickFields(await readFlag(id, ctx), FLAG_FIELDS);
 			return updatePreview("feature flag", current, updates);
 		}
-		if (ctx.websiteId) {
-			await readFlag(id, ctx);
-		}
+		await readFlag(id, ctx);
 		const rpcContext = buildRpcContext(ctx);
 
 		const result = await callRPCProcedure(
