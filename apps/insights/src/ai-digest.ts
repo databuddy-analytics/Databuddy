@@ -86,6 +86,14 @@ function periodLabel({ from, to }: { from: string; to: string }): string {
 	return `${label(from, "short")} to ${label(to, toMonth)}`;
 }
 
+function appUrl(path: string): string {
+	const url = new URL(path, config.urls.dashboard);
+	url.searchParams.set("utm_source", "databuddy");
+	url.searchParams.set("utm_medium", "email");
+	url.searchParams.set("utm_campaign", "ai_digest");
+	return url.toString();
+}
+
 const logoUrl = (product: string | null) => {
 	const icon = aiProductIcon(product ?? "");
 	return icon ? `${config.urls.dashboard}/ai/email/${icon}.png` : undefined;
@@ -163,7 +171,7 @@ async function buildAiDigest(
 	}
 
 	return {
-		agentsUrl: `${config.urls.dashboard}/websites/${websiteId}/agents`,
+		agentsUrl: appUrl(`/websites/${websiteId}/agents`),
 		hasServerTracking: numberField(digest[0], "site_has_server_tracking") > 0,
 		landingPages: landing.map((row) => {
 			const [sender] = Array.isArray(row.senders) ? row.senders : [];
@@ -182,7 +190,7 @@ async function buildAiDigest(
 			logoUrl: logoUrl(product.name),
 		})),
 		reads,
-		settingsUrl: `${config.urls.dashboard}/settings/notifications`,
+		settingsUrl: appUrl("/settings/notifications"),
 		site: domain,
 		visitors,
 	};
