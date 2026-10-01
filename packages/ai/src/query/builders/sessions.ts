@@ -2,12 +2,6 @@ import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { SimpleQueryConfig } from "../types";
 
-const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-function inclusiveEndDate(endDate: string): string {
-	return DATE_ONLY_RE.test(endDate) ? `${endDate} 23:59:59` : endDate;
-}
-
 export const SessionsBuilders = {
 	session_metrics: {
 		meta: {
@@ -199,7 +193,7 @@ export const SessionsBuilders = {
 					WHERE
 						client_id = {websiteId:String}
 						AND time >= toDateTime({startDate:String})
-						AND time <= toDateTime({endDate:String})
+						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND event_name = 'screen_view'
 						AND session_id != ''
 						AND path != ''
@@ -220,7 +214,7 @@ export const SessionsBuilders = {
 				params: {
 					websiteId,
 					startDate,
-					endDate: inclusiveEndDate(endDate),
+					endDate,
 					...filterParams,
 				},
 			};
@@ -286,7 +280,7 @@ export const SessionsBuilders = {
 					WHERE
 						client_id = {websiteId:String}
 						AND time >= toDateTime({startDate:String})
-						AND time <= toDateTime({endDate:String})
+						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND session_id != ''
 						${filterClause}
 					GROUP BY session_id
@@ -297,7 +291,7 @@ export const SessionsBuilders = {
 					WHERE
 						website_id = {websiteId:String}
 						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime({endDate:String})
+						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND session_id != ''
 					GROUP BY session_id
 				),
@@ -307,7 +301,7 @@ export const SessionsBuilders = {
 					WHERE
 						client_id = {websiteId:String}
 						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime({endDate:String})
+						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND session_id != ''
 					GROUP BY session_id
 				),
@@ -350,7 +344,7 @@ export const SessionsBuilders = {
 					WHERE
 						client_id = {websiteId:String}
 						AND time >= toDateTime({startDate:String})
-						AND time <= toDateTime({endDate:String})
+						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND session_id != ''
 					GROUP BY session_id
 				),
@@ -362,7 +356,7 @@ export const SessionsBuilders = {
 					WHERE
 						website_id = {websiteId:String}
 						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime({endDate:String})
+						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND session_id != ''
 					GROUP BY session_id
 				)
@@ -393,7 +387,7 @@ export const SessionsBuilders = {
 				params: {
 					websiteId,
 					startDate,
-					endDate: inclusiveEndDate(endDate),
+					endDate,
 					limit,
 					offset,
 					...filterParams,
@@ -436,7 +430,7 @@ export const SessionsBuilders = {
       WHERE
         client_id = {websiteId:String}
         AND time >= toDateTime({startDate:String})
-        AND time <= toDateTime({endDate:String})
+        AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
         ${filterClause}
       GROUP BY session_id
       ORDER BY first_visit DESC
@@ -459,7 +453,7 @@ export const SessionsBuilders = {
       FROM ${Analytics.events} e
       WHERE e.client_id = {websiteId:String}
         AND e.time >= toDateTime({startDate:String})
-        AND e.time <= toDateTime({endDate:String})
+        AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
         AND e.session_id IN (SELECT session_id FROM session_list)
 
       UNION ALL
@@ -479,7 +473,7 @@ export const SessionsBuilders = {
       FROM ${Analytics.custom_events} ce
       WHERE ce.website_id = {websiteId:String}
         AND ce.timestamp >= toDateTime({startDate:String})
-        AND ce.timestamp <= toDateTime({endDate:String})
+        AND ce.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
         AND ce.session_id IN (SELECT session_id FROM session_list)
     ),
     session_events AS (
@@ -519,7 +513,7 @@ export const SessionsBuilders = {
 				params: {
 					websiteId,
 					startDate,
-					endDate: inclusiveEndDate(endDate),
+					endDate,
 					limit,
 					offset,
 					...filterParams,
