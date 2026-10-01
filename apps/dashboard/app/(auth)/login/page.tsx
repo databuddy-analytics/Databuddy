@@ -34,6 +34,7 @@ function oauthAuthorizePath(searchParams: URLSearchParams): string | null {
 	for (const param of SIGNED_OAUTH_QUERY_PARAMS) {
 		authorizeParams.delete(param);
 	}
+	authorizeParams.delete("max_age");
 	const prompt = authorizeParams
 		.get("prompt")
 		?.split(PROMPT_SEPARATOR)
