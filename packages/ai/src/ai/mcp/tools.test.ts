@@ -545,6 +545,11 @@ describe("investigation tools", () => {
 			idempotentHint: false,
 			readOnlyHint: false,
 		});
+		expect(byName.get("reply_to_investigation")?.annotations).toMatchObject({
+			destructiveHint: false,
+			idempotentHint: true,
+			readOnlyHint: false,
+		});
 	});
 
 	test("rejects unsupported standalone SSE methods", async () => {
