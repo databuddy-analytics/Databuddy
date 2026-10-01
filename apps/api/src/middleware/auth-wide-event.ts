@@ -1,4 +1,5 @@
 import { isApiKeyPresent } from "@databuddy/api-keys/resolve";
+import { readMcpOAuthToken } from "@/http/cors";
 import { AUTUMN_API_PREFIX } from "@/lib/autumn-mount";
 import { applyAuthWideEvent } from "@/lib/auth-wide-event";
 import { createApiKeyDependencyUnavailableResponse } from "./api-key-rate-limit";
@@ -30,7 +31,7 @@ export async function enrichRequestAuthWideEvent(
 }
 
 export function shouldResolveAuthForWideEvent(request: Request): boolean {
-	if (request.method === "OPTIONS") {
+	if (request.method === "OPTIONS" || readMcpOAuthToken(request)) {
 		return false;
 	}
 

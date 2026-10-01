@@ -12,14 +12,18 @@ import { auth } from "@databuddy/auth";
 import { getMcpAccessGrant } from "@databuddy/auth/mcp-grant";
 import { MCP_GRANT_CLAIM } from "@databuddy/shared/mcp-access";
 import { isApiScope } from "@databuddy/shared/api-scopes";
+import type { ApiAuthWideEventFields } from "@databuddy/shared/evlog-fields";
 import { config } from "@databuddy/env/app";
 import { createMcpProtectedRequestHandler } from "@better-auth/mcp";
-import { Elysia } from "elysia";
-import { MCP_PATHS, rejectUnsupportedMcpMethod } from "@/http/cors";
+import { type Context, Elysia } from "elysia";
+import {
+	MCP_PATHS,
+	readMcpOAuthToken,
+	rejectUnsupportedMcpMethod,
+} from "@/http/cors";
 import { getResolvedAuth } from "@/lib/auth-wide-event";
 import { ApiKeyInFlightGate } from "@/middleware/api-key-rate-limit";
 
-const BEARER_TOKEN_RE = /^bearer\s+(\S+)$/i;
 const SIGNING_KEYS_URL = `${config.urls.authorizationServer}/jwks`;
 const SIGNING_KEYS_MAX_AGE_MS = 300_000;
 const SIGNING_KEYS_RECHECK_MS = 30_000;
@@ -82,7 +86,8 @@ async function handleVerifiedOAuthRequest(
 	if (!authorization) {
 		return createMcpUnauthorizedResponse();
 	}
-	mergeWideEvent({
+	mergeWideEvent<ApiAuthWideEventFields>({
+		auth_method: "oauth",
 		user_id: subject,
 		organization_id: authorization.grant.organizationId,
 	});
@@ -109,16 +114,6 @@ async function handleVerifiedOAuthRequest(
 	} finally {
 		oauthInFlight.release(request);
 	}
-}
-
-function readOAuthAccessToken(headers: Headers): string | null {
-	if (!verifyOAuthMcpRequest) {
-		return null;
-	}
-	const token = BEARER_TOKEN_RE.exec(
-		headers.get("authorization")?.trim() ?? ""
-	)?.[1];
-	return token && !token.startsWith("dbdy_") ? token : null;
 }
 
 function readTokenKeyId(token: string): string | null {
@@ -220,8 +215,9 @@ async function handleOAuthMcpRequest(
 	);
 }
 
-function handleMcpRequest({
+async function handleMcpRequest({
 	request,
+	set,
 	user,
 	apiKey,
 	oauthAccessToken,
@@ -231,24 +227,28 @@ function handleMcpRequest({
 	oauthAccessToken: string | null;
 	organizationId: string | null;
 	request: Request;
+	set: Context["set"];
 	user: { id: string } | null;
 }) {
-	if (oauthAccessToken) {
-		return handleOAuthMcpRequest(request, oauthAccessToken);
-	}
-	return handleDatabuddyMcpRequest({
-		request,
-		requestHeaders: request.headers,
-		userId: user?.id ?? null,
-		apiKey,
-		organizationId,
-	});
+	const response = oauthAccessToken
+		? await handleOAuthMcpRequest(request, oauthAccessToken)
+		: await handleDatabuddyMcpRequest({
+				request,
+				requestHeaders: request.headers,
+				userId: user?.id ?? null,
+				apiKey,
+				organizationId,
+			});
+	set.status = response.status;
+	return response;
 }
 
 export const mcp = new Elysia({ name: "mcp" })
 	.onRequest(({ request }) => rejectUnsupportedMcpMethod(request))
 	.resolve(async ({ request }) => {
-		const oauthAccessToken = readOAuthAccessToken(request.headers);
+		const oauthAccessToken = verifyOAuthMcpRequest
+			? readMcpOAuthToken(request)
+			: null;
 		if (oauthAccessToken) {
 			return {
 				user: null,
