@@ -988,11 +988,6 @@ function McpIntegrationRow({ organizationId }: { organizationId: string }) {
 			</IntegrationListRow>
 
 			<McpSetupSheet
-				onCreated={() =>
-					queryClient.invalidateQueries({
-						queryKey: orpc.apikeys.list.key(),
-					})
-				}
 				onOpenChangeAction={setSetupOpen}
 				open={setupOpen}
 				organizationId={organizationId}

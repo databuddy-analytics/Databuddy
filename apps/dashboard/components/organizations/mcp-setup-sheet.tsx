@@ -1,9 +1,8 @@
 "use client";
 
-import type { ApiScope } from "@databuddy/api-keys/scopes";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { ApiKeyListItem } from "./api-key-types";
 import { formatMaskedApiKey } from "./api-key-types";
@@ -32,9 +31,9 @@ import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import {
 	createMcpConfig,
 	MCP_ENV_VAR,
+	MCP_ENV_VAR_REFERENCES,
 	MCP_SERVER_URL,
 	type McpClient,
-	mcpEnvVarReference,
 } from "./mcp-config";
 import {
 	getMcpScopeGrant,
@@ -253,12 +252,10 @@ export function McpConnectionDetails({
 export function McpSetupSheet({
 	organizationId,
 	open,
-	onCreated,
 	onOpenChangeAction,
 }: {
 	organizationId: string;
 	open: boolean;
-	onCreated?: () => void;
 	onOpenChangeAction: (open: boolean) => void;
 }) {
 	const queryClient = useQueryClient();
@@ -284,7 +281,6 @@ export function McpSetupSheet({
 		onSuccess: (result) => {
 			setNewSecret(result.secret);
 			queryClient.invalidateQueries({ queryKey: orpc.apikeys.list.key() });
-			onCreated?.();
 			toast.success("MCP connection created");
 		},
 		onError: (error: Error) => {
@@ -308,20 +304,9 @@ export function McpSetupSheet({
 		setUseEnvironmentVariable(false);
 	}, [open]);
 
-	const selectedScopes = useMemo<ApiScope[]>(
-		() => getMcpScopes(selectedActions),
-		[selectedActions]
-	);
-	const selectedWebsiteSet = useMemo(
-		() => new Set(selectedWebsiteIds),
-		[selectedWebsiteIds]
-	);
+	const selectedScopes = getMcpScopes(selectedActions);
 	const needsOrganizationWideLinkAcknowledgment =
 		selectedActions.includes("links") && selectedWebsiteIds.length > 0;
-
-	const config = newSecret
-		? createMcpConfig(newSecret, client, useEnvironmentVariable)
-		: "";
 
 	const handleClientChange = (nextClient: McpClient) => {
 		const previousDefault = defaultConnectionName(client);
@@ -412,7 +397,6 @@ export function McpSetupSheet({
 					{newSecret ? (
 						<ConnectionCreated
 							client={client}
-							config={config}
 							onEnvironmentVariableChange={setUseEnvironmentVariable}
 							secret={newSecret}
 							useEnvironmentVariable={useEnvironmentVariable}
@@ -437,10 +421,7 @@ export function McpSetupSheet({
 									className="w-full overflow-x-auto"
 									name="mcp-client"
 									onChange={handleClientChange}
-									options={CLIENT_OPTIONS.map((option) => ({
-										label: option.label,
-										value: option.value,
-									}))}
+									options={CLIENT_OPTIONS}
 									size="sm"
 									value={client}
 								/>
@@ -552,7 +533,7 @@ export function McpSetupSheet({
 												{websitesQuery.data.map((website) => (
 													<div className="px-3 py-2.5" key={website.id}>
 														<Checkbox
-															checked={selectedWebsiteSet.has(website.id)}
+															checked={selectedWebsiteIds.includes(website.id)}
 															description={website.domain}
 															label={website.name || website.domain}
 															onCheckedChange={() => toggleWebsite(website.id)}
@@ -633,20 +614,19 @@ export function McpSetupSheet({
 
 function ConnectionCreated({
 	client,
-	config,
 	onEnvironmentVariableChange,
 	secret,
 	useEnvironmentVariable,
 }: {
 	client: McpClient;
-	config: string;
 	onEnvironmentVariableChange: (value: boolean) => void;
 	secret: string;
 	useEnvironmentVariable: boolean;
 }) {
+	const config = createMcpConfig(secret, client, useEnvironmentVariable);
 	const clientOption = CLIENT_OPTIONS.find((option) => option.value === client);
 	const clientDescription = clientOption?.keyHint ?? clientOption?.description;
-	const envVarReference = mcpEnvVarReference(client);
+	const envVarReference = MCP_ENV_VAR_REFERENCES[client];
 
 	return (
 		<div className="space-y-5">
