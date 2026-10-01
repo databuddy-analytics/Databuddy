@@ -2,25 +2,17 @@ import z from "zod";
 import { API_SCOPES } from "./api-scopes";
 import { MCP_API_SCOPES } from "./mcp-access";
 
-export { API_SCOPES } from "./api-scopes";
-
-export const AGENT_DISCOVERY_UPDATED = "2026-10-01";
+const AGENT_DISCOVERY_UPDATED = "2026-10-01";
 
 const CDN_SCRIPT_URL = "https://cdn.databuddy.cc/databuddy.js";
 
 export interface AgentDiscoveryUrls {
-	a2aAgentCardUrl?: string;
-	agentJsonUrl?: string;
 	apiCatalogUrl?: string;
 	apiOpenapiSpecUrl: string;
 	apiUrl: string;
-	authMdUrl?: string;
 	basketUrl: string;
 	dashboardUrl: string;
-	feedbackMdUrl?: string;
-	feedbackSubmitUrl?: string;
 	mcpManifestUrl: string;
-	mcpServerCardUrl?: string;
 	mcpServerUrl: string;
 	openapiSpecUrl: string;
 	siteUrl: string;
@@ -28,21 +20,17 @@ export interface AgentDiscoveryUrls {
 
 export type ScopedLlmsArea = "api" | "developers" | "docs";
 
-function discoveryUrls(urls: AgentDiscoveryUrls) {
+function resolveDiscoveryUrls(urls: AgentDiscoveryUrls) {
 	return {
 		...urls,
 		apiCatalogUrl:
 			urls.apiCatalogUrl ?? `${urls.siteUrl}/.well-known/api-catalog`,
-		authMdUrl: urls.authMdUrl ?? `${urls.siteUrl}/auth.md`,
-		feedbackMdUrl: urls.feedbackMdUrl ?? `${urls.siteUrl}/feedback.md`,
-		feedbackSubmitUrl:
-			urls.feedbackSubmitUrl ?? `${urls.siteUrl}/api/feedback/submit`,
-		agentJsonUrl: urls.agentJsonUrl ?? `${urls.siteUrl}/.well-known/agent.json`,
-		a2aAgentCardUrl:
-			urls.a2aAgentCardUrl ?? `${urls.siteUrl}/.well-known/agent-card.json`,
-		mcpServerCardUrl:
-			urls.mcpServerCardUrl ??
-			`${urls.siteUrl}/.well-known/mcp/server-card.json`,
+		authMdUrl: `${urls.siteUrl}/auth.md`,
+		feedbackMdUrl: `${urls.siteUrl}/feedback.md`,
+		feedbackSubmitUrl: `${urls.siteUrl}/api/feedback/submit`,
+		agentJsonUrl: `${urls.siteUrl}/.well-known/agent.json`,
+		a2aAgentCardUrl: `${urls.siteUrl}/.well-known/agent-card.json`,
+		mcpServerCardUrl: `${urls.siteUrl}/.well-known/mcp/server-card.json`,
 	};
 }
 
@@ -55,7 +43,7 @@ function mcpTransports(mcpServerUrl: string) {
 }
 
 export function createDeveloperResources(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return [
 		{
@@ -164,7 +152,7 @@ export function createDeveloperResources(urls: AgentDiscoveryUrls) {
 }
 
 export function createMcpManifest(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		schema_version: "1.0",
@@ -238,7 +226,7 @@ export function createMcpManifest(urls: AgentDiscoveryUrls) {
 }
 
 export function createMcpServerCard(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		name: "databuddy",
@@ -265,7 +253,7 @@ export function createMcpServerCard(urls: AgentDiscoveryUrls) {
 }
 
 export function createAgentJson(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		schema_version: "1.0",
@@ -337,7 +325,7 @@ export function createAgentJson(urls: AgentDiscoveryUrls) {
 }
 
 export function createA2aAgentCard(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		schema_version: "0.1",
@@ -390,7 +378,7 @@ export function createA2aAgentCard(urls: AgentDiscoveryUrls) {
 }
 
 export function createApiCatalog(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		linkset: [
@@ -468,7 +456,7 @@ export function createWebBotAuthDirectory() {
 }
 
 export function createUcpProfile(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		version: AGENT_DISCOVERY_UPDATED,
@@ -498,7 +486,7 @@ export function createUcpProfile(urls: AgentDiscoveryUrls) {
 }
 
 export function createSandboxDiscovery(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		name: "Databuddy sandbox",
@@ -515,7 +503,7 @@ export function createAcpErrorBody(
 	code: string,
 	message: string
 ) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		protocol: "acp",
@@ -533,7 +521,7 @@ export function createAcpErrorBody(
 }
 
 export function createX402ResourceDiscovery(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		protocols: ["x402", "mpp"],
@@ -552,7 +540,7 @@ export function createX402ResourceDiscovery(urls: AgentDiscoveryUrls) {
 }
 
 export function createIndexMarkdown(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 	const resources = createDeveloperResources(urls)
 		.map(
 			(resource) =>
@@ -597,7 +585,7 @@ curl -H "x-api-key: $DATABUDDY_API_KEY" ${resolved.apiUrl}/v1/query/websites
 }
 
 export function createAuthMarkdown(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return `# auth.md
 
@@ -654,7 +642,7 @@ export const FEEDBACK_CATEGORIES = [
 ] as const;
 
 export function createFeedbackMarkdown(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return `# feedback.md
 
@@ -709,7 +697,7 @@ export function createScopedLlmsText(
 	urls: AgentDiscoveryUrls,
 	area: ScopedLlmsArea
 ) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	if (area === "api") {
 		return `# Databuddy API Context
@@ -771,7 +759,7 @@ Prefer markdown URLs when available. For example, use \`${resolved.siteUrl}/docs
 }
 
 export function createSchemaMapXml(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return `<?xml version="1.0" encoding="UTF-8"?>
 <schemamap xmlns="https://schema.org/">
@@ -795,7 +783,7 @@ export function createSchemaMapXml(urls: AgentDiscoveryUrls) {
 }
 
 export function createSoftwareJsonl(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return `${JSON.stringify({
 		"@context": "https://schema.org",
@@ -852,21 +840,19 @@ export function createFaqJsonl() {
 		.join("\n")}\n`;
 }
 
-const askBodySchema = z
-	.object({
-		query: z.string().optional(),
-		question: z.string().optional(),
-		prefer: z
-			.object({
-				streaming: z.boolean().optional(),
-			})
-			.optional(),
-	})
-	.optional();
+const askBodySchema = z.object({
+	query: z.string().optional(),
+	question: z.string().optional(),
+	prefer: z
+		.object({
+			streaming: z.boolean().optional(),
+		})
+		.optional(),
+});
 
 export function parseNlwebAskBody(body: unknown) {
 	const parsed = askBodySchema.safeParse(body);
-	if (!(parsed.success && parsed.data)) {
+	if (!parsed.success) {
 		return { query: "", streaming: false };
 	}
 
@@ -877,7 +863,7 @@ export function parseNlwebAskBody(body: unknown) {
 }
 
 export function createNlwebAnswer(urls: AgentDiscoveryUrls, query: string) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		_meta: {
