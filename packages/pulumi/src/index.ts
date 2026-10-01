@@ -65,7 +65,7 @@ const UNKNOWN_DURING_PREVIEW = "04da6b54-80e4-46f7-96ec-b56ff0331ba9";
 const MISSING_API_KEY =
 	"Missing Databuddy API key. Run `pulumi config set --secret databuddy:apiKey <key>` with Pulumi 3.216 or newer, or export DATABUDDY_API_KEY in the shell that runs pulumi.";
 const INVALID_API_URL =
-	"Invalid databuddy:apiUrl or DATABUDDY_API_URL: use an absolute HTTPS URL, or HTTP on localhost, 127.0.0.1, or [::1].";
+	"Invalid databuddy:apiUrl or DATABUDDY_API_URL: use an absolute HTTPS URL, or HTTP on localhost, 127.0.0.1, or [::1], without credentials, a query string, or a fragment.";
 const ALIAS_HINT =
 	". If you renamed this resource or moved it under another parent, add `aliases` so Pulumi updates it instead of creating a second one. Otherwise another stack or the dashboard already uses it.";
 const SLUG_HINT =
@@ -112,13 +112,19 @@ function resolveConnection(config: dynamic.Config): Connection {
 	}
 	const { hostname, protocol } = parsed;
 	const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(hostname);
-	if (protocol !== "https:" && !(protocol === "http:" && loopback)) {
+	if (
+		(protocol !== "https:" && !(protocol === "http:" && loopback)) ||
+		parsed.username ||
+		parsed.password ||
+		parsed.href.includes("?") ||
+		parsed.href.includes("#")
+	) {
 		throw new Error(INVALID_API_URL);
 	}
 	return {
 		apiKey:
 			config.get("databuddy:apiKey") ?? process.env.DATABUDDY_API_KEY ?? "",
-		apiUrl: apiUrl.replace(TRAILING_SLASHES, ""),
+		apiUrl: parsed.href.replace(TRAILING_SLASHES, ""),
 	};
 }
 

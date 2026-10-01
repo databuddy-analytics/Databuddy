@@ -220,6 +220,18 @@ test("API URL validation rejects insecure remote destinations before sending the
 	});
 	const provider = capturedProvider as Provider<MonitorInputs, MonitorState>;
 	const fetchMock = mockFetch();
+	await provider.configure(
+		configure(" \nHTTPS://API.EXAMPLE.TEST:443/prefix%3F%23/// \t")
+	);
+	fetchMock.mockResolvedValueOnce(Response.json({ scheduleId: "monitor-1" }));
+	await provider.create({
+		url: "https://api.example.test/health",
+		granularity: "minute",
+	});
+	expect(fetchMock.mock.calls[0]?.[0]).toBe(
+		"https://api.example.test/prefix%3F%23/uptime/createSchedule"
+	);
+	fetchMock.mockClear();
 	for (const apiUrl of [
 		"http://api.example.test",
 		"http://localhost.example.test",
@@ -228,6 +240,12 @@ test("API URL validation rejects insecure remote destinations before sending the
 		"api.example.test",
 		"https://",
 		"https://private-user:private-password@",
+		"https://api.example.test/prefix?mode=test",
+		"https://api.example.test/prefix?",
+		"https://api.example.test/prefix#section",
+		"https://api.example.test/prefix#",
+		"https://private-user:private-password@api.example.test",
+		"https://:private-password@api.example.test",
 	]) {
 		expect(() => provider.configure(configure(apiUrl))).toThrow(
 			/databuddy:apiUrl.*DATABUDDY_API_URL.*HTTPS/
@@ -235,7 +253,9 @@ test("API URL validation rejects insecure remote destinations before sending the
 	}
 	let credentialFailure: unknown;
 	try {
-		provider.configure(configure("https://private-user:private-password@"));
+		provider.configure(
+			configure("https://private-user:private-password@api.example.test")
+		);
 	} catch (error) {
 		credentialFailure = error;
 	}
