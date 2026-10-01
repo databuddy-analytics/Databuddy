@@ -32,10 +32,4 @@ export const authClient = createAuthClient({
 	],
 });
 
-const signIn = authClient.signIn;
-const signUp = authClient.signUp;
-const signOut = authClient.signOut;
-const useSession = authClient.useSession;
-const getSession = authClient.getSession;
-
-export { getSession, signIn, signOut, signUp, useSession };
+export const useSession = authClient.useSession;
