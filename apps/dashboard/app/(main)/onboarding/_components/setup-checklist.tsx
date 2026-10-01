@@ -1,7 +1,9 @@
 "use client";
 
 import { Button, Card, Progress } from "@databuddy/ui";
+import { GlobeIcon } from "@databuddy/ui/icons";
 import { useState } from "react";
+import { FaviconImage } from "@/components/analytics/favicon-image";
 import { AddWebsite, type WebsiteFormValues } from "./add-website";
 import {
 	type AgentProgress,
@@ -49,6 +51,7 @@ export interface SetupChecklistProps {
 	saveError: string | null;
 	saving: boolean;
 	setupSession: string;
+	suggestedDomain: string | null;
 	suggestions: ReadSiteSuggestions;
 	tracking: TrackingStatus;
 	trackingCopied: boolean;
@@ -113,7 +116,21 @@ export function SetupChecklist(props: SetupChecklistProps) {
 		<div className="h-full overflow-y-auto">
 			<div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 lg:py-10">
 				<div className="mb-4 flex items-center justify-between gap-3">
-					<h1 className="font-semibold text-xl">
+					<h1 className="flex items-center gap-2.5 font-semibold text-xl">
+						{website ? (
+							<FaviconImage
+								altText=""
+								className="size-6"
+								domain={website.domain}
+								fallbackIcon={
+									<GlobeIcon
+										className="absolute inset-0 m-auto text-muted-foreground"
+										size={16}
+									/>
+								}
+								size={24}
+							/>
+						) : null}
 						Set up {website?.name ?? "Databuddy"}
 					</h1>
 					<Button onClick={props.onSkipSetup} size="sm" variant="ghost">
@@ -137,6 +154,7 @@ export function SetupChecklist(props: SetupChecklistProps) {
 							<AddWebsite
 								onCreate={props.onCreateWebsite}
 								pending={props.creating}
+								suggestedDomain={props.suggestedDomain}
 							/>
 						)}
 					</SetupRow>

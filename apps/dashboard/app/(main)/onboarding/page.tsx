@@ -4,6 +4,7 @@ import type {
 	BusinessSuggestedFunnel,
 	BusinessSuggestedGoal,
 } from "@databuddy/shared/organization-business-context";
+import { authClient } from "@databuddy/auth/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
@@ -36,6 +37,88 @@ import { useOnboardingResearch } from "./_components/use-onboarding-research";
 import { INTENT_OPTIONS, intentFor } from "./_components/what-matters";
 
 const POLL_MS = 5000;
+// Personal and throwaway providers seen in sign-ups and the referrer list; a
+// work address is the only one worth suggesting as the website.
+const FREE_MAIL_DOMAINS = new Set([
+	"0.email",
+	"10minutemail.com",
+	"126.com",
+	"163.com",
+	"a7gi.ru",
+	"aol.com",
+	"att.net",
+	"bellsouth.net",
+	"bigpond.com",
+	"centrum.cz",
+	"comcast.net",
+	"cox.net",
+	"daum.net",
+	"earthlink.net",
+	"fastmail.com",
+	"free.fr",
+	"freenet.de",
+	"gmail.com",
+	"gmx.com",
+	"gmx.de",
+	"gmx.net",
+	"googlemail.com",
+	"guerrillamail.com",
+	"hey.com",
+	"hotmail.co.uk",
+	"hotmail.com",
+	"hotmail.de",
+	"hotmail.fr",
+	"icloud.com",
+	"iinet.net.au",
+	"inbox.com",
+	"laposte.net",
+	"libero.it",
+	"live.com",
+	"mail.com",
+	"mail.ru",
+	"mailbox.org",
+	"mailinator.com",
+	"me.com",
+	"msn.com",
+	"naver.com",
+	"optusnet.com.au",
+	"orange.fr",
+	"outlook.com",
+	"passmail.net",
+	"pm.me",
+	"proton.me",
+	"protonmail.com",
+	"qq.com",
+	"rambler.ru",
+	"sbcglobal.net",
+	"seznam.cz",
+	"sharklasers.com",
+	"t-online.de",
+	"temp-mail.org",
+	"tuta.io",
+	"tutanota.com",
+	"ukr.net",
+	"verizon.net",
+	"wanadoo.fr",
+	"web.de",
+	"yahoo.com",
+	"yandex.com",
+	"yandex.ru",
+	"yopmail.com",
+	"zoho.com",
+]);
+
+function domainFromEmail(email: string | undefined): string | null {
+	const domain = email?.split("@")[1]?.toLowerCase();
+	if (!domain || domain.endsWith(".local")) {
+		return null;
+	}
+	const labels = domain.split(".");
+	const root = labels.slice(-2).join(".");
+	return FREE_MAIL_DOMAINS.has(domain) || FREE_MAIL_DOMAINS.has(root)
+		? null
+		: domain;
+}
 
 function OnboardingFlow() {
 	const router = useRouter();
@@ -45,6 +128,7 @@ function OnboardingFlow() {
 	const { activeOrganization } = useOrganizationsContext();
 	const organizationId = activeOrganization?.id;
 	const { websites } = useWebsitesLight();
+	const { data: session } = authClient.useSession();
 	const createWebsite = useCreateWebsite();
 	const queryClient = useQueryClient();
 	const createGoal = useMutation({
@@ -332,6 +416,7 @@ function OnboardingFlow() {
 			saveError={research.saveError}
 			saving={research.saving}
 			setupSession={setupSession}
+			suggestedDomain={domainFromEmail(session?.user.email)}
 			suggestions={{
 				created: createdSuggestions,
 				creating: createGoal.isPending

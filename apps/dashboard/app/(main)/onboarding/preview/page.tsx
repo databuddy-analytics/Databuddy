@@ -365,6 +365,7 @@ function Sample({ sample }: { sample: Sample }) {
 			saveError={sample.saveError ?? null}
 			saving={sample.saving ?? false}
 			setupSession="previewsession0000"
+			suggestedDomain={website ? null : "acme.com"}
 			tracking={sample.tracking ?? TRACKING.awaiting}
 			trackingCopied={sample.trackingCopied ?? false}
 			trackingSkipped={sample.trackingSkipped ?? false}
