@@ -20,35 +20,21 @@ import {
 import { render } from "@react-email/render";
 import type { ContentFormat } from "@databuddy/shared/bot-detection/types";
 
-export interface AiDigestProduct {
-	logoUrl?: string;
-	name: string;
-	reads: number;
-	role: string;
-	visitors: number;
-}
-
-export interface AiDigestLandingPage {
-	logoUrl?: string;
-	page: string;
-	visitors: number;
-}
-
-export interface AiDigestPage {
-	format: ContentFormat;
-	page: string;
-	reads: number;
-}
-
 export interface AiDigestEmailProps {
 	agentsUrl: string;
 	hasServerTracking: boolean;
-	landingPages: AiDigestLandingPage[];
+	landingPages: { logoUrl?: string; page: string; visitors: number }[];
 	newPages: number | null;
-	pages: AiDigestPage[];
+	pages: { format: ContentFormat; page: string; reads: number }[];
 	period: string;
 	previousVisitors: number;
-	products: AiDigestProduct[];
+	products: {
+		logoUrl?: string;
+		name: string;
+		reads: number;
+		role: string;
+		visitors: number;
+	}[];
 	reads: number;
 	settingsUrl: string;
 	site: string;
@@ -83,7 +69,7 @@ const FONT =
 
 const DIVIDER = "border-0 border-line border-t border-solid";
 
-const n = (value: number) => value.toLocaleString("en-US");
+const formatCount = (value: number) => value.toLocaleString("en-US");
 
 function shortPath(path: string): string {
 	return path.length > 40 ? `${path.slice(0, 22)}…${path.slice(-15)}` : path;
@@ -95,25 +81,17 @@ function visitorChange(visitors: number, previous: number): string {
 	}
 	const difference = Math.abs(visitors - previous);
 	return visitors > previous
-		? `+${n(difference)} from last week`
-		: `${n(difference)} fewer than last week`;
+		? `+${formatCount(difference)} from last week`
+		: `${formatCount(difference)} fewer than last week`;
 }
 
-function Logo({
-	name,
-	size,
-	url,
-}: {
-	name: string;
-	size: number;
-	url?: string;
-}) {
+function ProductLogo({ name, url }: { name: string; url?: string }) {
 	return url ? (
-		<Img alt={name} height={size} src={url} width={size} />
+		<Img alt={name} height={28} src={url} width={28} />
 	) : (
 		<Text
 			className="m-0 rounded-[7px] bg-canvas text-center font-medium text-[12px] text-sub"
-			style={{ height: size, lineHeight: `${size}px`, width: size }}
+			style={{ height: 28, lineHeight: "28px", width: 28 }}
 		>
 			{name.charAt(0).toUpperCase()}
 		</Text>
@@ -123,17 +101,12 @@ function Logo({
 function Stat({ label, value }: { label: string; value: number }) {
 	return (
 		<Column className="w-1/2 align-top">
-			<Text className="m-0 font-semibold text-[22px] text-ink">{n(value)}</Text>
+			<Text className="m-0 font-semibold text-[22px] text-ink">
+				{formatCount(value)}
+			</Text>
 			<Text className="m-0 mt-1 text-[13px] text-sub">{label}</Text>
 		</Column>
 	);
-}
-
-interface PathRow {
-	logoUrl?: string;
-	page: string;
-	tag?: string;
-	value: number;
 }
 
 function PathList({
@@ -142,7 +115,7 @@ function PathList({
 	title,
 }: {
 	hint: string;
-	rows: PathRow[];
+	rows: { logoUrl?: string; page: string; tag?: string; value: number }[];
 	title: string;
 }) {
 	if (rows.length === 0) {
@@ -165,11 +138,13 @@ function PathList({
 				<Row className={DIVIDER} key={`${row.page}-${row.tag ?? ""}`}>
 					<Column className="py-[9px] font-mono text-[13px] text-ink">
 						{shortPath(row.page)}
-						{row.tag ? " " : null}
 						{row.tag ? (
-							<span className="ml-1 rounded bg-canvas px-[6px] py-[1px] font-sans text-[11px] text-sub">
-								{row.tag}
-							</span>
+							<>
+								{" "}
+								<span className="ml-1 rounded bg-canvas px-[6px] py-[1px] font-sans text-[11px] text-sub">
+									{row.tag}
+								</span>
+							</>
 						) : null}
 					</Column>
 					{hasLogos ? (
@@ -183,7 +158,7 @@ function PathList({
 						align="right"
 						className="w-[56px] py-[9px] text-[14px] text-ink"
 					>
-						{n(row.value)}
+						{formatCount(row.value)}
 					</Column>
 				</Row>
 			))}
@@ -206,22 +181,23 @@ export const AiDigestEmail = ({
 	visitors,
 }: AiDigestEmailProps) => {
 	const senders = products.filter((product) => product.visitors > 0);
-	const readsUnseen = !hasServerTracking && reads === 0;
+	const shouldHideReads = !hasServerTracking && reads === 0;
+	const visitorSummary = `${formatCount(visitors)} ${visitors === 1 ? "visitor" : "visitors"} from AI`;
 	const setupUrl = new URL(agentsUrl);
 	setupUrl.searchParams.set("setup", "true");
 	const setupCallout = hasServerTracking ? null : (
 		<Section
-			className={`rounded-lg bg-canvas px-5 py-4 ${readsUnseen ? "" : "mt-9"}`}
+			className={`rounded-lg bg-canvas px-5 py-4 ${shouldHideReads ? "" : "mt-9"}`}
 		>
 			<Text className="m-0 font-medium text-[14px] text-ink">
-				{readsUnseen
+				{shouldHideReads
 					? "See which AI crawlers read your site"
 					: "See every AI crawler, not just some"}
 			</Text>
 			<Text className="m-0 mt-1 text-[13px] text-sub leading-[20px]">
 				GPTBot, ClaudeBot and most AI crawlers don't run JavaScript, so they're
-				missing from {readsUnseen ? "this email" : "these reads"}. One line on
-				your server adds them.{" "}
+				missing from {shouldHideReads ? "this email" : "these reads"}. One line
+				on your server adds them.{" "}
 				<Link
 					className="font-medium text-ink underline"
 					href={setupUrl.toString()}
@@ -240,9 +216,9 @@ export const AiDigestEmail = ({
 					<meta content="light" name="supported-color-schemes" />
 				</Head>
 				<Preview>
-					{readsUnseen
-						? `${n(visitors)} ${visitors === 1 ? "visitor" : "visitors"} from AI.`
-						: `${n(visitors)} ${visitors === 1 ? "visitor" : "visitors"} from AI, and AI read ${site} ${n(reads)} ${reads === 1 ? "time" : "times"}.`}
+					{shouldHideReads
+						? `${visitorSummary}.`
+						: `${visitorSummary}, and AI read ${site} ${formatCount(reads)} ${reads === 1 ? "time" : "times"}.`}
 				</Preview>
 				<Body className={`m-0 bg-canvas py-10 ${FONT}`}>
 					<Container className="mx-auto max-w-[560px] px-4">
@@ -260,7 +236,7 @@ export const AiDigestEmail = ({
 								Visitors from AI on {site}
 							</Text>
 							<Text className="m-0 mt-1 font-semibold text-[48px] text-ink leading-[52px] tracking-tight">
-								{n(visitors)}
+								{formatCount(visitors)}
 							</Text>
 							<Text className="m-0 mt-2 text-[14px] text-sub">
 								<span
@@ -274,7 +250,7 @@ export const AiDigestEmail = ({
 							</Text>
 
 							<Hr className="my-8 border-line" />
-							{readsUnseen ? (
+							{shouldHideReads ? (
 								setupCallout
 							) : (
 								<Row>
@@ -293,7 +269,7 @@ export const AiDigestEmail = ({
 								<Column className="pb-2 text-[12px] text-faint">
 									AI product
 								</Column>
-								{readsUnseen ? null : (
+								{shouldHideReads ? null : (
 									<Column
 										align="right"
 										className="w-[64px] pb-2 text-[12px] text-faint"
@@ -313,9 +289,8 @@ export const AiDigestEmail = ({
 									<Column className="py-[10px]">
 										<Row>
 											<Column className="w-[40px]">
-												<Logo
+												<ProductLogo
 													name={product.name}
-													size={28}
 													url={product.logoUrl}
 												/>
 											</Column>
@@ -329,19 +304,19 @@ export const AiDigestEmail = ({
 											</Column>
 										</Row>
 									</Column>
-									{readsUnseen ? null : (
+									{shouldHideReads ? null : (
 										<Column
 											align="right"
 											className="py-[10px] text-[14px] text-ink"
 										>
-											{n(product.reads)}
+											{formatCount(product.reads)}
 										</Column>
 									)}
 									<Column
 										align="right"
 										className={`py-[10px] text-[14px] ${product.visitors ? "font-medium text-ink" : "text-faint"}`}
 									>
-										{n(product.visitors)}
+										{formatCount(product.visitors)}
 									</Column>
 								</Row>
 							))}
@@ -357,15 +332,15 @@ export const AiDigestEmail = ({
 							/>
 							<PathList
 								hint="reads"
-								rows={pages.map((row) => ({
-									page: row.page,
-									tag: FORMAT_TAGS[row.format],
-									value: row.reads,
+								rows={pages.map(({ format, page, reads: value }) => ({
+									page,
+									tag: FORMAT_TAGS[format],
+									value,
 								}))}
 								title="Most read by AI"
 							/>
 
-							{readsUnseen ? null : setupCallout}
+							{shouldHideReads ? null : setupCallout}
 
 							<Section className="mt-9">
 								<Button
