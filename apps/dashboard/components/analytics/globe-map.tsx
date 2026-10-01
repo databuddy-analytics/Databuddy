@@ -34,6 +34,7 @@ interface GlobeMapProps {
 	className?: string;
 	countries: GlobeCountry[];
 	focusCode?: string | null;
+	isLive?: boolean;
 	onHoverChange?: (code: string | null) => void;
 }
 
@@ -65,6 +66,7 @@ const EMPTY_ALPHA = 0.16;
 const ALPHA_LEVELS = 20;
 const HOVER_RADIUS_PX = 10;
 const TAP_SLOP_PX = 4;
+const PULSE_MS = 1600;
 const TOOLTIP_CLEARANCE_PX = 56;
 const SMALL_COUNTRIES: Record<
 	string,
@@ -214,6 +216,7 @@ export function GlobeMap({
 	className,
 	countries,
 	focusCode = null,
+	isLive = false,
 	onHoverChange,
 }: GlobeMapProps) {
 	const { data: geo } = useCountries();
@@ -225,6 +228,7 @@ export function GlobeMap({
 		dirty: true,
 		drag: null as null | (LatLon & { x: number; y: number }),
 		hasTooltip: false,
+		pulses: [] as (Point & { start: number })[],
 		highlight: null as string | null,
 		inside: false,
 		intensity: [] as number[],
@@ -232,6 +236,7 @@ export function GlobeMap({
 		view: { lat: 15, lon: 0 },
 	});
 	const wakeRef = useRef(() => {});
+	const liveBaselineRef = useRef<Map<string, number> | null>(null);
 	const [tooltip, setTooltip] = useState<{
 		index: number;
 		x: number;
@@ -294,6 +299,30 @@ export function GlobeMap({
 	}, [globe, focusCode, indexByCode]);
 
 	useEffect(() => {
+		if (!(isLive && globe)) {
+			liveBaselineRef.current = null;
+			return;
+		}
+		const baseline = liveBaselineRef.current;
+		liveBaselineRef.current = new Map(countries.map((c) => [c.code, c.value]));
+		if (!baseline) {
+			return;
+		}
+		const start = performance.now();
+		for (const country of countries) {
+			const center =
+				globe.countries[indexByCode.get(country.code) ?? -1]?.center;
+			if (center && country.value > (baseline.get(country.code) ?? 0)) {
+				sceneRef.current.pulses.push({
+					start,
+					...toUnit(center.lon, center.lat),
+				});
+			}
+		}
+		wakeRef.current();
+	}, [globe, countries, indexByCode, isLive]);
+
+	useEffect(() => {
 		const canvas = canvasRef.current;
 		const ctx = canvas?.getContext("2d");
 		if (!(canvas && ctx && globe)) {
@@ -302,11 +331,12 @@ export function GlobeMap({
 		const scene = sceneRef.current;
 		const motion = matchMedia("(prefers-reduced-motion: reduce)");
 		const style = getComputedStyle(canvas);
-		let colors: { data: string; land: string } | null = null;
+		let colors: { card: string; data: string; land: string } | null = null;
 		const size = { dpr: 1, height: 0, width: 0 };
 
 		const draw = () => {
 			colors ??= {
+				card: style.getPropertyValue("--card"),
 				data: style.getPropertyValue("--globe-data"),
 				land: style.getPropertyValue("--globe-land"),
 			};
@@ -364,6 +394,36 @@ export function GlobeMap({
 					}
 				}
 			}
+
+			const now = performance.now();
+			for (const pulse of scene.pulses) {
+				const x = pulse.x * cosL - pulse.z * sinL;
+				const z1 = pulse.z * cosL + pulse.x * sinL;
+				const depth = pulse.y * sinT + z1 * cosT;
+				if (depth <= 0) {
+					continue;
+				}
+				const t = Math.min(1, (now - pulse.start) / PULSE_MS);
+				const eased = t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+				const px = cx + radius * x;
+				const py = cy - radius * (pulse.y * cosT - z1 * sinT);
+				ctx.globalAlpha = (1 - eased) * Math.min(1, depth / 0.35);
+				ctx.beginPath();
+				ctx.arc(px, py, radius * (0.02 + 0.12 * eased), 0, Math.PI * 2);
+				ctx.strokeStyle = colors.card;
+				ctx.lineWidth = 5;
+				ctx.stroke();
+				ctx.strokeStyle = colors.data;
+				ctx.lineWidth = 2;
+				ctx.stroke();
+				ctx.beginPath();
+				ctx.arc(px, py, radius * 0.018, 0, Math.PI * 2);
+				ctx.fillStyle = colors.data;
+				ctx.fill();
+				ctx.strokeStyle = colors.card;
+				ctx.lineWidth = 1.5;
+				ctx.stroke();
+			}
 			ctx.globalAlpha = 1;
 		};
 
@@ -398,7 +458,10 @@ export function GlobeMap({
 				view.lon -= SPIN_DEG_PER_SEC * dt;
 			}
 
-			const isMoving = isEasing || isSpinning;
+			scene.pulses = reduceMotion
+				? []
+				: scene.pulses.filter((pulse) => time - pulse.start < PULSE_MS);
+			const isMoving = isEasing || isSpinning || scene.pulses.length > 0;
 			const isThrottled = isSpinning && time - lastDraw < SPIN_FRAME_MS;
 			if ((isMoving || scene.dirty) && size.width > 0 && !isThrottled) {
 				scene.dirty = false;
