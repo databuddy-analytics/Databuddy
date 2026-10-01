@@ -60,7 +60,7 @@ import {
 	processChartData,
 } from "./websites-chart";
 
-const ROBOTS_COMMENT = /#.*$/;
+const ROBOTS_COMMENT = /#.*/;
 const ROBOTS_ROOT_PATHS = new Set(["/", "/*", "*"]);
 const ROBOTS_MAX_BYTES = 512_000;
 const ROBOTS_MAX_AGENTS = 500;
@@ -72,7 +72,7 @@ interface RobotsGroup {
 	hasRootDisallow: boolean;
 }
 
-function parseRobotsTxt(robotsTxt: string): Map<string, RobotsAccess> {
+function robotsAccessByAgent(robotsTxt: string): Map<string, RobotsAccess> {
 	const groupsByAgent = new Map<string, RobotsGroup[]>();
 	let current: RobotsGroup | undefined;
 	let isReadingAgents = false;
@@ -115,8 +115,8 @@ function parseRobotsTxt(robotsTxt: string): Map<string, RobotsAccess> {
 		[...groupsByAgent]
 			.sort(([a], [b]) => b.length - a.length)
 			.map(([agent, groups]): [string, RobotsAccess] => {
-				const isRootBlocked = groups.some((group) => group.hasRootDisallow);
-				if (isRootBlocked && !groups.some((group) => group.hasAllow)) {
+				const hasRootDisallow = groups.some((group) => group.hasRootDisallow);
+				if (hasRootDisallow && !groups.some((group) => group.hasAllow)) {
 					return [agent, "blocked"];
 				}
 				return [
@@ -147,10 +147,9 @@ const fetchRobotsTxt = cacheable(
 			headers: { "accept-encoding": "identity" },
 			timeoutMs: 5000,
 		}).catch(() => null);
-		const encoding = response?.headers.get("content-encoding") ?? "identity";
 		if (
 			!(response?.ok && response.body) ||
-			encoding !== "identity" ||
+			(response.headers.get("content-encoding") ?? "identity") !== "identity" ||
 			Number(response.headers.get("content-length")) > ROBOTS_MAX_BYTES
 		) {
 			await response?.body?.cancel();
@@ -161,13 +160,12 @@ const fetchRobotsTxt = cacheable(
 		let size = 0;
 		try {
 			while (size < ROBOTS_MAX_BYTES) {
-				const part = await reader.read();
-				if (part.done) {
+				const { done, value } = await reader.read();
+				if (done) {
 					break;
 				}
-				const chunk = part.value.subarray(0, ROBOTS_MAX_BYTES - size);
-				chunks.push(chunk);
-				size += chunk.byteLength;
+				chunks.push(value.subarray(0, ROBOTS_MAX_BYTES - size));
+				size += value.byteLength;
 			}
 		} catch {
 			return null;
@@ -180,18 +178,18 @@ const fetchRobotsTxt = cacheable(
 );
 
 async function isAgentRequestRecorded(
-	websiteId: string,
-	url: string
+	website: Pick<Website, "domain" | "id">,
+	path: string
 ): Promise<boolean> {
 	const nonce = crypto.randomUUID();
-	await safeFetch(url, {
+	await safeFetch(`https://${website.domain}${path}`, {
 		decompress: false,
 		headers: { "user-agent": setupCheckUserAgent(nonce) },
 		timeoutMs: 8000,
 	})
 		.then((response) => response.body?.cancel())
 		.catch(() => undefined);
-	const statusUrl = `${config.urls.basket}/ai-traffic/setup-check/${encodeURIComponent(websiteId)}/${nonce}`;
+	const statusUrl = `${config.urls.basket}/ai-traffic/setup-check/${encodeURIComponent(website.id)}/${nonce}`;
 	for (let attempt = 0; attempt < 25; attempt++) {
 		const isRecorded = await fetch(statusUrl, {
 			signal: AbortSignal.timeout(2000),
@@ -1268,11 +1266,8 @@ export const websitesRouter = {
 				throw rpcError.notFound("website");
 			}
 			const [homepage, llmsTxt] = await Promise.all([
-				isAgentRequestRecorded(website.id, `https://${website.domain}/`),
-				isAgentRequestRecorded(
-					website.id,
-					`https://${website.domain}/llms.txt`
-				),
+				isAgentRequestRecorded(website, "/"),
+				isAgentRequestRecorded(website, "/llms.txt"),
 			]);
 			return { homepage, llmsTxt };
 		}),
@@ -1309,7 +1304,7 @@ export const websitesRouter = {
 				throw rpcError.notFound("website");
 			}
 			const robotsTxt = await fetchRobotsTxt(website.domain);
-			const accessByAgent = parseRobotsTxt(robotsTxt ?? "");
+			const accessByAgent = robotsAccessByAgent(robotsTxt ?? "");
 			return {
 				hasRobotsTxt: robotsTxt !== null,
 				access: input.userAgents.map((userAgent) =>

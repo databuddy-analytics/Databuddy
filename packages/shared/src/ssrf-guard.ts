@@ -154,15 +154,13 @@ export interface SafeFetchInit
 	timeoutMs?: number;
 }
 
-type PinnedFetchInit = Omit<SafeFetchInit, keyof SafeFetchOptions> & {
+type PinnedFetchInit = Omit<
+	SafeFetchInit,
+	"followRedirects" | "maxRedirects" | "signal" | "timeoutMs"
+> & {
 	redirect: "manual";
 	signal: AbortSignal;
 };
-
-type SafeFetchOptions = Pick<
-	SafeFetchInit,
-	"followRedirects" | "maxRedirects" | "signal" | "timeoutMs"
->;
 
 function fetchPinnedWithBun(
 	url: string,
