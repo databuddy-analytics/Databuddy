@@ -606,7 +606,7 @@ export const AiAgentsBuilders = {
 				FROM (
 					SELECT
 						${AGENT_PRODUCT} AS product,
-						toString(anyHeavy(agent_purpose)) AS main_purpose,
+						toString(topKIf(4)(agent_purpose, timestamp >= current_start AND agent_purpose != '')[1]) AS main_purpose,
 						toUInt64(0) AS visitors_now,
 						toUInt64(0) AS visitors_before,
 						toUInt64(countIf(timestamp >= current_start)) AS requests_now,
