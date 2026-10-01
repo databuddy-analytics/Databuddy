@@ -111,7 +111,7 @@ export const SummaryBuilders = {
 				session_summary AS (
 					SELECT
 						countIf(page_count >= 1) as sessions,
-						countIf(page_count = 1 AND duration < 10 AND engagement_count = 0) as bounces,
+						countIf(page_count = 1 AND ifNull(duration, 0) < 10 AND engagement_count = 0) as bounces,
 						quantileTDigestIf(0.5)(duration, page_count >= 1 AND duration >= 0) as median_duration
 					FROM session_agg
 				),
@@ -122,7 +122,7 @@ export const SummaryBuilders = {
 					FROM base_events
 				)
 				SELECT ea.pageviews, ea.unique_visitors, ss.sessions,
-					least(100, round(ss.bounces * 100.0 / nullIf(ss.sessions, 0), 2)) as bounce_rate,
+					round(ss.bounces * 100.0 / nullIf(ss.sessions, 0), 2) as bounce_rate,
 					round(ss.median_duration, 2) as median_session_duration,
 					ea.total_events
 				FROM event_agg ea
@@ -303,7 +303,7 @@ export const SummaryBuilders = {
 				session_by_bucket AS (
 					SELECT time_bucket,
 						count() as sessions,
-						countIf(page_count = 1 AND duration < 10 AND engagement_count = 0) as bounces,
+						countIf(page_count = 1 AND ifNull(duration, 0) < 10 AND engagement_count = 0) as bounces,
 						quantileTDigestIf(0.5)(duration, duration >= 0) as median_duration_raw
 					FROM session_agg
 					GROUP BY time_bucket
@@ -317,7 +317,7 @@ export const SummaryBuilders = {
 				)
 				SELECT ${dateFormat} as date, ea.pageviews, ea.visitors,
 					ifNull(sb.sessions, 0) as sessions,
-					least(100, round(ifNull(sb.bounces, 0) * 100.0 / nullIf(sb.sessions, 0), 2)) as bounce_rate,
+					round(ifNull(sb.bounces, 0) * 100.0 / nullIf(sb.sessions, 0), 2) as bounce_rate,
 					round(ifNull(sb.median_duration_raw, 0), 2) as median_session_duration,
 					round(ea.pageviews * 1.0 / nullIf(sb.sessions, 0), 2) as pages_per_session
 				FROM event_agg ea
