@@ -53,7 +53,8 @@ const CLIENT_OPTIONS: Array<{
 	{
 		value: "claude",
 		label: "Claude",
-		description: "Use Claude Desktop or Claude Code MCP settings.",
+		description:
+			"Claude signs in with your Databuddy account. A key is only needed for automation.",
 	},
 	{
 		value: "windsurf",
@@ -73,6 +74,52 @@ const CLIENT_LABELS: Record<McpClient, string> = {
 	windsurf: "Windsurf",
 	other: "Other client",
 };
+
+const CLAUDE_CODE_COMMAND = `claude mcp add --transport http databuddy ${MCP_SERVER_URL}`;
+
+function ClaudeSignIn() {
+	return (
+		<div className="space-y-3 rounded border border-success/30 bg-success/5 p-3">
+			<div className="flex items-start gap-2">
+				<ShieldCheckIcon className="mt-0.5 size-4 shrink-0 text-success" />
+				<div className="min-w-0">
+					<Text variant="label">
+						Connect Claude with your Databuddy account
+					</Text>
+					<Text className="mt-0.5" tone="muted" variant="caption">
+						No key to copy or rotate. Claude sees only what your role allows,
+						and you can disconnect it from Account settings.
+					</Text>
+				</div>
+			</div>
+			<div className="space-y-1">
+				<Text tone="muted" variant="caption">
+					Claude: Customize → Connectors → Add custom connector
+				</Text>
+				<div className="flex items-center gap-2 rounded border border-border/60 bg-card px-3 py-2">
+					<code className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground">
+						{MCP_SERVER_URL}
+					</code>
+					<CopyButton aria-label="Copy MCP server URL" value={MCP_SERVER_URL} />
+				</div>
+			</div>
+			<div className="space-y-1">
+				<Text tone="muted" variant="caption">
+					Claude Code: run this, then sign in from /mcp
+				</Text>
+				<div className="flex items-center gap-2 rounded border border-border/60 bg-card px-3 py-2">
+					<code className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground">
+						{CLAUDE_CODE_COMMAND}
+					</code>
+					<CopyButton
+						aria-label="Copy Claude Code command"
+						value={CLAUDE_CODE_COMMAND}
+					/>
+				</div>
+			</div>
+		</div>
+	);
+}
 
 function defaultConnectionName(client: McpClient) {
 	return `MCP — ${CLIENT_LABELS[client]}`;
@@ -119,8 +166,8 @@ export function McpConnectionDetails({
 		return (
 			<div className="rounded border border-border/60 bg-secondary/30 px-3 py-3">
 				<Text tone="muted" variant="caption">
-					No MCP connection yet. Create a dedicated key to connect an AI client
-					without sharing a personal API key.
+					No MCP keys yet. Claude signs in with your account; other AI clients
+					use a dedicated key instead of a personal API key.
 				</Text>
 			</div>
 		);
@@ -382,6 +429,8 @@ export function McpSetupSheet({
 									}
 								</Text>
 							</div>
+
+							{client === "claude" && <ClaudeSignIn />}
 
 							<div className="rounded border border-border/60">
 								<div className="flex items-start gap-3 px-3 py-3">
