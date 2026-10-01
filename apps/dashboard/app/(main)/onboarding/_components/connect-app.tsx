@@ -15,7 +15,6 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { COPY_SUCCESS_TIMEOUT } from "../../websites/[id]/_components/constants/settings-constants";
 import {
-	type AgentPromptContext,
 	generateAgentPrompt,
 	generateScriptTag,
 } from "../../websites/[id]/_components/utils/code-generators";
@@ -29,20 +28,15 @@ const AGENTS = [
 	{ id: "copilot", name: "Copilot", icon: "Copilot", invert: false },
 ] as const;
 
+function agentName(id: string): string {
+	return AGENTS.find((agent) => agent.id === id)?.name ?? id;
+}
+
 const highlighter = createHighlighterCoreSync({
 	themes: [vesper],
 	langs: [html],
 	engine: createJavaScriptRegexEngine(),
 });
-
-async function copyText(value: string): Promise<boolean> {
-	try {
-		await navigator.clipboard.writeText(value);
-		return true;
-	} catch {
-		return false;
-	}
-}
 
 export type TrackingCopyMethod = "ai" | "script";
 
@@ -60,14 +54,6 @@ export interface AgentProgress {
 	steps: string[];
 }
 
-const AGENT_NAMES: Record<string, string> = {
-	claude: "Claude Code",
-	cursor: "Cursor",
-	codex: "Codex",
-	copilot: "Copilot",
-	windsurf: "Windsurf",
-};
-
 const FRAMEWORK_NAMES: Record<string, string> = {
 	nextjs: "Next.js",
 	react: "React",
@@ -78,7 +64,7 @@ const FRAMEWORK_NAMES: Record<string, string> = {
 	vanilla: "plain HTML",
 };
 
-export function agentStepLabel(step: string, progress: AgentProgress): string {
+function agentStepLabel(step: string, progress: AgentProgress): string {
 	switch (step) {
 		case "detect":
 			return progress.framework
@@ -98,7 +84,7 @@ export function agentStepLabel(step: string, progress: AgentProgress): string {
 }
 
 export function agentProgressSummary(progress: AgentProgress): string {
-	const agent = AGENT_NAMES[progress.agent] ?? progress.agent;
+	const agent = agentName(progress.agent);
 	if (progress.status === "failed") {
 		return `${agent} ran into a problem`;
 	}
@@ -118,19 +104,6 @@ interface ConnectAppProps {
 	setupSession: string;
 	tracking: TrackingStatus;
 	websiteId: string;
-}
-
-function promptContext(
-	research: OnboardingResearch
-): AgentPromptContext | undefined {
-	if (research.phase !== "ready") {
-		return;
-	}
-	return {
-		brief: research.content,
-		goals: research.suggestedGoals,
-		funnels: research.suggestedFunnels,
-	};
 }
 
 export function ConnectApp({
@@ -154,9 +127,21 @@ export function ConnectApp({
 	const copy = async (id: string, method: TrackingCopyMethod) => {
 		const text =
 			method === "ai"
-				? generateAgentPrompt(websiteId, setupSession)
+				? generateAgentPrompt(
+						websiteId,
+						setupSession,
+						research.phase === "ready"
+							? {
+									brief: research.content,
+									goals: research.suggestedGoals,
+									funnels: research.suggestedFunnels,
+								}
+							: undefined
+					)
 				: scriptTag;
-		if (!(await copyText(text))) {
+		try {
+			await navigator.clipboard.writeText(text);
+		} catch {
 			toast.error("Copy failed. Select the text and copy it manually.");
 			return;
 		}
@@ -278,15 +263,14 @@ export function ConnectApp({
 							<WarningCircleIcon className="mt-0.5 size-3.5 shrink-0" />
 							<span className="text-pretty">
 								{agentProgress.errorMessage ??
-									`${AGENT_NAMES[agentProgress.agent] ?? agentProgress.agent} could not finish the install.`}
+									`${agentName(agentProgress.agent)} could not finish the install.`}
 							</span>
 						</li>
 					) : null}
 					{agentProgress.status === "partial" ? (
 						<li className="flex items-center gap-2 text-muted-foreground text-sm">
 							<StatusDot color="info" pulse size="sm" />
-							{AGENT_NAMES[agentProgress.agent] ?? agentProgress.agent} is still
-							working
+							{agentName(agentProgress.agent)} is still working
 						</li>
 					) : null}
 				</ul>

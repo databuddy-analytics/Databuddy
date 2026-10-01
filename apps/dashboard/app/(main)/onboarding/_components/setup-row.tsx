@@ -68,13 +68,12 @@ export function SetupRow({
 	title,
 }: {
 	children?: ReactNode;
-	detail?: ReactNode;
+	detail?: string | null;
 	expanded: boolean;
 	onToggle?: () => void;
 	status: SetupRowStatus;
 	title: string;
 }) {
-	const inline = detail && status !== "waiting";
 	const header = (
 		<>
 			<RowMarker status={status} />
@@ -89,11 +88,11 @@ export function SetupRow({
 				</span>
 				{detail && status === "waiting" ? (
 					<Shimmer as="span" className="mt-0.5 block text-xs">
-						{String(detail)}
+						{detail}
 					</Shimmer>
 				) : null}
 			</span>
-			{inline ? (
+			{detail && status !== "waiting" ? (
 				<span className="min-w-0 truncate text-muted-foreground text-xs">
 					{detail}
 				</span>

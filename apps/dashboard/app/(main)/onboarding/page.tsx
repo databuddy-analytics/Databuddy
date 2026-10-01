@@ -7,14 +7,7 @@ import type {
 } from "@databuddy/shared/organization-business-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-	Suspense,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { trackOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
 import {
@@ -35,7 +28,6 @@ import {
 import { orpc } from "@/lib/orpc";
 import { showErrorToast } from "@/lib/user-facing-error";
 import type { WebsiteFormValues } from "./_components/add-website";
-import type { TrackingStatus } from "./_components/connect-app";
 import { suggestionKey } from "./_components/read-site";
 import {
 	SetupChecklist,
@@ -44,19 +36,13 @@ import {
 import { useOnboardingResearch } from "./_components/use-onboarding-research";
 import { INTENT_OPTIONS } from "./_components/what-matters";
 
-const TRACKING_POLL_MS = 5000;
-
-function newSetupSession(): string {
-	return crypto.randomUUID().replaceAll("-", "").slice(0, 16);
-}
+const POLL_MS = 5000;
 
 function OnboardingFlow() {
 	const router = useRouter();
 	const requestedWebsiteId = useSearchParams().get("website");
 	const billing = useBillingContext();
 	const investigations = useInvestigationUsage();
-	const billingPending = billing.isLoading || billing.isFetching;
-	const canReview = !billing.isError && investigations.hasAccess;
 	const { activeOrganization } = useOrganizationsContext();
 	const organizationId = activeOrganization?.id;
 	const { websites } = useWebsitesLight();
@@ -70,34 +56,28 @@ function OnboardingFlow() {
 		...orpc.funnels.create.mutationOptions(),
 		meta: { suppressGlobalErrorToast: true },
 	});
-	const [createdSuggestions, setCreatedSuggestions] = useState<Set<string>>(
-		() => new Set()
-	);
-	const [creatingSuggestion, setCreatingSuggestion] = useState<string | null>(
-		null
-	);
 
 	const startedRef = useRef(false);
 	const completedRef = useRef(false);
-	const verifiedRef = useRef<string | null>(null);
+	const verifiedTrackedRef = useRef<string | null>(null);
 	const researchStartedRef = useRef<string | null>(null);
 
 	const [createdWebsite, setCreatedWebsite] = useState<SetupWebsite | null>(
 		null
 	);
-	const [verifiedWebsiteId, setVerifiedWebsiteId] = useState<string | null>(
-		null
+	const [setupSession] = useState(() =>
+		crypto.randomUUID().replaceAll("-", "").slice(0, 16)
 	);
 	const [trackingCopied, setTrackingCopied] = useState(false);
-	const [setupSession] = useState(newSetupSession);
 	const [trackingSkipped, setTrackingSkipped] = useState(false);
 	const [priority, setPriority] = useState("");
 	const [intent, setIntent] = useState<OnboardingIntent | null>(null);
 	const [prioritySaved, setPrioritySaved] = useState(false);
+	const [createdSuggestions, setCreatedSuggestions] = useState<Set<string>>(
+		() => new Set()
+	);
 	const [attribution, setAttribution] =
-		useState<OnboardingAttributionProperties>(() =>
-			readOnboardingAttribution()
-		);
+		useState<OnboardingAttributionProperties>(readOnboardingAttribution);
 
 	const existingWebsite =
 		websites.find((item) => item.id === requestedWebsiteId) ?? websites[0];
@@ -123,10 +103,11 @@ function OnboardingFlow() {
 		}),
 		enabled: websiteId !== null,
 		refetchInterval: ({ state }) =>
-			state.data?.tracking_setup ? false : TRACKING_POLL_MS,
+			state.data?.tracking_setup ? false : POLL_MS,
 		staleTime: 0,
 	});
 	const trackingSetup = trackingQuery.data?.tracking_setup ?? false;
+	const verifiedWebsiteId = trackingSetup ? websiteId : null;
 
 	const agentProgressQuery = useQuery({
 		...orpc.websites.agentInstallProgress.queryOptions({
@@ -137,7 +118,7 @@ function OnboardingFlow() {
 		refetchInterval: ({ state }) =>
 			state.data?.status === "success" || state.data?.status === "failed"
 				? false
-				: TRACKING_POLL_MS,
+				: POLL_MS,
 		staleTime: 0,
 	});
 
@@ -162,17 +143,19 @@ function OnboardingFlow() {
 	}, []);
 
 	useEffect(() => {
-		if (!(trackingSetup && websiteId) || verifiedRef.current === websiteId) {
+		if (
+			!verifiedWebsiteId ||
+			verifiedTrackedRef.current === verifiedWebsiteId
+		) {
 			return;
 		}
-		verifiedRef.current = websiteId;
-		setVerifiedWebsiteId(websiteId);
+		verifiedTrackedRef.current = verifiedWebsiteId;
 		trackAppEvent(APP_EVENTS.onboardingTrackingVerified);
 		trackAppEvent(APP_EVENTS.onboardingStepCompleted, {
 			step: "tracking",
 			verified: true,
 		});
-	}, [trackingSetup, websiteId]);
+	}, [verifiedWebsiteId]);
 
 	useEffect(() => {
 		if (
@@ -185,104 +168,80 @@ function OnboardingFlow() {
 		research.start();
 	}, [createdWebsite, research.research.canStart, research.start]);
 
-	const handleCreateWebsite = useCallback(
-		async (values: WebsiteFormValues) => {
-			try {
-				const result = await createWebsite.mutateAsync({
-					name: values.name,
-					domain: values.domain,
-					organizationId,
-				});
-				setCreatedWebsite({
-					id: result.id,
-					domain: result.domain,
-					name: result.name ?? values.name,
-				});
-				trackAppEvent(APP_EVENTS.onboardingWebsiteCreated, attribution);
-				trackAppEvent(APP_EVENTS.onboardingStepCompleted, { step: "website" });
-			} catch (error: unknown) {
-				showErrorToast(error, "Failed to create website.");
-			}
-		},
-		[attribution, createWebsite, organizationId]
-	);
+	async function addWebsite(values: WebsiteFormValues) {
+		try {
+			const result = await createWebsite.mutateAsync({
+				...values,
+				organizationId,
+			});
+			setCreatedWebsite({
+				id: result.id,
+				domain: result.domain,
+				name: result.name ?? values.name,
+			});
+			trackAppEvent(APP_EVENTS.onboardingWebsiteCreated, attribution);
+			trackAppEvent(APP_EVENTS.onboardingStepCompleted, { step: "website" });
+		} catch (error: unknown) {
+			showErrorToast(error, "Failed to create website.");
+		}
+	}
 
-	const handleCreateGoal = useCallback(
-		async (goal: BusinessSuggestedGoal) => {
-			if (!websiteId) {
-				return;
-			}
-			const key = suggestionKey(goal);
-			setCreatingSuggestion(key);
-			try {
-				await createGoal.mutateAsync({
-					websiteId,
-					name: goal.name,
-					type: goal.type,
-					target: goal.target,
-					description: goal.reason || null,
-				});
-				setCreatedSuggestions((prev) => new Set([...prev, key]));
-				queryClient.invalidateQueries({ queryKey: orpc.goals.key() });
-				toast.success(`Goal "${goal.name}" created`);
-			} catch (error: unknown) {
-				showErrorToast(error, "Couldn't create the goal.");
-			} finally {
-				setCreatingSuggestion(null);
-			}
-		},
-		[createGoal, queryClient, websiteId]
-	);
-
-	const handleCreateFunnel = useCallback(
-		async (funnel: BusinessSuggestedFunnel) => {
-			if (!websiteId) {
-				return;
-			}
-			const key = suggestionKey(funnel);
-			setCreatingSuggestion(key);
-			try {
+	async function createSuggestion(
+		suggestion: BusinessSuggestedFunnel | BusinessSuggestedGoal
+	) {
+		if (!websiteId) {
+			return;
+		}
+		const isFunnel = "steps" in suggestion;
+		try {
+			if (isFunnel) {
 				await createFunnel.mutateAsync({
 					websiteId,
-					name: funnel.name,
-					description: funnel.reason || undefined,
-					steps: funnel.steps.map((step) => ({
-						name: step.name,
-						type: step.type,
-						target: step.target,
-					})),
+					name: suggestion.name,
+					description: suggestion.reason || undefined,
+					steps: suggestion.steps,
 				});
-				setCreatedSuggestions((prev) => new Set([...prev, key]));
-				queryClient.invalidateQueries({ queryKey: orpc.funnels.key() });
-				toast.success(`Funnel "${funnel.name}" created`);
-			} catch (error: unknown) {
-				showErrorToast(error, "Couldn't create the funnel.");
-			} finally {
-				setCreatingSuggestion(null);
+			} else {
+				await createGoal.mutateAsync({
+					websiteId,
+					name: suggestion.name,
+					type: suggestion.type,
+					target: suggestion.target,
+					description: suggestion.reason || null,
+				});
 			}
-		},
-		[createFunnel, queryClient, websiteId]
-	);
+			setCreatedSuggestions(
+				(prev) => new Set([...prev, suggestionKey(suggestion)])
+			);
+			queryClient.invalidateQueries({
+				queryKey: isFunnel ? orpc.funnels.key() : orpc.goals.key(),
+			});
+			toast.success(
+				`${isFunnel ? "Funnel" : "Goal"} "${suggestion.name}" created`
+			);
+		} catch (error: unknown) {
+			showErrorToast(
+				error,
+				`Couldn't create the ${isFunnel ? "funnel" : "goal"}.`
+			);
+		}
+	}
 
-	const handleSkipTracking = useCallback(() => {
+	function skipTracking() {
 		setTrackingSkipped(true);
 		trackAppEvent(APP_EVENTS.onboardingStepCompleted, {
 			step: "tracking",
 			verified: false,
 		});
-	}, []);
+	}
 
-	const handleSavePriority = useCallback(async () => {
+	async function savePriority() {
 		const trimmed = priority.trim();
 		if (!trimmed) {
 			return;
 		}
 		try {
-			await research.saveTeamContext({
-				priority: trimmed,
-				successDefinition: "",
-				exclusions: "",
-			});
+			await research.savePriority(trimmed);
 		} catch {
 			return;
 		}
@@ -292,28 +251,26 @@ function OnboardingFlow() {
 			origin: research.research.phase === "ready" ? "ai" : "manual",
 			intent: intent ?? undefined,
 		});
-	}, [intent, priority, research]);
+	}
 
-	const leave = useCallback(
-		(path: string) => {
-			if (!completedRef.current) {
-				completedRef.current = true;
-				trackAppEvent(APP_EVENTS.onboardingCompleted, attribution);
-				clearOnboardingAttribution();
-			}
-			router.replace(path);
-		},
-		[attribution, router]
-	);
-
-	const handleFinish = useCallback(() => {
-		if (!websiteId) {
-			return;
+	function leave(path: string) {
+		if (!completedRef.current) {
+			completedRef.current = true;
+			trackAppEvent(APP_EVENTS.onboardingCompleted, attribution);
+			clearOnboardingAttribution();
 		}
-		const pendingPlan = localStorage.getItem("pendingPlanSelection");
-		if (pendingPlan) {
-			localStorage.removeItem("pendingPlanSelection");
-			leave(`/billing/plans?plan=${encodeURIComponent(pendingPlan)}`);
+		router.replace(path);
+	}
+
+	const billingPending = billing.isLoading || billing.isFetching;
+	const canReview = !billing.isError && investigations.hasAccess;
+	const reviewPending = verifiedWebsiteId !== null && billingPending;
+	const reviewFailed =
+		verifiedWebsiteId !== null && billing.isError && !billingPending;
+	const opensInsights = verifiedWebsiteId !== null && canReview;
+
+	function finish() {
+		if (!websiteId) {
 			return;
 		}
 		if (verifiedWebsiteId && canReview) {
@@ -322,38 +279,16 @@ function OnboardingFlow() {
 		}
 		const path = INTENT_OPTIONS.find((option) => option.id === intent)?.path;
 		leave(`/websites/${websiteId}${path ?? ""}`);
-	}, [canReview, intent, leave, verifiedWebsiteId, websiteId]);
+	}
 
-	const handleSkipSetup = useCallback(() => {
+	function skipSetup() {
+		const step = website ? (prioritySaved ? "finish" : "tracking") : "website";
 		trackAppEvent(APP_EVENTS.onboardingSkipped, {
-			skipped_at_step: website
-				? trackingSetup || trackingSkipped
-					? "finish"
-					: "tracking"
-				: "website",
-			step_number: website ? (trackingSetup || trackingSkipped ? 3 : 2) : 1,
+			skipped_at_step: step,
+			step_number: ["website", "tracking", "finish"].indexOf(step) + 1,
 		});
 		router.push(websiteId ? `/websites/${websiteId}` : "/websites");
-	}, [router, trackingSetup, trackingSkipped, website, websiteId]);
-
-	const tracking: TrackingStatus = {
-		state: trackingSetup
-			? "verified"
-			: trackingQuery.isError
-				? "error"
-				: "awaiting",
-		issue: trackingQuery.data?.tracking_issue
-			? {
-					message: trackingQuery.data.tracking_issue.message,
-					fix: trackingQuery.data.tracking_issue.fix,
-				}
-			: null,
-	};
-
-	const reviewPending = verifiedWebsiteId !== null && billingPending;
-	const reviewFailed =
-		verifiedWebsiteId !== null && billing.isError && !billingPending;
-	const opensInsights = verifiedWebsiteId !== null && canReview;
+	}
 
 	return (
 		<SetupChecklist
@@ -367,8 +302,7 @@ function OnboardingFlow() {
 								: opensInsights
 									? "Open Insights"
 									: "Open dashboard",
-							onClick: handleFinish,
-							disabled: reviewPending,
+							onClick: finish,
 							loading: reviewPending,
 							note: reviewFailed
 								? "We couldn't check Insights."
@@ -389,10 +323,10 @@ function OnboardingFlow() {
 					method,
 				});
 			}}
-			onCreateWebsite={handleCreateWebsite}
-			onSavePriority={handleSavePriority}
-			onSkipSetup={handleSkipSetup}
-			onSkipTracking={handleSkipTracking}
+			onCreateWebsite={addWebsite}
+			onSavePriority={savePriority}
+			onSkipSetup={skipSetup}
+			onSkipTracking={skipTracking}
 			onStartResearch={research.start}
 			priority={priority}
 			prioritySaved={prioritySaved}
@@ -402,11 +336,21 @@ function OnboardingFlow() {
 			setupSession={setupSession}
 			suggestions={{
 				created: createdSuggestions,
-				creating: creatingSuggestion,
-				onCreateFunnel: handleCreateFunnel,
-				onCreateGoal: handleCreateGoal,
+				creating: createGoal.isPending
+					? `goal:${createGoal.variables.name}`
+					: createFunnel.isPending
+						? `funnel:${createFunnel.variables.name}`
+						: null,
+				onCreate: createSuggestion,
 			}}
-			tracking={tracking}
+			tracking={{
+				state: trackingSetup
+					? "verified"
+					: trackingQuery.isError
+						? "error"
+						: "awaiting",
+				issue: trackingQuery.data?.tracking_issue ?? null,
+			}}
 			trackingCopied={trackingCopied}
 			trackingSkipped={trackingSkipped}
 			website={website}

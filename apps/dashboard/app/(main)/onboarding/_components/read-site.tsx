@@ -42,61 +42,14 @@ export function suggestionKey(
 export interface ReadSiteSuggestions {
 	created: ReadonlySet<string>;
 	creating: string | null;
-	onCreateFunnel: (funnel: BusinessSuggestedFunnel) => void;
-	onCreateGoal: (goal: BusinessSuggestedGoal) => void;
+	onCreate: (
+		suggestion: BusinessSuggestedFunnel | BusinessSuggestedGoal
+	) => void;
 }
 
 function pathLabel(url: string): string {
-	try {
-		const { pathname } = new URL(url);
-		return pathname === "/" ? "Homepage" : pathname;
-	} catch {
-		return url;
-	}
-}
-
-function Suggestion({
-	created,
-	creating,
-	label,
-	onCreate,
-	reason,
-	suggestionId,
-	title,
-}: {
-	created: boolean;
-	creating: boolean;
-	label: string;
-	onCreate: () => void;
-	reason: string;
-	suggestionId: string;
-	title: string;
-}) {
-	return (
-		<li className="flex items-center justify-between gap-3 py-2">
-			<div className="min-w-0">
-				<p className="truncate text-sm">{title}</p>
-				<p className="text-pretty text-muted-foreground text-xs">{reason}</p>
-			</div>
-			{created ? (
-				<span className="flex shrink-0 items-center gap-1 text-success text-xs">
-					<CheckIcon className="size-3.5" />
-					Created
-				</span>
-			) : (
-				<Button
-					aria-label={`${label} ${suggestionId}`}
-					className="shrink-0"
-					loading={creating}
-					onClick={onCreate}
-					size="sm"
-					variant="secondary"
-				>
-					{label}
-				</Button>
-			)}
-		</li>
-	);
+	const { pathname } = new URL(url);
+	return pathname === "/" ? "Homepage" : pathname;
 }
 
 export function ReadSite({
@@ -143,8 +96,18 @@ export function ReadSite({
 		return null;
 	}
 	const streaming = research.phase !== "ready";
-	const hasSuggestions =
-		research.suggestedGoals.length > 0 || research.suggestedFunnels.length > 0;
+	const suggested = [
+		...research.suggestedGoals.map((goal) => ({
+			suggestion: goal,
+			label: "Create goal",
+			reason: `${goal.type === "PAGE_VIEW" ? "Page view of" : "Event"} ${goal.target}. ${goal.reason}`,
+		})),
+		...research.suggestedFunnels.map((funnel) => ({
+			suggestion: funnel,
+			label: "Create funnel",
+			reason: `${funnel.steps.map((step) => step.target).join(" → ")}. ${funnel.reason}`,
+		})),
+	];
 	return (
 		<div className="space-y-5">
 			<div className="space-y-2">
@@ -214,41 +177,44 @@ export function ReadSite({
 						);
 					})}
 
-					{hasSuggestions ? (
+					{suggested.length ? (
 						<div>
 							<p className="font-medium text-sm">Suggested starting points</p>
 							<p className="text-muted-foreground text-xs">
 								Based on the pages read. Nothing is created until you say so.
 							</p>
 							<ul className="mt-1 divide-y divide-border">
-								{research.suggestedGoals.map((goal) => {
-									const id = suggestionKey(goal);
+								{suggested.map(({ suggestion, label, reason }) => {
+									const key = suggestionKey(suggestion);
 									return (
-										<Suggestion
-											created={suggestions.created.has(id)}
-											creating={suggestions.creating === id}
-											key={id}
-											label="Create goal"
-											onCreate={() => suggestions.onCreateGoal(goal)}
-											reason={`${goal.type === "PAGE_VIEW" ? "Page view of" : "Event"} ${goal.target}. ${goal.reason}`}
-											suggestionId={goal.name}
-											title={goal.name}
-										/>
-									);
-								})}
-								{research.suggestedFunnels.map((funnel) => {
-									const id = suggestionKey(funnel);
-									return (
-										<Suggestion
-											created={suggestions.created.has(id)}
-											creating={suggestions.creating === id}
-											key={id}
-											label="Create funnel"
-											onCreate={() => suggestions.onCreateFunnel(funnel)}
-											reason={`${funnel.steps.map((step) => step.target).join(" → ")}. ${funnel.reason}`}
-											suggestionId={funnel.name}
-											title={funnel.name}
-										/>
+										<li
+											className="flex items-center justify-between gap-3 py-2"
+											key={key}
+										>
+											<div className="min-w-0">
+												<p className="truncate text-sm">{suggestion.name}</p>
+												<p className="text-pretty text-muted-foreground text-xs">
+													{reason}
+												</p>
+											</div>
+											{suggestions.created.has(key) ? (
+												<span className="flex shrink-0 items-center gap-1 text-success text-xs">
+													<CheckIcon className="size-3.5" />
+													Created
+												</span>
+											) : (
+												<Button
+													aria-label={`${label} ${suggestion.name}`}
+													className="shrink-0"
+													loading={suggestions.creating === key}
+													onClick={() => suggestions.onCreate(suggestion)}
+													size="sm"
+													variant="secondary"
+												>
+													{label}
+												</Button>
+											)}
+										</li>
 									);
 								})}
 							</ul>

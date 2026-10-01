@@ -98,7 +98,6 @@ const RESEARCH = {
 	}),
 	failed: research("failed", {
 		pagesRead: 1,
-		pagesFailed: 2,
 		canStart: true,
 		message: "The site did not respond in time.",
 	}),
@@ -363,8 +362,7 @@ function Sample({ sample }: { sample: Sample }) {
 			suggestions={{
 				created: new Set(["goal:Pricing viewed"]),
 				creating: null,
-				onCreateFunnel: noop,
-				onCreateGoal: noop,
+				onCreate: noop,
 			}}
 			priority={priority}
 			prioritySaved={sample.prioritySaved ?? false}

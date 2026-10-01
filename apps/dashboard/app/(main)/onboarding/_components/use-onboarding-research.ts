@@ -5,7 +5,6 @@ import type {
 	BusinessContextSettings,
 	BusinessSuggestedFunnel,
 	BusinessSuggestedGoal,
-	BusinessTeamContext,
 	DetectedAnalyticsTool,
 } from "@databuddy/shared/organization-business-context";
 import { businessContextIsGenerating } from "@databuddy/shared/organization-business-context";
@@ -22,20 +21,15 @@ export type OnboardingResearchPhase =
 	| "ready"
 	| "failed";
 
-export type OnboardingResearchQuestion = NonNullable<
-	BusinessBrief["followUpQuestions"]
->[number];
-
 export interface OnboardingResearch {
 	canStart: boolean;
 	content: string;
 	detectedTools: DetectedAnalyticsTool[];
 	domain: string | null;
 	message: string | null;
-	pagesFailed: number;
 	pagesRead: number;
 	phase: OnboardingResearchPhase;
-	questions: OnboardingResearchQuestion[];
+	questions: NonNullable<BusinessBrief["followUpQuestions"]>;
 	sources: BusinessBrief["sources"];
 	suggestedFunnels: BusinessSuggestedFunnel[];
 	suggestedGoals: BusinessSuggestedGoal[];
@@ -47,7 +41,6 @@ export const EMPTY_RESEARCH: OnboardingResearch = {
 	detectedTools: [],
 	domain: null,
 	message: null,
-	pagesFailed: 0,
 	pagesRead: 0,
 	phase: "idle",
 	questions: [],
@@ -72,15 +65,6 @@ interface ResearchWebsite {
 	id: string;
 }
 
-function countPages(settings: BusinessContextSettings | undefined) {
-	const pages =
-		settings?.generation?.research?.pages ??
-		settings?.profile?.research?.pages ??
-		[];
-	const pagesRead = pages.filter((page) => page.status === "read").length;
-	return { pagesRead, pagesFailed: pages.length - pagesRead };
-}
-
 function deriveResearch(input: {
 	accessMessage: string | null;
 	accessPending: boolean;
@@ -93,10 +77,14 @@ function deriveResearch(input: {
 	if (!website) {
 		return EMPTY_RESEARCH;
 	}
+	const pages =
+		settings?.generation?.research?.pages ??
+		settings?.profile?.research?.pages ??
+		[];
 	const base = {
 		...EMPTY_RESEARCH,
 		domain: website.domain,
-		...countPages(settings),
+		pagesRead: pages.filter((page) => page.status === "read").length,
 	};
 	const generation = settings?.generation ?? null;
 	if (generation && settings && businessContextIsGenerating(settings)) {
@@ -226,8 +214,8 @@ export function useOnboardingResearch(
 		},
 	});
 
-	const saveTeamContext = useCallback(
-		async (teamContext: BusinessTeamContext) => {
+	const savePriority = useCallback(
+		async (priority: string) => {
 			if (!organizationId) {
 				return;
 			}
@@ -236,12 +224,18 @@ export function useOnboardingResearch(
 				current?.generation?.status === "ready" && current.generation.draft
 					? current.generation
 					: null;
+			// Keep whatever the team already answered; onboarding only asks for the priority.
 			await save.mutateAsync({
 				organizationId,
 				revision: current?.profile?.revision ?? 0,
 				content: draft?.draft?.content ?? current?.profile?.content ?? "",
 				generationId: draft?.id,
-				teamContext,
+				teamContext: {
+					successDefinition: "",
+					exclusions: "",
+					...current?.profile?.teamContext,
+					priority,
+				},
 			});
 		},
 		[organizationId, save, settings.data]
@@ -261,7 +255,7 @@ export function useOnboardingResearch(
 			website,
 		}),
 		start,
-		saveTeamContext,
+		savePriority,
 		saving: save.isPending,
 		saveError: save.error
 			? getUserFacingErrorMessage(save.error, "Couldn't save your answers.")

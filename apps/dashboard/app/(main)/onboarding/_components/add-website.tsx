@@ -27,7 +27,7 @@ const formSchema = z.object({
 
 export type WebsiteFormValues = z.infer<typeof formSchema>;
 
-export function normalizeDomainInput(value: string): string {
+function normalizeDomainInput(value: string): string {
 	let domain = value.trim();
 	if (domain.startsWith("http://") || domain.startsWith("https://")) {
 		try {
@@ -39,7 +39,7 @@ export function normalizeDomainInput(value: string): string {
 	return domain.replace(wwwRegex, "").split("/")[0] ?? "";
 }
 
-export function websiteNameFromDomain(domain: string): string {
+function websiteNameFromDomain(domain: string): string {
 	const label = domain.split(".")[0] ?? "";
 	return label
 		.replace(nameSeparators, " ")
@@ -51,12 +51,12 @@ export function websiteNameFromDomain(domain: string): string {
 		.join(" ");
 }
 
-interface StepWebsiteProps {
+interface AddWebsiteProps {
 	onCreate: (values: WebsiteFormValues) => Promise<void>;
 	pending: boolean;
 }
 
-export function AddWebsite({ onCreate, pending }: StepWebsiteProps) {
+export function AddWebsite({ onCreate, pending }: AddWebsiteProps) {
 	const form = useForm<WebsiteFormValues>({
 		resolver: zodResolver(formSchema),
 		mode: "onChange",
