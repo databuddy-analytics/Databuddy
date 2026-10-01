@@ -238,9 +238,9 @@ export function AiSection() {
 						Check your numbers without leaving your editor
 					</h3>
 					<p className="mt-1.5 max-w-xl text-muted-foreground text-sm">
-						Connect Claude Code, Cursor, or any MCP client with a scoped key,
-						and your agent can pull traffic, read investigations, and set up
-						funnels, goals, and flags for you.
+						Sign in from Claude or Claude Code, or connect Cursor and any other
+						MCP client with a scoped key, and your agent can pull traffic, read
+						investigations, and set up funnels, goals, and flags for you.
 					</p>
 					<div className="mt-5 flex flex-wrap items-center gap-4">
 						<SciFiButton asChild>
