@@ -514,15 +514,7 @@ interface QueryTypeInfo {
 	requiredFilters?: string[];
 }
 
-export function getQueryTypeDescriptions(): Record<string, string> {
-	const result: Record<string, string> = {};
-	for (const [key, config] of WEBSITE_QUERY_BUILDERS) {
-		result[key] = getDescription(key, config);
-	}
-	return result;
-}
-
-export function getQueryTypeDetails(): Record<string, QueryTypeInfo> {
+function getQueryTypeDetails(): Record<string, QueryTypeInfo> {
 	const result: Record<string, QueryTypeInfo> = {};
 	for (const [key, config] of WEBSITE_QUERY_BUILDERS) {
 		result[key] = {
