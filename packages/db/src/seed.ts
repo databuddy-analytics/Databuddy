@@ -1,9 +1,17 @@
 import { faker } from "@faker-js/faker";
 import { clickHouse, TABLE_NAMES } from "./clickhouse/client";
 import { db } from "./client";
+import { extractFlag, nextPath, resolveSeedValue } from "./seed-helpers";
 
-const clientId = process.argv[2] || faker.string.uuid();
-const eventCount = Number(process.argv[3]) || 10_000;
+// Positional args (website id, event count) after CLI flags are stripped out.
+const positionalArgs = process.argv.slice(2);
+const seedValue = resolveSeedValue(extractFlag(positionalArgs, "seed"));
+
+// Must run before any faker call below so the whole run is reproducible.
+faker.seed(seedValue);
+
+const clientId = positionalArgs[0] || faker.string.uuid();
+const eventCount = Number(positionalArgs[1]) || 10_000;
 
 const PATHS = [
 	"/",
@@ -91,6 +99,12 @@ function generatePageTitle(path: string): string {
 
 	const domain = website?.domain || "example.com";
 
+	// Sessions occupy contiguous index ranges (see sessionFor), so tracking the
+	// previous session/path as the loop advances reconstructs each visitor's
+	// page sequence instead of picking an independent path per event.
+	let previousSessionId: string | undefined;
+	let currentPath: string | undefined;
+
 	const events = Array.from({ length: eventCount }, (_, index) => {
 		const session = sessionFor(index, eventCount);
 		const user = session.user;
@@ -102,7 +116,7 @@ function generatePageTitle(path: string): string {
 		const baseTime =
 			session.sessionStartTime + sessionProgress * maxSessionDuration;
 
-		const path = faker.helpers.arrayElement(PATHS);
+		const isNewSession = session.sessionId !== previousSessionId;
 		const isLastEvent =
 			sessionProgress > 0.8 || faker.datatype.boolean({ probability: 0.2 });
 		const eventName =
@@ -110,6 +124,16 @@ function generatePageTitle(path: string): string {
 				? "page_exit"
 				: "screen_view";
 		const isPageExit = eventName === "page_exit";
+
+		// A page_exit event exits the page currently being viewed rather than
+		// jumping to a new one; only screen_view events advance the journey.
+		const path =
+			!isNewSession && isPageExit && currentPath
+				? currentPath
+				: nextPath(isNewSession ? undefined : currentPath, PATHS[0] as string);
+		previousSessionId = session.sessionId;
+		currentPath = path;
+
 		const fullUrl = `https://${domain}${path}`;
 
 		return {
@@ -193,7 +217,7 @@ function generatePageTitle(path: string): string {
 			redirect_time: undefined,
 			domain_lookup_time: undefined,
 			properties: "{}",
-			created_at: Date.now(),
+			created_at: baseTime,
 		};
 	});
 
@@ -333,7 +357,7 @@ function generatePageTitle(path: string): string {
 	webVitals.sort((a, b) => a.timestamp - b.timestamp);
 
 	console.log(
-		`Generating seed data for client: ${clientId} on domain: ${domain}`
+		`Generating seed data for client: ${clientId} on domain: ${domain} (seed: ${seedValue})`
 	);
 	console.log(
 		`Creating ${UNIQUE_USERS} users across ${TOTAL_SESSIONS} sessions`
