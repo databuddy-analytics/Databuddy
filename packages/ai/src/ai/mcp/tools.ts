@@ -23,7 +23,7 @@ import {
 	variantSchema,
 } from "@databuddy/shared/flags";
 import type { DatePreset } from "../../lib/date-presets";
-import { executeBatch, SANITIZED_QUERY_ERROR } from "../../query";
+import { executeBatch } from "../../query";
 import type { AppContext } from "../config/context";
 import {
 	createUserTargetRule,
@@ -172,11 +172,10 @@ function createChartContext(input: {
 }
 
 function queryFailure(result: { error?: string; type: string }): McpToolError {
-	if (result.error === SANITIZED_QUERY_ERROR) {
-		return new McpToolError("query_failed", queryFailedMessage(result.type));
-	}
 	return new McpToolError(
-		"invalid_input",
+		result.error === queryFailedMessage(result.type)
+			? "query_failed"
+			: "invalid_input",
 		result.error ?? `The ${result.type} query failed.`
 	);
 }
@@ -469,36 +468,10 @@ const getDataTool = defineMcpTool(
 		const websiteId = getResolvedWebsiteId(ctx);
 		const timezone = input.timezone ?? "UTC";
 
-		const rawQueries = input.queries;
+		const queries: z.infer<typeof QueryItemSchema>[] =
+			input.queries ?? (input.type ? [{ type: input.type }] : []);
 
-		const items: McpQueryItem[] =
-			rawQueries && rawQueries.length >= 2
-				? rawQueries.map((query) => ({
-						...query,
-						...(query.preset || query.from || query.to
-							? {}
-							: { preset: input.preset, from: input.from, to: input.to }),
-						timeUnit: query.timeUnit ?? input.timeUnit,
-						limit: query.limit ?? input.limit,
-						filters: query.filters ?? input.filters,
-						orderBy: query.orderBy ?? input.orderBy,
-					}))
-				: input.type
-					? [
-							{
-								type: input.type,
-								preset: input.preset,
-								from: input.from,
-								to: input.to,
-								timeUnit: input.timeUnit,
-								limit: input.limit,
-								filters: input.filters,
-								orderBy: input.orderBy,
-							},
-						]
-					: [];
-
-		if (items.length === 0) {
+		if (queries.length === 0) {
 			throw new McpToolError(
 				"invalid_input",
 				"Either 'type' (single query) or 'queries' array (batch, 2-10 items) is required.",
@@ -508,21 +481,24 @@ const getDataTool = defineMcpTool(
 			);
 		}
 
+		const items: McpQueryItem[] = queries.map((query) => ({
+			...query,
+			...(query.preset || query.from || query.to
+				? {}
+				: { preset: input.preset, from: input.from, to: input.to }),
+			timeUnit: query.timeUnit ?? input.timeUnit,
+			limit: query.limit ?? input.limit,
+			filters: query.filters ?? input.filters,
+			orderBy: query.orderBy ?? input.orderBy,
+		}));
 		const plan = buildBatchQueryRequests(items, websiteId, timezone);
-		if (items.length === 1 && plan.requests.length === 0) {
-			throw new McpToolError(
-				"invalid_input",
-				plan.invalid[0]?.error ?? "The query could not be executed."
-			);
-		}
-
 		const results = await executeBatch(plan.requests, {
 			websiteDomain: ctx.websiteDomain ?? "unknown",
 			timezone,
 			abortSignal: ctx.abortSignal,
 		});
 		const formatted = formatMcpQueryResults(plan, results);
-		if (formatted.length > 0 && formatted.every((result) => result.error)) {
+		if (formatted.every((result) => result.error)) {
 			const failures = formatted.map(queryFailure);
 			const [firstFailure] = failures;
 			if (firstFailure && failures.length === 1) {
@@ -542,29 +518,14 @@ const getDataTool = defineMcpTool(
 		}
 
 		if (items.length > 1) {
-			return {
-				batch: true,
-				results: formatted.map((result) =>
-					result.error === SANITIZED_QUERY_ERROR
-						? { ...result, error: queryFailedMessage(result.type) }
-						: result
-				),
-			};
+			return { batch: true, results: formatted };
 		}
 
 		const first = formatted[0];
 		if (!first) {
 			throw new McpToolError("internal", "No results returned");
 		}
-		return {
-			definition: first.definition,
-			data: first.data,
-			returnedRows: first.returnedRows,
-			rowCount: first.rowCount,
-			summary: first.summary,
-			truncated: first.truncated,
-			type: first.type,
-		};
+		return first;
 	}
 );
 

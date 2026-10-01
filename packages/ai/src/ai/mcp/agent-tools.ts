@@ -1,7 +1,7 @@
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { tool, type ToolExecutionOptions, type ToolSet } from "ai";
 import { z } from "zod";
-import { executeBatch, SANITIZED_QUERY_ERROR } from "../../query";
+import { executeBatch } from "../../query";
 import { discoverQueryTypesTool } from "../tools/discover-query-types";
 import { describeSchemaTool } from "../tools/describe-schema";
 import { createAnnotationTools } from "../tools/annotations";
@@ -14,11 +14,7 @@ import { createMemoryTools } from "../tools/memory";
 import { buildProfileTools } from "../tools/profiles";
 import { createToolkit } from "../tools/toolkit";
 import { executeAgentSqlForWebsite } from "../tools/execute-sql-query";
-import {
-	buildBatchQueryRequests,
-	formatMcpQueryResults,
-	queryFailedMessage,
-} from "./mcp-utils";
+import { buildBatchQueryRequests, formatMcpQueryResults } from "./mcp-utils";
 import {
 	createSlackConversationTools,
 	type DatabuddyAgentSlackContext,
@@ -146,11 +142,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 				return {
 					batch: true,
 					website: { id: args.websiteId, domain: access.domain },
-					results: formatMcpQueryResults(plan, results).map((result) =>
-						result.error === SANITIZED_QUERY_ERROR
-							? { ...result, error: queryFailedMessage(result.type) }
-							: result
-					),
+					results: formatMcpQueryResults(plan, results),
 				};
 			},
 		}),

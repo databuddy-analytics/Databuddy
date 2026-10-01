@@ -379,7 +379,12 @@ export function formatMcpQueryResults(
 				rowCount,
 				returnedRows: data.length,
 				truncated: data.length < rowCount,
-				...(error && { error }),
+				...(error && {
+					error:
+						error === SANITIZED_QUERY_ERROR
+							? queryFailedMessage(result.type)
+							: error,
+				}),
 			};
 		}
 	);
