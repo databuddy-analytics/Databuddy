@@ -12,8 +12,13 @@ import tsx from "shiki/langs/tsx.mjs";
 import vue from "shiki/langs/vue.mjs";
 import vesper from "shiki/themes/vesper.mjs";
 import { toast } from "sonner";
+import { FaviconImage } from "@/components/analytics/favicon-image";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
-import { ConnectApp } from "@/components/websites/connect-app";
+import {
+	agentProgressSummary,
+	ConnectApp,
+} from "@/components/websites/connect-app";
+import { SetupRow, type SetupRowStatus } from "@/components/websites/setup-row";
 import { useAgentInstall } from "@/hooks/use-agent-install";
 import { useSiteResearch } from "@/hooks/use-site-research";
 import { useWebsite } from "@/hooks/use-websites";
@@ -35,6 +40,7 @@ import {
 	generateVueCode,
 	type VersionedScript,
 } from "../utils/code-generators";
+import { RECOMMENDED_DEFAULTS } from "../utils/tracking-defaults";
 import type { TrackingOptionConfig } from "../utils/types";
 import {
 	BookOpenIcon,
@@ -42,15 +48,18 @@ import {
 	CheckIcon,
 	ClipboardIcon,
 	CodeIcon,
+	GlobeIcon,
 	LightningIcon,
 	PackageIcon,
 	ShieldCheckIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
-import { Badge, Button, Card } from "@databuddy/ui";
+import { Badge, Button, Card, Progress } from "@databuddy/ui";
 import { Switch, Tabs } from "@databuddy/ui/client";
 
 interface TrackingSetupTabProps {
+	/** "gate" replaces the dashboard until the first page view; "settings" is the full install page. */
+	variant?: "gate" | "settings";
 	websiteId: string;
 }
 
@@ -250,7 +259,10 @@ function VueLogo({ className }: { className?: string }) {
 	);
 }
 
-export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
+export function WebsiteTrackingSetupTab({
+	variant = "settings",
+	websiteId,
+}: TrackingSetupTabProps) {
 	const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
 	const [usePinnedVersion, setUsePinnedVersion] = useState(false);
 	const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
@@ -314,6 +326,129 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 		setTimeout(() => setCopiedBlockId(null), COPY_SUCCESS_TIMEOUT);
 	};
 
+	if (variant === "gate") {
+		const connectStatus: SetupRowStatus = install.verified
+			? "done"
+			: install.copied
+				? "waiting"
+				: "active";
+		const firstViewStatus: SetupRowStatus = install.verified
+			? "done"
+			: install.copied
+				? "waiting"
+				: "pending";
+		const snippets = [
+			[
+				"script",
+				"Script tag",
+				generateScriptTag(websiteId, RECOMMENDED_DEFAULTS),
+			],
+			["react", "React", generateNpmCode(websiteId, RECOMMENDED_DEFAULTS)],
+			["vue", "Vue", generateVueCode(websiteId, RECOMMENDED_DEFAULTS)],
+		] as const;
+		return (
+			<div className="mx-auto w-full max-w-3xl py-2 lg:py-6">
+				<div className="mb-4 flex items-center justify-between gap-3">
+					<h1 className="flex items-center gap-2.5 font-semibold text-xl">
+						{website ? (
+							<FaviconImage
+								altText=""
+								className="size-6"
+								domain={website.domain}
+								fallbackIcon={
+									<GlobeIcon
+										className="absolute inset-0 m-auto text-muted-foreground"
+										size={16}
+									/>
+								}
+								size={24}
+							/>
+						) : null}
+						{website?.name ?? website?.domain ?? "Your website"}
+					</h1>
+					<Button asChild size="sm" variant="ghost">
+						<Link href={`/websites/${websiteId}/settings/tracking`}>
+							All install options
+						</Link>
+					</Button>
+				</div>
+				<Card className="gap-0 py-0">
+					<Card.Header className="gap-3 border-border border-b bg-card px-5 py-4">
+						<Card.Title>
+							{install.verified
+								? "Tracking verified"
+								: "No events yet. Two steps to your dashboard."}
+						</Card.Title>
+						<Progress
+							size="sm"
+							value={install.verified ? 100 : install.copied ? 50 : 0}
+						/>
+					</Card.Header>
+					<SetupRow
+						detail={
+							install.verified
+								? "Tracking verified"
+								: install.agentProgress
+									? agentProgressSummary(install.agentProgress)
+									: install.copied
+										? "Prompt copied"
+										: undefined
+						}
+						expanded={!install.verified}
+						status={connectStatus}
+						title="Connect your app"
+					>
+						{website ? (
+							<ConnectApp
+								agentProgress={install.agentProgress}
+								domain={website.domain}
+								manualInstall={
+									<Tabs className="mt-3 w-full" defaultValue="script">
+										<Tabs.List>
+											{snippets.map(([value, label]) => (
+												<Tabs.Tab key={value} value={value}>
+													{label}
+												</Tabs.Tab>
+											))}
+										</Tabs.List>
+										{snippets.map(([value, , code]) => (
+											<Tabs.Panel className="mt-3" key={value} value={value}>
+												<CodeBlock
+													code={code}
+													copied={copiedBlockId === `gate-${value}`}
+													onCopy={() =>
+														handleCopy(code, `gate-${value}`, "Copied!")
+													}
+												/>
+											</Tabs.Panel>
+										))}
+									</Tabs>
+								}
+								onCopy={install.markCopied}
+								research={research.research}
+								setupSession={install.setupSession}
+								tracking={install.tracking}
+								websiteId={websiteId}
+							/>
+						) : null}
+					</SetupRow>
+					<SetupRow
+						detail={
+							install.verified
+								? "Loading your dashboard"
+								: website
+									? `Open ${website.domain} once after installing. This page updates on its own.`
+									: undefined
+						}
+						expanded={false}
+						status={firstViewStatus}
+						title="First page view"
+					/>
+				</Card>
+			</div>
+		);
+	}
+
 	return (
 		<div className="space-y-6">
 			<Card className="gap-0 py-0">
@@ -346,7 +481,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 							onCopy={install.markCopied}
 							research={research.research}
 							setupSession={install.setupSession}
-							showScript={false}
+							manualInstall={false}
 							tracking={install.tracking}
 							websiteId={websiteId}
 						/>

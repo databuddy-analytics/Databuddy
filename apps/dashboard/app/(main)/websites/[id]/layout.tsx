@@ -444,7 +444,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 					) : null}
 					{showTrackingSetup ? (
 						<div className="p-4">
-							<WebsiteTrackingSetupTab websiteId={websiteId} />
+							<WebsiteTrackingSetupTab variant="gate" websiteId={websiteId} />
 						</div>
 					) : (
 						children

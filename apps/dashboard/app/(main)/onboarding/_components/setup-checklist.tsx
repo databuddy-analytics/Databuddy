@@ -17,7 +17,7 @@ import {
 	type ReadSiteSuggestions,
 	readSiteDetail,
 } from "./read-site";
-import { SetupRow, type SetupRowStatus } from "./setup-row";
+import { SetupRow, type SetupRowStatus } from "@/components/websites/setup-row";
 import type { SiteResearch } from "@/hooks/use-site-research";
 import { WhatMatters } from "./what-matters";
 
