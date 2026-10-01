@@ -1,7 +1,7 @@
 import "@databuddy/db/test-env";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
-import { MCP_GRANT_CLAIM } from "@databuddy/shared/mcp-access";
+import { MCP_API_SCOPES, MCP_GRANT_CLAIM } from "@databuddy/shared/mcp-access";
 
 const integration =
 	process.env.MCP_OAUTH_INTEGRATION_TESTS === "true" ? describe : describe.skip;
@@ -687,10 +687,18 @@ integration("MCP OAuth authorization round trip", () => {
 		expect(response.status).toBe(200);
 		const metadata = (await response.json()) as {
 			code_challenge_methods_supported: string[];
+			scopes_supported: string[];
 			token_endpoint: string;
 		};
 		expect(metadata.code_challenge_methods_supported).toContain("S256");
 		expect(metadata.token_endpoint).toContain("/oauth2/token");
+		expect(metadata.scopes_supported).toEqual([
+			"openid",
+			"profile",
+			"email",
+			"offline_access",
+			...MCP_API_SCOPES,
+		]);
 	});
 
 	test("a lost race to seed the MCP resource does not break auth startup", async () => {

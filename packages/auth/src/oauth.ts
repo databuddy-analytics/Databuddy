@@ -4,6 +4,7 @@ import { mcp } from "@better-auth/mcp";
 import { isUniqueViolationFor } from "@databuddy/db";
 import { config } from "@databuddy/env/app";
 import { API_SCOPES } from "@databuddy/shared/api-scopes";
+import { MCP_API_SCOPES } from "@databuddy/shared/mcp-access";
 import { betterAuth } from "better-auth/minimal";
 import { jwt } from "better-auth/plugins";
 import { log } from "evlog";
@@ -37,6 +38,8 @@ const database: typeof baseAuthOptions.database = (options) => {
 	};
 };
 
+const IDENTITY_SCOPES = ["openid", "profile", "email", "offline_access"];
+
 function createMcpOAuthPlugins() {
 	try {
 		return [
@@ -46,7 +49,10 @@ function createMcpOAuthPlugins() {
 				postLogin: mcpPostLogin,
 				customAccessTokenClaims: mcpAccessTokenClaims,
 				resource: config.urls.mcp,
-				scopes: ["openid", "profile", "email", "offline_access", ...API_SCOPES],
+				scopes: [...IDENTITY_SCOPES, ...API_SCOPES],
+				advertisedMetadata: {
+					scopes_supported: [...IDENTITY_SCOPES, ...MCP_API_SCOPES],
+				},
 				rateLimit: { token: { window: 60, max: 600 } },
 			}),
 			cimd({
