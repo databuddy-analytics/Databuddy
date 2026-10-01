@@ -198,6 +198,11 @@ export const organizationsRouter = {
 			});
 
 			setTrackProperties({
+				changed_fields: Object.entries(input.settings)
+					.flatMap(([section, fields]) =>
+						Object.keys(fields ?? {}).map((field) => `${section}.${field}`)
+					)
+					.join(","),
 				tracking_health_mode: input.settings.trackingHealth?.mode,
 				ignored_origin_count:
 					input.settings.trackingHealth?.ignoredOrigins?.length,
