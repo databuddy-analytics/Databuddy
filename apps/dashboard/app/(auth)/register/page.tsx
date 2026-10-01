@@ -21,7 +21,7 @@ import {
 	type SignupMethod,
 	trackAppEvent,
 } from "@/lib/app-events";
-import { safeCallbackPath } from "@/lib/safe-callback";
+import { newUserCallbackPath, safeCallbackPath } from "@/lib/safe-callback";
 import {
 	CaretLeftIcon,
 	EyeIcon,
@@ -83,12 +83,8 @@ function RegisterPageContent() {
 		trackAppEvent(eventName, properties, { flush: true });
 	};
 
-	const newUserCallbackUrl = (url: string) =>
-		url.startsWith("/billing/plans") ? url : "/onboarding";
-
 	const getCallbackUrl = () => {
 		if (selectedPlan) {
-			localStorage.setItem("pendingPlanSelection", selectedPlan);
 			return `/billing/plans?plan=${selectedPlan}`;
 		}
 		return safeCallback;
@@ -120,7 +116,7 @@ function RegisterPageContent() {
 			email: formData.email,
 			password: formData.password,
 			name: formData.name,
-			callbackURL: newUserCallbackUrl(getCallbackUrl()),
+			callbackURL: newUserCallbackPath(getCallbackUrl()),
 			fetchOptions: {
 				onSuccess: () => {
 					storeOnboardingAttribution(signupProperties);
@@ -176,7 +172,7 @@ function RegisterPageContent() {
 			const result = await authClient.signIn.social({
 				provider,
 				callbackURL,
-				newUserCallbackURL: newUserCallbackUrl(callbackURL),
+				newUserCallbackURL: newUserCallbackPath(callbackURL),
 				disableRedirect: true,
 			});
 

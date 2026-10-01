@@ -1,5 +1,15 @@
 const CALLBACK_ORIGIN = "https://callback.databuddy.invalid";
 
+const LANDING_PATHS = new Set(["", "/", "/home", "/websites"]);
+const TRAILING_SLASHES = /\/+$/;
+
+/** New accounts start in onboarding unless they were sent somewhere specific, like an invitation or a plan. */
+export function newUserCallbackPath(callback: string): string {
+	return LANDING_PATHS.has(callback.replace(TRAILING_SLASHES, ""))
+		? "/onboarding"
+		: callback;
+}
+
 export function safeCallbackPath(
 	callback: string | null | undefined,
 	fallback = "/websites"
