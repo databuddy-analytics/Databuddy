@@ -62,7 +62,8 @@ const SPHERE_SCALE = 0.45;
 const SPIN_DEG_PER_SEC = 6;
 const SPIN_FRAME_MS = 1000 / 80;
 const MAX_DPR = 2;
-const EMPTY_ALPHA = 0.16;
+const LAND_ALPHA = 0.2;
+const MIN_DATA_ALPHA = 0.75;
 const ALPHA_LEVELS = 20;
 const HOVER_RADIUS_PX = 10;
 const TAP_SLOP_PX = 4;
@@ -368,14 +369,15 @@ export function GlobeMap({
 				dot.sy = cy - radius * y;
 
 				const t = intensity[dot.country];
-				let alpha = t < 0 ? EMPTY_ALPHA : 0.35 + 0.65 * t;
+				let alpha =
+					t < 0 ? LAND_ALPHA : MIN_DATA_ALPHA + (1 - MIN_DATA_ALPHA) * t;
 				if (highlight) {
 					alpha =
 						globe.countries[dot.country].code === highlight ? 1 : alpha * 0.45;
 				}
 				alpha *= Math.min(1, depth / 0.35);
 				const r =
-					radius * (t < 0 ? 0.0065 : 0.007 + 0.003 * t) * (0.55 + 0.45 * depth);
+					radius * (t < 0 ? 0.0065 : 0.007 + 0.004 * t) * (0.55 + 0.45 * depth);
 
 				const layer = (t < 0 ? land : data)[Math.round(alpha * ALPHA_LEVELS)];
 				layer.moveTo(dot.sx + r, dot.sy);
@@ -559,7 +561,10 @@ export function GlobeMap({
 			/>
 			<canvas
 				aria-label="Globe of visitors by country"
-				className="absolute inset-0 size-full cursor-grab touch-pan-y [--globe-data:var(--info)] [--globe-land:var(--info)] active:cursor-grabbing dark:[--globe-data:var(--chart-4)] dark:[--globe-land:var(--muted-foreground)]"
+				className={cn(
+					"absolute inset-0 size-full cursor-grab touch-pan-y transition-opacity duration-500 ease-in-out [--globe-data:var(--info)] [--globe-land:var(--info)] active:cursor-grabbing dark:[--globe-data:var(--chart-4)] dark:[--globe-land:var(--muted-foreground)]",
+					globe ? "opacity-100" : "opacity-0"
+				)}
 				onPointerCancel={() => {
 					sceneRef.current.drag = null;
 					wakeRef.current();
