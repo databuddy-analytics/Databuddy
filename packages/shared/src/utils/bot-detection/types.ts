@@ -47,18 +47,20 @@ export const AI_ICON_COLORS: Record<string, string | null> = {
 	Zed: "#084CCF",
 };
 
+const PRODUCT_WORD_SEPARATOR = /[^a-z0-9]+/;
+
 export function aiProductIcon(product: string): string | undefined {
 	const name = product.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 	if (!name) {
 		return;
 	}
 	const icons = Object.keys(AI_ICON_COLORS);
+	const words = product.includes(".")
+		? []
+		: product.toLowerCase().split(PRODUCT_WORD_SEPARATOR);
 	return (
 		icons.find((icon) => icon.toLowerCase() === name) ??
-		icons.find(
-			(icon) =>
-				icon.toLowerCase().includes(name) || name.includes(icon.toLowerCase())
-		)
+		icons.find((icon) => words.includes(icon.toLowerCase()))
 	);
 }
 

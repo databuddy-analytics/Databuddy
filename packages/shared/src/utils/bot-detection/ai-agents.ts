@@ -88,7 +88,7 @@ export const AI_AGENT_CLASSIFICATION: Record<
 		purpose: "search_index",
 	},
 	"imagesift-crawler": { operator: "Hive", purpose: "training" },
-	imagespider: { operator: "imageSpider", purpose: "training" },
+	imagespider: { operator: "ByteDance", purpose: "training" },
 	img2dataset: { operator: "img2dataset", purpose: "training" },
 	"infegy-crawler": null,
 	"integralads-crawler": null,
@@ -98,7 +98,7 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"kimi-user": { operator: "Moonshot AI", purpose: "user_fetch" },
 	"laion-huggingface-processor": { operator: "LAION", purpose: "training" },
 	"leadcrunch-crawler": null,
-	"linkup-bot": { operator: "Linkup", purpose: "user_fetch" },
+	"linkup-bot": { operator: "Linkup", purpose: "search_index" },
 	"mediatoolkit-crawler": null,
 	"meta-crawler": {
 		name: "Meta-ExternalAgent",
@@ -194,6 +194,13 @@ function codingAgent(
 	};
 }
 
+const OPENCODE_AGENT = codingAgent(
+	"opencode",
+	"OpenCode",
+	"OpenCode",
+	/^opencode$/
+);
+
 const CODING_AGENTS: AiAgent[] = [
 	codingAgent(
 		"claude-code",
@@ -209,7 +216,7 @@ const CODING_AGENTS: AiAgent[] = [
 		/Aider\/[\d.]+ \+https:\/\/aider\.chat/
 	),
 	codingAgent("zed", "Zed", "Zed", /^Zed\/[\d.]+ \(/),
-	codingAgent("opencode", "OpenCode", "OpenCode", /^opencode$/),
+	OPENCODE_AGENT,
 	codingAgent("devin", "Cognition", "Devin", /\bDevin\/\d/),
 	codingAgent("v0", "Vercel", "v0", /\bv0bot\b/),
 	codingAgent("manus", "Manus", "Manus", /Manus-User/),
@@ -325,6 +332,10 @@ const NAMED_NON_AI_BOT_CATEGORIES = new Set<BotCategory>([
 	BotCategory.SOCIAL_MEDIA,
 ]);
 
+const WHITESPACE = /\s+/g;
+const OPENCODE_MARKDOWN_ACCEPT =
+	"text/markdown;q=1.0,text/x-markdown;q=0.9,text/plain;q=0.8,text/html;q=0.7,*/*;q=0.1";
+
 export interface AgentSignals {
 	accept?: string;
 	signatureAgent?: string;
@@ -345,6 +356,12 @@ export function identifyAiAgent(
 	const signed = signatureAgent ? matchSignedAgent(signatureAgent) : null;
 	if (signed) {
 		return signed;
+	}
+	if (
+		userAgent.startsWith("Mozilla/") &&
+		accept?.replace(WHITESPACE, "") === OPENCODE_MARKDOWN_ACCEPT
+	) {
+		return OPENCODE_AGENT;
 	}
 	return accept && isMarkdownFirstAccept(accept)
 		? unidentifiedAgent(userAgent)
