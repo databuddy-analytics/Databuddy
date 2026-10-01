@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
@@ -49,6 +50,7 @@ function LoadingSkeleton() {
 
 export default function WebsitesPage() {
 	const [dialogOpen, setDialogOpen] = useState(false);
+	const router = useRouter();
 	const { activeOrganization, isSwitchingOrganization } =
 		useOrganizationsContext();
 	const organizationName = activeOrganization?.name ?? "this organization";
@@ -156,6 +158,7 @@ export default function WebsitesPage() {
 
 			<WebsiteDialog
 				onOpenChange={setDialogOpen}
+				onSave={(site) => router.push(`/websites/${site.id}`)}
 				open={dialogOpen && !isSwitchingOrganization}
 			/>
 		</div>
