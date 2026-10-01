@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/server";
 import dayjs from "dayjs";
 import { z } from "zod";
 import { funnelStepSchema } from "@databuddy/rpc/funnel-steps";
@@ -41,6 +42,7 @@ import {
 import {
 	defineMcpTool,
 	metadataForResource,
+	type McpHandlerContext,
 	McpToolError,
 	type McpRequestContext,
 	type McpToolFactory,
@@ -1389,6 +1391,35 @@ const createFlagTool = defineMcpTool(
 	}
 );
 
+async function readFlag(id: string, ctx: McpHandlerContext) {
+	const rpcContext = buildRpcContext(ctx);
+	if (ctx.websiteId) {
+		try {
+			return await callRPCProcedure(
+				"flags",
+				"getById",
+				{ id, websiteId: ctx.websiteId },
+				rpcContext
+			);
+		} catch (error) {
+			if (!(error instanceof ORPCError && error.code === "NOT_FOUND")) {
+				throw error;
+			}
+		}
+	}
+	const organizationId =
+		ctx.websiteOrganizationId ?? (await resolveOrganizationId(ctx));
+	if (organizationId instanceof Error) {
+		throw new McpToolError("invalid_input", organizationId.message);
+	}
+	return callRPCProcedure(
+		"flags",
+		"getById",
+		{ id, organizationId },
+		{ ...rpcContext, organizationId }
+	);
+}
+
 const updateFlagTool = defineMcpTool(
 	{
 		name: "update_flag",
@@ -1414,7 +1445,7 @@ const updateFlagTool = defineMcpTool(
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
-		resolveWebsite: true,
+		resolveWebsite: "optional",
 		metadata: metadataForResource("flag", ["update"]),
 		annotations: IDEMPOTENT_WRITE,
 		ratelimit: { limit: 20, windowSec: 60 },
@@ -1430,15 +1461,7 @@ const updateFlagTool = defineMcpTool(
 		} = input;
 		const updates = omitUndefined(changes);
 		const rpcContext = buildRpcContext(ctx);
-		const current = pickFields(
-			await callRPCProcedure(
-				"flags",
-				"getById",
-				{ id, websiteId: getResolvedWebsiteId(ctx) },
-				rpcContext
-			),
-			FLAG_FIELDS
-		);
+		const current = pickFields(await readFlag(id, ctx), FLAG_FIELDS);
 		if (!confirmed || Object.keys(updates).length === 0) {
 			return updatePreview("feature flag", current, updates);
 		}
@@ -1471,7 +1494,7 @@ const addUsersToFlagTool = defineMcpTool(
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
-		resolveWebsite: true,
+		resolveWebsite: "optional",
 		metadata: metadataForResource("flag", ["update"]),
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
@@ -1488,14 +1511,7 @@ const addUsersToFlagTool = defineMcpTool(
 				status: FlagStatusSchema.optional(),
 			})
 			.passthrough()
-			.parse(
-				await callRPCProcedure(
-					"flags",
-					"getById",
-					{ id: input.flagId, websiteId: ctx.websiteId },
-					buildRpcContext(ctx)
-				)
-			);
+			.parse(await readFlag(input.flagId, ctx));
 		const currentRules = currentFlag.rules ?? [];
 		const nextRule = {
 			batch: true,

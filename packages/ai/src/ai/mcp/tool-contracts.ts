@@ -208,6 +208,7 @@ export const FLAG_FIELDS = [
 	"persistAcrossAuth",
 	"payload",
 	"targetGroupIds",
+	"targetGroups",
 	"updatedAt",
 ] as const;
 
