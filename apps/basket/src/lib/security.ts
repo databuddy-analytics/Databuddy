@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import { IMPORTED_VISITOR_PREFIX } from "@databuddy/db/clickhouse";
-import { cacheable } from "@databuddy/redis/cacheable";
 import { redis } from "@databuddy/redis/redis";
 import { captureError, record } from "@lib/tracing";
 import { sanitizeString, VALIDATION_LIMITS } from "@utils/validation";
@@ -121,43 +120,35 @@ function withDedupDeadline<T>(
 	});
 }
 
-function getCurrentDay(): number {
-	const MS_PER_DAY = 24 * 60 * 60 * 1000;
-	return Math.floor(Date.now() / MS_PER_DAY);
-}
-
-export const getDailySalt = cacheable(
-	(): Promise<string> =>
-		record("getDailySalt", async () => {
-			const saltKey = `salt:${getCurrentDay()}`;
-			try {
-				const salt = await redis.get(saltKey);
-				if (salt) {
-					return salt;
-				}
-
-				const newSalt = crypto.randomBytes(32).toString("hex");
-				const SALT_TTL = 60 * 60 * 24;
-				redis.setex(saltKey, SALT_TTL, newSalt).catch((error) => {
-					captureError(error, {
-						message: "Failed to set daily salt in Redis",
-					});
-				});
-				return newSalt;
-			} catch (error) {
-				captureError(error, {
-					message: "Failed to get daily salt from Redis",
-				});
-				return crypto.randomBytes(32).toString("hex");
+export function getDailySalt(): Promise<string> {
+	return record("getDailySalt", async () => {
+		const saltKey = `salt:${Math.floor(Date.now() / 86_400_000)}`;
+		try {
+			const salt = await redis.get(saltKey);
+			if (salt) {
+				return salt;
 			}
-		}),
-	{
-		expireInSec: 3600,
-		prefix: "daily_salt",
-		staleWhileRevalidate: true,
-		staleTime: 300,
-	}
-);
+
+			const newSalt = crypto.randomBytes(32).toString("hex");
+			const SALT_TTL = 60 * 60 * 24;
+			if (await redis.set(saltKey, newSalt, "EX", SALT_TTL, "NX")) {
+				return newSalt;
+			}
+			const winner = await redis.get(saltKey);
+			if (!winner) {
+				throw new Error("Daily salt missing after concurrent initialization");
+			}
+			return winner;
+		} catch (error) {
+			captureError(error, {
+				message: "Failed to resolve daily salt in Redis",
+			});
+			// ponytail: keep collection anonymous during Redis outages;
+			// shared visitor identity requires restoring the shared salt.
+			return crypto.randomBytes(32).toString("hex");
+		}
+	});
+}
 
 export function saltAnonymousId(anonymousId: string, salt: string): string {
 	try {
