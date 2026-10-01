@@ -138,7 +138,14 @@ const WebsiteSummarySchema = z.object({
 	isPublic: z.boolean().nullable(),
 });
 
-const FlagRuleSchema = userRuleSchema;
+const FlagRuleSchema = userRuleSchema.extend({
+	valuesTruncated: z
+		.never({
+			error:
+				"list_flags cuts long target lists. Copy rules from the update_flag preview (confirmed=false), which returns every target.",
+		})
+		.optional(),
+});
 const FlagVariantSchema = variantSchema;
 
 const FlagStatusSchema = flagFormShape.status;

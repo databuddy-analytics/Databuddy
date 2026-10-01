@@ -405,6 +405,28 @@ describe("MCP tool invariants", () => {
 				Number.POSITIVE_INFINITY
 			)
 		).toEqual({ rules: [{ batch: true, batchValues: users }] });
+
+		const [truncatedRule] = flag.rules as unknown[];
+		const fullRule = {
+			batch: true,
+			batchValues: users,
+			enabled: true,
+			operator: "in",
+			type: "email",
+		};
+		for (const name of ["create_flag", "update_flag"]) {
+			const tool = tools.find((candidate) => candidate.name === name);
+			if (!tool) {
+				throw new Error(`${name} tool is not registered`);
+			}
+			const input = { id: "flag-1", key: "flag_1", websiteId: "website-1" };
+			expect(
+				tool.inputSchema.safeParse({ ...input, rules: [truncatedRule] }).success
+			).toBe(false);
+			expect(
+				tool.inputSchema.safeParse({ ...input, rules: [fullRule] }).success
+			).toBe(true);
+		}
 	});
 
 	test("tool names are unique snake_case", () => {
