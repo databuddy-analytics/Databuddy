@@ -119,15 +119,10 @@ async function handleVerifiedOAuthRequest(
 
 function readTokenKeyId(token: string): string | null {
 	try {
-		const header: unknown = JSON.parse(
+		const { kid } = JSON.parse(
 			Buffer.from(token.split(".")[0] ?? "", "base64url").toString("utf8")
-		);
-		return header &&
-			typeof header === "object" &&
-			"kid" in header &&
-			typeof header.kid === "string"
-			? header.kid
-			: null;
+		) as { kid?: unknown };
+		return typeof kid === "string" ? kid : null;
 	} catch {
 		return null;
 	}
@@ -265,7 +260,6 @@ export const mcp = new Elysia({ name: "mcp" })
 				user: null,
 				apiKey: null,
 				oauthAccessToken,
-				isAuthenticated: false,
 				organizationId: null,
 			};
 		}
@@ -287,13 +281,12 @@ export const mcp = new Elysia({ name: "mcp" })
 			user,
 			apiKey,
 			oauthAccessToken: null,
-			isAuthenticated: Boolean(user ?? apiKey),
 			organizationId:
 				apiKey?.organizationId ?? session?.session.activeOrganizationId ?? null,
 		};
 	})
-	.onBeforeHandle(({ isAuthenticated, oauthAccessToken, set }) => {
-		if (!(isAuthenticated || oauthAccessToken)) {
+	.onBeforeHandle(({ user, apiKey, oauthAccessToken, set }) => {
+		if (!(user || apiKey || oauthAccessToken)) {
 			set.status = 401;
 			return createMcpUnauthorizedResponse();
 		}
