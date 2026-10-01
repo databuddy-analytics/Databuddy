@@ -19,8 +19,9 @@ export function proxy(request: NextRequest) {
 		pathname.startsWith(route)
 	);
 	const isAddingAccount = searchParams.get("add_account") === "true";
+	const isOAuthSignIn = searchParams.has("sig");
 
-	if (isSignInRoute && sessionCookie && !isAddingAccount) {
+	if (isSignInRoute && sessionCookie && !(isAddingAccount || isOAuthSignIn)) {
 		return NextResponse.redirect(new URL("/websites", request.url));
 	}
 

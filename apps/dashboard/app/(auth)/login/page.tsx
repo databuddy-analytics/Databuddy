@@ -3,7 +3,7 @@
 import { useAuthCapabilities } from "../auth-capabilities";
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
@@ -22,21 +22,46 @@ import {
 } from "@databuddy/ui";
 import { storeVerificationEmail } from "./verification-email-storage";
 
+const SIGNED_OAUTH_QUERY_PARAMS = ["sig", "exp", "ba_iat", "ba_pl", "ba_param"];
+const SIGN_IN_PROMPTS = new Set(["login", "create"]);
+const PROMPT_SEPARATOR = /\s+/;
+
+function oauthAuthorizePath(searchParams: URLSearchParams): string | null {
+	if (!searchParams.has("sig")) {
+		return null;
+	}
+	const authorizeParams = new URLSearchParams(searchParams);
+	for (const param of SIGNED_OAUTH_QUERY_PARAMS) {
+		authorizeParams.delete(param);
+	}
+	const prompt = authorizeParams
+		.get("prompt")
+		?.split(PROMPT_SEPARATOR)
+		.filter((value) => value && !SIGN_IN_PROMPTS.has(value))
+		.join(" ");
+	if (prompt) {
+		authorizeParams.set("prompt", prompt);
+	} else {
+		authorizeParams.delete("prompt");
+	}
+	return `/api/auth/oauth2/authorize?${authorizeParams.toString()}`;
+}
+
 function LoginPage() {
 	const capabilities = useAuthCapabilities();
 	const hasAlternatives =
 		capabilities.github || capabilities.google || capabilities.email;
 	const router = useRouter();
-	const [callback] = useQueryState(
-		"callback",
-		parseAsString.withDefault("/websites")
-	);
+	const searchParams = useSearchParams();
+	const [callback] = useQueryState("callback", parseAsString);
 	const [isLoading, setIsLoading] = useState(false);
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [showPassword, setShowPassword] = useState(false);
 	const isHydrated = useHydrated();
-	const safeCallback = safeCallbackPath(callback);
+	const safeCallback = safeCallbackPath(
+		callback ?? oauthAuthorizePath(searchParams)
+	);
 
 	const lastUsed = isHydrated ? authClient.getLastUsedLoginMethod() : null;
 	const callbackQuery = `?callback=${encodeURIComponent(safeCallback)}`;
