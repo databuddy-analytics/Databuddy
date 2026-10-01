@@ -18,6 +18,7 @@ import {
 	ensureWebsiteAccess,
 	type AuthorizedPrincipal,
 	resolveWebsiteId,
+	WebsiteSelectionError,
 	type WebsiteSelectorInput,
 } from "./tool-context";
 
@@ -375,20 +376,15 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					if (!optional || hasSelector) {
 						const resolvedId = await resolveWebsiteId(inputObj, ctx);
 						if (resolvedId instanceof Error) {
-							throw new McpToolError(resolvedId.code, resolvedId.message, {
-								hint: resolvedId.hint,
-							});
+							throw resolvedId;
 						}
 						const access = await ensureWebsiteAccess(resolvedId, ctx);
 						if (access instanceof Error) {
-							throw new McpToolError(access.code, access.message, {
-								hint: access.hint,
-							});
+							throw access;
 						}
 						handlerCtx.websiteId = resolvedId;
 						handlerCtx.websiteDomain = access.domain;
-						handlerCtx.websiteOrganizationId =
-							access.organizationId ?? undefined;
+						handlerCtx.websiteOrganizationId = access.organizationId;
 						mergeWideEvent({ mcp_website_id: resolvedId });
 					}
 				}
@@ -426,12 +422,14 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 				const toolError =
 					err instanceof McpToolError
 						? err
-						: err instanceof ORPCError
-							? fromORPCError(err, annotations.idempotentHint ?? false)
-							: new McpToolError(
-									"internal",
-									err instanceof Error ? err.message : "Unexpected error"
-								);
+						: err instanceof WebsiteSelectionError
+							? new McpToolError(err.code, err.message, { hint: err.hint })
+							: err instanceof ORPCError
+								? fromORPCError(err, annotations.idempotentHint ?? false)
+								: new McpToolError(
+										"internal",
+										err instanceof Error ? err.message : "Unexpected error"
+									);
 
 				if (toolError.code === "internal") {
 					captureError(err, { mcp_tool: meta.name });

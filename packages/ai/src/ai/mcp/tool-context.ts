@@ -59,7 +59,7 @@ const WEBSITE_LIST_HINT = "Website IDs come from list_websites.";
 
 interface WebsiteAccess {
 	domain: string;
-	organizationId: string | null;
+	organizationId: string;
 }
 
 function accessDenied(): WebsiteSelectionError {
@@ -107,55 +107,37 @@ export async function ensureWebsiteAccess(
 			WEBSITE_LIST_HINT
 		);
 	}
+	if (!website.organizationId) {
+		return accessDenied();
+	}
 
 	if (oauth) {
-		if (!website.organizationId) {
-			return accessDenied();
-		}
 		const role = await getMemberRole(oauth.user.id, website.organizationId);
 		if (!(role && roleHasPermission(role, "website", ["read"]))) {
 			return accessDenied();
 		}
-		return {
-			domain: website.domain ?? "unknown",
-			organizationId: website.organizationId,
-		};
-	}
-
-	if (apiKey) {
-		const hasWebsiteAccess = hasWebsiteScopeForOrganization(
-			apiKey,
-			website,
-			"read:data"
-		);
-		if (!hasWebsiteAccess) {
+	} else if (apiKey) {
+		if (!hasWebsiteScopeForOrganization(apiKey, website, "read:data")) {
 			return accessDenied();
 		}
-		return {
-			domain: website.domain ?? "unknown",
-			organizationId: website.organizationId,
-		};
-	}
-
-	if (!website.organizationId) {
-		return accessDenied();
-	}
-	try {
-		const permission = await websitesApi.hasPermission({
-			headers: principal.requestHeaders,
-			body: {
-				organizationId: website.organizationId,
-				permissions: { website: ["read"] },
-			},
-		});
-		if (!permission.success) {
-			return accessDenied();
+	} else {
+		try {
+			const permission = await websitesApi.hasPermission({
+				headers: principal.requestHeaders,
+				body: {
+					organizationId: website.organizationId,
+					permissions: { website: ["read"] },
+				},
+			});
+			if (!permission.success) {
+				return accessDenied();
+			}
+		} catch (error) {
+			if (isAuthRejection(error)) {
+				return accessDenied();
+			}
+			throw error;
 		}
-	} catch (error) {
-		if (isAuthRejection(error)) {
-			return accessDenied();
-		}
-		throw error;
 	}
 	return {
 		domain: website.domain ?? "unknown",
@@ -319,53 +301,39 @@ export async function resolveWebsiteId(
 export function resolveOrganizationId(
 	principal: RequestPrincipal
 ): string | WebsiteSelectionError {
-	if (principal.oauth?.grant.websiteIds) {
+	const { apiKey, oauth, organizationId } = principal;
+	if (oauth?.grant.websiteIds) {
 		return new WebsiteSelectionError(
 			"invalid_input",
 			"This connection is limited to selected websites, so organization-wide data, including organization-wide flags, is not available. Pass websiteId, websiteName, or websiteDomain from list_websites to use one of those websites."
 		);
 	}
-	if (principal.oauth) {
-		return principal.oauth.grant.organizationId;
+	if (oauth) {
+		return oauth.grant.organizationId;
 	}
-	if (principal.organizationId) {
-		if (
-			principal.apiKey &&
-			principal.apiKey.organizationId !== principal.organizationId
-		) {
+	if (apiKey) {
+		if (organizationId && apiKey.organizationId !== organizationId) {
 			return new WebsiteSelectionError(
 				"unauthorized",
 				"API key does not belong to the requested organization"
 			);
 		}
-		if (principal.apiKey && !hasKeyScope(principal.apiKey, "read:data")) {
-			return scopedApiKeyError();
-		}
-		return principal.organizationId;
+		return apiKey.organizationId && hasKeyScope(apiKey, "read:data")
+			? apiKey.organizationId
+			: new WebsiteSelectionError(
+					"invalid_input",
+					"Scoped API key requires a websiteId for org-level queries",
+					WEBSITE_LIST_HINT
+				);
 	}
-	if (principal.apiKey) {
-		return principal.apiKey.organizationId &&
-			hasKeyScope(principal.apiKey, "read:data")
-			? principal.apiKey.organizationId
-			: scopedApiKeyError();
-	}
-	if (principal.userId) {
-		return new WebsiteSelectionError(
-			"unauthorized",
-			"Session requests require an active organization"
-		);
+	if (organizationId) {
+		return organizationId;
 	}
 	return new WebsiteSelectionError(
 		"unauthorized",
-		"Could not determine organization"
-	);
-}
-
-function scopedApiKeyError(): WebsiteSelectionError {
-	return new WebsiteSelectionError(
-		"invalid_input",
-		"Scoped API key requires a websiteId for org-level queries",
-		WEBSITE_LIST_HINT
+		principal.userId
+			? "Session requests require an active organization"
+			: "Could not determine organization"
 	);
 }
 

@@ -235,9 +235,7 @@ const listInsightsTool = defineMcpTool(
 		const organizationId =
 			ctx.websiteOrganizationId ?? resolveOrganizationId(ctx);
 		if (organizationId instanceof Error) {
-			throw new McpToolError(organizationId.code, organizationId.message, {
-				hint: organizationId.hint,
-			});
+			throw organizationId;
 		}
 		const result = await runInvestigationAction(
 			{
@@ -279,9 +277,7 @@ const listInvestigationsTool = defineMcpTool(
 		const organizationId =
 			ctx.websiteOrganizationId ?? resolveOrganizationId(ctx);
 		if (organizationId instanceof Error) {
-			throw new McpToolError(organizationId.code, organizationId.message, {
-				hint: organizationId.hint,
-			});
+			throw organizationId;
 		}
 		const result = await runInvestigationAction(
 			{
@@ -1329,9 +1325,7 @@ function resolveFlagScope(ctx: McpHandlerContext): FlagScope {
 	}
 	const organizationId = resolveOrganizationId(ctx);
 	if (organizationId instanceof Error) {
-		throw new McpToolError(organizationId.code, organizationId.message, {
-			hint: organizationId.hint,
-		});
+		throw organizationId;
 	}
 	return {
 		notFoundHint:
