@@ -19,13 +19,12 @@ import { toast } from "sonner";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
 
-type EmailSettings = EmailNotificationSettingsOutput;
-type EmailAlertMode = EmailSettings["trackingHealth"]["mode"];
+type TrackingHealthSettings = EmailNotificationSettingsOutput["trackingHealth"];
 
 const TRACKING_MODES: Array<{
 	description: string;
 	label: string;
-	value: EmailAlertMode;
+	value: TrackingHealthSettings["mode"];
 }> = [
 	{
 		value: "critical_only",
@@ -44,20 +43,28 @@ const TRACKING_MODES: Array<{
 	},
 ];
 
-function toggleMutedReason<T extends string>(
-	values: T[],
-	value: T,
-	emailsEnabled: boolean
-): T[] {
-	if (emailsEnabled) {
-		return values.filter((item) => item !== value);
-	}
-	return values.includes(value) ? values : [...values, value];
-}
-
-function modeDescription(mode: EmailAlertMode): string {
-	return TRACKING_MODES.find((item) => item.value === mode)?.description ?? "";
-}
+const BLOCK_REASON_EMAILS: Array<{
+	description: string;
+	reason: TrackingHealthSettings["ignoredReasons"][number];
+	title: string;
+}> = [
+	{
+		reason: "origin_not_authorized",
+		title: "Domain mismatch emails",
+		description: "Origin does not match the website domain or allowed origins.",
+	},
+	{
+		reason: "origin_missing",
+		title: "Missing origin emails",
+		description:
+			"We received browser tracking requests without a website origin, so we could not verify the source domain.",
+	},
+	{
+		reason: "ip_not_authorized",
+		title: "IP allowlist emails",
+		description: "Request failed the website IP allowlist.",
+	},
+];
 
 function ToggleSetting({
 	checked,
@@ -68,7 +75,7 @@ function ToggleSetting({
 }: {
 	checked: boolean;
 	description: string;
-	disabled?: boolean;
+	disabled: boolean;
 	onChange: (checked: boolean) => void;
 	title: string;
 }) {
@@ -77,17 +84,26 @@ function ToggleSetting({
 			<Switch
 				checked={checked}
 				disabled={disabled}
-				onCheckedChange={(value) => onChange(Boolean(value))}
+				onCheckedChange={onChange}
 			/>
 		</SettingCard>
 	);
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function SettingSection({
+	children,
+	title,
+}: {
+	children: React.ReactNode;
+	title: string;
+}) {
 	return (
-		<Text className="px-1 pb-2" tone="muted" variant="caption">
-			{children}
-		</Text>
+		<div>
+			<Text className="px-1 pb-2" tone="muted" variant="caption">
+				{title}
+			</Text>
+			<SettingCardGroup>{children}</SettingCardGroup>
+		</div>
 	);
 }
 
@@ -95,20 +111,18 @@ export function EmailPreferencesCard() {
 	const queryClient = useQueryClient();
 	const { activeOrganization, activeOrganizationId, isSwitchingOrganization } =
 		useOrganizationsContext();
-	const settingsQuery =
+	const settingsQueryOptions =
 		orpc.organizations.getEmailNotificationSettings.queryOptions({
 			input: { organizationId: activeOrganizationId ?? undefined },
 		});
-
-	const { data: settings, isLoading } = useQuery({
-		...settingsQuery,
+	const { data: settings } = useQuery({
+		...settingsQueryOptions,
 		enabled: !!activeOrganizationId,
 	});
-	const updateMutation = useMutation({
-		...orpc.organizations.updateEmailNotificationSettings.mutationOptions(),
-	});
-
-	const disabled = updateMutation.isPending || !activeOrganizationId;
+	const updateMutation = useMutation(
+		orpc.organizations.updateEmailNotificationSettings.mutationOptions()
+	);
+	const isSaving = updateMutation.isPending;
 
 	const save = async (patch: EmailNotificationSettingsPatch) => {
 		if (!activeOrganizationId) {
@@ -119,7 +133,7 @@ export function EmailPreferencesCard() {
 				organizationId: activeOrganizationId,
 				settings: patch,
 			});
-			queryClient.setQueryData(settingsQuery.queryKey, updated);
+			queryClient.setQueryData(settingsQueryOptions.queryKey, updated);
 		} catch {
 			toast.error("Failed to update email preferences");
 		}
@@ -141,7 +155,7 @@ export function EmailPreferencesCard() {
 				</div>
 			</Card.Header>
 			<Card.Content className="space-y-5">
-				{isLoading || isSwitchingOrganization || !settings ? (
+				{isSwitchingOrganization || !settings ? (
 					<div className="space-y-3">
 						<Skeleton className="h-16 w-full rounded-xl" />
 						<Skeleton className="h-40 w-full rounded-xl" />
@@ -149,183 +163,134 @@ export function EmailPreferencesCard() {
 					</div>
 				) : (
 					<>
-						<div>
-							<SectionTitle>System</SectionTitle>
-							<SettingCardGroup>
-								<SettingCard
-									description="Login codes, verification, password reset, delete-account confirmation, and invitations."
-									title="Required account emails"
-								>
-									<Badge variant="success">Always on</Badge>
-								</SettingCard>
-							</SettingCardGroup>
-						</div>
+						<SettingSection title="System">
+							<SettingCard
+								description="Login codes, verification, password reset, delete-account confirmation, and invitations."
+								title="Required account emails"
+							>
+								<Badge variant="success">Always on</Badge>
+							</SettingCard>
+						</SettingSection>
 
-						<div>
-							<SectionTitle>Tracking health</SectionTitle>
-							<SettingCardGroup>
-								<SettingCard
-									description={modeDescription(settings.trackingHealth.mode)}
-									title="Tracking health emails"
-								>
-									<Select
-										disabled={disabled}
-										onValueChange={(value) =>
-											save({
-												trackingHealth: {
-													mode: TRACKING_MODES.find((m) => m.value === value)
-														?.value,
-												},
-											})
-										}
-										value={settings.trackingHealth.mode}
-									>
-										<Select.Trigger className="w-44" />
-										<Select.Content>
-											{TRACKING_MODES.map((mode) => (
-												<Select.Item key={mode.value} value={mode.value}>
-													{mode.label}
-												</Select.Item>
-											))}
-										</Select.Content>
-									</Select>
-								</SettingCard>
-
-								<SettingCard
-									description="These origins stay blocked; they just stop triggering emails."
-									expandable={
-										<Field>
-											<Field.Label>Muted origins</Field.Label>
-											<TagsInput
-												disabled={disabled}
-												onChange={(ignoredOrigins) =>
-													save({
-														trackingHealth: {
-															ignoredOrigins,
-														},
-													})
-												}
-												placeholder="example.com or *.example.com"
-												values={settings.trackingHealth.ignoredOrigins}
-											/>
-											<Field.Description>
-												Use this for OSS installs, preview domains, or hardcoded
-												public client IDs.
-											</Field.Description>
-										</Field>
-									}
-									title="Muted origins"
-								>
-									<Badge variant="muted">
-										{settings.trackingHealth.ignoredOrigins.length}
-									</Badge>
-								</SettingCard>
-
-								<ToggleSetting
-									checked={
-										!settings.trackingHealth.ignoredReasons.includes(
-											"origin_not_authorized"
-										)
-									}
-									description="Origin does not match the website domain or allowed origins."
-									disabled={disabled}
-									onChange={(checked) =>
+						<SettingSection title="Tracking health">
+							<SettingCard
+								description={
+									TRACKING_MODES.find(
+										(mode) => mode.value === settings.trackingHealth.mode
+									)?.description
+								}
+								title="Tracking health emails"
+							>
+								<Select
+									disabled={isSaving}
+									onValueChange={(value) =>
 										save({
 											trackingHealth: {
-												ignoredReasons: toggleMutedReason(
-													settings.trackingHealth.ignoredReasons,
-													"origin_not_authorized",
-													checked
-												),
+												mode: TRACKING_MODES.find(
+													(mode) => mode.value === value
+												)?.value,
 											},
 										})
 									}
-									title="Domain mismatch emails"
-								/>
-								<ToggleSetting
-									checked={
-										!settings.trackingHealth.ignoredReasons.includes(
-											"origin_missing"
-										)
-									}
-									description="We received browser tracking requests without a website origin, so we could not verify the source domain."
-									disabled={disabled}
-									onChange={(checked) =>
-										save({
-											trackingHealth: {
-												ignoredReasons: toggleMutedReason(
-													settings.trackingHealth.ignoredReasons,
-													"origin_missing",
-													checked
-												),
-											},
-										})
-									}
-									title="Missing origin emails"
-								/>
-								<ToggleSetting
-									checked={
-										!settings.trackingHealth.ignoredReasons.includes(
-											"ip_not_authorized"
-										)
-									}
-									description="Request failed the website IP allowlist."
-									disabled={disabled}
-									onChange={(checked) =>
-										save({
-											trackingHealth: {
-												ignoredReasons: toggleMutedReason(
-													settings.trackingHealth.ignoredReasons,
-													"ip_not_authorized",
-													checked
-												),
-											},
-										})
-									}
-									title="IP allowlist emails"
-								/>
-							</SettingCardGroup>
-						</div>
+									value={settings.trackingHealth.mode}
+								>
+									<Select.Trigger className="w-44" />
+									<Select.Content>
+										{TRACKING_MODES.map((mode) => (
+											<Select.Item key={mode.value} value={mode.value}>
+												{mode.label}
+											</Select.Item>
+										))}
+									</Select.Content>
+								</Select>
+							</SettingCard>
 
-						<div>
-							<SectionTitle>Other emails</SectionTitle>
-							<SettingCardGroup>
+							<SettingCard
+								description="These origins stay blocked; they just stop triggering emails."
+								expandable={
+									<Field>
+										<Field.Label>Muted origins</Field.Label>
+										<TagsInput
+											disabled={isSaving}
+											onChange={(ignoredOrigins) =>
+												save({ trackingHealth: { ignoredOrigins } })
+											}
+											placeholder="example.com or *.example.com"
+											values={settings.trackingHealth.ignoredOrigins}
+										/>
+										<Field.Description>
+											Use this for OSS installs, preview domains, or hardcoded
+											public client IDs.
+										</Field.Description>
+									</Field>
+								}
+								title="Muted origins"
+							>
+								<Badge variant="muted">
+									{settings.trackingHealth.ignoredOrigins.length}
+								</Badge>
+							</SettingCard>
+
+							{BLOCK_REASON_EMAILS.map(({ description, reason, title }) => (
 								<ToggleSetting
-									checked={settings.aiAgents.weeklyDigest}
-									description="Every Monday: which AI products read your sites, what they read, and who they sent to you."
-									disabled={disabled}
-									onChange={(weeklyDigest) =>
-										save({ aiAgents: { weeklyDigest } })
+									checked={
+										!settings.trackingHealth.ignoredReasons.includes(reason)
 									}
-									title="Weekly AI digest"
-								/>
-								<ToggleSetting
-									checked={settings.billing.usageWarnings}
-									description="Email when usage crosses your configured billing threshold."
-									disabled={disabled}
-									onChange={(usageWarnings) =>
-										save({ billing: { usageWarnings } })
+									description={description}
+									disabled={isSaving}
+									key={reason}
+									onChange={(isEnabled) =>
+										save({
+											trackingHealth: {
+												ignoredReasons: isEnabled
+													? settings.trackingHealth.ignoredReasons.filter(
+															(ignored) => ignored !== reason
+														)
+													: [...settings.trackingHealth.ignoredReasons, reason],
+											},
+										})
 									}
-									title="Billing usage warnings"
+									title={title}
 								/>
-								<ToggleSetting
-									checked={settings.uptime.downEmails}
-									description="Email when a monitor transitions down."
-									disabled={disabled}
-									onChange={(downEmails) => save({ uptime: { downEmails } })}
-									title="Monitor down emails"
-								/>
-								<ToggleSetting
-									checked={settings.uptime.recoveryEmails}
-									description="Email when a down monitor recovers."
-									disabled={disabled}
-									onChange={(recoveryEmails) =>
-										save({ uptime: { recoveryEmails } })
-									}
-									title="Monitor recovery emails"
-								/>
-							</SettingCardGroup>
-						</div>
+							))}
+						</SettingSection>
+
+						<SettingSection title="Other emails">
+							<ToggleSetting
+								checked={settings.aiAgents.weeklyDigest}
+								description="Every Monday: which AI products read your sites, what they read, and who they sent to you."
+								disabled={isSaving}
+								onChange={(weeklyDigest) =>
+									save({ aiAgents: { weeklyDigest } })
+								}
+								title="Weekly AI digest"
+							/>
+							<ToggleSetting
+								checked={settings.billing.usageWarnings}
+								description="Email when usage crosses your configured billing threshold."
+								disabled={isSaving}
+								onChange={(usageWarnings) =>
+									save({ billing: { usageWarnings } })
+								}
+								title="Billing usage warnings"
+							/>
+							<ToggleSetting
+								checked={settings.uptime.downEmails}
+								description="Email when a monitor transitions down."
+								disabled={isSaving}
+								onChange={(downEmails) => save({ uptime: { downEmails } })}
+								title="Monitor down emails"
+							/>
+							<ToggleSetting
+								checked={settings.uptime.recoveryEmails}
+								description="Email when a down monitor recovers."
+								disabled={isSaving}
+								onChange={(recoveryEmails) =>
+									save({ uptime: { recoveryEmails } })
+								}
+								title="Monitor recovery emails"
+							/>
+						</SettingSection>
 					</>
 				)}
 			</Card.Content>
