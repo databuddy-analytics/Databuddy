@@ -72,7 +72,8 @@ export function invalidFilterFieldError(
 }
 
 export async function resolveRequestTraitFilters(
-	request: QueryRequest
+	request: QueryRequest,
+	resolvedSegments?: Map<string, Promise<string[]>>
 ): Promise<QueryRequest> {
 	if (!hasTraitFilters(request.filters)) {
 		return request;
@@ -95,10 +96,21 @@ export async function resolveRequestTraitFilters(
 			"Trait filters must select rows, without target or having."
 		);
 	}
-	const segment = await resolveTraitSegment(
+	const segmentKey = JSON.stringify([
 		request.projectId,
-		traitFilters as TraitFilter[]
-	);
+		traitFilters
+			.map((filter) => JSON.stringify([filter.field, filter.op, filter.value]))
+			.sort(),
+	]);
+	let pendingSegment = resolvedSegments?.get(segmentKey);
+	if (!pendingSegment) {
+		pendingSegment = resolveTraitSegment(
+			request.projectId,
+			traitFilters as TraitFilter[]
+		);
+		resolvedSegments?.set(segmentKey, pendingSegment);
+	}
+	const segment = await pendingSegment;
 	return {
 		...request,
 		filters: [

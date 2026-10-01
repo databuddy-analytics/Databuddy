@@ -453,10 +453,11 @@ export async function executeBatch(
 	});
 
 	const traitFailures = new Map<number, BatchResult>();
+	const resolvedSegments = new Map<string, Promise<string[]>>();
 	const resolvedRequests = await Promise.all(
 		requests.map(async (req, index) => {
 			try {
-				return await resolveRequestTraitFilters(req);
+				return await resolveRequestTraitFilters(req, resolvedSegments);
 			} catch (e) {
 				const error = e instanceof Error ? e.message : "Trait filter failed";
 				mergeWideEvent({ query_error: truncateQueryErrorForLog(error) });
