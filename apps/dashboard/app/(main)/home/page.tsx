@@ -2,6 +2,7 @@
 
 import { useInfiniteQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
@@ -48,6 +49,7 @@ function WebsiteCardSkeleton() {
 
 export default function HomePage() {
 	const [dialogOpen, setDialogOpen] = useState(false);
+	const router = useRouter();
 	const { activeOrganization, activeOrganizationId } =
 		useOrganizationsContext();
 	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;
@@ -258,7 +260,11 @@ export default function HomePage() {
 				</div>
 			</div>
 
-			<WebsiteDialog onOpenChange={setDialogOpen} open={dialogOpen} />
+			<WebsiteDialog
+				onOpenChange={setDialogOpen}
+				onSave={(site) => router.push(`/websites/${site.id}`)}
+				open={dialogOpen}
+			/>
 		</div>
 	);
 }
