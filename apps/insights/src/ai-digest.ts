@@ -1,5 +1,6 @@
 import { aiActiveWebsitesQuery, executeQuery } from "@databuddy/ai/query";
 import {
+	aiDigestUnsubscribeToken,
 	and,
 	db,
 	eq,
@@ -86,6 +87,37 @@ function periodLabel({ from, to }: { from: string; to: string }): string {
 	return `${label(from, "short")} to ${label(to, toMonth)}`;
 }
 
+function unsubscribeHeaders(
+	organizationId: string,
+	settingsUrl: string
+): Record<string, string> {
+	const secret = process.env.DATABUDDY_ENCRYPTION_KEY;
+	const url = new URL(
+		"/public/v1/email-unsubscribe/ai-digest",
+		config.urls.api
+	);
+	if (!secret || url.protocol !== "https:") {
+		return { "List-Unsubscribe": `<${settingsUrl}>` };
+	}
+	url.searchParams.set("organization", organizationId);
+	url.searchParams.set(
+		"token",
+		aiDigestUnsubscribeToken(organizationId, secret)
+	);
+	return {
+		"List-Unsubscribe": `<${url}>`,
+		"List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+	};
+}
+
+function appUrl(path: string): string {
+	const url = new URL(`${config.urls.dashboard}${path}`);
+	url.searchParams.set("utm_source", "databuddy");
+	url.searchParams.set("utm_medium", "email");
+	url.searchParams.set("utm_campaign", "ai_digest");
+	return url.toString();
+}
+
 const logoUrl = (product: string | null) => {
 	const icon = aiProductIcon(product ?? "");
 	return icon ? `${config.urls.dashboard}/ai/email/${icon}.png` : undefined;
@@ -163,7 +195,7 @@ async function buildAiDigest(
 	}
 
 	return {
-		agentsUrl: `${config.urls.dashboard}/websites/${websiteId}/agents`,
+		agentsUrl: appUrl(`/websites/${websiteId}/agents`),
 		hasServerTracking: numberField(digest[0], "site_has_server_tracking") > 0,
 		landingPages: landing.map((row) => {
 			const [sender] = Array.isArray(row.senders) ? row.senders : [];
@@ -182,7 +214,7 @@ async function buildAiDigest(
 			logoUrl: logoUrl(product.name),
 		})),
 		reads,
-		settingsUrl: `${config.urls.dashboard}/settings/notifications`,
+		settingsUrl: appUrl("/settings/notifications"),
 		site: domain,
 		visitors,
 	};
@@ -214,6 +246,7 @@ export async function sendAiDigest({
 		.select({
 			domain: websites.domain,
 			emailNotifications: organization.emailNotifications,
+			organizationId: websites.organizationId,
 			ownerEmail: user.email,
 		})
 		.from(websites)
@@ -253,7 +286,7 @@ export async function sendAiDigest({
 		},
 		body: JSON.stringify({
 			from: config.email.from,
-			headers: { "List-Unsubscribe": `<${digest.settingsUrl}>` },
+			headers: unsubscribeHeaders(site.organizationId, digest.settingsUrl),
 			html,
 			subject: digestSubject(digest),
 			text,
