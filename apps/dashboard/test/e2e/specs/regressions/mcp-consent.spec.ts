@@ -114,4 +114,14 @@ test("approves only selected MCP access and resets websites when changing organi
 		accept: false,
 		oauth_query: oauthQuery.toString(),
 	});
+
+	const callbackURL = "https://example.com/callback?code=synthetic-code";
+	await page.route(callbackURL, (route) =>
+		route.fulfill({ contentType: "text/html", body: "Consent accepted" })
+	);
+	await page.route("**/api/auth/oauth2/consent", (route) =>
+		route.fulfill({ json: { redirect: true, url: callbackURL } })
+	);
+	await allow.click();
+	await expect(page).toHaveURL(callbackURL);
 });
