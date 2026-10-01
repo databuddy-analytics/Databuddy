@@ -93,7 +93,8 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 export function EmailPreferencesCard() {
 	const queryClient = useQueryClient();
-	const { activeOrganizationId } = useOrganizationsContext();
+	const { activeOrganization, activeOrganizationId, isSwitchingOrganization } =
+		useOrganizationsContext();
 	const settingsQuery =
 		orpc.organizations.getEmailNotificationSettings.queryOptions({
 			input: { organizationId: activeOrganizationId ?? undefined },
@@ -131,15 +132,16 @@ export function EmailPreferencesCard() {
 					<div>
 						<Card.Title>Email preferences</Card.Title>
 						<Card.Description>
-							Global defaults for this organization. Security emails are always
-							sent.
+							Global defaults for{" "}
+							{activeOrganization?.name ?? "this organization"}. Security emails
+							are always sent.
 						</Card.Description>
 					</div>
 					<Badge variant="muted">Global</Badge>
 				</div>
 			</Card.Header>
 			<Card.Content className="space-y-5">
-				{isLoading || !settings ? (
+				{isLoading || isSwitchingOrganization || !settings ? (
 					<div className="space-y-3">
 						<Skeleton className="h-16 w-full rounded-xl" />
 						<Skeleton className="h-40 w-full rounded-xl" />
