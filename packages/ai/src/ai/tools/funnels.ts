@@ -44,9 +44,7 @@ export function createFunnelTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to list funnels", { websiteId, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve funnels. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -81,9 +79,7 @@ export function createFunnelTools() {
 					endDate,
 					error,
 				});
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve funnel analytics. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -118,11 +114,7 @@ export function createFunnelTools() {
 					endDate,
 					error,
 				});
-				throw error instanceof Error
-					? error
-					: new Error(
-							"Failed to retrieve funnel analytics by referrer. Please try again."
-						);
+				throw error;
 			}
 		},
 	});
@@ -223,9 +215,7 @@ export function createFunnelTools() {
 					name,
 					error,
 				});
-				throw error instanceof Error
-					? error
-					: new Error("Failed to create funnel. Please try again.");
+				throw error;
 			}
 		},
 	});

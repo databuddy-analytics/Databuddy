@@ -86,9 +86,7 @@ export function createFlagTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to list flags", { websiteId, status, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve feature flags. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -154,9 +152,7 @@ export function createFlagTools() {
 					key: input.key,
 					error,
 				});
-				throw error instanceof Error
-					? error
-					: new Error("Failed to create feature flag. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -196,9 +192,7 @@ export function createFlagTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to update flag", { id, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to update feature flag. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -272,9 +266,7 @@ export function createFlagTools() {
 					userCount: uniqueUsers.length,
 					error,
 				});
-				throw error instanceof Error
-					? error
-					: new Error("Failed to update feature flag targeting.");
+				throw error;
 			}
 		},
 	});

@@ -79,9 +79,7 @@ export function createGoalTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to list goals", { websiteId, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve goals. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -116,9 +114,7 @@ export function createGoalTools() {
 					endDate,
 					error,
 				});
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve goal analytics. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -197,9 +193,7 @@ export function createGoalTools() {
 					name,
 					error,
 				});
-				throw error instanceof Error
-					? error
-					: new Error("Failed to create goal. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -256,9 +250,7 @@ export function createGoalTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to update goal", { id, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to update goal. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -292,9 +284,7 @@ export function createGoalTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to delete goal", { id, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to delete goal. Please try again.");
+				throw error;
 			}
 		},
 	});

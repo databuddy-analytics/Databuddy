@@ -80,9 +80,7 @@ export function createLinksTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to list link folders", { websiteId, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve link folders. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -123,9 +121,7 @@ export function createLinksTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to list links", { websiteId, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve links. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -255,9 +251,7 @@ export function createLinksTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to create link", { websiteId, name, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to create link. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -365,9 +359,7 @@ export function createLinksTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to update link", { id, websiteId, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to update link. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -410,9 +402,7 @@ export function createLinksTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to delete link", { id, websiteId, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to delete link. Please try again.");
+				throw error;
 			}
 		},
 	});
