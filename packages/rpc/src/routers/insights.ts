@@ -575,7 +575,6 @@ export async function appendInvestigationReply(
 		rawAuthorName === undefined
 			? undefined
 			: investigationReplyAuthorNameSchema.parse(rawAuthorName);
-	const id = parsed.replyId ?? randomUUIDv7();
 	const [insight] = await db
 		.select({
 			organizationId: analyticsInsights.organizationId,
@@ -602,6 +601,9 @@ export async function appendInvestigationReply(
 		websiteId: insight.websiteId,
 	});
 	setAuditOrganization(context, insight.organizationId);
+	const id = parsed.replyId
+		? `${insight.organizationId}_${parsed.replyId}`
+		: randomUUIDv7();
 
 	requireInvestigationAI();
 	const author = replyAuthor(context, authorName);

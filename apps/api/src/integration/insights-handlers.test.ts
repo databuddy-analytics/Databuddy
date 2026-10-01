@@ -1239,6 +1239,7 @@ describe("insight investigation timeline", () => {
 					acceptedPriceUsd: 1 as const,
 					replyId: randomUUIDv7(),
 				};
+				const storedReplyId = `${organization.id}_${input.replyId}`;
 				for (const acceptedPriceUsd of [undefined, 0, 2]) {
 					await expectBadReplyRequest(context, { ...input, acceptedPriceUsd });
 				}
@@ -1247,12 +1248,13 @@ describe("insight investigation timeline", () => {
 					await db()
 						.select()
 						.from(insightReplies)
-						.where(eq(insightReplies.id, input.replyId))
+						.where(eq(insightReplies.id, storedReplyId))
 				).toHaveLength(0);
 				expect(
-					await getInsightsQueue().getJob(insightsResumeJobId(input.replyId))
+					await getInsightsQueue().getJob(insightsResumeJobId(storedReplyId))
 				).toBeUndefined();
 				const first = await call(appRouter.insights.reply, context)(input);
+				expect(first.reply.id).toBe(storedReplyId);
 				const [stored] = await db()
 					.select()
 					.from(insightReplies)
@@ -1270,7 +1272,7 @@ describe("insight investigation timeline", () => {
 					await db()
 						.select()
 						.from(insightReplies)
-						.where(eq(insightReplies.id, input.replyId))
+						.where(eq(insightReplies.id, storedReplyId))
 				).toHaveLength(1);
 				const customerChecks = getCustomer.mock.calls.length;
 				for (const acceptedPriceUsd of [undefined, 0, 2]) {
@@ -1595,7 +1597,7 @@ describe("insight investigation timeline", () => {
 				authorId: null,
 				authorName: "MCP client",
 				body: input.body,
-				id: input.replyId,
+				id: `${organization.id}_${input.replyId}`,
 				insightId,
 			}),
 		]);
