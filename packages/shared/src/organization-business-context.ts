@@ -222,7 +222,10 @@ export const businessBriefSchema = z.object({
 			})
 		)
 		.max(BUSINESS_CONTEXT_PAGE_BUDGET),
-	detectedTools: z.array(z.enum(DETECTED_ANALYTICS_TOOLS)).max(8).optional(),
+	detectedTools: z
+		.array(z.enum(DETECTED_ANALYTICS_TOOLS))
+		.max(DETECTED_ANALYTICS_TOOLS.length)
+		.optional(),
 	suggestedGoals: z.array(businessSuggestedGoalSchema).max(4).optional(),
 	suggestedFunnels: z.array(businessSuggestedFunnelSchema).max(2).optional(),
 });
