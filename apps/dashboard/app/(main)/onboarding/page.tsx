@@ -6,8 +6,15 @@ import type {
 	BusinessSuggestedGoal,
 } from "@databuddy/shared/organization-business-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+	Suspense,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import { trackOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
 import {
@@ -39,8 +46,13 @@ import { INTENT_OPTIONS } from "./_components/what-matters";
 
 const TRACKING_POLL_MS = 5000;
 
-export default function OnboardingPage() {
+function newSetupSession(): string {
+	return crypto.randomUUID().replaceAll("-", "").slice(0, 16);
+}
+
+function OnboardingFlow() {
 	const router = useRouter();
+	const requestedWebsiteId = useSearchParams().get("website");
 	const billing = useBillingContext();
 	const investigations = useInvestigationUsage();
 	const billingPending = billing.isLoading || billing.isFetching;
@@ -77,6 +89,7 @@ export default function OnboardingPage() {
 		null
 	);
 	const [trackingCopied, setTrackingCopied] = useState(false);
+	const [setupSession] = useState(newSetupSession);
 	const [trackingSkipped, setTrackingSkipped] = useState(false);
 	const [priority, setPriority] = useState("");
 	const [intent, setIntent] = useState<OnboardingIntent | null>(null);
@@ -86,7 +99,8 @@ export default function OnboardingPage() {
 			readOnboardingAttribution()
 		);
 
-	const existingWebsite = websites[0];
+	const existingWebsite =
+		websites.find((item) => item.id === requestedWebsiteId) ?? websites[0];
 	const website = useMemo<SetupWebsite | null>(
 		() =>
 			createdWebsite ??
@@ -113,6 +127,19 @@ export default function OnboardingPage() {
 		staleTime: 0,
 	});
 	const trackingSetup = trackingQuery.data?.tracking_setup ?? false;
+
+	const agentProgressQuery = useQuery({
+		...orpc.websites.agentInstallProgress.queryOptions({
+			input: { websiteId: websiteId ?? "", setupSession },
+		}),
+		enabled: websiteId !== null && trackingCopied && !trackingSetup,
+		meta: { suppressGlobalErrorToast: true },
+		refetchInterval: ({ state }) =>
+			state.data?.status === "success" || state.data?.status === "failed"
+				? false
+				: TRACKING_POLL_MS,
+		staleTime: 0,
+	});
 
 	useEffect(() => {
 		if (startedRef.current) {
@@ -330,6 +357,7 @@ export default function OnboardingPage() {
 
 	return (
 		<SetupChecklist
+			agentProgress={agentProgressQuery.data ?? null}
 			creating={createWebsite.isPending}
 			finish={
 				websiteId
@@ -371,6 +399,7 @@ export default function OnboardingPage() {
 			research={research.research}
 			saveError={research.saveError}
 			saving={research.saving}
+			setupSession={setupSession}
 			suggestions={{
 				created: createdSuggestions,
 				creating: creatingSuggestion,
@@ -382,5 +411,13 @@ export default function OnboardingPage() {
 			trackingSkipped={trackingSkipped}
 			website={website}
 		/>
+	);
+}
+
+export default function OnboardingPage() {
+	return (
+		<Suspense fallback={null}>
+			<OnboardingFlow />
+		</Suspense>
 	);
 }
