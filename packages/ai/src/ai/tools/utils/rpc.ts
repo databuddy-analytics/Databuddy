@@ -137,11 +137,12 @@ export async function callRPCProcedure(
 		}
 
 		if (error instanceof Error) {
+			const message = messageWithoutQueryParams(error);
 			logger.error("RPC call error", {
 				procedure: `${routerName}.${method}`,
-				error: messageWithoutQueryParams(error),
+				error: message,
 			});
-			throw error;
+			throw "params" in error ? new Error(message) : error;
 		}
 
 		logger.error("Unknown error in RPC call", {
