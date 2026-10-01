@@ -4,7 +4,6 @@ import { useAuthCapabilities } from "../auth-capabilities";
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { GithubMark, GoogleMark } from "@/components/ui/brand-icons";
@@ -54,7 +53,7 @@ function LoginPage() {
 		capabilities.github || capabilities.google || capabilities.email;
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const [callback] = useQueryState("callback", parseAsString);
+	const callback = searchParams.get("callback");
 	const [isLoading, setIsLoading] = useState(false);
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");

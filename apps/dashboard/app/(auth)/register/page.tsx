@@ -5,7 +5,7 @@ import { isSelfHosted } from "@databuddy/env/public";
 
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
-import { parseAsString, useQueryState } from "nuqs";
+import { useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { trackOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
@@ -41,11 +41,8 @@ import {
 function RegisterPageContent() {
 	const capabilities = useAuthCapabilities();
 	const hasSocialLogin = capabilities.github || capabilities.google;
-	const [selectedPlan] = useQueryState("plan", parseAsString);
-	const [callback] = useQueryState(
-		"callback",
-		parseAsString.withDefault("/websites")
-	);
+	const [selectedPlan] = useQueryState("plan");
+	const [callback] = useQueryState("callback");
 	const safeCallback = safeCallbackPath(callback);
 	const [isLoading, setIsLoading] = useState(false);
 	const [formData, setFormData] = useState({
