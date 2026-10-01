@@ -1,59 +1,22 @@
 ---
 title: Pulumi
-description: Manage Databuddy uptime monitors and status pages from a Pulumi TypeScript or JavaScript program
+description: Manage Databuddy uptime monitors and status pages from Pulumi
 ---
 
-import { Callout, Card, Cards, CodeBlock, Step, Steps } from "@/components/docs";
+import { Card, Cards, CodeBlock } from "@/components/docs";
 
-Declare your uptime monitors and status pages next to the services they watch. `pulumi preview` shows exactly what will change, and `pulumi up` applies it.
-
-<Callout type="info">
-  **Package**: `@databuddy/pulumi` | **Requires**: Pulumi CLI and
-  `@pulumi/pulumi` 3.216 or newer, Pulumi's `nodejs` runtime
-</Callout>
+Manage uptime monitors and status pages from a Pulumi TypeScript or JavaScript program. Requires Pulumi 3.216 or newer and the `nodejs` runtime.
 
 ## Setup
 
-<Steps>
-<Step>
-
-### Install the package
-
 <CodeBlock language="bash">
-  {`npm install @databuddy/pulumi`}
+  {`npm install @databuddy/pulumi
+pulumi config set --secret databuddy:apiKey dbdy_...`}
 </CodeBlock>
 
-The provider runs in TypeScript and JavaScript programs, CommonJS or ESM. Bun works as the package manager, but Pulumi can't run dynamic providers under `runtime: bun`, so keep `runtime: nodejs` in `Pulumi.yaml`.
+Create the key in [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys) with `read:monitors`, `write:monitors`, `read:status_pages`, and `write:status_pages`. Resources are created in the key's organization.
 
-</Step>
-<Step>
-
-### Create an API key
-
-Open [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys) and create a key with these scopes:
-
-- `read:monitors`
-- `write:monitors`
-- `read:status_pages`
-- `write:status_pages`
-
-Monitors and status pages are created in the key's organization.
-
-</Step>
-<Step>
-
-### Add the key to your stack
-
-<CodeBlock language="bash">
-  {`pulumi config set --secret databuddy:apiKey dbdy_...`}
-</CodeBlock>
-
-Pulumi encrypts the key in your stack config. In CI you can export `DATABUDDY_API_KEY` instead.
-
-</Step>
-</Steps>
-
-## Quick Start
+## Example
 
 <CodeBlock language="tsx">
   {`import * as pulumi from "@pulumi/pulumi";
@@ -61,109 +24,83 @@ import { StatusPage, StatusPageMonitor, UptimeMonitor } from "@databuddy/pulumi"
 
 const api = new UptimeMonitor("api", {
   url: "https://api.example.com/health",
-  name: "API",
   granularity: "minute",
 });
 
 const status = new StatusPage("status", {
   name: "Example",
   slug: \`acme-\${pulumi.getStack()}\`,
-  theme: "dark",
 });
 
 new StatusPageMonitor("api-on-status", {
   statusPageId: status.id,
   monitorId: api.id,
   displayName: "API",
-  hideUrl: true,
 });`}
 </CodeBlock>
 
-Run `pulumi up` and the monitor starts checking, the status page goes live, and the API shows up on it. Replace `acme` with your own name: status page slugs are unique across every Databuddy account.
+Status page slugs are unique across all Databuddy accounts, so prefix them with your own name.
 
 ## Resources
 
-### UptimeMonitor
+All arguments are also available as outputs.
 
-Checks a URL on a schedule and records status, latency, and SSL details. See [Uptime Monitoring](/docs/uptime) for what each check measures.
+### UptimeMonitor
 
 | Argument | Type | Default | Description |
 |----------|------|---------|-------------|
 | `url` | `string` | Required | `http` or `https` URL to check. Changing it replaces the monitor |
-| `granularity` | `string` | Required | How often to check: `minute`, `five_minutes`, `ten_minutes`, `thirty_minutes`, `hour`, `six_hours`, `twelve_hours`, or `day` |
-| `name` | `string` | - | Name shown in the dashboard and on status pages |
-| `timeout` | `number` | - | Request timeout in milliseconds, from `1000` to `120000` |
-| `cacheBust` | `boolean` | `false` | Add a cache-busting query parameter to every check |
+| `granularity` | `string` | Required | `minute`, `five_minutes`, `ten_minutes`, `thirty_minutes`, `hour`, `six_hours`, `twelve_hours`, or `day` |
+| `name` | `string` | - | Shown in the dashboard and on status pages |
+| `timeout` | `number` | - | Request timeout in ms, `1000` to `120000` |
+| `cacheBust` | `boolean` | `false` | Add a random query parameter to every check |
 | `paused` | `boolean` | `false` | Stop checking without deleting the monitor |
-| `websiteId` | `string` | - | Link the monitor to a tracked website. Changing it replaces the monitor |
-
-Every argument is also available as an output, along with the monitor's `id`.
+| `websiteId` | `string` | - | Link to a tracked website. Changing it replaces the monitor |
 
 ### StatusPage
 
-A public, branded status page.
-
 | Argument | Type | Default | Description |
 |----------|------|---------|-------------|
-| `name` | `string` | Required | Page title, up to 120 characters |
-| `slug` | `string` | Required | URL slug: lowercase letters, numbers, and dashes, up to 100 characters. Unique across every Databuddy account |
-| `description` | `string` | - | Short description, up to 500 characters |
-| `logoUrl` | `string` | - | `https` URL of your logo |
-| `faviconUrl` | `string` | - | `https` URL of your favicon |
-| `websiteUrl` | `string` | - | `https` link back to your site |
-| `supportUrl` | `string` | - | `https` link to your support page |
+| `name` | `string` | Required | Up to 120 characters |
+| `slug` | `string` | Required | Lowercase letters, numbers, and dashes, up to 100 characters |
+| `description` | `string` | - | Up to 500 characters |
+| `logoUrl` | `string` | - | `https` URL |
+| `faviconUrl` | `string` | - | `https` URL |
+| `websiteUrl` | `string` | - | `https` URL |
+| `supportUrl` | `string` | - | `https` URL |
 | `theme` | `string` | `system` | `system`, `light`, or `dark` |
 
-Outputs include every argument plus `organizationId`.
+Also exports `organizationId`.
 
 ### StatusPageMonitor
 
-Puts a monitor on a status page and controls how it is shown.
-
 | Argument | Type | Default | Description |
 |----------|------|---------|-------------|
-| `statusPageId` | `string` | Required | The status page. Changing it moves the entry |
-| `monitorId` | `string` | Required | The monitor to show. Changing it swaps the entry |
-| `displayName` | `string` | Monitor name | Name shown on the page, up to 120 characters |
-| `order` | `number` | `0` | Position on the page, lowest first |
-| `hideUrl` | `boolean` | `false` | Hide the monitored URL |
+| `statusPageId` | `string` | Required | Changing it replaces the entry |
+| `monitorId` | `string` | Required | Changing it replaces the entry |
+| `displayName` | `string` | Monitor name | Up to 120 characters |
+| `order` | `number` | `0` | Lowest first |
+| `hideUrl` | `boolean` | `false` | Hide the monitor URL |
 | `hideUptimePercentage` | `boolean` | `false` | Hide the uptime percentage |
 | `hideLatency` | `boolean` | `false` | Hide response times |
 
-## Dashboard Edits and Drift
+## Dashboard Edits
 
-Your program is the source of truth. If someone edits a monitor or status page in the dashboard:
-
-- `pulumi refresh` (or `pulumi up --refresh`) shows the change
-- The next `pulumi up` puts it back to what your code says
-
-To let the dashboard own a field, list it in `ignoreChanges`. For example, so on-call can pause a monitor during an incident without the next deploy resuming it:
+`pulumi refresh` picks up changes made in the dashboard, and the next `pulumi up` reverts them. To let the dashboard own a field, ignore it:
 
 <CodeBlock language="tsx">
   {`new UptimeMonitor(
   "checkout",
-  { url: "https://shop.example.com/checkout", granularity: "minute" },
+  { url: "https://shop.example.com", granularity: "minute" },
   { ignoreChanges: ["paused"] }
 );`}
 </CodeBlock>
 
-## Replacements
+## Replacements and Renames
 
-Some changes can't be made in place, so Pulumi creates a new resource and removes the old one:
+A replaced monitor starts a new check history, and dashboard alerts need to be pointed at it again.
 
-- **Monitor `url` or `websiteId`**: the new monitor starts with a fresh check history. Point any dashboard alerts at the new monitor, and re-add status page entries that were created in the dashboard rather than in code. Pulumi creates the new monitor first unless it keeps the same URL or website, which have to be freed before they can be reused.
-- **`StatusPageMonitor` page or monitor**: the entry is recreated, and incidents that listed it stop showing it.
-
-`pulumi preview` marks these as `replace`, so you see them before anything changes.
-
-## Uniqueness
-
-- Status page slugs are unique across every Databuddy account
-- Within an organization, monitor URLs are unique and a website can have only one monitor
-
-If several stacks share an organization, give each one its own slugs, URLs, and websites. A URL or slug has to be released in one `pulumi up` before another resource can take it in the next.
-
-When you rename a resource or move it under a parent, add `aliases` so Pulumi updates the existing monitor or page instead of trying to create a second one with the same URL or slug:
+Monitor URLs are unique per organization and slugs are unique across all accounts, so renaming a resource without `aliases` fails with a conflict:
 
 <CodeBlock language="tsx">
   {`new UptimeMonitor(
@@ -173,21 +110,16 @@ When you rename a resource or move it under a parent, add `aliases` so Pulumi up
 );`}
 </CodeBlock>
 
-## Running in CI
-
-Store the key as a CI secret and pass it to the step that runs `pulumi`. In GitHub Actions:
+## CI
 
 <CodeBlock language="yaml">
-  {`- name: Deploy
-  run: pulumi up --yes --stack prod
+  {`- run: pulumi up --yes --stack prod
   env:
     PULUMI_ACCESS_TOKEN: \${{ secrets.PULUMI_ACCESS_TOKEN }}
     DATABUDDY_API_KEY: \${{ secrets.DATABUDDY_API_KEY }}`}
 </CodeBlock>
 
-`DATABUDDY_API_KEY` and `DATABUDDY_API_URL` are read from the environment of the `pulumi` process (your shell, CI job, or Automation API `envVars`), not from variables set inside your program.
-
-Requests run at most 8 at a time and retry automatically when the API is rate limiting, so large stacks stay within your key's [rate limits](/docs/api/rate-limits).
+Set environment variables on the `pulumi` process, not inside your program.
 
 ## Configuration
 
@@ -196,32 +128,22 @@ Requests run at most 8 at a time and retry automatically when the API is rate li
 | API key | `databuddy:apiKey` | `DATABUDDY_API_KEY` | Required |
 | API URL | `databuddy:apiUrl` | `DATABUDDY_API_URL` | `https://api.databuddy.cc` |
 
-Stack config wins when both are set. Point `databuddy:apiUrl` at your own API if you self-host Databuddy.
-
-## Limitations
-
-- **No import**: monitors and status pages that already exist in the dashboard can't be adopted. Delete them there and let Pulumi create them, or leave them out of code.
-- **TypeScript and JavaScript only**: other Pulumi languages are [coming soon](/docs/infrastructure-as-code).
+Stack config takes precedence. The API URL must use HTTPS unless it points at `localhost`. Monitors and status pages that already exist in the dashboard can't be imported.
 
 ## Troubleshooting
 
 | Error | Fix |
 |-------|-----|
-| `Missing Databuddy API key` | Run `pulumi config set --secret databuddy:apiKey <key>` with Pulumi 3.216 or newer, or export `DATABUDDY_API_KEY` before running `pulumi` |
-| `API key missing required scope` | Add the four monitor and status page scopes to the key |
-| `Monitor already exists for this URL` | Another stack or a dashboard monitor uses this URL. If you renamed the resource, add `aliases` |
-| `This website already has a monitor` | Each website can have one monitor. Remove the other one or drop `websiteId` |
-| `Slug is already taken` | Status page slugs are unique across every account. Pick another one |
-| `was redirected ... Set databuddy:apiUrl` | `databuddy:apiUrl` points at a URL that redirects. Use the API's final URL |
-| `Function serialization is not supported when using bun` | Set `runtime: nodejs` in `Pulumi.yaml` |
-| `fetch failed` behind a corporate proxy | Export `NODE_USE_ENV_PROXY=1` (Node 22.21 or newer) with `HTTPS_PROXY`. Behind TLS inspection, export `NODE_EXTRA_CA_CERTS` with your CA bundle |
+| `Missing Databuddy API key` | Set `databuddy:apiKey` or `DATABUDDY_API_KEY` |
+| `API key missing required scope` | Add the four monitor and status page scopes |
+| `already exists` or `already taken` | The URL, website, or slug is in use elsewhere. After a rename, add `aliases` |
+| `was redirected` | Set `databuddy:apiUrl` to the API's final URL |
+| `Function serialization is not supported when using bun` | Use `runtime: nodejs` |
+| `fetch failed` behind a proxy | Export `NODE_USE_ENV_PROXY=1` (Node 22.21+) with `HTTPS_PROXY`, or `NODE_EXTRA_CA_CERTS` for TLS inspection |
 
 ## What's Next?
 
 <Cards>
-  <Card title="Infrastructure as Code" href="/docs/infrastructure-as-code">
-    See which tools and resources are available and coming soon
-  </Card>
   <Card title="Uptime Monitoring" href="/docs/uptime">
     How monitors, alerts, and status pages work
   </Card>
