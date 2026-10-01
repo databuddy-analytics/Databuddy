@@ -16,6 +16,7 @@ import {
 	createRPCContext,
 } from "@databuddy/rpc";
 import { getAutumn } from "@databuddy/rpc/autumn";
+import { API_SCOPES } from "@databuddy/shared/api-scopes";
 import {
 	closeInsightsQueue,
 	getInsightsQueue,
@@ -1801,6 +1802,44 @@ describe("insight investigation timeline", () => {
 				"FORBIDDEN"
 			);
 			expect(await db().select().from(insightReplies)).toHaveLength(0);
+		}
+	);
+});
+
+describe("MCP OAuth workspace writes", () => {
+	iit(
+		"rejects a confirmed create_goal from an OAuth viewer and writes nothing",
+		async () => {
+			const viewer = await signUp();
+			const organization = await insertOrganization();
+			await addToOrganization(viewer.id, organization.id, "viewer");
+			const website = await insertWebsite({ organizationId: organization.id });
+			const createGoal = createMcpTools({
+				apiKey: null,
+				oauthGrant: { organizationId: organization.id, websiteIds: null },
+				oauthScopes: [...API_SCOPES],
+				oauthUserId: viewer.id,
+				organizationId: organization.id,
+				requestHeaders: new Headers(),
+				userId: viewer.id,
+			}).find((tool) => tool.name === "create_goal");
+
+			const result = await createGoal?.handler({
+				confirmed: true,
+				name: "Signup",
+				target: "/signup",
+				type: "PAGE_VIEW",
+				websiteId: website.id,
+			});
+
+			expect(result?.isError).toBe(true);
+			expect(result?.content[0]).toMatchObject({
+				type: "text",
+				text: expect.stringContaining('"code":"unauthorized"'),
+			});
+			expect(
+				await db().select().from(goals).where(eq(goals.websiteId, website.id))
+			).toEqual([]);
 		}
 	);
 });
