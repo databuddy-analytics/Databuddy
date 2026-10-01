@@ -10,22 +10,20 @@ import { config } from "@databuddy/env/app";
 import { escapeHTML } from "bun";
 import { Elysia, t } from "elysia";
 
-function settingsLink(organizationId: string): string {
-	const url = new URL("/settings/notifications", config.urls.dashboard);
-	url.searchParams.set("organization", organizationId);
-	return `<a href="${escapeHTML(url.toString())}">Email settings</a>`;
-}
-
 const unsubscribeQuery = t.Object({
 	organization: t.String({ maxLength: 128, minLength: 1 }),
 	token: t.String({ maxLength: 128, minLength: 1 }),
 });
 
-function hasValidToken(organizationId: string, token: string): boolean {
+function isValidToken(organizationId: string, token: string): boolean {
 	const secret = process.env.DATABUDDY_ENCRYPTION_KEY;
-	return Boolean(
-		secret && isAiDigestUnsubscribeToken(organizationId, token, secret)
-	);
+	return !!secret && isAiDigestUnsubscribeToken(organizationId, token, secret);
+}
+
+function emailSettingsLink(organizationId: string): string {
+	const url = new URL("/settings/notifications", config.urls.dashboard);
+	url.searchParams.set("organization", organizationId);
+	return `<a href="${escapeHTML(url.toString())}">Email settings</a>`;
 }
 
 function htmlPage(status: number, title: string, content: string): Response {
@@ -69,7 +67,7 @@ function invalidLinkPage(organizationId: string): Response {
 	return htmlPage(
 		403,
 		"This link is not valid",
-		`<p>Turn off the weekly AI digest in ${settingsLink(organizationId)} instead.</p>`
+		`<p>Turn off the weekly AI digest in ${emailSettingsLink(organizationId)} instead.</p>`
 	);
 }
 
@@ -84,7 +82,7 @@ export const emailUnsubscribeRoute = new Elysia({
 				email_unsubscribe_organization: query.organization,
 			});
 
-			if (!hasValidToken(query.organization, query.token)) {
+			if (!isValidToken(query.organization, query.token)) {
 				mergeWideEvent({ email_unsubscribe_rejected: "invalid_token" });
 				return invalidLinkPage(query.organization);
 			}
@@ -97,7 +95,7 @@ export const emailUnsubscribeRoute = new Elysia({
       <input type="hidden" name="List-Unsubscribe" value="One-Click">
       <button type="submit">Unsubscribe</button>
     </form>
-    <p>Manage your other emails in ${settingsLink(query.organization)}.</p>`
+    <p>Manage your other emails in ${emailSettingsLink(query.organization)}.</p>`
 			);
 		},
 		{ query: unsubscribeQuery }
@@ -111,30 +109,30 @@ export const emailUnsubscribeRoute = new Elysia({
 			});
 			const wantsHtml = request.headers.get("accept")?.includes("text/html");
 
-			if (hasValidToken(query.organization, query.token)) {
-				await db
-					.update(organization)
-					.set({
-						emailNotifications: mergeEmailNotificationSettings({
-							aiAgents: { weeklyDigest: false },
-						}),
-					})
-					.where(eq(organization.id, query.organization));
-				return wantsHtml
-					? htmlPage(
-							200,
-							"You are unsubscribed",
-							`<p>The weekly AI digest is off for every site in this organization. Turn it back on any time in ${settingsLink(query.organization)}.</p>`
-						)
-					: { success: true };
+			if (!isValidToken(query.organization, query.token)) {
+				mergeWideEvent({ email_unsubscribe_rejected: "invalid_token" });
+				if (wantsHtml) {
+					return invalidLinkPage(query.organization);
+				}
+				set.status = 403;
+				return { success: false };
 			}
 
-			mergeWideEvent({ email_unsubscribe_rejected: "invalid_token" });
-			if (wantsHtml) {
-				return invalidLinkPage(query.organization);
-			}
-			set.status = 403;
-			return { success: false };
+			await db
+				.update(organization)
+				.set({
+					emailNotifications: mergeEmailNotificationSettings({
+						aiAgents: { weeklyDigest: false },
+					}),
+				})
+				.where(eq(organization.id, query.organization));
+			return wantsHtml
+				? htmlPage(
+						200,
+						"You are unsubscribed",
+						`<p>The weekly AI digest is off for every site in this organization. Turn it back on any time in ${emailSettingsLink(query.organization)}.</p>`
+					)
+				: { success: true };
 		},
 		{
 			body: t.Object({ "List-Unsubscribe": t.Literal("One-Click") }),
