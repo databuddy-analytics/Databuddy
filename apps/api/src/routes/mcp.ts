@@ -17,6 +17,7 @@ import { createMcpProtectedRequestHandler } from "@better-auth/mcp";
 import { Elysia } from "elysia";
 import { MCP_PATHS, rejectUnsupportedMcpMethod } from "@/http/cors";
 import { getResolvedAuth } from "@/lib/auth-wide-event";
+import { ApiKeyInFlightGate } from "@/middleware/api-key-rate-limit";
 
 const BEARER_TOKEN_RE = /^bearer\s+(\S+)$/i;
 const SIGNING_KEYS_URL = `${config.urls.authorizationServer}/jwks`;
@@ -37,6 +38,8 @@ let signingKeyIds: SigningKeyIds = {
 	reachable: true,
 };
 let signingKeyIdsRefresh: Promise<SigningKeyIds> | null = null;
+
+const oauthInFlight = new ApiKeyInFlightGate();
 
 function createOAuthMcpRequestHandler() {
 	try {
@@ -83,16 +86,29 @@ async function handleVerifiedOAuthRequest(
 		user_id: subject,
 		organization_id: authorization.grant.organizationId,
 	});
-	return handleDatabuddyMcpRequest({
-		request,
-		requestHeaders: request.headers,
-		userId: subject,
-		oauthScopes: authorization.scopes,
-		oauthGrant: authorization.grant,
-		oauthUserId: subject,
-		apiKey: null,
-		organizationId: authorization.grant.organizationId,
-	});
+	if (!oauthInFlight.tryAcquire(request, `${subject}:${clientId}`)) {
+		mergeWideEvent({ mcp_rate_limited: true });
+		return createMcpErrorResponse(
+			429,
+			-32_000,
+			"Too many concurrent requests for this connection. Retry shortly.",
+			{ "Retry-After": "1" }
+		);
+	}
+	try {
+		return await handleDatabuddyMcpRequest({
+			request,
+			requestHeaders: request.headers,
+			userId: subject,
+			oauthScopes: authorization.scopes,
+			oauthGrant: authorization.grant,
+			oauthUserId: subject,
+			apiKey: null,
+			organizationId: authorization.grant.organizationId,
+		});
+	} finally {
+		oauthInFlight.release(request);
+	}
 }
 
 function readOAuthAccessToken(headers: Headers): string | null {
