@@ -15,6 +15,7 @@ import { ORPCError } from "@orpc/server";
 import type { z } from "zod";
 import { trackAgentEvent } from "../../lib/databuddy";
 import { captureError, mergeWideEvent } from "../../lib/tracing";
+import { formatValidationIssues } from "../tools/utils/rpc";
 import {
 	ensureWebsiteAccess,
 	loadOAuthUser,
@@ -211,15 +212,6 @@ function fromORPCError(error: ORPCError<string, unknown>): McpToolError {
 	}
 }
 
-function formatIssues(issues: readonly z.core.$ZodIssue[]): string {
-	return issues
-		.map(
-			(issue) =>
-				`${issue.path.length > 0 ? issue.path.join(".") : "input"}: ${issue.message}`
-		)
-		.join("; ");
-}
-
 function titleFromName(name: string): string {
 	const [head = name, ...rest] = name.split("_");
 	return [head.charAt(0).toUpperCase() + head.slice(1), ...rest].join(" ");
@@ -323,7 +315,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 				if (!parseResult.success) {
 					throw new McpToolError(
 						"invalid_input",
-						formatIssues(parseResult.error.issues),
+						formatValidationIssues(parseResult.error.issues),
 						{ details: { issues: parseResult.error.issues } }
 					);
 				}
@@ -398,7 +390,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					if (!checked.success) {
 						throw new McpToolError(
 							"internal",
-							`${meta.name} output did not match its schema: ${formatIssues(checked.error.issues)}`
+							`${meta.name} output did not match its schema: ${formatValidationIssues(checked.error.issues)}`
 						);
 					}
 				}

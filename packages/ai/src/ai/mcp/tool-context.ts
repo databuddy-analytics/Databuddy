@@ -163,7 +163,7 @@ function accessibleWebsitesCacheKey(
 	return null;
 }
 function mergeCacheFailure(operation: "read" | "write"): void {
-	mergeWideEvent({ mcp_websites_cache_error: operation });
+	mergeWideEvent({ [`mcp_websites_cache_${operation}_error`]: true });
 }
 
 export async function getCachedAccessibleWebsites(
