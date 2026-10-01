@@ -1,7 +1,11 @@
 "use client";
 
 import { Button, StatusDot } from "@databuddy/ui";
-import { CaretRightIcon, CheckIcon } from "@databuddy/ui/icons";
+import {
+	CaretRightIcon,
+	CheckIcon,
+	WarningCircleIcon,
+} from "@databuddy/ui/icons";
 import { useMemo, useState } from "react";
 import { createHighlighterCoreSync } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
@@ -45,18 +49,80 @@ export interface TrackingStatus {
 	state: "awaiting" | "error" | "verified";
 }
 
+export interface AgentProgress {
+	agent: string;
+	errorMessage: string | null;
+	framework: string | null;
+	issues: { code: string; message: string; resolved: boolean }[];
+	status: "failed" | "partial" | "success";
+	steps: string[];
+}
+
+const AGENT_NAMES: Record<string, string> = {
+	claude: "Claude Code",
+	cursor: "Cursor",
+	codex: "Codex",
+	copilot: "Copilot",
+	windsurf: "Windsurf",
+};
+
+const FRAMEWORK_NAMES: Record<string, string> = {
+	nextjs: "Next.js",
+	react: "React",
+	vue: "Vue",
+	nuxt: "Nuxt",
+	astro: "Astro",
+	svelte: "Svelte",
+	vanilla: "plain HTML",
+};
+
+export function agentStepLabel(step: string, progress: AgentProgress): string {
+	switch (step) {
+		case "detect":
+			return progress.framework
+				? `Detected ${FRAMEWORK_NAMES[progress.framework] ?? progress.framework}`
+				: "Detected the framework";
+		case "install":
+			return "Installed @databuddy/sdk";
+		case "mount":
+			return "Mounted the tracker";
+		case "env-var":
+			return "Added the client ID env var";
+		case "verify":
+			return "Verified events";
+		default:
+			return step;
+	}
+}
+
+export function agentProgressSummary(progress: AgentProgress): string {
+	const agent = AGENT_NAMES[progress.agent] ?? progress.agent;
+	if (progress.status === "failed") {
+		return `${agent} ran into a problem`;
+	}
+	if (progress.status === "success") {
+		return `${agent} finished the install`;
+	}
+	const last = progress.steps.at(-1);
+	return last ? agentStepLabel(last, progress) : `${agent} is working`;
+}
+
 interface ConnectAppProps {
+	agentProgress: AgentProgress | null;
 	domain: string;
 	onCopy?: (method: TrackingCopyMethod, agent?: string) => void;
 	onSkip: () => void;
+	setupSession: string;
 	tracking: TrackingStatus;
 	websiteId: string;
 }
 
 export function ConnectApp({
+	agentProgress,
 	domain,
 	onCopy,
 	onSkip,
+	setupSession,
 	tracking,
 	websiteId,
 }: ConnectAppProps) {
@@ -69,7 +135,10 @@ export function ConnectApp({
 	);
 
 	const copy = async (id: string, method: TrackingCopyMethod) => {
-		const text = method === "ai" ? generateAgentPrompt(websiteId) : scriptTag;
+		const text =
+			method === "ai"
+				? generateAgentPrompt(websiteId, setupSession)
+				: scriptTag;
 		if (!(await copyText(text))) {
 			toast.error("Copy failed. Select the text and copy it manually.");
 			return;
@@ -154,6 +223,44 @@ export function ConnectApp({
 					</div>
 				</div>
 			</div>
+
+			{agentProgress ? (
+				<ul className="space-y-1.5 border-border border-t pt-4">
+					{agentProgress.steps.map((step) => (
+						<li className="flex items-center gap-2 text-sm" key={step}>
+							<CheckIcon className="size-3.5 shrink-0 text-success" />
+							{agentStepLabel(step, agentProgress)}
+						</li>
+					))}
+					{agentProgress.issues
+						.filter((issue) => !issue.resolved)
+						.map((issue) => (
+							<li
+								className="flex items-start gap-2 text-sm"
+								key={`${issue.code}:${issue.message}`}
+							>
+								<WarningCircleIcon className="mt-0.5 size-3.5 shrink-0 text-warning" />
+								<span className="text-pretty">{issue.message}</span>
+							</li>
+						))}
+					{agentProgress.status === "failed" ? (
+						<li className="flex items-start gap-2 text-destructive text-sm">
+							<WarningCircleIcon className="mt-0.5 size-3.5 shrink-0" />
+							<span className="text-pretty">
+								{agentProgress.errorMessage ??
+									`${AGENT_NAMES[agentProgress.agent] ?? agentProgress.agent} could not finish the install.`}
+							</span>
+						</li>
+					) : null}
+					{agentProgress.status === "partial" ? (
+						<li className="flex items-center gap-2 text-muted-foreground text-sm">
+							<StatusDot color="info" pulse size="sm" />
+							{AGENT_NAMES[agentProgress.agent] ?? agentProgress.agent} is still
+							working
+						</li>
+					) : null}
+				</ul>
+			) : null}
 
 			<div className="flex flex-wrap items-center justify-between gap-3 border-border border-t pt-4">
 				<div className="flex items-start gap-2">

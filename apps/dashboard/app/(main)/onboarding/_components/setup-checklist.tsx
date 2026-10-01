@@ -5,6 +5,8 @@ import { Button, Card, Progress } from "@databuddy/ui";
 import { useState } from "react";
 import { AddWebsite, type WebsiteFormValues } from "./add-website";
 import {
+	type AgentProgress,
+	agentProgressSummary,
 	ConnectApp,
 	type TrackingCopyMethod,
 	type TrackingStatus,
@@ -25,6 +27,7 @@ export interface SetupWebsite {
 }
 
 export interface SetupChecklistProps {
+	agentProgress: AgentProgress | null;
 	creating: boolean;
 	finish: {
 		disabled?: boolean;
@@ -48,6 +51,7 @@ export interface SetupChecklistProps {
 	research: OnboardingResearch;
 	saveError: string | null;
 	saving: boolean;
+	setupSession: string;
 	suggestions: ReadSiteSuggestions;
 	tracking: TrackingStatus;
 	trackingCopied: boolean;
@@ -143,9 +147,11 @@ export function SetupChecklist(props: SetupChecklistProps) {
 								? "Tracking verified"
 								: props.trackingSkipped
 									? "Skipped"
-									: props.trackingCopied && website
-										? `Waiting for the first page view from ${website.domain}`
-										: undefined
+									: props.agentProgress
+										? agentProgressSummary(props.agentProgress)
+										: props.trackingCopied && website
+											? `Waiting for the first page view from ${website.domain}`
+											: undefined
 						}
 						expanded={isExpanded("connect")}
 						onToggle={website ? toggle("connect") : undefined}
@@ -154,9 +160,11 @@ export function SetupChecklist(props: SetupChecklistProps) {
 					>
 						{website ? (
 							<ConnectApp
+								agentProgress={props.agentProgress}
 								domain={website.domain}
 								onCopy={props.onCopy}
 								onSkip={props.onSkipTracking}
+								setupSession={props.setupSession}
 								tracking={tracking}
 								websiteId={website.id}
 							/>

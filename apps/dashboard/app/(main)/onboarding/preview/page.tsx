@@ -8,7 +8,7 @@ import { Suspense, useState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
 import { isDashboardE2E } from "@/lib/e2e-mode";
 import { cn } from "@/lib/utils";
-import type { TrackingStatus } from "../_components/connect-app";
+import type { AgentProgress, TrackingStatus } from "../_components/connect-app";
 import {
 	SetupChecklist,
 	type SetupChecklistProps,
@@ -122,6 +122,7 @@ const noop = () => undefined;
 type Sample = Partial<
 	Pick<
 		SetupChecklistProps,
+		| "agentProgress"
 		| "finish"
 		| "prioritySaved"
 		| "research"
@@ -179,6 +180,46 @@ const SCENARIOS: Scenario[] = [
 		sample: {
 			research: RESEARCH.writing,
 			trackingCopied: true,
+			finish: FINISH.dashboard,
+		},
+	},
+	{
+		id: "agent-working",
+		title: "Agent reporting progress",
+		sample: {
+			research: RESEARCH.ready,
+			trackingCopied: true,
+			agentProgress: {
+				agent: "claude",
+				status: "partial",
+				framework: "nextjs",
+				steps: ["detect", "install", "mount"],
+				issues: [],
+				errorMessage: null,
+			} satisfies AgentProgress,
+			finish: FINISH.dashboard,
+		},
+	},
+	{
+		id: "agent-failed",
+		title: "Agent hit a problem",
+		sample: {
+			research: RESEARCH.ready,
+			trackingCopied: true,
+			agentProgress: {
+				agent: "cursor",
+				status: "failed",
+				framework: "nextjs",
+				steps: ["detect", "install"],
+				issues: [
+					{
+						code: "csp",
+						message: "The Content Security Policy blocks cdn.databuddy.cc.",
+						resolved: false,
+					},
+				],
+				errorMessage: null,
+			} satisfies AgentProgress,
 			finish: FINISH.dashboard,
 		},
 	},
@@ -308,6 +349,7 @@ function Sample({ sample }: { sample: Sample }) {
 	const website = sample.website === undefined ? WEBSITE : sample.website;
 	return (
 		<SetupChecklist
+			agentProgress={sample.agentProgress ?? null}
 			creating={false}
 			finish={website ? (sample.finish ?? null) : null}
 			intent={intent}
@@ -329,6 +371,7 @@ function Sample({ sample }: { sample: Sample }) {
 			research={sample.research ?? EMPTY_RESEARCH}
 			saveError={sample.saveError ?? null}
 			saving={sample.saving ?? false}
+			setupSession="previewsession0000"
 			tracking={sample.tracking ?? TRACKING.awaiting}
 			trackingCopied={sample.trackingCopied ?? false}
 			trackingSkipped={sample.trackingSkipped ?? false}

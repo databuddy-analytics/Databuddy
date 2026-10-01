@@ -11,21 +11,31 @@ export interface VersionedScript {
 	version: number;
 }
 
-function agentFeedbackSection(apiUrl: string, websiteId: string): string {
+function agentFeedbackSection(
+	apiUrl: string,
+	websiteId: string,
+	setupSession?: string
+): string {
+	const session = setupSession
+		? `\n    "setupSession": "${setupSession}",`
+		: "";
+	const progress = setupSession
+		? `The Databuddy setup page is open and shows your progress live. Send this request after each step you finish with "status": "partial" and the steps completed so far (detect, install, mount, env-var, verify), then once more at the end with "status": "success" or "failed". Keep "setupSession" exactly as shown.`
+		: "When you are done, send one request so the Databuddy team can improve this prompt.";
 	return `## Tell Databuddy how the install went (optional)
 
-When you are done, send one request so the Databuddy team can improve this prompt. Send only the fields below; never include source code, environment values, or anything from the user's files.
+${progress} Send only the fields below; never include source code, environment values, or anything from the user's files.
 
 \`\`\`bash
 curl -X POST ${apiUrl}/public/v1/agent-telemetry \\
   -H "Content-Type: application/json" \\
   -d '{
-    "websiteId": "${websiteId}",
+    "websiteId": "${websiteId}",${session}
     "agent": "<claude|cursor|codex|copilot|other>",
     "status": "<success|partial|failed>",
     "framework": "<nextjs|react|vue|nuxt|astro|vanilla|other>",
     "installMethod": "<sdk|script-tag>",
-    "stepsCompleted": ["install", "mount", "env-var", "verify"],
+    "stepsCompleted": ["detect", "install", "mount", "env-var", "verify"],
     "issues": [{ "type": "<csp|adblocker|domain-mismatch|script-blocked|other>", "detail": "<one line>", "resolved": true }],
     "durationMs": 0
   }'
@@ -61,7 +71,10 @@ Leave samplingRate, batching and retries at their defaults.
 
 Docs for each: https://www.databuddy.cc/docs/sdk`;
 
-export function generateAgentPrompt(websiteId: string): string {
+export function generateAgentPrompt(
+	websiteId: string,
+	setupSession?: string
+): string {
 	if (!isSelfHosted) {
 		return `Add Databuddy analytics to this repository. Client ID: ${websiteId}
 
@@ -120,7 +133,7 @@ ${AGENT_FEATURE_GUIDE}
 - **Script not loading**: it belongs in \`<head>\`, not \`<body>\`; check the URL and the console.
 - **Another analytics tool is present**: both can run side by side. Leave the other tool in place unless the user asks to replace it.
 
-${agentFeedbackSection("https://api.databuddy.cc", websiteId)}`;
+${agentFeedbackSection("https://api.databuddy.cc", websiteId, setupSession)}`;
 	}
 	return `Add Databuddy analytics to this repository. Choose one integration for its framework and follow the existing code style.
 Keep the client ID and API URL shown below so events reach this Databuddy instance.
@@ -150,7 +163,7 @@ ${AGENT_FEATURE_GUIDE}
 
 More options: https://www.databuddy.cc/docs/getting-started
 
-${agentFeedbackSection(publicConfig.urls.api, websiteId)}`;
+${agentFeedbackSection(publicConfig.urls.api, websiteId, setupSession)}`;
 }
 
 export function generateScriptTag(

@@ -81,4 +81,13 @@ assert.equal(prompt.includes("basket.databuddy.cc"), ${selfhost !== "true"});
 		expect(prompt).not.toContain("trackScreenViews");
 		expect(prompt).not.toContain("trackSessions");
 	});
+
+	it("asks for live progress only when a setup session token is given", () => {
+		expect(generateAgentPrompt("example-client-id")).not.toContain(
+			"setupSession"
+		);
+		const prompt = generateAgentPrompt("example-client-id", "abc123def456");
+		expect(prompt).toContain('"setupSession": "abc123def456"');
+		expect(prompt).toContain('"status": "partial"');
+	});
 });
