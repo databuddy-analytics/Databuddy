@@ -61,8 +61,6 @@ import {
 	formatMcpQueryResults,
 	getFilteredQueryTypes,
 	getMcpSchemaDocumentation,
-	getQueryTypeDescriptions,
-	getQueryTypeDetails,
 	getSchemaSummary,
 	MCP_DATE_PRESETS,
 	MCP_RESULT_ROW_LIMIT,
@@ -297,7 +295,7 @@ const getInvestigationTool = defineMcpTool(
 		}),
 		outputSchema: z.object({
 			canReply: z.boolean(),
-			investigation: historyInsightSchema.nullable(),
+			investigation: historyInsightSchema,
 			timeline: z.array(insightTimelineItemSchema),
 		}),
 		metadata: metadataForResource("website", ["read"]),
@@ -310,6 +308,15 @@ const getInvestigationTool = defineMcpTool(
 		);
 		if (result.action !== "get") {
 			throw new McpToolError("internal", "Unexpected investigation action");
+		}
+		if (!result.investigation) {
+			throw new McpToolError(
+				"not_found",
+				"No investigation with this ID is accessible to this connection.",
+				{
+					hint: "Use an id from list_investigations or an investigationId from list_insights.",
+				}
+			);
 		}
 		return {
 			canReply: result.canReply,
@@ -398,22 +405,34 @@ const getDataTool = defineMcpTool(
 				.array(FilterSchema)
 				.optional()
 				.describe(
-					"Filters [{field, op, value}]. ops: eq, ne, contains, not_contains, starts_with, in, not_in. 'field' is an analytics column from get_schema or trait:<key> (e.g. trait:plan) to segment by an identified-user trait. Rejected fields return the allowed list for this query."
+					"Filters [{field, op, value}]. ops: eq, ne, contains, not_contains, starts_with, in, not_in. 'field' is one of the query type's allowedFilters (capabilities detail='full') or trait:<key> (e.g. trait:plan) to segment by an identified-user trait. Rejected fields return the allowed list for this query."
 				),
-			groupBy: z.array(z.string()).optional().describe("Fields to group by."),
-			orderBy: z.string().optional().describe("Field to order results by."),
+			groupBy: z
+				.array(z.string())
+				.optional()
+				.describe(
+					"Dimensions to group by, such as country, path, or utm_source. Rejected fields return the allowed list."
+				),
+			orderBy: z
+				.string()
+				.optional()
+				.describe(
+					"Output metric to sort by, such as 'visitors' or 'pageviews DESC'. Rejected values return the allowed list."
+				),
 			queries: z
 				.array(QueryItemSchema)
 				.min(2)
 				.max(10)
 				.optional()
 				.describe(
-					"Batch mode: 2-10 query items, each with type and optionally its own preset or from/to. Items without a date range use the top-level preset or from/to. Omit 'type' when using this."
+					"Batch mode: 2-10 query items, each with type and optionally its own preset or from/to. Items without a date range use the top-level preset or from/to, and items inherit the top-level timeUnit, limit, filters, groupBy, and orderBy unless they set their own. Omit 'type' when using this."
 				),
 			timezone: z
 				.string()
 				.optional()
-				.describe("IANA timezone. Defaults to UTC."),
+				.describe(
+					"IANA timezone for date presets and date or hour buckets. Defaults to UTC. Row timestamps such as time, first_visit, or last_visit are returned in UTC."
+				),
 		}),
 		outputSchema: z.object({
 			definition: z.string().optional(),
@@ -451,17 +470,17 @@ const getDataTool = defineMcpTool(
 
 		const items: McpQueryItem[] =
 			rawQueries && rawQueries.length >= 2
-				? rawQueries.map((query) =>
-						query.preset || query.from || query.to
-							? query
-							: {
-									...query,
-									preset: input.preset,
-									from: input.from,
-									to: input.to,
-									timeUnit: query.timeUnit ?? input.timeUnit,
-								}
-					)
+				? rawQueries.map((query) => ({
+						...query,
+						...(query.preset || query.from || query.to
+							? {}
+							: { preset: input.preset, from: input.from, to: input.to }),
+						timeUnit: query.timeUnit ?? input.timeUnit,
+						limit: query.limit ?? input.limit,
+						filters: query.filters ?? input.filters,
+						groupBy: query.groupBy ?? input.groupBy,
+						orderBy: query.orderBy ?? input.orderBy,
+					}))
 				: input.type
 					? [
 							{
@@ -483,7 +502,7 @@ const getDataTool = defineMcpTool(
 				"invalid_input",
 				"Either 'type' (single query) or 'queries' array (batch, 2-10 items) is required.",
 				{
-					hint: "Single: {type:'top_pages',preset:'last_7d'}. Batch: {queries:[{type:'summary',preset:'last_7d'},{type:'top_pages',preset:'last_7d'}]}",
+					hint: "Single: {type:'top_pages',preset:'last_7d'}. Batch: {queries:[{type:'summary_metrics',preset:'last_7d'},{type:'top_pages',preset:'last_7d'}]}",
 				}
 			);
 		}
@@ -545,7 +564,7 @@ const getSchemaTool = defineMcpTool(
 		name: "get_schema",
 		title: "List analytics columns",
 		description:
-			"Return the analytics tables with column names and types. Use it to pick filter, groupBy, and orderBy fields for get_data.",
+			"Return the analytics tables with column names and types as a reference. get_data filter fields per query type come from capabilities detail='full'; rejected groupBy and orderBy values return the allowed list.",
 		inputSchema: z.object({
 			sections: z
 				.array(z.enum(SCHEMA_SECTIONS))
@@ -666,18 +685,11 @@ const capabilitiesTool = defineMcpTool(
 			out.categories = QUERY_CATEGORY_KEYS;
 		}
 		if (selected.has("queryTypes")) {
-			if (input.category || input.contains) {
-				out.queryTypes = getFilteredQueryTypes({
-					category: input.category,
-					contains: input.contains,
-					detail: input.detail,
-				});
-			} else {
-				out.queryTypes =
-					input.detail === "full"
-						? getQueryTypeDetails()
-						: getQueryTypeDescriptions();
-			}
+			out.queryTypes = getFilteredQueryTypes({
+				category: input.category,
+				contains: input.contains,
+				detail: input.detail,
+			});
 		}
 		return out;
 	}
