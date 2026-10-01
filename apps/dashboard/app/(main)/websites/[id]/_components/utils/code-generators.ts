@@ -11,104 +11,116 @@ export interface VersionedScript {
 	version: number;
 }
 
+function agentFeedbackSection(apiUrl: string, websiteId: string): string {
+	return `## Tell Databuddy how the install went (optional)
+
+When you are done, send one request so the Databuddy team can improve this prompt. Send only the fields below; never include source code, environment values, or anything from the user's files.
+
+\`\`\`bash
+curl -X POST ${apiUrl}/public/v1/agent-telemetry \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "websiteId": "${websiteId}",
+    "agent": "<claude|cursor|codex|copilot|other>",
+    "status": "<success|partial|failed>",
+    "framework": "<nextjs|react|vue|nuxt|astro|vanilla|other>",
+    "installMethod": "<sdk|script-tag>",
+    "stepsCompleted": ["install", "mount", "env-var", "verify"],
+    "issues": [{ "type": "<csp|adblocker|domain-mismatch|script-blocked|other>", "detail": "<one line>", "resolved": true }],
+    "durationMs": 0
+  }'
+\`\`\`
+
+Skip it if the user asks you not to send anything.`;
+}
+
+const AGENT_FEATURE_GUIDE = `## What to enable, and when
+
+Page views and sessions are automatic. Turn on the rest based on what the codebase tells you, and say which ones you enabled and why:
+
+| Option | Enable when |
+|--------|-------------|
+| trackWebVitals | Always. Powers the Web Vitals page (LCP, CLS, INP, TTFB). |
+| trackErrors | Always for apps with client-side JavaScript. Powers the Errors page. |
+| trackOutgoingLinks | Marketing sites, docs, link-heavy pages. Records clicks that leave the site. |
+| trackInteractions | Apps with buttons and forms worth counting without custom events. |
+| trackAttributes | When you add data-track attributes to elements instead of calling track(). |
+| trackHashChanges | Single-page apps that route with the URL hash. |
+| skipPatterns | Admin, internal, or preview routes that should never be recorded, e.g. ["/admin/**"]. |
+
+Leave samplingRate, batching and retries at their defaults.
+
+## Features worth wiring up now
+
+- **Custom events** with \`track("signup_completed", { plan: "pro" })\` from \`@databuddy/sdk\`. Instrument the two or three moments that matter: sign-up, checkout or purchase, the first successful use. snake_case, past tense, low-cardinality properties, no PII, no IDs or URLs. The dashboard turns these into Goals and Funnels.
+- **Identified users**: if the app has authentication, call \`identify(userId, { email, name })\` when the session resolves and \`clearProfile()\` on logout, both from \`@databuddy/sdk\`. This links sessions across devices and shows real users in the dashboard. Only do this when the app already has a lawful basis to process that data.
+- **AI crawler tracking** (Next.js and other server frameworks): crawlers like GPTBot and ClaudeBot never run JavaScript. Export \`proxy\` from \`@databuddy/sdk/agents\` in \`proxy.ts\` (Next.js 16) or \`middleware.ts\` (Next.js 15), or call \`trackAgents(request)\` inside an existing one. Keep \`.md\` and \`.txt\` paths in the matcher. This powers the AI Agents page.
+- **Feature flags**: \`FlagsProvider\` and \`useFlag\` from \`@databuddy/sdk/react\` (or \`@databuddy/sdk/vue\`). Only add when the user asks for flags.
+- **Revenue**: Stripe and Paddle payments are attributed through a webhook configured in the dashboard, plus \`getTrackingIds()\` passed as payment metadata. Mention it if the codebase has Stripe or Paddle; do not configure it unasked.
+- **Server-side events**: \`@databuddy/sdk/node\` with an API key for backend events. Only when the user needs it.
+
+Docs for each: https://www.databuddy.cc/docs/sdk`;
+
 export function generateAgentPrompt(websiteId: string): string {
 	if (!isSelfHosted) {
 		return `Add Databuddy analytics to this repository. Client ID: ${websiteId}
 
 ## References
-- Docs: https://www.databuddy.cc/docs/getting-started
+- Getting started: https://www.databuddy.cc/docs/getting-started
 - LLMs.txt: https://www.databuddy.cc/llms.txt
 - Full docs: https://www.databuddy.cc/docs
 
 ## Installation
 
-Choose the right method for this website's framework:
+Detect the framework from the codebase, then pick one method:
 
-**React / Next.js** — \`bun add @databuddy/sdk\` (or npm/yarn/pnpm)
+**React / Next.js** — \`bun add @databuddy/sdk\` (or npm/yarn/pnpm, matching the repository's lockfile)
 \`\`\`tsx
 import { Databuddy } from "@databuddy/sdk/react";
-// Mount at the app root (layout.tsx or _app.tsx)
-<Databuddy clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!} />
+// Mount once at the app root (app/layout.tsx or _app.tsx)
+<Databuddy clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!} trackWebVitals trackErrors />
 \`\`\`
 
-**Vue** — \`bun add @databuddy/sdk\`
+**Vue / Nuxt** — \`bun add @databuddy/sdk\`
 \`\`\`vue
 <script setup>
 import { Databuddy } from "@databuddy/sdk/vue";
 </script>
 <template>
-  <Databuddy :client-id="import.meta.env.VITE_DATABUDDY_CLIENT_ID" />
+  <Databuddy :client-id="import.meta.env.VITE_DATABUDDY_CLIENT_ID" track-web-vitals track-errors />
 </template>
 \`\`\`
 
-**Vanilla JS / HTML** — CDN script in \`<head>\`:
+**Anything else (Astro, Svelte, static HTML, WordPress, Webflow)** — CDN script in \`<head>\` of every page:
 \`\`\`html
-<script src="https://cdn.databuddy.cc/databuddy.js" data-client-id="${websiteId}" crossorigin="anonymous" async></script>
+<script src="https://cdn.databuddy.cc/databuddy.js" data-client-id="${websiteId}" data-track-web-vitals="true" data-track-errors="true" crossorigin="anonymous" async></script>
 \`\`\`
 
-Store the Client ID in an env var — never hardcode it.
+Store the Client ID in an env var and never hardcode it in React or Vue code:
 - Next.js: NEXT_PUBLIC_DATABUDDY_CLIENT_ID
-- Vue/Vite: VITE_DATABUDDY_CLIENT_ID
+- Vite / Vue: VITE_DATABUDDY_CLIENT_ID
+- Nuxt: NUXT_PUBLIC_DATABUDDY_CLIENT_ID
 
-## Configuration Options
+Every option works as a React/Vue prop or a \`data-*\` attribute on the script tag.
 
-All options work as React/Vue props or \`data-*\` attributes on the script tag.
-| Option | Type | Default | What it does |
-|--------|------|---------|-------------|
-| trackWebVitals | bool | false | Core Web Vitals (LCP, CLS, INP, TTFB) |
-| trackErrors | bool | false | JavaScript errors and exceptions |
-| trackHashChanges | bool | false | URL hash changes (SPA routing) |
-| trackAttributes | bool | false | Auto-track elements with data-track attribute |
-| trackOutgoingLinks | bool | false | Clicks to external sites |
-| trackInteractions | bool | false | Button clicks and form submissions |
-| disabled | bool | false | Master kill switch |
-| samplingRate | 0-1 | 1.0 | Fraction of events to capture |
-| enableBatching | bool | true | Batch events before sending |
-| batchSize | num | 10 | Events per batch |
-| batchTimeout | num | 5000 | Max ms before flushing batch |
-| enableRetries | bool | true | Retry failed requests |
-| maxRetries | num | 3 | Max retry attempts |
+${AGENT_FEATURE_GUIDE}
 
-Page views and sessions are tracked automatically; they are not configuration options.
+## Verification
 
-Enable what makes sense for this website. A good starting point:
-\`\`\`tsx
-<Databuddy clientId={...} trackWebVitals trackErrors />
-\`\`\`
+1. Start the app and open it in a browser on a non-localhost host, or use the debug build (\`https://cdn.databuddy.cc/databuddy-debug.js\` or the \`debug\` prop) on localhost.
+2. In DevTools → Network, confirm \`cdn.databuddy.cc/databuddy.js\` loads and requests to \`basket.databuddy.cc\` return 200 with this Client ID in the payload.
+3. The Databuddy setup page polls for the first page view and marks tracking verified on its own.
 
-## Custom Events
+## Common issues
 
-\`\`\`tsx
-import { track } from "@databuddy/sdk";
-track("signup_completed", { method: "google", plan: "pro" });
-\`\`\`
+- **Domain mismatch**: events from a domain that is not the website's configured domain are blocked. Add staging or preview domains under Settings → Security → Allowed origins, or install on the production domain.
+- **Content Security Policy**: allow \`https://cdn.databuddy.cc\` in script-src and \`https://basket.databuddy.cc\` in connect-src.
+- **Ad blockers** can block the script locally. Test with extensions disabled; a custom tracking domain avoids it in production.
+- **Localhost is ignored by default**: deploy or use the debug build.
+- **Script not loading**: it belongs in \`<head>\`, not \`<body>\`; check the URL and the console.
+- **Another analytics tool is present**: both can run side by side. Leave the other tool in place unless the user asks to replace it.
 
-Use snake_case event names. Track decisions and milestones (signup_completed, purchase_completed, feature_used), not every click. Keep properties low-cardinality. Never track PII.
-
-## Verification — How to Confirm It Works
-
-1. Open DevTools → Network tab, reload the page
-2. Look for a request to cdn.databuddy.cc/databuddy.js (script loading)
-3. Look for requests to basket.databuddy.cc (events being sent)
-4. Both should return 200. If events show the correct Client ID in the payload, tracking is working.
-
-## Common Issues & Fixes
-
-**Domain mismatch**: Events are rejected if sent from a domain that doesn't match the website configured in Databuddy. The domain in settings must match the domain the script runs on.
-
-**Content Security Policy (CSP)**: If the site has strict CSP headers, add these directives:
-- script-src: https://cdn.databuddy.cc
-- connect-src: https://basket.databuddy.cc
-
-**Ad blockers**: uBlock Origin, Privacy Badger, and similar extensions may block analytics scripts. Test with extensions disabled. For production, consider a custom tracking domain (proxy through your own domain).
-
-**Localhost is ignored by default**: Events from localhost are not sent unless you use the tracker's debug build. Deploy or open the site on a non-localhost host to see data.
-
-**Script not loading**: Verify the script tag is in <head> (not <body>), the src URL is correct, and no CSP or network error appears in the console.
-
-**Events not appearing in dashboard**: Data typically appears within a few minutes. Check the Network tab for failed requests to basket.databuddy.cc. Verify the Client ID matches. Check for console errors.
-
-**If another analytics tool is present**: Both can run in parallel. No conflicts. Optionally disable the other tool's page view tracking if Databuddy handles it.`;
+${agentFeedbackSection("https://api.databuddy.cc", websiteId)}`;
 	}
 	return `Add Databuddy analytics to this repository. Choose one integration for its framework and follow the existing code style.
 Keep the client ID and API URL shown below so events reach this Databuddy instance.
@@ -129,14 +141,16 @@ ${generateVueCode(websiteId, RECOMMENDED_DEFAULTS)}
 ${generateScriptTag(websiteId, RECOMMENDED_DEFAULTS)}
 \`\`\`
 
-Page views and sessions are automatic. For custom events, use track() from @databuddy/sdk with short event names and no personal data.
+${AGENT_FEATURE_GUIDE}
 
 ## Verify
-- Open the website and check for successful event requests to ${publicConfig.urls.basket}, then confirm events appear in the dashboard.
+- Open the website and check for successful event requests to ${publicConfig.urls.basket}, then confirm events appear in the dashboard; the setup page polls for the first page view.
 - The website's domain must match its Databuddy settings. On localhost, use the SDK's debug prop or the databuddy-debug.js script.
 - If CSP is enabled, allow the tracker script's origin in script-src and ${new URL(publicConfig.urls.basket).origin} in connect-src. Check for blocked requests in DevTools.
 
-More options: https://www.databuddy.cc/docs/getting-started`;
+More options: https://www.databuddy.cc/docs/getting-started
+
+${agentFeedbackSection(publicConfig.urls.api, websiteId)}`;
 }
 
 export function generateScriptTag(
