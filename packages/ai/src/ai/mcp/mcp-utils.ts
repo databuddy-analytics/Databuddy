@@ -14,7 +14,12 @@ import {
 	publicQueryErrorMessage,
 	suggestQueryTypes,
 } from "../../query";
-import type { Filter, QueryRequest } from "../../query/types";
+import type {
+	Filter,
+	FilterOperator,
+	QueryRequest,
+	SimpleQueryConfig,
+} from "../../query/types";
 import { z } from "zod";
 
 export const FilterSchema = z.object({
@@ -85,6 +90,9 @@ interface InvalidBatchQuery {
 
 interface IndexedQueryRequest extends QueryRequest {
 	inputIndex: number;
+	keepNewestRows: boolean;
+	rowLimit: number;
+	summary: string;
 	timezone: string;
 }
 
@@ -111,14 +119,86 @@ export interface McpQueryResult {
 }
 
 const DateOnlySchema = z.iso.date();
+const MS_PER_DAY = 86_400_000;
+const MAX_DAYS_BY_TIME_UNIT: Partial<
+	Record<NonNullable<McpQueryItem["timeUnit"]>, { days: number; wider: string }>
+> = {
+	minute: { days: 1, wider: "hour" },
+	hour: { days: 30, wider: "day" },
+};
+const LIST_OPERATORS: readonly FilterOperator[] = ["in", "not_in"];
+const TIME_SERIES_TAGS = new Set(["time-series", "timeseries", "trends"]);
+const DATE_ASCENDING_ORDER_RE = /^date ASC\b/i;
 
 function timezoneError(timezone: string): string | null {
+	let resolved: string;
 	try {
-		Intl.DateTimeFormat("en-US", { timeZone: timezone });
-		return null;
+		resolved = new Intl.DateTimeFormat("en-US", {
+			timeZone: timezone,
+		}).resolvedOptions().timeZone;
 	} catch {
 		return `Invalid timezone: ${timezone}. Use an IANA timezone such as UTC.`;
 	}
+	if (
+		resolved !== timezone &&
+		resolved.toLowerCase() === timezone.toLowerCase()
+	) {
+		return `Timezone names are case-sensitive. Use ${resolved}, not ${timezone}.`;
+	}
+	return null;
+}
+
+function isTimeSeries(config: SimpleQueryConfig): boolean {
+	return (
+		config.meta?.default_visualization === "timeseries" ||
+		(config.meta?.tags ?? []).some((tag) => TIME_SERIES_TAGS.has(tag)) ||
+		DATE_ASCENDING_ORDER_RE.test(config.orderBy ?? "")
+	);
+}
+
+function filterShapeError(filters: Filter[] | undefined): string | null {
+	for (const filter of filters ?? []) {
+		if (filter.target || filter.having) {
+			return `Filter '${filter.field}' sets target or having, which get_data does not accept. Pass field, op, and value only.`;
+		}
+		if (Array.isArray(filter.value) && !LIST_OPERATORS.includes(filter.op)) {
+			return `Filter '${filter.field}' uses op '${filter.op}' with a list of values. Use 'in' or 'not_in' for a list, or pass a single value.`;
+		}
+	}
+	return null;
+}
+
+function queryShapeError(
+	type: string,
+	config: SimpleQueryConfig,
+	query: McpQueryItem,
+	days: number,
+	timeSeries: boolean
+): string | null {
+	if (config.customSql && query.groupBy?.length) {
+		return `${type} returns fixed columns and does not support groupBy. Remove groupBy.`;
+	}
+	if (config.customSql && timeSeries && query.orderBy) {
+		return `${type} is always ordered by date and does not support orderBy. Remove orderBy.`;
+	}
+	if (!(timeSeries && query.timeUnit)) {
+		return null;
+	}
+	const supported = config.meta?.supports_granularity;
+	if (
+		!config.timeBucket &&
+		supported &&
+		!supported.some((unit) => unit === query.timeUnit)
+	) {
+		return supported.length > 0
+			? `timeUnit '${query.timeUnit}' is not supported for ${type}. Use ${supported.join(" or ")}.`
+			: `${type} does not take a timeUnit. Remove timeUnit.`;
+	}
+	const window = MAX_DAYS_BY_TIME_UNIT[query.timeUnit];
+	if (window && days > window.days) {
+		return `timeUnit '${query.timeUnit}' covers at most ${window.days + 1} calendar days. Use '${window.wider}' for longer ranges.`;
+	}
+	return null;
 }
 
 function querySummary(input: {
@@ -160,22 +240,13 @@ export function buildBatchQueryRequests(
 			invalid.push({
 				error,
 				inputIndex,
-				summary: querySummary({
-					filters: q.filters,
-					from,
-					groupBy: q.groupBy,
-					limit: q.limit,
-					orderBy: q.orderBy,
-					timeUnit: q.timeUnit,
-					timezone,
-					to,
-					type,
-				}),
+				summary: querySummary({ ...q, from, to, timezone, type }),
 				type,
 			});
 		};
 
-		if (!getQueryBuilder(resolvedType)) {
+		const config = getQueryBuilder(resolvedType);
+		if (!config) {
 			const hint = suggestQueryTypes(q.type.replace(TOP_QUERY_PREFIX, ""));
 			const message = hint.length
 				? `Unknown type: ${q.type}. Did you mean: ${hint.join(", ")}?`
@@ -226,19 +297,33 @@ export function buildBatchQueryRequests(
 			reject("from must not be after to.");
 			continue;
 		}
-		const filterError = invalidFilterFieldError(resolvedType, q.filters);
-		if (filterError) {
-			reject(filterError);
+		const timeSeries = isTimeSeries(config);
+		const shapeError =
+			queryShapeError(
+				resolvedType,
+				config,
+				q,
+				(Date.parse(to) - Date.parse(from)) / MS_PER_DAY,
+				timeSeries
+			) ??
+			filterShapeError(q.filters) ??
+			invalidFilterFieldError(resolvedType, q.filters);
+		if (shapeError) {
+			reject(shapeError);
 			continue;
 		}
+		const keepNewestRows = timeSeries && !q.orderBy;
 		requests.push({
 			inputIndex,
+			keepNewestRows,
+			rowLimit: Math.min(q.limit ?? MCP_RESULT_ROW_LIMIT, MCP_RESULT_ROW_LIMIT),
+			summary: querySummary({ ...q, from, to, timezone, type: resolvedType }),
 			projectId: websiteId,
 			type: resolvedType,
 			from,
 			to,
 			timeUnit: q.timeUnit,
-			limit: q.limit,
+			limit: keepNewestRows ? undefined : q.limit,
 			timezone,
 			filters: q.filters,
 			groupBy: q.groupBy,
@@ -259,16 +344,14 @@ export function formatMcpQueryResults(
 				throw new Error("Query result does not match its request");
 			}
 			const rowCount = result.data.length;
-			const data =
-				getQueryBuilder(request.type)?.meta?.default_visualization ===
-				"timeseries"
-					? result.data.slice(-MCP_RESULT_ROW_LIMIT)
-					: result.data.slice(0, MCP_RESULT_ROW_LIMIT);
+			const data = request.keepNewestRows
+				? result.data.slice(Math.max(rowCount - request.rowLimit, 0))
+				: result.data.slice(0, request.rowLimit);
 			return {
 				inputIndex: request.inputIndex,
 				type: result.type,
 				definition: getQueryBuilder(request.type)?.meta?.description,
-				summary: querySummary(request),
+				summary: request.summary,
 				data,
 				rowCount,
 				returnedRows: data.length,
