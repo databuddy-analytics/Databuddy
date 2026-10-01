@@ -210,7 +210,7 @@ const listInsightsTool = defineMcpTool(
 	},
 	async (input, ctx) => {
 		const organizationId =
-			ctx.websiteOrganizationId ?? (await resolveOrganizationId(ctx));
+			ctx.websiteOrganizationId ?? resolveOrganizationId(ctx);
 		if (organizationId instanceof Error) {
 			throw new McpToolError("invalid_input", organizationId.message);
 		}
@@ -252,7 +252,7 @@ const listInvestigationsTool = defineMcpTool(
 	},
 	async (input, ctx) => {
 		const organizationId =
-			ctx.websiteOrganizationId ?? (await resolveOrganizationId(ctx));
+			ctx.websiteOrganizationId ?? resolveOrganizationId(ctx);
 		if (organizationId instanceof Error) {
 			throw new McpToolError("invalid_input", organizationId.message);
 		}
@@ -1303,7 +1303,7 @@ const listFlagsTool = defineMcpTool(
 				rpcContext
 			);
 		} else {
-			const organizationId = await resolveOrganizationId(ctx);
+			const organizationId = resolveOrganizationId(ctx);
 			if (organizationId instanceof Error) {
 				throw new McpToolError("invalid_input", organizationId.message);
 			}
@@ -1413,7 +1413,7 @@ function flagNotFound(error: unknown, hint: string): never {
 	throw error;
 }
 
-async function readFlag(id: string, ctx: McpHandlerContext) {
+function readFlag(id: string, ctx: McpHandlerContext) {
 	const rpcContext = buildRpcContext(ctx);
 	if (ctx.websiteId) {
 		return callRPCProcedure(
@@ -1428,7 +1428,7 @@ async function readFlag(id: string, ctx: McpHandlerContext) {
 			)
 		);
 	}
-	const organizationId = await resolveOrganizationId(ctx);
+	const organizationId = resolveOrganizationId(ctx);
 	if (organizationId instanceof Error) {
 		throw new McpToolError("invalid_input", organizationId.message);
 	}

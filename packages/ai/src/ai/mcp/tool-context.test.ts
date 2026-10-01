@@ -161,10 +161,10 @@ describe("OAuth selected website grants", () => {
 		expect(await ensureWebsiteAccess("site", authorized)).toBeInstanceOf(Error);
 	});
 
-	it("requires a website selector for aggregate organization data", async () => {
-		expect(await resolveOrganizationId(principal)).toBeInstanceOf(Error);
+	it("requires a website selector for aggregate organization data", () => {
+		expect(resolveOrganizationId(principal)).toBeInstanceOf(Error);
 		expect(
-			await resolveOrganizationId({
+			resolveOrganizationId({
 				...principal,
 				oauth: {
 					...principal.oauth,
