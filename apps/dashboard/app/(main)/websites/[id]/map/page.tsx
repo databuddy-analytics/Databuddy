@@ -215,7 +215,7 @@ function WebsiteMapPage() {
 										<span
 											className={cn(
 												"absolute inset-y-1 left-0 rounded-r transition-colors",
-												isActive ? "bg-accent-disabled" : "bg-accent"
+												isActive ? "bg-interactive-hover" : "bg-accent"
 											)}
 											style={{
 												width: `${(country.value / topVisitors) * 100}%`,
