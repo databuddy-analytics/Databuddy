@@ -69,6 +69,8 @@ export type ContentFormat = (typeof CONTENT_FORMATS)[number];
 
 const ASSET_PATH =
 	/^\/_next\/|\.(?:js|mjs|css|map|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|eot|mp4|webm|mp3|wav|pdf|zip)$/i;
+export const NON_PAGE_PATH =
+	/\/robots\.txt$|\/sitemap[^/]*\.txt$|\.(?:xml|json|webmanifest)$|\/\./i;
 const LLMS_TXT_PATH = /\/llms(-full)?\.txt$/i;
 const MARKDOWN_PATH = /\.mdx?$/i;
 
