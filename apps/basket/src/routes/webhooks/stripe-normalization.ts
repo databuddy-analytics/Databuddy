@@ -380,7 +380,7 @@ function buildInvoiceLinkRecord(
 	const linksAVisitor = Object.keys(input.rawMetadata).some((key) =>
 		key.startsWith("databuddy_")
 	);
-	if (!linksAVisitor) {
+	if (!(linksAVisitor || input.customerId)) {
 		return null;
 	}
 	return {

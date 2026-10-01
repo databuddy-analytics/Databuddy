@@ -456,7 +456,7 @@ describe("normalizeStripeEvent", () => {
 		expect(paid[0]?.rawMetadata).toEqual(succeeded[0]?.rawMetadata);
 	});
 
-	test("omits the invoice link record when no databuddy ids are present", () => {
+	test("preserves customer-only invoice context for recurring attribution", () => {
 		const records = normalizeStripeEvent({
 			api_version: "2025-03-31.basil",
 			created: 1_700_000_502,
@@ -476,7 +476,16 @@ describe("normalizeStripeEvent", () => {
 			},
 		});
 
-		expect(records).toEqual([]);
+		expect(records).toHaveLength(1);
+		expect(records[0]).toMatchObject({
+			amount: 0,
+			customerId: "cus_bare",
+			productName: "Pro plan",
+			status: "linked",
+			transactionId: "in_bare:link",
+			type: "subscription_event",
+			context: { invoiceId: "in_bare", recordKind: "link" },
+		});
 	});
 
 	test("falls back through remaining, due and total for a failed invoice", () => {
