@@ -48,9 +48,11 @@ import { formatCount, formatNumber } from "@/lib/formatters";
 import { formatRevenueCurrency } from "@/lib/revenue-currency";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
+import type { DynamicQueryFilter } from "@/types/api";
 import {
 	calculatePercentChange,
 	calculatePreviousPeriod,
+	formatDateByGranularity,
 } from "../_components/utils/analytics-helpers";
 
 type ReadFocus = ContentFormat | "all";
@@ -102,7 +104,7 @@ const FOCUS: Record<
 
 interface ProductRow {
 	has_proxy: number;
-	last_seen: string;
+	last_seen: string | null;
 	on_demand: number;
 	pages: number;
 	product: string;
@@ -131,9 +133,12 @@ interface PageRead {
 
 interface CrawlerResult {
 	agent_id: string;
+	html_pages: number;
 	last_seen: string;
 	llms: number;
+	llms_pages: number;
 	markdown: number;
+	markdown_pages: number;
 	name: string;
 	operator: string;
 	pages: number;
@@ -217,7 +222,7 @@ function robotsStatus(agent: ReadingAgent): {
 	}
 	if (
 		agent.robots === "blocked" &&
-		dayjs().diff(agent.last_seen, "hour") < 24
+		dayjs().diff(dayjs.utc(agent.last_seen), "hour") < 24
 	) {
 		return { color: "destructive", label: "Blocked, still crawling" };
 	}
@@ -338,11 +343,14 @@ const SETUP_CHECKS = [
 		key: "homepage",
 		label: "Homepage",
 		hint: "deploy the file above and set the environment variable",
+		drainHint:
+			"check the drain sends Production logs from Functions and Static Files with sampling off, then retry in a minute",
 	},
 	{
 		key: "llmsTxt",
 		label: "llms.txt",
 		hint: "make sure your proxy or middleware matcher doesn't skip .txt files",
+		drainHint: "add the Static Files source",
 	},
 ] as const;
 
@@ -381,145 +389,144 @@ function SetupCode({
 }
 
 function AgentSetupSheet({
-	label = "Set up",
+	isOpen,
+	onOpenChange,
 	websiteId,
 }: {
-	label?: string;
+	isOpen: boolean;
+	onOpenChange: (open: boolean) => void;
 	websiteId: string;
 }) {
-	const [isOpen, setIsOpen] = useQueryState(
-		"setup",
-		parseAsBoolean.withDefault(false)
-	);
+	const [tab, setTab] = useState<string>(SETUP_STACKS[0].id);
 	const check = useMutation(orpc.websites.checkAgentSetup.mutationOptions());
 	const isWorking = check.data?.homepage && check.data.llmsTxt;
+	const isDrain = tab === "vercel-drain";
 
 	return (
-		<>
-			<Button onClick={() => setIsOpen(true)} size="md" variant="secondary">
-				{label}
-			</Button>
-			<Sheet onOpenChange={(open) => setIsOpen(open)} open={isOpen}>
-				<Sheet.Content side="right">
-					<Sheet.Header>
-						<Sheet.Title>Track AI crawlers</Sheet.Title>
-						<Sheet.Description>
-							Crawlers like GPTBot and ClaudeBot don't run JavaScript. Add one
-							line to your server, or send your Vercel logs, to see which pages
-							they read.
-						</Sheet.Description>
-					</Sheet.Header>
-					<Sheet.Body className="space-y-5">
-						<Tabs defaultValue={SETUP_STACKS[0].id}>
-							<Tabs.List className="max-w-full overflow-x-auto">
-								{SETUP_STACKS.map((stack) => (
-									<Tabs.Tab key={stack.id} value={stack.id}>
-										{stack.label}
-									</Tabs.Tab>
-								))}
-								<Tabs.Tab value="vercel-drain">Vercel drain</Tabs.Tab>
-							</Tabs.List>
+		<Sheet onOpenChange={onOpenChange} open={isOpen}>
+			<Sheet.Content side="right">
+				<Sheet.Header>
+					<Sheet.Title>Track AI crawlers</Sheet.Title>
+					<Sheet.Description>
+						Crawlers like GPTBot and ClaudeBot don't run JavaScript. Add one
+						line to your server, or send your Vercel logs, to see which pages
+						they read.
+					</Sheet.Description>
+				</Sheet.Header>
+				<Sheet.Body className="space-y-5">
+					<Tabs onValueChange={(value) => setTab(String(value))} value={tab}>
+						<Tabs.List className="max-w-full overflow-x-auto">
 							{SETUP_STACKS.map((stack) => (
-								<Tabs.Panel
-									className="mt-4 space-y-5"
-									key={stack.id}
-									value={stack.id}
-								>
-									<SetupStep step={1} title="Install the SDK">
-										<SetupCode
-											code="bun add @databuddy/sdk@latest"
-											language="bash"
-										/>
-									</SetupStep>
-									<SetupStep step={2} title={`Add ${stack.file}`}>
-										<SetupCode code={stack.code} language="tsx" />
-									</SetupStep>
-									<SetupStep step={3} title="Set your website ID">
-										<SetupCode
-											code={
-												stack.id === "workers"
-													? `# wrangler.toml\n[vars]\n${stack.env} = "${websiteId}"`
-													: `${stack.env}=${websiteId}`
-											}
-											language="bash"
-										/>
-									</SetupStep>
-								</Tabs.Panel>
+								<Tabs.Tab key={stack.id} value={stack.id}>
+									{stack.label}
+								</Tabs.Tab>
 							))}
-							<Tabs.Panel className="mt-4 space-y-5" value="vercel-drain">
-								<SetupStep step={1} title="Add a drain in Vercel">
-									<p className="text-pretty text-muted-foreground text-xs">
-										Team Settings → Drains → Add Drain, then choose Logs and
-										Custom Endpoint. No code change needed. Drains need a Pro or
-										Enterprise plan, and Vercel bills them by volume.
-									</p>
-								</SetupStep>
-								<SetupStep step={2} title="Paste this endpoint">
+							<Tabs.Tab value="vercel-drain">Vercel drain</Tabs.Tab>
+						</Tabs.List>
+						{SETUP_STACKS.map((stack) => (
+							<Tabs.Panel
+								className="mt-4 space-y-5"
+								key={stack.id}
+								value={stack.id}
+							>
+								<SetupStep step={1} title="Install the SDK">
 									<SetupCode
-										code={`${publicConfig.urls.basket}/vercel/${websiteId}`}
+										code="bun add @databuddy/sdk@latest"
 										language="bash"
 									/>
 								</SetupStep>
-								<SetupStep step={3} title="Choose what to send">
-									<p className="text-pretty text-muted-foreground text-xs">
-										Sources: Static Files, Functions, Edge Functions and
-										Rewrites. Environment: Production. Format: JSON or NDJSON.
-										Leave sampling off so every AI request arrives. Drains also
-										report the status each agent got, so you can see 404s.
-									</p>
+								<SetupStep step={2} title={`Add ${stack.file}`}>
+									<SetupCode code={stack.code} language="tsx" />
+								</SetupStep>
+								<SetupStep step={3} title="Set your website ID">
+									<SetupCode
+										code={
+											stack.id === "workers"
+												? `# wrangler.toml\n[vars]\n${stack.env} = "${websiteId}"`
+												: `${stack.env}=${websiteId}`
+										}
+										language="bash"
+									/>
 								</SetupStep>
 							</Tabs.Panel>
-						</Tabs>
-
-						<SetupStep step={4} title="Deploy, then test it">
-							<Button
-								loading={check.isPending}
-								onClick={() => check.mutate({ websiteId })}
-								size="md"
-								variant="secondary"
-							>
-								Test setup
-							</Button>
-							{check.data
-								? SETUP_CHECKS.map((item) => (
-										<p
-											className="flex items-center gap-1.5 text-xs"
-											key={item.key}
-										>
-											<StatusDot
-												color={check.data[item.key] ? "success" : "warning"}
-											/>
-											{check.data[item.key]
-												? `${item.label} recorded`
-												: `${item.label} not recorded: ${item.hint}`}
-										</p>
-									))
-								: null}
-							{isWorking ? (
+						))}
+						<Tabs.Panel className="mt-4 space-y-5" value="vercel-drain">
+							<SetupStep step={1} title="Add a drain in Vercel">
 								<p className="text-pretty text-muted-foreground text-xs">
-									Setup works. Crawler data shows up here as soon as an AI agent
-									visits.
+									Team Settings → Drains → Add Drain, then choose Logs and
+									Custom Endpoint. No code change needed. Drains need a Pro or
+									Enterprise plan, and Vercel bills them by volume.
 								</p>
-							) : null}
-							{check.isError ? (
-								<p className="text-destructive text-xs">
-									Couldn't run the check. Try again in a moment.
+							</SetupStep>
+							<SetupStep step={2} title="Paste this endpoint">
+								<SetupCode
+									code={`${publicConfig.urls.basket}/vercel/${websiteId}`}
+									language="bash"
+								/>
+							</SetupStep>
+							<SetupStep step={3} title="Choose what to send">
+								<p className="text-pretty text-muted-foreground text-xs">
+									Sources: Static Files, Functions, Edge Functions and Rewrites.
+									Environment: Production. Format: JSON or NDJSON. Leave
+									sampling off so every AI request arrives. Drains also store
+									the HTTP status each agent got, so you can ask the assistant
+									which pages return 404 to AI crawlers.
 								</p>
-							) : null}
-						</SetupStep>
+							</SetupStep>
+						</Tabs.Panel>
+					</Tabs>
 
-						<a
-							className="block text-muted-foreground text-xs underline underline-offset-2 hover:text-foreground"
-							href="https://www.databuddy.cc/docs/sdk/ai-agents"
-							rel="noopener"
-							target="_blank"
+					<SetupStep
+						step={4}
+						title={isDrain ? "Test it" : "Deploy, then test it"}
+					>
+						<Button
+							loading={check.isPending}
+							onClick={() => check.mutate({ websiteId })}
+							size="md"
+							variant="secondary"
 						>
-							Other setups and details in the docs
-						</a>
-					</Sheet.Body>
-				</Sheet.Content>
-			</Sheet>
-		</>
+							Test setup
+						</Button>
+						{check.data
+							? SETUP_CHECKS.map((item) => (
+									<p
+										className="flex items-center gap-1.5 text-xs"
+										key={item.key}
+									>
+										<StatusDot
+											color={check.data[item.key] ? "success" : "warning"}
+										/>
+										{check.data[item.key]
+											? `${item.label} recorded`
+											: `${item.label} not recorded: ${isDrain ? item.drainHint : item.hint}`}
+									</p>
+								))
+							: null}
+						{isWorking ? (
+							<p className="text-pretty text-muted-foreground text-xs">
+								Setup works. Crawler data shows up here as soon as an AI agent
+								visits.
+							</p>
+						) : null}
+						{check.isError ? (
+							<p className="text-destructive text-xs">
+								Couldn't run the check. Try again in a moment.
+							</p>
+						) : null}
+					</SetupStep>
+
+					<a
+						className="block text-muted-foreground text-xs underline underline-offset-2 hover:text-foreground"
+						href="https://www.databuddy.cc/docs/sdk/ai-agents"
+						rel="noopener"
+						target="_blank"
+					>
+						Other setups and details in the docs
+					</a>
+				</Sheet.Body>
+			</Sheet.Content>
+		</Sheet>
 	);
 }
 
@@ -535,7 +542,7 @@ function mainPurpose(row: ProductRow): string | null {
 function emptyProduct(product: string): ProductRow {
 	return {
 		has_proxy: 0,
-		last_seen: "",
+		last_seen: null,
 		on_demand: 0,
 		pages: 0,
 		product,
@@ -547,11 +554,13 @@ function emptyProduct(product: string): ProductRow {
 }
 
 function ProductCard({
+	hasProxy,
 	isHourly,
 	isLoading,
 	row,
 	trend,
 }: {
+	hasProxy: boolean;
 	isHourly: boolean;
 	isLoading: boolean;
 	row: ProductRow;
@@ -559,6 +568,17 @@ function ProductCard({
 }) {
 	const purpose = mainPurpose(row);
 	const isActive = row.requests > 0 || row.visitors > 0;
+	const readRatio = row.requests / row.visitors;
+	const readsLine =
+		row.requests > 0
+			? `Read ${formatCount(row.pages, "page")}${purpose ? ` for ${purpose}` : ""}, ${fromNow(row.last_seen)}`
+			: isLoading
+				? "Checking…"
+				: isActive
+					? hasProxy
+						? "Hasn't read your pages"
+						: null
+					: "Not seen yet";
 	return (
 		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
 			<div className="flex items-center gap-2.5">
@@ -575,14 +595,15 @@ function ProductCard({
 								lines={[
 									`${row.product} made ${formatCount(row.requests, "request")} to your pages and sent ${formatCount(row.visitors, "visitor")}`,
 								]}
-								title="Reads per visitor"
+								title="Reads and visitors"
 							/>
 						}
 						delay={TIP_DELAY_MS}
 					>
 						<span className="ml-auto shrink-0 cursor-default text-muted-foreground text-xs tabular-nums">
-							{formatNumber(Math.round(row.requests / row.visitors) || 1)} reads
-							per visitor
+							{readRatio >= 1
+								? `${formatCount(Math.round(readRatio), "read")} per visitor`
+								: `${formatCount(Math.round(1 / readRatio), "visitor")} per read`}
 						</span>
 					</Tooltip>
 				) : null}
@@ -603,15 +624,9 @@ function ProductCard({
 						unit="visitors"
 					/>
 				</div>
-				<p className="truncate text-muted-foreground text-xs">
-					{row.requests > 0
-						? `Read ${formatCount(row.pages, "page")}${purpose ? ` for ${purpose}` : ""}, ${fromNow(row.last_seen)}`
-						: isActive
-							? "Hasn't read your pages"
-							: isLoading
-								? "Checking…"
-								: "Not seen yet"}
-				</p>
+				{readsLine ? (
+					<p className="truncate text-muted-foreground text-xs">{readsLine}</p>
+				) : null}
 			</div>
 		</div>
 	);
@@ -1150,8 +1165,42 @@ function AgentReadsPanel({
 		(agent) => agent.robots === "blocked" || agent.robots === "partial"
 	).length;
 
+	const agentFilters: DynamicQueryFilter[] = selectedId
+		? [{ field: "agent_id", operator: "eq", value: selectedId }]
+		: [];
+	const agentActivity = useBatchDynamicQuery(
+		websiteId,
+		dateRange,
+		[
+			{
+				id: "agent-activity",
+				parameters: ["ai_crawler_activity"],
+				filters: agentFilters,
+			},
+			{
+				id: "agent-pages",
+				parameters: ["ai_agent_pages"],
+				filters: agentFilters,
+				limit: 1000,
+			},
+		],
+		{ enabled: Boolean(selectedId) }
+	);
+	const agentActivityRows = agentActivity.getDataForQuery(
+		"agent-activity",
+		"ai_crawler_activity"
+	) as ActivityRow[];
+	const agentPages = agentActivity.getDataForQuery(
+		"agent-pages",
+		"ai_agent_pages"
+	) as PageRead[];
+	const agentPagesLoaded = agentActivity.results.some(
+		(result) =>
+			result.queryId === "agent-pages" && "ai_agent_pages" in result.data
+	);
+
 	const readersByPage = new Map<string, Map<string, number>>();
-	for (const read of reads) {
+	for (const read of selected ? agentPages : reads) {
 		if (focus !== "all" && read.format !== focus) {
 			continue;
 		}
@@ -1188,7 +1237,9 @@ function AgentReadsPanel({
 			? formats.reduce((sum, row) => sum + row.requests, 0)
 			: (focusFormat?.requests ?? 0);
 	const pageTotal = selected
-		? Math.max(pages.length, focus === "all" ? selected.pages : 0)
+		? focus === "all"
+			? selected.pages
+			: selected[`${focus}_pages`]
 		: focus === "all"
 			? distinctPages
 			: focusFormat?.pages || pages.length;
@@ -1196,24 +1247,6 @@ function AgentReadsPanel({
 	const maxPageValue = pages[0]?.value || 1;
 	const agentList = useShowAll(rankedAgents);
 	const pageList = useShowAll(pages);
-	const agentActivity = useBatchDynamicQuery(
-		websiteId,
-		dateRange,
-		[
-			{
-				id: "agent-activity",
-				parameters: ["ai_crawler_activity"],
-				filters: selectedId
-					? [{ field: "agent_id", operator: "eq", value: selectedId }]
-					: [],
-			},
-		],
-		{ enabled: Boolean(selectedId) }
-	);
-	const agentActivityRows = agentActivity.getDataForQuery(
-		"agent-activity",
-		"ai_crawler_activity"
-	) as ActivityRow[];
 	const askSubject = selected
 		? `${selected.name} (${selected.product}) reading ${scope}`
 		: `AI crawlers and agents reading ${scope}`;
@@ -1375,8 +1408,17 @@ function AgentReadsPanel({
 					/>
 				) : null}
 				<div>
-					{isLoading ? (
+					{isLoading || (selected && agentActivity.isPending) ? (
 						<ListSkeleton rows={rowSlots} />
+					) : selected && !agentPagesLoaded ? (
+						<p className="text-muted-foreground text-sm">
+							Couldn't load the pages {selected.name} read.
+						</p>
+					) : selected && pages.length === 0 ? (
+						<p className="text-muted-foreground text-sm">
+							{selected.name} read no {focus === "all" ? noun : title} in this
+							period.
+						</p>
 					) : (
 						<div className="flex flex-col gap-1">
 							{pageList.visible.map((page, index) => (
@@ -1593,7 +1635,7 @@ function AiVisitorsPanel({
 					aside={
 						<AskAgentButton subject="the pages AI products send visitors to" />
 					}
-					detail="Pages people from AI products view, and how often those products read them"
+					detail="The page each AI-referred visit started on, and how often AI products read it"
 					title="Where AI sends visitors"
 				/>
 				{isLoading ? (
@@ -1675,31 +1717,39 @@ export default function AgentsPage() {
 		[dateRange]
 	);
 
-	const { isLoading, getDataForQuery } = useBatchDynamicQuery(
-		websiteId,
-		dateRange,
-		[
-			{
-				id: "products",
-				parameters: [
-					"ai_products",
-					{
-						name: "ai_products",
-						...previousRange,
-						id: "previous_ai_products",
-					},
-				],
-			},
-			{ id: "visitors", parameters: ["ai_product_visitors"] },
-			{ id: "formats", parameters: ["ai_content_formats"] },
-			{ id: "reads", parameters: ["ai_agent_pages"], limit: 1000 },
-			{ id: "landing", parameters: ["ai_landing_pages"], limit: 1000 },
-			{ id: "outcomes", parameters: ["ai_visitor_outcomes"] },
-			{ id: "revenue", parameters: ["revenue_by_ai_product"] },
-			{ id: "crawlers", parameters: ["ai_crawlers"], limit: 1000 },
-			{ id: "activity", parameters: ["ai_crawler_activity"] },
-		]
+	const [isSetupOpen, setIsSetupOpen] = useQueryState(
+		"setup",
+		parseAsBoolean.withDefault(false)
 	);
+
+	const {
+		getDataForQuery,
+		isFetching,
+		isLoading,
+		isPending,
+		refetch,
+		results,
+	} = useBatchDynamicQuery(websiteId, dateRange, [
+		{
+			id: "products",
+			parameters: [
+				"ai_products",
+				{
+					name: "ai_products",
+					...previousRange,
+					id: "previous_ai_products",
+				},
+			],
+		},
+		{ id: "visitors", parameters: ["ai_product_visitors"] },
+		{ id: "formats", parameters: ["ai_content_formats"] },
+		{ id: "reads", parameters: ["ai_agent_pages"], limit: 1000 },
+		{ id: "landing", parameters: ["ai_landing_pages"], limit: 1000 },
+		{ id: "outcomes", parameters: ["ai_visitor_outcomes"] },
+		{ id: "revenue", parameters: ["revenue_by_ai_product"] },
+		{ id: "crawlers", parameters: ["ai_crawlers"], limit: 1000 },
+		{ id: "activity", parameters: ["ai_crawler_activity"] },
+	]);
 
 	const rowsOf = <T,>(queryId: string, name: string) =>
 		getDataForQuery(queryId, name) as T[];
@@ -1732,19 +1782,28 @@ export default function AgentsPage() {
 
 	const isHourly = dateRange.granularity === "hourly";
 	const bucketFormat = isHourly ? "YYYY-MM-DD HH:00" : "YYYY-MM-DD";
+	const latestBucket = dayjs()
+		.startOf(isHourly ? "hour" : "day")
+		.format(bucketFormat);
 	const buckets = useMemo(() => {
 		const unit = isHourly ? "hour" : "day";
 		const end = dayjs(dateRange.end_date).endOf("day");
 		const keys: string[] = [];
 		for (
 			let cursor = dayjs(dateRange.start_date).startOf(unit);
-			!cursor.isAfter(end);
+			!(cursor.isAfter(end) || cursor.isAfter(latestBucket));
 			cursor = cursor.add(1, unit)
 		) {
 			keys.push(cursor.format(bucketFormat));
 		}
 		return keys;
-	}, [dateRange.start_date, dateRange.end_date, isHourly, bucketFormat]);
+	}, [
+		dateRange.start_date,
+		dateRange.end_date,
+		isHourly,
+		bucketFormat,
+		latestBucket,
+	]);
 
 	const visitorsByProduct = useMemo(() => {
 		const counts = new Map<string, Map<string, number>>();
@@ -1771,7 +1830,7 @@ export default function AgentsPage() {
 		return {
 			data: buckets.map((bucket): ChartMultiSeriesDataPoint => {
 				const point: ChartMultiSeriesDataPoint = {
-					date: dayjs(bucket).format(isHourly ? "HH:mm" : "MMM D"),
+					date: formatDateByGranularity(bucket, dateRange.granularity),
 				};
 				for (const product of topProducts) {
 					point[product] = visitorsByProduct.get(product)?.get(bucket) ?? 0;
@@ -1780,7 +1839,7 @@ export default function AgentsPage() {
 			}),
 			metrics: topProducts.map((product) => ({ key: product, label: product })),
 		};
-	}, [products, buckets, visitorsByProduct, isHourly]);
+	}, [products, buckets, visitorsByProduct, dateRange.granularity]);
 
 	const visitorShare = useMemo((): VisitorShare => {
 		const previousVisitors = new Map(
@@ -1833,112 +1892,160 @@ export default function AgentsPage() {
 		})
 	);
 
-	if (!isLoading && products.length === 0) {
-		return (
-			<div className="flex h-full flex-col p-4">
-				<EmptyState
-					action={<AgentSetupSheet websiteId={websiteId} />}
-					description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers don't run JavaScript, so they need one line on your server."
-					icon={<BrainIcon />}
-					isMainContent
-					title="No AI activity yet"
-				/>
-			</div>
-		);
-	}
-
+	const productsResult = results.find(
+		(result) => result.queryId === "products"
+	);
+	const productsFailed = !(
+		isPending ||
+		(productsResult && "ai_products" in productsResult.data)
+	);
 	const topSender = products.reduce<ProductRow | null>(
 		(top, row) => (row.visitors > (top?.visitors ?? 0) ? row : top),
 		null
 	);
 	const hasProxy = products.some((row) => Boolean(row.has_proxy));
-	const needsProxy = !isLoading && topSender !== null && !hasProxy;
+	const needsProxy = !isPending && topSender !== null && !hasProxy;
 
 	return (
 		<div className="relative flex h-full flex-col">
-			<div className="space-y-4 p-4">
-				{needsProxy && topSender ? (
-					<NoticeBanner
-						description="Add one line to your site to also see which pages AI reads, and whether it gets markdown or HTML."
+			{productsFailed ? (
+				<div className="flex flex-1 flex-col p-4">
+					<EmptyState
+						action={
+							<Button
+								loading={isFetching}
+								onClick={() => refetch()}
+								size="md"
+								variant="secondary"
+							>
+								Try again
+							</Button>
+						}
+						description="Databuddy couldn't load AI activity for this site."
 						icon={<BrainIcon />}
-						title={`${topSender.product} sent you ${formatCount(topSender.visitors, "visitor")}`}
-					>
-						<AgentSetupSheet websiteId={websiteId} />
-					</NoticeBanner>
-				) : null}
-
-				<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-3">
-					{featured.map((row) => (
-						<ProductCard
-							isHourly={isHourly}
-							isLoading={isLoading}
-							key={row.product}
-							row={row}
-							trend={trendFor(row.product)}
-						/>
-					))}
+						isMainContent
+						title="Couldn't load AI activity"
+						variant="error"
+					/>
 				</div>
-
-				{isLoading || reads.length > 0 ? (
-					<AgentReadsPanel
-						activity={activity}
-						agents={readingAgents}
-						formats={formats}
-						isLoading={isLoading}
-						reads={reads}
-						robots={{
-							hasRobotsTxt: robots.data?.hasRobotsTxt,
-							isPending: robots.isFetching,
-						}}
-						timeline={{ bucketFormat, buckets, isHourly }}
-						websiteId={websiteId}
+			) : !isPending && products.length === 0 ? (
+				<div className="flex flex-1 flex-col p-4">
+					<EmptyState
+						action={
+							<Button
+								onClick={() => setIsSetupOpen(true)}
+								size="md"
+								variant="secondary"
+							>
+								Set up
+							</Button>
+						}
+						description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers don't run JavaScript, so they need one line on your server."
+						icon={<BrainIcon />}
+						isMainContent
+						title="No AI activity yet"
 					/>
-				) : null}
+				</div>
+			) : (
+				<div className="space-y-4 p-4">
+					{needsProxy && topSender ? (
+						<NoticeBanner
+							description="Add one line to your site to also see which pages AI reads, and whether it gets markdown or HTML."
+							icon={<BrainIcon />}
+							title={`${topSender.product} sent you ${formatCount(topSender.visitors, "visitor")}`}
+						>
+							<Button
+								onClick={() => setIsSetupOpen(true)}
+								size="md"
+								variant="secondary"
+							>
+								Set up
+							</Button>
+						</NoticeBanner>
+					) : null}
 
-				{isLoading || visitorShare.rows.length > 0 ? (
-					<VisitorSharePanel
-						isLoading={isLoading}
-						previousRange={previousRange}
-						share={visitorShare}
-					>
-						<SimpleMetricsChart
-							chartStepType={chartStepType}
-							className="rounded-lg border-0 bg-background"
-							data={chart.data}
-							description="Visitors each AI product sent to your site"
-							height={280}
+					<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-3">
+						{featured.map((row) => (
+							<ProductCard
+								hasProxy={hasProxy}
+								isHourly={isHourly}
+								isLoading={isPending}
+								key={row.product}
+								row={row}
+								trend={trendFor(row.product)}
+							/>
+						))}
+					</div>
+
+					{isPending || reads.length > 0 ? (
+						<AgentReadsPanel
+							activity={activity}
+							agents={readingAgents}
+							formats={formats}
 							isLoading={isLoading}
-							metrics={chart.metrics}
-							partialLastSegment
-							seriesKind={chartType}
-							showYAxis
-							title="AI visitors"
-						/>
-					</VisitorSharePanel>
-				) : null}
-
-				{isLoading || outcomeRows.length > 1 || landingPages.length > 0 ? (
-					<AiVisitorsPanel
-						isLoading={isLoading}
-						landing={landingPages}
-						outcomes={outcomeRows}
-					/>
-				) : null}
-
-				{needsProxy ? null : (
-					<div className="space-y-2">
-						<p className="text-pretty text-muted-foreground text-xs">
-							{hasProxy
-								? "Server-side tracking is on, so crawlers that don't run JavaScript, like GPTBot and ClaudeBot, show up here."
-								: "Crawlers that don't run JavaScript, like GPTBot and ClaudeBot, only appear once @databuddy/sdk/agents runs on your server or a Vercel log drain sends your logs."}
-						</p>
-						<AgentSetupSheet
-							label={hasProxy ? "Test setup" : "Set up"}
+							reads={reads}
+							robots={{
+								hasRobotsTxt: robots.data?.hasRobotsTxt,
+								isPending: robots.isFetching,
+							}}
+							timeline={{ bucketFormat, buckets, isHourly }}
 							websiteId={websiteId}
 						/>
-					</div>
-				)}
-			</div>
+					) : null}
+
+					{isPending || visitorShare.rows.length > 0 ? (
+						<VisitorSharePanel
+							isLoading={isLoading}
+							previousRange={previousRange}
+							share={visitorShare}
+						>
+							<SimpleMetricsChart
+								chartStepType={chartStepType}
+								className="rounded-lg border-0 bg-background"
+								data={chart.data}
+								description="Visitors each AI product sent to your site"
+								height={280}
+								isLoading={isLoading}
+								metrics={chart.metrics}
+								partialLastSegment
+								seriesKind={chartType}
+								showYAxis
+								title="AI visitors"
+							/>
+						</VisitorSharePanel>
+					) : null}
+
+					{isPending || outcomeRows.length > 1 || landingPages.length > 0 ? (
+						<AiVisitorsPanel
+							isLoading={isLoading}
+							landing={landingPages}
+							outcomes={outcomeRows}
+						/>
+					) : null}
+
+					{isPending || needsProxy ? null : (
+						<div className="space-y-2">
+							<p className="text-pretty text-muted-foreground text-xs">
+								{hasProxy
+									? "Server-side tracking is on, so crawlers that don't run JavaScript, like GPTBot and ClaudeBot, show up here."
+									: "Crawlers that don't run JavaScript, like GPTBot and ClaudeBot, only appear once @databuddy/sdk/agents runs on your server or a Vercel log drain sends your logs."}
+							</p>
+							<Button
+								onClick={() => setIsSetupOpen(true)}
+								size="md"
+								variant="secondary"
+							>
+								{hasProxy ? "Test setup" : "Set up"}
+							</Button>
+						</div>
+					)}
+				</div>
+			)}
+			<AgentSetupSheet
+				isOpen={isSetupOpen}
+				onOpenChange={(open) => setIsSetupOpen(open)}
+				websiteId={websiteId}
+			/>
 		</div>
 	);
 }
