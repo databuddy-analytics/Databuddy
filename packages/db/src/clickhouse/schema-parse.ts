@@ -169,14 +169,54 @@ function parseIndexes(sql: string): ParsedIndex[] {
 	return indexes;
 }
 
-// ClickHouse stores `INTERVAL 90 DAY` as `toIntervalDay(90)`.
-const INTERVAL_PATTERN = /INTERVAL\s+(\d+)\s+([A-Za-z]+)/gi;
+const QUOTED_PATTERN = /'(?:[^'\\]|\\.|'')*'|`[^`]*`/g;
 
-function clause(tail: string, keyword: string, stops: string[]): string {
-	const lookahead = stops.length ? `(?=(?:${stops.join("|")})\\b|$)` : "(?=$)";
-	const re = new RegExp(`${keyword}\\s+([\\s\\S]*?)\\s*${lookahead}`, "i");
-	const value = tail.match(re)?.[1];
-	return value === undefined ? "" : value.trim();
+// ClickHouse stores `INTERVAL 90 DAYS` and `INTERVAL '90 day'` as
+// `toIntervalDay(90)`, keeps a quoted amount quoted, and drops the default
+// DELETE action.
+const TTL_CANONICAL_PATTERN = new RegExp(
+	`(${QUOTED_PATTERN.source})|\\bINTERVAL\\s+(?:'(\\d+)\\s+([a-z]+?)s?'|('\\d+'|\\d+)\\s+([a-z]+?)s?\\b)|\\s+DELETE(?=\\s+WHERE\\s|\\s*,|$)`,
+	"gi"
+);
+
+function canonicalTtl(ttl: string): string {
+	return ttl.replace(
+		TTL_CANONICAL_PATTERN,
+		(
+			_match: string,
+			quoted: string | undefined,
+			spanAmount: string | undefined,
+			spanUnit: string | undefined,
+			amount: string | undefined,
+			unit: string | undefined
+		) => {
+			if (quoted !== undefined) {
+				return quoted;
+			}
+			const intervalUnit = spanUnit ?? unit;
+			if (intervalUnit === undefined) {
+				return "";
+			}
+			return `toInterval${intervalUnit[0]?.toUpperCase()}${intervalUnit.slice(1).toLowerCase()}(${spanAmount ?? amount})`;
+		}
+	);
+}
+
+function clause(
+	tail: string,
+	masked: string,
+	keyword: string,
+	stops: string[]
+): string {
+	const start = new RegExp(`(?:^|\\s)${keyword}\\s`).exec(masked);
+	if (!start) {
+		return "";
+	}
+	const from = start.index + start[0].length;
+	const end = stops.length
+		? masked.slice(from).search(new RegExp(`\\s(?:${stops.join("|")})\\s`))
+		: -1;
+	return tail.slice(from, end === -1 ? undefined : from + end).trim();
 }
 
 export function parseTable(sql: string): ParsedTable {
@@ -188,12 +228,15 @@ export function parseTable(sql: string): ParsedTable {
 		.slice(firstParenGroup(sql).end + 1)
 		.replace(/\s+/g, " ")
 		.trim();
+	const masked = tail.replace(QUOTED_PATTERN, (quoted) =>
+		"_".repeat(quoted.length)
+	);
 	return {
 		name,
 		isView,
 		columns,
 		indexes,
-		engine: clause(tail, "ENGINE\\s*=", [
+		engine: clause(tail, masked, "ENGINE\\s*=", [
 			"PARTITION BY",
 			"PRIMARY KEY",
 			"ORDER BY",
@@ -201,31 +244,27 @@ export function parseTable(sql: string): ParsedTable {
 			"TTL",
 			"SETTINGS",
 		]),
-		partitionBy: clause(tail, "PARTITION BY", [
+		partitionBy: clause(tail, masked, "PARTITION BY", [
 			"PRIMARY KEY",
 			"ORDER BY",
 			"SAMPLE BY",
 			"TTL",
 			"SETTINGS",
 		]),
-		primaryKey: clause(tail, "PRIMARY KEY", [
+		primaryKey: clause(tail, masked, "PRIMARY KEY", [
 			"ORDER BY",
 			"SAMPLE BY",
 			"TTL",
 			"SETTINGS",
 		]),
-		orderBy: clause(tail, "ORDER BY", [
+		orderBy: clause(tail, masked, "ORDER BY", [
 			"PRIMARY KEY",
 			"SAMPLE BY",
 			"TTL",
 			"SETTINGS",
 		]),
-		settings: clause(tail, "SETTINGS", []),
-		ttl: clause(tail, "TTL", ["SETTINGS"]).replace(
-			INTERVAL_PATTERN,
-			(_, amount: string, unit: string) =>
-				`toInterval${unit[0]?.toUpperCase()}${unit.slice(1).toLowerCase()}(${amount})`
-		),
+		settings: clause(tail, masked, "SETTINGS", []),
+		ttl: canonicalTtl(clause(tail, masked, "TTL", ["SETTINGS"])),
 	};
 }
 
