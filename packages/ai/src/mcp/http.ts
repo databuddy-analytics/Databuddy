@@ -20,27 +20,71 @@ export interface DatabuddyMcpHttpOptions extends McpRequestContext {
 }
 
 const MCP_AUTH_CHALLENGE = `Bearer realm="databuddy", resource_metadata="${config.urls.api}/.well-known/oauth-protected-resource"`;
+const MAX_MCP_REQUEST_BYTES = 1_048_576;
+
+export function createMcpErrorResponse(
+	status: number,
+	code: number,
+	message: string,
+	headers?: HeadersInit
+): Response {
+	return Response.json(
+		{ jsonrpc: "2.0", error: { code, message }, id: null },
+		{ status, headers }
+	);
+}
 
 export function createMcpUnauthorizedResponse(): Response {
 	mergeWideEvent({ mcp_auth: "unauthorized" });
 
-	return Response.json(
-		{
-			jsonrpc: "2.0",
-			error: {
-				code: -32_001,
-				message:
-					"Authentication required. Use OAuth 2.1, or x-api-key / Authorization: Bearer with a valid Databuddy API key.",
-			},
-			id: null,
-		},
-		{
-			status: 401,
-			headers: {
-				"WWW-Authenticate": MCP_AUTH_CHALLENGE,
-			},
-		}
+	return createMcpErrorResponse(
+		401,
+		-32_001,
+		"Authentication required. Use OAuth 2.1, or x-api-key / Authorization: Bearer with a valid Databuddy API key.",
+		{ "WWW-Authenticate": MCP_AUTH_CHALLENGE }
 	);
+}
+
+async function readSingleMcpMessage(
+	request: Request
+): Promise<{ message: unknown } | { rejection: Response }> {
+	const tooLarge = {
+		rejection: createMcpErrorResponse(
+			413,
+			-32_600,
+			"Request body is larger than 1 MB."
+		),
+	};
+	if (Number(request.headers.get("content-length")) > MAX_MCP_REQUEST_BYTES) {
+		return tooLarge;
+	}
+	const body = await request.arrayBuffer();
+	if (body.byteLength > MAX_MCP_REQUEST_BYTES) {
+		return tooLarge;
+	}
+	let message: unknown;
+	try {
+		message = JSON.parse(new TextDecoder().decode(body));
+	} catch {
+		return {
+			rejection: createMcpErrorResponse(
+				400,
+				-32_700,
+				"Parse error: Invalid JSON"
+			),
+		};
+	}
+	if (Array.isArray(message)) {
+		mergeWideEvent({ mcp_batch_rejected: true });
+		return {
+			rejection: createMcpErrorResponse(
+				400,
+				-32_600,
+				"Batch requests are not supported. Send one JSON-RPC message per request."
+			),
+		};
+	}
+	return { message };
 }
 
 export async function handleDatabuddyMcpRequest(
@@ -48,6 +92,11 @@ export async function handleDatabuddyMcpRequest(
 ): Promise<Response> {
 	if (options.request.method !== "POST") {
 		return new Response(null, { status: 405, headers: { Allow: "POST" } });
+	}
+
+	const parsed = await readSingleMcpMessage(options.request);
+	if ("rejection" in parsed) {
+		return parsed.rejection;
 	}
 
 	mergeWideEvent({
@@ -98,7 +147,9 @@ export async function handleDatabuddyMcpRequest(
 
 	try {
 		await server.connect(transport);
-		return await transport.handleRequest(options.request);
+		return await transport.handleRequest(options.request, {
+			parsedBody: parsed.message,
+		});
 	} catch (error) {
 		captureError(error, { mcp_error: true });
 		throw error;

@@ -45,6 +45,34 @@ describe("MCP transport", () => {
 			jsonrpc: "2.0",
 		});
 	});
+
+	test("rejects JSON-RPC batches instead of running every message", async () => {
+		const message = { jsonrpc: "2.0", method: "tools/list", params: {} };
+		const response = await handleDatabuddyMcpRequest({
+			apiKey: null,
+			organizationId: "org-1",
+			request: new Request("https://api.databuddy.test/v1/mcp", {
+				body: JSON.stringify([
+					{ ...message, id: 1 },
+					{ ...message, id: 2 },
+				]),
+				headers: {
+					accept: "application/json, text/event-stream",
+					"content-type": "application/json",
+				},
+				method: "POST",
+			}),
+			requestHeaders: new Headers(),
+			userId: "user-1",
+		});
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({
+			error: { code: -32_600 },
+			id: null,
+			jsonrpc: "2.0",
+		});
+	});
 });
 
 async function listTools(
