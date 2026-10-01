@@ -6,15 +6,13 @@ import {
 	organization,
 	sql,
 } from "@databuddy/db";
-import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
-import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import { Elysia, t } from "elysia";
 
 export const emailUnsubscribeRoute = new Elysia({
 	prefix: "/v1/email-unsubscribe",
 }).post(
 	"/ai-digest",
-	async function unsubscribeFromAiDigest({ query, request, set }) {
+	async function unsubscribeFromAiDigest({ query, set }) {
 		mergeWideEvent({
 			email_unsubscribe: "ai_digest",
 			email_unsubscribe_organization: query.organization,
@@ -34,15 +32,8 @@ export const emailUnsubscribeRoute = new Elysia({
 			return { success: true };
 		}
 
-		const clientIp = getClientIp(request.headers) ?? "unknown";
-		const rl = await ratelimit(`email-unsubscribe:ip:${clientIp}`, 30, 3600);
-		for (const [key, value] of Object.entries(getRateLimitHeaders(rl))) {
-			set.headers[key] = value;
-		}
-		mergeWideEvent({
-			email_unsubscribe_rejected: rl.success ? "invalid_token" : "rate_limit",
-		});
-		set.status = rl.success ? 403 : 429;
+		mergeWideEvent({ email_unsubscribe_rejected: "invalid_token" });
+		set.status = 403;
 		return { success: false };
 	},
 	{
