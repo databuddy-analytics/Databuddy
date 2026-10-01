@@ -111,7 +111,7 @@ function unsubscribeHeaders(
 }
 
 function appUrl(path: string): string {
-	const url = new URL(path, config.urls.dashboard);
+	const url = new URL(`${config.urls.dashboard}${path}`);
 	url.searchParams.set("utm_source", "databuddy");
 	url.searchParams.set("utm_medium", "email");
 	url.searchParams.set("utm_campaign", "ai_digest");
