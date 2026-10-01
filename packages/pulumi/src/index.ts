@@ -33,6 +33,7 @@ type EndpointOutput<E extends Endpoint> = Awaited<ReturnType<Endpoints[E]>>;
 const DEFAULT_API_URL = "https://api.databuddy.cc";
 const TRAILING_SLASHES = /\/+$/;
 const ALREADY_EXISTS = /already/i;
+const STATUS_PAGE_SLUG = /^[a-z0-9-]{1,100}$/;
 const WEBSITE_RESOURCE = /^website$/i;
 const MAX_IN_FLIGHT = 8;
 const MAX_ATTEMPTS = 5;
@@ -611,13 +612,13 @@ type StatusPageShape = Pick<StatusPageFields, "name" | "slug"> & {
 function statusPageFields(page: StatusPageShape): StatusPageFields {
 	return {
 		description: page.description || null,
-		faviconUrl: page.faviconUrl ?? null,
-		logoUrl: page.logoUrl ?? null,
+		faviconUrl: page.faviconUrl || null,
+		logoUrl: page.logoUrl || null,
 		name: page.name,
 		slug: page.slug,
-		supportUrl: page.supportUrl ?? null,
+		supportUrl: page.supportUrl || null,
 		theme: page.theme ?? "system",
-		websiteUrl: page.websiteUrl ?? null,
+		websiteUrl: page.websiteUrl || null,
 	};
 }
 
@@ -625,6 +626,23 @@ class StatusPageProvider
 	extends DatabuddyProvider
 	implements dynamic.ResourceProvider<Unwrap<StatusPageArgs>, StatusPageState>
 {
+	check(_olds: Unwrap<StatusPageArgs>, news: Unwrap<StatusPageArgs>) {
+		const { slug } = news;
+		const failures =
+			typeof slug === "string" &&
+			slug !== UNKNOWN_DURING_PREVIEW &&
+			!STATUS_PAGE_SLUG.test(slug)
+				? [
+						{
+							property: "slug",
+							reason:
+								"slug must be 1 to 100 lowercase letters, numbers, or dashes",
+						},
+					]
+				: [];
+		return Promise.resolve({ failures });
+	}
+
 	diff(_id: string, olds: StatusPageState, news: Unwrap<StatusPageArgs>) {
 		const changed = changedKeys(statusPageFields(olds), statusPageFields(news));
 		return Promise.resolve({ changes: changed.length > 0 });
