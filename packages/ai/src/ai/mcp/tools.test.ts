@@ -43,8 +43,18 @@ describe("MCP transport", () => {
 	});
 });
 
+const oauthUser = {
+	id: "user",
+	name: "User",
+	email: "user@example.com",
+	emailVerified: true,
+	image: null,
+	createdAt: new Date("2026-01-01"),
+	updatedAt: new Date("2026-01-01"),
+};
+
 async function listTools(
-	context: Pick<McpRequestContext, "apiKey" | "oauthScopes" | "userId">
+	context: Pick<McpRequestContext, "apiKey" | "oauth" | "userId">
 ) {
 	const response = await handleDatabuddyMcpRequest({
 		...context,
@@ -94,8 +104,12 @@ describe("MCP OAuth scopes", () => {
 	test("a scoped OAuth token lists the same tools as an API key with those scopes", async () => {
 		const oauth = await listTools({
 			apiKey: null,
-			oauthScopes: ["read:links"],
-			userId: "user-1",
+			oauth: {
+				grant: { organizationId: "org-1", websiteIds: null },
+				scopes: ["read:links"],
+				user: oauthUser,
+			},
+			userId: null,
 		});
 		const apiKey = await listToolsForScopes(["read:links"]);
 		expect(oauth.tools.map((tool) => tool.name).sort()).toEqual(
@@ -107,8 +121,12 @@ describe("MCP OAuth scopes", () => {
 	test("an OAuth token without Databuddy scopes only lists tools that need none", async () => {
 		const oauth = await listTools({
 			apiKey: null,
-			oauthScopes: [],
-			userId: "user-1",
+			oauth: {
+				grant: { organizationId: "org-1", websiteIds: null },
+				scopes: [],
+				user: oauthUser,
+			},
+			userId: null,
 		});
 		expect(oauth.tools.map((tool) => tool.name).sort()).toEqual(
 			tools

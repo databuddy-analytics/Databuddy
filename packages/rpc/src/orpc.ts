@@ -24,9 +24,8 @@ import { getOrganizationOwnerId } from "./utils/organization";
 export interface PreResolvedAuth {
 	apiKey: ApiKeyRow | null;
 	oauth?: {
-		grant?: McpAccessGrant;
-		organizationId: string | null;
-		scopes?: string[];
+		grant: McpAccessGrant;
+		scopes: string[];
 		user: User;
 	} | null;
 	session: Awaited<ReturnType<typeof auth.api.getSession>> | null;
@@ -115,8 +114,7 @@ export const createRPCContext = async (
 	const organizationId =
 		apiKey?.organizationId ??
 		session?.session.activeOrganizationId ??
-		oauth?.grant?.organizationId ??
-		oauth?.organizationId ??
+		oauth?.grant.organizationId ??
 		null;
 
 	let billingCache: BillingOwner | undefined;

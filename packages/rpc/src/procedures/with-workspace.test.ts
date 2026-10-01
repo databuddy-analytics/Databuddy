@@ -265,7 +265,6 @@ describe("withWorkspace OAuth connection grants", () => {
 			...context,
 			oauth: {
 				grant: { organizationId: ORGANIZATION_ID, websiteIds },
-				organizationId: ORGANIZATION_ID,
 				scopes,
 				user: context.user!,
 			},

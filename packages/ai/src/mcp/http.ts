@@ -51,12 +51,8 @@ export async function handleDatabuddyMcpRequest(
 	}
 
 	mergeWideEvent({
-		mcp_auth: options.apiKey
-			? "api_key"
-			: options.oauthUserId
-				? "oauth"
-				: "session",
-		mcp_session: Boolean(options.userId && !options.oauthUserId),
+		mcp_auth: options.apiKey ? "api_key" : options.oauth ? "oauth" : "session",
+		mcp_session: Boolean(options.userId && !options.oauth),
 		mcp_api_key: Boolean(options.apiKey),
 	});
 
@@ -108,15 +104,15 @@ export async function handleDatabuddyMcpRequest(
 }
 
 function callerCanCallTool(
-	{ apiKey, oauthScopes }: McpRequestContext,
+	{ apiKey, oauth }: McpRequestContext,
 	tool: RegisteredMcpTool
 ): boolean {
 	const required = tool.metadata.access.scopes;
 	if (!required?.length) {
 		return true;
 	}
-	if (oauthScopes) {
-		return required.every((scope) => oauthScopes.includes(scope));
+	if (oauth) {
+		return required.every((scope) => oauth.scopes.includes(scope));
 	}
 	if (!apiKey) {
 		return true;

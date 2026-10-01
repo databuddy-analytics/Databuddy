@@ -9,7 +9,7 @@ import {
 import { auth } from "@databuddy/auth";
 import { getMcpAccessGrant } from "@databuddy/auth/mcp-grant";
 import { MCP_GRANT_CLAIM } from "@databuddy/shared/mcp-access";
-import { isApiScope } from "@databuddy/shared/api-scopes";
+import { db } from "@databuddy/db";
 import { config } from "@databuddy/env/app";
 import { createMcpProtectedRequestHandler } from "@better-auth/mcp";
 import { Elysia } from "elysia";
@@ -42,9 +42,7 @@ const handleOAuthMcpRequest = createMcpProtectedRequestHandler(
 			return createMcpUnauthorizedResponse();
 		}
 		const tokenScopes =
-			typeof claims.scope === "string"
-				? claims.scope.split(" ").filter(isApiScope)
-				: [];
+			typeof claims.scope === "string" ? claims.scope.split(" ") : [];
 		const authorization = await getMcpAccessGrant(
 			subject,
 			clientId,
@@ -54,15 +52,16 @@ const handleOAuthMcpRequest = createMcpProtectedRequestHandler(
 		if (!authorization) {
 			return createMcpUnauthorizedResponse();
 		}
+		const user = await db.query.user.findFirst({ where: { id: subject } });
+		if (!user) {
+			return createMcpUnauthorizedResponse();
+		}
 		return handleDatabuddyMcpRequest({
 			request,
 			requestHeaders: request.headers,
-			userId: subject,
-			oauthScopes: authorization.scopes,
-			oauthGrant: authorization.grant,
-			oauthUserId: subject,
+			userId: null,
+			oauth: { ...authorization, user },
 			apiKey: null,
-			organizationId: authorization.grant.organizationId,
 		});
 	}
 );

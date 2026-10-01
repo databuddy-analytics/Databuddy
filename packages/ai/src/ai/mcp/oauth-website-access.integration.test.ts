@@ -9,6 +9,8 @@ integration("MCP OAuth website authorization", () => {
 	let ensureWebsiteAccess: typeof import("./tool-context").ensureWebsiteAccess;
 	let dbModule: typeof import("@databuddy/db");
 	let schema: typeof import("@databuddy/db/schema");
+	let viewer: typeof schema.user.$inferSelect;
+	let outsider: typeof schema.user.$inferSelect;
 
 	const suffix = randomUUID().slice(0, 8);
 	const organizationId = `mcp-oauth-org-${suffix}`;
@@ -19,14 +21,21 @@ integration("MCP OAuth website authorization", () => {
 
 	async function insertUser(id: string) {
 		const now = new Date();
-		await dbModule.db.insert(schema.user).values({
-			id,
-			name: id,
-			email: `${id}@example.com`,
-			emailVerified: true,
-			createdAt: now,
-			updatedAt: now,
-		});
+		const [user] = await dbModule.db
+			.insert(schema.user)
+			.values({
+				id,
+				name: id,
+				email: `${id}@example.com`,
+				emailVerified: true,
+				createdAt: now,
+				updatedAt: now,
+			})
+			.returning();
+		if (!user) {
+			throw new Error("Test user was not created");
+		}
+		return user;
 	}
 
 	beforeAll(async () => {
@@ -39,8 +48,8 @@ integration("MCP OAuth website authorization", () => {
 			{ id: organizationId, name: organizationId, createdAt: now },
 			{ id: otherOrganizationId, name: otherOrganizationId, createdAt: now },
 		]);
-		await insertUser(viewerId);
-		await insertUser(outsiderId);
+		viewer = await insertUser(viewerId);
+		outsider = await insertUser(outsiderId);
 		await dbModule.db.insert(schema.member).values([
 			{
 				id: `member-${viewerId}`,
@@ -84,9 +93,13 @@ integration("MCP OAuth website authorization", () => {
 	test("grants a member of the website's organization", async () => {
 		const access = await ensureWebsiteAccess(websiteId, {
 			apiKey: null,
-			oauthUserId: viewerId,
+			oauth: {
+				grant: { organizationId, websiteIds: [websiteId] },
+				scopes: ["read:data"],
+				user: viewer,
+			},
 			requestHeaders: new Headers(),
-			userId: viewerId,
+			userId: null,
 		});
 
 		expect(access).not.toBeInstanceOf(Error);
@@ -98,9 +111,13 @@ integration("MCP OAuth website authorization", () => {
 	test("denies a user who belongs to a different organization", async () => {
 		const access = await ensureWebsiteAccess(websiteId, {
 			apiKey: null,
-			oauthUserId: outsiderId,
+			oauth: {
+				grant: { organizationId, websiteIds: [websiteId] },
+				scopes: ["read:data"],
+				user: outsider,
+			},
 			requestHeaders: new Headers(),
-			userId: outsiderId,
+			userId: null,
 		});
 
 		expect(access).toBeInstanceOf(Error);
@@ -110,9 +127,13 @@ integration("MCP OAuth website authorization", () => {
 	test("denies a user with no membership at all", async () => {
 		const access = await ensureWebsiteAccess(websiteId, {
 			apiKey: null,
-			oauthUserId: `ghost-${suffix}`,
+			oauth: {
+				grant: { organizationId, websiteIds: [websiteId] },
+				scopes: ["read:data"],
+				user: { ...viewer, id: `ghost-${suffix}` },
+			},
 			requestHeaders: new Headers(),
-			userId: `ghost-${suffix}`,
+			userId: null,
 		});
 
 		expect(access).toBeInstanceOf(Error);

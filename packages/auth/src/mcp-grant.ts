@@ -22,10 +22,7 @@ import {
 } from "better-auth/api";
 import { roleHasPermission } from "./permissions";
 
-const selection = defineRequestState<{
-	grant: McpAccessGrant;
-	grantId: string;
-} | null>(() => null);
+const selection = defineRequestState<string | null>(() => null);
 
 function referenceHash(reference: string): string {
 	return createHash("sha256").update(reference).digest("hex");
@@ -42,7 +39,7 @@ export const mcpPostLogin = {
 					"Choose an organization and website access before allowing this connection.",
 			});
 		}
-		return encodeMcpGrantReference(selected.grant, selected.grantId);
+		return selected;
 	},
 };
 
@@ -165,7 +162,7 @@ export const mcpConsentAccess = {
 							});
 						}
 					}
-					await selection.set({ grant, grantId: randomUUID() });
+					await selection.set(encodeMcpGrantReference(grant, randomUUID()));
 				}),
 			},
 			{
