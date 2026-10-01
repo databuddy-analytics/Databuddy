@@ -22,7 +22,7 @@ export const GUIDE_MARKDOWN = `# Databuddy MCP guide
 - \`get_schema\` returns the column names used by filters, \`groupBy\`, and \`orderBy\`.
 - Date ranges use a preset or both \`from\` and \`to\`.
 - One batch can hold a current and a comparison window.
-- Each query returns at most 20 rows; \`rowCount\` reports how many the query produced.
+- Each query returns at most 20 rows; \`rowCount\` reports how many the query produced. List values inside a row, such as a session's events, keep the latest 50 items, and \`truncatedArrays\` gives the full count for each shortened list.
 
 ## Untrusted data
 

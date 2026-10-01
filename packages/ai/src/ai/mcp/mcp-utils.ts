@@ -47,6 +47,7 @@ export { MCP_DATE_PRESETS } from "../../lib/date-presets";
 export { SCHEMA_SECTIONS } from "../prompts/clickhouse-schema";
 
 export const MCP_RESULT_ROW_LIMIT = 20;
+export const MCP_ROW_ARRAY_LIMIT = 50;
 
 export function queryFailedMessage(type: string): string {
 	return `The ${type} query failed to run. Retry, shorten the date range, or remove filters.`;
@@ -65,6 +66,11 @@ export interface McpQueryItem {
 }
 
 const TOP_QUERY_PREFIX = /^top_/;
+const LINK_ID_FIELD = "link_id";
+
+const WEBSITE_QUERY_BUILDERS = Object.entries(QueryBuilders).filter(
+	([, config]) => config.idField !== LINK_ID_FIELD
+);
 
 const QUERY_TYPE_ALIASES: Record<string, string> = {
 	countries: "country",
@@ -268,6 +274,12 @@ export function buildBatchQueryRequests(
 			reject(message, q.type);
 			continue;
 		}
+		if (config.idField === LINK_ID_FIELD) {
+			reject(
+				`${resolvedType} reports clicks for one short link, but get_data selects data by website. Use list_links or search_links for short links; link click analytics are in the Databuddy dashboard.`
+			);
+			continue;
+		}
 		if (invalidTimezone) {
 			reject(invalidTimezone);
 			continue;
@@ -344,6 +356,24 @@ export function buildBatchQueryRequests(
 	return { invalid, requests };
 }
 
+export function capRowArrays(
+	row: Record<string, unknown>
+): Record<string, unknown> {
+	const truncatedArrays: Record<string, number> = {};
+	const capped = Object.fromEntries(
+		Object.entries(row).map(([key, value]) => {
+			if (!Array.isArray(value) || value.length <= MCP_ROW_ARRAY_LIMIT) {
+				return [key, value];
+			}
+			truncatedArrays[key] = value.length;
+			return [key, value.slice(-MCP_ROW_ARRAY_LIMIT)];
+		})
+	);
+	return Object.keys(truncatedArrays).length > 0
+		? { ...capped, truncatedArrays }
+		: row;
+}
+
 export function formatMcpQueryResults(
 	plan: McpBatchQueryPlan,
 	results: readonly ExecutedQueryResult[]
@@ -355,9 +385,11 @@ export function formatMcpQueryResults(
 				throw new Error("Query result does not match its request");
 			}
 			const rowCount = result.data.length;
-			const data = request.keepNewestRows
-				? result.data.slice(Math.max(rowCount - request.rowLimit, 0))
-				: result.data.slice(0, request.rowLimit);
+			const data = (
+				request.keepNewestRows
+					? result.data.slice(Math.max(rowCount - request.rowLimit, 0))
+					: result.data.slice(0, request.rowLimit)
+			).map(capRowArrays);
 			const error = result.error && publicQueryErrorMessage(result.error);
 			if (result.error && error === SANITIZED_QUERY_ERROR) {
 				captureError(new Error(truncateQueryErrorForLog(result.error)), {
@@ -484,7 +516,7 @@ interface QueryTypeInfo {
 
 export function getQueryTypeDescriptions(): Record<string, string> {
 	const result: Record<string, string> = {};
-	for (const [key, config] of Object.entries(QueryBuilders)) {
+	for (const [key, config] of WEBSITE_QUERY_BUILDERS) {
 		result[key] = getDescription(key, config);
 	}
 	return result;
@@ -492,7 +524,7 @@ export function getQueryTypeDescriptions(): Record<string, string> {
 
 export function getQueryTypeDetails(): Record<string, QueryTypeInfo> {
 	const result: Record<string, QueryTypeInfo> = {};
-	for (const [key, config] of Object.entries(QueryBuilders)) {
+	for (const [key, config] of WEBSITE_QUERY_BUILDERS) {
 		result[key] = {
 			description: getDescription(key, config),
 			allowedFilters: allowedFilterFields(config),
@@ -519,9 +551,9 @@ export function getSchemaSummary(): string {
 
 export const QUERY_CATEGORY_KEYS = [
 	...new Set(
-		Object.values(QueryBuilders)
-			.map((config) => config.meta?.category)
-			.filter((c): c is string => typeof c === "string" && c.length > 0)
+		WEBSITE_QUERY_BUILDERS.map(([, config]) => config.meta?.category).filter(
+			(c): c is string => typeof c === "string" && c.length > 0
+		)
 	),
 ].sort();
 
@@ -534,7 +566,7 @@ export function getFilteredQueryTypes(opts: {
 	const needle = contains?.toLowerCase();
 	const details = detail === "full" ? getQueryTypeDetails() : null;
 	const result: Record<string, string | QueryTypeInfo> = {};
-	for (const [key, config] of Object.entries(QueryBuilders)) {
+	for (const [key, config] of WEBSITE_QUERY_BUILDERS) {
 		if (category && config.meta?.category !== category) {
 			continue;
 		}
