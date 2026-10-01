@@ -22,6 +22,7 @@ import {
 	userRuleSchema,
 	variantSchema,
 } from "@databuddy/shared/flags";
+import type { DatePreset } from "../../lib/date-presets";
 import { executeBatch, SANITIZED_QUERY_ERROR } from "../../query";
 import type { AppContext } from "../config/context";
 import {
@@ -117,14 +118,22 @@ const QueryLimitSchema = z
 		`Rows to return, 1-${MCP_RESULT_ROW_LIMIT}. Defaults to the query type's own limit; at most ${MCP_RESULT_ROW_LIMIT} rows are returned.`
 	);
 
+const DatePresetSchema = z.enum(
+	MCP_DATE_PRESETS as [DatePreset, ...DatePreset[]]
+);
+const QueryFilterSchema = FilterSchema.omit({
+	target: true,
+	having: true,
+}).strict();
+
 const QueryItemSchema = z.object({
 	type: z.string(),
-	preset: z.enum(MCP_DATE_PRESETS as [string, ...string[]]).optional(),
+	preset: DatePresetSchema.optional(),
 	from: z.string().optional(),
 	to: z.string().optional(),
 	timeUnit: z.enum(TIME_UNIT).optional(),
 	limit: QueryLimitSchema,
-	filters: z.array(FilterSchema).optional(),
+	filters: z.array(QueryFilterSchema).optional(),
 	groupBy: z.array(z.string()).optional(),
 	orderBy: z.string().optional(),
 });
@@ -392,12 +401,9 @@ const getDataTool = defineMcpTool(
 				.describe(
 					"Query type for single-query mode. Use capabilities to see all types."
 				),
-			preset: z
-				.enum(MCP_DATE_PRESETS as [string, ...string[]])
-				.optional()
-				.describe(
-					"Date preset (e.g. 'last_7d', 'last_30d'). Alternative to from/to."
-				),
+			preset: DatePresetSchema.optional().describe(
+				"Date preset (e.g. 'last_7d', 'last_30d'). Alternative to from/to."
+			),
 			from: z
 				.string()
 				.optional()
@@ -412,7 +418,7 @@ const getDataTool = defineMcpTool(
 				.describe("Time granularity for time-series data."),
 			limit: QueryLimitSchema,
 			filters: z
-				.array(FilterSchema)
+				.array(QueryFilterSchema)
 				.optional()
 				.describe(
 					"Filters [{field, op, value}]. ops: eq, ne, contains, not_contains, starts_with, in, not_in. 'field' is a common dimension such as path, country, referrer, device_type, or utm_source, a query-specific field from capabilities detail='full', or trait:<key> (e.g. trait:plan) to segment by an identified-user trait. Rejected fields return the allowed list for this query."

@@ -3,11 +3,7 @@ import {
 	ANALYTICS_TABLES,
 	SCHEMA_SECTIONS,
 } from "../prompts/clickhouse-schema";
-import {
-	type DatePreset,
-	MCP_DATE_PRESETS,
-	resolveDatePreset,
-} from "../../lib/date-presets";
+import { type DatePreset, resolveDatePreset } from "../../lib/date-presets";
 import { captureError } from "../../lib/tracing";
 import { getQueryBuilder, QueryBuilders } from "../../query/builders";
 import {
@@ -62,7 +58,7 @@ export interface McpQueryItem {
 	groupBy?: string[];
 	limit?: number;
 	orderBy?: string;
-	preset?: string;
+	preset?: DatePreset;
 	timeUnit?: "minute" | "hour" | "day" | "week" | "month";
 	to?: string;
 	type: string;
@@ -289,12 +285,8 @@ export function buildBatchQueryRequests(
 			continue;
 		}
 		const preset = q.preset ?? (hasFrom ? undefined : "last_30d");
-		if (preset && !MCP_DATE_PRESETS.includes(preset as DatePreset)) {
-			reject(`Unknown date preset: ${preset}.`);
-			continue;
-		}
 		if (preset) {
-			const resolved = resolveDatePreset(preset as DatePreset, timezone, now);
+			const resolved = resolveDatePreset(preset, timezone, now);
 			from = resolved.from;
 			to = resolved.to;
 		}
