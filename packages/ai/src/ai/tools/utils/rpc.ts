@@ -46,6 +46,13 @@ export function formatValidationIssues(issues: readonly unknown[]): string {
 		.join("; ");
 }
 
+function messageWithoutQueryParams(error: Error): string {
+	if (!("params" in error)) {
+		return error.message;
+	}
+	return error.cause instanceof Error ? error.cause.message : error.name;
+}
+
 export async function callRPCProcedure(
 	routerName: string,
 	method: string,
@@ -132,17 +139,14 @@ export async function callRPCProcedure(
 		if (error instanceof Error) {
 			logger.error("RPC call error", {
 				procedure: `${routerName}.${method}`,
-				error: error.message,
-				stack: error.stack,
-				input,
+				error: messageWithoutQueryParams(error),
 			});
 			throw error;
 		}
 
 		logger.error("Unknown error in RPC call", {
 			procedure: `${routerName}.${method}`,
-			error,
-			input,
+			error: typeof error,
 		});
 		throw new Error("An unexpected error occurred. Please try again.");
 	}
