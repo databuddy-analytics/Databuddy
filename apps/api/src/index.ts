@@ -178,7 +178,9 @@ const autumnWebhookReplay = readBooleanEnv("SELFHOST")
 	: startAutumnWebhookReplayLoop();
 const auditOutboxReplay = startAuditOutboxReplayLoop();
 const deletedDataPurge =
-	process.env.NODE_ENV === "production" ? startDeletedDataPurgeLoop() : null;
+	process.env.NODE_ENV === "production" && readBooleanEnv("DELETED_DATA_PURGE")
+		? startDeletedDataPurgeLoop()
+		: null;
 warmPostgresConnection();
 registerShutdownHooks(async () => {
 	await Promise.all([

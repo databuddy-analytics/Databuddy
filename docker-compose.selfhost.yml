@@ -151,6 +151,7 @@ services:
       <<: *auth-environment
       PORT: "3001"
       SERVICE_NAME: databuddy-api
+      DELETED_DATA_PURGE: "true"
       AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
       CONTEXT_DEV_API_KEY: ${CONTEXT_DEV_API_KEY:-}
       SUPERMEMORY_API_KEY: ${SUPERMEMORY_API_KEY:-}

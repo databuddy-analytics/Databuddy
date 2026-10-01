@@ -22,33 +22,69 @@ export const WEBSITE_ID_PURGE_TABLES = {
 	"analytics.webhook_deliveries": "received_at",
 } as const;
 
-// Owner ids are websites, organizations, or legacy user ids. Organization rows
-// tied to a website stay with that website, which may have been transferred.
-export async function purgeAnalyticsData(ownerIds: string[]): Promise<void> {
-	if (ownerIds.length === 0) {
-		return;
-	}
-	for (const table of Object.keys(CLIENT_ID_PURGE_TABLES)) {
-		await chCommand(
-			`ALTER TABLE ${table} DELETE WHERE client_id IN {ownerIds:Array(String)}`,
-			{ ownerIds }
-		);
-	}
-	for (const table of Object.keys(WEBSITE_ID_PURGE_TABLES)) {
-		await chCommand(
-			`ALTER TABLE ${table} DELETE WHERE website_id IN {ownerIds:Array(String)} OR (owner_id IN {ownerIds:Array(String)} AND ifNull(website_id, '') = '')`,
-			{ ownerIds }
-		);
+// uptime_monitor.site_id is a website id or, for standalone monitors, an
+// uptime_schedules id.
+export const KEYED_PURGE_TABLES = {
+	"analytics.link_visits": { key: "link_id", arrivedAt: "timestamp" },
+	"uptime.uptime_monitor": { key: "site_id", arrivedAt: "timestamp" },
+} as const;
+
+export type KeyedPurgeTable = keyof typeof KEYED_PURGE_TABLES;
+
+// Ids travel as a URL query parameter, which Cloudflare cuts off near 64 KB.
+const PURGE_BATCH_SIZE = 500;
+const PURGE_SCAN_TIMEOUT_MS = 20_000;
+
+// Organization rows tied to a website stay with that website, which may have
+// been transferred to another organization.
+const ORG_LEVEL_ROW = "ifNull(website_id, '') = ''";
+
+const ANALYTICS_PURGES = [
+	...Object.keys(CLIENT_ID_PURGE_TABLES).map(
+		(table) =>
+			`ALTER TABLE ${table} DELETE WHERE client_id IN {ids:Array(String)}`
+	),
+	...Object.keys(WEBSITE_ID_PURGE_TABLES).map(
+		(table) =>
+			`ALTER TABLE ${table} DELETE WHERE website_id IN {ids:Array(String)} OR (owner_id IN {ids:Array(String)} AND ${ORG_LEVEL_ROW})`
+	),
+];
+
+type OnBatchPurged = (ids: string[]) => Promise<void>;
+
+async function purgeInBatches(
+	statements: string[],
+	ids: string[],
+	onBatchPurged?: OnBatchPurged
+): Promise<void> {
+	for (let start = 0; start < ids.length; start += PURGE_BATCH_SIZE) {
+		const batch = ids.slice(start, start + PURGE_BATCH_SIZE);
+		for (const statement of statements) {
+			await chCommand(statement, { ids: batch });
+		}
+		await onBatchPurged?.(batch);
 	}
 }
 
-export async function purgeLinkVisits(linkIds: string[]): Promise<void> {
-	if (linkIds.length === 0) {
-		return;
-	}
-	await chCommand(
-		"ALTER TABLE analytics.link_visits DELETE WHERE link_id IN {linkIds:Array(String)}",
-		{ linkIds }
+// Owner ids are websites, organizations, or legacy user ids.
+export function purgeAnalyticsData(
+	ownerIds: string[],
+	onBatchPurged?: OnBatchPurged
+): Promise<void> {
+	return purgeInBatches(ANALYTICS_PURGES, ownerIds, onBatchPurged);
+}
+
+export function purgeKeyedRows(
+	table: KeyedPurgeTable,
+	ids: string[],
+	onBatchPurged?: OnBatchPurged
+): Promise<void> {
+	return purgeInBatches(
+		[
+			`ALTER TABLE ${table} DELETE WHERE ${KEYED_PURGE_TABLES[table].key} IN {ids:Array(String)}`,
+		],
+		ids,
+		onBatchPurged
 	);
 }
 
@@ -57,10 +93,13 @@ export interface StoredDataOwner {
 	recent: number;
 }
 
-const PURGE_SCAN_TIMEOUT_MS = 20_000;
-
-function ownerScan(table: string, key: string, arrivedAt: string): string {
-	return `SELECT assumeNotNull(${key}) AS id, max(${arrivedAt} > now() - INTERVAL 1 DAY) AS recent FROM ${table} WHERE ${key} != '' GROUP BY id`;
+function ownerScan(
+	table: string,
+	key: string,
+	arrivedAt: string,
+	filter = "1"
+): string {
+	return `SELECT assumeNotNull(${key}) AS id, max(${arrivedAt} > now() - INTERVAL 1 DAY) AS recent FROM ${table} WHERE ${key} != '' AND ${filter} GROUP BY id`;
 }
 
 const OWNER_SCANS = [
@@ -69,32 +108,31 @@ const OWNER_SCANS = [
 	),
 	...Object.entries(WEBSITE_ID_PURGE_TABLES).flatMap(([table, arrivedAt]) => [
 		ownerScan(table, "website_id", arrivedAt),
-		ownerScan(table, "owner_id", arrivedAt),
+		ownerScan(table, "owner_id", arrivedAt, ORG_LEVEL_ROW),
 	]),
 ];
 
+function listStored(query: string, label: string): Promise<StoredDataOwner[]> {
+	return chQuery<StoredDataOwner>(query, undefined, {
+		abort_signal: AbortSignal.timeout(PURGE_SCAN_TIMEOUT_MS),
+		label,
+		readonly: true,
+	});
+}
+
 export function listOwnersWithStoredData(): Promise<StoredDataOwner[]> {
-	return chQuery<StoredDataOwner>(
+	return listStored(
 		`SELECT id, max(recent) AS recent FROM (${OWNER_SCANS.join(" UNION ALL ")}) GROUP BY id`,
-		undefined,
-		{
-			abort_signal: AbortSignal.timeout(PURGE_SCAN_TIMEOUT_MS),
-			label: "purge.owners_with_stored_data",
-			readonly: true,
-		}
+		"purge.owners_with_stored_data"
 	);
 }
 
-export function listLinksWithStoredVisits(): Promise<StoredDataOwner[]> {
-	return chQuery<StoredDataOwner>(
-		`SELECT link_id AS id, max(timestamp) > now() - INTERVAL 1 DAY AS recent
-		 FROM analytics.link_visits
-		 GROUP BY link_id`,
-		undefined,
-		{
-			abort_signal: AbortSignal.timeout(PURGE_SCAN_TIMEOUT_MS),
-			label: "purge.links_with_stored_visits",
-			readonly: true,
-		}
+export function listKeyedIdsWithStoredRows(
+	table: KeyedPurgeTable
+): Promise<StoredDataOwner[]> {
+	const { key, arrivedAt } = KEYED_PURGE_TABLES[table];
+	return listStored(
+		ownerScan(table, key, arrivedAt),
+		`purge.stored_ids.${table}`
 	);
 }
