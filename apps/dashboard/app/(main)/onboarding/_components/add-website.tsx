@@ -54,25 +54,33 @@ function websiteNameFromDomain(domain: string): string {
 interface AddWebsiteProps {
 	onCreate: (values: WebsiteFormValues) => Promise<void>;
 	pending: boolean;
+	suggestedDomain: string | null;
 }
 
-export function AddWebsite({ onCreate, pending }: AddWebsiteProps) {
+export function AddWebsite({
+	onCreate,
+	pending,
+	suggestedDomain,
+}: AddWebsiteProps) {
 	const form = useForm<WebsiteFormValues>({
 		resolver: zodResolver(formSchema),
 		mode: "onChange",
-		defaultValues: { domain: "", name: "" },
+		defaultValues: {
+			domain: suggestedDomain ?? "",
+			name: suggestedDomain ? websiteNameFromDomain(suggestedDomain) : "",
+		},
 	});
 	const domainField = useController({ control: form.control, name: "domain" });
 	const nameField = useController({ control: form.control, name: "name" });
 
 	return (
-		<div className="max-w-lg">
-			<form
-				className="space-y-4"
-				onSubmit={form.handleSubmit((values) =>
-					onCreate({ domain: values.domain, name: values.name.trim() })
-				)}
-			>
+		<form
+			className="max-w-xl space-y-3"
+			onSubmit={form.handleSubmit((values) =>
+				onCreate({ domain: values.domain, name: values.name.trim() })
+			)}
+		>
+			<div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,11rem)]">
 				<Field error={!!domainField.fieldState.error}>
 					<Field.Label>Domain</Field.Label>
 					<Input
@@ -97,26 +105,26 @@ export function AddWebsite({ onCreate, pending }: AddWebsiteProps) {
 					/>
 					{domainField.fieldState.error ? (
 						<Field.Error>{domainField.fieldState.error.message}</Field.Error>
+					) : suggestedDomain && domainField.field.value === suggestedDomain ? (
+						<Field.Description>From your email address</Field.Description>
 					) : null}
 				</Field>
-
-				<Field className="max-w-sm" error={!!nameField.fieldState.error}>
+				<Field error={!!nameField.fieldState.error}>
 					<Field.Label>Name</Field.Label>
 					<Input placeholder="Acme" {...nameField.field} />
 					{nameField.fieldState.error ? (
 						<Field.Error>{nameField.fieldState.error.message}</Field.Error>
 					) : null}
 				</Field>
-
-				<Button
-					disabled={!form.formState.isValid}
-					loading={pending}
-					size="sm"
-					type="submit"
-				>
-					{pending ? "Creating" : "Create website"}
-				</Button>
-			</form>
-		</div>
+			</div>
+			<Button
+				disabled={!form.formState.isValid}
+				loading={pending}
+				size="sm"
+				type="submit"
+			>
+				{pending ? "Creating" : "Create website"}
+			</Button>
+		</form>
 	);
 }
