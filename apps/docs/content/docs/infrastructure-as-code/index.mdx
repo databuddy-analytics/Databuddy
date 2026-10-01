@@ -1,0 +1,51 @@
+---
+title: Infrastructure as Code
+description: Define uptime monitors and status pages in code, review them in pull requests, and ship them with the infrastructure they watch
+---
+
+import { Callout, Card, Cards } from "@/components/docs";
+
+Keep your monitoring next to the services it watches. When a new API ships, its uptime monitor and status page entry ship in the same pull request, get the same review, and roll back the same way.
+
+Databuddy works with infrastructure as code tools through the same scoped API keys as the [HTTP API](/docs/api). Changes made in the dashboard stay visible: a refresh shows the drift, and the next deploy puts your code back in charge.
+
+## Tools
+
+| Tool | Status | Languages |
+|------|--------|-----------|
+| [Pulumi](/docs/infrastructure-as-code/pulumi) | Available | TypeScript, JavaScript |
+| Pulumi | Coming soon | Python, Go, .NET, Java, YAML |
+| Terraform | Coming soon | HCL |
+| OpenTofu | Coming soon | HCL |
+
+## Resources
+
+| Resource | Status | What you control |
+|----------|--------|------------------|
+| Uptime monitors | Available | URL, check frequency, timeout, cache busting, paused state, linked website |
+| Status pages | Available | Name, slug, description, logo, favicon, links, theme |
+| Status page monitors | Available | Which monitors appear on a page, display name, order, and what is hidden |
+| Uptime alerts | Coming soon | Slack, email, and webhook destinations for monitor outages |
+| Websites | Coming soon | Tracked websites and their settings |
+| Feature flags | Coming soon | Flags, rollout rules, and variants |
+| Short links | Coming soon | Links, destinations, and folders |
+
+<Callout type="info">
+  Need a tool or resource that is marked coming soon? Tell us at
+  [support@databuddy.cc](mailto:support@databuddy.cc) so we know what to build
+  first.
+</Callout>
+
+## What's Next?
+
+<Cards>
+  <Card title="Pulumi" href="/docs/infrastructure-as-code/pulumi">
+    Install the provider and manage your first monitor and status page
+  </Card>
+  <Card title="Uptime Monitoring" href="/docs/uptime">
+    How monitors, alerts, and status pages work
+  </Card>
+  <Card title="API Keys" href="/docs/api-keys">
+    Create a key scoped to monitors and status pages
+  </Card>
+</Cards>

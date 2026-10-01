@@ -14,6 +14,7 @@ export function getDocumentationSections() {
 		"": "Core",
 		sdk: "SDK",
 		api: "API Reference",
+		"infrastructure-as-code": "Infrastructure as Code",
 		Integrations: "Integrations",
 		hooks: "React Hooks",
 		performance: "Performance",
