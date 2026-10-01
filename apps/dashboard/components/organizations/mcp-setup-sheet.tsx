@@ -42,6 +42,7 @@ type McpExpiry = "90d" | "never";
 
 const CLIENT_OPTIONS: Array<{
 	description: string;
+	keyHint: string;
 	label: string;
 	value: McpClient;
 }> = [
@@ -49,22 +50,27 @@ const CLIENT_OPTIONS: Array<{
 		value: "cursor",
 		label: "Cursor",
 		description: "Add it to .cursor/mcp.json or Cursor settings.",
+		keyHint: "Add it to .cursor/mcp.json or Cursor settings.",
 	},
 	{
 		value: "claude",
 		label: "Claude",
 		description:
 			"Claude signs in with your Databuddy account. A key is only needed for automation.",
+		keyHint:
+			"Add it to Claude Code's .mcp.json or Claude Desktop's MCP settings.",
 	},
 	{
 		value: "windsurf",
 		label: "Windsurf",
 		description: "Paste it into Windsurf's MCP configuration.",
+		keyHint: "Paste it into Windsurf's MCP configuration.",
 	},
 	{
 		value: "other",
 		label: "Other",
 		description: "Use any client that supports remote HTTP MCP servers.",
+		keyHint: "Use any client that supports remote HTTP MCP servers.",
 	},
 ];
 
@@ -623,7 +629,7 @@ function ConnectionCreated({
 }) {
 	const clientDescription = CLIENT_OPTIONS.find(
 		(option) => option.value === client
-	)?.description;
+	)?.keyHint;
 
 	return (
 		<div className="space-y-5">
