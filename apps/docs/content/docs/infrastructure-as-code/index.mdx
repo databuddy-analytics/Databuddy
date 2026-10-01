@@ -14,24 +14,33 @@ Databuddy works with infrastructure as code tools through the same scoped API ke
 | Tool | Status | Languages |
 |------|--------|-----------|
 | [Pulumi](/docs/infrastructure-as-code/pulumi) | Available | TypeScript, JavaScript |
-| Pulumi | Coming soon | Python, Go, .NET, Java, YAML |
 | Terraform | Coming soon | HCL |
 | OpenTofu | Coming soon | HCL |
 
 ## Resources
 
-| Resource | Status | What you control |
-|----------|--------|------------------|
-| Uptime monitors | Available | URL, check frequency, timeout, cache busting, paused state, linked website |
-| Status pages | Available | Name, slug, description, logo, favicon, links, theme |
-| Status page monitors | Available | Which monitors appear on a page, display name, order, and what is hidden |
-| Uptime alerts | Coming soon | Slack, email, and webhook destinations for monitor outages |
-| Websites | Coming soon | Tracked websites and their settings |
-| Feature flags | Coming soon | Flags, rollout rules, and variants |
-| Short links | Coming soon | Links, destinations, and folders |
+### Available
+
+| Resource | What you control |
+|----------|------------------|
+| Uptime monitors | URL, check frequency, timeout, cache busting, paused state, linked website |
+| Status pages | Name, slug, description, logo, favicon, links, theme |
+| Status page monitors | Which monitors appear on a page, display name, order, and what is hidden |
+
+### Coming soon
+
+| Resource | What you'll control |
+|----------|---------------------|
+| Uptime alerts | Slack, email, and webhook destinations for monitor outages |
+| Websites | Tracked websites, their domains, and tracking settings |
+| Feature flags | Flags, rollout percentages, targeting rules, and variants |
+| Flag target groups | Reusable audiences for flag targeting |
+| Goals | Page view and event conversion goals |
+| Funnels | Funnel steps and filters |
+| Short links | Links, destinations, and folders |
 
 <Callout type="info">
-  Need a tool or resource that is marked coming soon? Tell us at
+  Need a resource or tool that is marked coming soon? Tell us at
   [support@databuddy.cc](mailto:support@databuddy.cc) so we know what to build
   first.
 </Callout>
