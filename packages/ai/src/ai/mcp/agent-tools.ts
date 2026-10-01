@@ -1,8 +1,6 @@
-import { type ApiKeyRow, hasKeyScope } from "@databuddy/api-keys/resolve";
-import { auth } from "@databuddy/auth";
+import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { tool, type ToolExecutionOptions, type ToolSet } from "ai";
 import { z } from "zod";
-import { getAccessibleWebsites } from "../../lib/accessible-websites";
 import { executeBatch } from "../../query";
 import { discoverQueryTypesTool } from "../tools/discover-query-types";
 import { describeSchemaTool } from "../tools/describe-schema";
@@ -21,7 +19,10 @@ import {
 	createSlackConversationTools,
 	type DatabuddyAgentSlackContext,
 } from "./slack-context";
-import { ensureWebsiteAccess } from "./tool-context";
+import {
+	ensureWebsiteAccess,
+	getCachedAccessibleWebsites,
+} from "./tool-context";
 import { agentDataInputSchema } from "./agent-query-schema";
 
 interface McpAgentContext {
@@ -68,26 +69,11 @@ export function createMcpAgentTools(
 			inputSchema: z.object({}),
 			execute: async (_args, options) => {
 				const ctx = getToolContext(options);
-				const session = ctx.userId
-					? await auth.api.getSession({ headers: ctx.requestHeaders })
-					: null;
-				const scopedApiKey =
-					ctx.apiKey && !hasKeyScope(ctx.apiKey, "read:data");
-				const authCtx = {
+				const list = await getCachedAccessibleWebsites({
 					apiKey: ctx.apiKey,
-					organizationId: scopedApiKey
-						? null
-						: (ctx.organizationId ?? ctx.apiKey?.organizationId ?? null),
-					user: session?.user
-						? {
-								id: session.user.id,
-								role: (session.user as { role?: string }).role,
-							}
-						: ctx.userId
-							? { id: ctx.userId }
-							: null,
-				};
-				const list = await getAccessibleWebsites(authCtx);
+					organizationId: ctx.organizationId,
+					userId: ctx.userId,
+				});
 				return {
 					websites: list.map((w) => ({
 						id: w.id,
