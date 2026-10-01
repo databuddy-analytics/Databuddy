@@ -96,31 +96,28 @@ async function listToolsForScopes(scopes: ApiScope[]) {
 
 describe("MCP OAuth scopes", () => {
 	test("a scoped OAuth token lists the same tools as an API key with those scopes", async () => {
+		const scopes: ApiScope[] = ["read:data", "read:links"];
 		const oauth = await listTools({
 			apiKey: null,
-			oauthScopes: ["read:links"],
+			oauthScopes: scopes,
 			userId: "user-1",
 		});
-		const apiKey = await listToolsForScopes(["read:links"]);
-		expect(oauth.tools.map((tool) => tool.name).sort()).toEqual(
-			apiKey.tools.map((tool) => tool.name).sort()
-		);
+		const apiKey = await listToolsForScopes(scopes);
+		const names = oauth.tools.map((tool) => tool.name).sort();
+		expect(names).toEqual(apiKey.tools.map((tool) => tool.name).sort());
+		expect(names).toContain("get_data");
+		expect(names).toContain("list_links");
+		expect(names).not.toContain("create_link");
 		expect(oauth.tools.length).toBeLessThan(tools.length);
 	});
 
-	test("an OAuth token without Databuddy scopes only lists tools that need none", async () => {
+	test("an OAuth token without Databuddy scopes lists no data tools", async () => {
 		const oauth = await listTools({
 			apiKey: null,
 			oauthScopes: [],
 			userId: "user-1",
 		});
-		expect(oauth.tools.map((tool) => tool.name).sort()).toEqual(
-			tools
-				.filter((tool) => !tool.metadata.access.scopes?.length)
-				.map((tool) => tool.name)
-				.sort()
-		);
-		expect(oauth.tools.length).toBeLessThan(tools.length);
+		expect(oauth.tools).toEqual([]);
 	});
 });
 
