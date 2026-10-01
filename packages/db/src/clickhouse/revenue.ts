@@ -7,11 +7,31 @@ export function paymentIntentIdExpression(alias = ""): string {
 )`;
 }
 
+export function explicitRevenueWebsiteExpression(alias = ""): string {
+	const prefix = alias ? `${alias}.` : "";
+	// Normalized Stripe rows match the validated metadata site; legacy rows preserve stored sites.
+	return `if(
+	${prefix}provider = 'stripe'
+	AND JSONExtractString(${prefix}metadata, 'stripe_event_type') != ''
+	AND JSONExtractString(${prefix}metadata, 'client_id') != ifNull(${prefix}website_id, ''),
+	NULL,
+	nullIf(${prefix}website_id, '')
+)`;
+}
+
 export function stripeContextAggregates(prefix = ""): string {
+	const invoiceId = "JSONExtractString(metadata, 'stripe_invoice_id')";
+	const canonicalInvoicePayment = `status = 'completed' AND type IN ('sale', 'subscription') AND JSONExtractString(metadata, 'stripe_record_kind') = 'money' AND ${invoiceId} != '' AND NOT startsWith(transaction_id, 'pi_')`;
+	const websiteId = "ifNull(revenue.website_id, '')";
+	const explicitWebsiteId = `ifNull(${explicitRevenueWebsiteExpression("revenue")}, '')`;
 	const latestNonEmpty = (column: string, value: string) =>
-		`argMaxIf(${value}, synced_at, ${value} != '') AS ${prefix}${column}`;
+		`argMaxIf(${value}, tuple(status IN ('completed', 'linked'), synced_at, transaction_id), ${value} != '') AS ${prefix}${column}`;
 	return [
-		latestNonEmpty("website_id", "ifNull(website_id, '')"),
+		`argMaxIf(tuple(${websiteId}, ${explicitWebsiteId}), tuple(${explicitWebsiteId} != '', ${canonicalInvoicePayment}, status IN ('completed', 'linked'), synced_at, transaction_id), ${websiteId} != '') AS ${prefix}website_context`,
+		`tupleElement(${prefix}website_context, 1) AS ${prefix}website_id`,
+		`tupleElement(${prefix}website_context, 2) AS ${prefix}explicit_website_id`,
+		`uniqExactIf(${invoiceId}, ${canonicalInvoicePayment}) AS ${prefix}payment_invoice_count`,
+		`if(${prefix}payment_invoice_count = 1, anyIf(${invoiceId}, ${canonicalInvoicePayment}), '') AS ${prefix}payment_invoice_id`,
 		latestNonEmpty("anonymous_id", "ifNull(anonymous_id, '')"),
 		latestNonEmpty("session_id", "ifNull(session_id, '')"),
 		latestNonEmpty("customer_id", "customer_id"),
