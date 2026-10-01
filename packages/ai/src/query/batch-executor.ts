@@ -519,7 +519,9 @@ export async function executeBatch(
 			const groupNoCache = compiledItems.some(
 				({ req }) => getQueryBuilder(req.type)?.noCache
 			);
-			const rawRows = await chQuery(sql, params, {
+			const rawRows = await chQuery<
+				Record<string, unknown> & { __query_idx: number }
+			>(sql, params, {
 				abort_signal: opts?.abortSignal,
 				clickhouse_settings: getClickHouseQuerySettings(groupNoCache),
 				label: `batch:${[...new Set(compiledItems.map(({ req }) => req.type))].sort().join("+")}`,
@@ -530,10 +532,7 @@ export async function executeBatch(
 				batch_union_rows: rawRows.length,
 			});
 
-			const split = splitResults(
-				rawRows as Array<Record<string, unknown> & { __query_idx: number }>,
-				indices
-			);
+			const split = splitResults(rawRows, indices);
 
 			for (const { index, req } of compiledItems) {
 				const config = getQueryBuilder(req.type);

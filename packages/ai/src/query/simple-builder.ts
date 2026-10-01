@@ -533,9 +533,9 @@ export class SimpleQueryBuilder {
 
 	private finalizeCompiledQuery(
 		sql: string,
-		params: Record<string, Filter["value"]>
+		params: Record<string, unknown>
 	): CompiledQuery {
-		const finalParams: Record<string, Filter["value"]> = { ...params };
+		const finalParams: Record<string, unknown> = { ...params };
 
 		for (const [key, value] of Object.entries(finalParams)) {
 			if (DATE_PARAM_NAMES.has(key) && typeof value === "string") {
@@ -662,11 +662,10 @@ export class SimpleQueryBuilder {
 			if (typeof result === "string") {
 				return this.finalizeCompiledQuery(result, {});
 			}
-			const params = result.params as Record<string, Filter["value"]>;
 			if (preparedKeys) {
-				Object.assign(params, preparedKeys);
+				Object.assign(result.params, preparedKeys);
 			}
-			return this.finalizeCompiledQuery(result.sql, params);
+			return this.finalizeCompiledQuery(result.sql, result.params);
 		}
 
 		this.validateRequestGroupBy();
@@ -681,7 +680,7 @@ export class SimpleQueryBuilder {
 		};
 
 		if (this.config.timeBucket?.timezone && this.request.timezone) {
-			params.timezone = this.request.timezone as string;
+			params.timezone = this.request.timezone;
 		}
 
 		if (this.needsSessionAttribution()) {
@@ -1006,7 +1005,7 @@ export class SimpleQueryBuilder {
 			stages.map(async (stage) => {
 				const { sql, params } = this.finalizeCompiledQuery(
 					stage.sql,
-					stage.params as Record<string, Filter["value"]>
+					stage.params
 				);
 				const rows = await chQuery<Record<string, unknown>>(sql, params, {
 					abort_signal: abortSignal,

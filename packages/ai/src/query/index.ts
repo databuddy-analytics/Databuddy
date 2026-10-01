@@ -67,7 +67,7 @@ const QuerySchema = z.object({
 });
 
 function parseRequest(request: QueryRequest): QueryRequest {
-	return QuerySchema.parse(request) as QueryRequest;
+	return QuerySchema.parse(request);
 }
 
 function createBuilder(
