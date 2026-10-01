@@ -185,9 +185,9 @@ export function createMcpManifest(urls: AgentDiscoveryUrls) {
 		},
 		transports: mcpTransports(resolved.mcpServerUrl),
 		authentication: {
-			type: "api_key",
-			in: "header",
-			name: "x-api-key",
+			type: "oauth2",
+			protected_resource_metadata_url: `${resolved.apiUrl}/.well-known/oauth-protected-resource`,
+			alternative: { type: "api_key", in: "header", name: "x-api-key" },
 			documentation_url: `${resolved.siteUrl}/docs/api/authentication`,
 			auth_md_url: resolved.authMdUrl,
 			scopes: API_SCOPES,
@@ -586,7 +586,9 @@ export function createAuthMarkdown(urls: AgentDiscoveryUrls) {
 
 	return `# auth.md
 
-Databuddy uses scoped API keys for REST and MCP. Create a key for the organization in ${resolved.dashboardUrl}/organizations/settings#api-keys, choose the smallest scope set needed, and store it securely. OAuth is not available yet.
+The Databuddy MCP server accepts OAuth sign-in. MCP clients that support MCP authorization, such as Claude and Claude Code, connect to ${resolved.mcpServerUrl} with no key: the user signs in to Databuddy and approves access, and the connection follows their role in each organization. Discovery starts from the 401 challenge, which points at ${resolved.apiUrl}/.well-known/oauth-protected-resource.
+
+The REST API and MCP clients without OAuth support use scoped API keys. Create a key for the organization in ${resolved.dashboardUrl}/organizations/settings#api-keys, choose the smallest scope set needed, and store it securely.
 
 ## Use the credential
 
@@ -617,7 +619,7 @@ Databuddy API errors are JSON objects with \`success: false\`, an error \`code\`
 
 ## Revocation
 
-Revoke credentials from ${resolved.dashboardUrl}/organizations/settings#api-keys. Agents should stop using a credential immediately after revocation or any repeated 401 response.
+Revoke API keys from ${resolved.dashboardUrl}/organizations/settings#api-keys. Users disconnect OAuth apps from ${resolved.dashboardUrl}/settings/account under Connected apps. Agents should stop using a credential immediately after revocation or any repeated 401 response.
 
 ## Supported Scopes
 
