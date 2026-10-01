@@ -448,7 +448,6 @@ export const DevicesBuilders = {
 		orderBy: "visitors DESC",
 		limit: 200,
 		timeField: "time",
-		allowedFilters: ["device_type", "browser_name", "os_name", "country"],
 		customizable: true,
 	},
 
