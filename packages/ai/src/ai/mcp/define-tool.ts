@@ -258,16 +258,33 @@ function toSuccessResult(
 	return { content, isError: false };
 }
 
-function getAttribution(ctx: McpRequestContext): {
+function authType(ctx: McpRequestContext): "session" | "api_key" | "oauth" {
+	return ctx.apiKey ? "api_key" : ctx.oauthUserId ? "oauth" : "session";
+}
+
+function getAttribution(ctx: McpHandlerContext): {
 	organization_id: string | null;
 	user_id: string | null;
 	auth_type: "session" | "api_key" | "oauth";
 } {
 	return {
-		organization_id: ctx.organizationId ?? ctx.apiKey?.organizationId ?? null,
+		organization_id:
+			ctx.organizationId ??
+			ctx.websiteOrganizationId ??
+			ctx.apiKey?.organizationId ??
+			null,
 		user_id: ctx.userId ?? ctx.apiKey?.userId ?? null,
-		auth_type: ctx.apiKey ? "api_key" : ctx.oauthUserId ? "oauth" : "session",
+		auth_type: authType(ctx),
 	};
+}
+
+function isPreviewResult(result: unknown): boolean {
+	return (
+		typeof result === "object" &&
+		result !== null &&
+		"preview" in result &&
+		result.preview === true
+	);
 }
 
 function rateLimitIdentifier(ctx: McpRequestContext, toolName: string): string {
@@ -306,11 +323,11 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 		outputSchema,
 		handler: async (rawInput: unknown): Promise<CallToolResult> => {
 			const start = Date.now();
-			const attribution = getAttribution(ctx);
+			const handlerCtx: McpHandlerContext = { ...ctx };
 
 			mergeWideEvent({
 				mcp_tool: meta.name,
-				mcp_auth_type: attribution.auth_type,
+				mcp_auth_type: authType(ctx),
 			});
 
 			try {
@@ -346,7 +363,6 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					}
 				}
 
-				const handlerCtx: McpHandlerContext = { ...ctx };
 				if (ctx.oauthUserId) {
 					const oauthUser = await loadOAuthUser(ctx.oauthUserId);
 					if (!oauthUser) {
@@ -400,7 +416,11 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					result = checked.data;
 				}
 
-				trackMcpToolEvent(metadata, meta.name, true, attribution);
+				trackMcpToolEvent(metadata, meta.name, {
+					attribution: getAttribution(handlerCtx),
+					preview: isPreviewResult(result),
+					success: true,
+				});
 				mergeWideEvent({
 					mcp_status: "ok",
 					mcp_duration_ms: Date.now() - start,
@@ -422,7 +442,11 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					captureError(err, { mcp_tool: meta.name });
 				}
 
-				trackMcpToolEvent(metadata, meta.name, false, attribution);
+				trackMcpToolEvent(metadata, meta.name, {
+					attribution: getAttribution(handlerCtx),
+					preview: false,
+					success: false,
+				});
 				mergeWideEvent({
 					mcp_status: "error",
 					mcp_error_code: toolError.code,
@@ -458,12 +482,20 @@ function normalizeToolMetadata(
 function trackMcpToolEvent(
 	metadata: McpToolMetadata,
 	tool: string,
-	success: boolean,
-	attribution: ReturnType<typeof getAttribution>
+	outcome: {
+		attribution: ReturnType<typeof getAttribution>;
+		preview: boolean;
+		success: boolean;
+	}
 ): void {
 	const kind = metadata.access.kind;
+	const { attribution, preview, success } = outcome;
 	trackAgentEvent("agent_activity", {
-		action: kind === "write" ? "tool_mutation" : "tool_completed",
+		action: preview
+			? "tool_preview"
+			: kind === "write"
+				? "tool_mutation"
+				: "tool_completed",
 		source: "mcp",
 		tool,
 		success,
