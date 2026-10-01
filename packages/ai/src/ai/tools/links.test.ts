@@ -3,7 +3,8 @@ import { asSchema, type ToolExecutionOptions } from "ai";
 import type { callRPCProcedure } from "./utils/rpc";
 
 const invoke = mock<typeof callRPCProcedure>(async () => undefined);
-mock.module("./utils/rpc", () => ({ callRPCProcedure: invoke }));
+const realRpc = await import("./utils/rpc");
+mock.module("./utils/rpc", () => ({ ...realRpc, callRPCProcedure: invoke }));
 
 mock.module("../../lib/website-utils", () => ({
 	getCachedWebsite: async () => ({ organizationId: "org-1" }),

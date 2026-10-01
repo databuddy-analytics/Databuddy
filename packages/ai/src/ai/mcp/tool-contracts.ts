@@ -143,7 +143,7 @@ type Row = Record<string, unknown>;
 
 function asRow(value: unknown): Row {
 	return value && typeof value === "object" && !Array.isArray(value)
-		? (value as Row)
+		? Object.fromEntries(Object.entries(value))
 		: {};
 }
 

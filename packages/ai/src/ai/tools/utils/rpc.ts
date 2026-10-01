@@ -27,7 +27,10 @@ function validationIssueSummary(cause: unknown): string | null {
 	) {
 		return null;
 	}
-	const issues: unknown[] = cause.issues;
+	return formatValidationIssues(cause.issues);
+}
+
+export function formatValidationIssues(issues: readonly unknown[]): string {
 	return issues
 		.map((issue) => {
 			if (!(issue && typeof issue === "object")) {
