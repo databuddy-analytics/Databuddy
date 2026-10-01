@@ -47,7 +47,7 @@ AI agents can discover Databuddy authentication without scraping this page:
 | auth.md walkthrough | `https://www.databuddy.cc/auth.md` |
 | API catalog | `https://api.databuddy.cc/.well-known/api-catalog` |
 
-Databuddy currently supports scoped API keys for agent access. OAuth is not available yet; agents should create a key in the dashboard and send it with `x-api-key` or `Authorization: Bearer`.
+The MCP server accepts OAuth sign-in: clients that support MCP authorization, such as Claude and Claude Code, connect to `https://api.databuddy.cc/v1/mcp` without a key and the user approves access in Databuddy. See the [MCP server](/docs/api/mcp) docs. The REST API and clients without OAuth support use scoped API keys sent with `x-api-key` or `Authorization: Bearer`.
 
 ## API Key Scopes
 
