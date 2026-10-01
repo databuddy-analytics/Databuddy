@@ -1273,7 +1273,7 @@ const listFlagsTool = defineMcpTool(
 	{
 		name: "list_flags",
 		description:
-			"List feature flags for a website with their status, rollout, rules, and variants. Flag IDs are used by update_flag and add_users_to_flag.",
+			"List feature flags with their status, rollout, rules, and variants: a website's flags when a website is given, otherwise the organization-wide flags. Flag IDs are used by update_flag and add_users_to_flag.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			status: FlagStatusSchema.optional(),
@@ -1284,21 +1284,36 @@ const listFlagsTool = defineMcpTool(
 			hasMore: z.boolean(),
 		}),
 		metadata: { access: { kind: "read" } },
-		resolveWebsite: true,
+		resolveWebsite: "optional",
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (input, ctx) => {
-		const result = await callRPCProcedure(
-			"flags",
-			"list",
-			{
-				websiteId: ctx.websiteId,
-				status: input.status,
-				limit: input.limit + 1,
-				offset: input.offset,
-			},
-			buildRpcContext(ctx)
-		);
+		const page = {
+			status: input.status,
+			limit: input.limit + 1,
+			offset: input.offset,
+		};
+		const rpcContext = buildRpcContext(ctx);
+		let result: unknown;
+		if (ctx.websiteId) {
+			result = await callRPCProcedure(
+				"flags",
+				"list",
+				{ ...page, websiteId: ctx.websiteId },
+				rpcContext
+			);
+		} else {
+			const organizationId = await resolveOrganizationId(ctx);
+			if (organizationId instanceof Error) {
+				throw new McpToolError("invalid_input", organizationId.message);
+			}
+			result = await callRPCProcedure(
+				"flags",
+				"list",
+				{ ...page, organizationId },
+				{ ...rpcContext, organizationId }
+			);
+		}
 		const rows = Array.isArray(result) ? result : [];
 		return {
 			flags: rows
@@ -1460,11 +1475,11 @@ const updateFlagTool = defineMcpTool(
 			...changes
 		} = input;
 		const updates = omitUndefined(changes);
-		const rpcContext = buildRpcContext(ctx);
-		const current = pickFields(await readFlag(id, ctx), FLAG_FIELDS);
 		if (!confirmed || Object.keys(updates).length === 0) {
+			const current = pickFields(await readFlag(id, ctx), FLAG_FIELDS);
 			return updatePreview("feature flag", current, updates);
 		}
+		const rpcContext = buildRpcContext(ctx);
 
 		const result = await callRPCProcedure(
 			"flags",
