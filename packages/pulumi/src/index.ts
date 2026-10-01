@@ -32,18 +32,58 @@ type EndpointOutput<E extends Endpoint> = Awaited<ReturnType<Endpoints[E]>>;
 
 const DEFAULT_API_URL = "https://api.databuddy.cc";
 const TRAILING_SLASHES = /\/+$/;
+const ALREADY_EXISTS = /already/i;
+const WEBSITE_RESOURCE = /^website$/i;
+const MAX_IN_FLIGHT = 8;
+const MAX_ATTEMPTS = 5;
+const MAX_RETRY_DELAY_MS = 60_000;
+const REQUEST_TIMEOUT_MS = 60_000;
+const SLOTS_KEY = "__databuddyPulumiSlots";
+const TRANSIENT_STATUSES = [502, 503, 504];
+const IDEMPOTENT_ENDPOINTS: Endpoint[] = [
+	"statusPage/delete",
+	"statusPage/get",
+	"statusPage/removeMonitor",
+	"statusPage/update",
+	"statusPage/updateMonitorSettings",
+	"uptime/deleteSchedule",
+	"uptime/getSchedule",
+	"uptime/updateSchedule",
+];
+const UNKNOWN_DURING_PREVIEW = "04da6b54-80e4-46f7-96ec-b56ff0331ba9";
 const MISSING_API_KEY =
-	"Missing Databuddy API key. Run `pulumi config set --secret databuddy:apiKey <key>` or set DATABUDDY_API_KEY.";
+	"Missing Databuddy API key. Run `pulumi config set --secret databuddy:apiKey <key>` with Pulumi 3.216 or newer, or export DATABUDDY_API_KEY in the shell that runs pulumi.";
+const ALIAS_HINT =
+	". If you renamed this resource or moved it under another parent, add `aliases` so Pulumi updates it instead of creating a second one. Otherwise another stack or the dashboard already uses it.";
+const SLUG_HINT =
+	". Status page slugs are unique across every Databuddy account, so pick another slug.";
 
 interface Connection {
 	apiKey: string;
 	apiUrl: string;
 }
 
+interface ApiResponse {
+	headers: Headers;
+	ok: boolean;
+	status: number;
+	statusText: string;
+	text: string;
+}
+
 interface ApiErrorBody {
 	code?: string;
-	data?: { issues?: { message?: string; path?: PropertyKey[] }[] };
+	data?: {
+		issues?: { message?: string; path?: PropertyKey[] }[];
+		resourceType?: string;
+	};
+	error?: string;
 	message?: string;
+}
+
+interface Slots {
+	active: number;
+	waiting: (() => void)[];
 }
 
 function resolveConnection(config: dynamic.Config): Connection {
@@ -58,43 +98,188 @@ function resolveConnection(config: dynamic.Config): Connection {
 	};
 }
 
-function send<E extends Endpoint>(
+function slots(): Slots {
+	const store = globalThis as unknown as Record<string, Slots | undefined>;
+	const existing = store[SLOTS_KEY];
+	if (existing) {
+		return existing;
+	}
+	const created: Slots = { active: 0, waiting: [] };
+	store[SLOTS_KEY] = created;
+	return created;
+}
+
+async function withSlot<T>(task: () => Promise<T>): Promise<T> {
+	const pool = slots();
+	if (pool.active < MAX_IN_FLIGHT) {
+		pool.active += 1;
+	} else {
+		await new Promise<void>((resolve) => pool.waiting.push(resolve));
+	}
+	try {
+		return await task();
+	} finally {
+		const next = pool.waiting.shift();
+		if (next) {
+			next();
+		} else {
+			pool.active -= 1;
+		}
+	}
+}
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function retryDelay(response: ApiResponse | null, attempt: number): number {
+	const header = response?.headers.get("retry-after");
+	const seconds = Number(header);
+	let requested = Number.NaN;
+	if (seconds > 0) {
+		requested = seconds * 1000;
+	} else if (header) {
+		requested = Date.parse(header) - Date.now();
+	}
+	const base = requested > 0 ? requested : 500 * 2 ** attempt;
+	return Math.min(base, MAX_RETRY_DELAY_MS) + Math.random() * 250;
+}
+
+function describeFailure(error: unknown): string {
+	let current = error;
+	while (current instanceof Error && current.cause !== undefined) {
+		current = current.cause;
+	}
+	if (current instanceof AggregateError && current.errors.length > 0) {
+		current = current.errors[0];
+	}
+	const code = (current as { code?: unknown } | null)?.code;
+	const message = current instanceof Error ? current.message : String(current);
+	return typeof code === "string" ? `${code} ${message}` : message;
+}
+
+async function send(
 	connection: Connection,
-	endpoint: E,
-	input: EndpointInput<E>
-): Promise<Response> {
+	endpoint: Endpoint,
+	input: unknown,
+	attempt = 1
+): Promise<ApiResponse> {
 	if (!connection.apiKey) {
 		throw new Error(MISSING_API_KEY);
 	}
-	return fetch(`${connection.apiUrl}/${endpoint}`, {
-		method: "POST",
-		headers: {
-			"content-type": "application/json",
-			"x-api-key": connection.apiKey,
-		},
-		body: JSON.stringify(input),
+	const url = `${connection.apiUrl}/${endpoint}`;
+	const idempotent = IDEMPOTENT_ENDPOINTS.includes(endpoint);
+	const response = await withSlot(async (): Promise<ApiResponse> => {
+		const raw = await fetch(url, {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+				"x-api-key": connection.apiKey,
+			},
+			body: JSON.stringify(input),
+			redirect: "manual",
+			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+		});
+		return {
+			headers: raw.headers,
+			ok: raw.ok,
+			status: raw.status,
+			statusText: raw.statusText,
+			text: await raw.text(),
+		};
+	}).catch((error: unknown) => {
+		const timedOut = error instanceof Error && error.name === "TimeoutError";
+		if (idempotent && !timedOut && attempt < MAX_ATTEMPTS) {
+			return null;
+		}
+		const unsure = idempotent
+			? ""
+			: " It may still have been applied, so check the dashboard before running again.";
+		throw new Error(
+			`Databuddy ${endpoint} request to ${url} failed: ${describeFailure(error)}.${unsure}`
+		);
 	});
+	if (!response) {
+		await sleep(retryDelay(null, attempt));
+		return send(connection, endpoint, input, attempt + 1);
+	}
+	if (response.status >= 300 && response.status < 400) {
+		throw new Error(
+			`Databuddy ${endpoint} was redirected from ${url} to ${response.headers.get("location") ?? "another URL"}. Set databuddy:apiUrl to the API's final URL.`
+		);
+	}
+	const transient =
+		response.status === 429 ||
+		(idempotent && TRANSIENT_STATUSES.includes(response.status));
+	if (!transient || attempt >= MAX_ATTEMPTS) {
+		return response;
+	}
+	await sleep(retryDelay(response, attempt));
+	return send(connection, endpoint, input, attempt + 1);
 }
 
-async function readErrorBody(response: Response): Promise<ApiErrorBody> {
-	return (
-		((await response.json().catch(() => null)) as ApiErrorBody | null) ?? {}
-	);
+function parseBody<T>(
+	connection: Connection,
+	endpoint: Endpoint,
+	response: ApiResponse
+): T {
+	try {
+		return JSON.parse(response.text) as T;
+	} catch {
+		throw new Error(
+			`Databuddy ${endpoint} returned ${response.status} from ${connection.apiUrl} with a body that is not JSON: ${response.text.slice(0, 200)}`
+		);
+	}
+}
+
+function readErrorBody(response: ApiResponse): ApiErrorBody {
+	try {
+		return (JSON.parse(response.text) as ApiErrorBody | null) ?? {};
+	} catch {
+		return {};
+	}
+}
+
+function conflictHint(endpoint: Endpoint, reason: string): string {
+	if (!ALREADY_EXISTS.test(reason)) {
+		return "";
+	}
+	if (endpoint === "statusPage/create" || endpoint === "statusPage/update") {
+		return SLUG_HINT;
+	}
+	if (
+		endpoint === "uptime/createSchedule" ||
+		endpoint === "statusPage/addMonitor"
+	) {
+		return ALIAS_HINT;
+	}
+	return "";
 }
 
 function apiError(
+	connection: Connection,
 	endpoint: Endpoint,
-	response: Response,
+	response: ApiResponse,
 	body: ApiErrorBody
 ): Error {
+	const reason = body.message ?? body.error ?? response.statusText;
 	const issues = (body.data?.issues ?? []).map((issue) =>
 		issue.path?.length
 			? `${issue.path.join(".")}: ${issue.message}`
 			: issue.message
 	);
-	const message = [body.message ?? response.statusText, ...issues].join("; ");
 	return new Error(
-		`Databuddy ${endpoint} failed with ${response.status}: ${message}`
+		`Databuddy ${endpoint} failed with ${response.status} from ${connection.apiUrl}: ${[reason, ...issues].join("; ")}${conflictHint(endpoint, reason)}`
+	);
+}
+
+function isGone(response: ApiResponse, body: ApiErrorBody): boolean {
+	const resourceType = body.data?.resourceType;
+	return (
+		response.status === 404 &&
+		body.code === "NOT_FOUND" &&
+		typeof resourceType === "string" &&
+		!WEBSITE_RESOURCE.test(resourceType)
 	);
 }
 
@@ -105,9 +290,9 @@ async function call<E extends Endpoint>(
 ): Promise<EndpointOutput<E>> {
 	const response = await send(connection, endpoint, input);
 	if (!response.ok) {
-		throw apiError(endpoint, response, await readErrorBody(response));
+		throw apiError(connection, endpoint, response, readErrorBody(response));
 	}
-	return (await response.json()) as EndpointOutput<E>;
+	return parseBody<EndpointOutput<E>>(connection, endpoint, response);
 }
 
 async function find<E extends Endpoint>(
@@ -117,19 +302,63 @@ async function find<E extends Endpoint>(
 ): Promise<EndpointOutput<E> | undefined> {
 	const response = await send(connection, endpoint, input);
 	if (response.ok) {
-		return (await response.json()) as EndpointOutput<E>;
+		return parseBody<EndpointOutput<E>>(connection, endpoint, response);
 	}
-	const body = await readErrorBody(response);
-	if (body.code === "NOT_FOUND") {
+	const body = readErrorBody(response);
+	if (isGone(response, body)) {
 		return;
 	}
-	throw apiError(endpoint, response, body);
+	throw apiError(connection, endpoint, response, body);
+}
+
+function initFailure(
+	error: unknown,
+	id: string,
+	properties: object,
+	inputs: object
+): Error {
+	const reason = error instanceof Error ? error.message : String(error);
+	return Object.assign(new Error(reason), {
+		id,
+		properties: {
+			...properties,
+			__provider: (inputs as { __provider?: string }).__provider,
+		},
+		reasons: [reason],
+	});
 }
 
 function changedKeys<T extends object>(olds: T, news: T): (keyof T)[] {
 	return (Object.keys(news) as (keyof T)[]).filter(
 		(key) => olds[key] !== news[key]
 	);
+}
+
+function changedFields<T extends object>(olds: T, news: T): Partial<T> {
+	return Object.fromEntries(
+		changedKeys(olds, news).map((key) => [key, news[key]])
+	) as Partial<T>;
+}
+
+function explicitInputs<T extends object>(
+	value: T,
+	defaults: T,
+	required: (keyof T)[]
+): Partial<T> {
+	return Object.fromEntries(
+		(Object.keys(value) as (keyof T)[])
+			.filter((key) => required.includes(key) || value[key] !== defaults[key])
+			.map((key) => [key, value[key]])
+	) as Partial<T>;
+}
+
+function isHttpUrl(value: string): boolean {
+	try {
+		const { protocol } = new URL(value);
+		return protocol === "http:" || protocol === "https:";
+	} catch {
+		return false;
+	}
 }
 
 class DatabuddyProvider {
@@ -190,12 +419,26 @@ class UptimeMonitorProvider
 	implements
 		dynamic.ResourceProvider<Unwrap<UptimeMonitorArgs>, UptimeMonitorState>
 {
+	check(_olds: Unwrap<UptimeMonitorArgs>, news: Unwrap<UptimeMonitorArgs>) {
+		const { url } = news;
+		const failures =
+			typeof url === "string" &&
+			url !== UNKNOWN_DURING_PREVIEW &&
+			!isHttpUrl(url)
+				? [{ property: "url", reason: "url must be an http or https URL" }]
+				: [];
+		return Promise.resolve({ failures });
+	}
+
 	diff(_id: string, olds: UptimeMonitorState, news: Unwrap<UptimeMonitorArgs>) {
-		const changed = changedKeys(olds, uptimeMonitorState(news));
+		const next = uptimeMonitorState(news);
+		const changed = changedKeys(olds, next);
 		return Promise.resolve({
 			changes: changed.length > 0,
 			replaces: changed.filter((key) => key === "url" || key === "websiteId"),
-			deleteBeforeReplace: true,
+			deleteBeforeReplace:
+				olds.url === next.url ||
+				(olds.websiteId !== null && olds.websiteId === next.websiteId),
 		});
 	}
 
@@ -217,14 +460,18 @@ class UptimeMonitorProvider
 			try {
 				await call(this.connection, "uptime/pauseSchedule", { scheduleId });
 			} catch (error) {
-				await find(this.connection, "uptime/deleteSchedule", { scheduleId });
-				throw error;
+				throw initFailure(
+					error,
+					scheduleId,
+					{ ...state, paused: false },
+					inputs
+				);
 			}
 		}
 		return { id: scheduleId, outs: state };
 	}
 
-	async read(id: string) {
+	async read(id: string): Promise<dynamic.ReadResult> {
 		const schedule = await find(this.connection, "uptime/getSchedule", {
 			scheduleId: id,
 		});
@@ -240,7 +487,15 @@ class UptimeMonitorProvider
 			url: schedule.url,
 			websiteId: schedule.websiteId,
 		};
-		return { id, props };
+		const defaults = uptimeMonitorState({
+			granularity: props.granularity,
+			url: props.url,
+		});
+		return {
+			id,
+			props,
+			inputs: explicitInputs(props, defaults, ["granularity", "url"]),
+		};
 	}
 
 	async update(
@@ -249,20 +504,37 @@ class UptimeMonitorProvider
 		news: Unwrap<UptimeMonitorArgs>
 	) {
 		const state = uptimeMonitorState(news);
-		await call(this.connection, "uptime/updateSchedule", {
-			cacheBust: state.cacheBust,
-			granularity: state.granularity,
-			name: state.name,
-			scheduleId: id,
-			timeout: state.timeout,
-		});
-		if (state.paused && !olds.paused) {
-			await call(this.connection, "uptime/pauseSchedule", { scheduleId: id });
+		const changes = changedFields(olds, state);
+		const settings = {
+			cacheBust: changes.cacheBust,
+			granularity: changes.granularity,
+			name: changes.name,
+			timeout: changes.timeout,
+		};
+		if (Object.values(settings).some((value) => value !== undefined)) {
+			await call(this.connection, "uptime/updateSchedule", {
+				...settings,
+				scheduleId: id,
+			});
 		}
-		if (!state.paused && olds.paused) {
-			await call(this.connection, "uptime/resumeSchedule", { scheduleId: id });
+		if (state.paused !== olds.paused) {
+			await this.setPaused(id, state.paused);
 		}
 		return { outs: state };
+	}
+
+	async setPaused(scheduleId: string, paused: boolean) {
+		const live = await call(this.connection, "uptime/getSchedule", {
+			scheduleId,
+		});
+		if (live.isPaused === paused) {
+			return;
+		}
+		if (paused) {
+			await call(this.connection, "uptime/pauseSchedule", { scheduleId });
+		} else {
+			await call(this.connection, "uptime/resumeSchedule", { scheduleId });
+		}
 	}
 
 	async delete(id: string) {
@@ -309,7 +581,6 @@ export interface StatusPageArgs {
 	faviconUrl?: Input<string>;
 	logoUrl?: Input<string>;
 	name: Input<string>;
-	organizationId?: Input<string>;
 	slug: Input<string>;
 	supportUrl?: Input<string>;
 	theme?: Input<StatusPageTheme>;
@@ -355,15 +626,8 @@ class StatusPageProvider
 	implements dynamic.ResourceProvider<Unwrap<StatusPageArgs>, StatusPageState>
 {
 	diff(_id: string, olds: StatusPageState, news: Unwrap<StatusPageArgs>) {
-		const movesOrganization =
-			news.organizationId !== undefined &&
-			news.organizationId !== olds.organizationId;
 		const changed = changedKeys(statusPageFields(olds), statusPageFields(news));
-		return Promise.resolve({
-			changes: movesOrganization || changed.length > 0,
-			replaces: movesOrganization ? ["organizationId"] : [],
-			deleteBeforeReplace: true,
-		});
+		return Promise.resolve({ changes: changed.length > 0 });
 	}
 
 	async create(inputs: Unwrap<StatusPageArgs>) {
@@ -371,7 +635,6 @@ class StatusPageProvider
 		const page = await call(this.connection, "statusPage/create", {
 			...fields,
 			description: fields.description ?? undefined,
-			organizationId: inputs.organizationId,
 		});
 		if (!page) {
 			throw new Error("Databuddy statusPage/create returned no status page");
@@ -383,18 +646,24 @@ class StatusPageProvider
 		return { id: page.id, outs };
 	}
 
-	async read(id: string) {
+	async read(id: string): Promise<dynamic.ReadResult> {
 		const page = await find(this.connection, "statusPage/get", {
 			statusPageId: id,
 		});
 		if (!page) {
 			return {};
 		}
+		const fields = statusPageFields(page);
 		const props: StatusPageState = {
-			...statusPageFields(page),
+			...fields,
 			organizationId: page.organizationId,
 		};
-		return { id, props };
+		const defaults = statusPageFields({ name: fields.name, slug: fields.slug });
+		return {
+			id,
+			props,
+			inputs: explicitInputs(fields, defaults, ["name", "slug"]),
+		};
 	}
 
 	async update(
@@ -403,9 +672,10 @@ class StatusPageProvider
 		news: Unwrap<StatusPageArgs>
 	) {
 		const fields = statusPageFields(news);
+		const changes = changedFields(statusPageFields(olds), fields);
 		await call(this.connection, "statusPage/update", {
-			...fields,
-			description: fields.description ?? "",
+			...changes,
+			description: changes.description === null ? "" : changes.description,
 			statusPageId: id,
 		});
 		const outs: StatusPageState = {
@@ -527,7 +797,6 @@ class StatusPageMonitorProvider
 		return Promise.resolve({
 			changes: replaces.length > 0 || changed.length > 0,
 			replaces: [...replaces],
-			deleteBeforeReplace: true,
 		});
 	}
 
@@ -540,28 +809,30 @@ class StatusPageMonitorProvider
 		if (!entry) {
 			throw new Error("Databuddy statusPage/addMonitor returned no entry");
 		}
+		const id = `${inputs.statusPageId}/${inputs.monitorId}`;
+		const placement = {
+			entryId: entry.id,
+			monitorId: inputs.monitorId,
+			statusPageId: inputs.statusPageId,
+		};
 		try {
 			await call(this.connection, "statusPage/updateMonitorSettings", {
 				...settings,
 				monitorId: entry.id,
 			});
 		} catch (error) {
-			await find(this.connection, "statusPage/removeMonitor", {
-				statusPageId: inputs.statusPageId,
-				uptimeScheduleId: inputs.monitorId,
-			});
-			throw error;
+			throw initFailure(
+				error,
+				id,
+				{ ...statusPageMonitorSettings(entry), ...placement },
+				inputs
+			);
 		}
-		const outs: StatusPageMonitorState = {
-			...settings,
-			entryId: entry.id,
-			monitorId: inputs.monitorId,
-			statusPageId: inputs.statusPageId,
-		};
-		return { id: `${inputs.statusPageId}/${inputs.monitorId}`, outs };
+		const outs: StatusPageMonitorState = { ...settings, ...placement };
+		return { id, outs };
 	}
 
-	async read(id: string) {
+	async read(id: string): Promise<dynamic.ReadResult> {
 		const { monitorId, statusPageId } = splitStatusPageMonitorId(id);
 		const page = await find(this.connection, "statusPage/get", {
 			statusPageId,
@@ -572,13 +843,22 @@ class StatusPageMonitorProvider
 		if (!entry) {
 			return {};
 		}
+		const settings = statusPageMonitorSettings(entry);
 		const props: StatusPageMonitorState = {
-			...statusPageMonitorSettings(entry),
+			...settings,
 			entryId: entry.id,
 			monitorId,
 			statusPageId,
 		};
-		return { id, props };
+		return {
+			id,
+			props,
+			inputs: {
+				...explicitInputs(settings, statusPageMonitorSettings({}), []),
+				monitorId,
+				statusPageId,
+			},
+		};
 	}
 
 	async update(
@@ -588,7 +868,7 @@ class StatusPageMonitorProvider
 	) {
 		const settings = statusPageMonitorSettings(news);
 		await call(this.connection, "statusPage/updateMonitorSettings", {
-			...settings,
+			...changedFields(statusPageMonitorSettings(olds), settings),
 			monitorId: olds.entryId,
 		});
 		const outs: StatusPageMonitorState = { ...olds, ...settings };

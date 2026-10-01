@@ -55,6 +55,6 @@
     "unbuild": "^3.6.1"
   },
   "peerDependencies": {
-    "@pulumi/pulumi": "^3.139.0"
+    "@pulumi/pulumi": "^3.216.0"
   }
 }
