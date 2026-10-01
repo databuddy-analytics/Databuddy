@@ -412,7 +412,7 @@ const getDataTool = defineMcpTool(
 				.array(FilterSchema)
 				.optional()
 				.describe(
-					"Filters [{field, op, value}]. ops: eq, ne, contains, not_contains, starts_with, in, not_in. 'field' is one of the query type's allowedFilters (capabilities detail='full') or trait:<key> (e.g. trait:plan) to segment by an identified-user trait. Rejected fields return the allowed list for this query."
+					"Filters [{field, op, value}]. ops: eq, ne, contains, not_contains, starts_with, in, not_in. 'field' is a common dimension such as path, country, referrer, device_type, or utm_source, a query-specific field from capabilities detail='full', or trait:<key> (e.g. trait:plan) to segment by an identified-user trait. Rejected fields return the allowed list for this query."
 				),
 			groupBy: z
 				.array(z.string())
@@ -571,7 +571,7 @@ const getSchemaTool = defineMcpTool(
 		name: "get_schema",
 		title: "List analytics columns",
 		description:
-			"Return the analytics tables with column names and types as a reference. get_data filter fields per query type come from capabilities detail='full'; rejected groupBy and orderBy values return the allowed list.",
+			"Return the analytics tables with column names and types as a reference. get_data filters take common dimensions such as path or country plus query-specific fields from capabilities detail='full'; rejected fields return the allowed list.",
 		inputSchema: z.object({
 			sections: z
 				.array(z.enum(SCHEMA_SECTIONS))
@@ -618,7 +618,7 @@ const CAPABILITY_DEFAULTS: readonly CapabilitySection[] = [
 
 const HINTS: readonly string[] = [
 	"The databuddy://guide resource documents query conventions and what insight and investigation fields mean.",
-	"capabilities is filterable: include=['queryTypes'] returns the full catalog, category='Errors' or contains='vital' narrows it, detail='full' adds allowedFilters.",
+	"capabilities is filterable: include=['queryTypes'] returns the full catalog, category='Errors' or contains='vital' narrows it, detail='full' adds query-specific allowedFilters.",
 	"get_schema is sectionable: sections=['events'] returns the smallest useful payload.",
 	`get_data returns at most ${MCP_RESULT_ROW_LIMIT} rows per query; limit can lower that.`,
 ];
@@ -651,7 +651,7 @@ const capabilitiesTool = defineMcpTool(
 				.optional()
 				.default("summary")
 				.describe(
-					"'summary' returns descriptions only; 'full' includes allowedFilters per type, also when filtering by category or contains."
+					"'summary' returns descriptions only; 'full' adds each type's query-specific allowedFilters, on top of common dimensions such as path and country, also when filtering by category or contains."
 				),
 		}),
 		outputSchema: z.object({
