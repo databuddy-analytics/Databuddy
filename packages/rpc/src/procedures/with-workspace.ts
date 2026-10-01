@@ -107,14 +107,10 @@ export type PublicWorkspaceWithPlan =
 	| DemoWorkspaceWithPlan;
 
 const getWebsiteById = cacheable(
-	async (id: string) => {
-		if (!id) {
-			return null;
-		}
-		return await db.query.websites.findFirst({
+	async (id: string) =>
+		await db.query.websites.findFirst({
 			where: { id },
-		});
-	},
+		}),
 	{
 		expireInSec: 600,
 		prefix: cacheNamespaces.websiteById,
@@ -274,26 +270,24 @@ async function resolveGrant(
 }
 
 interface ResolveInput {
-	allowCrossOrg: boolean;
-	includePlan: boolean;
+	allowCrossOrg?: boolean;
+	includePlan?: boolean;
 	organizationId?: string | null;
 	permissions: readonly string[];
-	requiredPlans: PlanId[] | undefined;
+	requiredPlans?: PlanId[];
 	resource?: string;
 	websiteId?: string;
 }
 
 interface ResolvedAuthed {
 	kind: "authed";
-	plan: PlanId | null;
-	workspace: AuthedWorkspace;
+	workspace: AuthedWorkspace & { plan?: PlanId };
 }
 
 interface ResolvedDenied {
 	denied: Error;
 	kind: "denied";
 	organizationId: string;
-	permissions: readonly string[];
 	plan: PlanId | null;
 	website: Website | null;
 }
@@ -319,16 +313,17 @@ async function resolveWorkspace(
 	const effectiveResource =
 		input.resource ?? (input.websiteId ? "website" : "organization");
 	const getCreatedBy = () => resolveCreatedBy(context, organizationId);
-	const planPromise = shouldResolvePlan(input)
-		? getPlanId(context, context.organizationId ?? organizationId)
-		: Promise.resolve(null);
+	const planPromise =
+		input.includePlan || input.requiredPlans !== undefined
+			? getPlanId(context, context.organizationId ?? organizationId)
+			: Promise.resolve(null);
 
 	const [grant, plan] = await Promise.all([
 		resolveGrant(context, {
 			organizationId,
 			resource: effectiveResource,
 			permissions: input.permissions,
-			allowCrossOrg: input.allowCrossOrg,
+			allowCrossOrg: input.allowCrossOrg ?? false,
 			websiteId: website?.id,
 		}),
 		planPromise,
@@ -341,7 +336,6 @@ async function resolveWorkspace(
 			website,
 			organizationId,
 			plan,
-			permissions: input.permissions,
 		};
 	}
 
@@ -351,7 +345,6 @@ async function resolveWorkspace(
 
 	return {
 		kind: "authed",
-		plan,
 		workspace: {
 			tier: "authed",
 			organizationId,
@@ -359,6 +352,7 @@ async function resolveWorkspace(
 			role: grant.role,
 			website,
 			getCreatedBy,
+			...(plan && { plan }),
 		},
 	};
 }
@@ -370,16 +364,9 @@ function requireResolvedPlan(plan: PlanId | null): PlanId {
 	return plan;
 }
 
-function shouldResolvePlan(options: {
-	includePlan?: boolean;
-	requiredPlans?: PlanId[];
-}): boolean {
-	return options.includePlan === true || options.requiredPlans !== undefined;
-}
-
-function requirePublicAuthedWorkspace(
-	workspace: AuthedWorkspace
-): AuthedWorkspace & { website: Website } {
+function requirePublicAuthedWorkspace<W extends AuthedWorkspace>(
+	workspace: W
+): W & { website: Website } {
 	if (!workspace.website) {
 		throw new Error("Public workspace website was not resolved");
 	}
@@ -424,27 +411,10 @@ export async function withWorkspace(
 		| OrgScopeOptions<ResourceType>
 		| OrgScopePlanOptions<ResourceType>
 ): Promise<AuthedWorkspace | AuthedWorkspaceWithPlan> {
-	const resolved = await resolveWorkspace(context, {
-		websiteId: options.websiteId,
-		organizationId: options.organizationId,
-		resource: options.resource,
-		permissions: options.permissions,
-		allowCrossOrg: options.allowCrossOrg ?? false,
-		includePlan: options.includePlan === true,
-		requiredPlans: options.requiredPlans,
-	});
-
+	const resolved = await resolveWorkspace(context, options);
 	if (resolved.kind === "denied") {
 		throw resolved.denied;
 	}
-
-	if (shouldResolvePlan(options)) {
-		return {
-			...resolved.workspace,
-			plan: requireResolvedPlan(resolved.plan),
-		};
-	}
-
 	return resolved.workspace;
 }
 
@@ -472,39 +442,25 @@ export async function withPublicWorkspace(
 		| WebsiteExplicitOptions<ResourceType>
 		| WebsiteExplicitPlanOptions<ResourceType>
 ): Promise<PublicWorkspace | PublicWorkspaceWithPlan> {
-	const resolved = await resolveWorkspace(context, {
-		websiteId: options.websiteId,
-		organizationId: options.organizationId,
-		resource: options.resource,
-		permissions: options.permissions,
-		allowCrossOrg: options.allowCrossOrg ?? false,
-		includePlan: options.includePlan === true,
-		requiredPlans: options.requiredPlans,
-	});
-	const includePlan = shouldResolvePlan(options);
+	const resolved = await resolveWorkspace(context, options);
 
 	if (resolved.kind === "authed") {
-		const workspace = requirePublicAuthedWorkspace(resolved.workspace);
-		return includePlan
-			? { ...workspace, plan: requireResolvedPlan(resolved.plan) }
-			: workspace;
+		return requirePublicAuthedWorkspace(resolved.workspace);
 	}
 
 	if (
 		!context.oauth &&
 		resolved.website?.isPublic &&
-		isReadOnly(resolved.permissions)
+		isReadOnly(options.permissions)
 	) {
-		const workspace: DemoWorkspace = {
+		return {
 			tier: "demo",
 			organizationId: resolved.organizationId,
 			user: null,
 			role: null,
 			website: resolved.website,
+			...(resolved.plan && { plan: resolved.plan }),
 		};
-		return includePlan
-			? { ...workspace, plan: requireResolvedPlan(resolved.plan) }
-			: workspace;
 	}
 
 	throw resolved.denied;
