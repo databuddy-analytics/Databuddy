@@ -4,7 +4,6 @@ import { Button, Field, Input } from "@databuddy/ui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useController, useForm } from "react-hook-form";
 import { z } from "zod";
-import { OnboardingStepHeader } from "./onboarding-shell";
 
 const domainRegex =
 	/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$/;
@@ -57,7 +56,7 @@ interface StepWebsiteProps {
 	pending: boolean;
 }
 
-export function StepWebsite({ onCreate, pending }: StepWebsiteProps) {
+export function AddWebsite({ onCreate, pending }: StepWebsiteProps) {
 	const form = useForm<WebsiteFormValues>({
 		resolver: zodResolver(formSchema),
 		mode: "onChange",
@@ -67,13 +66,9 @@ export function StepWebsite({ onCreate, pending }: StepWebsiteProps) {
 	const nameField = useController({ control: form.control, name: "name" });
 
 	return (
-		<div>
-			<OnboardingStepHeader
-				description="Databunny reads the site while you install tracking, so your first insights already know what the business does."
-				title="Which website are we watching?"
-			/>
+		<div className="max-w-lg">
 			<form
-				className="space-y-5"
+				className="space-y-4"
 				onSubmit={form.handleSubmit((values) =>
 					onCreate({ domain: values.domain, name: values.name.trim() })
 				)}
@@ -85,7 +80,6 @@ export function StepWebsite({ onCreate, pending }: StepWebsiteProps) {
 						autoComplete="url"
 						autoCorrect="off"
 						autoFocus
-						className="h-11 text-base"
 						inputMode="url"
 						placeholder="acme.com"
 						prefix="https://"
@@ -101,10 +95,6 @@ export function StepWebsite({ onCreate, pending }: StepWebsiteProps) {
 							}
 						}}
 					/>
-					<Field.Description>
-						The production domain your visitors use. Events from other domains
-						are flagged so you can allow them later.
-					</Field.Description>
 					{domainField.fieldState.error ? (
 						<Field.Error>{domainField.fieldState.error.message}</Field.Error>
 					) : null}
@@ -121,7 +111,7 @@ export function StepWebsite({ onCreate, pending }: StepWebsiteProps) {
 				<Button
 					disabled={!form.formState.isValid}
 					loading={pending}
-					size="lg"
+					size="sm"
 					type="submit"
 				>
 					{pending ? "Creating" : "Create website"}

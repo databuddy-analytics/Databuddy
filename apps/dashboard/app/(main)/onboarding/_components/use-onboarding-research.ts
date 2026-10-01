@@ -3,7 +3,10 @@
 import type {
 	BusinessBrief,
 	BusinessContextSettings,
+	BusinessSuggestedFunnel,
+	BusinessSuggestedGoal,
 	BusinessTeamContext,
+	DetectedAnalyticsTool,
 } from "@databuddy/shared/organization-business-context";
 import { businessContextIsGenerating } from "@databuddy/shared/organization-business-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -26,6 +29,7 @@ export type OnboardingResearchQuestion = NonNullable<
 export interface OnboardingResearch {
 	canStart: boolean;
 	content: string;
+	detectedTools: DetectedAnalyticsTool[];
 	domain: string | null;
 	message: string | null;
 	pagesFailed: number;
@@ -33,11 +37,14 @@ export interface OnboardingResearch {
 	phase: OnboardingResearchPhase;
 	questions: OnboardingResearchQuestion[];
 	sources: BusinessBrief["sources"];
+	suggestedFunnels: BusinessSuggestedFunnel[];
+	suggestedGoals: BusinessSuggestedGoal[];
 }
 
 export const EMPTY_RESEARCH: OnboardingResearch = {
 	canStart: false,
 	content: "",
+	detectedTools: [],
 	domain: null,
 	message: null,
 	pagesFailed: 0,
@@ -45,7 +52,20 @@ export const EMPTY_RESEARCH: OnboardingResearch = {
 	phase: "idle",
 	questions: [],
 	sources: [],
+	suggestedFunnels: [],
+	suggestedGoals: [],
 };
+
+function briefFields(brief: BusinessBrief) {
+	return {
+		content: brief.content,
+		questions: brief.followUpQuestions ?? [],
+		sources: brief.sources,
+		detectedTools: brief.detectedTools ?? [],
+		suggestedGoals: brief.suggestedGoals ?? [],
+		suggestedFunnels: brief.suggestedFunnels ?? [],
+	};
+}
 
 interface ResearchWebsite {
 	domain: string;
@@ -87,13 +107,7 @@ function deriveResearch(input: {
 		};
 	}
 	if (generation?.status === "ready" && generation.draft) {
-		return {
-			...base,
-			phase: "ready",
-			content: generation.draft.content,
-			questions: generation.draft.followUpQuestions ?? [],
-			sources: generation.draft.sources,
-		};
+		return { ...base, phase: "ready", ...briefFields(generation.draft) };
 	}
 	if (input.startError || generation?.status === "failed") {
 		return {
@@ -107,13 +121,7 @@ function deriveResearch(input: {
 		};
 	}
 	if (settings?.profile) {
-		return {
-			...base,
-			phase: "ready",
-			content: settings.profile.content,
-			questions: settings.profile.followUpQuestions ?? [],
-			sources: settings.profile.sources,
-		};
+		return { ...base, phase: "ready", ...briefFields(settings.profile) };
 	}
 	if (input.accessPending || !settings) {
 		return base;
