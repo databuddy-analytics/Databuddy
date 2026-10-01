@@ -227,7 +227,8 @@ function singleMatch(
 	if (others.length > 0) {
 		return new WebsiteSelectionError(
 			"invalid_input",
-			`${matches.length} accessible websites match ${selector}. Pass websiteId from list_websites to choose one.`
+			`${matches.length} accessible websites match ${selector}. Pass websiteId from list_websites to choose one.`,
+			WEBSITE_LIST_HINT
 		);
 	}
 	return match.id;

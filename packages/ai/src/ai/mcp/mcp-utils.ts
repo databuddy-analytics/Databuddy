@@ -303,21 +303,24 @@ const SCHEMA_SUMMARY = Object.keys(AGENT_TABLE_COLUMNS)
 	)
 	.join("\n");
 
-const DIRECTIVE_RE =
-	/\b(use|uses|should|never|prefer|must|always|instead|raw sql)\b/i;
-const SENTENCE_END_RE = /(?<=\.)\s/;
+const DIRECTIVE_CLAUSE_RE =
+	/^(use|uses|prefer|always|must|should|instead|do not|don't|never use)\b|\b(raw sql|quantile\w*|tofloat64)\b/i;
+const CLAUSE_BREAK_RE = /(?<=\.)\s+|\s+\u2014\s+|;\s+/;
+const TRAILING_PERIOD_RE = /\.$/;
 
-function neutralTableDescription(text: string): string | null {
-	const [firstSentence = text] = text.split(SENTENCE_END_RE);
-	return DIRECTIVE_RE.test(firstSentence) ? null : firstSentence;
+function withoutDirectives(text: string): string | null {
+	const clauses = text
+		.split(CLAUSE_BREAK_RE)
+		.map((clause) => clause.trim().replace(TRAILING_PERIOD_RE, ""))
+		.filter((clause) => clause && !DIRECTIVE_CLAUSE_RE.test(clause))
+		.map((clause) => clause.charAt(0).toUpperCase() + clause.slice(1));
+	return clauses.length > 0 ? `${clauses.join(". ")}.` : null;
 }
 
 function columnLine(column: string): string {
 	const [definition = column, ...rest] = column.split(" - ");
-	const note = rest.join(" - ");
-	return note && !DIRECTIVE_RE.test(note)
-		? `- ${definition} - ${note}`
-		: `- ${definition}`;
+	const note = withoutDirectives(rest.join(" - "));
+	return note ? `- ${definition} - ${note}` : `- ${definition}`;
 }
 
 export function getMcpSchemaDocumentation(
@@ -326,7 +329,7 @@ export function getMcpSchemaDocumentation(
 	const selected = new Set(sections.length > 0 ? sections : SCHEMA_SECTIONS);
 	return ANALYTICS_TABLES.filter((table) => selected.has(table.section))
 		.map((table) => {
-			const description = neutralTableDescription(table.description);
+			const description = withoutDirectives(table.description);
 			return [
 				`## ${table.name}`,
 				...(description ? [description] : []),

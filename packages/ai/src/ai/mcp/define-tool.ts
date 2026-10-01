@@ -191,8 +191,8 @@ function fromORPCError(error: ORPCError<string, unknown>): McpToolError {
 			return new McpToolError("not_found", error.message, { details });
 		case "BAD_REQUEST":
 		case "CONFLICT":
-		case "FEATURE_UNAVAILABLE":
 			return new McpToolError("invalid_input", error.message, { details });
+		case "FEATURE_UNAVAILABLE":
 		case "PAYMENT_REQUIRED":
 		case "PLAN_LIMIT_EXCEEDED":
 			return new McpToolError("plan_limit", error.message, { details });

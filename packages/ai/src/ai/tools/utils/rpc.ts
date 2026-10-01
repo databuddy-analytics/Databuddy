@@ -6,13 +6,8 @@ const logger = createToolLogger("RPC");
 const MUTATION_METHOD_RE =
 	/^(add|archive|bulk|create|delete|detect|pause|publish|remove|reply|reset|restore|resume|revoke|rotate|send|set|trigger|unarchive|update|upsert)/i;
 
-interface ValidationIssue {
-	message?: unknown;
-	path?: readonly unknown[];
-}
-
-function issuePath(path: readonly unknown[] | undefined): string {
-	const segments = (path ?? []).map((segment) =>
+function issuePath(path: unknown): string {
+	const segments = (Array.isArray(path) ? path : []).map((segment) =>
 		typeof segment === "object" && segment !== null && "key" in segment
 			? String((segment as { key: unknown }).key)
 			: String(segment)
@@ -32,11 +27,19 @@ function validationIssueSummary(cause: unknown): string | null {
 	) {
 		return null;
 	}
-	return (cause.issues as ValidationIssue[])
-		.map(
-			(issue) =>
-				`${issuePath(issue.path)}: ${typeof issue.message === "string" ? issue.message : "invalid value"}`
-		)
+	const issues: unknown[] = cause.issues;
+	return issues
+		.map((issue) => {
+			if (!(issue && typeof issue === "object")) {
+				return "input: invalid value";
+			}
+			const path = "path" in issue ? issue.path : undefined;
+			const message =
+				"message" in issue && typeof issue.message === "string"
+					? issue.message
+					: "invalid value";
+			return `${issuePath(path)}: ${message}`;
+		})
 		.join("; ");
 }
 
