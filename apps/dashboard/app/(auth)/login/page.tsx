@@ -46,8 +46,9 @@ function LoginPage() {
 
 	const handleSocialLogin = async (provider: "github" | "google") => {
 		setIsLoading(true);
-		const newUserCallbackURL =
-			safeCallback === "/websites" ? "/onboarding" : safeCallback;
+		const newUserCallbackURL = safeCallback.startsWith("/billing/plans")
+			? safeCallback
+			: "/onboarding";
 
 		try {
 			const result = await authClient.signIn.social({
