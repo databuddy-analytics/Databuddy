@@ -33,6 +33,7 @@ import { parseCorsSafeJson } from "@lib/cors-safe-json";
 import { summarizeRejectedBody } from "@lib/rejection-summary";
 import {
 	checkForBot,
+	recordAiPageView,
 	type ValidatedRequest,
 	validateRequest,
 } from "@lib/request-validation";
@@ -237,6 +238,9 @@ const app = new Elysia()
 			);
 			if (botError) {
 				log.set({ rejected: "bot" });
+				if (botError.trackOnly && eventType === "track") {
+					recordAiPageView(eventData, clientId, userAgent);
+				}
 				return createPixelResponse();
 			}
 
@@ -528,6 +532,9 @@ const app = new Elysia()
 
 				if (botError) {
 					log.set({ rejected: "bot" });
+					if (botError.trackOnly) {
+						recordAiPageView(body, clientId, userAgent);
+					}
 					return botError.error;
 				}
 
@@ -636,6 +643,9 @@ const app = new Elysia()
 							userAgent
 						);
 						if (botError) {
+							if (botError.trackOnly) {
+								recordAiPageView(event, clientId, userAgent);
+							}
 							results.push(batchBotIgnoredItem(eventType));
 							continue;
 						}

@@ -55,8 +55,12 @@ vi.mock("@lib/tracing", () => ({
 	captureError: vi.fn(),
 }));
 
-const { validateRequest, checkForBot, getWebsiteSecuritySettings } =
-	await import("./request-validation");
+const {
+	validateRequest,
+	checkForBot,
+	getWebsiteSecuritySettings,
+	recordAiPageView,
+} = await import("./request-validation");
 
 function website(overrides: Record<string, unknown> = {}) {
 	return {
@@ -361,15 +365,13 @@ describe("checkForBot", () => {
 		expect(mockLogBlockedTraffic).not.toHaveBeenCalled();
 	});
 
-	test("AI crawlers short-circuit with 204 and record an AI traffic span", async () => {
-		const result = await checkForBot(
-			makeReq(),
-			{ path: "/about" },
-			{},
-			"ws_1",
-			GPTBOT
-		);
+	test("AI crawlers short-circuit with 204 and their page views record an AI traffic span", async () => {
+		const event = { name: "screen_view", path: "/about" };
+		const result = await checkForBot(makeReq(), event, {}, "ws_1", GPTBOT);
 		expect(result?.error?.status).toBe(204);
+		expect(result?.trackOnly).toBe(true);
+		expect(mockSend).not.toHaveBeenCalled();
+		recordAiPageView(event, "ws_1", GPTBOT);
 		expect(mockSend).toHaveBeenCalledWith(
 			"analytics-ai-traffic-spans",
 			expect.objectContaining({
@@ -385,27 +387,25 @@ describe("checkForBot", () => {
 	});
 
 	test.each([
-		["body.url", { url: "/from-url" }, {}, "/from-url"],
-		["query.path", {}, { path: "/from-query" }, "/from-query"],
-	])("AI traffic path falls back to %s", async (_label, body, query, expected) => {
-		await checkForBot(makeReq(), body, query, "ws_1", GPTBOT);
-		expect(mockSend).toHaveBeenCalledWith(
-			"analytics-ai-traffic-spans",
-			expect.objectContaining({ path: expected })
-		);
+		["page exits", { name: "page_exit", path: "/about" }],
+		["custom events", { name: "signup", path: "/about" }],
+	])("AI traffic spans skip %s", (_label, event) => {
+		recordAiPageView(event, "ws_1", GPTBOT);
+		expect(mockSend).not.toHaveBeenCalled();
 	});
 
-	test("AI traffic path falls back to the referer header last", async () => {
-		await checkForBot(
-			makeReq("https://example.com", { referer: "https://ref.com/page" }),
-			{},
-			{},
+	test("AI traffic spans take path and referrer from the event only", () => {
+		recordAiPageView(
+			{ name: "screen_view", path: "https://example.com/pricing" },
 			"ws_1",
 			GPTBOT
 		);
 		expect(mockSend).toHaveBeenCalledWith(
 			"analytics-ai-traffic-spans",
-			expect.objectContaining({ path: "https://ref.com/page" })
+			expect.objectContaining({
+				path: "https://example.com/pricing",
+				referrer: null,
+			})
 		);
 	});
 

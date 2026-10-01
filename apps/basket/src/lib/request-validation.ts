@@ -18,6 +18,7 @@ import { record } from "@lib/tracing";
 import { extractAllowlistClientIp, extractIpFromRequest } from "@utils/ip-geo";
 import {
 	sanitizeString,
+	sanitizeUrl,
 	VALIDATION_LIMITS,
 	validatePayloadSize,
 } from "@utils/validation";
@@ -277,18 +278,39 @@ export function agentColumns(signals: AgentSignals) {
 	};
 }
 
+export function recordAiPageView(
+	event: unknown,
+	clientId: string,
+	userAgent: string
+): void {
+	const { name, path, referrer } = asRecord(event);
+	if (name !== "screen_view") {
+		return;
+	}
+	runFork(
+		send("analytics-ai-traffic-spans", {
+			...agentColumns({ userAgent }).columns,
+			client_id: clientId,
+			timestamp: Date.now(),
+			user_agent: userAgent,
+			path: sanitizeUrl(path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+			referrer:
+				sanitizeUrl(referrer, VALIDATION_LIMITS.STRING_MAX_LENGTH) || null,
+			source: "tracker",
+			format: "html",
+		} satisfies AiTrafficSpansInsert)
+	);
+}
+
 export function checkForBot(
 	request: Request,
 	body: unknown,
 	query: unknown,
 	clientId: string,
 	userAgent: string
-): Promise<{ error?: Response } | undefined> {
+): Promise<{ error: Response; trackOnly: boolean } | undefined> {
 	return record("checkForBot", () => {
 		const log = useLogger();
-		const bodyRecord = asRecord(body);
-		const queryRecord = asRecord(query);
-
 		const bot = detectBot(userAgent);
 
 		if (!bot.isBot) {
@@ -310,33 +332,9 @@ export function checkForBot(
 		}
 
 		if (bot.action === "track_only") {
-			const path =
-				(typeof bodyRecord.path === "string" ? bodyRecord.path : undefined) ||
-				(typeof bodyRecord.url === "string" ? bodyRecord.url : undefined) ||
-				(typeof queryRecord.path === "string" ? queryRecord.path : undefined) ||
-				request.headers.get("referer") ||
-				"";
-			const referrer =
-				(typeof bodyRecord.referrer === "string"
-					? bodyRecord.referrer
-					: undefined) ||
-				request.headers.get("referer") ||
-				undefined;
-
-			const span: AiTrafficSpansInsert = {
-				...agentColumns({ userAgent }).columns,
-				client_id: clientId,
-				timestamp: Date.now(),
-				user_agent: userAgent,
-				path,
-				referrer,
-				source: "tracker",
-				format: "html",
-			};
-			runFork(send("analytics-ai-traffic-spans", span));
-
 			return {
 				error: new Response(null, { status: 204 }),
+				trackOnly: true,
 			};
 		}
 
@@ -352,6 +350,7 @@ export function checkForBot(
 
 		return {
 			error: new Response(null, { status: 204 }),
+			trackOnly: false,
 		};
 	});
 }

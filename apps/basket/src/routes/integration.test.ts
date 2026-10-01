@@ -67,7 +67,7 @@ const {
 			})
 		),
 		mockCheckForBot: vi.fn(
-			(): Promise<{ error?: Response } | undefined> =>
+			(): ReturnType<typeof import("@lib/request-validation").checkForBot> =>
 				Promise.resolve(undefined)
 		),
 		mockInsertTrackEvent: vi.fn(() => Promise.resolve()),
@@ -871,6 +871,7 @@ describe("POST /track", () => {
 		mockCheckForBot.mockClear();
 		mockCheckForBot.mockResolvedValueOnce({
 			error: new Response(null, { status: 204 }),
+			trackOnly: true,
 		});
 		const res = await post(
 			trackRoute,
