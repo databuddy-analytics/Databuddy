@@ -324,8 +324,7 @@ export async function resolveOrganizationId(
 	if (principal.oauthGrant?.websiteIds) {
 		return new WebsiteSelectionError(
 			"invalid_input",
-			"This connection is limited to selected websites, so organization-wide data, including organization-wide flags, is not available.",
-			"Pass websiteId, websiteName, or websiteDomain from list_websites to use one of those websites."
+			"This connection is limited to selected websites, so organization-wide data, including organization-wide flags, is not available. Pass websiteId, websiteName, or websiteDomain from list_websites to use one of those websites."
 		);
 	}
 	if (principal.oauthGrant) {
@@ -367,8 +366,7 @@ export async function resolveOrganizationId(
 				)
 			: new WebsiteSelectionError(
 					"invalid_input",
-					`This account belongs to ${organizationIds.length} organizations, so organization-wide data, including organization-wide flags, cannot be selected over this connection.`,
-					"Pass websiteId, websiteName, or websiteDomain from list_websites to use one website's data."
+					`This account belongs to ${organizationIds.length} organizations, so organization-wide data, including organization-wide flags, cannot be selected over this connection. Pass websiteId, websiteName, or websiteDomain from list_websites to use one website's data.`
 				);
 	}
 	if (principal.userId) {

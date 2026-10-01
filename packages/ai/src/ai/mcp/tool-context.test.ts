@@ -117,7 +117,9 @@ describe("OAuth selected website grants", () => {
 	it("requires a website selector for aggregate organization data", async () => {
 		expect(await resolveOrganizationId(principal)).toMatchObject({
 			code: "invalid_input",
-			message: expect.stringContaining("organization-wide flags"),
+			message: expect.stringMatching(
+				/organization-wide flags.*Pass websiteId, websiteName, or websiteDomain from list_websites/
+			),
 		});
 		expect(
 			await resolveOrganizationId({
