@@ -133,10 +133,9 @@ export function useSiteResearch(
 	website: ResearchWebsite | null
 ) {
 	const queryClient = useQueryClient();
+	const websiteId = website?.id;
 	const scope =
-		organizationId && website
-			? { organizationId, websiteId: website.id }
-			: null;
+		organizationId && websiteId ? { organizationId, websiteId } : null;
 	const settingsKey = orpc.businessContext.get.queryKey({
 		input: { organizationId: organizationId ?? "" },
 	});
@@ -178,9 +177,10 @@ export function useSiteResearch(
 	);
 
 	const start = useCallback(async () => {
-		if (!scope || stream.current) {
+		if (!(organizationId && websiteId) || stream.current) {
 			return;
 		}
+		const scope = { organizationId, websiteId };
 		const controller = new AbortController();
 		stream.current = controller;
 		setStreaming(true);
@@ -212,7 +212,7 @@ export function useSiteResearch(
 				queryClient.invalidateQueries({ queryKey: settingsKey });
 			}
 		}
-	}, [queryClient, scope, settingsKey]);
+	}, [organizationId, websiteId, queryClient, settingsKey]);
 
 	const save = useMutation({
 		...orpc.businessContext.save.mutationOptions(),
@@ -222,32 +222,29 @@ export function useSiteResearch(
 		},
 	});
 
-	const savePriority = useCallback(
-		async (priority: string) => {
-			if (!organizationId) {
-				return;
-			}
-			const current = settings.data;
-			const draft =
-				current?.generation?.status === "ready" && current.generation.draft
-					? current.generation
-					: null;
-			// Keep whatever the team already answered; onboarding only asks for the priority.
-			await save.mutateAsync({
-				organizationId,
-				revision: current?.profile?.revision ?? 0,
-				content: draft?.draft?.content ?? current?.profile?.content ?? "",
-				generationId: draft?.id,
-				teamContext: {
-					successDefinition: "",
-					exclusions: "",
-					...current?.profile?.teamContext,
-					priority,
-				},
-			});
-		},
-		[organizationId, save, settings.data]
-	);
+	async function savePriority(priority: string) {
+		if (!organizationId) {
+			return;
+		}
+		const current = settings.data;
+		const draft =
+			current?.generation?.status === "ready" && current.generation.draft
+				? current.generation
+				: null;
+		// Keep whatever the team already answered; onboarding only asks for the priority.
+		await save.mutateAsync({
+			organizationId,
+			revision: current?.profile?.revision ?? 0,
+			content: draft?.draft?.content ?? current?.profile?.content ?? "",
+			generationId: draft?.id,
+			teamContext: {
+				successDefinition: "",
+				exclusions: "",
+				...current?.profile?.teamContext,
+				priority,
+			},
+		});
+	}
 
 	const readOnly = settings.data?.canEdit === false;
 
