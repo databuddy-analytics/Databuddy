@@ -12,24 +12,12 @@ const getCachedWebsite = cacheable(
 	}
 );
 
-const getWebsiteDomain = cacheable(
-	async (websiteId: string): Promise<string | null> => {
-		try {
-			const website = await db.query.websites.findFirst({
-				where: { id: websiteId },
-			});
-			return website?.domain || null;
-		} catch {
-			return null;
-		}
-	},
-	{
-		expireInSec: 300,
-		prefix: cacheNamespaces.websiteDomain,
-		staleWhileRevalidate: true,
-		staleTime: 60,
-	}
-);
+function getWebsiteDomain(websiteId: string): Promise<string | null> {
+	return getCachedWebsite(websiteId).then(
+		(website) => website?.domain || null,
+		() => null
+	);
+}
 
 const getCachedWebsiteDomain = cacheable(
 	async (websiteIds: string[]): Promise<Record<string, string | null>> => {
