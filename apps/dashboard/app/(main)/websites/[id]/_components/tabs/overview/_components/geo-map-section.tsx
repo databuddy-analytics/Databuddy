@@ -10,7 +10,6 @@ import {
 } from "@/components/analytics/globe-map";
 import { formatNumber } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import { GlobeIcon } from "@databuddy/ui/icons";
 import { Card, Skeleton } from "@databuddy/ui";
 
 interface GeoMapSectionProps {
@@ -113,10 +112,12 @@ function VisitorLocations({ countries }: { countries: CountryRow[] }) {
 								})}
 							</ul>
 						) : (
-							<div className="flex flex-col items-center justify-center p-4 text-center">
-								<GlobeIcon className="size-6 text-muted-foreground/50" />
-								<p className="mt-2 text-muted-foreground text-xs">
+							<div className="flex flex-col items-center justify-center gap-1 p-4 text-center">
+								<p className="font-medium text-foreground text-sm">
 									No location data yet
+								</p>
+								<p className="text-pretty text-muted-foreground text-xs">
+									Countries light up on the globe as visitors arrive
 								</p>
 							</div>
 						)}

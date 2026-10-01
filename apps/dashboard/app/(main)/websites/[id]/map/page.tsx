@@ -175,6 +175,7 @@ function WebsiteMapPage() {
 							className="w-[min(100cqw,100cqh)]"
 							countries={countries}
 							focusCode={focusCode}
+							isLive={isRealtime && !isLoading}
 							onHoverChange={setHovered}
 						/>
 					</ChartErrorBoundary>
@@ -197,33 +198,39 @@ function WebsiteMapPage() {
 					)}
 					{!isLoading && countries.length > 0 && (
 						<ul className="min-h-0 flex-1 overflow-y-auto">
-							{countries.map((country) => (
-								// biome-ignore lint/a11y/noNoninteractiveElementInteractions: hover only turns the globe; the row stays plain data
-								<li
-									className={cn(
-										"relative flex items-center gap-2.5 px-4 py-2 text-sm transition-colors",
-										(country.code === hovered || country.code === focusCode) &&
-											"bg-muted"
-									)}
-									key={country.code}
-									onMouseEnter={() => setFocused(country.code)}
-									onMouseLeave={() => setFocused(null)}
-								>
-									<span
-										className="absolute inset-y-1 left-0 rounded-r bg-accent"
-										style={{
-											width: `${(country.value / topVisitors) * 100}%`,
-										}}
-									/>
-									<CountryFlag country={country.code} size="sm" />
-									<span className="relative min-w-0 flex-1 truncate text-foreground">
-										{country.name}
-									</span>
-									<span className="relative font-medium text-foreground tabular-nums">
-										{formatNumber(country.value)}
-									</span>
-								</li>
-							))}
+							{countries.map((country) => {
+								const isActive =
+									country.code === hovered || country.code === focusCode;
+								return (
+									// biome-ignore lint/a11y/noNoninteractiveElementInteractions: hover only turns the globe; the row stays plain data
+									<li
+										className={cn(
+											"relative flex items-center gap-2.5 px-4 py-2 text-sm transition-colors",
+											isActive && "bg-muted"
+										)}
+										key={country.code}
+										onMouseEnter={() => setFocused(country.code)}
+										onMouseLeave={() => setFocused(null)}
+									>
+										<span
+											className={cn(
+												"absolute inset-y-1 left-0 rounded-r transition-colors",
+												isActive ? "bg-interactive-hover" : "bg-accent"
+											)}
+											style={{
+												width: `${(country.value / topVisitors) * 100}%`,
+											}}
+										/>
+										<CountryFlag country={country.code} size="sm" />
+										<span className="relative min-w-0 flex-1 truncate text-foreground">
+											{country.name}
+										</span>
+										<span className="relative font-medium text-foreground tabular-nums">
+											{formatNumber(country.value)}
+										</span>
+									</li>
+								);
+							})}
 						</ul>
 					)}
 					{!isLoading && countries.length === 0 && (
