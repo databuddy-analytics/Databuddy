@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { orpc } from "@/lib/orpc";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 
-export type OnboardingResearchPhase =
+export type SiteResearchPhase =
 	| "idle"
 	| "unavailable"
 	| "reading"
@@ -21,21 +21,21 @@ export type OnboardingResearchPhase =
 	| "ready"
 	| "failed";
 
-export interface OnboardingResearch {
+export interface SiteResearch {
 	canStart: boolean;
 	content: string;
 	detectedTools: DetectedAnalyticsTool[];
 	domain: string | null;
 	message: string | null;
 	pagesRead: number;
-	phase: OnboardingResearchPhase;
+	phase: SiteResearchPhase;
 	questions: NonNullable<BusinessBrief["followUpQuestions"]>;
 	sources: BusinessBrief["sources"];
 	suggestedFunnels: BusinessSuggestedFunnel[];
 	suggestedGoals: BusinessSuggestedGoal[];
 }
 
-export const EMPTY_RESEARCH: OnboardingResearch = {
+export const EMPTY_RESEARCH: SiteResearch = {
 	canStart: false,
 	content: "",
 	detectedTools: [],
@@ -72,7 +72,7 @@ function deriveResearch(input: {
 	settings: BusinessContextSettings | undefined;
 	startError: string | null;
 	website: ResearchWebsite | null;
-}): OnboardingResearch {
+}): SiteResearch {
 	const { settings, website } = input;
 	if (!website) {
 		return EMPTY_RESEARCH;
@@ -120,7 +120,7 @@ function deriveResearch(input: {
 	return { ...base, canStart: true };
 }
 
-export function useOnboardingResearch(
+export function useSiteResearch(
 	organizationId: string | undefined,
 	website: ResearchWebsite | null
 ) {

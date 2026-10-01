@@ -3,7 +3,7 @@
 import type { OnboardingIntent } from "@databuddy/shared/custom-events";
 import { Button, Textarea } from "@databuddy/ui";
 import { cn } from "@/lib/utils";
-import type { OnboardingResearch } from "./use-onboarding-research";
+import type { SiteResearch } from "@/hooks/use-site-research";
 
 export const INTENT_OPTIONS: {
 	id: OnboardingIntent;
@@ -49,7 +49,7 @@ interface WhatMattersProps {
 	onChangePriority: (value: string) => void;
 	onSave: () => void;
 	priority: string;
-	research: OnboardingResearch;
+	research: SiteResearch;
 	saved: boolean;
 	saveError: string | null;
 	saving: boolean;

@@ -8,16 +8,16 @@ import { Suspense, useState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
 import { isDashboardE2E } from "@/lib/e2e-mode";
 import { cn } from "@/lib/utils";
-import type { AgentProgress, TrackingStatus } from "../_components/connect-app";
+import type {
+	AgentProgress,
+	TrackingStatus,
+} from "@/components/websites/connect-app";
 import {
 	SetupChecklist,
 	type SetupChecklistProps,
 	type SetupWebsite,
 } from "../_components/setup-checklist";
-import {
-	EMPTY_RESEARCH,
-	type OnboardingResearch,
-} from "../_components/use-onboarding-research";
+import { EMPTY_RESEARCH, type SiteResearch } from "@/hooks/use-site-research";
 import { INTENT_OPTIONS } from "../_components/what-matters";
 
 const WEBSITE: SetupWebsite = {
@@ -41,9 +41,9 @@ Acme sells a project management tool for small agencies. The site has a free tie
 The pricing page is the clearest decision point. Documentation lives on a separate subdomain, so docs traffic will not show up here unless it is added as a website.`;
 
 function research(
-	phase: OnboardingResearch["phase"],
-	overrides: Partial<OnboardingResearch> = {}
-): OnboardingResearch {
+	phase: SiteResearch["phase"],
+	overrides: Partial<SiteResearch> = {}
+): SiteResearch {
 	return { ...EMPTY_RESEARCH, domain: WEBSITE.domain, phase, ...overrides };
 }
 
@@ -101,7 +101,7 @@ const RESEARCH = {
 		canStart: true,
 		message: "The site did not respond in time.",
 	}),
-} satisfies Record<string, OnboardingResearch>;
+} satisfies Record<string, SiteResearch>;
 
 const TRACKING = {
 	awaiting: { state: "awaiting", issue: null },
