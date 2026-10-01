@@ -71,9 +71,99 @@ Leave samplingRate, batching and retries at their defaults.
 
 Docs for each: https://www.databuddy.cc/docs/sdk`;
 
+export interface AgentPromptContext {
+	brief?: string;
+	funnels?: {
+		name: string;
+		reason: string;
+		steps: { name: string; target: string; type: "EVENT" | "PAGE_VIEW" }[];
+	}[];
+	goals?: {
+		name: string;
+		reason: string;
+		target: string;
+		type: "EVENT" | "PAGE_VIEW";
+	}[];
+}
+
+const BRIEF_EXCERPT_LIMIT = 900;
+
+function siteContextSection(context?: AgentPromptContext): string {
+	if (!context) {
+		return "";
+	}
+	const sections: string[] = [];
+	const brief = context.brief?.trim();
+	if (brief) {
+		const excerpt =
+			brief.length > BRIEF_EXCERPT_LIMIT
+				? `${brief.slice(0, BRIEF_EXCERPT_LIMIT).trimEnd()}…`
+				: brief;
+		sections.push(`## About this site
+
+Databuddy read the public site and wrote this brief. Use it to pick tracking options and to name events the way the business does.
+
+${excerpt}`);
+	}
+	const events = new Map<string, string>();
+	for (const goal of context.goals ?? []) {
+		if (goal.type === "EVENT" && !events.has(goal.target)) {
+			events.set(goal.target, `${goal.name}. ${goal.reason}`.trim());
+		}
+	}
+	for (const funnel of context.funnels ?? []) {
+		for (const step of funnel.steps) {
+			if (step.type === "EVENT" && !events.has(step.target)) {
+				events.set(
+					step.target,
+					`${step.name}, a step in the "${funnel.name}" funnel.`
+				);
+			}
+		}
+	}
+	const pageGoals = (context.goals ?? []).filter(
+		(goal) => goal.type === "PAGE_VIEW"
+	);
+	if (events.size || pageGoals.length || context.funnels?.length) {
+		const lines: string[] = [];
+		if (events.size) {
+			lines.push(
+				"Instrument these custom events; the dashboard's goals and funnels are waiting for them. Fire each one once, at the moment it describes, with low-cardinality properties only:",
+				"",
+				...[...events].map(
+					([name, meaning]) => `- \`track("${name}")\`: ${meaning}`
+				)
+			);
+		}
+		if (pageGoals.length) {
+			lines.push(
+				"",
+				`Page-view goals need no code: ${pageGoals.map((goal) => goal.target).join(", ")} are tracked automatically.`
+			);
+		}
+		if (context.funnels?.length) {
+			lines.push(
+				"",
+				"Funnels the team can turn on once the events exist:",
+				...context.funnels.map(
+					(funnel) =>
+						`- ${funnel.name}: ${funnel.steps.map((step) => step.target).join(" → ")}`
+				)
+			);
+		}
+		sections.push(`## Events to instrument for this site
+
+${lines.join("\n")}
+
+If the codebase has no place where one of these happens, say so instead of inventing it.`);
+	}
+	return sections.length ? `${sections.join("\n\n")}\n\n` : "";
+}
+
 export function generateAgentPrompt(
 	websiteId: string,
-	setupSession?: string
+	setupSession?: string,
+	context?: AgentPromptContext
 ): string {
 	if (!isSelfHosted) {
 		return `Add Databuddy analytics to this repository. Client ID: ${websiteId}
@@ -116,7 +206,7 @@ Store the Client ID in an env var and never hardcode it in React or Vue code:
 
 Every option works as a React/Vue prop or a \`data-*\` attribute on the script tag.
 
-${AGENT_FEATURE_GUIDE}
+${siteContextSection(context)}${AGENT_FEATURE_GUIDE}
 
 ## Verification
 
@@ -154,7 +244,7 @@ ${generateVueCode(websiteId, RECOMMENDED_DEFAULTS)}
 ${generateScriptTag(websiteId, RECOMMENDED_DEFAULTS)}
 \`\`\`
 
-${AGENT_FEATURE_GUIDE}
+${siteContextSection(context)}${AGENT_FEATURE_GUIDE}
 
 ## Verify
 - Open the website and check for successful event requests to ${publicConfig.urls.basket}, then confirm events appear in the dashboard; the setup page polls for the first page view.

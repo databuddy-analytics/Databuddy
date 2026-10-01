@@ -65,6 +65,8 @@ export function SetupChecklist(props: SetupChecklistProps) {
 	const { research, tracking, website } = props;
 
 	const websiteStatus: SetupRowStatus = website ? "done" : "active";
+	const readingNow =
+		research.phase === "reading" || research.phase === "writing";
 	const connectStatus: SetupRowStatus = website
 		? tracking.state === "verified"
 			? "done"
@@ -72,7 +74,9 @@ export function SetupChecklist(props: SetupChecklistProps) {
 				? "skipped"
 				: props.trackingCopied
 					? "waiting"
-					: "active"
+					: readingNow
+						? "pending"
+						: "active"
 		: "pending";
 	const readStatus: SetupRowStatus = website
 		? research.phase === "reading" || research.phase === "writing"
@@ -93,8 +97,8 @@ export function SetupChecklist(props: SetupChecklistProps) {
 
 	const rows: { id: RowId; status: SetupRowStatus }[] = [
 		{ id: "website", status: websiteStatus },
-		{ id: "connect", status: connectStatus },
 		{ id: "read", status: readStatus },
+		{ id: "connect", status: connectStatus },
 		{ id: "matters", status: mattersStatus },
 	];
 	const focus = rows.find((row) => row.status === "active")?.id ?? null;
@@ -142,36 +146,6 @@ export function SetupChecklist(props: SetupChecklistProps) {
 					</SetupRow>
 
 					<SetupRow
-						detail={
-							tracking.state === "verified"
-								? "Tracking verified"
-								: props.trackingSkipped
-									? "Skipped"
-									: props.agentProgress
-										? agentProgressSummary(props.agentProgress)
-										: props.trackingCopied && website
-											? `Waiting for the first page view from ${website.domain}`
-											: undefined
-						}
-						expanded={isExpanded("connect")}
-						onToggle={website ? toggle("connect") : undefined}
-						status={connectStatus}
-						title="Connect your app"
-					>
-						{website ? (
-							<ConnectApp
-								agentProgress={props.agentProgress}
-								domain={website.domain}
-								onCopy={props.onCopy}
-								onSkip={props.onSkipTracking}
-								setupSession={props.setupSession}
-								tracking={tracking}
-								websiteId={website.id}
-							/>
-						) : null}
-					</SetupRow>
-
-					<SetupRow
 						detail={readSiteDetail(research)}
 						expanded={isExpanded("read")}
 						onToggle={
@@ -187,6 +161,39 @@ export function SetupChecklist(props: SetupChecklistProps) {
 								onStart={props.onStartResearch}
 								research={research}
 								suggestions={props.suggestions}
+								websiteId={website.id}
+							/>
+						) : null}
+					</SetupRow>
+
+					<SetupRow
+						detail={
+							tracking.state === "verified"
+								? "Tracking verified"
+								: props.trackingSkipped
+									? "Skipped"
+									: props.agentProgress
+										? agentProgressSummary(props.agentProgress)
+										: props.trackingCopied && website
+											? `Waiting for the first page view from ${website.domain}`
+											: readingNow
+												? "Ready once the brief is"
+												: undefined
+						}
+						expanded={isExpanded("connect")}
+						onToggle={website ? toggle("connect") : undefined}
+						status={connectStatus}
+						title="Connect your app"
+					>
+						{website ? (
+							<ConnectApp
+								agentProgress={props.agentProgress}
+								domain={website.domain}
+								onCopy={props.onCopy}
+								onSkip={props.onSkipTracking}
+								research={research}
+								setupSession={props.setupSession}
+								tracking={tracking}
 								websiteId={website.id}
 							/>
 						) : null}

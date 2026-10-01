@@ -82,6 +82,47 @@ assert.equal(prompt.includes("basket.databuddy.cc"), ${selfhost !== "true"});
 		expect(prompt).not.toContain("trackSessions");
 	});
 
+	it("lists the site's suggested events and funnels when a brief is available", () => {
+		const prompt = generateAgentPrompt("example-client-id", undefined, {
+			brief: "# Acme\n\nAcme sells project management for agencies.",
+			goals: [
+				{
+					name: "Trial started",
+					type: "EVENT",
+					target: "trial_started",
+					reason: "The trial is the decision point.",
+				},
+				{
+					name: "Pricing viewed",
+					type: "PAGE_VIEW",
+					target: "/pricing",
+					reason: "Intent signal.",
+				},
+			],
+			funnels: [
+				{
+					name: "Homepage to trial",
+					reason: "Drop-off before the trial.",
+					steps: [
+						{ name: "Homepage", type: "PAGE_VIEW", target: "/" },
+						{ name: "Trial started", type: "EVENT", target: "trial_started" },
+					],
+				},
+			],
+		});
+
+		expect(prompt).toContain("## About this site");
+		expect(prompt).toContain("Acme sells project management for agencies.");
+		expect(prompt).toContain(
+			'`track("trial_started")`: Trial started. The trial is the decision point.'
+		);
+		expect(prompt).toContain("Page-view goals need no code: /pricing");
+		expect(prompt).toContain("Homepage to trial: / → trial_started");
+		expect(generateAgentPrompt("example-client-id")).not.toContain(
+			"## About this site"
+		);
+	});
+
 	it("asks for live progress only when a setup session token is given", () => {
 		expect(generateAgentPrompt("example-client-id")).not.toContain(
 			"setupSession"

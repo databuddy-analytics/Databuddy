@@ -166,7 +166,7 @@ const SCENARIOS: Scenario[] = [
 	{ id: "empty", title: "New account", sample: { website: null } },
 	{
 		id: "created",
-		title: "Website added, reading starts",
+		title: "Reading starts",
 		sample: { research: RESEARCH.readingStart, finish: FINISH.dashboard },
 	},
 	{
@@ -225,7 +225,7 @@ const SCENARIOS: Scenario[] = [
 	},
 	{
 		id: "brief-ready",
-		title: "Brief ready, still waiting",
+		title: "Brief ready, waiting for events",
 		sample: {
 			research: RESEARCH.ready,
 			trackingCopied: true,

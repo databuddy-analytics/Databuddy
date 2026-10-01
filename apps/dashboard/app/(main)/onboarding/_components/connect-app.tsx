@@ -15,9 +15,11 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { COPY_SUCCESS_TIMEOUT } from "../../websites/[id]/_components/constants/settings-constants";
 import {
+	type AgentPromptContext,
 	generateAgentPrompt,
 	generateScriptTag,
 } from "../../websites/[id]/_components/utils/code-generators";
+import type { OnboardingResearch } from "./use-onboarding-research";
 import { RECOMMENDED_DEFAULTS } from "../../websites/[id]/_components/utils/tracking-defaults";
 
 const AGENTS = [
@@ -112,9 +114,23 @@ interface ConnectAppProps {
 	domain: string;
 	onCopy?: (method: TrackingCopyMethod, agent?: string) => void;
 	onSkip: () => void;
+	research: OnboardingResearch;
 	setupSession: string;
 	tracking: TrackingStatus;
 	websiteId: string;
+}
+
+function promptContext(
+	research: OnboardingResearch
+): AgentPromptContext | undefined {
+	if (research.phase !== "ready") {
+		return;
+	}
+	return {
+		brief: research.content,
+		goals: research.suggestedGoals,
+		funnels: research.suggestedFunnels,
+	};
 }
 
 export function ConnectApp({
@@ -122,6 +138,7 @@ export function ConnectApp({
 	domain,
 	onCopy,
 	onSkip,
+	research,
 	setupSession,
 	tracking,
 	websiteId,
@@ -154,6 +171,19 @@ export function ConnectApp({
 				<p className="font-medium text-muted-foreground text-xs">
 					Send to your coding agent
 				</p>
+				{research.phase === "reading" || research.phase === "writing" ? (
+					<p className="text-pretty text-muted-foreground text-xs">
+						Databunny is still reading {domain}. Once the brief is ready the
+						prompt also names the events and funnels this site needs.
+					</p>
+				) : research.phase === "ready" &&
+					(research.suggestedGoals.length ||
+						research.suggestedFunnels.length) ? (
+					<p className="text-pretty text-muted-foreground text-xs">
+						The prompt includes the brief and the events behind the suggested
+						goals and funnels.
+					</p>
+				) : null}
 				<div className="flex flex-wrap gap-2">
 					{AGENTS.map((agent) => (
 						<Button
