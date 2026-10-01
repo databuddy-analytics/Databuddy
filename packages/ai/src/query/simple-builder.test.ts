@@ -311,28 +311,6 @@ describe("SimpleQueryBuilder.compile", () => {
 		);
 	});
 
-	it("applies a configured CTE selector inside that CTE", () => {
-		const { sql, params } = compile(
-			{
-				with: [
-					{ name: "selected", table: "analytics.events", fields: ["country"] },
-				],
-				from: "selected",
-				groupBy: ["country"],
-			},
-			{
-				filters: [
-					{ field: "country", op: "eq", value: "US", target: "selected" },
-				],
-			}
-		);
-		expect(sql).toContain("country = {f");
-		expect(sql.indexOf("country = {f")).toBeLessThan(
-			sql.lastIndexOf("FROM selected")
-		);
-		expect(Object.values(params)).toContain("US");
-	});
-
 	it.each([
 		"custom_events_by_path",
 		"error_frequency",

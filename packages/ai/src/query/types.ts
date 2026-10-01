@@ -77,21 +77,9 @@ export interface Filter {
 
 export type ConfigField = string | AliasedExpression;
 
-export interface CTEDefinition {
-	fields: ConfigField[];
-	from?: string;
-	groupBy?: string[];
-	limit?: number;
-	name: string;
-	orderBy?: string;
-	table?: string;
-	where?: string[];
-}
-
 export interface TimeBucketConfig {
 	alias?: string;
 	field?: string;
-	format?: boolean;
 	granularity?: Granularity;
 	timezone?: boolean;
 }
@@ -144,22 +132,18 @@ export type PrepareSqlFn = (ctx: CustomSqlContext) => {
 }[];
 
 export interface PercentageOf {
-	as?: string;
 	of: string;
 }
 
 export interface SimpleQueryConfig {
 	allowedFilterOperators?: Partial<Record<string, readonly FilterOperator[]>>;
 	allowedFilters?: string[];
-	appendEndOfDayToTo?: boolean;
 	/** False for native selectors that do not accept generic event filters. */
 	commonFilters?: boolean;
 	customizable?: boolean;
 	customSql?: CustomSqlFn;
 	fields?: ConfigField[];
-	from?: string;
 	groupBy?: string[];
-	having?: string[];
 	idField?: string;
 	limit?: number;
 	meta?: QueryBuilderMeta;
@@ -176,7 +160,6 @@ export interface SimpleQueryConfig {
 	timeBucket?: TimeBucketConfig;
 	timeField?: string;
 	where?: string[];
-	with?: CTEDefinition[];
 }
 
 export interface QueryRequest {

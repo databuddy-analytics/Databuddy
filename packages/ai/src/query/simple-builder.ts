@@ -16,7 +16,6 @@ import {
 import type {
 	CompiledQuery,
 	ConfigField,
-	CTEDefinition,
 	CustomSqlContext,
 	Filter,
 	Granularity,
@@ -660,14 +659,9 @@ export class SimpleQueryBuilder {
 
 	compile(preparedKeys?: Record<string, string[]>): CompiledQuery {
 		for (const filter of this.request.filters ?? []) {
-			if (
-				filter.target &&
-				(this.config.customSql ||
-					filter.having ||
-					!this.config.with?.some((cte) => cte.name === filter.target))
-			) {
+			if (filter.target) {
 				throw new Error(
-					`Filter target '${filter.target}' is not permitted for ${this.request.type}. Omit target to filter the selected rows; target is only supported for a configured CTE.`
+					`Filter target '${filter.target}' is not permitted for ${this.request.type}. Omit target to filter the selected rows.`
 				);
 			}
 			if (filter.having && this.config.customSql) {
@@ -739,10 +733,7 @@ export class SimpleQueryBuilder {
 			params.timezone = this.request.timezone as string;
 		}
 
-		const needsAttribution = this.needsSessionAttribution();
-		const hasCTEs = this.config.with?.length || needsAttribution;
-
-		if (needsAttribution && !this.config.with?.length) {
+		if (this.needsSessionAttribution()) {
 			return this.buildSessionAttributionQuery(params);
 		}
 
@@ -753,24 +744,13 @@ export class SimpleQueryBuilder {
 		fields.push(this.compileFields(this.config.fields));
 		const fieldsStr = fields.filter(Boolean).join(", ");
 
-		const ctesStr = hasCTEs ? this.compileCTEs(params) : "";
-		const fromSource = this.config.from || this.config.table;
-
-		let body = `SELECT ${fieldsStr} FROM ${fromSource}`;
-
-		if (!this.config.from) {
-			const whereClause = this.buildWhereClause(params);
-			body += ` WHERE ${whereClause.join(" AND ")}`;
-		} else if (this.config.where?.length) {
-			body += ` WHERE ${this.config.where.join(" AND ")}`;
-		}
+		let body = `SELECT ${fieldsStr} FROM ${this.config.table} WHERE ${this.buildWhereClause(params).join(" AND ")}`;
 
 		body = this.replaceDomainPlaceholders(body);
 		body += this.buildGroupByClause();
 		body += this.buildHavingClause(params);
 
-		const ctePrefix = ctesStr ? `${ctesStr}\n` : "";
-		let sql = ctePrefix + this.wrapPercentage(body);
+		let sql = this.wrapPercentage(body);
 		sql += this.buildOrderByClause();
 		sql += this.buildLimitClause();
 		sql += this.buildOffsetClause();
@@ -783,9 +763,8 @@ export class SimpleQueryBuilder {
 		if (!pct) {
 			return innerSql;
 		}
-		const alias = pct.as ?? "percentage";
-		const projection = this.getPercentageProjection(alias);
-		return `SELECT ${projection}, ROUND(${pct.of} / sum(${pct.of}) OVER () * 100, 2) AS ${alias} FROM (${innerSql})`;
+		const projection = this.getPercentageProjection("percentage");
+		return `SELECT ${projection}, ROUND(${pct.of} / sum(${pct.of}) OVER () * 100, 2) AS percentage FROM (${innerSql})`;
 	}
 
 	private getPercentageProjection(percentageAlias: string): string {
@@ -842,94 +821,6 @@ export class SimpleQueryBuilder {
 		return fields.map((f) => compileConfigField(f)).join(", ");
 	}
 
-	private compileCTE(
-		cte: CTEDefinition,
-		params: Record<string, Filter["value"]>
-	): string {
-		const source = cte.from || cte.table;
-		if (!source) {
-			throw new Error(
-				`CTE '${cte.name}' must have either 'table' or 'from' defined`
-			);
-		}
-
-		const fields = this.compileFields(cte.fields);
-		const parts = [`SELECT ${fields}`, `FROM ${source}`];
-		const whereConditions: string[] = [];
-
-		if (cte.where?.length) {
-			whereConditions.push(...cte.where);
-		}
-
-		if (cte.table && !this.config.skipDateFilter) {
-			const timeField = this.config.timeField || "time";
-			const idField = this.getIdField();
-			whereConditions.push(this.buildIdCondition(idField));
-			whereConditions.push(`${timeField} >= toDateTime({from:String})`);
-			whereConditions.push(
-				`${timeField} <= toDateTime(concat({to:String}, ' 23:59:59'))`
-			);
-		}
-
-		const cteFilters = this.request.filters?.filter(
-			(f) => f.target === cte.name && !f.having
-		);
-		if (cteFilters?.length) {
-			const baseIdx = Object.keys(params).length;
-			for (let i = 0; i < cteFilters.length; i++) {
-				const filter = cteFilters[i];
-				if (!filter) {
-					continue;
-				}
-				const { clause, params: filterParams } = this.buildFilter(
-					filter,
-					baseIdx + i
-				);
-				whereConditions.push(clause);
-				Object.assign(params, filterParams);
-			}
-		}
-
-		if (whereConditions.length > 0) {
-			parts.push(`WHERE ${whereConditions.join(" AND ")}`);
-		}
-
-		if (cte.groupBy?.length) {
-			parts.push(`GROUP BY ${cte.groupBy.join(", ")}`);
-		}
-
-		if (cte.orderBy) {
-			parts.push(`ORDER BY ${cte.orderBy}`);
-		}
-
-		if (cte.limit) {
-			parts.push(`LIMIT ${cte.limit}`);
-		}
-
-		return `${cte.name} AS (\n\t\t${parts.join("\n\t\t")}\n\t)`;
-	}
-
-	private compileCTEs(params: Record<string, Filter["value"]>): string {
-		const ctes: string[] = [];
-
-		const needsAttribution = this.needsSessionAttribution();
-		if (needsAttribution) {
-			const timeField = this.config.timeField || "time";
-			const table = this.config.table || "analytics.events";
-			ctes.push(
-				this.generateSessionAttributionCTE(timeField, table, "from", "to")
-			);
-		}
-
-		if (this.config.with?.length) {
-			for (const cte of this.config.with) {
-				ctes.push(this.compileCTE(cte, params));
-			}
-		}
-
-		return ctes.length > 0 ? `WITH ${ctes.join(",\n\t")}` : "";
-	}
-
 	private getGranularity(): Granularity | undefined {
 		const requestGranularity = normalizeGranularity(this.request.timeUnit);
 		return requestGranularity || this.config.timeBucket?.granularity;
@@ -945,10 +836,7 @@ export class SimpleQueryBuilder {
 		const alias = config.alias || "date";
 		const tz = config.timezone ? this.request.timezone : undefined;
 
-		if (
-			config.format !== false &&
-			(granularity === "hour" || granularity === "minute")
-		) {
+		if (granularity === "hour" || granularity === "minute") {
 			return `${time.bucketFormatted(granularity, field, tz)} as ${alias}`;
 		}
 
@@ -967,11 +855,6 @@ export class SimpleQueryBuilder {
 
 	private buildHavingClause(params: Record<string, Filter["value"]>): string {
 		const conditions: string[] = [];
-
-		if (this.config.having?.length) {
-			conditions.push(...this.config.having);
-		}
-
 		const havingFilters = this.request.filters?.filter((f) => f.having);
 		if (havingFilters?.length) {
 			const startIdx = Object.keys(params).length;
@@ -1052,15 +935,10 @@ export class SimpleQueryBuilder {
 
 		if (!this.config.skipDateFilter) {
 			const timeField = this.config.timeField || "time";
-			whereClause.push(`${timeField} >= toDateTime({from:String})`);
-
-			if (this.config.appendEndOfDayToTo === false) {
-				whereClause.push(`${timeField} <= toDateTime({to:String})`);
-			} else {
-				whereClause.push(
-					`${timeField} <= toDateTime(concat({to:String}, ' 23:59:59'))`
-				);
-			}
+			whereClause.push(
+				`${timeField} >= toDateTime({from:String})`,
+				`${timeField} <= toDateTime(concat({to:String}, ' 23:59:59'))`
+			);
 		}
 
 		if (this.request.filters) {
