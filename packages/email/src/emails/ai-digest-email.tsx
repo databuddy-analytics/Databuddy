@@ -44,7 +44,7 @@ export interface AiDigestEmailProps {
 	agentsUrl: string;
 	hasServerTracking: boolean;
 	landingPages: AiDigestLandingPage[];
-	newPages: number;
+	newPages: number | null;
 	pages: AiDigestPage[];
 	period: string;
 	previousVisitors: number;
@@ -206,8 +206,31 @@ export const AiDigestEmail = ({
 	visitors,
 }: AiDigestEmailProps) => {
 	const senders = products.filter((product) => product.visitors > 0);
+	const readsUnseen = !hasServerTracking && reads === 0;
 	const setupUrl = new URL(agentsUrl);
 	setupUrl.searchParams.set("setup", "true");
+	const setupCallout = hasServerTracking ? null : (
+		<Section
+			className={`rounded-lg bg-canvas px-5 py-4 ${readsUnseen ? "" : "mt-9"}`}
+		>
+			<Text className="m-0 font-medium text-[14px] text-ink">
+				{readsUnseen
+					? "See which AI crawlers read your site"
+					: "See every AI crawler, not just some"}
+			</Text>
+			<Text className="m-0 mt-1 text-[13px] text-sub leading-[20px]">
+				GPTBot, ClaudeBot and most AI crawlers don't run JavaScript, so they're
+				missing from {readsUnseen ? "this email" : "these reads"}. One line on
+				your server adds them.{" "}
+				<Link
+					className="font-medium text-ink underline"
+					href={setupUrl.toString()}
+				>
+					Set it up
+				</Link>
+			</Text>
+		</Section>
+	);
 
 	return (
 		<Html lang="en">
@@ -217,7 +240,9 @@ export const AiDigestEmail = ({
 					<meta content="light" name="supported-color-schemes" />
 				</Head>
 				<Preview>
-					{`${n(visitors)} ${visitors === 1 ? "visitor" : "visitors"} from AI, and AI read ${site} ${n(reads)} ${reads === 1 ? "time" : "times"}.`}
+					{readsUnseen
+						? `${n(visitors)} ${visitors === 1 ? "visitor" : "visitors"} from AI.`
+						: `${n(visitors)} ${visitors === 1 ? "visitor" : "visitors"} from AI, and AI read ${site} ${n(reads)} ${reads === 1 ? "time" : "times"}.`}
 				</Preview>
 				<Body className={`m-0 bg-canvas py-10 ${FONT}`}>
 					<Container className="mx-auto max-w-[560px] px-4">
@@ -249,25 +274,33 @@ export const AiDigestEmail = ({
 							</Text>
 
 							<Hr className="my-8 border-line" />
-							<Row>
-								<Stat label="Times AI read your site" value={reads} />
-								<Stat
-									label="Pages AI hadn't read in 90 days"
-									value={newPages}
-								/>
-							</Row>
+							{readsUnseen ? (
+								setupCallout
+							) : (
+								<Row>
+									<Stat label="Times AI read your site" value={reads} />
+									{newPages === null ? null : (
+										<Stat
+											label="Pages AI hadn't read in 90 days"
+											value={newPages}
+										/>
+									)}
+								</Row>
+							)}
 							<Hr className="my-8 border-line" />
 
 							<Row>
 								<Column className="pb-2 text-[12px] text-faint">
 									AI product
 								</Column>
-								<Column
-									align="right"
-									className="w-[64px] pb-2 text-[12px] text-faint"
-								>
-									Reads
-								</Column>
+								{readsUnseen ? null : (
+									<Column
+										align="right"
+										className="w-[64px] pb-2 text-[12px] text-faint"
+									>
+										Reads
+									</Column>
+								)}
 								<Column
 									align="right"
 									className="w-[64px] pb-2 text-[12px] text-faint"
@@ -296,12 +329,14 @@ export const AiDigestEmail = ({
 											</Column>
 										</Row>
 									</Column>
-									<Column
-										align="right"
-										className="py-[10px] text-[14px] text-ink"
-									>
-										{n(product.reads)}
-									</Column>
+									{readsUnseen ? null : (
+										<Column
+											align="right"
+											className="py-[10px] text-[14px] text-ink"
+										>
+											{n(product.reads)}
+										</Column>
+									)}
 									<Column
 										align="right"
 										className={`py-[10px] text-[14px] ${product.visitors ? "font-medium text-ink" : "text-faint"}`}
@@ -330,24 +365,7 @@ export const AiDigestEmail = ({
 								title="Most read by AI"
 							/>
 
-							{hasServerTracking ? null : (
-								<Section className="mt-9 rounded-lg bg-canvas px-5 py-4">
-									<Text className="m-0 font-medium text-[14px] text-ink">
-										See every AI crawler, not just some
-									</Text>
-									<Text className="m-0 mt-1 text-[13px] text-sub leading-[20px]">
-										GPTBot, ClaudeBot and most AI crawlers don't run JavaScript,
-										so they're missing from these reads. One line on your server
-										adds them.{" "}
-										<Link
-											className="font-medium text-ink underline"
-											href={setupUrl.toString()}
-										>
-											Set it up
-										</Link>
-									</Text>
-								</Section>
-							)}
+							{readsUnseen ? null : setupCallout}
 
 							<Section className="mt-9">
 								<Button
