@@ -57,6 +57,126 @@ import {
 
 type ReadFocus = ContentFormat | "all";
 
+interface ProductRow {
+	has_proxy: number;
+	last_seen: string | null;
+	on_demand: number;
+	pages: number;
+	product: string;
+	requests: number;
+	search_index: number;
+	training: number;
+	visitors: number;
+}
+
+interface VisitorSeriesRow {
+	date: string;
+	product: string;
+	visitors: number;
+}
+
+interface FormatRow {
+	format: ContentFormat;
+	pages: number;
+	requests: number;
+}
+
+interface PageReadRow {
+	agents: {
+		agent_id: string;
+		name: string;
+		product: string;
+		requests: number | string;
+	}[];
+	format: ContentFormat;
+	page: string;
+	requests: number;
+}
+
+interface LandingPageRow {
+	page: string;
+	pageviews: number;
+	senders: {
+		product: string;
+		reads: number | string;
+		visitors: number | string;
+	}[];
+	visitors: number;
+}
+
+interface OutcomeRow {
+	engaged_rate: number;
+	pages_per_visit: number;
+	product: string;
+	revenue?: string;
+	visitors: number;
+}
+
+interface RevenueRow {
+	currency: string;
+	name: string;
+	revenue: number;
+}
+
+interface CrawlerRow {
+	agent_id: string;
+	html_pages: number;
+	last_seen: string;
+	llms: number;
+	llms_pages: number;
+	markdown: number;
+	markdown_pages: number;
+	name: string;
+	operator: string;
+	pages: number;
+	product: string;
+	purpose: AgentPurpose;
+	requests: number;
+	user_agent: string;
+}
+
+interface ActivityRow {
+	date: string;
+	html: number;
+	llms: number;
+	markdown: number;
+	requests: number;
+}
+
+interface ReadingAgent extends CrawlerRow {
+	html: number;
+	robots: RobotsAccess | undefined;
+}
+
+interface RobotsCheck {
+	hasRobotsTxt: boolean | undefined;
+	isPending: boolean;
+}
+
+interface ActivityTimeline {
+	bucketFormat: string;
+	buckets: string[];
+	isHourly: boolean;
+}
+
+interface TrendPoint {
+	date: string;
+	value: number;
+}
+
+interface ShareRow {
+	change: number | "new" | null;
+	product: string;
+	share: number;
+	visitors: number;
+}
+
+interface VisitorShare {
+	previousTotal: number;
+	rows: ShareRow[];
+	total: number;
+}
+
 const FOCUS: Record<
 	ReadFocus,
 	{
@@ -102,104 +222,6 @@ const FOCUS: Record<
 	},
 };
 
-interface ProductRow {
-	has_proxy: number;
-	last_seen: string | null;
-	on_demand: number;
-	pages: number;
-	product: string;
-	requests: number;
-	search_index: number;
-	training: number;
-	visitors: number;
-}
-
-const ALL_VISITORS = "All visitors";
-const ALL_AI_VISITORS = "All AI visitors";
-
-interface PageReader {
-	agent_id: string;
-	name: string;
-	product: string;
-	requests: number;
-}
-
-interface PageRead {
-	agents: PageReader[];
-	format: ContentFormat;
-	page: string;
-	requests: number;
-}
-
-interface CrawlerResult {
-	agent_id: string;
-	html_pages: number;
-	last_seen: string;
-	llms: number;
-	llms_pages: number;
-	markdown: number;
-	markdown_pages: number;
-	name: string;
-	operator: string;
-	pages: number;
-	product: string;
-	purpose: AgentPurpose;
-	requests: number;
-	user_agent: string;
-}
-
-interface ReadingAgent extends CrawlerResult {
-	html: number;
-	robots: RobotsAccess | undefined;
-}
-
-interface LandingSender {
-	product: string;
-	reads: number;
-	visitors: number;
-}
-
-interface LandingPageRow {
-	page: string;
-	pageviews: number;
-	senders: LandingSender[];
-	visitors: number;
-}
-
-const READ_FORMATS: ContentFormat[] = ["llms", "markdown", "html"];
-const READ_ROWS = 8;
-const TIP_DELAY_MS = 200;
-
-function Tip({ lines = [], title }: { lines?: string[]; title: string }) {
-	return (
-		<div className="max-w-72 space-y-0.5 py-0.5">
-			<p className="break-words font-medium">{title}</p>
-			{lines.map((line) => (
-				<p className="break-words text-background/70" key={line}>
-					{line}
-				</p>
-			))}
-		</div>
-	);
-}
-
-interface OutcomeRow {
-	engaged_rate: number;
-	pages_per_visit: number;
-	product: string;
-	revenue?: string;
-	visitors: number;
-}
-
-const OUTCOME_GRID =
-	"grid grid-cols-[minmax(0,1fr)_3.5rem_minmax(0,1.2fr)_5.5rem] items-center gap-3";
-
-interface RevenueRow {
-	currency: string;
-	name: string;
-	revenue: number;
-}
-
 const PURPOSE_LABELS: Record<AgentPurpose, string> = {
 	agent: "Agent",
 	search_index: "Search",
@@ -212,6 +234,104 @@ const ROBOTS_LABELS: Record<RobotsAccess, string> = {
 	blocked: "Blocked",
 	partial: "Partly blocked",
 };
+
+const ALL_VISITORS = "All visitors";
+const ALL_AI_VISITORS = "All AI visitors";
+
+const READ_FORMATS: ContentFormat[] = ["llms", "markdown", "html"];
+const READ_ROWS = 8;
+const RANKED_ROWS = 6;
+const SHARE_BARS = 6;
+const CHART_PRODUCTS = 4;
+const TIP_DELAY_MS = 200;
+const NON_ID_CHARS = /[^a-zA-Z0-9_-]/g;
+const OUTCOME_GRID =
+	"grid grid-cols-[minmax(0,1fr)_3.5rem_minmax(0,1.2fr)_5.5rem] items-center gap-3";
+
+function formatShare(share: number): string {
+	return `${share.toFixed(1)}%`;
+}
+
+function formatRequestsByFormat(agent: ReadingAgent): string {
+	return READ_FORMATS.filter((format) => agent[format] > 0)
+		.map((format) => `${FOCUS[format].label} ${formatNumber(agent[format])}`)
+		.join(" · ");
+}
+
+function emptyProduct(product: string): ProductRow {
+	return {
+		has_proxy: 0,
+		last_seen: null,
+		on_demand: 0,
+		pages: 0,
+		product,
+		requests: 0,
+		search_index: 0,
+		training: 0,
+		visitors: 0,
+	};
+}
+
+function productReadsLine(
+	row: ProductRow,
+	hasProxy: boolean,
+	isLoading: boolean
+): string | null {
+	if (row.requests > 0) {
+		const [mainPurpose] = [
+			{ label: PURPOSE_LABELS.training, value: row.training },
+			{ label: PURPOSE_LABELS.search_index, value: row.search_index },
+			{ label: PURPOSE_LABELS.user_fetch, value: row.on_demand },
+		].sort((a, b) => b.value - a.value);
+		const purpose =
+			mainPurpose.value > 0 ? ` for ${mainPurpose.label.toLowerCase()}` : "";
+		return `Read ${formatCount(row.pages, "page")}${purpose}, ${fromNow(row.last_seen)}`;
+	}
+	if (isLoading) {
+		return "Checking…";
+	}
+	if (row.visitors > 0) {
+		return hasProxy ? "Hasn't read your pages" : null;
+	}
+	return "Not seen yet";
+}
+
+function rankProductsByVisitorShare(
+	products: ProductRow[],
+	previousProducts: ProductRow[]
+): VisitorShare {
+	const previousVisitors = new Map(
+		previousProducts.map((row) => [row.product, row.visitors])
+	);
+	const previousTotal = previousProducts.reduce(
+		(sum, row) => sum + row.visitors,
+		0
+	);
+	const ranked = products
+		.map(({ product, visitors }) => ({ product, visitors }))
+		.filter((row) => row.visitors > 0)
+		.sort((a, b) => b.visitors - a.visitors);
+	const total = ranked.reduce((sum, row) => sum + row.visitors, 0);
+	return {
+		previousTotal,
+		total,
+		rows: ranked.map((row) => {
+			const share = (row.visitors / total) * 100;
+			const previous = previousVisitors.get(row.product) ?? 0;
+			if (previousTotal === 0) {
+				return { ...row, share, change: null };
+			}
+			if (previous === 0) {
+				return { ...row, share, change: "new" };
+			}
+			return {
+				...row,
+				share,
+				change: share - (previous / previousTotal) * 100,
+			};
+		}),
+	};
+}
 
 function robotsStatus(agent: ReadingAgent): {
 	color: "destructive" | "success" | "warning";
@@ -232,419 +352,130 @@ function robotsStatus(agent: ReadingAgent): {
 	};
 }
 
-interface FormatRow {
-	format: ContentFormat;
-	pages: number;
-	requests: number;
+function purposeDescription(agent: ReadingAgent): string {
+	if (agent.product === UNIDENTIFIED_AGENTS_PRODUCT) {
+		return "Not a known agent. It asked for markdown before HTML, which AI tools do.";
+	}
+	if (!agent.operator) {
+		return `Signed its requests as ${agent.product}`;
+	}
+	switch (agent.purpose) {
+		case "training":
+			return `Collects pages to train ${agent.operator}'s AI models`;
+		case "search_index":
+			return `Indexes pages for ${agent.product} search results`;
+		case "user_fetch":
+			return `Opens a page when someone asks ${agent.product} about it`;
+		default:
+			return "Reads pages while doing a task for someone";
+	}
 }
 
-interface VisitorSeriesRow {
-	date: string;
-	product: string;
-	visitors: number;
-}
-
-interface ActivityRow {
-	date: string;
-	html: number;
-	llms: number;
-	markdown: number;
-	requests: number;
-}
-
-interface ActivityTimeline {
-	bucketFormat: string;
-	buckets: string[];
-	isHourly: boolean;
-}
-
-interface TrendPoint {
-	date: string;
-	value: number;
-}
-
-const NON_ID_CHARS = /[^a-zA-Z0-9_-]/g;
-
-const CHART_PRODUCTS = 4;
-const SHARE_BARS = 6;
-
-const RANKED_ROWS = 6;
-
-interface ShareRow {
-	change: number | "new" | null;
-	product: string;
-	share: number;
-	visitors: number;
-}
-
-interface VisitorShare {
-	previousTotal: number;
-	rows: ShareRow[];
-	total: number;
-}
-
-function formatShare(share: number): string {
-	return `${share.toFixed(1)}%`;
-}
-
-const SETUP_STACKS = [
-	{
-		env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
-		file: "proxy.ts",
-		id: "next",
-		label: "Next.js 16",
-		code: 'export { proxy } from "@databuddy/sdk/agents";',
-	},
-	{
-		env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
-		file: "middleware.ts",
-		id: "next15",
-		label: "Next.js 15",
-		code: 'export { proxy as middleware } from "@databuddy/sdk/agents";',
-	},
-	{
-		env: "DATABUDDY_WEBSITE_ID",
-		file: "middleware.ts",
-		id: "vercel",
-		label: "Vercel",
-		code: 'export { proxy as default } from "@databuddy/sdk/agents";',
-	},
-	{
-		env: "DATABUDDY_WEBSITE_ID",
-		file: "worker.ts",
-		id: "workers",
-		label: "Cloudflare",
-		code: `import { trackAgents } from "@databuddy/sdk/agents";
-
-export default {
-	async fetch(request, env, ctx) {
-		const websiteId = env.DATABUDDY_WEBSITE_ID;
-		ctx.waitUntil(trackAgents(request, { websiteId }));
-		return fetch(request);
-	},
-};`,
-	},
-	{
-		env: "DATABUDDY_WEBSITE_ID",
-		file: "server.ts",
-		id: "express",
-		label: "Express",
-		code: `import { trackAgents } from "@databuddy/sdk/agents";
-
-app.use((req, _res, next) => {
-	trackAgents(req);
-	next();
-});`,
-	},
-] as const;
-
-const SETUP_CHECKS = [
-	{
-		key: "homepage",
-		label: "Homepage",
-		hint: "deploy the file above and set the environment variable",
-		drainHint:
-			"check the drain sends Production logs from Functions and Static Files with sampling off, then retry in a minute",
-	},
-	{
-		key: "llmsTxt",
-		label: "llms.txt",
-		hint: "make sure your proxy or middleware matcher doesn't skip .txt files",
-		drainHint: "add the Static Files source",
-	},
-] as const;
-
-function SetupStep({
-	children,
-	step,
-	title,
-}: {
-	children: React.ReactNode;
-	step: number;
-	title: string;
-}) {
-	return (
-		<div className="space-y-2">
-			<p className="font-medium text-sm">
-				<span className="mr-2 text-muted-foreground tabular-nums">{step}</span>
-				{title}
-			</p>
-			{children}
-		</div>
+function activityTrend(
+	rows: ActivityRow[],
+	timeline: ActivityTimeline,
+	focus: ReadFocus
+): TrendPoint[] {
+	const { column } = FOCUS[focus];
+	const valueByBucket = new Map(
+		rows.map((row) => [
+			dayjs(row.date).format(timeline.bucketFormat),
+			row[column],
+		])
 	);
+	return timeline.buckets.map((date) => ({
+		date,
+		value: valueByBucket.get(date) ?? 0,
+	}));
 }
 
-function SetupCode({
-	code,
-	language,
-}: {
-	code: string;
-	language: "bash" | "tsx";
-}) {
-	return (
-		<CodeBlock code={code} language={language}>
-			<CodeBlockCopyButton aria-label="Copy" />
-		</CodeBlock>
-	);
-}
-
-function AgentSetupSheet({
-	isOpen,
-	onOpenChange,
-	websiteId,
-}: {
-	isOpen: boolean;
-	onOpenChange: (open: boolean) => void;
-	websiteId: string;
-}) {
-	const [tab, setTab] = useState<string>(SETUP_STACKS[0].id);
-	const check = useMutation(orpc.websites.checkAgentSetup.mutationOptions());
-	const isWorking = check.data?.homepage && check.data.llmsTxt;
-	const isDrain = tab === "vercel-drain";
-
-	return (
-		<Sheet onOpenChange={onOpenChange} open={isOpen}>
-			<Sheet.Content side="right">
-				<Sheet.Header>
-					<Sheet.Title>Track AI crawlers</Sheet.Title>
-					<Sheet.Description>
-						Crawlers like GPTBot and ClaudeBot don't run JavaScript. Add one
-						line to your server, or send your Vercel logs, to see which pages
-						they read.
-					</Sheet.Description>
-				</Sheet.Header>
-				<Sheet.Body className="space-y-5">
-					<Tabs onValueChange={(value) => setTab(String(value))} value={tab}>
-						<Tabs.List className="max-w-full overflow-x-auto">
-							{SETUP_STACKS.map((stack) => (
-								<Tabs.Tab key={stack.id} value={stack.id}>
-									{stack.label}
-								</Tabs.Tab>
-							))}
-							<Tabs.Tab value="vercel-drain">Vercel drain</Tabs.Tab>
-						</Tabs.List>
-						{SETUP_STACKS.map((stack) => (
-							<Tabs.Panel
-								className="mt-4 space-y-5"
-								key={stack.id}
-								value={stack.id}
-							>
-								<SetupStep step={1} title="Install the SDK">
-									<SetupCode
-										code="bun add @databuddy/sdk@latest"
-										language="bash"
-									/>
-								</SetupStep>
-								<SetupStep step={2} title={`Add ${stack.file}`}>
-									<SetupCode code={stack.code} language="tsx" />
-								</SetupStep>
-								<SetupStep step={3} title="Set your website ID">
-									<SetupCode
-										code={
-											stack.id === "workers"
-												? `# wrangler.toml\n[vars]\n${stack.env} = "${websiteId}"`
-												: `${stack.env}=${websiteId}`
-										}
-										language="bash"
-									/>
-								</SetupStep>
-							</Tabs.Panel>
-						))}
-						<Tabs.Panel className="mt-4 space-y-5" value="vercel-drain">
-							<SetupStep step={1} title="Add a drain in Vercel">
-								<p className="text-pretty text-muted-foreground text-xs">
-									Team Settings → Drains → Add Drain, then choose Logs and
-									Custom Endpoint. No code change needed. Drains need a Pro or
-									Enterprise plan, and Vercel bills them by volume.
-								</p>
-							</SetupStep>
-							<SetupStep step={2} title="Paste this endpoint">
-								<SetupCode
-									code={`${publicConfig.urls.basket}/vercel/${websiteId}`}
-									language="bash"
-								/>
-							</SetupStep>
-							<SetupStep step={3} title="Choose what to send">
-								<p className="text-pretty text-muted-foreground text-xs">
-									Sources: Static Files, Functions, Edge Functions and Rewrites.
-									Environment: Production. Format: JSON or NDJSON. Leave
-									sampling off so every AI request arrives. Drains also store
-									the HTTP status each agent got, so you can ask the assistant
-									which pages return 404 to AI crawlers.
-								</p>
-							</SetupStep>
-						</Tabs.Panel>
-					</Tabs>
-
-					<SetupStep
-						step={4}
-						title={isDrain ? "Test it" : "Deploy, then test it"}
-					>
-						<Button
-							loading={check.isPending}
-							onClick={() => check.mutate({ websiteId })}
-							size="md"
-							variant="secondary"
-						>
-							Test setup
-						</Button>
-						{check.data
-							? SETUP_CHECKS.map((item) => (
-									<p
-										className="flex items-center gap-1.5 text-xs"
-										key={item.key}
-									>
-										<StatusDot
-											color={check.data[item.key] ? "success" : "warning"}
-										/>
-										{check.data[item.key]
-											? `${item.label} recorded`
-											: `${item.label} not recorded: ${isDrain ? item.drainHint : item.hint}`}
-									</p>
-								))
-							: null}
-						{isWorking ? (
-							<p className="text-pretty text-muted-foreground text-xs">
-								Setup works. Crawler data shows up here as soon as an AI agent
-								visits.
-							</p>
-						) : null}
-						{check.isError ? (
-							<p className="text-destructive text-xs">
-								Couldn't run the check. Try again in a moment.
-							</p>
-						) : null}
-					</SetupStep>
-
-					<a
-						className="block text-muted-foreground text-xs underline underline-offset-2 hover:text-foreground"
-						href="https://www.databuddy.cc/docs/sdk/ai-agents"
-						rel="noopener"
-						target="_blank"
-					>
-						Other setups and details in the docs
-					</a>
-				</Sheet.Body>
-			</Sheet.Content>
-		</Sheet>
-	);
-}
-
-function mainPurpose(row: ProductRow): string | null {
-	const purposes = [
-		{ label: PURPOSE_LABELS.training, value: row.training },
-		{ label: PURPOSE_LABELS.search_index, value: row.search_index },
-		{ label: PURPOSE_LABELS.user_fetch, value: row.on_demand },
-	].sort((a, b) => b.value - a.value);
-	return purposes[0].value > 0 ? purposes[0].label.toLowerCase() : null;
-}
-
-function emptyProduct(product: string): ProductRow {
+function useShowAll<T>(items: T[], rows = READ_ROWS) {
+	const [isExpanded, setIsExpanded] = useState(false);
 	return {
-		has_proxy: 0,
-		last_seen: null,
-		on_demand: 0,
-		pages: 0,
-		product,
-		requests: 0,
-		search_index: 0,
-		training: 0,
-		visitors: 0,
+		canExpand: items.length > rows,
+		collapse: () => setIsExpanded(false),
+		isExpanded,
+		toggle: () => setIsExpanded((expanded) => !expanded),
+		visible: isExpanded ? items : items.slice(0, rows),
 	};
 }
 
-function ProductCard({
-	hasProxy,
-	isHourly,
-	isLoading,
-	row,
-	trend,
-}: {
-	hasProxy: boolean;
-	isHourly: boolean;
-	isLoading: boolean;
-	row: ProductRow;
-	trend: TrendPoint[];
-}) {
-	const purpose = mainPurpose(row);
-	const isActive = row.requests > 0 || row.visitors > 0;
-	const readRatio = row.requests / row.visitors;
-	const readsLine =
-		row.requests > 0
-			? `Read ${formatCount(row.pages, "page")}${purpose ? ` for ${purpose}` : ""}, ${fromNow(row.last_seen)}`
-			: isLoading
-				? "Checking…"
-				: isActive
-					? hasProxy
-						? "Hasn't read your pages"
-						: null
-					: "Not seen yet";
+function Tip({ lines = [], title }: { lines?: string[]; title: string }) {
 	return (
-		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
-			<div className="flex items-center gap-2.5">
-				<AiProductIcon
-					className={cn(!isActive && "opacity-40 grayscale")}
-					name={row.product}
-					size={28}
-				/>
-				<p className="truncate font-semibold text-sm">{row.product}</p>
-				{row.requests > 0 && row.visitors > 0 ? (
-					<Tooltip
-						content={
-							<Tip
-								lines={[
-									`${row.product} made ${formatCount(row.requests, "request")} to your pages and sent ${formatCount(row.visitors, "visitor")}`,
-								]}
-								title="Reads and visitors"
-							/>
-						}
-						delay={TIP_DELAY_MS}
-					>
-						<span className="ml-auto shrink-0 cursor-default text-muted-foreground text-xs tabular-nums">
-							{readRatio >= 1
-								? `${formatCount(Math.round(readRatio), "read")} per visitor`
-								: `${formatCount(Math.round(1 / readRatio), "visitor")} per read`}
-						</span>
-					</Tooltip>
-				) : null}
-			</div>
-			<div>
-				<p className="font-semibold text-xl tabular-nums">
-					{formatNumber(row.visitors)}
-					<span className="ml-1.5 font-normal text-muted-foreground text-xs">
-						visitors sent
-					</span>
+		<div className="max-w-72 space-y-0.5 py-0.5">
+			<p className="break-words font-medium">{title}</p>
+			{lines.map((line) => (
+				<p className="break-words text-background/70" key={line}>
+					{line}
 				</p>
-				<div className="my-1.5">
-					<Sparkline
-						color={aiProductColor(row.product)}
-						id={`ai-product-${row.product}`}
-						isHourly={isHourly}
-						trend={trend}
-						unit="visitors"
-					/>
-				</div>
-				{readsLine ? (
-					<p className="truncate text-muted-foreground text-xs">{readsLine}</p>
-				) : null}
-			</div>
+			))}
 		</div>
 	);
 }
 
-function ShareChange({ change }: { change: ShareRow["change"] }) {
-	if (change === "new") {
-		return <span className="text-muted-foreground text-xs">New</span>;
-	}
-	if (change === null || Math.abs(change) < 0.05) {
-		return <MinusIcon className="size-3.5 text-muted-foreground" />;
-	}
-	const Icon = change > 0 ? TrendUpIcon : TrendDownIcon;
+function ListSkeleton({ rows }: { rows: number }) {
 	return (
-		<span className="flex items-center gap-1 text-muted-foreground text-xs tabular-nums">
-			<Icon className="size-3.5" />
-			{Math.abs(change).toFixed(1)} pts
-		</span>
+		<div className="flex flex-col gap-1">
+			{Array.from({ length: rows }, (_, index) => (
+				<Skeleton className="h-9 w-full" key={index} />
+			))}
+		</div>
+	);
+}
+
+function ShowAllButton({
+	label,
+	list,
+}: {
+	label: string;
+	list: { canExpand: boolean; isExpanded: boolean; toggle: () => void };
+}) {
+	return list.canExpand ? (
+		<Button
+			className="self-center"
+			onClick={list.toggle}
+			size="sm"
+			variant="ghost"
+		>
+			{list.isExpanded ? "Show less" : label}
+		</Button>
+	) : (
+		<div aria-hidden className="h-8" />
+	);
+}
+
+function Sparkline({
+	color = "var(--color-foreground)",
+	id,
+	isHourly,
+	trend,
+	unit,
+}: {
+	color?: string;
+	id: string;
+	isHourly: boolean;
+	trend: TrendPoint[] | null;
+	unit: string;
+}) {
+	if (!trend) {
+		return <Skeleton className="h-9 w-full" />;
+	}
+	return (
+		<div className="h-9">
+			<Chart.SingleSeries
+				color={color}
+				data={trend}
+				height={36}
+				id={id.replace(NON_ID_CHARS, "-")}
+				tooltip={{
+					formatLabelAction: (value) =>
+						dayjs(value).format(isHourly ? "ddd HH:mm" : "ddd, MMM D"),
+					formatValue: formatNumber,
+					valueSuffixLabel: unit,
+				}}
+				yDomain={[0, "dataMax + 1"]}
+			/>
+		</div>
 	);
 }
 
@@ -735,35 +566,564 @@ function Headline({
 	);
 }
 
-function useShowAll<T>(items: T[], rows = READ_ROWS) {
-	const [isExpanded, setIsExpanded] = useState(false);
-	return {
-		canExpand: items.length > rows,
-		collapse: () => setIsExpanded(false),
-		isExpanded,
-		toggle: () => setIsExpanded((expanded) => !expanded),
-		visible: isExpanded ? items : items.slice(0, rows),
-	};
+function BarRow({
+	children,
+	fraction,
+	isDimmed = false,
+	isSelected = false,
+	onClick,
+	rank,
+	tooltip,
+	value,
+}: {
+	children: React.ReactNode;
+	fraction: number;
+	isDimmed?: boolean;
+	isSelected?: boolean;
+	onClick?: () => void;
+	rank: number;
+	tooltip: React.ReactNode;
+	value: number;
+}) {
+	const content = (
+		<>
+			<span className="w-5 shrink-0 text-muted-foreground text-sm tabular-nums">
+				{rank}
+			</span>
+			<span className="relative flex h-9 min-w-0 flex-1 items-center gap-2 px-2.5">
+				<span
+					className={cn(
+						"absolute inset-0 origin-left rounded transition-[transform,background-color] duration-(--duration-base) ease-(--ease-smooth) motion-reduce:transition-none",
+						isSelected
+							? "bg-foreground/15"
+							: "bg-secondary group-hover:bg-interactive-hover"
+					)}
+					style={{ transform: `scaleX(${Math.max(fraction, 0.02)})` }}
+				/>
+				{children}
+			</span>
+			<span className="w-10 shrink-0 text-right font-medium text-sm tabular-nums">
+				{formatNumber(value)}
+			</span>
+		</>
+	);
+	const className = cn(
+		"group flex w-full items-center gap-3 text-left transition-opacity duration-(--duration-quick) ease-(--ease-smooth)",
+		isDimmed && "opacity-40"
+	);
+	return (
+		<Tooltip content={tooltip} delay={TIP_DELAY_MS}>
+			{onClick ? (
+				<Button
+					aria-pressed={isSelected}
+					className={cn(
+						className,
+						"h-auto justify-start px-0 font-normal text-foreground hover:bg-transparent hover:opacity-100 active:scale-100 active:bg-transparent"
+					)}
+					onClick={onClick}
+					variant="ghost"
+				>
+					{content}
+				</Button>
+			) : (
+				<div className={cn(className, "cursor-default")}>{content}</div>
+			)}
+		</Tooltip>
+	);
 }
 
-function ShowAllButton({
-	label,
-	list,
+function ProductCard({
+	hasProxy,
+	isHourly,
+	isLoading,
+	row,
+	trend,
 }: {
-	label: string;
-	list: { canExpand: boolean; isExpanded: boolean; toggle: () => void };
+	hasProxy: boolean;
+	isHourly: boolean;
+	isLoading: boolean;
+	row: ProductRow;
+	trend: TrendPoint[];
 }) {
-	return list.canExpand ? (
-		<Button
-			className="self-center"
-			onClick={list.toggle}
-			size="sm"
-			variant="ghost"
-		>
-			{list.isExpanded ? "Show less" : label}
-		</Button>
-	) : (
-		<div aria-hidden className="h-8" />
+	const isActive = row.requests > 0 || row.visitors > 0;
+	const readRatio = row.requests / row.visitors;
+	const readsLine = productReadsLine(row, hasProxy, isLoading);
+	return (
+		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
+			<div className="flex items-center gap-2.5">
+				<AiProductIcon
+					className={cn(!isActive && "opacity-40 grayscale")}
+					name={row.product}
+					size={28}
+				/>
+				<p className="truncate font-semibold text-sm">{row.product}</p>
+				{row.requests > 0 && row.visitors > 0 ? (
+					<Tooltip
+						content={
+							<Tip
+								lines={[
+									`${row.product} made ${formatCount(row.requests, "request")} to your pages and sent ${formatCount(row.visitors, "visitor")}`,
+								]}
+								title="Reads and visitors"
+							/>
+						}
+						delay={TIP_DELAY_MS}
+					>
+						<span className="ml-auto shrink-0 cursor-default text-muted-foreground text-xs tabular-nums">
+							{readRatio >= 1
+								? `${formatCount(Math.round(readRatio), "read")} per visitor`
+								: `${formatCount(Math.round(1 / readRatio), "visitor")} per read`}
+						</span>
+					</Tooltip>
+				) : null}
+			</div>
+			<div>
+				<p className="font-semibold text-xl tabular-nums">
+					{formatNumber(row.visitors)}
+					<span className="ml-1.5 font-normal text-muted-foreground text-xs">
+						visitors sent
+					</span>
+				</p>
+				<div className="my-1.5">
+					<Sparkline
+						color={aiProductColor(row.product)}
+						id={`ai-product-${row.product}`}
+						isHourly={isHourly}
+						trend={trend}
+						unit="visitors"
+					/>
+				</div>
+				{readsLine ? (
+					<p className="truncate text-muted-foreground text-xs">{readsLine}</p>
+				) : null}
+			</div>
+		</div>
+	);
+}
+
+function AgentDetail({
+	agent,
+	isHourly,
+	label,
+	robots,
+	trend,
+}: {
+	agent: ReadingAgent;
+	isHourly: boolean;
+	label: string;
+	robots: RobotsCheck;
+	trend: TrendPoint[] | null;
+}) {
+	const status = robotsStatus(agent);
+	const robotsLabel =
+		status?.label ??
+		(robots.isPending ? "Checking…" : null) ??
+		(robots.hasRobotsTxt === false ? "No robots.txt" : null);
+	const facts = [
+		{ label: "Formats", value: formatRequestsByFormat(agent) },
+		{ label: "Pages", value: formatNumber(agent.pages) },
+		{ label: "Last read", value: fromNow(agent.last_seen) },
+	];
+	return (
+		<div className="space-y-2">
+			<div className="flex flex-wrap gap-x-5 gap-y-1">
+				{facts.map((fact) => (
+					<span className="flex items-center gap-1.5 text-xs" key={fact.label}>
+						<span className="text-muted-foreground">{fact.label}</span>
+						<span className="font-medium tabular-nums">{fact.value}</span>
+					</span>
+				))}
+				{robotsLabel ? (
+					<span className="flex items-center gap-1.5 text-xs">
+						<span className="text-muted-foreground">robots.txt</span>
+						{status ? <StatusDot color={status.color} /> : null}
+						<span className="font-medium">{robotsLabel}</span>
+					</span>
+				) : null}
+			</div>
+			<Sparkline
+				id={`ai-agent-${agent.agent_id}`}
+				isHourly={isHourly}
+				trend={trend}
+				unit={`${label} requests`}
+			/>
+			<Tooltip
+				content={<Tip lines={[agent.user_agent]} title="User agent" />}
+				delay={TIP_DELAY_MS}
+			>
+				<p className="cursor-default truncate font-mono text-muted-foreground text-xs">
+					{agent.user_agent}
+				</p>
+			</Tooltip>
+		</div>
+	);
+}
+
+function AgentReadsPanel({
+	activity,
+	agents,
+	formats,
+	isLoading,
+	reads,
+	robots,
+	timeline,
+	websiteId,
+}: {
+	activity: ActivityRow[];
+	agents: ReadingAgent[];
+	formats: FormatRow[];
+	isLoading: boolean;
+	reads: PageReadRow[];
+	robots: RobotsCheck;
+	timeline: ActivityTimeline;
+	websiteId: string;
+}) {
+	const { dateRange } = useDateFilters();
+	const availableFormats = READ_FORMATS.filter((format) =>
+		formats.some((row) => row.format === format && row.requests > 0)
+	);
+	const focusOptions: ReadFocus[] =
+		availableFormats.length > 1
+			? [...availableFormats, "all"]
+			: availableFormats;
+	const [chosenFocus, setChosenFocus] = useState<ReadFocus | null>(null);
+	const [selectedId, setSelectedId] = useState<string | null>(null);
+	const focus: ReadFocus =
+		chosenFocus && focusOptions.includes(chosenFocus)
+			? chosenFocus
+			: (focusOptions[0] ?? "all");
+	const { column, label, noun, scope, title } = FOCUS[focus];
+
+	const rankedAgents = agents
+		.map((agent) => ({ ...agent, value: agent[column] }))
+		.filter((agent) => agent.value > 0)
+		.sort((a, b) => b.value - a.value);
+	const selected = rankedAgents.find((agent) => agent.agent_id === selectedId);
+	const robotsLimitedCount = rankedAgents.filter(
+		(agent) => agent.robots === "blocked" || agent.robots === "partial"
+	).length;
+
+	const agentFilters: DynamicQueryFilter[] = selectedId
+		? [{ field: "agent_id", operator: "eq", value: selectedId }]
+		: [];
+	const agentQuery = useBatchDynamicQuery(
+		websiteId,
+		dateRange,
+		[
+			{
+				id: "agent-activity",
+				parameters: ["ai_crawler_activity"],
+				filters: agentFilters,
+			},
+			{
+				id: "agent-pages",
+				parameters: ["ai_agent_pages"],
+				filters: agentFilters,
+				limit: 1000,
+			},
+		],
+		{ enabled: Boolean(selectedId) }
+	);
+	const agentActivity: ActivityRow[] = agentQuery.getDataForQuery(
+		"agent-activity",
+		"ai_crawler_activity"
+	);
+	const agentPages: PageReadRow[] = agentQuery.getDataForQuery(
+		"agent-pages",
+		"ai_agent_pages"
+	);
+	const isAgentPagesLoaded = agentQuery.results.some(
+		(result) =>
+			result.queryId === "agent-pages" && "ai_agent_pages" in result.data
+	);
+
+	const readersByPage = new Map<string, Map<string, number>>();
+	for (const read of selected ? agentPages : reads) {
+		if (focus !== "all" && read.format !== focus) {
+			continue;
+		}
+		const readers = readersByPage.get(read.page) ?? new Map<string, number>();
+		for (const reader of read.agents) {
+			if (!selected || reader.agent_id === selected.agent_id) {
+				readers.set(
+					reader.name,
+					(readers.get(reader.name) ?? 0) + Number(reader.requests)
+				);
+			}
+		}
+		readersByPage.set(read.page, readers);
+	}
+	const pages = [...readersByPage]
+		.map(([page, readers]) => ({
+			page,
+			readers: [...readers]
+				.map(([name, requests]) => ({ name, requests }))
+				.sort((a, b) => b.requests - a.requests),
+			value: [...readers.values()].reduce((sum, requests) => sum + requests, 0),
+		}))
+		.filter((row) => row.value > 0)
+		.sort((a, b) => b.value - a.value);
+
+	const distinctPages = new Set(reads.map((read) => read.page)).size;
+	const skeletonRows = Math.max(
+		Math.min(READ_ROWS, Math.max(agents.length, distinctPages)),
+		1
+	);
+	const focusFormat = formats.find((row) => row.format === focus);
+	const requestTotal =
+		focus === "all"
+			? formats.reduce((sum, row) => sum + row.requests, 0)
+			: (focusFormat?.requests ?? 0);
+	const pageTotal =
+		focus === "all"
+			? (selected?.pages ?? distinctPages)
+			: (selected?.[`${focus}_pages`] ?? (focusFormat?.pages || pages.length));
+	const maxAgentValue = rankedAgents[0]?.value || 1;
+	const maxPageValue = pages[0]?.value || 1;
+	const agentList = useShowAll(rankedAgents);
+	const pageList = useShowAll(pages);
+	const askSubject = selected
+		? `${selected.name} (${selected.product}) reading ${scope}`
+		: `AI crawlers and agents reading ${scope}`;
+
+	return (
+		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-2">
+			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
+				<Headline
+					aside={
+						<div className="flex items-center gap-1">
+							{isLoading ? (
+								<Skeleton className="h-8 w-56" />
+							) : focusOptions.length > 1 ? (
+								<SegmentedControl
+									onChange={(value) => {
+										setChosenFocus(value);
+										setSelectedId(null);
+										agentList.collapse();
+										pageList.collapse();
+									}}
+									options={focusOptions.map((value) => ({
+										label: FOCUS[value].tab,
+										value,
+									}))}
+									size="sm"
+									value={focus}
+								/>
+							) : null}
+							<AskAgentButton subject={askSubject} />
+						</div>
+					}
+					detail={`from ${formatCount(rankedAgents.length, "agent")}${robotsLimitedCount > 0 ? ` · ${robotsLimitedCount} limited by robots.txt` : ""}`}
+					isLoading={isLoading}
+					title="Who reads your content"
+					unit={`${label} requests`}
+					value={formatNumber(requestTotal)}
+				/>
+				<Sparkline
+					id="ai-reads-trend"
+					isHourly={timeline.isHourly}
+					trend={isLoading ? null : activityTrend(activity, timeline, focus)}
+					unit={`${label} requests`}
+				/>
+				<div>
+					{isLoading ? (
+						<ListSkeleton rows={skeletonRows} />
+					) : (
+						<div className="flex flex-col gap-1">
+							{agentList.visible.map((agent, index) => {
+								const status = robotsStatus(agent);
+								const isSelected = selected?.agent_id === agent.agent_id;
+								return (
+									<BarRow
+										fraction={agent.value / maxAgentValue}
+										isDimmed={Boolean(selected) && !isSelected}
+										isSelected={isSelected}
+										key={agent.agent_id}
+										onClick={() =>
+											setSelectedId(isSelected ? null : agent.agent_id)
+										}
+										rank={index + 1}
+										tooltip={
+											<Tip
+												lines={[
+													purposeDescription(agent),
+													`${formatCount(agent.requests, "request")} · ${formatCount(agent.pages, "page")} · last read ${fromNow(agent.last_seen)}`,
+													status ? `robots.txt: ${status.label}` : "",
+													isSelected
+														? "Click to show every agent"
+														: "Click to see what it read",
+												].filter(Boolean)}
+												title={
+													agent.operator
+														? `${agent.name} by ${agent.operator}`
+														: agent.name
+												}
+											/>
+										}
+										value={agent.value}
+									>
+										<span className="relative shrink-0">
+											<AiProductIcon name={agent.product} size="sm" />
+										</span>
+										<span className="relative min-w-0 truncate font-medium text-sm">
+											{agent.name}
+										</span>
+										{agent.product === agent.name ? null : (
+											<span className="relative hidden shrink-0 text-muted-foreground text-xs md:inline">
+												{agent.product}
+											</span>
+										)}
+										<span className="relative ml-auto hidden shrink-0 text-muted-foreground text-xs sm:inline">
+											{focus === "all" && agent.markdown + agent.llms > 0
+												? formatRequestsByFormat(agent)
+												: PURPOSE_LABELS[agent.purpose]}
+										</span>
+										<span className="relative flex w-2 shrink-0 justify-center">
+											{status && status.color !== "success" ? (
+												<StatusDot color={status.color} />
+											) : null}
+										</span>
+									</BarRow>
+								);
+							})}
+						</div>
+					)}
+				</div>
+				<ShowAllButton
+					label={`Show all ${rankedAgents.length} agents`}
+					list={agentList}
+				/>
+			</div>
+
+			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
+				<div className="flex items-start justify-between gap-3">
+					<div className="min-w-0">
+						{selected ? (
+							<div className="flex items-center gap-2">
+								<AiProductIcon name={selected.product} size="sm" />
+								<p className="truncate font-semibold text-sm">
+									{selected.name}
+								</p>
+								<span className="shrink-0 text-muted-foreground text-xs">
+									{selected.product === selected.name
+										? PURPOSE_LABELS[selected.purpose]
+										: `${selected.product} · ${PURPOSE_LABELS[selected.purpose]}`}
+								</span>
+							</div>
+						) : (
+							<p className="font-semibold text-sm">{title}</p>
+						)}
+						<p className="text-muted-foreground text-xs">
+							{selected
+								? `${formatNumber(selected.value)} ${label} requests across ${formatNumber(pageTotal)} ${noun}`
+								: `${formatNumber(pageTotal)} ${noun} · pick an agent to see what it read`}
+						</p>
+					</div>
+					{selected ? (
+						<Button
+							onClick={() => setSelectedId(null)}
+							size="sm"
+							variant="ghost"
+						>
+							Show all agents
+						</Button>
+					) : null}
+				</div>
+				{selected ? (
+					<AgentDetail
+						agent={selected}
+						isHourly={timeline.isHourly}
+						label={label}
+						robots={robots}
+						trend={
+							agentQuery.isLoading
+								? null
+								: activityTrend(agentActivity, timeline, focus)
+						}
+					/>
+				) : null}
+				<div>
+					{isLoading || (selected && agentQuery.isPending) ? (
+						<ListSkeleton rows={skeletonRows} />
+					) : selected && !isAgentPagesLoaded ? (
+						<p className="text-muted-foreground text-sm">
+							Couldn't load the pages {selected.name} read.
+						</p>
+					) : selected && pages.length === 0 ? (
+						<p className="text-muted-foreground text-sm">
+							{selected.name} read no {focus === "all" ? noun : title} in this
+							period.
+						</p>
+					) : (
+						<div className="flex flex-col gap-1">
+							{pageList.visible.map((page, index) => (
+								<BarRow
+									fraction={page.value / maxPageValue}
+									key={page.page}
+									rank={index + 1}
+									tooltip={
+										<Tip
+											lines={
+												selected
+													? [
+															`${formatNumber(page.value)} ${label} requests from ${selected.name}`,
+														]
+													: [
+															...page.readers
+																.slice(0, 5)
+																.map(
+																	(reader) =>
+																		`${reader.name} · ${formatNumber(reader.requests)}`
+																),
+															page.readers.length > 5
+																? `+${page.readers.length - 5} more agents`
+																: "",
+														].filter(Boolean)
+											}
+											title={page.page}
+										/>
+									}
+									value={page.value}
+								>
+									<span className="relative min-w-0 flex-1 truncate text-sm">
+										{page.page}
+									</span>
+									{selected ? null : (
+										<span className="relative hidden max-w-[45%] shrink-0 truncate text-muted-foreground text-xs sm:inline">
+											{page.readers.map((reader) => reader.name).join(", ")}
+										</span>
+									)}
+								</BarRow>
+							))}
+						</div>
+					)}
+				</div>
+				<ShowAllButton
+					label={
+						pages.length < pageTotal
+							? `Show top ${formatNumber(pages.length)} of ${formatNumber(pageTotal)}`
+							: `Show all ${formatNumber(pages.length)} ${noun}`
+					}
+					list={pageList}
+				/>
+			</div>
+		</div>
+	);
+}
+
+function ShareChange({ change }: { change: ShareRow["change"] }) {
+	if (change === "new") {
+		return <span className="text-muted-foreground text-xs">New</span>;
+	}
+	if (change === null || Math.abs(change) < 0.05) {
+		return <MinusIcon className="size-3.5 text-muted-foreground" />;
+	}
+	const Icon = change > 0 ? TrendUpIcon : TrendDownIcon;
+	return (
+		<span className="flex items-center gap-1 text-muted-foreground text-xs tabular-nums">
+			<Icon className="size-3.5" />
+			{Math.abs(change).toFixed(1)} pts
+		</span>
 	);
 }
 
@@ -848,7 +1208,7 @@ function VisitorSharePanel({
 	previousRange,
 	share,
 }: {
-	children?: React.ReactNode;
+	children: React.ReactNode;
 	isLoading: boolean;
 	previousRange: { end_date: string; start_date: string };
 	share: VisitorShare;
@@ -895,583 +1255,7 @@ function VisitorSharePanel({
 					<ShareRanking rows={share.rows} />
 				)}
 			</div>
-			{children ? <div className="lg:col-span-2">{children}</div> : null}
-		</div>
-	);
-}
-
-function BarRow({
-	children,
-	fraction,
-	isDimmed = false,
-	isSelected = false,
-	onClick,
-	rank,
-	tooltip,
-	value,
-}: {
-	children: React.ReactNode;
-	fraction: number;
-	isDimmed?: boolean;
-	isSelected?: boolean;
-	onClick?: () => void;
-	rank: number;
-	tooltip: React.ReactNode;
-	value: number;
-}) {
-	const content = (
-		<>
-			<span className="w-5 shrink-0 text-muted-foreground text-sm tabular-nums">
-				{rank}
-			</span>
-			<span className="relative flex h-9 min-w-0 flex-1 items-center gap-2 px-2.5">
-				<span
-					className={cn(
-						"absolute inset-0 origin-left rounded transition-[transform,background-color] duration-(--duration-base) ease-(--ease-smooth) motion-reduce:transition-none",
-						isSelected
-							? "bg-foreground/15"
-							: "bg-secondary group-hover:bg-interactive-hover"
-					)}
-					style={{ transform: `scaleX(${Math.max(fraction, 0.02)})` }}
-				/>
-				{children}
-			</span>
-			<span className="w-10 shrink-0 text-right font-medium text-sm tabular-nums">
-				{formatNumber(value)}
-			</span>
-		</>
-	);
-	const className = cn(
-		"group flex w-full items-center gap-3 text-left transition-opacity duration-(--duration-quick) ease-(--ease-smooth)",
-		isDimmed && "opacity-40"
-	);
-	return (
-		<Tooltip content={tooltip} delay={TIP_DELAY_MS}>
-			{onClick ? (
-				<Button
-					aria-pressed={isSelected}
-					className={cn(
-						className,
-						"h-auto justify-start px-0 font-normal text-foreground hover:bg-transparent hover:opacity-100 active:scale-100 active:bg-transparent"
-					)}
-					onClick={onClick}
-					variant="ghost"
-				>
-					{content}
-				</Button>
-			) : (
-				<div className={cn(className, "cursor-default")}>{content}</div>
-			)}
-		</Tooltip>
-	);
-}
-
-function purposeDescription(agent: ReadingAgent): string {
-	if (agent.product === UNIDENTIFIED_AGENTS_PRODUCT) {
-		return "Not a known agent. It asked for markdown before HTML, which AI tools do.";
-	}
-	if (!agent.operator) {
-		return `Signed its requests as ${agent.product}`;
-	}
-	switch (agent.purpose) {
-		case "training":
-			return `Collects pages to train ${agent.operator}'s AI models`;
-		case "search_index":
-			return `Indexes pages for ${agent.product} search results`;
-		case "user_fetch":
-			return `Opens a page when someone asks ${agent.product} about it`;
-		default:
-			return "Reads pages while doing a task for someone";
-	}
-}
-
-interface RobotsCheck {
-	hasRobotsTxt: boolean | undefined;
-	isPending: boolean;
-}
-
-function ListSkeleton({ rows }: { rows: number }) {
-	return (
-		<div className="flex flex-col gap-1">
-			{Array.from({ length: rows }, (_, index) => (
-				<Skeleton className="h-9 w-full" key={index} />
-			))}
-		</div>
-	);
-}
-
-function formatSplit(agent: ReadingAgent): string {
-	return READ_FORMATS.filter((format) => agent[format] > 0)
-		.map((format) => `${FOCUS[format].label} ${formatNumber(agent[format])}`)
-		.join(" · ");
-}
-
-function activityTrend(
-	rows: ActivityRow[],
-	timeline: ActivityTimeline,
-	focus: ReadFocus
-): TrendPoint[] {
-	const { column } = FOCUS[focus];
-	const valueByBucket = new Map(
-		rows.map((row) => [
-			dayjs(row.date).format(timeline.bucketFormat),
-			row[column],
-		])
-	);
-	return timeline.buckets.map((date) => ({
-		date,
-		value: valueByBucket.get(date) ?? 0,
-	}));
-}
-
-function Sparkline({
-	color = "var(--color-foreground)",
-	id,
-	isHourly,
-	trend,
-	unit,
-}: {
-	color?: string;
-	id: string;
-	isHourly: boolean;
-	trend: TrendPoint[] | null;
-	unit: string;
-}) {
-	if (!trend) {
-		return <Skeleton className="h-9 w-full" />;
-	}
-	return (
-		<div className="h-9">
-			<Chart.SingleSeries
-				color={color}
-				data={trend}
-				height={36}
-				id={id.replace(NON_ID_CHARS, "-")}
-				tooltip={{
-					formatLabelAction: (value) =>
-						dayjs(value).format(isHourly ? "ddd HH:mm" : "ddd, MMM D"),
-					formatValue: formatNumber,
-					valueSuffixLabel: unit,
-				}}
-				yDomain={[0, "dataMax + 1"]}
-			/>
-		</div>
-	);
-}
-
-function AgentDetail({
-	agent,
-	isHourly,
-	label,
-	robots,
-	trend,
-}: {
-	agent: ReadingAgent;
-	isHourly: boolean;
-	label: string;
-	robots: RobotsCheck;
-	trend: TrendPoint[] | null;
-}) {
-	const status = robotsStatus(agent);
-	const robotsLabel =
-		status?.label ??
-		(robots.isPending
-			? "Checking…"
-			: robots.hasRobotsTxt === false
-				? "No robots.txt"
-				: null);
-	const facts = [
-		{ label: "Formats", value: formatSplit(agent) },
-		{ label: "Pages", value: formatNumber(agent.pages) },
-		{ label: "Last read", value: fromNow(agent.last_seen) },
-	];
-	return (
-		<div className="space-y-2">
-			<div className="flex flex-wrap gap-x-5 gap-y-1">
-				{facts.map((fact) => (
-					<span className="flex items-center gap-1.5 text-xs" key={fact.label}>
-						<span className="text-muted-foreground">{fact.label}</span>
-						<span className="font-medium tabular-nums">{fact.value}</span>
-					</span>
-				))}
-				{robotsLabel ? (
-					<span className="flex items-center gap-1.5 text-xs">
-						<span className="text-muted-foreground">robots.txt</span>
-						{status ? <StatusDot color={status.color} /> : null}
-						<span className="font-medium">{robotsLabel}</span>
-					</span>
-				) : null}
-			</div>
-			<Sparkline
-				id={`ai-agent-${agent.agent_id}`}
-				isHourly={isHourly}
-				trend={trend}
-				unit={`${label} requests`}
-			/>
-			<Tooltip
-				content={<Tip lines={[agent.user_agent]} title="User agent" />}
-				delay={TIP_DELAY_MS}
-			>
-				<p className="cursor-default truncate font-mono text-muted-foreground text-xs">
-					{agent.user_agent}
-				</p>
-			</Tooltip>
-		</div>
-	);
-}
-
-function AgentReadsPanel({
-	activity,
-	agents,
-	formats,
-	isLoading,
-	reads,
-	robots,
-	timeline,
-	websiteId,
-}: {
-	activity: ActivityRow[];
-	agents: ReadingAgent[];
-	formats: FormatRow[];
-	isLoading: boolean;
-	reads: PageRead[];
-	robots: RobotsCheck;
-	timeline: ActivityTimeline;
-	websiteId: string;
-}) {
-	const { dateRange } = useDateFilters();
-	const available = READ_FORMATS.filter((format) =>
-		formats.some((row) => row.format === format && row.requests > 0)
-	);
-	const options: ReadFocus[] =
-		available.length > 1 ? [...available, "all"] : available;
-	const [chosenFocus, setChosenFocus] = useState<ReadFocus | null>(null);
-	const [selectedId, setSelectedId] = useState<string | null>(null);
-	const focus: ReadFocus =
-		chosenFocus && options.includes(chosenFocus)
-			? chosenFocus
-			: (options[0] ?? "all");
-	const { column, label, noun, scope, title } = FOCUS[focus];
-
-	const rankedAgents = agents
-		.map((agent) => ({
-			...agent,
-			value: agent[column],
-		}))
-		.filter((agent) => agent.value > 0)
-		.sort((a, b) => b.value - a.value);
-	const selected = rankedAgents.find((agent) => agent.agent_id === selectedId);
-	const restricted = rankedAgents.filter(
-		(agent) => agent.robots === "blocked" || agent.robots === "partial"
-	).length;
-
-	const agentFilters: DynamicQueryFilter[] = selectedId
-		? [{ field: "agent_id", operator: "eq", value: selectedId }]
-		: [];
-	const agentActivity = useBatchDynamicQuery(
-		websiteId,
-		dateRange,
-		[
-			{
-				id: "agent-activity",
-				parameters: ["ai_crawler_activity"],
-				filters: agentFilters,
-			},
-			{
-				id: "agent-pages",
-				parameters: ["ai_agent_pages"],
-				filters: agentFilters,
-				limit: 1000,
-			},
-		],
-		{ enabled: Boolean(selectedId) }
-	);
-	const agentActivityRows = agentActivity.getDataForQuery(
-		"agent-activity",
-		"ai_crawler_activity"
-	) as ActivityRow[];
-	const agentPages = agentActivity.getDataForQuery(
-		"agent-pages",
-		"ai_agent_pages"
-	) as PageRead[];
-	const agentPagesLoaded = agentActivity.results.some(
-		(result) =>
-			result.queryId === "agent-pages" && "ai_agent_pages" in result.data
-	);
-
-	const readersByPage = new Map<string, Map<string, number>>();
-	for (const read of selected ? agentPages : reads) {
-		if (focus !== "all" && read.format !== focus) {
-			continue;
-		}
-		const readers = readersByPage.get(read.page) ?? new Map<string, number>();
-		for (const reader of read.agents ?? []) {
-			if (!selected || reader.agent_id === selected.agent_id) {
-				readers.set(
-					reader.name,
-					(readers.get(reader.name) ?? 0) + Number(reader.requests)
-				);
-			}
-		}
-		readersByPage.set(read.page, readers);
-	}
-	const pages = [...readersByPage]
-		.map(([page, readers]) => ({
-			page,
-			readers: [...readers]
-				.map(([name, requests]) => ({ name, requests }))
-				.sort((a, b) => b.requests - a.requests),
-			value: [...readers.values()].reduce((sum, requests) => sum + requests, 0),
-		}))
-		.filter((row) => row.value > 0)
-		.sort((a, b) => b.value - a.value);
-
-	const distinctPages = new Set(reads.map((read) => read.page)).size;
-	const rowSlots = Math.max(
-		Math.min(READ_ROWS, Math.max(agents.length, distinctPages)),
-		1
-	);
-	const focusFormat = formats.find((row) => row.format === focus);
-	const total =
-		focus === "all"
-			? formats.reduce((sum, row) => sum + row.requests, 0)
-			: (focusFormat?.requests ?? 0);
-	const pageTotal = selected
-		? focus === "all"
-			? selected.pages
-			: selected[`${focus}_pages`]
-		: focus === "all"
-			? distinctPages
-			: focusFormat?.pages || pages.length;
-	const maxAgentValue = rankedAgents[0]?.value || 1;
-	const maxPageValue = pages[0]?.value || 1;
-	const agentList = useShowAll(rankedAgents);
-	const pageList = useShowAll(pages);
-	const askSubject = selected
-		? `${selected.name} (${selected.product}) reading ${scope}`
-		: `AI crawlers and agents reading ${scope}`;
-
-	return (
-		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-2">
-			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
-				<Headline
-					aside={
-						<div className="flex items-center gap-1">
-							{isLoading ? (
-								<Skeleton className="h-8 w-56" />
-							) : options.length > 1 ? (
-								<SegmentedControl
-									onChange={(value) => {
-										setChosenFocus(value);
-										setSelectedId(null);
-										agentList.collapse();
-										pageList.collapse();
-									}}
-									options={options.map((value) => ({
-										label: FOCUS[value].tab,
-										value,
-									}))}
-									size="sm"
-									value={focus}
-								/>
-							) : null}
-							<AskAgentButton subject={askSubject} />
-						</div>
-					}
-					detail={`from ${formatCount(rankedAgents.length, "agent")}${restricted > 0 ? ` · ${restricted} limited by robots.txt` : ""}`}
-					isLoading={isLoading}
-					title="Who reads your content"
-					unit={`${label} requests`}
-					value={formatNumber(total)}
-				/>
-				<Sparkline
-					id="ai-reads-trend"
-					isHourly={timeline.isHourly}
-					trend={isLoading ? null : activityTrend(activity, timeline, focus)}
-					unit={`${label} requests`}
-				/>
-				<div>
-					{isLoading ? (
-						<ListSkeleton rows={rowSlots} />
-					) : (
-						<div className="flex flex-col gap-1">
-							{agentList.visible.map((agent, index) => {
-								const status = robotsStatus(agent);
-								const isSelected = selected?.agent_id === agent.agent_id;
-								return (
-									<BarRow
-										fraction={agent.value / maxAgentValue}
-										isDimmed={Boolean(selected) && !isSelected}
-										isSelected={isSelected}
-										key={agent.agent_id}
-										onClick={() =>
-											setSelectedId(isSelected ? null : agent.agent_id)
-										}
-										rank={index + 1}
-										tooltip={
-											<Tip
-												lines={[
-													purposeDescription(agent),
-													`${formatCount(agent.requests, "request")} · ${formatCount(agent.pages, "page")} · last read ${fromNow(agent.last_seen)}`,
-													status ? `robots.txt: ${status.label}` : "",
-													isSelected
-														? "Click to show every agent"
-														: "Click to see what it read",
-												].filter(Boolean)}
-												title={
-													agent.operator
-														? `${agent.name} by ${agent.operator}`
-														: agent.name
-												}
-											/>
-										}
-										value={agent.value}
-									>
-										<span className="relative shrink-0">
-											<AiProductIcon name={agent.product} size="sm" />
-										</span>
-										<span className="relative min-w-0 truncate font-medium text-sm">
-											{agent.name}
-										</span>
-										{agent.product === agent.name ? null : (
-											<span className="relative hidden shrink-0 text-muted-foreground text-xs md:inline">
-												{agent.product}
-											</span>
-										)}
-										<span className="relative ml-auto hidden shrink-0 text-muted-foreground text-xs sm:inline">
-											{focus === "all" && agent.markdown + agent.llms > 0
-												? formatSplit(agent)
-												: PURPOSE_LABELS[agent.purpose]}
-										</span>
-										<span className="relative flex w-2 shrink-0 justify-center">
-											{status && status.color !== "success" ? (
-												<StatusDot color={status.color} />
-											) : null}
-										</span>
-									</BarRow>
-								);
-							})}
-						</div>
-					)}
-				</div>
-				<ShowAllButton
-					label={`Show all ${rankedAgents.length} agents`}
-					list={agentList}
-				/>
-			</div>
-
-			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
-				<div className="flex items-start justify-between gap-3">
-					<div className="min-w-0">
-						{selected ? (
-							<div className="flex items-center gap-2">
-								<AiProductIcon name={selected.product} size="sm" />
-								<p className="truncate font-semibold text-sm">
-									{selected.name}
-								</p>
-								<span className="shrink-0 text-muted-foreground text-xs">
-									{selected.product === selected.name
-										? PURPOSE_LABELS[selected.purpose]
-										: `${selected.product} · ${PURPOSE_LABELS[selected.purpose]}`}
-								</span>
-							</div>
-						) : (
-							<p className="font-semibold text-sm">{title}</p>
-						)}
-						<p className="text-muted-foreground text-xs">
-							{selected
-								? `${formatNumber(selected.value)} ${label} requests across ${formatNumber(pageTotal)} ${noun}`
-								: `${formatNumber(pageTotal)} ${noun} · pick an agent to see what it read`}
-						</p>
-					</div>
-					{selected ? (
-						<Button
-							onClick={() => setSelectedId(null)}
-							size="sm"
-							variant="ghost"
-						>
-							Show all agents
-						</Button>
-					) : null}
-				</div>
-				{selected ? (
-					<AgentDetail
-						agent={selected}
-						isHourly={timeline.isHourly}
-						label={label}
-						robots={robots}
-						trend={
-							agentActivity.isLoading
-								? null
-								: activityTrend(agentActivityRows, timeline, focus)
-						}
-					/>
-				) : null}
-				<div>
-					{isLoading || (selected && agentActivity.isPending) ? (
-						<ListSkeleton rows={rowSlots} />
-					) : selected && !agentPagesLoaded ? (
-						<p className="text-muted-foreground text-sm">
-							Couldn't load the pages {selected.name} read.
-						</p>
-					) : selected && pages.length === 0 ? (
-						<p className="text-muted-foreground text-sm">
-							{selected.name} read no {focus === "all" ? noun : title} in this
-							period.
-						</p>
-					) : (
-						<div className="flex flex-col gap-1">
-							{pageList.visible.map((page, index) => (
-								<BarRow
-									fraction={page.value / maxPageValue}
-									key={page.page}
-									rank={index + 1}
-									tooltip={
-										<Tip
-											lines={
-												selected
-													? [
-															`${formatNumber(page.value)} ${label} requests from ${selected.name}`,
-														]
-													: [
-															...page.readers
-																.slice(0, 5)
-																.map(
-																	(reader) =>
-																		`${reader.name} · ${formatNumber(reader.requests)}`
-																),
-															page.readers.length > 5
-																? `+${page.readers.length - 5} more agents`
-																: "",
-														].filter(Boolean)
-											}
-											title={page.page}
-										/>
-									}
-									value={page.value}
-								>
-									<span className="relative min-w-0 flex-1 truncate text-sm">
-										{page.page}
-									</span>
-									{selected ? null : (
-										<span className="relative hidden max-w-[45%] shrink-0 truncate text-muted-foreground text-xs sm:inline">
-											{page.readers.map((reader) => reader.name).join(", ")}
-										</span>
-									)}
-								</BarRow>
-							))}
-						</div>
-					)}
-				</div>
-				<ShowAllButton
-					label={
-						pages.length < pageTotal
-							? `Show top ${formatNumber(pages.length)} of ${formatNumber(pageTotal)}`
-							: `Show all ${formatNumber(pages.length)} ${noun}`
-					}
-					list={pageList}
-				/>
-			</div>
+			<div className="lg:col-span-2">{children}</div>
 		</div>
 	);
 }
@@ -1500,7 +1284,7 @@ function OutcomeLine({
 }) {
 	const isBaseline = row.product === ALL_VISITORS;
 	const isSummary = isBaseline || row.product === ALL_AI_VISITORS;
-	const comparison = (value: string, base: string | undefined) =>
+	const withBaseline = (value: string, base: string | undefined) =>
 		base && !isBaseline ? `${value} (all visitors ${base})` : value;
 	return (
 		<Tooltip
@@ -1508,11 +1292,11 @@ function OutcomeLine({
 				<Tip
 					lines={[
 						formatCount(row.visitors, "visitor"),
-						comparison(
+						withBaseline(
 							`${row.pages_per_visit.toFixed(1)} pages per visit`,
 							baseline?.pages_per_visit.toFixed(1)
 						),
-						comparison(
+						withBaseline(
 							`${row.engaged_rate}% viewed 2+ pages`,
 							baseline ? `${baseline.engaged_rate}%` : undefined
 						),
@@ -1647,7 +1431,7 @@ function AiVisitorsPanel({
 				) : (
 					<div className="flex flex-col gap-1">
 						{landingList.visible.map((row, index) => {
-							const senders = (row.senders ?? []).map((sender) => ({
+							const senders = row.senders.map((sender) => ({
 								product: sender.product,
 								reads: Number(sender.reads),
 								visitors: Number(sender.visitors),
@@ -1706,17 +1490,254 @@ function AiVisitorsPanel({
 	);
 }
 
+const SETUP_STACKS = [
+	{
+		env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
+		file: "proxy.ts",
+		id: "next",
+		label: "Next.js 16",
+		code: 'export { proxy } from "@databuddy/sdk/agents";',
+	},
+	{
+		env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
+		file: "middleware.ts",
+		id: "next15",
+		label: "Next.js 15",
+		code: 'export { proxy as middleware } from "@databuddy/sdk/agents";',
+	},
+	{
+		env: "DATABUDDY_WEBSITE_ID",
+		file: "middleware.ts",
+		id: "vercel",
+		label: "Vercel",
+		code: 'export { proxy as default } from "@databuddy/sdk/agents";',
+	},
+	{
+		env: "DATABUDDY_WEBSITE_ID",
+		file: "worker.ts",
+		id: "workers",
+		label: "Cloudflare",
+		code: `import { trackAgents } from "@databuddy/sdk/agents";
+
+export default {
+	async fetch(request, env, ctx) {
+		const websiteId = env.DATABUDDY_WEBSITE_ID;
+		ctx.waitUntil(trackAgents(request, { websiteId }));
+		return fetch(request);
+	},
+};`,
+	},
+	{
+		env: "DATABUDDY_WEBSITE_ID",
+		file: "server.ts",
+		id: "express",
+		label: "Express",
+		code: `import { trackAgents } from "@databuddy/sdk/agents";
+
+app.use((req, _res, next) => {
+	trackAgents(req);
+	next();
+});`,
+	},
+] as const;
+
+const SETUP_CHECKS = [
+	{
+		key: "homepage",
+		label: "Homepage",
+		hint: "deploy the file above and set the environment variable",
+		drainHint:
+			"check the drain sends Production logs from Functions and Static Files with sampling off, then retry in a minute",
+	},
+	{
+		key: "llmsTxt",
+		label: "llms.txt",
+		hint: "make sure your proxy or middleware matcher doesn't skip .txt files",
+		drainHint: "add the Static Files source",
+	},
+] as const;
+
+function SetupStep({
+	children,
+	step,
+	title,
+}: {
+	children: React.ReactNode;
+	step: number;
+	title: string;
+}) {
+	return (
+		<div className="space-y-2">
+			<p className="font-medium text-sm">
+				<span className="mr-2 text-muted-foreground tabular-nums">{step}</span>
+				{title}
+			</p>
+			{children}
+		</div>
+	);
+}
+
+function SetupCode({
+	code,
+	language,
+}: {
+	code: string;
+	language: "bash" | "tsx";
+}) {
+	return (
+		<CodeBlock code={code} language={language}>
+			<CodeBlockCopyButton aria-label="Copy" />
+		</CodeBlock>
+	);
+}
+
+function AgentSetupSheet({
+	isOpen,
+	onOpenChange,
+	websiteId,
+}: {
+	isOpen: boolean;
+	onOpenChange: (open: boolean) => void;
+	websiteId: string;
+}) {
+	const [tab, setTab] = useState<string>(SETUP_STACKS[0].id);
+	const check = useMutation(orpc.websites.checkAgentSetup.mutationOptions());
+	const isSetupWorking = check.data?.homepage && check.data.llmsTxt;
+	const isDrainTab = tab === "vercel-drain";
+
+	return (
+		<Sheet onOpenChange={onOpenChange} open={isOpen}>
+			<Sheet.Content side="right">
+				<Sheet.Header>
+					<Sheet.Title>Track AI crawlers</Sheet.Title>
+					<Sheet.Description>
+						Crawlers like GPTBot and ClaudeBot don't run JavaScript. Add one
+						line to your server, or send your Vercel logs, to see which pages
+						they read.
+					</Sheet.Description>
+				</Sheet.Header>
+				<Sheet.Body className="space-y-5">
+					<Tabs onValueChange={(value) => setTab(String(value))} value={tab}>
+						<Tabs.List className="max-w-full overflow-x-auto">
+							{SETUP_STACKS.map((stack) => (
+								<Tabs.Tab key={stack.id} value={stack.id}>
+									{stack.label}
+								</Tabs.Tab>
+							))}
+							<Tabs.Tab value="vercel-drain">Vercel drain</Tabs.Tab>
+						</Tabs.List>
+						{SETUP_STACKS.map((stack) => (
+							<Tabs.Panel
+								className="mt-4 space-y-5"
+								key={stack.id}
+								value={stack.id}
+							>
+								<SetupStep step={1} title="Install the SDK">
+									<SetupCode
+										code="bun add @databuddy/sdk@latest"
+										language="bash"
+									/>
+								</SetupStep>
+								<SetupStep step={2} title={`Add ${stack.file}`}>
+									<SetupCode code={stack.code} language="tsx" />
+								</SetupStep>
+								<SetupStep step={3} title="Set your website ID">
+									<SetupCode
+										code={
+											stack.id === "workers"
+												? `# wrangler.toml\n[vars]\n${stack.env} = "${websiteId}"`
+												: `${stack.env}=${websiteId}`
+										}
+										language="bash"
+									/>
+								</SetupStep>
+							</Tabs.Panel>
+						))}
+						<Tabs.Panel className="mt-4 space-y-5" value="vercel-drain">
+							<SetupStep step={1} title="Add a drain in Vercel">
+								<p className="text-pretty text-muted-foreground text-xs">
+									Team Settings → Drains → Add Drain, then choose Logs and
+									Custom Endpoint. No code change needed. Drains need a Pro or
+									Enterprise plan, and Vercel bills them by volume.
+								</p>
+							</SetupStep>
+							<SetupStep step={2} title="Paste this endpoint">
+								<SetupCode
+									code={`${publicConfig.urls.basket}/vercel/${websiteId}`}
+									language="bash"
+								/>
+							</SetupStep>
+							<SetupStep step={3} title="Choose what to send">
+								<p className="text-pretty text-muted-foreground text-xs">
+									Sources: Static Files, Functions, Edge Functions and Rewrites.
+									Environment: Production. Format: JSON or NDJSON. Leave
+									sampling off so every AI request arrives. Drains also store
+									the HTTP status each agent got, so you can ask the assistant
+									which pages return 404 to AI crawlers.
+								</p>
+							</SetupStep>
+						</Tabs.Panel>
+					</Tabs>
+
+					<SetupStep
+						step={4}
+						title={isDrainTab ? "Test it" : "Deploy, then test it"}
+					>
+						<Button
+							loading={check.isPending}
+							onClick={() => check.mutate({ websiteId })}
+							size="md"
+							variant="secondary"
+						>
+							Test setup
+						</Button>
+						{check.data
+							? SETUP_CHECKS.map((item) => (
+									<p
+										className="flex items-center gap-1.5 text-xs"
+										key={item.key}
+									>
+										<StatusDot
+											color={check.data[item.key] ? "success" : "warning"}
+										/>
+										{check.data[item.key]
+											? `${item.label} recorded`
+											: `${item.label} not recorded: ${isDrainTab ? item.drainHint : item.hint}`}
+									</p>
+								))
+							: null}
+						{isSetupWorking ? (
+							<p className="text-pretty text-muted-foreground text-xs">
+								Setup works. Crawler data shows up here as soon as an AI agent
+								visits.
+							</p>
+						) : null}
+						{check.isError ? (
+							<p className="text-destructive text-xs">
+								Couldn't run the check. Try again in a moment.
+							</p>
+						) : null}
+					</SetupStep>
+
+					<a
+						className="block text-muted-foreground text-xs underline underline-offset-2 hover:text-foreground"
+						href="https://www.databuddy.cc/docs/sdk/ai-agents"
+						rel="noopener"
+						target="_blank"
+					>
+						Other setups and details in the docs
+					</a>
+				</Sheet.Body>
+			</Sheet.Content>
+		</Sheet>
+	);
+}
+
 export default function AgentsPage() {
-	const { id } = useParams();
-	const websiteId = id as string;
+	const { id: websiteId } = useParams<{ id: string }>();
 	const { dateRange } = useDateFilters();
 	const { chartType, chartStepType } = useChartPreferences("overview-main");
-
-	const previousRange = useMemo(
-		() => calculatePreviousPeriod(dateRange),
-		[dateRange]
-	);
-
+	const previousRange = calculatePreviousPeriod(dateRange);
 	const [isSetupOpen, setIsSetupOpen] = useQueryState(
 		"setup",
 		parseAsBoolean.withDefault(false)
@@ -1750,24 +1771,33 @@ export default function AgentsPage() {
 		{ id: "crawlers", parameters: ["ai_crawlers"], limit: 1000 },
 		{ id: "activity", parameters: ["ai_crawler_activity"] },
 	]);
-
-	const rowsOf = <T,>(queryId: string, name: string) =>
-		getDataForQuery(queryId, name) as T[];
-	const products = rowsOf<ProductRow>("products", "ai_products");
-	const previousProducts = rowsOf<ProductRow>(
+	const products: ProductRow[] = getDataForQuery("products", "ai_products");
+	const previousProducts: ProductRow[] = getDataForQuery(
 		"products",
 		"previous_ai_products"
 	);
-	const formats = rowsOf<FormatRow>("formats", "ai_content_formats");
-	const reads = rowsOf<PageRead>("reads", "ai_agent_pages");
-	const landingPages = rowsOf<LandingPageRow>("landing", "ai_landing_pages");
-	const outcomes = rowsOf<OutcomeRow>("outcomes", "ai_visitor_outcomes");
-	const crawlers = rowsOf<CrawlerResult>("crawlers", "ai_crawlers");
-	const activity = rowsOf<ActivityRow>("activity", "ai_crawler_activity");
-	const revenue = rowsOf<RevenueRow>("revenue", "revenue_by_ai_product");
-	const visitorSeries = rowsOf<VisitorSeriesRow>(
+	const visitorSeries: VisitorSeriesRow[] = getDataForQuery(
 		"visitors",
 		"ai_product_visitors"
+	);
+	const formats: FormatRow[] = getDataForQuery("formats", "ai_content_formats");
+	const reads: PageReadRow[] = getDataForQuery("reads", "ai_agent_pages");
+	const landingPages: LandingPageRow[] = getDataForQuery(
+		"landing",
+		"ai_landing_pages"
+	);
+	const outcomes: OutcomeRow[] = getDataForQuery(
+		"outcomes",
+		"ai_visitor_outcomes"
+	);
+	const revenue: RevenueRow[] = getDataForQuery(
+		"revenue",
+		"revenue_by_ai_product"
+	);
+	const crawlers: CrawlerRow[] = getDataForQuery("crawlers", "ai_crawlers");
+	const activity: ActivityRow[] = getDataForQuery(
+		"activity",
+		"ai_crawler_activity"
 	);
 	const robots = useQuery({
 		...orpc.websites.checkAiRobots.queryOptions({
@@ -1815,7 +1845,7 @@ export default function AgentsPage() {
 		return counts;
 	}, [visitorSeries, bucketFormat]);
 
-	const trendFor = (product: string): TrendPoint[] =>
+	const visitorTrend = (product: string): TrendPoint[] =>
 		buckets.map((date) => ({
 			date,
 			value: visitorsByProduct.get(product)?.get(date) ?? 0,
@@ -1841,39 +1871,7 @@ export default function AgentsPage() {
 		};
 	}, [products, buckets, visitorsByProduct, dateRange.granularity]);
 
-	const visitorShare = useMemo((): VisitorShare => {
-		const previousVisitors = new Map(
-			previousProducts.map((row) => [row.product, row.visitors])
-		);
-		const previousTotal = previousProducts.reduce(
-			(sum, row) => sum + row.visitors,
-			0
-		);
-		const ranked = products
-			.map(({ product, visitors }) => ({ product, visitors }))
-			.filter((row) => row.visitors > 0)
-			.sort((a, b) => b.visitors - a.visitors);
-		const total = ranked.reduce((sum, row) => sum + row.visitors, 0);
-		return {
-			previousTotal,
-			total,
-			rows: ranked.map((row) => {
-				const share = (row.visitors / total) * 100;
-				const previous = previousVisitors.get(row.product) ?? 0;
-				return {
-					...row,
-					share,
-					change:
-						previousTotal === 0
-							? null
-							: previous === 0
-								? "new"
-								: share - (previous / previousTotal) * 100,
-				};
-			}),
-		};
-	}, [products, previousProducts]);
-
+	const visitorShare = rankProductsByVisitorShare(products, previousProducts);
 	const featured = FEATURED_AI_PRODUCTS.map(
 		(name) => products.find((row) => row.product === name) ?? emptyProduct(name)
 	);
@@ -1892,12 +1890,11 @@ export default function AgentsPage() {
 		})
 	);
 
-	const productsResult = results.find(
-		(result) => result.queryId === "products"
-	);
-	const productsFailed = !(
+	const hasLoadError = !(
 		isPending ||
-		(productsResult && "ai_products" in productsResult.data)
+		results.some(
+			(result) => result.queryId === "products" && "ai_products" in result.data
+		)
 	);
 	const topSender = products.reduce<ProductRow | null>(
 		(top, row) => (row.visitors > (top?.visitors ?? 0) ? row : top),
@@ -1905,10 +1902,15 @@ export default function AgentsPage() {
 	);
 	const hasProxy = products.some((row) => Boolean(row.has_proxy));
 	const needsProxy = !isPending && topSender !== null && !hasProxy;
+	const setupButton = (
+		<Button onClick={() => setIsSetupOpen(true)} size="md" variant="secondary">
+			{hasProxy ? "Test setup" : "Set up"}
+		</Button>
+	);
 
 	return (
 		<div className="relative flex h-full flex-col">
-			{productsFailed ? (
+			{hasLoadError ? (
 				<div className="flex flex-1 flex-col p-4">
 					<EmptyState
 						action={
@@ -1931,15 +1933,7 @@ export default function AgentsPage() {
 			) : !isPending && products.length === 0 ? (
 				<div className="flex flex-1 flex-col p-4">
 					<EmptyState
-						action={
-							<Button
-								onClick={() => setIsSetupOpen(true)}
-								size="md"
-								variant="secondary"
-							>
-								Set up
-							</Button>
-						}
+						action={setupButton}
 						description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers don't run JavaScript, so they need one line on your server."
 						icon={<BrainIcon />}
 						isMainContent
@@ -1948,19 +1942,13 @@ export default function AgentsPage() {
 				</div>
 			) : (
 				<div className="space-y-4 p-4">
-					{needsProxy && topSender ? (
+					{needsProxy ? (
 						<NoticeBanner
 							description="Add one line to your site to also see which pages AI reads, and whether it gets markdown or HTML."
 							icon={<BrainIcon />}
 							title={`${topSender.product} sent you ${formatCount(topSender.visitors, "visitor")}`}
 						>
-							<Button
-								onClick={() => setIsSetupOpen(true)}
-								size="md"
-								variant="secondary"
-							>
-								Set up
-							</Button>
+							{setupButton}
 						</NoticeBanner>
 					) : null}
 
@@ -1972,7 +1960,7 @@ export default function AgentsPage() {
 								isLoading={isPending}
 								key={row.product}
 								row={row}
-								trend={trendFor(row.product)}
+								trend={visitorTrend(row.product)}
 							/>
 						))}
 					</div>
@@ -2030,13 +2018,7 @@ export default function AgentsPage() {
 									? "Server-side tracking is on, so crawlers that don't run JavaScript, like GPTBot and ClaudeBot, show up here."
 									: "Crawlers that don't run JavaScript, like GPTBot and ClaudeBot, only appear once @databuddy/sdk/agents runs on your server or a Vercel log drain sends your logs."}
 							</p>
-							<Button
-								onClick={() => setIsSetupOpen(true)}
-								size="md"
-								variant="secondary"
-							>
-								{hasProxy ? "Test setup" : "Set up"}
-							</Button>
+							{setupButton}
 						</div>
 					)}
 				</div>
