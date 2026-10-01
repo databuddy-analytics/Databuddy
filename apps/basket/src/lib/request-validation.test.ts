@@ -368,7 +368,7 @@ describe("checkForBot", () => {
 	test("AI crawlers short-circuit with 204 and their page views record an AI traffic span", async () => {
 		const event = { name: "screen_view", path: "/about" };
 		const result = await checkForBot(makeReq(), event, {}, "ws_1", GPTBOT);
-		expect(result?.error?.status).toBe(204);
+		expect(result?.response?.status).toBe(204);
 		expect(result?.isTrackOnly).toBe(true);
 		expect(mockSend).not.toHaveBeenCalled();
 		recordAiPageView(event, "ws_1", GPTBOT);
@@ -417,7 +417,7 @@ describe("checkForBot", () => {
 			"ws_1",
 			"Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)"
 		);
-		expect(result?.error?.status).toBe(204);
+		expect(result?.response?.status).toBe(204);
 		expect(mockSend).not.toHaveBeenCalled();
 		expect(mockLogBlockedTraffic).toHaveBeenCalledWith(
 			expect.any(Request),
