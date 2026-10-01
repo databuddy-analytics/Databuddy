@@ -1,6 +1,7 @@
 import { successOutputSchema } from "../lib/schemas";
 import { BusinessMemoryRetirementError } from "@databuddy/services/business-memory";
-import { db } from "@databuddy/db";
+import { and, db, desc, eq, sql } from "@databuddy/db";
+import { agentInstallTelemetry } from "@databuddy/db/schema";
 import { chQuery, purgeAnalyticsData } from "@databuddy/db/clickhouse";
 import { setTimeout as sleep } from "node:timers/promises";
 import { config } from "@databuddy/env/app";
@@ -526,6 +527,19 @@ const trackingIssueOutputSchema = z.object({
 	originHost: z.string().nullable(),
 	severity: z.enum(["critical", "warning"]),
 	type: z.enum(TRACKING_ISSUE_TYPES),
+});
+
+const agentInstallProgressOutputSchema = z.object({
+	agent: z.string(),
+	status: z.enum(["success", "partial", "failed"]),
+	framework: z.string().nullable(),
+	installMethod: z.string().nullable(),
+	steps: z.array(z.string()),
+	issues: z.array(
+		z.object({ code: z.string(), message: z.string(), resolved: z.boolean() })
+	),
+	errorMessage: z.string().nullable(),
+	reportedAt: z.string(),
 });
 
 const trackingSetupOutputSchema = z.object({
@@ -1244,6 +1258,72 @@ export const websitesRouter = {
 				recent_events: eventsStatus.recentEvents,
 				status_message: buildStatusMessage(eventsStatus, trackingIssue),
 				tracking_issue: trackingIssue,
+			};
+		}),
+
+	agentInstallProgress: protectedProcedure
+		.route({
+			description:
+				"Reads the latest install report a coding agent posted for a setup session. Requires website read permission.",
+			method: "POST",
+			path: "/websites/agentInstallProgress",
+			summary: "Read coding agent install progress",
+			tags: ["Websites"],
+		})
+		.input(
+			z.object({
+				websiteId: z.string(),
+				setupSession: z
+					.string()
+					.min(8)
+					.max(32)
+					.regex(/^[A-Za-z0-9]+$/),
+			})
+		)
+		.output(agentInstallProgressOutputSchema.nullable())
+		.handler(async ({ context, input }) => {
+			await withWorkspace(context, {
+				websiteId: input.websiteId,
+				permissions: ["read"],
+			});
+			const [row] = await db
+				.select({
+					agent: agentInstallTelemetry.agent,
+					status: agentInstallTelemetry.status,
+					framework: agentInstallTelemetry.framework,
+					installMethod: agentInstallTelemetry.installMethod,
+					stepsCompleted: agentInstallTelemetry.stepsCompleted,
+					issues: agentInstallTelemetry.issues,
+					errorMessage: agentInstallTelemetry.errorMessage,
+					createdAt: agentInstallTelemetry.createdAt,
+				})
+				.from(agentInstallTelemetry)
+				.where(
+					and(
+						eq(agentInstallTelemetry.websiteId, input.websiteId),
+						sql`${agentInstallTelemetry.metadata} ->> 'setupSession' = ${input.setupSession}`
+					)
+				)
+				.orderBy(desc(agentInstallTelemetry.createdAt))
+				.limit(1);
+			if (!row) {
+				return null;
+			}
+			return {
+				agent: row.agent,
+				status: row.status,
+				framework: row.framework,
+				installMethod: row.installMethod,
+				steps: (row.stepsCompleted ?? [])
+					.filter((step) => step.status === "completed")
+					.map((step) => step.name),
+				issues: (row.issues ?? []).map((issue) => ({
+					code: issue.code,
+					message: issue.message,
+					resolved: issue.severity === "info",
+				})),
+				errorMessage: row.errorMessage,
+				reportedAt: row.createdAt.toISOString(),
 			};
 		}),
 

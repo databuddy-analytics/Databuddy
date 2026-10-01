@@ -130,6 +130,12 @@ export const agentTelemetryRoute = new Elysia({
 				return { success: false, error: "metadata exceeds 4096 bytes" };
 			}
 		}
+		if (body.setupSession) {
+			mergeWideEvent({ agent_telemetry_setup_session: true });
+		}
+		const metadata = body.setupSession
+			? { ...body.metadata, setupSession: body.setupSession }
+			: body.metadata;
 
 		try {
 			const [row] = await db
@@ -145,7 +151,7 @@ export const agentTelemetryRoute = new Elysia({
 					stepsCompleted: toCompletedInstallSteps(body.stepsCompleted),
 					issues: toInstallIssues(body.issues),
 					errorMessage: body.errorMessage ?? null,
-					metadata: body.metadata ?? null,
+					metadata: metadata ?? null,
 				})
 				.returning({ id: agentInstallTelemetry.id });
 
@@ -195,7 +201,17 @@ export const agentTelemetryRoute = new Elysia({
 			),
 			stepsCompleted: t.Optional(
 				t.Array(t.String(), {
-					description: "Which steps succeeded: install, mount, env-var, verify",
+					description:
+						"Which steps succeeded so far: detect, install, mount, env-var, verify",
+				})
+			),
+			setupSession: t.Optional(
+				t.String({
+					minLength: 8,
+					maxLength: 32,
+					pattern: "^[A-Za-z0-9]+$",
+					description:
+						"Token from the setup prompt. Lets the dashboard show progress for that setup session.",
 				})
 			),
 			issues: t.Optional(
