@@ -42,32 +42,28 @@ export default function NotificationsSettingsPage() {
 	);
 }
 
-function NotificationsSettings() {
+function useSwitchToLinkedOrganization() {
 	const queryClient = useQueryClient();
 	const router = useRouter();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
 	const {
 		activeOrganization,
-		isLoading: isLoadingOrganizations,
+		isLoading,
 		organizations,
 		setActiveOrganization,
 	} = useOrganizations();
-	const [sheetOpen, setSheetOpen] = useState(false);
-	const [editingAlarm, setEditingAlarm] = useState<AlarmData | null>(null);
-	const [deletingAlarm, setDeletingAlarm] = useState<AlarmData | null>(null);
-	const [testingAlarmId, setTestingAlarmId] = useState<string | null>(null);
 
 	useEffect(() => {
-		const organizationId = searchParams.get("organization");
-		if (!organizationId || isLoadingOrganizations) {
+		const linkedOrganizationId = searchParams.get("organization");
+		if (!linkedOrganizationId || isLoading) {
 			return;
 		}
 		if (
-			organizationId !== activeOrganization?.id &&
-			organizations.some((org) => org.id === organizationId)
+			linkedOrganizationId !== activeOrganization?.id &&
+			organizations.some((org) => org.id === linkedOrganizationId)
 		) {
-			setActiveOrganization(organizationId, {
+			setActiveOrganization(linkedOrganizationId, {
 				onSuccess: () => resetActiveOrganizationQueries(queryClient),
 			});
 		}
@@ -79,7 +75,7 @@ function NotificationsSettings() {
 		});
 	}, [
 		activeOrganization?.id,
-		isLoadingOrganizations,
+		isLoading,
 		organizations,
 		pathname,
 		queryClient,
@@ -87,17 +83,21 @@ function NotificationsSettings() {
 		searchParams,
 		setActiveOrganization,
 	]);
+}
+
+function NotificationsSettings() {
+	useSwitchToLinkedOrganization();
+	const queryClient = useQueryClient();
+	const [isSheetOpen, setIsSheetOpen] = useState(false);
+	const [editingAlarm, setEditingAlarm] = useState<AlarmData | null>(null);
+	const [deletingAlarm, setDeletingAlarm] = useState<AlarmData | null>(null);
 
 	const {
-		data: alarms,
+		data: alarms = [],
 		isLoading,
 		isError,
 		refetch,
-	} = useQuery({
-		...orpc.alarms.list.queryOptions({
-			input: {},
-		}),
-	});
+	} = useQuery(orpc.alarms.list.queryOptions({ input: {} }));
 
 	const invalidateAlarms = () =>
 		queryClient.invalidateQueries({ queryKey: orpc.alarms.list.key() });
@@ -116,12 +116,14 @@ function NotificationsSettings() {
 		...orpc.alarms.test.mutationOptions(),
 		meta: { suppressGlobalErrorToast: true },
 	});
+	const testingAlarmId = testMutation.isPending
+		? testMutation.variables.alarmId
+		: null;
 
-	const handleTest = async (alarm: AlarmData) => {
-		setTestingAlarmId(alarm.id);
+	const sendTestAlert = async (alarmId: string) => {
 		try {
-			const result = await testMutation.mutateAsync({ alarmId: alarm.id });
-			const summary = summarizeTestDelivery(result.results);
+			const { results } = await testMutation.mutateAsync({ alarmId });
+			const summary = summarizeTestDelivery(results);
 			toast[summary.kind](summary.title, {
 				description: summary.description,
 			});
@@ -129,22 +131,20 @@ function NotificationsSettings() {
 			toast.error("Test could not be sent", {
 				description: "Check the alert destinations and try again.",
 			});
-		} finally {
-			setTestingAlarmId(null);
 		}
 	};
 
-	const handleEdit = (alarm: AlarmData) => {
+	const openAlarmSheet = (alarm: AlarmData | null) => {
 		setEditingAlarm(alarm);
-		setSheetOpen(true);
+		setIsSheetOpen(true);
 	};
 
-	const handleNew = () => {
-		setEditingAlarm(null);
-		setSheetOpen(true);
-	};
-
-	const alarmList = alarms ?? [];
+	const newAlertButton = (
+		<Button onClick={() => openAlarmSheet(null)} size="sm" variant="secondary">
+			<PlusIcon size={14} />
+			New Alert
+		</Button>
+	);
 
 	return (
 		<div className="flex-1 overflow-y-auto">
@@ -158,15 +158,12 @@ function NotificationsSettings() {
 							<Card.Description>
 								{isLoading
 									? "Loading alerts…"
-									: alarmList.length === 0
+									: alarms.length === 0
 										? "Configure where and how you get notified"
-										: `${alarmList.length} alert${alarmList.length === 1 ? "" : "s"}`}
+										: `${alarms.length} alert${alarms.length === 1 ? "" : "s"}`}
 							</Card.Description>
 						</div>
-						<Button onClick={handleNew} size="sm" variant="secondary">
-							<PlusIcon size={14} />
-							New Alert
-						</Button>
+						{newAlertButton}
 					</Card.Header>
 					<Card.Content className="p-0">
 						{isLoading && <List.DefaultLoading />}
@@ -183,15 +180,10 @@ function NotificationsSettings() {
 							</div>
 						)}
 
-						{!(isLoading || isError) && alarmList.length === 0 && (
+						{!(isLoading || isError) && alarms.length === 0 && (
 							<div className="px-5 py-12">
 								<EmptyState
-									action={
-										<Button onClick={handleNew} size="sm" variant="secondary">
-											<PlusIcon size={14} />
-											New Alert
-										</Button>
-									}
+									action={newAlertButton}
 									description="Create alerts with Slack, email, or webhook destinations. Attach them to monitors from their settings."
 									icon={<BellIcon />}
 									title="No alerts yet"
@@ -199,9 +191,9 @@ function NotificationsSettings() {
 							</div>
 						)}
 
-						{!(isLoading || isError) && alarmList.length > 0 && (
+						{!(isLoading || isError) && alarms.length > 0 && (
 							<div className="divide-y">
-								{alarmList.map((alarm) => {
+								{alarms.map((alarm) => {
 									const isTesting = testingAlarmId === alarm.id;
 									const monitorCount = alarmMonitorIds(alarm).length;
 									return (
@@ -220,7 +212,7 @@ function NotificationsSettings() {
 													<div className="flex items-center gap-2">
 														<Button
 															className="h-auto min-w-0 truncate p-0 font-medium text-foreground text-sm hover:bg-transparent"
-															onClick={() => handleEdit(alarm)}
+															onClick={() => openAlarmSheet(alarm)}
 															variant="ghost"
 														>
 															{alarm.name}
@@ -295,14 +287,14 @@ function NotificationsSettings() {
 													</DropdownMenu.Trigger>
 													<DropdownMenu.Content>
 														<DropdownMenu.Item
-															onClick={() => handleEdit(alarm)}
+															onClick={() => openAlarmSheet(alarm)}
 														>
 															<PencilIcon className="size-4" />
 															Edit
 														</DropdownMenu.Item>
 														<DropdownMenu.Item
 															disabled={isTesting}
-															onClick={() => handleTest(alarm)}
+															onClick={() => sendTestAlert(alarm.id)}
 														>
 															<TestTubeIcon className="size-4" />
 															{isTesting ? "Sending…" : "Send test"}
@@ -329,9 +321,9 @@ function NotificationsSettings() {
 
 			<AlarmSheet
 				alarm={editingAlarm}
-				onCloseAction={setSheetOpen}
+				onCloseAction={setIsSheetOpen}
 				onSaveAction={() => setEditingAlarm(null)}
-				open={sheetOpen}
+				open={isSheetOpen}
 			/>
 
 			<DeleteDialog
