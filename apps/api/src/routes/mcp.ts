@@ -43,17 +43,11 @@ const handleOAuthMcpRequest = createMcpProtectedRequestHandler(
 		}
 		const tokenScopes =
 			typeof claims.scope === "string" ? claims.scope.split(" ") : [];
-		const authorization = await getMcpAccessGrant(
-			subject,
-			clientId,
-			grantHash,
-			tokenScopes
-		);
-		if (!authorization) {
-			return createMcpUnauthorizedResponse();
-		}
-		const user = await db.query.user.findFirst({ where: { id: subject } });
-		if (!user) {
+		const [authorization, user] = await Promise.all([
+			getMcpAccessGrant(subject, clientId, grantHash, tokenScopes),
+			db.query.user.findFirst({ where: { id: subject } }),
+		]);
+		if (!(authorization && user)) {
 			return createMcpUnauthorizedResponse();
 		}
 		return handleDatabuddyMcpRequest({
