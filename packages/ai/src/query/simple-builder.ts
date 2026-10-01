@@ -639,15 +639,13 @@ export class SimpleQueryBuilder {
 
 			const helpers = needsAttribution
 				? {
-						sessionAttributionCTE: (timeField = "time") =>
-							this.generateSessionAttributionCTE(
-								timeField,
-								"analytics.events",
-								"startDate",
-								"endDate"
-							),
-						sessionAttributionJoin: (alias = "e") =>
-							this.generateSessionAttributionJoin(alias),
+						sessionAttributionCTE: this.generateSessionAttributionCTE(
+							"time",
+							"analytics.events",
+							"startDate",
+							"endDate"
+						),
+						sessionAttributionJoin: this.generateSessionAttributionJoin("e"),
 					}
 				: undefined;
 

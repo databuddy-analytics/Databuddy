@@ -107,48 +107,27 @@ export const PagesBuilders = {
 			const { sessionFilterClause, pageFilterClause } =
 				separatePathConditions(filterConditions);
 
-			const sessionAttributionCTE = helpers?.sessionAttributionCTE
-				? `${helpers.sessionAttributionCTE("time")},`
+			const sessionAttributionCTE = helpers
+				? `${helpers.sessionAttributionCTE},`
 				: "";
 
-			const sessionEntryQuery = helpers?.sessionAttributionCTE
-				? `
+			return {
+				sql: `
+            WITH ${sessionAttributionCTE}
             session_entry AS (
                 SELECT
                     e.session_id,
                     argMin(e.path, e.time) as entry_path,
                     argMin(e.anonymous_id, e.time) as visitor_id
                 FROM analytics.events e
-                ${helpers.sessionAttributionJoin("e")}
+                ${helpers?.sessionAttributionJoin ?? ""}
                 WHERE e.client_id = {websiteId:String}
                     AND e.time >= toDateTime({startDate:String})
                     AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
                     AND e.event_name = 'screen_view'
                     ${sessionFilterClause}
                 GROUP BY e.session_id
-            )`
-				: `
-            session_entry AS (
-                SELECT
-                    session_id,
-                    argMin(path, time) as entry_path,
-                    argMin(anonymous_id, time) as visitor_id
-                FROM analytics.events
-                WHERE client_id = {websiteId:String}
-                    AND time >= toDateTime({startDate:String})
-                    AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-                    AND event_name = 'screen_view'
-                    ${sessionFilterClause}
-                GROUP BY session_id
-            )`;
-
-			const ctes = sessionAttributionCTE
-				? `${sessionAttributionCTE}\n${sessionEntryQuery}`
-				: sessionEntryQuery;
-
-			return {
-				sql: `
-            WITH ${ctes}
+            )
             SELECT
                 name,
                 pageviews,
@@ -203,45 +182,27 @@ export const PagesBuilders = {
 			const { sessionFilterClause, pageFilterClause } =
 				separatePathConditions(filterConditions);
 
-			const sessionAttributionCTE = helpers?.sessionAttributionCTE
-				? `${helpers.sessionAttributionCTE("time")},`
+			const sessionAttributionCTE = helpers
+				? `${helpers.sessionAttributionCTE},`
 				: "";
 
-			const sessionExitsQuery = helpers?.sessionAttributionCTE
-				? `
+			return {
+				sql: `
+            WITH ${sessionAttributionCTE}
             session_exit AS (
                 SELECT
                     e.session_id,
                     argMax(e.path, e.time) as exit_path,
                     argMax(e.anonymous_id, e.time) as visitor_id
                 FROM analytics.events e
-                ${helpers.sessionAttributionJoin("e")}
+                ${helpers?.sessionAttributionJoin ?? ""}
                 WHERE e.client_id = {websiteId:String}
                     AND e.time >= toDateTime({startDate:String})
                     AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
                     AND e.event_name = 'screen_view'
                     ${sessionFilterClause}
                 GROUP BY e.session_id
-            )`
-				: `
-            session_exit AS (
-                SELECT
-                    session_id,
-                    argMax(path, time) as exit_path,
-                    argMax(anonymous_id, time) as visitor_id
-                FROM analytics.events
-                WHERE client_id = {websiteId:String}
-                    AND time >= toDateTime({startDate:String})
-                    AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-                    AND event_name = 'screen_view'
-                    ${sessionFilterClause}
-                GROUP BY session_id
-            )`;
-
-			return {
-				sql: `
-            WITH ${sessionAttributionCTE}
-            ${sessionExitsQuery}
+            )
             SELECT
                 name,
                 pageviews,
@@ -314,20 +275,21 @@ export const PagesBuilders = {
 			const offset = ctx.offset;
 			const filterClause = appendFilterClause(filterConditions);
 
-			const sessionAttributionCTE = helpers?.sessionAttributionCTE
-				? `${helpers.sessionAttributionCTE("time")}`
+			const sessionAttributionCTE = helpers
+				? `${helpers.sessionAttributionCTE},`
 				: "";
 
-			const perPageCTE = helpers?.sessionAttributionCTE
-				? `
+			return {
+				sql: `
+            WITH ${sessionAttributionCTE}
             per_page AS (
                 SELECT
-                    decodeURLComponent(CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END) as name,
+                    decodeURLComponent(${Expressions.path.normalized}) as name,
                     COUNT(*) as sessions_with_time,
                     uniq(e.anonymous_id) as visitors,
                     quantileTDigest(0.5)(e.time_on_page) as median_raw
                 FROM analytics.events e
-                ${helpers.sessionAttributionJoin("e")}
+                ${helpers?.sessionAttributionJoin ?? ""}
                 WHERE e.client_id = {websiteId:String}
                     AND e.time >= toDateTime({startDate:String})
                     AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
@@ -336,32 +298,7 @@ export const PagesBuilders = {
                     AND e.time_on_page < 3600
                     ${filterClause}
                 GROUP BY name
-            )`
-				: `
-            per_page AS (
-                SELECT
-                    decodeURLComponent(${Expressions.path.normalized}) as name,
-                    COUNT(*) as sessions_with_time,
-                    uniq(anonymous_id) as visitors,
-                    quantileTDigest(0.5)(time_on_page) as median_raw
-                FROM analytics.events
-                WHERE client_id = {websiteId:String}
-                    AND time >= toDateTime({startDate:String})
-                    AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-                    AND event_name = 'page_exit'
-                    AND time_on_page > 1
-                    AND time_on_page < 3600
-                    ${filterClause}
-                GROUP BY name
-            )`;
-
-			const ctePrefix = sessionAttributionCTE
-				? `${sessionAttributionCTE},\n${perPageCTE}`
-				: perPageCTE;
-
-			return {
-				sql: `
-            WITH ${ctePrefix}
+            )
             SELECT
                 name,
                 sessions_with_time,

@@ -94,8 +94,8 @@ export interface QueryPlugins {
 }
 
 export interface QueryHelpers {
-	sessionAttributionCTE: (timeField?: string) => string;
-	sessionAttributionJoin: (alias?: string) => string;
+	sessionAttributionCTE: string;
+	sessionAttributionJoin: string;
 }
 
 export interface CustomSqlContext {

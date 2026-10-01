@@ -67,39 +67,25 @@ export const SummaryBuilders = {
 			const tz = timezone || "UTC";
 			const filterClause = appendFilterClause(filterConditions);
 
-			const sessionAttributionCTE = helpers?.sessionAttributionCTE
-				? `${helpers.sessionAttributionCTE("time")},`
+			const sessionAttributionCTE = helpers
+				? `${helpers.sessionAttributionCTE},`
 				: "";
 
-			const baseEventsQuery = helpers?.sessionAttributionCTE
-				? `base_events AS (
+			return {
+				sql: `
+				WITH ${sessionAttributionCTE}
+				base_events AS (
 					SELECT e.session_id, e.anonymous_id, e.event_name,
 						toTimeZone(e.time, {timezone:String}) as normalized_time,
 						e.time_on_page
 					FROM analytics.events e
-					${helpers.sessionAttributionJoin("e")}
+					${helpers?.sessionAttributionJoin ?? ""}
 					WHERE e.client_id = {websiteId:String}
 						AND e.time >= toDateTime({startDate:String})
 						AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND e.session_id != ''
 						${filterClause}
-				),`
-				: `base_events AS (
-					SELECT session_id, anonymous_id, event_name,
-						toTimeZone(time, {timezone:String}) as normalized_time,
-						time_on_page
-					FROM analytics.events
-					WHERE client_id = {websiteId:String}
-						AND time >= toDateTime({startDate:String})
-						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-						AND session_id != ''
-						${filterClause}
-				),`;
-
-			return {
-				sql: `
-				WITH ${sessionAttributionCTE}
-				${baseEventsQuery}
+				),
 				session_agg AS (
 					SELECT session_id,
 						countIf(event_name = 'screen_view') as page_count,
@@ -257,43 +243,30 @@ export const SummaryBuilders = {
 			const tz = timezone || "UTC";
 			const isHourly = granularity === "hour" || granularity === "hourly";
 			const filterClause = appendFilterClause(filterConditions);
-			const dateFilter = `time >= toDateTime({startDate:String}) AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))`;
 			const timeBucketFn = isHourly ? "toStartOfHour" : "toDate";
 			const dateFormat = isHourly
 				? "formatDateTime(ea.time_bucket, '%Y-%m-%d %H:00:00')"
 				: "ea.time_bucket";
 
-			const sessionAttributionCTE = helpers?.sessionAttributionCTE
-				? `${helpers.sessionAttributionCTE("time")},`
+			const sessionAttributionCTE = helpers
+				? `${helpers.sessionAttributionCTE},`
 				: "";
-
-			const baseEventsQuery = helpers?.sessionAttributionCTE
-				? `base_events AS (
-					SELECT e.session_id, e.anonymous_id, e.event_name,
-						toTimeZone(e.time, {timezone:String}) as normalized_time,
-						e.time_on_page
-					FROM analytics.events e
-					${helpers.sessionAttributionJoin("e")}
-					WHERE e.client_id = {websiteId:String}
-						AND e.${dateFilter}
-						AND e.session_id != ''
-						${filterClause}
-				),`
-				: `base_events AS (
-					SELECT session_id, anonymous_id, event_name,
-						toTimeZone(time, {timezone:String}) as normalized_time,
-						time_on_page
-					FROM analytics.events
-					WHERE client_id = {websiteId:String}
-						AND ${dateFilter}
-						AND session_id != ''
-						${filterClause}
-				),`;
 
 			return {
 				sql: `
 				WITH ${sessionAttributionCTE}
-				${baseEventsQuery}
+				base_events AS (
+					SELECT e.session_id, e.anonymous_id, e.event_name,
+						toTimeZone(e.time, {timezone:String}) as normalized_time,
+						e.time_on_page
+					FROM analytics.events e
+					${helpers?.sessionAttributionJoin ?? ""}
+					WHERE e.client_id = {websiteId:String}
+						AND e.time >= toDateTime({startDate:String})
+						AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						AND e.session_id != ''
+						${filterClause}
+				),
 				session_agg AS (
 					SELECT session_id,
 						${timeBucketFn}(minIf(normalized_time, event_name = 'screen_view')) as time_bucket,
