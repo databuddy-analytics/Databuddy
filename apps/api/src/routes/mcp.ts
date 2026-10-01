@@ -73,24 +73,6 @@ async function handleVerifiedOAuthRequest(
 	if (!(subject && clientId && typeof grantHash === "string")) {
 		return createMcpUnauthorizedResponse();
 	}
-	const tokenScopes =
-		typeof claims.scope === "string"
-			? claims.scope.split(" ").filter(isApiScope)
-			: [];
-	const authorization = await getMcpAccessGrant(
-		subject,
-		clientId,
-		grantHash,
-		tokenScopes
-	);
-	if (!authorization) {
-		return createMcpUnauthorizedResponse();
-	}
-	mergeWideEvent<ApiAuthWideEventFields>({
-		auth_method: "oauth",
-		user_id: subject,
-		organization_id: authorization.grant.organizationId,
-	});
 	if (!oauthInFlight.tryAcquire(request, `${subject}:${clientId}`)) {
 		mergeWideEvent({ mcp_rate_limited: true });
 		return createMcpErrorResponse(
@@ -101,6 +83,24 @@ async function handleVerifiedOAuthRequest(
 		);
 	}
 	try {
+		const tokenScopes =
+			typeof claims.scope === "string"
+				? claims.scope.split(" ").filter(isApiScope)
+				: [];
+		const authorization = await getMcpAccessGrant(
+			subject,
+			clientId,
+			grantHash,
+			tokenScopes
+		);
+		if (!authorization) {
+			return createMcpUnauthorizedResponse();
+		}
+		mergeWideEvent<ApiAuthWideEventFields>({
+			auth_method: "oauth",
+			user_id: subject,
+			organization_id: authorization.grant.organizationId,
+		});
 		return await handleDatabuddyMcpRequest({
 			request,
 			requestHeaders: request.headers,
@@ -199,8 +199,18 @@ async function handleOAuthMcpRequest(
 		return createMcpUnauthorizedResponse();
 	}
 	if (await isKnownSigningKey(keyId)) {
-		const response = await verifyOAuthMcpRequest(request);
-		if (response.status !== 401 || (await isSigningKeysReachable())) {
+		const response = await verifyOAuthMcpRequest(request).catch(
+			async (error: unknown) => {
+				if (await isSigningKeysReachable()) {
+					throw error;
+				}
+				return null;
+			}
+		);
+		if (
+			response &&
+			(response.status !== 401 || (await isSigningKeysReachable()))
+		) {
 			return response;
 		}
 	} else if (await isSigningKeysReachable()) {
