@@ -96,10 +96,7 @@ export async function dispatchAiDigests(now = new Date()) {
 		return outcome({ reason: "email_not_configured", status: "skipped" });
 	}
 	const week = weekOf(lastWeekStart(now));
-	const { sql, params } = aiActiveWebsitesQuery(
-		`${week.from} 00:00:00`,
-		`${week.until} 00:00:00`
-	);
+	const { sql, params } = aiActiveWebsitesQuery(week.from, week.until);
 	const sites = await chQuery<{ client_id: string }>(sql, params);
 	await getInsightsQueue().addBulk(
 		sites.map((site) => ({
@@ -130,9 +127,8 @@ async function buildAiDigest(
 			domain,
 			"UTC"
 		);
-	const [digest, crawlers, landing, agentPages] = await Promise.all([
+	const [digest, landing, agentPages] = await Promise.all([
 		query("ai_weekly_digest", 50),
-		query("ai_crawlers", 100),
 		query("ai_landing_pages", LANDING_ROWS),
 		query("ai_agent_pages", 30),
 	]);
@@ -141,6 +137,7 @@ async function buildAiDigest(
 		.map((row) => ({
 			name: stringField(row, "product") ?? "",
 			reads: numberField(row, "requests"),
+			role: ROLES[stringField(row, "purpose") ?? ""] ?? "Sends visitors",
 			visitors: numberField(row, "visitors"),
 		}))
 		.filter((product) => product.reads + product.visitors > 0)
@@ -149,14 +146,6 @@ async function buildAiDigest(
 	const reads = products.reduce((sum, product) => sum + product.reads, 0);
 	if (visitors === 0 && reads < MIN_READS_WITHOUT_VISITORS) {
 		return null;
-	}
-
-	const purposeByProduct = new Map<string, string>();
-	for (const crawler of crawlers) {
-		const product = stringField(crawler, "product");
-		if (product && !purposeByProduct.has(product)) {
-			purposeByProduct.set(product, stringField(crawler, "purpose") ?? "");
-		}
 	}
 
 	const pageRows = agentPages
@@ -191,7 +180,6 @@ async function buildAiDigest(
 		products: products.slice(0, PRODUCT_ROWS).map((product) => ({
 			...product,
 			logoUrl: logoUrl(product.name),
-			role: ROLES[purposeByProduct.get(product.name) ?? ""] ?? "Sends visitors",
 		})),
 		reads,
 		settingsUrl: `${config.urls.dashboard}/settings/notifications`,
