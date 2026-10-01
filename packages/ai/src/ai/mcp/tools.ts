@@ -134,7 +134,6 @@ const QueryItemSchema = z.object({
 	timeUnit: z.enum(TIME_UNIT).optional(),
 	limit: QueryLimitSchema,
 	filters: z.array(QueryFilterSchema).optional(),
-	groupBy: z.array(z.string()).optional(),
 	orderBy: z.string().optional(),
 });
 
@@ -427,12 +426,6 @@ const getDataTool = defineMcpTool(
 				.describe(
 					"Filters [{field, op, value}]. ops: eq, ne, contains, not_contains, starts_with, in, not_in. 'field' is a common dimension such as path, country, referrer, device_type, or utm_source, a query-specific field from capabilities detail='full', or trait:<key> (e.g. trait:plan) to segment by an identified-user trait. Rejected fields return the allowed list for this query."
 				),
-			groupBy: z
-				.array(z.string())
-				.optional()
-				.describe(
-					"Dimensions to group by, such as country, path, or utm_source. Rejected fields return the allowed list."
-				),
 			orderBy: z
 				.string()
 				.optional()
@@ -445,7 +438,7 @@ const getDataTool = defineMcpTool(
 				.max(10)
 				.optional()
 				.describe(
-					"Batch mode: 2-10 query items, each with type and optionally its own preset or from/to. Items without a date range use the top-level preset or from/to, and items inherit the top-level timeUnit, limit, filters, groupBy, and orderBy unless they set their own. Omit 'type' when using this."
+					"Batch mode: 2-10 query items, each with type and optionally its own preset or from/to. Items without a date range use the top-level preset or from/to, and items inherit the top-level timeUnit, limit, filters, and orderBy unless they set their own. Omit 'type' when using this."
 				),
 			timezone: z
 				.string()
@@ -498,7 +491,6 @@ const getDataTool = defineMcpTool(
 						timeUnit: query.timeUnit ?? input.timeUnit,
 						limit: query.limit ?? input.limit,
 						filters: query.filters ?? input.filters,
-						groupBy: query.groupBy ?? input.groupBy,
 						orderBy: query.orderBy ?? input.orderBy,
 					}))
 				: input.type
@@ -511,7 +503,6 @@ const getDataTool = defineMcpTool(
 								timeUnit: input.timeUnit,
 								limit: input.limit,
 								filters: input.filters,
-								groupBy: input.groupBy,
 								orderBy: input.orderBy,
 							},
 						]

@@ -119,7 +119,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 		}),
 		get_data: tool({
 			description:
-				"Run 1-10 analytics builders. Use discover_query_types for builder names and required filters. Use preset or from/to; omitted dates default to last_30d in the conversation timezone. Read the returned definition for population and percentage semantics. Supports filters (including trait:<key>), groupBy, and orderBy. Returns a query summary, full rowCount, returnedRows, truncated, and up to 20 data rows. Call list_profile_traits before trait segmentation.",
+				"Run 1-10 analytics builders. Use discover_query_types for builder names and required filters. Use preset or from/to; omitted dates default to last_30d in the conversation timezone. Read the returned definition for population and percentage semantics. Supports filters (including trait:<key>) and orderBy. Each builder returns a fixed breakdown, so leave groupBy null and pick the builder that breaks down by the dimension you need. Returns a query summary, full rowCount, returnedRows, truncated, and up to 20 data rows. Call list_profile_traits before trait segmentation.",
 			strict: true,
 			inputSchema: agentDataInputSchema,
 			execute: async (args, options) => {

@@ -19,7 +19,7 @@ export const GUIDE_MARKDOWN = `# Databuddy MCP guide
 \`get_data\` runs one query or a batch of related queries against Databuddy's analytics API. Aggregate query types return smaller payloads than raw event rows.
 
 - \`capabilities\` returns the query catalog.
-- \`get_schema\` returns the analytics tables with column names and types as a reference. \`get_data\` filters take common dimensions such as \`path\` or \`country\` plus each query type's own fields from \`capabilities\` with \`detail='full'\` (\`allowedFilters\`). \`groupBy\` and \`orderBy\` take a query type's dimensions and output metrics, such as \`country\` or \`visitors DESC\`; a rejected value returns the allowed list.
+- \`get_schema\` returns the analytics tables with column names and types as a reference. \`get_data\` filters take common dimensions such as \`path\` or \`country\` plus each query type's own fields from \`capabilities\` with \`detail='full'\` (\`allowedFilters\`). Each query type returns a fixed breakdown, so pick the type that breaks down by the dimension you need. \`orderBy\` takes an output metric, such as \`visitors DESC\`; a rejected value returns the allowed list.
 - Date ranges use a preset or both \`from\` and \`to\`. Presets and date or hour buckets follow \`timezone\` (default UTC). Row timestamps such as \`time\`, \`first_visit\`, and \`last_visit\` are returned in UTC.
 - One batch can hold a current and a comparison window.
 - Each query returns at most 20 rows; \`rowCount\` reports how many the query produced. List values inside a row, such as a session's events, keep the latest 50 items, and \`truncatedArrays\` gives the full count for each shortened list.
