@@ -39,6 +39,11 @@ const database: typeof baseAuthOptions.database = (options) => {
 export const oauthAuthOptions = {
 	...baseAuthOptions,
 	database,
+	disabledPaths: [
+		"/oauth2/create-client",
+		"/oauth2/update-client",
+		"/oauth2/client/rotate-secret",
+	],
 	plugins: [
 		...baseAuthOptions.plugins,
 		jwt(),
