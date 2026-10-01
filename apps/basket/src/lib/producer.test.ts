@@ -681,13 +681,27 @@ describe("shutdown", () => {
 	});
 });
 
-test("Vector consumes every produced topic into its ClickHouse table", async () => {
-	const vectorConfig = await readFile(
-		new URL("../../../../infra/ingest/vector.yaml", import.meta.url),
-		"utf8"
-	);
-	for (const [topic, table] of Object.entries(TOPIC_MAP)) {
-		expect(vectorConfig).toContain(`- ${topic}\n`);
+const vectorConfig = await readFile(
+	new URL("../../../../infra/ingest/vector.yaml", import.meta.url),
+	"utf8"
+);
+const uptimeProducer = await readFile(
+	new URL("../../../uptime/src/lib/producer.ts", import.meta.url),
+	"utf8"
+);
+const producedTopics: Record<string, string> = {
+	...TOPIC_MAP,
+	[`${uptimeProducer.match(/const TOPIC = "([\w-]+)"/)?.[1]}`]: `${
+		uptimeProducer.match(/table: "(\w+\.\w+)"/)?.[1]
+	}`,
+};
+
+test("Vector consumes every produced topic into its ClickHouse table", () => {
+	const consumedTopics = vectorConfig
+		.match(/^ {6}- analytics-[\w-]+$/gm)
+		?.map((line) => line.trim().slice(2));
+	expect(consumedTopics?.sort()).toEqual(Object.keys(producedTopics).sort());
+	for (const [topic, table] of Object.entries(producedTopics)) {
 		const route = vectorConfig.match(
 			new RegExp(`(\\w+): '\\.topic == "${topic}"'`)
 		)?.[1];
@@ -698,4 +712,20 @@ test("Vector consumes every produced topic into its ClickHouse table", async () 
 		);
 		expect(`${sink?.[1]}.${sink?.[2]}`, topic).toBe(table);
 	}
+});
+
+test("every Vector ClickHouse sink shares one delivery config", () => {
+	const sinks = vectorConfig
+		.slice(vectorConfig.indexOf("\nsinks:\n"))
+		.split(/\n {2}(?=\w+:\n)/)
+		.filter((block) => block.includes("\n    type: http\n"))
+		.map((block) =>
+			block
+				.replace(/^\w+:/, "")
+				.replace(/route_analytics\.\w+/, "")
+				.replace(/INSERT\+INTO\+\w+\.\w+/, "")
+				.replace(/\n {4}batch:\n(?: {6}.*\n)+/, "\n")
+		);
+	expect(sinks).toHaveLength(Object.keys(producedTopics).length);
+	expect(new Set(sinks).size).toBe(1);
 });
