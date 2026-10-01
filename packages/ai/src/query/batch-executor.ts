@@ -35,9 +35,6 @@ async function mapWithConcurrency<T, R>(
 	concurrency: number,
 	fn: (item: T) => Promise<R>
 ): Promise<R[]> {
-	if (items.length <= concurrency) {
-		return Promise.all(items.map(fn));
-	}
 	const results: R[] = new Array(items.length);
 	let cursor = 0;
 	const workers = Array.from(
@@ -200,8 +197,7 @@ function isKeywordAt(sql: string, idx: number, keyword: string): boolean {
 	);
 }
 
-function findOuterProjectionRange(sql: string): [number, number] | null {
-	const masked = maskSqlNoise(sql);
+function findOuterProjectionRange(masked: string): [number, number] | null {
 	let depth = 0;
 	let outerSelect = -1;
 	for (let i = 0; i < masked.length; i++) {
@@ -228,15 +224,15 @@ function findOuterProjectionRange(sql: string): [number, number] | null {
 	}
 	return outerSelect === -1
 		? null
-		: [outerSelect + SELECT_KEYWORD.length, sql.length];
+		: [outerSelect + SELECT_KEYWORD.length, masked.length];
 }
 
 export function extractOuterSelectColumns(sql: string): string[] {
-	const range = findOuterProjectionRange(sql);
+	const masked = maskSqlNoise(sql);
+	const range = findOuterProjectionRange(masked);
 	if (!range) {
 		return [];
 	}
-	const masked = maskSqlNoise(sql);
 	const parts: string[] = [];
 	let depth = 0;
 	let start = range[0];
@@ -487,10 +483,6 @@ export async function executeBatch(
 	async function runGroup(
 		groupItems: { index: number; req: BatchRequest }[]
 	): Promise<{ unionCount: number; singleCount: number }> {
-		if (groupItems.length === 0) {
-			return { unionCount: 0, singleCount: 0 };
-		}
-
 		if (groupItems.length === 1 && groupItems[0]) {
 			const { index, req } = groupItems[0];
 			results[index] = await runSingle(req, opts);
@@ -598,30 +590,6 @@ export async function executeBatch(
 	return results.map(
 		(r, i) => r || { type: requests[i]?.type || "unknown", data: [] }
 	);
-}
-
-export function areQueriesCompatible(type1: string, type2: string): boolean {
-	const [c1, c2] = [getQueryBuilder(type1), getQueryBuilder(type2)];
-	if (!(c1 && c2)) {
-		return false;
-	}
-	const [s1, s2] = [
-		getSchemaSignature(type1, c1),
-		getSchemaSignature(type2, c2),
-	];
-	return Boolean(s1 && s2 && s1 === s2);
-}
-
-export function getCompatibleQueries(type: string): string[] {
-	const config = getQueryBuilder(type);
-	const sig = config ? getSchemaSignature(type, config) : null;
-	if (!sig) {
-		return [];
-	}
-
-	return Object.entries(QueryBuilders)
-		.filter(([t, c]) => t !== type && getSchemaSignature(t, c) === sig)
-		.map(([t]) => t);
 }
 
 export function getSchemaGroups(): Map<string, string[]> {

@@ -118,21 +118,13 @@ export const compileQuery = (
 	timezone?: string
 ) => createBuilder(parseRequest(request), websiteDomain, timezone).compile();
 
-export {
-	areQueriesCompatible,
-	executeBatch,
-	getCompatibleQueries,
-	getSchemaGroups,
-	truncateQueryErrorForLog,
-} from "./batch-executor";
+export { executeBatch, truncateQueryErrorForLog } from "./batch-executor";
 export * from "./builders";
 export * from "./expressions";
 export { allowedFilterFields, isFilterFieldAllowed } from "./simple-builder";
 export {
-	hasTraitFilters,
 	invalidFilterFieldError,
 	publicQueryErrorMessage,
-	resolveRequestTraitFilters,
 	SANITIZED_QUERY_ERROR,
 } from "./trait-filters";
 export * from "./types";

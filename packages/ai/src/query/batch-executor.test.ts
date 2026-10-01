@@ -15,11 +15,9 @@ mock.module("@databuddy/db/clickhouse", () => ({
 }));
 
 const {
-	areQueriesCompatible,
 	buildUnionQuery,
 	executeBatch,
 	extractOuterSelectColumns,
-	getCompatibleQueries,
 	getSchemaGroups,
 } = await import("./batch-executor");
 
@@ -94,18 +92,13 @@ describe("batch-executor schema signatures", () => {
 		);
 	});
 
-	it("reports compatible queries for a builder with peers", () => {
-		const peers = getCompatibleQueries("country");
-		expect(peers.length).toBeGreaterThan(0);
-		expect(peers).not.toContain("country");
-		for (const peer of peers) {
-			expect(areQueriesCompatible("country", peer)).toBe(true);
-		}
-	});
-
-	it("treats builders with different column shapes as incompatible", () => {
-		expect(areQueriesCompatible("country", "region")).toBe(false);
-		expect(areQueriesCompatible("country", "city")).toBe(false);
+	it("groups country with same-shape peers and apart from region and city", () => {
+		const countryGroup = Array.from(getSchemaGroups().values()).find((types) =>
+			types.includes("country")
+		);
+		expect(countryGroup?.length).toBeGreaterThan(1);
+		expect(countryGroup).not.toContain("region");
+		expect(countryGroup).not.toContain("city");
 	});
 
 	it("every realtime builder opts out of the ClickHouse query cache", () => {
