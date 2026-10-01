@@ -39,27 +39,32 @@ export const INTENT_OPTIONS: {
 	},
 ];
 
+export function intentFor(priority: string): OnboardingIntent | null {
+	return (
+		INTENT_OPTIONS.find((option) => option.priority === priority)?.id ?? null
+	);
+}
+
 interface WhatMattersProps {
-	intent: OnboardingIntent | null;
-	onChangeIntent: (intent: OnboardingIntent | null) => void;
 	onChangePriority: (value: string) => void;
 	onSave: () => void;
 	priority: string;
 	research: OnboardingResearch;
+	saved: boolean;
 	saveError: string | null;
 	saving: boolean;
 }
 
 export function WhatMatters({
-	intent,
-	onChangeIntent,
 	onChangePriority,
 	onSave,
 	priority,
 	research,
 	saveError,
+	saved,
 	saving,
 }: WhatMattersProps) {
+	const intent = intentFor(priority);
 	const question =
 		research.questions.find((item) => item.field === "priority")?.question ??
 		"What matters most for the site right now?";
@@ -79,10 +84,7 @@ export function WhatMatters({
 									: "border-border"
 							)}
 							key={option.id}
-							onClick={() => {
-								onChangeIntent(selected ? null : option.id);
-								onChangePriority(selected ? "" : option.priority);
-							}}
+							onClick={() => onChangePriority(selected ? "" : option.priority)}
 							size="sm"
 							variant="ghost"
 						>
@@ -94,14 +96,7 @@ export function WhatMatters({
 			<Textarea
 				maxRows={4}
 				minRows={1}
-				onChange={(event) => {
-					onChangePriority(event.target.value);
-					onChangeIntent(
-						INTENT_OPTIONS.find(
-							(option) => option.priority === event.target.value
-						)?.id ?? null
-					);
-				}}
+				onChange={(event) => onChangePriority(event.target.value)}
 				placeholder="Or write your own"
 				value={priority}
 			/>
@@ -112,12 +107,12 @@ export function WhatMatters({
 			) : null}
 			<div className="flex justify-end">
 				<Button
-					disabled={!priority.trim()}
+					disabled={saved || !priority.trim()}
 					loading={saving}
 					onClick={onSave}
 					size="sm"
 				>
-					Save
+					{saved ? "Saved" : "Save"}
 				</Button>
 			</div>
 		</div>

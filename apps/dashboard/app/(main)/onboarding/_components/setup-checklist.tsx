@@ -1,6 +1,5 @@
 "use client";
 
-import type { OnboardingIntent } from "@databuddy/shared/custom-events";
 import { Button, Card, Progress } from "@databuddy/ui";
 import { useState } from "react";
 import { AddWebsite, type WebsiteFormValues } from "./add-website";
@@ -37,8 +36,6 @@ export interface SetupChecklistProps {
 		onClick: () => void;
 		onRetry?: () => void;
 	} | null;
-	intent: OnboardingIntent | null;
-	onChangeIntent: (intent: OnboardingIntent | null) => void;
 	onChangePriority: (value: string) => void;
 	onCopy?: (method: TrackingCopyMethod, agent?: string) => void;
 	onCreateWebsite: (values: WebsiteFormValues) => Promise<void>;
@@ -206,13 +203,12 @@ export function SetupChecklist(props: SetupChecklistProps) {
 						title="What matters to you"
 					>
 						<WhatMatters
-							intent={props.intent}
-							onChangeIntent={props.onChangeIntent}
 							onChangePriority={props.onChangePriority}
 							onSave={props.onSavePriority}
 							priority={props.priority}
 							research={research}
 							saveError={props.saveError}
+							saved={props.prioritySaved}
 							saving={props.saving}
 						/>
 					</SetupRow>

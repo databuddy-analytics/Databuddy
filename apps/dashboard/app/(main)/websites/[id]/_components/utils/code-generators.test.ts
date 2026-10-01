@@ -33,8 +33,10 @@ for (const snippet of snippets) {
 }
 const prompt = generateAgentPrompt("example-client-id");
 assert.equal(prompt.includes("https://events.example.com"), ${selfhost === "true"});
-assert.equal(prompt.includes("Store the Client ID in an env var"), ${selfhost !== "true"});
+assert.equal(prompt.includes("self-hosted Databuddy instance"), ${selfhost === "true"});
 assert.equal(prompt.includes("basket.databuddy.cc"), ${selfhost !== "true"});
+assert.ok(prompt.includes("Store the Client ID in an env var"));
+assert.ok(prompt.includes("## Common issues"));
 `,
 			],
 			{
