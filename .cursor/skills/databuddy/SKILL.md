@@ -230,22 +230,17 @@ curl -X POST -H "x-api-key: dbdy_your_api_key" \
 
 ### MCP (Model Context Protocol)
 
-Databuddy exposes an MCP server for AI agents (Cursor, Claude Desktop, etc.) to query analytics. Use for natural-language questions, automated reports, or structured data extraction.
+Databuddy exposes an MCP server for AI agents (Claude, Claude Code, Cursor, Windsurf, etc.) to query analytics, read investigations, and manage goals, funnels, annotations, flags, and links. Use for analytics questions, automated reports, or structured data extraction.
 
 **Endpoint:** `POST https://api.databuddy.cc/v1/mcp` (local: `http://localhost:3001/v1/mcp`)
 
-**Auth:** API key with `read:data` scope via `x-api-key` or `Authorization: Bearer <key>`
+**Auth:** Claude and Claude Code sign in with a Databuddy account (OAuth), no key needed. Other clients, including Cursor, send an API key with the `read:data` scope via `x-api-key` or `Authorization: Bearer <key>`.
 
-**Tools:**
-- `ask` – Natural-language analytics questions (e.g. "top 5 pages last week")
-- `list_websites` – List accessible website IDs
-- `get_data` – Pre-built query with `websiteId`, `type`, and `preset` or `from`/`to`
-- `get_schema` – ClickHouse schema docs (tables, columns)
-- `capabilities` – Query types with descriptions, date presets, hints
+**Tools:** Use the live `tools/list` and the `databuddy://guide` resource; see https://www.databuddy.cc/docs/api/mcp for the full list. Start with `list_websites`, `capabilities`, and `get_data`.
 
-**Date presets for get_data:** `last_7d`, `last_30d`, `last_90d`, `today`, `yesterday`, `this_week`, `this_month`, etc.
+**Dates for get_data:** a preset such as `last_7d`, `last_30d`, `last_90d`, `today`, or `yesterday`, or both `from` and `to`. Defaults to `last_30d`.
 
-**Cursor setup** (mcp.json): Add a Databuddy MCP entry with the API URL and your API key.
+**Cursor setup** (mcp.json): Add a Databuddy MCP entry with the API URL and your API key in the `x-api-key` header.
 
 ### Send Events via API
 
