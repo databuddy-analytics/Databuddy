@@ -8,7 +8,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import {
 	CallToolRequestSchema,
+	ErrorCode,
 	ListToolsRequestSchema,
+	McpError,
 	type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
@@ -26,6 +28,15 @@ export interface DatabuddyMcpHttpOptions extends McpRequestContext {
 
 const MCP_AUTH_CHALLENGE = `Bearer realm="databuddy", resource_metadata="${config.urls.api}/.well-known/oauth-protected-resource"`;
 const MAX_MCP_REQUEST_BYTES = 1_048_576;
+const ToolCallRequestSchema = CallToolRequestSchema.extend({
+	params: CallToolRequestSchema.shape.params
+		.omit({ arguments: true, name: true })
+		.loose()
+		.transform((params) =>
+			params.arguments === null ? { ...params, arguments: undefined } : params
+		)
+		.optional(),
+});
 
 export function createMcpErrorResponse(
 	status: number,
@@ -124,27 +135,26 @@ export async function handleDatabuddyMcpRequest(
 
 	registerGuideResource(server);
 
-	const tools = createMcpTools(options).filter((tool) =>
-		callerCanCallTool(options, tool)
-	);
+	const allTools = createMcpTools(options);
+	const tools = allTools.filter((tool) => callerCanCallTool(options, tool));
 	if (tools.length) {
 		server.server.registerCapabilities({ tools: { listChanged: true } });
 		server.server.setRequestHandler(ListToolsRequestSchema, () => ({
 			tools: tools.map(toListedTool),
 		}));
-		server.server.setRequestHandler(CallToolRequestSchema, (request, extra) => {
-			const tool = tools.find(({ name }) => name === request.params.name);
-			return tool
-				? tool.handler(request.params.arguments, extra)
-				: {
-						content: [
-							{
-								type: "text",
-								text: `MCP error -32602: Tool ${request.params.name} not found`,
-							},
-						],
-						isError: true,
-					};
+		server.server.setRequestHandler(ToolCallRequestSchema, (request, extra) => {
+			const { params } = CallToolRequestSchema.parse(request);
+			const tool = tools.find(({ name }) => name === params.name);
+			if (tool) {
+				return tool.handler(params.arguments, extra);
+			}
+			const hidden = allTools.find(({ name }) => name === params.name);
+			throw new McpError(
+				ErrorCode.InvalidParams,
+				hidden
+					? `Tool ${params.name} requires scopes: ${hidden.metadata.access.scopes.join(", ")}. Reconnect or use an API key that has them.`
+					: `Unknown tool: ${params.name}`
+			);
 		});
 	}
 

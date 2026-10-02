@@ -136,6 +136,66 @@ describe("MCP transport", () => {
 		});
 	});
 
+	test("treats null tool arguments as absent and answers malformed calls with -32602", async () => {
+		const callTool = async (
+			params: unknown,
+			oauth?: McpRequestContext["oauth"]
+		) => {
+			const response = await handleDatabuddyMcpRequest({
+				apiKey: null,
+				oauth,
+				organizationId: "org-1",
+				request: new Request("https://api.databuddy.test/v1/mcp", {
+					body: JSON.stringify({
+						id: 1,
+						jsonrpc: "2.0",
+						method: "tools/call",
+						params,
+					}),
+					headers: {
+						accept: "application/json, text/event-stream",
+						"content-type": "application/json",
+					},
+					method: "POST",
+				}),
+				requestHeaders: new Headers(),
+				userId: oauth ? null : "user-1",
+			});
+			return (await response.json()) as {
+				error?: { code: number; message: string };
+				result?: CallToolResult;
+			};
+		};
+
+		const nullArguments = await callTool({
+			arguments: null,
+			name: "get_investigation",
+		});
+		expect(
+			nullArguments.result && readToolError(nullArguments.result)
+		).toMatchObject({
+			code: "invalid_input",
+		});
+		for (const params of [
+			{ arguments: [], name: "get_investigation" },
+			{ arguments: "x", name: "get_investigation" },
+			{ arguments: {} },
+			{ arguments: {}, name: "no_such_tool" },
+		]) {
+			expect((await callTool(params)).error?.code).toBe(-32_602);
+		}
+		const hidden = await callTool(
+			{ arguments: {}, name: "create_goal" },
+			{
+				grant: { organizationId: "org-1", websiteIds: null },
+				scopes: ["read:data"],
+				user: oauthUser,
+			}
+		);
+		expect(hidden.error?.code).toBe(-32_602);
+		expect(hidden.error?.message).toContain("manage:websites");
+	});
+
 	test("lists parameter descriptions but keeps output schemas free of prompt text", async () => {
 		const { tools: listed } = await listTools({
 			apiKey: null,
