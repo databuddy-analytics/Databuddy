@@ -22,6 +22,12 @@ import {
 	type InsightAgentInput,
 	type InsightAgentResult,
 } from "../agent";
+import {
+	compareByUncertaintyDesc,
+	judgeCase,
+	parseProposedEvidence,
+	type JudgeCaseVerdict,
+} from "./judge";
 
 const ABSENCE_CLAIM =
 	/\b(?:does not exist|no longer exists|retired route|absent from the site|nonexistent route|(?:route|path|page) (?:is |was |has been )?(?:missing|removed|deleted|retired|unavailable)|(?:missing|removed|deleted|retired) (?:route|path|page))\b/i;
@@ -2139,7 +2145,12 @@ export async function evaluate(
 			)}\n`,
 			{ mode: 0o600 }
 		);
-	const calls: { name: string; input: unknown; output?: unknown }[] = [];
+	const calls: {
+		name: string;
+		input: unknown;
+		output?: unknown;
+		toolCallId: string;
+	}[] = [];
 	let acceptedFinish: unknown;
 	const model = wrapLanguageModel({
 		model: createModelFromId(modelId),
@@ -2177,9 +2188,15 @@ export async function evaluate(
 			{
 				...definition,
 				execute: async (value: unknown, options) => {
-					const call: { name: string; input: unknown; output?: unknown } = {
+					const call: {
+						name: string;
+						input: unknown;
+						output?: unknown;
+						toolCallId: string;
+					} = {
 						name,
 						input: value,
+						toolCallId: options.toolCallId,
 					};
 					calls.push(call);
 					emit("tool.request", {
@@ -2248,9 +2265,27 @@ export async function evaluate(
 					]
 				: []),
 		];
+		// Eval-only semantic judge (issue #968 step 1): a Jev verdict is advisory
+		// input for manual review, never a pass/fail signal. It never touches
+		// `failures` or the process exit code.
+		const judge = await judgeCase({
+			finalOutcome: {
+				evidence: result.outcome.evidence,
+				rootCause: result.outcome.rootCause ?? null,
+				summary: result.outcome.summary,
+				title: result.outcome.title,
+			},
+			history: fixture.input.history,
+			proposedEvidence: parseProposedEvidence(acceptedFinish),
+			reviewRequired: fixture.reviewRequired ?? null,
+			signal: fixture.input.signal,
+			suppliedEvidence: fixture.input.evidence,
+			toolCalls: calls,
+		});
 		emit("case.result", {
 			...result,
 			failures,
+			judge,
 			reviewRequired: fixture.reviewRequired ?? null,
 		});
 		return {
@@ -2260,6 +2295,7 @@ export async function evaluate(
 			durationMs: performance.now() - started,
 			calls: calls.length,
 			briefWordCount,
+			judge,
 			reviewRequired: fixture.reviewRequired ?? null,
 			...result,
 		};
@@ -2272,6 +2308,7 @@ export async function evaluate(
 			failures: [message],
 			durationMs: performance.now() - started,
 			calls: calls.length,
+			judge: null as JudgeCaseVerdict | null,
 			reviewRequired: fixture.reviewRequired ?? null,
 		};
 	}
@@ -2357,10 +2394,55 @@ if (import.meta.main) {
 				JSON.stringify({ model: values.model, results }, null, 2)
 			);
 			for (const result of batch) {
+				const judgeNote =
+					result.judge?.available && result.judge.reviewRequired
+						? ` (judge reviewRequired=${result.judge.reviewRequired.probability.toFixed(2)})`
+						: "";
 				process.stdout.write(
-					`${result.id}: ${result.completed && result.failures.length === 0 ? (result.reviewRequired ? "REVIEW REQUIRED" : "PASS") : "FAIL"} ${result.failures.join("; ")}${result.reviewRequired ? `\nReview: ${result.reviewRequired}` : ""}\n`
+					`${result.id}: ${result.completed && result.failures.length === 0 ? (result.reviewRequired ? "REVIEW REQUIRED" : "PASS") : "FAIL"} ${result.failures.join("; ")}${result.reviewRequired ? `\nReview: ${result.reviewRequired}${judgeNote}` : ""}\n`
 				);
 			}
+		}
+	}
+	const reviewCases = results.filter((result) => result.reviewRequired);
+	if (reviewCases.length) {
+		// Most-ambiguous first: a judge verdict at probability 0.5 is maximally
+		// uncertain (uncertainty 1); an unavailable judge (no AI_GATEWAY_API_KEY,
+		// no string evidence claims, or a failed gateway call) sorts first too,
+		// since a human reviewer then has no automated signal at all.
+		const sorted = [...reviewCases].sort((a, b) =>
+			compareByUncertaintyDesc(a.judge, b.judge)
+		);
+		process.stdout.write(
+			"\nREVIEW REQUIRED, sorted by judge uncertainty (most ambiguous first):\n"
+		);
+		for (const result of sorted) {
+			const judge = result.judge;
+			const judgeSummary = judge?.available
+				? [
+						judge.reviewRequired
+							? `reviewRequired=${judge.reviewRequired.probability.toFixed(2)}`
+							: null,
+						...Object.entries(judge.claims).map(
+							([index, claim]) =>
+								`claim[${index}]={${(
+									["metric", "population", "period", "direction"] as const
+								)
+									.map((dimension) =>
+										claim[dimension]
+											? `${dimension}=${claim[dimension].probability.toFixed(2)}`
+											: null
+									)
+									.filter(Boolean)
+									.join(", ")}}`
+						),
+					]
+						.filter(Boolean)
+						.join(" ")
+				: "judge unavailable";
+			process.stdout.write(
+				`${result.id} uncertainty=${(judge?.uncertainty ?? 1).toFixed(2)} ${judgeSummary}\n  Review: ${result.reviewRequired}\n`
+			);
 		}
 	}
 	// Flush the piped summary before exiting unused imported client pools.
