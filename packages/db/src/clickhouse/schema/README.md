@@ -17,7 +17,7 @@ schema/
     errors/       error_spans
     web-vitals/   web_vitals_spans
     pageviews/    daily_pageviews, daily_pageviews_mv
-    traffic/      blocked_traffic, ai_traffic_spans
+    traffic/      blocked_traffic, ai_traffic_spans, mcp_spans
     links/        outgoing_links, link_visits
     revenue/      revenue
   uptime/
