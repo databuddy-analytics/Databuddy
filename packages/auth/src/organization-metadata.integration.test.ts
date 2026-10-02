@@ -317,13 +317,14 @@ integration("account deletion refusals", () => {
 		).toBeDefined();
 	});
 
-	test("RESTRICT rows in a shared organization refuse deletion up front", async () => {
+	test("content created in a shared organization outlives the account", async () => {
 		await insertOrg(sharedOrg, [
 			[otherId, "owner"],
 			[userId, "member"],
 		]);
+		const goalId = randomUUID();
 		await db.insert(goals).values({
-			id: randomUUID(),
+			id: goalId,
 			websiteId: sharedOrg,
 			type: "PAGE_VIEW",
 			target: "/",
@@ -331,15 +332,10 @@ integration("account deletion refusals", () => {
 			createdBy: userId,
 		});
 		const response = await requestDeletion();
-		expect(response.status).toBe(400);
-		expect((await response.json()).message).toContain(
-			"Your account created goals in an organization you share"
-		);
+		expect(response.status).not.toBe(400);
+		await db.delete(user).where(eq(user.id, userId));
 		expect(
-			await db.query.organization.findFirst({ where: { id: soloOrg } })
-		).toBeDefined();
-		expect(
-			await db.select().from(account).where(eq(account.userId, userId))
-		).toHaveLength(1);
+			await db.query.goals.findFirst({ where: { id: goalId } })
+		).toMatchObject({ createdBy: null });
 	});
 });

@@ -153,7 +153,7 @@ const funnelListOutputSchema = z.object({
 
 const funnelOutputSchema = z.object({
 	createdAt: z.coerce.date(),
-	createdBy: z.string(),
+	createdBy: z.string().nullable(),
 	deletedAt: z.nullable(z.coerce.date()),
 	description: z.string().nullable(),
 	filters: z.array(filterSchema).nullable(),

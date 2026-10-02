@@ -40,7 +40,7 @@ const LinkFolderSchema = z.object({
 	createdAt: DateStringSchema.optional(),
 	updatedAt: DateStringSchema.optional(),
 	organizationId: z.string(),
-	createdBy: z.string().optional(),
+	createdBy: z.string().nullish(),
 	deletedAt: DateStringSchema.nullable().optional(),
 	linkCount: z.number().int().nonnegative().optional(),
 });
