@@ -27,7 +27,7 @@ export async function generateMetadata({
 	const selected = inputs ?? DEFAULT_INPUTS;
 	const result = calculateCookieBannerCost(selected);
 	const ogParams = new URLSearchParams({
-		revenue: String(result.lostRevenueYearly),
+		revenue: String(Math.round(result.lostRevenueYearly)),
 		visitors: String(selected.monthlyVisitors),
 	});
 	const ogImageUrl = `${SITE_URL}/calculator/og?${ogParams}`;

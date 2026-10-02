@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { developerResources } from "@/lib/agent-discovery";
 
-const title = "Databuddy Developer Resources - API Docs, OpenAPI, MCP & SDKs";
+const title = "Developer Resources: API, OpenAPI, MCP, and SDKs";
 const description =
 	"Find Databuddy developer resources for agents and humans: API docs, OpenAPI spec, authentication, webhooks, MCP server, SDKs, and llms.txt.";
 const url = `${SITE_URL}/developers`;
@@ -31,8 +31,6 @@ export const metadata: Metadata = {
 };
 
 export default function DevelopersPage() {
-	const docDateIso = new Date().toISOString();
-
 	return (
 		<>
 			<StructuredData
@@ -42,8 +40,8 @@ export default function DevelopersPage() {
 						value: {
 							title,
 							description,
-							datePublished: docDateIso,
-							dateModified: docDateIso,
+							datePublished: "2026-07-03",
+							dateModified: "2026-07-03",
 							section: "Developer Resources",
 							keywords: [
 								"Databuddy developer resources",

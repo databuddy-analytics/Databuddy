@@ -5,10 +5,12 @@ import Link from "next/link";
 import { getDemoEmbedBaseUrl, hostFromNextHeaders } from "@/lib/demo-embed-url";
 
 export const metadata: Metadata = {
-	title: "Live Demo",
+	title: {
+		absolute: "Live Demo: Real Product Analytics Dashboard | Databuddy",
+	},
 	alternates: { canonical: "/demo" },
 	description:
-		"Experience Databuddy analytics in action with our live demo dashboard. See real-time analytics, insights, and privacy-first tracking.",
+		"Click through a live Databuddy dashboard with real traffic: visitors, custom events, funnels, errors, and web vitals. No signup needed to look around.",
 };
 
 export default async function DemoPage() {
