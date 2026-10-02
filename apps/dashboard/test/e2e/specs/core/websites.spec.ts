@@ -8,6 +8,7 @@ import {
 } from "@/test/e2e/utils/dashboard";
 
 const DUPLICATE_DOMAIN_RE = /domain.*already exists/i;
+const WEBSITE_PATH_RE = /\/websites\/[A-Za-z0-9_-]+/;
 
 test("creates, updates, and deletes a website", { tag: "@core" }, async ({
 	authenticatedPage,
@@ -29,7 +30,7 @@ test("creates, updates, and deletes a website", { tag: "@core" }, async ({
 	await expect(authenticatedPage.getByText(domain)).toBeVisible();
 
 	await createdWebsite.click();
-	await expect(authenticatedPage).toHaveURL(/\/websites\/[A-Za-z0-9_-]+/);
+	await expect(authenticatedPage).toHaveURL(WEBSITE_PATH_RE);
 	const websiteId = idFromPath(authenticatedPage.url(), "websites");
 
 	await authenticatedPage.goto(`/websites/${websiteId}/settings/general`);
@@ -98,6 +99,11 @@ test("validates, normalizes, and rejects duplicate website domains", {
 		domain
 	);
 	await dialog.getByRole("button", { name: "Create website" }).click();
+	await expect(authenticatedPage).toHaveURL(WEBSITE_PATH_RE, {
+		timeout: 15_000,
+	});
+	await authenticatedPage.goto("/websites");
+	await expectDashboardReady(authenticatedPage);
 	await expect(websiteCard(authenticatedPage, firstName)).toBeVisible();
 	await expect(authenticatedPage.getByText(domain)).toBeVisible();
 
