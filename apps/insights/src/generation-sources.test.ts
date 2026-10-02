@@ -61,8 +61,6 @@ const linkOnset: ChangeOnset = {
 	observed: 0,
 	ongoingThrough: "2026-07-11",
 	recoveredBy: null,
-	searchFrom: "2026-07-10",
-	searchTo: "2026-07-11",
 	subject: "Hourly link_created counts",
 	timezone: "UTC",
 };
@@ -1220,7 +1218,6 @@ describe("fixture investigation sources", () => {
 			brokenCount: 0,
 			brokenHours: 30,
 			direction: "down",
-			expected: null,
 			heldHours: 48,
 			noun: "pageviews",
 			observed: 2400,

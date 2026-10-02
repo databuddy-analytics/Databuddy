@@ -1048,6 +1048,41 @@ async function investigatePlannedCandidate(
 		);
 		return emptyInvestigationArtifact({ asOf, status: "deferred" });
 	}
+	const optional = <T>(work: Promise<T>, event: string): Promise<T | null> =>
+		work.catch((error) => {
+			captureInsightsError(error, event, {
+				organization_id: input.organizationId,
+				signal_key: candidate.signal.signalKey,
+				website_id: input.websiteId,
+			});
+			return null;
+		});
+	const repositoryChanges = async (onset: ChangeOnset) => {
+		const repository = input.githubRepository;
+		if (!(repository && runtime.sources.loadRepositoryChanges)) {
+			return null;
+		}
+		const changes = await optional(
+			runtime.sources.loadRepositoryChanges({
+				onset,
+				organizationId: input.organizationId,
+				repository,
+			}),
+			"generation.repository_changes.failed"
+		);
+		return changes
+			? {
+					changes,
+					evidence: repositoryChangeEvidence(onset, changes, repository),
+				}
+			: null;
+	};
+	const subjectParams = () => ({
+		abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
+		signal: candidate.signal,
+		timezone: input.timezone,
+		websiteId: input.websiteId,
+	});
 	let evidence = [...candidate.evidence];
 	const [
 		annotationRows,
@@ -1062,72 +1097,29 @@ async function investigatePlannedCandidate(
 			asOf.toDate(),
 			input.timezone
 		),
-		runtime.sources
-			.loadErrorCustomerImpact({
-				abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
-				signal: candidate.signal,
-				timezone: input.timezone,
-				websiteId: input.websiteId,
-			})
-			.catch((error) => {
-				captureInsightsError(error, "generation.customer_impact.failed", {
-					organization_id: input.organizationId,
-					signal_key: candidate.signal.signalKey,
-					website_id: input.websiteId,
-				});
-				return null;
-			}),
-		runtime.sources
-			.loadRouteVitalContinuation({
+		optional(
+			runtime.sources.loadErrorCustomerImpact(subjectParams()),
+			"generation.customer_impact.failed"
+		),
+		optional(
+			runtime.sources.loadRouteVitalContinuation({
 				abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
 				signal: candidate.signal,
 				websiteId: input.websiteId,
-			})
-			.catch((error) => {
-				captureInsightsError(
-					error,
-					"generation.route_vital_continuation.failed",
-					{
-						organization_id: input.organizationId,
-						signal_key: candidate.signal.signalKey,
-						website_id: input.websiteId,
-					}
-				);
-				return null;
 			}),
+			"generation.route_vital_continuation.failed"
+		),
 		runtime.sources.loadChangeOnset
-			? runtime.sources
-					.loadChangeOnset({
-						abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
-						signal: candidate.signal,
-						timezone: input.timezone,
-						websiteId: input.websiteId,
-					})
-					.catch((error) => {
-						captureInsightsError(error, "generation.change_onset.failed", {
-							organization_id: input.organizationId,
-							signal_key: candidate.signal.signalKey,
-							website_id: input.websiteId,
-						});
-						return null;
-					})
+			? optional(
+					runtime.sources.loadChangeOnset(subjectParams()),
+					"generation.change_onset.failed"
+				)
 			: null,
 		runtime.sources.loadSegmentFinding
-			? runtime.sources
-					.loadSegmentFinding({
-						abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
-						signal: candidate.signal,
-						timezone: input.timezone,
-						websiteId: input.websiteId,
-					})
-					.catch((error) => {
-						captureInsightsError(error, "generation.segment_finding.failed", {
-							organization_id: input.organizationId,
-							signal_key: candidate.signal.signalKey,
-							website_id: input.websiteId,
-						});
-						return null;
-					})
+			? optional(
+					runtime.sources.loadSegmentFinding(subjectParams()),
+					"generation.segment_finding.failed"
+				)
 			: null,
 	]);
 	if (segmentFinding) {
@@ -1135,41 +1127,16 @@ async function investigatePlannedCandidate(
 	}
 	if (changeOnset) {
 		evidence.push(changeOnsetEvidence(changeOnset));
-		const repository = input.githubRepository;
-		const changes =
-			repository && runtime.sources.loadRepositoryChanges
-				? await runtime.sources
-						.loadRepositoryChanges({
-							onset: changeOnset,
-							organizationId: input.organizationId,
-							repository,
-						})
-						.catch((error) => {
-							captureInsightsError(
-								error,
-								"generation.repository_changes.failed",
-								{
-									organization_id: input.organizationId,
-									signal_key: candidate.signal.signalKey,
-									website_id: input.websiteId,
-								}
-							);
-							return null;
-						})
-				: null;
-		const changeEvidence =
-			changes && repository
-				? repositoryChangeEvidence(changeOnset, changes, repository)
-				: null;
-		if (changeEvidence) {
-			evidence.push(changeEvidence);
+		const repository = await repositoryChanges(changeOnset);
+		if (repository?.evidence) {
+			evidence.push(repository.evidence);
 		}
 		emitInsightsEvent("info", "generation.change_onset.found", {
 			organization_id: input.organizationId,
 			website_id: input.websiteId,
 			signal_key: candidate.signal.signalKey,
-			repository_deployments: changes?.deployments?.length ?? null,
-			repository_commits: changes?.commits?.length ?? null,
+			repository_deployments: repository?.changes.deployments?.length ?? null,
+			repository_commits: repository?.changes.commits?.length ?? null,
 		});
 	}
 	if (customerImpact) {
@@ -1219,52 +1186,28 @@ async function investigatePlannedCandidate(
 		);
 	const recoveryCheck =
 		openPrior?.kind === "investigation" && runtime.sources.loadRecovery
-			? await runtime.sources
-					.loadRecovery({
+			? await optional(
+					runtime.sources.loadRecovery({
 						abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
 						prior: openPrior.signal,
 						through: candidate.signal.period.current.to,
 						timezone: input.timezone,
 						websiteId: input.websiteId,
-					})
-					.catch((error) => {
-						captureInsightsError(error, "generation.recovery.failed", {
-							organization_id: input.organizationId,
-							signal_key: candidate.signal.signalKey,
-							website_id: input.websiteId,
-						});
-						return null;
-					})
+					}),
+					"generation.recovery.failed"
+				)
 			: null;
 	if (recoveryCheck) {
-		evidence.push(recoveryEvidence(recoveryCheck.recovery));
-		const { recoveredAt } = recoveryCheck.recovery;
-		const repository = input.githubRepository;
-		if (recoveredAt && repository && runtime.sources.loadRepositoryChanges) {
-			const atRecovery = {
-				...recoveryCheck.onset,
-				earliest: recoveredAt,
-				latest: recoveredAt,
-			};
-			const changes = await runtime.sources
-				.loadRepositoryChanges({
-					onset: atRecovery,
-					organizationId: input.organizationId,
-					repository,
-				})
-				.catch((error) => {
-					captureInsightsError(error, "generation.repository_changes.failed", {
-						organization_id: input.organizationId,
-						signal_key: candidate.signal.signalKey,
-						website_id: input.websiteId,
-					});
-					return null;
-				});
-			const changeEvidence = changes
-				? repositoryChangeEvidence(atRecovery, changes, repository)
-				: null;
-			if (changeEvidence) {
-				evidence.push(`Before the recovery: ${changeEvidence}`);
+		const { onset, recovery } = recoveryCheck;
+		evidence.push(recoveryEvidence(recovery));
+		if (recovery.state === "recovered" && recovery.recoveredAt) {
+			const repository = await repositoryChanges({
+				...onset,
+				earliest: recovery.recoveredAt,
+				latest: recovery.recoveredAt,
+			});
+			if (repository?.evidence) {
+				evidence.push(`Before the recovery: ${repository.evidence}`);
 			}
 		}
 	}

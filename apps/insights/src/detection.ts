@@ -2284,6 +2284,24 @@ function hourlyBaseline(baseline: HourlyCount[]) {
 	};
 }
 
+function runningTotals(
+	window: HourlyCount[],
+	expectedAt: (hour: string) => number
+) {
+	const counts = [0];
+	const exposure = [0];
+	for (const [index, point] of window.entries()) {
+		counts.push((counts[index] ?? 0) + point.value);
+		exposure.push((exposure[index] ?? 0) + expectedAt(point.hour));
+	}
+	return {
+		countIn: (from: number, to: number) =>
+			(counts[to] ?? 0) - (counts[from] ?? 0),
+		exposureIn: (from: number, to: number) =>
+			(exposure[to] ?? 0) - (exposure[from] ?? 0),
+	};
+}
+
 export function estimateChangeOnset(params: {
 	baseline: HourlyCount[];
 	direction: "up" | "down";
@@ -2292,23 +2310,17 @@ export function estimateChangeOnset(params: {
 }): OnsetEstimate | null {
 	const { baseline, direction, flaggedFrom, window } = params;
 	const n = window.length;
-	if (n <= ONSET_MIN_OUTSIDE_HOURS || flaggedFrom >= n) {
+	if (n <= ONSET_MIN_OUTSIDE_HOURS || flaggedFrom < 0 || flaggedFrom >= n) {
 		return null;
 	}
 	const { dispersion, expectedAt, hourlyMean } = hourlyBaseline(baseline);
-
-	const counts = [0];
-	const exposure = [0];
-	for (const [index, point] of window.entries()) {
-		counts.push((counts[index] ?? 0) + point.value);
-		exposure.push((exposure[index] ?? 0) + expectedAt(point.hour));
-	}
-	const totalCount = counts[n] ?? 0;
-	const totalExposure = exposure[n] ?? 0;
+	const { countIn, exposureIn } = runningTotals(window, expectedAt);
+	const totalCount = countIn(0, n);
+	const totalExposure = exposureIn(0, n);
 	const nullTerm = poissonTerm(totalCount, totalExposure);
 	const span = (from: number, to: number) => {
-		const insideCount = (counts[to] ?? 0) - (counts[from] ?? 0);
-		const insideExposure = (exposure[to] ?? 0) - (exposure[from] ?? 0);
+		const insideCount = countIn(from, to);
+		const insideExposure = exposureIn(from, to);
 		const outsideCount = totalCount - insideCount;
 		const outsideExposure = totalExposure - insideExposure;
 		const insideRate = insideCount / insideExposure;
@@ -2411,6 +2423,31 @@ export function estimateChangeOnset(params: {
 	};
 }
 
+type SignalSubject =
+	| { kind: "error"; message: string }
+	| { kind: "event"; name: string }
+	| { kind: "revenue"; currency: string }
+	| { kind: "traffic"; metric: string };
+
+function signalSubject(signal: InvestigationSignal): SignalSubject | null {
+	if (TRAFFIC_METRICS.has(signal.signalKey)) {
+		return { kind: "traffic", metric: signal.signalKey };
+	}
+	if (signal.signalKey.startsWith("error:") && signal.entity.type === "error") {
+		return { kind: "error", message: signal.entity.id };
+	}
+	if (
+		signal.signalKey.startsWith("custom_event:") &&
+		signal.entity.type === "event"
+	) {
+		return { kind: "event", name: signal.entity.id };
+	}
+	if (signal.signalKey.startsWith("revenue:")) {
+		return { kind: "revenue", currency: signal.signalKey.slice(8) };
+	}
+	return null;
+}
+
 interface OnsetSeries {
 	field: string;
 	filters: Filter[];
@@ -2423,53 +2460,45 @@ interface OnsetSeries {
 		| "revenue_time_series";
 }
 
-function onsetSeries(signal: InvestigationSignal): OnsetSeries | null {
-	if (TRAFFIC_METRICS.has(signal.signalKey)) {
-		return {
-			field: "pageviews",
-			filters: [],
-			noun: "pageviews",
-			subject: "Hourly pageviews",
-			type: "events_by_date",
-		};
+const PAGEVIEW_SERIES: OnsetSeries = {
+	field: "pageviews",
+	filters: [],
+	noun: "pageviews",
+	subject: "Hourly pageviews",
+	type: "events_by_date",
+};
+
+function onsetSeries(subject: SignalSubject): OnsetSeries {
+	switch (subject.kind) {
+		case "traffic":
+			return PAGEVIEW_SERIES;
+		case "error":
+			return {
+				field: "errors",
+				filters: [{ field: "message", op: "eq", value: subject.message }],
+				noun: "occurrences",
+				subject: "Hourly counts of this error",
+				type: "error_trends",
+			};
+		case "revenue":
+			return {
+				field: "transactions",
+				filters: [{ field: "currency", op: "eq", value: subject.currency }],
+				noun: "payments",
+				subject: "Hourly payments",
+				type: "revenue_time_series",
+			};
+		case "event":
+			return {
+				field: "total_events",
+				filters: [{ field: "event_name", op: "eq", value: subject.name }],
+				noun: `${subject.name} events`,
+				subject: `Hourly ${subject.name} counts`,
+				type: "custom_events_trends_by_event",
+			};
+		default:
+			return subject satisfies never;
 	}
-	if (signal.signalKey.startsWith("error:") && signal.entity.type === "error") {
-		return {
-			field: "errors",
-			filters: [{ field: "message", op: "eq", value: signal.entity.id }],
-			noun: "occurrences",
-			subject: "Hourly counts of this error",
-			type: "error_trends",
-		};
-	}
-	if (signal.signalKey.startsWith("revenue:")) {
-		return {
-			field: "transactions",
-			filters: [
-				{
-					field: "currency",
-					op: "eq",
-					value: signal.signalKey.slice("revenue:".length),
-				},
-			],
-			noun: "payments",
-			subject: "Hourly payments",
-			type: "revenue_time_series",
-		};
-	}
-	if (
-		signal.signalKey.startsWith("custom_event:") &&
-		signal.entity.type === "event"
-	) {
-		return {
-			field: "total_events",
-			filters: [{ field: "event_name", op: "eq", value: signal.entity.id }],
-			noun: `${signal.entity.id} events`,
-			subject: `Hourly ${signal.entity.id} counts`,
-			type: "custom_events_trends_by_event",
-		};
-	}
-	return null;
 }
 
 export interface ChangeOnset {
@@ -2481,8 +2510,6 @@ export interface ChangeOnset {
 	observed: number;
 	ongoingThrough: string | null;
 	recoveredBy: string | null;
-	searchFrom: string;
-	searchTo: string;
 	subject: string;
 	timezone: string;
 }
@@ -2546,11 +2573,12 @@ export async function loadChangeOnset(
 	query: QueryFn = executeQuery
 ): Promise<ChangeOnset | null> {
 	const { signal, timezone } = params;
-	const series = onsetSeries(signal);
+	const subject = signalSubject(signal);
 	const { current, previous } = signal.metric;
-	if (!series || previous === undefined || current === previous) {
+	if (!subject || previous === undefined || current === previous) {
 		return null;
 	}
+	const series = onsetSeries(subject);
 	const direction = current < previous ? "down" : "up";
 	const flaggedFrom = signal.period.current.from;
 	const searchFrom = dayjs(flaggedFrom).subtract(1, "day").format("YYYY-MM-DD");
@@ -2592,8 +2620,6 @@ export async function loadChangeOnset(
 		ongoingThrough: estimate.ongoing ? lastDay : null,
 		recoveredBy:
 			estimate.recoveredBy === null ? null : hourAt(estimate.recoveredBy),
-		searchFrom,
-		searchTo: lastDay,
 		subject: series.subject,
 		timezone,
 	};
@@ -2873,8 +2899,14 @@ export async function loadSegmentFinding(
 	query: QueryFn = executeQuery
 ): Promise<SegmentFinding | null> {
 	const { signal, timezone } = params;
+	const subject = signalSubject(signal);
 	const { current, previous } = signal.metric;
-	if (previous === undefined || current === previous) {
+	if (
+		!subject ||
+		subject.kind === "revenue" ||
+		previous === undefined ||
+		current === previous
+	) {
 		return null;
 	}
 	const direction = current < previous ? "down" : "up";
@@ -2897,26 +2929,26 @@ export async function loadSegmentFinding(
 			params.abortSignal
 		);
 
-	if (signal.signalKey.startsWith("error:") && signal.entity.type === "error") {
+	if (subject.kind === "error") {
 		if (direction !== "up") {
 			return null;
 		}
 		const [errors, traffic] = await Promise.all([
 			read("error_segments", signal.period.current, [
-				{ field: "message", op: "eq", value: signal.entity.id },
+				{ field: "message", op: "eq", value: subject.message },
 			]),
 			read("traffic_segments", signal.period.current),
 		]);
-		const subject = segmentTable(errors, "errors");
+		const errorSegments = segmentTable(errors, "errors");
 		const concentration = concentratedSegment(
-			subject,
+			errorSegments,
 			segmentTable(traffic, "pageviews")
 		);
 		if (concentration) {
 			return { concentration, kind: "concentration" };
 		}
 		const errorSessions = tableTotal(
-			subject.get("browser") ?? new Map(),
+			errorSegments.get("browser") ?? new Map(),
 			"sessions"
 		);
 		return errorSessions >= SEGMENT_SPREAD_MIN_SESSIONS
@@ -2924,27 +2956,22 @@ export async function loadSegmentFinding(
 			: null;
 	}
 
-	const series = TRAFFIC_METRICS.has(signal.signalKey)
-		? {
-				countField: signal.signalKey === "pageviews" ? "pageviews" : "sessions",
-				filters: [],
-				noun: signal.signalKey === "pageviews" ? "Pageviews" : "Sessions",
-				type: "traffic_segments",
-			}
-		: signal.signalKey.startsWith("custom_event:") &&
-				signal.entity.type === "event"
+	const series =
+		subject.kind === "traffic"
 			? {
+					countField: subject.metric === "pageviews" ? "pageviews" : "sessions",
+					filters: [],
+					noun: subject.metric === "pageviews" ? "Pageviews" : "Sessions",
+					type: "traffic_segments",
+				}
+			: {
 					countField: "events",
 					filters: [
-						{ field: "event_name", op: "eq" as const, value: signal.entity.id },
+						{ field: "event_name", op: "eq" as const, value: subject.name },
 					],
-					noun: `${signal.entity.id} events`,
+					noun: `${subject.name} events`,
 					type: "custom_event_segments",
-				}
-			: null;
-	if (!series) {
-		return null;
-	}
+				};
 	const [beforeRows, afterRows] = await Promise.all([
 		read(series.type, signal.period.previous, series.filters),
 		read(series.type, signal.period.current, series.filters),
@@ -3043,16 +3070,7 @@ export function estimateRecovery(params: {
 		return null;
 	}
 	const { dispersion, expectedAt, hourlyMean } = hourlyBaseline(baseline);
-	const counts = [0];
-	const exposure = [0];
-	for (const [index, point] of window.entries()) {
-		counts.push((counts[index] ?? 0) + point.value);
-		exposure.push((exposure[index] ?? 0) + expectedAt(point.hour));
-	}
-	const countIn = (from: number, to: number) =>
-		(counts[to] ?? 0) - (counts[from] ?? 0);
-	const exposureIn = (from: number, to: number) =>
-		(exposure[to] ?? 0) - (exposure[from] ?? 0);
+	const { countIn, exposureIn } = runningTotals(window, expectedAt);
 	const level = (from: number, to: number) =>
 		countIn(from, to) / exposureIn(from, to);
 	const lastDay = n - RECOVERY_MIN_HOLD_HOURS;
@@ -3126,49 +3144,32 @@ export function estimateRecovery(params: {
 		: null;
 }
 
-export interface ChangeRecovery {
-	brokenCount: number | null;
-	brokenHours: number | null;
+export type ChangeRecovery = {
 	direction: "up" | "down";
-	expected: number | null;
-	heldHours: number | null;
 	noun: string;
-	observed: number;
-	recoveredAt: string | null;
-	recoveredOn: string | null;
-	state: "recovered" | "ongoing";
 	subject: string;
 	through: string;
 	timezone: string;
-}
+} & (
+	| {
+			brokenCount: number;
+			brokenHours: number;
+			heldHours: number;
+			observed: number;
+			recoveredAt: string | null;
+			recoveredOn: string;
+			state: "recovered";
+	  }
+	| { expected: number; observed: number; state: "ongoing" }
+);
 
-async function trafficContinued(params: {
-	abortSignal?: AbortSignal;
-	from: string;
-	query: QueryFn;
-	recoveredAt: string;
-	start: string;
-	timezone: string;
-	to: string;
-	websiteId: string;
-}): Promise<boolean> {
-	const points = await readHourlyCounts({
-		abortSignal: params.abortSignal,
-		from: params.from,
-		query: params.query,
-		series: {
-			field: "pageviews",
-			filters: [],
-			noun: "pageviews",
-			subject: "Hourly pageviews",
-			type: "events_by_date",
-		},
-		timezone: params.timezone,
-		to: params.to,
-		websiteId: params.websiteId,
-	});
+function trafficContinued(
+	points: HourlyCount[],
+	start: string,
+	recoveredFrom: string
+): boolean {
 	const { expectedAt } = hourlyBaseline(
-		points.filter((point) => point.hour < params.start)
+		points.filter((point) => point.hour < start)
 	);
 	const level = (inSpan: (hour: string) => boolean) => {
 		let observed = 0;
@@ -3181,10 +3182,8 @@ async function trafficContinued(params: {
 		}
 		return expected > 0 ? observed / expected : 0;
 	};
-	const during = level(
-		(hour) => hour >= params.start && hour < params.recoveredAt
-	);
-	const after = level((hour) => hour >= params.recoveredAt);
+	const during = level((hour) => hour >= start && hour < recoveredFrom);
+	const after = level((hour) => hour >= recoveredFrom);
 	return after >= Math.min(during, 1) * RECOVERY_MIN_TRAFFIC_SHARE;
 }
 
@@ -3199,8 +3198,8 @@ export async function loadRecovery(
 	query: QueryFn = executeQuery
 ): Promise<{ onset: ChangeOnset; recovery: ChangeRecovery } | null> {
 	const { prior, timezone } = params;
-	const series = onsetSeries(prior);
-	if (!series) {
+	const subject = signalSubject(prior);
+	if (!subject) {
 		return null;
 	}
 	const onset = await loadChangeOnset(
@@ -3223,17 +3222,20 @@ export async function loadRecovery(
 	if (through <= onsetDay) {
 		return null;
 	}
-	const points = await readHourlyCounts({
-		abortSignal: params.abortSignal,
-		from: dayjs(onsetDay)
-			.subtract(ONSET_BASELINE_DAYS, "day")
-			.format("YYYY-MM-DD"),
-		query,
-		series,
-		timezone,
-		to: through,
-		websiteId: params.websiteId,
-	});
+	const series = onsetSeries(subject);
+	const read = (readSeries: OnsetSeries) =>
+		readHourlyCounts({
+			abortSignal: params.abortSignal,
+			from: dayjs(onsetDay)
+				.subtract(ONSET_BASELINE_DAYS, "day")
+				.format("YYYY-MM-DD"),
+			query,
+			series: readSeries,
+			timezone,
+			to: through,
+			websiteId: params.websiteId,
+		});
+	const points = await read(series);
 	const start = points.findIndex((point) => point.hour >= onset.earliest);
 	if (start <= 0) {
 		return null;
@@ -3247,61 +3249,48 @@ export async function loadRecovery(
 	if (!state) {
 		return null;
 	}
-	const recovery = {
+	const shared = {
 		direction: onset.direction,
 		noun: series.noun,
 		subject: series.subject,
 		through,
 		timezone,
 	};
-	if (
-		state.kind === "recovered" &&
-		series.type === "error_trends" &&
-		!(await trafficContinued({
-			abortSignal: params.abortSignal,
-			from: dayjs(onsetDay)
-				.subtract(ONSET_BASELINE_DAYS, "day")
-				.format("YYYY-MM-DD"),
-			query,
-			recoveredAt: window[state.recoveredFrom]?.hour ?? "",
-			start: onset.earliest,
-			timezone,
-			to: through,
-			websiteId: params.websiteId,
-		}))
-	) {
-		return null;
-	}
 	if (state.kind === "ongoing") {
 		return {
 			onset,
 			recovery: {
-				...recovery,
-				brokenCount: null,
-				brokenHours: null,
+				...shared,
 				expected: state.expectedNormal,
-				heldHours: null,
 				observed: state.observed,
-				recoveredAt: null,
-				recoveredOn: null,
 				state: "ongoing",
 			},
 		};
 	}
+	const recoveredFrom = window[state.recoveredFrom]?.hour ?? onset.earliest;
+	if (
+		subject.kind === "error" &&
+		!trafficContinued(
+			await read(PAGEVIEW_SERIES),
+			onset.earliest,
+			recoveredFrom
+		)
+	) {
+		return null;
+	}
 	return {
 		onset,
 		recovery: {
-			...recovery,
+			...shared,
 			brokenCount: state.brokenCount,
 			brokenHours: state.recoveredFrom,
-			expected: null,
 			heldHours: state.heldHours,
 			observed: state.observed,
 			recoveredAt:
 				state.recoveredAt === null
 					? null
 					: (window[state.recoveredAt]?.hour ?? null),
-			recoveredOn: window[state.recoveredFrom]?.hour.slice(0, 10) ?? null,
+			recoveredOn: recoveredFrom.slice(0, 10),
 			state: "recovered",
 		},
 	};
@@ -3318,10 +3307,10 @@ export function recoveryEvidence(recovery: ChangeRecovery): string {
 	const change = recovery.direction === "down" ? "drop" : "rise";
 	const count = (value: number) => Math.round(value).toLocaleString("en-US");
 	if (recovery.state === "ongoing") {
-		return `${recovery.subject} show the ${change} still in effect: ${count(recovery.observed)} ${recovery.noun} in the 24 hours through ${recovery.through} (${recovery.timezone}), where the earlier rate predicted about ${count(recovery.expected ?? 0)}.`;
+		return `${recovery.subject} show the ${change} still in effect: ${count(recovery.observed)} ${recovery.noun} in the 24 hours through ${recovery.through} (${recovery.timezone}), where the earlier rate predicted about ${count(recovery.expected)}.`;
 	}
 	const when = recovery.recoveredAt
 		? `${recovery.recoveredAt.slice(11, 16)} on ${recovery.recoveredAt.slice(0, 10)}`
-		: (recovery.recoveredOn ?? recovery.through);
-	return `${recovery.subject} show a return to the earlier rate from ${when} (${recovery.timezone}), holding for ${hoursPhrase(recovery.heldHours ?? 0)} through ${recovery.through}: ${count(recovery.observed)} ${recovery.noun} since then, against ${count(recovery.brokenCount ?? 0)} in the ${hoursPhrase(recovery.brokenHours ?? 0)} of the ${change}.`;
+		: recovery.recoveredOn;
+	return `${recovery.subject} show a return to the earlier rate from ${when} (${recovery.timezone}), holding for ${hoursPhrase(recovery.heldHours)} through ${recovery.through}: ${count(recovery.observed)} ${recovery.noun} since then, against ${count(recovery.brokenCount)} in the ${hoursPhrase(recovery.brokenHours)} of the ${change}.`;
 }
