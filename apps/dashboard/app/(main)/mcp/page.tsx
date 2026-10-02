@@ -123,12 +123,13 @@ function ClientIcon({ client, size = 20 }: { client: string; size?: number }) {
 	);
 }
 
-function ErrorRate({ rate }: { rate: number }) {
+function ErrorRate({ className, rate }: { className?: string; rate: number }) {
 	return (
 		<span
 			className={cn(
-				"tabular-nums",
-				rate >= 5 ? "text-destructive" : "text-muted-foreground"
+				"text-muted-foreground tabular-nums",
+				className,
+				rate >= 5 && "text-destructive"
 			)}
 		>
 			{rate}%
@@ -138,13 +139,15 @@ function ErrorRate({ rate }: { rate: number }) {
 
 function FilterMenu({
 	allLabel,
+	labelOf = (option) => option,
 	onChange,
-	options,
+	options = [],
 	value,
 }: {
 	allLabel: string;
+	labelOf?: (option: string) => string;
 	onChange: (value: string | null) => void;
-	options: { label: string; value: string }[];
+	options?: string[];
 	value: string | null;
 }) {
 	if (options.length < 2 && value === null) {
@@ -155,8 +158,7 @@ function FilterMenu({
 			<DropdownMenu.Trigger
 				render={
 					<Button size="sm" variant="secondary">
-						{options.find((option) => option.value === value)?.label ??
-							allLabel}
+						{value === null ? allLabel : labelOf(value)}
 						<CaretUpDownIcon className="size-3 text-muted-foreground" />
 					</Button>
 				}
@@ -170,8 +172,8 @@ function FilterMenu({
 				>
 					<DropdownMenu.RadioItem value="">{allLabel}</DropdownMenu.RadioItem>
 					{options.map((option) => (
-						<DropdownMenu.RadioItem key={option.value} value={option.value}>
-							{option.label}
+						<DropdownMenu.RadioItem key={option} value={option}>
+							{labelOf(option)}
 						</DropdownMenu.RadioItem>
 					))}
 				</DropdownMenu.RadioGroup>
@@ -396,29 +398,24 @@ function McpAnalytics() {
 			<TopBar.Actions>
 				<FilterMenu
 					allLabel="All websites"
-					onChange={(website_id) => setSelected({ website_id })}
-					options={(facets?.websites ?? []).map((id) => {
+					labelOf={(id) => {
 						const website = websites.find((item) => item.id === id);
-						return { label: website?.name || website?.domain || id, value: id };
-					})}
+						return website?.name || website?.domain || id;
+					}}
+					onChange={(website_id) => setSelected({ website_id })}
+					options={facets?.websites}
 					value={selected.website_id}
 				/>
 				<FilterMenu
 					allLabel="All servers"
 					onChange={(server_name) => setSelected({ server_name })}
-					options={(facets?.servers ?? []).map((name) => ({
-						label: name,
-						value: name,
-					}))}
+					options={facets?.servers}
 					value={selected.server_name}
 				/>
 				<FilterMenu
 					allLabel="All environments"
 					onChange={(environment) => setSelected({ environment })}
-					options={(facets?.environments ?? []).map((name) => ({
-						label: name,
-						value: name,
-					}))}
+					options={facets?.environments}
 					value={selected.environment}
 				/>
 				<DateRangePicker
@@ -491,7 +488,12 @@ function McpAnalytics() {
 							detail={formatCount(summary?.errors ?? 0, "failed call")}
 							isLoading={isPending}
 							label="Error rate"
-							value={<ErrorRate rate={summary?.error_rate ?? 0} />}
+							value={
+								<ErrorRate
+									className="text-foreground"
+									rate={summary?.error_rate ?? 0}
+								/>
+							}
 						/>
 						<Stat
 							detail={`Median ${formatMs(summary?.p50_ms ?? null)}`}
@@ -673,7 +675,7 @@ function McpAnalytics() {
 										<span className="truncate font-mono text-xs">
 											{row.tool}
 										</span>
-										<p className="line-clamp-2 break-all text-muted-foreground text-xs">
+										<p className="wrap-anywhere line-clamp-2 text-muted-foreground text-xs">
 											{row.error || "No message"}
 										</p>
 									</List.Cell>
