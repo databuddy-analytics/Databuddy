@@ -2886,6 +2886,8 @@ export function shiftedSegment(params: {
 export type SegmentFinding =
 	| { kind: "concentration"; concentration: SegmentConcentration }
 	| {
+			after: { from: string; to: string };
+			before: { from: string; to: string };
 			kind: "shift";
 			direction: "up" | "down";
 			noun: string;
@@ -3001,7 +3003,14 @@ export async function loadSegmentFinding(
 		direction,
 	});
 	if (shift) {
-		return { direction, kind: "shift", noun: series.noun, shift };
+		return {
+			after: signal.period.current,
+			before: beforePeriod,
+			direction,
+			kind: "shift",
+			noun: series.noun,
+			shift,
+		};
 	}
 	const volume = Math.max(
 		tableTotal(before.get("browser") ?? new Map(), "count"),
@@ -3039,15 +3048,19 @@ export function segmentEvidence(finding: SegmentFinding): string {
 			? "No browser, browser version, operating system, device type or country accounts for most sessions with this error at more than twice its share of all sessions."
 			: `No browser, operating system, device type or country accounts for most of this ${finding.direction === "down" ? "drop" : "rise"} while the rest held steady.`;
 	}
-	const { shift } = finding;
+	const { after, before, shift } = finding;
 	const segment = segmentPhrase(shift.dimension, shift.value);
 	const verb = finding.direction === "down" ? "fell" : "rose";
 	const segmentChange = Number.isFinite(shift.segmentChange)
 		? ` ${percent(Math.abs(shift.segmentChange))}`
 		: "";
 	const restChange = `${shift.restChange >= 0 ? "+" : "-"}${percent(Math.abs(shift.restChange))}`;
-	const daily = (value: number) => Math.round(value).toLocaleString("en-US");
-	return `${finding.noun} from ${segment} ${verb}${segmentChange} (from about ${daily(shift.beforeDaily)} to ${daily(shift.afterDaily)} a day), ${percent(Math.min(shift.explained, 1))} of the whole ${finding.direction === "down" ? "drop" : "rise"}, while everything else changed ${restChange}.`;
+	const count = (value: number) => Math.round(value).toLocaleString("en-US");
+	const singleDays = before.from === before.to && after.from === after.to;
+	const levels = singleDays
+		? `from ${count(shift.beforeDaily)} on ${before.from} to ${count(shift.afterDaily)} on ${after.from}`
+		: `from about ${count(shift.beforeDaily)} to ${count(shift.afterDaily)} a day`;
+	return `${finding.noun} from ${segment} ${verb}${segmentChange} (${levels}), ${percent(Math.min(shift.explained, 1))} of the whole ${finding.direction === "down" ? "drop" : "rise"}, while everything else changed ${restChange}.`;
 }
 
 const RECOVERY_MIN_HOLD_HOURS = 24;

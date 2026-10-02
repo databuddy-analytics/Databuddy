@@ -3117,17 +3117,35 @@ describe("segment localization", () => {
 			direction: "down",
 		});
 		expect(shift).toMatchObject({ dimension: "browser", value: "Safari" });
-		expect(
+		const evidence = (
+			before: { from: string; to: string },
+			after: { from: string; to: string }
+		) =>
 			shift
 				? segmentEvidence({
+						after,
+						before,
 						direction: "down",
 						kind: "shift",
 						noun: "Pageviews",
 						shift,
 					})
-				: ""
+				: "";
+		expect(
+			evidence(
+				{ from: "2026-09-17", to: "2026-09-23" },
+				{ from: "2026-09-24", to: "2026-09-30" }
+			)
 		).toBe(
 			"Pageviews from Safari fell 95% (from about 171 to 9 a day), 91% of the whole drop, while everything else changed -2%."
+		);
+		expect(
+			evidence(
+				{ from: "2026-09-28", to: "2026-09-28" },
+				{ from: "2026-09-29", to: "2026-09-29" }
+			)
+		).toBe(
+			"Pageviews from Safari fell 95% (from 171 on 2026-09-28 to 9 on 2026-09-29), 91% of the whole drop, while everything else changed -2%."
 		);
 	});
 
