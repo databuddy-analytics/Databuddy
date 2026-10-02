@@ -12,10 +12,12 @@ import type {
 	CompetitorInfo,
 	FaqItem,
 	ComparisonData,
+	ComparisonVerdict,
 	PricingTier,
 } from "@/lib/comparison-config";
 
 interface ComparisonPageViewProps {
+	breadcrumbs: { name: string; url: string }[];
 	competitor: CompetitorInfo;
 	faqs: FaqItem[];
 	features: ComparisonFeature[];
@@ -23,12 +25,21 @@ interface ComparisonPageViewProps {
 	heroHeading: ReactNode;
 	pageUrl: string;
 	pricingTiers: PricingTier[];
+	reviewedAt: string;
 	sources: ComparisonData["sources"];
 	structuredDescription: string;
 	structuredTitle: string;
+	verdict: ComparisonVerdict;
 }
 
+const reviewedFormat = new Intl.DateTimeFormat("en-US", {
+	month: "long",
+	year: "numeric",
+	timeZone: "UTC",
+});
+
 export function ComparisonPageView({
+	breadcrumbs,
 	pageUrl,
 	structuredTitle,
 	structuredDescription,
@@ -38,9 +49,15 @@ export function ComparisonPageView({
 	features,
 	faqs,
 	pricingTiers,
+	reviewedAt,
 	sources,
+	verdict,
 }: ComparisonPageViewProps) {
 	const defaultSubtitle = `How Databuddy compares to ${competitor.name} across key features`;
+	const verdictColumns = [
+		{ name: competitor.name, reasons: verdict.competitor },
+		{ name: "Databuddy", reasons: verdict.databuddy },
+	];
 
 	return (
 		<div className="overflow-hidden">
@@ -63,6 +80,8 @@ export function ComparisonPageView({
 					title: structuredTitle,
 					description: structuredDescription,
 					url: pageUrl,
+					breadcrumbs,
+					dateModified: reviewedAt,
 				}}
 			/>
 
@@ -75,9 +94,48 @@ export function ComparisonPageView({
 						<p className="mx-auto max-w-2xl text-pretty text-muted-foreground text-sm leading-relaxed sm:text-base">
 							{heroDescription}
 						</p>
+						<p className="mt-3 text-muted-foreground text-xs">
+							Last reviewed{" "}
+							<time dateTime={reviewedAt}>
+								{reviewedFormat.format(new Date(reviewedAt))}
+							</time>
+						</p>
 					</div>
 
 					<StatsCards competitor={competitor} />
+				</div>
+			</Section>
+
+			<Section className="border-border border-t" id="verdict">
+				<div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
+					<div className="mb-8 text-center">
+						<h2 className="mb-2 font-semibold text-2xl sm:text-3xl">
+							Which one <span className="text-muted-foreground">to pick</span>
+						</h2>
+						<p className="text-pretty text-muted-foreground text-sm sm:text-base">
+							When {competitor.name} fits better, and when Databuddy does
+						</p>
+					</div>
+
+					<div className="grid gap-4 sm:grid-cols-2">
+						{verdictColumns.map((column) => (
+							<div
+								className="rounded border border-border bg-card/50 p-5 backdrop-blur-sm"
+								key={column.name}
+							>
+								<h3 className="mb-3 font-semibold text-foreground text-lg">
+									Pick {column.name} if
+								</h3>
+								<ul className="list-disc space-y-2 pl-5 text-muted-foreground text-sm marker:text-border">
+									{column.reasons.map((reason) => (
+										<li className="text-pretty" key={reason}>
+											{reason}
+										</li>
+									))}
+								</ul>
+							</div>
+						))}
+					</div>
 				</div>
 			</Section>
 

@@ -20,10 +20,9 @@ export default function PricingPage() {
 						Find the plan that fits your product.
 					</h1>
 					<p className="mx-auto max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base">
-						A completed investigation costs ${INVESTIGATION_USAGE.priceUsd} and
-						answers a question that usually costs an engineer a morning.
-						Business and Scale include a monthly allowance; Databunny chat runs
-						on AI credits.
+						Every plan includes AI credits for Databunny chat. Business and
+						Scale add a monthly allowance of investigations, and each extra
+						completed investigation costs ${INVESTIGATION_USAGE.priceUsd}.
 					</p>
 				</header>
 

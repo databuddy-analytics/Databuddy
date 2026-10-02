@@ -40,6 +40,17 @@ export function hasRevenueActivity(
 	);
 }
 
+export function revenueAttributionRateLabel(
+	overview: RevenueOverview | undefined
+): string {
+	const total = finiteNumber(overview?.total_revenue);
+	if (total <= 0) {
+		return "—";
+	}
+	const rate = (finiteNumber(overview?.attributed_revenue) / total) * 100;
+	return rate > 0 && rate < 0.5 ? "<1%" : `${Math.round(rate)}%`;
+}
+
 export function paymentFailureRateLabel(
 	overview: RevenueOverview | undefined
 ): string {

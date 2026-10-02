@@ -6,7 +6,8 @@ const withMDX = createMDX();
 
 const APP_URL = "https://app.databuddy.cc";
 const AGENT_LINK_HEADER =
-	'</sitemap.xml>; rel="sitemap", </index.md>; rel="alternate"; type="text/markdown", </openapi.json>; rel="service-desc"; type="application/vnd.oai.openapi+json;version=3.1", </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"';
+	'</sitemap.xml>; rel="sitemap", </openapi.json>; rel="service-desc"; type="application/vnd.oai.openapi+json;version=3.1", </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"';
+const HOME_LINK_HEADER = `${AGENT_LINK_HEADER}, </index.md>; rel="alternate"; type="text/markdown"`;
 
 const config: NextConfig = {
 	reactStrictMode: true,
@@ -36,6 +37,11 @@ const config: NextConfig = {
 						key: "Referrer-Policy",
 						value: "strict-origin-when-cross-origin",
 					},
+				],
+			},
+			{
+				source: "/:path((?!.*\\.md$).*)",
+				headers: [
 					{
 						key: "Link",
 						value: AGENT_LINK_HEADER,
@@ -48,6 +54,10 @@ const config: NextConfig = {
 					{
 						key: "Vary",
 						value: "Accept, Accept-Encoding",
+					},
+					{
+						key: "Link",
+						value: HOME_LINK_HEADER,
 					},
 				],
 			},
@@ -260,6 +270,10 @@ const config: NextConfig = {
 			{
 				protocol: "https" as const,
 				hostname: "api.producthunt.com",
+			},
+			{
+				protocol: "https" as const,
+				hostname: "pw-static-cdn.com",
 			},
 		],
 		minimumCacheTTL: 60 * 60 * 24 * 30,

@@ -100,18 +100,24 @@ test("shows only configured self-host sign-in methods", {
 	).toHaveCount(googleEnabled ? 1 : 0);
 });
 
-for (const route of ["magic", "magic-sent", "forgot", "verification-needed"]) {
-	test(`explains unavailable email on /login/${route}`, {
-		tag: "@regression",
-	}, async ({ page }) => {
-		test.skip(emailEnabled, "Email is configured for this deployment.");
-		await page.goto(`/login/${route}?callback=%2Fwebsites`);
-		await expect(
-			page.getByRole("heading", { name: "Email isn't set up" })
-		).toBeVisible();
-		await expect(page.locator("form")).toHaveCount(0);
-		await expect(
-			page.getByRole("link", { name: "Back to sign in" })
-		).toHaveAttribute("href", "/login?callback=%2Fwebsites");
-	});
+if (!emailEnabled) {
+	for (const route of [
+		"magic",
+		"magic-sent",
+		"forgot",
+		"verification-needed",
+	]) {
+		test(`explains unavailable email on /login/${route}`, {
+			tag: "@regression",
+		}, async ({ page }) => {
+			await page.goto(`/login/${route}?callback=%2Fwebsites`);
+			await expect(
+				page.getByRole("heading", { name: "Email isn't set up" })
+			).toBeVisible();
+			await expect(page.locator("form")).toHaveCount(0);
+			await expect(
+				page.getByRole("link", { name: "Back to sign in" })
+			).toHaveAttribute("href", "/login?callback=%2Fwebsites");
+		});
+	}
 }

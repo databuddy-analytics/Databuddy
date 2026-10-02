@@ -7,14 +7,14 @@ import OssForm from "./oss-form";
 export const metadata: Metadata = {
 	title: "Databuddy for open source",
 	description:
-		"One year of Databuddy Pro, free, for maintainers of active open source projects.",
+		"One year of Databuddy Pro, free, for maintainers of active open source projects, with 1 million events a month and every Pro feature.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/oss",
 	},
 	openGraph: {
 		title: "Databuddy for open source",
 		description:
-			"One year of Databuddy Pro, free, for maintainers of active open source projects.",
+			"One year of Databuddy Pro, free, for maintainers of active open source projects, with 1 million events a month and every Pro feature.",
 		url: "https://www.databuddy.cc/oss",
 		images: ["/og-image.png"],
 	},
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 export default function OssPage() {
 	const title = "Databuddy for open source";
 	const description =
-		"One year of Databuddy Pro, free, for maintainers of active open source projects.";
+		"One year of Databuddy Pro, free, for maintainers of active open source projects, with 1 million events a month and every Pro feature.";
 	const url = "https://www.databuddy.cc/oss";
 
 	return (

@@ -6,13 +6,10 @@ import {
 	ArrowsOutSimpleIcon,
 	BugIcon,
 	CaretDownIcon,
-	FlagIcon,
 	FunnelIcon,
 	GaugeIcon,
 	LightbulbFilamentIcon,
 	LightningIcon,
-	LockSimpleIcon,
-	ShieldCheckIcon,
 	StarIcon,
 	TrendUpIcon,
 } from "@databuddy/ui/icons";
@@ -30,10 +27,7 @@ const tabs = [
 	{ id: "errors", label: "Errors", path: "/errors" },
 	{ id: "vitals", label: "Vitals", path: "/vitals" },
 	{ id: "funnels", label: "Funnels", path: "/funnels" },
-	{ id: "flags", label: "Flags", path: "/flags" },
 ] as const;
-
-const allTabIds = new Set(tabs.map((t) => t.id));
 
 type HeroInsightTone = "positive" | "negative" | "warning";
 type HeroTabId = (typeof tabs)[number]["id"];
@@ -64,69 +58,59 @@ const heroInsights = [
 	{
 		tabId: "overview",
 		icon: TrendUpIcon,
-		headline: "Pricing traffic is converting 3× the baseline",
-		change: "+200%",
+		headline: "Signups from organic search rose 34% week over week",
+		change: "+34%",
 		tone: "positive",
 		whyItMatters:
-			"Launch referral traffic is landing on /pricing and signing up at 12.4%.",
-		nextStep: "Send this cohort to the founder-led onboarding path.",
-		evidence: ["8.4k sessions", "12.4% signup", "/pricing"],
+			"Search visitors landing on /docs signed up at 3.1%, up from 2.3% the week before.",
+		nextStep: "Link the quickstart from the top three search landing pages.",
+		evidence: ["6.2k visitors", "3.1% signup", "/docs"],
 	},
 	{
 		tabId: "events",
 		icon: LightningIcon,
-		headline: "Invite accepted events jumped after the docs CTA shipped",
-		change: "+64%",
+		headline: "Invite acceptance rose 31% week over week",
+		change: "+31%",
 		tone: "positive",
 		whyItMatters:
-			"Visitors from the SDK guide are creating teams faster than the site baseline.",
-		nextStep: "Keep the docs CTA and test the same prompt on the pricing page.",
-		evidence: ["1.9k events", "+64% WoW", "sdk_guide"],
+			"Visitors from the SDK guide accepted team invites at 9.4%, up from 7.2% the week before.",
+		nextStep: "Link the SDK guide from onboarding and compare next week.",
+		evidence: ["1.9k events", "+31% WoW", "sdk_guide"],
 	},
 	{
 		tabId: "errors",
 		icon: BugIcon,
-		headline: "Checkout errors are concentrated on mobile Safari",
+		headline: "Checkout errors rose 180% week over week",
 		change: "+180%",
 		tone: "negative",
 		whyItMatters:
-			"The last deploy increased step-two exceptions for iOS visitors.",
-		nextStep: "Roll back address autocomplete and watch drop-off recover.",
-		evidence: ["847 errors", "+23% drop-off", "iOS Safari"],
+			"Most new errors are one TypeError on /checkout. Sessions that hit it convert 23% less.",
+		nextStep: "Open the TypeError's stack trace and reproduce it on /checkout.",
+		evidence: ["847 errors", "+180% WoW", "/checkout"],
 	},
 	{
 		tabId: "vitals",
 		icon: GaugeIcon,
-		headline: "INP degraded on the signup flow after script growth",
+		headline: "Interaction delay (INP) rose 42% week over week",
 		change: "+42%",
 		tone: "warning",
 		whyItMatters:
-			"Interaction latency is highest on the plan selector, where new users decide.",
-		nextStep: "Defer the pricing calculator bundle and recheck p75 INP.",
-		evidence: ["284ms p75", "+42%", "/signup"],
+			"/signup has the slowest interactions, with p75 INP at 284 ms against a 200 ms target.",
+		nextStep:
+			"Profile the /signup form on a mid-range phone and recheck p75 INP.",
+		evidence: ["284ms p75", "+42% WoW", "/signup"],
 	},
 	{
 		tabId: "funnels",
 		icon: FunnelIcon,
-		headline: "Signup funnel is leaking at email verification",
-		change: "-18%",
+		headline: "Signup funnel conversion fell 22% week over week",
+		change: "-22%",
 		tone: "warning",
 		whyItMatters:
-			"Mobile visitors reach signup, then leave at email verification.",
+			"Most of the new drop-off is at email verification, the step right after signup.",
 		nextStep:
-			"Restore the shorter verification copy for mobile visitors first.",
-		evidence: ["234 trials", "-31% mobile", "verify step"],
-	},
-	{
-		tabId: "flags",
-		icon: FlagIcon,
-		headline: "New onboarding variant is lifting activation",
-		change: "+21%",
-		tone: "positive",
-		whyItMatters:
-			"The 20% rollout is creating more completed projects without raising errors.",
-		nextStep: "Roll out to 50% and watch activation plus support events.",
-		evidence: ["20% rollout", "+21% activation", "0 error lift"],
+			"Walk through email verification yourself and fix the first step that stalls.",
+		evidence: ["234 signups", "-22% WoW", "verify step"],
 	},
 ] satisfies {
 	change: string;
@@ -147,11 +131,7 @@ const tabLabels = new Map<HeroTabId, string>(
 	tabs.map((tab) => [tab.id, tab.label])
 );
 
-const proofChips = [
-	{ icon: LightningIcon, label: "13 KB script, 11× smaller than GA4" },
-	{ icon: LockSimpleIcon, label: "Cookieless analytics" },
-	{ icon: ShieldCheckIcon, label: "Privacy controls" },
-] as const;
+const proofPoints = ["Free up to 10k events/mo", "No cookies"] as const;
 
 type FullscreenElement = HTMLIFrameElement & {
 	webkitRequestFullscreen?: () => Promise<void>;
@@ -303,22 +283,18 @@ export default function Hero({
 }) {
 	const [activeTab, setActiveTab] = useState<HeroTabId>(tabs[0].id);
 	const [loadedTabIds, setLoadedTabIds] = useState<Set<string>>(
-		() => new Set([tabs[0].id])
+		() => new Set()
 	);
 	const [embedReady, setEmbedReady] = useState<Set<string>>(() => new Set());
 	const iframeRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
 
-	useEffect(() => {
-		const run = () => setLoadedTabIds(new Set(allTabIds));
-		if (typeof requestIdleCallback !== "undefined") {
-			const id = requestIdleCallback(run);
-			return () => cancelIdleCallback(id);
-		}
-		const id = window.setTimeout(run, 300);
-		return () => clearTimeout(id);
-	}, []);
-
 	const activeIndex = tabs.findIndex((t) => t.id === activeTab);
+
+	useEffect(() => {
+		if (window.matchMedia("(min-width: 768px)").matches) {
+			setLoadedTabIds((prev) => new Set(prev).add(tabs[0].id));
+		}
+	}, []);
 
 	const selectTab = (id: HeroTabId) => {
 		setActiveTab(id);
@@ -358,56 +334,16 @@ export default function Hero({
 			<div className="mx-auto w-full max-w-400 px-4 pt-26 pb-8 sm:px-14 sm:pt-20 lg:px-20 lg:pt-38">
 				<div className="mx-auto flex max-w-360 flex-col items-start space-y-2 text-left">
 					<h1 className="z-10 font-semibold text-3xl sm:text-5xl md:text-6xl">
-						See what changed
+						Product analytics for founders
 						<br />
-						<span className="text-muted-foreground">and what to do next.</span>
+						<span className="text-muted-foreground">without a data team.</span>
 					</h1>
 
-					<p className="z-10 max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-lg">
-						Databuddy tracks visits, events, errors, funnels, and rollouts, then
-						surfaces the important answers as investigation cards with evidence
-						and a next step attached.
+					<p className="z-10 max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
+						Track visitors, signups, funnels, and revenue in one place. Ask
+						Databunny, the built-in AI analyst, about your numbers and see the
+						query behind every answer.
 					</p>
-
-					<div className="z-10 flex flex-wrap items-center gap-2 pt-1.5">
-						{proofChips.map((chip, i) => (
-							<motion.span
-								animate={{ opacity: 1, y: 0 }}
-								className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-muted-foreground text-xs backdrop-blur-sm transition-colors duration-150 hover:border-border hover:text-foreground"
-								initial={{ opacity: 0, y: 6 }}
-								key={chip.label}
-								transition={{
-									delay: 0.15 + i * 0.08,
-									duration: 0.3,
-									ease: "easeOut",
-								}}
-							>
-								<chip.icon className="size-3.5" />
-								{chip.label}
-							</motion.span>
-						))}
-						<motion.a
-							animate={{ opacity: 1, y: 0 }}
-							className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-muted-foreground text-xs backdrop-blur-sm transition-colors duration-150 hover:border-border hover:text-foreground"
-							href="https://github.com/databuddy-analytics/databuddy"
-							initial={{ opacity: 0, y: 6 }}
-							rel="noopener noreferrer"
-							target="_blank"
-							transition={{
-								delay: 0.15 + proofChips.length * 0.08,
-								duration: 0.3,
-								ease: "easeOut",
-							}}
-						>
-							<StarIcon className="size-3.5 text-amber-500" />
-							Open source
-							{typeof stars === "number" && (
-								<span className="tabular-nums">
-									&middot; {stars.toLocaleString()}
-								</span>
-							)}
-						</motion.a>
-					</div>
 
 					<div className="flex flex-wrap items-center gap-3 pt-2">
 						<SciFiButton asChild className="px-6 py-5">
@@ -438,9 +374,35 @@ export default function Hero({
 						</SciFiButton>
 					</div>
 
-					<p className="z-10 text-muted-foreground/50 text-xs">
-						Free up to 10,000 events/mo. No credit card required.
-					</p>
+					<ul className="z-10 flex flex-wrap items-center gap-x-5 gap-y-2 pt-3 font-mono text-[11px] text-muted-foreground uppercase tracking-wider sm:gap-x-4">
+						{proofPoints.map((point) => (
+							<li className="flex items-center gap-4" key={point}>
+								{point}
+								<span
+									aria-hidden
+									className="hidden h-3 w-px bg-border sm:block"
+								/>
+							</li>
+						))}
+						<li>
+							<a
+								className="flex items-center gap-1.5 transition-colors duration-200 ease-in-out hover:text-foreground"
+								href="https://github.com/databuddy-analytics/databuddy"
+								rel="noopener noreferrer"
+								target="_blank"
+							>
+								Open source
+								{typeof stars === "number" && (
+									<>
+										<StarIcon className="size-3 text-brand-amber" />
+										<span className="tabular-nums">
+											{stars.toLocaleString()}
+										</span>
+									</>
+								)}
+							</a>
+						</li>
+					</ul>
 				</div>
 
 				<div className="z-10 mt-5 space-y-0">
@@ -545,17 +507,30 @@ export default function Hero({
 								/>
 							</div>
 
-							<button
-								aria-label="Open demo in fullscreen"
-								className="absolute inset-1.5 flex items-center justify-center rounded bg-background/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:inset-2"
-								onClick={handleFullscreen}
-								type="button"
-							>
-								<div className="flex cursor-pointer items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm transition-colors duration-200 hover:bg-card">
-									<ArrowsOutSimpleIcon className="size-4" />
-									<span>Click to view fullscreen</span>
-								</div>
-							</button>
+							{loadedTabIds.has(activeTab) ? (
+								<button
+									aria-label="Open demo in fullscreen"
+									className="absolute inset-1.5 flex items-center justify-center rounded bg-background/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:inset-2"
+									onClick={handleFullscreen}
+									type="button"
+								>
+									<div className="flex cursor-pointer items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm transition-colors duration-200 hover:bg-card">
+										<ArrowsOutSimpleIcon className="size-4" />
+										<span>Click to view fullscreen</span>
+									</div>
+								</button>
+							) : (
+								<button
+									className="absolute inset-1.5 z-20 flex items-end justify-center rounded pb-8 md:hidden"
+									onClick={() => selectTab(activeTab)}
+									type="button"
+								>
+									<span className="flex items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm">
+										<ArrowsOutSimpleIcon className="size-4" />
+										Load the live demo
+									</span>
+								</button>
+							)}
 						</div>
 					</div>
 				</div>

@@ -1,9 +1,14 @@
-import { aiActiveWebsitesQuery, executeQuery } from "@databuddy/ai/query";
+import {
+	aiActiveWebsitesQuery,
+	aiServerTrackingStoppedQuery,
+	executeQuery,
+} from "@databuddy/ai/query";
 import {
 	aiDigestUnsubscribeToken,
 	and,
 	db,
 	eq,
+	inArray,
 	isNull,
 	member,
 	normalizeEmailNotificationSettings,
@@ -131,11 +136,40 @@ function digestSubject({
 	return `${sender} sent ${visitors.toLocaleString("en-US")} ${visitors === 1 ? "visitor" : "visitors"} to ${site} this week`;
 }
 
+async function sitesWhoseServerTrackingStopped(weekStart: string) {
+	const { sql, params } = aiServerTrackingStoppedQuery(
+		isoDay(Date.parse(`${weekStart}T00:00:00Z`) - 7 * DAY_MS),
+		weekStart
+	);
+	const stopped = await chQuery<{ client_id: string }>(sql, params);
+	if (stopped.length === 0) {
+		return [];
+	}
+	const liveSites = await db
+		.select({ id: websites.id })
+		.from(websites)
+		.where(
+			and(
+				inArray(
+					websites.id,
+					stopped.map((site) => site.client_id)
+				),
+				isNull(websites.deletedAt)
+			)
+		);
+	return liveSites.map((site) => site.id);
+}
+
 export async function dispatchAiDigests(now = new Date()) {
 	if (!config.email.resendApiKey) {
 		return logOutcome({ reason: "email_not_configured", status: "skipped" });
 	}
 	const week = weekRange(previousWeekStart(now));
+	setInsightsLog({
+		ai_server_tracking_stopped: await sitesWhoseServerTrackingStopped(
+			week.from
+		),
+	});
 	const { sql, params } = aiActiveWebsitesQuery(week.from, week.until);
 	const sites = await chQuery<{ client_id: string }>(sql, params);
 	await getInsightsQueue().addBulk(

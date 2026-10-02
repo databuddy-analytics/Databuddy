@@ -11,7 +11,6 @@ import { SITE_URL } from "@/app/util/constants";
 import { Footer } from "@/components/footer";
 import { Prose } from "@/components/prose";
 import { StructuredData } from "@/components/structured-data";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
 	getPosts,
 	getSinglePost,
@@ -21,6 +20,10 @@ import {
 
 const STRIP_HTML_REGEX = /<[^>]+>/g;
 const WORD_SPLIT_REGEX = /\s+/;
+const WHITESPACE_RUN_REGEX = /\s+/g;
+const TRAILING_PUNCTUATION_REGEX = /[\s,;:.-]+$/;
+const MAX_TITLE_WITH_SUFFIX = 48;
+const MAX_DESCRIPTION_LENGTH = 155;
 
 function formatDate(date: Date | string): string {
 	return new Intl.DateTimeFormat("en", {
@@ -30,20 +33,33 @@ function formatDate(date: Date | string): string {
 	}).format(new Date(date));
 }
 
+function toMetaDescription(description: string): string {
+	const text = description.replace(WHITESPACE_RUN_REGEX, " ").trim();
+	if (text.length <= MAX_DESCRIPTION_LENGTH) {
+		return text;
+	}
+	const cut = text.slice(0, MAX_DESCRIPTION_LENGTH);
+	const boundary = cut.lastIndexOf(" ");
+	const kept = cut.slice(
+		0,
+		boundary > 0 ? boundary : MAX_DESCRIPTION_LENGTH - 1
+	);
+	return `${kept.replace(TRAILING_PUNCTUATION_REGEX, "")}…`;
+}
+
 export const revalidate = 300;
 
 export async function generateStaticParams() {
-	try {
-		const result = await getPosts();
-		if ("error" in result) {
-			return [];
-		}
-		return result.posts.filter(isPublished).map((post) => ({
-			slug: post.slug,
-		}));
-	} catch {
+	const result = await getPosts();
+	if ("error" in result) {
+		console.error(
+			`Failed to list blog posts for static params: ${result.status} ${result.statusText}`
+		);
 		return [];
 	}
+	return result.posts.filter(isPublished).map((post) => ({
+		slug: post.slug,
+	}));
 }
 
 interface PageProps {
@@ -61,16 +77,20 @@ export async function generateMetadata({
 	const postUrl = `${SITE_URL}/blog/${slug}`;
 	const ogImage = post.coverImage ?? `${SITE_URL}/og-image.png`;
 	const publishedIso = new Date(post.publishedAt).toISOString();
+	const description = toMetaDescription(post.description);
 
 	return {
-		title: post.title,
-		description: post.description,
+		title:
+			post.title.length > MAX_TITLE_WITH_SUFFIX
+				? { absolute: post.title }
+				: post.title,
+		description,
 		alternates: {
 			canonical: postUrl,
 		},
 		openGraph: {
 			title: post.title,
-			description: post.description,
+			description,
 			type: "article",
 			url: postUrl,
 			images: [{ url: ogImage, width: 1200, height: 630, alt: post.title }],
@@ -81,7 +101,7 @@ export async function generateMetadata({
 		twitter: {
 			card: "summary_large_image",
 			title: post.title,
-			description: post.description,
+			description,
 			images: [ogImage],
 		},
 	};
@@ -134,6 +154,11 @@ export default async function PostPage({
 					imageUrl: ogImage,
 					datePublished: publishedIso,
 					dateModified: getPostModifiedAt(post),
+					breadcrumbs: [
+						{ name: "Home", url: SITE_URL },
+						{ name: "Blog", url: `${SITE_URL}/blog` },
+						{ name: post.title, url: postUrl },
+					],
 				}}
 			/>
 			<div className="mx-auto w-full max-w-3xl px-4 pt-10 sm:px-6 sm:pt-12 lg:px-8">
@@ -156,18 +181,25 @@ export default async function PostPage({
 					<div className="flex items-center gap-2">
 						<UserIcon className="size-4" />
 						<div className="flex -space-x-2">
-							{post.authors.slice(0, 3).map((author) => (
-								<Avatar
-									className="size-6 rounded ring-1 ring-black/10 ring-inset"
-									key={author.id}
-								>
-									<AvatarImage
+							{post.authors.slice(0, 3).map((author) =>
+								author.image ? (
+									<Image
 										alt={author.name}
-										src={author.image ?? undefined}
+										className="size-6 shrink-0 rounded object-cover ring-1 ring-black/10 ring-inset"
+										height={24}
+										key={author.id}
+										src={author.image}
+										width={24}
 									/>
-									<AvatarFallback>{author.name[0]}</AvatarFallback>
-								</Avatar>
-							))}
+								) : (
+									<span
+										className="flex size-6 shrink-0 items-center justify-center rounded bg-muted ring-1 ring-black/10 ring-inset"
+										key={author.id}
+									>
+										{author.name[0]}
+									</span>
+								)
+							)}
 						</div>
 						{post.authors[0]?.socials?.[0]?.url ? (
 							<Link

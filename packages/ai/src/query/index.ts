@@ -40,27 +40,25 @@ const TIME_UNITS = [
 const filterOpEnum = z.enum(FILTER_OPS);
 const timeUnitEnum = z.enum(TIME_UNITS);
 
+export const QueryFilterSchema = z.object({
+	field: z.string(),
+	op: filterOpEnum,
+	value: z.union([
+		z.string(),
+		z.number(),
+		z.array(z.union([z.string(), z.number()])),
+	]),
+	target: z.string().optional(),
+	having: z.boolean().optional(),
+});
+
 const QuerySchema = z.object({
 	projectId: z.string(),
 	type: z.string(),
 	from: z.string(),
 	to: z.string(),
 	timeUnit: timeUnitEnum.default("day"),
-	filters: z
-		.array(
-			z.object({
-				field: z.string(),
-				op: filterOpEnum,
-				value: z.union([
-					z.string(),
-					z.number(),
-					z.array(z.union([z.string(), z.number()])),
-				]),
-				target: z.string().optional(),
-				having: z.boolean().optional(),
-			})
-		)
-		.optional(),
+	filters: z.array(QueryFilterSchema).optional(),
 	groupBy: z.array(z.string()).optional(),
 	orderBy: z.string().optional(),
 	limit: z.number().int().min(1).max(1000).optional(),
@@ -69,7 +67,7 @@ const QuerySchema = z.object({
 });
 
 function parseRequest(request: QueryRequest): QueryRequest {
-	return QuerySchema.parse(request) as QueryRequest;
+	return QuerySchema.parse(request);
 }
 
 function createBuilder(
@@ -120,21 +118,13 @@ export const compileQuery = (
 	timezone?: string
 ) => createBuilder(parseRequest(request), websiteDomain, timezone).compile();
 
-export {
-	areQueriesCompatible,
-	executeBatch,
-	getCompatibleQueries,
-	getSchemaGroups,
-	truncateQueryErrorForLog,
-} from "./batch-executor";
+export { executeBatch, truncateQueryErrorForLog } from "./batch-executor";
 export * from "./builders";
 export * from "./expressions";
 export { allowedFilterFields, isFilterFieldAllowed } from "./simple-builder";
 export {
-	hasTraitFilters,
 	invalidFilterFieldError,
 	publicQueryErrorMessage,
-	resolveRequestTraitFilters,
 	SANITIZED_QUERY_ERROR,
 } from "./trait-filters";
 export * from "./types";

@@ -73,30 +73,6 @@ than aggregating raw insert blocks. This is deliberate: an incremental view
 over a replayed block runs before a `ReplacingMergeTree` merge and would
 otherwise reintroduce duplicate counts.
 
-## Unmanaged legacy objects
-
-`analytics.web_vitals_hourly` and `analytics.web_vitals_hourly_mv` may remain
-on existing clusters, but fresh installs do not create them. The materialized
-view finalized percentiles and averages per insert block, then stored those
-values in a `SummingMergeTree`; later merges therefore produced invalid
-statistics. Nothing reads this aggregate, and `analytics.web_vitals_spans`
-remains the source of truth.
-
-The verifier exempts exactly these two names while they await a separately
-planned physical cleanup, and prints a warning for each one it finds. This is
-not a wildcard for materialized views: every other live object still needs a
-matching SQL definition.
-
-After explicit production approval, clean them up in this order so writes stop
-before stored rows are removed:
-
-```sql
-DROP TABLE IF EXISTS analytics.web_vitals_hourly_mv;
-DROP TABLE IF EXISTS analytics.web_vitals_hourly;
-```
-
-Do not reverse the order: the materialized view targets the table.
-
 ## Applying
 
 Apply base tables first, then materialized views (an MV requires both the table
@@ -122,3 +98,15 @@ Prepare and review a forward-only migration separately, apply it to each
 environment, and then update the reference SQL. Changes that reorder a sorting
 key or move a replicated table to another Keeper path require an explicit
 shadow-table or replica migration; they are not safe in-place DDL edits.
+
+## Legacy web-vitals aggregates
+
+Existing installations may still have `analytics.web_vitals_hourly` and
+`analytics.web_vitals_hourly_mv`. They are unused; web-vitals queries read the
+raw `analytics.web_vitals_spans` table. If `ch:verify` reports these objects as
+drift, review and apply this cleanup separately, dropping the view first:
+
+```sql
+DROP TABLE IF EXISTS analytics.web_vitals_hourly_mv;
+DROP TABLE IF EXISTS analytics.web_vitals_hourly;
+```

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { SITE_URL } from "@/app/util/constants";
 import { ComparisonPageView } from "@/components/compare/comparison-page-view";
 import {
+	comparisonsReviewedAt,
 	getAllCompetitorSlugs,
 	getComparisonData,
 } from "@/lib/comparison-config";
@@ -30,12 +31,14 @@ export async function generateMetadata({
 	const compareUrl = `${SITE_URL}/compare/${slug}`;
 
 	return {
-		title: data.seo.title,
+		title: { absolute: data.seo.title },
 		description: data.seo.description,
 		openGraph: {
 			title: data.seo.title,
 			description: data.seo.description,
 			url: compareUrl,
+			type: "website",
+			images: ["/og-image.png"],
 		},
 		alternates: { canonical: compareUrl },
 	};
@@ -49,13 +52,18 @@ export default async function ComparisonPage({ params }: PageProps) {
 		notFound();
 	}
 
-	const { competitor, features, hero, seo, faqs, pricingTiers } = data;
+	const { competitor, features, hero, seo, faqs, pricingTiers, verdict } = data;
 
 	const pageUrl = `${SITE_URL}/compare/${slug}`;
 	const titleParts = hero.title.split(" vs ");
 
 	return (
 		<ComparisonPageView
+			breadcrumbs={[
+				{ name: "Home", url: SITE_URL },
+				{ name: "Compare", url: `${SITE_URL}/compare` },
+				{ name: competitor.name, url: pageUrl },
+			]}
 			competitor={competitor}
 			faqs={faqs}
 			features={features}
@@ -68,9 +76,11 @@ export default async function ComparisonPage({ params }: PageProps) {
 			}
 			pageUrl={pageUrl}
 			pricingTiers={pricingTiers}
+			reviewedAt={comparisonsReviewedAt}
 			sources={data.sources}
 			structuredDescription={seo.description}
 			structuredTitle={seo.title}
+			verdict={verdict}
 		/>
 	);
 }

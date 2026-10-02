@@ -2,6 +2,12 @@
 
 import { authClient } from "@databuddy/auth/client";
 import {
+	decodeMcpGrantReference,
+	MCP_API_SCOPES,
+	MCP_PERMISSIONS,
+} from "@databuddy/shared/mcp-access";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
+import {
 	GlobeIcon,
 	KeyIcon,
 	LinkBreakIcon,
@@ -40,13 +46,6 @@ interface Account {
 	scopes: string[];
 	updatedAt: Date;
 	userId: string;
-}
-
-interface ConnectedApp {
-	clientId: string;
-	createdAt: string;
-	id: string;
-	name: string;
 }
 
 type SocialProvider = "google" | "github";
@@ -289,10 +288,10 @@ function DeleteAccountDialog({
 			if (result.error) {
 				throw new Error(result.error.message);
 			}
-			return result;
+			return result.data;
 		},
-		onSuccess: () => {
-			if (hasPassword) {
+		onSuccess: (data) => {
+			if (data.message === "User deleted") {
 				toast.success("Your account has been deleted");
 				router.push("/login");
 			} else {
@@ -344,8 +343,8 @@ function DeleteAccountDialog({
 						<WarningCircleIcon className="mt-0.5 size-5 shrink-0 text-destructive" />
 						<Text tone="muted" variant="caption">
 							Organizations where you are the only member are deleted with their
-							websites and analytics. Transfer ownership of shared organizations
-							first.
+							websites and analytics. If you are the only owner of an
+							organization with other members, transfer ownership first.
 						</Text>
 					</div>
 					<Field>
@@ -370,11 +369,10 @@ function DeleteAccountDialog({
 								value={password}
 							/>
 						</Field>
-					) : (
-						<Text tone="muted" variant="caption">
-							We'll send a confirmation email to verify this is you.
-						</Text>
-					)}
+					) : null}
+					<Text tone="muted" variant="caption">
+						We'll send a confirmation email to verify this is you.
+					</Text>
 				</Dialog.Body>
 				<Dialog.Footer>
 					<Dialog.Close>
@@ -386,7 +384,7 @@ function DeleteAccountDialog({
 						onClick={() => deleteAccount.mutate()}
 						tone="destructive"
 					>
-						{hasPassword ? "Delete My Account" : "Send Confirmation Email"}
+						Send Confirmation Email
 					</Button>
 				</Dialog.Footer>
 			</Dialog.Content>
@@ -395,6 +393,7 @@ function DeleteAccountDialog({
 }
 
 export default function AccountSettingsPage() {
+	const { organizations } = useOrganizationsContext();
 	const queryClient = useQueryClient();
 	const { data: session, isPending: isSessionLoading } =
 		authClient.useSession();
@@ -436,21 +435,18 @@ export default function AccountSettingsPage() {
 	} = useQuery({
 		queryKey: ["oauth-connected-apps"],
 		queryFn: async () => {
-			const result = await authClient.$fetch<Omit<ConnectedApp, "name">[]>(
-				"/oauth2/get-consents"
-			);
-			if (result.error) {
-				throw new Error(result.error.message);
-			}
+			const consents = await authClient.oauth2.getConsents({
+				fetchOptions: { throw: true },
+			});
 			return Promise.all(
-				(result.data ?? []).map(async (consent) => {
-					const client = await authClient.$fetch<{ name?: string | null }>(
-						`/oauth2/public-client?client_id=${encodeURIComponent(consent.clientId)}`
-					);
+				consents.map(async (consent) => {
+					const client = await authClient.oauth2.publicClient({
+						query: { client_id: consent.clientId },
+					});
 					return {
 						...consent,
 						name:
-							client.data?.name ??
+							client.data?.client_name ??
 							urlHost(consent.clientId) ??
 							consent.clientId,
 					};
@@ -460,18 +456,9 @@ export default function AccountSettingsPage() {
 	});
 
 	const disconnectApp = useMutation({
-		mutationFn: async (consentId: string) => {
-			const result = await authClient.$fetch("/oauth2/delete-consent", {
-				method: "POST",
-				body: { id: consentId },
-			});
-			if (result.error) {
-				throw new Error(result.error.message);
-			}
-		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["oauth-connected-apps"] });
-		},
+		mutationFn: (id: string) =>
+			authClient.oauth2.deleteConsent({ id }, { throw: true }),
+		onSuccess: () => refetchConnectedApps(),
 	});
 
 	const updateProfileMutation = useMutation({
@@ -821,17 +808,17 @@ export default function AccountSettingsPage() {
 							<Card.Title>Connected apps</Card.Title>
 							<Card.Description>
 								Apps you allowed to use Databuddy with your account, like
-								Claude. Disconnecting one revokes its access.
+								Claude. Disconnecting an app revokes all its connections.
+								Reconnect to change its approved access.
 							</Card.Description>
 						</Card.Header>
 						<Card.Content>
-							{isConnectedAppsLoading && (
+							{isConnectedAppsLoading ? (
 								<div className="space-y-3">
 									<Skeleton className="h-5 w-full" />
 									<Skeleton className="h-5 w-full" />
 								</div>
-							)}
-							{isConnectedAppsError && (
+							) : isConnectedAppsError ? (
 								<div className="flex items-center justify-between gap-3">
 									<Text tone="muted" variant="caption">
 										Could not load connected apps.
@@ -844,17 +831,28 @@ export default function AccountSettingsPage() {
 										Retry
 									</Button>
 								</div>
-							)}
-							{!(isConnectedAppsLoading || isConnectedAppsError) &&
-								connectedApps.length === 0 && (
-									<Text tone="muted" variant="caption">
-										No apps connected yet.
-									</Text>
-								)}
-							{!isConnectedAppsError && connectedApps.length > 0 && (
+							) : connectedApps.length === 0 ? (
+								<Text tone="muted" variant="caption">
+									No apps connected yet.
+								</Text>
+							) : (
 								<div className="space-y-3">
 									{connectedApps.map((app, index) => {
 										const host = urlHost(app.clientId);
+										const grant = app.referenceId
+											? decodeMcpGrantReference(app.referenceId)
+											: null;
+										const organization = organizations.find(
+											({ id }) => id === grant?.organizationId
+										);
+										const accessSummary = grant
+											? `${organization?.name ?? "Organization unavailable"} · ${grant.websiteIds === null ? "All websites" : `${grant.websiteIds.length} selected website${grant.websiteIds.length === 1 ? "" : "s"}`}`
+											: "Reconnect to choose access";
+										const permissions = MCP_API_SCOPES.filter((scope) =>
+											app.scopes.includes(scope)
+										)
+											.map((scope) => MCP_PERMISSIONS[scope].label)
+											.join(", ");
 										const connectedOn = `Connected ${dayjs(app.createdAt).format("MMM D, YYYY")}`;
 										return (
 											<div key={app.id}>
@@ -865,6 +863,14 @@ export default function AccountSettingsPage() {
 														<div className="min-w-0">
 															<Text variant="label">{app.name}</Text>
 															<Text tone="muted" variant="caption">
+																{accessSummary}
+															</Text>
+															{permissions && (
+																<Text tone="muted" variant="caption">
+																	{permissions}
+																</Text>
+															)}
+															<Text tone="muted" variant="caption">
 																{host
 																	? `${host} · ${connectedOn}`
 																	: connectedOn}
@@ -872,7 +878,7 @@ export default function AccountSettingsPage() {
 														</div>
 													</div>
 													<Button
-														aria-label={`Disconnect ${app.name}`}
+														aria-label={`Disconnect app ${app.name}`}
 														disabled={disconnectApp.isPending}
 														loading={
 															disconnectApp.isPending &&
@@ -883,7 +889,7 @@ export default function AccountSettingsPage() {
 														variant="ghost"
 													>
 														<LinkBreakIcon className="size-3.5" />
-														Disconnect
+														Disconnect app
 													</Button>
 												</div>
 											</div>

@@ -22,6 +22,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CaretDownIcon, CoinsIcon, TrendDownIcon } from "@databuddy/ui/icons";
 import { Badge, Button, Card, Divider, Text } from "@databuddy/ui";
+import { getStripeMetadata } from "../utils/stripe-metadata";
 
 const PRESET_QUANTITIES = [100, 500, 2500, 10_000];
 const BASE_RATE = TOPUP_TIERS[0].amount;
@@ -66,6 +67,7 @@ export function TopupCard() {
 		try {
 			await attach({
 				planId: TOPUP_PRODUCT_ID,
+				metadata: getStripeMetadata(),
 				featureQuantities: [{ featureId: TOPUP_FEATURE_ID, quantity }],
 				successUrl: `${window.location.origin}/billing`,
 			});

@@ -96,31 +96,14 @@ export const investigationActionSchema = z
 	.strict();
 
 type InvestigationAction = z.input<typeof investigationActionSchema>;
-type RpcCaller = (
-	routerName: string,
-	method: string,
-	input: unknown,
-	context: AppContext,
-	abortSignal?: AbortSignal
-) => Promise<unknown>;
+type RpcCaller = typeof callRPCProcedure;
 
-function isDryRunReceipt(value: unknown): value is {
-	dryRun: true;
-	message: string;
-	mutationBlocked: true;
-	success: false;
-} {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		"dryRun" in value &&
-		value.dryRun === true &&
-		"mutationBlocked" in value &&
-		value.mutationBlocked === true &&
-		"message" in value &&
-		typeof value.message === "string"
-	);
-}
+const dryRunReceiptSchema = z.object({
+	dryRun: z.literal(true),
+	message: z.string(),
+	mutationBlocked: z.literal(true),
+	success: z.literal(false),
+});
 
 export async function runInvestigationAction(
 	rawInput: InvestigationAction,
@@ -129,69 +112,37 @@ export async function runInvestigationAction(
 	callRpc: RpcCaller = callRPCProcedure
 ) {
 	const input = investigationActionSchema.parse(rawInput);
-	if (input.action === "brief") {
+	if (input.action === "brief" || input.action === "list") {
 		if (!context.organizationId) {
 			throw new Error("Select an organization first");
 		}
 		const websiteId =
-			input.websiteId ??
-			context.defaultWebsiteId ??
-			context.websiteId ??
-			undefined;
-		const result = z
-			.object({
-				hasMore: z.boolean(),
-				insights: z.array(insightBriefItemSchema),
-			})
-			.parse(
-				await callRpc(
-					"insights",
-					"brief",
-					{
-						limit: input.limit,
-						offset: input.offset,
-						organizationId: context.organizationId,
-						...(websiteId ? { websiteId } : {}),
-					},
-					context,
-					abortSignal
-				)
-			);
-		return {
-			action: "brief" as const,
-			hasMore: result.hasMore,
-			insights: result.insights,
+			input.websiteId ?? context.defaultWebsiteId ?? context.websiteId;
+		const page = {
+			limit: input.limit,
+			offset: input.offset,
+			organizationId: context.organizationId,
+			...(websiteId ? { websiteId } : {}),
 		};
-	}
-
-	if (input.action === "list") {
-		if (!context.organizationId) {
-			throw new Error("Select an organization first");
+		if (input.action === "brief") {
+			const result = z
+				.object({
+					hasMore: z.boolean(),
+					insights: z.array(insightBriefItemSchema),
+				})
+				.parse(await callRpc("insights", "brief", page, context, abortSignal));
+			return {
+				action: "brief" as const,
+				hasMore: result.hasMore,
+				insights: result.insights,
+			};
 		}
-		const websiteId =
-			input.websiteId ??
-			context.defaultWebsiteId ??
-			context.websiteId ??
-			undefined;
 		const result = z
 			.object({
 				hasMore: z.boolean(),
 				insights: z.array(historyInsightSchema),
 			})
-			.parse(
-				await callRpc(
-					"insights",
-					"history",
-					{
-						limit: input.limit,
-						offset: input.offset,
-						organizationId: context.organizationId,
-						...(websiteId ? { websiteId } : {}),
-					},
-					context,
-					abortSignal
-				)
-			);
+			.parse(await callRpc("insights", "history", page, context, abortSignal));
 		return {
 			action: "list" as const,
 			hasMore: result.hasMore,
@@ -243,8 +194,9 @@ export async function runInvestigationAction(
 		context,
 		abortSignal
 	);
-	if (isDryRunReceipt(response)) {
-		return { action: "reply" as const, ...response };
+	const receipt = dryRunReceiptSchema.safeParse(response);
+	if (receipt.success) {
+		return { action: "reply" as const, ...receipt.data };
 	}
 	const result = z
 		.object({ reply: insightTimelineReplySchema })
@@ -313,8 +265,8 @@ export function createInvestigationTools() {
 				if (input.action === "configure") {
 					validateConfiguration(input);
 				}
+				const websiteId = context.defaultWebsiteId ?? context.websiteId;
 				if (!input.confirmed) {
-					const websiteId = context.defaultWebsiteId ?? context.websiteId;
 					const startsAnalysis =
 						input.action === "run" ||
 						input.frequency === "daily" ||
@@ -333,7 +285,6 @@ export function createInvestigationTools() {
 				}
 
 				if (input.action === "run") {
-					const websiteId = context.defaultWebsiteId ?? context.websiteId;
 					return callRPCProcedure(
 						"insightGeneration",
 						"triggerRun",

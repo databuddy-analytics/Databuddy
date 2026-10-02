@@ -20,7 +20,18 @@ import { LogoContent } from "./logo";
 import { NavLink } from "./nav-link";
 import { NewsletterForm } from "./newsletter-form";
 
-const footerSections = [
+interface FooterItem {
+	href: string;
+	label: string;
+	navItem: string;
+}
+
+interface FooterSectionData {
+	items: FooterItem[];
+	title: string;
+}
+
+const footerSections: FooterSectionData[] = [
 	{
 		title: "Product",
 		items: [
@@ -28,13 +39,14 @@ const footerSections = [
 			{ href: "/developers", label: "Developers", navItem: "developers" },
 			{ href: "/pricing", label: "Pricing", navItem: "pricing" },
 			{ href: "/startups", label: "Startups", navItem: "startups" },
+			{ href: "/oss", label: "Open source program", navItem: "oss" },
 			{
 				href: "/calculator",
 				label: "Measurement gap calculator",
 				navItem: "calculator",
 			},
-			{ href: "/compare", label: "Compare", navItem: "compare" },
 			{ href: "/changelog", label: "Changelog", navItem: "changelog" },
+			{ href: "/roadmap", label: "Roadmap", navItem: "roadmap" },
 		],
 	},
 	{
@@ -47,7 +59,38 @@ const footerSections = [
 			{ href: "/contact", label: "Contact", navItem: "contact" },
 		],
 	},
-] as const;
+	{
+		title: "Compare",
+		items: [
+			{
+				href: "/compare/google-analytics",
+				label: "Google Analytics alternative",
+				navItem: "compare_google-analytics",
+			},
+			{
+				href: "/compare/posthog",
+				label: "PostHog alternative",
+				navItem: "compare_posthog",
+			},
+			{
+				href: "/compare/plausible",
+				label: "Plausible alternative",
+				navItem: "compare_plausible",
+			},
+			{
+				href: "/compare/mixpanel",
+				label: "Mixpanel alternative",
+				navItem: "compare_mixpanel",
+			},
+			{
+				href: "/compare/umami",
+				label: "Umami alternative",
+				navItem: "compare_umami",
+			},
+			{ href: "/compare", label: "All comparisons", navItem: "compare" },
+		],
+	},
+];
 
 const socialLinks = [
 	{
@@ -354,10 +397,11 @@ function DatabunnyNote() {
 						Databunny
 					</span>
 				</span>
-				<StatusLine tone="emerald">Watching</StatusLine>
+				<StatusLine tone="emerald">Checked today</StatusLine>
 			</span>
 			<span className="mt-2 block text-pretty text-muted-foreground text-xs leading-relaxed sm:text-sm">
-				Traffic looks normal. I'll message you in Slack if anything moves.
+				Traffic looks normal next to last week. If a change is real, I'll post
+				it in Slack.
 			</span>
 		</NavLink>
 	);
@@ -451,7 +495,7 @@ function FooterIntro() {
 		<div className="col-span-2 flex flex-col gap-5 lg:col-span-1">
 			<LogoContent />
 			<p className="max-w-xs text-pretty text-muted-foreground text-sm sm:text-base">
-				Privacy-first web analytics without compromising user data.
+				Product analytics for startups with a built-in AI analyst.
 			</p>
 			<NavLink
 				className="flex w-fit items-center gap-3 text-muted-foreground text-sm hover:text-foreground sm:text-base"
@@ -481,11 +525,7 @@ function FooterIntro() {
 	);
 }
 
-function FooterSection({
-	section,
-}: {
-	section: (typeof footerSections)[number];
-}) {
+function FooterSection({ section }: { section: FooterSectionData }) {
 	return (
 		<div className="space-y-5">
 			<FooterHeading>{section.title}</FooterHeading>
@@ -521,7 +561,7 @@ function FooterNewsletter() {
 
 function FooterNav() {
 	return (
-		<div className="grid grid-cols-2 gap-x-8 gap-y-12 lg:grid-cols-[1.3fr_1fr_1fr_1.2fr]">
+		<div className="grid grid-cols-2 gap-x-8 gap-y-12 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1.2fr]">
 			<FooterIntro />
 			{footerSections.map((section) => (
 				<FooterSection key={section.title} section={section} />

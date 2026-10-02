@@ -22,6 +22,7 @@ x-auth-environment: &auth-environment
   BETTER_AUTH_COOKIE_DOMAIN: ${BETTER_AUTH_COOKIE_DOMAIN:-}
   DATABUDDY_ENCRYPTION_KEY: ${DATABUDDY_ENCRYPTION_KEY:?Set DATABUDDY_ENCRYPTION_KEY}
   API_URL: &api-url ${API_URL:?Set API_URL}
+  MCP_URL: ${MCP_URL:-}
   BASKET_URL: &basket-url ${BASKET_URL:?Set BASKET_URL}
   LINKS_URL: &links-url ${LINKS_URL:-http://localhost:2500}
   STATUS_URL: &status-url ${STATUS_URL:-}
@@ -151,6 +152,7 @@ services:
       <<: *auth-environment
       PORT: "3001"
       SERVICE_NAME: databuddy-api
+      DELETED_DATA_PURGE: "true"
       AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
       CONTEXT_DEV_API_KEY: ${CONTEXT_DEV_API_KEY:-}
       SUPERMEMORY_API_KEY: ${SUPERMEMORY_API_KEY:-}

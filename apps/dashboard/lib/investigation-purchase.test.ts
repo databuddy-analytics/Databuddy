@@ -38,6 +38,11 @@ let state, cursor, canUserUpgrade;
 const attach = mock(async () => {});
 mock.module("react", () => ({ ...React, useState: () => [state[cursor++], () => {}], useEffect: () => {} }));
 mock.module("autumn-js/react", () => ({ useCustomer: () => ({ attach }) }));
+mock.module("@databuddy/sdk", () => ({
+  getTracker: () => ({ options: { clientId: "active-website" } }),
+  getProfileId: () => "profile-example",
+  getTrackingIds: () => ({ anonId: "anonymous-example", sessionId: "session-example" }),
+}));
 mock.module("@/lib/app-events", () => ({ trackAppEvent: () => {} }));
 mock.module("@/components/providers/billing-provider", () => ({
   useBillingContext: () => ({ canUserUpgrade, isFeatureEnabled: () => true, isLoading: false }),
@@ -69,6 +74,12 @@ for (const [quantity, valid, authorized] of [
   await button.props.onClick();
   assert.deepEqual(attach.mock.calls, valid && authorized ? [[{
     planId: "investigations_topup",
+    metadata: {
+      databuddy_client_id: "active-website",
+      databuddy_profile_id: "profile-example",
+      databuddy_session_id: "session-example",
+      databuddy_anonymous_id: "anonymous-example",
+    },
     featureQuantities: [{ featureId: "investigation_runs", quantity }],
     successUrl: "https://dashboard.example/billing",
   }]] : []);

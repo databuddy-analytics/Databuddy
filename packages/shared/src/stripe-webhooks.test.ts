@@ -13,6 +13,13 @@ describe("STRIPE_WEBHOOK_EVENTS", () => {
 		expect(new Set(registeredEvents).size).toBe(registeredEvents.length);
 	});
 
+	test("requires the Checkout metadata carriers for immediate and delayed payments", () => {
+		expect(registeredEvents).toContain("checkout.session.completed");
+		expect(registeredEvents).toContain(
+			"checkout.session.async_payment_succeeded"
+		);
+	});
+
 	test("requires every failure event so payment failures are never missed", () => {
 		const requiredEvents = STRIPE_WEBHOOK_EVENTS.required.map(
 			({ event }) => event

@@ -58,8 +58,6 @@ export const cacheNamespaces = {
 	userPreferences: "user-prefs",
 	websiteById: "website_by_id",
 	websiteCache: "website-cache",
-	websiteDomain: "website-domain",
-	websiteDomainsBatch: "website-domains-batch",
 	websiteWithOwner: "website_with_owner_v3",
 } as const;
 
@@ -76,7 +74,6 @@ export const cacheTags = {
 		cacheTag("flag-user", clientId, userId),
 	organization: (organizationId: string) =>
 		cacheTag("organization", organizationId),
-	website: (websiteId: string) => cacheTag("website", websiteId),
 } as const;
 
 export const AGENT_CONTEXT_SNAPSHOT_PREFIX = "agent:context-snapshot";
@@ -86,7 +83,6 @@ const WEBSITE_READ_CACHE_PREFIXES = [
 	cacheNamespaces.websiteById,
 	cacheNamespaces.websiteWithOwner,
 	cacheNamespaces.websiteCache,
-	cacheNamespaces.websiteDomain,
 	cacheNamespaces.agentTelemetryWebsiteExists,
 ] as const;
 
@@ -366,18 +362,11 @@ export function invalidateCacheablePrefix(prefix: string): Promise<number> {
 export function invalidateWebsiteReadCaches(
 	websiteId: string
 ): Promise<CacheInvalidationResult> {
-	return settleInvalidations([
-		...WEBSITE_READ_CACHE_PREFIXES.map((prefix) =>
+	return settleInvalidations(
+		WEBSITE_READ_CACHE_PREFIXES.map((prefix) =>
 			invalidateCacheableKey(prefix, websiteId)
-		),
-		invalidateCacheableTag(
-			cacheNamespaces.websiteDomainsBatch,
-			cacheTags.website(websiteId),
-			{
-				fallbackPattern: `cacheable:${cacheNamespaces.websiteDomainsBatch}:*${websiteId}*`,
-			}
-		),
-	]);
+		)
+	);
 }
 
 export function invalidateUserPreferencesCache(userId: string): Promise<void> {

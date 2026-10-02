@@ -96,6 +96,21 @@ export function aiActiveWebsitesQuery(fromDay: string, untilDay: string) {
 	};
 }
 
+export function aiServerTrackingStoppedQuery(
+	fromDay: string,
+	untilDay: string
+) {
+	return {
+		sql: `
+			SELECT client_id FROM ${Analytics.ai_traffic_spans}
+			WHERE source IN ${SERVER_SIDE_SOURCES}
+			GROUP BY client_id
+			HAVING max(timestamp) >= toDate({fromDay:String}) AND max(timestamp) < toDate({untilDay:String})
+		`,
+		params: { fromDay, untilDay },
+	};
+}
+
 export const AiAgentsBuilders = {
 	ai_products: {
 		meta: {

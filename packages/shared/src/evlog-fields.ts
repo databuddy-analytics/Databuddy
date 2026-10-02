@@ -1,4 +1,4 @@
-export type ApiAuthMethod = "api_key" | "both" | "none" | "session";
+export type ApiAuthMethod = "api_key" | "both" | "none" | "oauth" | "session";
 export type ApiKeyAuthOutcome =
 	| "disabled"
 	| "expired"

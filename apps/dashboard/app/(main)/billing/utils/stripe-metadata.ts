@@ -1,14 +1,13 @@
-import { getProfileId, getTrackingIds } from "@databuddy/sdk";
-
-const DATABUDDY_CLIENT_ID =
-	process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID ?? "OXmNQsViBT-FOS_wZCTHc";
+import { getProfileId, getTracker, getTrackingIds } from "@databuddy/sdk";
 
 export function getStripeMetadata(): Record<string, string> {
 	const { anonId, sessionId } = getTrackingIds();
 	const profileId = getProfileId();
-	const metadata: Record<string, string> = {
-		databuddy_client_id: DATABUDDY_CLIENT_ID,
-	};
+	const clientId = getTracker()?.options.clientId;
+	const metadata: Record<string, string> = {};
+	if (clientId) {
+		metadata.databuddy_client_id = clientId;
+	}
 	if (sessionId) {
 		metadata.databuddy_session_id = sessionId;
 	}

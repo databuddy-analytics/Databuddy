@@ -174,23 +174,15 @@ describe("agent context snapshot keys", () => {
 });
 
 describe("website read cache invalidation", () => {
-	it("invalidates known website cacheable keys and batch domain caches", async () => {
+	it("invalidates known website cacheable keys", async () => {
 		const websiteId = "site-1";
 		const keys = {
 			agentTelemetry: getCacheableKey(
 				cacheNamespaces.agentTelemetryWebsiteExists,
 				websiteId
 			),
-			batch: getCacheableKey(cacheNamespaces.websiteDomainsBatch, [
-				websiteId,
-				"site-2",
-			]),
-			otherBatch: getCacheableKey(cacheNamespaces.websiteDomainsBatch, [
-				"site-2",
-			]),
 			website: getCacheableKey(cacheNamespaces.websiteById, websiteId),
 			websiteCache: getCacheableKey(cacheNamespaces.websiteCache, websiteId),
-			websiteDomain: getCacheableKey(cacheNamespaces.websiteDomain, websiteId),
 			websiteWithOwner: getCacheableKey(
 				cacheNamespaces.websiteWithOwner,
 				websiteId
@@ -208,33 +200,18 @@ describe("website read cache invalidation", () => {
 			value: "{}",
 			ttl: 100,
 		});
-		redisStore.set(keys.websiteDomain, {
-			value: "example.com",
-			ttl: 100,
-		});
 		redisStore.set(keys.agentTelemetry, {
 			value: "true",
-			ttl: 100,
-		});
-		redisStore.set(keys.batch, {
-			value: "{}",
-			ttl: 100,
-		});
-		redisStore.set(keys.otherBatch, {
-			value: "{}",
 			ttl: 100,
 		});
 
 		const result = await invalidateWebsiteReadCaches(websiteId);
 
-		expect(result).toEqual({ attempted: 6, failed: 0 });
+		expect(result).toEqual({ attempted: 4, failed: 0 });
 		expect(redisStore.has(keys.website)).toBe(false);
 		expect(redisStore.has(keys.websiteWithOwner)).toBe(false);
 		expect(redisStore.has(keys.websiteCache)).toBe(false);
-		expect(redisStore.has(keys.websiteDomain)).toBe(false);
 		expect(redisStore.has(keys.agentTelemetry)).toBe(false);
-		expect(redisStore.has(keys.batch)).toBe(false);
-		expect(redisStore.has(keys.otherBatch)).toBe(true);
 	});
 });
 

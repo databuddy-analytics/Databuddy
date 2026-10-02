@@ -696,9 +696,9 @@ export default function Bento() {
 
 			<BentoCard
 				className="h-full md:col-span-4 md:row-span-2"
-				description="Watch real user sessions"
+				description="See each session's page, country, and browser"
 				icon={UsersIcon}
-				title="Live Sessions"
+				title="Sessions"
 			>
 				<SessionsFeature />
 			</BentoCard>

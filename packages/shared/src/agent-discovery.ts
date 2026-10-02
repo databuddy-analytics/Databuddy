@@ -1,25 +1,24 @@
 import z from "zod";
 import { API_SCOPES } from "./api-scopes";
+import { MCP_API_SCOPES } from "./mcp-access";
 
-export { API_SCOPES } from "./api-scopes";
-
-export const AGENT_DISCOVERY_UPDATED = "2026-08-22";
+const AGENT_DISCOVERY_UPDATED = "2026-10-01";
 
 const CDN_SCRIPT_URL = "https://cdn.databuddy.cc/databuddy.js";
 
+export const DATABUDDY_DESCRIPTION =
+	"Databuddy is open-source product analytics for startups. One cookieless script tracks visitors, custom events, funnels, and goals, with opt-in error and web vitals tracking. Databunny, the built-in AI analyst, answers questions about your data and shows the query behind each answer. Feature flags, short links, and uptime monitoring run in the same dashboard. Free up to 10,000 events a month; error tracking starts on the Hobby plan.";
+
+export const DATABUDDY_DISAMBIGUATION =
+	"Databuddy (databuddy.cc) is open-source product analytics. It is not affiliated with Tencent Cloud DataBuddy, the WeData data workbench.";
+
 export interface AgentDiscoveryUrls {
-	a2aAgentCardUrl?: string;
-	agentJsonUrl?: string;
 	apiCatalogUrl?: string;
 	apiOpenapiSpecUrl: string;
 	apiUrl: string;
-	authMdUrl?: string;
 	basketUrl: string;
 	dashboardUrl: string;
-	feedbackMdUrl?: string;
-	feedbackSubmitUrl?: string;
 	mcpManifestUrl: string;
-	mcpServerCardUrl?: string;
 	mcpServerUrl: string;
 	openapiSpecUrl: string;
 	siteUrl: string;
@@ -27,22 +26,23 @@ export interface AgentDiscoveryUrls {
 
 export type ScopedLlmsArea = "api" | "developers" | "docs";
 
-function discoveryUrls(urls: AgentDiscoveryUrls) {
+function resolveDiscoveryUrls(urls: AgentDiscoveryUrls) {
 	return {
 		...urls,
 		apiCatalogUrl:
 			urls.apiCatalogUrl ?? `${urls.siteUrl}/.well-known/api-catalog`,
-		authMdUrl: urls.authMdUrl ?? `${urls.siteUrl}/auth.md`,
-		feedbackMdUrl: urls.feedbackMdUrl ?? `${urls.siteUrl}/feedback.md`,
-		feedbackSubmitUrl:
-			urls.feedbackSubmitUrl ?? `${urls.siteUrl}/api/feedback/submit`,
-		agentJsonUrl: urls.agentJsonUrl ?? `${urls.siteUrl}/.well-known/agent.json`,
-		a2aAgentCardUrl:
-			urls.a2aAgentCardUrl ?? `${urls.siteUrl}/.well-known/agent-card.json`,
-		mcpServerCardUrl:
-			urls.mcpServerCardUrl ??
-			`${urls.siteUrl}/.well-known/mcp/server-card.json`,
+		authMdUrl: `${urls.siteUrl}/auth.md`,
+		feedbackMdUrl: `${urls.siteUrl}/feedback.md`,
+		feedbackSubmitUrl: `${urls.siteUrl}/api/feedback/submit`,
+		agentJsonUrl: `${urls.siteUrl}/.well-known/agent.json`,
+		a2aAgentCardUrl: `${urls.siteUrl}/.well-known/agent-card.json`,
+		mcpServerCardUrl: `${urls.siteUrl}/.well-known/mcp/server-card.json`,
 	};
+}
+
+function protectedResourceMetadataUrl(urls: AgentDiscoveryUrls) {
+	return new URL("/.well-known/oauth-protected-resource", urls.mcpServerUrl)
+		.href;
 }
 
 function mcpTransports(mcpServerUrl: string) {
@@ -50,7 +50,7 @@ function mcpTransports(mcpServerUrl: string) {
 }
 
 export function createDeveloperResources(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return [
 		{
@@ -92,7 +92,8 @@ export function createDeveloperResources(urls: AgentDiscoveryUrls) {
 		{
 			title: "Databuddy API Authentication",
 			url: resolved.authMdUrl,
-			description: "API key headers, bearer tokens, scopes, and access levels.",
+			description:
+				"MCP sign-in with a Databuddy account, API key headers, bearer tokens, scopes, and access levels.",
 		},
 		{
 			title: "Databuddy Agent Discovery",
@@ -104,7 +105,7 @@ export function createDeveloperResources(urls: AgentDiscoveryUrls) {
 			title: "Databuddy A2A Agent Card",
 			url: resolved.a2aAgentCardUrl,
 			description:
-				"Agent-to-Agent card describing Databuddy analytics capabilities and skills.",
+				"Agent card that points A2A agents to the Databuddy MCP server. Databuddy has no A2A message endpoint.",
 		},
 		{
 			title: "Databuddy MCP Server",
@@ -158,14 +159,14 @@ export function createDeveloperResources(urls: AgentDiscoveryUrls) {
 }
 
 export function createMcpManifest(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		schema_version: "1.0",
 		name: "Databuddy",
 		display_name: "Databuddy Analytics",
 		description:
-			"Privacy-first analytics, error tracking, feature flags, uptime, short links, and durable investigations for developer teams.",
+			"Open-source product analytics for startups: visitors, custom events, funnels, goals, errors, web vitals, feature flags, short links, uptime, and Databunny investigations.",
 		homepage_url: resolved.siteUrl,
 		documentation_url: `${resolved.siteUrl}/docs/api/mcp`,
 		manifest_url: resolved.mcpManifestUrl,
@@ -186,11 +187,11 @@ export function createMcpManifest(urls: AgentDiscoveryUrls) {
 		transports: mcpTransports(resolved.mcpServerUrl),
 		authentication: {
 			type: "oauth2",
-			protected_resource_metadata_url: `${resolved.apiUrl}/.well-known/oauth-protected-resource`,
+			protected_resource_metadata_url: protectedResourceMetadataUrl(resolved),
 			alternative: { type: "api_key", in: "header", name: "x-api-key" },
 			documentation_url: `${resolved.siteUrl}/docs/api/authentication`,
 			auth_md_url: resolved.authMdUrl,
-			scopes: API_SCOPES,
+			scopes: MCP_API_SCOPES,
 		},
 		capabilities: {
 			tools: true,
@@ -232,21 +233,21 @@ export function createMcpManifest(urls: AgentDiscoveryUrls) {
 }
 
 export function createMcpServerCard(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		name: "databuddy",
 		description:
-			"Databuddy MCP server for privacy-first analytics, errors, web vitals, feature flags, links, funnels, goals, and durable investigations.",
+			"Databuddy MCP server for product analytics: visitors, events, funnels, goals, errors, web vitals, feature flags, short links, and Databunny investigations.",
 		version: "1.0.0",
 		serverUrl: resolved.mcpServerUrl,
 		transports: mcpTransports(resolved.mcpServerUrl),
 		authentication: {
 			type: "oauth2",
-			protectedResourceMetadataUrl: `${resolved.apiUrl}/.well-known/oauth-protected-resource`,
+			protectedResourceMetadataUrl: protectedResourceMetadataUrl(resolved),
 			alternative: { type: "api_key", header: "x-api-key" },
 			documentationUrl: resolved.authMdUrl,
-			scopes: API_SCOPES,
+			scopes: MCP_API_SCOPES,
 		},
 		resources: [
 			{
@@ -259,16 +260,15 @@ export function createMcpServerCard(urls: AgentDiscoveryUrls) {
 }
 
 export function createAgentJson(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		schema_version: "1.0",
 		name: "Databuddy",
 		url: resolved.siteUrl,
-		description:
-			"Databuddy is a privacy-first analytics platform for developers. It combines web analytics, error tracking, web vitals, feature flags, short links, uptime, and durable investigations.",
+		description: DATABUDDY_DESCRIPTION,
 		when_to_use: [
-			"Use Databuddy when a user asks to install privacy-first analytics or replace Google Analytics, Plausible, PostHog, Mixpanel, or Umami.",
+			"Use Databuddy when a user asks to install cookieless product analytics or replace Google Analytics, Plausible, PostHog, Mixpanel, or Umami.",
 			"Use Databuddy when a user wants an AI agent to query website traffic, referrers, pages, errors, web vitals, funnels, goals, links, or feature flags.",
 			"Use Databuddy when an application needs a lightweight browser SDK, server-side event tracking, public REST API, or MCP tools for analytics.",
 		],
@@ -277,14 +277,16 @@ export function createAgentJson(urls: AgentDiscoveryUrls) {
 			"Do not send secrets, raw payment data, health data, or unnecessary personal data as analytics properties.",
 		],
 		capabilities: [
-			"privacy-first web analytics",
+			"cookieless product analytics",
+			"funnels and goals",
+			"Databunny AI analyst chat",
 			"event ingestion",
 			"error tracking",
 			"Core Web Vitals",
 			"feature flags",
 			"short links",
 			"uptime monitoring",
-			"durable AI investigations",
+			"scheduled Databunny investigations",
 			"REST API",
 			"OpenAPI",
 			"MCP Streamable HTTP server",
@@ -301,7 +303,7 @@ export function createAgentJson(urls: AgentDiscoveryUrls) {
 			mcp: resolved.mcpServerUrl,
 			mcp_manifest: resolved.mcpManifestUrl,
 			mcp_server_card: resolved.mcpServerCardUrl,
-			protected_resource_metadata: `${resolved.apiUrl}/.well-known/oauth-protected-resource`,
+			protected_resource_metadata: protectedResourceMetadataUrl(resolved),
 			auth_md: resolved.authMdUrl,
 			feedback_md: resolved.feedbackMdUrl,
 			llms_txt: `${resolved.siteUrl}/llms.txt`,
@@ -313,51 +315,60 @@ export function createAgentJson(urls: AgentDiscoveryUrls) {
 			headers: ["x-api-key", "Authorization: Bearer <DATABUDDY_API_KEY>"],
 			scopes: API_SCOPES,
 			docs: resolved.authMdUrl,
+			mcp: {
+				type: "oauth2",
+				protected_resource_metadata: protectedResourceMetadataUrl(resolved),
+				client_registration: "client_id_metadata_document",
+				alternative: "api_key",
+				scopes: MCP_API_SCOPES,
+			},
 		},
 		sandbox: {
 			demo: `${resolved.siteUrl}/demo`,
 			api_probe: `${resolved.apiUrl}/sandbox`,
-			note: "Use the public demo for read-only product exploration. Real organization API calls require a scoped Databuddy API key.",
+			note: "Use the public demo for read-only product exploration. Real organization data needs a Databuddy account sign-in over MCP or a scoped Databuddy API key.",
 		},
 		updated_at: AGENT_DISCOVERY_UPDATED,
 	};
 }
 
 export function createA2aAgentCard(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		schema_version: "0.1",
-		name: "Databuddy Analytics Agent",
+		name: "Databuddy Analytics",
 		description:
-			"Agent interface for querying Databuddy analytics, errors, web vitals, feature flags, links, funnels, and goals.",
-		url: resolved.mcpServerUrl,
+			"Databuddy has no A2A message endpoint. Agents query Databuddy analytics, errors, web vitals, feature flags, links, funnels, and goals through its MCP server, described in the MCP manifest at this card's url.",
+		url: resolved.mcpManifestUrl,
+		documentationUrl: `${resolved.siteUrl}/docs/api/mcp`,
 		provider: {
 			name: "Databuddy",
 			url: resolved.siteUrl,
 			support: `${resolved.siteUrl}/contact`,
 		},
 		version: "1.0.0",
-		defaultInputModes: ["application/json", "text/plain"],
-		defaultOutputModes: ["application/json", "text/markdown"],
+		defaultInputModes: ["application/json"],
+		defaultOutputModes: ["application/json"],
 		capabilities: {
-			streaming: true,
+			streaming: false,
 			pushNotifications: false,
-			stateTransitionHistory: true,
+			stateTransitionHistory: false,
 		},
 		authentication: {
-			type: "api_key",
-			header: "x-api-key",
+			type: "oauth2",
+			protectedResourceMetadataUrl: protectedResourceMetadataUrl(resolved),
+			alternative: { type: "api_key", header: "x-api-key" },
 			documentationUrl: resolved.authMdUrl,
-			scopes: API_SCOPES,
+			scopes: MCP_API_SCOPES,
 		},
 		skills: [
 			{
 				id: "analytics-query",
-				name: "Query analytics",
+				name: "Query analytics over MCP",
 				description:
-					"Answer traffic, page, referrer, session, event, error, and performance questions.",
-				tags: ["analytics", "errors", "web-vitals"],
+					"Answer traffic, page, referrer, session, event, error, and performance questions with the MCP get_data tool.",
+				tags: ["mcp", "analytics", "errors", "web-vitals"],
 				examples: [
 					"What were my top pages in the last 7 days?",
 					"Which errors affected the most visitors yesterday?",
@@ -365,17 +376,17 @@ export function createA2aAgentCard(urls: AgentDiscoveryUrls) {
 			},
 			{
 				id: "workspace-operations",
-				name: "Manage organization objects",
+				name: "Manage organization objects over MCP",
 				description:
-					"List and manage Databuddy links, feature flags, goals, funnels, and annotations with scoped API keys.",
-				tags: ["feature-flags", "links", "funnels", "goals"],
+					"List and manage Databuddy links, feature flags, goals, funnels, and annotations with the MCP tools. Writes return a preview until confirmed.",
+				tags: ["mcp", "feature-flags", "links", "funnels", "goals"],
 			},
 		],
 	};
 }
 
 export function createApiCatalog(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		linkset: [
@@ -453,7 +464,7 @@ export function createWebBotAuthDirectory() {
 }
 
 export function createUcpProfile(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		version: AGENT_DISCOVERY_UPDATED,
@@ -483,12 +494,12 @@ export function createUcpProfile(urls: AgentDiscoveryUrls) {
 }
 
 export function createSandboxDiscovery(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		name: "Databuddy sandbox",
 		description:
-			"Read-only discovery and demo environment for agents. Real organization API calls require a scoped Databuddy API key.",
+			"Read-only discovery and demo environment for agents. Real organization data needs a Databuddy account sign-in over MCP or a scoped Databuddy API key.",
 		demo_url: `${resolved.siteUrl}/demo`,
 		openapi_url: resolved.openapiSpecUrl,
 		mcp_server_url: resolved.mcpServerUrl,
@@ -500,7 +511,7 @@ export function createAcpErrorBody(
 	code: string,
 	message: string
 ) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		protocol: "acp",
@@ -518,7 +529,7 @@ export function createAcpErrorBody(
 }
 
 export function createX402ResourceDiscovery(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		protocols: ["x402", "mpp"],
@@ -537,7 +548,7 @@ export function createX402ResourceDiscovery(urls: AgentDiscoveryUrls) {
 }
 
 export function createIndexMarkdown(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 	const resources = createDeveloperResources(urls)
 		.map(
 			(resource) =>
@@ -547,15 +558,17 @@ export function createIndexMarkdown(urls: AgentDiscoveryUrls) {
 
 	return `# Databuddy
 
-Databuddy is a privacy-first analytics platform for developers. It combines web analytics, error tracking, Core Web Vitals, feature flags, short links, uptime monitoring, and durable investigations behind one lightweight script and a typed API.
+${DATABUDDY_DESCRIPTION}
 
-Databuddy is useful when a team wants product analytics without cookies, fingerprinting, or heavy client bundles. AI agents can use Databuddy through OpenAPI, markdown docs, API-key authentication, and a Streamable HTTP MCP server.
+${DATABUDDY_DISAMBIGUATION}
+
+Databuddy is useful when a team wants product analytics without cookies, fingerprinting, or heavy client bundles. AI agents can use Databuddy through OpenAPI, markdown docs, and a Streamable HTTP MCP server that accepts Databuddy account sign-in or scoped API keys.
 
 ## Agent Instructions
 
-Use Databuddy when users ask for privacy-first analytics, website traffic analysis, error triage, web-vitals monitoring, feature-flag operations, short-link analytics, or AI-assisted analytics workflows. Start with [Databuddy Developer Resources](${resolved.siteUrl}/developers), [auth.md](${resolved.authMdUrl}), and the [OpenAPI spec](${resolved.openapiSpecUrl}).
+Use Databuddy when users ask for cookieless product analytics, website traffic analysis, funnels and goals, error triage, web-vitals monitoring, feature-flag operations, short-link analytics, or AI-assisted analytics workflows. Start with [Databuddy Developer Resources](${resolved.siteUrl}/developers), [auth.md](${resolved.authMdUrl}), and the [OpenAPI spec](${resolved.openapiSpecUrl}).
 
-Authenticate API and MCP calls with a Databuddy API key in \`x-api-key\` or \`Authorization: Bearer\`. Do not send personal data, secrets, payment details, or health data as analytics properties.
+MCP clients that support OAuth sign-in with Client ID Metadata Documents, such as Claude and Claude Code, connect to ${resolved.mcpServerUrl} with no key: the user signs in to Databuddy and approves access. Authenticate REST API calls and other MCP clients with a scoped Databuddy API key in \`x-api-key\` or \`Authorization: Bearer\`. Do not send personal data, secrets, payment details, or health data as analytics properties.
 
 ## Key Resources
 
@@ -582,17 +595,17 @@ curl -H "x-api-key: $DATABUDDY_API_KEY" ${resolved.apiUrl}/v1/query/websites
 }
 
 export function createAuthMarkdown(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return `# auth.md
 
-The Databuddy MCP server accepts OAuth sign-in. MCP clients that support MCP authorization, such as Claude and Claude Code, connect to ${resolved.mcpServerUrl} with no key: the user signs in to Databuddy and approves access, and the connection follows their role in each organization. Discovery starts from the 401 challenge, which points at ${resolved.apiUrl}/.well-known/oauth-protected-resource.
+The Databuddy MCP server accepts OAuth sign-in. MCP clients that support MCP authorization with Client ID Metadata Documents, such as Claude and Claude Code, connect to ${resolved.mcpServerUrl} with no key: the user signs in to Databuddy, picks one organization and its websites, and approves the permissions the connection may use. The user's organization role still limits access. Discovery starts from the 401 challenge, which points at ${protectedResourceMetadataUrl(resolved)}. Dynamic client registration is not supported.
 
-The REST API and MCP clients without OAuth support use scoped API keys. Create a key for the organization in ${resolved.dashboardUrl}/organizations/settings#api-keys, choose the smallest scope set needed, and store it securely.
+The REST API and other MCP clients, including Cursor and Windsurf, use scoped API keys. Create a key for the organization in ${resolved.dashboardUrl}/organizations/settings#api-keys, choose the smallest scope set needed, and store it securely.
 
 ## Use the credential
 
-Send the credential on every API or MCP request:
+Send the API key on every REST API request, and on every MCP request from clients that do not sign in:
 
 \`\`\`bash
 curl -H "x-api-key: $DATABUDDY_API_KEY" ${resolved.apiUrl}/v1/query/websites
@@ -615,15 +628,23 @@ For MCP clients:
 
 ## Errors
 
-Databuddy API errors are JSON objects with \`success: false\`, an error \`code\`, a human-readable \`error\`, and where available a \`fix\` or \`hint\`. A 401 means the credential is missing or invalid. A 403 means the credential exists but lacks the requested organization or scope.
+REST API errors are JSON objects with \`success: false\`, an error \`code\`, a human-readable \`error\`, and where available a \`fix\` or \`hint\`. A 401 means the credential is missing or invalid. A 403 means the credential exists but lacks the requested organization or scope.
+
+MCP works differently. Tools that the key's scopes or the approved OAuth permissions do not cover are left out of \`tools/list\`, and calling one returns a JSON-RPC \`-32602\` (invalid params) error that names the scopes the tool needs; reconnect with those permissions or use a key that has them. A credential that covers no tools gets \`-32601\` for every tool call. Tool failures return a result with \`isError: true\` and \`error.code\`, such as \`unauthorized\` for a website or record the credential cannot reach. A missing, expired, or revoked credential returns 401 with a JSON-RPC error and a \`WWW-Authenticate\` header.
 
 ## Revocation
 
 Revoke API keys from ${resolved.dashboardUrl}/organizations/settings#api-keys. Users disconnect OAuth apps from ${resolved.dashboardUrl}/settings/account under Connected apps. Agents should stop using a credential immediately after revocation or any repeated 401 response.
 
-## Supported Scopes
+## API key scopes
 
 ${API_SCOPES.map((scope) => `- \`${scope}\``).join("\n")}
+
+## MCP OAuth scopes
+
+MCP OAuth sign-in grants only these scopes. The consent screen drops any other scope a client requests.
+
+${MCP_API_SCOPES.map((scope) => `- \`${scope}\``).join("\n")}
 `;
 }
 
@@ -637,7 +658,7 @@ export const FEEDBACK_CATEGORIES = [
 ] as const;
 
 export function createFeedbackMarkdown(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return `# feedback.md
 
@@ -692,7 +713,7 @@ export function createScopedLlmsText(
 	urls: AgentDiscoveryUrls,
 	area: ScopedLlmsArea
 ) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	if (area === "api") {
 		return `# Databuddy API Context
@@ -701,7 +722,7 @@ Databuddy exposes a REST API at ${resolved.apiUrl}, an OpenAPI spec at ${resolve
 
 ## Authentication
 
-Read ${resolved.authMdUrl} and send a scoped API key in \`x-api-key\` or \`Authorization: Bearer\`.
+Read ${resolved.authMdUrl}. REST calls send a scoped API key in \`x-api-key\` or \`Authorization: Bearer\`. MCP clients that support OAuth sign-in, such as Claude and Claude Code, connect with a Databuddy account instead; other MCP clients send the API key.
 
 ## Primary Endpoints
 
@@ -712,7 +733,7 @@ Read ${resolved.authMdUrl} and send a scoped API key in \`x-api-key\` or \`Autho
 
 ## Agent Guidance
 
-Use \`read:data\` for analytics. Ask for explicit confirmation before write tools such as feature flags, links, goals, funnels, and memory. Prefer date presets such as \`last_7d\` and \`last_30d\`.
+Use \`read:data\` for analytics. Ask for explicit confirmation before write tools such as feature flags, links, goals, funnels, annotations, and investigation replies. Prefer date presets such as \`last_7d\` and \`last_30d\`; MCP analytics tools default to \`last_30d\`.
 `;
 	}
 
@@ -730,7 +751,7 @@ ${createDeveloperResources(urls)
 
 ## When To Use
 
-Use Databuddy for privacy-first analytics, error tracking, web vitals, feature flags, links, uptime, and AI analytics workflows. For browser tracking use ${CDN_SCRIPT_URL} or \`@databuddy/sdk/react\`. For agents use OpenAPI, MCP, and auth.md.
+Use Databuddy for cookieless product analytics, error tracking, web vitals, feature flags, links, uptime, and AI analytics workflows. For browser tracking use ${CDN_SCRIPT_URL} or \`@databuddy/sdk/react\`. For agents use OpenAPI, MCP, and auth.md.
 `;
 	}
 
@@ -754,7 +775,7 @@ Prefer markdown URLs when available. For example, use \`${resolved.siteUrl}/docs
 }
 
 export function createSchemaMapXml(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return `<?xml version="1.0" encoding="UTF-8"?>
 <schemamap xmlns="https://schema.org/">
@@ -778,7 +799,7 @@ export function createSchemaMapXml(urls: AgentDiscoveryUrls) {
 }
 
 export function createSoftwareJsonl(urls: AgentDiscoveryUrls) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return `${JSON.stringify({
 		"@context": "https://schema.org",
@@ -787,8 +808,7 @@ export function createSoftwareJsonl(urls: AgentDiscoveryUrls) {
 		url: resolved.siteUrl,
 		applicationCategory: "BusinessApplication",
 		operatingSystem: "Web",
-		description:
-			"Privacy-first analytics, error tracking, web vitals, feature flags, short links, uptime, and durable investigations for developer teams.",
+		description: DATABUDDY_DESCRIPTION,
 		offers: {
 			"@type": "Offer",
 			price: "0",
@@ -802,8 +822,7 @@ export function createFaqJsonl() {
 	const items = [
 		{
 			question: "What is Databuddy?",
-			answer:
-				"Databuddy is a privacy-first analytics platform for developers that combines web analytics, error tracking, Core Web Vitals, feature flags, short links, uptime, and durable investigations.",
+			answer: DATABUDDY_DESCRIPTION,
 		},
 		{
 			question: "Does Databuddy support AI agents?",
@@ -813,7 +832,7 @@ export function createFaqJsonl() {
 		{
 			question: "How do agents authenticate to Databuddy?",
 			answer:
-				"Agents authenticate with scoped Databuddy API keys sent in x-api-key or Authorization: Bearer headers.",
+				"MCP clients that support OAuth sign-in, such as Claude and Claude Code, sign in with a Databuddy account and the user approves access. The REST API and other MCP clients, such as Cursor and Windsurf, use scoped Databuddy API keys sent in x-api-key or Authorization: Bearer headers.",
 		},
 	];
 
@@ -835,21 +854,19 @@ export function createFaqJsonl() {
 		.join("\n")}\n`;
 }
 
-const askBodySchema = z
-	.object({
-		query: z.string().optional(),
-		question: z.string().optional(),
-		prefer: z
-			.object({
-				streaming: z.boolean().optional(),
-			})
-			.optional(),
-	})
-	.optional();
+const askBodySchema = z.object({
+	query: z.string().optional(),
+	question: z.string().optional(),
+	prefer: z
+		.object({
+			streaming: z.boolean().optional(),
+		})
+		.optional(),
+});
 
 export function parseNlwebAskBody(body: unknown) {
 	const parsed = askBodySchema.safeParse(body);
-	if (!(parsed.success && parsed.data)) {
+	if (!parsed.success) {
 		return { query: "", streaming: false };
 	}
 
@@ -860,7 +877,7 @@ export function parseNlwebAskBody(body: unknown) {
 }
 
 export function createNlwebAnswer(urls: AgentDiscoveryUrls, query: string) {
-	const resolved = discoveryUrls(urls);
+	const resolved = resolveDiscoveryUrls(urls);
 
 	return {
 		_meta: {
@@ -869,7 +886,7 @@ export function createNlwebAnswer(urls: AgentDiscoveryUrls, query: string) {
 		},
 		query,
 		answer:
-			"Databuddy is a privacy-first analytics platform for developers. Agents can use OpenAPI, auth.md, llms.txt, and the MCP server to query analytics, errors, web vitals, feature flags, links, funnels, and goals.",
+			"Databuddy is open-source product analytics for startups. Agents can use OpenAPI, auth.md, llms.txt, and the MCP server to query analytics, errors, web vitals, feature flags, links, funnels, and goals.",
 		results: [
 			{
 				title: "Databuddy Developer Resources",

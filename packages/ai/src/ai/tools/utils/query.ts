@@ -36,36 +36,22 @@ const TRUSTED_FIELDS = new Set([
 
 const MAX_STRING_LENGTH = 2000;
 
-function sanitizeValue(value: string): string {
-	return stripHtmlTags(value, MAX_STRING_LENGTH);
-}
-
 function sanitizeUnknown(value: unknown): unknown {
 	if (typeof value === "string") {
-		return sanitizeValue(value);
+		return stripHtmlTags(value, MAX_STRING_LENGTH);
 	}
 	if (Array.isArray(value)) {
 		return value.map(sanitizeUnknown);
 	}
 	if (value && typeof value === "object") {
-		const out: Record<string, unknown> = {};
-		for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-			out[k] = TRUSTED_FIELDS.has(k) ? v : sanitizeUnknown(v);
-		}
-		return out;
+		return Object.fromEntries(
+			Object.entries(value).map(([key, item]) => [
+				key,
+				TRUSTED_FIELDS.has(key) ? item : sanitizeUnknown(item),
+			])
+		);
 	}
 	return value;
-}
-
-function sanitizeRow<T extends Record<string, unknown>>(row: T): T {
-	const out = { ...row };
-	for (const [key, value] of Object.entries(out)) {
-		if (TRUSTED_FIELDS.has(key)) {
-			continue;
-		}
-		(out as Record<string, unknown>)[key] = sanitizeUnknown(value);
-	}
-	return out;
 }
 
 export async function executeTimedQuery<T extends Record<string, unknown>>(
@@ -78,6 +64,7 @@ export async function executeTimedQuery<T extends Record<string, unknown>>(
 ): Promise<QueryResult<T>> {
 	const logger = createToolLogger(toolName);
 	const queryStart = Date.now();
+	const sqlPreview = `${sql.slice(0, 100)}${sql.length > 100 ? "..." : ""}`;
 
 	try {
 		const raw = await chQuery<T>(sql, params, {
@@ -86,13 +73,13 @@ export async function executeTimedQuery<T extends Record<string, unknown>>(
 			...(clickhouseSettings && { clickhouse_settings: clickhouseSettings }),
 		});
 		const executionTime = Date.now() - queryStart;
-		const result = raw.map(sanitizeRow);
+		const result = raw.map((row) => sanitizeUnknown(row) as T);
 
 		logger.info("Query completed", {
 			...logContext,
 			executionTime: `${executionTime}ms`,
 			rowCount: result.length,
-			sql: `${sql.slice(0, 100)}${sql.length > 100 ? "..." : ""}`,
+			sql: sqlPreview,
 		});
 
 		return {
@@ -107,7 +94,7 @@ export async function executeTimedQuery<T extends Record<string, unknown>>(
 			...logContext,
 			executionTime: `${executionTime}ms`,
 			error: error instanceof Error ? error.message : "Unknown error",
-			sql: `${sql.slice(0, 100)}${sql.length > 100 ? "..." : ""}`,
+			sql: sqlPreview,
 		});
 
 		throw error;

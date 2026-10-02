@@ -8,24 +8,21 @@ import {
 	callRPCProcedure,
 	createToolLogger,
 	getAppContext,
+	omitUndefined,
 	resolveToolWebsite,
 } from "./utils";
 
 const logger = createToolLogger("Annotations Tools");
 
-interface AnnotationRecord {
-	annotationType: "point" | "line" | "range";
-	color?: string | null;
-	createdAt?: string;
-	id: string;
-	isPublic?: boolean;
-	tags?: string[];
-	text: string;
-	updatedAt?: string;
-	xEndValue?: string | null;
-	xValue: string;
-	yValue?: number | null;
-}
+const AnnotationRecordSchema = z.looseObject({
+	annotationType: z.string(),
+	color: z.string().nullish(),
+	id: z.string(),
+	isPublic: z.boolean().optional(),
+	tags: z.array(z.string()).nullish(),
+	text: z.string(),
+	xValue: z.unknown(),
+});
 
 const chartTypeSchema = z.enum(["metrics"]);
 
@@ -86,9 +83,7 @@ export function createAnnotationTools() {
 					chartType,
 					error,
 				});
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve annotations. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -173,9 +168,7 @@ export function createAnnotationTools() {
 					text,
 					error,
 				});
-				throw error instanceof Error
-					? error
-					: new Error("Failed to create annotation. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -190,16 +183,9 @@ export function createAnnotationTools() {
 			const context = getAppContext(options);
 			try {
 				if (!confirmed) {
-					const currentAnnotation = (await callRPCProcedure(
-						"annotations",
-						"getById",
-						{ id },
-						context
-					)) as AnnotationRecord;
-
-					if (!currentAnnotation) {
-						throw new Error("Annotation not found");
-					}
+					const currentAnnotation = AnnotationRecordSchema.parse(
+						await callRPCProcedure("annotations", "getById", { id }, context)
+					);
 
 					const updates = buildAnnotationChanges(currentAnnotation, {
 						text,
@@ -249,9 +235,7 @@ export function createAnnotationTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to update annotation", { id, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to update annotation. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -263,12 +247,9 @@ export function createAnnotationTools() {
 			const context = getAppContext(options);
 			try {
 				if (!confirmed) {
-					const annotation = (await callRPCProcedure(
-						"annotations",
-						"getById",
-						{ id },
-						context
-					)) as AnnotationRecord;
+					const annotation = AnnotationRecordSchema.parse(
+						await callRPCProcedure("annotations", "getById", { id }, context)
+					);
 
 					return {
 						preview: true,
@@ -299,9 +280,7 @@ export function createAnnotationTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to delete annotation", { id, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to delete annotation. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -322,7 +301,7 @@ interface AnnotationUpdates {
 }
 
 function buildAnnotationChanges(
-	current: AnnotationRecord,
+	current: z.infer<typeof AnnotationRecordSchema>,
 	updates: AnnotationUpdates
 ): string[] {
 	const changes: string[] = [];
@@ -351,12 +330,4 @@ function buildAnnotationChanges(
 	}
 
 	return changes;
-}
-
-function omitUndefined(
-	input: Record<string, unknown>
-): Record<string, unknown> {
-	return Object.fromEntries(
-		Object.entries(input).filter(([, value]) => value !== undefined)
-	);
 }

@@ -2,13 +2,13 @@ export const revalidate = false;
 
 const SKILL = `---
 name: databuddy
-description: Privacy-first analytics SDK. Browser tracking, server-side events, feature flags, AI agent tracking, and REST API.
+description: Cookieless product analytics SDK. Browser tracking, server-side events, feature flags, AI agent tracking, and REST API.
 version: 3.0.0
 ---
 
 # Databuddy SDK (v3)
 
-Privacy-first analytics SDK. Covers browser tracking, server-side events, feature flags, AI agent tracking, and a REST API.
+Cookieless product analytics SDK. Covers browser tracking, server-side events, feature flags, AI agent tracking, and a REST API.
 
 ## External Documentation
 

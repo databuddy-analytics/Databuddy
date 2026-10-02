@@ -2,19 +2,6 @@ import { Analytics } from "../../types/tables";
 import { Expressions } from "../expressions";
 import type { SimpleQueryConfig } from "../types";
 
-const UTM_BASE_FILTERS = [
-	"path",
-	"query_string",
-	"country",
-	"device_type",
-	"browser_name",
-	"os_name",
-	"referrer",
-	"utm_source",
-	"utm_medium",
-	"utm_campaign",
-];
-
 function utmDimension(options: {
 	column: string;
 	title: string;
@@ -72,9 +59,7 @@ function utmDimension(options: {
 		orderBy: "visitors DESC",
 		limit: 100,
 		timeField: "time",
-		allowedFilters: UTM_BASE_FILTERS.includes(column)
-			? UTM_BASE_FILTERS
-			: [...UTM_BASE_FILTERS, column],
+		allowedFilters: [column],
 		customizable: true,
 		plugins: { sessionAttribution: true },
 	};
@@ -139,18 +124,6 @@ export const TrafficBuilders = {
 		orderBy: "visitors DESC",
 		limit: 100,
 		timeField: "time",
-		allowedFilters: [
-			"path",
-			"query_string",
-			"country",
-			"device_type",
-			"browser_name",
-			"os_name",
-			"referrer",
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-		],
 		customizable: true,
 		plugins: {
 			deduplicateReferrers: true,
@@ -260,18 +233,6 @@ export const TrafficBuilders = {
 		orderBy: "visitors DESC",
 		limit: 100,
 		timeField: "time",
-		allowedFilters: [
-			"path",
-			"query_string",
-			"country",
-			"device_type",
-			"browser_name",
-			"os_name",
-			"referrer",
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-		],
 		customizable: true,
 		plugins: {
 			deduplicateReferrers: true,

@@ -3,8 +3,14 @@
 Understand how people use your product: where they come from, what they do, and
 where they drop off. Use that insight to decide what to build or improve next.
 
+Databuddy is open-source product analytics for startups. One cookieless script
+tracks visitors, custom events, funnels, and goals, with opt-in error and web
+vitals tracking. Databunny, the built-in AI analyst, answers questions about
+your data and shows the query behind each answer. Feature flags, short links,
+and uptime monitoring run in the same dashboard.
+
 - **Building a product?** [Try hosted Databuddy](https://app.databuddy.cc) or follow the [tracker setup guide](https://www.databuddy.cc/docs/getting-started).
-- **Running your own stack?** Start with [self-hosting](#self-hosting) below.
+- **Running your own stack?** Read [self-hosting](#self-hosting) below. A packaged release is still pending.
 - **Want to help build Databuddy?** Read the [contributor guide](CONTRIBUTING.md). Bug reports and docs fixes count too.
 
 ## Self-hosting
@@ -58,6 +64,8 @@ dashboard after changing public URLs; they're part of its browser bundle.
 No shared parent domain, such as a PaaS default domain like `*.up.railway.app`?
 Leave `BETTER_AUTH_COOKIE_DOMAIN` empty and set the dashboard's `API_PROXY_URL`
 to the API's internal URL, then rebuild; the dashboard serves the API on its own origin.
+Set `MCP_URL` to the dashboard's public URL on both the dashboard and the API, so
+MCP clients find OAuth sign-in on that same origin.
 On a PaaS, build the dashboard from source with `dashboard.Dockerfile`; its URLs
 are baked in at build time, so there is no prebuilt dashboard image.
 

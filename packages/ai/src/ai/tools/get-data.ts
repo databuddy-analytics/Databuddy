@@ -14,6 +14,7 @@ import {
 import { resolveDatePreset } from "../../lib/date-presets";
 import type { CompiledQuery, QueryRequest } from "../../query/types";
 import { agentDataInputSchema } from "../mcp/agent-query-schema";
+import { capRowArrays } from "../mcp/mcp-utils";
 import { normalizeClickHouseDateTime } from "../../query/date-utils";
 import {
 	getAppContext,
@@ -55,7 +56,7 @@ const queryItemSchema = agentDataInputSchema.shape.queries.element
 type QueryItem = z.infer<typeof queryItemSchema>;
 
 interface QueryItemResult {
-	data: unknown[];
+	data: Record<string, unknown>[];
 	definition?: string;
 	error?: string;
 	filters?: QueryItem["filters"];
@@ -121,7 +122,10 @@ export function getDataModelOutput({
 		value: JSON.stringify({
 			results: Object.fromEntries(
 				Object.entries(output.results).map(
-					([key, { query: _query, ...result }]) => [key, result]
+					([key, { query: _query, data, ...result }]) => [
+						key,
+						{ ...result, data: data.map(capRowArrays) },
+					]
 				)
 			),
 		}),

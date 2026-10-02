@@ -20,9 +20,9 @@ export const revalidate = 3600;
 
 const WORD_SPLIT_REGEX = /\s+/;
 
-const blogTitle = "Blog - Privacy-First Analytics Guides & Updates";
+const blogTitle = "Blog: Product Analytics Guides and Updates";
 const blogDescription =
-	"Practical articles on instrumentation, GDPR compliance, Core Web Vitals, and developer-first analytics from the Databuddy team.";
+	"Practical guides on product analytics, event tracking, funnels, cookieless measurement, GDPR, and Core Web Vitals from the Databuddy team.";
 const blogUrl = "https://www.databuddy.cc/blog";
 
 export const metadata: Metadata = {
@@ -35,6 +35,7 @@ export const metadata: Metadata = {
 		title: blogTitle,
 		description: blogDescription,
 		url: blogUrl,
+		images: ["/og-image.png"],
 	},
 };
 
@@ -161,8 +162,12 @@ function BlogPostCard({ post }: { post: Post }) {
 
 export default async function BlogPage() {
 	const result = await getPosts();
-	const posts = "error" in result ? [] : result.posts;
-	const sortedPosts = [...posts]
+	if ("error" in result && !result.unconfigured) {
+		throw new Error(
+			`Failed to load blog posts: ${result.status} ${result.statusText}`
+		);
+	}
+	const sortedPosts = ("error" in result ? [] : result.posts)
 		.filter(isPublished)
 		.sort(
 			(a, b) =>
@@ -227,8 +232,7 @@ export default async function BlogPage() {
 									</h1>
 									<p className="mb-6 font-medium text-muted-foreground text-sm leading-relaxed tracking-tight sm:text-base">
 										We're working on some amazing content. Check back soon for
-										insights on privacy-first analytics and modern web
-										development.
+										guides on product analytics and modern web development.
 									</p>
 									<div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
 										<SciFiButton asChild className="flex-1 sm:flex-initial">

@@ -1,10 +1,10 @@
+import { DATABUDDY_DESCRIPTION } from "@databuddy/shared/agent-discovery";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Bento from "@/components/bento";
 import { Footer } from "@/components/footer";
 import { AiSection } from "@/components/landing/ai-section";
 import { DemoPreconnectLinks } from "@/components/landing/demo-preconnect-links";
-import { Description } from "@/components/landing/description";
 import { FaqSection } from "@/components/landing/faq-section";
 import { GridCards } from "@/components/landing/grid-cards";
 import Hero from "@/components/landing/hero";
@@ -19,7 +19,7 @@ import { homeFaqItems, homePageSeo } from "@/lib/home-seo";
 import { getGithubStars } from "@/lib/utils";
 
 export const metadata: Metadata = {
-	title: homePageSeo.title,
+	title: { absolute: homePageSeo.title },
 	description: homePageSeo.description,
 	alternates: {
 		canonical: homePageSeo.url,
@@ -89,9 +89,12 @@ function AgentModeView() {
 			<section className="mt-10" id="agent-auth">
 				<h2 className="font-semibold text-2xl">Authentication</h2>
 				<p className="mt-4 text-muted-foreground">
-					Send a scoped Databuddy API key in <code>x-api-key</code> or{" "}
-					<code>Authorization: Bearer</code>. Use <code>read:data</code> for
-					analytics and request confirmation before write scopes.
+					MCP clients that support OAuth sign-in, such as Claude and Claude
+					Code, connect with a Databuddy account and the user approves access.
+					REST API calls and other MCP clients send a scoped Databuddy API key
+					in <code>x-api-key</code> or <code>Authorization: Bearer</code>. Use{" "}
+					<code>read:data</code> for analytics and request confirmation before
+					write scopes.
 				</p>
 			</section>
 
@@ -124,15 +127,19 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 						type: "softwareApplication",
 						value: {
 							name: "Databuddy",
-							description:
-								"Privacy-first developer analytics with error tracking, web vitals, feature flags, short links, and automatic investigations in one lightweight script.",
+							description: DATABUDDY_DESCRIPTION,
 							featureList: [
-								"Privacy-first web analytics",
+								"Cookieless product analytics",
+								"Custom event tracking",
+								"Funnels and goals",
+								"User profiles",
 								"Error tracking",
 								"Core Web Vitals monitoring",
+								"Uptime monitoring",
 								"Feature flags",
-								"Short link analytics",
-								"Automatic investigations",
+								"Short links with click analytics",
+								"Databunny AI analyst chat",
+								"Scheduled investigations on Business and Scale",
 								"REST API",
 								"Model Context Protocol server",
 							],
@@ -199,18 +206,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 							items={homeFaqItems}
 							title="We give a FAQ"
 						/>
-					</div>
-				</Section>
-
-				<Section
-					className="border-border border-b"
-					customPaddings
-					id="desc-border"
-				>
-					<div className={container}>
-						<Section className="py-12 lg:py-16" customPaddings id="description">
-							<Description />
-						</Section>
 					</div>
 				</Section>
 

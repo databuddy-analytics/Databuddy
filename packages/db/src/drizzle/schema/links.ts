@@ -13,7 +13,7 @@ export const linkFolders = pgTable(
 	{
 		id: text().primaryKey(),
 		organizationId: text("organization_id").notNull(),
-		createdBy: text("created_by").notNull(),
+		createdBy: text("created_by"),
 		name: text().notNull(),
 		slug: text().notNull(),
 		deletedAt: timestamp("deleted_at", { precision: 3, withTimezone: true }),
@@ -40,7 +40,7 @@ export const linkFolders = pgTable(
 			columns: [table.createdBy],
 			foreignColumns: [user.id],
 			name: "link_folders_created_by_fkey",
-		}).onDelete("cascade"),
+		}).onDelete("set null"),
 	]
 );
 
@@ -49,7 +49,7 @@ export const links = pgTable(
 	{
 		id: text().primaryKey(),
 		organizationId: text("organization_id").notNull(),
-		createdBy: text("created_by").notNull(),
+		createdBy: text("created_by"),
 		folderId: text("folder_id"),
 		slug: text().notNull(),
 		name: text().notNull(),
@@ -110,7 +110,7 @@ export const links = pgTable(
 			columns: [table.createdBy],
 			foreignColumns: [user.id],
 			name: "links_created_by_fkey",
-		}).onDelete("cascade"),
+		}).onDelete("set null"),
 		foreignKey({
 			columns: [table.folderId],
 			foreignColumns: [linkFolders.id],
