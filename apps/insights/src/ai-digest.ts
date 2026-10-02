@@ -31,7 +31,7 @@ import {
 	CONTENT_FORMATS,
 } from "@databuddy/shared/bot-detection/types";
 import { numberField, stringField } from "./detection";
-import { setInsightsLog } from "./lib/evlog-insights";
+import { emitInsightsEvent, setInsightsLog } from "./lib/evlog-insights";
 
 const DAY_MS = 86_400_000;
 const PRODUCT_ROWS = 5;
@@ -165,11 +165,6 @@ export async function dispatchAiDigests(now = new Date()) {
 		return logOutcome({ reason: "email_not_configured", status: "skipped" });
 	}
 	const week = weekRange(previousWeekStart(now));
-	setInsightsLog({
-		ai_server_tracking_stopped: await sitesWhoseServerTrackingStopped(
-			week.from
-		),
-	});
 	const { sql, params } = aiActiveWebsitesQuery(week.from, week.until);
 	const sites = await chQuery<{ client_id: string }>(sql, params);
 	await getInsightsQueue().addBulk(
@@ -179,6 +174,16 @@ export async function dispatchAiDigests(now = new Date()) {
 			opts: { jobId: aiDigestJobId(week.from, site.client_id) },
 		}))
 	);
+	setInsightsLog({
+		ai_server_tracking_stopped: await sitesWhoseServerTrackingStopped(
+			week.from
+		).catch((error: unknown) => {
+			emitInsightsEvent("warn", "ai_digest.stopped_tracking_check_failed", {
+				error: error instanceof Error ? error.message : String(error),
+			});
+			return [];
+		}),
+	});
 	return logOutcome({ status: "dispatched", websites: sites.length });
 }
 
