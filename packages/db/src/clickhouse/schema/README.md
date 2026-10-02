@@ -98,3 +98,15 @@ Prepare and review a forward-only migration separately, apply it to each
 environment, and then update the reference SQL. Changes that reorder a sorting
 key or move a replicated table to another Keeper path require an explicit
 shadow-table or replica migration; they are not safe in-place DDL edits.
+
+## Legacy web-vitals aggregates
+
+Existing installations may still have `analytics.web_vitals_hourly` and
+`analytics.web_vitals_hourly_mv`. They are unused; web-vitals queries read the
+raw `analytics.web_vitals_spans` table. If `ch:verify` reports these objects as
+drift, review and apply this cleanup separately, dropping the view first:
+
+```sql
+DROP TABLE IF EXISTS analytics.web_vitals_hourly_mv;
+DROP TABLE IF EXISTS analytics.web_vitals_hourly;
+```
