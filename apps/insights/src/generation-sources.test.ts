@@ -706,7 +706,7 @@ describe("fixture investigation sources", () => {
 		expect(scannedWithoutEnvironments).toContain(absence);
 	});
 
-	it("tells a break about other changes that started in the same hours", async () => {
+	it("tells each change what else started in its hours or its period", async () => {
 		const eventStop: DetectedSignal = {
 			...trafficDrop,
 			baseline: 6400,
@@ -718,41 +718,54 @@ describe("fixture investigation sources", () => {
 			metric: "custom_event_count",
 			subjectKey: "custom_event:link_created",
 		};
-		let received:
-			| Parameters<InvestigationSources["investigateSignal"]>[0]
-			| null = null;
-		const sources = fixtureSources({
-			detectDefinitionSignals: async () => [],
-			detectMetricSignals: async () => [
-				eventStop,
-				{ ...trafficDrop, severity: "info" },
-			],
-			fetchAnnotations: async () => [],
-			investigateSignal: async (input) => {
-				received = input;
-				return {
-					outcome: {
-						evidence: ["Link creation stopped with traffic."],
-						impact: "No links were created.",
-						next: { reason: "No case is required.", type: "resolve" },
-						rootCause: null,
-						summary: "Link creation stopped.",
-						title: "Link creation stopped",
+		const bounceRise: DetectedSignal = {
+			...trafficDrop,
+			baseline: 30,
+			current: 45,
+			deltaPercent: 50,
+			direction: "up",
+			label: "Bounce rate",
+			metric: "bounce_rate",
+		};
+		const evidenceFor = async (candidate: DetectedSignal) => {
+			let evidence: string[] = [];
+			await investigateFixture(
+				fixtureSources({
+					detectDefinitionSignals: async () => [],
+					detectMetricSignals: async () => [
+						candidate,
+						{ ...trafficDrop, severity: "info" },
+					],
+					fetchAnnotations: async () => [],
+					investigateSignal: async (input) => {
+						evidence = input.evidence;
+						return {
+							outcome: {
+								evidence: ["The change was measured."],
+								impact: "The change was measured.",
+								next: { reason: "No case is required.", type: "resolve" },
+								rootCause: null,
+								summary: "The change was measured.",
+								title: "Change measured",
+							},
+							toolCallCount: 0,
+						};
 					},
-					toolCallCount: 0,
-				};
-			},
-			loadChangeOnset: async () => linkOnset,
-			loadDueInvestigation: async () => null,
-			loadHistory: async () => [],
-			loadObservations: async () => new Map(),
-		});
+					loadChangeOnset: async ({ signal }) =>
+						signal.signalKey === "bounce_rate" ? null : linkOnset,
+					loadDueInvestigation: async () => null,
+					loadHistory: async () => [],
+					loadObservations: async () => new Map(),
+				})
+			);
+			return evidence;
+		};
 
-		await investigateFixture(sources);
-
-		expect(received?.signal.signalKey).toBe("custom_event:link_created");
-		expect(received?.evidence).toContain(
+		expect(await evidenceFor(eventStop)).toContain(
 			"Another change on this website started within an hour of this one. Dropping between 20:00 and 21:00 on 2026-07-10: pageviews."
+		);
+		expect(await evidenceFor(bounceRise)).toContain(
+			"One change on this website started between 2026-07-05 and 2026-07-11. Dropping between 20:00 and 21:00 on 2026-07-10: pageviews."
 		);
 	});
 

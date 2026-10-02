@@ -18,7 +18,7 @@ import {
 	remeasureMetricSignal,
 	segmentEvidence,
 	segmentTable,
-	sharedOnsetEvidence,
+	sharedStartEvidence,
 	shiftedSegment,
 	wowWindow,
 } from "./detection";
@@ -3014,12 +3014,13 @@ describe("change onset", () => {
 	describe("shared starts", () => {
 		const onsetAt = (
 			earliest: string,
-			direction: "down" | "up" = "up"
+			direction: "down" | "up" = "up",
+			day = "2026-09-25"
 		): ChangeOnset => ({
 			direction,
-			earliest: `2026-09-25 ${earliest}:00`,
+			earliest: `${day} ${earliest}:00`,
 			expected: 10,
-			latest: `2026-09-25 ${earliest}:00`,
+			latest: `${day} ${earliest}:00`,
 			noun: "occurrences",
 			observed: 90,
 			ongoingThrough: null,
@@ -3059,38 +3060,91 @@ describe("change onset", () => {
 
 		it("names other changes that started in the same hours", () => {
 			expect(
-				sharedOnsetEvidence(own, [
+				sharedStartEvidence(
 					own,
-					{ onset: onsetAt("21:00"), signal: errorSignal("Fetch is aborted") },
-					{ onset: onsetAt("22:00"), signal: trafficSignal("visitors") },
-					{ onset: onsetAt("22:00"), signal: trafficSignal("sessions") },
-					{ onset: onsetAt("20:00", "down"), signal: signalFor({}) },
-					{ onset: onsetAt("23:00"), signal: errorSignal("Late error") },
-					{ onset: null, signal: errorSignal("Steady error") },
-				])
+					[
+						own,
+						{
+							onset: onsetAt("21:00"),
+							signal: errorSignal("Fetch is aborted"),
+						},
+						{ onset: onsetAt("22:00"), signal: trafficSignal("visitors") },
+						{ onset: onsetAt("22:00"), signal: trafficSignal("sessions") },
+						{ onset: onsetAt("20:00", "down"), signal: signalFor({}) },
+						{ onset: onsetAt("23:00"), signal: errorSignal("Late error") },
+						{ onset: null, signal: errorSignal("Steady error") },
+					],
+					"UTC"
+				)
 			).toBe(
 				'3 other changes on this website started within an hour of this one. Rising between 22:00 and 23:00 on 2026-09-25: pageviews. Rising between 21:00 and 22:00 on 2026-09-25: error "Fetch is aborted". Dropping between 20:00 and 21:00 on 2026-09-25: link_created events.'
 			);
 			expect(
-				sharedOnsetEvidence(own, [
-					{ onset: onsetAt("23:00"), signal: errorSignal("Late error") },
-				])
+				sharedStartEvidence(
+					own,
+					[{ onset: onsetAt("23:00"), signal: errorSignal("Late error") }],
+					"UTC"
+				)
 			).toBeNull();
 		});
 
 		it("keeps a long list of shared starts to one evidence line", () => {
-			const evidence = sharedOnsetEvidence(
+			const evidence = sharedStartEvidence(
 				own,
 				Array.from({ length: 12 }, (_, index) => ({
 					onset: onsetAt("21:00"),
 					signal: errorSignal(
 						`TypeError: request ${index} failed while loading the checkout payment widget script`
 					),
-				}))
+				})),
+				"UTC"
 			);
 			expect(evidence?.length).toBeLessThanOrEqual(500);
 			expect(evidence).toStartWith("12 other changes");
 			expect(evidence).toMatch(/\. \d+ more not listed\.$/);
+		});
+
+		it("lists what started during the period of a change without hourly counts", () => {
+			const bounceRate = signalFor({
+				detectedAt: "2026-09-25",
+				entityId: undefined,
+				entityLabel: undefined,
+				label: "Bounce rate",
+				metric: "bounce_rate",
+				subjectKey: undefined,
+			});
+			const changes = [
+				{ onset: onsetAt("21:00"), signal: trafficSignal("sessions") },
+				{
+					onset: onsetAt("21:00", "up", "2026-09-24"),
+					signal: errorSignal("Load failed"),
+				},
+			];
+			expect(bounceRate.period.current).toEqual({
+				from: "2026-09-25",
+				to: "2026-09-25",
+			});
+			expect(
+				sharedStartEvidence({ onset: null, signal: bounceRate }, changes, "UTC")
+			).toBe(
+				"One change on this website started on 2026-09-25. Rising between 21:00 and 22:00 on 2026-09-25: pageviews."
+			);
+			const gradualError = signalFor({
+				detectedAt: "2026-09-25",
+				entityId: "Fetch is aborted",
+				entityLabel: "Fetch is aborted",
+				label: "Fetch is aborted",
+				metric: "error_count",
+				subjectKey: "error:Fetch is aborted",
+			});
+			expect(gradualError.period.current.from).toBe("2026-09-25");
+			expect(
+				sharedStartEvidence(
+					{ onset: null, signal: gradualError },
+					changes,
+					"UTC"
+				)
+			).toBeNull();
 		});
 	});
 });

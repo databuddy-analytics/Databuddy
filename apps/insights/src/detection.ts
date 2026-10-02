@@ -2664,8 +2664,8 @@ export function changeOnsetEvidence(onset: ChangeOnset): string {
 	return `${start} From then on there were ${observed} where the earlier rate predicted about ${expected}.${through}`;
 }
 
-const SHARED_ONSET_GAP_HOURS = 1;
-const SHARED_ONSET_NAME_LENGTH = 120;
+const SHARED_START_GAP_HOURS = 1;
+const SHARED_START_NAME_LENGTH = 120;
 const EVIDENCE_MAX_LENGTH = 500;
 
 function subjectName(subject: SignalSubject): string {
@@ -2674,8 +2674,8 @@ function subjectName(subject: SignalSubject): string {
 			return "pageviews";
 		case "error":
 			return `error "${
-				subject.message.length > SHARED_ONSET_NAME_LENGTH
-					? `${subject.message.slice(0, SHARED_ONSET_NAME_LENGTH - 1).trimEnd()}…`
+				subject.message.length > SHARED_START_NAME_LENGTH
+					? `${subject.message.slice(0, SHARED_START_NAME_LENGTH - 1).trimEnd()}…`
 					: subject.message
 			}"`;
 		case "event":
@@ -2699,13 +2699,18 @@ function onsetSpan(onset: ChangeOnset): { end: number; start: number } {
 	};
 }
 
-export function sharedOnsetEvidence(
-	own: { onset: ChangeOnset; signal: InvestigationSignal },
-	changes: { onset: ChangeOnset | null; signal: InvestigationSignal }[]
+interface ChangeStart {
+	onset: ChangeOnset | null;
+	signal: InvestigationSignal;
+}
+
+function startsEvidence(
+	own: InvestigationSignal,
+	changes: ChangeStart[],
+	within: (span: { end: number; start: number }) => boolean,
+	intro: (count: number) => string
 ): string | null {
-	const gap = SHARED_ONSET_GAP_HOURS * 60 * 60 * 1000;
-	const ownSpan = onsetSpan(own.onset);
-	const seen = new Set([hourlyChangeName(own.signal)]);
+	const seen = new Set([hourlyChangeName(own)]);
 	const shared: { name: string; start: string; traffic: boolean }[] = [];
 	for (const { onset, signal } of changes) {
 		const subject = signalSubject(signal);
@@ -2714,8 +2719,7 @@ export function sharedOnsetEvidence(
 			continue;
 		}
 		seen.add(name);
-		const span = onsetSpan(onset);
-		if (span.start < ownSpan.end + gap && ownSpan.start < span.end + gap) {
+		if (within(onsetSpan(onset))) {
 			shared.push({
 				name,
 				start: `${onset.direction === "down" ? "Dropping" : "Rising"} ${hourRange(onset.earliest, onset.latest, onset.timezone)}`,
@@ -2727,10 +2731,6 @@ export function sharedOnsetEvidence(
 		return null;
 	}
 	shared.sort((left, right) => Number(right.traffic) - Number(left.traffic));
-	const intro =
-		shared.length === 1
-			? "Another change on this website started within an hour of this one"
-			: `${shared.length} other changes on this website started within an hour of this one`;
 	const sentence = (listed: number) => {
 		const groups = new Map<string, string[]>();
 		for (const { name, start } of shared.slice(0, listed)) {
@@ -2740,13 +2740,47 @@ export function sharedOnsetEvidence(
 			([start, names]) => `${start}: ${names.join(", ")}`
 		);
 		const unlisted = shared.length - listed;
-		return `${intro}. ${lines.join(". ")}${unlisted > 0 ? `. ${unlisted} more not listed` : ""}.`;
+		return `${intro(shared.length)}. ${lines.join(". ")}${unlisted > 0 ? `. ${unlisted} more not listed` : ""}.`;
 	};
 	let listed = shared.length;
 	while (listed > 1 && sentence(listed).length > EVIDENCE_MAX_LENGTH) {
 		listed -= 1;
 	}
 	return sentence(listed);
+}
+
+export function sharedStartEvidence(
+	own: ChangeStart,
+	changes: ChangeStart[],
+	timezone: string
+): string | null {
+	if (own.onset) {
+		const gap = SHARED_START_GAP_HOURS * 60 * 60 * 1000;
+		const ownSpan = onsetSpan(own.onset);
+		return startsEvidence(
+			own.signal,
+			changes,
+			(span) =>
+				span.start < ownSpan.end + gap && ownSpan.start < span.end + gap,
+			(count) =>
+				count === 1
+					? "Another change on this website started within an hour of this one"
+					: `${count} other changes on this website started within an hour of this one`
+		);
+	}
+	if (hourlyChangeName(own.signal)) {
+		return null;
+	}
+	const { from, to } = own.signal.period.current;
+	const periodStart = dayjs.tz(from, timezone).valueOf();
+	const periodEnd = dayjs.tz(to, timezone).add(1, "day").valueOf();
+	return startsEvidence(
+		own.signal,
+		changes,
+		(span) => span.start < periodEnd && periodStart < span.end,
+		(count) =>
+			`${count === 1 ? "One change" : `${count} changes`} on this website started ${from === to ? `on ${from}` : `between ${from} and ${to}`}`
+	);
 }
 
 const SEGMENT_DIMENSIONS = [
