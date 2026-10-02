@@ -162,12 +162,12 @@ function BlogPostCard({ post }: { post: Post }) {
 
 export default async function BlogPage() {
 	const result = await getPosts();
-	if ("error" in result) {
+	if ("error" in result && !result.unconfigured) {
 		throw new Error(
 			`Failed to load blog posts: ${result.status} ${result.statusText}`
 		);
 	}
-	const sortedPosts = result.posts
+	const sortedPosts = ("error" in result ? [] : result.posts)
 		.filter(isPublished)
 		.sort(
 			(a, b) =>

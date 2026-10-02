@@ -10,6 +10,7 @@ interface FetchError {
 	error: true;
 	status: number;
 	statusText: string;
+	unconfigured?: true;
 }
 
 interface MarbleAuthor {
@@ -115,6 +116,7 @@ export function createMarbleRequest(
 		error: true,
 		status: 500,
 		statusText: "Environment variables not configured",
+		unconfigured: true,
 	};
 }
 
