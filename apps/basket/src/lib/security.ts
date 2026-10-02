@@ -143,8 +143,6 @@ export function getDailySalt(): Promise<string> {
 			captureError(error, {
 				message: "Failed to resolve daily salt in Redis",
 			});
-			// ponytail: keep collection anonymous during Redis outages;
-			// shared visitor identity requires restoring the shared salt.
 			return crypto.randomBytes(32).toString("hex");
 		}
 	});

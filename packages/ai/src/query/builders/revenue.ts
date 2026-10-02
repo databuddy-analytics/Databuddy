@@ -436,8 +436,6 @@ function buildAttributionCte(
 					SELECT revenue_owner_id, provider, r_customer_id FROM revenue_base
 				)
 		),
-		-- ponytail: identity reads grow with tenant history; restrict to payment keys
-		-- if measured scans exceed the query latency budget.
 		attribution_identifiers AS (
 			SELECT session_id, profile_id, anonymous_id FROM ${Analytics.revenue} FINAL
 			WHERE ${relatedStripeScope}
