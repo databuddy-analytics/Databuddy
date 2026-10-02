@@ -18,6 +18,7 @@ import { createMcpTools } from "../ai/mcp/tools";
 import { GUIDE_MARKDOWN, GUIDE_URI, MCP_INSTRUCTIONS } from "./guide";
 
 export interface DatabuddyMcpHttpOptions extends McpRequestContext {
+	clientName?: string;
 	request: Request;
 }
 
@@ -73,7 +74,12 @@ export async function handleDatabuddyMcpRequest(
 	);
 
 	if (!readBooleanEnv("SELFHOST")) {
-		trackMcp(server);
+		trackMcp(server, {
+			beforeSend: (call) => ({
+				...call,
+				clientName: call.clientName ?? options.clientName,
+			}),
+		});
 	}
 	registerGuideResource(server);
 
