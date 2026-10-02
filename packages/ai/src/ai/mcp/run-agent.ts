@@ -58,7 +58,7 @@ export interface McpAgentToolTrace {
 	output: unknown;
 }
 
-export interface RunMcpAgentTraceResult {
+interface RunMcpAgentTraceResult {
 	answer: string;
 	steps: number;
 	toolCalls: McpAgentToolTrace[];
@@ -80,7 +80,7 @@ export async function runMcpAgent(
 
 		await trackPreparedUsage(prepared, result.totalUsage);
 
-		const answer = result.text ?? "No response generated.";
+		const answer = result.text;
 		if (options.storeMemory !== false) {
 			storePreparedConversation(prepared, options.question, answer);
 		}
@@ -106,7 +106,7 @@ export async function runMcpAgentWithTrace(
 
 		await trackPreparedUsage(prepared, result.totalUsage);
 		const stepCount = result.steps.length;
-		const rawAnswer = (result.text ?? "").trim();
+		const rawAnswer = result.text.trim();
 		const answer =
 			rawAnswer ||
 			`I ran ${stepCount} step${stepCount === 1 ? "" : "s"} but couldn't fit a summary into this turn. The question is wide enough that I exhausted the step budget gathering data. Ask me a narrower slice (one metric, one segment, one time range) and I'll give you a focused answer.`;
@@ -161,30 +161,25 @@ async function buildTruncatedTrace(
 function aggregateStepUsage(
 	steps: ReadonlyArray<{ usage: LanguageModelUsage }>
 ): LanguageModelUsage {
-	let inputTokens = 0;
-	let outputTokens = 0;
-	let totalTokens = 0;
-	let noCacheTokens = 0;
-	let cacheReadTokens = 0;
-	let cacheWriteTokens = 0;
-	let textTokens = 0;
-	let reasoningTokens = 0;
-	for (const { usage } of steps) {
-		inputTokens += usage.inputTokens ?? 0;
-		outputTokens += usage.outputTokens ?? 0;
-		totalTokens += usage.totalTokens ?? 0;
-		noCacheTokens += usage.inputTokenDetails?.noCacheTokens ?? 0;
-		cacheReadTokens += usage.inputTokenDetails?.cacheReadTokens ?? 0;
-		cacheWriteTokens += usage.inputTokenDetails?.cacheWriteTokens ?? 0;
-		textTokens += usage.outputTokenDetails?.textTokens ?? 0;
-		reasoningTokens += usage.outputTokenDetails?.reasoningTokens ?? 0;
-	}
+	const sum = (pick: (usage: LanguageModelUsage) => number | undefined) =>
+		steps.reduce((total, { usage }) => total + (pick(usage) ?? 0), 0);
 	return {
-		inputTokens,
-		outputTokens,
-		totalTokens,
-		inputTokenDetails: { noCacheTokens, cacheReadTokens, cacheWriteTokens },
-		outputTokenDetails: { textTokens, reasoningTokens },
+		inputTokens: sum((usage) => usage.inputTokens),
+		outputTokens: sum((usage) => usage.outputTokens),
+		totalTokens: sum((usage) => usage.totalTokens),
+		inputTokenDetails: {
+			noCacheTokens: sum((usage) => usage.inputTokenDetails?.noCacheTokens),
+			cacheReadTokens: sum((usage) => usage.inputTokenDetails?.cacheReadTokens),
+			cacheWriteTokens: sum(
+				(usage) => usage.inputTokenDetails?.cacheWriteTokens
+			),
+		},
+		outputTokenDetails: {
+			textTokens: sum((usage) => usage.outputTokenDetails?.textTokens),
+			reasoningTokens: sum(
+				(usage) => usage.outputTokenDetails?.reasoningTokens
+			),
+		},
 	};
 }
 
@@ -351,20 +346,6 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 
 	const memoryBlock = memoryCtx ? formatMemoryForPrompt(memoryCtx) : "";
 
-	const mcpTelemetryMetadata: Record<string, string> = {
-		source,
-		authType: options.apiKey ? "api_key" : "session",
-		timezone: options.timezone ?? "UTC",
-		"tcc.conversational": "true",
-	};
-	if (mcpUserId) {
-		mcpTelemetryMetadata.userId = mcpUserId;
-	}
-	if (options.apiKey?.organizationId) {
-		mcpTelemetryMetadata.organizationId = options.apiKey.organizationId;
-	}
-	mcpTelemetryMetadata["tcc.sessionId"] = sessionId;
-
 	const ai = getAILogger();
 	const capturedSteps: StepResult<ToolSet>[] = [];
 	const agent = createConversationAgent(
@@ -380,7 +361,17 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 			experimental_telemetry: {
 				isEnabled: true,
 				functionId: `databuddy.${source}.ask`,
-				metadata: mcpTelemetryMetadata,
+				metadata: {
+					source,
+					authType: options.apiKey ? "api_key" : "session",
+					timezone: options.timezone ?? "UTC",
+					"tcc.conversational": "true",
+					...(mcpUserId && { userId: mcpUserId }),
+					...(options.apiKey?.organizationId && {
+						organizationId: options.apiKey.organizationId,
+					}),
+					"tcc.sessionId": sessionId,
+				},
 			},
 		}
 	);
