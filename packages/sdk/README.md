@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/npm/l/@databuddy/sdk?style=flat-square)](./LICENSE)
 [![Docs](https://img.shields.io/badge/docs-databuddy.cc-blue?style=flat-square)](https://www.databuddy.cc/docs)
 
-> **The easiest, privacy-first way to add analytics to your web app.**
+> **Open-source product analytics for your web app: pageviews, custom events, funnels, feature flags, and errors, without cookies.**
 
 ---
 
