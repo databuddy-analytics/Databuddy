@@ -36,7 +36,7 @@ export const pricingFaqItems = [
 	{
 		question: "What counts as an event?",
 		answer:
-			"A page view, a custom event, an error, or a Web Vitals measurement each count as one event. Feature flag evaluations do not count toward your event quota.",
+			"A page view, a custom event, an error, a Web Vitals measurement, or an MCP tool call each count as one event. Feature flag evaluations do not count toward your event quota.",
 	},
 	{
 		question: "What payment methods do you accept?",
