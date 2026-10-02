@@ -11,10 +11,6 @@ declare global {
 	}
 }
 
-type PageLifecycle = "desktop" | "ios";
-
-const PAGE_LIFECYCLES: PageLifecycle[] = ["desktop", "ios"];
-
 const TEST_SERVER_URL = "http://localhost:3033";
 const SLOW_PAGE_PATH = `/__test/slow/${DEAD_CLICK_WINDOW_MS + 1000}`;
 
@@ -22,18 +18,18 @@ async function loadFixture(
 	page: Page,
 	markup: string,
 	{
-		lifecycle = "desktop",
+		iosLifecycle = false,
 		fakeClock = true,
 		clientId = "test-interactions",
 		apiUrl,
 	}: {
-		lifecycle?: PageLifecycle;
+		iosLifecycle?: boolean;
 		fakeClock?: boolean;
 		clientId?: string;
 		apiUrl?: string;
 	} = {}
 ) {
-	if (lifecycle === "ios") {
+	if (iosLifecycle) {
 		await emulateIosPageLifecycle(page);
 	}
 	if (fakeClock) {
@@ -143,9 +139,27 @@ const ORDINARY_CLICKS: {
 		act: (page) => page.click("textarea", { clickCount: 3 }),
 	},
 	{
-		name: "a menu button that stops propagation and changes the DOM at once",
-		markup: `<button aria-label="menu" onclick="event.stopPropagation(); this.setAttribute('aria-expanded', 'true')">Menu</button>`,
+		name: "a menu button whose own handler opens it at once",
+		markup: `<button aria-label="menu" onclick="this.setAttribute('aria-expanded', 'true')">Menu</button>`,
 		act: (page) => page.click("button"),
+	},
+	{
+		name: "a tab that switches on mousedown",
+		markup: `<button role="tab" aria-selected="false" onmousedown="this.setAttribute('aria-selected', 'true')">Specs</button>`,
+		act: (page) => page.click("button"),
+	},
+	{
+		name: "a quantity stepper that only changes an input value",
+		markup: `<input aria-label="quantity" value="1"><button onclick="const input = this.previousElementSibling; input.value = Number(input.value) + 1; input.dispatchEvent(new Event('change', { bubbles: true }))">+</button>`,
+		act: (page) => page.click("button"),
+	},
+	{
+		name: "double-clicking a word and clicking it again",
+		markup: "<p>Shipping takes three to five business days.</p>",
+		act: async (page) => {
+			await page.dblclick("p");
+			await page.click("p");
+		},
 	},
 	{
 		name: "a button that only rewrites its text node",
@@ -189,6 +203,66 @@ const ORDINARY_CLICKS: {
 	},
 ];
 
+const FRUSTRATED_CLICKS: {
+	name: string;
+	markup: string;
+	act: (page: Page) => Promise<unknown>;
+	expected: Partial<Awaited<ReturnType<typeof readFrustration>>>;
+}[] = [
+	{
+		name: "a javascript: link that does nothing",
+		markup: `<a href="javascript:void(0)">Open menu</a>`,
+		act: (page) => page.click("a"),
+		expected: { deadClicks: 1 },
+	},
+	{
+		name: "a form whose submit handler does nothing",
+		markup: `<form onsubmit="event.preventDefault()"><button aria-label="subscribe">Subscribe</button></form>`,
+		act: (page) => page.click("button"),
+		expected: { deadClicks: 1, deadClickTarget: "button:subscribe" },
+	},
+	{
+		name: "a button followed by a scroll the visitor started later",
+		markup: `<div style="height: 4000px"><button id="save">Save</button></div>`,
+		act: async (page) => {
+			await page.click("button");
+			await page.clock.runFor(400);
+			await page.evaluate(() => {
+				window.awaitedEvent = new Promise((resolve) =>
+					document.addEventListener("scroll", () => resolve(), { once: true })
+				);
+				window.scrollTo({ top: 1500 });
+			});
+			await page.evaluate(() => window.awaitedEvent);
+		},
+		expected: { deadClicks: 1, deadClickTarget: "button:save" },
+	},
+	{
+		name: "a pay button followed later by focus moving into a payment iframe",
+		markup: `<button aria-label="pay">Pay</button>`,
+		act: async (page) => {
+			await page.click("button");
+			await page.clock.runFor(400);
+			await page.evaluate(() => window.dispatchEvent(new FocusEvent("blur")));
+		},
+		expected: { deadClicks: 1, deadClickTarget: "button:pay" },
+	},
+	{
+		name: "rage clicking a button while text elsewhere is selected",
+		markup: `<p>Order #1042</p><button aria-label="retry">Retry</button>`,
+		act: async (page) => {
+			await page.evaluate(() => {
+				const paragraph = document.querySelector("p");
+				if (paragraph) {
+					getSelection()?.selectAllChildren(paragraph);
+				}
+			});
+			await page.click("button", { clickCount: 3 });
+		},
+		expected: { rageClicks: 1, rageClickTarget: "button:retry" },
+	},
+];
+
 const SLOW_NAVIGATIONS = [
 	{
 		name: "following a link to a slow page",
@@ -198,6 +272,11 @@ const SLOW_NAVIGATIONS = [
 	{
 		name: "submitting a form to a slow page",
 		markup: `<form action="${SLOW_PAGE_PATH}"><input name="q" value="shoes"><button>Search</button></form>`,
+		selector: "button",
+	},
+	{
+		name: "a button that navigates from script to a slow page",
+		markup: `<button onclick="location.href = '${SLOW_PAGE_PATH}'">Checkout</button>`,
 		selector: "button",
 	},
 ];
@@ -228,31 +307,49 @@ test.describe("interaction frustration signals", () => {
 		expect(await readFrustration(page)).toMatchObject({ deadClicks: 0 });
 	});
 
-	for (const lifecycle of PAGE_LIFECYCLES) {
-		for (const { name, markup, selector } of SLOW_NAVIGATIONS) {
-			unroutedTest(
-				`${name} is not a dead click (${lifecycle})`,
-				async ({ page }) => {
-					const clientId = `test-interactions-${crypto.randomUUID()}`;
-					await loadFixture(page, markup, {
-						lifecycle,
-						fakeClock: false,
-						clientId,
-						apiUrl: TEST_SERVER_URL,
-					});
-
-					await page.click(selector, { noWaitAfter: true });
-					await page.waitForURL(`**${SLOW_PAGE_PATH}**`, {
-						waitUntil: "commit",
-					});
-
-					await expect
-						.poll(() => readRecordedEngagementSpan(clientId))
-						.toMatchObject({ clickCount: 1, deadClickCount: 0 });
-				}
-			);
-		}
+	for (const { name, markup, act, expected } of FRUSTRATED_CLICKS) {
+		test(`${name} still counts`, async ({ page }) => {
+			await loadFixture(page, markup);
+			await act(page);
+			await outlastDeadClickWindow(page);
+			expect(await readFrustration(page)).toMatchObject(expected);
+		});
 	}
+
+	for (const { name, markup, selector } of SLOW_NAVIGATIONS) {
+		unroutedTest(
+			`${name} is not a dead click when the browser never fires beforeunload`,
+			async ({ page }) => {
+				const clientId = `test-interactions-${crypto.randomUUID()}`;
+				await loadFixture(page, markup, {
+					iosLifecycle: true,
+					fakeClock: false,
+					clientId,
+					apiUrl: TEST_SERVER_URL,
+				});
+
+				await page.click(selector, { noWaitAfter: true });
+				await page.waitForURL(`**${SLOW_PAGE_PATH}**`, {
+					waitUntil: "commit",
+				});
+
+				await expect
+					.poll(() => readRecordedEngagementSpan(clientId))
+					.toMatchObject({ clickCount: 1, deadClickCount: 0 });
+			}
+		);
+	}
+
+	test("a click made before clear() does not count after it", async ({
+		page,
+	}) => {
+		await loadFixture(page, `<button id="save">Save</button>`);
+		await page.click("button");
+		await page.clock.runFor(100);
+		await page.evaluate(() => window.databuddy?.clear());
+		await outlastDeadClickWindow(page);
+		expect(await readFrustration(page)).toMatchObject({ deadClicks: 0 });
+	});
 
 	test("a button that changes nothing is a dead click", async ({ page }) => {
 		await loadFixture(page, `<button id="save">Save</button>`);

@@ -24,13 +24,13 @@ const counterByEvent: Partial<
 const RAGE_CLICK_WINDOW_MS = 1000;
 const RAGE_CLICK_THRESHOLD = 3;
 export const DEAD_CLICK_WINDOW_MS = 2500;
-const CLICK_SCROLL_WINDOW_MS = 300;
+const RESPONSE_GRACE_MS = 300;
 
 const INTERACTIVE_SELECTOR =
 	'a,button,input,select,textarea,summary,label,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[onclick],[data-track]';
 
-const NATIVE_CONTROL_SELECTOR =
-	'label,select,textarea,input:not([type="button"],[type="submit"],[type="reset"],[type="image"])';
+const UNOBSERVABLE_RESPONSE_SELECTOR =
+	'label,select,textarea,[aria-selected="true"],input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"])';
 
 const FOLLOWABLE_LINK_SELECTOR = 'a[href]:not([href^="javascript:"])';
 
@@ -101,6 +101,7 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 	let lastClickTarget: EventTarget | null = null;
 	let lastClickAt = 0;
 	let clickStreak = 0;
+	let streakSelectsText = false;
 
 	let lastDeadClickCandidateAt = 0;
 	const pendingDeadClicks = new Set<ReturnType<typeof setTimeout>>();
@@ -123,6 +124,9 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 			target === lastClickTarget && now - lastClickAt <= RAGE_CLICK_WINDOW_MS
 				? clickStreak + 1
 				: 1;
+		streakSelectsText =
+			(clickStreak > 1 && streakSelectsText) ||
+			Boolean(getSelection()?.toString());
 		lastClickTarget = target;
 		lastClickAt = now;
 
@@ -130,10 +134,10 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 			return;
 		}
 		const interactive = target.closest(INTERACTIVE_SELECTOR);
-		const isEditingOrSelectingText = interactive
-			? interactive.matches(NATIVE_CONTROL_SELECTOR)
-			: Boolean(getSelection()?.toString());
-		if (isEditingOrSelectingText) {
+		const isOrdinaryInteraction = interactive
+			? interactive.matches(UNOBSERVABLE_RESPONSE_SELECTOR)
+			: streakSelectsText;
+		if (isOrdinaryInteraction) {
 			return;
 		}
 		tracker.rageClickCount += 1;
@@ -147,12 +151,13 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 				: null;
 		if (
 			!(mutationObserver && interactive) ||
-			interactive.matches(NATIVE_CONTROL_SELECTOR)
+			interactive.matches(UNOBSERVABLE_RESPONSE_SELECTOR)
 		) {
 			return;
 		}
 
 		const hrefAtClick = location.href;
+		const pageStartAtClick = tracker.pageStartTime;
 		lastDeadClickCandidateAt = now;
 		if (pendingDeadClicks.size === 0) {
 			mutationObserver.observe(document, {
@@ -173,7 +178,11 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 			);
 			const browserFollowsLink =
 				link && (!event.defaultPrevented || link.href === hrefAtClick);
-			if (browserFollowsLink || location.href !== hrefAtClick) {
+			if (
+				browserFollowsLink ||
+				location.href !== hrefAtClick ||
+				tracker.pageStartTime !== pageStartAtClick
+			) {
 				return;
 			}
 			tracker.deadClickCount += 1;
@@ -193,23 +202,22 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 		true
 	);
 
-	listen(window, "blur", settleDeadClicks);
-	listen(document, "invalid", settleDeadClicks, true);
-	listen(document, "toggle", settleDeadClicks, true);
-	listen(
-		document,
-		"scroll",
-		() => {
-			if (Date.now() - lastDeadClickCandidateAt < CLICK_SCROLL_WINDOW_MS) {
-				settleDeadClicks();
-			}
-		},
-		true
-	);
+	const settleIfJustClicked = () => {
+		if (Date.now() - lastDeadClickCandidateAt < RESPONSE_GRACE_MS) {
+			settleDeadClicks();
+		}
+	};
+	listen(window, "blur", settleIfJustClicked);
+	for (const type of ["change", "invalid", "scroll", "toggle"]) {
+		listen(document, type, settleIfJustClicked, true);
+	}
+	if ("navigation" in window) {
+		listen(window.navigation as EventTarget, "navigate", settleIfJustClicked);
+	}
 
 	listen(document, "copy", () => {
 		tracker.copyCount += 1;
-		settleDeadClicks();
+		settleIfJustClicked();
 	});
 
 	let touchedFields = new WeakSet<Element>();
@@ -237,7 +245,7 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 		tracker.formSubmitCount += 1;
 		setTimeout(() => {
 			if (!event.defaultPrevented) {
-				settleDeadClicks();
+				settleIfJustClicked();
 			}
 		});
 	});
