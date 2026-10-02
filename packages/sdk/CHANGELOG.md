@@ -1,5 +1,11 @@
 # @databuddy/sdk
 
+## 3.1.1
+
+### Patch Changes
+
+- cd5879e: `trackMcp` now sends pending MCP calls when the process exits on its own, so stdio servers no longer lose the calls made in the last second before the client disconnects.
+
 ## 3.1.0
 
 ### Minor Changes

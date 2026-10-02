@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/sdk",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "Databuddy SDK: open-source, cookieless product analytics with custom events, feature flags, and error tracking for React, Next.js, Vue, and Node.js.",
   "main": "./dist/core/index.mjs",
   "types": "./dist/core/index.d.ts",
