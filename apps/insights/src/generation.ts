@@ -1124,6 +1124,18 @@ async function investigatePlannedCandidate(
 	]);
 	if (segmentFinding) {
 		evidence.push(segmentEvidence(segmentFinding));
+		emitInsightsEvent("info", "generation.segment_finding.found", {
+			organization_id: input.organizationId,
+			website_id: input.websiteId,
+			signal_key: candidate.signal.signalKey,
+			segment_kind: segmentFinding.kind,
+			segment_dimension:
+				segmentFinding.kind === "concentration"
+					? segmentFinding.concentration.dimension
+					: segmentFinding.kind === "shift"
+						? segmentFinding.shift.dimension
+						: null,
+		});
 	}
 	if (changeOnset) {
 		evidence.push(changeOnsetEvidence(changeOnset));
@@ -1200,6 +1212,14 @@ async function investigatePlannedCandidate(
 	if (recoveryCheck) {
 		const { onset, recovery } = recoveryCheck;
 		evidence.push(recoveryEvidence(recovery));
+		emitInsightsEvent("info", "generation.recovery.measured", {
+			organization_id: input.organizationId,
+			website_id: input.websiteId,
+			signal_key: candidate.signal.signalKey,
+			recovery_state: recovery.state,
+			recovery_hour_known:
+				recovery.state === "recovered" && recovery.recoveredAt !== null,
+		});
 		if (recovery.state === "recovered" && recovery.recoveredAt) {
 			const repository = await repositoryChanges({
 				...onset,
