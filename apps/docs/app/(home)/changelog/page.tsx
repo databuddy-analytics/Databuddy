@@ -18,24 +18,24 @@ import {
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-	title: "Changelog",
+	title: { absolute: "Databuddy Changelog: New Features and Fixes" },
 	description:
-		"Stay up to date with the latest features, improvements, and fixes shipped to Databuddy.",
+		"Every Databuddy release: new analytics features, Databunny AI analyst updates, SDK changes, and fixes, newest first. Follow along as the product ships.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/changelog",
 	},
 	openGraph: {
-		title: "Changelog",
+		title: "Databuddy Changelog: New Features and Fixes",
 		description:
-			"Stay up to date with the latest features, improvements, and fixes shipped to Databuddy.",
+			"Every Databuddy release: new analytics features, Databunny AI analyst updates, SDK changes, and fixes, newest first. Follow along as the product ships.",
 		url: "https://www.databuddy.cc/changelog",
 		images: ["/og-image.png"],
 	},
 	twitter: {
 		card: "summary_large_image",
-		title: "Changelog",
+		title: "Databuddy Changelog: New Features and Fixes",
 		description:
-			"Stay up to date with the latest features, improvements, and fixes shipped to Databuddy.",
+			"Every Databuddy release: new analytics features, Databunny AI analyst updates, SDK changes, and fixes, newest first. Follow along as the product ships.",
 		images: ["/og-image.png"],
 	},
 };
@@ -92,15 +92,20 @@ function ChangelogEntry({
 
 export default async function ChangelogPage() {
 	const result = await getChangelogs();
-	const posts = "error" in result ? [] : result.posts;
+	if ("error" in result) {
+		throw new Error(
+			`Failed to load changelog: ${result.status} ${result.statusText}`
+		);
+	}
+	const { posts } = result;
 
 	return (
 		<div>
 			<StructuredData
 				page={{
-					title: "Changelog",
+					title: "Databuddy Changelog: New Features and Fixes",
 					description:
-						"Stay up to date with the latest features, improvements, and fixes shipped to Databuddy.",
+						"Every Databuddy release: new analytics features, Databunny AI analyst updates, SDK changes, and fixes, newest first. Follow along as the product ships.",
 					url: "https://www.databuddy.cc/changelog",
 				}}
 			/>
