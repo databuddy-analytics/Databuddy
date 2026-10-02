@@ -15,6 +15,7 @@ import {
 	OpenExternalIcon,
 	PlugIcon,
 } from "@databuddy/ui/icons";
+import { isSelfHosted } from "@databuddy/env/public";
 import { useFlag } from "@databuddy/sdk/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -35,6 +36,7 @@ import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { useWebsitesLight } from "@/hooks/use-websites";
+import { isDashboardE2E } from "@/lib/e2e-mode";
 import { formatCount, formatNumber } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import type { DynamicQueryFilter } from "@/types/api";
@@ -262,7 +264,8 @@ function Setup({
 				</p>
 				<p className="text-pretty text-muted-foreground text-sm">
 					See which tools Claude, Cursor and ChatGPT call, how fast they answer,
-					and where they fail. Arguments and results never leave your server.
+					and where they fail. Arguments and successful results never leave your
+					server. Failed calls send their error message.
 				</p>
 			</div>
 			<div className="space-y-2">
@@ -305,9 +308,11 @@ function Setup({
 				</CodeBlock>
 				<Text tone="muted" variant="caption">
 					Servers that run in an app with a Databuddy website ID are linked to
-					that website. With createMcpHandler, wrap the server inside the
-					factory; on serverless, pass{" "}
-					<code className="font-mono">flushMcp()</code> to waitUntil.
+					that website. With <code className="font-mono">createMcpHandler</code>
+					, wrap the server inside the factory; on serverless, pass your
+					platform's <code className="font-mono">waitUntil</code>, for example{" "}
+					<code className="font-mono">{"trackMcp(server, { waitUntil })"}</code>
+					.
 				</Text>
 			</div>
 			<div className="flex justify-end gap-2">
@@ -332,7 +337,9 @@ function Setup({
 export default function McpPage() {
 	const flag = useFlag("mcp");
 	if (!flag.on) {
-		return flag.loading ? null : notFound();
+		return flag.loading && !(isSelfHosted || isDashboardE2E)
+			? null
+			: notFound();
 	}
 	return (
 		<Suspense fallback={null}>
@@ -348,35 +355,46 @@ function McpAnalytics() {
 	const { chartType, chartStepType } = useChartPreferences("overview-main");
 	const [selected, setSelected] = useQueryStates(FILTERS);
 
+	const organizationId = activeOrganizationId ?? undefined;
 	const filters: DynamicQueryFilter[] = Object.entries(selected).flatMap(
 		([field, value]) =>
 			value === null ? [] : [{ field, operator: "eq", value }]
 	);
-	const { getDataForQuery, isFetching, isPending, refetch, results } =
-		useBatchDynamicQuery(
-			{ organizationId: activeOrganizationId ?? undefined },
-			dateRange,
-			[
-				{ id: "summary", parameters: ["mcp_summary"], filters },
-				...(filters.length > 0
-					? [{ id: "facets", parameters: ["mcp_summary"] }]
-					: []),
-				{ id: "series", parameters: ["mcp_calls_series"], filters },
-				{ id: "tools", parameters: ["mcp_tools"], filters },
-				{
-					id: "clients",
-					parameters: ["mcp_clients"],
-					filters: filters.filter((filter) => filter.field !== "client"),
-				},
-				{ id: "errors", parameters: ["mcp_errors"], filters, limit: 20 },
-			]
-		);
+	const {
+		getDataForQuery,
+		isFetching,
+		isPending,
+		isPlaceholderData,
+		refetch,
+		results,
+	} = useBatchDynamicQuery(
+		{ organizationId },
+		dateRange,
+		[
+			{ id: "summary", parameters: ["mcp_summary"], filters },
+			...(filters.length > 0
+				? [{ id: "facets", parameters: ["mcp_summary"] }]
+				: []),
+			{ id: "series", parameters: ["mcp_calls_series"], filters },
+			{ id: "tools", parameters: ["mcp_tools"], filters },
+			{
+				id: "clients",
+				parameters: ["mcp_clients"],
+				filters: filters.filter((filter) => filter.field !== "client"),
+			},
+			{ id: "errors", parameters: ["mcp_errors"], filters, limit: 20 },
+		],
+		{
+			placeholderData: (previous, previousQuery) =>
+				previousQuery?.queryKey[4] === organizationId ? previous : undefined,
+		}
+	);
 	const summary: Summary | undefined = getDataForQuery(
 		"summary",
 		"mcp_summary"
 	)[0];
 	const facets: Summary | undefined =
-		filters.length > 0 ? getDataForQuery("facets", "mcp_summary")[0] : summary;
+		getDataForQuery("facets", "mcp_summary")[0] ?? summary;
 	const series: SeriesRow[] = getDataForQuery("series", "mcp_calls_series");
 	const tools: ToolRow[] = getDataForQuery("tools", "mcp_tools");
 	const clients: ClientRow[] = getDataForQuery("clients", "mcp_clients");
@@ -390,7 +408,7 @@ function McpAnalytics() {
 	return (
 		<div className="relative flex h-full flex-col overflow-y-auto">
 			<TopBar.Title>
-				<h1 className="font-semibold text-sm">MCP</h1>
+				<h1 className="font-semibold text-sm">MCP Servers</h1>
 				<Badge className="h-5 px-2" variant="warning">
 					Alpha
 				</Badge>
@@ -456,7 +474,12 @@ function McpAnalytics() {
 			) : facets?.tracked === 0 ? (
 				<Setup isChecking={isFetching} onCheck={() => refetch()} />
 			) : (
-				<div className="space-y-4 p-4">
+				<div
+					className={cn(
+						"space-y-4 p-4 transition-opacity ease-in-out",
+						isPlaceholderData && "opacity-60"
+					)}
+				>
 					{selected.client === null ? null : (
 						<div className="flex items-center gap-2">
 							<ClientIcon client={selected.client} size={16} />
