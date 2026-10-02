@@ -57,6 +57,18 @@ const hasActiveOAuthGrant = cacheable(
 	{ expireInSec: 15, prefix: "mcp-oauth-grant" }
 );
 
+const loadOAuthClientName = cacheable(
+	async (clientId: string) => {
+		const [client] = await db
+			.select({ name: oauthClient.name })
+			.from(oauthClient)
+			.where(eq(oauthClient.clientId, clientId))
+			.limit(1);
+		return client?.name ?? null;
+	},
+	{ expireInSec: 3600, prefix: "mcp:oauth-client-name" }
+);
+
 const handleOAuthMcpRequest = createMcpProtectedRequestHandler(
 	{
 		issuer: config.urls.authorizationServer,
@@ -71,7 +83,9 @@ const handleOAuthMcpRequest = createMcpProtectedRequestHandler(
 		) {
 			return createMcpUnauthorizedResponse();
 		}
+		const clientName = await loadOAuthClientName(clientId);
 		return handleDatabuddyMcpRequest({
+			clientName: clientName ?? undefined,
 			request,
 			requestHeaders: request.headers,
 			userId: subject,
