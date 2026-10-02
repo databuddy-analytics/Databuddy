@@ -30,6 +30,9 @@ export const metadata: Metadata = {
 	description: blogDescription,
 	alternates: {
 		canonical: blogUrl,
+		types: {
+			"application/rss+xml": `${blogUrl}/rss.xml`,
+		},
 	},
 	openGraph: {
 		title: blogTitle,
