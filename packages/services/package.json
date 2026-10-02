@@ -25,6 +25,7 @@
     "@databuddy/encryption": "workspace:*",
     "@databuddy/env": "workspace:*",
     "@databuddy/redis": "workspace:*",
+    "@databuddy/sdk": "workspace:*",
     "@databuddy/shared": "workspace:*",
     "jszip": "^3.10.2",
     "supermemory": "^4.17.0",

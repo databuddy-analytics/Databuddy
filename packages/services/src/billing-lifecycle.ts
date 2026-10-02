@@ -1,7 +1,16 @@
-import { db, eq, websites } from "@databuddy/db";
-import { clickHouse, TABLE_NAMES } from "@databuddy/db/clickhouse";
+import { config } from "@databuddy/env/app";
+import { Databuddy } from "@databuddy/sdk/node";
 import { PLAN_IDS } from "@databuddy/shared/types/features";
 import { splitTraits, upsertProfile } from "./identity";
+
+const selfAnalyticsApiKey = process.env.SELF_ANALYTICS_API_KEY;
+const selfAnalytics = selfAnalyticsApiKey
+	? new Databuddy({
+			apiKey: selfAnalyticsApiKey,
+			apiUrl: config.urls.basket,
+			enableBatching: false,
+		})
+	: null;
 
 const SCENARIO_EVENTS = {
 	new: "subscription_started",
@@ -46,49 +55,37 @@ export async function recordSelfAnalyticsEvent(opts: {
 	if (!websiteId) {
 		return;
 	}
-	await insertLifecycleEvent(
+	await trackLifecycleEvent({
 		websiteId,
-		opts.profileId,
-		opts.eventName,
-		opts.properties,
-		opts.source
-	);
+		profileId: opts.profileId,
+		name: opts.eventName,
+		properties: opts.properties,
+		source: opts.source,
+	});
 }
 
-async function insertLifecycleEvent(
-	websiteId: string,
-	customerId: string,
-	eventName: string,
-	properties: Record<string, string>,
-	source = "billing"
-): Promise<void> {
-	const [website] = await db
-		.select({ organizationId: websites.organizationId })
-		.from(websites)
-		.where(eq(websites.id, websiteId))
-		.limit(1);
-	if (!website) {
+async function trackLifecycleEvent(event: {
+	eventId?: string;
+	name: string;
+	profileId: string;
+	properties: Record<string, string>;
+	source: string;
+	websiteId: string;
+}): Promise<void> {
+	if (!selfAnalytics) {
 		return;
 	}
-	await clickHouse.insert({
-		table: TABLE_NAMES.custom_events,
-		values: [
-			{
-				owner_id: website.organizationId,
-				website_id: websiteId,
-				timestamp: Date.now(),
-				event_name: eventName,
-				properties: JSON.stringify(properties),
-				profile_id: customerId,
-				source,
-			},
-		],
-		format: "JSONEachRow",
-	});
+	const result = await selfAnalytics.track(event);
+	if (!result.success) {
+		throw new Error(
+			`Self-analytics event ${event.name} was rejected: ${result.error ?? result.code ?? "unknown error"}`
+		);
+	}
 }
 
 export async function recordPlanChange(opts: {
 	customerId: string;
+	eventId?: string;
 	planId: string;
 	scenario: BillingScenario;
 }): Promise<void> {
@@ -108,14 +105,16 @@ export async function recordPlanChange(opts: {
 					"billing"
 				)
 			: Promise.resolve(null),
-		insertLifecycleEvent(
+		trackLifecycleEvent({
 			websiteId,
-			opts.customerId,
-			SCENARIO_EVENTS[opts.scenario],
-			{
+			eventId: opts.eventId,
+			profileId: opts.customerId,
+			name: SCENARIO_EVENTS[opts.scenario],
+			properties: {
 				plan: opts.planId,
 				scenario: opts.scenario,
-			}
-		),
+			},
+			source: "billing",
+		}),
 	]);
 }
