@@ -8,7 +8,7 @@ export interface Annotation {
 	chartType: ChartType;
 	color: string;
 	createdAt: Date | string;
-	createdBy: string;
+	createdBy: string | null;
 	deletedAt?: Date | string | null;
 	id: string;
 	isPublic: boolean;

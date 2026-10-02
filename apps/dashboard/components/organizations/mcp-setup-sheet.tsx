@@ -714,8 +714,8 @@ function ConnectionCreated({
 					/>
 				</div>
 				<Text tone="muted" variant="caption">
-					If the client returns a 401, rotate the key. If a tool you expect is
-					missing, check the key's access in Organization Settings → API Keys.
+					If the client returns a 401, rotate the key. For a 403 or a missing
+					tool, check the key's access in Organization Settings → API Keys.
 				</Text>
 			</div>
 
