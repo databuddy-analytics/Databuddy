@@ -160,8 +160,11 @@ const MCP_CLIENT_USER_AGENTS: [RegExp, string][] = [
 ];
 
 function mcpClient(clientName = "", userAgent = ""): string {
+	const name = clientName.toLowerCase();
 	return (
-		MCP_CLIENT_PRODUCTS[clientName.toLowerCase()] ??
+		(Object.hasOwn(MCP_CLIENT_PRODUCTS, name)
+			? MCP_CLIENT_PRODUCTS[name]
+			: undefined) ??
 		MCP_CLIENT_USER_AGENTS.find(([pattern]) => pattern.test(userAgent))?.[1] ??
 		clientName
 	);
