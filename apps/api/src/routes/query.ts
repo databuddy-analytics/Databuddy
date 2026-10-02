@@ -50,10 +50,7 @@ import {
 import type { Filter, QueryRequest } from "@databuddy/ai/query/types";
 import { Elysia, t } from "elysia";
 import { getAccessibleWebsites } from "@databuddy/ai/lib/accessible-websites";
-import {
-	getCachedWebsiteDomain,
-	getWebsiteDomain,
-} from "@databuddy/ai/lib/website-utils";
+import { getWebsiteDomain } from "@databuddy/ai/lib/website-utils";
 import { resolveDatePreset } from "@databuddy/ai/lib/date-presets";
 import { captureError, mergeWideEvent } from "@databuddy/ai/lib/tracing";
 import {
@@ -922,7 +919,6 @@ async function executeDynamicQuery(
 	projectId: string,
 	projectType: ProjectType,
 	timezone: string,
-	domainCache?: Record<string, string | null>,
 	scope?: { organizationWebsiteIds?: string[] }
 ): Promise<{
 	queryId: string;
@@ -940,10 +936,7 @@ async function executeDynamicQuery(
 	const page = request.page ?? 1;
 
 	const domain =
-		projectType === "website"
-			? (domainCache?.[projectId] ??
-				(await getWebsiteDomain(projectId).catch(() => null)))
-			: null;
+		projectType === "website" ? await getWebsiteDomain(projectId) : null;
 	const organizationWebsiteIds =
 		projectType === "organization"
 			? (scope?.organizationWebsiteIds ?? [])
@@ -1441,7 +1434,6 @@ export const query = new Elysia({ prefix: "/v1/query" })
 						}
 					}
 
-					const cache = await getCachedWebsiteDomain([]);
 					const results = await Promise.all(
 						body.map((req) => {
 							const validation = validateQueryRequest(req, timezone);
@@ -1468,7 +1460,6 @@ export const query = new Elysia({ prefix: "/v1/query" })
 								accessResult.projectId,
 								accessResult.projectType,
 								timezone,
-								cache,
 								organizationScope
 							).catch((error) => {
 								captureError(error, {
@@ -1519,7 +1510,6 @@ export const query = new Elysia({ prefix: "/v1/query" })
 						accessResult.projectId,
 						accessResult.projectType,
 						timezone,
-						undefined,
 						organizationScope
 					)),
 				};
