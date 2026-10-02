@@ -609,9 +609,9 @@ describe("fixture investigation sources", () => {
 			item.startsWith("GitHub production deployments")
 		);
 		expect(deploys).toContain(
-			'a1b2c3d "feat(links): queue link creation" requested 2026-07-10 19:52 to Production (success 19:58)'
+			'a1b2c3d "feat(links): queue link creation" replacing 0a1b2c3, requested 2026-07-10 19:52 to Production (success 19:58).'
 		);
-		expect(deploys).not.toContain("0a1b2c3");
+		expect(deploys?.split("; ")).toHaveLength(1);
 		expect(artifact.evidence).toEqual(received?.evidence ?? []);
 	});
 

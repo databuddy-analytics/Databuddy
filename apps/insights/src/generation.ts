@@ -616,6 +616,20 @@ export function repositoryChangeEvidence(
 				(release) => {
 					const [newest] = release;
 					const subject = newest ? subjects.get(newest.sha) : undefined;
+					const replaced = [
+						...new Set(
+							release.flatMap((deployment) =>
+								deployment.previousSha &&
+								deployment.previousSha !== deployment.sha
+									? [deployment.previousSha]
+									: []
+							)
+						),
+					];
+					const base =
+						replaced.length === 1
+							? ` replacing ${replaced[0]?.slice(0, 7)},`
+							: "";
 					const targets = release
 						.map(
 							(deployment) =>
@@ -626,7 +640,7 @@ export function repositoryChangeEvidence(
 								})`
 						)
 						.join(", ");
-					return `${newest?.sha.slice(0, 7)}${subject ? ` "${subject.slice(0, 80)}"` : ""} requested ${newest ? local(newest.requestedAt) : ""} to ${targets}`;
+					return `${newest?.sha.slice(0, 7)}${subject ? ` "${subject.slice(0, 80)}"` : ""}${base} requested ${newest ? local(newest.requestedAt) : ""} to ${targets}`;
 				}
 			)}.`
 		);
