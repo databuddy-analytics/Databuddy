@@ -68,7 +68,7 @@ const goalOutputSchema = z.object({
 	filters: z.array(filterSchema).nullable(),
 	ignoreHistoricData: z.boolean(),
 	isActive: z.boolean(),
-	createdBy: z.string(),
+	createdBy: z.string().nullable(),
 	createdAt: z.coerce.date(),
 	updatedAt: z.coerce.date(),
 	deletedAt: z.nullable(z.coerce.date()),

@@ -38,6 +38,9 @@ const SECRET_VALUE_PATTERNS = [
 export const databuddyEvlogRedactConfig = {
 	paths: [...SECRET_KEY_PATHS],
 	patterns: [...SECRET_VALUE_PATTERNS],
+	// The ipv4 masker cut audit event IPs to their last octet and matched
+	// browser versions like Chrome/140.0.0.0; no other event carries a visitor IP.
+	builtins: ["creditCard", "email", "phone", "jwt", "bearer", "iban"],
 	replacement: "[REDACTED]",
 } satisfies RedactConfig;
 

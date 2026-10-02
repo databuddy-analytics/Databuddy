@@ -54,7 +54,7 @@ const annotationOutputSchema = z.object({
 	chartType: z.string(),
 	color: z.string(),
 	createdAt: z.coerce.date(),
-	createdBy: z.string(),
+	createdBy: z.string().nullable(),
 	deletedAt: z.nullable(z.coerce.date()),
 	id: z.string(),
 	isPublic: z.boolean(),

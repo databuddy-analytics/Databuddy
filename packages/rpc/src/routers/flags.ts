@@ -313,7 +313,7 @@ const flagRulesOutputSchema = z.array(flagRuleOutputSchema);
 const flagTargetGroupOutputSchema = z.object({
 	color: z.string(),
 	createdAt: z.coerce.date(),
-	createdBy: z.string(),
+	createdBy: z.string().nullable(),
 	deletedAt: z.coerce.date().nullable(),
 	description: z.string().nullable(),
 	id: z.string(),
@@ -325,7 +325,7 @@ const flagTargetGroupOutputSchema = z.object({
 
 const flagOutputSchema = z.object({
 	createdAt: z.coerce.date(),
-	createdBy: z.string(),
+	createdBy: z.string().nullable(),
 	defaultValue: z.boolean(),
 	deletedAt: z.coerce.date().nullable(),
 	dependencies: z.array(z.string()).nullable(),
