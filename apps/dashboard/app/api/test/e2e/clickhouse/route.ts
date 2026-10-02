@@ -51,38 +51,10 @@ function pageTitle(path: string): string {
 	return path === "/" ? "Home" : path.slice(1).replaceAll("-", " ");
 }
 
-async function clearExistingSeedData(websiteId: string): Promise<void> {
-	const params = { websiteId };
-	const settings = { mutations_sync: "1", wait_end_of_query: 1 } as const;
-
-	await Promise.all([
-		clickHouse.command({
-			clickhouse_settings: settings,
-			query: `ALTER TABLE ${TABLE_NAMES.events} DELETE WHERE client_id = {websiteId:String}`,
-			query_params: params,
-		}),
-		clickHouse.command({
-			clickhouse_settings: settings,
-			query: `ALTER TABLE ${TABLE_NAMES.outgoing_links} DELETE WHERE client_id = {websiteId:String}`,
-			query_params: params,
-		}),
-		clickHouse.command({
-			clickhouse_settings: settings,
-			query:
-				"ALTER TABLE analytics.daily_pageviews DELETE WHERE client_id = {websiteId:String}",
-			query_params: params,
-		}),
-	]);
-}
-
 export async function POST(request: Request): Promise<Response> {
 	const denied = assertE2EAccess(request);
 	if (denied) {
 		return denied;
-	}
-
-	if (!readBooleanEnv("DATABUDDY_E2E_SEED_CLICKHOUSE")) {
-		return Response.json({ seeded: false, reason: "disabled" });
 	}
 
 	const body = (await request.json().catch(() => ({}))) as SeedBody;
@@ -91,7 +63,6 @@ export async function POST(request: Request): Promise<Response> {
 	}
 
 	const eventCount = normalizeEventCount(body.eventCount);
-	await clearExistingSeedData(body.websiteId);
 
 	const now = Date.now();
 	const users = Array.from(

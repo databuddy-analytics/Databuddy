@@ -23,12 +23,12 @@ export const metadata: Metadata = {
 		title: apiPlaygroundSeo.title,
 		description: apiPlaygroundSeo.description,
 		url: apiPlaygroundSeo.url,
+		images: ["/og-image.png"],
 	},
 };
 
 export default async function ApiPlaygroundPage() {
 	const queryTypesData = await getQueryTypes();
-	const docDateIso = new Date().toISOString();
 
 	return (
 		<>
@@ -39,14 +39,14 @@ export default async function ApiPlaygroundPage() {
 						value: {
 							title: apiPlaygroundSeo.title,
 							description: apiPlaygroundSeo.description,
-							datePublished: docDateIso,
-							dateModified: docDateIso,
+							datePublished: "2025-08-11",
+							dateModified: "2026-04-29",
 							section: "API Reference",
 							keywords: [
 								"Query API",
 								"REST API",
 								"analytics API",
-								"privacy-first",
+								"product analytics",
 								"web analytics",
 							],
 						},

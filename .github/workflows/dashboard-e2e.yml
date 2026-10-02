@@ -38,7 +38,6 @@ jobs:
       DATABUDDY_E2E_BASE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       DATABUDDY_E2E_START_CLICKHOUSE: "false"
       DATABUDDY_E2E_SERVE_BUILD: "true"
-      DATABUDDY_E2E_SEED_CLICKHOUSE: "true"
       DATABUDDY_E2E_CLICKHOUSE_EVENTS: "150"
       CLICKHOUSE_URL: http://default:@localhost:8123/databuddy_analytics
       REDIS_URL: redis://localhost:6379
@@ -47,7 +46,6 @@ jobs:
       BETTER_AUTH_URL: http://localhost:3000
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       RESEND_API_KEY: re_e2e_dummy
-      AUTUMN_SECRET_KEY: e2e-autumn-secret
 
     services:
       postgres:
@@ -111,10 +109,18 @@ jobs:
           commit: ${{ github.event_name == 'push' && 'true' || 'false' }}
       - name: Build dashboard runtime packages
         run: bunx turbo run build --filter @databuddy/devtools --filter @databuddy/sdk
+      - name: Cache Playwright browser
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('bun.lock') }}
       - name: Install dashboard Playwright browser
-        run: |
-          bun run --cwd apps/dashboard playwright --version
-          bun run --cwd apps/dashboard playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: bun run --cwd apps/dashboard playwright install --with-deps chromium
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: bun run --cwd apps/dashboard playwright install-deps chromium
       - name: Run dashboard E2E
         run: bun run --cwd apps/dashboard test:e2e:local
       - name: Upload Playwright artifacts

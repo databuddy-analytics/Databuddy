@@ -39,8 +39,6 @@ const URLS = {
 	},
 } as const;
 
-const MCP_SERVER_PATH = "/v1/mcp";
-
 // Email sender defaults. Env fallback order works the same way as URLS.
 const EMAIL = {
 	alertsFrom: {
@@ -198,7 +196,7 @@ export function createConfig(env: Env = process.env): Config {
 			dashboard: dashboardUrl,
 			links: readUrl(env, URLS.links),
 			mcp: new URL(
-				MCP_SERVER_PATH,
+				"/v1/mcp",
 				readOptional(env, "MCP_URL") ?? apiUrl
 			).toString(),
 			status: readUrl(env, URLS.status),

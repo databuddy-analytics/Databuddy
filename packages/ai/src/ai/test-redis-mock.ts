@@ -41,7 +41,6 @@ export function createRedisModuleMock(
 			userPreferences: "user-prefs",
 			websiteById: "website_by_id",
 			websiteCache: "website-cache",
-			websiteDomainsBatch: "website-domains-batch",
 			websiteWithOwner: "website_with_owner_v2",
 		},
 		cacheTags: {
@@ -53,7 +52,6 @@ export function createRedisModuleMock(
 				`flag-user:${clientId}:${userId}`,
 			organization: (organizationId: string) =>
 				`organization:${organizationId}`,
-			website: (websiteId: string) => `website:${websiteId}`,
 		},
 		cacheable: <T extends (...args: never[]) => unknown>(fn: T) => fn,
 		clearActiveStream: mock(async () => undefined),

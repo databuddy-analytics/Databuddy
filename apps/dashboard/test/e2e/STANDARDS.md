@@ -47,16 +47,28 @@ Run dashboard E2E locally with:
 bun run --cwd apps/dashboard test:e2e:local
 ```
 
-The local runner creates an isolated Postgres database, starts ClickHouse, initializes schemas, seeds analytics data, runs Playwright, and drops the Postgres database when finished.
+The local runner creates an isolated Postgres database, starts ClickHouse, initializes schemas, runs Playwright, and drops the Postgres database when finished.
 
 Useful debugging flags:
 
 ```bash
 DATABUDDY_E2E_KEEP_DB=true bun run --cwd apps/dashboard test:e2e:local
 DATABUDDY_E2E_CLICKHOUSE_EVENTS=1000 bun run --cwd apps/dashboard test:e2e:local
-DATABUDDY_E2E_SEED_CLICKHOUSE=false bun run --cwd apps/dashboard test:e2e:local
 DATABUDDY_E2E_SERVE_BUILD=true bun run --cwd apps/dashboard test:e2e:local
 ```
+
+## Mocks and fixtures
+
+- Reach for `mockRpc("router/procedure", value)` before writing `page.route` by hand. Pass a function when the reply depends on the input or must mutate state between calls.
+- Use `fulfillRpc` only for routes that gate, count, or reorder requests. Never inline CORS headers.
+- Only ask for `seededAnalytics` when the test reads analytics numbers. Everything else runs against an empty ClickHouse.
+- Pages under `/websites/[id]` show the setup gate until the site has events. Mock `websites/isTrackingSetup` with `TRACKING_VERIFIED` unless the gate itself is under test.
+
+## Scope
+
+One merged flow per surface beats many small tests: a create → edit → delete journey proves the same things as three tests and pays for one session. Keep each test under about 80 lines and name it after the journey.
+
+Do not assert geometry (bounding boxes, heights, widths), take screenshots on success, attach JSON to the report, or loop a test across viewports. A behavior that only shows on mobile gets one mobile test asserting visibility, not pixels.
 
 ## Selectors
 
@@ -181,6 +193,6 @@ bun run --cwd apps/dashboard test:e2e:local:core
 
 ## CI expectations
 
-Pull requests and pushes to `staging` and `main` all run the same full dashboard E2E suite. Tagged subsets exist for local iteration only: splitting them in CI once let three `@core` failures sit on `main` for over a week without blocking a single PR. Broader suites can also run on nightly schedules as coverage grows.
+Pull requests to `staging` and `main`, and pushes to `main`, run the same full dashboard E2E suite. Tagged subsets exist for local iteration only: splitting them in CI once let three `@core` failures sit on `main` for over a week without blocking a single PR. Broader suites can also run on nightly schedules as coverage grows.
 
 CI should upload Playwright traces, screenshots, and videos on failure.

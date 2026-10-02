@@ -1,9 +1,9 @@
 import { SITE_URL } from "@/app/util/constants";
 
 export const homePageSeo = {
-	title: "Lightweight Analytics for Developers - One Connected Platform",
+	title: "Cookieless Product Analytics for Startups | Databuddy",
 	description:
-		"Cookieless analytics, errors, web vitals, feature flags, and AI analysis in one dashboard. Open source, with 10,000 monthly events free.",
+		"Track visitors, events, funnels, and goals without cookies. Ask Databunny, the built-in AI analyst, about your numbers and see the query. Free up to 10k events.",
 	url: SITE_URL,
 } as const;
 
@@ -16,12 +16,12 @@ export const homeFaqItems: LandingFaqItem[] = [
 	{
 		question: "What does the Databuddy platform include?",
 		answer:
-			"Databuddy connects analytics, error tracking, web vitals monitoring, feature flags, short links, and AI analysis in one platform. A lightweight browser script collects analytics data; the other capabilities are managed from the same dashboard.",
+			"Product analytics from one cookieless script: visitors, custom events, funnels, goals, and user profiles, with error tracking and web vitals when you turn them on. Uptime monitoring, feature flags, short links, and Databunny, the built-in AI analyst, run in the same dashboard.",
 	},
 	{
 		question: "How is Databuddy different from Google Analytics?",
 		answer:
-			"Databuddy combines cookieless analytics with errors, Core Web Vitals, funnels, feature flags, and AI analysis. It is open source and can be self-hosted. Google Analytics offers its own reporting and advertising integrations.",
+			"Databuddy combines cookieless analytics with errors, Core Web Vitals, funnels, feature flags, and AI analysis. The code is open source on GitHub. Google Analytics offers its own reporting and advertising integrations.",
 	},
 	{
 		question: "Do I need cookie consent banners?",
@@ -54,18 +54,18 @@ export const homeFaqItems: LandingFaqItem[] = [
 			"The tracker is about 13 KB gzipped and loads asynchronously. Real impact depends on your site and setup, so measure it in your own performance budget.",
 	},
 	{
-		question: "Why pay when I can self-host for free?",
+		question: "Can I self-host Databuddy?",
 		answer:
-			"Self-hosting is a real option, not a downgrade. The whole stack is open source and runs on your own infrastructure at no cost. The paid plans exist for teams who would rather not operate ClickHouse, Postgres, and Redis themselves.",
+			"The code is open source on GitHub, but a packaged self-host release is still pending. Until it ships, use the managed cloud, which is free up to 10,000 events a month.",
 	},
 	{
 		question: "Can I trust the AI answers?",
 		answer:
-			"Databunny and investigations query your own analytics data, and every answer carries the evidence behind it. Investigations save the queries, findings, and recommendation so you can check the reasoning instead of trusting a summary.",
+			"Databunny queries your own analytics data, and chat shows the query behind each answer. Investigations on Business and Scale save the queries, findings, and next step so you can check the reasoning instead of trusting a summary.",
 	},
 	{
 		question: "Do you sell my data?",
 		answer:
-			"No. Databuddy is open source and can run on your own infrastructure or our managed cloud. Hosting, billing, AI, and delivery providers process information needed to operate the features you use; see our Data Policy.",
+			"No. Databuddy is open source and runs on our managed cloud. Hosting, billing, AI, and delivery providers process information needed to operate the features you use; see our Data Policy.",
 	},
 ];

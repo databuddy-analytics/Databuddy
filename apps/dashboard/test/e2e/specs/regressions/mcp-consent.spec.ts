@@ -2,7 +2,7 @@ import { expect, test } from "@/test/e2e/fixtures";
 
 test("approves only selected MCP access and resets websites when changing organizations", {
 	tag: "@regression",
-}, async ({ page, baseURL }) => {
+}, async ({ page, baseURL, mockRpc }) => {
 	const scopes = "openid profile offline_access read:data manage:flags";
 	const oauthQuery = new URLSearchParams({
 		client_id: "https://example.com/mcp-client.json",
@@ -24,15 +24,9 @@ test("approves only selected MCP access and resets websites when changing organi
 			],
 		})
 	);
-	await page.route("**/rpc/websites/list", (route) =>
-		route.fulfill({
-			json: {
-				json: [
-					{ id: "example-site", name: "Example Site", domain: "example.com" },
-				],
-			},
-		})
-	);
+	await mockRpc("websites/list", [
+		{ id: "example-site", name: "Example Site", domain: "example.com" },
+	]);
 	await page.route("**/api/auth/oauth2/consent", async (route) => {
 		consentBodies.push(route.request().postDataJSON());
 		await route.fulfill({

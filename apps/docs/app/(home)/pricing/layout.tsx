@@ -22,6 +22,7 @@ export const metadata: Metadata = {
 		title: pricingTitle,
 		description: pricingDescription,
 		url: pricingUrl,
+		images: ["/og-image.png"],
 	},
 };
 

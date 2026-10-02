@@ -1,9 +1,13 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useIsMutating,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { useState } from "react";
 import type { ApiKeyListItem } from "./api-key-types";
 import { formatMaskedApiKey } from "./api-key-types";
 import {
@@ -27,9 +31,10 @@ import {
 } from "@databuddy/ui/client";
 import { Badge, Button, Field, Input, Text, dayjs } from "@databuddy/ui";
 import { orpc } from "@/lib/orpc";
-import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
+import { showErrorToast } from "@/lib/user-facing-error";
 import {
 	createMcpConfig,
+	MCP_CLIENTS,
 	MCP_ENV_VAR,
 	MCP_ENV_VAR_REFERENCES,
 	MCP_SERVER_URL,
@@ -45,43 +50,35 @@ import {
 
 type McpExpiry = "90d" | "never";
 
-const CLIENT_OPTIONS: Array<{
-	description: string;
-	keyHint?: string;
-	label: string;
-	value: McpClient;
-}> = [
-	{
-		value: "cursor",
+const CLIENTS: Record<
+	McpClient,
+	{ description: string; keyHint?: string; label: string }
+> = {
+	cursor: {
 		label: "Cursor",
 		description: "Add it to .cursor/mcp.json or Cursor settings.",
 	},
-	{
-		value: "claude",
+	claude: {
 		label: "Claude",
 		description:
 			"Claude signs in with your Databuddy account. A key is only needed for automation.",
 		keyHint:
 			"Add it to Claude Code's .mcp.json. Claude on the web, desktop, and mobile connects by signing in instead, with no key.",
 	},
-	{
-		value: "windsurf",
+	windsurf: {
 		label: "Windsurf",
 		description: "Paste it into Windsurf's MCP configuration.",
 	},
-	{
-		value: "other",
-		label: "Other",
+	other: {
+		label: "Other client",
 		description: "Use any client that supports remote HTTP MCP servers.",
 	},
-];
-
-const CLIENT_LABELS: Record<McpClient, string> = {
-	cursor: "Cursor",
-	claude: "Claude",
-	windsurf: "Windsurf",
-	other: "Other client",
 };
+
+const CLIENT_OPTIONS = MCP_CLIENTS.map((value) => ({
+	value,
+	label: CLIENTS[value].label,
+}));
 
 const CLAUDE_CODE_COMMAND = `claude mcp add --transport http databuddy ${MCP_SERVER_URL}`;
 
@@ -135,12 +132,12 @@ function ClaudeSignIn() {
 }
 
 function defaultConnectionName(client: McpClient) {
-	return `${CLIENT_LABELS[client]} MCP`;
+	return `${CLIENTS[client].label} MCP`;
 }
 
 function scopeSummary(key: ApiKeyListItem) {
-	const websiteCount = Object.keys(key.resources ?? {}).filter((key) =>
-		key.startsWith("website:")
+	const websiteCount = Object.keys(key.resources ?? {}).filter((resource) =>
+		resource.startsWith("website:")
 	).length;
 	const grantedScopes = [
 		...(key.scopes ?? []),
@@ -258,6 +255,38 @@ export function McpSetupSheet({
 	open: boolean;
 	onOpenChangeAction: (open: boolean) => void;
 }) {
+	const isCreating =
+		useIsMutating({ mutationKey: orpc.apikeys.create.mutationKey() }) > 0;
+	const [openings, setOpenings] = useState({ count: 0, open });
+	if (open !== openings.open) {
+		setOpenings({ count: openings.count + (open ? 1 : 0), open });
+	}
+	const handleClose = () => {
+		if (!isCreating) {
+			onOpenChangeAction(false);
+		}
+	};
+
+	return (
+		<Sheet onOpenChange={handleClose} open={open}>
+			<Sheet.Content className="sm:max-w-xl" side="right">
+				<McpSetupForm
+					key={openings.count}
+					onClose={handleClose}
+					organizationId={organizationId}
+				/>
+			</Sheet.Content>
+		</Sheet>
+	);
+}
+
+function McpSetupForm({
+	onClose,
+	organizationId,
+}: {
+	onClose: () => void;
+	organizationId: string;
+}) {
 	const queryClient = useQueryClient();
 	const [client, setClient] = useState<McpClient>("cursor");
 	const [name, setName] = useState(() => defaultConnectionName("cursor"));
@@ -266,43 +295,24 @@ export function McpSetupSheet({
 	const [allowOrganizationWideLinks, setAllowOrganizationWideLinks] =
 		useState(false);
 	const [expiry, setExpiry] = useState<McpExpiry>("90d");
-	const [newSecret, setNewSecret] = useState<string | null>(null);
-	const [useEnvironmentVariable, setUseEnvironmentVariable] = useState(false);
+
+	const createMutation = useMutation({
+		...orpc.apikeys.create.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: orpc.apikeys.list.key() });
+		},
+		onError: (error) =>
+			showErrorToast(error, "Could not create the MCP connection."),
+		meta: { suppressGlobalErrorToast: true },
+	});
+	const newSecret = createMutation.data?.secret;
 
 	const websitesQuery = useQuery({
 		...orpc.websites.list.queryOptions({
 			input: { organizationId },
 		}),
-		enabled: open && !newSecret,
+		enabled: !newSecret,
 	});
-
-	const createMutation = useMutation({
-		...orpc.apikeys.create.mutationOptions(),
-		onSuccess: (result) => {
-			setNewSecret(result.secret);
-			queryClient.invalidateQueries({ queryKey: orpc.apikeys.list.key() });
-			toast.success("MCP connection created");
-		},
-		onError: (error: Error) => {
-			toast.error(
-				getUserFacingErrorMessage(error, "Could not create the MCP connection.")
-			);
-		},
-	});
-
-	useEffect(() => {
-		if (!open) {
-			return;
-		}
-		setClient("cursor");
-		setName(defaultConnectionName("cursor"));
-		setSelectedActions([]);
-		setSelectedWebsiteIds([]);
-		setAllowOrganizationWideLinks(false);
-		setExpiry("90d");
-		setNewSecret(null);
-		setUseEnvironmentVariable(false);
-	}, [open]);
 
 	const selectedScopes = getMcpScopes(selectedActions);
 	const needsOrganizationWideLinkAcknowledgment =
@@ -336,296 +346,260 @@ export function McpSetupSheet({
 	};
 
 	const handleCreate = () => {
-		const trimmedName = name.trim();
-		if (!trimmedName) {
-			toast.error("Give this connection a name first.");
-			return;
-		}
-		if (
-			needsOrganizationWideLinkAcknowledgment &&
-			!allowOrganizationWideLinks
-		) {
-			toast.error("Confirm organization-wide Short links access first.");
-			return;
-		}
-
 		const grant = getMcpScopeGrant(selectedActions, selectedWebsiteIds);
-
 		createMutation.mutate({
-			name: trimmedName,
-			description: `Databuddy MCP connection for ${CLIENT_LABELS[client]}`,
+			name: name.trim(),
+			description: `Databuddy MCP connection for ${CLIENTS[client].label}`,
 			organizationId,
 			type: "automation",
 			scopes: grant.scopes,
 			resources: grant.resources,
-			tags: ["MCP", CLIENT_LABELS[client]],
+			tags: ["MCP", CLIENTS[client].label],
 			expiresAt:
 				expiry === "90d" ? dayjs().add(90, "day").toISOString() : undefined,
 			ratelimit: { enabled: true },
 		});
 	};
 
-	const handleClose = () => {
-		if (createMutation.isPending) {
-			return;
-		}
-		onOpenChangeAction(false);
-	};
-
 	return (
-		<Sheet onOpenChange={handleClose} open={open}>
-			<Sheet.Content className="sm:max-w-xl" side="right">
-				<Sheet.Header>
-					<div className="flex items-start gap-3">
-						<div className="flex size-8 items-center justify-center rounded bg-primary/10">
-							<RobotIcon className="text-primary" size={16} />
-						</div>
-						<div className="min-w-0 flex-1">
-							<Sheet.Title>
-								{newSecret ? "MCP is ready" : "Connect Databuddy MCP"}
-							</Sheet.Title>
-							<Sheet.Description>
-								{newSecret
-									? "Copy the config into your AI client, then ask it to list your websites."
-									: "Give your AI tools a scoped connection to your Databuddy analytics."}
-							</Sheet.Description>
-						</div>
+		<>
+			<Sheet.Header>
+				<div className="flex items-start gap-3">
+					<div className="flex size-8 items-center justify-center rounded bg-primary/10">
+						<RobotIcon className="text-primary" size={16} />
 					</div>
-				</Sheet.Header>
+					<div className="min-w-0 flex-1">
+						<Sheet.Title>
+							{newSecret ? "MCP is ready" : "Connect Databuddy MCP"}
+						</Sheet.Title>
+						<Sheet.Description>
+							{newSecret
+								? "Copy the config into your AI client, then ask it to list your websites."
+								: "Give your AI tools a scoped connection to your Databuddy analytics."}
+						</Sheet.Description>
+					</div>
+				</div>
+			</Sheet.Header>
 
-				<Sheet.Body className="space-y-5">
-					{newSecret ? (
-						<ConnectionCreated
-							client={client}
-							onEnvironmentVariableChange={setUseEnvironmentVariable}
-							secret={newSecret}
-							useEnvironmentVariable={useEnvironmentVariable}
-						/>
-					) : (
-						<>
-							<Field>
-								<Field.Label>Connection name</Field.Label>
-								<Input
-									onChange={(event) => setName(event.target.value)}
-									value={name}
-								/>
-								<Field.Description>
-									Use one connection per client or environment so each key can
-									be rotated independently.
-								</Field.Description>
-							</Field>
+			<Sheet.Body className="space-y-5">
+				{newSecret ? (
+					<ConnectionCreated client={client} secret={newSecret} />
+				) : (
+					<>
+						<Field>
+							<Field.Label>Connection name</Field.Label>
+							<Input
+								onChange={(event) => setName(event.target.value)}
+								value={name}
+							/>
+							<Field.Description>
+								Use one connection per client or environment so each key can be
+								rotated independently.
+							</Field.Description>
+						</Field>
 
-							<div className="space-y-2">
-								<Text variant="label">AI client</Text>
-								<SegmentedControl
-									className="w-full overflow-x-auto"
-									name="mcp-client"
-									onChange={handleClientChange}
-									options={CLIENT_OPTIONS}
-									size="sm"
-									value={client}
-								/>
-								<Text tone="muted" variant="caption">
-									{
-										CLIENT_OPTIONS.find((option) => option.value === client)
-											?.description
-									}
-								</Text>
-							</div>
+						<div className="space-y-2">
+							<Text variant="label">AI client</Text>
+							<SegmentedControl
+								className="w-full overflow-x-auto"
+								name="mcp-client"
+								onChange={handleClientChange}
+								options={CLIENT_OPTIONS}
+								size="sm"
+								value={client}
+							/>
+							<Text tone="muted" variant="caption">
+								{CLIENTS[client].description}
+							</Text>
+						</div>
 
-							{client === "claude" && <ClaudeSignIn />}
+						{client === "claude" && <ClaudeSignIn />}
 
-							<div className="rounded border border-border/60">
-								<div className="flex items-start gap-3 px-3 py-3">
-									<div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded bg-success/10">
-										<ShieldCheckIcon className="size-4 text-success" />
-									</div>
-									<div className="min-w-0 flex-1">
-										<Text variant="label">Analytics access</Text>
-										<Text className="mt-0.5" tone="muted" variant="caption">
-											Read access is always included. Add only the workspace
-											actions you want this connection to perform.
-										</Text>
-										<div className="mt-2 flex flex-wrap gap-1">
-											{selectedScopes.map((scope) => (
-												<Badge key={scope} size="sm" variant="muted">
-													{scope}
-												</Badge>
-											))}
-										</div>
-									</div>
-									<Badge
-										size="sm"
-										variant={selectedActions.length > 0 ? "warning" : "success"}
-									>
-										{selectedActions.length > 0
-											? `${selectedActions.length} action${selectedActions.length === 1 ? "" : "s"}`
-											: "Read-only"}
-									</Badge>
+						<div className="rounded border border-border/60">
+							<div className="flex items-start gap-3 px-3 py-3">
+								<div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded bg-success/10">
+									<ShieldCheckIcon className="size-4 text-success" />
 								</div>
-								<div className="border-border/60 border-t px-3 py-3">
-									<div className="space-y-2.5">
-										<div>
-											<Text variant="label">Optional actions</Text>
-											<Text className="mt-0.5" tone="muted" variant="caption">
-												Goal, funnel, annotation, flag, and link changes show a
-												preview first and apply only once confirmed.
-												Investigation replies post right away.
+								<div className="min-w-0 flex-1">
+									<Text variant="label">Analytics access</Text>
+									<Text className="mt-0.5" tone="muted" variant="caption">
+										Read access is always included. Add only the workspace
+										actions you want this connection to perform.
+									</Text>
+									<div className="mt-2 flex flex-wrap gap-1">
+										{selectedScopes.map((scope) => (
+											<Badge key={scope} size="sm" variant="muted">
+												{scope}
+											</Badge>
+										))}
+									</div>
+								</div>
+								<Badge
+									size="sm"
+									variant={selectedActions.length > 0 ? "warning" : "success"}
+								>
+									{selectedActions.length > 0
+										? `${selectedActions.length} action${selectedActions.length === 1 ? "" : "s"}`
+										: "Read-only"}
+								</Badge>
+							</div>
+							<div className="border-border/60 border-t px-3 py-3">
+								<div className="space-y-2.5">
+									<div>
+										<Text variant="label">Optional actions</Text>
+										<Text className="mt-0.5" tone="muted" variant="caption">
+											Goal, funnel, annotation, flag, and link changes show a
+											preview first and apply only once confirmed. Investigation
+											replies post right away.
+										</Text>
+									</div>
+									<div className="space-y-2">
+										{MCP_ACTION_OPTIONS.map((option) => (
+											<div
+												className="rounded border border-border/60 px-3 py-2.5"
+												key={option.value}
+											>
+												<Checkbox
+													checked={selectedActions.includes(option.value)}
+													description={option.description}
+													label={option.label}
+													onCheckedChange={() => toggleAction(option.value)}
+												/>
+											</div>
+										))}
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<Accordion defaultOpen={false}>
+							<Accordion.Trigger>
+								<GlobeIcon className="size-4 text-muted-foreground" />
+								<Text variant="label">Website access</Text>
+								<Badge className="ml-auto" size="sm" variant="muted">
+									{selectedWebsiteIds.length === 0
+										? "All websites"
+										: `${selectedWebsiteIds.length} selected`}
+								</Badge>
+							</Accordion.Trigger>
+							<Accordion.Content>
+								<div className="space-y-3">
+									<Text tone="muted" variant="caption">
+										Leave all websites unselected for organization-wide access,
+										or choose specific websites for a least-privilege
+										connection.
+									</Text>
+									{needsOrganizationWideLinkAcknowledgment ? (
+										<div className="rounded border border-warning/30 bg-warning/5 px-3 py-2.5">
+											<Checkbox
+												checked={allowOrganizationWideLinks}
+												description="Short links belong to the organization, so this connection can manage every short link here, not only links associated with the selected websites."
+												label="Allow organization-wide Short links access"
+												onCheckedChange={(checked) =>
+													setAllowOrganizationWideLinks(checked === true)
+												}
+											/>
+										</div>
+									) : null}
+									{websitesQuery.isLoading ? (
+										<div className="flex items-center gap-2 rounded border border-border/60 border-dashed px-3 py-3">
+											<ClockIcon className="size-4 animate-pulse text-muted-foreground" />
+											<Text tone="muted" variant="caption">
+												Loading websites…
 											</Text>
 										</div>
-										<div className="space-y-2">
-											{MCP_ACTION_OPTIONS.map((option) => (
-												<div
-													className="rounded border border-border/60 px-3 py-2.5"
-													key={option.value}
-												>
+									) : websitesQuery.data && websitesQuery.data.length > 0 ? (
+										<div className="divide-y divide-border/60 overflow-hidden rounded border border-border/60">
+											{websitesQuery.data.map((website) => (
+												<div className="px-3 py-2.5" key={website.id}>
 													<Checkbox
-														checked={selectedActions.includes(option.value)}
-														description={option.description}
-														label={option.label}
-														onCheckedChange={() => toggleAction(option.value)}
+														checked={selectedWebsiteIds.includes(website.id)}
+														description={website.domain}
+														label={website.name || website.domain}
+														onCheckedChange={() => toggleWebsite(website.id)}
 													/>
 												</div>
 											))}
 										</div>
-									</div>
+									) : (
+										<div className="flex items-center gap-2 rounded border border-border/60 border-dashed px-3 py-3">
+											<LockSimpleIcon className="size-4 text-muted-foreground" />
+											<Text tone="muted" variant="caption">
+												No websites in this organization yet.
+											</Text>
+										</div>
+									)}
 								</div>
-							</div>
+							</Accordion.Content>
+						</Accordion>
 
-							<Accordion defaultOpen={false}>
-								<Accordion.Trigger>
-									<GlobeIcon className="size-4 text-muted-foreground" />
-									<Text variant="label">Website access</Text>
-									<Badge className="ml-auto" size="sm" variant="muted">
-										{selectedWebsiteIds.length === 0
-											? "All websites"
-											: `${selectedWebsiteIds.length} selected`}
-									</Badge>
-								</Accordion.Trigger>
-								<Accordion.Content>
-									<div className="space-y-3">
-										<Text tone="muted" variant="caption">
-											Leave all websites unselected for organization-wide
-											access, or choose specific websites for a least-privilege
-											connection.
-										</Text>
-										{needsOrganizationWideLinkAcknowledgment ? (
-											<div className="rounded border border-warning/30 bg-warning/5 px-3 py-2.5">
-												<Checkbox
-													checked={allowOrganizationWideLinks}
-													description="Short links belong to the organization, so this connection can manage every short link here, not only links associated with the selected websites."
-													label="Allow organization-wide Short links access"
-													onCheckedChange={(checked) =>
-														setAllowOrganizationWideLinks(checked === true)
-													}
-												/>
-											</div>
-										) : null}
-										{websitesQuery.isLoading ? (
-											<div className="flex items-center gap-2 rounded border border-border/60 border-dashed px-3 py-3">
-												<ClockIcon className="size-4 animate-pulse text-muted-foreground" />
-												<Text tone="muted" variant="caption">
-													Loading websites…
-												</Text>
-											</div>
-										) : websitesQuery.data && websitesQuery.data.length > 0 ? (
-											<div className="divide-y divide-border/60 overflow-hidden rounded border border-border/60">
-												{websitesQuery.data.map((website) => (
-													<div className="px-3 py-2.5" key={website.id}>
-														<Checkbox
-															checked={selectedWebsiteIds.includes(website.id)}
-															description={website.domain}
-															label={website.name || website.domain}
-															onCheckedChange={() => toggleWebsite(website.id)}
-														/>
-													</div>
-												))}
-											</div>
-										) : (
-											<div className="flex items-center gap-2 rounded border border-border/60 border-dashed px-3 py-3">
-												<LockSimpleIcon className="size-4 text-muted-foreground" />
-												<Text tone="muted" variant="caption">
-													No websites in this organization yet.
-												</Text>
-											</div>
-										)}
-									</div>
-								</Accordion.Content>
-							</Accordion>
+						<div className="space-y-2">
+							<Text variant="label">Key expiry</Text>
+							<SegmentedControl
+								name="mcp-expiry"
+								onChange={setExpiry}
+								options={[
+									{ label: "90 days", value: "90d" },
+									{ label: "Never", value: "never" },
+								]}
+								size="sm"
+								value={expiry}
+							/>
+							<Text tone="muted" variant="caption">
+								Keys are shown once and can be rotated or revoked from API Keys.
+							</Text>
+						</div>
 
-							<div className="space-y-2">
-								<Text variant="label">Key expiry</Text>
-								<SegmentedControl
-									name="mcp-expiry"
-									onChange={setExpiry}
-									options={[
-										{ label: "90 days", value: "90d" },
-										{ label: "Never", value: "never" },
-									]}
-									size="sm"
-									value={expiry}
-								/>
-								<Text tone="muted" variant="caption">
-									Keys are shown once and can be rotated or revoked from API
-									Keys.
-								</Text>
-							</div>
+						<div className="flex items-start gap-2 rounded border border-warning/30 bg-warning/5 px-3 py-2.5">
+							<TriangleWarningIcon className="mt-0.5 size-4 shrink-0 text-warning" />
+							<Text tone="muted" variant="caption">
+								The generated key authenticates an external AI client. Keep it
+								out of Git, screenshots, and shared prompts.
+							</Text>
+						</div>
+					</>
+				)}
+			</Sheet.Body>
 
-							<div className="flex items-start gap-2 rounded border border-warning/30 bg-warning/5 px-3 py-2.5">
-								<TriangleWarningIcon className="mt-0.5 size-4 shrink-0 text-warning" />
-								<Text tone="muted" variant="caption">
-									The generated key authenticates an external AI client. Keep it
-									out of Git, screenshots, and shared prompts.
-								</Text>
-							</div>
-						</>
-					)}
-				</Sheet.Body>
-
-				<Sheet.Footer>
-					{newSecret ? (
-						<Button onClick={handleClose} variant="primary">
-							Done
+			<Sheet.Footer>
+				{newSecret ? (
+					<Button onClick={onClose} variant="primary">
+						Done
+					</Button>
+				) : (
+					<>
+						<Button onClick={onClose} variant="ghost">
+							Cancel
 						</Button>
-					) : (
-						<>
-							<Button onClick={handleClose} variant="ghost">
-								Cancel
-							</Button>
-							<Button
-								disabled={
-									createMutation.isPending ||
-									(needsOrganizationWideLinkAcknowledgment &&
-										!allowOrganizationWideLinks)
-								}
-								loading={createMutation.isPending}
-								onClick={handleCreate}
-							>
-								<PlugIcon className="size-4" />
-								Create connection
-							</Button>
-						</>
-					)}
-				</Sheet.Footer>
-			</Sheet.Content>
-		</Sheet>
+						<Button
+							disabled={
+								createMutation.isPending ||
+								!name.trim() ||
+								(needsOrganizationWideLinkAcknowledgment &&
+									!allowOrganizationWideLinks)
+							}
+							loading={createMutation.isPending}
+							onClick={handleCreate}
+						>
+							<PlugIcon className="size-4" />
+							Create connection
+						</Button>
+					</>
+				)}
+			</Sheet.Footer>
+		</>
 	);
 }
 
 function ConnectionCreated({
 	client,
-	onEnvironmentVariableChange,
 	secret,
-	useEnvironmentVariable,
 }: {
 	client: McpClient;
-	onEnvironmentVariableChange: (value: boolean) => void;
 	secret: string;
-	useEnvironmentVariable: boolean;
 }) {
+	const [useEnvironmentVariable, setUseEnvironmentVariable] = useState(false);
 	const config = createMcpConfig(secret, client, useEnvironmentVariable);
-	const clientOption = CLIENT_OPTIONS.find((option) => option.value === client);
-	const clientDescription = clientOption?.keyHint ?? clientOption?.description;
 	const envVarReference = MCP_ENV_VAR_REFERENCES[client];
 
 	return (
@@ -638,7 +612,7 @@ function ConnectionCreated({
 							Connection created
 						</Text>
 						<Text className="mt-0.5" tone="muted" variant="caption">
-							{clientDescription}
+							{CLIENTS[client].keyHint ?? CLIENTS[client].description}
 						</Text>
 					</div>
 				</div>
@@ -672,27 +646,19 @@ function ConnectionCreated({
 					</div>
 					<CopyButton label="Copy config" value={config} variant="secondary" />
 				</div>
-				<div className="relative overflow-hidden rounded border border-border/60 bg-secondary/50">
-					<pre className="max-h-56 overflow-auto p-3 pr-12 font-mono text-[11px] text-foreground leading-relaxed">
-						<code>{config}</code>
-					</pre>
-					<CopyButton
-						aria-label="Copy MCP configuration"
-						className="absolute top-2 right-2 bg-card/80"
-						value={config}
-						variant="ghost"
-					/>
-				</div>
+				<pre className="max-h-56 overflow-auto rounded border border-border/60 bg-secondary/50 p-3 font-mono text-[11px] text-foreground leading-relaxed">
+					<code>{config}</code>
+				</pre>
 			</div>
 
 			{envVarReference ? (
 				<div className="flex items-center justify-between gap-3 rounded border border-border/60 px-3 py-2.5">
 					<Checkbox
 						checked={useEnvironmentVariable}
-						description={`Keep the key out of the config. Set ${MCP_ENV_VAR} in your environment before launching ${CLIENT_LABELS[client]}.`}
+						description={`Keep the key out of the config. Set ${MCP_ENV_VAR} in your environment before launching ${CLIENTS[client].label}.`}
 						label="Use an environment variable"
 						onCheckedChange={(checked) =>
-							onEnvironmentVariableChange(checked === true)
+							setUseEnvironmentVariable(checked === true)
 						}
 					/>
 					<Badge size="sm" variant="muted">

@@ -1,9 +1,5 @@
-import { LINK_SLUG_REGEX } from "@databuddy/shared/constants/links";
 import { ORPCError } from "@orpc/server";
-import {
-	analyticsDateRangeSchema,
-	isoDateOrOffsetDateTimeSchema,
-} from "@databuddy/validation";
+import { analyticsDateRangeSchema } from "@databuddy/validation";
 import { z } from "zod";
 import {
 	type DatePreset,
@@ -109,17 +105,6 @@ export function paginate<T>(
 	};
 }
 
-export const LinkSlugSchema = z
-	.string()
-	.min(3)
-	.max(50)
-	.regex(LINK_SLUG_REGEX)
-	.describe("3-50 letters, digits, hyphens, or underscores.");
-
-export const LinkExpiresAtSchema = isoDateOrOffsetDateTimeSchema.describe(
-	"Expiry as YYYY-MM-DD or an ISO date-time with offset."
-);
-
 type Row = Record<string, unknown>;
 
 function asRow(value: unknown): Row {
@@ -191,6 +176,8 @@ export const FLAG_FIELDS = [
 	"targetGroups",
 	"updatedAt",
 ] as const;
+
+export const FLAG_IDENTITY_FIELDS = ["id", "key", "name", "status"] as const;
 
 export const FLAG_WRITE_FIELDS = FLAG_FIELDS.filter(
 	(field) => field !== "targetGroups"

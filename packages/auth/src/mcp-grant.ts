@@ -54,7 +54,7 @@ export function mcpAccessTokenClaims({
 }
 
 export function resolveMcpConsent(
-	consents: { referenceId: string | null; scopes: unknown }[],
+	consents: Pick<typeof oauthConsent.$inferSelect, "referenceId" | "scopes">[],
 	hash: string,
 	tokenScopes: string[]
 ): { grant: McpAccessGrant; scopes: ApiScope[] } | null {

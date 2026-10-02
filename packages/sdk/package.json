@@ -1,7 +1,7 @@
 {
   "name": "@databuddy/sdk",
   "version": "3.0.1",
-  "description": "Official Databuddy Analytics SDK",
+  "description": "Databuddy SDK: open-source, cookieless product analytics with custom events, feature flags, and error tracking for React, Next.js, Vue, and Node.js.",
   "main": "./dist/core/index.mjs",
   "types": "./dist/core/index.d.ts",
   "license": "MIT",
@@ -71,11 +71,18 @@
   ],
   "keywords": [
     "analytics",
+    "product-analytics",
+    "web-analytics",
+    "cookieless",
+    "feature-flags",
+    "error-tracking",
     "tracking",
     "databuddy",
     "sdk",
     "react",
-    "vue"
+    "nextjs",
+    "vue",
+    "node"
   ],
   "homepage": "https://databuddy.cc",
   "repository": {

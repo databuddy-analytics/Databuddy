@@ -1,32 +1,24 @@
 import { tool } from "ai";
 import { z } from "zod";
-import {
-	DEEP_LINK_APP_IDS,
-	isDeepLinkTarget,
-} from "@databuddy/shared/constants/deep-link-apps";
-import { LINK_SLUG_REGEX } from "@databuddy/shared/constants/links";
-import { httpUrlSchema } from "@databuddy/validation";
 import { getCachedWebsite } from "../../lib/website-utils";
 import {
 	countUnfiledLinks,
-	LinkFolderSelectorSchema,
+	createOrganizationLink,
+	linkCreateFields,
+	linkUpdateFields,
 	listLinkFolders,
 	listLinks,
 	parseLinkRow,
+	planLinkUpdate,
 	readOrganizationLink,
+	refineDeepLinkTarget,
 	resolveLinkFolder,
-	resolveLinkFolderFromList,
 	searchLinks,
 	summarizeLink,
 	summarizeLinkFolder,
 	summarizeLinkFoldersWithUsage,
 } from "./link-catalog";
-import {
-	callRPCProcedure,
-	createToolLogger,
-	getAppContext,
-	omitUndefined,
-} from "./utils";
+import { callRPCProcedure, createToolLogger, getAppContext } from "./utils";
 
 const logger = createToolLogger("Links Tools");
 
@@ -122,60 +114,18 @@ export function createLinksTools() {
 		inputSchema: z
 			.object({
 				websiteId: z.string(),
-				name: z.string().min(1).max(255),
-				targetUrl: httpUrlSchema,
-				slug: z.string().min(3).max(50).regex(LINK_SLUG_REGEX).optional(),
-				expiresAt: z.string().optional(),
-				expiredRedirectUrl: httpUrlSchema.optional(),
-				ogTitle: z.string().max(200).optional(),
-				ogDescription: z.string().max(500).optional(),
-				ogImageUrl: httpUrlSchema.optional(),
-				externalId: z.string().max(255).optional(),
-				...LinkFolderSelectorSchema.shape,
-				deepLinkApp: z
-					.enum(DEEP_LINK_APP_IDS)
-					.optional()
-					.describe(
-						"App ID for deep linking (instagram, tiktok, youtube, x, spotify, linkedin, facebook, whatsapp, telegram). On mobile, opens the native app."
-					),
+				...linkCreateFields,
 				confirmed: z.boolean().describe("false=preview, true=apply"),
 			})
-			.superRefine(({ deepLinkApp, targetUrl }, context) => {
-				if (deepLinkApp && !isDeepLinkTarget(deepLinkApp, targetUrl)) {
-					context.addIssue({
-						code: "custom",
-						message:
-							"Deep link URLs must use HTTPS and match the selected app.",
-						path: ["targetUrl"],
-					});
-				}
-			}),
-		execute: async (
-			{
-				websiteId,
-				name,
-				targetUrl,
-				slug,
-				expiresAt,
-				expiredRedirectUrl,
-				ogTitle,
-				ogDescription,
-				ogImageUrl,
-				externalId,
-				folderId,
-				folderSlug,
-				deepLinkApp,
-				confirmed,
-			},
-			options
-		) => {
+			.superRefine(refineDeepLinkTarget),
+		execute: async ({ websiteId, confirmed, ...link }, options) => {
 			const context = getAppContext(options);
 			try {
 				const organizationId = await getOrganizationIdFromWebsite(websiteId);
 				const folderSelection = await resolveLinkFolder(
 					context,
 					organizationId,
-					{ folderId, folderSlug }
+					link
 				);
 				if (!folderSelection.ok) {
 					return {
@@ -191,15 +141,15 @@ export function createLinksTools() {
 						message:
 							"Please review the link details below and confirm if you want to create it:",
 						link: {
-							name,
-							targetUrl,
-							slug: slug ?? "(auto-generated)",
-							expiresAt: expiresAt ?? "Never",
-							expiredRedirectUrl: expiredRedirectUrl ?? "None",
-							ogTitle: ogTitle ?? "None",
-							ogDescription: ogDescription ?? "None",
-							ogImageUrl: ogImageUrl ?? "None",
-							externalId: externalId ?? "None",
+							name: link.name,
+							targetUrl: link.targetUrl,
+							slug: link.slug ?? "(auto-generated)",
+							expiresAt: link.expiresAt ?? "Never",
+							expiredRedirectUrl: link.expiredRedirectUrl ?? "None",
+							ogTitle: link.ogTitle ?? "None",
+							ogDescription: link.ogDescription ?? "None",
+							ogImageUrl: link.ogImageUrl ?? "None",
+							externalId: link.externalId ?? "None",
 							folder: folderSelection.folder
 								? summarizeLinkFolder(folderSelection.folder)
 								: "Unfiled",
@@ -211,36 +161,25 @@ export function createLinksTools() {
 					};
 				}
 
-				const newLink = parseLinkRow(
-					await callRPCProcedure(
-						"links",
-						"create",
-						{
-							organizationId,
-							name,
-							targetUrl,
-							slug,
-							folderId: folderSelection.folderId ?? null,
-							expiresAt: expiresAt ? new Date(expiresAt) : null,
-							expiredRedirectUrl: expiredRedirectUrl ?? null,
-							ogTitle: ogTitle ?? null,
-							ogDescription: ogDescription ?? null,
-							ogImageUrl: ogImageUrl ?? null,
-							externalId: externalId ?? null,
-							deepLinkApp: deepLinkApp ?? null,
-						},
-						context
-					)
+				const newLink = await createOrganizationLink(
+					context,
+					organizationId,
+					link,
+					folderSelection.folderId
 				);
 
 				return {
 					success: true,
-					message: `Link "${name}" created successfully!`,
+					message: `Link "${link.name}" created successfully!`,
 					link: summarizeLink(newLink, folderSelection.folders),
 					shortUrl: `/${newLink.slug}`,
 				};
 			} catch (error) {
-				logger.error("Failed to create link", { websiteId, name, error });
+				logger.error("Failed to create link", {
+					websiteId,
+					name: link.name,
+					error,
+				});
 				throw error;
 			}
 		},
@@ -251,72 +190,36 @@ export function createLinksTools() {
 		inputSchema: z.object({
 			id: z.string(),
 			websiteId: z.string(),
-			name: z.string().min(1).max(255).optional(),
-			targetUrl: httpUrlSchema.optional(),
-			slug: z.string().min(3).max(50).regex(LINK_SLUG_REGEX).optional(),
-			expiresAt: z.string().datetime().nullable().optional(),
-			expiredRedirectUrl: httpUrlSchema.nullable().optional(),
-			ogTitle: z.string().max(200).nullable().optional(),
-			ogDescription: z.string().max(500).nullable().optional(),
-			ogImageUrl: httpUrlSchema.nullable().optional(),
-			externalId: z.string().max(255).nullable().optional(),
-			...LinkFolderSelectorSchema.shape,
-			deepLinkApp: z.enum(DEEP_LINK_APP_IDS).nullable().optional(),
+			...linkUpdateFields,
 			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
-		execute: async (
-			{ id, websiteId, confirmed, folderId, folderSlug, ...updates },
-			options
-		) => {
+		execute: async ({ id, websiteId, confirmed, ...input }, options) => {
 			const context = getAppContext(options);
 			try {
-				const organizationId = await getOrganizationIdFromWebsite(websiteId);
-				const [currentLink, folders] = await Promise.all([
-					readOrganizationLink(context, organizationId, id),
-					listLinkFolders(context, organizationId),
-				]);
-				const folderSelection = resolveLinkFolderFromList(folders, {
-					folderId,
-					folderSlug,
-				});
-				if (!folderSelection.ok) {
+				const plan = await planLinkUpdate(
+					context,
+					await getOrganizationIdFromWebsite(websiteId),
+					id,
+					input
+				);
+				if (!plan.ok) {
 					return {
 						success: false,
-						message: folderSelection.message,
-						folders: summarizeLinkFoldersWithUsage(folderSelection.folders),
+						message: plan.message,
+						folders: summarizeLinkFoldersWithUsage(plan.folders),
 					};
 				}
-
-				const effectiveDeepLinkApp =
-					updates.deepLinkApp === undefined
-						? currentLink.deepLinkApp
-						: updates.deepLinkApp;
-				const effectiveTargetUrl = updates.targetUrl ?? currentLink.targetUrl;
-				if (
-					effectiveDeepLinkApp &&
-					!isDeepLinkTarget(effectiveDeepLinkApp, effectiveTargetUrl)
-				) {
-					return {
-						success: false,
-						message:
-							"Deep link URLs must use HTTPS and match the selected app.",
-					};
-				}
-
-				const cleanUpdates = omitUndefined(updates);
-				if (folderSelection.folderId !== undefined) {
-					cleanUpdates.folderId = folderSelection.folderId;
-				}
-				const hasUpdates = Object.keys(cleanUpdates).length > 0;
+				const { current, folders, updates } = plan;
+				const hasUpdates = Object.keys(updates).length > 0;
 
 				if (!(confirmed && hasUpdates)) {
 					return {
 						preview: true,
 						message: hasUpdates
-							? `Please review the changes to "${currentLink.name}":`
+							? `Please review the changes to "${current.name}":`
 							: "No changes requested. The short link will remain unchanged.",
-						currentLink: summarizeLink(currentLink, folders),
-						updates: cleanUpdates,
+						currentLink: summarizeLink(current, folders),
+						updates,
 						availableFolders: folders.map(summarizeLinkFolder),
 						confirmationRequired: hasUpdates,
 						instruction: hasUpdates
@@ -326,19 +229,14 @@ export function createLinksTools() {
 				}
 
 				const updatedLink = parseLinkRow(
-					await callRPCProcedure(
-						"links",
-						"update",
-						{ id, ...cleanUpdates },
-						context
-					)
+					await callRPCProcedure("links", "update", { id, ...updates }, context)
 				);
 
 				return {
 					success: true,
 					message: `Link "${updatedLink.name}" updated successfully!`,
-					link: summarizeLink(updatedLink, folderSelection.folders),
-					updates: cleanUpdates,
+					link: summarizeLink(updatedLink, folders),
+					updates,
 				};
 			} catch (error) {
 				logger.error("Failed to update link", { id, websiteId, error });

@@ -1,7 +1,7 @@
 import type { userRuleSchema } from "@databuddy/shared/flags";
 import { z } from "zod";
 
-export type FlagTargetRule = z.infer<typeof userRuleSchema>;
+type FlagTargetRule = z.infer<typeof userRuleSchema>;
 
 export const flagRolloutBySchema = z
 	.enum(["user", "organization", "team"])
