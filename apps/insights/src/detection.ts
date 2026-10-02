@@ -2673,6 +2673,8 @@ const SEGMENT_SPREAD_MIN_SESSIONS = 20;
 const SEGMENT_MIN_CHANGE = 0.3;
 const SEGMENT_REST_CHANGE_RATIO = 3;
 const SEGMENT_MIN_VOLUME = 20;
+const SEGMENT_SHIFT_MIN_SESSIONS = 20;
+const SEGMENT_SHIFT_MAX_BASE_SHARE = 0.8;
 const SEGMENT_SPREAD_MIN_VOLUME = 100;
 const SHIFT_DIMENSIONS = SEGMENT_DIMENSIONS.filter(
 	(dimension) => dimension !== "browser_version"
@@ -2839,6 +2841,9 @@ export function shiftedSegment(params: {
 				direction === "down"
 					? beforeDaily * beforeDays
 					: afterDaily * afterDays;
+			const sessions =
+				(direction === "down" ? beforeValues : afterValues).get(value)
+					?.sessions ?? 0;
 			const restHeld =
 				Number.isFinite(restChange) &&
 				(Math.sign(restChange) !== Math.sign(segmentChange) ||
@@ -2847,6 +2852,9 @@ export function shiftedSegment(params: {
 			if (
 				!value ||
 				volume < SEGMENT_MIN_VOLUME ||
+				sessions < SEGMENT_SHIFT_MIN_SESSIONS ||
+				restBefore * beforeDays < SEGMENT_MIN_VOLUME ||
+				beforeDaily / beforeTotal > SEGMENT_SHIFT_MAX_BASE_SHARE ||
 				explained < SEGMENT_MIN_SHARE ||
 				Math.abs(segmentChange) < SEGMENT_MIN_CHANGE ||
 				!restHeld
@@ -2972,8 +2980,12 @@ export async function loadSegmentFinding(
 					noun: `${subject.name} events`,
 					type: "custom_event_segments",
 				};
+	const comparableDay = signal.baselineDates?.at(-1);
+	const beforePeriod = comparableDay
+		? { from: comparableDay, to: comparableDay }
+		: signal.period.previous;
 	const [beforeRows, afterRows] = await Promise.all([
-		read(series.type, signal.period.previous, series.filters),
+		read(series.type, beforePeriod, series.filters),
 		read(series.type, signal.period.current, series.filters),
 	]);
 	const before = segmentTable(beforeRows, series.countField);
@@ -2985,10 +2997,7 @@ export async function loadSegmentFinding(
 			signal.period.current.to
 		),
 		before,
-		beforeDays: inclusiveDays(
-			signal.period.previous.from,
-			signal.period.previous.to
-		),
+		beforeDays: inclusiveDays(beforePeriod.from, beforePeriod.to),
 		direction,
 	});
 	if (shift) {

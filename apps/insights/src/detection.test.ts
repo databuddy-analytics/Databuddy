@@ -3193,6 +3193,95 @@ describe("segment localization", () => {
 		).toBeNull();
 	});
 
+	it("does not localize onto the segment that is nearly the whole audience", () => {
+		const before = segmentTable(
+			segmentRows("events", [
+				["browser", "Chrome", 400, 200],
+				["browser", "Firefox", 30, 25],
+			]),
+			"events"
+		);
+		const after = segmentTable(
+			segmentRows("events", [
+				["browser", "Chrome", 20, 12],
+				["browser", "Firefox", 30, 25],
+			]),
+			"events"
+		);
+		expect(
+			shiftedSegment({
+				after,
+				afterDays: 7,
+				before,
+				beforeDays: 7,
+				direction: "down",
+			})
+		).toBeNull();
+	});
+
+	it("does not localize a change onto a handful of sessions", () => {
+		const before = segmentTable(
+			segmentRows("events", [
+				["country", "Brazil", 49, 3],
+				["country", "Germany", 42, 30],
+			]),
+			"events"
+		);
+		const after = segmentTable(
+			segmentRows("events", [["country", "Germany", 40, 29]]),
+			"events"
+		);
+		expect(
+			shiftedSegment({
+				after,
+				afterDays: 7,
+				before,
+				beforeDays: 7,
+				direction: "down",
+			})
+		).toBeNull();
+	});
+
+	it("compares a next-day change with its most recent comparable day", async () => {
+		const { signal } = prepareInvestigation(
+			{
+				baseline: 1000,
+				baselineDates: [
+					"2026-09-21",
+					"2026-09-22",
+					"2026-09-23",
+					"2026-09-24",
+					"2026-09-25",
+					"2026-09-28",
+				],
+				current: 600,
+				deltaPercent: -40,
+				detectedAt: "2026-09-29",
+				direction: "down",
+				label: "Pageviews",
+				method: "zscore",
+				metric: "pageviews",
+				severity: "warning",
+			},
+			7
+		);
+		const requests: Parameters<QueryFn>[0][] = [];
+		const query: QueryFn = async (request) => {
+			requests.push(request);
+			return steadyTraffic;
+		};
+
+		await loadSegmentFinding(
+			{ signal, timezone: "UTC", websiteId: "site-1" },
+			query
+		);
+
+		expect(requests.map(({ from, to }) => [from, to])).toEqual([
+			["2026-09-28", "2026-09-28"],
+			["2026-09-29", "2026-09-29"],
+		]);
+	});
+
 	it("merges country codes with country names", () => {
 		const table = segmentTable(
 			segmentRows("pageviews", [
