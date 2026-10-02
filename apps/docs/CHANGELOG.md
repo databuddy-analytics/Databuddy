@@ -1,5 +1,12 @@
 # @databuddy/docs
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies [cd5879e]
+  - @databuddy/sdk@3.1.1
+
 ## 0.0.3
 
 ### Patch Changes
