@@ -395,6 +395,53 @@ export const AiAgentsBuilders = {
 		customizable: false,
 	},
 
+	ai_recent_requests: {
+		meta: {
+			title: "Latest AI Requests",
+			description:
+				"The most recent individual requests from AI crawlers and agents, newest first: time, agent (id, name, product), page, content format, HTTP status (Vercel log drain rows only, 0 elsewhere) and source. Filter by agent_id for one agent.",
+			category: "AI Agents",
+			tags: ["ai", "agents", "crawlers", "log", "recent", "requests"],
+			output_fields: [
+				{ name: "time", type: "datetime", label: "Time" },
+				{ name: "agent_id", type: "string", label: "Agent ID" },
+				{ name: "name", type: "string", label: "Agent" },
+				{ name: "product", type: "string", label: "Product" },
+				{ name: "page", type: "string", label: "Page" },
+				{ name: "format", type: "string", label: "Format" },
+				{ name: "status_code", type: "number", label: "Status" },
+				{ name: "source", type: "string", label: "Source" },
+			],
+			default_visualization: "table",
+		},
+		commonFilters: false,
+		allowedFilters: ["agent_id"],
+		customSql: (ctx) => ({
+			sql: `
+				SELECT
+					timestamp AS time,
+					agent_id,
+					${AGENT_NAME} AS name,
+					${AGENT_PRODUCT} AS product,
+					${PAGE} AS page,
+					${CONTENT_FORMAT} AS format,
+					status_code,
+					source
+				FROM ${Analytics.ai_traffic_spans}
+				WHERE ${AGENT_ROW} AND ${IN_RANGE} AND path != '' ${appendFilterClause(ctx.filterConditions)}
+				ORDER BY timestamp DESC
+				LIMIT {limit:UInt32}
+			`,
+			params: {
+				...queryParams(ctx),
+				...ctx.filterParams,
+				limit: ctx.limit ?? 50,
+			},
+		}),
+		timeField: "timestamp",
+		customizable: false,
+	},
+
 	ai_landing_pages: {
 		meta: {
 			title: "Pages AI Sends Visitors To",
