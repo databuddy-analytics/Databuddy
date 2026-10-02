@@ -125,6 +125,7 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 				id: "revenue-time-series",
 				parameters: ["revenue_time_series"],
 				filters: revenueFilters,
+				granularity: "daily" as const,
 			},
 		],
 		[revenueFilters]

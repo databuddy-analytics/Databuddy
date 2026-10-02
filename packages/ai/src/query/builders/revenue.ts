@@ -931,9 +931,14 @@ export const RevenueBuilders = {
 			default_visualization: "timeseries",
 			supports_granularity: ["hour", "day"],
 		},
-		customSql: makeRevenueBuilder(() => ({
-			select: `SELECT
-				toDate(toTimeZone(created, {timezone:String})) as date,
+		customSql: (ctx) =>
+			makeRevenueBuilder(() => ({
+				select: `SELECT
+				${
+					ctx.granularity === "hour" || ctx.granularity === "hourly"
+						? "formatDateTime(toStartOfHour(toTimeZone(created, {timezone:String})), '%Y-%m-%d %H:00:00')"
+						: "toDate(toTimeZone(created, {timezone:String}))"
+				} as date,
 				currency,
 				sumIf(amount, type != 'refund') as revenue,
 				countIf(type != 'refund') as transactions,
@@ -942,9 +947,9 @@ export const RevenueBuilders = {
 				countIf(type = 'refund') as refund_count,
 				sumIf(amount, is_attributed = 1 AND type != 'refund') as attributed_revenue,
 				countIf(is_attributed = 1 AND type != 'refund') as attributed_transactions`,
-			groupBy: "date, currency",
-			orderBy: "date ASC",
-		})),
+				groupBy: "date, currency",
+				orderBy: "date ASC",
+			}))(ctx),
 		timeField: "created",
 		customizable: false,
 	},
