@@ -32,7 +32,7 @@ export const FilterSchema = QueryFilterSchema.omit({
 export { SCHEMA_SECTIONS } from "../prompts/clickhouse-schema";
 
 export const MCP_RESULT_ROW_LIMIT = 20;
-export const MCP_ROW_ARRAY_LIMIT = 50;
+const MCP_ROW_ARRAY_LIMIT = 50;
 
 export function queryFailedMessage(type: string): string {
 	return `The ${type} query failed to run. Retry, shorten the date range, or remove filters.`;

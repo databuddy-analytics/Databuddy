@@ -84,7 +84,7 @@ interface McpToolAccessInput {
 	scopeTarget?: ApiKeyScopeTarget;
 }
 
-export interface McpToolMetadata {
+interface McpToolMetadata {
 	access: McpToolAccess;
 }
 

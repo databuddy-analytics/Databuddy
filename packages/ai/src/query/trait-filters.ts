@@ -28,7 +28,7 @@ const PUBLIC_QUERY_ERROR_PATTERNS = [
 	/^[a-z_]+ filter expects /,
 ];
 
-export function hasTraitFilters(filters: Filter[] | undefined): boolean {
+function hasTraitFilters(filters: Filter[] | undefined): boolean {
 	return Boolean(filters?.some((f) => isTraitFilterField(f.field)));
 }
 

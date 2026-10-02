@@ -5,7 +5,7 @@ const allowedApiOrigins = new Set(config.cors.apiOrigins);
 export const MCP_PATHS = new Set(["/v1/mcp", "/v1/mcp/", "/mcp", "/mcp/"]);
 const BEARER_TOKEN_RE = /^bearer\s+(\S+)$/i;
 
-export function isMcpRequest(request: Request): boolean {
+function isMcpRequest(request: Request): boolean {
 	return MCP_PATHS.has(new URL(request.url).pathname);
 }
 
