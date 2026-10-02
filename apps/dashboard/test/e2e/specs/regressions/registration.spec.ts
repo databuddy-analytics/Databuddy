@@ -31,7 +31,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("keeps registration completion specific to the deployment mode", {
-	tag: "@regression",
+	tag: ["@regression", "@selfhost"],
 }, async ({ page }) => {
 	await page.route("**/api/auth/sign-up/email", (route) =>
 		route.fulfill({
@@ -73,7 +73,7 @@ test("keeps registration completion specific to the deployment mode", {
 });
 
 test("shows only configured self-host sign-in methods", {
-	tag: "@regression",
+	tag: ["@regression", "@selfhost"],
 }, async ({ page }) => {
 	await page.goto("/login");
 	await expect(
@@ -108,7 +108,7 @@ if (!emailEnabled) {
 		"verification-needed",
 	]) {
 		test(`explains unavailable email on /login/${route}`, {
-			tag: "@regression",
+			tag: ["@regression", "@selfhost"],
 		}, async ({ page }) => {
 			await page.goto(`/login/${route}?callback=%2Fwebsites`);
 			await expect(

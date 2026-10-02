@@ -18,7 +18,7 @@ const cases = selfHosted
 
 for (const { aiConfigured, capability } of cases) {
 	test(`finishes verified onboarding with AI ${aiConfigured}, capability ${capability}`, {
-		tag: "@regression",
+		tag: ["@regression", "@selfhost"],
 	}, async ({ authenticatedPage: page, e2eSession, mockRpc }) => {
 		const hasFailure =
 			capability === "failed" || capability === "cached-failed";

@@ -99,7 +99,7 @@ export const TRACKING_VERIFIED = {
 	tracking_issue: null,
 };
 
-export function corsHeaders(page: Page): Record<string, string> {
+function corsHeaders(page: Page): Record<string, string> {
 	return {
 		"access-control-allow-origin": new URL(page.url()).origin,
 		"access-control-allow-credentials": "true",

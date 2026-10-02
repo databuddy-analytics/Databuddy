@@ -3,9 +3,9 @@ import {
 	expectDashboardReady,
 	idFromPath,
 	scopeSuffix,
+	WEBSITE_PATH_RE,
 } from "@/test/e2e/utils/dashboard";
 
-const WEBSITE_PATH_RE = /\/websites\/[A-Za-z0-9_-]+$/;
 const GATE_TITLE = "No events yet. Two steps to your dashboard.";
 
 test("gates a new website behind setup until its first page view", {

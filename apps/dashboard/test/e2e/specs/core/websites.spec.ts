@@ -3,11 +3,11 @@ import {
 	expectDashboardReady,
 	idFromPath,
 	scopeSuffix,
+	WEBSITE_PATH_RE,
 	websiteCard,
 } from "@/test/e2e/utils/dashboard";
 
 const DUPLICATE_DOMAIN_RE = /domain.*already exists/i;
-const WEBSITE_PATH_RE = /\/websites\/[A-Za-z0-9_-]+$/;
 
 test("validates, creates, renames, rejects a duplicate domain, and deletes a website", {
 	tag: "@core",

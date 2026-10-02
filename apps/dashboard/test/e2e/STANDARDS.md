@@ -183,16 +183,18 @@ Use tags consistently:
 
 - `@regression` for recent or historically brittle behavior.
 - `@core` for broader product journeys.
+- `@selfhost` for tests that branch on `SELFHOST`. CI runs them a second time with `SELFHOST=true`; a self-host branch without the tag never runs anywhere.
 
 Run tagged suites locally with:
 
 ```bash
 bun run --cwd apps/dashboard test:e2e:local:regression
 bun run --cwd apps/dashboard test:e2e:local:core
+bun run --cwd apps/dashboard test:e2e:local:selfhost
 ```
 
 ## CI expectations
 
-Pull requests to `staging` and `main`, and pushes to `main`, run the same full dashboard E2E suite. Tagged subsets exist for local iteration only: splitting them in CI once let three `@core` failures sit on `main` for over a week without blocking a single PR. Broader suites can also run on nightly schedules as coverage grows.
+Pull requests to `staging` and `main`, and pushes to `main`, run the same full dashboard E2E suite in cloud mode, plus the `@selfhost` subset with `SELFHOST=true`. Tagged subsets exist for local iteration only: splitting them in CI once let three `@core` failures sit on `main` for over a week without blocking a single PR. Broader suites can also run on nightly schedules as coverage grows.
 
 CI should upload Playwright traces, screenshots, and videos on failure.

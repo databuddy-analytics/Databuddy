@@ -3,14 +3,14 @@ import {
 	createLinkFolder,
 	createShortLink,
 	escapedText,
+	LINK_PATH_RE,
 	linkRow,
 	openLinkActions,
 	scopeSuffix,
+	SHORT_LINK_LABEL_RE,
 } from "@/test/e2e/utils/dashboard";
 
-const SHORT_LINK_LABEL_RE = /Short Link/;
 const SLUG_CONFLICT_RE = /slug.*(taken|exists)/i;
-const LINK_PATH_RE = /\/links\/[A-Za-z0-9_-]+/;
 const INVALID_SLUGS = [
 	{ error: "Slug must be at least 3 characters", value: "ab" },
 	{

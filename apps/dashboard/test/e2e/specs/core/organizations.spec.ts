@@ -10,13 +10,13 @@ import {
 	idFromPath,
 	linkRow,
 	scopeSuffix,
+	LINK_PATH_RE,
 	switchOrganization,
+	WEBSITE_PATH_RE,
 	websiteCard,
 } from "@/test/e2e/utils/dashboard";
 
 const SEEDED_WEBSITE_NAME = "E2E Website";
-const WEBSITE_PATH_RE = /\/websites\/[A-Za-z0-9_-]+/;
-const LINK_PATH_RE = /\/links\/[A-Za-z0-9_-]+/;
 
 function assets(label: "Primary" | "Secondary", suffix: string) {
 	const token = label.toLowerCase();
