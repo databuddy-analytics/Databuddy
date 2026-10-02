@@ -109,6 +109,16 @@ interface FailedRequestRow {
 	status_code: number;
 }
 
+interface RecentRequestRow {
+	agent_id: string;
+	format: ContentFormat;
+	name: string;
+	page: string;
+	product: string;
+	status_code: number;
+	time: string;
+}
+
 interface LandingPageRow {
 	page: string;
 	pageviews: number;
@@ -243,6 +253,13 @@ const FOCUS: Record<
 
 const PURPOSE_LABELS: Record<AgentPurpose, string> = {
 	agent: "Agent",
+	search_index: "Search",
+	training: "Training",
+	user_fetch: "Answers",
+};
+
+const PURPOSE_GROUP_LABELS: Record<AgentPurpose, string> = {
+	agent: "Agents",
 	search_index: "Search",
 	training: "Training",
 	user_fetch: "Answers",
@@ -858,6 +875,20 @@ function AgentReadsPanel({
 	const robotsLimitedCount = rankedAgents.filter(
 		(agent) => agent.robots === "blocked" || agent.robots === "partial"
 	).length;
+	const requestsByPurpose = new Map<string, number>();
+	for (const agent of rankedAgents) {
+		const purpose = agent.purpose_inferred
+			? "General crawlers"
+			: PURPOSE_GROUP_LABELS[agent.purpose];
+		requestsByPurpose.set(
+			purpose,
+			(requestsByPurpose.get(purpose) ?? 0) + agent.value
+		);
+	}
+	const purposeSplit = [...requestsByPurpose]
+		.sort((a, b) => b[1] - a[1])
+		.map(([purpose, requests]) => `${purpose} ${formatNumber(requests)}`)
+		.join(" · ");
 
 	const agentFilters: DynamicQueryFilter[] = selectedId
 		? [{ field: "agent_id", operator: "eq", value: selectedId }]
@@ -1007,6 +1038,11 @@ function AgentReadsPanel({
 					unit={`${label} requests`}
 					value={formatNumber(requestTotal)}
 				/>
+				{isLoading || requestsByPurpose.size < 2 ? null : (
+					<p className="-mt-2 text-pretty text-muted-foreground text-xs tabular-nums">
+						{purposeSplit}
+					</p>
+				)}
 				<Sparkline
 					id="ai-reads-trend"
 					isHourly={timeline.isHourly}
@@ -1258,6 +1294,63 @@ function StatTile({
 					) : null}
 				</div>
 			)}
+		</div>
+	);
+}
+
+const STATUS_ERROR = 400;
+
+function RecentRequestsPanel({ rows }: { rows: RecentRequestRow[] }) {
+	const list = useShowAll(rows);
+	return (
+		<div className="rounded-xl bg-secondary p-1.5">
+			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
+				<Headline
+					detail="The most recent requests from AI crawlers and agents, newest first."
+					title="Latest AI requests"
+				/>
+				<div className="flex flex-col">
+					{list.visible.map((row, index) => (
+						<div
+							className="grid grid-cols-[5.5rem_minmax(0,13rem)_minmax(0,1fr)_auto] items-center gap-3 border-border/60 border-t py-2 text-sm first:border-t-0"
+							key={`${row.time}-${row.agent_id}-${index}`}
+						>
+							<Tooltip
+								content={
+									<Tip title={formatLocalTime(row.time, "MMM D, HH:mm:ss")} />
+								}
+								delay={TIP_DELAY_MS}
+							>
+								<span className="cursor-default truncate text-muted-foreground text-xs tabular-nums">
+									{fromNow(row.time)}
+								</span>
+							</Tooltip>
+							<span className="flex min-w-0 items-center gap-2">
+								<AiProductIcon name={row.product} size="sm" />
+								<span className="truncate">{row.name}</span>
+							</span>
+							<span className="flex min-w-0 items-center gap-2">
+								<span className="truncate">{row.page}</span>
+								{row.format === "html" ? null : (
+									<Badge size="sm" variant="muted">
+										{FOCUS[row.format].label}
+									</Badge>
+								)}
+							</span>
+							<span className="flex items-center gap-1.5 text-muted-foreground text-xs tabular-nums">
+								{row.status_code >= STATUS_ERROR ? (
+									<StatusDot color="warning" />
+								) : null}
+								{row.status_code > 0 ? row.status_code : null}
+							</span>
+						</div>
+					))}
+				</div>
+				<ShowAllButton
+					label={`Show all ${formatNumber(rows.length)} requests`}
+					list={list}
+				/>
+			</div>
 		</div>
 	);
 }
@@ -2131,6 +2224,7 @@ export default function AgentsPage() {
 		},
 		{ id: "activity", parameters: ["ai_crawler_activity"] },
 		{ id: "failed", parameters: ["ai_failed_requests"], limit: 100 },
+		{ id: "recent", parameters: ["ai_recent_requests"], limit: 50 },
 	]);
 	const products: ProductRow[] = getDataForQuery("products", "ai_products");
 	const previousProducts: ProductRow[] = getDataForQuery(
@@ -2167,6 +2261,10 @@ export default function AgentsPage() {
 	const failedRequests: FailedRequestRow[] = getDataForQuery(
 		"failed",
 		"ai_failed_requests"
+	);
+	const recentRequests: RecentRequestRow[] = getDataForQuery(
+		"recent",
+		"ai_recent_requests"
 	);
 	const activity: ActivityRow[] = getDataForQuery(
 		"activity",
@@ -2408,6 +2506,10 @@ export default function AgentsPage() {
 
 					{failedRequests.length > 0 ? (
 						<FailedRequestsPanel rows={failedRequests} />
+					) : null}
+
+					{recentRequests.length > 0 ? (
+						<RecentRequestsPanel rows={recentRequests} />
 					) : null}
 
 					{isPending || visitorShare.rows.length > 0 ? (
