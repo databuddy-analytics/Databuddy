@@ -29,6 +29,7 @@
     "./mcp/http": "./src/mcp/http.ts",
     "./mcp/tools": "./src/ai/mcp/tools.ts",
     "./tools/toolkit": "./src/ai/tools/toolkit.ts",
+    "./tools/github-tools": "./src/ai/tools/github-tools.ts",
     "./tools/scrape-page": "./src/ai/tools/scrape-page.ts",
     "./tools/search-console": "./src/ai/tools/search-console.ts",
     "./tools/utils/oauth-token": "./src/ai/tools/utils/oauth-token.ts",
