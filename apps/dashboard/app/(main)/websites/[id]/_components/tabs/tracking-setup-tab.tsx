@@ -4,14 +4,11 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useMemo, useState } from "react";
-import { createHighlighterCoreSync } from "shiki/core";
-import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
-import bash from "shiki/langs/bash.mjs";
-import html from "shiki/langs/html.mjs";
-import tsx from "shiki/langs/tsx.mjs";
-import vue from "shiki/langs/vue.mjs";
-import vesper from "shiki/themes/vesper.mjs";
 import { toast } from "sonner";
+import {
+	CodeBlock,
+	CodeBlockCopyButton,
+} from "@/components/ai-elements/code-block";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { ConnectApp } from "@/components/websites/connect-app";
 import { useAgentInstall } from "@/hooks/use-agent-install";
@@ -47,83 +44,11 @@ import {
 	ShieldCheckIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
-import { Badge, Button, Card } from "@databuddy/ui";
+import { Badge, Card } from "@databuddy/ui";
 import { Switch, Tabs } from "@databuddy/ui/client";
 
 interface TrackingSetupTabProps {
 	websiteId: string;
-}
-
-const highlighter = createHighlighterCoreSync({
-	themes: [vesper],
-	langs: [tsx, html, bash, vue],
-	engine: createJavaScriptRegexEngine(),
-});
-
-type Lang = "bash" | "html" | "tsx" | "vue";
-
-function getLanguage(code: string): Lang {
-	if (
-		code.includes("npm install") ||
-		code.includes("yarn add") ||
-		code.includes("pnpm add") ||
-		code.includes("bun add")
-	) {
-		return "bash";
-	}
-	if (code.includes("<script setup>")) {
-		return "vue";
-	}
-	if (code.includes("<script")) {
-		return "html";
-	}
-	return "tsx";
-}
-
-function CodeBlock({
-	code,
-	copied,
-	onCopy,
-}: {
-	code: string;
-	copied: boolean;
-	onCopy: () => void;
-}) {
-	const highlighted = useMemo(
-		() =>
-			highlighter.codeToHtml(code, {
-				lang: getLanguage(code),
-				theme: "vesper",
-			}),
-		[code]
-	);
-
-	return (
-		<div className="group relative overflow-hidden rounded-lg border border-white/10 bg-[#101010]">
-			<div
-				className={cn(
-					"overflow-x-auto font-mono text-[13px] leading-relaxed",
-					"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
-					"[&>pre>code]:block [&>pre>code]:w-full",
-					"[&_.line]:min-h-5"
-				)}
-				dangerouslySetInnerHTML={{ __html: highlighted }}
-			/>
-			<Button
-				aria-label="Copy code"
-				className="absolute top-2 right-2 size-7 bg-white/10 opacity-0 backdrop-blur-sm transition-opacity hover:bg-white/20 group-hover:opacity-100"
-				onClick={onCopy}
-				size="icon"
-				variant="ghost"
-			>
-				{copied ? (
-					<CheckIcon className="size-3.5 text-success" />
-				) : (
-					<ClipboardIcon className="size-3.5 text-white/70" />
-				)}
-			</Button>
-		</div>
-	);
 }
 
 function OptionToggle({
@@ -168,15 +93,7 @@ const INSTALL_COMMANDS = {
 	pnpm: "pnpm add @databuddy/sdk",
 };
 
-function PackageInstallTabs({
-	copiedBlockId,
-	onCopy,
-	prefix,
-}: {
-	copiedBlockId: string | null;
-	onCopy: (code: string, blockId: string, message: string) => void;
-	prefix: string;
-}) {
+function PackageInstallTabs() {
 	return (
 		<Tabs className="w-full" defaultValue="bun">
 			<Tabs.List className="max-w-full overflow-x-auto">
@@ -188,13 +105,9 @@ function PackageInstallTabs({
 			</Tabs.List>
 			{Object.entries(INSTALL_COMMANDS).map(([manager, command]) => (
 				<Tabs.Panel className="mt-3" key={manager} value={manager}>
-					<CodeBlock
-						code={command}
-						copied={copiedBlockId === `${prefix}-${manager}-install`}
-						onCopy={() =>
-							onCopy(command, `${prefix}-${manager}-install`, "Command copied!")
-						}
-					/>
+					<CodeBlock code={command} language="bash">
+						<CodeBlockCopyButton />
+					</CodeBlock>
 				</Tabs.Panel>
 			))}
 		</Tabs>
@@ -402,13 +315,9 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								of your website:
 							</p>
 
-							<CodeBlock
-								code={activeCode}
-								copied={copiedBlockId === "script-tag"}
-								onCopy={() =>
-									handleCopy(activeCode, "script-tag", "Script tag copied!")
-								}
-							/>
+							<CodeBlock code={activeCode} language="html">
+								<CodeBlockCopyButton />
+							</CodeBlock>
 
 							{availableVersions.length > 0 && (
 								<div className="space-y-2.5">
@@ -482,24 +391,16 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								<p className="text-muted-foreground text-sm">
 									Install the SDK:
 								</p>
-								<PackageInstallTabs
-									copiedBlockId={copiedBlockId}
-									onCopy={handleCopy}
-									prefix="react"
-								/>
+								<PackageInstallTabs />
 							</div>
 
 							<div className="space-y-3">
 								<p className="text-muted-foreground text-sm">
 									Add the component to your layout:
 								</p>
-								<CodeBlock
-									code={npmCode}
-									copied={copiedBlockId === "react-code"}
-									onCopy={() =>
-										handleCopy(npmCode, "react-code", "Code copied!")
-									}
-								/>
+								<CodeBlock code={npmCode} language="tsx">
+									<CodeBlockCopyButton />
+								</CodeBlock>
 							</div>
 						</Tabs.Panel>
 
@@ -508,22 +409,16 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								<p className="text-muted-foreground text-sm">
 									Install the SDK:
 								</p>
-								<PackageInstallTabs
-									copiedBlockId={copiedBlockId}
-									onCopy={handleCopy}
-									prefix="vue"
-								/>
+								<PackageInstallTabs />
 							</div>
 
 							<div className="space-y-3">
 								<p className="text-muted-foreground text-sm">
 									Add the component to your root layout:
 								</p>
-								<CodeBlock
-									code={vueCode}
-									copied={copiedBlockId === "vue-code"}
-									onCopy={() => handleCopy(vueCode, "vue-code", "Code copied!")}
-								/>
+								<CodeBlock code={vueCode} language="vue">
+									<CodeBlockCopyButton />
+								</CodeBlock>
 							</div>
 						</Tabs.Panel>
 
@@ -532,11 +427,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								<p className="text-muted-foreground text-sm">
 									Install the SDK in your backend:
 								</p>
-								<PackageInstallTabs
-									copiedBlockId={copiedBlockId}
-									onCopy={handleCopy}
-									prefix="node"
-								/>
+								<PackageInstallTabs />
 							</div>
 
 							<div className="rounded-lg border border-border/60 bg-accent/40 p-3 text-muted-foreground text-sm">
@@ -558,13 +449,9 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								<p className="text-muted-foreground text-sm">
 									Track server-side events:
 								</p>
-								<CodeBlock
-									code={nodeCode}
-									copied={copiedBlockId === "node-code"}
-									onCopy={() =>
-										handleCopy(nodeCode, "node-code", "Code copied!")
-									}
-								/>
+								<CodeBlock code={nodeCode} language="tsx">
+									<CodeBlockCopyButton />
+								</CodeBlock>
 							</div>
 
 							<a
