@@ -4,7 +4,10 @@ import { Command as CommandPrimitive } from "cmdk";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { mainNavigation } from "@/components/layout/navigation/navigation-config";
+import {
+	mainNavigation,
+	withFlags,
+} from "@/components/layout/navigation/navigation-config";
 import { ResourceUnavailableState } from "@/components/resource-unavailable-state";
 import type {
 	NavigationGroup,
@@ -19,6 +22,7 @@ import {
 	MagnifyingGlassIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
+import { useFlags } from "@databuddy/sdk/react";
 import { Button, Card } from "@databuddy/ui";
 import { Dialog } from "@databuddy/ui/client";
 
@@ -225,9 +229,10 @@ export function WebsiteErrorState({
 
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
+	const { isOn } = useFlags();
 
 	const searchItems = useMemo(() => {
-		const items = flattenNavigation(mainNavigation);
+		const items = flattenNavigation(withFlags(mainNavigation, isOn));
 		if (!search.trim()) {
 			return items;
 		}
@@ -237,7 +242,7 @@ export function WebsiteErrorState({
 				item.name.toLowerCase().includes(query) ||
 				item.path.toLowerCase().includes(query)
 		);
-	}, [search]);
+	}, [search, isOn]);
 
 	const handleSelect = (item: SearchItem) => {
 		setOpen(false);
