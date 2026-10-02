@@ -24,7 +24,7 @@ const updates = {
 	name: "Updated example",
 	slug: "updated-example",
 	targetUrl: "https://www.instagram.com/example/",
-	expiresAt: "2026-10-01T20:00:00Z",
+	expiresAt: "2026-10-01T20:00:00.000Z",
 	expiredRedirectUrl: "https://example.com/expired",
 	ogTitle: "New title",
 	ogDescription: "New description",

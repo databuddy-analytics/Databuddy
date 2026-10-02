@@ -1,7 +1,16 @@
+import {
+	DEEP_LINK_APP_IDS,
+	isDeepLinkTarget,
+} from "@databuddy/shared/constants/deep-link-apps";
+import { LINK_SLUG_REGEX } from "@databuddy/shared/constants/links";
+import {
+	httpUrlSchema,
+	isoDateOrOffsetDateTimeSchema,
+} from "@databuddy/validation";
 import { z } from "zod";
 import type { AppContext } from "../config/context";
 import { McpToolError } from "../mcp/define-tool";
-import { callRPCProcedure } from "./utils/rpc";
+import { callRPCProcedure, omitUndefined } from "./utils/rpc";
 
 const DateStringSchema = z
 	.union([z.string(), z.date()])
@@ -93,6 +102,107 @@ export const LinkFolderSelectorSchema = z.object({
 			"Existing link folder slug. Use this or folderId, never a display name."
 		),
 });
+
+const LinkSlugSchema = z
+	.string()
+	.min(3)
+	.max(50)
+	.regex(LINK_SLUG_REGEX)
+	.describe("3-50 letters, digits, hyphens, or underscores.");
+
+const LinkExpiresAtSchema = isoDateOrOffsetDateTimeSchema.describe(
+	"Expiry as YYYY-MM-DD or an ISO date-time with offset."
+);
+
+const DEEP_LINK_TARGET_MISMATCH =
+	"Deep link URLs must use HTTPS and match the selected app.";
+
+export const linkCreateFields = {
+	name: z.string().min(1).max(255).describe("Link name."),
+	targetUrl: httpUrlSchema.describe("Destination URL."),
+	slug: LinkSlugSchema.optional(),
+	expiresAt: LinkExpiresAtSchema.optional(),
+	expiredRedirectUrl: httpUrlSchema
+		.optional()
+		.describe("Where visitors go after the link expires."),
+	ogTitle: z.string().max(200).optional().describe("Social preview title."),
+	ogDescription: z
+		.string()
+		.max(500)
+		.optional()
+		.describe("Social preview description."),
+	ogImageUrl: httpUrlSchema.optional().describe("Social preview image URL."),
+	externalId: z
+		.string()
+		.max(255)
+		.optional()
+		.describe("Your own ID for the link, such as a CRM record."),
+	...LinkFolderSelectorSchema.shape,
+	deepLinkApp: z
+		.enum(DEEP_LINK_APP_IDS)
+		.optional()
+		.describe(
+			"Native app that opens the link on mobile; targetUrl must belong to it."
+		),
+};
+
+export const linkUpdateFields = {
+	name: z.string().min(1).max(255).optional().describe("Link name."),
+	targetUrl: httpUrlSchema.optional().describe("Destination URL."),
+	slug: LinkSlugSchema.optional(),
+	expiresAt: LinkExpiresAtSchema.nullable()
+		.optional()
+		.describe("Expiry date or datetime; null removes the expiry."),
+	expiredRedirectUrl: httpUrlSchema
+		.nullable()
+		.optional()
+		.describe("Where visitors go after the link expires; null clears it."),
+	ogTitle: z
+		.string()
+		.max(200)
+		.nullable()
+		.optional()
+		.describe("Social preview title; null clears it."),
+	ogDescription: z
+		.string()
+		.max(500)
+		.nullable()
+		.optional()
+		.describe("Social preview description; null clears it."),
+	ogImageUrl: httpUrlSchema
+		.nullable()
+		.optional()
+		.describe("Social preview image URL; null clears it."),
+	externalId: z
+		.string()
+		.max(255)
+		.nullable()
+		.optional()
+		.describe(
+			"Your own ID for the link, such as a CRM record; null clears it."
+		),
+	...LinkFolderSelectorSchema.shape,
+	deepLinkApp: z
+		.enum(DEEP_LINK_APP_IDS)
+		.nullable()
+		.optional()
+		.describe(
+			"Native app that opens the link on mobile; targetUrl must belong to it. null turns it off."
+		),
+};
+
+export function refineDeepLinkTarget(
+	{ deepLinkApp, targetUrl }: { deepLinkApp?: string; targetUrl: string },
+	context: z.core.$RefinementCtx
+) {
+	if (deepLinkApp && !isDeepLinkTarget(deepLinkApp, targetUrl)) {
+		context.addIssue({
+			code: "custom",
+			message: DEEP_LINK_TARGET_MISMATCH,
+			path: ["targetUrl"],
+		});
+	}
+}
 
 export type LinkFolder = z.infer<typeof LinkFolderSchema>;
 type LinkFolderSelector = z.infer<typeof LinkFolderSelectorSchema>;
@@ -343,4 +453,72 @@ export async function resolveLinkFolder(
 ): Promise<LinkFolderResolution> {
 	const folders = await listLinkFolders(context, organizationId);
 	return resolveLinkFolderFromList(folders, selector);
+}
+
+export async function createOrganizationLink(
+	context: AppContext,
+	organizationId: string,
+	{
+		expiresAt,
+		folderId: _folderId,
+		folderSlug: _folderSlug,
+		...link
+	}: z.infer<z.ZodObject<typeof linkCreateFields>>,
+	folderId: string | null | undefined
+): Promise<LinkRow> {
+	return parseLinkRow(
+		await callRPCProcedure(
+			"links",
+			"create",
+			{
+				...link,
+				organizationId,
+				folderId: folderId ?? null,
+				expiresAt: expiresAt ? new Date(expiresAt) : null,
+			},
+			context
+		)
+	);
+}
+
+export async function planLinkUpdate(
+	context: AppContext,
+	organizationId: string,
+	id: string,
+	{
+		expiresAt,
+		folderId,
+		folderSlug,
+		...input
+	}: z.infer<z.ZodObject<typeof linkUpdateFields>>
+) {
+	const [current, folders] = await Promise.all([
+		readOrganizationLink(context, organizationId, id),
+		listLinkFolders(context, organizationId),
+	]);
+	const folderSelection = resolveLinkFolderFromList(folders, {
+		folderId,
+		folderSlug,
+	});
+	if (!folderSelection.ok) {
+		return folderSelection;
+	}
+	const deepLinkApp =
+		input.deepLinkApp === undefined ? current.deepLinkApp : input.deepLinkApp;
+	if (
+		deepLinkApp &&
+		!isDeepLinkTarget(deepLinkApp, input.targetUrl ?? current.targetUrl)
+	) {
+		return { folders, message: DEEP_LINK_TARGET_MISMATCH, ok: false as const };
+	}
+	return {
+		current,
+		folders,
+		ok: true as const,
+		updates: omitUndefined({
+			...input,
+			expiresAt: expiresAt && new Date(expiresAt).toISOString(),
+			folderId: folderSelection.folderId,
+		}),
+	};
 }
