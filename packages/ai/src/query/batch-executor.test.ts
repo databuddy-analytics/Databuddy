@@ -201,6 +201,12 @@ describe("executeBatch prepare stages", () => {
 				"parseDateTimeBestEffort({startDate:String}, {timezone:String})"
 			);
 			expect(sql).not.toContain("toDateTime({startDate:String})");
+			expect(sql).toContain(
+				"parseDateTimeBestEffort({endDate:String}, {timezone:String})"
+			);
+			expect(sql).not.toContain("toDateTime({endDate:String})");
+			expect(sql).not.toContain("{endDate:DateTime}");
+			expect(params?.endDate).toBe("2026-04-11 23:59:59");
 			expect(params?.timezone).toBe("America/New_York");
 		}
 	});

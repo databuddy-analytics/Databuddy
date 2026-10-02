@@ -193,7 +193,12 @@ test.each([
 
 	await expect(
 		definition.execute(
-			{ confirmed: true, id: "link-1", websiteId: "site-1" },
+			{
+				confirmed: true,
+				id: "link-1",
+				websiteId: "site-1",
+				name: "Renamed",
+			},
 			{
 				toolCallId: "cross-org-link",
 				messages: [],
