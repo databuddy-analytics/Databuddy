@@ -57,7 +57,10 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
 			headers: { "Cache-Control": "private, no-store" },
 		});
 	}
-	const res = NextResponse.next();
+	const res =
+		pathname === "/" && request.nextUrl.searchParams.get("mode") === "agent"
+			? NextResponse.rewrite(new URL("/agent-view", request.nextUrl))
+			: NextResponse.next();
 	res.headers.set("Vary", "Accept");
 	if (isSignedInHome) {
 		res.cookies.set(HOMEPAGE_SEEN_COOKIE, "1", {

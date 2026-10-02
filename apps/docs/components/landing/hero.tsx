@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { flush, track } from "@databuddy/sdk";
 import BackgroundFlow from "./backgroundFlow";
+import { getDemoEmbedBaseUrl } from "@/lib/demo-embed-url";
 import { SciFiButton } from "./scifi-btn";
 
 const tabs = [
@@ -274,13 +275,7 @@ function HeroInsightOverlay({ activeTab }: { activeTab: HeroTabId }) {
 	);
 }
 
-export default function Hero({
-	demoEmbedBaseUrl,
-	stars,
-}: {
-	demoEmbedBaseUrl: string;
-	stars?: number | null;
-}) {
+export default function Hero({ stars }: { stars?: number | null }) {
 	const [activeTab, setActiveTab] = useState<HeroTabId>(tabs[0].id);
 	const [loadedTabIds, setLoadedTabIds] = useState<Set<string>>(
 		() => new Set()
@@ -290,7 +285,10 @@ export default function Hero({
 
 	const activeIndex = tabs.findIndex((t) => t.id === activeTab);
 
+	const [demoEmbedBaseUrl, setDemoEmbedBaseUrl] = useState("");
+
 	useEffect(() => {
+		setDemoEmbedBaseUrl(getDemoEmbedBaseUrl(window.location.hostname));
 		if (window.matchMedia("(min-width: 768px)").matches) {
 			setLoadedTabIds((prev) => new Set(prev).add(tabs[0].id));
 		}
@@ -466,9 +464,10 @@ export default function Hero({
 										: i > activeIndex
 											? "100%"
 											: "-100%";
-									const src = loadedTabIds.has(tab.id)
-										? `${demoEmbedBaseUrl}${tab.path}?embed=true`
-										: "about:blank";
+									const src =
+										demoEmbedBaseUrl && loadedTabIds.has(tab.id)
+											? `${demoEmbedBaseUrl}${tab.path}?embed=true`
+											: "about:blank";
 									return (
 										<iframe
 											allowFullScreen
