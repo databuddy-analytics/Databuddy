@@ -12,7 +12,8 @@ import { auth } from "@databuddy/auth";
 import { getMcpAccessGrant } from "@databuddy/auth/mcp-grant";
 import { MCP_GRANT_CLAIM } from "@databuddy/shared/mcp-access";
 import type { ApiAuthWideEventFields } from "@databuddy/shared/evlog-fields";
-import { db } from "@databuddy/db";
+import { db, eq } from "@databuddy/db";
+import { oauthClient } from "@databuddy/db/schema";
 import { config } from "@databuddy/env/app";
 import { cacheable } from "@databuddy/redis";
 import { createMcpProtectedRequestHandler } from "@better-auth/mcp";
@@ -51,6 +52,18 @@ const loadOAuthUser = cacheable(
 	async (userId: string) =>
 		(await db.query.user.findFirst({ where: { id: userId } })) ?? null,
 	{ expireInSec: OAUTH_USER_TTL_SEC, prefix: "mcp:oauth-user" }
+);
+
+const loadOAuthClientName = cacheable(
+	async (clientId: string) => {
+		const [client] = await db
+			.select({ name: oauthClient.name })
+			.from(oauthClient)
+			.where(eq(oauthClient.clientId, clientId))
+			.limit(1);
+		return client?.name ?? null;
+	},
+	{ expireInSec: OAUTH_USER_TTL_SEC, prefix: "mcp:oauth-client-name" }
 );
 
 function createOAuthMcpRequestHandler() {
@@ -93,9 +106,10 @@ async function handleVerifiedOAuthRequest(
 	try {
 		const tokenScopes =
 			typeof claims.scope === "string" ? claims.scope.split(" ") : [];
-		const [authorization, user] = await Promise.all([
+		const [authorization, user, clientName] = await Promise.all([
 			getMcpAccessGrant(subject, clientId, grantHash, tokenScopes),
 			loadOAuthUser(subject),
+			loadOAuthClientName(clientId),
 		]);
 		if (!(authorization && user)) {
 			return createMcpUnauthorizedResponse();
@@ -111,6 +125,7 @@ async function handleVerifiedOAuthRequest(
 			userId: null,
 			oauth: { ...authorization, user },
 			apiKey: null,
+			clientName: clientName ?? undefined,
 		});
 	} finally {
 		oauthInFlight.release(request);
