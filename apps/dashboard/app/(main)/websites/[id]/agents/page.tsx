@@ -1,19 +1,23 @@
 "use client";
 
 import {
+	Badge,
 	Button,
+	CopyButton,
 	dayjs,
 	EmptyState,
 	fromNow,
 	SegmentedControl,
 	Skeleton,
 	StatusDot,
+	Text,
 	Tooltip,
 } from "@databuddy/ui";
-import { Sheet, Tabs } from "@databuddy/ui/client";
+import { Sheet } from "@databuddy/ui/client";
 import {
 	BrainIcon,
 	MinusIcon,
+	OpenExternalIcon,
 	TrendDownIcon,
 	TrendUpIcon,
 } from "@databuddy/ui/icons";
@@ -31,10 +35,6 @@ import { parseAsBoolean, useQueryState } from "nuqs";
 import { useMemo, useState } from "react";
 import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
 import { AskAgentButton } from "@/components/agent/new-chat-button";
-import {
-	CodeBlock,
-	CodeBlockCopyButton,
-} from "@/components/ai-elements/code-block";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
 import {
 	Chart,
@@ -1492,6 +1492,7 @@ function AiVisitorsPanel({
 
 const SETUP_STACKS = [
 	{
+		choiceLabel: "Version",
 		id: "next",
 		label: "Next.js",
 		methods: [
@@ -1499,6 +1500,7 @@ const SETUP_STACKS = [
 				code: 'export { proxy } from "@databuddy/sdk/agents";',
 				env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
 				envHint: "Already set if this app uses the Databuddy SDK.",
+				caption: "Adds proxy.ts, the Next.js 16 replacement for middleware.",
 				file: "proxy.ts",
 				id: "next16",
 				label: "Next.js 16",
@@ -1507,6 +1509,7 @@ const SETUP_STACKS = [
 				code: 'export { proxy as middleware } from "@databuddy/sdk/agents";',
 				env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
 				envHint: "Already set if this app uses the Databuddy SDK.",
+				caption: "Adds a one-line middleware.ts.",
 				file: "middleware.ts",
 				id: "next15",
 				label: "Next.js 15 and earlier",
@@ -1514,13 +1517,20 @@ const SETUP_STACKS = [
 		],
 	},
 	{
+		choiceLabel: "Method",
 		id: "vercel",
 		label: "Vercel",
 		methods: [
-			{ id: "drain", label: "Log drain (no code)" },
+			{
+				caption:
+					"No code, and you also see the HTTP status each crawler got. Needs a Vercel Pro or Enterprise plan; Vercel bills drains by volume.",
+				id: "drain",
+				label: "Log drain (no code)",
+			},
 			{
 				code: 'export { proxy as default } from "@databuddy/sdk/agents";',
 				env: "DATABUDDY_WEBSITE_ID",
+				caption: "For Vite, Astro or any other framework deployed on Vercel.",
 				file: "middleware.ts",
 				id: "middleware",
 				label: "Middleware",
@@ -1542,6 +1552,7 @@ export default {
 	},
 };`,
 				env: "DATABUDDY_WEBSITE_ID",
+				caption: "Runs in front of your site on Cloudflare Workers.",
 				file: "worker.ts",
 				id: "workers",
 				label: "Workers",
@@ -1560,6 +1571,8 @@ app.use((req, _res, next) => {
 	next();
 });`,
 				env: "DATABUDDY_WEBSITE_ID",
+				caption:
+					"Works with Express and any Node server that takes middleware.",
 				file: "server.ts",
 				id: "express",
 				label: "Express",
@@ -1594,27 +1607,26 @@ function SetupStep({
 	title: string;
 }) {
 	return (
-		<div className="space-y-2">
-			<p className="font-medium text-sm">
-				<span className="mr-2 text-muted-foreground tabular-nums">{step}</span>
-				{title}
-			</p>
-			{children}
+		<div className="flex gap-3">
+			<span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary font-medium text-[11px] text-muted-foreground tabular-nums">
+				{step}
+			</span>
+			<div className="min-w-0 flex-1 space-y-2 pt-0.5">
+				<Text variant="label">{title}</Text>
+				{children}
+			</div>
 		</div>
 	);
 }
 
-function SetupCode({
-	code,
-	language,
-}: {
-	code: string;
-	language: "bash" | "tsx";
-}) {
+function SetupCode({ code }: { code: string }) {
 	return (
-		<CodeBlock code={code} language={language}>
-			<CodeBlockCopyButton aria-label="Copy" />
-		</CodeBlock>
+		<div className="flex items-start gap-2 rounded border border-border/60 bg-card py-1 pr-1 pl-3">
+			<pre className="min-w-0 flex-1 overflow-x-auto rounded-none bg-transparent px-0 py-1.5 font-mono text-[11px] text-foreground leading-relaxed">
+				{code}
+			</pre>
+			<CopyButton aria-label="Copy" value={code} />
+		</div>
 	);
 }
 
@@ -1644,159 +1656,169 @@ function AgentSetupSheet({
 
 	return (
 		<Sheet onOpenChange={onOpenChange} open={isOpen}>
-			<Sheet.Content side="right">
+			<Sheet.Content className="sm:max-w-xl" side="right">
 				<Sheet.Header>
-					<Sheet.Title>Track AI crawlers</Sheet.Title>
-					<Sheet.Description>
-						Crawlers like GPTBot and ClaudeBot don't run JavaScript. Add one
-						line to your server, or send your Vercel logs, to see which pages
-						they read.
-					</Sheet.Description>
+					<div className="flex items-start gap-3">
+						<div className="flex size-8 shrink-0 items-center justify-center rounded bg-primary/10">
+							<BrainIcon className="size-4 text-primary" />
+						</div>
+						<div className="min-w-0 flex-1">
+							<Sheet.Title>Track AI crawlers</Sheet.Title>
+							<Sheet.Description>
+								See GPTBot, ClaudeBot and the other crawlers that don't run
+								JavaScript, and which pages they read.
+							</Sheet.Description>
+						</div>
+						{hasServerTracking === undefined ? null : (
+							<Badge
+								size="sm"
+								variant={hasServerTracking ? "success" : "muted"}
+							>
+								{hasServerTracking ? "Requests recorded" : "No requests yet"}
+							</Badge>
+						)}
+					</div>
 				</Sheet.Header>
-				<Sheet.Body className="space-y-5">
-					{hasServerTracking === undefined ? null : (
-						<p className="flex items-center gap-1.5 text-xs">
-							<StatusDot color={hasServerTracking ? "success" : "muted"} />
-							{hasServerTracking
-								? "Server-side AI requests have been recorded"
-								: "No server-side AI requests recorded yet"}
-						</p>
-					)}
-
+				<Sheet.Body className="space-y-6">
 					<div className="space-y-3">
-						<Tabs
-							onValueChange={(value) =>
-								setMethodId(
-									SETUP_STACKS.find((item) => item.id === value)?.methods[0]
-										.id ?? methodId
-								)
-							}
-							value={stack.id}
-						>
-							<Tabs.List>
-								{SETUP_STACKS.map((item) => (
-									<Tabs.Tab key={item.id} value={item.id}>
-										{item.label}
-									</Tabs.Tab>
-								))}
-							</Tabs.List>
-						</Tabs>
-						{stack.methods.length > 1 ? (
+						<div className="space-y-2">
+							<Text variant="label">Platform</Text>
 							<SegmentedControl
-								onChange={setMethodId}
-								options={stack.methods.map((item) => ({
+								onChange={(stackId) =>
+									setMethodId(
+										SETUP_STACKS.find((item) => item.id === stackId)?.methods[0]
+											.id ?? methodId
+									)
+								}
+								options={SETUP_STACKS.map((item) => ({
 									label: item.label,
 									value: item.id,
 								}))}
 								size="sm"
-								value={method.id}
+								value={stack.id}
 							/>
+						</div>
+						{"choiceLabel" in stack ? (
+							<div className="space-y-2">
+								<Text variant="label">{stack.choiceLabel}</Text>
+								<SegmentedControl
+									onChange={setMethodId}
+									options={stack.methods.map((item) => ({
+										label: item.label,
+										value: item.id,
+									}))}
+									size="sm"
+									value={method.id}
+								/>
+							</div>
 						) : null}
+						<Text tone="muted" variant="caption">
+							{method.caption}
+						</Text>
 					</div>
 
-					{"code" in method ? (
-						<>
-							<SetupStep step={1} title="Install the SDK">
-								<SetupCode
-									code="bun add @databuddy/sdk@latest"
-									language="bash"
-								/>
-							</SetupStep>
-							<SetupStep step={2} title={`Add ${method.file}`}>
-								<SetupCode code={method.code} language="tsx" />
-							</SetupStep>
-							<SetupStep step={3} title="Set your website ID">
-								<SetupCode
-									code={
-										method.id === "workers"
-											? `# wrangler.toml\n[vars]\n${method.env} = "${websiteId}"`
-											: `${method.env}=${websiteId}`
-									}
-									language="bash"
-								/>
-								{"envHint" in method ? (
-									<p className="text-muted-foreground text-xs">
-										{method.envHint}
-									</p>
-								) : null}
-							</SetupStep>
-						</>
-					) : (
-						<>
-							<SetupStep step={1} title="Add a drain in Vercel">
-								<p className="text-pretty text-muted-foreground text-xs">
-									Team Settings → Drains → Add Drain, then choose Logs and
-									Custom Endpoint. Drains need a Pro or Enterprise plan, and
-									Vercel bills them by volume.
-								</p>
-							</SetupStep>
-							<SetupStep step={2} title="Paste this endpoint">
-								<SetupCode
-									code={`${publicConfig.urls.basket}/vercel/${websiteId}`}
-									language="bash"
-								/>
-							</SetupStep>
-							<SetupStep step={3} title="Choose what to send">
-								<p className="text-pretty text-muted-foreground text-xs">
-									Sources: Static Files, Functions, Edge Functions and Rewrites.
-									Environment: Production. Format: JSON or NDJSON. Leave
-									sampling off so every AI request arrives. Drains also store
-									the HTTP status each agent got, so you can ask the assistant
-									which pages return 404 to AI crawlers.
-								</p>
-							</SetupStep>
-						</>
-					)}
-
-					<SetupStep
-						step={4}
-						title={isDrain ? "Test it" : "Deploy, then test it"}
-					>
-						<Button
-							loading={check.isPending}
-							onClick={() => check.mutate({ websiteId })}
-							size="md"
-							variant="secondary"
+					<div className="space-y-5">
+						{"code" in method ? (
+							<>
+								<SetupStep step={1} title="Install the SDK">
+									<SetupCode code="bun add @databuddy/sdk@latest" />
+								</SetupStep>
+								<SetupStep step={2} title={`Add ${method.file}`}>
+									<SetupCode code={method.code} />
+								</SetupStep>
+								<SetupStep step={3} title="Set your website ID">
+									<SetupCode
+										code={
+											method.id === "workers"
+												? `# wrangler.toml\n[vars]\n${method.env} = "${websiteId}"`
+												: `${method.env}=${websiteId}`
+										}
+									/>
+									{"envHint" in method ? (
+										<Text tone="muted" variant="caption">
+											{method.envHint}
+										</Text>
+									) : null}
+								</SetupStep>
+							</>
+						) : (
+							<>
+								<SetupStep step={1} title="Add a drain in Vercel">
+									<Text tone="muted" variant="caption">
+										Team Settings → Drains → Add Drain, then choose Logs and
+										Custom Endpoint.
+									</Text>
+								</SetupStep>
+								<SetupStep step={2} title="Paste this endpoint">
+									<SetupCode
+										code={`${publicConfig.urls.basket}/vercel/${websiteId}`}
+									/>
+								</SetupStep>
+								<SetupStep step={3} title="Choose what to send">
+									<Text tone="muted" variant="caption">
+										Sources: Static Files, Functions, Edge Functions and
+										Rewrites. Environment: Production. Format: JSON or NDJSON.
+										Leave sampling off so every AI request arrives.
+									</Text>
+								</SetupStep>
+							</>
+						)}
+						<SetupStep
+							step={4}
+							title={isDrain ? "Test it" : "Deploy, then test it"}
 						>
-							Test setup
-						</Button>
-						{check.data
-							? SETUP_CHECKS.map((item) => (
-									<p
-										className="flex items-center gap-1.5 text-xs"
-										key={item.key}
-									>
-										<StatusDot
-											color={check.data[item.key] ? "success" : "warning"}
-										/>
-										{check.data[item.key]
-											? `${item.label} recorded`
-											: `${item.label} not recorded: ${isDrain ? item.drainHint : item.hint}`}
-									</p>
-								))
-							: null}
-						{isSetupWorking ? (
-							<p className="text-pretty text-muted-foreground text-xs">
-								Setup works. Crawler data shows up here as soon as an AI agent
-								visits.
-							</p>
-						) : null}
-						{check.isError ? (
-							<p className="text-destructive text-xs">
-								Couldn't run the check. Try again in a moment.
-							</p>
-						) : null}
-					</SetupStep>
-
-					<a
-						className="block text-muted-foreground text-xs underline underline-offset-2 hover:text-foreground"
-						href="https://www.databuddy.cc/docs/sdk/ai-agents"
-						rel="noopener"
-						target="_blank"
-					>
-						Other setups and details in the docs
-					</a>
+							<Text tone="muted" variant="caption">
+								Test setup requests your homepage and llms.txt as GPTBot and
+								checks that both were recorded.
+							</Text>
+							{check.data
+								? SETUP_CHECKS.map((item) => (
+										<p
+											className="flex items-start gap-2 text-xs"
+											key={item.key}
+										>
+											<StatusDot
+												className="mt-1"
+												color={check.data[item.key] ? "success" : "warning"}
+											/>
+											{check.data[item.key]
+												? `${item.label} recorded`
+												: `${item.label} not recorded: ${isDrain ? item.drainHint : item.hint}`}
+										</p>
+									))
+								: null}
+							{isSetupWorking ? (
+								<Text tone="muted" variant="caption">
+									Setup works. Crawler data shows up here as soon as an AI agent
+									visits.
+								</Text>
+							) : null}
+							{check.isError ? (
+								<p className="text-destructive text-xs">
+									Couldn't run the check. Try again in a moment.
+								</p>
+							) : null}
+						</SetupStep>
+					</div>
 				</Sheet.Body>
+				<Sheet.Footer>
+					<Button asChild variant="ghost">
+						<a
+							href="https://www.databuddy.cc/docs/sdk/ai-agents"
+							rel="noopener"
+							target="_blank"
+						>
+							Docs
+							<OpenExternalIcon className="size-3.5" />
+						</a>
+					</Button>
+					<Button
+						loading={check.isPending}
+						onClick={() => check.mutate({ websiteId })}
+					>
+						Test setup
+					</Button>
+				</Sheet.Footer>
 			</Sheet.Content>
 		</Sheet>
 	);
