@@ -155,7 +155,7 @@ const MCP_CLIENT_PRODUCTS: Record<string, string> = {
 
 const MCP_CLIENT_USER_AGENTS: [RegExp, string][] = [
 	[/claude-code\//i, "Claude Code"],
-	[/^Anthropic\/ClaudeAI/i, "Claude"],
+	[/^(Anthropic\/ClaudeAI|Claude-User)/i, "Claude"],
 	[/^openai-mcp\//i, "ChatGPT"],
 ];
 
