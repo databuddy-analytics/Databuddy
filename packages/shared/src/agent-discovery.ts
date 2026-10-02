@@ -621,15 +621,21 @@ For MCP clients:
 
 REST API errors are JSON objects with \`success: false\`, an error \`code\`, a human-readable \`error\`, and where available a \`fix\` or \`hint\`. A 401 means the credential is missing or invalid. A 403 means the credential exists but lacks the requested organization or scope.
 
-MCP works differently. Tools that the key's scopes or the approved OAuth permissions do not cover are left out of \`tools/list\`, and calling one returns a "Tool not found" error. Tool failures return a result with \`isError: true\` and \`error.code\`, such as \`unauthorized\` for a website or record the credential cannot reach. A missing, expired, or revoked credential returns 401 with a JSON-RPC error and a \`WWW-Authenticate\` header.
+MCP works differently. Tools that the key's scopes or the approved OAuth permissions do not cover are left out of \`tools/list\`, and calling one returns a JSON-RPC \`-32602\` (invalid params) error that names the scopes the tool needs; reconnect with those permissions or use a key that has them. A credential that covers no tools gets \`-32601\` for every tool call. Tool failures return a result with \`isError: true\` and \`error.code\`, such as \`unauthorized\` for a website or record the credential cannot reach. A missing, expired, or revoked credential returns 401 with a JSON-RPC error and a \`WWW-Authenticate\` header.
 
 ## Revocation
 
 Revoke API keys from ${resolved.dashboardUrl}/organizations/settings#api-keys. Users disconnect OAuth apps from ${resolved.dashboardUrl}/settings/account under Connected apps. Agents should stop using a credential immediately after revocation or any repeated 401 response.
 
-## Supported Scopes
+## API key scopes
 
 ${API_SCOPES.map((scope) => `- \`${scope}\``).join("\n")}
+
+## MCP OAuth scopes
+
+MCP OAuth sign-in grants only these scopes. The consent screen drops any other scope a client requests.
+
+${MCP_API_SCOPES.map((scope) => `- \`${scope}\``).join("\n")}
 `;
 }
 

@@ -234,7 +234,7 @@ Databuddy exposes an MCP server for AI agents (Claude, Claude Code, Cursor, Wind
 
 **Endpoint:** `POST https://api.databuddy.cc/v1/mcp` (local: `http://localhost:3001/v1/mcp`)
 
-**Auth:** Claude and Claude Code sign in with a Databuddy account (OAuth), no key needed. Other clients, including Cursor, send an API key with the `read:data` scope via `x-api-key` or `Authorization: Bearer <key>`.
+**Auth:** Claude and Claude Code sign in with a Databuddy account (OAuth), no key needed. Other clients, including Cursor, send an API key via `x-api-key` or `Authorization: Bearer <key>`. `read:data` covers analytics and reads; add `manage:websites` for goal, funnel, annotation, and investigation-reply writes, `manage:flags` for flag mutations, and organization-wide `read:links` (link reads) plus `write:links` (link mutations) for short links. Tools the key lacks scopes for are hidden from `tools/list`.
 
 **Tools:** Use the live `tools/list` and the `databuddy://guide` resource; see https://www.databuddy.cc/docs/api/mcp for the full list. Start with `list_websites`, `capabilities`, and `get_data`.
 
