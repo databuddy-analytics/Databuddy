@@ -11,8 +11,6 @@ import {
 	GaugeIcon,
 	LightbulbFilamentIcon,
 	LightningIcon,
-	LockSimpleIcon,
-	ShieldCheckIcon,
 	StarIcon,
 	TrendUpIcon,
 } from "@databuddy/ui/icons";
@@ -147,10 +145,10 @@ const tabLabels = new Map<HeroTabId, string>(
 	tabs.map((tab) => [tab.id, tab.label])
 );
 
-const proofChips = [
-	{ icon: LightningIcon, label: "13 KB script, 11× smaller than GA4" },
-	{ icon: LockSimpleIcon, label: "Cookieless analytics" },
-	{ icon: ShieldCheckIcon, label: "Privacy controls" },
+const proofPoints = [
+	"Free up to 10k events/mo",
+	"No cookies",
+	"13 KB script",
 ] as const;
 
 type FullscreenElement = HTMLIFrameElement & {
@@ -358,56 +356,16 @@ export default function Hero({
 			<div className="mx-auto w-full max-w-400 px-4 pt-26 pb-8 sm:px-14 sm:pt-20 lg:px-20 lg:pt-38">
 				<div className="mx-auto flex max-w-360 flex-col items-start space-y-2 text-left">
 					<h1 className="z-10 font-semibold text-3xl sm:text-5xl md:text-6xl">
-						See what changed
+						Product analytics for founders
 						<br />
-						<span className="text-muted-foreground">and what to do next.</span>
+						<span className="text-muted-foreground">without a data team.</span>
 					</h1>
 
-					<p className="z-10 max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-lg">
-						Databuddy tracks visits, events, errors, funnels, and rollouts, then
-						surfaces the important answers as investigation cards with evidence
-						and a next step attached.
+					<p className="z-10 max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
+						Track visitors, signups, funnels, and revenue in one place. Ask
+						Databunny, the built-in AI analyst, what changed and see the numbers
+						behind every answer.
 					</p>
-
-					<div className="z-10 flex flex-wrap items-center gap-2 pt-1.5">
-						{proofChips.map((chip, i) => (
-							<motion.span
-								animate={{ opacity: 1, y: 0 }}
-								className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-muted-foreground text-xs backdrop-blur-sm transition-colors duration-150 hover:border-border hover:text-foreground"
-								initial={{ opacity: 0, y: 6 }}
-								key={chip.label}
-								transition={{
-									delay: 0.15 + i * 0.08,
-									duration: 0.3,
-									ease: "easeOut",
-								}}
-							>
-								<chip.icon className="size-3.5" />
-								{chip.label}
-							</motion.span>
-						))}
-						<motion.a
-							animate={{ opacity: 1, y: 0 }}
-							className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-muted-foreground text-xs backdrop-blur-sm transition-colors duration-150 hover:border-border hover:text-foreground"
-							href="https://github.com/databuddy-analytics/databuddy"
-							initial={{ opacity: 0, y: 6 }}
-							rel="noopener noreferrer"
-							target="_blank"
-							transition={{
-								delay: 0.15 + proofChips.length * 0.08,
-								duration: 0.3,
-								ease: "easeOut",
-							}}
-						>
-							<StarIcon className="size-3.5 text-amber-500" />
-							Open source
-							{typeof stars === "number" && (
-								<span className="tabular-nums">
-									&middot; {stars.toLocaleString()}
-								</span>
-							)}
-						</motion.a>
-					</div>
 
 					<div className="flex flex-wrap items-center gap-3 pt-2">
 						<SciFiButton asChild className="px-6 py-5">
@@ -438,9 +396,35 @@ export default function Hero({
 						</SciFiButton>
 					</div>
 
-					<p className="z-10 text-muted-foreground/50 text-xs">
-						Free up to 10,000 events/mo. No credit card required.
-					</p>
+					<ul className="z-10 flex flex-wrap items-center gap-x-5 gap-y-2 pt-3 font-mono text-[11px] text-muted-foreground uppercase tracking-wider sm:gap-x-4">
+						{proofPoints.map((point) => (
+							<li className="flex items-center gap-4" key={point}>
+								{point}
+								<span
+									aria-hidden
+									className="hidden h-3 w-px bg-border sm:block"
+								/>
+							</li>
+						))}
+						<li>
+							<a
+								className="flex items-center gap-1.5 transition-colors duration-200 ease-in-out hover:text-foreground"
+								href="https://github.com/databuddy-analytics/databuddy"
+								rel="noopener noreferrer"
+								target="_blank"
+							>
+								Open source
+								{typeof stars === "number" && (
+									<>
+										<StarIcon className="size-3 text-brand-amber" />
+										<span className="tabular-nums">
+											{stars.toLocaleString()}
+										</span>
+									</>
+								)}
+							</a>
+						</li>
+					</ul>
 				</div>
 
 				<div className="z-10 mt-5 space-y-0">
