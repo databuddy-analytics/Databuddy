@@ -107,6 +107,11 @@ export const mainNavigation: NavigationGroup[] = [
 					"event analytics",
 				],
 			}),
+			createNavItem("MCP", PlugIcon, "/mcp", {
+				activeMatch: "prefix",
+				alpha: true,
+				searchTags: ["mcp server", "model context protocol", "tool calls"],
+			}),
 		],
 	},
 	{

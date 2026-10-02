@@ -1,0 +1,674 @@
+"use client";
+
+import {
+	Badge,
+	Button,
+	EmptyState,
+	fromNow,
+	Skeleton,
+	Text,
+	Tooltip,
+} from "@databuddy/ui";
+import { DropdownMenu } from "@databuddy/ui/client";
+import {
+	CaretUpDownIcon,
+	OpenExternalIcon,
+	PlugIcon,
+} from "@databuddy/ui/icons";
+import Link from "next/link";
+import { parseAsString, useQueryStates } from "nuqs";
+import { formatDateByGranularity } from "@/app/(main)/websites/[id]/_components/utils/analytics-helpers";
+import {
+	CodeBlock,
+	CodeBlockCopyButton,
+} from "@/components/ai-elements/code-block";
+import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
+import { DateRangePicker } from "@/components/date-range-picker";
+import { AiProductIcon } from "@/components/icon";
+import { TopBar } from "@/components/layout/top-bar";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
+import { List } from "@/components/ui/composables/list";
+import { useChartPreferences } from "@/hooks/use-chart-preferences";
+import { useDateFilters } from "@/hooks/use-date-filters";
+import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
+import { useWebsitesLight } from "@/hooks/use-websites";
+import { formatCount, formatNumber } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
+import type { DynamicQueryFilter } from "@/types/api";
+
+interface Summary {
+	calls: number;
+	clients: number;
+	environments: string[];
+	error_rate: number;
+	errors: number;
+	last_call: string | null;
+	p50_ms: number | null;
+	p95_ms: number | null;
+	servers: string[];
+	sessions: number;
+	tools: number;
+	tracked: number;
+	websites: string[];
+}
+
+interface SeriesRow {
+	calls: number;
+	date: string;
+	errors: number;
+}
+
+interface ToolRow {
+	avg_output_chars: number;
+	calls: number;
+	clients: string[];
+	error_rate: number;
+	p50_ms: number;
+	p95_ms: number;
+	tool: string;
+}
+
+interface ClientRow {
+	calls: number;
+	client: string;
+	error_rate: number;
+	p95_ms: number;
+	user_agent: string;
+	versions: string[];
+}
+
+interface ErrorRow {
+	error: string;
+	last_seen: string;
+	occurrences: number;
+	tool: string;
+}
+
+const FILTERS = {
+	client: parseAsString,
+	server_name: parseAsString,
+	environment: parseAsString,
+	website_id: parseAsString,
+};
+
+const SETUP_CODE = `import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { trackMcp } from "@databuddy/sdk/mcp";
+
+const server = trackMcp(new McpServer({ name: "my-server", version: "1.0.0" }));`;
+
+function formatMs(ms: number | null) {
+	if (ms === null) {
+		return "–";
+	}
+	return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
+}
+
+function ClientIcon({ client, size = 20 }: { client: string; size?: number }) {
+	return (
+		<AiProductIcon
+			fallback={
+				<span
+					className="flex shrink-0 items-center justify-center rounded bg-secondary"
+					style={{ height: size, width: size }}
+				>
+					<PlugIcon className="size-3 text-muted-foreground" />
+				</span>
+			}
+			name={client || "Unknown client"}
+			size={size}
+		/>
+	);
+}
+
+function ErrorRate({ rate }: { rate: number }) {
+	return (
+		<span
+			className={cn(
+				"tabular-nums",
+				rate >= 5 ? "text-destructive" : "text-muted-foreground"
+			)}
+		>
+			{rate}%
+		</span>
+	);
+}
+
+function FilterMenu({
+	allLabel,
+	onChange,
+	options,
+	value,
+}: {
+	allLabel: string;
+	onChange: (value: string | null) => void;
+	options: { label: string; value: string }[];
+	value: string | null;
+}) {
+	if (options.length < 2 && value === null) {
+		return null;
+	}
+	return (
+		<DropdownMenu>
+			<DropdownMenu.Trigger
+				render={
+					<Button size="sm" variant="secondary">
+						{options.find((option) => option.value === value)?.label ??
+							allLabel}
+						<CaretUpDownIcon className="size-3 text-muted-foreground" />
+					</Button>
+				}
+			/>
+			<DropdownMenu.Content align="end">
+				<DropdownMenu.RadioGroup
+					onValueChange={(next) =>
+						onChange(typeof next === "string" && next ? next : null)
+					}
+					value={value ?? ""}
+				>
+					<DropdownMenu.RadioItem value="">{allLabel}</DropdownMenu.RadioItem>
+					{options.map((option) => (
+						<DropdownMenu.RadioItem key={option.value} value={option.value}>
+							{option.label}
+						</DropdownMenu.RadioItem>
+					))}
+				</DropdownMenu.RadioGroup>
+			</DropdownMenu.Content>
+		</DropdownMenu>
+	);
+}
+
+function Stat({
+	detail,
+	isLoading,
+	label,
+	value,
+}: {
+	detail: string;
+	isLoading: boolean;
+	label: string;
+	value: React.ReactNode;
+}) {
+	return (
+		<div className="flex flex-col gap-1 rounded-lg bg-background p-3">
+			<p className="text-muted-foreground text-xs">{label}</p>
+			{isLoading ? (
+				<Skeleton className="h-12 w-28" />
+			) : (
+				<>
+					<p className="font-semibold text-2xl tabular-nums">{value}</p>
+					<p className="truncate text-muted-foreground text-xs tabular-nums">
+						{detail}
+					</p>
+				</>
+			)}
+		</div>
+	);
+}
+
+function Panel({
+	children,
+	description,
+	empty,
+	isLoading,
+	title,
+}: {
+	children: React.ReactNode;
+	description: string;
+	empty: string | false;
+	isLoading: boolean;
+	title: string;
+}) {
+	return (
+		<section className="flex min-w-0 flex-col gap-3 rounded-xl bg-secondary p-1.5">
+			<div className="px-2 pt-2">
+				<p className="font-semibold text-sm">{title}</p>
+				<p className="text-pretty text-muted-foreground text-xs">
+					{description}
+				</p>
+			</div>
+			<List className="rounded-lg bg-background">
+				{isLoading ? (
+					<Skeleton className="m-2 h-32" />
+				) : empty ? (
+					<p className="px-4 py-8 text-center text-muted-foreground text-xs">
+						{empty}
+					</p>
+				) : (
+					children
+				)}
+			</List>
+		</section>
+	);
+}
+
+function Setup({
+	isChecking,
+	onCheck,
+}: {
+	isChecking: boolean;
+	onCheck: () => void;
+}) {
+	return (
+		<div className="mx-auto flex w-full max-w-xl flex-col gap-5 px-4 py-12">
+			<div className="space-y-1 text-center">
+				<PlugIcon className="mx-auto mb-3 size-6 text-muted-foreground" />
+				<p className="text-balance font-semibold">
+					See how AI uses your MCP servers
+				</p>
+				<p className="text-pretty text-muted-foreground text-sm">
+					See which tools Claude, Cursor and ChatGPT call, how fast they answer,
+					and where they fail. Arguments and results never leave your server.
+				</p>
+			</div>
+			<div className="space-y-2">
+				<Text variant="label">1. Install the SDK</Text>
+				<CodeBlock
+					className="text-xs [&>div>div>pre]:p-3 [&_code]:text-xs"
+					code="bun add @databuddy/sdk@latest"
+					language="bash"
+				>
+					<CodeBlockCopyButton />
+				</CodeBlock>
+			</div>
+			<div className="space-y-2">
+				<Text variant="label">2. Add your API key</Text>
+				<CodeBlock
+					className="text-xs [&>div>div>pre]:p-3 [&_code]:text-xs"
+					code="DATABUDDY_API_KEY=dbdy_..."
+					language="bash"
+				>
+					<CodeBlockCopyButton />
+				</CodeBlock>
+				<Text tone="muted" variant="caption">
+					Use a key with the Event Tracking scope.{" "}
+					<Link
+						className="text-foreground underline underline-offset-2"
+						href="/organizations/settings#api-keys"
+					>
+						Create one
+					</Link>
+				</Text>
+			</div>
+			<div className="space-y-2">
+				<Text variant="label">3. Wrap your server</Text>
+				<CodeBlock
+					className="text-xs [&>div>div>pre]:p-3 [&_code]:text-xs"
+					code={SETUP_CODE}
+					language="tsx"
+				>
+					<CodeBlockCopyButton />
+				</CodeBlock>
+				<Text tone="muted" variant="caption">
+					Servers that run in an app with a Databuddy website ID are linked to
+					that website. With createMcpHandler, wrap the server inside the
+					factory; on serverless, pass{" "}
+					<code className="font-mono">flushMcp()</code> to waitUntil.
+				</Text>
+			</div>
+			<div className="flex justify-end gap-2">
+				<Button asChild variant="ghost">
+					<a
+						href="https://www.databuddy.cc/docs/sdk/mcp"
+						rel="noopener"
+						target="_blank"
+					>
+						Docs
+						<OpenExternalIcon className="size-3.5" />
+					</a>
+				</Button>
+				<Button loading={isChecking} onClick={onCheck}>
+					Check for calls
+				</Button>
+			</div>
+		</div>
+	);
+}
+
+export default function McpPage() {
+	const { activeOrganizationId } = useOrganizationsContext();
+	const { websites } = useWebsitesLight();
+	const { currentDateRange, dateRange, setDateRangeAction } = useDateFilters();
+	const { chartType, chartStepType } = useChartPreferences("overview-main");
+	const [selected, setSelected] = useQueryStates(FILTERS);
+
+	const filters: DynamicQueryFilter[] = Object.entries(selected).flatMap(
+		([field, value]) =>
+			value === null ? [] : [{ field, operator: "eq", value }]
+	);
+	const { getDataForQuery, isFetching, isPending, refetch, results } =
+		useBatchDynamicQuery(
+			{ organizationId: activeOrganizationId ?? undefined },
+			dateRange,
+			[
+				{ id: "facets", parameters: ["mcp_summary"] },
+				{ id: "summary", parameters: ["mcp_summary"], filters },
+				{ id: "series", parameters: ["mcp_calls_series"], filters },
+				{ id: "tools", parameters: ["mcp_tools"], filters },
+				{
+					id: "clients",
+					parameters: ["mcp_clients"],
+					filters: filters.filter((filter) => filter.field !== "client"),
+				},
+				{ id: "errors", parameters: ["mcp_errors"], filters, limit: 20 },
+			]
+		);
+	const facets: Summary | undefined = getDataForQuery(
+		"facets",
+		"mcp_summary"
+	)[0];
+	const summary: Summary | undefined = getDataForQuery(
+		"summary",
+		"mcp_summary"
+	)[0];
+	const series: SeriesRow[] = getDataForQuery("series", "mcp_calls_series");
+	const tools: ToolRow[] = getDataForQuery("tools", "mcp_tools");
+	const clients: ClientRow[] = getDataForQuery("clients", "mcp_clients");
+	const errors: ErrorRow[] = getDataForQuery("errors", "mcp_errors");
+
+	const hasLoadError = !(
+		isPending || results.some((result) => "mcp_summary" in result.data)
+	);
+	const totalCalls = clients.reduce((sum, row) => sum + row.calls, 0);
+
+	return (
+		<div className="relative flex h-full flex-col overflow-y-auto">
+			<TopBar.Title>
+				<h1 className="font-semibold text-sm">MCP</h1>
+				<Badge className="h-5 px-2" variant="warning">
+					Alpha
+				</Badge>
+			</TopBar.Title>
+			<TopBar.Actions>
+				<FilterMenu
+					allLabel="All websites"
+					onChange={(website_id) => setSelected({ website_id })}
+					options={(facets?.websites ?? []).map((id) => {
+						const website = websites.find((item) => item.id === id);
+						return { label: website?.name || website?.domain || id, value: id };
+					})}
+					value={selected.website_id}
+				/>
+				<FilterMenu
+					allLabel="All servers"
+					onChange={(server_name) => setSelected({ server_name })}
+					options={(facets?.servers ?? []).map((name) => ({
+						label: name,
+						value: name,
+					}))}
+					value={selected.server_name}
+				/>
+				<FilterMenu
+					allLabel="All environments"
+					onChange={(environment) => setSelected({ environment })}
+					options={(facets?.environments ?? []).map((name) => ({
+						label: name,
+						value: name,
+					}))}
+					value={selected.environment}
+				/>
+				<DateRangePicker
+					className="w-auto"
+					maxDate={new Date()}
+					onChange={(range) => {
+						if (range?.from && range.to) {
+							setDateRangeAction({ startDate: range.from, endDate: range.to });
+						}
+					}}
+					value={{
+						from: currentDateRange.startDate,
+						to: currentDateRange.endDate,
+					}}
+				/>
+			</TopBar.Actions>
+
+			{hasLoadError ? (
+				<div className="flex flex-1 flex-col p-4">
+					<EmptyState
+						action={
+							<Button
+								loading={isFetching}
+								onClick={() => refetch()}
+								size="md"
+								variant="secondary"
+							>
+								Try again
+							</Button>
+						}
+						description="Databuddy couldn't load MCP activity for this organization."
+						icon={<PlugIcon />}
+						isMainContent
+						title="Couldn't load MCP activity"
+						variant="error"
+					/>
+				</div>
+			) : facets?.tracked === 0 ? (
+				<Setup isChecking={isFetching} onCheck={() => refetch()} />
+			) : (
+				<div className="space-y-4 p-4">
+					{selected.client === null ? null : (
+						<div className="flex items-center gap-2">
+							<ClientIcon client={selected.client} size={16} />
+							<p className="font-medium text-sm">
+								{selected.client || "Unknown client"}
+							</p>
+							<Button
+								onClick={() => setSelected({ client: null })}
+								size="sm"
+								variant="ghost"
+							>
+								Show all clients
+							</Button>
+						</div>
+					)}
+
+					<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-4">
+						<Stat
+							detail={
+								summary?.last_call
+									? `Last call ${fromNow(summary.last_call)}`
+									: "No calls in this period"
+							}
+							isLoading={isPending}
+							label="Tool calls"
+							value={formatNumber(summary?.calls)}
+						/>
+						<Stat
+							detail={formatCount(summary?.errors ?? 0, "failed call")}
+							isLoading={isPending}
+							label="Error rate"
+							value={<ErrorRate rate={summary?.error_rate ?? 0} />}
+						/>
+						<Stat
+							detail={`Median ${formatMs(summary?.p50_ms ?? null)}`}
+							isLoading={isPending}
+							label="p95 response time"
+							value={formatMs(summary?.p95_ms ?? null)}
+						/>
+						<Stat
+							detail={`${formatCount(summary?.tools ?? 0, "tool")}, ${formatCount(summary?.sessions ?? 0, "session")}`}
+							isLoading={isPending}
+							label="Clients"
+							value={formatNumber(summary?.clients)}
+						/>
+					</div>
+
+					<SimpleMetricsChart
+						chartStepType={chartStepType}
+						className="rounded-xl"
+						data={series.map((row) => ({
+							...row,
+							date: formatDateByGranularity(row.date, dateRange.granularity),
+						}))}
+						description="Tool calls AI clients made to your servers"
+						height={240}
+						isLoading={isPending}
+						metrics={[
+							{ key: "calls", label: "Calls" },
+							{
+								key: "errors",
+								label: "Failed",
+								color: "var(--color-destructive)",
+							},
+						]}
+						partialLastSegment
+						seriesKind={chartType}
+						showYAxis
+						title="Tool calls"
+					/>
+
+					<Panel
+						description="What AI clients call, how long each call takes, and how much context it hands back to the model."
+						empty={tools.length === 0 && "No tool calls in this period."}
+						isLoading={isPending}
+						title="Tools"
+					>
+						<List.Head>
+							<span className="flex-1">Tool</span>
+							<span className="w-16 text-right">Calls</span>
+							<span className="w-16 text-right">Errors</span>
+							<span className="hidden w-28 text-right sm:block">
+								Median · p95
+							</span>
+							<span className="hidden w-24 text-right md:block">Result</span>
+							<span className="hidden w-20 text-right lg:block">Clients</span>
+						</List.Head>
+						{tools.map((row) => (
+							<List.Row interactive={false} key={row.tool}>
+								<List.Cell grow>
+									<span className="truncate font-mono text-xs">{row.tool}</span>
+								</List.Cell>
+								<List.Cell align="end" className="w-16 text-sm tabular-nums">
+									{formatNumber(row.calls)}
+								</List.Cell>
+								<List.Cell align="end" className="w-16 text-sm">
+									<ErrorRate rate={row.error_rate} />
+								</List.Cell>
+								<List.Cell
+									align="end"
+									className="hidden w-28 text-muted-foreground text-sm tabular-nums sm:flex"
+								>
+									{formatMs(row.p50_ms)} · {formatMs(row.p95_ms)}
+								</List.Cell>
+								<List.Cell
+									align="end"
+									className="hidden w-24 text-muted-foreground text-sm tabular-nums md:flex"
+								>
+									<Tooltip
+										content={`${formatNumber(row.avg_output_chars)} characters on average`}
+									>
+										<span className="cursor-default">
+											~{formatNumber(Math.round(row.avg_output_chars / 4))}{" "}
+											tokens
+										</span>
+									</Tooltip>
+								</List.Cell>
+								<List.Cell align="end" className="hidden w-20 gap-1 lg:flex">
+									{row.clients.map((name) => (
+										<Tooltip content={name} key={name}>
+											<span>
+												<ClientIcon client={name} size={16} />
+											</span>
+										</Tooltip>
+									))}
+								</List.Cell>
+							</List.Row>
+						))}
+					</Panel>
+
+					<div className="grid gap-4 lg:grid-cols-2">
+						<Panel
+							description="Which AI apps use your servers. Select one to see only its calls."
+							empty={clients.length === 0 && "No clients in this period."}
+							isLoading={isPending}
+							title="Clients"
+						>
+							{clients.map((row) => {
+								const isSelected = selected.client === row.client;
+								return (
+									<Button
+										aria-pressed={isSelected}
+										className={cn(
+											"h-auto w-full justify-start gap-3 rounded-none border-border/80 border-b px-4 py-3 text-left font-normal text-foreground last:border-b-0 active:scale-100",
+											isSelected && "bg-accent hover:bg-accent"
+										)}
+										key={row.client}
+										onClick={() =>
+											setSelected({ client: isSelected ? null : row.client })
+										}
+										variant="ghost"
+									>
+										<List.Cell className="gap-2.5" grow>
+											<ClientIcon client={row.client} />
+											<div className="min-w-0">
+												<p className="truncate font-medium text-sm">
+													{row.client || "Unknown client"}
+												</p>
+												<p className="truncate text-muted-foreground text-xs">
+													{row.versions.length > 0
+														? row.versions
+																.map((version) => `v${version}`)
+																.join(", ")
+														: row.user_agent || "No version reported"}
+												</p>
+											</div>
+										</List.Cell>
+										<List.Cell align="end" className="w-24 flex-col items-end">
+											<span className="font-medium text-sm tabular-nums">
+												{formatNumber(row.calls)}
+											</span>
+											<span className="text-muted-foreground text-xs tabular-nums">
+												{Math.round((row.calls / totalCalls) * 100)}% of calls
+											</span>
+										</List.Cell>
+										<List.Cell
+											align="end"
+											className="hidden w-24 flex-col items-end text-xs sm:flex"
+										>
+											<ErrorRate rate={row.error_rate} />
+											<span className="text-muted-foreground tabular-nums">
+												p95 {formatMs(row.p95_ms)}
+											</span>
+										</List.Cell>
+									</Button>
+								);
+							})}
+						</Panel>
+
+						<Panel
+							description="Failed calls grouped by message."
+							empty={errors.length === 0 && "No failed calls in this period."}
+							isLoading={isPending}
+							title="Errors"
+						>
+							{errors.map((row) => (
+								<List.Row
+									align="start"
+									density="compact"
+									interactive={false}
+									key={`${row.tool}:${row.error}`}
+								>
+									<List.Cell className="flex-col items-start gap-1" grow>
+										<span className="truncate font-mono text-xs">
+											{row.tool}
+										</span>
+										<p className="line-clamp-2 break-all text-muted-foreground text-xs">
+											{row.error || "No message"}
+										</p>
+									</List.Cell>
+									<List.Cell align="end" className="w-24 flex-col items-end">
+										<span className="font-medium text-sm tabular-nums">
+											{formatNumber(row.occurrences)}×
+										</span>
+										<span className="text-muted-foreground text-xs">
+											{fromNow(row.last_seen)}
+										</span>
+									</List.Cell>
+								</List.Row>
+							))}
+						</Panel>
+					</div>
+				</div>
+			)}
+		</div>
+	);
+}
