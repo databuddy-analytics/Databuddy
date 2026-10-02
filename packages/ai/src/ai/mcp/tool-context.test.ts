@@ -117,6 +117,7 @@ describe("OAuth selected website grants", () => {
 		expect(
 			(await getCachedAccessibleWebsites(principal)).map((site) => site.id)
 		).toEqual(["site"]);
+		expect(memberRole).toHaveBeenCalledWith("user", "org-other");
 		expect(await resolveWebsiteId({ websiteName: "Reports" }, principal)).toBe(
 			"site"
 		);
