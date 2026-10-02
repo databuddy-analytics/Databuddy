@@ -3,14 +3,14 @@ title: MCP Servers
 description: See which AI clients call your MCP servers, which tools they use, how fast they answer, and where they fail
 ---
 
-import { Callout, CodeBlock } from "@/components/docs";
+import { Callout, CodeBlock, Tab, Tabs } from "@/components/docs";
 
 The MCP page shows every tool call that Claude, Claude Code, Cursor, ChatGPT, Codex and other AI clients make to your MCP servers: which tools they reach for, how long each call takes, how much context it hands back to the model, and which calls fail and why.
 
-Arguments and results never leave your server; only their size is recorded.
+Arguments and successful results never leave your server; only the length of the text a tool returns is recorded. Failed calls send their error message, up to 512 characters, unless you [keep error messages private](#keep-error-messages-private).
 
 <Callout type="info">
-  **Package**: `@databuddy/sdk` 3.1.0+ | **Import**: `@databuddy/sdk/mcp`
+  **Package**: `@databuddy/sdk` 3.2.0+ | **Import**: `@databuddy/sdk/mcp`
 </Callout>
 
 ## Setup
@@ -43,7 +43,64 @@ With `@modelcontextprotocol/server` 2.x, `createMcpHandler` builds a server per 
 );`}
 </CodeBlock>
 
-Long-running servers, including stdio servers, need nothing else: calls are sent in batches every second. On serverless platforms, send the last batch before the function stops with `waitUntil(flushMcp())`.
+Long-running servers send calls in batches every second, and a stdio server that exits on its own sends its last batch before it exits. If your server ends itself with `process.exit`, for example in a SIGINT or SIGTERM handler, send the last batch first:
+
+<CodeBlock language="ts">
+  {`import { flushMcp } from "@databuddy/sdk/mcp";
+
+process.on("SIGTERM", async () => {
+  await flushMcp();
+  process.exit(0);
+});`}
+</CodeBlock>
+
+## Serverless
+
+A serverless function can stop before the batch goes out. Pass your platform's `waitUntil` and each call is sent before the function stops:
+
+<Tabs items={['Vercel', 'Cloudflare Workers']}>
+<Tab value="Vercel">
+<CodeBlock language="ts">
+  {`import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
+import { waitUntil } from "@vercel/functions";
+
+export const handler = createMcpHandler(() =>
+  trackMcp(new McpServer({ name: "my-server", version: "1.0.0" }), {
+    waitUntil,
+  })
+);`}
+</CodeBlock>
+
+With Vercel's `mcp-handler`, wrap the server it passes you, before or after you register your tools:
+
+<CodeBlock language="ts">
+  {`import { waitUntil } from "@vercel/functions";
+import { createMcpHandler } from "mcp-handler";
+
+const handler = createMcpHandler((server) => {
+  trackMcp(server, { waitUntil });
+});
+
+export { handler as GET, handler as POST };`}
+</CodeBlock>
+</Tab>
+<Tab value="Cloudflare Workers">
+<CodeBlock language="ts">
+  {`import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
+
+export default {
+  fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const handler = createMcpHandler(() =>
+      trackMcp(new McpServer({ name: "my-server", version: "1.0.0" }), {
+        waitUntil: ctx.waitUntil.bind(ctx),
+      })
+    );
+    return handler.fetch(request);
+  },
+};`}
+</CodeBlock>
+</Tab>
+</Tabs>
 
 ## Servers, websites and environments
 
@@ -64,22 +121,27 @@ The page shows a picker for each one as soon as there's more than one value. Cli
 | `environment` | `VERCEL_ENV` or `NODE_ENV` | Environment label |
 | `apiUrl` | `https://basket.databuddy.cc` | Ingestion endpoint, for self-hosted Databuddy |
 | `beforeSend` | | Edit a call before it's sent, or return `null` to drop it |
-| `debug` | `false` | Log rejected or failed sends to stderr |
+| `waitUntil` | | Your platform's `waitUntil`, so serverless functions send each call before they stop |
+| `debug` | `false` | Log a missing API key, an unsupported server, and every rejected or failed send to stderr |
 
-Without an API key, `trackMcp` leaves the server untouched. To keep error messages on your server:
-
-<CodeBlock language="ts">
-  {`trackMcp(server, {
-  beforeSend: (call) => ({ ...call, error: undefined }),
-});`}
-</CodeBlock>
-
-An API key limited to some websites can only send calls linked to one of them.
+Without an API key, `trackMcp` leaves the server untouched. An API key limited to some websites can only send calls linked to one of them.
 
 ## What gets recorded
 
-Each tool call records the tool name, whether it failed and its error message (the first text of an `isError` result or the thrown message, up to 512 characters), how long your handler took, how many characters of text the tool returned (divide by about 4 for tokens), the client's name and version, your server's name and version, the MCP session ID when your server keeps sessions, and the user agent.
+Each tool call records the tool name, whether it failed and its error message (the first text of an `isError` result or the thrown message, unwrapped to its `message` when it is a JSON error body, up to 512 characters), how long your handler took, how many characters of text the tool returned (divide by about 4 for tokens), the client's name and version, your server's name and version, the MCP session ID when your server keeps sessions, and the user agent.
 
-Clients are named from the `clientInfo` they send. Stateless servers that build a new server per request only see it on the first request, so Databuddy falls back to the user agent: ChatGPT sends `openai-mcp`, claude.ai sends `Anthropic/ClaudeAI`. Clients it can't name show up as **Unknown client** with their user agent.
+A call that asks the client for more input is recorded once, when it returns its final result. Calls that a client runs as a background task aren't recorded.
+
+Clients are named from the `clientInfo` they send. Stateless servers that build a new server per request only see it on the first request, so Databuddy falls back to the user agent: ChatGPT sends `openai-mcp`, claude.ai sends `Anthropic/ClaudeAI`. Clients it can't name show up as **Unknown client** with their user agent. The user agent needs `@modelcontextprotocol/sdk` 1.13.2 or later, or `@modelcontextprotocol/server` 2.x; on older versions, stateless servers show every call as **Unknown client**.
 
 Tracking never changes what a client receives. It doesn't throw, doesn't delay responses, and sends in the background with a 5 second timeout. If Databuddy rejects the calls, for example because of a wrong API key, `trackMcp` logs the reason once to stderr. Each recorded call counts as one event on your plan.
+
+### Keep error messages private
+
+Error messages can include input your handler put in them. To keep them on your server and still count the call as failed, blank the message:
+
+<CodeBlock language="ts">
+  {`trackMcp(server, {
+  beforeSend: (call) => (call.error === undefined ? call : { ...call, error: "" }),
+});`}
+</CodeBlock>
