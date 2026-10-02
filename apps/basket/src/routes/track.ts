@@ -159,22 +159,21 @@ const MCP_CLIENT_USER_AGENTS: [RegExp, string][] = [
 	[/^openai-mcp\//i, "ChatGPT"],
 ];
 
+const mcpErrorBodySchema = z.union([
+	z.object({ error: z.object({ message: z.string() }) }),
+	z.object({ message: z.string() }),
+]);
+
 function mcpErrorMessage(error: string | undefined): string | undefined {
 	if (!error?.startsWith("{")) {
 		return error;
 	}
 	try {
-		const parsed: unknown = JSON.parse(error);
-		const body =
-			typeof parsed === "object" && parsed !== null && "error" in parsed
-				? parsed.error
-				: parsed;
-		return typeof body === "object" &&
-			body !== null &&
-			"message" in body &&
-			typeof body.message === "string"
-			? body.message
-			: error;
+		const { data } = mcpErrorBodySchema.safeParse(JSON.parse(error));
+		if (!data) {
+			return error;
+		}
+		return "error" in data ? data.error.message : data.message;
 	} catch {
 		return error;
 	}
@@ -690,6 +689,10 @@ export const trackRoute = new Elysia()
 		log.set({ route: "mcp" });
 
 		try {
+			if (!validatePayloadSize(body)) {
+				log.set({ rejected: "payload_too_large" });
+				throw basketErrors.trackPayloadTooLarge();
+			}
 			const parsed = mcpCallsSchema.safeParse(body);
 			if (!parsed.success) {
 				throw createIngestSchemaValidationError(parsed.error.issues);

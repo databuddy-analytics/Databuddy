@@ -1546,13 +1546,21 @@ describe("POST /mcp", () => {
 				error: "Unknown tool",
 				userAgent: "openai-mcp/1.0.0",
 			},
+			{
+				tool: "get_data",
+				durationMs: 9,
+				error: JSON.stringify({
+					success: false,
+					error: { code: "NOT_FOUND", message: "Website not found" },
+				}),
+			},
 		]);
 		expect(res.status).toBe(202);
 		expect(mockCheckAutumnUsage).toHaveBeenCalledWith(
 			"user_1",
 			"events",
-			{ api_route: "mcp", batch_size: 2 },
-			2
+			{ api_route: "mcp", batch_size: 3 },
+			3
 		);
 		expect(mockSendBatch).toHaveBeenCalledWith("analytics-mcp-spans", [
 			expect.objectContaining({
@@ -1567,6 +1575,7 @@ describe("POST /mcp", () => {
 				error: "Unknown tool",
 				client: "ChatGPT",
 			}),
+			expect.objectContaining({ error: "Website not found" }),
 		]);
 	});
 
@@ -1582,6 +1591,15 @@ describe("POST /mcp", () => {
 				environment: "production",
 			}),
 		]);
+	});
+
+	test("rejects oversized batches before authenticating", async () => {
+		mockGetApiKeyFromHeader.mockClear();
+		const res = await post(trackRoute, "/mcp", [
+			{ ...call, error: "x".repeat(1024 * 1024) },
+		]);
+		expect(res.status).toBe(413);
+		expect(mockGetApiKeyFromHeader).not.toHaveBeenCalled();
 	});
 
 	test("rejects calls without a key or outside the key's websites", async () => {
