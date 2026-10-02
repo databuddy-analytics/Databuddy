@@ -18,7 +18,7 @@ The MCP server's session-start instructions, live `tools/list`, and `databuddy:/
 
 ## Conventions
 
-- Website: pass `websiteId`, `websiteName`, or `websiteDomain`; any one works. Short-link tools need one too, to pick the organization. `get_investigation`, `reply_to_investigation`, and goal/annotation update and delete take only the ID. `list_flags`, `update_flag`, and `add_users_to_flag` act on organization-wide flags when no website is given; `create_flag` needs a website.
+- Website: pass `websiteId`, `websiteName`, or `websiteDomain`; any one works. Short-link tools need one too, to pick the organization. `get_investigation`, `reply_to_investigation`, and goal/annotation update and delete do not need a website selector. `list_flags`, `update_flag`, and `add_users_to_flag` act on organization-wide flags when no website is given; `create_flag` needs a website.
 - Dates: a `preset` OR both `from`+`to` (`YYYY-MM-DD`). Defaults to `last_30d`. Don't pass only one of `from`/`to`. Row timestamps are UTC.
 - Results: `get_data` returns at most 20 rows per query; time series keep the newest rows. Each query type has a fixed breakdown; pick the type that breaks down by the dimension you need. Batch items inherit top-level `filters`, `limit`, `orderBy`, and `timeUnit`.
 - Filters: `field` is a common dimension, a query-specific field from `capabilities` with `detail='full'`, or `trait:<key>` for identified-user traits. Rejected fields return the allowed list; there are no typo suggestions. List values only go with `in`/`not_in`.
