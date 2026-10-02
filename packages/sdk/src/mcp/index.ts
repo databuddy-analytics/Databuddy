@@ -22,6 +22,7 @@ export interface TrackMcpOptions {
 	beforeSend?: (call: McpToolCall) => McpToolCall | null;
 	debug?: boolean;
 	environment?: string;
+	waitUntil?: (promise: Promise<unknown>) => void;
 	websiteId?: string;
 }
 
@@ -32,6 +33,9 @@ interface Implementation {
 
 interface RequestContext {
 	http?: { req?: { headers: { get(name: string): string | null } } };
+	mcpReq?: {
+		envelope?: { "io.modelcontextprotocol/clientInfo"?: Implementation };
+	};
 	requestInfo?: { headers: Record<string, string | string[] | undefined> };
 	sessionId?: string;
 }
@@ -51,7 +55,6 @@ type Outcome = { result: unknown } | { error: unknown };
 
 const BATCH_SIZE = 100;
 const FLUSH_DELAY_MS = 1000;
-const MAX_ERROR_LENGTH = 512;
 
 const senders = new Map<string, ReturnType<typeof createSender>>();
 const instrumented = new WeakSet<McpProtocol>();
@@ -145,10 +148,56 @@ function isProtocol(value: unknown): value is McpProtocol {
 	);
 }
 
+function cap(value: unknown, maxLength: number): string | undefined {
+	return typeof value === "string" ? value.slice(0, maxLength) : undefined;
+}
+
+function texts(result: unknown): string[] {
+	if (
+		typeof result !== "object" ||
+		result === null ||
+		!("content" in result) ||
+		!Array.isArray(result.content)
+	) {
+		return [];
+	}
+	return result.content.flatMap((part) =>
+		typeof part?.text === "string" ? [part.text] : []
+	);
+}
+
+function unwrapMessage(text: string): string {
+	if (!text.startsWith("{")) {
+		return text;
+	}
+	try {
+		const body: unknown = JSON.parse(text);
+		if (typeof body !== "object" || body === null) {
+			return text;
+		}
+		if (
+			"error" in body &&
+			typeof body.error === "object" &&
+			body.error !== null &&
+			"message" in body.error &&
+			typeof body.error.message === "string"
+		) {
+			return body.error.message;
+		}
+		return "message" in body && typeof body.message === "string"
+			? body.message
+			: text;
+	} catch {
+		return text;
+	}
+}
+
 function errorMessage(outcome: Outcome): string | undefined {
 	if ("error" in outcome) {
 		const { error } = outcome;
-		return error instanceof Error ? error.message : String(error);
+		return unwrapMessage(
+			error instanceof Error ? error.message : String(error)
+		);
 	}
 	const { result } = outcome;
 	if (
@@ -159,34 +208,24 @@ function errorMessage(outcome: Outcome): string | undefined {
 	) {
 		return;
 	}
-	const content =
-		"content" in result && Array.isArray(result.content) ? result.content : [];
-	const text = content.find(
-		(part): part is { text: string } =>
-			typeof part === "object" &&
-			part !== null &&
-			"text" in part &&
-			typeof part.text === "string"
-	);
-	return text?.text ?? "";
+	return unwrapMessage(texts(result)[0] ?? "");
 }
 
-function textLength(result: unknown): number {
-	if (
-		typeof result !== "object" ||
-		result === null ||
-		!("content" in result) ||
-		!Array.isArray(result.content)
-	) {
-		return 0;
+function isUnfinished(result: unknown): boolean {
+	if (typeof result !== "object" || result === null) {
+		return false;
 	}
-	let total = 0;
-	for (const part of result.content) {
-		if (typeof part?.text === "string") {
-			total += part.text.length;
-		}
+	if ("resultType" in result && result.resultType === "input_required") {
+		return true;
 	}
-	return total;
+	return (
+		!("content" in result) &&
+		"task" in result &&
+		typeof result.task === "object" &&
+		result.task !== null &&
+		"taskId" in result.task &&
+		typeof result.task.taskId === "string"
+	);
 }
 
 export function trackMcp<T extends object>(
@@ -195,7 +234,15 @@ export function trackMcp<T extends object>(
 ): T {
 	const protocol =
 		"server" in server && isProtocol(server.server) ? server.server : server;
-	if (!isProtocol(protocol) || instrumented.has(protocol)) {
+	if (!isProtocol(protocol)) {
+		if (options.debug) {
+			console.warn(
+				"[databuddy] trackMcp needs an McpServer or Server from the MCP SDK; MCP calls are not tracked"
+			);
+		}
+		return server;
+	}
+	if (instrumented.has(protocol)) {
 		return server;
 	}
 	const env = typeof process === "undefined" ? {} : process.env;
@@ -224,22 +271,33 @@ export function trackMcp<T extends object>(
 		startedAt: number
 	) => {
 		try {
-			const client = protocol.getClientVersion?.();
-			const userAgent = context?.requestInfo?.headers["user-agent"];
+			if ("result" in outcome && isUnfinished(outcome.result)) {
+				return;
+			}
+			const client =
+				protocol.getClientVersion?.() ??
+				context?.mcpReq?.envelope?.["io.modelcontextprotocol/clientInfo"];
 			const call: McpToolCall = {
-				tool:
-					typeof request.params?.name === "string" ? request.params.name : "",
+				tool: cap(request.params?.name, 256) ?? "",
 				durationMs: Math.round(performance.now() - startedAt),
-				error: errorMessage(outcome)?.slice(0, MAX_ERROR_LENGTH),
-				outputChars: "result" in outcome ? textLength(outcome.result) : 0,
-				clientName: client?.name,
-				clientVersion: client?.version,
-				serverName: protocol._serverInfo?.name,
-				serverVersion: protocol._serverInfo?.version,
-				sessionId: context?.sessionId,
-				userAgent:
+				error: cap(errorMessage(outcome), 512),
+				outputChars:
+					"result" in outcome
+						? texts(outcome.result).reduce(
+								(total, text) => total + text.length,
+								0
+							)
+						: 0,
+				clientName: cap(client?.name, 128),
+				clientVersion: cap(client?.version, 64),
+				serverName: cap(protocol._serverInfo?.name, 128),
+				serverVersion: cap(protocol._serverInfo?.version, 64),
+				sessionId: cap(context?.sessionId, 128),
+				userAgent: cap(
 					context?.http?.req?.headers.get("user-agent") ??
-					(typeof userAgent === "string" ? userAgent : undefined),
+						context?.requestInfo?.headers["user-agent"],
+					512
+				),
 				timestamp: Date.now(),
 				environment,
 				websiteId,
@@ -247,6 +305,7 @@ export function trackMcp<T extends object>(
 			const kept = options.beforeSend ? options.beforeSend(call) : call;
 			if (kept) {
 				sender.add(kept);
+				options.waitUntil?.(sender.flush());
 			}
 		} catch {
 			return;
