@@ -25,6 +25,8 @@ import {
 import { createMcpTools } from "../ai/mcp/tools";
 import { GUIDE_MARKDOWN, GUIDE_URI, MCP_INSTRUCTIONS } from "./guide";
 
+export { flushMcp } from "@databuddy/sdk/mcp";
+
 export interface DatabuddyMcpHttpOptions extends McpRequestContext {
 	clientName?: string;
 	request: Request;

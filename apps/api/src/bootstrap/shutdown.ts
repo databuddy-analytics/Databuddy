@@ -1,3 +1,4 @@
+import { flushMcp } from "@databuddy/ai/mcp/http";
 import { shutdownPostgres, warmPostgres } from "@databuddy/db";
 import { log } from "evlog";
 import { flushBatchedApiDrain } from "@/lib/evlog-api";
@@ -75,6 +76,12 @@ async function shutdownApi(
 			flushBatchedApiDrain().catch((error) =>
 				log.error({
 					lifecycle: "drainFlush",
+					error_message: error instanceof Error ? error.message : String(error),
+				})
+			),
+			flushMcp().catch((error) =>
+				log.error({
+					lifecycle: "mcpFlush",
 					error_message: error instanceof Error ? error.message : String(error),
 				})
 			),
