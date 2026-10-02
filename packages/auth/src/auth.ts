@@ -456,7 +456,13 @@ const ipAddress = { ipAddressHeaders: ["x-forwarded-for", "x-real-ip"] };
 function getRequestIp(request: Request | Headers): string | undefined {
 	return (
 		getIP(request, {
-			advanced: { ipAddress: { ...ipAddress, ipv6Subnet: 128 } },
+			advanced: {
+				ipAddress: {
+					...ipAddress,
+					ipAddressHeaders: [...ipAddress.ipAddressHeaders, "cf-connecting-ip"],
+					ipv6Subnet: 128,
+				},
+			},
 		}) ?? undefined
 	);
 }
