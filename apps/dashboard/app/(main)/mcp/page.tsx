@@ -329,8 +329,8 @@ function Setup({
 
 export default function McpPage() {
 	const flag = useFlag("mcp");
-	if (!(flag.loading || flag.on)) {
-		notFound();
+	if (!flag.on) {
+		return flag.loading ? null : notFound();
 	}
 	return (
 		<Suspense fallback={null}>
@@ -355,8 +355,10 @@ function McpAnalytics() {
 			{ organizationId: activeOrganizationId ?? undefined },
 			dateRange,
 			[
-				{ id: "facets", parameters: ["mcp_summary"] },
 				{ id: "summary", parameters: ["mcp_summary"], filters },
+				...(filters.length > 0
+					? [{ id: "facets", parameters: ["mcp_summary"] }]
+					: []),
 				{ id: "series", parameters: ["mcp_calls_series"], filters },
 				{ id: "tools", parameters: ["mcp_tools"], filters },
 				{
@@ -367,14 +369,12 @@ function McpAnalytics() {
 				{ id: "errors", parameters: ["mcp_errors"], filters, limit: 20 },
 			]
 		);
-	const facets: Summary | undefined = getDataForQuery(
-		"facets",
-		"mcp_summary"
-	)[0];
 	const summary: Summary | undefined = getDataForQuery(
 		"summary",
 		"mcp_summary"
 	)[0];
+	const facets: Summary | undefined =
+		filters.length > 0 ? getDataForQuery("facets", "mcp_summary")[0] : summary;
 	const series: SeriesRow[] = getDataForQuery("series", "mcp_calls_series");
 	const tools: ToolRow[] = getDataForQuery("tools", "mcp_tools");
 	const clients: ClientRow[] = getDataForQuery("clients", "mcp_clients");
