@@ -3,6 +3,23 @@ import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { SimpleQueryConfig } from "../types";
 
+function separatePathConditions(filterConditions?: string[]): {
+	sessionFilterClause: string;
+	pageFilterClause: string;
+} {
+	const isPathCondition = (condition: string) =>
+		condition.startsWith(Expressions.path.normalized);
+	const pathConditions = filterConditions?.filter(isPathCondition) ?? [];
+	return {
+		sessionFilterClause: appendFilterClause(
+			filterConditions?.filter((condition) => !isPathCondition(condition))
+		),
+		pageFilterClause: pathConditions.length
+			? `WHERE ${pathConditions.join(" AND ")}`
+			: "",
+	};
+}
+
 export const PagesBuilders = {
 	top_pages: {
 		table: Analytics.events,
@@ -17,20 +34,7 @@ export const PagesBuilders = {
 		orderBy: "visitors DESC",
 		limit: 100,
 		timeField: "time",
-		allowedFilters: [
-			"path",
-			"query_string",
-			"country",
-			"device_type",
-			"browser_name",
-			"os_name",
-			"referrer",
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-			"profile_id",
-			"anonymous_id",
-		],
+		allowedFilters: ["profile_id", "anonymous_id"],
 		customizable: true,
 		plugins: {
 			sessionAttribution: true,
@@ -38,7 +42,7 @@ export const PagesBuilders = {
 		meta: {
 			title: "Top Pages",
 			description:
-				"Most visited pages on your website, ranked by total pageviews with visitor counts and traffic percentage.",
+				"Most visited pages on your website, ranked by unique visitors, with pageviews and each page's share of visitors.",
 			category: "Content",
 			tags: ["pages", "content", "traffic"],
 			output_fields: [
@@ -80,24 +84,11 @@ export const PagesBuilders = {
 	entry_pages: {
 		meta: {
 			description:
-				"First pages visitors land on when entering your site, ranked by entry frequency.",
+				"First pages visitors land on when entering your site, ranked by unique visitors. pageviews counts sessions that entered on the page. A path filter keeps sessions whose entry page matches.",
 			category: "Pages",
 			tags: ["pages", "entry", "landing"],
 		},
-		allowedFilters: [
-			"path",
-			"query_string",
-			"country",
-			"device_type",
-			"browser_name",
-			"os_name",
-			"referrer",
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-			"profile_id",
-			"anonymous_id",
-		],
+		allowedFilters: ["profile_id", "anonymous_id"],
 		customizable: true,
 		plugins: {
 			sessionAttribution: true,
@@ -113,58 +104,30 @@ export const PagesBuilders = {
 			} = ctx;
 			const limit = ctx.limit;
 			const offset = ctx.offset;
-			const filterClause = appendFilterClause(filterConditions);
+			const { sessionFilterClause, pageFilterClause } =
+				separatePathConditions(filterConditions);
 
-			const sessionAttributionCTE = helpers?.sessionAttributionCTE
-				? `${helpers.sessionAttributionCTE("time")},`
+			const sessionAttributionCTE = helpers
+				? `${helpers.sessionAttributionCTE},`
 				: "";
 
-			const sessionEntryQuery = helpers?.sessionAttributionCTE
-				? `
+			return {
+				sql: `
+            WITH ${sessionAttributionCTE}
             session_entry AS (
                 SELECT
                     e.session_id,
-                    argMin(CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END, e.time) as entry_page,
-                    argMin(e.anonymous_id, e.time) as visitor_id,
-                    any(sa.session_referrer) as referrer,
-                    any(sa.session_utm_source) as utm_source,
-                    any(sa.session_utm_medium) as utm_medium,
-                    any(sa.session_utm_campaign) as utm_campaign,
-                    any(sa.session_country) as country,
-                    any(sa.session_device_type) as device_type,
-                    any(sa.session_browser_name) as browser_name,
-                    any(sa.session_os_name) as os_name
+                    argMin(e.path, e.time) as entry_path,
+                    argMin(e.anonymous_id, e.time) as visitor_id
                 FROM analytics.events e
-                ${helpers.sessionAttributionJoin("e")}
+                ${helpers?.sessionAttributionJoin ?? ""}
                 WHERE e.client_id = {websiteId:String}
                     AND e.time >= toDateTime({startDate:String})
                     AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
                     AND e.event_name = 'screen_view'
-                    ${filterClause}
+                    ${sessionFilterClause}
                 GROUP BY e.session_id
-            )`
-				: `
-            session_entry AS (
-                SELECT
-                    session_id,
-                    argMin(${Expressions.path.normalized}, time) as entry_page,
-                    argMin(anonymous_id, time) as visitor_id
-                FROM analytics.events
-                WHERE client_id = {websiteId:String}
-                    AND time >= toDateTime({startDate:String})
-                    AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-                    AND event_name = 'screen_view'
-                    ${filterClause}
-                GROUP BY session_id
-            )`;
-
-			const ctes = sessionAttributionCTE
-				? `${sessionAttributionCTE}\n${sessionEntryQuery}`
-				: sessionEntryQuery;
-
-			return {
-				sql: `
-            WITH ${ctes}
+            )
             SELECT
                 name,
                 pageviews,
@@ -172,11 +135,12 @@ export const PagesBuilders = {
                 ROUND(visitors / sum(visitors) OVER () * 100, 2) AS percentage
             FROM (
                 SELECT
-                    entry_page as name,
+                    ${Expressions.path.normalized} as name,
                     COUNT(*) as pageviews,
                     uniq(visitor_id) as visitors
-                FROM session_entry
-                GROUP BY entry_page
+                FROM (SELECT entry_path AS path, visitor_id FROM session_entry)
+                ${pageFilterClause}
+                GROUP BY name
             )
             ORDER BY visitors DESC
             LIMIT {limit:Int32} OFFSET {offset:Int32}`,
@@ -195,24 +159,11 @@ export const PagesBuilders = {
 	exit_pages: {
 		meta: {
 			description:
-				"Last pages visitors view before leaving your site, ranked by exit frequency.",
+				"Last pages visitors view before leaving your site, ranked by unique visitors. pageviews counts sessions that exited on the page. A path filter keeps sessions whose exit page matches.",
 			category: "Pages",
 			tags: ["pages", "exit", "drop-off"],
 		},
-		allowedFilters: [
-			"path",
-			"query_string",
-			"country",
-			"device_type",
-			"browser_name",
-			"os_name",
-			"referrer",
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-			"profile_id",
-			"anonymous_id",
-		],
+		allowedFilters: ["profile_id", "anonymous_id"],
 		customizable: true,
 		plugins: {
 			sessionAttribution: true,
@@ -228,55 +179,30 @@ export const PagesBuilders = {
 			} = ctx;
 			const limit = ctx.limit;
 			const offset = ctx.offset;
-			const filterClause = appendFilterClause(filterConditions);
+			const { sessionFilterClause, pageFilterClause } =
+				separatePathConditions(filterConditions);
 
-			const sessionAttributionCTE = helpers?.sessionAttributionCTE
-				? `${helpers.sessionAttributionCTE("time")},`
+			const sessionAttributionCTE = helpers
+				? `${helpers.sessionAttributionCTE},`
 				: "";
-
-			const sessionExitsQuery = helpers?.sessionAttributionCTE
-				? `
-            session_exit AS (
-                SELECT
-                    e.session_id,
-                    argMax(CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END, e.time) as exit_page,
-                    argMax(e.anonymous_id, e.time) as visitor_id,
-                    any(sa.session_referrer) as referrer,
-                    any(sa.session_utm_source) as utm_source,
-                    any(sa.session_utm_medium) as utm_medium,
-                    any(sa.session_utm_campaign) as utm_campaign,
-                    any(sa.session_country) as country,
-                    any(sa.session_device_type) as device_type,
-                    any(sa.session_browser_name) as browser_name,
-                    any(sa.session_os_name) as os_name
-                FROM analytics.events e
-                ${helpers.sessionAttributionJoin("e")}
-                WHERE e.client_id = {websiteId:String}
-                    AND e.time >= toDateTime({startDate:String})
-                    AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-                    AND e.event_name = 'screen_view'
-					${filterClause}
-                GROUP BY e.session_id
-            )`
-				: `
-            session_exit AS (
-                SELECT
-                    session_id,
-                    argMax(${Expressions.path.normalized}, time) as exit_page,
-                    argMax(anonymous_id, time) as visitor_id
-                FROM analytics.events
-                WHERE client_id = {websiteId:String}
-                    AND time >= toDateTime({startDate:String})
-                    AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-                    AND event_name = 'screen_view'
-					${filterClause}
-                GROUP BY session_id
-            )`;
 
 			return {
 				sql: `
             WITH ${sessionAttributionCTE}
-            ${sessionExitsQuery}
+            session_exit AS (
+                SELECT
+                    e.session_id,
+                    argMax(e.path, e.time) as exit_path,
+                    argMax(e.anonymous_id, e.time) as visitor_id
+                FROM analytics.events e
+                ${helpers?.sessionAttributionJoin ?? ""}
+                WHERE e.client_id = {websiteId:String}
+                    AND e.time >= toDateTime({startDate:String})
+                    AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+                    AND e.event_name = 'screen_view'
+                    ${sessionFilterClause}
+                GROUP BY e.session_id
+            )
             SELECT
                 name,
                 pageviews,
@@ -284,11 +210,12 @@ export const PagesBuilders = {
                 ROUND(visitors / sum(visitors) OVER () * 100, 2) AS percentage
             FROM (
                 SELECT
-                    exit_page as name,
-                    uniq(session_id) as pageviews,
+                    ${Expressions.path.normalized} as name,
+                    COUNT(*) as pageviews,
                     uniq(visitor_id) as visitors
-                FROM session_exit
-                GROUP BY exit_page
+                FROM (SELECT exit_path AS path, visitor_id FROM session_exit)
+                ${pageFilterClause}
+                GROUP BY name
             )
             ORDER BY visitors DESC
             LIMIT {limit:Int32} OFFSET {offset:Int32}`,
@@ -307,7 +234,7 @@ export const PagesBuilders = {
 	page_performance: {
 		meta: {
 			description:
-				"Page load performance metrics (load time, TTFB, DOM ready) broken down by page.",
+				"Pageviews and unique visitors per page, ranked by visitors. Returns no load timing; use web_vitals_by_page or vitals_by_page for LCP, FCP, INP and TTFB per page.",
 			category: "Performance",
 			tags: ["pages", "performance", "load time"],
 		},
@@ -322,20 +249,7 @@ export const PagesBuilders = {
 		orderBy: "visitors DESC",
 		limit: 100,
 		timeField: "time",
-		allowedFilters: [
-			"path",
-			"query_string",
-			"country",
-			"device_type",
-			"browser_name",
-			"os_name",
-			"referrer",
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-			"profile_id",
-			"anonymous_id",
-		],
+		allowedFilters: ["profile_id", "anonymous_id"],
 		customizable: true,
 		plugins: {
 			sessionAttribution: true,
@@ -343,20 +257,7 @@ export const PagesBuilders = {
 	},
 
 	page_time_analysis: {
-		allowedFilters: [
-			"path",
-			"query_string",
-			"country",
-			"device_type",
-			"browser_name",
-			"os_name",
-			"referrer",
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-			"profile_id",
-			"anonymous_id",
-		],
+		allowedFilters: ["profile_id", "anonymous_id"],
 		customizable: true,
 		plugins: {
 			sessionAttribution: true,
@@ -374,20 +275,21 @@ export const PagesBuilders = {
 			const offset = ctx.offset;
 			const filterClause = appendFilterClause(filterConditions);
 
-			const sessionAttributionCTE = helpers?.sessionAttributionCTE
-				? `${helpers.sessionAttributionCTE("time")}`
+			const sessionAttributionCTE = helpers
+				? `${helpers.sessionAttributionCTE},`
 				: "";
 
-			const perPageCTE = helpers?.sessionAttributionCTE
-				? `
+			return {
+				sql: `
+            WITH ${sessionAttributionCTE}
             per_page AS (
                 SELECT
-                    decodeURLComponent(CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END) as name,
+                    decodeURLComponent(${Expressions.path.normalized}) as name,
                     COUNT(*) as sessions_with_time,
                     uniq(e.anonymous_id) as visitors,
                     quantileTDigest(0.5)(e.time_on_page) as median_raw
                 FROM analytics.events e
-                ${helpers.sessionAttributionJoin("e")}
+                ${helpers?.sessionAttributionJoin ?? ""}
                 WHERE e.client_id = {websiteId:String}
                     AND e.time >= toDateTime({startDate:String})
                     AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
@@ -396,32 +298,7 @@ export const PagesBuilders = {
                     AND e.time_on_page < 3600
                     ${filterClause}
                 GROUP BY name
-            )`
-				: `
-            per_page AS (
-                SELECT
-                    decodeURLComponent(${Expressions.path.normalized}) as name,
-                    COUNT(*) as sessions_with_time,
-                    uniq(anonymous_id) as visitors,
-                    quantileTDigest(0.5)(time_on_page) as median_raw
-                FROM analytics.events
-                WHERE client_id = {websiteId:String}
-                    AND time >= toDateTime({startDate:String})
-                    AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-                    AND event_name = 'page_exit'
-                    AND time_on_page > 1
-                    AND time_on_page < 3600
-                    ${filterClause}
-                GROUP BY name
-            )`;
-
-			const ctePrefix = sessionAttributionCTE
-				? `${sessionAttributionCTE},\n${perPageCTE}`
-				: perPageCTE;
-
-			return {
-				sql: `
-            WITH ${ctePrefix}
+            )
             SELECT
                 name,
                 sessions_with_time,

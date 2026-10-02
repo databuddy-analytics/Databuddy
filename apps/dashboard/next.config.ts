@@ -26,7 +26,12 @@ const nextConfig: NextConfig = {
 		if (!apiProxyUrl) {
 			return [];
 		}
-		return ["/rpc/:path*", "/v1/:path*"].map((source) => ({
+		return [
+			"/rpc/:path*",
+			"/v1/:path*",
+			"/.well-known/oauth-protected-resource",
+			"/.well-known/oauth-protected-resource/:path*",
+		].map((source) => ({
 			source,
 			destination: new URL(source, apiProxyUrl).href,
 		}));

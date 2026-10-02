@@ -1,4 +1,5 @@
 import { LINK_SLUG_REGEX } from "@databuddy/shared/constants/links";
+import { ORPCError } from "@orpc/server";
 import {
 	analyticsDateRangeSchema,
 	isoDateOrOffsetDateTimeSchema,
@@ -6,21 +7,21 @@ import {
 import { z } from "zod";
 import {
 	type DatePreset,
-	MCP_DATE_PRESETS,
+	DatePresetSchema,
 	resolveDatePreset,
 } from "../../lib/date-presets";
+import { captureError } from "../../lib/tracing";
+import { callRPCProcedure } from "../tools/utils";
 import { McpToolError, type McpHandlerContext } from "./define-tool";
+import { buildRpcContext } from "./tool-context";
 
 const DateOnlySchema = z.iso.date();
 
 export const McpDateRangeSchema = z
 	.object({
-		preset: z
-			.enum(MCP_DATE_PRESETS as [DatePreset, ...DatePreset[]])
-			.optional()
-			.describe(
-				"Date preset such as last_7d. Alternative to from/to; defaults to last_30d."
-			),
+		preset: DatePresetSchema.optional().describe(
+			"Date preset such as last_7d. Alternative to from/to; defaults to last_30d."
+		),
 		from: DateOnlySchema.optional().describe(
 			"Start date YYYY-MM-DD. Use with to; alternative to preset."
 		),
@@ -76,12 +77,6 @@ export const WebsiteSelectorSchema = {
 		.describe("Website domain. Alternative to websiteId."),
 } as const;
 
-export const WorkflowFilterSchema = z.object({
-	field: z.string(),
-	operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
-	value: z.union([z.string(), z.array(z.string())]),
-});
-
 export const PageSchema = {
 	limit: z
 		.number()
@@ -114,8 +109,6 @@ export function paginate<T>(
 	};
 }
 
-export const GoalTypeSchema = z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]);
-
 export const LinkSlugSchema = z
 	.string()
 	.min(3)
@@ -126,18 +119,6 @@ export const LinkSlugSchema = z
 export const LinkExpiresAtSchema = isoDateOrOffsetDateTimeSchema.describe(
 	"Expiry as YYYY-MM-DD or an ISO date-time with offset."
 );
-
-export function toIsoTimestamp(value: string): string {
-	return new Date(value).toISOString();
-}
-
-export function omitUndefined(
-	input: Record<string, unknown>
-): Record<string, unknown> {
-	return Object.fromEntries(
-		Object.entries(input).filter(([, value]) => value !== undefined)
-	);
-}
 
 type Row = Record<string, unknown>;
 
@@ -207,35 +188,166 @@ export const FLAG_FIELDS = [
 	"environment",
 	"persistAcrossAuth",
 	"payload",
-	"targetGroupIds",
 	"targetGroups",
 	"updatedAt",
 ] as const;
 
+export const FLAG_WRITE_FIELDS = FLAG_FIELDS.filter(
+	(field) => field !== "targetGroups"
+);
+
+const FLAG_RULE_VALUE_LIMIT = 10;
+const TARGET_GROUP_FIELDS = ["id", "name", "description", "rules"] as const;
+
+function stringValues(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.filter((item): item is string => typeof item === "string")
+		: [];
+}
+
+function summarizeFlagRules(rules: unknown, valueLimit: number): unknown {
+	if (!Array.isArray(rules)) {
+		return rules ?? null;
+	}
+	return rules.map((rule) => {
+		const { values, batchValues, ...rest } = asRow(rule);
+		const batchTargets = stringValues(batchValues);
+		const [key, targets] =
+			rest.batch === true && batchTargets.length > 0
+				? ["batchValues", batchTargets]
+				: ["values", stringValues(values)];
+		if (targets.length === 0) {
+			return rest;
+		}
+		return {
+			...rest,
+			[key]: targets.slice(0, valueLimit),
+			...(targets.length > valueLimit && {
+				valueCount: targets.length,
+				valuesTruncated: true,
+			}),
+		};
+	});
+}
+
+export function pickFlagFields(
+	value: unknown,
+	keys: readonly string[] = FLAG_FIELDS,
+	ruleValueLimit = FLAG_RULE_VALUE_LIMIT
+): Row {
+	const flag = pickFields(value, keys);
+	return {
+		...flag,
+		...("rules" in flag && {
+			rules: summarizeFlagRules(flag.rules, ruleValueLimit),
+		}),
+		...(Array.isArray(flag.targetGroups) && {
+			targetGroups: flag.targetGroups.map((group) => {
+				const summary = pickFields(group, TARGET_GROUP_FIELDS);
+				return {
+					...summary,
+					rules: summarizeFlagRules(summary.rules, ruleValueLimit),
+				};
+			}),
+		}),
+	};
+}
+
 const MAX_TIME_SERIES_POINTS = 90;
-const ANALYTICS_INTERNAL_KEYS = new Set([
+const ANALYTICS_INTERNAL_KEYS = [
 	"measurement",
 	"savedDefinition",
 	"cohort",
 	"time_series",
-]);
+	"steps_analytics",
+];
+const UNMEASURED_TIMING_KEYS = [
+	"avg_completion_time",
+	"avg_completion_time_formatted",
+	"duration_available",
+	"avg_time_to_complete",
+	"avg_time",
+];
+const UNMEASURED_ERROR_KEYS = [
+	"error_insights",
+	"error_context_available",
+	"error_count",
+	"error_rate",
+	"top_errors",
+];
+
+function omitKeys(row: Row, keys: ReadonlySet<string>): Row {
+	return Object.fromEntries(
+		Object.entries(row).filter(([key]) => !keys.has(key))
+	);
+}
 
 export function summarizeConversionAnalytics(
 	value: unknown,
-	range: { from?: string; to?: string }
+	requestedRange: { from?: string; to?: string }
 ): Row {
 	const row = asRow(value);
+	const measurement = asRow(row.measurement);
+	const range = {
+		from:
+			typeof measurement.startDate === "string"
+				? measurement.startDate
+				: requestedRange.from,
+		to:
+			typeof measurement.endDate === "string"
+				? measurement.endDate
+				: requestedRange.to,
+	};
+	const omitted = new Set([
+		...ANALYTICS_INTERNAL_KEYS,
+		...(row.duration_available === true ? [] : UNMEASURED_TIMING_KEYS),
+		...(asRow(row.error_insights).available === true
+			? []
+			: UNMEASURED_ERROR_KEYS),
+	]);
+	const steps = Array.isArray(row.steps_analytics) ? row.steps_analytics : null;
 	const series = Array.isArray(row.time_series) ? row.time_series : null;
 	return {
-		...Object.fromEntries(
-			Object.entries(row).filter(([key]) => !ANALYTICS_INTERNAL_KEYS.has(key))
-		),
+		...omitKeys(row, omitted),
 		range,
+		...((range.from !== requestedRange.from ||
+			range.to !== requestedRange.to) && { requestedRange }),
+		...(steps && {
+			steps_analytics: steps.map((step) => omitKeys(asRow(step), omitted)),
+		}),
 		...(series && {
-			time_series: series.slice(-MAX_TIME_SERIES_POINTS),
+			time_series: series
+				.slice(-MAX_TIME_SERIES_POINTS)
+				.map((point) => omitKeys(asRow(point), omitted)),
 			timeSeriesTruncated: series.length > MAX_TIME_SERIES_POINTS,
 		}),
 	};
+}
+
+export async function readConversionAnalytics(
+	tool: string,
+	procedure: readonly ["funnels" | "goals", string],
+	input: Record<string, unknown>,
+	ctx: McpHandlerContext
+): Promise<unknown> {
+	const [router, method] = procedure;
+	try {
+		return await callRPCProcedure(
+			router,
+			method,
+			input,
+			buildRpcContext(ctx),
+			ctx.abortSignal
+		);
+	} catch (error) {
+		if (error instanceof ORPCError || error instanceof McpToolError) {
+			throw error;
+		}
+		captureError(error, { mcp_tool: tool });
+		throw new McpToolError("query_failed", `The ${tool} query failed to run.`, {
+			hint: "Shorten the date range or retry.",
+		});
+	}
 }
 
 export function updatePreview(
@@ -257,7 +369,13 @@ export function updatePreview(
 	};
 }
 
-export const ConfirmedSchema = z.boolean().optional().default(false);
+export const ConfirmedSchema = z
+	.boolean()
+	.optional()
+	.default(false)
+	.describe(
+		"false (default) returns a preview without writing; true applies the change."
+	);
 export const DynamicObjectSchema = z.object({}).passthrough();
 export const MutationResultSchema = z
 	.object({

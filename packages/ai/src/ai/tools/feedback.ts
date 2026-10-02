@@ -151,9 +151,7 @@ export function createFeedbackTools() {
 					category: input.category,
 					error,
 				});
-				throw error instanceof Error
-					? error
-					: new Error("Failed to send feedback. Please try again.");
+				throw error;
 			}
 		},
 	});

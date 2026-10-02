@@ -15,11 +15,9 @@ mock.module("@databuddy/db/clickhouse", () => ({
 }));
 
 const {
-	areQueriesCompatible,
 	buildUnionQuery,
 	executeBatch,
 	extractOuterSelectColumns,
-	getCompatibleQueries,
 	getSchemaGroups,
 } = await import("./batch-executor");
 
@@ -94,18 +92,13 @@ describe("batch-executor schema signatures", () => {
 		);
 	});
 
-	it("reports compatible queries for a builder with peers", () => {
-		const peers = getCompatibleQueries("country");
-		expect(peers.length).toBeGreaterThan(0);
-		expect(peers).not.toContain("country");
-		for (const peer of peers) {
-			expect(areQueriesCompatible("country", peer)).toBe(true);
-		}
-	});
-
-	it("treats builders with different column shapes as incompatible", () => {
-		expect(areQueriesCompatible("country", "region")).toBe(false);
-		expect(areQueriesCompatible("country", "city")).toBe(false);
+	it("groups country with same-shape peers and apart from region and city", () => {
+		const countryGroup = Array.from(getSchemaGroups().values()).find((types) =>
+			types.includes("country")
+		);
+		expect(countryGroup?.length).toBeGreaterThan(1);
+		expect(countryGroup).not.toContain("region");
+		expect(countryGroup).not.toContain("city");
 	});
 
 	it("every realtime builder opts out of the ClickHouse query cache", () => {
@@ -181,6 +174,41 @@ describe("executeBatch single query retry", () => {
 			data: [],
 			error: "The operation was aborted",
 		});
+	});
+});
+
+describe("executeBatch prepare stages", () => {
+	it("binds prepare-stage dates to the same local days as the main query", async () => {
+		mockChQuery.mockResolvedValue([]);
+
+		await executeBatch([
+			{
+				projectId: "test-website",
+				type: "profile_sessions",
+				from: "2026-04-01",
+				to: "2026-04-11",
+				timezone: "America/New_York",
+				filters: [{ field: "anonymous_id", op: "eq", value: "visitor-1" }],
+			},
+		]);
+
+		const prepareCalls = mockChQuery.mock.calls.filter(
+			([, , options]) => options?.label === "profile_sessions:prepare"
+		);
+		expect(prepareCalls.length).toBeGreaterThan(0);
+		for (const [sql, params] of prepareCalls) {
+			expect(sql).toContain(
+				"parseDateTimeBestEffort({startDate:String}, {timezone:String})"
+			);
+			expect(sql).not.toContain("toDateTime({startDate:String})");
+			expect(sql).toContain(
+				"parseDateTimeBestEffort({endDate:String}, {timezone:String})"
+			);
+			expect(sql).not.toContain("toDateTime({endDate:String})");
+			expect(sql).not.toContain("{endDate:DateTime}");
+			expect(params?.endDate).toBe("2026-04-11 23:59:59");
+			expect(params?.timezone).toBe("America/New_York");
+		}
 	});
 });
 

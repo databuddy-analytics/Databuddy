@@ -46,6 +46,21 @@ export function formatValidationIssues(issues: readonly unknown[]): string {
 		.join("; ");
 }
 
+export function omitUndefined(
+	input: Record<string, unknown>
+): Record<string, unknown> {
+	return Object.fromEntries(
+		Object.entries(input).filter(([, value]) => value !== undefined)
+	);
+}
+
+function messageWithoutQueryParams(error: Error): string {
+	if (!("params" in error)) {
+		return error.message;
+	}
+	return error.cause instanceof Error ? error.cause.message : error.name;
+}
+
 export async function callRPCProcedure(
 	routerName: string,
 	method: string,
@@ -130,19 +145,17 @@ export async function callRPCProcedure(
 		}
 
 		if (error instanceof Error) {
+			const message = messageWithoutQueryParams(error);
 			logger.error("RPC call error", {
 				procedure: `${routerName}.${method}`,
-				error: error.message,
-				stack: error.stack,
-				input,
+				error: message,
 			});
-			throw error;
+			throw "params" in error ? new Error(message) : error;
 		}
 
 		logger.error("Unknown error in RPC call", {
 			procedure: `${routerName}.${method}`,
-			error,
-			input,
+			error: typeof error,
 		});
 		throw new Error("An unexpected error occurred. Please try again.");
 	}

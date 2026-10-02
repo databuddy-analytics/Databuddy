@@ -81,6 +81,9 @@ test("approves only selected MCP access and resets websites when changing organi
 	await allow.click();
 	await expect(allow).toBeEnabled();
 	await expect(page.locator("[data-sonner-toast]")).toHaveCount(1);
+	await expect(page.locator("[data-sonner-toast]")).toContainText(
+		"Synthetic consent error"
+	);
 	expect(consentBodies[0]).toEqual({
 		accept: true,
 		oauth_query: oauthQuery.toString(),

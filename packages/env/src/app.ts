@@ -197,7 +197,10 @@ export function createConfig(env: Env = process.env): Config {
 			basket: readUrl(env, URLS.basket),
 			dashboard: dashboardUrl,
 			links: readUrl(env, URLS.links),
-			mcp: new URL(MCP_SERVER_PATH, apiUrl).toString(),
+			mcp: new URL(
+				MCP_SERVER_PATH,
+				readOptional(env, "MCP_URL") ?? apiUrl
+			).toString(),
 			status: readUrl(env, URLS.status),
 		},
 	};

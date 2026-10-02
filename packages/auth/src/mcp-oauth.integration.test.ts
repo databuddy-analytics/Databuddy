@@ -1,7 +1,7 @@
 import "@databuddy/db/test-env";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { MCP_GRANT_CLAIM } from "@databuddy/shared/mcp-access";
+import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
+import { MCP_API_SCOPES, MCP_GRANT_CLAIM } from "@databuddy/shared/mcp-access";
 
 const integration =
 	process.env.MCP_OAUTH_INTEGRATION_TESTS === "true" ? describe : describe.skip;
@@ -29,10 +29,34 @@ integration("MCP OAuth authorization round trip", () => {
 	const otherOrganizationId = `mcp-oauth-other-org-${randomUUID()}`;
 	const websiteId = `mcp-oauth-site-${randomUUID()}`;
 	const otherWebsiteId = `mcp-oauth-other-site-${randomUUID()}`;
+	const metadataDocuments = new Map<string, Record<string, unknown>>();
 	let cookie: string;
+
+	function publishMetadataDocument(clientName: string): string {
+		const clientId = `https://claude.ai/oauth/${randomUUID()}/client-metadata.json`;
+		metadataDocuments.set(clientId, {
+			client_id: clientId,
+			client_name: clientName,
+			redirect_uris: [redirectUri],
+			grant_types: ["authorization_code", "refresh_token"],
+			response_types: ["code"],
+			token_endpoint_auth_method: "none",
+		});
+		return clientId;
+	}
 
 	beforeAll(async () => {
 		process.env.BETTER_AUTH_URL = baseURL;
+		mock.module("@better-auth/cimd/node", () => ({
+			fetchClientMetadataResource: (input: RequestInfo | URL) => {
+				const document = metadataDocuments.get(String(input));
+				return Promise.resolve(
+					document
+						? Response.json(document)
+						: new Response(null, { status: 404 })
+				);
+			},
+		}));
 		dbModule = await import("@databuddy/db");
 		schema = await import("@databuddy/db/schema");
 		config = (await import("@databuddy/env/app")).config;
@@ -120,25 +144,13 @@ integration("MCP OAuth authorization round trip", () => {
 	});
 
 	test("narrows token scopes and binds consent to the chosen organization and website", async () => {
-		const registration = await auth.handler(
-			new Request(`${baseURL}/api/auth/oauth2/create-client`, {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					origin: baseURL,
-					cookie,
-				},
-				body: JSON.stringify({
-					client_name: "Round Trip Client",
-					redirect_uris: [redirectUri],
-				}),
-			})
-		);
-		expect(registration.status).toBeLessThan(300);
-		const client = (await registration.json()) as {
-			client_id: string;
-			client_secret?: string;
-		};
+		const client = await auth.api.adminCreateOAuthClient({
+			headers: { cookie },
+			body: {
+				client_name: "Round Trip Client",
+				redirect_uris: [redirectUri],
+			},
+		});
 		expect(client.client_id).toBeTruthy();
 
 		const codeVerifier = base64Url(randomBytes(32));
@@ -232,6 +244,7 @@ integration("MCP OAuth authorization round trip", () => {
 		};
 		const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
 		expect(audiences).toContain(config.urls.mcp);
+		expect(claims.iss).toBe(config.urls.authorizationServer);
 		expect(claims.sub).toBe(createdUserIds[0]);
 		expect(claims.azp).toBe(client.client_id);
 		expect(claims.scope.split(" ").sort()).toEqual([
@@ -263,31 +276,9 @@ integration("MCP OAuth authorization round trip", () => {
 	});
 
 	test("preserves grants through refresh, disconnects the app, and isolates reconnects", async () => {
-		const clients: string[] = [];
-		for (const name of ["Scoped Public Client", "Unrelated Public Client"]) {
-			const registration = await auth.handler(
-				new Request(`${baseURL}/api/auth/oauth2/create-client`, {
-					method: "POST",
-					headers: {
-						"content-type": "application/json",
-						origin: baseURL,
-						cookie,
-					},
-					body: JSON.stringify({
-						client_name: name,
-						redirect_uris: [redirectUri],
-						token_endpoint_auth_method: "none",
-					}),
-				})
-			);
-			expect(registration.status).toBeLessThan(300);
-			const client = (await registration.json()) as {
-				client_id: string;
-				client_secret?: string;
-			};
-			expect(client.client_secret).toBeFalsy();
-			clients.push(client.client_id);
-		}
+		const clients = ["Scoped Public Client", "Unrelated Public Client"].map(
+			publishMetadataDocument
+		);
 
 		const grants = [
 			{ organizationId, websiteIds: [websiteId] },
@@ -480,25 +471,14 @@ integration("MCP OAuth authorization round trip", () => {
 	});
 
 	test("rejects invalid selections, scope elevation, and a tampered authorization query", async () => {
-		const registration = await auth.handler(
-			new Request(`${baseURL}/api/auth/oauth2/create-client`, {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					origin: baseURL,
-					cookie,
-				},
-				body: JSON.stringify({
-					client_name: "Consent Validation Client",
-					redirect_uris: [redirectUri],
-					token_endpoint_auth_method: "none",
-				}),
-			})
-		);
-		expect(registration.status).toBeLessThan(300);
-		const { client_id: clientId } = (await registration.json()) as {
-			client_id: string;
-		};
+		const { client_id: clientId } = await auth.api.adminCreateOAuthClient({
+			headers: { cookie },
+			body: {
+				client_name: "Consent Validation Client",
+				redirect_uris: [redirectUri],
+				token_endpoint_auth_method: "none",
+			},
+		});
 		const query = new URLSearchParams({
 			client_id: clientId,
 			response_type: "code",
@@ -581,22 +561,14 @@ integration("MCP OAuth authorization round trip", () => {
 	});
 
 	test("rejects a public client token request that replays a bad verifier", async () => {
-		const registration = await auth.handler(
-			new Request(`${baseURL}/api/auth/oauth2/create-client`, {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					origin: baseURL,
-					cookie,
-				},
-				body: JSON.stringify({
-					client_name: "PKCE Guard Client",
-					redirect_uris: [redirectUri],
-					token_endpoint_auth_method: "none",
-				}),
-			})
-		);
-		const client = (await registration.json()) as { client_id: string };
+		const client = await auth.api.adminCreateOAuthClient({
+			headers: { cookie },
+			body: {
+				client_name: "PKCE Guard Client",
+				redirect_uris: [redirectUri],
+				token_endpoint_auth_method: "none",
+			},
+		});
 
 		const codeVerifier = base64Url(randomBytes(32));
 		const authorizeQuery = new URLSearchParams({
@@ -657,6 +629,56 @@ integration("MCP OAuth authorization round trip", () => {
 		).not.toHaveProperty("access_token");
 	});
 
+	test("rejects a metadata document client whose redirect_uri is not in its document", async () => {
+		const query = new URLSearchParams({
+			client_id: publishMetadataDocument("Redirect Guard Client"),
+			response_type: "code",
+			redirect_uri: "https://attacker.example.com/callback",
+			code_challenge: base64Url(
+				createHash("sha256")
+					.update(base64Url(randomBytes(32)))
+					.digest()
+			),
+			code_challenge_method: "S256",
+			scope: "read:data",
+			resource: config.urls.mcp,
+		});
+		const authorize = await auth.handler(
+			new Request(`${baseURL}/api/auth/oauth2/authorize?${query}`, {
+				headers: { cookie, origin: baseURL },
+			})
+		);
+		const location = new URL(authorize.headers.get("location") ?? "", baseURL);
+		expect(location.pathname).not.toContain("/consent");
+		expect(location.origin).not.toBe("https://attacker.example.com");
+		expect(location.searchParams.get("error")).toBe("invalid_redirect");
+		expect(location.searchParams.has("code")).toBe(false);
+	});
+
+	test("closes managed client registration and editing over HTTP", async () => {
+		for (const path of [
+			"/oauth2/create-client",
+			"/oauth2/update-client",
+			"/oauth2/client/rotate-secret",
+		]) {
+			const response = await auth.handler(
+				new Request(`${baseURL}/api/auth${path}`, {
+					method: "POST",
+					headers: {
+						"content-type": "application/json",
+						origin: baseURL,
+						cookie,
+					},
+					body: JSON.stringify({
+						client_name: "Claude",
+						redirect_uris: ["https://attacker.example.com/callback"],
+					}),
+				})
+			);
+			expect(response.status).toBe(404);
+		}
+	});
+
 	test("publishes authorization server metadata clients discover through", async () => {
 		const response = await auth.handler(
 			new Request(`${baseURL}/api/auth/.well-known/oauth-authorization-server`)
@@ -665,10 +687,18 @@ integration("MCP OAuth authorization round trip", () => {
 		expect(response.status).toBe(200);
 		const metadata = (await response.json()) as {
 			code_challenge_methods_supported: string[];
+			scopes_supported: string[];
 			token_endpoint: string;
 		};
 		expect(metadata.code_challenge_methods_supported).toContain("S256");
 		expect(metadata.token_endpoint).toContain("/oauth2/token");
+		expect(metadata.scopes_supported).toEqual([
+			"openid",
+			"profile",
+			"email",
+			"offline_access",
+			...MCP_API_SCOPES,
+		]);
 	});
 
 	test("a lost race to seed the MCP resource does not break auth startup", async () => {

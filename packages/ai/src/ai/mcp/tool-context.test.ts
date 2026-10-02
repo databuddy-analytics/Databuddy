@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import type { RequestPrincipal } from "./tool-context";
 import type { WebsiteSummary } from "../../lib/accessible-websites";
+import { createRedisModuleMock } from "../test-redis-mock";
 
 const permission = mock(async () => ({ success: true }));
 const discoveryMembership = mock(
 	async (): Promise<{ role: string } | null> => ({ role: "viewer" })
 );
 const memberRole = mock(async () => "viewer" as string | null);
-let cachedWebsites: string | null = null;
+let cachedWebsiteList: WebsiteSummary[] | null = null;
 const sites: WebsiteSummary[] = [
 	{
 		id: "site",
@@ -15,6 +16,8 @@ const sites: WebsiteSummary[] = [
 		name: "Reports",
 		createdAt: null,
 		isPublic: false,
+		organizationId: "org-other",
+		organizationName: "Other org",
 	},
 	{
 		id: "www-site",
@@ -22,6 +25,8 @@ const sites: WebsiteSummary[] = [
 		name: "WWW",
 		createdAt: null,
 		isPublic: false,
+		organizationId: "org-other",
+		organizationName: "Other org",
 	},
 	{
 		id: "port-site",
@@ -29,6 +34,8 @@ const sites: WebsiteSummary[] = [
 		name: "Port",
 		createdAt: null,
 		isPublic: false,
+		organizationId: "org-other",
+		organizationName: "Other org",
 	},
 ];
 mock.module("@databuddy/auth", () => ({
@@ -47,6 +54,7 @@ mock.module("../../lib/website-utils", () => ({
 }));
 mock.module("../../lib/accessible-websites", () => ({
 	getAccessibleWebsites: async () => sites,
+	getOrganizationWebsites: async () => sites,
 }));
 mock.module("@databuddy/rpc/organization", () => ({
 	getMemberRole: memberRole,
@@ -60,14 +68,14 @@ mock.module("@databuddy/db", () => ({
 	...realDb,
 	db: { query: { member: { findFirst: discoveryMembership } } },
 }));
-const realRedis = await import("@databuddy/redis");
-mock.module("@databuddy/redis", () => ({
-	...realRedis,
-	getRedisCache: () =>
-		cachedWebsites
-			? { get: async () => cachedWebsites, setex: async () => {} }
-			: null,
-}));
+mock.module("@databuddy/redis", () =>
+	createRedisModuleMock({
+		cacheable:
+			(load: (...args: unknown[]) => Promise<unknown>) =>
+			async (...args: unknown[]) =>
+				cachedWebsiteList ?? load(...args),
+	})
+);
 
 const {
 	buildRpcContext,
@@ -78,7 +86,7 @@ const {
 } = await import("./tool-context");
 
 beforeEach(() => {
-	cachedWebsites = null;
+	cachedWebsiteList = null;
 	memberRole.mockClear();
 	discoveryMembership.mockClear();
 });
@@ -114,7 +122,7 @@ describe("OAuth selected website grants", () => {
 	});
 
 	it("filters website discovery and selectors even when the cache contains more sites", async () => {
-		cachedWebsites = JSON.stringify(sites);
+		cachedWebsiteList = sites;
 		expect(
 			(await getCachedAccessibleWebsites(principal)).map((site) => site.id)
 		).toEqual(["site"]);
@@ -131,7 +139,7 @@ describe("OAuth selected website grants", () => {
 	});
 
 	it("does not reuse discovery results after membership or scope access is removed", async () => {
-		cachedWebsites = JSON.stringify(sites);
+		cachedWebsiteList = sites;
 		discoveryMembership.mockResolvedValueOnce(null);
 		expect(await getCachedAccessibleWebsites(principal)).toEqual([]);
 		expect(
@@ -162,7 +170,12 @@ describe("OAuth selected website grants", () => {
 	});
 
 	it("requires a website selector for aggregate organization data", () => {
-		expect(resolveOrganizationId(principal)).toBeInstanceOf(Error);
+		expect(resolveOrganizationId(principal)).toMatchObject({
+			code: "invalid_input",
+			message: expect.stringMatching(
+				/organization-wide flags.*Pass websiteId, websiteName, or websiteDomain from list_websites/
+			),
+		});
 		expect(
 			resolveOrganizationId({
 				...principal,
@@ -190,6 +203,11 @@ describe("OAuth selected website grants", () => {
 });
 
 describe("MCP domain selector compatibility", () => {
+	const sessionPrincipal: RequestPrincipal = {
+		apiKey: null,
+		organizationId: "org-other",
+		userId: "user",
+	};
 	it.each([
 		["reports.example.com", "site"],
 		["REPORTS.EXAMPLE.COM", "site"],
@@ -198,9 +216,9 @@ describe("MCP domain selector compatibility", () => {
 		["https://www.example.com", "www-site"],
 		["HtTpS://reports.example.com:8443", "port-site"],
 	])("resolves %s to %s", async (websiteDomain, expected) => {
-		expect(
-			await resolveWebsiteId({ websiteDomain }, { apiKey: null, userId: null })
-		).toBe(expected);
+		expect(await resolveWebsiteId({ websiteDomain }, sessionPrincipal)).toBe(
+			expected
+		);
 	});
 	it.each([
 		"www.reports.example.com",
@@ -213,8 +231,30 @@ describe("MCP domain selector compatibility", () => {
 		"ftp://reports.example.com",
 	])("does not rewrite unsupported selector %s", async (websiteDomain) => {
 		expect(
-			await resolveWebsiteId({ websiteDomain }, { apiKey: null, userId: null })
+			await resolveWebsiteId({ websiteDomain }, sessionPrincipal)
 		).toBeInstanceOf(Error);
+	});
+	it("names each matching website's organization when a selector is ambiguous", async () => {
+		const [first] = sites;
+		if (!first) {
+			throw new Error("Expected a website fixture");
+		}
+		cachedWebsiteList = [
+			first,
+			{
+				...first,
+				id: "acme-site",
+				organizationId: "org-acme",
+				organizationName: "Acme",
+			},
+		];
+		expect(
+			await resolveWebsiteId({ websiteName: "Reports" }, sessionPrincipal)
+		).toMatchObject({
+			code: "invalid_input",
+			message:
+				'2 accessible websites match name "Reports": site in Other org, acme-site in Acme. Pass websiteId to choose one.',
+		});
 	});
 });
 
@@ -275,5 +315,27 @@ describe("shared agent's business-context organization boundary", () => {
 				userId: null,
 			})
 		).toBeInstanceOf(Error);
+	});
+	it("denies a session user outside the website's organization instead of failing", async () => {
+		const sessionWithoutOrganization = {
+			apiKey: null,
+			requestHeaders: new Headers(),
+			userId: "user",
+		};
+		permission.mockRejectedValueOnce(
+			Object.assign(new Error("User is not a member of the organization"), {
+				statusCode: 401,
+			})
+		);
+		expect(
+			await ensureWebsiteAccess("foreign-site", sessionWithoutOrganization)
+		).toMatchObject({
+			code: "unauthorized",
+			message: "Access denied to this website",
+		});
+		permission.mockRejectedValueOnce(new Error("connection reset"));
+		await expect(
+			ensureWebsiteAccess("foreign-site", sessionWithoutOrganization)
+		).rejects.toThrow("connection reset");
 	});
 });

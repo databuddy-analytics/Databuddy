@@ -4,8 +4,10 @@ import { mcp } from "@better-auth/mcp";
 import { isUniqueViolationFor } from "@databuddy/db";
 import { config } from "@databuddy/env/app";
 import { API_SCOPES } from "@databuddy/shared/api-scopes";
+import { MCP_API_SCOPES } from "@databuddy/shared/mcp-access";
 import { betterAuth } from "better-auth/minimal";
 import { jwt } from "better-auth/plugins";
+import { log } from "evlog";
 import { baseAuthOptions } from "./auth";
 import {
 	mcpAccessTokenClaims,
@@ -36,25 +38,56 @@ const database: typeof baseAuthOptions.database = (options) => {
 	};
 };
 
+const IDENTITY_SCOPES = ["openid", "profile", "email", "offline_access"];
+
+function createMcpOAuthPlugins() {
+	try {
+		return [
+			mcp({
+				loginPage: "/login",
+				consentPage: "/consent",
+				postLogin: mcpPostLogin,
+				customAccessTokenClaims: mcpAccessTokenClaims,
+				resource: config.urls.mcp,
+				scopes: [...IDENTITY_SCOPES, ...API_SCOPES],
+				advertisedMetadata: {
+					scopes_supported: [...IDENTITY_SCOPES, ...MCP_API_SCOPES],
+				},
+				rateLimit: { token: { window: 60, max: 600 } },
+			}),
+			cimd({
+				fetchClientMetadataResource,
+				metadataProfile: "mcp-2026-07-28",
+			}),
+			mcpConsentAccess,
+		];
+	} catch (error) {
+		log.warn({
+			service: "auth",
+			mcp_oauth_disabled: true,
+			mcp_resource: config.urls.mcp,
+			error: error instanceof Error ? error.message : String(error),
+		});
+		return [];
+	}
+}
+
+const mcpOAuthPlugins = createMcpOAuthPlugins();
+
+export const mcpOAuthEnabled = mcpOAuthPlugins.length > 0;
+
 export const oauthAuthOptions = {
 	...baseAuthOptions,
 	database,
+	disabledPaths: [
+		"/oauth2/create-client",
+		"/oauth2/update-client",
+		"/oauth2/client/rotate-secret",
+	],
 	plugins: [
 		...baseAuthOptions.plugins,
-		jwt(),
-		mcp({
-			loginPage: "/login",
-			consentPage: "/consent",
-			postLogin: mcpPostLogin,
-			customAccessTokenClaims: mcpAccessTokenClaims,
-			resource: config.urls.mcp,
-			scopes: ["openid", "profile", "email", "offline_access", ...API_SCOPES],
-		}),
-		cimd({
-			fetchClientMetadataResource,
-			metadataProfile: "mcp-2026-07-28",
-		}),
-		mcpConsentAccess,
+		jwt({ disableSettingJwtHeader: true }),
+		...mcpOAuthPlugins,
 	],
 };
 

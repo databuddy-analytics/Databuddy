@@ -956,8 +956,8 @@ function McpIntegrationRow({ organizationId }: { organizationId: string }) {
 			Needs attention
 		</Badge>
 	) : (
-		<Badge size="sm" variant="warning">
-			Not connected
+		<Badge size="sm" variant="muted">
+			No API keys
 		</Badge>
 	);
 
@@ -988,11 +988,6 @@ function McpIntegrationRow({ organizationId }: { organizationId: string }) {
 			</IntegrationListRow>
 
 			<McpSetupSheet
-				onCreated={() =>
-					queryClient.invalidateQueries({
-						queryKey: orpc.apikeys.list.key(),
-					})
-				}
 				onOpenChangeAction={setSetupOpen}
 				open={setupOpen}
 				organizationId={organizationId}

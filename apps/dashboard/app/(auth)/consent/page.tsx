@@ -2,6 +2,11 @@
 
 import { authClient } from "@databuddy/auth/client";
 import {
+	MCP_API_SCOPES,
+	MCP_PERMISSIONS,
+	type McpApiScope,
+} from "@databuddy/shared/mcp-access";
+import {
 	Button,
 	Card,
 	Field,
@@ -19,7 +24,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
-import { SCOPE_OPTIONS } from "@/components/organizations/api-key-types";
 import { orpc } from "@/lib/orpc";
 
 const IDENTITY_SCOPE_LABELS = new Map([
@@ -41,6 +45,22 @@ function urlHost(value: string | null): string | null {
 	}
 }
 
+function permissionHint(
+	requested: McpApiScope[],
+	approved: McpApiScope[]
+): string | null {
+	if (!approved.length) {
+		return "Choose at least one permission.";
+	}
+	if (approved.includes("read:data")) {
+		return null;
+	}
+	const readData = MCP_PERMISSIONS["read:data"].label;
+	return requested.includes("read:data")
+		? `Every Databuddy tool needs ${readData}. Select it to allow access.`
+		: `This app did not request ${readData}, which every Databuddy tool needs. Connect again with the permissions it needs.`;
+}
+
 function ConsentPage() {
 	const searchParams = useSearchParams();
 	const oauthQuery = searchParams.toString();
@@ -49,8 +69,8 @@ function ConsentPage() {
 	const host = urlHost(searchParams.get("redirect_uri"));
 	const requestedScopes =
 		searchParams.get("scope")?.split(SCOPE_SEPARATOR).filter(Boolean) ?? [];
-	const requestedActions = SCOPE_OPTIONS.filter(({ value }) =>
-		requestedScopes.includes(value)
+	const requestedActions = MCP_API_SCOPES.filter((scope) =>
+		requestedScopes.includes(scope)
 	);
 	const identityScopes = requestedScopes.filter((scope) =>
 		IDENTITY_SCOPE_LABELS.has(scope)
@@ -59,15 +79,14 @@ function ConsentPage() {
 		...new Set(identityScopes.map((scope) => IDENTITY_SCOPE_LABELS.get(scope))),
 	];
 	const [selectedScopes, setSelectedScopes] = useState<string[]>(() =>
-		requestedActions
-			.filter(({ value }) => value.startsWith("read:"))
-			.map(({ value }) => value)
+		requestedActions.filter((scope) => scope.startsWith("read:"))
 	);
 	const [organizationId, setOrganizationId] = useState<string | null>(null);
 	const [websiteIds, setWebsiteIds] = useState<string[] | null>(null);
-	const approvedActions = requestedActions
-		.filter(({ value }) => selectedScopes.includes(value))
-		.map(({ value }) => value);
+	const approvedActions = requestedActions.filter((scope) =>
+		selectedScopes.includes(scope)
+	);
+	const missingPermission = permissionHint(requestedActions, approvedActions);
 
 	const { data: client, isPending: isClientPending } = useQuery({
 		enabled: Boolean(clientId),
@@ -106,7 +125,7 @@ function ConsentPage() {
 		organizationsQuery.isSuccess &&
 		websitesQuery.isSuccess &&
 		validWebsiteSelection &&
-		approvedActions.length > 0;
+		!missingPermission;
 
 	const decision = useMutation({
 		meta: { suppressGlobalErrorToast: true },
@@ -126,8 +145,15 @@ function ConsentPage() {
 						: undefined,
 				}
 			),
-		onError: () =>
-			toast.error("Could not complete authorization. Try connecting again."),
+		onError: ({ cause }) => {
+			const message =
+				cause instanceof Object && "message" in cause ? cause.message : null;
+			toast.error(
+				typeof message === "string" && message
+					? message
+					: "Could not complete authorization. Try connecting again."
+			);
+		},
 	});
 	const busy = decision.isPending || decision.isSuccess;
 
@@ -165,6 +191,13 @@ function ConsentPage() {
 				use. Your organization role still applies. Disconnect it at any time
 				from Connected apps in your account settings.
 			</Text>
+
+			{!(isClientPending || clientHost) && (
+				<Text role="alert" tone="destructive">
+					This app is not verified by a website address. Only continue if you
+					set up this connection yourself.
+				</Text>
+			)}
 
 			{host && (
 				<Text tone="muted">
@@ -281,17 +314,13 @@ function ConsentPage() {
 
 			<div className="space-y-3">
 				<Text variant="label">Permissions</Text>
-				{requestedActions.map(({ value, label }) => (
+				{requestedActions.map((value) => (
 					<Checkbox
 						checked={selectedScopes.includes(value)}
-						description={
-							value.endsWith(":links")
-								? "Applies to every short link in this organization, including when you choose specific websites."
-								: undefined
-						}
+						description={MCP_PERMISSIONS[value].description}
 						disabled={busy}
 						key={value}
-						label={label}
+						label={MCP_PERMISSIONS[value].label}
 						onCheckedChange={(checked) =>
 							setSelectedScopes((current) =>
 								checked
@@ -302,9 +331,9 @@ function ConsentPage() {
 					/>
 				))}
 				{requestedActions.length ? (
-					approvedActions.length ? null : (
+					missingPermission && (
 						<Text tone="muted" variant="caption">
-							Choose at least one permission.
+							{missingPermission}
 						</Text>
 					)
 				) : (

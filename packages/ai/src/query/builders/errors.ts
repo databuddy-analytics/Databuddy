@@ -96,11 +96,13 @@ export const ErrorsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: [
 			"path",
 			"browser_name",
 			"os_name",
 			"country",
+			"region",
 			"message",
 			"device_type",
 			"error_type",
@@ -130,6 +132,7 @@ export const ErrorsBuilders = {
 		orderBy: "count DESC",
 		limit: 50,
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["message", "path", "error_type"],
 		customizable: true,
 	},
@@ -204,6 +207,7 @@ export const ErrorsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["message", "path", "error_type"],
 		customizable: true,
 		noCache: true,
@@ -235,6 +239,7 @@ export const ErrorsBuilders = {
 				{ name: "payment_match_is_lower_bound", type: "boolean" },
 			],
 		},
+		commonFilters: false,
 		allowedFilters: ["message", "path"],
 		allowedFilterOperators: { message: ["eq"], path: ["eq"] },
 		customSql: (ctx) => {
@@ -448,6 +453,7 @@ export const ErrorsBuilders = {
 				},
 			],
 		},
+		commonFilters: false,
 		allowedFilters: ["message", "path"],
 		allowedFilterOperators: { message: ["eq"], path: ["eq"] },
 		customSql: (ctx) => {
@@ -695,6 +701,7 @@ export const ErrorsBuilders = {
 		groupBy: ["toDate(toTimeZone(timestamp, {timezone:String}))"],
 		orderBy: "date ASC",
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["message", "path", "error_type"],
 	},
 
@@ -715,6 +722,7 @@ export const ErrorsBuilders = {
 		orderBy: "errors DESC",
 		limit: 20,
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["path", "message", "error_type"],
 		customizable: true,
 	},
@@ -734,6 +742,7 @@ export const ErrorsBuilders = {
 		groupBy: ["toDate(toTimeZone(timestamp, {timezone:String}))"],
 		orderBy: "date ASC",
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["message", "path", "error_type"],
 	},
 
@@ -789,6 +798,7 @@ export const ErrorsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["message", "path", "error_type"],
 		customizable: true,
 	},
@@ -809,6 +819,7 @@ export const ErrorsBuilders = {
 		groupBy: ["toDate(toTimeZone(timestamp, {timezone:String}))"],
 		orderBy: "date ASC",
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["message", "path", "error_type"],
 	},
 
@@ -831,6 +842,7 @@ export const ErrorsBuilders = {
 		orderBy: "count DESC",
 		limit: 20,
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["path", "message", "error_type"],
 		customizable: true,
 	},

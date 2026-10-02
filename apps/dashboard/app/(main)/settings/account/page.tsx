@@ -1,8 +1,11 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import { decodeMcpGrantReference } from "@databuddy/shared/mcp-access";
-import { SCOPE_OPTIONS } from "@/components/organizations/api-key-types";
+import {
+	decodeMcpGrantReference,
+	MCP_API_SCOPES,
+	MCP_PERMISSIONS,
+} from "@databuddy/shared/mcp-access";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import {
 	GlobeIcon,
@@ -850,10 +853,10 @@ export default function AccountSettingsPage() {
 										const accessSummary = grant
 											? `${organization?.name ?? "Organization unavailable"} · ${grant.websiteIds === null ? "All websites" : `${grant.websiteIds.length} selected website${grant.websiteIds.length === 1 ? "" : "s"}`}`
 											: "Reconnect to choose access";
-										const permissions = SCOPE_OPTIONS.filter(({ value }) =>
-											app.scopes.includes(value)
+										const permissions = MCP_API_SCOPES.filter((scope) =>
+											app.scopes.includes(scope)
 										)
-											.map(({ label }) => label)
+											.map((scope) => MCP_PERMISSIONS[scope].label)
 											.join(", ");
 										const connectedOn = `Connected ${dayjs(app.createdAt).format("MMM D, YYYY")}`;
 										return (

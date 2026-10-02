@@ -1,6 +1,6 @@
 import { Expressions, sessionDimensionsCte } from "../expressions";
 import { Analytics } from "../../types/tables";
-import type { SimpleQueryConfig } from "../types";
+import type { CustomSqlFn, SimpleQueryConfig } from "../types";
 
 const WEB_VITALS_SESSION_DIMENSIONS_CTE = `
 ${sessionDimensionsCte(["browser_name", "country", "region", "os_name", "device_type"])}
@@ -37,6 +37,32 @@ const WEB_VITALS_BREAKDOWN_FIELDS = [
 	{ name: "measurements", type: "number" as const, label: "Measurements" },
 ];
 
+function webVitalsBreakdown(
+	name: string,
+	nonEmpty = name,
+	groupBy = name
+): CustomSqlFn {
+	return ({ websiteId, startDate, endDate, limit = 100 }) => ({
+		sql: `
+			WITH ${WEB_VITALS_SESSION_DIMENSIONS_CTE}
+			SELECT
+				${name} as name,
+				${WEB_VITALS_METRICS}
+			FROM ${Analytics.web_vitals_spans} wv
+			INNER JOIN session_dimensions sd ON wv.session_id = sd.session_id AND wv.client_id = sd.client_id
+			WHERE
+				wv.client_id = {websiteId:String}
+				AND wv.timestamp >= toDateTime({startDate:String})
+				AND wv.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+				AND ifNull(${nonEmpty}, '') != ''
+			GROUP BY ${groupBy}
+			ORDER BY p50_lcp DESC
+			LIMIT {limit:UInt32}
+		`,
+		params: { websiteId, startDate, endDate, limit },
+	});
+}
+
 export const PerformanceBuilders = {
 	web_vitals_by_page: {
 		meta: {
@@ -72,13 +98,14 @@ export const PerformanceBuilders = {
 						AND timestamp >= toDateTime({startDate:String})
 						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND path != ''
-					GROUP BY path
+					GROUP BY name
 					ORDER BY p50_lcp DESC
 					LIMIT {limit:UInt32}
 				`,
 				params: { websiteId, startDate, endDate, limit },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 	},
@@ -92,29 +119,8 @@ export const PerformanceBuilders = {
 			output_fields: WEB_VITALS_BREAKDOWN_FIELDS,
 			default_visualization: "table",
 		},
-		customSql: (ctx) => {
-			const { websiteId, startDate, endDate } = ctx;
-			const limit = ctx.limit ?? 100;
-			return {
-				sql: `
-					WITH ${WEB_VITALS_SESSION_DIMENSIONS_CTE}
-					SELECT 
-						sd.browser_name as name,
-						${WEB_VITALS_METRICS}
-					FROM ${Analytics.web_vitals_spans} wv
-					INNER JOIN session_dimensions sd ON wv.session_id = sd.session_id AND wv.client_id = sd.client_id
-					WHERE 
-						wv.client_id = {websiteId:String}
-						AND wv.timestamp >= toDateTime({startDate:String})
-						AND wv.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-						AND ifNull(sd.browser_name, '') != ''
-					GROUP BY sd.browser_name
-					ORDER BY p50_lcp DESC
-					LIMIT {limit:UInt32}
-				`,
-				params: { websiteId, startDate, endDate, limit },
-			};
-		},
+		customSql: webVitalsBreakdown("sd.browser_name"),
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 	},
@@ -128,29 +134,8 @@ export const PerformanceBuilders = {
 			output_fields: WEB_VITALS_BREAKDOWN_FIELDS,
 			default_visualization: "table",
 		},
-		customSql: (ctx) => {
-			const { websiteId, startDate, endDate } = ctx;
-			const limit = ctx.limit ?? 100;
-			return {
-				sql: `
-					WITH ${WEB_VITALS_SESSION_DIMENSIONS_CTE}
-					SELECT 
-						sd.country as name,
-						${WEB_VITALS_METRICS}
-					FROM ${Analytics.web_vitals_spans} wv
-					INNER JOIN session_dimensions sd ON wv.session_id = sd.session_id AND wv.client_id = sd.client_id
-					WHERE 
-						wv.client_id = {websiteId:String}
-						AND wv.timestamp >= toDateTime({startDate:String})
-						AND wv.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-						AND ifNull(sd.country, '') != ''
-					GROUP BY sd.country
-					ORDER BY p50_lcp DESC
-					LIMIT {limit:UInt32}
-				`,
-				params: { websiteId, startDate, endDate, limit },
-			};
-		},
+		customSql: webVitalsBreakdown("sd.country"),
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 		plugins: { normalizeGeo: true, deduplicateGeo: true },
@@ -165,29 +150,8 @@ export const PerformanceBuilders = {
 			output_fields: WEB_VITALS_BREAKDOWN_FIELDS,
 			default_visualization: "table",
 		},
-		customSql: (ctx) => {
-			const { websiteId, startDate, endDate } = ctx;
-			const limit = ctx.limit ?? 100;
-			return {
-				sql: `
-					WITH ${WEB_VITALS_SESSION_DIMENSIONS_CTE}
-					SELECT 
-						sd.os_name as name,
-						${WEB_VITALS_METRICS}
-					FROM ${Analytics.web_vitals_spans} wv
-					INNER JOIN session_dimensions sd ON wv.session_id = sd.session_id AND wv.client_id = sd.client_id
-					WHERE 
-						wv.client_id = {websiteId:String}
-						AND wv.timestamp >= toDateTime({startDate:String})
-						AND wv.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-						AND ifNull(sd.os_name, '') != ''
-					GROUP BY sd.os_name
-					ORDER BY p50_lcp DESC
-					LIMIT {limit:UInt32}
-				`,
-				params: { websiteId, startDate, endDate, limit },
-			};
-		},
+		customSql: webVitalsBreakdown("sd.os_name"),
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 	},
@@ -196,35 +160,14 @@ export const PerformanceBuilders = {
 		meta: {
 			title: "Web Vitals by Device Type",
 			description:
-				"Average and p50 Core Web Vitals split by mobile / desktop / tablet — the right builder for mobile-vs-desktop comparisons.",
+				"Average and p50 Core Web Vitals split by mobile / desktop / tablet. Use it for mobile-vs-desktop comparisons.",
 			category: "Performance",
 			tags: ["vitals", "performance", "device", "mobile", "desktop"],
 			output_fields: WEB_VITALS_BREAKDOWN_FIELDS,
 			default_visualization: "table",
 		},
-		customSql: (ctx) => {
-			const { websiteId, startDate, endDate } = ctx;
-			const limit = ctx.limit ?? 100;
-			return {
-				sql: `
-					WITH ${WEB_VITALS_SESSION_DIMENSIONS_CTE}
-					SELECT
-						sd.device_type as name,
-						${WEB_VITALS_METRICS}
-					FROM ${Analytics.web_vitals_spans} wv
-					INNER JOIN session_dimensions sd ON wv.session_id = sd.session_id AND wv.client_id = sd.client_id
-					WHERE
-						wv.client_id = {websiteId:String}
-						AND wv.timestamp >= toDateTime({startDate:String})
-						AND wv.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-						AND ifNull(sd.device_type, '') != ''
-					GROUP BY sd.device_type
-					ORDER BY p50_lcp DESC
-					LIMIT {limit:UInt32}
-				`,
-				params: { websiteId, startDate, endDate, limit },
-			};
-		},
+		customSql: webVitalsBreakdown("sd.device_type"),
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 	},
@@ -238,29 +181,12 @@ export const PerformanceBuilders = {
 			output_fields: WEB_VITALS_BREAKDOWN_FIELDS,
 			default_visualization: "table",
 		},
-		customSql: (ctx) => {
-			const { websiteId, startDate, endDate } = ctx;
-			const limit = ctx.limit ?? 100;
-			return {
-				sql: `
-					WITH ${WEB_VITALS_SESSION_DIMENSIONS_CTE}
-					SELECT 
-						CONCAT(ifNull(sd.region, ''), ', ', ifNull(sd.country, '')) as name,
-						${WEB_VITALS_METRICS}
-					FROM ${Analytics.web_vitals_spans} wv
-					INNER JOIN session_dimensions sd ON wv.session_id = sd.session_id AND wv.client_id = sd.client_id
-					WHERE 
-						wv.client_id = {websiteId:String}
-						AND wv.timestamp >= toDateTime({startDate:String})
-						AND wv.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-						AND ifNull(sd.region, '') != ''
-					GROUP BY sd.region, sd.country
-					ORDER BY p50_lcp DESC
-					LIMIT {limit:UInt32}
-				`,
-				params: { websiteId, startDate, endDate, limit },
-			};
-		},
+		customSql: webVitalsBreakdown(
+			"CONCAT(ifNull(sd.region, ''), ', ', ifNull(sd.country, ''))",
+			"sd.region",
+			"sd.region, sd.country"
+		),
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 		plugins: { normalizeGeo: true, deduplicateGeo: true },
@@ -317,6 +243,7 @@ export const PerformanceBuilders = {
 				params: { websiteId, startDate, endDate },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 	},

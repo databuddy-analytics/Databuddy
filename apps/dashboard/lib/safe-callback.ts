@@ -1,4 +1,5 @@
 const CALLBACK_ORIGIN = "https://callback.databuddy.invalid";
+export const OAUTH_AUTHORIZE_PATH_PREFIX = "/api/auth/oauth2/authorize?";
 
 const LANDING_PATHS = new Set(["", "/", "/home", "/websites"]);
 const TRAILING_SLASHES = /\/+$/;

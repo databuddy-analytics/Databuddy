@@ -41,7 +41,6 @@ export function createRedisModuleMock(
 			userPreferences: "user-prefs",
 			websiteById: "website_by_id",
 			websiteCache: "website-cache",
-			websiteDomain: "website-domain",
 			websiteDomainsBatch: "website-domains-batch",
 			websiteWithOwner: "website_with_owner_v2",
 		},

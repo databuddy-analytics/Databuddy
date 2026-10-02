@@ -46,6 +46,17 @@ describe("createConfig", () => {
 				mcp: "https://api.example.com/v1/mcp",
 			},
 		});
+		expect(
+			createConfig({
+				API_URL: "https://api.example.com",
+				MCP_URL: "https://app.example.com/",
+				NODE_ENV: "production",
+				SELFHOST: "true",
+			}).urls
+		).toMatchObject({
+			api: "https://api.example.com",
+			mcp: "https://app.example.com/v1/mcp",
+		});
 	});
 
 	it("honors explicit loopback URLs in production", () => {

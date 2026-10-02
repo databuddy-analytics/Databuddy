@@ -58,7 +58,6 @@ export const cacheNamespaces = {
 	userPreferences: "user-prefs",
 	websiteById: "website_by_id",
 	websiteCache: "website-cache",
-	websiteDomain: "website-domain",
 	websiteDomainsBatch: "website-domains-batch",
 	websiteWithOwner: "website_with_owner_v3",
 } as const;
@@ -86,7 +85,6 @@ const WEBSITE_READ_CACHE_PREFIXES = [
 	cacheNamespaces.websiteById,
 	cacheNamespaces.websiteWithOwner,
 	cacheNamespaces.websiteCache,
-	cacheNamespaces.websiteDomain,
 	cacheNamespaces.agentTelemetryWebsiteExists,
 ] as const;
 

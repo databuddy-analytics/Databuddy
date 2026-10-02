@@ -8,6 +8,7 @@ import {
 	callRPCProcedure,
 	createToolLogger,
 	getAppContext,
+	omitUndefined,
 	resolveToolWebsite,
 } from "./utils";
 
@@ -86,9 +87,7 @@ export function createAnnotationTools() {
 					chartType,
 					error,
 				});
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve annotations. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -173,9 +172,7 @@ export function createAnnotationTools() {
 					text,
 					error,
 				});
-				throw error instanceof Error
-					? error
-					: new Error("Failed to create annotation. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -249,9 +246,7 @@ export function createAnnotationTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to update annotation", { id, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to update annotation. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -299,9 +294,7 @@ export function createAnnotationTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to delete annotation", { id, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to delete annotation. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -351,12 +344,4 @@ function buildAnnotationChanges(
 	}
 
 	return changes;
-}
-
-function omitUndefined(
-	input: Record<string, unknown>
-): Record<string, unknown> {
-	return Object.fromEntries(
-		Object.entries(input).filter(([, value]) => value !== undefined)
-	);
 }

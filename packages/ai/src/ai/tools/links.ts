@@ -8,12 +8,12 @@ import { LINK_SLUG_REGEX } from "@databuddy/shared/constants/links";
 import { httpUrlSchema } from "@databuddy/validation";
 import { getCachedWebsite } from "../../lib/website-utils";
 import {
+	countUnfiledLinks,
 	LinkFolderSelectorSchema,
-	getLinkSummary,
-	hasLinkFolderSelector,
 	listLinkFolders,
 	listLinks,
 	parseLinkRow,
+	readOrganizationLink,
 	resolveLinkFolder,
 	resolveLinkFolderFromList,
 	searchLinks,
@@ -21,7 +21,12 @@ import {
 	summarizeLinkFolder,
 	summarizeLinkFoldersWithUsage,
 } from "./link-catalog";
-import { callRPCProcedure, createToolLogger, getAppContext } from "./utils";
+import {
+	callRPCProcedure,
+	createToolLogger,
+	getAppContext,
+	omitUndefined,
+} from "./utils";
 
 const logger = createToolLogger("Links Tools");
 
@@ -49,15 +54,15 @@ export function createLinksTools() {
 			const context = getAppContext(options);
 			try {
 				const organizationId = await getOrganizationIdFromWebsite(websiteId);
-				const [folders, summary] = await Promise.all([
+				const [folders, unfiledCount] = await Promise.all([
 					listLinkFolders(context, organizationId),
-					getLinkSummary(context, organizationId),
+					countUnfiledLinks(context, organizationId),
 				]);
 
 				return {
 					folders: summarizeLinkFoldersWithUsage(folders),
 					count: folders.length,
-					unfiledCount: summary.unfiledTotal,
+					unfiledCount,
 					hint:
 						folders.length === 0
 							? "No link folders exist yet. Leave links unfiled unless the user creates a folder in Databuddy."
@@ -65,9 +70,7 @@ export function createLinksTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to list link folders", { websiteId, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve link folders. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -83,23 +86,22 @@ export function createLinksTools() {
 			const context = getAppContext(options);
 			try {
 				const organizationId = await getOrganizationIdFromWebsite(websiteId);
-				const [page, folders, summary] = await Promise.all([
+				const [page, folders, unfiledCount] = await Promise.all([
 					search
 						? searchLinks(context, organizationId, search)
 						: listLinks(context, organizationId),
 					listLinkFolders(context, organizationId),
 					search
 						? Promise.resolve(null)
-						: getLinkSummary(context, organizationId),
+						: countUnfiledLinks(context, organizationId),
 				]);
-				const count = summary?.total ?? page.items.length;
+				const count = page.total ?? page.items.length;
 				return {
 					links: page.items.map((link) => summarizeLink(link, folders)),
 					count,
-					folders: summarizeLinkFoldersWithUsage(folders, page.items),
+					folders: summarizeLinkFoldersWithUsage(folders),
 					unfiledCount:
-						summary?.unfiledTotal ??
-						page.items.filter((link) => !link.folderId).length,
+						unfiledCount ?? page.items.filter((link) => !link.folderId).length,
 					hint:
 						page.hasMore || count > page.items.length
 							? search
@@ -109,9 +111,7 @@ export function createLinksTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to list links", { websiteId, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve links. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -181,7 +181,7 @@ export function createLinksTools() {
 					return {
 						success: false,
 						message: folderSelection.message,
-						folders: summarizeLinkFoldersWithUsage(folderSelection.folders, []),
+						folders: summarizeLinkFoldersWithUsage(folderSelection.folders),
 					};
 				}
 
@@ -241,9 +241,7 @@ export function createLinksTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to create link", { websiteId, name, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to create link. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -274,28 +272,18 @@ export function createLinksTools() {
 			try {
 				const organizationId = await getOrganizationIdFromWebsite(websiteId);
 				const [currentLink, folders] = await Promise.all([
-					callRPCProcedure(
-						"links",
-						"get",
-						{ id, organizationId },
-						context
-					).then(parseLinkRow),
+					readOrganizationLink(context, organizationId, id),
 					listLinkFolders(context, organizationId),
 				]);
-				const folderSelection = hasLinkFolderSelector({
+				const folderSelection = resolveLinkFolderFromList(folders, {
 					folderId,
 					folderSlug,
-				})
-					? resolveLinkFolderFromList(folders, {
-							folderId,
-							folderSlug,
-						})
-					: { folder: null, folderId: undefined, folders, ok: true as const };
+				});
 				if (!folderSelection.ok) {
 					return {
 						success: false,
 						message: folderSelection.message,
-						folders: summarizeLinkFoldersWithUsage(folderSelection.folders, []),
+						folders: summarizeLinkFoldersWithUsage(folderSelection.folders),
 					};
 				}
 
@@ -315,9 +303,7 @@ export function createLinksTools() {
 					};
 				}
 
-				const cleanUpdates = Object.fromEntries(
-					Object.entries(updates).filter(([, value]) => value !== undefined)
-				);
+				const cleanUpdates = omitUndefined(updates);
 				if (folderSelection.folderId !== undefined) {
 					cleanUpdates.folderId = folderSelection.folderId;
 				}
@@ -356,9 +342,7 @@ export function createLinksTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to update link", { id, websiteId, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to update link. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -375,14 +359,7 @@ export function createLinksTools() {
 			try {
 				const organizationId = await getOrganizationIdFromWebsite(websiteId);
 
-				const link = parseLinkRow(
-					await callRPCProcedure(
-						"links",
-						"get",
-						{ id, organizationId },
-						context
-					)
-				);
+				const link = await readOrganizationLink(context, organizationId, id);
 
 				if (!confirmed) {
 					return {
@@ -408,9 +385,7 @@ export function createLinksTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to delete link", { id, websiteId, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to delete link. Please try again.");
+				throw error;
 			}
 		},
 	});

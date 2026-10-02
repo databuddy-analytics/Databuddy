@@ -1,8 +1,5 @@
-import { type ApiKeyRow, hasKeyScope } from "@databuddy/api-keys/resolve";
-import { auth } from "@databuddy/auth";
 import { tool, type ToolExecutionOptions, type ToolSet } from "ai";
 import { z } from "zod";
-import { getAccessibleWebsites } from "../../lib/accessible-websites";
 import { executeBatch } from "../../query";
 import { discoverQueryTypesTool } from "../tools/discover-query-types";
 import { describeSchemaTool } from "../tools/describe-schema";
@@ -21,17 +18,17 @@ import {
 	createSlackConversationTools,
 	type DatabuddyAgentSlackContext,
 } from "./slack-context";
-import { ensureWebsiteAccess } from "./tool-context";
+import {
+	type AuthorizedPrincipal,
+	ensureWebsiteAccess,
+	getCachedAccessibleWebsites,
+} from "./tool-context";
 import { agentDataInputSchema } from "./agent-query-schema";
 
-interface McpAgentContext {
-	apiKey: ApiKeyRow | null;
+type McpAgentContext = AuthorizedPrincipal & {
 	currentDateTime?: string;
-	organizationId?: string | null;
-	requestHeaders: Headers;
 	timezone?: string;
-	userId: string | null;
-}
+};
 
 function getToolContext({
 	experimental_context: ctx,
@@ -68,26 +65,7 @@ export function createMcpAgentTools(
 			inputSchema: z.object({}),
 			execute: async (_args, options) => {
 				const ctx = getToolContext(options);
-				const session = ctx.userId
-					? await auth.api.getSession({ headers: ctx.requestHeaders })
-					: null;
-				const scopedApiKey =
-					ctx.apiKey && !hasKeyScope(ctx.apiKey, "read:data");
-				const authCtx = {
-					apiKey: ctx.apiKey,
-					organizationId: scopedApiKey
-						? null
-						: (ctx.organizationId ?? ctx.apiKey?.organizationId ?? null),
-					user: session?.user
-						? {
-								id: session.user.id,
-								role: (session.user as { role?: string }).role,
-							}
-						: ctx.userId
-							? { id: ctx.userId }
-							: null,
-				};
-				const list = await getAccessibleWebsites(authCtx);
+				const list = await getCachedAccessibleWebsites(ctx);
 				return {
 					websites: list.map((w) => ({
 						id: w.id,
@@ -129,7 +107,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 		}),
 		get_data: tool({
 			description:
-				"Run 1-10 analytics builders. Use discover_query_types for builder names and required filters. Use preset or from/to; omitted dates default to last_30d in the conversation timezone. Read the returned definition for population and percentage semantics. Supports filters (including trait:<key>), groupBy, and orderBy. Returns a query summary, full rowCount, returnedRows, truncated, and up to 20 data rows. Call list_profile_traits before trait segmentation.",
+				"Run 1-10 analytics builders. Use discover_query_types for builder names and required filters. Use preset or from/to; omitted dates default to last_30d in the conversation timezone. Read the returned definition for population and percentage semantics. Supports filters (including trait:<key>) and orderBy. Each builder returns a fixed breakdown, so leave groupBy null and pick the builder that breaks down by the dimension you need. Returns a query summary, full rowCount, returnedRows, truncated, and up to 20 data rows. Call list_profile_traits before trait segmentation.",
 			strict: true,
 			inputSchema: agentDataInputSchema,
 			execute: async (args, options) => {

@@ -68,6 +68,41 @@ describe("resolveRequestTraitFilters", () => {
 		]);
 	});
 
+	it("resolves each distinct segment once when requests share a cache", async () => {
+		const resolvedSegments = new Map<string, Promise<string[]>>();
+		const proFilters = [
+			{ field: "trait:plan", op: "eq" as const, value: "pro" },
+			{ field: "trait:role", op: "eq" as const, value: "admin" },
+		];
+
+		const resolved = await Promise.all([
+			resolveRequestTraitFilters(
+				makeRequest({ filters: proFilters }),
+				resolvedSegments
+			),
+			resolveRequestTraitFilters(
+				makeRequest({
+					type: "summary_metrics",
+					filters: [...proFilters].reverse(),
+				}),
+				resolvedSegments
+			),
+			resolveRequestTraitFilters(
+				makeRequest({
+					filters: [{ field: "trait:plan", op: "eq", value: "free" }],
+				}),
+				resolvedSegments
+			),
+		]);
+
+		expect(mockResolveTraitSegment).toHaveBeenCalledTimes(2);
+		for (const request of resolved) {
+			expect(request.filters).toEqual([
+				{ field: "profile_id", op: "in", value: ["profile-a", "profile-b"] },
+			]);
+		}
+	});
+
 	it("rejects trait filters for organization-scoped queries", async () => {
 		await expect(
 			resolveRequestTraitFilters(
@@ -133,6 +168,28 @@ describe("invalidFilterFieldError", () => {
 			invalidFilterFieldError("session_metrics", [
 				{ field: "session_count", op: "eq", value: 3, having: true },
 				{ field: "custom_field", op: "eq", value: "x", target: "my_cte" },
+			])
+		).toBeNull();
+	});
+
+	it.each([
+		["error_types", "country"],
+		["custom_events", "device_type"],
+		["web_vitals_by_page", "path"],
+		["link_total_clicks", "utm_source"],
+		["top_pages", "query_string"],
+	])("rejects %s filtered by %s, a column that query type cannot apply", (type, field) => {
+		expect(
+			invalidFilterFieldError(type, [{ field, op: "eq", value: "x" }])
+		).toContain(`Filter on field '${field}' is not permitted for ${type}`);
+	});
+
+	it("accepts session dimensions on vitals breakdowns", () => {
+		expect(
+			invalidFilterFieldError("vitals_by_page", [
+				{ field: "device_type", op: "eq", value: "mobile" },
+				{ field: "os_name", op: "eq", value: "iOS" },
+				{ field: "path", op: "eq", value: "/pricing" },
 			])
 		).toBeNull();
 	});

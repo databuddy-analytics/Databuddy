@@ -5,8 +5,17 @@ import {
 	userRuleSchema,
 } from "@databuddy/shared/flags";
 import { z } from "zod";
-import { createUserTargetRule, type FlagTargetRule } from "./flag-rules";
-import { callRPCProcedure, createToolLogger, getAppContext } from "./utils";
+import {
+	createUserTargetRule,
+	type FlagTargetRule,
+	flagRolloutBySchema,
+} from "./flag-rules";
+import {
+	callRPCProcedure,
+	createToolLogger,
+	getAppContext,
+	omitUndefined,
+} from "./utils";
 
 const logger = createToolLogger("Flags Tools");
 const flagStatusSchema = flagFormShape.status;
@@ -40,7 +49,7 @@ const createFlagInputSchema = z.object({
 	payload: z.record(z.string(), z.unknown()).optional(),
 	persistAcrossAuth: z.boolean().optional(),
 	rolloutPercentage: flagFormShape.rolloutPercentage.optional(),
-	rolloutBy: flagFormShape.rolloutBy,
+	rolloutBy: flagRolloutBySchema.optional(),
 	rules: flagFormShape.rules,
 	variants: flagFormShape.variants,
 	dependencies: flagFormShape.dependencies,
@@ -82,9 +91,7 @@ export function createFlagTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to list flags", { websiteId, status, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve feature flags. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -150,9 +157,7 @@ export function createFlagTools() {
 					key: input.key,
 					error,
 				});
-				throw error instanceof Error
-					? error
-					: new Error("Failed to create feature flag. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -192,9 +197,7 @@ export function createFlagTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to update flag", { id, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to update feature flag. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -208,9 +211,7 @@ export function createFlagTools() {
 			options
 		) => {
 			const context = getAppContext(options);
-			const uniqueUsers = [...new Set(users.map((user) => user.trim()))].filter(
-				Boolean
-			);
+			const uniqueUsers = [...new Set(users)];
 			const newRule = createUserTargetRule(matchBy, uniqueUsers);
 
 			try {
@@ -268,9 +269,7 @@ export function createFlagTools() {
 					userCount: uniqueUsers.length,
 					error,
 				});
-				throw error instanceof Error
-					? error
-					: new Error("Failed to update feature flag targeting.");
+				throw error;
 			}
 		},
 	});
@@ -295,12 +294,4 @@ function parseFlagRules(value: unknown): FlagTargetRule[] {
 		);
 	}
 	return result.data;
-}
-
-function omitUndefined(
-	input: Record<string, unknown>
-): Record<string, unknown> {
-	return Object.fromEntries(
-		Object.entries(input).filter(([, value]) => value !== undefined)
-	);
 }

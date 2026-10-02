@@ -588,7 +588,7 @@ export function ApiKeySheet({
 										</div>
 									</div>
 									<Text className="mt-2" tone="muted" variant="caption">
-										Copy this now — it won't be shown again.
+										Copy this now. It won't be shown again.
 									</Text>
 								</div>
 							)}
@@ -1211,7 +1211,7 @@ export function ApiKeySheet({
 								<Dialog.Title>Revoke API Key?</Dialog.Title>
 								<Dialog.Description>
 									This key will stop working immediately. Revocation is
-									permanent — the key cannot be re-enabled. Create a new key if
+									permanent: the key cannot be re-enabled. Create a new key if
 									you need one.
 								</Dialog.Description>
 							</Dialog.Header>
