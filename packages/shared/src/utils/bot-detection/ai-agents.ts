@@ -167,7 +167,7 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"tiktok-crawler": { operator: "ByteDance", purpose: "training" },
 	"timpi-crawler": { operator: "Timpi", purpose: "search_index" },
 	"turnitin-crawler": null,
-	"velen-crawler": { operator: "Velen", purpose: "training" },
+	"velen-crawler": { operator: "Hunter", purpose: "training" },
 	"webzio-crawler-ai": {
 		name: "Webzio-Extended",
 		operator: "Webz.io",
