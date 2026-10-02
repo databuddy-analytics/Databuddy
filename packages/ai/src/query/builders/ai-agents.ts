@@ -7,6 +7,7 @@ import {
 import { AI_APP_BROWSERS } from "@databuddy/shared/bot-detection/user-agent";
 import { AI_REFERRERS, AI_UTM_SOURCES } from "@databuddy/shared/utils/referrer";
 import { Analytics } from "../../types/tables";
+import { Expressions } from "../expressions";
 import { appendFilterClause } from "../simple-builder";
 import type { CustomSqlContext, SimpleQueryConfig } from "../types";
 
@@ -34,6 +35,17 @@ export const AI_VISIT_PARAMS = {
 const VISIT_PRODUCT = aiVisitProduct("domainWithoutWWW(referrer)");
 
 const SERVER_SIDE_SOURCES = "('middleware', 'vercel')";
+
+function pageFilterClause(conditions: string[] | undefined): string {
+	return appendFilterClause(
+		conditions?.map((condition) =>
+			condition.replaceAll(
+				Expressions.path.normalized,
+				`decodeURLComponent(${Expressions.path.normalized})`
+			)
+		)
+	);
+}
 
 function firstRequestFrom(source: string): string {
 	return `(
@@ -316,7 +328,7 @@ export const AiAgentsBuilders = {
 						count() AS agent_requests,
 						max(timestamp) AS agent_last_seen
 					FROM ${Analytics.ai_traffic_spans}
-					WHERE ${AGENT_REQUEST_IN_RANGE} AND ${IS_PAGE} ${appendFilterClause(ctx.filterConditions)}
+					WHERE ${AGENT_REQUEST_IN_RANGE} AND ${IS_PAGE} ${pageFilterClause(ctx.filterConditions)}
 					GROUP BY page, format, agent_id
 				)
 				GROUP BY page, format
@@ -491,7 +503,7 @@ export const AiAgentsBuilders = {
 							GROUP BY session_id
 						)
 					)
-					WHERE page != '' ${appendFilterClause(ctx.filterConditions)}
+					WHERE page != '' ${pageFilterClause(ctx.filterConditions)}
 					GROUP BY page, product
 				) AS l
 				LEFT JOIN (
