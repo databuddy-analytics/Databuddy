@@ -684,6 +684,12 @@ export const trackRoute = new Elysia()
 			if (!organizationId) {
 				throw basketErrors.trackMissingOwner();
 			}
+			const rl = await ratelimit(`mcp:apikey:${apiKey.id}`, 6000, 60);
+			if (!rl.success) {
+				log.set({ rejected: "rate_limit" });
+				throw basketErrors.trackRateLimited();
+			}
+
 			const keyWebsiteIds = hasGlobalAccess(apiKey)
 				? null
 				: new Set(getAccessibleWebsiteIds(apiKey));
@@ -711,12 +717,6 @@ export const trackRoute = new Elysia()
 				throw basketErrors.trackWebsiteScopeMismatch();
 			}
 			log.set({ organizationId, websiteIds, count: calls.length });
-
-			const rl = await ratelimit(`mcp:apikey:${apiKey.id}`, 600, 60);
-			if (!rl.success) {
-				log.set({ rejected: "rate_limit" });
-				throw basketErrors.trackRateLimited();
-			}
 
 			const billingUserId = await resolveApiKeyOwnerId(organizationId);
 			if (billingUserId) {
