@@ -7,15 +7,13 @@ import {
 import { LINK_SLUG_REGEX } from "@databuddy/shared/constants/links";
 import { httpUrlSchema } from "@databuddy/validation";
 import { getCachedWebsite } from "../../lib/website-utils";
-import type { AppContext } from "../config/context";
 import {
 	countUnfiledLinks,
-	getOrganizationLink,
 	LinkFolderSelectorSchema,
-	type LinkRow,
 	listLinkFolders,
 	listLinks,
 	parseLinkRow,
+	readOrganizationLink,
 	resolveLinkFolder,
 	resolveLinkFolderFromList,
 	searchLinks,
@@ -45,18 +43,6 @@ async function getOrganizationIdFromWebsite(
 		);
 	}
 	return website.organizationId;
-}
-
-async function readOrganizationLink(
-	context: AppContext,
-	organizationId: string,
-	id: string
-): Promise<LinkRow> {
-	const link = await getOrganizationLink(context, organizationId, id);
-	if (!link) {
-		throw new Error("Link not found in this website's organization.");
-	}
-	return link;
 }
 
 export function createLinksTools() {

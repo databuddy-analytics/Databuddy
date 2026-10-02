@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { DatePreset } from "../../lib/date-presets";
-import { FilterSchema, MCP_DATE_PRESETS } from "./mcp-utils";
+import { DatePresetSchema } from "../../lib/date-presets";
+import { FilterSchema } from "./mcp-utils";
 
 // Strict providers may require every key. Accept explicit null on the wire,
 // then pass ordinary optional values to the existing query planner.
@@ -14,9 +14,7 @@ export const agentDataInputSchema = z.object({
 		.array(
 			z.object({
 				type: z.string(),
-				preset: optionalInput(
-					z.enum(MCP_DATE_PRESETS as [DatePreset, ...DatePreset[]])
-				).describe(
+				preset: optionalInput(DatePresetSchema).describe(
 					"Date preset, or null when supplying explicit from/to dates."
 				),
 				from: optionalInput(z.string()).describe(

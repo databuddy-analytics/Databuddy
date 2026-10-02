@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AppContext } from "../config/context";
+import { McpToolError } from "../mcp/define-tool";
 import { callRPCProcedure } from "./utils/rpc";
 
 const DateStringSchema = z
@@ -213,15 +214,24 @@ export function searchLinks(
 	return loadLinks(context, organizationId, { search: query }, page);
 }
 
-export async function getOrganizationLink(
+export async function readOrganizationLink(
 	context: AppContext,
 	organizationId: string,
 	id: string
-): Promise<LinkRow | null> {
+): Promise<LinkRow> {
 	const link = parseLinkRow(
 		await callRPCProcedure("links", "get", { id }, context)
 	);
-	return link.organizationId === organizationId ? link : null;
+	if (link.organizationId !== organizationId) {
+		throw new McpToolError(
+			"not_found",
+			"Short link not found in this website's organization.",
+			{
+				hint: "Link IDs come from list_links or search_links for the same website.",
+			}
+		);
+	}
+	return link;
 }
 
 export async function listLinkFolders(

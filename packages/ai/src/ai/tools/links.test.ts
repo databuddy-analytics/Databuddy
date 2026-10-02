@@ -200,7 +200,7 @@ test.each([
 				experimental_context: { mutationMode: "allow" },
 			}
 		)
-	).rejects.toThrow("Link not found in this website's organization.");
+	).rejects.toThrow("Short link not found in this website's organization.");
 	expect(
 		invoke.mock.calls.filter(
 			([, method]) => method === "update" || method === "delete"

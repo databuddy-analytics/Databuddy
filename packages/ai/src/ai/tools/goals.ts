@@ -1,3 +1,4 @@
+import { filterSchema, funnelStepSchema } from "@databuddy/rpc/funnel-steps";
 import {
 	analyticsCohortSchema,
 	goalFunnelFilterFields,
@@ -16,20 +17,10 @@ import { resolveToolDateRange } from "./utils/context";
 
 const logger = createToolLogger("Goals Tools");
 
-export const goalTypeSchema = z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]);
+export const goalTypeSchema = funnelStepSchema.shape.type;
 export const goalFunnelFilterSchema = z.strictObject({
+	...filterSchema.shape,
 	field: z.enum(goalFunnelFilterFields.map((field) => field.value)),
-	operator: z.enum([
-		"equals",
-		"contains",
-		"not_contains",
-		"starts_with",
-		"ends_with",
-		"not_equals",
-		"in",
-		"not_in",
-	]),
-	value: z.union([z.string(), z.array(z.string())]),
 });
 
 export function describeGoalFunnelFilters(

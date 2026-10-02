@@ -22,7 +22,7 @@ import {
 	userRuleSchema,
 	variantSchema,
 } from "@databuddy/shared/flags";
-import type { DatePreset } from "../../lib/date-presets";
+import { DatePresetSchema } from "../../lib/date-presets";
 import { executeBatch } from "../../query";
 import type { AppContext } from "../config/context";
 import {
@@ -63,7 +63,6 @@ import {
 	getFilteredQueryTypes,
 	getMcpSchemaDocumentation,
 	getSchemaSummary,
-	MCP_DATE_PRESETS,
 	MCP_RESULT_ROW_LIMIT,
 	QUERY_CATEGORY_KEYS,
 	queryFailedMessage,
@@ -116,9 +115,6 @@ const QueryLimitSchema = z
 		`Rows to return, 1-${MCP_RESULT_ROW_LIMIT}. Defaults to the query type's own limit; at most ${MCP_RESULT_ROW_LIMIT} rows are returned.`
 	);
 
-const DatePresetSchema = z.enum(
-	MCP_DATE_PRESETS as [DatePreset, ...DatePreset[]]
-);
 const QueryItemSchema = z.object({
 	type: z.string(),
 	preset: DatePresetSchema.optional(),
@@ -632,7 +628,7 @@ const capabilitiesTool = defineMcpTool(
 			out.hints = HINTS;
 		}
 		if (selected.has("datePresets")) {
-			out.datePresets = MCP_DATE_PRESETS;
+			out.datePresets = DatePresetSchema.options;
 			out.dateFormat = "YYYY-MM-DD";
 			out.maxLimit = MCP_RESULT_ROW_LIMIT;
 		}

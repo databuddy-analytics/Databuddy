@@ -29,8 +29,6 @@ export const FilterSchema = QueryFilterSchema.omit({
 	having: true,
 }).strict() satisfies z.ZodType<Filter>;
 
-export { MCP_DATE_PRESETS } from "../../lib/date-presets";
-
 export { SCHEMA_SECTIONS } from "../prompts/clickhouse-schema";
 
 export const MCP_RESULT_ROW_LIMIT = 20;

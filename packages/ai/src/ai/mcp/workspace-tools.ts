@@ -5,14 +5,12 @@ import {
 import { httpUrlSchema } from "@databuddy/validation";
 import { z } from "zod";
 import { callRPCProcedure, omitUndefined } from "../tools/utils";
-import type { AppContext } from "../config/context";
 import { goalFunnelFilterSchema, goalTypeSchema } from "../tools/goals";
 import {
-	getOrganizationLink,
 	LinkFolderSelectorSchema,
-	type LinkRow,
 	listLinkFolders,
 	parseLinkRow,
+	readOrganizationLink,
 	resolveLinkFolderFromList,
 	summarizeLink,
 	summarizeLinkFolder,
@@ -261,24 +259,6 @@ const linkUpdateFields = {
 	...LinkFolderSelectorSchema.shape,
 	deepLinkApp: z.enum(DEEP_LINK_APP_IDS).nullable().optional(),
 };
-
-async function readOrganizationLink(
-	context: AppContext,
-	organizationId: string,
-	id: string
-): Promise<LinkRow> {
-	const link = await getOrganizationLink(context, organizationId, id);
-	if (!link) {
-		throw new McpToolError(
-			"not_found",
-			"Short link not found in this website's organization.",
-			{
-				hint: "Link IDs come from list_links or search_links for the same website.",
-			}
-		);
-	}
-	return link;
-}
 
 const updateLinkTool = defineMcpTool(
 	{

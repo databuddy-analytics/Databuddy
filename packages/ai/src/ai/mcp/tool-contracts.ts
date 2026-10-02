@@ -7,7 +7,7 @@ import {
 import { z } from "zod";
 import {
 	type DatePreset,
-	MCP_DATE_PRESETS,
+	DatePresetSchema,
 	resolveDatePreset,
 } from "../../lib/date-presets";
 import { captureError } from "../../lib/tracing";
@@ -19,12 +19,9 @@ const DateOnlySchema = z.iso.date();
 
 export const McpDateRangeSchema = z
 	.object({
-		preset: z
-			.enum(MCP_DATE_PRESETS as [DatePreset, ...DatePreset[]])
-			.optional()
-			.describe(
-				"Date preset such as last_7d. Alternative to from/to; defaults to last_30d."
-			),
+		preset: DatePresetSchema.optional().describe(
+			"Date preset such as last_7d. Alternative to from/to; defaults to last_30d."
+		),
 		from: DateOnlySchema.optional().describe(
 			"Start date YYYY-MM-DD. Use with to; alternative to preset."
 		),
