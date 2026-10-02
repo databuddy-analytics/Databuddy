@@ -89,7 +89,7 @@ const benefits = [
 	{
 		title: "Keep your pages fast",
 		description:
-			"The tracker is about 13 KB gzipped and loads asynchronously, so it stays out of your visitors' way.",
+			"The tracker loads in the background, so your pages render without waiting on analytics.",
 		icon: LightningIcon,
 	},
 	{
@@ -139,9 +139,9 @@ function ScriptPanel() {
 				))}
 			</pre>
 			<div className="flex flex-wrap gap-x-4 gap-y-1 border-white/[0.06] border-t px-4 py-3 font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
-				<span>13 KB gzipped</span>
 				<span>No cookies</span>
 				<span>Loads async</span>
+				<span>Any website</span>
 			</div>
 		</div>
 	);

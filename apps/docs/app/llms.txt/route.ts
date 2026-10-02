@@ -33,7 +33,7 @@ const PRODUCT_LINKS = [
 		title: "Databuddy",
 		url: SITE_URL,
 		description:
-			"Product analytics for startups: visitors, custom events, funnels, goals, and user profiles from one cookieless 13 KB script.",
+			"Product analytics for startups: visitors, custom events, funnels, goals, and user profiles from one cookieless script.",
 	},
 	{
 		title: "Live demo",

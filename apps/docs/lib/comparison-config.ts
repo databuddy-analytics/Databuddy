@@ -82,7 +82,7 @@ export const competitors: Record<string, ComparisonData> = {
 		seo: {
 			title: "Google Analytics Alternative: Databuddy vs GA4 (2026)",
 			description:
-				"Databuddy vs GA4: cookieless analytics from one 13 KB script, an AI analyst that shows its query, and uptime and feature flags built in. Free to 10k events.",
+				"Databuddy vs GA4: cookieless analytics with funnels and goals, an AI analyst that shows its query, and uptime and feature flags built in. Free to 10k events.",
 		},
 		verdict: {
 			competitor: [
@@ -434,7 +434,7 @@ export const competitors: Record<string, ComparisonData> = {
 		seo: {
 			title: "PostHog Alternative: Databuddy vs PostHog (2026)",
 			description:
-				"Databuddy vs PostHog: both track product events, run feature flags, and have AI. Databuddy is one 13 KB cookieless script; PostHog adds replay and surveys.",
+				"Databuddy vs PostHog: both track product events, run feature flags, and have AI. Databuddy is one cookieless script; PostHog adds replay and surveys.",
 		},
 		verdict: {
 			competitor: [
@@ -442,7 +442,7 @@ export const competitors: Record<string, ComparisonData> = {
 				"You run experiments and want PostHog’s experiment analysis engine.",
 			],
 			databuddy: [
-				"You want one cookieless script, about 13 KB gzip, for traffic, custom events, funnels, and goals.",
+				"You want one cookieless script for traffic, custom events, funnels, and goals.",
 				"You want page views, custom events, errors, and Web Vitals to share one event allowance.",
 				"You want uptime monitoring next to your product analytics, errors, and feature flags.",
 			],
@@ -671,7 +671,7 @@ export const competitors: Record<string, ComparisonData> = {
 		seo: {
 			title: "Mixpanel Alternative: Databuddy vs Mixpanel (2026)",
 			description:
-				"Databuddy vs Mixpanel: both have web analytics, funnels, feature flags, identified users, and AI analysis. Mixpanel adds cohorts; Databuddy is one 13 KB script.",
+				"Databuddy vs Mixpanel: both have web analytics, funnels, flags, identified users, and AI analysis. Mixpanel adds cohorts; Databuddy is one cookieless script.",
 		},
 		verdict: {
 			competitor: [
@@ -679,7 +679,7 @@ export const competitors: Record<string, ComparisonData> = {
 				"You expect more than 10,000 events a month on a free plan; Mixpanel Free includes 1 million.",
 			],
 			databuddy: [
-				"You want one cookieless script, about 13 KB gzip, for traffic, events, funnels, and goals.",
+				"You want one cookieless script for traffic, events, funnels, and goals.",
 				"You want uptime monitoring and error tracking next to your product analytics.",
 				"You want analytics code you can read: Databuddy is open source under AGPL-3.0.",
 			],
@@ -796,7 +796,7 @@ export const competitors: Record<string, ComparisonData> = {
 		seo: {
 			title: "Amplitude Alternative: Databuddy vs Amplitude (2026)",
 			description:
-				"Databuddy vs Amplitude: both have AI analysis, feature flags, and custom events. Amplitude adds session replay and cohorts; Databuddy is one 13 KB script.",
+				"Databuddy vs Amplitude: both have AI analysis, feature flags, and custom events. Amplitude adds session replay and cohorts; Databuddy is one cookieless script.",
 		},
 		verdict: {
 			competitor: [
@@ -805,7 +805,7 @@ export const competitors: Record<string, ComparisonData> = {
 			],
 			databuddy: [
 				"You want error tracking and uptime monitoring in the same dashboard as your analytics.",
-				"You want one cookieless script, about 13 KB gzip, for traffic, events, funnels, and goals.",
+				"You want one cookieless script for traffic, events, funnels, and goals.",
 				"You want analytics code you can read: Databuddy is open source under AGPL-3.0.",
 			],
 		},
@@ -1171,7 +1171,7 @@ export const competitors: Record<string, ComparisonData> = {
 		seo: {
 			title: "Matomo Alternative: Databuddy vs Matomo (2026)",
 			description:
-				"Databuddy vs Matomo: both track events, goals, and real-time visits, with reporting APIs. Matomo adds heatmaps and recordings; Databuddy is one 13 KB script.",
+				"Databuddy vs Matomo: both track events, goals, and live visits, with reporting APIs. Matomo adds heatmaps and recordings; Databuddy is one cookieless script.",
 		},
 		verdict: {
 			competitor: [
