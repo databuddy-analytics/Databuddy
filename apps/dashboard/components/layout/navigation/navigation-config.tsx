@@ -110,6 +110,7 @@ export const mainNavigation: NavigationGroup[] = [
 			createNavItem("MCP", PlugIcon, "/mcp", {
 				activeMatch: "prefix",
 				alpha: true,
+				flag: "mcp",
 				searchTags: ["mcp server", "model context protocol", "tool calls"],
 			}),
 		],
@@ -385,6 +386,16 @@ export function getNavContext(pathname: string): NavContext {
 		return "settings";
 	}
 	return "main";
+}
+
+export function withFlags(
+	groups: NavigationGroup[],
+	isOn: (flag: string) => boolean
+): NavigationGroup[] {
+	return groups.map((group) => ({
+		...group,
+		items: group.items.filter((item) => !item.flag || isOn(item.flag)),
+	}));
 }
 
 export function getNavigation(pathname: string): NavigationGroup[] {

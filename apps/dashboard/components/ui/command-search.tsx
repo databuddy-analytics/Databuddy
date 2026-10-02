@@ -21,6 +21,7 @@ import {
 	mainNavigation,
 	settingsNavigation,
 	websiteNavigation,
+	withFlags,
 } from "@/components/layout/navigation/navigation-config";
 import type {
 	NavIcon,
@@ -49,6 +50,7 @@ import {
 	OpenExternalIcon,
 	PlusIcon,
 } from "@databuddy/ui/icons";
+import { useFlags } from "@databuddy/sdk/react";
 import { Badge } from "@databuddy/ui";
 import { Dialog } from "@databuddy/ui/client";
 
@@ -359,6 +361,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 		setApiKeySheetOpen(true);
 	}, []);
 
+	const { isOn } = useFlags();
 	const groups = useMemo(() => {
 		const result: SearchGroup[] = [];
 		const websitePrefix = currentWebsiteId
@@ -422,7 +425,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 				],
 			});
 
-			result.push(...groupsToSearchGroups(mainNavigation));
+			result.push(...groupsToSearchGroups(withFlags(mainNavigation, isOn)));
 			result.push(...groupsToSearchGroups(settingsNavigation));
 		}
 
@@ -481,6 +484,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 		isDemoPath,
 		isBillingLoading,
 		isFeatureEnabled,
+		isOn,
 		isSwitchingOrganization,
 		openApiKey,
 		openCreateApiKey,
