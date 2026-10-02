@@ -21,11 +21,20 @@ import { TimeGranularity } from "../types";
 
 const UPTIME_TABLE = "uptime.uptime_monitor";
 
+const UPTIME_RANGE_START =
+	"parseDateTimeBestEffort({startDate:String}, {timezone:String})";
+const UPTIME_RANGE_END =
+	"parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'), {timezone:String})";
+
+function clippedBucketSeconds(interval: "WEEK" | "MONTH"): string {
+	return `greatest(1, dateDiff('second', greatest(toDateTime(date, {timezone:String}), ${UPTIME_RANGE_START}), least(toDateTime(date + INTERVAL 1 ${interval}, {timezone:String}), ${UPTIME_RANGE_END} + 1)))`;
+}
+
 const UPTIME_BUCKET_SECONDS: Record<Exclude<Granularity, "minute">, string> = {
 	hour: "3600",
 	day: "86400",
-	week: "604800",
-	month: "(toDayOfMonth(toLastDayOfMonth(date)) * 86400)",
+	week: clippedBucketSeconds("WEEK"),
+	month: clippedBucketSeconds("MONTH"),
 };
 
 function uptimeTimeGroup(granularity: Granularity, field: string): string {
@@ -98,8 +107,8 @@ export const UptimeBuilders = {
 							FROM ${UPTIME_TABLE}
 							WHERE
 								site_id = {websiteId:String}
-								AND timestamp >= parseDateTimeBestEffort({startDate:String}, {timezone:String})
-								AND timestamp <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'), {timezone:String})
+								AND timestamp >= ${UPTIME_RANGE_START}
+								AND timestamp <= ${UPTIME_RANGE_END}
 						)
 						GROUP BY date
 					)

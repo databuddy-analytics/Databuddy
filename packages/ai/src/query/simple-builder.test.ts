@@ -989,7 +989,7 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.timezone).toBe("America/New_York");
 	});
 
-	it("measures week uptime against the whole week, not a minute", () => {
+	it("measures week uptime against the part of the week inside the range", () => {
 		const config = QueryBuilders.uptime_time_series;
 		if (!config) {
 			throw new Error("uptime_time_series builder is missing");
@@ -998,7 +998,13 @@ describe("SimpleQueryBuilder.compile", () => {
 		const { sql } = compileBuilder("uptime_time_series", config, {
 			timeUnit: "week",
 		});
-		expect(sql).toContain("least(downtime_seconds, 604800) / 604800");
+		expect(sql).toContain(
+			"least(downtime_seconds, greatest(1, dateDiff('second', greatest(toDateTime(date, {timezone:String})"
+		);
+		expect(sql).toContain(
+			"least(toDateTime(date + INTERVAL 1 WEEK, {timezone:String})"
+		);
+		expect(sql).not.toContain("604800");
 	});
 
 	it("includes blank-valued desktop sessions in device breakdowns", () => {
