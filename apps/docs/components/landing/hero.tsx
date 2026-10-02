@@ -285,10 +285,7 @@ export default function Hero({ stars }: { stars?: number | null }) {
 
 	const activeIndex = tabs.findIndex((t) => t.id === activeTab);
 
-	const [demoEmbedBaseUrl, setDemoEmbedBaseUrl] = useState("");
-
 	useEffect(() => {
-		setDemoEmbedBaseUrl(getDemoEmbedBaseUrl(window.location.hostname));
 		if (window.matchMedia("(min-width: 768px)").matches) {
 			setLoadedTabIds((prev) => new Set(prev).add(tabs[0].id));
 		}
@@ -464,10 +461,9 @@ export default function Hero({ stars }: { stars?: number | null }) {
 										: i > activeIndex
 											? "100%"
 											: "-100%";
-									const src =
-										demoEmbedBaseUrl && loadedTabIds.has(tab.id)
-											? `${demoEmbedBaseUrl}${tab.path}?embed=true`
-											: "about:blank";
+									const src = loadedTabIds.has(tab.id)
+										? `${getDemoEmbedBaseUrl(window.location.hostname)}${tab.path}?embed=true`
+										: "about:blank";
 									return (
 										<iframe
 											allowFullScreen

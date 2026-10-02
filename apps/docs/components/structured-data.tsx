@@ -19,7 +19,7 @@ interface JsonLdNode {
 	[property: string]: JsonLdValue;
 }
 
-interface Breadcrumb {
+export interface Breadcrumb {
 	name: string;
 	url: string;
 }

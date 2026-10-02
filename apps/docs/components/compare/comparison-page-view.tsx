@@ -5,7 +5,7 @@ import { StatsCards } from "@/components/compare/stats-cards";
 import { Footer } from "@/components/footer";
 import { FaqSection as SharedFaqSection } from "@/components/landing/faq-section";
 import Section from "@/components/landing/section";
-import { StructuredData } from "@/components/structured-data";
+import { type Breadcrumb, StructuredData } from "@/components/structured-data";
 import { TrackOnMount } from "@/components/track-on-mount";
 import type {
 	ComparisonFeature,
@@ -17,7 +17,7 @@ import type {
 } from "@/lib/comparison-config";
 
 interface ComparisonPageViewProps {
-	breadcrumbs: { name: string; url: string }[];
+	breadcrumbs: Breadcrumb[];
 	competitor: CompetitorInfo;
 	faqs: FaqItem[];
 	features: ComparisonFeature[];
