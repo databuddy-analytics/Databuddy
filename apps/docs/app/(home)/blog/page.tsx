@@ -35,6 +35,7 @@ export const metadata: Metadata = {
 		title: blogTitle,
 		description: blogDescription,
 		url: blogUrl,
+		images: ["/og-image.png"],
 	},
 };
 
@@ -161,8 +162,12 @@ function BlogPostCard({ post }: { post: Post }) {
 
 export default async function BlogPage() {
 	const result = await getPosts();
-	const posts = "error" in result ? [] : result.posts;
-	const sortedPosts = [...posts]
+	if ("error" in result) {
+		throw new Error(
+			`Failed to load blog posts: ${result.status} ${result.statusText}`
+		);
+	}
+	const sortedPosts = result.posts
 		.filter(isPublished)
 		.sort(
 			(a, b) =>

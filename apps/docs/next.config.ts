@@ -261,6 +261,10 @@ const config: NextConfig = {
 				protocol: "https" as const,
 				hostname: "api.producthunt.com",
 			},
+			{
+				protocol: "https" as const,
+				hostname: "pw-static-cdn.com",
+			},
 		],
 		minimumCacheTTL: 60 * 60 * 24 * 30,
 	},

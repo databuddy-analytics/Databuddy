@@ -37,7 +37,6 @@
     "fumadocs-mdx": "14.3.0",
     "fumadocs-ui": "15.5.0",
     "gray-matter": "^4.0.3",
-    "isomorphic-dompurify": "^3.12.0",
     "libphonenumber-js": "^1.12.41",
     "motion": "^12.38.0",
     "next": "catalog:",
@@ -52,6 +51,7 @@
     "recharts": "^3.9.0",
     "remark-mdx": "^3.1.1",
     "resend": "^6.12.0",
+    "sanitize-html": "^2.18.0",
     "shiki": "^4.3.0",
     "sonner": "^2.0.7",
     "zod": "catalog:"
@@ -63,6 +63,7 @@
     "@types/node": "26.0.0",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@types/sanitize-html": "^2.16.2",
     "babel-plugin-react-compiler": "^1.0.0",
     "next-validate-link": "^1.6.4",
     "postcss": "^8.5.10",
