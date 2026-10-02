@@ -69,6 +69,7 @@ describe("Marble blog query helpers", () => {
 			error: true,
 			status: 500,
 			statusText: "Environment variables not configured",
+			unconfigured: true,
 		});
 	});
 

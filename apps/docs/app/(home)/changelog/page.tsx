@@ -92,12 +92,12 @@ function ChangelogEntry({
 
 export default async function ChangelogPage() {
 	const result = await getChangelogs();
-	if ("error" in result) {
+	if ("error" in result && !result.unconfigured) {
 		throw new Error(
 			`Failed to load changelog: ${result.status} ${result.statusText}`
 		);
 	}
-	const { posts } = result;
+	const posts = "error" in result ? [] : result.posts;
 
 	return (
 		<div>
