@@ -1,13 +1,9 @@
 import { SITE_URL } from "@/app/util/constants";
+import type { Breadcrumb } from "@/components/structured-data";
 import { type DocPage, getPageImage, source } from "@/lib/source";
 
-interface DocsBreadcrumb {
-	name: string;
-	url: string;
-}
-
 export interface DocsPageSeoModel {
-	breadcrumbs: DocsBreadcrumb[];
+	breadcrumbs: Breadcrumb[];
 	description: string;
 	ogImage: string;
 	pageTitle: string;
@@ -38,8 +34,8 @@ function sectionLabelForUrl(url: string): string {
 	return "Documentation";
 }
 
-function docsBreadcrumbs(page: DocPage, pageTitle: string): DocsBreadcrumb[] {
-	const breadcrumbs: DocsBreadcrumb[] = [
+function docsBreadcrumbs(page: DocPage, pageTitle: string): Breadcrumb[] {
+	const breadcrumbs: Breadcrumb[] = [
 		{ name: "Home", url: SITE_URL },
 		{ name: "Docs", url: `${SITE_URL}/docs` },
 	];

@@ -60,14 +60,12 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
 	},
 };
 
-function sanitizePostHtml(html: string) {
-	return sanitizeHtml(html, SANITIZE_OPTIONS)
-		.replace(TABLE_OPEN_REGEX, '<div class="overflow-x-auto"><table')
-		.replace(TABLE_CLOSE_REGEX, "</table></div>");
-}
-
 export function Prose({ children, html, className }: ProseProps) {
-	const sanitized = html ? sanitizePostHtml(html) : "";
+	const sanitized = html
+		? sanitizeHtml(html, SANITIZE_OPTIONS)
+				.replace(TABLE_OPEN_REGEX, '<div class="overflow-x-auto"><table')
+				.replace(TABLE_CLOSE_REGEX, "</table></div>")
+		: "";
 	return (
 		<article
 			className={cn(
@@ -78,8 +76,6 @@ export function Prose({ children, html, className }: ProseProps) {
 				"prose-headings:font-semibold",
 				"prose-headings:text-foreground",
 				"prose-headings:tracking-tight",
-				"prose-h1:text-3xl",
-				"sm:prose-h1:text-4xl",
 				"prose-h2:text-2xl",
 				"sm:prose-h2:text-3xl",
 				"prose-h3:text-xl",
