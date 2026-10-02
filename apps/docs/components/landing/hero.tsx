@@ -16,7 +16,7 @@ import {
 import { motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { flush, track } from "@databuddy/sdk";
 import BackgroundFlow from "./backgroundFlow";
 import { SciFiButton } from "./scifi-btn";
@@ -131,11 +131,7 @@ const tabLabels = new Map<HeroTabId, string>(
 	tabs.map((tab) => [tab.id, tab.label])
 );
 
-const proofPoints = [
-	"Free up to 10k events/mo",
-	"No cookies",
-	"13 KB script",
-] as const;
+const proofPoints = ["Free up to 10k events/mo", "No cookies"] as const;
 
 type FullscreenElement = HTMLIFrameElement & {
 	webkitRequestFullscreen?: () => Promise<void>;
@@ -287,12 +283,18 @@ export default function Hero({
 }) {
 	const [activeTab, setActiveTab] = useState<HeroTabId>(tabs[0].id);
 	const [loadedTabIds, setLoadedTabIds] = useState<Set<string>>(
-		() => new Set([tabs[0].id])
+		() => new Set()
 	);
 	const [embedReady, setEmbedReady] = useState<Set<string>>(() => new Set());
 	const iframeRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
 
 	const activeIndex = tabs.findIndex((t) => t.id === activeTab);
+
+	useEffect(() => {
+		if (window.matchMedia("(min-width: 768px)").matches) {
+			setLoadedTabIds((prev) => new Set(prev).add(tabs[0].id));
+		}
+	}, []);
 
 	const selectTab = (id: HeroTabId) => {
 		setActiveTab(id);
@@ -505,17 +507,30 @@ export default function Hero({
 								/>
 							</div>
 
-							<button
-								aria-label="Open demo in fullscreen"
-								className="absolute inset-1.5 flex items-center justify-center rounded bg-background/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:inset-2"
-								onClick={handleFullscreen}
-								type="button"
-							>
-								<div className="flex cursor-pointer items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm transition-colors duration-200 hover:bg-card">
-									<ArrowsOutSimpleIcon className="size-4" />
-									<span>Click to view fullscreen</span>
-								</div>
-							</button>
+							{loadedTabIds.has(activeTab) ? (
+								<button
+									aria-label="Open demo in fullscreen"
+									className="absolute inset-1.5 flex items-center justify-center rounded bg-background/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:inset-2"
+									onClick={handleFullscreen}
+									type="button"
+								>
+									<div className="flex cursor-pointer items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm transition-colors duration-200 hover:bg-card">
+										<ArrowsOutSimpleIcon className="size-4" />
+										<span>Click to view fullscreen</span>
+									</div>
+								</button>
+							) : (
+								<button
+									className="absolute inset-1.5 z-20 flex items-end justify-center rounded pb-8 md:hidden"
+									onClick={() => selectTab(activeTab)}
+									type="button"
+								>
+									<span className="flex items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm">
+										<ArrowsOutSimpleIcon className="size-4" />
+										Load the live demo
+									</span>
+								</button>
+							)}
 						</div>
 					</div>
 				</div>
