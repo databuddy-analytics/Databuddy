@@ -1,6 +1,13 @@
-import { type DocPage, getPageImage } from "@/lib/source";
+import { SITE_URL } from "@/app/util/constants";
+import { type DocPage, getPageImage, source } from "@/lib/source";
+
+interface DocsBreadcrumb {
+	name: string;
+	url: string;
+}
 
 export interface DocsPageSeoModel {
+	breadcrumbs: DocsBreadcrumb[];
 	description: string;
 	ogImage: string;
 	pageTitle: string;
@@ -31,14 +38,34 @@ function sectionLabelForUrl(url: string): string {
 	return "Documentation";
 }
 
+function docsBreadcrumbs(page: DocPage, pageTitle: string): DocsBreadcrumb[] {
+	const breadcrumbs: DocsBreadcrumb[] = [
+		{ name: "Home", url: SITE_URL },
+		{ name: "Docs", url: `${SITE_URL}/docs` },
+	];
+	const [section, ...rest] = page.slugs;
+	if (!section) {
+		return breadcrumbs;
+	}
+	const sectionPage = rest.length > 0 ? source.getPage([section]) : undefined;
+	if (sectionPage?.data.title) {
+		breadcrumbs.push({
+			name: sectionPage.data.title,
+			url: `${SITE_URL}${sectionPage.url}`,
+		});
+	}
+	breadcrumbs.push({ name: pageTitle, url: `${SITE_URL}${page.url}` });
+	return breadcrumbs;
+}
+
 export function getDocsPageSeo(page: DocPage): DocsPageSeoModel {
 	const pageTitle = page.data.title ?? "Documentation";
-	const url = `https://www.databuddy.cc${page.url}`;
-	const title = `${pageTitle} - Docs`;
+	const url = `${SITE_URL}${page.url}`;
+	const title = page.data.seoTitle ?? `${pageTitle} - Docs`;
 	const description =
 		page.data.description ??
-		`${pageTitle} - guides and reference for Databuddy, the privacy-first analytics platform.`;
-	const ogImage = `https://www.databuddy.cc${getPageImage(page).url}`;
+		`${pageTitle} - guides and reference for Databuddy, open-source product analytics for startups.`;
+	const ogImage = `${SITE_URL}${getPageImage(page).url}`;
 	const sectionLabel = sectionLabelForUrl(page.url);
 
 	return {
@@ -48,5 +75,6 @@ export function getDocsPageSeo(page: DocPage): DocsPageSeoModel {
 		url,
 		ogImage,
 		sectionLabel,
+		breadcrumbs: docsBreadcrumbs(page, pageTitle),
 	};
 }
