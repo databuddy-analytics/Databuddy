@@ -208,13 +208,13 @@ function clause(
 	keyword: string,
 	stops: string[]
 ): string {
-	const start = new RegExp(`(?:^|\\s)${keyword}\\s`).exec(masked);
+	const start = new RegExp(`(?:^|\\s)${keyword}\\s`, "i").exec(masked);
 	if (!start) {
 		return "";
 	}
 	const from = start.index + start[0].length;
 	const end = stops.length
-		? masked.slice(from).search(new RegExp(`\\s(?:${stops.join("|")})\\s`))
+		? masked.slice(from).search(new RegExp(`\\s(?:${stops.join("|")})\\s`, "i"))
 		: -1;
 	return tail.slice(from, end === -1 ? undefined : from + end).trim();
 }

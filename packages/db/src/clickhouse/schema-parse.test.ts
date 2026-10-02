@@ -84,6 +84,16 @@ describe("parseTable ttl", () => {
 });
 
 describe("parseTable clauses", () => {
+	it("parses mixed-case clauses without consuming their neighbors", () => {
+		const table = parseTable(
+			"create table analytics.example (id String, d DateTime) engine = MergeTree partition by toYYYYMM(d) Order By (id, d) ttl d + interval 1 day settings index_granularity = 8192"
+		);
+		expect(table.engine).toBe("MergeTree");
+		expect(table.partitionBy).toBe("toYYYYMM(d)");
+		expect(table.orderBy).toBe("(id, d)");
+		expect(table.ttl).toBe("d + toIntervalDay(1)");
+		expect(table.settings).toBe("index_granularity = 8192");
+	});
 	it("does not end a clause at a keyword inside an identifier", () => {
 		const table = parseTable(
 			"CREATE TABLE analytics.example (id String, attl String, user_settings String, ttl String) ENGINE = ReplicatedMergeTree('/clickhouse/tables/user_settings', '{replica}') ORDER BY (id, attl, user_settings, ttl) SETTINGS index_granularity = 8192"
