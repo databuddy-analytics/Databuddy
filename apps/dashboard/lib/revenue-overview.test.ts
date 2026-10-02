@@ -107,6 +107,21 @@ describe("payment failure observations", () => {
 });
 
 describe("revenue attribution coverage", () => {
+	it.each([
+		[0.001, "<1%"],
+		[0.49, "<1%"],
+		[0.5, "1%"],
+		[1, "1%"],
+	] as const)("preserves small positive coverage: %s%%", (attributed, label) => {
+		expect(
+			revenueAttributionRateLabel({
+				...emptyOverview,
+				attributed_revenue: attributed,
+				total_revenue: 100,
+			})
+		).toBe(label);
+	});
+
 	it("measures revenue rather than payment count", () => {
 		expect(
 			revenueAttributionRateLabel({

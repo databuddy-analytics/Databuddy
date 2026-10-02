@@ -257,7 +257,7 @@ export function RevenueAttributionTables({
 				columns: countryColumns as ColumnDef<RevenueEntry, unknown>[],
 				getFilter: (row: RevenueEntry) => ({
 					field: "country",
-					value: row.country_name || row.name,
+					value: row.country_code || row.name,
 				}),
 			},
 			{
