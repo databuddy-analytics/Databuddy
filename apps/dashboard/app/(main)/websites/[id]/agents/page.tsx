@@ -6,6 +6,7 @@ import {
 	CopyButton,
 	dayjs,
 	EmptyState,
+	formatLocalTime,
 	fromNow,
 	SegmentedControl,
 	Skeleton,
@@ -24,6 +25,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	type AgentPurpose,
+	aiProductIcon,
 	type ContentFormat,
 	FEATURED_AI_PRODUCTS,
 	type RobotsAccess,
@@ -366,6 +368,12 @@ function robotsStatus(agent: ReadingAgent): {
 			? "Blocked, still crawling"
 			: ROBOTS_LABELS[agent.robots],
 	};
+}
+
+function readTime(timestamp: string | null): string {
+	return timestamp
+		? `${fromNow(timestamp)} (${formatLocalTime(timestamp, "MMM D, HH:mm")})`
+		: "";
 }
 
 function robotsLine(agent: ReadingAgent): string {
@@ -882,7 +890,10 @@ function AgentReadsPanel({
 			result.queryId === "agent-pages" && "ai_agent_pages" in result.data
 	);
 
-	const readersByPage = new Map<string, Map<string, number>>();
+	const readersByPage = new Map<
+		string,
+		Map<string, { product: string; requests: number }>
+	>();
 	const lastReadByPage = new Map<string, string>();
 	for (const read of selected ? agentPages : reads) {
 		if (focus !== "all" && read.format !== focus) {
@@ -892,25 +903,39 @@ function AgentReadsPanel({
 		if (!lastRead || read.last_seen > lastRead) {
 			lastReadByPage.set(read.page, read.last_seen);
 		}
-		const readers = readersByPage.get(read.page) ?? new Map<string, number>();
+		const readers =
+			readersByPage.get(read.page) ??
+			new Map<string, { product: string; requests: number }>();
 		for (const reader of read.agents) {
 			if (!selected || reader.agent_id === selected.agent_id) {
-				readers.set(
-					reader.name,
-					(readers.get(reader.name) ?? 0) + Number(reader.requests)
-				);
+				readers.set(reader.name, {
+					product: reader.product,
+					requests:
+						(readers.get(reader.name)?.requests ?? 0) + Number(reader.requests),
+				});
 			}
 		}
 		readersByPage.set(read.page, readers);
 	}
 	const pages = [...readersByPage]
-		.map(([page, readers]) => ({
-			page,
-			readers: [...readers]
-				.map(([name, requests]) => ({ name, requests }))
-				.sort((a, b) => b.requests - a.requests),
-			value: [...readers.values()].reduce((sum, requests) => sum + requests, 0),
-		}))
+		.map(([page, readers]) => {
+			const ranked = [...readers]
+				.map(([name, reader]) => ({ name, ...reader }))
+				.sort((a, b) => b.requests - a.requests);
+			return {
+				page,
+				products: [
+					...new Map(
+						ranked.map((reader) => [
+							aiProductIcon(reader.product) ?? reader.product,
+							reader.product,
+						])
+					).values(),
+				],
+				readers: ranked,
+				value: ranked.reduce((sum, reader) => sum + reader.requests, 0),
+			};
+		})
 		.filter((row) => row.value > 0)
 		.sort((a, b) => b.value - a.value);
 
@@ -1007,7 +1032,7 @@ function AgentReadsPanel({
 											<Tip
 												lines={[
 													purposeDescription(agent),
-													`${formatCount(agent.requests, "request")} · ${formatCount(agent.pages, "page")} · last read ${fromNow(agent.last_seen)}`,
+													`${formatCount(agent.requests, "request")} · ${formatCount(agent.pages, "page")} · last read ${readTime(agent.last_seen)}`,
 													requestChangeLine(agent),
 													robotsLine(agent),
 													isSelected
@@ -1128,7 +1153,7 @@ function AgentReadsPanel({
 												selected
 													? [
 															`${formatNumber(page.value)} ${label} requests from ${selected.name}`,
-															`last read ${fromNow(lastReadByPage.get(page.page) ?? null)}`,
+															`last read ${readTime(lastReadByPage.get(page.page) ?? null)}`,
 														]
 													: [
 															...page.readers
@@ -1151,8 +1176,15 @@ function AgentReadsPanel({
 										{page.page}
 									</span>
 									{selected ? null : (
-										<span className="relative hidden max-w-[45%] shrink-0 truncate text-muted-foreground text-xs sm:inline">
-											{page.readers.map((reader) => reader.name).join(", ")}
+										<span className="relative flex shrink-0 items-center gap-1">
+											{page.products.slice(0, 3).map((product) => (
+												<AiProductIcon key={product} name={product} size="sm" />
+											))}
+											{page.products.length > 3 ? (
+												<span className="text-muted-foreground text-xs tabular-nums">
+													+{page.products.length - 3}
+												</span>
+											) : null}
 										</span>
 									)}
 								</BarRow>
@@ -1255,7 +1287,7 @@ function FailedRequestsPanel({ rows }: { rows: FailedRequestRow[] }) {
 												(agent) =>
 													`${agent.name} · ${formatNumber(Number(agent.requests))}`
 											),
-										`last request ${fromNow(row.last_seen)}`,
+										`last request ${readTime(row.last_seen)}`,
 									]}
 									title={`${row.page} returned ${row.status_code}`}
 								/>
