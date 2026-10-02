@@ -722,6 +722,64 @@ export const ErrorsBuilders = {
 		allowedFilters: ["message", "path", "error_type"],
 	},
 
+	error_segments: {
+		meta: {
+			description:
+				"Occurrences and sessions of matching errors per browser, browser major version, operating system, device type and country, counting sessions whose context was recorded. Top 50 values per dimension.",
+			category: "Errors",
+			tags: ["errors", "segments", "browsers", "internal"],
+		},
+		customSql: (ctx) => ({
+			sql: `
+				WITH matched AS (
+					SELECT session_id
+					FROM ${Analytics.error_spans}
+					WHERE client_id = {websiteId:String}
+						AND timestamp >= toDateTime({startDate:String})
+						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						AND message != ''
+						AND session_id != ''
+						${appendFilterClause(ctx.filterConditions)}
+				),
+				context AS (
+					SELECT
+						session_id,
+						any(browser_name) AS browser_name,
+						any(browser_version) AS browser_version,
+						any(os_name) AS os_name,
+						any(device_type) AS device_type,
+						any(country) AS country
+					FROM ${Analytics.events}
+					WHERE client_id = {websiteId:String}
+						AND time >= toDateTime({startDate:String})
+						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						AND session_id IN (SELECT session_id FROM matched)
+					GROUP BY session_id
+				)
+				SELECT
+					pair.1 AS dimension,
+					pair.2 AS value,
+					count() AS errors,
+					uniq(m.session_id) AS sessions
+				FROM matched AS m
+				INNER JOIN context AS c ON c.session_id = m.session_id
+				ARRAY JOIN ${Expressions.segments("c.")} AS pair
+				GROUP BY dimension, value
+				ORDER BY dimension, sessions DESC
+				LIMIT 50 BY dimension
+			`,
+			params: {
+				websiteId: ctx.websiteId,
+				startDate: ctx.startDate,
+				endDate: ctx.endDate,
+				...ctx.filterParams,
+			},
+		}),
+		timeField: "timestamp",
+		commonFilters: false,
+		allowedFilters: ["message", "path", "error_type"],
+	},
+
 	errors_by_page: {
 		meta: {
 			description: "Error counts grouped by the page where they occurred.",

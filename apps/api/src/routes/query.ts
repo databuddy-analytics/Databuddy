@@ -452,6 +452,7 @@ const FEATURE_GATED_QUERY_TYPES: Record<string, GatedFeatureId> = {
 	error_summary: GATED_FEATURES.ERROR_TRACKING,
 	error_chart_data: GATED_FEATURES.ERROR_TRACKING,
 	error_trends: GATED_FEATURES.ERROR_TRACKING,
+	error_segments: GATED_FEATURES.ERROR_TRACKING,
 	error_frequency: GATED_FEATURES.ERROR_TRACKING,
 	errors_by_type: GATED_FEATURES.ERROR_TRACKING,
 };

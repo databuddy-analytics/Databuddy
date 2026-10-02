@@ -1,5 +1,6 @@
 import { CUSTOM_EVENTS_VISITOR_KEY } from "@databuddy/db/clickhouse";
 import { Analytics } from "../../types/tables";
+import { Expressions } from "../expressions";
 import { appendFilterClause } from "../simple-builder";
 import type { CustomSqlContext, Filter, SimpleQueryConfig } from "../types";
 
@@ -316,6 +317,62 @@ export const CustomEventsBuilders = {
 		timeField: "timestamp",
 		commonFilters: false,
 		allowedFilters: ["profile_id", "path", "event_name", "website_id"],
+	},
+
+	custom_event_segments: {
+		meta: {
+			description:
+				"Custom event counts and sessions per browser, browser major version, operating system, device type and country, counting events whose session context was recorded. Top 50 values per dimension.",
+			category: "Custom Events",
+			tags: ["custom-events", "segments", "browsers", "internal"],
+		},
+		customSql: (ctx) => ({
+			sql: `
+				WITH matched AS (
+					SELECT session_id
+					FROM ${Analytics.custom_events}
+					WHERE
+						${customEventsScope(ctx.filterParams)}
+						AND session_id != ''
+						${appendFilterClause(ctx.filterConditions)}
+				),
+				context AS (
+					SELECT
+						session_id,
+						any(browser_name) AS browser_name,
+						any(browser_version) AS browser_version,
+						any(os_name) AS os_name,
+						any(device_type) AS device_type,
+						any(country) AS country
+					FROM ${Analytics.events}
+					WHERE client_id = {projectId:String}
+						AND time >= toDateTime({startDate:String})
+						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						AND session_id IN (SELECT session_id FROM matched)
+					GROUP BY session_id
+				)
+				SELECT
+					pair.1 AS dimension,
+					pair.2 AS value,
+					count() AS events,
+					uniq(m.session_id) AS sessions
+				FROM matched AS m
+				INNER JOIN context AS c ON c.session_id = m.session_id
+				ARRAY JOIN ${Expressions.segments("c.")} AS pair
+				GROUP BY dimension, value
+				ORDER BY dimension, sessions DESC
+				LIMIT 50 BY dimension
+			`,
+			params: {
+				projectId: ctx.websiteId,
+				startDate: ctx.startDate,
+				endDate: ctx.endDate,
+				...ctx.filterParams,
+			},
+		}),
+		timeField: "timestamp",
+		commonFilters: false,
+		allowedFilters: ["event_name", "path"],
 	},
 
 	custom_events_summary: {
