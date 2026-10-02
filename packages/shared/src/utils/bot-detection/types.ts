@@ -60,14 +60,19 @@ export const AI_ICON_COLORS: Record<string, string | null> = {
 	Amazon: "#FF9900",
 	Apple: null,
 	Atlassian: "#0052CC",
+	Bixel: null,
+	Brick: "#002FA7",
 	ByteDance: "#3C8CFF",
+	ChatGLM: "#504AF4",
 	ChatGPT: null,
 	Claude: "#D97757",
 	Cloudflare: "#F38020",
 	Cohere: "#FF7759",
+	CommonCrawl: null,
 	Copilot: "#0D91E1",
 	Cursor: null,
 	DeepSeek: "#5786FE",
+	Desearch: null,
 	Devin: "#0294DE",
 	Doubao: "#1E37FC",
 	DuckDuckGo: "#DE5833",
@@ -75,21 +80,28 @@ export const AI_ICON_COLORS: Record<string, string | null> = {
 	Firecrawl: null,
 	Gemini: "#8E75B2",
 	Google: "#4285F4",
+	Grok: null,
 	Huawei: "#FF0000",
+	Hunter: "#FA5320",
 	Kagi: "#FFB319",
 	Kimi: "#1783FF",
+	Linkup: null,
 	Manus: null,
 	Meta: "#0467DF",
 	Mistral: "#FA520F",
 	Mozilla: null,
+	Nekuda: "#00BFFF",
 	OpenCode: null,
 	Parallel: null,
 	Perplexity: "#1FB8CD",
 	Phind: null,
 	Poe: "#5D5CDE",
+	Poke: "#2F6A9A",
 	Qwen: "#6F69F7",
 	Tavily: "#FE363B",
+	Trae: "#32F08C",
 	v0: null,
+	YouCom: "#596CED",
 	Zed: "#084CCF",
 };
 
@@ -100,11 +112,14 @@ export function aiProductIcon(product: string): string | undefined {
 	const name = words.join("");
 	const isDomain = product.includes(".");
 	const icons = Object.keys(AI_ICON_COLORS);
+	const domainLabel = product.toLowerCase().split(".").at(-2);
 	return (
 		icons.find((icon) => icon.toLowerCase() === name) ??
-		(isDomain
-			? undefined
-			: icons.find((icon) => words.includes(icon.toLowerCase())))
+		icons.find((icon) =>
+			isDomain
+				? icon.toLowerCase() === domainLabel
+				: words.includes(icon.toLowerCase())
+		)
 	);
 }
 
