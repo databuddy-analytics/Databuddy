@@ -50,7 +50,6 @@ interface McpProtocol {
 type Outcome = { result: unknown } | { error: unknown };
 
 const BATCH_SIZE = 100;
-const MAX_PENDING = 1000;
 const FLUSH_DELAY_MS = 1000;
 const MAX_ERROR_LENGTH = 512;
 
@@ -98,10 +97,6 @@ function createSender(endpoint: string, apiKey: string, debug: boolean) {
 
 	return {
 		add(call: McpToolCall) {
-			if (pending.length >= MAX_PENDING) {
-				warn("too many unsent MCP calls, dropping one");
-				return;
-			}
 			pending.push(call);
 			if (pending.length >= BATCH_SIZE) {
 				send();
@@ -190,7 +185,10 @@ export function trackMcp<T extends object>(
 	}
 	const sender = senderFor(apiKey, options);
 	const websiteId =
-		options.websiteId ?? detectClientId() ?? env.DATABUDDY_WEBSITE_ID;
+		options.websiteId ||
+		detectClientId() ||
+		env.DATABUDDY_WEBSITE_ID ||
+		undefined;
 	const environment = options.environment ?? env.VERCEL_ENV ?? env.NODE_ENV;
 	instrumented.add(protocol);
 
