@@ -115,4 +115,106 @@ describeIntegration("custom event identity against ClickHouse", () => {
 		]);
 		expect(await read()).toEqual([["2026-08-02", 3]]);
 	});
+
+	it("counts event sessions per browser, version, OS, device and country", async () => {
+		const websiteId = `custom-event-segments-${randomUUIDv7()}`;
+		const time = "2026-08-02 12:00:00";
+		const session = (sessionId: string, context: Record<string, unknown>) => ({
+			anonymous_id: `anon-${sessionId}`,
+			client_id: websiteId,
+			created_at: time,
+			event_name: "screen_view",
+			id: randomUUIDv7(),
+			ip: "127.0.0.1",
+			path: "/",
+			properties: "{}",
+			session_id: sessionId,
+			time,
+			url: "https://example.com/",
+			user_agent: "integration-test",
+			...context,
+		});
+		await clickHouse.insert({
+			table: "analytics.events",
+			format: "JSONEachRow",
+			values: [
+				session("s-safari", {
+					browser_name: "Safari",
+					browser_version: "18.4.1",
+					country: "US",
+					device_type: "mobile",
+					os_name: "iOS",
+				}),
+				session("s-chrome", {
+					browser_name: "Chrome",
+					browser_version: "141.0.1",
+					country: "DE",
+					device_type: "",
+					os_name: "Windows",
+				}),
+			],
+		});
+		const event = (sessionId: string | null) => ({
+			anonymous_id: "anon",
+			event_name: "checkout_completed",
+			namespace: null,
+			owner_id: websiteId,
+			path: null,
+			profile_id: "",
+			properties: "{}",
+			session_id: sessionId,
+			source: "integration-test",
+			timestamp: time,
+			website_id: websiteId,
+		});
+		await clickHouse.insert({
+			table: "analytics.custom_events",
+			format: "JSONEachRow",
+			values: [
+				event("s-safari"),
+				event("s-safari"),
+				event("s-chrome"),
+				event(null),
+			],
+		});
+		const { sql, params } = new SimpleQueryBuilder(
+			CustomEventsBuilders.custom_event_segments,
+			{
+				filters: [
+					{ field: "event_name", op: "eq", value: "checkout_completed" },
+				],
+				from: "2026-08-02",
+				projectId: websiteId,
+				timezone: "UTC",
+				to: "2026-08-02",
+				type: "custom_event_segments",
+			}
+		).compile();
+		const rows = await chQuery<{
+			dimension: string;
+			events: number | string;
+			sessions: number | string;
+			value: string;
+		}>(sql, params);
+
+		expect(
+			Object.fromEntries(
+				rows.map((row) => [
+					`${row.dimension}:${row.value}`,
+					[Number(row.events), Number(row.sessions)],
+				])
+			)
+		).toEqual({
+			"browser:Chrome": [1, 1],
+			"browser:Safari": [2, 1],
+			"browser_version:Chrome 141": [1, 1],
+			"browser_version:Safari 18": [2, 1],
+			"country:DE": [1, 1],
+			"country:US": [2, 1],
+			"device:Desktop": [1, 1],
+			"device:Mobile": [2, 1],
+			"os:Windows": [1, 1],
+			"os:iOS": [2, 1],
+		});
+	});
 });
