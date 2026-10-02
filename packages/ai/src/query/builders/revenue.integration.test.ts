@@ -566,7 +566,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			const [website] = await revenueOverview(websiteId);
 			expect(Number(website?.refund_amount ?? 0)).toBe(0);
 		}
-	});
+	}, 15_000);
 
 	it("keeps earlier attribution stable when a session later changes profiles or salt", async () => {
 		const websiteId = `revenue-temporal-${randomUUIDv7()}`;
