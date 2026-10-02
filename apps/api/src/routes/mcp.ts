@@ -199,12 +199,12 @@ async function handleOAuthMcpRequest(
 				}
 				return null;
 			})
-		: createMcpUnauthorizedResponse();
-	if (
-		response &&
-		(response.status !== 401 || (await isSigningKeysReachable()))
-	) {
+		: null;
+	if (response && response.status !== 401) {
 		return response;
+	}
+	if (await isSigningKeysReachable()) {
+		return response ?? createMcpUnauthorizedResponse();
 	}
 	mergeWideEvent({ mcp_jwks_unavailable: true });
 	return createMcpErrorResponse(
