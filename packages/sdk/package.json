@@ -64,6 +64,10 @@
     "./agents": {
       "types": "./dist/agents/index.d.ts",
       "import": "./dist/agents/index.mjs"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "import": "./dist/mcp/index.mjs"
     }
   },
   "files": [
@@ -82,7 +86,8 @@
     "react",
     "nextjs",
     "vue",
-    "node"
+    "node",
+    "mcp"
   ],
   "homepage": "https://databuddy.cc",
   "repository": {
