@@ -505,6 +505,7 @@ export class Databuddy extends BaseTracker {
 				sessionStorage.removeItem("did_session_timestamp");
 				sessionStorage.removeItem("did_session_start");
 			} catch {}
+			this.resetPageEngagement();
 		}
 		this.clearUrlParamStorage();
 		this.clearProfile();
@@ -513,16 +514,6 @@ export class Databuddy extends BaseTracker {
 		this.sessionStartTime = Date.now();
 		this.pageCount = 0;
 		this.lastPath = "";
-		this.interactionCount = 0;
-		this.clickCount = 0;
-		this.keyCount = 0;
-		this.scrollCount = 0;
-		this.rageClickCount = 0;
-		this.deadClickCount = 0;
-		this.formFieldCount = 0;
-		this.formSubmitCount = 0;
-		this.errorCount = 0;
-		this.maxScrollDepth = 0;
 	}
 
 	destroy() {
