@@ -16,6 +16,7 @@
 - 🧩 **Drop-in React/Next.js and Vue components**
 - 🖥️ **Node.js server-side event tracking**
 - 🚩 **Client and server-side feature flags**
+- 🔌 **MCP server analytics: tool calls, clients, latency, and errors**
 - 🛡️ **Privacy-first: anonymized by default, sampling, batching, and more**
 - 🛠️ **Type-safe config and autocompletion**
 - 📋 **Observability: logging, error tracking, and distributed tracing**
@@ -76,6 +77,17 @@ if (!result.success) {
   console.error("Failed to flush analytics:", result.error);
 }
 ```
+
+## 🔌 MCP Servers
+
+```ts
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { trackMcp } from "@databuddy/sdk/mcp";
+
+const server = trackMcp(new McpServer({ name: "my-server", version: "1.0.0" }));
+```
+
+Records each tool call with its client, duration, result size and errors. Needs only `DATABUDDY_API_KEY`; arguments and results are never sent. See the [MCP docs](https://www.databuddy.cc/docs/sdk/mcp).
 
 ## 🚩 Server-Side Flags
 

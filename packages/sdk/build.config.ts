@@ -10,6 +10,7 @@ export default defineBuildConfig({
 		"./src/vue/index.ts",
 		"./src/node/index.ts",
 		"./src/agents/index.ts",
+		"./src/mcp/index.ts",
 	],
 	externals: ["react", "react-dom", "vue", "msw"],
 	rollup: {
