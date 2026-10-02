@@ -16,7 +16,7 @@ import { db } from "@databuddy/db";
 import { config } from "@databuddy/env/app";
 import { cacheable } from "@databuddy/redis";
 import { createMcpProtectedRequestHandler } from "@better-auth/mcp";
-import { type Context, Elysia } from "elysia";
+import { Elysia } from "elysia";
 import {
 	MCP_PATHS,
 	readMcpOAuthToken,
@@ -174,12 +174,10 @@ function loadSigningKeyIds(maxAgeMs: number): Promise<SigningKeyIds> {
 }
 
 async function isKnownSigningKey(keyId: string): Promise<boolean> {
-	const cached = await loadSigningKeyIds(SIGNING_KEYS_MAX_AGE_MS);
-	if (cached.ids.has(keyId)) {
-		return true;
-	}
-	const rechecked = await loadSigningKeyIds(SIGNING_KEYS_RECHECK_MS);
-	return rechecked.ids.has(keyId);
+	return (
+		(await loadSigningKeyIds(SIGNING_KEYS_MAX_AGE_MS)).ids.has(keyId) ||
+		(await loadSigningKeyIds(SIGNING_KEYS_RECHECK_MS)).ids.has(keyId)
+	);
 }
 
 async function isSigningKeysReachable(): Promise<boolean> {
@@ -194,23 +192,19 @@ async function handleOAuthMcpRequest(
 	if (!(verifyOAuthMcpRequest && keyId)) {
 		return createMcpUnauthorizedResponse();
 	}
-	if (await isKnownSigningKey(keyId)) {
-		const response = await verifyOAuthMcpRequest(request).catch(
-			async (error: unknown) => {
+	const response = (await isKnownSigningKey(keyId))
+		? await verifyOAuthMcpRequest(request).catch(async (error: unknown) => {
 				if (await isSigningKeysReachable()) {
 					throw error;
 				}
 				return null;
-			}
-		);
-		if (
-			response &&
-			(response.status !== 401 || (await isSigningKeysReachable()))
-		) {
-			return response;
-		}
-	} else if (await isSigningKeysReachable()) {
-		return createMcpUnauthorizedResponse();
+			})
+		: createMcpUnauthorizedResponse();
+	if (
+		response &&
+		(response.status !== 401 || (await isSigningKeysReachable()))
+	) {
+		return response;
 	}
 	mergeWideEvent({ mcp_jwks_unavailable: true });
 	return createMcpErrorResponse(
@@ -219,34 +213,6 @@ async function handleOAuthMcpRequest(
 		"Databuddy cannot verify access tokens right now. Retry shortly.",
 		{ "Retry-After": String(SIGNING_KEYS_RETRY_AFTER_SECONDS) }
 	);
-}
-
-async function handleMcpRequest({
-	request,
-	set,
-	user,
-	apiKey,
-	oauthAccessToken,
-	organizationId,
-}: {
-	apiKey: Awaited<ReturnType<typeof getApiKeyFromHeader>> | null;
-	oauthAccessToken: string | null;
-	organizationId: string | null;
-	request: Request;
-	set: Context["set"];
-	user: { id: string } | null;
-}) {
-	const response = oauthAccessToken
-		? await handleOAuthMcpRequest(request, oauthAccessToken)
-		: await handleDatabuddyMcpRequest({
-				request,
-				requestHeaders: request.headers,
-				userId: user?.id ?? null,
-				apiKey,
-				organizationId,
-			});
-	set.status = response.status;
-	return response;
 }
 
 export const mcp = new Elysia({ name: "mcp" })
@@ -293,5 +259,27 @@ export const mcp = new Elysia({ name: "mcp" })
 	});
 
 for (const path of MCP_PATHS) {
-	mcp.all(path, handleMcpRequest);
+	mcp.all(
+		path,
+		async ({
+			request,
+			set,
+			user,
+			apiKey,
+			oauthAccessToken,
+			organizationId,
+		}) => {
+			const response = oauthAccessToken
+				? await handleOAuthMcpRequest(request, oauthAccessToken)
+				: await handleDatabuddyMcpRequest({
+						request,
+						requestHeaders: request.headers,
+						userId: user?.id ?? null,
+						apiKey,
+						organizationId,
+					});
+			set.status = response.status;
+			return response;
+		}
+	);
 }

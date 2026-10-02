@@ -31,13 +31,9 @@ const discoveryUrls = {
 	apiCatalogUrl: `${API_URL}/.well-known/api-catalog`,
 } satisfies AgentDiscoveryUrls;
 
-function jsonResponse(body: unknown, init?: ResponseInit) {
+function jsonResponse(body: unknown) {
 	return Response.json(body, {
-		...init,
-		headers: {
-			"Cache-Control": "public, max-age=3600, must-revalidate",
-			...init?.headers,
-		},
+		headers: { "Cache-Control": "public, max-age=3600, must-revalidate" },
 	});
 }
 
