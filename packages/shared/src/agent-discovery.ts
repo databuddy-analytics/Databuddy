@@ -35,7 +35,8 @@ function resolveDiscoveryUrls(urls: AgentDiscoveryUrls) {
 }
 
 function protectedResourceMetadataUrl(urls: AgentDiscoveryUrls) {
-	return `${urls.apiUrl}/.well-known/oauth-protected-resource`;
+	return new URL("/.well-known/oauth-protected-resource", urls.mcpServerUrl)
+		.href;
 }
 
 function mcpTransports(mcpServerUrl: string) {

@@ -26,7 +26,7 @@ export interface DatabuddyMcpHttpOptions extends McpRequestContext {
 	request: Request;
 }
 
-const MCP_AUTH_CHALLENGE = `Bearer realm="databuddy", resource_metadata="${config.urls.api}/.well-known/oauth-protected-resource"`;
+const MCP_AUTH_CHALLENGE = `Bearer realm="databuddy", resource_metadata="${new URL("/.well-known/oauth-protected-resource", config.urls.mcp).href}"`;
 const MAX_MCP_REQUEST_BYTES = 1_048_576;
 const ToolCallRequestSchema = CallToolRequestSchema.extend({
 	params: CallToolRequestSchema.shape.params
