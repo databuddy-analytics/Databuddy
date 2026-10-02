@@ -84,7 +84,7 @@ export const UptimeBuilders = {
 							toUInt32(countIf(status = 1) + countIf(status = 0)) as total_checks,
 							toUInt32(countIf(status = 1)) as successful_checks,
 							toUInt32(sumIf(
-								least(dateDiff('second', ts, next_ts), 86400),
+								least(dateDiff('second', ts, least(next_ts, ${UPTIME_RANGE_END} + 1)), 86400),
 								status = 0
 							)) as downtime_seconds,
 							avg(total_ms) as avg_response_time,
