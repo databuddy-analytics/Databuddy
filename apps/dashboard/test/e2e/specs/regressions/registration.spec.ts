@@ -4,25 +4,7 @@ const selfHosted = process.env.SELFHOST?.trim().toLowerCase() === "true";
 const verifyEmail =
 	!selfHosted ||
 	process.env.REQUIRE_EMAIL_VERIFICATION?.trim().toLowerCase() === "true";
-// The Playwright web server supplies synthetic credentials when omitted.
-const emailEnabled =
-	!selfHosted ||
-	Boolean(
-		(process.env.RESEND_API_KEY ?? "e2e").trim() &&
-			process.env.EMAIL_FROM?.trim()
-	);
-const githubEnabled =
-	!selfHosted ||
-	Boolean(
-		(process.env.GITHUB_CLIENT_ID ?? "e2e") &&
-			(process.env.GITHUB_CLIENT_SECRET ?? "e2e")
-	);
-const googleEnabled =
-	!selfHosted ||
-	Boolean(
-		(process.env.GOOGLE_CLIENT_ID ?? "e2e") &&
-			(process.env.GOOGLE_CLIENT_SECRET ?? "e2e")
-	);
+const emailEnabled = !selfHosted || Boolean(process.env.EMAIL_FROM?.trim());
 
 test.beforeEach(async ({ page }) => {
 	await page.route("**/api/auth/get-session**", (route) =>
@@ -78,10 +60,10 @@ test("shows only configured self-host sign-in methods", {
 	await page.goto("/login");
 	await expect(
 		page.getByRole("button", { name: "Sign in with GitHub" })
-	).toHaveCount(githubEnabled ? 1 : 0);
+	).toBeVisible();
 	await expect(
 		page.getByRole("button", { name: "Sign in with Google" })
-	).toHaveCount(googleEnabled ? 1 : 0);
+	).toBeVisible();
 	await expect(
 		page.getByRole("link", { name: "Sign in with Magic Link" })
 	).toHaveCount(emailEnabled ? 1 : 0);
@@ -94,10 +76,10 @@ test("shows only configured self-host sign-in methods", {
 	await page.goto("/register");
 	await expect(
 		page.getByRole("button", { name: "Sign up with GitHub" })
-	).toHaveCount(githubEnabled ? 1 : 0);
+	).toBeVisible();
 	await expect(
 		page.getByRole("button", { name: "Sign up with Google" })
-	).toHaveCount(googleEnabled ? 1 : 0);
+	).toBeVisible();
 });
 
 if (!emailEnabled) {

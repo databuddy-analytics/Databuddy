@@ -1,16 +1,12 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
-interface ScopedSession {
-	userId: string;
-}
-
 const SAFE_SCOPE_CHARS_RE = /[^a-z0-9]/gi;
 const CREATE_API_KEY_BUTTON_RE = /Create (your first )?key/i;
 export const SHORT_LINK_LABEL_RE = /Short Link/;
 export const WEBSITE_PATH_RE = /\/websites\/[A-Za-z0-9_-]+/;
 export const LINK_PATH_RE = /\/links\/[A-Za-z0-9_-]+/;
 const ORGANIZATION_TRIGGER_RE = /^Organization:/;
-export function scopeSuffix(session: ScopedSession): string {
+export function scopeSuffix(session: { userId: string }): string {
 	return session.userId
 		.replaceAll(SAFE_SCOPE_CHARS_RE, "")
 		.slice(0, 8)
@@ -94,7 +90,6 @@ export async function createWebsite(
 	await expect(submitButton).toBeEnabled();
 	await submitButton.click();
 	await expect(dialog).toBeHidden({ timeout: 15_000 });
-	// Creating a website opens its setup page; callers expect the list card.
 	await expect(page).toHaveURL(WEBSITE_PATH_RE, { timeout: 15_000 });
 	await page.goto("/websites");
 	await expectDashboardReady(page);

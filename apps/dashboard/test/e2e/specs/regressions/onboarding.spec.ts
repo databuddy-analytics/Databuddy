@@ -6,9 +6,8 @@ import {
 } from "@/test/e2e/fixtures";
 
 const selfHosted = process.env.SELFHOST?.trim().toLowerCase() === "true";
+const CAPABILITY_STALE_MS = 180_000;
 
-// Cloud billing never reports an error state here, so the capability matrix
-// only applies to self-hosted deployments, where Insights depends on an AI key.
 const cases = selfHosted
 	? (["ready", "delayed", "failed", "cached-failed"] as const).flatMap(
 			(capability) =>
@@ -65,8 +64,7 @@ for (const { aiConfigured, capability } of cases) {
 		}
 		if (capability === "cached-failed") {
 			await expect(open).toBeEnabled();
-			// Make the cached capability stale, then use the normal reconnect refetch.
-			await page.clock.setFixedTime(new Date(Date.now() + 180_000));
+			await page.clock.setFixedTime(new Date(Date.now() + CAPABILITY_STALE_MS));
 			await page.evaluate(() => {
 				window.dispatchEvent(new Event("offline"));
 				window.dispatchEvent(new Event("online"));

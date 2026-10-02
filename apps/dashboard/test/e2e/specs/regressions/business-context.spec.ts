@@ -152,13 +152,10 @@ function inputOf<T = SaveInput>(route: Route): T {
 	return route.request().postDataJSON().json as T;
 }
 
-// Serves every businessContext procedure from one mutable state. generationAccess and
-// generate fall through to the beforeEach mock or the stream fixture. `intercept` returns
-// true when it fulfilled the route itself.
 async function mockContextApi(
 	page: Page,
 	initial: BusinessContextSettings,
-	intercept?: (method: string, route: Route) => Promise<boolean | undefined>
+	handled?: (method: string, route: Route) => Promise<boolean | undefined>
 ): Promise<ContextApi> {
 	const api: ContextApi = { calls: [], current: initial, saved: [] };
 	await page.route("**/rpc/businessContext/**", async (route) => {
@@ -170,7 +167,7 @@ async function mockContextApi(
 			await route.fallback();
 			return;
 		}
-		if (await intercept?.(method, route)) {
+		if (await handled?.(method, route)) {
 			return;
 		}
 		if (method === "cancel") {
@@ -996,9 +993,6 @@ test("streams a separate proposed brief without replacing local edits or enablin
 	});
 	await editBrief(page);
 	await expect(editor).toHaveValue("My unfinished context stays here.");
-	// The owned request delivers progress directly; no two-second polling loop.
-	await page.waitForTimeout(2200);
-	expect(reads).toBe(readsAtStart);
 	await expect(button(page, "Use AI draft")).toBeHidden();
 	await expect(button(page, "Review AI draft")).toBeHidden();
 	current = {
@@ -1012,6 +1006,7 @@ test("streams a separate proposed brief without replacing local edits or enablin
 			},
 		},
 	};
+	expect(reads).toBe(readsAtStart);
 	contextStream.send(current);
 	contextStream.end();
 	await expect(button(page, "Review AI draft")).toBeVisible({

@@ -20,7 +20,6 @@ export interface E2ESession {
 	organizationId: string;
 	organizationName: string;
 	userId: string;
-	/** The seeded "E2E Website" (e2e.databuddy.local), or null for a fresh account. */
 	websiteId: string | null;
 }
 
@@ -29,14 +28,11 @@ type RpcReplyFn = (input: unknown) => unknown;
 interface E2EFixtures {
 	authenticatedPage: Page;
 	e2eSession: E2ESession;
-	/** Replace an oRPC procedure (e.g. "businessContext/get") with a value or a reply function. */
 	mockRpc: (procedure: string, reply: unknown) => Promise<void>;
-	/** Seeds ClickHouse for the session website. Only analytics tests pay for it. */
 	seededAnalytics: AnalyticsSeed;
 }
 
 export const test = base.extend<E2EFixtures & { withWebsite: boolean }>({
-	/** Set `test.use({ withWebsite: false })` for a fresh account with no website. */
 	withWebsite: [true, { option: true }],
 	e2eSession: async ({ page, withWebsite }, use, testInfo) => {
 		await use(
@@ -89,7 +85,6 @@ export const test = base.extend<E2EFixtures & { withWebsite: boolean }>({
 
 export { expect } from "@playwright/test";
 
-/** Reply for `websites/isTrackingSetup` that lifts the no-events setup gate. */
 export const TRACKING_VERIFIED = {
 	tracking_setup: true,
 	integration_type: "manual",
@@ -108,7 +103,6 @@ function corsHeaders(page: Page): Record<string, string> {
 	};
 }
 
-/** Answer a route with a oRPC-shaped JSON body, including CORS for the API origin. */
 export function fulfillRpc(
 	page: Page,
 	route: Route,
