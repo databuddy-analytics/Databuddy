@@ -44,7 +44,7 @@ const common = {
 
 const meta = (title: string, description: string) => ({
 	title,
-	description: `${description} Covers MCP servers tracked with @databuddy/sdk/mcp: all of an organization's servers, or the ones linked to a website. Filter by client, tool, server_name, environment or website_id.`,
+	description: `${description} Covers MCP servers tracked with @databuddy/sdk/mcp. An organization-scoped query covers all of the organization's calls; a website-scoped query only sees calls linked to that website, so calls from servers without a website ID are left out of it. Filter by client, tool, server_name, environment or website_id.`,
 	category: "MCP",
 	tags: ["mcp", "model context protocol", "tool calls", "agents"],
 });
@@ -54,7 +54,7 @@ export const McpBuilders = {
 		meta: {
 			...meta(
 				"MCP Overview",
-				"Tool call totals with error rate (percent) and median and p95 duration (ms). servers, environments and websites list the values present, for filtering. tracked is 1 once a tool call was ever recorded."
+				"Tool call totals with error rate (percent) and median and p95 duration (ms). servers, environments and websites list the values present, for filtering. tracked is 1 once a call in this scope was ever recorded, so 0 for a website does not mean the SDK is missing."
 			),
 			output_fields: [
 				{ name: "calls", type: "number" },
@@ -114,6 +114,7 @@ export const McpBuilders = {
 		customSql: (ctx) => {
 			const bucket = ctx.granularity === "hour" ? "toStartOfHour" : "toDate";
 			const step = ctx.granularity === "hour" ? "toIntervalHour(1)" : "1";
+			const firstBucket = `${bucket}(toTimeZone(${START}, {timezone:String}))`;
 			return {
 				sql: `
 					SELECT
@@ -124,8 +125,8 @@ export const McpBuilders = {
 					WHERE ${inRange(ctx)}
 					GROUP BY date
 					ORDER BY date ASC WITH FILL
-						FROM ${bucket}(toTimeZone(${START}, {timezone:String}))
-						TO ${bucket}(toTimeZone(least(${END}, now()), {timezone:String})) + ${step}
+						FROM ${firstBucket}
+						TO greatest(${bucket}(toTimeZone(least(${END}, now()), {timezone:String})) + ${step}, ${firstBucket})
 						STEP ${step}
 				`,
 				params: params(ctx),
