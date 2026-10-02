@@ -52,6 +52,8 @@ export const QueryFilterSchema = z.object({
 	having: z.boolean().optional(),
 });
 
+export const MAX_QUERY_ROWS = 1000;
+
 const QuerySchema = z.object({
 	projectId: z.string(),
 	type: z.string(),
@@ -61,7 +63,7 @@ const QuerySchema = z.object({
 	filters: z.array(QueryFilterSchema).optional(),
 	groupBy: z.array(z.string()).optional(),
 	orderBy: z.string().optional(),
-	limit: z.number().int().min(1).max(1000).optional(),
+	limit: z.number().int().min(1).max(MAX_QUERY_ROWS).optional(),
 	offset: z.number().int().min(0).optional(),
 	timezone: z.string().optional(),
 });

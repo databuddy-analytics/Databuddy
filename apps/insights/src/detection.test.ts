@@ -4,9 +4,12 @@ import {
 	type DetectSignalsParams,
 	type QueryFn,
 	detectSignals,
+	freshCustomEventSignals,
+	freshRevenueSignals,
 	remeasureMetricSignal,
 	wowWindow,
 } from "./detection";
+import { MAX_QUERY_ROWS } from "@databuddy/ai/query";
 import { prepareInvestigation } from "./investigation";
 
 function makeDailyRows(
@@ -2472,4 +2475,255 @@ describe("independent commercial discovery", () => {
 			);
 		});
 	}
+});
+
+function freshDates(lastDay: string, count = 28) {
+	const end = dayjs.utc(lastDay);
+	return Array.from({ length: count }, (_, index) =>
+		end.subtract(count - 1 - index, "day").format("YYYY-MM-DD")
+	);
+}
+
+function isWeekendDate(date: string) {
+	const day = dayjs.utc(date).day();
+	return day === 0 || day === 6;
+}
+
+function revenueDays(
+	dates: string[],
+	latest: { revenue: number; transactions: number },
+	currency = "USD"
+) {
+	return dates.map((date, index) => {
+		const weekend = isWeekendDate(date);
+		return index === dates.length - 1
+			? { date, currency, ...latest }
+			: {
+					date,
+					currency,
+					revenue: (weekend ? 400 : 1000) + (index % 3) * 20,
+					transactions: (weekend ? 8 : 20) + (index % 2),
+				};
+	});
+}
+
+describe("next-day breaks", () => {
+	const dates = freshDates("2026-09-29");
+
+	it("flags a weekday revenue drop against comparable weekdays only", () => {
+		const [signal] = freshRevenueSignals(
+			revenueDays(dates, { revenue: 300, transactions: 6 }),
+			dates
+		);
+		expect(signal).toMatchObject({
+			current: 300,
+			detectedAt: "2026-09-29",
+			direction: "down",
+			method: "zscore",
+			metric: "revenue",
+			subjectKey: "revenue:USD",
+		});
+		expect(signal?.baseline).toBeGreaterThanOrEqual(1000);
+		expect(signal?.baselineDates?.some(isWeekendDate)).toBe(false);
+		expect(signal?.baselineDates?.at(-1)).toBe("2026-09-28");
+	});
+
+	it("ignores one large order when payment volume is normal", () => {
+		expect(
+			freshRevenueSignals(
+				revenueDays(dates, { revenue: 4000, transactions: 21 }),
+				dates
+			)
+		).toEqual([]);
+	});
+
+	it("needs enough daily payments to call a break", () => {
+		const sparse = revenueDays(dates, { revenue: 0, transactions: 0 }).map(
+			(row, index) =>
+				index === dates.length - 1 ? row : { ...row, transactions: 2 }
+		);
+		expect(freshRevenueSignals(sparse, dates)).toEqual([]);
+	});
+
+	it("never treats an unreadable currency row as a missing day", () => {
+		const rows = revenueDays(dates, { revenue: 300, transactions: 6 });
+		rows[5] = { ...rows[5], revenue: Number.NaN };
+		expect(freshRevenueSignals(rows, dates)).toEqual([]);
+	});
+
+	const sessions = dates.map(() => 500);
+	const eventDays = (latest: number) =>
+		dates.map((date, index) => ({
+			date,
+			event_name: "checkout_completed",
+			total_events: index === dates.length - 1 ? latest : 60 + (index % 4),
+		}));
+
+	it("flags an event that stops firing while traffic holds", () => {
+		const [signal] = freshCustomEventSignals(eventDays(0), dates, sessions);
+		expect(signal).toMatchObject({
+			current: 0,
+			deltaPercent: -100,
+			direction: "down",
+			entityId: "checkout_completed",
+			method: "zscore",
+			metric: "custom_event_count",
+			subjectKey: "custom_event:checkout_completed",
+		});
+	});
+
+	it("explains an event drop by a matching traffic drop", () => {
+		const quiet = [...sessions.slice(0, -1), 100];
+		expect(freshCustomEventSignals(eventDays(12), dates, quiet)).toEqual([]);
+	});
+
+	it("skips events too small to judge from one day", () => {
+		const rows = eventDays(0).map((row) => ({
+			...row,
+			total_events: row.total_events === 0 ? 0 : 5,
+		}));
+		expect(freshCustomEventSignals(rows, dates, sessions)).toEqual([]);
+	});
+
+	function history() {
+		return dates.map((date) => ({
+			date,
+			visitors: 400,
+			sessions: 500,
+			pageviews: 900,
+			bounce_rate: 40,
+			median_session_duration: 60,
+		}));
+	}
+
+	it("reaches investigation from the full detector with its baseline envelope", async () => {
+		const signals = await detectSignals(
+			BASE_PARAMS,
+			createMockQueryFn(
+				history(),
+				{ sessions: 3500 },
+				{ sessions: 3500 },
+				{
+					revenue_time_series: [
+						revenueDays(dates, { revenue: 300, transactions: 6 }),
+						undefined,
+					],
+				}
+			),
+			dayjs.utc("2026-09-30")
+		);
+		const revenue = signals.find(
+			(signal) => signal.subjectKey === "revenue:USD"
+		);
+		if (!revenue) {
+			throw new Error("Missing next-day revenue break");
+		}
+		const prepared = prepareInvestigation(revenue, 7).signal;
+		expect(prepared.period.current).toEqual({
+			from: "2026-09-29",
+			to: "2026-09-29",
+		});
+		expect(prepared.baselineDates?.[0]).toBe(prepared.period.previous.from);
+	});
+
+	it("drops a next-day break that contradicts the weekly direction for the same currency", async () => {
+		const signals = await detectSignals(
+			BASE_PARAMS,
+			createMockQueryFn(
+				history(),
+				{ sessions: 3500 },
+				{ sessions: 3500 },
+				{
+					revenue_overview: [
+						[
+							{
+								currency: "USD",
+								total_revenue: 20_000,
+								total_transactions: 200,
+							},
+						],
+						[
+							{
+								currency: "USD",
+								total_revenue: 10_000,
+								total_transactions: 100,
+							},
+						],
+					],
+					revenue_time_series: [
+						revenueDays(dates, { revenue: 300, transactions: 6 }),
+						undefined,
+					],
+				}
+			),
+			dayjs.utc("2026-09-30")
+		);
+		expect(
+			signals.filter((signal) => signal.subjectKey === "revenue:USD")
+		).toMatchObject([{ direction: "up", method: "wow" }]);
+	});
+
+	it("keeps the daily event read within the query row cap for a full baseline", async () => {
+		const baseline = Array.from({ length: 200 }, (_, index) => ({
+			name: `event_${index}`,
+			total_events: 1000 - index,
+			unique_users: 500,
+			unique_sessions: 500,
+		}));
+		const requests: Parameters<QueryFn>[0][] = [];
+		const mockQuery = createMockQueryFn(
+			history(),
+			{ sessions: 3500 },
+			{ sessions: 3500 },
+			{ custom_events: [baseline, baseline] }
+		);
+		await detectSignals(
+			BASE_PARAMS,
+			async (request) => {
+				requests.push(request);
+				return mockQuery(request);
+			},
+			dayjs.utc("2026-09-30")
+		);
+		const daily = requests.find(
+			(request) => request.type === "custom_events_trends_by_event"
+		);
+		expect(daily?.limit).toBeLessThanOrEqual(MAX_QUERY_ROWS);
+		expect(daily?.filters?.[0]?.value).toContain("event_0");
+	});
+
+	it("skips custom event breaks when the daily read was truncated", async () => {
+		const baseline = [
+			{
+				name: "checkout_completed",
+				total_events: 420,
+				unique_users: 300,
+				unique_sessions: 320,
+			},
+		];
+		const detect = (rows: Record<string, unknown>[]) =>
+			detectSignals(
+				BASE_PARAMS,
+				createMockQueryFn(
+					history(),
+					{ sessions: 3500 },
+					{ sessions: 3500 },
+					{
+						custom_events: [baseline, baseline],
+						custom_events_trends_by_event: [rows, undefined],
+					}
+				),
+				dayjs.utc("2026-09-30")
+			);
+		const hasBreak = (signals: Awaited<ReturnType<typeof detect>>) =>
+			signals.some(
+				(signal) =>
+					signal.subjectKey === "custom_event:checkout_completed" &&
+					signal.method === "zscore"
+			);
+		expect(hasBreak(await detect(eventDays(0)))).toBe(true);
+		expect(hasBreak(await detect(eventDays(0).concat(eventDays(0))))).toBe(
+			false
+		);
+	});
 });

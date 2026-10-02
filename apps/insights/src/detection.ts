@@ -1,4 +1,4 @@
-import { executeQuery, type Filter } from "@databuddy/ai/query";
+import { executeQuery, type Filter, MAX_QUERY_ROWS } from "@databuddy/ai/query";
 import { normalizeCurrencyCode } from "@databuddy/shared/currency";
 import type {
 	InvestigationSignal,
@@ -163,6 +163,10 @@ const LOW_TRAFFIC_MIN_VALUE = 10;
 const FILTER_TRAFFIC_MIN_PEAK = 80;
 const FILTER_TRAFFIC_MIN_DELTA = 50;
 const MATERIAL_VOLUME_DROP_PERCENT = 60;
+const FRESH_ZSCORE_THRESHOLD = 3.5;
+const FRESH_MIN_CHANGE_PERCENT = 40;
+const FRESH_MIN_BASELINE_TRANSACTIONS = 5;
+const FRESH_MIN_BASELINE_EVENTS = 20;
 const ADAPTIVE_CV_SCALE = 200;
 const DETECTOR_RETRY_DELAY_MS = 100;
 
@@ -325,11 +329,13 @@ function makeRevenueSignal(
 				? "warning"
 				: signal.severity,
 		subjectKey: `revenue:${currency}`,
-		investigationObjective:
-			"Find which measured product or payment-description groups account for the gross revenue change and what decision that concentration changes. Inspect revenue_by_product; its names can be payment or invoice descriptions, not verified catalog products. Separate missing coverage from an unchanged group. Do not infer profit, acquisition ROI or subscription churn.",
+		investigationObjective: REVENUE_OBJECTIVE,
 		definitionEvidence: `Business meaning: gross revenue from completed payments in ${currency}, excluding refunds. The snapshot alone is not publication evidence: confirm with revenue_overview for this currency across both complete signal windows.`,
 	};
 }
+
+const REVENUE_OBJECTIVE =
+	"Find which measured product or payment-description groups account for the gross revenue change and what decision that concentration changes. Inspect revenue_by_product; its names can be payment or invoice descriptions, not verified catalog products. Separate missing coverage from an unchanged group. Do not infer profit, acquisition ROI or subscription churn.";
 
 const commercialNumberSchema = z
 	.union([z.number(), z.string().trim().min(1)])
@@ -1295,13 +1301,35 @@ export async function detectSignals(
 	if (diagnostics) {
 		diagnostics.failedFamilies = (history.failed ? 1 : 0) + wow.failedFamilies;
 	}
+	const freshSignals = history.failed
+		? []
+		: await detectFreshBreaks({
+				abortSignal,
+				customEventNames: wow.customEventNames,
+				history: sorted,
+				query: (type, options = {}) =>
+					queryFn(
+						{
+							from: dailyFrom,
+							projectId: websiteId,
+							timezone,
+							to: dailyTo,
+							type,
+							...options,
+						},
+						undefined,
+						timezone,
+						abortSignal
+					),
+				websiteId,
+			});
 
 	const wowDirection = new Map<string, "up" | "down">();
 	for (const s of wow.signals) {
-		wowDirection.set(s.metric, s.direction);
+		wowDirection.set(s.subjectKey ?? s.metric, s.direction);
 	}
-	const reconciledZscore = zscoreSignals.filter((s) => {
-		const wow = wowDirection.get(s.metric);
+	const reconciledZscore = [...zscoreSignals, ...freshSignals].filter((s) => {
+		const wow = wowDirection.get(s.subjectKey ?? s.metric);
 		return wow === undefined || wow === s.direction;
 	});
 
@@ -1440,6 +1468,264 @@ function detectZscore(sorted: Record<string, unknown>[]): DetectedSignal[] {
 	return signals;
 }
 
+interface DailyPoint {
+	date: string;
+	value: number;
+}
+
+function comparableDays(points: DailyPoint[]) {
+	const latest = points.at(-1);
+	if (!latest) {
+		return null;
+	}
+	const weekend = isWeekend(latest.date);
+	const comparable = points
+		.slice(0, -1)
+		.filter((point) => isWeekend(point.date) === weekend);
+	if (comparable.length < ZSCORE_MIN_BASELINE) {
+		return null;
+	}
+	const values = comparable.map((point) => point.value);
+	return {
+		dates: comparable.map((point) => point.date),
+		latest,
+		median: median(values),
+		spread: mad(values) * MAD_SCALE,
+		weekend,
+	};
+}
+
+function dailySeries<T>(
+	rows: Record<string, unknown>[],
+	entityOf: (row: Record<string, unknown>) => string | null,
+	read: (row: Record<string, unknown>) => T | null
+): Map<string, Map<string, T>> {
+	const series = new Map<string, Map<string, T>>();
+	const unreadable = new Set<string>();
+	for (const row of rows) {
+		const entity = entityOf(row);
+		if (!entity) {
+			continue;
+		}
+		const value = read(row);
+		if (value === null) {
+			unreadable.add(entity);
+			continue;
+		}
+		const days = series.get(entity) ?? new Map<string, T>();
+		days.set(String(row.date ?? "").slice(0, 10), value);
+		series.set(entity, days);
+	}
+	for (const entity of unreadable) {
+		series.delete(entity);
+	}
+	return series;
+}
+
+function comparableWindow(
+	days: NonNullable<ReturnType<typeof comparableDays>>
+) {
+	return `the ${days.dates.length} comparable ${days.weekend ? "weekend" : "weekday"} days from ${days.dates[0]} to ${days.dates.at(-1)}`;
+}
+
+export function freshRevenueSignals(
+	rows: Record<string, unknown>[],
+	dates: string[]
+): DetectedSignal[] {
+	const byCurrency = dailySeries(
+		rows,
+		(row) => {
+			const currency = stringField(row, "currency");
+			return currency && normalizeCurrencyCode(currency) === currency
+				? currency
+				: null;
+		},
+		(row) => {
+			const revenue = commercialNumberSchema.safeParse(row.revenue);
+			const transactions = countSchema.safeParse(row.transactions);
+			return revenue.success && transactions.success && revenue.data >= 0
+				? { revenue: revenue.data, transactions: transactions.data }
+				: null;
+		}
+	);
+	const signals: DetectedSignal[] = [];
+	for (const [currency, days] of byCurrency) {
+		const points = dates.map((date) => ({
+			date,
+			...(days.get(date) ?? { revenue: 0, transactions: 0 }),
+		}));
+		const revenue = comparableDays(
+			points.map((point) => ({ date: point.date, value: point.revenue }))
+		);
+		const transactions = comparableDays(
+			points.map((point) => ({ date: point.date, value: point.transactions }))
+		);
+		if (
+			!(revenue && transactions) ||
+			revenue.median <= 0 ||
+			transactions.median < FRESH_MIN_BASELINE_TRANSACTIONS
+		) {
+			continue;
+		}
+		const current = revenue.latest.value;
+		const deltaPercent = safeDeltaPercent(current, revenue.median);
+		const zScore =
+			(current - revenue.median) /
+			Math.max(revenue.spread, revenue.median * 0.1);
+		const transactionScore =
+			(transactions.latest.value - transactions.median) /
+			Math.sqrt(transactions.median);
+		if (
+			Math.abs(zScore) < FRESH_ZSCORE_THRESHOLD ||
+			Math.abs(transactionScore) < 3 ||
+			Math.sign(transactionScore) !== Math.sign(zScore) ||
+			Math.abs(deltaPercent) < FRESH_MIN_CHANGE_PERCENT ||
+			Math.abs(current - revenue.median) < REVENUE_MIN_ABSOLUTE_CHANGE
+		) {
+			continue;
+		}
+		const direction = current < revenue.median ? "down" : "up";
+		const severity = assignSeverity(zScore, deltaPercent, direction === "up");
+		signals.push({
+			metric: "revenue",
+			label: `${currency} gross revenue`,
+			method: "zscore",
+			baselineDates: revenue.dates,
+			direction,
+			current,
+			baseline: revenue.median,
+			deltaPercent: round2(deltaPercent),
+			severity:
+				direction === "down" && severity === "info" ? "warning" : severity,
+			detectedAt: revenue.latest.date,
+			subjectKey: `revenue:${currency}`,
+			investigationObjective: REVENUE_OBJECTIVE,
+			definitionEvidence: `Business meaning: gross revenue from completed payments in ${currency}, excluding refunds. On ${revenue.latest.date} it was ${current.toLocaleString("en-US")} across ${transactions.latest.value} payments, against a median of ${revenue.median.toLocaleString("en-US")} across ${transactions.median} payments on ${comparableWindow(revenue)}. Confirm with revenue_time_series for this currency on those dates.`,
+		});
+	}
+	return signals;
+}
+
+export function freshCustomEventSignals(
+	rows: Record<string, unknown>[],
+	dates: string[],
+	sessions: number[]
+): DetectedSignal[] {
+	const latestSessions = sessions.at(-1) ?? 0;
+	if (latestSessions <= 0) {
+		return [];
+	}
+	const byName = dailySeries(
+		rows,
+		(row) => stringField(row, "event_name"),
+		(row) => {
+			const total = countSchema.safeParse(row.total_events);
+			return total.success ? total.data : null;
+		}
+	);
+	const signals: DetectedSignal[] = [];
+	for (const [name, days] of byName) {
+		const points = dates.map((date) => ({ date, value: days.get(date) ?? 0 }));
+		const counts = comparableDays(points);
+		if (!counts || counts.median < FRESH_MIN_BASELINE_EVENTS) {
+			continue;
+		}
+		const current = counts.latest.value;
+		const deltaPercent = safeDeltaPercent(current, counts.median);
+		const zScore =
+			(current - counts.median) /
+			Math.max(counts.spread, Math.sqrt(counts.median));
+		const comparable = new Set(counts.dates);
+		const baselineRates = points.flatMap((point, index) => {
+			const daySessions = sessions[index] ?? 0;
+			return comparable.has(point.date) && daySessions > 0
+				? [point.value / daySessions]
+				: [];
+		});
+		const rate = current / latestSessions;
+		const baselineRate = median(baselineRates);
+		if (
+			zScore > -FRESH_ZSCORE_THRESHOLD ||
+			deltaPercent > -CUSTOM_EVENT_DROP_THRESHOLD ||
+			baselineRates.length < ZSCORE_MIN_BASELINE ||
+			!(baselineRate > 0) ||
+			safeDeltaPercent(rate, baselineRate) > -CUSTOM_EVENT_DROP_THRESHOLD
+		) {
+			continue;
+		}
+		signals.push({
+			metric: "custom_event_count",
+			label: name,
+			method: "zscore",
+			baselineDates: counts.dates,
+			direction: "down",
+			current,
+			baseline: counts.median,
+			deltaPercent: round2(deltaPercent),
+			severity: assignSeverity(zScore, deltaPercent, false),
+			detectedAt: counts.latest.date,
+			subjectKey: `custom_event:${name}`,
+			entityId: name,
+			entityLabel: name,
+			definitionEvidence: `Event "${name}" occurred ${current} times on ${counts.latest.date} (${round2(rate)} per session), against a median of ${counts.median} (${round2(baselineRate)} per session) on ${comparableWindow(counts)}.`,
+		});
+	}
+	return signals;
+}
+
+async function detectFreshBreaks(params: {
+	abortSignal?: AbortSignal;
+	customEventNames: string[];
+	history: Record<string, unknown>[];
+	query: (
+		type: string,
+		options?: { filters?: Filter[]; limit?: number }
+	) => Promise<Record<string, unknown>[]>;
+	websiteId: string;
+}): Promise<DetectedSignal[]> {
+	const dates = params.history.map((row) =>
+		String(row.date ?? "").slice(0, 10)
+	);
+	const sessions = params.history.map((row) => numberField(row, "sessions"));
+	const tracked = params.customEventNames.slice(
+		0,
+		Math.floor((MAX_QUERY_ROWS - 1) / Math.max(1, dates.length))
+	);
+	const eventLimit = tracked.length * dates.length + 1;
+	const [revenue, events] = await Promise.all([
+		readDetectorFamily({
+			abortSignal: params.abortSignal,
+			family: "revenue",
+			read: () => params.query("revenue_time_series"),
+			websiteId: params.websiteId,
+		}),
+		tracked.length === 0
+			? null
+			: readDetectorFamily({
+					abortSignal: params.abortSignal,
+					family: "custom_events",
+					read: () =>
+						params.query("custom_events_trends_by_event", {
+							filters: [
+								{
+									field: "event_name",
+									op: "in",
+									value: tracked,
+								},
+							],
+							limit: eventLimit,
+						}),
+					websiteId: params.websiteId,
+				}),
+	]);
+	return [
+		...(revenue.value ? freshRevenueSignals(revenue.value, dates) : []),
+		...(events?.value && events.value.length < eventLimit
+			? freshCustomEventSignals(events.value, dates, sessions)
+			: []),
+	];
+}
+
 async function detectWow(
 	params: DetectSignalsParams,
 	today: dayjs.Dayjs,
@@ -1447,6 +1733,7 @@ async function detectWow(
 	wowThresholds: Map<string, number>,
 	abortSignal?: AbortSignal
 ): Promise<{
+	customEventNames: string[];
 	failedFamilies: number;
 	signals: DetectedSignal[];
 	weeklySessions: number;
@@ -1522,6 +1809,7 @@ async function detectWow(
 	const currentSessions = numberField(currentSummary[0], "sessions");
 	const previousSessions = numberField(previousSummary[0], "sessions");
 	let customEventsFailed = false;
+	let customEventNames: string[] = [];
 	let currentCustomEvents: Record<string, unknown>[] = [];
 	let previousCustomEvents: Record<string, unknown>[] = [];
 	if (!(summary.failed || (previousSessions > 0 && currentSessions === 0))) {
@@ -1539,6 +1827,7 @@ async function detectWow(
 			return name ? [name] : [];
 		});
 		if (!(previous.failed || names.length === 0)) {
+			customEventNames = names;
 			const current = await readDetectorFamily({
 				abortSignal,
 				family: "custom_events",
@@ -1916,6 +2205,7 @@ async function detectWow(
 	}
 
 	return {
+		customEventNames,
 		failedFamilies:
 			[summary, errors, revenue, vitals].filter((result) => result.failed)
 				.length + (customEventsFailed ? 1 : 0),
