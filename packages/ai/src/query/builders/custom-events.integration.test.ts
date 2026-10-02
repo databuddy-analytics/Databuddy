@@ -1,6 +1,7 @@
 import { randomUUIDv7 } from "bun";
 import { describe, expect, it } from "bun:test";
 import { chQuery, clickHouse } from "@databuddy/db/clickhouse";
+import { SimpleQueryBuilder } from "../simple-builder";
 import { CustomEventsBuilders } from "./custom-events";
 
 const describeIntegration =
@@ -63,5 +64,55 @@ describeIntegration("custom event identity against ClickHouse", () => {
 		expect(Number(byName.get("unidentified")?.unique_users)).toBe(0);
 		expect(Number(byName.get("anonymous")?.unique_users)).toBe(1);
 		expect(Number(byName.get("profile")?.unique_users)).toBe(1);
+	});
+
+	it("buckets per-event trends by local hour when asked", async () => {
+		const websiteId = `custom-event-hourly-${randomUUIDv7()}`;
+		const event = (timestamp: string) => ({
+			anonymous_id: "anon-1",
+			event_name: "signup_completed",
+			namespace: null,
+			owner_id: websiteId,
+			path: null,
+			profile_id: "",
+			properties: "{}",
+			session_id: null,
+			source: "integration-test",
+			timestamp,
+			website_id: websiteId,
+		});
+		await clickHouse.insert({
+			table: "analytics.custom_events",
+			format: "JSONEachRow",
+			values: [
+				event("2026-08-02 08:05:00"),
+				event("2026-08-02 08:55:00"),
+				event("2026-08-02 13:30:00"),
+			],
+		});
+		const read = async (timeUnit?: "hour") => {
+			const { sql, params } = new SimpleQueryBuilder(
+				CustomEventsBuilders.custom_events_trends_by_event,
+				{
+					from: "2026-08-02",
+					projectId: websiteId,
+					timezone: "Europe/Berlin",
+					to: "2026-08-02",
+					type: "custom_events_trends_by_event",
+					...(timeUnit ? { timeUnit } : {}),
+				}
+			).compile();
+			const rows = await chQuery<{
+				date: string;
+				total_events: number | string;
+			}>(sql, params);
+			return rows.map((row) => [String(row.date), Number(row.total_events)]);
+		};
+
+		expect(await read("hour")).toEqual([
+			["2026-08-02 10:00:00", 2],
+			["2026-08-02 15:00:00", 1],
+		]);
+		expect(await read()).toEqual([["2026-08-02", 3]]);
 	});
 });
