@@ -60,6 +60,7 @@ function createSender(endpoint: string, apiKey: string, debug: boolean) {
 	const pending: McpToolCall[] = [];
 	const inFlight = new Set<Promise<void>>();
 	let timer: ReturnType<typeof setTimeout> | undefined;
+	let hasWarnedRejection = false;
 
 	const warn = (...message: unknown[]) => {
 		if (debug) {
@@ -82,9 +83,10 @@ function createSender(endpoint: string, apiKey: string, debug: boolean) {
 				signal: AbortSignal.timeout(5000),
 			})
 				.then(async (response) => {
-					if (!response.ok) {
-						warn(
-							`MCP calls rejected (${response.status}):`,
+					if (!response.ok && (debug || !hasWarnedRejection)) {
+						hasWarnedRejection = true;
+						console.warn(
+							`[databuddy] MCP calls rejected (${response.status}):`,
 							await response.text()
 						);
 					}
@@ -156,12 +158,22 @@ function errorMessage(outcome: Outcome): string | undefined {
 	return text?.text ?? "";
 }
 
-function jsonLength(value: unknown): number {
-	try {
-		return JSON.stringify(value)?.length ?? 0;
-	} catch {
+function textLength(result: unknown): number {
+	if (
+		typeof result !== "object" ||
+		result === null ||
+		!("content" in result) ||
+		!Array.isArray(result.content)
+	) {
 		return 0;
 	}
+	let total = 0;
+	for (const part of result.content) {
+		if (typeof part?.text === "string") {
+			total += part.text.length;
+		}
+	}
+	return total;
 }
 
 export function trackMcp<T extends object>(
@@ -206,7 +218,7 @@ export function trackMcp<T extends object>(
 					typeof request.params?.name === "string" ? request.params.name : "",
 				durationMs: Math.round(performance.now() - startedAt),
 				error: errorMessage(outcome)?.slice(0, MAX_ERROR_LENGTH),
-				outputChars: "result" in outcome ? jsonLength(outcome.result) : 0,
+				outputChars: "result" in outcome ? textLength(outcome.result) : 0,
 				clientName: client?.name,
 				clientVersion: client?.version,
 				serverName: protocol._serverInfo?.name,
