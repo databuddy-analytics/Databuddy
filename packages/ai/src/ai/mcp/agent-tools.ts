@@ -1,6 +1,6 @@
 import { tool, type ToolExecutionOptions, type ToolSet } from "ai";
 import { z } from "zod";
-import { executeBatch } from "../../query";
+import { executeBatch, queryPlanGateError } from "../../query";
 import { discoverQueryTypesTool } from "../tools/discover-query-types";
 import { describeSchemaTool } from "../tools/describe-schema";
 import { createAnnotationTools } from "../tools/annotations";
@@ -120,6 +120,13 @@ Critical schema footguns: website id column is client_id (not website_id); times
 					timezone,
 					Number.isNaN(now.getTime()) ? new Date() : now
 				);
+				const planError = await queryPlanGateError(
+					plan.requests.map((request) => request.type),
+					{ organizationId: access.organizationId }
+				);
+				if (planError) {
+					throw new Error(planError);
+				}
 				const results = await executeBatch(plan.requests, {
 					websiteDomain: access.domain,
 					timezone,

@@ -13,7 +13,7 @@ import {
 } from "@databuddy/validation";
 import { flagFormShape, userRuleSchema } from "@databuddy/shared/flags";
 import { DatePresetSchema } from "../../lib/date-presets";
-import { executeBatch } from "../../query";
+import { executeBatch, queryPlanGateError } from "../../query";
 import type { AppContext } from "../config/context";
 import { SCHEMA_SECTIONS } from "../prompts/clickhouse-schema";
 import {
@@ -472,6 +472,13 @@ const getDataTool = defineMcpTool(
 			orderBy: query.orderBy ?? input.orderBy,
 		}));
 		const plan = buildBatchQueryRequests(items, websiteId, timezone);
+		const planError = await queryPlanGateError(
+			plan.requests.map((request) => request.type),
+			{ organizationId: ctx.websiteOrganizationId ?? null }
+		);
+		if (planError) {
+			throw new McpToolError("plan_limit", planError);
+		}
 		const results = await executeBatch(plan.requests, {
 			websiteDomain: ctx.websiteDomain ?? "unknown",
 			timezone,
