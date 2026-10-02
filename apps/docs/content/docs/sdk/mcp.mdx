@@ -78,8 +78,8 @@ An API key limited to some websites can only send calls linked to one of them.
 
 ## What gets recorded
 
-Each tool call records the tool name, whether it failed and its error message (the first text of an `isError` result or the thrown message, up to 512 characters), how long your handler took, the size of the result in characters (divide by about 4 for tokens), the client's name and version, your server's name and version, the MCP session ID when your server keeps sessions, and the user agent.
+Each tool call records the tool name, whether it failed and its error message (the first text of an `isError` result or the thrown message, up to 512 characters), how long your handler took, how many characters of text the tool returned (divide by about 4 for tokens), the client's name and version, your server's name and version, the MCP session ID when your server keeps sessions, and the user agent.
 
 Clients are named from the `clientInfo` they send. Stateless servers that build a new server per request only see it on the first request, so Databuddy falls back to the user agent: ChatGPT sends `openai-mcp`, claude.ai sends `Anthropic/ClaudeAI`. Clients it can't name show up as **Unknown client** with their user agent.
 
-Tracking never changes what a client receives. It doesn't throw, doesn't delay responses, and sends in the background with a 5 second timeout. Each recorded call counts as one event on your plan.
+Tracking never changes what a client receives. It doesn't throw, doesn't delay responses, and sends in the background with a 5 second timeout. If Databuddy rejects the calls, for example because of a wrong API key, `trackMcp` logs the reason once to stderr. Each recorded call counts as one event on your plan.
