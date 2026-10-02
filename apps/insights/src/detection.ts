@@ -2638,6 +2638,11 @@ export function changeOnsetWindow(onset: ChangeOnset): {
 	};
 }
 
+function counted(count: number, noun: string): string {
+	const rounded = Math.round(count);
+	return `${rounded.toLocaleString("en-US")} ${rounded === 1 && noun.endsWith("s") ? noun.slice(0, -1) : noun}`;
+}
+
 function hourRange(from: string, to: string, timezone: string): string {
 	const end = dayjs.tz(to, timezone).add(1, "hour").tz(timezone);
 	return from.slice(0, 10) === end.format("YYYY-MM-DD")
@@ -2647,16 +2652,16 @@ function hourRange(from: string, to: string, timezone: string): string {
 
 export function changeOnsetEvidence(onset: ChangeOnset): string {
 	const change = onset.direction === "down" ? "drop" : "rise";
-	const observed = Math.round(onset.observed).toLocaleString("en-US");
+	const observed = counted(onset.observed, onset.noun);
 	const expected = Math.round(onset.expected).toLocaleString("en-US");
 	const start = `${onset.subject} place the start of this ${change} ${hourRange(onset.earliest, onset.latest, onset.timezone)} (${onset.timezone}).`;
 	if (onset.recoveredBy) {
-		return `${start} It returned to the surrounding rate by ${onset.recoveredBy.slice(0, 16)}. In between there were ${observed} ${onset.noun} where that rate predicted about ${expected}.`;
+		return `${start} It returned to the surrounding rate by ${onset.recoveredBy.slice(0, 16)}. In between there were ${observed} where that rate predicted about ${expected}.`;
 	}
 	const through = onset.ongoingThrough
 		? ` It had not recovered by the end of ${onset.ongoingThrough}.`
 		: "";
-	return `${start} From then on there were ${observed} ${onset.noun} where the earlier rate predicted about ${expected}.${through}`;
+	return `${start} From then on there were ${observed} where the earlier rate predicted about ${expected}.${through}`;
 }
 
 const SEGMENT_DIMENSIONS = [
@@ -3069,6 +3074,8 @@ const RECOVERY_NEAR_BASELINE = 1.5;
 const RECOVERY_NEW_SERIES_REMAINDER = 0.1;
 const RECOVERY_NEW_SERIES_ONGOING = 0.5;
 const RECOVERY_MIN_TRAFFIC_SHARE = 0.5;
+const RECOVERY_ONGOING_MIN_Z = 3;
+const RECOVERY_NEW_SERIES_MIN_COUNT = 5;
 
 export type RecoveryState =
 	| {
@@ -3150,18 +3157,25 @@ export function estimateRecovery(params: {
 		};
 	}
 	const recent = level(lastDay, n);
+	const recentCount = countIn(lastDay, n);
+	const recentExpected = exposureIn(lastDay, n);
+	const recentZ =
+		(recentCount - recentExpected) /
+		Math.sqrt(Math.max(recentExpected, 1) * dispersion);
 	const stillBroken =
 		hourlyMean === 0
-			? countIn(lastDay, n) > 0 &&
-				recent >= level(0, lastDay) * RECOVERY_NEW_SERIES_ONGOING
+			? recentCount >= RECOVERY_NEW_SERIES_MIN_COUNT &&
+				recentCount >=
+					countIn(0, RECOVERY_MIN_HOLD_HOURS) * RECOVERY_NEW_SERIES_ONGOING
 			: direction === "down"
-				? recent <= 1 / RECOVERY_NEAR_BASELINE
-				: recent >= RECOVERY_NEAR_BASELINE;
+				? recent <= 1 / RECOVERY_NEAR_BASELINE &&
+					recentZ <= -RECOVERY_ONGOING_MIN_Z
+				: recent >= RECOVERY_NEAR_BASELINE && recentZ >= RECOVERY_ONGOING_MIN_Z;
 	return stillBroken
 		? {
-				expectedNormal: hourlyMean === 0 ? 0 : exposureIn(lastDay, n),
+				expectedNormal: hourlyMean === 0 ? 0 : recentExpected,
 				kind: "ongoing",
-				observed: countIn(lastDay, n),
+				observed: recentCount,
 			}
 		: null;
 }
@@ -3327,12 +3341,11 @@ function hoursPhrase(hours: number): string {
 
 export function recoveryEvidence(recovery: ChangeRecovery): string {
 	const change = recovery.direction === "down" ? "drop" : "rise";
-	const count = (value: number) => Math.round(value).toLocaleString("en-US");
 	if (recovery.state === "ongoing") {
-		return `${recovery.subject} show the ${change} still in effect: ${count(recovery.observed)} ${recovery.noun} in the 24 hours through ${recovery.through} (${recovery.timezone}), where the earlier rate predicted about ${count(recovery.expected)}.`;
+		return `${recovery.subject} show the ${change} still in effect: ${counted(recovery.observed, recovery.noun)} in the 24 hours through ${recovery.through} (${recovery.timezone}), where the earlier rate predicted about ${Math.round(recovery.expected).toLocaleString("en-US")}.`;
 	}
 	const when = recovery.recoveredAt
 		? `${recovery.recoveredAt.slice(11, 16)} on ${recovery.recoveredAt.slice(0, 10)}`
 		: recovery.recoveredOn;
-	return `${recovery.subject} show a return to the earlier rate from ${when} (${recovery.timezone}), holding for ${hoursPhrase(recovery.heldHours)} through ${recovery.through}: ${count(recovery.observed)} ${recovery.noun} since then, against ${count(recovery.brokenCount)} in the ${hoursPhrase(recovery.brokenHours)} of the ${change}.`;
+	return `${recovery.subject} show a return to the earlier rate from ${when} (${recovery.timezone}), holding for ${hoursPhrase(recovery.heldHours)} through ${recovery.through}: ${counted(recovery.observed, recovery.noun)} since then, against ${Math.round(recovery.brokenCount).toLocaleString("en-US")} in the ${hoursPhrase(recovery.brokenHours)} of the ${change}.`;
 }

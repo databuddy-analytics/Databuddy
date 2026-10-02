@@ -3439,6 +3439,46 @@ describe("recovery", () => {
 		});
 	});
 
+	it("does not call a new error still in effect on a remnant of its first day", () => {
+		const window = Array.from({ length: 144 }, (_, index) => ({
+			hour: dayjs
+				.utc("2026-08-31")
+				.add(index, "hour")
+				.format("YYYY-MM-DD HH:00:00"),
+			value: index < 24 ? 2 : index >= 120 && index % 4 === 0 ? 1 : 0,
+		}));
+		expect(
+			estimateRecovery({
+				baseline: hourlyCounts("2026-08-17", 14, () => 0),
+				direction: "up",
+				window,
+			})
+		).toBeNull();
+	});
+
+	it("does not call a rare error still in effect on one occurrence", () => {
+		const points = (
+			from: string,
+			hours: number,
+			at: (index: number) => number
+		) =>
+			Array.from({ length: hours }, (_, index) => ({
+				hour: dayjs.utc(from).add(index, "hour").format("YYYY-MM-DD HH:00:00"),
+				value: at(index),
+			}));
+		expect(
+			estimateRecovery({
+				baseline: points("2026-08-17", 14 * 24, (index) =>
+					index % 112 === 0 ? 1 : 0
+				),
+				direction: "up",
+				window: points("2026-08-31", 72, (index) =>
+					index === 3 || index === 9 || index === 60 ? 1 : 0
+				),
+			})
+		).toBeNull();
+	});
+
 	const spikeSignal = prepareInvestigation(
 		{
 			baseline: 0,
