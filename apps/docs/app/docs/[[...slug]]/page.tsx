@@ -113,6 +113,11 @@ export async function generateMetadata(props: {
 		},
 		alternates: {
 			canonical: url,
+			types: {
+				"text/markdown": url.endsWith("/docs")
+					? `${url}/index.md`
+					: `${url}.md`,
+			},
 		},
 		other: {
 			"article:section": sectionLabel,
