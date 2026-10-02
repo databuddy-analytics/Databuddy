@@ -87,7 +87,7 @@ import { trackMcp } from "@databuddy/sdk/mcp";
 const server = trackMcp(new McpServer({ name: "my-server", version: "1.0.0" }));
 ```
 
-Records each tool call with its client, duration, result size and errors. Needs only `DATABUDDY_API_KEY`; arguments and results are never sent. See the [MCP docs](https://www.databuddy.cc/docs/sdk/mcp).
+Records each tool call with its client, duration, result size and errors. Needs only `DATABUDDY_API_KEY`. Arguments and successful results never leave your server; only the length of the text a tool returns is recorded. Failed calls send their error message, up to 512 characters, unless you [keep error messages private](https://www.databuddy.cc/docs/sdk/mcp#keep-error-messages-private) with `beforeSend`. On serverless platforms, pass your platform's `waitUntil`: `trackMcp(server, { waitUntil })`. See the [MCP docs](https://www.databuddy.cc/docs/sdk/mcp).
 
 ## 🚩 Server-Side Flags
 
