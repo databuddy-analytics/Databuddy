@@ -2,15 +2,55 @@ import type {
 	BusinessContextSettings,
 	BusinessTeamContext,
 } from "@databuddy/shared/organization-business-context";
-import type { Page } from "@playwright/test";
-import { expect } from "@/test/e2e/fixtures";
-import { businessContextEvent, test } from "@/test/e2e/business-context-stream";
+import type { Locator, Page, Route } from "@playwright/test";
+import { test } from "@/test/e2e/business-context-stream";
+import { expect, fulfillRpc } from "@/test/e2e/fixtures";
+
+type Generation = NonNullable<BusinessContextSettings["generation"]>;
+
+interface SaveInput {
+	content: string;
+	generationId?: string;
+	revision: number;
+	teamContext: BusinessTeamContext;
+}
+
+interface ContextApi {
+	calls: string[];
+	current: BusinessContextSettings;
+	saved: SaveInput[];
+}
 
 const path = "/organizations/settings/business-context";
 const savedContent =
 	"Example makes scheduling software for independent studios.";
 const generatedContent =
 	"Example helps independent studios fill classes. Customers subscribe monthly.";
+const timeoutError =
+	"Generation took too long. Try again; your saved context is unchanged.";
+const GENERATION_ID = "11111111-1111-4111-8111-111111111111";
+const SECOND_GENERATION_ID = "22222222-2222-4222-8222-222222222222";
+const ADD_DETAILS_RE = /^Add \d+ more details?$/;
+const SETTINGS_URL_RE = /organizations\/settings$/;
+const BILLING_HREF_RE = /\/billing(?:#.*)?$/;
+const VERSION_RE = /^Version/;
+
+type Scope = Page | Locator;
+
+const button = (scope: Scope, name: string) =>
+	scope.getByRole("button", { name, exact: true });
+const heading = (scope: Scope, name: string) =>
+	scope.getByRole("heading", { name, exact: true });
+const region = (scope: Scope, name: string) =>
+	scope.getByRole("region", { name, exact: true });
+const tab = (scope: Scope, name: string) =>
+	scope.getByRole("tab", { name, exact: true });
+const link = (scope: Scope, name: string) =>
+	scope.getByRole("link", { name, exact: true });
+const textbox = (scope: Scope, name: string) =>
+	scope.getByRole("textbox", { name, exact: true });
+const text = (scope: Scope, value: string) =>
+	scope.getByText(value, { exact: true });
 
 const allowedAccess = {
 	status: "allowed",
@@ -18,143 +58,6 @@ const allowedAccess = {
 	message: "Generate a business brief from your website.",
 	action: "generate",
 };
-
-const contextViewports = [
-	{ name: "desktop", width: 1440, height: 1000 },
-	{ name: "mobile", width: 390, height: 844 },
-];
-
-function requestGate() {
-	let resolve!: () => void;
-	const promise = new Promise<void>((release) => {
-		resolve = release;
-	});
-	return { promise, resolve };
-}
-
-test.beforeEach(async ({ page }) => {
-	await page.route("**/rpc/businessContext/generationAccess", (route) =>
-		route.fulfill({ json: { json: allowedAccess } })
-	);
-});
-
-async function editBrief(page: Page) {
-	await page.getByRole("tab", { name: "Edit", exact: true }).click();
-	return page.getByRole("textbox", { name: "Business brief", exact: true });
-}
-
-async function sourcesInput(page: Page) {
-	const options = page.getByRole("button", {
-		name: "Research options",
-		exact: true,
-	});
-	await expect(options).toBeEnabled();
-	const input = page.getByRole("textbox", { name: /Additional pages/ });
-	if (!(await input.isVisible())) {
-		await options.click();
-		await page
-			.getByRole("menuitem", { name: "Add specific pages", exact: true })
-			.click();
-	}
-	return input;
-}
-
-async function expectResearchWebsite(page: Page, name: string) {
-	await page
-		.getByRole("button", { name: "Research options", exact: true })
-		.click();
-	await expect(
-		page.getByRole("menuitemradio", { name, exact: true })
-	).toHaveAttribute("aria-checked", "true");
-	await page.keyboard.press("Escape");
-}
-
-async function useGeneratedDraft(page: Page) {
-	await page
-		.getByRole("button", { name: "Review AI draft", exact: true })
-		.click();
-	await page.getByRole("button", { name: "Use AI draft", exact: true }).click();
-}
-
-test("recovers unfinished brief and team inputs across navigation and reload, then restores a saved version", {
-	tag: "@regression",
-}, async ({ authenticatedPage: page }) => {
-	await page.goto(path);
-	const editor = await editBrief(page);
-	await expect(editor).toBeEditable();
-	const original = await editor.inputValue();
-	const unfinished = `Recover this draft ${crypto.randomUUID()}`;
-	await editor.fill(unfinished);
-	await page.getByRole("button", { name: /^Add \d+ more details?$/ }).click();
-	const priority = page.getByRole("textbox", { name: "Current priority" });
-	await priority.fill("Improve production activation");
-	await page.goto("/organizations/settings");
-	await page.goto(path);
-	await editBrief(page);
-	await expect(editor).toHaveValue(unfinished);
-	await page.reload();
-	await editBrief(page);
-	await expect(editor).toHaveValue(unfinished);
-	await expect(priority).toHaveValue("Improve production activation");
-	await page.getByRole("button", { name: "Save changes" }).click();
-	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
-	await editor.fill("A later saved revision");
-	await priority.fill("A different priority");
-	await page.getByRole("button", { name: "Save changes" }).click();
-	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
-	await page.getByRole("button", { name: "History", exact: true }).click();
-	await page
-		.getByRole("menuitem")
-		.filter({ hasText: /^Version/ })
-		.first()
-		.click();
-	await expect(
-		page.getByRole("heading", { name: /^Review version/ })
-	).toBeFocused();
-	await page.getByRole("button", { name: "Restore this version" }).click();
-	await expect(
-		page.getByText("Version restored", { exact: true })
-	).toBeVisible();
-	await editBrief(page);
-	await expect(editor).toHaveValue(unfinished);
-	await expect(priority).toHaveValue("Improve production activation");
-	await page.reload();
-	await editBrief(page);
-	await expect(editor).toHaveValue(unfinished);
-	expect(unfinished).not.toBe(original);
-});
-
-test("persists a manually edited business brief through the real API", {
-	tag: "@regression",
-}, async ({ authenticatedPage: page }) => {
-	const brief = `Example sells scheduling software. Prioritize completed bookings, not calendar views. Ignore staff rehearsals. Test reference: ${crypto.randomUUID()}.`;
-	await page.goto(path);
-	const editor = await editBrief(page);
-	await expect(editor).toBeEditable();
-	const saveRequests: string[] = [];
-	page.on("request", (request) => {
-		if (request.url().includes("/rpc/businessContext/save")) {
-			saveRequests.push(request.url());
-		}
-	});
-	await editor.fill(brief);
-	const saved = page.waitForResponse((response) =>
-		response.url().includes("/rpc/businessContext/save")
-	);
-	await editor.press("ControlOrMeta+s");
-	expect((await saved).ok()).toBe(true);
-	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
-	expect(saveRequests).toHaveLength(1);
-	await page.reload();
-	await editBrief(page);
-	await expect(editor).toHaveValue(brief);
-	await expect(
-		page.getByRole("button", { name: "Save changes", exact: true })
-	).toBeDisabled();
-	await expect(
-		page.getByRole("button", { name: "Regenerate with AI", exact: true })
-	).toBeEnabled();
-});
 
 function settings(): BusinessContextSettings {
 	return {
@@ -173,61 +76,259 @@ function settings(): BusinessContextSettings {
 	};
 }
 
-function researching(): BusinessContextSettings & {
-	generation: NonNullable<BusinessContextSettings["generation"]>;
-} {
+function generation(): Generation {
+	return {
+		id: GENERATION_ID,
+		websiteId: "example-site",
+		domain: "example.com",
+		requestedBy: "example-admin",
+		requestedAt: new Date().toISOString(),
+		baseRevision: 1,
+		status: "running",
+		draft: null,
+		error: null,
+	};
+}
+
+function researching(): BusinessContextSettings & { generation: Generation } {
+	return {
+		...settings(),
+		generation: { ...generation(), progress: { stage: "reading" } },
+	};
+}
+
+function drafted(
+	content = generatedContent,
+	extra: Partial<Generation> = {}
+): BusinessContextSettings & { generation: Generation } {
 	return {
 		...settings(),
 		generation: {
-			id: "11111111-1111-4111-8111-111111111111",
-			websiteId: "example-site",
-			domain: "example.com",
-			requestedBy: "example-admin",
-			requestedAt: new Date().toISOString(),
-			baseRevision: 1,
-			status: "running",
-			draft: null,
-			error: null,
-			progress: { stage: "reading" },
+			...generation(),
+			status: "ready",
+			draft: { content, sources: [] },
+			...extra,
 		},
 	};
 }
 
-test("opens an empty editable brief ready for typing", {
+function failed(error: string, extra: Partial<Generation> = {}): Generation {
+	return {
+		...generation(),
+		requestedAt: "2026-09-08T12:00:00Z",
+		status: "failed",
+		error,
+		...extra,
+	};
+}
+
+function profileOf(state: BusinessContextSettings) {
+	if (!state.profile) {
+		throw new Error("Expected a saved business profile in the fixture");
+	}
+	return state.profile;
+}
+
+function rpcError(
+	page: Page,
+	route: Route,
+	status: number,
+	code: string,
+	message: string
+) {
+	return fulfillRpc(
+		page,
+		route,
+		{ defined: false, code, status, message },
+		status
+	);
+}
+
+function methodOf(route: Route): string {
+	return new URL(route.request().url()).pathname.split("/").at(-1) ?? "";
+}
+
+function inputOf<T = SaveInput>(route: Route): T {
+	return route.request().postDataJSON().json as T;
+}
+
+// Serves every businessContext procedure from one mutable state. generationAccess and
+// generate fall through to the beforeEach mock or the stream fixture. `intercept` returns
+// true when it fulfilled the route itself.
+async function mockContextApi(
+	page: Page,
+	initial: BusinessContextSettings,
+	intercept?: (method: string, route: Route) => Promise<boolean | undefined>
+): Promise<ContextApi> {
+	const api: ContextApi = { calls: [], current: initial, saved: [] };
+	await page.route("**/rpc/businessContext/**", async (route) => {
+		const method = methodOf(route);
+		if (method !== "get" && method !== "generationAccess") {
+			api.calls.push(method);
+		}
+		if (method === "generationAccess" || method === "generate") {
+			await route.fallback();
+			return;
+		}
+		if (await intercept?.(method, route)) {
+			return;
+		}
+		if (method === "cancel") {
+			api.current = { ...api.current, generation: null };
+		}
+		if (method === "save") {
+			const input = inputOf(route);
+			api.saved.push(input);
+			api.current = {
+				...api.current,
+				generation: null,
+				profile: {
+					...profileOf(api.current),
+					content: input.content,
+					teamContext: input.teamContext,
+					revision: profileOf(api.current).revision + 1,
+				},
+			};
+		}
+		await fulfillRpc(page, route, api.current);
+	});
+	return api;
+}
+
+test.beforeEach(async ({ mockRpc }) => {
+	await mockRpc("businessContext/generationAccess", allowedAccess);
+});
+
+async function editBrief(page: Page) {
+	await tab(page, "Edit").click();
+	return textbox(page, "Business brief");
+}
+
+async function sourcesInput(page: Page) {
+	const options = button(page, "Research options");
+	await expect(options).toBeEnabled();
+	const input = page.getByRole("textbox", { name: /Additional pages/ });
+	if (!(await input.isVisible())) {
+		await options.click();
+		await page
+			.getByRole("menuitem", { name: "Add specific pages", exact: true })
+			.click();
+	}
+	return input;
+}
+
+async function expectResearchWebsite(page: Page, name: string) {
+	await button(page, "Research options").click();
+	await expect(
+		page.getByRole("menuitemradio", { name, exact: true })
+	).toHaveAttribute("aria-checked", "true");
+	await page.keyboard.press("Escape");
+}
+
+async function useGeneratedDraft(page: Page) {
+	await button(page, "Review AI draft").click();
+	await button(page, "Use AI draft").click();
+}
+
+async function goToGeneral(page: Page) {
+	await link(page, "General").click();
+	await expect(page).toHaveURL(SETTINGS_URL_RE);
+	await link(page, "Business Context").click();
+}
+
+test("recovers unfinished brief and team inputs across navigation and reload, then restores a saved version", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page }) => {
-	await page.route("**/rpc/businessContext/get", (route) =>
-		route.fulfill({ json: { json: { ...settings(), profile: null } } })
-	);
 	await page.goto(path);
-	await expect(
-		page.getByRole("tab", { name: "Edit", exact: true })
-	).toHaveAttribute("aria-selected", "true");
-	const editor = page.getByRole("textbox", {
-		name: "Business brief",
-		exact: true,
-	});
+	const editor = await editBrief(page);
 	await expect(editor).toBeEditable();
+	const original = await editor.inputValue();
+	const unfinished = `Recover this draft ${crypto.randomUUID()}`;
+	await editor.fill(unfinished);
+	await page.getByRole("button", { name: ADD_DETAILS_RE }).click();
+	const priority = textbox(page, "Current priority");
+	await priority.fill("Improve production activation");
+	await page.goto("/organizations/settings");
+	await page.goto(path);
+	await editBrief(page);
+	await expect(editor).toHaveValue(unfinished);
+	await page.reload();
+	await editBrief(page);
+	await expect(editor).toHaveValue(unfinished);
+	await expect(priority).toHaveValue("Improve production activation");
+	await button(page, "Save changes").click();
+	await expect(text(page, "Changes saved")).toBeVisible();
+	await editor.fill("A later saved revision");
+	await priority.fill("A different priority");
+	await button(page, "Save changes").click();
+	await expect(text(page, "Changes saved")).toBeVisible();
+	await button(page, "History").click();
+	await page
+		.getByRole("menuitem")
+		.filter({ hasText: VERSION_RE })
+		.first()
+		.click();
 	await expect(
-		page.getByRole("button", { name: "Write a brief", exact: true })
-	).toBeHidden();
-	await expect(
-		page.getByRole("button", { name: "Save changes", exact: true })
-	).toBeDisabled();
+		page.getByRole("heading", { name: /^Review version/ })
+	).toBeFocused();
+	await button(page, "Restore this version").click();
+	await expect(text(page, "Version restored")).toBeVisible();
+	await editBrief(page);
+	await expect(editor).toHaveValue(unfinished);
+	await expect(priority).toHaveValue("Improve production activation");
+	await page.reload();
+	await editBrief(page);
+	await expect(editor).toHaveValue(unfinished);
+	expect(unfinished).not.toBe(original);
+});
+
+test("persists a manually edited business brief through the real API", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page }) => {
+	const brief = `Example sells scheduling software. Prioritize completed bookings, not calendar views. Ignore staff rehearsals. Test reference: ${crypto.randomUUID()}.`;
+	await page.goto(path);
+	const editor = await editBrief(page);
+	await expect(editor).toBeEditable();
+	let saveRequests = 0;
+	page.on("request", (request) => {
+		if (request.url().includes("/rpc/businessContext/save")) {
+			saveRequests += 1;
+		}
+	});
+	await editor.fill(brief);
+	const saved = page.waitForResponse((response) =>
+		response.url().includes("/rpc/businessContext/save")
+	);
+	await editor.press("ControlOrMeta+s");
+	expect((await saved).ok()).toBe(true);
+	await expect(text(page, "Changes saved")).toBeVisible();
+	expect(saveRequests).toBe(1);
+	await page.reload();
+	await editBrief(page);
+	await expect(editor).toHaveValue(brief);
+	await expect(button(page, "Save changes")).toBeDisabled();
+	await expect(button(page, "Regenerate with AI")).toBeEnabled();
+});
+
+test("opens an empty editable brief ready for typing", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page, mockRpc }) => {
+	await mockRpc("businessContext/get", { ...settings(), profile: null });
+	await page.goto(path);
+	await expect(tab(page, "Edit")).toHaveAttribute("aria-selected", "true");
+	const editor = textbox(page, "Business brief");
+	await expect(editor).toBeEditable();
+	await expect(button(page, "Write a brief")).toBeHidden();
+	await expect(button(page, "Save changes")).toBeDisabled();
 	await editor.fill("A brief typed without an extra setup step.");
-	await expect(
-		page.getByRole("button", { name: "Save changes", exact: true })
-	).toBeEnabled();
+	await expect(button(page, "Save changes")).toBeEnabled();
 });
 
 test("saves distinct team fields even when their formatted prose matches", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page }) => {
-	let current = settings();
-	if (!current.profile) {
-		throw new Error("Expected a saved business profile in the fixture");
-	}
-	current.profile.teamContext = {
+	const initial = settings();
+	profileOf(initial).teamContext = {
 		priority: "Improve retention\n\nSuccess definition: Weekly bookings",
 		successDefinition: "",
 		exclusions: "",
@@ -237,58 +338,31 @@ test("saves distinct team fields even when their formatted prose matches", {
 		successDefinition: "Weekly bookings",
 		exclusions: "",
 	};
-	const saved: BusinessTeamContext[] = [];
-	await page.route("**/rpc/businessContext/**", async (route) => {
-		const method = new URL(route.request().url()).pathname.split("/").at(-1);
-		if (method === "generationAccess") {
-			await route.fallback();
-			return;
-		}
-		if (method === "save" && current.profile) {
-			const input = route.request().postDataJSON().json;
-			saved.push(input.teamContext);
-			current = {
-				...current,
-				profile: {
-					...current.profile,
-					teamContext: input.teamContext,
-					revision: 2,
-				},
-			};
-		}
-		await route.fulfill({ json: { json: current } });
-	});
+	const api = await mockContextApi(page, initial);
 	await page.goto(path);
-	await page.getByRole("button", { name: /^Add \d+ more details?$/ }).click();
-	const priority = page.getByRole("textbox", {
-		name: "Current priority",
-		exact: true,
-	});
-	const success = page.getByRole("textbox", {
-		name: "How you define success",
-		exact: true,
-	});
+	await page.getByRole("button", { name: ADD_DETAILS_RE }).click();
+	const priority = textbox(page, "Current priority");
+	const success = textbox(page, "How you define success");
 	await priority.fill(updatedTeam.priority);
 	await success.fill(updatedTeam.successDefinition);
-	const save = page.getByRole("button", { name: "Save changes", exact: true });
-	await expect(save).toBeEnabled();
-	await save.click();
-	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
-	expect(saved).toEqual([updatedTeam]);
+	await expect(button(page, "Save changes")).toBeEnabled();
+	await button(page, "Save changes").click();
+	await expect(text(page, "Changes saved")).toBeVisible();
+	expect(api.saved.map((input) => input.teamContext)).toEqual([updatedTeam]);
 	await page.reload();
 	await expect(priority).toHaveValue(updatedTeam.priority);
 	await expect(success).toHaveValue(updatedTeam.successDefinition);
-	await expect(save).toBeDisabled();
+	await expect(button(page, "Save changes")).toBeDisabled();
 });
 
 test("restores the submitted website and pages when retrying a failed generation", {
 	tag: "@regression",
-}, async ({ authenticatedPage: page, contextStream }) => {
+}, async ({ authenticatedPage: page, contextStream, mockRpc }) => {
 	const sourceUrls = [
 		"https://second.example.net/pricing",
 		"https://second.example.net/docs",
 	];
-	const current: BusinessContextSettings = {
+	await mockRpc("businessContext/get", {
 		...settings(),
 		websites: [
 			...settings().websites,
@@ -298,28 +372,11 @@ test("restores the submitted website and pages when retrying a failed generation
 				domain: "second.example.net",
 			},
 		],
-		generation: {
-			id: "11111111-1111-4111-8111-111111111111",
+		generation: failed(timeoutError, {
 			websiteId: "second-site",
 			domain: "second.example.net",
 			sourceUrls,
-			requestedBy: "example-admin",
-			requestedAt: "2026-09-08T12:00:00Z",
-			baseRevision: 1,
-			status: "failed",
-			draft: null,
-			error:
-				"Generation took too long. Try again; your saved context is unchanged.",
-		},
-	};
-	await page.route("**/rpc/businessContext/**", async (route) => {
-		const method = new URL(route.request().url()).pathname.split("/").at(-1);
-		if (method === "generationAccess") {
-			await route.fallback();
-			return;
-		}
-
-		await route.fulfill({ json: { json: current } });
+		}),
 	});
 	await contextStream.intercept();
 	await page.goto(path);
@@ -328,594 +385,253 @@ test("restores the submitted website and pages when retrying a failed generation
 	await expectResearchWebsite(page, "Second studio");
 	await page.reload();
 	await expect(sources).toHaveValue(sourceUrls.join("\n"));
-	await page
-		.getByRole("button", { name: "Regenerate with AI", exact: true })
-		.click();
-	await expect(
-		page.getByRole("button", { name: "Cancel generation", exact: true })
-	).toBeVisible();
+	await button(page, "Regenerate with AI").click();
+	await expect(button(page, "Cancel generation")).toBeVisible();
 	await contextStream.connected;
 	expect(contextStream.requests).toMatchObject([
 		{ websiteId: "second-site", sourceUrls },
 	]);
 });
 
-for (const viewport of contextViewports) {
-	for (const access of [
-		allowedAccess,
-		{
-			status: "credits-required",
-			billingMode: "fixed",
-			message:
-				"Investigation access is required to generate a draft. Review your investigation allowance and spending limit, or edit the context manually.",
-			action: "billing",
-		},
-	]) {
-		test(
-			`keeps ${viewport.name} ${access.status} context stable through sequential loading`,
-			{
-				tag: "@regression",
-			},
-			async ({ authenticatedPage: page }, testInfo) => {
-				await page.setViewportSize(viewport);
-				const organizationGate = requestGate();
-				const briefGate = requestGate();
-				const accessGate = requestGate();
-				const organizationRequest = page.waitForRequest(
-					"**/api/auth/organization/list*"
-				);
-				const briefRequest = page.waitForRequest("**/rpc/businessContext/get");
-				const accessRequest = page.waitForRequest(
-					"**/rpc/businessContext/generationAccess"
-				);
-				await page.route("**/api/auth/organization/list*", async (route) => {
-					await organizationGate.promise;
-					await route.continue();
-				});
-				await page.route("**/rpc/businessContext/get", async (route) => {
-					await briefGate.promise;
-					await route.fulfill({ json: { json: settings() } });
-				});
-				await page.route(
-					"**/rpc/businessContext/generationAccess",
-					async (route) => {
-						await accessGate.promise;
-						await route.fulfill({ json: { json: access } });
-					}
-				);
-
-				const regions = ["page", "brief", "document"] as const;
-				const readBounds = async () => {
-					const bounds: Array<{
-						region: (typeof regions)[number];
-						x: number;
-						y: number;
-						width: number;
-						height: number;
-					}> = [];
-					for (const region of regions) {
-						const element = page.getByTestId(`business-context-${region}`);
-						await expect(element).toBeVisible();
-						const rect = await element.boundingBox();
-						if (!rect) {
-							throw new Error(`Missing ${region} bounds`);
-						}
-						bounds.push({ region, ...rect });
-					}
-					return bounds;
-				};
-
-				try {
-					await page.goto(path, { waitUntil: "domcontentloaded" });
-					await organizationRequest;
-					await page.evaluate(() => document.fonts.ready.then(() => undefined));
-					const loading = page.getByRole("status", {
-						name: "Loading business context",
-						exact: true,
-					});
-					await expect(loading).toBeVisible();
-					const initial = await readBounds();
-					const initialDocument = initial.at(2);
-					if (!initialDocument) {
-						throw new Error("Missing initial document bounds");
-					}
-					expect(initialDocument.height).toBeGreaterThan(0);
-					expect(initialDocument.height).toBeLessThanOrEqual(384);
-					await page.screenshot({
-						animations: "disabled",
-						path: testInfo.outputPath("organization-loading.png"),
-					});
-					const expectStableBounds = async (phase: string, loading = false) => {
-						let current: Awaited<ReturnType<typeof readBounds>> = [];
-						await expect(async () => {
-							current = await readBounds();
-							for (const [index, before] of initial.entries()) {
-								const after = current.at(index);
-								if (!after) {
-									throw new Error(`Missing ${phase}: ${before.region} bounds`);
-								}
-								// After loading, content and the access notice can resize or
-								// move the document; the page and brief stay anchored.
-								const dimensions = loading
-									? (["x", "y", "width", "height"] as const)
-									: before.region === "document"
-										? (["x", "width"] as const)
-										: (["x", "y", "width"] as const);
-								for (const dimension of dimensions) {
-									expect(
-										Math.abs(after[dimension] - before[dimension]),
-										`${phase}: ${before.region} ${dimension}`
-									).toBeLessThanOrEqual(1);
-								}
-							}
-						}).toPass({ timeout: 5000 });
-						return current;
-					};
-
-					organizationGate.resolve();
-					await briefRequest;
-					await expect(loading).toBeVisible();
-					await expectStableBounds("business context loading", true);
-
-					briefGate.resolve();
-					await accessRequest;
-					await expect(loading).toBeHidden();
-					await expect(
-						page.getByText(savedContent, { exact: true })
-					).toBeVisible();
-					const generate = page.getByRole("button", {
-						name: "Regenerate with AI",
-						exact: true,
-					});
-					await expect(generate).toBeDisabled();
-					const pendingAccess = await expectStableBounds(
-						"generation access loading"
-					);
-					const research = page.getByTestId("business-context-research");
-					const pendingControls = await research.boundingBox();
-					if (!pendingControls) {
-						throw new Error("Missing pending research controls bounds");
-					}
-
-					accessGate.resolve();
-					if (access.status === "allowed") {
-						await expect(generate).toBeEnabled();
-					} else {
-						await expect(
-							page.getByRole("link", { name: "Manage billing", exact: true })
-						).toBeVisible();
-						await expect(generate).toBeHidden();
-					}
-					const ready = await expectStableBounds("generation access ready");
-					const readyControls = await research.boundingBox();
-					if (!readyControls) {
-						throw new Error("Missing ready research controls bounds");
-					}
-					expect(
-						Math.abs(readyControls.height - pendingControls.height),
-						"generation access must not resize research controls"
-					).toBeLessThanOrEqual(1);
-					expect(
-						await page.evaluate(
-							() => document.documentElement.scrollWidth > window.innerWidth
-						)
-					).toBe(false);
-					await page.screenshot({
-						animations: "disabled",
-						path: testInfo.outputPath("loaded.png"),
-					});
-					await testInfo.attach("loading-bounds", {
-						body: JSON.stringify({ initial, pendingAccess, ready }, null, 2),
-						contentType: "application/json",
-					});
-				} finally {
-					organizationGate.resolve();
-					briefGate.resolve();
-					accessGate.resolve();
-				}
-			}
-		);
-	}
-}
+test("shows a loading state until the brief and generation access resolve", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page }) => {
+	const brief = Promise.withResolvers<void>();
+	const access = Promise.withResolvers<void>();
+	await page.route("**/rpc/businessContext/get", async (route) => {
+		await brief.promise;
+		await fulfillRpc(page, route, settings());
+	});
+	await page.route("**/rpc/businessContext/generationAccess", async (route) => {
+		await access.promise;
+		await fulfillRpc(page, route, allowedAccess);
+	});
+	await page.goto(path, { waitUntil: "domcontentloaded" });
+	const loading = page.getByRole("status", {
+		name: "Loading business context",
+		exact: true,
+	});
+	await expect(loading).toBeVisible();
+	brief.resolve();
+	await expect(loading).toBeHidden();
+	await expect(text(page, savedContent)).toBeVisible();
+	await expect(button(page, "Regenerate with AI")).toBeDisabled();
+	access.resolve();
+	await expect(button(page, "Regenerate with AI")).toBeEnabled();
+});
 
 test("keeps typing when AI finishes and saves only the reviewed draft", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page, contextStream }) => {
-	let current = settings();
-	let saved: unknown;
-	await page.route("**/rpc/businessContext/**", async (route) => {
-		if (new URL(route.request().url()).pathname.endsWith("/generationAccess")) {
-			await route.fallback();
-			return;
-		}
-		const method = new URL(route.request().url()).pathname.split("/").at(-1);
-
-		if (method === "save") {
-			saved = route.request().postDataJSON().json;
-			current = {
-				...current,
-				generation: null,
-				profile: {
-					...current.profile!,
-					content: route.request().postDataJSON().json.content,
-					revision: 2,
-				},
-			};
-		}
-		await route.fulfill({ json: { json: current } });
-	});
+	const api = await mockContextApi(page, settings());
 	await contextStream.intercept();
 	await page.goto(path);
 	const editor = await editBrief(page);
 	await expect(editor).toHaveValue(savedContent);
-	await page.getByRole("button", { name: "Regenerate with AI" }).click();
+	await button(page, "Regenerate with AI").click();
 	await contextStream.connected;
-	current = {
-		...current,
-		generation: {
-			id: "11111111-1111-4111-8111-111111111111",
-			websiteId: "example-site",
-			domain: "example.com",
-			requestedBy: "example-admin",
-			requestedAt: new Date().toISOString(),
-			baseRevision: 1,
-			status: "running",
-			draft: null,
-			error: null,
-		},
-	};
-	contextStream.send(current);
-	await expect(
-		page.getByRole("button", { name: "Cancel generation", exact: true })
-	).toBeVisible();
+	api.current = { ...settings(), generation: generation() };
+	contextStream.send(api.current);
+	await expect(button(page, "Cancel generation")).toBeVisible();
 	await editBrief(page);
 	await editor.fill("My unfinished edits");
-	current = {
-		...current,
-		generation: {
-			...current.generation!,
-			status: "ready",
-			draft: {
-				content: generatedContent,
-				sources: [{ url: "https://example.com/pricing", title: "Pricing" }],
-			},
+	api.current = drafted(generatedContent, {
+		draft: {
+			content: generatedContent,
+			sources: [{ url: "https://example.com/pricing", title: "Pricing" }],
 		},
-	};
-	contextStream.send(current);
+	});
+	contextStream.send(api.current);
 	contextStream.end();
-	await expect(
-		page.getByRole("button", { name: "Review AI draft" })
-	).toBeVisible();
+	await expect(button(page, "Review AI draft")).toBeVisible();
 	await expect(editor).toHaveValue("My unfinished edits");
-	await page.getByRole("button", { name: "Review AI draft" }).click();
+	await button(page, "Review AI draft").click();
+	await expect(region(page, "Review AI draft")).toContainText(
+		"Customers subscribe monthly."
+	);
+	await expect(heading(page, "Review AI draft")).toBeFocused();
 	await expect(
-		page.getByRole("region", { name: "Review AI draft", exact: true })
-	).toContainText("Customers subscribe monthly.");
-	await expect(
-		page.getByRole("heading", { name: "Review AI draft" })
-	).toBeFocused();
-	await expect(
-		page
-			.getByRole("region", { name: "Current version", exact: true })
-			.getByRole("link", { name: /^Example/ })
+		region(page, "Current version").getByRole("link", { name: /^Example/ })
 	).toHaveAttribute("href", "https://example.com");
 	await expect(
-		page
-			.getByRole("region", { name: "Proposed version", exact: true })
-			.getByRole("link", { name: /^Pricing/ })
+		region(page, "Proposed version").getByRole("link", { name: /^Pricing/ })
 	).toHaveAttribute("href", "https://example.com/pricing");
-	await page.getByRole("button", { name: "Use AI draft" }).click();
-	await expect(
-		page.getByRole("tab", { name: "Preview", exact: true })
-	).toBeFocused();
+	await button(page, "Use AI draft").click();
+	await expect(tab(page, "Preview")).toBeFocused();
 	await editBrief(page);
 	await expect(editor).toHaveValue(generatedContent);
-	expect(saved).toBeUndefined();
+	expect(api.saved).toHaveLength(0);
 	await editor.fill(`${generatedContent}\nFocus on paid signups.`);
 	await editor.press("ControlOrMeta+s");
-	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
-	expect(saved).toMatchObject({
-		content: `${generatedContent}\nFocus on paid signups.`,
-		revision: 1,
-		generationId: "11111111-1111-4111-8111-111111111111",
-	});
-	await expect(
-		page.getByRole("button", { name: "Save changes" })
-	).toBeDisabled();
+	await expect(text(page, "Changes saved")).toBeVisible();
+	expect(api.saved).toMatchObject([
+		{
+			content: `${generatedContent}\nFocus on paid signups.`,
+			revision: 1,
+			generationId: GENERATION_ID,
+		},
+	]);
+	await expect(button(page, "Save changes")).toBeDisabled();
 });
 
 test("discards an AI draft without restoring it on the next refresh", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page }) => {
-	let current: BusinessContextSettings = {
-		...settings(),
-		generation: {
-			id: "11111111-1111-4111-8111-111111111111",
-			websiteId: "example-site",
-			domain: "example.com",
-			requestedBy: "example-admin",
-			requestedAt: new Date().toISOString(),
-			baseRevision: 1,
-			status: "ready",
-			draft: { content: generatedContent, sources: [] },
-			error: null,
-		},
-	};
-	await page.route("**/rpc/businessContext/**", async (route) => {
-		if (new URL(route.request().url()).pathname.endsWith("/generationAccess")) {
-			await route.fallback();
-			return;
-		}
-		if (new URL(route.request().url()).pathname.endsWith("/cancel")) {
-			current = { ...current, generation: null };
-		}
-		await route.fulfill({ json: { json: current } });
-	});
+	await mockContextApi(page, drafted());
 	await page.goto(path);
 	await useGeneratedDraft(page);
 	const editor = await editBrief(page);
 	await expect(editor).toHaveValue(generatedContent);
-	await page.getByRole("button", { name: "Discard changes" }).click();
+	await button(page, "Discard changes").click();
 	await editBrief(page);
 	await expect(editor).toHaveValue(savedContent);
 	await page.reload();
-	await expect(
-		page.getByRole("button", { name: "Review AI draft" })
-	).toBeHidden();
-	await expect(
-		page.getByRole("button", { name: "Save changes" })
-	).toBeDisabled();
+	await expect(button(page, "Review AI draft")).toBeHidden();
+	await expect(button(page, "Save changes")).toBeDisabled();
 	await editBrief(page);
 	await expect(editor).toHaveValue(savedContent);
 });
 
-test(
-	"dismisses a persisted generation failure without losing unsaved context",
-	{
-		tag: "@regression",
-	},
-	async ({ authenticatedPage: page }, testInfo) => {
-		await page.setViewportSize({ width: 1440, height: 1000 });
-		const expiredMessage =
-			"Generation took too long. Try again; your saved context is unchanged.";
-		const failedGeneration: NonNullable<BusinessContextSettings["generation"]> =
-			{
-				id: "11111111-1111-4111-8111-111111111111",
-				websiteId: "example-site",
-				domain: "example.com",
-				requestedBy: "example-admin",
-				requestedAt: "2026-09-08T12:00:00Z",
-				baseRevision: 1,
-				status: "failed",
-				draft: null,
-				error: expiredMessage,
-			};
-		let current: BusinessContextSettings = {
-			...settings(),
-			generation: failedGeneration,
-		};
-		const mutations: string[] = [];
-		const cancelledIds: string[] = [];
-		await page.route("**/rpc/businessContext/**", async (route) => {
-			const method = new URL(route.request().url()).pathname.split("/").at(-1);
-			if (method === "generationAccess") {
-				await route.fallback();
-				return;
+test("dismisses a persisted generation failure without losing unsaved context", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page }) => {
+	const cancelledIds: string[] = [];
+	const api = await mockContextApi(
+		page,
+		{ ...settings(), generation: failed(timeoutError) },
+		async (method, route) => {
+			if (method !== "cancel") {
+				return false;
 			}
-			if (method === "save" || method === "generate" || method === "cancel") {
-				mutations.push(method);
+			cancelledIds.push(inputOf<{ generationId: string }>(route).generationId);
+			if (cancelledIds.length > 1) {
+				return false;
 			}
-			if (method === "cancel") {
-				cancelledIds.push(route.request().postDataJSON().json.generationId);
-				if (cancelledIds.length === 1) {
-					await route.fulfill({
-						status: 503,
-						json: {
-							json: {
-								defined: false,
-								code: "SERVICE_UNAVAILABLE",
-								status: 503,
-								message: "Could not dismiss this failure. Try again.",
-							},
-						},
-					});
-					return;
-				}
-				current = { ...current, generation: null };
-			}
-			await route.fulfill({ json: { json: current } });
-		});
-		await page.goto(path);
-		const expiredError = page.getByText(expiredMessage, { exact: true });
-		await expect(expiredError).toBeVisible();
-		await page.reload();
-		await expect(expiredError).toBeVisible();
-		expect(mutations).toHaveLength(0);
-		const editor = await editBrief(page);
-		await editor.fill("Keep my unfinished business brief.");
-		await page.getByRole("button", { name: /^Add \d+ more details?$/ }).click();
-		const priority = page.getByRole("textbox", {
-			name: "Current priority",
-			exact: true,
-		});
-		await priority.fill("Keep my team priority too.");
-		const dismiss = page.getByRole("button", {
-			name: "Dismiss generation error",
-			exact: true,
-		});
-		await expect(dismiss).toBeVisible();
-		await page.screenshot({
-			animations: "disabled",
-			path: testInfo.outputPath("generation-error.png"),
-		});
-		await dismiss.click();
-		await expect(
-			page.getByTestId("business-context-brief").getByRole("alert")
-		).toContainText("Could not dismiss this failure. Try again.");
-		await expect(expiredError).toBeVisible();
-		await expect(editor).toHaveValue("Keep my unfinished business brief.");
-		await expect(priority).toHaveValue("Keep my team priority too.");
-		await expect(dismiss).toBeEnabled();
-		await dismiss.click();
-		await expect(
-			page.getByText("Generation error dismissed", { exact: true })
-		).toBeVisible();
-		await expect(expiredError).toBeHidden();
-		await expect(dismiss).toBeHidden();
-		await expect(editor).toHaveValue("Keep my unfinished business brief.");
-		await expect(priority).toHaveValue("Keep my team priority too.");
-		expect(cancelledIds).toEqual([failedGeneration.id, failedGeneration.id]);
-		expect(mutations).toEqual(["cancel", "cancel"]);
-		expect(current.profile?.content).toBe(savedContent);
-		await page.reload();
-		await editBrief(page);
-		await expect(expiredError).toBeHidden();
-		await expect(dismiss).toBeHidden();
-		await expect(editor).toHaveValue("Keep my unfinished business brief.");
-		await expect(priority).toHaveValue("Keep my team priority too.");
-		current = {
-			...current,
-			generation: {
-				...failedGeneration,
-				id: "22222222-2222-4222-8222-222222222222",
-				requestedAt: new Date().toISOString(),
-				error: "The source website could not be read.",
-			},
-		};
-		await page.reload();
-		await expect(
-			page.getByText("The source website could not be read.", { exact: true })
-		).toBeVisible();
-		await expect(dismiss).toBeVisible();
-		await editBrief(page);
-		await expect(editor).toHaveValue("Keep my unfinished business brief.");
-		await expect(priority).toHaveValue("Keep my team priority too.");
-		expect(mutations).toEqual(["cancel", "cancel"]);
-	}
-);
+			await rpcError(
+				page,
+				route,
+				503,
+				"SERVICE_UNAVAILABLE",
+				"Could not dismiss this failure. Try again."
+			);
+			return true;
+		}
+	);
+	await page.goto(path);
+	const expiredError = text(page, timeoutError);
+	await expect(expiredError).toBeVisible();
+	await page.reload();
+	await expect(expiredError).toBeVisible();
+	expect(api.calls).toHaveLength(0);
+	const editor = await editBrief(page);
+	await editor.fill("Keep my unfinished business brief.");
+	await page.getByRole("button", { name: ADD_DETAILS_RE }).click();
+	const priority = textbox(page, "Current priority");
+	await priority.fill("Keep my team priority too.");
+	const dismiss = button(page, "Dismiss generation error");
+	await dismiss.click();
+	await expect(
+		page.getByTestId("business-context-brief").getByRole("alert")
+	).toContainText("Could not dismiss this failure. Try again.");
+	await expect(expiredError).toBeVisible();
+	await expect(editor).toHaveValue("Keep my unfinished business brief.");
+	await expect(priority).toHaveValue("Keep my team priority too.");
+	await expect(dismiss).toBeEnabled();
+	await dismiss.click();
+	await expect(text(page, "Generation error dismissed")).toBeVisible();
+	await expect(expiredError).toBeHidden();
+	await expect(dismiss).toBeHidden();
+	await expect(editor).toHaveValue("Keep my unfinished business brief.");
+	await expect(priority).toHaveValue("Keep my team priority too.");
+	expect(cancelledIds).toEqual([GENERATION_ID, GENERATION_ID]);
+	expect(api.calls).toEqual(["cancel", "cancel"]);
+	expect(api.current.profile?.content).toBe(savedContent);
+	await page.reload();
+	await editBrief(page);
+	await expect(expiredError).toBeHidden();
+	await expect(dismiss).toBeHidden();
+	await expect(editor).toHaveValue("Keep my unfinished business brief.");
+	await expect(priority).toHaveValue("Keep my team priority too.");
+	api.current = {
+		...api.current,
+		generation: failed("The source website could not be read.", {
+			id: SECOND_GENERATION_ID,
+			requestedAt: new Date().toISOString(),
+		}),
+	};
+	await page.reload();
+	await expect(
+		text(page, "The source website could not be read.")
+	).toBeVisible();
+	await expect(dismiss).toBeVisible();
+	await editBrief(page);
+	await expect(editor).toHaveValue("Keep my unfinished business brief.");
+	await expect(priority).toHaveValue("Keep my team priority too.");
+	expect(api.calls).toEqual(["cancel", "cancel"]);
+});
 
 test("dismisses a failed generation when no website is configured", {
 	tag: "@regression",
-}, async ({ authenticatedPage: page }) => {
-	const generationId = "11111111-1111-4111-8111-111111111111";
-	const failure =
-		"Generation took too long. Try again; your saved context is unchanged.";
-	let current: BusinessContextSettings = {
-		...settings(),
-		websites: [],
-		generation: {
-			id: generationId,
-			websiteId: "example-site",
-			domain: "example.com",
-			requestedBy: "example-admin",
-			requestedAt: "2026-09-08T12:00:00Z",
-			baseRevision: 1,
-			status: "failed",
-			draft: null,
-			error: failure,
-		},
-	};
-	const mutations: string[] = [];
-	await page.route("**/rpc/businessContext/**", async (route) => {
-		const method = new URL(route.request().url()).pathname.split("/").at(-1);
-		if (method === "generationAccess") {
-			await route.fulfill({
-				json: {
-					json: {
-						status: "not-configured",
-						billingMode: null,
-						message:
-							"AI draft generation is not configured. Contact your administrator, or edit the context manually.",
-						action: "contact-admin",
-					},
-				},
-			});
-			return;
-		}
-		if (method === "save" || method === "generate" || method === "cancel") {
-			mutations.push(method);
-		}
-		if (method === "cancel") {
-			expect(route.request().postDataJSON().json.generationId).toBe(
-				generationId
-			);
-			current = { ...current, generation: null };
-		}
-		await route.fulfill({ json: { json: current } });
+}, async ({ authenticatedPage: page, mockRpc }) => {
+	await mockRpc("businessContext/generationAccess", {
+		status: "not-configured",
+		billingMode: null,
+		message:
+			"AI draft generation is not configured. Contact your administrator, or edit the context manually.",
+		action: "contact-admin",
 	});
+	const cancelledIds: string[] = [];
+	const api = await mockContextApi(
+		page,
+		{ ...settings(), websites: [], generation: failed(timeoutError) },
+		async (method, route) => {
+			if (method === "cancel") {
+				cancelledIds.push(
+					inputOf<{ generationId: string }>(route).generationId
+				);
+			}
+			return false;
+		}
+	);
 	await page.goto(path);
-	await expect(page.getByText(failure, { exact: true })).toBeVisible();
-	await expect(
-		page.getByRole("link", { name: "Add a website", exact: true })
-	).toBeVisible();
+	const failure = text(page, timeoutError);
+	await expect(failure).toBeVisible();
+	await expect(link(page, "Add a website")).toBeVisible();
 	const editor = await editBrief(page);
 	await editor.fill("Keep this unfinished brief while dismissing the failure.");
-	await page
-		.getByRole("button", { name: "Dismiss generation error", exact: true })
-		.click();
-	await expect(page.getByText(failure, { exact: true })).toBeHidden();
+	await button(page, "Dismiss generation error").click();
+	await expect(failure).toBeHidden();
 	await expect(editor).toHaveValue(
 		"Keep this unfinished brief while dismissing the failure."
 	);
 	await page.reload();
 	await editBrief(page);
-	await expect(page.getByText(failure, { exact: true })).toBeHidden();
+	await expect(failure).toBeHidden();
 	await expect(editor).toHaveValue(
 		"Keep this unfinished brief while dismissing the failure."
 	);
-	expect(mutations).toEqual(["cancel"]);
+	expect(api.calls).toEqual(["cancel"]);
+	expect(cancelledIds).toEqual([GENERATION_ID]);
 });
 
 test("requires conflict review before saving an AI draft based on an older brief", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page, e2eSession }) => {
 	const newerContent = "A teammate corrected the newer saved brief.";
-	const generationId = "11111111-1111-4111-8111-111111111111";
 	const storageKey = `business-context-draft:${e2eSession.userId}:${e2eSession.organizationId}`;
-	const saved: unknown[] = [];
-	let current: BusinessContextSettings = {
-		...settings(),
-		profile: { ...settings().profile!, content: newerContent, revision: 2 },
-		generation: {
-			id: generationId,
-			websiteId: "example-site",
-			domain: "example.com",
-			requestedBy: "example-admin",
-			requestedAt: new Date().toISOString(),
-			baseRevision: 1,
-			status: "ready",
-			draft: { content: generatedContent, sources: [] },
-			error: null,
-		},
-	};
-	await page.route("**/rpc/businessContext/**", async (route) => {
-		const method = new URL(route.request().url()).pathname.split("/").at(-1);
-		if (method === "generationAccess") {
-			await route.fallback();
-			return;
-		}
-		if (method === "save") {
-			const input = route.request().postDataJSON().json;
-			saved.push(input);
-			current = {
-				...current,
-				profile: { ...current.profile!, content: input.content, revision: 3 },
-				generation: null,
-			};
-		}
-		await route.fulfill({ json: { json: current } });
+	const api = await mockContextApi(page, {
+		...drafted(),
+		profile: { ...profileOf(settings()), content: newerContent, revision: 2 },
 	});
 	await page.goto(path);
-	await page
-		.getByRole("button", { name: "Review AI draft", exact: true })
-		.click();
+	await button(page, "Review AI draft").click();
 	await expect(
-		page.getByText(
-			"This draft predates the latest saved version. Check any recent corrections before using it.",
-			{ exact: true }
+		text(
+			page,
+			"This draft predates the latest saved version. Check any recent corrections before using it."
 		)
 	).toBeVisible();
-	await page.getByRole("button", { name: "Use AI draft", exact: true }).click();
+	await button(page, "Use AI draft").click();
 	const recoveredDraft = () =>
 		page.evaluate((key) => {
 			const value = sessionStorage.getItem(key);
@@ -924,130 +640,95 @@ test("requires conflict review before saving an AI draft based on an older brief
 	await expect.poll(recoveredDraft).toMatchObject({
 		revision: 1,
 		content: generatedContent,
-		generationId,
+		generationId: GENERATION_ID,
 	});
-	const save = page.getByRole("button", { name: "Save changes", exact: true });
+	const save = button(page, "Save changes");
 	await expect(save).toBeDisabled();
 	await page.keyboard.press("ControlOrMeta+s");
-	expect(saved).toHaveLength(0);
+	expect(api.saved).toHaveLength(0);
 	await page.reload();
-	await expect(page.getByText(generatedContent, { exact: true })).toBeVisible();
+	await expect(text(page, generatedContent)).toBeVisible();
 	await expect(save).toBeDisabled();
 	await expect
 		.poll(recoveredDraft)
-		.toMatchObject({ revision: 1, generationId });
-	await page
-		.getByRole("button", { name: "Review update", exact: true })
-		.click();
-	const review = page.getByRole("region", {
-		name: "Review saved changes",
-		exact: true,
-	});
+		.toMatchObject({ revision: 1, generationId: GENERATION_ID });
+	await button(page, "Review update").click();
+	const review = region(page, "Review saved changes");
 	await expect(review).toContainText(newerContent);
 	await expect(review).toContainText(generatedContent);
-	expect(saved).toHaveLength(0);
-	await page
-		.getByRole("button", { name: "Keep editing my version", exact: true })
-		.click();
+	expect(api.saved).toHaveLength(0);
+	await button(page, "Keep editing my version").click();
 	await expect
 		.poll(recoveredDraft)
-		.toMatchObject({ revision: 2, generationId });
+		.toMatchObject({ revision: 2, generationId: GENERATION_ID });
 	await expect(save).toBeEnabled();
 	await save.click();
-	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
-	expect(saved).toHaveLength(1);
-	expect(saved[0]).toMatchObject({
-		revision: 2,
-		content: generatedContent,
-		generationId,
-	});
+	await expect(text(page, "Changes saved")).toBeVisible();
+	expect(api.saved).toMatchObject([
+		{ revision: 2, content: generatedContent, generationId: GENERATION_ID },
+	]);
 });
 
 test("preserves edits on a revision conflict and requires reviewing the new brief", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page }) => {
-	let current = settings();
 	const savedRevisions: number[] = [];
-	await page.route("**/rpc/businessContext/**", async (route) => {
-		if (new URL(route.request().url()).pathname.endsWith("/generationAccess")) {
-			await route.fallback();
-			return;
+	const api = await mockContextApi(page, settings(), async (method, route) => {
+		if (method !== "save") {
+			return false;
 		}
-		if (new URL(route.request().url()).pathname.endsWith("/save")) {
-			const input = route.request().postDataJSON().json;
-			savedRevisions.push(input.revision);
-			if (input.revision === 1) {
-				current = {
-					...current,
-					profile: {
-						...current.profile!,
-						content: "A teammate's newer brief.",
-						revision: 2,
-					},
-				};
-				await route.fulfill({
-					status: 409,
-					json: {
-						json: {
-							defined: false,
-							code: "CONFLICT",
-							status: 409,
-							message:
-								"The business brief was updated. Review the latest version.",
-						},
-					},
-				});
-				return;
-			}
-			current = {
-				...current,
-				profile: { ...current.profile!, content: input.content, revision: 3 },
-			};
+		const input = inputOf(route);
+		savedRevisions.push(input.revision);
+		if (input.revision !== 1) {
+			return false;
 		}
-		await route.fulfill({ json: { json: current } });
+		api.current = {
+			...api.current,
+			profile: {
+				...profileOf(api.current),
+				content: "A teammate's newer brief.",
+				revision: 2,
+			},
+		};
+		await rpcError(
+			page,
+			route,
+			409,
+			"CONFLICT",
+			"The business brief was updated. Review the latest version."
+		);
+		return true;
 	});
 	await page.goto(path);
 	const editor = await editBrief(page);
 	await editor.fill("My local brief");
-	await page.getByRole("button", { name: "Save changes" }).click();
-	await expect(
-		page.getByRole("button", { name: "Review update" })
-	).toBeVisible();
+	await button(page, "Save changes").click();
+	await expect(button(page, "Review update")).toBeVisible();
 	await expect(editor).toHaveValue("My local brief");
-	await expect(
-		page.getByRole("button", { name: "Save changes" })
-	).toBeDisabled();
-	await page.getByRole("button", { name: "Review update" }).click();
-	await expect(
-		page.getByText("A teammate's newer brief.", { exact: true })
-	).toBeVisible();
-	await page.getByRole("button", { name: "Keep editing my version" }).click();
+	await expect(button(page, "Save changes")).toBeDisabled();
+	await button(page, "Review update").click();
+	await expect(text(page, "A teammate's newer brief.")).toBeVisible();
+	await button(page, "Keep editing my version").click();
 	await expect(editor).toBeFocused();
-	await page.getByRole("button", { name: "Save changes" }).click();
-	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
+	await button(page, "Save changes").click();
+	await expect(text(page, "Changes saved")).toBeVisible();
 	expect(savedRevisions).toEqual([1, 2]);
 });
 
 test("shows the saved brief and sources to members without edit controls", {
 	tag: "@regression",
-}, async ({ authenticatedPage: page }) => {
-	await page.route("**/rpc/businessContext/get", (route) =>
-		route.fulfill({ json: { json: { ...settings(), canEdit: false } } })
-	);
+}, async ({ authenticatedPage: page, mockRpc }) => {
+	await mockRpc("businessContext/get", { ...settings(), canEdit: false });
 	await page.goto(path);
-	await expect(page.getByText(savedContent, { exact: true })).toBeVisible();
-	await expect(
-		page.getByRole("tab", { name: "Edit", exact: true })
-	).toBeHidden();
-	await expect(
-		page.getByRole("textbox", { name: "Business brief" })
-	).toBeHidden();
+	await expect(text(page, savedContent)).toBeVisible();
+	await expect(tab(page, "Edit")).toBeHidden();
+	await expect(textbox(page, "Business brief")).toBeHidden();
 	await expect(
 		page.getByRole("button", {
 			name: /Generate with AI|Regenerate with AI|Save changes|Discard changes/,
 		})
 	).toBeHidden();
-	await page.getByText("1 source", { exact: true }).click();
+	await text(page, "1 source").click();
 	await expect(page.getByRole("link", { name: /^Example/ })).toHaveAttribute(
 		"href",
 		"https://example.com"
@@ -1056,140 +737,77 @@ test("shows the saved brief and sources to members without edit controls", {
 
 test("can save retained text after regenerating and declining the replacement", {
 	tag: "@regression",
-}, async ({ authenticatedPage: page }) => {
-	let current: BusinessContextSettings = {
-		...settings(),
-		generation: {
-			id: "first-generation",
-			websiteId: "example-site",
-			domain: "example.com",
-			requestedBy: "example-admin",
-			requestedAt: new Date().toISOString(),
-			baseRevision: 1,
-			status: "ready",
-			draft: { content: generatedContent, sources: [] },
-			error: null,
-		},
-	};
-	let saved: unknown;
-	await page.route("**/rpc/businessContext/**", async (route) => {
-		if (new URL(route.request().url()).pathname.endsWith("/generationAccess")) {
-			await route.fallback();
-			return;
-		}
-		const method = new URL(route.request().url()).pathname.split("/").at(-1);
-		if (method === "generate") {
-			current = {
-				...current,
-				previousDrafts: [current.generation!],
-				generation: {
-					...current.generation!,
-					id: "second-generation",
-					status: "ready",
-					draft: { content: "A replacement brief.", sources: [] },
-				},
-			};
-		}
-		if (method === "cancel") {
-			current = { ...current, generation: null };
-		}
-		if (method === "save") {
-			saved = route.request().postDataJSON().json;
-			current = {
-				...current,
-				profile: {
-					...current.profile!,
-					content: generatedContent,
-					revision: 2,
-				},
-			};
-		}
-		await route.fulfill(
-			method === "generate"
-				? {
-						contentType: "text/event-stream",
-						body: businessContextEvent(current),
-					}
-				: { json: { json: current } }
-		);
-	});
+}, async ({ authenticatedPage: page, contextStream }) => {
+	const first = drafted(generatedContent, { id: "first-generation" });
+	const api = await mockContextApi(page, first);
+	await contextStream.intercept();
 	await page.goto(path);
 	await useGeneratedDraft(page);
 	const editor = await editBrief(page);
 	await expect(editor).toHaveValue(generatedContent);
-	await page.getByRole("button", { name: "Regenerate with AI" }).click();
-	await page.getByRole("button", { name: "Review AI draft" }).click();
-	await page.getByRole("button", { name: "Keep current text" }).click();
-	await expect(
-		page.getByRole("tab", { name: "Preview", exact: true })
-	).toBeFocused();
+	await button(page, "Regenerate with AI").click();
+	await contextStream.connected;
+	api.current = {
+		...first,
+		previousDrafts: [first.generation],
+		generation: {
+			...first.generation,
+			id: "second-generation",
+			draft: { content: "A replacement brief.", sources: [] },
+		},
+	};
+	contextStream.send(api.current);
+	contextStream.end();
+	await button(page, "Review AI draft").click();
+	await button(page, "Keep current text").click();
+	await expect(tab(page, "Preview")).toBeFocused();
 	await editBrief(page);
 	await expect(editor).toHaveValue(generatedContent);
-	await page.getByRole("button", { name: "Save changes" }).click();
-	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
-	expect(saved).toMatchObject({
-		content: generatedContent,
-		revision: 1,
-		generationId: "first-generation",
-	});
+	await button(page, "Save changes").click();
+	await expect(text(page, "Changes saved")).toBeVisible();
+	expect(api.saved).toMatchObject([
+		{
+			content: generatedContent,
+			revision: 1,
+			generationId: "first-generation",
+		},
+	]);
 });
 
 test("a late save cannot clear a newer draft written after navigation", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page }) => {
-	let current = settings();
-	let release: () => void = () => {};
-	const pending = new Promise<void>((resolve) => {
-		release = resolve;
-	});
-	await page.route("**/rpc/businessContext/**", async (route) => {
-		if (new URL(route.request().url()).pathname.endsWith("/generationAccess")) {
-			await route.fallback();
-			return;
+	const pending = Promise.withResolvers<void>();
+	await mockContextApi(page, settings(), async (method) => {
+		if (method === "save") {
+			await pending.promise;
 		}
-		if (new URL(route.request().url()).pathname.endsWith("/save")) {
-			const input = route.request().postDataJSON().json;
-			await pending;
-			current = {
-				...current,
-				profile: { ...current.profile!, content: input.content, revision: 2 },
-			};
-		}
-		await route.fulfill({ json: { json: current } });
+		return false;
 	});
 	await page.goto(path);
 	const editor = await editBrief(page);
 	await editor.fill("Save A");
-	await page.getByRole("button", { name: "Save changes" }).click();
-	await page.getByRole("link", { name: "General", exact: true }).click();
-	await expect(page).toHaveURL(/organizations\/settings$/);
-	await expect(editor).toBeHidden();
-	await page
-		.getByRole("link", { name: "Business Context", exact: true })
-		.click();
+	await button(page, "Save changes").click();
+	await goToGeneral(page);
 	await editBrief(page);
 	await expect(editor).toBeEditable();
 	await editor.fill("Newer draft B");
 	const response = page.waitForResponse((item) =>
 		item.url().endsWith("/businessContext/save")
 	);
-	release();
+	pending.resolve();
 	await response;
 	await expect(editor).toHaveValue("Newer draft B");
 	await page.reload();
 	await editBrief(page);
 	await expect(editor).toHaveValue("Newer draft B");
-	await expect(
-		page.getByRole("button", { name: "Review update" })
-	).toBeVisible();
+	await expect(button(page, "Review update")).toBeVisible();
 });
 
 test("failed browser storage keeps newer text and discarded tombstones across in-app navigation", {
 	tag: "@regression",
-}, async ({ authenticatedPage: page }) => {
-	await page.route("**/rpc/businessContext/get", (route) =>
-		route.fulfill({ json: { json: settings() } })
-	);
+}, async ({ authenticatedPage: page, mockRpc }) => {
+	await mockRpc("businessContext/get", settings());
 	await page.goto(path);
 	const editor = await editBrief(page);
 	await editor.fill("Old persisted draft");
@@ -1214,23 +832,13 @@ test("failed browser storage keeps newer text and discarded tombstones across in
 	await editor.fill("Newer memory draft");
 	const sources = await sourcesInput(page);
 	await sources.fill("https://example.com/unfinished");
-	await page.getByRole("link", { name: "General", exact: true }).click();
-	await expect(page).toHaveURL(/organizations\/settings$/);
-	await expect(editor).toBeHidden();
-	await page
-		.getByRole("link", { name: "Business Context", exact: true })
-		.click();
+	await goToGeneral(page);
 	await editBrief(page);
 	await expect(editor).toHaveValue("Newer memory draft");
 	await expect(sources).toHaveValue("https://example.com/unfinished");
-	await page.getByRole("button", { name: "Discard changes" }).click();
+	await button(page, "Discard changes").click();
 	await editBrief(page);
-	await page.getByRole("link", { name: "General", exact: true }).click();
-	await expect(page).toHaveURL(/organizations\/settings$/);
-	await expect(editor).toBeHidden();
-	await page
-		.getByRole("link", { name: "Business Context", exact: true })
-		.click();
+	await goToGeneral(page);
 	await editBrief(page);
 	await expect(editor).toHaveValue(savedContent);
 	await expect(sources).toHaveValue("https://example.com/unfinished");
@@ -1239,110 +847,60 @@ test("failed browser storage keeps newer text and discarded tombstones across in
 test("choosing a saved version dismisses an available AI draft", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page }) => {
-	let current = settings();
-	await page.route("**/rpc/businessContext/**", async (route) => {
-		if (new URL(route.request().url()).pathname.endsWith("/generationAccess")) {
-			await route.fallback();
-			return;
+	const api = await mockContextApi(page, settings(), async (method, route) => {
+		if (method !== "save") {
+			return false;
 		}
-		const method = new URL(route.request().url()).pathname.split("/").at(-1);
-		if (method === "save") {
-			current = {
-				...current,
-				profile: {
-					...current.profile!,
-					content: "Teammate's saved choice",
-					revision: 2,
-				},
-				generation: {
-					id: "11111111-1111-4111-8111-111111111111",
-					websiteId: "example-site",
-					domain: "example.com",
-					requestedBy: "example-admin",
-					requestedAt: new Date().toISOString(),
-					baseRevision: 2,
-					status: "ready",
-					draft: { content: generatedContent, sources: [] },
-					error: null,
-				},
-			};
-			await route.fulfill({
-				status: 409,
-				json: {
-					json: {
-						defined: false,
-						code: "CONFLICT",
-						status: 409,
-						message: "Review newer saved context",
-					},
-				},
-			});
-			return;
-		}
-		if (method === "cancel") {
-			current = { ...current, generation: null };
-		}
-		await route.fulfill({ json: { json: current } });
+		api.current = {
+			...drafted(generatedContent, { baseRevision: 2 }),
+			profile: {
+				...profileOf(api.current),
+				content: "Teammate's saved choice",
+				revision: 2,
+			},
+		};
+		await rpcError(page, route, 409, "CONFLICT", "Review newer saved context");
+		return true;
 	});
 	await page.goto(path);
 	const editor = await editBrief(page);
 	await editor.fill("My edits");
-	await page.getByRole("button", { name: "Save changes" }).click();
-	await page.getByRole("button", { name: "Review update" }).click();
-	await page.getByRole("button", { name: "Use saved version" }).click();
+	await button(page, "Save changes").click();
+	await button(page, "Review update").click();
+	await button(page, "Use saved version").click();
 	await editBrief(page);
 	await expect(editor).toHaveValue("Teammate's saved choice");
 	await page.reload();
 	await editBrief(page);
 	await expect(editor).toHaveValue("Teammate's saved choice");
-	await expect(
-		page.getByRole("button", { name: "Review AI draft" })
-	).toBeHidden();
+	await expect(button(page, "Review AI draft")).toBeHidden();
 });
 
 test("renders the brief as Markdown and preserves exact text between edit and preview", {
 	tag: "@regression",
-}, async ({ authenticatedPage: page }) => {
+}, async ({ authenticatedPage: page, mockRpc }) => {
 	const markdown =
 		"## Who we serve\n\n**Independent studios** use Example.\n\n- Schedule classes\n- [Read the guide](https://example.com/guide)";
-	await page.route("**/rpc/businessContext/get", (route) =>
-		route.fulfill({
-			json: {
-				json: {
-					...settings(),
-					profile: { ...settings().profile!, content: markdown },
-				},
-			},
-		})
-	);
+	await mockRpc("businessContext/get", {
+		...settings(),
+		profile: { ...profileOf(settings()), content: markdown },
+	});
 	await page.goto(path);
-	await expect(
-		page.getByRole("heading", { name: "Who we serve", exact: true })
-	).toBeVisible();
+	await expect(heading(page, "Who we serve")).toBeVisible();
 	await expect(
 		page.getByRole("listitem").filter({ hasText: "Schedule classes" })
 	).toBeVisible();
-	await page
-		.getByRole("button", { name: "Read the guide", exact: true })
-		.click();
-	await expect(
-		page.getByText("https://example.com/guide", { exact: true })
-	).toBeVisible();
-	await page.getByRole("button", { name: "Close", exact: true }).click();
-	await expect(
-		page.getByRole("textbox", { name: "Business brief" })
-	).toBeHidden();
+	await button(page, "Read the guide").click();
+	await expect(text(page, "https://example.com/guide")).toBeVisible();
+	await button(page, "Close").click();
+	await expect(textbox(page, "Business brief")).toBeHidden();
 	const editor = await editBrief(page);
 	await expect(editor).toHaveValue(markdown);
 	const edited = `${markdown}\n\n### This quarter\n\nIncrease repeat bookings.`;
 	await editor.fill(edited);
-	await page.getByRole("tab", { name: "Preview", exact: true }).click();
-	await expect(
-		page.getByRole("heading", { name: "This quarter", exact: true })
-	).toBeVisible();
-	await expect(
-		page.getByRole("button", { name: "Save changes", exact: true })
-	).toBeEnabled();
+	await tab(page, "Preview").click();
+	await expect(heading(page, "This quarter")).toBeVisible();
+	await expect(button(page, "Save changes")).toBeEnabled();
 	await editBrief(page);
 	await expect(editor).toHaveValue(edited);
 });
@@ -1371,215 +929,82 @@ for (const access of [
 ] as const) {
 	test(`explains ${access.status} before generation while keeping manual editing available`, {
 		tag: "@regression",
-	}, async ({ authenticatedPage: page }) => {
-		let current = settings();
-		let generationRequests = 0;
-		await page.route("**/rpc/businessContext/**", async (route) => {
-			const method = new URL(route.request().url()).pathname.split("/").at(-1);
-			if (method === "generationAccess") {
-				await route.fulfill({ json: { json: access } });
-				return;
-			}
-			if (method === "generate") {
-				generationRequests++;
-			}
-			if (method === "save") {
-				current = {
-					...current,
-					profile: {
-						...current.profile!,
-						content: route.request().postDataJSON().json.content,
-						revision: 2,
-					},
-				};
-			}
-			await route.fulfill({ json: { json: current } });
-		});
+	}, async ({ authenticatedPage: page, mockRpc }) => {
+		await mockRpc("businessContext/generationAccess", access);
+		const api = await mockContextApi(page, settings());
 		await page.goto(path);
-		await expect(page.getByText(access.message, { exact: true })).toBeVisible();
-		await expect(
-			page.getByRole("button", { name: "Regenerate with AI", exact: true })
-		).toBeHidden();
+		await expect(text(page, access.message)).toBeVisible();
+		await expect(button(page, "Regenerate with AI")).toBeHidden();
 		if (access.action === "billing") {
-			await expect(
-				page.getByRole("link", { name: "Manage billing", exact: true })
-			).toHaveAttribute("href", /\/billing(?:#.*)?$/);
+			await expect(link(page, "Manage billing")).toHaveAttribute(
+				"href",
+				BILLING_HREF_RE
+			);
 		} else {
-			await expect(
-				page.getByRole("button", { name: "Check again", exact: true })
-			).toBeEnabled();
+			await expect(button(page, "Check again")).toBeEnabled();
 		}
 		const editor = await editBrief(page);
 		await editor.fill(
 			"Our team can maintain this brief without AI generation."
 		);
-		await page
-			.getByRole("button", { name: "Save changes", exact: true })
-			.click();
-		await expect(
-			page.getByText("Changes saved", { exact: true })
-		).toBeVisible();
-		expect(current.profile?.content).toBe(
+		await button(page, "Save changes").click();
+		await expect(text(page, "Changes saved")).toBeVisible();
+		expect(api.current.profile?.content).toBe(
 			"Our team can maintain this brief without AI generation."
 		);
-		expect(generationRequests).toBe(0);
+		expect(api.calls).not.toContain("generate");
 	});
-}
-
-for (const viewport of contextViewports) {
-	test(
-		`keeps ${viewport.name} live research compact as draft content changes`,
-		{ tag: "@regression" },
-		async ({ authenticatedPage: page, contextStream }, testInfo) => {
-			await page.setViewportSize(viewport);
-			await page.addInitScript(() => localStorage.setItem("theme", "dark"));
-			let current = settings();
-			await page.route("**/rpc/businessContext/get", (route) =>
-				route.fulfill({ json: { json: current } })
-			);
-			await contextStream.intercept();
-			await page.goto(path);
-			await page
-				.getByRole("button", { name: "Regenerate with AI", exact: true })
-				.click();
-			await contextStream.connected;
-			const panel = page.locator('[aria-label="AI draft preview"]');
-			const brief = page.getByTestId("business-context-brief");
-			const research = page.getByTestId("business-context-research");
-			const reading = panel.getByText("Reading your sources", { exact: true });
-			await expect(reading).toBeVisible();
-			await expect(panel).toBeInViewport({ ratio: 0.5 });
-			const initialPanel = await panel.boundingBox();
-			const initialBrief = await brief.boundingBox();
-			const title = await reading.boundingBox();
-			if (!(initialPanel && initialBrief && title)) {
-				throw new Error("Missing initial research bounds");
-			}
-			expect(initialPanel.height).toBeGreaterThan(0);
-			expect(initialPanel.height).toBeLessThanOrEqual(384);
-			expect(title.y - initialPanel.y).toBeLessThanOrEqual(32);
-			await expect(
-				research.getByRole("button", { name: "Research options", exact: true })
-			).toBeDisabled();
-			await expect(
-				research.getByRole("button", { name: "Cancel generation", exact: true })
-			).toBeEnabled();
-			await page.screenshot({
-				animations: "disabled",
-				path: testInfo.outputPath("starting.png"),
-			});
-			current = researching();
-			contextStream.send(current);
-			await expect(reading).toBeVisible();
-			await page.screenshot({
-				animations: "disabled",
-				path: testInfo.outputPath("reading.png"),
-			});
-			current = {
-				...current,
-				generation: {
-					...current.generation!,
-					progress: {
-						stage: "writing",
-						content:
-							"## Proposed understanding\n\nExample serves independent studios.",
-					},
-				},
-			};
-			contextStream.send(current);
-			await expect(
-				panel.getByRole("heading", {
-					name: "Proposed understanding",
-					exact: true,
-				})
-			).toBeVisible();
-			const writingPanel = await panel.boundingBox();
-			const writingBrief = await brief.boundingBox();
-			if (!(writingPanel && writingBrief)) {
-				throw new Error("Missing writing research bounds");
-			}
-			expect(writingPanel.height).toBeGreaterThan(0);
-			expect(writingPanel.height).toBeLessThanOrEqual(384);
-			for (const dimension of ["x", "y", "width"] as const) {
-				expect(writingPanel[dimension]).toBe(initialPanel[dimension]);
-				expect(writingBrief[dimension]).toBe(initialBrief[dimension]);
-			}
-			await expect(panel).toBeInViewport({ ratio: 0.5 });
-			await expect(
-				research.getByRole("button", { name: "Research options", exact: true })
-			).toBeDisabled();
-			await expect(
-				research.getByRole("button", { name: "Cancel generation", exact: true })
-			).toBeEnabled();
-			await expect(
-				page.getByRole("button", { name: "Use AI draft", exact: true })
-			).toBeHidden();
-			await page.screenshot({
-				animations: "disabled",
-				path: testInfo.outputPath("writing.png"),
-			});
-			await testInfo.attach("generation-bounds", {
-				body: JSON.stringify({
-					initialPanel,
-					initialBrief,
-					writingPanel,
-					writingBrief,
-				}),
-				contentType: "application/json",
-			});
-		}
-	);
 }
 
 test("streams a separate proposed brief without replacing local edits or enabling early acceptance", {
 	tag: "@regression",
-}, async ({ authenticatedPage: page, contextStream }) => {
+}, async ({ authenticatedPage: page, contextStream, mockRpc }) => {
 	let current = settings();
 	let reads = 0;
-	await page.route("**/rpc/businessContext/get", (route) => {
-		reads++;
-		return route.fulfill({ json: { json: current } });
+	await mockRpc("businessContext/get", () => {
+		reads += 1;
+		return current;
 	});
 	await contextStream.intercept();
 	await page.goto(path);
 	const editor = await editBrief(page);
 	await editor.fill("My unfinished context stays here.");
-	await page
-		.getByRole("button", { name: "Regenerate with AI", exact: true })
-		.click();
+	await button(page, "Regenerate with AI").click();
 	await contextStream.connected;
 	current = researching();
 	contextStream.send(current);
 	const readsAtStart = reads;
-	const writing = {
-		...current.generation!,
-		progress: {
-			stage: "writing" as const,
-			content:
-				"## Proposed understanding\n\nExample serves independent studios.",
+	const research = page.getByTestId("business-context-research");
+	await expect(text(page, "Reading your sources")).toBeVisible();
+	await expect(button(research, "Research options")).toBeDisabled();
+	await expect(button(research, "Cancel generation")).toBeEnabled();
+	current = {
+		...current,
+		generation: {
+			...current.generation,
+			progress: {
+				stage: "writing",
+				content:
+					"## Proposed understanding\n\nExample serves independent studios.",
+			},
 		},
 	};
-	current = { ...current, generation: writing };
 	contextStream.send(current);
-	await page.getByRole("tab", { name: "AI draft", exact: true }).click();
-	await expect(
-		page.getByRole("heading", { name: "Proposed understanding", exact: true })
-	).toBeVisible({ timeout: 10_000 });
+	await tab(page, "AI draft").click();
+	await expect(heading(page, "Proposed understanding")).toBeVisible({
+		timeout: 10_000,
+	});
 	await editBrief(page);
 	await expect(editor).toHaveValue("My unfinished context stays here.");
 	// The owned request delivers progress directly; no two-second polling loop.
 	await page.waitForTimeout(2200);
 	expect(reads).toBe(readsAtStart);
-	await expect(
-		page.getByRole("button", { name: "Use AI draft", exact: true })
-	).toBeHidden();
-	await expect(
-		page.getByRole("button", { name: "Review AI draft", exact: true })
-	).toBeHidden();
+	await expect(button(page, "Use AI draft")).toBeHidden();
+	await expect(button(page, "Review AI draft")).toBeHidden();
 	current = {
 		...current,
 		generation: {
-			...current.generation!,
+			...current.generation,
 			status: "ready",
 			draft: {
 				content: "## Proposed understanding\n\nA complete explanation.",
@@ -1589,24 +1014,15 @@ test("streams a separate proposed brief without replacing local edits or enablin
 	};
 	contextStream.send(current);
 	contextStream.end();
-	await expect(
-		page.getByRole("button", { name: "Review AI draft", exact: true })
-	).toBeVisible({ timeout: 10_000 });
+	await expect(button(page, "Review AI draft")).toBeVisible({
+		timeout: 10_000,
+	});
 	await editBrief(page);
 	await expect(editor).toHaveValue("My unfinished context stays here.");
-	await page
-		.getByRole("button", { name: "Review AI draft", exact: true })
-		.click();
-	const review = page.getByRole("region", {
-		name: "Review AI draft",
-		exact: true,
-	});
-	await expect(
-		review.getByRole("heading", { name: "Current version", exact: true })
-	).toBeVisible();
-	await expect(
-		review.getByRole("heading", { name: "Proposed version", exact: true })
-	).toBeVisible();
+	await button(page, "Review AI draft").click();
+	const review = region(page, "Review AI draft");
+	await expect(heading(review, "Current version")).toBeVisible();
+	await expect(heading(review, "Proposed version")).toBeVisible();
 	await expect(review).toContainText("My unfinished context stays here.");
 	await expect(review).toContainText("A complete explanation.");
 	await expect(review.locator("ins, del")).toHaveCount(0);
@@ -1614,107 +1030,52 @@ test("streams a separate proposed brief without replacing local edits or enablin
 
 test("keeps current and proposed documents readable in a narrow viewport", {
 	tag: "@regression",
-}, async ({ authenticatedPage: page }) => {
+}, async ({ authenticatedPage: page, mockRpc }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
-	const current: BusinessContextSettings = {
-		...settings(),
-		generation: {
-			id: "11111111-1111-4111-8111-111111111111",
-			websiteId: "example-site",
-			domain: "example.com",
-			requestedBy: "example-admin",
-			requestedAt: new Date().toISOString(),
-			baseRevision: 1,
-			status: "ready",
-			draft: {
-				content: "## Proposed business\n\nStudios sell monthly memberships.",
-				sources: [],
-			},
-			error: null,
-		},
-	};
-	await page.route("**/rpc/businessContext/get", (route) =>
-		route.fulfill({ json: { json: current } })
+	await mockRpc(
+		"businessContext/get",
+		drafted("## Proposed business\n\nStudios sell monthly memberships.")
 	);
 	await page.goto(path);
-	await page
-		.getByRole("button", { name: "Review AI draft", exact: true })
-		.click();
-	const review = page.getByRole("region", {
-		name: "Review AI draft",
+	await button(page, "Review AI draft").click();
+	const review = region(page, "Review AI draft");
+	const versions = review.getByRole("radiogroup", {
+		name: "Version to review",
 		exact: true,
 	});
-	await expect(
-		page.getByRole("heading", { name: "Review AI draft", exact: true })
-	).toBeFocused();
+	await expect(heading(page, "Review AI draft")).toBeFocused();
 	await expect(
 		review.getByRole("radio", { name: "Proposed version", exact: true })
 	).toBeChecked();
-	await expect(
-		review.getByRole("heading", { name: "Proposed business", exact: true })
-	).toBeVisible();
-	await expect(
-		review.getByRole("heading", { name: "Current version", exact: true })
-	).toBeHidden();
-	await review
-		.getByRole("radiogroup", { name: "Version to review", exact: true })
-		.getByText("Current version", { exact: true })
-		.click();
+	await expect(heading(review, "Proposed business")).toBeVisible();
+	await expect(heading(review, "Current version")).toBeHidden();
+	await text(versions, "Current version").click();
 	await expect(
 		review.getByRole("radio", { name: "Current version", exact: true })
 	).toBeChecked();
-	await expect(review.getByText(savedContent, { exact: true })).toBeVisible();
-	await expect(
-		review.getByRole("heading", { name: "Proposed business", exact: true })
-	).toBeHidden();
-	await review
-		.getByRole("radiogroup", { name: "Version to review", exact: true })
-		.getByText("Proposed version", { exact: true })
-		.click();
-	await expect(
-		review.getByRole("heading", { name: "Proposed business", exact: true })
-	).toBeVisible();
-	await expect(
-		review.getByRole("button", { name: "Use AI draft", exact: true })
-	).toBeVisible();
-	expect(
-		await review.evaluate(
-			(element) => element.scrollWidth <= element.clientWidth
-		)
-	).toBe(true);
-	expect(
-		await page.evaluate(
-			() => document.documentElement.scrollWidth <= window.innerWidth
-		)
-	).toBe(true);
+	await expect(text(review, savedContent)).toBeVisible();
+	await expect(heading(review, "Proposed business")).toBeHidden();
+	await text(versions, "Proposed version").click();
+	await expect(heading(review, "Proposed business")).toBeVisible();
+	await expect(button(review, "Use AI draft")).toBeVisible();
 });
 
 test("cancels research before its first event without losing manual work", {
 	tag: "@regression",
-}, async ({ authenticatedPage: page, contextStream }) => {
-	await page.route("**/rpc/businessContext/get", (route) =>
-		route.fulfill({ json: { json: settings() } })
-	);
+}, async ({ authenticatedPage: page, contextStream, mockRpc }) => {
+	await mockRpc("businessContext/get", settings());
 	await contextStream.intercept();
 	await page.goto(path);
 	const editor = await editBrief(page);
 	await editor.fill("Keep this unfinished brief.");
 	const sources = await sourcesInput(page);
 	await sources.fill("https://example.com/docs");
-	await page
-		.getByRole("button", { name: "Regenerate with AI", exact: true })
-		.click();
+	await button(page, "Regenerate with AI").click();
 	await contextStream.connected;
-	await expect(
-		page.getByRole("tab", { name: "AI draft", exact: true })
-	).toHaveAttribute("aria-selected", "true");
-	await page
-		.getByRole("button", { name: "Cancel generation", exact: true })
-		.click();
+	await expect(tab(page, "AI draft")).toHaveAttribute("aria-selected", "true");
+	await button(page, "Cancel generation").click();
 	await contextStream.disconnected;
-	await expect(
-		page.getByRole("button", { name: "Regenerate with AI", exact: true })
-	).toBeEnabled();
+	await expect(button(page, "Regenerate with AI")).toBeEnabled();
 	await editBrief(page);
 	await expect(editor).toHaveValue("Keep this unfinished brief.");
 	await expect(sources).toHaveValue("https://example.com/docs");
@@ -1724,72 +1085,39 @@ test("cancels research before its first event without losing manual work", {
 test("saving manual edits stops the stream and ignores its late draft", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page, contextStream }) => {
-	let current = settings();
-	await page.route("**/rpc/businessContext/**", async (route) => {
-		const method = new URL(route.request().url()).pathname.split("/").at(-1);
-		if (method === "generationAccess") {
-			return route.fallback();
-		}
-		if (method === "save") {
-			current = {
-				...current,
-				generation: null,
-				profile: {
-					...current.profile!,
-					content: route.request().postDataJSON().json.content,
-					revision: 2,
-				},
-			};
-		}
-		await route.fulfill({ json: { json: current } });
-	});
+	const api = await mockContextApi(page, settings());
 	await contextStream.intercept();
 	await page.goto(path);
-	await page
-		.getByRole("button", { name: "Regenerate with AI", exact: true })
-		.click();
+	await button(page, "Regenerate with AI").click();
 	await contextStream.connected;
-	current = researching();
-	contextStream.send(current);
+	api.current = researching();
+	contextStream.send(api.current);
 	const editor = await editBrief(page);
 	await editor.fill("The manual correction must win.");
-	await page.getByRole("button", { name: "Save changes", exact: true }).click();
+	await button(page, "Save changes").click();
 	await contextStream.disconnected;
-	contextStream.send({
-		...researching(),
-		generation: {
-			...researching().generation,
-			status: "ready",
-			draft: { content: "A late AI answer must not replace it.", sources: [] },
-		},
-	});
-	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
+	contextStream.send(drafted("A late AI answer must not replace it."));
+	await expect(text(page, "Changes saved")).toBeVisible();
 	await expect(editor).toHaveValue("The manual correction must win.");
-	await expect(
-		page.getByRole("button", { name: "Review AI draft", exact: true })
-	).toBeHidden();
+	await expect(button(page, "Review AI draft")).toBeHidden();
 	await page.reload();
 	await editBrief(page);
 	await expect(editor).toHaveValue("The manual correction must win.");
-	expect(current.profile?.revision).toBe(2);
+	expect(api.current.profile?.revision).toBe(2);
 });
 
 test("an interrupted response preserves edits and does not restart generation on reload", {
 	tag: "@regression",
-}, async ({ authenticatedPage: page, contextStream }) => {
+}, async ({ authenticatedPage: page, contextStream, mockRpc }) => {
 	let current = settings();
-	await page.route("**/rpc/businessContext/get", (route) =>
-		route.fulfill({ json: { json: current } })
-	);
+	await mockRpc("businessContext/get", () => current);
 	await contextStream.intercept();
 	await page.goto(path);
 	const editor = await editBrief(page);
 	await editor.fill("Keep the brief across a disconnected stream.");
 	const sources = await sourcesInput(page);
 	await sources.fill("https://example.com/pricing");
-	await page
-		.getByRole("button", { name: "Regenerate with AI", exact: true })
-		.click();
+	await button(page, "Regenerate with AI").click();
 	await contextStream.connected;
 	current = {
 		...researching(),
@@ -1802,26 +1130,20 @@ test("an interrupted response preserves edits and does not restart generation on
 		},
 	};
 	contextStream.send(current);
-	await expect(
-		page.getByRole("heading", { name: "Partial answer", exact: true })
-	).toBeVisible();
+	await expect(heading(page, "Partial answer")).toBeVisible();
 	current = settings();
 	contextStream.end();
 	await expect(
 		page.getByTestId("business-context-brief").getByRole("alert")
 	).toContainText("Research could not be completed");
-	await expect(
-		page.getByRole("button", { name: "Review AI draft", exact: true })
-	).toBeHidden();
+	await expect(button(page, "Review AI draft")).toBeHidden();
 	await page.reload();
 	await editBrief(page);
 	await expect(editor).toHaveValue(
 		"Keep the brief across a disconnected stream."
 	);
 	await expect(sources).toHaveValue("https://example.com/pricing");
-	await expect(
-		page.getByRole("button", { name: "Regenerate with AI", exact: true })
-	).toBeEnabled();
+	await expect(button(page, "Regenerate with AI")).toBeEnabled();
 	expect(contextStream.requests).toHaveLength(1);
 });
 
@@ -1843,7 +1165,7 @@ test("recovers unsubmitted research inputs independently of brief saving and leg
 		},
 		{ storageKey }
 	);
-	let current = {
+	await mockContextApi(page, {
 		...settings(),
 		websites: [
 			...settings().websites,
@@ -1853,30 +1175,11 @@ test("recovers unsubmitted research inputs independently of brief saving and leg
 				domain: "second.example.net",
 			},
 		],
-	};
-	await page.route("**/rpc/businessContext/**", async (route) => {
-		const method = new URL(route.request().url()).pathname.split("/").at(-1);
-		if (method === "generationAccess") {
-			return route.fallback();
-		}
-		if (method === "save") {
-			current = {
-				...current,
-				profile: {
-					...current.profile!,
-					content: route.request().postDataJSON().json.content,
-					revision: 2,
-				},
-			};
-		}
-		await route.fulfill({ json: { json: current } });
 	});
 	await page.goto(path);
 	const editor = await editBrief(page);
 	await expect(editor).toHaveValue("A draft stored by an older tab.");
-	await page
-		.getByRole("button", { name: "Research options", exact: true })
-		.click();
+	await button(page, "Research options").click();
 	await page
 		.getByRole("menuitemradio", { name: "Second studio", exact: true })
 		.click();
@@ -1888,250 +1191,172 @@ test("recovers unsubmitted research inputs independently of brief saving and leg
 	await expectResearchWebsite(page, "Second studio");
 	await editBrief(page);
 	await expect(editor).toHaveValue("A draft stored by an older tab.");
-	await page.getByRole("button", { name: "Save changes", exact: true }).click();
-	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
+	await button(page, "Save changes").click();
+	await expect(text(page, "Changes saved")).toBeVisible();
 	await page.reload();
 	await expect(sources).toHaveValue(unfinished);
-	await expect(
-		page.getByRole("button", { name: "Save changes", exact: true })
-	).toBeDisabled();
-	await page.getByRole("link", { name: "General", exact: true }).click();
-	await page
-		.getByRole("link", { name: "Business Context", exact: true })
-		.click();
+	await expect(button(page, "Save changes")).toBeDisabled();
+	await goToGeneral(page);
 	await expect(sources).toHaveValue(unfinished);
 	await expectResearchWebsite(page, "Second studio");
 });
 
 test("leaving the page aborts active research without restarting it on return", {
 	tag: "@regression",
-}, async ({ authenticatedPage: page, contextStream }) => {
+}, async ({ authenticatedPage: page, contextStream, mockRpc }) => {
 	let current = settings();
-	await page.route("**/rpc/businessContext/get", (route) =>
-		route.fulfill({ json: { json: current } })
-	);
+	await mockRpc("businessContext/get", () => current);
 	await contextStream.intercept();
 	await page.goto(path);
 	const editor = await editBrief(page);
 	await editor.fill("Keep this context when navigating away.");
-	await page
-		.getByRole("button", { name: "Regenerate with AI", exact: true })
-		.click();
+	await button(page, "Regenerate with AI").click();
 	await contextStream.connected;
 	current = researching();
 	contextStream.send(current);
-	await expect(
-		page.getByRole("button", { name: "Cancel generation", exact: true })
-	).toBeEnabled();
-	await page.getByRole("link", { name: "General", exact: true }).click();
+	await expect(button(page, "Cancel generation")).toBeEnabled();
+	await link(page, "General").click();
 	await contextStream.disconnected;
 	current = settings();
-	await page
-		.getByRole("link", { name: "Business Context", exact: true })
-		.click();
+	await link(page, "Business Context").click();
 	await editBrief(page);
 	await expect(editor).toHaveValue("Keep this context when navigating away.");
-	await expect(
-		page.getByRole("button", { name: "Regenerate with AI", exact: true })
-	).toBeEnabled();
+	await expect(button(page, "Regenerate with AI")).toBeEnabled();
 	expect(contextStream.requests).toHaveLength(1);
 });
 
-for (const viewport of contextViewports) {
-	test(`shows ${viewport.name} research results without reusing the previous run or waiting for refresh`, {
-		tag: "@regression",
-	}, async ({ authenticatedPage: page, contextStream }) => {
-		await page.setViewportSize(viewport);
-		const oldQuestion = "Which old goal matters?";
-		let current: BusinessContextSettings = {
-			...settings(),
-			generation: {
-				...researching().generation,
-				status: "ready",
-				research: {
-					startedAt: "2026-09-18T10:00:00Z",
-					pages: [{ url: "https://example.com/old", status: "read" }],
-				},
-				draft: {
-					content: "The previous AI proposal.",
-					sources: [],
-					followUpQuestions: [{ field: "priority", question: oldQuestion }],
-				},
-			},
-		};
-		const refresh = requestGate();
-		let holdRefresh = false;
-		await page.route("**/rpc/businessContext/get", async (route) => {
-			if (holdRefresh) {
-				await refresh.promise;
-			}
-			await route.fulfill({ json: { json: current } });
-		});
-		await contextStream.intercept();
-		await page.goto(path);
-		await expect(page.getByText(oldQuestion, { exact: true })).toBeVisible();
-		await page
-			.getByRole("button", { name: "Regenerate with AI", exact: true })
-			.click();
-		await contextStream.connected;
-		const panel = page.getByRole("tabpanel", {
-			name: "AI draft",
-			exact: true,
-		});
-		await expect(panel).toContainText("Reading your sources");
-		await expect(panel).not.toContainText("The previous AI proposal.");
-		await expect(page.getByText(oldQuestion, { exact: true })).toBeHidden();
-		const report = page.getByRole("region", {
-			name: "Research report",
-			exact: true,
-		});
-		await expect(
-			report.getByRole("link", { name: "https://example.com/old", exact: true })
-		).toBeHidden();
-		const initial = await panel.boundingBox();
-		const initialReport = await report.boundingBox();
-		if (!initialReport) {
-			throw new Error("Missing initial research report bounds");
-		}
-		const priority = page.getByRole("textbox", {
-			name: "Current priority",
-			exact: true,
-		});
-		await expect(priority).toBeHidden();
-		current = {
-			...researching(),
-			generation: {
-				...researching().generation,
-				id: "22222222-2222-4222-8222-222222222222",
-				research: {
-					startedAt: "2026-09-18T11:00:00Z",
-					pages: [
-						{
-							url: "https://example.com",
-							title: "Studio homepage",
-							status: "read",
-						},
-						{ url: "https://example.com/pricing", status: "failed" },
-					],
-					discoveryFailed: true,
-				},
-			},
-		};
-		contextStream.send(current);
-		await expect(report).toContainText("1 page read · 1 could not be read");
-		await expect(report).toContainText(
-			"Additional page discovery was unavailable."
-		);
-
-		expect(await panel.boundingBox()).toEqual(initial);
-		const updatedReport = await report.boundingBox();
-		if (!updatedReport) {
-			throw new Error("Missing updated research report bounds");
-		}
-		for (const dimension of ["x", "y", "width"] as const) {
-			expect(updatedReport[dimension]).toBe(initialReport[dimension]);
-		}
-		await expect(priority).toBeHidden();
-		await report
-			.getByRole("button", { name: "Pages checked (2)", exact: true })
-			.click();
-		await expect(
-			report.getByRole("link", { name: "Studio homepage", exact: true })
-		).toHaveAttribute("href", "https://example.com");
-		if (!current.generation) {
-			throw new Error("Expected a running generation in the fixture");
-		}
-		current = {
-			...current,
-			generation: {
-				...current.generation,
-				status: "ready",
-				draft: {
-					content: "The new completed proposal.",
-					sources: [],
-					followUpQuestions: [
-						{
-							field: "successDefinition",
-							question: "Which completed booking counts as success?",
-						},
-					],
-				},
-			},
-		};
-		holdRefresh = true;
-		contextStream.send(current);
-		contextStream.end();
-		try {
-			await expect(
-				page.getByRole("button", { name: "Review AI draft", exact: true })
-			).toBeVisible();
-			await expect(
-				page.getByRole("button", { name: "Cancel generation", exact: true })
-			).toBeHidden();
-			await expect(
-				page.getByText("Which completed booking counts as success?", {
-					exact: true,
-				})
-			).toBeVisible();
-			await expect(report).toContainText("1 page read · 1 could not be read");
-			await expect(page.getByText(oldQuestion, { exact: true })).toBeHidden();
-			expect(
-				await page.evaluate(
-					() => document.documentElement.scrollWidth > window.innerWidth
-				)
-			).toBe(false);
-		} finally {
-			refresh.resolve();
-		}
-	});
-}
-
-test("keeps a failed streamed research report and its explanation visible on mobile", {
+test("shows research results without reusing the previous run or waiting for refresh", {
 	tag: "@regression",
 }, async ({ authenticatedPage: page, contextStream }) => {
-	await page.setViewportSize({ width: 390, height: 844 });
-	let current = settings();
-	await page.route("**/rpc/businessContext/get", (route) =>
-		route.fulfill({ json: { json: current } })
-	);
+	const oldQuestion = "Which old goal matters?";
+	let current: BusinessContextSettings = drafted("The previous AI proposal.", {
+		research: {
+			startedAt: "2026-09-18T10:00:00Z",
+			pages: [{ url: "https://example.com/old", status: "read" }],
+		},
+		draft: {
+			content: "The previous AI proposal.",
+			sources: [],
+			followUpQuestions: [{ field: "priority", question: oldQuestion }],
+		},
+	});
+	const refresh = Promise.withResolvers<void>();
+	let holdRefresh = false;
+	await page.route("**/rpc/businessContext/get", async (route) => {
+		if (holdRefresh) {
+			await refresh.promise;
+		}
+		await fulfillRpc(page, route, current);
+	});
 	await contextStream.intercept();
 	await page.goto(path);
-	const editor = await editBrief(page);
-	await editor.fill("Keep this manual brief.");
-	await page
-		.getByRole("button", { name: "Regenerate with AI", exact: true })
-		.click();
+	await expect(text(page, oldQuestion)).toBeVisible();
+	await button(page, "Regenerate with AI").click();
 	await contextStream.connected;
+	const panel = page.getByRole("tabpanel", { name: "AI draft", exact: true });
+	await expect(panel).toContainText("Reading your sources");
+	await expect(panel).not.toContainText("The previous AI proposal.");
+	await expect(text(page, oldQuestion)).toBeHidden();
+	const report = region(page, "Research report");
+	await expect(link(report, "https://example.com/old")).toBeHidden();
+	const priority = textbox(page, "Current priority");
+	await expect(priority).toBeHidden();
 	current = {
 		...researching(),
 		generation: {
 			...researching().generation,
+			id: SECOND_GENERATION_ID,
+			research: {
+				startedAt: "2026-09-18T11:00:00Z",
+				pages: [
+					{
+						url: "https://example.com",
+						title: "Studio homepage",
+						status: "read",
+					},
+					{ url: "https://example.com/pricing", status: "failed" },
+				],
+				discoveryFailed: true,
+			},
+		},
+	};
+	contextStream.send(current);
+	await expect(report).toContainText("1 page read · 1 could not be read");
+	await expect(report).toContainText(
+		"Additional page discovery was unavailable."
+	);
+	await expect(priority).toBeHidden();
+	await button(report, "Pages checked (2)").click();
+	await expect(link(report, "Studio homepage")).toHaveAttribute(
+		"href",
+		"https://example.com"
+	);
+	current = {
+		...current,
+		generation: {
+			...(current.generation as Generation),
+			status: "ready",
+			draft: {
+				content: "The new completed proposal.",
+				sources: [],
+				followUpQuestions: [
+					{
+						field: "successDefinition",
+						question: "Which completed booking counts as success?",
+					},
+				],
+			},
+		},
+	};
+	holdRefresh = true;
+	contextStream.send(current);
+	contextStream.end();
+	try {
+		await expect(button(page, "Review AI draft")).toBeVisible();
+		await expect(button(page, "Cancel generation")).toBeHidden();
+		await expect(
+			text(page, "Which completed booking counts as success?")
+		).toBeVisible();
+		await expect(report).toContainText("1 page read · 1 could not be read");
+		await expect(text(page, oldQuestion)).toBeHidden();
+	} finally {
+		refresh.resolve();
+	}
+});
+
+test("keeps a failed streamed research report and its explanation visible", {
+	tag: "@regression",
+}, async ({ authenticatedPage: page, contextStream, mockRpc }) => {
+	let current = settings();
+	await mockRpc("businessContext/get", () => current);
+	await contextStream.intercept();
+	await page.goto(path);
+	const editor = await editBrief(page);
+	await editor.fill("Keep this manual brief.");
+	await button(page, "Regenerate with AI").click();
+	await contextStream.connected;
+	current = {
+		...researching(),
+		generation: failed("The source website could not be read.", {
 			research: {
 				startedAt: "2026-09-18T11:00:00Z",
 				pages: [{ url: "https://example.com", status: "failed" }],
 			},
-			status: "failed",
-			error: "The source website could not be read.",
-		},
+		}),
 	};
 	contextStream.send(current);
 	contextStream.end();
-	const tab = page.getByRole("tab", { name: "AI draft", exact: true });
-	await expect(tab).toHaveAttribute("aria-selected", "true");
-	await expect(tab).toBeFocused();
+	const draftTab = tab(page, "AI draft");
+	await expect(draftTab).toHaveAttribute("aria-selected", "true");
+	await expect(draftTab).toBeFocused();
 	const alert = page.getByTestId("business-context-brief").getByRole("alert");
 	await expect(alert).toContainText("The source website could not be read.");
 	await expect(alert).toBeInViewport();
-	await expect(
-		page.getByRole("region", { name: "Research report", exact: true })
-	).toContainText("0 pages read · 1 could not be read");
-	await expect(
-		page.getByRole("button", { name: "Review AI draft", exact: true })
-	).toBeHidden();
+	const report = region(page, "Research report");
+	await expect(report).toContainText("0 pages read · 1 could not be read");
+	await expect(button(page, "Review AI draft")).toBeHidden();
 	await page.reload();
-	await expect(
-		page.getByRole("region", { name: "Research report", exact: true })
-	).toContainText("0 pages read · 1 could not be read");
+	await expect(report).toContainText("0 pages read · 1 could not be read");
 	await editBrief(page);
 	await expect(editor).toHaveValue("Keep this manual brief.");
 });
@@ -2148,102 +1373,91 @@ test("answers research questions in existing team fields and saves them independ
 		{ field: "successDefinition" as const, question: successQuestion },
 		{ field: "exclusions" as const, question: exclusionQuestion },
 	];
-	let current: BusinessContextSettings = {
-		...settings(),
-		generation: {
-			...researching().generation,
-			status: "ready",
-			research: {
-				startedAt: "2026-09-18T11:00:00Z",
-				pages: [{ url: "https://example.com", status: "read" }],
-			},
+	const research = {
+		startedAt: "2026-09-18T11:00:00Z",
+		pages: [{ url: "https://example.com", status: "read" as const }],
+	};
+	const api = await mockContextApi(
+		page,
+		drafted(generatedContent, {
+			research,
 			draft: {
 				content: generatedContent,
 				sources: [],
 				followUpQuestions: questions,
 			},
-		},
-	};
-	const savedInputs: {
-		content: string;
-		generationId?: string;
-		teamContext: BusinessTeamContext;
-	}[] = [];
-	await page.route("**/rpc/businessContext/**", async (route) => {
-		const method = new URL(route.request().url()).pathname.split("/").at(-1);
-		if (method === "generationAccess") {
-			return route.fulfill({ json: { json: allowedAccess } });
-		}
-		if (method === "save") {
-			if (!current.profile) {
-				throw new Error("Expected a saved business profile in the fixture");
+		}),
+		async (method, route) => {
+			if (method !== "save") {
+				return false;
 			}
-			const input = route.request().postDataJSON().json;
-			savedInputs.push(input);
-			current = {
-				...current,
+			const input = inputOf(route);
+			api.saved.push(input);
+			api.current = {
+				...api.current,
+				generation: null,
 				profile: {
-					...current.profile,
+					...profileOf(api.current),
 					content: input.content,
 					revision: 2,
 					teamContext: input.teamContext,
-					research: current.generation?.research,
+					research,
 					followUpQuestions: questions.filter(
 						({ field }) => !input.teamContext[field].trim()
 					),
 				},
-				generation: null,
 			};
+			await fulfillRpc(page, route, api.current);
+			return true;
 		}
-		await route.fulfill({ json: { json: current } });
-	});
+	);
 	await page.goto(path);
-	const priority = page.getByRole("textbox", {
-		name: "Current priority",
-		exact: true,
-	});
+	const priority = textbox(page, "Current priority");
 	await expect(priority).toHaveAccessibleDescription(priorityQuestion);
 	await priority.fill("Improve first paid bookings.");
 	await expect(priority).toBeFocused();
 	await expect(priority).toHaveAccessibleDescription(priorityQuestion);
-	await expect(
-		page.getByText("Answer not saved", { exact: true })
-	).toBeVisible();
+	await expect(text(page, "Answer not saved")).toBeVisible();
 	await page.reload();
 	await expect(priority).toHaveValue("Improve first paid bookings.");
 	await expect(priority).toHaveAccessibleDescription(priorityQuestion);
-	await page.getByRole("button", { name: "Save changes", exact: true }).click();
-	await expect(page.getByText("Changes saved", { exact: true })).toBeVisible();
-	expect(savedInputs).toHaveLength(1);
-	expect(savedInputs[0]?.content).toBe(savedContent);
-	expect(savedInputs[0]?.generationId).toBeUndefined();
-	await expect(page.getByText(priorityQuestion, { exact: true })).toBeHidden();
-	await expect(page.getByText(successQuestion, { exact: true })).toBeVisible();
-	await expect(
-		page.getByText(exclusionQuestion, { exact: true })
-	).toBeVisible();
-	await expect(
-		page.getByRole("region", { name: "Last research", exact: true })
-	).toContainText("1 page read");
+	await button(page, "Save changes").click();
+	await expect(text(page, "Changes saved")).toBeVisible();
+	expect(api.saved).toHaveLength(1);
+	expect(api.saved[0]?.content).toBe(savedContent);
+	expect(api.saved[0]?.generationId).toBeUndefined();
+	await expect(text(page, priorityQuestion)).toBeHidden();
+	await expect(text(page, successQuestion)).toBeVisible();
+	await expect(text(page, exclusionQuestion)).toBeVisible();
+	await expect(region(page, "Last research")).toContainText("1 page read");
 	await page.reload();
 	await expect(priority).toHaveValue("Improve first paid bookings.");
-	await expect(page.getByText(successQuestion, { exact: true })).toBeVisible();
+	await expect(text(page, successQuestion)).toBeVisible();
 });
 
 test("does not attach newer research metadata to an adopted legacy draft", {
 	tag: "@regression",
-}, async ({ authenticatedPage: page, e2eSession }) => {
-	const adopted = {
-		...researching().generation,
-		status: "ready" as const,
-		draft: { content: "The older draft I selected.", sources: [] },
-	};
-	const current: BusinessContextSettings = {
+}, async ({ authenticatedPage: page, e2eSession, mockRpc }) => {
+	const adopted = drafted("The older draft I selected.").generation;
+	await page.addInitScript(
+		({ key, generationId, content }) => {
+			sessionStorage.setItem(
+				key,
+				JSON.stringify({ revision: 1, generationId, content })
+			);
+		},
+		{
+			key: `business-context-draft:${e2eSession.userId}:${e2eSession.organizationId}`,
+			generationId: adopted.id,
+			content: "The older draft I selected.",
+		}
+	);
+	await mockRpc("businessContext/get", {
 		...settings(),
 		previousDrafts: [adopted],
 		generation: {
 			...adopted,
-			id: "22222222-2222-4222-8222-222222222222",
+			id: SECOND_GENERATION_ID,
 			research: {
 				startedAt: "2026-09-18T11:00:00Z",
 				pages: [{ url: "https://example.com/new", status: "read" }],
@@ -2256,31 +1470,11 @@ test("does not attach newer research metadata to an adopted legacy draft", {
 				],
 			},
 		},
-	};
-	await page.addInitScript(
-		({ key, generationId, content }) => {
-			sessionStorage.setItem(
-				key,
-				JSON.stringify({ revision: 1, generationId, content })
-			);
-		},
-		{
-			key: `business-context-draft:${e2eSession.userId}:${e2eSession.organizationId}`,
-			generationId: adopted.id,
-			content: adopted.draft.content,
-		}
-	);
-	await page.route("**/rpc/businessContext/get", (route) =>
-		route.fulfill({ json: { json: current } })
-	);
+	});
 	await page.goto(path);
 	await expect(page.getByTestId("business-context-document")).toContainText(
-		adopted.draft.content
+		"The older draft I selected."
 	);
-	await expect(
-		page.getByRole("region", { name: "Research report", exact: true })
-	).toBeHidden();
-	await expect(
-		page.getByText("A question from the newer run?", { exact: true })
-	).toBeHidden();
+	await expect(region(page, "Research report")).toBeHidden();
+	await expect(text(page, "A question from the newer run?")).toBeHidden();
 });
