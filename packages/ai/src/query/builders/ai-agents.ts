@@ -103,9 +103,9 @@ export function aiServerTrackingStoppedQuery(
 	return {
 		sql: `
 			SELECT client_id FROM ${Analytics.ai_traffic_spans}
-			WHERE source IN ${SERVER_SIDE_SOURCES}
+			WHERE source IN ${SERVER_SIDE_SOURCES} AND timestamp >= toDate({fromDay:String})
 			GROUP BY client_id
-			HAVING max(timestamp) >= toDate({fromDay:String}) AND max(timestamp) < toDate({untilDay:String})
+			HAVING max(timestamp) < toDate({untilDay:String})
 		`,
 		params: { fromDay, untilDay },
 	};
