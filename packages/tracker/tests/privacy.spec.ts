@@ -207,7 +207,7 @@ test.describe("Privacy & Opt-out", () => {
 				<button>Reply to Jane Doe</button>
 				<a id="profile-4821" href="#jane">Jane Doe</a>
 				<button data-track="save_settings">Save</button>
-				<label>Email <input id="field-1234"></label>`;
+				<form><label>Email <input id="field-1234"></label></form>`;
 			window.databuddyConfig = {
 				clientId: "test-click-descriptors",
 				ignoreBotDetection: true,
@@ -231,6 +231,9 @@ test.describe("Privacy & Opt-out", () => {
 		);
 		expect(await rageClickTarget("a")).toBe("a:unnamed");
 		expect(await rageClickTarget("text=Save")).toBe("button:save_settings");
-		expect(await rageClickTarget("input")).toBe("input:text:email");
+		await page.click("input");
+		expect(
+			await page.evaluate(() => (window.__tracker as BaseTracker).lastFormField)
+		).toBe("input:text:email");
 	});
 });
