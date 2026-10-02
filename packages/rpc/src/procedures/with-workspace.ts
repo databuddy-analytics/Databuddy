@@ -288,7 +288,7 @@ interface ResolvedDenied {
 	denied: Error;
 	kind: "denied";
 	organizationId: string;
-	plan: PlanId | null;
+	plan: PromiseSettledResult<PlanId | null>;
 	website: Website | null;
 }
 
@@ -318,7 +318,7 @@ async function resolveWorkspace(
 			? getPlanId(context, context.organizationId ?? organizationId)
 			: Promise.resolve(null);
 
-	const [grant, plan] = await Promise.all([
+	const [grantResult, planResult] = await Promise.allSettled([
 		resolveGrant(context, {
 			organizationId,
 			resource: effectiveResource,
@@ -329,15 +329,25 @@ async function resolveWorkspace(
 		planPromise,
 	]);
 
+	if (grantResult.status === "rejected") {
+		throw grantResult.reason;
+	}
+	const grant = grantResult.value;
+
 	if (!grant.granted) {
 		return {
 			kind: "denied",
 			denied: grant.denied,
 			website,
 			organizationId,
-			plan,
+			plan: planResult,
 		};
 	}
+
+	if (planResult.status === "rejected") {
+		throw planResult.reason;
+	}
+	const plan = planResult.value;
 
 	if (input.requiredPlans !== undefined) {
 		requirePlan(requireResolvedPlan(plan), input.requiredPlans);
@@ -453,13 +463,16 @@ export async function withPublicWorkspace(
 		resolved.website?.isPublic &&
 		isReadOnly(options.permissions)
 	) {
+		if (resolved.plan.status === "rejected") {
+			throw resolved.plan.reason;
+		}
 		return {
 			tier: "demo",
 			organizationId: resolved.organizationId,
 			user: null,
 			role: null,
 			website: resolved.website,
-			...(resolved.plan && { plan: resolved.plan }),
+			...(resolved.plan.value && { plan: resolved.plan.value }),
 		};
 	}
 

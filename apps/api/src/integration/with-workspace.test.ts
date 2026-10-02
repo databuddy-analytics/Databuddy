@@ -907,7 +907,7 @@ describe("withWorkspace", () => {
 			if (!user) {
 				throw new Error("Expected the signed-up user to exist");
 			}
-			return createRPCContext(
+			const oauthCtx = await createRPCContext(
 				{ headers: new Headers() },
 				{
 					apiKey: null,
@@ -919,6 +919,7 @@ describe("withWorkspace", () => {
 					},
 				}
 			);
+			return { ...oauthCtx, getBilling: async () => undefined };
 		}
 
 		iit(
