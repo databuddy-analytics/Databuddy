@@ -161,15 +161,15 @@ async function sitesWhoseServerTrackingStopped(weekStart: string) {
 }
 
 export async function dispatchAiDigests(now = new Date()) {
+	if (!config.email.resendApiKey) {
+		return logOutcome({ reason: "email_not_configured", status: "skipped" });
+	}
 	const week = weekRange(previousWeekStart(now));
 	setInsightsLog({
 		ai_server_tracking_stopped: await sitesWhoseServerTrackingStopped(
 			week.from
 		),
 	});
-	if (!config.email.resendApiKey) {
-		return logOutcome({ reason: "email_not_configured", status: "skipped" });
-	}
 	const { sql, params } = aiActiveWebsitesQuery(week.from, week.until);
 	const sites = await chQuery<{ client_id: string }>(sql, params);
 	await getInsightsQueue().addBulk(
