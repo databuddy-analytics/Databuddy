@@ -2820,6 +2820,12 @@ export const referrers: Record<string, { type: string; name: string }> = {
 	"manus.im": { type: "ai", name: "Manus" },
 	"poke.com": { type: "ai", name: "Poke" },
 	"metaaiusercontent.com": { type: "ai", name: "Meta AI" },
+	"meta.ai": { type: "ai", name: "Meta AI" },
+	"l.meta.ai": { type: "ai", name: "Meta AI" },
+	"copilot.com": { type: "ai", name: "Microsoft Copilot" },
+	"chat.deepseek.com": { type: "ai", name: "DeepSeek" },
+	"chat.mistral.ai": { type: "ai", name: "Mistral" },
+	"grok.com": { type: "ai", name: "Grok" },
 
 	"cn.bing.com": { type: "search", name: "Bing" },
 	"search.brave.com": { type: "search", name: "Brave Search" },
