@@ -15,9 +15,10 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { captureError, mergeWideEvent } from "../lib/tracing";
-import type {
-	McpRequestContext,
-	RegisteredMcpTool,
+import {
+	authType,
+	type McpRequestContext,
+	type RegisteredMcpTool,
 } from "../ai/mcp/define-tool";
 import { createMcpTools } from "../ai/mcp/tools";
 import { GUIDE_MARKDOWN, GUIDE_URI, MCP_INSTRUCTIONS } from "./guide";
@@ -118,7 +119,7 @@ export async function handleDatabuddyMcpRequest(
 	}
 
 	mergeWideEvent({
-		mcp_auth: options.apiKey ? "api_key" : options.oauth ? "oauth" : "session",
+		mcp_auth: authType(options),
 		mcp_session: Boolean(options.userId && !options.oauth),
 		mcp_api_key: Boolean(options.apiKey),
 	});

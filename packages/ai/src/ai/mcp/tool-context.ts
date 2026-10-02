@@ -10,7 +10,6 @@ import {
 } from "@databuddy/api-keys/resolve";
 import { websitesApi } from "@databuddy/auth";
 import { roleHasPermission } from "@databuddy/auth/permissions";
-import { db } from "@databuddy/db";
 import { cacheable } from "@databuddy/redis";
 import { getMemberRole } from "@databuddy/rpc/organization";
 import type { AppContext, ServiceAuth } from "../config/context";
@@ -38,10 +37,7 @@ export type AuthorizedPrincipal = RequestPrincipal & {
 	requestHeaders: Headers;
 };
 
-export type WebsiteSelectionErrorCode =
-	| "invalid_input"
-	| "not_found"
-	| "unauthorized";
+type WebsiteSelectionErrorCode = "invalid_input" | "not_found" | "unauthorized";
 
 export class WebsiteSelectionError extends Error {
 	readonly code: WebsiteSelectionErrorCode;
@@ -145,41 +141,22 @@ export async function ensureWebsiteAccess(
 	};
 }
 
-type AccessibleWebsite = Pick<
-	WebsiteSummary,
-	"domain" | "id" | "isPublic" | "name" | "organizationId" | "organizationName"
->;
-
-type WebsiteListPrincipal = "organization" | "user";
-
-function toAccessibleWebsites(list: WebsiteSummary[]): AccessibleWebsite[] {
-	return list.map(
-		({ domain, id, isPublic, name, organizationId, organizationName }) => ({
-			domain,
-			id,
-			isPublic,
-			name,
-			organizationId,
-			organizationName,
-		})
-	);
-}
+type AccessibleWebsite = Omit<WebsiteSummary, "createdAt">;
 
 async function loadWebsiteList(
-	principal: WebsiteListPrincipal,
+	principal: "organization" | "user",
 	principalId: string,
 	organizationId: string | null
 ): Promise<AccessibleWebsite[]> {
-	if (principal === "user") {
-		return toAccessibleWebsites(
-			await getAccessibleWebsites({
-				apiKey: null,
-				organizationId,
-				user: { id: principalId },
-			})
-		);
-	}
-	return toAccessibleWebsites(await getOrganizationWebsites(principalId));
+	const list =
+		principal === "user"
+			? await getAccessibleWebsites({
+					apiKey: null,
+					organizationId,
+					user: { id: principalId },
+				})
+			: await getOrganizationWebsites(principalId);
+	return list.map(({ createdAt: _createdAt, ...website }) => website);
 }
 
 const getCachedWebsiteList = cacheable(loadWebsiteList, {
@@ -203,19 +180,10 @@ export async function getCachedAccessibleWebsites(
 				apiKey?.organizationId ??
 				null);
 	if (oauth) {
-		if (!oauth.scopes.includes("read:data")) {
-			return [];
-		}
-		const membership = await db.query.member.findFirst({
-			where: {
-				userId: oauth.user.id,
-				organizationId: oauth.grant.organizationId,
-			},
-			columns: { role: true },
-		});
-		if (
-			!(membership && roleHasPermission(membership.role, "website", ["read"]))
-		) {
+		const role = oauth.scopes.includes("read:data")
+			? await getMemberRole(oauth.user.id, oauth.grant.organizationId)
+			: null;
+		if (!(role && roleHasPermission(role, "website", ["read"]))) {
 			return [];
 		}
 	}

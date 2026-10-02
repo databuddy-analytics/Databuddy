@@ -4,9 +4,6 @@ import type { WebsiteSummary } from "../../lib/accessible-websites";
 import { createRedisModuleMock } from "../test-redis-mock";
 
 const permission = mock(async () => ({ success: true }));
-const discoveryMembership = mock(
-	async (): Promise<{ role: string } | null> => ({ role: "viewer" })
-);
 const memberRole = mock(async () => "viewer" as string | null);
 let cachedWebsiteList: WebsiteSummary[] | null = null;
 const sites: WebsiteSummary[] = [
@@ -63,11 +60,6 @@ mock.module("@databuddy/api-keys/resolve", () => ({
 	hasKeyScope: () => true,
 	hasWebsiteScopeForOrganization: () => true,
 }));
-const realDb = await import("@databuddy/db");
-mock.module("@databuddy/db", () => ({
-	...realDb,
-	db: { query: { member: { findFirst: discoveryMembership } } },
-}));
 mock.module("@databuddy/redis", () =>
 	createRedisModuleMock({
 		cacheable:
@@ -88,7 +80,6 @@ const {
 beforeEach(() => {
 	cachedWebsiteList = null;
 	memberRole.mockClear();
-	discoveryMembership.mockClear();
 });
 
 describe("OAuth selected website grants", () => {
@@ -126,10 +117,6 @@ describe("OAuth selected website grants", () => {
 		expect(
 			(await getCachedAccessibleWebsites(principal)).map((site) => site.id)
 		).toEqual(["site"]);
-		expect(discoveryMembership).toHaveBeenCalledWith({
-			where: { userId: "user", organizationId: "org-other" },
-			columns: { role: true },
-		});
 		expect(await resolveWebsiteId({ websiteName: "Reports" }, principal)).toBe(
 			"site"
 		);
@@ -140,7 +127,7 @@ describe("OAuth selected website grants", () => {
 
 	it("does not reuse discovery results after membership or scope access is removed", async () => {
 		cachedWebsiteList = sites;
-		discoveryMembership.mockResolvedValueOnce(null);
+		memberRole.mockResolvedValueOnce(null);
 		expect(await getCachedAccessibleWebsites(principal)).toEqual([]);
 		expect(
 			await getCachedAccessibleWebsites({

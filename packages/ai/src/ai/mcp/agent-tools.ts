@@ -93,7 +93,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 				const ctx = getToolContext(options);
 				const access = await ensureWebsiteAccess(args.websiteId, ctx);
 				if (access instanceof Error) {
-					throw new Error(access.message);
+					throw access;
 				}
 				return executeAgentSqlForWebsite({
 					websiteId: args.websiteId,
@@ -114,7 +114,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 				const ctx = getToolContext(options);
 				const access = await ensureWebsiteAccess(args.websiteId, ctx);
 				if (access instanceof Error) {
-					throw new Error(access.message);
+					throw access;
 				}
 				const timezone = args.timezone ?? ctx.timezone ?? "UTC";
 				const now = ctx.currentDateTime

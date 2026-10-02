@@ -8,6 +8,7 @@ import { captureError } from "../../lib/tracing";
 import { getQueryBuilder, QueryBuilders } from "../../query/builders";
 import {
 	allowedFilterFields,
+	type executeBatch,
 	invalidFilterFieldError,
 	publicQueryErrorMessage,
 	QueryFilterSchema,
@@ -72,10 +73,6 @@ const QUERY_TYPE_ALIASES: Record<string, string> = {
 	pages: "top_pages",
 };
 
-function resolveQueryType(type: string): string {
-	return QUERY_TYPE_ALIASES[type] ?? type;
-}
-
 interface InvalidBatchQuery {
 	error: string;
 	inputIndex: number;
@@ -96,13 +93,7 @@ interface McpBatchQueryPlan {
 	requests: IndexedQueryRequest[];
 }
 
-interface ExecutedQueryResult {
-	data: Record<string, unknown>[];
-	error?: string;
-	type: string;
-}
-
-export interface McpQueryResult {
+interface McpQueryResult {
 	data: Record<string, unknown>[];
 	definition?: string;
 	error?: string;
@@ -225,7 +216,7 @@ export function buildBatchQueryRequests(
 	const invalid: InvalidBatchQuery[] = [];
 	const invalidTimezone = timezoneError(timezone);
 	for (const [inputIndex, q] of items.entries()) {
-		const resolvedType = resolveQueryType(q.type);
+		const resolvedType = QUERY_TYPE_ALIASES[q.type] ?? q.type;
 		let from = q.from;
 		let to = q.to;
 		const reject = (error: string, type = resolvedType) => {
@@ -353,7 +344,7 @@ export function capRowArrays(
 
 export function formatMcpQueryResults(
 	plan: McpBatchQueryPlan,
-	results: readonly ExecutedQueryResult[]
+	results: Awaited<ReturnType<typeof executeBatch>>
 ): McpQueryResult[] {
 	const formatted: (McpQueryResult & { inputIndex: number })[] = results.map(
 		(result, resultIndex) => {
