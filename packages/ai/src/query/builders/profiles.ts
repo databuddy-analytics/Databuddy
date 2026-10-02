@@ -40,8 +40,25 @@ const PROFILE_AGGREGATE_FILTER_OPERATORS = new Set<Filter["op"]>([
 	"not_in",
 ]);
 
-const PROFILE_IDENTITY_CTES = `
-      visitor_identity_rows AS (
+function profileIdentityCtes(revenueHistory = false): string {
+	const prefix = revenueHistory ? "revenue" : "visitor";
+	const aggregate = revenueHistory
+		? "minMap(map(profile_id, identity_time)) AS profile_first_touches"
+		: `argMin(profile_id, identity_time) AS initial_profile_id,
+          min(identity_time) AS first_identity_time,
+          uniqExact(profile_id) AS profile_count`;
+	const historyKeys = revenueHistory
+		? `profile_revenue_identity_keys AS (
+        SELECT anonymous_id, session_id FROM ${Analytics.revenue} FINAL
+        WHERE ${stripeProfileRevenueScope()}
+      ),`
+		: "";
+	const identityFilter = revenueHistory
+		? ""
+		: `AND identity_time >= toDateTime({startDate:String})
+          AND identity_time <= toDateTime({endDate:String})`;
+	return `${historyKeys}
+      ${prefix}_identity_rows AS (
         SELECT
           profile_id,
           anonymous_id,
@@ -51,8 +68,7 @@ const PROFILE_IDENTITY_CTES = `
         WHERE
           client_id = {websiteId:String}
           AND profile_id != ''
-          AND time >= toDateTime({startDate:String})
-          AND time <= toDateTime({endDate:String})
+          ${identityFilter}
 
         UNION ALL
 
@@ -65,29 +81,28 @@ const PROFILE_IDENTITY_CTES = `
         WHERE
           website_id = {websiteId:String}
           AND profile_id != ''
-          AND timestamp >= toDateTime({startDate:String})
-          AND timestamp <= toDateTime({endDate:String})
+          ${identityFilter}
       ),
-      visitor_profiles_by_anonymous AS (
+      ${prefix}_profiles_by_anonymous AS (
         SELECT
           anonymous_id,
-          argMin(profile_id, identity_time) AS initial_profile_id,
-          min(identity_time) AS first_identity_time,
-          uniqExact(profile_id) AS profile_count
-        FROM visitor_identity_rows
+          ${aggregate}
+        FROM ${prefix}_identity_rows
         WHERE anonymous_id != ''
+          ${revenueHistory ? "AND anonymous_id IN (SELECT anonymous_id FROM profile_revenue_identity_keys)" : ""}
         GROUP BY anonymous_id
       ),
-      visitor_identity_by_session AS (
+      ${prefix}_identity_by_session AS (
         SELECT
           session_id,
-          argMin(profile_id, identity_time) AS initial_profile_id,
-          min(identity_time) AS first_identity_time
-        FROM visitor_identity_rows
+          ${aggregate}
+        FROM ${prefix}_identity_rows
         WHERE session_id != ''
+          ${revenueHistory ? "AND session_id IN (SELECT session_id FROM profile_revenue_identity_keys)" : ""}
         GROUP BY session_id
-        HAVING uniqExact(profile_id) = 1
+        ${revenueHistory ? "" : "HAVING profile_count = 1"}
       )`;
+}
 
 const PROFILE_TARGET_IDENTITY_CTES = `
       target_identity_rows AS (
@@ -572,6 +587,7 @@ function stripeProfileContextCtes(): string {
 
 function attributedProfileRevenueCte(latestCte: string): string {
 	return `
+    ${profileIdentityCtes(true)},
     ${linkedStripePaymentsCte(stripeProfileRevenueScope(), "profile_linked_payments")},
     profile_revenue_attributed AS (
       SELECT
@@ -579,8 +595,10 @@ function attributedProfileRevenueCte(latestCte: string): string {
         coalesce(nullIf(r.profile_id, ''), nullIf(invoice_context.linked_profile_id, ''), nullIf(context.linked_profile_id, ''), '') AS attributed_profile_id,
         coalesce(r.anonymous_id, nullIf(invoice_context.linked_anonymous_id, ''), nullIf(context.linked_anonymous_id, '')) AS attributed_anonymous_id,
         coalesce(r.session_id, nullIf(invoice_context.linked_session_id, ''), nullIf(context.linked_session_id, '')) AS attributed_session_id,
-        coalesce(nullIf(attributed_profile_id, ''), nullIf(session_identity.initial_profile_id, ''),
-          nullIf(anonymous_identity.initial_profile_id, ''), nullIf(attributed_anonymous_id, ''), '') AS attributed_visitor_id
+        arrayFilter((id, at) -> at <= r.created, mapKeys(session_identity.profile_first_touches), mapValues(session_identity.profile_first_touches)) AS session_profiles,
+        arrayFilter((id, at) -> at <= r.created, mapKeys(anonymous_identity.profile_first_touches), mapValues(anonymous_identity.profile_first_touches)) AS anonymous_profiles,
+        coalesce(nullIf(attributed_profile_id, ''), nullIf(if(length(session_profiles) = 1, session_profiles[1], ''), ''),
+          nullIf(if(length(anonymous_profiles) = 1, anonymous_profiles[1], ''), ''), nullIf(attributed_anonymous_id, ''), '') AS attributed_visitor_id
       FROM ${latestCte} r
       LEFT JOIN profile_payment_context context
         ON r.provider = 'stripe' AND context.owner_id = r.owner_id
@@ -588,12 +606,10 @@ function attributedProfileRevenueCte(latestCte: string): string {
       LEFT JOIN profile_invoice_context invoice_context
         ON r.provider = 'stripe' AND invoice_context.owner_id = r.owner_id
         AND invoice_context.invoice_id = coalesce(nullIf(JSONExtractString(r.metadata, 'stripe_invoice_id'), ''), nullIf(context.linked_payment_invoice_id, ''))
-	  LEFT JOIN visitor_profiles_by_anonymous anonymous_identity
-	    ON attributed_anonymous_id = anonymous_identity.anonymous_id AND anonymous_identity.profile_count = 1
-	    AND anonymous_identity.first_identity_time <= r.created
-	  LEFT JOIN visitor_identity_by_session session_identity
+	  LEFT JOIN revenue_profiles_by_anonymous anonymous_identity
+	    ON attributed_anonymous_id = anonymous_identity.anonymous_id
+	  LEFT JOIN revenue_identity_by_session session_identity
 	    ON attributed_session_id = session_identity.session_id
-	    AND session_identity.first_identity_time <= r.created
       WHERE ${canonicalStripePaymentCondition("r", "profile_linked_payments")}
         AND NOT (r.type = 'refund' AND JSONExtractString(r.metadata, 'stripe_invoice_id') = ''
           AND context.linked_payment_invoice_count > 1 AND ${explicitRevenueWebsiteExpression("r")} IS NULL)
@@ -646,7 +662,7 @@ function profileListQueries(ctx: CustomSqlContext) {
 		: "IN (SELECT visitor_id FROM visitor_profiles)";
 
 	const head = `
-    WITH ${PROFILE_IDENTITY_CTES},
+    WITH ${profileIdentityCtes()},
     profile_events AS (
       SELECT
         e.id AS id,
@@ -912,7 +928,7 @@ export const ProfilesBuilders = {
 
 			return {
 				sql: `
-    WITH ${PROFILE_IDENTITY_CTES},
+    WITH
     visitor_sessions AS (
       SELECT session_id, min(time) AS first_identity_time FROM ${Analytics.events}
       WHERE client_id = {websiteId:String}

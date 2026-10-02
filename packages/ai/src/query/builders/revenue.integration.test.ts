@@ -676,7 +676,9 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			detail.sql,
 			detail.params
 		);
-		expect(payments.map((row) => row.transaction_id)).toEqual([]);
+		expect(payments.map((row) => row.transaction_id)).toEqual([
+			"earlier-payment",
+		]);
 	}, 15_000);
 
 	it("counts an invoice-tagged standalone intent and resolves conflicting websites once", async () => {
@@ -996,6 +998,10 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			"future-payment": 0,
 		});
 		expect(
+			transactions.find((row) => row.transaction_id === "anonymous-payment")
+				?.attribution_method
+		).toBe("anonymous");
+		expect(
 			transactions.find((row) => row.transaction_id === "shared-payment")
 				?.utm_campaign
 		).toBe("right-person");
@@ -1088,6 +1094,10 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 				transactions.find((row) => row.transaction_id === "renewal")
 					?.utm_campaign
 			).toBe("valid-history");
+			expect(
+				transactions.find((row) => row.transaction_id === "renewal")
+					?.attribution_method
+			).toBe("customer");
 		}
 	}, 15_000);
 
@@ -1165,6 +1175,40 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 					),
 					profile_id: profileId,
 				},
+				attributionEvent(
+					websiteId,
+					"return-session",
+					"2026-08-03 11:00:00",
+					null,
+					{
+						profile_id: profileId,
+					}
+				),
+				attributionEvent(
+					websiteId,
+					"profile-session",
+					"2026-08-04 11:00:00",
+					null,
+					{
+						profile_id: "other-profile",
+					}
+				),
+			],
+		});
+		await clickHouse.insert({
+			table: "analytics.custom_events",
+			format: "JSONEachRow",
+			values: [
+				{
+					owner_id: websiteId,
+					website_id: websiteId,
+					timestamp: "2026-08-02 11:00:00",
+					event_name: "identify",
+					profile_id: profileId,
+					session_id: "custom-session",
+					anonymous_id: "custom-device",
+					properties: "{}",
+				},
 			],
 		});
 		await clickHouse.insert({
@@ -1219,6 +1263,29 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 					metadata,
 					"2026-08-02 13:00:00"
 				),
+				...(
+					[
+						["custom-later", 10, "2026-08-03 12:00:00", "custom-session"],
+						["custom-future", 99, "2026-07-31 12:00:00", "custom-session"],
+						[
+							"conflicting-later",
+							1000,
+							"2026-08-04 12:00:00",
+							"profile-session",
+						],
+					] as const
+				).map(([transactionId, amount, created, sessionId]) =>
+					revenueRow(
+						websiteId,
+						transactionId,
+						amount,
+						"sale",
+						"completed",
+						"{}",
+						created,
+						{ session_id: sessionId, customer_id: "" }
+					)
+				),
 			],
 		});
 		const [overview] = await revenueOverview(
@@ -1226,27 +1293,39 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			"2026-08-01",
 			"2026-08-03"
 		);
-		expect(Number(overview?.total_revenue)).toBe(140);
+		expect(Number(overview?.total_revenue)).toBe(150);
 		const earlier = await revenueOverview(
 			websiteId,
 			"2026-08-01",
 			"2026-08-01"
 		);
 		expect(Number(earlier[0]?.total_revenue ?? 0)).toBe(0);
-		const list = ProfilesBuilders.profile_list.customSql({
-			websiteId,
-			startDate: "2026-08-01",
-			endDate: "2026-08-03",
-			limit: 10,
-			offset: 0,
-		});
-		const profiles = await chQuery<{ profile_id: string; ltv: number }>(
-			list.sql,
-			list.params
-		);
-		expect(
-			Number(profiles.find((profile) => profile.profile_id === profileId)?.ltv)
-		).toBe(120);
+		for (const [startDate, endDate, expectedSessions] of [
+			["2026-08-01", "2026-08-05", 2],
+			["2026-08-03", "2026-08-03", 1],
+			["2026-08-01", "2026-08-01", 1],
+		] as const) {
+			const list = ProfilesBuilders.profile_list.customSql({
+				websiteId,
+				startDate,
+				endDate,
+				limit: 10,
+				offset: 0,
+			});
+			const profiles = await chQuery<{
+				profile_id: string;
+				ltv: number;
+				session_count: number;
+			}>(list.sql, list.params);
+			const profile = profiles.find((row) => row.profile_id === profileId);
+			expect(Number(profile?.ltv)).toBe(130);
+			expect(Number(profile?.session_count)).toBe(expectedSessions);
+			expect(
+				Number(
+					profiles.find((row) => row.profile_id === "other-profile")?.ltv ?? 0
+				)
+			).toBe(0);
+		}
 		const detail = ProfilesBuilders.profile_revenue.customSql({
 			websiteId,
 			startDate: "2026-08-01",
@@ -1258,6 +1337,25 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			detail.params
 		);
 		expect(payments.map((payment) => payment.transaction_id).sort()).toEqual([
+			"anonymous-only",
+			"custom-later",
+			"inpay_example",
+			"refund-example",
+			"session-only",
+		]);
+		const narrowDetail = ProfilesBuilders.profile_revenue.customSql({
+			websiteId,
+			startDate: "2026-08-02",
+			endDate: "2026-08-02",
+			filters: [{ field: "anonymous_id", op: "eq", value: profileId }],
+		});
+		const narrowPayments = await chQuery<{ transaction_id: string }>(
+			narrowDetail.sql,
+			narrowDetail.params
+		);
+		expect(
+			narrowPayments.map((payment) => payment.transaction_id).sort()
+		).toEqual([
 			"anonymous-only",
 			"inpay_example",
 			"refund-example",
