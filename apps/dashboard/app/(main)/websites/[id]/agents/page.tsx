@@ -1492,32 +1492,47 @@ function AiVisitorsPanel({
 
 const SETUP_STACKS = [
 	{
-		env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
-		file: "proxy.ts",
 		id: "next",
-		label: "Next.js 16",
-		code: 'export { proxy } from "@databuddy/sdk/agents";',
+		label: "Next.js",
+		methods: [
+			{
+				code: 'export { proxy } from "@databuddy/sdk/agents";',
+				env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
+				envHint: "Already set if this app uses the Databuddy SDK.",
+				file: "proxy.ts",
+				id: "next16",
+				label: "Next.js 16",
+			},
+			{
+				code: 'export { proxy as middleware } from "@databuddy/sdk/agents";',
+				env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
+				envHint: "Already set if this app uses the Databuddy SDK.",
+				file: "middleware.ts",
+				id: "next15",
+				label: "Next.js 15 and earlier",
+			},
+		],
 	},
 	{
-		env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
-		file: "middleware.ts",
-		id: "next15",
-		label: "Next.js 15",
-		code: 'export { proxy as middleware } from "@databuddy/sdk/agents";',
-	},
-	{
-		env: "DATABUDDY_WEBSITE_ID",
-		file: "middleware.ts",
 		id: "vercel",
 		label: "Vercel",
-		code: 'export { proxy as default } from "@databuddy/sdk/agents";',
+		methods: [
+			{ id: "drain", label: "Log drain (no code)" },
+			{
+				code: 'export { proxy as default } from "@databuddy/sdk/agents";',
+				env: "DATABUDDY_WEBSITE_ID",
+				file: "middleware.ts",
+				id: "middleware",
+				label: "Middleware",
+			},
+		],
 	},
 	{
-		env: "DATABUDDY_WEBSITE_ID",
-		file: "worker.ts",
 		id: "workers",
 		label: "Cloudflare",
-		code: `import { trackAgents } from "@databuddy/sdk/agents";
+		methods: [
+			{
+				code: `import { trackAgents } from "@databuddy/sdk/agents";
 
 export default {
 	async fetch(request, env, ctx) {
@@ -1526,18 +1541,30 @@ export default {
 		return fetch(request);
 	},
 };`,
+				env: "DATABUDDY_WEBSITE_ID",
+				file: "worker.ts",
+				id: "workers",
+				label: "Workers",
+			},
+		],
 	},
 	{
-		env: "DATABUDDY_WEBSITE_ID",
-		file: "server.ts",
 		id: "express",
 		label: "Express",
-		code: `import { trackAgents } from "@databuddy/sdk/agents";
+		methods: [
+			{
+				code: `import { trackAgents } from "@databuddy/sdk/agents";
 
 app.use((req, _res, next) => {
 	trackAgents(req);
 	next();
 });`,
+				env: "DATABUDDY_WEBSITE_ID",
+				file: "server.ts",
+				id: "express",
+				label: "Express",
+			},
+		],
 	},
 ] as const;
 
@@ -1592,18 +1619,28 @@ function SetupCode({
 }
 
 function AgentSetupSheet({
+	hasServerTracking,
 	isOpen,
 	onOpenChange,
 	websiteId,
 }: {
+	hasServerTracking: boolean | undefined;
 	isOpen: boolean;
 	onOpenChange: (open: boolean) => void;
 	websiteId: string;
 }) {
-	const [tab, setTab] = useState<string>(SETUP_STACKS[0].id);
+	const [methodId, setMethodId] = useState<string>(
+		SETUP_STACKS[0].methods[0].id
+	);
 	const check = useMutation(orpc.websites.checkAgentSetup.mutationOptions());
+	const stack =
+		SETUP_STACKS.find((item) =>
+			item.methods.some((method) => method.id === methodId)
+		) ?? SETUP_STACKS[0];
+	const method =
+		stack.methods.find((item) => item.id === methodId) ?? stack.methods[0];
+	const isDrain = !("code" in method);
 	const isSetupWorking = check.data?.homepage && check.data.llmsTxt;
-	const isDrainTab = tab === "vercel-drain";
 
 	return (
 		<Sheet onOpenChange={onOpenChange} open={isOpen}>
@@ -1617,48 +1654,80 @@ function AgentSetupSheet({
 					</Sheet.Description>
 				</Sheet.Header>
 				<Sheet.Body className="space-y-5">
-					<Tabs onValueChange={(value) => setTab(String(value))} value={tab}>
-						<Tabs.List className="max-w-full overflow-x-auto">
-							{SETUP_STACKS.map((stack) => (
-								<Tabs.Tab key={stack.id} value={stack.id}>
-									{stack.label}
-								</Tabs.Tab>
-							))}
-							<Tabs.Tab value="vercel-drain">Vercel drain</Tabs.Tab>
-						</Tabs.List>
-						{SETUP_STACKS.map((stack) => (
-							<Tabs.Panel
-								className="mt-4 space-y-5"
-								key={stack.id}
-								value={stack.id}
-							>
-								<SetupStep step={1} title="Install the SDK">
-									<SetupCode
-										code="bun add @databuddy/sdk@latest"
-										language="bash"
-									/>
-								</SetupStep>
-								<SetupStep step={2} title={`Add ${stack.file}`}>
-									<SetupCode code={stack.code} language="tsx" />
-								</SetupStep>
-								<SetupStep step={3} title="Set your website ID">
-									<SetupCode
-										code={
-											stack.id === "workers"
-												? `# wrangler.toml\n[vars]\n${stack.env} = "${websiteId}"`
-												: `${stack.env}=${websiteId}`
-										}
-										language="bash"
-									/>
-								</SetupStep>
-							</Tabs.Panel>
-						))}
-						<Tabs.Panel className="mt-4 space-y-5" value="vercel-drain">
+					{hasServerTracking === undefined ? null : (
+						<p className="flex items-center gap-1.5 text-xs">
+							<StatusDot color={hasServerTracking ? "success" : "muted"} />
+							{hasServerTracking
+								? "Server-side AI requests have been recorded"
+								: "No server-side AI requests recorded yet"}
+						</p>
+					)}
+
+					<div className="space-y-3">
+						<Tabs
+							onValueChange={(value) =>
+								setMethodId(
+									SETUP_STACKS.find((item) => item.id === value)?.methods[0]
+										.id ?? methodId
+								)
+							}
+							value={stack.id}
+						>
+							<Tabs.List>
+								{SETUP_STACKS.map((item) => (
+									<Tabs.Tab key={item.id} value={item.id}>
+										{item.label}
+									</Tabs.Tab>
+								))}
+							</Tabs.List>
+						</Tabs>
+						{stack.methods.length > 1 ? (
+							<SegmentedControl
+								onChange={setMethodId}
+								options={stack.methods.map((item) => ({
+									label: item.label,
+									value: item.id,
+								}))}
+								size="sm"
+								value={method.id}
+							/>
+						) : null}
+					</div>
+
+					{"code" in method ? (
+						<>
+							<SetupStep step={1} title="Install the SDK">
+								<SetupCode
+									code="bun add @databuddy/sdk@latest"
+									language="bash"
+								/>
+							</SetupStep>
+							<SetupStep step={2} title={`Add ${method.file}`}>
+								<SetupCode code={method.code} language="tsx" />
+							</SetupStep>
+							<SetupStep step={3} title="Set your website ID">
+								<SetupCode
+									code={
+										method.id === "workers"
+											? `# wrangler.toml\n[vars]\n${method.env} = "${websiteId}"`
+											: `${method.env}=${websiteId}`
+									}
+									language="bash"
+								/>
+								{"envHint" in method ? (
+									<p className="text-muted-foreground text-xs">
+										{method.envHint}
+									</p>
+								) : null}
+							</SetupStep>
+						</>
+					) : (
+						<>
 							<SetupStep step={1} title="Add a drain in Vercel">
 								<p className="text-pretty text-muted-foreground text-xs">
 									Team Settings → Drains → Add Drain, then choose Logs and
-									Custom Endpoint. No code change needed. Drains need a Pro or
-									Enterprise plan, and Vercel bills them by volume.
+									Custom Endpoint. Drains need a Pro or Enterprise plan, and
+									Vercel bills them by volume.
 								</p>
 							</SetupStep>
 							<SetupStep step={2} title="Paste this endpoint">
@@ -1676,12 +1745,12 @@ function AgentSetupSheet({
 									which pages return 404 to AI crawlers.
 								</p>
 							</SetupStep>
-						</Tabs.Panel>
-					</Tabs>
+						</>
+					)}
 
 					<SetupStep
 						step={4}
-						title={isDrainTab ? "Test it" : "Deploy, then test it"}
+						title={isDrain ? "Test it" : "Deploy, then test it"}
 					>
 						<Button
 							loading={check.isPending}
@@ -1702,7 +1771,7 @@ function AgentSetupSheet({
 										/>
 										{check.data[item.key]
 											? `${item.label} recorded`
-											: `${item.label} not recorded: ${isDrainTab ? item.drainHint : item.hint}`}
+											: `${item.label} not recorded: ${isDrain ? item.drainHint : item.hint}`}
 									</p>
 								))
 							: null}
@@ -1904,7 +1973,7 @@ export default function AgentsPage() {
 	const needsProxy = !isPending && topSender !== null && !hasProxy;
 	const setupButton = (
 		<Button onClick={() => setIsSetupOpen(true)} size="md" variant="secondary">
-			{hasProxy ? "Test setup" : "Set up"}
+			Set up
 		</Button>
 	);
 
@@ -2010,20 +2079,10 @@ export default function AgentsPage() {
 							outcomes={outcomeRows}
 						/>
 					) : null}
-
-					{isPending || needsProxy ? null : (
-						<div className="space-y-2">
-							<p className="text-pretty text-muted-foreground text-xs">
-								{hasProxy
-									? "Server-side tracking is on, so crawlers that don't run JavaScript, like GPTBot and ClaudeBot, show up here."
-									: "Crawlers that don't run JavaScript, like GPTBot and ClaudeBot, only appear once @databuddy/sdk/agents runs on your server or a Vercel log drain sends your logs."}
-							</p>
-							{setupButton}
-						</div>
-					)}
 				</div>
 			)}
 			<AgentSetupSheet
+				hasServerTracking={isPending ? undefined : hasProxy}
 				isOpen={isSetupOpen}
 				onOpenChange={(open) => setIsSetupOpen(open)}
 				websiteId={websiteId}

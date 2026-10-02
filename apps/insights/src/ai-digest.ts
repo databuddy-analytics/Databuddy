@@ -1,9 +1,14 @@
-import { aiActiveWebsitesQuery, executeQuery } from "@databuddy/ai/query";
+import {
+	aiActiveWebsitesQuery,
+	aiServerTrackingStoppedQuery,
+	executeQuery,
+} from "@databuddy/ai/query";
 import {
 	aiDigestUnsubscribeToken,
 	and,
 	db,
 	eq,
+	inArray,
 	isNull,
 	member,
 	normalizeEmailNotificationSettings,
@@ -26,7 +31,7 @@ import {
 	CONTENT_FORMATS,
 } from "@databuddy/shared/bot-detection/types";
 import { numberField, stringField } from "./detection";
-import { setInsightsLog } from "./lib/evlog-insights";
+import { emitInsightsEvent, setInsightsLog } from "./lib/evlog-insights";
 
 const DAY_MS = 86_400_000;
 const PRODUCT_ROWS = 5;
@@ -131,6 +136,30 @@ function digestSubject({
 	return `${sender} sent ${visitors.toLocaleString("en-US")} ${visitors === 1 ? "visitor" : "visitors"} to ${site} this week`;
 }
 
+async function sitesWhoseServerTrackingStopped(weekStart: string) {
+	const { sql, params } = aiServerTrackingStoppedQuery(
+		isoDay(Date.parse(`${weekStart}T00:00:00Z`) - 7 * DAY_MS),
+		weekStart
+	);
+	const stopped = await chQuery<{ client_id: string }>(sql, params);
+	if (stopped.length === 0) {
+		return [];
+	}
+	const liveSites = await db
+		.select({ id: websites.id })
+		.from(websites)
+		.where(
+			and(
+				inArray(
+					websites.id,
+					stopped.map((site) => site.client_id)
+				),
+				isNull(websites.deletedAt)
+			)
+		);
+	return liveSites.map((site) => site.id);
+}
+
 export async function dispatchAiDigests(now = new Date()) {
 	if (!config.email.resendApiKey) {
 		return logOutcome({ reason: "email_not_configured", status: "skipped" });
@@ -145,6 +174,16 @@ export async function dispatchAiDigests(now = new Date()) {
 			opts: { jobId: aiDigestJobId(week.from, site.client_id) },
 		}))
 	);
+	setInsightsLog({
+		ai_server_tracking_stopped: await sitesWhoseServerTrackingStopped(
+			week.from
+		).catch((error: unknown) => {
+			emitInsightsEvent("warn", "ai_digest.stopped_tracking_check_failed", {
+				error: error instanceof Error ? error.message : String(error),
+			});
+			return [];
+		}),
+	});
 	return logOutcome({ status: "dispatched", websites: sites.length });
 }
 

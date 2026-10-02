@@ -113,6 +113,11 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 	const setCurrentFilterWebsiteId = useSetAtom(currentFilterWebsiteIdAtom);
 	const [dynamicFilters, setDynamicFilters] = useAtom(dynamicQueryFiltersAtom);
 	const [isEmbed] = useQueryState("embed", parseAsBoolean.withDefault(false));
+	const [, setIsAgentSetupOpen] = useQueryState(
+		"setup",
+		parseAsBoolean.withDefault(false)
+	);
+	const isAgentsPage = pathname.split("/")[3] === "agents";
 	const [filtersParam, setFiltersParam] = useQueryState(
 		DASHBOARD_FILTERS_QUERY_PARAM,
 		parseAsString
@@ -357,6 +362,15 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 								)}
 							/>
 						</Button>
+						{isAgentsPage ? (
+							<Button
+								onClick={() => setIsAgentSetupOpen(true)}
+								size="sm"
+								variant="secondary"
+							>
+								Setup
+							</Button>
+						) : null}
 					</TopBar.Actions>
 
 					<AnalyticsToolbar
