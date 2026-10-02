@@ -460,7 +460,7 @@ function getRequestIp(request: Request | Headers): string | undefined {
 	);
 }
 
-function toAuditRequest(request: Request): AuditRequestContext {
+export function toAuditRequest(request: Request): AuditRequestContext {
 	return {
 		requestId: request.headers.get("x-request-id") ?? undefined,
 		ip: getRequestIp(request),
