@@ -22,6 +22,12 @@ import type { ContentFormat } from "@databuddy/shared/bot-detection/types";
 
 export interface AiDigestEmailProps {
 	agentsUrl: string;
+	changes: {
+		current: number;
+		metric: "requests" | "visitors";
+		previous: number;
+		product: string;
+	}[];
 	hasServerTracking: boolean;
 	landingPages: { logoUrl?: string; page: string; visitors: number }[];
 	newPages: number | null;
@@ -83,6 +89,37 @@ function visitorChange(visitors: number, previous: number): string {
 	return visitors > previous
 		? `+${formatCount(difference)} from last week`
 		: `${formatCount(difference)} fewer than last week`;
+}
+
+const CHANGE_COPY = {
+	requests: {
+		down: "read your site less",
+		started: "started reading your site",
+		stopped: "stopped reading your site",
+		up: "read your site more",
+	},
+	visitors: {
+		down: "sent fewer visitors",
+		started: "started sending visitors",
+		stopped: "stopped sending visitors",
+		up: "sent more visitors",
+	},
+};
+
+function changeLabel({
+	current,
+	metric,
+	previous,
+	product,
+}: AiDigestEmailProps["changes"][number]): string {
+	const copy = CHANGE_COPY[metric];
+	if (previous === 0) {
+		return `${product} ${copy.started}`;
+	}
+	if (current === 0) {
+		return `${product} ${copy.stopped}`;
+	}
+	return `${product} ${current > previous ? copy.up : copy.down}`;
 }
 
 function ProductLogo({ name, url }: { name: string; url?: string }) {
@@ -168,6 +205,7 @@ function PathList({
 
 export const AiDigestEmail = ({
 	agentsUrl,
+	changes,
 	hasServerTracking,
 	landingPages,
 	newPages,
@@ -321,6 +359,41 @@ export const AiDigestEmail = ({
 								</Row>
 							))}
 
+							{changes.length > 0 ? (
+								<Section className="mt-9">
+									<Row className="mb-1">
+										<Column>
+											<Heading
+												as="h2"
+												className="m-0 font-medium text-[13px] text-ink"
+											>
+												What changed
+											</Heading>
+										</Column>
+										<Column align="right" className="text-[12px] text-faint">
+											last week → this week
+										</Column>
+									</Row>
+									{changes.map((change) => (
+										<Row
+											className={DIVIDER}
+											key={`${change.product}-${change.metric}`}
+										>
+											<Column className="py-[9px] text-[14px] text-ink">
+												{changeLabel(change)}
+											</Column>
+											<Column
+												align="right"
+												className="w-[120px] py-[9px] text-[13px] text-sub"
+											>
+												{formatCount(change.previous)} →{" "}
+												{formatCount(change.current)}
+											</Column>
+										</Row>
+									))}
+								</Section>
+							) : null}
+
 							<PathList
 								hint="visitors"
 								rows={landingPages.map((row) => ({
@@ -368,6 +441,10 @@ export const AiDigestEmail = ({
 
 AiDigestEmail.PreviewProps = {
 	agentsUrl: "https://app.databuddy.cc/websites/example/agents",
+	changes: [
+		{ current: 13, metric: "visitors", previous: 3, product: "ChatGPT" },
+		{ current: 34, metric: "visitors", previous: 0, product: "Perplexity" },
+	],
 	hasServerTracking: false,
 	landingPages: [
 		{

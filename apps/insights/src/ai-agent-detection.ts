@@ -85,7 +85,7 @@ async function readActivity(
 	return { current, detectedAt: window.currentTo, previous };
 }
 
-function isNotable(
+export function isNotable(
 	metric: AiActivityMetric,
 	current: number,
 	baseline: number
