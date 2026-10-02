@@ -93,6 +93,21 @@ export const test = base.extend<{ basketGuard: undefined }>({
 	],
 });
 
+export async function emulateIosPageLifecycle(page: Page): Promise<void> {
+	await page.addInitScript(() => {
+		const addEventListener = window.addEventListener.bind(window);
+		window.addEventListener = ((
+			type: string,
+			listener: EventListenerOrEventListenerObject,
+			options?: boolean | AddEventListenerOptions
+		) => {
+			if (type !== "beforeunload") {
+				addEventListener(type, listener, options);
+			}
+		}) as typeof window.addEventListener;
+	});
+}
+
 export async function waitForDebugScrollHook(page: Page): Promise<void> {
 	await expect
 		.poll(async () =>
