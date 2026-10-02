@@ -186,6 +186,123 @@ describe("normalizeStripeEvent", () => {
 			},
 		},
 	} satisfies StripeWebhookEvent;
+	const checkout = {
+		created: 1_700_000_201,
+		id: "evt_checkout_completed",
+		type: "checkout.session.completed",
+		data: {
+			object: {
+				created: 1_700_000_000,
+				currency: "usd",
+				id: "cs_metadata",
+				invoice: "in_1",
+				metadata: {
+					databuddy_profile_id: "profile-1",
+					databuddy_session_id: "session-1",
+				},
+				mode: "payment",
+				payment_intent: "pi_1",
+			},
+		},
+	} satisfies StripeWebhookEvent;
+
+	test("links Checkout metadata to native payment identities without adding money", () => {
+		const [completed] = normalizeStripeEvent(checkout);
+		const [asyncPaid] = normalizeStripeEvent({
+			...checkout,
+			created: checkout.created + 31 * 86_400,
+			id: "evt_checkout_async_paid",
+			type: "checkout.session.async_payment_succeeded",
+		});
+		expect(completed).toEqual({
+			amount: 0,
+			context: {
+				eventType: "checkout.session.completed",
+				invoiceId: "in_1",
+				paymentIntentId: "pi_1",
+				recordKind: "link",
+			},
+			createdUnix: checkout.data.object.created,
+			currency: "USD",
+			rawMetadata: checkout.data.object.metadata,
+			status: "linked",
+			transactionId: "cs_metadata:link",
+			type: "subscription_event",
+		});
+		expect(asyncPaid).toEqual({
+			...completed,
+			context: {
+				...completed.context,
+				eventType: "checkout.session.async_payment_succeeded",
+			},
+		});
+		expect(normalizeStripeEvent(checkout)).toEqual([completed]);
+		expect(
+			[completed, asyncPaid, ...normalizeStripeEvent(modernIntent)].reduce(
+				(total, record) => total + record.amount,
+				0
+			)
+		).toBe(3);
+	});
+
+	test("links a Checkout without an invoice using its native PaymentIntent", () => {
+		const [record] = normalizeStripeEvent({
+			...checkout,
+			data: {
+				object: {
+					...checkout.data.object,
+					customer: { id: "customer-example" },
+					invoice: null,
+					payment_intent: { id: "pi_1" },
+				},
+			},
+		});
+		expect(record).toMatchObject({
+			amount: 0,
+			context: { paymentIntentId: "pi_1", recordKind: "link" },
+			customerId: "customer-example",
+		});
+		expect(record.context).not.toHaveProperty("invoiceId");
+	});
+
+	test.each([
+		{ mode: "subscription" },
+		{ mode: "setup" },
+		{ payment_intent: null },
+		{ payment_intent: "" },
+		{ metadata: {} },
+	])("ignores Checkout without a usable payment metadata link: %j", (fields) => {
+		expect(
+			normalizeStripeEvent({
+				...checkout,
+				data: { object: { ...checkout.data.object, ...fields } },
+			})
+		).toEqual([]);
+	});
+
+	test.each([
+		0, -1, 1.5,
+	])("rejects invalid Checkout creation time %s", (created) => {
+		expect(() =>
+			normalizeStripeEvent({
+				...checkout,
+				data: { object: { ...checkout.data.object, created } },
+			})
+		).toThrow("Stripe link timestamp");
+	});
+
+	test.each([
+		null,
+		"",
+		"usd!",
+	])("rejects invalid Checkout currency %s", (currency) => {
+		expect(() =>
+			normalizeStripeEvent({
+				...checkout,
+				data: { object: { ...checkout.data.object, currency } },
+			})
+		).toThrow("Stripe Checkout currency");
+	});
 
 	test("records invoice money once, from the payment event only", () => {
 		const payment = {

@@ -33,6 +33,7 @@ import { UsageRow } from "./components/usage-row";
 import { useBilling, useBillingData } from "./hooks/use-billing";
 import type { OverageInfo } from "./utils/billing-utils";
 import type { PricingTier } from "./utils/feature-usage";
+import { getStripeMetadata } from "./utils/stripe-metadata";
 import {
 	ArrowSquareOutIcon,
 	CalendarIcon,
@@ -562,6 +563,7 @@ export default function BillingPage() {
 												try {
 													const result = await attach({
 														planId,
+														metadata: getStripeMetadata(),
 														successUrl: `${window.location.origin}/billing`,
 													});
 													if (result?.paymentUrl) {

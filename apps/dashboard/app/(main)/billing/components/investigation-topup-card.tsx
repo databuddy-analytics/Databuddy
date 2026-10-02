@@ -17,6 +17,7 @@ import {
 } from "@/components/providers/billing-provider";
 import type { summarizeInvestigationBalance } from "@/lib/investigation-usage";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
+import { getStripeMetadata } from "../utils/stripe-metadata";
 
 export function InvestigationTopupCard() {
 	const { attach } = useCustomer();
@@ -54,6 +55,7 @@ export function InvestigationTopupCard() {
 		try {
 			await attach({
 				planId: INVESTIGATION_USAGE.topupPlanId,
+				metadata: getStripeMetadata(),
 				featureQuantities: [
 					{
 						featureId: INVESTIGATION_USAGE.featureId,

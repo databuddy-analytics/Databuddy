@@ -71,12 +71,21 @@ interface WebhookCharge extends WebhookContextObject {
 	payment_intent?: string | null;
 }
 
+interface WebhookCheckoutSession extends WebhookContextObject {
+	created: number;
+	currency: string | null;
+	invoice?: string | ExpandableObject | null;
+	mode: "payment" | "setup" | "subscription";
+	payment_intent?: string | ExpandableObject | null;
+}
+
 export interface StripeWebhookEvent {
 	api_version?: string | null;
 	created: number;
 	data: {
 		object:
 			| WebhookCharge
+			| WebhookCheckoutSession
 			| WebhookInvoice
 			| WebhookInvoicePayment
 			| WebhookPaymentIntent;
@@ -106,6 +115,7 @@ const STRIPE_ZERO_DECIMAL_CURRENCIES = new Set([
 	"XPF",
 ]);
 const STRIPE_TWO_DECIMAL_COMPATIBILITY_CURRENCIES = new Set(["ISK", "UGX"]);
+const STRIPE_CURRENCY_CODE = /^[a-z]{3}$/i;
 
 export interface NormalizedStripeRecord {
 	amount: number;
@@ -364,15 +374,15 @@ function normalizePaymentIntent(
 	];
 }
 
-// Stripe rejects payment_intent_data in subscription mode, so the invoice is the
-// only carrier for our ids. invoice_payment.paid references its invoice by bare
-// string id and webhooks never expand, so this zero-amount row is what lets the
-// query side join the money row back to a visitor.
-function buildInvoiceLinkRecord(
+function buildMetadataLinkRecord(
 	event: StripeWebhookEvent,
-	invoice: WebhookInvoice,
 	input: {
+		createdUnix: number;
+		currency: string;
 		customerId?: string;
+		id: string;
+		invoiceId?: string;
+		paymentIntentId?: string;
 		productName?: string;
 		rawMetadata: Record<string, string>;
 	}
@@ -385,14 +395,19 @@ function buildInvoiceLinkRecord(
 	}
 	return {
 		amount: 0,
-		context: buildRecordContext(event, "link", { invoiceId: invoice.id }),
-		createdUnix: requireUnixSeconds(event.created, "Stripe payment time"),
-		currency: invoice.currency.toUpperCase(),
+		context: buildRecordContext(event, "link", {
+			...(input.invoiceId ? { invoiceId: input.invoiceId } : {}),
+			...(input.paymentIntentId
+				? { paymentIntentId: input.paymentIntentId }
+				: {}),
+		}),
+		createdUnix: requireUnixSeconds(input.createdUnix, "Stripe link timestamp"),
+		currency: input.currency.toUpperCase(),
 		...(input.customerId ? { customerId: input.customerId } : {}),
 		...(input.productName ? { productName: input.productName } : {}),
 		rawMetadata: input.rawMetadata,
 		status: "linked",
-		transactionId: `${invoice.id}:link`,
+		transactionId: `${input.id}:link`,
 		type: "subscription_event",
 	};
 }
@@ -404,10 +419,41 @@ function normalizePaidInvoice(
 	if (invoice.status !== "paid" || invoice.amount_paid <= 0) {
 		return [];
 	}
-	const link = buildInvoiceLinkRecord(event, invoice, {
+	const link = buildMetadataLinkRecord(event, {
+		createdUnix: event.created,
+		currency: invoice.currency,
 		customerId: getExpandableId(invoice.customer),
+		id: invoice.id,
+		invoiceId: invoice.id,
 		productName: invoice.description ?? undefined,
 		rawMetadata: getInvoiceMetadata(invoice),
+	});
+	return link ? [link] : [];
+}
+
+function normalizeCheckoutSession(
+	event: StripeWebhookEvent
+): NormalizedStripeRecord[] {
+	const session = event.data.object as WebhookCheckoutSession;
+	const paymentIntentId = getExpandableId(session.payment_intent);
+	if (session.mode !== "payment" || !paymentIntentId) {
+		return [];
+	}
+	if (
+		typeof session.currency !== "string" ||
+		!STRIPE_CURRENCY_CODE.test(session.currency)
+	) {
+		throw new Error("Stripe Checkout currency must be a three-letter code");
+	}
+	const link = buildMetadataLinkRecord(event, {
+		// Keep delayed Checkout deliveries in the same replacement partition.
+		createdUnix: session.created,
+		currency: session.currency,
+		customerId: getExpandableId(session.customer),
+		id: session.id,
+		invoiceId: getExpandableId(session.invoice),
+		paymentIntentId,
+		rawMetadata: session.metadata ?? {},
 	});
 	return link ? [link] : [];
 }
@@ -480,6 +526,9 @@ export function normalizeStripeEvent(
 ): NormalizedStripeRecord[] {
 	requireUnixSeconds(event.created, "Stripe event.created");
 	switch (event.type) {
+		case "checkout.session.completed":
+		case "checkout.session.async_payment_succeeded":
+			return normalizeCheckoutSession(event);
 		case "payment_intent.succeeded":
 			return normalizePaymentIntent(event, "succeeded");
 		case "payment_intent.payment_failed":

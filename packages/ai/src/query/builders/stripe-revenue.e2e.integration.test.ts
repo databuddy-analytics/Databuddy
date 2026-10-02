@@ -650,6 +650,8 @@ describeStripeE2E("Stripe revenue end-to-end matrix", () => {
 				expect.objectContaining({
 					transaction_id: invoicePaymentId,
 					utm_campaign: "checkout-campaign",
+					attribution_method: "session",
+					unmatched_reason: "",
 				}),
 			]);
 			const stored = await chQuery<{ website_id: string }>(
@@ -704,6 +706,66 @@ describeStripeE2E("Stripe revenue end-to-end matrix", () => {
 			expect(refunds).toEqual([
 				expect.objectContaining({ type: "refund", amount: -5 }),
 			]);
+			const checkoutPaymentIntentId = `pi_checkout_${fixture.runId}`;
+			expect(
+				(
+					await postStripeEvent(
+						basket.baseUrl,
+						fixture.webhookHash,
+						fixture.secret,
+						paymentIntent({ amount: 2500, day: 0, id: checkoutPaymentIntentId })
+					)
+				).status
+			).toBe(200);
+			const [unlinkedCheckout] = await runBuilder(
+				"revenue_overview",
+				fixture.siteId,
+				range
+			);
+			expect(Number(unlinkedCheckout?.total_revenue)).toBe(25);
+			const checkoutSessionId = `cs_${fixture.runId}`;
+			for (const [type, day] of [
+				["checkout.session.completed", 0],
+				["checkout.session.async_payment_succeeded", 31],
+			] as const) {
+				expect(
+					(
+						await postStripeEvent(
+							basket.baseUrl,
+							fixture.webhookHash,
+							fixture.secret,
+							stripeEvent(type, day, {
+								id: checkoutSessionId,
+								created: eventUnix(0),
+								currency: "usd",
+								mode: "payment",
+								payment_intent: checkoutPaymentIntentId,
+								metadata: {
+									databuddy_client_id: websiteId,
+									databuddy_profile_id: profileId,
+									databuddy_session_id: sessionId,
+								},
+							})
+						)
+					).status
+				).toBe(200);
+			}
+			const [sessionCheckout] = await runBuilder(
+				"revenue_overview",
+				websiteId,
+				range
+			);
+			expect(Number(sessionCheckout?.total_revenue)).toBe(125);
+			expect(Number(sessionCheckout?.attributed_revenue)).toBe(125);
+			expect(
+				await runBuilder("revenue_overview", fixture.siteId, range)
+			).toEqual([]);
+			const checkoutLinks = await chQuery<{ records: number; amount: number }>(
+				"SELECT count() records, sum(amount) amount FROM analytics.revenue FINAL WHERE owner_id = {ownerId:String} AND transaction_id = {transactionId:String}",
+				{ ownerId: fixture.ownerId, transactionId: `${checkoutSessionId}:link` }
+			);
+			expect(Number(checkoutLinks[0]?.records)).toBe(1);
+			expect(Number(checkoutLinks[0]?.amount)).toBe(0);
 		} finally {
 			try {
 				if (basket) {
@@ -1162,6 +1224,31 @@ describeStripeE2E("Stripe revenue end-to-end matrix", () => {
 			).toBe(false);
 
 			const recent = await runBuilder("recent_transactions", fixture.siteId);
+			const recentById = new Map(
+				recent.map((row) => [row.transaction_id, row])
+			);
+			for (const [transactionId, method, reason] of [
+				[`pi_identified_${fixture.runId}`, "session", ""],
+				[`pi_profile_${fixture.runId}`, "profile", ""],
+				[
+					`inpay_stitched_${fixture.runId}`,
+					"unmatched",
+					"missing_browser_identity",
+				],
+				[
+					`pi_anonymous_${fixture.runId}`,
+					"unmatched",
+					"missing_browser_identity",
+				],
+				[`pi_salted_${fixture.runId}`, "unmatched", "no_verified_prior_match"],
+			]) {
+				expect(recentById.get(transactionId)).toEqual(
+					expect.objectContaining({
+						attribution_method: method,
+						unmatched_reason: reason,
+					})
+				);
+			}
 			expect(
 				recent.some((row) => row.transaction_id === refundPaymentIntentId)
 			).toBe(true);
