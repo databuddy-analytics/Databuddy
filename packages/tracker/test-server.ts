@@ -4,7 +4,13 @@ import { file as BunFile, serve } from "bun";
 const PORT = 3033;
 const BASE_DIR = import.meta.dir;
 const HTML_HEADERS = { "Content-Type": "text/html" };
-const BEACON_PATHS = new Set(["/batch", "/errors", "/track", "/vitals"]);
+const BEACON_PATHS = new Set([
+	"/batch",
+	"/engagement",
+	"/errors",
+	"/track",
+	"/vitals",
+]);
 
 interface BeaconRequest {
 	body: string;
@@ -299,6 +305,11 @@ async function handleRequest(req: Request): Promise<Response> {
 			beaconRequests.splice(0, beaconRequests.length - 2000);
 		}
 		return Response.json({ success: true }, { headers: corsHeaders(req) });
+	}
+
+	if (url.pathname.startsWith("/__test/slow/")) {
+		await Bun.sleep(Number(url.pathname.split("/").at(-1)));
+		return new Response(TEST_PAGE_HTML, { headers: HTML_HEADERS });
 	}
 
 	if (url.pathname === "/test") {
