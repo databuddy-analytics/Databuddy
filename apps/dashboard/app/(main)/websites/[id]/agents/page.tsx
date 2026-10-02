@@ -1282,7 +1282,11 @@ function StatTile({
 					<p className="font-semibold text-xl tabular-nums">
 						{formatNumber(value)}
 					</p>
-					{previous ? (
+					{previous === 0 && value > 0 ? (
+						<span className="text-muted-foreground text-xs">
+							New this period
+						</span>
+					) : previous ? (
 						<TotalChange
 							current={value}
 							previous={previous}
