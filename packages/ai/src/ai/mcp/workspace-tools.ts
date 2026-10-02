@@ -1,17 +1,12 @@
-import {
-	DEEP_LINK_APP_IDS,
-	isDeepLinkTarget,
-} from "@databuddy/shared/constants/deep-link-apps";
-import { httpUrlSchema } from "@databuddy/validation";
 import { z } from "zod";
 import { callRPCProcedure, omitUndefined } from "../tools/utils";
-import { goalFunnelFilterSchema, goalTypeSchema } from "../tools/goals";
+import { goalFields } from "../tools/goals";
 import {
-	LinkFolderSelectorSchema,
+	linkUpdateFields,
 	listLinkFolders,
 	parseLinkRow,
+	planLinkUpdate,
 	readOrganizationLink,
-	resolveLinkFolderFromList,
 	summarizeLink,
 	summarizeLinkFolder,
 } from "../tools/link-catalog";
@@ -29,8 +24,6 @@ import {
 	GOAL_FIELDS,
 	getResolvedOrganizationId,
 	getResolvedWebsiteId,
-	LinkExpiresAtSchema,
-	LinkSlugSchema,
 	McpDateRangeSchema,
 	MutationResultSchema,
 	PageSchema,
@@ -98,30 +91,13 @@ const updateGoalTool = defineMcpTool(
 			"Update a conversion goal. confirmed=false (default) returns the current goal and the changes without writing; confirmed=true applies them.",
 		inputSchema: z.object({
 			id: z.string().describe("Goal ID from list_goals."),
-			type: goalTypeSchema.optional(),
-			target: z
-				.string()
-				.min(1)
-				.optional()
-				.describe("Page path for PAGE_VIEW, event name for EVENT or CUSTOM."),
-			name: z.string().min(1).max(100).optional().describe("Goal name."),
-			description: z
-				.string()
-				.nullable()
-				.optional()
-				.describe("What the goal measures; null clears it."),
-			filters: z
-				.array(goalFunnelFilterSchema)
-				.optional()
-				.describe(
-					"Filters every conversion must match. Replaces the saved filters."
-				),
-			ignoreHistoricData: z
-				.boolean()
-				.optional()
-				.describe(
-					"true counts only data from the goal's creation date onward."
-				),
+			...z.object(goalFields).partial().shape,
+			description: goalFields.description.describe(
+				"What the goal measures; null clears it."
+			),
+			filters: goalFields.filters.describe(
+				"Filters every conversion must match. Replaces the saved filters."
+			),
 			isActive: z
 				.boolean()
 				.optional()
@@ -280,51 +256,6 @@ const deleteAnnotationTool = defineMcpTool(
 	}
 );
 
-const linkUpdateFields = {
-	name: z.string().min(1).max(255).optional().describe("Link name."),
-	targetUrl: httpUrlSchema.optional().describe("Destination URL."),
-	slug: LinkSlugSchema.optional(),
-	expiresAt: LinkExpiresAtSchema.nullable()
-		.optional()
-		.describe("Expiry date or datetime; null removes the expiry."),
-	expiredRedirectUrl: httpUrlSchema
-		.nullable()
-		.optional()
-		.describe("Where visitors go after the link expires; null clears it."),
-	ogTitle: z
-		.string()
-		.max(200)
-		.nullable()
-		.optional()
-		.describe("Social preview title; null clears it."),
-	ogDescription: z
-		.string()
-		.max(500)
-		.nullable()
-		.optional()
-		.describe("Social preview description; null clears it."),
-	ogImageUrl: httpUrlSchema
-		.nullable()
-		.optional()
-		.describe("Social preview image URL; null clears it."),
-	externalId: z
-		.string()
-		.max(255)
-		.nullable()
-		.optional()
-		.describe(
-			"Your own ID for the link, such as a CRM record; null clears it."
-		),
-	...LinkFolderSelectorSchema.shape,
-	deepLinkApp: z
-		.enum(DEEP_LINK_APP_IDS)
-		.nullable()
-		.optional()
-		.describe(
-			"Native app that opens the link on mobile; targetUrl must belong to it. null turns it off."
-		),
-};
-
 const updateLinkTool = defineMcpTool(
 	{
 		name: "update_link",
@@ -346,9 +277,6 @@ const updateLinkTool = defineMcpTool(
 		{
 			confirmed,
 			id,
-			folderId,
-			folderSlug,
-			expiresAt,
 			websiteId: _websiteId,
 			websiteName: _websiteName,
 			websiteDomain: _websiteDomain,
@@ -356,60 +284,40 @@ const updateLinkTool = defineMcpTool(
 		},
 		ctx
 	) => {
-		const organizationId = getResolvedOrganizationId(ctx);
 		const rpcContext = buildRpcContext(ctx);
-		const [current, folders] = await Promise.all([
-			readOrganizationLink(rpcContext, organizationId, id),
-			listLinkFolders(rpcContext, organizationId),
-		]);
-		const folderSelection = resolveLinkFolderFromList(folders, {
-			folderId,
-			folderSlug,
-		});
-		if (!folderSelection.ok) {
-			throw new McpToolError("invalid_input", folderSelection.message);
+		const plan = await planLinkUpdate(
+			rpcContext,
+			getResolvedOrganizationId(ctx),
+			id,
+			input
+		);
+		if (!plan.ok) {
+			throw new McpToolError("invalid_input", plan.message);
 		}
 
-		const effectiveDeepLinkApp =
-			input.deepLinkApp === undefined ? current.deepLinkApp : input.deepLinkApp;
-		const effectiveTargetUrl = input.targetUrl ?? current.targetUrl;
-		if (
-			effectiveDeepLinkApp &&
-			!isDeepLinkTarget(effectiveDeepLinkApp, effectiveTargetUrl)
-		) {
-			throw new McpToolError(
-				"invalid_input",
-				"Deep link URLs must use HTTPS and match the selected app."
-			);
-		}
-
-		const updates = omitUndefined({
-			...input,
-			expiresAt: expiresAt && new Date(expiresAt).toISOString(),
-			folderId: folderSelection.folderId,
-		});
-
-		if (!confirmed || Object.keys(updates).length === 0) {
+		if (!confirmed || Object.keys(plan.updates).length === 0) {
 			return updatePreview(
 				"short link",
-				summarizeLink(current, folders),
-				updates,
+				summarizeLink(plan.current, plan.folders),
+				plan.updates,
 				confirmed
 					? {}
-					: {
-							availableFolders:
-								folderSelection.folders.map(summarizeLinkFolder),
-						}
+					: { availableFolders: plan.folders.map(summarizeLinkFolder) }
 			);
 		}
 
 		const link = parseLinkRow(
-			await callRPCProcedure("links", "update", { id, ...updates }, rpcContext)
+			await callRPCProcedure(
+				"links",
+				"update",
+				{ id, ...plan.updates },
+				rpcContext
+			)
 		);
 		return {
 			success: true,
 			message: `Short link "${link.name}" updated successfully.`,
-			link: summarizeLink(link, folderSelection.folders),
+			link: summarizeLink(link, plan.folders),
 		};
 	}
 );

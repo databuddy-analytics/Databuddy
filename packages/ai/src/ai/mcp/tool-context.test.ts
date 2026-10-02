@@ -4,9 +4,6 @@ import type { WebsiteSummary } from "../../lib/accessible-websites";
 import { createRedisModuleMock } from "../test-redis-mock";
 
 const permission = mock(async () => ({ success: true }));
-const discoveryMembership = mock(
-	async (): Promise<{ role: string } | null> => ({ role: "viewer" })
-);
 const memberRole = mock(async () => "viewer" as string | null);
 let cachedWebsiteList: WebsiteSummary[] | null = null;
 const sites: WebsiteSummary[] = [
@@ -63,11 +60,6 @@ mock.module("@databuddy/api-keys/resolve", () => ({
 	hasKeyScope: () => true,
 	hasWebsiteScopeForOrganization: () => true,
 }));
-const realDb = await import("@databuddy/db");
-mock.module("@databuddy/db", () => ({
-	...realDb,
-	db: { query: { member: { findFirst: discoveryMembership } } },
-}));
 mock.module("@databuddy/redis", () =>
 	createRedisModuleMock({
 		cacheable:
@@ -88,7 +80,6 @@ const {
 beforeEach(() => {
 	cachedWebsiteList = null;
 	memberRole.mockClear();
-	discoveryMembership.mockClear();
 });
 
 describe("OAuth selected website grants", () => {
@@ -126,21 +117,18 @@ describe("OAuth selected website grants", () => {
 		expect(
 			(await getCachedAccessibleWebsites(principal)).map((site) => site.id)
 		).toEqual(["site"]);
-		expect(discoveryMembership).toHaveBeenCalledWith({
-			where: { userId: "user", organizationId: "org-other" },
-			columns: { role: true },
-		});
+		expect(memberRole).toHaveBeenCalledWith("user", "org-other");
 		expect(await resolveWebsiteId({ websiteName: "Reports" }, principal)).toBe(
 			"site"
 		);
-		expect(
-			await resolveWebsiteId({ websiteDomain: "www.example.com" }, principal)
-		).toBeInstanceOf(Error);
+		await expect(
+			resolveWebsiteId({ websiteDomain: "www.example.com" }, principal)
+		).rejects.toBeInstanceOf(Error);
 	});
 
 	it("does not reuse discovery results after membership or scope access is removed", async () => {
 		cachedWebsiteList = sites;
-		discoveryMembership.mockResolvedValueOnce(null);
+		memberRole.mockResolvedValueOnce(null);
 		expect(await getCachedAccessibleWebsites(principal)).toEqual([]);
 		expect(
 			await getCachedAccessibleWebsites({
@@ -152,30 +140,36 @@ describe("OAuth selected website grants", () => {
 
 	it("requires a selected website, read scope, and current membership for direct data access", async () => {
 		const authorized = { ...principal, requestHeaders: new Headers() };
-		expect(await ensureWebsiteAccess("www-site", authorized)).toBeInstanceOf(
-			Error
-		);
-		expect(
-			await ensureWebsiteAccess("site", {
+		await expect(
+			ensureWebsiteAccess("www-site", authorized)
+		).rejects.toBeInstanceOf(Error);
+		await expect(
+			ensureWebsiteAccess("site", {
 				...authorized,
 				oauth: { ...authorized.oauth, scopes: [] },
 			})
-		).toBeInstanceOf(Error);
+		).rejects.toBeInstanceOf(Error);
 		expect(memberRole).not.toHaveBeenCalled();
-		expect(await ensureWebsiteAccess("site", authorized)).not.toBeInstanceOf(
-			Error
-		);
+		await expect(
+			ensureWebsiteAccess("site", authorized)
+		).resolves.toMatchObject({
+			organizationId: "org-other",
+		});
 		memberRole.mockResolvedValueOnce(null);
-		expect(await ensureWebsiteAccess("site", authorized)).toBeInstanceOf(Error);
+		await expect(
+			ensureWebsiteAccess("site", authorized)
+		).rejects.toBeInstanceOf(Error);
 	});
 
 	it("requires a website selector for aggregate organization data", () => {
-		expect(resolveOrganizationId(principal)).toMatchObject({
-			code: "invalid_input",
-			message: expect.stringMatching(
-				/organization-wide flags.*Pass websiteId, websiteName, or websiteDomain from list_websites/
-			),
-		});
+		expect(() => resolveOrganizationId(principal)).toThrow(
+			expect.objectContaining({
+				code: "invalid_input",
+				message: expect.stringMatching(
+					/organization-wide flags.*Pass websiteId, websiteName, or websiteDomain from list_websites/
+				),
+			})
+		);
 		expect(
 			resolveOrganizationId({
 				...principal,
@@ -188,8 +182,8 @@ describe("OAuth selected website grants", () => {
 	});
 
 	it("rejects a deleted selected website before checking membership", async () => {
-		expect(
-			await ensureWebsiteAccess("deleted-site", {
+		await expect(
+			ensureWebsiteAccess("deleted-site", {
 				...principal,
 				oauth: {
 					...principal.oauth,
@@ -197,7 +191,10 @@ describe("OAuth selected website grants", () => {
 				},
 				requestHeaders: new Headers(),
 			})
-		).toMatchObject({ code: "not_found", message: "Website not found" });
+		).rejects.toMatchObject({
+			code: "not_found",
+			message: "Website not found",
+		});
 		expect(memberRole).not.toHaveBeenCalled();
 	});
 });
@@ -230,9 +227,9 @@ describe("MCP domain selector compatibility", () => {
 		"reports.example.com:443",
 		"ftp://reports.example.com",
 	])("does not rewrite unsupported selector %s", async (websiteDomain) => {
-		expect(
-			await resolveWebsiteId({ websiteDomain }, sessionPrincipal)
-		).toBeInstanceOf(Error);
+		await expect(
+			resolveWebsiteId({ websiteDomain }, sessionPrincipal)
+		).rejects.toBeInstanceOf(Error);
 	});
 	it("names each matching website's organization when a selector is ambiguous", async () => {
 		const [first] = sites;
@@ -248,9 +245,9 @@ describe("MCP domain selector compatibility", () => {
 				organizationName: "Acme",
 			},
 		];
-		expect(
-			await resolveWebsiteId({ websiteName: "Reports" }, sessionPrincipal)
-		).toMatchObject({
+		await expect(
+			resolveWebsiteId({ websiteName: "Reports" }, sessionPrincipal)
+		).rejects.toMatchObject({
 			code: "invalid_input",
 			message:
 				'2 accessible websites match name "Reports": site in Other org, acme-site in Acme. Pass websiteId to choose one.',
@@ -261,14 +258,14 @@ describe("MCP domain selector compatibility", () => {
 describe("shared agent's business-context organization boundary", () => {
 	it("rejects a missing website before checking permissions", async () => {
 		permission.mockClear();
-		const access = await ensureWebsiteAccess("missing-site", {
-			apiKey: null,
-			organizationId: "org-other",
-			requestHeaders: new Headers(),
-			userId: null,
-		});
-		expect(access).toBeInstanceOf(Error);
-		expect(access).toMatchObject({
+		await expect(
+			ensureWebsiteAccess("missing-site", {
+				apiKey: null,
+				organizationId: "org-other",
+				requestHeaders: new Headers(),
+				userId: null,
+			})
+		).rejects.toMatchObject({
 			code: "not_found",
 			message: "Website not found",
 		});
@@ -276,13 +273,14 @@ describe("shared agent's business-context organization boundary", () => {
 	});
 	it("rejects a site in another organization even if the session could read both", async () => {
 		permission.mockClear();
-		const result = await ensureWebsiteAccess("foreign-site", {
-			apiKey: null,
-			organizationId: "org-current",
-			requestHeaders: new Headers(),
-			userId: null,
-		});
-		expect(result).toBeInstanceOf(Error);
+		await expect(
+			ensureWebsiteAccess("foreign-site", {
+				apiKey: null,
+				organizationId: "org-current",
+				requestHeaders: new Headers(),
+				userId: null,
+			})
+		).rejects.toBeInstanceOf(Error);
 		expect(permission).not.toHaveBeenCalled();
 	});
 	it("continues checking website authorization inside the context organization", async () => {
@@ -307,14 +305,14 @@ describe("shared agent's business-context organization boundary", () => {
 	});
 	it("preserves denial from website authorization", async () => {
 		permission.mockResolvedValueOnce({ success: false });
-		expect(
-			await ensureWebsiteAccess("denied-site", {
+		await expect(
+			ensureWebsiteAccess("denied-site", {
 				apiKey: null,
 				organizationId: "org-other",
 				requestHeaders: new Headers(),
 				userId: null,
 			})
-		).toBeInstanceOf(Error);
+		).rejects.toBeInstanceOf(Error);
 	});
 	it("denies a session user outside the website's organization instead of failing", async () => {
 		const sessionWithoutOrganization = {
@@ -327,9 +325,9 @@ describe("shared agent's business-context organization boundary", () => {
 				statusCode: 401,
 			})
 		);
-		expect(
-			await ensureWebsiteAccess("foreign-site", sessionWithoutOrganization)
-		).toMatchObject({
+		await expect(
+			ensureWebsiteAccess("foreign-site", sessionWithoutOrganization)
+		).rejects.toMatchObject({
 			code: "unauthorized",
 			message: "Access denied to this website",
 		});

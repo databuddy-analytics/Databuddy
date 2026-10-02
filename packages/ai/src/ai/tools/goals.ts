@@ -48,14 +48,30 @@ const goalAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
 			"Additional cohort filters, or null to measure the saved definition without extra filtering."
 		),
 });
+export const goalFields = {
+	type: goalTypeSchema,
+	target: z
+		.string()
+		.min(1)
+		.describe("Page path for PAGE_VIEW, event name for EVENT or CUSTOM."),
+	name: z.string().min(1).max(100).describe("Goal name."),
+	description: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("What the goal measures."),
+	filters: z
+		.array(goalFunnelFilterSchema)
+		.optional()
+		.describe("Filters every conversion must match."),
+	ignoreHistoricData: z
+		.boolean()
+		.optional()
+		.describe("true counts only data from the goal's creation date onward."),
+};
 const createGoalInputSchema = z.object({
 	websiteId: z.string(),
-	name: z.string().min(1).max(100),
-	description: z.string().optional(),
-	type: goalTypeSchema,
-	target: z.string().min(1),
-	filters: z.array(goalFunnelFilterSchema).optional(),
-	ignoreHistoricData: z.boolean().optional(),
+	...goalFields,
 	confirmed: z.boolean().describe("false=preview, true=apply"),
 });
 const updateGoalInputSchema = createGoalInputSchema
@@ -132,19 +148,7 @@ export function createGoalTools() {
 		description:
 			"Create a single-step conversion goal. Target is a page path (PAGE_VIEW) or event name (EVENT/CUSTOM).",
 		inputSchema: createGoalInputSchema,
-		execute: async (
-			{
-				websiteId,
-				name,
-				description,
-				type,
-				target,
-				filters,
-				ignoreHistoricData,
-				confirmed,
-			},
-			options
-		) => {
+		execute: async ({ websiteId, confirmed, ...goal }, options) => {
 			const context = getAppContext(options);
 			try {
 				if (!confirmed) {
@@ -153,12 +157,12 @@ export function createGoalTools() {
 						message:
 							"Please review the goal details below and confirm if you want to create it:",
 						goal: {
-							name,
-							description: description || null,
-							type,
-							target,
-							filters: describeGoalFunnelFilters(filters),
-							ignoreHistoricData: ignoreHistoricData ?? false,
+							name: goal.name,
+							description: goal.description || null,
+							type: goal.type,
+							target: goal.target,
+							filters: describeGoalFunnelFilters(goal.filters),
+							ignoreHistoricData: goal.ignoreHistoricData ?? false,
 						},
 						confirmationRequired: true,
 						instruction:
@@ -169,27 +173,19 @@ export function createGoalTools() {
 				const result = await callRPCProcedure(
 					"goals",
 					"create",
-					{
-						websiteId,
-						name,
-						description,
-						type,
-						target,
-						filters,
-						ignoreHistoricData: ignoreHistoricData ?? false,
-					},
+					{ websiteId, ...goal },
 					context
 				);
 
 				return {
 					success: true,
-					message: `Goal "${name}" created successfully`,
+					message: `Goal "${goal.name}" created successfully`,
 					goal: result,
 				};
 			} catch (error) {
 				logger.error("Failed to create goal", {
 					websiteId,
-					name,
+					name: goal.name,
 					error,
 				});
 				throw error;

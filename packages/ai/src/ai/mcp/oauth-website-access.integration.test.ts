@@ -117,37 +117,33 @@ integration("MCP OAuth website authorization", () => {
 	});
 
 	test("grants a member of the website's organization", async () => {
-		const access = await toolContext.ensureWebsiteAccess(websiteId, {
-			apiKey: null,
-			oauth: {
-				grant: { organizationId, websiteIds: [websiteId] },
-				scopes: ["read:data"],
-				user: viewer,
-			},
-			requestHeaders: new Headers(),
-			userId: null,
-		});
-
-		expect(access).not.toBeInstanceOf(Error);
-		expect((access as { domain: string }).domain).toBe(
-			`${websiteId}.example.com`
-		);
+		await expect(
+			toolContext.ensureWebsiteAccess(websiteId, {
+				apiKey: null,
+				oauth: {
+					grant: { organizationId, websiteIds: [websiteId] },
+					scopes: ["read:data"],
+					user: viewer,
+				},
+				requestHeaders: new Headers(),
+				userId: null,
+			})
+		).resolves.toMatchObject({ domain: `${websiteId}.example.com` });
 	});
 
 	test("denies a user who belongs to a different organization", async () => {
-		const access = await toolContext.ensureWebsiteAccess(websiteId, {
-			apiKey: null,
-			oauth: {
-				grant: { organizationId, websiteIds: [websiteId] },
-				scopes: ["read:data"],
-				user: outsider,
-			},
-			requestHeaders: new Headers(),
-			userId: null,
-		});
-
-		expect(access).toBeInstanceOf(Error);
-		expect((access as Error).message).toBe("Access denied to this website");
+		await expect(
+			toolContext.ensureWebsiteAccess(websiteId, {
+				apiKey: null,
+				oauth: {
+					grant: { organizationId, websiteIds: [websiteId] },
+					scopes: ["read:data"],
+					user: outsider,
+				},
+				requestHeaders: new Headers(),
+				userId: null,
+			})
+		).rejects.toThrow("Access denied to this website");
 	});
 
 	test("keeps a member of several organizations inside the one they consented to", async () => {
@@ -187,27 +183,27 @@ integration("MCP OAuth website authorization", () => {
 		expect(
 			toolContext.resolveOrganizationId({ apiKey: null, oauth, userId: null })
 		).toBe(organizationId);
-		expect(
+		expect(() =>
 			toolContext.resolveOrganizationId({
 				apiKey: null,
 				oauth: { ...oauth, grant: { organizationId, websiteIds: [websiteId] } },
 				userId: null,
 			})
-		).toMatchObject({ code: "invalid_input" });
+		).toThrow(expect.objectContaining({ code: "invalid_input" }));
 	});
 
 	test("denies a user with no membership at all", async () => {
-		const access = await toolContext.ensureWebsiteAccess(websiteId, {
-			apiKey: null,
-			oauth: {
-				grant: { organizationId, websiteIds: [websiteId] },
-				scopes: ["read:data"],
-				user: { ...viewer, id: `ghost-${suffix}` },
-			},
-			requestHeaders: new Headers(),
-			userId: null,
-		});
-
-		expect(access).toBeInstanceOf(Error);
+		await expect(
+			toolContext.ensureWebsiteAccess(websiteId, {
+				apiKey: null,
+				oauth: {
+					grant: { organizationId, websiteIds: [websiteId] },
+					scopes: ["read:data"],
+					user: { ...viewer, id: `ghost-${suffix}` },
+				},
+				requestHeaders: new Headers(),
+				userId: null,
+			})
+		).rejects.toBeInstanceOf(Error);
 	});
 });

@@ -22,9 +22,7 @@ export function proxy(request: NextRequest) {
 	const isAddingAccount = searchParams.get("add_account") === "true";
 	const isOAuthSignIn =
 		searchParams.has("sig") ||
-		(searchParams.get("callback") ?? "").startsWith(
-			OAUTH_AUTHORIZE_PATH_PREFIX
-		);
+		searchParams.get("callback")?.startsWith(OAUTH_AUTHORIZE_PATH_PREFIX);
 
 	if (isSignInRoute && sessionCookie && !(isAddingAccount || isOAuthSignIn)) {
 		return NextResponse.redirect(new URL("/websites", request.url));

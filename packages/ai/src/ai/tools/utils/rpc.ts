@@ -9,7 +9,7 @@ const MUTATION_METHOD_RE =
 function issuePath(path: unknown): string {
 	const segments = (Array.isArray(path) ? path : []).map((segment) =>
 		typeof segment === "object" && segment !== null && "key" in segment
-			? String((segment as { key: unknown }).key)
+			? String(segment.key)
 			: String(segment)
 	);
 	return segments.length > 0 ? segments.join(".") : "input";
@@ -104,9 +104,7 @@ export async function callRPCProcedure(
 			);
 		}
 
-		return await (abortSignal
-			? clientFn(input, { signal: abortSignal })
-			: clientFn(input));
+		return await clientFn(input, { signal: abortSignal });
 	} catch (error) {
 		if (error instanceof ORPCError) {
 			logger.error("ORPC error", {

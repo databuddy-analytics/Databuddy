@@ -14,6 +14,26 @@ import { resolveToolDateRange } from "./utils/context";
 
 const logger = createToolLogger("Funnels Tools");
 
+export const funnelFields = {
+	name: z.string().min(1).max(100).describe("Funnel name."),
+	description: z.string().optional().describe("What the funnel tracks."),
+	steps: z
+		.array(z.strictObject(funnelStepSchema.omit({ conditions: true }).shape))
+		.min(2)
+		.max(10)
+		.describe(
+			"2 to 10 steps in order. Each target is a page path (PAGE_VIEW) or event name (EVENT or CUSTOM)."
+		),
+	filters: z
+		.array(goalFunnelFilterSchema)
+		.optional()
+		.describe("Filters every step must match."),
+	ignoreHistoricData: z
+		.boolean()
+		.optional()
+		.describe("true counts only data from the funnel's creation date onward."),
+};
+
 const funnelAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
 	funnelId: z.string(),
 	websiteId: z.string().optional(),
@@ -116,48 +136,28 @@ export function createFunnelTools() {
 			"Create a funnel to track a user journey. 2-10 steps where target is a page path (PAGE_VIEW) or event name.",
 		inputSchema: z.object({
 			websiteId: z.string(),
-			name: z.string().min(1).max(100),
-			description: z.string().optional(),
-			steps: z
-				.array(funnelStepSchema.omit({ conditions: true }))
-				.min(2)
-				.max(10),
-			filters: z.array(goalFunnelFilterSchema).optional(),
-			ignoreHistoricData: z.boolean().optional(),
+			...funnelFields,
 			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
-		execute: async (
-			{
-				websiteId,
-				name,
-				description,
-				steps,
-				filters,
-				ignoreHistoricData,
-				confirmed,
-			},
-			options
-		) => {
+		execute: async ({ websiteId, confirmed, ...funnel }, options) => {
 			const context = getAppContext(options);
 			try {
 				if (!confirmed) {
-					const stepsPreview = steps
-						.map(
-							(step, index) =>
-								`${index + 1}. ${step.name} (${step.type}: ${step.target})`
-						)
-						.join("\n");
-
 					return {
 						preview: true,
 						message:
 							"Please review the funnel details below and confirm if you want to create it:",
 						funnel: {
-							name,
-							description: description || "No description",
-							steps: stepsPreview,
-							filters: describeGoalFunnelFilters(filters),
-							ignoreHistoricData: ignoreHistoricData ?? false,
+							name: funnel.name,
+							description: funnel.description || "No description",
+							steps: funnel.steps
+								.map(
+									(step, index) =>
+										`${index + 1}. ${step.name} (${step.type}: ${step.target})`
+								)
+								.join("\n"),
+							filters: describeGoalFunnelFilters(funnel.filters),
+							ignoreHistoricData: funnel.ignoreHistoricData ?? false,
 						},
 						confirmationRequired: true,
 						instruction:
@@ -168,26 +168,19 @@ export function createFunnelTools() {
 				const result = await callRPCProcedure(
 					"funnels",
 					"create",
-					{
-						websiteId,
-						name,
-						description,
-						steps,
-						filters,
-						ignoreHistoricData: ignoreHistoricData ?? false,
-					},
+					{ websiteId, ...funnel },
 					context
 				);
 
 				return {
 					success: true,
-					message: `Funnel "${name}" created successfully`,
+					message: `Funnel "${funnel.name}" created successfully`,
 					funnel: result,
 				};
 			} catch (error) {
 				logger.error("Failed to create funnel", {
 					websiteId,
-					name,
+					name: funnel.name,
 					error,
 				});
 				throw error;

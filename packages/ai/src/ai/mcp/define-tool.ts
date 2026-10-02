@@ -31,7 +31,7 @@ function stripAnsi(text: string): string {
 	return text.replace(ANSI_RE, "");
 }
 
-export type McpErrorCode =
+type McpErrorCode =
 	| "invalid_input"
 	| "unauthorized"
 	| "not_found"
@@ -72,25 +72,22 @@ export interface McpHandlerContext extends McpRequestContext {
 
 type McpToolMutationKind = "read" | "write";
 
-interface McpToolAccess {
-	globalScopes: ApiScope[];
-	kind: McpToolMutationKind;
-	scopes: ApiScope[];
-}
-
-interface McpToolAccessInput {
-	kind: McpToolMutationKind;
-	scopes?: ApiScope[];
-	scopeTarget?: ApiKeyScopeTarget;
-}
-
 interface McpToolMetadata {
-	access: McpToolAccess;
+	access: {
+		globalScopes: ApiScope[];
+		kind: McpToolMutationKind;
+		scopes: ApiScope[];
+	};
 }
 
-export interface McpToolMetadataInput {
-	access: McpToolAccessInput;
+interface McpToolMetadataInput {
+	access: {
+		kind: McpToolMutationKind;
+		scopes?: ApiScope[];
+		scopeTarget?: ApiKeyScopeTarget;
+	};
 }
+
 export function metadataForResource(
 	resource: string,
 	permissions: readonly string[]
@@ -113,7 +110,7 @@ interface McpToolAnnotationOverrides {
 	idempotent?: boolean;
 }
 
-export interface McpToolMeta<S extends z.ZodTypeAny = z.ZodTypeAny> {
+interface McpToolMeta<S extends z.ZodTypeAny = z.ZodTypeAny> {
 	annotations?: McpToolAnnotationOverrides;
 	description: string;
 	inputSchema: S;
@@ -125,7 +122,7 @@ export interface McpToolMeta<S extends z.ZodTypeAny = z.ZodTypeAny> {
 	title?: string;
 }
 
-export type McpToolHandler<I> = (
+type McpToolHandler<I> = (
 	input: I,
 	ctx: McpHandlerContext
 ) => Promise<unknown> | unknown;
@@ -244,25 +241,10 @@ function toolAnnotations(
 	};
 }
 
-function authType(ctx: McpRequestContext): "session" | "api_key" | "oauth" {
+export function authType(
+	ctx: McpRequestContext
+): "session" | "api_key" | "oauth" {
 	return ctx.apiKey ? "api_key" : ctx.oauth ? "oauth" : "session";
-}
-
-function getAttribution(ctx: McpHandlerContext): {
-	organization_id: string | null;
-	user_id: string | null;
-	auth_type: "session" | "api_key" | "oauth";
-} {
-	return {
-		organization_id:
-			ctx.oauth?.grant.organizationId ??
-			ctx.organizationId ??
-			ctx.websiteOrganizationId ??
-			ctx.apiKey?.organizationId ??
-			null,
-		user_id: ctx.oauth?.user.id ?? ctx.userId ?? ctx.apiKey?.userId ?? null,
-		auth_type: authType(ctx),
-	};
 }
 
 function isPreviewResult(result: unknown): boolean {
@@ -367,44 +349,33 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					}
 				}
 
-				if (meta.resolveWebsite) {
-					const inputObj = input as WebsiteSelectorInput;
-					const optional = meta.resolveWebsite === "optional";
-					const hasSelector = Boolean(
-						inputObj.websiteId || inputObj.websiteName || inputObj.websiteDomain
+				const selector = input as WebsiteSelectorInput;
+				const hasSelector = Boolean(
+					selector.websiteId || selector.websiteName || selector.websiteDomain
+				);
+				if (
+					meta.resolveWebsite === true ||
+					(meta.resolveWebsite && hasSelector)
+				) {
+					const resolvedId = await resolveWebsiteId(selector, ctx);
+					const access = await ensureWebsiteAccess(resolvedId, ctx);
+					handlerCtx.websiteId = resolvedId;
+					handlerCtx.websiteDomain = access.domain;
+					handlerCtx.websiteOrganizationId = access.organizationId;
+					mergeWideEvent({ mcp_website_id: resolvedId });
+				}
+
+				const output = await handler(input, handlerCtx);
+				const checked = outputSchema?.safeParse(output);
+				if (checked && !checked.success) {
+					throw new McpToolError(
+						"internal",
+						`${meta.name} output did not match its schema: ${formatValidationIssues(checked.error.issues)}`
 					);
-					if (!optional || hasSelector) {
-						const resolvedId = await resolveWebsiteId(inputObj, ctx);
-						if (resolvedId instanceof Error) {
-							throw resolvedId;
-						}
-						const access = await ensureWebsiteAccess(resolvedId, ctx);
-						if (access instanceof Error) {
-							throw access;
-						}
-						handlerCtx.websiteId = resolvedId;
-						handlerCtx.websiteDomain = access.domain;
-						handlerCtx.websiteOrganizationId = access.organizationId;
-						mergeWideEvent({ mcp_website_id: resolvedId });
-					}
 				}
+				const result = checked ? checked.data : output;
 
-				let result = await handler(input, handlerCtx);
-				let structuredContent: Record<string, unknown> | undefined;
-				if (outputSchema) {
-					const checked = outputSchema.safeParse(result);
-					if (!checked.success) {
-						throw new McpToolError(
-							"internal",
-							`${meta.name} output did not match its schema: ${formatValidationIssues(checked.error.issues)}`
-						);
-					}
-					structuredContent = checked.data;
-					result = structuredContent;
-				}
-
-				trackMcpToolEvent(metadata, meta.name, {
-					attribution: getAttribution(handlerCtx),
+				trackMcpToolEvent(metadata.access.kind, meta.name, handlerCtx, {
 					preview: isPreviewResult(result),
 					success: true,
 				});
@@ -415,7 +386,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 
 				return {
 					content: [{ type: "text", text: JSON.stringify(result) }],
-					...(structuredContent && { structuredContent }),
+					...(checked && { structuredContent: checked.data }),
 					isError: false,
 				};
 			} catch (err) {
@@ -435,8 +406,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					captureError(err, { mcp_tool: meta.name });
 				}
 
-				trackMcpToolEvent(metadata, meta.name, {
-					attribution: getAttribution(handlerCtx),
+				trackMcpToolEvent(metadata.access.kind, meta.name, handlerCtx, {
 					preview: false,
 					success: false,
 				});
@@ -458,31 +428,25 @@ function normalizeToolMetadata(
 	resolvesWebsite: boolean
 ): McpToolMetadata {
 	const configuredScopes = metadata.access.scopes ?? [];
-	const scopes: ApiScope[] = [
-		...(resolvesWebsite ? (["read:data"] as const) : []),
-		...configuredScopes,
-	];
+	const scopes = new Set<ApiScope>(
+		resolvesWebsite ? ["read:data", ...configuredScopes] : configuredScopes
+	);
 	return {
 		access: {
 			globalScopes:
 				metadata.access.scopeTarget === "global" ? configuredScopes : [],
 			kind: metadata.access.kind,
-			scopes: [...new Set(scopes)],
+			scopes: [...scopes],
 		},
 	};
 }
 
 function trackMcpToolEvent(
-	metadata: McpToolMetadata,
+	kind: McpToolMutationKind,
 	tool: string,
-	outcome: {
-		attribution: ReturnType<typeof getAttribution>;
-		preview: boolean;
-		success: boolean;
-	}
+	ctx: McpHandlerContext,
+	{ preview, success }: { preview: boolean; success: boolean }
 ): void {
-	const kind = metadata.access.kind;
-	const { attribution, preview, success } = outcome;
 	trackAgentEvent("agent_activity", {
 		action: preview
 			? "tool_preview"
@@ -494,6 +458,13 @@ function trackMcpToolEvent(
 		success,
 		tool_access_kind: kind,
 		tool_capability: kind === "write" ? "workspace" : "analytics",
-		...attribution,
+		organization_id:
+			ctx.oauth?.grant.organizationId ??
+			ctx.organizationId ??
+			ctx.websiteOrganizationId ??
+			ctx.apiKey?.organizationId ??
+			null,
+		user_id: ctx.oauth?.user.id ?? ctx.userId ?? ctx.apiKey?.userId ?? null,
+		auth_type: authType(ctx),
 	});
 }

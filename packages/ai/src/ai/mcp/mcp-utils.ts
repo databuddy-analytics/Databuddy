@@ -8,6 +8,7 @@ import { captureError } from "../../lib/tracing";
 import { getQueryBuilder, QueryBuilders } from "../../query/builders";
 import {
 	allowedFilterFields,
+	type executeBatch,
 	invalidFilterFieldError,
 	publicQueryErrorMessage,
 	QueryFilterSchema,
@@ -28,8 +29,6 @@ export const FilterSchema = QueryFilterSchema.omit({
 	target: true,
 	having: true,
 }).strict() satisfies z.ZodType<Filter>;
-
-export { SCHEMA_SECTIONS } from "../prompts/clickhouse-schema";
 
 export const MCP_RESULT_ROW_LIMIT = 20;
 const MCP_ROW_ARRAY_LIMIT = 50;
@@ -72,10 +71,6 @@ const QUERY_TYPE_ALIASES: Record<string, string> = {
 	pages: "top_pages",
 };
 
-function resolveQueryType(type: string): string {
-	return QUERY_TYPE_ALIASES[type] ?? type;
-}
-
 interface InvalidBatchQuery {
 	error: string;
 	inputIndex: number;
@@ -96,13 +91,7 @@ interface McpBatchQueryPlan {
 	requests: IndexedQueryRequest[];
 }
 
-interface ExecutedQueryResult {
-	data: Record<string, unknown>[];
-	error?: string;
-	type: string;
-}
-
-export interface McpQueryResult {
+interface McpQueryResult {
 	data: Record<string, unknown>[];
 	definition?: string;
 	error?: string;
@@ -225,7 +214,7 @@ export function buildBatchQueryRequests(
 	const invalid: InvalidBatchQuery[] = [];
 	const invalidTimezone = timezoneError(timezone);
 	for (const [inputIndex, q] of items.entries()) {
-		const resolvedType = resolveQueryType(q.type);
+		const resolvedType = QUERY_TYPE_ALIASES[q.type] ?? q.type;
 		let from = q.from;
 		let to = q.to;
 		const reject = (error: string, type = resolvedType) => {
@@ -353,7 +342,7 @@ export function capRowArrays(
 
 export function formatMcpQueryResults(
 	plan: McpBatchQueryPlan,
-	results: readonly ExecutedQueryResult[]
+	results: Awaited<ReturnType<typeof executeBatch>>
 ): McpQueryResult[] {
 	const formatted: (McpQueryResult & { inputIndex: number })[] = results.map(
 		(result, resultIndex) => {
@@ -410,7 +399,7 @@ export function formatMcpQueryResults(
 		.map(({ inputIndex: _, ...result }) => result);
 }
 
-const SCHEMA_SUMMARY = Object.keys(AGENT_TABLE_COLUMNS)
+export const SCHEMA_SUMMARY = Object.keys(AGENT_TABLE_COLUMNS)
 	.sort()
 	.map(
 		(table) => `${table}: ${[...(AGENT_TABLE_COLUMNS[table] ?? [])].join(", ")}`
@@ -510,10 +499,6 @@ function queryTypeInfo(key: string, config: SimpleQueryConfig): QueryTypeInfo {
 			customizable: config.customizable,
 		}),
 	};
-}
-
-export function getSchemaSummary(): string {
-	return SCHEMA_SUMMARY;
 }
 
 export const QUERY_CATEGORY_KEYS = [
