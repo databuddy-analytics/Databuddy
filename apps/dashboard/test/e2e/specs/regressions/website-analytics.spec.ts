@@ -35,4 +35,13 @@ test("shows seeded analytics, switches range, and applies a filter", {
 	await expect(
 		main.getByText(count(seed.screenViewsByCountry.US ?? 0)).first()
 	).toBeVisible({ timeout: 20_000 });
+
+	await page.goto(`/websites/${e2eSession.websiteId}/audience`);
+	await expect(topbar.getByRole("button", { name: "Filter" })).toBeEnabled();
+	await expect(
+		page.getByRole("heading", { name: "Geographic Distribution" })
+	).toBeVisible();
+	await expect(main.getByText("United States").first()).toBeVisible({
+		timeout: 20_000,
+	});
 });
