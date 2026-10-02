@@ -17,6 +17,7 @@ sources:
       - analytics-engagement-spans
       - analytics-custom-events
       - analytics-ai-traffic-spans
+      - analytics-mcp-spans
       - analytics-outgoing-links
       - analytics-blocked-traffic
       - analytics-uptime-checks
@@ -44,6 +45,7 @@ transforms:
       engagement_spans: '.topic == "analytics-engagement-spans"'
       custom_events: '.topic == "analytics-custom-events"'
       ai_traffic_spans: '.topic == "analytics-ai-traffic-spans"'
+      mcp_spans: '.topic == "analytics-mcp-spans"'
       outgoing_links: '.topic == "analytics-outgoing-links"'
       blocked_traffic: '.topic == "analytics-blocked-traffic"'
       uptime_checks: '.topic == "analytics-uptime-checks"'
@@ -205,6 +207,36 @@ sinks:
     inputs:
       - route_analytics.ai_traffic_spans
     uri: "${CLICKHOUSE_URL}/?input_format_import_nested_json=1&input_format_skip_unknown_fields=1&date_time_input_format=best_effort&query=INSERT+INTO+analytics.ai_traffic_spans+FORMAT+JSONEachRow"
+    method: post
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    compression: gzip
+    encoding:
+      codec: json
+      timestamp_format: unix_ms
+    framing:
+      method: newline_delimited
+    batch:
+      max_events: 5000
+      max_bytes: 5000000
+      timeout_secs: 5
+    request:
+      headers:
+        CF-Access-Client-Id: "${CLICKHOUSE_ACCESS_CLIENT_ID:-}"
+        CF-Access-Client-Secret: "${CLICKHOUSE_ACCESS_CLIENT_SECRET:-}"
+    retry_strategy:
+      type: custom
+      status_codes: [302, 401, 403, 408, 429, 500, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 520, 521, 522, 523, 524, 525, 526, 527, 530]
+    healthcheck:
+      enabled: false
+
+  clickhouse_mcp_spans:
+    type: http
+    inputs:
+      - route_analytics.mcp_spans
+    uri: "${CLICKHOUSE_URL}/?input_format_import_nested_json=1&input_format_skip_unknown_fields=1&date_time_input_format=best_effort&throw_on_max_partitions_per_insert_block=0&input_format_allow_errors_num=100&input_format_allow_errors_ratio=0.5&query=INSERT+INTO+analytics.mcp_spans+FORMAT+JSONEachRow"
     method: post
     auth:
       strategy: basic

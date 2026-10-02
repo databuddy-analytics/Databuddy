@@ -1,4 +1,7 @@
-import type { AiTrafficSpansInsert } from "@databuddy/db/clickhouse/tables";
+import type {
+	AiTrafficSpansInsert,
+	McpSpansInsert,
+} from "@databuddy/db/clickhouse/tables";
 import {
 	getWebsiteByIdV2,
 	isOriginAllowed,
@@ -86,6 +89,83 @@ const vercelLogSchema = z.object({
 });
 
 const VERCEL_LOGS_MAX_BYTES = 10 * 1024 * 1024;
+
+const uint32 = z.number().int().min(0).max(4_294_967_295);
+
+const mcpCallsSchema = z
+	.array(
+		z.object({
+			tool: truncated(256),
+			durationMs: uint32,
+			error: truncated(512).optional(),
+			outputChars: uint32.default(0),
+			sessionId: truncated(128).optional(),
+			clientName: truncated(128).optional(),
+			clientVersion: truncated(64).optional(),
+			serverName: truncated(128).optional(),
+			serverVersion: truncated(64).optional(),
+			userAgent: truncated(512).optional(),
+			timestamp: z.number().int().optional(),
+			websiteId: z.string().min(1).max(128).optional(),
+			environment: truncated(32).optional(),
+		})
+	)
+	.min(1)
+	.max(100);
+
+const MCP_CLIENT_PRODUCTS: Record<string, string> = {
+	"@librechat/api-client": "LibreChat",
+	"@n8n/n8n-nodes-langchain.mcpclienttool": "n8n",
+	"amp-mcp-client": "Amp",
+	"antigravity-client": "Google Antigravity",
+	chatgpt: "ChatGPT",
+	"cherry studio": "Cherry Studio",
+	"claude-ai": "Claude",
+	"claude-code": "Claude Code",
+	cline: "Cline",
+	codex: "Codex",
+	"codex-mcp-client": "Codex",
+	"com.raycast.macos": "Raycast",
+	"continue-cli-client": "Continue",
+	crush: "Crush",
+	"cursor-vscode": "Cursor",
+	"dust-mcp-client": "Dust",
+	"factory-cli": "Factory",
+	"gemini-cli-mcp-client": "Gemini CLI",
+	"github-copilot-developer": "GitHub Copilot CLI",
+	goose: "Goose",
+	"jan-streamable-client": "Jan",
+	"jetbrains-iu-copilot-intellij": "JetBrains AI Assistant",
+	"jetbrains-jbc-copilot-intellij": "JetBrains AI Assistant",
+	"kilo-code": "Kilo Code",
+	"lobehub-mcp-client": "LobeHub",
+	"make-app-mcp-client": "Make",
+	mistral: "Mistral Le Chat",
+	opencode: "OpenCode",
+	"postman-client": "Postman",
+	"q-dev-cli": "Amazon Q Developer",
+	"roo-code": "Roo Code",
+	"visual studio code": "VS Code",
+	"visual-studio-code": "VS Code",
+	windsurf: "Windsurf",
+	"windsurf-client": "Windsurf",
+	"xcode-copilot-xcode": "GitHub Copilot for Xcode",
+	zed: "Zed",
+};
+
+const MCP_CLIENT_USER_AGENTS: [RegExp, string][] = [
+	[/claude-code\//i, "Claude Code"],
+	[/^Anthropic\/ClaudeAI/i, "Claude"],
+	[/^openai-mcp\//i, "ChatGPT"],
+];
+
+function mcpClient(clientName = "", userAgent = ""): string {
+	return (
+		MCP_CLIENT_PRODUCTS[clientName.toLowerCase()] ??
+		MCP_CLIENT_USER_AGENTS.find(([pattern]) => pattern.test(userAgent))?.[1] ??
+		clientName
+	);
+}
 
 function parseVercelLogs(body: Uint8Array): {
 	entries: unknown[];
@@ -577,6 +657,107 @@ export const trackRoute = new Elysia()
 			);
 
 			return new Response(null, { status: 202 });
+		} catch (error) {
+			rethrowOrWrap(error, log);
+		}
+	})
+	.post("/mcp", async ({ body, request }) => {
+		const log = useLogger();
+		log.set({ route: "mcp" });
+
+		try {
+			const parsed = mcpCallsSchema.safeParse(body);
+			if (!parsed.success) {
+				throw createIngestSchemaValidationError(parsed.error.issues);
+			}
+			const calls = parsed.data;
+			const { apiKey, organizationId } = await resolveAuth(
+				request.headers,
+				request
+			);
+			if (!apiKey) {
+				throw basketErrors.trackMissingCredentials();
+			}
+			if (!organizationId) {
+				throw basketErrors.trackMissingOwner();
+			}
+			const keyWebsiteIds = hasGlobalAccess(apiKey)
+				? null
+				: new Set(getAccessibleWebsiteIds(apiKey));
+			if (
+				keyWebsiteIds &&
+				calls.some((call) => !keyWebsiteIds.has(call.websiteId ?? ""))
+			) {
+				log.set({ rejected: "website_scope" });
+				throw basketErrors.trackWebsiteScopeMismatch();
+			}
+			const websiteIds = [
+				...new Set(calls.flatMap((call) => call.websiteId ?? [])),
+			];
+			const websites = await Promise.all(
+				websiteIds.map((id) => getWebsiteByIdV2(id))
+			);
+			if (
+				websites.some(
+					(website) =>
+						website?.organizationId !== organizationId ||
+						website.status !== "ACTIVE"
+				)
+			) {
+				log.set({ rejected: "website_scope", websiteIds });
+				throw basketErrors.trackWebsiteScopeMismatch();
+			}
+			log.set({ organizationId, websiteIds, count: calls.length });
+
+			const rl = await ratelimit(`mcp:apikey:${apiKey.id}`, 600, 60);
+			if (!rl.success) {
+				log.set({ rejected: "rate_limit" });
+				throw basketErrors.trackRateLimited();
+			}
+
+			const billingUserId = await resolveApiKeyOwnerId(organizationId);
+			if (billingUserId) {
+				await checkAutumnUsage(
+					billingUserId,
+					"events",
+					{ api_route: "mcp", batch_size: calls.length },
+					calls.length
+				);
+			}
+
+			const now = Date.now();
+			runFork(
+				sendBatch(
+					"analytics-mcp-spans",
+					calls.map(
+						(call): McpSpansInsert => ({
+							owner_id: organizationId,
+							website_id: call.websiteId,
+							environment: call.environment,
+							timestamp:
+								call.timestamp &&
+								call.timestamp > now - 6 * 3_600_000 &&
+								call.timestamp < now + 300_000
+									? call.timestamp
+									: now,
+							tool: call.tool,
+							is_error: call.error !== undefined,
+							error: call.error,
+							duration_ms: call.durationMs,
+							output_chars: call.outputChars,
+							session_id: call.sessionId,
+							client: mcpClient(call.clientName, call.userAgent),
+							client_name: call.clientName,
+							client_version: call.clientVersion,
+							server_name: call.serverName,
+							server_version: call.serverVersion,
+							user_agent: call.userAgent,
+						})
+					)
+				)
+			);
+
+			return json({ status: "success", count: calls.length }, 202);
 		} catch (error) {
 			rethrowOrWrap(error, log);
 		}

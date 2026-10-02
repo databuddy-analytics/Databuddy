@@ -1517,6 +1517,92 @@ describe("POST /ai-traffic", () => {
 	});
 });
 
+describe("POST /mcp", () => {
+	const call = {
+		tool: "search_docs",
+		durationMs: 42,
+		clientName: "claude-code",
+	};
+
+	beforeEach(() => {
+		vi.mocked(mockSendBatch).mockClear();
+		mockCheckAutumnUsage.mockClear();
+		mockGetApiKeyFromHeader.mockResolvedValue({
+			id: "key_1",
+			organizationId: "org_1",
+			userId: "user_1",
+			scopes: ["track:events"],
+		});
+		mockHasKeyScope.mockReturnValue(true);
+		mockHasGlobalAccess.mockReturnValue(true);
+	});
+
+	test("stores tool calls under the key's organization and bills each call", async () => {
+		const res = await post(trackRoute, "/mcp", [
+			call,
+			{
+				tool: "get_data",
+				durationMs: 7,
+				error: "Unknown tool",
+				userAgent: "openai-mcp/1.0.0",
+			},
+		]);
+		expect(res.status).toBe(202);
+		expect(mockCheckAutumnUsage).toHaveBeenCalledWith(
+			"user_1",
+			"events",
+			{ api_route: "mcp", batch_size: 2 },
+			2
+		);
+		expect(mockSendBatch).toHaveBeenCalledWith("analytics-mcp-spans", [
+			expect.objectContaining({
+				owner_id: "org_1",
+				tool: "search_docs",
+				is_error: false,
+				client: "Claude Code",
+			}),
+			expect.objectContaining({
+				tool: "get_data",
+				is_error: true,
+				error: "Unknown tool",
+				client: "ChatGPT",
+			}),
+		]);
+	});
+
+	test("links calls to a website of the key's organization", async () => {
+		const res = await post(trackRoute, "/mcp", [
+			{ ...call, websiteId: "ws_test", environment: "production" },
+		]);
+		expect(res.status).toBe(202);
+		expect(mockSendBatch).toHaveBeenCalledWith("analytics-mcp-spans", [
+			expect.objectContaining({
+				owner_id: "org_1",
+				website_id: "ws_test",
+				environment: "production",
+			}),
+		]);
+	});
+
+	test("rejects calls without a key or outside the key's websites", async () => {
+		mockGetApiKeyFromHeader.mockResolvedValueOnce(null);
+		expect((await post(trackRoute, "/mcp", [call])).status).toBe(401);
+		mockHasGlobalAccess.mockReturnValueOnce(false);
+		mockGetAccessibleWebsiteIds.mockReturnValueOnce(["ws_test"]);
+		expect((await post(trackRoute, "/mcp", [call])).status).toBe(403);
+		mockGetWebsiteByIdV2.mockResolvedValueOnce({
+			id: "ws_other",
+			organizationId: "org_2",
+			status: "ACTIVE",
+		});
+		const foreign = await post(trackRoute, "/mcp", [
+			{ ...call, websiteId: "ws_other" },
+		]);
+		expect(foreign.status).toBe(403);
+		expect(mockSendBatch).not.toHaveBeenCalled();
+	});
+});
+
 describe("POST /vercel/:websiteId", () => {
 	const CLAUDE_CODE =
 		"Claude-User (claude-code/2.1.280; +https://support.anthropic.com/)";
