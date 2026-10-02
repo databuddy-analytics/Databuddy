@@ -101,6 +101,7 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 	let lastClickTarget: EventTarget | null = null;
 	let lastClickAt = 0;
 	let clickStreak = 0;
+	let streakPageStart = 0;
 	let streakSelectsText = false;
 
 	let lastDeadClickCandidateAt = 0;
@@ -121,9 +122,12 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 
 	const countRageClick = (target: EventTarget | null, now: number) => {
 		clickStreak =
-			target === lastClickTarget && now - lastClickAt <= RAGE_CLICK_WINDOW_MS
+			target === lastClickTarget &&
+			now - lastClickAt <= RAGE_CLICK_WINDOW_MS &&
+			tracker.pageStartTime === streakPageStart
 				? clickStreak + 1
 				: 1;
+		streakPageStart = tracker.pageStartTime;
 		streakSelectsText =
 			(clickStreak > 1 && streakSelectsText) ||
 			Boolean(getSelection()?.toString());
