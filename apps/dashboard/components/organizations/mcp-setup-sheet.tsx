@@ -257,6 +257,10 @@ export function McpSetupSheet({
 }) {
 	const isCreating =
 		useIsMutating({ mutationKey: orpc.apikeys.create.mutationKey() }) > 0;
+	const [openings, setOpenings] = useState({ count: 0, open });
+	if (open !== openings.open) {
+		setOpenings({ count: openings.count + (open ? 1 : 0), open });
+	}
 	const handleClose = () => {
 		if (!isCreating) {
 			onOpenChangeAction(false);
@@ -266,7 +270,11 @@ export function McpSetupSheet({
 	return (
 		<Sheet onOpenChange={handleClose} open={open}>
 			<Sheet.Content className="sm:max-w-xl" side="right">
-				<McpSetupForm onClose={handleClose} organizationId={organizationId} />
+				<McpSetupForm
+					key={openings.count}
+					onClose={handleClose}
+					organizationId={organizationId}
+				/>
 			</Sheet.Content>
 		</Sheet>
 	);
