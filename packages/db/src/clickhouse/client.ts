@@ -10,6 +10,7 @@ export const TABLE_NAMES = {
 	engagement_spans: "analytics.engagement_spans",
 	custom_events: "analytics.custom_events",
 	ai_traffic_spans: "analytics.ai_traffic_spans",
+	mcp_spans: "analytics.mcp_spans",
 	link_visits: "analytics.link_visits",
 };
 

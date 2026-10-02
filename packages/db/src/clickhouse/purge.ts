@@ -19,6 +19,7 @@ export const CLIENT_ID_PURGE_TABLES = {
 
 export const WEBSITE_ID_PURGE_TABLES = {
 	"analytics.custom_events": "timestamp",
+	"analytics.mcp_spans": "timestamp",
 	"analytics.webhook_deliveries": "received_at",
 } as const;
 
