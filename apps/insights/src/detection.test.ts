@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import dayjs from "dayjs";
 import {
 	changeOnsetEvidence,
+	concentratedSegment,
 	type DetectedSignal,
 	type DetectSignalsParams,
 	type QueryFn,
@@ -10,7 +11,11 @@ import {
 	freshCustomEventSignals,
 	freshRevenueSignals,
 	loadChangeOnset,
+	loadSegmentFinding,
 	remeasureMetricSignal,
+	segmentEvidence,
+	segmentTable,
+	shiftedSegment,
 	wowWindow,
 } from "./detection";
 import { MAX_QUERY_ROWS } from "@databuddy/ai/query";
@@ -2949,5 +2954,265 @@ describe("change onset", () => {
 				query
 			)
 		).toBeNull();
+	});
+});
+
+function segmentRows(
+	countField: string,
+	rows: [dimension: string, value: string, count: number, sessions?: number][]
+) {
+	return rows.map(([dimension, value, count, sessions]) => ({
+		dimension,
+		value,
+		[countField]: count,
+		sessions: sessions ?? count,
+	}));
+}
+
+const steadyTraffic = segmentRows("pageviews", [
+	["browser", "Chrome", 6000],
+	["browser", "Safari", 1200],
+	["browser", "Firefox", 800],
+	["browser_version", "Chrome 153", 6000],
+	["browser_version", "Safari 18", 700],
+	["browser_version", "Safari 17", 500],
+	["browser_version", "Firefox 155", 800],
+	["os", "Windows", 4000],
+	["os", "macOS", 2800],
+	["os", "iOS", 1200],
+	["device", "Desktop", 6800],
+	["device", "Mobile", 1200],
+	["country", "US", 3000],
+	["country", "Germany", 5000],
+]);
+
+describe("segment localization", () => {
+	it("names the narrowest segment that holds an error", () => {
+		const errors = segmentTable(
+			segmentRows("errors", [
+				["browser", "Safari", 48],
+				["browser", "Chrome", 2],
+				["browser_version", "Safari 18", 46],
+				["browser_version", "Safari 17", 2],
+				["browser_version", "Chrome 153", 2],
+				["os", "iOS", 30],
+				["os", "macOS", 20],
+				["device", "Mobile", 30],
+				["device", "Desktop", 20],
+				["country", "US", 25],
+				["country", "Germany", 25],
+			]),
+			"errors"
+		);
+		const concentration = concentratedSegment(
+			errors,
+			segmentTable(steadyTraffic, "pageviews")
+		);
+		expect(concentration).toMatchObject({
+			dimension: "browser_version",
+			subjectSessions: 46,
+			totalSubjectSessions: 50,
+			value: "Safari 18",
+		});
+		expect(
+			concentration
+				? segmentEvidence({ concentration, kind: "concentration" })
+				: ""
+		).toBe(
+			"92% of the sessions with this error (46 of 50) used Safari 18, compared with 9% of all sessions in the same period."
+		);
+	});
+
+	it("finds nothing when an error follows overall traffic", () => {
+		const errors = segmentTable(
+			segmentRows("errors", [
+				["browser", "Chrome", 75],
+				["browser", "Safari", 15],
+				["browser", "Firefox", 10],
+				["os", "Windows", 50],
+				["os", "macOS", 35],
+				["os", "iOS", 15],
+				["device", "Desktop", 85],
+				["device", "Mobile", 15],
+			]),
+			"errors"
+		);
+		expect(
+			concentratedSegment(errors, segmentTable(steadyTraffic, "pageviews"))
+		).toBeNull();
+	});
+
+	it("localizes a drop that one browser carries", () => {
+		const after = segmentTable(
+			segmentRows("pageviews", [
+				["browser", "Chrome", 5900],
+				["browser", "Safari", 60],
+				["browser", "Firefox", 790],
+				["os", "Windows", 3950],
+				["os", "macOS", 2000],
+				["os", "iOS", 800],
+				["device", "Desktop", 6000],
+				["device", "Mobile", 750],
+			]),
+			"pageviews"
+		);
+		const shift = shiftedSegment({
+			after,
+			afterDays: 7,
+			before: segmentTable(steadyTraffic, "pageviews"),
+			beforeDays: 7,
+			direction: "down",
+		});
+		expect(shift).toMatchObject({ dimension: "browser", value: "Safari" });
+		expect(
+			shift
+				? segmentEvidence({
+						direction: "down",
+						kind: "shift",
+						noun: "Pageviews",
+						shift,
+					})
+				: ""
+		).toBe(
+			"Pageviews from Safari fell 95% (from about 171 to 9 a day), 91% of the whole drop, while everything else changed -2%."
+		);
+	});
+
+	it("finds nothing when every segment falls alike", () => {
+		const halved = segmentTable(
+			steadyTraffic.map((row) => ({
+				...row,
+				pageviews: row.pageviews / 2,
+			})),
+			"pageviews"
+		);
+		expect(
+			shiftedSegment({
+				after: halved,
+				afterDays: 7,
+				before: segmentTable(steadyTraffic, "pageviews"),
+				beforeDays: 7,
+				direction: "down",
+			})
+		).toBeNull();
+	});
+
+	it("reads a browser version rollover as no change", () => {
+		const before = segmentTable(
+			segmentRows("pageviews", [
+				["browser", "Chrome", 6000],
+				["browser_version", "Chrome 151", 5000],
+				["browser_version", "Chrome 152", 1000],
+			]),
+			"pageviews"
+		);
+		const after = segmentTable(
+			segmentRows("pageviews", [
+				["browser", "Chrome", 5400],
+				["browser_version", "Chrome 151", 100],
+				["browser_version", "Chrome 152", 5300],
+			]),
+			"pageviews"
+		);
+		expect(
+			shiftedSegment({
+				after,
+				afterDays: 7,
+				before,
+				beforeDays: 7,
+				direction: "down",
+			})
+		).toBeNull();
+	});
+
+	it("does not credit one segment when the rest rose from nothing", () => {
+		expect(
+			shiftedSegment({
+				after: segmentTable(steadyTraffic, "pageviews"),
+				afterDays: 7,
+				before: segmentTable(
+					segmentRows("pageviews", [["device", "Desktop", 30]]),
+					"pageviews"
+				),
+				beforeDays: 7,
+				direction: "up",
+			})
+		).toBeNull();
+	});
+
+	it("merges country codes with country names", () => {
+		const table = segmentTable(
+			segmentRows("pageviews", [
+				["country", "US", 30],
+				["country", "United States", 20],
+			]),
+			"pageviews"
+		);
+		expect([...(table.get("country")?.entries() ?? [])]).toEqual([
+			["United States", { count: 50, sessions: 50 }],
+		]);
+	});
+
+	it("compares error sessions with all sessions in the flagged period", async () => {
+		const { signal } = prepareInvestigation(
+			{
+				baseline: 0,
+				current: 50,
+				deltaPercent: 100,
+				detectedAt: "2026-09-30",
+				direction: "up",
+				entityId: "TypeError: x is undefined",
+				entityLabel: "TypeError: x is undefined",
+				label: "TypeError: x is undefined",
+				method: "wow",
+				metric: "error_count",
+				severity: "warning",
+				subjectKey: "error:TypeError: x is undefined",
+			},
+			7
+		);
+		const requests: Parameters<QueryFn>[0][] = [];
+		const query: QueryFn = async (request) => {
+			requests.push(request);
+			return request.type === "error_segments"
+				? segmentRows("errors", [
+						["browser", "Safari", 48],
+						["browser", "Chrome", 2],
+					])
+				: steadyTraffic;
+		};
+
+		const finding = await loadSegmentFinding(
+			{ signal, timezone: "UTC", websiteId: "site-1" },
+			query
+		);
+
+		expect(
+			requests.map(({ filters, from, to, type }) => ({
+				filters,
+				from,
+				to,
+				type,
+			}))
+		).toEqual([
+			{
+				filters: [
+					{ field: "message", op: "eq", value: "TypeError: x is undefined" },
+				],
+				from: "2026-09-24",
+				to: "2026-09-30",
+				type: "error_segments",
+			},
+			{
+				filters: [],
+				from: "2026-09-24",
+				to: "2026-09-30",
+				type: "traffic_segments",
+			},
+		]);
+		expect(finding).toMatchObject({
+			concentration: { dimension: "browser", value: "Safari" },
+			kind: "concentration",
+		});
 	});
 });

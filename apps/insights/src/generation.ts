@@ -49,7 +49,9 @@ import {
 	type DetectSignalsParams,
 	detectSignals,
 	loadChangeOnset,
+	loadSegmentFinding,
 	remeasureMetricSignal,
+	segmentEvidence,
 } from "./detection";
 import { detectRetentionSignals } from "./measurement-plan";
 import {
@@ -358,6 +360,7 @@ export interface InvestigationSources {
 	loadOtherOpenWork: typeof loadOtherOpenWork;
 	loadRepositoryChanges?: typeof loadRepositoryChangesNearOnset;
 	loadRouteVitalContinuation: typeof loadRouteVitalContinuation;
+	loadSegmentFinding?: typeof loadSegmentFinding;
 	rankBusinessContext?: typeof rankInvestigationBusinessContext;
 	recallBusinessContext?: typeof recallWebsiteBusinessContext;
 	remeasureSignal: (
@@ -651,6 +654,7 @@ const productionInvestigationSources: InvestigationSources = {
 	loadBusinessProfile: loadWebsiteBusinessProfile,
 	loadChangeOnset,
 	loadRepositoryChanges: loadRepositoryChangesNearOnset,
+	loadSegmentFinding,
 	recallBusinessContext: recallWebsiteBusinessContext,
 	detectDefinitionSignals: detectFunnelGoalSignals,
 	detectMetricSignals: detectSignals,
@@ -1037,65 +1041,90 @@ async function investigatePlannedCandidate(
 		return emptyInvestigationArtifact({ asOf, status: "deferred" });
 	}
 	let evidence = [...candidate.evidence];
-	const [annotationRows, customerImpact, routeVitalContinuation, changeOnset] =
-		await Promise.all([
-			runtime.sources.fetchAnnotations(
-				input.websiteId,
-				candidate.signal,
-				asOf.toDate(),
-				input.timezone
-			),
-			runtime.sources
-				.loadErrorCustomerImpact({
-					abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
-					signal: candidate.signal,
-					timezone: input.timezone,
-					websiteId: input.websiteId,
-				})
-				.catch((error) => {
-					captureInsightsError(error, "generation.customer_impact.failed", {
+	const [
+		annotationRows,
+		customerImpact,
+		routeVitalContinuation,
+		changeOnset,
+		segmentFinding,
+	] = await Promise.all([
+		runtime.sources.fetchAnnotations(
+			input.websiteId,
+			candidate.signal,
+			asOf.toDate(),
+			input.timezone
+		),
+		runtime.sources
+			.loadErrorCustomerImpact({
+				abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
+				signal: candidate.signal,
+				timezone: input.timezone,
+				websiteId: input.websiteId,
+			})
+			.catch((error) => {
+				captureInsightsError(error, "generation.customer_impact.failed", {
+					organization_id: input.organizationId,
+					signal_key: candidate.signal.signalKey,
+					website_id: input.websiteId,
+				});
+				return null;
+			}),
+		runtime.sources
+			.loadRouteVitalContinuation({
+				abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
+				signal: candidate.signal,
+				websiteId: input.websiteId,
+			})
+			.catch((error) => {
+				captureInsightsError(
+					error,
+					"generation.route_vital_continuation.failed",
+					{
 						organization_id: input.organizationId,
 						signal_key: candidate.signal.signalKey,
 						website_id: input.websiteId,
-					});
-					return null;
-				}),
-			runtime.sources
-				.loadRouteVitalContinuation({
-					abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
-					signal: candidate.signal,
-					websiteId: input.websiteId,
-				})
-				.catch((error) => {
-					captureInsightsError(
-						error,
-						"generation.route_vital_continuation.failed",
-						{
+					}
+				);
+				return null;
+			}),
+		runtime.sources.loadChangeOnset
+			? runtime.sources
+					.loadChangeOnset({
+						abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
+						signal: candidate.signal,
+						timezone: input.timezone,
+						websiteId: input.websiteId,
+					})
+					.catch((error) => {
+						captureInsightsError(error, "generation.change_onset.failed", {
 							organization_id: input.organizationId,
 							signal_key: candidate.signal.signalKey,
 							website_id: input.websiteId,
-						}
-					);
-					return null;
-				}),
-			runtime.sources.loadChangeOnset
-				? runtime.sources
-						.loadChangeOnset({
-							abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
-							signal: candidate.signal,
-							timezone: input.timezone,
-							websiteId: input.websiteId,
-						})
-						.catch((error) => {
-							captureInsightsError(error, "generation.change_onset.failed", {
-								organization_id: input.organizationId,
-								signal_key: candidate.signal.signalKey,
-								website_id: input.websiteId,
-							});
-							return null;
-						})
-				: null,
-		]);
+						});
+						return null;
+					})
+			: null,
+		runtime.sources.loadSegmentFinding
+			? runtime.sources
+					.loadSegmentFinding({
+						abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
+						signal: candidate.signal,
+						timezone: input.timezone,
+						websiteId: input.websiteId,
+					})
+					.catch((error) => {
+						captureInsightsError(error, "generation.segment_finding.failed", {
+							organization_id: input.organizationId,
+							signal_key: candidate.signal.signalKey,
+							website_id: input.websiteId,
+						});
+						return null;
+					})
+			: null,
+	]);
+	if (segmentFinding) {
+		evidence.push(segmentEvidence(segmentFinding));
+	}
 	if (changeOnset) {
 		evidence.push(changeOnsetEvidence(changeOnset));
 		const repository = input.githubRepository;

@@ -7,6 +7,8 @@ import {
 	changeOnsetEvidence,
 	detectSignals,
 	type DetectedSignal,
+	type SegmentFinding,
+	segmentEvidence,
 } from "./detection";
 import {
 	detectFunnelGoalSignals,
@@ -489,7 +491,12 @@ describe("fixture investigation sources", () => {
 		expect(artifact.evidence).toEqual(received?.evidence ?? []);
 	});
 
-	it("adds a break's onset and the production deploys before it", async () => {
+	it("adds a break's onset, its segments and the production deploys before it", async () => {
+		const spreadDrop: SegmentFinding = {
+			direction: "down",
+			kind: "spread",
+			subject: "change",
+		};
 		const eventStop: DetectedSignal = {
 			...trafficDrop,
 			baseline: 6400,
@@ -582,6 +589,7 @@ describe("fixture investigation sources", () => {
 			},
 			loadChangeOnset: async () => linkOnset,
 			loadDueInvestigation: async () => null,
+			loadSegmentFinding: async () => spreadDrop,
 			loadHistory: async () => [],
 			loadObservations: async () => new Map(),
 			loadRepositoryChanges: (params) =>
@@ -596,6 +604,7 @@ describe("fixture investigation sources", () => {
 		});
 
 		expect(received?.evidence).toContain(changeOnsetEvidence(linkOnset));
+		expect(received?.evidence).toContain(segmentEvidence(spreadDrop));
 		const deploys = received?.evidence.find((item) =>
 			item.startsWith("GitHub production deployments")
 		);

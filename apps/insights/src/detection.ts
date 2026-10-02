@@ -1,4 +1,5 @@
 import { executeQuery, type Filter, MAX_QUERY_ROWS } from "@databuddy/ai/query";
+import { formatCountryName } from "@databuddy/shared/country-codes";
 import { normalizeCurrencyCode } from "@databuddy/shared/currency";
 import type {
 	InvestigationSignal,
@@ -2582,4 +2583,385 @@ export function changeOnsetEvidence(onset: ChangeOnset): string {
 		? ` It had not recovered by the end of ${onset.ongoingThrough}.`
 		: "";
 	return `${start} From then on there were ${observed} ${onset.noun} where the earlier rate predicted about ${expected}.${through}`;
+}
+
+const SEGMENT_DIMENSIONS = [
+	"browser",
+	"browser_version",
+	"os",
+	"device",
+	"country",
+] as const;
+const SEGMENT_MIN_SHARE = 0.6;
+const SEGMENT_MIN_LIFT = 2;
+const SEGMENT_MIN_SESSIONS = 5;
+const SEGMENT_SPREAD_MIN_SESSIONS = 20;
+const SEGMENT_MIN_CHANGE = 0.3;
+const SEGMENT_REST_CHANGE_RATIO = 3;
+const SEGMENT_MIN_VOLUME = 20;
+const SEGMENT_SPREAD_MIN_VOLUME = 100;
+const SHIFT_DIMENSIONS = SEGMENT_DIMENSIONS.filter(
+	(dimension) => dimension !== "browser_version"
+);
+
+type SegmentDimension = (typeof SEGMENT_DIMENSIONS)[number];
+type SegmentTable = Map<
+	SegmentDimension,
+	Map<string, { count: number; sessions: number }>
+>;
+
+function isSegmentDimension(value: string): value is SegmentDimension {
+	return (SEGMENT_DIMENSIONS as readonly string[]).includes(value);
+}
+
+export function segmentTable(
+	rows: Record<string, unknown>[],
+	countField: string
+): SegmentTable {
+	const table: SegmentTable = new Map();
+	for (const row of rows) {
+		const dimension = stringField(row, "dimension");
+		if (!(dimension && isSegmentDimension(dimension))) {
+			continue;
+		}
+		const raw = typeof row.value === "string" ? row.value : "";
+		const value = dimension === "country" ? formatCountryName(raw) : raw;
+		const values = table.get(dimension) ?? new Map();
+		const prior = values.get(value) ?? { count: 0, sessions: 0 };
+		values.set(value, {
+			count: prior.count + numberField(row, countField),
+			sessions: prior.sessions + numberField(row, "sessions"),
+		});
+		table.set(dimension, values);
+	}
+	return table;
+}
+
+function tableTotal(
+	values: Map<string, { count: number; sessions: number }>,
+	field: "count" | "sessions"
+): number {
+	let total = 0;
+	for (const counts of values.values()) {
+		total += counts[field];
+	}
+	return total;
+}
+
+export interface SegmentConcentration {
+	dimension: SegmentDimension;
+	sessionShare: number;
+	subjectSessions: number;
+	subjectShare: number;
+	totalSubjectSessions: number;
+	value: string;
+}
+
+export function concentratedSegment(
+	subject: SegmentTable,
+	exposure: SegmentTable
+): SegmentConcentration | null {
+	let best: (SegmentConcentration & { lift: number }) | null = null;
+	for (const dimension of SEGMENT_DIMENSIONS) {
+		const subjectValues = subject.get(dimension);
+		const exposureValues = exposure.get(dimension);
+		if (!(subjectValues && exposureValues)) {
+			continue;
+		}
+		const totalSubjectSessions = tableTotal(subjectValues, "sessions");
+		const totalExposure = tableTotal(exposureValues, "sessions");
+		if (totalSubjectSessions === 0 || totalExposure === 0) {
+			continue;
+		}
+		for (const [value, counts] of subjectValues) {
+			const subjectShare = counts.sessions / totalSubjectSessions;
+			const sessionShare =
+				Math.max(exposureValues.get(value)?.sessions ?? 0, counts.sessions) /
+				totalExposure;
+			const lift = subjectShare / sessionShare;
+			if (
+				!value ||
+				counts.sessions < SEGMENT_MIN_SESSIONS ||
+				subjectShare < SEGMENT_MIN_SHARE ||
+				lift < SEGMENT_MIN_LIFT
+			) {
+				continue;
+			}
+			if (
+				!best ||
+				lift > best.lift ||
+				(lift === best.lift && subjectShare > best.subjectShare)
+			) {
+				best = {
+					dimension,
+					lift,
+					sessionShare,
+					subjectSessions: counts.sessions,
+					subjectShare,
+					totalSubjectSessions,
+					value,
+				};
+			}
+		}
+	}
+	if (!best) {
+		return null;
+	}
+	const { lift: _lift, ...concentration } = best;
+	return concentration;
+}
+
+export interface SegmentShift {
+	afterDaily: number;
+	beforeDaily: number;
+	dimension: SegmentDimension;
+	explained: number;
+	restChange: number;
+	segmentChange: number;
+	value: string;
+}
+
+export function shiftedSegment(params: {
+	after: SegmentTable;
+	afterDays: number;
+	before: SegmentTable;
+	beforeDays: number;
+	direction: "up" | "down";
+}): SegmentShift | null {
+	const { after, afterDays, before, beforeDays, direction } = params;
+	let best: (SegmentShift & { lift: number }) | null = null;
+	for (const dimension of SHIFT_DIMENSIONS) {
+		const beforeValues = before.get(dimension) ?? new Map();
+		const afterValues = after.get(dimension) ?? new Map();
+		const beforeTotal = tableTotal(beforeValues, "count") / beforeDays;
+		const afterTotal = tableTotal(afterValues, "count") / afterDays;
+		const change = afterTotal - beforeTotal;
+		if (
+			beforeTotal * beforeDays < SEGMENT_MIN_VOLUME ||
+			(direction === "down" ? change >= 0 : change <= 0)
+		) {
+			continue;
+		}
+		for (const value of new Set([
+			...beforeValues.keys(),
+			...afterValues.keys(),
+		])) {
+			const beforeDaily = (beforeValues.get(value)?.count ?? 0) / beforeDays;
+			const afterDaily = (afterValues.get(value)?.count ?? 0) / afterDays;
+			const explained = (afterDaily - beforeDaily) / change;
+			const restBefore = beforeTotal - beforeDaily;
+			const restAfter = afterTotal - afterDaily;
+			const restChange =
+				restBefore > 0
+					? (restAfter - restBefore) / restBefore
+					: restAfter > 0
+						? Number.POSITIVE_INFINITY
+						: 0;
+			const segmentChange =
+				beforeDaily > 0
+					? (afterDaily - beforeDaily) / beforeDaily
+					: Number.POSITIVE_INFINITY;
+			const volume =
+				direction === "down"
+					? beforeDaily * beforeDays
+					: afterDaily * afterDays;
+			const restHeld =
+				Number.isFinite(restChange) &&
+				(Math.sign(restChange) !== Math.sign(segmentChange) ||
+					Math.abs(restChange) * SEGMENT_REST_CHANGE_RATIO <=
+						Math.abs(segmentChange));
+			if (
+				!value ||
+				volume < SEGMENT_MIN_VOLUME ||
+				explained < SEGMENT_MIN_SHARE ||
+				Math.abs(segmentChange) < SEGMENT_MIN_CHANGE ||
+				!restHeld
+			) {
+				continue;
+			}
+			const lift = explained / Math.max(beforeDaily / beforeTotal, 1e-9);
+			if (!best || lift > best.lift) {
+				best = {
+					afterDaily,
+					beforeDaily,
+					dimension,
+					explained,
+					lift,
+					restChange,
+					segmentChange,
+					value,
+				};
+			}
+		}
+	}
+	if (!best) {
+		return null;
+	}
+	const { lift: _lift, ...shift } = best;
+	return shift;
+}
+
+export type SegmentFinding =
+	| { kind: "concentration"; concentration: SegmentConcentration }
+	| {
+			kind: "shift";
+			direction: "up" | "down";
+			noun: string;
+			shift: SegmentShift;
+	  }
+	| { kind: "spread"; direction: "up" | "down"; subject: "error" | "change" };
+
+function inclusiveDays(from: string, to: string): number {
+	return dayjs(to).diff(dayjs(from), "day") + 1;
+}
+
+export async function loadSegmentFinding(
+	params: {
+		abortSignal?: AbortSignal;
+		signal: InvestigationSignal;
+		timezone: string;
+		websiteId: string;
+	},
+	query: QueryFn = executeQuery
+): Promise<SegmentFinding | null> {
+	const { signal, timezone } = params;
+	const { current, previous } = signal.metric;
+	if (previous === undefined || current === previous) {
+		return null;
+	}
+	const direction = current < previous ? "down" : "up";
+	const read = (
+		type: string,
+		period: { from: string; to: string },
+		filters: Filter[] = []
+	) =>
+		query(
+			{
+				filters,
+				from: period.from,
+				projectId: params.websiteId,
+				timezone,
+				to: period.to,
+				type,
+			},
+			undefined,
+			timezone,
+			params.abortSignal
+		);
+
+	if (signal.signalKey.startsWith("error:") && signal.entity.type === "error") {
+		if (direction !== "up") {
+			return null;
+		}
+		const [errors, traffic] = await Promise.all([
+			read("error_segments", signal.period.current, [
+				{ field: "message", op: "eq", value: signal.entity.id },
+			]),
+			read("traffic_segments", signal.period.current),
+		]);
+		const subject = segmentTable(errors, "errors");
+		const concentration = concentratedSegment(
+			subject,
+			segmentTable(traffic, "pageviews")
+		);
+		if (concentration) {
+			return { concentration, kind: "concentration" };
+		}
+		const errorSessions = tableTotal(
+			subject.get("browser") ?? new Map(),
+			"sessions"
+		);
+		return errorSessions >= SEGMENT_SPREAD_MIN_SESSIONS
+			? { direction, kind: "spread", subject: "error" }
+			: null;
+	}
+
+	const series = TRAFFIC_METRICS.has(signal.signalKey)
+		? {
+				countField: signal.signalKey === "pageviews" ? "pageviews" : "sessions",
+				filters: [],
+				noun: signal.signalKey === "pageviews" ? "Pageviews" : "Sessions",
+				type: "traffic_segments",
+			}
+		: signal.signalKey.startsWith("custom_event:") &&
+				signal.entity.type === "event"
+			? {
+					countField: "events",
+					filters: [
+						{ field: "event_name", op: "eq" as const, value: signal.entity.id },
+					],
+					noun: `${signal.entity.id} events`,
+					type: "custom_event_segments",
+				}
+			: null;
+	if (!series) {
+		return null;
+	}
+	const [beforeRows, afterRows] = await Promise.all([
+		read(series.type, signal.period.previous, series.filters),
+		read(series.type, signal.period.current, series.filters),
+	]);
+	const before = segmentTable(beforeRows, series.countField);
+	const after = segmentTable(afterRows, series.countField);
+	const shift = shiftedSegment({
+		after,
+		afterDays: inclusiveDays(
+			signal.period.current.from,
+			signal.period.current.to
+		),
+		before,
+		beforeDays: inclusiveDays(
+			signal.period.previous.from,
+			signal.period.previous.to
+		),
+		direction,
+	});
+	if (shift) {
+		return { direction, kind: "shift", noun: series.noun, shift };
+	}
+	const volume = Math.max(
+		tableTotal(before.get("browser") ?? new Map(), "count"),
+		tableTotal(after.get("browser") ?? new Map(), "count")
+	);
+	return volume >= SEGMENT_SPREAD_MIN_VOLUME
+		? { direction, kind: "spread", subject: "change" }
+		: null;
+}
+
+function percent(value: number): string {
+	return `${Math.round(value * 100)}%`;
+}
+
+function segmentPhrase(dimension: SegmentDimension, value: string): string {
+	if (dimension === "device") {
+		return `${value.toLowerCase()} devices`;
+	}
+	return value;
+}
+
+export function segmentEvidence(finding: SegmentFinding): string {
+	if (finding.kind === "concentration") {
+		const { concentration } = finding;
+		const where =
+			concentration.dimension === "country"
+				? `came from ${concentration.value}`
+				: concentration.dimension === "device"
+					? `were on ${segmentPhrase("device", concentration.value)}`
+					: `used ${concentration.value}`;
+		return `${percent(concentration.subjectShare)} of the sessions with this error (${concentration.subjectSessions.toLocaleString("en-US")} of ${concentration.totalSubjectSessions.toLocaleString("en-US")}) ${where}, compared with ${percent(concentration.sessionShare)} of all sessions in the same period.`;
+	}
+	if (finding.kind === "spread") {
+		return finding.subject === "error"
+			? "No browser, browser version, operating system, device type or country accounts for most sessions with this error at more than twice its share of all sessions."
+			: `No browser, operating system, device type or country accounts for most of this ${finding.direction === "down" ? "drop" : "rise"} while the rest held steady.`;
+	}
+	const { shift } = finding;
+	const segment = segmentPhrase(shift.dimension, shift.value);
+	const verb = finding.direction === "down" ? "fell" : "rose";
+	const segmentChange = Number.isFinite(shift.segmentChange)
+		? ` ${percent(Math.abs(shift.segmentChange))}`
+		: "";
+	const restChange = `${shift.restChange >= 0 ? "+" : "-"}${percent(Math.abs(shift.restChange))}`;
+	const daily = (value: number) => Math.round(value).toLocaleString("en-US");
+	return `${finding.noun} from ${segment} ${verb}${segmentChange} (from about ${daily(shift.beforeDaily)} to ${daily(shift.afterDaily)} a day), ${percent(Math.min(shift.explained, 1))} of the whole ${finding.direction === "down" ? "drop" : "rise"}, while everything else changed ${restChange}.`;
 }
