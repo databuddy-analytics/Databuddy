@@ -1658,8 +1658,8 @@ function AgentSetupSheet({
 						<p className="flex items-center gap-1.5 text-xs">
 							<StatusDot color={hasServerTracking ? "success" : "muted"} />
 							{hasServerTracking
-								? "Server-side tracking is on for this site"
-								: "Not set up yet"}
+								? "Server-side AI requests have been recorded"
+								: "No server-side AI requests recorded yet"}
 						</p>
 					)}
 
