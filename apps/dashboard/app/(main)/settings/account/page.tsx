@@ -458,8 +458,7 @@ export default function AccountSettingsPage() {
 	const disconnectApp = useMutation({
 		mutationFn: (id: string) =>
 			authClient.oauth2.deleteConsent({ id }, { throw: true }),
-		onSuccess: () =>
-			queryClient.invalidateQueries({ queryKey: ["oauth-connected-apps"] }),
+		onSuccess: () => refetchConnectedApps(),
 	});
 
 	const updateProfileMutation = useMutation({
@@ -814,13 +813,12 @@ export default function AccountSettingsPage() {
 							</Card.Description>
 						</Card.Header>
 						<Card.Content>
-							{isConnectedAppsLoading && (
+							{isConnectedAppsLoading ? (
 								<div className="space-y-3">
 									<Skeleton className="h-5 w-full" />
 									<Skeleton className="h-5 w-full" />
 								</div>
-							)}
-							{isConnectedAppsError && (
+							) : isConnectedAppsError ? (
 								<div className="flex items-center justify-between gap-3">
 									<Text tone="muted" variant="caption">
 										Could not load connected apps.
@@ -833,14 +831,11 @@ export default function AccountSettingsPage() {
 										Retry
 									</Button>
 								</div>
-							)}
-							{!(isConnectedAppsLoading || isConnectedAppsError) &&
-								connectedApps.length === 0 && (
-									<Text tone="muted" variant="caption">
-										No apps connected yet.
-									</Text>
-								)}
-							{!isConnectedAppsError && connectedApps.length > 0 && (
+							) : connectedApps.length === 0 ? (
+								<Text tone="muted" variant="caption">
+									No apps connected yet.
+								</Text>
+							) : (
 								<div className="space-y-3">
 									{connectedApps.map((app, index) => {
 										const host = urlHost(app.clientId);

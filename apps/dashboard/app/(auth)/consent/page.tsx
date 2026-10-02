@@ -20,7 +20,7 @@ import {
 	CheckCircleIcon,
 	PlugIcon,
 } from "@databuddy/ui/icons";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
@@ -49,9 +49,6 @@ function permissionHint(
 	requested: McpApiScope[],
 	approved: McpApiScope[]
 ): string | null {
-	if (!approved.length) {
-		return "Choose at least one permission.";
-	}
 	if (approved.includes("read:data")) {
 		return null;
 	}
@@ -78,26 +75,22 @@ function ConsentPage() {
 	const identityPermissions = [
 		...new Set(identityScopes.map((scope) => IDENTITY_SCOPE_LABELS.get(scope))),
 	];
-	const [selectedScopes, setSelectedScopes] = useState<string[]>(() =>
+	const [approvedActions, setApprovedActions] = useState(() =>
 		requestedActions.filter((scope) => scope.startsWith("read:"))
 	);
 	const [organizationId, setOrganizationId] = useState<string | null>(null);
 	const [websiteIds, setWebsiteIds] = useState<string[] | null>(null);
-	const approvedActions = requestedActions.filter((scope) =>
-		selectedScopes.includes(scope)
-	);
 	const missingPermission = permissionHint(requestedActions, approvedActions);
 
 	const { data: client, isPending: isClientPending } = useQuery({
-		enabled: Boolean(clientId),
 		queryKey: ["oauth-public-client", clientId],
-		queryFn: () =>
-			clientId
-				? authClient.oauth2.publicClient(
+		queryFn: clientId
+			? () =>
+					authClient.oauth2.publicClient(
 						{ query: { client_id: clientId } },
 						{ throw: true }
 					)
-				: null,
+			: skipToken,
 	});
 	const organizationsQuery = useQuery({
 		enabled: Boolean(clientId),
@@ -246,13 +239,11 @@ function ConsentPage() {
 					<Field.Error id="consent-organization-description">
 						Could not load organizations. Try connecting again.
 					</Field.Error>
-				) : organizationsQuery.isSuccess && !organizations.length ? (
-					<Field.Description id="consent-organization-description">
-						You need an organization to connect this app.
-					</Field.Description>
 				) : (
 					<Field.Description id="consent-organization-description">
-						This connection can access only the selected organization.
+						{organizationsQuery.isSuccess && !organizations.length
+							? "You need an organization to connect this app."
+							: "This connection can access only the selected organization."}
 					</Field.Description>
 				)}
 			</Field>
@@ -316,13 +307,13 @@ function ConsentPage() {
 				<Text variant="label">Permissions</Text>
 				{requestedActions.map((value) => (
 					<Checkbox
-						checked={selectedScopes.includes(value)}
+						checked={approvedActions.includes(value)}
 						description={MCP_PERMISSIONS[value].description}
 						disabled={busy}
 						key={value}
 						label={MCP_PERMISSIONS[value].label}
 						onCheckedChange={(checked) =>
-							setSelectedScopes((current) =>
+							setApprovedActions((current) =>
 								checked
 									? [...current, value]
 									: current.filter((scope) => scope !== value)

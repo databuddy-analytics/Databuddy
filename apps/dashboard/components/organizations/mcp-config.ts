@@ -4,7 +4,8 @@ const MCP_SERVER_NAME = "databuddy";
 export const MCP_ENV_VAR = "DATABUDDY_API_KEY";
 export const MCP_SERVER_URL = publicConfig.urls.mcp;
 
-export type McpClient = "cursor" | "claude" | "windsurf" | "other";
+export const MCP_CLIENTS = ["cursor", "claude", "windsurf", "other"] as const;
+export type McpClient = (typeof MCP_CLIENTS)[number];
 
 export const MCP_ENV_VAR_REFERENCES: Partial<Record<McpClient, string>> = {
 	claude: `\${${MCP_ENV_VAR}}`,
