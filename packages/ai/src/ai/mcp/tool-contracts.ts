@@ -369,7 +369,13 @@ export function updatePreview(
 	};
 }
 
-export const ConfirmedSchema = z.boolean().optional().default(false);
+export const ConfirmedSchema = z
+	.boolean()
+	.optional()
+	.default(false)
+	.describe(
+		"false (default) returns a preview without writing; true applies the change."
+	);
 export const DynamicObjectSchema = z.object({}).passthrough();
 export const MutationResultSchema = z
 	.object({

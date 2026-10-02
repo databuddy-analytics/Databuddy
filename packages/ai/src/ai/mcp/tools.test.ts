@@ -141,14 +141,17 @@ describe("MCP transport", () => {
 			apiKey: null,
 			userId: "user-1",
 		});
-		const getData = listed.find((tool) => tool.name === "get_data");
 		const getInvestigation = listed.find(
 			(tool) => tool.name === "get_investigation"
 		);
-
-		expect(getData?.inputSchema.properties?.websiteId?.description).toEqual(
-			expect.any(String)
+		const undescribed = listed.flatMap((tool) =>
+			Object.entries(tool.inputSchema.properties ?? {})
+				.filter(([, property]) => !property.description)
+				.map(([property]) => `${tool.name}.${property}`)
 		);
+
+		expect(listed.length).toBe(tools.length);
+		expect(undescribed).toEqual([]);
 		expect(getInvestigation?.outputSchema).toBeDefined();
 		expect(JSON.stringify(getInvestigation?.outputSchema)).not.toContain(
 			'"description":"'

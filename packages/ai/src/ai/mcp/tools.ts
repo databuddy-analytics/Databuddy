@@ -151,6 +151,56 @@ const FlagVariantSchema = variantSchema;
 
 const FlagStatusSchema = flagFormShape.status;
 const FlagTypeSchema = flagFormShape.type;
+const FlagIdSchema = z.string().describe("Flag ID from list_flags.");
+const flagConfigFields = {
+	name: z.string().min(1).max(100).optional().describe("Flag name."),
+	description: z.string().optional().describe("What the flag controls."),
+	type: FlagTypeSchema.optional().describe(
+		"boolean turns on or off, rollout serves a percentage, multivariant serves variants."
+	),
+	status: FlagStatusSchema.optional().describe(
+		"Requesting active saves inactive while any dependency is inactive."
+	),
+	defaultValue: z
+		.boolean()
+		.optional()
+		.describe("Value served when no rule matches."),
+	payload: z
+		.record(z.string(), z.unknown())
+		.optional()
+		.describe("JSON returned with the flag."),
+	persistAcrossAuth: z
+		.boolean()
+		.optional()
+		.describe("true keeps a visitor's value after they sign in."),
+	rolloutPercentage: z
+		.number()
+		.min(0)
+		.max(100)
+		.optional()
+		.describe("Percent of users who get the flag, 0 to 100."),
+	rolloutBy: flagRolloutBySchema.optional(),
+	rules: z.array(FlagRuleSchema).optional(),
+	variants: z
+		.array(FlagVariantSchema)
+		.optional()
+		.describe("Variants for a multivariant flag."),
+	dependencies: z
+		.array(z.string())
+		.optional()
+		.describe("Keys of flags that must be active for this flag to be active."),
+	environment: z
+		.string()
+		.nullable()
+		.optional()
+		.describe(
+			"Environment name, such as production; null serves SDKs that set no environment."
+		),
+	targetGroupIds: z
+		.array(z.string())
+		.optional()
+		.describe("IDs of target groups to attach."),
+};
 
 function createChartContext(input: {
 	from?: string;
@@ -280,13 +330,21 @@ const listInvestigationsTool = defineMcpTool(
 	}
 );
 
+const InvestigationIdSchema = z
+	.string()
+	.min(1)
+	.max(256)
+	.describe(
+		"Investigation ID from list_investigations, list_insights (investigationId), or Slack."
+	);
+
 const getInvestigationTool = defineMcpTool(
 	{
 		name: "get_investigation",
 		description:
 			"Get one durable investigation, including its current status, evidence-backed observations, and human replies. The ID may come from Slack or list_investigations.",
 		inputSchema: z.object({
-			investigationId: z.string().min(1).max(256),
+			investigationId: InvestigationIdSchema,
 		}),
 		outputSchema: z.object({
 			canReply: z.boolean(),
@@ -327,8 +385,13 @@ const replyToInvestigationTool = defineMcpTool(
 		description:
 			"Add a clarification to an existing investigation. It is answered from the case's saved evidence, without new measurements or actions. The answer appears in get_investigation. It cannot start a new investigation.",
 		inputSchema: z.object({
-			investigationId: z.string().min(1).max(256),
-			body: z.string().trim().min(1).max(2000),
+			investigationId: InvestigationIdSchema,
+			body: z
+				.string()
+				.trim()
+				.min(1)
+				.max(2000)
+				.describe("Your question or clarification, up to 2,000 characters."),
 			replyId: z
 				.string()
 				.trim()
@@ -725,11 +788,25 @@ const createFunnelTool = defineMcpTool(
 			"Create a funnel for a website. confirmed=false (default) returns a preview without writing; confirmed=true creates it.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			name: z.string().min(1).max(100),
-			description: z.string().optional(),
-			steps: z.array(FunnelStepInputSchema).min(2).max(10),
-			filters: z.array(goalFunnelFilterSchema).optional(),
-			ignoreHistoricData: z.boolean().optional(),
+			name: z.string().min(1).max(100).describe("Funnel name."),
+			description: z.string().optional().describe("What the funnel tracks."),
+			steps: z
+				.array(FunnelStepInputSchema)
+				.min(2)
+				.max(10)
+				.describe(
+					"2 to 10 steps in order. Each target is a page path (PAGE_VIEW) or event name (EVENT or CUSTOM)."
+				),
+			filters: z
+				.array(goalFunnelFilterSchema)
+				.optional()
+				.describe("Filters every step must match."),
+			ignoreHistoricData: z
+				.boolean()
+				.optional()
+				.describe(
+					"true counts only data from the funnel's creation date onward."
+				),
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
@@ -854,11 +931,26 @@ const createGoalTool = defineMcpTool(
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			type: goalTypeSchema,
-			target: z.string().min(1),
-			name: z.string().min(1).max(100),
-			description: z.string().nullable().optional(),
-			filters: z.array(goalFunnelFilterSchema).optional(),
-			ignoreHistoricData: z.boolean().optional(),
+			target: z
+				.string()
+				.min(1)
+				.describe("Page path for PAGE_VIEW, event name for EVENT or CUSTOM."),
+			name: z.string().min(1).max(100).describe("Goal name."),
+			description: z
+				.string()
+				.nullable()
+				.optional()
+				.describe("What the goal measures."),
+			filters: z
+				.array(goalFunnelFilterSchema)
+				.optional()
+				.describe("Filters every conversion must match."),
+			ignoreHistoricData: z
+				.boolean()
+				.optional()
+				.describe(
+					"true counts only data from the goal's creation date onward."
+				),
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
@@ -1045,17 +1137,38 @@ const createLinkTool = defineMcpTool(
 		inputSchema: z
 			.object({
 				...WebsiteSelectorSchema,
-				name: z.string().min(1).max(255),
-				targetUrl: httpUrlSchema,
+				name: z.string().min(1).max(255).describe("Link name."),
+				targetUrl: httpUrlSchema.describe("Destination URL."),
 				slug: LinkSlugSchema.optional(),
 				expiresAt: LinkExpiresAtSchema.optional(),
-				expiredRedirectUrl: httpUrlSchema.optional(),
-				ogTitle: z.string().max(200).optional(),
-				ogDescription: z.string().max(500).optional(),
-				ogImageUrl: httpUrlSchema.optional(),
-				externalId: z.string().max(255).optional(),
+				expiredRedirectUrl: httpUrlSchema
+					.optional()
+					.describe("Where visitors go after the link expires."),
+				ogTitle: z
+					.string()
+					.max(200)
+					.optional()
+					.describe("Social preview title."),
+				ogDescription: z
+					.string()
+					.max(500)
+					.optional()
+					.describe("Social preview description."),
+				ogImageUrl: httpUrlSchema
+					.optional()
+					.describe("Social preview image URL."),
+				externalId: z
+					.string()
+					.max(255)
+					.optional()
+					.describe("Your own ID for the link, such as a CRM record."),
 				...LinkFolderSelectorSchema.shape,
-				deepLinkApp: z.enum(DEEP_LINK_APP_IDS).optional(),
+				deepLinkApp: z
+					.enum(DEEP_LINK_APP_IDS)
+					.optional()
+					.describe(
+						"Native app that opens the link on mobile; targetUrl must belong to it."
+					),
 				confirmed: ConfirmedSchema,
 			})
 			.superRefine(({ deepLinkApp, targetUrl }, context) => {
@@ -1185,12 +1298,37 @@ const createAnnotationTool = defineMcpTool(
 			"Create a chart annotation. confirmed=false (default) returns a preview without writing; confirmed=true creates it.",
 		inputSchema: annotationCoordinateSchema.safeExtend({
 			...WebsiteSelectorSchema,
-			chartContext: annotationChartContextSchema.optional(),
-			yValue: z.number().optional(),
-			text: z.string().min(1).max(500),
-			tags: z.array(z.string()).optional(),
-			color: z.string().optional(),
-			isPublic: z.boolean().optional(),
+			annotationType: annotationCoordinateSchema.shape.annotationType.describe(
+				"point or line marks one moment; range covers xValue to xEndValue."
+			),
+			xValue: annotationCoordinateSchema.shape.xValue.describe(
+				"Start as YYYY-MM-DD or an ISO datetime with offset."
+			),
+			xEndValue: annotationCoordinateSchema.shape.xEndValue.describe(
+				"End as YYYY-MM-DD or an ISO datetime with offset. Required for range."
+			),
+			chartContext: annotationChartContextSchema
+				.optional()
+				.describe(
+					"Chart view the annotation belongs to. Defaults to a daily view covering xValue to xEndValue."
+				),
+			yValue: z
+				.number()
+				.optional()
+				.describe("Y-axis value to pin the annotation to."),
+			text: z
+				.string()
+				.min(1)
+				.max(500)
+				.describe("Annotation text, up to 500 characters."),
+			tags: z.array(z.string()).optional().describe("Tags."),
+			color: z.string().optional().describe("Hex color. Defaults to #3B82F6."),
+			isPublic: z
+				.boolean()
+				.optional()
+				.describe(
+					"true shows the annotation to everyone in the organization; false (default) keeps it private to its creator."
+				),
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
@@ -1457,7 +1595,9 @@ const listFlagsTool = defineMcpTool(
 			"List feature flags with their status, rollout, rules, and variants: a website's flags when a website is given, otherwise the organization-wide flags. Flag IDs are used by update_flag and add_users_to_flag.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			status: FlagStatusSchema.optional(),
+			status: FlagStatusSchema.optional().describe(
+				"Only return flags with this status."
+			),
 			...PageSchema,
 		}),
 		outputSchema: z.object({
@@ -1496,21 +1636,13 @@ const createFlagTool = defineMcpTool(
 			"Create a feature flag, inactive and boolean unless configured. confirmed=false (default) returns a preview without writing; confirmed=true creates it.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			key: flagFormShape.key,
-			name: z.string().min(1).max(100).optional(),
-			description: z.string().optional(),
-			type: FlagTypeSchema.optional(),
-			status: FlagStatusSchema.optional(),
-			defaultValue: z.boolean().optional(),
-			payload: z.record(z.string(), z.unknown()).optional(),
-			persistAcrossAuth: z.boolean().optional(),
-			rolloutPercentage: z.number().min(0).max(100).optional(),
-			rolloutBy: flagRolloutBySchema.optional(),
-			rules: z.array(FlagRuleSchema).optional(),
-			variants: z.array(FlagVariantSchema).optional(),
-			dependencies: z.array(z.string()).optional(),
-			environment: z.string().nullable().optional(),
-			targetGroupIds: z.array(z.string()).optional(),
+			key: flagFormShape.key.describe(
+				"Key your code checks. Letters, numbers, underscores, and hyphens."
+			),
+			...flagConfigFields,
+			rules: flagConfigFields.rules.describe(
+				"Targeting rules by user ID, email, or property."
+			),
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
@@ -1603,21 +1735,11 @@ const updateFlagTool = defineMcpTool(
 			"Update a feature flag's config, status, rollout, rules, or variants. rules replaces every rule. confirmed=false (default) returns the current flag, with full rule targets, and the changes without writing; confirmed=true applies them.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			id: z.string(),
-			name: z.string().min(1).max(100).optional(),
-			description: z.string().optional(),
-			type: FlagTypeSchema.optional(),
-			status: FlagStatusSchema.optional(),
-			defaultValue: z.boolean().optional(),
-			payload: z.record(z.string(), z.unknown()).optional(),
-			rules: z.array(FlagRuleSchema).optional(),
-			persistAcrossAuth: z.boolean().optional(),
-			rolloutPercentage: z.number().min(0).max(100).optional(),
-			rolloutBy: flagRolloutBySchema.optional(),
-			variants: z.array(FlagVariantSchema).optional(),
-			dependencies: z.array(z.string()).optional(),
-			environment: z.string().nullable().optional(),
-			targetGroupIds: z.array(z.string()).optional(),
+			id: FlagIdSchema,
+			...flagConfigFields,
+			rules: flagConfigFields.rules.describe(
+				"Replaces every existing rule. Copy full targets from the confirmed=false preview."
+			),
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
@@ -1699,10 +1821,24 @@ const addUsersToFlagTool = defineMcpTool(
 			"Target user IDs or emails on a feature flag. mode=append (default) adds one rule; mode=replace deletes every existing rule first. confirmed=false (default) previews.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			flagId: z.string(),
-			users: z.array(z.string().trim().min(1)).min(1).max(500),
-			matchBy: z.enum(["email", "user_id"]).optional().default("email"),
-			mode: z.enum(["append", "replace"]).optional().default("append"),
+			flagId: FlagIdSchema,
+			users: z
+				.array(z.string().trim().min(1))
+				.min(1)
+				.max(500)
+				.describe("Emails or user IDs to target, up to 500."),
+			matchBy: z
+				.enum(["email", "user_id"])
+				.optional()
+				.default("email")
+				.describe("Whether users holds emails (default) or user IDs."),
+			mode: z
+				.enum(["append", "replace"])
+				.optional()
+				.default("append")
+				.describe(
+					"append (default) adds one rule; replace deletes every existing rule first."
+				),
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,

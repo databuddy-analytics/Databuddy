@@ -97,14 +97,35 @@ const updateGoalTool = defineMcpTool(
 		description:
 			"Update a conversion goal. confirmed=false (default) returns the current goal and the changes without writing; confirmed=true applies them.",
 		inputSchema: z.object({
-			id: z.string(),
+			id: z.string().describe("Goal ID from list_goals."),
 			type: goalTypeSchema.optional(),
-			target: z.string().min(1).optional(),
-			name: z.string().min(1).max(100).optional(),
-			description: z.string().nullable().optional(),
-			filters: z.array(goalFunnelFilterSchema).optional(),
-			ignoreHistoricData: z.boolean().optional(),
-			isActive: z.boolean().optional(),
+			target: z
+				.string()
+				.min(1)
+				.optional()
+				.describe("Page path for PAGE_VIEW, event name for EVENT or CUSTOM."),
+			name: z.string().min(1).max(100).optional().describe("Goal name."),
+			description: z
+				.string()
+				.nullable()
+				.optional()
+				.describe("What the goal measures; null clears it."),
+			filters: z
+				.array(goalFunnelFilterSchema)
+				.optional()
+				.describe(
+					"Filters every conversion must match. Replaces the saved filters."
+				),
+			ignoreHistoricData: z
+				.boolean()
+				.optional()
+				.describe(
+					"true counts only data from the goal's creation date onward."
+				),
+			isActive: z
+				.boolean()
+				.optional()
+				.describe("false pauses the goal; true resumes it."),
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
@@ -143,7 +164,7 @@ const deleteGoalTool = defineMcpTool(
 		description:
 			"Delete a conversion goal. confirmed=false (default) returns the goal without deleting it; confirmed=true deletes it.",
 		inputSchema: z.object({
-			id: z.string(),
+			id: z.string().describe("Goal ID from list_goals."),
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
@@ -176,11 +197,24 @@ const updateAnnotationTool = defineMcpTool(
 		description:
 			"Update an annotation's text, tags, color, or visibility. confirmed=false (default) returns the changes without writing; confirmed=true applies them.",
 		inputSchema: z.object({
-			id: z.string(),
-			text: z.string().min(1).max(500).optional(),
-			tags: z.array(z.string()).optional(),
-			color: z.string().optional(),
-			isPublic: z.boolean().optional(),
+			id: z.string().describe("Annotation ID from list_annotations."),
+			text: z
+				.string()
+				.min(1)
+				.max(500)
+				.optional()
+				.describe("Annotation text, up to 500 characters."),
+			tags: z
+				.array(z.string())
+				.optional()
+				.describe("Tags. Replaces the saved tags."),
+			color: z.string().optional().describe("Hex color, such as #3B82F6."),
+			isPublic: z
+				.boolean()
+				.optional()
+				.describe(
+					"true shows the annotation to everyone in the organization; false keeps it private to its creator."
+				),
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
@@ -219,7 +253,7 @@ const deleteAnnotationTool = defineMcpTool(
 		description:
 			"Delete a chart annotation. confirmed=false (default) returns the annotation without deleting it; confirmed=true deletes it.",
 		inputSchema: z.object({
-			id: z.string(),
+			id: z.string().describe("Annotation ID from list_annotations."),
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
@@ -247,17 +281,48 @@ const deleteAnnotationTool = defineMcpTool(
 );
 
 const linkUpdateFields = {
-	name: z.string().min(1).max(255).optional(),
-	targetUrl: httpUrlSchema.optional(),
+	name: z.string().min(1).max(255).optional().describe("Link name."),
+	targetUrl: httpUrlSchema.optional().describe("Destination URL."),
 	slug: LinkSlugSchema.optional(),
-	expiresAt: LinkExpiresAtSchema.nullable().optional(),
-	expiredRedirectUrl: httpUrlSchema.nullable().optional(),
-	ogTitle: z.string().max(200).nullable().optional(),
-	ogDescription: z.string().max(500).nullable().optional(),
-	ogImageUrl: httpUrlSchema.nullable().optional(),
-	externalId: z.string().max(255).nullable().optional(),
+	expiresAt: LinkExpiresAtSchema.nullable()
+		.optional()
+		.describe("Expiry date or datetime; null removes the expiry."),
+	expiredRedirectUrl: httpUrlSchema
+		.nullable()
+		.optional()
+		.describe("Where visitors go after the link expires; null clears it."),
+	ogTitle: z
+		.string()
+		.max(200)
+		.nullable()
+		.optional()
+		.describe("Social preview title; null clears it."),
+	ogDescription: z
+		.string()
+		.max(500)
+		.nullable()
+		.optional()
+		.describe("Social preview description; null clears it."),
+	ogImageUrl: httpUrlSchema
+		.nullable()
+		.optional()
+		.describe("Social preview image URL; null clears it."),
+	externalId: z
+		.string()
+		.max(255)
+		.nullable()
+		.optional()
+		.describe(
+			"Your own ID for the link, such as a CRM record; null clears it."
+		),
 	...LinkFolderSelectorSchema.shape,
-	deepLinkApp: z.enum(DEEP_LINK_APP_IDS).nullable().optional(),
+	deepLinkApp: z
+		.enum(DEEP_LINK_APP_IDS)
+		.nullable()
+		.optional()
+		.describe(
+			"Native app that opens the link on mobile; targetUrl must belong to it. null turns it off."
+		),
 };
 
 const updateLinkTool = defineMcpTool(
@@ -267,7 +332,7 @@ const updateLinkTool = defineMcpTool(
 			"Update a short link. confirmed=false (default) returns the current link and the changes without writing; confirmed=true applies them.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			id: z.string(),
+			id: z.string().describe("Link ID from list_links or search_links."),
 			...linkUpdateFields,
 			confirmed: ConfirmedSchema,
 		}),
@@ -356,7 +421,7 @@ const deleteLinkTool = defineMcpTool(
 			"Delete a short link. confirmed=false (default) returns the link without deleting it; confirmed=true deletes it.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			id: z.string(),
+			id: z.string().describe("Link ID from list_links or search_links."),
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
