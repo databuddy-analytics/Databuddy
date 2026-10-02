@@ -1,0 +1,85 @@
+---
+title: MCP Servers
+description: See which AI clients call your MCP servers, which tools they use, how fast they answer, and where they fail
+---
+
+import { Callout, CodeBlock } from "@/components/docs";
+
+The MCP page shows every tool call that Claude, Claude Code, Cursor, ChatGPT, Codex and other AI clients make to your MCP servers: which tools they reach for, how long each call takes, how much context it hands back to the model, and which calls fail and why.
+
+Arguments and results never leave your server; only their size is recorded.
+
+<Callout type="info">
+  **Package**: `@databuddy/sdk` 3.1.0+ | **Import**: `@databuddy/sdk/mcp`
+</Callout>
+
+## Setup
+
+Install the SDK and set an API key with the **Event Tracking** scope, created under **Organization Settings → API Keys**:
+
+<CodeBlock language="bash">
+  {`bun add @databuddy/sdk@latest
+DATABUDDY_API_KEY=dbdy_your_key`}
+</CodeBlock>
+
+Wrap your server once, before or after you register tools:
+
+<CodeBlock language="ts">
+  {`import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { trackMcp } from "@databuddy/sdk/mcp";
+
+const server = trackMcp(
+  new McpServer({ name: "my-server", version: "1.0.0" })
+);`}
+</CodeBlock>
+
+`trackMcp` returns the server you pass it, and also accepts the low-level `Server`.
+
+With `@modelcontextprotocol/server` 2.x, `createMcpHandler` builds a server per request, so wrap it inside the factory:
+
+<CodeBlock language="ts">
+  {`export const handler = createMcpHandler(() =>
+  trackMcp(new McpServer({ name: "my-server", version: "1.0.0" }))
+);`}
+</CodeBlock>
+
+Long-running servers, including stdio servers, need nothing else: calls are sent in batches every second. On serverless platforms, send the last batch before the function stops with `waitUntil(flushMcp())`.
+
+## Servers, websites and environments
+
+Calls belong to the organization that owns the API key, and the MCP page shows all of them. Three things separate them, with no setup:
+
+- **Server**: the `name` your MCP server registers with. Give each server its own name.
+- **Website**: when the server runs in an app that has a Databuddy website ID (`NEXT_PUBLIC_DATABUDDY_CLIENT_ID` or `DATABUDDY_WEBSITE_ID`), its calls are linked to that website.
+- **Environment**: `VERCEL_ENV`, or `NODE_ENV`, so local and preview calls stay apart from production.
+
+The page shows a picker for each one as soon as there's more than one value. Click a client to see only its calls.
+
+## Options
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `apiKey` | `DATABUDDY_API_KEY` | API key with the Event Tracking scope |
+| `websiteId` | Detected from your Databuddy website ID | Website to link calls to |
+| `environment` | `VERCEL_ENV` or `NODE_ENV` | Environment label |
+| `apiUrl` | `https://basket.databuddy.cc` | Ingestion endpoint, for self-hosted Databuddy |
+| `beforeSend` | | Edit a call before it's sent, or return `null` to drop it |
+| `debug` | `false` | Log rejected or failed sends to stderr |
+
+Without an API key, `trackMcp` leaves the server untouched. To keep error messages on your server:
+
+<CodeBlock language="ts">
+  {`trackMcp(server, {
+  beforeSend: (call) => ({ ...call, error: undefined }),
+});`}
+</CodeBlock>
+
+An API key limited to some websites can only send calls linked to one of them.
+
+## What gets recorded
+
+Each tool call records the tool name, whether it failed and its error message (the first text of an `isError` result or the thrown message, up to 512 characters), how long your handler took, the size of the result in characters (divide by about 4 for tokens), the client's name and version, your server's name and version, the MCP session ID when your server keeps sessions, and the user agent.
+
+Clients are named from the `clientInfo` they send. Stateless servers that build a new server per request only see it on the first request, so Databuddy falls back to the user agent: ChatGPT sends `openai-mcp`, claude.ai sends `Anthropic/ClaudeAI`. Clients it can't name show up as **Unknown client** with their user agent.
+
+Tracking never changes what a client receives. It doesn't throw, doesn't delay responses, and sends in the background with a 5 second timeout. Each recorded call counts as one event on your plan.
