@@ -500,7 +500,14 @@ function McpAnalytics() {
 							value={formatMs(summary?.p95_ms ?? null)}
 						/>
 						<Stat
-							detail={`${formatCount(summary?.tools ?? 0, "tool")}, ${formatCount(summary?.sessions ?? 0, "session")}`}
+							detail={[
+								formatCount(summary?.tools ?? 0, "tool"),
+								summary?.sessions
+									? formatCount(summary.sessions, "session")
+									: null,
+							]
+								.filter(Boolean)
+								.join(", ")}
 							isLoading={isPending}
 							label="Clients"
 							value={formatNumber(summary?.clients)}
