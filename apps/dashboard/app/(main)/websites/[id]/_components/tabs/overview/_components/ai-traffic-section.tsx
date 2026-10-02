@@ -50,15 +50,15 @@ export function AITrafficSection({
 	const requests = rows.reduce((sum, row) => sum + row.requests, 0);
 	const topProducts = rows
 		.toSorted((a, b) => b.visitors - a.visitors || b.requests - a.requests)
-		.slice(0, 6);
+		.slice(0, hasAgentAnalytics ? 6 : undefined);
 
 	if (!isLoading && rows.length === 0) {
 		return null;
 	}
 
 	return (
-		<div className="flex flex-col gap-1.5 rounded-xl bg-secondary p-1.5 sm:flex-row sm:items-center">
-			<div className="flex shrink-0 items-center gap-3 rounded-lg bg-background px-3 py-2">
+		<div className="flex flex-col gap-1.5 rounded bg-secondary p-1.5 sm:flex-row sm:items-center">
+			<div className="flex shrink-0 items-center gap-3 rounded bg-background px-3 py-2">
 				<div className="flex size-7 items-center justify-center rounded bg-accent">
 					<RobotIcon className="size-4 text-muted-foreground" />
 				</div>

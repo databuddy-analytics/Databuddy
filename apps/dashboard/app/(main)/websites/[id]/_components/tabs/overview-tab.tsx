@@ -974,7 +974,9 @@ export function WebsiteOverviewTab({
 			/>
 
 			<AITrafficSection
-				agentsHref={isPublicView ? undefined : `/websites/${websiteId}/agents`}
+				agentsHref={
+					showAgentAnalytics ? `/websites/${websiteId}/agents` : undefined
+				}
 				isLoading={isLoading || (showAgentAnalytics && isAILoading)}
 				products={hasAgentAnalytics ? aiAnalytics.ai_products : undefined}
 				referrers={analytics.top_referrers || []}

@@ -53,3 +53,26 @@ test("AI traffic separates requests from deduplicated visitors and retains refer
 		)
 	).toBe("");
 });
+
+test("AI referral fallback keeps sources beyond the first six", () => {
+	const referrers = [
+		"ChatGPT",
+		"Claude",
+		"Perplexity",
+		"Gemini",
+		"Meta AI",
+		"Copilot",
+		"Doubao",
+	].map((name, index) => ({
+		name,
+		referrer_type: "ai",
+		visitors: 7 - index,
+	}));
+	const markup = renderToStaticMarkup(
+		<AITrafficSection isLoading={false} referrers={referrers} />
+	);
+
+	expect(markup).toContain(">Doubao</p>");
+	expect(markup).toContain("1 visitor");
+	expect(markup).toContain(">28</p>");
+});
