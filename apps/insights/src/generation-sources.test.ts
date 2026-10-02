@@ -511,9 +511,43 @@ describe("fixture investigation sources", () => {
 		const github = async (path: string) => {
 			if (path === "/repos/example/web-app/environments?per_page=100") {
 				return {
-					environments: [{ name: "Production" }, { name: "Preview" }],
-					total_count: 2,
+					environments: [
+						{ name: "Production" },
+						{ name: "docs-production" },
+						{ name: "Preview" },
+					],
+					total_count: 3,
 				};
+			}
+			if (
+				path ===
+				"/repos/example/web-app/deployments?environment=docs-production&per_page=100&page=1"
+			) {
+				return [
+					{
+						created_at: "2026-07-10T19:50:00Z",
+						creator: null,
+						description: null,
+						environment: "docs-production",
+						id: 3,
+						ref: "main",
+						sha: "a1b2c3d4e5f6",
+					},
+				];
+			}
+			if (
+				path === "/repos/example/web-app/deployments/3/statuses?per_page=10"
+			) {
+				return [
+					{
+						created_at: "2026-07-10T19:58:00Z",
+						description: null,
+						environment_url: null,
+						log_url: null,
+						state: "success",
+						updated_at: "2026-07-10T19:58:00Z",
+					},
+				];
 			}
 			if (
 				path ===
@@ -609,7 +643,7 @@ describe("fixture investigation sources", () => {
 			item.startsWith("GitHub production deployments")
 		);
 		expect(deploys).toContain(
-			'a1b2c3d "feat(links): queue link creation" replacing 0a1b2c3, requested 2026-07-10 19:52 to Production (success 19:58).'
+			'a1b2c3d "feat(links): queue link creation" replacing 0a1b2c3, requested 2026-07-10 19:50 to docs-production and Production (all success 19:58).'
 		);
 		expect(deploys?.split("; ")).toHaveLength(1);
 		expect(artifact.evidence).toEqual(received?.evidence ?? []);

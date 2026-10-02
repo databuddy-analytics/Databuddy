@@ -587,6 +587,8 @@ function listedChanges<T>(
 	return `${shown}; and ${capped ? "at least " : ""}${hidden} more`;
 }
 
+const ENVIRONMENT_LIST = new Intl.ListFormat("en", { type: "conjunction" });
+
 function releaseLine(
 	release: GitHubDeploymentSummary[],
 	subject: string | undefined,
@@ -605,16 +607,36 @@ function releaseLine(
 			)
 		),
 	];
-	const targets = release
-		.map((deployment) => {
-			const outcome =
-				deployment.result && deployment.completedAt
-					? `${deployment.result} ${dayjs(deployment.completedAt).tz(timezone).format("HH:mm")}`
-					: "no completion recorded";
-			return `${deployment.environment} (${outcome})`;
-		})
+	const outcomes = new Map<string, string[]>();
+	for (const deployment of [...release].reverse()) {
+		outcomes.set(deployment.environment, [
+			...(outcomes.get(deployment.environment) ?? []),
+			deployment.result && deployment.completedAt
+				? `${deployment.result} ${dayjs(deployment.completedAt).tz(timezone).format("HH:mm")}`
+				: "no completion recorded",
+		]);
+	}
+	const environments = new Map<string, string[]>();
+	for (const [environment, results] of outcomes) {
+		const outcome = results.join(", then ");
+		environments.set(outcome, [
+			...(environments.get(outcome) ?? []),
+			environment,
+		]);
+	}
+	const targets = [...environments]
+		.map(([outcome, names]) =>
+			names.length > 1
+				? `${ENVIRONMENT_LIST.format(names)} (all ${outcome})`
+				: `${names[0]} (${outcome})`
+		)
 		.join(", ");
-	return `${newest.sha.slice(0, 7)}${subject ? ` "${subject.slice(0, 80)}"` : ""}${replaced.length === 1 ? ` replacing ${replaced[0]?.slice(0, 7)},` : ""} requested ${dayjs(newest.requestedAt).tz(timezone).format("YYYY-MM-DD HH:mm")} to ${targets}`;
+	const requestedAt = release.reduce(
+		(earliest, deployment) =>
+			deployment.requestedAt < earliest ? deployment.requestedAt : earliest,
+		newest.requestedAt
+	);
+	return `${newest.sha.slice(0, 7)}${subject ? ` "${subject.slice(0, 80)}"` : ""}${replaced.length === 1 ? ` replacing ${replaced[0]?.slice(0, 7)},` : ""} requested ${dayjs(requestedAt).tz(timezone).format("YYYY-MM-DD HH:mm")} to ${targets}`;
 }
 
 export function repositoryChangeEvidence(
