@@ -20,8 +20,6 @@ const {
 	mockCheckAutumnUsage,
 	mockGetApiKeyFromHeader,
 	mockHasKeyScope,
-	mockHasGlobalAccess,
-	mockGetAccessibleWebsiteIds,
 	mockGetWebsiteByIdV2,
 	mockResolveApiKeyOwnerId,
 	mockDenyApiKeyWebsiteAccess,
@@ -89,8 +87,6 @@ const {
 		mockCheckAutumnUsage: vi.fn(() => Promise.resolve({ allowed: true })),
 		mockGetApiKeyFromHeader: vi.fn(() => Promise.resolve(defaultApiKey)),
 		mockHasKeyScope: vi.fn(() => true),
-		mockHasGlobalAccess: vi.fn(() => false),
-		mockGetAccessibleWebsiteIds: vi.fn(() => ["ws_test"]),
 		mockGetWebsiteByIdV2: vi.fn(() => Promise.resolve(defaultWebsite)),
 		mockResolveApiKeyOwnerId: vi.fn(() => Promise.resolve("user_1")),
 	};
@@ -179,8 +175,6 @@ vi.mock("@lib/api-key", () => ({
 	denyApiKeyWebsiteAccess: mockDenyApiKeyWebsiteAccess,
 	getApiKeyFromHeader: mockGetApiKeyFromHeader,
 	hasKeyScope: mockHasKeyScope,
-	hasGlobalAccess: mockHasGlobalAccess,
-	getAccessibleWebsiteIds: mockGetAccessibleWebsiteIds,
 }));
 
 vi.mock("@databuddy/redis/redis", () => ({
@@ -838,26 +832,54 @@ describe("GET /px.jpg", () => {
 	});
 });
 
+const orgKey: ApiKeyRow = {
+	id: "key_1",
+	name: "MCP",
+	prefix: "dbdy",
+	start: "dbdy_mcp",
+	keyHash: "hash_1",
+	userId: "user_1",
+	organizationId: "org_1",
+	type: "user",
+	scopes: [],
+	enabled: true,
+	revokedAt: null,
+	rateLimitEnabled: true,
+	rateLimitTimeWindow: null,
+	rateLimitMax: null,
+	expiresAt: null,
+	lastUsedAt: null,
+	metadata: { resources: { global: ["track:events"] } },
+	createdAt: new Date(),
+	updatedAt: new Date(),
+};
+const websiteKey: ApiKeyRow = {
+	...orgKey,
+	metadata: { resources: { "website:ws_test": ["track:events"] } },
+};
+const globalReadKey: ApiKeyRow = {
+	...orgKey,
+	metadata: {
+		resources: {
+			global: ["read:data"],
+			"website:ws_test": ["track:events"],
+		},
+	},
+};
+
 describe("POST /track", () => {
 	beforeEach(() => {
 		mockInsertCustomEvents.mockClear();
 		mockGetApiKeyFromHeader.mockReset();
-		mockHasKeyScope.mockReset();
-		mockHasGlobalAccess.mockReset();
-		mockGetAccessibleWebsiteIds.mockReset();
 		mockGetWebsiteByIdV2.mockReset();
 		mockResolveApiKeyOwnerId.mockReset();
 		mockCheckAutumnUsage.mockClear();
 
-		mockGetApiKeyFromHeader.mockResolvedValue({
-			id: "key_1",
-			organizationId: "org_1",
-			userId: "user_1",
-			scopes: ["track:events"],
-		});
-		mockHasKeyScope.mockReturnValue(true);
-		mockHasGlobalAccess.mockReturnValue(false);
-		mockGetAccessibleWebsiteIds.mockReturnValue(["ws_test"]);
+		mockGetApiKeyFromHeader.mockResolvedValue(websiteKey);
+		mockHasKeyScope.mockImplementation(realApiKey.hasKeyScope);
+		mockDenyApiKeyWebsiteAccess.mockImplementation(
+			realApiKey.denyApiKeyWebsiteAccess
+		);
 		mockGetWebsiteByIdV2.mockResolvedValue({
 			id: "ws_test",
 			domain: "example.com",
@@ -867,6 +889,11 @@ describe("POST /track", () => {
 			organizationId: "org_1",
 		});
 		mockResolveApiKeyOwnerId.mockResolvedValue("user_1");
+	});
+
+	afterEach(() => {
+		mockHasKeyScope.mockReset();
+		mockDenyApiKeyWebsiteAccess.mockReset();
 	});
 
 	test("bot user agent short-circuits before the billing check", async () => {
@@ -944,7 +971,7 @@ describe("POST /track", () => {
 	});
 
 	test("api key + no websiteId → 200 (org-scoped event)", async () => {
-		mockHasGlobalAccess.mockReturnValue(true);
+		mockGetApiKeyFromHeader.mockResolvedValue(orgKey);
 		const res = await post(trackRoute, "/track", { name: "org_event" });
 		expect(res.status).toBe(200);
 		expect(mockInsertCustomEvents).toHaveBeenCalledWith(
@@ -980,6 +1007,26 @@ describe("POST /track", () => {
 			],
 			undefined
 		);
+	});
+
+	test("api key with top-level track:events scope + its organization's website → 200", async () => {
+		mockGetApiKeyFromHeader.mockResolvedValueOnce({
+			...orgKey,
+			scopes: ["track:events"],
+			metadata: {},
+		});
+		const res = await post(trackRoute, "/track", {
+			name: "signup",
+			websiteId: "ws_test",
+		});
+		expect(res.status).toBe(200);
+	});
+
+	test("website-scoped api key with global read access + no websiteId → 403", async () => {
+		mockGetApiKeyFromHeader.mockResolvedValueOnce(globalReadKey);
+		const res = await post(trackRoute, "/track", { name: "org_event" });
+		expect(res.status).toBe(403);
+		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
 	});
 
 	test("website-scoped api key + websiteId outside scope → 403", async () => {
@@ -1140,8 +1187,8 @@ describe("POST /track", () => {
 		expect(summaryCall.rejectedEventNames).toEqual(["ok_name"]);
 	});
 
-	test("global api key + websiteId in event still allowed (not scope-checked)", async () => {
-		mockHasGlobalAccess.mockReturnValue(true);
+	test("org-wide api key + any website of its organization → 200", async () => {
+		mockGetApiKeyFromHeader.mockResolvedValue(orgKey);
 		const res = await post(trackRoute, "/track", {
 			name: "any_event",
 			websiteId: "ws_anywhere",
@@ -1159,7 +1206,10 @@ describe("POST /track", () => {
 	});
 
 	test("api key with no scope → 403 (regression: trackMissingScope)", async () => {
-		mockHasKeyScope.mockReturnValue(false);
+		mockGetApiKeyFromHeader.mockResolvedValueOnce({
+			...orgKey,
+			metadata: { resources: { global: ["read:data"] } },
+		});
 		const res = await post(trackRoute, "/track", {
 			name: "signup",
 			websiteId: "ws_test",
@@ -1170,11 +1220,10 @@ describe("POST /track", () => {
 
 	test("api key without owner → 400 (regression: trackMissingOwner)", async () => {
 		mockGetApiKeyFromHeader.mockResolvedValueOnce({
-			id: "key_x",
+			...orgKey,
 			organizationId: null,
 			userId: null,
-			scopes: ["track:events"],
-		} as never);
+		});
 		const res = await post(trackRoute, "/track", {
 			name: "signup",
 			websiteId: "ws_test",
@@ -1185,11 +1234,9 @@ describe("POST /track", () => {
 
 	test("api key without organization cannot target websites", async () => {
 		mockGetApiKeyFromHeader.mockResolvedValueOnce({
-			id: "key_user",
+			...orgKey,
 			organizationId: null,
-			userId: "user_1",
-			scopes: ["track:events"],
-		} as never);
+		});
 		const res = await post(trackRoute, "/track", {
 			name: "signup",
 			websiteId: "ws_test",
@@ -1526,40 +1573,6 @@ describe("POST /mcp", () => {
 		clientName: "claude-code",
 	};
 
-	const orgKey: ApiKeyRow = {
-		id: "key_1",
-		name: "MCP",
-		prefix: "dbdy",
-		start: "dbdy_mcp",
-		keyHash: "hash_1",
-		userId: "user_1",
-		organizationId: "org_1",
-		type: "user",
-		scopes: [],
-		enabled: true,
-		revokedAt: null,
-		rateLimitEnabled: true,
-		rateLimitTimeWindow: null,
-		rateLimitMax: null,
-		expiresAt: null,
-		lastUsedAt: null,
-		metadata: { resources: { global: ["track:events"] } },
-		createdAt: new Date(),
-		updatedAt: new Date(),
-	};
-	const websiteKey: ApiKeyRow = {
-		...orgKey,
-		metadata: { resources: { "website:ws_test": ["track:events"] } },
-	};
-	const globalReadKey: ApiKeyRow = {
-		...orgKey,
-		metadata: {
-			resources: {
-				global: ["read:data"],
-				"website:ws_test": ["track:events"],
-			},
-		},
-	};
 	const sameOrgWebsite = {
 		id: "ws_other",
 		organizationId: "org_1",
