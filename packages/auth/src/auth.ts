@@ -231,6 +231,10 @@ async function sendAuthEmail(input: {
 	template: EmailTemplate;
 	to: string;
 }): Promise<void> {
+	if (readBooleanEnv("DATABUDDY_E2E_MODE")) {
+		log.info({ service: "auth", auth_email_skipped: true });
+		return;
+	}
 	const apiKey = process.env.RESEND_API_KEY;
 	if (!apiKey) {
 		log.error({
