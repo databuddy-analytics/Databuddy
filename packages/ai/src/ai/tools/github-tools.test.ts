@@ -359,6 +359,7 @@ describe("production deployments around a window", () => {
 			deployments: [
 				{
 					completedAt: "2026-09-26T14:52:00Z",
+					previousSha: "a1b2c3d002",
 					requestedAt: "2026-09-26T14:48:00Z",
 					result: "success",
 				},

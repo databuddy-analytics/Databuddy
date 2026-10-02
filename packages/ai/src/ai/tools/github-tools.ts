@@ -177,6 +177,7 @@ export interface GitHubDeploymentSummary {
 	environment: string;
 	environmentUrl: string | null;
 	logUrl: string | null;
+	previousSha?: string | null;
 	ref: string;
 	requestedAt: string;
 	result: string | null;
@@ -368,45 +369,59 @@ export async function listGitHubProductionDeployments(params: {
 	const until = Date.parse(params.until);
 	const scans = await Promise.all(
 		names.map(async (name) => {
-			const found: GitHubDeploy[] = [];
+			const scanned: GitHubDeploy[] = [];
 			for (let page = 1; page <= MAX_PRODUCTION_DEPLOY_PAGES; page++) {
 				const data = await request(
 					`/repos/${path}/deployments?environment=${encodeURIComponent(name)}&per_page=${PRODUCTION_DEPLOY_PAGE}&page=${page}`,
 					params.token
 				);
 				if (!Array.isArray(data)) {
-					return { complete: false, found };
+					return { complete: false, scanned };
 				}
 				const deploys = data as GitHubDeploy[];
-				for (const deploy of deploys) {
-					const requestedAt = Date.parse(deploy.created_at);
-					if (requestedAt >= since && requestedAt <= until) {
-						found.push(deploy);
-					}
-				}
+				scanned.push(...deploys);
 				const oldest = deploys.at(-1);
 				if (
 					deploys.length < PRODUCTION_DEPLOY_PAGE ||
 					(oldest && Date.parse(oldest.created_at) < since)
 				) {
-					return { complete: true, found };
+					return { complete: true, scanned };
 				}
 			}
-			return { complete: false, found };
+			return { complete: false, scanned };
 		})
 	);
 	const complete = scans.every((scan) => scan.complete);
-	const matched = scans.flatMap((scan) => scan.found);
-	matched.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+	const selected = scans
+		.flatMap(({ scanned }) =>
+			scanned.flatMap((deploy, index) => {
+				const requestedAt = Date.parse(deploy.created_at);
+				return requestedAt >= since && requestedAt <= until
+					? [{ deploy, previousSha: scanned[index + 1]?.sha ?? null }]
+					: [];
+			})
+		)
+		.sort(
+			(a, b) =>
+				Date.parse(b.deploy.created_at) - Date.parse(a.deploy.created_at)
+		)
+		.slice(0, params.limit);
 	const summaries = await deploymentSummaries(
-		matched.slice(0, params.limit),
+		selected.map(({ deploy }) => deploy),
 		params.repository,
 		params.token,
 		request
 	);
-	return "error" in summaries
-		? summaries
-		: { complete, deployments: summaries.deployments };
+	if ("error" in summaries) {
+		return summaries;
+	}
+	return {
+		complete,
+		deployments: summaries.deployments.map((deployment, index) => ({
+			...deployment,
+			previousSha: selected[index]?.previousSha ?? null,
+		})),
+	};
 }
 
 export interface GitHubCommitSummary {
