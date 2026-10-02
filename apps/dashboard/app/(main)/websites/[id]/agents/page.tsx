@@ -408,6 +408,49 @@ function robotsLine(agent: ReadingAgent): string {
 		: `robots.txt: ${status.label}`;
 }
 
+const BLOCKED_IMPACT: Partial<
+	Record<AgentPurpose, { effect: string; role: string }>
+> = {
+	search_index: {
+		effect: "can't show your pages in its search results",
+		role: "finds pages for its search results",
+	},
+	user_fetch: {
+		effect: "may skip your pages when someone asks about them",
+		role: "opens pages when someone asks it about them",
+	},
+};
+
+function robotsFix(
+	agent: ReadingAgent
+): { effect: string; prompt: string } | null {
+	const impact = BLOCKED_IMPACT[agent.purpose];
+	if (
+		!(
+			impact &&
+			agent.robots === "blocked" &&
+			agent.operator &&
+			!agent.purpose_inferred
+		)
+	) {
+		return null;
+	}
+	return {
+		effect: impact.effect,
+		prompt: `Let ${agent.name} read this site by fixing robots.txt.
+
+${agent.name} is how ${agent.product} ${impact.role}. Databuddy recorded ${formatCount(agent.requests, "request")} from it across ${formatCount(agent.pages, "page")} in the selected period, and robots.txt now blocks it.
+
+User agent: ${agent.user_agent}
+
+1. Find where robots.txt is served from: a static robots.txt, a generated route such as app/robots.ts, or a CMS or hosting setting.
+2. Find the rule that blocks this user agent. It is either a group that names the crawler or the User-agent: * group.
+3. Allow ${agent.name} on public pages. A group that names the crawler replaces the * group for it, so when * is the blocker, add a group for ${agent.name} and copy over only the Disallow lines for private paths such as admin, account and API routes.
+4. Leave the rules for every other crawler unchanged.
+5. After deploying, open /robots.txt and confirm the change.`,
+	};
+}
+
 function requestChangeLine(agent: ReadingAgent): string {
 	if (
 		agent.previousRequests === null ||
@@ -788,6 +831,7 @@ function AgentDetail({
 	trend: TrendPoint[] | null;
 }) {
 	const status = robotsStatus(agent);
+	const fix = robotsFix(agent);
 	const robotsLabel =
 		status?.label ??
 		(robots.isPending ? "Checking…" : null) ??
@@ -814,6 +858,18 @@ function AgentDetail({
 					</span>
 				) : null}
 			</div>
+			{fix ? (
+				<div className="flex items-center justify-between gap-3 rounded border border-border/60 px-3 py-2.5">
+					<Text tone="muted" variant="caption">
+						While robots.txt blocks {agent.name}, {agent.product} {fix.effect}.
+					</Text>
+					<CopyButton
+						label="Copy fix prompt"
+						value={fix.prompt}
+						variant="secondary"
+					/>
+				</div>
+			) : null}
 			<Sparkline
 				id={`ai-agent-${agent.agent_id}`}
 				isHourly={isHourly}
