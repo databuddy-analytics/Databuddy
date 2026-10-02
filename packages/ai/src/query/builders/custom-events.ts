@@ -1,7 +1,7 @@
 import { CUSTOM_EVENTS_VISITOR_KEY } from "@databuddy/db/clickhouse";
 import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
-import type { Filter, SimpleQueryConfig } from "../types";
+import type { CustomSqlContext, Filter, SimpleQueryConfig } from "../types";
 
 function customEventsScope(
 	filterParams?: Record<string, Filter["value"]>
@@ -16,6 +16,12 @@ function customEventsScope(
 		AND timestamp >= toDateTime({startDate:String})
 		AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 		AND event_name != ''`;
+}
+
+function eventTimeBucket(ctx: CustomSqlContext): string {
+	return ctx.granularity === "hour" || ctx.granularity === "hourly"
+		? "formatDateTime(toStartOfHour(toTimeZone(timestamp, {timezone:String})), '%Y-%m-%d %H:00:00')"
+		: "toDate(toTimeZone(timestamp, {timezone:String}))";
 }
 
 function separatePropertyKeyConditions(filterConditions?: string[]): {
@@ -220,6 +226,8 @@ export const CustomEventsBuilders = {
 			description: "Custom event counts plotted over time.",
 			category: "Custom Events",
 			tags: ["custom-events", "time-series"],
+
+			supports_granularity: ["hour", "day"],
 		},
 		customSql: (ctx) => {
 			const {
@@ -235,7 +243,7 @@ export const CustomEventsBuilders = {
 			return {
 				sql: `
 					SELECT
-						toDate(toTimeZone(timestamp, {timezone:String})) as date,
+						${eventTimeBucket(ctx)} as date,
 						COUNT(*) as total_events,
 						uniq(event_name) as unique_event_types,
 						uniq(${CUSTOM_EVENTS_VISITOR_KEY}) as unique_users,
@@ -245,7 +253,7 @@ export const CustomEventsBuilders = {
 					WHERE
 						${customEventsScope(filterParams)}
 						${filterClause}
-					GROUP BY toDate(toTimeZone(timestamp, {timezone:String}))
+					GROUP BY date
 					ORDER BY date ASC
 					LIMIT {limit:UInt32}
 				`,
@@ -268,6 +276,8 @@ export const CustomEventsBuilders = {
 			description: "Custom event counts over time, broken down per event name.",
 			category: "Custom Events",
 			tags: ["custom-events", "time-series", "breakdown"],
+
+			supports_granularity: ["hour", "day"],
 		},
 		customSql: (ctx) => {
 			const {
@@ -283,14 +293,14 @@ export const CustomEventsBuilders = {
 			return {
 				sql: `
 					SELECT
-						toDate(toTimeZone(timestamp, {timezone:String})) as date,
+						${eventTimeBucket(ctx)} as date,
 						event_name,
 						COUNT(*) as total_events
 					FROM ${Analytics.custom_events}
 					WHERE
 						${customEventsScope(filterParams)}
 						${filterClause}
-					GROUP BY toDate(toTimeZone(timestamp, {timezone:String})), event_name
+					GROUP BY date, event_name
 					ORDER BY date ASC, total_events DESC
 					LIMIT {limit:UInt32}
 				`,

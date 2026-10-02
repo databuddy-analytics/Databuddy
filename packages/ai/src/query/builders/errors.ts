@@ -690,16 +690,33 @@ export const ErrorsBuilders = {
 			description: "Error counts over time to identify spikes and trends.",
 			category: "Errors",
 			tags: ["errors", "trends", "time-series"],
+			supports_granularity: ["hour", "day"],
 		},
-		table: Analytics.error_spans,
-		fields: [
-			"toDate(toTimeZone(timestamp, {timezone:String})) as date",
-			"COUNT(*) as errors",
-			"uniq(anonymous_id) as users",
-		],
-		where: ["message != ''"],
-		groupBy: ["toDate(toTimeZone(timestamp, {timezone:String}))"],
-		orderBy: "date ASC",
+		customSql: (ctx) => {
+			const { websiteId, startDate, endDate, filterConditions, filterParams } =
+				ctx;
+			const bucket =
+				ctx.granularity === "hour" || ctx.granularity === "hourly"
+					? "formatDateTime(toStartOfHour(toTimeZone(timestamp, {timezone:String})), '%Y-%m-%d %H:00:00')"
+					: "toDate(toTimeZone(timestamp, {timezone:String}))";
+			return {
+				sql: `
+					SELECT
+						${bucket} as date,
+						COUNT(*) as errors,
+						uniq(anonymous_id) as users
+					FROM ${Analytics.error_spans}
+					WHERE client_id = {websiteId:String}
+						AND timestamp >= toDateTime({startDate:String})
+						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						AND message != ''
+						${appendFilterClause(filterConditions)}
+					GROUP BY date
+					ORDER BY date ASC
+				`,
+				params: { websiteId, startDate, endDate, ...filterParams },
+			};
+		},
 		timeField: "timestamp",
 		commonFilters: false,
 		allowedFilters: ["message", "path", "error_type"],
