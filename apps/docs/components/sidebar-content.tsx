@@ -260,6 +260,10 @@ export const contents: SidebarSection[] = [
 						href: "/docs/sdk/ai-agents",
 					},
 					{
+						title: "MCP Servers",
+						href: "/docs/sdk/mcp",
+					},
+					{
 						title: "DevTools",
 						href: "/docs/sdk/devtools",
 					},

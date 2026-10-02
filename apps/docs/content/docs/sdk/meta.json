@@ -15,6 +15,7 @@
     "feature-flags",
     "server-flags",
     "ai-agents",
+    "mcp",
     "devtools"
   ]
 }
