@@ -114,9 +114,22 @@ function createSender(endpoint: string, apiKey: string, debug: boolean) {
 	};
 }
 
+function flushOnExit() {
+	if (
+		senders.size === 0 &&
+		typeof process !== "undefined" &&
+		typeof process.on === "function"
+	) {
+		process.on("beforeExit", () => {
+			flushMcp().catch(() => undefined);
+		});
+	}
+}
+
 function senderFor(apiKey: string, options: TrackMcpOptions) {
 	const endpoint = `${options.apiUrl ?? "https://basket.databuddy.cc"}/mcp`;
 	const key = `${endpoint} ${apiKey}`;
+	flushOnExit();
 	const sender =
 		senders.get(key) ?? createSender(endpoint, apiKey, options.debug ?? false);
 	senders.set(key, sender);
