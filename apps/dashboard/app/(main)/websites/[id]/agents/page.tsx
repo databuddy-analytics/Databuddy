@@ -3,6 +3,7 @@
 import {
 	Badge,
 	Button,
+	CopyButton,
 	dayjs,
 	EmptyState,
 	formatLocalTime,
@@ -59,6 +60,7 @@ import {
 	calculatePreviousPeriod,
 	formatDateByGranularity,
 } from "../_components/utils/analytics-helpers";
+import { aiCrawlerSetupPrompt } from "../_components/utils/code-generators";
 
 type ReadFocus = ContentFormat | "all";
 
@@ -1801,6 +1803,8 @@ const SETUP_STACKS = [
 				code: 'export { proxy } from "@databuddy/sdk/agents";',
 				env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
 				envHint: "Already set if this app uses the Databuddy SDK.",
+				fileHint:
+					"Already have a proxy.ts? Call trackAgents(request) inside it, and keep .md and .txt paths in its matcher.",
 				caption: "Adds proxy.ts, the Next.js 16 replacement for middleware.",
 				file: "proxy.ts",
 				id: "next16",
@@ -1810,6 +1814,8 @@ const SETUP_STACKS = [
 				code: 'export { proxy as middleware } from "@databuddy/sdk/agents";',
 				env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
 				envHint: "Already set if this app uses the Databuddy SDK.",
+				fileHint:
+					"Already have a middleware.ts? Call trackAgents(request) inside it, and keep .md and .txt paths in its matcher.",
 				caption: "Adds a one-line middleware.ts.",
 				file: "middleware.ts",
 				id: "next15",
@@ -1857,6 +1863,29 @@ export default {
 				file: "worker.ts",
 				id: "workers",
 				label: "Workers",
+			},
+		],
+	},
+	{
+		id: "netlify",
+		label: "Netlify",
+		methods: [
+			{
+				code: `import { trackAgents } from "@databuddy/sdk/agents";
+
+export default (request, context) => {
+	const websiteId = Netlify.env.get("DATABUDDY_WEBSITE_ID");
+	context.waitUntil(trackAgents(request, { websiteId }));
+};
+
+export const config = { path: "/*" };`,
+				env: "DATABUDDY_WEBSITE_ID",
+				envHint: "Add it under Site configuration, then Environment variables.",
+				caption:
+					"Runs at Netlify's edge in front of every request, including static llms.txt and markdown files.",
+				file: "netlify/edge-functions/databuddy.ts",
+				id: "netlify",
+				label: "Edge Function",
 			},
 		],
 	},
@@ -2029,6 +2058,17 @@ function AgentSetupSheet({
 					</div>
 				</Sheet.Header>
 				<Sheet.Body className="space-y-6">
+					<div className="flex items-center justify-between gap-3 rounded border border-border/60 px-3 py-2.5">
+						<Text tone="muted" variant="caption">
+							Using Claude Code, Cursor or another coding agent? Let it do the
+							setup.
+						</Text>
+						<CopyButton
+							label="Copy setup prompt"
+							value={aiCrawlerSetupPrompt(websiteId)}
+							variant="secondary"
+						/>
+					</div>
 					<div className="space-y-3">
 						<div className="space-y-2">
 							<Text variant="label">Platform</Text>
@@ -2074,6 +2114,11 @@ function AgentSetupSheet({
 								</SetupStep>
 								<SetupStep step={2} title={`Add ${method.file}`}>
 									<SetupCode code={method.code} language="tsx" />
+									{"fileHint" in method ? (
+										<Text tone="muted" variant="caption">
+											{method.fileHint}
+										</Text>
+									) : null}
 								</SetupStep>
 								<SetupStep step={3} title="Set your website ID">
 									<SetupCode
