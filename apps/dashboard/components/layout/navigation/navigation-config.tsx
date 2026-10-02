@@ -107,7 +107,7 @@ export const mainNavigation: NavigationGroup[] = [
 					"event analytics",
 				],
 			}),
-			createNavItem("MCP", PlugIcon, "/mcp", {
+			createNavItem("MCP Servers", PlugIcon, "/mcp", {
 				activeMatch: "prefix",
 				alpha: true,
 				flag: "mcp",
