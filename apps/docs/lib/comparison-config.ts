@@ -498,11 +498,6 @@ export const competitors: Record<string, ComparisonData> = {
 				answer:
 					"Databuddy does not provide session replay or in-app surveys. PostHog includes both.",
 			},
-			{
-				question: "Which tracker has less overhead?",
-				answer:
-					"The current Databuddy tracker is about 13 KB gzip and loads asynchronously. Compare current builds with the features you enable, then measure both on your site.",
-			},
 		],
 		pricingTiers: [
 			{

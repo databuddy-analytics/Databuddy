@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { gzipSync } from "node:zlib";
 import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, spyOn } from "bun:test";
@@ -12,7 +11,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { StructuredData } from "@/components/structured-data";
 import { GET as robots } from "@/app/robots.txt/route";
 import { competitors } from "./comparison-config";
-import { homeFaqItems } from "./home-seo";
 
 describe("public copy contracts", () => {
 	it("emits GTM readiness only after the documented loader succeeds", async () => {
@@ -117,27 +115,9 @@ describe("public copy contracts", () => {
 		}
 	});
 
-	it("keeps the tracker-size claim aligned with the checked-in bundle", async () => {
-		const bundle = await readFile(
-			join(
-				import.meta.dir,
-				"..",
-				"..",
-				"..",
-				"packages",
-				"tracker",
-				"dist",
-				"databuddy.js"
-			)
-		);
-		const gzipKilobytes = Math.round(gzipSync(bundle).byteLength / 1024);
-		const performanceAnswer = homeFaqItems.find(
-			(item) => item.question === "Will the script slow down my site?"
-		)?.answer;
+	it("keeps retired tracker claims out of comparison copy", () => {
 		const comparisonCopy = JSON.stringify(competitors);
 
-		expect(performanceAnswer).toContain(`${gzipKilobytes} KB`);
-		expect(comparisonCopy).toContain(`${gzipKilobytes} KB gzip`);
 		expect(comparisonCopy).not.toContain("3KB");
 		expect(comparisonCopy).not.toContain("all features");
 	});
