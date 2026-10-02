@@ -48,6 +48,7 @@ export default async function Page(props: {
 					description: seo.description,
 					url: seo.url,
 					imageUrl: seo.ogImage,
+					breadcrumbs: seo.breadcrumbs,
 				}}
 			/>
 			<DocsPage
@@ -93,7 +94,7 @@ export async function generateMetadata(props: {
 		getDocsPageSeo(page);
 
 	return {
-		title,
+		title: page.data.seoTitle ? { absolute: title } : title,
 		description,
 		category: "Documentation",
 		openGraph: {
