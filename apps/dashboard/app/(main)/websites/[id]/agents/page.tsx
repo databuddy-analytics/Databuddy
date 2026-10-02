@@ -61,6 +61,7 @@ import {
 type ReadFocus = ContentFormat | "all";
 
 interface ProductRow {
+	answer_fetches: number;
 	has_proxy: number;
 	last_seen: string | null;
 	on_demand: number;
@@ -68,6 +69,7 @@ interface ProductRow {
 	product: string;
 	requests: number;
 	search_index: number;
+	server_tracking_since: string | null;
 	training: number;
 	visitors: number;
 }
@@ -92,8 +94,17 @@ interface PageReadRow {
 		requests: number | string;
 	}[];
 	format: ContentFormat;
+	last_seen: string;
 	page: string;
 	requests: number;
+}
+
+interface FailedRequestRow {
+	agents: PageReadRow["agents"];
+	last_seen: string;
+	page: string;
+	requests: number;
+	status_code: number;
 }
 
 interface LandingPageRow {
@@ -134,6 +145,7 @@ interface CrawlerRow {
 	pages: number;
 	product: string;
 	purpose: AgentPurpose;
+	purpose_inferred: number;
 	requests: number;
 	user_agent: string;
 }
@@ -147,7 +159,9 @@ interface ActivityRow {
 }
 
 interface ReadingAgent extends CrawlerRow {
+	blockedSince: string | null;
 	html: number;
+	previousRequests: number | null;
 	robots: RobotsAccess | undefined;
 }
 
@@ -263,6 +277,7 @@ function formatRequestsByFormat(agent: ReadingAgent): string {
 
 function emptyProduct(product: string): ProductRow {
 	return {
+		answer_fetches: 0,
 		has_proxy: 0,
 		last_seen: null,
 		on_demand: 0,
@@ -270,6 +285,7 @@ function emptyProduct(product: string): ProductRow {
 		product,
 		requests: 0,
 		search_index: 0,
+		server_tracking_since: null,
 		training: 0,
 		visitors: 0,
 	};
@@ -337,22 +353,46 @@ function rankProductsByVisitorShare(
 }
 
 function robotsStatus(agent: ReadingAgent): {
-	color: "destructive" | "success" | "warning";
+	color: "success" | "warning";
 	label: string;
 } | null {
 	if (!agent.robots) {
 		return null;
 	}
-	if (
+	const isStillCrawling =
 		agent.robots === "blocked" &&
-		dayjs().diff(dayjs.utc(agent.last_seen), "hour") < 24
-	) {
-		return { color: "destructive", label: "Blocked, still crawling" };
-	}
+		agent.blockedSince !== null &&
+		dayjs.utc(agent.last_seen).diff(dayjs(agent.blockedSince), "hour") >= 24;
 	return {
 		color: agent.robots === "allowed" ? "success" : "warning",
-		label: ROBOTS_LABELS[agent.robots],
+		label: isStillCrawling
+			? "Blocked, still crawling"
+			: ROBOTS_LABELS[agent.robots],
 	};
+}
+
+function robotsLine(agent: ReadingAgent): string {
+	const status = robotsStatus(agent);
+	if (!status) {
+		return "";
+	}
+	return agent.purpose === "user_fetch" && agent.robots !== "allowed"
+		? `robots.txt: ${status.label}. Fetches made for a user may not follow it`
+		: `robots.txt: ${status.label}`;
+}
+
+function requestChangeLine(agent: ReadingAgent): string {
+	if (
+		agent.previousRequests === null ||
+		Math.max(agent.requests, agent.previousRequests) < 50
+	) {
+		return "";
+	}
+	if (agent.previousRequests === 0) {
+		return "New this period";
+	}
+	const change = calculatePercentChange(agent.requests, agent.previousRequests);
+	return `${change > 0 ? "+" : ""}${change.toFixed(0)}% requests vs the previous period`;
 }
 
 function purposeDescription(agent: ReadingAgent): string {
@@ -361,6 +401,9 @@ function purposeDescription(agent: ReadingAgent): string {
 	}
 	if (!agent.operator) {
 		return `Signed its requests as ${agent.product}`;
+	}
+	if (agent.purpose_inferred) {
+		return "General-purpose crawler. Its data can end up in AI training, but the operator doesn't say so.";
 	}
 	switch (agent.purpose) {
 		case "training":
@@ -767,6 +810,7 @@ function AgentReadsPanel({
 	agents,
 	formats,
 	isLoading,
+	previousFormats,
 	reads,
 	robots,
 	timeline,
@@ -776,6 +820,7 @@ function AgentReadsPanel({
 	agents: ReadingAgent[];
 	formats: FormatRow[];
 	isLoading: boolean;
+	previousFormats: FormatRow[] | null;
 	reads: PageReadRow[];
 	robots: RobotsCheck;
 	timeline: ActivityTimeline;
@@ -841,9 +886,14 @@ function AgentReadsPanel({
 	);
 
 	const readersByPage = new Map<string, Map<string, number>>();
+	const lastReadByPage = new Map<string, string>();
 	for (const read of selected ? agentPages : reads) {
 		if (focus !== "all" && read.format !== focus) {
 			continue;
+		}
+		const lastRead = lastReadByPage.get(read.page);
+		if (!lastRead || read.last_seen > lastRead) {
+			lastReadByPage.set(read.page, read.last_seen);
 		}
 		const readers = readersByPage.get(read.page) ?? new Map<string, number>();
 		for (const reader of read.agents) {
@@ -873,10 +923,11 @@ function AgentReadsPanel({
 		1
 	);
 	const focusFormat = formats.find((row) => row.format === focus);
-	const requestTotal =
-		focus === "all"
-			? formats.reduce((sum, row) => sum + row.requests, 0)
-			: (focusFormat?.requests ?? 0);
+	const requestsFor = (rows: FormatRow[]) =>
+		rows
+			.filter((row) => focus === "all" || row.format === focus)
+			.reduce((sum, row) => sum + row.requests, 0);
+	const requestTotal = requestsFor(formats);
 	const pageTotal =
 		focus === "all"
 			? (selected?.pages ?? distinctPages)
@@ -916,6 +967,15 @@ function AgentReadsPanel({
 							<AskAgentButton subject={askSubject} />
 						</div>
 					}
+					change={
+						previousFormats ? (
+							<TotalChange
+								current={requestTotal}
+								previous={requestsFor(previousFormats)}
+								suffix="vs previous period"
+							/>
+						) : null
+					}
 					detail={`from ${formatCount(rankedAgents.length, "agent")}${robotsLimitedCount > 0 ? ` · ${robotsLimitedCount} limited by robots.txt` : ""}`}
 					isLoading={isLoading}
 					title="Who reads your content"
@@ -951,7 +1011,8 @@ function AgentReadsPanel({
 												lines={[
 													purposeDescription(agent),
 													`${formatCount(agent.requests, "request")} · ${formatCount(agent.pages, "page")} · last read ${fromNow(agent.last_seen)}`,
-													status ? `robots.txt: ${status.label}` : "",
+													requestChangeLine(agent),
+													robotsLine(agent),
 													isSelected
 														? "Click to show every agent"
 														: "Click to see what it read",
@@ -1070,6 +1131,7 @@ function AgentReadsPanel({
 												selected
 													? [
 															`${formatNumber(page.value)} ${label} requests from ${selected.name}`,
+															`last read ${fromNow(lastReadByPage.get(page.page) ?? null)}`,
 														]
 													: [
 															...page.readers
@@ -1108,6 +1170,113 @@ function AgentReadsPanel({
 							: `Show all ${formatNumber(pages.length)} ${noun}`
 					}
 					list={pageList}
+				/>
+			</div>
+		</div>
+	);
+}
+
+function StatTile({
+	isLoading,
+	label,
+	onSetUp,
+	previous,
+	tip,
+	value,
+}: {
+	isLoading: boolean;
+	label: string;
+	onSetUp?: () => void;
+	previous: number | null;
+	tip: string;
+	value: number;
+}) {
+	return (
+		<div className="flex flex-col gap-1 rounded-lg bg-background p-3">
+			<Tooltip
+				content={<Tip lines={[tip]} title={label} />}
+				delay={TIP_DELAY_MS}
+			>
+				<p className="w-fit cursor-default text-muted-foreground text-xs">
+					{label}
+				</p>
+			</Tooltip>
+			{isLoading ? (
+				<Skeleton className="h-7 w-24" />
+			) : onSetUp && value === 0 ? (
+				<Button
+					className="w-fit"
+					onClick={onSetUp}
+					size="sm"
+					variant="secondary"
+				>
+					Set up
+				</Button>
+			) : (
+				<div className="flex h-7 items-center gap-2">
+					<p className="font-semibold text-xl tabular-nums">
+						{formatNumber(value)}
+					</p>
+					{previous ? (
+						<TotalChange
+							current={value}
+							previous={previous}
+							suffix="vs previous period"
+						/>
+					) : null}
+				</div>
+			)}
+		</div>
+	);
+}
+
+function FailedRequestsPanel({ rows }: { rows: FailedRequestRow[] }) {
+	const list = useShowAll(rows);
+	const total = rows.reduce((sum, row) => sum + row.requests, 0);
+	const maxRequests = Math.max(...rows.map((row) => row.requests), 1);
+	return (
+		<div className="rounded-xl bg-secondary p-1.5">
+			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
+				<Headline
+					detail="Pages that sent AI crawlers an error instead of content. Fix them or redirect them to a page that works."
+					title="Requests AI couldn't read"
+					unit="failed requests"
+					value={formatNumber(total)}
+				/>
+				<div className="flex flex-col gap-1">
+					{list.visible.map((row, index) => (
+						<BarRow
+							fraction={row.requests / maxRequests}
+							key={`${row.page}-${row.status_code}`}
+							rank={index + 1}
+							tooltip={
+								<Tip
+									lines={[
+										...row.agents
+											.slice(0, 5)
+											.map(
+												(agent) =>
+													`${agent.name} · ${formatNumber(Number(agent.requests))}`
+											),
+										`last request ${fromNow(row.last_seen)}`,
+									]}
+									title={`${row.page} returned ${row.status_code}`}
+								/>
+							}
+							value={row.requests}
+						>
+							<span className="relative min-w-0 flex-1 truncate text-sm">
+								{row.page}
+							</span>
+							<span className="relative shrink-0 font-mono text-muted-foreground text-xs tabular-nums">
+								{row.status_code}
+							</span>
+						</BarRow>
+					))}
+				</div>
+				<ShowAllButton
+					label={`Show all ${formatNumber(rows.length)} pages`}
+					list={list}
 				/>
 			</div>
 		</div>
@@ -1600,6 +1769,36 @@ const SETUP_CHECKS = [
 	},
 ] as const;
 
+const BOT_BLOCK_STATUSES = new Set([401, 403, 429, 503]);
+
+function setupCheckLine(
+	result: {
+		controlStatus: number | null;
+		homepage: boolean;
+		llmsTxt: boolean;
+		probes: Record<
+			(typeof SETUP_CHECKS)[number]["key"],
+			{ blockedBy: string | null; status: number | null }
+		>;
+	},
+	item: (typeof SETUP_CHECKS)[number],
+	isDrain: boolean
+): string {
+	if (result[item.key]) {
+		return `${item.label} recorded`;
+	}
+	const { blockedBy, status } = result.probes[item.key];
+	const isBotBlocked =
+		status !== null &&
+		BOT_BLOCK_STATUSES.has(status) &&
+		result.controlStatus !== null &&
+		result.controlStatus < 400;
+	if (isBotBlocked) {
+		return `${item.label} not recorded: your site returned ${status} to our GPTBot test${blockedBy ? ` (${blockedBy})` : ""}. A bot rule may be blocking AI crawlers.`;
+	}
+	return `${item.label} not recorded: ${isDrain ? item.drainHint : item.hint}`;
+}
+
 function SetupStep({
 	children,
 	step,
@@ -1686,7 +1885,11 @@ function AgentSetupSheet({
 								JavaScript, and which pages they read.
 							</Sheet.Description>
 						</div>
-						{hasServerTracking === undefined ? null : (
+						{isSetupWorking ? (
+							<Badge size="sm" variant="success">
+								Setup works
+							</Badge>
+						) : hasServerTracking === undefined ? null : (
 							<Badge
 								size="sm"
 								variant={hasServerTracking ? "success" : "muted"}
@@ -1799,9 +2002,7 @@ function AgentSetupSheet({
 													className="mt-1"
 													color={check.data[item.key] ? "success" : "warning"}
 												/>
-												{check.data[item.key]
-													? `${item.label} recorded`
-													: `${item.label} not recorded: ${isDrain ? item.drainHint : item.hint}`}
+												{setupCheckLine(check.data, item, isDrain)}
 											</p>
 										))
 									: null}
@@ -1873,13 +2074,31 @@ export default function AgentsPage() {
 			],
 		},
 		{ id: "visitors", parameters: ["ai_product_visitors"] },
-		{ id: "formats", parameters: ["ai_content_formats"] },
+		{
+			id: "formats",
+			parameters: [
+				"ai_content_formats",
+				{
+					name: "ai_content_formats",
+					...previousRange,
+					id: "previous_ai_content_formats",
+				},
+			],
+		},
 		{ id: "reads", parameters: ["ai_agent_pages"], limit: 1000 },
 		{ id: "landing", parameters: ["ai_landing_pages"], limit: 1000 },
 		{ id: "outcomes", parameters: ["ai_visitor_outcomes"] },
 		{ id: "revenue", parameters: ["revenue_by_ai_product"] },
-		{ id: "crawlers", parameters: ["ai_crawlers"], limit: 1000 },
+		{
+			id: "crawlers",
+			parameters: [
+				"ai_crawlers",
+				{ name: "ai_crawlers", ...previousRange, id: "previous_ai_crawlers" },
+			],
+			limit: 1000,
+		},
 		{ id: "activity", parameters: ["ai_crawler_activity"] },
+		{ id: "failed", parameters: ["ai_failed_requests"], limit: 100 },
 	]);
 	const products: ProductRow[] = getDataForQuery("products", "ai_products");
 	const previousProducts: ProductRow[] = getDataForQuery(
@@ -1891,6 +2110,10 @@ export default function AgentsPage() {
 		"ai_product_visitors"
 	);
 	const formats: FormatRow[] = getDataForQuery("formats", "ai_content_formats");
+	const previousFormats: FormatRow[] = getDataForQuery(
+		"formats",
+		"previous_ai_content_formats"
+	);
 	const reads: PageReadRow[] = getDataForQuery("reads", "ai_agent_pages");
 	const landingPages: LandingPageRow[] = getDataForQuery(
 		"landing",
@@ -1905,6 +2128,14 @@ export default function AgentsPage() {
 		"revenue_by_ai_product"
 	);
 	const crawlers: CrawlerRow[] = getDataForQuery("crawlers", "ai_crawlers");
+	const previousCrawlers: CrawlerRow[] = getDataForQuery(
+		"crawlers",
+		"previous_ai_crawlers"
+	);
+	const failedRequests: FailedRequestRow[] = getDataForQuery(
+		"failed",
+		"ai_failed_requests"
+	);
 	const activity: ActivityRow[] = getDataForQuery(
 		"activity",
 		"ai_crawler_activity"
@@ -1992,13 +2223,30 @@ export default function AgentsPage() {
 			.map((item) => formatRevenueCurrency(item.revenue, item.currency))
 			.join(", "),
 	}));
+	const serverTrackingSince =
+		products.find((row) => row.server_tracking_since)?.server_tracking_since ??
+		null;
+	const hasComparableReads =
+		serverTrackingSince === null ||
+		dayjs.utc(serverTrackingSince).isBefore(dayjs(previousRange.start_date));
+	const previousRequestsByAgent = new Map(
+		previousCrawlers.map((crawler) => [crawler.agent_id, crawler.requests])
+	);
 	const readingAgents = crawlers.map(
 		(crawler, index): ReadingAgent => ({
 			...crawler,
+			blockedSince: robots.data?.blockedSince[index] ?? null,
 			html: Math.max(crawler.requests - crawler.markdown - crawler.llms, 0),
+			previousRequests: hasComparableReads
+				? (previousRequestsByAgent.get(crawler.agent_id) ?? 0)
+				: null,
 			robots: robots.data?.access[index],
 		})
 	);
+	const totalOf = (
+		rows: ProductRow[],
+		key: "answer_fetches" | "requests" | "visitors"
+	) => rows.reduce((sum, row) => sum + Number(row[key] ?? 0), 0);
 
 	const hasLoadError = !(
 		isPending ||
@@ -2054,13 +2302,47 @@ export default function AgentsPage() {
 				<div className="space-y-4 p-4">
 					{needsProxy ? (
 						<NoticeBanner
-							description="Add one line to your site to also see which pages AI reads, and whether it gets markdown or HTML."
+							description="Add one line to your site to also see which pages AI reads, and whether it asks for markdown or HTML."
 							icon={<BrainIcon />}
 							title={`${topSender.product} sent you ${formatCount(topSender.visitors, "visitor")}`}
 						>
 							{setupButton}
 						</NoticeBanner>
 					) : null}
+
+					<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-3">
+						<StatTile
+							isLoading={isPending}
+							label="Fetched to answer a question"
+							onSetUp={hasProxy ? undefined : () => setIsSetupOpen(true)}
+							previous={
+								hasComparableReads
+									? totalOf(previousProducts, "answer_fetches")
+									: null
+							}
+							tip="Pages an AI product opened while answering someone. A fetch is not proof it was cited."
+							value={totalOf(products, "answer_fetches")}
+						/>
+						<StatTile
+							isLoading={isPending}
+							label="AI reads"
+							onSetUp={hasProxy ? undefined : () => setIsSetupOpen(true)}
+							previous={
+								hasComparableReads
+									? totalOf(previousProducts, "requests")
+									: null
+							}
+							tip="Every time an AI crawler or agent read one of your pages."
+							value={totalOf(products, "requests")}
+						/>
+						<StatTile
+							isLoading={isPending}
+							label="AI visitors"
+							previous={totalOf(previousProducts, "visitors")}
+							tip="People who arrived from an AI product's answer or its app browser."
+							value={totalOf(products, "visitors")}
+						/>
+					</div>
 
 					<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-3">
 						{featured.map((row) => (
@@ -2081,6 +2363,7 @@ export default function AgentsPage() {
 							agents={readingAgents}
 							formats={formats}
 							isLoading={isLoading}
+							previousFormats={hasComparableReads ? previousFormats : null}
 							reads={reads}
 							robots={{
 								hasRobotsTxt: robots.data?.hasRobotsTxt,
@@ -2089,6 +2372,10 @@ export default function AgentsPage() {
 							timeline={{ bucketFormat, buckets, isHourly }}
 							websiteId={websiteId}
 						/>
+					) : null}
+
+					{failedRequests.length > 0 ? (
+						<FailedRequestsPanel rows={failedRequests} />
 					) : null}
 
 					{isPending || visitorShare.rows.length > 0 ? (
