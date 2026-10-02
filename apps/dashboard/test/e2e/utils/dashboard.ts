@@ -92,6 +92,12 @@ export async function createWebsite(
 	await expect(submitButton).toBeEnabled();
 	await submitButton.click();
 	await expect(dialog).toBeHidden({ timeout: 15_000 });
+	// Creating a website opens its setup page; callers expect the list card.
+	await expect(page).toHaveURL(/\/websites\/[A-Za-z0-9_-]+/, {
+		timeout: 15_000,
+	});
+	await page.goto("/websites");
+	await expectDashboardReady(page);
 	return websiteCard(page, input.name);
 }
 
