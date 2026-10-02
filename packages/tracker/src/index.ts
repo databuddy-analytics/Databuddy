@@ -65,6 +65,13 @@ export class Databuddy extends BaseTracker {
 				setTraits: (traits: ProfileTraits) => this.setTraits(traits),
 				clearProfile: () => this.clearProfile(),
 				getProfileId: () => this.getProfileId(),
+				getTrackingIds: () =>
+					isOptedOut()
+						? { anonId: null, sessionId: null }
+						: {
+								anonId: this.anonymousId ?? null,
+								sessionId: this.sessionId ?? null,
+							},
 				flush: () => {
 					Promise.all(
 						this.queues.map(([queue, meta]) => this._flushQueue(queue, meta))
@@ -555,6 +562,7 @@ function initializeDatabuddy() {
 			setTraits: () => {},
 			clearProfile: () => {},
 			getProfileId: () => null,
+			getTrackingIds: () => ({ anonId: null, sessionId: null }),
 			clear: () => {},
 			flush: () => {},
 			setGlobalProperties: () => {},

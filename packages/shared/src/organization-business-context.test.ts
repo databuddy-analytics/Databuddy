@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+	BUSINESS_CONTEXT_PAGE_BUDGET,
 	businessContextSourceBelongsToSite,
 	businessContextSourceUrlsSchema,
 	businessContextResearchSchema,
@@ -61,7 +62,9 @@ test("research metadata stays bounded and old briefs remain valid", () => {
 	expect(
 		businessContextResearchSchema.safeParse({
 			...research,
-			pages: new Array(8).fill(research.pages[0]),
+			pages: new Array(BUSINESS_CONTEXT_PAGE_BUDGET + 1).fill(
+				research.pages[0]
+			),
 		}).success
 	).toBe(false);
 	expect(

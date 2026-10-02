@@ -51,8 +51,6 @@ for (const aiConfigured of [false, true]) {
 				}
 			);
 			await page.goto("/onboarding");
-			await expect(page).toHaveURL(/step=team$/);
-			await page.getByRole("button", { name: "Continue", exact: true }).click();
 			await expect(
 				page.getByText("Tracking verified", { exact: true })
 			).toBeVisible();
@@ -61,15 +59,8 @@ for (const aiConfigured of [false, true]) {
 			try {
 				if (selfHosted && capabilityState === "delayed") {
 					await expect(
-						page.getByRole("heading", { name: "Checking Insights" })
-					).toBeVisible();
-					await expect(
 						page.getByRole("button", { name: "Checking Insights" })
 					).toBeDisabled();
-					await expect(
-						page.getByRole("heading", { name: "You're all set" })
-					).toHaveCount(0);
-					await expect(page).toHaveURL(/step=explore$/);
 				}
 			} finally {
 				releaseCapability?.();
@@ -77,12 +68,10 @@ for (const aiConfigured of [false, true]) {
 
 			if (selfHosted && capabilityState === "cached-failed") {
 				await expect(
-					page.getByRole("heading", {
-						name: aiConfigured
-							? "Your first review is set up"
-							: "You're all set",
+					page.getByRole("button", {
+						name: aiConfigured ? "Open Insights" : "Open dashboard",
 					})
-				).toBeVisible();
+				).toBeEnabled();
 				// Make the cached capability stale, then use the normal reconnect refetch.
 				await page.clock.setFixedTime(new Date(Date.now() + 180_000));
 				await page.evaluate(() => {
@@ -93,18 +82,13 @@ for (const aiConfigured of [false, true]) {
 
 			if (selfHosted && hasFailure) {
 				await expect(
-					page.getByText(
-						"We couldn't check Insights. Try again, or open your analytics below."
-					)
+					page.getByText("We couldn't check Insights.")
 				).toBeVisible();
 				await expect(
-					page.getByRole("heading", { name: "You're all set" })
-				).toHaveCount(0);
-				await expect(
-					page.getByRole("button", { name: "Go to dashboard" })
+					page.getByRole("button", { name: "Open dashboard" })
 				).toBeEnabled();
 				if (!aiConfigured) {
-					await page.getByRole("button", { name: "Go to dashboard" }).click();
+					await page.getByRole("button", { name: "Open dashboard" }).click();
 					await expect(page).toHaveURL(
 						`${new URL(page.url()).origin}/websites/${e2eSession.websiteId}`
 					);
@@ -118,26 +102,15 @@ for (const aiConfigured of [false, true]) {
 					await expect(
 						page.getByRole("button", { name: "Try again" })
 					).toHaveCount(0);
-					await expect(
-						page.getByRole("button", { name: "Go to dashboard" })
-					).toHaveCount(0);
-					await expect(page).toHaveURL(/step=explore$/);
 				} finally {
 					releaseRetry?.();
 				}
 			}
 
 			const opensInsights = selfHosted && aiConfigured;
-			await expect(
-				page.getByRole("heading", {
-					name: opensInsights
-						? "Your first review is set up"
-						: "You're all set",
-				})
-			).toBeVisible();
 			await page
 				.getByRole("button", {
-					name: opensInsights ? "Open Insights" : "Go to dashboard",
+					name: opensInsights ? "Open Insights" : "Open dashboard",
 					exact: true,
 				})
 				.click();

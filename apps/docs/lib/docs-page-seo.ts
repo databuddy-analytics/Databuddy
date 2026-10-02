@@ -14,6 +14,7 @@ const SECTION_MAP: [test: string, label: string][] = [
 	["hooks", "React Hooks"],
 	["sdk", "SDK"],
 	["/api", "API Reference"],
+	["infrastructure-as-code", "Infrastructure as Code"],
 	["performance", "Performance"],
 	["compliance", "Compliance"],
 	["privacy", "Privacy"],

@@ -29,6 +29,12 @@ sources:
       password: "${VECTOR_KAFKA_PASSWORD}"
     tls:
       enabled: ${VECTOR_KAFKA_TLS_ENABLED:-true}
+    # Vector and Vector Staging share this group, and the range assignor hands
+    # every single-partition topic to the member whose id sorts first. Staging
+    # sets VECTOR_KAFKA_CLIENT_ID=vector-standby, which sorts after the default,
+    # so it only consumes while prod Vector is down.
+    librdkafka_options:
+      client.id: "${VECTOR_KAFKA_CLIENT_ID:-vector}"
     decoding:
       codec: json
 

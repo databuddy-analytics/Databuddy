@@ -555,11 +555,13 @@
     },
     "packages/pulumi": {
       "name": "@databuddy/pulumi",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "devDependencies": {
         "@databuddy/rpc": "workspace:*",
         "@orpc/server": "^1.14.0",
         "@pulumi/pulumi": "^3.266.0",
+        "@types/bun": "catalog:",
+        "@types/node": "^26.0.0",
         "typescript": "catalog:",
         "unbuild": "^3.6.1",
       },

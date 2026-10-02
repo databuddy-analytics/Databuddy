@@ -12,6 +12,7 @@ import {
 import { chCommand, chQuery, clickHouse } from "@databuddy/db/clickhouse";
 import { randomUUIDv7 } from "bun";
 import { describe, expect, test } from "bun:test";
+import { buildUnionQuery } from "../batch-executor";
 import type { CustomSqlContext, Filter } from "../types";
 import { ProfilesBuilders } from "./profiles";
 import { RevenueBuilders } from "./revenue";
@@ -507,7 +508,7 @@ async function revenueOverview(
 }
 
 async function runBuilder(
-	name: string,
+	name: keyof typeof RevenueBuilders,
 	websiteId: string,
 	extra: Partial<CustomSqlContext> = {}
 ): Promise<Record<string, number | string | null>[]> {
@@ -527,9 +528,199 @@ async function runBuilder(
 }
 
 describeStripeE2E("Stripe revenue end-to-end matrix", () => {
-	test("ingests, deduplicates, attributes, and rejects the pre-cutover duplicate result", {
-		timeout: 120_000,
-	}, async () => {
+	test("resolves explicit invoice metadata over an organization default website", async () => {
+		assertLocalDependencies();
+		const fixture = await createFixture();
+		const websiteId = `${fixture.siteId}_checkout`;
+		const paymentIntentId = `pi_site_${fixture.runId}`;
+		const invoiceId = `in_site_${fixture.runId}`;
+		const invoicePaymentId = `inpay_site_${fixture.runId}`;
+		const profileId = `profile_site_${fixture.runId}`;
+		const sessionId = `session_site_${fixture.runId}`;
+		let basket: Awaited<ReturnType<typeof startBasket>> | undefined;
+		try {
+			const now = new Date();
+			await db.execute(sql`
+				INSERT INTO websites (id, domain, name, organization_id, "createdAt", "updatedAt")
+				VALUES (${websiteId}, ${`checkout-${fixture.runId}.invalid`}, ${"Checkout website"}, ${fixture.ownerId}, ${now}, ${now})
+			`);
+			await clickHouse.insert({
+				table: "analytics.events",
+				format: "JSONEachRow",
+				values: [
+					analyticsEvent({
+						websiteId,
+						profileId,
+						sessionId,
+						anonymousId: "",
+						time: eventTime(0, -60),
+						campaign: "checkout-campaign",
+					}),
+				],
+			});
+			basket = await startBasket(4100 + Math.floor(Math.random() * 400));
+			for (const event of [
+				paymentIntent({
+					amount: 10_000,
+					day: 0,
+					id: paymentIntentId,
+					metadata: {
+						databuddy_profile_id: "intent-profile",
+						databuddy_session_id: "intent-session",
+					},
+				}),
+				invoicePayment({
+					amount: 10_000,
+					day: 0,
+					invoiceId,
+					invoicePaymentId,
+					paymentIntentId,
+				}),
+			]) {
+				expect(
+					(
+						await postStripeEvent(
+							basket.baseUrl,
+							fixture.webhookHash,
+							fixture.secret,
+							event
+						)
+					).status
+				).toBe(200);
+			}
+			const range = { startDate: "2026-08-01", endDate: "2026-08-01" };
+			expect(
+				Number(
+					(await runBuilder("revenue_overview", fixture.siteId, range))[0]
+						?.total_revenue
+				)
+			).toBe(100);
+			expect(await runBuilder("revenue_overview", websiteId, range)).toEqual(
+				[]
+			);
+			// The invoice link can be emitted just after the payment report's cutoff.
+			const link = paidInvoice({
+				amountPaid: 10_000,
+				day: 1,
+				invoiceId,
+				payments: [],
+				metadata: {
+					databuddy_client_id: websiteId,
+					databuddy_profile_id: profileId,
+					databuddy_session_id: sessionId,
+				},
+			});
+			expect(
+				(
+					await postStripeEvent(
+						basket.baseUrl,
+						fixture.webhookHash,
+						fixture.secret,
+						link
+					)
+				).status
+			).toBe(200);
+			expect(
+				await runBuilder("revenue_overview", fixture.siteId, range)
+			).toEqual([]);
+			const [checkout] = await runBuilder("revenue_overview", websiteId, range);
+			expect(Number(checkout?.total_revenue)).toBe(100);
+			expect(Number(checkout?.attributed_revenue)).toBe(100);
+			const batch = buildUnionQuery(
+				[0, 1].map((index) => ({
+					index,
+					req: {
+						type: "revenue_overview",
+						projectId: websiteId,
+						from: range.startDate,
+						to: range.endDate,
+					},
+				}))
+			);
+			expect(batch.failures).toEqual([]);
+			const batched = await chQuery<{ attributed_revenue: number }>(
+				batch.sql,
+				batch.params
+			);
+			expect(batched.map((row) => Number(row.attributed_revenue))).toEqual([
+				100, 100,
+			]);
+			const recent = await runBuilder("recent_transactions", websiteId, range);
+			expect(recent).toEqual([
+				expect.objectContaining({
+					transaction_id: invoicePaymentId,
+					utm_campaign: "checkout-campaign",
+				}),
+			]);
+			const stored = await chQuery<{ website_id: string }>(
+				"SELECT website_id FROM analytics.revenue FINAL WHERE owner_id = {ownerId:String} AND transaction_id = {transactionId:String}",
+				{ ownerId: fixture.ownerId, transactionId: invoicePaymentId }
+			);
+			expect(stored[0]?.website_id).toBe(fixture.siteId);
+			const detail = ProfilesBuilders.profile_revenue.customSql({
+				...range,
+				websiteId,
+				filters: [{ field: "anonymous_id", op: "eq", value: profileId }],
+			});
+			const payments = await chQuery<{ transaction_id: string }>(
+				detail.sql,
+				detail.params
+			);
+			expect(payments.map((row) => row.transaction_id)).toEqual([
+				invoicePaymentId,
+			]);
+			// Charge refunds carry the intent key without repeating invoice metadata.
+			expect(
+				(
+					await postStripeEvent(
+						basket.baseUrl,
+						fixture.webhookHash,
+						fixture.secret,
+						refundedCharge(2, paymentIntentId)
+					)
+				).status
+			).toBe(200);
+			const [refund] = await runBuilder("revenue_overview", websiteId, {
+				startDate: "2026-08-03",
+				endDate: "2026-08-03",
+			});
+			expect(Number(refund?.refund_amount)).toBe(-5);
+			expect(
+				await runBuilder("revenue_overview", fixture.siteId, {
+					startDate: "2026-08-03",
+					endDate: "2026-08-03",
+				})
+			).toEqual([]);
+			const refundDetail = ProfilesBuilders.profile_revenue.customSql({
+				websiteId,
+				startDate: "2026-08-03",
+				endDate: "2026-08-03",
+				filters: [{ field: "anonymous_id", op: "eq", value: profileId }],
+			});
+			const refunds = await chQuery<{ type: string; amount: number }>(
+				refundDetail.sql,
+				refundDetail.params
+			);
+			expect(refunds).toEqual([
+				expect.objectContaining({ type: "refund", amount: -5 }),
+			]);
+		} finally {
+			try {
+				if (basket) {
+					await basket.stop();
+				}
+			} finally {
+				await chCommand(
+					"ALTER TABLE analytics.events DELETE WHERE client_id = {websiteId:String} SETTINGS mutations_sync = 1",
+					{ websiteId }
+				);
+				await db.delete(websites).where(eq(websites.id, websiteId));
+				await deleteFixture(fixture);
+			}
+		}
+	}, 120_000);
+
+	test("ingests, deduplicates, attributes, and rejects the pre-cutover duplicate result", async () => {
 		assertLocalDependencies();
 		const fixture = await createFixture();
 		const port = 4100 + Math.floor(Math.random() * 400);
@@ -1026,5 +1217,5 @@ describeStripeE2E("Stripe revenue end-to-end matrix", () => {
 				await deleteFixture(fixture);
 			}
 		}
-	});
+	}, 120_000);
 });

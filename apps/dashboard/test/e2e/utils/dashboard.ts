@@ -7,6 +7,7 @@ interface ScopedSession {
 const SAFE_SCOPE_CHARS_RE = /[^a-z0-9]/gi;
 const SHORT_LINK_LABEL_RE = /Short Link/;
 const CREATE_API_KEY_BUTTON_RE = /Create (your first )?key/i;
+const WEBSITE_PATH_RE = /\/websites\/[A-Za-z0-9_-]+/;
 const ORGANIZATION_TRIGGER_RE = /^Organization:/;
 export function scopeSuffix(session: ScopedSession): string {
 	return session.userId
@@ -92,6 +93,10 @@ export async function createWebsite(
 	await expect(submitButton).toBeEnabled();
 	await submitButton.click();
 	await expect(dialog).toBeHidden({ timeout: 15_000 });
+	// Creating a website opens its setup page; callers expect the list card.
+	await expect(page).toHaveURL(WEBSITE_PATH_RE, { timeout: 15_000 });
+	await page.goto("/websites");
+	await expectDashboardReady(page);
 	return websiteCard(page, input.name);
 }
 

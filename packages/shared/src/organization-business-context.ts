@@ -4,6 +4,7 @@ export const BUSINESS_CONTEXT_LIMIT = 12_000;
 export const BUSINESS_CONTEXT_GENERATION_TIMEOUT = 180_000;
 export const BUSINESS_CONTEXT_DRAFT_HISTORY_LIMIT = 5;
 export const BUSINESS_CONTEXT_TEAM_FIELD_LIMIT = 2000;
+export const BUSINESS_CONTEXT_PAGE_BUDGET = 12;
 const PUBLIC_HOST_SUFFIX = /\.[a-z]{2,}$/i;
 const WWW = /^www\./;
 
@@ -57,9 +58,107 @@ export const businessContextResearchSchema = z.object({
 				title: z.string().max(512).optional(),
 			})
 		)
-		.max(7),
+		.max(BUSINESS_CONTEXT_PAGE_BUDGET),
 	discoveryFailed: z.boolean().optional(),
 });
+
+export const DETECTED_ANALYTICS_TOOLS = [
+	"amplitude",
+	"clarity",
+	"fathom",
+	"google-analytics",
+	"hotjar",
+	"matomo",
+	"mixpanel",
+	"plausible",
+	"posthog",
+	"segment",
+	"simple-analytics",
+	"umami",
+	"vercel-analytics",
+] as const;
+export type DetectedAnalyticsTool = (typeof DETECTED_ANALYTICS_TOOLS)[number];
+
+export const ANALYTICS_TOOL_LABELS: Record<
+	DetectedAnalyticsTool,
+	{
+		importProvider?: "plausible" | "posthog" | "simple-analytics";
+		name: string;
+	}
+> = {
+	amplitude: { name: "Amplitude" },
+	clarity: { name: "Microsoft Clarity" },
+	fathom: { name: "Fathom" },
+	"google-analytics": { name: "Google Analytics" },
+	hotjar: { name: "Hotjar" },
+	matomo: { name: "Matomo" },
+	mixpanel: { name: "Mixpanel" },
+	plausible: { name: "Plausible", importProvider: "plausible" },
+	posthog: { name: "PostHog", importProvider: "posthog" },
+	segment: { name: "Segment" },
+	"simple-analytics": {
+		name: "Simple Analytics",
+		importProvider: "simple-analytics",
+	},
+	umami: { name: "Umami" },
+	"vercel-analytics": { name: "Vercel Analytics" },
+};
+
+const ANALYTICS_SCRIPT_HOSTS: [string, DetectedAnalyticsTool][] = [
+	["plausible.io", "plausible"],
+	["googletagmanager.com", "google-analytics"],
+	["google-analytics.com", "google-analytics"],
+	["posthog.com", "posthog"],
+	["umami.is", "umami"],
+	["usefathom.com", "fathom"],
+	["mixpanel.com", "mixpanel"],
+	["amplitude.com", "amplitude"],
+	["matomo.cloud", "matomo"],
+	["simpleanalyticscdn.com", "simple-analytics"],
+	["hotjar.com", "hotjar"],
+	["segment.com", "segment"],
+	["segment.io", "segment"],
+	["vercel-scripts.com", "vercel-analytics"],
+	["clarity.ms", "clarity"],
+];
+
+export function detectAnalyticsTools(hosts: string[]): DetectedAnalyticsTool[] {
+	const found = new Set<DetectedAnalyticsTool>();
+	for (const host of hosts) {
+		const name = host.toLowerCase();
+		for (const [suffix, tool] of ANALYTICS_SCRIPT_HOSTS) {
+			if (name === suffix || name.endsWith(`.${suffix}`)) {
+				found.add(tool);
+			}
+		}
+	}
+	return [...found];
+}
+
+export const businessSuggestedGoalSchema = z.object({
+	name: z.string().trim().min(1).max(100),
+	type: z.enum(["PAGE_VIEW", "EVENT"]),
+	target: z.string().trim().min(1).max(256),
+	reason: z.string().trim().max(200),
+});
+export const businessSuggestedFunnelSchema = z.object({
+	name: z.string().trim().min(1).max(100),
+	steps: z
+		.array(
+			z.object({
+				name: z.string().trim().min(1).max(100),
+				type: z.enum(["PAGE_VIEW", "EVENT"]),
+				target: z.string().trim().min(1).max(256),
+			})
+		)
+		.min(2)
+		.max(5),
+	reason: z.string().trim().max(200),
+});
+export type BusinessSuggestedGoal = z.infer<typeof businessSuggestedGoalSchema>;
+export type BusinessSuggestedFunnel = z.infer<
+	typeof businessSuggestedFunnelSchema
+>;
 
 export const businessContextFollowUpQuestionsSchema = z
 	.array(
@@ -122,7 +221,13 @@ export const businessBriefSchema = z.object({
 				fetchedAt: z.iso.datetime({ offset: true }).optional(),
 			})
 		)
-		.max(8),
+		.max(BUSINESS_CONTEXT_PAGE_BUDGET),
+	detectedTools: z
+		.array(z.enum(DETECTED_ANALYTICS_TOOLS))
+		.max(DETECTED_ANALYTICS_TOOLS.length)
+		.optional(),
+	suggestedGoals: z.array(businessSuggestedGoalSchema).max(4).optional(),
+	suggestedFunnels: z.array(businessSuggestedFunnelSchema).max(2).optional(),
 });
 
 export const organizationBusinessProfileSchema = businessBriefSchema.extend({

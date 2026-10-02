@@ -65,7 +65,12 @@ export type UtmProperties = Partial<Record<UtmParamKey, string>>;
 export type MarketingParamKey = (typeof MARKETING_PARAM_KEYS)[number];
 export type MarketingProperties = Partial<Record<MarketingParamKey, string>>;
 export type SignupMethod = (typeof SIGNUP_METHODS)[number];
-export type OnboardingStepId = "website" | "tracking" | "team" | "explore";
+export type OnboardingStepId = "website" | "tracking" | "finish";
+export type OnboardingIntent =
+	| "traffic"
+	| "conversions"
+	| "performance"
+	| "ai_visibility";
 
 type EmptyProperties = Record<never, never>;
 
@@ -112,6 +117,8 @@ export interface AppEventProperties {
 	[APP_EVENTS.onboardingStepCompleted]: {
 		step: OnboardingStepId;
 		verified?: boolean;
+		origin?: "ai" | "manual";
+		intent?: OnboardingIntent;
 	};
 	[APP_EVENTS.onboardingStepViewed]: {
 		step: OnboardingStepId;

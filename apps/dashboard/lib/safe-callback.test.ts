@@ -59,21 +59,18 @@ describe("safeCallbackPath", () => {
 });
 
 describe("newUserCallbackPath", () => {
-	it("keeps plan checkout and OAuth authorization callbacks", () => {
+	it("keeps plan checkout, invitation, and OAuth authorization callbacks", () => {
 		for (const callback of [
 			"/billing/plans?plan=pro",
+			"/invitations/invite-1",
 			"/api/auth/oauth2/authorize?client_id=https%3A%2F%2Fclaude.ai&prompt=consent",
 		]) {
 			expect(newUserCallbackPath(callback)).toBe(callback);
 		}
 	});
 
-	it("sends every other new sign-up to onboarding", () => {
-		for (const callback of [
-			"/websites",
-			"/websites/site-1",
-			"/api/auth/oauth2/token",
-		]) {
+	it("sends the landing defaults to onboarding", () => {
+		for (const callback of ["", "/", "/home", "/websites", "/websites/"]) {
 			expect(newUserCallbackPath(callback)).toBe("/onboarding");
 		}
 	});

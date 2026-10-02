@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/pulumi",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Manage Databuddy uptime monitors and status pages from Pulumi.",
   "license": "MIT",
   "type": "module",
@@ -28,7 +28,8 @@
   "scripts": {
     "build": "unbuild",
     "check-types": "tsc --noEmit",
-    "prepack": "bun run build"
+    "prepack": "bun run build",
+    "test": "bun test src/index.test.ts"
   },
   "publishConfig": {
     "access": "public"
@@ -51,6 +52,8 @@
     "@databuddy/rpc": "workspace:*",
     "@orpc/server": "^1.14.0",
     "@pulumi/pulumi": "^3.266.0",
+    "@types/bun": "catalog:",
+    "@types/node": "^26.0.0",
     "typescript": "catalog:",
     "unbuild": "^3.6.1"
   },

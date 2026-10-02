@@ -1,6 +1,7 @@
 import {
 	buildRevenueLatestCte,
 	canonicalStripePaymentCondition,
+	explicitRevenueWebsiteExpression,
 	linkedStripePaymentsCte,
 	paymentIntentIdExpression,
 	stripeContextAggregates,
@@ -9,7 +10,7 @@ import { STRIPE_FAILURE_WEBHOOK_EVENTS } from "@databuddy/shared/stripe-webhooks
 import { Analytics } from "../../types/tables";
 import { AI_VISIT_PARAMS, aiVisitProduct } from "./ai-agents";
 import { escapeLikePattern } from "../simple-builder";
-import type { CustomSqlFn, Filter, SimpleQueryConfig } from "../types";
+import type { CustomSqlContext, Filter, SimpleQueryConfig } from "../types";
 
 const STRIPE_FAILURE_EVENT_SQL = STRIPE_FAILURE_WEBHOOK_EVENTS.map(
 	({ event }) => `'${event}'`
@@ -193,13 +194,19 @@ function isOrgScope(filterParams?: Record<string, Filter["value"]>): boolean {
 	return filterParams?.__orgLevel === "true";
 }
 
-function attributedDimension(column: string, alias: string): string {
-	return `multiIf(
-		direct_match, ft_direct.${column},
-		profile_match, ft_profile.${column},
-		anonymous_match, ft_anonymous.${column},
-		customer_match, ft_customer.${column}, '') as ${alias}`;
-}
+const FIRST_TOUCH_DIMENSIONS = {
+	country: "country",
+	region: "region",
+	city: "city",
+	browser_name: "browser_name",
+	device_type: "device_type",
+	os_name: "os_name",
+	referrer_domain: "domain(referrer)",
+	utm_source: "utm_source",
+	utm_medium: "utm_medium",
+	utm_campaign: "utm_campaign",
+	entry_path: "path",
+};
 
 function firstTouchCte(
 	name: string,
@@ -208,17 +215,9 @@ function firstTouchCte(
 	return `${name} AS (
 		SELECT client_id, ${key}, min(time) as first_touch_time,
 			minMapIf(map(profile_id, time), profile_id != '') AS profile_first_touches,
-			argMin(ifNull(country, ''), time) as first_country,
-			argMin(ifNull(region, ''), time) as first_region,
-			argMin(ifNull(city, ''), time) as first_city,
-			argMin(ifNull(browser_name, ''), time) as first_browser,
-			argMin(ifNull(device_type, ''), time) as first_device,
-			argMin(ifNull(os_name, ''), time) as first_os,
-			argMin(domain(ifNull(referrer, '')), time) as first_referrer,
-			argMin(ifNull(utm_source, ''), time) as first_utm_source,
-			argMin(ifNull(utm_medium, ''), time) as first_utm_medium,
-			argMin(ifNull(utm_campaign, ''), time) as first_utm_campaign,
-			argMin(path, time) as first_path
+			argMin(tuple(${Object.values(FIRST_TOUCH_DIMENSIONS)
+				.map((column) => `ifNull(${column}, '')`)
+				.join(", ")}), tuple(time, id)) AS first_touch
 		FROM attribution_events WHERE ${key} != ''
 		GROUP BY client_id, ${key}
 	)`;
@@ -230,15 +229,13 @@ function trackedProfileCondition(
 	profile: string
 ): string {
 	const touches = `${alias}.profile_first_touches`;
-	const times = `arraySort(mapValues(${touches}))`;
 	const profileId = `ifNull(${profile}, '')`;
-	return `(length(${times}) < 2 OR ${times}[2] > ${created})
-		AND (${profileId} = '' OR empty(${times}) OR ${times}[1] > ${created}
-			OR (mapContains(${touches}, ${profileId}) AND ${touches}[${profileId}] <= ${created}))`;
+	return `arrayCount(at -> at <= ${created}, mapValues(${touches})) < 2
+		AND (${profileId} = '' OR arrayAll((id, at) -> at > ${created} OR id = ${profileId}, mapKeys(${touches}), mapValues(${touches})))`;
 }
 
 function fromContexts(column: string, alias: string, base: string): string {
-	return `coalesce(${base}, nullIf(payment_context.${column}, ''), nullIf(invoice_context.linked_${column}, '')) as ${alias}`;
+	return `coalesce(${base}, nullIf(invoice_context.linked_${column}, ''), nullIf(payment_context.${column}, '')) as ${alias}`;
 }
 
 function buildAttributionCte(
@@ -271,26 +268,16 @@ function buildAttributionCte(
 				SELECT DISTINCT owner_id
 				FROM ${Analytics.revenue}
 				WHERE ${directScope}
-					AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+					AND created <= toDateTime(concat({endDate:String}, ' 23:59:59')) + INTERVAL 1 DAY
 					AND provider = 'stripe'
 					AND owner_id != ''
 				),
 			${buildRevenueLatestCte({
-				candidateWhere: `created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
+				candidateWhere: `created >= toDateTime({startDate:String})
 						AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))`,
 				name: "revenue_latest_range",
 				scope: relatedStripeScope,
 			})},
-		scoped_stripe_payment_intents AS (
-			SELECT DISTINCT
-				owner_id,
-				${paymentIntentId} AS payment_intent_id
-			FROM ${Analytics.revenue} FINAL
-			WHERE ${directScope}
-				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				AND provider = 'stripe'
-				AND ${paymentIntentId} != ''
-		),
 		${linkedStripePaymentsCte(relatedStripeScope)},
 		stripe_payment_context AS (
 			SELECT
@@ -299,34 +286,24 @@ function buildAttributionCte(
 				${stripeContextAggregates()}
 			FROM ${Analytics.revenue} FINAL
 			WHERE provider = 'stripe'
-				-- refunds share the payment intent and carry product_name 'Refund',
-				-- which would relabel the original payment in the product breakdown
 				AND type != 'refund'
 				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				AND (owner_id, ${paymentIntentId}) IN (
-					SELECT owner_id, payment_intent_id FROM scoped_stripe_payment_intents
-					UNION DISTINCT
-					SELECT owner_id, payment_intent_id FROM linked_payment_intents
-				)
+				AND owner_id IN (SELECT owner_id FROM scoped_stripe_owners)
 				AND ${paymentIntentId} != ''
 			GROUP BY owner_id, payment_intent_id
 		),
-		-- Aliases are prefixed linked_ because directScope references the raw
-		-- website_id column; aliasing an aggregate to that name makes ClickHouse
-		-- reject the CTE with ILLEGAL_AGGREGATION.
 		stripe_invoice_context AS (
 			SELECT
 				owner_id,
 				JSONExtractString(metadata, 'stripe_invoice_id') AS invoice_id,
 				${stripeContextAggregates("linked_")}
 			FROM ${Analytics.revenue} FINAL
-			WHERE ${directScope}
-				AND provider = 'stripe'
-				AND created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
-				-- invoice.paid and invoice_payment.paid are separate events seconds
-				-- apart, so the link row can land just past the report cutoff
+			WHERE provider = 'stripe'
+				AND owner_id IN (SELECT owner_id FROM scoped_stripe_owners)
+				-- Invoice link delivery can cross UTC midnight.
 				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59')) + INTERVAL 1 DAY
-				AND JSONExtractString(metadata, 'stripe_record_kind') = 'link'
+				AND JSONExtractString(metadata, 'stripe_record_kind') IN ('link', 'money')
+				AND type != 'refund'
 				AND JSONExtractString(metadata, 'stripe_invoice_id') != ''
 			GROUP BY owner_id, invoice_id
 		),
@@ -365,8 +342,6 @@ function buildAttributionCte(
 				AND provider = 'stripe'
 				AND type = 'subscription_event'
 				AND JSONExtractString(metadata, 'stripe_record_kind') = 'attempt'
-				AND created >= toDateTime({startDate:String})
-				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 		),
 		stripe_payment_attempts AS (
 			SELECT
@@ -414,7 +389,9 @@ function buildAttributionCte(
 			SELECT
 				r.transaction_id,
 				r.owner_id as revenue_owner_id,
-				coalesce(r.website_id, nullIf(payment_context.website_id, ''), nullIf(invoice_context.linked_website_id, ''), ${legacyWebsite.replaceAll("owner_id", "r.owner_id")}) as r_website_id,
+				if(r.type = 'refund' AND JSONExtractString(r.metadata, 'stripe_invoice_id') = ''
+					AND payment_context.payment_invoice_count > 1 AND ${explicitRevenueWebsiteExpression("r")} IS NULL,
+					'', coalesce(${explicitRevenueWebsiteExpression("r")}, nullIf(invoice_context.linked_explicit_website_id, ''), nullIf(payment_context.explicit_website_id, ''), r.website_id, nullIf(payment_context.website_id, ''), nullIf(invoice_context.linked_website_id, ''), ${legacyWebsite.replaceAll("owner_id", "r.owner_id")})) as r_website_id,
 				r.amount AS amount,
 				r.type AS type,
 				${fromContexts("profile_id", "r_profile_id", "nullIf(r.profile_id, '')")},
@@ -429,34 +406,33 @@ function buildAttributionCte(
 				r.created
 			FROM revenue_latest_range r
 			LEFT JOIN stripe_payment_context payment_context
-				ON payment_context.owner_id = r.owner_id
+				ON r.provider = 'stripe' AND payment_context.owner_id = r.owner_id
 				AND payment_context.payment_intent_id = ${paymentIntentIdExpression("r")}
 			LEFT JOIN stripe_invoice_context invoice_context
-				ON invoice_context.owner_id = r.owner_id
-				AND invoice_context.invoice_id = JSONExtractString(r.metadata, 'stripe_invoice_id')
+				ON r.provider = 'stripe' AND invoice_context.owner_id = r.owner_id
+				AND invoice_context.invoice_id = coalesce(nullIf(JSONExtractString(r.metadata, 'stripe_invoice_id'), ''), nullIf(payment_context.payment_invoice_id, ''))
 			WHERE
 				${attributedWebsiteScope}
-				AND r.created >= toDateTime({startDate:String})
-				AND r.created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 				AND r.type != 'subscription_event'
 				AND (
 					(r.type = 'refund' AND r.status = 'refunded')
 					OR (r.type != 'refund' AND r.status = 'completed')
 				)
-				-- a pi_ row and its inpay_ row are the same payment; the invoice
-				-- payment is canonical, so drop the duplicate rather than double count
 				AND ${canonicalStripePaymentCondition("r")}
 		),
 		customer_session_candidates AS (
 			SELECT
-				owner_id, provider, customer_id, session_id, profile_id, created,
-				coalesce(nullIf(website_id, ''), ${legacyWebsite}) as client_id
-			FROM ${Analytics.revenue} FINAL
-			WHERE ${directScope}
-				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				AND customer_id != ''
-				AND session_id IS NOT NULL AND session_id != ''
-				AND (owner_id, provider, customer_id) IN (
+				c.owner_id, c.provider, c.customer_id, c.session_id, c.profile_id, c.created,
+				coalesce(${explicitRevenueWebsiteExpression("c")}, nullIf(payment_context.explicit_website_id, ''), nullIf(c.website_id, ''), nullIf(payment_context.website_id, ''), ${legacyWebsite.replaceAll("owner_id", "c.owner_id")}) as client_id
+			FROM (SELECT * FROM ${Analytics.revenue} FINAL WHERE ${relatedStripeScope}) c
+			LEFT JOIN stripe_payment_context payment_context
+				ON c.provider = 'stripe' AND payment_context.owner_id = c.owner_id
+				AND payment_context.payment_intent_id = ${paymentIntentIdExpression("c")}
+			WHERE ${eventScope}
+				AND c.created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+				AND c.customer_id != ''
+				AND c.session_id != ''
+				AND (c.owner_id, c.provider, c.customer_id) IN (
 					SELECT revenue_owner_id, provider, r_customer_id FROM revenue_base
 				)
 		),
@@ -506,21 +482,23 @@ function buildAttributionCte(
 				(ifNull(ft_anonymous.anonymous_id, '') != '' AND ${trackedProfileCondition("ft_anonymous", "rb.created", "rb.r_profile_id")}) AS anonymous_match,
 				(ifNull(ft_customer.session_id, '') != '' AND ${trackedProfileCondition("ft_customer", "rb.created", "rb.r_profile_id")}) AS customer_match,
 				if(direct_match OR profile_match OR anonymous_match OR customer_match, 1, 0) AS is_attributed,
-				${attributedDimension("first_country", "country")},
-				${attributedDimension("first_region", "region")},
-				${attributedDimension("first_city", "city")},
-				${attributedDimension("first_browser", "browser_name")},
-				${attributedDimension("first_device", "device_type")},
-				${attributedDimension("first_os", "os_name")},
-				${attributedDimension("first_referrer", "referrer_domain")},
-				${attributedDimension("first_utm_source", "utm_source")},
-				${attributedDimension("first_utm_medium", "utm_medium")},
-				${attributedDimension("first_utm_campaign", "utm_campaign")},
-				${attributedDimension("first_path", "entry_path")}
+				CAST(multiIf(
+					direct_match, ft_direct.first_touch,
+					profile_match, ft_profile.first_touch,
+					anonymous_match, ft_anonymous.first_touch,
+					customer_match, ft_customer.first_touch,
+					tuple(${Object.keys(FIRST_TOUCH_DIMENSIONS)
+						.map(() => "''")
+						.join(", ")})
+				), 'Tuple(${Object.keys(FIRST_TOUCH_DIMENSIONS)
+					.map((column) => `${column} String`)
+					.join(", ")})') AS attribution,
+				${Object.keys(FIRST_TOUCH_DIMENSIONS)
+					.map((column) => `attribution.${column} AS ${column}`)
+					.join(",\n\t\t\t\t")}
 			FROM revenue_base rb
 			LEFT JOIN first_touch_by_session ft_direct
 				ON rb.r_website_id = ft_direct.client_id AND rb.r_session_id = ft_direct.session_id
-				AND rb.r_session_id IS NOT NULL
 				AND rb.r_session_id != ''
 				AND ft_direct.first_touch_time <= rb.created
 			LEFT JOIN first_touch_by_profile ft_profile
@@ -532,12 +510,10 @@ function buildAttributionCte(
 			LEFT JOIN customer_session_map csm
 				ON rb.revenue_owner_id = csm.owner_id AND rb.r_website_id = csm.client_id AND rb.provider = csm.provider
 				AND rb.r_customer_id = csm.customer_id
-				AND rb.r_customer_id IS NOT NULL
 				AND rb.r_customer_id != ''
 				AND csm.mapped_session_created <= rb.created
 			LEFT JOIN first_touch_by_session ft_customer
 				ON csm.client_id = ft_customer.client_id AND csm.mapped_session_id = ft_customer.session_id
-				AND csm.mapped_session_id IS NOT NULL
 				AND csm.mapped_session_id != ''
 				AND ft_customer.first_touch_time <= rb.created
 		)
@@ -582,11 +558,12 @@ function buildRevenueQuery(
 
 	const filteredSource = `revenue_attributed${whereClause}`;
 	const baseCte = buildAttributionCte(customSqlParams);
-	const withClause = config.innerCte
-		? `WITH ${baseCte},\n\t\t${config.innerCte.name} AS (${config.innerCte.body(filteredSource)})`
-		: `WITH ${baseCte}`;
-	const defaultSource = config.innerCte ? config.innerCte.name : filteredSource;
 	const paymentMetricsInScope = stripePaymentMetricsInScope(filters);
+	const scope = `toUInt8(${paymentMetricsInScope ? 1 : 0}) AS payment_metrics_in_scope`;
+	const withClause = config.innerCte
+		? `WITH ${scope}, ${baseCte},\n\t\t${config.innerCte.name} AS (${config.innerCte.body(filteredSource)})`
+		: `WITH ${scope}, ${baseCte}`;
+	const defaultSource = config.innerCte ? config.innerCte.name : filteredSource;
 	const fromExpr =
 		config.from?.(defaultSource, {
 			paymentMetricsInScope,
@@ -607,6 +584,9 @@ function buildRevenueQuery(
 		parts.push("LIMIT {limit:UInt32}");
 	}
 
+	// ClickHouse 25.5 can corrupt shared JOIN expressions when query steps merge.
+	parts.push("SETTINGS query_plan_merge_expressions = 0");
+
 	return {
 		sql: parts.join("\n"),
 		params: {
@@ -623,17 +603,17 @@ function buildRevenueQuery(
 function makeRevenueBuilder(
 	configFn: (limit: number | undefined) => RevenueQueryConfig,
 	defaultLimit?: number
-): CustomSqlFn {
-	return ({ websiteId, startDate, endDate, filters, limit, filterParams }) =>
+) {
+	return (ctx: CustomSqlContext) =>
 		buildRevenueQuery(
 			configFn(
-				defaultLimit === undefined ? undefined : (limit ?? defaultLimit)
+				defaultLimit === undefined ? undefined : (ctx.limit ?? defaultLimit)
 			),
-			websiteId,
-			startDate,
-			endDate,
-			filters,
-			filterParams
+			ctx.websiteId,
+			ctx.startDate,
+			ctx.endDate,
+			ctx.filters,
+			ctx.filterParams
 		);
 }
 
@@ -823,81 +803,56 @@ export const RevenueBuilders = {
 					GROUP BY currency
 				`,
 			},
-			from: (source, { paymentMetricsInScope, stripePaymentWhereClause }) => `(
-				SELECT
-					if(summary.currency = '', attempts.currency, summary.currency) AS currency,
-					summary.total_revenue,
-					summary.total_transactions,
-					summary.refund_amount,
-					summary.refund_count,
-					summary.subscription_revenue,
-					summary.subscription_count,
-					summary.sale_revenue,
-					summary.sale_count,
-					summary.unique_customers,
-					summary.attributed_transactions,
-					summary.attributed_revenue,
-					summary.successful_payment_attempts,
-					summary.successful_payment_keys,
-					attempts.attempt_key,
-					attempts.event_type AS attempt_event_type,
-					attempts.failure_reason AS attempt_failure_reason,
-					attempts.cancellation_reason AS attempt_cancellation_reason,
-					attempts.status AS attempt_status,
-					attempts.amount AS attempt_amount,
-					toUInt8(${paymentMetricsInScope ? 1 : 0}) AS payment_metrics_in_scope,
-					attempts.observed_failure_event_types,
-					has(summary.successful_payment_keys, attempts.attempt_key) AS attempt_recovered
-				FROM ${source} summary
+			from: (source, { stripePaymentWhereClause }) => `
+				${source} summary
 				FULL OUTER JOIN (
 					SELECT * FROM stripe_payment_attempts${stripePaymentWhereClause}
-				) attempts USING (currency)
-			)`,
+				) attempts USING (currency)`,
 			select: `SELECT
 				currency,
-				any(total_revenue) as total_revenue,
-				any(total_transactions) as total_transactions,
-				any(refund_amount) as refund_amount,
-				any(refund_count) as refund_count,
-				any(subscription_revenue) as subscription_revenue,
-				any(subscription_count) as subscription_count,
-				any(sale_revenue) as sale_revenue,
-				any(sale_count) as sale_count,
-				any(unique_customers) as unique_customers,
-				any(attributed_transactions) as attributed_transactions,
-				any(attributed_revenue) as attributed_revenue,
+				any(summary.total_revenue) as total_revenue,
+				any(summary.total_transactions) as total_transactions,
+				any(summary.refund_amount) as refund_amount,
+				any(summary.refund_count) as refund_count,
+				any(summary.subscription_revenue) as subscription_revenue,
+				any(summary.subscription_count) as subscription_count,
+				any(summary.sale_revenue) as sale_revenue,
+				any(summary.sale_count) as sale_count,
+				any(summary.unique_customers) as unique_customers,
+				any(summary.attributed_transactions) as attributed_transactions,
+				any(summary.attributed_revenue) as attributed_revenue,
 				any(payment_metrics_in_scope) as payment_diagnostics_available,
 				if(
 					any(payment_metrics_in_scope) = 1,
-					countIf(attempt_status = 'failed'),
+					countIf(attempts.status = 'failed'),
 					NULL
 				) as failed_payment_attempts,
 				if(
 					any(payment_metrics_in_scope) = 1,
-					countIf(attempt_status = 'canceled'),
+					countIf(attempts.status = 'canceled'),
 					NULL
 				) as canceled_payment_attempts,
 				if(
 					any(payment_metrics_in_scope) = 1,
-					sumIf(attempt_amount, attempt_status = 'failed'),
+					sumIf(attempts.amount, attempts.status = 'failed'),
 					NULL
 				) as failed_payment_amount,
 				if(
 					any(payment_metrics_in_scope) = 1,
 					uniqExactIf(
-						attempt_key,
-						attempt_status = 'failed' AND attempt_recovered
+						attempts.attempt_key,
+						attempts.status = 'failed' AND has(summary.successful_payment_keys, attempts.attempt_key)
 					),
 					NULL
 				) as recovered_payment_attempts,
 				if(
 					any(payment_metrics_in_scope) = 1,
-					any(successful_payment_attempts),
+					any(summary.successful_payment_attempts),
 					NULL
 				) as successful_payment_attempts,
 				if(
 					any(payment_metrics_in_scope) = 1,
-					ifNull(any(observed_failure_event_types), 0),
+					ifNull(any(attempts.observed_failure_event_types), 0),
 					NULL
 				) as observed_failure_event_types,
 				if(
@@ -909,8 +864,8 @@ export const RevenueBuilders = {
 					any(payment_metrics_in_scope) = 1,
 					arrayElement(
 						topKIf(1)(
-							attempt_failure_reason,
-							attempt_status = 'failed' AND attempt_failure_reason != ''
+							attempts.failure_reason,
+							attempts.status = 'failed' AND attempts.failure_reason != ''
 						),
 						1
 					),
@@ -920,8 +875,8 @@ export const RevenueBuilders = {
 					any(payment_metrics_in_scope) = 1,
 					arrayElement(
 						topKIf(1)(
-							attempt_cancellation_reason,
-							attempt_status = 'canceled' AND attempt_cancellation_reason != ''
+							attempts.cancellation_reason,
+							attempts.status = 'canceled' AND attempts.cancellation_reason != ''
 						),
 						1
 					),

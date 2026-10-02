@@ -1,6 +1,16 @@
 const CALLBACK_ORIGIN = "https://callback.databuddy.invalid";
 export const OAUTH_AUTHORIZE_PATH_PREFIX = "/api/auth/oauth2/authorize?";
 
+const LANDING_PATHS = new Set(["", "/", "/home", "/websites"]);
+const TRAILING_SLASHES = /\/+$/;
+
+/** New accounts start in onboarding unless they were sent somewhere specific, like an invitation or a plan. */
+export function newUserCallbackPath(callback: string): string {
+	return LANDING_PATHS.has(callback.replace(TRAILING_SLASHES, ""))
+		? "/onboarding"
+		: callback;
+}
+
 export function safeCallbackPath(
 	callback: string | null | undefined,
 	fallback = "/websites"
@@ -10,13 +20,6 @@ export function safeCallbackPath(
 	}
 
 	return callback;
-}
-
-export function newUserCallbackPath(callback: string): string {
-	return callback.startsWith("/billing/plans") ||
-		callback.startsWith(OAUTH_AUTHORIZE_PATH_PREFIX)
-		? callback
-		: "/onboarding";
 }
 
 function isSafePath(value: string): boolean {

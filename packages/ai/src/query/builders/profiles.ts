@@ -1,11 +1,10 @@
 import {
-	CUSTOM_EVENTS_VISITOR_KEY,
 	buildRevenueLatestCte,
 	canonicalStripePaymentCondition,
+	explicitRevenueWebsiteExpression,
 	linkedStripePaymentsCte,
 	paymentIntentIdExpression,
 	stripeContextAggregates,
-	visitorMatch,
 } from "@databuddy/db/clickhouse";
 import { Analytics } from "../../types/tables";
 import { isFilterFieldAllowed } from "../simple-builder";
@@ -41,8 +40,6 @@ const PROFILE_AGGREGATE_FILTER_OPERATORS = new Set<Filter["op"]>([
 	"not_in",
 ]);
 
-const VISITOR_MATCH = visitorMatch();
-
 const PROFILE_IDENTITY_CTES = `
       visitor_identity_rows AS (
         SELECT
@@ -74,7 +71,9 @@ const PROFILE_IDENTITY_CTES = `
       visitor_profiles_by_anonymous AS (
         SELECT
           anonymous_id,
-          argMin(profile_id, identity_time) AS initial_profile_id
+          argMin(profile_id, identity_time) AS initial_profile_id,
+          min(identity_time) AS first_identity_time,
+          uniqExact(profile_id) AS profile_count
         FROM visitor_identity_rows
         WHERE anonymous_id != ''
         GROUP BY anonymous_id
@@ -82,7 +81,8 @@ const PROFILE_IDENTITY_CTES = `
       visitor_identity_by_session AS (
         SELECT
           session_id,
-          argMin(profile_id, identity_time) AS initial_profile_id
+          argMin(profile_id, identity_time) AS initial_profile_id,
+          min(identity_time) AS first_identity_time
         FROM visitor_identity_rows
         WHERE session_id != ''
         GROUP BY session_id
@@ -187,10 +187,6 @@ const canonicalVisitorExpression = (source: string): string => `coalesce(
         nullIf(${source}.anonymous_id, ''),
         ''
       )`;
-
-// Explicit profile ids always win. A known anonymous id wins over a session id,
-// because session ids can be reused by multiple visitors. Session identity is
-// only a fallback for rows that have no anonymous id at all.
 
 const SUBQUERY_FILTER_FIELDS = new Set(["event_name"]);
 const PROFILE_LIST_ALLOWED_FILTERS = [
@@ -540,80 +536,38 @@ function profileActivityCte(
       )`;
 }
 
-const ATTRIBUTED_REVENUE_VISITOR_KEY =
-	"coalesce(nullIf(attributed_profile_id, ''), nullIf(attributed_anonymous_id, ''), nullIf(session_identity.initial_profile_id, ''), '')";
-
 const PROFILE_INVOICE_ID = "JSONExtractString(metadata, 'stripe_invoice_id')";
 
-function stripeProfileContextCtes(visitorPredicate: string): string {
+function stripeProfileRevenueScope(): string {
+	return `(owner_id = {websiteId:String} OR website_id = {websiteId:String}
+		OR (provider = 'stripe' AND owner_id IN (SELECT owner_id FROM profile_stripe_owners)))`;
+}
+
+function stripeProfileContextCtes(): string {
 	const paymentIntentId = paymentIntentIdExpression();
 	return `
-    profile_payment_intents AS (
-      SELECT DISTINCT
-        owner_id,
-        ${paymentIntentId} AS payment_intent_id
-      FROM ${Analytics.revenue} FINAL
-      WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
-        AND provider = 'stripe'
-        AND ${visitorPredicate}
-		AND ${paymentIntentId} != ''
+    profile_stripe_owners AS (
+      SELECT DISTINCT owner_id FROM ${Analytics.revenue} FINAL
+      WHERE provider = 'stripe' AND (owner_id = {websiteId:String} OR website_id = {websiteId:String})
     ),
     profile_payment_context AS (
-      SELECT
-        owner_id,
-		${paymentIntentId} AS payment_intent_id,
+      SELECT owner_id, ${paymentIntentId} AS payment_intent_id,
         ${stripeContextAggregates("linked_")}
       FROM ${Analytics.revenue} FINAL
-      WHERE provider = 'stripe'
-		AND type != 'refund'
-		AND (owner_id, ${paymentIntentId}) IN (
-          SELECT owner_id, payment_intent_id FROM profile_payment_intents
-        )
+      WHERE provider = 'stripe' AND type != 'refund'
+        AND owner_id IN (SELECT owner_id FROM profile_stripe_owners)
+        AND ${paymentIntentId} != ''
       GROUP BY owner_id, payment_intent_id
     ),
-    profile_invoice_ids AS (
-      SELECT DISTINCT
-        owner_id,
-        ${PROFILE_INVOICE_ID} AS invoice_id
-      FROM ${Analytics.revenue} FINAL
-      WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
-        AND provider = 'stripe'
-        AND ${visitorPredicate}
-        AND ${PROFILE_INVOICE_ID} != ''
-    ),
     profile_invoice_context AS (
-      SELECT
-        owner_id,
-        ${PROFILE_INVOICE_ID} AS invoice_id,
+      SELECT owner_id, ${PROFILE_INVOICE_ID} AS invoice_id,
         ${stripeContextAggregates("linked_")}
       FROM ${Analytics.revenue} FINAL
-      WHERE provider = 'stripe'
-		AND type != 'refund'
-        AND (owner_id, ${PROFILE_INVOICE_ID}) IN (
-          SELECT owner_id, invoice_id FROM profile_invoice_ids
-        )
+      WHERE provider = 'stripe' AND type != 'refund'
+        AND owner_id IN (SELECT owner_id FROM profile_stripe_owners)
         AND ${PROFILE_INVOICE_ID} != ''
       GROUP BY owner_id, invoice_id
     )`;
-}
-
-function stripeProfileRevenueScope(): string {
-	const paymentIntentId = paymentIntentIdExpression();
-	return `(
-		(owner_id = {websiteId:String} OR website_id = {websiteId:String})
-		OR (
-			provider = 'stripe'
-			AND (owner_id, ${paymentIntentId}) IN (
-				SELECT owner_id, payment_intent_id FROM profile_payment_intents
-			)
-		)
-		OR (
-			provider = 'stripe'
-			AND (owner_id, ${PROFILE_INVOICE_ID}) IN (
-				SELECT owner_id, invoice_id FROM profile_invoice_ids
-			)
-		)
-	)`;
 }
 
 function attributedProfileRevenueCte(latestCte: string): string {
@@ -622,17 +576,31 @@ function attributedProfileRevenueCte(latestCte: string): string {
     profile_revenue_attributed AS (
       SELECT
         r.*,
-        coalesce(nullIf(r.profile_id, ''), nullIf(context.linked_profile_id, ''), nullIf(invoice_context.linked_profile_id, ''), '') AS attributed_profile_id,
-        coalesce(r.anonymous_id, nullIf(context.linked_anonymous_id, ''), nullIf(invoice_context.linked_anonymous_id, '')) AS attributed_anonymous_id,
-        coalesce(r.session_id, nullIf(context.linked_session_id, ''), nullIf(invoice_context.linked_session_id, '')) AS attributed_session_id
+        coalesce(nullIf(r.profile_id, ''), nullIf(invoice_context.linked_profile_id, ''), nullIf(context.linked_profile_id, ''), '') AS attributed_profile_id,
+        coalesce(r.anonymous_id, nullIf(invoice_context.linked_anonymous_id, ''), nullIf(context.linked_anonymous_id, '')) AS attributed_anonymous_id,
+        coalesce(r.session_id, nullIf(invoice_context.linked_session_id, ''), nullIf(context.linked_session_id, '')) AS attributed_session_id,
+        coalesce(nullIf(attributed_profile_id, ''), nullIf(session_identity.initial_profile_id, ''),
+          nullIf(anonymous_identity.initial_profile_id, ''), nullIf(attributed_anonymous_id, ''), '') AS attributed_visitor_id
       FROM ${latestCte} r
       LEFT JOIN profile_payment_context context
-        ON context.owner_id = r.owner_id
+        ON r.provider = 'stripe' AND context.owner_id = r.owner_id
 		AND context.payment_intent_id = ${paymentIntentIdExpression("r")}
       LEFT JOIN profile_invoice_context invoice_context
-        ON invoice_context.owner_id = r.owner_id
-        AND invoice_context.invoice_id = JSONExtractString(r.metadata, 'stripe_invoice_id')
+        ON r.provider = 'stripe' AND invoice_context.owner_id = r.owner_id
+        AND invoice_context.invoice_id = coalesce(nullIf(JSONExtractString(r.metadata, 'stripe_invoice_id'), ''), nullIf(context.linked_payment_invoice_id, ''))
+	  LEFT JOIN visitor_profiles_by_anonymous anonymous_identity
+	    ON attributed_anonymous_id = anonymous_identity.anonymous_id AND anonymous_identity.profile_count = 1
+	    AND anonymous_identity.first_identity_time <= r.created
+	  LEFT JOIN visitor_identity_by_session session_identity
+	    ON attributed_session_id = session_identity.session_id
+	    AND session_identity.first_identity_time <= r.created
       WHERE ${canonicalStripePaymentCondition("r", "profile_linked_payments")}
+        AND NOT (r.type = 'refund' AND JSONExtractString(r.metadata, 'stripe_invoice_id') = ''
+          AND context.linked_payment_invoice_count > 1 AND ${explicitRevenueWebsiteExpression("r")} IS NULL)
+        AND coalesce(${explicitRevenueWebsiteExpression("r")},
+          nullIf(invoice_context.linked_explicit_website_id, ''), nullIf(context.linked_explicit_website_id, ''),
+          r.website_id, nullIf(context.linked_website_id, ''), nullIf(invoice_context.linked_website_id, ''),
+          if(r.owner_id = {websiteId:String}, r.owner_id, '')) = {websiteId:String}
     )`;
 }
 
@@ -676,13 +644,6 @@ function profileListQueries(ctx: CustomSqlContext) {
 	const selectedVisitors = ctx.preparedKeys?.pageVisitorIds
 		? "IN {pageVisitorIds:Array(String)}"
 		: "IN (SELECT visitor_id FROM visitor_profiles)";
-	const profileRevenueKeyPredicate = `(
-		${CUSTOM_EVENTS_VISITOR_KEY} ${selectedVisitors}
-		OR session_id IN (
-			SELECT session_id FROM visitor_identity_by_session
-			WHERE initial_profile_id ${selectedVisitors}
-		)
-	)`;
 
 	const head = `
     WITH ${PROFILE_IDENTITY_CTES},
@@ -791,29 +752,21 @@ function profileListQueries(ctx: CustomSqlContext) {
         AND visitor_id ${selectedVisitors}
       GROUP BY visitor_id
     ),
-		${stripeProfileContextCtes(profileRevenueKeyPredicate)},
+		${stripeProfileContextCtes()},
 		${buildRevenueLatestCte({
-			candidateWhere: `(
-				${profileRevenueKeyPredicate}
-				OR (owner_id, ${paymentIntentIdExpression()}) IN (
-					SELECT owner_id, payment_intent_id FROM profile_payment_intents
-				)
-				OR (owner_id, ${PROFILE_INVOICE_ID}) IN (
-					SELECT owner_id, invoice_id FROM profile_invoice_ids
-				)
-			)`,
 			name: "profile_revenue_latest",
 			scope: stripeProfileRevenueScope(),
 		})},
 		${attributedProfileRevenueCte("profile_revenue_latest")},
     visitor_revenue AS (
       SELECT
-		${ATTRIBUTED_REVENUE_VISITOR_KEY} as visitor_id,
-		toFloat64(sumIf(amount, status IN ('completed', 'refunded') AND type != 'subscription_event')) as ltv
+		attributed_visitor_id as visitor_id,
+		toFloat64(sum(amount)) as ltv,
+		uniqExact(currency) as currency_count,
+		any(currency) as ltv_currency
 			FROM profile_revenue_attributed
-			LEFT JOIN visitor_identity_by_session session_identity
-				ON attributed_session_id = session_identity.session_id
-			WHERE ${ATTRIBUTED_REVENUE_VISITOR_KEY} ${selectedVisitors}
+			WHERE attributed_visitor_id ${selectedVisitors}
+			  AND status IN ('completed', 'refunded') AND type != 'subscription_event'
 	      GROUP BY visitor_id
     )
     SELECT
@@ -833,7 +786,8 @@ function profileListQueries(ctx: CustomSqlContext) {
       vp.referrer AS referrer,
       COALESCE(vce.custom_event_count, 0) as custom_event_count,
       COALESCE(vce.unique_event_names, 0) as unique_event_names,
-      COALESCE(vr.ltv, 0) as ltv
+      if(vr.currency_count > 1, NULL, ifNull(vr.ltv, 0)) as ltv,
+      if(vr.currency_count = 1, ifNull(vr.ltv_currency, ''), '') as ltv_currency
     FROM visitor_profiles vp
     LEFT JOIN visitor_custom_events vce ON vp.visitor_id = vce.visitor_id
     LEFT JOIN visitor_revenue vr ON vp.visitor_id = vr.visitor_id
@@ -958,24 +912,9 @@ export const ProfilesBuilders = {
 
 			return {
 				sql: `
-    WITH visitor_ids AS (
-      SELECT DISTINCT anonymous_id
-      FROM ${Analytics.events}
-      WHERE
-        client_id = {websiteId:String}
-        AND ${VISITOR_MATCH}
-        AND time >= toDateTime({startDate:String})
-        AND time <= toDateTime({endDate:String})
-
-      UNION DISTINCT
-
-      SELECT {visitorId:String} as anonymous_id
-    ),
-    ${PROFILE_TARGET_IDENTITY_CTES},
+    WITH ${PROFILE_IDENTITY_CTES},
     visitor_sessions AS (
-      SELECT session_id FROM target_session_ids
-      UNION DISTINCT
-      SELECT session_id FROM ${Analytics.events}
+      SELECT session_id, min(time) AS first_identity_time FROM ${Analytics.events}
       WHERE client_id = {websiteId:String}
         AND session_id != ''
         AND time >= toDateTime({startDate:String})
@@ -985,11 +924,7 @@ export const ProfilesBuilders = {
         AND uniqExactIf(anonymous_id, anonymous_id != '') = 1
         AND anyIf(anonymous_id, anonymous_id != '') = {visitorId:String}
 	),
-	${stripeProfileContextCtes(`(
-		${VISITOR_MATCH}
-		OR anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
-		OR session_id IN (SELECT session_id FROM visitor_sessions)
-	)`)},
+	${stripeProfileContextCtes()},
 	${buildRevenueLatestCte({
 		candidateWhere: `created >= toDateTime({startDate:String})
 			AND created <= toDateTime({endDate:String})`,
@@ -1006,16 +941,14 @@ export const ProfilesBuilders = {
       currency,
       ifNull(product_name, '') as product_name,
       created
-	FROM profile_revenue_attributed
+	FROM profile_revenue_attributed r
+	LEFT JOIN visitor_sessions vs ON attributed_session_id = vs.session_id
+	  AND vs.first_identity_time <= r.created
 	WHERE type != 'subscription_event'
-      AND created >= toDateTime({startDate:String})
-      AND created <= toDateTime({endDate:String})
       AND (
-		attributed_profile_id = {visitorId:String}
-		OR (attributed_profile_id = ''
-			AND attributed_anonymous_id IN (SELECT anonymous_id FROM visitor_ids))
-		OR (attributed_profile_id = '' AND ifNull(attributed_anonymous_id, '') = ''
-			AND attributed_session_id IN (SELECT session_id FROM visitor_sessions))
+		attributed_visitor_id = {visitorId:String}
+		OR (attributed_visitor_id = ''
+			AND ifNull(vs.session_id, '') != '')
       )
     ORDER BY created DESC
     LIMIT {limit:Int32} OFFSET {offset:Int32}

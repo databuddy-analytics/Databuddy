@@ -1601,9 +1601,12 @@ function AgentSetupSheet({
 	websiteId: string;
 }) {
 	const [tab, setTab] = useState<string>(SETUP_STACKS[0].id);
+	const [vercelMethod, setVercelMethod] = useState<"drain" | "middleware">(
+		"drain"
+	);
 	const check = useMutation(orpc.websites.checkAgentSetup.mutationOptions());
 	const isSetupWorking = check.data?.homepage && check.data.llmsTxt;
-	const isDrainTab = tab === "vercel-drain";
+	const isDrain = tab === "vercel" && vercelMethod === "drain";
 
 	return (
 		<Sheet onOpenChange={onOpenChange} open={isOpen}>
@@ -1624,7 +1627,6 @@ function AgentSetupSheet({
 									{stack.label}
 								</Tabs.Tab>
 							))}
-							<Tabs.Tab value="vercel-drain">Vercel drain</Tabs.Tab>
 						</Tabs.List>
 						{SETUP_STACKS.map((stack) => (
 							<Tabs.Panel
@@ -1632,56 +1634,73 @@ function AgentSetupSheet({
 								key={stack.id}
 								value={stack.id}
 							>
-								<SetupStep step={1} title="Install the SDK">
-									<SetupCode
-										code="bun add @databuddy/sdk@latest"
-										language="bash"
+								{stack.id === "vercel" ? (
+									<SegmentedControl
+										onChange={setVercelMethod}
+										options={[
+											{ label: "Log drain (no code)", value: "drain" },
+											{ label: "Middleware", value: "middleware" },
+										]}
+										size="sm"
+										value={vercelMethod}
 									/>
-								</SetupStep>
-								<SetupStep step={2} title={`Add ${stack.file}`}>
-									<SetupCode code={stack.code} language="tsx" />
-								</SetupStep>
-								<SetupStep step={3} title="Set your website ID">
-									<SetupCode
-										code={
-											stack.id === "workers"
-												? `# wrangler.toml\n[vars]\n${stack.env} = "${websiteId}"`
-												: `${stack.env}=${websiteId}`
-										}
-										language="bash"
-									/>
-								</SetupStep>
+								) : null}
+								{stack.id === "vercel" && vercelMethod === "drain" ? (
+									<>
+										<SetupStep step={1} title="Add a drain in Vercel">
+											<p className="text-pretty text-muted-foreground text-xs">
+												Team Settings → Drains → Add Drain, then choose Logs and
+												Custom Endpoint. Drains need a Pro or Enterprise plan,
+												and Vercel bills them by volume.
+											</p>
+										</SetupStep>
+										<SetupStep step={2} title="Paste this endpoint">
+											<SetupCode
+												code={`${publicConfig.urls.basket}/vercel/${websiteId}`}
+												language="bash"
+											/>
+										</SetupStep>
+										<SetupStep step={3} title="Choose what to send">
+											<p className="text-pretty text-muted-foreground text-xs">
+												Sources: Static Files, Functions, Edge Functions and
+												Rewrites. Environment: Production. Format: JSON or
+												NDJSON. Leave sampling off so every AI request arrives.
+												Drains also store the HTTP status each agent got, so you
+												can ask the assistant which pages return 404 to AI
+												crawlers.
+											</p>
+										</SetupStep>
+									</>
+								) : (
+									<>
+										<SetupStep step={1} title="Install the SDK">
+											<SetupCode
+												code="bun add @databuddy/sdk@latest"
+												language="bash"
+											/>
+										</SetupStep>
+										<SetupStep step={2} title={`Add ${stack.file}`}>
+											<SetupCode code={stack.code} language="tsx" />
+										</SetupStep>
+										<SetupStep step={3} title="Set your website ID">
+											<SetupCode
+												code={
+													stack.id === "workers"
+														? `# wrangler.toml\n[vars]\n${stack.env} = "${websiteId}"`
+														: `${stack.env}=${websiteId}`
+												}
+												language="bash"
+											/>
+										</SetupStep>
+									</>
+								)}
 							</Tabs.Panel>
 						))}
-						<Tabs.Panel className="mt-4 space-y-5" value="vercel-drain">
-							<SetupStep step={1} title="Add a drain in Vercel">
-								<p className="text-pretty text-muted-foreground text-xs">
-									Team Settings → Drains → Add Drain, then choose Logs and
-									Custom Endpoint. No code change needed. Drains need a Pro or
-									Enterprise plan, and Vercel bills them by volume.
-								</p>
-							</SetupStep>
-							<SetupStep step={2} title="Paste this endpoint">
-								<SetupCode
-									code={`${publicConfig.urls.basket}/vercel/${websiteId}`}
-									language="bash"
-								/>
-							</SetupStep>
-							<SetupStep step={3} title="Choose what to send">
-								<p className="text-pretty text-muted-foreground text-xs">
-									Sources: Static Files, Functions, Edge Functions and Rewrites.
-									Environment: Production. Format: JSON or NDJSON. Leave
-									sampling off so every AI request arrives. Drains also store
-									the HTTP status each agent got, so you can ask the assistant
-									which pages return 404 to AI crawlers.
-								</p>
-							</SetupStep>
-						</Tabs.Panel>
 					</Tabs>
 
 					<SetupStep
 						step={4}
-						title={isDrainTab ? "Test it" : "Deploy, then test it"}
+						title={isDrain ? "Test it" : "Deploy, then test it"}
 					>
 						<Button
 							loading={check.isPending}
@@ -1702,7 +1721,7 @@ function AgentSetupSheet({
 										/>
 										{check.data[item.key]
 											? `${item.label} recorded`
-											: `${item.label} not recorded: ${isDrainTab ? item.drainHint : item.hint}`}
+											: `${item.label} not recorded: ${isDrain ? item.drainHint : item.hint}`}
 									</p>
 								))
 							: null}

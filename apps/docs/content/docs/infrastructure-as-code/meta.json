@@ -1,0 +1,6 @@
+{
+  "title": "Infrastructure as Code",
+  "description": "Manage monitors and status pages from Pulumi, with more resources coming soon",
+  "icon": "Code",
+  "pages": ["index", "pulumi"]
+}

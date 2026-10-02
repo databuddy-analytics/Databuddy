@@ -55,8 +55,6 @@ export function rankInvestigationBusinessContext(
 					selectionId: `source_${index}`,
 				})),
 			});
-			// ponytail: byte ceilings bound model input conservatively; tokenize only if
-			// this excludes useful large contexts in measured workloads.
 			if (
 				Buffer.byteLength(state) +
 					Math.max(

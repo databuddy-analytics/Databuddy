@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { generateNpmCode, generateScriptTag } from "./code-generators";
+import {
+	generateAgentPrompt,
+	generateNpmCode,
+	generateScriptTag,
+} from "./code-generators";
 import { RECOMMENDED_DEFAULTS } from "./tracking-defaults";
 
 describe("recommended tracking snippets", () => {
@@ -29,8 +33,10 @@ for (const snippet of snippets) {
 }
 const prompt = generateAgentPrompt("example-client-id");
 assert.equal(prompt.includes("https://events.example.com"), ${selfhost === "true"});
-assert.equal(prompt.includes("Store the Client ID in an env var"), ${selfhost !== "true"});
+assert.equal(prompt.includes("self-hosted Databuddy instance"), ${selfhost === "true"});
 assert.equal(prompt.includes("basket.databuddy.cc"), ${selfhost !== "true"});
+assert.ok(prompt.includes("Store the Client ID in an env var"));
+assert.ok(prompt.includes("## Common issues"));
 `,
 			],
 			{
@@ -61,5 +67,70 @@ assert.equal(prompt.includes("basket.databuddy.cc"), ${selfhost !== "true"});
 		expect(npm).not.toContain("trackPerformance");
 		expect(npm).not.toContain("trackScreenViews");
 		expect(npm).not.toContain("trackSessions");
+	});
+
+	it("asks for optional install feedback without code or secrets, and only names real options", () => {
+		const prompt = generateAgentPrompt("example-client-id");
+
+		expect(prompt).toContain("/public/v1/agent-telemetry");
+		expect(prompt).toContain("(optional)");
+		expect(prompt).toContain("never include source code, environment values");
+		expect(prompt).not.toContain("Required");
+		expect(prompt).not.toContain("Always send this report");
+		expect(prompt).toContain("@databuddy/sdk/agents");
+		expect(prompt).toContain("identify(");
+		expect(prompt).not.toContain("trackPerformance");
+		expect(prompt).not.toContain("trackScreenViews");
+		expect(prompt).not.toContain("trackSessions");
+	});
+
+	it("lists the site's suggested events and funnels when a brief is available", () => {
+		const prompt = generateAgentPrompt("example-client-id", undefined, {
+			brief: "# Acme\n\nAcme sells project management for agencies.",
+			goals: [
+				{
+					name: "Trial started",
+					type: "EVENT",
+					target: "trial_started",
+					reason: "The trial is the decision point.",
+				},
+				{
+					name: "Pricing viewed",
+					type: "PAGE_VIEW",
+					target: "/pricing",
+					reason: "Intent signal.",
+				},
+			],
+			funnels: [
+				{
+					name: "Homepage to trial",
+					reason: "Drop-off before the trial.",
+					steps: [
+						{ name: "Homepage", type: "PAGE_VIEW", target: "/" },
+						{ name: "Trial started", type: "EVENT", target: "trial_started" },
+					],
+				},
+			],
+		});
+
+		expect(prompt).toContain("## About this site");
+		expect(prompt).toContain("Acme sells project management for agencies.");
+		expect(prompt).toContain(
+			'`track("trial_started")`: Trial started. The trial is the decision point.'
+		);
+		expect(prompt).toContain("Page-view goals need no code: /pricing");
+		expect(prompt).toContain("Homepage to trial: / → trial_started");
+		expect(generateAgentPrompt("example-client-id")).not.toContain(
+			"## About this site"
+		);
+	});
+
+	it("asks for live progress only when a setup session token is given", () => {
+		expect(generateAgentPrompt("example-client-id")).not.toContain(
+			"setupSession"
+		);
+		const prompt = generateAgentPrompt("example-client-id", "abc123def456");
+		expect(prompt).toContain('"setupSession": "abc123def456"');
+		expect(prompt).toContain('"status": "partial"');
 	});
 });
