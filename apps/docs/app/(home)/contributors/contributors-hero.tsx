@@ -122,7 +122,7 @@ export default function ContributorsHero({
 				<div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4 lg:gap-8">
 					<StatCard
 						description="GitHub stars"
-						href="https://github.com/databuddy-analytics/Databuddy/stargazers"
+						href="https://github.com/databuddy-analytics/Databuddy"
 						icon={StarIcon}
 						label="Stars"
 						value={stars}
