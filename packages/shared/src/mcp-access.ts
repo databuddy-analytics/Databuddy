@@ -17,7 +17,7 @@ const LINK_SCOPE_DESCRIPTION =
 	"Applies to every short link in this organization, including when you choose specific websites.";
 export const MCP_PERMISSIONS: Record<
 	McpApiScope,
-	{ label: string; description?: string }
+	{ label: string; description: string }
 > = {
 	"read:data": {
 		label: "Read data",
@@ -72,13 +72,10 @@ export function decodeMcpGrantReference(
 	reference: string
 ): McpAccessGrant | null {
 	try {
-		const result = referenceSchema.safeParse(JSON.parse(reference));
-		return result.success
-			? {
-					organizationId: result.data.organizationId,
-					websiteIds: result.data.websiteIds,
-				}
-			: null;
+		const { organizationId, websiteIds } = referenceSchema.parse(
+			JSON.parse(reference)
+		);
+		return { organizationId, websiteIds };
 	} catch {
 		return null; // Legacy and malformed grants require fresh consent.
 	}
