@@ -4,7 +4,6 @@ import Bento from "@/components/bento";
 import { Footer } from "@/components/footer";
 import { AiSection } from "@/components/landing/ai-section";
 import { DemoPreconnectLinks } from "@/components/landing/demo-preconnect-links";
-import { Description } from "@/components/landing/description";
 import { FaqSection } from "@/components/landing/faq-section";
 import { GridCards } from "@/components/landing/grid-cards";
 import Hero from "@/components/landing/hero";
@@ -199,18 +198,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 							items={homeFaqItems}
 							title="We give a FAQ"
 						/>
-					</div>
-				</Section>
-
-				<Section
-					className="border-border border-b"
-					customPaddings
-					id="desc-border"
-				>
-					<div className={container}>
-						<Section className="py-12 lg:py-16" customPaddings id="description">
-							<Description />
-						</Section>
 					</div>
 				</Section>
 
