@@ -32,7 +32,7 @@ import {
 import { publicConfig } from "@databuddy/env/public";
 import { useParams } from "next/navigation";
 import { parseAsBoolean, useQueryState } from "nuqs";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
 import { AskAgentButton } from "@/components/agent/new-chat-button";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
@@ -1644,7 +1644,14 @@ function AgentSetupSheet({
 	const [methodId, setMethodId] = useState<string>(
 		SETUP_STACKS[0].methods[0].id
 	);
-	const check = useMutation(orpc.websites.checkAgentSetup.mutationOptions());
+	const checkResultsRef = useRef<HTMLDivElement>(null);
+	const check = useMutation({
+		...orpc.websites.checkAgentSetup.mutationOptions(),
+		onSettled: () =>
+			requestAnimationFrame(() =>
+				checkResultsRef.current?.scrollIntoView({ block: "nearest" })
+			),
+	});
 	const stack =
 		SETUP_STACKS.find((item) =>
 			item.methods.some((method) => method.id === methodId)
@@ -1763,42 +1770,44 @@ function AgentSetupSheet({
 								</SetupStep>
 							</>
 						)}
-						<SetupStep
-							step={4}
-							title={isDrain ? "Test it" : "Deploy, then test it"}
-						>
-							<Text tone="muted" variant="caption">
-								Test setup requests your homepage and llms.txt as GPTBot and
-								checks that both were recorded.
-							</Text>
-							{check.data
-								? SETUP_CHECKS.map((item) => (
-										<p
-											className="flex items-start gap-2 text-xs"
-											key={item.key}
-										>
-											<StatusDot
-												className="mt-1"
-												color={check.data[item.key] ? "success" : "warning"}
-											/>
-											{check.data[item.key]
-												? `${item.label} recorded`
-												: `${item.label} not recorded: ${isDrain ? item.drainHint : item.hint}`}
-										</p>
-									))
-								: null}
-							{isSetupWorking ? (
+						<div className="scroll-mb-5" ref={checkResultsRef}>
+							<SetupStep
+								step={4}
+								title={isDrain ? "Test it" : "Deploy, then test it"}
+							>
 								<Text tone="muted" variant="caption">
-									Setup works. Crawler data shows up here as soon as an AI agent
-									visits.
+									Test setup requests your homepage and llms.txt as GPTBot and
+									checks that both were recorded.
 								</Text>
-							) : null}
-							{check.isError ? (
-								<p className="text-destructive text-xs">
-									Couldn't run the check. Try again in a moment.
-								</p>
-							) : null}
-						</SetupStep>
+								{check.data
+									? SETUP_CHECKS.map((item) => (
+											<p
+												className="flex items-start gap-2 text-xs"
+												key={item.key}
+											>
+												<StatusDot
+													className="mt-1"
+													color={check.data[item.key] ? "success" : "warning"}
+												/>
+												{check.data[item.key]
+													? `${item.label} recorded`
+													: `${item.label} not recorded: ${isDrain ? item.drainHint : item.hint}`}
+											</p>
+										))
+									: null}
+								{isSetupWorking ? (
+									<Text tone="muted" variant="caption">
+										Setup works. Crawler data shows up here as soon as an AI
+										agent visits.
+									</Text>
+								) : null}
+								{check.isError ? (
+									<p className="text-destructive text-xs">
+										Couldn't run the check. Try again in a moment.
+									</p>
+								) : null}
+							</SetupStep>
+						</div>
 					</div>
 				</Sheet.Body>
 				<Sheet.Footer>
