@@ -5,7 +5,7 @@ import {
 	UNIDENTIFIED_AGENTS_PRODUCT,
 } from "@databuddy/shared/bot-detection/types";
 import { AI_APP_BROWSERS } from "@databuddy/shared/bot-detection/user-agent";
-import { AI_REFERRERS } from "@databuddy/shared/utils/referrer";
+import { AI_REFERRERS, AI_UTM_SOURCES } from "@databuddy/shared/utils/referrer";
 import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { CustomSqlContext, SimpleQueryConfig } from "../types";
@@ -20,13 +20,15 @@ const PAGE =
 const IS_PAGE = `path != '' AND NOT match(${PAGE}, {nonPagePath:String})`;
 
 export function aiVisitProduct(referrerDomain: string): string {
-	return `if(has({aiApps:Array(String)}, browser_name), browser_name, transform(${referrerDomain}, {aiDomains:Array(String)}, {aiNames:Array(String)}, transform(utm_source, {aiDomains:Array(String)}, {aiNames:Array(String)}, '')))`;
+	return `if(has({aiApps:Array(String)}, browser_name), browser_name, transform(${referrerDomain}, {aiDomains:Array(String)}, {aiNames:Array(String)}, transform(lower(utm_source), {aiUtmSources:Array(String)}, {aiUtmNames:Array(String)}, '')))`;
 }
 
 export const AI_VISIT_PARAMS = {
 	aiApps: AI_APP_BROWSERS,
 	aiDomains: AI_REFERRERS.map((referrer) => referrer.domain),
 	aiNames: AI_REFERRERS.map((referrer) => referrer.name),
+	aiUtmSources: AI_UTM_SOURCES.map((utm) => utm.source),
+	aiUtmNames: AI_UTM_SOURCES.map((utm) => utm.name),
 };
 
 const VISIT_PRODUCT = aiVisitProduct("domainWithoutWWW(referrer)");
@@ -44,8 +46,9 @@ function firstRequestFrom(source: string): string {
 const VERCEL_START = firstRequestFrom("vercel");
 const MIDDLEWARE_START = firstRequestFrom("middleware");
 const SERVER_SIDE_START = `least(${VERCEL_START}, ${MIDDLEWARE_START})`;
+const SERVER_TRACKING_SINCE = `nullIf(${SERVER_SIDE_START}, toDateTime64('2100-01-01', 3))`;
 
-const AGENT_REQUEST = `client_id = {websiteId:String}
+const AGENT_ROW = `client_id = {websiteId:String}
 	AND agent_id != ''
 	AND multiIf(
 		source = 'vercel', ${MIDDLEWARE_START} <= ${VERCEL_START} OR timestamp < ${MIDDLEWARE_START},
@@ -53,9 +56,15 @@ const AGENT_REQUEST = `client_id = {websiteId:String}
 		timestamp < ${SERVER_SIDE_START}
 	)`;
 
-const AGENT_REQUEST_IN_RANGE = `${AGENT_REQUEST}
-	AND timestamp >= toDateTime({startDate:String})
+const IN_RANGE = `timestamp >= toDateTime({startDate:String})
 	AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))`;
+
+const AGENT_REQUEST = `${AGENT_ROW}
+	AND (status_code = 0 OR status_code BETWEEN 200 AND 299)`;
+
+const AGENT_REQUEST_IN_RANGE = `${AGENT_REQUEST} AND ${IN_RANGE}`;
+
+const AGENT_PURPOSE = `if(startsWith(agent_id, '${UNIDENTIFIED_AGENT_PREFIX}'), agent_purpose, transform(agent_id, {agentIds:Array(String)}, {agentPurposes:Array(String)}, agent_purpose))`;
 
 const EVENT_IN_RANGE = `client_id = {websiteId:String}
 	AND time >= toDateTime({startDate:String})
@@ -77,6 +86,10 @@ function queryParams(ctx: CustomSqlContext) {
 		agentProducts: AI_AGENTS.map((agent) => agent.product),
 		agentNames: AI_AGENTS.map((agent) => agent.name),
 		agentOperators: AI_AGENTS.map((agent) => agent.operator),
+		agentPurposes: AI_AGENTS.map((agent) => agent.purpose),
+		inferredPurposeAgentIds: AI_AGENTS.filter(
+			(agent) => agent.purposeInferred
+		).map((agent) => agent.id),
 		...AI_VISIT_PARAMS,
 	};
 }
@@ -126,8 +139,18 @@ export const AiAgentsBuilders = {
 				{ name: "training", type: "number", label: "Training" },
 				{ name: "search_index", type: "number", label: "Search index" },
 				{ name: "on_demand", type: "number", label: "On demand" },
+				{
+					name: "answer_fetches",
+					type: "number",
+					label: "Fetched live to answer a user",
+				},
 				{ name: "visitors", type: "number", label: "Visitors referred" },
 				{ name: "last_seen", type: "datetime", label: "Last request" },
+				{
+					name: "server_tracking_since",
+					type: "datetime",
+					label: "First server-side request (null when none)",
+				},
 				{
 					name: "has_proxy",
 					type: "boolean",
@@ -141,8 +164,9 @@ export const AiAgentsBuilders = {
 			sql: `
 				SELECT
 					if(c.product != '', c.product, v.product) AS product,
-					c.requests, c.pages, c.training, c.search_index, c.on_demand,
+					c.requests, c.pages, c.training, c.search_index, c.on_demand, c.answer_fetches,
 					v.visitors, if(c.requests > 0, c.last_seen, NULL) AS last_seen,
+					${SERVER_TRACKING_SINCE} AS server_tracking_since,
 					(
 						SELECT count() > 0
 						FROM ${Analytics.ai_traffic_spans}
@@ -153,9 +177,10 @@ export const AiAgentsBuilders = {
 						${AGENT_PRODUCT} AS product,
 						count() AS requests,
 						uniqIf(${PAGE}, ${IS_PAGE}) AS pages,
-						countIf(agent_purpose = 'training') AS training,
-						countIf(agent_purpose = 'search_index') AS search_index,
-						countIf(agent_purpose IN ('user_fetch', 'agent')) AS on_demand,
+						countIf(${AGENT_PURPOSE} = 'training') AS training,
+						countIf(${AGENT_PURPOSE} = 'search_index') AS search_index,
+						countIf(${AGENT_PURPOSE} IN ('user_fetch', 'agent')) AS on_demand,
+						countIf(${AGENT_PURPOSE} = 'user_fetch') AS answer_fetches,
 						max(timestamp) AS last_seen
 					FROM ${Analytics.ai_traffic_spans}
 					WHERE ${AGENT_REQUEST_IN_RANGE}
@@ -266,7 +291,7 @@ export const AiAgentsBuilders = {
 			default_visualization: "table",
 		},
 		commonFilters: false,
-		allowedFilters: ["agent_id"],
+		allowedFilters: ["agent_id", "path"],
 		customSql: (ctx) => ({
 			sql: `
 				SELECT
@@ -308,6 +333,68 @@ export const AiAgentsBuilders = {
 		customizable: false,
 	},
 
+	ai_failed_requests: {
+		meta: {
+			title: "Requests AI Couldn't Read",
+			description:
+				"AI crawler and agent requests that got an HTTP error (status 400 or above), one row per page and status, with the request count, last request, and the agents that hit it. Only Vercel log drain rows carry a status, so other setups return no rows. llms.txt and markdown pages come first. Filter by agent_id for one agent.",
+			category: "AI Agents",
+			tags: ["ai", "agents", "crawlers", "errors", "404", "status"],
+			output_fields: [
+				{ name: "page", type: "string", label: "Page" },
+				{ name: "format", type: "string", label: "Format" },
+				{ name: "status_code", type: "number", label: "Status" },
+				{ name: "requests", type: "number", label: "Requests" },
+				{ name: "last_seen", type: "datetime", label: "Last request" },
+				{ name: "agents", type: "json", label: "Requested by" },
+			],
+			default_visualization: "table",
+		},
+		commonFilters: false,
+		allowedFilters: ["agent_id"],
+		customSql: (ctx) => ({
+			sql: `
+				SELECT
+					page,
+					format,
+					status_code,
+					sum(agent_requests) AS requests,
+					max(agent_last_seen) AS last_seen,
+					arrayReverseSort(
+						agent -> agent.requests,
+						groupArray(CAST(
+							(agent_id, name, product, agent_requests),
+							'Tuple(agent_id String, name String, product String, requests UInt64)'
+						))
+					) AS agents
+				FROM (
+					SELECT
+						${PAGE} AS page,
+						${CONTENT_FORMAT} AS format,
+						status_code,
+						agent_id,
+						${AGENT_NAME} AS name,
+						${AGENT_PRODUCT} AS product,
+						count() AS agent_requests,
+						max(timestamp) AS agent_last_seen
+					FROM ${Analytics.ai_traffic_spans}
+					WHERE ${AGENT_ROW} AND ${IN_RANGE} AND status_code >= 400 AND path != '' ${appendFilterClause(ctx.filterConditions)}
+					GROUP BY page, format, status_code, agent_id
+				)
+				GROUP BY page, format, status_code
+				ORDER BY format = 'html', requests DESC, page ASC
+				LIMIT {limit:UInt32}
+			`,
+			params: {
+				...queryParams(ctx),
+				...ctx.filterParams,
+				limit: ctx.limit ?? 100,
+			},
+		}),
+		timeField: "timestamp",
+		customizable: false,
+	},
+
 	ai_landing_pages: {
 		meta: {
 			title: "Pages AI Sends Visitors To",
@@ -327,6 +414,8 @@ export const AiAgentsBuilders = {
 			],
 			default_visualization: "table",
 		},
+		commonFilters: false,
+		allowedFilters: ["path"],
 		customSql: (ctx) => ({
 			sql: `
 				SELECT
@@ -341,20 +430,21 @@ export const AiAgentsBuilders = {
 						))
 					) AS senders
 				FROM (
-					SELECT
-						landing.1 AS page,
-						landing.2 AS product,
-						uniqState(landing.3) AS visitor_state
+					SELECT page, product, uniqState(anonymous_id) AS visitor_state
 					FROM (
-						SELECT argMin((page, visit_product, anonymous_id), time) AS landing
+						SELECT landing.1 AS page, landing.2 AS product, landing.3 AS anonymous_id, landing.4 AS path
 						FROM (
-							SELECT session_id, time, anonymous_id, ${PAGE} AS page, ${VISIT_PRODUCT} AS visit_product
-							FROM ${Analytics.events}
-							WHERE ${EVENT_IN_RANGE} AND path != '' AND event_name = 'screen_view'
+							SELECT argMin((page, visit_product, anonymous_id, path), time) AS landing
+							FROM (
+								SELECT session_id, time, anonymous_id, path, ${PAGE} AS page, ${VISIT_PRODUCT} AS visit_product
+								FROM ${Analytics.events}
+								WHERE ${EVENT_IN_RANGE} AND path != '' AND event_name = 'screen_view'
+							)
+							WHERE visit_product != ''
+							GROUP BY session_id
 						)
-						WHERE visit_product != ''
-						GROUP BY session_id
 					)
+					WHERE page != '' ${appendFilterClause(ctx.filterConditions)}
 					GROUP BY page, product
 				) AS l
 				LEFT JOIN (
@@ -373,7 +463,11 @@ export const AiAgentsBuilders = {
 				ORDER BY visitors DESC, pageviews DESC
 				LIMIT {limit:UInt32}
 			`,
-			params: { ...queryParams(ctx), limit: ctx.limit ?? 100 },
+			params: {
+				...queryParams(ctx),
+				...ctx.filterParams,
+				limit: ctx.limit ?? 100,
+			},
 		}),
 		timeField: "time",
 		customizable: false,
@@ -464,6 +558,11 @@ export const AiAgentsBuilders = {
 				{ name: "product", type: "string", label: "Product" },
 				{ name: "operator", type: "string", label: "Operator" },
 				{ name: "purpose", type: "string", label: "Purpose" },
+				{
+					name: "purpose_inferred",
+					type: "boolean",
+					label: "Purpose inferred, not stated by the operator",
+				},
 				{ name: "requests", type: "number", label: "Requests" },
 				{ name: "pages", type: "number", label: "Pages read" },
 				{ name: "html_pages", type: "number", label: "HTML pages read" },
@@ -487,7 +586,8 @@ export const AiAgentsBuilders = {
 					${AGENT_NAME} AS name,
 					${AGENT_PRODUCT} AS product,
 					${AGENT_OPERATOR} AS operator,
-					any(agent_purpose) AS purpose,
+					any(${AGENT_PURPOSE}) AS purpose,
+					has({inferredPurposeAgentIds:Array(String)}, agent_id) AS purpose_inferred,
 					count() AS requests,
 					uniqIf(${PAGE}, ${IS_PAGE}) AS pages,
 					uniqIf(${PAGE}, ${IS_PAGE} AND ${CONTENT_FORMAT} = 'html') AS html_pages,
@@ -596,6 +696,11 @@ export const AiAgentsBuilders = {
 					type: "boolean",
 					label: "Site sent server-side requests in the period",
 				},
+				{
+					name: "site_server_tracking_since",
+					type: "datetime",
+					label: "First server-side request (null when none)",
+				},
 			],
 			default_visualization: "table",
 		},
@@ -659,11 +764,12 @@ export const AiAgentsBuilders = {
 					site_visitor_counts.1 AS site_visitors,
 					site_visitor_counts.2 AS site_previous_visitors,
 					site_new_pages,
-					site_has_server_tracking
+					site_has_server_tracking,
+					${SERVER_TRACKING_SINCE} AS site_server_tracking_since
 				FROM (
 					SELECT
 						${AGENT_PRODUCT} AS product,
-						toString(topKIf(4)(agent_purpose, timestamp >= current_start AND agent_purpose != '')[1]) AS main_purpose,
+						toString(topKIf(4)(${AGENT_PURPOSE}, timestamp >= current_start AND agent_purpose != '')[1]) AS main_purpose,
 						0 AS visitors_now,
 						0 AS visitors_before,
 						countIf(timestamp >= current_start) AS requests_now,
