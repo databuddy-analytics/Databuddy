@@ -42,13 +42,16 @@ const TERMINAL_SCENARIOS = [
 		calls: [
 			{
 				tool: "get_investigation",
-				detail: "checkout errors +180%, opened this morning",
+				detail: "checkout conversion -22%, last 7 days vs prior 7",
 			},
-			{ tool: "get_data", detail: "errors by device, past 24h" },
-			{ tool: "reply_to_investigation", detail: "rolled back in v2.14.1" },
+			{ tool: "get_data", detail: "checkout errors by browser, last 7 days" },
+			{
+				tool: "reply_to_investigation",
+				detail: "asked if the Safari errors match the drop",
+			},
 		],
 		answer:
-			"Yes. Databunny opened an investigation this morning: checkout exceptions are up 2.8x since yesterday's deploy, concentrated on iOS Safari. I rolled back address autocomplete and replied to the investigation.",
+			"Yes. This week's investigation found checkout conversion down 22% from the prior 7 days. Most checkout errors in that window come from Safari, so test checkout there before you ship. I asked Databunny whether the two line up.",
 	},
 ] as const;
 
@@ -216,8 +219,9 @@ export function AiSection() {
 					</span>
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
-					Every day or week, Databunny checks your metrics. When one really
-					moves, you get what it found and the next step in Slack.
+					Scheduled checks on Business and Scale: every day or week, Databunny
+					compares the last 7 days of your metrics with the prior 7. When one
+					really moves, you get what it found and the next step in Slack.
 				</p>
 			</div>
 
