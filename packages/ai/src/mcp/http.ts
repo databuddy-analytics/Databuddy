@@ -4,6 +4,8 @@ import {
 	hasWebsiteAllScopes,
 } from "@databuddy/api-keys/resolve";
 import { config } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
+import { trackMcp } from "@databuddy/sdk/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { AnySchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
@@ -70,6 +72,9 @@ export async function handleDatabuddyMcpRequest(
 		}
 	);
 
+	if (!readBooleanEnv("SELFHOST")) {
+		trackMcp(server);
+	}
 	registerGuideResource(server);
 
 	for (const tool of createMcpTools(options)) {
