@@ -53,6 +53,7 @@ import {
 	type AuditActor,
 	type AuditRequestContext,
 } from "@databuddy/shared/audit";
+import { Autumn, AutumnError } from "autumn-js";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type { BetterAuthPlugin } from "better-auth";
 import {
@@ -511,6 +512,37 @@ async function assertUserRowDeletable(
 	});
 }
 
+// Billing customers are owner user ids, so a deleted owner's subscription
+// would keep charging their card.
+async function assertNoRenewingSubscription(userId: string): Promise<void> {
+	const secretKey = process.env.AUTUMN_SECRET_KEY?.trim();
+	if (isSelfHosted() || !(secretKey || isProduction())) {
+		return;
+	}
+	const customer = await new Autumn({ secretKey, timeoutMs: 5000 }).customers
+		.get({ customerId: userId })
+		.catch((error: unknown) => {
+			if (error instanceof AutumnError && error.statusCode === 404) {
+				return null;
+			}
+			throw new APIError("SERVICE_UNAVAILABLE", {
+				message:
+					"We couldn't check your subscription. Please try again in a minute.",
+			});
+		});
+	if (
+		customer?.subscriptions.some(
+			(subscription) =>
+				!subscription.autoEnable && subscription.canceledAt === null
+		)
+	) {
+		throw new APIError("BAD_REQUEST", {
+			message:
+				"Cancel your subscription in Billing before deleting your account.",
+		});
+	}
+}
+
 async function planAccountDeletion(userId: string) {
 	const memberships = await db.query.member.findMany({
 		where: { userId },
@@ -534,6 +566,7 @@ async function planAccountDeletion(userId: string) {
 			});
 		}
 	}
+	await assertNoRenewingSubscription(userId);
 	const soleMemberOrganizations = memberships
 		.map((m) => m.organization)
 		.filter((org) => org.members.every((m) => m.userId === userId));

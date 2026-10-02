@@ -413,6 +413,7 @@
         "@databuddy/redis": "*",
         "@databuddy/services": "workspace:*",
         "@databuddy/shared": "workspace:*",
+        "autumn-js": "catalog:",
         "better-auth": "1.7.5",
         "drizzle-kit": "^1.0.0-rc.1",
         "evlog": "catalog:",
