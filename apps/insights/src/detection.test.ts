@@ -1,11 +1,15 @@
 import { describe, expect, it } from "bun:test";
 import dayjs from "dayjs";
 import {
+	changeOnsetEvidence,
+	type DetectedSignal,
 	type DetectSignalsParams,
 	type QueryFn,
 	detectSignals,
+	estimateChangeOnset,
 	freshCustomEventSignals,
 	freshRevenueSignals,
+	loadChangeOnset,
 	remeasureMetricSignal,
 	wowWindow,
 } from "./detection";
@@ -2725,5 +2729,225 @@ describe("next-day breaks", () => {
 		expect(hasBreak(await detect(eventDays(0).concat(eventDays(0))))).toBe(
 			false
 		);
+	});
+});
+
+function hourlyCounts(
+	from: string,
+	days: number,
+	mean: (hour: string, index: number) => number
+) {
+	let seed = 7;
+	return Array.from({ length: days * 24 }, (_, index) => {
+		seed = (seed * 48_271) % 2_147_483_647;
+		const hour = dayjs
+			.utc(from)
+			.add(index, "hour")
+			.format("YYYY-MM-DD HH:00:00");
+		const level = mean(hour, index);
+		const jitter = (seed / 2_147_483_647 - 0.5) * 2 * Math.sqrt(level);
+		return { hour, value: Math.max(0, Math.round(level + jitter)) };
+	});
+}
+
+function diurnal(hour: string): number {
+	return (
+		30 + 20 * Math.sin(((Number(hour.slice(11, 13)) - 6) / 24) * 2 * Math.PI)
+	);
+}
+
+describe("change onset", () => {
+	const baseline = hourlyCounts("2026-08-17", 14, diurnal);
+
+	it("places a stop at the hour it began", () => {
+		const window = hourlyCounts("2026-08-31", 2, (hour, index) =>
+			index >= 20 ? 0 : diurnal(hour)
+		);
+		const onset = estimateChangeOnset({
+			baseline,
+			direction: "down",
+			flaggedFrom: 24,
+			window,
+		});
+		expect(onset).not.toBeNull();
+		expect(onset?.earliest).toBeLessThanOrEqual(20);
+		expect(onset?.latest).toBeGreaterThanOrEqual(20);
+		expect((onset?.latest ?? 0) - (onset?.earliest ?? 0)).toBeLessThanOrEqual(
+			2
+		);
+		expect(onset?.ongoing).toBe(true);
+		expect(onset?.observed).toBe(0);
+	});
+
+	it("bounds a spike that recovered", () => {
+		const quiet = hourlyCounts("2026-08-17", 14, () => 0.3);
+		const window = hourlyCounts("2026-08-31", 2, (_hour, index) =>
+			index >= 31 && index < 35 ? 30 : 0.3
+		);
+		const onset = estimateChangeOnset({
+			baseline: quiet,
+			direction: "up",
+			flaggedFrom: 24,
+			window,
+		});
+		expect(onset?.earliest).toBeLessThanOrEqual(31);
+		expect(onset?.latest).toBeGreaterThanOrEqual(31);
+		expect(onset?.recoveredBy).toBeGreaterThanOrEqual(35);
+		expect(onset?.recoveredBy).toBeLessThanOrEqual(37);
+		expect(onset?.ongoing).toBe(false);
+	});
+
+	it("reports no onset for a gradual decline", () => {
+		const window = hourlyCounts(
+			"2026-08-31",
+			2,
+			(hour, index) => diurnal(hour) * (1 - (0.6 * index) / 47)
+		);
+		expect(
+			estimateChangeOnset({
+				baseline,
+				direction: "down",
+				flaggedFrom: 24,
+				window,
+			})
+		).toBeNull();
+	});
+
+	it("does not read the end of a burst as a drop", () => {
+		const window = hourlyCounts("2026-08-31", 2, (hour, index) =>
+			index >= 4 && index < 13 ? diurnal(hour) * 5 : diurnal(hour)
+		);
+		expect(
+			estimateChangeOnset({
+				baseline,
+				direction: "down",
+				flaggedFrom: 24,
+				window,
+			})
+		).toBeNull();
+	});
+
+	it("does not read recovery from an outage as a rise", () => {
+		const window = hourlyCounts("2026-08-31", 2, (hour, index) =>
+			index < 20 ? 0 : diurnal(hour)
+		);
+		expect(
+			estimateChangeOnset({
+				baseline,
+				direction: "up",
+				flaggedFrom: 24,
+				window,
+			})
+		).toBeNull();
+	});
+
+	it("keeps the weekend's lower traffic out of the onset", () => {
+		const weekly = (hour: string) =>
+			[0, 6].includes(dayjs.utc(hour).day()) ? 12 : 40;
+		const window = hourlyCounts("2026-09-04", 2, weekly);
+		expect(
+			estimateChangeOnset({
+				baseline: hourlyCounts("2026-08-21", 14, weekly),
+				direction: "down",
+				flaggedFrom: 24,
+				window,
+			})
+		).toBeNull();
+	});
+
+	const stoppedEvent: DetectedSignal = {
+		baseline: 6400,
+		baselineDates: [
+			"2026-08-21",
+			"2026-08-24",
+			"2026-08-25",
+			"2026-08-26",
+			"2026-08-27",
+			"2026-08-28",
+		],
+		current: 0,
+		deltaPercent: -100,
+		detectedAt: "2026-09-01",
+		direction: "down",
+		entityId: "link_created",
+		entityLabel: "link_created",
+		label: "link_created events",
+		method: "zscore",
+		metric: "custom_event_count",
+		severity: "critical",
+		subjectKey: "custom_event:link_created",
+	};
+
+	it("reads the subject hourly in the site's timezone", async () => {
+		const timezone = "America/New_York";
+		const requests: Parameters<QueryFn>[0][] = [];
+		const query: QueryFn = async (request) => {
+			requests.push(request);
+			const rows: Record<string, unknown>[] = [];
+			for (
+				let instant = dayjs.tz(`${request.from} 00:00`, timezone);
+				instant.isBefore(dayjs.tz(`${request.to} 23:59`, timezone));
+				instant = instant.add(1, "hour")
+			) {
+				const date = instant.tz(timezone).format("YYYY-MM-DD HH:00:00");
+				if (date < "2026-08-31 20:00:00") {
+					rows.push({
+						date,
+						event_name: "link_created",
+						total_events: Math.round(diurnal(date) * 10),
+					});
+				}
+			}
+			return rows;
+		};
+		const { signal } = prepareInvestigation(stoppedEvent, 7);
+
+		const onset = await loadChangeOnset(
+			{ signal, timezone, websiteId: "site-1" },
+			query
+		);
+
+		expect(requests).toHaveLength(1);
+		expect(requests[0]).toMatchObject({
+			filters: [{ field: "event_name", op: "eq", value: "link_created" }],
+			from: "2026-08-17",
+			timeUnit: "hour",
+			to: "2026-09-01",
+			type: "custom_events_trends_by_event",
+		});
+		expect(onset).toMatchObject({
+			earliest: "2026-08-31 20:00:00",
+			latest: "2026-08-31 20:00:00",
+			ongoingThrough: "2026-09-01",
+			observed: 0,
+		});
+		expect(onset ? changeOnsetEvidence(onset) : "").toContain(
+			"between 20:00 and 21:00 on 2026-08-31 (America/New_York)"
+		);
+	});
+
+	it("skips subjects without an hourly count", async () => {
+		const { signal } = prepareInvestigation(
+			{
+				...stoppedEvent,
+				baseline: 40,
+				current: 62,
+				deltaPercent: 55,
+				direction: "up",
+				label: "Bounce rate",
+				metric: "bounce_rate",
+				subjectKey: undefined,
+			},
+			7
+		);
+		const query: QueryFn = async () => {
+			throw new Error("Unexpected hourly read");
+		};
+		expect(
+			await loadChangeOnset(
+				{ signal, timezone: "UTC", websiteId: "site-1" },
+				query
+			)
+		).toBeNull();
 	});
 });

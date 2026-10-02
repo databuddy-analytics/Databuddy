@@ -2216,3 +2216,370 @@ async function detectWow(
 			7,
 	};
 }
+
+const ONSET_BASELINE_DAYS = 14;
+const ONSET_MIN_QUASI_LLR = 15;
+const ONSET_MIN_RATIO = 1.5;
+const ONSET_MAX_SURROUNDING_RATIO = 2;
+const ONSET_LOCATION_SLACK = 3;
+const ONSET_MAX_SPREAD_HOURS = 3;
+const ONSET_MIN_OUTSIDE_HOURS = 6;
+const ONSET_MIN_EXPLAINED_SHARE = 0.5;
+const ONSET_LOOKBACK_HOURS = 6;
+const HOUR_LABEL = "YYYY-MM-DD HH:00:00";
+
+export interface HourlyCount {
+	hour: string;
+	value: number;
+}
+
+export interface OnsetEstimate {
+	earliest: number;
+	expected: number;
+	latest: number;
+	observed: number;
+	ongoing: boolean;
+	recoveredBy: number | null;
+}
+
+function poissonTerm(count: number, expected: number): number {
+	return count > 0 ? count * Math.log(count / expected) : 0;
+}
+
+function hourProfileKey(hour: string): string {
+	return `${isWeekend(hour.slice(0, 10)) ? "weekend" : "weekday"}:${hour.slice(11, 13)}`;
+}
+
+export function estimateChangeOnset(params: {
+	baseline: HourlyCount[];
+	direction: "up" | "down";
+	flaggedFrom: number;
+	window: HourlyCount[];
+}): OnsetEstimate | null {
+	const { baseline, direction, flaggedFrom, window } = params;
+	const n = window.length;
+	if (n <= ONSET_MIN_OUTSIDE_HOURS || flaggedFrom >= n) {
+		return null;
+	}
+	const profile = new Map<string, { hours: number; total: number }>();
+	let baselineTotal = 0;
+	for (const point of baseline) {
+		const key = hourProfileKey(point.hour);
+		const entry = profile.get(key) ?? { hours: 0, total: 0 };
+		entry.hours += 1;
+		entry.total += point.value;
+		profile.set(key, entry);
+		baselineTotal += point.value;
+	}
+	const hourlyMean = baseline.length > 0 ? baselineTotal / baseline.length : 0;
+	const expectedAt = (hour: string) => {
+		if (hourlyMean === 0) {
+			return 1;
+		}
+		const entry = profile.get(hourProfileKey(hour));
+		return ((entry?.total ?? 0) + hourlyMean) / ((entry?.hours ?? 0) + 1);
+	};
+	let pearson = 0;
+	for (const point of baseline) {
+		const expected = expectedAt(point.hour);
+		pearson += (point.value - expected) ** 2 / expected;
+	}
+	const freedom = baseline.length - profile.size;
+	const dispersion =
+		hourlyMean > 0 && freedom > 0 ? Math.max(1, pearson / freedom) : 1;
+
+	const counts = [0];
+	const exposure = [0];
+	for (const [index, point] of window.entries()) {
+		counts.push((counts[index] ?? 0) + point.value);
+		exposure.push((exposure[index] ?? 0) + expectedAt(point.hour));
+	}
+	const totalCount = counts[n] ?? 0;
+	const totalExposure = exposure[n] ?? 0;
+	const nullTerm = poissonTerm(totalCount, totalExposure);
+	const span = (from: number, to: number) => {
+		const insideCount = (counts[to] ?? 0) - (counts[from] ?? 0);
+		const insideExposure = (exposure[to] ?? 0) - (exposure[from] ?? 0);
+		const outsideCount = totalCount - insideCount;
+		const outsideExposure = totalExposure - insideExposure;
+		const insideRate = insideCount / insideExposure;
+		const outsideRate = outsideCount / outsideExposure;
+		const valid =
+			n - (to - from) >= ONSET_MIN_OUTSIDE_HOURS &&
+			to > flaggedFrom &&
+			(direction === "down"
+				? insideRate < outsideRate
+				: insideRate > outsideRate);
+		return {
+			insideCount,
+			insideExposure,
+			insideRate,
+			llr: valid
+				? poissonTerm(insideCount, insideExposure) +
+					poissonTerm(outsideCount, outsideExposure) -
+					nullTerm
+				: Number.NEGATIVE_INFINITY,
+			outsideRate,
+		};
+	};
+
+	let best = { from: 0, llr: Number.NEGATIVE_INFINITY, to: 0 };
+	for (let from = 0; from < n; from++) {
+		for (let to = from + 1; to <= n; to++) {
+			const { llr } = span(from, to);
+			if (llr > best.llr) {
+				best = { from, llr, to };
+			}
+		}
+	}
+	if (best.llr / dispersion < ONSET_MIN_QUASI_LLR) {
+		return null;
+	}
+	const chosen = span(best.from, best.to);
+	const changeRatio =
+		direction === "down"
+			? chosen.outsideRate / Math.max(chosen.insideRate, Number.MIN_VALUE)
+			: chosen.insideRate / Math.max(chosen.outsideRate, Number.MIN_VALUE);
+	const departsFromBaseline =
+		hourlyMean === 0 ||
+		(direction === "down"
+			? chosen.insideRate <= 1 / ONSET_MIN_RATIO &&
+				chosen.outsideRate <= ONSET_MAX_SURROUNDING_RATIO
+			: chosen.insideRate >= ONSET_MIN_RATIO);
+	if (changeRatio < ONSET_MIN_RATIO || !departsFromBaseline) {
+		return null;
+	}
+
+	let flaggedDeviation = 0;
+	let explainedDeviation = 0;
+	for (let index = flaggedFrom; index < n; index++) {
+		const point = window[index];
+		if (!point) {
+			continue;
+		}
+		const deviation =
+			point.value - (hourlyMean === 0 ? 0 : expectedAt(point.hour));
+		flaggedDeviation += deviation;
+		if (index >= best.from && index < best.to) {
+			explainedDeviation += deviation;
+		}
+	}
+	if (
+		flaggedDeviation === 0 ||
+		explainedDeviation / flaggedDeviation < ONSET_MIN_EXPLAINED_SHARE
+	) {
+		return null;
+	}
+
+	const floor = best.llr - ONSET_LOCATION_SLACK * dispersion;
+	const starts: number[] = [];
+	for (let from = 0; from < best.to; from++) {
+		if (span(from, best.to).llr >= floor) {
+			starts.push(from);
+		}
+	}
+	const earliest = Math.min(...starts);
+	const latest = Math.max(...starts);
+	if (earliest === 0 || latest - earliest + 1 > ONSET_MAX_SPREAD_HOURS) {
+		return null;
+	}
+	const ends: number[] = [];
+	for (let to = best.from + 1; to <= n; to++) {
+		if (span(best.from, to).llr >= floor) {
+			ends.push(to);
+		}
+	}
+	const lastEnd = Math.max(...ends);
+	const endIsSharp =
+		lastEnd < n && lastEnd - Math.min(...ends) + 1 <= ONSET_MAX_SPREAD_HOURS;
+	return {
+		earliest,
+		expected: chosen.outsideRate * chosen.insideExposure,
+		latest,
+		observed: chosen.insideCount,
+		ongoing: best.to === n,
+		recoveredBy: best.to < n && endIsSharp ? lastEnd : null,
+	};
+}
+
+interface OnsetSeries {
+	field: string;
+	filters: Filter[];
+	noun: string;
+	subject: string;
+	type: "custom_events_trends_by_event" | "error_trends" | "events_by_date";
+}
+
+function onsetSeries(signal: InvestigationSignal): OnsetSeries | null {
+	if (TRAFFIC_METRICS.has(signal.signalKey)) {
+		return {
+			field: "pageviews",
+			filters: [],
+			noun: "pageviews",
+			subject: "Hourly pageviews",
+			type: "events_by_date",
+		};
+	}
+	if (signal.signalKey.startsWith("error:") && signal.entity.type === "error") {
+		return {
+			field: "errors",
+			filters: [{ field: "message", op: "eq", value: signal.entity.id }],
+			noun: "occurrences",
+			subject: "Hourly counts of this error",
+			type: "error_trends",
+		};
+	}
+	if (
+		signal.signalKey.startsWith("custom_event:") &&
+		signal.entity.type === "event"
+	) {
+		return {
+			field: "total_events",
+			filters: [{ field: "event_name", op: "eq", value: signal.entity.id }],
+			noun: `${signal.entity.id} events`,
+			subject: `Hourly ${signal.entity.id} counts`,
+			type: "custom_events_trends_by_event",
+		};
+	}
+	return null;
+}
+
+export interface ChangeOnset {
+	direction: "up" | "down";
+	earliest: string;
+	expected: number;
+	latest: string;
+	noun: string;
+	observed: number;
+	ongoingThrough: string | null;
+	recoveredBy: string | null;
+	searchFrom: string;
+	searchTo: string;
+	subject: string;
+	timezone: string;
+}
+
+export async function loadChangeOnset(
+	params: {
+		abortSignal?: AbortSignal;
+		signal: InvestigationSignal;
+		timezone: string;
+		websiteId: string;
+	},
+	query: QueryFn = executeQuery
+): Promise<ChangeOnset | null> {
+	const { signal, timezone } = params;
+	const series = onsetSeries(signal);
+	const { current, previous } = signal.metric;
+	if (!series || previous === undefined || current === previous) {
+		return null;
+	}
+	const direction = current < previous ? "down" : "up";
+	const flaggedFrom = signal.period.current.from;
+	const searchFrom = dayjs(flaggedFrom).subtract(1, "day").format("YYYY-MM-DD");
+	const baselineFrom = dayjs(searchFrom)
+		.subtract(ONSET_BASELINE_DAYS, "day")
+		.format("YYYY-MM-DD");
+	const lastDay = signal.period.current.to;
+	const rows = await query(
+		{
+			filters: series.filters,
+			from: baselineFrom,
+			projectId: params.websiteId,
+			timeUnit: "hour",
+			timezone,
+			to: lastDay,
+			type: series.type,
+		},
+		undefined,
+		timezone,
+		params.abortSignal
+	);
+	const values = new Map<string, number>();
+	for (const row of rows) {
+		const hour = stringField(row, "date");
+		if (hour) {
+			values.set(
+				hour,
+				(values.get(hour) ?? 0) + numberField(row, series.field)
+			);
+		}
+	}
+	const hours: string[] = [];
+	const end = dayjs.tz(`${lastDay} 23:00`, timezone);
+	for (
+		let instant = dayjs.tz(`${baselineFrom} 00:00`, timezone);
+		!instant.isAfter(end);
+		instant = instant.add(1, "hour")
+	) {
+		const label = instant.tz(timezone).format(HOUR_LABEL);
+		if (hours.at(-1) !== label) {
+			hours.push(label);
+		}
+	}
+	const points = hours.map((hour) => ({ hour, value: values.get(hour) ?? 0 }));
+	const windowStart = points.findIndex((point) => point.hour >= searchFrom);
+	if (windowStart <= 0) {
+		return null;
+	}
+	const window = points.slice(windowStart);
+	const estimate = estimateChangeOnset({
+		baseline: points.slice(0, windowStart),
+		direction,
+		flaggedFrom: window.findIndex((point) => point.hour >= flaggedFrom),
+		window,
+	});
+	if (!estimate) {
+		return null;
+	}
+	const hourAt = (index: number) => window[index]?.hour ?? "";
+	return {
+		direction,
+		earliest: hourAt(estimate.earliest),
+		expected: estimate.expected,
+		latest: hourAt(estimate.latest),
+		noun: series.noun,
+		observed: estimate.observed,
+		ongoingThrough: estimate.ongoing ? lastDay : null,
+		recoveredBy:
+			estimate.recoveredBy === null ? null : hourAt(estimate.recoveredBy),
+		searchFrom,
+		searchTo: lastDay,
+		subject: series.subject,
+		timezone,
+	};
+}
+
+export function changeOnsetWindow(onset: ChangeOnset): {
+	from: Date;
+	lookbackFrom: Date;
+	to: Date;
+} {
+	const from = dayjs.tz(onset.earliest, onset.timezone);
+	return {
+		from: from.toDate(),
+		lookbackFrom: from.subtract(ONSET_LOOKBACK_HOURS, "hour").toDate(),
+		to: dayjs.tz(onset.latest, onset.timezone).add(1, "hour").toDate(),
+	};
+}
+
+function hourRange(from: string, to: string, timezone: string): string {
+	const end = dayjs.tz(to, timezone).add(1, "hour").tz(timezone);
+	return from.slice(0, 10) === end.format("YYYY-MM-DD")
+		? `between ${from.slice(11, 16)} and ${end.format("HH:mm")} on ${from.slice(0, 10)}`
+		: `between ${from.slice(0, 16)} and ${end.format("YYYY-MM-DD HH:mm")}`;
+}
+
+export function changeOnsetEvidence(onset: ChangeOnset): string {
+	const change = onset.direction === "down" ? "drop" : "rise";
+	const observed = Math.round(onset.observed).toLocaleString("en-US");
+	const expected = Math.round(onset.expected).toLocaleString("en-US");
+	const start = `${onset.subject} place the start of this ${change} ${hourRange(onset.earliest, onset.latest, onset.timezone)} (${onset.timezone}).`;
+	if (onset.recoveredBy) {
+		return `${start} It returned to the surrounding rate by ${onset.recoveredBy.slice(0, 16)}. In between there were ${observed} ${onset.noun} where that rate predicted about ${expected}.`;
+	}
+	const through = onset.ongoingThrough
+		? ` It had not recovered by the end of ${onset.ongoingThrough}.`
+		: "";
+	return `${start} From then on there were ${observed} ${onset.noun} where the earlier rate predicted about ${expected}.${through}`;
+}

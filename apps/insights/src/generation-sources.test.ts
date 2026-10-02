@@ -2,7 +2,12 @@ import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
 import type { InvestigationOutcome } from "@databuddy/shared/insights";
 import { InsightAgentGenerationError } from "./agent";
-import { detectSignals, type DetectedSignal } from "./detection";
+import {
+	type ChangeOnset,
+	changeOnsetEvidence,
+	detectSignals,
+	type DetectedSignal,
+} from "./detection";
 import {
 	detectFunnelGoalSignals,
 	type FunnelDef,
@@ -13,6 +18,8 @@ import {
 	type InvestigationCoverage,
 	type InvestigationSources,
 	investigateWebsitePortfolioWithSources,
+	loadRepositoryChangesNearOnset,
+	repositoryChangeEvidence,
 } from "./generation";
 import { organizationProfileContext } from "./business-context";
 import { parseInvestigationOutcome } from "@databuddy/shared/insights";
@@ -39,6 +46,21 @@ const revenueIncrease: DetectedSignal = {
 	label: "Revenue",
 	metric: "revenue",
 	severity: "info",
+};
+
+const linkOnset: ChangeOnset = {
+	direction: "down",
+	earliest: "2026-07-10 20:00:00",
+	expected: 9692,
+	latest: "2026-07-10 20:00:00",
+	noun: "link_created events",
+	observed: 0,
+	ongoingThrough: "2026-07-11",
+	recoveredBy: null,
+	searchFrom: "2026-07-10",
+	searchTo: "2026-07-11",
+	subject: "Hourly link_created counts",
+	timezone: "UTC",
 };
 
 const emptyUsage = {
@@ -465,6 +487,180 @@ describe("fixture investigation sources", () => {
 			)
 		).toBe(true);
 		expect(artifact.evidence).toEqual(received?.evidence ?? []);
+	});
+
+	it("adds a break's onset and the production deploys before it", async () => {
+		const eventStop: DetectedSignal = {
+			...trafficDrop,
+			baseline: 6400,
+			current: 0,
+			deltaPercent: -100,
+			entityId: "link_created",
+			entityLabel: "link_created",
+			label: "link_created events",
+			metric: "custom_event_count",
+			subjectKey: "custom_event:link_created",
+		};
+		const github = async (path: string) => {
+			if (path === "/repos/example/web-app/environments?per_page=100") {
+				return {
+					environments: [{ name: "Production" }, { name: "Preview" }],
+					total_count: 2,
+				};
+			}
+			if (
+				path ===
+				"/repos/example/web-app/deployments?environment=Production&per_page=100&page=1"
+			) {
+				return [
+					{
+						created_at: "2026-07-10T19:52:00Z",
+						creator: null,
+						description: null,
+						environment: "Production",
+						id: 2,
+						ref: "main",
+						sha: "a1b2c3d4e5f6",
+					},
+					{
+						created_at: "2026-07-09T08:00:00Z",
+						creator: null,
+						description: null,
+						environment: "Production",
+						id: 1,
+						ref: "main",
+						sha: "0a1b2c3d4e5f",
+					},
+				];
+			}
+			if (
+				path === "/repos/example/web-app/deployments/2/statuses?per_page=10"
+			) {
+				return [
+					{
+						created_at: "2026-07-10T19:58:00Z",
+						description: null,
+						environment_url: null,
+						log_url: null,
+						state: "success",
+						updated_at: "2026-07-10T19:58:00Z",
+					},
+				];
+			}
+			if (path.startsWith("/repos/example/web-app/commits?")) {
+				return [
+					{
+						sha: "a1b2c3d4e5f6",
+						commit: {
+							message: "feat(links): queue link creation\n\nDetails",
+							author: { name: "Dev", date: "2026-07-10T18:00:00Z" },
+							committer: { date: "2026-07-10T19:45:00Z" },
+						},
+					},
+				];
+			}
+			throw new Error(`Unexpected GitHub request ${path}`);
+		};
+		let received:
+			| Parameters<InvestigationSources["investigateSignal"]>[0]
+			| null = null;
+		const outcome: InvestigationOutcome = {
+			evidence: ["Link creation stopped after a deploy."],
+			impact: "No links were created.",
+			next: { reason: "No case is required in this fixture.", type: "resolve" },
+			rootCause: null,
+			summary: "Link creation stopped.",
+			title: "Link creation stopped",
+		};
+		const sources = fixtureSources({
+			detectDefinitionSignals: async () => [],
+			detectMetricSignals: async () => [eventStop],
+			fetchAnnotations: async () => [],
+			investigateSignal: async (input) => {
+				received = input;
+				return { outcome, toolCallCount: 0 };
+			},
+			loadChangeOnset: async () => linkOnset,
+			loadDueInvestigation: async () => null,
+			loadHistory: async () => [],
+			loadObservations: async () => new Map(),
+			loadRepositoryChanges: (params) =>
+				loadRepositoryChangesNearOnset(params, {
+					getToken: async () => "token",
+					request: github,
+				}),
+		});
+
+		const artifact = await investigateFixture(sources, {
+			githubRepository: { owner: "example", repo: "web-app" },
+		});
+
+		expect(received?.evidence).toContain(changeOnsetEvidence(linkOnset));
+		const deploys = received?.evidence.find((item) =>
+			item.startsWith("GitHub production deployments")
+		);
+		expect(deploys).toContain(
+			'a1b2c3d "feat(links): queue link creation" requested 2026-07-10 19:52 to Production (success 19:58)'
+		);
+		expect(deploys).not.toContain("0a1b2c3");
+		expect(artifact.evidence).toEqual(received?.evidence ?? []);
+	});
+
+	it("states a deploy absence only when the scan covered the window", async () => {
+		const repository = { owner: "example", repo: "web-app" };
+		const deployment = (createdAt: string, id: number) => ({
+			created_at: createdAt,
+			creator: null,
+			description: null,
+			environment: "Production",
+			id,
+			ref: "main",
+			sha: "0a1b2c3d4e5f",
+		});
+		const evidenceFor = async (
+			environments: unknown,
+			deployments: unknown[]
+		) => {
+			const changes = await loadRepositoryChangesNearOnset(
+				{ onset: linkOnset, organizationId: "fixture-org", repository },
+				{
+					getToken: async () => "token",
+					request: async (path) => {
+						if (path.includes("/commits?")) {
+							return [];
+						}
+						return path.includes("/environments?") ? environments : deployments;
+					},
+				}
+			);
+			return changes
+				? repositoryChangeEvidence(linkOnset, changes, repository)
+				: null;
+		};
+		const production = { environments: [{ name: "Production" }] };
+		const absence =
+			"GitHub records no production deployment of example/web-app requested between 2026-07-10 14:00 and 2026-07-10 21:00 (UTC)";
+
+		const covered = await evidenceFor(production, [
+			deployment("2026-07-09T08:00:00Z", 1),
+		]);
+		expect(covered).toContain(absence);
+		expect(covered).toContain("No commits on the default branch");
+
+		const newerOnly = await evidenceFor(
+			production,
+			Array.from({ length: 100 }, (_, index) =>
+				deployment("2026-07-11T08:00:00Z", index)
+			)
+		);
+		expect(newerOnly).not.toContain(absence);
+		expect(newerOnly).toContain("No commits on the default branch");
+
+		const scannedWithoutEnvironments = await evidenceFor(
+			{ error: "GitHub API 403: Forbidden" },
+			[deployment("2026-07-09T08:00:00Z", 1)]
+		);
+		expect(scannedWithoutEnvironments).toContain(absence);
 	});
 
 	it("adds supplied route-vital continuation evidence before a slow route reaches the agent", async () => {
