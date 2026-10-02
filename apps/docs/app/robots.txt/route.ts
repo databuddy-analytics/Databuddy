@@ -14,9 +14,10 @@ const SEARCH_AGENTS = [
 	"PerplexityBot",
 	"Amazonbot",
 	"Google-Extended",
+	"CCBot",
 ];
 
-const TRAINING_AGENTS = ["CCBot", "Bytespider", "ByteSpider"];
+const TRAINING_AGENTS = ["Bytespider", "ByteSpider"];
 
 function allowBlock(userAgent: string) {
 	return [
