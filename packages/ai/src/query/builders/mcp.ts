@@ -5,8 +5,14 @@ import type { CustomSqlContext, SimpleQueryConfig } from "../types";
 const START = "toDateTime({startDate:String})";
 const END = "toDateTime(concat({endDate:String}, ' 23:59:59'))";
 
+function scope(ctx: CustomSqlContext): string {
+	return ctx.filterParams?.__orgLevel
+		? "owner_id = {projectId:String}"
+		: "website_id = {projectId:String}";
+}
+
 function inRange(ctx: CustomSqlContext): string {
-	return `(owner_id = {websiteId:String} OR website_id = {websiteId:String})
+	return `${scope(ctx)}
 		AND timestamp >= ${START}
 		AND timestamp <= ${END}
 		${appendFilterClause(ctx.filterConditions)}`;
@@ -14,7 +20,7 @@ function inRange(ctx: CustomSqlContext): string {
 
 function params(ctx: CustomSqlContext) {
 	return {
-		websiteId: ctx.websiteId,
+		projectId: ctx.websiteId,
 		startDate: ctx.startDate,
 		endDate: ctx.endDate,
 		timezone: ctx.timezone || "UTC",
@@ -82,7 +88,7 @@ export const McpBuilders = {
 					groupUniqArrayIf(10)(environment, environment != '') AS environments,
 					groupUniqArrayIf(50)(website_id, website_id != '') AS websites,
 					if(calls > 0, max(timestamp), NULL) AS last_call,
-					(SELECT count() > 0 FROM ${Analytics.mcp_spans} WHERE owner_id = {websiteId:String} OR website_id = {websiteId:String}) AS tracked
+					(SELECT count() FROM (SELECT 1 FROM ${Analytics.mcp_spans} WHERE ${scope(ctx)} LIMIT 1)) AS tracked
 				FROM ${Analytics.mcp_spans}
 				WHERE ${inRange(ctx)}
 			`,
