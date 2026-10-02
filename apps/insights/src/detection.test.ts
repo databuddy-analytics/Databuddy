@@ -2933,6 +2933,57 @@ describe("change onset", () => {
 		);
 	});
 
+	it("reads payments hourly in the break's currency", async () => {
+		const requests: Parameters<QueryFn>[0][] = [];
+		const query: QueryFn = async (request) => {
+			requests.push(request);
+			const rows: Record<string, unknown>[] = [];
+			for (
+				let instant = dayjs.utc(`${request.from} 00:00`);
+				instant.isBefore(dayjs.utc(`${request.to} 23:59`));
+				instant = instant.add(1, "hour")
+			) {
+				const date = instant.format("YYYY-MM-DD HH:00:00");
+				if (date < "2026-08-31 20:00:00") {
+					rows.push({
+						currency: "EUR",
+						date,
+						transactions: Math.round(diurnal(date) / 3),
+					});
+				}
+			}
+			return rows;
+		};
+		const { signal } = prepareInvestigation(
+			{
+				...stoppedEvent,
+				baseline: 4200,
+				current: 0,
+				entityId: undefined,
+				entityLabel: undefined,
+				label: "Revenue",
+				metric: "revenue",
+				subjectKey: "revenue:EUR",
+			},
+			7
+		);
+
+		const onset = await loadChangeOnset(
+			{ signal, timezone: "UTC", websiteId: "site-1" },
+			query
+		);
+
+		expect(requests[0]).toMatchObject({
+			filters: [{ field: "currency", op: "eq", value: "EUR" }],
+			timeUnit: "hour",
+			type: "revenue_time_series",
+		});
+		expect(onset).toMatchObject({
+			earliest: "2026-08-31 20:00:00",
+			noun: "payments",
+		});
+	});
+
 	it("skips subjects without an hourly count", async () => {
 		const { signal } = prepareInvestigation(
 			{

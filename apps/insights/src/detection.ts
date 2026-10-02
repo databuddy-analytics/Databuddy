@@ -2416,7 +2416,11 @@ interface OnsetSeries {
 	filters: Filter[];
 	noun: string;
 	subject: string;
-	type: "custom_events_trends_by_event" | "error_trends" | "events_by_date";
+	type:
+		| "custom_events_trends_by_event"
+		| "error_trends"
+		| "events_by_date"
+		| "revenue_time_series";
 }
 
 function onsetSeries(signal: InvestigationSignal): OnsetSeries | null {
@@ -2436,6 +2440,21 @@ function onsetSeries(signal: InvestigationSignal): OnsetSeries | null {
 			noun: "occurrences",
 			subject: "Hourly counts of this error",
 			type: "error_trends",
+		};
+	}
+	if (signal.signalKey.startsWith("revenue:")) {
+		return {
+			field: "transactions",
+			filters: [
+				{
+					field: "currency",
+					op: "eq",
+					value: signal.signalKey.slice("revenue:".length),
+				},
+			],
+			noun: "payments",
+			subject: "Hourly payments",
+			type: "revenue_time_series",
 		};
 	}
 	if (
