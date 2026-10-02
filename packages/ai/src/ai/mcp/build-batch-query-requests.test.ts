@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
 	buildBatchQueryRequests,
+	capRowArrays,
 	formatMcpQueryResults,
 	getFilteredQueryTypes,
 } from "./mcp-utils";
@@ -291,6 +292,18 @@ describe("buildBatchQueryRequests", () => {
 				key.startsWith("link_")
 			)
 		).toEqual([]);
+	});
+
+	it("keeps the leaders of ranked arrays and the newest history entries", () => {
+		const values = Array.from({ length: 60 }, (_, index) => index);
+		expect(
+			capRowArrays({ agents: values, senders: values, events: values })
+		).toEqual({
+			agents: values.slice(0, 50),
+			senders: values.slice(0, 50),
+			events: values.slice(10),
+			truncatedArrays: { agents: 60, senders: 60, events: 60 },
+		});
 	});
 
 	it("keeps the latest 50 items of list values inside a row and reports the full count", () => {

@@ -338,7 +338,12 @@ export function capRowArrays(
 				return [key, value];
 			}
 			truncatedArrays[key] = value.length;
-			return [key, value.slice(-MCP_ROW_ARRAY_LIMIT)];
+			return [
+				key,
+				key === "agents" || key === "senders"
+					? value.slice(0, MCP_ROW_ARRAY_LIMIT)
+					: value.slice(-MCP_ROW_ARRAY_LIMIT),
+			];
 		})
 	);
 	return Object.keys(truncatedArrays).length > 0
