@@ -485,7 +485,7 @@ describe("fixture investigation sources", () => {
 		});
 		expect(
 			received?.evidence.some((item) =>
-				item.includes("affected payment status remains unknown")
+				item.includes("whether any affected visitor had paid is unknown")
 			)
 		).toBe(true);
 		expect(artifact.evidence).toEqual(received?.evidence ?? []);
