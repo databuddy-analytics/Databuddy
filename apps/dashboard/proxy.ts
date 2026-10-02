@@ -1,5 +1,6 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
+import { OAUTH_AUTHORIZE_PATH_PREFIX } from "./lib/safe-callback";
 
 const SIGN_IN_ROUTES = ["/login", "/register"];
 const PUBLIC_AUTH_ROUTES = [...SIGN_IN_ROUTES, "/auth/error"];
@@ -22,7 +23,7 @@ export function proxy(request: NextRequest) {
 	const isOAuthSignIn =
 		searchParams.has("sig") ||
 		(searchParams.get("callback") ?? "").startsWith(
-			"/api/auth/oauth2/authorize?"
+			OAUTH_AUTHORIZE_PATH_PREFIX
 		);
 
 	if (isSignInRoute && sessionCookie && !(isAddingAccount || isOAuthSignIn)) {

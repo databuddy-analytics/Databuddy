@@ -7,7 +7,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { GithubMark, GoogleMark } from "@/components/ui/brand-icons";
-import { newUserCallbackPath, safeCallbackPath } from "@/lib/safe-callback";
+import {
+	newUserCallbackPath,
+	OAUTH_AUTHORIZE_PATH_PREFIX,
+	safeCallbackPath,
+} from "@/lib/safe-callback";
 import { EnvelopeSimpleIcon, EyeIcon, EyeSlashIcon } from "@databuddy/ui/icons";
 import {
 	Badge,
@@ -44,7 +48,7 @@ function oauthAuthorizePath(searchParams: URLSearchParams): string | null {
 	} else {
 		authorizeParams.delete("prompt");
 	}
-	return `/api/auth/oauth2/authorize?${authorizeParams.toString()}`;
+	return `${OAUTH_AUTHORIZE_PATH_PREFIX}${authorizeParams.toString()}`;
 }
 
 function LoginPage() {

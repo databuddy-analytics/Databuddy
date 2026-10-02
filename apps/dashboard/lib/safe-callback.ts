@@ -1,4 +1,5 @@
 const CALLBACK_ORIGIN = "https://callback.databuddy.invalid";
+export const OAUTH_AUTHORIZE_PATH_PREFIX = "/api/auth/oauth2/authorize?";
 
 export function safeCallbackPath(
 	callback: string | null | undefined,
@@ -13,7 +14,7 @@ export function safeCallbackPath(
 
 export function newUserCallbackPath(callback: string): string {
 	return callback.startsWith("/billing/plans") ||
-		callback.startsWith("/api/auth/oauth2/authorize?")
+		callback.startsWith(OAUTH_AUTHORIZE_PATH_PREFIX)
 		? callback
 		: "/onboarding";
 }
