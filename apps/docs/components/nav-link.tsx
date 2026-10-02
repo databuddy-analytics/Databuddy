@@ -6,8 +6,7 @@ type NavSection =
 	| "navbar_mobile"
 	| "navbar_features"
 	| "footer"
-	| "footer_legal"
-	| "landing";
+	| "footer_legal";
 
 interface NavLinkProps {
 	children: ReactNode;
