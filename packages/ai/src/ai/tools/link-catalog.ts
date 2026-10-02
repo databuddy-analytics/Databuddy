@@ -84,7 +84,7 @@ const LinkPageSchema = z.object({
 
 const MODEL_LINK_LIMIT = 50;
 
-export const LinkFolderSelectorSchema = z.object({
+const LinkFolderSelectorSchema = z.object({
 	folderId: z
 		.string()
 		.nullable()
