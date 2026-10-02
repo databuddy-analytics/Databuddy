@@ -585,6 +585,36 @@ function listedChanges<T>(
 	return `${shown}; and ${capped ? "at least " : ""}${hidden} more`;
 }
 
+function releaseLine(
+	release: GitHubDeploymentSummary[],
+	subject: string | undefined,
+	timezone: string
+): string {
+	const [newest] = release;
+	if (!newest) {
+		return "";
+	}
+	const replaced = [
+		...new Set(
+			release.flatMap((deployment) =>
+				deployment.previousSha && deployment.previousSha !== deployment.sha
+					? [deployment.previousSha]
+					: []
+			)
+		),
+	];
+	const targets = release
+		.map((deployment) => {
+			const outcome =
+				deployment.result && deployment.completedAt
+					? `${deployment.result} ${dayjs(deployment.completedAt).tz(timezone).format("HH:mm")}`
+					: "no completion recorded";
+			return `${deployment.environment} (${outcome})`;
+		})
+		.join(", ");
+	return `${newest.sha.slice(0, 7)}${subject ? ` "${subject.slice(0, 80)}"` : ""}${replaced.length === 1 ? ` replacing ${replaced[0]?.slice(0, 7)},` : ""} requested ${dayjs(newest.requestedAt).tz(timezone).format("YYYY-MM-DD HH:mm")} to ${targets}`;
+}
+
 export function repositoryChangeEvidence(
 	onset: ChangeOnset,
 	changes: RepositoryChanges,
@@ -595,11 +625,10 @@ export function repositoryChangeEvidence(
 		dayjs(instant).tz(onset.timezone).format("YYYY-MM-DD HH:mm");
 	const window = changeOnsetWindow(onset);
 	const span = `between ${local(window.lookbackFrom)} and ${local(window.to)} (${onset.timezone})`;
-	const subjects = new Map(
-		(changes.commits ?? []).map((commit) => [commit.sha, commit.message])
-	);
-	const sentences: string[] = [];
 	if (changes.deployments?.length) {
+		const subjects = new Map(
+			(changes.commits ?? []).map((commit) => [commit.sha, commit.message])
+		);
 		const releases = new Map<string, GitHubDeploymentSummary[]>();
 		for (const deployment of changes.deployments) {
 			releases.set(deployment.sha, [
@@ -607,50 +636,18 @@ export function repositoryChangeEvidence(
 				deployment,
 			]);
 		}
-		const clock = (instant: string) =>
-			dayjs(instant).tz(onset.timezone).format("HH:mm");
-		sentences.push(
-			`GitHub production deployments of ${repo} requested ${span}, newest first: ${listedChanges(
-				[...releases.values()],
-				changes.deployments.length >= REPOSITORY_DEPLOYMENT_SCAN,
-				(release) => {
-					const [newest] = release;
-					const subject = newest ? subjects.get(newest.sha) : undefined;
-					const replaced = [
-						...new Set(
-							release.flatMap((deployment) =>
-								deployment.previousSha &&
-								deployment.previousSha !== deployment.sha
-									? [deployment.previousSha]
-									: []
-							)
-						),
-					];
-					const base =
-						replaced.length === 1
-							? ` replacing ${replaced[0]?.slice(0, 7)},`
-							: "";
-					const targets = release
-						.map(
-							(deployment) =>
-								`${deployment.environment} (${
-									deployment.result && deployment.completedAt
-										? `${deployment.result} ${clock(deployment.completedAt)}`
-										: "no completion recorded"
-								})`
-						)
-						.join(", ");
-					return `${newest?.sha.slice(0, 7)}${subject ? ` "${subject.slice(0, 80)}"` : ""}${base} requested ${newest ? local(newest.requestedAt) : ""} to ${targets}`;
-				}
-			)}.`
-		);
-	} else if (changes.deployments) {
+		return `GitHub production deployments of ${repo} requested ${span}, newest first: ${listedChanges(
+			[...releases.entries()],
+			changes.deployments.length >= REPOSITORY_DEPLOYMENT_SCAN,
+			([sha, release]) =>
+				releaseLine(release, subjects.get(sha), onset.timezone)
+		)}.`;
+	}
+	const sentences: string[] = [];
+	if (changes.deployments) {
 		sentences.push(
 			`GitHub records no production deployment of ${repo} requested ${span}; deployments made outside GitHub do not appear there.`
 		);
-	}
-	if (changes.deployments?.length) {
-		return sentences.join(" ");
 	}
 	if (changes.commits?.length) {
 		sentences.push(
