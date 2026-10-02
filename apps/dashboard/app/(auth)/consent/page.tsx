@@ -1,7 +1,11 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import { MCP_API_SCOPES, MCP_PERMISSIONS } from "@databuddy/shared/mcp-access";
+import {
+	MCP_API_SCOPES,
+	MCP_PERMISSIONS,
+	type McpApiScope,
+} from "@databuddy/shared/mcp-access";
 import {
 	Button,
 	Card,
@@ -41,6 +45,22 @@ function urlHost(value: string | null): string | null {
 	}
 }
 
+function permissionHint(
+	requested: McpApiScope[],
+	approved: McpApiScope[]
+): string | null {
+	if (!approved.length) {
+		return "Choose at least one permission.";
+	}
+	if (approved.includes("read:data")) {
+		return null;
+	}
+	const readData = MCP_PERMISSIONS["read:data"].label;
+	return requested.includes("read:data")
+		? `Every Databuddy tool needs ${readData}. Select it to allow access.`
+		: `This app did not request ${readData}, which every Databuddy tool needs. Connect again with the permissions it needs.`;
+}
+
 function ConsentPage() {
 	const searchParams = useSearchParams();
 	const oauthQuery = searchParams.toString();
@@ -66,6 +86,7 @@ function ConsentPage() {
 	const approvedActions = requestedActions.filter((scope) =>
 		selectedScopes.includes(scope)
 	);
+	const missingPermission = permissionHint(requestedActions, approvedActions);
 
 	const { data: client, isPending: isClientPending } = useQuery({
 		enabled: Boolean(clientId),
@@ -104,7 +125,7 @@ function ConsentPage() {
 		organizationsQuery.isSuccess &&
 		websitesQuery.isSuccess &&
 		validWebsiteSelection &&
-		approvedActions.length > 0;
+		!missingPermission;
 
 	const decision = useMutation({
 		meta: { suppressGlobalErrorToast: true },
@@ -310,9 +331,9 @@ function ConsentPage() {
 					/>
 				))}
 				{requestedActions.length ? (
-					approvedActions.length ? null : (
+					missingPermission && (
 						<Text tone="muted" variant="caption">
-							Choose at least one permission.
+							{missingPermission}
 						</Text>
 					)
 				) : (
