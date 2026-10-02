@@ -138,7 +138,7 @@ export const McpBuilders = {
 		meta: {
 			...meta(
 				"MCP Tools",
-				"One row per tool, most called first. avg_output_chars is the average result size in characters, about 4 per token."
+				"One row per tool, most called first. avg_output_chars is the average number of text characters the tool returned, about 4 per token."
 			),
 			output_fields: [
 				{ name: "tool", type: "string" },
