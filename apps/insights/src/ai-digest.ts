@@ -30,6 +30,7 @@ import {
 	aiProductIcon,
 	CONTENT_FORMATS,
 } from "@databuddy/shared/bot-detection/types";
+import { isNotable } from "./ai-agent-detection";
 import { numberField, stringField } from "./detection";
 import { emitInsightsEvent, setInsightsLog } from "./lib/evlog-insights";
 
@@ -37,7 +38,13 @@ const DAY_MS = 86_400_000;
 const PRODUCT_ROWS = 5;
 const PAGE_ROWS = 3;
 const LANDING_ROWS = 3;
+const CHANGE_ROWS = 3;
 const MIN_READS_WITHOUT_VISITORS = 10;
+
+type DigestChange = AiDigestEmailProps["changes"][number];
+
+const changeSize = (change: DigestChange) =>
+	Math.abs(change.current - change.previous) / Math.max(change.previous, 1);
 
 const ROLES: Record<string, string> = {
 	agent: "AI agent",
@@ -70,6 +77,7 @@ function weekRange(weekStart: string) {
 	const start = Date.parse(`${weekStart}T00:00:00Z`);
 	return {
 		from: weekStart,
+		previousFrom: isoDay(start - 7 * DAY_MS),
 		to: isoDay(start + 6 * DAY_MS),
 		until: isoDay(start + 7 * DAY_MS),
 	};
@@ -136,10 +144,12 @@ function digestSubject({
 	return `${sender} sent ${visitors.toLocaleString("en-US")} ${visitors === 1 ? "visitor" : "visitors"} to ${site} this week`;
 }
 
-async function sitesWhoseServerTrackingStopped(weekStart: string) {
+async function sitesWhoseServerTrackingStopped(
+	week: ReturnType<typeof weekRange>
+) {
 	const { sql, params } = aiServerTrackingStoppedQuery(
-		isoDay(Date.parse(`${weekStart}T00:00:00Z`) - 7 * DAY_MS),
-		weekStart
+		week.previousFrom,
+		week.from
 	);
 	const stopped = await chQuery<{ client_id: string }>(sql, params);
 	if (stopped.length === 0) {
@@ -176,7 +186,7 @@ export async function dispatchAiDigests(now = new Date()) {
 	);
 	setInsightsLog({
 		ai_server_tracking_stopped: await sitesWhoseServerTrackingStopped(
-			week.from
+			week
 		).catch((error: unknown) => {
 			emitInsightsEvent("warn", "ai_digest.stopped_tracking_check_failed", {
 				error: error instanceof Error ? error.message : String(error),
@@ -229,6 +239,35 @@ async function buildAiDigest(
 		return null;
 	}
 
+	const hasServerTracking =
+		numberField(siteTotals, "site_has_server_tracking") > 0;
+	const serverTrackingSince = stringField(
+		siteTotals,
+		"site_server_tracking_since"
+	);
+	const changeMetrics: DigestChange["metric"][] =
+		hasServerTracking &&
+		serverTrackingSince !== null &&
+		serverTrackingSince < week.previousFrom
+			? ["visitors", "requests"]
+			: ["visitors"];
+	const changes = digest.flatMap((row) =>
+		changeMetrics.flatMap((metric) => {
+			const current = numberField(row, metric);
+			const previous = numberField(row, `previous_${metric}`);
+			return isNotable(metric, current, previous)
+				? [
+						{
+							current,
+							metric,
+							previous,
+							product: stringField(row, "product") ?? "",
+						},
+					]
+				: [];
+		})
+	);
+
 	const rankedPages = agentPages
 		.map((row) => ({
 			format: CONTENT_FORMATS.find((format) => format === row.format) ?? "html",
@@ -241,7 +280,14 @@ async function buildAiDigest(
 
 	return {
 		agentsUrl: trackedDashboardUrl(`/websites/${websiteId}/agents`),
-		hasServerTracking: numberField(siteTotals, "site_has_server_tracking") > 0,
+		changes: changes
+			.sort(
+				(a, b) =>
+					Number(b.metric === "visitors") - Number(a.metric === "visitors") ||
+					changeSize(b) - changeSize(a)
+			)
+			.slice(0, CHANGE_ROWS),
+		hasServerTracking,
 		landingPages: landing.map((row) => {
 			const [sender] = Array.isArray(row.senders) ? row.senders : [];
 			return {
