@@ -6,7 +6,6 @@ import {
 	ArrowsOutSimpleIcon,
 	BugIcon,
 	CaretDownIcon,
-	FlagIcon,
 	FunnelIcon,
 	GaugeIcon,
 	LightbulbFilamentIcon,
@@ -17,7 +16,7 @@ import {
 import { motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { flush, track } from "@databuddy/sdk";
 import BackgroundFlow from "./backgroundFlow";
 import { SciFiButton } from "./scifi-btn";
@@ -28,10 +27,7 @@ const tabs = [
 	{ id: "errors", label: "Errors", path: "/errors" },
 	{ id: "vitals", label: "Vitals", path: "/vitals" },
 	{ id: "funnels", label: "Funnels", path: "/funnels" },
-	{ id: "flags", label: "Flags", path: "/flags" },
 ] as const;
-
-const allTabIds = new Set(tabs.map((t) => t.id));
 
 type HeroInsightTone = "positive" | "negative" | "warning";
 type HeroTabId = (typeof tabs)[number]["id"];
@@ -62,69 +58,59 @@ const heroInsights = [
 	{
 		tabId: "overview",
 		icon: TrendUpIcon,
-		headline: "Pricing traffic is converting 3× the baseline",
-		change: "+200%",
+		headline: "Signups from organic search rose 34% week over week",
+		change: "+34%",
 		tone: "positive",
 		whyItMatters:
-			"Launch referral traffic is landing on /pricing and signing up at 12.4%.",
-		nextStep: "Send this cohort to the founder-led onboarding path.",
-		evidence: ["8.4k sessions", "12.4% signup", "/pricing"],
+			"Search visitors landing on /docs signed up at 3.1%, up from 2.3% the week before.",
+		nextStep: "Link the quickstart from the top three search landing pages.",
+		evidence: ["6.2k visitors", "3.1% signup", "/docs"],
 	},
 	{
 		tabId: "events",
 		icon: LightningIcon,
-		headline: "Invite accepted events jumped after the docs CTA shipped",
-		change: "+64%",
+		headline: "Invite acceptance rose 31% week over week",
+		change: "+31%",
 		tone: "positive",
 		whyItMatters:
-			"Visitors from the SDK guide are creating teams faster than the site baseline.",
-		nextStep: "Keep the docs CTA and test the same prompt on the pricing page.",
-		evidence: ["1.9k events", "+64% WoW", "sdk_guide"],
+			"Visitors from the SDK guide accepted team invites at 9.4%, up from 7.2% the week before.",
+		nextStep: "Link the SDK guide from onboarding and compare next week.",
+		evidence: ["1.9k events", "+31% WoW", "sdk_guide"],
 	},
 	{
 		tabId: "errors",
 		icon: BugIcon,
-		headline: "Checkout errors are concentrated on mobile Safari",
+		headline: "Checkout errors rose 180% week over week",
 		change: "+180%",
 		tone: "negative",
 		whyItMatters:
-			"The last deploy increased step-two exceptions for iOS visitors.",
-		nextStep: "Roll back address autocomplete and watch drop-off recover.",
-		evidence: ["847 errors", "+23% drop-off", "iOS Safari"],
+			"Most new errors are one TypeError on /checkout. Sessions that hit it convert 23% less.",
+		nextStep: "Open the TypeError's stack trace and reproduce it on /checkout.",
+		evidence: ["847 errors", "+180% WoW", "/checkout"],
 	},
 	{
 		tabId: "vitals",
 		icon: GaugeIcon,
-		headline: "INP degraded on the signup flow after script growth",
+		headline: "Interaction delay (INP) rose 42% week over week",
 		change: "+42%",
 		tone: "warning",
 		whyItMatters:
-			"Interaction latency is highest on the plan selector, where new users decide.",
-		nextStep: "Defer the pricing calculator bundle and recheck p75 INP.",
-		evidence: ["284ms p75", "+42%", "/signup"],
+			"/signup has the slowest interactions, with p75 INP at 284 ms against a 200 ms target.",
+		nextStep:
+			"Profile the /signup form on a mid-range phone and recheck p75 INP.",
+		evidence: ["284ms p75", "+42% WoW", "/signup"],
 	},
 	{
 		tabId: "funnels",
 		icon: FunnelIcon,
-		headline: "Signup funnel is leaking at email verification",
-		change: "-18%",
+		headline: "Signup funnel conversion fell 22% week over week",
+		change: "-22%",
 		tone: "warning",
 		whyItMatters:
-			"Mobile visitors reach signup, then leave at email verification.",
+			"Most of the new drop-off is at email verification, the step right after signup.",
 		nextStep:
-			"Restore the shorter verification copy for mobile visitors first.",
-		evidence: ["234 trials", "-31% mobile", "verify step"],
-	},
-	{
-		tabId: "flags",
-		icon: FlagIcon,
-		headline: "New onboarding variant is lifting activation",
-		change: "+21%",
-		tone: "positive",
-		whyItMatters:
-			"The 20% rollout is creating more completed projects without raising errors.",
-		nextStep: "Roll out to 50% and watch activation plus support events.",
-		evidence: ["20% rollout", "+21% activation", "0 error lift"],
+			"Walk through email verification yourself and fix the first step that stalls.",
+		evidence: ["234 signups", "-22% WoW", "verify step"],
 	},
 ] satisfies {
 	change: string;
@@ -306,16 +292,6 @@ export default function Hero({
 	const [embedReady, setEmbedReady] = useState<Set<string>>(() => new Set());
 	const iframeRefs = useRef<Record<string, HTMLIFrameElement | null>>({});
 
-	useEffect(() => {
-		const run = () => setLoadedTabIds(new Set(allTabIds));
-		if (typeof requestIdleCallback !== "undefined") {
-			const id = requestIdleCallback(run);
-			return () => cancelIdleCallback(id);
-		}
-		const id = window.setTimeout(run, 300);
-		return () => clearTimeout(id);
-	}, []);
-
 	const activeIndex = tabs.findIndex((t) => t.id === activeTab);
 
 	const selectTab = (id: HeroTabId) => {
@@ -363,8 +339,8 @@ export default function Hero({
 
 					<p className="z-10 max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
 						Track visitors, signups, funnels, and revenue in one place. Ask
-						Databunny, the built-in AI analyst, what changed and see the numbers
-						behind every answer.
+						Databunny, the built-in AI analyst, about your numbers and see the
+						query behind every answer.
 					</p>
 
 					<div className="flex flex-wrap items-center gap-3 pt-2">
