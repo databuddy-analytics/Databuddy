@@ -278,7 +278,7 @@ describe("search discovery", () => {
 		});
 		expect(metadata.description).toContain("$1,198.80");
 		expect(JSON.stringify(metadata.openGraph)).toContain(
-			`revenue=${calculateCookieBannerCost(inputs).lostRevenueYearly}&visitors=1000`
+			`revenue=${Math.round(calculateCookieBannerCost(inputs).lostRevenueYearly)}&visitors=1000`
 		);
 		for (const invalid of ["NaN", "Infinity", "-1", "", "2000001"]) {
 			expect(
