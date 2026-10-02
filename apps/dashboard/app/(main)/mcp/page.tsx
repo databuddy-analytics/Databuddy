@@ -19,6 +19,7 @@ import { useFlag } from "@databuddy/sdk/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { parseAsString, useQueryStates } from "nuqs";
+import { Suspense } from "react";
 import { formatDateByGranularity } from "@/app/(main)/websites/[id]/_components/utils/analytics-helpers";
 import {
 	CodeBlock,
@@ -331,7 +332,11 @@ export default function McpPage() {
 	if (!(flag.loading || flag.on)) {
 		notFound();
 	}
-	return <McpAnalytics />;
+	return (
+		<Suspense fallback={null}>
+			<McpAnalytics />
+		</Suspense>
+	);
 }
 
 function McpAnalytics() {
