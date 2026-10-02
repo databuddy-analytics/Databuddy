@@ -8,9 +8,14 @@ import {
 	mock,
 	setSystemTime,
 } from "bun:test";
+import type { apikey } from "@databuddy/db/schema";
 import { createProcedureClient } from "@orpc/server";
 import { createKeys } from "keypal";
 import type { Context } from "../orpc";
+
+type ApiKeyRow = typeof apikey.$inferSelect;
+type ApiKeyInsert = typeof apikey.$inferInsert;
+type ApiKeyUpdate = Partial<ApiKeyInsert>;
 
 const NOW = "2030-01-01T00:00:00.000Z";
 const ORGANIZATION_ID = "org-expiration-test";
@@ -18,6 +23,8 @@ const testKeys = createKeys({ prefix: "dbdy_", length: 48 });
 const mockCreateKey = mock((input: Parameters<typeof testKeys.create>[0]) =>
 	testKeys.create(input)
 );
+// Isolate expiration behavior; permission checks have dedicated coverage in
+// ../procedures/with-workspace.test.ts and apikeys.resource-ownership.test.ts.
 const mockWithWorkspace = mock(async () => ({
 	organizationId: ORGANIZATION_ID,
 	role: "admin",
@@ -31,6 +38,7 @@ const mockInvalidate = mock(
 );
 
 let apikeysRouter: typeof import("./apikeys").apikeysRouter;
+let auth: Context["auth"];
 
 beforeAll(async () => {
 	mock.module("@databuddy/auth", () => ({
@@ -54,6 +62,7 @@ beforeAll(async () => {
 		getAuditRequestContext: () => ({}),
 	}));
 	({ apikeysRouter } = await import("./apikeys"));
+	({ auth } = await import("@databuddy/auth"));
 	mock.restore();
 });
 
@@ -70,7 +79,7 @@ afterEach(() => {
 });
 
 function fixture(expiresAt: Date | null = null) {
-	const key = {
+	const key: ApiKeyRow = {
 		createdAt: new Date(NOW),
 		enabled: true,
 		expiresAt,
@@ -87,20 +96,20 @@ function fixture(expiresAt: Date | null = null) {
 		revokedAt: null,
 		scopes: [],
 		start: "dbdy_test",
-		type: "user" as const,
+		type: "user",
 		updatedAt: new Date(NOW),
 		userId: null,
 	};
-	const writes: Record<string, unknown>[] = [];
+	const writes: ApiKeyUpdate[] = [];
 	const transactionDb = {
 		insert: () => ({
-			values: (values: Record<string, unknown>) => {
+			values: (values: ApiKeyInsert) => {
 				writes.push(values);
 				return { returning: async () => [{ ...key, ...values }] };
 			},
 		}),
 		update: () => ({
-			set: (values: Record<string, unknown>) => {
+			set: (values: ApiKeyUpdate) => {
 				writes.push(values);
 				return {
 					where: () => ({ returning: async () => [{ ...key, ...values }] }),
@@ -109,24 +118,42 @@ function fixture(expiresAt: Date | null = null) {
 		}),
 	};
 	const transaction = mock(
-		async (callback: (tx: typeof transactionDb) => Promise<unknown>) =>
+		async <T>(callback: (tx: typeof transactionDb) => Promise<T>) =>
 			callback(transactionDb)
 	);
-	const context = {
+	const database = new Proxy({} as Context["db"], {
+		get(_target, property) {
+			if (property === "query") {
+				return { apikey: { findFirst: async () => key } };
+			}
+			if (property === "transaction") {
+				return transaction;
+			}
+			throw new Error(`Unexpected database operation: ${String(property)}`);
+		},
+	});
+	const context: Context = {
+		auth,
 		auditOrganizationId: undefined,
 		anonymousId: null,
 		apiKey: undefined,
-		db: {
-			query: { apikey: { findFirst: async () => key } },
-			transaction,
-		},
+		db: database,
 		getBilling: async () => undefined,
 		headers: new Headers(),
 		organizationId: ORGANIZATION_ID,
+		oauth: null,
 		session: undefined,
 		sessionId: null,
-		user: { email: "admin@example.com", id: "user-test", name: "Admin" },
-	} as Context;
+		user: {
+			createdAt: new Date(NOW),
+			email: "admin@example.com",
+			emailVerified: true,
+			id: "user-test",
+			name: "Admin",
+			twoFactorEnabled: false,
+			updatedAt: new Date(NOW),
+		},
+	};
 	return { context, transaction, writes };
 }
 
