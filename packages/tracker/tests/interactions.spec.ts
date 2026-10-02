@@ -154,6 +154,15 @@ const ORDINARY_CLICKS: {
 		act: (page) => page.click("button"),
 	},
 	{
+		name: "clicks split by clear()",
+		markup: `<button aria-label="sign out" onclick="this.textContent = 'Signed out'">Sign out</button>`,
+		act: async (page) => {
+			await page.click("button", { clickCount: 2 });
+			await page.evaluate(() => window.databuddy?.clear());
+			await page.click("button");
+		},
+	},
+	{
 		name: "double-clicking a word and clicking it again",
 		markup: "<p>Shipping takes three to five business days.</p>",
 		act: async (page) => {
@@ -339,6 +348,21 @@ test.describe("interaction frustration signals", () => {
 			}
 		);
 	}
+
+	test("paging quickly with a button that navigates each time is not rage", async ({
+		page,
+	}) => {
+		await loadFixture(
+			page,
+			`<button aria-label="next page" onclick="history.pushState({}, '', '?page=' + (Number(new URLSearchParams(location.search).get('page') ?? 1) + 1))">Next</button>`
+		);
+		for (let click = 0; click < 2; click++) {
+			await page.click("button");
+			await page.clock.runFor(100);
+		}
+		await page.click("button");
+		expect(await readFrustration(page)).toMatchObject({ rageClicks: 0 });
+	});
 
 	test("a click made before clear() does not count after it", async ({
 		page,
