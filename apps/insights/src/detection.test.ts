@@ -8,9 +8,11 @@ import {
 	type QueryFn,
 	detectSignals,
 	estimateChangeOnset,
+	estimateRecovery,
 	freshCustomEventSignals,
 	freshRevenueSignals,
 	loadChangeOnset,
+	loadRecovery,
 	loadSegmentFinding,
 	remeasureMetricSignal,
 	segmentEvidence,
@@ -3214,5 +3216,142 @@ describe("segment localization", () => {
 			concentration: { dimension: "browser", value: "Safari" },
 			kind: "concentration",
 		});
+	});
+});
+
+describe("recovery", () => {
+	const baseline = hourlyCounts("2026-08-17", 14, diurnal);
+
+	it("confirms a recovery that held for a full day", () => {
+		const recovery = estimateRecovery({
+			baseline,
+			direction: "down",
+			window: hourlyCounts("2026-08-31", 4, (hour, index) =>
+				index < 30 ? 0 : diurnal(hour)
+			).slice(0, 78),
+		});
+		expect(recovery).toMatchObject({
+			brokenCount: 0,
+			heldHours: 48,
+			kind: "recovered",
+		});
+		expect(
+			recovery?.kind === "recovered" ? recovery.recoveredAt : null
+		).toBeGreaterThanOrEqual(30);
+	});
+
+	it("reports a break that is still in effect", () => {
+		expect(
+			estimateRecovery({
+				baseline,
+				direction: "down",
+				window: hourlyCounts("2026-08-31", 3, () => 0),
+			})
+		).toMatchObject({ kind: "ongoing", observed: 0 });
+	});
+
+	it("waits until a recovery has held for a full day", () => {
+		expect(
+			estimateRecovery({
+				baseline,
+				direction: "down",
+				window: hourlyCounts("2026-08-31", 3, (hour, index) =>
+					index < 60 ? 0 : diurnal(hour)
+				),
+			})
+		).not.toMatchObject({ kind: "recovered" });
+	});
+
+	it("confirms that a new error stopped", () => {
+		const window = hourlyCounts("2026-08-31", 3, (_hour, index) =>
+			index < 6 ? 30 : 0
+		).slice(0, 54);
+		expect(
+			estimateRecovery({
+				baseline: hourlyCounts("2026-08-17", 14, () => 0),
+				direction: "up",
+				window,
+			})
+		).toMatchObject({
+			brokenCount: window
+				.slice(0, 6)
+				.reduce((total, point) => total + point.value, 0),
+			heldHours: 48,
+			kind: "recovered",
+		});
+	});
+
+	const spikeSignal = prepareInvestigation(
+		{
+			baseline: 0,
+			current: 160,
+			deltaPercent: 100,
+			detectedAt: "2026-09-22",
+			direction: "up",
+			entityId: "TypeError: x is undefined",
+			entityLabel: "TypeError: x is undefined",
+			label: "TypeError: x is undefined",
+			method: "wow",
+			metric: "error_count",
+			severity: "warning",
+			subjectKey: "error:TypeError: x is undefined",
+		},
+		7
+	).signal;
+
+	function hourlyQuery(trafficStopsWithErrors: boolean): QueryFn {
+		return async (request) => {
+			const rows: Record<string, unknown>[] = [];
+			for (
+				let instant = dayjs.utc(`${request.from} 00:00`);
+				instant.isBefore(dayjs.utc(`${request.to} 23:59`));
+				instant = instant.add(1, "hour")
+			) {
+				const date = instant.format("YYYY-MM-DD HH:00:00");
+				const spike =
+					date >= "2026-09-22 02:00:00" && date < "2026-09-22 06:00:00";
+				if (request.type === "error_trends" && spike) {
+					rows.push({ date, errors: 40 });
+				}
+				if (
+					request.type === "events_by_date" &&
+					!(trafficStopsWithErrors && date >= "2026-09-22 06:00:00")
+				) {
+					rows.push({ date, pageviews: Math.round(diurnal(date)) });
+				}
+			}
+			return rows;
+		};
+	}
+
+	it("confirms an error stopped while traffic continued", async () => {
+		const result = await loadRecovery(
+			{
+				prior: spikeSignal,
+				through: "2026-09-25",
+				timezone: "UTC",
+				websiteId: "site-1",
+			},
+			hourlyQuery(false)
+		);
+		expect(result?.recovery).toMatchObject({
+			brokenCount: 160,
+			recoveredAt: "2026-09-22 06:00:00",
+			state: "recovered",
+		});
+	});
+
+	it("does not call an error recovered when traffic stopped with it", async () => {
+		expect(
+			await loadRecovery(
+				{
+					prior: spikeSignal,
+					through: "2026-09-25",
+					timezone: "UTC",
+					websiteId: "site-1",
+				},
+				hourlyQuery(true)
+			)
+		).toBeNull();
 	});
 });

@@ -6,7 +6,9 @@ import {
 	type ChangeOnset,
 	changeOnsetEvidence,
 	detectSignals,
+	type ChangeRecovery,
 	type DetectedSignal,
+	recoveryEvidence,
 	type SegmentFinding,
 	segmentEvidence,
 } from "./detection";
@@ -1210,6 +1212,105 @@ describe("fixture investigation sources", () => {
 		expect(artifact.signal?.signalKey).toBe(prior.signal.signalKey);
 		expect(currentWindow?.to).toBe("2026-07-18");
 		expect(historicalWindow?.to).toBe("2026-07-11");
+	});
+
+	it("checks a due case for recovery and lists the deploys before it", async () => {
+		const prior = prepareInvestigation(trafficDrop, 7);
+		const recovery: ChangeRecovery = {
+			brokenCount: 0,
+			brokenHours: 30,
+			direction: "down",
+			expected: null,
+			heldHours: 48,
+			noun: "pageviews",
+			observed: 2400,
+			recoveredAt: "2026-07-16 14:00:00",
+			recoveredOn: "2026-07-16",
+			state: "recovered",
+			subject: "Hourly pageviews",
+			through: "2026-07-18",
+			timezone: "UTC",
+		};
+		const asked: InvestigationOutcome = {
+			evidence: ["Visitors fell in the newest complete week."],
+			impact: null,
+			next: { question: "Did anything intentionally change?", type: "ask" },
+			rootCause: null,
+			summary: "Traffic fell across the site.",
+			title: "Traffic fell",
+		};
+		let received:
+			| Parameters<InvestigationSources["investigateSignal"]>[0]
+			| null = null;
+		let recoveryWindow: { earliest: string; latest: string } | undefined;
+		const sources = fixtureSources({
+			detectDefinitionSignals: async () => [],
+			detectMetricSignals: async () => [],
+			fetchAnnotations: async () => [],
+			investigateSignal: async (input) => {
+				received = input;
+				return {
+					outcome: {
+						...asked,
+						next: { reason: "Traffic recovered.", type: "resolve" },
+						title: "Traffic recovered",
+					},
+					toolCallCount: 1,
+				};
+			},
+			loadDueInvestigation: async () => ({
+				evidence: prior.evidence,
+				outcome: asked,
+				recheckAt: new Date("2026-07-18T00:00:00.000Z"),
+				signal: prior.signal,
+			}),
+			loadHistory: async () => [
+				{
+					asOf: "2026-07-12T00:00:00.000Z",
+					evidence: prior.evidence,
+					kind: "investigation",
+					outcome: asked,
+					signal: prior.signal,
+				},
+			],
+			loadObservations: async () => new Map(),
+			loadRecovery: async (params) => {
+				expect(params.prior.signalKey).toBe(prior.signal.signalKey);
+				return { onset: linkOnset, recovery };
+			},
+			loadRepositoryChanges: async ({ onset }) => {
+				recoveryWindow = { earliest: onset.earliest, latest: onset.latest };
+				return { commits: null, deployments: [] };
+			},
+			remeasureSignal: async () => ({
+				...trafficDrop,
+				baseline: 900,
+				current: 920,
+				deltaPercent: 2.22,
+				detectedAt: "2026-07-18",
+				direction: "up",
+				severity: "info",
+			}),
+		});
+
+		const artifact = await investigateFixture(sources, {
+			asOf: "2026-07-19",
+			githubRepository: { owner: "example", repo: "web-app" },
+		});
+
+		expect(artifact.recovered).toBe(true);
+		expect(received?.evidence).toContain(recoveryEvidence(recovery));
+		expect(recoveryWindow).toEqual({
+			earliest: "2026-07-16 14:00:00",
+			latest: "2026-07-16 14:00:00",
+		});
+		expect(
+			received?.evidence.some((item) =>
+				item.startsWith(
+					"Before the recovery: GitHub records no production deployment"
+				)
+			)
+		).toBe(true);
 	});
 
 	it("retries when due remeasurement makes the scan incomplete", async () => {

@@ -2251,17 +2251,7 @@ function hourProfileKey(hour: string): string {
 	return `${isWeekend(hour.slice(0, 10)) ? "weekend" : "weekday"}:${hour.slice(11, 13)}`;
 }
 
-export function estimateChangeOnset(params: {
-	baseline: HourlyCount[];
-	direction: "up" | "down";
-	flaggedFrom: number;
-	window: HourlyCount[];
-}): OnsetEstimate | null {
-	const { baseline, direction, flaggedFrom, window } = params;
-	const n = window.length;
-	if (n <= ONSET_MIN_OUTSIDE_HOURS || flaggedFrom >= n) {
-		return null;
-	}
+function hourlyBaseline(baseline: HourlyCount[]) {
 	const profile = new Map<string, { hours: number; total: number }>();
 	let baselineTotal = 0;
 	for (const point of baseline) {
@@ -2286,8 +2276,26 @@ export function estimateChangeOnset(params: {
 		pearson += (point.value - expected) ** 2 / expected;
 	}
 	const freedom = baseline.length - profile.size;
-	const dispersion =
-		hourlyMean > 0 && freedom > 0 ? Math.max(1, pearson / freedom) : 1;
+	return {
+		dispersion:
+			hourlyMean > 0 && freedom > 0 ? Math.max(1, pearson / freedom) : 1,
+		expectedAt,
+		hourlyMean,
+	};
+}
+
+export function estimateChangeOnset(params: {
+	baseline: HourlyCount[];
+	direction: "up" | "down";
+	flaggedFrom: number;
+	window: HourlyCount[];
+}): OnsetEstimate | null {
+	const { baseline, direction, flaggedFrom, window } = params;
+	const n = window.length;
+	if (n <= ONSET_MIN_OUTSIDE_HOURS || flaggedFrom >= n) {
+		return null;
+	}
+	const { dispersion, expectedAt, hourlyMean } = hourlyBaseline(baseline);
 
 	const counts = [0];
 	const exposure = [0];
@@ -2460,6 +2468,55 @@ export interface ChangeOnset {
 	timezone: string;
 }
 
+async function readHourlyCounts(params: {
+	abortSignal?: AbortSignal;
+	from: string;
+	query: QueryFn;
+	series: OnsetSeries;
+	timezone: string;
+	to: string;
+	websiteId: string;
+}): Promise<HourlyCount[]> {
+	const { series, timezone } = params;
+	const rows = await params.query(
+		{
+			filters: series.filters,
+			from: params.from,
+			projectId: params.websiteId,
+			timeUnit: "hour",
+			timezone,
+			to: params.to,
+			type: series.type,
+		},
+		undefined,
+		timezone,
+		params.abortSignal
+	);
+	const values = new Map<string, number>();
+	for (const row of rows) {
+		const hour = stringField(row, "date");
+		if (hour) {
+			values.set(
+				hour,
+				(values.get(hour) ?? 0) + numberField(row, series.field)
+			);
+		}
+	}
+	const hours: string[] = [];
+	const end = dayjs.tz(`${params.to} 23:00`, timezone);
+	for (
+		let instant = dayjs.tz(`${params.from} 00:00`, timezone);
+		!instant.isAfter(end);
+		instant = instant.add(1, "hour")
+	) {
+		const label = instant.tz(timezone).format(HOUR_LABEL);
+		if (hours.at(-1) !== label) {
+			hours.push(label);
+		}
+	}
+	return hours.map((hour) => ({ hour, value: values.get(hour) ?? 0 }));
+}
+
 export async function loadChangeOnset(
 	params: {
 		abortSignal?: AbortSignal;
@@ -2482,43 +2539,15 @@ export async function loadChangeOnset(
 		.subtract(ONSET_BASELINE_DAYS, "day")
 		.format("YYYY-MM-DD");
 	const lastDay = signal.period.current.to;
-	const rows = await query(
-		{
-			filters: series.filters,
-			from: baselineFrom,
-			projectId: params.websiteId,
-			timeUnit: "hour",
-			timezone,
-			to: lastDay,
-			type: series.type,
-		},
-		undefined,
+	const points = await readHourlyCounts({
+		abortSignal: params.abortSignal,
+		from: baselineFrom,
+		query,
+		series,
 		timezone,
-		params.abortSignal
-	);
-	const values = new Map<string, number>();
-	for (const row of rows) {
-		const hour = stringField(row, "date");
-		if (hour) {
-			values.set(
-				hour,
-				(values.get(hour) ?? 0) + numberField(row, series.field)
-			);
-		}
-	}
-	const hours: string[] = [];
-	const end = dayjs.tz(`${lastDay} 23:00`, timezone);
-	for (
-		let instant = dayjs.tz(`${baselineFrom} 00:00`, timezone);
-		!instant.isAfter(end);
-		instant = instant.add(1, "hour")
-	) {
-		const label = instant.tz(timezone).format(HOUR_LABEL);
-		if (hours.at(-1) !== label) {
-			hours.push(label);
-		}
-	}
-	const points = hours.map((hour) => ({ hour, value: values.get(hour) ?? 0 }));
+		to: lastDay,
+		websiteId: params.websiteId,
+	});
 	const windowStart = points.findIndex((point) => point.hour >= searchFrom);
 	if (windowStart <= 0) {
 		return null;
@@ -2964,4 +2993,316 @@ export function segmentEvidence(finding: SegmentFinding): string {
 	const restChange = `${shift.restChange >= 0 ? "+" : "-"}${percent(Math.abs(shift.restChange))}`;
 	const daily = (value: number) => Math.round(value).toLocaleString("en-US");
 	return `${finding.noun} from ${segment} ${verb}${segmentChange} (from about ${daily(shift.beforeDaily)} to ${daily(shift.afterDaily)} a day), ${percent(Math.min(shift.explained, 1))} of the whole ${finding.direction === "down" ? "drop" : "rise"}, while everything else changed ${restChange}.`;
+}
+
+const RECOVERY_MIN_HOLD_HOURS = 24;
+const RECOVERY_MAX_WINDOW_DAYS = 21;
+const RECOVERY_NEAR_BASELINE = 1.5;
+const RECOVERY_NEW_SERIES_REMAINDER = 0.1;
+const RECOVERY_NEW_SERIES_ONGOING = 0.5;
+const RECOVERY_MIN_TRAFFIC_SHARE = 0.5;
+
+export type RecoveryState =
+	| {
+			brokenCount: number;
+			heldHours: number;
+			kind: "recovered";
+			observed: number;
+			recoveredAt: number | null;
+			recoveredFrom: number;
+	  }
+	| { expectedNormal: number; kind: "ongoing"; observed: number };
+
+export function estimateRecovery(params: {
+	baseline: HourlyCount[];
+	direction: "up" | "down";
+	window: HourlyCount[];
+}): RecoveryState | null {
+	const { baseline, direction, window } = params;
+	const n = window.length;
+	if (n < RECOVERY_MIN_HOLD_HOURS + ONSET_MIN_OUTSIDE_HOURS) {
+		return null;
+	}
+	const { dispersion, expectedAt, hourlyMean } = hourlyBaseline(baseline);
+	const counts = [0];
+	const exposure = [0];
+	for (const [index, point] of window.entries()) {
+		counts.push((counts[index] ?? 0) + point.value);
+		exposure.push((exposure[index] ?? 0) + expectedAt(point.hour));
+	}
+	const countIn = (from: number, to: number) =>
+		(counts[to] ?? 0) - (counts[from] ?? 0);
+	const exposureIn = (from: number, to: number) =>
+		(exposure[to] ?? 0) - (exposure[from] ?? 0);
+	const level = (from: number, to: number) =>
+		countIn(from, to) / exposureIn(from, to);
+	const lastDay = n - RECOVERY_MIN_HOLD_HOURS;
+	const nearBaseline = (from: number, brokenLevel: number) => {
+		const value = level(from, n);
+		if (hourlyMean === 0) {
+			return value <= brokenLevel * RECOVERY_NEW_SERIES_REMAINDER;
+		}
+		return direction === "down"
+			? value >= 1 / RECOVERY_NEAR_BASELINE
+			: value <= RECOVERY_NEAR_BASELINE;
+	};
+	const nullTerm = poissonTerm(countIn(0, n), exposureIn(0, n));
+	const split = (at: number) => {
+		const broken = level(0, at);
+		const after = level(at, n);
+		return (direction === "down" ? after > broken : after < broken)
+			? poissonTerm(countIn(0, at), exposureIn(0, at)) +
+					poissonTerm(countIn(at, n), exposureIn(at, n)) -
+					nullTerm
+			: Number.NEGATIVE_INFINITY;
+	};
+	let best = { at: 0, llr: Number.NEGATIVE_INFINITY };
+	for (let at = 1; at <= lastDay; at++) {
+		const llr = split(at);
+		if (llr > best.llr) {
+			best = { at, llr };
+		}
+	}
+	const brokenLevel = best.at > 0 ? level(0, best.at) : level(0, lastDay);
+	if (
+		best.at > 0 &&
+		best.llr / dispersion >= ONSET_MIN_QUASI_LLR &&
+		nearBaseline(best.at, brokenLevel) &&
+		nearBaseline(lastDay, brokenLevel)
+	) {
+		const floor = best.llr - ONSET_LOCATION_SLACK * dispersion;
+		const plausible: number[] = [];
+		for (let at = 1; at <= lastDay; at++) {
+			if (split(at) >= floor) {
+				plausible.push(at);
+			}
+		}
+		const latest = Math.max(...plausible);
+		return {
+			brokenCount: countIn(0, best.at),
+			heldHours: n - best.at,
+			kind: "recovered",
+			observed: countIn(best.at, n),
+			recoveredAt:
+				latest - Math.min(...plausible) + 1 <= ONSET_MAX_SPREAD_HOURS
+					? latest
+					: null,
+			recoveredFrom: best.at,
+		};
+	}
+	const recent = level(lastDay, n);
+	const stillBroken =
+		hourlyMean === 0
+			? countIn(lastDay, n) > 0 &&
+				recent >= level(0, lastDay) * RECOVERY_NEW_SERIES_ONGOING
+			: direction === "down"
+				? recent <= 1 / RECOVERY_NEAR_BASELINE
+				: recent >= RECOVERY_NEAR_BASELINE;
+	return stillBroken
+		? {
+				expectedNormal: hourlyMean === 0 ? 0 : exposureIn(lastDay, n),
+				kind: "ongoing",
+				observed: countIn(lastDay, n),
+			}
+		: null;
+}
+
+export interface ChangeRecovery {
+	brokenCount: number | null;
+	brokenHours: number | null;
+	direction: "up" | "down";
+	expected: number | null;
+	heldHours: number | null;
+	noun: string;
+	observed: number;
+	recoveredAt: string | null;
+	recoveredOn: string | null;
+	state: "recovered" | "ongoing";
+	subject: string;
+	through: string;
+	timezone: string;
+}
+
+async function trafficContinued(params: {
+	abortSignal?: AbortSignal;
+	from: string;
+	query: QueryFn;
+	recoveredAt: string;
+	start: string;
+	timezone: string;
+	to: string;
+	websiteId: string;
+}): Promise<boolean> {
+	const points = await readHourlyCounts({
+		abortSignal: params.abortSignal,
+		from: params.from,
+		query: params.query,
+		series: {
+			field: "pageviews",
+			filters: [],
+			noun: "pageviews",
+			subject: "Hourly pageviews",
+			type: "events_by_date",
+		},
+		timezone: params.timezone,
+		to: params.to,
+		websiteId: params.websiteId,
+	});
+	const { expectedAt } = hourlyBaseline(
+		points.filter((point) => point.hour < params.start)
+	);
+	const level = (inSpan: (hour: string) => boolean) => {
+		let observed = 0;
+		let expected = 0;
+		for (const point of points) {
+			if (inSpan(point.hour)) {
+				observed += point.value;
+				expected += expectedAt(point.hour);
+			}
+		}
+		return expected > 0 ? observed / expected : 0;
+	};
+	const during = level(
+		(hour) => hour >= params.start && hour < params.recoveredAt
+	);
+	const after = level((hour) => hour >= params.recoveredAt);
+	return after >= Math.min(during, 1) * RECOVERY_MIN_TRAFFIC_SHARE;
+}
+
+export async function loadRecovery(
+	params: {
+		abortSignal?: AbortSignal;
+		prior: InvestigationSignal;
+		through: string;
+		timezone: string;
+		websiteId: string;
+	},
+	query: QueryFn = executeQuery
+): Promise<{ onset: ChangeOnset; recovery: ChangeRecovery } | null> {
+	const { prior, timezone } = params;
+	const series = onsetSeries(prior);
+	if (!series) {
+		return null;
+	}
+	const onset = await loadChangeOnset(
+		{
+			abortSignal: params.abortSignal,
+			signal: prior,
+			timezone,
+			websiteId: params.websiteId,
+		},
+		query
+	);
+	if (!onset) {
+		return null;
+	}
+	const onsetDay = onset.earliest.slice(0, 10);
+	const lastDay = dayjs(onsetDay)
+		.add(RECOVERY_MAX_WINDOW_DAYS, "day")
+		.format("YYYY-MM-DD");
+	const through = params.through < lastDay ? params.through : lastDay;
+	if (through <= onsetDay) {
+		return null;
+	}
+	const points = await readHourlyCounts({
+		abortSignal: params.abortSignal,
+		from: dayjs(onsetDay)
+			.subtract(ONSET_BASELINE_DAYS, "day")
+			.format("YYYY-MM-DD"),
+		query,
+		series,
+		timezone,
+		to: through,
+		websiteId: params.websiteId,
+	});
+	const start = points.findIndex((point) => point.hour >= onset.earliest);
+	if (start <= 0) {
+		return null;
+	}
+	const window = points.slice(start);
+	const state = estimateRecovery({
+		baseline: points.slice(0, start),
+		direction: onset.direction,
+		window,
+	});
+	if (!state) {
+		return null;
+	}
+	const recovery = {
+		direction: onset.direction,
+		noun: series.noun,
+		subject: series.subject,
+		through,
+		timezone,
+	};
+	if (
+		state.kind === "recovered" &&
+		series.type === "error_trends" &&
+		!(await trafficContinued({
+			abortSignal: params.abortSignal,
+			from: dayjs(onsetDay)
+				.subtract(ONSET_BASELINE_DAYS, "day")
+				.format("YYYY-MM-DD"),
+			query,
+			recoveredAt: window[state.recoveredFrom]?.hour ?? "",
+			start: onset.earliest,
+			timezone,
+			to: through,
+			websiteId: params.websiteId,
+		}))
+	) {
+		return null;
+	}
+	if (state.kind === "ongoing") {
+		return {
+			onset,
+			recovery: {
+				...recovery,
+				brokenCount: null,
+				brokenHours: null,
+				expected: state.expectedNormal,
+				heldHours: null,
+				observed: state.observed,
+				recoveredAt: null,
+				recoveredOn: null,
+				state: "ongoing",
+			},
+		};
+	}
+	return {
+		onset,
+		recovery: {
+			...recovery,
+			brokenCount: state.brokenCount,
+			brokenHours: state.recoveredFrom,
+			expected: null,
+			heldHours: state.heldHours,
+			observed: state.observed,
+			recoveredAt:
+				state.recoveredAt === null
+					? null
+					: (window[state.recoveredAt]?.hour ?? null),
+			recoveredOn: window[state.recoveredFrom]?.hour.slice(0, 10) ?? null,
+			state: "recovered",
+		},
+	};
+}
+
+function hoursPhrase(hours: number): string {
+	if (hours < 48) {
+		return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+	}
+	return `${Math.floor(hours / 24)} days`;
+}
+
+export function recoveryEvidence(recovery: ChangeRecovery): string {
+	const change = recovery.direction === "down" ? "drop" : "rise";
+	const count = (value: number) => Math.round(value).toLocaleString("en-US");
+	if (recovery.state === "ongoing") {
+		return `${recovery.subject} show the ${change} still in effect: ${count(recovery.observed)} ${recovery.noun} in the 24 hours through ${recovery.through} (${recovery.timezone}), where the earlier rate predicted about ${count(recovery.expected ?? 0)}.`;
+	}
+	const when = recovery.recoveredAt
+		? `${recovery.recoveredAt.slice(11, 16)} on ${recovery.recoveredAt.slice(0, 10)}`
+		: (recovery.recoveredOn ?? recovery.through);
+	return `${recovery.subject} show a return to the earlier rate from ${when} (${recovery.timezone}), holding for ${hoursPhrase(recovery.heldHours ?? 0)} through ${recovery.through}: ${count(recovery.observed)} ${recovery.noun} since then, against ${count(recovery.brokenCount ?? 0)} in the ${hoursPhrase(recovery.brokenHours ?? 0)} of the ${change}.`;
 }

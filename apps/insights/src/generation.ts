@@ -39,7 +39,10 @@ import type {
 } from "@databuddy/shared/insights";
 import { randomUUIDv7 } from "bun";
 import dayjs from "dayjs";
-import { prepareInsightSlackEffects } from "./delivery";
+import {
+	prepareInsightRecoveryEffects,
+	prepareInsightSlackEffects,
+} from "./delivery";
 import {
 	type ChangeOnset,
 	changeOnsetEvidence,
@@ -49,7 +52,9 @@ import {
 	type DetectSignalsParams,
 	detectSignals,
 	loadChangeOnset,
+	loadRecovery,
 	loadSegmentFinding,
+	recoveryEvidence,
 	remeasureMetricSignal,
 	segmentEvidence,
 } from "./detection";
@@ -177,6 +182,7 @@ interface WebsiteInvestigationArtifact {
 	completion?: "complete" | "incomplete";
 	evidence: string[];
 	outcome: InvestigationOutcome | null;
+	recovered?: boolean;
 	signal: InvestigationSignal | null;
 	snapshot?: InvestigationEvidenceSnapshot;
 	status: "completed" | "deferred" | "no_signals";
@@ -358,6 +364,7 @@ export interface InvestigationSources {
 		websiteId: string;
 	}) => Promise<Map<string, LatestInsightObservation>>;
 	loadOtherOpenWork: typeof loadOtherOpenWork;
+	loadRecovery?: typeof loadRecovery;
 	loadRepositoryChanges?: typeof loadRepositoryChangesNearOnset;
 	loadRouteVitalContinuation: typeof loadRouteVitalContinuation;
 	loadSegmentFinding?: typeof loadSegmentFinding;
@@ -653,6 +660,7 @@ const productionInvestigationSources: InvestigationSources = {
 	detectRetentionSignals,
 	loadBusinessProfile: loadWebsiteBusinessProfile,
 	loadChangeOnset,
+	loadRecovery,
 	loadRepositoryChanges: loadRepositoryChangesNearOnset,
 	loadSegmentFinding,
 	recallBusinessContext: recallWebsiteBusinessContext,
@@ -1203,6 +1211,63 @@ async function investigatePlannedCandidate(
 			websiteId: input.websiteId,
 		}),
 	]);
+	const openPrior = [...history]
+		.reverse()
+		.find(
+			(item) =>
+				item.kind === "investigation" && item.outcome.next.type !== "resolve"
+		);
+	const recoveryCheck =
+		openPrior?.kind === "investigation" && runtime.sources.loadRecovery
+			? await runtime.sources
+					.loadRecovery({
+						abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
+						prior: openPrior.signal,
+						through: candidate.signal.period.current.to,
+						timezone: input.timezone,
+						websiteId: input.websiteId,
+					})
+					.catch((error) => {
+						captureInsightsError(error, "generation.recovery.failed", {
+							organization_id: input.organizationId,
+							signal_key: candidate.signal.signalKey,
+							website_id: input.websiteId,
+						});
+						return null;
+					})
+			: null;
+	if (recoveryCheck) {
+		evidence.push(recoveryEvidence(recoveryCheck.recovery));
+		const { recoveredAt } = recoveryCheck.recovery;
+		const repository = input.githubRepository;
+		if (recoveredAt && repository && runtime.sources.loadRepositoryChanges) {
+			const atRecovery = {
+				...recoveryCheck.onset,
+				earliest: recoveredAt,
+				latest: recoveredAt,
+			};
+			const changes = await runtime.sources
+				.loadRepositoryChanges({
+					onset: atRecovery,
+					organizationId: input.organizationId,
+					repository,
+				})
+				.catch((error) => {
+					captureInsightsError(error, "generation.repository_changes.failed", {
+						organization_id: input.organizationId,
+						signal_key: candidate.signal.signalKey,
+						website_id: input.websiteId,
+					});
+					return null;
+				});
+			const changeEvidence = changes
+				? repositoryChangeEvidence(atRecovery, changes, repository)
+				: null;
+			if (changeEvidence) {
+				evidence.push(`Before the recovery: ${changeEvidence}`);
+			}
+		}
+	}
 	let investigationResult: InsightAgentResult;
 	try {
 		investigationResult = await runtime.sources.investigateSignal({
@@ -1262,6 +1327,7 @@ async function investigatePlannedCandidate(
 		asOf: asOf.toISOString(),
 		evidence,
 		completion: investigationResult.completion,
+		recovered: recoveryCheck?.recovery.state === "recovered",
 		snapshot: investigationResult.snapshot,
 		outcome: withBusinessContextSnapshot(
 			investigationResult.outcome,
@@ -2009,6 +2075,7 @@ export async function generateWebsiteInsights(
 						notNewerThan: asOf,
 						organizationId: input.organizationId,
 						recheckAt: nextRecheckAt(asOf, candidate.outcome.next),
+						recovered: analysis.recovered,
 						runId: input.runId,
 						timezone: input.timezone,
 					});
@@ -2025,7 +2092,15 @@ export async function generateWebsiteInsights(
 					if (openWorkItem) {
 						siblingOpenWork.push(openWorkItem);
 					}
-					if (saved) {
+					if (saved?.outcome.next.type === "resolve") {
+						await enqueueInsightRunEffects({
+							...runIdentity,
+							effects: await prepareInsightRecoveryEffects({
+								insight: saved,
+								organizationId: input.organizationId,
+							}),
+						});
+					} else if (saved) {
 						interruptingInvestigations.push(saved);
 						await enqueueInterruptingEffects([saved]);
 					}
