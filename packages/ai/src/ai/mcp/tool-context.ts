@@ -78,18 +78,18 @@ function isAuthRejection(error: unknown): boolean {
 export async function ensureWebsiteAccess(
 	websiteId: string,
 	principal: AuthorizedPrincipal
-): Promise<WebsiteAccess | WebsiteSelectionError> {
+): Promise<WebsiteAccess> {
 	const { apiKey, oauth, organizationId } = principal;
 	if (
 		oauth &&
 		(!oauth.scopes.includes("read:data") ||
 			(oauth.grant.websiteIds && !oauth.grant.websiteIds.includes(websiteId)))
 	) {
-		return accessDenied();
+		throw accessDenied();
 	}
 	const website = await getCachedWebsite(websiteId);
 	if (!website || website.deletedAt) {
-		return new WebsiteSelectionError(
+		throw new WebsiteSelectionError(
 			"not_found",
 			"Website not found",
 			WEBSITE_LIST_HINT
@@ -97,24 +97,24 @@ export async function ensureWebsiteAccess(
 	}
 	const scopedOrganizationId = oauth?.grant.organizationId ?? organizationId;
 	if (scopedOrganizationId && website.organizationId !== scopedOrganizationId) {
-		return new WebsiteSelectionError(
+		throw new WebsiteSelectionError(
 			"unauthorized",
 			"This website belongs to a different organization than this connection.",
 			WEBSITE_LIST_HINT
 		);
 	}
 	if (!website.organizationId) {
-		return accessDenied();
+		throw accessDenied();
 	}
 
 	if (oauth) {
 		const role = await getMemberRole(oauth.user.id, website.organizationId);
 		if (!(role && roleHasPermission(role, "website", ["read"]))) {
-			return accessDenied();
+			throw accessDenied();
 		}
 	} else if (apiKey) {
 		if (!hasWebsiteScopeForOrganization(apiKey, website, "read:data")) {
-			return accessDenied();
+			throw accessDenied();
 		}
 	} else {
 		try {
@@ -126,11 +126,11 @@ export async function ensureWebsiteAccess(
 				},
 			});
 			if (!permission.success) {
-				return accessDenied();
+				throw accessDenied();
 			}
 		} catch (error) {
 			if (isAuthRejection(error)) {
-				return accessDenied();
+				throw accessDenied();
 			}
 			throw error;
 		}
@@ -208,13 +208,10 @@ export async function getCachedAccessibleWebsites(
 		: list;
 }
 
-function singleMatch(
-	matches: AccessibleWebsite[],
-	selector: string
-): string | WebsiteSelectionError {
+function singleMatch(matches: AccessibleWebsite[], selector: string): string {
 	const [match, ...others] = matches;
 	if (!match) {
-		return new WebsiteSelectionError(
+		throw new WebsiteSelectionError(
 			"not_found",
 			`No accessible website found with ${selector}`,
 			"list_websites shows the websites this connection can use."
@@ -224,7 +221,7 @@ function singleMatch(
 		const candidates = matches
 			.map((website) => `${website.id} in ${website.organizationName}`)
 			.join(", ");
-		return new WebsiteSelectionError(
+		throw new WebsiteSelectionError(
 			"invalid_input",
 			`${matches.length} accessible websites match ${selector}: ${candidates}. Pass websiteId to choose one.`,
 			WEBSITE_LIST_HINT
@@ -236,7 +233,7 @@ function singleMatch(
 export async function resolveWebsiteId(
 	input: WebsiteSelectorInput,
 	principal: RequestPrincipal
-): Promise<string | WebsiteSelectionError> {
+): Promise<string> {
 	if (input.websiteId) {
 		return input.websiteId;
 	}
@@ -259,19 +256,17 @@ export async function resolveWebsiteId(
 		);
 	}
 
-	return new WebsiteSelectionError(
+	throw new WebsiteSelectionError(
 		"invalid_input",
 		"One of websiteId, websiteName, or websiteDomain is required",
 		WEBSITE_LIST_HINT
 	);
 }
 
-export function resolveOrganizationId(
-	principal: RequestPrincipal
-): string | WebsiteSelectionError {
+export function resolveOrganizationId(principal: RequestPrincipal): string {
 	const { apiKey, oauth, organizationId } = principal;
 	if (oauth?.grant.websiteIds) {
-		return new WebsiteSelectionError(
+		throw new WebsiteSelectionError(
 			"invalid_input",
 			"This connection is limited to selected websites, so organization-wide data, including organization-wide flags, is not available. Pass websiteId, websiteName, or websiteDomain from list_websites to use one of those websites."
 		);
@@ -281,23 +276,24 @@ export function resolveOrganizationId(
 	}
 	if (apiKey) {
 		if (organizationId && apiKey.organizationId !== organizationId) {
-			return new WebsiteSelectionError(
+			throw new WebsiteSelectionError(
 				"unauthorized",
 				"API key does not belong to the requested organization"
 			);
 		}
-		return apiKey.organizationId && hasKeyScope(apiKey, "read:data")
-			? apiKey.organizationId
-			: new WebsiteSelectionError(
-					"invalid_input",
-					"Scoped API key requires a websiteId for org-level queries",
-					WEBSITE_LIST_HINT
-				);
+		if (!(apiKey.organizationId && hasKeyScope(apiKey, "read:data"))) {
+			throw new WebsiteSelectionError(
+				"invalid_input",
+				"Scoped API key requires a websiteId for org-level queries",
+				WEBSITE_LIST_HINT
+			);
+		}
+		return apiKey.organizationId;
 	}
 	if (organizationId) {
 		return organizationId;
 	}
-	return new WebsiteSelectionError(
+	throw new WebsiteSelectionError(
 		"unauthorized",
 		principal.userId
 			? "Session requests require an active organization"

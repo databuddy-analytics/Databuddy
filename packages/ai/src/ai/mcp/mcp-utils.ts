@@ -30,8 +30,6 @@ export const FilterSchema = QueryFilterSchema.omit({
 	having: true,
 }).strict() satisfies z.ZodType<Filter>;
 
-export { SCHEMA_SECTIONS } from "../prompts/clickhouse-schema";
-
 export const MCP_RESULT_ROW_LIMIT = 20;
 const MCP_ROW_ARRAY_LIMIT = 50;
 
@@ -401,7 +399,7 @@ export function formatMcpQueryResults(
 		.map(({ inputIndex: _, ...result }) => result);
 }
 
-const SCHEMA_SUMMARY = Object.keys(AGENT_TABLE_COLUMNS)
+export const SCHEMA_SUMMARY = Object.keys(AGENT_TABLE_COLUMNS)
 	.sort()
 	.map(
 		(table) => `${table}: ${[...(AGENT_TABLE_COLUMNS[table] ?? [])].join(", ")}`
@@ -501,10 +499,6 @@ function queryTypeInfo(key: string, config: SimpleQueryConfig): QueryTypeInfo {
 			customizable: config.customizable,
 		}),
 	};
-}
-
-export function getSchemaSummary(): string {
-	return SCHEMA_SUMMARY;
 }
 
 export const QUERY_CATEGORY_KEYS = [

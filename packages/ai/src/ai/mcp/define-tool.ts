@@ -358,13 +358,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					(meta.resolveWebsite && hasSelector)
 				) {
 					const resolvedId = await resolveWebsiteId(selector, ctx);
-					if (resolvedId instanceof Error) {
-						throw resolvedId;
-					}
 					const access = await ensureWebsiteAccess(resolvedId, ctx);
-					if (access instanceof Error) {
-						throw access;
-					}
 					handlerCtx.websiteId = resolvedId;
 					handlerCtx.websiteDomain = access.domain;
 					handlerCtx.websiteOrganizationId = access.organizationId;

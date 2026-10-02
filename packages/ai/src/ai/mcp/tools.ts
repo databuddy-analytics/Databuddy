@@ -15,6 +15,7 @@ import { flagFormShape, userRuleSchema } from "@databuddy/shared/flags";
 import { DatePresetSchema } from "../../lib/date-presets";
 import { executeBatch } from "../../query";
 import type { AppContext } from "../config/context";
+import { SCHEMA_SECTIONS } from "../prompts/clickhouse-schema";
 import {
 	flagConfigFields,
 	flagCreatePayload,
@@ -55,11 +56,10 @@ import {
 	formatMcpQueryResults,
 	getFilteredQueryTypes,
 	getMcpSchemaDocumentation,
-	getSchemaSummary,
 	MCP_RESULT_ROW_LIMIT,
 	QUERY_CATEGORY_KEYS,
 	queryFailedMessage,
-	SCHEMA_SECTIONS,
+	SCHEMA_SUMMARY,
 	type McpQueryItem,
 } from "./mcp-utils";
 import {
@@ -205,9 +205,6 @@ const listInsightsTool = defineMcpTool(
 	async (input, ctx) => {
 		const organizationId =
 			ctx.websiteOrganizationId ?? resolveOrganizationId(ctx);
-		if (organizationId instanceof Error) {
-			throw organizationId;
-		}
 		const result = await runInvestigationAction(
 			{
 				action: "brief",
@@ -247,9 +244,6 @@ const listInvestigationsTool = defineMcpTool(
 	async (input, ctx) => {
 		const organizationId =
 			ctx.websiteOrganizationId ?? resolveOrganizationId(ctx);
-		if (organizationId instanceof Error) {
-			throw organizationId;
-		}
 		const result = await runInvestigationAction(
 			{
 				action: "list",
@@ -586,7 +580,7 @@ const capabilitiesTool = defineMcpTool(
 					`Sections to include. Default: ${CAPABILITY_DEFAULTS.join(", ")}. Pass ['queryTypes'] to request the heavy query-type list.`
 				),
 			category: z
-				.enum(QUERY_CATEGORY_KEYS as [string, ...string[]])
+				.enum(QUERY_CATEGORY_KEYS)
 				.optional()
 				.describe(
 					`Filter queryTypes to a category. Options: ${QUERY_CATEGORY_KEYS.join(", ")}`
@@ -635,7 +629,7 @@ const capabilitiesTool = defineMcpTool(
 			out.maxLimit = MCP_RESULT_ROW_LIMIT;
 		}
 		if (selected.has("schemaSummary")) {
-			out.schemaSummary = getSchemaSummary();
+			out.schemaSummary = SCHEMA_SUMMARY;
 		}
 		if (selected.has("categories")) {
 			out.categories = QUERY_CATEGORY_KEYS;
@@ -1258,9 +1252,6 @@ function resolveFlagScope(ctx: McpHandlerContext): FlagScope {
 		};
 	}
 	const organizationId = resolveOrganizationId(ctx);
-	if (organizationId instanceof Error) {
-		throw organizationId;
-	}
 	return {
 		notFoundHint:
 			"Website flags need websiteId, websiteName, or websiteDomain. list_flags shows each website's flags.",
