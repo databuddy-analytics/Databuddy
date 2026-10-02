@@ -46,7 +46,7 @@ export default async function ApiPlaygroundPage() {
 								"Query API",
 								"REST API",
 								"analytics API",
-								"privacy-first",
+								"product analytics",
 								"web analytics",
 							],
 						},

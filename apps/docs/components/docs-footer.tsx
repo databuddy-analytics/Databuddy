@@ -214,7 +214,7 @@ export function DocsFooter() {
 					</p>
 					<div className="flex flex-col items-center gap-3 sm:flex-row sm:gap-4">
 						<p className="text-muted-foreground text-sm sm:text-base">
-							Privacy-first analytics
+							Product analytics for startups
 						</p>
 					</div>
 				</div>
