@@ -222,6 +222,7 @@ jobs:
               analytics-engagement-spans \
               analytics-custom-events \
               analytics-ai-traffic-spans \
+              analytics-mcp-spans \
               analytics-outgoing-links \
               analytics-blocked-traffic \
               analytics-uptime-checks \
