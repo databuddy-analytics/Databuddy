@@ -8,7 +8,9 @@ import {
 	resolveApiKeyOwnerId,
 } from "@hooks/auth";
 import {
+	API_KEY_DENIAL_ERRORS,
 	type ApiKeyRow,
+	denyApiKeyWebsiteAccess,
 	getAccessibleWebsiteIds,
 	getApiKeyFromHeader,
 	hasGlobalAccess,
@@ -97,7 +99,10 @@ const mcpCallsSchema = z
 		z.object({
 			tool: truncated(256),
 			durationMs: uint32,
-			error: truncated(512).optional(),
+			error: z
+				.string()
+				.transform((value) => mcpErrorMessage(value).slice(0, 512))
+				.optional(),
 			outputChars: uint32.default(0),
 			sessionId: truncated(128).optional(),
 			clientName: truncated(128).optional(),
@@ -164,8 +169,8 @@ const mcpErrorBodySchema = z.union([
 	z.object({ message: z.string() }),
 ]);
 
-function mcpErrorMessage(error: string | undefined): string | undefined {
-	if (!error?.startsWith("{")) {
+function mcpErrorMessage(error: string): string {
+	if (!error.startsWith("{")) {
 		return error;
 	}
 	try {
@@ -288,6 +293,15 @@ function parseTimestamp(
 	return timestamp;
 }
 
+function recentTimestamp(value: number | undefined, now: number): number {
+	return value !== undefined &&
+		Number.isSafeInteger(value) &&
+		value >= now - 6 * 3_600_000 &&
+		value <= now + 300_000
+		? value
+		: now;
+}
+
 async function enforceWebsiteSecurity(
 	website: NonNullable<Awaited<ReturnType<typeof getWebsiteByIdV2>>>,
 	request: Request,
@@ -347,13 +361,12 @@ async function enforceWebsiteSecurity(
 }
 
 function resolveAuth(
-	headers: Headers,
 	request: Request,
 	websiteIdParam?: string
 ): Promise<ResolvedAuth> {
 	return record("resolveAuth", async () => {
 		const log = useLogger();
-		const apiKey = await getApiKeyFromHeader(headers);
+		const apiKey = await getApiKeyFromHeader(request.headers);
 
 		if (apiKey) {
 			if (!hasKeyScope(apiKey, "track:events")) {
@@ -465,7 +478,7 @@ export const trackRoute = new Elysia()
 				: [parseResult.data];
 			const websiteIdParam = typedQuery.website_id || events[0]?.websiteId;
 
-			const auth = await resolveAuth(request.headers, request, websiteIdParam);
+			const auth = await resolveAuth(request, websiteIdParam);
 
 			const userAgent =
 				sanitizeString(
@@ -698,13 +711,11 @@ export const trackRoute = new Elysia()
 				throw createIngestSchemaValidationError(parsed.error.issues);
 			}
 			const calls = parsed.data;
-			const { apiKey, organizationId } = await resolveAuth(
-				request.headers,
-				request
-			);
+			const apiKey = await getApiKeyFromHeader(request.headers);
 			if (!apiKey) {
 				throw basketErrors.trackMissingCredentials();
 			}
+			const { organizationId } = apiKey;
 			if (!organizationId) {
 				throw basketErrors.trackMissingOwner();
 			}
@@ -714,15 +725,12 @@ export const trackRoute = new Elysia()
 				throw basketErrors.trackRateLimited();
 			}
 
-			const keyWebsiteIds = hasGlobalAccess(apiKey)
-				? null
-				: new Set(getAccessibleWebsiteIds(apiKey));
 			if (
-				keyWebsiteIds &&
-				calls.some((call) => !keyWebsiteIds.has(call.websiteId ?? ""))
+				calls.some((call) => !call.websiteId) &&
+				!hasKeyScope(apiKey, "track:events")
 			) {
-				log.set({ rejected: "website_scope" });
-				throw basketErrors.trackWebsiteScopeMismatch();
+				log.set({ rejected: "missing_scope" });
+				throw basketErrors.trackMissingScope();
 			}
 			const websiteIds = [
 				...new Set(calls.flatMap((call) => call.websiteId ?? [])),
@@ -730,15 +738,16 @@ export const trackRoute = new Elysia()
 			const websites = await Promise.all(
 				websiteIds.map((id) => getWebsiteByIdV2(id))
 			);
-			if (
-				websites.some(
-					(website) =>
-						website?.organizationId !== organizationId ||
-						website.status !== "ACTIVE"
-				)
-			) {
-				log.set({ rejected: "website_scope", websiteIds });
-				throw basketErrors.trackWebsiteScopeMismatch();
+			for (const [i, websiteId] of websiteIds.entries()) {
+				const denial = denyApiKeyWebsiteAccess(
+					apiKey,
+					websiteId,
+					websites[i] ?? null
+				);
+				if (denial) {
+					log.set({ rejected: denial, websiteId });
+					throw API_KEY_DENIAL_ERRORS[denial]();
+				}
 			}
 			log.set({ organizationId, websiteIds, count: calls.length });
 
@@ -761,15 +770,10 @@ export const trackRoute = new Elysia()
 							owner_id: organizationId,
 							website_id: call.websiteId,
 							environment: call.environment,
-							timestamp:
-								call.timestamp &&
-								call.timestamp > now - 6 * 3_600_000 &&
-								call.timestamp < now + 300_000
-									? call.timestamp
-									: now,
+							timestamp: recentTimestamp(call.timestamp, now),
 							tool: call.tool,
 							is_error: call.error !== undefined,
-							error: mcpErrorMessage(call.error),
+							error: call.error,
 							duration_ms: call.durationMs,
 							output_chars: call.outputChars,
 							session_id: call.sessionId,
@@ -843,16 +847,10 @@ export const vercelDrainRoute = new Elysia().post(
 				if (!columns.agent_id) {
 					continue;
 				}
-				const supplied = proxy.timestamp ?? timestamp ?? now;
 				spans.push({
 					...columns,
 					client_id: websiteId,
-					timestamp:
-						Number.isSafeInteger(supplied) &&
-						supplied >= now - 6 * 3_600_000 &&
-						supplied <= now + 300_000
-							? supplied
-							: now,
+					timestamp: recentTimestamp(proxy.timestamp ?? timestamp, now),
 					user_agent: userAgent,
 					path: pathname.slice(0, 2048),
 					format: contentFormat(pathname),

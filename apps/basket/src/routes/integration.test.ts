@@ -1,4 +1,5 @@
 import { setupCheckUserAgent } from "@databuddy/shared/bot-detection/ai-agents";
+import type { ApiKeyRow } from "@lib/api-key";
 import { gzipSync } from "node:zlib";
 import { vi, afterEach, beforeEach, describe, expect, test } from "vitest";
 
@@ -208,8 +209,9 @@ const { send: mockSend, sendBatch: mockSendBatch } = await import(
 	"@lib/producer"
 );
 const { isOriginAllowed } = await import("@hooks/auth");
-apiKeyDenialErrors.website_scope_mismatch =
-	basketErrors.trackWebsiteScopeMismatch;
+const realApiKey =
+	await vi.importActual<typeof import("@lib/api-key")>("@lib/api-key");
+Object.assign(apiKeyDenialErrors, realApiKey.API_KEY_DENIAL_ERRORS);
 const { createError, EvlogError } = await import("evlog");
 const { Elysia } = await import("elysia");
 const mockGlobalErrorHandler = vi.fn();
@@ -1524,20 +1526,63 @@ describe("POST /mcp", () => {
 		clientName: "claude-code",
 	};
 
+	const orgKey: ApiKeyRow = {
+		id: "key_1",
+		name: "MCP",
+		prefix: "dbdy",
+		start: "dbdy_mcp",
+		keyHash: "hash_1",
+		userId: "user_1",
+		organizationId: "org_1",
+		type: "user",
+		scopes: [],
+		enabled: true,
+		revokedAt: null,
+		rateLimitEnabled: true,
+		rateLimitTimeWindow: null,
+		rateLimitMax: null,
+		expiresAt: null,
+		lastUsedAt: null,
+		metadata: { resources: { global: ["track:events"] } },
+		createdAt: new Date(),
+		updatedAt: new Date(),
+	};
+	const websiteKey: ApiKeyRow = {
+		...orgKey,
+		metadata: { resources: { "website:ws_test": ["track:events"] } },
+	};
+	const globalReadKey: ApiKeyRow = {
+		...orgKey,
+		metadata: {
+			resources: {
+				global: ["read:data"],
+				"website:ws_test": ["track:events"],
+			},
+		},
+	};
+	const sameOrgWebsite = {
+		id: "ws_other",
+		organizationId: "org_1",
+		status: "ACTIVE",
+	};
+
 	beforeEach(() => {
 		vi.mocked(mockSendBatch).mockClear();
 		mockCheckAutumnUsage.mockClear();
-		mockGetApiKeyFromHeader.mockResolvedValue({
-			id: "key_1",
-			organizationId: "org_1",
-			userId: "user_1",
-			scopes: ["track:events"],
-		});
-		mockHasKeyScope.mockReturnValue(true);
-		mockHasGlobalAccess.mockReturnValue(true);
+		mockGetApiKeyFromHeader.mockResolvedValue(orgKey);
+		mockHasKeyScope.mockImplementation(realApiKey.hasKeyScope);
+		mockDenyApiKeyWebsiteAccess.mockImplementation(
+			realApiKey.denyApiKeyWebsiteAccess
+		);
+	});
+
+	afterEach(() => {
+		mockHasKeyScope.mockReset();
+		mockDenyApiKeyWebsiteAccess.mockReset();
 	});
 
 	test("stores tool calls under the key's organization and bills each call", async () => {
+		const message = "preset: Invalid option";
 		const res = await post(trackRoute, "/mcp", [
 			call,
 			{
@@ -1554,13 +1599,24 @@ describe("POST /mcp", () => {
 					error: { code: "NOT_FOUND", message: "Website not found" },
 				}),
 			},
+			{
+				tool: "get_data",
+				durationMs: 11,
+				error: JSON.stringify({
+					error: {
+						code: "invalid_input",
+						message,
+						details: { issues: "x".repeat(600) },
+					},
+				}),
+			},
 		]);
 		expect(res.status).toBe(202);
 		expect(mockCheckAutumnUsage).toHaveBeenCalledWith(
 			"user_1",
 			"events",
-			{ api_route: "mcp", batch_size: 3 },
-			3
+			{ api_route: "mcp", batch_size: 4 },
+			4
 		);
 		expect(mockSendBatch).toHaveBeenCalledWith("analytics-mcp-spans", [
 			expect.objectContaining({
@@ -1576,6 +1632,7 @@ describe("POST /mcp", () => {
 				client: "ChatGPT",
 			}),
 			expect.objectContaining({ error: "Website not found" }),
+			expect.objectContaining({ error: message }),
 		]);
 	});
 
@@ -1591,6 +1648,16 @@ describe("POST /mcp", () => {
 				environment: "production",
 			}),
 		]);
+		mockGetApiKeyFromHeader.mockResolvedValue({
+			...orgKey,
+			scopes: ["track:events"],
+			metadata: {},
+		});
+		expect((await post(trackRoute, "/mcp", [call])).status).toBe(202);
+		const linked = await post(trackRoute, "/mcp", [
+			{ ...call, websiteId: "ws_test" },
+		]);
+		expect(linked.status).toBe(202);
 	});
 
 	test("rejects oversized batches before authenticating", async () => {
@@ -1602,12 +1669,35 @@ describe("POST /mcp", () => {
 		expect(mockGetApiKeyFromHeader).not.toHaveBeenCalled();
 	});
 
+	test("accepts a website-limited key only for calls linked to its website", async () => {
+		mockGetApiKeyFromHeader.mockResolvedValue(websiteKey);
+		const linked = await post(trackRoute, "/mcp", [
+			{ ...call, websiteId: "ws_test" },
+		]);
+		expect(linked.status).toBe(202);
+		expect(mockSendBatch).toHaveBeenCalledWith("analytics-mcp-spans", [
+			expect.objectContaining({ owner_id: "org_1", website_id: "ws_test" }),
+		]);
+		expect((await post(trackRoute, "/mcp", [call])).status).toBe(403);
+		mockGetWebsiteByIdV2.mockResolvedValueOnce(sameOrgWebsite);
+		const other = await post(trackRoute, "/mcp", [
+			{ ...call, websiteId: "ws_other" },
+		]);
+		expect(other.status).toBe(403);
+		expect(mockSendBatch).toHaveBeenCalledOnce();
+	});
+
 	test("rejects calls without a key or outside the key's websites", async () => {
 		mockGetApiKeyFromHeader.mockResolvedValueOnce(null);
 		expect((await post(trackRoute, "/mcp", [call])).status).toBe(401);
-		mockHasGlobalAccess.mockReturnValueOnce(false);
-		mockGetAccessibleWebsiteIds.mockReturnValueOnce(["ws_test"]);
+		mockGetApiKeyFromHeader.mockResolvedValueOnce(globalReadKey);
 		expect((await post(trackRoute, "/mcp", [call])).status).toBe(403);
+		mockGetApiKeyFromHeader.mockResolvedValueOnce(globalReadKey);
+		mockGetWebsiteByIdV2.mockResolvedValueOnce(sameOrgWebsite);
+		const unscoped = await post(trackRoute, "/mcp", [
+			{ ...call, websiteId: "ws_other" },
+		]);
+		expect(unscoped.status).toBe(403);
 		mockGetWebsiteByIdV2.mockResolvedValueOnce({
 			id: "ws_other",
 			organizationId: "org_2",
