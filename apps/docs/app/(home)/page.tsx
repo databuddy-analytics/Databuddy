@@ -1,3 +1,4 @@
+import { DATABUDDY_DESCRIPTION } from "@databuddy/shared/agent-discovery";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Bento from "@/components/bento";
@@ -18,7 +19,7 @@ import { homeFaqItems, homePageSeo } from "@/lib/home-seo";
 import { getGithubStars } from "@/lib/utils";
 
 export const metadata: Metadata = {
-	title: homePageSeo.title,
+	title: { absolute: homePageSeo.title },
 	description: homePageSeo.description,
 	alternates: {
 		canonical: homePageSeo.url,
@@ -123,15 +124,19 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 						type: "softwareApplication",
 						value: {
 							name: "Databuddy",
-							description:
-								"Privacy-first developer analytics with error tracking, web vitals, feature flags, short links, and automatic investigations in one lightweight script.",
+							description: DATABUDDY_DESCRIPTION,
 							featureList: [
-								"Privacy-first web analytics",
+								"Cookieless product analytics",
+								"Custom event tracking",
+								"Funnels and goals",
+								"User profiles",
 								"Error tracking",
 								"Core Web Vitals monitoring",
+								"Uptime monitoring",
 								"Feature flags",
-								"Short link analytics",
-								"Automatic investigations",
+								"Short links with click analytics",
+								"Databunny AI analyst chat",
+								"Scheduled investigations on Business and Scale",
 								"REST API",
 								"Model Context Protocol server",
 							],

@@ -60,7 +60,7 @@ export const PLAN_COPY = {
 	},
 	intelligence: {
 		description:
-			"An always-on product investigator for founders and engineers.",
+			"Daily or weekly investigations that end with evidence and a next step.",
 		positioning: "Recommended",
 	},
 	intelligence_scale: {

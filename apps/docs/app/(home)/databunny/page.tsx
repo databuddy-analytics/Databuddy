@@ -5,7 +5,6 @@ import {
 	BaselineBands,
 	ChangeVerdicts,
 	ChatQuery,
-	CommitZoom,
 	FixVerify,
 	InvestigationStage,
 	SlackThread,
@@ -19,12 +18,12 @@ import { FaqSection } from "@/components/landing/faq-section";
 import { StructuredData } from "@/components/structured-data";
 import { TrackOnMount } from "@/components/track-on-mount";
 
-const TITLE = "Databunny: The AI Analyst That Watches Your Metrics";
+const TITLE = "Databunny: AI Analyst for Product Analytics | Databuddy";
 const DESCRIPTION =
-	"Databunny checks traffic, funnels, errors, page speed, and revenue on a schedule, investigates real changes, and posts the evidence and next step in Slack.";
+	"Ask Databunny about traffic, funnels, and errors in plain words and open the query behind each answer. Business and Scale add daily or weekly investigations.";
 
 export const metadata: Metadata = {
-	title: TITLE,
+	title: { absolute: TITLE },
 	description: DESCRIPTION,
 	alternates: {
 		canonical: "https://www.databuddy.cc/databunny",
@@ -85,13 +84,21 @@ export default function DatabunnyPage() {
 			/>
 			<div className="overflow-x-hidden">
 				<FeatureHero
-					docsHref="https://app.databuddy.cc/register"
-					footnote="On the Business and Scale plans."
-					primaryHref="https://app.databuddy.cc/register?plan=intelligence"
-					primaryLabel="Start with Business"
-					secondaryLabel="Try chat free"
-					subtitle="Every day or week, Databunny checks your traffic, funnels, errors, page speed, and revenue. When a change is real, it investigates and posts what it found and what to do next in Slack."
-					title="The analyst that checks your numbers for you."
+					docsHref="/pricing"
+					footnote="Chat is on every plan. Scheduled investigations are on Business and Scale."
+					primaryHref="https://app.databuddy.cc/register"
+					primaryLabel="Try chat free"
+					secondaryLabel="Compare plans"
+					subtitle="Databunny, the AI analyst built into Databuddy, answers questions about traffic, funnels, and errors without SQL. Open the query behind every number to check the answer."
+					title="Ask your analytics in plain words and see the query."
+					visual={<ChatQuery />}
+				/>
+
+				<FeatureRow
+					body="Every day or week, at 9:00 in your timezone, Databunny checks your traffic, funnels, errors, page speed, and revenue, comparing the last 7 days with the prior 7. When a change is real, it investigates and posts what it found and what to do next in Slack. Checks are not real time."
+					flip
+					id="scheduled"
+					title="Scheduled checks on Business and Scale."
 					visual={<BaselineBands />}
 				/>
 
@@ -126,24 +133,8 @@ export default function DatabunnyPage() {
 					visual={<FixVerify />}
 				/>
 
-				<FeatureSection
-					id="github"
-					subtitle="Link a GitHub repo and Databunny points to the change that likely caused it."
-					title="Find the commit that moved the numbers."
-				>
-					<CommitZoom />
-				</FeatureSection>
-
-				<FeatureRow
-					body="Ask about traffic, funnels, errors, or revenue in plain words, and open the query behind every number."
-					id="chat"
-					title="Get answers without writing SQL."
-					visual={<ChatQuery />}
-				/>
-
 				<FeatureRow
 					body="Connect any MCP client with a scoped key, and your agent can read your data and investigations and set up funnels, goals, and flags."
-					flip
 					id="mcp"
 					title="Bring your analytics into Claude Code and Cursor."
 					visual={<McpTerminalDemo />}
