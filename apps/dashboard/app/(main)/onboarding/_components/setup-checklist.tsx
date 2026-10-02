@@ -11,14 +11,14 @@ import {
 	ConnectApp,
 	type TrackingCopyMethod,
 	type TrackingStatus,
-} from "./connect-app";
+} from "@/components/websites/connect-app";
 import {
 	ReadSite,
 	type ReadSiteSuggestions,
 	readSiteDetail,
 } from "./read-site";
-import { SetupRow, type SetupRowStatus } from "./setup-row";
-import type { OnboardingResearch } from "./use-onboarding-research";
+import { SetupRow, type SetupRowStatus } from "@/components/websites/setup-row";
+import type { SiteResearch } from "@/hooks/use-site-research";
 import { WhatMatters } from "./what-matters";
 
 export interface SetupWebsite {
@@ -48,7 +48,7 @@ export interface SetupChecklistProps {
 	onStartResearch: () => void;
 	priority: string;
 	prioritySaved: boolean;
-	research: OnboardingResearch;
+	research: SiteResearch;
 	saveError: string | null;
 	saving: boolean;
 	setupSession: string;

@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { orpc } from "@/lib/orpc";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 
-export type OnboardingResearchPhase =
+export type SiteResearchPhase =
 	| "idle"
 	| "unavailable"
 	| "reading"
@@ -21,21 +21,21 @@ export type OnboardingResearchPhase =
 	| "ready"
 	| "failed";
 
-export interface OnboardingResearch {
+export interface SiteResearch {
 	canStart: boolean;
 	content: string;
 	detectedTools: DetectedAnalyticsTool[];
 	domain: string | null;
 	message: string | null;
 	pagesRead: number;
-	phase: OnboardingResearchPhase;
+	phase: SiteResearchPhase;
 	questions: NonNullable<BusinessBrief["followUpQuestions"]>;
 	sources: BusinessBrief["sources"];
 	suggestedFunnels: BusinessSuggestedFunnel[];
 	suggestedGoals: BusinessSuggestedGoal[];
 }
 
-export const EMPTY_RESEARCH: OnboardingResearch = {
+export const EMPTY_RESEARCH: SiteResearch = {
 	canStart: false,
 	content: "",
 	detectedTools: [],
@@ -72,22 +72,26 @@ function deriveResearch(input: {
 	settings: BusinessContextSettings | undefined;
 	startError: string | null;
 	website: ResearchWebsite | null;
-}): OnboardingResearch {
+}): SiteResearch {
 	const { settings, website } = input;
 	if (!website) {
 		return EMPTY_RESEARCH;
 	}
-	const pages =
-		settings?.generation?.research?.pages ??
-		settings?.profile?.research?.pages ??
-		[];
+	// The brief belongs to the organization; only show it for the site it was read from.
+	const generation =
+		settings?.generation?.websiteId === website.id ? settings.generation : null;
+	const profile =
+		settings?.profile?.sourceWebsiteId === website.id ? settings.profile : null;
+	const pages = generation?.research?.pages ?? profile?.research?.pages ?? [];
 	const base = {
 		...EMPTY_RESEARCH,
 		domain: website.domain,
 		pagesRead: pages.filter((page) => page.status === "read").length,
 	};
-	const generation = settings?.generation ?? null;
-	if (generation && settings && businessContextIsGenerating(settings)) {
+	if (
+		generation &&
+		(generation.status === "queued" || generation.status === "running")
+	) {
 		return {
 			...base,
 			phase: generation.progress?.stage === "writing" ? "writing" : "reading",
@@ -108,10 +112,14 @@ function deriveResearch(input: {
 			canStart: input.accessStatus === "allowed",
 		};
 	}
-	if (settings?.profile) {
-		return { ...base, phase: "ready", ...briefFields(settings.profile) };
+	if (profile) {
+		return { ...base, phase: "ready", ...briefFields(profile) };
 	}
 	if (input.accessPending || !settings) {
+		return base;
+	}
+	if (settings.generation || settings.profile) {
+		// Another site's brief; reading this one would replace it, so don't offer it here.
 		return base;
 	}
 	if (input.accessStatus !== "allowed") {
@@ -120,15 +128,14 @@ function deriveResearch(input: {
 	return { ...base, canStart: true };
 }
 
-export function useOnboardingResearch(
+export function useSiteResearch(
 	organizationId: string | undefined,
 	website: ResearchWebsite | null
 ) {
 	const queryClient = useQueryClient();
+	const websiteId = website?.id;
 	const scope =
-		organizationId && website
-			? { organizationId, websiteId: website.id }
-			: null;
+		organizationId && websiteId ? { organizationId, websiteId } : null;
 	const settingsKey = orpc.businessContext.get.queryKey({
 		input: { organizationId: organizationId ?? "" },
 	});
@@ -170,9 +177,10 @@ export function useOnboardingResearch(
 	);
 
 	const start = useCallback(async () => {
-		if (!scope || stream.current) {
+		if (!(organizationId && websiteId) || stream.current) {
 			return;
 		}
+		const scope = { organizationId, websiteId };
 		const controller = new AbortController();
 		stream.current = controller;
 		setStreaming(true);
@@ -204,7 +212,7 @@ export function useOnboardingResearch(
 				queryClient.invalidateQueries({ queryKey: settingsKey });
 			}
 		}
-	}, [queryClient, scope, settingsKey]);
+	}, [organizationId, websiteId, queryClient, settingsKey]);
 
 	const save = useMutation({
 		...orpc.businessContext.save.mutationOptions(),
@@ -214,32 +222,29 @@ export function useOnboardingResearch(
 		},
 	});
 
-	const savePriority = useCallback(
-		async (priority: string) => {
-			if (!organizationId) {
-				return;
-			}
-			const current = settings.data;
-			const draft =
-				current?.generation?.status === "ready" && current.generation.draft
-					? current.generation
-					: null;
-			// Keep whatever the team already answered; onboarding only asks for the priority.
-			await save.mutateAsync({
-				organizationId,
-				revision: current?.profile?.revision ?? 0,
-				content: draft?.draft?.content ?? current?.profile?.content ?? "",
-				generationId: draft?.id,
-				teamContext: {
-					successDefinition: "",
-					exclusions: "",
-					...current?.profile?.teamContext,
-					priority,
-				},
-			});
-		},
-		[organizationId, save, settings.data]
-	);
+	async function savePriority(priority: string) {
+		if (!organizationId) {
+			return;
+		}
+		const current = settings.data;
+		const draft =
+			current?.generation?.status === "ready" && current.generation.draft
+				? current.generation
+				: null;
+		// Keep whatever the team already answered; onboarding only asks for the priority.
+		await save.mutateAsync({
+			organizationId,
+			revision: current?.profile?.revision ?? 0,
+			content: draft?.draft?.content ?? current?.profile?.content ?? "",
+			generationId: draft?.id,
+			teamContext: {
+				successDefinition: "",
+				exclusions: "",
+				...current?.profile?.teamContext,
+				priority,
+			},
+		});
+	}
 
 	const readOnly = settings.data?.canEdit === false;
 
