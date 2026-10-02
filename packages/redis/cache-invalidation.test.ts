@@ -190,7 +190,6 @@ describe("website read cache invalidation", () => {
 			]),
 			website: getCacheableKey(cacheNamespaces.websiteById, websiteId),
 			websiteCache: getCacheableKey(cacheNamespaces.websiteCache, websiteId),
-			websiteDomain: getCacheableKey(cacheNamespaces.websiteDomain, websiteId),
 			websiteWithOwner: getCacheableKey(
 				cacheNamespaces.websiteWithOwner,
 				websiteId
@@ -208,10 +207,6 @@ describe("website read cache invalidation", () => {
 			value: "{}",
 			ttl: 100,
 		});
-		redisStore.set(keys.websiteDomain, {
-			value: "example.com",
-			ttl: 100,
-		});
 		redisStore.set(keys.agentTelemetry, {
 			value: "true",
 			ttl: 100,
@@ -227,11 +222,10 @@ describe("website read cache invalidation", () => {
 
 		const result = await invalidateWebsiteReadCaches(websiteId);
 
-		expect(result).toEqual({ attempted: 6, failed: 0 });
+		expect(result).toEqual({ attempted: 5, failed: 0 });
 		expect(redisStore.has(keys.website)).toBe(false);
 		expect(redisStore.has(keys.websiteWithOwner)).toBe(false);
 		expect(redisStore.has(keys.websiteCache)).toBe(false);
-		expect(redisStore.has(keys.websiteDomain)).toBe(false);
 		expect(redisStore.has(keys.agentTelemetry)).toBe(false);
 		expect(redisStore.has(keys.batch)).toBe(false);
 		expect(redisStore.has(keys.otherBatch)).toBe(true);
