@@ -1,6 +1,7 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
+import { useFlags } from "@databuddy/sdk/react";
 import { usePathname } from "next/navigation";
 import {
 	createContext,
@@ -17,6 +18,7 @@ import {
 	getNavDirection,
 	getNavigation,
 	type NavContext,
+	withFlags,
 } from "./navigation/navigation-config";
 import type { NavigationGroup } from "./navigation/types";
 
@@ -92,7 +94,11 @@ export function SidebarNavigationProvider({
 		}
 	}, [navContext]);
 
-	const navigation = useMemo(() => getNavigation(pathname), [pathname]);
+	const { isOn } = useFlags();
+	const navigation = useMemo(
+		() => withFlags(getNavigation(pathname), isOn),
+		[pathname, isOn]
+	);
 
 	const currentWebsiteId = isWebsite || isDemo ? websiteId : undefined;
 

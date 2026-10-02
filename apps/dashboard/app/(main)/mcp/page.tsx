@@ -15,7 +15,9 @@ import {
 	OpenExternalIcon,
 	PlugIcon,
 } from "@databuddy/ui/icons";
+import { useFlag } from "@databuddy/sdk/react";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { parseAsString, useQueryStates } from "nuqs";
 import { formatDateByGranularity } from "@/app/(main)/websites/[id]/_components/utils/analytics-helpers";
 import {
@@ -325,6 +327,14 @@ function Setup({
 }
 
 export default function McpPage() {
+	const flag = useFlag("mcp");
+	if (!(flag.loading || flag.on)) {
+		notFound();
+	}
+	return <McpAnalytics />;
+}
+
+function McpAnalytics() {
 	const { activeOrganizationId } = useOrganizationsContext();
 	const { websites } = useWebsitesLight();
 	const { currentDateRange, dateRange, setDateRangeAction } = useDateFilters();

@@ -18,6 +18,7 @@ export interface NavigationItem {
 	disabled?: boolean;
 	domain?: string;
 	external?: boolean;
+	flag?: string;
 	gatedFeature?: GatedFeatureId;
 	hideFromDemo?: boolean;
 	hideFromSidebar?: boolean;
