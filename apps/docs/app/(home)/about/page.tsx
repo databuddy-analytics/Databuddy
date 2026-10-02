@@ -5,7 +5,7 @@ import { StructuredData } from "@/components/structured-data";
 
 const title = "About Databuddy";
 const description =
-	"Learn about Databuddy, the privacy-first analytics platform for developers building fast, compliant, agent-ready product analytics.";
+	"Learn about Databuddy: open-source product analytics for startups, with a built-in AI analyst plus uptime monitoring, feature flags, and short links.";
 const url = "https://www.databuddy.cc/about";
 
 export const metadata: Metadata = {
@@ -38,9 +38,9 @@ export default function AboutPage() {
 							section: "Company",
 							keywords: [
 								"Databuddy",
-								"privacy-first analytics",
-								"developer analytics",
-								"agent-ready analytics",
+								"product analytics",
+								"open-source analytics",
+								"cookieless analytics",
 							],
 						},
 					},
@@ -61,9 +61,9 @@ export default function AboutPage() {
 						</h1>
 						<div className="mt-8 space-y-5 text-lg text-muted-foreground">
 							<p>
-								Databuddy builds privacy-first analytics for developer teams
-								that want useful product data without turning their websites
-								into surveillance systems. The platform brings website
+								Databuddy builds product analytics for startups and developer
+								teams that want useful product data without turning their
+								websites into surveillance systems. The platform brings website
 								analytics, error tracking, Core Web Vitals, feature flags, short
 								links, uptime monitoring, and automatic investigations into one
 								product with a small client footprint and a clear API surface.
