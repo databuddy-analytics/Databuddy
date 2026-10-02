@@ -8,7 +8,7 @@ export const AGENT_DISCOVERY_UPDATED = "2026-08-22";
 const CDN_SCRIPT_URL = "https://cdn.databuddy.cc/databuddy.js";
 
 export const DATABUDDY_DESCRIPTION =
-	"Databuddy is open-source product analytics for startups. One cookieless 13 KB script tracks visitors, custom events, funnels, and goals, with opt-in error and web vitals tracking. Databunny, the built-in AI analyst, answers questions about your data and shows the query behind each answer. Feature flags, short links, and uptime monitoring run in the same dashboard. Free up to 10,000 events a month; error tracking starts on the Hobby plan.";
+	"Databuddy is open-source product analytics for startups. One cookieless script tracks visitors, custom events, funnels, and goals, with opt-in error and web vitals tracking. Databunny, the built-in AI analyst, answers questions about your data and shows the query behind each answer. Feature flags, short links, and uptime monitoring run in the same dashboard. Free up to 10,000 events a month; error tracking starts on the Hobby plan.";
 
 export const DATABUDDY_DISAMBIGUATION =
 	"Databuddy (databuddy.cc) is open-source product analytics. It is not affiliated with Tencent Cloud DataBuddy, the WeData data workbench.";

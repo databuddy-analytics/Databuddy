@@ -42,7 +42,7 @@ export const metadata: Metadata = {
 		default: "Databuddy: Product Analytics for Startups",
 	},
 	description:
-		"Track visitors, events, funnels, and goals with one cookieless 13 KB script. Ask Databunny, the built-in AI analyst, about your numbers. Free up to 10k events.",
+		"Track visitors, events, funnels, and goals without cookies. Ask Databunny, the built-in AI analyst, about your numbers and see the query. Free up to 10k events.",
 	authors: [{ name: "Databuddy Team" }],
 	creator: "Databuddy",
 	publisher: "Databuddy",
