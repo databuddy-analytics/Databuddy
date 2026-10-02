@@ -1,9 +1,7 @@
 import {
 	type ApiKeyRow,
 	extractSecret,
-	getAccessibleWebsiteIds as _getAccessibleWebsiteIds,
 	getApiKeyFromHeader as resolveApiKey,
-	hasGlobalAccess as _hasGlobalAccess,
 	hasKeyScope as _hasKeyScope,
 	hasWebsiteScope as _hasWebsiteScope,
 } from "@databuddy/api-keys/resolve";
@@ -14,8 +12,6 @@ import { useLogger } from "evlog/elysia";
 export type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 
 export const hasKeyScope = _hasKeyScope;
-export const hasGlobalAccess = _hasGlobalAccess;
-export const getAccessibleWebsiteIds = _getAccessibleWebsiteIds;
 export const hasWebsiteScope = _hasWebsiteScope;
 
 export function getApiKeyFromHeader(

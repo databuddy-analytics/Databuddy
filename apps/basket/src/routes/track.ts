@@ -11,9 +11,7 @@ import {
 	API_KEY_DENIAL_ERRORS,
 	type ApiKeyRow,
 	denyApiKeyWebsiteAccess,
-	getAccessibleWebsiteIds,
 	getApiKeyFromHeader,
-	hasGlobalAccess,
 	hasKeyScope,
 } from "@lib/api-key";
 import { checkAutumnUsage } from "@lib/billing";
@@ -369,13 +367,6 @@ function resolveAuth(
 		const apiKey = await getApiKeyFromHeader(request.headers);
 
 		if (apiKey) {
-			if (!hasKeyScope(apiKey, "track:events")) {
-				log.set({
-					auth: { ok: false, reason: "missing_scope", method: "api_key" },
-				});
-				throw basketErrors.trackMissingScope();
-			}
-
 			const ownerId = apiKey.organizationId ?? apiKey.userId;
 			if (!ownerId) {
 				log.set({
@@ -520,45 +511,16 @@ export const trackRoute = new Elysia()
 				throw basketErrors.trackRateLimited();
 			}
 
-			const allowedApiKeyWebsiteIds =
-				auth.apiKey && !hasGlobalAccess(auth.apiKey)
-					? new Set(getAccessibleWebsiteIds(auth.apiKey))
-					: null;
-
-			for (const target of targets) {
-				const targetId = target.websiteId;
-
-				if (auth.apiKey) {
-					if (allowedApiKeyWebsiteIds && !targetId) {
-						log.set({ rejected: "website_scope" });
-						captureRejectedBody();
-						throw basketErrors.trackWebsiteScopeMismatch();
-					}
-					if (
-						targetId &&
-						allowedApiKeyWebsiteIds &&
-						!allowedApiKeyWebsiteIds.has(targetId)
-					) {
-						log.set({ rejected: "website_scope", targetWebsiteId: targetId });
-						captureRejectedBody();
-						throw basketErrors.trackWebsiteScopeMismatch();
-					}
-					continue;
-				}
-
-				if (!targetId) {
-					captureRejectedBody();
-					throw basketErrors.trackInvalidBody();
-				}
-
-				if (auth.websiteId && targetId !== auth.websiteId) {
-					log.set({ rejected: "website_scope", targetWebsiteId: targetId });
-					captureRejectedBody();
-					throw basketErrors.trackWebsiteScopeMismatch();
-				}
-			}
-
 			if (auth.apiKey) {
+				const { apiKey } = auth;
+				if (
+					targets.some((target) => !target.websiteId) &&
+					!hasKeyScope(apiKey, "track:events")
+				) {
+					log.set({ rejected: "missing_scope" });
+					captureRejectedBody();
+					throw basketErrors.trackMissingScope();
+				}
 				const targetIds = [
 					...new Set(
 						targets.flatMap((target) =>
@@ -569,33 +531,28 @@ export const trackRoute = new Elysia()
 				const websites = await Promise.all(
 					targetIds.map((id) => getWebsiteByIdV2(id))
 				);
-				for (const [i, website] of websites.entries()) {
-					if (!website) {
-						log.set({
-							rejected: "website_not_found",
-							targetWebsiteId: targetIds[i],
-						});
+				for (const [i, websiteId] of targetIds.entries()) {
+					const denial = denyApiKeyWebsiteAccess(
+						apiKey,
+						websiteId,
+						websites[i] ?? null
+					);
+					if (denial) {
+						log.set({ rejected: denial, targetWebsiteId: websiteId });
 						captureRejectedBody();
-						throw basketErrors.trackWebsiteNotFound();
+						throw API_KEY_DENIAL_ERRORS[denial]();
 					}
-					if (
-						!auth.organizationId ||
-						website.organizationId !== auth.organizationId
-					) {
-						log.set({
-							rejected: "website_scope",
-							targetWebsiteId: targetIds[i],
-						});
+				}
+			} else {
+				for (const { websiteId } of targets) {
+					if (!websiteId) {
+						captureRejectedBody();
+						throw basketErrors.trackInvalidBody();
+					}
+					if (auth.websiteId && websiteId !== auth.websiteId) {
+						log.set({ rejected: "website_scope", targetWebsiteId: websiteId });
 						captureRejectedBody();
 						throw basketErrors.trackWebsiteScopeMismatch();
-					}
-					if (website.status !== "ACTIVE") {
-						log.set({
-							rejected: "website_not_active",
-							targetWebsiteId: targetIds[i],
-						});
-						captureRejectedBody();
-						throw basketErrors.trackWebsiteNotFound();
 					}
 				}
 			}
