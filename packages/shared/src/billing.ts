@@ -11,7 +11,7 @@ export const DATABUNNY_USAGE = {
 
 export const EVENTS_USAGE = {
 	description:
-		"Events include page views, custom events, errors, and Web Vitals collected by Databuddy.",
+		"Events include page views, custom events, errors, Web Vitals, and MCP tool calls collected by Databuddy.",
 	name: "Event tracking",
 	pausedActivity: "new event collection",
 	unit: "events",

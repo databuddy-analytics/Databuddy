@@ -18,6 +18,7 @@ const EVENT_CATEGORIES = {
 	WEB_VITALS: "web_vitals",
 	CUSTOM_EVENT: "custom_event",
 	OUTGOING_LINK: "outgoing_link",
+	MCP: "mcp",
 } as const;
 
 type EventCategory = (typeof EVENT_CATEGORIES)[keyof typeof EVENT_CATEGORIES];
@@ -41,8 +42,8 @@ interface EventTypeBreakdown {
 interface EventSource {
 	category: EventCategory;
 	dateColumn: string;
-	filterColumn?: string;
 	rowFilter?: string;
+	scope?: string;
 	table: string;
 }
 
@@ -67,12 +68,18 @@ const EVENT_SOURCES: EventSource[] = [
 		table: "analytics.custom_events",
 		dateColumn: "timestamp",
 		category: EVENT_CATEGORIES.CUSTOM_EVENT,
-		filterColumn: "website_id",
+		scope: "website_id IN {websiteIds:Array(String)}",
 	},
 	{
 		table: "analytics.outgoing_links",
 		dateColumn: "timestamp",
 		category: EVENT_CATEGORIES.OUTGOING_LINK,
+	},
+	{
+		table: "analytics.mcp_spans",
+		dateColumn: "timestamp",
+		category: EVENT_CATEGORIES.MCP,
+		scope: "owner_id = {organizationId:String}",
 	},
 ];
 
@@ -84,18 +91,15 @@ const getDefaultDateRange = () => {
 	return { startDate, endDate };
 };
 
-const buildEventSourceQuery = (source: EventSource): string => {
-	const filterCol = source.filterColumn ?? "client_id";
-	return `
+const buildEventSourceQuery = (source: EventSource): string => `
 		SELECT
 			toDate(${source.dateColumn}) as date,
 			'${source.category}' as event_category
 		FROM ${source.table}
-		WHERE ${filterCol} IN {websiteIds:Array(String)}
+		WHERE ${source.scope ?? "client_id IN {websiteIds:Array(String)}"}
 			AND ${source.dateColumn} >= parseDateTimeBestEffort({startDate:String})
 			AND ${source.dateColumn} <= parseDateTimeBestEffort({endDate:String})
 			${source.rowFilter ? `AND ${source.rowFilter}` : ""}`;
-};
 
 const getDailyUsageByTypeQuery = (): string => {
 	const eventQueries = EVENT_SOURCES.map(buildEventSourceQuery).join(
@@ -423,21 +427,11 @@ export const billingRouter = {
 				});
 				const websiteIds = userWebsites.map((site) => site.id);
 
-				if (websiteIds.length === 0) {
-					return {
-						totalEvents: 0,
-						dailyUsage: [],
-						dailyUsageByType: [],
-						eventTypeBreakdown: [],
-						websiteCount: 0,
-						dateRange: { startDate, endDate },
-					};
-				}
-
 				const dailyUsageByTypeResults = await chQuery<DailyUsageByTypeRow>(
 					getDailyUsageByTypeQuery(),
 					{
 						websiteIds,
+						organizationId: resolvedOrgId,
 						startDate,
 						endDate,
 					}

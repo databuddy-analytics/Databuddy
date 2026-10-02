@@ -7,6 +7,7 @@ import {
 	ChartBarIcon,
 	LightningIcon,
 	LinkIcon,
+	PlugIcon,
 	TableIcon,
 	TagIcon,
 } from "@databuddy/ui/icons";
@@ -37,6 +38,11 @@ const EVENT_TYPE_CONFIG = {
 		name: "Outgoing Links",
 		description: "External link click tracking",
 		icon: LinkIcon,
+	},
+	mcp: {
+		name: "MCP Tool Calls",
+		description: "Tool calls recorded by your MCP servers",
+		icon: PlugIcon,
 	},
 } as const;
 
