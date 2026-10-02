@@ -159,6 +159,27 @@ const MCP_CLIENT_USER_AGENTS: [RegExp, string][] = [
 	[/^openai-mcp\//i, "ChatGPT"],
 ];
 
+function mcpErrorMessage(error: string | undefined): string | undefined {
+	if (!error?.startsWith("{")) {
+		return error;
+	}
+	try {
+		const parsed: unknown = JSON.parse(error);
+		const body =
+			typeof parsed === "object" && parsed !== null && "error" in parsed
+				? parsed.error
+				: parsed;
+		return typeof body === "object" &&
+			body !== null &&
+			"message" in body &&
+			typeof body.message === "string"
+			? body.message
+			: error;
+	} catch {
+		return error;
+	}
+}
+
 function mcpClient(clientName = "", userAgent = ""): string {
 	const name = clientName.toLowerCase();
 	return (
@@ -745,7 +766,7 @@ export const trackRoute = new Elysia()
 									: now,
 							tool: call.tool,
 							is_error: call.error !== undefined,
-							error: call.error,
+							error: mcpErrorMessage(call.error),
 							duration_ms: call.durationMs,
 							output_chars: call.outputChars,
 							session_id: call.sessionId,
