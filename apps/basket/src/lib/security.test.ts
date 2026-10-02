@@ -162,6 +162,21 @@ describe("daily anonymous salt", () => {
 		).toHaveLength(2);
 	});
 
+	test("recovers a committed salt after Redis loses the write acknowledgement", async () => {
+		const values = new Map<string, string>();
+		mockRedisGet.mockImplementation((key: string) =>
+			Promise.resolve(values.get(key) ?? null)
+		);
+		mockRedisSet.mockImplementation((key: string, value: string) => {
+			values.set(key, value);
+			return Promise.reject(new Error("Lost Redis acknowledgement"));
+		});
+		const salt = await getDailySalt();
+		expect(salt).toBe([...values.values()][0]);
+		expect(await getDailySalt()).toBe(salt);
+		expect(mockCaptureError).toHaveBeenCalledTimes(1);
+	});
+
 	test("concurrent misses share the Redis winner", async () => {
 		const values = new Map<string, string>();
 		mockRedisGet.mockImplementation((key: string) =>

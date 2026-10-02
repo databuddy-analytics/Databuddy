@@ -143,7 +143,8 @@ export function getDailySalt(): Promise<string> {
 			captureError(error, {
 				message: "Failed to resolve daily salt in Redis",
 			});
-			return crypto.randomBytes(32).toString("hex");
+			const winner = await redis.get(saltKey).catch(() => null);
+			return winner || crypto.randomBytes(32).toString("hex");
 		}
 	});
 }
