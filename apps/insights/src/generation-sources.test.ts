@@ -672,6 +672,56 @@ describe("fixture investigation sources", () => {
 		expect(scannedWithoutEnvironments).toContain(absence);
 	});
 
+	it("tells a break about other changes that started in the same hours", async () => {
+		const eventStop: DetectedSignal = {
+			...trafficDrop,
+			baseline: 6400,
+			current: 0,
+			deltaPercent: -100,
+			entityId: "link_created",
+			entityLabel: "link_created",
+			label: "link_created events",
+			metric: "custom_event_count",
+			subjectKey: "custom_event:link_created",
+		};
+		let received:
+			| Parameters<InvestigationSources["investigateSignal"]>[0]
+			| null = null;
+		const sources = fixtureSources({
+			detectDefinitionSignals: async () => [],
+			detectMetricSignals: async () => [
+				eventStop,
+				{ ...trafficDrop, severity: "info" },
+			],
+			fetchAnnotations: async () => [],
+			investigateSignal: async (input) => {
+				received = input;
+				return {
+					outcome: {
+						evidence: ["Link creation stopped with traffic."],
+						impact: "No links were created.",
+						next: { reason: "No case is required.", type: "resolve" },
+						rootCause: null,
+						summary: "Link creation stopped.",
+						title: "Link creation stopped",
+					},
+					toolCallCount: 0,
+				};
+			},
+			loadChangeOnset: async () => linkOnset,
+			loadDueInvestigation: async () => null,
+			loadHistory: async () => [],
+			loadObservations: async () => new Map(),
+		});
+
+		await investigateFixture(sources);
+
+		expect(received?.signal.signalKey).toBe("custom_event:link_created");
+		expect(received?.evidence).toContain(
+			"Another change on this website started within an hour of this one. Dropping between 20:00 and 21:00 on 2026-07-10: pageviews."
+		);
+	});
+
 	it("adds supplied route-vital continuation evidence before a slow route reaches the agent", async () => {
 		const slowRoute: DetectedSignal = {
 			...trafficDrop,

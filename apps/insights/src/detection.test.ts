@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import dayjs from "dayjs";
 import {
+	type ChangeOnset,
 	changeOnsetEvidence,
 	concentratedSegment,
 	type DetectedSignal,
@@ -17,6 +18,7 @@ import {
 	remeasureMetricSignal,
 	segmentEvidence,
 	segmentTable,
+	sharedOnsetEvidence,
 	shiftedSegment,
 	wowWindow,
 } from "./detection";
@@ -3007,6 +3009,89 @@ describe("change onset", () => {
 				query
 			)
 		).toBeNull();
+	});
+
+	describe("shared starts", () => {
+		const onsetAt = (
+			earliest: string,
+			direction: "down" | "up" = "up"
+		): ChangeOnset => ({
+			direction,
+			earliest: `2026-09-25 ${earliest}:00`,
+			expected: 10,
+			latest: `2026-09-25 ${earliest}:00`,
+			noun: "occurrences",
+			observed: 90,
+			ongoingThrough: null,
+			recoveredBy: null,
+			subject: "Hourly counts of this error",
+			timezone: "UTC",
+		});
+		const signalFor = (overrides: Partial<DetectedSignal>) =>
+			prepareInvestigation(
+				{
+					...stoppedEvent,
+					baseline: 10,
+					current: 90,
+					deltaPercent: 800,
+					direction: "up",
+					...overrides,
+				},
+				7
+			).signal;
+		const errorSignal = (message: string) =>
+			signalFor({
+				entityId: message,
+				entityLabel: message,
+				label: message,
+				metric: "error_count",
+				subjectKey: `error:${message}`,
+			});
+		const trafficSignal = (metric: string) =>
+			signalFor({
+				entityId: undefined,
+				entityLabel: undefined,
+				label: metric,
+				metric,
+				subjectKey: undefined,
+			});
+		const own = { onset: onsetAt("21:00"), signal: errorSignal("Load failed") };
+
+		it("names other changes that started in the same hours", () => {
+			expect(
+				sharedOnsetEvidence(own, [
+					own,
+					{ onset: onsetAt("21:00"), signal: errorSignal("Fetch is aborted") },
+					{ onset: onsetAt("22:00"), signal: trafficSignal("visitors") },
+					{ onset: onsetAt("22:00"), signal: trafficSignal("sessions") },
+					{ onset: onsetAt("20:00", "down"), signal: signalFor({}) },
+					{ onset: onsetAt("23:00"), signal: errorSignal("Late error") },
+					{ onset: null, signal: errorSignal("Steady error") },
+				])
+			).toBe(
+				'3 other changes on this website started within an hour of this one. Rising between 22:00 and 23:00 on 2026-09-25: pageviews. Rising between 21:00 and 22:00 on 2026-09-25: error "Fetch is aborted". Dropping between 20:00 and 21:00 on 2026-09-25: link_created events.'
+			);
+			expect(
+				sharedOnsetEvidence(own, [
+					{ onset: onsetAt("23:00"), signal: errorSignal("Late error") },
+				])
+			).toBeNull();
+		});
+
+		it("keeps a long list of shared starts to one evidence line", () => {
+			const evidence = sharedOnsetEvidence(
+				own,
+				Array.from({ length: 12 }, (_, index) => ({
+					onset: onsetAt("21:00"),
+					signal: errorSignal(
+						`TypeError: request ${index} failed while loading the checkout payment widget script`
+					),
+				}))
+			);
+			expect(evidence?.length).toBeLessThanOrEqual(500);
+			expect(evidence).toStartWith("12 other changes");
+			expect(evidence).toMatch(/\. \d+ more not listed\.$/);
+		});
 	});
 });
 

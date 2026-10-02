@@ -2664,6 +2664,91 @@ export function changeOnsetEvidence(onset: ChangeOnset): string {
 	return `${start} From then on there were ${observed} where the earlier rate predicted about ${expected}.${through}`;
 }
 
+const SHARED_ONSET_GAP_HOURS = 1;
+const SHARED_ONSET_NAME_LENGTH = 120;
+const EVIDENCE_MAX_LENGTH = 500;
+
+function subjectName(subject: SignalSubject): string {
+	switch (subject.kind) {
+		case "traffic":
+			return "pageviews";
+		case "error":
+			return `error "${
+				subject.message.length > SHARED_ONSET_NAME_LENGTH
+					? `${subject.message.slice(0, SHARED_ONSET_NAME_LENGTH - 1).trimEnd()}…`
+					: subject.message
+			}"`;
+		case "event":
+			return `${subject.name} events`;
+		case "revenue":
+			return `${subject.currency.toUpperCase()} payments`;
+		default:
+			return subject satisfies never;
+	}
+}
+
+export function hourlyChangeName(signal: InvestigationSignal): string | null {
+	const subject = signalSubject(signal);
+	return subject ? subjectName(subject) : null;
+}
+
+function onsetSpan(onset: ChangeOnset): { end: number; start: number } {
+	return {
+		end: dayjs.tz(onset.latest, onset.timezone).add(1, "hour").valueOf(),
+		start: dayjs.tz(onset.earliest, onset.timezone).valueOf(),
+	};
+}
+
+export function sharedOnsetEvidence(
+	own: { onset: ChangeOnset; signal: InvestigationSignal },
+	changes: { onset: ChangeOnset | null; signal: InvestigationSignal }[]
+): string | null {
+	const gap = SHARED_ONSET_GAP_HOURS * 60 * 60 * 1000;
+	const ownSpan = onsetSpan(own.onset);
+	const seen = new Set([hourlyChangeName(own.signal)]);
+	const shared: { name: string; start: string; traffic: boolean }[] = [];
+	for (const { onset, signal } of changes) {
+		const subject = signalSubject(signal);
+		const name = subject ? subjectName(subject) : null;
+		if (!(onset && subject && name) || seen.has(name)) {
+			continue;
+		}
+		seen.add(name);
+		const span = onsetSpan(onset);
+		if (span.start < ownSpan.end + gap && ownSpan.start < span.end + gap) {
+			shared.push({
+				name,
+				start: `${onset.direction === "down" ? "Dropping" : "Rising"} ${hourRange(onset.earliest, onset.latest, onset.timezone)}`,
+				traffic: subject.kind === "traffic",
+			});
+		}
+	}
+	if (shared.length === 0) {
+		return null;
+	}
+	shared.sort((left, right) => Number(right.traffic) - Number(left.traffic));
+	const intro =
+		shared.length === 1
+			? "Another change on this website started within an hour of this one"
+			: `${shared.length} other changes on this website started within an hour of this one`;
+	const sentence = (listed: number) => {
+		const groups = new Map<string, string[]>();
+		for (const { name, start } of shared.slice(0, listed)) {
+			groups.set(start, [...(groups.get(start) ?? []), name]);
+		}
+		const lines = [...groups].map(
+			([start, names]) => `${start}: ${names.join(", ")}`
+		);
+		const unlisted = shared.length - listed;
+		return `${intro}. ${lines.join(". ")}${unlisted > 0 ? `. ${unlisted} more not listed` : ""}.`;
+	};
+	let listed = shared.length;
+	while (listed > 1 && sentence(listed).length > EVIDENCE_MAX_LENGTH) {
+		listed -= 1;
+	}
+	return sentence(listed);
+}
+
 const SEGMENT_DIMENSIONS = [
 	"browser",
 	"browser_version",

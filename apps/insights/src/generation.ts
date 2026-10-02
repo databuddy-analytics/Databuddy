@@ -51,12 +51,14 @@ import {
 	type DetectionDiagnostics,
 	type DetectSignalsParams,
 	detectSignals,
+	hourlyChangeName,
 	loadChangeOnset,
 	loadRecovery,
 	loadSegmentFinding,
 	recoveryEvidence,
 	remeasureMetricSignal,
 	segmentEvidence,
+	sharedOnsetEvidence,
 } from "./detection";
 import { detectRetentionSignals } from "./measurement-plan";
 import {
@@ -1312,6 +1314,74 @@ async function investigatePlannedCandidate(
 	};
 }
 
+const SHARED_ONSET_SCAN_LIMIT = 12;
+
+async function withSharedOnsetEvidence(
+	candidates: PlannedInvestigationCandidate[],
+	detectedSignals: DetectedSignal[],
+	input: InvestigateWebsiteInput,
+	loadOnset: InvestigationSources["loadChangeOnset"]
+): Promise<PlannedInvestigationCandidate[]> {
+	if (!loadOnset || candidates.length === 0) {
+		return candidates;
+	}
+	const onsetOf = (signal: InvestigationSignal) =>
+		loadOnset({
+			abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
+			signal,
+			timezone: input.timezone,
+			websiteId: input.websiteId,
+		}).catch(() => null);
+	const ownOnsets = await Promise.all(
+		candidates.map((candidate) => onsetOf(candidate.signal))
+	);
+	if (ownOnsets.every((onset) => onset === null)) {
+		return candidates;
+	}
+	const scanned = new Set(
+		candidates.map((candidate) => hourlyChangeName(candidate.signal))
+	);
+	const others: InvestigationSignal[] = [];
+	for (const detected of detectedSignals) {
+		if (others.length === SHARED_ONSET_SCAN_LIMIT) {
+			break;
+		}
+		const { signal } = toPlannedCandidate(detected);
+		const name = hourlyChangeName(signal);
+		if (name && !scanned.has(name)) {
+			scanned.add(name);
+			others.push(signal);
+		}
+	}
+	const otherOnsets = await Promise.all(others.map(onsetOf));
+	const changes = [
+		...candidates.map((candidate, index) => ({
+			onset: ownOnsets[index] ?? null,
+			signal: candidate.signal,
+		})),
+		...others.map((signal, index) => ({
+			onset: otherOnsets[index] ?? null,
+			signal,
+		})),
+	];
+	return candidates.map((candidate, index) => {
+		const onset = ownOnsets[index];
+		const shared = onset
+			? sharedOnsetEvidence({ onset, signal: candidate.signal }, changes)
+			: null;
+		if (!shared) {
+			return candidate;
+		}
+		emitInsightsEvent("info", "generation.shared_onset.found", {
+			organization_id: input.organizationId,
+			website_id: input.websiteId,
+			signal_key: candidate.signal.signalKey,
+			scanned_signals: changes.length,
+		});
+		return { ...candidate, evidence: [...candidate.evidence, shared] };
+	});
+}
+
 function portfolioOptions(
 	reason: InsightGenerationReason,
 	discovery: WebsiteSignalDiscovery
@@ -1569,13 +1639,18 @@ export async function investigateWebsitePortfolioWithSources(
 		onCoverage?.(discovered.coverage);
 		return [discovered.artifact];
 	}
-	const candidates = await planInvestigationsWithBusinessContext(
+	const candidates = await withSharedOnsetEvidence(
+		await planInvestigationsWithBusinessContext(
+			input,
+			discovered.value.eligibleSignals,
+			sources,
+			false,
+			undefined,
+			portfolioOptions(reason, discovered.value)
+		),
+		discovered.value.detectedSignals,
 		input,
-		discovered.value.eligibleSignals,
-		sources,
-		false,
-		undefined,
-		portfolioOptions(reason, discovered.value)
+		sources.loadChangeOnset
 	);
 	if (candidates.length === 0) {
 		onCoverage?.({
@@ -1821,11 +1896,17 @@ export async function generateWebsiteInsights(
 				currentScope,
 				portfolioOptions(input.reason, discovered.value)
 			);
+			const candidates = await withSharedOnsetEvidence(
+				selectedCandidates,
+				discovered.value.detectedSignals,
+				investigationInput,
+				productionInvestigationSources.loadChangeOnset
+			);
 			plan = await freezeInsightRunCandidatePlan(runIdentity, input.reason, {
 				asOf: discovered.value.asOf.toISOString(),
 				businessScope,
-				candidates: selectedCandidates,
-				...(selectedCandidates.length === 0
+				candidates,
+				...(candidates.length === 0
 					? { emptyStatus: "no_signals" as const }
 					: {}),
 			});
