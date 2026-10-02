@@ -51,6 +51,8 @@ content-type: application/json
 
 The route returns `userId`, `organizationId`, and optionally `websiteId`, and forwards Better Auth `Set-Cookie` headers so browser tests can start authenticated. Outside E2E mode, the route returns `404`.
 
+`DATABUDDY_E2E_MODE` also makes Better Auth skip sending email (invitations, verification, password reset), so flows that would otherwise hit Resend complete against the local servers.
+
 ## Fixtures
 
 `fixtures.ts` extends Playwright's `test` with:
