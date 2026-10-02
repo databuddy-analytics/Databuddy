@@ -1,4 +1,6 @@
-import { build } from "bun";
+import { build, file, gzipSync } from "bun";
+
+const DOCUMENTED_GZIP_BUDGET_BYTES = 13.5 * 1024;
 
 const common = {
 	target: "browser",
@@ -36,4 +38,13 @@ for (const { src, name } of entrypoints) {
 	});
 }
 
-console.log("Build completed!");
+const gzipBytes = gzipSync(await file("./dist/databuddy.js").bytes(), {
+	level: 9,
+}).length;
+if (gzipBytes > DOCUMENTED_GZIP_BUDGET_BYTES) {
+	throw new Error(
+		`databuddy.js is ${gzipBytes} bytes gzipped, over the ${DOCUMENTED_GZIP_BUDGET_BYTES} the docs round to "13 KB". Trim the tracker, or update the size copy and this budget together.`
+	);
+}
+
+console.log(`Build completed! databuddy.js is ${gzipBytes} bytes gzipped.`);
