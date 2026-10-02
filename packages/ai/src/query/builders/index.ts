@@ -5,6 +5,7 @@ import { EngagementBuilders } from "./engagement";
 import { ErrorsBuilders } from "./errors";
 import { GeoBuilders } from "./geo";
 import { LinkShortenerBuilders, LinksBuilders } from "./links";
+import { McpBuilders } from "./mcp";
 import { PagesBuilders } from "./pages";
 import { PerformanceBuilders } from "./performance";
 import { ProfilesBuilders } from "./profiles";
@@ -39,6 +40,7 @@ const BASE_QUERY_BUILDERS = {
 	...EngagementBuilders,
 	...VitalsBuilders,
 	...AiAgentsBuilders,
+	...McpBuilders,
 	...UptimeBuilders,
 	...RevenueBuilders,
 	...RealtimeBuilders,
