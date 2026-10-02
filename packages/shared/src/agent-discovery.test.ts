@@ -41,8 +41,12 @@ describe("agent discovery builders", () => {
 			manifestAuth.protected_resource_metadata_url
 		);
 		expect(agentMcp.scopes).toBe(manifestAuth.scopes);
+		expect(a2a.authentication.type).toBe(manifestAuth.type);
+		expect(a2a.authentication.protectedResourceMetadataUrl).toBe(
+			manifestAuth.protected_resource_metadata_url
+		);
 		expect(a2a.authentication.scopes).toBe(manifestAuth.scopes);
-		expect(a2a.url).not.toBe(urls.mcpServerUrl);
+		expect(a2a.url).toBe(urls.mcpManifestUrl);
 	});
 
 	it("advertises feedback.md with a working submit endpoint", () => {
