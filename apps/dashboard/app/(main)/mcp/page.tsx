@@ -14,13 +14,14 @@ import {
 	CaretUpDownIcon,
 	OpenExternalIcon,
 	PlugIcon,
+	XMarkIcon,
 } from "@databuddy/ui/icons";
 import { isSelfHosted } from "@databuddy/env/public";
 import { useFlag } from "@databuddy/sdk/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { parseAsString, useQueryStates } from "nuqs";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { formatDateByGranularity } from "@/app/(main)/websites/[id]/_components/utils/analytics-helpers";
 import {
 	CodeBlock,
@@ -83,14 +84,21 @@ interface ClientRow {
 }
 
 interface ErrorRow {
-	error: string;
+	clients: string[];
+	error_code: string;
+	first_seen: string;
 	last_seen: string;
+	message: string;
+	messages: number;
 	occurrences: number;
+	samples: string[];
+	sessions: number;
 	tool: string;
 }
 
 const FILTERS = {
 	client: parseAsString,
+	tool: parseAsString,
 	server_name: parseAsString,
 	environment: parseAsString,
 	website_id: parseAsString,
@@ -136,6 +144,51 @@ function ErrorRate({ className, rate }: { className?: string; rate: number }) {
 		>
 			{rate}%
 		</span>
+	);
+}
+
+function RowButton({
+	align,
+	className,
+	density,
+	isSelected,
+	...props
+}: React.ComponentProps<"button"> & {
+	align?: "center" | "start";
+	density?: "comfortable" | "compact";
+	isSelected?: boolean;
+}) {
+	return (
+		<List.Row
+			align={align}
+			asChild
+			className={cn(
+				"text-left",
+				isSelected && "bg-accent hover:bg-accent",
+				className
+			)}
+			density={density}
+		>
+			{/* policy-ignore dashboard/no-raw-interactive-html: full-width list row; Button variants add padding and focus styles that fight the row layout */}
+			<button aria-pressed={isSelected} type="button" {...props} />
+		</List.Row>
+	);
+}
+
+function FocusChip({
+	children,
+	label,
+	onClear,
+}: {
+	children: React.ReactNode;
+	label: string;
+	onClear: () => void;
+}) {
+	return (
+		<Button aria-label={label} onClick={onClear} size="sm" variant="secondary">
+			{children}
+			<XMarkIcon className="size-3 text-muted-foreground" />
+		</Button>
 	);
 }
 
@@ -354,6 +407,7 @@ function McpAnalytics() {
 	const { currentDateRange, dateRange, setDateRangeAction } = useDateFilters();
 	const { chartType, chartStepType } = useChartPreferences("overview-main");
 	const [selected, setSelected] = useQueryStates(FILTERS);
+	const [openError, setOpenError] = useState<string | null>(null);
 
 	const organizationId = activeOrganizationId ?? undefined;
 	const filters: DynamicQueryFilter[] = Object.entries(selected).flatMap(
@@ -376,7 +430,11 @@ function McpAnalytics() {
 				? [{ id: "facets", parameters: ["mcp_summary"] }]
 				: []),
 			{ id: "series", parameters: ["mcp_calls_series"], filters },
-			{ id: "tools", parameters: ["mcp_tools"], filters },
+			{
+				id: "tools",
+				parameters: ["mcp_tools"],
+				filters: filters.filter((filter) => filter.field !== "tool"),
+			},
 			{
 				id: "clients",
 				parameters: ["mcp_clients"],
@@ -480,19 +538,25 @@ function McpAnalytics() {
 						isPlaceholderData && "opacity-60"
 					)}
 				>
-					{selected.client === null ? null : (
-						<div className="flex items-center gap-2">
-							<ClientIcon client={selected.client} size={16} />
-							<p className="font-medium text-sm">
-								{selected.client || "Unknown client"}
-							</p>
-							<Button
-								onClick={() => setSelected({ client: null })}
-								size="sm"
-								variant="ghost"
-							>
-								Show all clients
-							</Button>
+					{selected.client === null && selected.tool === null ? null : (
+						<div className="flex flex-wrap items-center gap-2">
+							{selected.client === null ? null : (
+								<FocusChip
+									label="Show all clients"
+									onClear={() => setSelected({ client: null })}
+								>
+									<ClientIcon client={selected.client} size={14} />
+									{selected.client || "Unknown client"}
+								</FocusChip>
+							)}
+							{selected.tool === null ? null : (
+								<FocusChip
+									label="Show all tools"
+									onClear={() => setSelected({ tool: null })}
+								>
+									<span className="font-mono">{selected.tool}</span>
+								</FocusChip>
+							)}
 						</div>
 					)}
 
@@ -564,7 +628,7 @@ function McpAnalytics() {
 					/>
 
 					<Panel
-						description="What AI clients call, how long each call takes, and how much context it hands back to the model."
+						description="What AI clients call, how long each call takes, and how much context it hands back to the model. Select one to see only its calls."
 						empty={tools.length === 0 && "No tool calls in this period."}
 						isLoading={isPending}
 						title="Tools"
@@ -580,7 +644,15 @@ function McpAnalytics() {
 							<span className="hidden w-20 text-right lg:block">Clients</span>
 						</List.Head>
 						{tools.map((row) => (
-							<List.Row interactive={false} key={row.tool}>
+							<RowButton
+								isSelected={selected.tool === row.tool}
+								key={row.tool}
+								onClick={() =>
+									setSelected({
+										tool: selected.tool === row.tool ? null : row.tool,
+									})
+								}
+							>
 								<List.Cell grow>
 									<span className="truncate font-mono text-xs">{row.tool}</span>
 								</List.Cell>
@@ -618,7 +690,7 @@ function McpAnalytics() {
 										</Tooltip>
 									))}
 								</List.Cell>
-							</List.Row>
+							</RowButton>
 						))}
 					</Panel>
 
@@ -632,17 +704,12 @@ function McpAnalytics() {
 							{clients.map((row) => {
 								const isSelected = selected.client === row.client;
 								return (
-									<Button
-										aria-pressed={isSelected}
-										className={cn(
-											"h-auto w-full justify-start gap-3 rounded-none border-border/80 border-b px-4 py-3 text-left font-normal text-foreground last:border-b-0 active:scale-100",
-											isSelected && "bg-accent hover:bg-accent"
-										)}
+									<RowButton
+										isSelected={isSelected}
 										key={row.client}
 										onClick={() =>
 											setSelected({ client: isSelected ? null : row.client })
 										}
-										variant="ghost"
 									>
 										<List.Cell className="gap-2.5" grow>
 											<ClientIcon client={row.client} />
@@ -676,42 +743,91 @@ function McpAnalytics() {
 												p95 {formatMs(row.p95_ms)}
 											</span>
 										</List.Cell>
-									</Button>
+									</RowButton>
 								);
 							})}
 						</Panel>
 
 						<Panel
-							description="Failed calls grouped by message."
+							description="What made calls fail, grouped by error code. Select one to read every message."
 							empty={errors.length === 0 && "No failed calls in this period."}
 							isLoading={isPending}
 							title="Errors"
 						>
-							{errors.map((row) => (
-								<List.Row
-									align="start"
-									density="compact"
-									interactive={false}
-									key={`${row.tool}:${row.error}`}
-								>
-									<List.Cell className="flex-col items-start gap-1" grow>
-										<span className="truncate font-mono text-xs">
-											{row.tool}
-										</span>
-										<p className="wrap-anywhere line-clamp-2 text-muted-foreground text-xs">
-											{row.error || "No message"}
-										</p>
-									</List.Cell>
-									<List.Cell align="end" className="w-24 flex-col items-end">
-										<span className="font-medium text-sm tabular-nums">
-											{formatNumber(row.occurrences)}×
-										</span>
-										<span className="text-muted-foreground text-xs">
-											{fromNow(row.last_seen)}
-										</span>
-									</List.Cell>
-								</List.Row>
-							))}
+							{errors.map((row) => {
+								const key = `${row.tool}:${row.error_code}:${row.error_code ? "" : row.message}`;
+								const isOpen = openError === key;
+								const otherMessages = row.samples.filter(
+									(sample) => sample !== row.message
+								);
+								return (
+									<RowButton
+										align="start"
+										aria-expanded={isOpen}
+										density="compact"
+										key={key}
+										onClick={() => setOpenError(isOpen ? null : key)}
+									>
+										<List.Cell className="flex-col items-start gap-1" grow>
+											<span className="flex min-w-0 max-w-full items-center gap-2">
+												<span className="truncate font-mono text-xs">
+													{row.tool}
+												</span>
+												{row.error_code ? (
+													<Badge
+														className="font-mono"
+														size="sm"
+														variant="muted"
+													>
+														{row.error_code}
+													</Badge>
+												) : null}
+											</span>
+											<span
+												className={cn(
+													"wrap-anywhere text-muted-foreground text-xs",
+													!isOpen && "line-clamp-2"
+												)}
+											>
+												{row.message || "No message"}
+											</span>
+											{isOpen ? (
+												<span className="mt-1 flex w-full flex-col gap-2">
+													{otherMessages.map((sample) => (
+														<span
+															className="wrap-anywhere border-border border-l-2 pl-2 text-muted-foreground text-xs"
+															key={sample}
+														>
+															{sample || "No message"}
+														</span>
+													))}
+													<span className="flex flex-wrap items-center gap-1.5 text-muted-foreground text-xs">
+														{row.clients.map((name) => (
+															<ClientIcon client={name} key={name} size={14} />
+														))}
+														First seen {fromNow(row.first_seen)}
+														{row.sessions > 0
+															? `, ${formatCount(row.sessions, "session")}`
+															: null}
+													</span>
+												</span>
+											) : row.messages > 1 ? (
+												<span className="text-muted-foreground text-xs">
+													{formatCount(row.messages - 1, "other message")}
+												</span>
+											) : null}
+										</List.Cell>
+										<List.Cell align="end" className="w-24 flex-col items-end">
+											<span className="font-medium text-sm tabular-nums">
+												{formatNumber(row.occurrences)}×
+											</span>
+											<span className="text-muted-foreground text-xs">
+												{fromNow(row.last_seen)}
+											</span>
+										</List.Cell>
+									</RowButton>
+								);
+							})}
 						</Panel>
 					</div>
 				</div>
