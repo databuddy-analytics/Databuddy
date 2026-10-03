@@ -3,23 +3,28 @@ title: MCP Servers
 description: See which AI clients call your MCP servers, which tools they use, how fast they answer, and where they fail
 ---
 
-import { Callout, CodeBlock } from "@/components/docs";
+import { Callout, CodeBlock, Tab, Tabs } from "@/components/docs";
 
 The MCP page shows every tool call that Claude, Claude Code, Cursor, ChatGPT, Codex and other AI clients make to your MCP servers: which tools they reach for, how long each call takes, how much context it hands back to the model, and which calls fail and why.
 
-Arguments and results never leave your server; only their size is recorded.
+Arguments and successful results never leave your server; only the length of the text a tool returns is recorded. Failed calls send their error message, and Databuddy stores up to 512 characters of it, unless you [keep error messages private](#keep-error-messages-private).
 
 <Callout type="info">
-  **Package**: `@databuddy/sdk` 3.1.0+ | **Import**: `@databuddy/sdk/mcp`
+  **Package**: `@databuddy/sdk` 3.2.0+ | **Import**: `@databuddy/sdk/mcp`
 </Callout>
 
 ## Setup
 
-Install the SDK and set an API key with the **Event Tracking** scope, created under **Organization Settings → API Keys**:
+Install the SDK:
 
 <CodeBlock language="bash">
-  {`bun add @databuddy/sdk@latest
-DATABUDDY_API_KEY=dbdy_your_key`}
+  {`bun add @databuddy/sdk@latest`}
+</CodeBlock>
+
+Create an API key with the **Event Tracking** scope in [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys) and set it in your server's environment:
+
+<CodeBlock language="bash" filename=".env">
+  {`DATABUDDY_API_KEY=dbdy_your_key`}
 </CodeBlock>
 
 Wrap your server once, before or after you register tools:
@@ -33,27 +38,104 @@ const server = trackMcp(
 );`}
 </CodeBlock>
 
-`trackMcp` returns the server you pass it, and also accepts the low-level `Server`.
+`trackMcp` returns the server you pass it, and also accepts the low-level `Server`. With `@modelcontextprotocol/server` 2.x, `createMcpHandler` and `serveStdio` build servers from a factory, so call `trackMcp` inside the factory, as in the [serverless examples](#serverless).
 
-With `@modelcontextprotocol/server` 2.x, `createMcpHandler` builds a server per request, so wrap it inside the factory:
+Long-running servers send calls in batches every second, and a stdio server that exits on its own sends its last batch before it exits. If your server ends itself with `process.exit`, for example in a SIGINT or SIGTERM handler, send the last batch first:
 
 <CodeBlock language="ts">
-  {`export const handler = createMcpHandler(() =>
-  trackMcp(new McpServer({ name: "my-server", version: "1.0.0" }))
-);`}
+  {`import { flushMcp } from "@databuddy/sdk/mcp";
+
+process.on("SIGTERM", async () => {
+  await flushMcp();
+  process.exit(0);
+});`}
 </CodeBlock>
 
-Long-running servers, including stdio servers, need nothing else: calls are sent in batches every second. On serverless platforms, send the last batch before the function stops with `waitUntil(flushMcp())`.
+A client that starts your server over stdio, such as Claude Desktop, passes it only a few variables like `PATH` and `HOME`, not the ones from your shell. Set the key, and `NODE_ENV` to label the environment, in the server's `env` in the client config:
+
+<CodeBlock language="json" filename="claude_desktop_config.json">
+  {`{
+  "mcpServers": {
+    "my-server": {
+      "command": "node",
+      "args": ["/path/to/server.js"],
+      "env": {
+        "DATABUDDY_API_KEY": "dbdy_your_key",
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}`}
+</CodeBlock>
+
+## Serverless
+
+A serverless function can stop before the batch goes out. Pass your platform's `waitUntil` and each call is sent before the function stops:
+
+<Tabs items={['Vercel', 'Cloudflare Workers']}>
+<Tab value="Vercel">
+<CodeBlock language="ts" filename="app/api/mcp/route.ts">
+  {`import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
+import { waitUntil } from "@vercel/functions";
+import { trackMcp } from "@databuddy/sdk/mcp";
+
+const handler = createMcpHandler(() =>
+  trackMcp(new McpServer({ name: "my-server", version: "1.0.0" }), {
+    waitUntil,
+  })
+);
+
+export const POST = (request: Request) => handler.fetch(request);`}
+</CodeBlock>
+
+With Vercel's `mcp-handler`, wrap the server it passes you, before or after you register your tools. Name it with `serverInfo`, or it shows up as `mcp-typescript server on vercel`:
+
+<CodeBlock language="ts" filename="app/api/mcp/route.ts">
+  {`import { waitUntil } from "@vercel/functions";
+import { createMcpHandler } from "mcp-handler";
+import { trackMcp } from "@databuddy/sdk/mcp";
+
+const handler = createMcpHandler(
+  (server) => {
+    trackMcp(server, { waitUntil });
+  },
+  { serverInfo: { name: "my-server", version: "1.0.0" } }
+);
+
+export { handler as GET, handler as POST };`}
+</CodeBlock>
+</Tab>
+<Tab value="Cloudflare Workers">
+<CodeBlock language="ts">
+  {`import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
+import { env, waitUntil } from "cloudflare:workers";
+import { trackMcp } from "@databuddy/sdk/mcp";
+
+const handler = createMcpHandler(() =>
+  trackMcp(new McpServer({ name: "my-server", version: "1.0.0" }), {
+    apiKey: env.DATABUDDY_API_KEY,
+    waitUntil,
+  })
+);
+
+export default {
+  fetch: (request: Request) => handler.fetch(request),
+};`}
+</CodeBlock>
+
+Store the key with `wrangler secret put DATABUDDY_API_KEY`. Workers without `nodejs_compat` have no `process.env`, so pass `websiteId` and `environment` the same way if you use them.
+</Tab>
+</Tabs>
 
 ## Servers, websites and environments
 
 Calls belong to the organization that owns the API key, and the MCP page shows all of them. Three things separate them, with no setup:
 
 - **Server**: the `name` your MCP server registers with. Give each server its own name.
-- **Website**: when the server runs in an app that has a Databuddy website ID (`NEXT_PUBLIC_DATABUDDY_CLIENT_ID` or `DATABUDDY_WEBSITE_ID`), its calls are linked to that website.
+- **Website**: the `websiteId` option, or else the first Databuddy website ID in your server's environment: `NEXT_PUBLIC_DATABUDDY_CLIENT_ID`, its `NUXT_PUBLIC_`, `VITE_` and `REACT_APP_` versions, then `DATABUDDY_WEBSITE_ID`.
 - **Environment**: `VERCEL_ENV`, or `NODE_ENV`, so local and preview calls stay apart from production.
 
-The page shows a picker for each one as soon as there's more than one value. Click a client to see only its calls.
+The page shows a picker for each one as soon as there's more than one value. Click a tool or a client to see only its calls.
 
 ## Options
 
@@ -64,22 +146,33 @@ The page shows a picker for each one as soon as there's more than one value. Cli
 | `environment` | `VERCEL_ENV` or `NODE_ENV` | Environment label |
 | `apiUrl` | `https://basket.databuddy.cc` | Ingestion endpoint, for self-hosted Databuddy |
 | `beforeSend` | | Edit a call before it's sent, or return `null` to drop it |
-| `debug` | `false` | Log rejected or failed sends to stderr |
+| `waitUntil` | | Your platform's `waitUntil`, so serverless functions send each call before they stop |
+| `debug` | `false` | Log a missing API key, an unsupported server, and every rejected or failed send to stderr |
 
-Without an API key, `trackMcp` leaves the server untouched. To keep error messages on your server:
-
-<CodeBlock language="ts">
-  {`trackMcp(server, {
-  beforeSend: (call) => ({ ...call, error: undefined }),
-});`}
-</CodeBlock>
-
-An API key limited to some websites can only send calls linked to one of them.
+Without an API key, `trackMcp` leaves the server untouched. An API key limited to some websites can only send calls linked to one of them. If the website ID is unknown, inactive, or belongs to another organization, Databuddy rejects the whole batch. To keep calls unlinked, use an API key for the whole organization and clear the website in `beforeSend`: `(call) => ({ ...call, websiteId: undefined })`.
 
 ## What gets recorded
 
-Each tool call records the tool name, whether it failed and its error message (the first text of an `isError` result or the thrown message, up to 512 characters), how long your handler took, how many characters of text the tool returned (divide by about 4 for tokens), the client's name and version, your server's name and version, the MCP session ID when your server keeps sessions, and the user agent.
+Each tool call records the tool name, whether it failed, its error code and its error message, how long your handler took, how many characters of text the tool returned (divide by about 4 for tokens), the client's name and version, your server's name and version, the MCP session ID when your server keeps sessions, and the user agent.
 
-Clients are named from the `clientInfo` they send. Stateless servers that build a new server per request only see it on the first request, so Databuddy falls back to the user agent: ChatGPT sends `openai-mcp`, claude.ai sends `Anthropic/ClaudeAI`. Clients it can't name show up as **Unknown client** with their user agent.
+The error message is the first text of an `isError` result or the thrown message. The MCP page groups failures by error code: return an `isError` result whose text is JSON such as `{"error": {"code": "not_found", "message": "Website not found"}}`, and the `code` groups the call while the message is unwrapped. A good code is stable, short and snake_case, like `not_found` or `rate_limited`, and never holds IDs or other per-call values, because each distinct code is its own group. Codes are cut to 64 characters. `McpServer` turns an error your tool throws into plain text, so its `code` is lost, unless it is an `McpError` from `@modelcontextprotocol/sdk` 1.x, which puts the code in its message.
+
+Databuddy reads protocol error codes from the message, so they work with any `@databuddy/sdk` version: `invalid_params` for bad arguments, `method_not_found`, and `invalid_output` for output schema failures on `@modelcontextprotocol/server` 2.x (1.x reports those as `invalid_params`). Codes from JSON bodies, from the `code` or name of an error your low-level `Server` handler throws, and `cancelled` for calls the client cancels need `@databuddy/sdk` 3.2.1 or later, the next release.
+
+A call that asks the client for more input is recorded once, when it returns its final result. On `@databuddy/sdk` 3.2.1 or later this includes URL elicitations, which 3.2.0 records as a failed call. Calls that a client runs as a background task aren't recorded.
+
+Clients are named from the `clientInfo` they send. Stateless servers, which build a new server per request, don't see it on tool calls unless the client uses the 2026-07-28 protocol and your server runs `@modelcontextprotocol/server` 2.x. Otherwise Databuddy falls back to the user agent: ChatGPT sends `openai-mcp`, claude.ai sends `Claude-User`. Clients it can't name show up as **Unknown client** with their most common user agents. The user agent needs `@modelcontextprotocol/sdk` 1.13.2 or later, or `@modelcontextprotocol/server` 2.x; on older versions, stateless servers show every call as **Unknown client**.
 
 Tracking never changes what a client receives. It doesn't throw, doesn't delay responses, and sends in the background with a 5 second timeout. If Databuddy rejects the calls, for example because of a wrong API key, `trackMcp` logs the reason once to stderr. Each recorded call counts as one event on your plan.
+
+### Keep error messages private
+
+Error messages can include input your handler put in them. To keep them on your server and still count the call as failed, blank the message:
+
+<CodeBlock language="ts">
+  {`trackMcp(server, {
+  beforeSend: (call) => (call.error === undefined ? call : { ...call, error: "" }),
+});`}
+</CodeBlock>
+
+Codes read from the message, such as a JSON body's `code` or `invalid_params`, go with it. On `@databuddy/sdk` 3.2.1 or later, the codes of thrown errors and cancelled calls are still sent.

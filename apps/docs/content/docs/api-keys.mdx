@@ -57,7 +57,7 @@ Notes:
 ### Scopes
 
 - **read:data**: Read analytics data. Covers query endpoints (`POST /v1/query`, `POST /v1/query/compile`) and listing accessible websites (`GET /v1/query/websites`). Required for any dashboard-style data retrieval.
-- **track:events**: Send custom events via the SDK or the `/track` endpoint on `basket.databuddy.cc`
+- **track:events**: Send custom events via the SDK or the `/track` endpoint on `basket.databuddy.cc`, and MCP tool calls via `@databuddy/sdk/mcp`
 - **read:links**: Read short links
 - **write:links**: Create, update, and delete short links
 - **read:monitors**: Read uptime monitors
@@ -75,7 +75,7 @@ Grant only what you need. Prefer resource-scoped access where possible.
 | Scope | Endpoints / actions |
 |-------|---------------------|
 | `read:data` | `POST /v1/query`, `POST /v1/query/compile`, `GET /v1/query/websites`, `websites.list` RPC |
-| `track:events` | `POST /track` on `basket.databuddy.cc` (custom events, pageviews, sessions) |
+| `track:events` | `POST /track` and `POST /mcp` on `basket.databuddy.cc` (custom events, pageviews, sessions, MCP tool calls) |
 | `read:links` | Read short links via the `/rpc/links/*` routes |
 | `write:links` | Create, update, and delete short links via the `/rpc/links/*` routes |
 | `read:monitors` | Read uptime monitors and their check history |

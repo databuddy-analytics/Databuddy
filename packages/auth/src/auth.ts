@@ -526,7 +526,18 @@ async function assertUserRowDeletable(
 // would keep charging their card.
 async function assertNoRenewingSubscription(userId: string): Promise<void> {
 	const secretKey = process.env.AUTUMN_SECRET_KEY?.trim();
-	if (isSelfHosted() || !(secretKey || isProduction())) {
+	if (isSelfHosted()) {
+		return;
+	}
+	if (!secretKey) {
+		if (isProduction()) {
+			log.error({
+				service: "auth",
+				component: "account_deletion",
+				message:
+					"AUTUMN_SECRET_KEY is not set, so the subscription check was skipped",
+			});
+		}
 		return;
 	}
 	const customer = await new Autumn({ secretKey, timeoutMs: 5000 }).customers

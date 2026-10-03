@@ -29,7 +29,10 @@ test("invites a member as admin, cancels the invitation, and clears it", {
 		.getByRole("button", { name: "Cancel Invitation" })
 		.click();
 	await expect(page.getByText("0 pending of 1 total")).toBeVisible();
+	await expect(page.getByText("Canceled", { exact: true })).toBeVisible();
+	await expect(page.getByText("admin", { exact: true })).toBeVisible();
 	await expect(page.getByText("Pending", { exact: true })).toBeHidden();
+	await expect(page.getByText(/Expire/)).toHaveCount(0);
 	await page.getByRole("button", { name: "Clear expired" }).click();
 	await expect(page.getByText(email, { exact: true })).toBeHidden();
 });

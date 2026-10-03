@@ -15,6 +15,7 @@ export interface AiAgent {
 	patterns: RegExp[];
 	product: string;
 	purpose: AgentPurpose;
+	purposeInferred?: boolean;
 	signatureAgent?: string;
 }
 
@@ -41,6 +42,7 @@ export const AI_AGENT_CLASSIFICATION: Record<
 		operator: string;
 		product?: string;
 		purpose: AgentPurpose;
+		purposeInferred?: boolean;
 	} | null
 > = {
 	"ai-search-bot": {
@@ -77,10 +79,14 @@ export const AI_AGENT_CLASSIFICATION: Record<
 		operator: "Cohere",
 		purpose: "user_fetch",
 	},
-	"commoncrawl-crawler": { operator: "Common Crawl", purpose: "training" },
+	"commoncrawl-crawler": {
+		operator: "Common Crawl",
+		purpose: "training",
+		purposeInferred: true,
+	},
 	crawl4ai: { name: "Crawl4AI", operator: "Crawl4AI", purpose: "agent" },
 	crawlspace: { operator: "Crawlspace", purpose: "agent" },
-	"diffbot-crawler": { operator: "Diffbot", purpose: "training" },
+	"diffbot-crawler": { operator: "Diffbot", purpose: "search_index" },
 	"duckassist-bot": { operator: "DuckDuckGo", purpose: "user_fetch" },
 	"exa-searchbot": { operator: "Exa", purpose: "search_index" },
 	"facebook-crawler": null,
@@ -95,6 +101,7 @@ export const AI_AGENT_CLASSIFICATION: Record<
 		operator: "Google",
 		product: "Google",
 		purpose: "training",
+		purposeInferred: true,
 	},
 	"google-gemini-deep-research": { operator: "Google", purpose: "user_fetch" },
 	"google-gemini-notebook": { operator: "Google", purpose: "user_fetch" },
@@ -121,6 +128,7 @@ export const AI_AGENT_CLASSIFICATION: Record<
 		operator: "Meta",
 		purpose: "training",
 	},
+	"meta-webindexer": { operator: "Meta", purpose: "search_index" },
 	"meta-crawler-user": {
 		name: "Meta-ExternalFetcher",
 		operator: "Meta",
@@ -137,6 +145,7 @@ export const AI_AGENT_CLASSIFICATION: Record<
 		name: "Omgilibot",
 		operator: "Webz.io",
 		purpose: "training",
+		purposeInferred: true,
 	},
 	"openai-crawler": { operator: "OpenAI", purpose: "training" },
 	"openai-crawler-search": { operator: "OpenAI", purpose: "search_index" },
@@ -158,7 +167,7 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"tiktok-crawler": { operator: "ByteDance", purpose: "training" },
 	"timpi-crawler": { operator: "Timpi", purpose: "search_index" },
 	"turnitin-crawler": null,
-	"velen-crawler": { operator: "Velen", purpose: "training" },
+	"velen-crawler": { operator: "Hunter", purpose: "training" },
 	"webzio-crawler-ai": {
 		name: "Webzio-Extended",
 		operator: "Webz.io",
@@ -168,21 +177,34 @@ export const AI_AGENT_CLASSIFICATION: Record<
 	"zanista-bot": { operator: "Zanista", purpose: "search_index" },
 };
 
+function listedAgent(
+	id: string,
+	name: string,
+	operator: string,
+	product: string,
+	purpose: AgentPurpose,
+	pattern: RegExp,
+	purposeInferred?: boolean
+): AiAgent {
+	return {
+		id,
+		name,
+		operator,
+		product,
+		purpose,
+		purposeInferred,
+		patterns: [pattern],
+		excludePatterns: [],
+	};
+}
+
 function codingAgent(
 	id: string,
 	operator: string,
 	product: string,
 	pattern: RegExp
 ): AiAgent {
-	return {
-		id,
-		name: product,
-		operator,
-		product,
-		purpose: "agent",
-		patterns: [pattern],
-		excludePatterns: [],
-	};
+	return listedAgent(id, product, operator, product, "agent", pattern);
 }
 
 const TRAILING_SEPARATORS = /[\s/]+$/;
@@ -227,6 +249,66 @@ export const AI_AGENTS: AiAgent[] = [
 	codingAgent("devin", "Cognition", "Devin", /\bDevin\/\d/),
 	codingAgent("v0", "Vercel", "v0", /\bv0bot\b/),
 	codingAgent("manus", "Manus", "Manus", /Manus-User/),
+	codingAgent("trae", "ByteDance", "Trae", /Trae-Agent/),
+	listedAgent(
+		"google-agent-urlcontext",
+		"GoogleAgent-URLContext",
+		"Google",
+		"Google Gemini",
+		"user_fetch",
+		/GoogleAgent-URLContext/
+	),
+	listedAgent(
+		"liner-bot",
+		"LinerBot",
+		"Liner",
+		"Liner",
+		"search_index",
+		/LinerBot/
+	),
+	listedAgent(
+		"shap-user",
+		"Shap-User",
+		"Parallel",
+		"Parallel",
+		"user_fetch",
+		/Shap-User/
+	),
+	listedAgent(
+		"cohere-training-data-crawler",
+		"cohere-training-data-crawler",
+		"Cohere",
+		"Cohere",
+		"training",
+		/cohere-training-data-crawler/
+	),
+	listedAgent(
+		"deepseek-bot",
+		"DeepSeekBot",
+		"DeepSeek",
+		"DeepSeek",
+		"training",
+		/DeepSeekBot/,
+		true
+	),
+	listedAgent(
+		"pangu-bot",
+		"PanguBot",
+		"Huawei",
+		"Huawei",
+		"training",
+		/PanguBot/,
+		true
+	),
+	listedAgent(
+		"chatglm-spider",
+		"ChatGLM-Spider",
+		"Zhipu AI",
+		"ChatGLM",
+		"training",
+		/ChatGLM-Spider/,
+		true
+	),
 	{
 		excludePatterns: [],
 		id: "chatgpt-agent",

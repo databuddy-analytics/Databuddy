@@ -8,10 +8,10 @@ import {
 	resolveApiKeyOwnerId,
 } from "@hooks/auth";
 import {
+	API_KEY_DENIAL_ERRORS,
 	type ApiKeyRow,
-	getAccessibleWebsiteIds,
+	denyApiKeyWebsiteAccess,
 	getApiKeyFromHeader,
-	hasGlobalAccess,
 	hasKeyScope,
 } from "@lib/api-key";
 import { checkAutumnUsage } from "@lib/billing";
@@ -97,7 +97,8 @@ const mcpCallsSchema = z
 		z.object({
 			tool: truncated(256),
 			durationMs: uint32,
-			error: truncated(512).optional(),
+			error: z.string().optional(),
+			errorCode: z.string().optional(),
 			outputChars: uint32.default(0),
 			sessionId: truncated(128).optional(),
 			clientName: truncated(128).optional(),
@@ -143,10 +144,8 @@ const MCP_CLIENT_PRODUCTS: Record<string, string> = {
 	mistral: "Mistral Le Chat",
 	opencode: "OpenCode",
 	"postman-client": "Postman",
-	"q-dev-cli": "Amazon Q Developer",
 	"roo-code": "Roo Code",
 	"visual studio code": "VS Code",
-	"visual-studio-code": "VS Code",
 	windsurf: "Windsurf",
 	"windsurf-client": "Windsurf",
 	"xcode-copilot-xcode": "GitHub Copilot for Xcode",
@@ -155,28 +154,74 @@ const MCP_CLIENT_PRODUCTS: Record<string, string> = {
 
 const MCP_CLIENT_USER_AGENTS: [RegExp, string][] = [
 	[/claude-code\//i, "Claude Code"],
-	[/^(Anthropic\/ClaudeAI|Claude-User)/i, "Claude"],
+	[/^Claude-User\b/i, "Claude"],
+	[/^codex-mcp-client\//i, "Codex"],
+	[/^Cursor\//, "Cursor"],
 	[/^openai-mcp\//i, "ChatGPT"],
 ];
 
+const MCP_ERROR_PREFIX = /^MCP error (-?\d+): (.*)$/s;
+
+const NUMERIC_CODE = /^-?\d+$/;
+
+const MCP_VALIDATION_ERRORS: [RegExp, string][] = [
+	[/^(?:Input validation error|Invalid arguments for tool)/, "invalid_params"],
+	[/^Output validation error/, "invalid_output"],
+];
+
+const JSON_RPC_ERROR_CODES: Record<number, string> = {
+	[-32_700]: "parse_error",
+	[-32_600]: "invalid_request",
+	[-32_601]: "method_not_found",
+	[-32_602]: "invalid_params",
+	[-32_603]: "internal_error",
+	[-32_001]: "request_timeout",
+	[-32_000]: "connection_closed",
+	[-32_002]: "resource_not_found",
+	[-32_042]: "url_elicitation_required",
+};
+
 const mcpErrorBodySchema = z.union([
-	z.object({ error: z.object({ message: z.string() }) }),
-	z.object({ message: z.string() }),
+	z
+		.object({ error: z.object({ message: z.string(), code: z.unknown() }) })
+		.transform(({ error }) => error),
+	z.object({ message: z.string(), code: z.unknown() }),
+	z
+		.object({ error: z.string() })
+		.transform(({ error }) => ({ message: error, code: undefined })),
 ]);
 
-function mcpErrorMessage(error: string | undefined): string | undefined {
-	if (!error?.startsWith("{")) {
-		return error;
-	}
-	try {
-		const { data } = mcpErrorBodySchema.safeParse(JSON.parse(error));
-		if (!data) {
-			return error;
+function mcpErrorCode(code: unknown): string | undefined {
+	const value =
+		typeof code === "string" && NUMERIC_CODE.test(code) ? Number(code) : code;
+	const name =
+		typeof value === "number"
+			? (JSON_RPC_ERROR_CODES[value] ?? String(value))
+			: value;
+	return typeof name === "string" && name ? name.slice(0, 64) : undefined;
+}
+
+function mcpFailure(text: string, errorCode: string | undefined) {
+	const rpc = MCP_ERROR_PREFIX.exec(text);
+	const unwrapped = rpc?.[2] ?? text;
+	let json: unknown;
+	if (unwrapped.startsWith("{")) {
+		try {
+			json = JSON.parse(unwrapped);
+		} catch {
+			json = undefined;
 		}
-		return "error" in data ? data.error.message : data.message;
-	} catch {
-		return error;
 	}
+	const body = mcpErrorBodySchema.safeParse(json).data;
+	const message = body?.message ?? unwrapped;
+	return {
+		code:
+			mcpErrorCode(errorCode) ??
+			mcpErrorCode(body?.code) ??
+			mcpErrorCode(rpc?.[1]) ??
+			MCP_VALIDATION_ERRORS.find(([pattern]) => pattern.test(message))?.[1],
+		message: message.slice(0, 512),
+	};
 }
 
 function mcpClient(clientName = "", userAgent = ""): string {
@@ -288,6 +333,15 @@ function parseTimestamp(
 	return timestamp;
 }
 
+function recentTimestamp(value: number | undefined, now: number): number {
+	return value !== undefined &&
+		Number.isSafeInteger(value) &&
+		value >= now - 6 * 3_600_000 &&
+		value <= now + 300_000
+		? value
+		: now;
+}
+
 async function enforceWebsiteSecurity(
 	website: NonNullable<Awaited<ReturnType<typeof getWebsiteByIdV2>>>,
 	request: Request,
@@ -347,22 +401,14 @@ async function enforceWebsiteSecurity(
 }
 
 function resolveAuth(
-	headers: Headers,
 	request: Request,
 	websiteIdParam?: string
 ): Promise<ResolvedAuth> {
 	return record("resolveAuth", async () => {
 		const log = useLogger();
-		const apiKey = await getApiKeyFromHeader(headers);
+		const apiKey = await getApiKeyFromHeader(request.headers);
 
 		if (apiKey) {
-			if (!hasKeyScope(apiKey, "track:events")) {
-				log.set({
-					auth: { ok: false, reason: "missing_scope", method: "api_key" },
-				});
-				throw basketErrors.trackMissingScope();
-			}
-
 			const ownerId = apiKey.organizationId ?? apiKey.userId;
 			if (!ownerId) {
 				log.set({
@@ -431,6 +477,33 @@ function resolveAuth(
 	});
 }
 
+async function apiKeyWebsiteDenial(
+	apiKey: ApiKeyRow,
+	targetIds: (string | undefined)[]
+): Promise<Error | undefined> {
+	const log = useLogger();
+	if (targetIds.some((id) => !id) && !hasKeyScope(apiKey, "track:events")) {
+		log.set({ rejected: "missing_scope" });
+		return basketErrors.trackMissingScope();
+	}
+	const websiteIds = [...new Set(targetIds.flatMap((id) => (id ? [id] : [])))];
+	log.set({ websiteIds });
+	const websites = await Promise.all(
+		websiteIds.map((id) => getWebsiteByIdV2(id))
+	);
+	for (const [i, websiteId] of websiteIds.entries()) {
+		const denial = denyApiKeyWebsiteAccess(
+			apiKey,
+			websiteId,
+			websites[i] ?? null
+		);
+		if (denial) {
+			log.set({ rejected: denial, targetWebsiteId: websiteId });
+			return API_KEY_DENIAL_ERRORS[denial]();
+		}
+	}
+}
+
 export const trackRoute = new Elysia()
 	.onParse(parseCorsSafeJson)
 	.post("/track", async ({ body, query, request }) => {
@@ -465,7 +538,7 @@ export const trackRoute = new Elysia()
 				: [parseResult.data];
 			const websiteIdParam = typedQuery.website_id || events[0]?.websiteId;
 
-			const auth = await resolveAuth(request.headers, request, websiteIdParam);
+			const auth = await resolveAuth(request, websiteIdParam);
 
 			const userAgent =
 				sanitizeString(
@@ -507,82 +580,25 @@ export const trackRoute = new Elysia()
 				throw basketErrors.trackRateLimited();
 			}
 
-			const allowedApiKeyWebsiteIds =
-				auth.apiKey && !hasGlobalAccess(auth.apiKey)
-					? new Set(getAccessibleWebsiteIds(auth.apiKey))
-					: null;
-
-			for (const target of targets) {
-				const targetId = target.websiteId;
-
-				if (auth.apiKey) {
-					if (allowedApiKeyWebsiteIds && !targetId) {
-						log.set({ rejected: "website_scope" });
-						captureRejectedBody();
-						throw basketErrors.trackWebsiteScopeMismatch();
-					}
-					if (
-						targetId &&
-						allowedApiKeyWebsiteIds &&
-						!allowedApiKeyWebsiteIds.has(targetId)
-					) {
-						log.set({ rejected: "website_scope", targetWebsiteId: targetId });
-						captureRejectedBody();
-						throw basketErrors.trackWebsiteScopeMismatch();
-					}
-					continue;
-				}
-
-				if (!targetId) {
-					captureRejectedBody();
-					throw basketErrors.trackInvalidBody();
-				}
-
-				if (auth.websiteId && targetId !== auth.websiteId) {
-					log.set({ rejected: "website_scope", targetWebsiteId: targetId });
-					captureRejectedBody();
-					throw basketErrors.trackWebsiteScopeMismatch();
-				}
-			}
-
 			if (auth.apiKey) {
-				const targetIds = [
-					...new Set(
-						targets.flatMap((target) =>
-							target.websiteId ? [target.websiteId] : []
-						)
-					),
-				];
-				const websites = await Promise.all(
-					targetIds.map((id) => getWebsiteByIdV2(id))
+				const denial = await apiKeyWebsiteDenial(
+					auth.apiKey,
+					targets.map((target) => target.websiteId)
 				);
-				for (const [i, website] of websites.entries()) {
-					if (!website) {
-						log.set({
-							rejected: "website_not_found",
-							targetWebsiteId: targetIds[i],
-						});
+				if (denial) {
+					captureRejectedBody();
+					throw denial;
+				}
+			} else {
+				for (const { websiteId } of targets) {
+					if (!websiteId) {
 						captureRejectedBody();
-						throw basketErrors.trackWebsiteNotFound();
+						throw basketErrors.trackInvalidBody();
 					}
-					if (
-						!auth.organizationId ||
-						website.organizationId !== auth.organizationId
-					) {
-						log.set({
-							rejected: "website_scope",
-							targetWebsiteId: targetIds[i],
-						});
+					if (auth.websiteId && websiteId !== auth.websiteId) {
+						log.set({ rejected: "website_scope", targetWebsiteId: websiteId });
 						captureRejectedBody();
 						throw basketErrors.trackWebsiteScopeMismatch();
-					}
-					if (website.status !== "ACTIVE") {
-						log.set({
-							rejected: "website_not_active",
-							targetWebsiteId: targetIds[i],
-						});
-						captureRejectedBody();
-						throw basketErrors.trackWebsiteNotFound();
 					}
 				}
 			}
@@ -698,78 +714,57 @@ export const trackRoute = new Elysia()
 				throw createIngestSchemaValidationError(parsed.error.issues);
 			}
 			const calls = parsed.data;
-			const { apiKey, organizationId } = await resolveAuth(
-				request.headers,
-				request
-			);
+			const apiKey = await getApiKeyFromHeader(request.headers);
 			if (!apiKey) {
-				throw basketErrors.trackMissingCredentials();
+				throw basketErrors.mcpInvalidApiKey();
 			}
+			const { organizationId } = apiKey;
 			if (!organizationId) {
 				throw basketErrors.trackMissingOwner();
 			}
+			log.set({ organizationId, count: calls.length });
 			const rl = await ratelimit(`mcp:apikey:${apiKey.id}`, 6000, 60);
 			if (!rl.success) {
 				log.set({ rejected: "rate_limit" });
 				throw basketErrors.trackRateLimited();
 			}
-
-			const keyWebsiteIds = hasGlobalAccess(apiKey)
-				? null
-				: new Set(getAccessibleWebsiteIds(apiKey));
-			if (
-				keyWebsiteIds &&
-				calls.some((call) => !keyWebsiteIds.has(call.websiteId ?? ""))
-			) {
-				log.set({ rejected: "website_scope" });
-				throw basketErrors.trackWebsiteScopeMismatch();
-			}
-			const websiteIds = [
-				...new Set(calls.flatMap((call) => call.websiteId ?? [])),
-			];
-			const websites = await Promise.all(
-				websiteIds.map((id) => getWebsiteByIdV2(id))
+			const denial = await apiKeyWebsiteDenial(
+				apiKey,
+				calls.map((call) => call.websiteId)
 			);
-			if (
-				websites.some(
-					(website) =>
-						website?.organizationId !== organizationId ||
-						website.status !== "ACTIVE"
-				)
-			) {
-				log.set({ rejected: "website_scope", websiteIds });
-				throw basketErrors.trackWebsiteScopeMismatch();
+			if (denial) {
+				throw denial;
 			}
-			log.set({ organizationId, websiteIds, count: calls.length });
 
 			const billingUserId = await resolveApiKeyOwnerId(organizationId);
-			if (billingUserId) {
-				await checkAutumnUsage(
-					billingUserId,
-					"events",
-					{ api_route: "mcp", batch_size: calls.length },
-					calls.length
-				);
+			if (!billingUserId) {
+				throw basketErrors.billingCheckUnavailable();
 			}
+			await checkAutumnUsage(
+				billingUserId,
+				"events",
+				{ api_route: "mcp", batch_size: calls.length },
+				calls.length
+			);
 
 			const now = Date.now();
 			runFork(
 				sendBatch(
 					"analytics-mcp-spans",
-					calls.map(
-						(call): McpSpansInsert => ({
+					calls.map((call): McpSpansInsert => {
+						const failure =
+							call.error === undefined
+								? undefined
+								: mcpFailure(call.error, call.errorCode);
+						return {
 							owner_id: organizationId,
 							website_id: call.websiteId,
 							environment: call.environment,
-							timestamp:
-								call.timestamp &&
-								call.timestamp > now - 6 * 3_600_000 &&
-								call.timestamp < now + 300_000
-									? call.timestamp
-									: now,
+							timestamp: recentTimestamp(call.timestamp, now),
 							tool: call.tool,
-							is_error: call.error !== undefined,
-							error: mcpErrorMessage(call.error),
+							is_error: failure !== undefined,
+							error: failure?.message,
+							error_code: failure?.code,
 							duration_ms: call.durationMs,
 							output_chars: call.outputChars,
 							session_id: call.sessionId,
@@ -779,8 +774,8 @@ export const trackRoute = new Elysia()
 							server_name: call.serverName,
 							server_version: call.serverVersion,
 							user_agent: call.userAgent,
-						})
-					)
+						};
+					})
 				)
 			);
 
@@ -843,16 +838,10 @@ export const vercelDrainRoute = new Elysia().post(
 				if (!columns.agent_id) {
 					continue;
 				}
-				const supplied = proxy.timestamp ?? timestamp ?? now;
 				spans.push({
 					...columns,
 					client_id: websiteId,
-					timestamp:
-						Number.isSafeInteger(supplied) &&
-						supplied >= now - 6 * 3_600_000 &&
-						supplied <= now + 300_000
-							? supplied
-							: now,
+					timestamp: recentTimestamp(proxy.timestamp ?? timestamp, now),
 					user_agent: userAgent,
 					path: pathname.slice(0, 2048),
 					format: contentFormat(pathname),

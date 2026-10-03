@@ -20,6 +20,8 @@ interface InvitationToCancel {
 const STATUS_CONFIG = {
 	pending: { label: "Pending", variant: "warning" as const },
 	accepted: { label: "Accepted", variant: "success" as const },
+	canceled: { label: "Canceled", variant: "muted" as const },
+	rejected: { label: "Declined", variant: "muted" as const },
 	expired: { label: "Expired", variant: "muted" as const },
 };
 
@@ -70,8 +72,10 @@ function InvitationRow({
 					{invitation.email}
 				</Text>
 				<Text className="truncate" tone="muted" variant="caption">
-					{invitation.role ?? "member"} · {isPending ? "Expires" : "Expired"}{" "}
-					{dayjs(invitation.expiresAt).fromNow()}
+					{invitation.role ?? "member"}
+					{isPending || isExpired
+						? ` · ${isPending ? "Expires" : "Expired"} ${dayjs(invitation.expiresAt).fromNow()}`
+						: ""}
 				</Text>
 			</div>
 			<Badge variant={variant}>{label}</Badge>

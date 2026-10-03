@@ -1,9 +1,28 @@
 import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
-import type { CustomSqlContext, SimpleQueryConfig } from "../types";
+import type {
+	CustomSqlContext,
+	QueryOutputField,
+	SimpleQueryConfig,
+} from "../types";
 
 const START = "toDateTime({startDate:String})";
 const END = "toDateTime(concat({endDate:String}, ' 23:59:59'))";
+
+const CALL_STATS = `
+	count() AS calls,
+	countIf(is_error) AS errors,
+	round(if(calls > 0, errors / calls * 100, 0), 1) AS error_rate,
+	round(quantile(0.5)(duration_ms)) AS p50_ms,
+	round(quantile(0.95)(duration_ms)) AS p95_ms`;
+
+const CALL_STAT_FIELDS: QueryOutputField[] = [
+	{ name: "calls", type: "number" },
+	{ name: "errors", type: "number" },
+	{ name: "error_rate", type: "number" },
+	{ name: "p50_ms", type: "number" },
+	{ name: "p95_ms", type: "number" },
+];
 
 function scope(ctx: CustomSqlContext): string {
 	return ctx.filterParams?.__orgLevel
@@ -34,6 +53,7 @@ const common = {
 	allowedFilters: [
 		"client",
 		"tool",
+		"error_code",
 		"server_name",
 		"environment",
 		"website_id",
@@ -44,7 +64,7 @@ const common = {
 
 const meta = (title: string, description: string) => ({
 	title,
-	description: `${description} Covers MCP servers tracked with @databuddy/sdk/mcp: all of an organization's servers, or the ones linked to a website. Filter by client, tool, server_name, environment or website_id.`,
+	description: `${description} Covers MCP servers tracked with @databuddy/sdk/mcp. An organization-scoped query covers all of the organization's calls; a website-scoped query only sees calls linked to that website, so calls from servers without a website ID are left out of it. Filter by ${common.allowedFilters.join(", ")}.`,
 	category: "MCP",
 	tags: ["mcp", "model context protocol", "tool calls", "agents"],
 });
@@ -54,14 +74,10 @@ export const McpBuilders = {
 		meta: {
 			...meta(
 				"MCP Overview",
-				"Tool call totals with error rate (percent) and median and p95 duration (ms). servers, environments and websites list the values present, for filtering. tracked is 1 once a tool call was ever recorded."
+				"Tool call totals with error rate (percent) and median and p95 duration (ms). servers, environments and websites list the values present, for filtering. tracked is 1 once a call in this scope was ever recorded, so 0 for a website does not mean the SDK is missing."
 			),
 			output_fields: [
-				{ name: "calls", type: "number" },
-				{ name: "errors", type: "number" },
-				{ name: "error_rate", type: "number" },
-				{ name: "p50_ms", type: "number" },
-				{ name: "p95_ms", type: "number" },
+				...CALL_STAT_FIELDS,
 				{ name: "tools", type: "number" },
 				{ name: "clients", type: "number" },
 				{ name: "sessions", type: "number" },
@@ -76,19 +92,15 @@ export const McpBuilders = {
 		customSql: (ctx) => ({
 			sql: `
 				SELECT
-					count() AS calls,
-					countIf(is_error) AS errors,
-					round(if(calls > 0, errors / calls * 100, 0), 1) AS error_rate,
-					round(quantile(0.5)(duration_ms)) AS p50_ms,
-					round(quantile(0.95)(duration_ms)) AS p95_ms,
+					${CALL_STATS},
 					uniq(tool) AS tools,
 					uniqIf(client, client != '') AS clients,
 					uniqIf(session_id, session_id != '') AS sessions,
 					groupUniqArrayIf(20)(server_name, server_name != '') AS servers,
 					groupUniqArrayIf(10)(environment, environment != '') AS environments,
 					groupUniqArrayIf(50)(website_id, website_id != '') AS websites,
-					if(calls > 0, max(timestamp), NULL) AS last_call,
-					(SELECT count() FROM (SELECT 1 FROM ${Analytics.mcp_spans} WHERE ${scope(ctx)} LIMIT 1)) AS tracked
+					maxOrNull(timestamp) AS last_call,
+					EXISTS(SELECT 1 FROM ${Analytics.mcp_spans} WHERE ${scope(ctx)}) AS tracked
 				FROM ${Analytics.mcp_spans}
 				WHERE ${inRange(ctx)}
 			`,
@@ -114,6 +126,7 @@ export const McpBuilders = {
 		customSql: (ctx) => {
 			const bucket = ctx.granularity === "hour" ? "toStartOfHour" : "toDate";
 			const step = ctx.granularity === "hour" ? "toIntervalHour(1)" : "1";
+			const firstBucket = `${bucket}(toTimeZone(${START}, {timezone:String}))`;
 			return {
 				sql: `
 					SELECT
@@ -124,8 +137,8 @@ export const McpBuilders = {
 					WHERE ${inRange(ctx)}
 					GROUP BY date
 					ORDER BY date ASC WITH FILL
-						FROM ${bucket}(toTimeZone(${START}, {timezone:String}))
-						TO ${bucket}(toTimeZone(least(${END}, now()), {timezone:String})) + ${step}
+						FROM ${firstBucket}
+						TO greatest(${bucket}(toTimeZone(least(${END}, now()), {timezone:String})) + ${step}, ${firstBucket})
 						STEP ${step}
 				`,
 				params: params(ctx),
@@ -142,11 +155,7 @@ export const McpBuilders = {
 			),
 			output_fields: [
 				{ name: "tool", type: "string" },
-				{ name: "calls", type: "number" },
-				{ name: "errors", type: "number" },
-				{ name: "error_rate", type: "number" },
-				{ name: "p50_ms", type: "number" },
-				{ name: "p95_ms", type: "number" },
+				...CALL_STAT_FIELDS,
 				{ name: "avg_output_chars", type: "number" },
 				{ name: "sessions", type: "number" },
 				{ name: "clients", type: "json" },
@@ -158,11 +167,7 @@ export const McpBuilders = {
 			sql: `
 				SELECT
 					tool,
-					count() AS calls,
-					countIf(is_error) AS errors,
-					round(errors / calls * 100, 1) AS error_rate,
-					round(quantile(0.5)(duration_ms)) AS p50_ms,
-					round(quantile(0.95)(duration_ms)) AS p95_ms,
+					${CALL_STATS},
 					round(avg(output_chars)) AS avg_output_chars,
 					uniqIf(session_id, session_id != '') AS sessions,
 					topKIf(3)(client, client != '') AS clients,
@@ -182,17 +187,15 @@ export const McpBuilders = {
 		meta: {
 			...meta(
 				"MCP Clients",
-				"One row per AI client product (Claude Code, Cursor, ChatGPT, Codex...; '' when unidentified), most calls first."
+				"One row per AI client product (Claude Code, Cursor, ChatGPT, Codex...; '' when unidentified), most calls first. user_agents lists up to three of the most common user agents."
 			),
 			output_fields: [
 				{ name: "client", type: "string" },
-				{ name: "calls", type: "number" },
-				{ name: "error_rate", type: "number" },
-				{ name: "p95_ms", type: "number" },
+				...CALL_STAT_FIELDS,
 				{ name: "tools", type: "number" },
 				{ name: "sessions", type: "number" },
 				{ name: "versions", type: "json" },
-				{ name: "user_agent", type: "string" },
+				{ name: "user_agents", type: "json" },
 				{ name: "last_seen", type: "datetime" },
 			],
 			default_visualization: "table",
@@ -201,13 +204,11 @@ export const McpBuilders = {
 			sql: `
 				SELECT
 					client,
-					count() AS calls,
-					round(countIf(is_error) / calls * 100, 1) AS error_rate,
-					round(quantile(0.95)(duration_ms)) AS p95_ms,
+					${CALL_STATS},
 					uniq(tool) AS tools,
 					uniqIf(session_id, session_id != '') AS sessions,
 					topKIf(3)(client_version, client_version != '') AS versions,
-					anyIf(user_agent, user_agent != '') AS user_agent,
+					topKIf(3)(user_agent, user_agent != '') AS user_agents,
 					max(timestamp) AS last_seen
 				FROM ${Analytics.mcp_spans}
 				WHERE ${inRange(ctx)}
@@ -224,14 +225,18 @@ export const McpBuilders = {
 		meta: {
 			...meta(
 				"MCP Errors",
-				"Failed tool calls grouped by tool and error message, most frequent first."
+				"Failed tool calls grouped by tool and error code, or by message when the server reported no code, most frequent first. message is the latest message, messages counts distinct messages and samples lists the most common ones."
 			),
 			output_fields: [
 				{ name: "tool", type: "string" },
-				{ name: "error", type: "string" },
+				{ name: "error_code", type: "string" },
+				{ name: "message", type: "string" },
 				{ name: "occurrences", type: "number" },
+				{ name: "messages", type: "number" },
+				{ name: "samples", type: "json" },
 				{ name: "sessions", type: "number" },
 				{ name: "clients", type: "json" },
+				{ name: "first_seen", type: "datetime" },
 				{ name: "last_seen", type: "datetime" },
 			],
 			default_visualization: "table",
@@ -240,15 +245,19 @@ export const McpBuilders = {
 			sql: `
 				SELECT
 					tool,
-					error,
+					error_code,
+					argMax(error, timestamp) AS message,
 					count() AS occurrences,
+					uniq(error) AS messages,
+					topK(5)(error) AS samples,
 					uniqIf(session_id, session_id != '') AS sessions,
 					topKIf(3)(client, client != '') AS clients,
+					min(timestamp) AS first_seen,
 					max(timestamp) AS last_seen
 				FROM ${Analytics.mcp_spans}
 				WHERE ${inRange(ctx)} AND is_error
-				GROUP BY tool, error
-				ORDER BY occurrences DESC
+				GROUP BY tool, error_code, if(error_code = '', error, '')
+				ORDER BY occurrences DESC, last_seen DESC
 				LIMIT {limit:UInt32}
 			`,
 			params: params(ctx),

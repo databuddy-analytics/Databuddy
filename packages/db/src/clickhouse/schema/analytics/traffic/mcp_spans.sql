@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS analytics.mcp_spans
 	`tool` String CODEC(ZSTD(1)),
 	`is_error` Bool CODEC(ZSTD(1)),
 	`error` String DEFAULT '' CODEC(ZSTD(1)),
+	`error_code` LowCardinality(String) DEFAULT '' CODEC(ZSTD(1)),
 	`duration_ms` UInt32 CODEC(ZSTD(1)),
 	`output_chars` UInt32 DEFAULT 0 CODEC(ZSTD(1)),
 	`session_id` String DEFAULT '' CODEC(ZSTD(1)),

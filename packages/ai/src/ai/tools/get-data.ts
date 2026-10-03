@@ -8,6 +8,7 @@ import {
 	publicQueryErrorMessage,
 	getQueryBuilder,
 	QueryBuilders,
+	queryPlanGateError,
 	type QueryType,
 	SANITIZED_QUERY_ERROR,
 } from "../../query";
@@ -202,14 +203,16 @@ export const getDataTool = tool({
 						timezone,
 						ctx.currentDateTime
 					);
-					const dateError = toolDateRangeError(from, to, ctx, timezone);
-					if (dateError) {
+					const blocked =
+						toolDateRangeError(from, to, ctx, timezone) ??
+						(await queryPlanGateError([item.type], { websiteId }));
+					if (blocked) {
 						return {
 							type: item.type,
 							websiteId,
 							data: [],
 							rowCount: 0,
-							error: dateError,
+							error: blocked,
 						};
 					}
 					const req: QueryRequest = {

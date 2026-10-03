@@ -288,6 +288,7 @@ export function useBatchDynamicQuery(
 		refetch: query.refetch,
 		isFetching: query.isFetching,
 		isPending: query.isPending,
+		isPlaceholderData: query.isPlaceholderData,
 		getDataForQuery,
 	};
 }

@@ -19,6 +19,26 @@ export const AI_REFERRERS = Object.entries(referrers)
 		name: referrer.name,
 	}));
 
+const AI_UTM_SOURCE_ALIASES: Record<string, string> = {
+	chatgpt: "ChatGPT",
+	claude: "Claude",
+	copilot: "Microsoft Copilot",
+	deepseek: "DeepSeek",
+	gemini: "Google Gemini",
+	grok: "Grok",
+	mistral: "Mistral",
+	openai: "ChatGPT",
+	perplexity: "Perplexity",
+};
+
+export const AI_UTM_SOURCES = [
+	...AI_REFERRERS.map(({ domain, name }) => ({ name, source: domain })),
+	...Object.entries(AI_UTM_SOURCE_ALIASES).map(([source, name]) => ({
+		name,
+		source,
+	})),
+];
+
 function directReferrer(url = ""): ReferrerInfo {
 	return {
 		type: "direct",

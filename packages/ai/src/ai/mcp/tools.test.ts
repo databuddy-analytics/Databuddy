@@ -3,10 +3,11 @@ import type { ApiScope } from "@databuddy/shared/api-scopes";
 import { MCP_API_SCOPES } from "@databuddy/shared/mcp-access";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { ORPCError } from "@orpc/server";
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { z } from "zod";
 import {
 	createMcpUnauthorizedResponse,
+	flushMcp,
 	handleDatabuddyMcpRequest,
 } from "../../mcp/http";
 import { defineMcpTool, type McpRequestContext } from "./define-tool";
@@ -194,6 +195,80 @@ describe("MCP transport", () => {
 		);
 		expect(hidden.error?.code).toBe(-32_602);
 		expect(hidden.error?.message).toContain("manage:websites");
+	});
+
+	test("sends each tool call to basket with the raw error and the OAuth client name", async () => {
+		const original = process.env;
+		process.env = {
+			...original,
+			DATABUDDY_API_KEY: "dbdy_mcp_test",
+			SELFHOST: undefined,
+		};
+		const calls: Record<string, unknown>[] = [];
+		const transport = spyOn(globalThis, "fetch").mockImplementation(
+			Object.assign(
+				async (input: RequestInfo | URL, init?: RequestInit) => {
+					const request = new Request(input, init);
+					if (
+						request.url !== "https://basket.databuddy.cc/mcp" ||
+						request.headers.get("authorization") !== "Bearer dbdy_mcp_test"
+					) {
+						throw new Error("Unexpected external request");
+					}
+					calls.push(...(await request.json()));
+					return new Response(null, { status: 202 });
+				},
+				{ preconnect: fetch.preconnect }
+			)
+		);
+		const callTool = (params: unknown) =>
+			handleDatabuddyMcpRequest({
+				apiKey: null,
+				clientName: "Claude",
+				organizationId: "org-1",
+				request: new Request("https://api.databuddy.test/v1/mcp", {
+					body: JSON.stringify({
+						id: 1,
+						jsonrpc: "2.0",
+						method: "tools/call",
+						params,
+					}),
+					headers: {
+						accept: "application/json, text/event-stream",
+						"content-type": "application/json",
+						"user-agent": "Claude-User",
+					},
+					method: "POST",
+				}),
+				requestHeaders: new Headers(),
+				userId: "user-1",
+			});
+		try {
+			await callTool({ arguments: {}, name: "no_such_tool" });
+			await callTool({ arguments: { limit: 5000 }, name: "list_insights" });
+			await flushMcp();
+
+			expect(calls).toEqual([
+				expect.objectContaining({
+					clientName: "Claude",
+					durationMs: expect.any(Number),
+					error: "MCP error -32602: Unknown tool: no_such_tool",
+					errorCode: "-32602",
+					serverName: "databuddy",
+					tool: "no_such_tool",
+					userAgent: "Claude-User",
+				}),
+				expect.objectContaining({
+					error: expect.stringContaining('"code":"invalid_input"'),
+					tool: "list_insights",
+				}),
+			]);
+			expect(calls[1]).not.toHaveProperty("errorCode");
+			expect(calls[1]?.outputChars).toBeGreaterThan(0);
+		} finally {
+			transport.mockRestore();
+			process.env = original;
+		}
 	});
 
 	test("lists parameter descriptions but keeps output schemas free of prompt text", async () => {

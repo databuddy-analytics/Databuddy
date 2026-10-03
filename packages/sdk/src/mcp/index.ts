@@ -6,6 +6,7 @@ export interface McpToolCall {
 	durationMs: number;
 	environment?: string;
 	error?: string;
+	errorCode?: string;
 	outputChars: number;
 	serverName?: string;
 	serverVersion?: string;
@@ -22,6 +23,7 @@ export interface TrackMcpOptions {
 	beforeSend?: (call: McpToolCall) => McpToolCall | null;
 	debug?: boolean;
 	environment?: string;
+	waitUntil?: (promise: Promise<unknown>) => void;
 	websiteId?: string;
 }
 
@@ -32,8 +34,13 @@ interface Implementation {
 
 interface RequestContext {
 	http?: { req?: { headers: { get(name: string): string | null } } };
+	mcpReq?: {
+		envelope?: { "io.modelcontextprotocol/clientInfo"?: Implementation };
+		signal?: AbortSignal;
+	};
 	requestInfo?: { headers: Record<string, string | string[] | undefined> };
 	sessionId?: string;
+	signal?: AbortSignal;
 }
 
 type RequestHandler = (
@@ -51,7 +58,6 @@ type Outcome = { result: unknown } | { error: unknown };
 
 const BATCH_SIZE = 100;
 const FLUSH_DELAY_MS = 1000;
-const MAX_ERROR_LENGTH = 512;
 
 const senders = new Map<string, ReturnType<typeof createSender>>();
 const instrumented = new WeakSet<McpProtocol>();
@@ -61,12 +67,6 @@ function createSender(endpoint: string, apiKey: string, debug: boolean) {
 	const inFlight = new Set<Promise<void>>();
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let hasWarnedRejection = false;
-
-	const warn = (...message: unknown[]) => {
-		if (debug) {
-			console.warn("[databuddy]", ...message);
-		}
-	};
 
 	const send = () => {
 		clearTimeout(timer);
@@ -91,7 +91,11 @@ function createSender(endpoint: string, apiKey: string, debug: boolean) {
 						);
 					}
 				})
-				.catch((error: unknown) => warn("MCP calls not sent:", error))
+				.catch((error: unknown) => {
+					if (debug) {
+						console.warn("[databuddy] MCP calls not sent:", error);
+					}
+				})
 				.finally(() => inFlight.delete(request));
 			inFlight.add(request);
 		}
@@ -114,7 +118,13 @@ function createSender(endpoint: string, apiKey: string, debug: boolean) {
 	};
 }
 
-function flushOnExit() {
+function senderFor(apiKey: string, options: TrackMcpOptions) {
+	const endpoint = `${options.apiUrl ?? "https://basket.databuddy.cc"}/mcp`;
+	const key = `${endpoint} ${apiKey}`;
+	const existing = senders.get(key);
+	if (existing) {
+		return existing;
+	}
 	if (
 		senders.size === 0 &&
 		typeof process !== "undefined" &&
@@ -124,14 +134,7 @@ function flushOnExit() {
 			flushMcp().catch(() => undefined);
 		});
 	}
-}
-
-function senderFor(apiKey: string, options: TrackMcpOptions) {
-	const endpoint = `${options.apiUrl ?? "https://basket.databuddy.cc"}/mcp`;
-	const key = `${endpoint} ${apiKey}`;
-	flushOnExit();
-	const sender =
-		senders.get(key) ?? createSender(endpoint, apiKey, options.debug ?? false);
+	const sender = createSender(endpoint, apiKey, options.debug ?? false);
 	senders.set(key, sender);
 	return sender;
 }
@@ -145,10 +148,41 @@ function isProtocol(value: unknown): value is McpProtocol {
 	);
 }
 
-function errorMessage(outcome: Outcome): string | undefined {
+function cap(value: unknown, maxLength: number): string | undefined {
+	return typeof value === "string" ? value.slice(0, maxLength) : undefined;
+}
+
+function texts(result: unknown): string[] {
+	if (
+		typeof result !== "object" ||
+		result === null ||
+		!("content" in result) ||
+		!Array.isArray(result.content)
+	) {
+		return [];
+	}
+	return result.content.flatMap((part) =>
+		typeof part?.text === "string" ? [part.text] : []
+	);
+}
+
+function thrownCode(error: Error): string | undefined {
+	const code =
+		Object.hasOwn(error, "code") && "code" in error ? error.code : undefined;
+	if (typeof code === "number" || (typeof code === "string" && code)) {
+		return String(code);
+	}
+	return error.name === "Error" ? undefined : error.name;
+}
+
+function failure(
+	outcome: Outcome
+): { code?: string; message: string } | undefined {
 	if ("error" in outcome) {
 		const { error } = outcome;
-		return error instanceof Error ? error.message : String(error);
+		return error instanceof Error
+			? { code: thrownCode(error), message: error.message }
+			: { message: String(error) };
 	}
 	const { result } = outcome;
 	if (
@@ -159,34 +193,36 @@ function errorMessage(outcome: Outcome): string | undefined {
 	) {
 		return;
 	}
-	const content =
-		"content" in result && Array.isArray(result.content) ? result.content : [];
-	const text = content.find(
-		(part): part is { text: string } =>
-			typeof part === "object" &&
-			part !== null &&
-			"text" in part &&
-			typeof part.text === "string"
-	);
-	return text?.text ?? "";
+	return { message: texts(result)[0] ?? "" };
 }
 
-function textLength(result: unknown): number {
+function isUnfinished(outcome: Outcome): boolean {
+	if ("error" in outcome) {
+		return (
+			outcome.error instanceof Error &&
+			"code" in outcome.error &&
+			outcome.error.code === -32_042
+		);
+	}
+	const { result } = outcome;
+	if (typeof result !== "object" || result === null) {
+		return false;
+	}
 	if (
-		typeof result !== "object" ||
-		result === null ||
-		!("content" in result) ||
-		!Array.isArray(result.content)
+		"resultType" in result &&
+		typeof result.resultType === "string" &&
+		result.resultType !== "complete"
 	) {
-		return 0;
+		return true;
 	}
-	let total = 0;
-	for (const part of result.content) {
-		if (typeof part?.text === "string") {
-			total += part.text.length;
-		}
-	}
-	return total;
+	return (
+		!("content" in result) &&
+		"task" in result &&
+		typeof result.task === "object" &&
+		result.task !== null &&
+		"taskId" in result.task &&
+		typeof result.task.taskId === "string"
+	);
 }
 
 export function trackMcp<T extends object>(
@@ -195,7 +231,15 @@ export function trackMcp<T extends object>(
 ): T {
 	const protocol =
 		"server" in server && isProtocol(server.server) ? server.server : server;
-	if (!isProtocol(protocol) || instrumented.has(protocol)) {
+	if (!isProtocol(protocol)) {
+		if (options.debug) {
+			console.warn(
+				"[databuddy] trackMcp needs an McpServer or Server from the MCP SDK; MCP calls are not tracked"
+			);
+		}
+		return server;
+	}
+	if (instrumented.has(protocol)) {
 		return server;
 	}
 	const env = typeof process === "undefined" ? {} : process.env;
@@ -224,22 +268,39 @@ export function trackMcp<T extends object>(
 		startedAt: number
 	) => {
 		try {
-			const client = protocol.getClientVersion?.();
-			const userAgent = context?.requestInfo?.headers["user-agent"];
+			if (isUnfinished(outcome)) {
+				return;
+			}
+			const cancelled =
+				(context?.signal ?? context?.mcpReq?.signal)?.aborted === true;
+			const failed = cancelled
+				? { code: "cancelled", message: "Cancelled by the client" }
+				: failure(outcome);
+			const client =
+				protocol.getClientVersion?.() ??
+				context?.mcpReq?.envelope?.["io.modelcontextprotocol/clientInfo"];
 			const call: McpToolCall = {
-				tool:
-					typeof request.params?.name === "string" ? request.params.name : "",
+				tool: cap(request.params?.name, 256) ?? "",
 				durationMs: Math.round(performance.now() - startedAt),
-				error: errorMessage(outcome)?.slice(0, MAX_ERROR_LENGTH),
-				outputChars: "result" in outcome ? textLength(outcome.result) : 0,
-				clientName: client?.name,
-				clientVersion: client?.version,
-				serverName: protocol._serverInfo?.name,
-				serverVersion: protocol._serverInfo?.version,
-				sessionId: context?.sessionId,
-				userAgent:
+				error: cap(failed?.message, 4096),
+				errorCode: cap(failed?.code, 64),
+				outputChars:
+					"result" in outcome && !cancelled
+						? texts(outcome.result).reduce(
+								(total, text) => total + text.length,
+								0
+							)
+						: 0,
+				clientName: cap(client?.name, 128),
+				clientVersion: cap(client?.version, 64),
+				serverName: cap(protocol._serverInfo?.name, 128),
+				serverVersion: cap(protocol._serverInfo?.version, 64),
+				sessionId: cap(context?.sessionId, 128),
+				userAgent: cap(
 					context?.http?.req?.headers.get("user-agent") ??
-					(typeof userAgent === "string" ? userAgent : undefined),
+						context?.requestInfo?.headers["user-agent"],
+					512
+				),
 				timestamp: Date.now(),
 				environment,
 				websiteId,
@@ -247,9 +308,12 @@ export function trackMcp<T extends object>(
 			const kept = options.beforeSend ? options.beforeSend(call) : call;
 			if (kept) {
 				sender.add(kept);
+				options.waitUntil?.(sender.flush());
 			}
-		} catch {
-			return;
+		} catch (error) {
+			if (options.debug) {
+				console.warn("[databuddy] MCP call tracking failed:", error);
+			}
 		}
 	};
 
@@ -257,17 +321,14 @@ export function trackMcp<T extends object>(
 		(handler: RequestHandler): RequestHandler =>
 		async (request, context) => {
 			const startedAt = performance.now();
-			const outcome: Outcome = await Promise.resolve()
-				.then(() => handler(request, context))
-				.then(
-					(result) => ({ result }),
-					(error: unknown) => ({ error })
-				);
-			record(request, context, outcome, startedAt);
-			if ("error" in outcome) {
-				throw outcome.error;
+			try {
+				const result = await handler(request, context);
+				record(request, context, { result }, startedAt);
+				return result;
+			} catch (error) {
+				record(request, context, { error }, startedAt);
+				throw error;
 			}
-			return outcome.result;
 		};
 
 	const handlers = protocol._requestHandlers;
