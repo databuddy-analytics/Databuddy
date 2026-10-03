@@ -36,9 +36,11 @@ interface RequestContext {
 	http?: { req?: { headers: { get(name: string): string | null } } };
 	mcpReq?: {
 		envelope?: { "io.modelcontextprotocol/clientInfo"?: Implementation };
+		signal?: AbortSignal;
 	};
 	requestInfo?: { headers: Record<string, string | string[] | undefined> };
 	sessionId?: string;
+	signal?: AbortSignal;
 }
 
 type RequestHandler = (
@@ -66,12 +68,6 @@ function createSender(endpoint: string, apiKey: string, debug: boolean) {
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let hasWarnedRejection = false;
 
-	const warn = (...message: unknown[]) => {
-		if (debug) {
-			console.warn("[databuddy]", ...message);
-		}
-	};
-
 	const send = () => {
 		clearTimeout(timer);
 		timer = undefined;
@@ -95,7 +91,11 @@ function createSender(endpoint: string, apiKey: string, debug: boolean) {
 						);
 					}
 				})
-				.catch((error: unknown) => warn("MCP calls not sent:", error))
+				.catch((error: unknown) => {
+					if (debug) {
+						console.warn("[databuddy] MCP calls not sent:", error);
+					}
+				})
 				.finally(() => inFlight.delete(request));
 			inFlight.add(request);
 		}
@@ -118,7 +118,13 @@ function createSender(endpoint: string, apiKey: string, debug: boolean) {
 	};
 }
 
-function flushOnExit() {
+function senderFor(apiKey: string, options: TrackMcpOptions) {
+	const endpoint = `${options.apiUrl ?? "https://basket.databuddy.cc"}/mcp`;
+	const key = `${endpoint} ${apiKey}`;
+	const existing = senders.get(key);
+	if (existing) {
+		return existing;
+	}
 	if (
 		senders.size === 0 &&
 		typeof process !== "undefined" &&
@@ -128,14 +134,7 @@ function flushOnExit() {
 			flushMcp().catch(() => undefined);
 		});
 	}
-}
-
-function senderFor(apiKey: string, options: TrackMcpOptions) {
-	const endpoint = `${options.apiUrl ?? "https://basket.databuddy.cc"}/mcp`;
-	const key = `${endpoint} ${apiKey}`;
-	flushOnExit();
-	const sender =
-		senders.get(key) ?? createSender(endpoint, apiKey, options.debug ?? false);
+	const sender = createSender(endpoint, apiKey, options.debug ?? false);
 	senders.set(key, sender);
 	return sender;
 }
@@ -167,74 +166,23 @@ function texts(result: unknown): string[] {
 	);
 }
 
-const JSON_RPC_ERROR_CODES: Record<number, string> = {
-	[-32_700]: "parse_error",
-	[-32_600]: "invalid_request",
-	[-32_601]: "method_not_found",
-	[-32_602]: "invalid_params",
-	[-32_603]: "internal_error",
-	[-32_001]: "request_timeout",
-};
-
-const MCP_ERROR_PREFIX = /^MCP error (-?\d+): (.*)$/s;
-
-interface Failure {
-	code?: string;
-	message: string;
+function thrownCode(error: Error): string | undefined {
+	const code =
+		Object.hasOwn(error, "code") && "code" in error ? error.code : undefined;
+	if (typeof code === "number" || (typeof code === "string" && code)) {
+		return String(code);
+	}
+	return error.name === "Error" ? undefined : error.name;
 }
 
-function errorCode(value: unknown): string | undefined {
-	if (typeof value === "number") {
-		return JSON_RPC_ERROR_CODES[value];
-	}
-	return typeof value === "string" && value ? value : undefined;
-}
-
-function parseFailure(text: string, code?: string): Failure {
-	const rpc = MCP_ERROR_PREFIX.exec(text);
-	if (rpc) {
-		return { code: code ?? errorCode(Number(rpc[1])), message: rpc[2] ?? "" };
-	}
-	if (!text.startsWith("{")) {
-		return { code, message: text };
-	}
-	try {
-		const body: unknown = JSON.parse(text);
-		const inner =
-			typeof body === "object" && body !== null && "error" in body
-				? body.error
-				: body;
-		if (typeof inner === "string") {
-			return { code, message: inner };
-		}
-		if (
-			typeof inner === "object" &&
-			inner !== null &&
-			"message" in inner &&
-			typeof inner.message === "string"
-		) {
-			return {
-				code: code ?? ("code" in inner ? errorCode(inner.code) : undefined),
-				message: inner.message,
-			};
-		}
-	} catch {
-		return { code, message: text };
-	}
-	return { code, message: text };
-}
-
-function failure(outcome: Outcome): Failure | undefined {
+function failure(
+	outcome: Outcome
+): { code?: string; message: string } | undefined {
 	if ("error" in outcome) {
 		const { error } = outcome;
-		if (!(error instanceof Error)) {
-			return parseFailure(String(error));
-		}
-		const code = "code" in error ? errorCode(error.code) : undefined;
-		return parseFailure(
-			error.message,
-			code ?? (error.name === "Error" ? undefined : error.name)
-		);
+		return error instanceof Error
+			? { code: thrownCode(error), message: error.message }
+			: { message: String(error) };
 	}
 	const { result } = outcome;
 	if (
@@ -245,14 +193,26 @@ function failure(outcome: Outcome): Failure | undefined {
 	) {
 		return;
 	}
-	return parseFailure(texts(result)[0] ?? "");
+	return { message: texts(result)[0] ?? "" };
 }
 
-function isUnfinished(result: unknown): boolean {
+function isUnfinished(outcome: Outcome): boolean {
+	if ("error" in outcome) {
+		return (
+			outcome.error instanceof Error &&
+			"code" in outcome.error &&
+			outcome.error.code === -32_042
+		);
+	}
+	const { result } = outcome;
 	if (typeof result !== "object" || result === null) {
 		return false;
 	}
-	if ("resultType" in result && result.resultType === "input_required") {
+	if (
+		"resultType" in result &&
+		typeof result.resultType === "string" &&
+		result.resultType !== "complete"
+	) {
 		return true;
 	}
 	return (
@@ -308,20 +268,24 @@ export function trackMcp<T extends object>(
 		startedAt: number
 	) => {
 		try {
-			if ("result" in outcome && isUnfinished(outcome.result)) {
+			if (isUnfinished(outcome)) {
 				return;
 			}
-			const failed = failure(outcome);
+			const cancelled =
+				(context?.signal ?? context?.mcpReq?.signal)?.aborted === true;
+			const failed = cancelled
+				? { code: "cancelled", message: "Cancelled by the client" }
+				: failure(outcome);
 			const client =
 				protocol.getClientVersion?.() ??
 				context?.mcpReq?.envelope?.["io.modelcontextprotocol/clientInfo"];
 			const call: McpToolCall = {
 				tool: cap(request.params?.name, 256) ?? "",
 				durationMs: Math.round(performance.now() - startedAt),
-				error: cap(failed?.message, 512),
+				error: cap(failed?.message, 4096),
 				errorCode: cap(failed?.code, 64),
 				outputChars:
-					"result" in outcome
+					"result" in outcome && !cancelled
 						? texts(outcome.result).reduce(
 								(total, text) => total + text.length,
 								0
@@ -346,8 +310,10 @@ export function trackMcp<T extends object>(
 				sender.add(kept);
 				options.waitUntil?.(sender.flush());
 			}
-		} catch {
-			return;
+		} catch (error) {
+			if (options.debug) {
+				console.warn("[databuddy] MCP call tracking failed:", error);
+			}
 		}
 	};
 
@@ -355,17 +321,14 @@ export function trackMcp<T extends object>(
 		(handler: RequestHandler): RequestHandler =>
 		async (request, context) => {
 			const startedAt = performance.now();
-			const outcome: Outcome = await Promise.resolve()
-				.then(() => handler(request, context))
-				.then(
-					(result) => ({ result }),
-					(error: unknown) => ({ error })
-				);
-			record(request, context, outcome, startedAt);
-			if ("error" in outcome) {
-				throw outcome.error;
+			try {
+				const result = await handler(request, context);
+				record(request, context, { result }, startedAt);
+				return result;
+			} catch (error) {
+				record(request, context, { error }, startedAt);
+				throw error;
 			}
-			return outcome.result;
 		};
 
 	const handlers = protocol._requestHandlers;
