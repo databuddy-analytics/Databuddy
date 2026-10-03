@@ -340,11 +340,23 @@ const DESCRIBED_TARGETS: {
 		expected: "a:/businesses/*",
 	},
 	{
-		name: "a link to a personal subdomain by its registrable domain",
+		name: "a link to a personal subdomain by its public host",
 		markup: `<a href="https://jane.substack.com/p/hello" onclick="event.preventDefault()">Blog</a>`,
 		selector: "a",
 		expected: "a:substack.com",
 	},
+	...["box.com", "hey.com", "box.io", "co.io", "com.io"].map((host) => ({
+		name: `a personal subdomain under short host ${host}`,
+		markup: `<a href="https://jane.${host}/hello" onclick="event.preventDefault()">Link</a>`,
+		selector: "a",
+		expected: `a:${host}`,
+	})),
+	...["example.co.uk", "example.com.au"].map((host) => ({
+		name: `an external host with country suffix ${host}`,
+		markup: `<a href="https://www.${host}/hello" onclick="event.preventDefault()">Link</a>`,
+		selector: "a",
+		expected: `a:${host}`,
+	})),
 	{
 		name: "a link with a percent-encoded segment",
 		markup: `<a href="/%D8%A7%D9%84%D8%B9%D8%B1%D8%A8%D9%8A%D8%A9" onclick="event.preventDefault()">Arabic</a>`,
