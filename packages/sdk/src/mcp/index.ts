@@ -6,6 +6,7 @@ export interface McpToolCall {
 	durationMs: number;
 	environment?: string;
 	error?: string;
+	errorCode?: string;
 	outputChars: number;
 	serverName?: string;
 	serverVersion?: string;
@@ -166,37 +167,73 @@ function texts(result: unknown): string[] {
 	);
 }
 
-function unwrapMessage(text: string): string {
+const JSON_RPC_ERROR_CODES: Record<number, string> = {
+	[-32_700]: "parse_error",
+	[-32_600]: "invalid_request",
+	[-32_601]: "method_not_found",
+	[-32_602]: "invalid_params",
+	[-32_603]: "internal_error",
+	[-32_001]: "request_timeout",
+};
+
+const MCP_ERROR_PREFIX = /^MCP error (-?\d+): (.*)$/s;
+
+interface Failure {
+	code?: string;
+	message: string;
+}
+
+function errorCode(value: unknown): string | undefined {
+	if (typeof value === "number") {
+		return JSON_RPC_ERROR_CODES[value];
+	}
+	return typeof value === "string" && value ? value : undefined;
+}
+
+function parseFailure(text: string, code?: string): Failure {
+	const rpc = MCP_ERROR_PREFIX.exec(text);
+	if (rpc) {
+		return { code: code ?? errorCode(Number(rpc[1])), message: rpc[2] ?? "" };
+	}
 	if (!text.startsWith("{")) {
-		return text;
+		return { code, message: text };
 	}
 	try {
 		const body: unknown = JSON.parse(text);
-		if (typeof body !== "object" || body === null) {
-			return text;
+		const inner =
+			typeof body === "object" && body !== null && "error" in body
+				? body.error
+				: body;
+		if (typeof inner === "string") {
+			return { code, message: inner };
 		}
 		if (
-			"error" in body &&
-			typeof body.error === "object" &&
-			body.error !== null &&
-			"message" in body.error &&
-			typeof body.error.message === "string"
+			typeof inner === "object" &&
+			inner !== null &&
+			"message" in inner &&
+			typeof inner.message === "string"
 		) {
-			return body.error.message;
+			return {
+				code: code ?? ("code" in inner ? errorCode(inner.code) : undefined),
+				message: inner.message,
+			};
 		}
-		return "message" in body && typeof body.message === "string"
-			? body.message
-			: text;
 	} catch {
-		return text;
+		return { code, message: text };
 	}
+	return { code, message: text };
 }
 
-function errorMessage(outcome: Outcome): string | undefined {
+function failure(outcome: Outcome): Failure | undefined {
 	if ("error" in outcome) {
 		const { error } = outcome;
-		return unwrapMessage(
-			error instanceof Error ? error.message : String(error)
+		if (!(error instanceof Error)) {
+			return parseFailure(String(error));
+		}
+		const code = "code" in error ? errorCode(error.code) : undefined;
+		return parseFailure(
+			error.message,
+			code ?? (error.name === "Error" ? undefined : error.name)
 		);
 	}
 	const { result } = outcome;
@@ -208,7 +245,7 @@ function errorMessage(outcome: Outcome): string | undefined {
 	) {
 		return;
 	}
-	return unwrapMessage(texts(result)[0] ?? "");
+	return parseFailure(texts(result)[0] ?? "");
 }
 
 function isUnfinished(result: unknown): boolean {
@@ -274,13 +311,15 @@ export function trackMcp<T extends object>(
 			if ("result" in outcome && isUnfinished(outcome.result)) {
 				return;
 			}
+			const failed = failure(outcome);
 			const client =
 				protocol.getClientVersion?.() ??
 				context?.mcpReq?.envelope?.["io.modelcontextprotocol/clientInfo"];
 			const call: McpToolCall = {
 				tool: cap(request.params?.name, 256) ?? "",
 				durationMs: Math.round(performance.now() - startedAt),
-				error: cap(errorMessage(outcome), 512),
+				error: cap(failed?.message, 512),
+				errorCode: cap(failed?.code, 64),
 				outputChars:
 					"result" in outcome
 						? texts(outcome.result).reduce(
