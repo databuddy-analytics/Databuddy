@@ -441,10 +441,8 @@ function robotsFix(
 
 ${agent.name} is how ${agent.product} ${impact.role}. Databuddy recorded ${formatCount(agent.requests, "request")} from it across ${formatCount(agent.pages, "page")} in the selected period, and robots.txt now blocks it.
 
-User agent: ${agent.user_agent}
-
 1. Find where robots.txt is served from: a static robots.txt, a generated route such as app/robots.ts, or a CMS or hosting setting.
-2. Find the rule that blocks this user agent. It is either a group that names the crawler or the User-agent: * group.
+2. Find the rule that blocks ${agent.name}. It is either a group that names the crawler or the User-agent: * group.
 3. Allow ${agent.name} on public pages. A group that names the crawler replaces the * group for it, so when * is the blocker, add a group for ${agent.name} and copy over only the Disallow lines for private paths such as admin, account and API routes.
 4. Leave the rules for every other crawler unchanged.
 5. After deploying, open /robots.txt and confirm the change.`,
