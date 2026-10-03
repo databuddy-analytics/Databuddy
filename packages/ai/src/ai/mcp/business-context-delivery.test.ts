@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
-import type { LanguageModelV3 } from "@ai-sdk/provider";
+import type {
+	LanguageModelV3,
+	LanguageModelV3StreamPart,
+} from "@ai-sdk/provider";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { organizationBusinessContextSchema } from "@databuddy/shared/organization-business-context";
 import { tool } from "ai";
@@ -70,15 +73,14 @@ mock.module("../../lib/accessible-websites", () => ({
 	getOrganizationWebsites: async (organizationId: string) =>
 		allowed && organizationId === "org-synthetic" ? sites : [],
 }));
+const storedMemory = mock((..._input: unknown[]) => {});
 mock.module("../../lib/supermemory", () => ({
 	isMemoryEnabled: () => false,
 	getMemoryContext: mock(() => {
 		throw new Error("Memory must not be queried");
 	}),
 	formatMemoryForPrompt: () => "",
-	storeConversation: mock(() => {
-		throw new Error("Memory must not be written");
-	}),
+	storeConversation: storedMemory,
 }));
 mock.module("../../lib/ai-logger", () => ({
 	getAILogger: () => ({ wrap: (model: LanguageModelV3) => model }),
@@ -100,9 +102,10 @@ mock.module("../agents/execution", () => ({
 	resolveAgentBillingCustomerId: resolveBillingCustomerId,
 	trackAgentUsageAndBill: billedUsage,
 }));
+const persistedConversation = mock(async (..._input: unknown[]) => {});
 mock.module("./conversation-store", () => ({
 	getConversationHistory: async () => [],
-	appendToConversation: async () => {},
+	appendToConversation: persistedConversation,
 }));
 mock.module("@databuddy/api-keys/resolve", () => ({
 	resolveApiKey: async () => {
@@ -216,6 +219,8 @@ beforeEach(() => {
 		.mockResolvedValue({ allowed: true, customerId: "synthetic-owner" });
 	resolveBillingCustomerId.mockReset().mockResolvedValue("synthetic-owner");
 	billedUsage.mockReset().mockResolvedValue(undefined);
+	storedMemory.mockClear();
+	persistedConversation.mockClear();
 	captureError.mockClear();
 	read.mockReset();
 	read.mockImplementation(async () => saved);
@@ -320,7 +325,11 @@ describe("canonical business context at the native shared-agent model boundary",
 			websiteId: site.id,
 			websiteDomain: "https://reports.example.com",
 		});
-		expect(JSON.stringify(model.doGenerateCalls[0].prompt)).toContain(meaning);
+		const call = model.doGenerateCalls[0];
+		if (!call) {
+			throw new Error("Expected the selected website's model call");
+		}
+		expect(JSON.stringify(call.prompt)).toContain(meaning);
 		expect(read).toHaveBeenCalledTimes(1);
 	});
 	it("rejects unsupported domain rewrites and mismatched accessible IDs before profile or model access", async () => {
@@ -447,7 +456,11 @@ describe("canonical business context at the native shared-agent model boundary",
 			...options,
 			history: [{ role: "assistant", content: "Earlier answer" }],
 		});
-		const prompt = JSON.stringify(model.doGenerateCalls[1].prompt);
+		const call = model.doGenerateCalls[1];
+		if (!call) {
+			throw new Error("Expected the follow-up model call");
+		}
+		const prompt = JSON.stringify(call.prompt);
 		expect(prompt).toContain("Replacement team priority");
 		expect(prompt).toContain('\\"revision\\":8');
 		expect(prompt).not.toContain(meaning);
@@ -467,7 +480,11 @@ describe("canonical business context at the native shared-agent model boundary",
 			},
 		});
 		expect(read).toHaveBeenCalledWith("org-synthetic");
-		expect(JSON.stringify(model.doGenerateCalls[0].prompt)).toContain(meaning);
+		const call = model.doGenerateCalls[0];
+		if (!call) {
+			throw new Error("Expected the verified session's model call");
+		}
+		expect(JSON.stringify(call.prompt)).toContain(meaning);
 	});
 	it("does not borrow a session organization from another user", async () => {
 		session = {
@@ -483,9 +500,11 @@ describe("canonical business context at the native shared-agent model boundary",
 			},
 		});
 		expect(read).not.toHaveBeenCalled();
-		expect(JSON.stringify(model.doGenerateCalls[0].prompt)).not.toContain(
-			meaning
-		);
+		const call = model.doGenerateCalls[0];
+		if (!call) {
+			throw new Error("Expected the unmatched session's model call");
+		}
+		expect(JSON.stringify(call.prompt)).not.toContain(meaning);
 	});
 	it("does not inject one organization's profile when a caller selects a foreign site/domain", async () => {
 		for (const selection of [
@@ -503,9 +522,11 @@ describe("canonical business context at the native shared-agent model boundary",
 		allowed = false;
 		await askDatabuddyAgent(options);
 		expect(read).not.toHaveBeenCalled();
-		expect(JSON.stringify(model.doGenerateCalls[0].prompt)).toContain(
-			"unavailable for this turn"
-		);
+		const call = model.doGenerateCalls[0];
+		if (!call) {
+			throw new Error("Expected the inaccessible principal's model call");
+		}
+		expect(JSON.stringify(call.prompt)).toContain("unavailable for this turn");
 	});
 	it("keeps resolved websites and organization in the real shared tool context", () => {
 		const config = createMcpAgentConfig({
@@ -938,6 +959,173 @@ describe("completed shared-agent usage after failure or cancellation", () => {
 			expect(billedUsage).toHaveBeenCalledTimes(1);
 		} finally {
 			generate.mockRestore();
+		}
+	});
+	it.each([
+		{ completed: false, streamedError: false, partial: false },
+		{ completed: true, streamedError: false, partial: false },
+		{ completed: false, streamedError: true, partial: false },
+		{ completed: false, streamedError: true, partial: true },
+		{ completed: true, streamedError: true, partial: true },
+	])("rejects provider failures without a fallback or persistence (completed: $completed, streamed error: $streamedError, partial: $partial)", async ({
+		completed,
+		streamedError,
+		partial,
+	}) => {
+		const failure = new Error("Synthetic streamed provider failure");
+		let calls = 0;
+		const stream = spyOn(model, "doStream").mockImplementation(async () => {
+			if (completed && ++calls === 1) {
+				return {
+					stream: convertArrayToReadableStream([
+						{
+							type: "tool-call",
+							toolCallId: "read",
+							toolName: "get_data",
+							input: '{"value":1}',
+						},
+						{
+							type: "finish",
+							finishReason: { unified: "tool-calls", raw: "tool_calls" },
+							usage,
+						},
+					]),
+				};
+			}
+			if (!streamedError) {
+				throw failure;
+			}
+			return {
+				stream: convertArrayToReadableStream([
+					...(partial
+						? [
+								{ type: "text-start" as const, id: "text" },
+								{
+									type: "text-delta" as const,
+									id: "text",
+									delta: "Synthetic partial response.",
+								},
+								{ type: "text-end" as const, id: "text" },
+							]
+						: []),
+					{ type: "error", error: failure },
+					{
+						type: "finish",
+						finishReason: { unified: "error", raw: "error" },
+						usage,
+					},
+				]),
+			};
+		});
+		const onToolTrace = mock((_trace: DatabuddyAgentToolTrace[]) => {});
+		const chunks: string[] = [];
+		try {
+			await expect(
+				(async () => {
+					for await (const chunk of streamDatabuddyAgent({
+						...options,
+						billingMode: "bill",
+						persistConversation: true,
+						onToolTrace,
+					})) {
+						chunks.push(chunk);
+					}
+				})()
+			).rejects.toBe(failure);
+			expect(chunks).toEqual(partial ? ["Synthetic partial response."] : []);
+			const completedSteps = Number(completed) + Number(streamedError);
+			expect(billedUsage).toHaveBeenCalledTimes(Number(completedSteps > 0));
+			if (completedSteps > 0) {
+				expect(billedUsage).toHaveBeenCalledWith(
+					expect.objectContaining({
+						usage: expect.objectContaining({
+							inputTokens: 10 * completedSteps,
+							stepUsages: Array.from({ length: completedSteps }, () =>
+								expect.objectContaining({ inputTokens: 10 })
+							),
+						}),
+					})
+				);
+			}
+			expect(onToolTrace).not.toHaveBeenCalled();
+			expect(storedMemory).not.toHaveBeenCalled();
+			expect(persistedConversation).not.toHaveBeenCalled();
+		} finally {
+			stream.mockRestore();
+		}
+	});
+	it("rejects an externally aborted partial stream without persisting it", async () => {
+		const abort = new AbortController();
+		const failure = new DOMException("Synthetic external abort", "AbortError");
+		const stream = spyOn(model, "doStream").mockImplementationOnce(
+			async (input) => ({
+				stream: new ReadableStream<LanguageModelV3StreamPart>({
+					start(controller) {
+						controller.enqueue({ type: "text-start", id: "text" });
+						controller.enqueue({
+							type: "text-delta",
+							id: "text",
+							delta: "Synthetic partial response.",
+						});
+						input.abortSignal?.addEventListener(
+							"abort",
+							() => controller.error(input.abortSignal?.reason),
+							{ once: true }
+						);
+					},
+				}),
+			})
+		);
+		const onToolTrace = mock((_trace: DatabuddyAgentToolTrace[]) => {});
+		try {
+			const iterator = streamDatabuddyAgent({
+				...options,
+				abortSignal: abort.signal,
+				billingMode: "bill",
+				persistConversation: true,
+				onToolTrace,
+			});
+			expect((await iterator.next()).value).toBe("Synthetic partial response.");
+			abort.abort(failure);
+			await expect(iterator.next()).rejects.toBe(failure);
+			expect(billedUsage).not.toHaveBeenCalled();
+			expect(onToolTrace).not.toHaveBeenCalled();
+			expect(storedMemory).not.toHaveBeenCalled();
+			expect(persistedConversation).not.toHaveBeenCalled();
+		} finally {
+			stream.mockRestore();
+		}
+	});
+	it("finalizes and settles a successful empty stream before emitting and persisting its fallback", async () => {
+		const stream = spyOn(model, "doStream").mockImplementationOnce(
+			async () => ({
+				stream: convertArrayToReadableStream([
+					{
+						type: "finish",
+						finishReason: { unified: "stop", raw: "stop" },
+						usage,
+					},
+				]),
+			})
+		);
+		try {
+			const iterator = streamDatabuddyAgent({
+				...options,
+				billingMode: "bill",
+				persistConversation: true,
+			});
+			const first = await iterator.next();
+			expect(first.done).toBe(false);
+			expect(first.value).toBe(
+				"No answer was generated from the gathered evidence. Try a narrower question: one metric, one segment, or one time range."
+			);
+			expect(billedUsage).toHaveBeenCalledTimes(1);
+			expect((await iterator.next()).done).toBe(true);
+			expect(storedMemory).toHaveBeenCalledTimes(1);
+			expect(persistedConversation).toHaveBeenCalledTimes(1);
+			expect(persistedConversation.mock.calls[0]?.[4]).toBe(first.value);
+		} finally {
+			stream.mockRestore();
 		}
 	});
 	it.each([

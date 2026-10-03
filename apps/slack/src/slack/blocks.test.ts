@@ -7,6 +7,7 @@ import {
 	componentToBlocks,
 	splitAgentText,
 } from "@/slack/blocks";
+import { buildAnalyticsInstructionsForMcp } from "../../../../packages/ai/src/ai/prompts/analytics";
 
 const DATA_TABLE = `{"type":"data-table","title":"Top Pages","columns":["Page","Visitors"],"rows":[["/",1500],["/pricing",820]]}`;
 
@@ -318,5 +319,25 @@ describe("componentToBlocks no silent drop", () => {
 		]);
 		expect(blocks.length).toBe(2);
 		expect(blocks.every((b) => typeof b.type === "string")).toBe(true);
+	});
+});
+
+describe("Slack agent prompt components", () => {
+	it("renders every component example the Slack agent is given as native blocks", () => {
+		const { components, text } = splitAgentText(
+			buildAnalyticsInstructionsForMcp({
+				currentDateTime: "2026-10-03T12:00:00.000Z",
+				mutationMode: "dry-run",
+				source: "slack",
+			})
+		);
+		const rendered = components.map((component) => [
+			component.type,
+			componentToBlocks(component)[0]?.type,
+		]);
+
+		expect(text).not.toContain('{"type":"');
+		expect(rendered).toContainEqual(["data-table", "data_table"]);
+		expect(rendered.map(([, block]) => block)).not.toContain("context");
 	});
 });

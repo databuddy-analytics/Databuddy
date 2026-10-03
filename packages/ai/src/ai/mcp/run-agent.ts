@@ -25,6 +25,8 @@ import type { AppMutationMode } from "../config/context";
 import type { DatabuddyAgentSlackContext } from "./slack-context";
 
 const DEFAULT_MCP_AGENT_TIMEOUT_MS = 45_000;
+const EMPTY_ANSWER =
+	"No answer was generated from the gathered evidence. Try a narrower question: one metric, one segment, or one time range.";
 type AgentBillingMode = "bill" | "skip";
 
 export interface RunMcpAgentOptions {
@@ -32,6 +34,7 @@ export interface RunMcpAgentOptions {
 	apiKey: ApiKeyRow | null;
 	billingMode?: AgentBillingMode;
 	conversationId?: string;
+	historyInput?: string;
 	memoryUserId?: string | null;
 	modelOverride?: string | null;
 	mutationMode?: AppMutationMode;
@@ -80,9 +83,9 @@ export async function runMcpAgent(
 
 		await trackPreparedUsage(prepared, result.totalUsage);
 
-		const answer = result.text;
+		const answer = result.text.trim() || EMPTY_ANSWER;
 		if (options.storeMemory !== false) {
-			storePreparedConversation(prepared, options.question, answer);
+			storePreparedConversation(prepared, answer);
 		}
 
 		return answer;
@@ -105,13 +108,9 @@ export async function runMcpAgentWithTrace(
 		});
 
 		await trackPreparedUsage(prepared, result.totalUsage);
-		const stepCount = result.steps.length;
-		const rawAnswer = result.text.trim();
-		const answer =
-			rawAnswer ||
-			`I ran ${stepCount} step${stepCount === 1 ? "" : "s"} but couldn't fit a summary into this turn. The question is wide enough that I exhausted the step budget gathering data. Ask me a narrower slice (one metric, one segment, one time range) and I'll give you a focused answer.`;
+		const answer = result.text.trim() || EMPTY_ANSWER;
 		if (options.storeMemory !== false) {
-			storePreparedConversation(prepared, options.question, answer);
+			storePreparedConversation(prepared, answer);
 		}
 
 		return {
@@ -150,7 +149,7 @@ async function buildTruncatedTrace(
 	await trackPreparedUsage(prepared, usage);
 	const stepCount = steps.length;
 	return {
-		answer: `The investigation reached its time budget after ${stepCount} step${stepCount === 1 ? "" : "s"} and was stopped before composing a final summary. The partial tool trace is the only evidence gathered.`,
+		answer: `The run reached its time budget after ${stepCount} step${stepCount === 1 ? "" : "s"} and was stopped before composing a final summary. The partial tool trace is the only evidence gathered.`,
 		steps: stepCount,
 		toolCalls: collectToolTrace(steps),
 		truncated: true,
@@ -195,22 +194,45 @@ export async function* streamMcpAgentText(
 			abortSignal: abort.signal,
 		});
 		let answer = "";
+		let streamFailure: { error: unknown } | undefined;
 
-		for await (const chunk of result.textStream) {
-			answer += chunk;
-			yield chunk;
+		// textStream filters out failures. Drain fullStream so completed steps can
+		// still settle their usage before a provider error reaches the caller.
+		for await (const part of result.fullStream) {
+			if (part.type === "text-delta" && !streamFailure) {
+				answer += part.text;
+				yield part.text;
+			} else if (part.type === "error") {
+				streamFailure ??= { error: part.error };
+			} else if (part.type === "abort") {
+				streamFailure ??= {
+					error:
+						abort.signal.reason ??
+						new DOMException(
+							part.reason ?? "Agent stream aborted",
+							"AbortError"
+						),
+				};
+			} else if (part.type === "finish" && part.finishReason === "error") {
+				streamFailure ??= { error: new Error("Agent stream failed") };
+			}
 		}
-
+		if (streamFailure) {
+			throw streamFailure.error;
+		}
+		abort.signal.throwIfAborted();
 		const usage = await result.totalUsage;
 		await trackPreparedUsage(prepared, usage);
+		abort.signal.throwIfAborted();
+
+		if (!answer.trim()) {
+			answer = EMPTY_ANSWER;
+			yield answer;
+		}
+
 		options.onToolTrace?.(collectToolTrace(prepared.capturedSteps));
 		if (options.storeMemory !== false) {
-			storePreparedConversation(
-				prepared,
-				options.question,
-				answer.trim() ||
-					"I exhausted the step budget gathering data without composing a summary. Try a narrower question."
-			);
+			storePreparedConversation(prepared, answer);
 		}
 	} finally {
 		abort.cleanup();
@@ -252,6 +274,7 @@ function createRunAbortController(options: RunMcpAgentOptions): {
 
 async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 	const sessionId = options.conversationId ?? crypto.randomUUID();
+	const historyInput = options.historyInput ?? options.question;
 	const mcpUserId = options.userId ?? options.apiKey?.userId ?? null;
 	const memoryUserId = options.memoryUserId ?? mcpUserId;
 	const session =
@@ -332,7 +355,7 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 			websiteId: options.websiteId,
 		}),
 		isMemoryEnabled()
-			? getMemoryContext(options.question, memoryUserId, apiKeyId, {
+			? getMemoryContext(historyInput, memoryUserId, apiKeyId, {
 					websiteId: options.websiteId ?? undefined,
 				})
 			: Promise.resolve(null),
@@ -394,6 +417,7 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		billingCustomerId,
 		billingAccess,
 		capturedSteps,
+		historyInput,
 		usageSettlementAttempted: false,
 		memoryUserId,
 		mcpUserId,
@@ -479,12 +503,11 @@ function collectToolTrace(
 
 function storePreparedConversation(
 	prepared: Awaited<ReturnType<typeof prepareMcpAgentRun>>,
-	question: string,
 	answer: string
 ): void {
 	storeConversation(
 		[
-			{ role: "user", content: question },
+			{ role: "user", content: prepared.historyInput },
 			{ role: "assistant", content: answer },
 		],
 		prepared.memoryUserId,

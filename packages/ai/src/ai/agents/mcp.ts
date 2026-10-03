@@ -47,8 +47,10 @@ export function createMcpAgentConfig(context: {
 		system: {
 			role: "system" as const,
 			content: buildAnalyticsInstructionsForMcp({
+				accessibleWebsites: context.accessibleWebsites,
 				timezone,
 				currentDateTime,
+				mutationMode: context.mutationMode,
 				source: context.source,
 				websiteDomain,
 				websiteId,
@@ -56,6 +58,7 @@ export function createMcpAgentConfig(context: {
 			providerOptions: modelOptions.systemProviderOptions,
 		},
 		tools: createMcpAgentTools({
+			mutationMode: context.mutationMode,
 			slackContext: context.slackContext,
 			organizationId: context.organizationId,
 			userId: context.userId,

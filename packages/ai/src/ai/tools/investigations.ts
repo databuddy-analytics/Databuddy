@@ -95,6 +95,20 @@ export const investigationActionSchema = z
 	})
 	.strict();
 
+const readOnlyInvestigationActionSchema = investigationActionSchema
+	.omit({ body: true, replyId: true })
+	.extend({
+		action: investigationActionSchema.shape.action
+			.exclude(["reply"])
+			.describe(
+				"Read published insights, list cases, or get one case and its timeline"
+			),
+		investigationId:
+			investigationActionSchema.shape.investigationId.describe(
+				"Required for get"
+			),
+	});
+
 type InvestigationAction = z.input<typeof investigationActionSchema>;
 type RpcCaller = typeof callRPCProcedure;
 
@@ -173,7 +187,13 @@ export async function runInvestigationAction(
 			action: "get" as const,
 			canReply: result.canReply,
 			investigation: result.insight,
-			timeline: result.timeline,
+			timeline: result.timeline.map((item) => {
+				if (item.kind !== "investigation") {
+					return item;
+				}
+				const { contextSnapshot: _snapshot, ...outcome } = item.outcome;
+				return { ...item, outcome };
+			}),
 		};
 	}
 
@@ -229,7 +249,43 @@ function validateConfiguration(input: Input): void {
 	}
 }
 
-export function createInvestigationTools() {
+export function createInvestigationTools({
+	readOnly = false,
+}: {
+	readOnly?: boolean;
+} = {}) {
+	if (readOnly) {
+		return {
+			investigations: tool({
+				description:
+					"Read existing intelligence. brief returns published insights with their next steps; list/get reads durable cases. Preserve returned advice instead of adding more.",
+				inputSchema: readOnlyInvestigationActionSchema,
+				execute: (input, options) =>
+					runInvestigationAction(
+						input,
+						getAppContext(options),
+						options.abortSignal
+					),
+			}),
+			configure_investigations: tool({
+				description:
+					"Read automatic investigations. status returns the organization config: Off/Daily/Weekly schedule, timezone, and Slack delivery.",
+				inputSchema: z.object({ action: z.enum(["status"]) }),
+				execute: (_input, options) => {
+					const context = getAppContext(options);
+					if (!context.organizationId) {
+						throw new Error("Select an organization first");
+					}
+					return callRPCProcedure(
+						"insightGeneration",
+						"getConfig",
+						{ organizationId: context.organizationId },
+						context
+					);
+				},
+			}),
+		} as const;
+	}
 	return {
 		investigations: tool({
 			description:

@@ -61,6 +61,7 @@ export interface DatabuddyAgentOptions {
 	billingMode?: DatabuddyAgentBillingMode;
 	conversationId?: string;
 	history?: ConversationMessage[];
+	historyInput?: string;
 	input: string;
 	memoryUserId?: string | null;
 	modelOverride?: string | null;
@@ -103,6 +104,7 @@ export async function askDatabuddyAgent(
 	const answer = await runMcpAgent({
 		apiKey: prepared.actor.apiKey,
 		conversationId: prepared.conversationId,
+		historyInput: options.historyInput,
 		priorMessages: prepared.history,
 		question: options.input,
 		requestHeaders: prepared.actor.requestHeaders,
@@ -135,6 +137,7 @@ export async function traceDatabuddyAgent(
 		abortSignal: options.abortSignal,
 		conversationId: prepared.conversationId,
 		billingMode: options.billingMode,
+		historyInput: options.historyInput,
 		modelOverride: options.modelOverride,
 		memoryUserId: prepared.memoryUserId,
 		mutationMode: options.mutationMode,
@@ -173,6 +176,7 @@ export async function* streamDatabuddyAgent(
 		abortSignal: options.abortSignal,
 		conversationId: prepared.conversationId,
 		billingMode: options.billingMode,
+		historyInput: options.historyInput,
 		memoryUserId: prepared.memoryUserId,
 		priorMessages: prepared.history,
 		question: options.input,
@@ -274,8 +278,8 @@ async function persistAgentConversation(
 		prepared.conversationId,
 		prepared.conversationUserId,
 		prepared.actor.apiKey,
-		options.input,
-		answer.trim() || "No response generated.",
+		options.historyInput ?? options.input,
+		answer.trim(),
 		prepared.history
 	);
 }

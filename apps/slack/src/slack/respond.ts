@@ -368,7 +368,6 @@ const TOOL_STATUS_LABELS: [RegExp, string][] = [
 	[/search_console/, "Checking search data..."],
 	[/memory/, "Recalling context..."],
 	[/website/, "Finding your sites..."],
-	[/create|update|delete|configure/, "Applying changes..."],
 	[/investigation|insight/, "Reviewing investigations..."],
 ];
 
