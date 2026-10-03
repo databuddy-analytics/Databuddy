@@ -387,6 +387,7 @@ export interface McpSpansRow {
 	tool: string;
 	is_error: boolean;
 	error: string;
+	error_code: string;
 	duration_ms: number;
 	output_chars: number;
 	session_id: string;
@@ -406,6 +407,7 @@ export interface McpSpansInsert {
 	tool: string;
 	is_error: boolean;
 	error?: string;
+	error_code?: string;
 	duration_ms: number;
 	output_chars?: number;
 	session_id?: string;
@@ -607,7 +609,7 @@ export const TABLE_COLUMNS = {
 	"analytics.identity_anon_pairs": ["client_id", "anonymous_id", "identity_time", "profile_id"],
 	"analytics.identity_session_pairs": ["client_id", "session_id", "identity_time", "profile_id"],
 	"analytics.link_visits": ["id", "link_id", "timestamp", "referrer", "user_agent", "ip_hash", "country", "region", "city", "browser_name", "device_type"],
-	"analytics.mcp_spans": ["owner_id", "website_id", "timestamp", "environment", "server_name", "server_version", "tool", "is_error", "error", "duration_ms", "output_chars", "session_id", "client", "client_name", "client_version", "user_agent"],
+	"analytics.mcp_spans": ["owner_id", "website_id", "timestamp", "environment", "server_name", "server_version", "tool", "is_error", "error", "error_code", "duration_ms", "output_chars", "session_id", "client", "client_name", "client_version", "user_agent"],
 	"analytics.outgoing_links": ["id", "client_id", "anonymous_id", "session_id", "href", "text", "properties", "timestamp"],
 	"analytics.revenue": ["owner_id", "website_id", "transaction_id", "provider", "type", "status", "amount", "original_amount", "original_currency", "currency", "anonymous_id", "session_id", "customer_id", "product_id", "product_name", "metadata", "created", "synced_at", "profile_id"],
 	"analytics.web_vitals_spans": ["client_id", "anonymous_id", "session_id", "timestamp", "path", "metric_name", "metric_value", "delivery_id"],
