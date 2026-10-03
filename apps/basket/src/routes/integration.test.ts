@@ -1623,13 +1623,24 @@ describe("POST /mcp", () => {
 					},
 				}),
 			},
+			{
+				tool: "get_data",
+				durationMs: 13,
+				error: "MCP error -32602: Input validation error: preset is required",
+			},
+			{
+				tool: "get_data",
+				durationMs: 15,
+				error: "connect ECONNREFUSED 127.0.0.1:5432",
+				errorCode: "ECONNREFUSED",
+			},
 		]);
 		expect(res.status).toBe(202);
 		expect(mockCheckAutumnUsage).toHaveBeenCalledWith(
 			"user_1",
 			"events",
-			{ api_route: "mcp", batch_size: 4 },
-			4
+			{ api_route: "mcp", batch_size: 6 },
+			6
 		);
 		expect(mockSendBatch).toHaveBeenCalledWith("analytics-mcp-spans", [
 			expect.objectContaining({
@@ -1642,10 +1653,22 @@ describe("POST /mcp", () => {
 				tool: "get_data",
 				is_error: true,
 				error: "Unknown tool",
+				error_code: undefined,
 				client: "ChatGPT",
 			}),
-			expect.objectContaining({ error: "Website not found" }),
-			expect.objectContaining({ error: message }),
+			expect.objectContaining({
+				error: "Website not found",
+				error_code: "NOT_FOUND",
+			}),
+			expect.objectContaining({ error: message, error_code: "invalid_input" }),
+			expect.objectContaining({
+				error: "Input validation error: preset is required",
+				error_code: "invalid_params",
+			}),
+			expect.objectContaining({
+				error: "connect ECONNREFUSED 127.0.0.1:5432",
+				error_code: "ECONNREFUSED",
+			}),
 		]);
 	});
 

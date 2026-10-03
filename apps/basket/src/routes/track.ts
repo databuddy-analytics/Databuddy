@@ -97,10 +97,8 @@ const mcpCallsSchema = z
 		z.object({
 			tool: truncated(256),
 			durationMs: uint32,
-			error: z
-				.string()
-				.transform((value) => mcpErrorMessage(value).slice(0, 512))
-				.optional(),
+			error: z.string().transform(mcpFailure).optional(),
+			errorCode: truncated(64).optional(),
 			outputChars: uint32.default(0),
 			sessionId: truncated(128).optional(),
 			clientName: truncated(128).optional(),
@@ -162,24 +160,58 @@ const MCP_CLIENT_USER_AGENTS: [RegExp, string][] = [
 	[/^openai-mcp\//i, "ChatGPT"],
 ];
 
+const MCP_ERROR_PREFIX = /^MCP error (-?\d+): (.*)$/s;
+
+const JSON_RPC_ERROR_CODES: Record<number, string> = {
+	[-32_700]: "parse_error",
+	[-32_600]: "invalid_request",
+	[-32_601]: "method_not_found",
+	[-32_602]: "invalid_params",
+	[-32_603]: "internal_error",
+	[-32_001]: "request_timeout",
+};
+
+const mcpErrorCodeSchema = z.union([z.string(), z.number()]).optional();
+
 const mcpErrorBodySchema = z.union([
-	z.object({ error: z.object({ message: z.string() }) }),
-	z.object({ message: z.string() }),
+	z
+		.object({
+			error: z.object({ message: z.string(), code: mcpErrorCodeSchema }),
+		})
+		.transform(({ error }) => error),
+	z
+		.object({ error: z.string() })
+		.transform(({ error }) => ({ message: error, code: undefined })),
+	z.object({ message: z.string(), code: mcpErrorCodeSchema }),
 ]);
 
-function mcpErrorMessage(error: string): string {
-	if (!error.startsWith("{")) {
-		return error;
+function mcpErrorCode(code: string | number | undefined): string | undefined {
+	const name = typeof code === "number" ? JSON_RPC_ERROR_CODES[code] : code;
+	return name ? name.slice(0, 64) : undefined;
+}
+
+function mcpFailure(text: string): { code?: string; message: string } {
+	const rpc = MCP_ERROR_PREFIX.exec(text);
+	if (rpc) {
+		return {
+			code: mcpErrorCode(Number(rpc[1])),
+			message: (rpc[2] ?? "").slice(0, 512),
+		};
 	}
-	try {
-		const { data } = mcpErrorBodySchema.safeParse(JSON.parse(error));
-		if (!data) {
-			return error;
+	if (text.startsWith("{")) {
+		try {
+			const { data } = mcpErrorBodySchema.safeParse(JSON.parse(text));
+			if (data) {
+				return {
+					code: mcpErrorCode(data.code),
+					message: data.message.slice(0, 512),
+				};
+			}
+		} catch {
+			return { message: text.slice(0, 512) };
 		}
-		return "error" in data ? data.error.message : data.message;
-	} catch {
-		return error;
 	}
+	return { message: text.slice(0, 512) };
 }
 
 function mcpClient(clientName = "", userAgent = ""): string {
@@ -730,7 +762,8 @@ export const trackRoute = new Elysia()
 							timestamp: recentTimestamp(call.timestamp, now),
 							tool: call.tool,
 							is_error: call.error !== undefined,
-							error: call.error,
+							error: call.error?.message,
+							error_code: call.errorCode ?? call.error?.code,
 							duration_ms: call.durationMs,
 							output_chars: call.outputChars,
 							session_id: call.sessionId,
