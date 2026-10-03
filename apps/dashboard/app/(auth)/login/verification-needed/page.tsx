@@ -3,7 +3,7 @@
 import { EmailUnavailable, useAuthCapabilities } from "../../auth-capabilities";
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
-import { parseAsString, useQueryState } from "nuqs";
+import { useQueryState } from "nuqs";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { safeCallbackPath } from "@/lib/safe-callback";
@@ -16,10 +16,7 @@ import {
 
 function VerificationNeededPage() {
 	const capabilities = useAuthCapabilities();
-	const [callback] = useQueryState(
-		"callback",
-		parseAsString.withDefault("/websites")
-	);
+	const [callback] = useQueryState("callback");
 	const [email, setEmail] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [isReady, setIsReady] = useState(false);

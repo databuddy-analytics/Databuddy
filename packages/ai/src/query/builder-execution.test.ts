@@ -10,7 +10,7 @@ import { randomUUIDv7 } from "bun";
 import { chCommand, chQuery } from "@databuddy/db/clickhouse";
 import { QueryBuilders } from "./builders";
 import { filterFor } from "./filter-fixtures";
-import { SimpleQueryBuilder } from "./simple-builder";
+import { allowedFilterFields, SimpleQueryBuilder } from "./simple-builder";
 import { ProfilesBuilders } from "./builders/profiles";
 import type { CompiledQuery, QueryRequest, SimpleQueryConfig } from "./types";
 
@@ -92,6 +92,10 @@ const FILTER_FIELD_OVERRIDES: Partial<
 		all: ["message"],
 		required: ["message"],
 	},
+	profile_list: {
+		all: [...(QueryBuilders.profile_list.allowedFilters ?? []), "path"],
+		required: [],
+	},
 };
 
 function requestFor(
@@ -149,7 +153,7 @@ describe("query builders execute against ClickHouse", () => {
 		const allFilters = FILTER_FIELD_OVERRIDES[name]?.all ?? [
 			...new Set([
 				...(config.requiredFilters ?? []),
-				...(config.allowedFilters ?? []),
+				...allowedFilterFields(config),
 			]),
 		];
 		if (allFilters.length > (config.requiredFilters ?? []).length) {

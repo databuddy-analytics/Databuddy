@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { ToolSet } from "ai";
 import { z } from "zod";
-import { createGitHubTools, type GitHubToolDependencies } from "./github-tools";
+import {
+	createGitHubTools,
+	type GitHubToolDependencies,
+	listGitHubProductionDeployments,
+} from "./github-tools";
 import { createToolkit } from "./toolkit";
 
 const repository = { owner: "example", repo: "web-app" };
@@ -298,6 +302,83 @@ describe("GitHub release and PR evidence", () => {
 			commitStatus: "success",
 		});
 		expect(JSON.stringify(result)).not.toContain("private");
+	});
+});
+
+describe("production deployments around a window", () => {
+	const deployment = (id: number, createdAt: string) => ({
+		created_at: createdAt,
+		creator: null,
+		description: null,
+		environment: "Production",
+		id,
+		ref: "main",
+		sha: `a1b2c3d${String(id).padStart(3, "0")}`,
+	});
+	const window = {
+		repository,
+		since: "2026-09-26T06:00:00Z",
+		token: "token",
+		until: "2026-09-26T15:00:00Z",
+	};
+
+	test("pages a busy production environment back to the window and skips previews", async () => {
+		const calls: string[] = [];
+		const result = await listGitHubProductionDeployments({
+			...window,
+			limit: 5,
+			request: async (path) => {
+				calls.push(path);
+				if (path.includes("/environments?")) {
+					return {
+						environments: [{ name: "Production" }, { name: "Preview" }],
+					};
+				}
+				if (path.includes("/statuses?")) {
+					return [{ created_at: "2026-09-26T14:52:00Z", state: "success" }];
+				}
+				return path.endsWith("&page=1")
+					? Array.from({ length: 100 }, (_, index) =>
+							deployment(index + 10, "2026-09-27T08:00:00Z")
+						)
+					: [
+							deployment(1, "2026-09-26T14:48:00Z"),
+							deployment(2, "2026-09-25T09:00:00Z"),
+						];
+			},
+		});
+
+		expect(
+			calls.filter((path) => path.includes("environment=Preview"))
+		).toEqual([]);
+		expect(
+			calls.filter((path) => path.includes("environment=Production"))
+		).toHaveLength(2);
+		expect(result).toMatchObject({
+			complete: true,
+			deployments: [
+				{
+					completedAt: "2026-09-26T14:52:00Z",
+					requestedAt: "2026-09-26T14:48:00Z",
+					result: "success",
+				},
+			],
+		});
+	});
+
+	test("reports an incomplete scan when the page budget runs out", async () => {
+		const result = await listGitHubProductionDeployments({
+			...window,
+			limit: 5,
+			request: async (path) =>
+				path.includes("/environments?")
+					? { environments: [{ name: "Production" }] }
+					: Array.from({ length: 100 }, (_, index) =>
+							deployment(index, "2026-09-28T08:00:00Z")
+						),
+		});
+
+		expect(result).toEqual({ complete: false, deployments: [] });
 	});
 });
 

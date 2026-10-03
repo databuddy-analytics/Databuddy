@@ -407,7 +407,7 @@ function RevenueSection({
 					key={currency}
 				>
 					<span className="text-muted-foreground text-xs">
-						Total {totals.size > 1 ? currency : ""}
+						Shown revenue {totals.size > 1 ? currency : ""}
 					</span>
 					<span className="font-semibold text-foreground text-sm tabular-nums">
 						{formatCurrency(total, currency)}

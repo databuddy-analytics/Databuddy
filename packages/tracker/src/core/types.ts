@@ -174,6 +174,7 @@ type DatabuddyGlobal = {
 	clearProfile: () => void;
 	/** Currently identified user ID, or null when anonymous. */
 	getProfileId: () => string | null;
+	getTrackingIds?: () => { anonId: string | null; sessionId: string | null };
 	clear: () => void;
 	flush: () => void;
 	setGlobalProperties: (props: Record<string, unknown>) => void;

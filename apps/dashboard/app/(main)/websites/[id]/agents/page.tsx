@@ -37,6 +37,10 @@ import { parseAsBoolean, useQueryState } from "nuqs";
 import { useMemo, useRef, useState } from "react";
 import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
 import { AskAgentButton } from "@/components/agent/new-chat-button";
+import {
+	CodeBlock,
+	CodeBlockCopyButton,
+} from "@/components/ai-elements/code-block";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
 import {
 	Chart,
@@ -2029,14 +2033,21 @@ function SetupStep({
 	);
 }
 
-function SetupCode({ code }: { code: string }) {
+function SetupCode({
+	code,
+	language = "bash",
+}: {
+	code: string;
+	language?: "bash" | "tsx";
+}) {
 	return (
-		<div className="flex items-start gap-2 rounded border border-border/60 bg-card py-1 pr-1 pl-3">
-			<pre className="min-w-0 flex-1 overflow-x-auto rounded-none bg-transparent px-0 py-1.5 font-mono text-[11px] text-foreground leading-relaxed">
-				{code}
-			</pre>
-			<CopyButton aria-label="Copy" value={code} />
-		</div>
+		<CodeBlock
+			className="text-xs [&>div>div>pre]:p-3 [&_code]:text-xs"
+			code={code}
+			language={language}
+		>
+			<CodeBlockCopyButton />
+		</CodeBlock>
 	);
 }
 
@@ -2156,7 +2167,7 @@ function AgentSetupSheet({
 									<SetupCode code="bun add @databuddy/sdk@latest" />
 								</SetupStep>
 								<SetupStep step={2} title={`Add ${method.file}`}>
-									<SetupCode code={method.code} />
+									<SetupCode code={method.code} language="tsx" />
 									{"fileHint" in method ? (
 										<Text tone="muted" variant="caption">
 											{method.fileHint}

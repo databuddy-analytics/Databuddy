@@ -83,7 +83,7 @@ export const funnelDefinitions = pgTable(
 			.default(false)
 			.notNull(),
 		isActive: boolean("is_active").default(true).notNull(),
-		createdBy: text("created_by").notNull(),
+		createdBy: text("created_by"),
 		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
 			.defaultNow()
 			.notNull(),
@@ -105,7 +105,7 @@ export const funnelDefinitions = pgTable(
 			columns: [table.createdBy],
 			foreignColumns: [user.id],
 			name: "funnel_definitions_created_by_fkey",
-		}).onDelete("restrict"),
+		}).onDelete("set null"),
 	]
 );
 
@@ -123,7 +123,7 @@ export const goals = pgTable(
 			.default(false)
 			.notNull(),
 		isActive: boolean("is_active").default(true).notNull(),
-		createdBy: text("created_by").notNull(),
+		createdBy: text("created_by"),
 		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
 			.defaultNow()
 			.notNull(),
@@ -145,7 +145,7 @@ export const goals = pgTable(
 			columns: [table.createdBy],
 			foreignColumns: [user.id],
 			name: "goals_created_by_fkey",
-		}).onDelete("restrict"),
+		}).onDelete("set null"),
 	]
 );
 
@@ -169,7 +169,7 @@ export const annotations = pgTable(
 		tags: text().array(),
 		color: text().default("#3B82F6").notNull(),
 		isPublic: boolean("is_public").default(false).notNull(),
-		createdBy: text("created_by").notNull(),
+		createdBy: text("created_by"),
 		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
 			.defaultNow()
 			.notNull(),
@@ -191,7 +191,7 @@ export const annotations = pgTable(
 			columns: [table.createdBy],
 			foreignColumns: [user.id],
 			name: "annotations_created_by_fkey",
-		}).onDelete("restrict"),
+		}).onDelete("set null"),
 	]
 );
 

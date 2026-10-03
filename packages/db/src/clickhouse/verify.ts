@@ -10,10 +10,6 @@ import {
 
 const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), "schema");
 const DATABASES = ["analytics", "uptime"];
-const UNMANAGED_OBJECTS = new Set([
-	"analytics.web_vitals_hourly",
-	"analytics.web_vitals_hourly_mv",
-]);
 const DATABASE_PATTERN =
 	/CREATE\s+(?:TABLE|MATERIALIZED\s+VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\./i;
 
@@ -158,7 +154,6 @@ const live = await fetchLive();
 const repoFiles = sqlFiles(SCHEMA_DIR);
 const seenLive = new Set<string>();
 let drifted = 0;
-let unmanaged = 0;
 
 for (const file of repoFiles) {
 	const sql = readSql(file);
@@ -189,13 +184,6 @@ for (const key of live.keys()) {
 	if (seenLive.has(key)) {
 		continue;
 	}
-	if (UNMANAGED_OBJECTS.has(key)) {
-		console.info(
-			`${c.yellow("⚠")} ${c.bold(key)} ${c.yellow("— unmanaged legacy object remains on cluster")}`
-		);
-		unmanaged++;
-		continue;
-	}
 	console.info(
 		`${c.red("✗")} ${c.bold(key)} ${c.red("— on cluster, no .sql in repo")}`
 	);
@@ -205,9 +193,7 @@ for (const key of live.keys()) {
 console.info("");
 if (drifted === 0) {
 	console.info(
-		c.green(
-			`✓ schema in sync — ${repoFiles.length} managed objects match the cluster; ${unmanaged} unmanaged legacy object(s) acknowledged`
-		)
+		c.green(`✓ schema in sync — ${repoFiles.length} objects match the cluster`)
 	);
 	process.exit(0);
 }

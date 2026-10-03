@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { buildBatchQueryRequests, formatMcpQueryResults } from "./mcp-utils";
+import {
+	buildBatchQueryRequests,
+	capRowArrays,
+	formatMcpQueryResults,
+	getFilteredQueryTypes,
+} from "./mcp-utils";
 
 describe("buildBatchQueryRequests", () => {
 	it("defaults to 30 inclusive calendar days using the supplied clock and timezone", () => {
@@ -271,5 +276,51 @@ describe("buildBatchQueryRequests", () => {
 		);
 		expect(plan.requests).toHaveLength(0);
 		expect(plan.invalid[0]?.error).toContain("Invalid timezone");
+	});
+
+	it("keeps short-link click types out of website queries and the catalog", () => {
+		const plan = buildBatchQueryRequests(
+			[{ type: "link_total_clicks", preset: "last_7d" }],
+			"website-1",
+			"UTC"
+		);
+
+		expect(plan.requests).toHaveLength(0);
+		expect(plan.invalid[0]?.error).toContain("list_links");
+		expect(
+			Object.keys(getFilteredQueryTypes({ detail: "summary" })).filter((key) =>
+				key.startsWith("link_")
+			)
+		).toEqual([]);
+	});
+
+	it("keeps the leaders of ranked arrays and the newest history entries", () => {
+		const values = Array.from({ length: 60 }, (_, index) => index);
+		expect(
+			capRowArrays({ agents: values, senders: values, events: values })
+		).toEqual({
+			agents: values.slice(0, 50),
+			senders: values.slice(0, 50),
+			events: values.slice(10),
+			truncatedArrays: { agents: 60, senders: 60, events: 60 },
+		});
+	});
+
+	it("keeps the latest 50 items of list values inside a row and reports the full count", () => {
+		const plan = buildBatchQueryRequests(
+			[{ type: "session_list", preset: "last_7d" }],
+			"website-1",
+			"UTC"
+		);
+		const events = Array.from({ length: 60 }, (_, index) => index);
+		const [result] = formatMcpQueryResults(plan, [
+			{ type: "session_list", data: [{ session_id: "s1", events }] },
+		]);
+
+		expect(result?.data[0]).toEqual({
+			session_id: "s1",
+			events: events.slice(10),
+			truncatedArrays: { events: 60 },
+		});
 	});
 });

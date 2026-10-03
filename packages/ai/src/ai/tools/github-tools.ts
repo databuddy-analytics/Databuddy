@@ -11,6 +11,11 @@ const MAX_COMMITS = 50;
 const MAX_FILE_CHARACTERS = 15_000;
 const SEARCH_SCOPE = /\b(?:repo|org|user):\S+/i;
 const DEPLOYMENT_RESULT_STATES = new Set(["error", "failure", "success"]);
+const PRODUCTION_ENVIRONMENT = /prod/i;
+const NON_PRODUCTION_ENVIRONMENT = /preview|staging/i;
+const MAX_PRODUCTION_ENVIRONMENTS = 30;
+const PRODUCTION_DEPLOY_PAGE = 100;
+const MAX_PRODUCTION_DEPLOY_PAGES = 4;
 const DEPLOYMENT_TIMESTAMP = z
 	.string()
 	.datetime({ offset: true })
@@ -109,7 +114,7 @@ export interface GitHubRepository {
 export interface GitHubToolDependencies {
 	getLinkedRepositories?: () => Promise<GitHubRepository[]>;
 	getToken?: () => Promise<string | null>;
-	request?: (path: string, token: string) => Promise<unknown>;
+	request?: GitHubRequest;
 }
 
 function createRepositorySchema<T extends z.ZodRawShape>(
@@ -159,6 +164,303 @@ function repositoryPath(repository: GitHubRepository): string {
 
 function filePath(path: string): string {
 	return path.split("/").map(encodeURIComponent).join("/");
+}
+
+export type GitHubRequest = (path: string, token: string) => Promise<unknown>;
+
+export interface GitHubDeploymentSummary {
+	author: string | undefined;
+	completedAt: string | null;
+	currentState: string | null;
+	currentStateAt: string | null;
+	description: string | null;
+	environment: string;
+	environmentUrl: string | null;
+	logUrl: string | null;
+	ref: string;
+	requestedAt: string;
+	result: string | null;
+	sha: string;
+	statusDescription: string | null;
+}
+
+async function deploymentSummaries(
+	deployments: GitHubDeploy[],
+	repo: GitHubRepository,
+	token: string,
+	request: GitHubRequest
+): Promise<{ error: string } | { deployments: GitHubDeploymentSummary[] }> {
+	const statusResults = await Promise.all(
+		deployments.map(async (deployment) => {
+			const statuses = await request(
+				`/repos/${repositoryPath(repo)}/deployments/${deployment.id}/statuses?per_page=10`,
+				token
+			);
+			if (!Array.isArray(statuses)) {
+				return {
+					deployment,
+					error:
+						githubApiError(statuses) ??
+						"GitHub returned an unexpected deployment status response",
+				};
+			}
+			return { deployment, statuses: statuses as GitHubDeploymentStatus[] };
+		})
+	);
+	const statusError = statusResults.find((result) => result.error)?.error;
+	if (statusError) {
+		return { error: statusError };
+	}
+	const summaries = statusResults.map((result) => {
+		const deployment = result.deployment;
+		const statuses = result.statuses ?? [];
+		const current = statuses[0];
+		const completed = statuses.find((status) =>
+			DEPLOYMENT_RESULT_STATES.has(status.state)
+		);
+		return {
+			sha: deployment.sha,
+			ref: deployment.ref,
+			environment: deployment.environment,
+			requestedAt: deployment.created_at,
+			description: deployment.description,
+			author: deployment.creator?.login,
+			result: completed?.state ?? null,
+			completedAt: completed?.created_at ?? null,
+			currentState: current?.state ?? null,
+			currentStateAt: current?.created_at ?? null,
+			statusDescription: completed?.description ?? current?.description ?? null,
+			environmentUrl:
+				completed?.environment_url ?? current?.environment_url ?? null,
+			logUrl: completed?.log_url ?? current?.log_url ?? null,
+		};
+	});
+
+	return { deployments: summaries };
+}
+
+export async function listGitHubDeployments(params: {
+	environment?: string;
+	limit: number;
+	repository: GitHubRepository;
+	request?: GitHubRequest;
+	since?: string;
+	token: string;
+	until?: string;
+}): Promise<
+	| { error: string }
+	| {
+			availableEnvironments: string[];
+			deployments: GitHubDeploymentSummary[];
+			oldestScannedAt: string | null;
+			truncated: boolean;
+	  }
+> {
+	const { limit, token } = params;
+	const request = params.request ?? githubFetch;
+	const repo = params.repository;
+	const envNeedle = params.environment?.toLowerCase();
+	const since = params.since ? Date.parse(params.since) : null;
+	const until = params.until ? Date.parse(params.until) : null;
+	const seenEnvironments = new Set<string>();
+	const matched: GitHubDeploy[] = [];
+	let oldestScannedAt: string | null = null;
+	let truncated = false;
+	const maxPages =
+		envNeedle || since !== null || until !== null ? MAX_DEPLOY_PAGES : 1;
+
+	for (let page = 1; page <= maxPages; page++) {
+		const data = await request(
+			`/repos/${repositoryPath(repo)}/deployments?per_page=${DEPLOY_FETCH_SIZE}&page=${page}`,
+			token
+		);
+		const pageError = githubApiError(data);
+		if (pageError) {
+			return { error: pageError };
+		}
+
+		const pageDeploys = data as GitHubDeploy[];
+		oldestScannedAt = pageDeploys.at(-1)?.created_at ?? oldestScannedAt;
+		for (const d of pageDeploys) {
+			seenEnvironments.add(d.environment);
+			const requestedAt = Date.parse(d.created_at);
+			if (
+				(!envNeedle || d.environment.toLowerCase().includes(envNeedle)) &&
+				(since === null || requestedAt >= since) &&
+				(until === null || requestedAt <= until)
+			) {
+				matched.push(d);
+			}
+		}
+
+		const crossedSince =
+			since !== null &&
+			oldestScannedAt !== null &&
+			Date.parse(oldestScannedAt) < since;
+		if (
+			pageDeploys.length < DEPLOY_FETCH_SIZE ||
+			matched.length >= limit ||
+			crossedSince
+		) {
+			break;
+		}
+		if (page === maxPages) {
+			truncated = true;
+		}
+	}
+
+	const summaries = await deploymentSummaries(
+		matched.slice(0, limit),
+		repo,
+		token,
+		request
+	);
+	if ("error" in summaries) {
+		return summaries;
+	}
+	const deployments = summaries.deployments;
+
+	return {
+		availableEnvironments: [...seenEnvironments],
+		deployments,
+		oldestScannedAt,
+		truncated,
+	};
+}
+
+export async function listGitHubProductionDeployments(params: {
+	limit: number;
+	repository: GitHubRepository;
+	request?: GitHubRequest;
+	since: string;
+	token: string;
+	until: string;
+}): Promise<
+	| { error: string }
+	| { complete: boolean; deployments: GitHubDeploymentSummary[] }
+> {
+	const request = params.request ?? githubFetch;
+	const path = repositoryPath(params.repository);
+	const listed = await request(
+		`/repos/${path}/environments?per_page=100`,
+		params.token
+	);
+	if (githubApiError(listed)) {
+		const scanned = await listGitHubDeployments({
+			...params,
+			environment: "prod",
+		});
+		return "error" in scanned
+			? scanned
+			: { complete: !scanned.truncated, deployments: scanned.deployments };
+	}
+	const names = (
+		(listed as { environments?: { name: string }[] }).environments ?? []
+	)
+		.map((environment) => environment.name)
+		.filter(
+			(name) =>
+				PRODUCTION_ENVIRONMENT.test(name) &&
+				!NON_PRODUCTION_ENVIRONMENT.test(name)
+		)
+		.slice(0, MAX_PRODUCTION_ENVIRONMENTS);
+	const since = Date.parse(params.since);
+	const until = Date.parse(params.until);
+	const scans = await Promise.all(
+		names.map(async (name) => {
+			const found: GitHubDeploy[] = [];
+			for (let page = 1; page <= MAX_PRODUCTION_DEPLOY_PAGES; page++) {
+				const data = await request(
+					`/repos/${path}/deployments?environment=${encodeURIComponent(name)}&per_page=${PRODUCTION_DEPLOY_PAGE}&page=${page}`,
+					params.token
+				);
+				if (!Array.isArray(data)) {
+					return { complete: false, found };
+				}
+				const deploys = data as GitHubDeploy[];
+				for (const deploy of deploys) {
+					const requestedAt = Date.parse(deploy.created_at);
+					if (requestedAt >= since && requestedAt <= until) {
+						found.push(deploy);
+					}
+				}
+				const oldest = deploys.at(-1);
+				if (
+					deploys.length < PRODUCTION_DEPLOY_PAGE ||
+					(oldest && Date.parse(oldest.created_at) < since)
+				) {
+					return { complete: true, found };
+				}
+			}
+			return { complete: false, found };
+		})
+	);
+	const complete = scans.every((scan) => scan.complete);
+	const matched = scans.flatMap((scan) => scan.found);
+	matched.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+	const summaries = await deploymentSummaries(
+		matched.slice(0, params.limit),
+		params.repository,
+		params.token,
+		request
+	);
+	return "error" in summaries
+		? summaries
+		: { complete, deployments: summaries.deployments };
+}
+
+export interface GitHubCommitSummary {
+	author: string | undefined;
+	committedAt: string | undefined;
+	date: string | undefined;
+	message: string;
+	sha: string;
+}
+
+export async function listGitHubCommits(params: {
+	limit: number;
+	repository: GitHubRepository;
+	request?: GitHubRequest;
+	since?: string;
+	token: string;
+	until?: string;
+}): Promise<{ error: string } | { commits: GitHubCommitSummary[] }> {
+	const request = params.request ?? githubFetch;
+	const queryParams = new URLSearchParams({ per_page: String(params.limit) });
+	if (params.since) {
+		queryParams.set("since", params.since);
+	}
+	if (params.until) {
+		queryParams.set("until", params.until);
+	}
+	const data = await request(
+		`/repos/${repositoryPath(params.repository)}/commits?${queryParams}`,
+		params.token
+	);
+	const error = githubApiError(data);
+	if (error) {
+		return { error };
+	}
+	const commits = data as Array<{
+		sha: string;
+		commit: {
+			message: string;
+			author: { name: string; date: string } | null;
+			committer: { date: string } | null;
+		};
+	}>;
+	return {
+		commits: commits.map((c) => {
+			const [subject = ""] = c.commit.message.split("\n", 1);
+			return {
+				sha: c.sha,
+				message: subject.slice(0, 120),
+				author: c.commit.author?.name,
+				committedAt: c.commit.committer?.date,
+				date: c.commit.author?.date,
+			};
+		}),
+	};
 }
 
 export function createGitHubTools(
@@ -242,108 +544,25 @@ export function createGitHubTools(
 			const repo =
 				repository ??
 				(await resolveLinkedRepository(input, getLinkedRepositories));
-
-			const envNeedle = input.environment?.toLowerCase();
-			const since = input.since ? Date.parse(input.since) : null;
-			const until = input.until ? Date.parse(input.until) : null;
-			const seenEnvironments = new Set<string>();
-			const matched: GitHubDeploy[] = [];
-			let oldestScannedAt: string | null = null;
-			let truncated = false;
-			const maxPages =
-				envNeedle || since !== null || until !== null ? MAX_DEPLOY_PAGES : 1;
-
-			for (let page = 1; page <= maxPages; page++) {
-				const data = await request(
-					`/repos/${repositoryPath(repo)}/deployments?per_page=${DEPLOY_FETCH_SIZE}&page=${page}`,
-					token
-				);
-
-				if (data && typeof data === "object" && "error" in data) {
-					return data;
-				}
-
-				const pageDeploys = data as GitHubDeploy[];
-				oldestScannedAt = pageDeploys.at(-1)?.created_at ?? oldestScannedAt;
-				for (const d of pageDeploys) {
-					seenEnvironments.add(d.environment);
-					const requestedAt = Date.parse(d.created_at);
-					if (
-						(!envNeedle || d.environment.toLowerCase().includes(envNeedle)) &&
-						(since === null || requestedAt >= since) &&
-						(until === null || requestedAt <= until)
-					) {
-						matched.push(d);
-					}
-				}
-
-				const crossedSince =
-					since !== null &&
-					oldestScannedAt !== null &&
-					Date.parse(oldestScannedAt) < since;
-				if (
-					pageDeploys.length < DEPLOY_FETCH_SIZE ||
-					matched.length >= input.limit ||
-					crossedSince
-				) {
-					break;
-				}
-				if (page === maxPages) {
-					truncated = true;
-				}
-			}
-
-			const availableEnvironments = [...seenEnvironments];
-			const statusResults = await Promise.all(
-				matched.slice(0, input.limit).map(async (deployment) => {
-					const statuses = await request(
-						`/repos/${repositoryPath(repo)}/deployments/${deployment.id}/statuses?per_page=10`,
-						token
-					);
-					if (!Array.isArray(statuses)) {
-						return { deployment, error: statuses };
-					}
-					return { deployment, statuses: statuses as GitHubDeploymentStatus[] };
-				})
-			);
-			const failedStatus = statusResults.find((result) => "error" in result);
-			if (failedStatus && "error" in failedStatus) {
-				return failedStatus.error;
-			}
-			const deployments = statusResults.map((result) => {
-				const deployment = result.deployment;
-				const statuses =
-					"statuses" in result && result.statuses ? result.statuses : [];
-				const current = statuses[0];
-				const completed = statuses.find((status) =>
-					DEPLOYMENT_RESULT_STATES.has(status.state)
-				);
-				return {
-					sha: deployment.sha,
-					ref: deployment.ref,
-					environment: deployment.environment,
-					requestedAt: deployment.created_at,
-					description: deployment.description,
-					author: deployment.creator?.login,
-					result: completed?.state ?? null,
-					completedAt: completed?.created_at ?? null,
-					currentState: current?.state ?? null,
-					currentStateAt: current?.created_at ?? null,
-					statusDescription:
-						completed?.description ?? current?.description ?? null,
-					environmentUrl:
-						completed?.environment_url ?? current?.environment_url ?? null,
-					logUrl: completed?.log_url ?? current?.log_url ?? null,
-				};
+			const result = await listGitHubDeployments({
+				environment: input.environment,
+				limit: input.limit,
+				repository: repo,
+				request,
+				since: input.since,
+				token,
+				until: input.until,
 			});
-
+			if ("error" in result) {
+				return result;
+			}
 			return {
 				repo: `${repo.owner}/${repo.repo}`,
-				count: deployments.length,
-				availableEnvironments,
-				deployments,
-				oldestScannedAt,
-				truncated,
+				count: result.deployments.length,
+				availableEnvironments: result.availableEnvironments,
+				deployments: result.deployments,
+				oldestScannedAt: result.oldestScannedAt,
+				truncated: result.truncated,
 			};
 		},
 	});
@@ -379,45 +598,26 @@ export function createGitHubTools(
 				repository ??
 				(await resolveLinkedRepository(input, getLinkedRepositories));
 
-			const queryParams = new URLSearchParams({
-				per_page: String(input.limit),
+			const result = await listGitHubCommits({
+				limit: input.limit,
+				repository: repo,
+				request,
+				since: input.since,
+				token,
+				until: input.until,
 			});
-			if (input.since) {
-				queryParams.set("since", input.since);
+			if ("error" in result) {
+				return result;
 			}
-			if (input.until) {
-				queryParams.set("until", input.until);
-			}
-
-			const data = await request(
-				`/repos/${repositoryPath(repo)}/commits?${queryParams}`,
-				token
-			);
-
-			if (data && typeof data === "object" && "error" in data) {
-				return data;
-			}
-
-			const commits = data as Array<{
-				sha: string;
-				commit: {
-					message: string;
-					author: { name: string; date: string } | null;
-				};
-			}>;
-
 			return {
 				repo: `${repo.owner}/${repo.repo}`,
-				count: commits.length,
-				commits: commits.map((c) => {
-					const [subject = ""] = c.commit.message.split("\n", 1);
-					return {
-						sha: c.sha,
-						message: subject.slice(0, 120),
-						author: c.commit.author?.name,
-						date: c.commit.author?.date,
-					};
-				}),
+				count: result.commits.length,
+				commits: result.commits.map((commit) => ({
+					sha: commit.sha,
+					message: commit.message,
+					author: commit.author,
+					date: commit.date,
+				})),
 			};
 		},
 	});

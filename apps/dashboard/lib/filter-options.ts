@@ -2,7 +2,6 @@ export { goalFunnelFilterFields as goalFunnelFilterOptions } from "@databuddy/sh
 
 export const filterOptions = [
 	{ value: "path", label: "Page Path" },
-	{ value: "query_string", label: "Query String" },
 	{ value: "referrer", label: "Referrer" },
 	{ value: "country", label: "Country" },
 	{ value: "region", label: "Region/State" },

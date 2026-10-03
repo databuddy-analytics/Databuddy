@@ -61,9 +61,12 @@ export default function AgentViewPage() {
 			<section className="mt-10" id="agent-auth">
 				<h2 className="font-semibold text-2xl">Authentication</h2>
 				<p className="mt-4 text-muted-foreground">
-					Send a scoped Databuddy API key in <code>x-api-key</code> or{" "}
-					<code>Authorization: Bearer</code>. Use <code>read:data</code> for
-					analytics and request confirmation before write scopes.
+					MCP clients that support OAuth sign-in, such as Claude and Claude
+					Code, connect with a Databuddy account and the user approves access.
+					REST API calls and other MCP clients send a scoped Databuddy API key
+					in <code>x-api-key</code> or <code>Authorization: Bearer</code>. Use{" "}
+					<code>read:data</code> for analytics and request confirmation before
+					write scopes.
 				</p>
 			</section>
 

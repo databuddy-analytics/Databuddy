@@ -113,9 +113,9 @@ export interface FunnelConversionCounts {
 }
 
 interface ReferrerRow {
-	max_step: number;
+	completed_users: number;
 	referrer: string;
-	vid: string;
+	total_users: number;
 }
 
 const ESCAPE_BACKSLASH_REGEX = /\\/g;
@@ -851,21 +851,19 @@ export const processGoalAnalytics = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
 	params: ClickhouseQueryParams,
-	totalWebsiteUsers: number,
+	totalWebsiteUsers: number | PromiseLike<number>,
 	abortSignal?: AbortSignal
 ): Promise<FunnelAnalytics> => {
 	const step = steps[0];
 	if (!step) {
 		throw new Error("A goal requires one step");
 	}
-	const completions = await processGoalConversionCount(
-		step,
-		filters,
-		params,
-		abortSignal
-	);
+	const [completions, totalUsers] = await Promise.all([
+		processGoalConversionCount(step, filters, params, abortSignal),
+		totalWebsiteUsers,
+	]);
 
-	return buildGoalAnalyticsResult(step.name, completions, totalWebsiteUsers);
+	return buildGoalAnalyticsResult(step.name, completions, totalUsers);
 };
 
 export const processGoalsConversionCountsBatch = async (
@@ -914,14 +912,22 @@ export const processFunnelAnalyticsByReferrer = async (
 
 	const fullQuery = `WITH ${visitorIdentityCtes},
 ${buildIdentifiedEventStream(steps, filters, params, { includeReferrer: true })},
-step_events AS (SELECT DISTINCT step, vid, ts, ref FROM events)
+step_events AS (SELECT DISTINCT step, vid, ts, ref FROM events),
+visitor_referrers AS (
+	SELECT
+		windowFunnel(86400000)(toUInt64(toUnixTimestamp64Milli(ts)), ${stepConditions}) AS max_step,
+		argMinIf(ref, ts, step = 1) AS first_referrer
+	FROM step_events
+	GROUP BY vid
+	HAVING max_step >= 1
+)
 SELECT
-	vid,
-	windowFunnel(86400000)(toUInt64(toUnixTimestamp64Milli(ts)), ${stepConditions}) as max_step,
-	argMinIf(ref, ts, step = 1) as referrer
-FROM step_events
-GROUP BY vid
-HAVING max_step >= 1`;
+	first_referrer AS referrer,
+	count() AS total_users,
+	countIf(max_step >= ${totalSteps}) AS completed_users
+FROM visitor_referrers
+GROUP BY first_referrer
+ORDER BY total_users DESC, referrer`;
 
 	const rows = await chQuery<ReferrerRow>(fullQuery, params, {
 		abort_signal: abortSignal,
@@ -936,17 +942,14 @@ HAVING max_step >= 1`;
 		const ref = String(row.referrer ?? "") || "Direct";
 		const parsed = parseReferrer(ref);
 		const key = parsed.domain || "direct";
-		const maxStep = toFiniteNumber(row.max_step, 0);
 
 		let group = groups.get(key);
 		if (!group) {
 			group = { parsed, total: 0, completed: 0 };
 			groups.set(key, group);
 		}
-		group.total++;
-		if (maxStep >= totalSteps) {
-			group.completed++;
-		}
+		group.total += toFiniteNumber(row.total_users, 0);
+		group.completed += toFiniteNumber(row.completed_users, 0);
 	}
 
 	const analytics: ReferrerAnalytics[] = [];

@@ -119,14 +119,22 @@ export default function InsightDetailPage() {
 											insight.status === "resolved" ? "success" : "warning"
 										}
 									/>
-									{insight.status === "resolved" ? "Resolved" : "Open"}
+									{insight.status === "resolved"
+										? insight.resolvedReason === "recovered"
+											? "Recovered"
+											: "Resolved"
+										: "Open"}
 								</span>
 							</div>
 							<h2 className="text-pretty font-semibold text-base text-foreground leading-snug sm:text-lg">
 								{latest?.entity.label ?? insight.title}
 							</h2>
 						</header>
-						<CaseState items={data?.timeline ?? []} latest={latest ?? null} />
+						<CaseState
+							items={data?.timeline ?? []}
+							latest={latest ?? null}
+							recovered={insight.resolvedReason === "recovered"}
+						/>
 						<CaseActivity
 							canReply={data?.canReply ?? false}
 							insightId={insight.id}

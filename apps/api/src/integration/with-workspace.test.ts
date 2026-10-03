@@ -1,7 +1,13 @@
 import "@databuddy/test/env";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { withWorkspace, withPublicWorkspace, appRouter } from "@databuddy/rpc";
+import {
+	appRouter,
+	createRPCContext,
+	withPublicWorkspace,
+	withWorkspace,
+} from "@databuddy/rpc";
+import { API_SCOPES } from "@databuddy/shared/api-scopes";
 import {
 	reset,
 	cleanup,
@@ -14,6 +20,7 @@ import {
 	insertWebsite,
 	signUp,
 	addToOrganization,
+	db,
 } from "@databuddy/test";
 import { call } from "./helpers";
 
@@ -890,6 +897,105 @@ describe("withWorkspace", () => {
 				});
 
 				expect(ws.plan).toBe("free");
+			}
+		);
+	});
+
+	describe("OAuth path", () => {
+		async function oauthContext(userId: string, organizationId: string) {
+			const user = await db().query.user.findFirst({ where: { id: userId } });
+			if (!user) {
+				throw new Error("Expected the signed-up user to exist");
+			}
+			const oauthCtx = await createRPCContext(
+				{ headers: new Headers() },
+				{
+					apiKey: null,
+					session: null,
+					oauth: {
+						grant: { organizationId, websiteIds: null },
+						scopes: [...API_SCOPES],
+						user,
+					},
+				}
+			);
+			return { ...oauthCtx, getBilling: async () => undefined };
+		}
+
+		iit(
+			"holds OAuth writes to the member's role in the website's organization",
+			async () => {
+				const org = await insertOrganization();
+				const site = await insertWebsite({ organizationId: org.id });
+				const viewer = await signUp();
+				const member = await signUp();
+				await addToOrganization(viewer.id, org.id, "viewer");
+				await addToOrganization(member.id, org.id, "member");
+				const viewerContext = await oauthContext(viewer.id, org.id);
+				const memberContext = await oauthContext(member.id, org.id);
+
+				const goal = {
+					name: "Signup",
+					target: "/signup",
+					type: "PAGE_VIEW" as const,
+					websiteId: site.id,
+				};
+				await expectCode(
+					call(appRouter.goals.create, viewerContext)(goal),
+					"FORBIDDEN"
+				);
+				expect(
+					await call(appRouter.goals.create, memberContext)(goal)
+				).toMatchObject({ name: "Signup", websiteId: site.id });
+
+				const flag = await call(
+					appRouter.flags.create,
+					memberContext
+				)({
+					defaultValue: false,
+					key: "oauth-flag",
+					name: "OAuth flag",
+					rolloutPercentage: 0,
+					status: "inactive",
+					type: "boolean",
+					websiteId: site.id,
+				});
+				await expectCode(
+					call(
+						appRouter.flags.update,
+						viewerContext
+					)({
+						id: flag.id,
+						name: "Viewer rename",
+					}),
+					"FORBIDDEN"
+				);
+				expect(
+					await call(
+						appRouter.flags.update,
+						memberContext
+					)({
+						id: flag.id,
+						name: "Member rename",
+					})
+				).toMatchObject({ id: flag.id, name: "Member rename" });
+
+				const link = await call(
+					appRouter.links.create,
+					memberContext
+				)({
+					name: "Docs",
+					organizationId: org.id,
+					targetUrl: "https://example.com",
+				});
+				await expectCode(
+					call(appRouter.links.delete, viewerContext)({ id: link.id }),
+					"FORBIDDEN"
+				);
+				await expectCode(
+					call(appRouter.links.delete, memberContext)({ id: link.id }),
+					"FORBIDDEN"
+				);
 			}
 		);
 	});

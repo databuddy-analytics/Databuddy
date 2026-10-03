@@ -1,25 +1,38 @@
-import { type AnyColumn, db, sql } from "@databuddy/db";
+import { type AnyColumn, and, db, notDeleted, sql } from "@databuddy/db";
 import {
-	listLinksWithStoredVisits,
+	listKeyedIdsWithStoredRows,
 	listOwnersWithStoredData,
 	purgeAnalyticsData,
-	purgeLinkVisits,
+	purgeKeyedRows,
 } from "@databuddy/db/clickhouse";
-import { links, organization, user, websites } from "@databuddy/db/schema";
+import {
+	links,
+	organization,
+	uptimeSchedules,
+	user,
+	websites,
+} from "@databuddy/db/schema";
 import { redis } from "@databuddy/redis";
 import { getErrorLogFields } from "@databuddy/shared/evlog-fields";
-import { audit, log } from "evlog";
+import { audit, createLogger, log } from "evlog";
+import { flushBatchedApiDrain } from "@/lib/evlog-api";
 
 const PURGE_INTERVAL_SECONDS = 6 * 60 * 60;
+// Expires before the next tick, which would otherwise race its own lock.
+const PURGE_LOCK_TTL_SECONDS = PURGE_INTERVAL_SECONDS - 5 * 60;
 const PURGE_LOCK_KEY = "deleted-data-purge:lock";
 // A missing or wrong Postgres would make every owner look deleted.
-// ponytail: only one missing id can bypass the share guard; broader cleanup
-// needs explicit deletion evidence.
 const MAX_DELETED_SHARE = 0.25;
 const MIN_DELETED_FOR_SHARE_GUARD = 1;
 
 const isAnyOf = (column: AnyColumn, ids: string[]) =>
 	sql`${column} = any(${sql.param(ids)})`;
+
+const existingWebsites = (ids: string[]) =>
+	db
+		.select({ id: websites.id })
+		.from(websites)
+		.where(isAnyOf(websites.id, ids));
 
 const TARGETS = [
 	{
@@ -28,10 +41,7 @@ const TARGETS = [
 		listExisting: async (ids: string[]) =>
 			(
 				await Promise.all([
-					db
-						.select({ id: websites.id })
-						.from(websites)
-						.where(isAnyOf(websites.id, ids)),
+					existingWebsites(ids),
 					db
 						.select({ id: organization.id })
 						.from(organization)
@@ -43,10 +53,30 @@ const TARGETS = [
 	},
 	{
 		kind: "link",
-		listStored: listLinksWithStoredVisits,
+		listStored: () => listKeyedIdsWithStoredRows("analytics.link_visits"),
 		listExisting: (ids: string[]) =>
-			db.select({ id: links.id }).from(links).where(isAnyOf(links.id, ids)),
-		purge: purgeLinkVisits,
+			db
+				.select({ id: links.id })
+				.from(links)
+				.where(and(isAnyOf(links.id, ids), notDeleted(links))),
+		purge: (ids: string[], onBatchPurged: (ids: string[]) => Promise<void>) =>
+			purgeKeyedRows("analytics.link_visits", ids, onBatchPurged),
+	},
+	{
+		kind: "uptime_monitor",
+		listStored: () => listKeyedIdsWithStoredRows("uptime.uptime_monitor"),
+		listExisting: async (ids: string[]) =>
+			(
+				await Promise.all([
+					existingWebsites(ids),
+					db
+						.select({ id: uptimeSchedules.id })
+						.from(uptimeSchedules)
+						.where(isAnyOf(uptimeSchedules.id, ids)),
+				])
+			).flat(),
+		purge: (ids: string[], onBatchPurged: (ids: string[]) => Promise<void>) =>
+			purgeKeyedRows("uptime.uptime_monitor", ids, onBatchPurged),
 	},
 ] as const;
 
@@ -68,6 +98,7 @@ async function findDeletedOwners(target: (typeof TARGETS)[number]) {
 		);
 	}
 	return {
+		stored: stored.length,
 		idle: deleted.filter((owner) => owner.recent === 0).map((o) => o.id),
 		recent: deleted.filter((owner) => owner.recent !== 0).map((o) => o.id),
 	};
@@ -78,41 +109,44 @@ async function purgeDeletedData(): Promise<void> {
 		PURGE_LOCK_KEY,
 		"1",
 		"EX",
-		PURGE_INTERVAL_SECONDS,
+		PURGE_LOCK_TTL_SECONDS,
 		"NX"
 	);
 	if (acquired !== "OK") {
 		return;
 	}
+	const run = createLogger({ service: "api", component: "deleted_data_purge" });
 	for (const target of TARGETS) {
+		let purged = 0;
 		try {
-			const { idle, recent } = await findDeletedOwners(target);
-			await target.purge(idle);
-			for (const id of idle) {
-				audit({
-					action: "analytics_data.purged",
-					actor: { type: "system", id: "deleted-data-purge" },
-					target: { type: target.kind, id },
-					reason: "owner_deleted",
-				});
-			}
-			if (recent.length > 0) {
-				log.warn({
-					service: "api",
-					component: "deleted_data_purge",
-					kind: target.kind,
-					deferred_ids: recent,
-				});
-			}
-		} catch (error) {
-			log.error({
-				service: "api",
-				component: "deleted_data_purge",
-				kind: target.kind,
-				...getErrorLogFields(error),
+			const { stored, idle, recent } = await findDeletedOwners(target);
+			run.set({
+				[target.kind]: { stored, idle: idle.length, deferred_ids: recent },
 			});
+			if (recent.length > 0) {
+				run.warn(`Deferred deleted ${target.kind} ids still receiving data`);
+			}
+			await target.purge(idle, async (batch) => {
+				for (const id of batch) {
+					audit({
+						action: "analytics_data.purged",
+						actor: { type: "system", id: "deleted-data-purge" },
+						target: { type: target.kind, id },
+						reason: "owner_deleted",
+					});
+				}
+				purged += batch.length;
+				await flushBatchedApiDrain();
+			});
+		} catch (error) {
+			run.error(error instanceof Error ? error : String(error), {
+				[target.kind]: getErrorLogFields(error),
+			});
+		} finally {
+			run.set({ [target.kind]: { purged } });
 		}
 	}
+	run.emit({ _forceKeep: true });
 }
 
 export function startDeletedDataPurgeLoop() {

@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from "bun:test";
 import { shutdownPostgres, sql } from "@databuddy/db";
 import {
 	analyticsInsights,
+	insightGenerationConfigs,
 	insightObservations,
 	insightReplies,
 	insightRunEffects,
@@ -29,6 +30,7 @@ import {
 } from "@databuddy/test";
 import { eq } from "drizzle-orm";
 import { randomUUIDv7 } from "bun";
+import { prepareInsightRecoveryEffects } from "./delivery";
 import type { DetectedSignal } from "./detection";
 import { generateWebsiteInsights } from "./generation";
 import { prepareInvestigation } from "./investigation";
@@ -857,6 +859,55 @@ describeIntegration("insights idempotency integration", () => {
 		}
 	});
 
+	it("closes a measured recovery as recovered and returns it for a thread reply", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		const openedRunId = randomUUIDv7();
+		const recoveredRunId = randomUUIDv7();
+		await db()
+			.insert(insightRuns)
+			.values([
+				{ id: openedRunId, organizationId: org.id, status: "succeeded" },
+				{ id: recoveredRunId, organizationId: org.id, status: "succeeded" },
+			]);
+		const opened = await persistInvestigation({
+			investigation: websiteInvestigation({
+				next: "ask",
+				title: "Checkout needs action",
+				website,
+			}),
+			notNewerThan: new Date("2026-07-10T10:00:00.000Z"),
+			organizationId: org.id,
+			recheckAt: new Date("2026-07-12T10:00:00.000Z"),
+			runId: openedRunId,
+			timezone: "UTC",
+		});
+		const recovered = await persistInvestigation({
+			investigation: websiteInvestigation({
+				next: "resolve",
+				title: "Checkout recovered",
+				website,
+			}),
+			notNewerThan: new Date("2026-07-12T10:00:00.000Z"),
+			organizationId: org.id,
+			recheckAt: new Date("2026-07-19T10:00:00.000Z"),
+			recovered: true,
+			runId: recoveredRunId,
+			timezone: "UTC",
+		});
+
+		const [stored] = await db()
+			.select({
+				resolvedReason: analyticsInsights.resolvedReason,
+				status: analyticsInsights.status,
+			})
+			.from(analyticsInsights)
+			.where(eq(analyticsInsights.websiteId, website.id));
+		expect(recovered?.id).toBe(opened?.id);
+		expect(recovered?.outcome.next.type).toBe("resolve");
+		expect(stored).toEqual({ resolvedReason: "recovered", status: "resolved" });
+	});
+
 	it("replays a quiet observation as one readable insight without delivery", async () => {
 		const org = await insertOrganization();
 		const website = await insertWebsite({ organizationId: org.id });
@@ -864,6 +915,13 @@ describeIntegration("insights idempotency integration", () => {
 		const quietRunId = randomUUIDv7();
 		const itemId = randomUUIDv7();
 		const queueJobId = randomUUIDv7();
+		const identity = {
+			itemId,
+			organizationId: org.id,
+			queueJobId,
+			runId: quietRunId,
+			websiteId: website.id,
+		};
 		await db()
 			.insert(insightRuns)
 			.values([
@@ -890,12 +948,17 @@ describeIntegration("insights idempotency integration", () => {
 			runId: openedRunId,
 			timezone: "UTC",
 		});
+		const quiet = websiteInvestigation({
+			next: "watch",
+			title: "Checkout is stable enough to watch",
+			website,
+		});
+		await freezeInsightRunCandidatePlan(identity, "manual", {
+			asOf: "2026-07-11T10:00:00.000Z",
+			candidates: [{ signal: quiet.signal, evidence: [] }],
+		});
 		await persistInvestigation({
-			investigation: websiteInvestigation({
-				next: "watch",
-				title: "Checkout is stable enough to watch",
-				website,
-			}),
+			investigation: quiet,
 			notNewerThan: new Date("2026-07-11T10:00:00.000Z"),
 			organizationId: org.id,
 			recheckAt: new Date("2026-07-18T10:00:00.000Z"),
@@ -904,15 +967,11 @@ describeIntegration("insights idempotency integration", () => {
 		});
 
 		const result = await generateWebsiteInsights({
+			...identity,
 			finalAttempt: false,
-			itemId,
-			organizationId: org.id,
-			queueJobId,
 			reason: "manual",
 			requestedByUserId: null,
-			runId: quietRunId,
 			timezone: "UTC",
-			websiteId: website.id,
 		});
 		const [item] = await db()
 			.select({
@@ -2040,6 +2099,120 @@ describeIntegration("insights idempotency integration", () => {
 			{ externalId: "171234.000" },
 			{ externalId: "171234.001" },
 		]);
+	});
+
+	it("posts a recovery inside the original Slack thread and nowhere else", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		await db()
+			.insert(insightGenerationConfigs)
+			.values({
+				deliveries: [{ channelId: "C_TEST", type: "slack" }],
+				id: randomUUIDv7(),
+				organizationId: org.id,
+			});
+		const announced = websiteInvestigation({
+			next: "resolve",
+			title: "Checkout recovered",
+			website,
+		});
+		const unannounced = websiteInvestigation({
+			next: "resolve",
+			title: "Search recovered",
+			website,
+		});
+		const identity = () => ({
+			itemId: randomUUIDv7(),
+			organizationId: org.id,
+			queueJobId: null,
+			runId: randomUUIDv7(),
+			websiteId: website.id,
+		});
+		const first = identity();
+		const second = identity();
+		await db()
+			.insert(insightRuns)
+			.values(
+				[first, second].map(({ runId }) => ({
+					id: runId,
+					organizationId: org.id,
+					status: "succeeded" as const,
+				}))
+			);
+		await db()
+			.insert(insightRunItems)
+			.values(
+				[first, second].map(({ itemId, runId }) => ({
+					id: itemId,
+					organizationId: org.id,
+					runId,
+					status: "running" as const,
+					websiteId: website.id,
+				}))
+			);
+		await prepareInsightRun({
+			...first,
+			effects: [
+				{
+					effectKey: `C_TEST:${announced.id}`,
+					payload: {
+						blocks: [],
+						channelId: "C_TEST",
+						insightId: announced.id,
+						text: "Checkout needs action",
+					},
+				},
+			],
+			result: { resultCount: 1, status: "succeeded" },
+		});
+		await prepareInsightRun({
+			...second,
+			effects: [
+				...(await prepareInsightRecoveryEffects({
+					insight: announced,
+					organizationId: org.id,
+				})),
+				...(await prepareInsightRecoveryEffects({
+					insight: unannounced,
+					organizationId: org.id,
+				})),
+			],
+			result: { resultCount: 2, status: "succeeded" },
+		});
+
+		const posts: Array<{ text: string; threadTs?: string }> = [];
+		const deliver = async (
+			payload: { text: string },
+			_context: unknown,
+			_id: string,
+			threadTs?: string
+		) => {
+			posts.push({ text: payload.text, threadTs });
+			return threadTs ? "171234.001" : "171234.000";
+		};
+		await drainInsightRunEffects(first, true, { slack: deliver });
+		await drainInsightRunEffects(second, true, { slack: deliver });
+
+		expect(posts).toHaveLength(2);
+		expect(posts[1]?.threadTs).toBe("171234.000");
+		expect(posts[1]?.text).toStartWith("*Recovered · Checkout recovered*");
+		const stored = await db()
+			.select({
+				effectKey: insightRunEffects.effectKey,
+				externalId: insightRunEffects.externalId,
+				status: insightRunEffects.status,
+			})
+			.from(insightRunEffects)
+			.where(eq(insightRunEffects.runItemId, second.itemId));
+		const byKey = Object.fromEntries(stored.map((row) => [row.effectKey, row]));
+		expect(byKey[`C_TEST:${announced.id}:recovered`]).toMatchObject({
+			externalId: "171234.001",
+			status: "succeeded",
+		});
+		expect(byKey[`C_TEST:${unannounced.id}:recovered`]).toMatchObject({
+			externalId: null,
+			status: "succeeded",
+		});
 	});
 
 	it("retries a known-success checkpoint without calling the provider again", async () => {

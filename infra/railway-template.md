@@ -60,7 +60,7 @@ AI_GATEWAY_API_KEY=<your Vercel AI Gateway key>
 ### Dashboard
 
 The dashboard must be built from the repo, not the prebuilt GHCR image, because Next.js bakes `NEXT_PUBLIC_*` values at build time.
-Railway's default domains share no parent domain, so the dashboard proxies `/rpc` and `/v1` to the API's private URL and the session cookie stays first-party. Leave `NEXT_PUBLIC_API_URL` unset; the build points it at the dashboard origin.
+Railway's default domains share no parent domain, so the dashboard proxies `/rpc` and `/v1` to the API's private URL and the session cookie stays first-party. Leave `NEXT_PUBLIC_API_URL` unset; the build points it at the dashboard origin. `MCP_URL` points at the dashboard origin on both the Dashboard and the API, so MCP OAuth discovery names the URL clients actually reach, while the API keeps `API_URL` on its own domain for OpenAPI and discovery links.
 
 ```txt
 RAILWAY_DOCKERFILE_PATH=dashboard.Dockerfile
@@ -72,6 +72,7 @@ BETTER_AUTH_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 BETTER_AUTH_SECRET=${{shared.BETTER_AUTH_SECRET}}
 SELFHOST=${{shared.SELFHOST}}
 NEXT_PUBLIC_APP_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
+MCP_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 API_PROXY_URL=http://${{API.RAILWAY_PRIVATE_DOMAIN}}:${{API.PORT}}
 NEXT_PUBLIC_BASKET_URL=https://${{Events.RAILWAY_PUBLIC_DOMAIN}}
 NEXT_PUBLIC_STATUS_URL=https://${{Status.RAILWAY_PUBLIC_DOMAIN}}
@@ -106,8 +107,10 @@ BETTER_AUTH_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 BETTER_AUTH_SECRET=${{shared.BETTER_AUTH_SECRET}}
 DATABUDDY_ENCRYPTION_KEY=${{shared.DATABUDDY_ENCRYPTION_KEY}}
 SELFHOST=${{shared.SELFHOST}}
+DELETED_DATA_PURGE=true
 DASHBOARD_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 API_URL=https://${{API.RAILWAY_PUBLIC_DOMAIN}}
+MCP_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 # Seed testing only when building API from repo:
 # RAILWAY_DOCKERFILE_PATH=api.Dockerfile
 BASKET_URL=https://${{Events.RAILWAY_PUBLIC_DOMAIN}}

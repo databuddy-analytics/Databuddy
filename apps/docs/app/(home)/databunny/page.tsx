@@ -134,7 +134,7 @@ export default function DatabunnyPage() {
 				/>
 
 				<FeatureRow
-					body="Connect any MCP client with a scoped key, and your agent can read your data and investigations and set up funnels, goals, and flags."
+					body="Sign in from Claude or Claude Code, or connect any other MCP client with a scoped key, and your agent can read your data and investigations and set up funnels, goals, and flags."
 					id="mcp"
 					title="Bring your analytics into Claude Code and Cursor."
 					visual={<McpTerminalDemo />}

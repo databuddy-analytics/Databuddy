@@ -17,14 +17,15 @@ interface PaddleTransaction {
 	created_at: string;
 	currency_code: string;
 	custom_data?: Record<string, string>;
+	customer_id?: string | null;
 	details: {
 		totals: { total: string };
 		line_items?: Array<{
 			product: { id: string; name: string };
-			price: { billing_cycle: { interval: string } | null };
 		}>;
 	};
 	id: string;
+	subscription_id?: string | null;
 }
 
 async function extractAnalyticsMetadata(
@@ -152,8 +153,7 @@ async function handleTransaction(
 	const log = useLogger();
 	const metadata = await extractAnalyticsMetadata(tx.custom_data);
 	const lineItems = tx.details.line_items || [];
-	const isSubscription = lineItems.some((i) => i?.price?.billing_cycle != null);
-	const type = isSubscription ? "subscription" : "sale";
+	const type = tx.subscription_id ? "subscription" : "sale";
 	const amount = Number.parseFloat(tx.details.totals.total) / 100;
 	const currency = tx.currency_code;
 
@@ -180,6 +180,7 @@ async function handleTransaction(
 				),
 				transaction_id: tx.id,
 				provider: "paddle",
+				customer_id: tx.customer_id || undefined,
 				type,
 				status: "completed",
 				amount,

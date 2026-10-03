@@ -98,7 +98,7 @@ export const flags = pgTable(
 		websiteId: text("website_id"),
 		organizationId: text("organization_id"),
 		userId: text("user_id"),
-		createdBy: text("created_by").notNull(),
+		createdBy: text("created_by"),
 		variants: jsonb().$type<FlagVariant[]>().default([]),
 		dependencies: text().array(),
 		targetGroupIds: text("target_group_ids").array(),
@@ -144,7 +144,7 @@ export const flags = pgTable(
 			columns: [table.createdBy],
 			foreignColumns: [user.id],
 			name: "flags_created_by_fkey",
-		}).onDelete("restrict"),
+		}).onDelete("set null"),
 	]
 );
 
@@ -224,11 +224,6 @@ export const flagChangeEvents = pgTable(
 			foreignColumns: [organization.id],
 			name: "flag_change_events_organization_id_fkey",
 		}).onDelete("cascade"),
-		foreignKey({
-			columns: [table.changedBy],
-			foreignColumns: [user.id],
-			name: "flag_change_events_changed_by_fkey",
-		}).onDelete("restrict"),
 	]
 );
 
@@ -241,7 +236,7 @@ export const targetGroups = pgTable(
 		color: text().default("#6366f1").notNull(),
 		rules: jsonb().$type<FlagUserRule[]>().default([]).notNull(),
 		websiteId: text("website_id").notNull(),
-		createdBy: text("created_by").notNull(),
+		createdBy: text("created_by"),
 		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
 			.defaultNow()
 			.notNull(),
@@ -263,7 +258,7 @@ export const targetGroups = pgTable(
 			columns: [table.createdBy],
 			foreignColumns: [user.id],
 			name: "target_groups_created_by_fkey",
-		}).onDelete("restrict"),
+		}).onDelete("set null"),
 	]
 );
 

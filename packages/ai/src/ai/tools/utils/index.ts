@@ -6,4 +6,4 @@ export {
 } from "./context";
 export { createToolLogger } from "./logger";
 export { executeTimedQuery, type QueryResult } from "./query";
-export { callRPCProcedure } from "./rpc";
+export { callRPCProcedure, omitUndefined } from "./rpc";

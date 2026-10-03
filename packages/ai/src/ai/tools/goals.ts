@@ -1,4 +1,8 @@
-import { analyticsCohortSchema } from "@databuddy/shared/analytics-filters";
+import { filterSchema, funnelStepSchema } from "@databuddy/rpc/funnel-steps";
+import {
+	analyticsCohortSchema,
+	goalFunnelFilterFields,
+} from "@databuddy/shared/analytics-filters";
 import { tool } from "ai";
 import { analyticsDateRangeSchema } from "@databuddy/validation";
 import { z } from "zod";
@@ -6,18 +10,35 @@ import {
 	callRPCProcedure,
 	createToolLogger,
 	getAppContext,
+	omitUndefined,
 	resolveToolWebsite,
 } from "./utils";
 import { resolveToolDateRange } from "./utils/context";
 
 const logger = createToolLogger("Goals Tools");
 
-const goalTypeSchema = z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]);
-const goalFilterSchema = z.object({
-	field: z.string(),
-	operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
-	value: z.union([z.string(), z.array(z.string())]),
+export const goalTypeSchema = funnelStepSchema.shape.type.describe(
+	"PAGE_VIEW: target is a page path. EVENT or CUSTOM: target is an event name."
+);
+export const goalFunnelFilterSchema = z.strictObject({
+	...filterSchema.shape,
+	field: z.enum(goalFunnelFilterFields.map((field) => field.value)),
 });
+
+export function describeGoalFunnelFilters(
+	filters: z.infer<typeof goalFunnelFilterSchema>[] | undefined
+): string {
+	if (!filters?.length) {
+		return "None";
+	}
+	return filters
+		.map(
+			(filter) =>
+				`- ${filter.field} ${filter.operator} ${Array.isArray(filter.value) ? filter.value.join(", ") : filter.value}`
+		)
+		.join("\n");
+}
+
 const goalAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
 	goalId: z.string(),
 	websiteId: z.string().optional(),
@@ -27,14 +48,30 @@ const goalAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
 			"Additional cohort filters, or null to measure the saved definition without extra filtering."
 		),
 });
+export const goalFields = {
+	type: goalTypeSchema,
+	target: z
+		.string()
+		.min(1)
+		.describe("Page path for PAGE_VIEW, event name for EVENT or CUSTOM."),
+	name: z.string().min(1).max(100).describe("Goal name."),
+	description: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("What the goal measures."),
+	filters: z
+		.array(goalFunnelFilterSchema)
+		.optional()
+		.describe("Filters every conversion must match."),
+	ignoreHistoricData: z
+		.boolean()
+		.optional()
+		.describe("true counts only data from the goal's creation date onward."),
+};
 const createGoalInputSchema = z.object({
 	websiteId: z.string(),
-	name: z.string().min(1).max(100),
-	description: z.string().optional(),
-	type: goalTypeSchema,
-	target: z.string().min(1),
-	filters: z.array(goalFilterSchema).optional(),
-	ignoreHistoricData: z.boolean().optional(),
+	...goalFields,
 	confirmed: z.boolean().describe("false=preview, true=apply"),
 });
 const updateGoalInputSchema = createGoalInputSchema
@@ -67,9 +104,7 @@ export function createGoalTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to list goals", { websiteId, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve goals. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -104,9 +139,7 @@ export function createGoalTools() {
 					endDate,
 					error,
 				});
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve goal analytics. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -115,43 +148,21 @@ export function createGoalTools() {
 		description:
 			"Create a single-step conversion goal. Target is a page path (PAGE_VIEW) or event name (EVENT/CUSTOM).",
 		inputSchema: createGoalInputSchema,
-		execute: async (
-			{
-				websiteId,
-				name,
-				description,
-				type,
-				target,
-				filters,
-				ignoreHistoricData,
-				confirmed,
-			},
-			options
-		) => {
+		execute: async ({ websiteId, confirmed, ...goal }, options) => {
 			const context = getAppContext(options);
 			try {
 				if (!confirmed) {
-					const filtersPreview =
-						filters && filters.length > 0
-							? filters
-									.map(
-										(filter) =>
-											`- ${filter.field} ${filter.operator} ${Array.isArray(filter.value) ? filter.value.join(", ") : filter.value}`
-									)
-									.join("\n")
-							: "None";
-
 					return {
 						preview: true,
 						message:
 							"Please review the goal details below and confirm if you want to create it:",
 						goal: {
-							name,
-							description: description || null,
-							type,
-							target,
-							filters: filtersPreview,
-							ignoreHistoricData: ignoreHistoricData ?? false,
+							name: goal.name,
+							description: goal.description || null,
+							type: goal.type,
+							target: goal.target,
+							filters: describeGoalFunnelFilters(goal.filters),
+							ignoreHistoricData: goal.ignoreHistoricData ?? false,
 						},
 						confirmationRequired: true,
 						instruction:
@@ -162,32 +173,22 @@ export function createGoalTools() {
 				const result = await callRPCProcedure(
 					"goals",
 					"create",
-					{
-						websiteId,
-						name,
-						description,
-						type,
-						target,
-						filters,
-						ignoreHistoricData: ignoreHistoricData ?? false,
-					},
+					{ websiteId, ...goal },
 					context
 				);
 
 				return {
 					success: true,
-					message: `Goal "${name}" created successfully`,
+					message: `Goal "${goal.name}" created successfully`,
 					goal: result,
 				};
 			} catch (error) {
 				logger.error("Failed to create goal", {
 					websiteId,
-					name,
+					name: goal.name,
 					error,
 				});
-				throw error instanceof Error
-					? error
-					: new Error("Failed to create goal. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -198,9 +199,7 @@ export function createGoalTools() {
 		inputSchema: updateGoalInputSchema,
 		execute: async ({ id, confirmed, ...input }, options) => {
 			const context = getAppContext(options);
-			const updates = Object.fromEntries(
-				Object.entries(input).filter(([, value]) => value !== undefined)
-			);
+			const updates = omitUndefined(input);
 			const hasUpdates = Object.keys(updates).length > 0;
 			try {
 				if (!(confirmed && hasUpdates)) {
@@ -244,9 +243,7 @@ export function createGoalTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to update goal", { id, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to update goal. Please try again.");
+				throw error;
 			}
 		},
 	});
@@ -280,9 +277,7 @@ export function createGoalTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to delete goal", { id, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to delete goal. Please try again.");
+				throw error;
 			}
 		},
 	});

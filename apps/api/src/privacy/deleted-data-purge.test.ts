@@ -5,14 +5,29 @@ const state = vi.hoisted(() => ({
 	storedOwners: [] as StoredDataOwner[],
 	storedLinks: [] as StoredDataOwner[],
 	existingIds: [] as string[],
-	purgeOwners: vi.fn(async (_ids: string[]) => undefined),
-	purgeLinks: vi.fn(async (_ids: string[]) => undefined),
+	purgeOwners: vi.fn(
+		async (ids: string[], onBatchPurged: (ids: string[]) => Promise<void>) => {
+			if (ids.length) {
+				await onBatchPurged(ids);
+			}
+		}
+	),
+	purgeLinks: vi.fn(
+		async (ids: string[], onBatchPurged: (ids: string[]) => Promise<void>) => {
+			if (ids.length) {
+				await onBatchPurged(ids);
+			}
+		}
+	),
 	audit: vi.fn(),
 	error: vi.fn(),
 	warn: vi.fn(),
+	set: vi.fn(),
 }));
 
 vi.mock("@databuddy/db", () => ({
+	and: () => undefined,
+	notDeleted: () => undefined,
 	db: {
 		select: () => ({
 			from: () => ({
@@ -24,21 +39,40 @@ vi.mock("@databuddy/db", () => ({
 }));
 vi.mock("@databuddy/db/clickhouse", () => ({
 	listOwnersWithStoredData: async () => state.storedOwners,
-	listLinksWithStoredVisits: async () => state.storedLinks,
+	listKeyedIdsWithStoredRows: async (table: string) =>
+		table === "analytics.link_visits" ? state.storedLinks : [],
 	purgeAnalyticsData: state.purgeOwners,
-	purgeLinkVisits: state.purgeLinks,
+	purgeKeyedRows: async (
+		table: string,
+		ids: string[],
+		onBatchPurged: (ids: string[]) => Promise<void>
+	) => {
+		if (table === "analytics.link_visits") {
+			await state.purgeLinks(ids, onBatchPurged);
+		}
+	},
 }));
 vi.mock("@databuddy/db/schema", () => ({
 	websites: { id: "website-id" },
 	organization: { id: "organization-id" },
 	user: { id: "user-id" },
 	links: { id: "link-id" },
+	uptimeSchedules: { id: "uptime-id" },
 }));
 vi.mock("@databuddy/redis", () => ({ redis: { set: async () => "OK" } }));
 vi.mock("@databuddy/shared/evlog-fields", () => ({
 	getErrorLogFields: (error: Error) => ({ error_message: error.message }),
 }));
+vi.mock("@/lib/evlog-api", () => ({
+	flushBatchedApiDrain: async () => undefined,
+}));
 vi.mock("evlog", () => ({
+	createLogger: () => ({
+		error: state.error,
+		warn: state.warn,
+		set: state.set,
+		emit: vi.fn(),
+	}),
 	audit: state.audit,
 	log: { error: state.error, warn: state.warn },
 }));
@@ -70,7 +104,8 @@ describe("deleted-data purge safety", () => {
 		expect(state.purgeOwners).not.toHaveBeenCalled();
 		expect(state.audit).not.toHaveBeenCalled();
 		expect(state.error).toHaveBeenCalledWith(
-			expect.objectContaining({ kind: "owner" })
+			expect.any(Error),
+			expect.objectContaining({ owner: expect.any(Object) })
 		);
 	});
 
@@ -80,7 +115,8 @@ describe("deleted-data purge safety", () => {
 		expect(state.purgeLinks).not.toHaveBeenCalled();
 		expect(state.audit).not.toHaveBeenCalled();
 		expect(state.error).toHaveBeenCalledWith(
-			expect.objectContaining({ kind: "link" })
+			expect.any(Error),
+			expect.objectContaining({ link: expect.any(Object) })
 		);
 	});
 
@@ -88,7 +124,10 @@ describe("deleted-data purge safety", () => {
 		state.storedOwners = owners(2);
 		state.existingIds = ["owner-1"];
 		await run();
-		expect(state.purgeOwners).toHaveBeenCalledExactlyOnceWith(["owner-0"]);
+		expect(state.purgeOwners).toHaveBeenCalledExactlyOnceWith(
+			["owner-0"],
+			expect.any(Function)
+		);
 		expect(state.audit).toHaveBeenCalledWith(
 			expect.objectContaining({ target: { type: "owner", id: "owner-0" } })
 		);
@@ -99,7 +138,10 @@ describe("deleted-data purge safety", () => {
 		state.storedLinks = owners(2);
 		state.existingIds = ["owner-1"];
 		await run();
-		expect(state.purgeLinks).toHaveBeenCalledExactlyOnceWith(["owner-0"]);
+		expect(state.purgeLinks).toHaveBeenCalledExactlyOnceWith(
+			["owner-0"],
+			expect.any(Function)
+		);
 		expect(state.audit).toHaveBeenCalledWith(
 			expect.objectContaining({ target: { type: "link", id: "owner-0" } })
 		);
@@ -113,7 +155,8 @@ describe("deleted-data purge safety", () => {
 		expect(state.purgeOwners).not.toHaveBeenCalled();
 		expect(state.audit).not.toHaveBeenCalled();
 		expect(state.error).toHaveBeenCalledWith(
-			expect.objectContaining({ kind: "owner" })
+			expect.any(Error),
+			expect.objectContaining({ owner: expect.any(Object) })
 		);
 	});
 
@@ -122,7 +165,8 @@ describe("deleted-data purge safety", () => {
 		state.existingIds = state.storedOwners.slice(11).map(({ id }) => id);
 		await run();
 		expect(state.purgeOwners).toHaveBeenCalledExactlyOnceWith(
-			state.storedOwners.slice(0, 11).map(({ id }) => id)
+			state.storedOwners.slice(0, 11).map(({ id }) => id),
+			expect.any(Function)
 		);
 		expect(state.error).not.toHaveBeenCalled();
 	});
@@ -133,7 +177,8 @@ describe("deleted-data purge safety", () => {
 		await run();
 		expect(state.purgeOwners).not.toHaveBeenCalled();
 		expect(state.error).toHaveBeenCalledWith(
-			expect.objectContaining({ kind: "owner" })
+			expect.any(Error),
+			expect.objectContaining({ owner: expect.any(Object) })
 		);
 	});
 
@@ -142,11 +187,17 @@ describe("deleted-data purge safety", () => {
 		state.storedOwners[1] = { id: "owner-1", recent: 1 };
 		state.existingIds = state.storedOwners.slice(2).map(({ id }) => id);
 		await run();
-		expect(state.purgeOwners).toHaveBeenCalledExactlyOnceWith(["owner-0"]);
+		expect(state.purgeOwners).toHaveBeenCalledExactlyOnceWith(
+			["owner-0"],
+			expect.any(Function)
+		);
 		expect(state.audit).toHaveBeenCalledTimes(1);
 		expect(state.warn).toHaveBeenCalledWith(
-			expect.objectContaining({ deferred_ids: ["owner-1"] })
+			"Deferred deleted owner ids still receiving data"
 		);
+		expect(state.set).toHaveBeenCalledWith({
+			owner: { stored: 8, idle: 1, deferred_ids: ["owner-1"] },
+		});
 	});
 
 	it("does not report a safety failure for empty storage", async () => {
