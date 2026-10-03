@@ -1,5 +1,6 @@
 import { ToolLoopAgent } from "ai";
 import { AI_MODEL_MAX_RETRIES, ANTHROPIC_CACHE_1H } from "../config/models";
+import { MAX_AGENT_STEPS } from "./stop-conditions";
 import type { AgentConfig } from "./types";
 
 type ConversationCallbacks = Pick<
@@ -22,7 +23,8 @@ export function createConversationAgent(
 		maxRetries: AI_MODEL_MAX_RETRIES,
 		experimental_context: config.experimental_context,
 		...callbacks,
-		prepareStep({ messages }) {
+		prepareStep({ messages, stepNumber }) {
+			const toolChoice = stepNumber >= MAX_AGENT_STEPS - 1 ? "none" : undefined;
 			const last = messages.at(-1);
 			if (
 				config.model.modelId.startsWith("anthropic/") &&
@@ -34,9 +36,10 @@ export function createConversationAgent(
 						...messages.slice(0, -1),
 						{ ...last, providerOptions: ANTHROPIC_CACHE_1H },
 					],
+					toolChoice,
 				};
 			}
-			return { messages };
+			return { messages, toolChoice };
 		},
 	});
 }

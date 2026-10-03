@@ -9,6 +9,7 @@ import { z } from "zod";
 import { conversationModelOptions } from "../config/conversation-model";
 import { modelNames } from "../config/models";
 import { createConversationAgent } from "./conversation";
+import { MAX_AGENT_STEPS, stopAtMaxSteps } from "./stop-conditions";
 import type { AgentConfig } from "./types";
 
 const usage = {
@@ -195,5 +196,51 @@ describe("shared conversation execution", () => {
 			});
 			expect(JSON.stringify(messages)).toBe(before);
 		}
+	});
+
+	it("disables tools on the last allowed step so a capped run still answers", async () => {
+		let toolCalls = 0;
+		const model = new MockLanguageModelV3({
+			modelId: modelNames.balanced,
+			doGenerate: async (call) => {
+				if (call.toolChoice?.type === "none") {
+					return answer("Answer from the evidence gathered so far.");
+				}
+				toolCalls += 1;
+				return {
+					content: [
+						{
+							type: "tool-call",
+							toolCallId: `lookup-${toolCalls}`,
+							toolName: "lookup",
+							input: "{}",
+						},
+					],
+					finishReason: { unified: "tool-calls", raw: "tool_calls" },
+					usage,
+					warnings: [],
+				};
+			},
+		});
+		const agent = createConversationAgent(
+			configFor(model, {
+				stopWhen: stopAtMaxSteps,
+				tools: {
+					lookup: tool({
+						inputSchema: z.object({}),
+						execute: () => ({ rows: 1 }),
+					}),
+				},
+			})
+		);
+
+		const result = await agent.generate({ prompt: "Audit everything." });
+		expect(result.text).toBe("Answer from the evidence gathered so far.");
+		expect(result.steps).toHaveLength(MAX_AGENT_STEPS);
+		expect(toolCalls).toBe(MAX_AGENT_STEPS - 1);
+		expect(model.doGenerateCalls.map((call) => call.toolChoice?.type)).toEqual([
+			...new Array<"auto">(MAX_AGENT_STEPS - 1).fill("auto"),
+			"none",
+		]);
 	});
 });
