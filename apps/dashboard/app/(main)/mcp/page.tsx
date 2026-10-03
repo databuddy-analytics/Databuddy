@@ -308,11 +308,11 @@ function Setup({
 				</CodeBlock>
 				<Text tone="muted" variant="caption">
 					Servers that run in an app with a Databuddy website ID are linked to
-					that website. With <code className="font-mono">createMcpHandler</code>
-					, wrap the server inside the factory; on serverless, pass your
-					platform's <code className="font-mono">waitUntil</code>, for example{" "}
-					<code className="font-mono">{"trackMcp(server, { waitUntil })"}</code>
-					.
+					that website. On serverless, pass your platform's{" "}
+					<code className="font-mono">waitUntil</code> to{" "}
+					<code className="font-mono">trackMcp</code> so the last calls still
+					send. With <code className="font-mono">createMcpHandler</code> from
+					the 2.x SDK, wrap the server inside the factory.
 				</Text>
 			</div>
 			<div className="flex justify-end gap-2">
