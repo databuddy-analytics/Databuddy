@@ -1634,13 +1634,98 @@ describe("POST /mcp", () => {
 				error: "connect ECONNREFUSED 127.0.0.1:5432",
 				errorCode: "ECONNREFUSED",
 			},
+			{
+				tool: "get_data",
+				durationMs: 17,
+				error: "MCP error -32050: quota exceeded",
+				userAgent: "Cursor/1.0.0",
+			},
+			{
+				tool: "get_data",
+				durationMs: 19,
+				error: JSON.stringify({
+					error: {
+						message: "Rate limit reached",
+						type: "requests",
+						param: null,
+						code: null,
+					},
+				}),
+			},
+			{
+				tool: "get_data",
+				durationMs: 21,
+				error:
+					"Input validation error: Invalid arguments for tool get_data: preset is required",
+			},
+			{
+				tool: "get_data",
+				durationMs: 23,
+				error:
+					"Invalid arguments for tool get_data: arguments contain more than the maximum of 100 elements",
+			},
+			{
+				tool: "get_data",
+				durationMs: 25,
+				error: "Output validation error: Invalid structured content",
+			},
+			{
+				tool: "get_data",
+				durationMs: 27,
+				error: "Tool nope not found",
+				errorCode: "-32602",
+				userAgent: "codex-mcp-client/0.50.0",
+			},
+			{
+				tool: "get_data",
+				durationMs: 29,
+				error: "Cancelled by the client",
+				errorCode: "cancelled",
+				userAgent: "Claude-User",
+			},
+			{
+				tool: "get_data",
+				durationMs: 31,
+				error: JSON.stringify({
+					error: { code: -32_603, message: "m".repeat(600) },
+				}),
+			},
+			{
+				tool: "get_data",
+				durationMs: 33,
+				error: JSON.stringify({
+					statusCode: 400,
+					code: "FST_ERR_VALIDATION",
+					error: "Bad Request",
+					message: "body must have required property 'preset'",
+				}),
+			},
+			{
+				tool: "get_data",
+				durationMs: 35,
+				error: "",
+				errorCode: "invalid_params",
+			},
+			{
+				tool: "get_data",
+				durationMs: 37,
+				error: JSON.stringify({ error: { code: "NOT_FOUND", message: "x" } }),
+				errorCode: "ECONNRESET",
+			},
+			{
+				tool: "get_data",
+				durationMs: 39,
+				error: `MCP error -32603: ${JSON.stringify({
+					error: { code: "rate_limited", message: "inner" },
+				})}`,
+			},
 		]);
 		expect(res.status).toBe(202);
 		expect(mockCheckAutumnUsage).toHaveBeenCalledWith(
 			"user_1",
 			"events",
-			{ api_route: "mcp", batch_size: 6 },
-			6
+			{ api_route: "mcp", batch_size: 18 },
+			18
 		);
 		expect(mockSendBatch).toHaveBeenCalledWith("analytics-mcp-spans", [
 			expect.objectContaining({
@@ -1669,6 +1754,43 @@ describe("POST /mcp", () => {
 				error: "connect ECONNREFUSED 127.0.0.1:5432",
 				error_code: "ECONNREFUSED",
 			}),
+			expect.objectContaining({
+				error: "quota exceeded",
+				error_code: "-32050",
+				client: "Cursor",
+			}),
+			expect.objectContaining({
+				error: "Rate limit reached",
+				error_code: undefined,
+			}),
+			expect.objectContaining({ error_code: "invalid_params" }),
+			expect.objectContaining({ error_code: "invalid_params" }),
+			expect.objectContaining({ error_code: "invalid_output" }),
+			expect.objectContaining({
+				error: "Tool nope not found",
+				error_code: "invalid_params",
+				client: "Codex",
+			}),
+			expect.objectContaining({
+				error: "Cancelled by the client",
+				error_code: "cancelled",
+				client: "Claude",
+			}),
+			expect.objectContaining({
+				error: "m".repeat(512),
+				error_code: "internal_error",
+			}),
+			expect.objectContaining({
+				error: "body must have required property 'preset'",
+				error_code: "FST_ERR_VALIDATION",
+			}),
+			expect.objectContaining({
+				is_error: true,
+				error: "",
+				error_code: "invalid_params",
+			}),
+			expect.objectContaining({ error: "x", error_code: "ECONNRESET" }),
+			expect.objectContaining({ error: "inner", error_code: "rate_limited" }),
 		]);
 	});
 
@@ -1720,7 +1842,13 @@ describe("POST /mcp", () => {
 			{ ...call, websiteId: "ws_other" },
 		]);
 		expect(other.status).toBe(403);
+		const mixed = await post(trackRoute, "/mcp", [
+			{ ...call, websiteId: "ws_test" },
+			call,
+		]);
+		expect(mixed.status).toBe(403);
 		expect(mockSendBatch).toHaveBeenCalledOnce();
+		expect(mockCheckAutumnUsage).toHaveBeenCalledOnce();
 	});
 
 	test("rejects calls without a key or outside the key's websites", async () => {
@@ -1744,6 +1872,7 @@ describe("POST /mcp", () => {
 		]);
 		expect(foreign.status).toBe(403);
 		expect(mockSendBatch).not.toHaveBeenCalled();
+		expect(mockCheckAutumnUsage).not.toHaveBeenCalled();
 	});
 });
 
