@@ -75,8 +75,6 @@ const TOOL_LABELS: Record<string, (input: Input) => string> = {
 	get_funnel_analytics: () => "Analyzing funnel",
 	get_funnel_analytics_by_referrer: () => "Analyzing funnel by source",
 	create_funnel: crudLabel("funnel")("create"),
-	update_funnel: crudLabel("funnel")("update"),
-	delete_funnel: crudLabel("funnel")("delete"),
 
 	list_goals: () => "Fetching goals",
 	get_goal_analytics: () => "Analyzing goal",
@@ -93,12 +91,9 @@ const TOOL_LABELS: Record<string, (input: Input) => string> = {
 	get_profile: () => "Getting visitor profile",
 	get_profile_sessions: () => "Loading visitor sessions",
 
-	competitor_analysis: () => "Analyzing competitors",
-
+	search_memory: () => "Recalling memories",
 	save_memory: () => "Saving memory",
-	recall_memories: () => "Recalling memories",
-	list_memories: () => "Loading memories",
-	delete_memory: () => "Deleting memory",
+	forget_memory: () => "Forgetting memory",
 };
 
 export function formatToolLabel(toolName: string, input: Input): string {

@@ -7,12 +7,12 @@ import {
 import { conversationModelOptions } from "../config/conversation-model";
 import { buildAnalyticsInstructions } from "../prompts/analytics";
 import { getDataModelOutput, getDataTool } from "../tools/get-data";
-import { createToolkit } from "../tools/toolkit";
+import { createToolkit, type ToolIntegrations } from "../tools/toolkit";
 import { stopAtMaxSteps } from "./stop-conditions";
 import type { AgentConfig, AgentContext } from "./types";
 
 export function createConfig(
-	context: AgentContext,
+	context: AgentContext & { integrations?: ToolIntegrations },
 	modelKey: AgentModelKey = "balanced",
 	modelOverride?: string | null
 ): AgentConfig {
@@ -28,6 +28,7 @@ export function createConfig(
 			"dashboard",
 		],
 		domain: context.websiteDomain,
+		integrations: context.integrations,
 		organizationId: context.organizationId,
 		userId: context.userId,
 	});

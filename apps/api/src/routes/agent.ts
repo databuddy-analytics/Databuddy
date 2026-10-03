@@ -59,6 +59,7 @@ import { getResolvedAuth } from "../lib/auth-wide-event";
 import { captureError, mergeWideEvent } from "@databuddy/ai/lib/tracing";
 import { getAccessibleWebsites } from "@databuddy/ai/lib/accessible-websites";
 import { loadOrganizationBusinessContext } from "@databuddy/ai/lib/organization-business-context";
+import { resolveToolIntegrations } from "@databuddy/ai/tools/toolkit";
 import { warnAgentStreamRedisSideEffect } from "./agent-stream-errors";
 
 function jsonError(status: number, code: string, message: string): Response {
@@ -709,57 +710,72 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						});
 					}
 
-					const [billingAccess, memoryCtx, enrichment, businessContext] =
-						await timeAgentPhase(
-							"memory_enrich",
-							Promise.all([
-								creditsCheck,
-								loadMemoryContext && defaultWebsiteId
-									? optionalAgentContext(
-											"memory",
-											getMemoryContextCached(
-												lastMessage,
-												userId,
-												defaultWebsiteId
-											),
-											EMPTY_MEMORY_CONTEXT,
-											AGENT_MEMORY_CONTEXT_TIMEOUT_MS,
-											{
-												agent_chat_id: chatId,
-												agent_website_id: defaultWebsiteId,
-											}
-										)
-									: Promise.resolve(EMPTY_MEMORY_CONTEXT),
-								defaultWebsiteId
-									? optionalAgentContext(
-											"enrichment",
-											getAgentContextSnapshot(
-												userId,
-												defaultWebsiteId,
-												organizationId
-											),
-											{ context: "", source: "error" },
-											AGENT_ENRICHMENT_CONTEXT_TIMEOUT_MS,
-											{
-												agent_chat_id: chatId,
-												agent_website_id: defaultWebsiteId,
-											}
-										)
-									: Promise.resolve<AgentContextSnapshotResult>({
-											context: "",
-											source: "miss",
-										}),
-								loadOrganizationBusinessContext({
-									organizationId,
-									accessibleWebsites,
-									websiteIds: [
-										...(defaultWebsiteId ? [defaultWebsiteId] : []),
-										...(body.mentions ?? []),
-									],
-									abortSignal: request.signal,
-								}),
-							])
-						);
+					const [
+						billingAccess,
+						memoryCtx,
+						enrichment,
+						businessContext,
+						integrations,
+					] = await timeAgentPhase(
+						"memory_enrich",
+						Promise.all([
+							creditsCheck,
+							loadMemoryContext && defaultWebsiteId
+								? optionalAgentContext(
+										"memory",
+										getMemoryContextCached(
+											lastMessage,
+											userId,
+											defaultWebsiteId
+										),
+										EMPTY_MEMORY_CONTEXT,
+										AGENT_MEMORY_CONTEXT_TIMEOUT_MS,
+										{
+											agent_chat_id: chatId,
+											agent_website_id: defaultWebsiteId,
+										}
+									)
+								: Promise.resolve(EMPTY_MEMORY_CONTEXT),
+							defaultWebsiteId
+								? optionalAgentContext(
+										"enrichment",
+										getAgentContextSnapshot(
+											userId,
+											defaultWebsiteId,
+											organizationId
+										),
+										{ context: "", source: "error" },
+										AGENT_ENRICHMENT_CONTEXT_TIMEOUT_MS,
+										{
+											agent_chat_id: chatId,
+											agent_website_id: defaultWebsiteId,
+										}
+									)
+								: Promise.resolve<AgentContextSnapshotResult>({
+										context: "",
+										source: "miss",
+									}),
+							loadOrganizationBusinessContext({
+								organizationId,
+								accessibleWebsites,
+								websiteIds: [
+									...(defaultWebsiteId ? [defaultWebsiteId] : []),
+									...(body.mentions ?? []),
+								],
+								abortSignal: request.signal,
+							}),
+							timeAgentPhase(
+								"tool_integrations",
+								resolveToolIntegrations(organizationId, userId).catch(
+									(error: unknown): undefined => {
+										mergeWideEvent({
+											agent_tool_integrations_error: getErrorName(error),
+										});
+									}
+								)
+							),
+						])
+					);
 					mergeWideEvent({
 						agent_enrichment_context_source: enrichment.source,
 					});
@@ -791,6 +807,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 							requestHeaders: request.headers,
 							thinking: body.thinking,
 							billingCustomerId,
+							integrations,
 						},
 						modelKey,
 						modelOverride
