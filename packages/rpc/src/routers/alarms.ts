@@ -6,7 +6,12 @@ import {
 } from "@databuddy/db/schema";
 import { MAX_ALARM_DESTINATIONS } from "@databuddy/notifications";
 import { ratelimit } from "@databuddy/redis/rate-limit";
-import { SLACK_WEBHOOK_PATTERN } from "@databuddy/shared/uptime";
+import {
+	ALARM_DESTINATION_REGISTRY,
+	type AlarmDestinationType,
+	maskTail,
+	redactDestinationConfig,
+} from "@databuddy/shared/alarm-destinations";
 import { createSelectSchema } from "drizzle-orm/zod";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
@@ -20,69 +25,31 @@ import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
 import { withResource } from "../procedures/with-resource";
 import { withWorkspace } from "../procedures/with-workspace";
 
-const FORBIDDEN_HEADER_NAMES = new Set([
-	"authorization",
-	"cookie",
-	"host",
-	"connection",
-	"content-length",
-	"transfer-encoding",
-	"x-forwarded-for",
-	"x-forwarded-host",
-	"x-real-ip",
-]);
-
-const webhookHeadersSchema = z
-	.record(
-		z
-			.string()
-			.min(1)
-			.max(128)
-			.refine((name) => !FORBIDDEN_HEADER_NAMES.has(name.toLowerCase()), {
-				message: "Header name is not allowed.",
-			}),
-		z.string().max(2048)
-	)
-	.refine((rec) => Object.keys(rec).length <= 20, {
-		message: "At most 20 custom webhook headers are allowed.",
-	});
-
 const slackDestinationSchema = z.object({
 	type: z.literal("slack"),
-	identifier: z
-		.string()
-		.regex(
-			SLACK_WEBHOOK_PATTERN,
-			"Slack destination must be a hooks.slack.com webhook URL"
-		),
-	config: z.record(z.string(), z.unknown()).default({}),
+	identifier: ALARM_DESTINATION_REGISTRY.slack.identifierSchema,
+	config: ALARM_DESTINATION_REGISTRY.slack.configSchema,
 });
 
 const webhookDestinationSchema = z.object({
 	type: z.literal("webhook"),
-	identifier: z
-		.string()
-		.url("Webhook destination must be a valid URL")
-		.refine(
-			(url) => url.startsWith("http://") || url.startsWith("https://"),
-			"Webhook destination must use http(s)"
-		),
-	config: z
-		.object({
-			headers: webhookHeadersSchema.optional(),
-			method: z.enum(["GET", "POST", "PUT", "PATCH"]).optional(),
-		})
-		.passthrough()
-		.default({}),
+	identifier: ALARM_DESTINATION_REGISTRY.webhook.identifierSchema,
+	config: ALARM_DESTINATION_REGISTRY.webhook.configSchema,
 });
 
 const emailDestinationSchema = z.object({
 	type: z.literal("email"),
-	identifier: z.string().email(),
-	config: z.record(z.string(), z.unknown()).default({}),
+	identifier: ALARM_DESTINATION_REGISTRY.email.identifierSchema,
+	config: ALARM_DESTINATION_REGISTRY.email.configSchema,
 });
 
-const destinationSchema = z.discriminatedUnion("type", [
+/**
+ * One branch per entry in `ALARM_DESTINATION_TYPES`; the drift test in
+ * `alarms.test.ts` asserts this union's literal types, the DB's
+ * `alarmDestinationTypeValues`, and the delivery builder's handled types are
+ * exactly the same set.
+ */
+export const destinationSchema = z.discriminatedUnion("type", [
 	slackDestinationSchema,
 	webhookDestinationSchema,
 	emailDestinationSchema,
@@ -97,13 +64,6 @@ const alarmOutputSchema = createSelectSchema(alarms, {
 	),
 });
 
-function maskTail(value: string, keep = 4): string {
-	if (value.length <= keep) {
-		return "•".repeat(value.length);
-	}
-	return `${"•".repeat(value.length - keep)}${value.slice(-keep)}`;
-}
-
 interface RedactableDestination {
 	config: Record<string, unknown>;
 	identifier: string;
@@ -111,22 +71,16 @@ interface RedactableDestination {
 }
 
 function redactDestination<T extends RedactableDestination>(d: T): T {
-	const { headers } = d.config;
+	const definition = ALARM_DESTINATION_REGISTRY[d.type as AlarmDestinationType];
 	return {
 		...d,
-		identifier: d.type === "email" ? d.identifier : maskTail(d.identifier),
-		config:
-			headers && typeof headers === "object"
-				? {
-						...d.config,
-						headers: Object.fromEntries(
-							Object.entries(headers).map(([name, value]) => [
-								name,
-								typeof value === "string" ? maskTail(value) : value,
-							])
-						),
-					}
-				: d.config,
+		identifier:
+			definition && !definition.maskIdentifier
+				? d.identifier
+				: maskTail(d.identifier),
+		config: definition
+			? redactDestinationConfig(d.config, definition.secretFields)
+			: d.config,
 	};
 }
 

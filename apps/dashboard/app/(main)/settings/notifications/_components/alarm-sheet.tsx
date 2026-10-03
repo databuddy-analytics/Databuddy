@@ -8,7 +8,11 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
-import { SLACK_WEBHOOK_PATTERN } from "@databuddy/shared/uptime";
+import {
+	ALARM_DESTINATION_REGISTRY,
+	ALARM_DESTINATION_TYPES,
+	type AlarmDestinationType,
+} from "@databuddy/shared/alarm-destinations";
 import {
 	BellIcon as SlackLogoIcon,
 	EnvelopeSimpleIcon,
@@ -19,8 +23,14 @@ import {
 import { Button, Divider, Field, Input, Text } from "@databuddy/ui";
 import { Accordion, Sheet, Switch } from "@databuddy/ui/client";
 
-const destTypeSchema = z.enum(["slack", "email", "webhook"]);
-type DestType = z.infer<typeof destTypeSchema>;
+const destTypeSchema = z.enum(ALARM_DESTINATION_TYPES);
+type DestType = AlarmDestinationType;
+
+const CHANNEL_ICONS: Record<DestType, React.ElementType> = {
+	slack: SlackLogoIcon,
+	email: EnvelopeSimpleIcon,
+	webhook: GlobeSimpleIcon,
+};
 
 export const CHANNELS: Record<
 	DestType,
@@ -30,48 +40,37 @@ export const CHANNELS: Record<
 		fieldLabel: string;
 		placeholder: string;
 	}
-> = {
-	slack: {
-		label: "Slack",
-		icon: SlackLogoIcon,
-		fieldLabel: "Webhook URL",
-		placeholder: "https://hooks.slack.com/services/...",
-	},
-	email: {
-		label: "Email",
-		icon: EnvelopeSimpleIcon,
-		fieldLabel: "Email address",
-		placeholder: "alerts@example.com",
-	},
-	webhook: {
-		label: "Webhook",
-		icon: GlobeSimpleIcon,
-		fieldLabel: "Endpoint URL",
-		placeholder: "https://api.example.com/webhooks/...",
-	},
-};
+> = Object.fromEntries(
+	ALARM_DESTINATION_TYPES.map((type) => [
+		type,
+		{
+			label: ALARM_DESTINATION_REGISTRY[type].label,
+			icon: CHANNEL_ICONS[type],
+			fieldLabel: ALARM_DESTINATION_REGISTRY[type].fieldLabel,
+			placeholder: ALARM_DESTINATION_REGISTRY[type].placeholder,
+		},
+	])
+) as Record<
+	DestType,
+	{
+		label: string;
+		icon: React.ElementType;
+		fieldLabel: string;
+		placeholder: string;
+	}
+>;
 
 const MASK = "•";
-const HTTP_URL_PATTERN = /^https?:\/\//;
-const emailSchema = z.email();
 
 function destinationError(type: DestType, identifier: string): string | null {
 	if (identifier.includes(MASK)) {
 		return null;
 	}
-	if (type === "slack") {
-		return SLACK_WEBHOOK_PATTERN.test(identifier)
-			? null
-			: "Enter a hooks.slack.com webhook URL";
-	}
-	if (type === "email") {
-		return emailSchema.safeParse(identifier).success
-			? null
-			: "Enter a valid email address";
-	}
-	return HTTP_URL_PATTERN.test(identifier) && URL.canParse(identifier)
+	const result =
+		ALARM_DESTINATION_REGISTRY[type].identifierSchema.safeParse(identifier);
+	return result.success
 		? null
-		: "Enter an http:// or https:// URL";
+		: (result.error.issues[0]?.message ?? "Enter a valid value");
 }
 
 const destinationSchema = z
@@ -120,15 +119,23 @@ export function alarmMonitorIds(alarm: AlarmData): string[] {
 }
 
 function isMaskedDestination(destination: AlarmDestination) {
-	const headers = destination.config.headers;
-	return (
-		destination.identifier.includes(MASK) ||
-		(typeof headers === "object" &&
-			headers !== null &&
-			Object.values(headers).some(
-				(value) => typeof value === "string" && value.includes(MASK)
-			))
-	);
+	if (destination.identifier.includes(MASK)) {
+		return true;
+	}
+	const parsed = destTypeSchema.safeParse(destination.type);
+	if (!parsed.success) {
+		return false;
+	}
+	return ALARM_DESTINATION_REGISTRY[parsed.data].secretFields.some((field) => {
+		const value = destination.config[field];
+		if (value && typeof value === "object" && !Array.isArray(value)) {
+			return Object.values(value).some(
+				(fieldValue) =>
+					typeof fieldValue === "string" && fieldValue.includes(MASK)
+			);
+		}
+		return typeof value === "string" && value.includes(MASK);
+	});
 }
 
 interface AlarmSheetProps {

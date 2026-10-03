@@ -1,4 +1,8 @@
 import { readBooleanEnv } from "@databuddy/env/boolean";
+import {
+	type AlarmDestinationType,
+	isForbiddenWebhookHeaderName,
+} from "@databuddy/shared/alarm-destinations";
 import type { NotificationClientConfig } from "./client";
 import type { NotificationChannel } from "./types";
 
@@ -12,20 +16,6 @@ export interface AlarmNotificationTarget {
 	channel: NotificationChannel;
 	clientConfig: NotificationClientConfig;
 }
-
-const FORBIDDEN_WEBHOOK_HEADERS = new Set([
-	"authorization",
-	"content-length",
-	"content-type",
-	"cookie",
-	"host",
-	"connection",
-	"transfer-encoding",
-	"x-forwarded-for",
-	"x-forwarded-host",
-	"x-original-url",
-	"x-real-ip",
-]);
 
 const CRLF_PATTERN = /[\r\n]/;
 const SLACK_WEBHOOK_HOST = "hooks.slack.com";
@@ -63,7 +53,7 @@ function sanitizeWebhookHeaders(
 		if (typeof value !== "string") {
 			continue;
 		}
-		if (FORBIDDEN_WEBHOOK_HEADERS.has(name.toLowerCase())) {
+		if (isForbiddenWebhookHeaderName(name)) {
 			continue;
 		}
 		if (CRLF_PATTERN.test(name) || CRLF_PATTERN.test(value)) {
@@ -90,6 +80,93 @@ export function buildAlarmNotificationConfig(destinations: AlarmDestination[]) {
 
 export const MAX_ALARM_DESTINATIONS = 10;
 
+interface AlarmDeliveryContext {
+	defaultEmailFrom: string;
+}
+
+type AlarmDestinationBuilder = (
+	dest: AlarmDestination,
+	ctx: AlarmDeliveryContext
+) => AlarmNotificationTarget | undefined;
+
+const buildSlackTarget: AlarmDestinationBuilder = (dest) => {
+	if (!isAllowedSlackWebhook(dest.identifier)) {
+		return;
+	}
+	return {
+		channel: "slack",
+		clientConfig: { slack: { webhookUrl: dest.identifier } },
+	};
+};
+
+const buildWebhookTarget: AlarmDestinationBuilder = (dest) => {
+	const cfg = (dest.config ?? {}) as Record<string, unknown>;
+	return {
+		channel: "webhook",
+		clientConfig: {
+			webhook: {
+				url: dest.identifier,
+				headers: sanitizeWebhookHeaders(cfg.headers),
+			},
+		},
+	};
+};
+
+const buildEmailTarget: AlarmDestinationBuilder = (dest, ctx) => {
+	if (!process.env.RESEND_API_KEY) {
+		warnAlarmEmailUnconfigured();
+		return;
+	}
+	return {
+		channel: "email",
+		clientConfig: {
+			email: {
+				defaultTo: dest.identifier,
+				from: ctx.defaultEmailFrom,
+				sendEmailAction: async (payload: {
+					to: string | string[];
+					subject: string;
+					html?: string;
+					text?: string;
+				}) => {
+					const { Resend } = await import("resend");
+					const apiKey = process.env.RESEND_API_KEY;
+					if (!apiKey) {
+						throw new Error("Email delivery is not configured");
+					}
+					const resend = new Resend(apiKey);
+					const result = await resend.emails.send({
+						from: ctx.defaultEmailFrom,
+						to: Array.isArray(payload.to) ? payload.to : [payload.to],
+						subject: payload.subject,
+						html: payload.html || payload.text || "",
+						...(payload.text ? { text: payload.text } : {}),
+					});
+					if (result.error) {
+						throw new Error(`Email delivery failed: ${result.error.message}`);
+					}
+				},
+			},
+		},
+	};
+};
+
+/**
+ * Every destination type the delivery layer knows how to send to. Typed as a
+ * `Record` over `AlarmDestinationType` so adding a type to the shared
+ * registry without adding a builder here fails to compile; `Object.keys` of
+ * this map is also asserted against the DB and RPC type lists in
+ * `alarms.test.ts` so the three can't silently drift apart.
+ */
+export const ALARM_DESTINATION_BUILDERS: Record<
+	AlarmDestinationType,
+	AlarmDestinationBuilder
+> = {
+	slack: buildSlackTarget,
+	webhook: buildWebhookTarget,
+	email: buildEmailTarget,
+};
+
 export function buildAlarmNotificationTargets(
 	destinations: AlarmDestination[]
 ): AlarmNotificationTarget[] {
@@ -99,67 +176,19 @@ export function buildAlarmNotificationTargets(
 			(process.env.ALERTS_EMAIL_FROM?.trim() ||
 				process.env.EMAIL_FROM?.trim())) ||
 		"Databuddy <alerts@databuddy.cc>";
+	const ctx: AlarmDeliveryContext = { defaultEmailFrom };
 
+	const builders = ALARM_DESTINATION_BUILDERS as Record<
+		string,
+		AlarmDestinationBuilder | undefined
+	>;
 	for (const dest of destinations.slice(0, MAX_ALARM_DESTINATIONS)) {
-		const cfg = (dest.config ?? {}) as Record<string, unknown>;
-
-		if (dest.type === "slack") {
-			if (!isAllowedSlackWebhook(dest.identifier)) {
-				continue;
-			}
-			targets.push({
-				channel: "slack",
-				clientConfig: { slack: { webhookUrl: dest.identifier } },
-			});
-		} else if (dest.type === "webhook") {
-			targets.push({
-				channel: "webhook",
-				clientConfig: {
-					webhook: {
-						url: dest.identifier,
-						headers: sanitizeWebhookHeaders(cfg.headers),
-					},
-				},
-			});
-		} else if (dest.type === "email") {
-			if (!process.env.RESEND_API_KEY) {
-				warnAlarmEmailUnconfigured();
-				continue;
-			}
-			targets.push({
-				channel: "email",
-				clientConfig: {
-					email: {
-						defaultTo: dest.identifier,
-						from: defaultEmailFrom,
-						sendEmailAction: async (payload: {
-							to: string | string[];
-							subject: string;
-							html?: string;
-							text?: string;
-						}) => {
-							const { Resend } = await import("resend");
-							const apiKey = process.env.RESEND_API_KEY;
-							if (!apiKey) {
-								throw new Error("Email delivery is not configured");
-							}
-							const resend = new Resend(apiKey);
-							const result = await resend.emails.send({
-								from: defaultEmailFrom,
-								to: Array.isArray(payload.to) ? payload.to : [payload.to],
-								subject: payload.subject,
-								html: payload.html || payload.text || "",
-								...(payload.text ? { text: payload.text } : {}),
-							});
-							if (result.error) {
-								throw new Error(
-									`Email delivery failed: ${result.error.message}`
-								);
-							}
-						},
-					},
-				},
-			});
+		if (!Object.hasOwn(builders, dest.type)) {
+			continue;
+		}
+		const target = builders[dest.type]?.(dest, ctx);
+		if (target) {
+			targets.push(target);
 		}
 	}
 
