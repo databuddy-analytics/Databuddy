@@ -40,12 +40,11 @@ function utmDimension(options: {
 					name: "percentage",
 					type: "number",
 					label: "Traffic %",
-					description: "Percentage of total UTM traffic",
+					description: `Share of summed visitor counts across all UTM ${noun} groups`,
 					unit: "%",
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -103,7 +102,6 @@ export const TrafficBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -219,7 +217,6 @@ export const TrafficBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [

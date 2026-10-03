@@ -804,7 +804,7 @@ export const ErrorsBuilders = {
 
 	error_frequency: {
 		meta: {
-			description: "Error frequency and recurrence patterns.",
+			description: "Error counts per day.",
 			category: "Errors",
 			tags: ["errors", "frequency"],
 		},
@@ -824,7 +824,8 @@ export const ErrorsBuilders = {
 	error_summary: {
 		meta: {
 			title: "Error Summary",
-			description: "Overview of errors with calculated error rate",
+			description:
+				"Overview of errors with calculated error rate: sessions with a matching error as a percentage of all sessions in the range; filters apply to the errors only. uniqueErrorTypes counts distinct error messages.",
 			category: "Errors",
 			tags: ["errors", "summary", "overview"],
 		},

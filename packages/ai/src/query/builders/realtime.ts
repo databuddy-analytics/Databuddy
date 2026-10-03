@@ -30,7 +30,6 @@ export const RealtimeBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: [],
 		},
 		table: Analytics.events,
 		fields: ["path", "count() as pageviews", "uniq(anonymous_id) as visitors"],
@@ -71,7 +70,6 @@ export const RealtimeBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: [],
 		},
 		customSql: (ctx) => {
 			const { websiteId } = ctx;
@@ -128,7 +126,6 @@ export const RealtimeBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: [],
 		},
 		table: Analytics.events,
 		fields: ["country as name", "uniq(anonymous_id) as visitors"],
@@ -175,7 +172,6 @@ export const RealtimeBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: [],
 		},
 		table: Analytics.events,
 		fields: ["city", "country", "uniq(anonymous_id) as visitors"],
@@ -233,7 +229,6 @@ export const RealtimeBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: [],
 		},
 		table: Analytics.events,
 		fields: [
@@ -298,7 +293,6 @@ export const RealtimeBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: [],
 		},
 		customSql: (ctx) => {
 			const { websiteId } = ctx;
@@ -362,7 +356,6 @@ export const RealtimeBuilders = {
 				},
 			],
 			default_visualization: "timeseries",
-			supports_granularity: [],
 		},
 		customSql: (ctx) => {
 			const { websiteId } = ctx;

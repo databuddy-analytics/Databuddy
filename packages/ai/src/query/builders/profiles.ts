@@ -833,6 +833,7 @@ export const ProfilesBuilders = {
 			category: "Profiles",
 			tags: ["profiles", "users", "detail"],
 		},
+		commonFilters: false,
 		allowedFilters: ["anonymous_id"],
 		requiredFilters: ["anonymous_id"],
 		customSql: (ctx) => {
@@ -912,6 +913,7 @@ export const ProfilesBuilders = {
 			category: "Profiles",
 			tags: ["profiles", "revenue", "transactions"],
 		},
+		commonFilters: false,
 		allowedFilters: ["anonymous_id"],
 		requiredFilters: ["anonymous_id"],
 		customSql: (ctx) => {
@@ -988,6 +990,7 @@ export const ProfilesBuilders = {
 			category: "Profiles",
 			tags: ["profiles", "sessions", "history"],
 		},
+		commonFilters: false,
 		allowedFilters: ["anonymous_id"],
 		requiredFilters: ["anonymous_id"],
 		prepareSql: profileIdentityPrepareStages,

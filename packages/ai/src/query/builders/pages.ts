@@ -71,13 +71,12 @@ export const PagesBuilders = {
 					name: "percentage",
 					type: "number",
 					label: "Traffic %",
-					description: "Percentage of total traffic",
+					description: "Share of summed visitor counts across all page groups",
 					unit: "%",
 					example: 12.5,
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
 		},
 	},
 
@@ -236,7 +235,7 @@ export const PagesBuilders = {
 			description:
 				"Pageviews and unique visitors per page, ranked by visitors. Returns no load timing; use web_vitals_by_page or vitals_by_page for LCP, FCP, INP and TTFB per page.",
 			category: "Performance",
-			tags: ["pages", "performance", "load time"],
+			tags: ["pages", "performance"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -321,7 +320,7 @@ export const PagesBuilders = {
 		meta: {
 			title: "Page Time Analysis",
 			description:
-				"Analysis of time spent on each page, showing median time with quality filters to ensure reliable data.",
+				"Analysis of time spent on each page, showing median time from page exits that recorded more than 1 and less than 3600 seconds.",
 			category: "Engagement",
 			tags: ["time", "engagement", "pages", "performance"],
 			output_fields: [
@@ -335,8 +334,9 @@ export const PagesBuilders = {
 				{
 					name: "sessions_with_time",
 					type: "number",
-					label: "Sessions with Time Data",
-					description: "Number of sessions with valid time measurements",
+					label: "Page Exits with Time Data",
+					description:
+						"Number of page exits that recorded more than 1 and less than 3600 seconds",
 					example: 245,
 				},
 				{
@@ -358,13 +358,12 @@ export const PagesBuilders = {
 					name: "percentage",
 					type: "number",
 					label: "Share",
-					description: "Percentage of total visitors",
+					description: "Share of summed visitor counts across all page groups",
 					unit: "%",
 					example: 15.8,
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
 		},
 	},
 } satisfies Record<string, SimpleQueryConfig>;
