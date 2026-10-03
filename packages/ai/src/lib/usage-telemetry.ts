@@ -98,6 +98,7 @@ export function summarizeAgentUsage(modelId: string, usage: AgentUsage) {
 	}
 	return {
 		...summary,
+		agent_steps: usages.length,
 		total_tokens: summary.input_tokens + summary.output_tokens,
 		cost_input_usd: num(summary.cost_input_usd),
 		cost_output_usd: num(summary.cost_output_usd),

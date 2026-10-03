@@ -2,20 +2,30 @@ import {
 	appendFileSync,
 	copyFileSync,
 	mkdirSync,
+	readFileSync,
 	writeFileSync,
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { isDeepStrictEqual, parseArgs } from "node:util";
 import { createModelFromId } from "@databuddy/ai/config/models";
+import {
+	summarizeAgentUsage,
+	type AgentUsage,
+} from "@databuddy/ai/lib/usage-telemetry";
 import { QueryBuilders } from "@databuddy/ai/query/builders";
 import { createToolkit } from "@databuddy/ai/tools/toolkit";
 import { insightMeasurementSchema } from "@databuddy/shared/insights";
-import { tool, wrapLanguageModel, type ToolSet } from "ai";
+import {
+	tool,
+	wrapLanguageModel,
+	type LanguageModelMiddleware,
+	type ToolSet,
+} from "ai";
 import { z } from "zod";
 import dayjs from "dayjs";
 import { detectSignals, type QueryFn } from "../detection";
 import { prepareInvestigation } from "../investigation";
-import { resolveSync } from "bun";
+import { resolveSync, spawnSync } from "bun";
 import {
 	INSIGHTS_MODEL_ID,
 	runInsightAgent,
@@ -26,8 +36,16 @@ import {
 const ABSENCE_CLAIM =
 	/\b(?:does not exist|no longer exists|retired route|absent from the site|nonexistent route|(?:route|path|page) (?:is |was |has been )?(?:missing|removed|deleted|retired|unavailable)|(?:missing|removed|deleted|retired) (?:route|path|page))\b/i;
 
-const STEADY_ARRIVALS =
-	/\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained|held)\s+)?(?:unchanged|steady|stable)\b|\b(?:unchanged|steady|stable)\s+(?:new-user\s+)?(?:visits|arrivals)\b|\b(?:visits|arrivals)\s+(?:(?:were|are|stayed|remained|held)\s+(?:at\s+)?1[,.]?200\b(?!\s+(?:this|that|last|during|in\s+the\s+(?:current|latest)))|(?:at\s+)?1[,.]?200\s+(?:(?:in|across|for)\s+)?(?:both|each)\b)/i;
+const CLAUSE_CHARACTER = String.raw`(?:(?!\b(?:but|while|whereas|although|though|yet|not|never|fell|dropped|declined|decreased|rose|grew|increased)\b)[^.;,])`;
+const STEADY_ARRIVALS = new RegExp(
+	[
+		String.raw`\b(?:unchanged|steady|stable)\s+(?:new-user\s+)?(?:visits|arrivals)\b`,
+		String.raw`\b(?:visits|arrivals)\b${CLAUSE_CHARACTER}{0,60}?\b(?:unchanged|steady|stable)\b`,
+		String.raw`\b(?:visits|arrivals)\s+(?:were|are|stayed|remained|held)\s+(?:at\s+)?1[,.]?200\b(?!\s+(?:this|that|last|during|in\s+the\s+(?:current|latest)))`,
+		String.raw`\b(?:visits|arrivals)\b${CLAUSE_CHARACTER}{0,24}?\b1[,.]?200(?:\s*(?:→|->|to)\s*1[,.]?200|\s+(?:(?:in|across|for)\s+)?(?:both|each))\b`,
+	].join("|"),
+	"i"
+);
 const SOURCE_COHORT = /\bgoogle(?:\.com)?\b/i;
 const WORD_SEPARATOR = /\s+/;
 
@@ -312,14 +330,12 @@ export const qualityCases: QualityCase[] = [
 						}
 					: {},
 			check: ({ outcome }) => [
-				...(STEADY_ARRIVALS.test(
-					[
-						outcome.title,
-						outcome.summary,
-						outcome.impact,
-						...outcome.evidence,
-					].join(" ")
-				)
+				...([
+					outcome.title,
+					outcome.summary,
+					outcome.impact ?? "",
+					...outcome.evidence,
+				].some((text) => STEADY_ARRIVALS.test(text))
 					? []
 					: [
 							"Omitted the steady-arrivals comparison that distinguishes completion loss from reduced reach",
@@ -2102,6 +2118,54 @@ for (const available of [true, false]) {
 	});
 }
 
+const agentUsageSchema = z.custom<AgentUsage>(
+	(value) =>
+		z
+			.object({ inputTokens: z.number(), outputTokens: z.number() })
+			.safeParse(value).success
+);
+
+function requestSizes({
+	prompt,
+	tools = [],
+}: Parameters<
+	NonNullable<LanguageModelMiddleware["transformParams"]>
+>[0]["params"]) {
+	const functions = tools.filter(
+		(definition) => definition.type === "function"
+	);
+	const finish = functions.find(
+		(definition) => definition.name === "finish_investigation"
+	);
+	return {
+		systemChars: prompt
+			.flatMap((message) =>
+				message.role === "system" ? [message.content] : []
+			)
+			.join("").length,
+		userChars: prompt
+			.flatMap((message) =>
+				message.role === "user"
+					? message.content.flatMap((part) =>
+							part.type === "text" ? [part.text] : []
+						)
+					: []
+			)
+			.join("").length,
+		toolChars: functions.reduce(
+			(total, definition) =>
+				total +
+				definition.name.length +
+				(definition.description?.length ?? 0) +
+				JSON.stringify(definition.inputSchema).length,
+			0
+		),
+		finishSchemaChars: finish
+			? JSON.stringify(finish.inputSchema).length
+			: null,
+	};
+}
+
 export async function evaluate(
 	agent: typeof runInsightAgent,
 	fixture: QualityCase,
@@ -2140,12 +2204,18 @@ export async function evaluate(
 			{ mode: 0o600 }
 		);
 	const calls: { name: string; input: unknown; output?: unknown }[] = [];
+	const toolSequence: string[] = [];
 	let acceptedFinish: unknown;
+	let modelRequests = 0;
+	let finishRejections = 0;
+	let firstRequest: ReturnType<typeof requestSizes> | undefined;
 	const model = wrapLanguageModel({
 		model: createModelFromId(modelId),
 		middleware: {
 			specificationVersion: "v3",
 			transformParams: ({ params }) => {
+				modelRequests += 1;
+				firstRequest ??= requestSizes(params);
 				emit("model.request", params);
 				return Promise.resolve(params);
 			},
@@ -2212,6 +2282,13 @@ export async function evaluate(
 			model,
 			tools,
 			onStepFinish: (step) => {
+				const toolErrors = step.content.filter(
+					(item) => item.type === "tool-error"
+				);
+				toolSequence.push(...step.toolCalls.map((call) => call.toolName));
+				finishRejections += toolErrors.filter(
+					(item) => item.toolName === "finish_investigation"
+				).length;
 				for (const result of step.toolResults) {
 					if (
 						result.toolName === "finish_investigation" &&
@@ -2225,7 +2302,7 @@ export async function evaluate(
 					finishReason: step.finishReason,
 					toolCalls: step.toolCalls,
 					toolResults: step.toolResults,
-					toolErrors: step.content.filter((item) => item.type === "tool-error"),
+					toolErrors,
 					usage: step.usage,
 				});
 			},
@@ -2261,6 +2338,10 @@ export async function evaluate(
 			calls: calls.length,
 			briefWordCount,
 			reviewRequired: fixture.reviewRequired ?? null,
+			modelRequests,
+			finishRejections,
+			firstRequest,
+			toolSequence,
 			...result,
 		};
 	} catch (error) {
@@ -2273,8 +2354,203 @@ export async function evaluate(
 			durationMs: performance.now() - started,
 			calls: calls.length,
 			reviewRequired: fixture.reviewRequired ?? null,
+			modelRequests,
+			finishRejections,
+			firstRequest,
+			toolSequence,
+			...z
+				.object({
+					modelId: z.string(),
+					toolCallCount: z.number(),
+					usage: agentUsageSchema,
+				})
+				.safeParse(error).data,
 		};
 	}
+}
+
+const evalRunSchema = z.object({
+	id: z.string(),
+	completed: z.boolean(),
+	failures: z.array(z.string()),
+	calls: z.number(),
+	modelId: z.string().optional(),
+	usage: agentUsageSchema.optional(),
+	completion: z.enum(["complete", "incomplete"]).optional(),
+	briefWordCount: z.number().optional(),
+	finishRejections: z.number().optional(),
+	modelRequests: z.number().optional(),
+	firstRequest: z
+		.object({
+			systemChars: z.number(),
+			userChars: z.number(),
+			toolChars: z.number(),
+			finishSchemaChars: z.number().nullable(),
+		})
+		.optional(),
+});
+type EvalRun = z.infer<typeof evalRunSchema>;
+
+const SCORES = [
+	"passRate",
+	"reads",
+	"finishRejections",
+	"modelRequests",
+	"inputTokens",
+	"outputTokens",
+	"costUsd",
+	"briefWords",
+	"completeRate",
+] as const;
+type Score = (typeof SCORES)[number];
+const RATE_SCORES = new Set<Score>(["passRate", "completeRate"]);
+const COLUMNS = [
+	["pass", "passRate"],
+	["reads", "reads"],
+	["rejections", "finishRejections"],
+	["input", "inputTokens"],
+	["output", "outputTokens"],
+	["words", "briefWords"],
+	["complete", "completeRate"],
+] as const;
+
+function mean(values: number[]) {
+	return values.reduce((total, value) => total + value, 0) / values.length;
+}
+
+function meanScores(runs: EvalRun[], model: string) {
+	const perRun = runs.map((run): Partial<Record<Score, number>> => {
+		const usage =
+			run.usage && summarizeAgentUsage(run.modelId ?? model, run.usage);
+		return {
+			passRate: run.completed && run.failures.length === 0 ? 1 : 0,
+			reads: run.calls,
+			finishRejections: run.finishRejections,
+			modelRequests: run.modelRequests,
+			inputTokens: usage?.input_tokens,
+			outputTokens: usage?.output_tokens,
+			costUsd: usage?.cost_total_usd,
+			briefWords: run.briefWordCount,
+			completeRate: run.completion === "complete" ? 1 : 0,
+		};
+	});
+	const means: Partial<Record<Score, number>> = {};
+	const samples: Partial<Record<Score, number>> = {};
+	for (const score of SCORES) {
+		const values = perRun.flatMap((run) => run[score] ?? []);
+		if (values.length > 0) {
+			means[score] = mean(values);
+			samples[score] = values.length;
+		}
+	}
+	return { ...means, samples };
+}
+
+export function scoreboard(runs: EvalRun[], model: string) {
+	const cases = new Map<string, EvalRun[]>();
+	for (const run of runs) {
+		const id = run.id.slice(0, run.id.lastIndexOf("-"));
+		const caseRuns = cases.get(id) ?? [];
+		caseRuns.push(run);
+		cases.set(id, caseRuns);
+	}
+	return [...cases].map(([id, caseRuns]) => ({
+		id,
+		runs: caseRuns.length,
+		...meanScores(caseRuns, model),
+		firstRequest: caseRuns.find((run) => run.firstRequest)?.firstRequest,
+	}));
+}
+
+export function scoreDeltas(
+	current: ReturnType<typeof scoreboard>,
+	baselines: ReturnType<typeof scoreboard>[]
+) {
+	return current.map((entry) => {
+		const references = baselines.flatMap((baseline) =>
+			baseline.filter((item) => item.id === entry.id)
+		);
+		const deltas: Partial<
+			Record<Score, { delta: number; band: number | null; noise: boolean }>
+		> = {};
+		for (const score of SCORES) {
+			const value = entry[score];
+			const means = references.flatMap((item) => item[score] ?? []);
+			if (value === undefined || means.length === 0) {
+				continue;
+			}
+			const sampleCount = references.reduce(
+				(total, item) => total + (item.samples[score] ?? 0),
+				0
+			);
+			const baselineMean =
+				references.reduce(
+					(total, item) =>
+						total + (item[score] ?? 0) * (item.samples[score] ?? 0),
+					0
+				) / sampleCount;
+			const delta = value - baselineMean;
+			const band =
+				means.length > 1 ? Math.max(...means) - Math.min(...means) : null;
+			deltas[score] = {
+				delta,
+				band,
+				noise: band !== null && Math.abs(delta) <= band + 1e-9,
+			};
+		}
+		return {
+			id: entry.id,
+			baselineRuns: references.reduce((total, item) => total + item.runs, 0),
+			deltas,
+		};
+	});
+}
+
+function formatAmount(score: Score, value: number) {
+	return score === "reads" || score === "finishRejections"
+		? value.toFixed(1)
+		: Math.round(value).toLocaleString("en-US");
+}
+
+function formatScore(score: Score, value: number | undefined, runs: number) {
+	if (value === undefined) {
+		return "-";
+	}
+	return RATE_SCORES.has(score)
+		? `${Math.round(value * runs)}/${runs}`
+		: formatAmount(score, value);
+}
+
+function formatDelta(
+	score: Score,
+	change: { delta: number; noise: boolean } | undefined
+) {
+	if (!change) {
+		return "-";
+	}
+	const amount = RATE_SCORES.has(score)
+		? `${Math.round(change.delta * 100)}pp`
+		: formatAmount(score, change.delta);
+	return `${change.noise && change.delta !== 0 ? "~" : ""}${change.delta > 0 ? "+" : ""}${amount}`;
+}
+
+function printTable(rows: string[][]) {
+	const widths: number[] = [];
+	for (const row of rows) {
+		for (const [column, cell] of row.entries()) {
+			widths[column] = Math.max(widths[column] ?? 0, cell.length);
+		}
+	}
+	process.stdout.write(
+		`${rows
+			.map((row) =>
+				row
+					.map((cell, column) => cell.padEnd(widths[column] ?? 0))
+					.join("  ")
+					.trimEnd()
+			)
+			.join("\n")}\n`
+	);
 }
 
 if (import.meta.main) {
@@ -2286,6 +2562,7 @@ if (import.meta.main) {
 			agent: { type: "string" },
 			cases: { type: "string" },
 			model: { type: "string", default: INSIGHTS_MODEL_ID },
+			baseline: { type: "string" },
 		},
 	});
 	if (!values.out) {
@@ -2297,6 +2574,24 @@ if (import.meta.main) {
 	if (!Number.isInteger(runs) || runs < 1 || runs > 5) {
 		throw new Error("--runs must be between 1 and 5");
 	}
+	const baselineDirectories =
+		values.baseline?.split(",").map((path) => resolve(path)) ?? [];
+	const baselines = baselineDirectories.map((path) => {
+		const { model, results } = z
+			.object({ model: z.string(), results: z.array(evalRunSchema) })
+			.parse(JSON.parse(readFileSync(resolve(path, "results.json"), "utf8")));
+		return scoreboard(results, model);
+	});
+	const gitOutput = (...args: string[]) =>
+		spawnSync(["git", "-C", import.meta.dir, ...args]).stdout.toString();
+	const changed = gitOutput("status", "--porcelain")
+		.split("\n")
+		.filter(Boolean);
+	const git = {
+		head: gitOutput("rev-parse", "HEAD").trim(),
+		dirty: changed.length > 0,
+		changed,
+	};
 	const directory = resolve(values.out);
 	mkdirSync(directory, { recursive: true, mode: 0o700 });
 	const agentPath = values.agent
@@ -2362,6 +2657,74 @@ if (import.meta.main) {
 				);
 			}
 		}
+	}
+	const cases = scoreboard(results, values.model);
+	const total = meanScores(results, values.model);
+	const spendUsd = results.reduce(
+		(sum, run) =>
+			sum +
+			(run.usage
+				? summarizeAgentUsage(run.modelId ?? values.model, run.usage)
+						.cost_total_usd
+				: 0),
+		0
+	);
+	const deltas =
+		baselines.length > 0 ? scoreDeltas(cases, baselines) : undefined;
+	writeFileSync(
+		resolve(directory, "summary.json"),
+		JSON.stringify(
+			{
+				model: values.model,
+				runs,
+				git,
+				total: { runs: results.length, spendUsd, ...total },
+				cases,
+				baseline: deltas && {
+					directories: baselineDirectories,
+					cases: deltas,
+				},
+			},
+			null,
+			2
+		)
+	);
+	const header = ["case", ...COLUMNS.map(([label]) => label)];
+	printTable([
+		header,
+		...cases.map((entry) => [
+			entry.id,
+			...COLUMNS.map(([, score]) =>
+				formatScore(score, entry[score], entry.runs)
+			),
+		]),
+		[
+			"all",
+			...COLUMNS.map(([, score]) =>
+				formatScore(score, total[score], results.length)
+			),
+		],
+	]);
+	process.stdout.write(
+		`${git.head.slice(0, 9)} ${git.dirty ? `dirty (${changed.length} changed paths)` : "clean"}; spend $${spendUsd.toFixed(2)}\n`
+	);
+	if (deltas) {
+		process.stdout.write(
+			`Change vs ${baselineDirectories.join(", ")}. ${baselines.length > 1 ? "~ marks a change within the spread of identical baseline runs." : "Pass two or more identical baseline directories to mark noise."}\n`
+		);
+		printTable([
+			header,
+			...deltas.map((entry) =>
+				entry.baselineRuns === 0
+					? [entry.id, "not in baseline"]
+					: [
+							entry.id,
+							...COLUMNS.map(([, score]) =>
+								formatDelta(score, entry.deltas[score])
+							),
+						]
+			),
+		]);
 	}
 	// Flush the piped summary before exiting unused imported client pools.
 	process.stdout.write("", () => {

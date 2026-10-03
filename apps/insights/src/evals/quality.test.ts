@@ -1,9 +1,14 @@
 import "@databuddy/test/env";
 import { expect, it } from "bun:test";
+import type { AgentUsage } from "@databuddy/ai/lib/usage-telemetry";
 import type { InsightDefinitionEditChanges } from "@databuddy/shared/insights";
 import { z } from "zod";
-import { renderRevenueEvidence, type InsightAgentResult } from "../agent";
-import { qualityCases } from "./quality";
+import {
+	INSIGHTS_MODEL_ID,
+	renderRevenueEvidence,
+	type InsightAgentResult,
+} from "../agent";
+import { qualityCases, scoreboard, scoreDeltas } from "./quality";
 
 it.each([
 	{ comparison: "There were 1,200 visits.", retained: false },
@@ -23,8 +28,32 @@ it.each([
 		comparison: "Completions fell 80→24, while new-user visits remained 1,200.",
 		retained: true,
 	},
+	{
+		comparison:
+			"Completed accounts: 80 → 24; new-user visits: 1200 → 1200, August 22–28 → August 29–September 4, 2026.",
+		retained: true,
+	},
+	{
+		comparison:
+			"Completed accounts: 80 → 24 (−56), August 22–28 → August 29–September 4, 2026; new-user visits: 1200 in each window.",
+		retained: true,
+	},
+	{
+		comparison:
+			"New-user visits and account-creation collection coverage remained unchanged throughout.",
+		retained: true,
+	},
 	{ comparison: "Visits held at 1,200 this week.", retained: false },
 	{ comparison: "Completions fell from 80 to 24.", retained: false },
+	{ comparison: "Visits fell from 1200 to 900.", retained: false },
+	{
+		comparison: "Visits fell while account-creation tracking stayed unchanged.",
+		retained: false,
+	},
+	{
+		comparison: "Fewer visits completed signup, and tracking stayed unchanged.",
+		retained: false,
+	},
 ])("scores the steady-arrival context rather than an exact count: $comparison", ({
 	comparison,
 	retained,
@@ -575,4 +604,79 @@ it.each([
 	expect(output).toMatchObject(
 		valid ? { content: expect.any(String) } : { error: expect.any(String) }
 	);
+});
+
+it("marks a baseline delta as noise only within the spread of identical baseline runs", () => {
+	const run = (
+		id: string,
+		passed: boolean,
+		inputTokens: number
+	): Parameters<typeof scoreboard>[0][number] => {
+		const usage: AgentUsage = {
+			inputTokens,
+			inputTokenDetails: {
+				noCacheTokens: inputTokens,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+			},
+			outputTokens: 10,
+			outputTokenDetails: { textTokens: 10, reasoningTokens: 0 },
+			totalTokens: inputTokens + 10,
+		};
+		return {
+			id,
+			completed: true,
+			failures: passed ? [] : ["Missed the control"],
+			calls: 1,
+			usage,
+		};
+	};
+	const baselines = [
+		[run("case-1", true, 1000), run("case-2", true, 1000)],
+		[run("case-1", true, 1400), run("case-2", false, 1400)],
+	].map((runs) => scoreboard(runs, INSIGHTS_MODEL_ID));
+	const current = scoreboard(
+		[run("case-1", false, 1300), run("case-2", false, 1300)],
+		INSIGHTS_MODEL_ID
+	);
+	expect(scoreDeltas(current, baselines)).toMatchObject([
+		{
+			id: "case",
+			baselineRuns: 4,
+			deltas: {
+				passRate: { delta: -0.75, band: 0.5, noise: false },
+				inputTokens: { delta: 100, band: 400, noise: true },
+			},
+		},
+	]);
+	expect(scoreDeltas(current, baselines.slice(0, 1))).toMatchObject([
+		{ deltas: { inputTokens: { delta: 300, band: null, noise: false } } },
+	]);
+});
+
+it("weights unequal baseline sets by the observed runs for each metric", () => {
+	const run = (id: string, passed: boolean, briefWordCount?: number) => ({
+		id,
+		completed: true,
+		failures: passed ? [] : ["Missed the control"],
+		calls: 1,
+		briefWordCount,
+	});
+	const baselines = [
+		[run("case-1", true, 10)],
+		Array.from({ length: 4 }, (_, index) =>
+			run(`case-${index + 1}`, false, index === 0 ? undefined : 20)
+		),
+	].map((runs) => scoreboard(runs, INSIGHTS_MODEL_ID));
+	const current = scoreboard([run("case-1", false, 10)], INSIGHTS_MODEL_ID);
+	expect(scoreDeltas(current, baselines)).toMatchObject([
+		{
+			id: "case",
+			baselineRuns: 5,
+			deltas: {
+				passRate: { delta: -0.2 },
+				briefWords: { delta: -7.5 },
+			},
+		},
+	]);
 });

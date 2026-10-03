@@ -73,6 +73,7 @@ describe("summarizeAgentUsage", () => {
 		});
 		expect(summary.cost_total_usd).toBeCloseTo(cost, 9);
 		expect(summary.agent_credits_used).toBeCloseTo(cost * 20, 9);
+		expect(summary.agent_steps).toBe(1);
 	});
 
 	test.each([
@@ -120,6 +121,7 @@ describe("summarizeAgentUsage", () => {
 		expect(summary.output_tokens).toBe(1000);
 		expect(summary.total_tokens).toBe(201_000);
 		expect(summary.cost_total_usd).toBeCloseTo(0.41, 9);
+		expect(summary.agent_steps).toBe(2);
 	});
 	test("preserves explicitly zero fresh input", () => {
 		const summary = summarizeAgentUsage("openai/gpt-6.1-sol", {
