@@ -136,7 +136,7 @@ Query analytics data with full parameter control:
 | `timeZone` | string | No | Timezone for date calculations |
 
 <Callout type="info">
-  Error tracking starts on the Hobby plan. On the free plan, the error query types (`recent_errors`, `error_types`, `errors_by_page`, `error_summary`, `error_chart_data`, `error_trends`, `error_frequency`, `errors_by_type`) return `402` with code `FEATURE_UNAVAILABLE`.
+  Error tracking starts on the Hobby plan. On the free plan, every query type in the `Errors` category returns `402` with code `FEATURE_UNAVAILABLE`, for website and organization queries alike. `GET /v1/query/types?include_meta=true` lists each type's category.
 </Callout>
 
 ## Date Presets

@@ -1,5 +1,16 @@
 /** biome-ignore-all lint/performance/noBarrelFile: this is a barrel file */
+import { readBooleanEnv } from "@databuddy/env/boolean";
+import { getBillingOwner } from "@databuddy/rpc/billing";
+import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
+import {
+	type GatedFeatureId,
+	GATED_FEATURES,
+	getFeatureUnavailableMessage,
+	getNextPlanForFeature,
+	isFeatureAvailable,
+} from "@databuddy/shared/types/features";
 import { z } from "zod";
+import { getCachedWebsite } from "../lib/website-utils";
 import { getQueryBuilder, suggestQueryTypes } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
 import {
@@ -113,6 +124,51 @@ export const executeQuery = async (
 		onCompiled
 	);
 };
+
+const PLAN_GATED_QUERY_CATEGORIES: Record<string, GatedFeatureId> = {
+	Errors: GATED_FEATURES.ERROR_TRACKING,
+};
+
+export async function queryPlanGateError(
+	queryTypes: string[],
+	scope: { organizationId: string | null } | { websiteId: string }
+): Promise<string | null> {
+	if (readBooleanEnv("SELFHOST")) {
+		return null;
+	}
+	const required = new Set<GatedFeatureId>();
+	for (const type of queryTypes) {
+		const category = getQueryBuilder(type)?.meta?.category;
+		const feature = category && PLAN_GATED_QUERY_CATEGORIES[category];
+		if (feature) {
+			required.add(feature);
+		}
+	}
+	if (required.size === 0) {
+		return null;
+	}
+
+	const organizationId =
+		"websiteId" in scope
+			? ((await getCachedWebsite(scope.websiteId))?.organizationId ?? null)
+			: scope.organizationId;
+	const ownerId = organizationId
+		? await getOrganizationOwnerId(organizationId)
+		: null;
+	const planId = ownerId
+		? (await getBillingOwner(ownerId, organizationId)).planId
+		: null;
+
+	for (const feature of required) {
+		if (!isFeatureAvailable(planId, feature)) {
+			return getFeatureUnavailableMessage(
+				feature,
+				getNextPlanForFeature(planId, feature)
+			);
+		}
+	}
+	return null;
+}
 
 export const compileQuery = (
 	request: QueryRequest,
