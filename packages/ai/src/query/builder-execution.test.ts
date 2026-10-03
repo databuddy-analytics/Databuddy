@@ -51,11 +51,10 @@ const isClickHouseUp = await fetch("http://127.0.0.1:8123/?query=SELECT+1", {
 process.env.CLICKHOUSE_URL = TEST_CLICKHOUSE_URL;
 const { clickHouse } = await import("@databuddy/db/clickhouse");
 
-const iit = isClickHouseUp ? it : it.skip;
-const describeIntegration =
-	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"
-		? describe
-		: describe.skip;
+// SQL planning runs only when integration tests are explicitly requested.
+const integrationEnabled = process.env.CLICKHOUSE_INTEGRATION_TESTS === "true";
+const iit = integrationEnabled && isClickHouseUp ? it : it.skip;
+const describeIntegration = integrationEnabled ? describe : describe.skip;
 
 if (isClickHouseUp) {
 	setDefaultTimeout(15_000);
@@ -70,7 +69,7 @@ if (!isClickHouseUp) {
 afterAll(async () => {
 	// The explicit integration run has more ClickHouse suites after this file.
 	// Isolated builder runs still close their client normally.
-	if (isClickHouseUp && process.env.CLICKHOUSE_INTEGRATION_TESTS !== "true") {
+	if (isClickHouseUp && !integrationEnabled) {
 		await clickHouse.close();
 	}
 });
@@ -133,7 +132,7 @@ async function explainCompiles(
 	const result = await clickHouse.query({
 		query: `EXPLAIN ${sql}`,
 		query_params: params,
-		format: "TSVRaw",
+		format: "TabSeparatedRaw",
 	});
 	await result.text();
 
@@ -563,7 +562,10 @@ describeIntegration("profile query identity against ClickHouse", () => {
 				detailQuery.sql,
 				detailQuery.params
 			),
-			chQuery<{ session_id: string }>(sessionsQuery.sql, sessionsQuery.params),
+			chQuery<{
+				events: ProfileSessionEventTuple[];
+				session_id: string;
+			}>(sessionsQuery.sql, sessionsQuery.params),
 		]);
 
 		expect(Number(detailRows[0]?.total_pageviews)).toBe(4);
