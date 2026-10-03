@@ -44,6 +44,24 @@ curl -X POST ${apiUrl}/public/v1/agent-telemetry \\
 Skip it if the user asks you not to send anything.`;
 }
 
+export function aiCrawlerSetupPrompt(websiteId: string): string {
+	return `Set up Databuddy AI crawler tracking in this project.
+
+GPTBot, ClaudeBot and most AI crawlers don't run JavaScript, so the Databuddy script never sees them. The server has to report them, with one line from @databuddy/sdk/agents.
+
+1. Install @databuddy/sdk@latest with this project's package manager.
+2. Find where requests enter the app and add tracking there:
+   - Next.js 16 without a proxy.ts: create proxy.ts with \`export { proxy } from "@databuddy/sdk/agents";\`
+   - Next.js 15 or earlier without a middleware.ts: create middleware.ts with \`export { proxy as middleware } from "@databuddy/sdk/agents";\`
+   - Other frameworks on Vercel without middleware: create middleware.ts at the project root with \`export { proxy as default } from "@databuddy/sdk/agents";\`
+   - Everywhere else, or when a proxy, middleware or edge function already exists: call \`trackAgents(request)\` from "@databuddy/sdk/agents" on every request inside it, without awaiting it, and keep the existing logic. Hand the promise to waitUntil where the platform has one: event.waitUntil in Next.js, ctx.waitUntil in Cloudflare Workers, context.waitUntil in Netlify Edge Functions.
+3. Make sure no matcher or config skips .md, .txt or llms.txt paths, so markdown and llms.txt reads are recorded.
+4. Set the website ID to ${websiteId}: NEXT_PUBLIC_DATABUDDY_CLIENT_ID in Next.js (already set if the Databuddy SDK is installed), DATABUDDY_WEBSITE_ID elsewhere, or pass it as the websiteId option.
+5. After deploying, ask me to open the AI agents page in Databuddy and press Test setup.
+
+Docs: https://www.databuddy.cc/docs/sdk/ai-agents`;
+}
+
 const AGENT_FEATURE_GUIDE = `## What to enable, and when
 
 Page views and sessions are automatic. Turn on the rest based on what the codebase tells you, and say which ones you enabled and why:

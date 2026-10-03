@@ -56,6 +56,7 @@ import {
 	calculatePreviousPeriod,
 	formatDateByGranularity,
 } from "../_components/utils/analytics-helpers";
+import { aiCrawlerSetupPrompt } from "../_components/utils/code-generators";
 
 type ReadFocus = ContentFormat | "all";
 
@@ -401,6 +402,47 @@ function robotsLine(agent: ReadingAgent): string {
 	return agent.purpose === "user_fetch" && agent.robots !== "allowed"
 		? `robots.txt: ${status.label}. Fetches made for a user may not follow it`
 		: `robots.txt: ${status.label}`;
+}
+
+const BLOCKED_IMPACT: Partial<
+	Record<AgentPurpose, { effect: string; role: string }>
+> = {
+	search_index: {
+		effect: "can't show your pages in its search results",
+		role: "finds pages for its search results",
+	},
+	user_fetch: {
+		effect: "may skip your pages when someone asks about them",
+		role: "opens pages when someone asks it about them",
+	},
+};
+
+function robotsFix(
+	agent: ReadingAgent
+): { effect: string; prompt: string } | null {
+	const impact = BLOCKED_IMPACT[agent.purpose];
+	if (
+		!(
+			impact &&
+			agent.robots === "blocked" &&
+			agent.operator &&
+			!agent.purpose_inferred
+		)
+	) {
+		return null;
+	}
+	return {
+		effect: impact.effect,
+		prompt: `Let ${agent.name} read this site by fixing robots.txt.
+
+${agent.name} is how ${agent.product} ${impact.role}. Databuddy recorded ${formatCount(agent.requests, "request")} from it across ${formatCount(agent.pages, "page")} in the selected period, and robots.txt now blocks it.
+
+1. Find where robots.txt is served from: a static robots.txt, a generated route such as app/robots.ts, or a CMS or hosting setting.
+2. Find the rule that blocks ${agent.name}. It is either a group that names the crawler or the User-agent: * group.
+3. Allow ${agent.name} on public pages. A group that names the crawler replaces the * group for it, so when * is the blocker, add a group for ${agent.name} and copy over only the Disallow lines for private paths such as admin, account and API routes.
+4. Leave the rules for every other crawler unchanged.
+5. After deploying, open /robots.txt and confirm the change.`,
+	};
 }
 
 function requestChangeLine(agent: ReadingAgent): string {
@@ -783,6 +825,7 @@ function AgentDetail({
 	trend: TrendPoint[] | null;
 }) {
 	const status = robotsStatus(agent);
+	const fix = robotsFix(agent);
 	const robotsLabel =
 		status?.label ??
 		(robots.isPending ? "Checking…" : null) ??
@@ -809,6 +852,18 @@ function AgentDetail({
 					</span>
 				) : null}
 			</div>
+			{fix ? (
+				<div className="flex items-center justify-between gap-3 rounded border border-border/60 px-3 py-2.5">
+					<Text tone="muted" variant="caption">
+						While robots.txt blocks {agent.name}, {agent.product} {fix.effect}.
+					</Text>
+					<CopyButton
+						label="Copy fix prompt"
+						value={fix.prompt}
+						variant="secondary"
+					/>
+				</div>
+			) : null}
 			<Sparkline
 				id={`ai-agent-${agent.agent_id}`}
 				isHourly={isHourly}
@@ -1798,6 +1853,8 @@ const SETUP_STACKS = [
 				code: 'export { proxy } from "@databuddy/sdk/agents";',
 				env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
 				envHint: "Already set if this app uses the Databuddy SDK.",
+				fileHint:
+					"Already have a proxy.ts? Call trackAgents(request) inside it, and keep .md and .txt paths in its matcher.",
 				caption: "Adds proxy.ts, the Next.js 16 replacement for middleware.",
 				file: "proxy.ts",
 				id: "next16",
@@ -1807,6 +1864,8 @@ const SETUP_STACKS = [
 				code: 'export { proxy as middleware } from "@databuddy/sdk/agents";',
 				env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
 				envHint: "Already set if this app uses the Databuddy SDK.",
+				fileHint:
+					"Already have a middleware.ts? Call trackAgents(request) inside it, and keep .md and .txt paths in its matcher.",
 				caption: "Adds a one-line middleware.ts.",
 				file: "middleware.ts",
 				id: "next15",
@@ -1854,6 +1913,29 @@ export default {
 				file: "worker.ts",
 				id: "workers",
 				label: "Workers",
+			},
+		],
+	},
+	{
+		id: "netlify",
+		label: "Netlify",
+		methods: [
+			{
+				code: `import { trackAgents } from "@databuddy/sdk/agents";
+
+export default (request, context) => {
+	const websiteId = Netlify.env.get("DATABUDDY_WEBSITE_ID");
+	context.waitUntil(trackAgents(request, { websiteId }));
+};
+
+export const config = { path: "/*" };`,
+				env: "DATABUDDY_WEBSITE_ID",
+				envHint: "Add it under Site configuration, then Environment variables.",
+				caption:
+					"Runs at Netlify's edge in front of every request, including static llms.txt and markdown files.",
+				file: "netlify/edge-functions/databuddy.ts",
+				id: "netlify",
+				label: "Edge Function",
 			},
 		],
 	},
@@ -2019,6 +2101,17 @@ function AgentSetupSheet({
 					</div>
 				</Sheet.Header>
 				<Sheet.Body className="space-y-6">
+					<div className="flex items-center justify-between gap-3 rounded border border-border/60 px-3 py-2.5">
+						<Text tone="muted" variant="caption">
+							Using Claude Code, Cursor or another coding agent? Let it do the
+							setup.
+						</Text>
+						<CopyButton
+							label="Copy setup prompt"
+							value={aiCrawlerSetupPrompt(websiteId)}
+							variant="secondary"
+						/>
+					</div>
 					<div className="space-y-3">
 						<div className="space-y-2">
 							<Text variant="label">Platform</Text>
@@ -2064,6 +2157,11 @@ function AgentSetupSheet({
 								</SetupStep>
 								<SetupStep step={2} title={`Add ${method.file}`}>
 									<SetupCode code={method.code} />
+									{"fileHint" in method ? (
+										<Text tone="muted" variant="caption">
+											{method.fileHint}
+										</Text>
+									) : null}
 								</SetupStep>
 								<SetupStep step={3} title="Set your website ID">
 									<SetupCode
