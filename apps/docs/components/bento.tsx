@@ -25,7 +25,6 @@ const BentoCard = ({
 	icon: Icon,
 	children,
 	className,
-	headerClassName,
 	contentClassName,
 	href,
 }: {
@@ -34,21 +33,16 @@ const BentoCard = ({
 	icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
 	children: React.ReactNode;
 	className?: string;
-	headerClassName?: string;
 	contentClassName?: string;
 	href?: string;
 }) => (
-	<motion.div
+	<div
 		className={cn(
 			"group relative overflow-hidden border border-border bg-card backdrop-blur-xl duration-500",
 			className
 		)}
-		initial={{ opacity: 1, y: 0 }}
-		transition={{ duration: 0.5, ease: "easeOut" }}
-		viewport={{ once: true }}
-		whileInView={{ opacity: 1, y: 0 }}
 	>
-		<CardHeader className={cn("relative z-20 px-6 py-4", headerClassName)}>
+		<CardHeader className="relative z-20 px-6 py-4">
 			<div className="flex items-start justify-between gap-3">
 				<div className="flex items-center gap-3">
 					<div className="flex size-8 items-center justify-center bg-secondary/40 ring-1 ring-border">
@@ -79,7 +73,7 @@ const BentoCard = ({
 		<CardContent className={cn("relative z-10 p-6 pt-0", contentClassName)}>
 			{children}
 		</CardContent>
-	</motion.div>
+	</div>
 );
 
 const buildSmoothPath = (values: number[], width: number, height: number) => {
