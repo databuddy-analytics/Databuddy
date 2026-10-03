@@ -34,6 +34,7 @@ const common = {
 	allowedFilters: [
 		"client",
 		"tool",
+		"error_code",
 		"server_name",
 		"environment",
 		"website_id",
@@ -44,7 +45,7 @@ const common = {
 
 const meta = (title: string, description: string) => ({
 	title,
-	description: `${description} Covers MCP servers tracked with @databuddy/sdk/mcp. An organization-scoped query covers all of the organization's calls; a website-scoped query only sees calls linked to that website, so calls from servers without a website ID are left out of it. Filter by client, tool, server_name, environment or website_id.`,
+	description: `${description} Covers MCP servers tracked with @databuddy/sdk/mcp. An organization-scoped query covers all of the organization's calls; a website-scoped query only sees calls linked to that website, so calls from servers without a website ID are left out of it. Filter by client, tool, error_code, server_name, environment or website_id.`,
 	category: "MCP",
 	tags: ["mcp", "model context protocol", "tool calls", "agents"],
 });
@@ -225,14 +226,18 @@ export const McpBuilders = {
 		meta: {
 			...meta(
 				"MCP Errors",
-				"Failed tool calls grouped by tool and error message, most frequent first."
+				"Failed tool calls grouped by tool and error code, or by message when the server reported no code, most frequent first. message is the latest message, messages counts distinct messages and samples lists the most common ones."
 			),
 			output_fields: [
 				{ name: "tool", type: "string" },
-				{ name: "error", type: "string" },
+				{ name: "error_code", type: "string" },
+				{ name: "message", type: "string" },
 				{ name: "occurrences", type: "number" },
+				{ name: "messages", type: "number" },
+				{ name: "samples", type: "json" },
 				{ name: "sessions", type: "number" },
 				{ name: "clients", type: "json" },
+				{ name: "first_seen", type: "datetime" },
 				{ name: "last_seen", type: "datetime" },
 			],
 			default_visualization: "table",
@@ -241,15 +246,19 @@ export const McpBuilders = {
 			sql: `
 				SELECT
 					tool,
-					error,
+					error_code,
+					argMax(error, timestamp) AS message,
 					count() AS occurrences,
+					uniq(error) AS messages,
+					topK(5)(error) AS samples,
 					uniqIf(session_id, session_id != '') AS sessions,
 					topKIf(3)(client, client != '') AS clients,
+					min(timestamp) AS first_seen,
 					max(timestamp) AS last_seen
 				FROM ${Analytics.mcp_spans}
 				WHERE ${inRange(ctx)} AND is_error
-				GROUP BY tool, error
-				ORDER BY occurrences DESC
+				GROUP BY tool, error_code, if(error_code = '', error, '')
+				ORDER BY occurrences DESC, last_seen DESC
 				LIMIT {limit:UInt32}
 			`,
 			params: params(ctx),
