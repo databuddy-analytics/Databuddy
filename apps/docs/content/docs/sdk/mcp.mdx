@@ -128,7 +128,9 @@ Without an API key, `trackMcp` leaves the server untouched. An API key limited t
 
 ## What gets recorded
 
-Each tool call records the tool name, whether it failed and its error message (the first text of an `isError` result or the thrown message, unwrapped to its `message` when it is a JSON error body, up to 512 characters), how long your handler took, how many characters of text the tool returned (divide by about 4 for tokens), the client's name and version, your server's name and version, the MCP session ID when your server keeps sessions, and the user agent.
+Each tool call records the tool name, whether it failed, its error code and its error message, how long your handler took, how many characters of text the tool returned (divide by about 4 for tokens), the client's name and version, your server's name and version, the MCP session ID when your server keeps sessions, and the user agent.
+
+The error message is the first text of an `isError` result or the thrown message, up to 512 characters. The error code groups failures on the MCP page: it comes from a JSON error body such as `{"error": {"code": "not_found", "message": "Website not found"}}` (the message is unwrapped too), from MCP protocol errors such as `invalid_params` for bad arguments or an unknown tool, or from the `code` or name of an error your low-level `Server` handler throws. Return errors as JSON with a `code` to see them grouped by cause.
 
 A call that asks the client for more input is recorded once, when it returns its final result. Calls that a client runs as a background task aren't recorded.
 
@@ -138,7 +140,7 @@ Tracking never changes what a client receives. It doesn't throw, doesn't delay r
 
 ### Keep error messages private
 
-Error messages can include input your handler put in them. To keep them on your server and still count the call as failed, blank the message:
+Error messages can include input your handler put in them. To keep them on your server and still count the call as failed, blank the message; the error code is still sent:
 
 <CodeBlock language="ts">
   {`trackMcp(server, {
