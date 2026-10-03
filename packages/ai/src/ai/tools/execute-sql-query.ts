@@ -1,5 +1,5 @@
 import {
-	AGENT_SQL_VALIDATION_ERROR,
+	AGENT_TENANT_FILTERS,
 	buildAdditionalTableFilters,
 	extractAllowlistedTables,
 	validateAgentSQL,
@@ -43,7 +43,7 @@ export async function executeAgentSqlForWebsite({
 }): Promise<QueryResult> {
 	const validation = validateAgentSQL(sql);
 	if (!validation.valid) {
-		throw new Error(validation.reason ?? AGENT_SQL_VALIDATION_ERROR);
+		throw new Error(validation.reason);
 	}
 
 	const referencedTables = extractAllowlistedTables(sql);
@@ -78,13 +78,13 @@ export async function executeAgentSqlForWebsite({
 }
 
 export const executeSqlQueryTool = tool({
-	description: `Read-only ClickHouse SQL for session-level joins, path analysis, or cross-table correlations the get_data builders can't express. SELECT/WITH only; use CTEs instead of subqueries/UNION; {paramName:Type} placeholders only. Every WHERE needs the per-table tenant filter on the correct column — call describe_schema when in doubt; the validator rejects wrong-column queries (it does not silently return zero rows). Footguns the validator can't catch for you: analytics.events uses "time" as its timestamp column ("timestamp" elsewhere); pageviews are event_name = 'screen_view' (never 'pageview'); use uniq() not COUNT(DISTINCT); quantileTDigest on a Decimal column needs toFloat64() cast; session sets selected by different events can overlap, so never add or compare them as exclusive cohorts unless the query makes them exclusive.`,
+	description: `Read-only ClickHouse SQL for session-level joins, path analysis, or cross-table correlations the get_data builders can't express. SELECT/WITH only; use CTEs instead of subqueries/UNION; {paramName:Type} placeholders only. describe_schema returns a table's columns, types and notes. Footguns: analytics.events uses "time" as its timestamp column ("timestamp" elsewhere); pageviews are event_name = 'screen_view' (never 'pageview'); use uniq() not COUNT(DISTINCT); quantileTDigest on a Decimal column needs toFloat64() cast; session sets selected by different events can overlap, so never add or compare them as exclusive cohorts unless the query makes them exclusive.`,
 	strict: true,
 	inputSchema: z.object({
 		sql: z
 			.string()
 			.describe(
-				"Read-only ClickHouse SELECT/WITH query for an explicit analytics request. Must include client_id = {websiteId:String} AND-ed at the top level of every SELECT's WHERE."
+				`Read-only ClickHouse SELECT/WITH query. Every SELECT that reads a table ANDs that table's tenant filter at the top level of its WHERE: ${AGENT_TENANT_FILTERS}.`
 			),
 		websiteId: z
 			.string()

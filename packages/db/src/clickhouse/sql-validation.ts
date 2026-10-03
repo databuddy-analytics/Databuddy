@@ -1,4 +1,6 @@
 const ALLOWED_TABLE_PREFIX = "analytics.";
+const WEBSITE_ID_PARAM = "{websiteId:String}";
+const ORG_TENANT_COLUMN = "owner_id";
 export const AGENT_TENANT_COLUMN_BY_TABLE: Readonly<Record<string, string>> = {
 	"analytics.events": "client_id",
 	"analytics.error_spans": "client_id",
@@ -99,6 +101,7 @@ export const AGENT_TABLE_COLUMNS: Readonly<
 	]),
 	"analytics.custom_events": new Set([
 		"owner_id",
+		"website_id",
 		"anonymous_id",
 		"profile_id",
 		"session_id",
@@ -108,11 +111,13 @@ export const AGENT_TABLE_COLUMNS: Readonly<
 	]),
 	"analytics.revenue": new Set([
 		"owner_id",
+		"website_id",
 		"transaction_id",
 		"amount",
 		"currency",
 		"provider",
 		"type",
+		"status",
 		"customer_id",
 		"anonymous_id",
 		"profile_id",
@@ -143,18 +148,63 @@ export const AGENT_TABLE_COLUMNS: Readonly<
 		"verification",
 	]),
 };
+
+function tenantColumns(table: string): string[] {
+	const column = AGENT_TENANT_COLUMN_BY_TABLE[table];
+	if (!column) {
+		return [];
+	}
+	return column === ORG_TENANT_COLUMN ? [column, "website_id"] : [column];
+}
+
+function tenantPredicate(
+	columns: readonly string[],
+	value: string,
+	prefix = ""
+): string {
+	const comparisons = columns.map((column) => `${prefix}${column} = ${value}`);
+	return comparisons.length > 1
+		? `(${comparisons.join(" OR ")})`
+		: comparisons.join("");
+}
+
+export function agentTenantFilter(table: string, alias = ""): string {
+	return tenantPredicate(
+		tenantColumns(table),
+		WEBSITE_ID_PARAM,
+		alias ? `${alias}.` : ""
+	);
+}
+
+function describeTenantFilters(): string {
+	const tablesByFilter = new Map<string, string[]>();
+	for (const table of Object.keys(AGENT_TENANT_COLUMN_BY_TABLE)) {
+		const filter = agentTenantFilter(table);
+		const tables = tablesByFilter.get(filter) ?? [];
+		tables.push(table);
+		tablesByFilter.set(filter, tables);
+	}
+	return [...tablesByFilter]
+		.sort(([, a], [, b]) => b.length - a.length)
+		.map(([filter, tables], index) =>
+			index === 0 ? `\`${filter}\`` : `\`${filter}\` on ${tables.join(" and ")}`
+		)
+		.join(", or ");
+}
+
+export const AGENT_TENANT_FILTERS = describeTenantFilters();
+
 export function buildAdditionalTableFilters(
 	tables: Iterable<string>,
 	websiteId: string
 ): string {
-	const escapedForMapValue = websiteId.replaceAll("'", "''''");
+	const quotedWebsiteId = `''${websiteId.replaceAll("'", "''''")}''`;
 	const entries: string[] = [];
 	for (const table of tables) {
-		const column = AGENT_TENANT_COLUMN_BY_TABLE[table];
-		if (!column) {
-			continue;
+		const columns = tenantColumns(table);
+		if (columns.length > 0) {
+			entries.push(`'${table}':'${tenantPredicate(columns, quotedWebsiteId)}'`);
 		}
-		entries.push(`'${table}':'${column}=''${escapedForMapValue}'''`);
 	}
 	return `{${entries.join(",")}}`;
 }
@@ -165,16 +215,19 @@ const SELECT_OR_WITH_PATTERN = /^\s*(?:SELECT|WITH)\b/i;
 const CTE_PATTERN = /(?:\bWITH\b|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s+AS\s*\(/gi;
 const RELATION_PATTERN =
 	/\b(?:FROM|JOIN)\s+(`[^`]+`|"[^"]+"|[a-zA-Z_][a-zA-Z0-9_.]*)(\s*\()?(?:\s+(?:AS\s+)?(?!ON\b|JOIN\b|LEFT\b|RIGHT\b|FULL\b|INNER\b|OUTER\b|CROSS\b|ASOF\b|ANY\b|ALL\b|SEMI\b|ANTI\b|ARRAY\b|FINAL\b|USING\b|WHERE\b|PREWHERE\b|GROUP\b|ORDER\b|HAVING\b|LIMIT\b|OFFSET\b|SETTINGS\b|WINDOW\b)([a-zA-Z_][a-zA-Z0-9_]*))?/gi;
-const TENANT_FILTER_PATTERN =
-	/\b(?:client_id|owner_id)\s*=\s*\{websiteId\s*:\s*String\}/i;
-const ALIASED_TENANT_FILTER_PATTERN =
-	/(?:\b([a-zA-Z_][a-zA-Z0-9_]*)\.)?\b(?:client_id|owner_id)\s*=\s*\{websiteId\s*:\s*String\}/gi;
-const ALIASED_TENANT_FILTER_WITH_COLUMN_PATTERN =
-	/(?:\b([a-zA-Z_][a-zA-Z0-9_]*)\.)?\b(client_id|owner_id)\s*=\s*\{websiteId\s*:\s*String\}/gi;
+const TENANT_COMPARISON_PATTERN =
+	/(?:\b([a-zA-Z_][a-zA-Z0-9_]*)\.)?\b(client_id|owner_id|website_id)\s*=\s*\{websiteId\s*:\s*String\}/gi;
+const TENANT_GROUP_PATTERN =
+	/\(\s*(?:\b([a-zA-Z_][a-zA-Z0-9_]*)\.)?\b(owner_id|website_id)\s*=\s*\{websiteId\s*:\s*String\}\s+OR\s+(?:\b([a-zA-Z_][a-zA-Z0-9_]*)\.)?\b(owner_id|website_id)\s*=\s*\{websiteId\s*:\s*String\}\s*\)/gi;
 const SELECT_KEYWORD_PATTERN = /\bSELECT\b/gi;
+const WITH_KEYWORD_PATTERN = /\bWITH\b/gi;
+const CTE_HEADER_PATTERN =
+	/^\s*[a-zA-Z_][a-zA-Z0-9_]*\s+AS\s*(?:,\s*[a-zA-Z_][a-zA-Z0-9_]*\s+AS\s*)*$/i;
 const FROM_KEYWORD_PATTERN = /\bFROM\b/gi;
 const WHERE_KEYWORD_PATTERN = /\bWHERE\b/gi;
 const TOP_LEVEL_OR_PATTERN = /\bOR\b/i;
+const CONJUNCT_START_PATTERN = /(?:^|\bAND)\s*$/i;
+const CONJUNCT_END_PATTERN = /^\s*(?:AND\b|$)/i;
 const CLAUSE_TERMINATOR_PATTERN =
 	/\b(?:GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT|OFFSET|SETTINGS|WINDOW|JOIN)\b/i;
 const FROM_CLAUSE_TERMINATOR_PATTERN =
@@ -183,7 +236,8 @@ const PAGEVIEW_EVENT_PATTERN = /\bevent_name\s*=\s*(['"])pageview\1/i;
 const SELECT_PROJECTION_PATTERN = /\bSELECT\b([\s\S]*?)\bFROM\b/gi;
 const WILDCARD_PROJECTION_PATTERN =
 	/(?:^|,)\s*(?:(?:DISTINCT|ALL)\s+)?(?:[a-zA-Z_][a-zA-Z0-9_]*\s*\.\s*)?\*\s*(?=,|$|\b(?:APPLY|EXCEPT|REPLACE)\b)/i;
-const SENSITIVE_PROJECTION_PATTERN = /\b(?:ip|properties|url|user_agent)\b/i;
+const SENSITIVE_PROJECTION_PATTERN =
+	/\b(?:ip|metadata|properties|url|user_agent)\b/i;
 
 function maskCommentsAndStrings(sql: string): string {
 	let result = "";
@@ -297,17 +351,17 @@ function extractCteNames(sql: string): Set<string> {
 	return ctes;
 }
 
-function parenDepthAt(sql: string, position: number): number {
-	let depth = 0;
+function enclosingParenAt(sql: string, position: number): number {
+	const open: number[] = [];
 	for (let i = 0; i < position; i++) {
 		const ch = sql[i];
 		if (ch === "(") {
-			depth++;
+			open.push(i);
 		} else if (ch === ")") {
-			depth--;
+			open.pop();
 		}
 	}
-	return depth;
+	return open.at(-1) ?? -1;
 }
 
 function extractRelationReferences(sql: string): {
@@ -315,14 +369,14 @@ function extractRelationReferences(sql: string): {
 	alias: string;
 	isFunction: boolean;
 	raw: string;
-	depth: number;
+	index: number;
 }[] {
 	const refs: {
 		name: string;
 		alias: string;
 		isFunction: boolean;
 		raw: string;
-		depth: number;
+		index: number;
 	}[] = [];
 	RELATION_PATTERN.lastIndex = 0;
 	let match = RELATION_PATTERN.exec(sql);
@@ -338,7 +392,7 @@ function extractRelationReferences(sql: string): {
 			alias: explicitAlias ?? impliedAlias,
 			isFunction: Boolean(match[2]),
 			raw,
-			depth: parenDepthAt(sql, match.index),
+			index: match.index,
 		});
 		match = RELATION_PATTERN.exec(sql);
 	}
@@ -359,18 +413,21 @@ function validateSelectProjections(sql: string): string | null {
 	return null;
 }
 
-function whereClauseBodies(sql: string): string[] {
-	const bodies: string[] = [];
+function whereClauses(sql: string): { body: string; scope: number }[] {
+	const clauses: { body: string; scope: number }[] = [];
 	WHERE_KEYWORD_PATTERN.lastIndex = 0;
 	let m = WHERE_KEYWORD_PATTERN.exec(sql);
 	while (m) {
 		const start = m.index + m[0].length;
 		const end = findClauseEnd(sql, start);
-		bodies.push(sql.slice(start, end));
+		clauses.push({
+			body: sql.slice(start, end),
+			scope: enclosingParenAt(sql, m.index),
+		});
 		WHERE_KEYWORD_PATTERN.lastIndex = end;
 		m = WHERE_KEYWORD_PATTERN.exec(sql);
 	}
-	return bodies;
+	return clauses;
 }
 
 function hasCommaJoinInSanitizedFrom(sql: string): boolean {
@@ -393,38 +450,38 @@ export function hasCommaJoinInFrom(sql: string): boolean {
 	return hasCommaJoinInSanitizedFrom(maskCommentsAndStrings(sql));
 }
 
-function topLevelHasTenantFilter(whereBody: string): boolean {
-	return TENANT_FILTER_PATTERN.test(flattenToTopLevel(whereBody));
-}
-
-function topLevelTenantFilterAliases(whereBody: string): Set<string> {
+function topLevelTenantFilters(whereBody: string): Map<string, Set<string>> {
+	const filtersByAlias = new Map<string, Set<string>>();
 	const flat = flattenToTopLevel(whereBody);
-	const aliases = new Set<string>();
-	ALIASED_TENANT_FILTER_PATTERN.lastIndex = 0;
-	let match = ALIASED_TENANT_FILTER_PATTERN.exec(flat);
-	while (match) {
-		aliases.add((match[1] ?? "").toLowerCase());
-		match = ALIASED_TENANT_FILTER_PATTERN.exec(flat);
+	const isConjunct = (match: RegExpExecArray) =>
+		CONJUNCT_START_PATTERN.test(flat.slice(0, match.index)) &&
+		CONJUNCT_END_PATTERN.test(flat.slice(match.index + match[0].length));
+	const add = (alias: string | undefined, columns: string[]) => {
+		const key = (alias ?? "").toLowerCase();
+		const unique = [
+			...new Set(columns.map((column) => column.toLowerCase())),
+		].sort();
+		const filters = filtersByAlias.get(key) ?? new Set<string>();
+		filters.add(tenantPredicate(unique, WEBSITE_ID_PARAM));
+		filtersByAlias.set(key, filters);
+	};
+	for (const match of flat.matchAll(TENANT_COMPARISON_PATTERN)) {
+		if (isConjunct(match)) {
+			add(match[1], [match[2] as string]);
+		}
 	}
-	return aliases;
-}
-
-function topLevelTenantColumnsByAlias(
-	whereBody: string
-): Map<string, Set<string>> {
-	const flat = flattenToTopLevel(whereBody);
-	const columnsByAlias = new Map<string, Set<string>>();
-	ALIASED_TENANT_FILTER_WITH_COLUMN_PATTERN.lastIndex = 0;
-	let match = ALIASED_TENANT_FILTER_WITH_COLUMN_PATTERN.exec(flat);
-	while (match) {
-		const alias = (match[1] ?? "").toLowerCase();
-		const column = (match[2] ?? "").toLowerCase();
-		const set = columnsByAlias.get(alias) ?? new Set<string>();
-		set.add(column);
-		columnsByAlias.set(alias, set);
-		match = ALIASED_TENANT_FILTER_WITH_COLUMN_PATTERN.exec(flat);
+	for (const match of whereBody.matchAll(TENANT_GROUP_PATTERN)) {
+		const sameAlias =
+			(match[1] ?? "").toLowerCase() === (match[3] ?? "").toLowerCase();
+		if (
+			sameAlias &&
+			enclosingParenAt(whereBody, match.index) === -1 &&
+			isConjunct(match)
+		) {
+			add(match[1], [match[2] as string, match[4] as string]);
+		}
 	}
-	return columnsByAlias;
+	return filtersByAlias;
 }
 
 function hasTopLevelOr(whereBody: string): boolean {
@@ -442,10 +499,9 @@ export function extractAllowlistedTables(sql: string): Set<string> {
 	return tables;
 }
 
-export function validateAgentSQL(sql: string): {
-	valid: boolean;
-	reason: string | null;
-} {
+export function validateAgentSQL(
+	sql: string
+): { valid: true; reason: null } | { valid: false; reason: string } {
 	const sanitized = maskCommentsAndStrings(sql);
 
 	if (!SELECT_OR_WITH_PATTERN.test(sanitized)) {
@@ -473,6 +529,25 @@ export function validateAgentSQL(sql: string): {
 	}
 
 	const cteNames = extractCteNames(sanitized);
+	// Scalar WITH aliases can hide protected columns from the SELECT guard.
+	// Support CTEs only; safe scalar expressions can stay in SELECT.
+	for (const match of sanitized.matchAll(WITH_KEYWORD_PATTERN)) {
+		const remaining = sanitized.slice(match.index + match[0].length);
+		const flat = flattenToTopLevel(remaining);
+		const select = flat.search(SELECT_KEYWORD_PATTERN);
+		const header = flat.slice(0, select);
+		if (
+			select < 0 ||
+			!CTE_HEADER_PATTERN.test(header) ||
+			extractCteNames(`WITH ${remaining.slice(0, select)}`).size === 0
+		) {
+			return {
+				valid: false,
+				reason:
+					"WITH supports CTEs only (name AS (SELECT ...)); put scalar expressions in SELECT.",
+			};
+		}
+	}
 	const refs = extractRelationReferences(sanitized);
 
 	if (refs.length === 0) {
@@ -557,69 +632,45 @@ export function validateAgentSQL(sql: string): {
 		};
 	}
 
-	const whereBodies = whereClauseBodies(sanitized);
-	if (whereBodies.length === 0) {
-		return {
-			valid: false,
-			reason: "Query must include a WHERE clause with tenant isolation.",
-		};
-	}
-
-	const outerNonCteRefs = refs.filter(
-		(ref) => ref.depth === 0 && !cteNames.has(ref.name)
-	);
-	const outerNonCteRelationAliases = new Set(
-		outerNonCteRefs.map((ref) => ref.alias.toLowerCase())
-	);
-	const requirePerAliasTenantFilter = outerNonCteRelationAliases.size > 1;
-
-	for (const body of whereBodies) {
-		if (!topLevelHasTenantFilter(body)) {
-			return {
-				valid: false,
-				reason:
-					"Every WHERE must include a tenant filter (`client_id = {websiteId:String}` or `owner_id = {websiteId:String}`) AND-ed at the top level.",
-			};
-		}
-		if (hasTopLevelOr(body)) {
+	const clauses = whereClauses(sanitized);
+	for (const clause of clauses) {
+		if (hasTopLevelOr(clause.body)) {
 			return {
 				valid: false,
 				reason:
 					"Top-level OR in WHERE is not allowed; wrap OR predicates inside parentheses so the tenant filter remains AND-ed.",
 			};
 		}
+	}
 
-		const columnsByAlias = topLevelTenantColumnsByAlias(body);
-		const unaliasedColumns = columnsByAlias.get("") ?? new Set<string>();
-
-		if (requirePerAliasTenantFilter) {
-			const filteredAliases = topLevelTenantFilterAliases(body);
-			for (const alias of outerNonCteRelationAliases) {
-				if (!filteredAliases.has(alias)) {
-					return {
-						valid: false,
-						reason: `Multi-table query: each non-CTE table needs its own tenant filter \`${alias}.client_id = {websiteId:String}\` AND-ed at the top level. Missing for alias "${alias}".`,
-					};
-				}
-			}
+	const tableRefs = refs
+		.filter((ref) => !cteNames.has(ref.name))
+		.map((ref) => ({ ...ref, scope: enclosingParenAt(sanitized, ref.index) }));
+	for (const ref of tableRefs) {
+		const required = agentTenantFilter(ref.name);
+		const clause = clauses.find((candidate) => candidate.scope === ref.scope);
+		if (!clause) {
+			return {
+				valid: false,
+				reason: `Table ${ref.raw} needs a WHERE clause that ANDs \`${required}\` at the top level.`,
+			};
 		}
-
-		for (const ref of outerNonCteRefs) {
-			const requiredColumn = AGENT_TENANT_COLUMN_BY_TABLE[ref.name];
-			if (!requiredColumn) {
-				continue;
-			}
-			const aliasColumns =
-				columnsByAlias.get(ref.alias.toLowerCase()) ?? new Set<string>();
-			const seenColumns = new Set([...aliasColumns, ...unaliasedColumns]);
-			if (!seenColumns.has(requiredColumn)) {
-				const aliasPrefix = requirePerAliasTenantFilter ? `${ref.alias}.` : "";
-				return {
-					valid: false,
-					reason: `Table ${ref.raw} requires tenant filter \`${aliasPrefix}${requiredColumn} = {websiteId:String}\`. Using ${requiredColumn === "owner_id" ? "client_id" : "owner_id"} silently returns zero rows because the server-side filter is on ${requiredColumn}.`,
-				};
-			}
+		const filters = topLevelTenantFilters(clause.body);
+		const needsAlias = tableRefs.some(
+			(other) => other.scope === ref.scope && other.alias !== ref.alias
+		);
+		if (
+			filters.get(ref.alias)?.has(required) ||
+			(!needsAlias && filters.get("")?.has(required))
+		) {
+			continue;
 		}
+		return {
+			valid: false,
+			reason: needsAlias
+				? `Multi-table query: alias "${ref.alias}" needs its own tenant filter \`${agentTenantFilter(ref.name, ref.alias)}\` AND-ed at the top level.`
+				: `Table ${ref.raw} requires tenant filter \`${required}\` AND-ed at the top level.`,
+		};
 	}
 
 	const projectionError = validateSelectProjections(sanitized);
@@ -629,7 +680,3 @@ export function validateAgentSQL(sql: string): {
 
 	return { valid: true, reason: null };
 }
-
-export const AGENT_SQL_VALIDATION_ERROR =
-	"Query failed security validation. Only SELECT/WITH against analytics.* tables are allowed. " +
-	"Use parameterized queries with {paramName:Type} syntax and include WHERE client_id = {websiteId:String} AND-ed at the top level of every SELECT.";

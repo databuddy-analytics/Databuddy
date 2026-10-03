@@ -3,7 +3,6 @@ import {
 	AGENT_TENANT_COLUMN_BY_TABLE,
 	CUSTOM_EVENTS_VISITOR_KEY,
 	EVENTS_VISITOR_KEY,
-	validateAgentSQL,
 } from "@databuddy/db/clickhouse";
 
 export const SCHEMA_SECTIONS = [
@@ -39,66 +38,61 @@ export const ANALYTICS_TABLES: TableDef[] = [
 			"anonymous_id (String) - Anonymous device identifier",
 			"profile_id (String) - Identified user id from identify(), '' when anonymous",
 			"session_id (String) - Session identifier",
-			"time (DateTime64) - Event timestamp",
-			"timestamp (DateTime64) - Alternative timestamp",
+			"time (DateTime64(3, 'UTC')) - Event timestamp",
+			"timestamp (DateTime64(3)) - Alternative timestamp",
 
 			"path (String) - URL path",
 			"url (String) - Full URL",
-			"title (String) - Page title",
-			"referrer (String) - Referrer URL",
+			"title (Nullable(String))",
+			"referrer (Nullable(String))",
 
-			"user_agent (String)",
-			"browser_name (String)",
-			"browser_version (String)",
-			"os_name (String)",
-			"os_version (String)",
-			"device_type (String) - mobile/desktop/tablet",
-			"device_brand (String)",
-			"device_model (String)",
+			"browser_name (Nullable(String))",
+			"browser_version (Nullable(String))",
+			"os_name (Nullable(String))",
+			"os_version (Nullable(String))",
+			"device_type (Nullable(String)) - mobile/desktop/tablet",
+			"device_brand (Nullable(String))",
+			"device_model (Nullable(String))",
 
-			"ip (String)",
-			"country (String) - ISO country code",
-			"region (String) - State/province",
-			"city (String)",
+			"country (Nullable(String)) - ISO country code",
+			"region (Nullable(String)) - State/province",
+			"city (Nullable(String))",
 
-			"time_on_page (Float32) - Seconds spent on page",
-			"scroll_depth (Float32) - Max scroll percentage (0-100)",
-			"interaction_count (Int16) - Number of interactions",
-			"page_count (UInt8) - Pages in session",
+			"time_on_page (Nullable(Float32)) - Seconds spent on page",
+			"scroll_depth (Nullable(Float32)) - Max scroll percentage (0-100)",
+			"interaction_count (Nullable(Int16)) - Number of interactions",
+			"page_count (UInt8) - Page views so far in one page load; restarts on a full reload",
 
-			"utm_source (String)",
-			"utm_medium (String)",
-			"utm_campaign (String)",
-			"utm_term (String)",
-			"utm_content (String)",
+			"utm_source (Nullable(String))",
+			"utm_medium (Nullable(String))",
+			"utm_campaign (Nullable(String))",
+			"utm_term (Nullable(String))",
+			"utm_content (Nullable(String))",
 
-			"viewport_size (String) - e.g. 1200x800",
-			"language (String) - Browser language",
-			"timezone (String) - User timezone",
+			"viewport_size (Nullable(String)) - e.g. 1200x800",
+			"language (Nullable(String)) - Browser language",
+			"timezone (Nullable(String)) - User timezone",
 		],
-		additionalInfo:
-			"Partitioned by month (toYYYYMM(time)), ordered by (client_id, time, id)",
+		additionalInfo: `Partitioned by month (toYYYYMM(time)), ordered by (client_id, time, id). Visitors on the dashboard are uniq(anonymous_id), one per device; people are uniq(${EVENTS_VISITOR_KEY}), which merges an identified user's devices.`,
 	},
 	{
 		name: "analytics.custom_events",
 		section: "custom_events",
-		description:
-			"Custom events from SDK track() / /track API. Keyed by owner_id (org ID), NOT client_id — use get_data custom_events_* builders, not raw SQL.",
+		description: "Custom events from SDK track() and the /track API.",
 		keyColumns: [
-			"owner_id (String) - Organization ID (not websiteId)",
-			"website_id (Nullable String) - Optional website scope",
-			"timestamp (DateTime64)",
-			"event_name (LowCardinality String)",
-			"namespace (LowCardinality Nullable String)",
-			"path (Nullable String)",
-			"properties (String) - JSON",
-			"anonymous_id (Nullable String)",
+			"owner_id (LowCardinality(String)) - Organization id",
+			"website_id (LowCardinality(Nullable(String))) - Website id; NULL for events sent without one",
+			"timestamp (DateTime64(3, 'UTC'))",
+			"event_name (LowCardinality(String))",
+			"namespace (LowCardinality(Nullable(String)))",
+			"path (Nullable(String))",
+			"properties (String) - JSON object; the custom_events_property_* builders read its keys and values, SQL projections cannot",
+			"anonymous_id (Nullable(String))",
 			"profile_id (String) - Identified user id from identify(), '' when anonymous",
-			"session_id (Nullable String)",
-			"source (LowCardinality Nullable String)",
+			"session_id (Nullable(String))",
+			"source (LowCardinality(Nullable(String)))",
 		],
-		additionalInfo:
-			"Partitioned by day, ordered by (owner_id, event_name, timestamp).",
+		additionalInfo: `Partitioned by month, ordered by (owner_id, event_name, timestamp). People are uniq(${CUSTOM_EVENTS_VISITOR_KEY}), as in the custom_events builders, so rows with neither id never count as a person.`,
 	},
 	{
 		name: "analytics.error_spans",
@@ -108,17 +102,17 @@ export const ANALYTICS_TABLES: TableDef[] = [
 			"client_id (String)",
 			"anonymous_id (String)",
 			"session_id (String)",
-			"timestamp (DateTime64)",
+			"timestamp (DateTime64(3, 'UTC'))",
 			"path (String) - Page where error occurred",
 			"message (String) - Full error message text (filter on this to search by content; field name is 'message', NOT 'error_message')",
-			"filename (String) - Source file",
-			"lineno (Int32) - Line number",
-			"colno (Int32) - Column number",
-			"stack (String) - Stack trace (truncated to 1500 chars in recent_errors output)",
-			"error_type (String) - JS error class name (Error, TypeError, ReferenceError, SyntaxError, etc.) — NOT the message. Filter by 'message' to match error text.",
+			"filename (Nullable(String))",
+			"lineno (Nullable(Int32))",
+			"colno (Nullable(Int32))",
+			"stack (Nullable(String)) - Stack trace (truncated to 1500 chars in recent_errors output)",
+			"error_type (LowCardinality(String)) - JS error class name (Error, TypeError, ReferenceError, SyntaxError, etc.); not the message. Filter by 'message' to match error text.",
 		],
 		additionalInfo:
-			"Has bloom filter indexes on session_id, error_type, and message. Filterable fields on error queries: path, message, error_type (plus the global filters: country, region, city, device_type, browser_name, os_name).",
+			"Error queries filter on path, message and error_type, and recent_errors also on country, region, device_type, browser_name and os_name.",
 	},
 	{
 		name: "analytics.engagement_spans",
@@ -129,13 +123,13 @@ export const ANALYTICS_TABLES: TableDef[] = [
 			"client_id (String)",
 			"anonymous_id (String)",
 			"session_id (String)",
-			"timestamp (DateTime64) - When the page view ended",
+			"timestamp (DateTime64(3, 'UTC')) - When the page view ended",
 			"path (String)",
-			"device_type (String) - mobile/desktop/tablet",
-			"browser_name (String)",
-			"country (String) - ISO country code",
+			"device_type (LowCardinality(String)) - mobile/desktop/tablet",
+			"browser_name (LowCardinality(String))",
+			"country (LowCardinality(String)) - ISO country code",
 			"page_index (UInt16) - Position of the page view in the session",
-			"exit_type (String) - spa (route change) or unload (tab closed or navigated away)",
+			"exit_type (LowCardinality(String)) - spa (route change) or unload (tab closed or navigated away)",
 			"time_on_page (UInt32) - Seconds on page",
 			"active_time (UInt32) - Seconds the tab was visible and focused; use as the denominator for engagement rates",
 			"time_to_first_interaction (UInt32) - Milliseconds until the first click, key, or scroll; 0 when none",
@@ -145,13 +139,13 @@ export const ANALYTICS_TABLES: TableDef[] = [
 			"key_count (UInt16)",
 			"interaction_count (UInt16) - All pointer, key, and scroll events",
 			"copy_count (UInt16) - Copy events on the page view",
-			"rage_click_count (UInt16) - Bursts of three or more clicks on one element, each within a second of the last, that got no DOM change, navigation, or other response after the first click, counted once per burst; form fields, text selection, canvas, video, and the page background are excluded. Rows written before the October 2026 tracker update also counted fast clicks on working controls",
-			"dead_click_count (UInt16) - Clicks on buttons, links, and other non-form controls that got no DOM change, navigation, or other response within 2.5 seconds; rows written before the October 2026 tracker update also counted form fields and iOS link taps, so earlier dead click rates are inflated",
-			"rage_click_target (String) - Descriptor of the last rage-clicked element: tag[:role]:label. The label is the data-track, aria-label, data-testid, name, or id, or for links the destination path or external host (a:/pricing, a:stripe.com). Unnamed elements end with their nearest named container or landmark, e.g. button:unnamed in dialog:checkout. Never contains visible text",
-			"dead_click_target (String) - Descriptor of the last dead-clicked control, same format",
+			"rage_click_count (UInt16) - With unanswered-click detection: bursts of three or more clicks on one element, each within a second of the last, that got no DOM change, navigation, or other response after the first click, counted once per burst; form fields, text selection, canvas, video, and the page background are excluded. Previous tracker versions also counted fast clicks on working controls and form fields. Verify the site's tracker version before interpreting counts; a date alone does not establish a cutover",
+			"dead_click_count (UInt16) - With unanswered-click detection: clicks on buttons, links, and other non-form controls that got no DOM change, navigation, or other response within 2.5 seconds. Previous tracker versions also counted form fields and iOS link taps, inflating their rates; verify the site's tracker version before interpreting counts",
+			"rage_click_target (String) - Descriptor of the last rage-clicked element, at most 64 characters: tag[:role]:label. The label is the data-track, aria-label, data-testid, name, or id, or for links the first path segment (a:/pricing, a:/blog/*) or the external site's domain (a:stripe.com). Unnamed elements end with their nearest landmark or developer-named container (button:unnamed in dialog:checkout)",
+			"dead_click_target (LowCardinality(String)) - Descriptor of the last dead-clicked control, same format",
 			"form_field_count (UInt16) - Distinct form fields focused on the page view",
 			"form_submit_count (UInt16) - Form submits on the page view",
-			"last_form_field (String) - Descriptor of the last focused field, e.g. input:email:work email",
+			"last_form_field (LowCardinality(String)) - Descriptor of the last focused field, e.g. input:email:work email",
 			"form_abandoned (UInt8) - 1 when fields were touched and nothing was submitted",
 			"error_count (UInt16) - Captured JavaScript errors during the page view",
 		],
@@ -166,9 +160,9 @@ export const ANALYTICS_TABLES: TableDef[] = [
 			"client_id (String)",
 			"anonymous_id (String)",
 			"session_id (String)",
-			"timestamp (DateTime64)",
+			"timestamp (DateTime64(3, 'UTC'))",
 			"path (String)",
-			"metric_name (String) - One of: FCP, LCP, CLS, INP, TTFB, FPS",
+			"metric_name (LowCardinality(String)) - One of: FCP, LCP, CLS, INP, TTFB, FPS",
 			"metric_value (Float64) - Metric value",
 		],
 		additionalInfo: `Rating thresholds (computed at query time):
@@ -187,28 +181,31 @@ export const ANALYTICS_TABLES: TableDef[] = [
 			"client_id (String)",
 			"anonymous_id (String)",
 			"session_id (String)",
-			"timestamp (DateTime64)",
+			"timestamp (DateTime64(3, 'UTC'))",
 			"href (String) - Destination URL",
-			"text (String) - Link text",
+			"text (Nullable(String))",
 		],
 	},
 	{
 		name: "analytics.revenue",
 		section: "revenue",
-		description:
-			"Instrumented revenue transactions. Keyed by owner_id (org ID), NOT client_id — quantileTDigest needs toFloat64() on the Decimal amount column.",
+		description: "Revenue transactions from payment providers.",
 		keyColumns: [
-			"owner_id (String) - Organization ID (not websiteId)",
+			"owner_id (String) - Organization id, or the website id on legacy rows",
+			"website_id (Nullable(String)) - Website stored at ingestion",
 			"transaction_id (String)",
-			"amount (Decimal64) - Transaction amount; cast to Float64 for percentiles",
-			"currency (String)",
-			"provider (LowCardinality String) - Payment provider",
-			"type (LowCardinality String) - Transaction type",
+			"amount (Decimal(18, 4)) - Transaction amount; cast to Float64 for percentiles",
+			"currency (LowCardinality(String))",
+			"provider (LowCardinality(String))",
+			"type (LowCardinality(String)) - 'sale', 'subscription', 'refund', or 'subscription_event' (no money)",
+			"status (LowCardinality(String)) - 'completed', 'failed', 'canceled', 'refunded', or 'linked'",
 			"customer_id (String)",
-			"anonymous_id (Nullable String) - Anonymous device identifier",
+			"anonymous_id (Nullable(String))",
 			"profile_id (String) - Identified user id from identify(), '' when anonymous",
-			"created (DateTime64) - Transaction timestamp",
+			"created (DateTime('UTC')) - Transaction timestamp",
 		],
+		additionalInfo:
+			"Rows are replaced per (owner_id, transaction_id) by the newest synced_at; without FINAL a transaction can count twice. Collected money is type 'sale' or 'subscription' with status 'completed', and refunds are type 'refund' with status 'refunded'. The revenue_* builders also attribute websites through related payments and drop duplicate Stripe records, so their totals can differ.",
 	},
 	{
 		name: "analytics.blocked_traffic",
@@ -217,10 +214,10 @@ export const ANALYTICS_TABLES: TableDef[] = [
 			"Requests rejected by the ingestion edge (bots, abuse, rate-limit). Useful for sizing junk traffic; never count as real visitors. AI crawlers and agents are not here; they are in analytics.ai_traffic_spans.",
 		keyColumns: [
 			"client_id (String)",
-			"timestamp (DateTime64)",
-			"block_reason (LowCardinality String) - Why the request was rejected",
-			"bot_name (Nullable String) - Detected bot, if any",
-			"path (Nullable String)",
+			"timestamp (DateTime64(3, 'UTC'))",
+			"block_reason (LowCardinality(String)) - Why the request was rejected",
+			"bot_name (Nullable(String)) - Detected bot, if any",
+			"path (Nullable(String))",
 		],
 	},
 	{
@@ -232,188 +229,23 @@ export const ANALYTICS_TABLES: TableDef[] = [
 			"Count AI requests with agent_id != ''; '' marks forwarded hits from bots that are not AI agents (search, SEO, monitoring). Server-side sources repeat requests the tracker also saw: when a site has both middleware and vercel rows, the source whose first row is newer counts from then on and the other only before it, and tracker rows count only before the first middleware or vercel row. Name agents by agent_id, not bot_name.",
 		keyColumns: [
 			"client_id (String)",
-			"timestamp (DateTime64)",
-			"agent_id (LowCardinality String) - Registry id such as 'openai-crawler' (GPTBot), 'anthropic-crawler' (ClaudeBot) or 'claude-code'; 'unidentified:<token>' for unknown clients that asked for markdown first; '' when no AI agent was identified",
-			"agent_purpose (LowCardinality String) - training | search_index | user_fetch (fetched live to answer a user) | agent (acting for a user)",
+			"timestamp (DateTime64(3, 'UTC'))",
+			"agent_id (LowCardinality(String)) - Registry id such as 'openai-crawler' (GPTBot), 'anthropic-crawler' (ClaudeBot) or 'claude-code'; 'unidentified:<token>' for unknown clients that asked for markdown first; '' when no AI agent was identified",
+			"agent_purpose (LowCardinality(String)) - training | search_index | user_fetch (fetched live to answer a user) | agent (acting for a user)",
 			"bot_name (String) - Detector bot name; rows written before the October 2026 detector fix can hold browser engines such as 'WebKit', so use agent_id instead",
-			"bot_type (LowCardinality String) - ai_crawler | ai_assistant, or the detector category for other bots",
-			"format (LowCardinality String) - markdown | llms (llms.txt, llms-full.txt) | html, as the agent asked for it; '' on tracker rows before 2026-09-27, which are html",
+			"bot_type (LowCardinality(String)) - ai_crawler | ai_assistant, or the detector category for other bots",
+			"format (LowCardinality(String)) - markdown | llms (llms.txt, llms-full.txt) | html, as the agent asked for it; '' on tracker rows before 2026-09-27, which are html",
 			"path (String) - Requested path, or full URL on tracker rows",
-			"host (LowCardinality String) - Host the request was made to; '' on tracker rows",
-			"referrer (Nullable String) - Referrer sent with the request; tracker rows written before the October 2026 tracker fix can hold the page's own URL",
+			"host (LowCardinality(String)) - Host the request was made to; '' on tracker rows",
+			"referrer (Nullable(String)) - Referrer sent with the request; tracker rows written before the October 2026 tracker fix can hold the page's own URL",
 			"user_agent (String)",
 			"accept (String) - Request Accept header; '' when absent, on tracker rows and on vercel rows",
 			"status_code (UInt16) - HTTP status returned to the agent (vercel rows only); 0 when unknown",
-			"source (LowCardinality String) - middleware | vercel | tracker; tracker rows written before the October 2026 tracker fix also include rows from beacons and non-page-view events, not only page views",
-			"verification (LowCardinality String) - 'host_unchecked' when stored during a website lookup outage, otherwise ''",
+			"source (LowCardinality(String)) - middleware | vercel | tracker; tracker rows written before the October 2026 tracker fix also include rows from beacons and non-page-view events, not only page views",
+			"verification (LowCardinality(String)) - 'host_unchecked' when stored during a website lookup outage, otherwise ''",
 		],
 	},
 ];
-
-const GUIDELINES = `## Query Guidelines
-- Use client_id = {websiteId:String} to filter by website. Only websiteId is auto-injected as a parameter. For date ranges use now() - INTERVAL N DAY, not custom parameters like {from:DateTime}.
-- The primary timestamp column on analytics.events is \`time\`. Avoid aliasing columns as \`time\` in CTEs/subqueries — it conflicts with ClickHouse's built-in time() function. Use \`ts\`, \`event_time\`, or \`event_ts\` as aliases instead.
-- Use toStartOfDay(), toStartOfHour() for time grouping.
-- Geographic data (country, region, city) exists only on analytics.events, NOT on web_vitals_spans or error_spans. Join via session_id if needed.
-- All timestamps are in UTC.
-- AI crawler and agent requests (GPTBot, ClaudeBot, Claude Code) live in analytics.ai_traffic_spans, not analytics.events or analytics.blocked_traffic.
-- analytics.custom_events.properties contains JSON strings — use JSONExtractString(properties, 'key') to parse.
-- Identity: \`anonymous_id\` is a per-device id; \`profile_id\` is the customer-assigned user id ('' when anonymous, on analytics.events, analytics.custom_events, and analytics.revenue). To count people, dedupe identified users across devices with \`uniq(${EVENTS_VISITOR_KEY})\`; on custom_events/revenue use \`uniq(${CUSTOM_EVENTS_VISITOR_KEY})\` because anonymous_id is Nullable and rows missing both identifiers must not count as a person. To count only identified users: \`uniqIf(profile_id, profile_id != '')\`. error_spans/web_vitals_spans/outgoing_links have no profile_id — resolve an identified user's rows there via their anonymous_ids from analytics.events.
-
-## Aggregate function preferences
-- Percentiles: use \`quantileTDigest(p)(col)\` for p50/p75/p95/p99. Plain \`quantile(p)\` uses reservoir sampling and is noisy at the tails (~10% error at p99). \`quantileTDigest\` is within 0.1% of exact at the same memory cost.
-- Distinct counts: \`uniq(col)\` (HLL11) is fine when approximate is OK. Prefer \`uniqCombined64(col)\` for high-cardinality distinct counts (visitor_id, session_id, anonymous_id, path) — same ~0.3% error as uniq() but lower memory and stable across reruns. Reserve \`uniqExact(col)\` only when an exact count is genuinely required (small cardinality dashboard widgets, billing).
-- Top-N lists: prefer exact \`GROUP BY ... ORDER BY count() DESC LIMIT N\` for user-facing leaderboards. \`topK(N)(col)\` is approximate and can swap the bottom-of-list entries — only use it for ML/agent summarization where minor ordering noise is acceptable.
-
-## ClickHouse Pitfalls
-- NO nested aggregates: \`sum(count())\` is illegal. Use a subquery: \`SELECT sum(cnt) FROM (SELECT count() as cnt ... GROUP BY ...)\`
-- NO aggregates in WHERE: use HAVING for post-aggregation filters, not WHERE.
-- \`is_bounce\` is NOT a column. Compute bounces as sessions with exactly 1 pageview: \`SELECT session_id, count() as pv FROM analytics.events ... GROUP BY session_id HAVING pv = 1\`
-- \`website_id\` is NOT the tenant column on \`analytics.events\`. Use \`client_id = {websiteId:String}\`.
-- \`created_at\` is NOT the canonical event timestamp. Use \`time\` on \`analytics.events\`.
-- \`page_path\` does NOT exist. The column is \`path\`.
-- \`event_type\` does NOT exist. The column is \`event_name\`.
-- Performance timing columns (\`load_time\`, \`ttfb\`, \`dom_ready_time\`, \`render_time\`) do NOT exist on analytics.events. Page performance lives in analytics.web_vitals_spans as metric_name/metric_value rows.
-- \`properties\` on analytics.events is always empty. Custom event properties live in analytics.custom_events — use the custom_events_* builders.
-- Pageviews are \`event_name = 'screen_view'\`. Never use \`event_name = 'pageview'\`.
-- \`device_type\` is often empty. Always handle: \`NULLIF(device_type, '') as device_type\` or \`if(device_type = '', 'Desktop', device_type)\`
-- For IN filters use tuple syntax: \`path IN ('/pricing', '/docs', '/demo')\`, NOT array syntax \`['/pricing', '/docs']\`
-- formatDateTime does NOT support %A (weekday name). Use \`toDayOfWeek(time)\` (1=Mon, 7=Sun) or \`dateName('weekday', time)\`
-- web_vitals_spans has NO device_type, country, or referrer columns. Join to analytics.events via session_id to get those.`;
-
-const EXAMPLES_BY_SECTION: Record<SchemaSection, string> = {
-	engagement: `-- Pages where visitors get stuck
-SELECT
-  path,
-  count() as page_views,
-  round(100 * countIf(dead_click_count > 0) / count(), 1) as dead_click_rate,
-  topKIf(1)(dead_click_target, dead_click_target != '')[1] as control
-FROM analytics.engagement_spans
-WHERE client_id = {websiteId:String}
-  AND timestamp >= now() - INTERVAL 7 DAY
-GROUP BY path
-HAVING page_views >= 20
-ORDER BY dead_click_rate DESC
-LIMIT 10
-
--- Attention on a page: active time as a share of time on page
-SELECT
-  round(100 * sum(active_time) / greatest(sum(time_on_page), 1), 1) as attention_pct,
-  avg(max_scroll_depth) as avg_scroll
-FROM analytics.engagement_spans
-WHERE client_id = {websiteId:String}
-  AND path = '/pricing'
-  AND timestamp >= now() - INTERVAL 30 DAY`,
-	events: `-- Page views over time
-SELECT
-  toStartOfDay(time) as date,
-  count() as views,
-  uniq(anonymous_id) as unique_visitors
-FROM analytics.events
-WHERE client_id = {websiteId:String}
-  AND time >= now() - INTERVAL 7 DAY
-GROUP BY date
-ORDER BY date
-
--- Top pages by traffic
-SELECT
-  path,
-  count() as views,
-  uniq(anonymous_id) as unique_visitors,
-  avg(time_on_page) as avg_time
-FROM analytics.events
-WHERE client_id = {websiteId:String}
-  AND time >= now() - INTERVAL 7 DAY
-GROUP BY path
-ORDER BY views DESC
-LIMIT 10`,
-	custom_events: `-- analytics.custom_events uses owner_id (org ID), not client_id.
--- Raw SQL won't work — use get_data with custom_events_* builders:
---   custom_events, custom_events_discovery, custom_events_summary,
---   custom_events_trends, custom_events_recent, custom_events_by_path,
---   custom_events_property_top_values, custom_events_property_classification`,
-	errors: `-- Error rate trends
-SELECT
-  toStartOfDay(timestamp) as date,
-  count() as errors,
-  uniq(anonymous_id) as users_affected
-FROM analytics.error_spans
-WHERE client_id = {websiteId:String}
-  AND timestamp >= now() - INTERVAL 7 DAY
-GROUP BY date
-ORDER BY date`,
-	vitals: `-- Web Vitals performance
-SELECT
-  metric_name,
-  quantileTDigest(0.75)(metric_value) as p75_value,
-  quantileTDigest(0.50)(metric_value) as p50_value
-FROM analytics.web_vitals_spans
-WHERE client_id = {websiteId:String}
-  AND timestamp >= now() - INTERVAL 7 DAY
-GROUP BY metric_name`,
-	outgoing: `-- Top outgoing domains
-SELECT
-  domain(href) as dest,
-  count() as clicks,
-  uniq(anonymous_id) as users
-FROM analytics.outgoing_links
-WHERE client_id = {websiteId:String}
-  AND timestamp >= now() - INTERVAL 7 DAY
-GROUP BY dest
-ORDER BY clicks DESC
-LIMIT 10`,
-	revenue: `-- analytics.revenue is org-scoped (tenant=owner_id). Raw SQL via execute_sql_query
--- is not the right path for revenue questions — use get_data with revenue_* builders
--- (revenue_overview, revenue_by_provider, revenue_by_country, etc.). They handle the
--- org-binding correctly. For SQL: quantileTDigest on the Decimal amount column needs
--- toFloat64() casting.`,
-	blocked_traffic: `-- Junk-traffic sizing
-SELECT
-  block_reason,
-  bot_name,
-  count() as blocked
-FROM analytics.blocked_traffic
-WHERE client_id = {websiteId:String}
-  AND timestamp >= now() - INTERVAL 7 DAY
-GROUP BY block_reason, bot_name
-ORDER BY blocked DESC`,
-	ai_traffic: `-- AI agents that asked for markdown or llms.txt. For request totals, products
--- and per-page reads prefer get_data ai_crawlers / ai_agent_pages, which skip
--- duplicate tracker rows.
-SELECT
-  agent_id,
-  format,
-  count() as requests,
-  uniq(path) as pages
-FROM analytics.ai_traffic_spans
-WHERE client_id = {websiteId:String}
-  AND agent_id != ''
-  AND format IN ('markdown', 'llms')
-  AND timestamp >= now() - INTERVAL 7 DAY
-GROUP BY agent_id, format
-ORDER BY requests DESC
-LIMIT 20`,
-};
-
-const STATEMENT_SEPARATOR = /\n\s*\n/;
-const STATEMENT_START = /^\s*(?:SELECT|WITH)\b/i;
-
-function extractStatements(example: string): string[] {
-	return example
-		.split(STATEMENT_SEPARATOR)
-		.map((chunk) => chunk.trim())
-		.filter((chunk) => STATEMENT_START.test(chunk));
-}
-for (const [section, example] of Object.entries(EXAMPLES_BY_SECTION)) {
-	for (const statement of extractStatements(example)) {
-		const result = validateAgentSQL(statement);
-		if (!result.valid) {
-			throw new Error(
-				`Example SQL for section "${section}" fails the agent validator: ${result.reason}\nStatement: ${statement.slice(0, 200)}`
-			);
-		}
-	}
-}
 
 const DOCUMENTED_TABLES = new Set(ANALYTICS_TABLES.map((t) => t.name));
 for (const table of Object.keys(AGENT_TENANT_COLUMN_BY_TABLE)) {
@@ -438,52 +270,4 @@ for (const table of ANALYTICS_TABLES) {
 			);
 		}
 	}
-}
-
-export interface SchemaDocOptions {
-	includeExamples?: boolean;
-	includeGuidelines?: boolean;
-	sections?: readonly SchemaSection[];
-}
-
-export function generateSchemaDocumentation(
-	opts: SchemaDocOptions = {}
-): string {
-	const { sections, includeGuidelines = true, includeExamples = true } = opts;
-	const activeSections =
-		sections && sections.length > 0
-			? new Set<SchemaSection>(sections)
-			: new Set<SchemaSection>(SCHEMA_SECTIONS);
-
-	const tables = ANALYTICS_TABLES.filter((t) => activeSections.has(t.section));
-	const analyticsDoc = tables
-		.map((table) => {
-			const columns = table.keyColumns.map((col) => `  - ${col}`).join("\n");
-			const info = table.additionalInfo
-				? `\n  Note: ${table.additionalInfo}`
-				: "";
-			return `\n### ${table.name}\n${table.description}\n${columns}${info}`;
-		})
-		.join("\n");
-
-	const guidelinesBlock = includeGuidelines ? `\n\n${GUIDELINES}` : "";
-
-	let examplesBlock = "";
-	if (includeExamples) {
-		const exampleText = [...activeSections]
-			.map((s) => EXAMPLES_BY_SECTION[s])
-			.filter(Boolean)
-			.join("\n\n");
-		if (exampleText) {
-			examplesBlock = `\n\n## Common Query Patterns\n\`\`\`sql\n${exampleText}\n\`\`\``;
-		}
-	}
-
-	return `<available-data>
-You have access to comprehensive website analytics data for understanding user behavior and site performance.
-
-## Analytics Database (analytics.*)
-Primary tables for website traffic, user behavior, and performance:
-${analyticsDoc}${guidelinesBlock}${examplesBlock}
-</available-data>`;
 }
