@@ -1,417 +1,748 @@
 "use client";
 
-import { ArrowRightIcon } from "@databuddy/ui/icons";
 import {
-	MotionConfig,
-	motion,
-	useInView,
-	useReducedMotion,
-} from "motion/react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+	ArrowRightIcon,
+	BugIcon,
+	ChartActivityIcon,
+	CursorClickIcon,
+	FlagIcon,
+	FunnelIcon,
+	GaugeIcon,
+	UsersIcon,
+	WarningCircleIcon,
+} from "@databuddy/ui/icons";
+import { AnimatePresence, motion } from "motion/react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { SectionBullet } from "./icons/section-bullet";
-import { IN_OUT } from "./landing/demo-primitives";
-import { NavLink } from "./nav-link";
 
-const FUNNEL_STEPS = [
-	{ label: "Viewed pricing", count: 1240 },
-	{ label: "Started signup", count: 418 },
-	{ label: "Verified email", count: 301 },
-	{ label: "Created project", count: 214 },
-];
-
-const STEP_CONVERSIONS = FUNNEL_STEPS.slice(1).map((step, index) =>
-	Math.round((step.count / (FUNNEL_STEPS[index]?.count ?? step.count)) * 100)
-);
-const WORST_CONVERSION = Math.min(...STEP_CONVERSIONS);
-
-const LIVE_VISITORS = [38, 41, 40, 44, 47, 46, 52, 55, 53, 58, 61, 64];
-const SPARK_POINTS = 8;
-
-const SOURCES = [
-	{ label: "news.ycombinator.com", share: 41 },
-	{ label: "x.com", share: 27 },
-	{ label: "acme.link/launch", share: 18 },
-	{ label: "Direct", share: 14 },
-];
-
-const TONES = {
-	good: "bg-emerald-400",
-	warn: "bg-brand-amber",
-	bad: "bg-red-400",
-} as const;
-
-const HEALTH: {
-	detail: string;
-	label: string;
-	tone: keyof typeof TONES;
-}[] = [
-	{ label: "Uptime", detail: "api.acme.dev up, 182 ms", tone: "good" },
-	{ label: "Errors", detail: "TypeError on /checkout, 12 users", tone: "bad" },
-	{ label: "Web Vitals", detail: "INP 284 ms p75 on /signup", tone: "warn" },
-];
-
-const JOURNEY = [
-	{ event: "signed_up", when: "Mon 09:14" },
-	{ event: "project_created", when: "Mon 09:31" },
-	{ event: "teammate_invited", when: "Tue 14:02" },
-	{ event: "plan_upgraded", when: "Thu 11:47" },
-];
-
-const FLAGS = [
-	{ key: "new-onboarding", rollout: 25 },
-	{ key: "checkout-redesign", rollout: 100 },
-	{ key: "pricing-v2", rollout: 0 },
-];
-
-interface CardLink {
-	href: string;
-	label: string;
-	navItem: string;
-}
-
-function BentoCard({
-	answer,
+const BentoCard = ({
+	title,
+	description,
+	icon: Icon,
 	children,
 	className,
-	eyebrow,
-	links,
-	title,
+	headerClassName,
+	contentClassName,
+	href,
 }: {
-	answer: string;
-	children: ReactNode;
-	className?: string;
-	eyebrow: string;
-	links: CardLink[];
 	title: string;
-}) {
-	return (
-		<div
-			className={cn("flex flex-col gap-8 bg-background p-6 sm:p-8", className)}
-		>
-			<div>
-				<p className="font-mono text-[11px] text-muted-foreground uppercase tracking-widest">
-					{eyebrow}
-				</p>
-				<h3 className="mt-3 text-balance font-semibold text-foreground text-xl tracking-tight sm:text-2xl">
-					{title}
-				</h3>
-				<p className="mt-2 max-w-md text-pretty text-muted-foreground text-sm leading-relaxed sm:text-base">
-					{answer}
-				</p>
-			</div>
-			<div className="flex-1">{children}</div>
-			<div className="flex flex-wrap gap-x-5 gap-y-2">
-				{links.map((link) => (
-					<NavLink
-						className="inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors duration-200 ease-in-out hover:text-foreground"
-						href={link.href}
-						key={link.href}
-						navItem={link.navItem}
-						section="landing"
+	description?: string;
+	icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+	children: React.ReactNode;
+	className?: string;
+	headerClassName?: string;
+	contentClassName?: string;
+	href?: string;
+}) => (
+	<motion.div
+		className={cn(
+			"group relative overflow-hidden border border-border bg-card backdrop-blur-xl duration-500",
+			className
+		)}
+		initial={{ opacity: 1, y: 0 }}
+		transition={{ duration: 0.5, ease: "easeOut" }}
+		viewport={{ once: true }}
+		whileInView={{ opacity: 1, y: 0 }}
+	>
+		<CardHeader className={cn("relative z-20 px-6 py-4", headerClassName)}>
+			<div className="flex items-start justify-between gap-3">
+				<div className="flex items-center gap-3">
+					<div className="flex size-8 items-center justify-center bg-secondary/40 ring-1 ring-border">
+						<Icon className="size-4 text-muted-foreground" />
+					</div>
+					<div className="flex flex-col gap-0.5">
+						<CardTitle className="font-medium font-mono text-foreground text-sm">
+							{title}
+						</CardTitle>
+						{description && (
+							<p className="font-mono text-muted-foreground text-xs">
+								{description}
+							</p>
+						)}
+					</div>
+				</div>
+				{href && (
+					<Link
+						aria-label={`Learn more about ${title}`}
+						className="z-30 flex size-10 shrink-0 items-center justify-center rounded border border-border/50 bg-card text-muted-foreground shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-300 hover:border-border hover:text-foreground"
+						href={href}
 					>
-						{link.label}
-						<ArrowRightIcon className="size-3.5" />
-					</NavLink>
-				))}
+						<ArrowRightIcon className="size-5" />
+					</Link>
+				)}
 			</div>
-		</div>
-	);
-}
+		</CardHeader>
+		<CardContent className={cn("relative z-10 p-6 pt-0", contentClassName)}>
+			{children}
+		</CardContent>
+	</motion.div>
+);
 
-function FunnelView() {
-	const top = FUNNEL_STEPS[0]?.count ?? 1;
+const buildSmoothPath = (values: number[], width: number, height: number) => {
+	const pts = values.map((v, i) => ({
+		x: (i / (values.length - 1)) * width,
+		y: height - (v / 100) * height,
+	}));
+	let d = `M ${pts[0].x} ${pts[0].y}`;
+	for (let i = 0; i < pts.length - 1; i++) {
+		const p0 = pts[Math.max(0, i - 1)];
+		const p1 = pts[i];
+		const p2 = pts[i + 1];
+		const p3 = pts[Math.min(pts.length - 1, i + 2)];
+		const c1x = p1.x + (p2.x - p0.x) / 6;
+		const c1y = p1.y + (p2.y - p0.y) / 6;
+		const c2x = p2.x - (p3.x - p1.x) / 6;
+		const c2y = p2.y - (p3.y - p1.y) / 6;
+		d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
+	}
+	return d;
+};
+
+const FunnelsFeature = () => {
+	const data = [
+		{
+			value: 100,
+			name: "Page View",
+
+			fill: "var(--primary)",
+			stroke: "var(--primary)",
+		},
+		{
+			value: 65,
+			name: "Sign Up",
+			fill: "var(--muted-foreground)",
+			stroke: "var(--muted-foreground)",
+		},
+		{
+			value: 45,
+			name: "Onboarding",
+			fill: "var(--accent)",
+			stroke: "var(--accent)",
+		},
+		{
+			value: 25,
+			name: "Paid",
+			fill: "var(--secondary)",
+			stroke: "var(--secondary)",
+		},
+	];
+
 	return (
-		<div>
-			<ol className="space-y-4">
-				{FUNNEL_STEPS.map((step, index) => {
-					const conversion = index > 0 ? STEP_CONVERSIONS[index - 1] : null;
-					const worst = conversion === WORST_CONVERSION;
+		<div className="flex w-full min-w-0 flex-col">
+			<div className="mb-4 flex items-center justify-between">
+				<div className="space-y-1">
+					<motion.div
+						animate={{ opacity: 1, scale: 1 }}
+						className="font-medium not-[]:font-mono text-3xl text-foreground tracking-tighter"
+						initial={{ opacity: 0, scale: 0.5 }}
+						transition={{ duration: 0.5, delay: 0.2 }}
+					>
+						24.5%
+					</motion.div>
+					<div className="font-medium font-mono text-muted-foreground text-xs uppercase tracking-widest">
+						Conversion Rate
+					</div>
+				</div>
+				<Badge variant="gray">+2.4%</Badge>
+			</div>
+			<div
+				className="flex h-[320px] w-full flex-col gap-1"
+				style={{
+					maskImage: "linear-gradient(to bottom, black 20%, transparent 100%)",
+				}}
+			>
+				{data.map((stage, i) => {
+					const top = stage.value * 0.5;
+					const bottom = (data[i + 1]?.value ?? stage.value) * 0.5;
+					const points = `${(100 - top) / 2},0 ${(100 + top) / 2},0 ${(100 + bottom) / 2},80 ${(100 - bottom) / 2},80`;
 					return (
-						<li key={step.label}>
-							<div className="mb-2 flex items-baseline justify-between gap-3 font-mono text-xs sm:text-sm">
-								<span className="text-foreground/85">{step.label}</span>
-								<span className="text-muted-foreground tabular-nums">
-									{step.count.toLocaleString("en-US")}
-									{conversion === null ? null : (
-										<span
-											className={cn(
-												"ml-3 inline-block w-10 text-right",
-												worst && "text-brand-amber"
-											)}
-										>
-											{conversion}%
-										</span>
-									)}
-								</span>
-							</div>
-							<div className="h-2 bg-white/[0.04]">
-								<motion.div
-									className={cn(
-										"h-full",
-										worst ? "bg-brand-amber/70" : "bg-foreground/25"
-									)}
-									initial={{ width: 0 }}
-									transition={{
-										delay: index * 0.1,
-										duration: 0.8,
-										ease: IN_OUT,
-									}}
-									viewport={{ once: true, amount: 0.6 }}
-									whileInView={{ width: `${(step.count / top) * 100}%` }}
+						<div className="relative min-h-0 flex-1 py-1" key={stage.name}>
+							<svg
+								aria-hidden="true"
+								className="h-full w-full"
+								preserveAspectRatio="none"
+								viewBox="0 0 100 80"
+							>
+								<motion.polygon
+									animate={{ opacity: 1, scale: 1 }}
+									fill={stage.fill}
+									initial={{ opacity: 0, scale: 0.8 }}
+									points={points}
+									transition={{ duration: 0.4, delay: i * 0.15 }}
 								/>
-							</div>
-						</li>
+							</svg>
+							<span
+								className="absolute top-1/2 -translate-y-1/2 font-medium font-mono text-muted-foreground text-xs"
+								style={{ left: `calc(${(100 + top) / 2}% + 12px)` }}
+							>
+								{stage.name}
+							</span>
+						</div>
 					);
 				})}
-			</ol>
-			<p className="mt-6 font-mono text-brand-amber text-xs">
-				Biggest drop: Viewed pricing to Started signup
-			</p>
+			</div>
 		</div>
 	);
-}
+};
 
-function LaunchView() {
-	const ref = useRef<HTMLDivElement>(null);
-	const visible = useInView(ref, { amount: 0.4 });
-	const reduce = useReducedMotion();
-	const [tick, setTick] = useState(0);
+const RealTimeFeature = () => {
+	const [data, setData] = useState([
+		{ value: 30 },
+		{ value: 45 },
+		{ value: 35 },
+		{ value: 50 },
+		{ value: 40 },
+		{ value: 60 },
+		{ value: 55 },
+		{ value: 70 },
+		{ value: 65 },
+		{ value: 80 },
+		{ value: 75 },
+		{ value: 90 },
+	]);
+	const [liveUsers, setLiveUsers] = useState(142);
 
 	useEffect(() => {
-		if (!visible || reduce) {
-			return;
-		}
-		const id = window.setInterval(() => setTick((value) => value + 1), 2000);
-		return () => window.clearInterval(id);
-	}, [visible, reduce]);
+		const interval = setInterval(() => {
+			setData((prev) => {
+				const nextValue = 40 + Math.random() * 50;
+				const next = [...prev.slice(1), { value: nextValue }];
 
-	const recent = Array.from(
-		{ length: SPARK_POINTS },
-		(_, index) =>
-			LIVE_VISITORS[(tick + index) % LIVE_VISITORS.length] ??
-			LIVE_VISITORS[0] ??
-			0
+				setLiveUsers(Math.floor(100 + nextValue * 0.8));
+
+				return next;
+			});
+		}, 2000);
+		return () => clearInterval(interval);
+	}, []);
+
+	const linePath = buildSmoothPath(
+		data.map((d) => d.value),
+		300,
+		120
 	);
-	const sparkPath = recent
-		.map(
-			(value, index) =>
-				`${index === 0 ? "M" : "L"}${Math.round((index / (SPARK_POINTS - 1)) * 120)} ${Math.round(44 - ((value - 30) / 40) * 40)}`
-		)
-		.join(" ");
 
 	return (
-		<div className="space-y-6" ref={ref}>
-			<div className="flex items-end justify-between gap-6">
-				<div>
-					<span className="flex items-center gap-2 font-mono text-[11px] text-emerald-400 uppercase tracking-widest">
-						<span className="size-1.5 rounded-full bg-emerald-400" />
-						Live now
+		<div className="relative flex h-full flex-col">
+			<div className="relative z-10 space-y-1 px-6">
+				<div className="flex items-center gap-2">
+					<span className="relative flex size-2">
+						<motion.span
+							animate={{
+								scale: [1, 1.5, 1],
+								opacity: [0.75, 0, 0.75],
+							}}
+							className="absolute inline-flex h-full w-full rounded-full bg-muted-foreground opacity-75"
+							transition={{
+								duration: 2,
+								repeat: Number.POSITIVE_INFINITY,
+							}}
+						/>
+						<span className="relative inline-flex size-2 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
 					</span>
-					<span className="mt-1 block font-semibold text-3xl text-foreground tabular-nums">
-						{recent.at(-1)}
+					<span className="font-medium font-mono text-muted-foreground text-xs uppercase tracking-widest">
+						Live Users
 					</span>
 				</div>
+				<motion.div
+					animate={{ opacity: 1, y: 0 }}
+					className="font-medium font-mono text-2xl text-foreground tracking-tighter"
+					initial={{ opacity: 0.5, y: 5 }}
+					key={liveUsers}
+				>
+					{liveUsers}
+				</motion.div>
+			</div>
+			<div className="mt-auto h-[120px] w-full">
 				<svg
 					aria-hidden="true"
-					className="h-12 w-32 text-foreground/40"
-					fill="none"
-					viewBox="0 0 120 48"
+					className="h-full w-full"
+					preserveAspectRatio="none"
+					viewBox="0 0 300 120"
 				>
+					<defs>
+						<linearGradient id="colorRealTime" x1="0" x2="0" y1="0" y2="1">
+							<stop offset="0%" stopColor="var(--primary)" stopOpacity={0.3} />
+							<stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
+						</linearGradient>
+					</defs>
 					<motion.path
-						animate={{ d: sparkPath }}
+						animate={{ d: `${linePath} L 300 120 L 0 120 Z` }}
+						fill="url(#colorRealTime)"
 						initial={false}
-						stroke="currentColor"
-						strokeWidth={1.5}
-						transition={{ duration: 0.6, ease: IN_OUT }}
+						transition={{ duration: 0.8, ease: "easeOut" }}
+					/>
+					<motion.path
+						animate={{ d: linePath }}
+						fill="none"
+						initial={false}
+						stroke="var(--primary)"
+						strokeWidth={2}
+						style={{ filter: "drop-shadow(0 0 5px var(--primary))" }}
+						transition={{ duration: 0.8, ease: "easeOut" }}
+						vectorEffect="non-scaling-stroke"
 					/>
 				</svg>
 			</div>
-			<ul className="space-y-3">
-				{SOURCES.map((source) => (
-					<li key={source.label}>
-						<div className="mb-1.5 flex justify-between font-mono text-xs">
-							<span className="text-foreground/85">{source.label}</span>
-							<span className="text-muted-foreground tabular-nums">
-								{source.share}%
-							</span>
-						</div>
-						<div className="h-1.5 bg-white/[0.04]">
-							<div
-								className="h-full bg-foreground/25"
-								style={{ width: `${source.share}%` }}
-							/>
-						</div>
-					</li>
-				))}
-			</ul>
 		</div>
 	);
-}
+};
 
-function HealthView() {
+const SessionsFeature = () => {
+	const [sessions, setSessions] = useState([
+		{
+			id: "1",
+			country: "US",
+			browser: "Chrome",
+			os: "Mac OS",
+			time: "2m ago",
+			path: "/pricing",
+			flag: "🇺🇸",
+		},
+		{
+			id: "2",
+			country: "DE",
+			browser: "Firefox",
+			os: "Windows",
+			time: "5m ago",
+			path: "/docs/api",
+			flag: "🇩🇪",
+		},
+		{
+			id: "3",
+			country: "JP",
+			browser: "Safari",
+			os: "iOS",
+			time: "8m ago",
+			path: "/blog/v2",
+			flag: "🇯🇵",
+		},
+		{
+			id: "4",
+			country: "GB",
+			browser: "Chrome",
+			os: "Android",
+			time: "12m ago",
+			path: "/features",
+			flag: "🇬🇧",
+		},
+		{
+			id: "5",
+			country: "FR",
+			browser: "Safari",
+			os: "iOS",
+			time: "15m ago",
+			path: "/blog/v2",
+			flag: "🇫🇷",
+		},
+		{
+			id: "6",
+			country: "IT",
+			browser: "Safari",
+			os: "iOS",
+			time: "18m ago",
+			path: "/blog/v2",
+			flag: "🇮🇹",
+		},
+		{
+			id: "7",
+			country: "ES",
+			browser: "Safari",
+			os: "iOS",
+			time: "21m ago",
+			path: "/blog/v2",
+			flag: "🇪🇸",
+		},
+	]);
+
+	useEffect(() => {
+		const interval = setInterval(() => {
+			setSessions((prev) => {
+				const [first, ...rest] = prev;
+				return [
+					...rest,
+					{ ...first, time: "Just now", id: Math.random().toString() },
+				];
+			});
+		}, 3000);
+		return () => clearInterval(interval);
+	}, []);
+
 	return (
-		<ul className="divide-y divide-white/[0.06] border-white/[0.06] border-y">
-			{HEALTH.map((item) => (
-				<li
-					className="flex items-center gap-3 py-3.5 font-mono text-xs"
-					key={item.label}
-				>
-					<span
-						className={cn("size-2 shrink-0 rounded-full", TONES[item.tone])}
-					/>
-					<span className="w-20 shrink-0 text-foreground/85">{item.label}</span>
-					<span className="truncate text-muted-foreground">{item.detail}</span>
-				</li>
-			))}
-		</ul>
+		<div
+			className="relative max-h-[380px] overflow-hidden"
+			style={{
+				maskImage:
+					"linear-gradient(to bottom, transparent 0%, black 10%, black 75%, transparent 100%)",
+			}}
+		>
+			<div className="space-y-2">
+				<AnimatePresence initial={false} mode="popLayout">
+					{sessions.map((session) => (
+						<motion.div
+							animate={{ opacity: 1, y: 0 }}
+							className="group flex items-center justify-between border border-border/50 bg-secondary/20 p-2 text-sm"
+							exit={{ y: -60 }}
+							initial={{ opacity: 0, y: 60 }}
+							key={session.id}
+							layout
+							transition={{
+								layout: { duration: 0.4, ease: "easeInOut" },
+								y: { duration: 0.4, ease: "easeOut" },
+							}}
+						>
+							<div className="flex items-center gap-3.5">
+								<div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-background text-lg grayscale backdrop-blur-sm">
+									{session.flag}
+								</div>
+								<div className="flex flex-col gap-1">
+									<span className="font-medium font-mono text-accent-foreground text-xs group-hover:text-foreground">
+										{session.path}
+									</span>
+									<span className="font-mono text-muted-foreground text-xs">
+										{session.browser} • {session.os}
+									</span>
+								</div>
+							</div>
+							<div className="flex items-center gap-2">
+								<div className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
+								<span className="font-mono text-muted-foreground text-xs">
+									{session.time}
+								</span>
+							</div>
+						</motion.div>
+					))}
+				</AnimatePresence>
+			</div>
+		</div>
 	);
-}
+};
 
-function JourneyView() {
-	return (
-		<div>
-			<div className="mb-5 flex items-center gap-3">
-				<span className="flex size-8 items-center justify-center rounded-full border border-border bg-white/[0.04] font-medium text-foreground text-xs">
-					A
-				</span>
-				<div className="font-mono text-xs">
-					<p className="text-foreground/85">Acme Inc</p>
-					<p className="text-muted-foreground">plan: pro_trial</p>
+const ErrorTrackingFeature = () => (
+	<div className="flex h-full flex-1 flex-col">
+		<div className="relative overflow-hidden border border-border bg-secondary/20 p-4 transition-all">
+			<div className="flex items-start gap-3">
+				<div className="rounded-md bg-destructive/10 p-2">
+					<motion.div
+						animate={{ scale: [1, 1.2, 1] }}
+						transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+					>
+						<WarningCircleIcon className="size-4 shrink-0 text-destructive" />
+					</motion.div>
+				</div>
+				<div className="min-w-0 flex-1 space-y-2">
+					<div className="flex items-center justify-between gap-2">
+						<p className="truncate font-medium font-mono text-[11px] text-accent-foreground">
+							TypeError: undefined is not a function
+						</p>
+						<Badge variant="destructive">
+							<motion.span
+								animate={{ opacity: [1, 0.5, 1] }}
+								className="font-mono text-[10px]"
+								transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+							>
+								CRITICAL
+							</motion.span>
+						</Badge>
+					</div>
+					<p className="rounded border border-border bg-background/50 p-1.5 font-mono text-[10px] text-muted-foreground">
+						at /app/layout.tsx:42:15
+					</p>
 				</div>
 			</div>
-			<ol className="relative space-y-3 border-white/[0.08] border-l pl-5">
-				{JOURNEY.map((step) => (
-					<li
-						className="relative flex justify-between gap-3 font-mono text-xs"
-						key={step.event}
-					>
-						<span className="absolute top-1.5 -left-[23.5px] size-1.5 rounded-full bg-foreground/40" />
-						<span className="text-foreground/85">{step.event}</span>
-						<span className="text-muted-foreground">{step.when}</span>
-					</li>
+		</div>
+
+		<div className="mt-5 flex flex-col">
+			<div className="flex justify-between px-1 font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+				<span>Last 24 hours</span>
+				<span>12 Affected</span>
+			</div>
+			<div className="mt-6 flex h-14 items-end gap-1 opacity-60">
+				{[40, 70, 30, 80, 50, 90, 60, 40, 65, 85, 45, 75].map((h, i) => (
+					<motion.div
+						className="flex-1 rounded-t-[1px] bg-accent-foreground duration-300 hover:bg-accent-foreground/50"
+						key={`bar-${h}-${i}`}
+						style={{ height: `${h}%` }}
+					/>
 				))}
-			</ol>
+			</div>
+		</div>
+	</div>
+);
+
+const FeatureFlagsFeature = () => {
+	const flags = [
+		{ name: "New Dashboard", enabled: true, env: "100% rollout" },
+		{ name: "AI Assistant", enabled: false, env: "off" },
+		{ name: "Dark Mode V2", enabled: true, env: "25% rollout" },
+		{ name: "Analytics V3", enabled: true, env: "3 variants" },
+	];
+
+	return (
+		<div
+			className="max-h-[180px] space-y-2"
+			style={{
+				maskImage: "linear-gradient(to bottom, black 70%, transparent 100%)",
+			}}
+		>
+			{flags.map((flag) => (
+				<div
+					className="group flex items-center justify-between border border-border/50 bg-secondary/20 p-3 transition-all"
+					key={flag.name}
+				>
+					<div className="flex min-w-0 flex-1 items-center gap-3">
+						<div
+							className={cn(
+								"size-2 shrink-0 rounded-full ring-4 ring-opacity-20 transition-all duration-300",
+								flag.enabled
+									? "bg-primary shadow-[0_0_12px_var(--primary)] ring-primary/30"
+									: "bg-muted ring-muted-foreground/30"
+							)}
+						>
+							{flag.enabled && (
+								<motion.div
+									animate={{ scale: 1 }}
+									className="h-full w-full rounded-full bg-primary"
+									initial={{ scale: 0.95 }}
+								/>
+							)}
+						</div>
+						<div className="flex min-w-0 flex-col gap-0.5">
+							<span className="truncate font-medium font-mono text-accent-foreground text-xs group-hover:text-foreground">
+								{flag.name}
+							</span>
+							<span className="font-medium font-mono text-[9px] text-muted-foreground uppercase tracking-widest">
+								{flag.env}
+							</span>
+						</div>
+					</div>
+					<Switch
+						checked={flag.enabled}
+						className="min-h-0! min-w-0!"
+						disabled
+					/>
+				</div>
+			))}
 		</div>
 	);
-}
+};
 
-function FlagsView() {
+const WEB_VITALS_METRICS = [
+	{ label: "LCP", value: "0.8s", score: 98 },
+	{ label: "INP", value: "148ms", score: 100 },
+	{ label: "CLS", value: "0.02", score: 95 },
+] as const;
+
+const WebVitalsFeature = () => {
+	const metrics = WEB_VITALS_METRICS;
+
 	return (
-		<ul className="space-y-4">
-			{FLAGS.map((flag) => (
-				<li key={flag.key}>
-					<div className="mb-1.5 flex justify-between font-mono text-xs">
-						<span className="text-foreground/85">{flag.key}</span>
-						<span className="text-muted-foreground tabular-nums">
-							{flag.rollout === 0 ? "off" : `${flag.rollout}%`}
+		<div className="grid h-[150px] grid-cols-3 gap-3">
+			{metrics.map((m, _i) => (
+				<div
+					className={cn(
+						"angled-rectangle-gradient flex h-full flex-col items-center justify-between gap-2 border border-border border-b-0 p-3"
+					)}
+					key={m.label}
+				>
+					<div className="relative flex size-14 items-center justify-center">
+						<svg className="h-full w-full -rotate-90" viewBox="0 0 36 36">
+							<title>Score indicator</title>
+							<circle
+								className="stroke-secondary"
+								cx="18"
+								cy="18"
+								fill="none"
+								r="16"
+								strokeWidth="2.5"
+							/>
+							<circle
+								className="stroke-primary"
+								cx="18"
+								cy="18"
+								fill="none"
+								pathLength="100"
+								r="16"
+								strokeDasharray="100"
+								strokeDashoffset={100 - m.score}
+								strokeLinecap="round"
+								strokeWidth="2.5"
+								style={{ opacity: 0.5 }}
+							/>
+							<circle
+								className="stroke-primary"
+								cx="18"
+								cy="18"
+								fill="none"
+								pathLength="100"
+								r="16"
+								strokeDasharray="100"
+								strokeDashoffset={100 - m.score}
+								strokeLinecap="round"
+								strokeWidth="2.5"
+							/>
+						</svg>
+						<span className="absolute font-medium font-mono text-foreground text-sm">
+							{m.score}
 						</span>
 					</div>
-					<div className="h-1.5 bg-white/[0.04]">
-						<div
-							className="h-full bg-foreground/25"
-							style={{ width: `${flag.rollout}%` }}
-						/>
+					<div className="space-y-0.5 text-center">
+						<div className="font-bold font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+							{m.label}
+						</div>
+						<div className="font-medium font-mono text-foreground text-xs opacity-90">
+							{m.value}
+						</div>
 					</div>
-				</li>
+				</div>
 			))}
-		</ul>
+		</div>
 	);
-}
+};
+
+const CustomEventsFeature = () => {
+	const [events, setEvents] = useState([
+		{ name: "checkout_completed", count: "2.4k", id: "1" },
+		{ name: "add_to_cart", count: "8.9k", id: "2" },
+		{ name: "video_played", count: "12k", id: "3" },
+		{ name: "signup_started", count: "5.2k", id: "4" },
+		{ name: "button_clicked", count: "15k", id: "5" },
+		{ name: "form_submitted", count: "10k", id: "6" },
+		{ name: "link_clicked", count: "18k", id: "7" },
+		{ name: "search_performed", count: "9.5k", id: "8" },
+		{ name: "product_viewed", count: "13k", id: "9" },
+		{ name: "payment_successful", count: "7.8k", id: "10" },
+	]);
+
+	useEffect(() => {
+		const interval = setInterval(() => {
+			setEvents((prev) => {
+				const [first, ...rest] = prev;
+				const newCount = `${(Math.random() * 20).toFixed(1)}k`;
+				return [
+					...rest,
+					{ ...first, count: newCount, id: Math.random().toString() },
+				];
+			});
+		}, 2500);
+		return () => clearInterval(interval);
+	}, []);
+
+	return (
+		<div
+			className="relative max-h-[180px] overflow-hidden"
+			style={{
+				maskImage:
+					"linear-gradient(to bottom, transparent 0%, black 10%, black 70%, transparent 100%)",
+			}}
+		>
+			<div className="space-y-2">
+				<AnimatePresence initial={false} mode="popLayout">
+					{events.map((event) => (
+						<motion.div
+							animate={{ opacity: 1, y: 0 }}
+							className="flex items-center justify-between border border-border/50 bg-secondary/20 p-2 text-xs"
+							exit={{ y: -60 }}
+							initial={{ opacity: 0, y: 60 }}
+							key={event.id}
+							layout
+							transition={{
+								layout: { duration: 0.4, ease: "easeInOut" },
+								y: { duration: 0.4, ease: "easeOut" },
+							}}
+						>
+							<div className="flex items-center gap-3">
+								<div className="rounded-md border border-border bg-background p-2 text-muted-foreground">
+									<CursorClickIcon className="size-3" />
+								</div>
+								<span className="font-mono text-muted-foreground">
+									{event.name}
+								</span>
+							</div>
+							<Badge variant="gray">{event.count}</Badge>
+						</motion.div>
+					))}
+				</AnimatePresence>
+			</div>
+		</div>
+	);
+};
 
 export default function Bento() {
 	return (
-		<MotionConfig reducedMotion="user">
-			<div className="w-full">
-				<div className="mb-12 text-start lg:mb-16">
-					<h2 className="mx-auto flex max-w-4xl items-start gap-2 text-balance font-semibold text-2xl leading-tight sm:text-4xl lg:mx-0 lg:text-5xl">
-						<span className="mt-1.5 hidden sm:block">
-							<SectionBullet color="#E3A514" />
-						</span>
-						<span className="text-foreground">
-							Answer the questions you open analytics for.
-						</span>
-					</h2>
-					<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
-						Where signups drop, whether a launch worked, what broke, and who is
-						getting value. Each card below is a view you get in the dashboard.
-					</p>
-				</div>
+		<div className="grid h-full w-full grid-cols-1 gap-4 p-1 md:grid-cols-12">
+			<BentoCard
+				className="h-full md:col-span-4 md:row-span-2"
+				description="Track user journeys through your app"
+				icon={FunnelIcon}
+				title="Conversion Funnels"
+			>
+				<FunnelsFeature />
+			</BentoCard>
 
-				<div className="grid gap-px border border-white/[0.06] bg-white/[0.06] md:grid-cols-2 lg:grid-cols-12">
-					<BentoCard
-						answer="See each step's conversion and the step losing the most people."
-						className="md:col-span-2 lg:col-span-7"
-						eyebrow="Funnels"
-						links={[
-							{
-								href: "/demo",
-								label: "Try it in the demo",
-								navItem: "funnels",
-							},
-						]}
-						title="Where do signups drop off?"
-					>
-						<FunnelView />
-					</BentoCard>
-					<BentoCard
-						answer="Watch visitors arrive live and see which post or link sent them."
-						className="lg:col-span-5"
-						eyebrow="Real-time and sources"
-						links={[{ href: "/links", label: "Short links", navItem: "links" }]}
-						title="Did the launch land?"
-					>
-						<LaunchView />
-					</BentoCard>
-					<BentoCard
-						answer="Errors, downtime, and slow pages show up next to the traffic they affect."
-						className="lg:col-span-4"
-						eyebrow="Errors, uptime, web vitals"
-						links={[
-							{ href: "/errors", label: "Errors", navItem: "errors" },
-							{ href: "/uptime", label: "Uptime", navItem: "uptime" },
-							{
-								href: "/web-vitals",
-								label: "Web Vitals",
-								navItem: "web_vitals",
-							},
-						]}
-						title="Is anything broken?"
-					>
-						<HealthView />
-					</BentoCard>
-					<BentoCard
-						answer="Follow what each signed-up account does, from first visit to upgrade."
-						className="lg:col-span-4"
-						eyebrow="Events and profiles"
-						links={[
-							{
-								href: "/docs/sdk/identify-users",
-								label: "Identify users",
-								navItem: "identify_users",
-							},
-						]}
-						title="Who is getting value?"
-					>
-						<JourneyView />
-					</BentoCard>
-					<BentoCard
-						answer="Roll features out by percentage and turn them off without a deploy."
-						className="lg:col-span-4"
-						eyebrow="Feature flags"
-						links={[
-							{
-								href: "/feature-flags",
-								label: "Feature flags",
-								navItem: "feature_flags",
-							},
-						]}
-						title="Can I ship to a few people first?"
-					>
-						<FlagsView />
-					</BentoCard>
-				</div>
-			</div>
-		</MotionConfig>
+			<BentoCard
+				className="h-full md:col-span-4 md:row-span-1"
+				contentClassName="px-0 pb-0"
+				description="See who's on your site right now"
+				icon={ChartActivityIcon}
+				title="Real-time"
+			>
+				<RealTimeFeature />
+			</BentoCard>
+
+			<BentoCard
+				className="h-full md:col-span-4 md:row-span-2"
+				description="See each session's page, country, and browser"
+				icon={UsersIcon}
+				title="Sessions"
+			>
+				<SessionsFeature />
+			</BentoCard>
+
+			<BentoCard
+				className="h-full md:col-span-4 md:row-span-1"
+				contentClassName="pb-0"
+				description="Monitor core performance metrics"
+				href="/web-vitals"
+				icon={GaugeIcon}
+				title="Web Vitals"
+			>
+				<WebVitalsFeature />
+			</BentoCard>
+
+			<BentoCard
+				className="h-full md:col-span-4 md:row-span-1"
+				contentClassName="pb-0"
+				description="Catch and fix bugs fast"
+				href="/errors"
+				icon={BugIcon}
+				title="Error Tracking"
+			>
+				<ErrorTrackingFeature />
+			</BentoCard>
+
+			<BentoCard
+				className="h-full md:col-span-4 md:row-span-1"
+				description="Roll out features safely"
+				href="/feature-flags"
+				icon={FlagIcon}
+				title="Feature Flags"
+			>
+				<FeatureFlagsFeature />
+			</BentoCard>
+
+			<BentoCard
+				className="h-full md:col-span-4 md:row-span-1"
+				description="Track what matters to you"
+				icon={CursorClickIcon}
+				title="Events"
+			>
+				<CustomEventsFeature />
+			</BentoCard>
+		</div>
 	);
 }
