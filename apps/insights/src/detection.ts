@@ -2715,17 +2715,19 @@ function startsEvidence(
 	for (const { onset, signal } of changes) {
 		const subject = signalSubject(signal);
 		const name = subject ? subjectName(subject) : null;
-		if (!(onset && subject && name) || seen.has(name)) {
+		if (
+			!(onset && subject && name) ||
+			seen.has(name) ||
+			!within(onsetSpan(onset))
+		) {
 			continue;
 		}
 		seen.add(name);
-		if (within(onsetSpan(onset))) {
-			shared.push({
-				name,
-				start: `${onset.direction === "down" ? "Dropping" : "Rising"} ${hourRange(onset.earliest, onset.latest, onset.timezone)}`,
-				traffic: subject.kind === "traffic",
-			});
-		}
+		shared.push({
+			name,
+			start: `${onset.direction === "down" ? "Dropping" : "Rising"} ${hourRange(onset.earliest, onset.latest, onset.timezone)}`,
+			traffic: subject.kind === "traffic",
+		});
 	}
 	if (shared.length === 0) {
 		return null;
@@ -2734,7 +2736,12 @@ function startsEvidence(
 	const sentence = (listed: number) => {
 		const groups = new Map<string, string[]>();
 		for (const { name, start } of shared.slice(0, listed)) {
-			groups.set(start, [...(groups.get(start) ?? []), name]);
+			const names = groups.get(start);
+			if (names) {
+				names.push(name);
+			} else {
+				groups.set(start, [name]);
+			}
 		}
 		const lines = [...groups].map(
 			([start, names]) => `${start}: ${names.join(", ")}`

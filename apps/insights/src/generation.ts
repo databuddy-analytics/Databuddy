@@ -601,7 +601,9 @@ function releaseLine(
 	const replaced = [
 		...new Set(
 			release.flatMap((deployment) =>
-				deployment.previousSha && deployment.previousSha !== deployment.sha
+				deployment.result === "success" &&
+				deployment.previousSha &&
+				deployment.previousSha !== deployment.sha
 					? [deployment.previousSha]
 					: []
 			)
@@ -609,20 +611,26 @@ function releaseLine(
 	];
 	const outcomes = new Map<string, string[]>();
 	for (const deployment of [...release].reverse()) {
-		outcomes.set(deployment.environment, [
-			...(outcomes.get(deployment.environment) ?? []),
+		const result =
 			deployment.result && deployment.completedAt
 				? `${deployment.result} ${dayjs(deployment.completedAt).tz(timezone).format("HH:mm")}`
-				: "no completion recorded",
-		]);
+				: "no completion recorded";
+		const results = outcomes.get(deployment.environment);
+		if (results) {
+			results.push(result);
+		} else {
+			outcomes.set(deployment.environment, [result]);
+		}
 	}
 	const environments = new Map<string, string[]>();
 	for (const [environment, results] of outcomes) {
 		const outcome = results.join(", then ");
-		environments.set(outcome, [
-			...(environments.get(outcome) ?? []),
-			environment,
-		]);
+		const names = environments.get(outcome);
+		if (names) {
+			names.push(environment);
+		} else {
+			environments.set(outcome, [environment]);
+		}
 	}
 	const targets = [...environments]
 		.map(([outcome, names]) =>
@@ -655,10 +663,12 @@ export function repositoryChangeEvidence(
 		);
 		const releases = new Map<string, GitHubDeploymentSummary[]>();
 		for (const deployment of changes.deployments) {
-			releases.set(deployment.sha, [
-				...(releases.get(deployment.sha) ?? []),
-				deployment,
-			]);
+			const release = releases.get(deployment.sha);
+			if (release) {
+				release.push(deployment);
+			} else {
+				releases.set(deployment.sha, [deployment]);
+			}
 		}
 		return `GitHub production deployments of ${repo} requested ${span}, newest first: ${listedChanges(
 			[...releases.entries()],

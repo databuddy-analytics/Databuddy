@@ -3104,6 +3104,22 @@ describe("change onset", () => {
 			expect(evidence).toMatch(/\. \d+ more not listed\.$/);
 		});
 
+		it("keeps an in-window change when its earlier occurrence is outside the window", () => {
+			const other = errorSignal("Fetch is aborted");
+			expect(
+				sharedStartEvidence(
+					own,
+					[
+						{ onset: onsetAt("18:00"), signal: other },
+						{ onset: onsetAt("21:00"), signal: other },
+					],
+					"UTC"
+				)
+			).toBe(
+				'Another change on this website started within an hour of this one. Rising between 21:00 and 22:00 on 2026-09-25: error "Fetch is aborted".'
+			);
+		});
+
 		it("lists what started during the period of a change without hourly counts", () => {
 			const bounceRate = signalFor({
 				detectedAt: "2026-09-25",

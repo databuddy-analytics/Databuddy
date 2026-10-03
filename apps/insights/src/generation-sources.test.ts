@@ -600,6 +600,11 @@ describe("fixture investigation sources", () => {
 					},
 				];
 			}
+			if (
+				path === "/repos/example/web-app/deployments/1/statuses?per_page=10"
+			) {
+				return [{ created_at: "2026-07-09T08:02:00Z", state: "success" }];
+			}
 			throw new Error(`Unexpected GitHub request ${path}`);
 		};
 		let received:
@@ -647,6 +652,35 @@ describe("fixture investigation sources", () => {
 		);
 		expect(deploys?.split("; ")).toHaveLength(1);
 		expect(artifact.evidence).toEqual(received?.evidence ?? []);
+	});
+
+	it("does not say a failed deployment replaced the running version", () => {
+		const evidence = repositoryChangeEvidence(
+			linkOnset,
+			{
+				deployments: [
+					{
+						author: undefined,
+						completedAt: "2026-07-10T19:58:00Z",
+						currentState: "failure",
+						currentStateAt: "2026-07-10T19:58:00Z",
+						description: null,
+						environment: "Production",
+						environmentUrl: null,
+						logUrl: null,
+						previousSha: "0a1b2c3d4e5f",
+						ref: "main",
+						requestedAt: "2026-07-10T19:52:00Z",
+						result: "failure",
+						sha: "a1b2c3d4e5f6",
+						statusDescription: null,
+					},
+				],
+			},
+			{ owner: "example", repo: "web-app" }
+		);
+		expect(evidence).toContain("Production (failure 19:58)");
+		expect(evidence).not.toContain("replacing");
 	});
 
 	it("states a deploy absence only when the scan covered the window", async () => {
