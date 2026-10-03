@@ -420,6 +420,17 @@ describe("POST /engagement", () => {
 		expect(res.status).toBe(400);
 	});
 
+	test("over-long click descriptor → 200, the span is kept", async () => {
+		const res = await post(basketApp, "/engagement", [
+			{
+				...span,
+				rageClickTarget: `div:unnamed in section:${"x".repeat(100)}`,
+			},
+		]);
+		expect(res.status).toBe(200);
+		expect((await json(res)).count).toBe(1);
+	});
+
 	test("empty array → 200 with count 0", async () => {
 		const res = await post(basketApp, "/engagement", []);
 		expect(res.status).toBe(200);

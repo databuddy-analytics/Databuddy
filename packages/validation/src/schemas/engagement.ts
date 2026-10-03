@@ -2,7 +2,10 @@ import z from "zod";
 import { MAX_FUTURE_MS, MIN_TIMESTAMP, VALIDATION_LIMITS } from "../constants";
 
 const count = z.number().int().min(0).max(65_535);
-const target = z.string().max(64);
+const target = z
+	.string()
+	.max(1024)
+	.transform((value) => value.slice(0, 64));
 
 export const exitTypes = ["navigation", "spa", "hidden", "unload"] as const;
 
