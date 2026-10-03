@@ -123,6 +123,12 @@ export const QueryBuilders: Record<QueryType, SimpleQueryConfig> =
 		])
 	) as typeof BASE_QUERY_BUILDERS;
 
+export const WEBSITE_QUERY_BUILDERS = (
+	Object.entries(QueryBuilders) as [QueryType, SimpleQueryConfig][]
+).filter(([, config]) => config.idField !== "link_id");
+
+export const WEBSITE_QUERY_TYPES = WEBSITE_QUERY_BUILDERS.map(([type]) => type);
+
 function isQueryType(type: string): type is QueryType {
 	return Object.hasOwn(QueryBuilders, type);
 }

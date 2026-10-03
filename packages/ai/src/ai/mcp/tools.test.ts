@@ -10,6 +10,7 @@ import {
 	flushMcp,
 	handleDatabuddyMcpRequest,
 } from "../../mcp/http";
+import { createMcpAgentConfig } from "../agents/mcp";
 import { defineMcpTool, type McpRequestContext } from "./define-tool";
 import {
 	pickFlagFields,
@@ -299,6 +300,7 @@ const oauthUser = {
 	name: "User",
 	email: "user@example.com",
 	emailVerified: true,
+	twoFactorEnabled: false,
 	image: null,
 	createdAt: new Date("2026-01-01"),
 	updatedAt: new Date("2026-01-01"),
@@ -392,7 +394,7 @@ describe("MCP OAuth scopes", () => {
 
 describe("MCP tool invariants", () => {
 	test("preserves literal string tool arguments", async () => {
-		let received: { enabled: boolean; literal: string } | undefined;
+		const received: { enabled: boolean; literal: string }[] = [];
 		const tool = defineMcpTool(
 			{
 				name: "literal_string_input",
@@ -405,16 +407,15 @@ describe("MCP tool invariants", () => {
 				metadata: { access: { kind: "read" } },
 			},
 			(input) => {
-				received = input;
+				received.push(input);
 				return { ok: true };
 			}
 		).build(ctx);
 
 		for (const literal of ["true", "false", '{"key":"value"}', "[1,2]"]) {
-			received = undefined;
 			const result = await tool.handler({ enabled: true, literal });
 			expect(result).not.toMatchObject({ isError: true });
-			expect(received).toEqual({ enabled: true, literal });
+			expect(received.at(-1)).toEqual({ enabled: true, literal });
 		}
 	});
 
@@ -1004,5 +1005,45 @@ describe("investigation tools", () => {
 		]) {
 			expect(names.has(name)).toBe(true);
 		}
+	});
+});
+
+describe("Databunny agent toolset", () => {
+	const createConfig = (mutationMode: "allow" | "dry-run") =>
+		createMcpAgentConfig({
+			apiKey: null,
+			mutationMode,
+			organizationId: "org-1",
+			requestHeaders: new Headers(),
+			source: "slack",
+			userId: "user-1",
+		});
+
+	test("dry-run keeps reads but no write tool or write instruction", () => {
+		const config = createConfig("dry-run");
+		const names = Object.keys(config.tools);
+
+		expect(names).toEqual(
+			expect.arrayContaining([
+				"get_data",
+				"list_goals",
+				"investigations",
+				"configure_investigations",
+			])
+		);
+		expect(
+			names.filter((name) => /^(create|update|delete|add)_/.test(name))
+		).toEqual([]);
+		expect(names).not.toContain("submit_feedback");
+		expect(config.system.content).not.toContain("confirmed=true");
+		expect(config.system.content).not.toContain("channelAction=add");
+		expect(config.system.content).toContain('{"type":"data-table"');
+	});
+
+	test("allow mode keeps write tools for the same Slack source", () => {
+		const names = Object.keys(createConfig("allow").tools);
+
+		expect(names).toContain("create_goal");
+		expect(names).toContain("submit_feedback");
 	});
 });
