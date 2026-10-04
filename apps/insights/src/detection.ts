@@ -20,6 +20,7 @@ import {
 import { emitInsightsEvent } from "./lib/evlog-insights";
 import {
 	LOWER_IS_BETTER_METRICS,
+	normalizedLabel,
 	rankSignals,
 	signalKeyForDetectedSignal,
 	TRAFFIC_METRICS,
@@ -589,12 +590,13 @@ function errorLabel(row: Record<string, unknown> | undefined): string {
 }
 
 function errorCountSignal(
-	label: string,
+	rawLabel: string,
 	fingerprint: string,
 	currentRow: Record<string, unknown> | undefined,
 	previousRow: Record<string, unknown> | undefined,
 	detectedAt: string
 ): DetectedSignal {
+	const label = normalizedLabel(rawLabel);
 	const signal = makeWowSignal(
 		"error_count",
 		label,
@@ -758,10 +760,11 @@ function makeCustomEventSignal(
 	}
 	const field =
 		metric === "custom_event_reach" ? "unique_users" : "total_events";
+	const label = normalizedLabel(name);
 	const signal = capLowReachSeverity(
 		makeWowSignal(
 			metric,
-			metric === "custom_event_reach" ? `${name} recorded visitors` : name,
+			metric === "custom_event_reach" ? `${label} recorded visitors` : label,
 			current.data[field],
 			previous.data[field],
 			detectedAt
@@ -771,8 +774,8 @@ function makeCustomEventSignal(
 
 	signal.subjectKey = subjectKey;
 	signal.entityId = name;
-	signal.entityLabel = name;
-	signal.definitionEvidence = `Event "${name}" occurred ${current.data.total_events} times across ${current.data.unique_users} recorded visitor identifiers and ${current.data.unique_sessions} sessions, compared with ${previous.data.total_events} occurrences across ${previous.data.unique_users} recorded visitor identifiers and ${previous.data.unique_sessions} sessions previously.`;
+	signal.entityLabel = label;
+	signal.definitionEvidence = `Event "${label}" occurred ${current.data.total_events} times across ${current.data.unique_users} recorded visitor identifiers and ${current.data.unique_sessions} sessions, compared with ${previous.data.total_events} occurrences across ${previous.data.unique_users} recorded visitor identifiers and ${previous.data.unique_sessions} sessions previously.`;
 	if (metric === "custom_event_reach") {
 		signal.investigationObjective =
 			"Explain the measured recorded-participation change alongside occurrence volume. Nonzero unique_users still measures recorded visitor identifiers; unavailable emitter context does not invalidate it or establish instrumentation failure. Claim identity-coverage loss only with evidence of missing identifiers, not fewer identifiers. Leave causes unknown without inspected support. Event names alone do not establish behavior, business outcomes or conversion rates; recorded identifiers are not people.";
@@ -1654,9 +1657,10 @@ export function freshCustomEventSignals(
 		) {
 			continue;
 		}
+		const label = normalizedLabel(name);
 		signals.push({
 			metric: "custom_event_count",
-			label: name,
+			label,
 			method: "zscore",
 			baselineDates: counts.dates,
 			direction: "down",
@@ -1667,8 +1671,8 @@ export function freshCustomEventSignals(
 			detectedAt: counts.latest.date,
 			subjectKey: `custom_event:${name}`,
 			entityId: name,
-			entityLabel: name,
-			definitionEvidence: `Event "${name}" occurred ${current} times on ${counts.latest.date} (${round2(rate)} per session), against a median of ${counts.median} (${round2(baselineRate)} per session) on ${comparableWindow(counts)}.`,
+			entityLabel: label,
+			definitionEvidence: `Event "${label}" occurred ${current} times on ${counts.latest.date} (${round2(rate)} per session), against a median of ${counts.median} (${round2(baselineRate)} per session) on ${comparableWindow(counts)}.`,
 		});
 	}
 	return signals;
@@ -2492,8 +2496,8 @@ function onsetSeries(subject: SignalSubject): OnsetSeries {
 			return {
 				field: "total_events",
 				filters: [{ field: "event_name", op: "eq", value: subject.name }],
-				noun: `${subject.name} events`,
-				subject: `Hourly ${subject.name} counts`,
+				noun: `${normalizedLabel(subject.name)} events`,
+				subject: `Hourly ${normalizedLabel(subject.name)} counts`,
 				type: "custom_events_trends_by_event",
 			};
 		default:
@@ -2672,14 +2676,16 @@ function subjectName(subject: SignalSubject): string {
 	switch (subject.kind) {
 		case "traffic":
 			return "pageviews";
-		case "error":
+		case "error": {
+			const message = normalizedLabel(subject.message);
 			return `error "${
-				subject.message.length > SHARED_START_NAME_LENGTH
-					? `${subject.message.slice(0, SHARED_START_NAME_LENGTH - 1).trimEnd()}…`
-					: subject.message
+				message.length > SHARED_START_NAME_LENGTH
+					? `${message.slice(0, SHARED_START_NAME_LENGTH - 1).trimEnd()}…`
+					: message
 			}"`;
+		}
 		case "event":
-			return `${subject.name} events`;
+			return `${normalizedLabel(subject.name)} events`;
 		case "revenue":
 			return `${subject.currency.toUpperCase()} payments`;
 		default:
