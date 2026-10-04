@@ -827,6 +827,67 @@ describe("fixture investigation sources", () => {
 		});
 	});
 
+	it("reads a candidate's change onset once and retries only a failed read", async () => {
+		const eventStop: DetectedSignal = {
+			...trafficDrop,
+			baseline: 6400,
+			current: 0,
+			deltaPercent: -100,
+			entityId: "link_created",
+			entityLabel: "link_created",
+			label: "link_created events",
+			metric: "custom_event_count",
+			subjectKey: "custom_event:link_created",
+		};
+		const run = async (failFirstRead: boolean) => {
+			const reads: string[] = [];
+			let received:
+				| Parameters<InvestigationSources["investigateSignal"]>[0]
+				| null = null;
+			await investigateFixture(
+				fixtureSources({
+					detectDefinitionSignals: async () => [],
+					detectMetricSignals: async () => [eventStop],
+					fetchAnnotations: async () => [],
+					investigateSignal: async (input) => {
+						received = input;
+						return {
+							outcome: {
+								evidence: ["Link creation stopped."],
+								impact: null,
+								next: { reason: "No case is required.", type: "resolve" },
+								rootCause: null,
+								summary: "Link creation stopped.",
+								title: "Link creation stopped",
+							},
+							toolCallCount: 0,
+						};
+					},
+					loadChangeOnset: async ({ signal }) => {
+						reads.push(signal.signalKey);
+						if (failFirstRead && reads.length === 1) {
+							throw new Error("Hourly counts timed out");
+						}
+						return linkOnset;
+					},
+					loadDueInvestigation: async () => null,
+					loadHistory: async () => [],
+					loadObservations: async () => new Map(),
+				})
+			);
+			return { onset: linesOfKind(received?.evidence, "onset"), reads };
+		};
+
+		expect(await run(false)).toEqual({
+			onset: [changeOnsetEvidence(linkOnset)],
+			reads: ["custom_event:link_created"],
+		});
+		expect(await run(true)).toEqual({
+			onset: [changeOnsetEvidence(linkOnset)],
+			reads: ["custom_event:link_created", "custom_event:link_created"],
+		});
+	});
+
 	it("adds supplied route-vital continuation evidence before a slow route reaches the agent", async () => {
 		const slowRoute: DetectedSignal = {
 			...trafficDrop,
