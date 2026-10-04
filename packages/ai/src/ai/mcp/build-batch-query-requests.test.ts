@@ -217,6 +217,24 @@ describe("buildBatchQueryRequests", () => {
 		expect(invalid[0]?.error).toContain("trait:<key>");
 	});
 
+	it("says a query type takes no filters instead of listing none", () => {
+		const { invalid } = buildBatchQueryRequests(
+			[
+				{
+					type: "ai_crawlers",
+					preset: "last_7d",
+					filters: [{ field: "path", op: "eq", value: "/pricing" }],
+				},
+			],
+			"website-1",
+			"UTC"
+		);
+
+		expect(invalid[0]?.error).toBe(
+			"ai_crawlers accepts no filters; remove the filter on 'path'."
+		);
+	});
+
 	it("rejects ordering by a column the query type does not return", () => {
 		const { requests, invalid } = buildBatchQueryRequests(
 			[
