@@ -23,6 +23,13 @@ const REMEMBER_REQUESTS = [
 	/^call me\b/,
 	/\bfrom now on\b/,
 ];
+const FORGET_REQUESTS = [
+	/^(?:forget|unlearn)\b(?!\s+(?:about\s+)?it$)/,
+	/^stop remembering\b/,
+	/^(?:delete|remove|erase|clear|drop|wipe)\b.*\bmemor(?:y|ies)\b/,
+	/\bmemor(?:y|ies)\b.*\b(?:is|are|was|were) (?:wrong|incorrect|outdated|stale|out of date|no longer (?:true|right|correct))\b/,
+	/^(?:you|you've|you have) (?:remembered|saved|noted|stored)\b.*\b(?:wrong|incorrect|outdated)\b/,
+];
 
 export function isMemoryEnabled(): boolean {
 	return Boolean(apiKey);
@@ -35,7 +42,10 @@ export function sanitizeMemoryContent(
 	return stripHtmlTags(value, maxLength);
 }
 
-export function asksToRemember(message: string): boolean {
+function asksMemoryRequest(
+	message: string,
+	requests: readonly RegExp[]
+): boolean {
 	const clauses =
 		message.toLowerCase().replaceAll("’", "'").match(MEMORY_REQUEST_CLAUSE) ??
 		[];
@@ -49,8 +59,16 @@ export function asksToRemember(message: string): boolean {
 		if ((question && request === clause) || QUESTION_START.test(request)) {
 			return false;
 		}
-		return REMEMBER_REQUESTS.some((pattern) => pattern.test(request));
+		return requests.some((pattern) => pattern.test(request));
 	});
+}
+
+export function asksToRemember(message: string): boolean {
+	return asksMemoryRequest(message, REMEMBER_REQUESTS);
+}
+
+export function asksToForget(message: string): boolean {
+	return asksMemoryRequest(message, FORGET_REQUESTS);
 }
 
 export type MemoryContainerKind = "apikey" | "user";
