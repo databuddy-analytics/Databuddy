@@ -426,10 +426,14 @@ function OnboardingFlow() {
 		if (!websiteId) {
 			return;
 		}
-		try {
-			await research.savePriority(priorityFor(picks));
-		} catch (error: unknown) {
-			showErrorToast(error, "Failed to save your picks");
+		if (research.canEdit) {
+			try {
+				await research.savePriority(
+					research.savedPriority || priorityFor(picks)
+				);
+			} catch (error: unknown) {
+				showErrorToast(error, "Failed to save your picks");
+			}
 		}
 		trackAppEvent(APP_EVENTS.onboardingStepCompleted, {
 			step: "finish",

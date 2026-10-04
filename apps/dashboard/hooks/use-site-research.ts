@@ -260,11 +260,9 @@ export function useSiteResearch(
 			website,
 		}),
 		start,
+		canEdit: !readOnly,
 		savePriority,
 		savedPriority: settings.data?.profile?.teamContext?.priority ?? "",
 		saving: save.isPending,
-		saveError: save.error
-			? getUserFacingErrorMessage(save.error, "Couldn't save your answers.")
-			: null,
 	};
 }
