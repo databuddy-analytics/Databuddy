@@ -29,7 +29,7 @@ interface ResolvedToken {
 	token: string;
 }
 
-function hasScope(scope: string | null, required: string): boolean {
+export function hasScope(scope: string | null, required: string): boolean {
 	return scope?.split(SCOPE_SEPARATOR).includes(required) ?? false;
 }
 

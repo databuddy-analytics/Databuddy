@@ -725,19 +725,17 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						"memory_enrich",
 						Promise.all([
 							creditsCheck,
-							loadMemoryContext && defaultWebsiteId
+							loadMemoryContext
 								? optionalAgentContext(
 										"memory",
-										getMemoryContextCached(
-											lastMessage,
-											userId,
-											defaultWebsiteId
-										),
+										getMemoryContextCached(lastMessage, userId),
 										EMPTY_MEMORY_CONTEXT,
 										AGENT_MEMORY_CONTEXT_TIMEOUT_MS,
 										{
 											agent_chat_id: chatId,
-											agent_website_id: defaultWebsiteId,
+											...(defaultWebsiteId && {
+												agent_website_id: defaultWebsiteId,
+											}),
 										}
 									)
 								: Promise.resolve(EMPTY_MEMORY_CONTEXT),

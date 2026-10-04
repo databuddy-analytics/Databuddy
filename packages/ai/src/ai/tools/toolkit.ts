@@ -21,7 +21,11 @@ import { listWebsitesTool } from "./list-websites";
 import { createMemoryTools } from "./memory";
 import { createProfileTools } from "./profiles";
 import { createScrapeTools } from "./scrape-page";
-import { createSearchConsoleTools } from "./search-console";
+import {
+	createSearchConsoleTools,
+	SEARCH_CONSOLE_SCOPE,
+} from "./search-console";
+import { hasScope } from "./utils/oauth-token";
 import { dashboardActionsTool } from "./dashboard-actions";
 
 export type ToolCapability =
@@ -45,10 +49,6 @@ export interface ToolkitParams {
 	organizationId?: string;
 	userId?: string;
 }
-
-const SEARCH_CONSOLE_SCOPE =
-	"https://www.googleapis.com/auth/webmasters.readonly";
-const OAUTH_SCOPE_SEPARATOR = /[\s,]+/;
 
 async function hasGitHubRepositoryAccess(
 	organizationId: string
@@ -87,9 +87,7 @@ async function hasSearchConsoleGrant(
 				eq(account.userId, userId)
 			)
 		);
-	return rows.some((row) =>
-		row.scope?.split(OAUTH_SCOPE_SEPARATOR).includes(SEARCH_CONSOLE_SCOPE)
-	);
+	return rows.some((row) => hasScope(row.scope, SEARCH_CONSOLE_SCOPE));
 }
 
 const resolveConnectedIntegrations = cacheable(

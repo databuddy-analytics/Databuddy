@@ -99,7 +99,7 @@ export async function getMemoryContext(
 	query: string,
 	userId: string | null,
 	apiKeyId: string | null,
-	options?: { websiteId?: string; threshold?: number }
+	options?: { threshold?: number }
 ): Promise<MemoryContext> {
 	const client = getMemoryClient();
 	const containerTag = identityContainerTag(userId, apiKeyId);

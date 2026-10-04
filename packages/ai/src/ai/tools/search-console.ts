@@ -5,6 +5,8 @@ import { getAppContext, resolveToolWebsite, toolDateRangeError } from "./utils";
 import { createCachedTokenFn } from "./utils/oauth-token";
 
 const GSC_API = "https://www.googleapis.com/webmasters/v3";
+export const SEARCH_CONSOLE_SCOPE =
+	"https://www.googleapis.com/auth/webmasters.readonly";
 const MAX_ROWS = 25;
 
 const dimensionEnum = z.enum(["query", "page", "country", "device", "date"]);
@@ -161,7 +163,7 @@ export function createSearchConsoleTools(params: {
 		"google",
 		params.organizationId,
 		params.userId,
-		"https://www.googleapis.com/auth/webmasters.readonly"
+		SEARCH_CONSOLE_SCOPE
 	);
 
 	return {
