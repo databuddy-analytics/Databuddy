@@ -147,7 +147,7 @@ The page shows a picker for each one as soon as there's more than one value. Cli
 | `apiUrl` | `https://basket.databuddy.cc` | Ingestion endpoint, for self-hosted Databuddy |
 | `beforeSend` | | Edit a call before it's sent, or return `null` to drop it |
 | `waitUntil` | | Your platform's `waitUntil`, so serverless functions send each call before they stop |
-| `debug` | `false` | Log a missing API key, an unsupported server, and every rejected or failed send to stderr |
+| `debug` | `false` | Log a missing API key, an unsupported server, a call that fails to record (for example when `beforeSend` throws), and every rejected or failed send to stderr |
 
 Without an API key, `trackMcp` leaves the server untouched. An API key limited to some websites can only send calls linked to one of them. If the website ID is unknown, inactive, or belongs to another organization, Databuddy rejects the whole batch. To keep calls unlinked, use an API key for the whole organization and clear the website in `beforeSend`: `(call) => ({ ...call, websiteId: undefined })`.
 
