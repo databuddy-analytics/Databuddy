@@ -1424,7 +1424,8 @@ describe("intelligence agent", () => {
 		"native-only",
 		"native-after-list",
 		"native-cohort",
-		"native-lost-conditions",
+		"native-copied-conditions",
+		"native-step-count",
 		"uninspected-check",
 		"unanchored",
 		"past-window",
@@ -1462,16 +1463,26 @@ describe("intelligence agent", () => {
 			next: {
 				...executableDefinitionOutcome.next,
 				...(scenario === "legacy" ? {} : { check }),
-				...(native && scenario !== "native-lost-conditions"
+				...(native && scenario !== "native-copied-conditions"
 					? {
 							execution: {
 								...executableDefinitionOutcome.next.execution,
 								changes: {
 									...executableDefinitionOutcome.next.execution.changes,
 									steps:
-										executableDefinitionOutcome.next.execution.changes.steps.map(
-											(step) => ({ ...step, conditions: { plan: "paid" } })
-										),
+										scenario === "native-step-count"
+											? [
+													...executableDefinitionOutcome.next.execution.changes
+														.steps,
+													{
+														name: "Activated",
+														target: "activated",
+														type: "EVENT" as const,
+													},
+												]
+											: executableDefinitionOutcome.next.execution.changes.steps.map(
+													(step) => ({ ...step, conditions: { plan: "paid" } })
+												),
 								},
 							},
 						}
@@ -1564,13 +1575,14 @@ describe("intelligence agent", () => {
 				"native-only",
 				"native-after-list",
 				"native-cohort",
+				"native-copied-conditions",
 			].includes(scenario)
 		) {
 			let expectedError = "Verification checks require";
 			if (scenario === "uninspected-check") {
 				expectedError = "Until the exact subject is verified";
-			} else if (scenario === "native-lost-conditions") {
-				expectedError = "preserve existing step conditions";
+			} else if (scenario === "native-step-count") {
+				expectedError = "copies by position";
 			} else if (scenario === "unanchored") {
 				expectedError = "99";
 			}
@@ -1581,7 +1593,11 @@ describe("intelligence agent", () => {
 		const expectedExecution = {
 			...proposal.next.execution,
 			changes: native
-				? { steps: proposal.next.execution.changes.steps }
+				? {
+						steps: executableDefinitionOutcome.next.execution.changes.steps.map(
+							(step) => ({ ...step, conditions: { plan: "paid" } })
+						),
+					}
 				: proposal.next.execution.changes,
 		};
 		expect(result.outcome.next).toEqual({
@@ -1730,7 +1746,7 @@ describe("intelligence agent", () => {
 
 	it.each([
 		"different subject",
-		"missing conditions",
+		"changed step count",
 	])("rejects an unsafe proposal before publication: %s", async (variant) => {
 		const current =
 			variant === "different subject"
@@ -1742,12 +1758,34 @@ describe("intelligence agent", () => {
 							conditions: { plan: "paid" },
 						})),
 					};
+		const proposal =
+			variant === "different subject"
+				? executableDefinitionOutcome
+				: {
+						...executableDefinitionOutcome,
+						next: {
+							...executableDefinitionOutcome.next,
+							execution: {
+								operation: "edit" as const,
+								changes: {
+									steps: [
+										...executableDefinitionOutcome.next.execution.changes.steps,
+										{
+											name: "Activated",
+											target: "activated",
+											type: "EVENT" as const,
+										},
+									],
+								},
+							},
+						},
+					};
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
 				toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
-				outputResponse(executableDefinitionOutcome),
-				outputResponse(executableDefinitionOutcome),
-				outputResponse(executableDefinitionOutcome)
+				outputResponse(proposal),
+				outputResponse(proposal),
+				outputResponse(proposal)
 			),
 		});
 		await expect(
@@ -1779,7 +1817,129 @@ describe("intelligence agent", () => {
 		).rejects.toThrow(
 			variant === "different subject"
 				? "exact current funnel"
-				: "preserve existing step conditions"
+				: "copies by position"
+		);
+	});
+
+	it("copies inspected step conditions and generates the action for an executable repair", async () => {
+		const conditioned = {
+			...inspectedFunnel,
+			steps: [
+				inspectedFunnel.steps[0],
+				{ ...inspectedFunnel.steps[1], conditions: { plan: "paid" } },
+			],
+		};
+		const { action: _action, ...next } = executableDefinitionOutcome.next;
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
+				outputResponse({ ...executableDefinitionOutcome, next })
+			),
+		});
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [...evidence, "Business meaning: Tracks account creation."],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: funnelSignal,
+			},
+			{
+				model,
+				tools: {
+					list_funnels: tool({
+						description: "Read complete definitions.",
+						inputSchema: z.object({}),
+						execute: () => ({ funnels: [conditioned] }),
+					}),
+					get_funnel_analytics: tool({
+						description: "Read journey context.",
+						inputSchema: z.object({}),
+						execute: () => ({ completions: 10 }),
+					}),
+				},
+			}
+		);
+		const schema = model.doGenerateCalls[0]?.tools?.find(
+			(item) => item.name === "finish_investigation"
+		)?.inputSchema;
+		expect(JSON.stringify(schema)).not.toContain('"conditions":');
+		expect(
+			JSON.parse(JSON.stringify(schema)).properties.next.anyOf[0].required
+		).not.toContain("action");
+		const [landing, created] =
+			executableDefinitionOutcome.next.execution.changes.steps;
+		const execution = {
+			operation: "edit" as const,
+			changes: {
+				...executableDefinitionOutcome.next.execution.changes,
+				steps: [landing, { ...created, conditions: { plan: "paid" } }],
+			},
+		};
+		expect(result.outcome.next).toMatchObject({
+			execution,
+			action: describeInsightDefinitionAction(funnelSignal.entity.label, {
+				...execution,
+				action: "",
+			}),
+		});
+	});
+
+	it("requires a written action for a manual repair", async () => {
+		const { action: _action, ...next } = executableDefinitionOutcome.next;
+		const model = outputModel({
+			...executableDefinitionOutcome,
+			next: { ...next, execution: null },
+		});
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal: funnelSignal,
+				},
+				{ model, tools: {} }
+			)
+		).rejects.toThrow("Describe the manual change in next.action");
+		expect(model.doGenerateCalls).toHaveLength(3);
+	});
+
+	it("names the only publishable move for a funnel step definition finding", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal: {
+						...funnelSignal,
+						signalKey: "funnel:checkout:step:2",
+						entity: {
+							type: "funnel_step",
+							id: "checkout:step:2",
+							label: "Checkout journey → Documentation",
+						},
+					},
+				},
+				{
+					model: outputModel({
+						...executableDefinitionOutcome,
+						next: {
+							type: "resolve" as const,
+							reason: "The step target needs a manual review.",
+						},
+					}),
+					tools: {},
+				}
+			)
+		).rejects.toThrow(
+			"Publish this measurement finding only with next.act and execution null"
 		);
 	});
 
