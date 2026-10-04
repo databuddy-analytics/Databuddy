@@ -1617,6 +1617,14 @@ function validateDefinitionOutcome(
 	return current;
 }
 
+function parseJsonText(text: string): unknown {
+	try {
+		return JSON.parse(text);
+	} catch {
+		return text;
+	}
+}
+
 function serialize(value: unknown) {
 	return JSON.stringify(value, (_key, item) =>
 		typeof item === "bigint" ? item.toString() : item
@@ -2713,7 +2721,7 @@ export async function runInsightAgent(
 	} = availableTools;
 	let stepHasReads = false;
 	for (const [name, definition] of Object.entries(investigationTools)) {
-		const observed = {
+		investigationTools[name] = {
 			...definition,
 			onInputAvailable: async (
 				event: Parameters<NonNullable<typeof definition.onInputAvailable>>[0]
@@ -2721,18 +2729,14 @@ export async function runInsightAgent(
 				stepHasReads = true;
 				await definition.onInputAvailable?.(event);
 			},
-		};
-		investigationTools[name] = observed;
-		if (definition.toModelOutput) {
-			continue;
-		}
-		investigationTools[name] = {
-			...observed,
-			toModelOutput: ({
-				toolCallId,
-				output,
-				input: query,
-			}: Parameters<NonNullable<ToolSet[string]["toModelOutput"]>>[0]) => {
+			toModelOutput: async (
+				options: Parameters<NonNullable<ToolSet[string]["toModelOutput"]>>[0]
+			) => {
+				const { toolCallId, output, input: query } = options;
+				const view = await definition.toModelOutput?.(options);
+				if (view && view.type !== "text" && view.type !== "json") {
+					return view;
+				}
 				const candidates: [string | null, unknown][] =
 					name === "get_data"
 						? output &&
@@ -2755,7 +2759,11 @@ export async function runInsightAgent(
 					type: "text" as const,
 					value: serialize({
 						sources,
-						result: output,
+						result: view
+							? view.type === "text"
+								? parseJsonText(view.value)
+								: view.value
+							: output,
 						verification:
 							savedCheck && name === `get_${input.signal.entity.type}_analytics`
 								? verificationFor(input, [

@@ -630,9 +630,32 @@ describe("intelligence agent", () => {
 			},
 			keys: ["pages"],
 		},
+		{
+			name: "get_data",
+			output: {
+				results: {
+					pages: { data: [{ visitors: 300 }], query: { sql: "SELECT 1" } },
+					broken: { error: "Read failed" },
+				},
+			},
+			view: {
+				type: "text" as const,
+				value: JSON.stringify({
+					results: { pages: { data: [{ visitors: 300 }] } },
+				}),
+			},
+			keys: ["pages"],
+		},
+		{
+			name: "inspect",
+			output: { visitors: 300, rows: [1, 2, 3] },
+			view: { type: "json" as const, value: { visitors: 300 } },
+			keys: [null],
+		},
 	])("provides exact usable citation references for $name: $keys", async ({
 		name,
 		output,
+		view,
 		keys,
 	}) => {
 		const model = new MockLanguageModelV3({
@@ -653,7 +676,11 @@ describe("intelligence agent", () => {
 			{
 				model,
 				tools: {
-					[name]: tool({ inputSchema: z.object({}), execute: () => output }),
+					[name]: tool({
+						inputSchema: z.object({}),
+						execute: () => output,
+						...(view ? { toModelOutput: () => view } : {}),
+					}),
 				},
 			}
 		);
@@ -664,12 +691,16 @@ describe("intelligence agent", () => {
 		if (read?.output.type !== "text") {
 			throw new Error("Missing model-visible read");
 		}
+		let visible: unknown = JSON.parse(
+			JSON.stringify(output, (_key, value) =>
+				typeof value === "bigint" ? value.toString() : value
+			)
+		);
+		if (view) {
+			visible = view.type === "text" ? JSON.parse(view.value) : view.value;
+		}
 		expect(JSON.parse(read.output.value)).toEqual({
-			result: JSON.parse(
-				JSON.stringify(output, (_key, value) =>
-					typeof value === "bigint" ? value.toString() : value
-				)
-			),
+			result: visible,
 			sources: keys.map((resultKey) => ({
 				source: "tool",
 				name,
