@@ -209,6 +209,7 @@ test.describe("Privacy & Opt-out", () => {
 				<a href="/team/jane-doe" onclick="event.preventDefault()">Jane Doe</a>
 				<a href="mailto:jane@example.com" onclick="event.preventDefault()">Email Jane</a>
 				<div role="dialog" aria-label="Conversation with Jane Doe"><button>Send</button></div>
+				<a href="#comment-by-sarah" onclick="event.preventDefault()">Sarah's comment</a>
 				<button data-track="save_settings">Save</button>
 				<form><label>Email <input id="field-1234"></label></form>`;
 			window.databuddyConfig = {
@@ -235,6 +236,9 @@ test.describe("Privacy & Opt-out", () => {
 		);
 		expect(await rageClickTarget("#profile-4821")).toBe("a:/u/*");
 		expect(await rageClickTarget("text=Send")).toBe("button:unnamed in dialog");
+		expect(await rageClickTarget('a[href="#comment-by-sarah"]')).toBe(
+			"a:unnamed"
+		);
 		expect(await rageClickTarget('a[href^="/team"]')).toBe("a:/team/*");
 		expect(await rageClickTarget('a[href^="mailto"]')).toBe("a:mailto");
 		expect(await rageClickTarget("text=Save")).toBe("button:save_settings");
