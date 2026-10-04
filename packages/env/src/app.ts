@@ -51,18 +51,6 @@ const EMAIL = {
 	},
 } as const;
 
-const SERVICES = {
-	autumnSecretKey: "AUTUMN_SECRET_KEY",
-	axiomToken: "AXIOM_TOKEN",
-	databuddyApiKey: "DATABUDDY_API_KEY",
-	dubApiKey: "DUB_API_KEY",
-	resendApiKey: "RESEND_API_KEY",
-	slackWebhookUrl: "SLACK_WEBHOOK_URL",
-	superlogApiKey: "SUPERLOG_API_KEY",
-	supermemoryApiKey: "SUPERMEMORY_API_KEY",
-	tccApiKey: "TCC_API_KEY",
-} as const;
-
 const TRAILING_SLASH = /\/$/;
 
 type Env = Record<string, string | undefined>;
@@ -88,7 +76,7 @@ export interface Config {
 	integrations: {
 		openAiAdsPixelId?: string;
 	};
-	services: Record<keyof typeof SERVICES, string | undefined>;
+	services: ReturnType<typeof readServices>;
 	storage?: StorageConfig;
 	urls: {
 		api: string;
@@ -104,32 +92,17 @@ export interface Config {
 const REQUIRED_IN_PRODUCTION = ["BETTER_AUTH_SECRET"] as const;
 const REQUIRED_IN_HOSTED_CLOUD = ["AUTUMN_SECRET_KEY"] as const;
 
-function liveReads<T extends Record<string, string>>(
-	currentEnv: () => Env,
-	keys: T
-): Record<keyof T, string | undefined> {
-	return Object.defineProperties(
-		{} as Record<keyof T, string | undefined>,
-		Object.fromEntries(
-			Object.entries(keys).map(([name, key]) => [
-				name,
-				{ enumerable: true, get: () => readOptional(currentEnv(), key) },
-			])
-		)
-	);
-}
-
 function isHostedCloud(env: Env): boolean {
 	return env.NODE_ENV === "production" && !readBooleanEnv("SELFHOST", env);
 }
 
-export type BillingMode = "selfhost" | "live" | "disabled";
-
-export function billingMode(env: Env = process.env): BillingMode {
+export function billingMode(
+	env: Env = process.env
+): "selfhost" | "live" | "disabled" {
 	if (readBooleanEnv("SELFHOST", env)) {
 		return "selfhost";
 	}
-	return isHostedCloud(env) || readOptional(env, SERVICES.autumnSecretKey)
+	return isHostedCloud(env) || readOptional(env, "AUTUMN_SECRET_KEY")
 		? "live"
 		: "disabled";
 }
@@ -181,6 +154,23 @@ function readOrigins(values: Array<string | undefined>): string[] {
 	return [...new Set(values.flatMap(readList).map(normalizeOrigin))];
 }
 
+function readServices(env: Env) {
+	return {
+		autumnSecretKey: readOptional(env, "AUTUMN_SECRET_KEY"),
+		axiomToken:
+			env.NODE_ENV === "development"
+				? undefined
+				: readOptional(env, "AXIOM_TOKEN"),
+		databuddyApiKey: readOptional(env, "DATABUDDY_API_KEY"),
+		dubApiKey: readOptional(env, "DUB_API_KEY"),
+		resendApiKey: readOptional(env, "RESEND_API_KEY"),
+		slackWebhookUrl: readOptional(env, "SLACK_WEBHOOK_URL"),
+		superlogApiKey: readOptional(env, "SUPERLOG_API_KEY"),
+		supermemoryApiKey: readOptional(env, "SUPERMEMORY_API_KEY"),
+		tccApiKey: readOptional(env, "TCC_API_KEY"),
+	};
+}
+
 function readStorage(env: Env): StorageConfig | undefined {
 	const accessKeyId = readOptional(env, "AWS_ACCESS_KEY_ID");
 	const secretAccessKey = readOptional(env, "AWS_SECRET_ACCESS_KEY");
@@ -225,7 +215,9 @@ export function createConfig(source?: Env): Config {
 		integrations: {
 			openAiAdsPixelId: readOptional(env, "NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID"),
 		},
-		services: liveReads(() => source ?? process.env, SERVICES),
+		get services() {
+			return readServices(source ?? process.env);
+		},
 		storage: readStorage(env),
 		urls: {
 			api: apiUrl,
