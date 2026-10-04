@@ -1,7 +1,10 @@
 import { AI_APP_BROWSERS } from "@databuddy/shared/bot-detection/user-agent";
 import type { WebsiteSummary } from "../../lib/accessible-websites";
 import type { AppContext, AppMutationMode } from "../config/context";
-import { formatContextForLLM } from "../config/context";
+import {
+	formatAccessibleWebsites,
+	formatContextForLLM,
+} from "../config/context";
 import { COMMON_AGENT_RULES } from "./shared";
 
 const MAX_PROMPT_WEBSITES = 25;
@@ -68,13 +71,12 @@ const ANALYTICS_BODY = `<agent-specific-rules>
 ${INVESTIGATION_TOOL_RULES}
 1. dashboard_actions: dashboard navigation / open / take-me-there. Prefer safe relative hrefs like /websites/{websiteId}/errors; use semantic targets only for known built-ins. Always write the user-facing label in your own words.
 2. get_data: default for data questions after resolving scope (lifetime requests first need recorded-history bounds). Batch 1-10 builders per call. Call discover_query_types when you need to find a variant.
-3. execute_sql_query: only when builders cannot express the question (recorded-history bounds, session-level joins, path tracing, cross-table correlations). Call describe_schema if you need column or tenant-filter info.
-4. list_links returns the newest 50; pass search for a specific link.
-5. Link folders: use existing folders only. Before creating or updating into a folder, look it up via list_links/list_link_folders and pass an exact folderId or folderSlug; folder names are display-only. Leave the link unfiled if no match exists.
-6. Mutations: call with confirmed=false first for a preview, then confirmed=true after explicit user approval.
-7. Product/session diagnosis: prefer interesting_sessions, session_list, session_events, profile_list, profile_sessions, session_flow (page-to-page), session_pages (pages ranked by sessions) before SQL.
-8. Custom events live in analytics.custom_events. Prefer get_data custom_events_* builders: custom_events for inventory and filtered custom_events_discovery for properties; both are bounded results. If a builder cannot express the question, call describe_schema before SQL and use its exact website tenant filter, which covers website_id and legacy owner_id rows. Never substitute an organization id for the verified website id.
-9. AI crawlers, AI agents and AI referrals: use get_data ai_* builders: ai_products (per product: requests, pages read, purpose split, visitors sent), ai_crawlers (per agent: requests, pages, markdown/llms.txt requests, last read, user agent), ai_agent_pages (pages each agent read, by format; robots.txt, sitemaps and data files are excluded, so query analytics.ai_traffic_spans for those), ai_crawler_activity (AI requests per day by format; filter agent_id for one agent), ai_failed_requests (pages AI requests got an HTTP error on, with the status; Vercel log drain sites only), ai_recent_requests (latest individual AI requests with agent, page, format and status), ai_content_formats, ai_product_visitors, ai_visitor_outcomes, ai_landing_pages, ai_weekly_digest, plus revenue_by_ai_product. Crawler requests are not visitors and never appear in pageview or visitor builders. robots.txt rules are not queryable; send the user to /websites/{websiteId}/agents, which shows each crawler's robots.txt status.
+3. execute_sql_query: only when builders cannot express the question (recorded-history bounds, session-level joins, path tracing, cross-table correlations).
+4. Link folders: use existing folders only. Before creating or updating into a folder, look it up via list_links/list_link_folders and pass an exact folderId or folderSlug; folder names are display-only. Leave the link unfiled if no match exists.
+5. Mutations: call with confirmed=false first for a preview, then confirmed=true after explicit user approval.
+6. Product/session diagnosis: prefer interesting_sessions, session_list, session_events, profile_list, profile_sessions, session_flow (page-to-page), session_pages (pages ranked by sessions) before SQL.
+7. Custom events live in analytics.custom_events. Prefer get_data custom_events_* builders: custom_events for inventory and filtered custom_events_discovery for properties; both are bounded results. If a builder cannot express the question, call describe_schema before SQL and use its exact website tenant filter, which covers website_id and legacy owner_id rows. Never substitute an organization id for the verified website id.
+8. AI crawlers, AI agents and AI referrals: use get_data ai_* builders: ai_products (per product: requests, pages read, purpose split, visitors sent), ai_crawlers (per agent: requests, pages, markdown/llms.txt requests, last read, user agent), ai_agent_pages (pages each agent read, by format; robots.txt, sitemaps and data files are excluded, so query analytics.ai_traffic_spans for those), ai_crawler_activity (AI requests per day by format; filter agent_id for one agent), ai_failed_requests (pages AI requests got an HTTP error on, with the status; Vercel log drain sites only), ai_recent_requests (latest individual AI requests with agent, page, format and status), ai_content_formats, ai_product_visitors, ai_visitor_outcomes, ai_landing_pages, ai_weekly_digest, plus revenue_by_ai_product. Crawler requests are not visitors and never appear in pageview or visitor builders. robots.txt rules are not queryable; send the user to /websites/{websiteId}/agents, which shows each crawler's robots.txt status.
 
 ${FEEDBACK_TOOL_RULES}
 
@@ -243,33 +245,6 @@ Other types:
 ${RAW_JSON_RULE}
 </slack-output>`;
 
-function escapeAttribute(value: string): string {
-	return value
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;");
-}
-
-function formatAccessibleWebsites(websites: WebsiteSummary[]): string {
-	if (websites.length === 0) {
-		return "";
-	}
-	const rows = websites.slice(0, MAX_PROMPT_WEBSITES).map((website) => {
-		const domain = website.domain
-			? ` domain="${escapeAttribute(website.domain)}"`
-			: "";
-		const name = website.name ? ` name="${escapeAttribute(website.name)}"` : "";
-		return `  <website id="${escapeAttribute(website.id)}"${domain}${name} />`;
-	});
-	if (websites.length > MAX_PROMPT_WEBSITES) {
-		rows.push(
-			`  ${MAX_PROMPT_WEBSITES} of ${websites.length} shown; call list_websites for the rest.`
-		);
-	}
-	return `<accessible_websites>\n${rows.join("\n")}\n</accessible_websites>`;
-}
-
 function buildWebsiteScopeGuidance(
 	ctx: Pick<
 		AppContext,
@@ -377,7 +352,7 @@ export function buildAnalyticsInstructionsForMcp(ctx: {
 	const websiteContext = websiteId
 		? `<website_id>${websiteId}</website_id>
 <website_domain>${websiteDomain || "unknown"}</website_domain>`
-		: formatAccessibleWebsites(websites);
+		: formatAccessibleWebsites(websites, MAX_PROMPT_WEBSITES);
 	const websiteScope = websiteId
 		? `A website is pre-selected for this run. Use websiteId "${websiteId}" for website-scoped tools. Do not call list_websites just to discover a website; call it only if the user explicitly asks what websites exist or if you need to disambiguate a different requested website.`
 		: buildWebsiteScopeGuidance({ accessibleWebsites: websites });
