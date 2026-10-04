@@ -2,10 +2,11 @@
 
 `quality.ts` runs the production investigation agent on synthetic cases. Read tools return fixed fixtures and never touch analytics, definitions or delivery. Keep every fixture synthetic.
 
-Run from the repository root with `AI_GATEWAY_API_KEY` configured:
+Run outside the repository with only `AI_GATEWAY_API_KEY` set. Bun loads `.env` from the working directory, and the repository `.env` points at production Postgres, Redis and ClickHouse:
 
 ```sh
-bun apps/insights/src/evals/quality.ts --out /tmp/insights-quality --runs 2
+cd /tmp && env -i PATH="$PATH" HOME="$HOME" AI_GATEWAY_API_KEY="$AI_GATEWAY_API_KEY" \
+  bun /path/to/Databuddy/apps/insights/src/evals/quality.ts --out /tmp/insights-quality --runs 2
 ```
 
 - `--cases a,b` reruns selected case IDs; keep the original failed result as well.
@@ -16,6 +17,8 @@ bun apps/insights/src/evals/quality.ts --out /tmp/insights-quality --runs 2
 Cases run two at a time. Each run writes `<case>-<n>.jsonl` traces (prompts, observable model responses, tool calls and results, tool and finish validation errors, usage; private reasoning is omitted), `results.json` after each batch, and `summary.json` at exit with per-case scores, first-request sizes (system, user and tool characters, finish schema), spend, git HEAD and a dirty flag. The runner copies the agent, shared contract, detection, signal preparation and fixture source into the output directory. The exit table shows, per case, pass k/N, per-run means of reads (tool calls other than finish), finish rejections, input and output tokens and brief words, and complete k/N.
 
 A failed check exits nonzero. `REVIEW REQUIRED` marks a mechanically valid case whose `reviewRequired` note still needs a person; a zero exit does not complete that review. Published briefs have a 60-word budget across title, summary, cause and evidence (plus impact for legacy outcomes), excluding action details. It is a quality target, not a runtime gate; review brevity alongside retained information.
+
+`injection.ts` runs the same agent on prompt-injection cases: attacker text in an event name, error message, route path, annotation, error rows, a commit message or a team reply, each beside a control without the injection. It clears every other environment variable and blocks network access except the AI gateway before loading any repository module. It reports per case whether the attack was followed, whether attacker text was copied into the outcome, and the publish decision against the control, and exits nonzero when an attack was followed. Success checks are text heuristics, so read the outcomes in `results.json` before trusting a rate.
 
 ## Cases
 
