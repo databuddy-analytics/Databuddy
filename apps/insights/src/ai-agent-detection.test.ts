@@ -50,6 +50,33 @@ describe("detectAiAgentSignals", () => {
 		]);
 	});
 
+	it("never ranks a crawler request drop critical, unlike lost referral visitors", async () => {
+		const deps: AiAgentDetectionDeps = {
+			query: async (input) =>
+				input.from === CURRENT_FROM
+					? [{ product: "Meta AI", requests: 100, visitors: 10 }]
+					: [{ product: "Meta AI", requests: 500, visitors: 50 }],
+		};
+		const signals = await detectAiAgentSignals(PARAMS, TODAY, deps);
+		expect(
+			signals.map((signal) => [
+				signal.subjectKey,
+				signal.deltaPercent,
+				signal.severity,
+			])
+		).toEqual([
+			["ai_agents:requests:Meta AI", -80, "warning"],
+			["ai_agents:visitors:Meta AI", -80, "critical"],
+		]);
+		const remeasured = await remeasureAiAgentSignal(
+			PARAMS,
+			{ signalKey: "ai_agents:requests:Meta AI" } as InvestigationSignal,
+			TODAY,
+			deps
+		);
+		expect(remeasured?.severity).toBe("warning");
+	});
+
 	it("remeasures a stored signal for the same product and metric", async () => {
 		const signal = await remeasureAiAgentSignal(
 			PARAMS,
