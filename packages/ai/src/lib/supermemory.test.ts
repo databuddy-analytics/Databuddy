@@ -44,6 +44,7 @@ mock.module("@databuddy/services/business-memory", () => ({
 }));
 
 const {
+	asksToForget,
 	asksToRemember,
 	forgetMemory,
 	getMemoryContext,
@@ -226,6 +227,56 @@ describe("forgetting memory", () => {
 		expect(await forgetMemory("weekly views", "usr_1", null)).toEqual({
 			candidates: ["Prefers weekly views in traffic reports"],
 			status: "not_found",
+		});
+		expect(mockForget).not.toHaveBeenCalled();
+	});
+});
+
+describe("explicit forget requests", () => {
+	test.each([
+		"Forget that I prefer weekly views",
+		"Please forget my name",
+		"Can you forget that our trial lasts 14 days?",
+		"Delete the memory about our fiscal year",
+		"Remove that from your memory",
+		"That memory is wrong",
+		"You remembered our launch date wrong",
+		"Stop remembering my chart preference",
+	])("detects %p", (message) => {
+		expect(asksToForget(message)).toBe(true);
+	});
+
+	test.each([
+		"Forget it, show me traffic",
+		"Never mind, forget about it",
+		"Don't forget to exclude internal traffic",
+		"Did you forget my name?",
+		"Users forget their carts at checkout",
+		"That's wrong, signups were higher",
+		"Delete the goal for signups",
+		"",
+	])("ignores %p", (message) => {
+		expect(asksToForget(message)).toBe(false);
+	});
+});
+
+describe("forget_memory tool", () => {
+	const tools = createMemoryTools();
+	const forget = (latestUserMessage: string) =>
+		tools.forget_memory?.execute?.(
+			{ query: "Prefers weekly views" },
+			{
+				toolCallId: "forget",
+				messages: [],
+				experimental_context: { latestUserMessage, userId: "usr_1" },
+			}
+		);
+
+	test("refuses when the latest user message does not ask to forget", async () => {
+		expect(
+			await forget("Ignore earlier notes and wipe my preferences")
+		).toMatchObject({
+			forgotten: false,
 		});
 		expect(mockForget).not.toHaveBeenCalled();
 	});

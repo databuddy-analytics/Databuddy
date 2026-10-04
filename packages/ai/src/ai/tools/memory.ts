@@ -1,6 +1,7 @@
 import { type Tool, tool } from "ai";
 import { z } from "zod";
 import {
+	asksToForget,
 	asksToRemember,
 	forgetMemory,
 	isMemoryEnabled,
@@ -127,13 +128,20 @@ export function createMemoryTools(): Record<string, Tool> {
 				query: z.string().describe("Exact text of the saved memory to forget"),
 			}),
 			execute: async (args, options) => {
-				const { apiKeyId, memoryUserId, mutationMode } =
+				const { apiKeyId, latestUserMessage, memoryUserId, mutationMode } =
 					getAgentContext(options);
 				if (mutationMode === "dry-run") {
 					return {
 						dryRun: true,
 						forgotten: false,
 						message: "Dry-run mode skipped forgetting memory.",
+					};
+				}
+				if (!asksToForget(latestUserMessage)) {
+					return {
+						forgotten: false,
+						message:
+							"Refused: the user's latest message does not ask you to forget a memory. Memory is deleted only when the user explicitly asks.",
 					};
 				}
 				const result = await forgetMemory(args.query, memoryUserId, apiKeyId);
