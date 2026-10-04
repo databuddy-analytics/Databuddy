@@ -239,6 +239,13 @@ const WILDCARD_PROJECTION_PATTERN =
 	/(?:^|,)\s*(?:(?:DISTINCT|ALL)\s+)?(?:[a-zA-Z_][a-zA-Z0-9_]*\s*\.\s*)?\*\s*(?=,|$|\b(?:APPLY|EXCEPT|REPLACE)\b)/i;
 const SENSITIVE_PROJECTION_PATTERN =
 	/\b(?:ip|metadata|properties|url|user_agent)\b/i;
+const COLUMNS_MATCHER_PATTERN = /\bCOLUMNS\s*\(/i;
+const WILDCARD_ARGUMENT_PATTERN =
+	/([A-Za-z_][A-Za-z0-9_]*)?\s*\(\s*(?:[A-Za-z_][A-Za-z0-9_]*\s*\.\s*)?\*\s*(?=[,)])/g;
+const ALIAS_FREE_CLAUSE_PATTERN =
+	/\b(?:PREWHERE|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|QUALIFY|ON)\b/gi;
+const ALIAS_KEYWORD_PATTERN = /\bAS\b/gi;
+const CAST_CALL_PATTERN = /\bCAST\s*$/i;
 
 const PLAIN_QUOTED_IDENTIFIER_PATTERN = /^[A-Za-z0-9_.]+$/;
 
@@ -457,7 +464,47 @@ function extractRelationReferences(sql: string): {
 	return refs;
 }
 
+function openParensAt(sql: string, position: number): number[] {
+	const open: number[] = [];
+	for (let i = 0; i < position; i++) {
+		if (sql[i] === "(") {
+			open.push(i);
+		} else if (sql[i] === ")") {
+			open.pop();
+		}
+	}
+	return open;
+}
+
+function hiddenProjectionError(sql: string): string | null {
+	if (COLUMNS_MATCHER_PATTERN.test(sql)) {
+		return "COLUMNS() matchers are not allowed; select explicit columns.";
+	}
+	for (const match of sql.matchAll(WILDCARD_ARGUMENT_PATTERN)) {
+		if (match[1]?.toLowerCase() !== "count") {
+			return "Wildcard arguments are not allowed; pass explicit columns.";
+		}
+	}
+	for (const clause of sql.matchAll(ALIAS_FREE_CLAUSE_PATTERN)) {
+		const start = clause.index + clause[0].length;
+		const body = sql.slice(start, findClauseEnd(sql, start));
+		for (const alias of body.matchAll(ALIAS_KEYWORD_PATTERN)) {
+			const insideCast = openParensAt(body, alias.index).some((open) =>
+				CAST_CALL_PATTERN.test(body.slice(0, open))
+			);
+			if (!insideCast) {
+				return "Aliases are allowed only in SELECT lists, table references and CTE names.";
+			}
+		}
+	}
+	return null;
+}
+
 function validateSelectProjections(sql: string): string | null {
+	const hidden = hiddenProjectionError(sql);
+	if (hidden) {
+		return hidden;
+	}
 	for (const match of sql.matchAll(SELECT_PROJECTION_PATTERN)) {
 		const projection = match[1] ?? "";
 		if (WILDCARD_PROJECTION_PATTERN.test(projection)) {
