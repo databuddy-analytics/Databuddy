@@ -2,6 +2,13 @@ import type { TrackingOptionConfig } from "../utils/types";
 
 export const COPY_SUCCESS_TIMEOUT = 2000;
 
+export const CODING_AGENTS = [
+	{ id: "cursor", name: "Cursor", icon: "Cursor", invert: true },
+	{ id: "claude", name: "Claude Code", icon: "Claude", invert: false },
+	{ id: "codex", name: "Codex", icon: "ChatGPT", invert: true },
+	{ id: "copilot", name: "Copilot", icon: "Copilot", invert: false },
+] as const;
+
 export const TOAST_MESSAGES = {
 	SCRIPT_COPIED: "Script tag copied to clipboard!",
 	TRACKING_COPIED: "Tracking code copied to clipboard!",

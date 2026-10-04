@@ -5,6 +5,7 @@ import {
 	BellIcon,
 	BrainIcon,
 	BugIcon,
+	ChartBarIcon,
 	ChartPieIcon as ChartPieSliceIcon,
 	CodeIcon,
 	CreditCardIcon,
@@ -107,7 +108,7 @@ export const mainNavigation: NavigationGroup[] = [
 					"event analytics",
 				],
 			}),
-			createNavItem("MCP Servers", PlugIcon, "/mcp", {
+			createNavItem("MCP Analytics", ChartBarIcon, "/mcp", {
 				activeMatch: "prefix",
 				alpha: true,
 				flag: "mcp",

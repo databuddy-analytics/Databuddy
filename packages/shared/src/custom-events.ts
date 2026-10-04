@@ -5,6 +5,7 @@ export const APP_EVENTS = {
 	firstReviewStarted: "first_review_started",
 	firstReviewViewed: "first_review_viewed",
 	invitationAccepted: "invitation_accepted",
+	mcpSetupCopied: "mcp_setup_copied",
 	onboardingCompleted: "onboarding_completed",
 	onboardingInviteSent: "onboarding_invite_sent",
 	onboardingSkipped: "onboarding_skipped",
@@ -119,6 +120,10 @@ export interface AppEventProperties {
 		verified?: boolean;
 		origin?: "ai" | "manual";
 		intent?: OnboardingIntent;
+	};
+	[APP_EVENTS.mcpSetupCopied]: {
+		block: string;
+		method: "ai" | "manual";
 	};
 	[APP_EVENTS.onboardingStepViewed]: {
 		step: OnboardingStepId;
