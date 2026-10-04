@@ -16,7 +16,9 @@ test("creates a target group, a flag from a template, and a manual flag, then to
 	await page.goto(`${flags}/groups`);
 	await page.getByRole("button", { name: "Create Group", exact: true }).click();
 	const groupSheet = page.getByRole("dialog", { name: "Create Group" });
-	await groupSheet.getByPlaceholder("Beta Testers…").fill(groupName);
+	await groupSheet
+		.getByPlaceholder("Beta testers", { exact: true })
+		.fill(groupName);
 	await groupSheet.getByRole("button", { name: "Create Group" }).click();
 	await expect(groupSheet).toBeHidden();
 	await expect(page.getByText(groupName, { exact: true })).toBeVisible();
@@ -34,7 +36,7 @@ test("creates a target group, a flag from a template, and a manual flag, then to
 	await expect(page.getByText(templateKey, { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Create Flag", exact: true }).click();
 	const sheet = page.getByRole("dialog", { name: "Create Flag" });
-	await sheet.getByPlaceholder("New Feature…").fill(flagName);
+	await sheet.getByPlaceholder("New feature", { exact: true }).fill(flagName);
 	await expect(sheet.getByPlaceholder("new-feature")).toHaveValue(
 		`beta-${suffix}`
 	);

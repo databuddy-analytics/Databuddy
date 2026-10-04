@@ -34,7 +34,7 @@ test("creates an API key that authenticates, then deletes it and the key stops w
 	await expect(page.getByRole("heading", { name: keyName })).toBeVisible();
 	await page.getByRole("button", { name: "Destructive actions" }).click();
 	await page.getByRole("button", { name: "Delete" }).click();
-	const confirm = page.getByRole("dialog", { name: "Delete API Key?" });
+	const confirm = page.getByRole("dialog", { name: "Delete API key" });
 	await confirm.getByRole("button", { name: "Delete" }).click();
 	await expect(confirm).toBeHidden();
 	await expect(apiKeyRow(page, keyName)).toBeHidden();

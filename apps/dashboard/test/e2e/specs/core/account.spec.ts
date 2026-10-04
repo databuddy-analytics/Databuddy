@@ -15,7 +15,7 @@ test("renames the account, changes the password, and signs back in", {
 	const fullName = page.getByRole("textbox", { name: "Full Name" });
 	await fullName.fill(name);
 	await page.getByRole("button", { name: "Save Changes" }).click();
-	await expect(page.getByText("Profile updated successfully")).toBeVisible();
+	await expect(page.getByText("Profile updated")).toBeVisible();
 	await page.reload();
 	await expect(fullName).toHaveValue(name);
 
@@ -25,7 +25,7 @@ test("renames the account, changes the password, and signs back in", {
 	await dialog.getByLabel("New Password", { exact: true }).fill(password);
 	await dialog.getByLabel("Confirm New Password").fill(password);
 	await dialog.getByRole("button", { name: "Change Password" }).click();
-	await expect(page.getByText("Password changed successfully")).toBeVisible();
+	await expect(page.getByText("Password changed")).toBeVisible();
 
 	await page
 		.getByRole("button", { name: "Account", exact: true })
