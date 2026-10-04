@@ -528,7 +528,14 @@ export default function UsersPage() {
 					</Tooltip>
 				),
 				cell: ({ row }) => {
-					const ltv = row.original.ltv ?? 0;
+					const { ltv } = row.original;
+					if (ltv === null) {
+						return (
+							<span className="text-muted-foreground text-sm">
+								Multiple currencies
+							</span>
+						);
+					}
 					if (ltv === 0) {
 						return <span className="text-muted-foreground text-sm">—</span>;
 					}

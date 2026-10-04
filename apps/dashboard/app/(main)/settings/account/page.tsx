@@ -17,7 +17,6 @@ import {
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { TwoFactorDialog } from "./sections/two-factor-dialog";
@@ -263,7 +262,6 @@ function DeleteAccountDialog({
 	userEmail: string;
 	hasPassword: boolean;
 }) {
-	const router = useRouter();
 	const [password, setPassword] = useState("");
 	const [confirmEmail, setConfirmEmail] = useState("");
 	const [emailSent, setEmailSent] = useState(false);
@@ -290,14 +288,7 @@ function DeleteAccountDialog({
 			}
 			return result.data;
 		},
-		onSuccess: (data) => {
-			if (data.message === "User deleted") {
-				toast.success("Your account has been deleted");
-				router.push("/login");
-			} else {
-				setEmailSent(true);
-			}
-		},
+		onSuccess: () => setEmailSent(true),
 		onError: (error) => {
 			toast.error(error.message || "Failed to delete account");
 		},
