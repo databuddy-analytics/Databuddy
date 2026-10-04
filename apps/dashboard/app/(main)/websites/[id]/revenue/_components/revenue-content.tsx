@@ -224,10 +224,10 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 				{hasError ? (
 					<div className="flex min-h-full items-center justify-center p-4 py-16">
 						<EmptyState
-							action={{ label: "Retry", onClick: handleRetry }}
+							action={{ label: "Try again", onClick: handleRetry }}
 							description="We couldn't load revenue data. Try again in a moment."
 							icon={<WarningCircleIcon />}
-							title="Couldn't load revenue"
+							title="Failed to load revenue"
 							variant="error"
 						/>
 					</div>
@@ -258,7 +258,7 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 								icon={CreditCardIcon}
 								id="avg-transaction"
 								isLoading={isLoading}
-								title="Avg Transaction"
+								title="Avg transaction"
 								value={formatRevenueCurrency(avgTransaction, displayCurrency)}
 							/>
 							<StatCard
@@ -347,7 +347,7 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 							<Card.Header className="flex-row items-center justify-between gap-3 py-3">
 								<div className="min-w-0 flex-1">
 									<Card.Title className="truncate text-sm">
-										Revenue Trends
+										Revenue trends
 									</Card.Title>
 									<Card.Description className="line-clamp-2 text-pretty">
 										Revenue, transactions, customers, and refunds over time

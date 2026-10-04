@@ -80,7 +80,7 @@ export default function EventDetailPage() {
 					<EmptyState
 						description="There was an issue loading data for this event."
 						icon={<LightningIcon />}
-						title="Error loading event data"
+						title="Failed to load event data"
 						variant="error"
 					/>
 				</div>
@@ -147,7 +147,7 @@ export default function EventDetailPage() {
 
 					<Card>
 						<Card.Header>
-							<Card.Title>Recent Events</Card.Title>
+							<Card.Title>Recent events</Card.Title>
 							<Card.Description>
 								Latest occurrences of this event
 							</Card.Description>

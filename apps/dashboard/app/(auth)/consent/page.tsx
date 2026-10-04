@@ -23,7 +23,7 @@ import {
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
-import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { orpc } from "@/lib/orpc";
 
 const IDENTITY_SCOPE_LABELS = new Map([
@@ -138,15 +138,8 @@ function ConsentPage() {
 						: undefined,
 				}
 			),
-		onError: ({ cause }) => {
-			const message =
-				cause instanceof Object && "message" in cause ? cause.message : null;
-			toast.error(
-				typeof message === "string" && message
-					? message
-					: "Could not complete authorization. Try connecting again."
-			);
-		},
+		onError: (error) =>
+			showErrorToast(error, "Failed to complete authorization"),
 	});
 	const busy = decision.isPending || decision.isSuccess;
 
@@ -237,7 +230,7 @@ function ConsentPage() {
 				</DropdownMenu>
 				{organizationsQuery.isError ? (
 					<Field.Error id="consent-organization-description">
-						Could not load organizations. Try connecting again.
+						Failed to load organizations. Try connecting again.
 					</Field.Error>
 				) : (
 					<Field.Description id="consent-organization-description">
@@ -268,7 +261,7 @@ function ConsentPage() {
 						</Text>
 					) : websitesQuery.isError ? (
 						<Text role="alert" tone="destructive">
-							Could not load websites. Try connecting again.
+							Failed to load websites. Try connecting again.
 						</Text>
 					) : websiteIds === null ? (
 						<Text tone="muted" variant="caption">

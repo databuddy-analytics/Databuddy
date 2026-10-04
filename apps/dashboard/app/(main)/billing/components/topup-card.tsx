@@ -4,7 +4,7 @@ import { APP_EVENTS } from "@databuddy/shared/custom-events";
 import { trackAppEvent } from "@/lib/app-events";
 import { CreditArcSlider } from "@/components/ui/credit-arc-slider";
 import { cn } from "@/lib/utils";
-import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
 import {
 	blendedRatePerCredit,
@@ -19,7 +19,6 @@ import {
 } from "@/lib/topup-math";
 import { useCustomer } from "autumn-js/react";
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 import { CaretDownIcon, CoinsIcon, TrendDownIcon } from "@databuddy/ui/icons";
 import { Badge, Button, Card, Divider, Text } from "@databuddy/ui";
 import { getStripeMetadata } from "../utils/stripe-metadata";
@@ -72,12 +71,7 @@ export function TopupCard() {
 				successUrl: `${window.location.origin}/billing`,
 			});
 		} catch (error) {
-			toast.error(
-				getUserFacingErrorMessage(
-					error,
-					"We couldn't open checkout. Try again."
-				)
-			);
+			showErrorToast(error, "Failed to open checkout");
 		} finally {
 			setIsAttaching(false);
 		}
@@ -271,7 +265,7 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 						<span className="font-medium text-foreground tabular-nums">
 							${savings.toFixed(2)}
 						</span>{" "}
-						compared with the first-tier rate — that's{" "}
+						compared with the first-tier rate. That's{" "}
 						<span className="font-medium text-foreground tabular-nums">
 							{Math.round((1 - blendedRate / BASE_RATE) * 100)}%
 						</span>{" "}

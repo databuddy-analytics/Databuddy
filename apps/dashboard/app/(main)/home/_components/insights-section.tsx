@@ -44,7 +44,7 @@ function ErrorState({ onRetryAction }: { onRetryAction: () => void }) {
 			</div>
 			<div className="min-w-0 flex-1">
 				<p className="font-medium text-foreground text-sm">
-					Couldn't load insights
+					Failed to load insights
 				</p>
 				<p className="text-muted-foreground text-xs">
 					Recent analysis results couldn't be loaded
@@ -56,7 +56,7 @@ function ErrorState({ onRetryAction }: { onRetryAction: () => void }) {
 				size="sm"
 				variant="secondary"
 			>
-				Retry
+				Try again
 			</Button>
 		</div>
 	);

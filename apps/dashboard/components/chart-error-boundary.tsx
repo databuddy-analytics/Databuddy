@@ -41,7 +41,7 @@ export class ChartErrorBoundary extends Component<
 						type="button"
 						variant="ghost"
 					>
-						Failed to render chart — click to retry
+						Failed to render chart. Click to try again.
 					</Button>
 				</div>
 			);

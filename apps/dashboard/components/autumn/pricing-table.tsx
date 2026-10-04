@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/table";
 import { getCustomerPlanName } from "@/lib/autumn/customer-plan-name";
 import { formatLocaleNumber } from "@/lib/format-locale-number";
-import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 
 type HookPlan = NonNullable<ReturnType<typeof useListPlans>["data"]>[number];
@@ -149,7 +149,7 @@ export default function PricingTable({
 			<EmptyState
 				description="Try again in a moment."
 				icon={<WarningIcon />}
-				title="Couldn't load plans"
+				title="Failed to load plans"
 				variant="error"
 			/>
 		);
@@ -178,12 +178,7 @@ export default function PricingTable({
 									toast.success("Plan updated");
 								}
 							} catch (error) {
-								toast.error(
-									getUserFacingErrorMessage(
-										error,
-										"We couldn't update your plan. Try again."
-									)
-								);
+								showErrorToast(error, "Failed to update plan");
 								throw error;
 							}
 						}}
@@ -269,7 +264,7 @@ function PricingCard({
 						</Card.Title>
 						{isActive && (
 							<Badge size="sm" variant="muted">
-								Current
+								Current plan
 							</Badge>
 						)}
 						{isSelected && !isActive && (
@@ -303,12 +298,7 @@ function PricingCard({
 								setPreview(await previewAction());
 								setDialogOpen(true);
 							} catch (error) {
-								toast.error(
-									getUserFacingErrorMessage(
-										error,
-										"We couldn't load the billing preview. Try again."
-									)
-								);
+								showErrorToast(error, "Failed to load billing preview");
 							} finally {
 								setIsLoadingPreview(false);
 							}

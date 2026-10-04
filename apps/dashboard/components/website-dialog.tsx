@@ -110,20 +110,20 @@ export function WebsiteDialog({
 				if (onSave) {
 					onSave(result);
 				}
-				toast.success("Website updated successfully!");
+				toast.success("Website updated");
 			} else {
 				const result = await createWebsiteMutation.mutateAsync(submissionData);
 				trackAppEvent(APP_EVENTS.websiteCreated, { source: "dialog" });
 				if (onSave) {
 					onSave(result);
 				}
-				toast.success("Website created successfully!");
+				toast.success("Website created");
 			}
 			onOpenChange(false);
 		} catch (error: unknown) {
 			showErrorToast(
 				error,
-				`Failed to ${website?.id ? "update" : "create"} website.`
+				`Failed to ${website?.id ? "update" : "create"} website`
 			);
 		}
 	};
@@ -143,12 +143,12 @@ export function WebsiteDialog({
 				<Dialog.Form onSubmit={form.handleSubmit(handleSubmit)}>
 					<Dialog.Header>
 						<Dialog.Title>
-							{isEditing ? "Edit Website" : "Create a new website"}
+							{isEditing ? "Edit website" : "Create website"}
 						</Dialog.Title>
 						<Dialog.Description>
 							{isEditing
 								? "Update the details of your existing website."
-								: "A new website to start tracking analytics."}
+								: "Add a website to start tracking analytics."}
 						</Dialog.Description>
 					</Dialog.Header>
 					<Dialog.Body>

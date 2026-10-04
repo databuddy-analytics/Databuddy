@@ -60,9 +60,9 @@ export function EventsOverviewContent({
 			<div className="p-3 sm:p-4">
 				<div className="rounded-lg border border-destructive/20 bg-destructive/5 p-6">
 					<EmptyState
-						description="There was an issue loading your events analytics. Please try refreshing using the toolbar above."
+						description="There was an issue loading your events analytics. Refresh using the toolbar above."
 						icon={<LightningIcon />}
-						title="Error loading data"
+						title="Failed to load events"
 						variant="error"
 					/>
 				</div>
@@ -77,7 +77,7 @@ export function EventsOverviewContent({
 			{showRefreshingIndicator && (
 				<div className="flex h-9 items-center justify-center gap-2 rounded-md border border-primary/20 bg-primary/5 text-primary text-sm">
 					<ArrowClockwiseIcon className="size-4 animate-spin" />
-					<span>Refreshing data...</span>
+					<span>Refreshing data…</span>
 				</div>
 			)}
 

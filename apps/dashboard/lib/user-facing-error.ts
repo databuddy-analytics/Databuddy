@@ -94,10 +94,10 @@ export function getUserFacingErrorMessage(
 }
 
 export function showErrorToast(error: unknown, fallback?: string) {
-	toast.error(getUserFacingErrorMessage(error, fallback));
+	const message = getUserFacingErrorMessage(error, fallback);
+	if (fallback && message !== fallback) {
+		toast.error(fallback, { description: message });
+		return;
+	}
+	toast.error(message);
 }
-
-export const mutationErrorToast = {
-	onError: (error: unknown) => showErrorToast(error),
-	meta: { suppressGlobalErrorToast: true },
-};

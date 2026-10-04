@@ -99,7 +99,7 @@ export function LinkQrCode({
 		}
 
 		if (!file.type.startsWith("image/")) {
-			toast.error("Please upload an image file");
+			toast.error("Choose an image file, such as PNG or JPEG.");
 			return;
 		}
 

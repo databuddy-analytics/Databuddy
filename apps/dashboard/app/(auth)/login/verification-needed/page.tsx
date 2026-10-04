@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useQueryState } from "nuqs";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { safeCallbackPath } from "@/lib/safe-callback";
 import { ArrowLeftIcon, WarningIcon } from "@databuddy/ui/icons";
 import { Button, Spinner, Text } from "@databuddy/ui";
@@ -55,16 +56,12 @@ function VerificationNeededPage() {
 				callbackURL: safeCallback,
 			});
 			if (error) {
-				toast.error(
-					"We couldn't send the verification email. Try again in a moment."
-				);
+				showErrorToast(error, "Failed to send verification email");
 			} else {
-				toast.success("Verification email sent. Check your inbox.");
+				toast.success("Verification email sent. Check your inbox");
 			}
-		} catch {
-			toast.error(
-				"We couldn't send the verification email. Try again in a moment."
-			);
+		} catch (error) {
+			showErrorToast(error, "Failed to send verification email");
 		}
 		setIsLoading(false);
 	};
@@ -118,8 +115,8 @@ function VerificationNeededPage() {
 					<WarningIcon className="size-5 shrink-0 text-primary" />
 					<Text tone="muted">
 						Your email <strong className="text-foreground">{email}</strong>{" "}
-						needs to be verified before you can sign in. Please check your inbox
-						for the verification link.
+						needs to be verified before you can sign in. Check your inbox for
+						the verification link.
 					</Text>
 				</div>
 				<Button
@@ -138,7 +135,7 @@ function VerificationNeededPage() {
 					href={loginHref}
 				>
 					<ArrowLeftIcon className="mr-1 inline size-3" />
-					Back to login
+					Back to sign in
 				</Link>
 			</div>
 		</>

@@ -1,7 +1,7 @@
 import { useCustomer, useListPlans } from "autumn-js/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { dayjs } from "@databuddy/ui";
 import { trackCancelFeedbackAction } from "../actions/cancel-feedback-action";
 import type { CancelFeedback } from "../components/cancel-subscription-dialog";
@@ -28,20 +28,15 @@ export function useBilling(refetch?: () => void) {
 			});
 			toast.success(
 				immediate
-					? "Subscription canceled immediately."
-					: "Subscription cancellation scheduled."
+					? "Subscription canceled immediately"
+					: "Subscription cancellation scheduled"
 			);
 			if (refetch) {
 				setTimeout(refetch, 500);
 			}
 			return true;
 		} catch (error) {
-			toast.error(
-				getUserFacingErrorMessage(
-					error,
-					"We couldn't cancel the subscription. Try again."
-				)
-			);
+			showErrorToast(error, "Failed to cancel subscription");
 			return false;
 		}
 	};

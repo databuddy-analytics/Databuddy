@@ -137,7 +137,7 @@ export default function HomePage() {
 				</Button>
 				<Button onClick={() => setDialogOpen(true)} size="sm">
 					<PlusIcon className="size-4 shrink-0" />
-					New Website
+					Create website
 				</Button>
 			</TopBar.Actions>
 
@@ -185,7 +185,7 @@ export default function HomePage() {
 				<div className="space-y-4">
 					<div className="flex items-center justify-between">
 						<h2 className="font-semibold text-foreground text-sm">
-							Website Snapshot
+							Website snapshot
 						</h2>
 						{websites.length > 0 && (
 							<Link
@@ -208,12 +208,12 @@ export default function HomePage() {
 					{isError && (
 						<EmptyState
 							action={{
-								label: "Try Again",
+								label: "Try again",
 								onClick: handleRefetch,
 							}}
 							description="There was an issue fetching your websites."
 							icon={<GlobeIcon />}
-							title="Failed to load"
+							title="Failed to load websites"
 							variant="error"
 						/>
 					)}
@@ -221,7 +221,7 @@ export default function HomePage() {
 					{!(isLoading || isError) && websites.length === 0 && (
 						<EmptyState
 							action={{
-								label: "Create Your First Website",
+								label: "Create your first website",
 								onClick: () => setDialogOpen(true),
 							}}
 							description="Start tracking your website analytics by adding your first website."

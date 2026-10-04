@@ -11,7 +11,7 @@ import {
 import { getCustomerPlanName } from "@/lib/autumn/customer-plan-name";
 import { getSubscriptionPriceText } from "@/lib/autumn/subscription-price";
 import { orpc } from "@/lib/orpc";
-import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
+import { showErrorToast } from "@/lib/user-facing-error";
 import type { UsageResponse } from "@/types/billing";
 import { INTELLIGENCE_PLAN_IDS } from "@databuddy/shared/types/features";
 import { useQuery } from "@tanstack/react-query";
@@ -164,12 +164,7 @@ function AddOnRow({
 			setPreview(result);
 			setDialogOpen(true);
 		} catch (err) {
-			toast.error(
-				getUserFacingErrorMessage(
-					err,
-					"We couldn't load the add-on preview. Try again."
-				)
-			);
+			showErrorToast(err, "Failed to load add-on preview");
 		} finally {
 			setIsLoadingPreview(false);
 		}
@@ -189,11 +184,17 @@ function AddOnRow({
 					)}
 				</div>
 				{isCancelled ? (
-					<Badge variant="muted">Cancellation scheduled</Badge>
+					<Badge variant="warning">Cancellation scheduled</Badge>
 				) : isActive ? (
 					<div className="flex items-center gap-2">
 						<Badge
-							variant={subscription?.status === "active" ? "success" : "muted"}
+							variant={
+								subscription?.status === "active"
+									? "success"
+									: subscription?.status === "past_due"
+										? "warning"
+										: "muted"
+							}
 						>
 							{subscription?.status === "past_due"
 								? "Past due"
@@ -422,7 +423,7 @@ export default function BillingPage() {
 				<Card>
 					<Card.Header className="flex-row items-start justify-between gap-4">
 						<div>
-							<Card.Title>Current Plan</Card.Title>
+							<Card.Title>Current plan</Card.Title>
 							<Card.Description>
 								Subscription and billing management
 							</Card.Description>
@@ -472,7 +473,7 @@ export default function BillingPage() {
 											size="sm"
 											variant="secondary"
 										>
-											Reactivate Plan
+											Reactivate plan
 										</Button>
 									) : isFree ? (
 										<Button
@@ -480,7 +481,7 @@ export default function BillingPage() {
 											size="sm"
 											variant="secondary"
 										>
-											Upgrade Plan
+											Upgrade plan
 										</Button>
 									) : (
 										<>
@@ -489,7 +490,7 @@ export default function BillingPage() {
 												size="sm"
 												variant="secondary"
 											>
-												Change Plan
+												Change plan
 											</Button>
 											<Button
 												onClick={() =>
@@ -503,7 +504,7 @@ export default function BillingPage() {
 												size="sm"
 												variant="ghost"
 											>
-												Cancel Plan
+												Cancel plan
 											</Button>
 										</>
 									)}
@@ -512,7 +513,7 @@ export default function BillingPage() {
 										size="sm"
 										variant="secondary"
 									>
-										Billing Portal
+										Billing portal
 										<ArrowSquareOutIcon size={14} />
 									</Button>
 								</>
@@ -541,7 +542,7 @@ export default function BillingPage() {
 						<Card.Header>
 							<Card.Title className="flex items-center gap-2">
 								<PuzzlePieceIcon className="text-muted-foreground" size={14} />
-								Enterprise Add-ons
+								Enterprise add-ons
 							</Card.Title>
 							<Card.Description>
 								Additional features for your plan
@@ -573,12 +574,7 @@ export default function BillingPage() {
 													refetch();
 													toast.success("Add-on attached");
 												} catch (err) {
-													toast.error(
-														getUserFacingErrorMessage(
-															err,
-															"We couldn't add this add-on. Try again."
-														)
-													);
+													showErrorToast(err, "Failed to add add-on");
 													throw err;
 												}
 											}}

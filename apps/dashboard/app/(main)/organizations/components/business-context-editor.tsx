@@ -356,7 +356,7 @@ export function BusinessContextEditor({
 			setError(
 				getUserFacingErrorMessage(
 					cause,
-					"Couldn't save this change. Your edits are still here."
+					"Failed to save this change. Your edits are still here."
 				)
 			);
 		} finally {
@@ -433,7 +433,7 @@ export function BusinessContextEditor({
 						if (activeGeneration && generation) {
 							return change(
 								() => onCancel(generation.id),
-								"Generation cancelled",
+								"Generation canceled",
 								false
 							);
 						}

@@ -84,10 +84,9 @@ function LoginPage() {
 			});
 
 			if (result.error) {
-				toast.error(
-					result.error.message ||
-						`${getProviderLabel(provider)} login failed. Please try again.`
-				);
+				toast.error(`Failed to sign in with ${getProviderLabel(provider)}`, {
+					description: "Try again in a moment.",
+				});
 				setIsLoading(false);
 				return;
 			}
@@ -97,14 +96,14 @@ function LoginPage() {
 				return;
 			}
 
-			toast.error(
-				`${getProviderLabel(provider)} login failed. Please try again.`
-			);
+			toast.error(`Failed to sign in with ${getProviderLabel(provider)}`, {
+				description: "Try again in a moment.",
+			});
 			setIsLoading(false);
 		} catch {
-			toast.error(
-				`${getProviderLabel(provider)} login failed. Please try again.`
-			);
+			toast.error(`Failed to sign in with ${getProviderLabel(provider)}`, {
+				description: "Try again in a moment.",
+			});
 			setIsLoading(false);
 		}
 	};
@@ -112,7 +111,7 @@ function LoginPage() {
 	const handleEmailPasswordLogin = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!(email && password)) {
-			toast.error("Please enter both email and password");
+			toast.error("Enter your email and password.");
 			return;
 		}
 
@@ -134,10 +133,12 @@ function LoginPage() {
 							`/login/verification-needed?callback=${encodeURIComponent(safeCallback)}`
 						);
 					} else {
-						toast.error(
-							error?.error?.message ||
-								"Login failed. Please check your credentials and try again."
-						);
+						toast.error("Failed to sign in", {
+							description:
+								error?.error?.status === 429
+									? "Too many attempts. Wait a moment and try again."
+									: "Check your email and password and try again.",
+						});
 					}
 				},
 			},
@@ -212,7 +213,7 @@ function LoginPage() {
 									>
 										<Link href={`/login/magic${callbackQuery}`}>
 											<EnvelopeSimpleIcon className="size-4" />
-											Sign in with Magic Link
+											Sign in with magic link
 										</Link>
 									</Button>
 									{lastUsed === "magic-link" && (

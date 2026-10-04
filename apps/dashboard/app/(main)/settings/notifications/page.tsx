@@ -107,10 +107,12 @@ function NotificationsSettings() {
 			toast.success("Alert deleted");
 			return invalidateAlarms();
 		},
+		meta: { errorTitle: "Failed to delete alert" },
 	});
 	const toggleMutation = useMutation({
 		...orpc.alarms.update.mutationOptions(),
 		onSuccess: invalidateAlarms,
+		meta: { errorTitle: "Failed to update alert" },
 	});
 	const testMutation = useMutation({
 		...orpc.alarms.test.mutationOptions(),
@@ -128,7 +130,7 @@ function NotificationsSettings() {
 				description: summary.description,
 			});
 		} catch {
-			toast.error("Test could not be sent", {
+			toast.error("Failed to send test alert", {
 				description: "Check the alert destinations and try again.",
 			});
 		}
@@ -142,7 +144,7 @@ function NotificationsSettings() {
 	const newAlertButton = (
 		<Button onClick={() => openAlarmSheet(null)} size="sm" variant="secondary">
 			<PlusIcon size={14} />
-			New Alert
+			Create alert
 		</Button>
 	);
 
@@ -171,7 +173,7 @@ function NotificationsSettings() {
 						{isError && (
 							<div className="px-5 py-12">
 								<EmptyState
-									action={{ label: "Retry", onClick: () => refetch() }}
+									action={{ label: "Try again", onClick: () => refetch() }}
 									description="Something went wrong while loading your alerts."
 									icon={<BellIcon />}
 									title="Failed to load alerts"

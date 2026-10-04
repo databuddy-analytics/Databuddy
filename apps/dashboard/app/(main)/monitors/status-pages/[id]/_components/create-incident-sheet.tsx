@@ -111,16 +111,18 @@ export function IncidentSheet({
 			queryKey: orpc.statusPage.listIncidents.key({ input: { statusPageId } }),
 		});
 	};
-	const createMutation = useMutation(
-		orpc.statusPage.createIncident.mutationOptions({
+	const createMutation = useMutation({
+		...orpc.statusPage.createIncident.mutationOptions({
 			onSuccess: () => handleSaved(),
-		})
-	);
-	const updateMutation = useMutation(
-		orpc.statusPage.updateIncident.mutationOptions({
+		}),
+		meta: { errorTitle: "Failed to create incident" },
+	});
+	const updateMutation = useMutation({
+		...orpc.statusPage.updateIncident.mutationOptions({
 			onSuccess: () => handleSaved(),
-		})
-	);
+		}),
+		meta: { errorTitle: "Failed to update incident" },
+	});
 	const isPending = createMutation.isPending || updateMutation.isPending;
 
 	const handleOpenChange = (next: boolean) => {
@@ -168,16 +170,16 @@ export function IncidentSheet({
 	const status = form.watch("status");
 	const submitLabel = isUpdate
 		? status === "resolved"
-			? "Resolve Incident"
-			: "Post Update"
-		: "Create Incident";
+			? "Resolve incident"
+			: "Post update"
+		: "Report incident";
 
 	return (
 		<Sheet onOpenChange={handleOpenChange} open={open}>
 			<Sheet.Content side="right">
 				<Sheet.Header>
 					<Sheet.Title>
-						{isUpdate ? "Update Incident" : "Report Incident"}
+						{isUpdate ? "Update incident" : "Report incident"}
 					</Sheet.Title>
 					<Sheet.Description>
 						{incident?.title ??
@@ -329,8 +331,8 @@ export function IncidentSheet({
 										minRows={3}
 										placeholder={
 											isUpdate
-												? "Provide an update..."
-												: "We are investigating reports of..."
+												? "Provide an update…"
+												: "We are investigating reports of degraded performance."
 										}
 										{...field}
 									/>
