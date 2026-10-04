@@ -138,7 +138,9 @@ function ChangePasswordDialog({
 			setNewPassword("");
 			setConfirmPassword("");
 		},
-		meta: { errorTitle: "Failed to change password" },
+		meta: { suppressGlobalErrorToast: true },
+		onError: (error) =>
+			toast.error("Failed to change password", { description: error.message }),
 	});
 
 	const submitPasswordChange = () => {
@@ -296,7 +298,9 @@ function DeleteAccountDialog({
 			return result.data;
 		},
 		onSuccess: () => setEmailSent(true),
-		meta: { errorTitle: "Failed to delete account" },
+		meta: { suppressGlobalErrorToast: true },
+		onError: (error) =>
+			toast.error("Failed to delete account", { description: error.message }),
 	});
 
 	const emailMatches = confirmEmail.toLowerCase() === userEmail.toLowerCase();
@@ -472,7 +476,9 @@ export default function AccountSettingsPage() {
 		onSuccess: () => {
 			toast.success("Profile updated");
 		},
-		meta: { errorTitle: "Failed to update profile" },
+		meta: { suppressGlobalErrorToast: true },
+		onError: (error) =>
+			toast.error("Failed to update profile", { description: error.message }),
 	});
 
 	const linkSocial = useMutation({
@@ -486,7 +492,9 @@ export default function AccountSettingsPage() {
 			}
 			return result;
 		},
-		meta: { errorTitle: "Failed to connect account" },
+		meta: { suppressGlobalErrorToast: true },
+		onError: (error) =>
+			toast.error("Failed to connect account", { description: error.message }),
 	});
 
 	const unlinkAccount = useMutation({
