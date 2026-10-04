@@ -593,6 +593,22 @@ function goalRateSignal(
 	return signal;
 }
 
+function funnelRateSignal(
+	funnel: FunnelDef,
+	current: number,
+	previous: number,
+	detectedAt: string
+): DetectedSignal {
+	return makeWowSignal(
+		`funnel:${funnel.id}`,
+		`Funnel "${funnel.name}" conversion`,
+		current,
+		previous,
+		detectedAt,
+		{ round: true }
+	);
+}
+
 function describeFunnelSignal(
 	signal: DetectedSignal,
 	funnel: FunnelDef,
@@ -750,13 +766,11 @@ export async function remeasureFunnelGoalSignal(
 						periods
 					)
 				: describeFunnelSignal(
-						makeWowSignal(
-							`funnel:${funnel.id}`,
-							`Funnel "${funnel.name}" conversion`,
+						funnelRateSignal(
+							funnel,
 							currentStep?.rate ?? cur.rate,
 							previousStep?.rate ?? prev.rate,
-							current.to,
-							{ round: true }
+							current.to
 						),
 						funnel,
 						cur,
@@ -821,14 +835,7 @@ async function detectStoredDefinitionSignal(
 			? zeroCompletionSignal(item, cur, prev, context)
 			: null;
 	}
-	const detected = makeWowSignal(
-		`funnel:${funnel.id}`,
-		`Funnel "${funnel.name}" conversion`,
-		cur.rate,
-		prev.rate,
-		current.to,
-		{ round: true }
-	);
+	const detected = funnelRateSignal(funnel, cur.rate, prev.rate, current.to);
 	const changedStep = (cur.steps ?? [])
 		.flatMap((step) => {
 			const previousRate = prev.steps?.find(
@@ -847,17 +854,17 @@ async function detectStoredDefinitionSignal(
 				: [];
 		})
 		.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0];
-	if (changedStep) {
-		detected.subjectKey = `funnel:${funnel.id}:step:${changedStep.number}`;
+	if (!changedStep) {
+		return describeFunnelSignal(detected, funnel, cur, prev, context);
 	}
-	return describeFunnelSignal(
-		detected,
+	const step = funnelRateSignal(
 		funnel,
-		cur,
-		prev,
-		context,
-		changedStep
+		changedStep.rate,
+		changedStep.previousRate,
+		current.to
 	);
+	step.subjectKey = `funnel:${funnel.id}:step:${changedStep.number}`;
+	return describeFunnelSignal(step, funnel, cur, prev, context, changedStep);
 }
 
 async function detectFunnelReferrers(

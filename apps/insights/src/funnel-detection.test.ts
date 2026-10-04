@@ -334,6 +334,73 @@ describe("detectFunnelGoalSignals", () => {
 		expect(investigation.signalKey).toBe("funnel:f1:step:2");
 	});
 
+	it("measures a changed step with that step's own rates", async () => {
+		const funnel: FunnelDef = {
+			...FUNNEL,
+			steps: [
+				{ name: "View", target: "/cart", type: "PAGE_VIEW" },
+				{ name: "Start", target: "checkout_started", type: "EVENT" },
+				{ name: "Buy", target: "purchase", type: "EVENT" },
+			],
+		};
+		const conversion = (
+			rate: number,
+			completions: number,
+			stepRates: number[]
+		): ConversionResult => ({
+			completions,
+			entrants: 1000,
+			rate,
+			steps: stepRates.map((stepRate, index) => ({
+				name: funnel.steps[index]?.name ?? "",
+				number: index + 1,
+				rate: stepRate,
+			})),
+		});
+		const deps = () => {
+			let call = 0;
+			return makeDeps({
+				fetchFunnels: async () => [funnel],
+				funnelConversion: async () => {
+					call += 1;
+					return call === 1
+						? conversion(12, 120, [100, 60, 20])
+						: conversion(16, 160, [100, 32, 50]);
+				},
+			});
+		};
+
+		const [signal] = await detectFunnelGoalSignals(PARAMS, TODAY, deps());
+		if (!signal) {
+			throw new Error("Expected a funnel step signal");
+		}
+		expect(signal).toMatchObject({
+			baseline: 50,
+			current: 20,
+			deltaPercent: -60,
+			direction: "down",
+			severity: "critical",
+			subjectKey: "funnel:f1:step:3",
+		});
+		expect(signal.definitionEvidence).toStartWith(
+			'Step 3 "Buy" converted 20% of visitors reaching it, compared with 50% previously. Funnel "Checkout" converted 120 of 1000 entrants'
+		);
+		const remeasured = await remeasureFunnelGoalSignal(
+			PARAMS,
+			prepareInvestigation(signal, 7).signal,
+			TODAY,
+			deps()
+		);
+		expect(remeasured).toMatchObject({
+			baseline: signal.baseline,
+			current: signal.current,
+			deltaPercent: signal.deltaPercent,
+			label: signal.label,
+			severity: signal.severity,
+			subjectKey: signal.subjectKey,
+		});
+	});
+
 	for (const { name, current, previous, expected } of [
 		{
 			name: "flags a funnel conversion rise above threshold",
