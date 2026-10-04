@@ -1,6 +1,7 @@
 import { config } from "@databuddy/env/app";
 import { getMemoryClient } from "@databuddy/services/business-memory";
 export { getMemoryClient } from "@databuddy/services/business-memory";
+import { fenceUntrusted } from "../ai/prompts/context";
 import { stripHtmlTags } from "./sanitize";
 
 const MAX_MEMORY_LENGTH = 2000;
@@ -413,7 +414,5 @@ export function formatMemoryForPrompt(ctx: MemoryContext): string {
 		return "";
 	}
 
-	return `<user-memory>
-${parts.join("\n\n")}
-</user-memory>`;
+	return fenceUntrusted("user-memory", parts.join("\n\n"));
 }
