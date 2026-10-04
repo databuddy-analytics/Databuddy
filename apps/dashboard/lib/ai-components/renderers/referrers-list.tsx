@@ -23,6 +23,14 @@ export interface ReferrersListProps extends BaseComponentProps {
 
 const PLAIN_HOSTNAME_RE = /^[a-z\d-]+(?:\.[a-z\d-]+)*$/i;
 
+function registrableHost(hostname: string): string {
+	const labels = hostname.toLowerCase().split(".");
+	const secondLevel = labels.at(-2) ?? "";
+	const topLevel = labels.at(-1) ?? "";
+	const keep = topLevel.length === 2 && secondLevel.length <= 3 ? 3 : 2;
+	return labels.slice(-keep).join(".");
+}
+
 function formatNumber(value: number): string {
 	return Intl.NumberFormat(undefined, {
 		notation: value > 9999 ? "compact" : "standard",
@@ -45,7 +53,7 @@ function ReferrerRow({ referrer }: { referrer: ReferrerItem }) {
 					<FaviconImage
 						altText={`${displayName} favicon`}
 						className="shrink-0 rounded-sm"
-						domain={referrer.domain ?? ""}
+						domain={isLinkable ? registrableHost(domain) : ""}
 						size={16}
 					/>
 				)}
