@@ -137,7 +137,7 @@ function toAnalyticsSteps(steps: FunnelStep[]): AnalyticsStep[] {
 function definitionDescription(description: string | null): string {
 	const value = description?.trim();
 	return value
-		? `Business meaning: ${value}`
+		? `Saved description: ${value}`
 		: "This saved definition has no description; its business purpose is not established by that field.";
 }
 

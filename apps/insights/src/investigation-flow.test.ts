@@ -1124,7 +1124,7 @@ describe("intelligence agent", () => {
 			{
 				appContext: appContext(),
 				evidence: [
-					"Business meaning: Account creation completes at /account-created.",
+					"Saved description: Account creation completes at /account-created.",
 				],
 				githubRepository: null,
 				history: [],
@@ -1371,7 +1371,7 @@ describe("intelligence agent", () => {
 			{
 				appContext: context,
 				evidence: [
-					"Business meaning: account creation finishes at /account-created, or at the account_created event for the journey.",
+					"Saved description: account creation finishes at /account-created, or at the account_created event for the journey.",
 					"Team-provided healthy baseline: 80 percent.",
 					"Configured recovery target: 400 completed visitors.",
 				],
@@ -1560,7 +1560,7 @@ describe("intelligence agent", () => {
 		const run = runInsightAgent(
 			{
 				appContext: appContext(),
-				evidence: [...evidence, "Business meaning: Tracks account creation."],
+				evidence: [...evidence, "Saved description: Tracks account creation."],
 				githubRepository: null,
 				history: [],
 				otherOpenWork: [],
@@ -1670,7 +1670,7 @@ describe("intelligence agent", () => {
 				appContext: appContext(),
 				evidence: [
 					...evidence,
-					"Business meaning: Tracks account creation across all countries.",
+					"Saved description: Tracks account creation across all countries.",
 				],
 				signal: funnelSignal,
 				githubRepository: null,
@@ -1824,7 +1824,10 @@ describe("intelligence agent", () => {
 			runInsightAgent(
 				{
 					appContext: appContext(),
-					evidence: [...evidence, "Business meaning: Tracks account creation."],
+					evidence: [
+						...evidence,
+						"Saved description: Tracks account creation.",
+					],
 					githubRepository: null,
 					history: [],
 					otherOpenWork: [],
@@ -1871,7 +1874,7 @@ describe("intelligence agent", () => {
 		const result = await runInsightAgent(
 			{
 				appContext: appContext(),
-				evidence: [...evidence, "Business meaning: Tracks account creation."],
+				evidence: [...evidence, "Saved description: Tracks account creation."],
 				githubRepository: null,
 				history: [],
 				otherOpenWork: [],
@@ -1988,7 +1991,7 @@ describe("intelligence agent", () => {
 			supplied: [
 				{
 					kind: "definition" as const,
-					value: "Business meaning: Tracks account creation.",
+					value: "Saved description: Tracks account creation.",
 				},
 			],
 			accepted: true,
@@ -1999,7 +2002,7 @@ describe("intelligence agent", () => {
 			supplied: [
 				{
 					kind: "segment" as const,
-					value: "Business meaning: Tracks account creation.",
+					value: "Saved description: Tracks account creation.",
 				},
 			],
 			accepted: false,
@@ -2008,7 +2011,7 @@ describe("intelligence agent", () => {
 			name: "business background",
 			description: null,
 			supplied: [],
-			background: "Business meaning: Tracks account creation.",
+			background: "Saved description: Tracks account creation.",
 			accepted: false,
 		},
 	])("takes a definition edit's purpose only from configured sources: $name", async ({
@@ -2174,7 +2177,7 @@ describe("intelligence agent", () => {
 		const result = await runInsightAgent(
 			{
 				appContext: appContext(),
-				evidence: [...evidence, "Business meaning: Tracks account creation."],
+				evidence: [...evidence, "Saved description: Tracks account creation."],
 				githubRepository: null,
 				history: [],
 				otherOpenWork: [],
@@ -2213,7 +2216,10 @@ describe("intelligence agent", () => {
 			runInsightAgent(
 				{
 					appContext: appContext(),
-					evidence: [...evidence, "Business meaning: Tracks account creation."],
+					evidence: [
+						...evidence,
+						"Saved description: Tracks account creation.",
+					],
 					githubRepository: null,
 					history: [],
 					otherOpenWork: [],
@@ -5891,7 +5897,7 @@ describe("completed answer measurement boundary", () => {
 		const result = await runInsightAgent(
 			{
 				appContext: appContext(),
-				evidence: [...evidence, "Business meaning: Tracks account creation."],
+				evidence: [...evidence, "Saved description: Tracks account creation."],
 				signal: funnelSignal,
 				githubRepository: null,
 				history: [],

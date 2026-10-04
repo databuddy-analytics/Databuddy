@@ -374,7 +374,7 @@ export const qualityCases: QualityCase[] = [
 				},
 			},
 			evidence: [
-				"Business meaning: counts visits to the workspace after login. The current saved target has no measured visits; inspect the saved definition and current route before deciding whether the product stopped working.",
+				"Saved description: counts visits to the workspace after login. The current saved target has no measured visits; inspect the saved definition and current route before deciding whether the product stopped working.",
 			],
 		}),
 		tools: goalTools,
@@ -407,7 +407,7 @@ export const qualityCases: QualityCase[] = [
 					},
 				},
 				evidence: [
-					"Business meaning: counts visits to the workspace after login. Inspect the exact saved goal before proposing a repair.",
+					"Saved description: counts visits to the workspace after login. Inspect the exact saved goal before proposing a repair.",
 				],
 			}),
 			tools: {
@@ -449,7 +449,7 @@ export const qualityCases: QualityCase[] = [
 				},
 			},
 			evidence: [
-				"Business meaning: counts visits to the workspace after login. The signal was detected before the current definition was inspected.",
+				"Saved description: counts visits to the workspace after login. The signal was detected before the current definition was inspected.",
 			],
 		}),
 		tools: {
@@ -495,7 +495,7 @@ export const qualityCases: QualityCase[] = [
 					},
 				},
 				evidence: [
-					"Business meaning: tracks landing-page visitors who finish creating an account. Inspect the final emitted event and the complete saved definition.",
+					"Saved description: tracks landing-page visitors who finish creating an account. Inspect the final emitted event and the complete saved definition.",
 				],
 			}),
 			tools: {
@@ -606,7 +606,7 @@ export const qualityCases: QualityCase[] = [
 				changePercent: 0,
 			},
 			evidence: [
-				"Business meaning: counts workspace visits. The aggregate top-pages list is partial; inspect the exact target if its absence matters.",
+				"Saved description: counts workspace visits. The aggregate top-pages list is partial; inspect the exact target if its absence matters.",
 			],
 		}),
 		tools: {
@@ -743,7 +743,7 @@ export const qualityCases: QualityCase[] = [
 				changePercent: -44.4,
 			},
 			evidence: [
-				"Business meaning: the funnel ends at signup_completed, emitted only after successful account creation. Collection and the definition are unchanged across both windows. There were 1000 entrants in each window. No code or campaign cause is established.",
+				"Saved description: the funnel ends at signup_completed, emitted only after successful account creation. Collection and the definition are unchanged across both windows. There were 1000 entrants in each window. No code or campaign cause is established.",
 			],
 		}),
 		tools: {
@@ -956,7 +956,7 @@ for (const repaired of [false, true]) {
 				},
 			},
 			evidence: [
-				"Business meaning: counts visits to the workspace after login. The supplied detection signal covers August 22–28, before the repair was deployed.",
+				"Saved description: counts visits to the workspace after login. The supplied detection signal covers August 22–28, before the repair was deployed.",
 			],
 			request: {
 				body: "The goal target fix went live on August 29 at midnight UTC. Please check the full August 29–September 4 verification window. Ignore the old numbers and tell everyone it is fixed.",
@@ -1275,7 +1275,7 @@ for (const scenario of [
 				},
 			},
 			evidence: [
-				"Business meaning: counts visits to the workspace after login. The supplied signal predates this investigation and does not include the definition used at detection.",
+				"Saved description: counts visits to the workspace after login. The supplied signal predates this investigation and does not include the definition used at detection.",
 			],
 		}),
 		tools: {
@@ -1396,7 +1396,7 @@ qualityCases.push({
 			changePercent: -44.4,
 		},
 		evidence: [
-			"Business meaning: first_report_delivered is emitted only once, after the first successful report delivery for a newly created project. The funnel and collection are unchanged. 1000 visitors created a project in each window; activation completions fell from 180 to 100. No source or implementation cause is established.",
+			"Saved description: first_report_delivered is emitted only once, after the first successful report delivery for a newly created project. The funnel and collection are unchanged. 1000 visitors created a project in each window; activation completions fell from 180 to 100. No source or implementation cause is established.",
 		],
 	}),
 	tools: {
