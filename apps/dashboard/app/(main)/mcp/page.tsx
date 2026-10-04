@@ -20,14 +20,11 @@ import {
 	PlugIcon,
 	XMarkIcon,
 } from "@databuddy/ui/icons";
-import { isSelfHosted } from "@databuddy/env/public";
-import { useFlag } from "@databuddy/sdk/react";
 import {
 	keepPreviousData,
 	useMutation,
 	useQueryClient,
 } from "@tanstack/react-query";
-import { notFound } from "next/navigation";
 import { parseAsString, useQueryStates } from "nuqs";
 import { Suspense, useMemo, useState } from "react";
 import { createHighlighterCoreSync } from "shiki/core";
@@ -55,7 +52,6 @@ import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { useWebsitesLight } from "@/hooks/use-websites";
 import { APP_EVENTS, trackAppEvent } from "@/lib/app-events";
-import { isDashboardE2E } from "@/lib/e2e-mode";
 import { formatCount, formatNumber } from "@/lib/formatters";
 import { orpc } from "@/lib/orpc";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
@@ -706,14 +702,8 @@ function Setup({ organizationId }: { organizationId?: string }) {
 }
 
 export default function McpPage() {
-	const flag = useFlag("mcp");
 	const organizationId =
 		useOrganizationsContext().activeOrganizationId ?? undefined;
-	if (!flag.on) {
-		return flag.loading && !(isSelfHosted || isDashboardE2E)
-			? null
-			: notFound();
-	}
 	return (
 		<Suspense fallback={null}>
 			<McpAnalytics key={organizationId} organizationId={organizationId} />
