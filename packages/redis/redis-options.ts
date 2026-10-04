@@ -1,3 +1,5 @@
+import { dataUrl } from "@databuddy/env/app";
+
 export interface RedisConnectionOptions {
 	commandTimeout: number;
 	connectTimeout: number;
@@ -15,7 +17,7 @@ export interface LinkCacheRedisConnectionOptions
 export type RateLimitRedisConnectionOptions = LinkCacheRedisConnectionOptions;
 
 export function getRedisUrl(): string {
-	const url = process.env.REDIS_URL;
+	const url = dataUrl("REDIS_URL");
 	if (!url) {
 		throw new Error("REDIS_URL environment variable is required");
 	}

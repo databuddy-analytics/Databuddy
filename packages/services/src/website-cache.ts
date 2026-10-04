@@ -1,5 +1,6 @@
 import { RedisClient } from "bun";
 import type { Website } from "@databuddy/db/schema";
+import { dataUrl } from "@databuddy/env/app";
 
 type WebsiteCacheRecord = Omit<
 	Website,
@@ -44,7 +45,7 @@ export class WebsiteCache {
 			return this.redis;
 		}
 
-		const url = process.env.REDIS_URL;
+		const url = dataUrl("REDIS_URL");
 		if (!url) {
 			this.isHealthyCached = false;
 			return null;

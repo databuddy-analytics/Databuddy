@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readBooleanEnv } from "@databuddy/env/app";
+import { config, readBooleanEnv } from "@databuddy/env/app";
 import { createBatchedSuperlogDrain } from "@databuddy/shared/evlog-superlog";
 import type { DrainContext, RequestLogger } from "evlog";
 import { createLogger, log } from "evlog";
@@ -21,12 +21,11 @@ const pipeline = createDrainPipeline<DrainContext>({
 	maxBufferSize: 2000,
 });
 
-const hasAxiom =
-	process.env.NODE_ENV !== "development" && Boolean(process.env.AXIOM_TOKEN);
+const hasAxiom = Boolean(config.services.axiomToken);
 const batchedAxiomDrain = hasAxiom
 	? pipeline(
 			createAxiomDrain({
-				apiKey: process.env.AXIOM_TOKEN,
+				apiKey: config.services.axiomToken,
 				dataset: "insights",
 			})
 		)

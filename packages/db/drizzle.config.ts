@@ -1,3 +1,4 @@
+import { dataUrl } from "@databuddy/env/app";
 import { defineConfig } from "drizzle-kit";
 
 export default defineConfig({
@@ -21,7 +22,7 @@ export default defineConfig({
 	],
 	dialect: "postgresql",
 	dbCredentials: {
-		url: process.env.DATABASE_URL || "",
+		url: dataUrl("DATABASE_URL") || "",
 	},
 	tablesFilter: ["!pg_stat_statements", "!pg_stat_statements_info"],
 });

@@ -1,3 +1,4 @@
+import { config } from "@databuddy/env/app";
 import type { DrainContext } from "evlog";
 
 export async function register() {
@@ -10,18 +11,18 @@ export async function register() {
 		import("@databuddy/shared/evlog-redaction"),
 		loadAxiomDrain(),
 	]);
-	const config = {
+	const loggerConfig = {
 		env: redaction.createDatabuddyEvlogEnv("dashboard"),
 		redact: redaction.databuddyEvlogRedaction,
 		drain,
 	};
-	authLogger.initLogger(config);
-	auditLogger.initLogger(config);
+	authLogger.initLogger(loggerConfig);
+	auditLogger.initLogger(loggerConfig);
 }
 
 async function loadAxiomDrain() {
-	const apiKey = process.env.AXIOM_TOKEN;
-	if (!apiKey || process.env.NODE_ENV === "development") {
+	const apiKey = config.services.axiomToken;
+	if (!apiKey) {
 		return;
 	}
 	const [{ createAxiomDrain }, { waitUntil }, axiom] = await Promise.all([

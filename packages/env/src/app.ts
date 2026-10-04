@@ -1,6 +1,6 @@
-import { readBooleanEnv } from "./boolean";
+import { LOOPBACK_HOSTS, readBooleanEnv } from "./boolean";
 
-export { readBooleanEnv } from "./boolean";
+export { dataUrl, isLocalHost, readBooleanEnv } from "./boolean";
 
 // App-wide runtime config.
 //
@@ -51,6 +51,18 @@ const EMAIL = {
 	},
 } as const;
 
+const SERVICES = {
+	autumnSecretKey: "AUTUMN_SECRET_KEY",
+	axiomToken: "AXIOM_TOKEN",
+	databuddyApiKey: "DATABUDDY_API_KEY",
+	dubApiKey: "DUB_API_KEY",
+	resendApiKey: "RESEND_API_KEY",
+	slackWebhookUrl: "SLACK_WEBHOOK_URL",
+	superlogApiKey: "SUPERLOG_API_KEY",
+	supermemoryApiKey: "SUPERMEMORY_API_KEY",
+	tccApiKey: "TCC_API_KEY",
+} as const;
+
 const TRAILING_SLASH = /\/$/;
 
 type Env = Record<string, string | undefined>;
@@ -72,11 +84,11 @@ export interface Config {
 	email: {
 		alertsFrom: string;
 		from: string;
-		resendApiKey?: string;
 	};
 	integrations: {
 		openAiAdsPixelId?: string;
 	};
+	services: Record<keyof typeof SERVICES, string | undefined>;
 	storage?: StorageConfig;
 	urls: {
 		api: string;
@@ -91,10 +103,35 @@ export interface Config {
 
 const REQUIRED_IN_PRODUCTION = ["BETTER_AUTH_SECRET"] as const;
 const REQUIRED_IN_HOSTED_CLOUD = ["AUTUMN_SECRET_KEY"] as const;
-const LOOPBACK_HOSTS = new Set(["0.0.0.0", "127.0.0.1", "[::1]", "localhost"]);
+
+function liveReads<T extends Record<string, string>>(
+	currentEnv: () => Env,
+	keys: T
+): Record<keyof T, string | undefined> {
+	return Object.defineProperties(
+		{} as Record<keyof T, string | undefined>,
+		Object.fromEntries(
+			Object.entries(keys).map(([name, key]) => [
+				name,
+				{ enumerable: true, get: () => readOptional(currentEnv(), key) },
+			])
+		)
+	);
+}
 
 function isHostedCloud(env: Env): boolean {
 	return env.NODE_ENV === "production" && !readBooleanEnv("SELFHOST", env);
+}
+
+export type BillingMode = "selfhost" | "live" | "disabled";
+
+export function billingMode(env: Env = process.env): BillingMode {
+	if (readBooleanEnv("SELFHOST", env)) {
+		return "selfhost";
+	}
+	return isHostedCloud(env) || readOptional(env, SERVICES.autumnSecretKey)
+		? "live"
+		: "disabled";
 }
 
 function defaultUrl(env: Env, setting: UrlConfig): string {
@@ -168,7 +205,8 @@ function readStorage(env: Env): StorageConfig | undefined {
 	};
 }
 
-export function createConfig(env: Env = process.env): Config {
+export function createConfig(source?: Env): Config {
+	const env = source ?? process.env;
 	const dashboardUrl = readUrl(env, URLS.dashboard);
 	const apiUrl = readUrl(env, URLS.api);
 
@@ -183,11 +221,11 @@ export function createConfig(env: Env = process.env): Config {
 		email: {
 			alertsFrom: readEmail(env, EMAIL.alertsFrom),
 			from: readEmail(env, EMAIL.from),
-			resendApiKey: readOptional(env, "RESEND_API_KEY"),
 		},
 		integrations: {
 			openAiAdsPixelId: readOptional(env, "NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID"),
 		},
+		services: liveReads(() => source ?? process.env, SERVICES),
 		storage: readStorage(env),
 		urls: {
 			api: apiUrl,
