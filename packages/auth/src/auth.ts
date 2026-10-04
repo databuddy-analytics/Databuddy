@@ -359,7 +359,7 @@ function notifySignUpSlackAction(input: {
 }): void {
 	notifySlack("New sign-up", "A new user created an account.", "normal", {
 		email: input.email,
-		name: input.name ?? "—",
+		name: input.name ?? "Not set",
 		userId: input.userId,
 		organizationId: input.organizationId,
 	});
@@ -992,7 +992,7 @@ export const baseAuthOptions = {
 					"high",
 					{
 						email: deletedUser.email,
-						name: deletedUser.name ?? "—",
+						name: deletedUser.name ?? "Not set",
 						userId: deletedUser.id,
 					}
 				);
