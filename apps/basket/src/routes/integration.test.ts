@@ -423,7 +423,7 @@ describe("POST /engagement", () => {
 	});
 
 	test("over-long click descriptor → 200, the span is kept", async () => {
-		const target = `div:unnamed in section:${"x".repeat(100)}`;
+		const target = `div:unnamed in section:${"x".repeat(2000)}`;
 		const res = await post(basketApp, "/engagement", [
 			{
 				...span,
