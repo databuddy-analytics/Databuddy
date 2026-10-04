@@ -59,7 +59,6 @@ import { isDeepStrictEqual } from "node:util";
 // what the definition measures. Compare them order-insensitively.
 const canonicalFilters = (filters: unknown[] | null | undefined): string[] =>
 	[...(filters ?? [])].map((filter) => JSON.stringify(filter)).sort();
-import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -75,24 +74,9 @@ import {
 	protectedProcedure,
 	publicProcedure,
 } from "../orpc";
-import { withWorkspace } from "../procedures/with-workspace";
+import { hasAccess, withWorkspace } from "../procedures/with-workspace";
 
 const INSIGHT_TIMELINE_ROWS_PER_KIND = 50;
-
-async function hasAccess(check: Promise<unknown>): Promise<boolean> {
-	try {
-		await check;
-		return true;
-	} catch (error) {
-		if (
-			error instanceof ORPCError &&
-			(error.code === "FORBIDDEN" || error.code === "UNAUTHORIZED")
-		) {
-			return false;
-		}
-		throw error;
-	}
-}
 
 const appendInvestigationReplyInputSchema = z
 	.object({

@@ -9,6 +9,7 @@ import {
 import { db } from "@databuddy/db";
 import { cacheNamespaces, cacheable } from "@databuddy/redis";
 import { normalizePlanId, type PlanId } from "@databuddy/shared/types/features";
+import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { hasHostedBilling } from "../lib/autumn-client";
@@ -426,6 +427,21 @@ export async function withWorkspace(
 		throw resolved.denied;
 	}
 	return resolved.workspace;
+}
+
+export async function hasAccess(check: Promise<unknown>): Promise<boolean> {
+	try {
+		await check;
+		return true;
+	} catch (error) {
+		if (
+			error instanceof ORPCError &&
+			(error.code === "FORBIDDEN" || error.code === "UNAUTHORIZED")
+		) {
+			return false;
+		}
+		throw error;
+	}
 }
 
 export function withPublicWorkspace<R extends ResourceType>(

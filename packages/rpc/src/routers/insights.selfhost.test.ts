@@ -91,6 +91,7 @@ mock.module("../lib/logger", () => ({
 	logger: { error: mock(), warn: mock() },
 }));
 mock.module("../procedures/with-workspace", () => ({
+	hasAccess: mock(),
 	withWorkspace: authorize,
 }));
 mock.module("../utils/billing", () => ({ getBillingCustomerId: mock() }));
