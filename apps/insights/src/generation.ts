@@ -1219,7 +1219,7 @@ async function investigatePlannedCandidate(
 	if (customerImpact) {
 		evidence.push({
 			kind: "customer_impact",
-			value: errorCustomerImpactEvidence(customerImpact),
+			value: errorCustomerImpactEvidence(customerImpact, candidate.signal),
 		});
 	}
 	if (routeVitalContinuation) {
