@@ -47,7 +47,7 @@ for (const { aiConfigured, capability } of cases) {
 			}
 		);
 
-		await page.goto("/onboarding");
+		await page.goto("/onboarding?want=analytics");
 		await expect(
 			page.getByText("Tracking verified", { exact: true })
 		).toBeVisible();

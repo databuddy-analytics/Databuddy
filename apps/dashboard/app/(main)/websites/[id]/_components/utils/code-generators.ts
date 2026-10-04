@@ -1,4 +1,5 @@
 import { isSelfHosted, publicConfig } from "@databuddy/env/public";
+import type { OnboardingWant } from "@databuddy/shared/custom-events";
 import {
 	ACTUAL_LIBRARY_DEFAULTS,
 	RECOMMENDED_DEFAULTS,
@@ -102,6 +103,34 @@ export interface AgentPromptContext {
 		target: string;
 		type: "EVENT" | "PAGE_VIEW";
 	}[];
+	wants?: OnboardingWant[];
+}
+
+const WANT_INSTRUCTIONS: Partial<Record<OnboardingWant, string>> = {
+	conversions:
+		"**Sign-ups and revenue**: custom events are required, not optional. Find sign-up, checkout or purchase, and the first successful use, and fire one `track()` call at each. If the codebase uses Stripe or Paddle, also pass `getTrackingIds()` from `@databuddy/sdk` as metadata when the checkout session or transaction is created, then tell the user to connect the webhook on the Revenue page.",
+	performance:
+		"**Speed and errors**: keep trackWebVitals and trackErrors on. If the site has a Content Security Policy, make sure it allows the script so errors are reported.",
+	ai_visibility:
+		"**AI crawlers**: set up AI crawler tracking now, as described under Features below. It is required, not optional.",
+	mcp: "**MCP analytics**: if this repository contains an MCP server, tell the user. The setup page has a separate prompt for it.",
+};
+
+function wantsSection(wants?: OnboardingWant[]): string {
+	const lines = (wants ?? []).flatMap((want) => {
+		const instruction = WANT_INSTRUCTIONS[want];
+		return instruction ? [`- ${instruction}`] : [];
+	});
+	if (!lines.length) {
+		return "";
+	}
+	return `## What the team wants from Databuddy
+
+The team picked these during setup. Treat them as requirements:
+
+${lines.join("\n")}
+
+`;
 }
 
 const BRIEF_EXCERPT_LIMIT = 900;
@@ -229,7 +258,7 @@ The snippets show the Client ID inline. Store the Client ID in an env var and re
 
 Every option works as a React/Vue prop or a \`data-*\` attribute on the script tag.
 
-${siteContextSection(context)}${AGENT_FEATURE_GUIDE}
+${siteContextSection(context)}${wantsSection(context?.wants)}${AGENT_FEATURE_GUIDE}
 
 ## Verification
 

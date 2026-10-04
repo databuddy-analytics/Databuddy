@@ -19,6 +19,11 @@ test("sets up a fresh account from the onboarding checklist", {
 
 	await page.goto("/onboarding");
 	await expect(
+		page.getByRole("heading", { name: "What do you want from Databuddy?" })
+	).toBeVisible();
+	await page.getByRole("button", { name: /Sign-ups and revenue/ }).click();
+	await page.getByRole("button", { name: "Continue" }).click();
+	await expect(
 		page.getByRole("heading", { name: "Set up Databuddy" })
 	).toBeVisible();
 
@@ -35,12 +40,6 @@ test("sets up a fresh account from the onboarding checklist", {
 	await expect(page.getByRole("button", { name: "Claude Code" })).toBeVisible();
 	await page.getByRole("button", { name: "Skip for now" }).click();
 	await expect(page.getByText("Skipped", { exact: true })).toBeVisible();
-
-	await page.getByRole("button", { name: "Whether they convert" }).click();
-	await page.getByRole("button", { name: "Save", exact: true }).click();
-	await expect(
-		page.getByRole("button", { name: "Saved", exact: true })
-	).toBeDisabled();
 
 	await page.getByRole("button", { name: "Open dashboard" }).click();
 	await expect(page).toHaveURL(WEBSITE_PATH_RE);
