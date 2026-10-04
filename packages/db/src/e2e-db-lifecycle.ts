@@ -232,13 +232,10 @@ export async function dropLifecycleDatabase(
 	return { dbDsn: config.dbDsn, dbName: config.dbName };
 }
 
-type Env = Record<string, string | undefined>;
-
 function localUrl(
-	name: "CLICKHOUSE_URL" | "DATABASE_URL" | "REDIS_URL",
-	env: Env
+	name: "CLICKHOUSE_URL" | "DATABASE_URL" | "REDIS_URL"
 ): string {
-	const url = dataUrl(name, env);
+	const url = dataUrl(name);
 	if (url && URL.canParse(url) && isLocalHost(url)) {
 		return url;
 	}
@@ -248,12 +245,10 @@ function localUrl(
 	);
 }
 
-export function assertLocalTargets(env: Env = process.env) {
-	return {
-		clickhouseUrl: localUrl("CLICKHOUSE_URL", env),
-		databaseUrl: localUrl("DATABASE_URL", env),
-		redisUrl: localUrl("REDIS_URL", env),
-	};
+export function assertLocalTargets(): string {
+	localUrl("CLICKHOUSE_URL");
+	localUrl("REDIS_URL");
+	return localUrl("DATABASE_URL");
 }
 
 export async function resetLocalDatabase(databaseUrl: string): Promise<void> {

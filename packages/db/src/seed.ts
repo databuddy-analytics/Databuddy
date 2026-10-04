@@ -2,8 +2,7 @@ import type { ClickHouseClient } from "@clickhouse/client";
 import { en, Faker } from "@faker-js/faker";
 import { TABLE_NAMES } from "./clickhouse/client";
 
-export const EVENTS_PER_SESSION = 6;
-
+const EVENTS_PER_SESSION = 6;
 const DAY_MS = 86_400_000;
 const SESSION_WINDOW_MS = DAY_MS - 3_600_000;
 const ANOMALY_TRAFFIC_MULTIPLIER = 3;
@@ -47,32 +46,25 @@ const VITALS = [
 	{ max: 0.3, min: 0, name: "CLS" },
 ];
 
-export interface GenerateAnalyticsOptions {
-	anomaly?: boolean;
-	clientId: string;
-	dailySessions?: number;
-	days?: number;
-	domain: string;
-	seed?: number;
-}
-
 function clickHouseTime(ms: number): string {
 	return new Date(ms).toISOString().replace("T", " ").replace("Z", "");
-}
-
-function pageTitle(path: string): string {
-	return path === "/" ? "Home" : path.slice(1);
 }
 
 export function generateAnalytics({
 	anomaly = false,
 	clientId,
-	dailySessions = 150,
 	days = 28,
 	domain,
-	seed = 42,
-}: GenerateAnalyticsOptions) {
-	const faker = new Faker({ locale: [en], seed });
+	events: eventCount = days * 150 * EVENTS_PER_SESSION,
+}: {
+	anomaly?: boolean;
+	clientId: string;
+	days?: number;
+	domain: string;
+	events?: number;
+}) {
+	const faker = new Faker({ locale: [en], seed: 42 });
+	const dailySessions = Math.ceil(eventCount / days / EVENTS_PER_SESSION);
 	const now = Date.now();
 	const todayStart = Math.floor(now / DAY_MS) * DAY_MS;
 	const visitors = Array.from({ length: dailySessions * 4 }, () => ({
@@ -136,7 +128,7 @@ export function generateAnalytics({
 				properties: "{}",
 				referrer: index === 0 ? session.referrer : null,
 				session_id: session.sessionId,
-				title: pageTitle(page.path),
+				title: page.path === "/" ? "Home" : page.path.slice(1),
 				url: `https://${domain}${page.path}`,
 				user_agent: "",
 			};
@@ -212,45 +204,34 @@ export function generateAnalytics({
 	return { errors, events, outgoingLinks, webVitals };
 }
 
-export type AnalyticsRows = ReturnType<typeof generateAnalytics>;
-
-const SEEDED_TABLES = [
-	TABLE_NAMES.events,
-	TABLE_NAMES.outgoing_links,
-	TABLE_NAMES.error_spans,
-	TABLE_NAMES.web_vitals_spans,
-];
-
 export async function seedAnalytics(
 	client: ClickHouseClient,
-	rows: AnalyticsRows
+	rows: ReturnType<typeof generateAnalytics>
 ): Promise<void> {
-	const format = "JSONEachRow";
-	await Promise.all([
-		client.insert({ format, table: TABLE_NAMES.events, values: rows.events }),
-		client.insert({
-			format,
-			table: TABLE_NAMES.outgoing_links,
-			values: rows.outgoingLinks,
-		}),
-		client.insert({
-			format,
-			table: TABLE_NAMES.error_spans,
-			values: rows.errors,
-		}),
-		client.insert({
-			format,
-			table: TABLE_NAMES.web_vitals_spans,
-			values: rows.webVitals,
-		}),
-	]);
+	await Promise.all(
+		(
+			[
+				[TABLE_NAMES.events, rows.events],
+				[TABLE_NAMES.outgoing_links, rows.outgoingLinks],
+				[TABLE_NAMES.error_spans, rows.errors],
+				[TABLE_NAMES.web_vitals_spans, rows.webVitals],
+			] as const
+		).map(([table, values]) =>
+			client.insert<unknown>({ format: "JSONEachRow", table, values })
+		)
+	);
 }
 
 export async function deleteAnalytics(
 	client: ClickHouseClient,
 	clientId: string
 ): Promise<void> {
-	for (const table of SEEDED_TABLES) {
+	for (const table of [
+		TABLE_NAMES.events,
+		TABLE_NAMES.outgoing_links,
+		TABLE_NAMES.error_spans,
+		TABLE_NAMES.web_vitals_spans,
+	]) {
 		await client.command({
 			query: `DELETE FROM ${table} WHERE client_id = {clientId:String}`,
 			query_params: { clientId },
