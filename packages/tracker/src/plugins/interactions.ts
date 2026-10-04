@@ -31,7 +31,7 @@ const INTERACTIVE_SELECTOR =
 	'a,button,input,select,textarea,summary,label,[role="button"],[role="link"],[role="tab"],[role="menuitem"],[onclick],[data-track]';
 
 const UNOBSERVABLE_RESPONSE_SELECTOR =
-	'html,body,canvas,video,audio,label,select,textarea,[aria-selected="true"],[aria-expanded="true"],[aria-pressed="true"],[role="radio"][aria-checked="true"],[role="menuitemradio"][aria-checked="true"],[contenteditable],[contenteditable] *,input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"])';
+	'html,body,canvas,video,audio,label,select,textarea,[aria-selected="true"],[aria-expanded="true"],[aria-pressed="true"],[role="radio"][aria-checked="true"],[role="menuitemradio"][aria-checked="true"],input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"])';
 
 const CONTAINER_SELECTOR =
 	'nav,header,footer,aside,main,form,dialog,table,[role="dialog"],[role="navigation"],[role="menu"],[role="tablist"],[role="toolbar"]';
@@ -40,10 +40,10 @@ const FOLLOWABLE_LINK_SELECTOR = 'a[href]:not([href^="javascript:"])';
 
 const FORM_FIELD_SELECTOR = "input,select,textarea";
 
-const GENERATED_TOKEN = /^[:_-]|\d{3,}|[0-9a-f]{8,}|[:_«]r[0-9a-z]*[:_»]/i;
-const READABLE_FRAGMENT = /^#[a-z][\w-]*$/i;
+const GENERATED_TOKEN =
+	/^[:_-]|\d{3,}|[0-9a-f]{8,}|:r[0-9a-z]+:|«r[0-9a-z]+»|_r_[0-9a-z]+_/i;
 const COUNTRY_SUFFIX =
-	/^(?:ac|co|com|edu|go|gov|ne|net|or|org)\.(?:ar|au|br|cn|eg|hk|id|il|in|jp|ke|kr|mx|my|ng|nz|pe|ph|sa|sg|th|tr|tw|ua|uk|vn|za)$/;
+	/^(?:ac|co|com|edu|go|gob|gov|ltd|ne|net|nic|or|org|plc)\.(?!(?:ai|fm|gg|io|me|sh|so|to|tv)$)[a-z]{2}$/;
 const TARGET_MAX_LENGTH = 32;
 const DESCRIPTOR_MAX_LENGTH = 64;
 
@@ -62,11 +62,18 @@ function stableAttribute(element: Element, name: string): string | null {
 
 function nameOf(element: Element): string | null {
 	return (
-		element.getAttribute("data-track") ??
-		element.getAttribute("aria-label") ??
-		stableAttribute(element, "data-testid") ??
-		stableAttribute(element, "name") ??
+		element.getAttribute("data-track") ||
+		element.getAttribute("aria-label") ||
+		stableAttribute(element, "data-testid") ||
+		stableAttribute(element, "name") ||
 		stableAttribute(element, "id")
+	);
+}
+
+function respondsOutOfSight(element: Element): boolean {
+	return (
+		element.matches(UNOBSERVABLE_RESPONSE_SELECTOR) ||
+		(element instanceof HTMLElement && element.isContentEditable)
 	);
 }
 
@@ -96,10 +103,7 @@ function linkDestination(
 		link.pathname === location.pathname &&
 		(link.hash || link.href.endsWith("#"))
 	) {
-		return READABLE_FRAGMENT.test(link.hash) &&
-			!isGeneratedSegment(link.hash.slice(1))
-			? link.hash
-			: null;
+		return null;
 	}
 	const [section, ...rest] = maskPathname(link.pathname, maskPatterns)
 		.split("/")
@@ -112,9 +116,9 @@ function linkDestination(
 
 function containerName(node: Element): string | null {
 	return (
-		node.getAttribute("data-track") ??
-		stableAttribute(node, "data-testid") ??
-		stableAttribute(node, "id") ??
+		node.getAttribute("data-track") ||
+		stableAttribute(node, "data-testid") ||
+		stableAttribute(node, "id") ||
 		(node.matches('nav,[role="navigation"]')
 			? node.getAttribute("aria-label")
 			: null)
@@ -149,7 +153,7 @@ export function describeTarget(
 		(tag === "input" ? (element.getAttribute("type") ?? "text") : null);
 	const prefix = kind ? `${tag}:${kind}` : tag;
 	const label = normalizeLabel(
-		nameOf(element) ??
+		nameOf(element) ||
 			(element.matches(FORM_FIELD_SELECTOR)
 				? (element as HTMLInputElement).labels?.[0]?.textContent ||
 					element.getAttribute("placeholder")
@@ -201,13 +205,15 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 	let streakSelectsText = false;
 	const pendingClicks = new Set<ReturnType<typeof setTimeout>>();
 
+	const isLoadedAsset = (record: MutationRecord) =>
+		record.type === "childList" &&
+		Boolean(document.head?.contains(record.target));
+
 	const mutationObserver =
 		typeof MutationObserver === "undefined"
 			? null
 			: new MutationObserver((records) => {
-					if (
-						records.some((record) => !document.head?.contains(record.target))
-					) {
+					if (!records.every(isLoadedAsset)) {
 						markResponse();
 					}
 				});
@@ -230,9 +236,12 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 		}
 	};
 
-	const countRageClick = (target: Element, now: number) => {
-		const interactive = target.closest(INTERACTIVE_SELECTOR);
-		const subject = interactive ?? target.closest("svg") ?? target;
+	const countRageClick = (
+		target: Element,
+		interactive: Element | null,
+		now: number
+	) => {
+		const subject = interactive ?? target;
 		const continuesStreak =
 			subject === lastClickSubject &&
 			now - lastClickAt <= RAGE_CLICK_WINDOW_MS &&
@@ -253,24 +262,28 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 		}
 		const isOrdinaryInteraction =
 			lastResponseAt >= streakStartedAt ||
-			(interactive ?? target).matches(UNOBSERVABLE_RESPONSE_SELECTOR) ||
+			respondsOutOfSight(subject) ||
 			(!interactive && streakSelectsText);
 		if (isOrdinaryInteraction) {
 			return;
 		}
 		tracker.rageClickCount += 1;
-		tracker.rageClickTarget = describeTarget(subject, maskPatterns);
+		tracker.rageClickTarget = describeTarget(
+			interactive ?? target.closest("svg") ?? target,
+			maskPatterns
+		);
 	};
 
-	const watchForResponse = (event: Event, target: Element, now: number) => {
+	const watchForResponse = (
+		event: Event,
+		interactive: Element | null,
+		now: number
+	) => {
 		if (!mutationObserver) {
 			return;
 		}
-		const interactive = target.closest(INTERACTIVE_SELECTOR);
 		const deadClickCandidate =
-			interactive && !interactive.matches(UNOBSERVABLE_RESPONSE_SELECTOR)
-				? interactive
-				: null;
+			interactive && !respondsOutOfSight(interactive) ? interactive : null;
 		if (deadClickCandidate) {
 			lastDeadClickCandidateAt = now;
 		}
@@ -316,12 +329,17 @@ export function initInteractionTracking(tracker: BaseTracker): () => void {
 		window,
 		"click",
 		(event) => {
-			if (!(event.isTrusted && event.target instanceof Element)) {
+			const { target } = event;
+			if (
+				!(event.isTrusted && target instanceof Element) ||
+				event.composedPath()[0] !== target
+			) {
 				return;
 			}
 			const now = Date.now();
-			watchForResponse(event, event.target, now);
-			countRageClick(event.target, now);
+			const interactive = target.closest(INTERACTIVE_SELECTOR);
+			watchForResponse(event, interactive, now);
+			countRageClick(target, interactive, now);
 		},
 		true
 	);
