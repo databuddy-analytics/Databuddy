@@ -332,7 +332,7 @@ function makeRevenueSignal(
 				: signal.severity,
 		subjectKey: `revenue:${currency}`,
 		investigationObjective: REVENUE_OBJECTIVE,
-		definitionEvidence: `Business meaning: gross revenue from completed payments in ${currency}, excluding refunds. The snapshot alone is not publication evidence: confirm with revenue_overview for this currency across both complete signal windows.`,
+		definitionEvidence: `Business meaning: gross revenue from completed payments in ${currency}, excluding refunds.`,
 	};
 }
 
@@ -441,8 +441,8 @@ function makeProductRevenueSignal(
 		entityId: current.name,
 		entityLabel: label,
 		investigationObjective:
-			"Find material changes in the composition of payments, even when total revenue is flat. A verified material payment-description shift is a measured business result and can publish with resolve when no cause or repair is known. Confirm revenue_overview for both windows: currency, provider, product_name=signal.entity.id and product_id=empty string, plus a separate currency-only whole control. These are payment descriptions, not verified catalog products. Do not infer churn, causality or absence from a limited table.",
-		definitionEvidence: `${current.provider} payments described ${JSON.stringify(current.name)} with no product ID, ${current.currency} gross revenue from completed payments excluding refunds: ${previous.revenue} across ${previous.transactions} transactions → ${current.revenue} across ${current.transactions}. Whole-currency gross: ${p.total_revenue} → ${c.total_revenue}; payment-description share: ${round2(previousShare)}% → ${round2(currentShare)}%. Remaining gross: ${p.total_revenue - previous.revenue} → ${c.total_revenue - current.revenue}. Confirm description and whole controls with native revenue_overview; the snapshot alone cannot support publication.`,
+			"Find material changes in the composition of payments, even when total revenue is flat. A verified material payment-description shift is a measured business result and can publish with resolve when no cause or repair is known. These are payment descriptions, not verified catalog products. Do not infer churn, causality or absence from a limited table.",
+		definitionEvidence: `${current.provider} payments described ${JSON.stringify(current.name)} with no product ID, ${current.currency} gross revenue from completed payments excluding refunds: ${previous.revenue} across ${previous.transactions} transactions → ${current.revenue} across ${current.transactions}. Whole-currency gross: ${p.total_revenue} → ${c.total_revenue}; payment-description share: ${round2(previousShare)}% → ${round2(currentShare)}%. Remaining gross: ${p.total_revenue - previous.revenue} → ${c.total_revenue - current.revenue}.`,
 	};
 }
 
@@ -487,7 +487,7 @@ function commercialSignals(
 				subjectKey: `refund_amount:${currency}`,
 				investigationObjective:
 					"Investigate the independent refund change and its operational consequence even if gross revenue from completed payments is unchanged. Reconcile amounts and refund counts in this exact currency; do not let stable gross suppress refund review.",
-				definitionEvidence: `${currency} refunds: ${p.refund_amount} across ${p.refund_count} refunds → ${c.refund_amount} across ${c.refund_count}. Gross revenue: ${p.total_revenue} → ${c.total_revenue}; refunds are independent of gross, not subtracted from it. Refunds can refer to earlier purchases, so this is not a purchase-cohort refund rate. Confirm both complete windows with revenue_overview.`,
+				definitionEvidence: `${currency} refunds: ${p.refund_amount} across ${p.refund_count} refunds → ${c.refund_amount} across ${c.refund_count}. Gross revenue: ${p.total_revenue} → ${c.total_revenue}; refunds are independent of gross, not subtracted from it. Refunds can refer to earlier purchases, so this is not a purchase-cohort refund rate.`,
 			});
 		}
 	}
@@ -516,8 +516,8 @@ function commercialSignals(
 				),
 				subjectKey: `attribution_rate:${currency}`,
 				investigationObjective:
-					"Investigate the independent attribution coverage change and which acquisition comparison is now unsafe or newly supported. Retain this decision separately from refunds or gross movement. Unattributed revenue is not lost sales.",
-				definitionEvidence: `${currency} attributed revenue: ${p.attributed_revenue} of ${p.total_revenue} gross → ${c.attributed_revenue} of ${c.total_revenue} gross. Coverage is ${previousRate}% → ${currentRate}%. This changes which acquisition decisions the observed attribution supports; unattributed revenue is not lost sales. Confirm both complete windows with revenue_overview; attribution does not establish acquisition causality.`,
+					"Investigate the independent attribution coverage change and which acquisition comparison is now unsafe or newly supported. Retain this decision separately from refunds or gross movement.",
+				definitionEvidence: `${currency} attributed revenue: ${p.attributed_revenue} of ${p.total_revenue} gross → ${c.attributed_revenue} of ${c.total_revenue} gross. Coverage is ${previousRate}% → ${currentRate}%. This changes which acquisition decisions the observed attribution supports; unattributed revenue is not lost sales. Attribution does not establish acquisition causality.`,
 			});
 		}
 	}
@@ -1604,7 +1604,7 @@ export function freshRevenueSignals(
 			detectedAt: revenue.latest.date,
 			subjectKey: `revenue:${currency}`,
 			investigationObjective: REVENUE_OBJECTIVE,
-			definitionEvidence: `Business meaning: gross revenue from completed payments in ${currency}, excluding refunds. On ${revenue.latest.date} it was ${current.toLocaleString("en-US")} across ${transactions.latest.value} payments, against a median of ${revenue.median.toLocaleString("en-US")} across ${transactions.median} payments on ${comparableWindow(revenue)}. Confirm with revenue_time_series for this currency on those dates.`,
+			definitionEvidence: `Business meaning: gross revenue from completed payments in ${currency}, excluding refunds. On ${revenue.latest.date} it was ${current.toLocaleString("en-US")} across ${transactions.latest.value} payments, against a median of ${revenue.median.toLocaleString("en-US")} across ${transactions.median} payments on ${comparableWindow(revenue)}.`,
 		});
 	}
 	return signals;
