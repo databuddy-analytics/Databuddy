@@ -29,8 +29,6 @@ export const AGENT_COMPONENT_TYPES = [
 
 export type AgentComponentType = (typeof AGENT_COMPONENT_TYPES)[number];
 
-export type AgentOutput = "components" | "markdown";
-
 export interface ComponentSpec {
 	type: string;
 	[key: string]: unknown;
@@ -85,19 +83,20 @@ function findCloseBrace(text: string, start: number): number {
 
 function parseComponent(json: string): ComponentSpec | null {
 	try {
-		const parsed = JSON.parse(json) as unknown;
+		const parsed: unknown = JSON.parse(json);
 		if (
 			parsed &&
 			typeof parsed === "object" &&
 			!Array.isArray(parsed) &&
-			typeof (parsed as Record<string, unknown>).type === "string" &&
-			KNOWN_COMPONENT_TYPES.has(
-				(parsed as Record<string, unknown>).type as string
-			)
+			"type" in parsed &&
+			typeof parsed.type === "string" &&
+			KNOWN_COMPONENT_TYPES.has(parsed.type)
 		) {
-			return parsed as ComponentSpec;
+			return { ...parsed, type: parsed.type };
 		}
-	} catch {}
+	} catch {
+		// Malformed model text stays in the response.
+	}
 	return null;
 }
 
@@ -161,11 +160,6 @@ export class ComponentStreamSplitter {
 				this.#buffer = rest.slice(1);
 			}
 		}
-
-		if (final) {
-			return emitted;
-		}
-		this.#buffer = "";
 		return emitted;
 	}
 

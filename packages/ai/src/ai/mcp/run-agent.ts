@@ -6,7 +6,7 @@ import {
 	storeConversation,
 } from "../../lib/supermemory";
 import type { LanguageModelUsage, StepResult, ToolSet } from "ai";
-import type { AgentPrincipal } from "../../agent";
+import type { AgentPrincipal, DatabuddyAgentOptions } from "../../agent";
 import { createConversationAgent } from "../agents/conversation";
 import { getAILogger } from "../../lib/ai-logger";
 import { loadOrganizationBusinessContext } from "../../lib/organization-business-context";
@@ -14,33 +14,19 @@ import { captureError } from "../../lib/tracing";
 import { trackAgentUsageAndBill } from "../agents/execution";
 import { createMcpAgentConfig } from "../agents/mcp";
 import { type AgentSource, getDefaultAgentModelId } from "../config/models";
-import type { AppMutationMode } from "../config/context";
 import { prependBackgroundContext } from "../prompts/context";
-import type { DatabuddyAgentSlackContext } from "./slack-context";
 
 const DEFAULT_MCP_AGENT_TIMEOUT_MS = 45_000;
 const EMPTY_ANSWER =
 	"No answer was generated from the gathered evidence. Try a narrower question: one metric, one segment, or one time range.";
 
-export interface RunMcpAgentOptions {
-	abortSignal?: AbortSignal;
-	conversationId?: string;
-	historyInput?: string;
-	memoryUserId?: string | null;
-	modelOverride?: string | null;
-	mutationMode?: AppMutationMode;
-	onToolEvent?: (toolNames: string[]) => void;
-	/** Called once after a stream completes and its usage has been settled. */
-	onToolTrace?: (trace: McpAgentToolTrace[]) => void;
+export type RunMcpAgentOptions = DatabuddyAgentOptions & {
+	conversationId: string;
+	conversationUserId: string | null;
+	memoryUserId: string | null;
 	principal: AgentPrincipal;
-	priorMessages?: Array<{ role: "user" | "assistant"; content: string }>;
-	question: string;
-	slackContext?: DatabuddyAgentSlackContext | null;
-	source?: AgentSource;
-	storeMemory?: boolean;
-	timeoutMs?: number;
-	timezone?: string;
-}
+	source: AgentSource;
+};
 
 export interface McpAgentToolTrace {
 	index: number;
@@ -72,9 +58,7 @@ export async function runMcpAgent(
 		await trackPreparedUsage(prepared, result.totalUsage);
 
 		const answer = result.text.trim() || EMPTY_ANSWER;
-		if (options.storeMemory !== false) {
-			storePreparedConversation(prepared, answer);
-		}
+		storePreparedConversation(prepared, answer);
 
 		return answer;
 	} finally {
@@ -97,9 +81,7 @@ export async function runMcpAgentWithTrace(
 
 		await trackPreparedUsage(prepared, result.totalUsage);
 		const answer = result.text.trim() || EMPTY_ANSWER;
-		if (options.storeMemory !== false) {
-			storePreparedConversation(prepared, answer);
-		}
+		storePreparedConversation(prepared, answer);
 
 		return {
 			answer,
@@ -217,9 +199,7 @@ export async function* streamMcpAgentText(
 		}
 
 		options.onToolTrace?.(collectToolTrace(prepared.capturedSteps));
-		if (options.storeMemory !== false) {
-			storePreparedConversation(prepared, answer);
-		}
+		storePreparedConversation(prepared, answer);
 	} finally {
 		abort.cleanup();
 		await settleRemainingUsage(prepared);
@@ -259,25 +239,19 @@ function createRunAbortController(options: RunMcpAgentOptions): {
 }
 
 async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
-	const { principal } = options;
-	const { accessibleWebsites, apiKey, organizationId, website } = principal;
-	const sessionId = options.conversationId ?? crypto.randomUUID();
-	const historyInput = options.historyInput ?? options.question;
-	const mcpUserId = principal.userId;
-	const memoryUserId = options.memoryUserId ?? mcpUserId;
-	const source = options.source ?? "mcp";
-	const selectedModelId =
-		options.modelOverride ?? getDefaultAgentModelId(source);
-	const apiKeyId = apiKey?.id ?? null;
+	const { conversationId, memoryUserId, principal, source } = options;
+	const { accessibleWebsites, apiKey, organizationId, userId, website } =
+		principal;
+	const historyInput = options.historyInput ?? options.input;
 
 	const [config, memoryCtx, businessContext] = await Promise.all([
 		createMcpAgentConfig({
 			billingCustomerId: principal.billingCustomerId,
 			requestHeaders: principal.requestHeaders,
 			apiKey,
-			userId: mcpUserId,
+			userId,
 			timezone: options.timezone,
-			chatId: sessionId,
+			chatId: conversationId,
 			latestUserMessage: historyInput,
 			modelOverride: options.modelOverride,
 			memoryUserId,
@@ -290,7 +264,7 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 			websiteId: website?.id,
 		}),
 		isMemoryEnabled()
-			? getMemoryContext(historyInput, memoryUserId, apiKeyId)
+			? getMemoryContext(historyInput, memoryUserId, apiKey?.id ?? null)
 			: Promise.resolve(null),
 		loadOrganizationBusinessContext({
 			organizationId,
@@ -320,40 +294,27 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 					authType: apiKey ? "api_key" : "session",
 					timezone: options.timezone ?? "UTC",
 					"tcc.conversational": "true",
-					...(mcpUserId && { userId: mcpUserId }),
+					...(userId && { userId }),
 					organizationId,
-					"tcc.sessionId": sessionId,
+					"tcc.sessionId": conversationId,
 				},
 			},
 		}
 	);
 
 	const messages = prependBackgroundContext(
-		[
-			...(options.priorMessages ?? []),
-			{ role: "user", content: options.question },
-		],
+		[...(options.history ?? []), { role: "user", content: options.input }],
 		[businessContext, memoryCtx ? formatMemoryForPrompt(memoryCtx) : ""]
 	);
 
 	return {
 		agent,
-		apiKeyId,
-		billingCustomerId: principal.billingCustomerId,
-		billingAccess: principal.billingAccess,
 		capturedSteps,
 		historyInput,
-		usageSettlementAttempted: false,
-		memoryUserId,
-		mcpUserId,
 		messages,
-		modelId: selectedModelId,
-		mutationMode: options.mutationMode,
-		organizationId,
-		sessionId,
-		source,
-		websiteDomain: website?.domain ?? undefined,
-		websiteId: website?.id,
+		modelId: options.modelOverride ?? getDefaultAgentModelId(source),
+		options,
+		usageSettlementAttempted: false,
 	};
 }
 
@@ -366,6 +327,7 @@ async function trackPreparedUsage(
 	}
 	// An uncertain charge must not be replayed by cleanup.
 	prepared.usageSettlementAttempted = true;
+	const { conversationId, principal, source } = prepared.options;
 	await trackAgentUsageAndBill({
 		usage: {
 			...usage,
@@ -374,12 +336,12 @@ async function trackPreparedUsage(
 				: {}),
 		},
 		modelId: prepared.modelId,
-		source: prepared.source,
-		organizationId: prepared.organizationId,
-		userId: prepared.mcpUserId,
-		chatId: prepared.sessionId,
-		billingCustomerId: prepared.billingCustomerId,
-		billingAccess: prepared.billingAccess,
+		source,
+		organizationId: principal.organizationId,
+		userId: principal.userId,
+		chatId: conversationId,
+		billingCustomerId: principal.billingCustomerId,
+		billingAccess: principal.billingAccess,
 	});
 }
 
@@ -401,8 +363,8 @@ async function settleRemainingUsage(
 		// Preserve the model error or consumer cancellation that entered cleanup.
 		captureError(error, {
 			agent_usage_billing_error: true,
-			agent_source: prepared.source,
-			agent_chat_id: prepared.sessionId,
+			agent_source: prepared.options.source,
+			agent_chat_id: prepared.options.conversationId,
 		});
 	}
 }
@@ -428,27 +390,29 @@ function collectToolTrace(
 }
 
 function storePreparedConversation(
-	prepared: Awaited<ReturnType<typeof prepareMcpAgentRun>>,
+	{ historyInput, options }: Awaited<ReturnType<typeof prepareMcpAgentRun>>,
 	answer: string
 ): void {
 	if (
-		prepared.mutationMode === "dry-run" ||
-		!asksToRemember(prepared.historyInput)
+		options.persistConversation === false ||
+		options.mutationMode === "dry-run" ||
+		!asksToRemember(historyInput)
 	) {
 		return;
 	}
+	const { website } = options.principal;
 	storeConversation(
 		[
-			{ role: "user", content: prepared.historyInput },
+			{ role: "user", content: historyInput },
 			{ role: "assistant", content: answer },
 		],
-		prepared.memoryUserId,
-		prepared.apiKeyId,
+		options.memoryUserId,
+		options.principal.apiKey?.id ?? null,
 		{
-			...(prepared.websiteDomain ? { domain: prepared.websiteDomain } : {}),
-			metadata: { source: prepared.source },
-			conversationId: prepared.sessionId,
-			websiteId: prepared.websiteId,
+			...(website?.domain ? { domain: website.domain } : {}),
+			metadata: { source: options.source },
+			conversationId: options.conversationId,
+			websiteId: website?.id,
 		}
 	);
 }

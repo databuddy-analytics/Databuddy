@@ -1,5 +1,4 @@
 import { isApiKeyPresent } from "@databuddy/api-keys/resolve";
-import { resolveAgentOrganizationId } from "@databuddy/ai/agent";
 import {
 	createMcpErrorResponse,
 	createMcpUnauthorizedResponse,
@@ -249,12 +248,10 @@ export const mcp = new Elysia({ name: "mcp" })
 			user,
 			apiKey,
 			oauthAccessToken: null,
-			organizationId: resolveAgentOrganizationId({
-				activeOrganizationId: user
-					? session?.session.activeOrganizationId
-					: null,
-				apiKey,
-			}),
+			organizationId:
+				apiKey?.organizationId ??
+				(user ? session?.session.activeOrganizationId : null) ??
+				null,
 		};
 	})
 	.onBeforeHandle(({ user, apiKey, oauthAccessToken, set }) => {
