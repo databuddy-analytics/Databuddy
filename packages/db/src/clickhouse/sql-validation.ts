@@ -220,7 +220,8 @@ const TENANT_COMPARISON_PATTERN =
 const TENANT_GROUP_PATTERN =
 	/\(\s*(?:\b([a-zA-Z_][a-zA-Z0-9_]*)\.)?\b(owner_id|website_id)\s*=\s*\{websiteId\s*:\s*String\}\s+OR\s+(?:\b([a-zA-Z_][a-zA-Z0-9_]*)\.)?\b(owner_id|website_id)\s*=\s*\{websiteId\s*:\s*String\}\s*\)/gi;
 const SELECT_KEYWORD_PATTERN = /\bSELECT\b/gi;
-const WITH_KEYWORD_PATTERN = /\bWITH\b/gi;
+const WITH_KEYWORD_PATTERN =
+	/\bWITH\b(?!\s+(?:FILL|TOTALS|ROLLUP|CUBE|TIES)\b(?:\s*(?:\)|$)|\s+(?!AS\b)[a-z]))/gi;
 const CTE_HEADER_PATTERN =
 	/^\s*[a-zA-Z_][a-zA-Z0-9_]*\s+AS\s*(?:,\s*[a-zA-Z_][a-zA-Z0-9_]*\s+AS\s*)*$/i;
 const FROM_KEYWORD_PATTERN = /\bFROM\b/gi;
