@@ -1,7 +1,8 @@
 import { db, eq, type Feedback, feedback, user } from "@databuddy/db";
+import { config } from "@databuddy/env/app";
 import { randomUUIDv7 } from "bun";
 
-const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL ?? "";
+const SLACK_WEBHOOK_URL = config.services.slackWebhookUrl ?? "";
 const SLACK_TIMEOUT_MS = 10_000;
 const DESCRIPTION_PREVIEW_LIMIT = 500;
 

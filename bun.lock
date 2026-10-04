@@ -673,6 +673,7 @@
       "name": "@databuddy/shared",
       "version": "0.0.1",
       "dependencies": {
+        "@databuddy/env": "workspace:*",
         "evlog": "catalog:",
         "ua-parser-js": "catalog:",
         "undici": "^8.2.0",

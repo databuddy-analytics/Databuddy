@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { config, readBooleanEnv } from "@databuddy/env/app";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
 import AuthLayout from "./auth-layout";
@@ -12,7 +12,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
 		<AuthLayout
 			capabilities={{
 				email: Boolean(
-					process.env.RESEND_API_KEY?.trim() && process.env.EMAIL_FROM?.trim()
+					config.services.resendApiKey && process.env.EMAIL_FROM?.trim()
 				),
 				github: Boolean(
 					process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET

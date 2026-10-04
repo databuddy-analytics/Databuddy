@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { config, readBooleanEnv } from "@databuddy/env/app";
 import type { NotificationClientConfig } from "./client";
 import type { NotificationChannel } from "./types";
 
@@ -122,7 +122,7 @@ export function buildAlarmNotificationTargets(
 				},
 			});
 		} else if (dest.type === "email") {
-			if (!process.env.RESEND_API_KEY) {
+			if (!config.services.resendApiKey) {
 				warnAlarmEmailUnconfigured();
 				continue;
 			}
@@ -139,7 +139,7 @@ export function buildAlarmNotificationTargets(
 							text?: string;
 						}) => {
 							const { Resend } = await import("resend");
-							const apiKey = process.env.RESEND_API_KEY;
+							const apiKey = config.services.resendApiKey;
 							if (!apiKey) {
 								throw new Error("Email delivery is not configured");
 							}

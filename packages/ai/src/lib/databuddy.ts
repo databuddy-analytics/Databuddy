@@ -1,7 +1,7 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { config, readBooleanEnv } from "@databuddy/env/app";
 import { Databuddy } from "@databuddy/sdk/node";
 
-const apiKey = process.env.DATABUDDY_API_KEY;
+const apiKey = config.services.databuddyApiKey;
 const websiteId = process.env.DATABUDDY_WEBSITE_ID;
 
 function createClient(source: string, namespace?: string) {

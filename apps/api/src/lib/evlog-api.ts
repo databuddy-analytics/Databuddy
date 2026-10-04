@@ -1,6 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readBooleanEnv } from "@databuddy/env/app";
+import { config, readBooleanEnv } from "@databuddy/env/app";
 import { createBatchedSuperlogDrain } from "@databuddy/shared/evlog-superlog";
 import type { DrainContext, EnrichContext } from "evlog";
 import { createAxiomDrain } from "evlog/axiom";
@@ -15,7 +15,7 @@ import { createDrainPipeline } from "evlog/pipeline";
 const batchedAxiomDrain = createDrainPipeline<DrainContext>({
 	batch: { size: 50, intervalMs: 5000 },
 	maxBufferSize: 2000,
-})(createAxiomDrain({ apiKey: process.env.AXIOM_TOKEN }));
+})(createAxiomDrain({ apiKey: config.services.axiomToken }));
 
 const batchedSuperlogDrain = createBatchedSuperlogDrain();
 
@@ -30,8 +30,7 @@ const devFsLogsDir = join(
 const useLocalEvlogFiles =
 	process.env.NODE_ENV === "development" || readBooleanEnv("API_EVLOG_FS");
 
-const drainToAxiom =
-	process.env.NODE_ENV !== "development" && Boolean(process.env.AXIOM_TOKEN);
+const drainToAxiom = Boolean(config.services.axiomToken);
 
 const devFsDrain = useLocalEvlogFiles
 	? createFsDrain({ dir: devFsLogsDir, pretty: false })

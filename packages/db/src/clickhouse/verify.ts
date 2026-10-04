@@ -1,5 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { dataUrl } from "@databuddy/env/app";
 import { CLICKHOUSE_OPTIONS } from "./client";
 import {
 	type ParsedTable,
@@ -27,7 +28,7 @@ function dbNameOf(sql: string): string {
 }
 
 async function fetchLive(): Promise<Map<string, ParsedTable>> {
-	const raw = process.env.CLICKHOUSE_READONLY_URL ?? process.env.CLICKHOUSE_URL;
+	const raw = process.env.CLICKHOUSE_READONLY_URL ?? dataUrl("CLICKHOUSE_URL");
 	if (!raw) {
 		throw new Error("CLICKHOUSE_READONLY_URL or CLICKHOUSE_URL must be set");
 	}

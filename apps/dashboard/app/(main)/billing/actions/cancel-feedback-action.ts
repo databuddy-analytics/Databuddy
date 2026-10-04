@@ -1,11 +1,12 @@
 "use server";
 
 import { auth } from "@databuddy/auth";
+import { config } from "@databuddy/env/app";
 import { Databuddy } from "@databuddy/sdk/node";
 import { headers } from "next/headers";
 import type { CancelFeedback } from "../components/cancel-subscription-dialog";
 
-const databuddyApiKey = process.env.DATABUDDY_API_KEY;
+const databuddyApiKey = config.services.databuddyApiKey;
 const client = databuddyApiKey
 	? new Databuddy({
 			apiKey: databuddyApiKey,
