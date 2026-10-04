@@ -156,6 +156,61 @@ describe("validateAgentSQL", () => {
 		expect(result).toEqual({ valid: true, reason: null });
 	});
 
+	it("rejects a # comment that hides a second query from the validator", () => {
+		const result = validateAgentSQL(
+			`SELECT 'filtered' AS src, count() AS c FROM analytics.events
+WHERE client_id = {websiteId:String} AND 1 = 1 # '
+UNION ALL SELECT 'all_revenue' AS src, count() AS c FROM analytics.revenue -- '`
+		);
+		expect(result.valid).toBe(false);
+		expect(result.reason).toContain("Comments are not allowed");
+	});
+
+	it("rejects every comment form ClickHouse accepts", () => {
+		for (const comment of ["# note", "#! note", "-- note", "/* note */"]) {
+			const result = validateAgentSQL(
+				`SELECT count() FROM analytics.events ${TENANT} ${comment}`
+			);
+			expect(result.valid).toBe(false);
+		}
+	});
+
+	it("rejects settings hidden behind a comment and quote", () => {
+		const result = validateAgentSQL(
+			`SELECT count() FROM analytics.events ${TENANT} # '
+SETTINGS additional_table_filters = {} -- '`
+		);
+		expect(result.valid).toBe(false);
+	});
+
+	it("rejects quoted identifiers that could hide a quote", () => {
+		for (const sql of [
+			`SELECT count() AS \`a'b\` FROM analytics.events ${TENANT}`,
+			`SELECT count() AS "a'b" FROM analytics.events ${TENANT}`,
+			`SELECT count() AS \`unclosed FROM analytics.events ${TENANT}`,
+		]) {
+			expect(validateAgentSQL(sql).valid).toBe(false);
+		}
+	});
+
+	it("rejects dollar-quoted strings and unterminated literals", () => {
+		expect(
+			validateAgentSQL(`SELECT $$x$$ FROM analytics.events ${TENANT}`).valid
+		).toBe(false);
+		expect(
+			validateAgentSQL(
+				`SELECT count() FROM analytics.events ${TENANT} AND path = '/a`
+			).valid
+		).toBe(false);
+	});
+
+	it("keeps comment and quote characters inside string literals", () => {
+		const result = validateAgentSQL(
+			`SELECT count() FROM analytics.events ${TENANT} AND path = '/a#b--c/*d$e"f''g\\'h'`
+		);
+		expect(result).toEqual({ valid: true, reason: null });
+	});
+
 	it("is case-insensitive for FROM/JOIN keywords", () => {
 		const result = validateAgentSQL(
 			"select count() from analytics.events where client_id = {websiteId:String}"
@@ -363,12 +418,12 @@ describe("validateAgentSQL", () => {
 			expect(result.valid).toBe(false);
 		});
 
-		it("ignores tenant markers inside comments", () => {
+		it("rejects tenant markers inside comments", () => {
 			const result = validateAgentSQL(
 				"SELECT * FROM analytics.events /* client_id = {websiteId:String} */ WHERE time > now()"
 			);
 			expect(result.valid).toBe(false);
-			expect(result.reason).toContain("client_id");
+			expect(result.reason).toContain("Comments are not allowed");
 		});
 
 		it("ignores tenant markers inside string literals", () => {
