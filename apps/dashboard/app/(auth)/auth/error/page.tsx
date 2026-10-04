@@ -88,10 +88,7 @@ const DEFAULT_ERROR = {
 
 function AuthErrorPage() {
 	const [errorCode] = useQueryState("error", parseAsString.withDefault(""));
-	const [callback] = useQueryState(
-		"callback",
-		parseAsString.withDefault("/websites")
-	);
+	const [callback] = useQueryState("callback");
 	const safeCallback = safeCallbackPath(callback);
 
 	const errorInfo =

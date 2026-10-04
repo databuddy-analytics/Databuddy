@@ -8,6 +8,7 @@ import {
 	goals,
 	insightObservations,
 	insightReplies,
+	user,
 } from "@databuddy/db/schema";
 import {
 	appRouter,
@@ -16,6 +17,7 @@ import {
 	createRPCContext,
 } from "@databuddy/rpc";
 import { getAutumn } from "@databuddy/rpc/autumn";
+import { API_SCOPES } from "@databuddy/shared/api-scopes";
 import {
 	closeInsightsQueue,
 	getInsightsQueue,
@@ -1239,6 +1241,7 @@ describe("insight investigation timeline", () => {
 					acceptedPriceUsd: 1 as const,
 					replyId: randomUUIDv7(),
 				};
+				const storedReplyId = `${organization.id}_${input.replyId}`;
 				for (const acceptedPriceUsd of [undefined, 0, 2]) {
 					await expectBadReplyRequest(context, { ...input, acceptedPriceUsd });
 				}
@@ -1247,12 +1250,13 @@ describe("insight investigation timeline", () => {
 					await db()
 						.select()
 						.from(insightReplies)
-						.where(eq(insightReplies.id, input.replyId))
+						.where(eq(insightReplies.id, storedReplyId))
 				).toHaveLength(0);
 				expect(
-					await getInsightsQueue().getJob(insightsResumeJobId(input.replyId))
+					await getInsightsQueue().getJob(insightsResumeJobId(storedReplyId))
 				).toBeUndefined();
 				const first = await call(appRouter.insights.reply, context)(input);
+				expect(first.reply.id).toBe(storedReplyId);
 				const [stored] = await db()
 					.select()
 					.from(insightReplies)
@@ -1270,7 +1274,7 @@ describe("insight investigation timeline", () => {
 					await db()
 						.select()
 						.from(insightReplies)
-						.where(eq(insightReplies.id, input.replyId))
+						.where(eq(insightReplies.id, storedReplyId))
 				).toHaveLength(1);
 				const customerChecks = getCustomer.mock.calls.length;
 				for (const acceptedPriceUsd of [undefined, 0, 2]) {
@@ -1595,7 +1599,7 @@ describe("insight investigation timeline", () => {
 				authorId: null,
 				authorName: "MCP client",
 				body: input.body,
-				id: input.replyId,
+				id: `${organization.id}_${input.replyId}`,
 				insightId,
 			}),
 		]);
@@ -1799,6 +1803,52 @@ describe("insight investigation timeline", () => {
 				"FORBIDDEN"
 			);
 			expect(await db().select().from(insightReplies)).toHaveLength(0);
+		}
+	);
+});
+
+describe("MCP OAuth workspace writes", () => {
+	iit(
+		"rejects a confirmed create_goal from an OAuth viewer and writes nothing",
+		async () => {
+			const viewer = await signUp();
+			const organization = await insertOrganization();
+			await addToOrganization(viewer.id, organization.id, "viewer");
+			const website = await insertWebsite({ organizationId: organization.id });
+			const [viewerUser] = await db()
+				.select()
+				.from(user)
+				.where(eq(user.id, viewer.id));
+			if (!viewerUser) {
+				throw new Error("Expected the signed-up viewer");
+			}
+			const createGoal = createMcpTools({
+				apiKey: null,
+				oauth: {
+					grant: { organizationId: organization.id, websiteIds: null },
+					scopes: [...API_SCOPES],
+					user: viewerUser,
+				},
+				requestHeaders: new Headers(),
+				userId: null,
+			}).find((tool) => tool.name === "create_goal");
+
+			const result = await createGoal?.handler({
+				confirmed: true,
+				name: "Signup",
+				target: "/signup",
+				type: "PAGE_VIEW",
+				websiteId: website.id,
+			});
+
+			expect(result?.isError).toBe(true);
+			expect(result?.content[0]).toMatchObject({
+				type: "text",
+				text: expect.stringContaining('"code":"unauthorized"'),
+			});
+			expect(
+				await db().select().from(goals).where(eq(goals.websiteId, website.id))
+			).toEqual([]);
 		}
 	);
 });

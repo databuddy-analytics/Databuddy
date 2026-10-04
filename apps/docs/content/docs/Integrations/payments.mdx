@@ -6,7 +6,7 @@ description: Attribute Stripe and Paddle revenue to sessions, campaigns, and ide
 import { Callout, CodeBlock, Tab, Tabs } from "@/components/docs";
 import { STRIPE_WEBHOOK_EVENTS } from "@databuddy/shared/stripe-webhooks";
 
-Connect your payment provider and every transaction shows up in the Revenue dashboard, attributed to the session, referrer, and user that produced it.
+Connect your payment provider to see completed payments and refunds in the Revenue dashboard. Matching tracked identities connect payments to their acquisition source.
 
 > **TL;DR:** Generate a webhook URL in the dashboard, add it to Stripe or Paddle, and pass Databuddy IDs in your payment metadata.
 
@@ -36,6 +36,8 @@ In the [Stripe dashboard](https://dashboard.stripe.com/webhooks), add an endpoin
 
 Databuddy expects Stripe API version `2025-05-28.basil` or later, because `invoice_payment.paid` was introduced in that version and is the canonical money event for anything billed through an invoice. Keep `payment_intent.succeeded` enabled for one-time payments.
 
+[Checkout Session metadata stays on the Session](https://docs.stripe.com/metadata#copy-metadata-to-another-object) unless you also set `payment_intent_data.metadata`. Keep `checkout.session.completed` and `checkout.session.async_payment_succeeded` enabled so Databuddy can link one-time Checkout metadata to its payment, including [delayed payment methods](https://docs.stripe.com/checkout/fulfillment?payment-ui=stripe-hosted#immediate-versus-delayed-payment-methods). These events link metadata; payment events supply the revenue amount.
+
 `invoice.paid` and `invoice_payment.paid` carry different halves of the same fact, and you need both. The payment event carries the amount but references its invoice by ID only, so it cannot see your metadata. The invoice event carries the metadata but no payment amount, because Stripe does not include the invoice's `payments` list in webhook deliveries. Databuddy records the amount from the payment event and joins the metadata from the invoice event, which is why a subscription payment stays unattributed if only one of the two is enabled. Order does not matter, and redelivering either event is safe.
 
 Paste the endpoint's **signing secret** into the Revenue settings so Databuddy can verify each delivery.
@@ -52,7 +54,7 @@ Paste the **webhook secret key** into the Revenue settings so Databuddy can veri
 
 ## 3. Pass Databuddy IDs with each payment
 
-Metadata connects a payment to the visitor who made it. Include what you have: every field is optional, and more fields mean stronger attribution.
+Metadata connects a payment to a tracked visitor. Include the IDs you have: every field is optional, but an ID alone does not prove attribution. Databuddy must find a matching browser event on the same website at or before the payment.
 
 <Tabs items={['Stripe', 'Paddle']}>
 <Tab value="Stripe">
@@ -119,13 +121,24 @@ as sent.
 </Callout>
 
 <Callout type="warn">
-Only the browser tracker creates the sessions that revenue attribution joins
-against. Server-side `track()` calls through the Node SDK or the `/track` API
-are stored as custom events, so a session ID you mint on the server has no
-referrer, campaign, country, or device behind it and will resolve as
-unattributed. Take `sessionId` from `getTrackingIds()` in the browser and pass
+Only browser events provide the referrer, campaign, country, and device used
+for revenue attribution. Server-side `track()` calls through the Node SDK or
+the `/track` API are stored as custom events. A session ID minted on the
+server cannot supply browser attribution; another matching tracked identity
+is needed. Take `sessionId` from `getTrackingIds()` in the browser and pass
 it to your server, rather than generating one server-side.
 </Callout>
+
+Databuddy first tries the payment's tracked session, then its profile ID, then
+its anonymous ID. If none matches, it can reuse a previously verified session
+for the same provider customer on the same website. Ambiguous sessions and
+sessions belonging to another identified profile are not credited. Stripe
+invoice context can supply IDs missing from a payment webhook.
+
+**Revenue attribution** measures attributed completed-payment revenue divided
+by total completed-payment revenue in the selected currency. Refunds are
+reported separately. Profile revenue can show a payment associated with a
+user even when no browser event exists to attribute its acquisition source.
 
 ## Verify it works
 
@@ -134,7 +147,7 @@ Send a test payment (Stripe test mode works), then check **Website → Revenue**
 ## Troubleshooting
 
 - **Nothing appears:** confirm the webhook URL matches the generated one exactly and the signing secret is saved in Revenue settings; deliveries with bad signatures are rejected.
-- **Revenue appears but isn't attributed:** the payment had no Databuddy metadata. Attribution only works for payments created after you started passing IDs.
+- **Revenue appears but isn't attributed:** check for a matching browser event before the payment on the same website. Missing IDs, untracked sessions, conflicting profiles, and events occurring after the payment cannot establish attribution. An existing verified customer session can attribute later renewals without fresh payment metadata.
 - **One payment type never attributes:** check that your endpoint subscribes to every required event. Stripe subscribes an endpoint to a fixed event list, and adding a new payment flow does not update it. Revenue settings shows when Databuddy last recorded each event, which helps you spot a type that stopped arriving, but an event that simply has not happened yet (a refund, a failed payment) also shows no activity, so compare it against the event list in your Stripe dashboard rather than treating it as proof.
 - **A session ID you sent isn't recognised:** it has to come from the browser tracker. IDs generated on the server, or sent through server-side `track()`, never produce a joinable session.
 - **Stripe shows failed deliveries:** regenerating webhook URLs invalidates the old path, so update Stripe after regenerating.

@@ -11,9 +11,11 @@
     "test:e2e:local": "./test/e2e/run-local.sh bun run --cwd apps/dashboard test:e2e",
     "test:e2e:local:regression": "./test/e2e/run-local.sh bun run --cwd apps/dashboard test:e2e:regression",
     "test:e2e:local:core": "./test/e2e/run-local.sh bun run --cwd apps/dashboard test:e2e:core",
+    "test:e2e:local:selfhost": "SELFHOST=true ./test/e2e/run-local.sh bun run --cwd apps/dashboard test:e2e:selfhost",
     "test:e2e": "playwright test",
     "test:e2e:regression": "playwright test --grep @regression",
-    "test:e2e:core": "playwright test --grep @core"
+    "test:e2e:core": "playwright test --grep @core",
+    "test:e2e:selfhost": "playwright test --grep @selfhost"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.118",

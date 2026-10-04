@@ -60,6 +60,7 @@ import {
 const MAX_STEPS = 8;
 const TIMEOUT_MS = 2 * 60_000;
 const MAX_FINISH_ATTEMPTS = 3;
+const SNAKE_CASE_WORD = /\b[a-z0-9]+(?:_[a-z0-9]+)+\b/gi;
 export const INSIGHTS_MODEL_ID = "openai/gpt-6.1-sol";
 const INSIGHTS_MODEL = createModelFromId(INSIGHTS_MODEL_ID);
 
@@ -1023,7 +1024,6 @@ function validateDefinitionRecommendation(
 
 const MONTH_NAME =
 	"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)";
-// ponytail: numeric-colon tails stay grounded; use full dates to disambiguate.
 const MONTH_FIRST_DATE_RANGE = new RegExp(
 	String.raw`\b${MONTH_NAME} \d{1,2}(?:\s*(?:to|through|[–—-])\s*(?:${MONTH_NAME} )?\d{1,2}(?:\s*→\s*(?:[12]\d|3[01]|[1-9])\s*[–—-]\s*(?:[12]\d|3[01]|[1-9])(?=(?:,? \d{4})?(?:,? UTC)?\s*(?:$|[;)\]]|:(?!\s*\d)|,(?!\s*\d)|\.(?!\d))))?)?(?:,? \d{4})?\b`,
 	"gi"
@@ -2323,6 +2323,34 @@ async function runSavedVerification(
 	};
 }
 
+function plainFinishTitle(input: string): string | null {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(input);
+	} catch {
+		return null;
+	}
+	if (
+		!(
+			parsed &&
+			typeof parsed === "object" &&
+			"title" in parsed &&
+			typeof parsed.title === "string"
+		)
+	) {
+		return null;
+	}
+	const title = parsed.title.replace(SNAKE_CASE_WORD, (word) =>
+		word.replaceAll("_", " ")
+	);
+	return title === parsed.title
+		? null
+		: JSON.stringify({
+				...parsed,
+				title: `${title.charAt(0).toUpperCase()}${title.slice(1)}`,
+			});
+}
+
 export async function runInsightAgent(
 	originalInput: InsightAgentInput,
 	options: {
@@ -2989,6 +3017,13 @@ export async function runInsightAgent(
 					.filter((call) => call.toolName === "finish_investigation").length >=
 				MAX_FINISH_ATTEMPTS,
 		],
+		experimental_repairToolCall: ({ toolCall }) => {
+			const input =
+				toolCall.toolName === "finish_investigation"
+					? plainFinishTitle(toolCall.input)
+					: null;
+			return Promise.resolve(input ? { ...toolCall, input } : null);
+		},
 		prepareStep: ({ stepNumber }) => {
 			stepHasReads = false;
 			return stepNumber === MAX_STEPS - 1

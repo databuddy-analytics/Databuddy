@@ -11,15 +11,17 @@ import {
 import { createHighlighterCoreSync, type ShikiTransformer } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 import bash from "shiki/langs/bash.mjs";
+import html from "shiki/langs/html.mjs";
 import sql from "shiki/langs/sql.mjs";
 import tsx from "shiki/langs/tsx.mjs";
+import vue from "shiki/langs/vue.mjs";
 import oneDarkPro from "shiki/themes/one-dark-pro.mjs";
 import oneLight from "shiki/themes/one-light.mjs";
 import { cn } from "@/lib/utils";
 import { CheckIcon, CopyIcon } from "@databuddy/ui/icons";
 import { Button } from "@databuddy/ui";
 
-type CodeBlockLanguage = "bash" | "sql" | "tsx";
+type CodeBlockLanguage = "bash" | "html" | "sql" | "tsx" | "vue";
 
 type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
 	code: string;
@@ -29,7 +31,7 @@ type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
 
 const highlighter = createHighlighterCoreSync({
 	engine: createJavaScriptRegexEngine(),
-	langs: [bash, sql, tsx],
+	langs: [bash, html, sql, tsx, vue],
 	themes: [oneLight, oneDarkPro],
 });
 

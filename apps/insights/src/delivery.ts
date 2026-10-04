@@ -50,6 +50,7 @@ export const insightSlackEffectPayloadSchema = z.object({
 	blocks: z.array(slackBlockSchema).max(50),
 	channelId: z.string().min(1).optional(),
 	insightId: z.string().min(1).optional(),
+	replyOnly: z.boolean().optional(),
 	text: z.string().min(1),
 });
 
@@ -109,16 +110,15 @@ function buildFallbackText(
 
 export function buildInsightReplyText(
 	outcome: InvestigationOutcome,
-	signal: InvestigationSignal
+	signal: InvestigationSignal,
+	label = outcome.next.type === "act"
+		? "Action"
+		: outcome.next.type === "ask"
+			? "Question"
+			: outcome.next.type === "watch"
+				? "Watching"
+				: "Resolved"
 ): string {
-	const label =
-		outcome.next.type === "act"
-			? "Action"
-			: outcome.next.type === "ask"
-				? "Question"
-				: outcome.next.type === "watch"
-					? "Watching"
-					: "Resolved";
 	const lines = [
 		`*${label} · ${escapeMrkdwn(userVisibleCopy(outcome.title))}*`,
 		escapeMrkdwn(userVisibleCopy(outcome.summary)),
@@ -254,6 +254,43 @@ function buildThreadBlocks(insight: SlackInvestigation): SlackBlock[] {
 	];
 }
 
+async function slackChannelIds(organizationId: string): Promise<string[]> {
+	const [orgConfig] = await db
+		.select({ deliveries: insightGenerationConfigs.deliveries })
+		.from(insightGenerationConfigs)
+		.where(eq(insightGenerationConfigs.organizationId, organizationId))
+		.limit(1);
+	return [
+		...new Set(
+			(orgConfig?.deliveries ?? [])
+				.filter((item) => item.type === "slack")
+				.map((item) => item.channelId)
+		),
+	];
+}
+
+export async function prepareInsightRecoveryEffects(params: {
+	insight: WebsiteInvestigation;
+	organizationId: string;
+}) {
+	const { insight } = params;
+	const text = buildInsightReplyText(
+		insight.outcome,
+		insight.signal,
+		"Recovered"
+	);
+	return (await slackChannelIds(params.organizationId)).map((channelId) => ({
+		effectKey: `${channelId}:${insight.id}:recovered`,
+		payload: {
+			blocks: [],
+			channelId,
+			insightId: insight.id,
+			replyOnly: true,
+			text,
+		} satisfies InsightSlackEffectPayload,
+	}));
+}
+
 export async function prepareInsightSlackEffects(params: {
 	insight: WebsiteInvestigation | null;
 	organizationId: string;
@@ -262,19 +299,7 @@ export async function prepareInsightSlackEffects(params: {
 	if (!insight) {
 		return [];
 	}
-	const [orgConfig] = await db
-		.select({ deliveries: insightGenerationConfigs.deliveries })
-		.from(insightGenerationConfigs)
-		.where(eq(insightGenerationConfigs.organizationId, params.organizationId))
-		.limit(1);
-	const deliveries = orgConfig?.deliveries ?? [];
-	const channelIds = [
-		...new Set(
-			deliveries
-				.filter((item) => item.type === "slack")
-				.map((item) => item.channelId)
-		),
-	];
+	const channelIds = await slackChannelIds(params.organizationId);
 	if (channelIds.length === 0) {
 		return [];
 	}

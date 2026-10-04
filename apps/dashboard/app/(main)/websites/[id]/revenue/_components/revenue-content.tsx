@@ -20,6 +20,7 @@ import {
 	paymentFailureObservationDescription,
 	paymentFailureRateLabel,
 	paymentFailureReasonLabel,
+	revenueAttributionRateLabel,
 	type RevenueOverview,
 } from "@/lib/revenue-overview";
 import {
@@ -124,6 +125,7 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 				id: "revenue-time-series",
 				parameters: ["revenue_time_series"],
 				filters: revenueFilters,
+				granularity: "daily" as const,
 			},
 		],
 		[revenueFilters]
@@ -269,20 +271,16 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 							/>
 							<StatCard
 								description={
-									overview?.attributed_transactions
-										? `${overview.attributed_transactions} of ${overview.total_transactions} attributed`
+									overview?.total_revenue
+										? `${formatRevenueCurrency(overview.attributed_revenue, displayCurrency)} of ${formatRevenueCurrency(overview.total_revenue, displayCurrency)} attributed`
 										: undefined
 								}
 								displayMode="text"
 								icon={TrendUpIcon}
 								id="attribution-rate"
 								isLoading={isLoading}
-								title="Attribution"
-								value={
-									overview?.total_transactions
-										? `${Math.round((overview.attributed_transactions / overview.total_transactions) * 100)}%`
-										: "0%"
-								}
+								title="Revenue attribution"
+								value={revenueAttributionRateLabel(overview)}
 							/>
 						</div>
 

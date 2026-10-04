@@ -115,25 +115,25 @@ const INCIDENTS: [Incident, ...Incident[]] = [
 	{
 		id: "signup",
 		metric: "Signup completion",
-		change: "−18%",
+		change: "−22%",
 		findings: {
-			Events: "verification_sent −28% on mobile",
-			Funnels: "verify step −31% on mobile",
+			Events: "verification_sent −28% week over week",
+			Funnels: "most drop-off now at verify",
 		},
 		lanes: [
-			{ title: "Funnels", sub: "verify step, mobile" },
-			{ title: "Events", sub: "verification_sent, mobile" },
+			{ title: "Funnels", sub: "verify step" },
+			{ title: "Events", sub: "verification_sent" },
 		],
-		cause: { sha: "a41f0c2", label: "verification copy", time: "09:12" },
+		cause: { sha: "a41f0c2", label: "verification copy", time: "Tue" },
 		barsRise: false,
-		captionLead: "Mobile drop-off starts right after",
+		captionLead: "Verification drop-off rises the day",
 		split: 34,
 		rises: false,
 		answer: {
-			headline: "New verification copy is losing mobile signups",
-			why: "Mobile visitors reach signup, then leave at email verification.",
-			next: "Restore the shorter verification copy for mobile",
-			outcomeLabel: "Signup completion, mobile",
+			headline: "Signups now stall at email verification",
+			why: "Completed signups fell 22% week over week and the drop sits at the verify step. Commit a41f0c2 changed the verification copy that day.",
+			next: "Restore the previous verification copy",
+			outcomeLabel: "Signup completion",
 			outcomeValue: "Back to 62%",
 		},
 	},
@@ -142,49 +142,49 @@ const INCIDENTS: [Incident, ...Incident[]] = [
 		metric: "Checkout conversion",
 		change: "−37%",
 		findings: {
-			Funnels: "payment step −31% on iOS Safari",
-			Errors: "TypeError spike on /checkout/shipping",
+			Funnels: "most drop-off now at shipping",
+			Errors: "new TypeError on /checkout/shipping",
 		},
 		lanes: [
-			{ title: "Funnels", sub: "payment step, iOS Safari" },
+			{ title: "Funnels", sub: "shipping step" },
 			{ title: "Errors", sub: "/checkout/shipping" },
 		],
-		cause: { sha: "7c2e9f1", label: "address autocomplete", time: "13:58" },
+		cause: { sha: "7c2e9f1", label: "address autocomplete", time: "Wed" },
 		barsRise: true,
-		captionLead: "Errors and the drop start the minute",
+		captionLead: "Shipping errors and the drop start the day",
 		split: 28,
 		rises: false,
 		answer: {
-			headline: "A deploy broke checkout on iOS Safari",
-			why: "Address autocomplete throws a TypeError on Safari 18, so shoppers never reach payment.",
+			headline: "A new checkout error is stopping shoppers at shipping",
+			why: "A TypeError on /checkout/shipping appeared the day commit 7c2e9f1 changed address autocomplete, and checkout conversion fell 37% week over week.",
 			next: "Roll back address autocomplete",
-			outcomeLabel: "Checkout conversion, iOS Safari",
+			outcomeLabel: "Checkout conversion",
 			outcomeValue: "Back to 4.0%",
 		},
 	},
 	{
-		id: "inp",
-		metric: "Signup INP, p75",
-		change: "+42%",
+		id: "plan",
+		metric: "Plan selection",
+		change: "−24%",
 		findings: {
-			Funnels: "plan step −12% on /signup",
+			Funnels: "most drop-off now at the plan step",
 			"Web Vitals": "INP 284 ms p75 on /signup",
 		},
 		lanes: [
-			{ title: "Web Vitals", sub: "INP p75, /signup" },
 			{ title: "Funnels", sub: "plan step, /signup" },
+			{ title: "Web Vitals", sub: "INP p75, /signup" },
 		],
-		cause: { sha: "e90b7d4", label: "pricing calculator", time: "16:40" },
-		barsRise: false,
-		captionLead: "INP climbs the minute",
+		cause: { sha: "e90b7d4", label: "pricing calculator", time: "Thu" },
+		barsRise: true,
+		captionLead: "INP on /signup climbs the day",
 		split: 22,
-		rises: true,
+		rises: false,
 		answer: {
-			headline: "Script growth slowed the plan selector",
-			why: "The pricing calculator bundle blocks input on /signup, right where new users pick a plan.",
-			next: "Defer the pricing calculator bundle",
-			outcomeLabel: "Signup INP, p75",
-			outcomeValue: "Back to 190 ms",
+			headline: "Slow input on /signup is costing plan picks",
+			why: "Fewer new users finish picking a plan, and INP on /signup rose to 284 ms the day commit e90b7d4 added the pricing calculator.",
+			next: "Load the pricing calculator after the page is interactive",
+			outcomeLabel: "Plan selection",
+			outcomeValue: "Back to 41%",
 		},
 	},
 ];
@@ -193,7 +193,7 @@ const checksFor = (incident: Incident) =>
 	INCIDENT_SOURCES.map((name, order) => {
 		const finding =
 			name === "Deploys"
-				? `${incident.cause.sha} ${incident.cause.label} at ${incident.cause.time}`
+				? `${incident.cause.sha} ${incident.cause.label}, ${incident.cause.time}`
 				: incident.findings[name];
 		const hit = finding !== undefined;
 		const start = 0.45 + order * 0.17;
@@ -365,14 +365,11 @@ function IncidentScan({
 				className="text-sm tabular-nums sm:text-base"
 				{...enter(0.2, 0)}
 			>
-				<span className="text-muted-foreground">
-					{finished.length} of {checks.length} sources checked
+				<span
+					className={signals > 0 ? "text-brand-amber" : "text-muted-foreground"}
+				>
+					{signals} {signals === 1 ? "signal" : "signals"} found
 				</span>
-				{signals > 0 && (
-					<span className="text-brand-amber">
-						, {signals} {signals === 1 ? "signal" : "signals"} found
-					</span>
-				)}
 			</motion.p>
 		</div>
 	);
@@ -732,7 +729,7 @@ export function InvestigationStage() {
 	const recovered =
 		useAfter(RECOVERED_AT + EXIT_SECONDS, step) &&
 		position === STAGE_PHASES.length - 1;
-	const status = recovered ? "Recovered" : phase?.status;
+	const status = recovered ? "Verified" : phase?.status;
 	const incident = pick(INCIDENTS, Math.floor(step / STAGE_PHASES.length));
 	return (
 		<MotionConfig reducedMotion="user">

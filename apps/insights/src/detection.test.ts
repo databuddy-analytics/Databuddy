@@ -1,12 +1,26 @@
 import { describe, expect, it } from "bun:test";
 import dayjs from "dayjs";
 import {
+	changeOnsetEvidence,
+	concentratedSegment,
+	type DetectedSignal,
 	type DetectSignalsParams,
 	type QueryFn,
 	detectSignals,
+	estimateChangeOnset,
+	estimateRecovery,
+	freshCustomEventSignals,
+	freshRevenueSignals,
+	loadChangeOnset,
+	loadRecovery,
+	loadSegmentFinding,
 	remeasureMetricSignal,
+	segmentEvidence,
+	segmentTable,
+	shiftedSegment,
 	wowWindow,
 } from "./detection";
+import { MAX_QUERY_ROWS } from "@databuddy/ai/query";
 import { prepareInvestigation } from "./investigation";
 
 function makeDailyRows(
@@ -2472,4 +2486,923 @@ describe("independent commercial discovery", () => {
 			);
 		});
 	}
+});
+
+function freshDates(lastDay: string, count = 28) {
+	const end = dayjs.utc(lastDay);
+	return Array.from({ length: count }, (_, index) =>
+		end.subtract(count - 1 - index, "day").format("YYYY-MM-DD")
+	);
+}
+
+function isWeekendDate(date: string) {
+	const day = dayjs.utc(date).day();
+	return day === 0 || day === 6;
+}
+
+function revenueDays(
+	dates: string[],
+	latest: { revenue: number; transactions: number },
+	currency = "USD"
+) {
+	return dates.map((date, index) => {
+		const weekend = isWeekendDate(date);
+		return index === dates.length - 1
+			? { date, currency, ...latest }
+			: {
+					date,
+					currency,
+					revenue: (weekend ? 400 : 1000) + (index % 3) * 20,
+					transactions: (weekend ? 8 : 20) + (index % 2),
+				};
+	});
+}
+
+describe("next-day breaks", () => {
+	const dates = freshDates("2026-09-29");
+
+	it("flags a weekday revenue drop against comparable weekdays only", () => {
+		const [signal] = freshRevenueSignals(
+			revenueDays(dates, { revenue: 300, transactions: 6 }),
+			dates
+		);
+		expect(signal).toMatchObject({
+			current: 300,
+			detectedAt: "2026-09-29",
+			direction: "down",
+			method: "zscore",
+			metric: "revenue",
+			subjectKey: "revenue:USD",
+		});
+		expect(signal?.baseline).toBeGreaterThanOrEqual(1000);
+		expect(signal?.baselineDates?.some(isWeekendDate)).toBe(false);
+		expect(signal?.baselineDates?.at(-1)).toBe("2026-09-28");
+	});
+
+	it("ignores one large order when payment volume is normal", () => {
+		expect(
+			freshRevenueSignals(
+				revenueDays(dates, { revenue: 4000, transactions: 21 }),
+				dates
+			)
+		).toEqual([]);
+	});
+
+	it("needs enough daily payments to call a break", () => {
+		const sparse = revenueDays(dates, { revenue: 0, transactions: 0 }).map(
+			(row, index) =>
+				index === dates.length - 1 ? row : { ...row, transactions: 2 }
+		);
+		expect(freshRevenueSignals(sparse, dates)).toEqual([]);
+	});
+
+	it("never treats an unreadable currency row as a missing day", () => {
+		const rows = revenueDays(dates, { revenue: 300, transactions: 6 });
+		rows[5] = { ...rows[5], revenue: Number.NaN };
+		expect(freshRevenueSignals(rows, dates)).toEqual([]);
+	});
+
+	const sessions = dates.map(() => 500);
+	const eventDays = (latest: number) =>
+		dates.map((date, index) => ({
+			date,
+			event_name: "checkout_completed",
+			total_events: index === dates.length - 1 ? latest : 60 + (index % 4),
+		}));
+
+	it("flags an event that stops firing while traffic holds", () => {
+		const [signal] = freshCustomEventSignals(eventDays(0), dates, sessions);
+		expect(signal).toMatchObject({
+			current: 0,
+			deltaPercent: -100,
+			direction: "down",
+			entityId: "checkout_completed",
+			method: "zscore",
+			metric: "custom_event_count",
+			subjectKey: "custom_event:checkout_completed",
+		});
+	});
+
+	it("explains an event drop by a matching traffic drop", () => {
+		const quiet = [...sessions.slice(0, -1), 100];
+		expect(freshCustomEventSignals(eventDays(12), dates, quiet)).toEqual([]);
+	});
+
+	it("skips events too small to judge from one day", () => {
+		const rows = eventDays(0).map((row) => ({
+			...row,
+			total_events: row.total_events === 0 ? 0 : 5,
+		}));
+		expect(freshCustomEventSignals(rows, dates, sessions)).toEqual([]);
+	});
+
+	function history() {
+		return dates.map((date) => ({
+			date,
+			visitors: 400,
+			sessions: 500,
+			pageviews: 900,
+			bounce_rate: 40,
+			median_session_duration: 60,
+		}));
+	}
+
+	it("reaches investigation from the full detector with its baseline envelope", async () => {
+		const signals = await detectSignals(
+			BASE_PARAMS,
+			createMockQueryFn(
+				history(),
+				{ sessions: 3500 },
+				{ sessions: 3500 },
+				{
+					revenue_time_series: [
+						revenueDays(dates, { revenue: 300, transactions: 6 }),
+						undefined,
+					],
+				}
+			),
+			dayjs.utc("2026-09-30")
+		);
+		const revenue = signals.find(
+			(signal) => signal.subjectKey === "revenue:USD"
+		);
+		if (!revenue) {
+			throw new Error("Missing next-day revenue break");
+		}
+		const prepared = prepareInvestigation(revenue, 7).signal;
+		expect(prepared.period.current).toEqual({
+			from: "2026-09-29",
+			to: "2026-09-29",
+		});
+		expect(prepared.baselineDates?.[0]).toBe(prepared.period.previous.from);
+	});
+
+	it("drops a next-day break that contradicts the weekly direction for the same currency", async () => {
+		const signals = await detectSignals(
+			BASE_PARAMS,
+			createMockQueryFn(
+				history(),
+				{ sessions: 3500 },
+				{ sessions: 3500 },
+				{
+					revenue_overview: [
+						[
+							{
+								currency: "USD",
+								total_revenue: 20_000,
+								total_transactions: 200,
+							},
+						],
+						[
+							{
+								currency: "USD",
+								total_revenue: 10_000,
+								total_transactions: 100,
+							},
+						],
+					],
+					revenue_time_series: [
+						revenueDays(dates, { revenue: 300, transactions: 6 }),
+						undefined,
+					],
+				}
+			),
+			dayjs.utc("2026-09-30")
+		);
+		expect(
+			signals.filter((signal) => signal.subjectKey === "revenue:USD")
+		).toMatchObject([{ direction: "up", method: "wow" }]);
+	});
+
+	it("keeps the daily event read within the query row cap for a full baseline", async () => {
+		const baseline = Array.from({ length: 200 }, (_, index) => ({
+			name: `event_${index}`,
+			total_events: 1000 - index,
+			unique_users: 500,
+			unique_sessions: 500,
+		}));
+		const requests: Parameters<QueryFn>[0][] = [];
+		const mockQuery = createMockQueryFn(
+			history(),
+			{ sessions: 3500 },
+			{ sessions: 3500 },
+			{ custom_events: [baseline, baseline] }
+		);
+		await detectSignals(
+			BASE_PARAMS,
+			async (request) => {
+				requests.push(request);
+				return mockQuery(request);
+			},
+			dayjs.utc("2026-09-30")
+		);
+		const daily = requests.find(
+			(request) => request.type === "custom_events_trends_by_event"
+		);
+		expect(daily?.limit).toBeLessThanOrEqual(MAX_QUERY_ROWS);
+		expect(daily?.filters?.[0]?.value).toContain("event_0");
+	});
+
+	it("skips custom event breaks when the daily read was truncated", async () => {
+		const baseline = [
+			{
+				name: "checkout_completed",
+				total_events: 420,
+				unique_users: 300,
+				unique_sessions: 320,
+			},
+		];
+		const detect = (rows: Record<string, unknown>[]) =>
+			detectSignals(
+				BASE_PARAMS,
+				createMockQueryFn(
+					history(),
+					{ sessions: 3500 },
+					{ sessions: 3500 },
+					{
+						custom_events: [baseline, baseline],
+						custom_events_trends_by_event: [rows, undefined],
+					}
+				),
+				dayjs.utc("2026-09-30")
+			);
+		const hasBreak = (signals: Awaited<ReturnType<typeof detect>>) =>
+			signals.some(
+				(signal) =>
+					signal.subjectKey === "custom_event:checkout_completed" &&
+					signal.method === "zscore"
+			);
+		expect(hasBreak(await detect(eventDays(0)))).toBe(true);
+		expect(hasBreak(await detect(eventDays(0).concat(eventDays(0))))).toBe(
+			false
+		);
+	});
+});
+
+function hourlyCounts(
+	from: string,
+	days: number,
+	mean: (hour: string, index: number) => number
+) {
+	let seed = 7;
+	return Array.from({ length: days * 24 }, (_, index) => {
+		seed = (seed * 48_271) % 2_147_483_647;
+		const hour = dayjs
+			.utc(from)
+			.add(index, "hour")
+			.format("YYYY-MM-DD HH:00:00");
+		const level = mean(hour, index);
+		const jitter = (seed / 2_147_483_647 - 0.5) * 2 * Math.sqrt(level);
+		return { hour, value: Math.max(0, Math.round(level + jitter)) };
+	});
+}
+
+function diurnal(hour: string): number {
+	return (
+		30 + 20 * Math.sin(((Number(hour.slice(11, 13)) - 6) / 24) * 2 * Math.PI)
+	);
+}
+
+describe("change onset", () => {
+	const baseline = hourlyCounts("2026-08-17", 14, diurnal);
+
+	it("places a stop at the hour it began", () => {
+		const window = hourlyCounts("2026-08-31", 2, (hour, index) =>
+			index >= 20 ? 0 : diurnal(hour)
+		);
+		const onset = estimateChangeOnset({
+			baseline,
+			direction: "down",
+			flaggedFrom: 24,
+			window,
+		});
+		expect(onset).not.toBeNull();
+		expect(onset?.earliest).toBeLessThanOrEqual(20);
+		expect(onset?.latest).toBeGreaterThanOrEqual(20);
+		expect((onset?.latest ?? 0) - (onset?.earliest ?? 0)).toBeLessThanOrEqual(
+			2
+		);
+		expect(onset?.ongoing).toBe(true);
+		expect(onset?.observed).toBe(0);
+	});
+
+	it("bounds a spike that recovered", () => {
+		const quiet = hourlyCounts("2026-08-17", 14, () => 0.3);
+		const window = hourlyCounts("2026-08-31", 2, (_hour, index) =>
+			index >= 31 && index < 35 ? 30 : 0.3
+		);
+		const onset = estimateChangeOnset({
+			baseline: quiet,
+			direction: "up",
+			flaggedFrom: 24,
+			window,
+		});
+		expect(onset?.earliest).toBeLessThanOrEqual(31);
+		expect(onset?.latest).toBeGreaterThanOrEqual(31);
+		expect(onset?.recoveredBy).toBeGreaterThanOrEqual(35);
+		expect(onset?.recoveredBy).toBeLessThanOrEqual(37);
+		expect(onset?.ongoing).toBe(false);
+	});
+
+	it("reports no onset for a gradual decline", () => {
+		const window = hourlyCounts(
+			"2026-08-31",
+			2,
+			(hour, index) => diurnal(hour) * (1 - (0.6 * index) / 47)
+		);
+		expect(
+			estimateChangeOnset({
+				baseline,
+				direction: "down",
+				flaggedFrom: 24,
+				window,
+			})
+		).toBeNull();
+	});
+
+	it("does not read the end of a burst as a drop", () => {
+		const window = hourlyCounts("2026-08-31", 2, (hour, index) =>
+			index >= 4 && index < 13 ? diurnal(hour) * 5 : diurnal(hour)
+		);
+		expect(
+			estimateChangeOnset({
+				baseline,
+				direction: "down",
+				flaggedFrom: 24,
+				window,
+			})
+		).toBeNull();
+	});
+
+	it("does not read recovery from an outage as a rise", () => {
+		const window = hourlyCounts("2026-08-31", 2, (hour, index) =>
+			index < 20 ? 0 : diurnal(hour)
+		);
+		expect(
+			estimateChangeOnset({
+				baseline,
+				direction: "up",
+				flaggedFrom: 24,
+				window,
+			})
+		).toBeNull();
+	});
+
+	it("keeps the weekend's lower traffic out of the onset", () => {
+		const weekly = (hour: string) =>
+			[0, 6].includes(dayjs.utc(hour).day()) ? 12 : 40;
+		const window = hourlyCounts("2026-09-04", 2, weekly);
+		expect(
+			estimateChangeOnset({
+				baseline: hourlyCounts("2026-08-21", 14, weekly),
+				direction: "down",
+				flaggedFrom: 24,
+				window,
+			})
+		).toBeNull();
+	});
+
+	const stoppedEvent: DetectedSignal = {
+		baseline: 6400,
+		baselineDates: [
+			"2026-08-21",
+			"2026-08-24",
+			"2026-08-25",
+			"2026-08-26",
+			"2026-08-27",
+			"2026-08-28",
+		],
+		current: 0,
+		deltaPercent: -100,
+		detectedAt: "2026-09-01",
+		direction: "down",
+		entityId: "link_created",
+		entityLabel: "link_created",
+		label: "link_created events",
+		method: "zscore",
+		metric: "custom_event_count",
+		severity: "critical",
+		subjectKey: "custom_event:link_created",
+	};
+
+	it("reads the subject hourly in the site's timezone", async () => {
+		const timezone = "America/New_York";
+		const requests: Parameters<QueryFn>[0][] = [];
+		const query: QueryFn = async (request) => {
+			requests.push(request);
+			const rows: Record<string, unknown>[] = [];
+			for (
+				let instant = dayjs.tz(`${request.from} 00:00`, timezone);
+				instant.isBefore(dayjs.tz(`${request.to} 23:59`, timezone));
+				instant = instant.add(1, "hour")
+			) {
+				const date = instant.tz(timezone).format("YYYY-MM-DD HH:00:00");
+				if (date < "2026-08-31 20:00:00") {
+					rows.push({
+						date,
+						event_name: "link_created",
+						total_events: Math.round(diurnal(date) * 10),
+					});
+				}
+			}
+			return rows;
+		};
+		const { signal } = prepareInvestigation(stoppedEvent, 7);
+
+		const onset = await loadChangeOnset(
+			{ signal, timezone, websiteId: "site-1" },
+			query
+		);
+
+		expect(requests).toHaveLength(1);
+		expect(requests[0]).toMatchObject({
+			filters: [{ field: "event_name", op: "eq", value: "link_created" }],
+			from: "2026-08-17",
+			timeUnit: "hour",
+			to: "2026-09-01",
+			type: "custom_events_trends_by_event",
+		});
+		expect(onset).toMatchObject({
+			earliest: "2026-08-31 20:00:00",
+			latest: "2026-08-31 20:00:00",
+			ongoingThrough: "2026-09-01",
+			observed: 0,
+		});
+		expect(onset ? changeOnsetEvidence(onset) : "").toContain(
+			"between 20:00 and 21:00 on 2026-08-31 (America/New_York)"
+		);
+	});
+
+	it("reads payments hourly in the break's currency", async () => {
+		const requests: Parameters<QueryFn>[0][] = [];
+		const query: QueryFn = async (request) => {
+			requests.push(request);
+			const rows: Record<string, unknown>[] = [];
+			for (
+				let instant = dayjs.utc(`${request.from} 00:00`);
+				instant.isBefore(dayjs.utc(`${request.to} 23:59`));
+				instant = instant.add(1, "hour")
+			) {
+				const date = instant.format("YYYY-MM-DD HH:00:00");
+				if (date < "2026-08-31 20:00:00") {
+					rows.push({
+						currency: "EUR",
+						date,
+						transactions: Math.round(diurnal(date) / 3),
+					});
+				}
+			}
+			return rows;
+		};
+		const { signal } = prepareInvestigation(
+			{
+				...stoppedEvent,
+				baseline: 4200,
+				current: 0,
+				entityId: undefined,
+				entityLabel: undefined,
+				label: "Revenue",
+				metric: "revenue",
+				subjectKey: "revenue:EUR",
+			},
+			7
+		);
+
+		const onset = await loadChangeOnset(
+			{ signal, timezone: "UTC", websiteId: "site-1" },
+			query
+		);
+
+		expect(requests[0]).toMatchObject({
+			filters: [{ field: "currency", op: "eq", value: "EUR" }],
+			timeUnit: "hour",
+			type: "revenue_time_series",
+		});
+		expect(onset).toMatchObject({
+			earliest: "2026-08-31 20:00:00",
+			noun: "payments",
+		});
+	});
+
+	it("skips subjects without an hourly count", async () => {
+		const { signal } = prepareInvestigation(
+			{
+				...stoppedEvent,
+				baseline: 40,
+				current: 62,
+				deltaPercent: 55,
+				direction: "up",
+				label: "Bounce rate",
+				metric: "bounce_rate",
+				subjectKey: undefined,
+			},
+			7
+		);
+		const query: QueryFn = async () => {
+			throw new Error("Unexpected hourly read");
+		};
+		expect(
+			await loadChangeOnset(
+				{ signal, timezone: "UTC", websiteId: "site-1" },
+				query
+			)
+		).toBeNull();
+	});
+});
+
+function segmentRows(
+	countField: string,
+	rows: [dimension: string, value: string, count: number, sessions?: number][]
+) {
+	return rows.map(([dimension, value, count, sessions]) => ({
+		dimension,
+		value,
+		[countField]: count,
+		sessions: sessions ?? count,
+	}));
+}
+
+const steadyTraffic = segmentRows("pageviews", [
+	["browser", "Chrome", 6000],
+	["browser", "Safari", 1200],
+	["browser", "Firefox", 800],
+	["browser_version", "Chrome 153", 6000],
+	["browser_version", "Safari 18", 700],
+	["browser_version", "Safari 17", 500],
+	["browser_version", "Firefox 155", 800],
+	["os", "Windows", 4000],
+	["os", "macOS", 2800],
+	["os", "iOS", 1200],
+	["device", "Desktop", 6800],
+	["device", "Mobile", 1200],
+	["country", "US", 3000],
+	["country", "Germany", 5000],
+]);
+
+describe("segment localization", () => {
+	it("names the narrowest segment that holds an error", () => {
+		const errors = segmentTable(
+			segmentRows("errors", [
+				["browser", "Safari", 48],
+				["browser", "Chrome", 2],
+				["browser_version", "Safari 18", 46],
+				["browser_version", "Safari 17", 2],
+				["browser_version", "Chrome 153", 2],
+				["os", "iOS", 30],
+				["os", "macOS", 20],
+				["device", "Mobile", 30],
+				["device", "Desktop", 20],
+				["country", "US", 25],
+				["country", "Germany", 25],
+			]),
+			"errors"
+		);
+		const concentration = concentratedSegment(
+			errors,
+			segmentTable(steadyTraffic, "pageviews")
+		);
+		expect(concentration).toMatchObject({
+			dimension: "browser_version",
+			subjectSessions: 46,
+			totalSubjectSessions: 50,
+			value: "Safari 18",
+		});
+		expect(
+			concentration
+				? segmentEvidence({ concentration, kind: "concentration" })
+				: ""
+		).toBe(
+			"92% of the sessions with this error (46 of 50) used Safari 18, compared with 9% of all sessions in the same period."
+		);
+	});
+
+	it("finds nothing when an error follows overall traffic", () => {
+		const errors = segmentTable(
+			segmentRows("errors", [
+				["browser", "Chrome", 75],
+				["browser", "Safari", 15],
+				["browser", "Firefox", 10],
+				["os", "Windows", 50],
+				["os", "macOS", 35],
+				["os", "iOS", 15],
+				["device", "Desktop", 85],
+				["device", "Mobile", 15],
+			]),
+			"errors"
+		);
+		expect(
+			concentratedSegment(errors, segmentTable(steadyTraffic, "pageviews"))
+		).toBeNull();
+	});
+
+	it("localizes a drop that one browser carries", () => {
+		const after = segmentTable(
+			segmentRows("pageviews", [
+				["browser", "Chrome", 5900],
+				["browser", "Safari", 60],
+				["browser", "Firefox", 790],
+				["os", "Windows", 3950],
+				["os", "macOS", 2000],
+				["os", "iOS", 800],
+				["device", "Desktop", 6000],
+				["device", "Mobile", 750],
+			]),
+			"pageviews"
+		);
+		const shift = shiftedSegment({
+			after,
+			afterDays: 7,
+			before: segmentTable(steadyTraffic, "pageviews"),
+			beforeDays: 7,
+			direction: "down",
+		});
+		expect(shift).toMatchObject({ dimension: "browser", value: "Safari" });
+		expect(
+			shift
+				? segmentEvidence({
+						direction: "down",
+						kind: "shift",
+						noun: "Pageviews",
+						shift,
+					})
+				: ""
+		).toBe(
+			"Pageviews from Safari fell 95% (from about 171 to 9 a day), 91% of the whole drop, while everything else changed -2%."
+		);
+	});
+
+	it("finds nothing when every segment falls alike", () => {
+		const halved = segmentTable(
+			steadyTraffic.map((row) => ({
+				...row,
+				pageviews: row.pageviews / 2,
+			})),
+			"pageviews"
+		);
+		expect(
+			shiftedSegment({
+				after: halved,
+				afterDays: 7,
+				before: segmentTable(steadyTraffic, "pageviews"),
+				beforeDays: 7,
+				direction: "down",
+			})
+		).toBeNull();
+	});
+
+	it("reads a browser version rollover as no change", () => {
+		const before = segmentTable(
+			segmentRows("pageviews", [
+				["browser", "Chrome", 6000],
+				["browser_version", "Chrome 151", 5000],
+				["browser_version", "Chrome 152", 1000],
+			]),
+			"pageviews"
+		);
+		const after = segmentTable(
+			segmentRows("pageviews", [
+				["browser", "Chrome", 5400],
+				["browser_version", "Chrome 151", 100],
+				["browser_version", "Chrome 152", 5300],
+			]),
+			"pageviews"
+		);
+		expect(
+			shiftedSegment({
+				after,
+				afterDays: 7,
+				before,
+				beforeDays: 7,
+				direction: "down",
+			})
+		).toBeNull();
+	});
+
+	it("does not credit one segment when the rest rose from nothing", () => {
+		expect(
+			shiftedSegment({
+				after: segmentTable(steadyTraffic, "pageviews"),
+				afterDays: 7,
+				before: segmentTable(
+					segmentRows("pageviews", [["device", "Desktop", 30]]),
+					"pageviews"
+				),
+				beforeDays: 7,
+				direction: "up",
+			})
+		).toBeNull();
+	});
+
+	it("merges country codes with country names", () => {
+		const table = segmentTable(
+			segmentRows("pageviews", [
+				["country", "US", 30],
+				["country", "United States", 20],
+			]),
+			"pageviews"
+		);
+		expect([...(table.get("country")?.entries() ?? [])]).toEqual([
+			["United States", { count: 50, sessions: 50 }],
+		]);
+	});
+
+	it("compares error sessions with all sessions in the flagged period", async () => {
+		const { signal } = prepareInvestigation(
+			{
+				baseline: 0,
+				current: 50,
+				deltaPercent: 100,
+				detectedAt: "2026-09-30",
+				direction: "up",
+				entityId: "TypeError: x is undefined",
+				entityLabel: "TypeError: x is undefined",
+				label: "TypeError: x is undefined",
+				method: "wow",
+				metric: "error_count",
+				severity: "warning",
+				subjectKey: "error:TypeError: x is undefined",
+			},
+			7
+		);
+		const requests: Parameters<QueryFn>[0][] = [];
+		const query: QueryFn = async (request) => {
+			requests.push(request);
+			return request.type === "error_segments"
+				? segmentRows("errors", [
+						["browser", "Safari", 48],
+						["browser", "Chrome", 2],
+					])
+				: steadyTraffic;
+		};
+
+		const finding = await loadSegmentFinding(
+			{ signal, timezone: "UTC", websiteId: "site-1" },
+			query
+		);
+
+		expect(
+			requests.map(({ filters, from, to, type }) => ({
+				filters,
+				from,
+				to,
+				type,
+			}))
+		).toEqual([
+			{
+				filters: [
+					{ field: "message", op: "eq", value: "TypeError: x is undefined" },
+				],
+				from: "2026-09-24",
+				to: "2026-09-30",
+				type: "error_segments",
+			},
+			{
+				filters: [],
+				from: "2026-09-24",
+				to: "2026-09-30",
+				type: "traffic_segments",
+			},
+		]);
+		expect(finding).toMatchObject({
+			concentration: { dimension: "browser", value: "Safari" },
+			kind: "concentration",
+		});
+	});
+});
+
+describe("recovery", () => {
+	const baseline = hourlyCounts("2026-08-17", 14, diurnal);
+
+	it("confirms a recovery that held for a full day", () => {
+		const recovery = estimateRecovery({
+			baseline,
+			direction: "down",
+			window: hourlyCounts("2026-08-31", 4, (hour, index) =>
+				index < 30 ? 0 : diurnal(hour)
+			).slice(0, 78),
+		});
+		expect(recovery).toMatchObject({
+			brokenCount: 0,
+			heldHours: 48,
+			kind: "recovered",
+		});
+		expect(
+			recovery?.kind === "recovered" ? recovery.recoveredAt : null
+		).toBeGreaterThanOrEqual(30);
+	});
+
+	it("reports a break that is still in effect", () => {
+		expect(
+			estimateRecovery({
+				baseline,
+				direction: "down",
+				window: hourlyCounts("2026-08-31", 3, () => 0),
+			})
+		).toMatchObject({ kind: "ongoing", observed: 0 });
+	});
+
+	it("waits until a recovery has held for a full day", () => {
+		expect(
+			estimateRecovery({
+				baseline,
+				direction: "down",
+				window: hourlyCounts("2026-08-31", 3, (hour, index) =>
+					index < 60 ? 0 : diurnal(hour)
+				),
+			})
+		).not.toMatchObject({ kind: "recovered" });
+	});
+
+	it("confirms that a new error stopped", () => {
+		const window = hourlyCounts("2026-08-31", 3, (_hour, index) =>
+			index < 6 ? 30 : 0
+		).slice(0, 54);
+		expect(
+			estimateRecovery({
+				baseline: hourlyCounts("2026-08-17", 14, () => 0),
+				direction: "up",
+				window,
+			})
+		).toMatchObject({
+			brokenCount: window
+				.slice(0, 6)
+				.reduce((total, point) => total + point.value, 0),
+			heldHours: 48,
+			kind: "recovered",
+		});
+	});
+
+	const spikeSignal = prepareInvestigation(
+		{
+			baseline: 0,
+			current: 160,
+			deltaPercent: 100,
+			detectedAt: "2026-09-22",
+			direction: "up",
+			entityId: "TypeError: x is undefined",
+			entityLabel: "TypeError: x is undefined",
+			label: "TypeError: x is undefined",
+			method: "wow",
+			metric: "error_count",
+			severity: "warning",
+			subjectKey: "error:TypeError: x is undefined",
+		},
+		7
+	).signal;
+
+	function hourlyQuery(trafficStopsWithErrors: boolean): QueryFn {
+		return async (request) => {
+			const rows: Record<string, unknown>[] = [];
+			for (
+				let instant = dayjs.utc(`${request.from} 00:00`);
+				instant.isBefore(dayjs.utc(`${request.to} 23:59`));
+				instant = instant.add(1, "hour")
+			) {
+				const date = instant.format("YYYY-MM-DD HH:00:00");
+				const spike =
+					date >= "2026-09-22 02:00:00" && date < "2026-09-22 06:00:00";
+				if (request.type === "error_trends" && spike) {
+					rows.push({ date, errors: 40 });
+				}
+				if (
+					request.type === "events_by_date" &&
+					!(trafficStopsWithErrors && date >= "2026-09-22 06:00:00")
+				) {
+					rows.push({ date, pageviews: Math.round(diurnal(date)) });
+				}
+			}
+			return rows;
+		};
+	}
+
+	it("confirms an error stopped while traffic continued", async () => {
+		const result = await loadRecovery(
+			{
+				prior: spikeSignal,
+				through: "2026-09-25",
+				timezone: "UTC",
+				websiteId: "site-1",
+			},
+			hourlyQuery(false)
+		);
+		expect(result?.recovery).toMatchObject({
+			brokenCount: 160,
+			recoveredAt: "2026-09-22 06:00:00",
+			state: "recovered",
+		});
+	});
+
+	it("does not call an error recovered when traffic stopped with it", async () => {
+		expect(
+			await loadRecovery(
+				{
+					prior: spikeSignal,
+					through: "2026-09-25",
+					timezone: "UTC",
+					websiteId: "site-1",
+				},
+				hourlyQuery(true)
+			)
+		).toBeNull();
+	});
 });

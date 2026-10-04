@@ -19,6 +19,8 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 
 ## Quick Map
 
+- Work directly in the local `staging` checkout by default. Task branches, worktrees, and PRs require an explicit user request; preserve existing local edits.
+
 - Self-host changes must preserve hosted behavior with `SELFHOST` unset or `false`, including auth cookies/email, generated snippets, CSP, and image publication. Compare to the pre-change path; import guard-only helpers from `@databuddy/env/boolean` so checking the mode does not initialize unrelated URL config.
 
 - Before any PR merge, follow the AGENTS.md review-feedback gate: wait for configured reviewers on the final head, read all comment/review/thread pages, address each finding with evidence, and re-fetch to verify no unresolved feedback. Review bots can finish several minutes after a draft becomes ready; green CI does not establish completed review.
@@ -237,6 +239,8 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 - Core auth setup: `packages/auth/src/auth.ts`
 - Client auth entrypoint: `packages/auth/src/client/auth-client.ts`
+- Use the native OAuth provider client for consent and connected apps; public client metadata uses `client_name`, not `name`.
+- Better Auth OAuth tables have no Drizzle relational-query entries; use `db.select().from(oauthConsent)` and schema columns rather than `db.query.oauthConsent`.
 - Permission helpers often flow through `packages/rpc`
 
 ### SDK and tracker work

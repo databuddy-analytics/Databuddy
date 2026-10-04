@@ -103,7 +103,13 @@ import assert from "node:assert/strict";
 import { db } from "@databuddy/db";
 import { SlackProvider } from "@databuddy/notifications";
 import { getCookies } from "better-auth/cookies";
-import { auth } from "./auth.ts";
+import { auth, toAuditRequest } from "./auth.ts";
+assert.equal(toAuditRequest(new Request("https://app.example.com", {
+  headers: { "cf-connecting-ip": "198.51.100.23" },
+})).ip, "198.51.100.23");
+assert.equal(toAuditRequest(new Request("https://app.example.com", {
+  headers: { "x-forwarded-for": "203.0.113.10", "cf-connecting-ip": "198.51.100.23" },
+})).ip, "203.0.113.10");
 import { runWithAuthAuditContext } from "./audit-context.ts";
 const cookie = getCookies({ ...auth.options, baseURL: process.env.BETTER_AUTH_URL }).sessionToken;
 assert.equal(cookie.name, "__Secure-databuddy.session_token");

@@ -1,6 +1,7 @@
 import "@databuddy/test/env";
 
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { createMcpTools } from "@databuddy/ai/mcp/tools";
 import { auth } from "@databuddy/auth";
 import { resolveApiKey } from "@databuddy/api-keys/resolve";
 import {
@@ -225,6 +226,25 @@ describe("POST /v1/query", () => {
 				expect(res.status).toBe(402);
 				expect((await res.json()).code).toBe("FEATURE_UNAVAILABLE");
 			}
+		}
+
+		const { key: apiKey } = await resolveApiKey(new Headers(keyHeaders));
+		const getData = createMcpTools({
+			apiKey,
+			organizationId: org.id,
+			requestHeaders: new Headers(),
+			userId: null,
+		}).find((tool) => tool.name === "get_data");
+		for (const type of ["recent_errors", "error_fingerprints"]) {
+			const result = await getData?.handler({
+				preset: "last_7d",
+				type,
+				websiteId: site.id,
+			});
+			expect(result?.isError).toBe(true);
+			expect(result?.content[0]).toMatchObject({
+				text: expect.stringContaining('"code":"plan_limit"'),
+			});
 		}
 	});
 });

@@ -158,6 +158,8 @@ export interface DatabuddyTracker {
 	flush(): void;
 	/** Currently identified user ID, or null when anonymous. */
 	getProfileId(): string | null;
+	/** Active tracking IDs; absent on older tracker scripts. */
+	getTrackingIds?(): { anonId: string | null; sessionId: string | null };
 	/**
 	 * Link this browser to a user ID from your system (max 128 chars, stored
 	 * verbatim — pass an opaque ID, not an email). Persists across sessions

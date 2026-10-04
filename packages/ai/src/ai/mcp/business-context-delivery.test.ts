@@ -17,6 +17,8 @@ const site: WebsiteSummary = {
 	name: "Reports",
 	isPublic: false,
 	createdAt: null,
+	organizationId: "org-synthetic",
+	organizationName: "Synthetic org",
 };
 const meaning =
 	"synthetic_bundle_ready means a bundle was prepared, before download";
@@ -65,8 +67,8 @@ const accessible = mock(async (auth: AccessibleWebsitesAuth) =>
 );
 mock.module("../../lib/accessible-websites", () => ({
 	getAccessibleWebsites: accessible,
-	getMemberWebsites: accessible,
-	getReadableOrganizationIds: async () => [],
+	getOrganizationWebsites: async (organizationId: string) =>
+		allowed && organizationId === "org-synthetic" ? sites : [],
 }));
 mock.module("../../lib/supermemory", () => ({
 	isMemoryEnabled: () => false,

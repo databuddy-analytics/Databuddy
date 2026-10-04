@@ -98,6 +98,7 @@ export const RealtimeBuilders = {
 				params: { websiteId, limit },
 			};
 		},
+		commonFilters: false,
 		timeField: "time",
 		skipDateFilter: true,
 		noCache: true,
@@ -320,6 +321,7 @@ export const RealtimeBuilders = {
 				params: { websiteId },
 			};
 		},
+		commonFilters: false,
 		timeField: "time",
 		skipDateFilter: true,
 		noCache: true,
@@ -380,6 +382,7 @@ export const RealtimeBuilders = {
 				params: { websiteId },
 			};
 		},
+		commonFilters: false,
 		timeField: "time",
 		skipDateFilter: true,
 		noCache: true,

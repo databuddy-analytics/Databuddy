@@ -60,4 +60,27 @@ describe("auth wide-event admission", () => {
 			)
 		).toBe(false);
 	});
+
+	it("leaves OAuth MCP tokens to the MCP route but still resolves API keys there", () => {
+		const mcpRequest = (authorization: string) =>
+			new Request("https://api.example.com/v1/mcp", {
+				headers: { authorization },
+				method: "POST",
+			});
+
+		expect(
+			shouldResolveAuthForWideEvent(mcpRequest("Bearer eyJhbGciOi.oauth.jwt"))
+		).toBe(false);
+		expect(
+			shouldResolveAuthForWideEvent(mcpRequest("Bearer dbdy_test_key"))
+		).toBe(true);
+		expect(
+			shouldResolveAuthForWideEvent(
+				new Request("https://api.example.com/links/create", {
+					headers: { authorization: "Bearer eyJhbGciOi.oauth.jwt" },
+					method: "POST",
+				})
+			)
+		).toBe(true);
+	});
 });

@@ -4,7 +4,7 @@ import { EmailUnavailable, useAuthCapabilities } from "../../auth-capabilities";
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { parseAsString, useQueryState } from "nuqs";
+import { useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeftIcon, EyeIcon, EyeSlashIcon } from "@databuddy/ui/icons";
@@ -15,10 +15,7 @@ import { safeCallbackPath } from "@/lib/safe-callback";
 function ForgotPasswordPage() {
 	const capabilities = useAuthCapabilities();
 	const router = useRouter();
-	const [callback] = useQueryState(
-		"callback",
-		parseAsString.withDefault("/websites")
-	);
+	const [callback] = useQueryState("callback");
 	const loginHref = `/login?callback=${encodeURIComponent(safeCallbackPath(callback))}`;
 	const [step, setStep] = useState<"email" | "reset">("email");
 	const [email, setEmail] = useState("");

@@ -2482,6 +2482,32 @@ describe("intelligence agent", () => {
 		expect(model.doGenerateCalls).toHaveLength(2);
 	});
 
+	it("plain-words an event name in a finish title instead of spending a retry", async () => {
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				outputResponse({
+					...agentOutcome,
+					title: "link_created events stopped",
+				})
+			),
+		});
+
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal,
+			},
+			{ model, tools: {} }
+		);
+
+		expect(result.outcome.title).toBe("Link created events stopped");
+		expect(model.doGenerateCalls).toHaveLength(1);
+	});
+
 	it("bounds rejected finish calls and retains their aggregate usage", async () => {
 		const malformed = {
 			...toolCallResponse("finish_investigation", "not-json"),

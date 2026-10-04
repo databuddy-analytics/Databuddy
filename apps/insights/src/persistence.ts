@@ -246,7 +246,8 @@ async function fetchPriorInsight(
 export function caseValues(
 	investigation: Pick<WebsiteInvestigation, "outcome" | "signal">,
 	timezone: string,
-	at: Date
+	at: Date,
+	recovered = false
 ) {
 	const { outcome, signal } = investigation;
 	return {
@@ -256,7 +257,7 @@ export function caseValues(
 		resolvedAt: outcome.next.type === "resolve" ? at : null,
 		resolvedReason:
 			outcome.next.type === "resolve" &&
-			outcome.verification?.status === "passed"
+			(recovered || outcome.verification?.status === "passed")
 				? ("recovered" as const)
 				: null,
 		status:
@@ -280,6 +281,7 @@ export async function persistInvestigation(params: {
 	notNewerThan: Date;
 	organizationId: string;
 	recheckAt: Date;
+	recovered?: boolean;
 	runId: string;
 	timezone: string;
 }): Promise<WebsiteInvestigation | null> {
@@ -303,7 +305,16 @@ export async function persistInvestigation(params: {
 		params.completion === "complete" &&
 		params.snapshot?.completion === "complete";
 	const shouldPersistCase = interrupting || quietContinuation || complete;
-	const projection = caseValues(investigation, params.timezone, persistedAt);
+	const recoveredResolution =
+		params.recovered === true &&
+		quietContinuation &&
+		investigation.outcome.next.type === "resolve";
+	const projection = caseValues(
+		investigation,
+		params.timezone,
+		persistedAt,
+		recoveredResolution
+	);
 	const row = {
 		...projection,
 		id: investigation.id,
@@ -399,7 +410,7 @@ export async function persistInvestigation(params: {
 		visible: interrupting,
 	});
 
-	return interrupting && persisted
+	return (interrupting || recoveredResolution) && persisted
 		? { ...investigation, id: persisted.id }
 		: null;
 }

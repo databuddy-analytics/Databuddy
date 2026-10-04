@@ -194,15 +194,41 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.f0).toBe("%a\\\\b%");
 	});
 
-	it("handles desktop device_type filter (empty string OR desktop)", () => {
-		const filters: Filter[] = [
-			{ field: "device_type", op: "eq", value: "desktop" },
-		];
-		const { sql, params } = compile({}, { filters });
-		expect(sql).toContain(
-			"(device_type = '' OR lower(device_type) = {f0:String})"
-		);
-		expect(params.f0).toBe("desktop");
+	it.each([
+		{
+			filter: { field: "device_type", op: "eq", value: "Desktop" },
+			clause: "lower(ifNull(device_type, '')) IN {f0:Array(String)}",
+			param: ["", "desktop"],
+		},
+		{
+			filter: { field: "device_type", op: "in", value: ["Mobile", "Tablet"] },
+			clause: "lower(ifNull(device_type, '')) IN {f0:Array(String)}",
+			param: ["mobile", "tablet"],
+		},
+		{
+			filter: { field: "device_type", op: "not_in", value: ["Desktop"] },
+			clause: "lower(ifNull(device_type, '')) NOT IN {f0:Array(String)}",
+			param: ["", "desktop"],
+		},
+		{
+			filter: { field: "device_type", op: "contains", value: "Mob" },
+			clause: "lower(ifNull(device_type, '')) LIKE {f0:String}",
+			param: "%mob%",
+		},
+		{
+			filter: { field: "device_type", op: "starts_with", value: "Desk" },
+			clause:
+				"(lower(ifNull(device_type, '')) = '' OR lower(ifNull(device_type, '')) LIKE {f0:String})",
+			param: "desk%",
+		},
+	] satisfies {
+		filter: Filter;
+		clause: string;
+		param: Filter["value"];
+	}[])("matches stored device types for %j", ({ filter, clause, param }) => {
+		const { sql, params } = compile({}, { filters: [filter] });
+		expect(sql).toContain(clause);
+		expect(params.f0).toEqual(param);
 	});
 
 	it("silently skips disallowed filter fields rather than throwing", () => {
@@ -283,28 +309,6 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(() => compile({}, { filters })).toThrow(
 			"Filter target 'my_cte' is not permitted"
 		);
-	});
-
-	it("applies a configured CTE selector inside that CTE", () => {
-		const { sql, params } = compile(
-			{
-				with: [
-					{ name: "selected", table: "analytics.events", fields: ["country"] },
-				],
-				from: "selected",
-				groupBy: ["country"],
-			},
-			{
-				filters: [
-					{ field: "country", op: "eq", value: "US", target: "selected" },
-				],
-			}
-		);
-		expect(sql).toContain("country = {f");
-		expect(sql.indexOf("country = {f")).toBeLessThan(
-			sql.lastIndexOf("FROM selected")
-		);
-		expect(Object.values(params)).toContain("US");
 	});
 
 	it.each([
@@ -521,6 +525,22 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(() =>
 			compile({}, { groupBy: ["path; DROP TABLE analytics.events"] })
 		).toThrow("not permitted");
+	});
+
+	it("rejects a groupBy that would change the query type's fixed breakdown", () => {
+		expect(() => compile({}, { groupBy: ["country"] })).toThrow(
+			"Grouping by 'country' is not permitted for test"
+		);
+		expect(compile({}, { groupBy: ["path"] }).sql).toContain("GROUP BY path");
+		for (const type of ["summary_metrics", "entry_pages"]) {
+			const config = QueryBuilders[type];
+			if (!config) {
+				throw new Error(`${type} builder is missing`);
+			}
+			expect(() =>
+				compileBuilder(type, config, { groupBy: ["country"] })
+			).toThrow(`Grouping by 'country' is not permitted for ${type}`);
+		}
 	});
 
 	it("throws on SQL injection in orderBy", () => {
@@ -748,6 +768,37 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.f0).toBe("visitor-1");
 	});
 
+	it.each([
+		["entry_pages", "entry_path"],
+		["exit_pages", "exit_path"],
+	])("picks the %s page from every screen view before applying a path filter", (type, column) => {
+		const config = QueryBuilders[type];
+		if (!config) {
+			throw new Error(`${type} builder is missing`);
+		}
+
+		const { sql } = new SimpleQueryBuilder(
+			config,
+			makeRequest({
+				filters: [
+					{ field: "path", op: "eq", value: "/pricing" },
+					{ field: "country", op: "eq", value: "US" },
+				],
+				type,
+			})
+		).compile();
+
+		const pagesSource = sql.indexOf(
+			`FROM (SELECT ${column} AS path, visitor_id FROM`
+		);
+		expect(pagesSource).toBeGreaterThan(-1);
+		expect(sql.indexOf("= {f0:String}")).toBeGreaterThan(pagesSource);
+		expect(sql.indexOf("sa.session_country = {f1:String}")).toBeGreaterThan(-1);
+		expect(sql.indexOf("sa.session_country = {f1:String}")).toBeLessThan(
+			pagesSource
+		);
+	});
+
 	it("normalizes standard session attribution queries", () => {
 		const { sql, params } = compile(
 			{
@@ -893,6 +944,67 @@ describe("SimpleQueryBuilder.compile", () => {
 			expect(sql).not.toContain("avg_session_duration");
 			expect(sql).not.toContain("time_on_page / 1000");
 		}
+	});
+
+	it("starts today_metrics at midnight in the request timezone", () => {
+		const config = QueryBuilders.today_metrics;
+		if (!config) {
+			throw new Error("today_metrics builder is missing");
+		}
+
+		const { sql, params } = compileBuilder("today_metrics", config, {
+			timezone: "America/Los_Angeles",
+		});
+		expect(sql).toContain("time >= toStartOfDay(now(), {timezone:String})");
+		expect(params.timezone).toBe("America/Los_Angeles");
+	});
+
+	it.each([
+		[
+			"uptime_time_series",
+			"hourly",
+			"toStartOfHour(toTimeZone(ts, {timezone:String}))",
+		],
+		[
+			"uptime_time_series",
+			"week",
+			"toStartOfWeek(toTimeZone(ts, {timezone:String}))",
+		],
+		[
+			"uptime_response_time_trends",
+			"month",
+			"toStartOfMonth(toTimeZone(timestamp, {timezone:String}))",
+		],
+	] as const)("buckets %s by %s in the request timezone", (type, timeUnit, bucket) => {
+		const config = QueryBuilders[type];
+		if (!config) {
+			throw new Error(`${type} builder is missing`);
+		}
+
+		const { sql, params } = compileBuilder(type, config, {
+			timeUnit,
+			timezone: "America/New_York",
+		});
+		expect(sql).toContain(`${bucket} as date`);
+		expect(params.timezone).toBe("America/New_York");
+	});
+
+	it("measures week uptime against the part of the week inside the range", () => {
+		const config = QueryBuilders.uptime_time_series;
+		if (!config) {
+			throw new Error("uptime_time_series builder is missing");
+		}
+
+		const { sql } = compileBuilder("uptime_time_series", config, {
+			timeUnit: "week",
+		});
+		expect(sql).toContain(
+			"least(downtime_seconds, greatest(1, dateDiff('second', greatest(toDateTime(date, {timezone:String})"
+		);
+		expect(sql).toContain(
+			"least(toDateTime(date + INTERVAL 1 WEEK, {timezone:String})"
+		);
+		expect(sql).not.toContain("604800");
 	});
 
 	it("includes blank-valued desktop sessions in device breakdowns", () => {

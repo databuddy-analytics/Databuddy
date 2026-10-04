@@ -81,7 +81,10 @@ export const getScopeCondition = (
 		return eq(table.websiteId, websiteId);
 	}
 	if (organizationId) {
-		return eq(table.organizationId, organizationId);
+		return and(
+			eq(table.organizationId, organizationId),
+			isNull(table.websiteId)
+		);
 	}
 	if (userId) {
 		return eq(table.userId, userId);

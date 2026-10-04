@@ -1,15 +1,19 @@
 import { cimd } from "@better-auth/cimd";
 import { fetchClientMetadataResource } from "@better-auth/cimd/node";
 import { mcp } from "@better-auth/mcp";
-import { and, db, eq, isNull, isUniqueViolationFor } from "@databuddy/db";
-import { oauthConsent, oauthRefreshToken } from "@databuddy/db/schema";
+import { isUniqueViolationFor } from "@databuddy/db";
 import { config } from "@databuddy/env/app";
 import { API_SCOPES } from "@databuddy/shared/api-scopes";
-import type { BetterAuthPlugin } from "better-auth";
-import { createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
+import { MCP_API_SCOPES } from "@databuddy/shared/mcp-access";
 import { betterAuth } from "better-auth/minimal";
 import { jwt } from "better-auth/plugins";
+import { log } from "evlog";
 import { baseAuthOptions } from "./auth";
+import {
+	mcpAccessTokenClaims,
+	mcpConsentAccess,
+	mcpPostLogin,
+} from "./mcp-grant";
 
 const database: typeof baseAuthOptions.database = (options) => {
 	const adapter = baseAuthOptions.database(options);
@@ -34,64 +38,56 @@ const database: typeof baseAuthOptions.database = (options) => {
 	};
 };
 
-const revokeTokensWithConsent = {
-	id: "revoke-tokens-with-consent",
-	hooks: {
-		before: [
-			{
-				matcher: (context) => context.path === "/oauth2/delete-consent",
-				handler: createAuthMiddleware(async (ctx) => {
-					const session = await getSessionFromCtx(ctx);
-					const consentId = (ctx.body as { id?: unknown } | undefined)?.id;
-					if (!session || typeof consentId !== "string") {
-						return;
-					}
-					const [consent] = await db
-						.select({ clientId: oauthConsent.clientId })
-						.from(oauthConsent)
-						.where(
-							and(
-								eq(oauthConsent.id, consentId),
-								eq(oauthConsent.userId, session.user.id)
-							)
-						)
-						.limit(1);
-					if (!consent) {
-						return;
-					}
-					await db
-						.update(oauthRefreshToken)
-						.set({ revoked: new Date() })
-						.where(
-							and(
-								eq(oauthRefreshToken.userId, session.user.id),
-								eq(oauthRefreshToken.clientId, consent.clientId),
-								isNull(oauthRefreshToken.revoked)
-							)
-						);
-				}),
-			},
-		],
-	},
-} satisfies BetterAuthPlugin;
+const IDENTITY_SCOPES = ["openid", "profile", "email", "offline_access"];
+
+function createMcpOAuthPlugins() {
+	try {
+		return [
+			mcp({
+				loginPage: "/login",
+				consentPage: "/consent",
+				postLogin: mcpPostLogin,
+				customAccessTokenClaims: mcpAccessTokenClaims,
+				resource: config.urls.mcp,
+				scopes: [...IDENTITY_SCOPES, ...API_SCOPES],
+				advertisedMetadata: {
+					scopes_supported: [...IDENTITY_SCOPES, ...MCP_API_SCOPES],
+				},
+				rateLimit: { token: { window: 60, max: 600 } },
+			}),
+			cimd({
+				fetchClientMetadataResource,
+				metadataProfile: "mcp-2026-07-28",
+			}),
+			mcpConsentAccess,
+		];
+	} catch (error) {
+		log.warn({
+			service: "auth",
+			mcp_oauth_disabled: true,
+			mcp_resource: config.urls.mcp,
+			error: error instanceof Error ? error.message : String(error),
+		});
+		return [];
+	}
+}
+
+const mcpOAuthPlugins = createMcpOAuthPlugins();
+
+export const mcpOAuthEnabled = mcpOAuthPlugins.length > 0;
 
 export const oauthAuthOptions = {
 	...baseAuthOptions,
 	database,
+	disabledPaths: [
+		"/oauth2/create-client",
+		"/oauth2/update-client",
+		"/oauth2/client/rotate-secret",
+	],
 	plugins: [
 		...baseAuthOptions.plugins,
-		jwt(),
-		mcp({
-			loginPage: "/login",
-			consentPage: "/consent",
-			resource: config.urls.mcp,
-			scopes: ["openid", "profile", "email", "offline_access", ...API_SCOPES],
-		}),
-		cimd({
-			fetchClientMetadataResource,
-			metadataProfile: "mcp-2026-07-28",
-		}),
-		revokeTokensWithConsent,
+		jwt({ disableSettingJwtHeader: true }),
+		...mcpOAuthPlugins,
 	],
 };
 

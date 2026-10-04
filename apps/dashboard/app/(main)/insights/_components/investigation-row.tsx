@@ -202,9 +202,11 @@ export function InvestigationRow({ insight }: { insight: Insight }) {
 export function CaseState({
 	items,
 	latest,
+	recovered = false,
 }: {
 	items: TimelineItem[];
 	latest: InvestigationItem | null;
+	recovered?: boolean;
 }) {
 	if (!latest) {
 		return null;
@@ -226,7 +228,9 @@ export function CaseState({
 				? "Needs your input"
 				: latest.outcome.next.type === "watch"
 					? "Measuring"
-					: "Verified";
+					: recovered
+						? "Recovered"
+						: "Verified";
 
 	return (
 		<section

@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export const DatePresets = {
 	today: "today",
 	yesterday: "yesterday",
@@ -14,7 +16,7 @@ export const DatePresets = {
 
 export type DatePreset = keyof typeof DatePresets;
 
-export const MCP_DATE_PRESETS = Object.keys(DatePresets) as DatePreset[];
+export const DatePresetSchema = z.enum(DatePresets);
 
 const ROLLING_DATE_OFFSETS: Partial<
 	Record<DatePreset, readonly [start: number, end: number]>

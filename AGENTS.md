@@ -156,6 +156,8 @@ For picker controls, use the component that matches the interaction:
 
 ## Branch and PR Lifecycle
 
+**Local default for Codex:** Work directly in this repository's local `staging` checkout and preserve existing edits. Create a task branch, worktree, or PR only when the user explicitly requests that workflow. The lifecycle below applies to those requested branch/PR workflows.
+
 - **One task, one branch, one PR**: Keep a branch to one independently reviewable and reversible slice. If work can land separately, split it before it becomes a mixed PR.
 - **Start fresh**: Check for an existing PR that owns the same surface, public contract, schema, or deployment configuration, then create the branch from an up-to-date `origin/staging`. Do not use an unmerged feature branch as a base unless the dependency is explicit, approved, and named as `Depends on #…` in both PRs.
 - **Make ownership visible**: Push and open a draft PR against `staging` once the slice has a first commit. State its scope, dependencies, and known overlaps.

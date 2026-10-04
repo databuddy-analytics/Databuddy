@@ -2,12 +2,6 @@ import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { SimpleQueryConfig } from "../types";
 
-const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-function inclusiveEndDate(endDate: string): string {
-	return DATE_ONLY_RE.test(endDate) ? `${endDate} 23:59:59` : endDate;
-}
-
 export const SessionsBuilders = {
 	session_metrics: {
 		meta: {
@@ -19,7 +13,7 @@ export const SessionsBuilders = {
 				{ name: "total_events", type: "number", unit: "events" },
 			],
 			description:
-				"Aggregate session statistics including total sessions, avg duration, and pages per session.",
+				"Aggregate session statistics: total sessions, average session duration, bounce rate, and total events.",
 			category: "Sessions",
 			tags: ["sessions", "metrics", "overview"],
 		},
@@ -62,26 +56,51 @@ export const SessionsBuilders = {
 
 	session_duration_distribution: {
 		meta: {
-			description: "Distribution of sessions by duration buckets.",
+			description:
+				"Distribution of sessions by total time on page, summed from page exits. Sessions without a recorded page exit are not counted.",
 			category: "Sessions",
 			tags: ["sessions", "duration", "distribution"],
 		},
-		table: Analytics.events,
-		fields: [
-			"CASE " +
-				"WHEN time_on_page < 30 THEN '0-30s' " +
-				"WHEN time_on_page < 60 THEN '30s-1m' " +
-				"WHEN time_on_page < 300 THEN '1m-5m' " +
-				"WHEN time_on_page < 900 THEN '5m-15m' " +
-				"WHEN time_on_page < 3600 THEN '15m-1h' " +
-				"ELSE '1h+' " +
-				"END as duration_range",
-			"uniq(session_id) as sessions",
-			"uniq(anonymous_id) as visitors",
-		],
-		where: ["event_name = 'screen_view'", "time_on_page > 0"],
-		groupBy: ["duration_range"],
-		orderBy: "sessions DESC",
+		customSql: (ctx) => {
+			const { websiteId, startDate, endDate, filterConditions, filterParams } =
+				ctx;
+			const filterClause = appendFilterClause(filterConditions);
+			return {
+				sql: `
+				WITH session_durations AS (
+					SELECT
+						session_id,
+						any(anonymous_id) as visitor_id,
+						sum(time_on_page) as duration
+					FROM ${Analytics.events}
+					WHERE
+						client_id = {websiteId:String}
+						AND time >= toDateTime({startDate:String})
+						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						AND event_name = 'page_exit'
+						AND session_id != ''
+						AND time_on_page > 0
+						${filterClause}
+					GROUP BY session_id
+				)
+				SELECT
+					CASE
+						WHEN duration < 30 THEN '0-30s'
+						WHEN duration < 60 THEN '30s-1m'
+						WHEN duration < 300 THEN '1m-5m'
+						WHEN duration < 900 THEN '5m-15m'
+						WHEN duration < 3600 THEN '15m-1h'
+						ELSE '1h+'
+					END as duration_range,
+					count() as sessions,
+					uniq(visitor_id) as visitors
+				FROM session_durations
+				GROUP BY duration_range
+				ORDER BY sessions DESC
+			`,
+				params: { websiteId, startDate, endDate, ...filterParams },
+			};
+		},
 		timeField: "time",
 		allowedFilters: ["profile_id", "anonymous_id"],
 		customizable: true,
@@ -174,7 +193,7 @@ export const SessionsBuilders = {
 					WHERE
 						client_id = {websiteId:String}
 						AND time >= toDateTime({startDate:String})
-						AND time <= toDateTime({endDate:String})
+						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND event_name = 'screen_view'
 						AND session_id != ''
 						AND path != ''
@@ -195,7 +214,7 @@ export const SessionsBuilders = {
 				params: {
 					websiteId,
 					startDate,
-					endDate: inclusiveEndDate(endDate),
+					endDate,
 					...filterParams,
 				},
 			};
@@ -249,11 +268,11 @@ export const SessionsBuilders = {
 						max(time) as last_visit,
 						dateDiff('second', min(time), max(time)) as duration_seconds,
 						any(anonymous_id) as visitor_id,
-						any(country) as country,
-						any(referrer) as referrer,
-						any(device_type) as device_type,
-						any(browser_name) as browser_name,
-						any(os_name) as os_name,
+						any(country) as session_country,
+						any(referrer) as session_referrer,
+						any(device_type) as session_device_type,
+						any(browser_name) as session_browser_name,
+						any(os_name) as session_os_name,
 						countIf(event_name = 'screen_view') as page_views,
 						uniqIf(path, event_name = 'screen_view' AND path != '') as unique_pages,
 						countIf(event_name NOT IN ('screen_view', 'page_exit', 'web_vitals', 'link_out')) as analytics_engagement_events
@@ -261,7 +280,7 @@ export const SessionsBuilders = {
 					WHERE
 						client_id = {websiteId:String}
 						AND time >= toDateTime({startDate:String})
-						AND time <= toDateTime({endDate:String})
+						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND session_id != ''
 						${filterClause}
 					GROUP BY session_id
@@ -272,7 +291,7 @@ export const SessionsBuilders = {
 					WHERE
 						website_id = {websiteId:String}
 						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime({endDate:String})
+						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND session_id != ''
 					GROUP BY session_id
 				),
@@ -282,7 +301,7 @@ export const SessionsBuilders = {
 					WHERE
 						client_id = {websiteId:String}
 						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime({endDate:String})
+						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND session_id != ''
 					GROUP BY session_id
 				),
@@ -298,11 +317,11 @@ export const SessionsBuilders = {
 						bs.analytics_engagement_events AS analytics_engagement_events,
 						ifNull(cc.custom_events, 0) as custom_events,
 						ifNull(es.errors, 0) as errors,
-						bs.country AS country,
-						bs.referrer AS referrer,
-						bs.device_type AS device_type,
-						bs.browser_name AS browser_name,
-						bs.os_name AS os_name,
+						bs.session_country AS country,
+						bs.session_referrer AS referrer,
+						bs.session_device_type AS device_type,
+						bs.session_browser_name AS browser_name,
+						bs.session_os_name AS os_name,
 						(
 							least(bs.page_views, 10) * 2
 							+ least(bs.unique_pages, 8) * 3
@@ -325,7 +344,7 @@ export const SessionsBuilders = {
 					WHERE
 						client_id = {websiteId:String}
 						AND time >= toDateTime({startDate:String})
-						AND time <= toDateTime({endDate:String})
+						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND session_id != ''
 					GROUP BY session_id
 				),
@@ -337,7 +356,7 @@ export const SessionsBuilders = {
 					WHERE
 						website_id = {websiteId:String}
 						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime({endDate:String})
+						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND session_id != ''
 					GROUP BY session_id
 				)
@@ -368,7 +387,7 @@ export const SessionsBuilders = {
 				params: {
 					websiteId,
 					startDate,
-					endDate: inclusiveEndDate(endDate),
+					endDate,
 					limit,
 					offset,
 					...filterParams,
@@ -402,16 +421,16 @@ export const SessionsBuilders = {
         MAX(time) as last_visit,
         countIf(event_name = 'screen_view') as page_views,
         any(anonymous_id) as visitor_id,
-        any(country) as country,
-        any(referrer) as referrer,
-        any(device_type) as device_type,
-        any(browser_name) as browser_name,
-        any(os_name) as os_name
+        any(country) as session_country,
+        any(referrer) as session_referrer,
+        any(device_type) as session_device_type,
+        any(browser_name) as session_browser_name,
+        any(os_name) as session_os_name
       FROM ${Analytics.events}
       WHERE
         client_id = {websiteId:String}
         AND time >= toDateTime({startDate:String})
-        AND time <= toDateTime({endDate:String})
+        AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
         ${filterClause}
       GROUP BY session_id
       ORDER BY first_visit DESC
@@ -434,7 +453,7 @@ export const SessionsBuilders = {
       FROM ${Analytics.events} e
       WHERE e.client_id = {websiteId:String}
         AND e.time >= toDateTime({startDate:String})
-        AND e.time <= toDateTime({endDate:String})
+        AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
         AND e.session_id IN (SELECT session_id FROM session_list)
 
       UNION ALL
@@ -454,7 +473,7 @@ export const SessionsBuilders = {
       FROM ${Analytics.custom_events} ce
       WHERE ce.website_id = {websiteId:String}
         AND ce.timestamp >= toDateTime({startDate:String})
-        AND ce.timestamp <= toDateTime({endDate:String})
+        AND ce.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
         AND ce.session_id IN (SELECT session_id FROM session_list)
     ),
     session_events AS (
@@ -481,11 +500,11 @@ export const SessionsBuilders = {
       sl.last_visit,
       sl.page_views,
       sl.visitor_id,
-      sl.country,
-      sl.referrer,
-      sl.device_type,
-      sl.browser_name,
-      sl.os_name,
+      sl.session_country as country,
+      sl.session_referrer as referrer,
+      sl.session_device_type as device_type,
+      sl.session_browser_name as browser_name,
+      sl.session_os_name as os_name,
       COALESCE(se.events, []) as events
     FROM session_list sl
     LEFT JOIN session_events se ON sl.session_id = se.session_id
@@ -494,7 +513,7 @@ export const SessionsBuilders = {
 				params: {
 					websiteId,
 					startDate,
-					endDate: inclusiveEndDate(endDate),
+					endDate,
 					limit,
 					offset,
 					...filterParams,

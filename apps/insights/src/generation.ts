@@ -18,9 +18,18 @@ import {
 import { rankInvestigationBusinessContext } from "./business-context-ranking";
 import type { AppContext } from "@databuddy/ai/config/context";
 import { trackAgentUsage } from "@databuddy/ai/agents/execution";
+import {
+	type GitHubCommitSummary,
+	type GitHubDeploymentSummary,
+	type GitHubRepository,
+	type GitHubRequest,
+	listGitHubCommits,
+	listGitHubProductionDeployments,
+} from "@databuddy/ai/tools/github-tools";
 import { and, between, db, eq, gt, isNull, lte, or } from "@databuddy/db";
 import { annotations, websites } from "@databuddy/db/schema";
 import { canonicalBusinessScope } from "@databuddy/services/business-memory";
+import { getGithubTokenForOrg } from "@databuddy/services/github-app";
 import type { InsightGenerationReason } from "@databuddy/redis";
 import { createServiceAuth } from "@databuddy/rpc";
 import type {
@@ -30,13 +39,24 @@ import type {
 } from "@databuddy/shared/insights";
 import { randomUUIDv7 } from "bun";
 import dayjs from "dayjs";
-import { prepareInsightSlackEffects } from "./delivery";
 import {
+	prepareInsightRecoveryEffects,
+	prepareInsightSlackEffects,
+} from "./delivery";
+import {
+	type ChangeOnset,
+	changeOnsetEvidence,
+	changeOnsetWindow,
 	type DetectedSignal,
 	type DetectionDiagnostics,
 	type DetectSignalsParams,
 	detectSignals,
+	loadChangeOnset,
+	loadRecovery,
+	loadSegmentFinding,
+	recoveryEvidence,
 	remeasureMetricSignal,
+	segmentEvidence,
 } from "./detection";
 import { detectRetentionSignals } from "./measurement-plan";
 import {
@@ -162,6 +182,7 @@ interface WebsiteInvestigationArtifact {
 	completion?: "complete" | "incomplete";
 	evidence: string[];
 	outcome: InvestigationOutcome | null;
+	recovered?: boolean;
 	signal: InvestigationSignal | null;
 	snapshot?: InvestigationEvidenceSnapshot;
 	status: "completed" | "deferred" | "no_signals";
@@ -328,6 +349,7 @@ export interface InvestigationSources {
 	) => Promise<InvestigationAnnotation[]>;
 	investigateSignal: (input: InsightAgentInput) => Promise<InsightAgentResult>;
 	loadBusinessProfile?: typeof loadWebsiteBusinessProfile;
+	loadChangeOnset?: typeof loadChangeOnset;
 	loadDueInvestigation: (params: {
 		asOf: Date;
 		organizationId: string;
@@ -342,7 +364,10 @@ export interface InvestigationSources {
 		websiteId: string;
 	}) => Promise<Map<string, LatestInsightObservation>>;
 	loadOtherOpenWork: typeof loadOtherOpenWork;
+	loadRecovery?: typeof loadRecovery;
+	loadRepositoryChanges?: typeof loadRepositoryChangesNearOnset;
 	loadRouteVitalContinuation: typeof loadRouteVitalContinuation;
+	loadSegmentFinding?: typeof loadSegmentFinding;
 	rankBusinessContext?: typeof rankInvestigationBusinessContext;
 	recallBusinessContext?: typeof recallWebsiteBusinessContext;
 	remeasureSignal: (
@@ -493,10 +518,151 @@ export async function refreshInvestigationSignal(params: {
 		: prepareInvestigation(detected, INSIGHT_LOOKBACK_DAYS, annotationRows);
 }
 
+const REPOSITORY_CHANGE_LIMIT = 3;
+const REPOSITORY_COMMIT_SCAN = 20;
+const REPOSITORY_DEPLOYMENT_SCAN = 10;
+
+export interface RepositoryChanges {
+	commits: GitHubCommitSummary[] | null;
+	deployments: GitHubDeploymentSummary[] | null;
+}
+
+export async function loadRepositoryChangesNearOnset(
+	params: {
+		onset: ChangeOnset;
+		organizationId: string;
+		repository: GitHubRepository;
+	},
+	dependencies: {
+		getToken?: (organizationId: string) => Promise<string | null>;
+		request?: GitHubRequest;
+	} = {}
+): Promise<RepositoryChanges | null> {
+	const getToken = dependencies.getToken ?? getGithubTokenForOrg;
+	const token = await getToken(params.organizationId).catch(() => null);
+	if (!token) {
+		return null;
+	}
+	const window = changeOnsetWindow(params.onset);
+	const range = {
+		repository: params.repository,
+		request: dependencies.request,
+		since: window.lookbackFrom.toISOString(),
+		token,
+		until: window.to.toISOString(),
+	};
+	const [deployments, commits] = await Promise.all([
+		listGitHubProductionDeployments({
+			...range,
+			limit: REPOSITORY_DEPLOYMENT_SCAN,
+		}),
+		listGitHubCommits({ ...range, limit: REPOSITORY_COMMIT_SCAN }),
+	]);
+	const knownDeployments =
+		"error" in deployments ||
+		!(deployments.complete || deployments.deployments.length > 0)
+			? null
+			: deployments.deployments;
+	const knownCommits = "error" in commits ? null : commits.commits;
+	return knownDeployments || knownCommits
+		? { commits: knownCommits, deployments: knownDeployments }
+		: null;
+}
+
+function listedChanges<T>(
+	items: T[],
+	capped: boolean,
+	describe: (item: T) => string
+): string {
+	const shown = items
+		.slice(0, REPOSITORY_CHANGE_LIMIT)
+		.map(describe)
+		.join("; ");
+	const hidden = items.length - REPOSITORY_CHANGE_LIMIT;
+	if (hidden <= 0) {
+		return capped ? `${shown}; and possibly more` : shown;
+	}
+	return `${shown}; and ${capped ? "at least " : ""}${hidden} more`;
+}
+
+export function repositoryChangeEvidence(
+	onset: ChangeOnset,
+	changes: RepositoryChanges,
+	repository: GitHubRepository
+): string | null {
+	const repo = `${repository.owner}/${repository.repo}`;
+	const local = (instant: string | Date) =>
+		dayjs(instant).tz(onset.timezone).format("YYYY-MM-DD HH:mm");
+	const window = changeOnsetWindow(onset);
+	const span = `between ${local(window.lookbackFrom)} and ${local(window.to)} (${onset.timezone})`;
+	const subjects = new Map(
+		(changes.commits ?? []).map((commit) => [commit.sha, commit.message])
+	);
+	const sentences: string[] = [];
+	if (changes.deployments?.length) {
+		const releases = new Map<string, GitHubDeploymentSummary[]>();
+		for (const deployment of changes.deployments) {
+			releases.set(deployment.sha, [
+				...(releases.get(deployment.sha) ?? []),
+				deployment,
+			]);
+		}
+		const clock = (instant: string) =>
+			dayjs(instant).tz(onset.timezone).format("HH:mm");
+		sentences.push(
+			`GitHub production deployments of ${repo} requested ${span}, newest first: ${listedChanges(
+				[...releases.values()],
+				changes.deployments.length >= REPOSITORY_DEPLOYMENT_SCAN,
+				(release) => {
+					const [newest] = release;
+					const subject = newest ? subjects.get(newest.sha) : undefined;
+					const targets = release
+						.map(
+							(deployment) =>
+								`${deployment.environment} (${
+									deployment.result && deployment.completedAt
+										? `${deployment.result} ${clock(deployment.completedAt)}`
+										: "no completion recorded"
+								})`
+						)
+						.join(", ");
+					return `${newest?.sha.slice(0, 7)}${subject ? ` "${subject.slice(0, 80)}"` : ""} requested ${newest ? local(newest.requestedAt) : ""} to ${targets}`;
+				}
+			)}.`
+		);
+	} else if (changes.deployments) {
+		sentences.push(
+			`GitHub records no production deployment of ${repo} requested ${span}; deployments made outside GitHub do not appear there.`
+		);
+	}
+	if (changes.deployments?.length) {
+		return sentences.join(" ");
+	}
+	if (changes.commits?.length) {
+		sentences.push(
+			`Commits on the default branch of ${repo} dated ${span}, newest first: ${listedChanges(
+				changes.commits,
+				changes.commits.length >= REPOSITORY_COMMIT_SCAN,
+				(commit) =>
+					`${commit.sha.slice(0, 7)} "${commit.message.slice(0, 80)}" at ${local(commit.committedAt ?? commit.date ?? "")}`
+			)}.`
+		);
+	} else if (changes.commits) {
+		sentences.push(
+			`No commits on the default branch of ${repo} are dated ${span}.`
+		);
+	}
+	return sentences.length > 0 ? sentences.join(" ") : null;
+}
+
 const productionInvestigationSources: InvestigationSources = {
 	detectAiAgentSignals,
 	detectRetentionSignals,
 	loadBusinessProfile: loadWebsiteBusinessProfile,
+	loadChangeOnset,
+	loadRecovery,
+	loadRepositoryChanges: loadRepositoryChangesNearOnset,
+	loadSegmentFinding,
 	recallBusinessContext: recallWebsiteBusinessContext,
 	detectDefinitionSignals: detectFunnelGoalSignals,
 	detectMetricSignals: detectSignals,
@@ -882,49 +1048,97 @@ async function investigatePlannedCandidate(
 		);
 		return emptyInvestigationArtifact({ asOf, status: "deferred" });
 	}
+	const optional = <T>(work: Promise<T>, event: string): Promise<T | null> =>
+		work.catch((error) => {
+			captureInsightsError(error, event, {
+				organization_id: input.organizationId,
+				signal_key: candidate.signal.signalKey,
+				website_id: input.websiteId,
+			});
+			return null;
+		});
+	const repositoryChanges = async (onset: ChangeOnset) => {
+		const repository = input.githubRepository;
+		if (!(repository && runtime.sources.loadRepositoryChanges)) {
+			return null;
+		}
+		const changes = await optional(
+			runtime.sources.loadRepositoryChanges({
+				onset,
+				organizationId: input.organizationId,
+				repository,
+			}),
+			"generation.repository_changes.failed"
+		);
+		return changes
+			? {
+					changes,
+					evidence: repositoryChangeEvidence(onset, changes, repository),
+				}
+			: null;
+	};
+	const subjectParams = () => ({
+		abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
+		signal: candidate.signal,
+		timezone: input.timezone,
+		websiteId: input.websiteId,
+	});
 	let evidence = [...candidate.evidence];
-	const [annotationRows, customerImpact, routeVitalContinuation] =
-		await Promise.all([
-			runtime.sources.fetchAnnotations(
-				input.websiteId,
-				candidate.signal,
-				asOf.toDate(),
-				input.timezone
-			),
-			runtime.sources
-				.loadErrorCustomerImpact({
-					abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
-					signal: candidate.signal,
-					timezone: input.timezone,
-					websiteId: input.websiteId,
-				})
-				.catch((error) => {
-					captureInsightsError(error, "generation.customer_impact.failed", {
-						organization_id: input.organizationId,
-						signal_key: candidate.signal.signalKey,
-						website_id: input.websiteId,
-					});
-					return null;
-				}),
-			runtime.sources
-				.loadRouteVitalContinuation({
-					abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
-					signal: candidate.signal,
-					websiteId: input.websiteId,
-				})
-				.catch((error) => {
-					captureInsightsError(
-						error,
-						"generation.route_vital_continuation.failed",
-						{
-							organization_id: input.organizationId,
-							signal_key: candidate.signal.signalKey,
-							website_id: input.websiteId,
-						}
-					);
-					return null;
-				}),
-		]);
+	const [
+		annotationRows,
+		customerImpact,
+		routeVitalContinuation,
+		changeOnset,
+		segmentFinding,
+	] = await Promise.all([
+		runtime.sources.fetchAnnotations(
+			input.websiteId,
+			candidate.signal,
+			asOf.toDate(),
+			input.timezone
+		),
+		optional(
+			runtime.sources.loadErrorCustomerImpact(subjectParams()),
+			"generation.customer_impact.failed"
+		),
+		optional(
+			runtime.sources.loadRouteVitalContinuation({
+				abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
+				signal: candidate.signal,
+				websiteId: input.websiteId,
+			}),
+			"generation.route_vital_continuation.failed"
+		),
+		runtime.sources.loadChangeOnset
+			? optional(
+					runtime.sources.loadChangeOnset(subjectParams()),
+					"generation.change_onset.failed"
+				)
+			: null,
+		runtime.sources.loadSegmentFinding
+			? optional(
+					runtime.sources.loadSegmentFinding(subjectParams()),
+					"generation.segment_finding.failed"
+				)
+			: null,
+	]);
+	if (segmentFinding) {
+		evidence.push(segmentEvidence(segmentFinding));
+	}
+	if (changeOnset) {
+		evidence.push(changeOnsetEvidence(changeOnset));
+		const repository = await repositoryChanges(changeOnset);
+		if (repository?.evidence) {
+			evidence.push(repository.evidence);
+		}
+		emitInsightsEvent("info", "generation.change_onset.found", {
+			organization_id: input.organizationId,
+			website_id: input.websiteId,
+			signal_key: candidate.signal.signalKey,
+			repository_deployments: repository?.changes.deployments?.length ?? null,
+			repository_commits: repository?.changes.commits?.length ?? null,
+		});
+	}
 	if (customerImpact) {
 		evidence.push(errorCustomerImpactEvidence(customerImpact));
 	}
@@ -964,6 +1178,39 @@ async function investigatePlannedCandidate(
 			websiteId: input.websiteId,
 		}),
 	]);
+	const openPrior = [...history]
+		.reverse()
+		.find(
+			(item) =>
+				item.kind === "investigation" && item.outcome.next.type !== "resolve"
+		);
+	const recoveryCheck =
+		openPrior?.kind === "investigation" && runtime.sources.loadRecovery
+			? await optional(
+					runtime.sources.loadRecovery({
+						abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
+						prior: openPrior.signal,
+						through: candidate.signal.period.current.to,
+						timezone: input.timezone,
+						websiteId: input.websiteId,
+					}),
+					"generation.recovery.failed"
+				)
+			: null;
+	if (recoveryCheck) {
+		const { onset, recovery } = recoveryCheck;
+		evidence.push(recoveryEvidence(recovery));
+		if (recovery.state === "recovered" && recovery.recoveredAt) {
+			const repository = await repositoryChanges({
+				...onset,
+				earliest: recovery.recoveredAt,
+				latest: recovery.recoveredAt,
+			});
+			if (repository?.evidence) {
+				evidence.push(`Before the recovery: ${repository.evidence}`);
+			}
+		}
+	}
 	let investigationResult: InsightAgentResult;
 	try {
 		investigationResult = await runtime.sources.investigateSignal({
@@ -1023,6 +1270,7 @@ async function investigatePlannedCandidate(
 		asOf: asOf.toISOString(),
 		evidence,
 		completion: investigationResult.completion,
+		recovered: recoveryCheck?.recovery.state === "recovered",
 		snapshot: investigationResult.snapshot,
 		outcome: withBusinessContextSnapshot(
 			investigationResult.outcome,
@@ -1770,6 +2018,7 @@ export async function generateWebsiteInsights(
 						notNewerThan: asOf,
 						organizationId: input.organizationId,
 						recheckAt: nextRecheckAt(asOf, candidate.outcome.next),
+						recovered: analysis.recovered,
 						runId: input.runId,
 						timezone: input.timezone,
 					});
@@ -1786,7 +2035,15 @@ export async function generateWebsiteInsights(
 					if (openWorkItem) {
 						siblingOpenWork.push(openWorkItem);
 					}
-					if (saved) {
+					if (saved?.outcome.next.type === "resolve") {
+						await enqueueInsightRunEffects({
+							...runIdentity,
+							effects: await prepareInsightRecoveryEffects({
+								insight: saved,
+								organizationId: input.organizationId,
+							}),
+						});
+					} else if (saved) {
 						interruptingInvestigations.push(saved);
 						await enqueueInterruptingEffects([saved]);
 					}

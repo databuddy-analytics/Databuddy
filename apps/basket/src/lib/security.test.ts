@@ -1,7 +1,8 @@
-import { vi, beforeEach, describe, expect, test } from "vitest";
+import { vi, afterEach, beforeEach, describe, expect, test } from "vitest";
 import {
 	applyVisitorIdPrivacy,
 	DEDUP_RESERVATION_TIMEOUT_MS,
+	getDailySalt,
 	markDuplicateReservationAmbiguous,
 	markDuplicateReservationDelivered,
 	releaseDuplicateReservation,
@@ -95,19 +96,32 @@ const {
 	mockLoggerSet,
 	mockCaptureError,
 } = vi.hoisted(() => ({
-	mockRedisSet: vi.fn(() => Promise.resolve("OK")),
-	mockRedisGet: vi.fn(() => Promise.resolve(null)),
-	mockRedisEval: vi.fn(() => Promise.resolve(1)),
+	mockRedisSet: vi.fn<
+		(
+			key: string,
+			value: string,
+			...args: (string | number)[]
+		) => Promise<string | null>
+	>(() => Promise.resolve("OK")),
+	mockRedisGet: vi.fn<(key: string) => Promise<string | null>>(() =>
+		Promise.resolve(null)
+	),
+	mockRedisEval: vi.fn<
+		(...args: (string | number)[]) => Promise<number | string | string[]>
+	>(() => Promise.resolve(1)),
 	mockLoggerSet: vi.fn(() => {}),
 	mockCaptureError: vi.fn(),
 }));
 
 vi.mock("@databuddy/redis/redis", () => ({
 	redis: { set: mockRedisSet, get: mockRedisGet, eval: mockRedisEval },
-	getRedisCache: () => ({ set: mockRedisSet }),
-}));
-vi.mock("@databuddy/redis/cacheable", () => ({
-	cacheable: (fn: () => Promise<any>) => fn,
+	getRedisCache: () => ({
+		get: mockRedisGet,
+		set: mockRedisSet,
+		setex: (key: string, seconds: number, value: string) =>
+			mockRedisSet(key, value, "EX", seconds),
+		ttl: () => Promise.resolve(3600),
+	}),
 }));
 
 vi.mock("evlog/elysia", () => ({
@@ -115,10 +129,78 @@ vi.mock("evlog/elysia", () => ({
 }));
 
 vi.mock("@lib/tracing", () => ({
-	record: (_name: string, fn: () => Promise<any>) =>
+	record: <T>(_name: string, fn: () => Promise<T>) =>
 		Promise.resolve().then(() => fn()),
 	captureError: mockCaptureError,
 }));
+
+describe("daily anonymous salt", () => {
+	beforeEach(() => {
+		mockRedisGet.mockReset();
+		mockRedisSet.mockReset();
+		mockCaptureError.mockReset();
+	});
+	afterEach(() => vi.useRealTimers());
+
+	test("uses a new day key immediately across UTC midnight", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-08-01T23:59:59Z"));
+		const values = new Map<string, string>();
+		mockRedisGet.mockImplementation((key: string) =>
+			Promise.resolve(values.get(key) ?? null)
+		);
+		mockRedisSet.mockImplementation((key: string, value: string) => {
+			values.set(key, value);
+			return Promise.resolve("OK");
+		});
+		const before = await getDailySalt();
+		vi.setSystemTime(new Date("2026-08-02T00:00:01Z"));
+		const after = await getDailySalt();
+		expect(after).not.toBe(before);
+		expect(
+			[...values.keys()].filter((key) => key.startsWith("salt:"))
+		).toHaveLength(2);
+	});
+
+	test("recovers a committed salt after Redis loses the write acknowledgement", async () => {
+		const values = new Map<string, string>();
+		mockRedisGet.mockImplementation((key: string) =>
+			Promise.resolve(values.get(key) ?? null)
+		);
+		mockRedisSet.mockImplementation((key: string, value: string) => {
+			values.set(key, value);
+			return Promise.reject(new Error("Lost Redis acknowledgement"));
+		});
+		const salt = await getDailySalt();
+		expect(salt).toBe([...values.values()][0]);
+		expect(await getDailySalt()).toBe(salt);
+		expect(mockCaptureError).toHaveBeenCalledTimes(1);
+	});
+
+	test("concurrent misses share the Redis winner", async () => {
+		const values = new Map<string, string>();
+		mockRedisGet.mockImplementation((key: string) =>
+			Promise.resolve(values.get(key) ?? null)
+		);
+		mockRedisSet.mockImplementation((key: string, value: string) => {
+			if (values.has(key)) {
+				return Promise.resolve(null);
+			}
+			values.set(key, value);
+			return Promise.resolve("OK");
+		});
+		const salts = await Promise.all([getDailySalt(), getDailySalt()]);
+		expect(new Set(salts).size).toBe(1);
+		expect(mockRedisSet).toHaveBeenCalledWith(
+			expect.stringMatching(/^salt:/),
+			salts[0],
+			"EX",
+			86_400,
+			"NX"
+		);
+		expect(mockCaptureError).not.toHaveBeenCalled();
+	});
+});
 
 describe("duplicate reservations", () => {
 	beforeEach(() => {
@@ -281,7 +363,7 @@ describe("duplicate reservations", () => {
 	test("recovers ownership when an ambiguous SET wrote this request's token", async () => {
 		mockRedisSet.mockResolvedValue(null);
 		mockRedisGet.mockImplementation(
-			async () => mockRedisSet.mock.calls[0]?.[1]
+			async () => mockRedisSet.mock.calls[0]?.[1] ?? null
 		);
 
 		const reservation = await reserveDuplicate("evt_1", "track");

@@ -3,7 +3,7 @@
 import { EmailUnavailable, useAuthCapabilities } from "../../auth-capabilities";
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
-import { parseAsString, useQueryState } from "nuqs";
+import { useQueryState } from "nuqs";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeftIcon, EnvelopeIcon } from "@databuddy/ui/icons";
@@ -14,10 +14,7 @@ const MAGIC_EMAIL_KEY = "databuddy:magic-email";
 
 function MagicSentPage() {
 	const capabilities = useAuthCapabilities();
-	const [callback] = useQueryState(
-		"callback",
-		parseAsString.withDefault("/websites")
-	);
+	const [callback] = useQueryState("callback");
 	const [email, setEmail] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [isReady, setIsReady] = useState(false);

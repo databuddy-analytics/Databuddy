@@ -1,6 +1,37 @@
 import { createHmac } from "node:crypto";
-import { describe, expect, test } from "vitest";
-import { verifyPaddleSignature } from "./paddle";
+import { describe, expect, test, vi } from "vitest";
+const { mockInsert } = vi.hoisted(() => ({
+	mockInsert: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock("@databuddy/db/clickhouse", () => ({
+	clickHouse: { insert: mockInsert },
+}));
+vi.mock("@lib/security", () => ({
+	getDailySalt: vi.fn(() => Promise.resolve("test-salt")),
+	saltAnonymousId: vi.fn((id: string) => `salted_${id}`),
+}));
+vi.mock("./shared", () => ({
+	formatDate: (date: Date) => date.toISOString().slice(0, 19).replace("T", " "),
+	getWebhookConfig: vi.fn(() =>
+		Promise.resolve({
+			ownerId: "org_example",
+			websiteId: "website_example",
+			paddleWebhookSecret: "pdl_ntfset_test_secret_key",
+		})
+	),
+	resolveWebsiteId: vi.fn(() => Promise.resolve("website_example")),
+	recordWebhookDelivery: vi.fn(() => Promise.resolve()),
+}));
+vi.mock("evlog/elysia", async () => {
+	const { Elysia } = await import("elysia");
+	return {
+		evlog: () => new Elysia(),
+		useLogger: () => ({ set: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+	};
+});
+
+import { paddleWebhook, verifyPaddleSignature } from "./paddle";
 
 const SECRET = "pdl_ntfset_test_secret_key";
 
@@ -94,4 +125,52 @@ describe("verifyPaddleSignature", () => {
 			expect(result.error).toContain("tolerance");
 		}
 	});
+});
+
+test("preserves customer and subscription identity from completed webhooks", async () => {
+	mockInsert.mockClear();
+	const payload = JSON.stringify({
+		event_id: "evt_example",
+		event_type: "transaction.completed",
+		data: {
+			id: "txn_example",
+			customer_id: "ctm_example",
+			subscription_id: "sub_example",
+			created_at: "2026-01-01T00:00:00Z",
+			billed_at: null,
+			currency_code: "USD",
+			details: {
+				totals: { total: "1000" },
+				line_items: [
+					{
+						price_id: "pri_example",
+						product: { id: "pro_example", name: "Example" },
+					},
+				],
+			},
+		},
+	});
+	const response = await paddleWebhook.handle(
+		new Request("http://localhost/webhooks/paddle/example", {
+			method: "POST",
+			headers: { "paddle-signature": sign(payload) },
+			body: payload,
+		})
+	);
+	expect(response.status).toBe(200);
+	expect(mockInsert).toHaveBeenCalledExactlyOnceWith(
+		expect.objectContaining({
+			table: "analytics.revenue",
+			values: [
+				expect.objectContaining({
+					owner_id: "org_example",
+					website_id: "website_example",
+					transaction_id: "txn_example",
+					customer_id: "ctm_example",
+					type: "subscription",
+					amount: 10,
+				}),
+			],
+		})
+	);
 });

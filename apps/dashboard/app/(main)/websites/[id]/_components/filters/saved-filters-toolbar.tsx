@@ -4,7 +4,8 @@ import type { DynamicQueryFilter } from "@/types/api";
 import { useAtom, useSetAtom } from "jotai";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
-import { useSavedFilters } from "@/hooks/use-saved-filters";
+import { toast } from "sonner";
+import { useSavedFilters, validateFilters } from "@/hooks/use-saved-filters";
 import {
 	dynamicQueryFiltersAtom,
 	editingSavedFilterAtom,
@@ -35,6 +36,11 @@ export function SavedFiltersToolbar() {
 
 	const handleApply = useCallback(
 		(appliedFilters: DynamicQueryFilter[]) => {
+			const error = validateFilters(appliedFilters);
+			if (error) {
+				toast.error(`${error.message}. Edit the saved filter to update it.`);
+				return;
+			}
 			setEditing(null);
 			setFilters(appliedFilters);
 		},

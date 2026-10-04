@@ -10,7 +10,8 @@
     "./client": "./src/client/auth-client.ts",
     "./logger": "./src/logger.ts",
     "./permissions": "./src/permissions.ts",
-    "./oauth": "./src/oauth.ts"
+    "./oauth": "./src/oauth.ts",
+    "./mcp-grant": "./src/mcp-grant.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",
@@ -21,6 +22,7 @@
     "@better-auth/cimd": "1.7.5",
     "@better-auth/core": "1.7.5",
     "@better-auth/mcp": "1.7.5",
+    "@better-auth/oauth-provider": "1.7.5",
     "@better-auth/redis-storage": "1.7.5",
     "@databuddy/db": "*",
     "@databuddy/email": "*",
@@ -29,6 +31,7 @@
     "@databuddy/redis": "*",
     "@databuddy/services": "workspace:*",
     "@databuddy/shared": "workspace:*",
+    "autumn-js": "catalog:",
     "better-auth": "1.7.5",
     "drizzle-kit": "^1.0.0-rc.1",
     "evlog": "catalog:",

@@ -42,7 +42,7 @@ import { useAtomValue } from "jotai";
 import Image from "next/image";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { formatCurrency } from "@/lib/formatters";
+import { formatRevenueCurrency } from "@/lib/revenue-currency";
 import { generateProfileName } from "./[userId]/_components/generate-profile-name";
 import { type ProfileSort, useProfilesData } from "./use-users";
 import { useEventNames } from "./use-event-names";
@@ -520,7 +520,10 @@ export default function UsersPage() {
 			{
 				id: "ltv",
 				header: () => (
-					<Tooltip content="Lifetime revenue, refunds netted" side="top">
+					<Tooltip
+						content="Lifetime revenue, refunds netted. Multiple currencies are not combined."
+						side="top"
+					>
 						<span>LTV</span>
 					</Tooltip>
 				),
@@ -531,7 +534,7 @@ export default function UsersPage() {
 					}
 					return (
 						<span className="font-medium tabular-nums">
-							{formatCurrency(ltv)}
+							{formatRevenueCurrency(ltv, row.original.ltv_currency)}
 						</span>
 					);
 				},

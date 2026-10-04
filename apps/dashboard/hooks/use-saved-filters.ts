@@ -60,33 +60,6 @@ function isSavedFilter(filter: unknown): filter is SavedFilter {
 	);
 }
 
-function isValidFilter(filter: DynamicQueryFilter): boolean {
-	return Boolean(
-		VALID_FILTER_FIELDS.has(filter.field) && filter.operator && filter.value
-	);
-}
-
-function cleanSavedFilters(savedFilters: SavedFilter[]): SavedFilter[] {
-	return savedFilters
-		.map((savedFilter) => {
-			const filters = savedFilter.filters.filter(isValidFilter);
-			return filters.length > 0 ? { ...savedFilter, filters } : null;
-		})
-		.filter((filter): filter is SavedFilter => filter !== null);
-}
-
-function hasRemovedFilters(
-	before: SavedFilter[],
-	after: SavedFilter[]
-): boolean {
-	return (
-		after.length !== before.length ||
-		after.some(
-			(filter, index) => filter.filters.length !== before[index]?.filters.length
-		)
-	);
-}
-
 function validateFilterName(
 	name: string,
 	savedFilters: SavedFilter[],
@@ -121,7 +94,7 @@ function validateFilterName(
 	return null;
 }
 
-function validateFilters(
+export function validateFilters(
 	filters: DynamicQueryFilter[]
 ): SavedFilterError | null {
 	if (!filters.length) {
@@ -227,20 +200,6 @@ export function useSavedFilters(websiteId: string) {
 		},
 		[savedFilters, websiteId, setAtom]
 	);
-
-	useEffect(() => {
-		if (isLoading || savedFilters.length === 0) {
-			return;
-		}
-
-		const cleanedFilters = cleanSavedFilters(savedFilters);
-		if (hasRemovedFilters(savedFilters, cleanedFilters)) {
-			updateFilters(() => cleanedFilters);
-			if (cleanedFilters.length < savedFilters.length) {
-				toast.info("Some saved filters were removed due to invalid fields");
-			}
-		}
-	}, [isLoading, savedFilters, updateFilters]);
 
 	const validateFilterNameCallback = useCallback(
 		(name: string, excludeId?: string): SavedFilterError | null =>
