@@ -369,7 +369,8 @@ export function prepareInvestigation(
 			previous: candidate.baseline,
 			format: metricFormat(candidate.metric),
 		},
-		changePercent: candidate.deltaPercent,
+		changePercent:
+			candidate.method === "behavior" ? null : candidate.deltaPercent,
 		severity: sentiment === "positive" ? "info" : candidate.severity,
 		sentiment,
 		period: {
