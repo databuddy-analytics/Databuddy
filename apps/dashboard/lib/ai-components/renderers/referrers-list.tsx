@@ -21,6 +21,8 @@ export interface ReferrersListProps extends BaseComponentProps {
 	title?: string;
 }
 
+const PLAIN_HOSTNAME_RE = /^[a-z\d-]+(?:\.[a-z\d-]+)*$/i;
+
 function formatNumber(value: number): string {
 	return Intl.NumberFormat(undefined, {
 		notation: value > 9999 ? "compact" : "standard",
@@ -31,6 +33,8 @@ function formatNumber(value: number): string {
 function ReferrerRow({ referrer }: { referrer: ReferrerItem }) {
 	const displayName = referrer.name || referrer.referrer || "Direct";
 	const isDirect = displayName === "Direct" || !referrer.domain;
+	const domain = referrer.domain?.trim() ?? "";
+	const isLinkable = !isDirect && PLAIN_HOSTNAME_RE.test(domain);
 
 	return (
 		<div className="flex items-center gap-3 rounded-sm bg-muted px-2.5 py-2.5 transition-colors hover:bg-accent">
@@ -45,17 +49,12 @@ function ReferrerRow({ referrer }: { referrer: ReferrerItem }) {
 						size={16}
 					/>
 				)}
-				{isDirect ? (
-					<TruncatedText
-						className="truncate font-medium text-sm"
-						text={displayName}
-					/>
-				) : (
+				{isLinkable ? (
 					<a
 						className={cn(
 							"flex min-w-0 cursor-pointer items-center gap-2 hover:text-foreground hover:underline"
 						)}
-						href={`https://${referrer.domain?.trim()}`}
+						href={`https://${domain}`}
 						onClick={(e) => {
 							e.stopPropagation();
 						}}
@@ -67,6 +66,11 @@ function ReferrerRow({ referrer }: { referrer: ReferrerItem }) {
 							text={displayName}
 						/>
 					</a>
+				) : (
+					<TruncatedText
+						className="truncate font-medium text-sm"
+						text={displayName}
+					/>
 				)}
 			</div>
 			<div className="flex shrink-0 items-center gap-3 text-balance text-right">

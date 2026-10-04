@@ -7,6 +7,7 @@ import type {
 	InvestigationOutcome,
 } from "@databuddy/shared/insights";
 import { Button, dayjs, Skeleton, StatusDot } from "@databuddy/ui";
+import { DeleteDialog } from "@databuddy/ui/client";
 import Link from "next/link";
 import { useId, useState } from "react";
 import { toast } from "sonner";
@@ -40,17 +41,20 @@ type DefinitionExecution = Extract<
 
 export function ExecuteDefinitionAction({
 	action,
+	entityLabel,
 	execution,
 	insightId,
 	definitionType,
 }: {
 	action: string;
+	entityLabel: string;
 	execution: DefinitionExecution;
 	definitionType: "funnel" | "goal";
 	insightId: string;
 }) {
 	const queryClient = useQueryClient();
 	const memberRole = authClient.useActiveMemberRole();
+	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const apply = useMutation({
 		...orpc.insights.applyAction.mutationOptions(),
 		onError: (error) => {
@@ -88,7 +92,13 @@ export function ExecuteDefinitionAction({
 			<Button
 				disabled={Boolean(accessReason) || apply.isPending}
 				loading={apply.isPending}
-				onClick={() => apply.mutate({ insightId })}
+				onClick={() => {
+					if (deleting) {
+						setConfirmingDelete(true);
+						return;
+					}
+					apply.mutate({ insightId });
+				}}
 				size="sm"
 				tone={deleting ? "destructive" : "neutral"}
 				type="button"
@@ -98,6 +108,19 @@ export function ExecuteDefinitionAction({
 			</Button>
 			{accessReason ? (
 				<p className="text-muted-foreground text-xs">{accessReason}</p>
+			) : null}
+			{deleting ? (
+				<DeleteDialog
+					confirmLabel={`Delete ${definitionType}`}
+					description={`Delete ${entityLabel}? Historical events remain in your analytics, but this ${definitionType} will no longer be available for reporting.`}
+					isDeleting={apply.isPending}
+					isOpen={confirmingDelete}
+					onClose={() => setConfirmingDelete(false)}
+					onConfirm={async () => {
+						await apply.mutateAsync({ insightId });
+					}}
+					title={`Delete ${definitionType}`}
+				/>
 			) : null}
 		</div>
 	);
@@ -349,6 +372,7 @@ export function InvestigationActivity({
 					<ExecuteDefinitionAction
 						action={outcome.next.type === "act" ? outcome.next.action : ""}
 						definitionType={definitionType}
+						entityLabel={item.entity.label}
 						execution={execution}
 						insightId={insightId}
 					/>
