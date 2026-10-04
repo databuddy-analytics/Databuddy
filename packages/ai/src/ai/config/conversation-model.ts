@@ -2,7 +2,7 @@ import type { SystemModelMessage } from "ai";
 import type { AgentConfig, AgentThinking } from "../agents/types";
 import { ANTHROPIC_CACHE_1H } from "./models";
 
-const OPENAI_EFFORT_MODEL_IDS = new Set([
+const OPENAI_REASONING_MODEL_IDS = new Set([
 	"openai/gpt-5.6-luna",
 	"openai/gpt-5.6-terra",
 	"openai/gpt-6.1-sol",
@@ -31,11 +31,10 @@ export function conversationModelOptions(
 	}
 	// Register effort support by concrete model ID, so changing the default tier
 	// cannot send these OpenAI options to an unrelated model.
-	if (OPENAI_EFFORT_MODEL_IDS.has(modelId) && effort) {
-		return {
-			temperature: undefined,
-			providerOptions: { openai: { reasoningEffort: effort } },
-		};
+	if (OPENAI_REASONING_MODEL_IDS.has(modelId)) {
+		return effort
+			? { providerOptions: { openai: { reasoningEffort: effort } } }
+			: {};
 	}
 	// "off" means no application override, not disabling model-native reasoning.
 	return { temperature: 0.1 };

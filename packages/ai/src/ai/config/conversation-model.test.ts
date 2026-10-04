@@ -51,7 +51,7 @@ describe("conversation model compatibility", () => {
 			const openai = conversationModelOptions(modelNames.balanced, thinking);
 			expect(openai.providerOptions).toBeUndefined();
 			expect(openai.systemProviderOptions).toBeUndefined();
-			expect(openai.temperature).toBe(0.1);
+			expect(openai.temperature).toBeUndefined();
 
 			const claude = conversationModelOptions(
 				"anthropic/claude-sonnet-4.6",
