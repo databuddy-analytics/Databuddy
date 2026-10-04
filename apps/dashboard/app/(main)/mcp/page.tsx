@@ -10,9 +10,12 @@ import {
 	Text,
 	Tooltip,
 } from "@databuddy/ui";
-import { DropdownMenu } from "@databuddy/ui/client";
+import { DropdownMenu, Tabs } from "@databuddy/ui/client";
 import {
+	CaretRightIcon,
 	CaretUpDownIcon,
+	ChartBarIcon,
+	CheckIcon,
 	OpenExternalIcon,
 	PlugIcon,
 	XMarkIcon,
@@ -24,7 +27,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { parseAsString, useQueryStates } from "nuqs";
 import { Suspense, useState } from "react";
+import { toast } from "sonner";
+import {
+	CODING_AGENTS,
+	COPY_SUCCESS_TIMEOUT,
+} from "@/app/(main)/websites/[id]/_components/constants/settings-constants";
 import { formatDateByGranularity } from "@/app/(main)/websites/[id]/_components/utils/analytics-helpers";
+import { generateMcpAgentPrompt } from "@/app/(main)/websites/[id]/_components/utils/code-generators";
 import {
 	CodeBlock,
 	CodeBlockCopyButton,
@@ -39,6 +48,7 @@ import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { useWebsitesLight } from "@/hooks/use-websites";
+import { APP_EVENTS, trackAppEvent } from "@/lib/app-events";
 import { isDashboardE2E } from "@/lib/e2e-mode";
 import { formatCount, formatNumber } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -106,10 +116,100 @@ const FILTERS = {
 	website_id: parseAsString,
 };
 
-const SETUP_CODE = `import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+const MANUAL_SETUP = [
+	{
+		id: "node",
+		label: "Node",
+		language: "tsx",
+		code: `import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { trackMcp } from "@databuddy/sdk/mcp";
 
-const server = trackMcp(new McpServer({ name: "my-server", version: "1.0.0" }));`;
+const server = trackMcp(
+  new McpServer({ name: "my-server", version: "1.0.0" })
+);`,
+	},
+	{
+		id: "vercel",
+		label: "Vercel",
+		language: "tsx",
+		code: `import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
+import { waitUntil } from "@vercel/functions";
+import { trackMcp } from "@databuddy/sdk/mcp";
+
+const handler = createMcpHandler(() =>
+  trackMcp(new McpServer({ name: "my-server", version: "1.0.0" }), {
+    waitUntil,
+  })
+);
+
+export const POST = (request: Request) => handler.fetch(request);`,
+	},
+	{
+		id: "cloudflare",
+		label: "Cloudflare Workers",
+		language: "tsx",
+		code: `import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
+import { env, waitUntil } from "cloudflare:workers";
+import { trackMcp } from "@databuddy/sdk/mcp";
+
+const handler = createMcpHandler(() =>
+  trackMcp(new McpServer({ name: "my-server", version: "1.0.0" }), {
+    apiKey: env.DATABUDDY_API_KEY,
+    waitUntil,
+  })
+);
+
+export default {
+  fetch: (request: Request) => handler.fetch(request),
+};`,
+	},
+	{
+		id: "stdio",
+		label: "stdio",
+		language: "tsx",
+		code: `{
+  "mcpServers": {
+    "my-server": {
+      "command": "node",
+      "args": ["/path/to/server.js"],
+      "env": {
+        "DATABUDDY_API_KEY": "dbdy_your_key",
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}`,
+	},
+] as const;
+
+const SETUP_NOTES: Record<(typeof MANUAL_SETUP)[number]["id"], string> = {
+	node: "Works with McpServer and the low-level Server from @modelcontextprotocol/sdk. Calls are sent in batches every second.",
+	vercel:
+		"waitUntil sends each call before the function stops. With @modelcontextprotocol/server, wrap the server inside the createMcpHandler factory.",
+	cloudflare: "Store the key with wrangler secret put DATABUDDY_API_KEY.",
+	stdio:
+		"Clients that start a stdio server pass it only the variables in their config, so set the key in the server's env.",
+};
+
+function SetupCode({
+	code,
+	language,
+	onCopy,
+}: {
+	code: string;
+	language: React.ComponentProps<typeof CodeBlock>["language"];
+	onCopy: () => void;
+}) {
+	return (
+		<CodeBlock
+			className="text-xs [&>div>div>pre]:p-3 [&_code]:text-xs"
+			code={code}
+			language={language}
+		>
+			<CodeBlockCopyButton onCopy={onCopy} />
+		</CodeBlock>
+	);
+}
 
 function formatMs(ms: number | null) {
 	if (ms === null) {
@@ -311,10 +411,27 @@ function Panel({
 }
 
 function Setup() {
+	const [copied, setCopied] = useState<string | null>(null);
+	const [isManualOpen, setIsManualOpen] = useState(false);
+
+	const copyPrompt = async (agentId: string) => {
+		try {
+			await navigator.clipboard.writeText(generateMcpAgentPrompt());
+		} catch {
+			toast.error("Copy failed. Select the text and copy it manually.");
+			return;
+		}
+		setCopied(agentId);
+		setTimeout(() => setCopied(null), COPY_SUCCESS_TIMEOUT);
+		trackAppEvent(APP_EVENTS.mcpSetupCopied, { block: agentId, method: "ai" });
+	};
+	const trackManualCopy = (block: string) =>
+		trackAppEvent(APP_EVENTS.mcpSetupCopied, { block, method: "manual" });
+
 	return (
-		<div className="mx-auto flex w-full max-w-xl flex-col gap-5 px-4 py-12">
+		<div className="mx-auto flex w-full max-w-xl flex-col gap-6 px-4 py-12">
 			<div className="space-y-1 text-center">
-				<PlugIcon className="mx-auto mb-3 size-6 text-muted-foreground" />
+				<ChartBarIcon className="mx-auto mb-3 size-6 text-muted-foreground" />
 				<p className="text-balance font-semibold">
 					See how AI uses your MCP servers
 				</p>
@@ -324,55 +441,122 @@ function Setup() {
 					server. Failed calls send their error message.
 				</p>
 			</div>
-			<div className="space-y-2">
-				<Text variant="label">1. Install the SDK</Text>
-				<CodeBlock
-					className="text-xs [&>div>div>pre]:p-3 [&_code]:text-xs"
-					code="bun add @databuddy/sdk@latest"
-					language="bash"
-				>
-					<CodeBlockCopyButton />
-				</CodeBlock>
-			</div>
-			<div className="space-y-2">
-				<Text variant="label">2. Add your API key</Text>
-				<CodeBlock
-					className="text-xs [&>div>div>pre]:p-3 [&_code]:text-xs"
-					code="DATABUDDY_API_KEY=dbdy_..."
-					language="bash"
-				>
-					<CodeBlockCopyButton />
-				</CodeBlock>
-				<Text tone="muted" variant="caption">
-					Use a key with the Event Tracking scope.{" "}
+
+			<div className="space-y-2.5">
+				<p className="font-medium text-muted-foreground text-xs">
+					Send to your coding agent
+				</p>
+				<p className="text-pretty text-muted-foreground text-xs">
+					The prompt finds your MCP server, wraps it and checks the first call.
+					Your agent asks for an API key with the Event Tracking scope.{" "}
 					<Link
 						className="text-foreground underline underline-offset-2"
 						href="/organizations/settings#api-keys"
 					>
 						Create one
 					</Link>
-				</Text>
+				</p>
+				<div className="flex flex-wrap gap-2">
+					{CODING_AGENTS.map((agent) => (
+						<Button
+							className="border border-border bg-background hover:bg-accent"
+							key={agent.id}
+							onClick={() => copyPrompt(agent.id)}
+							size="sm"
+							variant="ghost"
+						>
+							{copied === agent.id ? (
+								<CheckIcon className="size-4 text-success" />
+							) : (
+								<img
+									alt=""
+									className={cn("size-4", agent.invert && "dark:invert")}
+									height={16}
+									src={`/ai/${agent.icon}.svg`}
+									width={16}
+								/>
+							)}
+							{agent.name}
+						</Button>
+					))}
+				</div>
 			</div>
-			<div className="space-y-2">
-				<Text variant="label">3. Wrap your server</Text>
-				<CodeBlock
-					className="text-xs [&>div>div>pre]:p-3 [&_code]:text-xs"
-					code={SETUP_CODE}
-					language="tsx"
+
+			<div>
+				<Button
+					aria-expanded={isManualOpen}
+					className="-ml-2.5"
+					onClick={() => setIsManualOpen((value) => !value)}
+					size="sm"
+					variant="ghost"
 				>
-					<CodeBlockCopyButton />
-				</CodeBlock>
-				<Text tone="muted" variant="caption">
-					Servers that run in an app with a Databuddy website ID are linked to
-					that website. On serverless, pass your platform's{" "}
-					<code className="font-mono">waitUntil</code> to{" "}
-					<code className="font-mono">trackMcp</code> so the last calls still
-					send. With <code className="font-mono">createMcpHandler</code> from{" "}
-					<code className="font-mono">@modelcontextprotocol/server</code> 2.x,
-					wrap the server inside the factory.
-				</Text>
+					<CaretRightIcon
+						className={cn(
+							"size-3 transition-transform duration-150 ease-in-out",
+							isManualOpen && "rotate-90"
+						)}
+					/>
+					Or set it up yourself
+				</Button>
+				<div
+					className={cn(
+						"grid transition-[grid-template-rows] duration-200 ease-in-out motion-reduce:transition-none",
+						isManualOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+					)}
+					inert={!isManualOpen}
+				>
+					<div className="min-h-0 overflow-hidden">
+						<div className="space-y-4 pt-3">
+							<div className="space-y-2">
+								<Text variant="label">1. Install the SDK</Text>
+								<SetupCode
+									code="bun add @databuddy/sdk@latest"
+									language="bash"
+									onCopy={() => trackManualCopy("install")}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Text variant="label">2. Add your API key</Text>
+								<SetupCode
+									code="DATABUDDY_API_KEY=dbdy_your_key"
+									language="bash"
+									onCopy={() => trackManualCopy("api_key")}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Text variant="label">3. Wrap your server</Text>
+								<Tabs className="w-full" defaultValue="node">
+									<Tabs.List>
+										{MANUAL_SETUP.map((setup) => (
+											<Tabs.Tab key={setup.id} value={setup.id}>
+												{setup.label}
+											</Tabs.Tab>
+										))}
+									</Tabs.List>
+									{MANUAL_SETUP.map((setup) => (
+										<Tabs.Panel
+											className="mt-3 space-y-2"
+											key={setup.id}
+											value={setup.id}
+										>
+											<SetupCode
+												code={setup.code}
+												language={setup.language}
+												onCopy={() => trackManualCopy(setup.id)}
+											/>
+											<Text tone="muted" variant="caption">
+												{SETUP_NOTES[setup.id]}
+											</Text>
+										</Tabs.Panel>
+									))}
+								</Tabs>
+							</div>
+						</div>
+					</div>
+				</div>
 			</div>
-			<div className="flex flex-wrap items-center justify-between gap-3">
+
+			<div className="flex flex-wrap items-center justify-between gap-3 border-border border-t pt-4">
 				<Text
 					className="flex items-center gap-2"
 					tone="muted"
@@ -484,7 +668,7 @@ function McpAnalytics({ organizationId }: { organizationId?: string }) {
 	return (
 		<div className="relative flex h-full flex-col overflow-y-auto">
 			<TopBar.Title>
-				<h1 className="font-semibold text-sm">MCP Servers</h1>
+				<h1 className="font-semibold text-sm">MCP Analytics</h1>
 				<Badge className="h-5 px-2" variant="warning">
 					Alpha
 				</Badge>
@@ -541,7 +725,7 @@ function McpAnalytics({ organizationId }: { organizationId?: string }) {
 							</Button>
 						}
 						description="Databuddy couldn't load MCP activity for this organization."
-						icon={<PlugIcon />}
+						icon={<ChartBarIcon />}
 						isMainContent
 						title="Couldn't load MCP activity"
 						variant="error"

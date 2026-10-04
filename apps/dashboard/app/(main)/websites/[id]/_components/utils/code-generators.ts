@@ -249,6 +249,54 @@ ${siteContextSection(context)}${AGENT_FEATURE_GUIDE}
 ${agentFeedbackSection(apiUrl, websiteId, setupSession)}`;
 }
 
+export function generateMcpAgentPrompt(): string {
+	const basketOption = isSelfHosted
+		? `, { apiUrl: ${JSON.stringify(publicConfig.urls.basket)} }`
+		: "";
+	const dashboardUrl = isSelfHosted
+		? publicConfig.urls.dashboard
+		: "https://app.databuddy.cc";
+	return `Add Databuddy MCP analytics to the MCP server in this repository, so every tool call shows up on the Databuddy MCP Analytics page: which tools AI clients call, how fast they answer, and why they fail. Tool arguments and successful results never leave the server; only the length of the returned text and the error message of failed calls are sent.
+
+## References
+- MCP analytics docs: https://www.databuddy.cc/docs/sdk/mcp
+- LLMs.txt: https://www.databuddy.cc/llms.txt
+
+## Steps
+
+1. Find the MCP server. Look for \`@modelcontextprotocol/sdk\` (\`McpServer\` or the low-level \`Server\`), \`@modelcontextprotocol/server\` (\`createMcpHandler\`, \`serveStdio\`) or Vercel's \`mcp-handler\`. If there are several servers, instrument each one and give each a distinct \`name\`.
+2. Install the SDK with the package manager that matches the lockfile: \`bun add @databuddy/sdk@latest\` (or npm, pnpm, yarn).
+3. Wrap the server once, where it is created, before or after tools are registered:
+\`\`\`ts
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { trackMcp } from "@databuddy/sdk/mcp";
+
+const server = trackMcp(
+  new McpServer({ name: "my-server", version: "1.0.0" })${basketOption}
+);
+\`\`\`
+   - \`@modelcontextprotocol/server\` 2.x builds a server per request, so call \`trackMcp\` inside the \`createMcpHandler\` or \`serveStdio\` factory.
+   - Vercel \`mcp-handler\`: call \`trackMcp(server)\` inside the callback it passes the server to, and set \`serverInfo: { name, version }\`.
+4. Read the API key from \`DATABUDDY_API_KEY\`. Never hardcode or commit it. Add \`DATABUDDY_API_KEY=\` to \`.env.example\` if the repository has one, and ask me to create a key with the Event Tracking scope at ${dashboardUrl}/organizations/settings#api-keys.
+5. Serverless (Vercel, Cloudflare Workers, Netlify, AWS Lambda): a function can stop before the batch is sent, so pass the platform's \`waitUntil\`: \`trackMcp(server, { waitUntil })\`. On Vercel import it from \`@vercel/functions\`; on Cloudflare Workers import \`env\` and \`waitUntil\` from \`cloudflare:workers\` and pass \`apiKey: env.DATABUDDY_API_KEY\`.
+6. stdio servers started by a desktop client (Claude Desktop, Cursor, VS Code) only receive the variables in the client config, so \`DATABUDDY_API_KEY\` belongs in the server's \`env\` block there. Update any client config examples in the README accordingly.
+7. If the server ends itself with \`process.exit\`, for example in a SIGINT or SIGTERM handler, call \`await flushMcp()\` (from \`@databuddy/sdk/mcp\`) first.
+8. Only if the server has no error convention yet: return failed tool calls as \`isError\` results whose text is JSON with a stable, low-cardinality snake_case code, for example \`{"error":{"code":"not_found","message":"Website not found"}}\`. The MCP Analytics page groups failures by that code. Do not rewrite existing error handling.
+
+## Verification
+
+1. Run the server with \`DATABUDDY_API_KEY\` set and call any tool once, for example with \`npx @modelcontextprotocol/inspector\`.
+2. Temporarily pass \`debug: true\` to \`trackMcp\` to log a missing key or a rejected batch to stderr, then remove it.
+3. The Databuddy MCP Analytics page checks for the first call every few seconds and switches to the analytics view on its own.
+
+## Common issues
+
+- **401 or 403 from basket**: the key is wrong, or it lacks the Event Tracking scope. A key limited to some websites can only send calls linked to one of them.
+- **Nothing arrives from a stdio server**: the key is set in the shell but not in the client config's \`env\`.
+- **Nothing arrives on serverless**: \`waitUntil\` is missing.
+`;
+}
+
 export function generateScriptTag(
 	websiteId: string,
 	trackingOptions: TrackingOptions,

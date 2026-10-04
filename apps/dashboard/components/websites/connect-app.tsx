@@ -16,7 +16,10 @@ import vue from "shiki/langs/vue.mjs";
 import vesper from "shiki/themes/vesper.mjs";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { COPY_SUCCESS_TIMEOUT } from "@/app/(main)/websites/[id]/_components/constants/settings-constants";
+import {
+	CODING_AGENTS,
+	COPY_SUCCESS_TIMEOUT,
+} from "@/app/(main)/websites/[id]/_components/constants/settings-constants";
 import {
 	generateAgentPrompt,
 	generateNpmCode,
@@ -26,15 +29,8 @@ import {
 import type { SiteResearch } from "@/hooks/use-site-research";
 import { RECOMMENDED_DEFAULTS } from "@/app/(main)/websites/[id]/_components/utils/tracking-defaults";
 
-const AGENTS = [
-	{ id: "cursor", name: "Cursor", icon: "Cursor", invert: true },
-	{ id: "claude", name: "Claude Code", icon: "Claude", invert: false },
-	{ id: "codex", name: "Codex", icon: "ChatGPT", invert: true },
-	{ id: "copilot", name: "Copilot", icon: "Copilot", invert: false },
-] as const;
-
 function agentName(id: string): string {
-	return AGENTS.find((agent) => agent.id === id)?.name ?? id;
+	return CODING_AGENTS.find((agent) => agent.id === id)?.name ?? id;
 }
 
 const highlighter = createHighlighterCoreSync({
@@ -213,7 +209,7 @@ export function ConnectApp({
 					<p className="text-pretty text-muted-foreground text-xs">{hint}</p>
 				) : null}
 				<div className="flex flex-wrap gap-2">
-					{AGENTS.map((agent) => (
+					{CODING_AGENTS.map((agent) => (
 						<Button
 							className="border border-border bg-background hover:bg-accent"
 							key={agent.id}
