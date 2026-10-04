@@ -443,11 +443,16 @@ type SetupRowId = "key" | "wrap";
 
 function Setup({ organizationId }: { organizationId?: string }) {
 	const queryClient = useQueryClient();
+	const [open, setOpen] = useState<SetupRowId | null>("key");
 	const createKey = useMutation({
 		...orpc.apikeys.create.mutationOptions(),
 		meta: { suppressGlobalErrorToast: true },
-		onSuccess: () =>
-			queryClient.invalidateQueries({ queryKey: orpc.apikeys.list.key() }),
+		onSuccess: () => {
+			setOpen("wrap");
+			return queryClient.invalidateQueries({
+				queryKey: orpc.apikeys.list.key(),
+			});
+		},
 	});
 	const secret = createKey.data?.secret;
 	const envLine = `DATABUDDY_API_KEY=${secret ?? KEY_PLACEHOLDER}`;
@@ -479,13 +484,6 @@ function Setup({ organizationId }: { organizationId?: string }) {
 			? "skipped"
 			: "active";
 	const wrapStatus: SetupRowStatus = promptAgent ? "waiting" : "active";
-	const focus: SetupRowId = keyStatus === "active" ? "key" : "wrap";
-	const [open, setOpen] = useState<SetupRowId | null>(focus);
-	const [lastFocus, setLastFocus] = useState(focus);
-	if (focus !== lastFocus) {
-		setLastFocus(focus);
-		setOpen(focus);
-	}
 	const toggle = (id: SetupRowId) => () =>
 		setOpen((current) => (current === id ? null : id));
 	const agentName = CODING_AGENTS.find(
@@ -556,7 +554,10 @@ function Setup({ organizationId }: { organizationId?: string }) {
 									Create a key
 								</Button>
 								<Button
-									onClick={() => setHasOwnKey(true)}
+									onClick={() => {
+										setHasOwnKey(true);
+										setOpen("wrap");
+									}}
 									size="sm"
 									variant="ghost"
 								>
@@ -1055,7 +1056,7 @@ function McpAnalytics({ organizationId }: { organizationId?: string }) {
 														? row.versions
 																.map((version) => `v${version}`)
 																.join(", ")
-														: row.user_agents?.join(", ") ||
+														: row.user_agents.join(", ") ||
 															"No version reported"}
 												</p>
 											</div>
