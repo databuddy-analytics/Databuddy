@@ -15,7 +15,7 @@ import type {
 } from "@databuddy/rpc";
 import { Select, Switch, TagsInput } from "@databuddy/ui/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
 
@@ -33,7 +33,7 @@ const TRACKING_MODES: Array<{
 	},
 	{
 		value: "warnings_and_critical",
-		label: "Warnings + critical",
+		label: "Warnings and critical",
 		description: "Email for critical drops and blocked-traffic spikes.",
 	},
 	{
@@ -119,9 +119,10 @@ export function EmailPreferencesCard() {
 		...settingsQueryOptions,
 		enabled: !!activeOrganizationId,
 	});
-	const updateMutation = useMutation(
-		orpc.organizations.updateEmailNotificationSettings.mutationOptions()
-	);
+	const updateMutation = useMutation({
+		...orpc.organizations.updateEmailNotificationSettings.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
+	});
 	const isSaving = updateMutation.isPending;
 
 	const save = async (patch: EmailNotificationSettingsPatch) => {
@@ -134,8 +135,8 @@ export function EmailPreferencesCard() {
 				settings: patch,
 			});
 			queryClient.setQueryData(settingsQueryOptions.queryKey, updated);
-		} catch {
-			toast.error("Failed to update email preferences");
+		} catch (error) {
+			showErrorToast(error, "Failed to update email preferences");
 		}
 	};
 
@@ -165,7 +166,7 @@ export function EmailPreferencesCard() {
 					<>
 						<SettingSection title="System">
 							<SettingCard
-								description="Login codes, verification, password reset, delete-account confirmation, and invitations."
+								description="Sign-in codes, verification, password reset, delete-account confirmation, and invitations."
 								title="Required account emails"
 							>
 								<Badge variant="success">Always on</Badge>

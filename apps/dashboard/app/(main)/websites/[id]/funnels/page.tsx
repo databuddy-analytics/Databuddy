@@ -121,7 +121,7 @@ export default function FunnelsPage() {
 
 		const funnel = funnels.find((candidate) => candidate.id === funnelId);
 		if (!funnel) {
-			toast.error("This funnel no longer exists");
+			toast.error("This funnel no longer exists. It may have been deleted.");
 		} else if (command === "edit-funnel") {
 			const proposal = insightDefinitionEditChangesSchema.safeParse({
 				description: searchParams.get("description"),
@@ -142,7 +142,9 @@ export default function FunnelsPage() {
 					setEditing(proposedFunnel);
 				}
 			} else {
-				toast.error("Databuddy's suggested changes could not be loaded");
+				toast.error(
+					"Databuddy's suggested changes could not be loaded. Open the recommendation again."
+				);
 			}
 		} else {
 			setDeletingId(funnel.id);
@@ -226,7 +228,7 @@ export default function FunnelsPage() {
 		<FeatureGate feature={GATED_FEATURES.FUNNELS}>
 			<div className="relative flex h-full flex-col">
 				<TopBar.Title>
-					<h1 className="font-semibold text-sm">Conversion Funnels</h1>
+					<h1 className="font-semibold text-sm">Conversion funnels</h1>
 				</TopBar.Title>
 				<TopBar.Actions>
 					<Button
@@ -243,7 +245,7 @@ export default function FunnelsPage() {
 					{!isDemoRoute && (
 						<Button onClick={openCreate} size="sm">
 							<PlusIcon className="size-4 shrink-0" />
-							Create Funnel
+							Create funnel
 						</Button>
 					)}
 				</TopBar.Actions>
@@ -263,7 +265,7 @@ export default function FunnelsPage() {
 							title: "No funnels yet",
 						}}
 						errorProps={{
-							action: { label: "Retry", onClick: () => refreshAction() },
+							action: { label: "Try again", onClick: () => refreshAction() },
 							description:
 								error?.message ??
 								"Something went wrong while loading funnel data.",
@@ -340,7 +342,7 @@ export default function FunnelsPage() {
 
 				{!isDemoRoute && !!deletingId && (
 					<DeleteDialog
-						confirmLabel="Delete Funnel"
+						confirmLabel="Delete funnel"
 						isOpen={!!deletingId}
 						itemName="this funnel"
 						onClose={() => setDeletingId(null)}
@@ -349,7 +351,7 @@ export default function FunnelsPage() {
 								return handleDelete(deletingId);
 							}
 						}}
-						title="Delete Funnel"
+						title="Delete funnel"
 					/>
 				)}
 			</div>

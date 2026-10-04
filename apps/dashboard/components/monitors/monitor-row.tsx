@@ -60,6 +60,7 @@ export function useMonitorActions(
 
 	const pauseMutation = useMutation({
 		...orpc.uptime.pauseSchedule.mutationOptions(),
+		meta: { errorTitle: "Failed to pause monitor" },
 		onSuccess: () => {
 			toast.success("Monitor paused");
 			return invalidateMonitorQueries(queryClient, scheduleId);
@@ -67,6 +68,7 @@ export function useMonitorActions(
 	});
 	const resumeMutation = useMutation({
 		...orpc.uptime.resumeSchedule.mutationOptions(),
+		meta: { errorTitle: "Failed to resume monitor" },
 		onSuccess: () => {
 			toast.success("Monitor resumed");
 			return invalidateMonitorQueries(queryClient, scheduleId);
@@ -74,10 +76,12 @@ export function useMonitorActions(
 	});
 	const deleteMutation = useMutation({
 		...orpc.uptime.deleteSchedule.mutationOptions(),
+		meta: { errorTitle: "Failed to delete monitor" },
 		onSuccess: () => handleRemoved("Monitor deleted"),
 	});
 	const transferMutation = useMutation({
 		...orpc.uptime.transfer.mutationOptions(),
+		meta: { errorTitle: "Failed to transfer monitor" },
 		onSuccess: () => {
 			setIsTransferOpen(false);
 			return handleRemoved("Monitor transferred");
@@ -85,6 +89,7 @@ export function useMonitorActions(
 	});
 	const manualCheckMutation = useMutation({
 		...orpc.uptime.manualCheck.mutationOptions(),
+		meta: { errorTitle: "Failed to run check" },
 		onSuccess: () => {
 			toast.success("Check triggered");
 			setTimeout(() => {
@@ -122,7 +127,7 @@ export function useMonitorActions(
 					onConfirm={async () => {
 						await deleteMutation.mutateAsync({ scheduleId });
 					}}
-					title="Delete Monitor"
+					title="Delete monitor"
 				/>
 				{canTransfer ? (
 					<TransferToOrgDialog
@@ -134,7 +139,7 @@ export function useMonitorActions(
 							transferMutation.mutate({ scheduleId, targetOrganizationId })
 						}
 						open={isTransferOpen}
-						title="Transfer Monitor"
+						title="Transfer monitor"
 						warning="All monitoring data and configuration will be transferred to {orgName}."
 					/>
 				) : null}
@@ -171,7 +176,7 @@ function MonitorActions({ schedule, onEditAction }: MonitorRowProps) {
 				<DropdownMenu.Content align="end" className="w-52">
 					<DropdownMenu.Item className="gap-2" onClick={onEditAction}>
 						<PencilSimpleIcon className="size-4" />
-						Edit Monitor
+						Edit
 					</DropdownMenu.Item>
 					<DropdownMenu.Item
 						className="gap-2"
@@ -179,7 +184,7 @@ function MonitorActions({ schedule, onEditAction }: MonitorRowProps) {
 						onClick={actions.checkNow}
 					>
 						<LightningIcon className="size-4" />
-						Check Now
+						Check now
 					</DropdownMenu.Item>
 					<DropdownMenu.Item
 						className="gap-2"
@@ -196,7 +201,7 @@ function MonitorActions({ schedule, onEditAction }: MonitorRowProps) {
 					{actions.canTransfer ? (
 						<DropdownMenu.Item className="gap-2" onClick={actions.openTransfer}>
 							<ArrowSquareOutIcon className="size-4" />
-							Transfer to Organization
+							Transfer to organization
 						</DropdownMenu.Item>
 					) : null}
 					<DropdownMenu.Separator />
@@ -207,7 +212,7 @@ function MonitorActions({ schedule, onEditAction }: MonitorRowProps) {
 						variant="destructive"
 					>
 						<TrashIcon className="size-4 fill-destructive" />
-						Delete Monitor
+						Delete
 					</DropdownMenu.Item>
 				</DropdownMenu.Content>
 			</DropdownMenu>

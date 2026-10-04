@@ -18,6 +18,7 @@ import {
 	XCircleIcon,
 } from "@databuddy/ui/icons";
 import { Badge, Button, EmptyState, Skeleton, dayjs } from "@databuddy/ui";
+import { showErrorToast } from "@/lib/user-facing-error";
 
 interface InvitationData {
 	email: string;
@@ -172,7 +173,7 @@ function InvitationDetails({
 						) : (
 							<>
 								<UserPlusIcon className="size-4" />
-								Join Organization
+								Join organization
 							</>
 						)}
 					</Button>
@@ -181,7 +182,7 @@ function InvitationDetails({
 						onClick={onDeclineAction}
 						variant="secondary"
 					>
-						Maybe Later
+						Maybe later
 					</Button>
 				</div>
 			</div>
@@ -211,7 +212,7 @@ function SuccessState({ organizationName }: { organizationName: string }) {
 				</div>
 
 				<Button className="gap-2" onClick={() => router.push("/websites")}>
-					Go to Dashboard
+					Go to dashboard
 					<ArrowRightIcon className="size-4" />
 				</Button>
 			</div>
@@ -225,12 +226,12 @@ function ExpiredState() {
 	return (
 		<EmptyState
 			action={{
-				label: "Back to Home",
+				label: "Back to home",
 				onClick: () => router.push("/websites"),
 			}}
-			description="This invitation has expired or is no longer valid. Please contact the organization admin for a new invitation."
+			description="This invitation has expired or is no longer valid. Contact the organization admin for a new invitation."
 			icon={<XCircleIcon />}
-			title="Invitation Expired"
+			title="Invitation expired"
 			variant="error"
 		/>
 	);
@@ -246,12 +247,12 @@ function AlreadyMemberState({
 	return (
 		<EmptyState
 			action={{
-				label: "Go to Dashboard",
+				label: "Go to dashboard",
 				onClick: () => router.push("/websites"),
 			}}
 			description={`You're already a member of ${organizationName}.`}
 			icon={<CheckCircleIcon />}
-			title="Already a Member"
+			title="Already a member"
 			variant="minimal"
 		/>
 	);
@@ -263,7 +264,7 @@ function ErrorState({ message }: { message: string }) {
 	return (
 		<EmptyState
 			action={{
-				label: "Back to Home",
+				label: "Back to home",
 				onClick: () => router.push("/websites"),
 			}}
 			description={message}
@@ -323,6 +324,7 @@ export default function AcceptInvitationPage() {
 			});
 		} else {
 			setActionStatus("idle");
+			showErrorToast(result.error, "Failed to accept invitation");
 		}
 	}, [invitation, invitationId, queryClient]);
 

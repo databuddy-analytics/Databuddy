@@ -57,7 +57,7 @@ function AnalyticsSkeleton() {
 				<StatCard icon={UsersIcon} isLoading title="Users" value={0} />
 				<StatCard icon={TargetIcon} isLoading title="Conversion" value={0} />
 				<StatCard icon={TrendDownIcon} isLoading title="Drop-off" value={0} />
-				<StatCard icon={ClockIcon} isLoading title="Avg Time" value={0} />
+				<StatCard icon={ClockIcon} isLoading title="Avg time" value={0} />
 			</div>
 
 			<div className="space-y-3">
@@ -146,7 +146,7 @@ export function FunnelAnalytics({
 						</div>
 						<div>
 							<div className="font-medium text-destructive text-sm">
-								Error loading analytics
+								Failed to load analytics
 							</div>
 							<div className="text-muted-foreground text-xs">
 								{error.message}
@@ -160,7 +160,7 @@ export function FunnelAnalytics({
 						variant="secondary"
 					>
 						<ArrowClockwiseIcon className="size-3.5" />
-						Retry
+						Try again
 					</Button>
 				</div>
 			</div>
@@ -216,7 +216,7 @@ export function FunnelAnalytics({
 					}
 					icon={ClockIcon}
 					showChart={hasChartData && displayData.duration_available}
-					title="Avg Time"
+					title="Avg time"
 					value={displayData.avg_completion_time_formatted || "—"}
 				/>
 			</div>

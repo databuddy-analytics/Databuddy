@@ -41,7 +41,7 @@ export function TransferWebsiteDialog({
 		(org: Organization) => org.id === website.organizationId
 	) || {
 		id: website.organizationId,
-		name: "Current Organization",
+		name: "Current organization",
 		slug: "",
 		logo: null as string | null,
 		createdAt: new Date(),
@@ -64,7 +64,9 @@ export function TransferWebsiteDialog({
 
 		const targetOrg = organizations?.find((org) => org.id === selectedOrgId);
 		if (!targetOrg) {
-			toast.error("Selected organization not found");
+			toast.error(
+				"That organization is no longer available. Pick another one."
+			);
 			return;
 		}
 
@@ -110,7 +112,7 @@ export function TransferWebsiteDialog({
 				<Dialog.Content>
 					<Dialog.Close />
 					<Dialog.Header>
-						<Dialog.Title>Confirm Website Transfer</Dialog.Title>
+						<Dialog.Title>Confirm website transfer</Dialog.Title>
 						<Dialog.Description>
 							This action cannot be undone.
 						</Dialog.Description>
@@ -190,7 +192,7 @@ export function TransferWebsiteDialog({
 						</Button>
 						<Button loading={isTransferring} onClick={handleTransfer}>
 							<ArrowSquareOutIcon className="size-4" />
-							Confirm Transfer
+							Confirm transfer
 						</Button>
 					</Dialog.Footer>
 				</Dialog.Content>
@@ -203,7 +205,7 @@ export function TransferWebsiteDialog({
 			<Dialog.Content className="sm:max-w-md">
 				<Dialog.Close />
 				<Dialog.Header>
-					<Dialog.Title>Transfer Website</Dialog.Title>
+					<Dialog.Title>Transfer website</Dialog.Title>
 					<Dialog.Description>
 						Move "{website.name || website.domain}" to a different organization
 					</Dialog.Description>
@@ -212,7 +214,7 @@ export function TransferWebsiteDialog({
 				<Dialog.Body className="space-y-4">
 					<div className="space-y-2">
 						<span className="font-medium text-foreground text-xs">
-							Current Organization
+							Current organization
 						</span>
 						<div className="flex items-center gap-2.5 rounded border bg-secondary p-2.5">
 							<img
@@ -310,7 +312,7 @@ export function TransferWebsiteDialog({
 						onClick={() => setShowConfirmDialog(true)}
 					>
 						<ArrowSquareOutIcon className="size-4" />
-						Transfer Website
+						Transfer website
 					</Button>
 				</Dialog.Footer>
 			</Dialog.Content>

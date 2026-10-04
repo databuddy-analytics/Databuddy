@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useCallback, useMemo, useState } from "react";
 import { Controller, type SubmitHandler, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import {
 	type DeepLinkApp,
 	DEEP_LINK_APPS,
@@ -85,7 +86,9 @@ function DeepLinkForm({
 			});
 			toast.success("Deep link created");
 			onOpenChange(false);
-		} catch {}
+		} catch (error) {
+			showErrorToast(error, "Failed to create deep link");
+		}
 	};
 
 	const { isValid, isDirty } = form.formState;
@@ -127,7 +130,7 @@ function DeepLinkForm({
 								}}
 							/>
 							<Field.Description>
-								Paste a {app.name} link — on mobile, we'll open the app directly
+								Paste a {app.name} link. On mobile, we'll open the app directly.
 							</Field.Description>
 							{fieldState.error && (
 								<Field.Error>{fieldState.error.message}</Field.Error>
@@ -159,7 +162,7 @@ function DeepLinkForm({
 						render={({ field, fieldState }) => (
 							<Field error={!!fieldState.error}>
 								<Field.Label>Name</Field.Label>
-								<Input placeholder="My Instagram profile…" {...field} />
+								<Input placeholder="My Instagram profile" {...field} />
 								{fieldState.error && (
 									<Field.Error>{fieldState.error.message}</Field.Error>
 								)}
@@ -173,7 +176,7 @@ function DeepLinkForm({
 						render={({ field, fieldState }) => (
 							<Field error={!!fieldState.error}>
 								<Field.Label>
-									Short Link{" "}
+									Short link{" "}
 									<span className="text-muted-foreground">(optional)</span>
 								</Field.Label>
 								<Input
@@ -206,7 +209,7 @@ function DeepLinkForm({
 					loading={createLink.isPending}
 					type="submit"
 				>
-					Create Deep Link
+					Create deep link
 				</Button>
 			</Sheet.Footer>
 		</form>
@@ -231,11 +234,11 @@ export function DeepLinkSheet({ open, onOpenChange }: DeepLinkSheetProps) {
 			<Sheet.Content className="w-full sm:max-w-lg" side="right">
 				<Sheet.Header>
 					<Sheet.Title>
-						{selectedApp ? `${selectedApp.name} Deep Link` : "Create Deep Link"}
+						{selectedApp ? `${selectedApp.name} deep link` : "Create deep link"}
 					</Sheet.Title>
 					<Sheet.Description>
 						{selectedApp
-							? `Paste a ${selectedApp.name} URL — on mobile, the short link will open the app directly.`
+							? `Paste a ${selectedApp.name} URL. On mobile, the short link will open the app directly.`
 							: "Pick an app to create a deep link that opens directly in the native app on mobile."}
 					</Sheet.Description>
 				</Sheet.Header>

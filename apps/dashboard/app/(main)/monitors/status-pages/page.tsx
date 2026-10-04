@@ -78,6 +78,7 @@ function StatusPagesListPageContent() {
 
 	const deleteMutation = useMutation({
 		...orpc.statusPage.delete.mutationOptions(),
+		meta: { errorTitle: "Failed to delete status page" },
 		onSuccess: () => {
 			toast.success("Status page deleted");
 			return invalidateMonitorQueries(queryClient);
@@ -139,7 +140,7 @@ function StatusPagesListPageContent() {
 	return (
 		<ErrorBoundary>
 			<TopBar.Title>
-				<h1 className="font-semibold text-sm">Status Pages</h1>
+				<h1 className="font-semibold text-sm">Status pages</h1>
 			</TopBar.Title>
 			<TopBar.Actions>
 				<Button
@@ -159,7 +160,7 @@ function StatusPagesListPageContent() {
 				</Button>
 				<Button onClick={handleCreate} size="sm">
 					<PlusIcon className="size-4 shrink-0" />
-					Create Status Page
+					Create status page
 				</Button>
 			</TopBar.Actions>
 			<div className="flex-1 overflow-y-auto">
@@ -178,7 +179,7 @@ function StatusPagesListPageContent() {
 												variant="secondary"
 											>
 												<PlusIcon className="size-3.5" />
-												Create Status Page
+												Create status page
 											</Button>
 										}
 										description="Create a public status page to keep your users informed about system availability."
@@ -253,7 +254,7 @@ function StatusPagesListPageContent() {
 					itemName={statusPageToDelete?.name}
 					onClose={() => setStatusPageToDelete(null)}
 					onConfirm={handleConfirmDelete}
-					title="Delete Status Page"
+					title="Delete status page"
 				/>
 			</div>
 		</ErrorBoundary>

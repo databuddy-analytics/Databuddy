@@ -57,6 +57,7 @@ export default function StatusPageDetailsPage() {
 
 	const removeMutation = useMutation({
 		...orpc.statusPage.removeMonitor.mutationOptions(),
+		meta: { errorTitle: "Failed to remove monitor" },
 		onSuccess: () => {
 			toast.success("Monitor removed");
 			return invalidate();
@@ -96,7 +97,7 @@ export default function StatusPageDetailsPage() {
 							variant="secondary"
 						>
 							<PlusIcon className="size-3.5" />
-							Add Monitor
+							Add monitor
 						</Button>
 					}
 					description="Add an existing monitor or create a new one to display on this status page."
@@ -125,7 +126,7 @@ export default function StatusPageDetailsPage() {
 			<div className="flex min-h-0 flex-1 items-center justify-center p-6">
 				<EmptyState
 					action={{
-						label: "Retry",
+						label: "Try again",
 						onClick: () => statusPageQuery.refetch(),
 					}}
 					description="The status page could not be loaded. It may not exist or you may not have access."
@@ -142,7 +143,7 @@ export default function StatusPageDetailsPage() {
 			<div className="flex h-full min-h-0 flex-col">
 				<PageNavigation
 					breadcrumb={{
-						label: "Status Pages",
+						label: "Status pages",
 						href: "/monitors/status-pages",
 					}}
 					currentPage={statusPage?.name ?? "Status page"}
@@ -176,7 +177,7 @@ export default function StatusPageDetailsPage() {
 													rel="noopener noreferrer"
 													target="_blank"
 												>
-													View Page
+													View page
 												</Link>
 											)}
 											<Button
@@ -219,7 +220,7 @@ export default function StatusPageDetailsPage() {
 											{activeTab === "monitors" ? (
 												<Button onClick={() => setIsDialogOpen(true)} size="sm">
 													<PlusIcon className="size-3.5" />
-													Add Monitor
+													Add monitor
 												</Button>
 											) : (
 												<Button
@@ -227,7 +228,7 @@ export default function StatusPageDetailsPage() {
 													size="sm"
 												>
 													<PlusIcon className="size-3.5" />
-													Report Incident
+													Report incident
 												</Button>
 											)}
 										</>
@@ -322,7 +323,7 @@ export default function StatusPageDetailsPage() {
 					}
 					onClose={() => setMonitorToRemove(null)}
 					onConfirm={handleConfirmRemove}
-					title="Remove Monitor"
+					title="Remove monitor"
 				/>
 
 				{statusPage ? (

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import {
 	Badge,
 	Button,
@@ -638,15 +639,15 @@ export default function AuditLogPage() {
 			window.URL.revokeObjectURL(url);
 			if (result.truncated) {
 				toast.warning(
-					`Exported the first ${result.rowCount.toLocaleString()} events. Narrow the filters for the complete result.`
+					`Exported the first ${result.rowCount.toLocaleString()} events. Narrow the filters for the complete result`
 				);
 			} else {
 				toast.success(
-					`Exported ${result.rowCount.toLocaleString()} audit events.`
+					`Exported ${result.rowCount.toLocaleString()} audit events`
 				);
 			}
-		} catch {
-			toast.error("Could not export the audit log. Try again in a moment.");
+		} catch (error) {
+			showErrorToast(error, "Failed to export audit log");
 		} finally {
 			setIsExporting(false);
 		}
@@ -668,15 +669,17 @@ export default function AuditLogPage() {
 					description={
 						isAccessError
 							? "Audit history is only available to organization administrators and owners."
-							: "We could not load the audit history. Try again in a moment."
+							: "Something went wrong while loading the audit history. Try again in a moment."
 					}
 					action={
 						isAccessError
 							? undefined
-							: { label: "Retry", onClick: () => query.refetch() }
+							: { label: "Try again", onClick: () => query.refetch() }
 					}
 					icon={<ShieldCheckIcon size={18} />}
-					title="Audit log unavailable"
+					title={
+						isAccessError ? "Audit log unavailable" : "Failed to load audit log"
+					}
 					variant="error"
 				/>
 			</div>
@@ -772,14 +775,14 @@ export default function AuditLogPage() {
 				{query.isFetchNextPageError ? (
 					<Card.Footer className="items-center justify-end gap-3">
 						<Text tone="muted" variant="caption">
-							Could not load older events.
+							Failed to load older events.
 						</Text>
 						<Button
 							onClick={() => query.fetchNextPage()}
 							size="sm"
 							variant="outline"
 						>
-							Retry
+							Try again
 						</Button>
 					</Card.Footer>
 				) : query.hasNextPage ? (

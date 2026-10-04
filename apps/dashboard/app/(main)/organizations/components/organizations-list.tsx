@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
 import {
 	AUTH_QUERY_KEYS,
@@ -45,7 +46,7 @@ function EmptyState() {
 					Create your first organization to collaborate with your team
 				</p>
 				<Button onClick={() => setShowCreateOrganizationDialog(true)}>
-					Create Organization
+					Create organization
 				</Button>
 			</div>
 
@@ -140,7 +141,7 @@ export function OrganizationsList({
 				organizationId: orgId,
 			});
 			if (error) {
-				toast.error(error.message ?? "Failed to switch organization");
+				showErrorToast(error, "Failed to switch organization");
 			} else {
 				await queryClient.invalidateQueries({
 					queryKey: AUTH_QUERY_KEYS.activeOrganization,
@@ -150,8 +151,8 @@ export function OrganizationsList({
 				await new Promise((resolve) => setTimeout(resolve, 300));
 				router.push("/organizations/settings");
 			}
-		} catch {
-			toast.error("Failed to switch organization");
+		} catch (error) {
+			showErrorToast(error, "Failed to switch organization");
 		} finally {
 			setProcessingId(null);
 		}
@@ -183,7 +184,7 @@ export function OrganizationsList({
 					onClick={() => setShowCreateOrganizationDialog(true)}
 				>
 					<PlusIcon size={16} />
-					New Organization
+					Create organization
 				</Button>
 				<CreateOrganizationDialog
 					isOpen={showCreateOrganizationDialog}

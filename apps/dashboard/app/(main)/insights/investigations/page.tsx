@@ -76,7 +76,7 @@ function InvestigationList({
 					}}
 					description="Databuddy couldn't load recent investigations."
 					icon={<LightbulbIcon />}
-					title="Couldn't load investigations"
+					title="Failed to load investigations"
 					variant="error"
 				/>
 			</div>

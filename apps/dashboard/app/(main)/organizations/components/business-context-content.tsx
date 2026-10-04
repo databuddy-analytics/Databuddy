@@ -211,7 +211,7 @@ export function BusinessContextResearchReport({
 									>
 										{page.status === "read"
 											? "Read"
-											: "Could not read this page"}
+											: "Failed to read this page"}
 									</p>
 								</li>
 							))}

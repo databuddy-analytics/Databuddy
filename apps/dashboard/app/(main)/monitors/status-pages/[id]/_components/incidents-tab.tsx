@@ -25,6 +25,12 @@ const STATUS_LABELS: Record<string, string> = {
 	resolved: "Resolved",
 };
 
+const SEVERITY_LABELS: Record<string, string> = {
+	minor: "Minor",
+	major: "Major",
+	critical: "Critical",
+};
+
 type Incident = Awaited<
 	ReturnType<typeof orpc.statusPage.listIncidents.call>
 >[number];
@@ -52,6 +58,7 @@ export function IncidentsTab({
 
 	const deleteMutation = useMutation({
 		...orpc.statusPage.deleteIncident.mutationOptions(),
+		meta: { errorTitle: "Failed to delete incident" },
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.statusPage.listIncidents.key({
@@ -71,7 +78,10 @@ export function IncidentsTab({
 			) : incidentsQuery.isError ? (
 				<div className="px-5 py-12">
 					<EmptyState
-						action={{ label: "Retry", onClick: () => incidentsQuery.refetch() }}
+						action={{
+							label: "Try again",
+							onClick: () => incidentsQuery.refetch(),
+						}}
 						description="Something went wrong while loading incidents."
 						icon={<SirenIcon />}
 						title="Failed to load incidents"
@@ -88,12 +98,12 @@ export function IncidentsTab({
 								variant="secondary"
 							>
 								<PlusIcon className="size-3.5" />
-								Report Incident
+								Report incident
 							</Button>
 						}
 						description="Report an incident when something is wrong. It will appear on your public status page."
 						icon={<SirenIcon />}
-						title="No incidents"
+						title="No incidents yet"
 					/>
 				</div>
 			) : (
@@ -139,7 +149,7 @@ export function IncidentsTab({
 						await deleteMutation.mutateAsync({ incidentId: deleteTarget });
 					}
 				}}
-				title="Delete Incident"
+				title="Delete incident"
 			/>
 		</>
 	);
@@ -202,7 +212,7 @@ function IncidentRow({
 					</p>
 					<span
 						className={cn(
-							"shrink-0 rounded px-1.5 py-0.5 font-semibold text-[10px] uppercase",
+							"shrink-0 rounded px-1.5 py-0.5 font-semibold text-[10px]",
 							incident.severity === "critical"
 								? "bg-red-500/10 text-red-600 dark:text-red-400"
 								: incident.severity === "major"
@@ -210,7 +220,7 @@ function IncidentRow({
 									: "bg-muted text-muted-foreground"
 						)}
 					>
-						{incident.severity}
+						{SEVERITY_LABELS[incident.severity] ?? incident.severity}
 					</span>
 				</div>
 				<p className="text-muted-foreground text-xs">

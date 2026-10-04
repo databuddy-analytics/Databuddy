@@ -27,6 +27,7 @@ import {
 } from "@/lib/dashboard-navigation-actions";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import {
 	addDynamicFilterAtom,
 	currentFilterWebsiteIdAtom,
@@ -192,6 +193,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 
 	const updateSettingsMutation = useMutation({
 		...orpc.websites.updateSettings.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
 		onSuccess: (updatedWebsite) => {
 			updateWebsiteCache(queryClient, updatedWebsite);
 			queryClient.invalidateQueries({
@@ -244,12 +246,12 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 				settings: { allowedOrigins },
 			}),
 			{
-				loading: "Allowing tracking origin...",
+				loading: "Allowing tracking origin…",
 				success: `${trackingIssue.originHost} can now send analytics`,
-				error: (error: unknown) =>
-					error instanceof Error && error.message
-						? error.message
-						: "Failed to allow tracking origin",
+				error: (error: unknown) => ({
+					message: "Failed to allow tracking origin",
+					description: getUserFacingErrorMessage(error),
+				}),
 			}
 		);
 	}, [
@@ -274,12 +276,12 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 				settings: { ignoredTrackingOrigins },
 			}),
 			{
-				loading: "Ignoring tracking origin...",
+				loading: "Ignoring tracking origin…",
 				success: `${trackingIssue.originHost} warning hidden`,
-				error: (error: unknown) =>
-					error instanceof Error && error.message
-						? error.message
-						: "Failed to ignore tracking origin",
+				error: (error: unknown) => ({
+					message: "Failed to ignore tracking origin",
+					description: getUserFacingErrorMessage(error),
+				}),
 			}
 		);
 	}, [

@@ -10,13 +10,12 @@ import { Button, Card, dayjs, Field, Input, Skeleton } from "@databuddy/ui";
 import { useCustomer } from "autumn-js/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import {
 	useBillingContext,
 	useInvestigationUsage,
 } from "@/components/providers/billing-provider";
 import type { summarizeInvestigationBalance } from "@/lib/investigation-usage";
-import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { getStripeMetadata } from "../utils/stripe-metadata";
 
 export function InvestigationTopupCard() {
@@ -65,12 +64,7 @@ export function InvestigationTopupCard() {
 				successUrl: `${window.location.origin}/billing`,
 			});
 		} catch (error) {
-			toast.error(
-				getUserFacingErrorMessage(
-					error,
-					"We couldn't open checkout. Try again."
-				)
-			);
+			showErrorToast(error, "Failed to open checkout");
 		} finally {
 			setIsAttaching(false);
 		}

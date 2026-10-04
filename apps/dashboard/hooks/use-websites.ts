@@ -228,5 +228,6 @@ export function useDeleteWebsite() {
 			const getByIdKey = getWebsiteByIdKey(id);
 			queryClient.setQueryData(getByIdKey, undefined);
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 }

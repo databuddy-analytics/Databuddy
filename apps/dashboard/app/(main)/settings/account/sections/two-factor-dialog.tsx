@@ -8,6 +8,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
 import { QRCode } from "react-qrcode-logo";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { setPasswordForOAuthUser } from "@/app/actions/users";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { cn } from "@/lib/utils";
@@ -118,11 +119,12 @@ export function TwoFactorDialog({
 			return result;
 		},
 		onSuccess: () => {
-			toast.success("Password set successfully!");
+			toast.success("Password set");
 			setPassword(newPassword);
 			setStep("password");
 			onSuccess();
 		},
+		meta: { errorTitle: "Failed to set password" },
 	});
 
 	const enableMutation = useMutation({
@@ -144,6 +146,9 @@ export function TwoFactorDialog({
 			}
 			setStep("setup");
 		},
+		onError: (error) =>
+			showErrorToast(error, "Failed to turn on two-factor authentication"),
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const verifyMutation = useMutation({
@@ -158,10 +163,11 @@ export function TwoFactorDialog({
 		},
 		onSuccess: () => {
 			trackAppEvent(APP_EVENTS.twoFactorEnabled);
-			toast.success("Two-factor authentication enabled!");
+			toast.success("Two-factor authentication enabled");
 			setStep("backup");
 			onSuccess();
 		},
+		meta: { errorTitle: "Failed to verify code" },
 	});
 
 	const disableMutation = useMutation({
@@ -178,6 +184,9 @@ export function TwoFactorDialog({
 			onSuccess();
 			onOpenChange(false);
 		},
+		onError: (error) =>
+			showErrorToast(error, "Failed to turn off two-factor authentication"),
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const regenerateBackupMutation = useMutation({
@@ -196,6 +205,9 @@ export function TwoFactorDialog({
 				toast.success("New backup codes generated");
 			}
 		},
+		onError: (error) =>
+			showErrorToast(error, "Failed to generate backup codes"),
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const { isCopied: copiedBackup, copyToClipboard: copyBackupCodes } =
@@ -271,7 +283,7 @@ export function TwoFactorDialog({
 								loading={setPasswordMutation.isPending}
 								onClick={() => setPasswordMutation.mutate()}
 							>
-								Set password & continue
+								Set password and continue
 							</Button>
 						</Dialog.Footer>
 					</>
@@ -407,7 +419,7 @@ export function TwoFactorDialog({
 								loading={verifyMutation.isPending}
 								onClick={() => verifyMutation.mutate()}
 							>
-								Verify & enable
+								Verify and enable
 							</Button>
 						</Dialog.Footer>
 					</>
@@ -453,7 +465,7 @@ export function TwoFactorDialog({
 								{copiedBackup ? (
 									<>
 										<CheckCircleIcon className="size-3.5 text-success" />
-										Copied!
+										Copied
 									</>
 								) : (
 									<>

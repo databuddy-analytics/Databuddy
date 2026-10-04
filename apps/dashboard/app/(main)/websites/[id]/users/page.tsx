@@ -14,6 +14,7 @@ import {
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useTraitKeys, useTraitValues } from "@/hooks/use-profiles";
 import { orpc } from "@/lib/orpc";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { getDeviceIcon } from "@/components/device-icon";
 import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
 import type { DynamicQueryFilter } from "@/stores/jotai/filterAtoms";
@@ -555,7 +556,7 @@ export default function UsersPage() {
 					const isReturning = sessionCount > 1;
 					return (
 						<Badge variant={isReturning ? "default" : "muted"}>
-							{isReturning ? "Return" : "New"}
+							{isReturning ? "Returning" : "New"}
 						</Badge>
 					);
 				},
@@ -763,8 +764,8 @@ export default function UsersPage() {
 						} else {
 							toast.info("No user found with that email");
 						}
-					} catch {
-						toast.error("Search failed, try again");
+					} catch (error) {
+						showErrorToast(error, "Failed to search users");
 					} finally {
 						setEmailSearching(false);
 					}

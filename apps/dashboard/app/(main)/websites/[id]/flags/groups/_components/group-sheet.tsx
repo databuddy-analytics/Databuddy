@@ -7,6 +7,7 @@ import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { orpc } from "@/lib/orpc";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 import {
 	GROUP_COLORS,
@@ -71,10 +72,12 @@ export function GroupSheet({
 
 	const createMutation = useMutation({
 		...orpc.targetGroups.create.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const updateMutation = useMutation({
 		...orpc.targetGroups.update.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const resetForm = useCallback(() => {
@@ -133,7 +136,7 @@ export function GroupSheet({
 				});
 			}
 
-			toast.success(`Group ${isEditing ? "updated" : "created"} successfully`);
+			toast.success(`Group ${isEditing ? "updated" : "created"}`);
 
 			queryClient.invalidateQueries({
 				queryKey: orpc.targetGroups.list.key({ input: { websiteId } }),
@@ -142,10 +145,9 @@ export function GroupSheet({
 			onCloseAction();
 		} catch (error) {
 			console.error("Group mutation error:", JSON.stringify(error));
-			const errorMessage =
-				error instanceof Error ? error.message : "Unknown error";
-			toast.error(
-				`Failed to ${isEditing ? "update" : "create"} group: ${errorMessage}`
+			showErrorToast(
+				error,
+				isEditing ? "Failed to update group" : "Failed to create group"
 			);
 		}
 	};
@@ -168,7 +170,7 @@ export function GroupSheet({
 						</div>
 						<div>
 							<Sheet.Title className="text-lg">
-								{isEditing ? "Edit Group" : "Create Group"}
+								{isEditing ? "Edit group" : "Create group"}
 							</Sheet.Title>
 							<Sheet.Description>
 								{isEditing
@@ -183,7 +185,7 @@ export function GroupSheet({
 					className="flex flex-1 flex-col overflow-hidden"
 					onSubmit={form.handleSubmit(onSubmit, (errors) => {
 						console.error("Validation errors:", JSON.stringify(errors));
-						toast.error("Please fix the form errors");
+						toast.error("Fix the highlighted fields and try again.");
 					})}
 				>
 					<Sheet.Body className="space-y-6">
@@ -196,7 +198,7 @@ export function GroupSheet({
 										<Field.Label>
 											Name <span className="text-destructive">*</span>
 										</Field.Label>
-										<Input placeholder="Beta Testers…" {...field} />
+										<Input placeholder="Beta testers" {...field} />
 										{fieldState.error && (
 											<Field.Error>{fieldState.error.message}</Field.Error>
 										)}
@@ -214,7 +216,7 @@ export function GroupSheet({
 										</Field.Label>
 										<Textarea
 											className="min-h-16 resize-none"
-											placeholder="Who belongs to this group?…"
+											placeholder="Who belongs to this group?"
 											{...field}
 										/>
 									</Field>
@@ -267,7 +269,7 @@ export function GroupSheet({
 						<div className="space-y-3">
 							<div className="flex items-center justify-between">
 								<div>
-									<h3 className="font-medium text-sm">Targeting Rules</h3>
+									<h3 className="font-medium text-sm">Targeting rules</h3>
 									<p className="text-muted-foreground text-xs">
 										Define who belongs to this group
 									</p>
@@ -297,7 +299,7 @@ export function GroupSheet({
 							Cancel
 						</Button>
 						<Button className="min-w-28" loading={isLoading} type="submit">
-							{isEditing ? "Save Changes" : "Create Group"}
+							{isEditing ? "Save changes" : "Create group"}
 						</Button>
 					</Sheet.Footer>
 				</form>

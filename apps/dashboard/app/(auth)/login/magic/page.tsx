@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { safeCallbackPath } from "@/lib/safe-callback";
 import { ArrowLeftIcon, EnvelopeSimpleIcon } from "@databuddy/ui/icons";
 import { Button, Field, Input, Spinner, Text } from "@databuddy/ui";
@@ -23,7 +24,7 @@ function MagicLinkPage() {
 	const handleMagicLinkLogin = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!email) {
-			toast.error("Please enter your email address");
+			toast.error("Enter your email address.");
 			return;
 		}
 		setIsLoading(true);
@@ -35,16 +36,16 @@ function MagicLinkPage() {
 				errorCallbackURL: `/auth/error?callback=${encodeURIComponent(safeCallback)}`,
 			});
 			if (error) {
-				toast.error("We couldn't send the magic link. Try again in a moment.");
+				showErrorToast(error, "Failed to send magic link");
 			} else {
-				toast.success("Magic link sent. Check your email.");
+				toast.success("Magic link sent. Check your email");
 				sessionStorage.setItem("databuddy:magic-email", email);
 				router.push(
 					`/login/magic-sent?callback=${encodeURIComponent(safeCallback)}`
 				);
 			}
-		} catch {
-			toast.error("We couldn't send the magic link. Try again in a moment.");
+		} catch (error) {
+			showErrorToast(error, "Failed to send magic link");
 		}
 		setIsLoading(false);
 	};
@@ -59,7 +60,7 @@ function MagicLinkPage() {
 				<Text as="h1" className="text-balance font-medium text-2xl">
 					Sign in with magic link
 				</Text>
-				<Text tone="muted">No password needed — just use your email</Text>
+				<Text tone="muted">No password needed. Just use your email.</Text>
 			</div>
 
 			<div className="space-y-5 px-6">
@@ -83,7 +84,7 @@ function MagicLinkPage() {
 						<EnvelopeSimpleIcon className="size-4 shrink-0 text-foreground" />
 						<Text tone="muted">
 							We&apos;ll send a secure link to your email that will sign you in
-							instantly — no password needed.
+							instantly, no password needed.
 						</Text>
 					</div>
 
@@ -100,7 +101,7 @@ function MagicLinkPage() {
 					href={loginHref}
 				>
 					<ArrowLeftIcon className="mr-1 inline size-3" />
-					Back to login
+					Back to sign in
 				</Link>
 			</div>
 		</>

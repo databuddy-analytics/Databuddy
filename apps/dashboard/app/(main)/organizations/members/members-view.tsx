@@ -50,7 +50,7 @@ export function MembersView({
 						}
 						description="Something went wrong while loading team members"
 						icon={<UsersIcon />}
-						title="Failed to load"
+						title="Failed to load members"
 					/>
 				</Card.Content>
 			</Card>

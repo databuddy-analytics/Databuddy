@@ -55,7 +55,9 @@ export function DestructiveActionsSection({
 
 	const handleDelete = () => {
 		if (confirmText !== organization.name) {
-			toast.error("Organization name does not match");
+			toast.error(
+				"The name does not match. Type the organization name exactly as shown."
+			);
 			return;
 		}
 		setIsDeleting(true);
@@ -90,7 +92,7 @@ export function DestructiveActionsSection({
 		<>
 			<Card>
 				<Card.Header>
-					<Card.Title>Transfer Assets</Card.Title>
+					<Card.Title>Transfer assets</Card.Title>
 					<Card.Description>
 						Move websites from this organization to another
 					</Card.Description>
@@ -103,24 +105,24 @@ export function DestructiveActionsSection({
 			<SettingsZone title="Destructive actions" variant="destructive">
 				<SettingsZoneRow
 					action={{
-						label: isOwner === null ? "Loading" : isOwner ? "Delete" : "Leave",
+						label: isOwner === null ? "Loading…" : isOwner ? "Delete" : "Leave",
 						disabled: isOwner === null,
 						onClick: () =>
 							isOwner ? setShowDeleteDialog(true) : setShowLeaveDialog(true),
 					}}
 					description={
 						isOwner === null
-							? "Checking permissions..."
+							? "Checking permissions…"
 							: isOwner
 								? "Permanently delete this organization and all data"
 								: "You will lose access to all resources"
 					}
 					title={
 						isOwner === null
-							? "Loading..."
+							? "Loading…"
 							: isOwner
-								? "Delete Organization"
-								: "Leave Organization"
+								? "Delete organization"
+								: "Leave organization"
 					}
 				/>
 			</SettingsZone>
@@ -136,7 +138,7 @@ export function DestructiveActionsSection({
 			>
 				<Dialog.Content>
 					<Dialog.Header>
-						<Dialog.Title>Are you absolutely sure?</Dialog.Title>
+						<Dialog.Title>Delete organization</Dialog.Title>
 						<Dialog.Description>
 							This will permanently delete "{organization.name}" and all
 							associated data. This action cannot be undone.
@@ -175,7 +177,7 @@ export function DestructiveActionsSection({
 							onClick={handleDelete}
 							tone="destructive"
 						>
-							Delete Organization
+							Delete organization
 						</Button>
 					</Dialog.Footer>
 					<Dialog.Close />
@@ -185,7 +187,7 @@ export function DestructiveActionsSection({
 			<Dialog onOpenChange={setShowLeaveDialog} open={showLeaveDialog}>
 				<Dialog.Content>
 					<Dialog.Header>
-						<Dialog.Title>Leave organization?</Dialog.Title>
+						<Dialog.Title>Leave organization</Dialog.Title>
 						<Dialog.Description>
 							You will lose access to "{organization.name}" and all its
 							resources. This action cannot be undone.
@@ -203,7 +205,7 @@ export function DestructiveActionsSection({
 							onClick={handleLeave}
 							tone="destructive"
 						>
-							Leave Organization
+							Leave organization
 						</Button>
 					</Dialog.Footer>
 					<Dialog.Close />
