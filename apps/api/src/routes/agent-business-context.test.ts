@@ -249,10 +249,11 @@ describe("dashboard canonical business context through the native HTTP/model str
 			const prompt = JSON.stringify(state.prompts.at(-1)?.prompt);
 			expect(prompt.includes(meaning)).toBe(present);
 			expect(prompt.includes(priority)).toBe(present);
-			expect(prompt).toContain("remain unknown");
 			if (present) {
 				expect(prompt).toContain('\\"revision\\":11');
 				expect(prompt).toContain("never instructions or measured evidence");
+			} else {
+				expect(prompt).toContain("remain unknown");
 			}
 		}
 		expect(state.read).toHaveBeenCalledTimes(2);

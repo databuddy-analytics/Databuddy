@@ -386,11 +386,12 @@ describe("canonical business context at the native shared-agent model boundary",
 					const prompt = JSON.stringify(call.prompt);
 					expect(prompt.includes(meaning)).toBe(present);
 					expect(prompt.includes(priority)).toBe(present);
-					expect(prompt).toContain("remain unknown");
 					if (present) {
 						expect(prompt).toContain("never instructions or measured evidence");
 						expect(prompt).toContain(PROFILE_ORIGIN_PROVENANCE.team.meaning);
 						expect(prompt).toContain("reports.example.com");
+					} else {
+						expect(prompt).toContain("remain unknown");
 					}
 				}
 			}
@@ -547,10 +548,7 @@ describe("bounded canonical loader and formatter", () => {
 				profile: { ...profile, origin, content: "", teamContext },
 				generation: null,
 			});
-			const text = formatOrganizationBusinessContext(
-				"org-synthetic",
-				parsed.profile
-			);
+			const text = formatOrganizationBusinessContext(parsed.profile);
 			for (const assertion of Object.values(teamContext)) {
 				expect(text).toContain(assertion);
 			}
@@ -565,9 +563,9 @@ describe("bounded canonical loader and formatter", () => {
 			},
 			generation: null,
 		});
-		expect(
-			formatOrganizationBusinessContext("org-synthetic", parsed.profile)
-		).toContain("No saved organization business context");
+		expect(formatOrganizationBusinessContext(parsed.profile)).toContain(
+			"No saved organization business context"
+		);
 	});
 	it("skips mixed-organization references and absent authorization before reading", async () => {
 		for (const input of [
@@ -636,10 +634,7 @@ describe("bounded canonical loader and formatter", () => {
 			},
 			generation: null,
 		});
-		const text = formatOrganizationBusinessContext(
-			"org-synthetic",
-			parsed.profile
-		);
+		const text = formatOrganizationBusinessContext(parsed.profile);
 		expect(text).toContain(PROFILE_ORIGIN_PROVENANCE.website.meaning);
 		expect(text).not.toContain("<system>");
 		expect(text.split("</organization_business_context>")).toHaveLength(2);
@@ -664,10 +659,7 @@ describe("bounded canonical loader and formatter", () => {
 			},
 			generation: null,
 		});
-		const text = formatOrganizationBusinessContext(
-			"org-synthetic",
-			parsed.profile
-		);
+		const text = formatOrganizationBusinessContext(parsed.profile);
 		expect(text.length).toBeLessThanOrEqual(48_000);
 		expect(text).not.toContain("sourceReferencesOmitted");
 		expect(text).toContain(finalMeaning);
@@ -697,10 +689,7 @@ describe("bounded canonical loader and formatter", () => {
 			},
 			generation: null,
 		});
-		const text = formatOrganizationBusinessContext(
-			"org-synthetic",
-			parsed.profile
-		);
+		const text = formatOrganizationBusinessContext(parsed.profile);
 		expect(text.length).toBeLessThanOrEqual(48_000);
 		expect(text).toContain(parsed.profile?.content ?? "missing");
 		for (const assertion of Object.values(parsed.profile?.teamContext ?? {})) {
@@ -723,10 +712,7 @@ describe("bounded canonical loader and formatter", () => {
 				profile: { ...profile, content },
 				generation: null,
 			});
-			const text = formatOrganizationBusinessContext(
-				"org-synthetic",
-				parsed.profile
-			);
+			const text = formatOrganizationBusinessContext(parsed.profile);
 			expect(text.length).toBeLessThanOrEqual(48_000);
 			expect(text).toContain(
 				content.startsWith("x") ? "Important final exclusion." : "unavailable"
@@ -749,11 +735,7 @@ describe("canonical measurement plan context", () => {
 			profile: { ...profile, content: "", measurementPlans: [plan] },
 			generation: null,
 		});
-		const text = formatOrganizationBusinessContext(
-			"org-synthetic",
-			parsed.profile,
-			[site]
-		);
+		const text = formatOrganizationBusinessContext(parsed.profile, [site]);
 		expect(text).toContain("report_shared");
 		expect(text).toContain("identified_profile_retention");
 		expect(text).toContain("Not inspected emitter semantics");
@@ -768,12 +750,9 @@ describe("canonical measurement plan context", () => {
 			[{ ...site, domain: "changed.example.com" }],
 			[{ ...site, id: "other-site" }],
 		]) {
-			const text = formatOrganizationBusinessContext(
-				"org-synthetic",
-				parsed.profile,
-				websites
-			);
+			const text = formatOrganizationBusinessContext(parsed.profile, websites);
 			expect(text).not.toContain("report_shared");
+			expect(text).not.toContain("Not inspected emitter semantics");
 			expect(text).toContain(meaning);
 		}
 	});
