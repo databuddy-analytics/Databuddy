@@ -4066,6 +4066,114 @@ describe("structured revenue evidence", () => {
 	const input = { appContext: appContext(), signal };
 
 	it.each([
+		{
+			signalKey: "revenue:USD",
+			entityId: "website",
+			reads: [[{ field: "currency", op: "eq", value: "USD" }]],
+			fields: ["total_revenue"],
+		},
+		{
+			signalKey: "refund_amount:USD",
+			entityId: "website",
+			reads: [[{ field: "currency", op: "eq", value: "USD" }]],
+			fields: ["refund_amount", "refund_count"],
+		},
+		{
+			signalKey: "attribution_rate:USD",
+			entityId: "website",
+			reads: [[{ field: "currency", op: "eq", value: "USD" }]],
+			fields: ["attributed_revenue", "total_revenue"],
+		},
+		{
+			signalKey: "product_revenue:USD:stripe:product_name:Team",
+			entityId: "Team",
+			reads: [
+				[
+					{ field: "currency", op: "eq", value: "USD" },
+					{ field: "provider", op: "eq", value: "stripe" },
+					{ field: "product_name", op: "eq", value: "Team" },
+					{ field: "product_id", op: "eq", value: "" },
+				],
+				[{ field: "currency", op: "eq", value: "USD" }],
+			],
+			fields: ["total_revenue"],
+		},
+		{
+			signalKey: "revenue:USD",
+			entityId: "website",
+			baselineDates: [
+				"2026-06-28",
+				"2026-06-29",
+				"2026-06-30",
+				"2026-07-01",
+				"2026-07-02",
+				"2026-07-04",
+			],
+			reads: [],
+			fields: [],
+		},
+		{ signalKey: "visitors", entityId: "website", reads: [], fields: [] },
+	])("supplies the exact native revenue reads: $signalKey $baselineDates", async ({
+		signalKey,
+		entityId,
+		baselineDates,
+		reads,
+		fields,
+	}) => {
+		const model = outputModel({
+			...agentOutcome,
+			title: "Payment change stays private",
+			summary: "Native confirmation has not been read.",
+			rootCause: null,
+			publish: false,
+			publicationBasis: null,
+			evidence: ["The detection snapshot alone cannot support publication."],
+			evidenceRefs: [{ source: "signal" as const }],
+			next: { type: "resolve" as const, reason: "Nothing changes today." },
+		});
+		await runInsightAgent(
+			{
+				...input,
+				signal: {
+					...signal,
+					signalKey,
+					entity: { type: "website", id: entityId, label: "Payments" },
+					...(baselineDates ? { baselineDates } : {}),
+				},
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				evidence: [],
+			},
+			{ model, tools: {} }
+		);
+		const message = model.doGenerateCalls[0]?.prompt
+			.find((item) => item.role === "user")
+			?.content.find((item) => item.type === "text");
+		if (message?.type !== "text") {
+			throw new Error("Missing investigation prompt");
+		}
+		expect(JSON.parse(message.text).reads).toEqual(
+			reads.length
+				? reads.map((filters) => ({
+						name: "get_data",
+						input: {
+							queries: [signal.period.previous, signal.period.current].map(
+								({ from, to }) => ({
+									type: "revenue_overview",
+									from,
+									to,
+									filters,
+								})
+							),
+						},
+						claim: { currency: "USD", fields },
+					}))
+				: undefined
+		);
+	});
+
+	it.each([
 		[
 			"refund_amount:USD",
 			["refund_amount", "refund_count"],
