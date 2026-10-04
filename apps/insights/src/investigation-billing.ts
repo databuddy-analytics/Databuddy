@@ -11,10 +11,9 @@ import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import type { Autumn } from "autumn-js";
 import { captureInsightsError } from "./lib/evlog-insights";
 
-export interface InvestigationBilling {
-	customerId: string | null;
-	mode: "fixed" | "unconfigured";
-}
+export type InvestigationBilling =
+	| { customerId: string; mode: "fixed" }
+	| { customerId: null; mode: "unconfigured" };
 
 const LOCK_MS = 23 * 60 * 60 * 1000;
 
@@ -49,12 +48,7 @@ export async function canRunInvestigation(
 	if (billing.mode === "unconfigured") {
 		return true;
 	}
-	const customerId = billing.customerId;
-	if (!customerId) {
-		throw new BillingUnavailableError(
-			"The investigation billing customer is unavailable"
-		);
-	}
+	const { customerId } = billing;
 	const result = await autumnCall("check", () =>
 		(client ?? getAutumn()).check({
 			customerId,
@@ -76,10 +70,10 @@ interface InvestigationOperation {
 	websiteId: string;
 }
 
-interface InvestigationReservation extends InvestigationBilling {
+type InvestigationReservation = InvestigationBilling & {
 	expiresAt: Date;
 	id: string;
-}
+};
 
 function reservationId(input: InvestigationOperation): string {
 	return `investigation:${createHash("sha256")
@@ -110,12 +104,7 @@ export async function reserveInvestigationCharge(
 		return reservation;
 	}
 	assertInvestigationReservationActive(reservation);
-	const customerId = reservation.customerId;
-	if (!customerId) {
-		throw new BillingUnavailableError(
-			"The investigation billing customer is unavailable"
-		);
-	}
+	const { customerId } = reservation;
 	const autumn = client ?? getAutumn();
 	// Autumn owns the hold. A duplicate/ambiguous response never authorizes work.
 	// The immutable expiry is shorter than the provider's idempotency window:

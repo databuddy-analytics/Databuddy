@@ -219,7 +219,9 @@ vi.mock("@databuddy/env/app", async (importOriginal) => {
 		...actual,
 		config: {
 			email: { alertsFrom: "alerts@databuddy.cc" },
-			services: actual.config.services,
+			get services() {
+				return actual.config.services;
+			},
 		},
 	};
 });
