@@ -1,5 +1,9 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
-import { getAutumn } from "@databuddy/rpc/autumn";
+import { billingMode } from "@databuddy/env/app";
+import {
+	autumnCall,
+	getAutumn,
+	isBillingUnavailable,
+} from "@databuddy/rpc/autumn";
 import { basketErrors } from "@lib/structured-errors";
 import { captureError, record } from "@lib/tracing";
 import { EvlogError } from "evlog";
@@ -15,7 +19,7 @@ export function checkAutumnUsage(
 	properties?: Record<string, unknown>,
 	quantity = 1
 ): Promise<BillingResult> {
-	if (readBooleanEnv("SELFHOST")) {
+	if (billingMode() !== "live") {
 		return Promise.resolve({ allowed: true });
 	}
 	return record("checkAutumnUsage", async (): Promise<BillingResult> => {
@@ -23,13 +27,15 @@ export function checkAutumnUsage(
 
 		try {
 			const response = await record("autumn.check", () =>
-				getAutumn().check({
-					customerId,
-					featureId,
-					sendEvent: true,
-					requiredBalance: quantity,
-					properties,
-				})
+				autumnCall("check", () =>
+					getAutumn().check({
+						customerId,
+						featureId,
+						sendEvent: true,
+						requiredBalance: quantity,
+						properties,
+					})
+				)
 			);
 
 			const b = response.balance;
@@ -59,6 +65,13 @@ export function checkAutumnUsage(
 		} catch (error) {
 			if (error instanceof EvlogError) {
 				throw error;
+			}
+			if (isBillingUnavailable(error)) {
+				log.set({ billing: { allowed: true, checkFailed: true } });
+				captureError(error, {
+					message: "Autumn check failed, accepting event",
+				});
+				return { allowed: true };
 			}
 
 			log.set({ billing: { allowed: false, checkFailed: true } });

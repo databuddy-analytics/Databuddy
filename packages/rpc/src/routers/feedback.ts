@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { billingMode } from "@databuddy/env/app";
 import { and, desc, eq, sql, withTransaction } from "@databuddy/db";
 import type { db as DbType } from "@databuddy/db";
 import { feedback, feedbackRedemptions } from "@databuddy/db/schema";
@@ -248,7 +248,7 @@ export const feedbackRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			if (readBooleanEnv("SELFHOST")) {
+			if (billingMode() !== "live") {
 				throw rpcError.badRequest(
 					"Credit rewards are only available on Databuddy Cloud."
 				);

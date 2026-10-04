@@ -1,6 +1,6 @@
 import "./polyfills/compression";
 import { assertAuthSecretMatchesDashboard } from "@databuddy/auth";
-import { assertConfigured } from "@databuddy/env/app";
+import { assertConfigured, billingMode } from "@databuddy/env/app";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
 import cors from "@elysiajs/cors";
@@ -152,7 +152,7 @@ const app = new Elysia({ precompile: true })
 	.use(discovery)
 	.use(webhooks)
 	.mount(AUTUMN_API_PREFIX, (request) => {
-		if (readBooleanEnv("SELFHOST")) {
+		if (billingMode() !== "live") {
 			const response = buildHttpErrorResponse({
 				code: "NOT_FOUND",
 				error: null,

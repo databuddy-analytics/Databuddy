@@ -1,57 +1,59 @@
-/**
- * Server-side Autumn SDK — see:
- * https://docs.useautumn.com/documentation/getting-started/setup
- * https://docs.useautumn.com/documentation/modelling-pricing/spend-limits
- */
-import { Autumn, HTTPClient } from "autumn-js";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { billingMode, config } from "@databuddy/env/app";
+import { BillingUnavailableError } from "@databuddy/shared/billing";
+import { Autumn, AutumnError, HTTPClient, HTTPClientError } from "autumn-js";
 
-function createClient(strict = false): Autumn {
-	const secretKey = process.env.AUTUMN_SECRET_KEY;
-	if (!secretKey) {
-		throw new Error("AUTUMN_SECRET_KEY is not set");
-	}
-	if (!strict) {
-		return new Autumn({ secretKey, timeoutMs: 3000 });
-	}
-	const httpClient = new HTTPClient();
+export {
+	BillingUnavailableError,
+	isBillingUnavailable,
+} from "@databuddy/shared/billing";
+export { AutumnError } from "autumn-js";
+
+type Fetcher = NonNullable<
+	ConstructorParameters<typeof HTTPClient>[0]
+>["fetcher"];
+
+export function createAutumnClient(options: {
+	secretKey: string;
+	fetcher?: Fetcher;
+}): Autumn {
+	const httpClient = new HTTPClient({ fetcher: options.fetcher });
 	httpClient.addHook("response", (response) => {
 		if (response.status === 202) {
 			throw new Error("Autumn returned an unconfirmed billing response");
 		}
 	});
 	return new Autumn({
-		secretKey,
-		timeoutMs: 3000,
+		secretKey: options.secretKey,
 		httpClient,
 		failOpen: false,
+		timeoutMs: 5000,
 		retryConfig: { strategy: "none" },
 	});
 }
 
-export function hasHostedBilling(): boolean {
-	if (readBooleanEnv("SELFHOST")) {
-		return false;
+let instance: Autumn | null = null;
+
+export function getAutumn(): Autumn {
+	const secretKey = config.services.autumnSecretKey;
+	if (billingMode() !== "live" || !secretKey) {
+		throw new BillingUnavailableError("Autumn billing is not configured");
 	}
-	return Boolean(
-		process.env.AUTUMN_SECRET_KEY?.trim() ||
-			process.env.NODE_ENV === "production"
-	);
+	instance ??= createAutumnClient({ secretKey });
+	return instance;
 }
 
-let instance: Autumn | null = null;
-let strictInstance: Autumn | null = null;
-
-export function getAutumn(options?: { strict?: boolean }): Autumn {
-	if (readBooleanEnv("SELFHOST")) {
-		throw new Error("Hosted billing is disabled for self-hosted instances");
+export async function autumnCall<T>(
+	operation: string,
+	call: () => Promise<T>
+): Promise<T> {
+	try {
+		return await call();
+	} catch (error) {
+		if (error instanceof AutumnError || error instanceof HTTPClientError) {
+			throw new BillingUnavailableError(`Autumn ${operation} failed`, {
+				cause: error,
+			});
+		}
+		throw error;
 	}
-	if (options?.strict) {
-		strictInstance ??= createClient(true);
-		return strictInstance;
-	}
-	if (!instance) {
-		instance = createClient();
-	}
-	return instance;
 }

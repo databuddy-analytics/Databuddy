@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { billingMode } from "@databuddy/env/app";
 import {
 	and,
 	db,
@@ -37,7 +37,11 @@ import { rpcError } from "../errors";
 import { setAuditOrganization } from "../lib/audit";
 import { logger } from "../lib/logger";
 import { getOrganizationOwnerId } from "../utils/organization";
-import { getAutumn } from "../lib/autumn-client";
+import {
+	autumnCall,
+	getAutumn,
+	isBillingUnavailable,
+} from "../lib/autumn-client";
 import {
 	hasInvestigationAllowance,
 	INVESTIGATION_USAGE,
@@ -972,7 +976,7 @@ async function insertInsightRunOrFindActive(
 async function requireInvestigationsAccess(
 	organizationId: string
 ): Promise<void> {
-	if (readBooleanEnv("SELFHOST")) {
+	if (billingMode() !== "live") {
 		if (!process.env.AI_GATEWAY_API_KEY?.trim()) {
 			throw rpcError.badRequest(
 				"AI is not set up on this Databuddy instance. Ask your administrator to configure it before running investigations."
@@ -982,7 +986,9 @@ async function requireInvestigationsAccess(
 	}
 	const customerId = await getOrganizationOwnerId(organizationId);
 	const customer = customerId
-		? await getAutumn().customers.get({ customerId })
+		? await autumnCall("customers.get", () =>
+				getAutumn().customers.get({ customerId })
+			)
 		: null;
 	if (
 		!hasInvestigationAllowance(
@@ -1003,7 +1009,10 @@ async function hasInvestigationsAccess(
 	try {
 		await requireInvestigationsAccess(organizationId);
 		return true;
-	} catch {
+	} catch (error) {
+		if (isBillingUnavailable(error)) {
+			throw error;
+		}
 		return false;
 	}
 }

@@ -7,14 +7,14 @@ import {
 	isFeatureAvailable,
 	isWithinLimit,
 } from "@databuddy/shared/types/features";
+import { billingMode } from "@databuddy/env/app";
 import { rpcError } from "../errors";
-import { hasHostedBilling } from "../lib/autumn-client";
 
 function requireFeature(
 	planId: string | undefined,
 	feature: GatedFeatureId
 ): void {
-	if (!hasHostedBilling()) {
+	if (billingMode() !== "live") {
 		return;
 	}
 	if (!isFeatureAvailable(planId ?? null, feature)) {
@@ -41,7 +41,7 @@ export function requireUsageWithinLimit(
 	feature: GatedFeatureId,
 	currentUsage: number
 ): void {
-	if (!hasHostedBilling()) {
+	if (billingMode() !== "live") {
 		return;
 	}
 	if (!isWithinLimit(planId ?? null, feature, currentUsage)) {

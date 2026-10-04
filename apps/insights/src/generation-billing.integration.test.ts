@@ -514,7 +514,7 @@ integration("native generation fixed-unit persistence", () => {
 		const input = await fixture();
 		const before = calls;
 		await expect(generateWebsiteInsights(input)).rejects.toThrow(
-			"unconfirmed response"
+			"Autumn balances.finalize failed"
 		);
 		const reservation = reservationsSince(0)[0]!;
 		expect(holds.get(reservation.lock.lock_id)?.state).toBe("held");
@@ -551,7 +551,7 @@ integration("native generation fixed-unit persistence", () => {
 			attemptsStarted: finalAttempt ? 2 : 1,
 		};
 		await expect(processInsightsJob(job)).rejects.toThrow(
-			"unconfirmed response"
+			"Autumn balances.finalize failed"
 		);
 		const reservation = reservationsSince(0)[0]!;
 		const [pending] = await db
@@ -559,7 +559,7 @@ integration("native generation fixed-unit persistence", () => {
 			.from(insightRunItems)
 			.where(eq(insightRunItems.id, input.itemId));
 		expect(pending?.status).toBe(finalAttempt ? "failed" : "queued");
-		expect(pending?.errorMessage).toContain("unconfirmed response");
+		expect(pending?.errorMessage).toContain("Autumn balances.finalize failed");
 		expect(pending?.preparedStatus).toBe("succeeded");
 		expect(holds.get(reservation.lock.lock_id)?.state).toBe("held");
 		expect(calls).toBe(1);
@@ -932,7 +932,7 @@ integration("native generation fixed-unit persistence", () => {
 		const input = await fixture();
 		loseFinalizeReceipt = true;
 		await expect(generateWebsiteInsights(input)).rejects.toThrow(
-			"unconfirmed response"
+			"Autumn balances.finalize failed"
 		);
 		const reservation = reservationsSince(0)[0]!;
 		expect(holds.get(reservation.lock.lock_id)?.state).toBe("confirmed");
