@@ -285,6 +285,25 @@ SETTINGS additional_table_filters = {} -- '`
 			});
 		}
 
+		it.each([
+			`SELECT u, count() FROM analytics.events ${TENANT} GROUP BY url AS u`,
+			`SELECT u FROM analytics.events ${TENANT} AND notEmpty(url AS u)`,
+			`SELECT u FROM analytics.events ${TENANT} ORDER BY user_agent AS u`,
+			`SELECT m, count() FROM analytics.revenue WHERE ${ORG_TENANT} GROUP BY metadata AS m`,
+			`SELECT COLUMNS('^prop') FROM analytics.custom_events WHERE ${ORG_TENANT}`,
+			`SELECT toJSONString(tuple(*)) FROM analytics.events ${TENANT}`,
+		])("rejects protected columns reached through aliases or matchers: %s", (sql) => {
+			expect(validateAgentSQL(sql).valid).toBe(false);
+		});
+
+		it.each([
+			`SELECT count(*) FROM analytics.events ${TENANT} AND url LIKE '%pricing%'`,
+			`SELECT path FROM analytics.events ${TENANT} AND toString(CAST(time AS Date)) = '2026-10-01'`,
+			`WITH s AS (SELECT session_id AS sid FROM analytics.events ${TENANT}) SELECT e.path FROM analytics.events AS e JOIN s ON e.session_id = s.sid WHERE e.client_id = {websiteId:String}`,
+		])("keeps filters, casts, table aliases and CTE aliases working: %s", (sql) => {
+			expect(validateAgentSQL(sql)).toEqual({ valid: true, reason: null });
+		});
+
 		it("rejects raw custom-event properties projections", () => {
 			const result = validateAgentSQL(
 				`SELECT properties FROM analytics.custom_events WHERE ${ORG_TENANT}`
