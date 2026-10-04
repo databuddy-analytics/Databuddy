@@ -251,7 +251,7 @@ const DOCUMENTED_TABLES = new Set(ANALYTICS_TABLES.map((t) => t.name));
 for (const table of Object.keys(AGENT_TENANT_COLUMN_BY_TABLE)) {
 	if (!DOCUMENTED_TABLES.has(table)) {
 		throw new Error(
-			`Table "${table}" is in the agent SQL allowlist but missing from ANALYTICS_TABLES — add a TableDef entry or drop it from AGENT_TENANT_COLUMN_BY_TABLE.`
+			`Table "${table}" is in the agent SQL allowlist but missing from ANALYTICS_TABLES; add a TableDef entry or drop it from AGENT_TENANT_COLUMN_BY_TABLE.`
 		);
 	}
 }
