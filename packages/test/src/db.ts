@@ -1,5 +1,6 @@
 import { setPgTimingFn } from "@databuddy/db";
 import { relations } from "@databuddy/db/schema/relations";
+import { dataUrl } from "@databuddy/env/app";
 import { sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -8,7 +9,7 @@ const DEFAULT_DATABASE_URL =
 	"postgres://databuddy:databuddy_dev_password@localhost:5432/databuddy_test";
 
 function databaseUrl(): string {
-	return process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL;
+	return dataUrl("DATABASE_URL") ?? DEFAULT_DATABASE_URL;
 }
 
 export type DB = NodePgDatabase<typeof relations>;
@@ -16,24 +17,26 @@ export type DB = NodePgDatabase<typeof relations>;
 let pool: Pool | null = null;
 let instance: DB | null = null;
 
-export const hasTestDb = await (async () => {
-	const p = new Pool({ connectionString: databaseUrl(), max: 1 });
-	try {
-		const c = await p.connect();
-		c.release();
-		return true;
-	} catch (error) {
-		if (process.env.CI) {
-			throw new Error(
-				"Integration tests could not reach the test database; CI must not skip them.",
-				{ cause: error }
-			);
+export const hasTestDb =
+	process.env.NODE_ENV === "test" &&
+	(await (async () => {
+		const p = new Pool({ connectionString: databaseUrl(), max: 1 });
+		try {
+			const c = await p.connect();
+			c.release();
+			return true;
+		} catch (error) {
+			if (process.env.CI) {
+				throw new Error(
+					"Integration tests could not reach the test database; CI must not skip them.",
+					{ cause: error }
+				);
+			}
+			return false;
+		} finally {
+			await p.end();
 		}
-		return false;
-	} finally {
-		await p.end();
-	}
-})();
+	})());
 
 export function db(): DB {
 	if (!instance) {

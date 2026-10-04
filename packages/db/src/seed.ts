@@ -1,379 +1,259 @@
-import { dataUrl, isLocalHost } from "@databuddy/env/app";
-import { faker } from "@faker-js/faker";
-import { clickHouse, TABLE_NAMES } from "./clickhouse/client";
-import { db } from "./client";
+import type { ClickHouseClient } from "@clickhouse/client";
+import { en, Faker } from "@faker-js/faker";
+import { TABLE_NAMES } from "./clickhouse/client";
 
-for (const name of ["CLICKHOUSE_URL", "DATABASE_URL"] as const) {
-	const url = dataUrl(name);
-	const hostname = url && URL.canParse(url) ? new URL(url).hostname : "";
-	if (!(hostname && isLocalHost(hostname))) {
-		throw new Error(
-			`db:seed only runs against local databases; ${name} host is "${hostname || "unset"}"`
-		);
-	}
-}
+export const EVENTS_PER_SESSION = 6;
 
-const clientId = process.argv[2] || faker.string.uuid();
-const eventCount = Number(process.argv[3]) || 10_000;
+const DAY_MS = 86_400_000;
+const SESSION_WINDOW_MS = DAY_MS - 3_600_000;
+const ANOMALY_TRAFFIC_MULTIPLIER = 3;
+const ANOMALY_ERROR_MULTIPLIER = 4;
+const ANOMALY_ERROR_DAYS = 7;
+const ERRORS_PER_SESSION = 0.05;
+const WEEKEND_TRAFFIC = 0.7;
 
 const PATHS = [
 	"/",
-	"/home",
 	"/pricing",
 	"/features",
 	"/docs",
-	"/login",
-	"/signup",
-	"/dashboard",
-	"/settings",
-	"/profile",
 	"/blog",
 	"/about",
-	"/contact",
+	"/signup",
+	"/dashboard",
 ];
-
 const REFERRERS = [
-	"direct",
+	null,
+	null,
 	"https://google.com",
-	"https://facebook.com",
-	"https://twitter.com",
 	"https://github.com",
+	"https://twitter.com",
+];
+const COUNTRIES = ["US", "US", "DE", "GB", "FR", "CA", "IN", "BR"];
+const BROWSERS = ["Chrome", "Chrome", "Safari", "Firefox", "Edge"];
+const OPERATING_SYSTEMS = ["macOS", "Windows", "iOS", "Android", "Linux"];
+const DEVICES = ["desktop", "desktop", "mobile", "tablet"];
+const ERROR_TYPES = ["Error", "TypeError", "ReferenceError"];
+const ERROR_MESSAGES = [
+	"Cannot read properties of undefined (reading 'id')",
+	"Failed to fetch",
+	"Unexpected token in JSON",
+];
+const VITALS = [
+	{ max: 4000, min: 800, name: "LCP" },
+	{ max: 2500, min: 300, name: "FCP" },
+	{ max: 400, min: 40, name: "INP" },
+	{ max: 800, min: 50, name: "TTFB" },
+	{ max: 0.3, min: 0, name: "CLS" },
 ];
 
-const UNIQUE_USERS = Math.max(10, Math.floor(eventCount / 8));
-const TOTAL_SESSIONS = Math.floor(UNIQUE_USERS * 2.5);
-
-const USER_POOL = Array.from({ length: UNIQUE_USERS }, () => ({
-	anonymousId: `anon_${faker.string.uuid()}`,
-	country: faker.location.countryCode(),
-	region: faker.location.state(),
-	city: faker.location.city(),
-	timezone: faker.helpers.arrayElement([
-		"America/New_York",
-		"Europe/London",
-		"Asia/Tokyo",
-	]),
-	language: faker.helpers.arrayElement(["en-US", "en-GB", "fr-FR", "de-DE"]),
-	deviceType: faker.helpers.arrayElement(["desktop", "mobile", "tablet"]),
-	browser: faker.helpers.arrayElement(["Chrome", "Firefox", "Safari", "Edge"]),
-	os: faker.helpers.arrayElement([
-		"Windows",
-		"macOS",
-		"Linux",
-		"Android",
-		"iOS",
-	]),
-	viewportSize: `${faker.number.int({ min: 800, max: 1920 })}x${faker.number.int({ min: 600, max: 1080 })}`,
-}));
-
-const SESSION_POOL = Array.from({ length: TOTAL_SESSIONS }, () => {
-	const user = faker.helpers.arrayElement(USER_POOL);
-	return {
-		sessionId: `sess_${faker.string.uuid()}`,
-		anonymousId: user.anonymousId,
-		sessionStartTime: faker.date.recent({ days: 30 }).getTime(),
-		user,
-		referrer: faker.helpers.arrayElement(REFERRERS),
-	};
-});
-
-function sessionFor(index: number, total: number) {
-	const sessionIndex = Math.floor(index / (total / TOTAL_SESSIONS));
-	const session = SESSION_POOL[Math.min(sessionIndex, SESSION_POOL.length - 1)];
-	if (!session) {
-		throw new Error("Seed session pool is empty");
-	}
-	return session;
+export interface GenerateAnalyticsOptions {
+	anomaly?: boolean;
+	clientId: string;
+	dailySessions?: number;
+	days?: number;
+	domain: string;
+	seed?: number;
 }
 
-function generatePageTitle(path: string): string {
-	if (path === "/") {
-		return "Home";
-	}
-	const name = path.slice(1).replace(/-/g, " ");
-	return name.charAt(0).toUpperCase() + name.slice(1) || "Page";
+function clickHouseTime(ms: number): string {
+	return new Date(ms).toISOString().replace("T", " ").replace("Z", "");
 }
 
-(async () => {
-	const website = await db.query.websites.findFirst({
-		where: { id: clientId },
-		columns: { domain: true },
-	});
+function pageTitle(path: string): string {
+	return path === "/" ? "Home" : path.slice(1);
+}
 
-	const domain = website?.domain || "example.com";
+export function generateAnalytics({
+	anomaly = false,
+	clientId,
+	dailySessions = 150,
+	days = 28,
+	domain,
+	seed = 42,
+}: GenerateAnalyticsOptions) {
+	const faker = new Faker({ locale: [en], seed });
+	const now = Date.now();
+	const todayStart = Math.floor(now / DAY_MS) * DAY_MS;
+	const visitors = Array.from({ length: dailySessions * 4 }, () => ({
+		anonymousId: `anon_${faker.string.uuid()}`,
+		browser: faker.helpers.arrayElement(BROWSERS),
+		country: faker.helpers.arrayElement(COUNTRIES),
+		device: faker.helpers.arrayElement(DEVICES),
+		os: faker.helpers.arrayElement(OPERATING_SYSTEMS),
+	}));
 
-	const events = Array.from({ length: eventCount }, (_, index) => {
-		const session = sessionFor(index, eventCount);
-		const user = session.user;
-
-		const maxSessionDuration = 2 * 60 * 60 * 1000;
-		const sessionProgress =
-			(index % Math.ceil(eventCount / TOTAL_SESSIONS)) /
-			Math.ceil(eventCount / TOTAL_SESSIONS);
-		const baseTime =
-			session.sessionStartTime + sessionProgress * maxSessionDuration;
-
-		const path = faker.helpers.arrayElement(PATHS);
-		const isLastEvent =
-			sessionProgress > 0.8 || faker.datatype.boolean({ probability: 0.2 });
-		const eventName =
-			isLastEvent && faker.datatype.boolean({ probability: 0.8 })
-				? "page_exit"
-				: "screen_view";
-		const isPageExit = eventName === "page_exit";
-		const fullUrl = `https://${domain}${path}`;
-
+	const dailyTraffic = Array.from({ length: days }, (_, index) => {
+		const daysAgo = days - index;
+		const dayStart = todayStart - daysAgo * DAY_MS;
+		const weekday = new Date(dayStart).getUTCDay();
+		const traffic =
+			(weekday === 0 || weekday === 6 ? WEEKEND_TRAFFIC : 1) *
+			faker.number.float({ max: 1.1, min: 0.9 }) *
+			(anomaly && daysAgo === 1 ? ANOMALY_TRAFFIC_MULTIPLIER : 1);
+		const sessions = Array.from(
+			{ length: Math.round(dailySessions * traffic) },
+			() => ({
+				pages: Array.from(
+					{ length: faker.number.int({ max: 5, min: 1 }) },
+					() => ({
+						path: faker.helpers.arrayElement(PATHS),
+						seconds: faker.number.int({ max: 180, min: 3 }),
+					})
+				),
+				referrer: faker.helpers.arrayElement(REFERRERS),
+				sessionId: `sess_${faker.string.uuid()}`,
+				start: dayStart + faker.number.int({ max: SESSION_WINDOW_MS, min: 0 }),
+				visitor: faker.helpers.arrayElement(visitors),
+			})
+		);
+		const errorMultiplier =
+			anomaly && daysAgo <= ANOMALY_ERROR_DAYS ? ANOMALY_ERROR_MULTIPLIER : 1;
 		return {
-			id: faker.string.uuid(),
-			client_id: clientId,
-			event_name: eventName,
-			anonymous_id: session.anonymousId,
-			time: baseTime,
-			session_id: session.sessionId,
-			event_type: "track",
-			event_id: faker.string.uuid(),
-			session_start_time: session.sessionStartTime,
-			timestamp: baseTime,
-			referrer: session.referrer === "direct" ? undefined : session.referrer,
-			url: fullUrl,
-			path: fullUrl,
-			title: generatePageTitle(path),
-			ip: "",
-			user_agent: "",
-			browser_name: user.browser,
-			browser_version: faker.system.semver(),
-			os_name: user.os,
-			os_version: faker.system.semver(),
-			device_type: user.deviceType,
-			device_brand:
-				user.deviceType === "mobile"
-					? faker.helpers.arrayElement(["Apple", "Samsung", "Google"])
-					: undefined,
-			device_model:
-				user.deviceType === "mobile" ? faker.phone.imei() : undefined,
-			country: user.country,
-			region: user.region,
-			city: user.city,
-			screen_resolution: undefined,
-			viewport_size: user.viewportSize,
-			language: user.language,
-			timezone: user.timezone,
-			connection_type: undefined,
-			rtt: undefined,
-			downlink: undefined,
-			time_on_page: isPageExit
-				? Math.round(
-						faker.number.float({ min: 5, max: 600, fractionDigits: 1 })
-					)
-				: undefined,
-			scroll_depth: isPageExit
-				? faker.number.float({ min: 10, max: 100, fractionDigits: 1 })
-				: undefined,
-			interaction_count: isPageExit
-				? faker.number.int({ min: 0, max: 50 })
-				: undefined,
-			page_count:
-				eventName === "screen_view" || isPageExit
-					? faker.number.int({ min: 1, max: 10 })
-					: 1,
-			utm_source: faker.helpers.maybe(
-				() => faker.helpers.arrayElement(["google", "facebook", "twitter"]),
-				{ probability: 0.3 }
+			errorCount: Math.round(
+				sessions.length * ERRORS_PER_SESSION * errorMultiplier
 			),
-			utm_medium: faker.helpers.maybe(
-				() => faker.helpers.arrayElement(["cpc", "organic", "social"]),
-				{ probability: 0.3 }
-			),
-			utm_campaign: faker.helpers.maybe(() => faker.lorem.slug(), {
-				probability: 0.2,
-			}),
-			utm_term: faker.helpers.maybe(() => faker.lorem.word(), {
-				probability: 0.15,
-			}),
-			utm_content: faker.helpers.maybe(
-				() => faker.lorem.words({ min: 1, max: 3 }),
-				{ probability: 0.15 }
-			),
-			load_time: undefined,
-			dom_ready_time: undefined,
-			dom_interactive: undefined,
-			ttfb: undefined,
-			connection_time: undefined,
-			request_time: undefined,
-			render_time: undefined,
-			redirect_time: undefined,
-			domain_lookup_time: undefined,
-			properties: "{}",
-			created_at: Date.now(),
+			sessions,
 		};
 	});
+	const sessions = dailyTraffic.flatMap((day) => day.sessions);
 
-	events.sort((a, b) => a.time - b.time);
-
-	const outgoingLinks = Array.from(
-		{ length: Math.floor(eventCount / 10) },
-		(_, index) => {
-			const session = sessionFor(index, Math.floor(eventCount / 10));
-
-			const maxSessionDuration = 2 * 60 * 60 * 1000;
-			const sessionProgress =
-				(index % Math.ceil(Math.floor(eventCount / 10) / TOTAL_SESSIONS)) /
-				Math.ceil(Math.floor(eventCount / 10) / TOTAL_SESSIONS);
-			const timestamp =
-				session.sessionStartTime + sessionProgress * maxSessionDuration;
-
-			return {
-				id: faker.string.uuid(),
+	const events = sessions.flatMap((session) => {
+		let time = session.start;
+		return session.pages.flatMap((page, index) => {
+			const viewedAt = time;
+			time += (page.seconds + 1) * 1000;
+			const shared = {
+				anonymous_id: session.visitor.anonymousId,
+				browser_name: session.visitor.browser,
 				client_id: clientId,
-				anonymous_id: session.anonymousId,
-				session_id: session.sessionId,
-				href: faker.internet.url(),
-				text: faker.helpers.maybe(() => faker.lorem.words({ min: 1, max: 4 }), {
-					probability: 0.7,
-				}),
+				country: session.visitor.country,
+				created_at: clickHouseTime(now),
+				device_type: session.visitor.device,
+				ip: "",
+				os_name: session.visitor.os,
+				path: page.path,
 				properties: "{}",
-				timestamp,
+				referrer: index === 0 ? session.referrer : null,
+				session_id: session.sessionId,
+				title: pageTitle(page.path),
+				url: `https://${domain}${page.path}`,
+				user_agent: "",
 			};
-		}
+			return [
+				{
+					...shared,
+					event_name: "screen_view",
+					id: faker.string.uuid(),
+					time: clickHouseTime(viewedAt),
+				},
+				{
+					...shared,
+					event_name: "page_exit",
+					id: faker.string.uuid(),
+					interaction_count: faker.number.int({ max: 20, min: 0 }),
+					scroll_depth: faker.number.int({ max: 100, min: 10 }),
+					time: clickHouseTime(viewedAt + page.seconds * 1000),
+					time_on_page: page.seconds,
+				},
+			];
+		});
+	});
+
+	const webVitals = sessions.flatMap((session) =>
+		VITALS.map((vital) => ({
+			anonymous_id: session.visitor.anonymousId,
+			client_id: clientId,
+			metric_name: vital.name,
+			metric_value: faker.number.float({
+				fractionDigits: 3,
+				max: vital.max,
+				min: vital.min,
+			}),
+			path: session.pages[0]?.path ?? "/",
+			session_id: session.sessionId,
+			timestamp: clickHouseTime(session.start + 1000),
+		}))
 	);
 
-	outgoingLinks.sort((a, b) => a.timestamp - b.timestamp);
+	const outgoingLinks = sessions
+		.filter(() => faker.datatype.boolean({ probability: 0.1 }))
+		.map((session) => ({
+			anonymous_id: session.visitor.anonymousId,
+			client_id: clientId,
+			href: "https://github.com/databuddy-analytics/Databuddy",
+			id: faker.string.uuid(),
+			properties: "{}",
+			session_id: session.sessionId,
+			text: "Databuddy GitHub",
+			timestamp: clickHouseTime(session.start + 5000),
+		}));
 
-	const errors = Array.from(
-		{ length: Math.floor(eventCount / 20) },
-		(_, index) => {
-			const session = sessionFor(index, Math.floor(eventCount / 20));
-
-			const maxSessionDuration = 2 * 60 * 60 * 1000;
-			const sessionProgress =
-				(index % Math.ceil(Math.floor(eventCount / 20) / TOTAL_SESSIONS)) /
-				Math.ceil(Math.floor(eventCount / 20) / TOTAL_SESSIONS);
-			const timestamp =
-				session.sessionStartTime + sessionProgress * maxSessionDuration;
-			const pathname = faker.helpers.arrayElement(PATHS);
-			const errorType = faker.helpers.arrayElement([
-				"Error",
-				"TypeError",
-				"ReferenceError",
-				"UnhandledRejection",
-			]);
-
+	const errors = dailyTraffic.flatMap((day) =>
+		Array.from({ length: day.errorCount }, () => {
+			const session = faker.helpers.arrayElement(day.sessions);
+			const errorType = faker.helpers.arrayElement(ERROR_TYPES);
 			return {
+				anonymous_id: session.visitor.anonymousId,
 				client_id: clientId,
-				anonymous_id: session.anonymousId,
-				session_id: session.sessionId,
-				timestamp,
-				path: pathname,
-				message: faker.helpers.arrayElement([
-					"Cannot read property 'x' of undefined",
-					"Unexpected token in JSON",
-					"Network request failed",
-					"Maximum call stack size exceeded",
-					"Failed to fetch",
-				]),
-				filename: faker.helpers.maybe(
-					() => `https://${domain}${pathname}/app.js`,
-					{ probability: 0.8 }
-				),
-				lineno: faker.helpers.maybe(
-					() => faker.number.int({ min: 1, max: 1000 }),
-					{ probability: 0.7 }
-				),
-				colno: faker.helpers.maybe(
-					() => faker.number.int({ min: 1, max: 100 }),
-					{ probability: 0.6 }
-				),
-				stack: faker.helpers.maybe(
-					() =>
-						`Error: ${errorType}\n    at function (app.js:${faker.number.int({ min: 1, max: 100 })}:${faker.number.int({ min: 1, max: 50 })})`,
-					{ probability: 0.8 }
-				),
+				colno: faker.number.int({ max: 80, min: 1 }),
 				error_type: errorType,
-			};
-		}
-	);
-
-	errors.sort((a, b) => a.timestamp - b.timestamp);
-
-	const webVitals = Array.from(
-		{ length: Math.floor(eventCount / 5) },
-		(_, index) => {
-			const session = sessionFor(index, Math.floor(eventCount / 5));
-
-			const maxSessionDuration = 2 * 60 * 60 * 1000;
-			const sessionProgress =
-				(index % Math.ceil(Math.floor(eventCount / 5) / TOTAL_SESSIONS)) /
-				Math.ceil(Math.floor(eventCount / 5) / TOTAL_SESSIONS);
-			const timestamp =
-				session.sessionStartTime + sessionProgress * maxSessionDuration;
-			const pathname = faker.helpers.arrayElement(PATHS);
-			const metricName = faker.helpers.arrayElement([
-				"FCP",
-				"LCP",
-				"CLS",
-				"INP",
-				"TTFB",
-				"FPS",
-			]);
-
-			let metricValue: number;
-			if (metricName === "CLS") {
-				metricValue = faker.number.float({
-					min: 0,
-					max: 0.5,
-					fractionDigits: 3,
-				});
-			} else if (metricName === "FPS") {
-				metricValue = faker.number.int({ min: 30, max: 60 });
-			} else {
-				metricValue = faker.number.int({ min: 100, max: 5000 });
-			}
-
-			return {
-				client_id: clientId,
-				anonymous_id: session.anonymousId,
+				filename: `https://${domain}/_next/static/chunks/app.js`,
+				lineno: faker.number.int({ max: 900, min: 1 }),
+				message: faker.helpers.arrayElement(ERROR_MESSAGES),
+				path: faker.helpers.arrayElement(PATHS),
 				session_id: session.sessionId,
-				timestamp,
-				path: pathname,
-				metric_name: metricName,
-				metric_value: metricValue,
+				stack: `${errorType}\n    at app.js`,
+				timestamp: clickHouseTime(session.start + 2000),
 			};
-		}
+		})
 	);
 
-	webVitals.sort((a, b) => a.timestamp - b.timestamp);
+	return { errors, events, outgoingLinks, webVitals };
+}
 
-	console.log(
-		`Generating seed data for client: ${clientId} on domain: ${domain}`
-	);
-	console.log(
-		`Creating ${UNIQUE_USERS} users across ${TOTAL_SESSIONS} sessions`
-	);
+export type AnalyticsRows = ReturnType<typeof generateAnalytics>;
 
+const SEEDED_TABLES = [
+	TABLE_NAMES.events,
+	TABLE_NAMES.outgoing_links,
+	TABLE_NAMES.error_spans,
+	TABLE_NAMES.web_vitals_spans,
+];
+
+export async function seedAnalytics(
+	client: ClickHouseClient,
+	rows: AnalyticsRows
+): Promise<void> {
+	const format = "JSONEachRow";
 	await Promise.all([
-		clickHouse.insert({
-			table: TABLE_NAMES.events,
-			format: "JSONEachRow",
-			values: events,
+		client.insert({ format, table: TABLE_NAMES.events, values: rows.events }),
+		client.insert({
+			format,
+			table: TABLE_NAMES.outgoing_links,
+			values: rows.outgoingLinks,
 		}),
-		clickHouse.insert({
-			table: "analytics.outgoing_links",
-			format: "JSONEachRow",
-			values: outgoingLinks,
+		client.insert({
+			format,
+			table: TABLE_NAMES.error_spans,
+			values: rows.errors,
 		}),
-		clickHouse.insert({
-			table: "analytics.error_spans",
-			format: "JSONEachRow",
-			values: errors,
-		}),
-		clickHouse.insert({
-			table: "analytics.web_vitals_spans",
-			format: "JSONEachRow",
-			values: webVitals,
+		client.insert({
+			format,
+			table: TABLE_NAMES.web_vitals_spans,
+			values: rows.webVitals,
 		}),
 	]);
+}
 
-	console.log(
-		`Inserted ${events.length} events, ${outgoingLinks.length} outgoing links, ${errors.length} errors, ${webVitals.length} web vitals for client ${clientId}`
-	);
-})();
+export async function deleteAnalytics(
+	client: ClickHouseClient,
+	clientId: string
+): Promise<void> {
+	for (const table of SEEDED_TABLES) {
+		await client.command({
+			query: `DELETE FROM ${table} WHERE client_id = {clientId:String}`,
+			query_params: { clientId },
+		});
+	}
+}

@@ -310,7 +310,7 @@ async function main() {
 	log(chalk.cyan("  2. Run 'bun run dev' to start development servers"));
 	log(
 		chalk.cyan(
-			"  3. (Optional) Run 'bun run db:seed <WEBSITE_ID> [DOMAIN] [EVENT_COUNT]' to seed sample data"
+			"  3. (Optional) Run 'bun run workspace --reset' for a local login and a seeded website"
 		)
 	);
 	log(chalk.bold("\nHappy coding! 🎉"));

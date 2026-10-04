@@ -32,7 +32,7 @@ bun run test:watch
 bun run db:push          # Apply schema changes (no migration files)
 bun run db:migrate       # Run migration files
 bun run db:studio        # Open Drizzle Studio GUI
-bun run db:seed <WEBSITE_ID> [EVENT_COUNT]  # Seed sample analytics data
+bun run workspace [--reset] [--anomaly] [--events N] [--website <ID>]  # Local login, website and seeded analytics
 
 # SDK (must build before dev if SDK changed)
 bun run sdk:build
