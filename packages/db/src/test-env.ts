@@ -32,4 +32,5 @@ process.env.CLICKHOUSE_URL =
 		: "http://default:@localhost:8123";
 process.env.BETTER_AUTH_SECRET ??= "test-auth-secret-for-integration";
 process.env.BETTER_AUTH_URL ??= "http://localhost:3001";
+process.env.AUTUMN_SECRET_KEY ||= "test-autumn-secret-key";
 process.env.NODE_ENV = "test";
