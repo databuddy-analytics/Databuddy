@@ -497,8 +497,6 @@ async function assertUserRowDeletable(
 	userId: string,
 	organizationIds: string[]
 ): Promise<void> {
-	// Dry-run the cascade so a RESTRICT reference refuses deletion before any
-	// org is deleted, instead of failing after the solo orgs are already gone.
 	const outcome = await db
 		.transaction(async (tx) => {
 			if (organizationIds.length > 0) {
@@ -517,13 +515,18 @@ async function assertUserRowDeletable(
 	if (!table) {
 		throw outcome;
 	}
+	log.warn({
+		service: "auth",
+		component: "account_deletion",
+		auth_user_id: userId,
+		blocking_table: table,
+	});
 	throw new APIError("BAD_REQUEST", {
-		message: `Your account created ${table.replaceAll("_", " ")} in an organization you share, so it cannot be deleted automatically. Contact support to delete your account.`,
+		message:
+			"Your account still owns data in an organization you share. Transfer or delete it, then try again.",
 	});
 }
 
-// Billing customers are owner user ids, so a deleted owner's subscription
-// would keep charging their card.
 async function assertNoRenewingSubscription(userId: string): Promise<void> {
 	const secretKey = process.env.AUTUMN_SECRET_KEY?.trim();
 	if (isSelfHosted()) {
@@ -546,6 +549,11 @@ async function assertNoRenewingSubscription(userId: string): Promise<void> {
 			if (error instanceof AutumnError && error.statusCode === 404) {
 				return null;
 			}
+			log.error({
+				service: "auth",
+				component: "account_deletion",
+				error: error instanceof Error ? error.message : String(error),
+			});
 			throw new APIError("SERVICE_UNAVAILABLE", {
 				message:
 					"We couldn't check your subscription. Please try again in a minute.",
