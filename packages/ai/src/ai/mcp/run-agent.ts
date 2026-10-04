@@ -1,4 +1,5 @@
 import {
+	asksToRemember,
 	formatMemoryForPrompt,
 	getMemoryContext,
 	isMemoryEnabled,
@@ -21,7 +22,7 @@ import {
 } from "../agents/execution";
 import { createMcpAgentConfig } from "../agents/mcp";
 import { getDefaultAgentModelId } from "../config/models";
-import type { AppMutationMode } from "../config/context";
+import type { AppContext, AppMutationMode } from "../config/context";
 import type { DatabuddyAgentSlackContext } from "./slack-context";
 
 const DEFAULT_MCP_AGENT_TIMEOUT_MS = 45_000;
@@ -355,9 +356,7 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 			websiteId: options.websiteId,
 		}),
 		isMemoryEnabled()
-			? getMemoryContext(historyInput, memoryUserId, apiKeyId, {
-					websiteId: options.websiteId ?? undefined,
-				})
+			? getMemoryContext(historyInput, memoryUserId, apiKeyId)
 			: Promise.resolve(null),
 		loadOrganizationBusinessContext({
 			organizationId,
@@ -372,7 +371,14 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 	const ai = getAILogger();
 	const capturedSteps: StepResult<ToolSet>[] = [];
 	const agent = createConversationAgent(
-		{ ...config, model: ai.wrap(config.model) },
+		{
+			...config,
+			model: ai.wrap(config.model),
+			experimental_context: {
+				...(config.experimental_context as AppContext),
+				latestUserMessage: historyInput,
+			},
+		},
 		{
 			onStepFinish: (step) => {
 				capturedSteps.push(step);
@@ -423,6 +429,7 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		mcpUserId,
 		messages,
 		modelId: selectedModelId,
+		mutationMode: options.mutationMode,
 		organizationId,
 		sessionId,
 		source,
@@ -505,6 +512,12 @@ function storePreparedConversation(
 	prepared: Awaited<ReturnType<typeof prepareMcpAgentRun>>,
 	answer: string
 ): void {
+	if (
+		prepared.mutationMode === "dry-run" ||
+		!asksToRemember(prepared.historyInput)
+	) {
+		return;
+	}
 	storeConversation(
 		[
 			{ role: "user", content: prepared.historyInput },

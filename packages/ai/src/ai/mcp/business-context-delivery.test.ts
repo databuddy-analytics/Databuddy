@@ -74,7 +74,9 @@ mock.module("../../lib/accessible-websites", () => ({
 		allowed && organizationId === "org-synthetic" ? sites : [],
 }));
 const storedMemory = mock((..._input: unknown[]) => {});
+const supermemory = await import("../../lib/supermemory");
 mock.module("../../lib/supermemory", () => ({
+	...supermemory,
 	isMemoryEnabled: () => false,
 	getMemoryContext: mock(() => {
 		throw new Error("Memory must not be queried");
@@ -1112,6 +1114,7 @@ describe("completed shared-agent usage after failure or cancellation", () => {
 			const iterator = streamDatabuddyAgent({
 				...options,
 				billingMode: "bill",
+				input: "Remember that we report weekly",
 				persistConversation: true,
 			});
 			const first = await iterator.next();
@@ -1221,6 +1224,37 @@ describe("completed shared-agent usage after failure or cancellation", () => {
 		} finally {
 			stream.mockRestore();
 		}
+	});
+});
+
+describe("shared-agent memory writes", () => {
+	it.each([
+		{
+			input: "Remember that we report weekly",
+			mutationMode: "allow",
+			writes: 2,
+		},
+		{ input: options.input, mutationMode: "allow", writes: 0 },
+		{
+			input: "Remember that we report weekly",
+			mutationMode: "dry-run",
+			writes: 0,
+		},
+	] as const)("stores memory only for an explicit request outside dry-run ($mutationMode: $input)", async ({
+		input,
+		mutationMode,
+		writes,
+	}) => {
+		const request = {
+			...options,
+			input,
+			mutationMode,
+			persistConversation: true,
+		};
+		await askDatabuddyAgent(request);
+		await Array.fromAsync(streamDatabuddyAgent(request));
+		expect(storedMemory).toHaveBeenCalledTimes(writes);
+		expect(persistedConversation).toHaveBeenCalledTimes(2);
 	});
 });
 

@@ -14,7 +14,9 @@ import {
 import { AGENT_THINKING_LEVELS, AGENT_TIERS } from "@databuddy/ai/agents/types";
 import { type AgentModelKey, models } from "@databuddy/ai/config/models";
 import { askDatabuddyAgent, streamDatabuddyAgent } from "@databuddy/ai/agent";
+import type { AppContext } from "@databuddy/ai/config/context";
 import {
+	asksToRemember,
 	formatMemoryForPrompt,
 	isMemoryEnabled,
 	storeConversation,
@@ -508,6 +510,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 							actor,
 							conversationId,
 							input: body.question,
+							mutationMode: "dry-run",
 							source: "slack",
 							timezone: body.timezone,
 						})
@@ -518,6 +521,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					actor,
 					conversationId,
 					input: body.question,
+					mutationMode: "dry-run",
 					source: "slack",
 					timezone: body.timezone,
 				});
@@ -665,6 +669,8 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 
 					const timezone = body.timezone ?? "UTC";
 					const lastMessage = getLastMessagePreview(body.messages);
+					const latestUserMessage =
+						body.messages.at(-1)?.role === "user" ? lastMessage : "";
 
 					const modelKey: AgentModelKey = body.tier ?? "balanced";
 
@@ -884,7 +890,14 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					}
 
 					const agent = createConversationAgent(
-						{ ...config, model: getAILogger().wrap(config.model) },
+						{
+							...config,
+							model: getAILogger().wrap(config.model),
+							experimental_context: {
+								...(config.experimental_context as AppContext),
+								latestUserMessage,
+							},
+						},
 						{
 							experimental_telemetry: {
 								isEnabled: true,
@@ -894,9 +907,13 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						}
 					);
 
-					if (isMemoryEnabled() && lastMessage && defaultWebsiteId) {
+					if (
+						isMemoryEnabled() &&
+						defaultWebsiteId &&
+						asksToRemember(latestUserMessage)
+					) {
 						storeConversation(
-							[{ role: "user", content: lastMessage }],
+							[{ role: "user", content: latestUserMessage }],
 							userId,
 							null,
 							{

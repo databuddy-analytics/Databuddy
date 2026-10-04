@@ -1,9 +1,9 @@
 import { type Tool, tool } from "ai";
 import { z } from "zod";
 import {
+	asksToRemember,
 	forgetMemory,
 	isMemoryEnabled,
-	primaryContainerTag,
 	sanitizeMemoryContent,
 	saveCuratedMemory,
 	searchMemories,
@@ -11,6 +11,7 @@ import {
 
 function getAgentContext(options: unknown): {
 	apiKeyId: string | null;
+	latestUserMessage: string;
 	memoryUserId: string | null;
 	mutationMode: "allow" | "dry-run";
 	websiteId: string | null;
@@ -26,9 +27,12 @@ function getAgentContext(options: unknown): {
 	const apiKey = ctx?.apiKey as { id: string } | null | undefined;
 	const websiteId =
 		typeof ctx?.websiteId === "string" && ctx.websiteId ? ctx.websiteId : null;
+	const latestUserMessage =
+		typeof ctx?.latestUserMessage === "string" ? ctx.latestUserMessage : "";
 	const mutationMode = ctx?.mutationMode === "dry-run" ? "dry-run" : "allow";
 	return {
 		apiKeyId: apiKey?.id ?? null,
+		latestUserMessage,
 		memoryUserId,
 		mutationMode,
 		websiteId,
@@ -77,7 +81,7 @@ export function createMemoryTools(): Record<string, Tool> {
 		}),
 		save_memory: tool({
 			description:
-				"Save an important user preference, correction, or project fact for future conversations.",
+				"Save a user preference, correction, or project fact for future conversations, only when the latest user message explicitly asks you to remember it.",
 			strict: true,
 			inputSchema: z.object({
 				content: z.string(),
@@ -87,12 +91,24 @@ export function createMemoryTools(): Record<string, Tool> {
 					.default("insight"),
 			}),
 			execute: (args, options) => {
-				const { apiKeyId, memoryUserId, mutationMode, websiteId } =
-					getAgentContext(options);
+				const {
+					apiKeyId,
+					latestUserMessage,
+					memoryUserId,
+					mutationMode,
+					websiteId,
+				} = getAgentContext(options);
 				if (mutationMode === "dry-run") {
 					return {
 						dryRun: true,
 						message: "Dry-run mode skipped saving memory.",
+						saved: false,
+					};
+				}
+				if (!asksToRemember(latestUserMessage)) {
+					return {
+						message:
+							'Refused: the user\'s latest message does not ask you to remember anything. Memory is saved only when the user explicitly asks, for example "remember that...".',
 						saved: false,
 					};
 				}
@@ -105,13 +121,13 @@ export function createMemoryTools(): Record<string, Tool> {
 		}),
 		forget_memory: tool({
 			description:
-				"Delete an incorrect or outdated saved memory only when the latest user message explicitly says a remembered/saved memory is wrong or asks you to forget it. Do not use for generic corrections or current Slack thread context.",
+				"Delete one of the user's own saved memories only when the latest user message explicitly says a remembered/saved memory is wrong or asks you to forget it. Pass the memory's exact text; when nothing matches it exactly, the result lists candidate memories instead of deleting one. Do not use for generic corrections or current Slack thread context.",
 			strict: true,
 			inputSchema: z.object({
-				query: z.string().describe("Search query to find the memory to forget"),
+				query: z.string().describe("Exact text of the saved memory to forget"),
 			}),
 			execute: async (args, options) => {
-				const { apiKeyId, memoryUserId, mutationMode, websiteId } =
+				const { apiKeyId, memoryUserId, mutationMode } =
 					getAgentContext(options);
 				if (mutationMode === "dry-run") {
 					return {
@@ -120,31 +136,28 @@ export function createMemoryTools(): Record<string, Tool> {
 						message: "Dry-run mode skipped forgetting memory.",
 					};
 				}
-				const results = await searchMemories(
-					args.query,
-					memoryUserId,
-					apiKeyId,
-					{
-						limit: 1,
-						threshold: 0.3,
-						websiteId: websiteId ?? undefined,
-					}
-				);
-				if (results.length === 0 || !results[0]) {
+				const result = await forgetMemory(args.query, memoryUserId, apiKeyId);
+				if (result.status === "forgotten") {
+					return {
+						forgotten: true,
+						memory: result.memory,
+						message: "Memory forgotten.",
+					};
+				}
+				if (result.status === "failed") {
+					return { forgotten: false, message: "Failed to forget memory." };
+				}
+				if (result.candidates.length === 0) {
 					return {
 						forgotten: false,
 						message: "No matching memory found to forget.",
 					};
 				}
-				const containerTag =
-					results[0].containerTag ??
-					primaryContainerTag(memoryUserId, apiKeyId);
-				const result = await forgetMemory(containerTag, results[0].memory);
 				return {
-					forgotten: result.success,
-					message: result.success
-						? "Memory forgotten."
-						: "Failed to forget memory.",
+					candidates: result.candidates,
+					forgotten: false,
+					message:
+						"No saved memory has that exact text. If one of these candidates is what the user asked to forget, call forget_memory again with its exact text.",
 				};
 			},
 		}),
