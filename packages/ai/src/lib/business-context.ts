@@ -368,7 +368,7 @@ async function readBusinessMemory(
 						request
 					)
 				).memories;
-		const result = context(options.asOf, "ready");
+		const result: BusinessContextWithTelemetry = context(options.asOf, "ready");
 		for (const document of documents) {
 			const source = sourceFromDocument(document, scope, options.asOf);
 			if (source && (options.query || source.kind === "website")) {
@@ -376,9 +376,9 @@ async function readBusinessMemory(
 			}
 		}
 		if (result.sources.length < documents.length) {
-			result.issues.push(
-				"Some memory records were outside this site's scope, stale, future-dated, or lacked source content."
-			);
+			result.telemetryIssues = [
+				"Some memory records were outside this site's scope, stale, future-dated, or lacked source content.",
+			];
 		}
 		return mergeBusinessContext(result);
 	} catch (error) {

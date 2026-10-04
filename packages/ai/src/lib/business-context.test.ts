@@ -125,8 +125,8 @@ describe("scoped business context through the native Supermemory transport", () 
 			query: "report_exported",
 		});
 		expect(result.sources).toEqual([]);
-		expect(result.status).toBe("partial");
-		expect(result.issues.length).toBeGreaterThan(0);
+		expect(result.issues).toEqual([]);
+		expect(result.telemetryIssues).toHaveLength(1);
 	});
 	it("recalls the full original text rather than an inferred provider summary or chunk", async () => {
 		const client = provider((path, body) => {
