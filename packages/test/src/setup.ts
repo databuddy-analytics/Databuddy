@@ -8,7 +8,6 @@ import {
 } from "@databuddy/db/e2e-db-lifecycle";
 import {
 	deleteAnalytics,
-	EVENTS_PER_SESSION,
 	generateAnalytics,
 	seedAnalytics,
 } from "@databuddy/db/seed";
@@ -27,36 +26,21 @@ export async function cleanup() {
 }
 
 const WORKSPACE = {
-	days: 28,
 	domain: "localhost",
 	email: "dev@databuddy.local",
 	password: "databuddy-dev",
 	websiteId: "local-website",
 };
 
-export interface WorkspaceOptions {
-	anomaly?: boolean;
-	events?: number;
-	reset?: boolean;
-	websiteId?: string;
-}
-
-async function existingWebsite(websiteId: string) {
-	const website = await db().query.websites.findFirst({
-		where: { id: websiteId },
-	});
-	if (!website) {
-		throw new Error(`Website "${websiteId}" does not exist`);
-	}
-	return { apiKey: null, website };
-}
-
-async function workspaceWebsite() {
+async function workspaceWebsite(websiteId?: string) {
 	const existing = await db().query.websites.findFirst({
-		where: { id: WORKSPACE.websiteId },
+		where: { id: websiteId ?? WORKSPACE.websiteId },
 	});
 	if (existing) {
 		return { apiKey: null, website: existing };
+	}
+	if (websiteId) {
+		throw new Error(`Website "${websiteId}" does not exist`);
 	}
 	const user = await signUp({
 		email: WORKSPACE.email,
@@ -87,32 +71,6 @@ async function workspaceWebsite() {
 	return { apiKey: apiKey.secret, website };
 }
 
-export async function bootstrapWorkspace(options: WorkspaceOptions = {}) {
-	const { databaseUrl } = assertLocalTargets();
-	if (options.reset) {
-		await resetLocalDatabase(databaseUrl);
-	}
-	await Promise.all([
-		applyPostgresSchema(databaseUrl),
-		applyClickHouseSchema(),
-	]);
-	const { apiKey, website } = options.websiteId
-		? await existingWebsite(options.websiteId)
-		: await workspaceWebsite();
-	const rows = generateAnalytics({
-		anomaly: options.anomaly,
-		clientId: website.id,
-		dailySessions: options.events
-			? Math.ceil(options.events / WORKSPACE.days / EVENTS_PER_SESSION)
-			: undefined,
-		days: WORKSPACE.days,
-		domain: website.domain,
-	});
-	await deleteAnalytics(clickHouse, website.id);
-	await seedAnalytics(clickHouse, rows);
-	return { apiKey, rows, website };
-}
-
 if (import.meta.main) {
 	try {
 		const { values } = parseArgs({
@@ -127,12 +85,23 @@ if (import.meta.main) {
 		if (events !== undefined && !(events > 0)) {
 			throw new Error("--events must be a positive number");
 		}
-		const { apiKey, rows, website } = await bootstrapWorkspace({
+		const databaseUrl = assertLocalTargets();
+		if (values.reset) {
+			await resetLocalDatabase(databaseUrl);
+		}
+		await Promise.all([
+			applyPostgresSchema(databaseUrl),
+			applyClickHouseSchema(),
+		]);
+		const { apiKey, website } = await workspaceWebsite(values.website);
+		const rows = generateAnalytics({
 			anomaly: values.anomaly,
+			clientId: website.id,
+			domain: website.domain,
 			events,
-			reset: values.reset,
-			websiteId: values.website,
 		});
+		await deleteAnalytics(clickHouse, website.id);
+		await seedAnalytics(clickHouse, rows);
 		console.info(
 			[
 				`Seeded ${rows.events.length} events, ${rows.errors.length} errors, ${rows.webVitals.length} web vitals and ${rows.outgoingLinks.length} outgoing links`,
