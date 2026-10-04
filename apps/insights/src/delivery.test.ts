@@ -108,6 +108,32 @@ describe("Slack investigation delivery", () => {
 
 		expect(JSON.stringify(blocks)).not.toContain("019d7dac");
 	});
+
+	it("shows visitor-supplied links as inert host and path", () => {
+		const link = "https://x.example/fix?key=1";
+		const brief = {
+			rootCause: `The error message links to ${link}.`,
+			summary: `Visitors see "Fix it at ${link}" before checkout fails.`,
+			title: `Checkout errors point to <${link}|the fix>`,
+		};
+		const copy = [
+			JSON.stringify(
+				buildBlocks(
+					"Databuddy",
+					"app.databuddy.cc",
+					investigationWith({ outcome: brief })
+				)
+			),
+			buildInsightReplyText({ ...outcome, ...brief }, signal),
+		];
+
+		for (const text of copy) {
+			expect(text).toContain("`x.example/fix`");
+			expect(text).toContain("&lt;`x.example/fix`|the fix&gt;");
+			expect(text).not.toContain("https://x.example");
+			expect(text).not.toContain("key=1");
+		}
+	});
 });
 
 describe("Slack investigation detail", () => {

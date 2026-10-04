@@ -78,9 +78,28 @@ function escapeMrkdwn(value: string): string {
 const FULL_UUID_PATTERN =
 	/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 const TRUNCATED_UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-\.\.\./gi;
+const HTTP_URL_PATTERN = /https?:\/\/[^\s<>|`]+/gi;
+const URL_TRAILING_PUNCTUATION = /[.,;:!?)\]}'"*_~]+$/;
+const URL_SCHEME_AND_SUFFIX = /^https?:\/\/|[?#].*$/gi;
+
+function neutralizeUrls(value: string): string {
+	return value.replace(HTTP_URL_PATTERN, (match) => {
+		const trailing = URL_TRAILING_PUNCTUATION.exec(match)?.[0] ?? "";
+		const href = match.slice(0, match.length - trailing.length);
+		const url = URL.parse(href);
+		const label = url
+			? hostAndPath(url)
+			: href.replace(URL_SCHEME_AND_SUFFIX, "");
+		return label ? `\`${label}\`${trailing}` : match;
+	});
+}
+
+function hostAndPath(url: URL): string {
+	return url.pathname === "/" ? url.host : `${url.host}${url.pathname}`;
+}
 
 function userVisibleCopy(value: string): string {
-	return value
+	return neutralizeUrls(value)
 		.replace(FULL_UUID_PATTERN, "the affected item")
 		.replace(TRUNCATED_UUID_PATTERN, "the affected item");
 }
@@ -226,9 +245,11 @@ function buildThreadBlocks(insight: SlackInvestigation): SlackBlock[] {
 	const current = formatMetricValue(metric.current, metric.format);
 	const lines = [
 		`• ${escapeMrkdwn(
-			metric.previous === undefined || metric.previous === null
-				? `${metric.label}: ${current}`
-				: `${metric.label}: ${current} (was ${formatMetricValue(metric.previous, metric.format)})`
+			userVisibleCopy(
+				metric.previous === undefined || metric.previous === null
+					? `${metric.label}: ${current}`
+					: `${metric.label}: ${current} (was ${formatMetricValue(metric.previous, metric.format)})`
+			)
 		)}`,
 	];
 	if (insight.outcome.rootCause?.trim()) {
@@ -392,6 +413,8 @@ export async function deliverInsightSlackEffect(
 		client_msg_id: clientMessageId,
 		text: payload.text,
 		...(threadTs ? { thread_ts: threadTs } : {}),
+		unfurl_links: false,
+		unfurl_media: false,
 	});
 	emitInsightsEvent("info", "delivery.slack.posted", {
 		organization_id: context.organizationId,
@@ -416,11 +439,11 @@ export async function deliverInsightSlackReply(params: {
 	return await deliverInsightSlackEffect(
 		{
 			blocks: [],
-			text:
-				params.text ??
-				(params.result
+			text: params.text
+				? escapeMrkdwn(neutralizeUrls(params.text))
+				: params.result
 					? buildInsightReplyText(params.result.outcome, params.result.signal)
-					: "I couldn't finish this investigation. Try replying again, or open it from the original message."),
+					: "I couldn't finish this investigation. Try replying again, or open it from the original message.",
 		},
 		params.context,
 		params.clientMessageId,
