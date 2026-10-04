@@ -185,6 +185,63 @@ const WILDCARD_PROJECTION_PATTERN =
 	/(?:^|,)\s*(?:(?:DISTINCT|ALL)\s+)?(?:[a-zA-Z_][a-zA-Z0-9_]*\s*\.\s*)?\*\s*(?=,|$|\b(?:APPLY|EXCEPT|REPLACE)\b)/i;
 const SENSITIVE_PROJECTION_PATTERN = /\b(?:ip|properties|url|user_agent)\b/i;
 
+const PLAIN_QUOTED_IDENTIFIER_PATTERN = /^[A-Za-z0-9_.]+$/;
+
+function agentSqlSyntaxError(sql: string): string | null {
+	let index = 0;
+	while (index < sql.length) {
+		const char = sql[index];
+		const next = sql[index + 1];
+		if (char === "'") {
+			index += 1;
+			let closed = false;
+			while (index < sql.length) {
+				if (sql[index] === "\\") {
+					index += 2;
+					continue;
+				}
+				if (sql[index] === "'") {
+					if (sql[index + 1] === "'") {
+						index += 2;
+						continue;
+					}
+					index += 1;
+					closed = true;
+					break;
+				}
+				index += 1;
+			}
+			if (!closed) {
+				return "Unterminated string literal.";
+			}
+			continue;
+		}
+		if (char === "`" || char === '"') {
+			const end = sql.indexOf(char, index + 1);
+			if (
+				end < 0 ||
+				!PLAIN_QUOTED_IDENTIFIER_PATTERN.test(sql.slice(index + 1, end))
+			) {
+				return "Quoted identifiers may contain only letters, digits, underscores and dots.";
+			}
+			index = end + 1;
+			continue;
+		}
+		if (
+			char === "#" ||
+			(char === "-" && next === "-") ||
+			(char === "/" && next === "*")
+		) {
+			return "Comments are not allowed; remove them and resend the query.";
+		}
+		if (char === "$" || char === "\\") {
+			return `The character ${char} is not allowed outside string literals.`;
+		}
+		index += 1;
+	}
+	return null;
+}
+
 function maskCommentsAndStrings(sql: string): string {
 	let result = "";
 	let index = 0;
@@ -446,6 +503,10 @@ export function validateAgentSQL(sql: string): {
 	valid: boolean;
 	reason: string | null;
 } {
+	const syntaxError = agentSqlSyntaxError(sql);
+	if (syntaxError) {
+		return { valid: false, reason: syntaxError };
+	}
 	const sanitized = maskCommentsAndStrings(sql);
 
 	if (!SELECT_OR_WITH_PATTERN.test(sanitized)) {
