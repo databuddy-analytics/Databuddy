@@ -69,6 +69,20 @@ assert.ok(prompt.includes("## Common issues"));
 		expect(npm).not.toContain("trackSessions");
 	});
 
+	it("leaves interaction tracking to the default and writes it out only when turned off", () => {
+		const off = { ...RECOMMENDED_DEFAULTS, trackInteractions: false };
+
+		expect(
+			generateScriptTag("example-client-id", RECOMMENDED_DEFAULTS)
+		).not.toContain("track-interactions");
+		expect(generateScriptTag("example-client-id", off)).toContain(
+			'data-track-interactions="false"'
+		);
+		expect(generateNpmCode("example-client-id", off)).toContain(
+			"trackInteractions={false}"
+		);
+	});
+
 	it("asks for optional install feedback without code or secrets, and only names real options", () => {
 		const prompt = generateAgentPrompt("example-client-id");
 

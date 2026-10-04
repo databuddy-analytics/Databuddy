@@ -72,7 +72,7 @@ Page views and sessions are automatic. Turn on the rest based on what the codeba
 | trackWebVitals | Always. Powers the Web Vitals page (LCP, CLS, INP, TTFB). |
 | trackErrors | Always for apps with client-side JavaScript. Powers the Errors page. |
 | trackOutgoingLinks | Marketing sites, docs, link-heavy pages. Records clicks that leave the site. |
-| trackInteractions | Apps with buttons and forms worth counting without custom events. |
+| trackInteractions | On by default (rage clicks, dead clicks, form drop-off). Set it to false only where the site owner does not want click analytics. |
 | trackAttributes | When you add data-track attributes to elements instead of calling track(). |
 | trackHashChanges | Single-page apps that route with the URL hash. |
 | skipPatterns | Admin, internal, or preview routes that should never be recorded, e.g. ["/admin/**"]. |
