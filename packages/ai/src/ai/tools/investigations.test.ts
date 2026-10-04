@@ -249,7 +249,10 @@ describe("configure_investigations confirmation preview", () => {
 	});
 
 	it("still delegates confirmed work to the canonical RPC mutation boundary", async () => {
-		const result = await configure({ action: "run", confirmed: true });
+		const result = await tools.configure_investigations.execute?.(
+			{ action: "run", confirmed: true },
+			options
+		);
 		expect(result).toMatchObject({
 			mutationBlocked: true,
 			message:
@@ -259,6 +262,28 @@ describe("configure_investigations confirmation preview", () => {
 });
 
 describe("investigations", () => {
+	it("asks for approval before replying and never before reading", async () => {
+		const { needsApproval } = tools.investigations;
+		if (typeof needsApproval !== "function") {
+			throw new Error("Investigation replies must wait for approval");
+		}
+		const decisions = await Promise.all(
+			(["brief", "list", "get", "reply"] as const).map(async (action) => [
+				action,
+				await needsApproval(investigationActionSchema.parse({ action }), {
+					toolCallId: "approval-1",
+					messages: [],
+				}),
+			])
+		);
+		expect(Object.fromEntries(decisions)).toEqual({
+			brief: false,
+			list: false,
+			get: false,
+			reply: true,
+		});
+	});
+
 	it("delegates brief, list, get, reply permissions, and idempotency to canonical RPC", async () => {
 		const calls: Array<{ input: unknown; method: string; router: string }> = [];
 		const callRpc = async (router: string, method: string, input: unknown) => {

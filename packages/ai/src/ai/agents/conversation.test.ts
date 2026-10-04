@@ -1,14 +1,29 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import {
 	APICallError,
 	type LanguageModelV3GenerateResult,
+	type LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
-import { type ModelMessage, stepCountIs, tool } from "ai";
+import {
+	convertToModelMessages,
+	isToolUIPart,
+	type ModelMessage,
+	pruneMessages,
+	safeValidateUIMessages,
+	stepCountIs,
+	tool,
+	type ToolSet,
+	type UIMessage,
+} from "ai";
 import { MockLanguageModelV3, convertArrayToReadableStream } from "ai/test";
 import { z } from "zod";
 import { conversationModelOptions } from "../config/conversation-model";
 import { modelNames } from "../config/models";
-import { createConversationAgent } from "./conversation";
+import { createGoalTools } from "../tools/goals";
+import {
+	createConversationAgent,
+	settleStaleToolApprovals,
+} from "./conversation";
 import { MAX_AGENT_STEPS, stopAtMaxSteps } from "./stop-conditions";
 import type { AgentConfig } from "./types";
 
@@ -241,6 +256,179 @@ describe("shared conversation execution", () => {
 		expect(model.doGenerateCalls.map((call) => call.toolChoice?.type)).toEqual([
 			...new Array<"auto">(MAX_AGENT_STEPS - 1).fill("auto"),
 			"none",
+		]);
+	});
+});
+
+describe("human approval for writes", () => {
+	const goal = {
+		websiteId: "site-synthetic",
+		type: "PAGE_VIEW",
+		target: "/signup",
+		name: "Signup",
+		confirmed: true,
+	};
+	const confirmation: UIMessage = {
+		id: "user-1",
+		role: "user",
+		parts: [{ type: "text", text: "Yes, create it" }],
+	};
+	const createGoal: LanguageModelV3StreamPart[] = [
+		{
+			type: "tool-call",
+			toolCallId: "call-goal",
+			toolName: "create_goal",
+			input: JSON.stringify(goal),
+		},
+		{
+			type: "finish",
+			finishReason: { unified: "tool-calls", raw: "tool_calls" },
+			usage,
+		},
+	];
+	const reply: LanguageModelV3StreamPart[] = [
+		{ type: "text-start", id: "reply" },
+		{ type: "text-delta", id: "reply", delta: "Done." },
+		{ type: "text-end", id: "reply" },
+		{ type: "finish", finishReason: { unified: "stop", raw: "stop" }, usage },
+	];
+
+	function setup() {
+		const execute = mock(async (_input: unknown) => ({ success: true }));
+		const tools: ToolSet = {
+			create_goal: { ...createGoalTools().create_goal, execute },
+		};
+		const model = new MockLanguageModelV3({
+			modelId: modelNames.balanced,
+			doStream: async ({ prompt }) => ({
+				stream: convertArrayToReadableStream(
+					prompt.some((message) => message.role === "tool") ? reply : createGoal
+				),
+			}),
+		});
+		const agent = createConversationAgent(configFor(model, { tools }));
+
+		async function send(messages: UIMessage[]) {
+			const validation = await safeValidateUIMessages({ messages, tools });
+			if (!validation.success) {
+				throw validation.error;
+			}
+			const chatMessages = settleStaleToolApprovals(validation.data);
+			const result = await agent.stream({
+				messages: pruneMessages({
+					messages: await convertToModelMessages(chatMessages, {
+						tools,
+						ignoreIncompleteToolCalls: true,
+					}),
+					reasoning: "before-last-message",
+					toolCalls: "before-last-2-messages",
+					emptyMessages: "remove",
+				}),
+			});
+			let persisted: UIMessage[] = [];
+			const chunks: string[] = [];
+			for await (const chunk of result.toUIMessageStream({
+				originalMessages: chatMessages,
+				generateMessageId: () => "assistant-1",
+				onFinish: ({ messages: finished }) => {
+					persisted = finished;
+				},
+			})) {
+				chunks.push(chunk.type);
+			}
+			const assistant = persisted.at(-1);
+			if (!assistant) {
+				throw new Error("The response was not persisted");
+			}
+			return {
+				assistant,
+				chunks,
+				part: assistant.parts.find(isToolUIPart),
+			};
+		}
+
+		return { execute, model, send };
+	}
+
+	function answer(message: UIMessage, approved: boolean): UIMessage {
+		return {
+			...message,
+			parts: message.parts.map((part) =>
+				isToolUIPart(part) && part.state === "approval-requested"
+					? {
+							...part,
+							state: "approval-responded",
+							approval: { id: part.approval.id, approved },
+						}
+					: part
+			),
+		};
+	}
+
+	it("holds a confirmed write for approval instead of executing it", async () => {
+		const { execute, send } = setup();
+		const { chunks, part } = await send([confirmation]);
+
+		expect(execute).not.toHaveBeenCalled();
+		expect(chunks).toContain("tool-approval-request");
+		expect(part).toMatchObject({
+			type: "tool-create_goal",
+			state: "approval-requested",
+			input: goal,
+		});
+	});
+
+	it.each([
+		{ decision: "approved", approved: true, state: "output-available" },
+		{ decision: "denied", approved: false, state: "output-denied" },
+	] as const)("executes the held write exactly once only when approved ($decision)", async ({
+		approved,
+		state,
+	}) => {
+		const { execute, send } = setup();
+		const requested = await send([confirmation]);
+		const { chunks, part } = await send([
+			confirmation,
+			answer(requested.assistant, approved),
+		]);
+
+		expect(chunks).not.toContain("error");
+		expect(execute.mock.calls.map(([input]) => input)).toEqual(
+			approved ? [goal] : []
+		);
+		expect(part).toMatchObject({ state, approval: { approved } });
+	});
+
+	it.each([
+		{ request: "unanswered", approved: undefined },
+		{ request: "approved but unrecorded", approved: true },
+	] as const)("closes an $request request when the user sends a new message", async ({
+		approved,
+	}) => {
+		const { execute, model, send } = setup();
+		const requested = await send([confirmation]);
+		const { chunks } = await send([
+			confirmation,
+			approved === undefined
+				? requested.assistant
+				: answer(requested.assistant, approved),
+			{
+				id: "user-2",
+				role: "user",
+				parts: [{ type: "text", text: "Call it Signups instead" }],
+			},
+		]);
+
+		expect(chunks).not.toContain("error");
+		expect(execute).not.toHaveBeenCalled();
+		expect(
+			model.doStreamCalls
+				.at(-1)
+				?.prompt.flatMap((message) =>
+					message.role === "tool" ? message.content : []
+				)
+		).toEqual([
+			expect.objectContaining({ type: "tool-result", toolCallId: "call-goal" }),
 		]);
 	});
 });

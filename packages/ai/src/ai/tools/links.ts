@@ -118,6 +118,7 @@ export function createLinksTools() {
 				confirmed: z.boolean().describe("false=preview, true=apply"),
 			})
 			.superRefine(refineDeepLinkTarget),
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ websiteId, confirmed, ...link }, options) => {
 			const context = getAppContext(options);
 			try {
@@ -193,6 +194,7 @@ export function createLinksTools() {
 			...linkUpdateFields,
 			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ id, websiteId, confirmed, ...input }, options) => {
 			const context = getAppContext(options);
 			try {
@@ -252,6 +254,7 @@ export function createLinksTools() {
 			websiteId: z.string(),
 			confirmed: z.boolean().describe("false=preview, true=delete"),
 		}),
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ id, websiteId, confirmed }, options) => {
 			const context = getAppContext(options);
 			try {

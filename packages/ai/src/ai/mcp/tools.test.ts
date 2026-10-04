@@ -1035,6 +1035,9 @@ describe("Databunny agent toolset", () => {
 			names.filter((name) => /^(create|update|delete|add)_/.test(name))
 		).toEqual([]);
 		expect(names).not.toContain("submit_feedback");
+		expect(
+			names.filter((name) => Boolean(config.tools[name]?.needsApproval))
+		).toEqual([]);
 		expect(config.system.content).not.toContain("confirmed=true");
 		expect(config.system.content).not.toContain("channelAction=add");
 		expect(config.system.content).toContain('{"type":"data-table"');

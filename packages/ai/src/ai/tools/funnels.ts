@@ -139,6 +139,7 @@ export function createFunnelTools() {
 			...funnelFields,
 			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ websiteId, confirmed, ...funnel }, options) => {
 			const context = getAppContext(options);
 			try {

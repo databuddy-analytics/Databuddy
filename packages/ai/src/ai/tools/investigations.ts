@@ -291,6 +291,7 @@ export function createInvestigationTools({
 			description:
 				"Read existing intelligence. brief returns published insights with their next steps; list/get/reply handles durable cases. Preserve returned advice instead of adding more.",
 			inputSchema: investigationActionSchema,
+			needsApproval: ({ action }) => action === "reply",
 			execute: (input, options) =>
 				runInvestigationAction(
 					input,
@@ -302,6 +303,7 @@ export function createInvestigationTools({
 			description:
 				"Read or change automatic investigations. status returns the organization config; configure sets Off/Daily/Weekly, timezone, or Slack delivery; run investigates the selected website now, or every website when none is selected. Configure and run require a separate confirmation turn. Show the preview's scope and billing disclosure before asking for confirmation. A run may investigate several signals; its price is not a single investigation's price.",
 			inputSchema,
+			needsApproval: ({ confirmed }) => confirmed === true,
 			execute: (input, options) => {
 				const context = getAppContext(options);
 				const organizationId = context.organizationId;

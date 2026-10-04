@@ -148,6 +148,7 @@ export function createGoalTools() {
 		description:
 			"Create a single-step conversion goal. Target is a page path (PAGE_VIEW) or event name (EVENT/CUSTOM).",
 		inputSchema: createGoalInputSchema,
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ websiteId, confirmed, ...goal }, options) => {
 			const context = getAppContext(options);
 			try {
@@ -197,6 +198,7 @@ export function createGoalTools() {
 		description:
 			"Update a goal. Preview changes first, then set confirmed=true after explicit user approval.",
 		inputSchema: updateGoalInputSchema,
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ id, confirmed, ...input }, options) => {
 			const context = getAppContext(options);
 			const updates = omitUndefined(input);
@@ -254,6 +256,7 @@ export function createGoalTools() {
 			id: z.string(),
 			confirmed: z.boolean().describe("false=preview, true=delete"),
 		}),
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ id, confirmed }, options) => {
 			const context = getAppContext(options);
 			try {

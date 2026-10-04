@@ -4,7 +4,10 @@ import {
 	hasKeyScope,
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
-import { createConversationAgent } from "@databuddy/ai/agents/conversation";
+import {
+	createConversationAgent,
+	settleStaleToolApprovals,
+} from "@databuddy/ai/agents/conversation";
 import { createConfig as createAgentConfig } from "@databuddy/ai/agents/analytics";
 import {
 	getAgentBillingAccess,
@@ -848,11 +851,12 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					if (!validation.success) {
 						return jsonError(400, "INVALID_MESSAGES", "Invalid message format");
 					}
+					const chatMessages = settleStaleToolApprovals(validation.data);
 
 					const modelMessages = await timeAgentPhase(
 						"convert_prune",
 						async () => {
-							const converted = await convertToModelMessages(validation.data, {
+							const converted = await convertToModelMessages(chatMessages, {
 								tools: config.tools,
 								ignoreIncompleteToolCalls: true,
 							});
@@ -951,7 +955,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					const persistedUserId = user?.id;
 					const persistedOrgId = organizationId;
 					const fallbackTitle = lastMessage.slice(0, 60);
-					const isNewChat = validation.data.length <= 1;
+					const isNewChat = chatMessages.length <= 1;
 
 					result.consumeStream();
 
@@ -1001,13 +1005,13 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 										userId: persistedUserId,
 										organizationId: persistedOrgId,
 										title: fallbackTitle,
-										messages: validation.data,
+										messages: chatMessages,
 										updatedAt: new Date(),
 									})
 									.onConflictDoUpdate({
 										target: agentChats.id,
 										set: {
-											messages: validation.data,
+											messages: chatMessages,
 											updatedAt: new Date(),
 										},
 									})
@@ -1025,7 +1029,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 
 					const usagePromise = result.totalUsage;
 					const response = result.toUIMessageStreamResponse({
-						originalMessages: validation.data,
+						originalMessages: chatMessages,
 						onFinish: async ({ messages }) => {
 							try {
 								await clearActiveStream(streamScope, chatId, streamId);
