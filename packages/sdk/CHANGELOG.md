@@ -1,5 +1,23 @@
 # @databuddy/sdk
 
+## 3.2.0
+
+### Minor Changes
+
+- 3cca949: `trackMcp` takes a `waitUntil` option, so serverless MCP servers send each call before the function stops: pass `waitUntil` from `@vercel/functions`, or `ctx.waitUntil.bind(ctx)` on Cloudflare Workers. Long tool names, client and server names and versions, session IDs and user agents are cut to Databuddy's limits instead of getting the whole batch rejected. JSON error bodies are unwrapped to their `message` before the 512 character cut, so long JSON errors no longer arrive as broken fragments. Stdio servers on `@modelcontextprotocol/server` 2.x name clients from the per-request `clientInfo` sent on the 2026-07-28 protocol. Calls a client runs as a background task are no longer recorded, so they stop showing up as instant successes, and calls that ask the client for more input are recorded once, with their final result. With `debug: true`, `trackMcp` warns when it gets a server it can't track.
+
+## 3.1.1
+
+### Patch Changes
+
+- cd5879e: `trackMcp` now sends pending MCP calls when the process exits on its own, so stdio servers no longer lose the calls made in the last second before the client disconnects.
+
+## 3.1.0
+
+### Minor Changes
+
+- 98421ec: Adds `@databuddy/sdk/mcp` for MCP server analytics. `trackMcp(server)` records every tool call AI clients make, with the tool, error, duration, how much text it returned, client, server and session; arguments and results are never sent. It needs only `DATABUDDY_API_KEY`, links calls to your website when a Databuddy website ID is set, and labels them with `VERCEL_ENV` or `NODE_ENV`. Works with `McpServer` and the low-level `Server` from `@modelcontextprotocol/sdk` 1.x and `@modelcontextprotocol/server` 2.x, never throws or changes what the client receives, sends in background batches, and logs once to stderr if Databuddy rejects the calls. `beforeSend` edits or drops calls, and `flushMcp()` sends the last batch on serverless platforms.
+
 ## 3.0.1
 
 ### Patch Changes

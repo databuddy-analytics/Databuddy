@@ -1,5 +1,26 @@
 # @databuddy/dashboard
 
+## 0.1.5
+
+### Patch Changes
+
+- Updated dependencies [3cca949]
+  - @databuddy/sdk@3.2.0
+
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [cd5879e]
+  - @databuddy/sdk@3.1.1
+
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [98421ec]
+  - @databuddy/sdk@3.1.0
+
 ## 0.1.2
 
 ### Patch Changes
