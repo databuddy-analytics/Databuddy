@@ -87,7 +87,7 @@ describe("scoped business context through the native Supermemory transport", () 
 		});
 		expect(result.sources).toEqual([page]);
 		expect(result.issues).toContain(
-			"Website context is limited to the listed page excerpts."
+			"Only the homepage excerpt is available; read a page if a missing fact could change the decision."
 		);
 		expect(requests[0]?.containerTags).toEqual([businessContainerTag(scope)]);
 		expect(requests[0]?.includeContent).toBe(true);
@@ -367,6 +367,30 @@ describe("scoped business context through the native Supermemory transport", () 
 			result.sources.reduce((total, item) => total + item.content.length, 0)
 		).toBeLessThanOrEqual(16_000);
 		expect(result.status).toBe("partial");
+	});
+	it("keeps shared-memory notes out of model-facing issues and status", () => {
+		const unconfigured = "Business memory is not configured.";
+		const unsaved =
+			"Website context is available for this run but was not saved to business memory.";
+		const result = mergeBusinessContext(
+			{
+				capturedAt: asOf.toISOString(),
+				status: "disabled",
+				issues: [],
+				sources: [],
+				telemetryIssues: [unconfigured],
+			},
+			{
+				capturedAt: asOf.toISOString(),
+				status: "ready",
+				issues: [],
+				sources: [page],
+				telemetryIssues: [unsaved],
+			}
+		);
+		expect(result.status).toBe("ready");
+		expect(result.issues).toEqual([]);
+		expect(result.telemetryIssues).toEqual([unconfigured, unsaved]);
 	});
 });
 
