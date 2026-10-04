@@ -1210,6 +1210,183 @@ export function validateNumericGrounding(
 	}
 }
 
+const RISING_WORDS = new Set([
+	"rose",
+	"rise",
+	"rises",
+	"risen",
+	"rising",
+	"increase",
+	"increased",
+	"increases",
+	"increasing",
+	"grew",
+	"grow",
+	"grows",
+	"grown",
+	"growing",
+	"climb",
+	"climbed",
+	"climbs",
+	"climbing",
+	"jump",
+	"jumped",
+	"jumps",
+	"surge",
+	"surged",
+	"surges",
+	"soared",
+	"spiked",
+	"doubled",
+	"tripled",
+	"up",
+]);
+const FALLING_WORDS = new Set([
+	"fell",
+	"fall",
+	"falls",
+	"fallen",
+	"falling",
+	"drop",
+	"dropped",
+	"drops",
+	"dropping",
+	"decline",
+	"declined",
+	"declines",
+	"declining",
+	"decrease",
+	"decreased",
+	"decreases",
+	"decreasing",
+	"shrank",
+	"shrunk",
+	"plunged",
+	"plummeted",
+	"slumped",
+	"sank",
+	"slid",
+	"halved",
+	"down",
+]);
+const DIRECTION_LINK_WORDS = [
+	"is",
+	"are",
+	"was",
+	"were",
+	"has",
+	"have",
+	"had",
+	"also",
+	"again",
+	"further",
+	"nearly",
+	"sharply",
+	"slightly",
+	"steadily",
+	"rate",
+	"s",
+];
+const QUALIFIER_WORDS = new Set([
+	"across",
+	"among",
+	"during",
+	"for",
+	"in",
+	"on",
+	"then",
+	"through",
+	"until",
+]);
+const SENTENCE_BREAK = /(?<=[.!?])\s+/;
+
+function lowercaseWords(text: string): string[] {
+	return text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+}
+
+function subjectDirections(
+	words: string[],
+	subjects: string[][],
+	links: ReadonlySet<string>
+): ("rose" | "fell")[] {
+	const covered = new Set<number>();
+	const occurrences: { start: number; end: number }[] = [];
+	for (const subject of subjects) {
+		for (let start = 0; start + subject.length <= words.length; start++) {
+			if (subject.every((word, offset) => words[start + offset] === word)) {
+				occurrences.push({ start, end: start + subject.length });
+				for (let index = start; index < start + subject.length; index++) {
+					covered.add(index);
+				}
+			}
+		}
+	}
+	const direction = (index: number) => {
+		const word = words[index];
+		if (word === undefined || covered.has(index)) {
+			return null;
+		}
+		if (RISING_WORDS.has(word)) {
+			return "rose";
+		}
+		return FALLING_WORDS.has(word) ? "fell" : null;
+	};
+	return occurrences.flatMap(({ start, end }) => {
+		for (let index = end; index < Math.min(end + 4, words.length); index++) {
+			const following = direction(index);
+			if (following) {
+				return [1, 2].some((offset) =>
+					QUALIFIER_WORDS.has(words[index + offset] ?? "")
+				)
+					? []
+					: [following];
+			}
+			if (!links.has(words[index] ?? "")) {
+				break;
+			}
+		}
+		const preposition = words[start - 1] === "the" ? start - 2 : start - 1;
+		const preceding =
+			words[preposition] === "in" ? direction(preposition - 1) : null;
+		return preceding ? [preceding] : [];
+	});
+}
+
+export function validateDirectionWords(
+	outcome: Pick<AgentInvestigationOutcome, "summary" | "title">,
+	signal: Pick<InvestigationSignal, "entity" | "metric">
+): void {
+	const { current, label, previous } = signal.metric;
+	if (previous === undefined || current === previous) {
+		return;
+	}
+	const measured = current > previous ? "rose" : "fell";
+	const subjects = [label, signal.entity.label]
+		.map(lowercaseWords)
+		.filter((subject) => subject.length > 0);
+	const links = new Set([...lowercaseWords(label), ...DIRECTION_LINK_WORDS]);
+	for (const [field, text] of [
+		["title", outcome.title],
+		["summary", outcome.summary],
+	] as const) {
+		for (const sentence of text.split(SENTENCE_BREAK)) {
+			const described = subjectDirections(
+				lowercaseWords(sentence),
+				subjects,
+				links
+			);
+			if (
+				described.length > 0 &&
+				described.every((direction) => direction !== measured)
+			) {
+				throw new Error(
+					`Insights ${field} says ${label} ${described[0]} ("${sentence}"), but the signal measured ${previous} → ${current}. Correct the direction, or name the other period or segment that sentence describes.`
+				);
+			}
+		}
+	}
+}
+
 const REPOSITORY_ASK_PATTERN =
 	/\b(?:repo\b|repository|github|source(?:[- ]code)? access|read access)/i;
 
@@ -3146,6 +3323,9 @@ export async function runInsightAgent(
 							serialize(sources),
 							index
 						);
+					}
+					if (proposed.publish) {
+						validateDirectionWords(proposed, input.signal);
 					}
 					outcome = { ...validated, ...(verification ? { verification } : {}) };
 					const citedSignal = candidate.evidence.some((entry) =>

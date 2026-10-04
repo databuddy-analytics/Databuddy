@@ -21,6 +21,7 @@ import {
 	InsightAgentGenerationError,
 	runInsightAgent,
 	renderRevenueEvidence,
+	validateDirectionWords,
 	validateNumericGrounding,
 } from "./agent";
 
@@ -3557,6 +3558,52 @@ describe("intelligence agent", () => {
 	});
 
 	it.each([
+		true,
+		false,
+	])("returns a contradicted direction to the model only when published: %s", async (publish) => {
+		const contradicted = {
+			...agentOutcome,
+			title: "Paid search visits rose after the pause",
+			publish,
+			publicationBasis: publish ? ("measured_impact" as const) : null,
+			next: {
+				type: "resolve" as const,
+				reason: "The paused campaign explains the change.",
+			},
+		};
+		const corrected = {
+			...contradicted,
+			title: "Paid search visits fell after the pause",
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				outputResponse(contradicted),
+				outputResponse(corrected)
+			),
+		});
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal,
+			},
+			{ model, tools: {} }
+		);
+		expect(result.outcome.title).toBe(
+			publish ? corrected.title : contradicted.title
+		);
+		expect(model.doGenerateCalls).toHaveLength(publish ? 2 : 1);
+		if (publish) {
+			expect(JSON.stringify(model.doGenerateCalls[1]?.prompt)).toContain(
+				"but the signal measured 1000 → 300"
+			);
+		}
+	});
+
+	it.each([
 		{
 			resultKey: "bad",
 			output: {
@@ -5100,6 +5147,61 @@ describe("validateNumericGrounding", () => {
 				},
 				corpus
 			)
+		).not.toThrow();
+	});
+});
+
+describe("validateDirectionWords", () => {
+	const falling = {
+		entity: funnelSignal.entity,
+		metric: {
+			label: "Checkout journey conversion",
+			current: 3.42,
+			previous: 6.73,
+			format: "percent" as const,
+		},
+	};
+	const rising = {
+		...falling,
+		metric: { ...falling.metric, current: 6.73, previous: 3.42 },
+	};
+	const brief = (sentence: string) => ({
+		title: "Checkout completion changed",
+		summary: `The saved journey is unchanged. ${sentence}`,
+	});
+
+	it.each([
+		[
+			"Checkout journey conversion rose from 6.73% to 3.42%.",
+			falling,
+			"6.73 → 3.42",
+		],
+		["Checkout journey conversion fell sharply.", rising, "3.42 → 6.73"],
+		["A sharp rise in checkout journey conversion.", falling, "6.73 → 3.42"],
+		[
+			"Refunds fell while Checkout journey conversion rose.",
+			falling,
+			"6.73 → 3.42",
+		],
+	])("rejects %s against the measured direction", (sentence, measured, values) => {
+		expect(() => validateDirectionWords(brief(sentence), measured)).toThrow(
+			"summary says Checkout journey conversion"
+		);
+		expect(() => validateDirectionWords(brief(sentence), measured)).toThrow(
+			`the signal measured ${values}`
+		);
+	});
+
+	it.each([
+		"Checkout journey conversion fell from 6.73% to 3.42%.",
+		"Refunds rose while Checkout journey conversion fell.",
+		"Checkout journey entrants rose while completions held steady.",
+		"Signups rose, and the Checkout journey held steady.",
+		"Checkout journey conversion rose on Safari while other browsers declined.",
+		"Checkout journey conversion rose early in the week, then fell.",
+	])("accepts %s for a falling signal", (sentence) => {
+		expect(() =>
+			validateDirectionWords(brief(sentence), falling)
 		).not.toThrow();
 	});
 });
