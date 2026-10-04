@@ -21,6 +21,7 @@ import {
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import {
 	Tool,
+	ToolApproval,
 	ToolDetail,
 	ToolInput,
 	ToolOutput,
@@ -29,6 +30,7 @@ import {
 } from "@/components/ai-elements/tool";
 import { useChat, useChatLoading } from "@/contexts/chat-context";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
+import { useWebsitesLight } from "@/hooks/use-websites";
 import { parseContentSegments } from "@/lib/ai-components";
 import {
 	getAIComponentInputFromPart,
@@ -36,7 +38,7 @@ import {
 	isRecord,
 } from "@/lib/ai-components/message-parts";
 import { isAbortError } from "@/lib/is-abort-error";
-import { formatToolLabel } from "@/lib/tool-display";
+import { formatToolApprovalFields, formatToolLabel } from "@/lib/tool-display";
 import { AgentErrorMessage } from "./agent-error-message";
 import { ArrowsClockwiseIcon, CheckIcon, CopyIcon } from "@databuddy/ui/icons";
 import { Button } from "@databuddy/ui";
@@ -45,6 +47,7 @@ type MessagePart = UIMessage["parts"][number];
 
 type ToolMessagePart = MessagePart & {
 	type: string;
+	approval?: { approved?: boolean; id: string; reason?: string };
 	input?: Record<string, unknown>;
 	output?: unknown;
 	state?: string;
@@ -173,7 +176,7 @@ function mergeConsecutiveToolStepsForDisplay(
 		const last = merged.at(-1);
 		const lastLabel =
 			last && formatToolLabel(getToolName(last.tool), last.tool.input ?? {});
-		if (last && lastLabel === label) {
+		if (last && lastLabel === label && !(last.tool.approval || tool.approval)) {
 			last.steps.push(tool);
 			last.tool = tool;
 		} else {
@@ -213,7 +216,63 @@ function getToolStatus(tool: ToolMessagePart, isActive: boolean): ToolStatus {
 	if (tool.state === "output-error") {
 		return "error";
 	}
+	if (
+		tool.state === "approval-requested" ||
+		tool.approval?.approved === false
+	) {
+		return "denied";
+	}
 	return "complete";
+}
+
+function getApprovalOutcome(tool: ToolMessagePart): string | null {
+	if (!tool.approval) {
+		return null;
+	}
+	if (tool.state === "approval-requested") {
+		return "Not approved";
+	}
+	return tool.approval.approved ? "Approved" : "Denied";
+}
+
+function ToolApprovalRequest({ tool }: { tool: ToolMessagePart }) {
+	const { addToolApprovalResponse, status } = useChat();
+	const input = tool.input ?? {};
+	const { websites } = useWebsitesLight({
+		enabled: typeof input.websiteId === "string",
+	});
+	const approvalId = tool.approval?.id;
+	if (!approvalId) {
+		return null;
+	}
+
+	const name = getToolName(tool);
+	const fields = formatToolApprovalFields(input).map((field) => {
+		if (field.key !== "websiteId") {
+			return field;
+		}
+		const website = websites.find((site) => site.id === input.websiteId);
+		return {
+			...field,
+			label: "Website",
+			value: website?.domain ?? field.value,
+		};
+	});
+
+	return (
+		<ToolApproval
+			destructive={name.startsWith("delete_")}
+			disabled={status === "streaming" || status === "submitted"}
+			fields={fields}
+			onApprove={() =>
+				addToolApprovalResponse({ id: approvalId, approved: true })
+			}
+			onDeny={() =>
+				addToolApprovalResponse({ id: approvalId, approved: false })
+			}
+			title={formatToolLabel(name, input)}
+		/>
+	);
 }
 
 function InspectableToolStep({
@@ -255,7 +314,7 @@ function InspectableToolStep({
 function renderToolGroup(
 	tools: ToolMessagePart[],
 	key: string,
-	isLastGroup: boolean,
+	isLastMessage: boolean,
 	isStreaming: boolean
 ) {
 	const merged = mergeConsecutiveToolStepsForDisplay(tools);
@@ -263,13 +322,24 @@ function renderToolGroup(
 	return (
 		<div className="space-y-2 py-1" key={key}>
 			{merged.map((entry, idx) => {
+				if (isLastMessage && entry.tool.state === "approval-requested") {
+					return (
+						<ToolApprovalRequest key={`${key}-${idx}`} tool={entry.tool} />
+					);
+				}
 				const isLast = idx === merged.length - 1;
 				const isActive =
-					isLastGroup && isStreaming && isLast && !entry.tool.output;
-				const baseLabel = formatToolLabel(
+					isLastMessage &&
+					isStreaming &&
+					isLast &&
+					!entry.tool.output &&
+					entry.tool.approval?.approved !== false;
+				const toolLabel = formatToolLabel(
 					getToolName(entry.tool),
 					entry.tool.input ?? {}
 				);
+				const outcome = getApprovalOutcome(entry.tool);
+				const baseLabel = outcome ? `${toolLabel} · ${outcome}` : toolLabel;
 				const componentInput = getAIComponentInputFromToolOutput(entry.tool);
 				if (componentInput) {
 					return (
