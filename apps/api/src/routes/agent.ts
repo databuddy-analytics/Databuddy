@@ -705,7 +705,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						getAgentBillingAccess(billingCustomerId)
 					);
 
-					const loadMemoryContext = shouldLoadMemoryContext(lastMessage);
+					const loadMemoryContext = shouldLoadMemoryContext(latestUserMessage);
 					mergeWideEvent({
 						agent_memory_context_strategy: loadMemoryContext
 							? "inline"
@@ -731,7 +731,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 							loadMemoryContext
 								? optionalAgentContext(
 										"memory",
-										getMemoryContextCached(lastMessage, userId),
+										getMemoryContextCached(latestUserMessage, userId),
 										EMPTY_MEMORY_CONTEXT,
 										AGENT_MEMORY_CONTEXT_TIMEOUT_MS,
 										{
