@@ -3,11 +3,11 @@
 import {
 	Badge,
 	Button,
+	Card,
 	EmptyState,
 	fromNow,
+	Progress,
 	Skeleton,
-	StatusDot,
-	Text,
 	Tooltip,
 } from "@databuddy/ui";
 import { DropdownMenu, Tabs } from "@databuddy/ui/client";
@@ -22,11 +22,20 @@ import {
 } from "@databuddy/ui/icons";
 import { isSelfHosted } from "@databuddy/env/public";
 import { useFlag } from "@databuddy/sdk/react";
-import { keepPreviousData } from "@tanstack/react-query";
-import Link from "next/link";
+import {
+	keepPreviousData,
+	useMutation,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { notFound } from "next/navigation";
 import { parseAsString, useQueryStates } from "nuqs";
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
+import { createHighlighterCoreSync } from "shiki/core";
+import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
+import bash from "shiki/langs/bash.mjs";
+import json from "shiki/langs/json.mjs";
+import tsx from "shiki/langs/tsx.mjs";
+import vesper from "shiki/themes/vesper.mjs";
 import { toast } from "sonner";
 import {
 	CODING_AGENTS,
@@ -34,16 +43,13 @@ import {
 } from "@/app/(main)/websites/[id]/_components/constants/settings-constants";
 import { formatDateByGranularity } from "@/app/(main)/websites/[id]/_components/utils/analytics-helpers";
 import { generateMcpAgentPrompt } from "@/app/(main)/websites/[id]/_components/utils/code-generators";
-import {
-	CodeBlock,
-	CodeBlockCopyButton,
-} from "@/components/ai-elements/code-block";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
 import { DateRangePicker } from "@/components/date-range-picker";
 import { AiProductIcon } from "@/components/icon";
 import { TopBar } from "@/components/layout/top-bar";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { List } from "@/components/ui/composables/list";
+import { SetupRow, type SetupRowStatus } from "@/components/websites/setup-row";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
@@ -51,6 +57,8 @@ import { useWebsitesLight } from "@/hooks/use-websites";
 import { APP_EVENTS, trackAppEvent } from "@/lib/app-events";
 import { isDashboardE2E } from "@/lib/e2e-mode";
 import { formatCount, formatNumber } from "@/lib/formatters";
+import { orpc } from "@/lib/orpc";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 import type { DynamicQueryFilter } from "@/types/api";
 
@@ -116,11 +124,21 @@ const FILTERS = {
 	website_id: parseAsString,
 };
 
-const MANUAL_SETUP = [
+const highlighter = createHighlighterCoreSync({
+	themes: [vesper],
+	langs: [bash, json, tsx],
+	engine: createJavaScriptRegexEngine(),
+});
+
+const INSTALL_COMMAND = "bun add @databuddy/sdk@latest";
+const KEY_PLACEHOLDER = "dbdy_your_key";
+
+const SETUP_SNIPPETS = [
 	{
 		id: "node",
 		label: "Node",
-		language: "tsx",
+		lang: "tsx",
+		note: "Works with McpServer and the low-level Server from @modelcontextprotocol/sdk. Calls go out in batches every second.",
 		code: `import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { trackMcp } from "@databuddy/sdk/mcp";
 
@@ -131,7 +149,8 @@ const server = trackMcp(
 	{
 		id: "vercel",
 		label: "Vercel",
-		language: "tsx",
+		lang: "tsx",
+		note: "waitUntil sends each call before the function stops. With @modelcontextprotocol/server, wrap the server inside the createMcpHandler factory.",
 		code: `import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { waitUntil } from "@vercel/functions";
 import { trackMcp } from "@databuddy/sdk/mcp";
@@ -147,7 +166,8 @@ export const POST = (request: Request) => handler.fetch(request);`,
 	{
 		id: "cloudflare",
 		label: "Cloudflare Workers",
-		language: "tsx",
+		lang: "tsx",
+		note: "Store the key with wrangler secret put DATABUDDY_API_KEY.",
 		code: `import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { env, waitUntil } from "cloudflare:workers";
 import { trackMcp } from "@databuddy/sdk/mcp";
@@ -166,14 +186,15 @@ export default {
 	{
 		id: "stdio",
 		label: "stdio",
-		language: "tsx",
+		lang: "json",
+		note: "Clients that start a stdio server pass it only the variables in their config, so the key goes in the server's env.",
 		code: `{
   "mcpServers": {
     "my-server": {
       "command": "node",
       "args": ["/path/to/server.js"],
       "env": {
-        "DATABUDDY_API_KEY": "dbdy_your_key",
+        "DATABUDDY_API_KEY": "${KEY_PLACEHOLDER}",
         "NODE_ENV": "production"
       }
     }
@@ -182,32 +203,40 @@ export default {
 	},
 ] as const;
 
-const SETUP_NOTES: Record<(typeof MANUAL_SETUP)[number]["id"], string> = {
-	node: "Works with McpServer and the low-level Server from @modelcontextprotocol/sdk. Calls are sent in batches every second.",
-	vercel:
-		"waitUntil sends each call before the function stops. With @modelcontextprotocol/server, wrap the server inside the createMcpHandler factory.",
-	cloudflare: "Store the key with wrangler secret put DATABUDDY_API_KEY.",
-	stdio:
-		"Clients that start a stdio server pass it only the variables in their config, so set the key in the server's env.",
-};
-
-function SetupCode({
+function SnippetBlock({
 	code,
-	language,
+	isCopied,
+	lang,
 	onCopy,
 }: {
 	code: string;
-	language: React.ComponentProps<typeof CodeBlock>["language"];
+	isCopied: boolean;
+	lang: "bash" | "json" | "tsx";
 	onCopy: () => void;
 }) {
+	const html = useMemo(
+		() => highlighter.codeToHtml(code, { lang, theme: "vesper" }),
+		[code, lang]
+	);
 	return (
-		<CodeBlock
-			className="text-xs [&>div>div>pre]:p-3 [&_code]:text-xs"
-			code={code}
-			language={language}
-		>
-			<CodeBlockCopyButton onCopy={onCopy} />
-		</CodeBlock>
+		<div className="group relative overflow-hidden rounded border border-border">
+			<div
+				className={cn(
+					"overflow-x-auto font-mono text-[13px] leading-relaxed",
+					"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
+					"[&>pre>code]:block [&>pre>code]:w-full"
+				)}
+				dangerouslySetInnerHTML={{ __html: html }}
+			/>
+			<Button
+				className="absolute top-2 right-2"
+				onClick={onCopy}
+				size="sm"
+				variant="secondary"
+			>
+				{isCopied ? "Copied" : "Copy"}
+			</Button>
+		</div>
 	);
 }
 
@@ -410,162 +439,64 @@ function Panel({
 	);
 }
 
-function Setup() {
+type SetupRowId = "key" | "wrap";
+
+function Setup({ organizationId }: { organizationId?: string }) {
+	const queryClient = useQueryClient();
+	const createKey = useMutation({
+		...orpc.apikeys.create.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
+		onSuccess: () =>
+			queryClient.invalidateQueries({ queryKey: orpc.apikeys.list.key() }),
+	});
+	const secret = createKey.data?.secret;
+	const envLine = `DATABUDDY_API_KEY=${secret ?? KEY_PLACEHOLDER}`;
+	const [hasOwnKey, setHasOwnKey] = useState(false);
 	const [copied, setCopied] = useState<string | null>(null);
+	const [promptAgent, setPromptAgent] = useState<string | null>(null);
 	const [isManualOpen, setIsManualOpen] = useState(false);
 
-	const copyPrompt = async (agentId: string) => {
+	const copy = async (id: string, text: string, method: "ai" | "manual") => {
 		try {
-			await navigator.clipboard.writeText(generateMcpAgentPrompt());
+			await navigator.clipboard.writeText(text);
 		} catch {
 			toast.error("Copy failed. Select the text and copy it manually.");
 			return;
 		}
-		setCopied(agentId);
+		setCopied(id);
 		setTimeout(() => setCopied(null), COPY_SUCCESS_TIMEOUT);
-		trackAppEvent(APP_EVENTS.mcpSetupCopied, { block: agentId, method: "ai" });
+		trackAppEvent(APP_EVENTS.mcpSetupCopied, { block: id, method });
+		if (method === "ai") {
+			setPromptAgent(id);
+		}
 	};
-	const trackManualCopy = (block: string) =>
-		trackAppEvent(APP_EVENTS.mcpSetupCopied, { block, method: "manual" });
+	const withKey = (code: string) =>
+		secret ? code.replace(KEY_PLACEHOLDER, secret) : code;
+
+	const keyStatus: SetupRowStatus = secret
+		? "done"
+		: hasOwnKey
+			? "skipped"
+			: "active";
+	const wrapStatus: SetupRowStatus = promptAgent ? "waiting" : "active";
+	const focus: SetupRowId = keyStatus === "active" ? "key" : "wrap";
+	const [open, setOpen] = useState<SetupRowId | null>(focus);
+	const [lastFocus, setLastFocus] = useState(focus);
+	if (focus !== lastFocus) {
+		setLastFocus(focus);
+		setOpen(focus);
+	}
+	const toggle = (id: SetupRowId) => () =>
+		setOpen((current) => (current === id ? null : id));
+	const agentName = CODING_AGENTS.find(
+		(agent) => agent.id === promptAgent
+	)?.name;
 
 	return (
-		<div className="mx-auto flex w-full max-w-xl flex-col gap-6 px-4 py-12">
-			<div className="space-y-1 text-center">
-				<ChartBarIcon className="mx-auto mb-3 size-6 text-muted-foreground" />
-				<p className="text-balance font-semibold">
-					See how AI uses your MCP servers
-				</p>
-				<p className="text-pretty text-muted-foreground text-sm">
-					See which tools Claude, Cursor and ChatGPT call, how fast they answer,
-					and where they fail. Arguments and successful results never leave your
-					server. Failed calls send their error message.
-				</p>
-			</div>
-
-			<div className="space-y-2.5">
-				<p className="font-medium text-muted-foreground text-xs">
-					Send to your coding agent
-				</p>
-				<p className="text-pretty text-muted-foreground text-xs">
-					The prompt finds your MCP server, wraps it and checks the first call.
-					Your agent asks for an API key with the Event Tracking scope.{" "}
-					<Link
-						className="text-foreground underline underline-offset-2"
-						href="/organizations/settings#api-keys"
-					>
-						Create one
-					</Link>
-				</p>
-				<div className="flex flex-wrap gap-2">
-					{CODING_AGENTS.map((agent) => (
-						<Button
-							className="border border-border bg-background hover:bg-accent"
-							key={agent.id}
-							onClick={() => copyPrompt(agent.id)}
-							size="sm"
-							variant="ghost"
-						>
-							{copied === agent.id ? (
-								<CheckIcon className="size-4 text-success" />
-							) : (
-								<img
-									alt=""
-									className={cn("size-4", agent.invert && "dark:invert")}
-									height={16}
-									src={`/ai/${agent.icon}.svg`}
-									width={16}
-								/>
-							)}
-							{agent.name}
-						</Button>
-					))}
-				</div>
-			</div>
-
-			<div>
-				<Button
-					aria-expanded={isManualOpen}
-					className="-ml-2.5"
-					onClick={() => setIsManualOpen((value) => !value)}
-					size="sm"
-					variant="ghost"
-				>
-					<CaretRightIcon
-						className={cn(
-							"size-3 transition-transform duration-150 ease-in-out",
-							isManualOpen && "rotate-90"
-						)}
-					/>
-					Or set it up yourself
-				</Button>
-				<div
-					className={cn(
-						"grid transition-[grid-template-rows] duration-200 ease-in-out motion-reduce:transition-none",
-						isManualOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-					)}
-					inert={!isManualOpen}
-				>
-					<div className="min-h-0 overflow-hidden">
-						<div className="space-y-4 pt-3">
-							<div className="space-y-2">
-								<Text variant="label">1. Install the SDK</Text>
-								<SetupCode
-									code="bun add @databuddy/sdk@latest"
-									language="bash"
-									onCopy={() => trackManualCopy("install")}
-								/>
-							</div>
-							<div className="space-y-2">
-								<Text variant="label">2. Add your API key</Text>
-								<SetupCode
-									code="DATABUDDY_API_KEY=dbdy_your_key"
-									language="bash"
-									onCopy={() => trackManualCopy("api_key")}
-								/>
-							</div>
-							<div className="space-y-2">
-								<Text variant="label">3. Wrap your server</Text>
-								<Tabs className="w-full" defaultValue="node">
-									<Tabs.List>
-										{MANUAL_SETUP.map((setup) => (
-											<Tabs.Tab key={setup.id} value={setup.id}>
-												{setup.label}
-											</Tabs.Tab>
-										))}
-									</Tabs.List>
-									{MANUAL_SETUP.map((setup) => (
-										<Tabs.Panel
-											className="mt-3 space-y-2"
-											key={setup.id}
-											value={setup.id}
-										>
-											<SetupCode
-												code={setup.code}
-												language={setup.language}
-												onCopy={() => trackManualCopy(setup.id)}
-											/>
-											<Text tone="muted" variant="caption">
-												{SETUP_NOTES[setup.id]}
-											</Text>
-										</Tabs.Panel>
-									))}
-								</Tabs>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-
-			<div className="flex flex-wrap items-center justify-between gap-3 border-border border-t pt-4">
-				<Text
-					className="flex items-center gap-2"
-					tone="muted"
-					variant="caption"
-				>
-					<StatusDot color="warning" pulse size="sm" />
-					Waiting for the first tool call. Call any tool once after deploying.
-				</Text>
-				<Button asChild variant="ghost">
+		<div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 lg:py-10">
+			<div className="mb-4 flex items-center justify-between gap-3">
+				<h1 className="font-semibold text-xl">Set up MCP Analytics</h1>
+				<Button asChild size="sm" variant="ghost">
 					<a
 						href="https://www.databuddy.cc/docs/sdk/mcp"
 						rel="noopener"
@@ -576,6 +507,199 @@ function Setup() {
 					</a>
 				</Button>
 			</div>
+			<Card className="gap-0 py-0">
+				<Card.Header className="gap-3 border-border border-b bg-card px-5 py-4">
+					<Card.Title>Your first tool call, in three steps</Card.Title>
+					<Progress size="sm" value={keyStatus === "active" ? 0 : 100 / 3} />
+				</Card.Header>
+
+				<SetupRow
+					detail={secret ? "Created" : hasOwnKey ? "Using your key" : undefined}
+					expanded={open === "key"}
+					onToggle={toggle("key")}
+					status={keyStatus}
+					title="Create an API key"
+				>
+					{secret ? (
+						<div className="space-y-2">
+							<SnippetBlock
+								code={envLine}
+								isCopied={copied === "api_key"}
+								lang="bash"
+								onCopy={() => copy("api_key", envLine, "manual")}
+							/>
+							<p className="text-pretty text-muted-foreground text-xs">
+								Shown once. The prompt and snippets below already include it.
+							</p>
+						</div>
+					) : (
+						<div className="space-y-3">
+							<p className="text-pretty text-muted-foreground text-sm">
+								A key with the Event Tracking scope, read from DATABUDDY_API_KEY
+								in your server's environment.
+							</p>
+							<div className="flex flex-wrap items-center gap-2">
+								<Button
+									disabled={!organizationId}
+									loading={createKey.isPending}
+									onClick={() =>
+										organizationId &&
+										createKey.mutate({
+											name: "MCP analytics",
+											organizationId,
+											type: "automation",
+											resources: { global: ["track:events"] },
+										})
+									}
+									size="sm"
+								>
+									Create a key
+								</Button>
+								<Button
+									onClick={() => setHasOwnKey(true)}
+									size="sm"
+									variant="ghost"
+								>
+									I already have one
+								</Button>
+							</div>
+							{createKey.error ? (
+								<p className="text-pretty text-destructive text-xs">
+									{getUserFacingErrorMessage(
+										createKey.error,
+										"Couldn't create an API key."
+									)}{" "}
+									Ask an organization admin for a key with the Event Tracking
+									scope.
+								</p>
+							) : null}
+						</div>
+					)}
+				</SetupRow>
+
+				<SetupRow
+					detail={agentName ? `Prompt copied for ${agentName}` : undefined}
+					expanded={open === "wrap"}
+					onToggle={toggle("wrap")}
+					status={wrapStatus}
+					title="Add trackMcp to your server"
+				>
+					<div className="space-y-5">
+						<div className="space-y-2.5">
+							<p className="font-medium text-muted-foreground text-xs">
+								Send to your coding agent
+							</p>
+							<p className="text-pretty text-muted-foreground text-xs">
+								Your agent wraps your MCP server and makes a test call. Tool
+								arguments and results never leave your server.
+							</p>
+							<div className="flex flex-wrap gap-2">
+								{CODING_AGENTS.map((agent) => (
+									<Button
+										className="border border-border bg-background hover:bg-accent"
+										key={agent.id}
+										onClick={() =>
+											copy(agent.id, generateMcpAgentPrompt(secret), "ai")
+										}
+										size="sm"
+										variant="ghost"
+									>
+										{copied === agent.id ? (
+											<CheckIcon className="size-4 text-success" />
+										) : (
+											<img
+												alt=""
+												className={cn("size-4", agent.invert && "dark:invert")}
+												height={16}
+												src={`/ai/${agent.icon}.svg`}
+												width={16}
+											/>
+										)}
+										{agent.name}
+									</Button>
+								))}
+							</div>
+						</div>
+
+						<div>
+							<Button
+								aria-expanded={isManualOpen}
+								className="-ml-2.5"
+								onClick={() => setIsManualOpen((value) => !value)}
+								size="sm"
+								variant="ghost"
+							>
+								<CaretRightIcon
+									className={cn(
+										"size-3 transition-transform duration-150",
+										isManualOpen && "rotate-90"
+									)}
+								/>
+								Or set it up yourself
+							</Button>
+							<div
+								className={cn(
+									"grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none",
+									isManualOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+								)}
+								inert={!isManualOpen}
+							>
+								<div className="min-h-0 overflow-hidden">
+									<div className="mt-3 space-y-3">
+										<SnippetBlock
+											code={INSTALL_COMMAND}
+											isCopied={copied === "install"}
+											lang="bash"
+											onCopy={() => copy("install", INSTALL_COMMAND, "manual")}
+										/>
+										<SnippetBlock
+											code={envLine}
+											isCopied={copied === "env"}
+											lang="bash"
+											onCopy={() => copy("env", envLine, "manual")}
+										/>
+										<Tabs className="w-full" defaultValue="node">
+											<Tabs.List>
+												{SETUP_SNIPPETS.map((snippet) => (
+													<Tabs.Tab key={snippet.id} value={snippet.id}>
+														{snippet.label}
+													</Tabs.Tab>
+												))}
+											</Tabs.List>
+											{SETUP_SNIPPETS.map((snippet) => (
+												<Tabs.Panel
+													className="mt-3 space-y-2"
+													key={snippet.id}
+													value={snippet.id}
+												>
+													<SnippetBlock
+														code={withKey(snippet.code)}
+														isCopied={copied === snippet.id}
+														lang={snippet.lang}
+														onCopy={() =>
+															copy(snippet.id, withKey(snippet.code), "manual")
+														}
+													/>
+													<p className="text-pretty text-muted-foreground text-xs">
+														{snippet.note}
+													</p>
+												</Tabs.Panel>
+											))}
+										</Tabs>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</SetupRow>
+
+				<SetupRow
+					detail="This page switches to your analytics when it arrives"
+					expanded={false}
+					status="waiting"
+					title="Waiting for the first tool call"
+				/>
+			</Card>
 		</div>
 	);
 }
@@ -673,43 +797,48 @@ function McpAnalytics({ organizationId }: { organizationId?: string }) {
 					Alpha
 				</Badge>
 			</TopBar.Title>
-			<TopBar.Actions>
-				<FilterMenu
-					allLabel="All websites"
-					labelOf={(id) => {
-						const website = websites.find((item) => item.id === id);
-						return website?.name || website?.domain || id;
-					}}
-					onChange={(website_id) => setSelected({ website_id })}
-					options={facets?.websites}
-					value={selected.website_id}
-				/>
-				<FilterMenu
-					allLabel="All servers"
-					onChange={(server_name) => setSelected({ server_name })}
-					options={facets?.servers}
-					value={selected.server_name}
-				/>
-				<FilterMenu
-					allLabel="All environments"
-					onChange={(environment) => setSelected({ environment })}
-					options={facets?.environments}
-					value={selected.environment}
-				/>
-				<DateRangePicker
-					className="w-auto"
-					maxDate={new Date()}
-					onChange={(range) => {
-						if (range?.from && range.to) {
-							setDateRangeAction({ startDate: range.from, endDate: range.to });
-						}
-					}}
-					value={{
-						from: currentDateRange.startDate,
-						to: currentDateRange.endDate,
-					}}
-				/>
-			</TopBar.Actions>
+			{facets?.tracked === 0 ? null : (
+				<TopBar.Actions>
+					<FilterMenu
+						allLabel="All websites"
+						labelOf={(id) => {
+							const website = websites.find((item) => item.id === id);
+							return website?.name || website?.domain || id;
+						}}
+						onChange={(website_id) => setSelected({ website_id })}
+						options={facets?.websites}
+						value={selected.website_id}
+					/>
+					<FilterMenu
+						allLabel="All servers"
+						onChange={(server_name) => setSelected({ server_name })}
+						options={facets?.servers}
+						value={selected.server_name}
+					/>
+					<FilterMenu
+						allLabel="All environments"
+						onChange={(environment) => setSelected({ environment })}
+						options={facets?.environments}
+						value={selected.environment}
+					/>
+					<DateRangePicker
+						className="w-auto"
+						maxDate={new Date()}
+						onChange={(range) => {
+							if (range?.from && range.to) {
+								setDateRangeAction({
+									startDate: range.from,
+									endDate: range.to,
+								});
+							}
+						}}
+						value={{
+							from: currentDateRange.startDate,
+							to: currentDateRange.endDate,
+						}}
+					/>
+				</TopBar.Actions>
+			)}
 
 			{hasLoadError ? (
 				<div className="flex flex-1 flex-col p-4">
@@ -732,7 +861,7 @@ function McpAnalytics({ organizationId }: { organizationId?: string }) {
 					/>
 				</div>
 			) : facets?.tracked === 0 ? (
-				<Setup />
+				<Setup organizationId={organizationId} />
 			) : (
 				<div
 					className={cn(

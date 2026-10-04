@@ -249,7 +249,7 @@ ${siteContextSection(context)}${AGENT_FEATURE_GUIDE}
 ${agentFeedbackSection(apiUrl, websiteId, setupSession)}`;
 }
 
-export function generateMcpAgentPrompt(): string {
+export function generateMcpAgentPrompt(apiKey?: string): string {
 	const basketOption = isSelfHosted
 		? `, { apiUrl: ${JSON.stringify(publicConfig.urls.basket)} }`
 		: "";
@@ -277,7 +277,7 @@ const server = trackMcp(
 \`\`\`
    - \`@modelcontextprotocol/server\` 2.x builds a server per request, so call \`trackMcp\` inside the \`createMcpHandler\` or \`serveStdio\` factory.
    - Vercel \`mcp-handler\`: call \`trackMcp(server)\` inside the callback it passes the server to, and set \`serverInfo: { name, version }\`.
-4. Read the API key from \`DATABUDDY_API_KEY\`. Never hardcode or commit it. Add \`DATABUDDY_API_KEY=\` to \`.env.example\` if the repository has one, and ask me to create a key with the Event Tracking scope at ${dashboardUrl}/organizations/settings#api-keys.
+4. Read the API key from \`DATABUDDY_API_KEY\`. Never hardcode or commit it. ${apiKey ? `The key is \`${apiKey}\`: put it in the server's local env file (make sure that file is gitignored) and tell me to add it to the hosting provider's secrets.` : `Ask me to create a key with the Event Tracking scope at ${dashboardUrl}/organizations/settings#api-keys.`} Add \`DATABUDDY_API_KEY=\` without a value to \`.env.example\` if the repository has one.
 5. Serverless (Vercel, Cloudflare Workers, Netlify, AWS Lambda): a function can stop before the batch is sent, so pass the platform's \`waitUntil\`: \`trackMcp(server, { waitUntil })\`. On Vercel import it from \`@vercel/functions\`; on Cloudflare Workers import \`env\` and \`waitUntil\` from \`cloudflare:workers\` and pass \`apiKey: env.DATABUDDY_API_KEY\`.
 6. stdio servers started by a desktop client (Claude Desktop, Cursor, VS Code) only receive the variables in the client config, so \`DATABUDDY_API_KEY\` belongs in the server's \`env\` block there. Update any client config examples in the README accordingly.
 7. If the server ends itself with \`process.exit\`, for example in a SIGINT or SIGTERM handler, call \`await flushMcp()\` (from \`@databuddy/sdk/mcp\`) first.
