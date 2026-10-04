@@ -604,6 +604,50 @@ const SLOW_NAVIGATIONS = [
 ];
 
 test.describe("interaction frustration signals", () => {
+	async function rageClickUnresponsiveButton(page: Page) {
+		await page.click("button", { clickCount: 3 });
+		return page.evaluate(
+			() => (window.__tracker as BaseTracker).rageClickCount
+		);
+	}
+
+	test("interaction tracking is on without any configuration", async ({
+		page,
+	}) => {
+		await page.goto("/test");
+		await page.evaluate(() => {
+			document.body.innerHTML = `<button aria-label="pay">Pay</button>`;
+			window.databuddyConfig = {
+				clientId: "test-interactions-default",
+				ignoreBotDetection: true,
+			};
+		});
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+		await expect
+			.poll(() => page.evaluate(() => Boolean(window.__tracker)))
+			.toBeTruthy();
+		expect(await rageClickUnresponsiveButton(page)).toBe(1);
+	});
+
+	test('data-track-interactions="false" turns interaction tracking off', async ({
+		page,
+	}) => {
+		await page.goto("/test");
+		await page.evaluate(() => {
+			document.body.innerHTML = `<button aria-label="pay">Pay</button>`;
+			const script = document.createElement("script");
+			script.src = "/dist/databuddy-debug.js";
+			script.dataset.clientId = "test-interactions-opt-out";
+			script.dataset.ignoreBotDetection = "true";
+			script.dataset.trackInteractions = "false";
+			document.head.append(script);
+		});
+		await expect
+			.poll(() => page.evaluate(() => Boolean(window.__tracker)))
+			.toBeTruthy();
+		expect(await rageClickUnresponsiveButton(page)).toBe(0);
+	});
+
 	for (const { name, markup, act } of ORDINARY_CLICKS) {
 		test(`${name} is neither a rage nor a dead click`, async ({ page }) => {
 			await loadFixture(page, markup);
