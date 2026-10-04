@@ -43,7 +43,7 @@ const FORM_FIELD_SELECTOR = "input,select,textarea";
 const GENERATED_TOKEN = /^[:_-]|\d{3,}|[0-9a-f]{8,}|[:_«]r[0-9a-z]*[:_»]/i;
 const READABLE_FRAGMENT = /^#[a-z][\w-]*$/i;
 const COUNTRY_SUFFIX =
-	/^(?:(?:ac|co|gov|net|org)\.uk|(?:com|edu|gov|net|org)\.au)$/;
+	/^(?:ac|co|com|edu|go|gov|ne|net|or|org)\.(?:ar|au|br|cn|eg|hk|id|il|in|jp|ke|kr|mx|my|ng|nz|pe|ph|sa|sg|th|tr|tw|ua|uk|vn|za)$/;
 const TARGET_MAX_LENGTH = 32;
 const DESCRIPTOR_MAX_LENGTH = 64;
 
@@ -87,7 +87,6 @@ function linkDestination(
 	}
 	if (link.host !== location.host) {
 		const labels = link.hostname.split(".");
-		// Keep common UK/Australian suffixes; this is not a public suffix parser.
 		const isCountrySuffix = COUNTRY_SUFFIX.test(labels.slice(-2).join("."));
 		return labels
 			.slice(labels.length > 2 && isCountrySuffix ? -3 : -2)

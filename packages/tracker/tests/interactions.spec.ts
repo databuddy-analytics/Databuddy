@@ -351,7 +351,13 @@ const DESCRIBED_TARGETS: {
 		selector: "a",
 		expected: `a:${host}`,
 	})),
-	...["example.co.uk", "example.com.au"].map((host) => ({
+	...[
+		"example.co.uk",
+		"example.com.au",
+		"example.com.br",
+		"example.co.jp",
+		"example.go.id",
+	].map((host) => ({
 		name: `an external host with country suffix ${host}`,
 		markup: `<a href="https://www.${host}/hello" onclick="event.preventDefault()">Link</a>`,
 		selector: "a",
