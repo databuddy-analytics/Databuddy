@@ -87,7 +87,7 @@ export function createMcpAgentTools(
 			},
 		}),
 		execute_sql_query: tool({
-			description: `Custom read-only ClickHouse SQL. SELECT/WITH only. Use {paramName:Type} for parameters. websiteId and websiteDomain are bound server-side from the verified website argument; tool args of those names in params are ignored. UNION, INTERSECT, EXCEPT, subqueries, and comma-joins are not allowed; use CTEs instead. Every WHERE needs the per-table tenant filter; call describe_schema when in doubt, since the validator rejects wrong-column queries. Use only when get_data/query builders cannot answer.
+			description: `Custom read-only ClickHouse SQL. SELECT/WITH only. Use {paramName:Type} for parameters. websiteId and websiteDomain are bound server-side from the verified website argument; tool args of those names in params are ignored. UNION, INTERSECT, EXCEPT, subqueries, and comma-joins are not allowed; use CTEs instead. Every WHERE needs the per-table tenant filter; read each table's describe_schema entry first, since the validator rejects wrong-column queries. Use only when get_data/query builders cannot answer.
 
 Critical schema footguns: website id column is client_id (not website_id); timestamp is time (not created_at); page URL path is path (not page_path); event discriminator is event_name (not event_type); pageviews are event_name = 'screen_view' (never 'pageview'). Custom events are easy to query incorrectly; use get_data custom_events_* builders instead.`,
 			strict: true,
