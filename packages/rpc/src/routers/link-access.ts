@@ -8,7 +8,7 @@ export function requireOrganizationId(
 	organizationId: string | null | undefined
 ): string {
 	if (!organizationId) {
-		throw rpcError.badRequest("Organization ID is required");
+		throw rpcError.badRequest("Select an organization and try again.");
 	}
 	return organizationId;
 }

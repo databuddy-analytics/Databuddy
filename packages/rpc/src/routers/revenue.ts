@@ -191,7 +191,9 @@ export const revenueRouter = {
 				.returning();
 
 			if (!created) {
-				throw rpcError.internal("Failed to create revenue config");
+				throw rpcError.internal(
+					"Revenue settings could not be saved. Try again in a moment."
+				);
 			}
 
 			return {

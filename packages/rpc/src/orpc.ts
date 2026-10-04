@@ -188,7 +188,7 @@ export const sessionProcedure = protectedProcedure.use(
 	({ context, next, errors }) => {
 		if (!(context.user && context.session)) {
 			recordORPCError({ code: "UNAUTHORIZED" });
-			throw errors.UNAUTHORIZED({ message: "Session required" });
+			throw errors.UNAUTHORIZED({ message: "Sign in to continue." });
 		}
 
 		return next({

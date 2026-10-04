@@ -31,8 +31,8 @@ import {
 } from "../procedures/with-workspace";
 
 const updateAvatarSeedSchema = z.object({
-	organizationId: z.string().min(1, "Organization ID is required"),
-	seed: z.string().min(1, "Seed is required"),
+	organizationId: z.string().min(1, "Select an organization and try again."),
+	seed: z.string().min(1, "Pick an avatar and try again."),
 });
 
 const orgOutputSchema = z.record(z.string(), z.unknown());
@@ -55,7 +55,7 @@ const ignoredOriginSchema = z
 	.max(255)
 	.transform((value) => value.toLowerCase())
 	.refine((value) => value !== "*" && !broadWildcardOriginRegex.test(value), {
-		message: "Use a specific host or wildcard like *.example.com.",
+		message: "Use a specific host or a wildcard like *.example.com.",
 	});
 
 const emailNotificationSections = {
@@ -148,7 +148,7 @@ export const organizationsRouter = {
 		.handler(async ({ input, context }) => {
 			const organizationId = input.organizationId ?? context.organizationId;
 			if (!organizationId) {
-				throw rpcError.badRequest("Organization ID is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			await withWorkspace(context, {
@@ -188,7 +188,7 @@ export const organizationsRouter = {
 		.handler(async ({ input, context }) => {
 			const organizationId = input.organizationId ?? context.organizationId;
 			if (!organizationId) {
-				throw rpcError.badRequest("Organization ID is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			await withWorkspace(context, {
@@ -274,7 +274,9 @@ export const organizationsRouter = {
 
 				return invitations;
 			} catch {
-				throw rpcError.internal("Failed to fetch pending invitations");
+				throw rpcError.internal(
+					"Pending invitations could not be loaded. Try again in a moment."
+				);
 			}
 		}),
 

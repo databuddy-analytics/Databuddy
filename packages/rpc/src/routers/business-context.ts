@@ -199,7 +199,7 @@ export const businessContextRouter = {
 				if (!generate) {
 					throw rpcError.serviceUnavailable(
 						5,
-						"Business context generation is unavailable. Try again shortly."
+						"Business context generation is unavailable right now. Try again in a moment."
 					);
 				}
 				const current = await settings(context, input.organizationId);
@@ -241,7 +241,7 @@ export const businessContextRouter = {
 				const generation = state.generation;
 				if (!generation) {
 					throw rpcError.internal(
-						"Could not start business context generation. Try again."
+						"Business context generation could not be started. Try again in a moment."
 					);
 				}
 				const controller = new AbortController();
