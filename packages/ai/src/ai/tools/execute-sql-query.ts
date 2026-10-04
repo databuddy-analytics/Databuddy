@@ -1,7 +1,7 @@
 import {
+	AGENT_TENANT_COLUMN_BY_TABLE,
 	AGENT_TENANT_FILTERS,
 	buildAdditionalTableFilters,
-	extractAllowlistedTables,
 	validateAgentSQL,
 } from "@databuddy/db/clickhouse";
 import { tool } from "ai";
@@ -46,9 +46,8 @@ export async function executeAgentSqlForWebsite({
 		throw new Error(validation.reason);
 	}
 
-	const referencedTables = extractAllowlistedTables(sql);
 	const additional_table_filters = buildAdditionalTableFilters(
-		referencedTables,
+		Object.keys(AGENT_TENANT_COLUMN_BY_TABLE),
 		websiteId
 	);
 
