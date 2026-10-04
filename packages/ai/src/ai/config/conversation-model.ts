@@ -2,6 +2,12 @@ import type { SystemModelMessage } from "ai";
 import type { AgentConfig, AgentThinking } from "../agents/types";
 import { ANTHROPIC_CACHE_1H } from "./models";
 
+const OPENAI_EFFORT_MODEL_IDS = new Set([
+	"openai/gpt-5.6-luna",
+	"openai/gpt-5.6-terra",
+	"openai/gpt-6.1-sol",
+]);
+
 export function conversationModelOptions(
 	modelId: string,
 	thinking?: AgentThinking
@@ -25,10 +31,7 @@ export function conversationModelOptions(
 	}
 	// Register effort support by concrete model ID, so changing the default tier
 	// cannot send these OpenAI options to an unrelated model.
-	if (
-		(modelId === "openai/gpt-5.6-terra" || modelId === "openai/gpt-5.6-luna") &&
-		effort
-	) {
+	if (OPENAI_EFFORT_MODEL_IDS.has(modelId) && effort) {
 		return {
 			temperature: undefined,
 			providerOptions: { openai: { reasoningEffort: effort } },

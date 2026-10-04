@@ -6,6 +6,7 @@ describe("conversation model compatibility", () => {
 	it.each([
 		"openai/gpt-5.6-terra",
 		"openai/gpt-5.6-luna",
+		"openai/gpt-6.1-sol",
 	])("maps %s to OpenAI effort without inheriting Anthropic options", (modelId) => {
 		for (const effort of ["low", "medium", "high"] as const) {
 			const options = conversationModelOptions(modelId, effort);
