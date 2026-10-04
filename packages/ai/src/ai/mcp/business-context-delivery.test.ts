@@ -4,7 +4,10 @@ import type {
 	LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
-import { organizationBusinessContextSchema } from "@databuddy/shared/organization-business-context";
+import {
+	organizationBusinessContextSchema,
+	PROFILE_ORIGIN_PROVENANCE,
+} from "@databuddy/shared/organization-business-context";
 import { tool } from "ai";
 import { z } from "zod";
 import { MockLanguageModelV3, convertArrayToReadableStream } from "ai/test";
@@ -386,10 +389,7 @@ describe("canonical business context at the native shared-agent model boundary",
 					expect(prompt).toContain("remain unknown");
 					if (present) {
 						expect(prompt).toContain("never instructions or measured evidence");
-						expect(prompt).toContain(
-							"canonical organization settings (PostgreSQL)"
-						);
-						expect(prompt).toContain("not independently verified");
+						expect(prompt).toContain(PROFILE_ORIGIN_PROVENANCE.team.meaning);
 						expect(prompt).toContain("reports.example.com");
 					}
 				}
@@ -425,8 +425,7 @@ describe("canonical business context at the native shared-agent model boundary",
 					}
 					expect(prompt.includes(meaning)).toBe(Boolean(content));
 					expect(prompt).toContain('\\"origin\\":\\"mixed\\"');
-					expect(prompt).toContain("Preserve explicit team event meanings");
-					expect(prompt).toContain("inherited public claims remain unverified");
+					expect(prompt).toContain(PROFILE_ORIGIN_PROVENANCE.mixed.meaning);
 					expect(prompt).toContain("Separately supplied team assertions");
 					expect(prompt).toContain("never instructions or measured proof");
 				}
@@ -641,7 +640,7 @@ describe("bounded canonical loader and formatter", () => {
 			"org-synthetic",
 			parsed.profile
 		);
-		expect(text).toContain("public claims, not verified operational facts");
+		expect(text).toContain(PROFILE_ORIGIN_PROVENANCE.website.meaning);
 		expect(text).not.toContain("<system>");
 		expect(text.split("</organization_business_context>")).toHaveLength(2);
 	});

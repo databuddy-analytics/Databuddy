@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { BusinessContext } from "@databuddy/shared/insights";
+import { PROFILE_ORIGIN_PROVENANCE } from "@databuddy/shared/organization-business-context";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ContextUsed } from "./context-used";
 
@@ -38,38 +39,52 @@ describe("Business context disclosure", () => {
 		expect(html).toContain("Preparation starts a draft.");
 		expect(html).not.toContain("<script>");
 	});
-	it("distinguishes mixed background from named team priorities at the supplied revision", () => {
+	it("names each brief origin once and keeps named team priorities at the supplied revision", () => {
+		const profile = {
+			kind: "organization_profile" as const,
+			observedAt: snapshot.capturedAt,
+			profileVersion: { revision: 4, updatedAt: snapshot.capturedAt },
+		};
 		const html = renderToStaticMarkup(
 			<ContextUsed
 				snapshot={{
 					...snapshot,
 					sources: [
 						{
+							...profile,
 							id: "mixed-background",
-							kind: "organization_profile",
 							origin: "mixed",
 							content: "Edited public background",
-							author: "Edited website background",
-							observedAt: snapshot.capturedAt,
-							profileVersion: { revision: 4, updatedAt: snapshot.capturedAt },
+							author: PROFILE_ORIGIN_PROVENANCE.mixed.label,
 						},
 						{
+							...profile,
+							id: "website-background",
+							origin: "website",
+							content: "Public background",
+							author: PROFILE_ORIGIN_PROVENANCE.website.label,
+						},
+						{
+							...profile,
 							id: "team-context",
-							kind: "organization_profile",
 							origin: "team",
 							content: "Priority: completed downloads",
 							author: "Team priorities and definitions",
-							observedAt: snapshot.capturedAt,
-							profileVersion: { revision: 4, updatedAt: snapshot.capturedAt },
 						},
 					],
 				}}
 			/>
 		);
-		expect(html).toContain("Website background with team edits");
+		for (const { label } of [
+			PROFILE_ORIGIN_PROVENANCE.mixed,
+			PROFILE_ORIGIN_PROVENANCE.website,
+		]) {
+			expect(html).toContain(`Organization brief · ${label}`);
+			expect(html.split(label)).toHaveLength(2);
+		}
 		expect(html).toContain("Team priorities and definitions");
 		expect(html).toContain("Priority: completed downloads");
-		expect(html.match(/Revision 4/g)).toHaveLength(2);
+		expect(html.match(/Revision 4/g)).toHaveLength(3);
 	});
 	it("does not invent provenance for legacy results", () => {
 		expect(renderToStaticMarkup(<ContextUsed />)).toBe("");

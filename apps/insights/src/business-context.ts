@@ -36,6 +36,7 @@ import { readOrganizationBusinessContext } from "@databuddy/services/organizatio
 import {
 	formatBusinessTeamContext,
 	type OrganizationBusinessProfile,
+	PROFILE_ORIGIN_PROVENANCE,
 } from "@databuddy/shared/organization-business-context";
 import {
 	businessContextSchema,
@@ -430,10 +431,7 @@ export function organizationProfileContext(
 			`organization-profile:${organizationId}`,
 			profile.content,
 			{
-				author:
-					profile.origin === "mixed"
-						? "Edited website background"
-						: "Organization settings",
+				author: PROFILE_ORIGIN_PROVENANCE[profile.origin].label,
 				origin: profile.origin,
 			},
 			{ references: profile.sources }

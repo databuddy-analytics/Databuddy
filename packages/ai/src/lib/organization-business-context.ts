@@ -1,5 +1,8 @@
 import { readOrganizationBusinessContext } from "@databuddy/services/organization-business-context";
-import type { OrganizationBusinessProfile } from "@databuddy/shared/organization-business-context";
+import {
+	type OrganizationBusinessProfile,
+	PROFILE_ORIGIN_PROVENANCE,
+} from "@databuddy/shared/organization-business-context";
 import type { WebsiteSummary } from "./accessible-websites";
 
 const CONTEXT_TIMEOUT_MS = 1500;
@@ -38,14 +41,7 @@ export function formatOrganizationBusinessContext(
 		updatedAt: profile.updatedAt,
 		source: "canonical organization settings (PostgreSQL)",
 		origin: profile.origin,
-		provenance: {
-			team: "Team-supplied assertions; not independently verified.",
-			website:
-				"Website-derived background; public claims, not verified operational facts.",
-			mixed:
-				"Edited website background may include explicit team assertions. Preserve explicit team event meanings and priorities as attributed assertions; inherited public claims remain unverified. Editing does not verify those public claims.",
-		}[profile.origin],
-		sourceWebsiteId: profile.sourceWebsiteId,
+		provenance: PROFILE_ORIGIN_PROVENANCE[profile.origin].meaning,
 		content: profile.content,
 		teamContext: profile.teamContext,
 		measurementPlans: profile.measurementPlans?.filter((plan) =>

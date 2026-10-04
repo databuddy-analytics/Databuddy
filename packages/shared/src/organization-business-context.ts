@@ -241,6 +241,26 @@ export const organizationBusinessProfileSchema = businessBriefSchema.extend({
 	sourceWebsiteId: z.string().nullable(),
 });
 
+export const PROFILE_ORIGIN_PROVENANCE: Record<
+	OrganizationBusinessProfile["origin"],
+	{ label: string; meaning: string }
+> = {
+	team: {
+		label: "Team supplied or edited",
+		meaning: "Team-supplied assertions, not independently verified.",
+	},
+	website: {
+		label: "AI summary of the public website",
+		meaning:
+			"AI-generated summary of public website sources, not an owner assertion or a verified fact.",
+	},
+	mixed: {
+		label: "Website background with team edits",
+		meaning:
+			"Explicit team definitions and priorities are team assertions; inherited public claims stay unverified, and editing does not verify them.",
+	},
+};
+
 export const businessContextGenerationSchema = z.object({
 	id: z.string(),
 	websiteId: z.string(),

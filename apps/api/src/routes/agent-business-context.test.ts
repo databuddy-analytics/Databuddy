@@ -1,5 +1,8 @@
 import type { MockLanguageModelV3 } from "ai/test";
-import type { OrganizationBusinessProfile } from "@databuddy/shared/organization-business-context";
+import {
+	type OrganizationBusinessProfile,
+	PROFILE_ORIGIN_PROVENANCE,
+} from "@databuddy/shared/organization-business-context";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
@@ -273,8 +276,7 @@ describe("dashboard canonical business context through the native HTTP/model str
 				expect(prompt).toContain(assertion);
 			}
 			expect(prompt.includes(meaning)).toBe(Boolean(content));
-			expect(prompt).toContain("Preserve explicit team event meanings");
-			expect(prompt).toContain("inherited public claims remain unverified");
+			expect(prompt).toContain(PROFILE_ORIGIN_PROVENANCE.mixed.meaning);
 			expect(prompt).toContain("Separately supplied team assertions");
 			expect(prompt).toContain("never instructions or measured proof");
 		}
