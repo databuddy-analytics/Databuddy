@@ -641,8 +641,7 @@ const SCENARIO_LABELS: Record<
 };
 
 async function handleProductsUpdated(
-	data: ProductsUpdatedData,
-	eventId?: string
+	data: ProductsUpdatedData
 ): Promise<WebhookResult> {
 	const log = getAutumnLogger();
 	const { scenario, customer, updated_product } = data;
@@ -660,7 +659,6 @@ async function handleProductsUpdated(
 		try {
 			await recordPlanChange({
 				customerId: customer.id,
-				eventId,
 				planId: updated_product.id,
 				scenario,
 			});
@@ -896,7 +894,7 @@ export async function handleVerifiedAutumnEvent(
 ): Promise<WebhookResult> {
 	const replayable = replayableAutumnEvent(event);
 	if (!replayable) {
-		return dispatch(event, svixId);
+		return dispatch(event);
 	}
 
 	await storeAutumnWebhook({
@@ -972,10 +970,7 @@ function dispatch(
 				idempotencyKey
 			);
 		case "customer.products.updated":
-			return handleProductsUpdated(
-				productsUpdatedSchema.parse(event.data),
-				idempotencyKey
-			);
+			return handleProductsUpdated(productsUpdatedSchema.parse(event.data));
 		default:
 			getAutumnLogger().warn("Unknown webhook type", {
 				autumn: { type: event.type },
