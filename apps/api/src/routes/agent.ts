@@ -14,7 +14,6 @@ import {
 import { AGENT_THINKING_LEVELS, AGENT_TIERS } from "@databuddy/ai/agents/types";
 import { type AgentModelKey, models } from "@databuddy/ai/config/models";
 import { askDatabuddyAgent, streamDatabuddyAgent } from "@databuddy/ai/agent";
-import type { AppContext } from "@databuddy/ai/config/context";
 import {
 	asksToRemember,
 	formatMemoryForPrompt,
@@ -814,6 +813,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 							thinking: body.thinking,
 							billingCustomerId,
 							integrations,
+							latestUserMessage,
 						},
 						modelKey,
 						modelOverride
@@ -890,14 +890,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					}
 
 					const agent = createConversationAgent(
-						{
-							...config,
-							model: getAILogger().wrap(config.model),
-							experimental_context: {
-								...(config.experimental_context as AppContext),
-								latestUserMessage,
-							},
-						},
+						{ ...config, model: getAILogger().wrap(config.model) },
 						{
 							experimental_telemetry: {
 								isEnabled: true,

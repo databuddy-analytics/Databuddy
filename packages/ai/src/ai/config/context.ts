@@ -13,6 +13,7 @@ export interface AppContext {
 	chatId: string;
 	currentDateTime: string;
 	defaultWebsiteId?: string | null;
+	latestUserMessage?: string;
 	mutationMode?: AppMutationMode;
 	organizationId?: string | null;
 	requestHeaders?: Headers;

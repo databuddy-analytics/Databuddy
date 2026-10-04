@@ -17,6 +17,7 @@ export function createMcpAgentConfig(context: {
 	userId: string | null;
 	timezone?: string;
 	chatId?: string;
+	latestUserMessage?: string;
 	memoryUserId?: string | null;
 	modelOverride?: string | null;
 	mutationMode?: AppMutationMode;
@@ -74,6 +75,7 @@ export function createMcpAgentConfig(context: {
 			billingCustomerId: context.billingCustomerId,
 			chatId,
 			currentDateTime,
+			latestUserMessage: context.latestUserMessage,
 			memoryUserId: context.memoryUserId ?? "",
 			mutationMode: context.mutationMode ?? "allow",
 			organizationId: context.organizationId ?? null,

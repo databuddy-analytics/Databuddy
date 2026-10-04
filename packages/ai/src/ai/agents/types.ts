@@ -1,3 +1,4 @@
+import type { AppContext } from "../config/context";
 import type { LanguageModelV3 } from "@ai-sdk/provider";
 import type {
 	StopCondition,
@@ -33,6 +34,7 @@ export interface AgentContext {
 	billingCustomerId?: string | null;
 	chatId: string;
 	defaultWebsiteId?: string | null;
+	latestUserMessage?: string;
 	organizationId?: string;
 	requestHeaders?: Headers;
 	thinking?: AgentThinking;
@@ -44,7 +46,7 @@ export interface AgentContext {
 
 export interface AgentConfig {
 	activeTools?: string[];
-	experimental_context?: unknown;
+	experimental_context?: AppContext;
 	model: LanguageModelV3;
 	providerOptions?: ProviderOptions;
 	stopWhen?: StopCondition<ToolSet>;

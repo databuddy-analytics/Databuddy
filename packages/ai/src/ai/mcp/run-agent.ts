@@ -22,7 +22,7 @@ import {
 } from "../agents/execution";
 import { createMcpAgentConfig } from "../agents/mcp";
 import { getDefaultAgentModelId } from "../config/models";
-import type { AppContext, AppMutationMode } from "../config/context";
+import type { AppMutationMode } from "../config/context";
 import type { DatabuddyAgentSlackContext } from "./slack-context";
 
 const DEFAULT_MCP_AGENT_TIMEOUT_MS = 45_000;
@@ -345,6 +345,7 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 			userId: mcpUserId,
 			timezone: options.timezone,
 			chatId: sessionId,
+			latestUserMessage: historyInput,
 			modelOverride: options.modelOverride,
 			memoryUserId,
 			mutationMode: options.mutationMode,
@@ -371,14 +372,7 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 	const ai = getAILogger();
 	const capturedSteps: StepResult<ToolSet>[] = [];
 	const agent = createConversationAgent(
-		{
-			...config,
-			model: ai.wrap(config.model),
-			experimental_context: {
-				...(config.experimental_context as AppContext),
-				latestUserMessage: historyInput,
-			},
-		},
+		{ ...config, model: ai.wrap(config.model) },
 		{
 			onStepFinish: (step) => {
 				capturedSteps.push(step);

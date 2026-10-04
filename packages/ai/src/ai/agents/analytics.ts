@@ -39,6 +39,7 @@ export function createConfig(
 		websiteDomain: context.websiteDomain,
 		defaultWebsiteId: context.defaultWebsiteId ?? context.websiteId,
 		accessibleWebsites: context.accessibleWebsites,
+		latestUserMessage: context.latestUserMessage,
 		organizationId: context.organizationId,
 		source: "dashboard",
 		timezone: context.timezone,
