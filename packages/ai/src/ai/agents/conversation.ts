@@ -13,6 +13,8 @@ type MessagePart = UIMessage["parts"][number];
 const UNANSWERED_APPROVAL_REASON = "The user did not approve this action.";
 const UNRECORDED_APPROVAL_ERROR =
 	"The user approved this action, but no result was recorded. Check whether it ran before retrying.";
+const CLAIMED_APPROVAL_REASON =
+	"This approval was already used from another tab or request, so the action was not run again.";
 
 function settleApproval(part: MessagePart, isLatest: boolean): MessagePart {
 	if (!isToolUIPart(part)) {
@@ -54,6 +56,38 @@ export function settleStaleToolApprovals(messages: UIMessage[]): UIMessage[] {
 			settleApproval(part, index === messages.length - 1)
 		),
 	}));
+}
+
+export async function claimToolApprovals(
+	messages: UIMessage[],
+	claim: (approvalId: string) => Promise<boolean>
+): Promise<UIMessage[]> {
+	const latest = messages.at(-1);
+	if (!latest) {
+		return messages;
+	}
+	const parts = await Promise.all(
+		latest.parts.map(async (part): Promise<MessagePart> => {
+			if (
+				!isToolUIPart(part) ||
+				part.state !== "approval-responded" ||
+				!part.approval.approved ||
+				(await claim(part.approval.id))
+			) {
+				return part;
+			}
+			return {
+				...part,
+				state: "output-denied",
+				approval: {
+					id: part.approval.id,
+					approved: false,
+					reason: CLAIMED_APPROVAL_REASON,
+				},
+			};
+		})
+	);
+	return [...messages.slice(0, -1), { ...latest, parts }];
 }
 
 export function createConversationAgent(

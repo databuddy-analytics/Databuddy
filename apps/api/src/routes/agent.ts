@@ -5,6 +5,7 @@ import {
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
 import {
+	claimToolApprovals,
 	createConversationAgent,
 	settleStaleToolApprovals,
 } from "@databuddy/ai/agents/conversation";
@@ -37,6 +38,7 @@ import {
 	streamBufferKey,
 	tailStream,
 } from "@databuddy/redis/stream-buffer";
+import { getRedisCache } from "@databuddy/redis";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import {
 	convertToModelMessages,
@@ -200,6 +202,27 @@ async function generateChatTitle(
 		return title.slice(0, TITLE_MAX_LEN);
 	} catch {
 		return null;
+	}
+}
+
+const APPROVAL_CLAIM_TTL_SEC = 86_400;
+
+async function claimApproval(
+	chatId: string,
+	approvalId: string
+): Promise<boolean> {
+	try {
+		const claimed = await getRedisCache().set(
+			`agent:approval:${chatId}:${approvalId}`,
+			"1",
+			"EX",
+			APPROVAL_CLAIM_TTL_SEC,
+			"NX"
+		);
+		return claimed === "OK";
+	} catch (error) {
+		captureError(error, { agent_approval_claim_failed: true });
+		return true;
 	}
 }
 
@@ -851,7 +874,10 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					if (!validation.success) {
 						return jsonError(400, "INVALID_MESSAGES", "Invalid message format");
 					}
-					const chatMessages = settleStaleToolApprovals(validation.data);
+					const chatMessages = await claimToolApprovals(
+						settleStaleToolApprovals(validation.data),
+						(approvalId) => claimApproval(chatId, approvalId)
+					);
 
 					const modelMessages = await timeAgentPhase(
 						"convert_prune",
