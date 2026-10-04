@@ -1,7 +1,7 @@
 import { expect, mock, test } from "bun:test";
 import { createProcedureClient, os } from "@orpc/server";
 import type { Context } from "../orpc";
-import { getAutumn } from "../lib/autumn-client";
+import { BillingUnavailableError, getAutumn } from "../lib/autumn-client";
 
 const transaction = mock(() => {
 	throw new Error("Unexpected credit mutation");
@@ -33,10 +33,8 @@ test("self-hosted rewards stop before credit mutation, and copied billing keys s
 	};
 	try {
 		getAutumn();
-		getAutumn({ strict: true });
 		process.env.SELFHOST = "true";
-		expect(() => getAutumn()).toThrow("disabled");
-		expect(() => getAutumn({ strict: true })).toThrow("disabled");
+		expect(() => getAutumn()).toThrow(BillingUnavailableError);
 		const redeem = createProcedureClient(feedbackRouter.redeemCredits, {
 			context: {
 				user: { id: "synthetic-user" },

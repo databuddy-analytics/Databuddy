@@ -95,3 +95,18 @@ export const investigationQuantitySchema = number()
 	.int()
 	.min(1)
 	.max(INVESTIGATION_USAGE.maxPurchase);
+
+export class BillingUnavailableError extends Error {
+	readonly code = "billing_unavailable";
+
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = "BillingUnavailableError";
+	}
+}
+
+export function isBillingUnavailable(
+	error: unknown
+): error is BillingUnavailableError {
+	return error instanceof BillingUnavailableError;
+}

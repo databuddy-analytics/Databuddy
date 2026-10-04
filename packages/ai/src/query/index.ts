@@ -1,5 +1,5 @@
 /** biome-ignore-all lint/performance/noBarrelFile: this is a barrel file */
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { billingMode } from "@databuddy/env/app";
 import { getBillingOwner } from "@databuddy/rpc/billing";
 import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
 import {
@@ -133,7 +133,7 @@ export async function queryPlanGateError(
 	queryTypes: string[],
 	scope: { organizationId: string | null } | { websiteId: string }
 ): Promise<string | null> {
-	if (readBooleanEnv("SELFHOST")) {
+	if (billingMode() !== "live") {
 		return null;
 	}
 	const required = new Set<GatedFeatureId>();

@@ -1,8 +1,12 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { billingMode } from "@databuddy/env/app";
 import { chQuery, EXCLUDE_IMPORTED_ROWS } from "@databuddy/db/clickhouse";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { getAutumn } from "../lib/autumn-client";
+import {
+	autumnCall,
+	BillingUnavailableError,
+	getAutumn,
+} from "../lib/autumn-client";
 import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { protectedProcedure, trackedSessionProcedure } from "../orpc";
@@ -263,7 +267,7 @@ async function upsertBillingControl<
 	entry: BillingControlEntries[K];
 	operation: string;
 }): Promise<void> {
-	if (readBooleanEnv("SELFHOST")) {
+	if (billingMode() !== "live") {
 		throw rpcError.badRequest(
 			"Billing is turned off on this Databuddy instance."
 		);
@@ -278,30 +282,28 @@ async function upsertBillingControl<
 		);
 	}
 
-	try {
-		const autumn = getAutumn({ strict: true });
-		const customer = await autumn.customers.getOrCreate({ customerId });
-		if (customer.id !== customerId) {
-			throw new Error("The billing customer could not be verified");
-		}
-		const existing = (customer.billingControls?.[args.key] ?? []) as Array<{
-			featureId: string;
-		}>;
-		const merged = [
-			...existing.filter((e) => e.featureId !== args.entry.featureId),
-			args.entry,
-		];
-		await autumn.customers.update({
+	const autumn = getAutumn();
+	const customer = await autumnCall("customers.getOrCreate", () =>
+		autumn.customers.getOrCreate({ customerId })
+	);
+	if (customer.id !== customerId) {
+		throw new BillingUnavailableError(
+			"The billing customer could not be verified"
+		);
+	}
+	const existing = (customer.billingControls?.[args.key] ?? []) as Array<{
+		featureId: string;
+	}>;
+	const merged = [
+		...existing.filter((e) => e.featureId !== args.entry.featureId),
+		args.entry,
+	];
+	await autumnCall("customers.update", () =>
+		autumn.customers.update({
 			customerId,
 			billingControls: { [args.key]: merged } as Record<K, typeof merged>,
-		});
-	} catch (error) {
-		logger.error(
-			{ error, customerId, userId: args.context.user.id },
-			`Failed to update ${args.operation} configuration`
-		);
-		throw rpcError.internal(`Failed to update ${args.operation} settings`);
-	}
+		})
+	);
 }
 
 export const billingRouter = {

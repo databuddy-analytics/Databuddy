@@ -213,10 +213,16 @@ vi.mock("@databuddy/email", async (importOriginal) => ({
 	UsageLimitEmail: vi.fn(() => ({ type: "limit" })),
 }));
 
-vi.mock("@databuddy/env/app", async (importOriginal) => ({
-	...(await importOriginal<typeof import("@databuddy/env/app")>()),
-	config: { email: { alertsFrom: "alerts@databuddy.cc" } },
-}));
+vi.mock("@databuddy/env/app", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@databuddy/env/app")>();
+	return {
+		...actual,
+		config: {
+			email: { alertsFrom: "alerts@databuddy.cc" },
+			services: actual.config.services,
+		},
+	};
+});
 
 vi.mock("@databuddy/notifications", () => ({
 	SlackProvider: class {

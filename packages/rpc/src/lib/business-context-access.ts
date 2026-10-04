@@ -1,9 +1,13 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { billingMode } from "@databuddy/env/app";
 import { roleHasPermission } from "@databuddy/auth/permissions";
 import { MIN_AGENT_CREDIT_CHECK_BALANCE } from "@databuddy/shared/agent-credits";
 import { z } from "zod";
 import { getOrganizationOwnerId } from "../utils/organization";
-import { getAutumn } from "./autumn-client";
+import {
+	autumnCall,
+	BillingUnavailableError,
+	getAutumn,
+} from "./autumn-client";
 import { logger } from "./logger";
 
 export const businessContextGenerationAccessSchema = z.object({
@@ -36,9 +40,7 @@ export async function businessContextGenerationAccess(
 		!(
 			process.env.AI_GATEWAY_API_KEY?.trim() &&
 			process.env.CONTEXT_DEV_API_KEY?.trim()
-		) ||
-		(!(readBooleanEnv("SELFHOST") || process.env.AUTUMN_SECRET_KEY?.trim()) &&
-			process.env.NODE_ENV === "production")
+		)
 	) {
 		return {
 			status: "not-configured",
@@ -47,8 +49,7 @@ export async function businessContextGenerationAccess(
 			action: "contact-admin",
 		};
 	}
-	// Match generation's local/self-hosted policy when billing is not configured.
-	if (readBooleanEnv("SELFHOST") || !process.env.AUTUMN_SECRET_KEY?.trim()) {
+	if (billingMode() !== "live") {
 		return {
 			status: "allowed",
 			message: "You can generate a draft from your website.",
@@ -65,15 +66,19 @@ export async function businessContextGenerationAccess(
 	try {
 		const customerId = await getOrganizationOwnerId(organizationId);
 		if (!customerId) {
-			throw new Error("The organization billing owner is unavailable");
+			throw new BillingUnavailableError(
+				"The organization billing owner is unavailable"
+			);
 		}
-		const access = await getAutumn({ strict: true }).check({
-			customerId,
-			featureId: "agent_credits",
-			requiredBalance: MIN_AGENT_CREDIT_CHECK_BALANCE,
-		});
+		const access = await autumnCall("check", () =>
+			getAutumn().check({
+				customerId,
+				featureId: "agent_credits",
+				requiredBalance: MIN_AGENT_CREDIT_CHECK_BALANCE,
+			})
+		);
 		if (access.customerId !== customerId) {
-			throw new Error(
+			throw new BillingUnavailableError(
 				"The organization generation access could not be verified"
 			);
 		}
