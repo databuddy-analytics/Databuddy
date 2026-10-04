@@ -14,6 +14,7 @@ const {
 	mockInsertTrackEventsBatch,
 	mockInsertOutgoingLinksBatch,
 	mockInsertIndividualVitals,
+	mockInsertEngagementSpans,
 	mockInsertErrorSpans,
 	mockInsertCustomEvents,
 	mockGetGeo,
@@ -74,6 +75,7 @@ const {
 		mockInsertTrackEventsBatch: vi.fn(() => Promise.resolve()),
 		mockInsertOutgoingLinksBatch: vi.fn(() => Promise.resolve()),
 		mockInsertIndividualVitals: vi.fn(() => Promise.resolve()),
+		mockInsertEngagementSpans: vi.fn((_spans: unknown[]) => Promise.resolve()),
 		mockInsertErrorSpans: vi.fn(() => Promise.resolve()),
 		mockInsertCustomEvents: vi.fn(() => Promise.resolve()),
 		mockGetGeo: vi.fn(() =>
@@ -120,7 +122,7 @@ vi.mock("@lib/event-service", () => ({
 	insertTrackEventsBatch: mockInsertTrackEventsBatch,
 	insertOutgoingLinksBatch: mockInsertOutgoingLinksBatch,
 	insertIndividualVitals: mockInsertIndividualVitals,
-	insertEngagementSpans: vi.fn(async () => {}),
+	insertEngagementSpans: mockInsertEngagementSpans,
 	insertErrorSpans: mockInsertErrorSpans,
 	insertCustomEvents: mockInsertCustomEvents,
 	stableAnalyticsEventId: vi.fn(() => "stable_id"),
@@ -418,6 +420,27 @@ describe("POST /engagement", () => {
 			{ ...span, exitType: "teleport" },
 		]);
 		expect(res.status).toBe(400);
+	});
+
+	test("over-long click descriptor → 200, the span is kept", async () => {
+		const target = `div:unnamed in section:${"x".repeat(2000)}`;
+		const res = await post(basketApp, "/engagement", [
+			{
+				...span,
+				rageClickTarget: target,
+				deadClickTarget: target,
+				lastFormField: target,
+			},
+		]);
+		expect(res.status).toBe(200);
+		expect((await json(res)).count).toBe(1);
+		expect(mockInsertEngagementSpans.mock.calls.at(-1)?.[0]).toEqual([
+			expect.objectContaining({
+				rageClickTarget: target.slice(0, 64),
+				deadClickTarget: target.slice(0, 64),
+				lastFormField: target.slice(0, 64),
+			}),
+		]);
 	});
 
 	test("empty array → 200 with count 0", async () => {

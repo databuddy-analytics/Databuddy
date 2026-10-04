@@ -82,6 +82,13 @@ async function clickAndAwaitEvent(
 	await page.evaluate(() => window.awaitedEvent);
 }
 
+async function clickSpaced(page: Page, selector: string, times: number) {
+	for (let click = 0; click < times; click++) {
+		await page.click(selector);
+		await page.clock.runFor(200);
+	}
+}
+
 async function outlastDeadClickWindow(page: Page) {
 	await page.clock.runFor(DEAD_CLICK_WINDOW_MS + 100);
 }
@@ -154,13 +161,131 @@ const ORDINARY_CLICKS: {
 		act: (page) => page.click("button"),
 	},
 	{
-		name: "clicks split by clear()",
-		markup: `<button aria-label="sign out" onclick="this.textContent = 'Signed out'">Sign out</button>`,
+		name: "rapid clicks on a stepper that answers each one",
+		markup: `<button aria-label="add" onclick="this.nextElementSibling.textContent = Number(this.nextElementSibling.textContent) + 1">+</button><span>1</span>`,
+		act: (page) => clickSpaced(page, "button", 4),
+	},
+	{
+		name: "rapid clicks on a theme toggle",
+		markup: `<button aria-label="toggle theme" onclick="document.documentElement.classList.toggle('dark')">Theme</button>`,
+		act: (page) => clickSpaced(page, "button", 3),
+	},
+	{
+		name: "rapid clicks on a card whose framework handler answers",
+		markup: `<div class="card" style="width: 200px; height: 120px"></div>`,
 		act: async (page) => {
-			await page.click("button", { clickCount: 2 });
-			await page.evaluate(() => window.databuddy?.clear());
-			await page.click("button");
+			await page.evaluate(() =>
+				document.querySelector(".card")?.addEventListener("click", (event) => {
+					const card = event.currentTarget as HTMLElement;
+					card.dataset.open = String(card.dataset.open !== "true");
+				})
+			);
+			await clickSpaced(page, ".card", 3);
 		},
+	},
+	{
+		name: "rapid clicks on a card whose handler scrolls a strip",
+		markup: `<div id="strip" style="height: 60px; overflow: auto"><div style="height: 2000px"></div></div><div class="card" style="width: 200px; height: 120px"></div>`,
+		act: async (page) => {
+			await page.evaluate(() =>
+				document
+					.querySelector(".card")
+					?.addEventListener("click", () =>
+						document.querySelector("#strip")?.scrollBy(0, 100)
+					)
+			);
+			for (let click = 0; click < 3; click++) {
+				await clickAndAwaitEvent(page, ".card", "scroll");
+			}
+		},
+	},
+	{
+		name: "rapid clicks on a theme toggle that swaps a stylesheet in head",
+		markup: `<button aria-label="toggle theme" onclick="const link = document.head.querySelector('link[data-theme]'); link.href = link.href.endsWith('dark.css') ? 'light.css' : 'dark.css'">Theme</button>`,
+		act: async (page) => {
+			await page.evaluate(() =>
+				document.head.insertAdjacentHTML(
+					"beforeend",
+					`<link rel="stylesheet" data-theme href="light.css">`
+				)
+			);
+			await clickSpaced(page, "button", 3);
+		},
+	},
+	{
+		name: "rapid clicks on a web component that answers inside its shadow root",
+		markup: "<qty-stepper></qty-stepper>",
+		act: async (page) => {
+			await page.evaluate(() =>
+				customElements.define(
+					"qty-stepper",
+					class extends HTMLElement {
+						constructor() {
+							super();
+							const root = this.attachShadow({ mode: "open" });
+							root.innerHTML = "<button>+</button><span>1</span>";
+							const count = root.querySelector("span");
+							root.querySelector("button")?.addEventListener("click", () => {
+								if (count) {
+									count.textContent = String(Number(count.textContent) + 1);
+								}
+							});
+						}
+					}
+				)
+			);
+			await clickSpaced(page, "qty-stepper button", 3);
+		},
+	},
+	{
+		name: "clicking three different bars of a chart",
+		markup: `<svg width="300" height="100"><rect x="0" y="0" width="50" height="100"></rect><rect x="100" y="0" width="50" height="100"></rect><rect x="200" y="0" width="50" height="100"></rect></svg>`,
+		act: async (page) => {
+			for (const bar of [1, 2, 3]) {
+				await page.click(`rect:nth-of-type(${bar})`);
+			}
+		},
+	},
+	{
+		name: "a menu trigger that hovering already opened",
+		markup: `<button aria-label="products" aria-expanded="true">Products</button>`,
+		act: (page) => page.click("button"),
+	},
+	{
+		name: "rapid clicks on an already pressed toggle",
+		markup: `<button aria-label="monthly" aria-pressed="true">Monthly</button>`,
+		act: (page) => page.click("button", { clickCount: 3 }),
+	},
+	{
+		name: "a page script clicking an unresponsive button",
+		markup: `<button aria-label="sync">Sync</button>`,
+		act: (page) =>
+			page.evaluate(() => {
+				const button = document.querySelector("button");
+				for (let click = 0; click < 3; click++) {
+					button?.click();
+				}
+			}),
+	},
+	{
+		name: "rapid clicks on a canvas",
+		markup: `<canvas width="200" height="120"></canvas>`,
+		act: (page) => page.click("canvas", { clickCount: 3 }),
+	},
+	{
+		name: "rapid clicks on a video",
+		markup: `<video width="200" height="120"></video>`,
+		act: (page) => page.click("video", { clickCount: 3 }),
+	},
+	{
+		name: "rapid clicks in an empty editable region",
+		markup: `<div contenteditable="true" aria-label="notes"><p style="height: 120px"></p></div>`,
+		act: (page) => page.click("[contenteditable] p", { clickCount: 3 }),
+	},
+	{
+		name: "rapid clicks on the page background",
+		markup: `<div style="height: 40px"></div>`,
+		act: (page) => page.mouse.click(600, 500, { clickCount: 3 }),
 	},
 	{
 		name: "double-clicking a word and clicking it again",
@@ -212,12 +337,200 @@ const ORDINARY_CLICKS: {
 	},
 ];
 
+const DESCRIBED_TARGETS: {
+	name: string;
+	markup: string;
+	selector: string;
+	clickCount?: number;
+	expected: string;
+}[] = [
+	{
+		name: "a link by its destination",
+		markup: `<a href="/pricing" onclick="event.preventDefault()">See plans</a>`,
+		selector: "a",
+		expected: "a:/pricing",
+	},
+	{
+		name: "an external link by its host",
+		markup: `<a href="https://stripe.com/docs/payments" onclick="event.preventDefault()">Docs</a>`,
+		selector: "a",
+		expected: "a:stripe.com",
+	},
+	{
+		name: "a link with an id-like path segment",
+		markup: `<a href="/invite/k3vQpXmZrTwYuBoPaLsKd" onclick="event.preventDefault()">Join</a>`,
+		selector: "a",
+		expected: "a:/invite/*",
+	},
+	{
+		name: "a button by its test id",
+		markup: `<button data-testid="checkout-submit">Pay</button>`,
+		selector: "button",
+		expected: "button:checkout-submit",
+	},
+	{
+		name: "an unnamed button by its landmark",
+		markup: "<nav><button>Menu</button></nav>",
+		selector: "button",
+		expected: "button:unnamed in nav",
+	},
+	{
+		name: "an unnamed button by its dialog id",
+		markup: `<div role="dialog" id="checkout"><div><button>Close</button></div></div>`,
+		selector: "button",
+		expected: "button:unnamed in dialog:checkout",
+	},
+	{
+		name: "a link by its first path segment only",
+		markup: `<a href="/businesses/jane-doe-law-firm" onclick="event.preventDefault()">Jane Doe Law</a>`,
+		selector: "a",
+		expected: "a:/businesses/*",
+	},
+	{
+		name: "a link to a personal subdomain by its public host",
+		markup: `<a href="https://jane.substack.com/p/hello" onclick="event.preventDefault()">Blog</a>`,
+		selector: "a",
+		expected: "a:substack.com",
+	},
+	...["box.com", "hey.com", "box.io", "co.io", "com.io"].map((host) => ({
+		name: `a personal subdomain under short host ${host}`,
+		markup: `<a href="https://jane.${host}/hello" onclick="event.preventDefault()">Link</a>`,
+		selector: "a",
+		expected: `a:${host}`,
+	})),
+	...[
+		"example.co.uk",
+		"example.com.au",
+		"example.com.br",
+		"example.co.jp",
+		"example.go.id",
+		"example.com.pk",
+		"example.com.co",
+		"example.gob.mx",
+		"example.ltd.uk",
+	].map((host) => ({
+		name: `an external host with country suffix ${host}`,
+		markup: `<a href="https://www.${host}/hello" onclick="event.preventDefault()">Link</a>`,
+		selector: "a",
+		expected: `a:${host}`,
+	})),
+	{
+		name: "a link with a percent-encoded segment",
+		markup: `<a href="/%D8%A7%D9%84%D8%B9%D8%B1%D8%A8%D9%8A%D8%A9" onclick="event.preventDefault()">Arabic</a>`,
+		selector: "a",
+		expected: "a:/*",
+	},
+	{
+		name: "a bare # link by its container",
+		markup: `<nav><a href="#" onclick="event.preventDefault()">Menu</a></nav>`,
+		selector: "a",
+		expected: "a:unnamed in nav",
+	},
+	{
+		name: "a button whose id React generated as unnamed",
+		markup: `<button id="radix-:r1:">Open</button>`,
+		selector: "button",
+		expected: "button:unnamed",
+	},
+	{
+		name: "a button whose id Base UI generated as unnamed",
+		markup: `<button id="base-ui-_r_1b_">Open</button>`,
+		selector: "button",
+		expected: "button:unnamed",
+	},
+	{
+		name: "a snake_case test id that merely contains an r word",
+		markup: `<button data-testid="checkout_review_button">Review</button>`,
+		selector: "button",
+		expected: "button:checkout_review_button",
+	},
+	{
+		name: "a link with an empty aria-label by its destination",
+		markup: `<a href="/pricing" aria-label="" onclick="event.preventDefault()">Pricing</a>`,
+		selector: "a",
+		expected: "a:/pricing",
+	},
+	{
+		name: "a button with an empty aria-label by its test id",
+		markup: `<button aria-label="" data-testid="checkout-submit">Pay</button>`,
+		selector: "button",
+		expected: "button:checkout-submit",
+	},
+	{
+		name: "a long custom element, capped at 64 characters",
+		markup: `<main><section id="recommendations-for-returning-customers"><product-recommendation-carousel-item role="presentation" style="display: block; width: 200px; height: 100px"></product-recommendation-carousel-item></section></main>`,
+		selector: "product-recommendation-carousel-item",
+		clickCount: 3,
+		expected:
+			"product-recommendation-carousel-item:presentation:unnamed in sec",
+	},
+	{
+		name: "an unnamed card by its named section, skipping the app root",
+		markup: `<div id="root"><section id="pricing"><div class="card" style="width: 200px; height: 120px"></div></section></div>`,
+		selector: ".card",
+		clickCount: 3,
+		expected: "div:unnamed in section:pricing",
+	},
+	{
+		name: "an icon by its svg instead of a path inside it",
+		markup: `<div id="root"><svg width="40" height="40"><path d="M0 0h40v40H0z"></path></svg></div>`,
+		selector: "path",
+		clickCount: 3,
+		expected: "svg:unnamed",
+	},
+];
+
 const FRUSTRATED_CLICKS: {
 	name: string;
 	markup: string;
 	act: (page: Page) => Promise<unknown>;
 	expected: Partial<Awaited<ReturnType<typeof readFrustration>>>;
 }[] = [
+	{
+		name: "rapid clicks on a button that answers only after the burst",
+		markup: `<button aria-label="pay" onclick="setTimeout(() => { this.textContent = 'Paid' }, 1500)">Pay</button>`,
+		act: (page) => page.click("button", { clickCount: 3 }),
+		expected: { rageClicks: 1, rageClickTarget: "button:pay" },
+	},
+	{
+		name: "rage clicks split between a button's icon and its padding",
+		markup: `<button aria-label="retry" style="padding: 20px"><svg width="20" height="20"><path d="M0 0h20v20H0z"></path></svg></button>`,
+		act: async (page) => {
+			await page.click("path");
+			await page.click("button", { position: { x: 3, y: 3 } });
+			await page.click("path");
+		},
+		expected: { rageClicks: 1, rageClickTarget: "button:retry" },
+	},
+	{
+		name: "a button inside a non-editable island of an editor",
+		markup: `<div contenteditable="false"><button aria-label="apply coupon">Apply</button></div>`,
+		act: (page) => page.click("button"),
+		expected: { deadClicks: 1, deadClickTarget: "button:apply coupon" },
+	},
+	{
+		name: "a button that only loads a script",
+		markup: `<button aria-label="open chat" onclick="document.head.appendChild(document.createElement('script'))">Chat</button>`,
+		act: (page) => page.click("button"),
+		expected: { deadClicks: 1, deadClickTarget: "button:open chat" },
+	},
+	{
+		name: "a dead button followed by a scroll right after an unrelated click",
+		markup: `<div style="height: 4000px"><button aria-label="save">Save</button><p>Terms apply</p></div>`,
+		act: async (page) => {
+			await page.click("button");
+			await page.clock.runFor(1000);
+			await page.click("p");
+			await page.evaluate(() => {
+				window.awaitedEvent = new Promise((resolve) =>
+					document.addEventListener("scroll", () => resolve(), { once: true })
+				);
+				window.scrollTo({ top: 800 });
+			});
+			await page.evaluate(() => window.awaitedEvent);
+		},
+		expected: { deadClicks: 1, deadClickTarget: "button:save" },
+	},
 	{
 		name: "a javascript: link that does nothing",
 		markup: `<a href="javascript:void(0)">Open menu</a>`,
@@ -316,6 +629,22 @@ test.describe("interaction frustration signals", () => {
 		expect(await readFrustration(page)).toMatchObject({ deadClicks: 0 });
 	});
 
+	for (const {
+		name,
+		markup,
+		selector,
+		clickCount = 1,
+		expected,
+	} of DESCRIBED_TARGETS) {
+		test(`describes ${name}`, async ({ page }) => {
+			await loadFixture(page, markup);
+			await page.click(selector, { clickCount });
+			await outlastDeadClickWindow(page);
+			const { rageClickTarget, deadClickTarget } = await readFrustration(page);
+			expect(clickCount > 1 ? rageClickTarget : deadClickTarget).toBe(expected);
+		});
+	}
+
 	for (const { name, markup, act, expected } of FRUSTRATED_CLICKS) {
 		test(`${name} still counts`, async ({ page }) => {
 			await loadFixture(page, markup);
@@ -349,17 +678,25 @@ test.describe("interaction frustration signals", () => {
 		);
 	}
 
-	test("paging quickly with a button that navigates each time is not rage", async ({
-		page,
-	}) => {
-		await loadFixture(
-			page,
-			`<button aria-label="next page" onclick="history.pushState({}, '', '?page=' + (Number(new URLSearchParams(location.search).get('page') ?? 1) + 1))">Next</button>`
-		);
-		for (let click = 0; click < 2; click++) {
+	test("a page view change restarts the rage streak", async ({ page }) => {
+		await loadFixture(page, `<button aria-label="next page">Next</button>`);
+		for (let pageNumber = 2; pageNumber <= 3; pageNumber++) {
 			await page.click("button");
+			await page.clock.runFor(350);
+			await page.evaluate(
+				(next) => history.pushState({}, "", `?page=${next}`),
+				pageNumber
+			);
 			await page.clock.runFor(100);
 		}
+		await page.click("button");
+		expect(await readFrustration(page)).toMatchObject({ rageClicks: 0 });
+	});
+
+	test("clear() restarts the rage streak", async ({ page }) => {
+		await loadFixture(page, `<button aria-label="sign out">Sign out</button>`);
+		await page.click("button", { clickCount: 2 });
+		await page.evaluate(() => window.databuddy?.clear());
 		await page.click("button");
 		expect(await readFrustration(page)).toMatchObject({ rageClicks: 0 });
 	});
