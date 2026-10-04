@@ -82,7 +82,7 @@ export async function createWebsite(
 	input: { domain: string; name: string }
 ): Promise<Locator> {
 	await page.getByRole("button", { name: "New Website" }).click();
-	const dialog = page.getByRole("dialog", { name: "Create a new website" });
+	const dialog = page.getByRole("dialog", { name: "Create website" });
 	await dialog.waitFor();
 	await dialog.getByRole("textbox", { name: "Name" }).fill(input.name);
 	await dialog.getByRole("textbox", { name: "Domain" }).fill(input.domain);
