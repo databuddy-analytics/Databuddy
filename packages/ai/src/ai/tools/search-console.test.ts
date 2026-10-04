@@ -184,6 +184,62 @@ describe("querySearchAnalytics", () => {
 		expect(result.error).toContain("403");
 	});
 
+	test("keeps rows with an unknown cutoff when the freshness request fails", async () => {
+		const original = globalThis.fetch;
+		const results: unknown[] = [];
+		for (const failFreshness of [
+			() => new Response("Backend Error", { status: 500 }),
+			() => {
+				throw new Error("The operation timed out.");
+			},
+		]) {
+			globalThis.fetch = Object.assign(
+				mock(async (_url: string | URL | Request, init?: RequestInit) =>
+					JSON.parse(String(init?.body)).dimensions.includes("date")
+						? failFreshness()
+						: Response.json({
+								rows: [
+									{
+										keys: ["best analytics tool"],
+										clicks: 42,
+										impressions: 1200,
+										ctr: 0.035,
+										position: 3.7,
+									},
+								],
+							})
+				),
+				{ preconnect: original.preconnect }
+			);
+			results.push(
+				await querySearchAnalytics("token-123", SITE_URL, {
+					startDate: "2026-05-01",
+					endDate: "2026-05-15",
+					dimensions: ["query"],
+					rowLimit: 25,
+				})
+			);
+		}
+		globalThis.fetch = original;
+
+		const expected = {
+			siteUrl: SITE_URL,
+			finalThrough: null,
+			provisional: null,
+			truncated: false,
+			rows: [
+				{
+					query: "best analytics tool",
+					clicks: 42,
+					impressions: 1200,
+					ctr: 3.5,
+					position: 3.7,
+				},
+			],
+		};
+		expect(results).toEqual([expected, expected]);
+	});
+
 	test("sends correct request body to GSC API", async () => {
 		const original = globalThis.fetch;
 		const capturedBodies: unknown[] = [];

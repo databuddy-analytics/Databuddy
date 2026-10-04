@@ -200,6 +200,53 @@ const ORDINARY_CLICKS: {
 		},
 	},
 	{
+		name: "rapid clicks on a theme toggle that swaps a stylesheet in head",
+		markup: `<button aria-label="toggle theme" onclick="const link = document.head.querySelector('link[data-theme]'); link.href = link.href.endsWith('dark.css') ? 'light.css' : 'dark.css'">Theme</button>`,
+		act: async (page) => {
+			await page.evaluate(() =>
+				document.head.insertAdjacentHTML(
+					"beforeend",
+					`<link rel="stylesheet" data-theme href="light.css">`
+				)
+			);
+			await clickSpaced(page, "button", 3);
+		},
+	},
+	{
+		name: "rapid clicks on a web component that answers inside its shadow root",
+		markup: "<qty-stepper></qty-stepper>",
+		act: async (page) => {
+			await page.evaluate(() =>
+				customElements.define(
+					"qty-stepper",
+					class extends HTMLElement {
+						constructor() {
+							super();
+							const root = this.attachShadow({ mode: "open" });
+							root.innerHTML = "<button>+</button><span>1</span>";
+							const count = root.querySelector("span");
+							root.querySelector("button")?.addEventListener("click", () => {
+								if (count) {
+									count.textContent = String(Number(count.textContent) + 1);
+								}
+							});
+						}
+					}
+				)
+			);
+			await clickSpaced(page, "qty-stepper button", 3);
+		},
+	},
+	{
+		name: "clicking three different bars of a chart",
+		markup: `<svg width="300" height="100"><rect x="0" y="0" width="50" height="100"></rect><rect x="100" y="0" width="50" height="100"></rect><rect x="200" y="0" width="50" height="100"></rect></svg>`,
+		act: async (page) => {
+			for (const bar of [1, 2, 3]) {
+				await page.click(`rect:nth-of-type(${bar})`);
+			}
+		},
+	},
+	{
 		name: "a menu trigger that hovering already opened",
 		markup: `<button aria-label="products" aria-expanded="true">Products</button>`,
 		act: (page) => page.click("button"),
@@ -351,7 +398,17 @@ const DESCRIBED_TARGETS: {
 		selector: "a",
 		expected: `a:${host}`,
 	})),
-	...["example.co.uk", "example.com.au"].map((host) => ({
+	...[
+		"example.co.uk",
+		"example.com.au",
+		"example.com.br",
+		"example.co.jp",
+		"example.go.id",
+		"example.com.pk",
+		"example.com.co",
+		"example.gob.mx",
+		"example.ltd.uk",
+	].map((host) => ({
 		name: `an external host with country suffix ${host}`,
 		markup: `<a href="https://www.${host}/hello" onclick="event.preventDefault()">Link</a>`,
 		selector: "a",
@@ -374,6 +431,30 @@ const DESCRIBED_TARGETS: {
 		markup: `<button id="radix-:r1:">Open</button>`,
 		selector: "button",
 		expected: "button:unnamed",
+	},
+	{
+		name: "a button whose id Base UI generated as unnamed",
+		markup: `<button id="base-ui-_r_1b_">Open</button>`,
+		selector: "button",
+		expected: "button:unnamed",
+	},
+	{
+		name: "a snake_case test id that merely contains an r word",
+		markup: `<button data-testid="checkout_review_button">Review</button>`,
+		selector: "button",
+		expected: "button:checkout_review_button",
+	},
+	{
+		name: "a link with an empty aria-label by its destination",
+		markup: `<a href="/pricing" aria-label="" onclick="event.preventDefault()">Pricing</a>`,
+		selector: "a",
+		expected: "a:/pricing",
+	},
+	{
+		name: "a button with an empty aria-label by its test id",
+		markup: `<button aria-label="" data-testid="checkout-submit">Pay</button>`,
+		selector: "button",
+		expected: "button:checkout-submit",
 	},
 	{
 		name: "a long custom element, capped at 64 characters",
@@ -420,6 +501,12 @@ const FRUSTRATED_CLICKS: {
 			await page.click("path");
 		},
 		expected: { rageClicks: 1, rageClickTarget: "button:retry" },
+	},
+	{
+		name: "a button inside a non-editable island of an editor",
+		markup: `<div contenteditable="false"><button aria-label="apply coupon">Apply</button></div>`,
+		act: (page) => page.click("button"),
+		expected: { deadClicks: 1, deadClickTarget: "button:apply coupon" },
 	},
 	{
 		name: "a button that only loads a script",

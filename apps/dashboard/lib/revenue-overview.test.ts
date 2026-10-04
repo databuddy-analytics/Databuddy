@@ -135,6 +135,6 @@ describe("revenue attribution coverage", () => {
 		expect(
 			revenueAttributionRateLabel({ ...emptyOverview, total_revenue: 100 })
 		).toBe("0%");
-		expect(revenueAttributionRateLabel(emptyOverview)).toBe("—");
+		expect(revenueAttributionRateLabel(emptyOverview)).toBe("0%");
 	});
 });

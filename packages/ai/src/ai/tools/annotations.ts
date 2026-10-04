@@ -90,7 +90,7 @@ export function createAnnotationTools() {
 
 	const createAnnotationTool = tool({
 		description:
-			"Create a chart annotation. type=point (moment), line (vertical line), range (period — needs xEndValue). Timestamps ISO 8601.",
+			"Create a chart annotation. type=point (moment), line (vertical line), range (period; needs xEndValue). Timestamps ISO 8601.",
 		inputSchema: createAnnotationInputSchema,
 		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async (

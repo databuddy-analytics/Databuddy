@@ -111,18 +111,16 @@ export async function querySearchAnalytics(
 					endDate: input.endDate,
 					dimensions: ["date"],
 					dataState: "all",
-				}),
+				}).catch(() => null),
 	]);
 	if ("error" in result) {
 		return result;
 	}
-	if ("error" in freshness) {
-		return freshness;
-	}
 
-	// Google omits dates without data. Only its freshness metadata establishes
-	// a cutoff; the last nonempty row cannot distinguish a quiet day from lag.
-	const firstIncompleteDate = freshness.metadata?.first_incomplete_date;
+	const firstIncompleteDate =
+		freshness && !("error" in freshness)
+			? freshness.metadata?.first_incomplete_date
+			: undefined;
 	const finalThrough = firstIncompleteDate
 		? new Date(Date.parse(firstIncompleteDate) - 86_400_000)
 				.toISOString()

@@ -1,8 +1,8 @@
 import { CUSTOM_EVENTS_VISITOR_KEY } from "@databuddy/db/clickhouse";
 import { Analytics } from "../../types/tables";
-import { Expressions } from "../expressions";
+import { eventTimeBucket, Expressions } from "../expressions";
 import { appendFilterClause } from "../simple-builder";
-import type { CustomSqlContext, Filter, SimpleQueryConfig } from "../types";
+import type { Filter, SimpleQueryConfig } from "../types";
 
 function customEventsScope(
 	filterParams?: Record<string, Filter["value"]>
@@ -17,12 +17,6 @@ function customEventsScope(
 		AND timestamp >= toDateTime({startDate:String})
 		AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 		AND event_name != ''`;
-}
-
-function eventTimeBucket(ctx: CustomSqlContext): string {
-	return ctx.granularity === "hour" || ctx.granularity === "hourly"
-		? "formatDateTime(toStartOfHour(toTimeZone(timestamp, {timezone:String})), '%Y-%m-%d %H:00:00')"
-		: "toDate(toTimeZone(timestamp, {timezone:String}))";
 }
 
 function separatePropertyKeyConditions(filterConditions?: string[]): {
@@ -244,7 +238,7 @@ export const CustomEventsBuilders = {
 			return {
 				sql: `
 					SELECT
-						${eventTimeBucket(ctx)} as date,
+						${eventTimeBucket(ctx.granularity, "timestamp")} as date,
 						COUNT(*) as total_events,
 						uniq(event_name) as unique_event_types,
 						uniq(${CUSTOM_EVENTS_VISITOR_KEY}) as unique_users,
@@ -294,7 +288,7 @@ export const CustomEventsBuilders = {
 			return {
 				sql: `
 					SELECT
-						${eventTimeBucket(ctx)} as date,
+						${eventTimeBucket(ctx.granularity, "timestamp")} as date,
 						event_name,
 						COUNT(*) as total_events
 					FROM ${Analytics.custom_events}

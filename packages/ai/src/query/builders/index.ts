@@ -115,6 +115,12 @@ export const PUBLIC_QUERY_TYPES = new Set<string>([
 
 export type QueryType = keyof typeof BASE_QUERY_BUILDERS;
 
+const INSIGHTS_ONLY_QUERY_TYPES = new Set<string>([
+	"custom_event_segments",
+	"error_segments",
+	"traffic_segments",
+] satisfies QueryType[]);
+
 export const QueryBuilders: Record<QueryType, SimpleQueryConfig> =
 	Object.fromEntries(
 		Object.entries(BASE_QUERY_BUILDERS).map(([type, config]) => [
@@ -125,7 +131,10 @@ export const QueryBuilders: Record<QueryType, SimpleQueryConfig> =
 
 export const WEBSITE_QUERY_BUILDERS = (
 	Object.entries(QueryBuilders) as [QueryType, SimpleQueryConfig][]
-).filter(([, config]) => config.idField !== "link_id");
+).filter(
+	([type, config]) =>
+		config.idField !== "link_id" && !INSIGHTS_ONLY_QUERY_TYPES.has(type)
+);
 
 export const WEBSITE_QUERY_TYPES = WEBSITE_QUERY_BUILDERS.map(([type]) => type);
 

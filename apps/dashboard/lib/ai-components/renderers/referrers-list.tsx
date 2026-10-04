@@ -23,11 +23,27 @@ export interface ReferrersListProps extends BaseComponentProps {
 
 const PLAIN_HOSTNAME_RE = /^[a-z\d-]+(?:\.[a-z\d-]+)*$/i;
 
+const MULTI_LABEL_SUFFIXES = new Set([
+	"co.uk",
+	"org.uk",
+	"ac.uk",
+	"gov.uk",
+	"com.au",
+	"net.au",
+	"org.au",
+	"co.jp",
+	"co.nz",
+	"co.in",
+	"co.za",
+	"com.br",
+	"com.mx",
+	"com.tr",
+	"co.kr",
+]);
+
 function registrableHost(hostname: string): string {
 	const labels = hostname.toLowerCase().split(".");
-	const secondLevel = labels.at(-2) ?? "";
-	const topLevel = labels.at(-1) ?? "";
-	const keep = topLevel.length === 2 && secondLevel.length <= 3 ? 3 : 2;
+	const keep = MULTI_LABEL_SUFFIXES.has(labels.slice(-2).join(".")) ? 3 : 2;
 	return labels.slice(-keep).join(".");
 }
 

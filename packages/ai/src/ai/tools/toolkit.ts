@@ -1,4 +1,3 @@
-import { account, and, db, eq, isNull, member, websites } from "@databuddy/db";
 import { cacheable } from "@databuddy/redis";
 import {
 	getGithubIntegrationForOrg,
@@ -14,7 +13,11 @@ import { createFlagTools } from "./flags";
 import { createFunnelTools } from "./funnels";
 import { getDataTool } from "./get-data";
 import { createGoalTools } from "./goals";
-import { createGitHubTools, type GitHubRepository } from "./github-tools";
+import {
+	createGitHubTools,
+	type GitHubRepository,
+	listLinkedGitHubRepositories,
+} from "./github-tools";
 import { createInvestigationTools } from "./investigations";
 import { createLinksTools } from "./links";
 import { listWebsitesTool } from "./list-websites";
@@ -25,7 +28,7 @@ import {
 	createSearchConsoleTools,
 	SEARCH_CONSOLE_SCOPE,
 } from "./search-console";
-import { hasScope } from "./utils/oauth-token";
+import { hasOAuthGrant } from "./utils/oauth-token";
 import { dashboardActionsTool } from "./dashboard-actions";
 
 export type ToolCapability =
@@ -60,41 +63,15 @@ async function hasGitHubRepositoryAccess(
 	if (integration?.status !== "active") {
 		return false;
 	}
-	const rows = await db
-		.select({ integrations: websites.integrations })
-		.from(websites)
-		.where(
-			and(
-				eq(websites.organizationId, organizationId),
-				isNull(websites.deletedAt)
-			)
-		);
-	return rows.some((row) => row.integrations?.github);
-}
-
-async function hasSearchConsoleGrant(
-	organizationId: string,
-	userId: string
-): Promise<boolean> {
-	const rows = await db
-		.select({ scope: account.scope })
-		.from(account)
-		.innerJoin(member, eq(member.userId, account.userId))
-		.where(
-			and(
-				eq(member.organizationId, organizationId),
-				eq(account.providerId, "google"),
-				eq(account.userId, userId)
-			)
-		);
-	return rows.some((row) => hasScope(row.scope, SEARCH_CONSOLE_SCOPE));
+	const repositories = await listLinkedGitHubRepositories(organizationId);
+	return repositories.length > 0;
 }
 
 const resolveConnectedIntegrations = cacheable(
 	async (organizationId: string, userId: string) => {
 		const [github, searchConsole] = await Promise.all([
 			hasGitHubRepositoryAccess(organizationId),
-			hasSearchConsoleGrant(organizationId, userId),
+			hasOAuthGrant("google", organizationId, userId, SEARCH_CONSOLE_SCOPE),
 		]);
 		return { github, searchConsole };
 	},

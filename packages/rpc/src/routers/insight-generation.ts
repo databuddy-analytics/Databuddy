@@ -31,7 +31,6 @@ import {
 	insightsWebsiteJobId,
 	invalidateInsightsCachesForOrganization,
 } from "@databuddy/redis";
-import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -44,7 +43,7 @@ import {
 	INVESTIGATION_USAGE,
 } from "@databuddy/shared/billing";
 import { auditedProcedure, type Context, protectedProcedure } from "../orpc";
-import { withWorkspace } from "../procedures/with-workspace";
+import { hasAccess, withWorkspace } from "../procedures/with-workspace";
 import {
 	getNextInsightRunAt,
 	isValidTimezone,
@@ -609,28 +608,17 @@ async function resolveFirstReviewWebsite(
 	return organizationId;
 }
 
-function isAccessDenied(error: unknown): boolean {
-	return (
-		error instanceof ORPCError &&
-		(error.code === "FORBIDDEN" || error.code === "UNAUTHORIZED")
-	);
-}
 function canTriggerInsightGeneration(
 	context: Context,
 	organizationId: string
 ): Promise<boolean> {
-	return withWorkspace(context, {
-		organizationId,
-		permissions: ["update"],
-		resource: "organization",
-	})
-		.then(() => true)
-		.catch((error) => {
-			if (isAccessDenied(error)) {
-				return false;
-			}
-			throw error;
-		});
+	return hasAccess(
+		withWorkspace(context, {
+			organizationId,
+			permissions: ["update"],
+			resource: "organization",
+		})
+	);
 }
 
 interface InsightRunReference {

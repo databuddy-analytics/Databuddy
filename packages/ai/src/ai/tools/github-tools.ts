@@ -132,6 +132,23 @@ function createRepositorySchema<T extends z.ZodRawShape>(
 	return z.object({ ...REPOSITORY_FIELDS, ...shape });
 }
 
+export async function listLinkedGitHubRepositories(
+	organizationId: string
+): Promise<GitHubRepository[]> {
+	const rows = await db
+		.select({ integrations: websites.integrations })
+		.from(websites)
+		.where(
+			and(
+				eq(websites.organizationId, organizationId),
+				isNull(websites.deletedAt)
+			)
+		);
+	return rows.flatMap((row) =>
+		row.integrations?.github ? [row.integrations.github] : []
+	);
+}
+
 async function resolveLinkedRepository(
 	input: unknown,
 	getLinkedRepositories: () => Promise<GitHubRepository[]>
@@ -245,7 +262,7 @@ async function deploymentSummaries(
 	return { deployments: summaries };
 }
 
-export async function listGitHubDeployments(params: {
+async function listGitHubDeployments(params: {
 	environment?: string;
 	limit: number;
 	repository: GitHubRepository;
@@ -383,7 +400,9 @@ export async function listGitHubProductionDeployments(params: {
 		return {
 			availableEnvironments: scanned.availableEnvironments,
 			complete:
-				!scanned.truncated && deployments.length === scanned.deployments.length,
+				availableEnvironments.length === 0 &&
+				!scanned.truncated &&
+				deployments.length === scanned.deployments.length,
 			deployments: deployments.map((deployment) => ({
 				...deployment,
 				previousSha: null,
@@ -486,7 +505,6 @@ export async function listGitHubProductionDeployments(params: {
 					).then(
 						(result) =>
 							"error" in result ? null : (result.deployments[0] ?? null),
-						// Optional predecessor evidence cannot invalidate current deployments.
 						() => null
 					);
 					statusSummaries.set(candidate.id, summary);
@@ -580,20 +598,9 @@ export function createGitHubTools(
 	const getLinkedRepositories =
 		dependencies.getLinkedRepositories ??
 		(() => {
-			linkedRepositories ??= db
-				.select({ integrations: websites.integrations })
-				.from(websites)
-				.where(
-					and(
-						eq(websites.organizationId, params.organizationId),
-						isNull(websites.deletedAt)
-					)
-				)
-				.then((rows) =>
-					rows.flatMap((row) =>
-						row.integrations?.github ? [row.integrations.github] : []
-					)
-				);
+			linkedRepositories ??= listLinkedGitHubRepositories(
+				params.organizationId
+			);
 			return linkedRepositories;
 		});
 	const request = dependencies.request ?? githubFetch;

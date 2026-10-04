@@ -91,10 +91,6 @@ const FILTER_FIELD_OVERRIDES: Partial<
 		all: ["message"],
 		required: ["message"],
 	},
-	profile_list: {
-		all: [...(QueryBuilders.profile_list.allowedFilters ?? []), "path"],
-		required: [],
-	},
 };
 
 function requestFor(

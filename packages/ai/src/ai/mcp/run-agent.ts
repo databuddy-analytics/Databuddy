@@ -197,8 +197,6 @@ export async function* streamMcpAgentText(
 		let answer = "";
 		let streamFailure: { error: unknown } | undefined;
 
-		// textStream filters out failures. Drain fullStream so completed steps can
-		// still settle their usage before a provider error reaches the caller.
 		for await (const part of result.fullStream) {
 			if (part.type === "text-delta" && !streamFailure) {
 				answer += part.text;

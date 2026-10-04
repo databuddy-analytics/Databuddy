@@ -121,7 +121,7 @@ export function createMemoryTools(): Record<string, Tool> {
 		}),
 		forget_memory: tool({
 			description:
-				"Delete one of the user's own saved memories only when the latest user message explicitly says a remembered/saved memory is wrong or asks you to forget it. Pass the memory's exact text; when nothing matches it exactly, the result lists candidate memories instead of deleting one. Do not use for generic corrections or current Slack thread context.",
+				"Delete one of the user's own saved memories only when the latest user message explicitly says a remembered/saved memory is wrong or asks you to forget it. When nothing matches it exactly, the result lists candidate memories instead of deleting one. Do not use for generic corrections or current Slack thread context.",
 			strict: true,
 			inputSchema: z.object({
 				query: z.string().describe("Exact text of the saved memory to forget"),

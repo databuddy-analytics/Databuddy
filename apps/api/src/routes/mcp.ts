@@ -63,7 +63,7 @@ const loadOAuthClientName = cacheable(
 			.limit(1);
 		return client?.name ?? null;
 	},
-	{ expireInSec: OAUTH_USER_TTL_SEC, prefix: "mcp:oauth-client-name" }
+	{ expireInSec: 3600, prefix: "mcp:oauth-client-name" }
 );
 
 function createOAuthMcpRequestHandler() {

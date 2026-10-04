@@ -131,20 +131,23 @@ export function getDailySalt(): Promise<string> {
 
 			const newSalt = crypto.randomBytes(32).toString("hex");
 			const SALT_TTL = 60 * 60 * 24;
-			if (await redis.set(saltKey, newSalt, "EX", SALT_TTL, "NX")) {
+			const stored = await redis
+				.set(saltKey, newSalt, "EX", SALT_TTL, "NX")
+				.catch((error) => {
+					captureError(error, {
+						message: "Failed to resolve daily salt in Redis",
+					});
+					return null;
+				});
+			if (stored) {
 				return newSalt;
 			}
-			const winner = await redis.get(saltKey);
-			if (!winner) {
-				throw new Error("Daily salt missing after concurrent initialization");
-			}
-			return winner;
+			return (await redis.get(saltKey)) ?? newSalt;
 		} catch (error) {
 			captureError(error, {
 				message: "Failed to resolve daily salt in Redis",
 			});
-			const winner = await redis.get(saltKey).catch(() => null);
-			return winner || crypto.randomBytes(32).toString("hex");
+			return crypto.randomBytes(32).toString("hex");
 		}
 	});
 }

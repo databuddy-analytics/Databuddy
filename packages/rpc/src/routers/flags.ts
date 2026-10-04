@@ -44,7 +44,6 @@ import {
 	type AuthedWorkspace,
 	type AuthedWorkspaceWithPlan,
 	type Workspace,
-	withPublicWorkspace,
 	withWorkspace,
 } from "../procedures/with-workspace";
 import {
@@ -101,8 +100,8 @@ async function authorizeFlagRead(
 	if (!(scope.websiteId || scope.organizationId)) {
 		throw rpcError.badRequest(SCOPE_REQUIRED_ERROR);
 	}
-	const workspace = scope.websiteId
-		? await withPublicWorkspace(context, {
+	return scope.websiteId
+		? await withWorkspace(context, {
 				websiteId: scope.websiteId,
 				resource: "flag",
 				permissions: ["read"],
@@ -112,12 +111,6 @@ async function authorizeFlagRead(
 				resource: "flag",
 				permissions: ["read"],
 			});
-	if (workspace.tier === "demo") {
-		throw rpcError.unauthorized(
-			"Feature flag definitions require authenticated organization access"
-		);
-	}
-	return workspace;
 }
 
 type Transaction = Parameters<Parameters<typeof withTransaction>[0]>[0];

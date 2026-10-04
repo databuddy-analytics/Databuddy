@@ -1,6 +1,6 @@
 import { tool, type ToolExecutionOptions, type ToolSet } from "ai";
 import { z } from "zod";
-import { executeBatch, queryPlanGateError } from "../../query";
+import { executeBatch } from "../../query";
 import type { AppMutationMode } from "../config/context";
 import { discoverQueryTypesTool } from "../tools/discover-query-types";
 import { describeSchemaTool } from "../tools/describe-schema";
@@ -15,7 +15,11 @@ import { createMemoryTools } from "../tools/memory";
 import { buildProfileTools } from "../tools/profiles";
 import { createToolkit } from "../tools/toolkit";
 import { executeAgentSqlForWebsite } from "../tools/execute-sql-query";
-import { buildBatchQueryRequests, formatMcpQueryResults } from "./mcp-utils";
+import {
+	buildBatchQueryRequests,
+	formatMcpQueryResults,
+	gateQueryPlan,
+} from "./mcp-utils";
 import {
 	createSlackConversationTools,
 	type DatabuddyAgentSlackContext,
@@ -117,19 +121,15 @@ Critical schema footguns: website id column is client_id (not website_id); times
 				const now = ctx.currentDateTime
 					? new Date(ctx.currentDateTime)
 					: new Date();
-				const plan = buildBatchQueryRequests(
-					args.queries,
-					args.websiteId,
-					timezone,
-					Number.isNaN(now.getTime()) ? new Date() : now
+				const plan = await gateQueryPlan(
+					buildBatchQueryRequests(
+						args.queries,
+						args.websiteId,
+						timezone,
+						Number.isNaN(now.getTime()) ? new Date() : now
+					),
+					access.organizationId
 				);
-				const planError = await queryPlanGateError(
-					plan.requests.map((request) => request.type),
-					{ organizationId: access.organizationId }
-				);
-				if (planError) {
-					throw new Error(planError);
-				}
 				const results = await executeBatch(plan.requests, {
 					websiteDomain: access.domain,
 					timezone,

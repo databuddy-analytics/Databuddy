@@ -14,8 +14,10 @@ import {
 	allowedFilterFields,
 	type executeBatch,
 	invalidFilterFieldError,
+	isOrderByFieldAllowed,
 	publicQueryErrorMessage,
 	QueryFilterSchema,
+	queryPlanGateError,
 	SANITIZED_QUERY_ERROR,
 	suggestQueryTypes,
 	truncateQueryErrorForLog,
@@ -73,6 +75,7 @@ const QUERY_TYPE_ALIASES: Record<string, string> = {
 interface InvalidBatchQuery {
 	error: string;
 	inputIndex: number;
+	planLimited?: true;
 	summary: string;
 	type: string;
 }
@@ -136,7 +139,7 @@ function timezoneError(timezone: string): string | null {
 	return null;
 }
 
-export function isTimeSeries(config: SimpleQueryConfig): boolean {
+function isTimeSeries(config: SimpleQueryConfig): boolean {
 	return (
 		config.meta?.default_visualization === "timeseries" ||
 		(config.meta?.tags ?? []).some((tag) => TIME_SERIES_TAGS.has(tag)) ||
@@ -175,9 +178,11 @@ function orderByColumns(config: SimpleQueryConfig): string[] {
 			return name ? [name] : [];
 		});
 	const defaultField = config.orderBy?.match(ORDER_BY_RE)?.[1];
-	return defaultField && !columns.includes(defaultField)
-		? [...columns, defaultField]
-		: columns;
+	return (
+		defaultField && !columns.includes(defaultField)
+			? [...columns, defaultField]
+			: columns
+	).filter(isOrderByFieldAllowed);
 }
 
 function orderByError(
@@ -195,9 +200,12 @@ function orderByError(
 	}
 	const field = orderBy.trim().match(ORDER_BY_RE)?.[1];
 	const columns = orderByColumns(config);
-	return field && !columns.includes(field)
-		? `${type} has no '${field}' column to order by. Use one of ${columns.join(", ")}, or omit orderBy.`
-		: null;
+	if (!field || columns.includes(field)) {
+		return null;
+	}
+	return columns.length > 0
+		? `${type} cannot be ordered by '${field}'. Use one of ${columns.join(", ")}, or omit orderBy.`
+		: `${type} does not support orderBy. Remove orderBy.`;
 }
 
 function queryShapeError(
@@ -275,7 +283,9 @@ export function buildBatchQueryRequests(
 
 		const config = getQueryBuilder(resolvedType);
 		if (!config) {
-			const hint = suggestQueryTypes(q.type.replace(TOP_QUERY_PREFIX, ""));
+			const hint = suggestQueryTypes(
+				q.type.replace(TOP_QUERY_PREFIX, "")
+			).filter((type) => WEBSITE_TYPES.has(type));
 			const message = hint.length
 				? `Unknown type: ${q.type}. Did you mean: ${hint.join(", ")}?`
 				: `Unknown type: ${q.type}. Discover available query types before retrying.`;
@@ -284,7 +294,9 @@ export function buildBatchQueryRequests(
 		}
 		if (!WEBSITE_TYPES.has(resolvedType)) {
 			reject(
-				`${resolvedType} reports clicks for one short link, but get_data selects data by website. Link click analytics are in the Databuddy dashboard.`
+				config.idField === "link_id"
+					? `${resolvedType} reports clicks for one short link, but get_data selects data by website. Link click analytics are in the Databuddy dashboard.`
+					: `${resolvedType} is internal to Databuddy insights and is not available in get_data.`
 			);
 			continue;
 		}
@@ -355,6 +367,37 @@ export function buildBatchQueryRequests(
 		});
 	}
 	return { invalid, requests };
+}
+
+export async function gateQueryPlan(
+	plan: McpBatchQueryPlan,
+	organizationId: string
+): Promise<McpBatchQueryPlan> {
+	const gated = await Promise.all(
+		plan.requests.map(async (request) => ({
+			error: await queryPlanGateError([request.type], { organizationId }),
+			request,
+		}))
+	);
+	return {
+		invalid: [
+			...plan.invalid,
+			...gated.flatMap(({ error, request }) =>
+				error
+					? [
+							{
+								error,
+								inputIndex: request.inputIndex,
+								planLimited: true as const,
+								summary: request.summary,
+								type: request.type,
+							},
+						]
+					: []
+			),
+		],
+		requests: gated.flatMap(({ error, request }) => (error ? [] : [request])),
+	};
 }
 
 export function capRowArrays(

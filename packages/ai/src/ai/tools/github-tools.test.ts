@@ -572,7 +572,7 @@ describe("production deployments around a window", () => {
 			request: async (path) => {
 				calls.push(path);
 				if (path.includes("/environments?")) {
-					return { environments: [{ name: "Preview" }] };
+					return { environments: [] };
 				}
 				if (path.includes("/statuses?")) {
 					return [];
@@ -587,6 +587,28 @@ describe("production deployments around a window", () => {
 		expect(result).toMatchObject({
 			complete: true,
 			deployments: [{ environment: "Production", sha: "a1b2c3d001" }],
+		});
+	});
+
+	test("does not report a fallback scan complete when listed environments name production differently", async () => {
+		const result = await listGitHubProductionDeployments({
+			...window,
+			limit: 5,
+			request: async (path) =>
+				path.includes("/environments?")
+					? { environments: [{ name: "live" }, { name: "Preview" }] }
+					: [
+							{
+								...deployment(1, "2026-09-26T14:48:00Z"),
+								environment: "live",
+							},
+						],
+		});
+
+		expect(result).toEqual({
+			availableEnvironments: ["live"],
+			complete: false,
+			deployments: [],
 		});
 	});
 

@@ -309,10 +309,24 @@ SETTINGS additional_table_filters = {} -- '`
 				`WITH properties AS p SELECT p FROM analytics.custom_events WHERE ${ORG_TENANT}`,
 				`WITH safe AS (SELECT path FROM analytics.events ${TENANT}), url AS u SELECT u FROM analytics.events ${TENANT}`,
 				`WITH hidden AS (WITH metadata AS m SELECT m FROM analytics.revenue WHERE ${ORG_TENANT}) SELECT m FROM hidden`,
+				`WITH totals AS (SELECT path FROM analytics.events ${TENANT}), url AS u SELECT u FROM analytics.events ${TENANT}`,
+				"WITH ties.properties AS p SELECT p FROM analytics.custom_events ties WHERE (ties.owner_id = {websiteId:String} OR ties.website_id = {websiteId:String})",
 			]) {
 				const result = validateAgentSQL(query);
 				expect(result.valid).toBe(false);
 				expect(result.reason).toContain("CTEs only");
+			}
+		});
+
+		it("accepts WITH FILL, TOTALS, ROLLUP, CUBE and TIES modifiers", () => {
+			for (const query of [
+				`SELECT toDate(time) AS day, count() AS views FROM analytics.events ${TENANT} GROUP BY day ORDER BY day WITH FILL`,
+				`SELECT path, count() AS views FROM analytics.events ${TENANT} GROUP BY path WITH TOTALS ORDER BY views DESC`,
+				`WITH rolled AS (SELECT path, count() AS views FROM analytics.events ${TENANT} GROUP BY path WITH ROLLUP) SELECT path, views FROM rolled`,
+				`SELECT path, browser_name, count() AS views FROM analytics.events ${TENANT} GROUP BY path, browser_name WITH CUBE`,
+				`SELECT path, count() AS views FROM analytics.events ${TENANT} GROUP BY path ORDER BY views DESC LIMIT 10 WITH TIES`,
+			]) {
+				expect(validateAgentSQL(query)).toEqual({ valid: true, reason: null });
 			}
 		});
 
