@@ -1,5 +1,6 @@
 "use client";
 
+import type { OnboardingWant } from "@databuddy/shared/custom-events";
 import { Button, StatusDot } from "@databuddy/ui";
 import { Tabs } from "@databuddy/ui/client";
 import {
@@ -108,6 +109,8 @@ interface ConnectAppProps {
 	research: SiteResearch;
 	setupSession: string;
 	tracking: TrackingStatus;
+	/** What the team picked in onboarding; the prompt turns these into requirements. */
+	wants?: OnboardingWant[];
 	websiteId: string;
 }
 
@@ -121,6 +124,7 @@ export function ConnectApp({
 	manualInstall = true,
 	onStartResearch,
 	tracking,
+	wants,
 	websiteId,
 }: ConnectAppProps) {
 	const [copied, setCopied] = useState<string | null>(null);
@@ -169,14 +173,17 @@ export function ConnectApp({
 									brief: research.content,
 									goals: research.suggestedGoals,
 									funnels: research.suggestedFunnels,
+									wants,
 								}
-							: undefined
+							: { wants }
 					)
 				: (snippets.find((snippet) => snippet.id === id)?.code ?? "");
 		try {
 			await navigator.clipboard.writeText(text);
 		} catch {
-			toast.error("Copy failed. Select the text and copy it manually.");
+			toast.error("Failed to copy", {
+				description: "Select the text and copy it manually.",
+			});
 			return;
 		}
 		setCopied(id);
