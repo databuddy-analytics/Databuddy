@@ -7,7 +7,7 @@ import {
 	stripeContextAggregates,
 } from "@databuddy/db/clickhouse";
 import { Analytics } from "../../types/tables";
-import { isFilterFieldAllowed } from "../simple-builder";
+import { isFilterFieldAllowed, normalizeOrderBy } from "../simple-builder";
 import {
 	FilterOperators,
 	type CustomSqlContext,
@@ -15,13 +15,13 @@ import {
 	type SimpleQueryConfig,
 } from "../types";
 
-const PROFILE_SORT_FIELDS: Record<string, string> = {
-	session_count: "session_count",
-	total_events: "total_events",
-	last_visit: "last_visit",
-	first_visit: "first_visit",
-	unique_pages: "unique_pages",
-};
+const PROFILE_SORT_FIELDS = new Set([
+	"session_count",
+	"total_events",
+	"last_visit",
+	"first_visit",
+	"unique_pages",
+]);
 
 const PROFILE_AGGREGATE_FILTER_FIELDS = [
 	"session_count",
@@ -212,19 +212,6 @@ const PROFILE_LIST_ALLOWED_FILTERS = [
 const PROFILE_LIST_FILTER_CONFIG: SimpleQueryConfig = {
 	allowedFilters: PROFILE_LIST_ALLOWED_FILTERS,
 };
-
-function resolveProfileSort(orderBy?: string): string {
-	if (!orderBy) {
-		return "last_visit DESC";
-	}
-	const [field, direction] = orderBy.split(" ");
-	const mapped = field ? PROFILE_SORT_FIELDS[field] : undefined;
-	if (!mapped) {
-		return "last_visit DESC";
-	}
-	const dir = direction?.toUpperCase() === "ASC" ? "ASC" : "DESC";
-	return `${mapped} ${dir}`;
-}
 
 interface SeparatedFilters {
 	filterParams: Record<string, Filter["value"]>;
@@ -656,7 +643,9 @@ function profileListQueries(ctx: CustomSqlContext) {
 	      )`
 		: "";
 
-	const profileSort = resolveProfileSort(orderBy);
+	const profileSort = orderBy
+		? normalizeOrderBy(orderBy, PROFILE_SORT_FIELDS)
+		: "last_visit DESC";
 	const selectedVisitors = ctx.preparedKeys?.pageVisitorIds
 		? "IN {pageVisitorIds:Array(String)}"
 		: "IN (SELECT visitor_id FROM visitor_profiles)";
@@ -688,6 +677,7 @@ function profileListQueries(ctx: CustomSqlContext) {
         e.client_id = {websiteId:String}
         AND e.time >= toDateTime({startDate:String})
         AND e.time <= toDateTime({endDate:String})
+        ${combinedWhereClause}
     ),
     profile_custom_events AS (
       SELECT
@@ -727,7 +717,6 @@ function profileListQueries(ctx: CustomSqlContext) {
       FROM profile_events pe
       WHERE
         pe.visitor_id != ''
-	${combinedWhereClause}
 	${eventSubqueryClause}
       GROUP BY visitor_id
       ${havingClause}

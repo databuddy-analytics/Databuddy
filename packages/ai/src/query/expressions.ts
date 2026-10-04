@@ -69,6 +69,17 @@ export function normalizeGranularity(
 	return unit as Granularity;
 }
 
+export function eventTimeBucket(
+	granularity: TimeUnit | undefined,
+	field: string
+): SqlExpression {
+	return expr(
+		granularity === "hour" || granularity === "hourly"
+			? `formatDateTime(toStartOfHour(toTimeZone(${field}, {timezone:String})), '%Y-%m-%d %H:00:00')`
+			: `toDate(toTimeZone(${field}, {timezone:String}))`
+	);
+}
+
 export const Expressions = {
 	referrer: {
 		normalized: expr(`

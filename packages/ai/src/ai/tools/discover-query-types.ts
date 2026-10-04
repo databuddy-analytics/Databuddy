@@ -1,10 +1,10 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { QueryBuilders } from "../../query/builders";
+import { WEBSITE_QUERY_BUILDERS } from "../../query/builders";
 import { allowedFilterFields } from "../../query/simple-builder";
 
 function listAllTypes() {
-	return Object.entries(QueryBuilders).map(([name, config]) => ({
+	return WEBSITE_QUERY_BUILDERS.map(([name, config]) => ({
 		allowedFilters: allowedFilterFields(config),
 		allowedFilterOperators: config.allowedFilterOperators,
 		name,

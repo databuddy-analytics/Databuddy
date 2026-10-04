@@ -246,7 +246,7 @@ describe("buildBatchQueryRequests", () => {
 		);
 
 		expect(invalid[0]?.error).toBe(
-			"top_pages has no 'revenue' column to order by. Use one of name, pageviews, visitors, percentage, or omit orderBy."
+			"top_pages cannot be ordered by 'revenue'. Use one of pageviews, visitors, or omit orderBy."
 		);
 		expect(requests.map((request) => request.type)).toEqual(["realtime_feed"]);
 	});

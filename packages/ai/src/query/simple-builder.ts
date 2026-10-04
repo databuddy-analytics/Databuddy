@@ -102,6 +102,10 @@ const ALLOWED_ORDERBY_FIELDS = new Set([
 	"unique_users",
 ]);
 
+export function isOrderByFieldAllowed(field: string): boolean {
+	return ALLOWED_ORDERBY_FIELDS.has(field);
+}
+
 const REFERRER_MAPPINGS: Record<string, string> = {
 	direct: "direct",
 	google: "https://google.com",
@@ -201,12 +205,15 @@ function listAllowed(values: Iterable<string>): string {
 
 const ORDER_BY_REGEX = /^(\w+)(?:\s+(ASC|DESC))?$/i;
 
-function normalizeOrderBy(orderBy: string): string {
+export function normalizeOrderBy(
+	orderBy: string,
+	allowedFields: ReadonlySet<string> = ALLOWED_ORDERBY_FIELDS
+): string {
 	const match = orderBy.trim().match(ORDER_BY_REGEX);
 	const field = match?.[1];
-	if (!(match && field && ALLOWED_ORDERBY_FIELDS.has(field))) {
+	if (!(match && field && allowedFields.has(field))) {
 		throw new Error(
-			`Ordering by '${orderBy}' is not permitted. Use '<field>' or '<field> ASC|DESC' where field is one of: ${listAllowed(ALLOWED_ORDERBY_FIELDS)}.`
+			`Ordering by '${orderBy}' is not permitted. Use '<field>' or '<field> ASC|DESC' where field is one of: ${listAllowed(allowedFields)}.`
 		);
 	}
 	const direction = match[2]?.toUpperCase() ?? "DESC";
@@ -513,8 +520,8 @@ export class SimpleQueryBuilder {
 		)`;
 	}
 
-	private generateSessionAttributionJoin(alias: string): string {
-		return `INNER JOIN session_attribution sa ON ${alias}.session_id = sa.session_id`;
+	private generateSessionAttributionJoin(): string {
+		return "INNER JOIN session_attribution sa ON e.session_id = sa.session_id";
 	}
 
 	private replaceDomainPlaceholders(sql: string): string {
@@ -624,6 +631,7 @@ export class SimpleQueryBuilder {
 			}
 		}
 		this.validateRequiredFilters();
+		this.validateRequestGroupBy();
 
 		if (this.config.customSql) {
 			const whereClauseParams: Record<string, Filter["value"]> = {};
@@ -645,7 +653,7 @@ export class SimpleQueryBuilder {
 							"startDate",
 							"endDate"
 						),
-						sessionAttributionJoin: this.generateSessionAttributionJoin("e"),
+						sessionAttributionJoin: this.generateSessionAttributionJoin(),
 					}
 				: undefined;
 
@@ -657,7 +665,6 @@ export class SimpleQueryBuilder {
 					preparedKeys
 				)
 			);
-			this.validateRequestGroupBy();
 
 			if (typeof result === "string") {
 				return this.finalizeCompiledQuery(result, {});
@@ -668,7 +675,6 @@ export class SimpleQueryBuilder {
 			return this.finalizeCompiledQuery(result.sql, result.params);
 		}
 
-		this.validateRequestGroupBy();
 		return this.buildStandardQuery();
 	}
 
@@ -853,7 +859,7 @@ export class SimpleQueryBuilder {
 					${sessionAttribution.joinSelectFields("sa").join(",\n\t\t\t\t\t")}
 				)
 			FROM ${table} e
-			${this.generateSessionAttributionJoin("e")}
+			${this.generateSessionAttributionJoin()}
 			WHERE ${this.buildIdCondition(`e.${idField}`)}
 				AND e.${timeField} >= toDateTime({from:String})
 				AND e.${timeField} <= toDateTime(concat({to:String}, ' 23:59:59'))

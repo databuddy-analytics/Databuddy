@@ -174,16 +174,8 @@ const updateAnnotationTool = defineMcpTool(
 			"Update an annotation's text, tags, color, or visibility. confirmed=false (default) returns the changes without writing; confirmed=true applies them.",
 		inputSchema: z.object({
 			id: z.string().describe("Annotation ID from list_annotations."),
-			text: z
-				.string()
-				.min(1)
-				.max(500)
-				.optional()
-				.describe("Annotation text, up to 500 characters."),
-			tags: z
-				.array(z.string())
-				.optional()
-				.describe("Tags. Replaces the saved tags."),
+			text: z.string().min(1).max(500).optional().describe("Annotation text."),
+			tags: z.array(z.string()).optional().describe("Replaces the saved tags."),
 			color: z.string().optional().describe("Hex color, such as #3B82F6."),
 			isPublic: z
 				.boolean()
