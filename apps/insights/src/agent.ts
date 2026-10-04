@@ -47,7 +47,7 @@ import {
 	ToolLoopAgent,
 } from "ai";
 import type { ErrorCustomerImpact } from "./error-customer-impact";
-import { raceWithAbort } from "./funnel-detection";
+import { isUnmatchablePageTarget, raceWithAbort } from "./funnel-detection";
 import { signalKeyForDetectedSignal } from "./investigation";
 import { emitInsightsEvent } from "./lib/evlog-insights";
 import { retentionRowSchema, retentionWindow } from "./measurement-plan";
@@ -1394,8 +1394,6 @@ function isRepositoryAsk(next: AgentInvestigationOutcome["next"]): boolean {
 	return next.type === "ask" && REPOSITORY_ASK_PATTERN.test(next.question);
 }
 
-const UNMATCHABLE_PATH = /[?#]/;
-
 function hasUnmatchablePageTarget(definition: unknown): boolean {
 	const parsed = z
 		.object({
@@ -1411,7 +1409,7 @@ function hasUnmatchablePageTarget(definition: unknown): boolean {
 	}
 	const { type, target, steps } = parsed.data;
 	return [...(steps ?? []), ...(type && target ? [{ type, target }] : [])].some(
-		(step) => step.type === "PAGE_VIEW" && UNMATCHABLE_PATH.test(step.target)
+		(step) => step.type === "PAGE_VIEW" && isUnmatchablePageTarget(step.target)
 	);
 }
 

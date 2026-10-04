@@ -1490,7 +1490,7 @@ function goalArm(annotations: InvestigationAnnotation[]): Arm {
 					{ round: true }
 				),
 				entityLabel: GOAL.name,
-				definitionEvidence: `Goal "${GOAL.name}" tracks the ${GOAL.type} target "${GOAL.target}". It completed for ${GOAL_COMPLETIONS.current} of ${SITE.current.unique_visitors} observed website visitors, compared with ${GOAL_COMPLETIONS.previous} previously. Definition history: created 2026-06-02; last updated 2026-06-02; comparison started 2026-08-22. Business meaning: ${GOAL.description} No filters are configured.`,
+				definitionEvidence: `Goal "${GOAL.name}" tracks the ${GOAL.type} target "${GOAL.target}". It completed for ${GOAL_COMPLETIONS.current} of ${SITE.current.unique_visitors} observed website visitors, compared with ${GOAL_COMPLETIONS.previous} previously. No filters are configured. Saved description: ${GOAL.description}`,
 			},
 			{},
 			annotations

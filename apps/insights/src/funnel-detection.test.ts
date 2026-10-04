@@ -481,6 +481,47 @@ describe("detectFunnelGoalSignals", () => {
 		expect(signals[0].definitionEvidence).not.toContain("pro");
 	});
 
+	it("keeps counts and filters under the evidence cap when the saved description is long", async () => {
+		const description =
+			"A visitor finishes creating a workspace after onboarding. ".repeat(12);
+		let call = 0;
+		const [signal] = await detectFunnelGoalSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchGoals: async () => [
+					{
+						...GOAL,
+						description,
+						filters: [
+							{ field: "plan", operator: "equals", value: "pro" },
+							{ field: "country", operator: "in", value: ["US", "CA"] },
+						],
+					},
+				],
+				goalConversion: async () => {
+					call += 1;
+					return call === 1
+						? goalResult(2.5, 50, 2000)
+						: goalResult(5, 100, 2000);
+				},
+			})
+		);
+		if (!signal?.definitionEvidence) {
+			throw new Error("Expected a goal signal");
+		}
+		const [line = ""] = prepareInvestigation(signal, 7).evidence;
+		const saved = line.split("Saved description: ")[1] ?? "";
+
+		expect(line).toBe(signal.definitionEvidence);
+		expect(line).toContain(
+			"It completed for 50 of 2000 observed website visitors, compared with 100 previously. Filter setup: plan equals (1 value); country in (2 values). Saved description: "
+		);
+		expect(saved).toEndWith("…");
+		expect(saved.length).toBeLessThanOrEqual(201);
+		expect(description.startsWith(`${saved.slice(0, -1)} `)).toBe(true);
+	});
+
 	for (const { name, current, previous } of [
 		{
 			name: "ignores goals with too few completions",
@@ -635,6 +676,59 @@ describe("detectFunnelGoalSignals", () => {
 			signalKey: "funnel:f1:zero-completions",
 			sentiment: "negative",
 		});
+	});
+
+	it("states a page target that can never match and asks for its repair", async () => {
+		const detect = async (deps: Partial<FunnelGoalDeps>) =>
+			(await detectFunnelGoalSignals(PARAMS, TODAY, makeDeps(deps)))[0];
+		const goal = await detect({
+			fetchGoals: async () => [
+				{ ...GOAL, type: "PAGE_VIEW", target: "/pricing?plan=pro" },
+			],
+			goalConversion: async () => goalResult(0, 0, 100),
+		});
+		const funnel = await detect({
+			fetchFunnels: async () => [
+				{
+					...FUNNEL,
+					steps: [
+						{ name: "View", target: "/cart", type: "PAGE_VIEW" },
+						{ name: "Done", target: "/done#thanks", type: "PAGE_VIEW" },
+					],
+				},
+			],
+			funnelConversion: async () => funnelResult(0, 100, 0),
+		});
+		const eventGoal = await detect({
+			fetchGoals: async () => [{ ...GOAL, target: "sign_up?" }],
+			goalConversion: async () => goalResult(0, 0, 100),
+		});
+		const urlGoal = await detect({
+			fetchGoals: async () => [
+				{
+					...GOAL,
+					type: "PAGE_VIEW",
+					target: "https://example.com/pricing?plan=pro",
+				},
+			],
+			goalConversion: async () => goalResult(0, 0, 100),
+		});
+
+		expect(goal?.definitionEvidence).toContain(
+			'tracks the PAGE_VIEW target "/pricing?plan=pro". It completed for 0 of 100 observed website visitors, compared with 0 of 100 previously. Its page target contains ? or #, but recorded paths never include query strings or fragments, so it can never match.'
+		);
+		expect(funnel?.definitionEvidence).toContain(
+			'The page target of step 2 "Done" contains ? or #, but recorded paths never include query strings or fragments, so it can never match.'
+		);
+		expect(goal?.investigationObjective).toStartWith(
+			"This definition is broken because a page target containing ? or # can never match."
+		);
+		expect(funnel?.investigationObjective).toBe(goal?.investigationObjective);
+		expect(eventGoal?.definitionEvidence).not.toContain("can never match");
+		expect(eventGoal?.investigationObjective).toStartWith(
+			"Decide whether this definition is broken or nobody converts."
+		);
+		expect(urlGoal?.definitionEvidence).not.toContain("can never match");
 	});
 
 	it("suppresses a persistent zero-completion funnel with sparse terminal cohorts", async () => {
@@ -865,6 +959,49 @@ describe("detectFunnelGoalSignals", () => {
 
 		expect(signals).toHaveLength(1);
 		expect(signals[0]?.metric).toBe("goal:g1");
+	});
+
+	it.each([
+		[
+			"2026-05-20T10:00:00.000Z",
+			"Definition last edited 2026-05-20, inside the comparison window.",
+		],
+		["2026-05-14T23:00:00.000Z", null],
+		["2026-05-29T01:00:00.000Z", null],
+	])("states a definition edit only inside the comparison window: %s", async (updatedAt, sentence) => {
+		const prior = prepareInvestigation(
+			{
+				baseline: 5,
+				current: 2.5,
+				deltaPercent: -50,
+				detectedAt: "2026-05-21",
+				direction: "down",
+				label: 'Goal "Signup" completion rate',
+				method: "wow",
+				metric: "goal:g1",
+				severity: "critical",
+			},
+			7
+		).signal;
+		const signal = await remeasureFunnelGoalSignal(
+			PARAMS,
+			prior,
+			TODAY,
+			makeDeps({
+				fetchGoals: async () => [{ ...GOAL, updatedAt: new Date(updatedAt) }],
+				goalConversion: async () => goalResult(5, 100, 2000),
+			})
+		);
+
+		if (sentence) {
+			expect(signal?.definitionEvidence).toContain(
+				`compared with 100 previously. ${sentence} No filters are configured.`
+			);
+		} else {
+			expect(signal?.definitionEvidence).not.toContain(
+				"Definition last edited"
+			);
+		}
 	});
 
 	it("measures one explicit-purpose funnel when an equivalent blank duplicate exists", async () => {
