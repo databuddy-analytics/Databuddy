@@ -249,12 +249,19 @@ describe("componentToBlocks charts", () => {
 });
 
 describe("componentToBlocks native actions and previews", () => {
-	it("renders dashboard-actions as link buttons with absolute urls", () => {
+	it("renders dashboard-actions as link buttons only for dashboard urls", () => {
 		const block = firstBlock({
 			type: "dashboard-actions",
 			actions: [
 				{ label: "Open errors", href: "/websites/abc/errors" },
 				{ label: "External", href: "https://example.com" },
+				{
+					label: "Open goals",
+					href: "https://app.databuddy.cc/websites/abc/goals",
+				},
+				{ label: "Protocol relative", href: "//example.com/websites" },
+				{ label: "Userinfo", href: "https://app.databuddy.cc@example.com/" },
+				{ label: "Lookalike", href: "https://app.databuddy.cc.example.com/" },
 				{ label: "No href" },
 			],
 		});
@@ -262,14 +269,18 @@ describe("componentToBlocks native actions and previews", () => {
 		if (block.type !== "actions") {
 			throw new Error("Expected an actions block");
 		}
-		const elements = block.elements.filter(
-			(element) => element.type === "button"
-		);
-		expect(block.elements).toHaveLength(2);
-		expect(elements[0].url).toBe(
-			"https://app.databuddy.cc/websites/abc/errors"
-		);
-		expect(elements[1].url).toBe("https://example.com");
+		expect(block.elements).toEqual([
+			{
+				type: "button",
+				text: { type: "plain_text", text: "Open errors" },
+				url: "https://app.databuddy.cc/websites/abc/errors",
+			},
+			{
+				type: "button",
+				text: { type: "plain_text", text: "Open goals" },
+				url: "https://app.databuddy.cc/websites/abc/goals",
+			},
+		]);
 	});
 
 	it("renders suggested-actions as drill-down buttons carrying the prompt", () => {
