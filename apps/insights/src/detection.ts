@@ -2762,6 +2762,13 @@ function startsEvidence(
 	return sentence(listed);
 }
 
+const SHARED_START_INTRO =
+	/^(?:(?:Another change|\d+ other changes) on this website started within an hour of this one|(?:One change|\d+ changes) on this website started (?:on \d{4}-\d{2}-\d{2}|between \d{4}-\d{2}-\d{2} and \d{4}-\d{2}-\d{2}))\. /;
+
+export function isSharedStartEvidence(value: string): boolean {
+	return SHARED_START_INTRO.test(value);
+}
+
 export function sharedStartEvidence(
 	own: ChangeStart,
 	changes: ChangeStart[],

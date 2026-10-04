@@ -52,6 +52,7 @@ import {
 	type DetectSignalsParams,
 	detectSignals,
 	hourlyChangeName,
+	isSharedStartEvidence,
 	loadChangeOnset,
 	loadRecovery,
 	loadSegmentFinding,
@@ -75,6 +76,8 @@ import {
 	type RouteHealthDetectionDeps,
 } from "./route-health-detection";
 import {
+	annotationEvidence,
+	cohortEvidence,
 	type InvestigationAnnotation,
 	prepareInvestigation,
 	isInvestigationCandidate,
@@ -107,8 +110,10 @@ import {
 	type InsightAgentResult,
 	runInsightAgent,
 	savedVerificationCheck,
+	type SuppliedEvidence,
 } from "./agent";
 import {
+	type ErrorCustomerImpact,
 	errorCustomerImpactEvidence,
 	loadErrorCustomerImpact,
 } from "./error-customer-impact";
@@ -485,12 +490,34 @@ async function fetchSignalAnnotations(
 	}));
 }
 
+function typedEvidence(
+	candidate: Pick<PlannedInvestigationCandidate, "evidence" | "signal">
+): Exclude<SuppliedEvidence, string>[] {
+	const cohort = cohortEvidence(candidate.signal);
+	return candidate.evidence.map((value) => ({
+		kind:
+			value === cohort
+				? "cohort"
+				: isSharedStartEvidence(value)
+					? "shared_start"
+					: "definition",
+		value,
+	}));
+}
+
+interface RefreshedInvestigation {
+	customerImpact?: ErrorCustomerImpact | null;
+	evidence: SuppliedEvidence[];
+	investigationObjective?: string;
+	signal: InvestigationSignal;
+}
+
 export async function refreshInvestigationSignal(params: {
 	asOf: Date;
 	signal: InvestigationSignal;
 	timezone: string;
 	websiteId: string;
-}): Promise<{ evidence: string[]; signal: InvestigationSignal } | null> {
+}): Promise<RefreshedInvestigation | null> {
 	const today = dayjs(params.asOf).tz(params.timezone);
 	const detected = await remeasureStoredSignal(
 		{
@@ -515,9 +542,12 @@ export async function refreshInvestigationSignal(params: {
 		params.asOf,
 		params.timezone
 	);
-	return annotationRows.length === 0
-		? base
-		: prepareInvestigation(detected, INSIGHT_LOOKBACK_DAYS, annotationRows);
+	const evidence = typedEvidence(base);
+	const annotation = annotationEvidence(annotationRows);
+	if (annotation) {
+		evidence.push({ kind: "annotation", value: annotation });
+	}
+	return { evidence, signal: base.signal };
 }
 
 const REPOSITORY_CHANGE_LIMIT = 3;
@@ -754,16 +784,6 @@ function toPlannedCandidate(
 		investigationObjective: investigation.investigationObjective,
 		signal: investigation.signal,
 	};
-}
-
-function annotationEvidence(rows: InvestigationAnnotation[]): string | null {
-	if (rows.length === 0) {
-		return null;
-	}
-	const value = `Annotation: ${rows
-		.map((annotation) => `${annotation.date}: ${annotation.title}`)
-		.join("; ")}`;
-	return value.length <= 500 ? value : `${value.slice(0, 499).trimEnd()}…`;
 }
 
 export async function discoverWebsiteSignals(
@@ -1128,7 +1148,7 @@ async function investigatePlannedCandidate(
 		timezone: input.timezone,
 		websiteId: input.websiteId,
 	});
-	let evidence = [...candidate.evidence];
+	const evidence = typedEvidence(candidate);
 	const [
 		annotationRows,
 		customerImpact,
@@ -1168,7 +1188,7 @@ async function investigatePlannedCandidate(
 			: null,
 	]);
 	if (segmentFinding) {
-		evidence.push(segmentEvidence(segmentFinding));
+		evidence.push({ kind: "segment", value: segmentEvidence(segmentFinding) });
 		emitInsightsEvent("info", "generation.segment_finding.found", {
 			organization_id: input.organizationId,
 			website_id: input.websiteId,
@@ -1183,10 +1203,10 @@ async function investigatePlannedCandidate(
 		});
 	}
 	if (changeOnset) {
-		evidence.push(changeOnsetEvidence(changeOnset));
+		evidence.push({ kind: "onset", value: changeOnsetEvidence(changeOnset) });
 		const repository = await repositoryChanges(changeOnset);
 		if (repository?.evidence) {
-			evidence.push(repository.evidence);
+			evidence.push({ kind: "deploy", value: repository.evidence });
 		}
 		emitInsightsEvent("info", "generation.change_onset.found", {
 			organization_id: input.organizationId,
@@ -1197,14 +1217,20 @@ async function investigatePlannedCandidate(
 		});
 	}
 	if (customerImpact) {
-		evidence.push(errorCustomerImpactEvidence(customerImpact));
+		evidence.push({
+			kind: "customer_impact",
+			value: errorCustomerImpactEvidence(customerImpact),
+		});
 	}
 	if (routeVitalContinuation) {
-		evidence.push(routeVitalContinuationEvidence(routeVitalContinuation));
+		evidence.push({
+			kind: "route_continuation",
+			value: routeVitalContinuationEvidence(routeVitalContinuation),
+		});
 	}
 	const annotation = annotationEvidence(annotationRows);
 	if (annotation) {
-		evidence = [...evidence, annotation];
+		evidence.push({ kind: "annotation", value: annotation });
 	}
 	const appContext: AppContext = {
 		userId: input.userId,
@@ -1256,7 +1282,7 @@ async function investigatePlannedCandidate(
 			: null;
 	if (recoveryCheck) {
 		const { onset, recovery } = recoveryCheck;
-		evidence.push(recoveryEvidence(recovery));
+		evidence.push({ kind: "recovery", value: recoveryEvidence(recovery) });
 		emitInsightsEvent("info", "generation.recovery.measured", {
 			organization_id: input.organizationId,
 			website_id: input.websiteId,
@@ -1272,7 +1298,10 @@ async function investigatePlannedCandidate(
 				latest: recovery.recoveredAt,
 			});
 			if (repository?.evidence) {
-				evidence.push(`Before the recovery: ${repository.evidence}`);
+				evidence.push({
+					kind: "deploy",
+					value: `Before the recovery: ${repository.evidence}`,
+				});
 			}
 		}
 	}
@@ -1333,7 +1362,7 @@ async function investigatePlannedCandidate(
 	});
 	return {
 		asOf: asOf.toISOString(),
-		evidence,
+		evidence: evidence.map(({ value }) => value),
 		completion: investigationResult.completion,
 		recovered: recoveryCheck?.recovery.state === "recovered",
 		snapshot: investigationResult.snapshot,

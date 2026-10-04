@@ -571,7 +571,9 @@ export async function resumeInsightReply(
 			const observationId = randomUUIDv7();
 			await tx.insert(insightObservations).values({
 				asOf: committedAt,
-				evidence: currentMeasurement.evidence,
+				evidence: currentMeasurement.evidence.map((entry) =>
+					typeof entry === "string" ? entry : entry.value
+				),
 				snapshot: result.snapshot && {
 					...result.snapshot,
 					completion: complete ? "complete" : "incomplete",

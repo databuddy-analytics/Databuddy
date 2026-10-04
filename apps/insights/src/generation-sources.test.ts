@@ -1,7 +1,11 @@
 import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
 import type { InvestigationOutcome } from "@databuddy/shared/insights";
-import { InsightAgentGenerationError } from "./agent";
+import {
+	InsightAgentGenerationError,
+	type SuppliedEvidence,
+	type SuppliedEvidenceKind,
+} from "./agent";
 import {
 	type ChangeOnset,
 	changeOnsetEvidence,
@@ -77,6 +81,19 @@ const emptyUsage = {
 	reasoningTokens: 0,
 	totalTokens: 0,
 };
+
+function evidenceValues(evidence: SuppliedEvidence[] = []): string[] {
+	return evidence.map((item) => (typeof item === "string" ? item : item.value));
+}
+
+function linesOfKind(
+	evidence: SuppliedEvidence[] | undefined,
+	kind: SuppliedEvidenceKind
+): string[] {
+	return (evidence ?? []).flatMap((item) =>
+		typeof item !== "string" && item.kind === kind ? [item.value] : []
+	);
+}
 
 const fixtureInput: Parameters<
 	typeof investigateWebsitePortfolioWithSources
@@ -483,12 +500,12 @@ describe("fixture investigation sources", () => {
 			affectedVisitorIdentifiers: 35,
 			identifiedProfilesWithPriorAttributedCompletedPayment: 0,
 		});
-		expect(
-			received?.evidence.some((item) =>
-				item.includes("whether any affected visitor had paid is unknown")
-			)
-		).toBe(true);
-		expect(artifact.evidence).toEqual(received?.evidence ?? []);
+		expect(linesOfKind(received?.evidence, "customer_impact")).toEqual([
+			expect.stringContaining(
+				"whether any affected visitor had paid is unknown"
+			),
+		]);
+		expect(artifact.evidence).toEqual(evidenceValues(received?.evidence));
 	});
 
 	it("adds a break's onset, its segments and the production deploys before it", async () => {
@@ -642,16 +659,19 @@ describe("fixture investigation sources", () => {
 			githubRepository: { owner: "example", repo: "web-app" },
 		});
 
-		expect(received?.evidence).toContain(changeOnsetEvidence(linkOnset));
-		expect(received?.evidence).toContain(segmentEvidence(spreadDrop));
-		const deploys = received?.evidence.find((item) =>
-			item.startsWith("GitHub production deployments")
-		);
+		expect(linesOfKind(received?.evidence, "onset")).toEqual([
+			changeOnsetEvidence(linkOnset),
+		]);
+		expect(linesOfKind(received?.evidence, "segment")).toEqual([
+			segmentEvidence(spreadDrop),
+		]);
+		const [deploys] = linesOfKind(received?.evidence, "deploy");
+		expect(deploys).toStartWith("GitHub production deployments");
 		expect(deploys).toContain(
 			'a1b2c3d "feat(links): queue link creation" replacing 0a1b2c3, requested 2026-07-10 19:50 to docs-production and Production (all success 19:58).'
 		);
 		expect(deploys?.split("; ")).toHaveLength(1);
-		expect(artifact.evidence).toEqual(received?.evidence ?? []);
+		expect(artifact.evidence).toEqual(evidenceValues(received?.evidence));
 	});
 
 	it("does not say a failed deployment replaced the running version", () => {
@@ -762,7 +782,7 @@ describe("fixture investigation sources", () => {
 			metric: "bounce_rate",
 		};
 		const evidenceFor = async (candidate: DetectedSignal) => {
-			let evidence: string[] = [];
+			let evidence: SuppliedEvidence[] = [];
 			await investigateFixture(
 				fixtureSources({
 					detectDefinitionSignals: async () => [],
@@ -795,12 +815,16 @@ describe("fixture investigation sources", () => {
 			return evidence;
 		};
 
-		expect(await evidenceFor(eventStop)).toContain(
-			"Another change on this website started within an hour of this one. Dropping between 20:00 and 21:00 on 2026-07-10: pageviews."
-		);
-		expect(await evidenceFor(bounceRise)).toContain(
-			"One change on this website started between 2026-07-05 and 2026-07-11. Dropping between 20:00 and 21:00 on 2026-07-10: pageviews."
-		);
+		expect(await evidenceFor(eventStop)).toContainEqual({
+			kind: "shared_start",
+			value:
+				"Another change on this website started within an hour of this one. Dropping between 20:00 and 21:00 on 2026-07-10: pageviews.",
+		});
+		expect(await evidenceFor(bounceRise)).toContainEqual({
+			kind: "shared_start",
+			value:
+				"One change on this website started between 2026-07-05 and 2026-07-11. Dropping between 20:00 and 21:00 on 2026-07-10: pageviews.",
+		});
 	});
 
 	it("adds supplied route-vital continuation evidence before a slow route reaches the agent", async () => {
@@ -865,7 +889,10 @@ describe("fixture investigation sources", () => {
 
 		expect(continuationCalls).toBe(1);
 		expect(received?.hasQualifiedRouteVitalContinuation).toBe(true);
-		expect(artifact.evidence).toEqual(received?.evidence ?? []);
+		expect(linesOfKind(received?.evidence, "route_continuation")).toHaveLength(
+			1
+		);
+		expect(artifact.evidence).toEqual(evidenceValues(received?.evidence));
 	});
 
 	it("stops sibling candidates after an agent infrastructure failure", async () => {
@@ -1427,13 +1454,15 @@ describe("fixture investigation sources", () => {
 		});
 
 		expect(artifact.recovered).toBe(true);
-		expect(received?.evidence).toContain(recoveryEvidence(recovery));
+		expect(linesOfKind(received?.evidence, "recovery")).toEqual([
+			recoveryEvidence(recovery),
+		]);
 		expect(recoveryWindow).toEqual({
 			earliest: "2026-07-16 14:00:00",
 			latest: "2026-07-16 14:00:00",
 		});
 		expect(
-			received?.evidence.some((item) =>
+			linesOfKind(received?.evidence, "deploy").some((item) =>
 				item.startsWith(
 					"Before the recovery: GitHub records no production deployment"
 				)

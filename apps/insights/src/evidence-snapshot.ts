@@ -231,7 +231,7 @@ export function createEvidenceSnapshot(input: {
 	websiteId: string;
 	capturedAt: string;
 	signal: InvestigationSignal;
-	evidence: string[];
+	evidence: readonly unknown[];
 	reads: {
 		toolName: string;
 		toolCallId: string;

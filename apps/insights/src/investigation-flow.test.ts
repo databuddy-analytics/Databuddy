@@ -1784,6 +1784,110 @@ describe("intelligence agent", () => {
 	});
 
 	it.each([
+		{
+			name: "saved description",
+			description: "Tracks account creation.",
+			supplied: [],
+			accepted: true,
+		},
+		{
+			name: "supplied definition line",
+			description: null,
+			supplied: [
+				{
+					kind: "definition" as const,
+					value: "Business meaning: Tracks account creation.",
+				},
+			],
+			accepted: true,
+		},
+		{
+			name: "supplied segment line",
+			description: null,
+			supplied: [
+				{
+					kind: "segment" as const,
+					value: "Business meaning: Tracks account creation.",
+				},
+			],
+			accepted: false,
+		},
+		{
+			name: "business background",
+			description: null,
+			supplied: [],
+			background: "Business meaning: Tracks account creation.",
+			accepted: false,
+		},
+	])("takes a definition edit's purpose only from configured sources: $name", async ({
+		description,
+		supplied,
+		background,
+		accepted,
+	}) => {
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [...evidence, ...supplied],
+				...(background
+					? {
+							businessContext: {
+								capturedAt: "2026-07-12T00:00:00.000Z",
+								status: "ready" as const,
+								issues: [],
+								sources: [
+									{
+										id: "business-profile",
+										kind: "website" as const,
+										content: background,
+										url: "https://example.com/",
+										observedAt: "2026-07-11T00:00:00.000Z",
+									},
+								],
+							},
+						}
+					: {}),
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: funnelSignal,
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: mockValues(
+						toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
+						outputResponse(executableDefinitionOutcome),
+						outputResponse(executableDefinitionOutcome),
+						outputResponse(executableDefinitionOutcome)
+					),
+				}),
+				tools: {
+					list_funnels: tool({
+						description: "Read complete definitions.",
+						inputSchema: z.object({}),
+						execute: () => ({ funnels: [{ ...inspectedFunnel, description }] }),
+					}),
+					get_funnel_analytics: tool({
+						description: "Read journey context.",
+						inputSchema: z.object({}),
+						execute: () => ({ completions: 10 }),
+					}),
+				},
+			}
+		);
+		if (accepted) {
+			expect((await run).outcome.next).toMatchObject({
+				type: "act",
+				execution: { operation: "edit" },
+			});
+		} else {
+			await expect(run).rejects.toThrow(
+				"or keep next.act with execution null for a manual repair"
+			);
+		}
+	});
+
+	it.each([
 		"missing",
 		"failed",
 		"thrown",
@@ -3168,6 +3272,97 @@ describe("intelligence agent", () => {
 				},
 			],
 		});
+	});
+
+	it.each([
+		["definition", true],
+		["annotation", true],
+		["onset", false],
+		["segment", false],
+		["deploy", false],
+		["shared_start", false],
+		["recovery", false],
+	] as const)("accepts a supplied %s line as collection proof: %s", async (kind, accepted) => {
+		const collection =
+			"Independent origin logs show requests continued while collection dropped; this period cannot support traffic comparisons.";
+		const model = outputModel({
+			...agentOutcome,
+			title: "Site activity coverage stopped during the comparison week",
+			summary: "Recorded visitors fell from 1000 to 300.",
+			rootCause: null,
+			findingKind: "measurement_coverage" as const,
+			publicationBasis: "decision_safety" as const,
+			evidence: [collection],
+			evidenceRefs: [{ source: "provided" as const, index: 0 }],
+			next: {
+				type: "resolve" as const,
+				reason: "Coverage is uncertain; the cause has not been established.",
+			},
+		});
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [{ kind, value: collection }, evidence[0]],
+				signal: {
+					...signal,
+					entity: { type: "website", id: "website", label: "Visitors" },
+				},
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{ model, tools: {} }
+		);
+		if (!accepted) {
+			await expect(run).rejects.toThrow(
+				"cited collection or implementation evidence"
+			);
+			return;
+		}
+		expect((await run).outcome.publish).toBe(true);
+		const message = model.doGenerateCalls[0]?.prompt
+			.find((item) => item.role === "user")
+			?.content.find((item) => item.type === "text");
+		if (message?.type !== "text") {
+			throw new Error("Missing evidence prompt");
+		}
+		expect(JSON.parse(message.text).evidence).toEqual([
+			{ value: collection, kind, reference: { source: "provided", index: 0 } },
+			{ value: evidence[0], reference: { source: "provided", index: 1 } },
+		]);
+	});
+
+	it("names measurement coverage as the only kind for a sustained collapse", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence: [],
+					signal: {
+						...signal,
+						entity: { type: "website", id: "website", label: "Visitors" },
+						metric: { ...signal.metric, current: 50, previous: 1000 },
+						changePercent: -95,
+					},
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+				},
+				{
+					model: outputModel({
+						...agentOutcome,
+						title: "Visitors nearly stopped",
+						summary:
+							"Either tracking broke or the site is down; check tracking.",
+						rootCause: null,
+						evidence: ["Visitors fell from 1000 to 50."],
+						evidenceRefs: [{ source: "signal" as const }],
+						next: { type: "resolve" as const, reason: "The cause is unknown." },
+					}),
+					tools: {},
+				}
+			)
+		).rejects.toThrow("publishes only as measurement_coverage");
 	});
 
 	it.each([

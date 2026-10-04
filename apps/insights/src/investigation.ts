@@ -342,6 +342,25 @@ function evidenceSummary(value: string): string {
 	return value.length <= 500 ? value : `${value.slice(0, 499).trimEnd()}…`;
 }
 
+export function cohortEvidence(
+	signal: Pick<InvestigationSignal, "cohortMeasurement">
+): string | null {
+	const value = cohortMeasurementEvidence(signal);
+	return value ? evidenceSummary(value) : null;
+}
+
+export function annotationEvidence(
+	annotations: InvestigationAnnotation[]
+): string | null {
+	return annotations.length > 0
+		? evidenceSummary(
+				`Annotation: ${annotations
+					.map((annotation) => `${annotation.date}: ${annotation.title}`)
+					.join("; ")}`
+			)
+		: null;
+}
+
 export function prepareInvestigation(
 	candidate: DetectedSignal,
 	lookbackDays: number,
@@ -391,18 +410,13 @@ export function prepareInvestigation(
 	if (candidate.definitionEvidence) {
 		evidence.push(evidenceSummary(candidate.definitionEvidence));
 	}
-	const cohortEvidence = cohortMeasurementEvidence(candidate);
-	if (cohortEvidence) {
-		evidence.push(evidenceSummary(cohortEvidence));
+	const cohort = cohortEvidence(candidate);
+	if (cohort) {
+		evidence.push(cohort);
 	}
-	if (annotations.length > 0) {
-		evidence.push(
-			evidenceSummary(
-				`Annotation: ${annotations
-					.map((annotation) => `${annotation.date}: ${annotation.title}`)
-					.join("; ")}`
-			)
-		);
+	const annotation = annotationEvidence(annotations);
+	if (annotation) {
+		evidence.push(annotation);
 	}
 
 	return {

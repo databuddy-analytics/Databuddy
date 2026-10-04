@@ -759,11 +759,40 @@ type InterruptingNext = Extract<
 	{ type: "act" | "ask" }
 >;
 
+export type SuppliedEvidenceKind =
+	| "definition"
+	| "cohort"
+	| "annotation"
+	| "onset"
+	| "deploy"
+	| "segment"
+	| "recovery"
+	| "shared_start"
+	| "customer_impact"
+	| "route_continuation"
+	| "hypothesis";
+
+export type SuppliedEvidence =
+	| string
+	| { value: string; kind: SuppliedEvidenceKind };
+
+function suppliedValue(item: SuppliedEvidence): string {
+	return typeof item === "string" ? item : item.value;
+}
+
+function provesCollection(item: SuppliedEvidence | undefined): boolean {
+	return (
+		typeof item === "string" ||
+		item?.kind === "definition" ||
+		item?.kind === "annotation"
+	);
+}
+
 export interface InsightAgentInput {
 	appContext: AppContext;
 	businessContext?: BusinessContext;
 	customerImpact?: ErrorCustomerImpact | null;
-	evidence: string[];
+	evidence: SuppliedEvidence[];
 	githubRepository: { owner: string; repo: string } | null;
 	hasQualifiedRouteVitalContinuation?: true;
 	history: (
@@ -981,9 +1010,10 @@ const DEFINITION_CONTEXT_TOOLS = [
 
 function validateDefinitionRecommendation(
 	definition: InsightDefinitionOperation,
-	input: Pick<InsightAgentInput, "evidence" | "signal">,
+	input: Pick<InsightAgentInput, "signal">,
 	usedToolNames: ReadonlySet<string>,
-	current: unknown
+	current: unknown,
+	hasConfiguredPurpose: boolean
 ) {
 	const entityType = input.signal.entity.type;
 	if (entityType !== "goal" && entityType !== "funnel") {
@@ -1002,9 +1032,6 @@ function validateDefinitionRecommendation(
 	if (definition.operation === "delete") {
 		return;
 	}
-	const hasConfiguredPurpose = input.evidence.some((item) =>
-		item.includes("Business meaning:")
-	);
 	if (
 		!(
 			hasConfiguredPurpose ||
@@ -1012,7 +1039,7 @@ function validateDefinitionRecommendation(
 		)
 	) {
 		throw new Error(
-			"Insights definition edits require an inspected purpose before changing what a goal or funnel measures. If the defect is verified but the right replacement is unknown, drop the execution and publish with next.ask instead."
+			"Insights definition edits require an inspected purpose before changing what a goal or funnel measures. If the defect is verified but the right replacement is unknown, drop the execution and publish with next.ask instead, or keep next.act with execution null for a manual repair."
 		);
 	}
 	if (!DEFINITION_CONTEXT_TOOLS.some((name) => usedToolNames.has(name))) {
@@ -1332,68 +1359,88 @@ function definitionMeasurementConflict(
 	}
 }
 
+function inspectedDefinition(
+	input: Pick<InsightAgentInput, "signal" | "appContext">,
+	results: StepResult<ToolSet>["toolResults"]
+): { current: unknown; described: boolean } {
+	const entity = input.signal.entity;
+	if (entity.type !== "goal" && entity.type !== "funnel") {
+		return { current: undefined, described: false };
+	}
+	const listTool = entity.type === "goal" ? "list_goals" : "list_funnels";
+	const key = entity.type === "goal" ? "goals" : "funnels";
+	let current: unknown;
+	let described = false;
+	// Use the latest successful snapshot, never a same-named definition.
+	for (const result of results) {
+		if (
+			result.toolName === `get_${entity.type}_analytics` &&
+			isSuccessfulRead(result.output)
+		) {
+			const parsed = z
+				.object({
+					measurement: insightMeasurementSchema,
+					savedDefinition: insightMeasurementSchema.shape.definition.optional(),
+				})
+				.safeParse(result.output);
+			if (
+				parsed.success &&
+				parsed.data.measurement.definitionId === entity.id &&
+				parsed.data.measurement.websiteId ===
+					(input.appContext.websiteId ?? input.appContext.defaultWebsiteId)
+			) {
+				current = {
+					id: entity.id,
+					...(parsed.data.savedDefinition ??
+						parsed.data.measurement.definition),
+				};
+			}
+		}
+		if (result.toolName !== listTool || !isSuccessfulRead(result.output)) {
+			continue;
+		}
+		const output = result.output;
+		const entries =
+			output && typeof output === "object"
+				? Object.entries(output).find(([name]) => name === key)?.[1]
+				: undefined;
+		current = Array.isArray(entries)
+			? entries.find(
+					(entry: unknown) =>
+						entry &&
+						typeof entry === "object" &&
+						"id" in entry &&
+						entry.id === entity.id
+				)
+			: undefined;
+		described = z
+			.object({ description: z.string().trim().min(1) })
+			.safeParse(current).success;
+	}
+	return {
+		current:
+			current && typeof current === "object"
+				? {
+						...current,
+						filters: ("filters" in current ? current.filters : undefined) ?? [],
+					}
+				: current,
+		described,
+	};
+}
+
 function validateDefinitionOutcome(
 	outcome: AgentInvestigationOutcome,
 	input: Pick<InsightAgentInput, "evidence" | "signal" | "appContext">,
+	providedEvidenceCount: number,
 	usedToolNames: ReadonlySet<string>,
 	results: StepResult<ToolSet>["toolResults"],
 	attemptedToolNames: ReadonlySet<string>
 ) {
 	const entity = input.signal.entity;
-	let current: unknown;
+	const { current, described } = inspectedDefinition(input, results);
 	if (entity.type === "goal" || entity.type === "funnel") {
 		const listTool = entity.type === "goal" ? "list_goals" : "list_funnels";
-		const key = entity.type === "goal" ? "goals" : "funnels";
-		// Use the latest successful snapshot, never a same-named definition.
-		for (const result of results) {
-			if (
-				result.toolName === `get_${entity.type}_analytics` &&
-				isSuccessfulRead(result.output)
-			) {
-				const parsed = z
-					.object({
-						measurement: insightMeasurementSchema,
-						savedDefinition:
-							insightMeasurementSchema.shape.definition.optional(),
-					})
-					.safeParse(result.output);
-				if (
-					parsed.success &&
-					parsed.data.measurement.definitionId === entity.id &&
-					parsed.data.measurement.websiteId ===
-						(input.appContext.websiteId ?? input.appContext.defaultWebsiteId)
-				) {
-					current = {
-						id: entity.id,
-						...(parsed.data.savedDefinition ??
-							parsed.data.measurement.definition),
-					};
-				}
-			}
-			if (result.toolName !== listTool || !isSuccessfulRead(result.output)) {
-				continue;
-			}
-			const output = result.output;
-			const entries =
-				output && typeof output === "object"
-					? Object.entries(output).find(([name]) => name === key)?.[1]
-					: undefined;
-			current = Array.isArray(entries)
-				? entries.find(
-						(entry: unknown) =>
-							entry &&
-							typeof entry === "object" &&
-							"id" in entry &&
-							entry.id === entity.id
-					)
-				: undefined;
-		}
-		if (current && typeof current === "object") {
-			current = {
-				...current,
-				filters: ("filters" in current ? current.filters : undefined) ?? [],
-			};
-		}
 		const inspectionError = insightRepairError(
 			{ id: entity.id, type: entity.type },
 			current
@@ -1427,7 +1474,20 @@ function validateDefinitionOutcome(
 			"Insights executable definition changes require a published measurement-definition finding"
 		);
 	}
-	validateDefinitionRecommendation(execution, input, usedToolNames, current);
+	validateDefinitionRecommendation(
+		execution,
+		input,
+		usedToolNames,
+		current,
+		described ||
+			input.evidence
+				.slice(0, providedEvidenceCount)
+				.some(
+					(item) =>
+						(typeof item === "string" || item.kind === "definition") &&
+						suppliedValue(item).includes("Business meaning:")
+				)
+	);
 	return current;
 }
 
@@ -1510,12 +1570,13 @@ function resolveEvidenceSources(
 			return promptSignal(signal);
 		}
 		if (ref.source === "provided") {
-			if (ref.index >= input.evidence.length) {
+			const supplied = input.evidence[ref.index];
+			if (supplied === undefined) {
 				throw new Error(
 					`Insights agent cited supplied evidence index ${ref.index}, but only ${input.evidence.length} supplied entries exist. Cite source signal for the supplied measurement.`
 				);
 			}
-			return input.evidence[ref.index];
+			return suppliedValue(supplied);
 		}
 		const result = results.find(
 			(item) => item.toolName === ref.name && item.toolCallId === ref.toolCallId
@@ -2021,7 +2082,9 @@ function validateAgentOutcome(
 		const citedContext = outcome.evidenceRefs.flat().some(
 			(ref) =>
 				// Appended business background remains citable, but cannot prove collection.
-				(ref.source === "provided" && ref.index < providedEvidenceCount) ||
+				(ref.source === "provided" &&
+					ref.index < providedEvidenceCount &&
+					provesCollection(input.evidence[ref.index])) ||
 				(ref.source === "tool" &&
 					[
 						"scrape_page",
@@ -2039,7 +2102,9 @@ function validateAgentOutcome(
 			!(citedContext || sustainedCollapse)
 		) {
 			throw new Error(
-				"A website traffic signal is not a verified product loss. Only publish a measurement-coverage finding with cited collection or implementation evidence. A goal lookup, analytics count, or sibling product signal cannot establish lost visitors. Investigate a product result under its own subject."
+				sustainedCollapse
+					? "A website-wide drop of 90% or more publishes only as measurement_coverage: either a tracking break or a real outage. Change findingKind to measurement_coverage and keep the supported evidence."
+					: "A website traffic signal is not a verified product loss. Only publish a measurement-coverage finding with cited collection or implementation evidence. A goal lookup, analytics count, or sibling product signal cannot establish lost visitors. Investigate a product result under its own subject."
 			);
 		}
 	}
@@ -2067,6 +2132,7 @@ function validateAgentOutcome(
 	const definition = validateDefinitionOutcome(
 		outcome,
 		input,
+		providedEvidenceCount,
 		usedToolNames,
 		results,
 		attemptedToolNames
@@ -2622,8 +2688,9 @@ export async function runInsightAgent(
 			: {}),
 		repository: input.githubRepository,
 		investigationObjective: input.investigationObjective,
-		evidence: input.evidence.map((value, index) => ({
-			value,
+		evidence: input.evidence.map((item, index) => ({
+			value: suppliedValue(item),
+			...(typeof item === "string" ? {} : { kind: item.kind }),
 			reference: { source: "provided", index },
 		})),
 		history: input.history.map((item) => {

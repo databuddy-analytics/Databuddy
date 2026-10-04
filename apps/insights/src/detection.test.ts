@@ -12,6 +12,7 @@ import {
 	estimateRecovery,
 	freshCustomEventSignals,
 	freshRevenueSignals,
+	isSharedStartEvidence,
 	loadChangeOnset,
 	loadRecovery,
 	loadSegmentFinding,
@@ -3130,6 +3131,66 @@ describe("change onset", () => {
 					"UTC"
 				)
 			).toBeNull();
+		});
+
+		it("recognizes every shared-start line and no definition line", () => {
+			const weekly = signalFor({
+				baselineDates: undefined,
+				detectedAt: "2026-09-25",
+				entityId: undefined,
+				entityLabel: undefined,
+				label: "Bounce rate",
+				method: "wow",
+				metric: "bounce_rate",
+				subjectKey: undefined,
+			});
+			const daily = {
+				...weekly,
+				period: {
+					...weekly.period,
+					current: { from: "2026-09-25", to: "2026-09-25" },
+				},
+			};
+			const changes = [
+				{ onset: onsetAt("21:00"), signal: errorSignal("Fetch is aborted") },
+				{
+					onset: onsetAt("21:00", "up", "2026-09-24"),
+					signal: trafficSignal("sessions"),
+				},
+			];
+			const lines = [
+				sharedStartEvidence(own, changes.slice(0, 1), "UTC"),
+				sharedStartEvidence(
+					own,
+					[
+						...changes,
+						{ onset: onsetAt("22:00"), signal: errorSignal("Late error") },
+					],
+					"UTC"
+				),
+				sharedStartEvidence({ onset: null, signal: daily }, changes, "UTC"),
+				sharedStartEvidence({ onset: null, signal: weekly }, changes, "UTC"),
+			];
+
+			expect(lines.map((line) => line?.split(".")[0])).toEqual([
+				"Another change on this website started within an hour of this one",
+				"2 other changes on this website started within an hour of this one",
+				"One change on this website started on 2026-09-25",
+				"2 changes on this website started between 2026-09-19 and 2026-09-25",
+			]);
+			for (const line of lines) {
+				expect(isSharedStartEvidence(line ?? "")).toBe(true);
+			}
+			expect(
+				isSharedStartEvidence(
+					'Event "One change on this website started on 2026-09-25. " occurred 4 times.'
+				)
+			).toBe(false);
+			expect(
+				isSharedStartEvidence(
+					"Business meaning: gross revenue from completed payments in USD, excluding refunds."
+				)
+			).toBe(false);
 		});
 
 		it("names another change on one plain line", () => {
