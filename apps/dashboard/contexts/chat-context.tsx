@@ -2,7 +2,10 @@
 
 import { useChat as useAiSdkChat } from "@ai-sdk/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { UIMessage } from "ai";
+import {
+	lastAssistantMessageIsCompleteWithApprovalResponses,
+	type UIMessage,
+} from "ai";
 import {
 	createContext,
 	useCallback,
@@ -93,6 +96,7 @@ export function ChatProvider({
 		messages: [],
 		transport,
 		resume: Boolean(storedChat?.activeStreamId),
+		sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
 	});
 
 	const chatRef = useRef(chat);

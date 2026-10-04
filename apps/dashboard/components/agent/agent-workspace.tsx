@@ -108,7 +108,7 @@ export function AgentWorkspace({
 					</TopBar.Actions>
 
 					<AgentChatSurface
-						autoSendPromptFromUrl
+						prefillPromptFromUrl
 						chatId={chatId}
 						defaultWebsiteId={defaultWebsiteId}
 						organizationId={organizationId}

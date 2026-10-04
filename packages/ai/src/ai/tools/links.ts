@@ -69,7 +69,7 @@ export function createLinksTools() {
 
 	const listLinksTool = tool({
 		description:
-			"List the newest short links and existing folders for the website org. Set search to find a specific link across the full catalog.",
+			"List short links and existing folders for the website org. Returns the newest 50; pass search for a specific link.",
 		inputSchema: z.object({
 			search: z.string().trim().min(1).max(255).optional(),
 			websiteId: z.string(),
@@ -109,8 +109,7 @@ export function createLinksTools() {
 	});
 
 	const createLinkTool = tool({
-		description:
-			"Create a short link. slug auto-generated if omitted. expiresAt is ISO date.",
+		description: "Create a short link. slug auto-generated if omitted.",
 		inputSchema: z
 			.object({
 				websiteId: z.string(),
@@ -118,6 +117,7 @@ export function createLinksTools() {
 				confirmed: z.boolean().describe("false=preview, true=apply"),
 			})
 			.superRefine(refineDeepLinkTarget),
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ websiteId, confirmed, ...link }, options) => {
 			const context = getAppContext(options);
 			try {
@@ -186,13 +186,14 @@ export function createLinksTools() {
 	});
 
 	const updateLinkTool = tool({
-		description: "Update a short link. Pass null to nullable fields to clear.",
+		description: "Update a short link.",
 		inputSchema: z.object({
 			id: z.string(),
 			websiteId: z.string(),
 			...linkUpdateFields,
 			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ id, websiteId, confirmed, ...input }, options) => {
 			const context = getAppContext(options);
 			try {
@@ -252,6 +253,7 @@ export function createLinksTools() {
 			websiteId: z.string(),
 			confirmed: z.boolean().describe("false=preview, true=delete"),
 		}),
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ id, websiteId, confirmed }, options) => {
 			const context = getAppContext(options);
 			try {

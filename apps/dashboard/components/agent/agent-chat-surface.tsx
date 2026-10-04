@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
 	Conversation,
 	ConversationContent,
@@ -18,7 +18,7 @@ import {
 	TableIcon,
 } from "@databuddy/ui/icons";
 import { useSetAtom } from "jotai";
-import { agentMentionsAtom } from "./agent-atoms";
+import { agentInputAtom, agentMentionsAtom } from "./agent-atoms";
 import { AgentInput } from "./agent-input";
 import { AgentMessages } from "./agent-messages";
 import { AGENT_COMMANDS } from "./agent-commands";
@@ -27,12 +27,12 @@ import { Avatar } from "@databuddy/ui/client";
 import { Button, Skeleton } from "@databuddy/ui";
 
 interface AgentChatSurfaceProps {
-	autoSendPromptFromUrl?: boolean;
 	chatId: string;
 	className?: string;
 	contentClassName?: string;
 	defaultWebsiteId?: string;
 	organizationId: string | null;
+	prefillPromptFromUrl?: boolean;
 }
 
 const FALLBACK_ICONS = [
@@ -54,7 +54,7 @@ const DEFAULT_PROMPTS = AGENT_COMMANDS.filter(
 	}));
 
 export function AgentChatSurface({
-	autoSendPromptFromUrl = false,
+	prefillPromptFromUrl = false,
 	chatId,
 	className,
 	contentClassName,
@@ -62,6 +62,7 @@ export function AgentChatSurface({
 	organizationId,
 }: AgentChatSurfaceProps) {
 	const lastChatScope = defaultWebsiteId ?? organizationId;
+	const setInput = useSetAtom(agentInputAtom);
 	const setMentions = useSetAtom(agentMentionsAtom);
 
 	useEffect(() => {
@@ -80,29 +81,19 @@ export function AgentChatSurface({
 	const searchParams = useSearchParams();
 	const router = useRouter();
 	const pathname = usePathname();
-	const autoSentRef = useRef(false);
 
 	useEffect(() => {
-		if (!(autoSendPromptFromUrl && !autoSentRef.current) || isRestoring) {
+		if (!prefillPromptFromUrl) {
 			return;
 		}
 		const prompt = searchParams.get("prompt");
-		if (!prompt || messages.length > 0) {
+		if (!prompt) {
 			return;
 		}
 
-		autoSentRef.current = true;
-		sendMessage({ text: prompt });
+		setInput(prompt);
 		router.replace(pathname);
-	}, [
-		autoSendPromptFromUrl,
-		searchParams,
-		messages.length,
-		sendMessage,
-		router,
-		pathname,
-		isRestoring,
-	]);
+	}, [prefillPromptFromUrl, searchParams, setInput, router, pathname]);
 
 	const hasMessages = messages.length > 0;
 	const domain = website?.domain ?? null;

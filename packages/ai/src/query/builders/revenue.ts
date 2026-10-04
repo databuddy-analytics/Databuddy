@@ -9,6 +9,7 @@ import {
 import { STRIPE_FAILURE_WEBHOOK_EVENTS } from "@databuddy/shared/stripe-webhooks";
 import { Analytics } from "../../types/tables";
 import { AI_VISIT_PARAMS, aiVisitProduct } from "./ai-agents";
+import { eventTimeBucket } from "../expressions";
 import { escapeLikePattern } from "../simple-builder";
 import type { CustomSqlContext, Filter, SimpleQueryConfig } from "../types";
 
@@ -16,7 +17,7 @@ const STRIPE_FAILURE_EVENT_SQL = STRIPE_FAILURE_WEBHOOK_EVENTS.map(
 	({ event }) => `'${event}'`
 ).join(",\n\t\t\t\t\t\t");
 
-const REVENUE_FILTER_COLUMNS: Record<string, string> = {
+const REVENUE_DIMENSION_COLUMNS: Record<string, string> = {
 	country: "country",
 	region: "region",
 	city: "city",
@@ -28,6 +29,10 @@ const REVENUE_FILTER_COLUMNS: Record<string, string> = {
 	utm_campaign: "utm_campaign",
 	referrer: "referrer_domain",
 	path: "entry_path",
+};
+
+const REVENUE_FILTER_COLUMNS: Record<string, string> = {
+	...REVENUE_DIMENSION_COLUMNS,
 	provider: "revenue_provider",
 	product_id: "ifNull(product_id, '')",
 	product_name: "product_name",
@@ -35,12 +40,18 @@ const REVENUE_FILTER_COLUMNS: Record<string, string> = {
 	currency: "currency",
 };
 
-const REVENUE_ALLOWED_FILTERS = ["currency", "provider", "type"];
+const REVENUE_ALLOWED_FILTERS = [
+	"currency",
+	"provider",
+	"type",
+	...Object.keys(REVENUE_DIMENSION_COLUMNS),
+];
 const REVENUE_OVERVIEW_ALLOWED_FILTERS = [
 	"currency",
 	"provider",
 	"product_id",
 	"product_name",
+	...Object.keys(REVENUE_DIMENSION_COLUMNS),
 ];
 
 function fixedValueMatchesFilter(value: string, filter: Filter): boolean {
@@ -656,6 +667,7 @@ const REVENUE_GEO_BREAKDOWN_FIELDS = [
 
 export const RevenueBuilders = {
 	revenue_overview: {
+		commonFilters: false,
 		allowedFilters: REVENUE_OVERVIEW_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue Overview",
@@ -902,6 +914,7 @@ export const RevenueBuilders = {
 	},
 
 	revenue_time_series: {
+		commonFilters: false,
 		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue Time Series",
@@ -934,11 +947,7 @@ export const RevenueBuilders = {
 		customSql: (ctx) =>
 			makeRevenueBuilder(() => ({
 				select: `SELECT
-				${
-					ctx.granularity === "hour" || ctx.granularity === "hourly"
-						? "formatDateTime(toStartOfHour(toTimeZone(created, {timezone:String})), '%Y-%m-%d %H:00:00')"
-						: "toDate(toTimeZone(created, {timezone:String}))"
-				} as date,
+				${eventTimeBucket(ctx.granularity, "created")} as date,
 				currency,
 				sumIf(amount, type != 'refund') as revenue,
 				countIf(type != 'refund') as transactions,
@@ -955,6 +964,7 @@ export const RevenueBuilders = {
 	},
 
 	revenue_by_provider: {
+		commonFilters: false,
 		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Provider",
@@ -975,6 +985,7 @@ export const RevenueBuilders = {
 	},
 
 	revenue_by_product: {
+		commonFilters: false,
 		allowedFilters: [...REVENUE_ALLOWED_FILTERS, "product_id", "product_name"],
 		meta: {
 			title: "Revenue by Product",
@@ -1012,6 +1023,7 @@ export const RevenueBuilders = {
 	},
 
 	revenue_attribution_overview: {
+		commonFilters: false,
 		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue Attribution Overview",
@@ -1032,6 +1044,7 @@ export const RevenueBuilders = {
 	},
 
 	revenue_by_country: {
+		commonFilters: false,
 		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Country",
@@ -1057,6 +1070,7 @@ export const RevenueBuilders = {
 	},
 
 	revenue_by_region: {
+		commonFilters: false,
 		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Region",
@@ -1083,6 +1097,7 @@ export const RevenueBuilders = {
 	},
 
 	revenue_by_city: {
+		commonFilters: false,
 		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by City",
@@ -1109,6 +1124,7 @@ export const RevenueBuilders = {
 	},
 
 	revenue_by_browser: {
+		commonFilters: false,
 		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Browser",
@@ -1133,6 +1149,7 @@ export const RevenueBuilders = {
 	},
 
 	revenue_by_device: {
+		commonFilters: false,
 		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Device",
@@ -1157,6 +1174,7 @@ export const RevenueBuilders = {
 	},
 
 	revenue_by_os: {
+		commonFilters: false,
 		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by OS",
@@ -1181,6 +1199,7 @@ export const RevenueBuilders = {
 	},
 
 	revenue_by_referrer: {
+		commonFilters: false,
 		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Referrer",
@@ -1217,6 +1236,7 @@ export const RevenueBuilders = {
 	},
 
 	revenue_by_ai_product: {
+		commonFilters: false,
 		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by AI Product",
@@ -1271,6 +1291,7 @@ export const RevenueBuilders = {
 	},
 
 	revenue_by_utm_source: {
+		commonFilters: false,
 		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by UTM Source",
@@ -1295,6 +1316,7 @@ export const RevenueBuilders = {
 	},
 
 	revenue_by_utm_medium: {
+		commonFilters: false,
 		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by UTM Medium",
@@ -1319,6 +1341,7 @@ export const RevenueBuilders = {
 	},
 
 	revenue_by_utm_campaign: {
+		commonFilters: false,
 		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by UTM Campaign",
@@ -1343,6 +1366,7 @@ export const RevenueBuilders = {
 	},
 
 	revenue_by_entry_page: {
+		commonFilters: false,
 		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Revenue by Entry Page",
@@ -1367,6 +1391,7 @@ export const RevenueBuilders = {
 	},
 
 	recent_transactions: {
+		commonFilters: false,
 		allowedFilters: REVENUE_ALLOWED_FILTERS,
 		meta: {
 			title: "Recent Transactions",

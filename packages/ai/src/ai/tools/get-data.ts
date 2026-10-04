@@ -9,13 +9,18 @@ import {
 	getQueryBuilder,
 	QueryBuilders,
 	queryPlanGateError,
-	type QueryType,
 	SANITIZED_QUERY_ERROR,
+	WEBSITE_QUERY_TYPES,
 } from "../../query";
 import { resolveDatePreset } from "../../lib/date-presets";
 import type { CompiledQuery, QueryRequest } from "../../query/types";
 import { agentDataInputSchema } from "../mcp/agent-query-schema";
-import { capRowArrays } from "../mcp/mcp-utils";
+import {
+	capRowArrays,
+	keepsNewestRows,
+	MCP_RESULT_ROW_LIMIT,
+	queryItemError,
+} from "../mcp/mcp-utils";
 import { normalizeClickHouseDateTime } from "../../query/date-utils";
 import {
 	getAppContext,
@@ -23,11 +28,9 @@ import {
 	toolDateRangeError,
 } from "./utils/context";
 
-const QUERY_TYPES = Object.keys(QueryBuilders) as [QueryType, ...QueryType[]];
-
 const queryItemSchema = agentDataInputSchema.shape.queries.element
 	.extend({
-		type: z.enum(QUERY_TYPES),
+		type: z.enum(WEBSITE_QUERY_TYPES),
 		websiteId: z
 			.string()
 			.nullish()
@@ -83,8 +86,7 @@ function buildResultSummary(
 	type: string,
 	from: string,
 	to: string,
-	filters: QueryItem["filters"],
-	groupBy: string[] | undefined
+	filters: QueryItem["filters"]
 ): string {
 	const meta = getQueryBuilder(type)?.meta;
 	const title = meta?.title ?? type;
@@ -92,12 +94,11 @@ function buildResultSummary(
 	const filterPart = filters?.length
 		? `filters: ${filters.map(describeFilter).join(" AND ")}`
 		: "no filters applied";
-	const groupPart = groupBy?.length ? `; groupBy: ${groupBy.join(", ")}` : "";
-	return `${title} · ${range} · ${filterPart}${groupPart}`;
+	return `${title} · ${range} · ${filterPart}`;
 }
 
-const MAX_MODEL_ROWS = 20;
 const MAX_DISPLAY_PARAM_VALUES = 10;
+const MS_PER_DAY = 86_400_000;
 
 function displayQuery({ sql, params }: CompiledQuery): CompiledQuery {
 	return {
@@ -161,8 +162,7 @@ function resolveDates(
 }
 
 export const getDataTool = tool({
-	description:
-		"Run analytics query builders for explicit data questions. Batch 1-10 queries per call. Use preset (last_7d/last_30d/...) or from+to dates; omitted dates default to last_30d in the context timezone. Read the returned definition for population and percentage semantics. Each query may target a specific website via websiteId; omit to use the workspace default. Filters select rows: never supply target or having. discover_query_types lists allowed and required filters. Results include at most 20 rows; rowCount is the number of query rows, not the whole population. Query limits may exclude more rows even when truncated is false. Never infer absence, totals, or completeness from a ranked list; query the exact subject or use an aggregate builder.",
+	description: `Run analytics query builders for explicit data questions. Batch 1-10 queries per call. Use preset (last_7d/last_30d/...) or from+to dates; omitted dates default to last_30d in the context timezone. Read the returned definition for population and percentage semantics. Each query may target a specific website via websiteId; omit to use the workspace default. Filters select rows: never supply target or having. discover_query_types lists allowed and required filters. Results include at most ${MCP_RESULT_ROW_LIMIT} rows; rowCount is the number of query rows, not the whole population. Query limits may exclude more rows even when truncated is false. Never infer absence, totals, or completeness from a ranked list; query the exact subject or use an aggregate builder.`,
 	inputSchema: z.object({
 		queries: z
 			.array(queryItemSchema)
@@ -203,8 +203,13 @@ export const getDataTool = tool({
 						timezone,
 						ctx.currentDateTime
 					);
+					const config = QueryBuilders[item.type];
+					const days =
+						(Date.parse(to.slice(0, 10)) - Date.parse(from.slice(0, 10))) /
+						MS_PER_DAY;
 					const blocked =
 						toolDateRangeError(from, to, ctx, timezone) ??
+						queryItemError(item.type, config, item, days) ??
 						(await queryPlanGateError([item.type], { websiteId }));
 					if (blocked) {
 						return {
@@ -215,6 +220,7 @@ export const getDataTool = tool({
 							error: blocked,
 						};
 					}
+					const keepNewest = keepsNewestRows(config, item.orderBy);
 					const req: QueryRequest = {
 						projectId: websiteId,
 						type: item.type,
@@ -222,9 +228,8 @@ export const getDataTool = tool({
 						to,
 						timeUnit: item.timeUnit,
 						filters: item.filters,
-						groupBy: item.groupBy,
 						orderBy: item.orderBy,
-						limit: item.limit,
+						limit: keepNewest ? undefined : item.limit,
 						timezone,
 					};
 
@@ -240,27 +245,27 @@ export const getDataTool = tool({
 								}
 							: undefined
 					);
-					const returnedRows = Math.min(data.length, MAX_MODEL_ROWS);
+					const rowLimit = Math.min(
+						item.limit ?? MCP_RESULT_ROW_LIMIT,
+						MCP_RESULT_ROW_LIMIT
+					);
+					const rows = keepNewest
+						? data.slice(-rowLimit)
+						: data.slice(0, rowLimit);
 					return {
 						type: item.type,
-						definition: getQueryBuilder(item.type)?.meta?.description,
+						definition: config.meta?.description,
 						websiteId,
 						filters: item.filters ?? [],
 						from,
 						to,
 						timezone,
-						summary: buildResultSummary(
-							item.type,
-							from,
-							to,
-							item.filters,
-							item.groupBy
-						),
-						data: data.slice(0, MAX_MODEL_ROWS),
+						summary: buildResultSummary(item.type, from, to, item.filters),
+						data: rows,
 						query: executed.query,
-						returnedRows,
+						returnedRows: rows.length,
 						rowCount: data.length,
-						truncated: returnedRows < data.length,
+						truncated: rows.length < data.length,
 					};
 				} catch (error) {
 					return {

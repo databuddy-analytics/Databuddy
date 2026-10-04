@@ -3,6 +3,16 @@ import type { Button, KnownBlock } from "@slack/web-api";
 const COMPONENT_START = '{"type":"';
 
 const DASHBOARD_BASE_URL = "https://app.databuddy.cc";
+const DASHBOARD_ORIGIN = new URL(DASHBOARD_BASE_URL).origin;
+const LINKABLE_HOSTS = new Set([
+	new URL(DASHBOARD_BASE_URL).hostname,
+	"databuddy.cc",
+	"www.databuddy.cc",
+]);
+const HTTP_URL = /https?:\/\/[^\s<>|`]+/gi;
+const URL_TRAILING_PUNCTUATION = /[.,;:!?)\]}'"*_~]+$/;
+const URL_SCHEME_AND_SUFFIX = /^https?:\/\/|[?#].*$/gi;
+const SLACK_SYNTAX_OPENER = /<(?=[!@#`]|https?:)/gi;
 const DATA_TABLE_MAX_COLUMNS = 20;
 const DATA_TABLE_MAX_ROWS = 100;
 const MAX_ACTION_BUTTONS = 5;
@@ -72,12 +82,56 @@ function toTableCell(value: unknown): TableCell {
 	return { type: "raw_text", text: text.length > 0 ? text : "-" };
 }
 
+function escapeMrkdwn(value: string): string {
+	return value
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;");
+}
+
+function neutralizeUrls(value: string): string {
+	return value.replace(HTTP_URL, (match) => {
+		const trailing = URL_TRAILING_PUNCTUATION.exec(match)?.[0] ?? "";
+		const href = match.slice(0, match.length - trailing.length);
+		const url = URL.parse(href);
+		if (
+			url &&
+			LINKABLE_HOSTS.has(url.hostname) &&
+			href.split("://").length === 2
+		) {
+			return `${url.href}${trailing}`;
+		}
+		const label = url
+			? hostAndPath(url)
+			: href.replace(URL_SCHEME_AND_SUFFIX, "");
+		return label ? `\`${label}\`${trailing}` : match;
+	});
+}
+
+export function safeMrkdwn(value: string): string {
+	return escapeMrkdwn(neutralizeUrls(value));
+}
+
+export function safeMarkdown(value: string): string {
+	return neutralizeUrls(value).replace(SLACK_SYNTAX_OPENER, "");
+}
+
+function hostAndPath(url: URL): string {
+	return url.pathname === "/" ? url.host : `${url.host}${url.pathname}`;
+}
+
 function section(text: string): Block {
-	return { type: "section", text: { type: "mrkdwn", text } };
+	return {
+		type: "section",
+		text: { type: "mrkdwn", text: safeMrkdwn(text) },
+	};
 }
 
 function context(text: string): Block {
-	return { type: "context", elements: [{ type: "mrkdwn", text }] };
+	return {
+		type: "context",
+		elements: [{ type: "mrkdwn", text: safeMrkdwn(text) }],
+	};
 }
 
 function dataTable(
@@ -111,14 +165,12 @@ function dataTable(
 	};
 }
 
-function absoluteUrl(href: string): string | null {
-	if (href.startsWith("http://") || href.startsWith("https://")) {
-		return href;
-	}
-	if (href.startsWith("/")) {
-		return `${DASHBOARD_BASE_URL}${href}`;
-	}
-	return null;
+function dashboardUrl(href: string): string | null {
+	const url = URL.parse(
+		href,
+		href.startsWith("/") ? DASHBOARD_BASE_URL : undefined
+	);
+	return url?.origin === DASHBOARD_ORIGIN ? url.href : null;
 }
 
 function title(spec: ComponentSpec, fallback: string): string {
@@ -299,7 +351,7 @@ function renderDashboardActions(spec: ComponentSpec): Block[] {
 	const elements = asArray(spec.actions)
 		.map((item): Button | null => {
 			const action = item as Record<string, unknown>;
-			const url = absoluteUrl(asString(action.href));
+			const url = dashboardUrl(asString(action.href));
 			const label = asString(action.label).trim();
 			if (!(url && label)) {
 				return null;

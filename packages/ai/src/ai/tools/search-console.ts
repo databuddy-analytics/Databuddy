@@ -5,6 +5,8 @@ import { getAppContext, resolveToolWebsite, toolDateRangeError } from "./utils";
 import { createCachedTokenFn } from "./utils/oauth-token";
 
 const GSC_API = "https://www.googleapis.com/webmasters/v3";
+export const SEARCH_CONSOLE_SCOPE =
+	"https://www.googleapis.com/auth/webmasters.readonly";
 const MAX_ROWS = 25;
 
 const dimensionEnum = z.enum(["query", "page", "country", "device", "date"]);
@@ -13,11 +15,9 @@ const searchAnalyticsInput = z.object({
 	websiteId: z
 		.string()
 		.optional()
-		.describe(
-			"Target website id. Omit to use the workspace default. Get ids from list_websites."
-		),
-	startDate: z.string().describe("Start date YYYY-MM-DD"),
-	endDate: z.string().describe("End date YYYY-MM-DD"),
+		.describe("Target website id. Omit to use the workspace default."),
+	startDate: z.iso.date().describe("Start date YYYY-MM-DD"),
+	endDate: z.iso.date().describe("End date YYYY-MM-DD"),
 	dimensions: dimensionEnum
 		.array()
 		.min(1)
@@ -36,14 +36,29 @@ export interface SearchConsoleRow {
 	[dimension: string]: string | number;
 }
 
-export async function querySearchAnalytics(
+type SearchAnalyticsInput = z.infer<typeof searchAnalyticsInput>;
+
+interface SearchAnalyticsApiRow {
+	clicks: number;
+	ctr: number;
+	impressions: number;
+	keys: string[];
+	position: number;
+}
+
+interface SearchAnalyticsApiResponse {
+	metadata?: { first_incomplete_date?: string };
+	rows: SearchAnalyticsApiRow[];
+}
+
+async function requestSearchAnalytics(
 	token: string,
 	siteUrl: string,
-	input: z.infer<typeof searchAnalyticsInput>
-): Promise<
-	| { rows: SearchConsoleRow[]; siteUrl: string; rowCount: number }
-	| { error: string }
-> {
+	query: Pick<SearchAnalyticsInput, "dimensions" | "endDate" | "startDate"> & {
+		dataState: "all" | "final";
+		rowLimit?: number;
+	}
+): Promise<SearchAnalyticsApiResponse | { error: string }> {
 	const res = await fetch(
 		`${GSC_API}/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
 		{
@@ -52,13 +67,7 @@ export async function querySearchAnalytics(
 				Authorization: `Bearer ${token}`,
 				"Content-Type": "application/json",
 			},
-			body: JSON.stringify({
-				startDate: input.startDate,
-				endDate: input.endDate,
-				dimensions: input.dimensions,
-				rowLimit: input.rowLimit,
-				dataState: "final",
-			}),
+			body: JSON.stringify(query),
 			signal: AbortSignal.timeout(15_000),
 		}
 	);
@@ -68,17 +77,56 @@ export async function querySearchAnalytics(
 		return { error: `Search Console API ${res.status}: ${body.slice(0, 200)}` };
 	}
 
-	const data = (await res.json()) as {
-		rows?: Array<{
-			keys: string[];
-			clicks: number;
-			impressions: number;
-			ctr: number;
-			position: number;
-		}>;
-	};
+	const data = (await res.json()) as Partial<SearchAnalyticsApiResponse>;
+	return { metadata: data.metadata, rows: data.rows ?? [] };
+}
 
-	const rows: SearchConsoleRow[] = (data.rows ?? []).map((row) => {
+export async function querySearchAnalytics(
+	token: string,
+	siteUrl: string,
+	input: SearchAnalyticsInput
+): Promise<
+	| {
+			finalThrough: string | null;
+			provisional: boolean | null;
+			rows: SearchConsoleRow[];
+			siteUrl: string;
+			truncated: boolean;
+	  }
+	| { error: string }
+> {
+	const requestedRows = requestSearchAnalytics(token, siteUrl, {
+		startDate: input.startDate,
+		endDate: input.endDate,
+		dimensions: input.dimensions,
+		rowLimit: input.rowLimit,
+		dataState: "all",
+	});
+	const [result, freshness] = await Promise.all([
+		requestedRows,
+		input.dimensions.includes("date")
+			? requestedRows
+			: requestSearchAnalytics(token, siteUrl, {
+					startDate: input.startDate,
+					endDate: input.endDate,
+					dimensions: ["date"],
+					dataState: "all",
+				}).catch(() => null),
+	]);
+	if ("error" in result) {
+		return result;
+	}
+
+	const firstIncompleteDate =
+		freshness && !("error" in freshness)
+			? freshness.metadata?.first_incomplete_date
+			: undefined;
+	const finalThrough = firstIncompleteDate
+		? new Date(Date.parse(firstIncompleteDate) - 86_400_000)
+				.toISOString()
+				.slice(0, 10)
+		: null;
+	const rows: SearchConsoleRow[] = result.rows.map((row) => {
 		const entry: Record<string, string | number> = {};
 		for (const [index, dimension] of input.dimensions.entries()) {
 			const key = row.keys[index];
@@ -93,7 +141,15 @@ export async function querySearchAnalytics(
 		return entry as SearchConsoleRow;
 	});
 
-	return { siteUrl, rowCount: rows.length, rows };
+	return {
+		siteUrl,
+		finalThrough,
+		provisional: firstIncompleteDate
+			? firstIncompleteDate <= input.endDate
+			: null,
+		truncated: rows.length === input.rowLimit,
+		rows,
+	};
 }
 
 export function createSearchConsoleTools(params: {
@@ -105,13 +161,13 @@ export function createSearchConsoleTools(params: {
 		"google",
 		params.organizationId,
 		params.userId,
-		"https://www.googleapis.com/auth/webmasters.readonly"
+		SEARCH_CONSOLE_SCOPE
 	);
 
 	return {
 		search_console: tool({
 			description:
-				"Query Google Search Console for a workspace website. Returns search queries, pages, countries, or devices with clicks, impressions, CTR, and average position. Use to find which keywords lost rankings, which pages dropped in impressions, or where traffic is coming from in Google search. Pass websiteId to target a specific site; omit to use the workspace default.",
+				"Query Google Search Console for a workspace website. Returns search queries, pages, countries, or devices with clicks, impressions, CTR, and average position. Use to find which keywords lost rankings, which pages dropped in impressions, or where traffic is coming from in Google search. Days after finalThrough are provisional and may still change; null finalThrough/provisional means the provider did not supply a freshness cutoff. Search Console dates use America/Los_Angeles.",
 			inputSchema: searchAnalyticsInput,
 			execute: async (input, options) => {
 				const ctx = getAppContext(options);

@@ -51,12 +51,15 @@ import {
 	type DetectionDiagnostics,
 	type DetectSignalsParams,
 	detectSignals,
+	hourlyChangeName,
+	isSharedStartEvidence,
 	loadChangeOnset,
 	loadRecovery,
 	loadSegmentFinding,
 	recoveryEvidence,
 	remeasureMetricSignal,
 	segmentEvidence,
+	sharedStartEvidence,
 } from "./detection";
 import { detectRetentionSignals } from "./measurement-plan";
 import {
@@ -73,6 +76,8 @@ import {
 	type RouteHealthDetectionDeps,
 } from "./route-health-detection";
 import {
+	annotationEvidence,
+	cohortEvidence,
 	type InvestigationAnnotation,
 	prepareInvestigation,
 	isInvestigationCandidate,
@@ -105,8 +110,10 @@ import {
 	type InsightAgentResult,
 	runInsightAgent,
 	savedVerificationCheck,
+	type SuppliedEvidence,
 } from "./agent";
 import {
+	type ErrorCustomerImpact,
 	errorCustomerImpactEvidence,
 	loadErrorCustomerImpact,
 } from "./error-customer-impact";
@@ -329,6 +336,7 @@ interface InvestigationRuntime {
 	canRunAgent?: () => Promise<boolean>;
 	history?: InsightAgentInput["history"];
 	mode: "production" | "shadow";
+	onsets?: ReadonlyMap<string, ChangeOnset | null>;
 	onUsage?: (
 		result: Required<Pick<InsightAgentResult, "modelId" | "usage">>
 	) => Promise<void> | void;
@@ -483,12 +491,34 @@ async function fetchSignalAnnotations(
 	}));
 }
 
+function typedEvidence(
+	candidate: Pick<PlannedInvestigationCandidate, "evidence" | "signal">
+): Exclude<SuppliedEvidence, string>[] {
+	const cohort = cohortEvidence(candidate.signal);
+	return candidate.evidence.map((value) => ({
+		kind:
+			value === cohort
+				? "cohort"
+				: isSharedStartEvidence(value)
+					? "shared_start"
+					: "definition",
+		value,
+	}));
+}
+
+interface RefreshedInvestigation {
+	customerImpact?: ErrorCustomerImpact | null;
+	evidence: SuppliedEvidence[];
+	investigationObjective?: string;
+	signal: InvestigationSignal;
+}
+
 export async function refreshInvestigationSignal(params: {
 	asOf: Date;
 	signal: InvestigationSignal;
 	timezone: string;
 	websiteId: string;
-}): Promise<{ evidence: string[]; signal: InvestigationSignal } | null> {
+}): Promise<RefreshedInvestigation | null> {
 	const today = dayjs(params.asOf).tz(params.timezone);
 	const detected = await remeasureStoredSignal(
 		{
@@ -507,15 +537,43 @@ export async function refreshInvestigationSignal(params: {
 	if (base.signal.signalKey !== params.signal.signalKey) {
 		throw new Error("Remeasurement changed the investigation subject");
 	}
-	const annotationRows = await fetchSignalAnnotations(
-		params.websiteId,
-		base.signal,
-		params.asOf,
-		params.timezone
-	);
-	return annotationRows.length === 0
-		? base
-		: prepareInvestigation(detected, INSIGHT_LOOKBACK_DAYS, annotationRows);
+	const [annotationRows, customerImpact] = await Promise.all([
+		fetchSignalAnnotations(
+			params.websiteId,
+			base.signal,
+			params.asOf,
+			params.timezone
+		),
+		loadErrorCustomerImpact({
+			abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
+			signal: base.signal,
+			timezone: params.timezone,
+			websiteId: params.websiteId,
+		}).catch((error) => {
+			captureInsightsError(error, "generation.customer_impact.failed", {
+				signal_key: base.signal.signalKey,
+				website_id: params.websiteId,
+			});
+			return null;
+		}),
+	]);
+	const evidence = typedEvidence(base);
+	if (customerImpact) {
+		evidence.push({
+			kind: "customer_impact",
+			value: errorCustomerImpactEvidence(customerImpact, base.signal),
+		});
+	}
+	const annotation = annotationEvidence(annotationRows);
+	if (annotation) {
+		evidence.push({ kind: "annotation", value: annotation });
+	}
+	return {
+		customerImpact,
+		evidence,
+		investigationObjective: base.investigationObjective,
+		signal: base.signal,
+	};
 }
 
 const REPOSITORY_CHANGE_LIMIT = 3;
@@ -585,6 +643,66 @@ function listedChanges<T>(
 	return `${shown}; and ${capped ? "at least " : ""}${hidden} more`;
 }
 
+const ENVIRONMENT_LIST = new Intl.ListFormat("en", { type: "conjunction" });
+
+function releaseLine(
+	release: GitHubDeploymentSummary[],
+	subject: string | undefined,
+	timezone: string
+): string {
+	const [newest] = release;
+	if (!newest) {
+		return "";
+	}
+	const replaced = [
+		...new Set(
+			release.flatMap((deployment) =>
+				deployment.result === "success" &&
+				deployment.previousSha &&
+				deployment.previousSha !== deployment.sha
+					? [deployment.previousSha]
+					: []
+			)
+		),
+	];
+	const outcomes = new Map<string, string[]>();
+	for (const deployment of [...release].reverse()) {
+		const result =
+			deployment.result && deployment.completedAt
+				? `${deployment.result} ${dayjs(deployment.completedAt).tz(timezone).format("HH:mm")}`
+				: "no completion recorded";
+		const results = outcomes.get(deployment.environment);
+		if (results) {
+			results.push(result);
+		} else {
+			outcomes.set(deployment.environment, [result]);
+		}
+	}
+	const environments = new Map<string, string[]>();
+	for (const [environment, results] of outcomes) {
+		const outcome = results.join(", then ");
+		const names = environments.get(outcome);
+		if (names) {
+			names.push(environment);
+		} else {
+			environments.set(outcome, [environment]);
+		}
+	}
+	const targets = [...environments]
+		.map(([outcome, names]) =>
+			names.length > 1
+				? `${ENVIRONMENT_LIST.format(names)} (all ${outcome})`
+				: `${names[0]} (${outcome})`
+		)
+		.join(", ");
+	const requestedAt = release.reduce(
+		(earliest, deployment) =>
+			deployment.requestedAt < earliest ? deployment.requestedAt : earliest,
+		newest.requestedAt
+	);
+	return `${newest.sha.slice(0, 7)}${subject ? ` "${subject.slice(0, 80)}"` : ""}${replaced.length === 1 ? ` replacing ${replaced[0]?.slice(0, 7)},` : ""} requested ${dayjs(requestedAt).tz(timezone).format("YYYY-MM-DD HH:mm")} to ${targets}`;
+}
+
 export function repositoryChangeEvidence(
 	onset: ChangeOnset,
 	changes: RepositoryChanges,
@@ -595,48 +713,31 @@ export function repositoryChangeEvidence(
 		dayjs(instant).tz(onset.timezone).format("YYYY-MM-DD HH:mm");
 	const window = changeOnsetWindow(onset);
 	const span = `between ${local(window.lookbackFrom)} and ${local(window.to)} (${onset.timezone})`;
-	const subjects = new Map(
-		(changes.commits ?? []).map((commit) => [commit.sha, commit.message])
-	);
-	const sentences: string[] = [];
 	if (changes.deployments?.length) {
+		const subjects = new Map(
+			(changes.commits ?? []).map((commit) => [commit.sha, commit.message])
+		);
 		const releases = new Map<string, GitHubDeploymentSummary[]>();
 		for (const deployment of changes.deployments) {
-			releases.set(deployment.sha, [
-				...(releases.get(deployment.sha) ?? []),
-				deployment,
-			]);
+			const release = releases.get(deployment.sha);
+			if (release) {
+				release.push(deployment);
+			} else {
+				releases.set(deployment.sha, [deployment]);
+			}
 		}
-		const clock = (instant: string) =>
-			dayjs(instant).tz(onset.timezone).format("HH:mm");
-		sentences.push(
-			`GitHub production deployments of ${repo} requested ${span}, newest first: ${listedChanges(
-				[...releases.values()],
-				changes.deployments.length >= REPOSITORY_DEPLOYMENT_SCAN,
-				(release) => {
-					const [newest] = release;
-					const subject = newest ? subjects.get(newest.sha) : undefined;
-					const targets = release
-						.map(
-							(deployment) =>
-								`${deployment.environment} (${
-									deployment.result && deployment.completedAt
-										? `${deployment.result} ${clock(deployment.completedAt)}`
-										: "no completion recorded"
-								})`
-						)
-						.join(", ");
-					return `${newest?.sha.slice(0, 7)}${subject ? ` "${subject.slice(0, 80)}"` : ""} requested ${newest ? local(newest.requestedAt) : ""} to ${targets}`;
-				}
-			)}.`
-		);
-	} else if (changes.deployments) {
+		return `GitHub production deployments of ${repo} requested ${span}, newest first: ${listedChanges(
+			[...releases.entries()],
+			changes.deployments.length >= REPOSITORY_DEPLOYMENT_SCAN,
+			([sha, release]) =>
+				releaseLine(release, subjects.get(sha), onset.timezone)
+		)}.`;
+	}
+	const sentences: string[] = [];
+	if (changes.deployments) {
 		sentences.push(
 			`GitHub records no production deployment of ${repo} requested ${span}; deployments made outside GitHub do not appear there.`
 		);
-	}
-	if (changes.deployments?.length) {
-		return sentences.join(" ");
 	}
 	if (changes.commits?.length) {
 		sentences.push(
@@ -709,16 +810,6 @@ function toPlannedCandidate(
 		investigationObjective: investigation.investigationObjective,
 		signal: investigation.signal,
 	};
-}
-
-function annotationEvidence(rows: InvestigationAnnotation[]): string | null {
-	if (rows.length === 0) {
-		return null;
-	}
-	const value = `Annotation: ${rows
-		.map((annotation) => `${annotation.date}: ${annotation.title}`)
-		.join("; ")}`;
-	return value.length <= 500 ? value : `${value.slice(0, 499).trimEnd()}…`;
 }
 
 export async function discoverWebsiteSignals(
@@ -1083,7 +1174,8 @@ async function investigatePlannedCandidate(
 		timezone: input.timezone,
 		websiteId: input.websiteId,
 	});
-	let evidence = [...candidate.evidence];
+	const evidence = typedEvidence(candidate);
+	const plannedOnset = runtime.onsets?.get(candidate.signal.signalKey);
 	const [
 		annotationRows,
 		customerImpact,
@@ -1109,12 +1201,14 @@ async function investigatePlannedCandidate(
 			}),
 			"generation.route_vital_continuation.failed"
 		),
-		runtime.sources.loadChangeOnset
-			? optional(
-					runtime.sources.loadChangeOnset(subjectParams()),
-					"generation.change_onset.failed"
-				)
-			: null,
+		plannedOnset === undefined
+			? runtime.sources.loadChangeOnset
+				? optional(
+						runtime.sources.loadChangeOnset(subjectParams()),
+						"generation.change_onset.failed"
+					)
+				: null
+			: plannedOnset,
 		runtime.sources.loadSegmentFinding
 			? optional(
 					runtime.sources.loadSegmentFinding(subjectParams()),
@@ -1123,13 +1217,25 @@ async function investigatePlannedCandidate(
 			: null,
 	]);
 	if (segmentFinding) {
-		evidence.push(segmentEvidence(segmentFinding));
+		evidence.push({ kind: "segment", value: segmentEvidence(segmentFinding) });
+		emitInsightsEvent("info", "generation.segment_finding.found", {
+			organization_id: input.organizationId,
+			website_id: input.websiteId,
+			signal_key: candidate.signal.signalKey,
+			segment_kind: segmentFinding.kind,
+			segment_dimension:
+				segmentFinding.kind === "concentration"
+					? segmentFinding.concentration.dimension
+					: segmentFinding.kind === "shift"
+						? segmentFinding.shift.dimension
+						: null,
+		});
 	}
 	if (changeOnset) {
-		evidence.push(changeOnsetEvidence(changeOnset));
+		evidence.push({ kind: "onset", value: changeOnsetEvidence(changeOnset) });
 		const repository = await repositoryChanges(changeOnset);
 		if (repository?.evidence) {
-			evidence.push(repository.evidence);
+			evidence.push({ kind: "deploy", value: repository.evidence });
 		}
 		emitInsightsEvent("info", "generation.change_onset.found", {
 			organization_id: input.organizationId,
@@ -1140,14 +1246,20 @@ async function investigatePlannedCandidate(
 		});
 	}
 	if (customerImpact) {
-		evidence.push(errorCustomerImpactEvidence(customerImpact));
+		evidence.push({
+			kind: "customer_impact",
+			value: errorCustomerImpactEvidence(customerImpact, candidate.signal),
+		});
 	}
 	if (routeVitalContinuation) {
-		evidence.push(routeVitalContinuationEvidence(routeVitalContinuation));
+		evidence.push({
+			kind: "route_continuation",
+			value: routeVitalContinuationEvidence(routeVitalContinuation),
+		});
 	}
 	const annotation = annotationEvidence(annotationRows);
 	if (annotation) {
-		evidence = [...evidence, annotation];
+		evidence.push({ kind: "annotation", value: annotation });
 	}
 	const appContext: AppContext = {
 		userId: input.userId,
@@ -1199,7 +1311,15 @@ async function investigatePlannedCandidate(
 			: null;
 	if (recoveryCheck) {
 		const { onset, recovery } = recoveryCheck;
-		evidence.push(recoveryEvidence(recovery));
+		evidence.push({ kind: "recovery", value: recoveryEvidence(recovery) });
+		emitInsightsEvent("info", "generation.recovery.measured", {
+			organization_id: input.organizationId,
+			website_id: input.websiteId,
+			signal_key: candidate.signal.signalKey,
+			recovery_state: recovery.state,
+			recovery_hour_known:
+				recovery.state === "recovered" && recovery.recoveredAt !== null,
+		});
 		if (recovery.state === "recovered" && recovery.recoveredAt) {
 			const repository = await repositoryChanges({
 				...onset,
@@ -1207,7 +1327,10 @@ async function investigatePlannedCandidate(
 				latest: recovery.recoveredAt,
 			});
 			if (repository?.evidence) {
-				evidence.push(`Before the recovery: ${repository.evidence}`);
+				evidence.push({
+					kind: "deploy",
+					value: `Before the recovery: ${repository.evidence}`,
+				});
 			}
 		}
 	}
@@ -1268,7 +1391,7 @@ async function investigatePlannedCandidate(
 	});
 	return {
 		asOf: asOf.toISOString(),
-		evidence,
+		evidence: evidence.map(({ value }) => value),
 		completion: investigationResult.completion,
 		recovered: recoveryCheck?.recovery.state === "recovered",
 		snapshot: investigationResult.snapshot,
@@ -1278,6 +1401,96 @@ async function investigatePlannedCandidate(
 		),
 		signal: candidate.signal,
 		status: "completed",
+	};
+}
+
+const SHARED_START_SCAN_LIMIT = 12;
+
+async function withSharedStartEvidence(
+	candidates: PlannedInvestigationCandidate[],
+	detectedSignals: DetectedSignal[],
+	input: InvestigateWebsiteInput,
+	loadOnset: InvestigationSources["loadChangeOnset"]
+): Promise<{
+	candidates: PlannedInvestigationCandidate[];
+	onsets: ReadonlyMap<string, ChangeOnset | null>;
+}> {
+	if (!loadOnset || candidates.length === 0) {
+		return { candidates, onsets: new Map() };
+	}
+	const onsetOf = (signal: InvestigationSignal) =>
+		loadOnset({
+			abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
+			signal,
+			timezone: input.timezone,
+			websiteId: input.websiteId,
+		}).catch(() => undefined);
+	const ownOnsets = await Promise.all(
+		candidates.map((candidate) => onsetOf(candidate.signal))
+	);
+	const onsets = new Map(
+		candidates.flatMap((candidate, index) => {
+			const onset = ownOnsets[index];
+			return onset === undefined
+				? []
+				: [[candidate.signal.signalKey, onset] as const];
+		})
+	);
+	if (
+		candidates.every(
+			(candidate, index) =>
+				!ownOnsets[index] && hourlyChangeName(candidate.signal)
+		)
+	) {
+		return { candidates, onsets };
+	}
+	const scanned = new Set(
+		candidates.map((candidate) => hourlyChangeName(candidate.signal))
+	);
+	const others: InvestigationSignal[] = [];
+	for (const detected of detectedSignals) {
+		if (others.length === SHARED_START_SCAN_LIMIT) {
+			break;
+		}
+		const { signal } = toPlannedCandidate(detected);
+		const name = hourlyChangeName(signal);
+		if (name && !scanned.has(name)) {
+			scanned.add(name);
+			others.push(signal);
+		}
+	}
+	const otherOnsets = await Promise.all(others.map(onsetOf));
+	const changes = [
+		...candidates.map((candidate, index) => ({
+			onset: ownOnsets[index] ?? null,
+			signal: candidate.signal,
+		})),
+		...others.map((signal, index) => ({
+			onset: otherOnsets[index] ?? null,
+			signal,
+		})),
+	];
+	return {
+		candidates: candidates.map((candidate, index) => {
+			const onset = ownOnsets[index] ?? null;
+			const shared = sharedStartEvidence(
+				{ onset, signal: candidate.signal },
+				changes,
+				input.timezone
+			);
+			if (!shared) {
+				return candidate;
+			}
+			emitInsightsEvent("info", "generation.shared_start.found", {
+				organization_id: input.organizationId,
+				website_id: input.websiteId,
+				signal_key: candidate.signal.signalKey,
+				window: onset ? "hour" : "period",
+				scanned_signals: changes.length,
+			});
+			return { ...candidate, evidence: [...candidate.evidence, shared] };
+		}),
+		onsets,
 	};
 }
 
@@ -1306,7 +1519,7 @@ export async function planInvestigationsWithBusinessContext(
 		| "recallBusinessContext"
 		| "selectCandidates"
 		| "rankBusinessContext"
-	>,
+	> & { loadHistory?: InvestigationSources["loadHistory"] },
 	allowRefresh: boolean,
 	scope: BusinessScope | null = {
 		organizationId: input.organizationId,
@@ -1319,6 +1532,36 @@ export async function planInvestigationsWithBusinessContext(
 		toPlannedCandidate
 	);
 	if (candidates.length === 0) {
+		return candidates;
+	}
+	const savedChecks = new Map<string, Promise<boolean>>();
+	const answeredBySavedCheck = (signal: InvestigationSignal) => {
+		const known = savedChecks.get(signal.signalKey);
+		if (known) {
+			return known;
+		}
+		const answered =
+			sources.loadHistory && ["goal", "funnel"].includes(signal.entity.type)
+				? sources
+						.loadHistory({
+							organizationId: input.organizationId,
+							signalKey: signal.signalKey,
+							through: normalizeAsOf(input.asOf, input.timezone).toDate(),
+							websiteId: input.websiteId,
+						})
+						.then((history) =>
+							Boolean(savedVerificationCheck({ history, signal }))
+						)
+				: Promise.resolve(false);
+		savedChecks.set(signal.signalKey, answered);
+		return answered;
+	};
+	const [lone] = candidates;
+	if (
+		signals.length === 1 &&
+		lone &&
+		(await answeredBySavedCheck(lone.signal))
+	) {
 		return candidates;
 	}
 	const asOf = allowRefresh
@@ -1447,6 +1690,9 @@ export async function planInvestigationsWithBusinessContext(
 	const recalledAt = allowRefresh ? new Date() : asOf;
 	return await Promise.all(
 		candidates.map(async (candidate) => {
+			if (await answeredBySavedCheck(candidate.signal)) {
+				return candidate;
+			}
 			const query = [
 				candidate.signal.signalKey,
 				candidate.signal.entity.type,
@@ -1538,13 +1784,18 @@ export async function investigateWebsitePortfolioWithSources(
 		onCoverage?.(discovered.coverage);
 		return [discovered.artifact];
 	}
-	const candidates = await planInvestigationsWithBusinessContext(
+	const { candidates, onsets } = await withSharedStartEvidence(
+		await planInvestigationsWithBusinessContext(
+			input,
+			discovered.value.eligibleSignals,
+			sources,
+			false,
+			undefined,
+			portfolioOptions(reason, discovered.value)
+		),
+		discovered.value.detectedSignals,
 		input,
-		discovered.value.eligibleSignals,
-		sources,
-		false,
-		undefined,
-		portfolioOptions(reason, discovered.value)
+		sources.loadChangeOnset
 	);
 	if (candidates.length === 0) {
 		onCoverage?.({
@@ -1569,7 +1820,7 @@ export async function investigateWebsitePortfolioWithSources(
 					input,
 					candidate,
 					relatedSignals,
-					runtime,
+					{ ...runtime, onsets },
 					siblingOpenWork
 				);
 				artifacts.push(artifact);
@@ -1730,6 +1981,7 @@ export async function generateWebsiteInsights(
 	);
 
 	let discoveredCoverage: InvestigationCoverage | null = null;
+	let plannedOnsets: InvestigationRuntime["onsets"];
 	if (!plan) {
 		const discovered = await discoverWebsiteSignals(
 			investigationInput,
@@ -1790,14 +2042,22 @@ export async function generateWebsiteInsights(
 				currentScope,
 				portfolioOptions(input.reason, discovered.value)
 			);
+			const { candidates, onsets } = await withSharedStartEvidence(
+				selectedCandidates,
+				discovered.value.detectedSignals,
+				investigationInput,
+				productionInvestigationSources.loadChangeOnset
+			);
+			const proposedAsOf = discovered.value.asOf.toISOString();
 			plan = await freezeInsightRunCandidatePlan(runIdentity, input.reason, {
-				asOf: discovered.value.asOf.toISOString(),
+				asOf: proposedAsOf,
 				businessScope,
-				candidates: selectedCandidates,
-				...(selectedCandidates.length === 0
+				candidates,
+				...(candidates.length === 0
 					? { emptyStatus: "no_signals" as const }
 					: {}),
 			});
+			plannedOnsets = plan.asOf === proposedAsOf ? onsets : undefined;
 			emitInsightsEvent("info", "generation.candidate_portfolio.frozen", {
 				organization_id: input.organizationId,
 				website_id: site.id,
@@ -1979,6 +2239,7 @@ export async function generateWebsiteInsights(
 						{
 							mode: "production",
 							history,
+							onsets: plannedOnsets,
 							sources: productionInvestigationSources,
 							onUsage: (usage) => {
 								agentUsage.value = usage;

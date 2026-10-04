@@ -21,6 +21,7 @@ import {
 	InsightAgentGenerationError,
 	runInsightAgent,
 	renderRevenueEvidence,
+	validateDirectionWords,
 	validateNumericGrounding,
 } from "./agent";
 
@@ -630,9 +631,32 @@ describe("intelligence agent", () => {
 			},
 			keys: ["pages"],
 		},
+		{
+			name: "get_data",
+			output: {
+				results: {
+					pages: { data: [{ visitors: 300 }], query: { sql: "SELECT 1" } },
+					broken: { error: "Read failed" },
+				},
+			},
+			view: {
+				type: "text" as const,
+				value: JSON.stringify({
+					results: { pages: { data: [{ visitors: 300 }] } },
+				}),
+			},
+			keys: ["pages"],
+		},
+		{
+			name: "inspect",
+			output: { visitors: 300, rows: [1, 2, 3] },
+			view: { type: "json" as const, value: { visitors: 300 } },
+			keys: [null],
+		},
 	])("provides exact usable citation references for $name: $keys", async ({
 		name,
 		output,
+		view,
 		keys,
 	}) => {
 		const model = new MockLanguageModelV3({
@@ -653,7 +677,11 @@ describe("intelligence agent", () => {
 			{
 				model,
 				tools: {
-					[name]: tool({ inputSchema: z.object({}), execute: () => output }),
+					[name]: tool({
+						inputSchema: z.object({}),
+						execute: () => output,
+						...(view ? { toModelOutput: () => view } : {}),
+					}),
 				},
 			}
 		);
@@ -664,12 +692,16 @@ describe("intelligence agent", () => {
 		if (read?.output.type !== "text") {
 			throw new Error("Missing model-visible read");
 		}
+		let visible: unknown = JSON.parse(
+			JSON.stringify(output, (_key, value) =>
+				typeof value === "bigint" ? value.toString() : value
+			)
+		);
+		if (view) {
+			visible = view.type === "text" ? JSON.parse(view.value) : view.value;
+		}
 		expect(JSON.parse(read.output.value)).toEqual({
-			result: JSON.parse(
-				JSON.stringify(output, (_key, value) =>
-					typeof value === "bigint" ? value.toString() : value
-				)
-			),
+			result: visible,
 			sources: keys.map((resultKey) => ({
 				source: "tool",
 				name,
@@ -1092,7 +1124,7 @@ describe("intelligence agent", () => {
 			{
 				appContext: appContext(),
 				evidence: [
-					"Business meaning: Account creation completes at /account-created.",
+					"Saved description: Account creation completes at /account-created.",
 				],
 				githubRepository: null,
 				history: [],
@@ -1339,7 +1371,7 @@ describe("intelligence agent", () => {
 			{
 				appContext: context,
 				evidence: [
-					"Business meaning: account creation finishes at /account-created, or at the account_created event for the journey.",
+					"Saved description: account creation finishes at /account-created, or at the account_created event for the journey.",
 					"Team-provided healthy baseline: 80 percent.",
 					"Configured recovery target: 400 completed visitors.",
 				],
@@ -1424,7 +1456,8 @@ describe("intelligence agent", () => {
 		"native-only",
 		"native-after-list",
 		"native-cohort",
-		"native-lost-conditions",
+		"native-copied-conditions",
+		"native-step-count",
 		"uninspected-check",
 		"unanchored",
 		"past-window",
@@ -1462,16 +1495,26 @@ describe("intelligence agent", () => {
 			next: {
 				...executableDefinitionOutcome.next,
 				...(scenario === "legacy" ? {} : { check }),
-				...(native && scenario !== "native-lost-conditions"
+				...(native && scenario !== "native-copied-conditions"
 					? {
 							execution: {
 								...executableDefinitionOutcome.next.execution,
 								changes: {
 									...executableDefinitionOutcome.next.execution.changes,
 									steps:
-										executableDefinitionOutcome.next.execution.changes.steps.map(
-											(step) => ({ ...step, conditions: { plan: "paid" } })
-										),
+										scenario === "native-step-count"
+											? [
+													...executableDefinitionOutcome.next.execution.changes
+														.steps,
+													{
+														name: "Activated",
+														target: "activated",
+														type: "EVENT" as const,
+													},
+												]
+											: executableDefinitionOutcome.next.execution.changes.steps.map(
+													(step) => ({ ...step, conditions: { plan: "paid" } })
+												),
 								},
 							},
 						}
@@ -1517,7 +1560,7 @@ describe("intelligence agent", () => {
 		const run = runInsightAgent(
 			{
 				appContext: appContext(),
-				evidence: [...evidence, "Business meaning: Tracks account creation."],
+				evidence: [...evidence, "Saved description: Tracks account creation."],
 				githubRepository: null,
 				history: [],
 				otherOpenWork: [],
@@ -1564,13 +1607,14 @@ describe("intelligence agent", () => {
 				"native-only",
 				"native-after-list",
 				"native-cohort",
+				"native-copied-conditions",
 			].includes(scenario)
 		) {
 			let expectedError = "Verification checks require";
 			if (scenario === "uninspected-check") {
 				expectedError = "Until the exact subject is verified";
-			} else if (scenario === "native-lost-conditions") {
-				expectedError = "preserve existing step conditions";
+			} else if (scenario === "native-step-count") {
+				expectedError = "copies by position";
 			} else if (scenario === "unanchored") {
 				expectedError = "99";
 			}
@@ -1581,7 +1625,11 @@ describe("intelligence agent", () => {
 		const expectedExecution = {
 			...proposal.next.execution,
 			changes: native
-				? { steps: proposal.next.execution.changes.steps }
+				? {
+						steps: executableDefinitionOutcome.next.execution.changes.steps.map(
+							(step) => ({ ...step, conditions: { plan: "paid" } })
+						),
+					}
 				: proposal.next.execution.changes,
 		};
 		expect(result.outcome.next).toEqual({
@@ -1622,7 +1670,7 @@ describe("intelligence agent", () => {
 				appContext: appContext(),
 				evidence: [
 					...evidence,
-					"Business meaning: Tracks account creation across all countries.",
+					"Saved description: Tracks account creation across all countries.",
 				],
 				signal: funnelSignal,
 				githubRepository: null,
@@ -1730,7 +1778,7 @@ describe("intelligence agent", () => {
 
 	it.each([
 		"different subject",
-		"missing conditions",
+		"changed step count",
 	])("rejects an unsafe proposal before publication: %s", async (variant) => {
 		const current =
 			variant === "different subject"
@@ -1742,19 +1790,44 @@ describe("intelligence agent", () => {
 							conditions: { plan: "paid" },
 						})),
 					};
+		const proposal =
+			variant === "different subject"
+				? executableDefinitionOutcome
+				: {
+						...executableDefinitionOutcome,
+						next: {
+							...executableDefinitionOutcome.next,
+							execution: {
+								operation: "edit" as const,
+								changes: {
+									steps: [
+										...executableDefinitionOutcome.next.execution.changes.steps,
+										{
+											name: "Activated",
+											target: "activated",
+											type: "EVENT" as const,
+										},
+									],
+								},
+							},
+						},
+					};
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
 				toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
-				outputResponse(executableDefinitionOutcome),
-				outputResponse(executableDefinitionOutcome),
-				outputResponse(executableDefinitionOutcome)
+				outputResponse(proposal),
+				outputResponse(proposal),
+				outputResponse(proposal)
 			),
 		});
 		await expect(
 			runInsightAgent(
 				{
 					appContext: appContext(),
-					evidence: [...evidence, "Business meaning: Tracks account creation."],
+					evidence: [
+						...evidence,
+						"Saved description: Tracks account creation.",
+					],
 					githubRepository: null,
 					history: [],
 					otherOpenWork: [],
@@ -1779,8 +1852,234 @@ describe("intelligence agent", () => {
 		).rejects.toThrow(
 			variant === "different subject"
 				? "exact current funnel"
-				: "preserve existing step conditions"
+				: "copies by position"
 		);
+	});
+
+	it("copies inspected step conditions and generates the action for an executable repair", async () => {
+		const conditioned = {
+			...inspectedFunnel,
+			steps: [
+				inspectedFunnel.steps[0],
+				{ ...inspectedFunnel.steps[1], conditions: { plan: "paid" } },
+			],
+		};
+		const { action: _action, ...next } = executableDefinitionOutcome.next;
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
+				outputResponse({ ...executableDefinitionOutcome, next })
+			),
+		});
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [...evidence, "Saved description: Tracks account creation."],
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: funnelSignal,
+			},
+			{
+				model,
+				tools: {
+					list_funnels: tool({
+						description: "Read complete definitions.",
+						inputSchema: z.object({}),
+						execute: () => ({ funnels: [conditioned] }),
+					}),
+					get_funnel_analytics: tool({
+						description: "Read journey context.",
+						inputSchema: z.object({}),
+						execute: () => ({ completions: 10 }),
+					}),
+				},
+			}
+		);
+		const schema = model.doGenerateCalls[0]?.tools?.find(
+			(item) => item.name === "finish_investigation"
+		)?.inputSchema;
+		expect(JSON.stringify(schema)).not.toContain('"conditions":');
+		expect(
+			JSON.parse(JSON.stringify(schema)).properties.next.anyOf[0].required
+		).not.toContain("action");
+		const [landing, created] =
+			executableDefinitionOutcome.next.execution.changes.steps;
+		const execution = {
+			operation: "edit" as const,
+			changes: {
+				...executableDefinitionOutcome.next.execution.changes,
+				steps: [landing, { ...created, conditions: { plan: "paid" } }],
+			},
+		};
+		expect(result.outcome.next).toMatchObject({
+			execution,
+			action: describeInsightDefinitionAction(funnelSignal.entity.label, {
+				...execution,
+				action: "",
+			}),
+		});
+	});
+
+	it("requires a written action for a manual repair", async () => {
+		const { action: _action, ...next } = executableDefinitionOutcome.next;
+		const model = outputModel({
+			...executableDefinitionOutcome,
+			next: { ...next, execution: null },
+		});
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal: funnelSignal,
+				},
+				{ model, tools: {} }
+			)
+		).rejects.toThrow("Describe the manual change in next.action");
+		expect(model.doGenerateCalls).toHaveLength(3);
+	});
+
+	it("names the only publishable move for a funnel step definition finding", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal: {
+						...funnelSignal,
+						signalKey: "funnel:checkout:step:2",
+						entity: {
+							type: "funnel_step",
+							id: "checkout:step:2",
+							label: "Checkout journey → Documentation",
+						},
+					},
+				},
+				{
+					model: outputModel({
+						...executableDefinitionOutcome,
+						next: {
+							type: "resolve" as const,
+							reason: "The step target needs a manual review.",
+						},
+					}),
+					tools: {},
+				}
+			)
+		).rejects.toThrow(
+			"Publish this measurement finding only with next.act and execution null"
+		);
+	});
+
+	it.each([
+		{
+			name: "saved description",
+			description: "Tracks account creation.",
+			supplied: [],
+			accepted: true,
+		},
+		{
+			name: "supplied definition line",
+			description: null,
+			supplied: [
+				{
+					kind: "definition" as const,
+					value: "Saved description: Tracks account creation.",
+				},
+			],
+			accepted: true,
+		},
+		{
+			name: "supplied segment line",
+			description: null,
+			supplied: [
+				{
+					kind: "segment" as const,
+					value: "Saved description: Tracks account creation.",
+				},
+			],
+			accepted: false,
+		},
+		{
+			name: "business background",
+			description: null,
+			supplied: [],
+			background: "Saved description: Tracks account creation.",
+			accepted: false,
+		},
+	])("takes a definition edit's purpose only from configured sources: $name", async ({
+		description,
+		supplied,
+		background,
+		accepted,
+	}) => {
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [...evidence, ...supplied],
+				...(background
+					? {
+							businessContext: {
+								capturedAt: "2026-07-12T00:00:00.000Z",
+								status: "ready" as const,
+								issues: [],
+								sources: [
+									{
+										id: "business-profile",
+										kind: "website" as const,
+										content: background,
+										url: "https://example.com/",
+										observedAt: "2026-07-11T00:00:00.000Z",
+									},
+								],
+							},
+						}
+					: {}),
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal: funnelSignal,
+			},
+			{
+				model: new MockLanguageModelV3({
+					doGenerate: mockValues(
+						toolCallsResponse(["list_funnels", "get_funnel_analytics"]),
+						outputResponse(executableDefinitionOutcome),
+						outputResponse(executableDefinitionOutcome),
+						outputResponse(executableDefinitionOutcome)
+					),
+				}),
+				tools: {
+					list_funnels: tool({
+						description: "Read complete definitions.",
+						inputSchema: z.object({}),
+						execute: () => ({ funnels: [{ ...inspectedFunnel, description }] }),
+					}),
+					get_funnel_analytics: tool({
+						description: "Read journey context.",
+						inputSchema: z.object({}),
+						execute: () => ({ completions: 10 }),
+					}),
+				},
+			}
+		);
+		if (accepted) {
+			expect((await run).outcome.next).toMatchObject({
+				type: "act",
+				execution: { operation: "edit" },
+			});
+		} else {
+			await expect(run).rejects.toThrow(
+				"or keep next.act with execution null for a manual repair"
+			);
+		}
 	});
 
 	it.each([
@@ -1878,7 +2177,7 @@ describe("intelligence agent", () => {
 		const result = await runInsightAgent(
 			{
 				appContext: appContext(),
-				evidence: [...evidence, "Business meaning: Tracks account creation."],
+				evidence: [...evidence, "Saved description: Tracks account creation."],
 				githubRepository: null,
 				history: [],
 				otherOpenWork: [],
@@ -1917,7 +2216,10 @@ describe("intelligence agent", () => {
 			runInsightAgent(
 				{
 					appContext: appContext(),
-					evidence: [...evidence, "Business meaning: Tracks account creation."],
+					evidence: [
+						...evidence,
+						"Saved description: Tracks account creation.",
+					],
 					githubRepository: null,
 					history: [],
 					otherOpenWork: [],
@@ -3171,6 +3473,143 @@ describe("intelligence agent", () => {
 	});
 
 	it.each([
+		["definition", true],
+		["annotation", true],
+		["onset", false],
+		["segment", false],
+		["deploy", false],
+		["shared_start", false],
+		["recovery", false],
+	] as const)("accepts a supplied %s line as collection proof: %s", async (kind, accepted) => {
+		const collection =
+			"Independent origin logs show requests continued while collection dropped; this period cannot support traffic comparisons.";
+		const model = outputModel({
+			...agentOutcome,
+			title: "Site activity coverage stopped during the comparison week",
+			summary: "Recorded visitors fell from 1000 to 300.",
+			rootCause: null,
+			findingKind: "measurement_coverage" as const,
+			publicationBasis: "decision_safety" as const,
+			evidence: [collection],
+			evidenceRefs: [{ source: "provided" as const, index: 0 }],
+			next: {
+				type: "resolve" as const,
+				reason: "Coverage is uncertain; the cause has not been established.",
+			},
+		});
+		const run = runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence: [{ kind, value: collection }, evidence[0]],
+				signal: {
+					...signal,
+					entity: { type: "website", id: "website", label: "Visitors" },
+				},
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+			},
+			{ model, tools: {} }
+		);
+		if (!accepted) {
+			await expect(run).rejects.toThrow(
+				"cited collection or implementation evidence"
+			);
+			return;
+		}
+		expect((await run).outcome.publish).toBe(true);
+		const message = model.doGenerateCalls[0]?.prompt
+			.find((item) => item.role === "user")
+			?.content.find((item) => item.type === "text");
+		if (message?.type !== "text") {
+			throw new Error("Missing evidence prompt");
+		}
+		expect(JSON.parse(message.text).evidence).toEqual([
+			{ value: collection, kind, reference: { source: "provided", index: 0 } },
+			{ value: evidence[0], reference: { source: "provided", index: 1 } },
+		]);
+	});
+
+	it("names measurement coverage as the only kind for a sustained collapse", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence: [],
+					signal: {
+						...signal,
+						entity: { type: "website", id: "website", label: "Visitors" },
+						metric: { ...signal.metric, current: 50, previous: 1000 },
+						changePercent: -95,
+					},
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+				},
+				{
+					model: outputModel({
+						...agentOutcome,
+						title: "Visitors nearly stopped",
+						summary:
+							"Either tracking broke or the site is down; check tracking.",
+						rootCause: null,
+						evidence: ["Visitors fell from 1000 to 50."],
+						evidenceRefs: [{ source: "signal" as const }],
+						next: { type: "resolve" as const, reason: "The cause is unknown." },
+					}),
+					tools: {},
+				}
+			)
+		).rejects.toThrow("publishes only as measurement_coverage");
+	});
+
+	it.each([
+		true,
+		false,
+	])("returns a contradicted direction to the model only when published: %s", async (publish) => {
+		const contradicted = {
+			...agentOutcome,
+			title: "Paid search visits rose after the pause",
+			publish,
+			publicationBasis: publish ? ("measured_impact" as const) : null,
+			next: {
+				type: "resolve" as const,
+				reason: "The paused campaign explains the change.",
+			},
+		};
+		const corrected = {
+			...contradicted,
+			title: "Paid search visits fell after the pause",
+		};
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				outputResponse(contradicted),
+				outputResponse(corrected)
+			),
+		});
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				signal,
+			},
+			{ model, tools: {} }
+		);
+		expect(result.outcome.title).toBe(
+			publish ? corrected.title : contradicted.title
+		);
+		expect(model.doGenerateCalls).toHaveLength(publish ? 2 : 1);
+		if (publish) {
+			expect(JSON.stringify(model.doGenerateCalls[1]?.prompt)).toContain(
+				"but the signal measured 1000 → 300"
+			);
+		}
+	});
+
+	it.each([
 		{
 			resultKey: "bad",
 			output: {
@@ -3709,6 +4148,114 @@ describe("structured revenue evidence", () => {
 		fields: ["total_revenue", "total_transactions", "refund_amount"],
 	};
 	const input = { appContext: appContext(), signal };
+
+	it.each([
+		{
+			signalKey: "revenue:USD",
+			entityId: "website",
+			reads: [[{ field: "currency", op: "eq", value: "USD" }]],
+			fields: ["total_revenue"],
+		},
+		{
+			signalKey: "refund_amount:USD",
+			entityId: "website",
+			reads: [[{ field: "currency", op: "eq", value: "USD" }]],
+			fields: ["refund_amount", "refund_count"],
+		},
+		{
+			signalKey: "attribution_rate:USD",
+			entityId: "website",
+			reads: [[{ field: "currency", op: "eq", value: "USD" }]],
+			fields: ["attributed_revenue", "total_revenue"],
+		},
+		{
+			signalKey: "product_revenue:USD:stripe:product_name:Team",
+			entityId: "Team",
+			reads: [
+				[
+					{ field: "currency", op: "eq", value: "USD" },
+					{ field: "provider", op: "eq", value: "stripe" },
+					{ field: "product_name", op: "eq", value: "Team" },
+					{ field: "product_id", op: "eq", value: "" },
+				],
+				[{ field: "currency", op: "eq", value: "USD" }],
+			],
+			fields: ["total_revenue"],
+		},
+		{
+			signalKey: "revenue:USD",
+			entityId: "website",
+			baselineDates: [
+				"2026-06-28",
+				"2026-06-29",
+				"2026-06-30",
+				"2026-07-01",
+				"2026-07-02",
+				"2026-07-04",
+			],
+			reads: [],
+			fields: [],
+		},
+		{ signalKey: "visitors", entityId: "website", reads: [], fields: [] },
+	])("supplies the exact native revenue reads: $signalKey $baselineDates", async ({
+		signalKey,
+		entityId,
+		baselineDates,
+		reads,
+		fields,
+	}) => {
+		const model = outputModel({
+			...agentOutcome,
+			title: "Payment change stays private",
+			summary: "Native confirmation has not been read.",
+			rootCause: null,
+			publish: false,
+			publicationBasis: null,
+			evidence: ["The detection snapshot alone cannot support publication."],
+			evidenceRefs: [{ source: "signal" as const }],
+			next: { type: "resolve" as const, reason: "Nothing changes today." },
+		});
+		await runInsightAgent(
+			{
+				...input,
+				signal: {
+					...signal,
+					signalKey,
+					entity: { type: "website", id: entityId, label: "Payments" },
+					...(baselineDates ? { baselineDates } : {}),
+				},
+				githubRepository: null,
+				history: [],
+				otherOpenWork: [],
+				evidence: [],
+			},
+			{ model, tools: {} }
+		);
+		const message = model.doGenerateCalls[0]?.prompt
+			.find((item) => item.role === "user")
+			?.content.find((item) => item.type === "text");
+		if (message?.type !== "text") {
+			throw new Error("Missing investigation prompt");
+		}
+		expect(JSON.parse(message.text).reads).toEqual(
+			reads.length
+				? reads.map((filters) => ({
+						name: "get_data",
+						input: {
+							queries: [signal.period.previous, signal.period.current].map(
+								({ from, to }) => ({
+									type: "revenue_overview",
+									from,
+									to,
+									filters,
+								})
+							),
+						},
+						claim: { currency: "USD", fields },
+					}))
+				: undefined
+		);
+	});
 
 	it.each([
 		[
@@ -4610,6 +5157,61 @@ describe("validateNumericGrounding", () => {
 	});
 });
 
+describe("validateDirectionWords", () => {
+	const falling = {
+		entity: funnelSignal.entity,
+		metric: {
+			label: "Checkout journey conversion",
+			current: 3.42,
+			previous: 6.73,
+			format: "percent" as const,
+		},
+	};
+	const rising = {
+		...falling,
+		metric: { ...falling.metric, current: 6.73, previous: 3.42 },
+	};
+	const brief = (sentence: string) => ({
+		title: "Checkout completion changed",
+		summary: `The saved journey is unchanged. ${sentence}`,
+	});
+
+	it.each([
+		[
+			"Checkout journey conversion rose from 6.73% to 3.42%.",
+			falling,
+			"6.73 → 3.42",
+		],
+		["Checkout journey conversion fell sharply.", rising, "3.42 → 6.73"],
+		["A sharp rise in checkout journey conversion.", falling, "6.73 → 3.42"],
+		[
+			"Refunds fell while Checkout journey conversion rose.",
+			falling,
+			"6.73 → 3.42",
+		],
+	])("rejects %s against the measured direction", (sentence, measured, values) => {
+		expect(() => validateDirectionWords(brief(sentence), measured)).toThrow(
+			"summary says Checkout journey conversion"
+		);
+		expect(() => validateDirectionWords(brief(sentence), measured)).toThrow(
+			`the signal measured ${values}`
+		);
+	});
+
+	it.each([
+		"Checkout journey conversion fell from 6.73% to 3.42%.",
+		"Refunds rose while Checkout journey conversion fell.",
+		"Checkout journey entrants rose while completions held steady.",
+		"Signups rose, and the Checkout journey held steady.",
+		"Checkout journey conversion rose on Safari while other browsers declined.",
+		"Checkout journey conversion rose early in the week, then fell.",
+	])("accepts %s for a falling signal", (sentence) => {
+		expect(() =>
+			validateDirectionWords(brief(sentence), falling)
+		).not.toThrow();
+	});
+});
+
 describe("identified-profile cohort publication", () => {
 	const comparison =
 		"Eligible identified profiles returning within seven days fell from 140/200 (70%) to 60/200 (30%).";
@@ -5295,7 +5897,7 @@ describe("completed answer measurement boundary", () => {
 		const result = await runInsightAgent(
 			{
 				appContext: appContext(),
-				evidence: [...evidence, "Business meaning: Tracks account creation."],
+				evidence: [...evidence, "Saved description: Tracks account creation."],
 				signal: funnelSignal,
 				githubRepository: null,
 				history: [],

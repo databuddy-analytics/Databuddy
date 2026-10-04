@@ -200,6 +200,7 @@ export function createFlagTools() {
 			...flagConfigFields,
 			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ confirmed, ...input }, options) => {
 			const context = getAppContext(options);
 			try {
@@ -256,6 +257,7 @@ export function createFlagTools() {
 			...flagConfigFields,
 			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ confirmed, id, ...updates }, options) => {
 			const context = getAppContext(options);
 			const cleanUpdates = omitUndefined(updates);
@@ -301,6 +303,7 @@ export function createFlagTools() {
 			...userTargetingFields,
 			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ flagId, websiteId, confirmed, ...input }, options) => {
 			const context = getAppContext(options);
 			try {

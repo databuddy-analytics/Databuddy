@@ -1,7 +1,11 @@
 import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
 import type { InvestigationOutcome } from "@databuddy/shared/insights";
-import { InsightAgentGenerationError } from "./agent";
+import {
+	InsightAgentGenerationError,
+	type SuppliedEvidence,
+	type SuppliedEvidenceKind,
+} from "./agent";
 import {
 	type ChangeOnset,
 	changeOnsetEvidence,
@@ -26,6 +30,7 @@ import {
 	repositoryChangeEvidence,
 } from "./generation";
 import { organizationProfileContext } from "./business-context";
+import { loadErrorCustomerImpact } from "./error-customer-impact";
 import { parseInvestigationOutcome } from "@databuddy/shared/insights";
 import { prepareInvestigation } from "./investigation";
 
@@ -77,6 +82,19 @@ const emptyUsage = {
 	reasoningTokens: 0,
 	totalTokens: 0,
 };
+
+function evidenceValues(evidence: SuppliedEvidence[] = []): string[] {
+	return evidence.map((item) => (typeof item === "string" ? item : item.value));
+}
+
+function linesOfKind(
+	evidence: SuppliedEvidence[] | undefined,
+	kind: SuppliedEvidenceKind
+): string[] {
+	return (evidence ?? []).flatMap((item) =>
+		typeof item !== "string" && item.kind === kind ? [item.value] : []
+	);
+}
 
 const fixtureInput: Parameters<
 	typeof investigateWebsitePortfolioWithSources
@@ -201,6 +219,102 @@ describe("fixture investigation sources", () => {
 			"Paid report preparation is the current priority."
 		);
 	});
+	it("plans a goal answered by its saved check without business context work", async () => {
+		const goalDrop: DetectedSignal = {
+			...trafficDrop,
+			baseline: 20,
+			current: 8,
+			deltaPercent: -60,
+			entityLabel: "Checkout",
+			label: 'Goal "Checkout" completion rate',
+			metric: "goal:checkout",
+			subjectKey: "goal:checkout",
+		};
+		const prior = prepareInvestigation(goalDrop, 7);
+		const repaired: InvestigationOutcome = {
+			evidence: ["The checkout goal targets a page that is never recorded."],
+			impact: null,
+			next: {
+				action: "Point the checkout goal at /order-complete.",
+				check: {
+					endDate: "2026-07-18",
+					metric: "total_users_completed",
+					minimumEntrants: 100,
+					startDate: "2026-07-12",
+					threshold: {
+						anchor: "prior_baseline",
+						comparison: "at_or_above",
+						evidenceRef: { index: 0, source: "provided" },
+						value: 10,
+					},
+				},
+				target: "Checkout goal",
+				type: "act",
+				verification: "At least 10 visitors complete checkout in a week.",
+			},
+			publish: true,
+			rootCause: "The checkout goal targets a removed page.",
+			summary: "The checkout goal misses completed orders.",
+			title: "Checkout goal misses completed orders",
+		};
+		const businessWork: string[] = [];
+		const context = {
+			capturedAt: "2026-07-12T00:00:00.000Z",
+			status: "ready" as const,
+			issues: [],
+			sources: [
+				{
+					id: "context-example",
+					kind: "team_reply" as const,
+					content: "Checkout is the priority.",
+					observedAt: "2026-07-11T12:00:00.000Z",
+				},
+			],
+		};
+		let received:
+			| Parameters<InvestigationSources["investigateSignal"]>[0]
+			| null = null;
+		const artifact = await investigateFixture(
+			fixtureSources({
+				detectDefinitionSignals: async () => [goalDrop],
+				detectMetricSignals: async () => [],
+				fetchAnnotations: async () => [],
+				investigateSignal: async (input) => {
+					received = input;
+					return { outcome: repaired, toolCallCount: 0 };
+				},
+				loadBusinessProfile: async () => {
+					businessWork.push("profile");
+					return context;
+				},
+				loadDueInvestigation: async () => null,
+				loadHistory: async () => [
+					{
+						asOf: "2026-07-05T00:00:00.000Z",
+						evidence: prior.evidence,
+						kind: "investigation",
+						outcome: repaired,
+						signal: prior.signal,
+					},
+				],
+				loadObservations: async () => new Map(),
+				rankBusinessContext: async () => {
+					businessWork.push("ranking");
+					return context;
+				},
+				recallBusinessContext: async () => {
+					businessWork.push("recall");
+					return context;
+				},
+			})
+		);
+
+		expect(received?.signal.signalKey).toBe("goal:checkout");
+		expect(received?.businessContext).toBeUndefined();
+		expect(businessWork).toEqual([]);
+		expect(artifact.outcome?.contextSnapshot).toBeUndefined();
+	});
+
 	it("passes a completed sibling ask to later candidates as open work", async () => {
 		const errorSignal: DetectedSignal = {
 			...trafficDrop,
@@ -483,12 +597,12 @@ describe("fixture investigation sources", () => {
 			affectedVisitorIdentifiers: 35,
 			identifiedProfilesWithPriorAttributedCompletedPayment: 0,
 		});
-		expect(
-			received?.evidence.some((item) =>
-				item.includes("affected payment status remains unknown")
-			)
-		).toBe(true);
-		expect(artifact.evidence).toEqual(received?.evidence ?? []);
+		expect(linesOfKind(received?.evidence, "customer_impact")).toEqual([
+			expect.stringContaining(
+				"whether any affected visitor had paid is unknown"
+			),
+		]);
+		expect(artifact.evidence).toEqual(evidenceValues(received?.evidence));
 	});
 
 	it("adds a break's onset, its segments and the production deploys before it", async () => {
@@ -511,9 +625,43 @@ describe("fixture investigation sources", () => {
 		const github = async (path: string) => {
 			if (path === "/repos/example/web-app/environments?per_page=100") {
 				return {
-					environments: [{ name: "Production" }, { name: "Preview" }],
-					total_count: 2,
+					environments: [
+						{ name: "Production" },
+						{ name: "docs-production" },
+						{ name: "Preview" },
+					],
+					total_count: 3,
 				};
+			}
+			if (
+				path ===
+				"/repos/example/web-app/deployments?environment=docs-production&per_page=100&page=1"
+			) {
+				return [
+					{
+						created_at: "2026-07-10T19:50:00Z",
+						creator: null,
+						description: null,
+						environment: "docs-production",
+						id: 3,
+						ref: "main",
+						sha: "a1b2c3d4e5f6",
+					},
+				];
+			}
+			if (
+				path === "/repos/example/web-app/deployments/3/statuses?per_page=10"
+			) {
+				return [
+					{
+						created_at: "2026-07-10T19:58:00Z",
+						description: null,
+						environment_url: null,
+						log_url: null,
+						state: "success",
+						updated_at: "2026-07-10T19:58:00Z",
+					},
+				];
 			}
 			if (
 				path ===
@@ -566,6 +714,11 @@ describe("fixture investigation sources", () => {
 					},
 				];
 			}
+			if (
+				path === "/repos/example/web-app/deployments/1/statuses?per_page=10"
+			) {
+				return [{ created_at: "2026-07-09T08:02:00Z", state: "success" }];
+			}
 			throw new Error(`Unexpected GitHub request ${path}`);
 		};
 		let received:
@@ -603,16 +756,48 @@ describe("fixture investigation sources", () => {
 			githubRepository: { owner: "example", repo: "web-app" },
 		});
 
-		expect(received?.evidence).toContain(changeOnsetEvidence(linkOnset));
-		expect(received?.evidence).toContain(segmentEvidence(spreadDrop));
-		const deploys = received?.evidence.find((item) =>
-			item.startsWith("GitHub production deployments")
-		);
+		expect(linesOfKind(received?.evidence, "onset")).toEqual([
+			changeOnsetEvidence(linkOnset),
+		]);
+		expect(linesOfKind(received?.evidence, "segment")).toEqual([
+			segmentEvidence(spreadDrop),
+		]);
+		const [deploys] = linesOfKind(received?.evidence, "deploy");
+		expect(deploys).toStartWith("GitHub production deployments");
 		expect(deploys).toContain(
-			'a1b2c3d "feat(links): queue link creation" requested 2026-07-10 19:52 to Production (success 19:58)'
+			'a1b2c3d "feat(links): queue link creation" replacing 0a1b2c3, requested 2026-07-10 19:50 to docs-production and Production (all success 19:58).'
 		);
-		expect(deploys).not.toContain("0a1b2c3");
-		expect(artifact.evidence).toEqual(received?.evidence ?? []);
+		expect(deploys?.split("; ")).toHaveLength(1);
+		expect(artifact.evidence).toEqual(evidenceValues(received?.evidence));
+	});
+
+	it("does not say a failed deployment replaced the running version", () => {
+		const evidence = repositoryChangeEvidence(
+			linkOnset,
+			{
+				deployments: [
+					{
+						author: undefined,
+						completedAt: "2026-07-10T19:58:00Z",
+						currentState: "failure",
+						currentStateAt: "2026-07-10T19:58:00Z",
+						description: null,
+						environment: "Production",
+						environmentUrl: null,
+						logUrl: null,
+						previousSha: "0a1b2c3d4e5f",
+						ref: "main",
+						requestedAt: "2026-07-10T19:52:00Z",
+						result: "failure",
+						sha: "a1b2c3d4e5f6",
+						statusDescription: null,
+					},
+				],
+			},
+			{ owner: "example", repo: "web-app" }
+		);
+		expect(evidence).toContain("Production (failure 19:58)");
+		expect(evidence).not.toContain("replacing");
 	});
 
 	it("states a deploy absence only when the scan covered the window", async () => {
@@ -670,6 +855,214 @@ describe("fixture investigation sources", () => {
 			[deployment("2026-07-09T08:00:00Z", 1)]
 		);
 		expect(scannedWithoutEnvironments).toContain(absence);
+	});
+
+	it("tells each change what else started in its hours or its period", async () => {
+		const eventStop: DetectedSignal = {
+			...trafficDrop,
+			baseline: 6400,
+			current: 0,
+			deltaPercent: -100,
+			entityId: "link_created",
+			entityLabel: "link_created",
+			label: "link_created events",
+			metric: "custom_event_count",
+			subjectKey: "custom_event:link_created",
+		};
+		const bounceRise: DetectedSignal = {
+			...trafficDrop,
+			baseline: 30,
+			current: 45,
+			deltaPercent: 50,
+			direction: "up",
+			label: "Bounce rate",
+			metric: "bounce_rate",
+		};
+		const evidenceFor = async (candidate: DetectedSignal) => {
+			let evidence: SuppliedEvidence[] = [];
+			await investigateFixture(
+				fixtureSources({
+					detectDefinitionSignals: async () => [],
+					detectMetricSignals: async () => [
+						candidate,
+						{ ...trafficDrop, severity: "info" },
+					],
+					fetchAnnotations: async () => [],
+					investigateSignal: async (input) => {
+						evidence = input.evidence;
+						return {
+							outcome: {
+								evidence: ["The change was measured."],
+								impact: "The change was measured.",
+								next: { reason: "No case is required.", type: "resolve" },
+								rootCause: null,
+								summary: "The change was measured.",
+								title: "Change measured",
+							},
+							toolCallCount: 0,
+						};
+					},
+					loadChangeOnset: async ({ signal }) =>
+						signal.signalKey === "bounce_rate" ? null : linkOnset,
+					loadDueInvestigation: async () => null,
+					loadHistory: async () => [],
+					loadObservations: async () => new Map(),
+				})
+			);
+			return evidence;
+		};
+
+		expect(await evidenceFor(eventStop)).toContainEqual({
+			kind: "shared_start",
+			value:
+				"Another change on this website started within an hour of this one. Dropping between 20:00 and 21:00 on 2026-07-10: pageviews.",
+		});
+		expect(await evidenceFor(bounceRise)).toContainEqual({
+			kind: "shared_start",
+			value:
+				"One change on this website started between 2026-07-05 and 2026-07-11. Dropping between 20:00 and 21:00 on 2026-07-10: pageviews.",
+		});
+	});
+
+	it("reads a candidate's change onset once and retries only a failed read", async () => {
+		const eventStop: DetectedSignal = {
+			...trafficDrop,
+			baseline: 6400,
+			current: 0,
+			deltaPercent: -100,
+			entityId: "link_created",
+			entityLabel: "link_created",
+			label: "link_created events",
+			metric: "custom_event_count",
+			subjectKey: "custom_event:link_created",
+		};
+		const run = async (failFirstRead: boolean) => {
+			const reads: string[] = [];
+			let received:
+				| Parameters<InvestigationSources["investigateSignal"]>[0]
+				| null = null;
+			await investigateFixture(
+				fixtureSources({
+					detectDefinitionSignals: async () => [],
+					detectMetricSignals: async () => [eventStop],
+					fetchAnnotations: async () => [],
+					investigateSignal: async (input) => {
+						received = input;
+						return {
+							outcome: {
+								evidence: ["Link creation stopped."],
+								impact: null,
+								next: { reason: "No case is required.", type: "resolve" },
+								rootCause: null,
+								summary: "Link creation stopped.",
+								title: "Link creation stopped",
+							},
+							toolCallCount: 0,
+						};
+					},
+					loadChangeOnset: async ({ signal }) => {
+						reads.push(signal.signalKey);
+						if (failFirstRead && reads.length === 1) {
+							throw new Error("Hourly counts timed out");
+						}
+						return linkOnset;
+					},
+					loadDueInvestigation: async () => null,
+					loadHistory: async () => [],
+					loadObservations: async () => new Map(),
+				})
+			);
+			return { onset: linesOfKind(received?.evidence, "onset"), reads };
+		};
+
+		expect(await run(false)).toEqual({
+			onset: [changeOnsetEvidence(linkOnset)],
+			reads: ["custom_event:link_created"],
+		});
+		expect(await run(true)).toEqual({
+			onset: [changeOnsetEvidence(linkOnset)],
+			reads: ["custom_event:link_created", "custom_event:link_created"],
+		});
+	});
+
+	it("passes each supplied line with the kind of its source", async () => {
+		const behaviorError: DetectedSignal = {
+			...trafficDrop,
+			baseline: 120,
+			cohortMeasurement: {
+				type: "matched_error_continuation",
+				controlContinuationPercent: 60,
+				exposedContinuationPercent: 20,
+				matchedSessions: 40,
+			},
+			current: 1234,
+			definitionEvidence:
+				"Checkout failed occurred 1234 times across 300 visitor identifiers, compared with 120 occurrences across 40 visitor identifiers previously.",
+			deltaPercent: 0,
+			direction: "up",
+			entityId: "checkout-boom",
+			entityLabel: "Checkout failed",
+			label: "Checkout failed",
+			method: "behavior",
+			metric: "error_count",
+			severity: "warning",
+			subjectKey: "error:checkout-boom",
+		};
+		let received:
+			| Parameters<InvestigationSources["investigateSignal"]>[0]
+			| null = null;
+		await investigateFixture(
+			fixtureSources({
+				detectDefinitionSignals: async () => [],
+				detectMetricSignals: async () => [behaviorError],
+				fetchAnnotations: async () => [
+					{ date: "2026-07-09", title: "Checkout release" },
+				],
+				investigateSignal: async (input) => {
+					received = input;
+					return {
+						outcome: {
+							evidence: ["Checkout failures stopped visitors."],
+							impact: null,
+							next: { reason: "No case is required.", type: "resolve" },
+							rootCause: null,
+							summary: "Checkout failures stopped visitors.",
+							title: "Checkout failures stopped visitors",
+						},
+						toolCallCount: 0,
+					};
+				},
+				loadDueInvestigation: async () => null,
+				loadErrorCustomerImpact: (params) =>
+					loadErrorCustomerImpact(params, async () => [
+						{
+							affected_sessions: 34,
+							affected_visitor_identifiers: 35,
+							ambiguous_profile_sessions: 0,
+							error_occurrences: 36,
+							identified_profiles: 5,
+							identified_profiles_with_prior_attributed_completed_payment: 2,
+							identity_coverage_percent: 14.3,
+							linked_visitor_identifiers: 5,
+							payment_match_is_lower_bound: 1,
+							qualifying_profile_payment_history_observed: 1,
+							unlinked_visitor_identifiers: 30,
+						},
+					]),
+				loadHistory: async () => [],
+				loadObservations: async () => new Map(),
+			})
+		);
+
+		expect(received?.signal.changePercent).toBeNull();
+		expect(
+			received?.evidence.map((item) =>
+				typeof item === "string" ? item : item.kind
+			)
+		).toEqual(["definition", "cohort", "customer_impact", "annotation"]);
+		const [impact] = linesOfKind(received?.evidence, "customer_impact");
+		expect(impact).not.toContain("error-exposed session");
+		expect(impact).toContain("At least 2 identified profiles");
 	});
 
 	it("adds supplied route-vital continuation evidence before a slow route reaches the agent", async () => {
@@ -734,7 +1127,10 @@ describe("fixture investigation sources", () => {
 
 		expect(continuationCalls).toBe(1);
 		expect(received?.hasQualifiedRouteVitalContinuation).toBe(true);
-		expect(artifact.evidence).toEqual(received?.evidence ?? []);
+		expect(linesOfKind(received?.evidence, "route_continuation")).toHaveLength(
+			1
+		);
+		expect(artifact.evidence).toEqual(evidenceValues(received?.evidence));
 	});
 
 	it("stops sibling candidates after an agent infrastructure failure", async () => {
@@ -1296,13 +1692,15 @@ describe("fixture investigation sources", () => {
 		});
 
 		expect(artifact.recovered).toBe(true);
-		expect(received?.evidence).toContain(recoveryEvidence(recovery));
+		expect(linesOfKind(received?.evidence, "recovery")).toEqual([
+			recoveryEvidence(recovery),
+		]);
 		expect(recoveryWindow).toEqual({
 			earliest: "2026-07-16 14:00:00",
 			latest: "2026-07-16 14:00:00",
 		});
 		expect(
-			received?.evidence.some((item) =>
+			linesOfKind(received?.evidence, "deploy").some((item) =>
 				item.startsWith(
 					"Before the recovery: GitHub records no production deployment"
 				)

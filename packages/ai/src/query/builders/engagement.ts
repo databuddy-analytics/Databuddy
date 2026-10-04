@@ -248,7 +248,6 @@ export const EngagementBuilders = {
 				},
 			],
 			default_visualization: "metric",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -296,7 +295,6 @@ export const EngagementBuilders = {
 				},
 			],
 			default_visualization: "bar",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -360,7 +358,6 @@ export const EngagementBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -421,7 +418,6 @@ export const EngagementBuilders = {
 				},
 			],
 			default_visualization: "metric",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [

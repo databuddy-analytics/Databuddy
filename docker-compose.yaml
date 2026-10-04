@@ -21,6 +21,8 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:25.5.1-alpine
     container_name: databuddy-clickhouse
+    # Keep local analytics tests within a laptop-friendly CPU budget.
+    cpus: 1.0
     environment:
       CLICKHOUSE_DB: databuddy_analytics
       CLICKHOUSE_USER: default

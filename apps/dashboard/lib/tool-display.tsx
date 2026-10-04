@@ -1,4 +1,13 @@
+import { isRecord } from "@/lib/ai-components/message-parts";
+
 type Input = Record<string, unknown>;
+
+export interface ToolApprovalField {
+	code: boolean;
+	key: string;
+	label: string;
+	value: string;
+}
 
 const QUERY_LABELS: Record<string, string> = {
 	traffic: "traffic",
@@ -28,6 +37,24 @@ const QUERY_LABELS: Record<string, string> = {
 function confirmLabel(input: Input, pending: string, active: string): string {
 	return input.confirmed === true ? active : pending;
 }
+
+const INVESTIGATION_LABELS: Record<string, string> = {
+	brief: "Reading insights",
+	list: "Listing investigations",
+	get: "Reading investigation",
+	reply: "Replying to investigation",
+};
+
+const HIDDEN_APPROVAL_FIELDS = new Set([
+	"chartContext",
+	"chartType",
+	"confirmed",
+	"limit",
+	"offset",
+	"replyId",
+]);
+const FIELD_WORD_BOUNDARY = /([a-z0-9])([A-Z])/g;
+const FIELD_ACRONYM = /\b(id|og|url)\b/g;
 
 function crudLabel(
 	entity: string
@@ -75,8 +102,31 @@ const TOOL_LABELS: Record<string, (input: Input) => string> = {
 	get_funnel_analytics: () => "Analyzing funnel",
 	get_funnel_analytics_by_referrer: () => "Analyzing funnel by source",
 	create_funnel: crudLabel("funnel")("create"),
-	update_funnel: crudLabel("funnel")("update"),
-	delete_funnel: crudLabel("funnel")("delete"),
+
+	create_flag: crudLabel("flag")("create"),
+	update_flag: crudLabel("flag")("update"),
+	add_users_to_flag: (input) =>
+		confirmLabel(input, "Preparing flag targeting", "Updating flag targeting"),
+
+	investigations: (input) =>
+		INVESTIGATION_LABELS[String(input.action)] ?? "Reading investigations",
+	configure_investigations: (input) => {
+		if (input.action === "run") {
+			return confirmLabel(
+				input,
+				"Preparing investigation run",
+				"Starting investigation run"
+			);
+		}
+		if (input.action === "configure") {
+			return confirmLabel(
+				input,
+				"Preparing investigation settings",
+				"Updating investigation settings"
+			);
+		}
+		return "Checking investigation settings";
+	},
 
 	list_goals: () => "Fetching goals",
 	get_goal_analytics: () => "Analyzing goal",
@@ -93,15 +143,61 @@ const TOOL_LABELS: Record<string, (input: Input) => string> = {
 	get_profile: () => "Getting visitor profile",
 	get_profile_sessions: () => "Loading visitor sessions",
 
-	competitor_analysis: () => "Analyzing competitors",
-
+	search_memory: () => "Recalling memories",
 	save_memory: () => "Saving memory",
-	recall_memories: () => "Recalling memories",
-	list_memories: () => "Loading memories",
-	delete_memory: () => "Deleting memory",
+	forget_memory: () => "Forgetting memory",
 };
 
 export function formatToolLabel(toolName: string, input: Input): string {
 	const labelFn = TOOL_LABELS[toolName];
 	return labelFn ? labelFn(input) : "Processing";
+}
+
+function formatFieldLabel(key: string): string {
+	const words = key
+		.replace(FIELD_WORD_BOUNDARY, "$1 $2")
+		.toLowerCase()
+		.replace(FIELD_ACRONYM, (word) => word.toUpperCase());
+	return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
+}
+
+function formatRecord(record: Record<string, unknown>): string {
+	return Object.entries(record)
+		.map(
+			([key, value]) =>
+				`${key}: ${typeof value === "object" && value !== null ? JSON.stringify(value) : String(value)}`
+		)
+		.join(", ");
+}
+
+function isStructured(value: unknown): boolean {
+	return Array.isArray(value) ? value.some(isRecord) : isRecord(value);
+}
+
+function formatFieldValue(value: unknown): string {
+	if (value === null || value === undefined) {
+		return "None";
+	}
+	if (typeof value === "boolean") {
+		return value ? "Yes" : "No";
+	}
+	if (!Array.isArray(value)) {
+		return isRecord(value) ? formatRecord(value) : String(value);
+	}
+	return isStructured(value)
+		? value
+				.map((item) => (isRecord(item) ? formatRecord(item) : String(item)))
+				.join("\n")
+		: value.join(", ");
+}
+
+export function formatToolApprovalFields(input: Input): ToolApprovalField[] {
+	return Object.entries(input)
+		.filter(([key]) => !HIDDEN_APPROVAL_FIELDS.has(key))
+		.map(([key, value]) => ({
+			code: isStructured(value),
+			key,
+			label: formatFieldLabel(key),
+			value: formatFieldValue(value),
+		}));
 }

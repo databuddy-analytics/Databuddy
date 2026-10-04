@@ -17,6 +17,8 @@ import {
 const PUBLIC_CONTEXT_TTL = 7 * 24 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT = 4000;
 const MAX_CONTEXT_CHARACTERS = 24_000;
+const HOMEPAGE_ONLY =
+	"Only the homepage excerpt is available; read a page if a missing fact could change the decision.";
 
 export type { BusinessScope } from "@databuddy/services/business-memory";
 export { businessContainerTag } from "@databuddy/services/business-memory";
@@ -31,6 +33,10 @@ export {
 	type BusinessContext,
 	type BusinessSource,
 } from "@databuddy/shared/insights";
+
+export type BusinessContextWithTelemetry = BusinessContext & {
+	telemetryIssues?: string[];
+};
 
 const metadataSchema = businessSourceSchema
 	.omit({ id: true, content: true, references: true, profileVersion: true })
@@ -191,10 +197,10 @@ function prepareBusinessContext(contexts: BusinessContext[]) {
 }
 
 function packBusinessContext(
-	contexts: BusinessContext[],
+	contexts: BusinessContextWithTelemetry[],
 	prioritized: BusinessSource[],
 	characterLimit: number
-): BusinessContext {
+): BusinessContextWithTelemetry {
 	const selected: BusinessSource[] = [];
 	let characters = 0;
 	for (const source of prioritized) {
@@ -211,6 +217,9 @@ function packBusinessContext(
 	if (selected.length < prioritized.length) {
 		issues.push("Context is bounded; additional source records were omitted.");
 	}
+	const telemetryIssues = [
+		...new Set(contexts.flatMap((item) => item.telemetryIssues ?? [])),
+	];
 	const available = contexts.some(
 		(item) => item.status === "ready" || item.status === "partial"
 	);
@@ -230,12 +239,13 @@ function packBusinessContext(
 					: "disabled",
 		sources: selected,
 		issues: issues.slice(0, 20),
+		...(telemetryIssues.length ? { telemetryIssues } : {}),
 	};
 }
 
 export function mergeBusinessContext(
-	...contexts: BusinessContext[]
-): BusinessContext {
+	...contexts: BusinessContextWithTelemetry[]
+): BusinessContextWithTelemetry {
 	const { prioritized, characterLimit } = prepareBusinessContext(contexts);
 	return packBusinessContext(contexts, prioritized, characterLimit);
 }
@@ -314,14 +324,13 @@ interface ReadOptions {
 
 async function readBusinessMemory(
 	options: ReadOptions & { query?: string }
-): Promise<BusinessContext> {
+): Promise<BusinessContextWithTelemetry> {
 	const client = options.client ?? getMemoryClient();
 	if (!client) {
-		return context(
-			options.asOf,
-			"disabled",
-			"Business memory is not configured."
-		);
+		return {
+			...context(options.asOf, "disabled"),
+			telemetryIssues: ["Business memory is not configured."],
+		};
 	}
 	const scope = canonicalBusinessScope(options.scope);
 	const request = {
@@ -359,7 +368,7 @@ async function readBusinessMemory(
 						request
 					)
 				).memories;
-		const result = context(options.asOf, "ready");
+		const result: BusinessContextWithTelemetry = context(options.asOf, "ready");
 		for (const document of documents) {
 			const source = sourceFromDocument(document, scope, options.asOf);
 			if (source && (options.query || source.kind === "website")) {
@@ -367,9 +376,9 @@ async function readBusinessMemory(
 			}
 		}
 		if (result.sources.length < documents.length) {
-			result.issues.push(
-				"Some memory records were outside this site's scope, stale, future-dated, or lacked source content."
-			);
+			result.telemetryIssues = [
+				"Some memory records were outside this site's scope, stale, future-dated, or lacked source content.",
+			];
 		}
 		return mergeBusinessContext(result);
 	} catch (error) {
@@ -384,7 +393,7 @@ async function readBusinessMemory(
 
 export function recallBusinessContext(
 	options: ReadOptions & { query: string }
-): Promise<BusinessContext> {
+): Promise<BusinessContextWithTelemetry> {
 	return readBusinessMemory(options);
 }
 
@@ -478,12 +487,10 @@ export function recordBusinessReplies(options: {
 
 export async function loadBusinessProfile(
 	options: ReadOptions & { allowRefresh: boolean }
-): Promise<BusinessContext> {
+): Promise<BusinessContextWithTelemetry> {
 	const stored = await readBusinessMemory(options);
 	if (stored.sources.some((source) => source.kind === "website")) {
-		stored.issues.push(
-			"Website context is limited to the listed page excerpts."
-		);
+		stored.issues.push(HOMEPAGE_ONLY);
 	}
 	if (
 		!options.allowRefresh ||
@@ -532,15 +539,16 @@ export async function loadBusinessProfile(
 		options.abortSignal,
 		options.client
 	);
-	const fresh = context(new Date(), "ready");
-	fresh.sources.push(source);
-	fresh.issues.push(
-		"Website coverage includes the homepage only; linked pages have not been reviewed."
+	const fresh: BusinessContextWithTelemetry = context(
+		new Date(),
+		"ready",
+		HOMEPAGE_ONLY
 	);
+	fresh.sources.push(source);
 	if (saved.status !== "saved") {
-		fresh.issues.push(
-			"Website context is available for this run but was not saved to business memory."
-		);
+		fresh.telemetryIssues = [
+			"Website context is available for this run but was not saved to business memory.",
+		];
 	}
 	return mergeBusinessContext(stored, fresh);
 }

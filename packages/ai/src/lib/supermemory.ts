@@ -4,6 +4,25 @@ import { stripHtmlTags } from "./sanitize";
 
 const apiKey = process.env.SUPERMEMORY_API_KEY;
 const MAX_MEMORY_LENGTH = 2000;
+const MEMORY_REQUEST_CLAUSE = /[^.!?;:,\n]+\??/g;
+const MEMORY_REQUEST_FILLER =
+	/^(?:(?:please|pls|plz|kindly|also|and|but|so|ok|okay|hey|hi|hello|btw|oh|now|just|thanks|thank you|databunny)\b\s*)+/;
+const MEMORY_REQUEST_LEAD_IN =
+	/^(?:(?:can|could|would|will) you|you (?:can|should|must|need to)|i (?:want|need) you to|i(?:'d| would) like you to|make sure (?:to|you)|be sure to)\s+(?:please\s+)?/;
+const QUESTION_START =
+	/^(?:what|how|why|when|where|who|whom|whose|which|is|are|am|was|were|will|would|does|did|can|could|should|has|have|had|do(?! not\b))\b/;
+const REMEMBER_REQUESTS = [
+	/^(?:remember|memori[sz]e)\b(?![\s-]*(?:me|when|what|how|why|where|who|which|whether|if)\b)/,
+	/^(?:don't|dont|do not|never) forget\b/,
+	/^(?:note (?:that|this|down)|make a note|take note)\b/,
+	/^save (?:this|that|it)(?: for (?:later|next time|the future))?$/,
+	/^(?:save|store|add|put|keep|commit|write)\b.*\b(?:to|in|into) (?:your |the )?memory\b/,
+	/^(?:keep|bear) (?:(?:this|that|it) )?in mind\b/,
+	/^my name(?: is|'s)\b/,
+	/^(?:i|we)(?:'d| would)? prefer\b/,
+	/^call me\b/,
+	/\bfrom now on\b/,
+];
 
 export function isMemoryEnabled(): boolean {
 	return Boolean(apiKey);
@@ -16,7 +35,25 @@ export function sanitizeMemoryContent(
 	return stripHtmlTags(value, maxLength);
 }
 
-export type MemoryContainerKind = "apikey" | "user" | "website";
+export function asksToRemember(message: string): boolean {
+	const clauses =
+		message.toLowerCase().replaceAll("’", "'").match(MEMORY_REQUEST_CLAUSE) ??
+		[];
+	return clauses.some((part) => {
+		const question = part.endsWith("?");
+		const clause = part
+			.replace("?", "")
+			.trim()
+			.replace(MEMORY_REQUEST_FILLER, "");
+		const request = clause.replace(MEMORY_REQUEST_LEAD_IN, "");
+		if ((question && request === clause) || QUESTION_START.test(request)) {
+			return false;
+		}
+		return REMEMBER_REQUESTS.some((pattern) => pattern.test(request));
+	});
+}
+
+export type MemoryContainerKind = "apikey" | "user";
 
 export function memoryContainerTag(
 	kind: MemoryContainerKind,
@@ -38,38 +75,6 @@ function identityContainerTag(
 	return null;
 }
 
-function buildContainerTags(
-	userId: string | null,
-	apiKeyId: string | null,
-	websiteId?: string | null
-): string[] {
-	const tags: string[] = [];
-	const identityTag = identityContainerTag(userId, apiKeyId);
-	if (identityTag) {
-		tags.push(identityTag);
-	}
-	if (websiteId) {
-		tags.push(memoryContainerTag("website", websiteId));
-	}
-	if (tags.length === 0) {
-		tags.push("anonymous");
-	}
-	return [...new Set(tags)];
-}
-
-export function primaryContainerTag(
-	userId: string | null,
-	apiKeyId: string | null
-): string {
-	if (userId) {
-		return memoryContainerTag("user", userId);
-	}
-	if (apiKeyId) {
-		return memoryContainerTag("apikey", apiKeyId);
-	}
-	return "anonymous";
-}
-
 function uniqueNonEmpty(values: string[]): string[] {
 	return [...new Set(values.filter(Boolean))];
 }
@@ -81,59 +86,45 @@ export interface MemoryContext {
 }
 
 export interface MemorySearchResult {
-	containerTag: string;
 	memory: string;
 	similarity: number;
 }
+
+export type ForgetMemoryResult =
+	| { status: "failed" }
+	| { memory: string; status: "forgotten" }
+	| { candidates: string[]; status: "not_found" };
 
 export async function getMemoryContext(
 	query: string,
 	userId: string | null,
 	apiKeyId: string | null,
-	options?: { websiteId?: string; threshold?: number }
+	options?: { threshold?: number }
 ): Promise<MemoryContext> {
 	const client = getMemoryClient();
-	if (!client) {
+	const containerTag = identityContainerTag(userId, apiKeyId);
+	if (!(client && containerTag)) {
 		return { staticProfile: [], dynamicProfile: [], relevantMemories: [] };
 	}
 
-	const containerTags = buildContainerTags(
-		userId,
-		apiKeyId,
-		options?.websiteId
-	);
-	const threshold = options?.threshold ?? 0.25;
-
 	try {
-		const profiles = await Promise.all(
-			containerTags.map((containerTag) =>
-				client
-					.profile({
-						containerTag,
-						q: query,
-						threshold,
-					})
-					.catch(() => null)
-			)
-		);
+		const profile = await client.profile({
+			containerTag,
+			q: query,
+			threshold: options?.threshold ?? 0.25,
+		});
 
-		const searchResults = profiles.flatMap((profile) =>
-			(
-				(profile?.searchResults?.results ?? []) as Array<{
-					memory?: string;
-					chunk?: string;
-				}>
-			).map((r) => r.memory ?? r.chunk ?? "")
-		);
+		const searchResults = (profile.searchResults?.results ?? []) as Array<{
+			memory?: string;
+			chunk?: string;
+		}>;
 
 		return {
-			staticProfile: uniqueNonEmpty(
-				profiles.flatMap((profile) => profile?.profile?.static ?? [])
+			staticProfile: uniqueNonEmpty(profile.profile.static),
+			dynamicProfile: uniqueNonEmpty(profile.profile.dynamic),
+			relevantMemories: uniqueNonEmpty(
+				searchResults.map((r) => r.memory ?? r.chunk ?? "")
 			),
-			dynamicProfile: uniqueNonEmpty(
-				profiles.flatMap((profile) => profile?.profile?.dynamic ?? [])
-			),
-			relevantMemories: uniqueNonEmpty(searchResults),
 		};
 	} catch {
 		return { staticProfile: [], dynamicProfile: [], relevantMemories: [] };
@@ -152,15 +143,11 @@ export function storeConversation(
 	}
 ): void {
 	const client = getMemoryClient();
-	if (!client) {
+	const containerTag = identityContainerTag(userId, apiKeyId);
+	if (!(client && containerTag)) {
 		return;
 	}
 
-	const containerTags = buildContainerTags(
-		userId,
-		apiKeyId,
-		options?.websiteId
-	);
 	const content = conversation.map((m) => `${m.role}: ${m.content}`).join("\n");
 
 	const domain = options?.domain ?? "unknown";
@@ -169,7 +156,7 @@ export function storeConversation(
 	client
 		.add({
 			content,
-			containerTags,
+			containerTag,
 			metadata: {
 				...(options?.websiteId && { websiteId: options.websiteId }),
 				...(options?.conversationId && {
@@ -192,20 +179,15 @@ export function saveCuratedMemory(
 	}
 ): void {
 	const client = getMemoryClient();
-	if (!client) {
+	const containerTag = identityContainerTag(userId, apiKeyId);
+	if (!(client && containerTag)) {
 		return;
 	}
-
-	const containerTags = buildContainerTags(
-		userId,
-		apiKeyId,
-		options?.websiteId
-	);
 
 	client
 		.add({
 			content: sanitizeMemoryContent(content),
-			containerTags,
+			containerTag,
 			metadata: {
 				category: options?.category ?? "insight",
 				type: "curated",
@@ -228,22 +210,9 @@ export async function searchMemories(
 	}
 ): Promise<MemorySearchResult[]> {
 	const client = getMemoryClient();
-	if (!client) {
+	const containerTag = identityContainerTag(userId, apiKeyId);
+	if (!(client && containerTag)) {
 		return [];
-	}
-
-	const containerTags = buildContainerTags(
-		userId,
-		apiKeyId,
-		options?.websiteId
-	);
-	const primaryTags = new Set<string>();
-	if (userId) {
-		primaryTags.add(memoryContainerTag("user", userId));
-	} else if (apiKeyId) {
-		primaryTags.add(memoryContainerTag("apikey", apiKeyId));
-	} else if (!options?.websiteId) {
-		primaryTags.add("anonymous");
 	}
 
 	const filters = options?.websiteId
@@ -264,67 +233,62 @@ export async function searchMemories(
 		: undefined;
 
 	try {
-		const limit = options?.limit ?? 5;
-		const results = await Promise.all(
-			containerTags.map((containerTag) =>
-				client.search
-					.memories({
-						q: query,
-						containerTag,
-						searchMode: "hybrid",
-						limit,
-						threshold: options?.threshold ?? 0.4,
-						...(primaryTags.has(containerTag) && filters ? { filters } : {}),
-					})
-					.then((result) => ({ containerTag, result }))
-					.catch(() => null)
-			)
-		);
+		const { results } = await client.search.memories({
+			q: query,
+			containerTag,
+			searchMode: "hybrid",
+			limit: options?.limit ?? 5,
+			threshold: options?.threshold ?? 0.4,
+			...(filters && { filters }),
+		});
 
-		const deduped = new Map<string, MemorySearchResult>();
-		for (const search of results) {
-			if (!search) {
-				continue;
-			}
-			for (const r of search.result?.results ?? []) {
-				const memory = r.memory ?? r.chunk ?? "";
-				if (!memory) {
-					continue;
-				}
-				const similarity = r.similarity;
-				const existing = deduped.get(memory);
-				if (!(existing && existing.similarity >= similarity)) {
-					deduped.set(memory, {
-						containerTag: search.containerTag,
-						memory,
-						similarity,
-					});
-				}
-			}
-		}
-
-		return [...deduped.values()]
-			.sort((a, b) => b.similarity - a.similarity)
-			.slice(0, limit);
+		return results
+			.flatMap((r) => {
+				const memory = r.memory ?? r.chunk;
+				return memory ? [{ memory, similarity: r.similarity }] : [];
+			})
+			.sort((a, b) => b.similarity - a.similarity);
 	} catch {
 		return [];
 	}
 }
 
 export async function forgetMemory(
-	containerTag: string,
-	memoryContent: string
-): Promise<{ success: boolean }> {
+	memory: string,
+	userId: string | null,
+	apiKeyId: string | null
+): Promise<ForgetMemoryResult> {
 	const client = getMemoryClient();
-	if (!client) {
-		return { success: false };
+	const containerTag = identityContainerTag(userId, apiKeyId);
+	if (!(client && containerTag)) {
+		return { candidates: [], status: "not_found" };
 	}
 
 	try {
-		await client.memories.forget({ containerTag, content: memoryContent });
-		return { success: true };
+		const { results } = await client.search.memories({
+			q: memory,
+			containerTag,
+			searchMode: "memories",
+			limit: 5,
+			threshold: 0.3,
+		});
+		const candidates = results.flatMap((r) =>
+			r.memory ? [{ id: r.id, memory: sanitizeMemoryContent(r.memory) }] : []
+		);
+		const target = sanitizeMemoryContent(memory).trim();
+		const match = candidates.find(
+			(candidate) => candidate.memory.trim() === target
+		);
+		if (!match) {
+			return {
+				candidates: candidates.map((candidate) => candidate.memory),
+				status: "not_found",
+			};
+		}
+		await client.memories.forget({ containerTag, id: match.id });
+		return { memory: match.memory, status: "forgotten" };
 	} catch {
-		return { success: false };
+		return { status: "failed" };
 	}
 }
 

@@ -24,6 +24,19 @@ export interface InvestigationAnnotation {
 	title: string;
 }
 
+const LABEL_BREAKS = /[\s\p{Cc}\p{Cf}]+/gu;
+
+export function normalizedLabel(value: string): string {
+	return (
+		value.replace(LABEL_BREAKS, " ").trim() ||
+		Array.from(
+			value,
+			(character) =>
+				`U+${(character.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}`
+		).join(" ")
+	);
+}
+
 export function signalAnnotationWindow(
 	signal: InvestigationSignal,
 	timezone: string
@@ -248,18 +261,22 @@ function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 	const exactId = idParts.join(":");
 	const rawId = exactId.trim();
 	const id = boundedKey(rawId);
+	const label = normalizedLabel(signal.entityLabel ?? signal.label).slice(
+		0,
+		120
+	);
 	if (prefix === "retention" && signal.metric === "identified_retention") {
 		return {
 			type: "cohort",
 			id,
-			label: (signal.entityLabel ?? signal.label).slice(0, 120),
+			label,
 		};
 	}
 	if (prefix === "funnel" && idParts.at(1) === "step") {
 		return {
 			type: "funnel_step",
 			id,
-			label: (signal.entityLabel ?? signal.label).slice(0, 120),
+			label,
 		};
 	}
 	if (prefix === "funnel" || prefix === "goal") {
@@ -269,20 +286,20 @@ function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 			// their entity must stay the configured definition so goal actions and
 			// funnel links continue to resolve the real ID.
 			id: boundedKey(idParts[0]?.trim() || rawId),
-			label: (signal.entityLabel ?? signal.label).slice(0, 120),
+			label,
 		};
 	}
 	if (prefix === "product_revenue" && signal.entityId) {
 		return {
 			type: "website",
 			id: signal.entityId,
-			label: (signal.entityLabel ?? signal.label).slice(0, 120),
+			label,
 		};
 	}
 	if (prefix === "custom_event" || prefix === "custom_event_reach") {
 		return {
 			id: signal.entityId ?? rawId,
-			label: (signal.entityLabel ?? signal.label).slice(0, 120),
+			label,
 			type: "event",
 		};
 	}
@@ -290,31 +307,58 @@ function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 		return {
 			type: "channel",
 			id: boundedKey(signal.entityId ?? rawId),
-			label: (signal.entityLabel ?? signal.label).slice(0, 120),
+			label,
 		};
 	}
 	if (prefix === "route") {
 		return {
 			type: "page",
 			id: signal.entityId ?? rawId,
-			label: (signal.entityLabel ?? signal.label).slice(0, 120),
+			label,
 		};
 	}
 	if (signal.metric === "error_count") {
 		return {
 			type: "error",
 			id: (signal.entityId ?? exactId) || signal.metric,
-			label: (signal.entityLabel ?? signal.label).slice(0, 120),
+			label,
 		};
 	}
 	if (signal.metric === "lcp" || signal.metric === "inp") {
-		return { type: "vital", id: signal.metric, label: signal.label };
+		return {
+			type: "vital",
+			id: signal.metric,
+			label: normalizedLabel(signal.label),
+		};
 	}
-	return { type: "website", id: "website", label: signal.label.slice(0, 120) };
+	return {
+		type: "website",
+		id: "website",
+		label: normalizedLabel(signal.label).slice(0, 120),
+	};
 }
 
 function evidenceSummary(value: string): string {
 	return value.length <= 500 ? value : `${value.slice(0, 499).trimEnd()}…`;
+}
+
+export function cohortEvidence(
+	signal: Pick<InvestigationSignal, "cohortMeasurement">
+): string | null {
+	const value = cohortMeasurementEvidence(signal);
+	return value ? evidenceSummary(value) : null;
+}
+
+export function annotationEvidence(
+	annotations: InvestigationAnnotation[]
+): string | null {
+	return annotations.length > 0
+		? evidenceSummary(
+				`Annotation: ${annotations
+					.map((annotation) => `${annotation.date}: ${annotation.title}`)
+					.join("; ")}`
+			)
+		: null;
 }
 
 export function prepareInvestigation(
@@ -339,12 +383,13 @@ export function prepareInvestigation(
 		signalKey: signalKeyForDetectedSignal(candidate),
 		entity: subject,
 		metric: {
-			label: candidate.label,
+			label: normalizedLabel(candidate.label),
 			current: candidate.current,
 			previous: candidate.baseline,
 			format: metricFormat(candidate.metric),
 		},
-		changePercent: candidate.deltaPercent,
+		changePercent:
+			candidate.method === "behavior" ? null : candidate.deltaPercent,
 		severity: sentiment === "positive" ? "info" : candidate.severity,
 		sentiment,
 		period: {
@@ -365,18 +410,13 @@ export function prepareInvestigation(
 	if (candidate.definitionEvidence) {
 		evidence.push(evidenceSummary(candidate.definitionEvidence));
 	}
-	const cohortEvidence = cohortMeasurementEvidence(candidate);
-	if (cohortEvidence) {
-		evidence.push(evidenceSummary(cohortEvidence));
+	const cohort = cohortEvidence(candidate);
+	if (cohort) {
+		evidence.push(cohort);
 	}
-	if (annotations.length > 0) {
-		evidence.push(
-			evidenceSummary(
-				`Annotation: ${annotations
-					.map((annotation) => `${annotation.date}: ${annotation.title}`)
-					.join("; ")}`
-			)
-		);
+	const annotation = annotationEvidence(annotations);
+	if (annotation) {
+		evidence.push(annotation);
 	}
 
 	return {

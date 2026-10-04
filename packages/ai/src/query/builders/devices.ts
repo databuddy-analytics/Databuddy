@@ -34,12 +34,12 @@ export const DevicesBuilders = {
 					name: "percentage",
 					type: "number",
 					label: "Usage %",
-					description: "Percentage of total browser usage",
+					description:
+						"Share of summed visitor counts across all browser groups",
 					unit: "%",
 				},
 			],
 			default_visualization: "pie",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -86,12 +86,11 @@ export const DevicesBuilders = {
 					name: "percentage",
 					type: "number",
 					label: "Usage %",
-					description: "Percentage of total OS usage",
+					description: "Share of summed visitor counts across all OS groups",
 					unit: "%",
 				},
 			],
 			default_visualization: "pie",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -144,12 +143,12 @@ export const DevicesBuilders = {
 					name: "percentage",
 					type: "number",
 					label: "Traffic %",
-					description: "Percentage of total traffic",
+					description:
+						"Share of summed visitor counts across all viewport and device groups",
 					unit: "%",
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -213,7 +212,6 @@ export const DevicesBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -272,7 +270,6 @@ export const DevicesBuilders = {
 				},
 			],
 			default_visualization: "pie",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -380,7 +377,7 @@ export const DevicesBuilders = {
 
 	screen_resolutions: {
 		meta: {
-			description: "Distribution of screen resolutions across visitors.",
+			description: "Distribution of viewport sizes across visitors.",
 			category: "Technology",
 			tags: ["screen", "display", "devices"],
 		},
@@ -432,7 +429,6 @@ export const DevicesBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -488,7 +484,6 @@ export const DevicesBuilders = {
 				},
 			],
 			default_visualization: "pie",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [

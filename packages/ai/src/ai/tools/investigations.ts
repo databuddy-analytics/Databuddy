@@ -6,7 +6,7 @@ import {
 	insightTimelineItemSchema,
 	insightTimelineReplySchema,
 } from "@databuddy/shared/insights";
-import { tool } from "ai";
+import { type ToolExecutionOptions, tool } from "ai";
 import { z } from "zod";
 import type { AppContext } from "../config/context";
 import { callRPCProcedure, getAppContext } from "./utils";
@@ -51,7 +51,7 @@ const inputSchema = z.object({
 		),
 });
 
-type Input = z.infer<typeof inputSchema>;
+type Input = z.input<typeof inputSchema>;
 
 export const investigationActionSchema = z
 	.object({
@@ -94,6 +94,20 @@ export const investigationActionSchema = z
 			.describe("Optional website scope for brief or list"),
 	})
 	.strict();
+
+const readOnlyInvestigationActionSchema = investigationActionSchema
+	.omit({ body: true, replyId: true })
+	.extend({
+		action: investigationActionSchema.shape.action
+			.exclude(["reply"])
+			.describe(
+				"Read published insights, list cases, or get one case and its timeline"
+			),
+		investigationId:
+			investigationActionSchema.shape.investigationId.describe(
+				"Required for get"
+			),
+	});
 
 type InvestigationAction = z.input<typeof investigationActionSchema>;
 type RpcCaller = typeof callRPCProcedure;
@@ -173,7 +187,13 @@ export async function runInvestigationAction(
 			action: "get" as const,
 			canReply: result.canReply,
 			investigation: result.insight,
-			timeline: result.timeline,
+			timeline: result.timeline.map((item) => {
+				if (item.kind !== "investigation") {
+					return item;
+				}
+				const { contextSnapshot: _snapshot, ...outcome } = item.outcome;
+				return { ...item, outcome };
+			}),
 		};
 	}
 
@@ -229,114 +249,146 @@ function validateConfiguration(input: Input): void {
 	}
 }
 
-export function createInvestigationTools() {
+function executeInvestigations(
+	input: InvestigationAction,
+	options: ToolExecutionOptions
+) {
+	return runInvestigationAction(
+		input,
+		getAppContext(options),
+		options.abortSignal
+	);
+}
+
+function executeConfigureInvestigations(
+	input: Input,
+	options: ToolExecutionOptions
+) {
+	const context = getAppContext(options);
+	const organizationId = context.organizationId;
+	if (!organizationId) {
+		throw new Error("Select an organization first");
+	}
+
+	if (input.action === "status") {
+		return callRPCProcedure(
+			"insightGeneration",
+			"getConfig",
+			{ organizationId },
+			context
+		);
+	}
+
+	if (input.action === "configure") {
+		validateConfiguration(input);
+	}
+	const websiteId = context.defaultWebsiteId ?? context.websiteId;
+	if (!input.confirmed) {
+		const startsAnalysis =
+			input.action === "run" ||
+			input.frequency === "daily" ||
+			input.frequency === "weekly" ||
+			input.channelAction === "add";
+		return {
+			confirmationRequired: true,
+			scope:
+				input.action === "run" && websiteId
+					? `Website ${websiteId}`
+					: "All websites in this organization",
+			billing: startsAnalysis
+				? `For organizations on fixed-price investigation billing: ${INVESTIGATION_USAGE.description} Each manual or scheduled run may investigate several signals and use multiple investigations. Additional usage is billed monthly when overage is enabled. Changing settings does not itself charge for an investigation. AI credits pay for Databunny chat and are not drawn down by investigations.`
+				: undefined,
+		};
+	}
+
+	if (input.action === "run") {
+		return callRPCProcedure(
+			"insightGeneration",
+			"triggerRun",
+			{
+				organizationId,
+				websiteIds: websiteId ? [websiteId] : undefined,
+			},
+			context
+		);
+	}
+
+	if (input.channelAction === "add" && input.channelId) {
+		return callRPCProcedure(
+			"insightGeneration",
+			"addSlackDelivery",
+			{
+				organizationId,
+				channelId: input.channelId,
+				frequency: input.frequency === "off" ? undefined : input.frequency,
+			},
+			context
+		);
+	}
+
+	if (input.channelAction === "remove" && input.channelId) {
+		return callRPCProcedure(
+			"insightGeneration",
+			"removeSlackDelivery",
+			{ organizationId, channelId: input.channelId },
+			context
+		);
+	}
+
+	return callRPCProcedure(
+		"insightGeneration",
+		"upsertConfig",
+		{
+			organizationId,
+			...(input.frequency
+				? {
+						enabled: input.frequency !== "off",
+						...(input.frequency === "off"
+							? {}
+							: { frequency: input.frequency }),
+					}
+				: {}),
+			...(input.timezone ? { timezone: input.timezone } : {}),
+		},
+		context
+	);
+}
+
+export function createInvestigationTools({
+	readOnly = false,
+}: {
+	readOnly?: boolean;
+} = {}) {
+	if (readOnly) {
+		return {
+			investigations: tool({
+				description:
+					"Read existing intelligence. brief returns published insights with their next steps; list/get reads durable cases. Preserve returned advice instead of adding more.",
+				inputSchema: readOnlyInvestigationActionSchema,
+				execute: executeInvestigations,
+			}),
+			configure_investigations: tool({
+				description:
+					"Read automatic investigations. status returns the organization config: Off/Daily/Weekly schedule, timezone, and Slack delivery.",
+				inputSchema: z.object({ action: z.enum(["status"]) }),
+				execute: executeConfigureInvestigations,
+			}),
+		} as const;
+	}
 	return {
 		investigations: tool({
 			description:
 				"Read existing intelligence. brief returns published insights with their next steps; list/get/reply handles durable cases. Preserve returned advice instead of adding more.",
 			inputSchema: investigationActionSchema,
-			execute: (input, options) =>
-				runInvestigationAction(
-					input,
-					getAppContext(options),
-					options.abortSignal
-				),
+			needsApproval: ({ action }) => action === "reply",
+			execute: executeInvestigations,
 		}),
 		configure_investigations: tool({
 			description:
 				"Read or change automatic investigations. status returns the organization config; configure sets Off/Daily/Weekly, timezone, or Slack delivery; run investigates the selected website now, or every website when none is selected. Configure and run require a separate confirmation turn. Show the preview's scope and billing disclosure before asking for confirmation. A run may investigate several signals; its price is not a single investigation's price.",
 			inputSchema,
-			execute: (input, options) => {
-				const context = getAppContext(options);
-				const organizationId = context.organizationId;
-				if (!organizationId) {
-					throw new Error("Select an organization first");
-				}
-
-				if (input.action === "status") {
-					return callRPCProcedure(
-						"insightGeneration",
-						"getConfig",
-						{ organizationId },
-						context
-					);
-				}
-
-				if (input.action === "configure") {
-					validateConfiguration(input);
-				}
-				const websiteId = context.defaultWebsiteId ?? context.websiteId;
-				if (!input.confirmed) {
-					const startsAnalysis =
-						input.action === "run" ||
-						input.frequency === "daily" ||
-						input.frequency === "weekly" ||
-						input.channelAction === "add";
-					return {
-						confirmationRequired: true,
-						scope:
-							input.action === "run" && websiteId
-								? `Website ${websiteId}`
-								: "All websites in this organization",
-						billing: startsAnalysis
-							? `For organizations on fixed-price investigation billing: ${INVESTIGATION_USAGE.description} Each manual or scheduled run may investigate several signals and use multiple investigations. Additional usage is billed monthly when overage is enabled. Changing settings does not itself charge for an investigation. AI credits pay for Databunny chat and are not drawn down by investigations.`
-							: undefined,
-					};
-				}
-
-				if (input.action === "run") {
-					return callRPCProcedure(
-						"insightGeneration",
-						"triggerRun",
-						{
-							organizationId,
-							websiteIds: websiteId ? [websiteId] : undefined,
-						},
-						context
-					);
-				}
-
-				if (input.channelAction === "add" && input.channelId) {
-					return callRPCProcedure(
-						"insightGeneration",
-						"addSlackDelivery",
-						{
-							organizationId,
-							channelId: input.channelId,
-							frequency:
-								input.frequency === "off" ? undefined : input.frequency,
-						},
-						context
-					);
-				}
-
-				if (input.channelAction === "remove" && input.channelId) {
-					return callRPCProcedure(
-						"insightGeneration",
-						"removeSlackDelivery",
-						{ organizationId, channelId: input.channelId },
-						context
-					);
-				}
-
-				return callRPCProcedure(
-					"insightGeneration",
-					"upsertConfig",
-					{
-						organizationId,
-						...(input.frequency
-							? {
-									enabled: input.frequency !== "off",
-									...(input.frequency === "off"
-										? {}
-										: { frequency: input.frequency }),
-								}
-							: {}),
-						...(input.timezone ? { timezone: input.timezone } : {}),
-					},
-					context
-				);
-			},
+			needsApproval: ({ confirmed }) => confirmed === true,
+			execute: executeConfigureInvestigations,
 		}),
 	} as const;
 }

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
 import {
 	CodeBlock,
 	CodeBlockCopyButton,
@@ -12,6 +11,7 @@ import {
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { ConnectApp } from "@/components/websites/connect-app";
 import { useAgentInstall } from "@/hooks/use-agent-install";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { useSiteResearch } from "@/hooks/use-site-research";
 import { useWebsite } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
@@ -23,7 +23,6 @@ import {
 import {
 	ADVANCED_TRACKING_OPTIONS,
 	BASIC_TRACKING_OPTIONS,
-	COPY_SUCCESS_TIMEOUT,
 } from "../constants/settings-constants";
 import {
 	generateNodeCode,
@@ -164,7 +163,7 @@ function VueLogo({ className }: { className?: string }) {
 }
 
 export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
-	const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
+	const { isCopied, copyToClipboard } = useCopyToClipboard();
 	const [usePinnedVersion, setUsePinnedVersion] = useState(false);
 	const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
 	const [trackingOptions] = useAtom(trackingOptionsAtom);
@@ -212,13 +211,6 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 
 	const issue = install.tracking.issue;
 	const healthy = install.verified && install.recentEvents > 0 && !issue;
-
-	const handleCopy = (code: string, blockId: string, message: string) => {
-		navigator.clipboard.writeText(code);
-		setCopiedBlockId(blockId);
-		toast.success(message);
-		setTimeout(() => setCopiedBlockId(null), COPY_SUCCESS_TIMEOUT);
-	};
 
 	return (
 		<div className="space-y-6">
@@ -271,15 +263,13 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 						{/* policy-ignore dashboard/no-raw-interactive-html: pre-existing compact copy chip; @databuddy/ui Button variants don't match this inline badge styling */}
 						<button
 							className="group flex min-w-0 items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 font-mono text-xs transition-colors hover:bg-accent-brighter"
-							onClick={() =>
-								handleCopy(websiteId, "client-id", "Client ID copied!")
-							}
+							onClick={() => copyToClipboard(websiteId)}
 							title={websiteId}
 							type="button"
 						>
 							<span className="text-muted-foreground">ID:</span>
 							<span className="min-w-0 truncate">{websiteId}</span>
-							{copiedBlockId === "client-id" ? (
+							{isCopied ? (
 								<CheckIcon className="size-3 text-success" />
 							) : (
 								<ClipboardIcon className="size-3 opacity-50 transition-opacity group-hover:opacity-100" />
@@ -315,7 +305,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								of your website:
 							</p>
 
-							<CodeBlock code={activeCode} language="html">
+							<CodeBlock code={activeCode} language="tsx">
 								<CodeBlockCopyButton />
 							</CodeBlock>
 
@@ -416,7 +406,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								<p className="text-muted-foreground text-sm">
 									Add the component to your root layout:
 								</p>
-								<CodeBlock code={vueCode} language="vue">
+								<CodeBlock code={vueCode} language="tsx">
 									<CodeBlockCopyButton />
 								</CodeBlock>
 							</div>

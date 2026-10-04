@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { z } from "zod";
-import { QueryBuilders } from "../../query/builders";
+import { QueryBuilders, WEBSITE_QUERY_TYPES } from "../../query/builders";
 import { discoverQueryTypesTool } from "./discover-query-types";
 
 async function discover(input: {
@@ -213,9 +213,9 @@ test("substring searches retain full sibling contracts even for an exact builder
 
 test("category browsing remains full and complete; the unfiltered catalog stays compact", async () => {
 	const all = await discover({});
-	expect(all.matchCount).toBe(Object.keys(QueryBuilders).length);
+	expect(all.matchCount).toBe(WEBSITE_QUERY_TYPES.length);
 	expect(all.types.map((entry) => entry.name).sort()).toEqual(
-		Object.keys(QueryBuilders).sort()
+		[...WEBSITE_QUERY_TYPES].sort()
 	);
 	const category = await discover({ category: "Profiles" });
 	const expected = all.types.filter((entry) => entry.category === "Profiles");

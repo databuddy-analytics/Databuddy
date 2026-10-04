@@ -172,6 +172,7 @@ export const AiAgentsBuilders = {
 			],
 			default_visualization: "table",
 		},
+		commonFilters: false,
 		customSql: (ctx) => ({
 			sql: `
 				SELECT
@@ -229,6 +230,7 @@ export const AiAgentsBuilders = {
 			],
 			default_visualization: "table",
 		},
+		commonFilters: false,
 		customSql: (ctx) => ({
 			sql: `
 				SELECT
@@ -262,6 +264,7 @@ export const AiAgentsBuilders = {
 			default_visualization: "timeseries",
 			supports_granularity: ["hour", "day"],
 		},
+		commonFilters: false,
 		customSql: (ctx) => ({
 			sql: `
 				SELECT ${timeBucket(ctx, "time")} AS date, ${VISIT_PRODUCT} AS product, uniq(anonymous_id) AS visitors
@@ -552,6 +555,7 @@ export const AiAgentsBuilders = {
 			],
 			default_visualization: "table",
 		},
+		commonFilters: false,
 		customSql: (ctx) => ({
 			sql: `
 				SELECT
@@ -638,6 +642,7 @@ export const AiAgentsBuilders = {
 			],
 			default_visualization: "table",
 		},
+		commonFilters: false,
 		customSql: (ctx) => ({
 			sql: `
 				SELECT
@@ -763,6 +768,7 @@ export const AiAgentsBuilders = {
 			],
 			default_visualization: "table",
 		},
+		commonFilters: false,
 		customSql: (ctx) => ({
 			sql: `
 				WITH

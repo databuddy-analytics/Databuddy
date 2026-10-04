@@ -132,13 +132,13 @@ export function createFunnelTools() {
 	});
 
 	const createFunnelTool = tool({
-		description:
-			"Create a funnel to track a user journey. 2-10 steps where target is a page path (PAGE_VIEW) or event name.",
+		description: "Create a funnel to track a user journey.",
 		inputSchema: z.object({
 			websiteId: z.string(),
 			...funnelFields,
 			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ websiteId, confirmed, ...funnel }, options) => {
 			const context = getAppContext(options);
 			try {

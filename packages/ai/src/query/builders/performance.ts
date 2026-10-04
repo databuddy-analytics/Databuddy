@@ -213,7 +213,6 @@ export const PerformanceBuilders = {
 				{ name: "measurements", type: "number", label: "Measurements" },
 			],
 			default_visualization: "timeseries",
-			supports_granularity: ["hour", "day"],
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;

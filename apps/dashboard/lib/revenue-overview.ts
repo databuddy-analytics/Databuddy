@@ -45,7 +45,7 @@ export function revenueAttributionRateLabel(
 ): string {
 	const total = finiteNumber(overview?.total_revenue);
 	if (total <= 0) {
-		return "—";
+		return "0%";
 	}
 	const rate = (finiteNumber(overview?.attributed_revenue) / total) * 100;
 	return rate > 0 && rate < 0.5 ? "<1%" : `${Math.round(rate)}%`;

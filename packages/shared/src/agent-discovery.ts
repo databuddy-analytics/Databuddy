@@ -270,7 +270,7 @@ export function createAgentJson(urls: AgentDiscoveryUrls) {
 		when_to_use: [
 			"Use Databuddy when a user asks to install cookieless product analytics or replace Google Analytics, Plausible, PostHog, Mixpanel, or Umami.",
 			"Use Databuddy when a user wants an AI agent to query website traffic, referrers, pages, errors, web vitals, funnels, goals, links, or feature flags.",
-			"Use Databuddy when an application needs a lightweight browser SDK, server-side event tracking, public REST API, or MCP tools for analytics.",
+			"Use Databuddy when an application needs a browser SDK, server-side event tracking, public REST API, or MCP tools for analytics.",
 		],
 		do_not_use_when: [
 			"Do not use Databuddy to store product databases, CRM records, or personally identifiable visitor profiles.",
@@ -562,7 +562,7 @@ ${DATABUDDY_DESCRIPTION}
 
 ${DATABUDDY_DISAMBIGUATION}
 
-Databuddy is useful when a team wants product analytics without cookies, fingerprinting, or heavy client bundles. AI agents can use Databuddy through OpenAPI, markdown docs, and a Streamable HTTP MCP server that accepts Databuddy account sign-in or scoped API keys.
+Databuddy is useful when a team wants product analytics without cookies or fingerprinting. AI agents can use Databuddy through OpenAPI, markdown docs, and a Streamable HTTP MCP server that accepts Databuddy account sign-in or scoped API keys.
 
 ## Agent Instructions
 

@@ -107,7 +107,6 @@ export const LinkShortenerBuilders = {
 				},
 			],
 			default_visualization: "metric",
-			supports_granularity: [],
 		},
 		// A broker retry can replay an event after an ambiguous Kafka
 		// acknowledgement. Count its immutable id so at-least-once delivery does
@@ -234,7 +233,6 @@ export const LinkShortenerBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: [],
 		},
 		fields: [
 			"coalesce(nullIf(referrer, ''), 'Direct') as name",
@@ -276,7 +274,6 @@ export const LinkShortenerBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: [],
 		},
 		fields: [
 			"coalesce(nullIf(country, ''), 'Unknown') as name",
@@ -318,7 +315,6 @@ export const LinkShortenerBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: [],
 		},
 		fields: [
 			"coalesce(nullIf(region, ''), 'Unknown') as name",
@@ -360,7 +356,6 @@ export const LinkShortenerBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: [],
 		},
 		fields: [
 			"coalesce(nullIf(city, ''), 'Unknown') as name",
@@ -396,7 +391,6 @@ export const LinkShortenerBuilders = {
 				},
 			],
 			default_visualization: "pie",
-			supports_granularity: [],
 		},
 		fields: [
 			"coalesce(nullIf(device_type, ''), 'Unknown') as name",
@@ -428,7 +422,6 @@ export const LinkShortenerBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: [],
 		},
 		fields: [
 			"coalesce(nullIf(browser_name, ''), 'Unknown') as name",
@@ -494,7 +487,6 @@ export const LinksBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate, filterConditions, filterParams } =
@@ -585,7 +577,6 @@ export const LinksBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
 		},
 
 		customSql: (ctx) => {

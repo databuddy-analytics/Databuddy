@@ -54,7 +54,7 @@ describe("buildBatchQueryRequests", () => {
 		expect(
 			formatMcpQueryResults(plan, [{ type: "top_pages", data: [] }])[0]?.summary
 		).toMatch(
-			/^top_pages \| \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2} \| timezone=UTC \| filters=none \| groupBy=default \| timeUnit=default \| orderBy=default \| limit=default$/
+			/^top_pages \| \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2} \| timezone=UTC \| filters=none \| timeUnit=default \| orderBy=default \| limit=default$/
 		);
 	});
 
@@ -98,7 +98,7 @@ describe("buildBatchQueryRequests", () => {
 			returnedRows: 20,
 			rowCount: 25,
 			summary:
-				'summary_metrics | 2026-07-01 to 2026-07-07 | timezone=Asia/Hebron | filters=[{"field":"trait:plan","op":"eq","value":"pro"}] | groupBy=default | timeUnit=default | orderBy=default | limit=default',
+				'summary_metrics | 2026-07-01 to 2026-07-07 | timezone=Asia/Hebron | filters=[{"field":"trait:plan","op":"eq","value":"pro"}] | timeUnit=default | orderBy=default | limit=default',
 			truncated: true,
 		});
 		expect(formatted[0]?.data).toHaveLength(20);
@@ -108,14 +108,14 @@ describe("buildBatchQueryRequests", () => {
 			returnedRows: 0,
 			rowCount: 0,
 			summary:
-				"not_real | 2026-07-01 to 2026-07-07 | timezone=Asia/Hebron | filters=none | groupBy=default | timeUnit=default | orderBy=default | limit=default",
+				"not_real | 2026-07-01 to 2026-07-07 | timezone=Asia/Hebron | filters=none | timeUnit=default | orderBy=default | limit=default",
 			truncated: false,
 		});
 		expect(formatted[2]).toMatchObject({
 			returnedRows: 1,
 			rowCount: 1,
 			summary:
-				"summary_metrics | 2026-06-24 to 2026-06-30 | timezone=Asia/Hebron | filters=none | groupBy=default | timeUnit=default | orderBy=default | limit=default",
+				"summary_metrics | 2026-06-24 to 2026-06-30 | timezone=Asia/Hebron | filters=none | timeUnit=default | orderBy=default | limit=default",
 			truncated: false,
 		});
 	});
@@ -124,13 +124,17 @@ describe("buildBatchQueryRequests", () => {
 		const plan = buildBatchQueryRequests(
 			[
 				{
+					type: "events_by_date",
+					from: "2026-07-01",
+					to: "2026-07-07",
+					timeUnit: "hour",
+					limit: 50,
+				},
+				{
 					type: "top_pages",
 					from: "2026-07-01",
 					to: "2026-07-07",
-					groupBy: ["country"],
-					timeUnit: "day",
 					orderBy: "visitors DESC",
-					limit: 50,
 				},
 			],
 			"website-1",
@@ -138,10 +142,14 @@ describe("buildBatchQueryRequests", () => {
 		);
 
 		expect(
-			formatMcpQueryResults(plan, [{ type: "top_pages", data: [] }])[0]?.summary
-		).toBe(
-			'top_pages | 2026-07-01 to 2026-07-07 | timezone=UTC | filters=none | groupBy=["country"] | timeUnit=day | orderBy=visitors DESC | limit=50'
-		);
+			formatMcpQueryResults(plan, [
+				{ type: "events_by_date", data: [] },
+				{ type: "top_pages", data: [] },
+			]).map((result) => result.summary)
+		).toEqual([
+			"events_by_date | 2026-07-01 to 2026-07-07 | timezone=UTC | filters=none | timeUnit=hour | orderBy=default | limit=50",
+			"top_pages | 2026-07-01 to 2026-07-07 | timezone=UTC | filters=none | timeUnit=default | orderBy=visitors DESC | limit=default",
+		]);
 	});
 
 	it("keeps the newest rows when an ascending time series is truncated", () => {
@@ -207,6 +215,40 @@ describe("buildBatchQueryRequests", () => {
 		expect(invalid[0]?.error).toContain("secret_col");
 		expect(invalid[0]?.error).toContain("Allowed fields");
 		expect(invalid[0]?.error).toContain("trait:<key>");
+	});
+
+	it("says a query type takes no filters instead of listing none", () => {
+		const { invalid } = buildBatchQueryRequests(
+			[
+				{
+					type: "ai_crawlers",
+					preset: "last_7d",
+					filters: [{ field: "path", op: "eq", value: "/pricing" }],
+				},
+			],
+			"website-1",
+			"UTC"
+		);
+
+		expect(invalid[0]?.error).toBe(
+			"ai_crawlers accepts no filters; remove the filter on 'path'."
+		);
+	});
+
+	it("rejects ordering by a column the query type does not return", () => {
+		const { requests, invalid } = buildBatchQueryRequests(
+			[
+				{ type: "top_pages", preset: "last_7d", orderBy: "revenue DESC" },
+				{ type: "realtime_feed", preset: "last_7d", orderBy: "time ASC" },
+			],
+			"website-1",
+			"UTC"
+		);
+
+		expect(invalid[0]?.error).toBe(
+			"top_pages cannot be ordered by 'revenue'. Use one of pageviews, visitors, or omit orderBy."
+		);
+		expect(requests.map((request) => request.type)).toEqual(["realtime_feed"]);
 	});
 
 	it("keeps trait filters for the query execution layer to resolve", () => {
@@ -286,7 +328,8 @@ describe("buildBatchQueryRequests", () => {
 		);
 
 		expect(plan.requests).toHaveLength(0);
-		expect(plan.invalid[0]?.error).toContain("list_links");
+		expect(plan.invalid[0]?.error).toContain("Databuddy dashboard");
+		expect(plan.invalid[0]?.error).not.toContain("search_links");
 		expect(
 			Object.keys(getFilteredQueryTypes({ detail: "summary" })).filter((key) =>
 				key.startsWith("link_")

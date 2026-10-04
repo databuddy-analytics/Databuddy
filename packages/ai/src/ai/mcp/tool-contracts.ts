@@ -383,8 +383,8 @@ export function getResolvedWebsiteId(ctx: McpHandlerContext): string {
 export function getResolvedOrganizationId(ctx: McpHandlerContext): string {
 	if (!ctx.websiteOrganizationId) {
 		throw new McpToolError(
-			"not_found",
-			"This website is not associated with an organization."
+			"internal",
+			"Website organization was not resolved."
 		);
 	}
 	return ctx.websiteOrganizationId;

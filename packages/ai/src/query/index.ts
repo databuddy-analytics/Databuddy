@@ -179,7 +179,11 @@ export const compileQuery = (
 export { executeBatch, truncateQueryErrorForLog } from "./batch-executor";
 export * from "./builders";
 export * from "./expressions";
-export { allowedFilterFields, isFilterFieldAllowed } from "./simple-builder";
+export {
+	allowedFilterFields,
+	isFilterFieldAllowed,
+	isOrderByFieldAllowed,
+} from "./simple-builder";
 export {
 	invalidFilterFieldError,
 	publicQueryErrorMessage,

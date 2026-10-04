@@ -187,7 +187,6 @@ export const VitalsBuilders = {
 				{ name: "samples", type: "number", label: "Samples" },
 			],
 			default_visualization: "timeseries",
-			supports_granularity: ["hour", "day"],
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;

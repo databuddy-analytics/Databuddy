@@ -1,6 +1,7 @@
 import { tool, type ToolExecutionOptions, type ToolSet } from "ai";
 import { z } from "zod";
-import { executeBatch, queryPlanGateError } from "../../query";
+import { executeBatch } from "../../query";
+import type { AppMutationMode } from "../config/context";
 import { discoverQueryTypesTool } from "../tools/discover-query-types";
 import { describeSchemaTool } from "../tools/describe-schema";
 import { createAnnotationTools } from "../tools/annotations";
@@ -8,12 +9,17 @@ import { createFeedbackTools } from "../tools/feedback";
 import { createFlagTools } from "../tools/flags";
 import { createFunnelTools } from "../tools/funnels";
 import { createGoalTools } from "../tools/goals";
+import { createInvestigationTools } from "../tools/investigations";
 import { createLinksTools } from "../tools/links";
 import { createMemoryTools } from "../tools/memory";
 import { buildProfileTools } from "../tools/profiles";
 import { createToolkit } from "../tools/toolkit";
 import { executeAgentSqlForWebsite } from "../tools/execute-sql-query";
-import { buildBatchQueryRequests, formatMcpQueryResults } from "./mcp-utils";
+import {
+	buildBatchQueryRequests,
+	formatMcpQueryResults,
+	gateQueryPlan,
+} from "./mcp-utils";
 import {
 	createSlackConversationTools,
 	type DatabuddyAgentSlackContext,
@@ -24,6 +30,8 @@ import {
 	getCachedAccessibleWebsites,
 } from "./tool-context";
 import { agentDataInputSchema } from "./agent-query-schema";
+
+const WRITE_TOOL_NAME = /^(add|create|delete|forget|save|submit|update)_/;
 
 type McpAgentContext = AuthorizedPrincipal & {
 	currentDateTime?: string;
@@ -43,6 +51,7 @@ function getToolContext({
 
 export function createMcpAgentTools(
 	options: {
+		mutationMode?: AppMutationMode;
 		slackContext?: DatabuddyAgentSlackContext | null;
 		organizationId?: string | null;
 		userId?: string | null;
@@ -55,12 +64,12 @@ export function createMcpAgentTools(
 		userId: options.userId ?? undefined,
 		domain: options.websiteDomain ?? undefined,
 	});
-	return {
+	const tools: ToolSet = {
 		discover_query_types: discoverQueryTypesTool,
 		describe_schema: describeSchemaTool,
 		list_websites: tool({
 			description:
-				"List all websites accessible with the current API key. Call this first when a website is not already selected.",
+				"List all websites accessible with the current API key. Call it only when <accessible_websites> is truncated or missing the site you need.",
 			strict: true,
 			inputSchema: z.object({}),
 			execute: async (_args, options) => {
@@ -78,9 +87,7 @@ export function createMcpAgentTools(
 			},
 		}),
 		execute_sql_query: tool({
-			description: `Custom read-only ClickHouse SQL. SELECT/WITH only. Use {paramName:Type} for parameters. websiteId and websiteDomain are bound server-side from the verified website argument; tool args of those names in params are ignored. UNION, INTERSECT, EXCEPT, subqueries, and comma-joins are not allowed; use CTEs instead. Every WHERE must AND \`client_id = {websiteId:String}\` at top level. Use only when get_data/query builders cannot answer.
-
-Canonical analytics.events schema: client_id, anonymous_id, session_id, time, path, referrer, browser_name, os_name, device_type, country, region, city, utm_source, utm_medium, utm_campaign, utm_term, utm_content, time_on_page, scroll_depth, event_name.
+			description: `Custom read-only ClickHouse SQL. SELECT/WITH only. Use {paramName:Type} for parameters. websiteId and websiteDomain are bound server-side from the verified website argument; tool args of those names in params are ignored. UNION, INTERSECT, EXCEPT, subqueries, and comma-joins are not allowed; use CTEs instead. Every WHERE needs the per-table tenant filter; call describe_schema when in doubt, since the validator rejects wrong-column queries. Use only when get_data/query builders cannot answer.
 
 Critical schema footguns: website id column is client_id (not website_id); timestamp is time (not created_at); page URL path is path (not page_path); event discriminator is event_name (not event_type); pageviews are event_name = 'screen_view' (never 'pageview'). Custom events are easy to query incorrectly; use get_data custom_events_* builders instead.`,
 			strict: true,
@@ -104,7 +111,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 		}),
 		get_data: tool({
 			description:
-				"Run 1-10 analytics builders. Use discover_query_types for builder names and required filters. Use preset or from/to; omitted dates default to last_30d in the conversation timezone. Read the returned definition for population and percentage semantics. Supports filters (including trait:<key>) and orderBy. Each builder returns a fixed breakdown, so leave groupBy null and pick the builder that breaks down by the dimension you need. Returns a query summary, full rowCount, returnedRows, truncated, and up to 20 data rows. Call list_profile_traits before trait segmentation.",
+				"Run 1-10 analytics builders. Use discover_query_types for builder names and required filters. Use preset or from/to; omitted dates default to last_30d in the conversation timezone. Read the returned definition for population and percentage semantics. Supports filters (including trait:<key>) and orderBy. Each builder returns a fixed breakdown, so pick the builder that breaks down by the dimension you need. Returns a query summary, full rowCount, returnedRows, truncated, and up to 20 data rows. Call list_profile_traits before trait segmentation.",
 			strict: true,
 			inputSchema: agentDataInputSchema,
 			execute: async (args, options) => {
@@ -114,19 +121,15 @@ Critical schema footguns: website id column is client_id (not website_id); times
 				const now = ctx.currentDateTime
 					? new Date(ctx.currentDateTime)
 					: new Date();
-				const plan = buildBatchQueryRequests(
-					args.queries,
-					args.websiteId,
-					timezone,
-					Number.isNaN(now.getTime()) ? new Date() : now
+				const plan = await gateQueryPlan(
+					buildBatchQueryRequests(
+						args.queries,
+						args.websiteId,
+						timezone,
+						Number.isNaN(now.getTime()) ? new Date() : now
+					),
+					access.organizationId
 				);
-				const planError = await queryPlanGateError(
-					plan.requests.map((request) => request.type),
-					{ organizationId: access.organizationId }
-				);
-				if (planError) {
-					throw new Error(planError);
-				}
 				const results = await executeBatch(plan.requests, {
 					websiteDomain: access.domain,
 					timezone,
@@ -161,4 +164,13 @@ Critical schema footguns: website id column is client_id (not website_id); times
 		...createSlackConversationTools(options.slackContext),
 		...investigationTools,
 	};
+	if (options.mutationMode !== "dry-run") {
+		return tools;
+	}
+	return Object.fromEntries(
+		Object.entries({
+			...tools,
+			...createInvestigationTools({ readOnly: true }),
+		}).filter(([name]) => !WRITE_TOOL_NAME.test(name))
+	);
 }

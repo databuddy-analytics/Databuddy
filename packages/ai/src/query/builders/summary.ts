@@ -52,7 +52,6 @@ export const SummaryBuilders = {
 				},
 			],
 			default_visualization: "metric",
-			supports_granularity: ["day"],
 		},
 		customSql: (ctx) => {
 			const {
@@ -132,7 +131,7 @@ export const SummaryBuilders = {
 		meta: {
 			title: "Today's Metrics",
 			description:
-				"Real-time metrics for today including pageviews, visitors, sessions, and bounce rate.",
+				"Real-time metrics for today including pageviews, visitors, and sessions.",
 			category: "Analytics",
 			tags: ["today", "realtime", "current", "daily"],
 			output_fields: [
@@ -156,7 +155,6 @@ export const SummaryBuilders = {
 				},
 			],
 			default_visualization: "metric",
-			supports_granularity: [],
 		},
 		table: Analytics.events,
 		fields: [
@@ -335,7 +333,6 @@ export const SummaryBuilders = {
 				},
 			],
 			default_visualization: "metric",
-			supports_granularity: [],
 		},
 		table: Analytics.events,
 		fields: [

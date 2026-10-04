@@ -64,13 +64,12 @@ async function resolveCandidateToken(
 	}
 }
 
-async function resolveOAuthToken(
+function listTokenCandidates(
 	providerId: string,
 	organizationId: string,
-	userId?: string,
-	requiredScope?: string
-): Promise<ResolvedToken | null> {
-	const candidates: TokenCandidate[] = await db
+	userId?: string
+): Promise<TokenCandidate[]> {
+	return db
 		.select({
 			accountId: account.id,
 			accessToken: account.accessToken,
@@ -89,7 +88,33 @@ async function resolveOAuthToken(
 			)
 		)
 		.limit(MAX_CANDIDATES);
+}
 
+export async function hasOAuthGrant(
+	providerId: string,
+	organizationId: string,
+	userId: string,
+	scope: string
+): Promise<boolean> {
+	const candidates = await listTokenCandidates(
+		providerId,
+		organizationId,
+		userId
+	);
+	return candidates.some((candidate) => hasScope(candidate.scope, scope));
+}
+
+async function resolveOAuthToken(
+	providerId: string,
+	organizationId: string,
+	userId?: string,
+	requiredScope?: string
+): Promise<ResolvedToken | null> {
+	const candidates = await listTokenCandidates(
+		providerId,
+		organizationId,
+		userId
+	);
 	for (const candidate of candidates) {
 		if (requiredScope && !hasScope(candidate.scope, requiredScope)) {
 			continue;

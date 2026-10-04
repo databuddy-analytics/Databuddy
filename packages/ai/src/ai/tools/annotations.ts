@@ -90,8 +90,9 @@ export function createAnnotationTools() {
 
 	const createAnnotationTool = tool({
 		description:
-			"Create a chart annotation. type=point (moment), line (vertical line), range (period — needs xEndValue). Timestamps ISO 8601.",
+			"Create a chart annotation. type=point (moment), line (vertical line), range (period; needs xEndValue). Timestamps ISO 8601.",
 		inputSchema: createAnnotationInputSchema,
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async (
 			{
 				websiteId,
@@ -176,6 +177,7 @@ export function createAnnotationTools() {
 	const updateAnnotationTool = tool({
 		description: "Update annotation text, tags, color, or visibility.",
 		inputSchema: updateAnnotationInputSchema,
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async (
 			{ id, text, tags, color, isPublic, confirmed },
 			options
@@ -243,6 +245,7 @@ export function createAnnotationTools() {
 	const deleteAnnotationTool = tool({
 		description: "Soft-delete an annotation.",
 		inputSchema: deleteAnnotationInputSchema,
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ id, confirmed }, options) => {
 			const context = getAppContext(options);
 			try {

@@ -1,5 +1,8 @@
 import type { MockLanguageModelV3 } from "ai/test";
-import type { OrganizationBusinessProfile } from "@databuddy/shared/organization-business-context";
+import {
+	type OrganizationBusinessProfile,
+	PROFILE_ORIGIN_PROVENANCE,
+} from "@databuddy/shared/organization-business-context";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
@@ -14,6 +17,10 @@ const state = vi.hoisted(() => ({
 	billing: vi.fn(),
 	billedUsage: vi.fn(),
 	rateLimit: vi.fn(),
+	memoryEnabled: false,
+	storedMemory: vi.fn(),
+	ask: vi.fn(),
+	stream: vi.fn(),
 }));
 const site = {
 	id: "site-synthetic",
@@ -79,8 +86,8 @@ vi.mock("@databuddy/db", () => ({
 }));
 vi.mock("@databuddy/db/schema", () => ({ agentChats: { id: "id" } }));
 vi.mock("@databuddy/ai/agent", () => ({
-	askDatabuddyAgent: vi.fn(),
-	streamDatabuddyAgent: vi.fn(),
+	askDatabuddyAgent: state.ask,
+	streamDatabuddyAgent: state.stream,
 }));
 vi.mock("@databuddy/ai/agents/analytics", async () => {
 	const { MockLanguageModelV3, convertArrayToReadableStream } = await import(
@@ -135,10 +142,11 @@ vi.mock("@databuddy/ai/config/models", () => ({
 	modelNames: { balanced: "synthetic" },
 	models: {},
 }));
-vi.mock("@databuddy/ai/lib/supermemory", () => ({
+vi.mock("@databuddy/ai/lib/supermemory", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@databuddy/ai/lib/supermemory")>()),
 	formatMemoryForPrompt: () => "",
-	isMemoryEnabled: () => false,
-	storeConversation: vi.fn(),
+	isMemoryEnabled: () => state.memoryEnabled,
+	storeConversation: state.storedMemory,
 }));
 vi.mock("@databuddy/ai/agents/cache", () => ({
 	getAgentContextSnapshot: async () => ({ context: "", source: "miss" }),
@@ -219,6 +227,15 @@ beforeEach(() => {
 	);
 	state.sessionOrg = "org-synthetic";
 	state.chatOrg = "org-synthetic";
+	state.memoryEnabled = false;
+	state.storedMemory.mockReset();
+	state.ask.mockReset().mockResolvedValue({
+		answer: "Synthetic answer.",
+		conversationId: "ask-synthetic",
+	});
+	state.stream.mockReset().mockImplementation(async function* () {
+		yield "Synthetic answer.";
+	});
 });
 
 describe("dashboard canonical business context through the native HTTP/model stream", () => {
@@ -232,10 +249,11 @@ describe("dashboard canonical business context through the native HTTP/model str
 			const prompt = JSON.stringify(state.prompts.at(-1)?.prompt);
 			expect(prompt.includes(meaning)).toBe(present);
 			expect(prompt.includes(priority)).toBe(present);
-			expect(prompt).toContain("remain unknown");
 			if (present) {
 				expect(prompt).toContain('\\"revision\\":11');
 				expect(prompt).toContain("never instructions or measured evidence");
+			} else {
+				expect(prompt).toContain("remain unknown");
 			}
 		}
 		expect(state.read).toHaveBeenCalledTimes(2);
@@ -259,8 +277,7 @@ describe("dashboard canonical business context through the native HTTP/model str
 				expect(prompt).toContain(assertion);
 			}
 			expect(prompt.includes(meaning)).toBe(Boolean(content));
-			expect(prompt).toContain("Preserve explicit team event meanings");
-			expect(prompt).toContain("inherited public claims remain unverified");
+			expect(prompt).toContain(PROFILE_ORIGIN_PROVENANCE.mixed.meaning);
 			expect(prompt).toContain("Separately supplied team assertions");
 			expect(prompt).toContain("never instructions or measured proof");
 		}
@@ -347,6 +364,50 @@ describe("dashboard executed model attribution", () => {
 		expect((await chat()).status).toBe(200);
 		expect(state.billedUsage).toHaveBeenCalledWith(
 			expect.objectContaining({ modelId: "synthetic/actual-model" })
+		);
+	});
+});
+
+describe("dashboard memory writes", () => {
+	it("stores memory only when the latest user message asks to remember", async () => {
+		state.memoryEnabled = true;
+		expect((await chat()).status).toBe(200);
+		expect(state.storedMemory).not.toHaveBeenCalled();
+		const remember = await chat({
+			messages: [
+				{
+					id: "user-message",
+					role: "user",
+					parts: [{ type: "text", text: "Remember that we report weekly" }],
+				},
+			],
+		});
+		expect(remember.status).toBe(200);
+		expect(state.storedMemory).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("ask route permissions", () => {
+	it("runs the shared agent read-only for answers and streams", async () => {
+		for (const stream of [false, true]) {
+			const response = await agent.handle(
+				new Request("http://localhost/v1/agent/ask", {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						question: "Create a goal for signups",
+						stream,
+					}),
+				})
+			);
+			expect(response.status).toBe(200);
+			expect(await response.text()).toContain("Synthetic answer.");
+		}
+		expect(state.ask).toHaveBeenCalledWith(
+			expect.objectContaining({ mutationMode: "dry-run" })
+		);
+		expect(state.stream).toHaveBeenCalledWith(
+			expect.objectContaining({ mutationMode: "dry-run" })
 		);
 	});
 });

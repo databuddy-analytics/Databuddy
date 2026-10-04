@@ -178,10 +178,14 @@ describe("invalidFilterFieldError", () => {
 		["web_vitals_by_page", "path"],
 		["link_total_clicks", "utm_source"],
 		["top_pages", "query_string"],
+		["revenue_by_country", "timezone"],
+		["revenue_overview", "language"],
 	])("rejects %s filtered by %s, a column that query type cannot apply", (type, field) => {
-		expect(
-			invalidFilterFieldError(type, [{ field, op: "eq", value: "x" }])
-		).toContain(`Filter on field '${field}' is not permitted for ${type}`);
+		const error = invalidFilterFieldError(type, [
+			{ field, op: "eq", value: "x" },
+		]);
+		expect(error).toContain(type);
+		expect(error).toContain(`'${field}'`);
 	});
 
 	it("accepts session dimensions on vitals breakdowns", () => {

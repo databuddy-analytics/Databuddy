@@ -17,7 +17,7 @@ import { resolveToolDateRange } from "./utils/context";
 
 const logger = createToolLogger("Goals Tools");
 
-export const goalTypeSchema = funnelStepSchema.shape.type.describe(
+const goalTypeSchema = funnelStepSchema.shape.type.describe(
 	"PAGE_VIEW: target is a page path. EVENT or CUSTOM: target is an event name."
 );
 export const goalFunnelFilterSchema = z.strictObject({
@@ -145,9 +145,9 @@ export function createGoalTools() {
 	});
 
 	const createGoalTool = tool({
-		description:
-			"Create a single-step conversion goal. Target is a page path (PAGE_VIEW) or event name (EVENT/CUSTOM).",
+		description: "Create a single-step conversion goal.",
 		inputSchema: createGoalInputSchema,
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ websiteId, confirmed, ...goal }, options) => {
 			const context = getAppContext(options);
 			try {
@@ -197,6 +197,7 @@ export function createGoalTools() {
 		description:
 			"Update a goal. Preview changes first, then set confirmed=true after explicit user approval.",
 		inputSchema: updateGoalInputSchema,
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ id, confirmed, ...input }, options) => {
 			const context = getAppContext(options);
 			const updates = omitUndefined(input);
@@ -254,6 +255,7 @@ export function createGoalTools() {
 			id: z.string(),
 			confirmed: z.boolean().describe("false=preview, true=delete"),
 		}),
+		needsApproval: ({ confirmed }) => confirmed === true,
 		execute: async ({ id, confirmed }, options) => {
 			const context = getAppContext(options);
 			try {

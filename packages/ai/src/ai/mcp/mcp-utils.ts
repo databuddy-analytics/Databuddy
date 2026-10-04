@@ -5,13 +5,19 @@ import {
 } from "../prompts/clickhouse-schema";
 import { type DatePreset, resolveDatePreset } from "../../lib/date-presets";
 import { captureError } from "../../lib/tracing";
-import { getQueryBuilder, QueryBuilders } from "../../query/builders";
+import {
+	getQueryBuilder,
+	WEBSITE_QUERY_BUILDERS,
+	WEBSITE_QUERY_TYPES,
+} from "../../query/builders";
 import {
 	allowedFilterFields,
 	type executeBatch,
 	invalidFilterFieldError,
+	isOrderByFieldAllowed,
 	publicQueryErrorMessage,
 	QueryFilterSchema,
+	queryPlanGateError,
 	SANITIZED_QUERY_ERROR,
 	suggestQueryTypes,
 	truncateQueryErrorForLog,
@@ -40,7 +46,6 @@ export function queryFailedMessage(type: string): string {
 export interface McpQueryItem {
 	filters?: Filter[];
 	from?: string;
-	groupBy?: string[];
 	limit?: number;
 	orderBy?: string;
 	preset?: DatePreset;
@@ -50,11 +55,7 @@ export interface McpQueryItem {
 }
 
 const TOP_QUERY_PREFIX = /^top_/;
-const LINK_ID_FIELD = "link_id";
-
-const WEBSITE_QUERY_BUILDERS = Object.entries(QueryBuilders).filter(
-	([, config]) => config.idField !== LINK_ID_FIELD
-);
+const WEBSITE_TYPES = new Set<string>(WEBSITE_QUERY_TYPES);
 
 const QUERY_TYPE_ALIASES: Record<string, string> = {
 	countries: "country",
@@ -74,6 +75,7 @@ const QUERY_TYPE_ALIASES: Record<string, string> = {
 interface InvalidBatchQuery {
 	error: string;
 	inputIndex: number;
+	planLimited?: true;
 	summary: string;
 	type: string;
 }
@@ -112,6 +114,8 @@ const MAX_DAYS_BY_TIME_UNIT: Partial<
 };
 const MAX_TIME_SERIES_DAYS = 400;
 const CUSTOM_SQL_ORDER_BY_TYPES = new Set(["profile_list"]);
+const ORDER_BY_RE = /^(\w+)(?:\s+(?:ASC|DESC))?$/i;
+const TRAILING_WORD_RE = /\w+$/;
 const LIST_OPERATORS: readonly FilterOperator[] = ["in", "not_in"];
 const TIME_SERIES_TAGS = new Set(["time-series", "timeseries", "trends"]);
 const BREAKDOWN_TAG = "breakdown";
@@ -143,6 +147,17 @@ function isTimeSeries(config: SimpleQueryConfig): boolean {
 	);
 }
 
+export function keepsNewestRows(
+	config: SimpleQueryConfig,
+	orderBy: string | undefined
+): boolean {
+	return (
+		isTimeSeries(config) &&
+		!orderBy &&
+		!config.meta?.tags?.includes(BREAKDOWN_TAG)
+	);
+}
+
 function filterShapeError(filters: Filter[] | undefined): string | null {
 	for (const filter of filters ?? []) {
 		if (Array.isArray(filter.value) && !LIST_OPERATORS.includes(filter.op)) {
@@ -152,23 +167,53 @@ function filterShapeError(filters: Filter[] | undefined): string | null {
 	return null;
 }
 
+function orderByColumns(config: SimpleQueryConfig): string[] {
+	const columns =
+		config.meta?.output_fields?.map((field) => field.name) ??
+		(config.fields ?? []).flatMap((field) => {
+			const name =
+				typeof field === "string"
+					? field.match(TRAILING_WORD_RE)?.[0]
+					: field.alias;
+			return name ? [name] : [];
+		});
+	const defaultField = config.orderBy?.match(ORDER_BY_RE)?.[1];
+	return (
+		defaultField && !columns.includes(defaultField)
+			? [...columns, defaultField]
+			: columns
+	).filter(isOrderByFieldAllowed);
+}
+
+function orderByError(
+	type: string,
+	config: SimpleQueryConfig,
+	orderBy: string | undefined
+): string | null {
+	if (!orderBy) {
+		return null;
+	}
+	if (config.customSql) {
+		return CUSTOM_SQL_ORDER_BY_TYPES.has(type)
+			? null
+			: `${type} returns rows in a fixed order and does not support orderBy. Remove orderBy.`;
+	}
+	const field = orderBy.trim().match(ORDER_BY_RE)?.[1];
+	const columns = orderByColumns(config);
+	if (!field || columns.includes(field)) {
+		return null;
+	}
+	return columns.length > 0
+		? `${type} cannot be ordered by '${field}'. Use one of ${columns.join(", ")}, or omit orderBy.`
+		: `${type} does not support orderBy. Remove orderBy.`;
+}
+
 function queryShapeError(
 	type: string,
 	config: SimpleQueryConfig,
 	query: McpQueryItem,
-	days: number,
-	timeSeries: boolean
+	days: number
 ): string | null {
-	if (config.customSql && query.groupBy?.length) {
-		return `${type} returns fixed columns and does not support groupBy. Remove groupBy.`;
-	}
-	if (
-		config.customSql &&
-		query.orderBy &&
-		!CUSTOM_SQL_ORDER_BY_TYPES.has(type)
-	) {
-		return `${type} returns rows in a fixed order and does not support orderBy. Remove orderBy.`;
-	}
 	const supported = config.meta?.supports_granularity ?? [];
 	if (
 		query.timeUnit &&
@@ -179,7 +224,7 @@ function queryShapeError(
 			? `timeUnit '${query.timeUnit}' is not supported for ${type}. Use ${supported.join(" or ")}.`
 			: `${type} does not take a timeUnit. Remove timeUnit.`;
 	}
-	if (!timeSeries) {
+	if (!isTimeSeries(config)) {
 		return null;
 	}
 	const window = query.timeUnit && MAX_DAYS_BY_TIME_UNIT[query.timeUnit];
@@ -192,16 +237,26 @@ function queryShapeError(
 	return null;
 }
 
+export function queryItemError(
+	type: string,
+	config: SimpleQueryConfig,
+	item: McpQueryItem,
+	days: number
+): string | null {
+	return (
+		orderByError(type, config, item.orderBy) ??
+		queryShapeError(type, config, item, days) ??
+		filterShapeError(item.filters) ??
+		invalidFilterFieldError(type, item.filters)
+	);
+}
+
 function querySummary(input: McpQueryItem & { timezone: string }): string {
 	const filters =
 		input.filters && input.filters.length > 0
 			? JSON.stringify(input.filters)
 			: "none";
-	const groupBy =
-		input.groupBy && input.groupBy.length > 0
-			? JSON.stringify(input.groupBy)
-			: "default";
-	return `${input.type} | ${input.from ?? "unresolved"} to ${input.to ?? "unresolved"} | timezone=${input.timezone} | filters=${filters} | groupBy=${groupBy} | timeUnit=${input.timeUnit ?? "default"} | orderBy=${input.orderBy ?? "default"} | limit=${input.limit ?? "default"}`;
+	return `${input.type} | ${input.from ?? "unresolved"} to ${input.to ?? "unresolved"} | timezone=${input.timezone} | filters=${filters} | timeUnit=${input.timeUnit ?? "default"} | orderBy=${input.orderBy ?? "default"} | limit=${input.limit ?? "default"}`;
 }
 
 export function buildBatchQueryRequests(
@@ -228,16 +283,20 @@ export function buildBatchQueryRequests(
 
 		const config = getQueryBuilder(resolvedType);
 		if (!config) {
-			const hint = suggestQueryTypes(q.type.replace(TOP_QUERY_PREFIX, ""));
+			const hint = suggestQueryTypes(
+				q.type.replace(TOP_QUERY_PREFIX, "")
+			).filter((type) => WEBSITE_TYPES.has(type));
 			const message = hint.length
 				? `Unknown type: ${q.type}. Did you mean: ${hint.join(", ")}?`
 				: `Unknown type: ${q.type}. Discover available query types before retrying.`;
 			reject(message, q.type);
 			continue;
 		}
-		if (config.idField === LINK_ID_FIELD) {
+		if (!WEBSITE_TYPES.has(resolvedType)) {
 			reject(
-				`${resolvedType} reports clicks for one short link, but get_data selects data by website. Use list_links or search_links for short links; link click analytics are in the Databuddy dashboard.`
+				config.idField === "link_id"
+					? `${resolvedType} reports clicks for one short link, but get_data selects data by website. Link click analytics are in the Databuddy dashboard.`
+					: `${resolvedType} is internal to Databuddy insights and is not available in get_data.`
 			);
 			continue;
 		}
@@ -280,23 +339,17 @@ export function buildBatchQueryRequests(
 			reject("from must not be after to.");
 			continue;
 		}
-		const timeSeries = isTimeSeries(config);
-		const shapeError =
-			queryShapeError(
-				resolvedType,
-				config,
-				q,
-				(Date.parse(to) - Date.parse(from)) / MS_PER_DAY,
-				timeSeries
-			) ??
-			filterShapeError(q.filters) ??
-			invalidFilterFieldError(resolvedType, q.filters);
+		const shapeError = queryItemError(
+			resolvedType,
+			config,
+			q,
+			(Date.parse(to) - Date.parse(from)) / MS_PER_DAY
+		);
 		if (shapeError) {
 			reject(shapeError);
 			continue;
 		}
-		const keepNewestRows =
-			timeSeries && !q.orderBy && !config.meta?.tags?.includes(BREAKDOWN_TAG);
+		const keepNewestRows = keepsNewestRows(config, q.orderBy);
 		requests.push({
 			inputIndex,
 			keepNewestRows,
@@ -310,11 +363,41 @@ export function buildBatchQueryRequests(
 			limit: keepNewestRows ? undefined : q.limit,
 			timezone,
 			filters: q.filters,
-			groupBy: q.groupBy,
 			orderBy: q.orderBy,
 		});
 	}
 	return { invalid, requests };
+}
+
+export async function gateQueryPlan(
+	plan: McpBatchQueryPlan,
+	organizationId: string
+): Promise<McpBatchQueryPlan> {
+	const gated = await Promise.all(
+		plan.requests.map(async (request) => ({
+			error: await queryPlanGateError([request.type], { organizationId }),
+			request,
+		}))
+	);
+	return {
+		invalid: [
+			...plan.invalid,
+			...gated.flatMap(({ error, request }) =>
+				error
+					? [
+							{
+								error,
+								inputIndex: request.inputIndex,
+								planLimited: true as const,
+								summary: request.summary,
+								type: request.type,
+							},
+						]
+					: []
+			),
+		],
+		requests: gated.flatMap(({ error, request }) => (error ? [] : [request])),
+	};
 }
 
 export function capRowArrays(

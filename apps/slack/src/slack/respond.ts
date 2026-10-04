@@ -8,6 +8,8 @@ import {
 	ComponentStreamSplitter,
 	componentsToBlocks,
 	feedbackButtonsBlock,
+	safeMarkdown,
+	safeMrkdwn,
 } from "@/slack/blocks";
 import { SLACK_COPY } from "@/slack/messages";
 import { queryEvidenceBlocks } from "@/slack/query-evidence";
@@ -17,6 +19,7 @@ const STREAM_FLUSH_INTERVAL_MS = 900;
 const STREAM_FLUSH_CHARS = 1200;
 const STREAM_APPEND_LIMIT_CHARS = 3500;
 const THINKING_TASK_ID = "thinking";
+const WHITESPACE = /\s/;
 
 const SLACK_USER_CANCELLED_CODES = new Set([
 	"message_not_found",
@@ -38,6 +41,8 @@ interface LoggerLike {
 type SayFn = (message: {
 	text: string;
 	thread_ts?: string;
+	unfurl_links: false;
+	unfurl_media: false;
 }) => Promise<unknown>;
 
 interface StreamAgentToSlackOptions {
@@ -118,7 +123,7 @@ export async function streamAgentToSlack({
 
 		do {
 			abortSignal?.throwIfAborted();
-			const text = pending.slice(0, STREAM_APPEND_LIMIT_CHARS);
+			const text = pending.slice(0, streamableLength(pending, force));
 			pending = pending.slice(text.length);
 			lastFlushAt = Date.now();
 
@@ -316,6 +321,8 @@ async function postComponentBlocks({
 					channel: run.channelId,
 					text: SLACK_COPY.blockFallback,
 					thread_ts: run.threadTs ?? run.messageTs,
+					unfurl_links: false,
+					unfurl_media: false,
 				}),
 			blocks,
 			fallbackBlocks,
@@ -345,7 +352,28 @@ async function sendWithChartFallback(
 }
 
 function markdownChunk(text: string) {
-	return { text, type: "markdown_text" as const };
+	return {
+		text: safeMarkdown(text),
+		type: "markdown_text" as const,
+	};
+}
+
+function streamableLength(text: string, final: boolean): number {
+	if (final && text.length <= STREAM_APPEND_LIMIT_CHARS) {
+		return text.length;
+	}
+	let index = Math.min(text.length, STREAM_APPEND_LIMIT_CHARS);
+	while (index > 0 && !WHITESPACE.test(text.charAt(index - 1))) {
+		index--;
+	}
+	if (index > 0) {
+		return index;
+	}
+	const tokenEnd = text.search(WHITESPACE);
+	if (tokenEnd !== -1) {
+		return tokenEnd + 1;
+	}
+	return final ? text.length : 0;
 }
 
 function thinkingTaskChunk(
@@ -368,7 +396,6 @@ const TOOL_STATUS_LABELS: [RegExp, string][] = [
 	[/search_console/, "Checking search data..."],
 	[/memory/, "Recalling context..."],
 	[/website/, "Finding your sites..."],
-	[/create|update|delete|configure/, "Applying changes..."],
 	[/investigation|insight/, "Reviewing investigations..."],
 ];
 
@@ -508,8 +535,10 @@ async function sendFinalMessage(
 	options: SuccessLogOptions & { run: SlackAgentRun; say: SayFn }
 ): Promise<StreamAgentToSlackResult> {
 	const response = await options.say({
-		text: options.finalText || SLACK_COPY.noAnswer,
+		text: safeMrkdwn(options.finalText) || SLACK_COPY.noAnswer,
 		thread_ts: options.run.threadTs,
+		unfurl_links: false,
+		unfurl_media: false,
 	});
 	const responseTs = getMessageTs(response);
 	logSuccess(options, {
@@ -591,10 +620,14 @@ async function recoverFromError({
 	}
 
 	const response = await say({
-		text: partialText
-			? `${partialText}\n\n${SLACK_COPY.responseInterrupted}`
-			: failureText,
+		text: safeMrkdwn(
+			partialText
+				? `${partialText}\n\n${SLACK_COPY.responseInterrupted}`
+				: failureText
+		),
 		thread_ts: run.threadTs,
+		unfurl_links: false,
+		unfurl_media: false,
 	});
 	return {
 		answerChars: partialText.length,

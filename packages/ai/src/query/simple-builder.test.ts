@@ -383,6 +383,28 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.f0).toBe("");
 	});
 
+	it("applies profile_list dimension filters to events before aggregating profiles", () => {
+		const config = QueryBuilders.profile_list;
+		if (!config) {
+			throw new Error("profile_list builder is missing");
+		}
+
+		const { params, sql } = new SimpleQueryBuilder(
+			config,
+			makeRequest({
+				filters: [{ field: "country", op: "eq", value: "DE" }],
+				type: "profile_list",
+			})
+		).compile();
+		const profileEvents = sql.slice(
+			sql.indexOf("profile_events AS ("),
+			sql.indexOf("profile_custom_events AS (")
+		);
+
+		expect(profileEvents).toContain("country = {f0:String}");
+		expect(params.f0).toBe("DE");
+	});
+
 	it("applies profile_list event_name filters through a custom-events visitor subquery", () => {
 		const config = QueryBuilders.profile_list;
 		if (!config) {

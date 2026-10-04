@@ -20,6 +20,7 @@ import {
 import { emitInsightsEvent } from "./lib/evlog-insights";
 import {
 	LOWER_IS_BETTER_METRICS,
+	normalizedLabel,
 	rankSignals,
 	signalKeyForDetectedSignal,
 	TRAFFIC_METRICS,
@@ -331,7 +332,7 @@ function makeRevenueSignal(
 				: signal.severity,
 		subjectKey: `revenue:${currency}`,
 		investigationObjective: REVENUE_OBJECTIVE,
-		definitionEvidence: `Business meaning: gross revenue from completed payments in ${currency}, excluding refunds. The snapshot alone is not publication evidence: confirm with revenue_overview for this currency across both complete signal windows.`,
+		definitionEvidence: `Business meaning: gross revenue from completed payments in ${currency}, excluding refunds.`,
 	};
 }
 
@@ -440,8 +441,8 @@ function makeProductRevenueSignal(
 		entityId: current.name,
 		entityLabel: label,
 		investigationObjective:
-			"Find material changes in the composition of payments, even when total revenue is flat. A verified material payment-description shift is a measured business result and can publish with resolve when no cause or repair is known. Confirm revenue_overview for both windows: currency, provider, product_name=signal.entity.id and product_id=empty string, plus a separate currency-only whole control. These are payment descriptions, not verified catalog products. Do not infer churn, causality or absence from a limited table.",
-		definitionEvidence: `${current.provider} payments described ${JSON.stringify(current.name)} with no product ID, ${current.currency} gross revenue from completed payments excluding refunds: ${previous.revenue} across ${previous.transactions} transactions → ${current.revenue} across ${current.transactions}. Whole-currency gross: ${p.total_revenue} → ${c.total_revenue}; payment-description share: ${round2(previousShare)}% → ${round2(currentShare)}%. Remaining gross: ${p.total_revenue - previous.revenue} → ${c.total_revenue - current.revenue}. Confirm description and whole controls with native revenue_overview; the snapshot alone cannot support publication.`,
+			"Find material changes in the composition of payments, even when total revenue is flat. A verified material payment-description shift is a measured business result and can publish with resolve when no cause or repair is known. These are payment descriptions, not verified catalog products. Do not infer churn, causality or absence from a limited table.",
+		definitionEvidence: `${current.provider} payments described ${JSON.stringify(current.name)} with no product ID, ${current.currency} gross revenue from completed payments excluding refunds: ${previous.revenue} across ${previous.transactions} transactions → ${current.revenue} across ${current.transactions}. Whole-currency gross: ${p.total_revenue} → ${c.total_revenue}; payment-description share: ${round2(previousShare)}% → ${round2(currentShare)}%. Remaining gross: ${p.total_revenue - previous.revenue} → ${c.total_revenue - current.revenue}.`,
 	};
 }
 
@@ -486,7 +487,7 @@ function commercialSignals(
 				subjectKey: `refund_amount:${currency}`,
 				investigationObjective:
 					"Investigate the independent refund change and its operational consequence even if gross revenue from completed payments is unchanged. Reconcile amounts and refund counts in this exact currency; do not let stable gross suppress refund review.",
-				definitionEvidence: `${currency} refunds: ${p.refund_amount} across ${p.refund_count} refunds → ${c.refund_amount} across ${c.refund_count}. Gross revenue: ${p.total_revenue} → ${c.total_revenue}; refunds are independent of gross, not subtracted from it. Refunds can refer to earlier purchases, so this is not a purchase-cohort refund rate. Confirm both complete windows with revenue_overview.`,
+				definitionEvidence: `${currency} refunds: ${p.refund_amount} across ${p.refund_count} refunds → ${c.refund_amount} across ${c.refund_count}. Gross revenue: ${p.total_revenue} → ${c.total_revenue}; refunds are independent of gross, not subtracted from it. Refunds can refer to earlier purchases, so this is not a purchase-cohort refund rate.`,
 			});
 		}
 	}
@@ -515,8 +516,8 @@ function commercialSignals(
 				),
 				subjectKey: `attribution_rate:${currency}`,
 				investigationObjective:
-					"Investigate the independent attribution coverage change and which acquisition comparison is now unsafe or newly supported. Retain this decision separately from refunds or gross movement. Unattributed revenue is not lost sales.",
-				definitionEvidence: `${currency} attributed revenue: ${p.attributed_revenue} of ${p.total_revenue} gross → ${c.attributed_revenue} of ${c.total_revenue} gross. Coverage is ${previousRate}% → ${currentRate}%. This changes which acquisition decisions the observed attribution supports; unattributed revenue is not lost sales. Confirm both complete windows with revenue_overview; attribution does not establish acquisition causality.`,
+					"Investigate the independent attribution coverage change and which acquisition comparison is now unsafe or newly supported. Retain this decision separately from refunds or gross movement.",
+				definitionEvidence: `${currency} attributed revenue: ${p.attributed_revenue} of ${p.total_revenue} gross → ${c.attributed_revenue} of ${c.total_revenue} gross. Coverage is ${previousRate}% → ${currentRate}%. This changes which acquisition decisions the observed attribution supports; unattributed revenue is not lost sales. Attribution does not establish acquisition causality.`,
 			});
 		}
 	}
@@ -589,12 +590,13 @@ function errorLabel(row: Record<string, unknown> | undefined): string {
 }
 
 function errorCountSignal(
-	label: string,
+	rawLabel: string,
 	fingerprint: string,
 	currentRow: Record<string, unknown> | undefined,
 	previousRow: Record<string, unknown> | undefined,
 	detectedAt: string
 ): DetectedSignal {
+	const label = normalizedLabel(rawLabel);
 	const signal = makeWowSignal(
 		"error_count",
 		label,
@@ -758,10 +760,11 @@ function makeCustomEventSignal(
 	}
 	const field =
 		metric === "custom_event_reach" ? "unique_users" : "total_events";
+	const label = normalizedLabel(name);
 	const signal = capLowReachSeverity(
 		makeWowSignal(
 			metric,
-			metric === "custom_event_reach" ? `${name} recorded visitors` : name,
+			metric === "custom_event_reach" ? `${label} recorded visitors` : label,
 			current.data[field],
 			previous.data[field],
 			detectedAt
@@ -771,8 +774,8 @@ function makeCustomEventSignal(
 
 	signal.subjectKey = subjectKey;
 	signal.entityId = name;
-	signal.entityLabel = name;
-	signal.definitionEvidence = `Event "${name}" occurred ${current.data.total_events} times across ${current.data.unique_users} recorded visitor identifiers and ${current.data.unique_sessions} sessions, compared with ${previous.data.total_events} occurrences across ${previous.data.unique_users} recorded visitor identifiers and ${previous.data.unique_sessions} sessions previously.`;
+	signal.entityLabel = label;
+	signal.definitionEvidence = `Event "${label}" occurred ${current.data.total_events} times across ${current.data.unique_users} recorded visitor identifiers and ${current.data.unique_sessions} sessions, compared with ${previous.data.total_events} occurrences across ${previous.data.unique_users} recorded visitor identifiers and ${previous.data.unique_sessions} sessions previously.`;
 	if (metric === "custom_event_reach") {
 		signal.investigationObjective =
 			"Explain the measured recorded-participation change alongside occurrence volume. Nonzero unique_users still measures recorded visitor identifiers; unavailable emitter context does not invalidate it or establish instrumentation failure. Claim identity-coverage loss only with evidence of missing identifiers, not fewer identifiers. Leave causes unknown without inspected support. Event names alone do not establish behavior, business outcomes or conversion rates; recorded identifiers are not people.";
@@ -1601,7 +1604,7 @@ export function freshRevenueSignals(
 			detectedAt: revenue.latest.date,
 			subjectKey: `revenue:${currency}`,
 			investigationObjective: REVENUE_OBJECTIVE,
-			definitionEvidence: `Business meaning: gross revenue from completed payments in ${currency}, excluding refunds. On ${revenue.latest.date} it was ${current.toLocaleString("en-US")} across ${transactions.latest.value} payments, against a median of ${revenue.median.toLocaleString("en-US")} across ${transactions.median} payments on ${comparableWindow(revenue)}. Confirm with revenue_time_series for this currency on those dates.`,
+			definitionEvidence: `Business meaning: gross revenue from completed payments in ${currency}, excluding refunds. On ${revenue.latest.date} it was ${current.toLocaleString("en-US")} across ${transactions.latest.value} payments, against a median of ${revenue.median.toLocaleString("en-US")} across ${transactions.median} payments on ${comparableWindow(revenue)}.`,
 		});
 	}
 	return signals;
@@ -1654,9 +1657,10 @@ export function freshCustomEventSignals(
 		) {
 			continue;
 		}
+		const label = normalizedLabel(name);
 		signals.push({
 			metric: "custom_event_count",
-			label: name,
+			label,
 			method: "zscore",
 			baselineDates: counts.dates,
 			direction: "down",
@@ -1667,8 +1671,8 @@ export function freshCustomEventSignals(
 			detectedAt: counts.latest.date,
 			subjectKey: `custom_event:${name}`,
 			entityId: name,
-			entityLabel: name,
-			definitionEvidence: `Event "${name}" occurred ${current} times on ${counts.latest.date} (${round2(rate)} per session), against a median of ${counts.median} (${round2(baselineRate)} per session) on ${comparableWindow(counts)}.`,
+			entityLabel: label,
+			definitionEvidence: `Event "${label}" occurred ${current} times on ${counts.latest.date} (${round2(rate)} per session), against a median of ${counts.median} (${round2(baselineRate)} per session) on ${comparableWindow(counts)}.`,
 		});
 	}
 	return signals;
@@ -2492,8 +2496,8 @@ function onsetSeries(subject: SignalSubject): OnsetSeries {
 			return {
 				field: "total_events",
 				filters: [{ field: "event_name", op: "eq", value: subject.name }],
-				noun: `${subject.name} events`,
-				subject: `Hourly ${subject.name} counts`,
+				noun: `${normalizedLabel(subject.name)} events`,
+				subject: `Hourly ${normalizedLabel(subject.name)} counts`,
 				type: "custom_events_trends_by_event",
 			};
 		default:
@@ -2638,6 +2642,11 @@ export function changeOnsetWindow(onset: ChangeOnset): {
 	};
 }
 
+function counted(count: number, noun: string): string {
+	const rounded = Math.round(count);
+	return `${rounded.toLocaleString("en-US")} ${rounded === 1 && noun.endsWith("s") ? noun.slice(0, -1) : noun}`;
+}
+
 function hourRange(from: string, to: string, timezone: string): string {
 	const end = dayjs.tz(to, timezone).add(1, "hour").tz(timezone);
 	return from.slice(0, 10) === end.format("YYYY-MM-DD")
@@ -2647,16 +2656,151 @@ function hourRange(from: string, to: string, timezone: string): string {
 
 export function changeOnsetEvidence(onset: ChangeOnset): string {
 	const change = onset.direction === "down" ? "drop" : "rise";
-	const observed = Math.round(onset.observed).toLocaleString("en-US");
+	const observed = counted(onset.observed, onset.noun);
 	const expected = Math.round(onset.expected).toLocaleString("en-US");
 	const start = `${onset.subject} place the start of this ${change} ${hourRange(onset.earliest, onset.latest, onset.timezone)} (${onset.timezone}).`;
 	if (onset.recoveredBy) {
-		return `${start} It returned to the surrounding rate by ${onset.recoveredBy.slice(0, 16)}. In between there were ${observed} ${onset.noun} where that rate predicted about ${expected}.`;
+		return `${start} It returned to the surrounding rate by ${onset.recoveredBy.slice(0, 16)}. In between there were ${observed} where that rate predicted about ${expected}.`;
 	}
 	const through = onset.ongoingThrough
 		? ` It had not recovered by the end of ${onset.ongoingThrough}.`
 		: "";
-	return `${start} From then on there were ${observed} ${onset.noun} where the earlier rate predicted about ${expected}.${through}`;
+	return `${start} From then on there were ${observed} where the earlier rate predicted about ${expected}.${through}`;
+}
+
+const SHARED_START_GAP_HOURS = 1;
+const SHARED_START_NAME_LENGTH = 120;
+const EVIDENCE_MAX_LENGTH = 500;
+
+function subjectName(subject: SignalSubject): string {
+	switch (subject.kind) {
+		case "traffic":
+			return "pageviews";
+		case "error": {
+			const message = normalizedLabel(subject.message);
+			return `error "${
+				message.length > SHARED_START_NAME_LENGTH
+					? `${message.slice(0, SHARED_START_NAME_LENGTH - 1).trimEnd()}…`
+					: message
+			}"`;
+		}
+		case "event":
+			return `${normalizedLabel(subject.name)} events`;
+		case "revenue":
+			return `${subject.currency.toUpperCase()} payments`;
+		default:
+			return subject satisfies never;
+	}
+}
+
+export function hourlyChangeName(signal: InvestigationSignal): string | null {
+	const subject = signalSubject(signal);
+	return subject ? subjectName(subject) : null;
+}
+
+function onsetSpan(onset: ChangeOnset): { end: number; start: number } {
+	return {
+		end: dayjs.tz(onset.latest, onset.timezone).add(1, "hour").valueOf(),
+		start: dayjs.tz(onset.earliest, onset.timezone).valueOf(),
+	};
+}
+
+interface ChangeStart {
+	onset: ChangeOnset | null;
+	signal: InvestigationSignal;
+}
+
+function startsEvidence(
+	own: InvestigationSignal,
+	changes: ChangeStart[],
+	within: (span: { end: number; start: number }) => boolean,
+	intro: (count: number) => string
+): string | null {
+	const seen = new Set([hourlyChangeName(own)]);
+	const shared: { name: string; start: string; traffic: boolean }[] = [];
+	for (const { onset, signal } of changes) {
+		const subject = signalSubject(signal);
+		const name = subject ? subjectName(subject) : null;
+		if (
+			!(onset && subject && name) ||
+			seen.has(name) ||
+			!within(onsetSpan(onset))
+		) {
+			continue;
+		}
+		seen.add(name);
+		shared.push({
+			name,
+			start: `${onset.direction === "down" ? "Dropping" : "Rising"} ${hourRange(onset.earliest, onset.latest, onset.timezone)}`,
+			traffic: subject.kind === "traffic",
+		});
+	}
+	if (shared.length === 0) {
+		return null;
+	}
+	shared.sort((left, right) => Number(right.traffic) - Number(left.traffic));
+	const sentence = (listed: number) => {
+		const groups = new Map<string, string[]>();
+		for (const { name, start } of shared.slice(0, listed)) {
+			const names = groups.get(start);
+			if (names) {
+				names.push(name);
+			} else {
+				groups.set(start, [name]);
+			}
+		}
+		const lines = [...groups].map(
+			([start, names]) => `${start}: ${names.join(", ")}`
+		);
+		const unlisted = shared.length - listed;
+		return `${intro(shared.length)}. ${lines.join(". ")}${unlisted > 0 ? `. ${unlisted} more not listed` : ""}.`;
+	};
+	let listed = shared.length;
+	while (listed > 1 && sentence(listed).length > EVIDENCE_MAX_LENGTH) {
+		listed -= 1;
+	}
+	return sentence(listed);
+}
+
+const SHARED_START_INTRO =
+	/^(?:(?:Another change|\d+ other changes) on this website started within an hour of this one|(?:One change|\d+ changes) on this website started (?:on \d{4}-\d{2}-\d{2}|between \d{4}-\d{2}-\d{2} and \d{4}-\d{2}-\d{2}))\. /;
+
+export function isSharedStartEvidence(value: string): boolean {
+	return SHARED_START_INTRO.test(value);
+}
+
+export function sharedStartEvidence(
+	own: ChangeStart,
+	changes: ChangeStart[],
+	timezone: string
+): string | null {
+	if (own.onset) {
+		const gap = SHARED_START_GAP_HOURS * 60 * 60 * 1000;
+		const ownSpan = onsetSpan(own.onset);
+		return startsEvidence(
+			own.signal,
+			changes,
+			(span) =>
+				span.start < ownSpan.end + gap && ownSpan.start < span.end + gap,
+			(count) =>
+				count === 1
+					? "Another change on this website started within an hour of this one"
+					: `${count} other changes on this website started within an hour of this one`
+		);
+	}
+	if (hourlyChangeName(own.signal)) {
+		return null;
+	}
+	const { from, to } = own.signal.period.current;
+	const periodStart = dayjs.tz(from, timezone).valueOf();
+	const periodEnd = dayjs.tz(to, timezone).add(1, "day").valueOf();
+	return startsEvidence(
+		own.signal,
+		changes,
+		(span) => span.start < periodEnd && periodStart < span.end,
+		(count) =>
+			`${count === 1 ? "One change" : `${count} changes`} on this website started ${from === to ? `on ${from}` : `between ${from} and ${to}`}`
+	);
 }
 
 const SEGMENT_DIMENSIONS = [
@@ -2673,6 +2817,8 @@ const SEGMENT_SPREAD_MIN_SESSIONS = 20;
 const SEGMENT_MIN_CHANGE = 0.3;
 const SEGMENT_REST_CHANGE_RATIO = 3;
 const SEGMENT_MIN_VOLUME = 20;
+const SEGMENT_SHIFT_MIN_SESSIONS = 20;
+const SEGMENT_SHIFT_MAX_BASE_SHARE = 0.8;
 const SEGMENT_SPREAD_MIN_VOLUME = 100;
 const SHIFT_DIMENSIONS = SEGMENT_DIMENSIONS.filter(
 	(dimension) => dimension !== "browser_version"
@@ -2839,6 +2985,9 @@ export function shiftedSegment(params: {
 				direction === "down"
 					? beforeDaily * beforeDays
 					: afterDaily * afterDays;
+			const sessions =
+				(direction === "down" ? beforeValues : afterValues).get(value)
+					?.sessions ?? 0;
 			const restHeld =
 				Number.isFinite(restChange) &&
 				(Math.sign(restChange) !== Math.sign(segmentChange) ||
@@ -2847,6 +2996,9 @@ export function shiftedSegment(params: {
 			if (
 				!value ||
 				volume < SEGMENT_MIN_VOLUME ||
+				sessions < SEGMENT_SHIFT_MIN_SESSIONS ||
+				restBefore * beforeDays < SEGMENT_MIN_VOLUME ||
+				beforeDaily / beforeTotal > SEGMENT_SHIFT_MAX_BASE_SHARE ||
 				explained < SEGMENT_MIN_SHARE ||
 				Math.abs(segmentChange) < SEGMENT_MIN_CHANGE ||
 				!restHeld
@@ -2878,6 +3030,8 @@ export function shiftedSegment(params: {
 export type SegmentFinding =
 	| { kind: "concentration"; concentration: SegmentConcentration }
 	| {
+			after: { from: string; to: string };
+			before: { from: string; to: string };
 			kind: "shift";
 			direction: "up" | "down";
 			noun: string;
@@ -2972,8 +3126,12 @@ export async function loadSegmentFinding(
 					noun: `${subject.name} events`,
 					type: "custom_event_segments",
 				};
+	const comparableDay = signal.baselineDates?.at(-1);
+	const beforePeriod = comparableDay
+		? { from: comparableDay, to: comparableDay }
+		: signal.period.previous;
 	const [beforeRows, afterRows] = await Promise.all([
-		read(series.type, signal.period.previous, series.filters),
+		read(series.type, beforePeriod, series.filters),
 		read(series.type, signal.period.current, series.filters),
 	]);
 	const before = segmentTable(beforeRows, series.countField);
@@ -2985,14 +3143,18 @@ export async function loadSegmentFinding(
 			signal.period.current.to
 		),
 		before,
-		beforeDays: inclusiveDays(
-			signal.period.previous.from,
-			signal.period.previous.to
-		),
+		beforeDays: inclusiveDays(beforePeriod.from, beforePeriod.to),
 		direction,
 	});
 	if (shift) {
-		return { direction, kind: "shift", noun: series.noun, shift };
+		return {
+			after: signal.period.current,
+			before: beforePeriod,
+			direction,
+			kind: "shift",
+			noun: series.noun,
+			shift,
+		};
 	}
 	const volume = Math.max(
 		tableTotal(before.get("browser") ?? new Map(), "count"),
@@ -3030,15 +3192,19 @@ export function segmentEvidence(finding: SegmentFinding): string {
 			? "No browser, browser version, operating system, device type or country accounts for most sessions with this error at more than twice its share of all sessions."
 			: `No browser, operating system, device type or country accounts for most of this ${finding.direction === "down" ? "drop" : "rise"} while the rest held steady.`;
 	}
-	const { shift } = finding;
+	const { after, before, shift } = finding;
 	const segment = segmentPhrase(shift.dimension, shift.value);
 	const verb = finding.direction === "down" ? "fell" : "rose";
 	const segmentChange = Number.isFinite(shift.segmentChange)
 		? ` ${percent(Math.abs(shift.segmentChange))}`
 		: "";
 	const restChange = `${shift.restChange >= 0 ? "+" : "-"}${percent(Math.abs(shift.restChange))}`;
-	const daily = (value: number) => Math.round(value).toLocaleString("en-US");
-	return `${finding.noun} from ${segment} ${verb}${segmentChange} (from about ${daily(shift.beforeDaily)} to ${daily(shift.afterDaily)} a day), ${percent(Math.min(shift.explained, 1))} of the whole ${finding.direction === "down" ? "drop" : "rise"}, while everything else changed ${restChange}.`;
+	const count = (value: number) => Math.round(value).toLocaleString("en-US");
+	const singleDays = before.from === before.to && after.from === after.to;
+	const levels = singleDays
+		? `from ${count(shift.beforeDaily)} on ${before.from} to ${count(shift.afterDaily)} on ${after.from}`
+		: `from about ${count(shift.beforeDaily)} to ${count(shift.afterDaily)} a day`;
+	return `${finding.noun} from ${segment} ${verb}${segmentChange} (${levels}), ${percent(Math.min(shift.explained, 1))} of the whole ${finding.direction === "down" ? "drop" : "rise"}, while everything else changed ${restChange}.`;
 }
 
 const RECOVERY_MIN_HOLD_HOURS = 24;
@@ -3047,6 +3213,8 @@ const RECOVERY_NEAR_BASELINE = 1.5;
 const RECOVERY_NEW_SERIES_REMAINDER = 0.1;
 const RECOVERY_NEW_SERIES_ONGOING = 0.5;
 const RECOVERY_MIN_TRAFFIC_SHARE = 0.5;
+const RECOVERY_ONGOING_MIN_Z = 3;
+const RECOVERY_NEW_SERIES_MIN_COUNT = 5;
 
 export type RecoveryState =
 	| {
@@ -3128,18 +3296,25 @@ export function estimateRecovery(params: {
 		};
 	}
 	const recent = level(lastDay, n);
+	const recentCount = countIn(lastDay, n);
+	const recentExpected = exposureIn(lastDay, n);
+	const recentZ =
+		(recentCount - recentExpected) /
+		Math.sqrt(Math.max(recentExpected, 1) * dispersion);
 	const stillBroken =
 		hourlyMean === 0
-			? countIn(lastDay, n) > 0 &&
-				recent >= level(0, lastDay) * RECOVERY_NEW_SERIES_ONGOING
+			? recentCount >= RECOVERY_NEW_SERIES_MIN_COUNT &&
+				recentCount >=
+					countIn(0, RECOVERY_MIN_HOLD_HOURS) * RECOVERY_NEW_SERIES_ONGOING
 			: direction === "down"
-				? recent <= 1 / RECOVERY_NEAR_BASELINE
-				: recent >= RECOVERY_NEAR_BASELINE;
+				? recent <= 1 / RECOVERY_NEAR_BASELINE &&
+					recentZ <= -RECOVERY_ONGOING_MIN_Z
+				: recent >= RECOVERY_NEAR_BASELINE && recentZ >= RECOVERY_ONGOING_MIN_Z;
 	return stillBroken
 		? {
-				expectedNormal: hourlyMean === 0 ? 0 : exposureIn(lastDay, n),
+				expectedNormal: hourlyMean === 0 ? 0 : recentExpected,
 				kind: "ongoing",
-				observed: countIn(lastDay, n),
+				observed: recentCount,
 			}
 		: null;
 }
@@ -3305,12 +3480,11 @@ function hoursPhrase(hours: number): string {
 
 export function recoveryEvidence(recovery: ChangeRecovery): string {
 	const change = recovery.direction === "down" ? "drop" : "rise";
-	const count = (value: number) => Math.round(value).toLocaleString("en-US");
 	if (recovery.state === "ongoing") {
-		return `${recovery.subject} show the ${change} still in effect: ${count(recovery.observed)} ${recovery.noun} in the 24 hours through ${recovery.through} (${recovery.timezone}), where the earlier rate predicted about ${count(recovery.expected)}.`;
+		return `${recovery.subject} show the ${change} still in effect: ${counted(recovery.observed, recovery.noun)} in the 24 hours through ${recovery.through} (${recovery.timezone}), where the earlier rate predicted about ${Math.round(recovery.expected).toLocaleString("en-US")}.`;
 	}
 	const when = recovery.recoveredAt
 		? `${recovery.recoveredAt.slice(11, 16)} on ${recovery.recoveredAt.slice(0, 10)}`
 		: recovery.recoveredOn;
-	return `${recovery.subject} show a return to the earlier rate from ${when} (${recovery.timezone}), holding for ${hoursPhrase(recovery.heldHours)} through ${recovery.through}: ${count(recovery.observed)} ${recovery.noun} since then, against ${count(recovery.brokenCount)} in the ${hoursPhrase(recovery.brokenHours)} of the ${change}.`;
+	return `${recovery.subject} show a return to the earlier rate from ${when} (${recovery.timezone}), holding for ${hoursPhrase(recovery.heldHours)} through ${recovery.through}: ${counted(recovery.observed, recovery.noun)} since then, against ${Math.round(recovery.brokenCount).toLocaleString("en-US")} in the ${hoursPhrase(recovery.brokenHours)} of the ${change}.`;
 }

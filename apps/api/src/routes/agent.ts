@@ -4,7 +4,10 @@ import {
 	hasKeyScope,
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
-import { createConversationAgent } from "@databuddy/ai/agents/conversation";
+import {
+	createConversationAgent,
+	settleStaleToolApprovals,
+} from "@databuddy/ai/agents/conversation";
 import { createConfig as createAgentConfig } from "@databuddy/ai/agents/analytics";
 import {
 	getAgentBillingAccess,
@@ -15,6 +18,7 @@ import { AGENT_THINKING_LEVELS, AGENT_TIERS } from "@databuddy/ai/agents/types";
 import { type AgentModelKey, models } from "@databuddy/ai/config/models";
 import { askDatabuddyAgent, streamDatabuddyAgent } from "@databuddy/ai/agent";
 import {
+	asksToRemember,
 	formatMemoryForPrompt,
 	isMemoryEnabled,
 	storeConversation,
@@ -59,6 +63,7 @@ import { getResolvedAuth } from "../lib/auth-wide-event";
 import { captureError, mergeWideEvent } from "@databuddy/ai/lib/tracing";
 import { getAccessibleWebsites } from "@databuddy/ai/lib/accessible-websites";
 import { loadOrganizationBusinessContext } from "@databuddy/ai/lib/organization-business-context";
+import { resolveToolIntegrations } from "@databuddy/ai/tools/toolkit";
 import { warnAgentStreamRedisSideEffect } from "./agent-stream-errors";
 
 function jsonError(status: number, code: string, message: string): Response {
@@ -507,6 +512,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 							actor,
 							conversationId,
 							input: body.question,
+							mutationMode: "dry-run",
 							source: "slack",
 							timezone: body.timezone,
 						})
@@ -517,6 +523,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					actor,
 					conversationId,
 					input: body.question,
+					mutationMode: "dry-run",
 					source: "slack",
 					timezone: body.timezone,
 				});
@@ -664,6 +671,8 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 
 					const timezone = body.timezone ?? "UTC";
 					const lastMessage = getLastMessagePreview(body.messages);
+					const latestUserMessage =
+						body.messages.at(-1)?.role === "user" ? lastMessage : "";
 
 					const modelKey: AgentModelKey = body.tier ?? "balanced";
 
@@ -696,7 +705,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						getAgentBillingAccess(billingCustomerId)
 					);
 
-					const loadMemoryContext = shouldLoadMemoryContext(lastMessage);
+					const loadMemoryContext = shouldLoadMemoryContext(latestUserMessage);
 					mergeWideEvent({
 						agent_memory_context_strategy: loadMemoryContext
 							? "inline"
@@ -709,57 +718,70 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						});
 					}
 
-					const [billingAccess, memoryCtx, enrichment, businessContext] =
-						await timeAgentPhase(
-							"memory_enrich",
-							Promise.all([
-								creditsCheck,
-								loadMemoryContext && defaultWebsiteId
-									? optionalAgentContext(
-											"memory",
-											getMemoryContextCached(
-												lastMessage,
-												userId,
-												defaultWebsiteId
-											),
-											EMPTY_MEMORY_CONTEXT,
-											AGENT_MEMORY_CONTEXT_TIMEOUT_MS,
-											{
-												agent_chat_id: chatId,
+					const [
+						billingAccess,
+						memoryCtx,
+						enrichment,
+						businessContext,
+						integrations,
+					] = await timeAgentPhase(
+						"memory_enrich",
+						Promise.all([
+							creditsCheck,
+							loadMemoryContext
+								? optionalAgentContext(
+										"memory",
+										getMemoryContextCached(latestUserMessage, userId),
+										EMPTY_MEMORY_CONTEXT,
+										AGENT_MEMORY_CONTEXT_TIMEOUT_MS,
+										{
+											agent_chat_id: chatId,
+											...(defaultWebsiteId && {
 												agent_website_id: defaultWebsiteId,
-											}
-										)
-									: Promise.resolve(EMPTY_MEMORY_CONTEXT),
-								defaultWebsiteId
-									? optionalAgentContext(
-											"enrichment",
-											getAgentContextSnapshot(
-												userId,
-												defaultWebsiteId,
-												organizationId
-											),
-											{ context: "", source: "error" },
-											AGENT_ENRICHMENT_CONTEXT_TIMEOUT_MS,
-											{
-												agent_chat_id: chatId,
-												agent_website_id: defaultWebsiteId,
-											}
-										)
-									: Promise.resolve<AgentContextSnapshotResult>({
-											context: "",
-											source: "miss",
-										}),
-								loadOrganizationBusinessContext({
-									organizationId,
-									accessibleWebsites,
-									websiteIds: [
-										...(defaultWebsiteId ? [defaultWebsiteId] : []),
-										...(body.mentions ?? []),
-									],
-									abortSignal: request.signal,
-								}),
-							])
-						);
+											}),
+										}
+									)
+								: Promise.resolve(EMPTY_MEMORY_CONTEXT),
+							defaultWebsiteId
+								? optionalAgentContext(
+										"enrichment",
+										getAgentContextSnapshot(
+											userId,
+											defaultWebsiteId,
+											organizationId
+										),
+										{ context: "", source: "error" },
+										AGENT_ENRICHMENT_CONTEXT_TIMEOUT_MS,
+										{
+											agent_chat_id: chatId,
+											agent_website_id: defaultWebsiteId,
+										}
+									)
+								: Promise.resolve<AgentContextSnapshotResult>({
+										context: "",
+										source: "miss",
+									}),
+							loadOrganizationBusinessContext({
+								organizationId,
+								accessibleWebsites,
+								websiteIds: [
+									...(defaultWebsiteId ? [defaultWebsiteId] : []),
+									...(body.mentions ?? []),
+								],
+								abortSignal: request.signal,
+							}),
+							timeAgentPhase(
+								"tool_integrations",
+								resolveToolIntegrations(organizationId, userId).catch(
+									(error: unknown): undefined => {
+										mergeWideEvent({
+											agent_tool_integrations_error: getErrorName(error),
+										});
+									}
+								)
+							),
+						])
+					);
 					mergeWideEvent({
 						agent_enrichment_context_source: enrichment.source,
 					});
@@ -791,6 +813,8 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 							requestHeaders: request.headers,
 							thinking: body.thinking,
 							billingCustomerId,
+							integrations,
+							latestUserMessage,
 						},
 						modelKey,
 						modelOverride
@@ -827,11 +851,12 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					if (!validation.success) {
 						return jsonError(400, "INVALID_MESSAGES", "Invalid message format");
 					}
+					const chatMessages = settleStaleToolApprovals(validation.data);
 
 					const modelMessages = await timeAgentPhase(
 						"convert_prune",
 						async () => {
-							const converted = await convertToModelMessages(validation.data, {
+							const converted = await convertToModelMessages(chatMessages, {
 								tools: config.tools,
 								ignoreIncompleteToolCalls: true,
 							});
@@ -877,9 +902,13 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						}
 					);
 
-					if (isMemoryEnabled() && lastMessage && defaultWebsiteId) {
+					if (
+						isMemoryEnabled() &&
+						defaultWebsiteId &&
+						asksToRemember(latestUserMessage)
+					) {
 						storeConversation(
-							[{ role: "user", content: lastMessage }],
+							[{ role: "user", content: latestUserMessage }],
 							userId,
 							null,
 							{
@@ -926,7 +955,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					const persistedUserId = user?.id;
 					const persistedOrgId = organizationId;
 					const fallbackTitle = lastMessage.slice(0, 60);
-					const isNewChat = validation.data.length <= 1;
+					const isNewChat = chatMessages.length <= 1;
 
 					result.consumeStream();
 
@@ -976,13 +1005,13 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 										userId: persistedUserId,
 										organizationId: persistedOrgId,
 										title: fallbackTitle,
-										messages: validation.data,
+										messages: chatMessages,
 										updatedAt: new Date(),
 									})
 									.onConflictDoUpdate({
 										target: agentChats.id,
 										set: {
-											messages: validation.data,
+											messages: chatMessages,
 											updatedAt: new Date(),
 										},
 									})
@@ -1000,7 +1029,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 
 					const usagePromise = result.totalUsage;
 					const response = result.toUIMessageStreamResponse({
-						originalMessages: validation.data,
+						originalMessages: chatMessages,
 						onFinish: async ({ messages }) => {
 							try {
 								await clearActiveStream(streamScope, chatId, streamId);

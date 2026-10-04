@@ -1,5 +1,5 @@
 import { buildRevenueLatestCte } from "@databuddy/db/clickhouse";
-import { Expressions } from "../expressions";
+import { eventTimeBucket, Expressions } from "../expressions";
 import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { SimpleQueryConfig } from "../types";
@@ -695,14 +695,10 @@ export const ErrorsBuilders = {
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate, filterConditions, filterParams } =
 				ctx;
-			const bucket =
-				ctx.granularity === "hour" || ctx.granularity === "hourly"
-					? "formatDateTime(toStartOfHour(toTimeZone(timestamp, {timezone:String})), '%Y-%m-%d %H:00:00')"
-					: "toDate(toTimeZone(timestamp, {timezone:String}))";
 			return {
 				sql: `
 					SELECT
-						${bucket} as date,
+						${eventTimeBucket(ctx.granularity, "timestamp")} as date,
 						COUNT(*) as errors,
 						uniq(anonymous_id) as users
 					FROM ${Analytics.error_spans}
@@ -804,7 +800,7 @@ export const ErrorsBuilders = {
 
 	error_frequency: {
 		meta: {
-			description: "Error frequency and recurrence patterns.",
+			description: "Error counts per day.",
 			category: "Errors",
 			tags: ["errors", "frequency"],
 		},
@@ -824,7 +820,8 @@ export const ErrorsBuilders = {
 	error_summary: {
 		meta: {
 			title: "Error Summary",
-			description: "Overview of errors with calculated error rate",
+			description:
+				"Overview of errors with calculated error rate: sessions with a matching error as a percentage of all sessions in the range; filters apply to the errors only. uniqueErrorTypes counts distinct error messages.",
 			category: "Errors",
 			tags: ["errors", "summary", "overview"],
 		},

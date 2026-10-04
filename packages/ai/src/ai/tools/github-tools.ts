@@ -9,13 +9,18 @@ const DEPLOY_FETCH_SIZE = 50;
 const MAX_DEPLOY_PAGES = 5;
 const MAX_COMMITS = 50;
 const MAX_FILE_CHARACTERS = 15_000;
+const MAX_COMMIT_PATCH_CHARACTERS = 12_000;
 const SEARCH_SCOPE = /\b(?:repo|org|user):\S+/i;
 const DEPLOYMENT_RESULT_STATES = new Set(["error", "failure", "success"]);
 const PRODUCTION_ENVIRONMENT = /prod/i;
-const NON_PRODUCTION_ENVIRONMENT = /preview|staging/i;
+const PRODUCTION_REQUEST = /^prod(?:uction)?$/i;
+const NON_PRODUCTION_ENVIRONMENT =
+	/preview|staging|(?:^|[\s_-])(?:pre|non)[\s_-]?prod/i;
 const MAX_PRODUCTION_ENVIRONMENTS = 30;
 const PRODUCTION_DEPLOY_PAGE = 100;
 const MAX_PRODUCTION_DEPLOY_PAGES = 4;
+const MAX_BASELINE_CANDIDATES = 10;
+const MAX_BASELINE_STATUS_REQUESTS = 20;
 const DEPLOYMENT_TIMESTAMP = z
 	.string()
 	.datetime({ offset: true })
@@ -127,6 +132,23 @@ function createRepositorySchema<T extends z.ZodRawShape>(
 	return z.object({ ...REPOSITORY_FIELDS, ...shape });
 }
 
+export async function listLinkedGitHubRepositories(
+	organizationId: string
+): Promise<GitHubRepository[]> {
+	const rows = await db
+		.select({ integrations: websites.integrations })
+		.from(websites)
+		.where(
+			and(
+				eq(websites.organizationId, organizationId),
+				isNull(websites.deletedAt)
+			)
+		);
+	return rows.flatMap((row) =>
+		row.integrations?.github ? [row.integrations.github] : []
+	);
+}
+
 async function resolveLinkedRepository(
 	input: unknown,
 	getLinkedRepositories: () => Promise<GitHubRepository[]>
@@ -177,6 +199,7 @@ export interface GitHubDeploymentSummary {
 	environment: string;
 	environmentUrl: string | null;
 	logUrl: string | null;
+	previousSha?: string | null;
 	ref: string;
 	requestedAt: string;
 	result: string | null;
@@ -239,7 +262,7 @@ async function deploymentSummaries(
 	return { deployments: summaries };
 }
 
-export async function listGitHubDeployments(params: {
+async function listGitHubDeployments(params: {
 	environment?: string;
 	limit: number;
 	repository: GitHubRepository;
@@ -332,12 +355,16 @@ export async function listGitHubProductionDeployments(params: {
 	limit: number;
 	repository: GitHubRepository;
 	request?: GitHubRequest;
-	since: string;
+	since?: string;
 	token: string;
-	until: string;
+	until?: string;
 }): Promise<
 	| { error: string }
-	| { complete: boolean; deployments: GitHubDeploymentSummary[] }
+	| {
+			availableEnvironments: string[];
+			complete: boolean;
+			deployments: GitHubDeploymentSummary[];
+	  }
 > {
 	const request = params.request ?? githubFetch;
 	const path = repositoryPath(params.repository);
@@ -345,68 +372,160 @@ export async function listGitHubProductionDeployments(params: {
 		`/repos/${path}/environments?per_page=100`,
 		params.token
 	);
-	if (githubApiError(listed)) {
-		const scanned = await listGitHubDeployments({
-			...params,
-			environment: "prod",
-		});
-		return "error" in scanned
-			? scanned
-			: { complete: !scanned.truncated, deployments: scanned.deployments };
-	}
-	const names = (
-		(listed as { environments?: { name: string }[] }).environments ?? []
-	)
-		.map((environment) => environment.name)
+	const availableEnvironments = githubApiError(listed)
+		? []
+		: (
+				(listed as { environments?: { name: string }[] }).environments ?? []
+			).map((environment) => environment.name);
+	const names = availableEnvironments
 		.filter(
 			(name) =>
 				PRODUCTION_ENVIRONMENT.test(name) &&
 				!NON_PRODUCTION_ENVIRONMENT.test(name)
 		)
 		.slice(0, MAX_PRODUCTION_ENVIRONMENTS);
-	const since = Date.parse(params.since);
-	const until = Date.parse(params.until);
+	if (names.length === 0) {
+		const scanned = await listGitHubDeployments({
+			...params,
+			environment: "prod",
+		});
+		if ("error" in scanned) {
+			return scanned;
+		}
+		const deployments = scanned.deployments.filter(
+			(deployment) =>
+				PRODUCTION_ENVIRONMENT.test(deployment.environment) &&
+				!NON_PRODUCTION_ENVIRONMENT.test(deployment.environment)
+		);
+		return {
+			availableEnvironments: scanned.availableEnvironments,
+			complete:
+				availableEnvironments.length === 0 &&
+				!scanned.truncated &&
+				deployments.length === scanned.deployments.length,
+			deployments: deployments.map((deployment) => ({
+				...deployment,
+				previousSha: null,
+			})),
+		};
+	}
+	const since = params.since
+		? Date.parse(params.since)
+		: Number.NEGATIVE_INFINITY;
+	const until = params.until
+		? Date.parse(params.until)
+		: Number.POSITIVE_INFINITY;
 	const scans = await Promise.all(
 		names.map(async (name) => {
-			const found: GitHubDeploy[] = [];
+			const scanned: GitHubDeploy[] = [];
 			for (let page = 1; page <= MAX_PRODUCTION_DEPLOY_PAGES; page++) {
 				const data = await request(
 					`/repos/${path}/deployments?environment=${encodeURIComponent(name)}&per_page=${PRODUCTION_DEPLOY_PAGE}&page=${page}`,
 					params.token
 				);
 				if (!Array.isArray(data)) {
-					return { complete: false, found };
+					return { complete: false, scanned };
 				}
 				const deploys = data as GitHubDeploy[];
-				for (const deploy of deploys) {
-					const requestedAt = Date.parse(deploy.created_at);
-					if (requestedAt >= since && requestedAt <= until) {
-						found.push(deploy);
-					}
-				}
+				scanned.push(...deploys);
 				const oldest = deploys.at(-1);
 				if (
 					deploys.length < PRODUCTION_DEPLOY_PAGE ||
-					(oldest && Date.parse(oldest.created_at) < since)
+					(oldest && Date.parse(oldest.created_at) < since) ||
+					scanned.filter((deploy) => Date.parse(deploy.created_at) <= until)
+						.length > params.limit
 				) {
-					return { complete: true, found };
+					return { complete: true, scanned };
 				}
 			}
-			return { complete: false, found };
+			return { complete: false, scanned };
 		})
 	);
 	const complete = scans.every((scan) => scan.complete);
-	const matched = scans.flatMap((scan) => scan.found);
-	matched.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+	const selected = scans
+		.flatMap(({ scanned }) =>
+			scanned.flatMap((deploy, index) => {
+				const requestedAt = Date.parse(deploy.created_at);
+				return requestedAt >= since && requestedAt <= until
+					? [{ deploy, index, scanned }]
+					: [];
+			})
+		)
+		.sort(
+			(a, b) =>
+				Date.parse(b.deploy.created_at) - Date.parse(a.deploy.created_at)
+		)
+		.slice(0, params.limit);
 	const summaries = await deploymentSummaries(
-		matched.slice(0, params.limit),
+		selected.map(({ deploy }) => deploy),
 		params.repository,
 		params.token,
 		request
 	);
-	return "error" in summaries
-		? summaries
-		: { complete, deployments: summaries.deployments };
+	if ("error" in summaries) {
+		return summaries;
+	}
+	const statusSummaries = new Map<
+		number,
+		Promise<GitHubDeploymentSummary | null>
+	>();
+	for (const [index, { deploy }] of selected.entries()) {
+		statusSummaries.set(
+			deploy.id,
+			Promise.resolve(summaries.deployments[index] ?? null)
+		);
+	}
+	let baselineRequests = 0;
+	const deployments = await Promise.all(
+		summaries.deployments.map(async (deployment, resultIndex) => {
+			const selectedDeployment = selected[resultIndex];
+			if (!selectedDeployment) {
+				throw new Error("Deployment summary does not match its request");
+			}
+			const { index, scanned } = selectedDeployment;
+			const cutoff = Date.parse(
+				deployment.completedAt ?? deployment.requestedAt
+			);
+			let previousSha: string | null = null;
+			for (const candidate of scanned.slice(
+				index + 1,
+				index + 1 + MAX_BASELINE_CANDIDATES
+			)) {
+				let summary = statusSummaries.get(candidate.id);
+				if (!summary) {
+					if (baselineRequests >= MAX_BASELINE_STATUS_REQUESTS) {
+						break;
+					}
+					baselineRequests += 1;
+					summary = deploymentSummaries(
+						[candidate],
+						params.repository,
+						params.token,
+						request
+					).then(
+						(result) =>
+							"error" in result ? null : (result.deployments[0] ?? null),
+						() => null
+					);
+					statusSummaries.set(candidate.id, summary);
+				}
+				const prior = await summary;
+				if (!prior) {
+					break;
+				}
+				if (
+					prior.result === "success" &&
+					prior.completedAt !== null &&
+					Date.parse(prior.completedAt) <= cutoff
+				) {
+					previousSha = prior.sha;
+					break;
+				}
+			}
+			return { ...deployment, previousSha };
+		})
+	);
+	return { availableEnvironments, complete, deployments };
 }
 
 export interface GitHubCommitSummary {
@@ -479,20 +598,9 @@ export function createGitHubTools(
 	const getLinkedRepositories =
 		dependencies.getLinkedRepositories ??
 		(() => {
-			linkedRepositories ??= db
-				.select({ integrations: websites.integrations })
-				.from(websites)
-				.where(
-					and(
-						eq(websites.organizationId, params.organizationId),
-						isNull(websites.deletedAt)
-					)
-				)
-				.then((rows) =>
-					rows.flatMap((row) =>
-						row.integrations?.github ? [row.integrations.github] : []
-					)
-				);
+			linkedRepositories ??= listLinkedGitHubRepositories(
+				params.organizationId
+			);
 			return linkedRepositories;
 		});
 	const request = dependencies.request ?? githubFetch;
@@ -503,7 +611,7 @@ export function createGitHubTools(
 			.string()
 			.optional()
 			.describe(
-				"Case-insensitive substring filter on the environment name (e.g. 'production', 'preview')"
+				"Omit for production; otherwise a case-insensitive environment name substring, e.g. 'preview'"
 			),
 		since: DEPLOYMENT_TIMESTAMP.optional().describe(
 			"Only deployments requested on or after this timestamp"
@@ -534,7 +642,7 @@ export function createGitHubTools(
 
 	const getRecentDeploysTool = tool({
 		description:
-			"Get GitHub deployments around a metric change. since/until filter the request time and require exact timestamps. Returns the successful or failed completion separately from the current state, because old preview deployments may later become inactive. If truncated is true, the requested history was older than the scanned window and absence is not evidence that no deploy occurred.",
+			"Get GitHub deployments around a metric change. previousSha (production only) is a confirmed successful prior deployment in that environment, or null when unproven; pass it as github_commit_diff base to inspect a production change. Failed or pending requests are not a baseline. since/until filter the request time and require exact timestamps. result is the completion outcome; currentState can later become inactive. If truncated is true, the requested history was older than the scanned window and absence is not evidence that no deploy occurred.",
 		inputSchema: deploymentInput,
 		execute: async (input) => {
 			const token = await getToken();
@@ -544,14 +652,30 @@ export function createGitHubTools(
 			const repo =
 				repository ??
 				(await resolveLinkedRepository(input, getLinkedRepositories));
-			const result = await listGitHubDeployments({
-				environment: input.environment,
+			const scan = {
 				limit: input.limit,
 				repository: repo,
 				request,
 				since: input.since,
 				token,
 				until: input.until,
+			};
+			if (!input.environment || PRODUCTION_REQUEST.test(input.environment)) {
+				const result = await listGitHubProductionDeployments(scan);
+				if ("error" in result) {
+					return result;
+				}
+				return {
+					repo: `${repo.owner}/${repo.repo}`,
+					count: result.deployments.length,
+					availableEnvironments: result.availableEnvironments,
+					deployments: result.deployments,
+					truncated: !result.complete,
+				};
+			}
+			const result = await listGitHubDeployments({
+				...scan,
+				environment: input.environment,
 			});
 			if ("error" in result) {
 				return result;
@@ -941,7 +1065,7 @@ export function createGitHubTools(
 
 	const getCommitDiffTool = tool({
 		description:
-			"Get one commit with patches, or compare changed files between two exact deployed SHAs by passing base. A comparison can rule out untouched files; inspect relevant source at base and head before attributing a failure to changed code.",
+			"Get one commit with patches, or compare changed files between two exact deployed SHAs by passing base. omittedFiles changed but their patches did not fit the output budget. A comparison can rule out untouched files; inspect relevant source at base and head before attributing a failure to changed code.",
 		inputSchema: createRepositorySchema(repository, {
 			base: COMMIT_SHA.optional().describe(
 				"Earlier deployed SHA to compare against"
@@ -1014,21 +1138,34 @@ export function createGitHubTools(
 				}>;
 			};
 
-			const files = (commit.files ?? []).map((f) => ({
-				file: f.filename,
-				status: f.status,
-				additions: f.additions,
-				deletions: f.deletions,
-				patch: f.patch?.slice(0, 3000),
-			}));
+			let patchBudget = MAX_COMMIT_PATCH_CHARACTERS;
+			const omittedFiles: string[] = [];
+			const files = (commit.files ?? []).flatMap((f) => {
+				const patch = f.patch?.slice(0, 3000);
+				if (patch && patch.length > patchBudget) {
+					omittedFiles.push(f.filename);
+					return [];
+				}
+				patchBudget -= patch?.length ?? 0;
+				return [
+					{
+						file: f.filename,
+						status: f.status,
+						additions: f.additions,
+						deletions: f.deletions,
+						patch,
+					},
+				];
+			});
 
 			return {
 				sha: commit.sha,
 				message: commit.commit.message.split("\n")[0],
 				author: commit.commit.author?.name,
 				date: commit.commit.author?.date,
-				filesChanged: files.length,
+				filesChanged: files.length + omittedFiles.length,
 				files,
+				omittedFiles,
 			};
 		},
 	});

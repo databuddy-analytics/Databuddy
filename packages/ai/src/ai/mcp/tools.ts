@@ -13,7 +13,7 @@ import {
 } from "@databuddy/validation";
 import { flagFormShape, userRuleSchema } from "@databuddy/shared/flags";
 import { DatePresetSchema } from "../../lib/date-presets";
-import { executeBatch, queryPlanGateError } from "../../query";
+import { executeBatch } from "../../query";
 import type { AppContext } from "../config/context";
 import { SCHEMA_SECTIONS } from "../prompts/clickhouse-schema";
 import {
@@ -54,6 +54,7 @@ import {
 	buildBatchQueryRequests,
 	FilterSchema,
 	formatMcpQueryResults,
+	gateQueryPlan,
 	getFilteredQueryTypes,
 	getMcpSchemaDocumentation,
 	MCP_RESULT_ROW_LIMIT,
@@ -155,11 +156,16 @@ function createChartContext(input: {
 	};
 }
 
-function queryFailure(result: { error?: string; type: string }): McpToolError {
+function queryFailure(
+	result: { error?: string; type: string },
+	planLimited: boolean
+): McpToolError {
 	return new McpToolError(
-		result.error === queryFailedMessage(result.type)
-			? "query_failed"
-			: "invalid_input",
+		planLimited
+			? "plan_limit"
+			: result.error === queryFailedMessage(result.type)
+				? "query_failed"
+				: "invalid_input",
 		result.error ?? `The ${result.type} query failed.`
 	);
 }
@@ -324,7 +330,7 @@ const replyToInvestigationTool = defineMcpTool(
 				.trim()
 				.min(1)
 				.max(2000)
-				.describe("Your question or clarification, up to 2,000 characters."),
+				.describe("Your question or clarification."),
 			replyId: z
 				.string()
 				.trim()
@@ -393,7 +399,7 @@ const getDataTool = defineMcpTool(
 				.array(FilterSchema)
 				.optional()
 				.describe(
-					"Filters [{field, op, value}]. ops: eq, ne, contains, not_contains, starts_with, in, not_in. 'field' is a common dimension such as path, country, referrer, device_type, or utm_source, a query-specific field from capabilities detail='full', or trait:<key> (e.g. trait:plan) to segment by an identified-user trait. Rejected fields return the allowed list for this query."
+					"Filters [{field, op, value}]. ops: eq, ne, contains, not_contains, starts_with, in, not_in. 'field' must be in the query type's allowedFilters (capabilities detail='full'), or trait:<key> (e.g. trait:plan) to segment by an identified-user trait. Rejected fields return the allowed list for this query."
 				),
 			orderBy: z
 				.string()
@@ -471,14 +477,10 @@ const getDataTool = defineMcpTool(
 			filters: query.filters ?? input.filters,
 			orderBy: query.orderBy ?? input.orderBy,
 		}));
-		const plan = buildBatchQueryRequests(items, websiteId, timezone);
-		const planError = await queryPlanGateError(
-			plan.requests.map((request) => request.type),
-			{ organizationId: ctx.websiteOrganizationId ?? null }
+		const plan = await gateQueryPlan(
+			buildBatchQueryRequests(items, websiteId, timezone),
+			getResolvedOrganizationId(ctx)
 		);
-		if (planError) {
-			throw new McpToolError("plan_limit", planError);
-		}
 		const results = await executeBatch(plan.requests, {
 			websiteDomain: ctx.websiteDomain ?? "unknown",
 			timezone,
@@ -486,7 +488,14 @@ const getDataTool = defineMcpTool(
 		});
 		const formatted = formatMcpQueryResults(plan, results);
 		if (formatted.every((result) => result.error)) {
-			const failures = formatted.map(queryFailure);
+			const planLimited = new Set(
+				plan.invalid.flatMap((query) =>
+					query.planLimited ? [query.inputIndex] : []
+				)
+			);
+			const failures = formatted.map((result, index) =>
+				queryFailure(result, planLimited.has(index))
+			);
 			const [firstFailure] = failures;
 			if (firstFailure && failures.length === 1) {
 				throw firstFailure;
@@ -494,7 +503,9 @@ const getDataTool = defineMcpTool(
 			throw new McpToolError(
 				failures.some((failure) => failure.code === "query_failed")
 					? "query_failed"
-					: "invalid_input",
+					: failures.every((failure) => failure.code === "plan_limit")
+						? "plan_limit"
+						: "invalid_input",
 				`All ${failures.length} queries failed. ${formatted
 					.map(
 						(result, index) =>
@@ -521,7 +532,7 @@ const getSchemaTool = defineMcpTool(
 		name: "get_schema",
 		title: "List analytics columns",
 		description:
-			"Return the analytics tables with column names and types as a reference. get_data filters take common dimensions such as path or country plus query-specific fields from capabilities detail='full'; rejected fields return the allowed list.",
+			"Return the analytics tables with column names and types as a reference.",
 		inputSchema: z.object({
 			sections: z
 				.array(z.enum(SCHEMA_SECTIONS))
@@ -568,7 +579,7 @@ const CAPABILITY_DEFAULTS: readonly CapabilitySection[] = [
 
 const HINTS: readonly string[] = [
 	"The databuddy://guide resource documents query conventions and what insight and investigation fields mean.",
-	"capabilities is filterable: include=['queryTypes'] returns the full catalog, category='Errors' or contains='vital' narrows it, detail='full' adds query-specific allowedFilters.",
+	"capabilities is filterable: include=['queryTypes'] returns the full catalog, category='Errors' or contains='vital' narrows it, detail='full' adds each type's allowedFilters.",
 	"get_schema is sectionable: sections=['events'] returns the smallest useful payload.",
 	`get_data returns at most ${MCP_RESULT_ROW_LIMIT} rows per query; limit can lower that.`,
 ];
@@ -601,7 +612,7 @@ const capabilitiesTool = defineMcpTool(
 				.optional()
 				.default("summary")
 				.describe(
-					"'summary' returns descriptions only; 'full' adds each type's query-specific allowedFilters, on top of common dimensions such as path and country, also when filtering by category or contains."
+					"'summary' returns descriptions only; 'full' adds each type's allowedFilters, also when filtering by category or contains."
 				),
 		}),
 		outputSchema: z.object({
@@ -1169,12 +1180,11 @@ const createAnnotationTool = defineMcpTool(
 				.number()
 				.optional()
 				.describe("Y-axis value to pin the annotation to."),
-			text: z
-				.string()
-				.min(1)
-				.max(500)
-				.describe("Annotation text, up to 500 characters."),
-			tags: z.array(z.string()).optional().describe("Tags."),
+			text: z.string().min(1).max(500).describe("Annotation text."),
+			tags: z
+				.array(z.string())
+				.optional()
+				.describe("Labels such as launch, campaign, or incident."),
 			color: z.string().optional().describe("Hex color. Defaults to #3B82F6."),
 			isPublic: z
 				.boolean()
@@ -1250,20 +1260,20 @@ interface FlagScope {
 }
 
 function resolveFlagScope(ctx: McpHandlerContext): FlagScope {
+	const rpcContext = buildRpcContext(ctx);
 	if (ctx.websiteId) {
 		return {
 			notFoundHint:
 				"Flag IDs come from list_flags for the same website. Organization-wide flags are updated without a website.",
-			rpcContext: buildRpcContext(ctx),
+			rpcContext,
 			scope: { websiteId: ctx.websiteId },
 		};
 	}
-	const organizationId = resolveOrganizationId(ctx);
 	return {
 		notFoundHint:
 			"Website flags need websiteId, websiteName, or websiteDomain. list_flags shows each website's flags.",
-		rpcContext: buildRpcContext({ ...ctx, organizationId }),
-		scope: { organizationId },
+		rpcContext,
+		scope: { organizationId: resolveOrganizationId(ctx) },
 	};
 }
 

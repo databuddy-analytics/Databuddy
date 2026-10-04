@@ -2,9 +2,10 @@ import * as actualClickHouse from "@databuddy/db/clickhouse";
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import type { RequestLogger } from "evlog";
 import { setAiRequestLoggerProvider } from "../lib/request-logger";
-import { QueryBuilders } from "./builders";
+import { getQueryBuilder, QueryBuilders } from "./builders";
 import { makeRequiredFilters } from "./filter-fixtures";
 import { SimpleQueryBuilder } from "./simple-builder";
+import type { CompiledQuery, QueryRequest } from "./types";
 
 const realClickHouseModule = { ...actualClickHouse };
 const realChQuery = realClickHouseModule.chQuery;
@@ -21,18 +22,22 @@ const {
 	getSchemaGroups,
 } = await import("./batch-executor");
 
-function compileSql(type: string): string {
-	const config = QueryBuilders[type];
+function compileQuery(
+	type: string,
+	request: Pick<QueryRequest, "filters" | "timeUnit"> = {}
+): CompiledQuery {
+	const config = getQueryBuilder(type);
 	if (!config) {
 		throw new Error(`Missing config for ${type}`);
 	}
 	return new SimpleQueryBuilder(config, {
-		filters: makeRequiredFilters(config),
+		filters: [...makeRequiredFilters(config), ...(request.filters ?? [])],
 		projectId: "test-website",
 		type,
 		from: "2026-04-01",
 		to: "2026-04-11",
-	}).compile().sql;
+		timeUnit: request.timeUnit,
+	}).compile();
 }
 
 const singleQueryRequest = {
@@ -76,9 +81,43 @@ describe("batch-executor schema signatures", () => {
 		type,
 		declared,
 	}) => {
-		const sql = compileSql(type);
+		const { sql } = compileQuery(type);
 		const actual = extractOuterSelectColumns(sql);
 		expect(actual).toEqual(declared);
+	});
+
+	const commonFilterCases = builderEntries
+		.filter(([, config]) => config.commonFilters !== false)
+		.map(([type]) => ({ type }));
+
+	it.each(commonFilterCases)("$type binds the common path filter it accepts", ({
+		type,
+	}) => {
+		const { sql, params } = compileQuery(type, {
+			filters: [{ field: "path", op: "eq", value: "/x" }],
+		});
+		const boundKeys = Object.keys(params).filter(
+			(key) => params[key] === "/x" && sql.includes(`{${key}:`)
+		);
+		expect(boundKeys).not.toHaveLength(0);
+	});
+
+	const granularityCases = builderEntries.flatMap(([type, config]) => {
+		const units = config.meta?.supports_granularity;
+		return units ? [{ type, units }] : [];
+	});
+
+	it.each(
+		granularityCases
+	)("$type compiles a different bucket for each declared granularity", ({
+		type,
+		units,
+	}) => {
+		const sqls = new Set(
+			units.map((timeUnit) => compileQuery(type, { timeUnit }).sql)
+		);
+		expect(units.length).toBeGreaterThan(1);
+		expect(sqls.size).toBe(units.length);
 	});
 
 	it("groups builders that share a schema signature", () => {
@@ -102,12 +141,12 @@ describe("batch-executor schema signatures", () => {
 	});
 
 	it("every realtime builder opts out of the ClickHouse query cache", () => {
-		const realtimeTypes = Object.entries(QueryBuilders)
-			.filter(([, config]) => config.meta?.category === "Realtime")
-			.map(([type]) => type);
-		expect(realtimeTypes.length).toBeGreaterThan(0);
-		for (const type of realtimeTypes) {
-			expect(QueryBuilders[type]?.noCache).toBe(true);
+		const realtimeBuilders = Object.values(QueryBuilders).filter(
+			(config) => config.meta?.category === "Realtime"
+		);
+		expect(realtimeBuilders.length).toBeGreaterThan(0);
+		for (const config of realtimeBuilders) {
+			expect(config.noCache).toBe(true);
 		}
 	});
 });

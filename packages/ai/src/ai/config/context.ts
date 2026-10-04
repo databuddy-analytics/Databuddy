@@ -13,6 +13,7 @@ export interface AppContext {
 	chatId: string;
 	currentDateTime: string;
 	defaultWebsiteId?: string | null;
+	latestUserMessage?: string;
 	mutationMode?: AppMutationMode;
 	organizationId?: string | null;
 	requestHeaders?: Headers;
@@ -34,22 +35,37 @@ function escapeAttr(value: string): string {
 		.replace(/"/g, "&quot;");
 }
 
+export function formatAccessibleWebsites(
+	websites: WebsiteSummary[],
+	limit = websites.length
+): string {
+	if (websites.length === 0) {
+		return "";
+	}
+	const rows = websites.slice(0, limit).map((website) => {
+		const domain = website.domain
+			? ` domain="${escapeAttr(website.domain)}"`
+			: "";
+		const name = website.name ? ` name="${escapeAttr(website.name)}"` : "";
+		return `  <website id="${escapeAttr(website.id)}"${domain}${name} />`;
+	});
+	if (websites.length > limit) {
+		rows.push(
+			`  ${limit} of ${websites.length} shown; call list_websites for the rest.`
+		);
+	}
+	return `<accessible_websites>\n${rows.join("\n")}\n</accessible_websites>`;
+}
+
 export function formatContextForLLM(context: AppContext): string {
 	const lines = [
 		`<current_date>${context.currentDateTime}</current_date>`,
 		`<timezone>${context.timezone}</timezone>`,
 	];
 
-	const websites = context.accessibleWebsites ?? [];
-	if (websites.length > 0) {
-		const rows = websites
-			.map((w) => {
-				const domain = w.domain ? ` domain="${escapeAttr(w.domain)}"` : "";
-				const name = w.name ? ` name="${escapeAttr(w.name)}"` : "";
-				return `  <website id="${escapeAttr(w.id)}"${domain}${name} />`;
-			})
-			.join("\n");
-		lines.push(`<accessible_websites>\n${rows}\n</accessible_websites>`);
+	const websites = formatAccessibleWebsites(context.accessibleWebsites ?? []);
+	if (websites) {
+		lines.push(websites);
 	}
 
 	const defaultId = context.defaultWebsiteId ?? context.websiteId;

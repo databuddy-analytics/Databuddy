@@ -67,8 +67,14 @@ export function invalidFilterFieldError(
 	if (!disallowed) {
 		return null;
 	}
-	const allowed = allowedFilterFields(config).sort().join(", ");
-	return `Filter on field '${disallowed.field}' is not permitted for ${type}. Allowed fields: ${allowed}. Identified-user traits can be filtered with trait:<key> (e.g. trait:plan) on query types that accept profile_id.`;
+	const allowed = allowedFilterFields(config).sort();
+	if (allowed.length === 0) {
+		return `${type} accepts no filters; remove the filter on '${disallowed.field}'.`;
+	}
+	const traits = isFilterFieldAllowed(config, "profile_id")
+		? " Identified-user traits can be filtered with trait:<key> (e.g. trait:plan)."
+		: "";
+	return `Filter on field '${disallowed.field}' is not permitted for ${type}. Allowed fields: ${allowed.join(", ")}.${traits}`;
 }
 
 export async function resolveRequestTraitFilters(

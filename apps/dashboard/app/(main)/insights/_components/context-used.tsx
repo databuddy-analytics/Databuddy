@@ -4,6 +4,7 @@ import type {
 	BusinessContext,
 	BusinessSource,
 } from "@databuddy/shared/insights";
+import { PROFILE_ORIGIN_PROVENANCE } from "@databuddy/shared/organization-business-context";
 import { formatDateTime } from "@databuddy/ui";
 import { Accordion } from "@databuddy/ui/client";
 
@@ -45,9 +46,11 @@ export function ContextUsed({ snapshot }: { snapshot?: BusinessContext }) {
 							<p className="font-medium text-foreground">
 								{sourceName(source)}
 							</p>
-							{source.kind === "organization_profile" && source.author && (
-								<p>{source.author}</p>
-							)}
+							{source.kind === "organization_profile" &&
+								source.author &&
+								source.author !== provenanceLabel(source) && (
+									<p>{source.author}</p>
+								)}
 							<p>
 								{source.profileVersion
 									? `Revision ${source.profileVersion.revision} · Saved `
@@ -86,15 +89,14 @@ export function ContextUsed({ snapshot }: { snapshot?: BusinessContext }) {
 	);
 }
 
+function provenanceLabel(source: BusinessSource) {
+	return source.origin && PROFILE_ORIGIN_PROVENANCE[source.origin].label;
+}
+
 function sourceName(source: BusinessSource) {
 	if (source.kind === "organization_profile") {
-		return source.origin === "website"
-			? "Organization brief · Website background"
-			: source.origin === "mixed"
-				? "Organization brief · Website background with team edits"
-				: source.origin === "team"
-					? "Organization brief · Team supplied or edited"
-					: "Organization brief";
+		const label = provenanceLabel(source);
+		return label ? `Organization brief · ${label}` : "Organization brief";
 	}
 	return source.kind === "team_reply"
 		? `Team reply${source.author ? ` · ${source.author}` : ""}`

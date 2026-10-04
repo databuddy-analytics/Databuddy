@@ -72,6 +72,7 @@ export default function InsightDetailPage() {
 	const latest = data?.timeline.findLast(
 		(item): item is InvestigationItem => item.kind === "investigation"
 	);
+	const recovered = insight?.resolvedReason === "recovered";
 
 	return (
 		<div className="flex h-full flex-col overflow-y-auto">
@@ -120,7 +121,7 @@ export default function InsightDetailPage() {
 										}
 									/>
 									{insight.status === "resolved"
-										? insight.resolvedReason === "recovered"
+										? recovered
 											? "Recovered"
 											: "Resolved"
 										: "Open"}
@@ -133,7 +134,7 @@ export default function InsightDetailPage() {
 						<CaseState
 							items={data?.timeline ?? []}
 							latest={latest ?? null}
-							recovered={insight.resolvedReason === "recovered"}
+							recovered={recovered}
 						/>
 						<CaseActivity
 							canReply={data?.canReply ?? false}
