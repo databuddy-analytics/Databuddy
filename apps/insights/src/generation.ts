@@ -537,18 +537,43 @@ export async function refreshInvestigationSignal(params: {
 	if (base.signal.signalKey !== params.signal.signalKey) {
 		throw new Error("Remeasurement changed the investigation subject");
 	}
-	const annotationRows = await fetchSignalAnnotations(
-		params.websiteId,
-		base.signal,
-		params.asOf,
-		params.timezone
-	);
+	const [annotationRows, customerImpact] = await Promise.all([
+		fetchSignalAnnotations(
+			params.websiteId,
+			base.signal,
+			params.asOf,
+			params.timezone
+		),
+		loadErrorCustomerImpact({
+			abortSignal: AbortSignal.timeout(SOURCE_DETECTION_TIMEOUT_MS),
+			signal: base.signal,
+			timezone: params.timezone,
+			websiteId: params.websiteId,
+		}).catch((error) => {
+			captureInsightsError(error, "generation.customer_impact.failed", {
+				signal_key: base.signal.signalKey,
+				website_id: params.websiteId,
+			});
+			return null;
+		}),
+	]);
 	const evidence = typedEvidence(base);
+	if (customerImpact) {
+		evidence.push({
+			kind: "customer_impact",
+			value: errorCustomerImpactEvidence(customerImpact, base.signal),
+		});
+	}
 	const annotation = annotationEvidence(annotationRows);
 	if (annotation) {
 		evidence.push({ kind: "annotation", value: annotation });
 	}
-	return { evidence, signal: base.signal };
+	return {
+		customerImpact,
+		evidence,
+		investigationObjective: base.investigationObjective,
+		signal: base.signal,
+	};
 }
 
 const REPOSITORY_CHANGE_LIMIT = 3;

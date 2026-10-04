@@ -30,6 +30,7 @@ import {
 	repositoryChangeEvidence,
 } from "./generation";
 import { organizationProfileContext } from "./business-context";
+import { loadErrorCustomerImpact } from "./error-customer-impact";
 import { parseInvestigationOutcome } from "@databuddy/shared/insights";
 import { prepareInvestigation } from "./investigation";
 
@@ -886,6 +887,86 @@ describe("fixture investigation sources", () => {
 			onset: [changeOnsetEvidence(linkOnset)],
 			reads: ["custom_event:link_created", "custom_event:link_created"],
 		});
+	});
+
+	it("passes each supplied line with the kind of its source", async () => {
+		const behaviorError: DetectedSignal = {
+			...trafficDrop,
+			baseline: 120,
+			cohortMeasurement: {
+				type: "matched_error_continuation",
+				controlContinuationPercent: 60,
+				exposedContinuationPercent: 20,
+				matchedSessions: 40,
+			},
+			current: 1234,
+			definitionEvidence:
+				"Checkout failed occurred 1234 times across 300 visitor identifiers, compared with 120 occurrences across 40 visitor identifiers previously.",
+			deltaPercent: 0,
+			direction: "up",
+			entityId: "checkout-boom",
+			entityLabel: "Checkout failed",
+			label: "Checkout failed",
+			method: "behavior",
+			metric: "error_count",
+			severity: "warning",
+			subjectKey: "error:checkout-boom",
+		};
+		let received:
+			| Parameters<InvestigationSources["investigateSignal"]>[0]
+			| null = null;
+		await investigateFixture(
+			fixtureSources({
+				detectDefinitionSignals: async () => [],
+				detectMetricSignals: async () => [behaviorError],
+				fetchAnnotations: async () => [
+					{ date: "2026-07-09", title: "Checkout release" },
+				],
+				investigateSignal: async (input) => {
+					received = input;
+					return {
+						outcome: {
+							evidence: ["Checkout failures stopped visitors."],
+							impact: null,
+							next: { reason: "No case is required.", type: "resolve" },
+							rootCause: null,
+							summary: "Checkout failures stopped visitors.",
+							title: "Checkout failures stopped visitors",
+						},
+						toolCallCount: 0,
+					};
+				},
+				loadDueInvestigation: async () => null,
+				loadErrorCustomerImpact: (params) =>
+					loadErrorCustomerImpact(params, async () => [
+						{
+							affected_sessions: 34,
+							affected_visitor_identifiers: 35,
+							ambiguous_profile_sessions: 0,
+							error_occurrences: 36,
+							identified_profiles: 5,
+							identified_profiles_with_prior_attributed_completed_payment: 2,
+							identity_coverage_percent: 14.3,
+							linked_visitor_identifiers: 5,
+							payment_match_is_lower_bound: 1,
+							qualifying_profile_payment_history_observed: 1,
+							unlinked_visitor_identifiers: 30,
+						},
+					]),
+				loadHistory: async () => [],
+				loadObservations: async () => new Map(),
+			})
+		);
+
+		expect(received?.signal.changePercent).toBeNull();
+		expect(
+			received?.evidence.map((item) =>
+				typeof item === "string" ? item : item.kind
+			)
+		).toEqual(["definition", "cohort", "customer_impact", "annotation"]);
+		const [impact] = linesOfKind(received?.evidence, "customer_impact");
+		expect(impact).not.toContain("error-exposed session");
+		expect(impact).toContain("At least 2 identified profiles");
 	});
 
 	it("adds supplied route-vital continuation evidence before a slow route reaches the agent", async () => {

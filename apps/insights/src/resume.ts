@@ -481,9 +481,11 @@ export async function resumeInsightReply(
 		const result = await investigate({
 			appContext,
 			...{ businessContext },
+			customerImpact: currentMeasurement.customerImpact,
 			evidence: currentMeasurement.evidence,
 			githubRepository: trigger.integrations?.github ?? null,
 			history,
+			investigationObjective: currentMeasurement.investigationObjective,
 			otherOpenWork,
 			request: {
 				kind: intent === "verification" ? "verification" : undefined,
