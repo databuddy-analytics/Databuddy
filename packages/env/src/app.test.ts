@@ -272,11 +272,24 @@ describe("services", () => {
 			RESEND_API_KEY: "  ",
 			SLACK_WEBHOOK_URL: " https://hooks.slack.com/services/x ",
 		};
-		const { services } = createConfig(env);
-		expect(services.slackWebhookUrl).toBe("https://hooks.slack.com/services/x");
-		expect(services.resendApiKey).toBeUndefined();
+		const config = createConfig(env);
+		expect(config.services.slackWebhookUrl).toBe(
+			"https://hooks.slack.com/services/x"
+		);
+		expect(config.services.resendApiKey).toBeUndefined();
 		env.RESEND_API_KEY = "re_live";
-		expect(services.resendApiKey).toBe("re_live");
+		expect(config.services.resendApiKey).toBe("re_live");
+	});
+
+	it("keeps development logs out of Axiom even with a token set", () => {
+		const env: Record<string, string | undefined> = {
+			NODE_ENV: "development",
+			AXIOM_TOKEN: "xaat-dev",
+		};
+		const config = createConfig(env);
+		expect(config.services.axiomToken).toBeUndefined();
+		env.NODE_ENV = "production";
+		expect(config.services.axiomToken).toBe("xaat-dev");
 	});
 });
 
