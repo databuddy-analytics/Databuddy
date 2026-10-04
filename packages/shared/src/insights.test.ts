@@ -526,7 +526,7 @@ describe("investigationOutcomeSchema", () => {
 		).toBe(false);
 	});
 
-	it("accepts concise titles while rejecting empty titles and raw identifiers", () => {
+	it("accepts concise titles while rejecting empty, overlong and raw-identifier titles", () => {
 		const accepted = {
 			...outcomeBase,
 			...agentFields,
@@ -541,6 +541,14 @@ describe("investigationOutcomeSchema", () => {
 		expect(withTitle("Signup conversion improved")).toBe(true);
 		expect(withTitle(" ")).toBe(false);
 		expect(withTitle("a".repeat(121))).toBe(false);
+		expect(
+			withTitle("Visitors from the spring newsletter landing page fell sharply")
+		).toBe(true);
+		expect(
+			withTitle(
+				"Visitors from the spring newsletter landing page fell sharply again this week"
+			)
+		).toBe(false);
 		expect(
 			withTitle(
 				"The signup_completed event stopped firing after the last deploy"

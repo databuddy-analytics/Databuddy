@@ -803,6 +803,9 @@ export const investigationOutcomeSchema = z
 const RAW_IDENTIFIER_PATTERN =
 	/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\b[a-z0-9]+(?:_[a-z0-9]+)+\b|https?:\/\//i;
 
+const TITLE_WORD_LIMIT = 10;
+const WHITESPACE = /\s+/;
+
 const agentTitleSchema = z
 	.string()
 	.trim()
@@ -811,6 +814,9 @@ const agentTitleSchema = z
 	.refine((title) => !RAW_IDENTIFIER_PATTERN.test(title), {
 		message:
 			"Titles must use natural product language, never raw identifiers, event names, or URLs",
+	})
+	.refine((title) => title.split(WHITESPACE).length <= TITLE_WORD_LIMIT, {
+		message: `Titles are headlines of at most ${TITLE_WORD_LIMIT} words; describe recorded names instead of copying them`,
 	})
 	.describe(
 		"A natural 4–8 word headline stating the finding. Directly measured reliability or user impact may lead with an affected count, never a bare count. Structured revenue headlines stay qualitative. Measurement findings name the inspected mismatch or measured blind spot without implying product harm; counts belong with dates in evidence. Never use raw identifiers, event names or URLs."
