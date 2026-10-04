@@ -75,14 +75,10 @@ const MUTATION_RULES = `**Mutations:**
 
 ${FEEDBACK_TOOL_RULES}`;
 
-function mutationRules(mode: AppMutationMode = "allow"): string {
-	return mode === "dry-run" ? READ_ONLY_RULE : MUTATION_RULES;
-}
-
 export function agentRules(mode?: AppMutationMode): string {
 	return `${COMMON_AGENT_RULES}
 
 <agent-rules>
-${[TOOL_ROUTING, mutationRules(mode), DATA_INTEGRITY_RULES, ATTRIBUTION_RULES, ANALYSIS_RULES].join("\n\n")}
+${[TOOL_ROUTING, mode === "dry-run" ? READ_ONLY_RULE : MUTATION_RULES, DATA_INTEGRITY_RULES, ATTRIBUTION_RULES, ANALYSIS_RULES].join("\n\n")}
 </agent-rules>`;
 }

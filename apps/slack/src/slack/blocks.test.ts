@@ -5,7 +5,7 @@ import {
 	componentsToBlocks,
 	componentToBlocks,
 } from "@/slack/blocks";
-import { buildAnalyticsInstructionsForMcp } from "../../../../packages/ai/src/ai/prompts/analytics";
+import { buildAnalyticsInstructionsForMcp } from "@databuddy/ai/prompts/analytics";
 
 function firstBlock(spec: ComponentSpec): Block {
 	const blocks = componentToBlocks(spec);

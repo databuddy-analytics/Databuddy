@@ -23,7 +23,7 @@ mock.module("./slack-relevance", () => ({
 
 function answer(options: RunMcpAgentOptions): string {
 	runs.push(options);
-	return `Answer: ${options.question}`;
+	return `Answer: ${options.input}`;
 }
 mock.module("../ai/mcp/run-agent", () => ({
 	runMcpAgent: async (options: RunMcpAgentOptions) => answer(options),
@@ -73,7 +73,6 @@ function principalFor(apiKey: ApiKeyRow | null): AgentPrincipal {
 	};
 }
 const options: DatabuddyAgentOptions = {
-	actor: { type: "api_key", apiKey: key },
 	principal: principalFor(key),
 	conversationId: "slack-T_TEST-C_TEST-111_000",
 	input: "First question",
@@ -108,8 +107,8 @@ test.each([
 	});
 	await invoke({ ...options, input: "Third question" });
 
-	expect(runs.map((run) => run.priorMessages?.length ?? 0)).toEqual([0, 2, 4]);
-	expect(runs[1].priorMessages).toEqual([
+	expect(runs.map((run) => run.history?.length ?? 0)).toEqual([0, 2, 4]);
+	expect(runs[1].history).toEqual([
 		{ role: "user", content: "First question" },
 		{ role: "assistant", content: "Answer: First question" },
 	]);
@@ -130,7 +129,7 @@ test.each([
 ] as const)("isolates Slack history by %s", async (_scope, isolated) => {
 	await askDatabuddyAgent(options);
 	await askDatabuddyAgent({ ...options, ...isolated });
-	expect(runs.at(-1)?.priorMessages).toBeUndefined();
+	expect(runs.at(-1)?.history).toBeUndefined();
 });
 
 test.each([
@@ -145,7 +144,7 @@ test.each([
 	await askDatabuddyAgent(input);
 	await askDatabuddyAgent({ ...input, memoryUserId: "slack-T_TEST-U_B" });
 	await askDatabuddyAgent(input);
-	expect(runs.map((run) => run.priorMessages?.length ?? 0)).toEqual([0, 0, 2]);
+	expect(runs.map((run) => run.history?.length ?? 0)).toEqual([0, 0, 2]);
 });
 
 test("renders component JSON as markdown for markdown output", async () => {

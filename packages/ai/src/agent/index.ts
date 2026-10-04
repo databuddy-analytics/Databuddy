@@ -28,18 +28,13 @@ import { mergeWideEvent } from "../lib/tracing";
 import { matchesWebsiteDomain } from "../lib/website-domain";
 import { AgentError } from "./errors";
 import {
-	type AgentOutput,
 	ComponentStreamSplitter,
 	componentToPlainText,
 	splitAgentText,
 } from "./render";
 
 export type { ConversationMessage } from "../ai/mcp/conversation-store";
-export {
-	AgentError,
-	type AgentErrorCode,
-	toAgentErrorResponse,
-} from "./errors";
+export { AgentError, toAgentErrorResponse } from "./errors";
 export {
 	classifySlackThreadReplyRelevance,
 	type SlackThreadReplyRelevance,
@@ -70,7 +65,7 @@ export type DatabuddyAgentActor =
 			userId: string;
 	  };
 
-export interface AgentRequestInput {
+interface AgentRequestInput {
 	actor: DatabuddyAgentActor;
 	billingMode?: DatabuddyAgentBillingMode;
 	organizationId?: string | null;
@@ -90,7 +85,10 @@ export interface AgentPrincipal {
 	website: WebsiteSummary | null;
 }
 
-export interface DatabuddyAgentOptions extends AgentRequestInput {
+export type DatabuddyAgentOptions = (
+	| AgentRequestInput
+	| { principal: AgentPrincipal }
+) & {
 	abortSignal?: AbortSignal;
 	conversationId?: string;
 	history?: ConversationMessage[];
@@ -102,14 +100,13 @@ export interface DatabuddyAgentOptions extends AgentRequestInput {
 	onToolEvent?: (toolNames: string[]) => void;
 	/** Streaming only: called once after completion and usage settlement. */
 	onToolTrace?: (trace: DatabuddyAgentToolTrace[]) => void;
-	output?: AgentOutput;
+	output?: "markdown";
 	persistConversation?: boolean;
-	principal?: AgentPrincipal;
 	slackContext?: DatabuddyAgentSlackContext | null;
 	source?: DatabuddyAgentSource;
 	timeoutMs?: number;
 	timezone?: string;
-}
+};
 
 export interface DatabuddyAgentResult {
 	answer: string;
@@ -126,42 +123,26 @@ export interface DatabuddyAgentTraceResult extends DatabuddyAgentResult {
 
 const AGENT_RATE_LIMIT_PER_MINUTE = 30;
 
-export function resolveAgentOrganizationId(input: {
-	activeOrganizationId?: string | null;
-	apiKey: ApiKeyRow | null;
-	requestedOrganizationId?: string | null;
-}): string | null {
-	const keyOrganizationId = input.apiKey?.organizationId;
-	if (
-		input.apiKey &&
-		input.requestedOrganizationId &&
-		input.requestedOrganizationId !== keyOrganizationId
-	) {
-		throw new AgentError(
-			"access_denied",
-			"The API key does not belong to this organization."
-		);
-	}
-	return (
-		input.requestedOrganizationId ??
-		keyOrganizationId ??
-		input.activeOrganizationId ??
-		null
-	);
-}
-
 export async function prepareAgentRequest(
 	input: AgentRequestInput
 ): Promise<AgentPrincipal> {
 	const { actor } = input;
 	const apiKey = actor.type === "api_key" ? actor.apiKey : null;
 	const userId = actor.userId ?? apiKey?.userId ?? null;
-	const organizationId = resolveAgentOrganizationId({
-		activeOrganizationId:
-			actor.type === "session" ? actor.activeOrganizationId : null,
-		apiKey,
-		requestedOrganizationId: input.organizationId,
-	});
+	if (
+		apiKey &&
+		input.organizationId &&
+		input.organizationId !== apiKey.organizationId
+	) {
+		throw new AgentError(
+			"access_denied",
+			"The API key does not belong to this organization."
+		);
+	}
+	const organizationId =
+		input.organizationId ??
+		apiKey?.organizationId ??
+		(actor.type === "session" ? actor.activeOrganizationId : null);
 	if (!organizationId) {
 		throw new AgentError("workspace_required");
 	}
@@ -237,29 +218,26 @@ function selectRequestedWebsite(
 export async function askDatabuddyAgent(
 	options: DatabuddyAgentOptions
 ): Promise<DatabuddyAgentResult> {
-	const prepared = await prepareDatabuddyAgentCall(options);
-	const answer = renderAnswer(
-		await runMcpAgent(toRunOptions(options, prepared)),
-		options.output
-	);
+	const run = await prepareDatabuddyAgentCall(options);
+	const answer = renderAnswer(await runMcpAgent(run), run.output);
 
-	await persistAgentConversation(options, prepared, answer);
+	await persistAgentConversation(run, answer);
 
-	return { answer, conversationId: prepared.conversationId };
+	return { answer, conversationId: run.conversationId };
 }
 
 export async function traceDatabuddyAgent(
 	options: DatabuddyAgentOptions
 ): Promise<DatabuddyAgentTraceResult> {
-	const prepared = await prepareDatabuddyAgentCall(options);
-	const result = await runMcpAgentWithTrace(toRunOptions(options, prepared));
-	const answer = renderAnswer(result.answer, options.output);
+	const run = await prepareDatabuddyAgentCall(options);
+	const result = await runMcpAgentWithTrace(run);
+	const answer = renderAnswer(result.answer, run.output);
 
-	await persistAgentConversation(options, prepared, answer);
+	await persistAgentConversation(run, answer);
 
 	return {
 		answer,
-		conversationId: prepared.conversationId,
+		conversationId: run.conversationId,
 		steps: result.steps,
 		toolCalls: result.toolCalls,
 		usage: result.usage,
@@ -269,16 +247,14 @@ export async function traceDatabuddyAgent(
 export async function* streamDatabuddyAgent(
 	options: DatabuddyAgentOptions
 ): AsyncGenerator<string> {
-	const prepared = await prepareDatabuddyAgentCall(options);
+	const run = await prepareDatabuddyAgentCall(options);
 	const splitter =
-		options.output === "markdown"
+		run.output === "markdown"
 			? new ComponentStreamSplitter(componentToPlainText)
 			: null;
 	let answer = "";
 
-	for await (const chunk of streamMcpAgentText(
-		toRunOptions(options, prepared)
-	)) {
+	for await (const chunk of streamMcpAgentText(run)) {
 		const text = splitter ? splitter.push(chunk) : chunk;
 		if (text) {
 			answer += text;
@@ -291,17 +267,22 @@ export async function* streamDatabuddyAgent(
 		yield tail;
 	}
 
-	await persistAgentConversation(options, prepared, answer);
+	await persistAgentConversation(run, answer);
 }
 
-function renderAnswer(answer: string, output: AgentOutput | undefined): string {
+function renderAnswer(answer: string, output: "markdown" | undefined): string {
 	return output === "markdown"
 		? splitAgentText(answer, componentToPlainText).text
 		: answer;
 }
 
-async function prepareDatabuddyAgentCall(options: DatabuddyAgentOptions) {
-	const principal = options.principal ?? (await prepareAgentRequest(options));
+async function prepareDatabuddyAgentCall(
+	options: DatabuddyAgentOptions
+): Promise<RunMcpAgentOptions> {
+	const principal =
+		"principal" in options
+			? options.principal
+			: await prepareAgentRequest(options);
 	const conversationId = options.conversationId ?? crypto.randomUUID();
 	const memoryUserId = options.memoryUserId ?? principal.userId;
 	// Slack threads belong to the integration; personal memory stays speaker-scoped.
@@ -316,6 +297,7 @@ async function prepareDatabuddyAgentCall(options: DatabuddyAgentOptions) {
 		));
 
 	return {
+		...options,
 		conversationId,
 		conversationUserId,
 		history: history.length > 0 ? history : undefined,
@@ -325,45 +307,20 @@ async function prepareDatabuddyAgentCall(options: DatabuddyAgentOptions) {
 	};
 }
 
-function toRunOptions(
-	options: DatabuddyAgentOptions,
-	prepared: Awaited<ReturnType<typeof prepareDatabuddyAgentCall>>
-): RunMcpAgentOptions {
-	return {
-		abortSignal: options.abortSignal,
-		conversationId: prepared.conversationId,
-		historyInput: options.historyInput,
-		memoryUserId: prepared.memoryUserId,
-		modelOverride: options.modelOverride,
-		mutationMode: options.mutationMode,
-		onToolEvent: options.onToolEvent,
-		onToolTrace: options.onToolTrace,
-		principal: prepared.principal,
-		priorMessages: prepared.history,
-		question: options.input,
-		slackContext: options.slackContext,
-		source: prepared.source,
-		storeMemory: options.persistConversation !== false,
-		timeoutMs: options.timeoutMs,
-		timezone: options.timezone,
-	};
-}
-
 async function persistAgentConversation(
-	options: DatabuddyAgentOptions,
-	prepared: Awaited<ReturnType<typeof prepareDatabuddyAgentCall>>,
+	run: RunMcpAgentOptions,
 	answer: string
 ): Promise<void> {
-	if (options.persistConversation === false) {
+	if (run.persistConversation === false) {
 		return;
 	}
 
 	await appendToConversation(
-		prepared.conversationId,
-		prepared.conversationUserId,
-		prepared.principal.apiKey,
-		options.historyInput ?? options.input,
+		run.conversationId,
+		run.conversationUserId,
+		run.principal.apiKey,
+		run.historyInput ?? run.input,
 		answer.trim(),
-		prepared.history
+		run.history
 	);
 }
