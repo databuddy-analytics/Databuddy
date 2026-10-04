@@ -69,7 +69,7 @@ export function createMcpAgentTools(
 		describe_schema: describeSchemaTool,
 		list_websites: tool({
 			description:
-				"List all websites accessible with the current API key. Call it only when <accessible_websites> is truncated or missing the site you need.",
+				"List all websites this conversation can access in the current organization. Call it only when <accessible_websites> is truncated or missing the site you need.",
 			strict: true,
 			inputSchema: z.object({}),
 			execute: async (_args, options) => {

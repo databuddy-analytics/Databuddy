@@ -1,14 +1,11 @@
-import {
-	getApiKeyFromHeader,
-	isApiKeyPresent,
-} from "@databuddy/api-keys/resolve";
+import { isApiKeyPresent } from "@databuddy/api-keys/resolve";
+import { resolveAgentOrganizationId } from "@databuddy/ai/agent";
 import {
 	createMcpErrorResponse,
 	createMcpUnauthorizedResponse,
 	handleDatabuddyMcpRequest,
 } from "@databuddy/ai/mcp/http";
 import { captureWarning, mergeWideEvent } from "@databuddy/ai/lib/tracing";
-import { auth } from "@databuddy/auth";
 import { getMcpAccessGrant } from "@databuddy/auth/mcp-grant";
 import { MCP_GRANT_CLAIM } from "@databuddy/shared/mcp-access";
 import type { ApiAuthWideEventFields } from "@databuddy/shared/evlog-fields";
@@ -23,7 +20,7 @@ import {
 	readMcpOAuthToken,
 	rejectUnsupportedMcpMethod,
 } from "@/http/cors";
-import { getResolvedAuth } from "@/lib/auth-wide-event";
+import { resolveRequestAuth } from "@/lib/auth-wide-event";
 import { ApiKeyInFlightGate } from "@/middleware/api-key-rate-limit";
 
 const SIGNING_KEYS_URL = `${config.urls.authorizationServer}/jwks`;
@@ -244,26 +241,20 @@ export const mcp = new Elysia({ name: "mcp" })
 				organizationId: null,
 			};
 		}
-		const preResolved = getResolvedAuth(request.headers);
-		const hasApiKey = isApiKeyPresent(request.headers);
-		const apiKey = hasApiKey
-			? preResolved
-				? (preResolved.apiKeyResult?.key ?? null)
-				: await getApiKeyFromHeader(request.headers)
-			: null;
-		const session = hasApiKey
+		const { apiKey, session } = await resolveRequestAuth(request.headers);
+		const user = isApiKeyPresent(request.headers)
 			? null
-			: preResolved
-				? preResolved.session
-				: await auth.api.getSession({ headers: request.headers });
-
-		const user = session?.user ?? null;
+			: (session?.user ?? null);
 		return {
 			user,
 			apiKey,
 			oauthAccessToken: null,
-			organizationId:
-				apiKey?.organizationId ?? session?.session.activeOrganizationId ?? null,
+			organizationId: resolveAgentOrganizationId({
+				activeOrganizationId: user
+					? session?.session.activeOrganizationId
+					: null,
+				apiKey,
+			}),
 		};
 	})
 	.onBeforeHandle(({ user, apiKey, oauthAccessToken, set }) => {
