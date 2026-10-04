@@ -100,7 +100,7 @@ export async function businessContextGenerationAccess(
 		return {
 			status: "unavailable",
 			message:
-				"Generation access could not be checked. Try again, or edit the context manually.",
+				"Generation access could not be checked. Try again in a moment, or edit the context by hand.",
 			action: "retry",
 		};
 	}

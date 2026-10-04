@@ -16,6 +16,33 @@ import { hasHostedBilling } from "../lib/autumn-client";
 import { type Context, os } from "../orpc";
 import { getMemberRole, getOrganizationOwnerId } from "../utils/organization";
 
+const RESOURCE_NOUNS: Record<string, string> = {
+	audit_log: "the audit log",
+	flag: "feature flags",
+	llm: "AI features",
+	organization: "organization settings",
+	status_page: "status pages",
+	subscription: "billing",
+};
+
+const PERMISSION_VERBS: Record<string, string> = {
+	read: "view",
+	update: "edit",
+	view_analytics: "view analytics for",
+};
+
+function roleDeniedMessage(
+	role: string,
+	resource: string,
+	permission: string | undefined
+): string {
+	const noun = RESOURCE_NOUNS[resource] ?? `${resource.replaceAll("_", " ")}s`;
+	const verb = permission
+		? (PERMISSION_VERBS[permission] ?? permission)
+		: "change";
+	return `Your ${role} role can't ${verb} ${noun} in this organization. Ask an owner or admin for access.`;
+}
+
 type Website = NonNullable<Awaited<ReturnType<typeof getWebsiteById>>>;
 
 export type Permissions<R extends ResourceType> = readonly [
@@ -173,7 +200,7 @@ async function resolveGrant(
 			return {
 				granted: false,
 				denied: rpcError.forbidden(
-					"This connection does not have access to this organization"
+					"This connection does not have access to this organization. Reconnect it and choose this organization."
 				),
 			};
 		}
@@ -187,7 +214,7 @@ async function resolveGrant(
 			return {
 				granted: false,
 				denied: rpcError.forbidden(
-					"This connection is limited to its selected websites"
+					"This connection only has access to the websites selected when it was connected."
 				),
 			};
 		}
@@ -196,7 +223,7 @@ async function resolveGrant(
 				return {
 					granted: false,
 					denied: rpcError.forbidden(
-						`This connection is missing required scope: ${scope}`
+						`This connection is missing the ${scope} scope. Reconnect it with that scope to continue.`
 					),
 				};
 			}
@@ -212,7 +239,7 @@ async function resolveGrant(
 			return {
 				granted: false,
 				denied: rpcError.forbidden(
-					"Resource does not belong to the active organization"
+					"This item belongs to a different organization. Switch organizations and try again."
 				),
 			};
 		}
@@ -221,7 +248,9 @@ async function resolveGrant(
 		if (!role) {
 			return {
 				granted: false,
-				denied: rpcError.forbidden("You are not a member of this organization"),
+				denied: rpcError.forbidden(
+					"You are not a member of this organization. Ask an owner or admin to invite you."
+				),
 			};
 		}
 
@@ -229,7 +258,7 @@ async function resolveGrant(
 			return {
 				granted: false,
 				denied: rpcError.forbidden(
-					`Missing required ${resource} permissions: ${permissions.join(", ")}`
+					roleDeniedMessage(role, resource, permissions[0])
 				),
 			};
 		}
@@ -242,7 +271,7 @@ async function resolveGrant(
 			return {
 				granted: false,
 				denied: rpcError.forbidden(
-					"API key does not have access to this workspace"
+					"This API key does not have access to this organization."
 				),
 			};
 		}
@@ -258,7 +287,7 @@ async function resolveGrant(
 				return {
 					granted: false,
 					denied: rpcError.forbidden(
-						`API key missing required scope: ${scope}`
+						`This API key is missing the ${scope} scope. Create a key with that scope to continue.`
 					),
 				};
 			}
@@ -305,10 +334,12 @@ async function resolveWorkspace(
 		input.organizationId ?? website?.organizationId ?? context.organizationId;
 
 	if (!organizationId) {
-		throw rpcError.badRequest("Workspace is required");
+		throw rpcError.badRequest("Select an organization and try again.");
 	}
 	if (website && website.organizationId !== organizationId) {
-		throw rpcError.forbidden("Website does not belong to this organization");
+		throw rpcError.forbidden(
+			"This website belongs to a different organization. Switch organizations and try again."
+		);
 	}
 
 	const effectiveResource =
@@ -507,7 +538,7 @@ async function resolveCreatedBy(
 		const ownerId = await getOrganizationOwnerId(organizationId);
 		if (!ownerId) {
 			throw rpcError.forbidden(
-				"Could not resolve organization owner for API key"
+				"This API key's organization has no owner. Add an owner and try again."
 			);
 		}
 		return ownerId;

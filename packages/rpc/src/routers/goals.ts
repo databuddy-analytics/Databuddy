@@ -205,7 +205,9 @@ export const goalsRouter = {
 				.returning();
 
 			if (!newGoal) {
-				throw rpcError.internal("Failed to create goal");
+				throw rpcError.internal(
+					"The goal could not be created. Try again in a moment."
+				);
 			}
 
 			await invalidateGoalsCache(input.websiteId);

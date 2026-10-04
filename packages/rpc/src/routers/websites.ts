@@ -313,7 +313,9 @@ function handleServiceError(error: unknown): never {
 	if (error instanceof WebsiteNotFoundError) {
 		throw rpcError.notFound("website");
 	}
-	throw rpcError.internal("Website operation failed");
+	throw rpcError.internal(
+		"The website could not be saved. Try again in a moment."
+	);
 }
 
 const TRACKING_HEALTH_WINDOW_HOURS = 24;
@@ -537,10 +539,10 @@ const buildStatusMessage = (
 	}
 
 	if (status.error) {
-		return "Unable to check events. Try again shortly.";
+		return "Events could not be checked. Try again in a moment.";
 	}
 
-	return "Tracking not set up. Please install the script tag.";
+	return "Tracking not set up. Install the script tag.";
 };
 
 const websiteStatusOutputSchema = z.enum([
@@ -762,7 +764,7 @@ export const websitesRouter = {
 			});
 
 			if (!workspace.organizationId) {
-				throw rpcError.badRequest("Organization ID is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			return websiteService.list(workspace.organizationId);
@@ -786,7 +788,7 @@ export const websitesRouter = {
 			});
 
 			if (!workspace.organizationId) {
-				throw rpcError.badRequest("Organization ID is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			const websitesList = await websiteService.list(workspace.organizationId);
@@ -1154,7 +1156,7 @@ export const websitesRouter = {
 		.handler(async ({ context, input }) => {
 			if (!input.organizationId) {
 				throw rpcError.badRequest(
-					"Website must be transferred to an organization"
+					"Choose an organization to move this website to."
 				);
 			}
 			const targetOrganizationId = input.organizationId;

@@ -100,7 +100,7 @@ export const importsRouter = {
 			if (!isStorageConfigured()) {
 				throw rpcError.serviceUnavailable(
 					60,
-					"Analytics imports are not available because object storage is not configured."
+					"Analytics imports are not set up on this Databuddy instance. Ask your administrator to configure file storage."
 				);
 			}
 
@@ -136,10 +136,9 @@ export const importsRouter = {
 				providerId: providerIdSchema,
 				storageKey: z.string().min(1),
 				replaceExisting: z.boolean().default(false),
-				timezone: z
-					.string()
-					.default("UTC")
-					.refine(isSupportedTimeZone, { message: "Unknown IANA time zone" }),
+				timezone: z.string().default("UTC").refine(isSupportedTimeZone, {
+					message: "Pick a valid time zone, for example Europe/London.",
+				}),
 			})
 		)
 		.output(z.object({ runId: z.string() }))
@@ -153,7 +152,7 @@ export const importsRouter = {
 			if (!isStorageConfigured()) {
 				throw rpcError.serviceUnavailable(
 					60,
-					"Analytics imports are not available because object storage is not configured."
+					"Analytics imports are not set up on this Databuddy instance. Ask your administrator to configure file storage."
 				);
 			}
 
@@ -161,7 +160,7 @@ export const importsRouter = {
 				!input.storageKey.startsWith(`imports/${workspace.organizationId}/`)
 			) {
 				throw rpcError.forbidden(
-					"Storage key does not belong to this organization."
+					"This upload belongs to a different organization. Upload the file again and retry."
 				);
 			}
 

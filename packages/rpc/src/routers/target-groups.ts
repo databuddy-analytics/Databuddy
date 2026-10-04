@@ -124,7 +124,9 @@ export const targetGroupsRouter = {
 				.returning();
 
 			if (!newGroup) {
-				throw rpcError.internal("Failed to create target group");
+				throw rpcError.internal(
+					"The target group could not be created. Try again in a moment."
+				);
 			}
 
 			await targetGroupsCache.invalidateByTables(["target_groups"]);

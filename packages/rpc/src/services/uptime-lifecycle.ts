@@ -99,7 +99,9 @@ export async function createScheduleWithScheduler(
 					"Failed to clean up monitor after BullMQ failure"
 				)
 			);
-		throw rpcError.internal("Failed to create monitor");
+		throw rpcError.internal(
+			"The monitor could not be created. Try again in a moment."
+		);
 	}
 }
 
@@ -152,7 +154,9 @@ export async function updateScheduleWithScheduler(
 					"Failed to roll back monitor granularity after scheduler update failure"
 				)
 			);
-		throw rpcError.internal("Failed to update monitor schedule");
+		throw rpcError.internal(
+			"The monitor could not be updated. Try again in a moment."
+		);
 	}
 }
 
@@ -197,7 +201,9 @@ export async function triggerManualUptimeCheck(
 	deps: ManualCheckDeps = manualCheckDeps
 ): Promise<void> {
 	if (isPaused) {
-		throw rpcError.badRequest("Cannot trigger check on a paused monitor");
+		throw rpcError.badRequest(
+			"This monitor is paused. Resume it to run a check."
+		);
 	}
 
 	const rateLimit = await deps.rateLimit(scheduleId);
@@ -209,6 +215,8 @@ export async function triggerManualUptimeCheck(
 		await deps.enqueueCheck(scheduleId);
 	} catch (error) {
 		logger.error({ scheduleId, error }, "Manual check failed");
-		throw rpcError.internal("Failed to trigger check");
+		throw rpcError.internal(
+			"The check could not be started. Try again in a moment."
+		);
 	}
 }

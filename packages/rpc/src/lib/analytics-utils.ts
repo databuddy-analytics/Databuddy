@@ -639,7 +639,7 @@ export const processFunnelAnalytics = async (
 ): Promise<FunnelAnalytics> => {
 	const totalSteps = steps.length;
 	if (totalSteps === 0) {
-		throw new Error("A funnel requires at least one step");
+		throw new Error("This funnel has no steps. Add a step and try again.");
 	}
 
 	let visitorFilterClause = "";
@@ -856,7 +856,7 @@ export const processGoalAnalytics = async (
 ): Promise<FunnelAnalytics> => {
 	const step = steps[0];
 	if (!step) {
-		throw new Error("A goal requires one step");
+		throw new Error("This goal has no target. Add one and try again.");
 	}
 	const [completions, totalUsers] = await Promise.all([
 		processGoalConversionCount(step, filters, params, abortSignal),

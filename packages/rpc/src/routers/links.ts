@@ -110,7 +110,7 @@ function validateDeepLinkConfiguration(
 		return;
 	}
 	throw rpcError.badRequest(
-		"Deep link URLs must use HTTPS and match the selected app"
+		"App links must start with https:// and point to the selected app. Check the URL and try again."
 	);
 }
 
@@ -175,7 +175,9 @@ async function validateFolderId(
 		return normalizedFolderId;
 	}
 
-	throw rpcError.badRequest("Link folder does not exist in this organization");
+	throw rpcError.badRequest(
+		"This folder was not found in your organization. It may have been deleted. Pick another folder."
+	);
 }
 
 async function findOrCreateFolderId(
@@ -227,7 +229,9 @@ async function findOrCreateFolderId(
 		return concurrentId;
 	}
 
-	throw rpcError.conflict("This folder slug is already taken");
+	throw rpcError.conflict(
+		"A folder with this slug already exists. Pick a different slug."
+	);
 }
 
 function toCachedLink(link: CacheableLink): CachedLink {
@@ -615,7 +619,9 @@ export const linksRouter = {
 				has_og: !!(input.ogTitle || input.ogImageUrl),
 			});
 			if (input.folder && input.folderId) {
-				throw rpcError.badRequest("Pass either folderId or folder, not both");
+				throw rpcError.badRequest(
+					"Choose an existing folder or name a new one, not both."
+				);
 			}
 			const organizationId = requireOrganizationId(
 				input.organizationId?.trim() || context.organizationId
@@ -668,12 +674,12 @@ export const linksRouter = {
 						);
 						throw rpcError.serviceUnavailable(
 							1,
-							"Link cache is temporarily unavailable; retry this custom slug"
+							"This custom slug could not be reserved right now. Try again in a moment."
 						);
 					}
 					if (!started) {
 						throw rpcError.conflict(
-							"This slug is already taken or is being updated"
+							"This slug is already taken or is being changed. Pick a different slug."
 						);
 					}
 					cacheMutations = started;
@@ -716,7 +722,9 @@ export const linksRouter = {
 							"create returned no persisted link"
 						);
 						finalizedFailure = true;
-						throw rpcError.internal("Failed to create link");
+						throw rpcError.internal(
+							"The link could not be created. Try again in a moment."
+						);
 					}
 
 					const publishCache = cacheMutation
@@ -742,7 +750,9 @@ export const linksRouter = {
 							"create failed because the slug already exists"
 						);
 						if (input.slug) {
-							throw rpcError.conflict("This slug is already taken");
+							throw rpcError.conflict(
+								"This slug is already taken. Pick a different slug."
+							);
 						}
 						continue;
 					}
@@ -775,7 +785,7 @@ export const linksRouter = {
 						);
 						throw rpcError.serviceUnavailable(
 							1,
-							"Link creation outcome is still being reconciled"
+							"The link is still being created. Try again in a moment."
 						);
 					}
 
@@ -806,12 +816,14 @@ export const linksRouter = {
 					// can outlive a late commit, and tell the caller to retry.
 					throw rpcError.serviceUnavailable(
 						1,
-						"Link creation outcome is still being reconciled"
+						"The link is still being created. Try again in a moment."
 					);
 				}
 			}
 
-			throw rpcError.internal("Failed to generate unique slug");
+			throw rpcError.internal(
+				"A unique slug could not be generated. Enter a custom slug and try again."
+			);
 		}),
 
 	update: trackedProcedure
@@ -891,7 +903,9 @@ export const linksRouter = {
 					{ slug: oldSlug, linkId: link.id, ...getErrorLogFields(error) },
 					"Failed to begin link cache mutation before update"
 				);
-				throw rpcError.internal("Failed to update cache. Link not updated.");
+				throw rpcError.internal(
+					"The link could not be updated. Try again in a moment."
+				);
 			}
 
 			if (!cacheMutations) {
@@ -900,7 +914,7 @@ export const linksRouter = {
 					"Link cache mutation conflicts with an in-progress or stale cache entry"
 				);
 				throw rpcError.conflict(
-					"This link is currently being updated. Retry the request."
+					"This link is being changed right now. Try again in a moment."
 				);
 			}
 
@@ -912,7 +926,9 @@ export const linksRouter = {
 					cacheMutations,
 					"missing old-slug cache mutation before update"
 				);
-				throw rpcError.internal("Failed to begin link cache mutation");
+				throw rpcError.internal(
+					"The link could not be updated. Try again in a moment."
+				);
 			}
 
 			let finalizedFailure = false;
@@ -997,7 +1013,9 @@ export const linksRouter = {
 						cacheMutations,
 						"update failed because the new slug already exists"
 					);
-					throw rpcError.conflict("This slug is already taken");
+					throw rpcError.conflict(
+						"This slug is already taken. Pick a different slug."
+					);
 				}
 				if (finalizedFailure) {
 					throw error;
@@ -1015,7 +1033,7 @@ export const linksRouter = {
 				);
 				throw rpcError.serviceUnavailable(
 					1,
-					"Link update outcome is still being reconciled"
+					"The link is still being updated. Try again in a moment."
 				);
 			}
 		}),
@@ -1050,7 +1068,9 @@ export const linksRouter = {
 					{ slug: link.slug, linkId: input.id, ...getErrorLogFields(error) },
 					"Failed to begin link cache mutation before delete"
 				);
-				throw rpcError.internal("Failed to update cache. Link not deleted.");
+				throw rpcError.internal(
+					"The link could not be deleted. Try again in a moment."
+				);
 			}
 
 			if (!cacheMutations) {
@@ -1059,7 +1079,7 @@ export const linksRouter = {
 					"Link cache mutation conflicts with an in-progress or stale cache entry"
 				);
 				throw rpcError.conflict(
-					"This link is currently being updated. Retry the request."
+					"This link is being changed right now. Try again in a moment."
 				);
 			}
 
@@ -1096,7 +1116,7 @@ export const linksRouter = {
 				);
 				throw rpcError.serviceUnavailable(
 					1,
-					"Link deletion outcome is still being reconciled"
+					"The link is still being deleted. Try again in a moment."
 				);
 			}
 			invalidateLinkAgentContext(link.organizationId);

@@ -192,7 +192,7 @@ describe("withWorkspace organization member grants", () => {
 				resource: "link",
 			}),
 			"FORBIDDEN",
-			/Missing required link permissions/
+			/role can't .* links in this organization/
 		);
 	});
 
@@ -218,7 +218,7 @@ describe("withWorkspace organization member grants", () => {
 				resource: "link",
 			}),
 			"FORBIDDEN",
-			/does not belong to the active organization/
+			/belongs to a different organization/
 		);
 		expect(mockGetMemberRole).not.toHaveBeenCalledWith(
 			USER_ID,
@@ -250,7 +250,7 @@ describe("withWorkspace organization member grants", () => {
 				resource: "link",
 			}),
 			"BAD_REQUEST",
-			/Workspace is required/
+			/Select an organization and try again/
 		);
 	});
 });
@@ -316,7 +316,7 @@ describe("withWorkspace OAuth connection grants", () => {
 				websiteId: OTHER_WEBSITE_ID,
 			}),
 			"FORBIDDEN",
-			/selected websites/
+			/websites selected when it was connected/
 		);
 	});
 
@@ -362,7 +362,7 @@ describe("withWorkspace OAuth connection grants", () => {
 				resource,
 			}),
 			"FORBIDDEN",
-			/selected websites/
+			/websites selected when it was connected/
 		);
 	});
 
@@ -373,7 +373,7 @@ describe("withWorkspace OAuth connection grants", () => {
 				websiteId: WEBSITE_ID,
 			}),
 			"FORBIDDEN",
-			/missing required scope: manage:websites/
+			/missing the manage:websites scope/
 		);
 	});
 
@@ -385,7 +385,7 @@ describe("withWorkspace OAuth connection grants", () => {
 				websiteId: WEBSITE_ID,
 			}),
 			"FORBIDDEN",
-			/Missing required website permissions/
+			/viewer role can't edit websites/
 		);
 		memberRoles.delete(`${USER_ID}:${ORGANIZATION_ID}`);
 		await expectRpcError(
@@ -408,7 +408,7 @@ describe("withWorkspace api key grants", () => {
 				resource: "link",
 			}),
 			"FORBIDDEN",
-			/API key does not have access to this workspace/
+			/This API key does not have access to this organization/
 		);
 	});
 
@@ -420,7 +420,7 @@ describe("withWorkspace api key grants", () => {
 				resource: "link",
 			}),
 			"FORBIDDEN",
-			/API key missing required scope: write:links/
+			/This API key is missing the write:links scope/
 		);
 	});
 
@@ -457,7 +457,7 @@ describe("withWorkspace api key grants", () => {
 				websiteId: OTHER_WEBSITE_ID,
 			}),
 			"FORBIDDEN",
-			/API key missing required scope: read:data/
+			/This API key is missing the read:data scope/
 		);
 	});
 
@@ -507,7 +507,7 @@ describe("withWorkspace website resolution", () => {
 				websiteId: WEBSITE_ID,
 			}),
 			"FORBIDDEN",
-			/Website does not belong to this organization/
+			/This website belongs to a different organization/
 		);
 	});
 

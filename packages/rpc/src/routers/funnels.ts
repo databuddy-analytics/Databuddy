@@ -315,7 +315,9 @@ export const funnelsRouter = {
 				.returning();
 
 			if (!newFunnel) {
-				throw rpcError.internal("Failed to create funnel");
+				throw rpcError.internal(
+					"The funnel could not be created. Try again in a moment."
+				);
 			}
 
 			await invalidateFunnelsCache(input.websiteId);

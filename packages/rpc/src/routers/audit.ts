@@ -136,7 +136,7 @@ function getOrganizationId(
 ): string {
 	const resolved = organizationId ?? context.organizationId;
 	if (!resolved) {
-		throw rpcError.badRequest("Organization ID is required");
+		throw rpcError.badRequest("Select an organization and try again.");
 	}
 	return resolved;
 }
@@ -165,7 +165,9 @@ export const auditRouter = {
 			if (input.cursor) {
 				const decodedCursor = decodeAuditCursor(input.cursor);
 				if (!decodedCursor) {
-					throw rpcError.badRequest("Invalid audit cursor");
+					throw rpcError.badRequest(
+						"The audit log page could not be loaded. Refresh the page and try again."
+					);
 				}
 				cursor = decodedCursor;
 			}

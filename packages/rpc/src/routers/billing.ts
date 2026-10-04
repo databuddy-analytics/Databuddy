@@ -185,7 +185,7 @@ const autoTopupConfigSchema = z
 			(v.threshold >= MIN_AUTO_TOPUP_THRESHOLD &&
 				v.threshold <= MAX_AUTO_TOPUP_THRESHOLD),
 		{
-			message: `threshold must be between ${MIN_AUTO_TOPUP_THRESHOLD} and ${MAX_AUTO_TOPUP_THRESHOLD}`,
+			message: `Choose a top-up threshold between ${MIN_AUTO_TOPUP_THRESHOLD} and ${MAX_AUTO_TOPUP_THRESHOLD}.`,
 			path: ["threshold"],
 		}
 	)
@@ -195,7 +195,7 @@ const autoTopupConfigSchema = z
 			(v.quantity >= MIN_AUTO_TOPUP_QUANTITY &&
 				v.quantity <= MAX_AUTO_TOPUP_QUANTITY),
 		{
-			message: `quantity must be between ${MIN_AUTO_TOPUP_QUANTITY} and ${MAX_AUTO_TOPUP_QUANTITY}`,
+			message: `Choose a top-up amount between ${MIN_AUTO_TOPUP_QUANTITY} and ${MAX_AUTO_TOPUP_QUANTITY}.`,
 			path: ["quantity"],
 		}
 	);
@@ -211,7 +211,7 @@ const usageAlertConfigSchema = z
 			(v.threshold >= MIN_ALERT_PERCENTAGE &&
 				v.threshold <= MAX_ALERT_PERCENTAGE),
 		{
-			message: `threshold must be between ${MIN_ALERT_PERCENTAGE} and ${MAX_ALERT_PERCENTAGE}`,
+			message: `Choose an alert threshold between ${MIN_ALERT_PERCENTAGE} and ${MAX_ALERT_PERCENTAGE}.`,
 			path: ["threshold"],
 		}
 	);
@@ -230,7 +230,7 @@ const spendLimitConfigSchema = z
 			(v.overageLimit >= MIN_OVERAGE_UNITS &&
 				v.overageLimit <= MAX_OVERAGE_UNITS),
 		{
-			message: `overageLimit must be between ${MIN_OVERAGE_UNITS} and ${MAX_OVERAGE_UNITS}`,
+			message: `Choose an overage limit between ${MIN_OVERAGE_UNITS} and ${MAX_OVERAGE_UNITS}.`,
 			path: ["overageLimit"],
 		}
 	);
@@ -264,7 +264,9 @@ async function upsertBillingControl<
 	operation: string;
 }): Promise<void> {
 	if (readBooleanEnv("SELFHOST")) {
-		throw rpcError.badRequest("Billing is disabled for self-hosted instances");
+		throw rpcError.badRequest(
+			"Billing is turned off on this Databuddy instance."
+		);
 	}
 	const { customerId, canUserUpgrade } = await getBillingOwner(
 		args.context.user.id,
@@ -272,7 +274,7 @@ async function upsertBillingControl<
 	);
 	if (!canUserUpgrade) {
 		throw rpcError.forbidden(
-			"Only an organization owner or admin can change billing settings."
+			"Only organization owners and admins can change billing settings. Ask one of them to do this."
 		);
 	}
 
@@ -411,7 +413,7 @@ export const billingRouter = {
 				(input.organizationId?.trim() || null) ?? context.organizationId;
 
 			if (!resolvedOrgId) {
-				throw rpcError.badRequest("Organization ID is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			await withWorkspace(context, {
@@ -472,7 +474,9 @@ export const billingRouter = {
 					`Failed to fetch billing usage: ${errorMessage}`
 				);
 
-				throw rpcError.internal("Failed to fetch billing usage data");
+				throw rpcError.internal(
+					"Billing usage could not be loaded. Try again in a moment."
+				);
 			}
 		}),
 };

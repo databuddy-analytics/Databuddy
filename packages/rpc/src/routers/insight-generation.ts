@@ -62,7 +62,7 @@ const deliverySchema = z.object({
 const MAX_SLACK_DELIVERIES = 10;
 const CONFIG_UNIQUE_INDEX = "insight_generation_configs_org_uidx";
 const QUEUE_INSIGHT_GENERATION_ERROR =
-	"Failed to queue insight generation. Please try again shortly.";
+	"The investigation could not be started. Try again in a moment.";
 
 type ConfigExecutor =
 	| typeof db
@@ -76,7 +76,10 @@ const configPatchSchema = z.object({
 		.trim()
 		.min(1)
 		.max(64)
-		.refine(isValidTimezone, "Invalid IANA timezone")
+		.refine(
+			isValidTimezone,
+			"Pick a valid time zone, for example Europe/London."
+		)
 		.optional(),
 });
 const runPatchSchema = configPatchSchema.pick({
@@ -387,7 +390,7 @@ async function resolveOrganization(
 ): Promise<string> {
 	const organizationId = input.organizationId?.trim() || context.organizationId;
 	if (!organizationId) {
-		throw rpcError.badRequest("Organization ID is required");
+		throw rpcError.badRequest("Select an organization and try again.");
 	}
 	await withWorkspace(context, {
 		organizationId,
@@ -497,7 +500,7 @@ async function listTargetWebsites(
 	websiteIds: string[] | undefined
 ): Promise<Array<{ id: string }>> {
 	if (websiteIds?.length === 0) {
-		throw rpcError.badRequest("Select at least one website");
+		throw rpcError.badRequest("Select at least one website.");
 	}
 	const conditions = [
 		eq(websites.organizationId, organizationId),
@@ -514,7 +517,7 @@ async function listTargetWebsites(
 
 	if (websiteIds?.length && rows.length !== new Set(websiteIds).size) {
 		throw rpcError.badRequest(
-			"One or more websites are not in this organization"
+			"One or more selected websites are not in this organization. Refresh the page and try again."
 		);
 	}
 
@@ -972,7 +975,7 @@ async function requireInvestigationsAccess(
 	if (readBooleanEnv("SELFHOST")) {
 		if (!process.env.AI_GATEWAY_API_KEY?.trim()) {
 			throw rpcError.badRequest(
-				"Ask your administrator to configure AI before running investigations."
+				"AI is not set up on this Databuddy instance. Ask your administrator to configure it before running investigations."
 			);
 		}
 		return;
@@ -987,7 +990,9 @@ async function requireInvestigationsAccess(
 		)
 	) {
 		throw rpcError.featureUnavailable(
-			"Investigations require a plan with an investigation allowance."
+			INVESTIGATION_USAGE.featureId,
+			undefined,
+			"Your plan does not include investigations. Upgrade to run them."
 		);
 	}
 }
@@ -1007,7 +1012,7 @@ export async function queueInsightGenerationRun(
 	input: QueueInsightGenerationRunInput
 ): Promise<QueueInsightGenerationRunResult> {
 	if (input.websiteIds?.length === 0) {
-		throw rpcError.badRequest("Select at least one website");
+		throw rpcError.badRequest("Select at least one website.");
 	}
 	const baseConfig = await getConfig(input.organizationId);
 	const runPatch = runPatchSchema.parse(input);
@@ -1057,7 +1062,9 @@ export async function queueInsightGenerationRun(
 							active.id,
 							active.queueItems.map((item) => item.itemId)
 						);
-						throw rpcError.internal("Failed to queue insight generation");
+						throw rpcError.internal(
+							"The investigation could not be started. Try again in a moment."
+						);
 					}
 				}
 				return reusedInsightRun(active);
@@ -1115,13 +1122,15 @@ export async function queueInsightGenerationRun(
 		} catch (error) {
 			logger.error(
 				{ error, organizationId: input.organizationId, runId },
-				"Failed to queue insight generation"
+				"The investigation could not be started. Try again in a moment."
 			);
 			await failQueueItems(
 				runId,
 				queueItems.map((item) => item.itemId)
 			);
-			throw rpcError.internal("Failed to queue insight generation");
+			throw rpcError.internal(
+				"The investigation could not be started. Try again in a moment."
+			);
 		}
 
 		return {
@@ -1131,7 +1140,9 @@ export async function queueInsightGenerationRun(
 		};
 	}
 
-	throw rpcError.internal("Failed to join the active insight generation run");
+	throw rpcError.internal(
+		"Investigation progress could not be checked. Try again in a moment."
+	);
 }
 
 export const insightGenerationRouter = {
@@ -1263,12 +1274,12 @@ export const insightGenerationRouter = {
 				.limit(2);
 			if (bindings.length === 0) {
 				throw rpcError.badRequest(
-					"Connect or use the Databuddy Slack app in this channel first"
+					"Add the Databuddy Slack app to this channel first, then try again."
 				);
 			}
 			if (bindings.length > 1) {
 				throw rpcError.badRequest(
-					"Multiple active Slack connections match this channel"
+					"More than one Slack workspace is connected to this channel. Disconnect the extra one and try again."
 				);
 			}
 			await requireInvestigationsAccess(organizationId);
@@ -1282,7 +1293,7 @@ export const insightGenerationRouter = {
 				);
 				if (filtered.length >= MAX_SLACK_DELIVERIES) {
 					throw rpcError.badRequest(
-						`Cannot route to more than ${MAX_SLACK_DELIVERIES} Slack channels`
+						`Investigations can be sent to at most ${MAX_SLACK_DELIVERIES} Slack channels. Remove one and try again.`
 					);
 				}
 				const base = applyPatch(
