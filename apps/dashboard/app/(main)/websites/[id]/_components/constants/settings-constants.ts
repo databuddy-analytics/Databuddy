@@ -69,8 +69,13 @@ export const BASIC_TRACKING_OPTIONS: TrackingOptionConfig[] = [
 	{
 		key: "trackInteractions",
 		title: "Interactions",
-		description: "Track button clicks and form submissions",
-		data: ["Element clicked", "Form submissions"],
+		description:
+			"See where visitors get stuck: rage clicks, dead clicks, and forms they abandon",
+		data: [
+			"Rage and dead clicks",
+			"Clicked element labels, never text",
+			"Form fields touched and submitted",
+		],
 	},
 ];
 
