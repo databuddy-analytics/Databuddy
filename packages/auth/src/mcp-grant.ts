@@ -6,6 +6,7 @@ import {
 	oauthRefreshToken,
 	websites,
 } from "@databuddy/db/schema";
+import { cacheable } from "@databuddy/redis";
 import { isApiScope, type ApiScope } from "@databuddy/shared/api-scopes";
 import {
 	decodeMcpGrantReference,
@@ -76,23 +77,29 @@ export function resolveMcpConsent(
 	return grant ? { grant, scopes } : null;
 }
 
-export async function getMcpAccessGrant(
-	userId: string,
-	clientId: string,
-	hash: string,
-	tokenScopes: string[]
-) {
-	const consents = await db
-		.select({
-			referenceId: oauthConsent.referenceId,
-			scopes: oauthConsent.scopes,
-		})
-		.from(oauthConsent)
-		.where(
-			and(eq(oauthConsent.userId, userId), eq(oauthConsent.clientId, clientId))
-		);
-	return resolveMcpConsent(consents, hash, tokenScopes);
-}
+export const getMcpAccessGrant = cacheable(
+	async (
+		userId: string,
+		clientId: string,
+		hash: string,
+		tokenScopes: string[]
+	) => {
+		const consents = await db
+			.select({
+				referenceId: oauthConsent.referenceId,
+				scopes: oauthConsent.scopes,
+			})
+			.from(oauthConsent)
+			.where(
+				and(
+					eq(oauthConsent.userId, userId),
+					eq(oauthConsent.clientId, clientId)
+				)
+			);
+		return resolveMcpConsent(consents, hash, tokenScopes);
+	},
+	{ expireInSec: 15, prefix: "mcp:oauth-grant" }
+);
 
 export const mcpConsentAccess = {
 	id: "mcp-consent-access",
