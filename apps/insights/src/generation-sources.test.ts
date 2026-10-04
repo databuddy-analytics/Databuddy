@@ -219,6 +219,102 @@ describe("fixture investigation sources", () => {
 			"Paid report preparation is the current priority."
 		);
 	});
+	it("plans a goal answered by its saved check without business context work", async () => {
+		const goalDrop: DetectedSignal = {
+			...trafficDrop,
+			baseline: 20,
+			current: 8,
+			deltaPercent: -60,
+			entityLabel: "Checkout",
+			label: 'Goal "Checkout" completion rate',
+			metric: "goal:checkout",
+			subjectKey: "goal:checkout",
+		};
+		const prior = prepareInvestigation(goalDrop, 7);
+		const repaired: InvestigationOutcome = {
+			evidence: ["The checkout goal targets a page that is never recorded."],
+			impact: null,
+			next: {
+				action: "Point the checkout goal at /order-complete.",
+				check: {
+					endDate: "2026-07-18",
+					metric: "total_users_completed",
+					minimumEntrants: 100,
+					startDate: "2026-07-12",
+					threshold: {
+						anchor: "prior_baseline",
+						comparison: "at_or_above",
+						evidenceRef: { index: 0, source: "provided" },
+						value: 10,
+					},
+				},
+				target: "Checkout goal",
+				type: "act",
+				verification: "At least 10 visitors complete checkout in a week.",
+			},
+			publish: true,
+			rootCause: "The checkout goal targets a removed page.",
+			summary: "The checkout goal misses completed orders.",
+			title: "Checkout goal misses completed orders",
+		};
+		const businessWork: string[] = [];
+		const context = {
+			capturedAt: "2026-07-12T00:00:00.000Z",
+			status: "ready" as const,
+			issues: [],
+			sources: [
+				{
+					id: "context-example",
+					kind: "team_reply" as const,
+					content: "Checkout is the priority.",
+					observedAt: "2026-07-11T12:00:00.000Z",
+				},
+			],
+		};
+		let received:
+			| Parameters<InvestigationSources["investigateSignal"]>[0]
+			| null = null;
+		const artifact = await investigateFixture(
+			fixtureSources({
+				detectDefinitionSignals: async () => [goalDrop],
+				detectMetricSignals: async () => [],
+				fetchAnnotations: async () => [],
+				investigateSignal: async (input) => {
+					received = input;
+					return { outcome: repaired, toolCallCount: 0 };
+				},
+				loadBusinessProfile: async () => {
+					businessWork.push("profile");
+					return context;
+				},
+				loadDueInvestigation: async () => null,
+				loadHistory: async () => [
+					{
+						asOf: "2026-07-05T00:00:00.000Z",
+						evidence: prior.evidence,
+						kind: "investigation",
+						outcome: repaired,
+						signal: prior.signal,
+					},
+				],
+				loadObservations: async () => new Map(),
+				rankBusinessContext: async () => {
+					businessWork.push("ranking");
+					return context;
+				},
+				recallBusinessContext: async () => {
+					businessWork.push("recall");
+					return context;
+				},
+			})
+		);
+
+		expect(received?.signal.signalKey).toBe("goal:checkout");
+		expect(received?.businessContext).toBeUndefined();
+		expect(businessWork).toEqual([]);
+		expect(artifact.outcome?.contextSnapshot).toBeUndefined();
+	});
+
 	it("passes a completed sibling ask to later candidates as open work", async () => {
 		const errorSignal: DetectedSignal = {
 			...trafficDrop,

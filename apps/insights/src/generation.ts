@@ -1519,7 +1519,7 @@ export async function planInvestigationsWithBusinessContext(
 		| "recallBusinessContext"
 		| "selectCandidates"
 		| "rankBusinessContext"
-	>,
+	> & { loadHistory?: InvestigationSources["loadHistory"] },
 	allowRefresh: boolean,
 	scope: BusinessScope | null = {
 		organizationId: input.organizationId,
@@ -1532,6 +1532,36 @@ export async function planInvestigationsWithBusinessContext(
 		toPlannedCandidate
 	);
 	if (candidates.length === 0) {
+		return candidates;
+	}
+	const savedChecks = new Map<string, Promise<boolean>>();
+	const answeredBySavedCheck = (signal: InvestigationSignal) => {
+		const known = savedChecks.get(signal.signalKey);
+		if (known) {
+			return known;
+		}
+		const answered =
+			sources.loadHistory && ["goal", "funnel"].includes(signal.entity.type)
+				? sources
+						.loadHistory({
+							organizationId: input.organizationId,
+							signalKey: signal.signalKey,
+							through: normalizeAsOf(input.asOf, input.timezone).toDate(),
+							websiteId: input.websiteId,
+						})
+						.then((history) =>
+							Boolean(savedVerificationCheck({ history, signal }))
+						)
+				: Promise.resolve(false);
+		savedChecks.set(signal.signalKey, answered);
+		return answered;
+	};
+	const [lone] = candidates;
+	if (
+		signals.length === 1 &&
+		lone &&
+		(await answeredBySavedCheck(lone.signal))
+	) {
 		return candidates;
 	}
 	const asOf = allowRefresh
@@ -1660,6 +1690,9 @@ export async function planInvestigationsWithBusinessContext(
 	const recalledAt = allowRefresh ? new Date() : asOf;
 	return await Promise.all(
 		candidates.map(async (candidate) => {
+			if (await answeredBySavedCheck(candidate.signal)) {
+				return candidate;
+			}
 			const query = [
 				candidate.signal.signalKey,
 				candidate.signal.entity.type,

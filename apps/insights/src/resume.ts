@@ -33,6 +33,7 @@ import {
 	runInsightAgent,
 	clarifyInsight,
 	InsightAgentExecutionError,
+	savedVerificationCheck,
 } from "./agent";
 import {
 	loadInvestigationHistory,
@@ -366,26 +367,26 @@ export async function resumeInsightReply(
 		// After the explicit reservation, reconcile persisted team statements before
 		// current measurement. Unacknowledged writes retain the PG fallback.
 		const currentScope = await business.loadCurrentBusinessScope(scope, true);
-		const profile = await business
-			.loadBusinessProfile({
-				scope: currentScope,
-				asOf: startedAt,
-				allowRefresh: true,
-			})
-			.catch((error) => unavailableBusinessContext(error, scope, startedAt));
-		const recalledAt = new Date();
-		const query = `${trigger.subjectKey}\n${trigger.body}`;
-		const related = await business
-			.recallBusinessContext({
-				scope: currentScope,
-				allowWrite: true,
-				asOf: recalledAt,
-				subjectKey: trigger.subjectKey,
-				query,
-			})
-			.catch((error) => unavailableBusinessContext(error, scope, recalledAt));
-		const businessContext =
-			intent === "analysis" && business.rankBusinessContext
+		const loadBusinessContext = async () => {
+			const profile = await business
+				.loadBusinessProfile({
+					scope: currentScope,
+					asOf: startedAt,
+					allowRefresh: true,
+				})
+				.catch((error) => unavailableBusinessContext(error, scope, startedAt));
+			const recalledAt = new Date();
+			const query = `${trigger.subjectKey}\n${trigger.body}`;
+			const related = await business
+				.recallBusinessContext({
+					scope: currentScope,
+					allowWrite: true,
+					asOf: recalledAt,
+					subjectKey: trigger.subjectKey,
+					query,
+				})
+				.catch((error) => unavailableBusinessContext(error, scope, recalledAt));
+			return intent === "analysis" && business.rankBusinessContext
 				? await business.rankBusinessContext({
 						contexts: [profile, related],
 						query,
@@ -393,6 +394,7 @@ export async function resumeInsightReply(
 						onUsage: track,
 					})
 				: mergeBusinessContext(profile, related);
+		};
 		const [history, otherOpenWork] = await Promise.all([
 			loadInvestigationHistory({
 				beforeReply: { createdAt: trigger.createdAt, id: replyId },
@@ -453,6 +455,11 @@ export async function resumeInsightReply(
 		if (!latest || latest.kind !== "investigation") {
 			throw new Error("This investigation has no history to resume");
 		}
+		const businessContext =
+			intent === "verification" &&
+			savedVerificationCheck({ history, signal: latest.signal })
+				? undefined
+				: await loadBusinessContext();
 
 		const currentMeasurement = await refresh({
 			asOf: startedAt,

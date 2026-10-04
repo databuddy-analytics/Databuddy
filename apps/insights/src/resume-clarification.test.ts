@@ -6,6 +6,7 @@ import type {
 	InvestigationOutcome,
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
+import type { InsightAgentInput } from "./agent";
 import { resumeInsightReply } from "./resume";
 import { createEvidenceSnapshot } from "./evidence-snapshot";
 
@@ -80,6 +81,7 @@ function query<T>(value: T) {
 }
 const dbOriginals = {
 	select: db.select,
+	selectDistinctOn: db.selectDistinctOn,
 	update: db.update,
 	insert: db.insert,
 	transaction: db.transaction,
@@ -374,4 +376,121 @@ it("replays a saved completed analysis by finalizing its original operation with
 	});
 	expect(forbidden).not.toHaveBeenCalled();
 	expect(reads).toHaveLength(0);
+});
+it("answers a saved verification check from refreshed evidence without business context", async () => {
+	const repaired: InvestigationOutcome = {
+		...outcome,
+		rootCause: "The last step targets a removed page.",
+		publish: true,
+		next: {
+			action: "Point the last signup step at /welcome.",
+			check: {
+				endDate: "2026-09-18",
+				metric: "total_users_completed",
+				minimumEntrants: 100,
+				startDate: "2026-09-12",
+				threshold: {
+					anchor: "prior_baseline",
+					comparison: "at_or_above",
+					evidenceRef: { index: 0, source: "provided" },
+					value: 20,
+				},
+			},
+			target: "Signup funnel",
+			type: "act",
+			verification: "At least 20 visitors complete signup in a week.",
+		},
+	};
+	const caseCreatedAt = new Date("2026-09-01");
+	const reads = [
+		[{ ...trigger, intent: "verification" }],
+		[{ id: "case-1", status: "open", createdAt: caseCreatedAt }],
+		[],
+		[],
+		[
+			{
+				id: "original-observation",
+				asOf: new Date("2026-09-12"),
+				evidence: ["20 completed visitors."],
+				snapshot,
+				outcome: repaired,
+				signal,
+			},
+		],
+		[{ domain: trigger.websiteDomain, settings: null }],
+		[{ status: "running" }],
+		[{ createdAt: caseCreatedAt, status: "open" }],
+	];
+	replaceDb("select", mock(() => query(reads.shift() ?? [])) as never);
+	replaceDb("selectDistinctOn", mock(() => query([])) as never);
+	replaceDb("update", mock(() => query([{ id: "reply-1" }])) as never);
+	const inserted: Record<string, unknown>[] = [];
+	replaceDb(
+		"insert",
+		mock(() => ({
+			values: async (value: Record<string, unknown>) => {
+				inserted.push(value);
+			},
+		})) as never
+	);
+	replaceDb("transaction", mock(async (body) => body(db)) as never);
+	spyOn(redis, "invalidateInsightsCachesForOrganization").mockResolvedValue(
+		undefined
+	);
+	spyOn(redis, "invalidateAgentContextSnapshotsForWebsite").mockResolvedValue(
+		undefined
+	);
+	const evidence = [
+		{ kind: "definition" as const, value: "Signup converted 20 of 200." },
+	];
+	const objective = "Check whether the repaired last step records signups.";
+	const refresh = mock(async () => ({
+		customerImpact: null,
+		evidence,
+		investigationObjective: objective,
+		signal,
+	}));
+	const businessWork = mock(async () => {
+		throw new Error("A saved check needs no business context");
+	});
+	const forbidden = mock(async () => {
+		throw new Error("must not run");
+	});
+	const investigate = mock(async (input: InsightAgentInput) => {
+		expect(input).toMatchObject({
+			customerImpact: null,
+			evidence,
+			investigationObjective: objective,
+			request: { kind: "verification" },
+		});
+		expect(input.businessContext).toBeUndefined();
+		return {
+			outcome,
+			completion: "complete" as const,
+			snapshot: { ...snapshot, completion: "complete" as const },
+			toolCallCount: 0,
+		};
+	});
+
+	const result = await resumeInsightReply(
+		"reply-1",
+		investigate,
+		forbidden,
+		refresh,
+		{
+			loadCurrentBusinessScope: async (scope) => scope,
+			loadBusinessProfile: businessWork,
+			recallBusinessContext: businessWork,
+			rankBusinessContext: businessWork,
+		},
+		forbidden
+	);
+
+	expect(result).toBe("succeeded");
+	expect(investigate).toHaveBeenCalledTimes(1);
+	expect(businessWork).not.toHaveBeenCalled();
+	expect(reads).toHaveLength(0);
+	expect(inserted).toHaveLength(1);
+	expect(inserted[0]?.evidence).toEqual(["Signup converted 20 of 200."]);
+	expect(inserted[0]?.outcome).not.toHaveProperty("contextSnapshot");
 });
