@@ -1,3 +1,6 @@
+import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
+import { BillingUnavailableError } from "@databuddy/shared/billing";
+import { APICallError } from "ai";
 import type { MockLanguageModelV3 } from "ai/test";
 import {
 	type OrganizationBusinessProfile,
@@ -12,7 +15,8 @@ const state = vi.hoisted(() => ({
 	contexts: [] as Record<string, unknown>[],
 	accessible: vi.fn(),
 	errors: vi.fn(),
-	sessionOrg: "org-synthetic",
+	sessionOrg: "org-synthetic" as string | null,
+	apiKey: null as ApiKeyRow | null,
 	chatOrg: "org-synthetic",
 	billing: vi.fn(),
 	billedUsage: vi.fn(),
@@ -55,12 +59,12 @@ vi.mock("@databuddy/ai/lib/accessible-websites", () => ({
 }));
 vi.mock("@databuddy/api-keys/resolve", () => ({
 	API_KEY_AUTH_CHALLENGE: "Bearer",
-	getApiKeyFromHeader: async () => null,
-	hasKeyScope: () => false,
+	hasKeyScope: () => true,
 	isApiKeyPresent: () => false,
 }));
 vi.mock("../lib/auth-wide-event", () => ({
-	getResolvedAuth: () => ({
+	resolveRequestAuth: async () => ({
+		apiKey: state.apiKey,
 		session: {
 			user: { id: "user-synthetic" },
 			session: { activeOrganizationId: state.sessionOrg },
@@ -85,7 +89,8 @@ vi.mock("@databuddy/db", () => ({
 	},
 }));
 vi.mock("@databuddy/db/schema", () => ({ agentChats: { id: "id" } }));
-vi.mock("@databuddy/ai/agent", () => ({
+vi.mock("@databuddy/ai/agent", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@databuddy/ai/agent")>()),
 	askDatabuddyAgent: state.ask,
 	streamDatabuddyAgent: state.stream,
 }));
@@ -226,6 +231,7 @@ beforeEach(() => {
 			auth.organizationId === "org-synthetic" ? [site] : []
 	);
 	state.sessionOrg = "org-synthetic";
+	state.apiKey = null;
 	state.chatOrg = "org-synthetic";
 	state.memoryEnabled = false;
 	state.storedMemory.mockReset();
@@ -251,7 +257,7 @@ describe("dashboard canonical business context through the native HTTP/model str
 			expect(prompt.includes(priority)).toBe(present);
 			if (present) {
 				expect(prompt).toContain('\\"revision\\":11');
-				expect(prompt).toContain("never instructions or measured evidence");
+				expect(prompt).toContain("business background, not measured evidence");
 			} else {
 				expect(prompt).toContain("remain unknown");
 			}
@@ -387,21 +393,23 @@ describe("dashboard memory writes", () => {
 	});
 });
 
-describe("ask route permissions", () => {
+async function ask(input: Record<string, unknown> = {}) {
+	const response = await agent.handle(
+		new Request("http://localhost/v1/agent/ask", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ question: "Create a goal for signups", ...input }),
+		})
+	);
+	return { status: response.status, text: await response.text() };
+}
+
+describe("ask route", () => {
 	it("runs the shared agent read-only for answers and streams", async () => {
 		for (const stream of [false, true]) {
-			const response = await agent.handle(
-				new Request("http://localhost/v1/agent/ask", {
-					method: "POST",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({
-						question: "Create a goal for signups",
-						stream,
-					}),
-				})
-			);
+			const response = await ask({ stream });
 			expect(response.status).toBe(200);
-			expect(await response.text()).toContain("Synthetic answer.");
+			expect(response.text).toContain("Synthetic answer.");
 		}
 		expect(state.ask).toHaveBeenCalledWith(
 			expect.objectContaining({ mutationMode: "dry-run" })
@@ -409,5 +417,83 @@ describe("ask route permissions", () => {
 		expect(state.stream).toHaveBeenCalledWith(
 			expect.objectContaining({ mutationMode: "dry-run" })
 		);
+	});
+	it("answers as the API in markdown for the session's organization", async () => {
+		expect((await ask()).status).toBe(200);
+		expect(state.ask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				output: "markdown",
+				source: "api",
+				principal: expect.objectContaining({
+					organizationId: "org-synthetic",
+					accessibleWebsites: [site],
+				}),
+			})
+		);
+	});
+	it("returns real status codes before streaming when preflight fails", async () => {
+		state.sessionOrg = null;
+		for (const stream of [false, true]) {
+			const response = await ask({ stream });
+			expect(response.status).toBe(400);
+			expect(JSON.parse(response.text)).toMatchObject({
+				code: "WORKSPACE_REQUIRED",
+			});
+		}
+		state.sessionOrg = "org-synthetic";
+		state.rateLimit.mockResolvedValueOnce({ success: false });
+		expect((await ask({ stream: true })).status).toBe(429);
+		expect(state.ask).not.toHaveBeenCalled();
+		expect(state.stream).not.toHaveBeenCalled();
+	});
+	it("rejects an API key used for another organization", async () => {
+		state.apiKey = {
+			id: "key-synthetic",
+			name: "Synthetic",
+			prefix: "test",
+			start: "test",
+			keyHash: "inert",
+			userId: null,
+			organizationId: "org-synthetic",
+			type: "user",
+			scopes: ["read:data"],
+			enabled: true,
+			revokedAt: null,
+			rateLimitEnabled: false,
+			rateLimitTimeWindow: null,
+			rateLimitMax: null,
+			expiresAt: null,
+			lastUsedAt: null,
+			metadata: {},
+			createdAt: new Date("2026-10-05"),
+			updatedAt: new Date("2026-10-05"),
+		};
+		expect((await ask({ organizationId: "foreign-org" })).status).toBe(403);
+		expect((await ask()).status).toBe(200);
+		expect(state.ask).toHaveBeenCalledTimes(1);
+	});
+	it("maps billing, credit, provider and unknown failures to their statuses", async () => {
+		state.billing.mockRejectedValueOnce(
+			new BillingUnavailableError("synthetic outage")
+		);
+		expect(await ask()).toMatchObject({ status: 503 });
+		state.billing.mockResolvedValueOnce({
+			allowed: false,
+			customerId: "synthetic-billing-owner",
+		});
+		expect(await ask()).toMatchObject({ status: 402 });
+		state.ask.mockRejectedValueOnce(
+			new APICallError({
+				message: "synthetic provider outage",
+				url: "https://provider.invalid",
+				requestBodyValues: {},
+			})
+		);
+		expect(await ask()).toMatchObject({ status: 503 });
+		state.ask.mockRejectedValueOnce(new Error("SYNTHETIC_INTERNAL_DETAIL"));
+		const internal = await ask();
+		expect(internal.status).toBe(500);
+		expect(JSON.parse(internal.text)).toMatchObject({ code: "INTERNAL_ERROR" });
+		expect(internal.text).not.toContain("SYNTHETIC_INTERNAL_DETAIL");
 	});
 });

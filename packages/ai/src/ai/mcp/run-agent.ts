@@ -5,35 +5,25 @@ import {
 	isMemoryEnabled,
 	storeConversation,
 } from "../../lib/supermemory";
-import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
-import { auth } from "@databuddy/auth";
 import type { LanguageModelUsage, StepResult, ToolSet } from "ai";
+import type { AgentPrincipal } from "../../agent";
 import { createConversationAgent } from "../agents/conversation";
-import { DatabuddyAgentUserError } from "../../agent/errors";
 import { getAILogger } from "../../lib/ai-logger";
-import { getAccessibleWebsites } from "../../lib/accessible-websites";
 import { loadOrganizationBusinessContext } from "../../lib/organization-business-context";
-import { matchesWebsiteDomain } from "../../lib/website-domain";
-import { captureError, mergeWideEvent } from "../../lib/tracing";
-import {
-	getAgentBillingAccess,
-	resolveAgentBillingCustomerId,
-	trackAgentUsageAndBill,
-} from "../agents/execution";
+import { captureError } from "../../lib/tracing";
+import { trackAgentUsageAndBill } from "../agents/execution";
 import { createMcpAgentConfig } from "../agents/mcp";
-import { getDefaultAgentModelId } from "../config/models";
+import { type AgentSource, getDefaultAgentModelId } from "../config/models";
 import type { AppMutationMode } from "../config/context";
+import { prependBackgroundContext } from "../prompts/context";
 import type { DatabuddyAgentSlackContext } from "./slack-context";
 
 const DEFAULT_MCP_AGENT_TIMEOUT_MS = 45_000;
 const EMPTY_ANSWER =
 	"No answer was generated from the gathered evidence. Try a narrower question: one metric, one segment, or one time range.";
-type AgentBillingMode = "bill" | "skip";
 
 export interface RunMcpAgentOptions {
 	abortSignal?: AbortSignal;
-	apiKey: ApiKeyRow | null;
-	billingMode?: AgentBillingMode;
 	conversationId?: string;
 	historyInput?: string;
 	memoryUserId?: string | null;
@@ -42,17 +32,14 @@ export interface RunMcpAgentOptions {
 	onToolEvent?: (toolNames: string[]) => void;
 	/** Called once after a stream completes and its usage has been settled. */
 	onToolTrace?: (trace: McpAgentToolTrace[]) => void;
+	principal: AgentPrincipal;
 	priorMessages?: Array<{ role: "user" | "assistant"; content: string }>;
 	question: string;
-	requestHeaders: Headers;
 	slackContext?: DatabuddyAgentSlackContext | null;
-	source?: "dashboard" | "mcp" | "slack";
+	source?: AgentSource;
 	storeMemory?: boolean;
 	timeoutMs?: number;
 	timezone?: string;
-	userId: string | null;
-	websiteDomain?: string | null;
-	websiteId?: string | null;
 }
 
 export interface McpAgentToolTrace {
@@ -272,74 +259,22 @@ function createRunAbortController(options: RunMcpAgentOptions): {
 }
 
 async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
+	const { principal } = options;
+	const { accessibleWebsites, apiKey, organizationId, website } = principal;
 	const sessionId = options.conversationId ?? crypto.randomUUID();
 	const historyInput = options.historyInput ?? options.question;
-	const mcpUserId = options.userId ?? options.apiKey?.userId ?? null;
+	const mcpUserId = principal.userId;
 	const memoryUserId = options.memoryUserId ?? mcpUserId;
-	const session =
-		!options.apiKey && mcpUserId
-			? await auth.api.getSession({ headers: options.requestHeaders })
-			: null;
-	const organizationId = options.apiKey
-		? options.apiKey.organizationId
-		: session?.user.id === mcpUserId
-			? (session?.session.activeOrganizationId ?? null)
-			: null;
-	const [accessibleWebsites, billingCustomerId] = await Promise.all([
-		getAccessibleWebsites({
-			apiKey: options.apiKey,
-			organizationId,
-			user: session?.user.id === mcpUserId ? session.user : null,
-		}),
-		options.billingMode === "skip"
-			? Promise.resolve(null)
-			: resolveAgentBillingCustomerId({
-					userId: mcpUserId,
-					apiKey: options.apiKey,
-					organizationId,
-				}),
-	]);
-	const websiteDomain = options.websiteDomain;
-	// A caller-supplied site must not bind another organization's brief or tools.
-	if (
-		(options.websiteId &&
-			!accessibleWebsites.some((site) => site.id === options.websiteId)) ||
-		(websiteDomain &&
-			!accessibleWebsites.some(
-				(site) =>
-					matchesWebsiteDomain(site.domain, websiteDomain) &&
-					(!options.websiteId || site.id === options.websiteId)
-			))
-	) {
-		throw new Error("Website is not accessible in this organization");
-	}
 	const source = options.source ?? "mcp";
 	const selectedModelId =
 		options.modelOverride ?? getDefaultAgentModelId(source);
-
-	const apiKeyId = options.apiKey?.id ?? null;
-
-	mergeWideEvent({
-		agent_billing_mode: options.billingMode === "skip" ? "skip" : "bill",
-	});
-
-	const billingAccess =
-		options.billingMode === "skip"
-			? undefined
-			: await getAgentBillingAccess(billingCustomerId);
-	if (billingAccess && !billingAccess.allowed) {
-		throw new DatabuddyAgentUserError({
-			code: "agent_credits_exhausted",
-			message:
-				"You've used your Databunny allowance for this month. Add more usage, upgrade, or wait for the monthly reset.",
-		});
-	}
+	const apiKeyId = apiKey?.id ?? null;
 
 	const [config, memoryCtx, businessContext] = await Promise.all([
 		createMcpAgentConfig({
-			billingCustomerId,
-			requestHeaders: options.requestHeaders,
-			apiKey: options.apiKey,
+			billingCustomerId: principal.billingCustomerId,
+			requestHeaders: principal.requestHeaders,
+			apiKey,
 			userId: mcpUserId,
 			timezone: options.timezone,
 			chatId: sessionId,
@@ -351,8 +286,8 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 			accessibleWebsites,
 			slackContext: options.slackContext,
 			source,
-			websiteDomain: options.websiteDomain,
-			websiteId: options.websiteId,
+			websiteDomain: website?.domain,
+			websiteId: website?.id,
 		}),
 		isMemoryEnabled()
 			? getMemoryContext(historyInput, memoryUserId, apiKeyId)
@@ -360,12 +295,10 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		loadOrganizationBusinessContext({
 			organizationId,
 			accessibleWebsites,
-			websiteIds: options.websiteId ? [options.websiteId] : [],
+			websiteIds: website ? [website.id] : [],
 			abortSignal: options.abortSignal,
 		}),
 	]);
-
-	const memoryBlock = memoryCtx ? formatMemoryForPrompt(memoryCtx) : "";
 
 	const ai = getAILogger();
 	const capturedSteps: StepResult<ToolSet>[] = [];
@@ -384,36 +317,30 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 				functionId: `databuddy.${source}.ask`,
 				metadata: {
 					source,
-					authType: options.apiKey ? "api_key" : "session",
+					authType: apiKey ? "api_key" : "session",
 					timezone: options.timezone ?? "UTC",
 					"tcc.conversational": "true",
 					...(mcpUserId && { userId: mcpUserId }),
-					...(options.apiKey?.organizationId && {
-						organizationId: options.apiKey.organizationId,
-					}),
+					organizationId,
 					"tcc.sessionId": sessionId,
 				},
 			},
 		}
 	);
 
-	const contextBlock = [businessContext, memoryBlock]
-		.filter(Boolean)
-		.join("\n\n");
-	const questionContent = contextBlock
-		? `<context>\n${contextBlock}\n</context>\n\n${options.question}`
-		: options.question;
-
-	const messages = [
-		...(options.priorMessages ?? []),
-		{ role: "user" as const, content: questionContent },
-	];
+	const messages = prependBackgroundContext(
+		[
+			...(options.priorMessages ?? []),
+			{ role: "user", content: options.question },
+		],
+		[businessContext, memoryCtx ? formatMemoryForPrompt(memoryCtx) : ""]
+	);
 
 	return {
 		agent,
 		apiKeyId,
-		billingCustomerId,
-		billingAccess,
+		billingCustomerId: principal.billingCustomerId,
+		billingAccess: principal.billingAccess,
 		capturedSteps,
 		historyInput,
 		usageSettlementAttempted: false,
@@ -425,8 +352,8 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		organizationId,
 		sessionId,
 		source,
-		websiteDomain: options.websiteDomain ?? undefined,
-		websiteId: options.websiteId ?? undefined,
+		websiteDomain: website?.domain ?? undefined,
+		websiteId: website?.id,
 	};
 }
 

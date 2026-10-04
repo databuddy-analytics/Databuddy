@@ -2,6 +2,7 @@ import type {
 	DatabuddyAgentSlackContext,
 	DatabuddyAgentToolTrace,
 } from "@databuddy/ai/agent";
+import { fenceUntrusted } from "@databuddy/ai/prompts/context";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { db, eq } from "@databuddy/db";
 import { insightGenerationConfigs } from "@databuddy/db/schema";
@@ -55,7 +56,6 @@ export interface SlackAgentStreamOptions {
 // default before the outer 4-minute response timeout in run-handler steps in.
 const SLACK_AGENT_TIMEOUT_MS = 120_000;
 const ORGANIZATION_TIMEZONE_CACHE_TTL_SEC = 300;
-const PROMPT_FRAME_ANGLE = /<(?![@#!]|https?:|mailto:)/g;
 
 const getOrganizationTimezone = cacheable(
 	(organizationId: string) =>
@@ -159,10 +159,6 @@ function createSlackMemoryUserId(run: SlackAgentRun): string {
 	return safeId(["slack", run.teamId ?? "team", run.userId].join("-"));
 }
 
-function escapePromptFrame(value: string): string {
-	return value.replace(PROMPT_FRAME_ANGLE, "&lt;");
-}
-
 export function formatSlackAgentInput(run: SlackAgentRun): string {
 	const followUps = run.followUpMessages ?? [];
 	const context = [
@@ -174,26 +170,21 @@ export function formatSlackAgentInput(run: SlackAgentRun): string {
 	if (followUps.length === 0) {
 		return [
 			context,
-			"<slack_latest_message>",
-			`author: ${formatSlackUser(run.userId)}`,
-			"text:",
-			escapePromptFrame(run.text),
-			"</slack_latest_message>",
+			fenceUntrusted(
+				"slack_latest_message",
+				`author: ${formatSlackUser(run.userId)}\ntext:\n${run.text}`,
+				""
+			),
 		].join("\n");
 	}
 
-	const lines = followUps.map((followUp, index) => {
-		const author = followUp.userId
-			? formatSlackUser(followUp.userId)
-			: "Slack user";
-		return [
-			`<slack_follow_up index="${index + 1}">`,
-			`author: ${author}`,
-			"text:",
-			escapePromptFrame(followUp.text),
-			"</slack_follow_up>",
-		].join("\n");
-	});
+	const lines = followUps.map((followUp, index) =>
+		fenceUntrusted(
+			`slack_follow_up index="${index + 1}"`,
+			`author: ${followUp.userId ? formatSlackUser(followUp.userId) : "Slack user"}\ntext:\n${followUp.text}`,
+			""
+		)
+	);
 
 	return [
 		context,
