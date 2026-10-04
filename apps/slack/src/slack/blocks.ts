@@ -82,14 +82,14 @@ function toTableCell(value: unknown): TableCell {
 	return { type: "raw_text", text: text.length > 0 ? text : "-" };
 }
 
-export function escapeMrkdwn(value: string): string {
+function escapeMrkdwn(value: string): string {
 	return value
 		.replaceAll("&", "&amp;")
 		.replaceAll("<", "&lt;")
 		.replaceAll(">", "&gt;");
 }
 
-export function neutralizeUrls(value: string): string {
+function neutralizeUrls(value: string): string {
 	return value.replace(HTTP_URL, (match) => {
 		const trailing = URL_TRAILING_PUNCTUATION.exec(match)?.[0] ?? "";
 		const href = match.slice(0, match.length - trailing.length);
@@ -108,7 +108,11 @@ export function neutralizeUrls(value: string): string {
 	});
 }
 
-export function neutralizeSlackMarkdown(value: string): string {
+export function safeMrkdwn(value: string): string {
+	return escapeMrkdwn(neutralizeUrls(value));
+}
+
+export function safeMarkdown(value: string): string {
 	return neutralizeUrls(value).replace(SLACK_SYNTAX_OPENER, "");
 }
 
@@ -119,14 +123,14 @@ function hostAndPath(url: URL): string {
 function section(text: string): Block {
 	return {
 		type: "section",
-		text: { type: "mrkdwn", text: escapeMrkdwn(text) },
+		text: { type: "mrkdwn", text: safeMrkdwn(text) },
 	};
 }
 
 function context(text: string): Block {
 	return {
 		type: "context",
-		elements: [{ type: "mrkdwn", text: escapeMrkdwn(text) }],
+		elements: [{ type: "mrkdwn", text: safeMrkdwn(text) }],
 	};
 }
 

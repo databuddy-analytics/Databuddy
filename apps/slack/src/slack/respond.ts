@@ -7,10 +7,9 @@ import {
 	type Block,
 	ComponentStreamSplitter,
 	componentsToBlocks,
-	escapeMrkdwn,
 	feedbackButtonsBlock,
-	neutralizeSlackMarkdown,
-	neutralizeUrls,
+	safeMarkdown,
+	safeMrkdwn,
 } from "@/slack/blocks";
 import { SLACK_COPY } from "@/slack/messages";
 import { queryEvidenceBlocks } from "@/slack/query-evidence";
@@ -354,7 +353,7 @@ async function sendWithChartFallback(
 
 function markdownChunk(text: string) {
 	return {
-		text: neutralizeSlackMarkdown(text),
+		text: safeMarkdown(text),
 		type: "markdown_text" as const,
 	};
 }
@@ -536,8 +535,7 @@ async function sendFinalMessage(
 	options: SuccessLogOptions & { run: SlackAgentRun; say: SayFn }
 ): Promise<StreamAgentToSlackResult> {
 	const response = await options.say({
-		text:
-			escapeMrkdwn(neutralizeUrls(options.finalText)) || SLACK_COPY.noAnswer,
+		text: safeMrkdwn(options.finalText) || SLACK_COPY.noAnswer,
 		thread_ts: options.run.threadTs,
 		unfurl_links: false,
 		unfurl_media: false,
@@ -622,12 +620,10 @@ async function recoverFromError({
 	}
 
 	const response = await say({
-		text: escapeMrkdwn(
-			neutralizeUrls(
-				partialText
-					? `${partialText}\n\n${SLACK_COPY.responseInterrupted}`
-					: failureText
-			)
+		text: safeMrkdwn(
+			partialText
+				? `${partialText}\n\n${SLACK_COPY.responseInterrupted}`
+				: failureText
 		),
 		thread_ts: run.threadTs,
 		unfurl_links: false,
