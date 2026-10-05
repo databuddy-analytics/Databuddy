@@ -241,8 +241,23 @@ describe("explicit forget requests", () => {
 		'Forget "Prefers weekly views"',
 		'The saved memory "Prefers weekly views" is wrong',
 		'You remembered "Prefers weekly views" wrong',
+		'You’ve remembered "Prefers weekly views" wrong.',
 	])("detects %p", (message) => {
 		expect(asksToForget(message, "Prefers weekly views")).toBe(true);
+	});
+
+	test.each([
+		[
+			"Delete the saved memory 'Prefers \"weekly\" views; not outdated.'.",
+			'Prefers "weekly" views; not outdated.',
+		],
+		["The memory “The trial is not wrong” is wrong", "The trial is not wrong"],
+		[
+			"You remembered `The trial is no longer wrong` wrong",
+			"The trial is no longer wrong",
+		],
+	])("preserves exact quote and negative words in a named target: %p", (message, query) => {
+		expect(asksToForget(message, query)).toBe(true);
 	});
 
 	test.each([
@@ -327,6 +342,39 @@ describe("forget_memory tool", () => {
 			results: [{ id: "mem_1", memory: "Prefers weekly views" }],
 		});
 		expect(await forget(message)).toMatchObject({ forgotten: false });
+		expect(mockSearchMemories).not.toHaveBeenCalled();
+		expect(mockForget).not.toHaveBeenCalled();
+	});
+
+	test.each([
+		[
+			'Delete the saved memory "Uses daily views" but keep "Prefers weekly views"',
+			'Uses daily views" but keep "Prefers weekly views',
+		],
+		[
+			'Delete the saved memory "Prefers weekly views""',
+			'Prefers weekly views"',
+		],
+		[
+			"The memory Trial lasts 14 days is not wrong",
+			"Trial lasts 14 days is not",
+		],
+		[
+			"You remembered Trial lasts 14 days not outdated",
+			"Trial lasts 14 days not",
+		],
+		[
+			"You remembered Trial lasts 14 days no longer wrong",
+			"Trial lasts 14 days no longer",
+		],
+		[
+			"You remembered Trial lasts 14 days never incorrect",
+			"Trial lasts 14 days never",
+		],
+		["The memory Trial lasts 14 days wrong", "Trial lasts 14 days"],
+	])("refuses malformed or negative authority even with an exact provider record: %p", async (message, query) => {
+		searchHandler = async () => ({ results: [{ id: "mem_1", memory: query }] });
+		expect(await forget(message, query)).toMatchObject({ forgotten: false });
 		expect(mockSearchMemories).not.toHaveBeenCalled();
 		expect(mockForget).not.toHaveBeenCalled();
 	});

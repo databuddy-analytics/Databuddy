@@ -29,9 +29,15 @@ const FORGET_COMMAND_PREFIX =
 	/^(?:forget|unlearn|delete|remove|erase|clear|drop|wipe)\s+/i;
 const FROM_MEMORY_SUFFIX = /(?<=\s)from\s+(?:(?:my|your|the)\s+)?memory$/i;
 const MEMORY_CORRECTION_PREFIX =
-	/^(?:(?:(?:this|that|the|your|my)\s+)?(?:(?:saved|stored|remembered)\s+)?memory\b[\s:]+|(?:you|you've|you have)\s+(?:remembered|saved|noted|stored)\s+)/i;
+	/^(?:(?:this|that|the|your|my)\s+)?(?:(?:saved|stored|remembered)\s+)?memory\b[\s:]+/i;
+const REMEMBERED_CORRECTION_PREFIX =
+	/^(?:you|you['’]ve|you have)\s+(?:remembered|saved|noted|stored)\s+/i;
 const MEMORY_CORRECTION_SUFFIX =
-	/(?<=\s)(?:(?:is|are|was|were)\s+)?(?:wrong|incorrect|outdated|stale|out of date|no longer (?:true|right|correct))$/i;
+	/(?<=\s)(?:is|are|was|were)\s+(?:wrong|incorrect|outdated|stale|out of date|no longer (?:true|right|correct))$/i;
+const REMEMBERED_CORRECTION_SUFFIX =
+	/(?<=\s)(?:wrong|incorrect|outdated|stale|out of date|no longer (?:true|right|correct))$/i;
+const NEGATED_CORRECTION_SUFFIX =
+	/(?<=\s)(?:not|never|no longer)\s+(?:wrong|incorrect|outdated|stale|out of date|no longer (?:true|right|correct))$/i;
 const MEMORY_REQUEST_END = /[.!?]$/;
 const QUOTED_FORGET_PREFIX = /^(?:forget|unlearn)\s+/i;
 const MEMORY_TARGET_QUOTE = /^["'“‘`]/;
@@ -89,8 +95,17 @@ export function asksToForget(message: string, query: string): boolean {
 	return [request, request.replace(MEMORY_REQUEST_END, "").trimEnd()].some(
 		(command) => {
 			const memoryPrefix = command.match(FORGET_MEMORY_PREFIX)?.[0];
-			const correctionPrefix = command.match(MEMORY_CORRECTION_PREFIX)?.[0];
-			const correctionSuffix = command.match(MEMORY_CORRECTION_SUFFIX)?.[0];
+			const memoryCorrectionPrefix = command.match(
+				MEMORY_CORRECTION_PREFIX
+			)?.[0];
+			const correctionPrefix =
+				memoryCorrectionPrefix ??
+				command.match(REMEMBERED_CORRECTION_PREFIX)?.[0];
+			const correctionSuffix = command.match(
+				memoryCorrectionPrefix
+					? MEMORY_CORRECTION_SUFFIX
+					: REMEMBERED_CORRECTION_SUFFIX
+			)?.[0];
 			const commandPrefix = command.match(FORGET_COMMAND_PREFIX)?.[0];
 			const fromMemorySuffix = command.match(FROM_MEMORY_SUFFIX)?.[0];
 			let object: string;
@@ -98,6 +113,9 @@ export function asksToForget(message: string, query: string): boolean {
 			if (memoryPrefix) {
 				object = command.slice(memoryPrefix.length);
 			} else if (correctionPrefix && correctionSuffix) {
+				if (NEGATED_CORRECTION_SUFFIX.test(command)) {
+					return false;
+				}
 				object = command.slice(
 					correctionPrefix.length,
 					-correctionSuffix.length
@@ -111,12 +129,14 @@ export function asksToForget(message: string, query: string): boolean {
 				return false;
 			}
 			object = object.trim();
+			if (quotedTargets.includes(object)) {
+				return object.indexOf(object.slice(-1), 1) === object.length - 1;
+			}
 			return (
-				quotedTargets.includes(object) ||
-				(!quotedOnly &&
-					object === target &&
-					!MEMORY_TARGET_QUOTE.test(object) &&
-					!UNNAMED_MEMORY_TARGET.test(object))
+				!quotedOnly &&
+				object === target &&
+				!MEMORY_TARGET_QUOTE.test(object) &&
+				!UNNAMED_MEMORY_TARGET.test(object)
 			);
 		}
 	);
