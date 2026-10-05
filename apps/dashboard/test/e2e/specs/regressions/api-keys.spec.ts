@@ -1,7 +1,7 @@
 import { expect, test } from "@/test/e2e/fixtures";
 import { apiKeyRow, scopeSuffix } from "@/test/e2e/utils/dashboard";
 
-const CREATE_KEY_RE = /Create (your first )?key/i;
+const CREATE_KEY_RE = /Create API key/i;
 const API_URL = `http://localhost:${process.env.DATABUDDY_E2E_API_PORT ?? 3001}`;
 
 test("creates an API key that authenticates, then deletes it and the key stops working", {
@@ -11,7 +11,7 @@ test("creates an API key that authenticates, then deletes it and the key stops w
 
 	await page.goto("/organizations/settings");
 	await page.getByRole("button", { name: CREATE_KEY_RE }).first().click();
-	const dialog = page.getByRole("dialog", { name: "Create API Key" });
+	const dialog = page.getByRole("dialog", { name: "Create API key" });
 	await dialog
 		.getByRole("textbox", { exact: true, name: "Name" })
 		.fill(keyName);

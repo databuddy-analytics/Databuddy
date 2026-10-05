@@ -159,11 +159,11 @@ export function ConsumptionChart({
 		return (
 			<Card>
 				<Card.Header>
-					<Card.Title>Consumption Breakdown</Card.Title>
+					<Card.Title>Consumption breakdown</Card.Title>
 					<Card.Description>Daily event volume by type</Card.Description>
 				</Card.Header>
 				<Card.Content className="py-8">
-					<EmptyState icon={<CalendarIcon />} title="No data available" />
+					<EmptyState icon={<CalendarIcon />} title="No usage yet" />
 				</Card.Content>
 			</Card>
 		);
@@ -182,7 +182,7 @@ export function ConsumptionChart({
 		<Card>
 			<Card.Header className="flex-row flex-wrap items-start justify-between gap-4">
 				<div>
-					<Card.Title>Consumption Breakdown</Card.Title>
+					<Card.Title>Consumption breakdown</Card.Title>
 					<Card.Description>Daily event volume by type</Card.Description>
 				</div>
 				<div className="flex flex-wrap items-center gap-2">

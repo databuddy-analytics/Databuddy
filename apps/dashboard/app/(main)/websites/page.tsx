@@ -90,7 +90,7 @@ export default function WebsitesPage() {
 					size="sm"
 				>
 					<PlusIcon className="size-4" />
-					New Website
+					Create website
 				</Button>
 			</TopBar.Actions>
 
@@ -109,11 +109,11 @@ export default function WebsitesPage() {
 				{!isSwitchingOrganization && isError && (
 					<EmptyState
 						action={{
-							label: "Try Again",
+							label: "Try again",
 							onClick: () => refetch(),
 						}}
 						className="h-full"
-						description="There was an issue fetching your websites. Please check your connection and try again."
+						description="There was an issue fetching your websites. Check your connection and try again."
 						icon={<GlobeIcon />}
 						title="Failed to load your websites"
 						variant="error"
@@ -125,7 +125,7 @@ export default function WebsitesPage() {
 					websites.length === 0 && (
 						<EmptyState
 							action={{
-								label: "Create Your First Website",
+								label: "Create your first website",
 								onClick: () => setDialogOpen(true),
 							}}
 							className="h-full"

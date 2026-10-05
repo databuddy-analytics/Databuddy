@@ -40,48 +40,48 @@ interface PageInfo {
 const PAGE_INFO_MAP: Record<string, PageInfo> = {
 	"/organizations": {
 		title: "Organizations",
-		description: "Manage your organizations and team collaboration",
+		description: "Manage your organizations and team collaboration.",
 		icon: BuildingsIcon,
 	},
 	"/organizations/members": {
-		title: "Team Members",
-		description: "Manage team members and their roles",
+		title: "Team members",
+		description: "Manage team members and their roles.",
 		icon: UsersIcon,
 		requiresOrg: true,
 	},
 	"/organizations/invitations": {
-		title: "Pending Invitations",
-		description: "View and manage pending team invitations",
+		title: "Pending invitations",
+		description: "View and manage pending team invitations.",
 		icon: EnvelopeIcon,
 		requiresOrg: true,
 	},
 	"/organizations/settings": {
-		title: "General Settings",
-		description: "Manage organization name, slug, and basic settings",
+		title: "General settings",
+		description: "Manage organization name, slug, and basic settings.",
 		icon: GearIcon,
 		requiresOrg: true,
 	},
 	"/organizations/settings/integrations": {
 		title: "Integrations",
-		description: "Connect external tools to this organization",
+		description: "Connect external tools to this organization.",
 		icon: PlugIcon,
 		requiresOrg: true,
 	},
 	"/organizations/settings/business-context": {
-		title: "Business Context",
-		description: "Give your agent a shared understanding of your business",
+		title: "Business context",
+		description: "Give your agent a shared understanding of your business.",
 		icon: LightbulbIcon,
 		requiresOrg: true,
 	},
 	"/organizations/settings/audit": {
-		title: "Audit Log",
-		description: "Review privileged activity in this organization",
+		title: "Audit log",
+		description: "Review privileged activity in this organization.",
 		icon: ShieldCheckIcon,
 		requiresOrg: true,
 	},
 	"/organizations/settings/websites": {
-		title: "Website Management",
-		description: "Manage websites associated with this organization",
+		title: "Website management",
+		description: "Manage websites associated with this organization.",
 		icon: GlobeIcon,
 		requiresOrg: true,
 	},
@@ -89,7 +89,7 @@ const PAGE_INFO_MAP: Record<string, PageInfo> = {
 
 const DEFAULT_PAGE_INFO: PageInfo = {
 	title: "Organizations",
-	description: "Manage your organizations and team collaboration",
+	description: "Manage your organizations and team collaboration.",
 	icon: BuildingsIcon,
 };
 
@@ -165,7 +165,7 @@ export function OrganizationProvider({
 
 				<EmptyState
 					action={{
-						label: "Create Organization",
+						label: "Create organization",
 						onClick: () => setShowCreateDialog(true),
 					}}
 					description="This feature requires an active organization."

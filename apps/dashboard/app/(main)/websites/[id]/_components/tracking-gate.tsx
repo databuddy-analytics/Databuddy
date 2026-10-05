@@ -108,7 +108,7 @@ export function WebsiteTrackingGate({ websiteId }: { websiteId: string }) {
 					}
 					expanded={false}
 					status={firstViewStatus}
-					title="First page view"
+					title="First pageview"
 				/>
 			</Card>
 		</div>

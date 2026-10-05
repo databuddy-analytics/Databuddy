@@ -311,7 +311,7 @@ export function WebsiteOverviewTab({
 			},
 			{
 				id: "utm_sources",
-				label: "UTM Sources",
+				label: "UTM sources",
 				data: analytics.utm_sources || [],
 				columns: createMetricColumns({
 					includeName: true,
@@ -326,7 +326,7 @@ export function WebsiteOverviewTab({
 			},
 			{
 				id: "utm_mediums",
-				label: "UTM Mediums",
+				label: "UTM mediums",
 				data: analytics.utm_mediums || [],
 				columns: createMetricColumns({
 					includeName: true,
@@ -341,7 +341,7 @@ export function WebsiteOverviewTab({
 			},
 			{
 				id: "utm_campaigns",
-				label: "UTM Campaigns",
+				label: "UTM campaigns",
 				data: analytics.utm_campaigns || [],
 				columns: createMetricColumns({
 					includeName: true,
@@ -544,7 +544,7 @@ export function WebsiteOverviewTab({
 		() => [
 			{
 				id: "top_pages",
-				label: "Top Pages",
+				label: "Top pages",
 				data: analytics.top_pages || [],
 				columns: createPageColumns() as ColumnDef<PageRowData, unknown>[],
 				getFilter: (row: PageRowData) => ({
@@ -554,7 +554,7 @@ export function WebsiteOverviewTab({
 			},
 			{
 				id: "entry_pages",
-				label: "Entry Pages",
+				label: "Entry pages",
 				data: analytics.entry_pages || [],
 				columns: createPageColumns() as ColumnDef<PageRowData, unknown>[],
 				getFilter: (row: PageRowData) => ({
@@ -564,7 +564,7 @@ export function WebsiteOverviewTab({
 			},
 			{
 				id: "exit_pages",
-				label: "Exit Pages",
+				label: "Exit pages",
 				data: analytics.exit_pages || [],
 				columns: createPageColumns() as ColumnDef<PageRowData, unknown>[],
 				getFilter: (row: PageRowData) => ({
@@ -574,7 +574,7 @@ export function WebsiteOverviewTab({
 			},
 			{
 				id: "page_time_analysis",
-				label: "Time Analysis",
+				label: "Time analysis",
 				data: analytics.page_time_analysis || [],
 				columns: createPageTimeColumns(),
 				getFilter: (row: any) => ({
@@ -596,7 +596,7 @@ export function WebsiteOverviewTab({
 			{
 				id: "device_type",
 				accessorKey: "device_type",
-				header: "Device Type",
+				header: "Device type",
 				cell: (info: CellInfo) => {
 					const row = info.row.original as { name: string };
 					return <DeviceTypeCell device_type={row.name} />;
@@ -667,7 +667,7 @@ export function WebsiteOverviewTab({
 			{
 				id: "name",
 				accessorKey: "name",
-				header: "Operating System",
+				header: "Operating system",
 				cell: createTechnologyCell("os"),
 				size: 200,
 				minSize: 140,
@@ -886,7 +886,7 @@ export function WebsiteOverviewTab({
 					},
 					{
 						id: "bounce-rate-chart",
-						title: "Bounce Rate",
+						title: "Bounce rate",
 						value:
 							analytics.summary?.bounce_rate != null &&
 							!Number.isNaN(analytics.summary.bounce_rate)
@@ -904,7 +904,7 @@ export function WebsiteOverviewTab({
 					},
 					{
 						id: "session-duration-chart",
-						title: "Session Duration",
+						title: "Session duration",
 						value: (() => {
 							const duration = analytics.summary?.median_session_duration;
 							if (!duration) {
@@ -997,7 +997,7 @@ export function WebsiteOverviewTab({
 					onAddFilter={onAddFilter}
 					showBrandInHeader
 					tabs={referrerTabs}
-					title="Traffic Sources"
+					title="Traffic sources"
 				/>
 
 				<DataTable
@@ -1054,7 +1054,7 @@ export function WebsiteOverviewTab({
 					tabs={[
 						{
 							id: "operating_systems",
-							label: "Operating Systems",
+							label: "Operating systems",
 							data: analytics.operating_systems || [],
 							columns: osColumns,
 							getFilter: (row: TechnologyData) => ({
@@ -1063,7 +1063,7 @@ export function WebsiteOverviewTab({
 							}),
 						},
 					]}
-					title="Operating Systems"
+					title="Operating systems"
 				/>
 
 				<DataTable

@@ -280,7 +280,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 						<Tabs.List className="max-w-full overflow-x-auto">
 							<Tabs.Tab value="script">
 								<CodeIcon className="size-3.5" />
-								Script Tag
+								Script tag
 							</Tabs.Tab>
 							<Tabs.Tab value="react">
 								<PackageIcon className="size-3.5" />
@@ -426,7 +426,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 									className="font-medium text-foreground underline underline-offset-4"
 									href="/organizations/settings#api-keys"
 								>
-									Organization Settings → API Keys
+									Organization settings → API keys
 								</Link>
 								, then set it as{" "}
 								<code className="rounded bg-background px-1.5 py-0.5 font-mono text-xs">
@@ -461,7 +461,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 			<Card className="gap-0 py-0">
 				<Card.Content className="p-5">
 					<div className="mb-4 flex items-center justify-between">
-						<h3 className="font-semibold text-sm">Tracking Options</h3>
+						<h3 className="font-semibold text-sm">Tracking options</h3>
 						<p className="text-muted-foreground text-xs tabular-nums">
 							{
 								[

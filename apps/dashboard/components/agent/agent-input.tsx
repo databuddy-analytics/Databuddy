@@ -691,7 +691,7 @@ function GeneratingHint() {
 	return (
 		<div className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
 			<CircleNotchIcon className="size-3.5 animate-spin text-primary" />
-			<span>Generating...</span>
+			<span>Generating…</span>
 		</div>
 	);
 }

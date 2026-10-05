@@ -48,21 +48,21 @@ interface ModeConfig {
 
 const MODE_CONFIG: Record<string, ModeConfig> = {
 	create: {
-		title: "Create Goal",
+		title: "Create goal",
 		confirmLabel: "Create",
 		confirmMessage: "Yes, create it",
 		accent: "",
 		ButtonIcon: CheckIcon,
 	},
 	update: {
-		title: "Update Goal",
+		title: "Update goal",
 		confirmLabel: "Update",
 		confirmMessage: "Yes, update it",
 		accent: "border-amber-500/30",
 		ButtonIcon: CheckIcon,
 	},
 	delete: {
-		title: "Delete Goal",
+		title: "Delete goal",
 		confirmLabel: "Delete",
 		confirmMessage: "Yes, delete it",
 		accent: "border-destructive/30",

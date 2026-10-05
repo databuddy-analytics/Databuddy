@@ -90,7 +90,7 @@ export function SaveFilterDialog({
 						</div>
 						<div>
 							<Dialog.Title>
-								{isEditing ? "Rename Filter" : "Save Filter"}
+								{isEditing ? "Rename filter" : "Save filter"}
 							</Dialog.Title>
 							<Dialog.Description>
 								{isEditing

@@ -122,7 +122,7 @@ export function OgPreview({
 											variant="secondary"
 										>
 											<ArrowsClockwiseIcon className="mr-1.5 size-3.5" />
-											Retry
+											Try again
 										</Button>
 									</div>
 								)}
@@ -130,7 +130,7 @@ export function OgPreview({
 								{imageStatus === "success" && (
 									<>
 										<img
-											alt="OG Preview"
+											alt="OG preview"
 											className="size-full object-cover"
 											height={630}
 											src={getProxiedImageUrl(customImageUrl)}
@@ -167,7 +167,7 @@ export function OgPreview({
 						{showFetchedImage && (
 							<div className="relative aspect-video w-full overflow-hidden bg-muted">
 								<img
-									alt="OG Preview"
+									alt="OG preview"
 									className="size-full object-cover"
 									height={630}
 									src={getProxiedImageUrl(displayData.image)}

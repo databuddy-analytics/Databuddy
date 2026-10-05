@@ -9,7 +9,7 @@ import { formatDateTime } from "@databuddy/ui";
 import { ErrorDetailModal } from "./error-detail-modal";
 import { getDeviceIcon, getErrorTypeIcon } from "./error-icons";
 import type { RecentError } from "./types";
-import { getErrorCategory } from "./utils";
+import { getErrorCategory, SEVERITY_LABELS } from "./utils";
 import { ClockIcon, CodeIcon, GlobeIcon } from "@databuddy/ui/icons";
 
 interface Props {
@@ -26,7 +26,7 @@ const SEVERITY_COLORS: Record<"high" | "medium" | "low", string> = {
 const SeverityDot = ({ severity }: { severity: "high" | "medium" | "low" }) => (
 	<span
 		className={`size-2 shrink-0 rounded-full ${SEVERITY_COLORS[severity]}`}
-		title={`${severity} severity`}
+		title={`${SEVERITY_LABELS[severity]} severity`}
 	/>
 );
 
@@ -215,7 +215,7 @@ export const RecentErrorsTable = ({ isLoading, recentErrors }: Props) => {
 				isLoading={isLoading}
 				minHeight={400}
 				onRowAction={(row) => handleViewError(row)}
-				title="Recent Errors"
+				title="Recent errors"
 			/>
 
 			{selectedError && (

@@ -23,7 +23,7 @@ function getSelectedLabel(
 	}
 	return (
 		folders.find((folder) => folder.id === value)?.name ??
-		(isLoading ? "Loading folder..." : "Unknown folder")
+		(isLoading ? "Loading folder…" : "Unknown folder")
 	);
 }
 

@@ -10,8 +10,14 @@ import {
 	PencilSimpleIcon,
 	TrashIcon,
 } from "@databuddy/ui/icons";
-import { Badge, Button } from "@databuddy/ui";
+import { Badge, Button, StatusDot } from "@databuddy/ui";
 import { DropdownMenu } from "@databuddy/ui/client";
+
+const FLAG_TYPE_LABELS: Record<Flag["type"], string> = {
+	boolean: "Boolean",
+	rollout: "Rollout",
+	multivariant: "Multivariant",
+};
 
 interface ArchivedFlagItemProps {
 	className?: string;
@@ -62,10 +68,10 @@ export function ArchivedFlagItem({
 								{flag.name || flag.key}
 							</h3>
 							<Badge className="shrink-0" variant="muted">
-								{flag.type}
+								{FLAG_TYPE_LABELS[flag.type] ?? flag.type}
 							</Badge>
 							<Badge className="gap-1.5" variant="warning">
-								<span className="size-1.5 rounded bg-amber-500" />
+								<StatusDot color="warning" />
 								Archived
 							</Badge>
 						</div>

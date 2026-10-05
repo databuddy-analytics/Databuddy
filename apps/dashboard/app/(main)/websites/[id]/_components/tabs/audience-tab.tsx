@@ -367,7 +367,7 @@ export function WebsiteAudienceTab({
 						}),
 					},
 				]}
-				title="Browser Versions"
+				title="Browser versions"
 			/>
 
 			<ErrorBoundary>
@@ -378,13 +378,13 @@ export function WebsiteAudienceTab({
 					minHeight={400}
 					onAddFilter={handleAddFilter}
 					tabs={geographicTabs}
-					title="Geographic Distribution"
+					title="Geographic distribution"
 				/>
 			</ErrorBoundary>
 
 			<Card>
 				<Card.Header className="py-3">
-					<Card.Title className="text-sm">Screen Resolutions</Card.Title>
+					<Card.Title className="text-sm">Screen resolutions</Card.Title>
 					<Card.Description>
 						Visitors by screen size and device type
 					</Card.Description>

@@ -14,7 +14,7 @@ export const TopErrorCard = ({ isLoading, topError }: TopErrorCardProps) => {
 				<Card.Header className="py-3">
 					<div className="flex items-center gap-2">
 						<BugIcon className="size-4 text-muted-foreground" />
-						<Card.Title className="text-sm">Most Frequent Error</Card.Title>
+						<Card.Title className="text-sm">Most frequent error</Card.Title>
 					</div>
 				</Card.Header>
 				<Card.Content className="flex-1 space-y-2">
@@ -32,7 +32,7 @@ export const TopErrorCard = ({ isLoading, topError }: TopErrorCardProps) => {
 					<BugIcon
 						className={`size-4 ${topError ? "text-destructive" : "text-muted-foreground"}`}
 					/>
-					<Card.Title className="text-sm">Most Frequent Error</Card.Title>
+					<Card.Title className="text-sm">Most frequent error</Card.Title>
 				</div>
 			</Card.Header>
 

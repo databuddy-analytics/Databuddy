@@ -101,7 +101,7 @@ export function WorkspaceWebsitesSection({
 					variant="secondary"
 				>
 					<PlusIcon className="size-4 shrink-0" />
-					New Website
+					Create website
 				</Button>
 			</Card.Header>
 			<Card.Content className="p-0">
@@ -117,7 +117,7 @@ export function WorkspaceWebsitesSection({
 									variant="secondary"
 								>
 									<PlusIcon className="size-4 shrink-0" />
-									Add Website
+									Create website
 								</Button>
 							}
 							description="Add your first website to start tracking analytics."

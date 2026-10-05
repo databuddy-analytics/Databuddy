@@ -326,14 +326,14 @@ export const WebsiteCard = memo(
 					website={website}
 				/>
 				<DeleteDialog
-					confirmLabel="Delete Website"
+					confirmLabel="Delete website"
 					description={`Are you sure you want to delete "${website.name ?? website.domain}"? This action cannot be undone and will permanently remove all analytics data.`}
 					isDeleting={deleteWebsiteMutation.isPending}
 					isOpen={showDeleteDialog}
 					itemName={website.name ?? undefined}
 					onClose={() => setShowDeleteDialog(false)}
 					onConfirm={handleDeleteConfirm}
-					title="Delete Website"
+					title="Delete website"
 				/>
 				<TransferWebsiteDialog
 					onOpenChange={setShowTransferDialog}

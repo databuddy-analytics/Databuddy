@@ -172,7 +172,7 @@ export function useSpeechTranscription() {
 			) {
 				setError("Allow microphone access to use voice input.");
 			} else {
-				setError("Voice input stopped unexpectedly. Please try again.");
+				setError("Voice input stopped unexpectedly. Try again.");
 			}
 			setStatus("error");
 		};
@@ -186,7 +186,7 @@ export function useSpeechTranscription() {
 				recognition.start();
 			} catch {
 				shouldListenRef.current = false;
-				setError("Voice input stopped unexpectedly. Please try again.");
+				setError("Voice input stopped unexpectedly. Try again.");
 				setStatus("error");
 			}
 		};
@@ -196,7 +196,7 @@ export function useSpeechTranscription() {
 			setStatus("listening");
 		} catch {
 			shouldListenRef.current = false;
-			setError("Voice input could not start. Please try again.");
+			setError("Voice input could not start. Try again.");
 			setStatus("error");
 		}
 	}, [reset]);

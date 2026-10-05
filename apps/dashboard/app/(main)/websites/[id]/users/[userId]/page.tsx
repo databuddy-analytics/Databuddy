@@ -621,7 +621,7 @@ export default function UserDetailPage() {
 	if (isError) {
 		return (
 			<UserProfileState
-				description={error?.message || "Please try again later."}
+				description={error?.message || "Try again later."}
 				onBack={handleBack}
 				title="Failed to load user"
 				variant="error"
@@ -659,7 +659,7 @@ export default function UserDetailPage() {
 		{ label: "Sessions", value: totalSessions },
 		{ label: "Pageviews", value: userProfile.total_pageviews ?? 0 },
 		{ label: "Events", value: totalEvents },
-		{ label: "Avg Pages", value: avgPagesPerSession.toFixed(1) },
+		{ label: "Avg pages", value: avgPagesPerSession.toFixed(1) },
 	];
 	const webVitals = getLatestWebVitals(sessions);
 
@@ -723,7 +723,7 @@ export default function UserDetailPage() {
 							indicator={
 								<OSIcon name={userProfile.os || "Unknown"} size="sm" />
 							}
-							label="Operating System"
+							label="Operating system"
 							value={userProfile.os || "Unknown"}
 						/>
 					</SidebarSection>
@@ -731,7 +731,7 @@ export default function UserDetailPage() {
 					<SidebarSection icon={ClockIcon} title="Timeline">
 						<DetailRow
 							indicator={<StatusDot color="muted" size="md" />}
-							label="First Visit"
+							label="First visit"
 							subValue={
 								userProfile.first_visit
 									? formatLocalTime(userProfile.first_visit, "h:mm A")
@@ -745,7 +745,7 @@ export default function UserDetailPage() {
 						/>
 						<DetailRow
 							indicator={<StatusDot color="muted" size="md" />}
-							label="Last Visit"
+							label="Last visit"
 							subValue={
 								userProfile.last_visit
 									? formatLocalTime(userProfile.last_visit, "h:mm A")
@@ -759,7 +759,7 @@ export default function UserDetailPage() {
 						/>
 						<DetailRow
 							indicator={<StatusDot color="success" size="md" />}
-							label="Total Time"
+							label="Total time"
 							value={userProfile.total_duration_formatted || "0s"}
 						/>
 					</SidebarSection>

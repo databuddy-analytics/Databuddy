@@ -145,7 +145,7 @@ function MemberDetailDialog({
 				{view === "confirm-remove" ? (
 					<>
 						<Dialog.Header>
-							<Dialog.Title>Remove Member</Dialog.Title>
+							<Dialog.Title>Remove member</Dialog.Title>
 							<Dialog.Description>
 								This will permanently remove {member.user.name} from the
 								organization. This action cannot be undone.
@@ -153,7 +153,7 @@ function MemberDetailDialog({
 						</Dialog.Header>
 						<Dialog.Footer>
 							<Button onClick={() => setView("detail")} variant="secondary">
-								Back
+								Cancel
 							</Button>
 							<Button
 								loading={isRemovingMember}

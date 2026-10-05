@@ -86,7 +86,7 @@ export function EventsStatsGrid({
 							isLoading={isLoading}
 							key={metric}
 							showChart
-							title="Events Today"
+							title="Events today"
 							value={formatNumber(todayEvents)}
 						/>
 					);
@@ -105,7 +105,7 @@ export function EventsStatsGrid({
 						description: `${formatNumber(todayEvents)} today`,
 						icon: LightningIcon,
 						id: "events-total",
-						title: "Total Events",
+						title: "Total events",
 						value: summary.total_events,
 					},
 					unique_users: {
@@ -113,14 +113,14 @@ export function EventsStatsGrid({
 						description: `${formatNumber(todayUsers)} today`,
 						icon: UserIcon,
 						id: "events-users",
-						title: "Unique Users",
+						title: "Unique users",
 						value: summary.unique_users,
 					},
 					unique_event_types: {
 						chartData: miniChartData.unique_event_types,
 						icon: TagIcon,
 						id: "events-types",
-						title: "Event Types",
+						title: "Event types",
 						value: summary.unique_event_types,
 					},
 					unique_sessions: {
@@ -134,7 +134,7 @@ export function EventsStatsGrid({
 						chartData: miniChartData.unique_pages,
 						icon: CalendarBlankIcon,
 						id: "events-pages",
-						title: "Unique Pages",
+						title: "Unique pages",
 						value: summary.unique_pages,
 					},
 				}[metric];
