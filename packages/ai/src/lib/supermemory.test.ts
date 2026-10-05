@@ -234,18 +234,15 @@ describe("forgetting memory", () => {
 
 describe("explicit forget requests", () => {
 	test.each([
-		"Forget that I prefer weekly views",
-		"Please forget my name",
-		"Can you forget that our trial lasts 14 days?",
-		"Delete the memory about our fiscal year",
-		"Clear my saved memory about chart preference",
-		"Remove that from your memory",
-		"That memory is wrong",
-		"Those memories are outdated",
-		"You remembered our launch date wrong",
-		"Stop remembering my chart preference",
+		'Forget the saved memory "Prefers weekly views"',
+		'Please delete my saved preference "Prefers weekly views".',
+		"CAN YOU remove Prefers weekly views from memory?",
+		"Stop remembering Prefers weekly views",
+		'Forget "Prefers weekly views"',
+		'The saved memory "Prefers weekly views" is wrong',
+		'You remembered "Prefers weekly views" wrong',
 	])("detects %p", (message) => {
-		expect(asksToForget(message)).toBe(true);
+		expect(asksToForget(message, "Prefers weekly views")).toBe(true);
 	});
 
 	test.each([
@@ -262,9 +259,34 @@ describe("explicit forget requests", () => {
 		"That memory is correct but the report is wrong",
 		"That memory is not wrong",
 		"You remembered our launch date correctly but the report is wrong",
+		"Forget the report",
+		"Forget that I prefer weekly views",
+		"Please delete my saved preference",
+		"Remove that from your memory",
+		"That memory is wrong",
+		"Those memories are outdated",
+		'Delete the saved memory "Prefers weekly views and monthly summaries"',
+		'Delete the saved memory "Uses daily views" but keep "Prefers weekly views"',
 		"",
 	])("ignores %p", (message) => {
-		expect(asksToForget(message)).toBe(false);
+		expect(asksToForget(message, "Prefers weekly views")).toBe(false);
+	});
+
+	test("keeps punctuation inside quoted memory text exact", () => {
+		const memory = "Trial lasts 14 days; fiscal year starts in April.";
+		const message = `Please delete the saved memory: "${memory}".`;
+		expect(asksToForget(message, memory)).toBe(true);
+		expect(asksToForget(message, "Trial lasts 14 days")).toBe(false);
+		expect(asksToForget(message, memory.slice(0, -1))).toBe(false);
+		expect(asksToForget('Forget ""', "")).toBe(false);
+		expect(asksToForget("Forget the report", "the report")).toBe(false);
+		expect(asksToForget("Remove that from memory", "that")).toBe(false);
+		expect(
+			asksToForget(
+				'Delete the saved memory "Uses daily views" but keep "Prefers weekly views"',
+				'"Uses daily views" but keep "Prefers weekly views"'
+			)
+		).toBe(false);
 	});
 });
 
@@ -272,10 +294,11 @@ describe("forget_memory tool", () => {
 	const tools = createMemoryTools();
 	const forget = (
 		latestUserMessage: string,
+		query = "Prefers weekly views",
 		mutationMode: "allow" | "dry-run" = "allow"
 	) =>
 		tools.forget_memory?.execute?.(
-			{ query: "Prefers weekly views" },
+			{ query },
 			{
 				toolCallId: "forget",
 				messages: [],
@@ -292,20 +315,34 @@ describe("forget_memory tool", () => {
 		"Delete the goal but keep my memory",
 		"That memory is correct but the report is wrong",
 		"Do not delete my memory",
+		"Forget the report",
+		"Delete the memory about our fiscal year",
+		"Can you remove weekly views from memory?",
+		"Please delete my saved preference",
+		"Forget that I prefer weekly views",
+		'Delete the saved memory "Uses daily views" but keep "Prefers weekly views"',
 		"",
 	])("refuses without a memory deletion request: %p", async (message) => {
+		searchHandler = async () => ({
+			results: [{ id: "mem_1", memory: "Prefers weekly views" }],
+		});
 		expect(await forget(message)).toMatchObject({ forgotten: false });
 		expect(mockSearchMemories).not.toHaveBeenCalled();
 		expect(mockForget).not.toHaveBeenCalled();
 	});
 
-	test("forgets the caller's exact memory after an explicit request", async () => {
+	test.each([
+		"Prefers weekly views",
+		"Trial lasts 14 days; fiscal year starts in April.",
+	])("forgets the caller's exact memory after an explicit request: %p", async (memory) => {
 		searchHandler = async () => ({
-			results: [{ id: "mem_1", memory: "Prefers weekly views" }],
+			results: [{ id: "mem_1", memory }],
 		});
-		expect(await forget("Forget that I prefer weekly views")).toMatchObject({
+		expect(
+			await forget(`Delete the saved memory "${memory}".`, memory)
+		).toMatchObject({
 			forgotten: true,
-			memory: "Prefers weekly views",
+			memory,
 		});
 		expect(mockForget).toHaveBeenCalledWith({
 			containerTag: "user_usr_1",
@@ -313,9 +350,40 @@ describe("forget_memory tool", () => {
 		});
 	});
 
+	test("requires a new exact user request before deleting a fuzzy candidate", async () => {
+		searchHandler = async () => ({
+			results: [{ id: "mem_1", memory: "Prefers weekly views" }],
+		});
+		const request = "Can you remove weekly views from memory?";
+		expect(await forget(request, "weekly views")).toMatchObject({
+			candidates: ["Prefers weekly views"],
+			forgotten: false,
+		});
+		expect(await forget(request)).toMatchObject({ forgotten: false });
+		expect(mockSearchMemories).toHaveBeenCalledTimes(1);
+		expect(mockForget).not.toHaveBeenCalled();
+		expect(await forget('Forget "Prefers weekly views"')).toMatchObject({
+			forgotten: true,
+		});
+		expect(mockForget).toHaveBeenCalledTimes(1);
+	});
+
+	test("does not search or delete without a caller identity", async () => {
+		expect(await forgetMemory("Prefers weekly views", null, null)).toEqual({
+			candidates: [],
+			status: "not_found",
+		});
+		expect(mockSearchMemories).not.toHaveBeenCalled();
+		expect(mockForget).not.toHaveBeenCalled();
+	});
+
 	test("dry-run skips even an explicit memory deletion request", async () => {
 		expect(
-			await forget("Forget that I prefer weekly views", "dry-run")
+			await forget(
+				'Forget "Prefers weekly views"',
+				"Prefers weekly views",
+				"dry-run"
+			)
 		).toMatchObject({ dryRun: true, forgotten: false });
 		expect(mockSearchMemories).not.toHaveBeenCalled();
 		expect(mockForget).not.toHaveBeenCalled();
