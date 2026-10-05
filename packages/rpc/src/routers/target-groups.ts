@@ -7,10 +7,7 @@ import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { publicProcedure, trackedProcedure } from "../orpc";
-import {
-	withPublicWorkspace,
-	withWorkspace,
-} from "../procedures/with-workspace";
+import { withWorkspace } from "../procedures/with-workspace";
 import { invalidateFlagEvaluationCaches } from "../utils/flags";
 import { scopedCacheKey } from "../utils/scoped-cache-key";
 
@@ -53,19 +50,11 @@ const deleteSchema = z.object({
 
 const targetGroupOutputSchema = z.record(z.string(), z.unknown());
 
-function requireAuthedTargetGroupRead(workspace: { tier: "authed" | "demo" }) {
-	if (workspace.tier === "demo") {
-		throw rpcError.unauthorized(
-			"Target group definitions require authenticated organization access"
-		);
-	}
-}
-
 export const targetGroupsRouter = {
 	list: publicProcedure
 		.route({
 			description:
-				"Returns all target groups for a website. Requires website read permission.",
+				"Returns all target groups for a website. Requires feature flag read permission.",
 			method: "POST",
 			path: "/target-groups/list",
 			summary: "List target groups",
@@ -74,12 +63,11 @@ export const targetGroupsRouter = {
 		.input(listSchema)
 		.output(z.array(targetGroupOutputSchema))
 		.handler(async ({ context, input }) => {
-			const workspace = await withPublicWorkspace(context, {
+			const workspace = await withWorkspace(context, {
 				websiteId: input.websiteId,
+				resource: "flag",
 				permissions: ["read"],
 			});
-
-			requireAuthedTargetGroupRead(workspace);
 
 			return targetGroupsCache.withCache({
 				key: scopedCacheKey("list", workspace, `website:${input.websiteId}`),
