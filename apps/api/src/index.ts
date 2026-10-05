@@ -5,6 +5,7 @@ import { readBooleanEnv } from "@databuddy/env/boolean";
 import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
 import cors from "@elysiajs/cors";
 import { Elysia } from "elysia";
+import { log } from "evlog";
 import { evlog } from "evlog/elysia";
 import { handleAutumnRequest } from "@/billing/autumn";
 import { startAutumnWebhookReplayLoop } from "@/billing/autumn-webhook-replay";
@@ -51,8 +52,13 @@ configureApiInstrumentation();
 registerProcessErrorHandlers();
 assertConfigured();
 const authSecretCheck = assertAuthSecretMatchesDashboard().catch(
-	(error: unknown) => {
-		console.error(error);
+	(error: Error) => {
+		log.error({
+			process: "authSecretCheck",
+			error_message: error.message,
+			error_stack: error.stack,
+			error_source: "process",
+		});
 		process.exit(1);
 	}
 );
