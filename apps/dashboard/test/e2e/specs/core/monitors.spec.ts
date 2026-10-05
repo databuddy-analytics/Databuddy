@@ -16,7 +16,7 @@ test("creates, pauses, and deletes an uptime monitor", {
 	await sheet
 		.getByPlaceholder("https://api.example.com/health")
 		.fill(`https://monitor-${suffix}.local/health`);
-	await sheet.getByRole("button", { name: "Create", exact: true }).click();
+	await sheet.getByRole("button", { name: "Create monitor" }).click();
 	await expect(sheet).toBeHidden();
 
 	await page.getByText(name, { exact: true }).click();
