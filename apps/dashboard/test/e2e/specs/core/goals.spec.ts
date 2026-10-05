@@ -14,18 +14,18 @@ test("creates, edits, and deletes a goal", { tag: "@core" }, async ({
 	await page.goto(`/websites/${e2eSession.websiteId}/goals`);
 
 	await page.getByRole("button", { name: "Create goal", exact: true }).click();
-	const sheet = page.getByRole("dialog", { name: "New Goal" });
-	await sheet.getByPlaceholder("e.g., Newsletter Signup").fill(name);
+	const sheet = page.getByRole("dialog", { name: "Create goal" });
+	await sheet.getByPlaceholder("Newsletter signup").fill(name);
 	await sheet.getByPlaceholder("/path").fill("/pricing");
-	await sheet.getByRole("button", { name: "Create Goal" }).click();
+	await sheet.getByRole("button", { name: "Create goal" }).click();
 	await expect(sheet).toBeHidden();
 	await expect(page.getByText(name, { exact: true })).toBeVisible();
 
 	await page.getByRole("button", { name: "Goal actions" }).click();
 	await page.getByRole("menuitem", { name: "Edit" }).click();
 	const edit = page.getByRole("dialog", { name });
-	await edit.getByPlaceholder("e.g., Newsletter Signup").fill(renamed);
-	await edit.getByRole("button", { name: "Save Changes" }).click();
+	await edit.getByPlaceholder("Newsletter signup").fill(renamed);
+	await edit.getByRole("button", { name: "Save changes" }).click();
 	await expect(edit).toBeHidden();
 	await expect(page.getByText(renamed, { exact: true })).toBeVisible();
 
@@ -33,7 +33,7 @@ test("creates, edits, and deletes a goal", { tag: "@core" }, async ({
 	await page.getByRole("menuitem", { name: "Delete" }).click();
 	await page
 		.getByRole("dialog", { name: `Delete ${renamed}` })
-		.getByRole("button", { name: "Delete Goal" })
+		.getByRole("button", { name: "Delete goal" })
 		.click();
 	await expect(page.getByText(renamed, { exact: true })).toBeHidden();
 });
