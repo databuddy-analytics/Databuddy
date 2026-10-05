@@ -98,8 +98,8 @@ function buildRecommendedFix(event: BlockedTrafficInsert): string {
 	const host = getTrackingBlockOriginHost(event.origin ?? null);
 	if (event.block_reason === "origin_not_authorized") {
 		return host
-			? `Update the website domain to ${host}, or add ${host} under Security → Allowed Origins if this is an additional trusted domain.`
-			: "Update the website domain or add the trusted origin under Security → Allowed Origins.";
+			? `Update the website domain to ${host}, or add ${host} under Security → Allowed origins if this is an additional trusted domain.`
+			: "Update the website domain or add the trusted origin under Security → Allowed origins.";
 	}
 
 	if (event.block_reason === "origin_missing") {
