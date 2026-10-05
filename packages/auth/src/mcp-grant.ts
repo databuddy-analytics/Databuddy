@@ -37,7 +37,7 @@ export const mcpPostLogin = {
 		if (!selected) {
 			throw new APIError("BAD_REQUEST", {
 				message:
-					"Choose an organization and website access before allowing this connection.",
+					"Choose an organization and website access before allowing this connection",
 			});
 		}
 		return selected;
@@ -118,7 +118,7 @@ export const mcpConsentAccess = {
 					if (!parsed.success) {
 						throw new APIError("BAD_REQUEST", {
 							message:
-								"Choose an organization and all websites or at least one website.",
+								"Choose an organization and all websites or at least one website",
 						});
 					}
 					if (
@@ -126,7 +126,7 @@ export const mcpConsentAccess = {
 						!ctx.body.oauth_query
 					) {
 						throw new APIError("BAD_REQUEST", {
-							message: "Reconnect to start a new authorization request.",
+							message: "Reconnect to start a new authorization request",
 						});
 					}
 					const session = await getSessionFromCtx(ctx);
@@ -147,7 +147,7 @@ export const mcpConsentAccess = {
 						)
 					) {
 						throw new APIError("FORBIDDEN", {
-							message: "You do not have access to this organization.",
+							message: "You do not have access to this organization",
 						});
 					}
 					if (grant.websiteIds) {
@@ -165,7 +165,7 @@ export const mcpConsentAccess = {
 						if (selected.length !== ids.length) {
 							throw new APIError("FORBIDDEN", {
 								message:
-									"Every selected website must belong to this organization.",
+									"Every selected website must belong to this organization",
 							});
 						}
 					}

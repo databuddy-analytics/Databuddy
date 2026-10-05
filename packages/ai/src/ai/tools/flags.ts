@@ -209,7 +209,7 @@ export function createFlagTools() {
 				if (!confirmed) {
 					return {
 						preview: true,
-						message: "Please review this feature flag before creating it.",
+						message: "Review this feature flag before creating it.",
 						flag: {
 							key: payload.key,
 							name: payload.name ?? payload.key,
@@ -235,7 +235,7 @@ export function createFlagTools() {
 
 				return {
 					success: true,
-					message: `Feature flag "${payload.key}" created successfully.`,
+					message: `Feature flag "${payload.key}" created successfully`,
 					flag: result,
 				};
 			} catch (error) {
@@ -266,7 +266,7 @@ export function createFlagTools() {
 				if (!confirmed) {
 					return {
 						preview: true,
-						message: "Please review this feature flag update.",
+						message: "Review this feature flag update before applying it.",
 						flagId: id,
 						updates: cleanUpdates,
 						confirmationRequired: true,
@@ -284,7 +284,7 @@ export function createFlagTools() {
 
 				return {
 					success: true,
-					message: "Feature flag updated successfully.",
+					message: "Feature flag updated successfully",
 					flag: result,
 				};
 			} catch (error) {
@@ -320,7 +320,8 @@ export function createFlagTools() {
 				if (!confirmed) {
 					return {
 						preview: true,
-						message: "Please review this feature flag targeting change.",
+						message:
+							"Review this feature flag targeting change before applying it.",
 						flag,
 						targeting,
 						confirmationRequired: true,

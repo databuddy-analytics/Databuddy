@@ -288,10 +288,10 @@ async function sendAlertEmail(input: {
 		input.context.websiteName ||
 		input.context.websiteDomain ||
 		input.event.client_id ||
-		"your site";
+		"your website";
 	const subject =
 		input.decision.kind === "tracking_zero"
-			? `[Action required] Tracking may be blocked for ${siteLabel}`
+			? `[Action required] Tracking may be down for ${siteLabel}`
 			: `[Databuddy] Blocked tracking increased for ${siteLabel}`;
 
 	const email = BlockedTrafficAlertEmail({

@@ -47,7 +47,7 @@ export function rejectInvalidMcpOrigin(request: Request): Response | undefined {
 	return Response.json(
 		{
 			jsonrpc: "2.0",
-			error: { code: -32_000, message: "Forbidden Origin" },
+			error: { code: -32_000, message: "Forbidden origin" },
 			id: null,
 		},
 		{ status: 403 }

@@ -146,7 +146,7 @@ export function createFunnelTools() {
 					return {
 						preview: true,
 						message:
-							"Please review the funnel details below and confirm if you want to create it:",
+							"Review the funnel details below and confirm to create it:",
 						funnel: {
 							name: funnel.name,
 							description: funnel.description || "No description",

@@ -92,7 +92,7 @@ async function handleOrpcRequest(
 		return handleAppError({
 			error: createError({
 				code: "INTERNAL_SERVER_ERROR",
-				message: "An internal server error occurred",
+				message: "Internal server error",
 				status: 500,
 			}),
 			request,

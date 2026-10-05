@@ -138,8 +138,7 @@ export function createLinksTools() {
 				if (!confirmed) {
 					return {
 						preview: true,
-						message:
-							"Please review the link details below and confirm if you want to create it:",
+						message: "Review the link details below and confirm to create it:",
 						link: {
 							name: link.name,
 							targetUrl: link.targetUrl,
@@ -170,7 +169,7 @@ export function createLinksTools() {
 
 				return {
 					success: true,
-					message: `Link "${link.name}" created successfully!`,
+					message: `Link "${link.name}" created successfully`,
 					link: summarizeLink(newLink, folderSelection.folders),
 					shortUrl: `/${newLink.slug}`,
 				};
@@ -217,7 +216,7 @@ export function createLinksTools() {
 					return {
 						preview: true,
 						message: hasUpdates
-							? `Please review the changes to "${current.name}":`
+							? `Review the changes to "${current.name}":`
 							: "No changes requested. The short link will remain unchanged.",
 						currentLink: summarizeLink(current, folders),
 						updates,
@@ -235,7 +234,7 @@ export function createLinksTools() {
 
 				return {
 					success: true,
-					message: `Link "${updatedLink.name}" updated successfully!`,
+					message: `Link "${updatedLink.name}" updated successfully`,
 					link: summarizeLink(updatedLink, folders),
 					updates,
 				};
@@ -281,7 +280,7 @@ export function createLinksTools() {
 
 				return {
 					success: true,
-					message: `Link "${link.name}" (/${link.slug}) has been deleted.`,
+					message: `Link "${link.name}" (/${link.slug}) deleted successfully`,
 				};
 			} catch (error) {
 				logger.error("Failed to delete link", { id, websiteId, error });

@@ -155,6 +155,6 @@ export async function callRPCProcedure(
 			procedure: `${routerName}.${method}`,
 			error: typeof error,
 		});
-		throw new Error("An unexpected error occurred. Please try again.");
+		throw new Error("Internal server error. Try again shortly.");
 	}
 }

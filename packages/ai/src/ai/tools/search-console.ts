@@ -189,7 +189,7 @@ export function createSearchConsoleTools(params: {
 				}
 				if (!domain) {
 					return {
-						error: "Could not resolve a domain for the target website",
+						error: "Failed to resolve a domain for the target website",
 					};
 				}
 				const siteUrl = `sc-domain:${domain}`;

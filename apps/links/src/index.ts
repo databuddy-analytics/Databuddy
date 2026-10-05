@@ -93,7 +93,7 @@ const app = new Elysia()
 			message: "Links service is shutting down",
 			status: 503,
 			why: "The service is closing delivery workers and dependencies.",
-			fix: "Retry the request shortly.",
+			fix: "Try again shortly.",
 		});
 	})
 	.get("/", () => redirect(rootRedirectUrl, 302))

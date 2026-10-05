@@ -424,7 +424,7 @@ export const redirectRoute = new Elysia().get(
 			emit("rate_limited");
 			// policy-ignore http/no-custom-json-error-response: The cache-miss limiter returns per-request rate-limit headers that this edge route must preserve.
 			return Response.json(
-				{ error: "Too many uncached links requested" },
+				{ error: "Too many requests. Try again shortly." },
 				{
 					status: 429,
 					headers: {
@@ -438,7 +438,7 @@ export const redirectRoute = new Elysia().get(
 		if (lookup_source === "db_unavailable") {
 			emit("lookup_unavailable");
 			return retryResponse(
-				"Link lookup is temporarily unavailable. Please retry.",
+				"Link lookup is temporarily unavailable. Try again shortly.",
 				"5"
 			);
 		}

@@ -119,7 +119,7 @@ export function createAnnotationTools() {
 					return {
 						preview: true,
 						message:
-							"Please review the annotation details below and confirm if you want to create it:",
+							"Review the annotation details below and confirm to create it:",
 						annotation: {
 							websiteId: resolved.websiteId,
 							chartType,
@@ -209,7 +209,7 @@ export function createAnnotationTools() {
 					return {
 						preview: true,
 						message:
-							"Please review the changes below and confirm if you want to update the annotation:",
+							"Review the changes below and confirm to update the annotation:",
 						current: {
 							text: currentAnnotation.text,
 							tags: currentAnnotation.tags || [],
@@ -256,7 +256,7 @@ export function createAnnotationTools() {
 
 					return {
 						preview: true,
-						message: "Please confirm if you want to delete this annotation:",
+						message: "Confirm to delete this annotation:",
 						annotation: {
 							id: annotation.id,
 							text: annotation.text,
