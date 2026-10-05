@@ -22,7 +22,7 @@ test("renames the account, changes the password, and signs back in", {
 	await page.getByRole("button", { name: "Change", exact: true }).click();
 	const dialog = page.getByRole("dialog", { name: "Change Password" });
 	await dialog.getByLabel("Current Password").fill(CURRENT_PASSWORD);
-	await dialog.getByLabel("New Password", { exact: true }).fill(password);
+	await dialog.getByLabel("New password", { exact: true }).fill(password);
 	await dialog.getByLabel("Confirm New Password").fill(password);
 	await dialog.getByRole("button", { name: "Change Password" }).click();
 	await expect(page.getByText("Password changed")).toBeVisible();

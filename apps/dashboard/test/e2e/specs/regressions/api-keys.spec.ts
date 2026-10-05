@@ -15,7 +15,7 @@ test("creates an API key that authenticates, then deletes it and the key stops w
 	await dialog
 		.getByRole("textbox", { exact: true, name: "Name" })
 		.fill(keyName);
-	await dialog.getByRole("button", { name: "Create Key" }).click();
+	await dialog.getByRole("button", { name: "Create API key" }).click();
 	await expect(dialog.getByText("Secret key", { exact: true })).toBeVisible();
 	const secret = (await dialog.locator("code").innerText()).trim();
 	await dialog.getByRole("button", { name: "Done" }).click();
