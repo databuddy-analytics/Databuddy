@@ -30,7 +30,7 @@ export function readSiteDetail(research: SiteResearch): string | null {
 			const suggested =
 				research.suggestedGoals.length + research.suggestedFunnels.length;
 			return suggested
-				? `Read ${pages} · ${suggested} suggested ${suggested === 1 ? "goal" : "goals"} below`
+				? `Read ${pages} · ${suggested} ${suggested === 1 ? "starting point" : "starting points"} below`
 				: `Read ${pages} on ${research.domain}`;
 		}
 		case "failed":
@@ -121,10 +121,7 @@ export function ReadSite({
 		<div className="space-y-5">
 			<div className="space-y-2">
 				<div
-					className={cn(
-						!(expanded || streaming) &&
-							"max-h-40 overflow-hidden [mask-image:linear-gradient(to_bottom,black_60%,transparent)]"
-					)}
+					className={cn(!(expanded || streaming) && "max-h-40 overflow-hidden")}
 				>
 					<BusinessContextMarkdown
 						content={research.content}

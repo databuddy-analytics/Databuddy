@@ -231,8 +231,10 @@ export function SetupChecklist(props: SetupChecklistProps) {
 									? "Skipped"
 									: props.agentProgress
 										? agentProgressSummary(props.agentProgress)
-										: props.trackingCopied && website && open !== "connect"
-											? `Waiting for the first page view from ${website.domain}`
+										: props.trackingCopied && website
+											? open === "connect"
+												? undefined
+												: `Waiting for the first page view from ${website.domain}`
 											: readingNow
 												? "Ready once the brief is"
 												: undefined

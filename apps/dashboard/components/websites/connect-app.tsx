@@ -375,7 +375,7 @@ export function ConnectApp({
 								? `${tracking.issue.message} ${tracking.issue.fix}`
 								: tracking.state === "error"
 									? "Couldn't check for events. Checking again shortly."
-									: `Waiting for the first page view from ${domain}`}
+									: `Waiting for the first page view. Open ${domain} to send one.`}
 					</p>
 				</div>
 				{onSkip && tracking.state !== "verified" ? (
