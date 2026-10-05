@@ -1,4 +1,4 @@
-import { chQuery } from "@databuddy/db/clickhouse";
+import { type DqlQueryInput, queryDql } from "@databuddy/db/clickhouse/dql";
 import { stripHtmlTags } from "../../../lib/sanitize";
 import { createToolLogger } from "./logger";
 
@@ -56,27 +56,20 @@ function sanitizeUnknown(value: unknown): unknown {
 
 export async function executeTimedQuery<T extends Record<string, unknown>>(
 	toolName: string,
-	sql: string,
-	params: Record<string, unknown> = {},
-	logContext?: Record<string, unknown>,
-	clickhouseSettings?: Record<string, string | number>,
+	input: DqlQueryInput,
 	abortSignal?: AbortSignal
 ): Promise<QueryResult<T>> {
 	const logger = createToolLogger(toolName);
 	const queryStart = Date.now();
-	const sqlPreview = `${sql.slice(0, 100)}${sql.length > 100 ? "..." : ""}`;
+	const sqlPreview = `${input.sql.slice(0, 100)}${input.sql.length > 100 ? "..." : ""}`;
 
 	try {
-		const raw = await chQuery<T>(sql, params, {
-			abort_signal: abortSignal,
-			readonly: true,
-			...(clickhouseSettings && { clickhouse_settings: clickhouseSettings }),
-		});
+		const { rows } = await queryDql<T>(input, undefined, abortSignal);
 		const executionTime = Date.now() - queryStart;
-		const result = raw.map((row) => sanitizeUnknown(row) as T);
+		const result = rows.map((row) => sanitizeUnknown(row) as T);
 
 		logger.info("Query completed", {
-			...logContext,
+			websiteId: input.websiteId,
 			executionTime: `${executionTime}ms`,
 			rowCount: result.length,
 			sql: sqlPreview,
@@ -91,7 +84,7 @@ export async function executeTimedQuery<T extends Record<string, unknown>>(
 		const executionTime = Date.now() - queryStart;
 
 		logger.warn("Query failed", {
-			...logContext,
+			websiteId: input.websiteId,
 			executionTime: `${executionTime}ms`,
 			error: error instanceof Error ? error.message : "Unknown error",
 			sql: sqlPreview,

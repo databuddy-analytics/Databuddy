@@ -86,7 +86,7 @@ export const ANALYTICS_TABLES: TableDef[] = [
 			"event_name (LowCardinality(String))",
 			"namespace (LowCardinality(Nullable(String)))",
 			"path (Nullable(String))",
-			"properties (String) - JSON object; the custom_events_property_* builders read its keys and values, SQL projections cannot",
+			"properties (String) - JSON object; the custom_events_property_* builders read its keys and values; agent SQL cannot",
 			"anonymous_id (Nullable(String))",
 			"profile_id (String) - Identified user id from identify(), '' when anonymous",
 			"session_id (Nullable(String))",

@@ -14,7 +14,10 @@ import { createLinksTools } from "../tools/links";
 import { createMemoryTools } from "../tools/memory";
 import { buildProfileTools } from "../tools/profiles";
 import { createToolkit } from "../tools/toolkit";
-import { executeAgentSqlForWebsite } from "../tools/execute-sql-query";
+import {
+	executeAgentSqlForWebsite,
+	sqlParamsSchema,
+} from "../tools/execute-sql-query";
 import {
 	buildBatchQueryRequests,
 	formatMcpQueryResults,
@@ -87,14 +90,14 @@ export function createMcpAgentTools(
 			},
 		}),
 		execute_sql_query: tool({
-			description: `Custom read-only ClickHouse SQL. SELECT/WITH only. Use {paramName:Type} for parameters. websiteId and websiteDomain are bound server-side from the verified website argument; tool args of those names in params are ignored. UNION, INTERSECT, EXCEPT, subqueries, and comma-joins are not allowed; use CTEs instead. Every WHERE needs the per-table tenant filter; read each table's describe_schema entry first, since the validator rejects wrong-column queries. Use only when get_data/query builders cannot answer.
+			description: `Custom read-only ClickHouse SQL. SELECT/WITH only. Use {paramName:Type} for parameters. websiteId and websiteDomain are bound server-side from the verified website argument; tool args of those names in params are ignored. Rows are already scoped to that website, so no tenant filter is needed. Comments and comma-joins are not allowed; use explicit JOINs. Read each table's describe_schema entry first; ClickHouse rejects columns outside it. Use only when get_data/query builders cannot answer.
 
-Critical schema footguns: website id column is client_id (not website_id); timestamp is time (not created_at); page URL path is path (not page_path); event discriminator is event_name (not event_type); pageviews are event_name = 'screen_view' (never 'pageview'). Custom events are easy to query incorrectly; use get_data custom_events_* builders instead.`,
+Critical schema footguns: timestamp is time (not created_at); page URL path is path (not page_path); event discriminator is event_name (not event_type); pageviews are event_name = 'screen_view' (never 'pageview'). Custom events are easy to query incorrectly; use get_data custom_events_* builders instead.`,
 			strict: true,
 			inputSchema: z.object({
 				websiteId: z.string(),
 				sql: z.string(),
-				params: z.record(z.string(), z.unknown()).optional(),
+				params: sqlParamsSchema.optional(),
 			}),
 			execute: async (args, options) => {
 				const ctx = getToolContext(options);
