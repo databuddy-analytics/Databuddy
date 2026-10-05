@@ -172,7 +172,7 @@ const procedure = os.use(async ({ next }) => {
 		if (isBillingUnavailable(error)) {
 			throw new ORPCError("SERVICE_UNAVAILABLE", {
 				status: 503,
-				message: "Billing is temporarily unavailable",
+				message: "Billing is temporarily unavailable. Try again in a moment.",
 				data: { retryAfter: 30 },
 				cause: error,
 			});
