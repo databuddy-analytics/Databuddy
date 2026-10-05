@@ -36,7 +36,8 @@ export const EmailFooter = () => (
 			className="m-0 text-center text-xs"
 			style={{ color: emailBrand.muted }}
 		>
-			© {new Date().getFullYear()} Databuddy, Inc. All rights reserved.
+			© {new Date().getFullYear()} Databuddy Analytics, Inc. All rights
+			reserved.
 		</Text>
 	</Section>
 );

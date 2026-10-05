@@ -13,7 +13,7 @@ interface ResetPasswordEmailProps {
 export const ResetPasswordEmail = ({ url }: ResetPasswordEmailProps) => (
 	<EmailLayout
 		preview={`Choose a new password. This link expires in ${AUTH_EMAIL_EXPIRY_LABELS.passwordReset}.`}
-		tagline="Password Reset"
+		tagline="Password reset"
 	>
 		<Section className="text-center">
 			<Heading
