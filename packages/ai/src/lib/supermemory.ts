@@ -42,6 +42,8 @@ const MEMORY_REQUEST_END = /[.!?]$/;
 const QUOTED_FORGET_PREFIX = /^(?:forget|unlearn)\s+/i;
 const MEMORY_TARGET_QUOTE = /^["'“‘`]/;
 const UNNAMED_MEMORY_TARGET = /^(?:this|that|it|these|those|all)$/i;
+const FORGET_ACKNOWLEDGEMENT =
+	/^(?:(?:thanks|thank you|ok|okay|got it)[.!]\s*)+/i;
 
 export function isMemoryEnabled(): boolean {
 	return Boolean(apiKey);
@@ -74,7 +76,10 @@ export function asksToRemember(message: string): boolean {
 
 export function asksToForget(message: string, query: string): boolean {
 	const target = query.trim();
-	const clause = message.trim().replace(MEMORY_REQUEST_FILLER, "");
+	const clause = message
+		.trim()
+		.replace(FORGET_ACKNOWLEDGEMENT, "")
+		.replace(MEMORY_REQUEST_FILLER, "");
 	const request = clause.replace(MEMORY_REQUEST_LEAD_IN, "");
 	if (
 		!target ||

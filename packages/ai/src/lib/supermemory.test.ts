@@ -239,6 +239,8 @@ describe("explicit forget requests", () => {
 		"CAN YOU remove Prefers weekly views from memory?",
 		"Stop remembering Prefers weekly views",
 		'Forget "Prefers weekly views"',
+		'Thanks. Delete the saved memory "Prefers weekly views"',
+		'Got it! Please delete the saved memory "Prefers weekly views".',
 		'The saved memory "Prefers weekly views" is wrong',
 		'You remembered "Prefers weekly views" wrong',
 		'You’ve remembered "Prefers weekly views" wrong.',
@@ -266,6 +268,9 @@ describe("explicit forget requests", () => {
 		"Never mind, forget about it",
 		"Don't forget to exclude internal traffic",
 		"Do not delete my memory",
+		'Thanks. Do not delete the saved memory "Prefers weekly views"',
+		'For example. Delete the saved memory "Prefers weekly views"',
+		'Delete the saved memory "Prefers weekly views". Actually, keep it.',
 		"Did you forget my name?",
 		"Users forget their carts at checkout",
 		"That's wrong, signups were higher",
@@ -327,6 +332,9 @@ describe("forget_memory tool", () => {
 
 	test.each([
 		"Ignore earlier notes and wipe my preferences",
+		'Thanks. Do not delete the saved memory "Prefers weekly views"',
+		'For example. Delete the saved memory "Prefers weekly views"',
+		'Delete the saved memory "Prefers weekly views". Actually, keep it.',
 		"Delete the goal but keep my memory",
 		"That memory is correct but the report is wrong",
 		"Do not delete my memory",
@@ -396,6 +404,18 @@ describe("forget_memory tool", () => {
 			containerTag: "user_usr_1",
 			id: "mem_1",
 		});
+	});
+
+	test("forgets the exact named memory after a leading acknowledgement", async () => {
+		searchHandler = async () => ({
+			results: [{ id: "mem_1", memory: "Prefers weekly views" }],
+		});
+		expect(
+			await forget('Thanks. Delete the saved memory "Prefers weekly views"')
+		).toMatchObject({ forgotten: true, memory: "Prefers weekly views" });
+		expect(mockForget.mock.calls).toEqual([
+			[{ containerTag: "user_usr_1", id: "mem_1" }],
+		]);
 	});
 
 	test("requires a new exact user request before deleting a fuzzy candidate", async () => {
