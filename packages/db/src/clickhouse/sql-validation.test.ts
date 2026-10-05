@@ -304,6 +304,42 @@ SETTINGS additional_table_filters = {} -- '`
 			expect(validateAgentSQL(sql)).toEqual({ valid: true, reason: null });
 		});
 
+		it("preserves wildcard guards with long whitespace", () => {
+			const whitespace = "\t".repeat(12_000);
+			for (const expression of [
+				`count${whitespace}(*)`,
+				`COUNT(${whitespace}*)`,
+				`count(*${whitespace})`,
+				"tuple(2 * 3)",
+			]) {
+				expect(
+					validateAgentSQL(
+						`SELECT ${expression} FROM analytics.events ${TENANT}`
+					)
+				).toEqual({ valid: true, reason: null });
+			}
+			for (const expression of [
+				`tuple${whitespace}(*)`,
+				`tuple(*${whitespace})`,
+				`tuple(e.${whitespace}*)`,
+				`count(e.${whitespace}*)`,
+			]) {
+				expect(
+					validateAgentSQL(
+						`SELECT ${expression} FROM analytics.events e WHERE e.client_id = {websiteId:String}`
+					)
+				).toEqual({
+					valid: false,
+					reason: "Wildcard arguments are not allowed; pass explicit columns.",
+				});
+			}
+			expect(
+				validateAgentSQL(
+					`SELECT count() AS views ${whitespace} FROM analytics.events ${TENANT}`
+				)
+			).toEqual({ valid: true, reason: null });
+		});
+
 		it("rejects raw custom-event properties projections", () => {
 			const result = validateAgentSQL(
 				`SELECT properties FROM analytics.custom_events WHERE ${ORG_TENANT}`

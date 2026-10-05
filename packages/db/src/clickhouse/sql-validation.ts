@@ -240,8 +240,8 @@ const WILDCARD_PROJECTION_PATTERN =
 const SENSITIVE_PROJECTION_PATTERN =
 	/\b(?:ip|metadata|properties|url|user_agent)\b/i;
 const COLUMNS_MATCHER_PATTERN = /\bCOLUMNS\s*\(/i;
-const WILDCARD_ARGUMENT_PATTERN =
-	/([A-Za-z_][A-Za-z0-9_]*)?\s*\(\s*(?:[A-Za-z_][A-Za-z0-9_]*\s*\.\s*)?\*\s*(?=[,)])/g;
+const WHITESPACE_CHARACTER_PATTERN = /\s/;
+const IDENTIFIER_CHARACTER_PATTERN = /[A-Za-z0-9_]/;
 const ALIAS_FREE_CLAUSE_PATTERN =
 	/\b(?:PREWHERE|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|QUALIFY|ON)\b/gi;
 const ALIAS_KEYWORD_PATTERN = /\bAS\b/gi;
@@ -480,8 +480,38 @@ function hiddenProjectionError(sql: string): string | null {
 	if (COLUMNS_MATCHER_PATTERN.test(sql)) {
 		return "COLUMNS() matchers are not allowed; select explicit columns.";
 	}
-	for (const match of sql.matchAll(WILDCARD_ARGUMENT_PATTERN)) {
-		if (match[1]?.toLowerCase() !== "count") {
+	for (
+		let star = sql.indexOf("*");
+		star >= 0;
+		star = sql.indexOf("*", star + 1)
+	) {
+		let end = star + 1;
+		while (WHITESPACE_CHARACTER_PATTERN.test(sql[end] ?? "")) {
+			end += 1;
+		}
+		if (sql[end] !== "," && sql[end] !== ")") {
+			continue;
+		}
+		let start = star - 1;
+		while (WHITESPACE_CHARACTER_PATTERN.test(sql[start] ?? "")) {
+			start -= 1;
+		}
+		const qualified = sql[start] === ".";
+		if (!qualified && sql[start] !== "(") {
+			continue;
+		}
+		start -= 1;
+		while (WHITESPACE_CHARACTER_PATTERN.test(sql[start] ?? "")) {
+			start -= 1;
+		}
+		const functionEnd = start + 1;
+		while (IDENTIFIER_CHARACTER_PATTERN.test(sql[start] ?? "")) {
+			start -= 1;
+		}
+		if (
+			qualified ||
+			sql.slice(start + 1, functionEnd).toLowerCase() !== "count"
+		) {
 			return "Wildcard arguments are not allowed; pass explicit columns.";
 		}
 	}
