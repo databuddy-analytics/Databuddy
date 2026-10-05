@@ -108,10 +108,10 @@ export function FeatureGate({
 						<LockSimpleIcon className="size-7 text-muted-foreground" />
 					</div>
 					<div className="text-center">
-						<h2 className="font-semibold text-lg">
+						<h2 className="text-balance font-semibold text-lg">
 							{title ?? metadata?.name ?? "Upgrade required"}
 						</h2>
-						<p className="mt-1 text-muted-foreground text-sm">
+						<p className="mt-1 text-pretty text-muted-foreground text-sm">
 							{description ??
 								metadata?.description ??
 								"Upgrade to access this feature."}
@@ -152,7 +152,7 @@ export function FeatureGate({
 						<div className="space-y-3 rounded-md border bg-muted/50 px-4 py-3 text-center">
 							{isOrganizationBilling ? (
 								<>
-									<p className="font-medium text-muted-foreground text-sm">
+									<p className="text-pretty font-medium text-muted-foreground text-sm">
 										Ask an organization owner or billing admin to upgrade to{" "}
 										{requiredPlanName}.
 									</p>
@@ -168,7 +168,7 @@ export function FeatureGate({
 									</Button>
 								</>
 							) : (
-								<p className="font-medium text-muted-foreground text-sm">
+								<p className="text-pretty font-medium text-muted-foreground text-sm">
 									Upgrade to {requiredPlanName} to access this feature.
 								</p>
 							)}
