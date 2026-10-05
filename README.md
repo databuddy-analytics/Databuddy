@@ -85,7 +85,7 @@ are baked in at build time, so there is no prebuilt dashboard image.
   ```
 
   The app listens on port `3002`. Set the matching `STATUS_URL` in your Compose `.env` and rebuild the dashboard to enable public links.
-- **DQL:** Requires separate setup: a restricted `dql_user` and `CLICKHOUSE_DQL_URL` passed to the API in Compose. Use HTTPS outside loopback and never use the application's admin credentials. See the [DQL setup script](packages/db/src/clickhouse/dql.ts).
+- **DQL and AI SQL:** Requires separate setup: a restricted `dql_user` and `CLICKHOUSE_DQL_URL` passed to the API in Compose. The AI assistant's SQL tool runs through it too. Use HTTPS outside loopback and never use the application's admin credentials. See the [DQL setup script](packages/db/src/clickhouse/dql.ts).
 
 Self-hosting is still evolving. If you get stuck, [tell us what happened](https://github.com/databuddy-analytics/Databuddy/issues) or ask in [Discord](https://discord.gg/JTk7a38tCZ).
 
