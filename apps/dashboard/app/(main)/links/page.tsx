@@ -22,6 +22,7 @@ import {
 	useState,
 } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { DeepLinkSheet } from "./_components/deep-link-sheet";
 import { LinkFolderSheet } from "./_components/link-folder-sheet";
 import {
@@ -41,7 +42,7 @@ import {
 	PlusIcon,
 	RocketIcon,
 } from "@databuddy/ui/icons";
-import { Badge, Button, Card, EmptyState } from "@databuddy/ui";
+import { Button, Card, EmptyState, StageBadge } from "@databuddy/ui";
 import { DeleteDialog, DropdownMenu } from "@databuddy/ui/client";
 
 type ActiveDialog =
@@ -148,10 +149,8 @@ function LinksPageContent() {
 		try {
 			await deleteLink.mutateAsync({ id });
 			setActiveDialog(null);
-		} catch (error: unknown) {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to delete link"
-			);
+		} catch (error) {
+			showErrorToast(error, "Failed to delete link");
 		}
 	};
 
@@ -160,10 +159,8 @@ function LinksPageContent() {
 			await createFolder.mutateAsync({ name });
 			setActiveDialog(null);
 			toast.success("Folder created");
-		} catch (error: unknown) {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to create folder"
-			);
+		} catch (error) {
+			showErrorToast(error, "Failed to create folder");
 		}
 	};
 
@@ -186,7 +183,7 @@ function LinksPageContent() {
 							<div>
 								<div className="flex items-center gap-2">
 									<Card.Title>Links</Card.Title>
-									<Badge variant="muted">Beta</Badge>
+									<StageBadge stage="beta" />
 								</div>
 								<Card.Description>
 									{isSwitchingOrganization
@@ -212,19 +209,19 @@ function LinksPageContent() {
 										disabled={!canMutateWorkspace}
 									>
 										<PlusIcon size={14} />
-										New Link
+										New link
 									</DropdownMenu.Trigger>
 									<DropdownMenu.Content align="end" className="w-44">
 										<DropdownMenu.Item className="gap-2" onClick={openCreate}>
 											<LinkSimpleIcon className="size-4" />
-											Short Link
+											Short link
 										</DropdownMenu.Item>
 										<DropdownMenu.Item
 											className="gap-2"
 											onClick={() => setActiveDialog({ type: "deep-link" })}
 										>
 											<RocketIcon className="size-4" />
-											Deep Link
+											Deep link
 										</DropdownMenu.Item>
 									</DropdownMenu.Content>
 								</DropdownMenu>
@@ -337,13 +334,13 @@ function LinksPageContent() {
 
 			{deleteId && (
 				<DeleteDialog
-					confirmLabel="Delete Link"
+					confirmLabel="Delete link"
 					description="Are you sure you want to delete this link? This action cannot be undone and will permanently remove all click data."
 					isDeleting={deleteLink.isPending}
 					isOpen={!!deleteId}
 					onClose={closeDialog}
 					onConfirm={() => handleDelete(deleteId)}
-					title="Delete Link"
+					title="Delete link"
 				/>
 			)}
 		</ErrorBoundary>

@@ -5,17 +5,17 @@ import { cn } from "@/lib/utils";
 import { useEventsPageContext } from "./events-page-context";
 import { ArrowClockwiseIcon, CaretDownIcon } from "@databuddy/ui/icons";
 import { DropdownMenu } from "@databuddy/ui/client";
-import { Badge, Button, Skeleton } from "@databuddy/ui";
+import { Button, Skeleton, StageBadge } from "@databuddy/ui";
 
 function getDropdownLabel(
 	websiteFilterMode: string,
 	selectedWebsite: { name: string; domain: string } | undefined
 ) {
 	if (websiteFilterMode === "no-website") {
-		return "No Website";
+		return "No website";
 	}
 	if (websiteFilterMode === "all") {
-		return "All Websites";
+		return "All websites";
 	}
 	if (selectedWebsite) {
 		return selectedWebsite.name || selectedWebsite.domain;
@@ -37,10 +37,8 @@ export function EventsPageHeader() {
 	return (
 		<>
 			<TopBar.Title>
-				<h1 className="font-semibold text-sm">Custom Events</h1>
-				<Badge className="h-5 px-2" variant="warning">
-					Alpha
-				</Badge>
+				<h1 className="font-semibold text-sm">Custom events</h1>
+				<StageBadge stage="alpha" />
 			</TopBar.Title>
 			<TopBar.Actions>
 				<DropdownMenu>
@@ -67,12 +65,12 @@ export function EventsPageHeader() {
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end" className="w-[200px]">
 						<DropdownMenu.Item onClick={() => setWebsiteFilterMode("all")}>
-							All Websites
+							All websites
 						</DropdownMenu.Item>
 						<DropdownMenu.Item
 							onClick={() => setWebsiteFilterMode("no-website")}
 						>
-							No Website
+							No website
 						</DropdownMenu.Item>
 						{websites.length > 0 && <DropdownMenu.Separator />}
 						{websites.map((website) => (

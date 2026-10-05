@@ -3,6 +3,7 @@
 import {
 	FEATURE_METADATA,
 	type GatedFeatureId,
+	getPlanDisplayName,
 } from "@databuddy/shared/types/features";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -14,7 +15,7 @@ import {
 	useState,
 	useTransition,
 } from "react";
-import { Tooltip } from "@databuddy/ui";
+import { StageBadge, Tooltip } from "@databuddy/ui";
 import {
 	ArrowLeftIcon,
 	ArrowSquareOutIcon,
@@ -132,7 +133,7 @@ function SidebarNavItem({
 				href={fullPath}
 				title={
 					lockedPlanName
-						? `Requires ${lockedPlanName} plan — open upgrade options`
+						? `Requires ${lockedPlanName} plan. Open upgrade options.`
 						: "Open upgrade options"
 				}
 			>
@@ -189,11 +190,6 @@ function SidebarNavItem({
 		<LinkComponent
 			{...linkProps}
 			aria-current={active ? "page" : undefined}
-			aria-label={
-				collapsed && item.badge?.label
-					? `${item.name}, ${item.badge.label}`
-					: undefined
-			}
 			className={cn(
 				base,
 				"group",
@@ -204,54 +200,12 @@ function SidebarNavItem({
 			onClick={item.external ? undefined : handleClick}
 		>
 			{iconEl}
-			{collapsed && item.badge && (
-				<>
-					<span
-						aria-hidden={item.badge.label ? true : undefined}
-						className={cn(
-							"absolute -top-1 -right-1 flex min-w-4 items-center justify-center rounded-full px-1 py-0.5 font-semibold text-[9px] tabular-nums leading-none",
-							item.badge.variant === "red"
-								? "bg-destructive text-destructive-foreground"
-								: "bg-primary text-primary-foreground"
-						)}
-					>
-						{item.badge.text}
-					</span>
-					{item.badge.label ? (
-						<span className="sr-only">{item.badge.label}</span>
-					) : null}
-				</>
-			)}
 			{!collapsed && (
 				<>
 					<span className="min-w-0 flex-1 truncate">{item.name}</span>
-					{(item.alpha || item.tag || item.badge || item.external) && (
+					{(item.stage || item.external) && (
 						<div className="flex shrink-0 items-center gap-1.5">
-							{(item.alpha || item.tag) && (
-								<span className="font-semibold text-[10px] text-sidebar-foreground/30 uppercase">
-									{item.alpha ? "ALPHA" : item.tag}
-								</span>
-							)}
-							{item.badge && (
-								<>
-									<span
-										aria-hidden={item.badge.label ? true : undefined}
-										className={cn(
-											"rounded px-1.5 py-0.5 font-semibold text-[10px]",
-											item.badge.variant === "orange"
-												? "bg-warning/10 text-warning"
-												: item.badge.variant === "red"
-													? "bg-destructive text-destructive-foreground"
-													: "bg-accent text-accent-foreground"
-										)}
-									>
-										{item.badge.text}
-									</span>
-									{item.badge.label ? (
-										<span className="sr-only">{item.badge.label}</span>
-									) : null}
-								</>
-							)}
+							{item.stage && <StageBadge stage={item.stage} />}
 							{item.external && (
 								<ArrowSquareOutIcon
 									aria-hidden
@@ -266,12 +220,7 @@ function SidebarNavItem({
 	);
 
 	return collapsed ? (
-		<Tooltip
-			content={
-				item.badge?.label ? `${item.name} · ${item.badge.label}` : item.name
-			}
-			side="right"
-		>
+		<Tooltip content={item.name} side="right">
 			{el}
 		</Tooltip>
 	) : (
@@ -437,6 +386,9 @@ function NavGroup({
 			!isBillingLoading &&
 			item.gatedFeature != null &&
 			!isFeatureEnabled(item.gatedFeature);
+		const minPlan = item.gatedFeature
+			? FEATURE_METADATA[item.gatedFeature]?.minPlan
+			: undefined;
 
 		return (
 			<SidebarNavItem
@@ -446,12 +398,7 @@ function NavGroup({
 				isLocked={locked}
 				item={item}
 				key={`${item.name}::${item.href}`}
-				lockedPlanName={
-					locked && item.gatedFeature
-						? (FEATURE_METADATA[item.gatedFeature]?.minPlan?.toUpperCase() ??
-							null)
-						: null
-				}
+				lockedPlanName={locked && minPlan ? getPlanDisplayName(minPlan) : null}
 				pathname={pathname}
 			/>
 		);
