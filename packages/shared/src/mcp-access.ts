@@ -27,7 +27,7 @@ export const MCP_PERMISSIONS: Record<
 	"manage:websites": {
 		label: "Manage websites",
 		description:
-			"Manage goals, funnels, and annotations, and reply to investigations.",
+			"Create, update, and delete websites; manage goals, funnels, and annotations; and reply to investigations.",
 	},
 	"manage:flags": {
 		label: "Manage flags",

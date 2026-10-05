@@ -222,7 +222,7 @@ async function enforceAuthEmailRateLimit(input: {
 		...(input.email ? { auth_rate_limit_email: input.email } : {}),
 	});
 	throw new APIError("TOO_MANY_REQUESTS", {
-		message: "Too many email requests. Try again shortly.",
+		message: `Too many email requests. Wait up to ${Math.ceil(input.windowSeconds / 60)} minutes before trying again.`,
 	});
 }
 
