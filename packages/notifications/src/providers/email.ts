@@ -4,8 +4,8 @@ import type {
 	NotificationResult,
 } from "../types";
 import { BaseProvider } from "./base";
+import { formatMetadataLabel } from "./payload-utils";
 
-const FIRST_CHARACTER_PATTERN = /^./;
 const METADATA_IN_MESSAGE: Record<string, ReadonlySet<string>> = {
 	"uptime-transition": new Set([
 		"checkedAt",
@@ -50,13 +50,6 @@ function isUserFacingMetadata(key: string, template: unknown): boolean {
 		key === "zScore" ||
 		key.endsWith("Id")
 	);
-}
-
-function formatMetadataLabel(key: string): string {
-	return key
-		.replaceAll(/([a-z0-9])([A-Z])/g, "$1 $2")
-		.replaceAll(/[_-]+/g, " ")
-		.replace(FIRST_CHARACTER_PATTERN, (character) => character.toUpperCase());
 }
 
 export class EmailProvider extends BaseProvider {

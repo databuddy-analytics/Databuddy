@@ -25,7 +25,7 @@ describe("EmailProvider", () => {
 		});
 
 		expect(result).toEqual({ success: true, channel: "email" });
-		expect(delivered?.text).toContain("Dashboard Url:");
+		expect(delivered?.text).toContain("Dashboard URL:");
 		expect(delivered?.text).not.toContain("internal-monitor-id");
 		expect(delivered?.text).not.toContain("Template:");
 		expect(delivered?.text).not.toContain("Z score:");
@@ -55,8 +55,8 @@ describe("EmailProvider", () => {
 			},
 		});
 
-		expect(delivered?.text).toContain("Url: https://acme.example/health");
-		expect(delivered?.text).not.toContain("Dashboard Url:");
+		expect(delivered?.text).toContain("URL: https://acme.example/health");
+		expect(delivered?.text).not.toContain("Dashboard URL:");
 		expect(delivered?.text).not.toContain("Http Code:");
 		expect(delivered?.text).not.toContain("Monitor Name:");
 		expect(delivered?.text).not.toContain("monitor-1");
@@ -85,7 +85,7 @@ describe("EmailProvider", () => {
 			},
 		});
 
-		expect(delivered?.text).toContain("Url: https://acme.example/health");
+		expect(delivered?.text).toContain("URL: https://acme.example/health");
 		expect(delivered?.text).not.toContain("Days Remaining:");
 		expect(delivered?.text).not.toContain("Expires At:");
 		expect(delivered?.text).not.toContain("Monitor Name:");

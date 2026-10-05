@@ -27,7 +27,7 @@ describe("buildDiscordEmbed", () => {
 		});
 
 		expect(embed.fields).toHaveLength(1);
-		expect(embed.fields?.[0]?.name).toBe("Dashboard Url");
+		expect(embed.fields?.[0]?.name).toBe("Dashboard URL");
 		expect(JSON.stringify(embed)).not.toContain("internal-alarm-id");
 		expect(JSON.stringify(embed)).not.toContain("zScore");
 	});
