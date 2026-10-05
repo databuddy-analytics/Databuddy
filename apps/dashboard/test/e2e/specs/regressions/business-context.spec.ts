@@ -230,7 +230,7 @@ async function useGeneratedDraft(page: Page) {
 async function goToGeneral(page: Page) {
 	await link(page, "General").click();
 	await expect(page).toHaveURL(SETTINGS_URL_RE);
-	await link(page, "Business context").click();
+	await link(page, "Business Context").click();
 }
 
 test("recovers unfinished brief and team inputs across navigation and reload, then restores a saved version", {
@@ -1213,7 +1213,7 @@ test("leaving the page aborts active research without restarting it on return", 
 	await link(page, "General").click();
 	await contextStream.disconnected;
 	current = settings();
-	await link(page, "Business context").click();
+	await link(page, "Business Context").click();
 	await editBrief(page);
 	await expect(editor).toHaveValue("Keep this context when navigating away.");
 	await expect(button(page, "Regenerate with AI")).toBeEnabled();
