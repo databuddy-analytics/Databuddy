@@ -233,7 +233,7 @@ export const AiDigestEmail = ({
 					: "See every AI crawler, not just some"}
 			</Text>
 			<Text className="m-0 mt-1 text-[13px] text-sub leading-[20px]">
-				GPTBot, ClaudeBot and most AI crawlers don't run JavaScript, so they're
+				GPTBot, ClaudeBot, and most AI crawlers don't run JavaScript, so they're
 				missing from {shouldHideReads ? "this email" : "these reads"}. One line
 				on your server adds them.{" "}
 				<Link
