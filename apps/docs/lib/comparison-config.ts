@@ -1269,6 +1269,261 @@ export const competitors: Record<string, ComparisonData> = {
 			},
 		],
 	},
+	"simple-analytics": {
+		competitor: {
+			name: "Simple Analytics",
+			slug: "simple-analytics",
+			description: "Privacy-friendly web analytics, EU-owned and EU-hosted",
+			website: "https://www.simpleanalytics.com",
+			tagline: "Cookieless analytics with a one-page dashboard",
+			color: "#FF4F64",
+			pricing: {
+				starting: "Free",
+				note: "Free plan with unlimited pageviews under fair use, 1 month of history, and a required badge. Paid plans start at $20/month for 100,000 pageviews.",
+			},
+		},
+		hero: {
+			title: "Databuddy vs Simple Analytics",
+			description:
+				"Compare Simple Analytics’ traffic dashboard with Databuddy’s analytics, identified-user profiles, error tracking, and uptime monitoring.",
+		},
+		seo: {
+			title:
+				"Simple Analytics alternative: Databuddy vs Simple Analytics (2026)",
+			description:
+				"Databuddy vs Simple Analytics: both are cookieless, with events, goals, and funnels. Databuddy adds user profiles, error tracking, uptime monitoring, and feature flags.",
+		},
+		verdict: {
+			competitor: [
+				"You want a free plan without a pageview cap, and one month of history is enough.",
+				"You want EU-owned, EU-hosted analytics with a single-page dashboard.",
+			],
+			databuddy: [
+				"You want to link activity to signed-in users with identified-user profiles.",
+				"You want error tracking, uptime monitoring, and feature flags in the same dashboard as your analytics.",
+			],
+		},
+		features: [
+			{
+				name: "Cookieless analytics",
+				databuddy: true,
+				competitor: true,
+				benefit: "Both collect analytics without analytics cookies.",
+			},
+			{
+				name: "Events, goals, and funnels",
+				databuddy: true,
+				competitor: true,
+				benefit:
+					"Simple Analytics tracks events and goals and builds multi-step funnels.",
+			},
+			{
+				name: "Identified-user profiles",
+				databuddy: true,
+				competitor: false,
+				benefit:
+					"Databuddy can link activity to user IDs you supply. Simple Analytics does not collect personal data.",
+			},
+			{
+				name: "Error tracking and uptime monitoring",
+				databuddy: true,
+				competitor: false,
+				benefit:
+					"Databuddy includes both. Simple Analytics’ feature list covers traffic analytics.",
+			},
+			{
+				name: "Data exports",
+				databuddy: true,
+				competitor: true,
+				benefit: "Simple Analytics exports data as CSV and through its APIs.",
+			},
+			{
+				name: "Free hosted plan",
+				databuddy: true,
+				competitor: true,
+				benefit:
+					"Simple Analytics’ free plan has unlimited pageviews under fair use, 1 month of history, 5 websites, and a required badge. Databuddy’s free plan includes 10,000 events a month.",
+			},
+			{
+				name: "Self-hosting",
+				databuddy: false,
+				competitor: false,
+				benefit:
+					"Simple Analytics is hosted in the EU. Databuddy is open source; a packaged self-host release is pending.",
+			},
+		],
+		faqs: [
+			{
+				question: "Is Simple Analytics free?",
+				answer:
+					"Yes. The free plan has unlimited pageviews under a fair use policy, keeps 1 month of history, covers 5 websites, and requires a badge. Paid plans start at $20/month for 100,000 pageviews.",
+			},
+			{
+				question: "Does Simple Analytics support funnels?",
+				answer:
+					"Yes. Simple Analytics tracks events and goals and builds multi-step funnels. Databuddy also includes funnels, with limits that vary by plan.",
+			},
+			{
+				question: "Can Simple Analytics identify signed-in users?",
+				answer:
+					"No. Simple Analytics does not collect personal data. Databuddy can link activity to user IDs and traits you supply.",
+			},
+		],
+		pricingTiers: [
+			{
+				pageviews: "Entry options",
+				competitor:
+					"Free · unlimited pageviews under fair use, 1 month of history, badge required. Paid from $20/month for 100,000 pageviews.",
+				databuddy: "Free · 10,000 monthly events",
+			},
+			{
+				pageviews: "Automatic investigations",
+				competitor: "See vendor feature documentation",
+				databuddy: investigationPrice,
+			},
+		],
+		sources: [
+			{
+				label: "Pricing",
+				href: "https://www.simpleanalytics.com/pricing",
+			},
+			{
+				label: "Features",
+				href: "https://www.simpleanalytics.com/features",
+			},
+			{
+				label: "Events",
+				href: "https://docs.simpleanalytics.com/events",
+			},
+		],
+	},
+	pirsch: {
+		competitor: {
+			name: "Pirsch",
+			slug: "pirsch",
+			description: "Privacy-friendly web analytics hosted in Germany",
+			website: "https://pirsch.io",
+			tagline: "Cookieless analytics with server-side tracking",
+			color: "#000000",
+			pricing: {
+				starting: "$6/month",
+				note: "Standard at 10,000 monthly pageviews, with a 30-day free trial and no credit card required.",
+			},
+		},
+		hero: {
+			title: "Databuddy vs Pirsch",
+			description:
+				"Compare Pirsch’s cookieless web analytics with Databuddy’s analytics, identified-user profiles, error tracking, and uptime monitoring.",
+		},
+		seo: {
+			title: "Pirsch alternative: Databuddy vs Pirsch (2026)",
+			description:
+				"Databuddy vs Pirsch: both are cookieless, with events, funnels, and short links. Databuddy adds user profiles, error tracking, uptime monitoring, and a free plan.",
+		},
+		verdict: {
+			competitor: [
+				"You want unlimited data retention and 50 websites from $6 a month.",
+				"You want server-side tracking or an on-premise install on Enterprise.",
+			],
+			databuddy: [
+				"You want to link activity to signed-in users with identified-user profiles.",
+				"You want error tracking, uptime monitoring, and feature flags in the same dashboard.",
+				"You want to start on a free plan with 10,000 events a month instead of a trial.",
+			],
+		},
+		features: [
+			{
+				name: "Cookieless analytics",
+				databuddy: true,
+				competitor: true,
+				benefit:
+					"Both collect analytics without analytics cookies. Pirsch counts visitors with a daily hashed fingerprint.",
+			},
+			{
+				name: "Events and conversion goals",
+				databuddy: true,
+				competitor: true,
+				benefit: "Pirsch includes events and conversion goals on Standard.",
+			},
+			{
+				name: "Funnels",
+				databuddy: true,
+				competitor: true,
+				benefit: "Pirsch includes funnels on Plus.",
+			},
+			{
+				name: "Short links",
+				databuddy: true,
+				competitor: true,
+				benefit:
+					"Pirsch includes a URL shortener on Standard. Databuddy includes short links.",
+			},
+			{
+				name: "Identified-user profiles",
+				databuddy: true,
+				competitor: false,
+				benefit:
+					"Databuddy can link activity to user IDs you supply. Pirsch stores no personal information.",
+			},
+			{
+				name: "Self-hosting",
+				databuddy: false,
+				competitor: true,
+				benefit:
+					"Pirsch offers on-premise installation on Enterprise, and its tracking core is an open-source Go library. Databuddy is open source; a packaged self-host release is pending.",
+			},
+			{
+				name: "Free hosted plan",
+				databuddy: true,
+				competitor: false,
+				benefit:
+					"Databuddy includes 10,000 monthly events free. Pirsch offers a 30-day trial.",
+			},
+		],
+		faqs: [
+			{
+				question: "Is Pirsch open source?",
+				answer:
+					"Pirsch publishes its tracking core as an open-source Go library. On-premise installation of the full product is an Enterprise option.",
+			},
+			{
+				question: "How long does Pirsch keep data?",
+				answer: "Pirsch lists unlimited data retention on every plan.",
+			},
+			{
+				question: "Does Pirsch support funnels?",
+				answer:
+					"Yes, on the Plus plan. Databuddy also includes funnels, with limits that vary by plan.",
+			},
+		],
+		pricingTiers: [
+			{
+				pageviews: "Entry options",
+				competitor:
+					"$6/month · Standard at 10,000 monthly pageviews, 30-day free trial.",
+				databuddy: "Free · 10,000 monthly events",
+			},
+			{
+				pageviews: "Automatic investigations",
+				competitor: "See vendor feature documentation",
+				databuddy: investigationPrice,
+			},
+		],
+		sources: [
+			{
+				label: "Pricing",
+				href: "https://pirsch.io/pricing",
+			},
+			{
+				label: "Funnels",
+				href: "https://docs.pirsch.io/advanced/funnels",
+			},
+			{
+				label: "Open-source core",
+				href: "https://github.com/pirsch-analytics/pirsch",
+			},
+		],
+	},
 };
 
 export function getComparisonData(slug: string): ComparisonData | null {
