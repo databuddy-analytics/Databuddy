@@ -14,10 +14,10 @@ export interface DocsPageSeoModel {
 
 const SECTION_MAP: [test: string, label: string][] = [
 	["Integrations", "Integrations"],
-	["hooks", "React Hooks"],
+	["hooks", "React hooks"],
 	["sdk", "SDK"],
-	["/api", "API Reference"],
-	["infrastructure-as-code", "Infrastructure as Code"],
+	["/api", "API reference"],
+	["infrastructure-as-code", "Infrastructure as code"],
 	["performance", "Performance"],
 	["compliance", "Compliance"],
 	["privacy", "Privacy"],

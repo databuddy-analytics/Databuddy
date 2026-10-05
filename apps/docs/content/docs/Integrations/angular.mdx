@@ -10,14 +10,14 @@ import { Card, Cards } from "@/components/docs";
 
 This guide explains how to integrate Databuddy with your Angular application.
 
-## How to Add Databuddy to Your Angular App
+## How to add Databuddy to your Angular app
 
 The recommended method is to add the Databuddy tracking script directly to your `src/index.html` file. This ensures the script is loaded early and reliably for your Angular application.
 
 ### Adding to `src/index.html`
 
 <Steps>
-  <Step title="Get Your Tracking Script">
+  <Step title="Get your tracking script">
     Navigate to your [Databuddy dashboard](https://app.databuddy.cc) to get your tracking code snippet. It will look like this:
 
     <CodeBlock
@@ -33,11 +33,11 @@ The recommended method is to add the Databuddy tracking script directly to your 
     Remember to replace `YOUR_CLIENT_ID` with your actual Client ID.
   </Step>
 
-  <Step title="Locate Your index.html File">
+  <Step title="Locate your index.html file">
     In a standard Angular CLI project, this file is typically located at `src/index.html`.
   </Step>
 
-  <Step title="Add the Snippet to index.html">
+  <Step title="Add the snippet to index.html">
     Open `src/index.html` and paste the Databuddy tracking snippet just before the closing `</head>` tag or `</body>` tag. Placing it in the `<head>` is generally preferred for earlier loading.
 
     <CodeBlock
@@ -69,13 +69,13 @@ The recommended method is to add the Databuddy tracking script directly to your 
     Make sure to replace `YOUR_CLIENT_ID` with your actual Client ID.
   </Step>
 
-  <Step title="Verify Installation">
+  <Step title="Verify installation">
     After building and deploying your application, open your [Databuddy dashboard](https://app.databuddy.cc) to check if data is being received. You can also inspect your browser's network tab to confirm the script is loaded.
   </Step>
 </Steps>
 
 <Callout type="info">
-  **SPA Page View Tracking**: Databuddy automatically detects route changes in most Angular applications using Angular Router and tracks them as page views. If you find that page views are not being tracked correctly after navigation, you can manually trigger page views by subscribing to router events:
+  **SPA pageview tracking**: Databuddy automatically detects route changes in most Angular applications using Angular Router and tracks them as pageviews. If you find that pageviews are not being tracked correctly after navigation, you can manually trigger pageviews by subscribing to router events:
 
   <CodeBlock
     language="typescript"
@@ -99,11 +99,11 @@ this.router.events.pipe(
   However, test the default behavior first, as manual tracking might not be necessary.
 </Callout>
 
-## Custom Event Tracking
+## Custom event tracking
 
 Once the Databuddy script is installed and loaded, you can track custom events from any of your Angular components or services.
 
-### TypeScript Declaration
+### TypeScript declaration
 
 First, declare the Databuddy types for TypeScript:
 
@@ -125,7 +125,7 @@ First, declare the Databuddy types for TypeScript:
 export {};`}
 />
 
-### Component Example
+### Component example
 
 <CodeBlock
   language="typescript"
@@ -152,7 +152,7 @@ export class MyFeatureComponent {
 
 Always ensure `window.databuddy` and its methods are available before calling them.
 
-## Service-Based Tracking
+## Service-based tracking
 
 Create a service for centralized tracking:
 
@@ -209,7 +209,7 @@ export class CheckoutComponent {
 }`}
 />
 
-## Route Change Tracking
+## Route change tracking
 
 Track route changes automatically:
 
@@ -243,7 +243,7 @@ export class AppComponent implements OnInit {
 }`}
 />
 
-## Configuration Options
+## Configuration options
 
 Enable additional tracking features by adding data attributes to your script tag:
 
@@ -263,7 +263,7 @@ Enable additional tracking features by adding data attributes to your script tag
 ></script>`}
 />
 
-## Using Data Attributes
+## Using data attributes
 
 Enable automatic tracking with data attributes:
 
@@ -287,9 +287,9 @@ Enable automatic tracking with data attributes:
 </a>`}
 />
 
-## Common Use Cases
+## Common use cases
 
-### Form Submissions
+### Form submissions
 
 Track form submissions:
 
@@ -325,7 +325,7 @@ export class ContactFormComponent {
 }`}
 />
 
-### User Actions
+### User actions
 
 Track user interactions:
 
@@ -359,7 +359,7 @@ export class ProductCardComponent {
 }`}
 />
 
-### Error Tracking
+### Error tracking
 
 Track errors automatically (if enabled) or manually:
 
@@ -402,7 +402,7 @@ export const appConfig: ApplicationConfig = {
 };`}
 />
 
-## Environment Configuration
+## Environment configuration
 
 Store your Client ID in environment variables:
 
@@ -441,7 +441,7 @@ Use Angular's file replacements or a build-time templating step to substitute `Y
 
 ## Troubleshooting
 
-### Script Not Loading
+### Script not loading
 
 - Verify the script is in `src/index.html` in the `<head>` section
 - Check browser console for errors
@@ -449,7 +449,7 @@ Use Angular's file replacements or a build-time templating step to substitute `Y
 - Clear browser cache and reload
 - Check Angular build output for any issues
 
-### Events Not Tracking
+### Events not tracking
 
 - Confirm `window.databuddy` exists before calling tracking methods
 - Always check `typeof window !== 'undefined'` for SSR safety
@@ -457,20 +457,20 @@ Use Angular's file replacements or a build-time templating step to substitute `Y
 - Verify events appear in your Databuddy dashboard after 2-3 minutes
 - Use browser dev tools Network tab to confirm requests are being sent
 
-### Route Changes Not Tracked
+### Route changes not tracked
 
 - Databuddy automatically tracks route changes in most Angular apps
 - If needed, manually track using router events (see example above)
 - Check that Angular Router is properly configured
 - Verify navigation events are firing correctly
 
-### TypeScript Errors
+### TypeScript errors
 
 - Ensure you've declared `window.databuddy` types (see TypeScript Declaration section)
 - Add the declaration file to your `tsconfig.json` includes
 - Use optional chaining: `window.databuddy?.track(...)`
 
-## Related Integrations
+## Related
 
 <Cards>
   <Card title="React" href="/docs/Integrations/react">
@@ -480,7 +480,7 @@ Use Angular's file replacements or a build-time templating step to substitute `Y
     App Router and Pages Router support with SSR.
   </Card>
   <Card title="Svelte" href="/docs/Integrations/svelte">
-    Lightweight Svelte integration with reactive tracking.
+    Svelte integration with reactive tracking.
   </Card>
 </Cards>
 

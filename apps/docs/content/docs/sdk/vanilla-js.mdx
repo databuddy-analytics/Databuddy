@@ -11,7 +11,7 @@ The Databuddy script can be used directly in vanilla JavaScript projects without
   **CDN**: `https://cdn.databuddy.cc/databuddy.js`
 </Callout>
 
-## Quick Setup
+## Quick setup
 
 Add the script tag to your HTML before the closing `</body>` tag:
 
@@ -23,9 +23,9 @@ Add the script tag to your HTML before the closing `</body>` tag:
 ></script>`}
 </CodeBlock>
 
-The script automatically initializes and starts tracking page views.
+The script automatically initializes and starts tracking pageviews.
 
-## Configuration Options
+## Configuration options
 
 Configure the tracker using data attributes on the script tag:
 
@@ -41,7 +41,7 @@ Configure the tracker using data attributes on the script tag:
 ></script>`}
 </CodeBlock>
 
-## Available Options
+## Available options
 
 | Option | Default | Description |
 |--------|---------|-------------|
@@ -58,9 +58,9 @@ Configure the tracker using data attributes on the script tag:
 | `data-skip-patterns` | `[]` | JSON array of path patterns to skip entirely |
 | `data-mask-patterns` | `[]` | JSON array of path patterns to anonymize |
 
-## Tracking Events
+## Tracking events
 
-### Manual Tracking
+### Manual tracking
 
 Use the global `window.databuddy` object to track custom events:
 
@@ -78,9 +78,9 @@ window.databuddy.track('feature_used', {
 });`}
 </CodeBlock>
 
-### Screen Views
+### Screen views
 
-Manually track page views (useful for SPAs):
+Manually track pageviews (useful for SPAs):
 
 <CodeBlock language="jsx">
   {`window.databuddy.screenView({
@@ -93,7 +93,7 @@ window.databuddy.screenView({
 });`}
 </CodeBlock>
 
-### Using Shorthand
+### Using shorthand
 
 For convenience, use the shorter `window.db` alias:
 
@@ -102,7 +102,7 @@ For convenience, use the shorter `window.db` alias:
 window.db.screenView({ section: 'dashboard' });`}
 </CodeBlock>
 
-## Getting Tracking IDs
+## Getting tracking IDs
 
 The tracker provides access to anonymous and session IDs for attribution tracking:
 
@@ -120,7 +120,7 @@ const signupUrl = \`https://app.databuddy.cc/register?anonId=\${anonId}&sessionI
 window.location.href = signupUrl;`}
 </CodeBlock>
 
-### Reading from Storage
+### Reading from storage
 
 IDs are also stored in browser storage for persistence:
 
@@ -132,7 +132,7 @@ const anonId = localStorage.getItem('did');
 const sessionId = sessionStorage.getItem('did_session');`}
 </CodeBlock>
 
-## Global Properties
+## Global properties
 
 Set properties that attach to all future events:
 
@@ -144,13 +144,13 @@ Set properties that attach to all future events:
 });`}
 </CodeBlock>
 
-## User Identity
+## User identity
 
-The global tracker also exposes `window.databuddy.identify(profileId, traits)`, `setTraits(traits)`, `clearProfile()`, and `getProfileId()`. See [Identify Users](/docs/sdk/identify-users).
+The global tracker also exposes `window.databuddy.identify(profileId, traits)`, `setTraits(traits)`, `clearProfile()`, and `getProfileId()`. See [Identify users](/docs/sdk/identify-users).
 
-## Session Management
+## Session management
 
-### Clear Session
+### Clear session
 
 Clear current session and generate new IDs:
 
@@ -158,7 +158,7 @@ Clear current session and generate new IDs:
   {`window.databuddy.clear();`}
 </CodeBlock>
 
-### Flush Events
+### Flush events
 
 Force immediate sending of queued events:
 
@@ -166,7 +166,7 @@ Force immediate sending of queued events:
   {`window.databuddy.flush();`}
 </CodeBlock>
 
-## Error Tracking
+## Error tracking
 
 Automatically track JavaScript errors:
 
@@ -194,7 +194,7 @@ Or track manually:
 }`}
 </CodeBlock>
 
-## Data Attributes Tracking
+## Data attributes tracking
 
 Track clicks on elements with `data-track` attributes:
 
@@ -217,7 +217,7 @@ Track clicks on elements with `data-track` attributes:
 </a>`}
 </CodeBlock>
 
-## Outgoing Links
+## Outgoing links
 
 Track clicks on external links:
 
@@ -233,7 +233,7 @@ Track clicks on external links:
 <a href="https://github.com/databuddy-analytics/Databuddy">GitHub</a>`}
 </CodeBlock>
 
-## Batch Events
+## Batch events
 
 Enable batching to reduce network requests:
 
@@ -263,7 +263,7 @@ Reduce event volume with sampling:
 
 Set to `0.5` to track 50% of events, `0.1` for 10%, etc.
 
-## Skip Patterns
+## Skip patterns
 
 Skip tracking on specific paths:
 
@@ -276,7 +276,7 @@ Skip tracking on specific paths:
 ></script>`}
 </CodeBlock>
 
-## Opt Out
+## Opt out
 
 Allow users to opt out of tracking:
 
@@ -290,7 +290,7 @@ window.databuddyOptIn();`}
 
 Opt-out is stored in localStorage and persists across sessions.
 
-## Complete Example
+## Complete example
 
 <CodeBlock language="html" filename="index.html">
   {`<!DOCTYPE html>
@@ -332,7 +332,7 @@ Opt-out is stored in localStorage and persists across sessions.
 </html>`}
 </CodeBlock>
 
-## Browser Compatibility
+## Browser compatibility
 
 The script works in all modern browsers:
 - Chrome, Edge, Firefox, Safari (latest 2 versions)
@@ -347,15 +347,15 @@ Use the official CDN URL for best performance:
   {`https://cdn.databuddy.cc/databuddy.js`}
 </CodeBlock>
 
-The script is automatically minified and served compressed. The core bundle includes the error and web vitals trackers, which stay inactive unless `data-track-errors` or `data-track-web-vitals` are enabled. Standalone `errors.js` and `vitals.js` builds are also published on the CDN.
+The core bundle includes the error and Web Vitals trackers, which stay inactive unless `data-track-errors` or `data-track-web-vitals` are enabled. Standalone `errors.js` and `vitals.js` builds are also published on the CDN.
 
 ## Related
 
 <Cards>
-  <Card title="Tracker Helpers" href="/docs/sdk/tracker">
+  <Card title="Tracker helpers" href="/docs/sdk/tracker">
     Helper functions for the SDK
   </Card>
-  <Card title="Configuration" href="/docs/sdk/configuration">
+  <Card title="SDK configuration" href="/docs/sdk/configuration">
     All configuration options
   </Card>
   <Card title="React SDK" href="/docs/sdk/react">

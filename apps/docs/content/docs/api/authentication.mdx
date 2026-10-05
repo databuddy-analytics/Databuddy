@@ -7,7 +7,7 @@ import { Callout, CodeBlock } from "@/components/docs";
 
 Protected API operations require authentication. Operations explicitly documented as public, such as query-type discovery and public status-page reads, do not. Databuddy supports API keys for server-side integrations, session cookies for browser-based apps, and Databuddy account sign-in (OAuth) for MCP clients such as Claude and Claude Code.
 
-## API Key Authentication
+## API key authentication
 
 Use your API key in the `x-api-key` header:
 
@@ -25,20 +25,20 @@ Alternatively, use Bearer token format:
   https://api.databuddy.cc/v1/query/websites`}
 />
 
-## Getting an API Key
+## Getting an API key
 
-1. Go to **[Dashboard → Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys)**
-2. Click **Create API Key**
-3. Enter a descriptive name (e.g., "Production Server", "CI Pipeline")
+1. Go to **[Dashboard → Organization settings → API keys](https://app.databuddy.cc/organizations/settings#api-keys)**
+2. Click **Create API key**
+3. Enter a descriptive name (e.g. "Production Server", "CI Pipeline")
 4. Select the required scopes
 5. Optionally restrict access to specific websites
 6. Copy and securely store your key. It won't be shown again.
 
 <Callout type="warning">
-  **Security Note**: Store API keys securely. Never commit them to version control or expose them in client-side code.
+  **Security note**: Store API keys securely. Never commit them to version control or expose them in client-side code.
 </Callout>
 
-## Agent Auth Discovery
+## Agent auth discovery
 
 AI agents can discover Databuddy authentication without scraping this page:
 
@@ -50,7 +50,7 @@ AI agents can discover Databuddy authentication without scraping this page:
 
 The MCP server accepts OAuth sign-in: clients that support MCP authorization with Client ID Metadata Documents, such as Claude and Claude Code, connect to `https://api.databuddy.cc/v1/mcp` without a key and the user approves access in Databuddy. See the [MCP server](/docs/api/mcp) docs. The REST API and other MCP clients, including Cursor and Windsurf, use scoped API keys sent with `x-api-key` or `Authorization: Bearer`.
 
-## API Key Scopes
+## API key scopes
 
 Scopes control what actions an API key can perform:
 
@@ -72,25 +72,25 @@ Scopes control what actions an API key can perform:
   Most integrations only need `read:data`. Add `track:events` if you also send events server-side.
 </Callout>
 
-## Access Levels
+## Access levels
 
 API keys can have two access levels:
 
-### Global Access
+### Global access
 
 Access all websites in your account or organization. Best for:
 - Internal dashboards
 - Automated reporting
 - Organization-wide analytics
 
-### Website-Specific Access
+### Website-specific access
 
 Access only specified websites. Best for:
 - Third-party integrations
 - Client-specific keys
 - Least-privilege security
 
-## Session Cookie Authentication
+## Session cookie authentication
 
 Browser-based applications using the Databuddy dashboard session can authenticate automatically via cookies. This works when:
 
@@ -105,21 +105,21 @@ Browser-based applications using the Databuddy dashboard session can authenticat
 })`}
 />
 
-## Choosing an Authentication Method
+## Choosing an authentication method
 
-| Use Case | Recommended Method |
+| Use case | Recommended method |
 |----------|-------------------|
-| Server-to-server integration | API Key (`x-api-key`) |
-| CI/CD pipelines | API Key (`x-api-key`) |
-| Custom dashboards (server-side) | API Key (`x-api-key`) |
+| Server-to-server integration | API key (`x-api-key`) |
+| CI/CD pipelines | API key (`x-api-key`) |
+| Custom dashboards (server-side) | API key (`x-api-key`) |
 | Browser apps on your domain | Session Cookie |
-| Third-party applications | API Key with limited scope |
+| Third-party applications | API key with limited scope |
 | Claude and Claude Code (MCP) | Databuddy account sign-in (OAuth) |
-| Cursor, Windsurf, and other MCP clients | API Key (`x-api-key`) |
+| Cursor, Windsurf, and other MCP clients | API key (`x-api-key`) |
 
-## Authentication Errors
+## Authentication errors
 
-| Error Code | Meaning |
+| Error code | Meaning |
 |------------|---------|
 | `AUTH_REQUIRED` | The operation needs authentication and none was accepted |
 | `ACCESS_DENIED` | Authentication succeeded but the key cannot access the resource or operation |
@@ -136,7 +136,7 @@ Example error response:
 }`}
 />
 
-## Best Practices
+## Best practices
 
 1. **Use environment variables** for API keys in code
 2. **Rotate keys regularly**, especially when team members leave

@@ -1,5 +1,5 @@
 ---
-title: Event Tracking
+title: Event tracking
 description: Send custom events programmatically via the Basket API
 ---
 
@@ -18,12 +18,12 @@ Track custom events programmatically using the Basket API. This is useful for se
 
 You can authenticate requests using either:
 
-1. **API Key** (recommended for server-side): pass in the `x-api-key` header or as a Bearer token in the `Authorization` header
-2. **Client ID** — Pass as the `website_id` query parameter or as `websiteId` in the event body
+1. **API key** (recommended for server-side): pass in the `x-api-key` header or as a Bearer token in the `Authorization` header
+2. **Client ID**: pass as the `website_id` query parameter or as `websiteId` in the event body
 
 <CodeBlock 
   language="http"
-  code={`# With API Key
+  code={`# With API key
 POST /track
 x-api-key: your_api_key
 
@@ -41,7 +41,7 @@ POST /track?website_id={website_id}`}
 
 ---
 
-## Track Events
+## Track events
 
 The primary endpoint for sending custom events.
 
@@ -50,7 +50,7 @@ The primary endpoint for sending custom events.
   code="POST /track"
 />
 
-### Single Event
+### Single event
 
 <CodeBlock 
   language="json"
@@ -67,7 +67,7 @@ The primary endpoint for sending custom events.
 }`}
 />
 
-### Batch Events
+### Batch events
 
 Send an array of events in a single request:
 
@@ -98,7 +98,7 @@ Send an array of events in a single request:
 }`}
 />
 
-### Event Fields
+### Event fields
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -115,7 +115,7 @@ Send an array of events in a single request:
 | `source` | string | No | Event source identifier (max 64 chars) |
 | `websiteId` | string | No | Public Databuddy Client ID (same value as `data-client-id` in the tracker; string id from the dashboard, not necessarily a UUID). Alternative to `?website_id=` |
 
-### Payload Limits
+### Payload limits
 
 | Limit | Value |
 |-------|-------|
@@ -125,7 +125,7 @@ Send an array of events in a single request:
 
 ---
 
-## Server-Side Examples
+## Server-side examples
 
 ### Node.js / TypeScript
 
@@ -206,9 +206,9 @@ track_event("purchase", {
 
 ---
 
-## Common Event Examples
+## Common event examples
 
-### E-commerce Purchase
+### E-commerce purchase
 
 <CodeBlock 
   language="json"
@@ -226,7 +226,7 @@ track_event("purchase", {
 }`}
 />
 
-### User Signup
+### User signup
 
 <CodeBlock 
   language="json"
@@ -240,7 +240,7 @@ track_event("purchase", {
 }`}
 />
 
-### Feature Usage
+### Feature usage
 
 <CodeBlock 
   language="json"
@@ -254,7 +254,7 @@ track_event("purchase", {
 }`}
 />
 
-### Subscription Event
+### Subscription event
 
 <CodeBlock 
   language="json"
@@ -270,7 +270,7 @@ track_event("purchase", {
 
 ---
 
-## Additional Endpoints
+## Additional endpoints
 
 These endpoints are used by the JavaScript tracker SDK and are documented here for completeness. The `client_id` query value is your Databuddy Client ID.
 
@@ -304,7 +304,7 @@ Track Core Web Vitals metrics.
 | `anonymousId` | string | No | Anonymous user identifier |
 | `sessionId` | string | No | Session identifier |
 
-### Error Tracking
+### Error tracking
 
 Track JavaScript errors.
 
@@ -344,7 +344,7 @@ Track JavaScript errors.
 
 ---
 
-## Error Responses
+## Error responses
 
 <CodeBlock 
   language="json"
@@ -376,14 +376,14 @@ Track JavaScript errors.
 
 ---
 
-## Best Practices
+## Best practices
 
-1. **Use consistent event names** — Use snake_case and be descriptive (`button_click` not `click`)
-2. **Use namespaces** — Group related events with the `namespace` field
-3. **Include context** — Add properties that help segment and analyze later
-4. **Batch when possible** — Send arrays of events to reduce HTTP overhead
-5. **Do not track PII** — Avoid personally identifiable information in properties
-6. **Use server-side for sensitive events** — Track purchases and signups server-side with API keys
+1. **Use consistent event names**: use snake_case and be descriptive (`button_click` not `click`)
+2. **Use namespaces**: group related events with the `namespace` field
+3. **Include context**: add properties that help segment and analyze later
+4. **Batch when possible**: send arrays of events to reduce HTTP overhead
+5. **Do not track PII**: avoid personally identifiable information in properties
+6. **Use server-side for sensitive events**: track purchases and signups server-side with API keys
 
 <Callout type="warning">
   Event properties are stored as JSON. Keep values simple (strings, numbers, booleans) for best query performance.

@@ -1,11 +1,11 @@
 ---
-title: Security & Privacy
+title: Security and privacy
 description: Configure Databuddy's collection controls, visitor IDs, opt-out behavior, origin checks, and IP restrictions.
 ---
 
 Databuddy provides cookieless collection and controls for the information you send. This page describes those controls and their limits. See the [Privacy Policy](/privacy) and [Data Processing Agreement](/dpa) for our data-protection commitments.
 
-## Privacy-First Design
+## Privacy-first design
 
 The browser tracker uses first-party localStorage for visitor information and sessionStorage for sessions. Session IDs use a 30-minute reuse window; a continuously open page can keep its current session longer.
 
@@ -13,7 +13,7 @@ Standard analytics event records omit raw IP addresses after request handling an
 
 The [identify API](/docs/sdk/identify-users) links activity to profile IDs and traits you supply. Profile IDs are separate from visitor-ID anonymization. Page paths, titles, custom properties, and errors can also contain personal information; review those payloads before sending them.
 
-## Privacy Controls
+## Privacy controls
 
 Enable the features you need using the [SDK configuration](/docs/sdk/configuration). For example, this configuration disables errors, outgoing-link events, and performance collection:
 
@@ -30,7 +30,7 @@ import { Databuddy } from "@databuddy/sdk/react";
 
 This is a collection example, not a consent configuration. Where prior consent is required, delay mounting the component or loading the script until consent is granted.
 
-### Local Data Storage and Opt-Out
+### Local data storage and opt-out
 
 The browser tracker honors Global Privacy Control, Do Not Track, and the stored opt-out preference. Its built-in helpers are:
 
@@ -41,17 +41,17 @@ window.databuddyOptIn();
 
 Opting out stops tracking, clears local tracker identifiers, and stores the preference when localStorage is available. Opting in does not override GPC or DNT. These helpers do not delete information already collected on the server.
 
-### Data Deletion in Practice
+### Data deletion in practice
 
 Visitors should contact the website owner about collected information. We assist customers with access, correction, and deletion requests; contact [privacy@databuddy.cc](mailto:privacy@databuddy.cc). Hashing an identifier or leaving identification disabled does not guarantee that no personal data was collected.
 
-## Access Control Settings
+## Access control settings
 
 Collection requires an active website ID. Origin filtering is an ingestion control, not proof of domain ownership: a non-browser client can supply an Origin header.
 
 Open your website's **Settings → Security** to configure additional allowed origins and IP restrictions.
 
-### Allowed Origins
+### Allowed origins
 
 When a request includes an Origin, the registered hostname and its subdomains are accepted by default. Additional allowed origins broaden that set; they cannot exclude the registered domain.
 
@@ -66,7 +66,7 @@ Supported entries include:
 
 Matching uses the hostname, not a particular scheme or port. The origin check does not itself enforce HTTPS.
 
-### Allowed IP Addresses
+### Allowed IP addresses
 
 An empty list imposes no IP restriction. A configured list accepts only requests with a trusted matching IP address; other requests receive a 403 response.
 
@@ -76,24 +76,24 @@ This path uses the trusted `cf-connecting-ip` header. It does not fall back to a
 
 Test restrictions with the actual clients and infrastructure that will send events. Blocking legitimate sources prevents their data from being collected.
 
-## Data Protection
+## Data protection
 
 Requests are validated, size-limited, and rate-limited. Profile display names and email addresses use AES-256-GCM field encryption when the server key is configured; production ingestion requires that key. Arbitrary event properties and profile traits are outside this field-encryption mechanism.
 
 Infrastructure, AI, billing, and delivery services process information needed for the features you enable. See the [Data Policy](/data-policy) for their roles.
 
-## Privacy Compliance
+## Privacy compliance
 
 Cookieless collection does not automatically remove consent requirements. Review browser storage, the information collected, and applicable rules. See the [web analytics privacy guide](/docs/compliance/gdpr-compliance-guide).
 
-## Implementation Security
+## Implementation security
 
 ### Content Security Policy
 
 Allow the tracker CDN in `script-src` and the configured ingestion endpoint in `connect-src`. For the default hosted endpoints, those are `https://cdn.databuddy.cc` and `https://basket.databuddy.cc`. Merge these into your existing policy; do not replace your application's other restrictions.
 
-## Support & Questions
+## Support and questions
 
 - [privacy@databuddy.cc](mailto:privacy@databuddy.cc) for privacy and data requests.
-- [Getting Started](/docs/getting-started) for installation.
-- [SDK Configuration](/docs/sdk/configuration) for collection options.
+- [Getting started](/docs/getting-started) for installation.
+- [SDK configuration](/docs/sdk/configuration) for collection options.

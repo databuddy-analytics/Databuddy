@@ -21,9 +21,9 @@ or with yarn:
 yarn add @databuddy/sdk
 ```
 
-## Basic Setup
+## Basic setup
 
-### 1. Add the Script Component
+### 1. Add the script component
 
 Add the `<Databuddy />` component to inject the tracking script:
 
@@ -46,13 +46,13 @@ function App() {
 export default App;
 ```
 
-### 2. Track Page Views
+### 2. Track pageviews
 
-Page views are tracked automatically, including SPA navigation with React Router. No extra code is needed; adding manual page view calls on route changes would double-count.
+Pageviews are tracked automatically, including SPA navigation with React Router. No extra code is needed; adding manual pageview calls on route changes would double-count.
 
-## Event Tracking
+## Event tracking
 
-### Basic Event Tracking
+### Basic event tracking
 
 Track events using the `track` function:
 
@@ -75,7 +75,7 @@ function MyComponent() {
 }
 ```
 
-### Custom Hook for Events
+### Custom hook for events
 
 Create a custom hook for cleaner tracking:
 
@@ -113,7 +113,7 @@ function MyComponent() {
 }
 ```
 
-### Product Tracking Example
+### Product tracking example
 
 ```tsx
 import { useEffect } from 'react';
@@ -146,9 +146,9 @@ function ProductCard({ product }) {
 }
 ```
 
-## Configuration Options
+## Configuration options
 
-### Advanced Configuration
+### Advanced configuration
 
 ```tsx
 import { Databuddy } from '@databuddy/sdk/react';
@@ -173,9 +173,9 @@ function App() {
 }
 ```
 
-## Component-Level Tracking
+## Component-level tracking
 
-### Automatic Click Tracking
+### Automatic click tracking
 
 Use data attributes for automatic tracking:
 
@@ -194,7 +194,7 @@ function CallToAction() {
 }
 ```
 
-### Form Tracking
+### Form tracking
 
 Track form interactions and submissions:
 
@@ -230,9 +230,9 @@ function ContactForm() {
 }
 ```
 
-## E-commerce Tracking
+## E-commerce tracking
 
-### Purchase Events
+### Purchase events
 
 ```tsx
 import { useEffect } from 'react';
@@ -252,7 +252,7 @@ function CheckoutSuccess({ order }) {
 }
 ```
 
-### Cart Events
+### Cart events
 
 ```tsx
 import { track } from '@databuddy/sdk';
@@ -277,11 +277,11 @@ function AddToCartButton({ product }) {
 }
 ```
 
-## Error Tracking
+## Error tracking
 
 Use `trackError` for manual error tracking. For automatic JavaScript error capture, enable `trackErrors` on the `<Databuddy />` component.
 
-### Error Boundaries
+### Error boundaries
 
 ```tsx
 import { trackError } from '@databuddy/sdk/react';
@@ -306,9 +306,9 @@ function ErrorBoundary({ children }) {
 }
 ```
 
-## Performance Monitoring
+## Performance monitoring
 
-### Custom Performance Metrics
+### Custom performance metrics
 
 ```tsx
 import { useEffect } from 'react';
@@ -333,9 +333,9 @@ function DataDashboard() {
 }
 ```
 
-## TypeScript Support
+## TypeScript support
 
-### Type-Safe Event Tracking
+### Type-safe event tracking
 
 ```tsx
 import { track } from '@databuddy/sdk';
@@ -353,9 +353,9 @@ function TypedComponent() {
 }
 ```
 
-## Best Practices
+## Best practices
 
-### 1. Environment-Based Configuration
+### 1. Environment-based configuration
 
 ```tsx
 <Databuddy
@@ -365,7 +365,7 @@ function TypedComponent() {
 />
 ```
 
-### 2. Conditional Loading
+### 2. Conditional loading
 
 ```tsx
 import { Databuddy } from '@databuddy/sdk/react';
@@ -384,7 +384,7 @@ function App() {
 }
 ```
 
-### 3. Custom Hook for Analytics
+### 3. Custom hook for analytics
 
 ```tsx
 import { useCallback } from 'react';
@@ -411,7 +411,7 @@ export function useAnalytics() {
 }
 ```
 
-## Related Integrations
+## Related
 
 <Cards>
   <Card title="Next.js" href="/docs/Integrations/nextjs">
@@ -421,7 +421,7 @@ export function useAnalytics() {
     Angular integration with service-based tracking.
   </Card>
   <Card title="Svelte" href="/docs/Integrations/svelte">
-    Lightweight Svelte integration with reactive tracking.
+    Svelte integration with reactive tracking.
   </Card>
 </Cards>
 

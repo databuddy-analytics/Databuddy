@@ -1,5 +1,5 @@
 ---
-title: Feedback Tracking
+title: Feedback tracking
 description: Track user feedback with server actions and client hooks
 ---
 
@@ -7,7 +7,7 @@ import { CodeBlock } from "@/components/docs";
 import { Callout } from "@/components/docs";
 import { Card, Cards } from "@/components/docs";
 
-Track user feedback (e.g., thumbs up/down on documentation pages) using both server actions and client-side hooks.
+Track user feedback (e.g. thumbs up/down on documentation pages) using both server actions and client-side hooks.
 
 ## Server Action (Next.js)
 
@@ -46,7 +46,7 @@ export async function onRateDocs(
 }`}
 />
 
-## Client Hook Wrapper
+## Client hook wrapper
 
 <CodeBlock 
   language="tsx"
@@ -93,7 +93,7 @@ export function useFeedbackTracking() {
 }`}
 />
 
-## What It Tracks
+## What it tracks
 
 - **Events**: 
   - `docs_feedback`: Server-side tracking with submitted feedback metadata
@@ -106,9 +106,9 @@ export function useFeedbackTracking() {
 
 ## Benefits
 
-- **Content Quality**: Understand which pages need improvement
-- **User Satisfaction**: Track overall feedback sentiment
-- **Content Strategy**: Identify high-performing and low-performing content
+- **Content quality**: Understand which pages need improvement
+- **User satisfaction**: Track overall feedback sentiment
+- **Content strategy**: Identify high-performing and low-performing content
 
 <Callout type="info">
 Use server actions for detailed feedback tracking and client hooks for immediate user interaction tracking.
@@ -117,13 +117,13 @@ Use server actions for detailed feedback tracking and client hooks for immediate
 ## Related
 
 <Cards>
-  <Card title="Toast Tracking" href="/docs/hooks/toast-tracking">
+  <Card title="Toast tracking" href="/docs/hooks/toast-tracking">
     Track toast notifications automatically
   </Card>
-  <Card title="Form Tracking" href="/docs/hooks/form-tracking">
+  <Card title="Form tracking" href="/docs/hooks/form-tracking">
     Track form submissions with validation state
   </Card>
-  <Card title="Tracking Recipes" href="/docs/hooks">
+  <Card title="Tracking recipes" href="/docs/hooks">
     View all tracking recipes
   </Card>
 </Cards>

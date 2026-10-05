@@ -7,11 +7,11 @@ import { Card, Cards } from "@/components/docs";
 
 Load Databuddy through a GTM Custom HTML tag and send application events from your data layer.
 
-> TL;DR: In GTM, create a Custom HTML tag with an inline loader that appends `https://cdn.databuddy.cc/databuddy.js` and sets `data-client-id`. Enable optional flags such as `data-track-attributes` or `data-track-errors`. Page views and sessions are automatic. Choose a page or consent-granted trigger that matches your privacy configuration, then preview and publish.
+> TL;DR: In GTM, create a Custom HTML tag with an inline loader that appends `https://cdn.databuddy.cc/databuddy.js` and sets `data-client-id`. Enable optional flags such as `data-track-attributes` or `data-track-errors`. Pageviews and sessions are automatic. Choose a page or consent-granted trigger that matches your privacy configuration, then preview and publish.
 
-## Basic Setup
+## Basic setup
 
-### Step 1: Create Databuddy Tag
+### Step 1: Create Databuddy tag
 
 1. In GTM, click **Add a new tag**
 2. Choose **Custom HTML** as the tag type
@@ -43,7 +43,7 @@ This loader sets the tracker attributes before loading the script and signals wh
 
 4. Name your tag "Databuddy - Analytics Script"
 
-### Step 2: Create Variables
+### Step 2: Create variables
 
 Create a **Constant** variable for your Client ID:
 
@@ -52,7 +52,7 @@ Create a **Constant** variable for your Client ID:
 3. Name: "Databuddy Client ID"
 4. Value: Your actual Client ID from Databuddy dashboard
 
-### Step 3: Set Trigger
+### Step 3: Set trigger
 
 1. In your Databuddy tag, click **Triggering**
 2. Choose **All Pages**, or your consent manager’s granted trigger when prior consent is required
@@ -65,7 +65,7 @@ Create a **Constant** variable for your Client ID:
 2. Add version name and description
 3. Click **Publish**
 
-## Advanced Configuration
+## Advanced configuration
 
 Reuse the loader above for each configuration:
 
@@ -75,9 +75,9 @@ Reuse the loader above for each configuration:
 
 Keep the `onload` callback so tags waiting for `databuddy_ready` can fire. Use the loader once per page; automatic pageview tracking already handles SPA navigation.
 
-## Event Tracking Setup
+## Event tracking setup
 
-### Custom Event Tags
+### Custom event tags
 
 The loader above emits `databuddy_ready` after the script finishes loading. For startup events, use a Custom Event trigger named `databuddy_ready`. For purchase and other application events, dispatch them after readiness or buffer them in your application until then. The examples below do not queue early events. GTM tag sequencing alone does not wait for an asynchronously injected script.
 
@@ -114,7 +114,7 @@ Create Data Layer Variables for the values you need (e.g. `Transaction ID`, `Pur
 </script>
 ```
 
-### Data Layer Integration
+### Data layer integration
 
 Send GTM data layer events to Databuddy:
 
@@ -132,15 +132,15 @@ Send GTM data layer events to Databuddy:
 </script>
 ```
 
-## Triggers Configuration
+## Triggers configuration
 
 The analytics script records pageviews automatically, including SPA navigation. Use the **All Pages** trigger only to load the script; do not add a second pageview tag.
 
-### Scroll Tracking
+### Scroll tracking
 
 Databuddy's built-in tracking already covers scroll depth, so you do not need a separate GTM scroll depth tag.
 
-### Click Tracking
+### Click tracking
 
 Track specific button clicks:
 
@@ -160,9 +160,9 @@ Track specific button clicks:
 </script>
 ```
 
-## E-commerce Integration
+## E-commerce integration
 
-### Enhanced E-commerce Setup
+### Enhanced E-commerce setup
 
 Track the complete customer journey. Create Data Layer Variables for the product values your site pushes to the data layer, and fire each tag on the matching data layer event trigger.
 
@@ -212,7 +212,7 @@ Track the complete customer journey. Create Data Layer Variables for the product
 </script>
 ```
 
-## User Privacy and Consent
+## User privacy and consent
 
 Google's consent settings do not automatically gate Databuddy. If your deployment requires consent, configure the loader tag's **additional consent checks** and trigger it only after your consent manager grants analytics consent. Connect that trigger to the manager's actual consent event; its name varies by implementation.
 
@@ -220,9 +220,9 @@ On withdrawal, call `window.databuddyOptOut()` and prevent the tag from loading 
 
 See [Google's consent overview](https://developers.google.com/tag-platform/security/concepts/consent-mode) and the [Databuddy privacy guide](/docs/compliance/gdpr-compliance-guide).
 
-## Debugging and Testing
+## Debugging and testing
 
-### Debug Mode Setup
+### Debug mode setup
 
 Enable debug mode for testing:
 
@@ -240,7 +240,7 @@ Enable debug mode for testing:
 </script>
 ```
 
-### Preview Mode Testing
+### Preview mode testing
 
 1. Click **Preview** in GTM
 2. Visit your website in the debug session
@@ -248,7 +248,7 @@ Enable debug mode for testing:
 4. Check browser console for any errors
 5. Confirm events in Databuddy dashboard
 
-### Variable Testing
+### Variable testing
 
 Create test variables for debugging:
 
@@ -265,18 +265,18 @@ function() {
 }
 ```
 
-## Best Practices
+## Best practices
 
 The loader is asynchronous and reports load failures in the browser console. A failed load does not emit `databuddy_ready`.
 
-### Tag Organization
+### Tag organization
 
 1. **Naming Convention**: Use clear, descriptive names
 2. **Folders**: Organize tags by vendor or purpose
 3. **Notes**: Add descriptions explaining each tag's purpose
-4. **Triggers**: Name triggers clearly (e.g., "Databuddy - All Pages")
+4. **Triggers**: Name triggers clearly (e.g. "Databuddy - All Pages")
 
-### Version Management
+### Version management
 
 1. **Descriptive Names**: Use meaningful version names
 2. **Notes**: Document changes in each version
@@ -293,11 +293,11 @@ The loader is asynchronous and reports load failures in the browser console. A f
 4. **Gradual rollout** using percentage-based triggers
 5. **Monitor data** for consistency
 
-### Data Mapping
+### Data mapping
 
 Map GA4 events to Databuddy equivalents:
 
-| GA4 Event   | Databuddy Event | Notes                           |
+| GA4 event   | Databuddy event | Notes                           |
 | ----------- | --------------- | ------------------------------- |
 | page_view   | screen_view     | Automatic |
 | purchase    | purchase        | Enhanced with privacy features  |
@@ -306,7 +306,7 @@ Map GA4 events to Databuddy equivalents:
 
 ## Troubleshooting
 
-### Common Issues
+### Common issues
 
 **Tag Not Firing:**
 
@@ -326,7 +326,7 @@ Map GA4 events to Databuddy equivalents:
 - Check for blocking JavaScript errors
 - Monitor Core Web Vitals impact
 
-### Debug Checklist
+### Debug checklist
 
 1. ✅ GTM container code installed correctly
 2. ✅ Databuddy tag fires on correct triggers
@@ -335,7 +335,7 @@ Map GA4 events to Databuddy equivalents:
 5. ✅ Events appear in Databuddy dashboard
 6. ✅ Privacy settings respected
 
-## Related Integrations
+## Related
 
 <Cards>
   <Card title="Shopify" href="/docs/Integrations/shopify">
