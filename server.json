@@ -1,0 +1,26 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.databuddy-analytics/databuddy",
+  "title": "Databuddy Analytics",
+  "description": "Query website traffic, events, signup goals, funnels, and errors with scoped Databuddy access.",
+  "version": "1.0.0",
+  "websiteUrl": "https://www.databuddy.cc/docs/api/mcp",
+  "repository": {
+    "url": "https://github.com/databuddy-analytics/Databuddy",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://api.databuddy.cc/v1/mcp",
+      "headers": [
+        {
+          "name": "x-api-key",
+          "description": "For clients without OAuth sign-in, create a Databuddy API key with read:data access. Omit this header for OAuth.",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
