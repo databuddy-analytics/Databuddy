@@ -222,7 +222,10 @@ describe("isLocalHost", () => {
 		for (const url of [
 			"postgres://u:p@localhost:5432/databuddy",
 			"http://default:@127.0.0.1:8123",
+			"http://0.0.0.0:8123",
 			"redis://[::1]:6379",
+			"redis://[0:0:0:0:0:0:0:1]:6379",
+			"[::1]:6379",
 			"redis://redis:6379",
 			"redpanda:9092",
 		]) {
@@ -230,9 +233,18 @@ describe("isLocalHost", () => {
 		}
 	});
 
-	it("rejects dotted remote hosts", () => {
-		expect(isLocalHost("postgres://u:p@db.example.com:5432/x")).toBe(false);
-		expect(isLocalHost("broker.example.com:9092")).toBe(false);
+	it("rejects dotted remote hosts and non-loopback IPv6 literals", () => {
+		for (const url of [
+			"postgres://u:p@db.example.com:5432/x",
+			"broker.example.com:9092",
+			"postgres://[2001:db8::1]:5432/x",
+			"http://[::ffff:8.8.8.8]:8123",
+			"[2001:db8::1]:9092",
+		]) {
+			expect(isLocalHost(url)).toBe(false);
+		}
+		// Unbracketed IPv6 is invalid URL input and must also fail closed.
+		expect(() => isLocalHost("2001:db8::1")).toThrow();
 	});
 });
 

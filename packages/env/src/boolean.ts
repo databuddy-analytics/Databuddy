@@ -31,7 +31,8 @@ function hostnameOf(url: string): string {
 export function isLocalHost(url: string): boolean {
 	const hostname = hostnameOf(url);
 	return (
-		LOOPBACK_HOSTS.has(hostname) || (hostname !== "" && !hostname.includes("."))
+		LOOPBACK_HOSTS.has(hostname) ||
+		(hostname !== "" && !hostname.includes(".") && !hostname.includes(":"))
 	);
 }
 

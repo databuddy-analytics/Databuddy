@@ -67,11 +67,15 @@ describe("e2e db lifecycle helpers", () => {
 		);
 	});
 
-	it("refuses non-local database hosts by default", () => {
+	it.each([
+		"postgres://u:p@db.example.com:5432/databuddy",
+		"postgres://[2001:db8::1]:5432/databuddy",
+		"postgres://[::ffff:8.8.8.8]:5432/databuddy",
+	])("refuses non-local database hosts by default: %s", (baseDsn) => {
 		expect(() =>
 			resolveLifecycleConfig({
 				allowNonLocal: false,
-				baseDsn: "postgres://u:p@db.example.com:5432/databuddy",
+				baseDsn,
 				command: "create",
 				dbPrefix: "databuddy_e2e",
 			})
