@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { ApiKeySheet } from "@/components/organizations/api-key-sheet";
 import type { ApiKeyListItem } from "@/components/organizations/api-key-types";
 import {
@@ -32,6 +33,7 @@ import {
 	Card,
 	Input,
 	Skeleton,
+	StageBadge,
 	Text,
 	buttonVariants,
 	cn,
@@ -248,8 +250,9 @@ function useOAuthConnect(provider: string, scopes: string[], label: string) {
 			return result;
 		},
 		onError: (err) => {
-			toast.error(err.message || `Could not connect ${label}`);
+			showErrorToast(err, `Failed to connect ${label}`);
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 }
 
@@ -337,14 +340,18 @@ export function IntegrationsSettings({
 			toast.success("Slack workspace connected");
 		}
 		if (slackResult === "error") {
-			toast.error(searchParams.get("message") ?? "Slack install failed");
+			toast.error("Failed to connect Slack", {
+				description: searchParams.get("message") ?? undefined,
+			});
 		}
 		const githubResult = searchParams.get("github");
 		if (githubResult === "connected") {
 			toast.success("GitHub connected");
 		}
 		if (githubResult === "error") {
-			toast.error(searchParams.get("message") ?? "GitHub install failed");
+			toast.error("Failed to connect GitHub", {
+				description: searchParams.get("message") ?? undefined,
+			});
 		}
 	}, [searchParams]);
 
@@ -356,9 +363,10 @@ export function IntegrationsSettings({
 
 	const uninstallSlack = useMutation({
 		...orpc.integrations.uninstallSlack.mutationOptions(),
-		onError: () => {
-			toast.error("Could not uninstall Slack");
+		onError: (error) => {
+			showErrorToast(error, "Failed to uninstall Slack");
 		},
+		meta: { suppressGlobalErrorToast: true },
 		onSuccess: async () => {
 			toast.success("Slack uninstalled");
 			await queryClient.invalidateQueries({ queryKey: listKey });
@@ -414,17 +422,8 @@ export function IntegrationsSettings({
 
 							{COMING_SOON_INTEGRATIONS.map((item) => (
 								<IntegrationListRow
-									action={
-										<Button disabled size="sm" variant="secondary">
-											<ClockIcon className="size-4" />
-											Soon
-										</Button>
-									}
-									badge={
-										<Badge size="sm" variant="muted">
-											Coming soon
-										</Badge>
-									}
+									action={null}
+									badge={<StageBadge stage="soon" />}
 									item={item}
 									key={item.id}
 								/>
@@ -552,9 +551,10 @@ function GitHubIntegrationRow({
 			setPendingUninstall(null);
 			await queryClient.invalidateQueries({ queryKey: listKey });
 		},
-		onError: () => {
-			toast.error("Could not disconnect GitHub");
+		onError: (error) => {
+			showErrorToast(error, "Failed to disconnect GitHub");
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const invalidateWebsites = () =>
@@ -567,8 +567,9 @@ function GitHubIntegrationRow({
 			await invalidateWebsites();
 		},
 		onError: (error) => {
-			toast.error(error.message || "Could not link repository");
+			showErrorToast(error, "Failed to link repository");
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const removeRepo = useMutation({
@@ -577,9 +578,10 @@ function GitHubIntegrationRow({
 			toast.success("Repository unlinked");
 			await invalidateWebsites();
 		},
-		onError: () => {
-			toast.error("Could not unlink repository");
+		onError: (error) => {
+			showErrorToast(error, "Failed to unlink repository");
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	let action: React.ReactNode;
@@ -747,7 +749,9 @@ function GitHubRepoMappings({
 			setManualId(null);
 			setManualInput("");
 		} else {
-			toast.error("Enter owner/repo format");
+			toast.error(
+				"Enter the repository as owner/repo, for example acme/website."
+			);
 		}
 	}
 
@@ -838,10 +842,10 @@ function GitHubRepoMappings({
 									onSelect={(fullName) => handleSelect(site.id, fullName)}
 									placeholder={
 										reposQuery.isLoading
-											? "Loading..."
+											? "Loading…"
 											: reposQuery.isError
 												? "GitHub access required"
-												: "Search repos..."
+												: "Search repos…"
 									}
 									repos={repoNames}
 								/>

@@ -5,12 +5,14 @@ import { authClient } from "@databuddy/auth/client";
 import {
 	FEATURE_METADATA,
 	type GatedFeatureId,
+	getPlanDisplayName,
 } from "@databuddy/shared/types/features";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import {
 	ArrowSquareOutIcon,
 	ListIcon,
@@ -33,7 +35,7 @@ import { isNavItemActive } from "./navigation/nav-item-active";
 import type { NavigationGroup, NavigationItem } from "./navigation/types";
 import { OrganizationSelector } from "./organization-selector";
 import { useSidebarNavigation } from "./sidebar-navigation-provider";
-import { Button } from "@databuddy/ui";
+import { Button, StageBadge } from "@databuddy/ui";
 import { Avatar } from "@databuddy/ui/client";
 
 function MobileThemeToggle() {
@@ -170,31 +172,7 @@ function MobileNavItem({
 		>
 			<Icon aria-hidden className="size-[18px] shrink-0" />
 			<span className="min-w-0 flex-1 truncate">{item.name}</span>
-			{item.alpha && (
-				<span className="font-semibold text-[10px] text-sidebar-foreground/30 uppercase">
-					ALPHA
-				</span>
-			)}
-			{item.badge && (
-				<>
-					<span
-						aria-hidden={item.badge.label ? true : undefined}
-						className={cn(
-							"rounded px-1.5 py-0.5 font-semibold text-[10px]",
-							item.badge.variant === "orange"
-								? "bg-warning/10 text-warning"
-								: item.badge.variant === "red"
-									? "bg-destructive text-destructive-foreground"
-									: "bg-accent text-accent-foreground"
-						)}
-					>
-						{item.badge.text}
-					</span>
-					{item.badge.label ? (
-						<span className="sr-only">{item.badge.label}</span>
-					) : null}
-				</>
-			)}
+			{item.stage && <StageBadge stage={item.stage} />}
 			{item.external && (
 				<ArrowSquareOutIcon
 					aria-hidden
@@ -253,6 +231,9 @@ function MobileNavGroup({
 						!isBillingLoading &&
 						item.gatedFeature != null &&
 						!isFeatureEnabled(item.gatedFeature);
+					const minPlan = item.gatedFeature
+						? FEATURE_METADATA[item.gatedFeature]?.minPlan
+						: undefined;
 
 					return (
 						<MobileNavItem
@@ -262,11 +243,7 @@ function MobileNavGroup({
 							item={item}
 							key={`${item.name}::${item.href}`}
 							lockedPlanName={
-								locked && item.gatedFeature
-									? (FEATURE_METADATA[
-											item.gatedFeature
-										]?.minPlan?.toUpperCase() ?? null)
-									: null
+								locked && minPlan ? getPlanDisplayName(minPlan) : null
 							}
 							pathname={pathname}
 						/>
@@ -302,12 +279,12 @@ export function MobileSidebar() {
 		await authClient.signOut({
 			fetchOptions: {
 				onSuccess: () => {
-					toast.success("Logged out successfully");
+					toast.success("Signed out");
 					router.push("/login");
 				},
 				onError: (error) => {
 					router.push("/login");
-					toast.error(error.error.message || "Failed to log out");
+					showErrorToast(error.error, "Failed to sign out");
 				},
 			},
 		});
