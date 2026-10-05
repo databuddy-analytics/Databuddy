@@ -51,17 +51,15 @@ export async function createOrganization(
 ): Promise<void> {
 	await organizationSelector(page).click();
 	await page.getByRole("menu").waitFor();
-	await page.getByRole("menuitem", { name: "Create Organization" }).click();
+	await page.getByRole("menuitem", { name: "Create organization" }).click();
+	await page.getByRole("heading", { name: "Create organization" }).waitFor();
 	await page
-		.getByRole("heading", { name: "Create New Organization" })
-		.waitFor();
-	await page
-		.getByRole("textbox", { name: "Organization Name" })
+		.getByRole("textbox", { name: "Organization name" })
 		.fill(input.name);
 	await page
-		.getByRole("textbox", { name: "Organization Slug" })
+		.getByRole("textbox", { name: "Organization slug" })
 		.fill(input.slug);
-	await page.getByRole("button", { name: "Create Organization" }).click();
+	await page.getByRole("button", { name: "Create organization" }).click();
 	await organizationSelector(page).filter({ hasText: input.name }).waitFor();
 }
 
@@ -127,11 +125,11 @@ export async function createLinkFolder(
 	folderName: string
 ): Promise<void> {
 	await page.getByRole("button", { name: "Folder" }).click();
-	await page.getByRole("heading", { name: "Create Folder" }).waitFor();
-	await page.getByRole("textbox", { name: "Folder Name" }).fill(folderName);
-	await page.getByRole("button", { name: "Create Folder" }).click();
+	await page.getByRole("heading", { name: "Create folder" }).waitFor();
+	await page.getByRole("textbox", { name: "Folder name" }).fill(folderName);
+	await page.getByRole("button", { name: "Create folder" }).click();
 	await expect(
-		page.getByRole("heading", { name: "Create Folder" })
+		page.getByRole("heading", { name: "Create folder" })
 	).toBeHidden();
 }
 
