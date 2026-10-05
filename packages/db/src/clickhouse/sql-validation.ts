@@ -243,9 +243,25 @@ const COLUMNS_MATCHER_PATTERN = /\bCOLUMNS\s*\(/i;
 const WHITESPACE_CHARACTER_PATTERN = /\s/;
 const IDENTIFIER_CHARACTER_PATTERN = /[A-Za-z0-9_]/;
 const ALIAS_FREE_CLAUSE_PATTERN =
-	/\b(?:PREWHERE|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|QUALIFY|ON)\b/gi;
-const ALIAS_KEYWORD_PATTERN = /\bAS\b/gi;
-const CAST_CALL_PATTERN = /\bCAST\s*$/i;
+	/\b(?:PREWHERE|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|QUALIFY|ON|WINDOW)\b/gi;
+const CLAUSE_TOKEN_PATTERN =
+	/`[A-Za-z0-9_.]+`|"[A-Za-z0-9_.]+"|[A-Za-z0-9_]+|[^\s]/g;
+const ALIAS_IDENTIFIER_PATTERN = /^[A-Za-z_`"]/;
+const CLAUSE_OPERATOR_PATTERN =
+	/^(?:AND|OR|NOT|IN|LIKE|ILIKE|REGEXP|MOD|DIV|BETWEEN|GLOBAL|WHERE|PREWHERE|QUALIFY|ON)$/;
+const IS_PREDICATE_PATTERN =
+	/^\s+(?:(?:NOT\s+)?(?:NULL|TRUE|FALSE|UNKNOWN)|NOT\s+DISTINCT\s+FROM)\b/i;
+const DISTINCT_FROM_PATTERN = /^\s+FROM\b/i;
+const WINDOW_REFERENCE_PATTERN = /^\s*(?:\(|[A-Za-z_`"])/;
+const WINDOW_SYNTAX_PATTERN =
+	/^(?:PARTITION|ORDER|BY|ROWS|RANGE|GROUPS|UNBOUNDED|PRECEDING|FOLLOWING|CURRENT|ROW)$/;
+const INTERVAL_UNIT_PATTERN =
+	/^(?:NANOSECOND|MICROSECOND|MILLISECOND|SECOND|MINUTE|HOUR|DAY|WEEK|MONTH|QUARTER|YEAR)$/;
+const ORDER_MODIFIER_PATTERN =
+	/^(?:ASC|ASCENDING|DESC|DESCENDING|NULLS|COLLATE)$/;
+const GROUP_MODIFIER_PATTERN = /^(?:TOTALS|ROLLUP|CUBE)$/;
+const FILL_MODIFIER_PATTERN = /^(?:FROM|TO|STEP|STALENESS)$/;
+const EXPRESSION_END_TOKEN_PATTERN = /^[A-Za-z0-9_`")\]}]/;
 
 const PLAIN_QUOTED_IDENTIFIER_PATTERN = /^[A-Za-z0-9_.]+$/;
 
@@ -338,7 +354,8 @@ function maskCommentsAndStrings(sql: string): string {
 		}
 
 		if (char === "'") {
-			result += " ";
+			// Keep an opaque operand so aliases after literal expressions stay visible.
+			result += "0";
 			index += 1;
 			while (index < sql.length) {
 				if (sql[index] === "\\") {
@@ -464,18 +481,6 @@ function extractRelationReferences(sql: string): {
 	return refs;
 }
 
-function openParensAt(sql: string, position: number): number[] {
-	const open: number[] = [];
-	for (let i = 0; i < position; i++) {
-		if (sql[i] === "(") {
-			open.push(i);
-		} else if (sql[i] === ")") {
-			open.pop();
-		}
-	}
-	return open;
-}
-
 function hiddenProjectionError(sql: string): string | null {
 	if (COLUMNS_MATCHER_PATTERN.test(sql)) {
 		return "COLUMNS() matchers are not allowed; select explicit columns.";
@@ -515,16 +520,130 @@ function hiddenProjectionError(sql: string): string | null {
 			return "Wildcard arguments are not allowed; pass explicit columns.";
 		}
 	}
+	let scannedUntil = 0;
 	for (const clause of sql.matchAll(ALIAS_FREE_CLAUSE_PATTERN)) {
+		if (clause.index < scannedUntil) {
+			continue;
+		}
 		const start = clause.index + clause[0].length;
-		const body = sql.slice(start, findClauseEnd(sql, start));
-		for (const alias of body.matchAll(ALIAS_KEYWORD_PATTERN)) {
-			const insideCast = openParensAt(body, alias.index).some((open) =>
-				CAST_CALL_PATTERN.test(body.slice(0, open))
-			);
-			if (!insideCast) {
+		scannedUntil = findClauseEnd(sql, start);
+		const body = sql.slice(start, scannedUntil);
+		const orderBy = clause[0].toUpperCase().startsWith("ORDER");
+		const groupBy = clause[0].toUpperCase().startsWith("GROUP");
+		const windowClause = clause[0].toUpperCase() === "WINDOW";
+		const castScopes: boolean[] = [];
+		const caseScopes: number[] = [];
+		const windowScopes: number[] = [];
+		let castTypeDepth: number | undefined;
+		let previous = "";
+		let canEndExpression = false;
+		let functionArgumentStart = false;
+		let opensWindow = false;
+		let interval = false;
+		let withFill = false;
+		for (const match of body.matchAll(CLAUSE_TOKEN_PATTERN)) {
+			const token = match[0].toUpperCase();
+			const identifier = ALIAS_IDENTIFIER_PATTERN.test(token);
+			const castType = castTypeDepth !== undefined;
+			const windowScope = windowScopes.at(-1) === castScopes.length;
+			const windowDefinition = windowClause && castScopes.length === 0;
+			const windowReference =
+				token === "OVER" &&
+				previous === ")" &&
+				WINDOW_REFERENCE_PATTERN.test(body.slice(match.index + token.length));
+			const caseKeyword: boolean =
+				!castType &&
+				((token === "CASE" && !canEndExpression) ||
+					(caseScopes.at(-1) === castScopes.length &&
+						(token === "WHEN" ||
+							token === "THEN" ||
+							token === "ELSE" ||
+							token === "END")));
+			const modifier =
+				(((orderBy && castScopes.length === 0) || windowScope) &&
+					(ORDER_MODIFIER_PATTERN.test(token) ||
+						(previous === "NULLS" &&
+							(token === "FIRST" || token === "LAST")))) ||
+				(castScopes.length === 0 &&
+					(((orderBy || groupBy) && token === "WITH") ||
+						(groupBy &&
+							previous === "WITH" &&
+							GROUP_MODIFIER_PATTERN.test(token)) ||
+						(orderBy && previous === "WITH" && token === "FILL") ||
+						(withFill && FILL_MODIFIER_PATTERN.test(token))));
+			const operator: boolean =
+				token === "AS" ||
+				CLAUSE_OPERATOR_PATTERN.test(token) ||
+				modifier ||
+				windowReference ||
+				(windowScope && WINDOW_SYNTAX_PATTERN.test(token)) ||
+				(token === "DISTINCT" && functionArgumentStart) ||
+				(caseKeyword && token !== "END") ||
+				(token === "IS" &&
+					IS_PREDICATE_PATTERN.test(body.slice(match.index + token.length))) ||
+				(token === "DISTINCT" &&
+					previous === "NOT" &&
+					DISTINCT_FROM_PATTERN.test(body.slice(match.index + token.length))) ||
+				(token === "FROM" && previous === "DISTINCT");
+			const intervalUnit = interval && INTERVAL_UNIT_PATTERN.test(token);
+			if (
+				(castType &&
+					castScopes.length === castTypeDepth &&
+					(token === "AS" || token === ",")) ||
+				(!castType &&
+					((token === "AS" && !castScopes.at(-1) && !windowDefinition) ||
+						(identifier &&
+							canEndExpression &&
+							!operator &&
+							!intervalUnit &&
+							!caseKeyword)))
+			) {
 				return "Aliases are allowed only in SELECT lists, table references and CTE names.";
 			}
+			if (token === "AS" && !castType && !windowDefinition) {
+				castTypeDepth = castScopes.length;
+				interval = false;
+			}
+			if (caseKeyword && token === "CASE") {
+				caseScopes.push(castScopes.length);
+			} else if (caseKeyword && token === "END") {
+				caseScopes.pop();
+			}
+			if (token === "(" || token === "[") {
+				const windowOpen =
+					token === "(" &&
+					(opensWindow || (windowDefinition && previous === "AS"));
+				castScopes.push(token === "(" && previous === "CAST");
+				if (windowOpen) {
+					windowScopes.push(castScopes.length);
+				}
+			} else if (token === ")" || token === "]") {
+				if (windowScope) {
+					windowScopes.pop();
+				}
+				if (castScopes.length === castTypeDepth) {
+					castTypeDepth = undefined;
+				}
+				castScopes.pop();
+			}
+			if (!castType && token === "INTERVAL") {
+				interval = true;
+			} else if (intervalUnit) {
+				interval = false;
+			}
+			withFill ||=
+				!castType && orderBy && previous === "WITH" && token === "FILL";
+			functionArgumentStart =
+				token === "(" &&
+				canEndExpression &&
+				ALIAS_IDENTIFIER_PATTERN.test(previous) &&
+				previous !== "CAST";
+			opensWindow = windowReference;
+			canEndExpression =
+				!operator &&
+				token !== "INTERVAL" &&
+				EXPRESSION_END_TOKEN_PATTERN.test(token);
+			previous = token;
 		}
 	}
 	return null;
