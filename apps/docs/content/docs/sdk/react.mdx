@@ -17,7 +17,7 @@ The Databuddy React SDK provides a component for script injection and hooks for 
   {`bun add @databuddy/sdk`}
 </CodeBlock>
 
-## Quick Start
+## Quick start
 
 Add the `Databuddy` component to your root layout:
 
@@ -40,7 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }`}
 </CodeBlock>
 
-## Databuddy Component
+## Databuddy component
 
 The `Databuddy` component injects the tracking script and configures analytics. It renders nothing to the DOM.
 
@@ -48,11 +48,11 @@ The `Databuddy` component injects the tracking script and configures analytics. 
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `clientId` | `string` | Auto-detected | Your client ID (auto-detects from `NEXT_PUBLIC_DATABUDDY_CLIENT_ID`) |
+| `clientId` | `string` | Auto-detected | Your Client ID (auto-detects from `NEXT_PUBLIC_DATABUDDY_CLIENT_ID`) |
 | `disabled` | `boolean` | `false` | Disable all tracking |
 | `debug` | `boolean` | `false` | Enable debug logging |
 
-### Tracking Features
+### Tracking features
 
 | Prop | Default | Description |
 |------|---------|-------------|
@@ -63,7 +63,7 @@ The `Databuddy` component injects the tracking script and configures analytics. 
 | `trackAttributes` | `false` | Elements with `data-track` attributes |
 | `trackHashChanges` | `false` | Hash changes in the URL |
 
-### Batching & Performance
+### Batching and performance
 
 | Prop | Default | Description |
 |------|---------|-------------|
@@ -79,7 +79,7 @@ The `Databuddy` component injects the tracking script and configures analytics. 
 | `skipPatterns` | `string[]` | Skip tracking on matching paths |
 | `maskPatterns` | `string[]` | Mask sensitive URL segments |
 
-### Full Example
+### Full example
 
 <CodeBlock language="tsx" filename="app/layout.tsx">
   {`import { Databuddy } from "@databuddy/sdk/react";
@@ -106,7 +106,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }`}
 </CodeBlock>
 
-## Tracking Events
+## Tracking events
 
 Import tracker helpers to track custom events:
 
@@ -127,7 +127,7 @@ function SignupButton() {
 
 The identity helpers (`identify`, `setTraits`, `clearProfile`, `getProfileId`) and the flags hooks (`FlagsProvider`, `useFlag`, `useFlags`) are also exported from `@databuddy/sdk/react`.
 
-### Common Patterns
+### Common patterns
 
 <CodeBlock language="tsx">
   {`import { track, trackError } from "@databuddy/sdk";
@@ -162,13 +162,13 @@ try {
 }`}
 </CodeBlock>
 
-## Environment Setup
+## Environment setup
 
 <CodeBlock language="bash" filename=".env.local">
   {`NEXT_PUBLIC_DATABUDDY_CLIENT_ID=your-client-id-here`}
 </CodeBlock>
 
-The component auto-detects the client ID from this environment variable.
+The component auto-detects the Client ID from this environment variable.
 
 ## Pages Router
 
@@ -191,7 +191,7 @@ export default function App({ Component, pageProps }: AppProps) {
 }`}
 </CodeBlock>
 
-## Development Mode
+## Development mode
 
 Disable tracking during development:
 
@@ -202,7 +202,7 @@ Disable tracking during development:
 />`}
 </CodeBlock>
 
-## Data Attributes
+## Data attributes
 
 Enable automatic tracking of elements with `data-track` attributes:
 
@@ -221,13 +221,13 @@ Enable automatic tracking of elements with `data-track` attributes:
 ## Related
 
 <Cards>
-  <Card title="Tracker Helpers" href="/docs/sdk/tracker">
+  <Card title="Tracker helpers" href="/docs/sdk/tracker">
     track, flush, getAnonymousId, and more helper functions
   </Card>
-  <Card title="Feature Flags" href="/docs/sdk/feature-flags">
+  <Card title="Feature flags" href="/docs/sdk/feature-flags">
     Control feature rollouts with FlagsProvider and hooks
   </Card>
-  <Card title="Configuration" href="/docs/sdk/configuration">
+  <Card title="SDK configuration" href="/docs/sdk/configuration">
     Complete configuration reference
   </Card>
 </Cards>

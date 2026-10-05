@@ -1,5 +1,5 @@
 ---
-title: SDK Overview
+title: SDK overview
 description: SDK documentation for tracking analytics across web and server runtimes
 ---
 
@@ -21,49 +21,49 @@ bun add @databuddy/sdk
 npm install @databuddy/sdk`}
 </CodeBlock>
 
-For vanilla JavaScript, no installation needed - load directly from CDN.
+For vanilla JavaScript, no installation is needed. Load it directly from the CDN.
 
-## Quick Start
+## Quick start
 
 <Cards>
-  <Card title="React / Next.js" href="/docs/sdk/react">
+  <Card title="React SDK" href="/docs/sdk/react">
     Component and hooks for React applications
   </Card>
-  <Card title="Nuxt" href="/docs/sdk/nuxt">
+  <Card title="Nuxt module" href="/docs/sdk/nuxt">
     First-class Nuxt module for script injection, SPA navigation, and optional error tracking
   </Card>
-  <Card title="Vue" href="/docs/sdk/vue">
+  <Card title="Vue SDK" href="/docs/sdk/vue">
     Component and composables for Vue applications
   </Card>
   <Card title="Vanilla JavaScript" href="/docs/sdk/vanilla-js">
     CDN script for any website without dependencies
   </Card>
-  <Card title="Node.js / Server" href="/docs/sdk/node">
+  <Card title="Node SDK" href="/docs/sdk/node">
     Server-side tracking for APIs, webhooks, and background jobs
   </Card>
 </Cards>
 
-## Core Features
+## Core features
 
 <Cards>
-  <Card title="Tracker Helpers" href="/docs/sdk/tracker">
+  <Card title="Tracker helpers" href="/docs/sdk/tracker">
     Helper functions: track, flush, getAnonymousId, getTrackingParams
   </Card>
-  <Card title="Feature Flags" href="/docs/sdk/feature-flags">
+  <Card title="Feature flags" href="/docs/sdk/feature-flags">
     Control feature rollouts and A/B testing in React and Vue
   </Card>
-  <Card title="Server Flags" href="/docs/sdk/server-flags">
+  <Card title="Server-side flags" href="/docs/sdk/server-flags">
     Server-side feature flag evaluation for Node.js
   </Card>
   <Card title="DevTools" href="/docs/sdk/devtools">
     Local overlay for events, identity, queues, diagnostics, and flags
   </Card>
-  <Card title="Configuration" href="/docs/sdk/configuration">
+  <Card title="SDK configuration" href="/docs/sdk/configuration">
     All configuration options across platforms
   </Card>
 </Cards>
 
-## Import Paths
+## Import paths
 
 The SDK is organized into submodules for tree-shaking:
 
@@ -127,7 +127,7 @@ await client.track({
 await client.flush(); // Important in serverless!`}
 </CodeBlock>
 
-## TypeScript Support
+## TypeScript support
 
 The SDK is fully typed with excellent TypeScript support:
 
@@ -136,16 +136,16 @@ The SDK is fully typed with excellent TypeScript support:
 import type { CustomEventInput } from "@databuddy/sdk/node";`}
 </CodeBlock>
 
-## Related Documentation
+## Related
 
 <Cards>
-  <Card title="Getting Started" href="/docs/getting-started">
+  <Card title="Getting started" href="/docs/getting-started">
     Quick setup guide and basic configuration
   </Card>
-  <Card title="API Reference" href="/docs/api">
+  <Card title="API reference" href="/docs/api">
     Direct HTTP API for custom implementations
   </Card>
-  <Card title="Dashboard Guide" href="/docs/dashboard">
+  <Card title="Dashboard guide" href="/docs/dashboard">
     Navigate your analytics dashboard
   </Card>
 </Cards>

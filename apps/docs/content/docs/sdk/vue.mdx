@@ -8,7 +8,7 @@ import { Callout, CodeBlock, Card, Cards } from "@/components/docs";
 The Databuddy Vue SDK provides a component for script injection and composables for feature flags. Works with Vue 3.
 
 <Callout type="info">
-  Using Nuxt? The dedicated **[`@databuddy/nuxt`](/docs/sdk/nuxt)** module is a better fit — zero config, auto-imports, and no `app.vue` changes needed.
+  Using Nuxt? The dedicated **[`@databuddy/nuxt`](/docs/sdk/nuxt)** module is a better fit: zero config, auto-imports, and no `app.vue` changes needed.
 </Callout>
 
 <Callout type="info">
@@ -21,7 +21,7 @@ The Databuddy Vue SDK provides a component for script injection and composables 
   {`bun add @databuddy/sdk`}
 </CodeBlock>
 
-## Quick Start
+## Quick start
 
 Add the `Databuddy` component to your App.vue:
 
@@ -42,7 +42,7 @@ const clientId = import.meta.env.VITE_DATABUDDY_CLIENT_ID;
 </template>`}
 </CodeBlock>
 
-## Databuddy Component
+## Databuddy component
 
 The `Databuddy` component injects the tracking script and configures analytics.
 
@@ -50,11 +50,11 @@ The `Databuddy` component injects the tracking script and configures analytics.
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `client-id` | `string` | Required | Your client ID |
+| `client-id` | `string` | Required | Your Client ID |
 | `disabled` | `boolean` | `false` | Disable all tracking |
 | `debug` | `boolean` | `false` | Enable debug logging |
 
-### Tracking Features
+### Tracking features
 
 | Prop | Default | Description |
 |------|---------|-------------|
@@ -64,7 +64,7 @@ The `Databuddy` component injects the tracking script and configures analytics.
 | `track-interactions` | `false` | Button clicks and form submissions |
 | `track-attributes` | `false` | Elements with `data-track` attributes |
 
-### Batching & Performance
+### Batching and performance
 
 | Prop | Default | Description |
 |------|---------|-------------|
@@ -73,7 +73,7 @@ The `Databuddy` component injects the tracking script and configures analytics.
 | `batch-timeout` | `5000` | Batch timeout in ms |
 | `sampling-rate` | `1.0` | Event sampling rate (0.0-1.0) |
 
-### Full Example
+### Full example
 
 <CodeBlock language="html" filename="App.vue">
   {`<script setup>
@@ -97,7 +97,7 @@ const isDevelopment = import.meta.env.DEV;
 </template>`}
 </CodeBlock>
 
-## Tracking Events
+## Tracking events
 
 Use the global tracker or import helpers:
 
@@ -132,13 +132,13 @@ function handleClick() {
 </script>`}
 </CodeBlock>
 
-## Environment Setup
+## Environment setup
 
 <CodeBlock language="bash" filename=".env">
   {`VITE_DATABUDDY_CLIENT_ID=your-client-id-here`}
 </CodeBlock>
 
-## Feature Flags
+## Feature flags
 
 Install the flags plugin in your app entry, then use the `useFlag` composable:
 
@@ -175,11 +175,11 @@ const { on: darkMode, loading } = useFlag("dark-mode");
 
 `useFlag` returns `{ on, loading, state }` as refs. Destructured refs unwrap automatically in templates; in script code, read `darkMode.value` and `loading.value`.
 
-See [Feature Flags](/docs/sdk/feature-flags) for complete Vue flag documentation.
+See [feature flags](/docs/sdk/feature-flags) for complete Vue flag documentation.
 
-## Privacy Patterns
+## Privacy patterns
 
-### Skip Patterns
+### Skip patterns
 
 <CodeBlock language="html">
   {`<Databuddy
@@ -188,7 +188,7 @@ See [Feature Flags](/docs/sdk/feature-flags) for complete Vue flag documentation
 />`}
 </CodeBlock>
 
-### Mask Patterns
+### Mask patterns
 
 <CodeBlock language="html">
   {`<Databuddy
@@ -200,16 +200,16 @@ See [Feature Flags](/docs/sdk/feature-flags) for complete Vue flag documentation
 ## Related
 
 <Cards>
-  <Card title="Nuxt Module" href="/docs/sdk/nuxt">
+  <Card title="Nuxt module" href="/docs/sdk/nuxt">
     Zero-config Nuxt integration with auto-imports and no app.vue changes
   </Card>
-  <Card title="Tracker Helpers" href="/docs/sdk/tracker">
+  <Card title="Tracker helpers" href="/docs/sdk/tracker">
     track, flush, getAnonymousId, and more helper functions
   </Card>
-  <Card title="Feature Flags" href="/docs/sdk/feature-flags">
+  <Card title="Feature flags" href="/docs/sdk/feature-flags">
     Feature flag composables for Vue
   </Card>
-  <Card title="Configuration" href="/docs/sdk/configuration">
+  <Card title="SDK configuration" href="/docs/sdk/configuration">
     Complete configuration reference
   </Card>
 </Cards>

@@ -1,5 +1,5 @@
 ---
-title: Tracking Recipes
+title: Tracking recipes
 description: Copyable recipes for tracking custom events and user interactions
 ---
 
@@ -8,7 +8,7 @@ import { Callout } from "@/components/docs";
 import { Card, Cards } from "@/components/docs";
 
 <Callout type="info">
-  <strong>TL;DR</strong> — **Tracking recipes** you can copy and customize for custom events in your application. **Track only what you need** and **avoid duplicate events**.
+  <strong>TL;DR:</strong> **Tracking recipes** you can copy and customize for custom events in your application. **Track only what you need** and **avoid duplicate events**.
 </Callout>
 
 These recipes show common ways to track user interactions and application events. Copy and customize them for your needs.
@@ -16,26 +16,26 @@ These recipes show common ways to track user interactions and application events
 ## Recipes
 
 <Cards>
-  <Card title="Toast Tracking" href="/docs/hooks/toast-tracking">
+  <Card title="Toast tracking" href="/docs/hooks/toast-tracking">
     Track toast notifications automatically to understand user feedback patterns and error rates
   </Card>
-  <Card title="Form Tracking" href="/docs/hooks/form-tracking">
+  <Card title="Form tracking" href="/docs/hooks/form-tracking">
     Track form submissions with validation state and error patterns
   </Card>
-  <Card title="Modal Tracking" href="/docs/hooks/modal-tracking">
+  <Card title="Modal tracking" href="/docs/hooks/modal-tracking">
     Track when modals and dialogs are opened and closed
   </Card>
-  <Card title="Feature Usage" href="/docs/hooks/feature-usage">
+  <Card title="Feature usage" href="/docs/hooks/feature-usage">
     Track when users interact with specific features
   </Card>
-  <Card title="Feedback Tracking" href="/docs/hooks/feedback-tracking">
+  <Card title="Feedback tracking" href="/docs/hooks/feedback-tracking">
     Track user feedback with server actions and client hooks
   </Card>
 </Cards>
 
-## Best Practices
+## Best practices
 
-### 1. Prevent Duplicate Events
+### 1. Prevent duplicate events
 
 Use refs or Sets to track what's already been tracked:
 
@@ -49,20 +49,20 @@ if (!tracked.current.has(eventId)) {
 }`}
 />
 
-### 2. Track Only Essential Data
+### 2. Track only essential data
 
 Avoid tracking sensitive information or excessive data:
 
 <CodeBlock 
   language="tsx"
-  code={`// ✅ Good - Only essential properties
+  code={`// ✅ Good: only essential properties
 track("purchase_completed", {
   order_id: "ORD-123",
   revenue: 99.99,
   currency: "USD",
 });
 
-// ❌ Avoid - Too much data, includes PII
+// ❌ Avoid: too much data, includes PII
 track("purchase_completed", {
   order_id: "ORD-123",
   revenue: 99.99,
@@ -73,24 +73,24 @@ track("purchase_completed", {
 });`}
 />
 
-### 3. Use Consistent Event Names
+### 3. Use consistent event names
 
-Follow a naming convention (e.g., `snake_case`):
+Follow a naming convention (e.g. `snake_case`):
 
 <CodeBlock 
   language="tsx"
-  code={`// ✅ Good - Consistent naming
+  code={`// ✅ Good: consistent naming
 track("button_clicked");
 track("form_submitted");
 track("modal_opened");
 
-// ❌ Avoid - Inconsistent naming
+// ❌ Avoid: inconsistent naming
 track("buttonClick");
 track("form-submitted");
 track("ModalOpened");`}
 />
 
-### 4. Handle Errors Gracefully
+### 4. Handle errors gracefully
 
 Don't let tracking errors break your app:
 
@@ -101,14 +101,14 @@ Don't let tracking errors break your app:
     track(eventName, properties);
   } catch (error) {
     console.error("Tracking error:", error);
-    // Don't throw - tracking failures shouldn't break the app
+    // Don't throw: tracking failures shouldn't break the app
   }
 }, []);`}
 />
 
 The SDK also exports `trackError` for reporting handled errors and `flush` for sending queued events immediately.
 
-### 5. Conditional Tracking
+### 5. Conditional tracking
 
 Only track in production or when explicitly enabled. The `<Databuddy />` component's `disabled` prop already covers dev-environment gating; use a check like this only for tracking calls outside the component:
 
@@ -135,16 +135,16 @@ Only track in production or when explicitly enabled. The `<Databuddy />` compone
 }`}
 />
 
-## Related Documentation
+## Related
 
 <Cards>
-  <Card title="SDK Reference" href="/docs/sdk">
+  <Card title="SDK reference" href="/docs/sdk">
     Complete SDK API reference and configuration options
   </Card>
-  <Card title="React Integration" href="/docs/sdk/react">
+  <Card title="React SDK" href="/docs/sdk/react">
     React-specific integration guide and examples
   </Card>
-  <Card title="Tracker Helpers" href="/docs/sdk/tracker">
+  <Card title="Tracker helpers" href="/docs/sdk/tracker">
     Helper functions for tracking custom events
   </Card>
 </Cards>

@@ -7,9 +7,9 @@ import { Card, Cards } from "@/components/docs";
 
 Add Databuddy's cookieless product analytics to your Shopify store to track customer behavior, e-commerce events, and improve conversion rates with configurable collection and privacy controls.
 
-## Installation Methods
+## Installation methods
 
-### Method 1: Theme Code (Recommended)
+### Method 1: Theme code (recommended)
 
 Add Databuddy directly to your Shopify theme:
 
@@ -53,9 +53,9 @@ If you're using Google Tag Manager:
 3. Set trigger to **All Pages**
 4. Publish the container
 
-## E-commerce Tracking
+## E-commerce tracking
 
-### Track Product Views
+### Track product views
 
 Add to your `product.liquid` template:
 
@@ -77,7 +77,7 @@ Add to your `product.liquid` template:
 </script>
 ```
 
-### Track Add to Cart
+### Track add to cart
 
 Add to your product form or use data attributes:
 
@@ -112,7 +112,7 @@ Add to your product form or use data attributes:
 </script>
 ```
 
-### Track Purchases
+### Track purchases
 
 Scripts added to `theme.liquid` do not run on checkout or the thank-you page, so the storefront snippet above cannot see purchases. Checkout events require Shopify's [Web Pixels API](https://shopify.dev/docs/api/web-pixels-api).
 
@@ -139,9 +139,9 @@ analytics.subscribe('checkout_completed', (event) => {
 });
 ```
 
-## Customer Behavior Tracking
+## Customer behavior tracking
 
-### Track Search Events
+### Track search events
 
 Add to your `search.liquid` template:
 
@@ -161,7 +161,7 @@ Add to your `search.liquid` template:
 {% endif %}
 ```
 
-### Track Collection Views
+### Track collection views
 
 Add to your `collection.liquid` template:
 
@@ -180,7 +180,7 @@ Add to your `collection.liquid` template:
 </script>
 ```
 
-### Track Newsletter Signups
+### Track newsletter signups
 
 For newsletter forms:
 
@@ -197,9 +197,9 @@ For newsletter forms:
 </form>
 ```
 
-## Advanced Configuration
+## Advanced configuration
 
-### Customer Identification
+### Customer identification
 
 Track logged-in customers:
 
@@ -222,7 +222,7 @@ Track logged-in customers:
 {% endif %}
 ```
 
-### Cart Abandonment Tracking
+### Cart abandonment tracking
 
 Track when users add items but don't complete purchase:
 
@@ -241,9 +241,9 @@ Track when users add items but don't complete purchase:
 </script>
 ```
 
-## Shopify Plus Features
+## Shopify Plus features
 
-### Checkout Extensions
+### Checkout extensions
 
 For Shopify Plus stores using checkout extensions:
 
@@ -262,12 +262,12 @@ extension('purchase.checkout.block.render', (root, api) => {
 });
 ```
 
-### Flow Integration
+### Flow integration
 
 Use Shopify Flow to trigger Databuddy events:
 
 1. Create a new Flow in Shopify admin
-2. Set trigger (e.g., "Order created")
+2. Set trigger (e.g. "Order created")
 3. Add HTTP request action:
    - URL: `https://basket.databuddy.cc/track`
    - Method: POST
@@ -286,9 +286,9 @@ Use Shopify Flow to trigger Databuddy events:
 }
 ```
 
-## Performance Optimization
+## Performance optimization
 
-### Lazy Loading
+### Lazy loading
 
 Load Databuddy after critical resources:
 
@@ -306,7 +306,7 @@ Load Databuddy after critical resources:
 </script>
 ```
 
-### Mobile Optimization
+### Mobile optimization
 
 Optimize for mobile users:
 
@@ -321,13 +321,13 @@ Optimize for mobile users:
 ></script>
 ```
 
-## Compliance and Privacy
+## Compliance and privacy
 
-### GDPR Compliance
+### GDPR compliance
 
 Review your Shopify privacy and consent configuration before enabling collection. Databuddy uses browser storage instead of analytics cookies; optional customer identification and order properties may contain personal data. See the [web analytics privacy guide](/docs/compliance/gdpr-compliance-guide).
 
-### Cookie Consent Integration
+### Cookie consent integration
 
 If your setup requires prior consent, load the tracker from your consent manager’s granted callback. The event below is illustrative; connect it to your actual consent manager and handle withdrawal as well:
 
@@ -348,7 +348,7 @@ document.addEventListener('cookieConsentAccepted', initializeDatabuddy);
 
 ## Troubleshooting
 
-### Common Issues
+### Common issues
 
 **Script Not Loading**: Check if your theme has Content Security Policy restrictions.
 
@@ -365,7 +365,7 @@ Test your implementation:
 3. Verify events in your Databuddy dashboard
 4. Test on mobile devices
 
-## Related Integrations
+## Related
 
 <Cards>
   <Card title="Next.js" href="/docs/Integrations/nextjs">

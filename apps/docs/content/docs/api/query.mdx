@@ -1,5 +1,5 @@
 ---
-title: Analytics Queries
+title: Analytics queries
 description: Query website analytics data with flexible parameters and filters
 ---
 
@@ -16,7 +16,7 @@ The Query API lets you fetch analytics data for your websites with flexible date
 | POST | `/v1/query/compile` | Validate and compile a query without executing it |
 | POST | `/v1/query` | Execute analytics query |
 
-## List Websites
+## List websites
 
 Get all websites you have access to:
 
@@ -44,7 +44,7 @@ Get all websites you have access to:
 }`}
 />
 
-## Get Query Types
+## Get query types
 
 Discover available query types and their configurations. This endpoint is **public** and doesn't require authentication.
 
@@ -76,7 +76,7 @@ Set `include_meta=true` to get descriptions, output fields, and visualization hi
 }`}
 />
 
-## Execute Query
+## Execute query
 
 Query analytics data with full parameter control:
 
@@ -85,7 +85,7 @@ Query analytics data with full parameter control:
   code="POST /v1/query?website_id={id}"
 />
 
-**Query Parameters:**
+**Query parameters:**
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
@@ -97,7 +97,7 @@ Query analytics data with full parameter control:
 
 *One of `website_id`, `link_id`, `schedule_id`, or `organization_id` is required unless the signed-in session or global API key supplies an organization context.
 
-**Request Body:**
+**Request body:**
 
 <CodeBlock 
   language="json"
@@ -118,7 +118,7 @@ Query analytics data with full parameter control:
 }`}
 />
 
-**Request Body Fields:**
+**Request body fields:**
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -139,7 +139,7 @@ Query analytics data with full parameter control:
   Error tracking starts on the Hobby plan. On the free plan, every query type in the `Errors` category returns `402` with code `FEATURE_UNAVAILABLE`, for website and organization queries alike. `GET /v1/query/types?include_meta=true` lists each type's category.
 </Callout>
 
-## Date Presets
+## Date presets
 
 Instead of specifying `startDate` and `endDate`, use a preset for common date ranges:
 
@@ -168,7 +168,7 @@ Instead of specifying `startDate` and `endDate`, use a preset for common date ra
 }`}
 />
 
-## Parameters with Custom Date Ranges
+## Parameters with custom date ranges
 
 Each parameter can have its own date range:
 
@@ -189,7 +189,7 @@ Each parameter can have its own date range:
 }`}
 />
 
-## Response Format
+## Response format
 
 <CodeBlock 
   language="json"
@@ -235,7 +235,7 @@ Each parameter can have its own date range:
   The top-level `success: true` means the request was valid. Check each parameter's `success` field to confirm individual query results.
 </Callout>
 
-## Batch Queries
+## Batch queries
 
 Execute multiple queries in a single request by sending an array:
 
@@ -259,7 +259,7 @@ Execute multiple queries in a single request by sending an array:
 ]`}
 />
 
-**Batch Response:**
+**Batch response:**
 
 <CodeBlock 
   language="json"
@@ -281,9 +281,9 @@ Execute multiple queries in a single request by sending an array:
 }`}
 />
 
-## Filter Operations
+## Filter operations
 
-| Operator | Description | Example Value |
+| Operator | Description | Example value |
 |----------|-------------|---------------|
 | `eq` | Equals | `"US"` |
 | `ne` | Not equals | `"bot"` |
@@ -293,9 +293,9 @@ Execute multiple queries in a single request by sending an array:
 | `in` | Value in array | `["US", "CA", "UK"]` |
 | `not_in` | Value not in array | `["bot", "crawler"]` |
 
-## Common Filter Fields
+## Common filter fields
 
-| Field | Available On | Example |
+| Field | Available on | Example |
 |-------|--------------|---------|
 | `country` | Most queries | `{"field": "country", "op": "eq", "value": "US"}` |
 | `device_type` | Most queries | `{"field": "device_type", "op": "in", "value": ["mobile", "tablet"]}` |
@@ -312,8 +312,8 @@ Execute multiple queries in a single request by sending an array:
 
 Control time-based aggregation:
 
-- `"daily"` — Group by day (default)
-- `"hourly"` — Group by hour (max 30 day range)
+- `"daily"`: group by day (default)
+- `"hourly"`: group by hour (max 30 day range)
 
 <CodeBlock 
   language="json"

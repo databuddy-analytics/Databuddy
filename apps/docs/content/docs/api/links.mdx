@@ -1,5 +1,5 @@
 ---
-title: Link Analytics
+title: Link analytics
 description: Query analytics for shortened links
 ---
 
@@ -9,11 +9,11 @@ Query click analytics for your shortened links using the same query API, with `l
 
 ## External ID
 
-Links support an optional **external ID** — a third-party identifier (e.g. company ID, campaign ID, partner ID) you can use to:
+Links support an optional **external ID**, a third-party identifier (e.g. company ID, campaign ID, partner ID) you can use to:
 
-- **Filter invites** — Companies can tag invite links with their ID and list all links for that company
-- **Attribute traffic** — Query which external entity drove clicks
-- **Integrate** — Sync with your CRM, partner dashboard, or internal systems
+- **Filter invites**: companies can tag invite links with their ID and list all links for that company
+- **Attribute traffic**: query which external entity drove clicks
+- **Integrate**: sync with your CRM, partner dashboard, or internal systems
 
 Set `externalId` when creating or updating a link. Use `externalId` in the list endpoint to filter:
 
@@ -34,14 +34,14 @@ Set `externalId` when creating or updating a link. Use `externalId` in the list 
 }`}
 />
 
-## Query Link Analytics
+## Query link analytics
 
 <CodeBlock 
   language="http"
   code="POST /v1/query?link_id={link_id}"
 />
 
-**Request Body:**
+**Request body:**
 
 <CodeBlock 
   language="json"
@@ -68,27 +68,27 @@ Time-series queries support hourly or daily granularity:
 }`}
 />
 
-- `"daily"` — Group by day (default)
-- `"hourly"` — Group by hour (max 30 day range)
+- `"daily"`: group by day (default)
+- `"hourly"`: group by hour (max 30 day range)
 
 When using hourly granularity, `link_clicks_by_day` returns data points for each hour instead of each day.
 
-## Available Query Types
+## Available query types
 
 | Type | Description | Granularity |
 |------|-------------|-------------|
-| `link_total_clicks` | Total click count for the link | — |
+| `link_total_clicks` | Total click count for the link | None |
 | `link_clicks_by_day` | Time-series breakdown of clicks | hour, day |
 | `link_referrers_by_day` | Time-series count of unique referrers | hour, day |
 | `link_countries_by_day` | Time-series count of unique countries | hour, day |
-| `link_top_referrers` | Top traffic sources | — |
-| `link_top_countries` | Top countries by clicks | — |
-| `link_top_regions` | Top regions by clicks | — |
-| `link_top_cities` | Top cities by clicks | — |
-| `link_top_devices` | Device type breakdown (mobile, desktop, tablet) | — |
-| `link_top_browsers` | Browser breakdown | — |
+| `link_top_referrers` | Top traffic sources | None |
+| `link_top_countries` | Top countries by clicks | None |
+| `link_top_regions` | Top regions by clicks | None |
+| `link_top_cities` | Top cities by clicks | None |
+| `link_top_devices` | Device type breakdown (mobile, desktop, tablet) | None |
+| `link_top_browsers` | Browser breakdown | None |
 
-## Example Response
+## Example response
 
 <CodeBlock 
   language="json"
@@ -128,7 +128,7 @@ When using hourly granularity, `link_clicks_by_day` returns data points for each
 }`}
 />
 
-### Hourly Response Example
+### Hourly response example
 
 With `"granularity": "hourly"`, time-series queries return data points for each hour:
 
@@ -145,7 +145,7 @@ With `"granularity": "hourly"`, time-series queries return data points for each 
 }`}
 />
 
-## Outbound Link Tracking
+## Outbound link tracking
 
 For tracking which external links users click on your website (not link shortener), use these query types with `website_id`:
 
@@ -162,7 +162,7 @@ For tracking which external links users click on your website (not link shortene
   "https://api.databuddy.cc/v1/query?website_id=web_123"`}
 />
 
-### Outbound Links Response
+### Outbound links response
 
 <CodeBlock 
   language="json"
@@ -201,9 +201,9 @@ For tracking which external links users click on your website (not link shortene
 }`}
 />
 
-## Differences: Link Shortener vs Outbound Links
+## Differences: link shortener vs outbound links
 
-| Feature | Link Shortener (`link_id`) | Outbound Links (`website_id`) |
+| Feature | Link shortener (`link_id`) | Outbound links (`website_id`) |
 |---------|---------------------------|-------------------------------|
 | Purpose | Clicks on your shortened URLs | Clicks on external links from your site |
 | Query parameter | `link_id` | `website_id` |

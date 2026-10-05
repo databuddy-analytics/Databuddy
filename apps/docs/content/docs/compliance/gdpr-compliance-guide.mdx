@@ -1,28 +1,28 @@
 ---
-title: "Web Analytics Privacy: Consent and GDPR Considerations"
+title: "Web analytics privacy: consent and GDPR considerations"
 description: "Review Databuddy's collection, browser storage, optional profiles, consent behavior, and data-processing responsibilities before deploying analytics."
 icon: "Shield"
 ---
 
 Databuddy provides cookieless analytics and configurable collection controls. Those features do not automatically make a website compliant or exempt its analytics from consent requirements.
 
-## GDPR and Web Analytics
+## GDPR and web analytics
 
 GDPR governs processing of personal data within its scope. Browser-storage and tracking rules also matter: replacing cookies with localStorage does not, by itself, remove those obligations.
 
-### What Counts as Personal Data?
+### What counts as personal data?
 
 Names and emails are direct examples. User IDs, online identifiers, location, and event details can also relate to an identifiable person. Hashing an identifier or omitting a name does not necessarily make the data anonymous.
 
 Review the complete payload: URLs, page titles, attribution parameters, custom properties, errors, and optional user profiles. Read the [GDPR text](https://eur-lex.europa.eu/eli/reg/2016/679/oj) for its definitions and scope.
 
-### Legal Basis for Processing
+### Legal basis for processing
 
 The website owner determines the purpose and legal basis for collection. A basis for processing personal data does not automatically exempt access to browser storage from consent requirements.
 
 Some jurisdictions allow limited audience measurement without consent when specific conditions are met. Do not assume your configuration qualifies. [CNIL's analytics guidance](https://www.cnil.fr/en/sheet-ndeg16-use-analytics-your-websites-and-applications) explains conditional exemptions and national variation.
 
-## Databuddy's Collection Controls
+## Databuddy's collection controls
 
 - The browser tracker uses localStorage for visitor information and sessionStorage for session information, without analytics cookies.
 - Visitor IDs are salted and hashed by default; the website's `anonymizeVisitorIds` setting can change this behavior.
@@ -33,33 +33,33 @@ Some jurisdictions allow limited audience measurement without consent when speci
 
 See [Security & Privacy](/docs/security) for configuration details and the [Data Policy](/data-policy) for processing and service-provider roles.
 
-## Implementation Guide
+## Implementation guide
 
-### Step 1: Assess Current Analytics
+### Step 1: assess current analytics
 
 List the features you use, the information each sends, storage and retention, recipients, and processing locations. Include AI analysis and configured delivery integrations in that review.
 
-### Step 2: Configure Collection and Consent
+### Step 2: configure collection and consent
 
 Enable only the measurements you need. Review path masking, custom properties, user identification, and visitor-ID anonymization settings.
 
 Where prior consent is required, delay loading the tracker until consent is granted. Test both refusal and withdrawal in the browser. A privacy notice or opt-out button alone is not a substitute for prior consent when it is required.
 
-### Step 3: Update Your Privacy Notice
+### Step 3: update your privacy notice
 
 Describe what you actually collect, why, the legal basis, retention, recipients, and how visitors can exercise their rights. Include optional profiles and AI processing when enabled. Avoid copying a notice that says all data is anonymous without checking your own setup.
 
-### Step 4: Verify the Implementation
+### Step 4: verify the implementation
 
 Inspect network requests and browser storage on representative pages. Test custom events, errors, identification, opt-out, and consent withdrawal. Check that sensitive information is masked or excluded before it is sent.
 
-## Data Subject Rights
+## Data subject rights
 
 Visitors should contact the website owner about information collected through that website. Databuddy assists customers with requests concerning information processed on their behalf. The ability to locate a record depends on the identifiers and information available; the absence of a name does not itself remove legal protections.
 
 Our [Privacy Policy](/privacy) and [Data Processing Agreement](/dpa) describe the respective responsibilities. For assistance, contact [privacy@databuddy.cc](mailto:privacy@databuddy.cc).
 
-## Frequently Asked Questions
+## Frequently asked questions
 
 ### Do I need a consent banner with Databuddy?
 

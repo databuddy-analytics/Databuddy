@@ -1,7 +1,7 @@
 ---
-title: Getting Started
+title: Getting started
 seoTitle: "Install Databuddy: Next.js, React, Vue, or Script Tag"
-description: "Add Databuddy to Next.js, React, Vue, or any site with a script tag or the npm SDK. Track pageviews and custom events without cookies. Free to 10k events."
+description: "Add Databuddy to Next.js, React, Vue, or any site with a script tag or the npm SDK. Track pageviews and custom events without cookies. Free to 10,000 events."
 ---
 
 import { Step, Steps } from "@/components/docs";
@@ -11,14 +11,14 @@ import { Card, Cards } from "@/components/docs";
 import { CodeBlock } from "@/components/docs";
 import { LeapComponent } from "@/components/docs";
 
-This guide takes you from a new Databuddy account to your first tracked page view.
+This guide takes you from a new Databuddy account to your first tracked pageview.
 
 <LeapComponent/>
 
 <Steps>
 <Step>
 
-## Create Your Account
+## Create your account
 
 1. Go to [app.databuddy.cc](https://app.databuddy.cc)
 2. Sign up for a free account
@@ -32,7 +32,7 @@ This guide takes you from a new Databuddy account to your first tracked page vie
 
 Choose the install method for your app. For Vue, follow the [Vue SDK guide](/docs/sdk/vue).
 
-<Tabs items={['React/Next.js', 'Script Tag']}>
+<Tabs items={['React/Next.js', 'Script tag']}>
 <Tab value="React/Next.js">
 
 Install the official Databuddy SDK:
@@ -50,7 +50,7 @@ yarn add @databuddy/sdk`}
 />
 
 </Tab>
-<Tab value="Script Tag">
+<Tab value="Script tag">
 
 For any website, use the script tag method:
 
@@ -71,9 +71,9 @@ For any website, use the script tag method:
 </Step>
 <Step>
 
-## Add Tracking
+## Add tracking
 
-<Tabs items={['React/Next.js', 'Script Tag']}>
+<Tabs items={['React/Next.js', 'Script tag']}>
 <Tab value="React/Next.js">
 
 Add the `<Databuddy />` component once in your root layout:
@@ -104,7 +104,7 @@ Add the `<Databuddy />` component once in your root layout:
   }`}
 />
 
-**Environment Variables:**
+**Environment variables:**
 
 <CodeBlock
   language="bash"
@@ -113,7 +113,7 @@ Add the `<Databuddy />` component once in your root layout:
 />
 
 </Tab>
-<Tab value="Script Tag">
+<Tab value="Script tag">
 
 Add the script to your HTML `<head>`:
 
@@ -152,14 +152,14 @@ Add the script to your HTML `<head>`:
 </Step>
 <Step>
 
-## Verify Installation
+## Verify installation
 
 Check that page tracking works:
 
 1. **Visit your website** in a new browser tab
 2. **Open your Databuddy dashboard** at [app.databuddy.cc](https://app.databuddy.cc)
-3. **Check Real-time data** - you should see yourself as an active visitor
-4. **Navigate between pages** - Databuddy records route changes automatically
+3. **Check real-time data**: you should see yourself as an active visitor
+4. **Navigate between pages**: Databuddy records route changes automatically
 
 <Callout type="success">
   If you see real-time data in your dashboard, congratulations! Databuddy is now
@@ -169,9 +169,9 @@ Check that page tracking works:
 </Step>
 </Steps>
 
-## Track Your First Custom Event
+## Track your first custom event
 
-<Tabs items={['React/Next.js', 'Script Tag']}>
+<Tabs items={['React/Next.js', 'Script tag']}>
 <Tab value="React/Next.js">
 
 <CodeBlock
@@ -199,7 +199,7 @@ export function SignupButton() {
 />
 
 </Tab>
-<Tab value="Script Tag">
+<Tab value="Script tag">
 
 <CodeBlock
   language="html"
@@ -224,22 +224,22 @@ export function SignupButton() {
   plan, status, or source.
 </Callout>
 
-## What's Next?
+## Related
 
 <Cards>
-  <Card title="API Playground" href="/api">
+  <Card title="API playground" href="/api">
     Test endpoints interactively and explore query types with real data
   </Card>
-  <Card title="SDK Configuration" href="/docs/sdk/configuration">
+  <Card title="SDK configuration" href="/docs/sdk/configuration">
     Explore all SDK configuration props and options
   </Card>
-  <Card title="Dashboard Guide" href="/docs/dashboard">
+  <Card title="Dashboard guide" href="/docs/dashboard">
     Learn to navigate your analytics dashboard and its features
   </Card>
-  <Card title="Tracker Helpers" href="/docs/sdk/tracker">
+  <Card title="Tracker helpers" href="/docs/sdk/tracker">
     Use helper methods like track, flush, and getAnonymousId
   </Card>
-  <Card title="Security & Privacy" href="/docs/security">
+  <Card title="Security and privacy" href="/docs/security">
     Configure privacy settings and GDPR compliance
   </Card>
 </Cards>
@@ -248,10 +248,10 @@ export function SignupButton() {
 
 **Not seeing data in your dashboard?**
 
-1. **Check your Client ID** - Make sure it matches this website
-2. **Test manually** - Try `db.track('test', {})` in your browser console
-3. **Check Network tab** - Look for requests to `basket.databuddy.cc`
-4. **Review environment** - Make sure tracking isn't disabled in production
+1. **Check your Client ID**: make sure it matches this website
+2. **Test manually**: try `db.track('test', {})` in your browser console
+3. **Check the Network tab**: look for requests to `basket.databuddy.cc`
+4. **Review environment**: make sure tracking isn't disabled in production
 
 <Callout type="info">
   Need help? Join our [Discord community](https://discord.gg/JTk7a38tCZ) or

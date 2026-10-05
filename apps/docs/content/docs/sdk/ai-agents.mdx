@@ -1,5 +1,5 @@
 ---
-title: AI Agents
+title: AI agents
 description: See which AI products read your site, which pages and formats they fetch, and how many visitors they send
 ---
 
@@ -81,7 +81,7 @@ Select the **Static Files**, **Functions**, **Edge Functions** and **Rewrites** 
 
 Logs don't include the `Accept` header, so markdown is recognized from `.md` and `.mdx` paths only, and signed agent browsers look like regular Chrome. In exchange, drains also store the HTTP status each agent got, so you can ask the assistant which pages return 404 to AI crawlers.
 
-### Cloudflare Workers, Hono and other fetch handlers
+### Cloudflare Workers, Hono, and other fetch handlers
 
 <CodeBlock language="ts">
   {`import { trackAgents } from "@databuddy/sdk/agents";
