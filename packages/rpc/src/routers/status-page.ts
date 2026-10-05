@@ -303,7 +303,7 @@ export const statusPageRouter = {
 			if (!isStorageConfigured()) {
 				throw rpcError.serviceUnavailable(
 					60,
-					"Asset uploads are not available because object storage is not configured."
+					"Image uploads are not set up on this Databuddy instance. Ask your administrator to configure file storage."
 				);
 			}
 
@@ -325,7 +325,7 @@ export const statusPageRouter = {
 			const organizationId =
 				input.organizationId?.trim() || context.organizationId;
 			if (!organizationId) {
-				throw rpcError.badRequest("Organization ID is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			await withWorkspace(context, {
@@ -340,7 +340,9 @@ export const statusPageRouter = {
 				.returning()
 				.catch((error) => {
 					throw isSlugConflict(error)
-						? rpcError.badRequest("Slug is already taken")
+						? rpcError.badRequest(
+								"This status page address is already taken. Pick a different slug."
+							)
 						: error;
 				});
 
@@ -374,7 +376,9 @@ export const statusPageRouter = {
 				.returning()
 				.catch((error) => {
 					throw isSlugConflict(error)
-						? rpcError.badRequest("Slug is already taken")
+						? rpcError.badRequest(
+								"This status page address is already taken. Pick a different slug."
+							)
 						: error;
 				});
 
@@ -462,7 +466,7 @@ export const statusPageRouter = {
 					const websiteBound = schedules.filter((s) => s.websiteId !== null);
 					if (websiteBound.length > 0) {
 						throw rpcError.badRequest(
-							`Cannot transfer website-linked monitors: ${describeSchedules(websiteBound)}. Transfer the website instead, or remove these monitors from the page first.`
+							`Some monitors on this page belong to a website and cannot move on their own: ${describeSchedules(websiteBound)}. Transfer the website instead, or remove these monitors from the page first.`
 						);
 					}
 
@@ -483,7 +487,7 @@ export const statusPageRouter = {
 						);
 						const shared = schedules.filter((s) => sharedIds.has(s.id));
 						throw rpcError.badRequest(
-							`Cannot transfer monitors used by other status pages: ${describeSchedules(shared)}. Remove them from the other pages first, or transfer without monitors.`
+							`Some monitors are also used by other status pages: ${describeSchedules(shared)}. Remove them from the other pages first, or transfer without monitors.`
 						);
 					}
 
@@ -549,7 +553,7 @@ export const statusPageRouter = {
 
 			if (schedule.organizationId !== statusPage.organizationId) {
 				throw rpcError.forbidden(
-					"Uptime schedule does not belong to this status page's organization"
+					"This monitor belongs to a different organization than the status page. Pick a monitor from the same organization."
 				);
 			}
 
@@ -562,7 +566,9 @@ export const statusPageRouter = {
 						error,
 						"status_page_monitors_page_schedule_unique"
 					)
-						? rpcError.badRequest("Monitor is already on this status page")
+						? rpcError.badRequest(
+								"This monitor is already on this status page."
+							)
 						: error;
 				});
 
@@ -703,7 +709,7 @@ export const statusPageRouter = {
 				});
 				if (ownedMonitors.length !== monitorIds.length) {
 					throw rpcError.badRequest(
-						"Affected monitors must belong to this status page"
+						"Only monitors on this status page can be marked as affected. Remove the others and try again."
 					);
 				}
 			}

@@ -11,17 +11,17 @@ const ERROR_MESSAGES: Record<string, { title: string; description: string }> = {
 	account_already_linked_to_different_user: {
 		title: "Account already linked",
 		description:
-			"This social account is already connected to a different user. Please sign in with the original account first, unlink it, then try again.",
+			"This social account is already connected to a different user. Sign in with the original account first, unlink it, then try again.",
 	},
 	unable_to_link_account: {
 		title: "Unable to link account",
 		description:
-			"We couldn't link this account. The email may not be verified by the provider, or the account may already exist.",
+			"Failed to link this account. The email may not be verified by the provider, or the account may already exist.",
 	},
 	unable_to_get_user_info: {
 		title: "Provider error",
 		description:
-			"We couldn't retrieve your information from the sign-in provider. Please try again.",
+			"Failed to retrieve your information from the sign-in provider. Try again.",
 	},
 	"email_doesn't_match": {
 		title: "Email mismatch",
@@ -30,43 +30,41 @@ const ERROR_MESSAGES: Record<string, { title: string; description: string }> = {
 	},
 	email_not_found: {
 		title: "Email not found",
-		description:
-			"No account was found with this email address. Please sign up first.",
+		description: "No account was found with this email address. Sign up first.",
 	},
 	oauth_provider_not_found: {
 		title: "Provider not available",
 		description:
-			"This sign-in provider is not configured. Please use a different method.",
+			"This sign-in provider is not configured. Use a different method.",
 	},
 	signup_disabled: {
-		title: "Sign up disabled",
+		title: "Sign-up disabled",
 		description:
-			"New account registration is currently disabled. Please contact support if you need access.",
+			"New account registration is currently disabled. Contact support if you need access.",
 	},
 	no_callback_url: {
 		title: "Missing callback",
 		description:
-			"The sign-in flow was interrupted due to a missing callback URL. Please try again.",
+			"The sign-in flow was interrupted due to a missing callback URL. Try again.",
 	},
 	no_code: {
 		title: "Authorization failed",
 		description:
-			"No authorization code was received from the provider. Please try signing in again.",
+			"No authorization code was received from the provider. Try signing in again.",
 	},
 	state_mismatch: {
 		title: "Security check failed",
 		description:
-			"The sign-in request couldn't be verified. This can happen if the request expired. Please try again.",
+			"The sign-in request couldn't be verified. This can happen if the request expired. Try again.",
 	},
 	state_not_found: {
 		title: "Session expired",
 		description:
-			"Your sign-in session has expired. Please start the sign-in process again.",
+			"Your sign-in session has expired. Start the sign-in process again.",
 	},
 	invalid_callback_request: {
 		title: "Invalid request",
-		description:
-			"The callback request was invalid. Please try signing in again.",
+		description: "The callback request was invalid. Try signing in again.",
 	},
 	expired_token: {
 		title: "Magic link expired",
@@ -83,7 +81,7 @@ const ERROR_MESSAGES: Record<string, { title: string; description: string }> = {
 const DEFAULT_ERROR = {
 	title: "Authentication error",
 	description:
-		"Something went wrong during sign in. Please try again or use a different method.",
+		"Something went wrong during sign-in. Try again or use a different method.",
 };
 
 function AuthErrorPage() {
@@ -119,7 +117,7 @@ function AuthErrorPage() {
 
 				<Button asChild className="w-full">
 					<Link href={recoveryHref}>
-						{isMagicLinkError ? "Request a new magic link" : "Back to login"}
+						{isMagicLinkError ? "Request a new magic link" : "Back to sign in"}
 					</Link>
 				</Button>
 			</div>

@@ -13,7 +13,7 @@ test("creates a three-step funnel and deletes it", { tag: "@core" }, async ({
 	await page.goto(`/websites/${e2eSession.websiteId}/funnels`);
 
 	await page
-		.getByRole("button", { name: "Create Funnel", exact: true })
+		.getByRole("button", { name: "Create funnel", exact: true })
 		.click();
 	const sheet = page.getByRole("dialog", { name: "New Funnel" });
 	await sheet.getByPlaceholder("e.g., Sign Up Flow").fill(name);

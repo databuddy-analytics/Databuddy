@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { type ComponentPropsWithoutRef, useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import {
 	CaretRightIcon,
 	GearIcon,
@@ -74,12 +75,12 @@ function useProfileActions(_user: ProfileButtonUser | null) {
 		await authClient.signOut({
 			fetchOptions: {
 				onSuccess: () => {
-					toast.success("Logged out successfully");
+					toast.success("Signed out");
 					router.push("/login");
 				},
 				onError: (error) => {
 					router.push("/login");
-					toast.error(error.error.message || "Failed to log out");
+					showErrorToast(error.error, "Failed to sign out");
 				},
 			},
 		});
@@ -94,7 +95,7 @@ function useProfileActions(_user: ProfileButtonUser | null) {
 		});
 
 		if (result.error) {
-			toast.error(result.error.message || "Failed to switch account");
+			showErrorToast(result.error, "Failed to switch account");
 			setSwitchingTo(null);
 			return;
 		}

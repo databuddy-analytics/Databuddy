@@ -46,6 +46,7 @@ export function StatusPageTransferDialog({
 	const [includeMonitors, setIncludeMonitors] = useState(true);
 	const transferMutation = useMutation({
 		...orpc.statusPage.transfer.mutationOptions(),
+		meta: { errorTitle: "Failed to transfer status page" },
 		onSuccess: () => {
 			toast.success("Status page transferred");
 			onOpenChangeAction(false);
@@ -68,7 +69,7 @@ export function StatusPageTransferDialog({
 				})
 			}
 			open={open}
-			title="Transfer Status Page"
+			title="Transfer status page"
 			warning="The status page and its configuration will be transferred to {orgName}."
 		>
 			<div className="flex items-center justify-between gap-3 rounded border p-3">
@@ -103,7 +104,7 @@ function StatusPageActions({
 	const [isTransferOpen, setIsTransferOpen] = useState(false);
 
 	const { copyToClipboard } = useCopyToClipboard({
-		onCopy: () => toast.success("URL copied to clipboard"),
+		onCopy: () => toast.success("URL copied"),
 	});
 
 	return (
@@ -126,11 +127,11 @@ function StatusPageActions({
 						}
 					>
 						<PencilSimpleIcon className="size-4" />
-						Manage Monitors
+						Manage monitors
 					</DropdownMenu.Item>
 					<DropdownMenu.Item className="gap-2" onClick={onEditAction}>
 						<PencilSimpleIcon className="size-4" />
-						Edit Details
+						Edit details
 					</DropdownMenu.Item>
 					{url && (
 						<>
@@ -152,7 +153,7 @@ function StatusPageActions({
 								}
 							>
 								<ArrowSquareOutIcon className="size-4" />
-								View Page
+								View page
 							</DropdownMenu.Item>
 						</>
 					)}
@@ -161,7 +162,7 @@ function StatusPageActions({
 						onClick={() => setIsTransferOpen(true)}
 					>
 						<ArrowSquareOutIcon className="size-4" />
-						Transfer to Organization
+						Transfer to organization
 					</DropdownMenu.Item>
 					<DropdownMenu.Separator />
 					<DropdownMenu.Item

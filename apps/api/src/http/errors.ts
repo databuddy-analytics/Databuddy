@@ -175,53 +175,59 @@ function isStructuredError(error: unknown): error is EvlogError {
 }
 
 const SAFE_MESSAGE_BY_ERROR_CODE: Record<string, string> = {
-	AUTH_REQUIRED: "Authentication required",
-	BAD_REQUEST: "Invalid request",
-	CONFLICT: "Conflict",
-	FEATURE_UNAVAILABLE: "Feature unavailable",
-	FORBIDDEN: "Forbidden",
-	INTERNAL_SERVER_ERROR: "An internal server error occurred",
-	INVALID_COOKIE_SIGNATURE: "Invalid request",
-	NOT_FOUND: "Not found",
-	PARSE: "Invalid request body",
-	PAYLOAD_TOO_LARGE: "Payload too large",
-	PLAN_LIMIT_EXCEEDED: "Plan limit exceeded",
-	RATE_LIMITED: "Rate limit exceeded",
-	TOO_MANY_REQUESTS: "Rate limit exceeded",
-	UNAUTHORIZED: "Authentication required",
-	UNKNOWN: "An internal server error occurred",
-	VALIDATION: "Invalid request",
+	AUTH_REQUIRED: "Sign in to continue.",
+	BAD_REQUEST: "Some of the details are invalid. Check them and try again.",
+	CONFLICT: "Something with this name already exists. Pick a different one.",
+	FEATURE_UNAVAILABLE:
+		"This feature is not included in your plan. Upgrade to use it.",
+	FORBIDDEN:
+		"You do not have permission to do this. Ask an owner or admin of your organization for access.",
+	INTERNAL_SERVER_ERROR:
+		"Something went wrong on our side. Try again in a moment.",
+	INVALID_COOKIE_SIGNATURE:
+		"Some of the details are invalid. Check them and try again.",
+	NOT_FOUND: "This item was not found. It may have been deleted.",
+	PARSE:
+		"The request could not be read. Check that it is valid JSON and try again.",
+	PAYLOAD_TOO_LARGE: "The request is too large. Send less data and try again.",
+	PLAN_LIMIT_EXCEEDED:
+		"You have reached the limit on your plan. Upgrade to add more.",
+	RATE_LIMITED: "Too many requests. Try again shortly.",
+	TOO_MANY_REQUESTS: "Too many requests. Try again shortly.",
+	UNAUTHORIZED: "Sign in to continue.",
+	UNKNOWN: "Something went wrong on our side. Try again in a moment.",
+	VALIDATION: "Some of the details are invalid. Check them and try again.",
 };
 
 function getSafeStatusMessage(statusCode: number): string {
 	if (statusCode === 401) {
-		return "Authentication required";
+		return "Sign in to continue.";
 	}
 	if (statusCode === 403) {
-		return "Forbidden";
+		return "You do not have permission to do this. Ask an owner or admin of your organization for access.";
 	}
 	if (statusCode === 404) {
-		return "Not found";
+		return "This item was not found. It may have been deleted.";
 	}
 	if (statusCode === 409) {
-		return "Conflict";
+		return "Something with this name already exists. Pick a different one.";
 	}
 	if (statusCode === 413) {
-		return "Payload too large";
+		return "The request is too large. Send less data and try again.";
 	}
 	if (statusCode === 422) {
-		return "Invalid request";
+		return "Some of the details are invalid. Check them and try again.";
 	}
 	if (statusCode === 429) {
-		return "Rate limit exceeded";
+		return "Too many requests. Try again shortly.";
 	}
 	if (statusCode === 503) {
-		return "Service temporarily unavailable";
+		return "This service is temporarily unavailable. Try again in a moment.";
 	}
 	if (statusCode >= 400 && statusCode < 500) {
-		return "Invalid request";
+		return "Some of the details are invalid. Check them and try again.";
 	}
-	return "An internal server error occurred";
+	return "Something went wrong on our side. Try again in a moment.";
 }
 
 function getStatusCode({

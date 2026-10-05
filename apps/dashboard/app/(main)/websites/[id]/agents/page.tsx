@@ -49,6 +49,7 @@ import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { formatCount, formatNumber } from "@/lib/formatters";
 import { formatRevenueCurrency } from "@/lib/revenue-currency";
 import { orpc } from "@/lib/orpc";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 import type { DynamicQueryFilter } from "@/types/api";
 import {
@@ -1887,7 +1888,7 @@ const SETUP_STACKS = [
 			{
 				code: 'export { proxy as default } from "@databuddy/sdk/agents";',
 				env: "DATABUDDY_WEBSITE_ID",
-				caption: "For Vite, Astro or any other framework deployed on Vercel.",
+				caption: "For Vite, Astro, or any other framework deployed on Vercel.",
 				file: "middleware.ts",
 				id: "middleware",
 				label: "Middleware",
@@ -2057,6 +2058,7 @@ function AgentSetupSheet({
 	const checkResultsRef = useRef<HTMLDivElement>(null);
 	const check = useMutation({
 		...orpc.websites.checkAgentSetup.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
 		onSettled: () =>
 			requestAnimationFrame(() =>
 				checkResultsRef.current?.scrollIntoView({ block: "nearest" })
@@ -2082,7 +2084,7 @@ function AgentSetupSheet({
 						<div className="min-w-0 flex-1">
 							<Sheet.Title>Track AI crawlers</Sheet.Title>
 							<Sheet.Description>
-								See GPTBot, ClaudeBot and the other crawlers that don't run
+								See GPTBot, ClaudeBot, and the other crawlers that don't run
 								JavaScript, and which pages they read.
 							</Sheet.Description>
 						</div>
@@ -2103,7 +2105,7 @@ function AgentSetupSheet({
 				<Sheet.Body className="space-y-6">
 					<div className="flex items-center justify-between gap-3 rounded border border-border/60 px-3 py-2.5">
 						<Text tone="muted" variant="caption">
-							Using Claude Code, Cursor or another coding agent? Let it do the
+							Using Claude Code, Cursor, or another coding agent? Let it do the
 							setup.
 						</Text>
 						<CopyButton
@@ -2163,7 +2165,7 @@ function AgentSetupSheet({
 										</Text>
 									) : null}
 								</SetupStep>
-								<SetupStep step={3} title="Set your website ID">
+								<SetupStep step={3} title="Set your Client ID">
 									<SetupCode
 										code={
 											method.id === "workers"
@@ -2193,7 +2195,7 @@ function AgentSetupSheet({
 								</SetupStep>
 								<SetupStep step={3} title="Choose what to send">
 									<Text tone="muted" variant="caption">
-										Sources: Static Files, Functions, Edge Functions and
+										Sources: Static Files, Functions, Edge Functions, and
 										Rewrites. Environment: Production. Format: JSON or NDJSON.
 										Leave sampling off so every AI request arrives.
 									</Text>
@@ -2231,7 +2233,10 @@ function AgentSetupSheet({
 								) : null}
 								{check.isError ? (
 									<p className="text-destructive text-xs">
-										Couldn't run the check. Try again in a moment.
+										{getUserFacingErrorMessage(
+											check.error,
+											"Couldn't run the check. Try again in a moment."
+										)}
 									</p>
 								) : null}
 							</SetupStep>
@@ -2506,7 +2511,7 @@ export default function AgentsPage() {
 						description="Databuddy couldn't load AI activity for this site."
 						icon={<BrainIcon />}
 						isMainContent
-						title="Couldn't load AI activity"
+						title="Failed to load AI activity"
 						variant="error"
 					/>
 				</div>
@@ -2514,7 +2519,7 @@ export default function AgentsPage() {
 				<div className="flex flex-1 flex-col p-4">
 					<EmptyState
 						action={setupButton}
-						description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers don't run JavaScript, so they need one line on your server."
+						description="ChatGPT, Claude, and Perplexity show up here when they read your pages or send you visitors. Crawlers don't run JavaScript, so they need one line on your server."
 						icon={<BrainIcon />}
 						isMainContent
 						title="No AI activity yet"

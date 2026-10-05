@@ -8,6 +8,7 @@ import { useState, type ComponentType, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { orpc } from "@/lib/orpc";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { Accordion, Sheet } from "@databuddy/ui/client";
 import {
 	Button,
@@ -185,7 +186,9 @@ export function RevenueSettingsSheet({
 			});
 			toast.success("Webhook URLs generated");
 		},
-		onError: () => toast.error("Failed to generate webhook URL"),
+		meta: { suppressGlobalErrorToast: true },
+		onError: (error) =>
+			showErrorToast(error, "Failed to generate webhook URLs"),
 	});
 
 	const upsertMutation = useMutation({
@@ -203,7 +206,9 @@ export function RevenueSettingsSheet({
 			setCurrencyDraft(null);
 			toast.success("Configuration saved");
 		},
-		onError: () => toast.error("Failed to save"),
+		meta: { suppressGlobalErrorToast: true },
+		onError: (error) =>
+			showErrorToast(error, "Failed to save revenue settings"),
 	});
 
 	const regenerateMutation = useMutation({
@@ -214,7 +219,9 @@ export function RevenueSettingsSheet({
 			});
 			toast.success("Webhook URLs regenerated");
 		},
-		onError: () => toast.error("Failed to regenerate"),
+		meta: { suppressGlobalErrorToast: true },
+		onError: (error) =>
+			showErrorToast(error, "Failed to regenerate webhook URLs"),
 	});
 
 	const handleSave = () => {
@@ -253,7 +260,7 @@ export function RevenueSettingsSheet({
 							<CurrencyDollarIcon className="size-5 text-primary" />
 						</div>
 						<div>
-							<Sheet.Title className="text-lg">Revenue Tracking</Sheet.Title>
+							<Sheet.Title className="text-lg">Revenue tracking</Sheet.Title>
 							<Sheet.Description>
 								Connect payment providers via webhooks
 							</Sheet.Description>
@@ -276,14 +283,14 @@ export function RevenueSettingsSheet({
 							<div className="flex min-h-[280px] items-center justify-center p-4">
 								<EmptyState
 									action={{
-										label: "Retry",
+										label: "Try again",
 										onClick: async () => {
 											await refetchConfig();
 										},
 									}}
 									description="We couldn't load revenue settings. Try again in a moment."
 									icon={<WarningCircleIcon />}
-									title="Couldn't load settings"
+									title="Failed to load settings"
 									variant="error"
 								/>
 							</div>
@@ -428,7 +435,7 @@ export function RevenueSettingsSheet({
 													size="sm"
 													variant="secondary"
 												>
-													Generate Webhook URLs
+													Generate webhook URLs
 												</Button>
 											</div>
 										)}
@@ -457,9 +464,7 @@ export function RevenueSettingsSheet({
 														className="flex-1 font-mono text-xs"
 														onChange={(e) => setStripeSecret(e.target.value)}
 														placeholder={
-															config?.stripeConfigured
-																? "••••••••"
-																: "whsec_..."
+															config?.stripeConfigured ? "••••••••" : "whsec_…"
 														}
 														type={showStripeSecret ? "text" : "password"}
 														value={stripeSecret}
@@ -529,7 +534,7 @@ export function RevenueSettingsSheet({
 														placeholder={
 															config?.paddleConfigured
 																? "••••••••"
-																: "pdl_ntfset_..."
+																: "pdl_ntfset_…"
 														}
 														type={showPaddleSecret ? "text" : "password"}
 														value={paddleSecret}
@@ -592,7 +597,7 @@ export function RevenueSettingsSheet({
 							loading={upsertMutation.isPending}
 							type="submit"
 						>
-							Save Changes
+							Save changes
 						</Button>
 					</Sheet.Footer>
 				</Sheet.Form>

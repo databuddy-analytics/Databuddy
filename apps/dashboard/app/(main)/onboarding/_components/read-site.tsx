@@ -25,7 +25,7 @@ export function readSiteDetail(research: SiteResearch): string | null {
 		case "ready":
 			return `Read ${pages} on ${research.domain}`;
 		case "failed":
-			return `Couldn't read ${research.domain}`;
+			return `Failed to read ${research.domain}`;
 		case "unavailable":
 			return "Not available";
 		default:

@@ -34,7 +34,7 @@ describe("handleAppError", () => {
 		expect(response.status).toBe(500);
 		expect(await readPayload(response)).toEqual({
 			success: false,
-			error: "An internal server error occurred",
+			error: "Something went wrong on our side. Try again in a moment.",
 			code: "api.SECRET_FAILURE",
 			requestId: "req_test_5xx",
 		});
@@ -75,7 +75,7 @@ describe("handleAppError", () => {
 		expect(response.status).toBe(401);
 		expect(await readPayload(response)).toEqual({
 			success: false,
-			error: "Authentication required",
+			error: "Sign in to continue.",
 			code: "AUTH_REQUIRED",
 			requestId: "req_test_auth",
 		});
@@ -100,7 +100,7 @@ describe("handleAppError", () => {
 		expect(response.status).toBe(422);
 		expect(payload).toMatchObject({
 			success: false,
-			error: "Invalid request",
+			error: "Some of the details are invalid. Check them and try again.",
 			code: "VALIDATION",
 			requestId: "req_test_validation",
 		});

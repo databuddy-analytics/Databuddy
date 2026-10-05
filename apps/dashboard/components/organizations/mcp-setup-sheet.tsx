@@ -302,7 +302,7 @@ function McpSetupForm({
 			queryClient.invalidateQueries({ queryKey: orpc.apikeys.list.key() });
 		},
 		onError: (error) =>
-			showErrorToast(error, "Could not create the MCP connection."),
+			showErrorToast(error, "Failed to create MCP connection"),
 		meta: { suppressGlobalErrorToast: true },
 	});
 	const newSecret = createMutation.data?.secret;
@@ -370,7 +370,7 @@ function McpSetupForm({
 					</div>
 					<div className="min-w-0 flex-1">
 						<Sheet.Title>
-							{newSecret ? "MCP is ready" : "Connect Databuddy MCP"}
+							{newSecret ? "MCP connection created" : "Connect Databuddy MCP"}
 						</Sheet.Title>
 						<Sheet.Description>
 							{newSecret
@@ -494,7 +494,7 @@ function McpSetupForm({
 											<Checkbox
 												checked={allowOrganizationWideLinks}
 												description="Short links belong to the organization, so this connection can manage every short link here, not only links associated with the selected websites."
-												label="Allow organization-wide Short links access"
+												label="Allow organization-wide short link access"
 												onCheckedChange={(checked) =>
 													setAllowOrganizationWideLinks(checked === true)
 												}

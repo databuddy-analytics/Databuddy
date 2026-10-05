@@ -11,6 +11,7 @@ import {
 	type Website,
 } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import { Button, Card, Input } from "@databuddy/ui";
 import { Switch } from "@databuddy/ui/client";
 import { LockIcon, PlusIcon, XMarkIcon as XIcon } from "@databuddy/ui/icons";
@@ -47,7 +48,7 @@ function validateOrigin(value: string): { success: boolean; error?: string } {
 		}
 		return {
 			success: false,
-			error: "Invalid wildcard domain format (e.g., *.cal.com)",
+			error: "Invalid wildcard domain format (e.g. *.cal.com)",
 		};
 	}
 	if (trimmed.startsWith("www.")) {
@@ -61,7 +62,7 @@ function validateOrigin(value: string): { success: boolean; error?: string } {
 	}
 	return {
 		success: false,
-		error: "Must be a valid domain (e.g., cal.com, *.cal.com) or *",
+		error: "Must be a valid domain (e.g. cal.com, *.cal.com) or *",
 	};
 }
 
@@ -82,7 +83,7 @@ function validateIgnoredTrackingOrigin(value: string): {
 		}
 		return {
 			success: false,
-			error: "Invalid wildcard domain format (e.g., *.preview.example.com)",
+			error: "Invalid wildcard domain format (e.g. *.preview.example.com)",
 		};
 	}
 	if (domainRegex.test(trimmed)) {
@@ -90,7 +91,7 @@ function validateIgnoredTrackingOrigin(value: string): {
 	}
 	return {
 		success: false,
-		error: "Must be a valid domain (e.g., staging.example.com)",
+		error: "Must be a valid domain (e.g. staging.example.com)",
 	};
 }
 
@@ -105,8 +106,7 @@ function validateIp(value: string): { success: boolean; error?: string } {
 	}
 	return {
 		success: false,
-		error:
-			"Must be a valid IPv4, IPv6, or CIDR notation (e.g., 192.168.1.0/24)",
+		error: "Must be a valid IPv4, IPv6, or CIDR notation (e.g. 192.168.1.0/24)",
 	};
 }
 
@@ -273,6 +273,7 @@ export default function SecurityPage() {
 
 	const updateMutation = useMutation({
 		...orpc.websites.updateSettings.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
 		onSuccess: (updatedWebsite: Website) => {
 			updateWebsiteCache(queryClient, updatedWebsite);
 			queryClient.invalidateQueries({
@@ -315,9 +316,12 @@ export default function SecurityPage() {
 				settings: createSecuritySettingsPayload(draftSettings),
 			}),
 			{
-				loading: "Updating security settings...",
+				loading: "Updating security settings…",
 				success: "Security settings updated",
-				error: "Failed to update security settings",
+				error: (error: unknown) => ({
+					message: "Failed to update security settings",
+					description: getUserFacingErrorMessage(error),
+				}),
 			}
 		);
 	}, [
@@ -367,7 +371,7 @@ export default function SecurityPage() {
 				<div className="mx-auto max-w-4xl space-y-6 p-5">
 					<Card>
 						<Card.Header>
-							<Card.Title>Allowed Origins</Card.Title>
+							<Card.Title>Allowed origins</Card.Title>
 							<Card.Description>
 								Browser requests are validated against your registered domain
 								using the Origin header. Requests without an Origin header are
@@ -401,9 +405,9 @@ export default function SecurityPage() {
 
 					<Card>
 						<Card.Header>
-							<Card.Title>Allowed IP Addresses</Card.Title>
+							<Card.Title>Allowed IP addresses</Card.Title>
 							<Card.Description>
-								Restrict tracking to specific IP addresses or CIDR ranges (e.g.,{" "}
+								Restrict tracking to specific IP addresses or CIDR ranges (e.g.{" "}
 								<code className="rounded bg-secondary px-1 py-0.5 font-mono text-[11px]">
 									192.168.1.0/24
 								</code>
@@ -425,7 +429,7 @@ export default function SecurityPage() {
 					<Card>
 						<Card.Header className="flex-row items-start justify-between gap-4">
 							<div className="space-y-1.5">
-								<Card.Title>Tracking Warnings</Card.Title>
+								<Card.Title>Tracking warnings</Card.Title>
 								<Card.Description>
 									Hide dashboard warnings for known noisy origins without
 									allowing those origins to send analytics.
@@ -478,7 +482,7 @@ export default function SecurityPage() {
 							onClick={handleSave}
 							size="sm"
 						>
-							Save Changes
+							Save changes
 						</Button>
 					</div>
 				</div>

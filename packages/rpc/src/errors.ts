@@ -24,49 +24,50 @@ const retrySchema = z.object({
 
 export const baseErrors = {
 	UNAUTHORIZED: {
-		message: "Authentication is required for this action",
+		message: "Sign in to continue.",
 		status: 401,
 	},
 	FORBIDDEN: {
-		message: "You do not have permission to perform this action",
+		message:
+			"You do not have permission to do this. Ask an owner or admin of your organization for access.",
 		status: 403,
 	},
 	NOT_FOUND: {
-		message: "The requested resource was not found",
+		message: "This item was not found. It may have been deleted.",
 		status: 404,
 		data: resourceSchema.optional(),
 	},
 	CONFLICT: {
-		message: "A resource with this identifier already exists",
+		message: "Something with this name already exists. Pick a different one.",
 		status: 409,
 		data: resourceSchema.optional(),
 	},
 	BAD_REQUEST: {
-		message: "Invalid request parameters",
+		message: "Some of the details are invalid. Check them and try again.",
 		status: 400,
 	},
 	RATE_LIMITED: {
-		message: "Too many requests, please try again later",
+		message: "Too many requests. Try again shortly.",
 		status: 429,
 		data: retrySchema,
 	},
 	SERVICE_UNAVAILABLE: {
-		message: "The service is temporarily unavailable",
+		message: "This service is temporarily unavailable. Try again in a moment.",
 		status: 503,
 		data: retrySchema,
 	},
 	PLAN_LIMIT_EXCEEDED: {
-		message: "You have reached the limit for your current plan",
+		message: "You have reached the limit on your plan. Upgrade to add more.",
 		status: 402,
 		data: limitSchema,
 	},
 	FEATURE_UNAVAILABLE: {
-		message: "This feature is not available on your current plan",
+		message: "This feature is not included in your plan. Upgrade to use it.",
 		status: 402,
 		data: featureSchema,
 	},
 	INTERNAL_SERVER_ERROR: {
-		message: "An unexpected error occurred",
+		message: "Something went wrong on our side. Try again in a moment.",
 		status: 500,
 	},
 } as const;
@@ -77,7 +78,7 @@ export const rpcError = {
 	forbidden: (message?: string) => new ORPCError("FORBIDDEN", { message }),
 	notFound: (resourceType: string, resourceId?: string) =>
 		new ORPCError("NOT_FOUND", {
-			message: `${humanizeResourceType(resourceType)} not found`,
+			message: `${humanizeResourceType(resourceType)} not found. It may have been deleted.`,
 			data: { resourceType, resourceId },
 		}),
 	badRequest: (message?: string) => new ORPCError("BAD_REQUEST", { message }),
@@ -88,20 +89,24 @@ export const rpcError = {
 	) =>
 		new ORPCError("FEATURE_UNAVAILABLE", {
 			status: 402,
-			message: message ?? "This feature is not available on your current plan",
+			message:
+				message ??
+				"This feature is not included in your plan. Upgrade to use it.",
 			data: { feature, requiredPlan },
 		}),
 	conflict: (message?: string) => new ORPCError("CONFLICT", { message }),
 	rateLimited: (retryAfter = 60) =>
 		new ORPCError("RATE_LIMITED", {
 			status: 429,
-			message: "Too many requests, please try again later",
+			message: "Too many requests. Try again shortly.",
 			data: { retryAfter: normalizeRetryAfterSeconds(retryAfter) },
 		}),
 	serviceUnavailable: (retryAfter = 1, message?: string) =>
 		new ORPCError("SERVICE_UNAVAILABLE", {
 			status: 503,
-			message: message ?? "The service is temporarily unavailable",
+			message:
+				message ??
+				"This service is temporarily unavailable. Try again in a moment.",
 			data: { retryAfter: normalizeRetryAfterSeconds(retryAfter) },
 		}),
 	planLimitExceeded: ({
@@ -123,9 +128,26 @@ export const rpcError = {
 		new ORPCError("INTERNAL_SERVER_ERROR", { message }),
 };
 
+const RESOURCE_NOUNS: Record<string, string> = {
+	"agent chat": "Conversation",
+	"import run": "Import",
+	"investigation reply": "Reply",
+	"link folder": "Folder",
+	"revenue config": "Revenue settings",
+	flag: "Feature flag",
+	schedule: "Monitor",
+	statuspage: "Status page",
+	statuspagemonitor: "Monitor on this status page",
+	uptimeschedule: "Monitor",
+};
+
 const CAMEL_CASE_BOUNDARY = /([a-z])([A-Z])/g;
 
 function humanizeResourceType(resourceType: string): string {
+	const mapped = RESOURCE_NOUNS[resourceType.toLowerCase()];
+	if (mapped) {
+		return mapped;
+	}
 	const spaced = resourceType.replace(
 		CAMEL_CASE_BOUNDARY,
 		(_, before: string, after: string) => `${before} ${after.toLowerCase()}`

@@ -105,7 +105,7 @@ describe("flag restoration target-group scope", () => {
 			await expect(fixture.restore([group.id])).rejects.toMatchObject({
 				code: "BAD_REQUEST",
 				message:
-					"One or more target groups not found or do not belong to this website",
+					"One or more target groups were not found on this website. They may have been deleted. Refresh the page and try again.",
 			});
 			const [unchanged] = await db()
 				.select()
@@ -185,7 +185,8 @@ describe("flag restoration target-group scope", () => {
 			})
 		).rejects.toMatchObject({
 			code: "CONFLICT",
-			message: "A flag with this key already exists in this scope",
+			message:
+				"A feature flag with this key already exists. Pick a different key.",
 		});
 	});
 });

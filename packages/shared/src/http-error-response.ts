@@ -16,10 +16,12 @@ const ERROR_STATUS_BY_CODE: Record<string, number> = {
 };
 
 const SAFE_MESSAGE_BY_CODE: Record<string, string> = {
-	INVALID_COOKIE_SIGNATURE: "Invalid request",
-	NOT_FOUND: "Not found",
-	PARSE: "Invalid request body",
-	VALIDATION: "Invalid request",
+	INVALID_COOKIE_SIGNATURE:
+		"Some of the details are invalid. Check them and try again.",
+	NOT_FOUND: "This item was not found. It may have been deleted.",
+	PARSE:
+		"The request could not be read. Check that it is valid JSON and try again.",
+	VALIDATION: "Some of the details are invalid. Check them and try again.",
 };
 
 const PUBLIC_RESPONSE_CODES = new Set(Object.keys(SAFE_MESSAGE_BY_CODE));
@@ -82,24 +84,24 @@ function getSafeErrorMessage(code: string, status: number): string {
 
 function getSafeStatusMessage(status: number): string {
 	if (status === 401) {
-		return "Authentication required";
+		return "Sign in to continue.";
 	}
 	if (status === 403) {
-		return "Forbidden";
+		return "You do not have permission to do this. Ask an owner or admin of your organization for access.";
 	}
 	if (status === 404) {
-		return "Not found";
+		return "This item was not found. It may have been deleted.";
 	}
 	if (status === 422) {
-		return "Invalid request";
+		return "Some of the details are invalid. Check them and try again.";
 	}
 	if (status === 429) {
-		return "Rate limit exceeded";
+		return "Too many requests. Try again shortly.";
 	}
 	if (status >= 400 && status < 500) {
-		return "Invalid request";
+		return "Some of the details are invalid. Check them and try again.";
 	}
-	return "Internal server error";
+	return "Something went wrong on our side. Try again in a moment.";
 }
 
 function isHttpStatus(value: unknown): value is number {

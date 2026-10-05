@@ -57,7 +57,9 @@ const CACHE_DURATION = 60;
 
 function requireCondition(condition: ReturnType<typeof and>) {
 	if (!condition) {
-		throw new Error("Expected flag filter conditions");
+		throw new Error(
+			"The feature flag filters could not be read. Refresh the page and try again."
+		);
 	}
 	return condition;
 }
@@ -68,7 +70,7 @@ const flagScopeFields = {
 };
 
 const SCOPE_REQUIRED_ERROR =
-	"Either websiteId or organizationId must be provided";
+	"Choose a website or an organization for this feature flag.";
 
 const requireScope = <
 	T extends { websiteId?: string; organizationId?: string },
@@ -78,7 +80,8 @@ const requireScope = <
 
 const scopeRefinement = { message: SCOPE_REQUIRED_ERROR, path: ["websiteId"] };
 
-const VARIANT_WEIGHTS_ERROR = "When specifying weights, they must sum to 100%";
+const VARIANT_WEIGHTS_ERROR =
+	"Variant weights must add up to 100%. Adjust them and try again.";
 
 function hasUnbalancedVariantWeights(
 	variants: readonly { weight?: number }[]
@@ -133,7 +136,7 @@ async function linkTargetGroups(
 	});
 	if (validGroups.length !== targetGroupIds.length) {
 		throw rpcError.badRequest(
-			"One or more target groups not found or do not belong to this website"
+			"One or more target groups were not found on this website. They may have been deleted. Refresh the page and try again."
 		);
 	}
 	await tx
@@ -277,7 +280,7 @@ const checkCircularDependency = async (
 
 	if (hasCycle(targetFlagKey)) {
 		throw rpcError.badRequest(
-			`Circular dependency detected involving flag "${targetFlagKey}".`
+			`Feature flag "${targetFlagKey}" would end up depending on itself. Remove one of the dependencies and try again.`
 		);
 	}
 };
@@ -656,7 +659,7 @@ export const flagsRouter = {
 
 			if (dependencyFlags.length !== dependencyKeys.length) {
 				throw rpcError.badRequest(
-					"One or more dependency flags were not found in this scope"
+					"One or more feature flags this depends on were not found. They may have been deleted. Refresh the page and try again."
 				);
 			}
 
@@ -696,7 +699,7 @@ export const flagsRouter = {
 			if (existingFlag) {
 				if (!existingFlag.deletedAt) {
 					throw rpcError.conflict(
-						"A flag with this key already exists in this scope"
+						"A feature flag with this key already exists. Pick a different key."
 					);
 				}
 
@@ -709,7 +712,7 @@ export const flagsRouter = {
 
 					if (!restored) {
 						throw rpcError.conflict(
-							"The flag changed while it was being restored. Try again."
+							"The feature flag changed while it was being restored. Try again in a moment."
 						);
 					}
 
@@ -759,7 +762,9 @@ export const flagsRouter = {
 					.returning();
 
 				if (!createdFlag) {
-					throw rpcError.internal("Failed to create flag");
+					throw rpcError.internal(
+						"The feature flag could not be created. Try again in a moment."
+					);
 				}
 
 				await linkTargetGroups(
@@ -777,7 +782,7 @@ export const flagsRouter = {
 					isUniqueViolationFor(error, "flags_key_website_unique")
 				) {
 					throw rpcError.conflict(
-						"A flag with this key already exists in this scope"
+						"A feature flag with this key already exists. Pick a different key."
 					);
 				}
 				throw error;
@@ -833,7 +838,7 @@ export const flagsRouter = {
 				});
 			} else {
 				throw rpcError.forbidden(
-					"Flags must be scoped to a website or organization"
+					"This feature flag is not linked to a website or organization, so it cannot be changed."
 				);
 			}
 
@@ -904,7 +909,7 @@ export const flagsRouter = {
 
 			if (dependencyFlags.length !== nextDependencies.length) {
 				throw rpcError.badRequest(
-					"One or more dependency flags were not found in this scope"
+					"One or more feature flags this depends on were not found. They may have been deleted. Refresh the page and try again."
 				);
 			}
 
@@ -997,7 +1002,7 @@ export const flagsRouter = {
 				});
 			} else {
 				throw rpcError.forbidden(
-					"Flags must be scoped to a website or organization"
+					"This feature flag is not linked to a website or organization, so it cannot be changed."
 				);
 			}
 

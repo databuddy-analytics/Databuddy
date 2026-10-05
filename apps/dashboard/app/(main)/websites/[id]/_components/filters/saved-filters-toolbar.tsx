@@ -38,7 +38,10 @@ export function SavedFiltersToolbar() {
 		(appliedFilters: DynamicQueryFilter[]) => {
 			const error = validateFilters(appliedFilters);
 			if (error) {
-				toast.error(`${error.message}. Edit the saved filter to update it.`);
+				toast.error("Failed to apply saved filter", {
+					description:
+						"It has a condition that is no longer valid. Edit the saved filter to update it.",
+				});
 				return;
 			}
 			setEditing(null);
@@ -91,11 +94,11 @@ export function SavedFiltersToolbar() {
 						setDeletingId(null);
 					}
 				}}
-				title="Delete Saved Filter"
+				title="Delete saved filter"
 			/>
 
 			<DeleteDialog
-				confirmLabel="Delete All"
+				confirmLabel="Delete all"
 				description={`Are you sure you want to delete all ${savedFilters.length} saved filter${savedFilters.length === 1 ? "" : "s"}? This cannot be undone.`}
 				isDeleting={false}
 				isOpen={isDeleteAllOpen}
@@ -104,7 +107,7 @@ export function SavedFiltersToolbar() {
 					deleteAllFilters();
 					setIsDeleteAllOpen(false);
 				}}
-				title="Delete All Saved Filters"
+				title="Delete all saved filters"
 			/>
 		</>
 	);

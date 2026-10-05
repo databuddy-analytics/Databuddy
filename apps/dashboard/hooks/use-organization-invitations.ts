@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { toast } from "sonner";
 import type { OrganizationRole } from "@/hooks/use-organizations";
-import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { dayjs } from "@databuddy/ui";
 import { orpc } from "@/lib/orpc";
 
@@ -59,11 +59,7 @@ export function useOrganizationInvitations(organizationId: string) {
 			toast.success(`Invitation sent to ${input.email}`);
 			queryClient.invalidateQueries({ queryKey: listKey });
 		},
-		onError: (error) => {
-			toast.error(
-				getUserFacingErrorMessage(error, "We couldn't send the invitation.")
-			);
-		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const cancelMutation = useMutation({
@@ -80,10 +76,9 @@ export function useOrganizationInvitations(organizationId: string) {
 			queryClient.invalidateQueries({ queryKey: listKey });
 		},
 		onError: (error) => {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to cancel invitation"
-			);
+			showErrorToast(error, "Failed to cancel invitation");
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const clearExpiredMutation = useMutation({
@@ -98,12 +93,9 @@ export function useOrganizationInvitations(organizationId: string) {
 			queryClient.invalidateQueries({ queryKey: listKey });
 		},
 		onError: (error) => {
-			toast.error(
-				error instanceof Error
-					? error.message
-					: "Failed to clear expired invitations"
-			);
+			showErrorToast(error, "Failed to clear expired invitations");
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const resendMutation = useMutation({
@@ -123,10 +115,9 @@ export function useOrganizationInvitations(organizationId: string) {
 			queryClient.invalidateQueries({ queryKey: listKey });
 		},
 		onError: (error) => {
-			toast.error(
-				getUserFacingErrorMessage(error, "We couldn't resend the invitation.")
-			);
+			showErrorToast(error, "Failed to resend invitation");
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const expiredCount = useMemo(

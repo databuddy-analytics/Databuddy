@@ -19,6 +19,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { TwoFactorDialog } from "./sections/two-factor-dialog";
 import { Avatar, Dialog } from "@databuddy/ui/client";
 import {
@@ -120,9 +121,6 @@ function ChangePasswordDialog({
 
 	const changePasswordMutation = useMutation({
 		mutationFn: async () => {
-			if (newPassword !== confirmPassword) {
-				throw new Error("Passwords do not match");
-			}
 			const result = await authClient.changePassword({
 				currentPassword,
 				newPassword,
@@ -134,26 +132,37 @@ function ChangePasswordDialog({
 			return result;
 		},
 		onSuccess: () => {
-			toast.success("Password changed successfully");
+			toast.success("Password changed");
 			onOpenChange(false);
 			setCurrentPassword("");
 			setNewPassword("");
 			setConfirmPassword("");
 		},
+		meta: { suppressGlobalErrorToast: true },
+		onError: (error) =>
+			toast.error("Failed to change password", { description: error.message }),
 	});
+
+	const submitPasswordChange = () => {
+		if (newPassword !== confirmPassword) {
+			toast.error("The new passwords do not match.");
+			return;
+		}
+		changePasswordMutation.mutate();
+	};
 
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
 			<Dialog.Content>
 				<Dialog.Header>
-					<Dialog.Title>Change Password</Dialog.Title>
+					<Dialog.Title>Change password</Dialog.Title>
 					<Dialog.Description>
 						Enter your current password and choose a new one.
 					</Dialog.Description>
 				</Dialog.Header>
 				<Dialog.Body className="space-y-4">
 					<Field>
-						<Field.Label>Current Password</Field.Label>
+						<Field.Label>Current password</Field.Label>
 						<Input
 							autoComplete="current-password"
 							onChange={(e) => setCurrentPassword(e.target.value)}
@@ -163,7 +172,7 @@ function ChangePasswordDialog({
 						/>
 					</Field>
 					<Field>
-						<Field.Label>New Password</Field.Label>
+						<Field.Label>New password</Field.Label>
 						<Input
 							autoComplete="new-password"
 							onChange={(e) => setNewPassword(e.target.value)}
@@ -173,7 +182,7 @@ function ChangePasswordDialog({
 						/>
 					</Field>
 					<Field>
-						<Field.Label>Confirm New Password</Field.Label>
+						<Field.Label>Confirm new password</Field.Label>
 						<Input
 							autoComplete="new-password"
 							onChange={(e) => setConfirmPassword(e.target.value)}
@@ -193,9 +202,9 @@ function ChangePasswordDialog({
 							changePasswordMutation.isPending
 						}
 						loading={changePasswordMutation.isPending}
-						onClick={() => changePasswordMutation.mutate()}
+						onClick={submitPasswordChange}
 					>
-						Change Password
+						Change password
 					</Button>
 				</Dialog.Footer>
 			</Dialog.Content>
@@ -221,7 +230,7 @@ function UnlinkConfirmDialog({
 		<Dialog onOpenChange={(open) => !open && onClose()} open={!!account}>
 			<Dialog.Content>
 				<Dialog.Header>
-					<Dialog.Title>Disconnect {providerName} sign-in?</Dialog.Title>
+					<Dialog.Title>Disconnect {providerName} sign-in</Dialog.Title>
 					<Dialog.Description>
 						This removes {providerName} as a way to sign in to Databuddy. It
 						does not disconnect an organization data integration. You can
@@ -289,9 +298,9 @@ function DeleteAccountDialog({
 			return result.data;
 		},
 		onSuccess: () => setEmailSent(true),
-		onError: (error) => {
-			toast.error(error.message || "Failed to delete account");
-		},
+		meta: { suppressGlobalErrorToast: true },
+		onError: (error) =>
+			toast.error("Failed to delete account", { description: error.message }),
 	});
 
 	const emailMatches = confirmEmail.toLowerCase() === userEmail.toLowerCase();
@@ -302,7 +311,7 @@ function DeleteAccountDialog({
 			<Dialog onOpenChange={onOpenChange} open={open}>
 				<Dialog.Content>
 					<Dialog.Header>
-						<Dialog.Title>Check Your Email</Dialog.Title>
+						<Dialog.Title>Check your email</Dialog.Title>
 						<Dialog.Description>
 							We sent a confirmation link to{" "}
 							<span className="font-medium text-foreground">{userEmail}</span>.
@@ -323,7 +332,7 @@ function DeleteAccountDialog({
 		<Dialog onOpenChange={onOpenChange} open={open}>
 			<Dialog.Content>
 				<Dialog.Header>
-					<Dialog.Title>Delete Account</Dialog.Title>
+					<Dialog.Title>Delete account</Dialog.Title>
 					<Dialog.Description>
 						This action is permanent and cannot be undone. All your data,
 						sessions, and connected accounts will be removed.
@@ -375,7 +384,7 @@ function DeleteAccountDialog({
 						onClick={() => deleteAccount.mutate()}
 						tone="destructive"
 					>
-						Send Confirmation Email
+						Send confirmation email
 					</Button>
 				</Dialog.Footer>
 			</Dialog.Content>
@@ -450,6 +459,7 @@ export default function AccountSettingsPage() {
 		mutationFn: (id: string) =>
 			authClient.oauth2.deleteConsent({ id }, { throw: true }),
 		onSuccess: () => refetchConnectedApps(),
+		meta: { errorTitle: "Failed to disconnect app" },
 	});
 
 	const updateProfileMutation = useMutation({
@@ -464,8 +474,11 @@ export default function AccountSettingsPage() {
 			return result;
 		},
 		onSuccess: () => {
-			toast.success("Profile updated successfully");
+			toast.success("Profile updated");
 		},
+		meta: { suppressGlobalErrorToast: true },
+		onError: (error) =>
+			toast.error("Failed to update profile", { description: error.message }),
 	});
 
 	const linkSocial = useMutation({
@@ -479,6 +492,9 @@ export default function AccountSettingsPage() {
 			}
 			return result;
 		},
+		meta: { suppressGlobalErrorToast: true },
+		onError: (error) =>
+			toast.error("Failed to connect account", { description: error.message }),
 	});
 
 	const unlinkAccount = useMutation({
@@ -497,6 +513,9 @@ export default function AccountSettingsPage() {
 			toast.success(`${providerName} sign-in disconnected`);
 			queryClient.invalidateQueries({ queryKey: ["user-accounts"] });
 		},
+		onError: (error) =>
+			showErrorToast(error, "Failed to disconnect sign-in method"),
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const hasCredentialAccount = accounts.some(
@@ -514,7 +533,7 @@ export default function AccountSettingsPage() {
 				<div className="mx-auto max-w-4xl space-y-6 p-5">
 					<Card>
 						<Card.Header>
-							<Card.Title>Profile Photo</Card.Title>
+							<Card.Title>Profile photo</Card.Title>
 							<Card.Description>
 								Upload a photo to personalize your account
 							</Card.Description>
@@ -556,7 +575,7 @@ export default function AccountSettingsPage() {
 
 					<Card>
 						<Card.Header>
-							<Card.Title>Basic Information</Card.Title>
+							<Card.Title>Basic information</Card.Title>
 							<Card.Description>
 								Update your personal information
 							</Card.Description>
@@ -570,7 +589,7 @@ export default function AccountSettingsPage() {
 							) : (
 								<div className="grid gap-4 sm:grid-cols-2">
 									<Field>
-										<Field.Label>Full Name</Field.Label>
+										<Field.Label>Full name</Field.Label>
 										<Input
 											onChange={(e) => setName(e.target.value)}
 											placeholder="Your name…"
@@ -578,7 +597,7 @@ export default function AccountSettingsPage() {
 										/>
 									</Field>
 									<Field>
-										<Field.Label>Email Address</Field.Label>
+										<Field.Label>Email address</Field.Label>
 										<Input disabled type="email" value={user?.email ?? ""} />
 										<Field.Description>
 											Email cannot be changed
@@ -591,7 +610,7 @@ export default function AccountSettingsPage() {
 
 					<Card>
 						<Card.Header>
-							<Card.Title>Account Status</Card.Title>
+							<Card.Title>Account status</Card.Title>
 							<Card.Description>
 								Your account verification and security status
 							</Card.Description>
@@ -648,7 +667,7 @@ export default function AccountSettingsPage() {
 							icon={
 								<ShieldCheckIcon className="size-4 text-muted-foreground" />
 							}
-							title="Two-Factor Authentication"
+							title="Two-factor authentication"
 						>
 							<Button
 								onClick={() => setShowTwoFactorDialog(true)}
@@ -662,7 +681,7 @@ export default function AccountSettingsPage() {
 							<SettingCard
 								description="Update your password regularly for security"
 								icon={<KeyIcon className="size-4 text-muted-foreground" />}
-								title="Change Password"
+								title="Change password"
 							>
 								<Button
 									onClick={() => setShowPasswordDialog(true)}
@@ -677,7 +696,7 @@ export default function AccountSettingsPage() {
 
 					<Card>
 						<Card.Header>
-							<Card.Title>Connected Identities</Card.Title>
+							<Card.Title>Connected identities</Card.Title>
 							<Card.Description>
 								Personal sign-in methods for your Databuddy account. These are
 								not organization data integrations.
@@ -781,7 +800,7 @@ export default function AccountSettingsPage() {
 													<div>
 														<Text variant="label">Password</Text>
 														<Text tone="muted" variant="caption">
-															Email and password login
+															Email and password sign-in
 														</Text>
 													</div>
 												</div>
@@ -812,14 +831,14 @@ export default function AccountSettingsPage() {
 							) : isConnectedAppsError ? (
 								<div className="flex items-center justify-between gap-3">
 									<Text tone="muted" variant="caption">
-										Could not load connected apps.
+										Failed to load connected apps.
 									</Text>
 									<Button
 										onClick={() => refetchConnectedApps()}
 										size="sm"
 										variant="secondary"
 									>
-										Retry
+										Try again
 									</Button>
 								</div>
 							) : connectedApps.length === 0 ? (
@@ -894,11 +913,11 @@ export default function AccountSettingsPage() {
 					<SettingsZone title="Destructive actions" variant="destructive">
 						<SettingsZoneRow
 							action={{
-								label: "Delete Account",
+								label: "Delete account",
 								onClick: () => setShowDeleteDialog(true),
 							}}
 							description="Permanently delete your account and all associated data"
-							title="Delete Account"
+							title="Delete account"
 						/>
 					</SettingsZone>
 				</div>
@@ -919,7 +938,7 @@ export default function AccountSettingsPage() {
 							size="sm"
 							variant="ghost"
 						>
-							Discard
+							Discard changes
 						</Button>
 						<Button
 							keyboard={{
@@ -931,7 +950,7 @@ export default function AccountSettingsPage() {
 							onClick={() => updateProfileMutation.mutate()}
 							size="sm"
 						>
-							Save Changes
+							Save changes
 						</Button>
 					</div>
 				</div>

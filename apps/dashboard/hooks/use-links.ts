@@ -335,6 +335,7 @@ export function useCreateLink() {
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: linksPaginatedRootKey });
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 }
 
@@ -350,6 +351,7 @@ export function useUpdateLink() {
 			);
 			queryClient.invalidateQueries({ queryKey: linksPaginatedRootKey });
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 }
 
@@ -378,6 +380,7 @@ export function useDeleteLink() {
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: linksPaginatedRootKey });
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 }
 
@@ -400,5 +403,6 @@ export function useCreateLinkFolder() {
 				queryKey: foldersRootKey,
 			});
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 }

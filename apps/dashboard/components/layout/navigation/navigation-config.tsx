@@ -111,7 +111,6 @@ export const mainNavigation: NavigationGroup[] = [
 			createNavItem("MCP Analytics", ChartBarIcon, "/mcp", {
 				activeMatch: "prefix",
 				alpha: true,
-				flag: "mcp",
 				searchTags: ["mcp server", "model context protocol", "tool calls"],
 			}),
 		],

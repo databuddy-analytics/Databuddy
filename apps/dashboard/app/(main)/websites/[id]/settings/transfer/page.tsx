@@ -38,7 +38,9 @@ function TransferPageContent() {
 
 		const targetOrg = organizations?.find((org) => org.id === selectedOrgId);
 		if (!targetOrg) {
-			toast.error("Selected organization not found");
+			toast.error(
+				"That organization is no longer available. Pick another one."
+			);
 			return;
 		}
 
@@ -95,7 +97,7 @@ function TransferPageContent() {
 		(org: Organization) => org.id === websiteOrgId
 	) || {
 		id: websiteOrgId ?? "",
-		name: "Current Organization",
+		name: "Current organization",
 		slug: "",
 		logo: null as string | null,
 		createdAt: new Date(),
@@ -115,7 +117,7 @@ function TransferPageContent() {
 				<div className="mx-auto max-w-4xl space-y-6 p-5">
 					<Card>
 						<Card.Header>
-							<Card.Title>Transfer Website</Card.Title>
+							<Card.Title>Transfer website</Card.Title>
 							<Card.Description>
 								Move this website to a different organization
 							</Card.Description>
@@ -155,7 +157,7 @@ function TransferPageContent() {
 
 					<Card>
 						<Card.Header>
-							<Card.Title>Target Organization</Card.Title>
+							<Card.Title>Target organization</Card.Title>
 							<Card.Description>
 								Select where to transfer this website
 							</Card.Description>
@@ -239,7 +241,7 @@ function TransferPageContent() {
 					size="sm"
 				>
 					<ArrowSquareOutIcon className="size-4" />
-					Transfer Website
+					Transfer website
 				</Button>
 			</div>
 
@@ -247,7 +249,7 @@ function TransferPageContent() {
 				<Dialog.Content>
 					<Dialog.Close />
 					<Dialog.Header>
-						<Dialog.Title>Confirm Website Transfer</Dialog.Title>
+						<Dialog.Title>Confirm website transfer</Dialog.Title>
 						<Dialog.Description>
 							This action cannot be undone.
 						</Dialog.Description>
@@ -340,7 +342,7 @@ function TransferPageContent() {
 						</Button>
 						<Button loading={isTransferring} onClick={handleTransfer}>
 							<ArrowSquareOutIcon className="size-4" />
-							Confirm Transfer
+							Confirm transfer
 						</Button>
 					</Dialog.Footer>
 				</Dialog.Content>

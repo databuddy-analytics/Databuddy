@@ -1,6 +1,6 @@
 "use client";
 
-import type { OnboardingIntent } from "@databuddy/shared/custom-events";
+import type { OnboardingWant } from "@databuddy/shared/custom-events";
 import { Button } from "@databuddy/ui";
 import { notFound } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
@@ -18,7 +18,7 @@ import {
 	type SetupWebsite,
 } from "../_components/setup-checklist";
 import { EMPTY_RESEARCH, type SiteResearch } from "@/hooks/use-site-research";
-import { INTENT_OPTIONS } from "../_components/what-matters";
+import { WhatMatters } from "../_components/what-matters";
 
 const WEBSITE: SetupWebsite = {
 	id: "preview-website-id",
@@ -123,16 +123,24 @@ type Sample = Partial<
 		SetupChecklistProps,
 		| "agentProgress"
 		| "finish"
-		| "prioritySaved"
 		| "research"
-		| "saveError"
-		| "saving"
 		| "tracking"
 		| "trackingCopied"
 		| "trackingSkipped"
+		| "wants"
 		| "website"
 	>
-> & { intent?: OnboardingIntent | null };
+> & { picker?: boolean; productsDone?: boolean };
+
+const ALL_WANTS: OnboardingWant[] = [
+	"analytics",
+	"conversions",
+	"performance",
+	"ai_visibility",
+	"uptime",
+	"links",
+	"mcp",
+];
 
 interface Scenario {
 	id: string;
@@ -148,7 +156,7 @@ const FINISH = {
 		note: "Your first review runs once there is enough history to compare.",
 	},
 	checking: {
-		label: "Checking Insights",
+		label: "Checking Insights…",
 		onClick: noop,
 		disabled: true,
 		loading: true,
@@ -156,12 +164,13 @@ const FINISH = {
 	failed: {
 		label: "Open dashboard",
 		onClick: noop,
-		note: "We couldn't check Insights.",
+		note: "Failed to check Insights.",
 		onRetry: noop,
 	},
 };
 
 const SCENARIOS: Scenario[] = [
+	{ id: "picker", title: "What do you want", sample: { picker: true } },
 	{ id: "empty", title: "New account", sample: { website: null } },
 	{
 		id: "created",
@@ -285,24 +294,23 @@ const SCENARIOS: Scenario[] = [
 		},
 	},
 	{
-		id: "intent",
-		title: "Intent picked",
+		id: "products",
+		title: "Every product picked",
 		sample: {
 			research: RESEARCH.ready,
 			tracking: TRACKING.verified,
-			intent: "conversions",
+			wants: ALL_WANTS,
 			finish: FINISH.insights,
 		},
 	},
 	{
-		id: "save-error",
-		title: "Save failed",
+		id: "products-done",
+		title: "Every product set up",
 		sample: {
 			research: RESEARCH.ready,
 			tracking: TRACKING.verified,
-			intent: "traffic",
-			saveError:
-				"A newer brief was saved. Review the update before saving your edits.",
+			wants: ALL_WANTS,
+			productsDone: true,
 			finish: FINISH.insights,
 		},
 	},
@@ -312,7 +320,6 @@ const SCENARIOS: Scenario[] = [
 		sample: {
 			research: RESEARCH.ready,
 			tracking: TRACKING.verified,
-			prioritySaved: true,
 			finish: FINISH.insights,
 		},
 	},
@@ -322,7 +329,6 @@ const SCENARIOS: Scenario[] = [
 		sample: {
 			research: RESEARCH.ready,
 			tracking: TRACKING.verified,
-			prioritySaved: true,
 			finish: FINISH.checking,
 		},
 	},
@@ -332,26 +338,38 @@ const SCENARIOS: Scenario[] = [
 		sample: {
 			research: RESEARCH.ready,
 			tracking: TRACKING.verified,
-			prioritySaved: true,
 			finish: FINISH.failed,
 		},
 	},
 ];
 
 function Sample({ sample }: { sample: Sample }) {
-	const [priority, setPriority] = useState(
-		INTENT_OPTIONS.find((option) => option.id === sample.intent)?.priority ?? ""
-	);
+	const [picked, setPicked] = useState<OnboardingWant[]>(["analytics"]);
 	const website = sample.website === undefined ? WEBSITE : sample.website;
+	if (sample.picker) {
+		return (
+			<WhatMatters
+				onContinue={noop}
+				onSkipSetup={noop}
+				onToggle={(want) =>
+					setPicked((current) =>
+						current.includes(want)
+							? current.filter((item) => item !== want)
+							: [...current, want]
+					)
+				}
+				selected={picked}
+			/>
+		);
+	}
 	return (
 		<SetupChecklist
 			agentProgress={sample.agentProgress ?? null}
 			creating={false}
 			loadingWebsites={false}
 			finish={website ? (sample.finish ?? null) : null}
-			onChangePriority={setPriority}
+			onChangeWants={noop}
 			onCreateWebsite={() => Promise.resolve()}
-			onSavePriority={noop}
 			onSkipSetup={noop}
 			onSkipTracking={noop}
 			onStartResearch={noop}
@@ -360,16 +378,27 @@ function Sample({ sample }: { sample: Sample }) {
 				creating: null,
 				onCreate: noop,
 			}}
-			priority={priority}
-			prioritySaved={sample.prioritySaved ?? false}
+			products={{
+				linksCreated: sample.productsDone ?? false,
+				mcpCopied: sample.productsDone ?? false,
+				monitor: {
+					blockedRole: null,
+					creating: false,
+					exists: sample.productsDone ?? false,
+				},
+				onCopyMcp: noop,
+				onCreateApiKey: noop,
+				onCreateLink: noop,
+				onCreateMonitor: noop,
+				onEditMonitor: noop,
+			}}
 			research={sample.research ?? EMPTY_RESEARCH}
-			saveError={sample.saveError ?? null}
-			saving={sample.saving ?? false}
 			setupSession="previewsession0000"
 			suggestedDomain={website ? null : "acme.com"}
 			tracking={sample.tracking ?? TRACKING.awaiting}
 			trackingCopied={sample.trackingCopied ?? false}
 			trackingSkipped={sample.trackingSkipped ?? false}
+			wants={sample.wants ?? ["analytics"]}
 			website={website}
 		/>
 	);

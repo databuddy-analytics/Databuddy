@@ -10,7 +10,6 @@ import { z } from "zod";
 import { ExpirationPicker } from "@/app/(main)/links/_components/expiration-picker";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { orpc } from "@/lib/orpc";
-import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 import {
 	formatMaskedApiKey,
@@ -351,9 +350,7 @@ export function ApiKeySheet({
 			setNewSecret(res.secret);
 			toast.success("API key created");
 		},
-		onError: (err: Error) => {
-			toast.error(getUserFacingErrorMessage(err, "Failed to create API key."));
-		},
+		meta: { errorTitle: "Failed to create API key" },
 	});
 
 	const updateMutation = useMutation({
@@ -363,9 +360,7 @@ export function ApiKeySheet({
 			toast.success("API key updated");
 			handleClose();
 		},
-		onError: (err: Error) => {
-			toast.error(getUserFacingErrorMessage(err, "Failed to update API key."));
-		},
+		meta: { errorTitle: "Failed to update API key" },
 	});
 
 	const rotateMutation = useMutation({
@@ -375,9 +370,7 @@ export function ApiKeySheet({
 			invalidateQueries();
 			toast.success("API key rotated");
 		},
-		onError: (err: Error) => {
-			toast.error(getUserFacingErrorMessage(err, "Failed to rotate API key."));
-		},
+		meta: { errorTitle: "Failed to rotate API key" },
 	});
 
 	const revokeMutation = useMutation({
@@ -386,9 +379,7 @@ export function ApiKeySheet({
 			invalidateQueries();
 			toast.success("API key revoked");
 		},
-		onError: (err: Error) => {
-			toast.error(getUserFacingErrorMessage(err, "Failed to revoke API key."));
-		},
+		meta: { errorTitle: "Failed to revoke API key" },
 	});
 
 	const deleteMutation = useMutation({
@@ -399,9 +390,7 @@ export function ApiKeySheet({
 			setShowDeleteConfirm(false);
 			handleClose();
 		},
-		onError: (err: Error) => {
-			toast.error(getUserFacingErrorMessage(err, "Failed to delete API key."));
-		},
+		meta: { errorTitle: "Failed to delete API key" },
 	});
 
 	const buildResources = (scopes: ApiScope[]) => {
@@ -507,8 +496,8 @@ export function ApiKeySheet({
 	const submitLabel = isCreate
 		? newSecret
 			? "Done"
-			: "Create Key"
-		: "Save Changes";
+			: "Create API key"
+		: "Save changes";
 
 	return (
 		<>
@@ -530,7 +519,7 @@ export function ApiKeySheet({
 							<div className="min-w-0 flex-1">
 								<div className="flex items-center gap-2">
 									<Sheet.Title className="truncate">
-										{apiKey ? apiKey.name : "Create API Key"}
+										{apiKey ? apiKey.name : "Create API key"}
 									</Sheet.Title>
 									{status && (
 										<Badge size="sm" variant={status.variant}>
@@ -811,7 +800,7 @@ export function ApiKeySheet({
 																		{scope.label}
 																		{scope.value === "read:data" && (
 																			<Badge size="sm" variant="muted">
-																				default
+																				Default
 																			</Badge>
 																		)}
 																	</span>
@@ -1001,7 +990,7 @@ export function ApiKeySheet({
 												size="sm"
 												variant={rateLimitEnabled ? "success" : "muted"}
 											>
-												{rateLimitEnabled ? "On" : "Off"}
+												{rateLimitEnabled ? "Enabled" : "Disabled"}
 											</Badge>
 										</Accordion.Trigger>
 										<Accordion.Content>
@@ -1147,7 +1136,7 @@ export function ApiKeySheet({
 					<Dialog onOpenChange={setShowDeleteConfirm} open={showDeleteConfirm}>
 						<Dialog.Content>
 							<Dialog.Header>
-								<Dialog.Title>Delete API Key?</Dialog.Title>
+								<Dialog.Title>Delete API key</Dialog.Title>
 								<Dialog.Description>
 									This action cannot be undone. Any applications using this key
 									will immediately lose access.
@@ -1175,7 +1164,7 @@ export function ApiKeySheet({
 					<Dialog onOpenChange={setShowRotateConfirm} open={showRotateConfirm}>
 						<Dialog.Content>
 							<Dialog.Header>
-								<Dialog.Title>Rotate API Key?</Dialog.Title>
+								<Dialog.Title>Rotate API key</Dialog.Title>
 								<Dialog.Description>
 									A new secret will be generated and the current one will stop
 									working immediately. Anything using the old secret will break
@@ -1208,7 +1197,7 @@ export function ApiKeySheet({
 					<Dialog onOpenChange={setShowRevokeConfirm} open={showRevokeConfirm}>
 						<Dialog.Content>
 							<Dialog.Header>
-								<Dialog.Title>Revoke API Key?</Dialog.Title>
+								<Dialog.Title>Revoke API key</Dialog.Title>
 								<Dialog.Description>
 									This key will stop working immediately. Revocation is
 									permanent: the key cannot be re-enabled. Create a new key if

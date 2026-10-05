@@ -113,9 +113,13 @@ function githubAccessError(response: Response): Error {
 		);
 	}
 	if (status >= 500) {
-		return rpcError.internal("GitHub is temporarily unavailable");
+		return rpcError.internal(
+			"GitHub is temporarily unavailable. Try again in a moment."
+		);
 	}
-	return rpcError.badRequest(`GitHub request failed (${status}). Try again.`);
+	return rpcError.badRequest(
+		`GitHub could not complete the request (error ${status}). Try again in a moment.`
+	);
 }
 
 const slackChannelBindingOutputSchema = z.object({
@@ -438,7 +442,9 @@ export const integrationsRouter = {
 					token
 				);
 			} catch {
-				throw rpcError.badRequest("GitHub could not verify this repository.");
+				throw rpcError.badRequest(
+					"GitHub could not confirm this repository. Try again in a moment."
+				);
 			}
 			if (!response.ok) {
 				throw githubAccessError(response);
@@ -453,7 +459,7 @@ export const integrationsRouter = {
 				.safeParse(repository);
 			if (!verified.success) {
 				throw rpcError.badRequest(
-					"GitHub returned an invalid repository response."
+					"GitHub sent back an unexpected response for this repository. Try again in a moment."
 				);
 			}
 
@@ -590,7 +596,7 @@ export const integrationsRouter = {
 				(await getUserProviderToken(context.db, context.user.id, "github"));
 			if (!token) {
 				throw rpcError.badRequest(
-					"Connect GitHub with repository access before listing repositories."
+					"Connect GitHub with repository access to see your repositories."
 				);
 			}
 
@@ -602,7 +608,9 @@ export const integrationsRouter = {
 			try {
 				res = await githubRequest(path, token);
 			} catch {
-				throw rpcError.badRequest("GitHub could not be reached. Try again.");
+				throw rpcError.badRequest(
+					"GitHub could not be reached. Try again in a moment."
+				);
 			}
 
 			if (!res.ok) {
@@ -615,7 +623,7 @@ export const integrationsRouter = {
 			);
 			if (!parsed.success) {
 				throw rpcError.badRequest(
-					"GitHub returned an invalid repository list."
+					"GitHub sent back an unexpected repository list. Try again in a moment."
 				);
 			}
 

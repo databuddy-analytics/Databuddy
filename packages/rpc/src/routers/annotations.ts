@@ -249,7 +249,9 @@ export const annotationsRouter = {
 				.returning();
 
 			if (!newAnnotation) {
-				throw rpcError.internal("Failed to create annotation");
+				throw rpcError.internal(
+					"The annotation could not be created. Try again in a moment."
+				);
 			}
 
 			await invalidateAnnotationCaches(input.websiteId);

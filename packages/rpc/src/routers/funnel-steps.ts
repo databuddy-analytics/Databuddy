@@ -85,7 +85,7 @@ export function requireFunnelSteps(steps: unknown): FunnelStep[] {
 	const normalized = normalizeFunnelSteps(steps);
 	if (normalized.length < 2) {
 		throw rpcError.badRequest(
-			"Funnel must contain at least 2 valid steps and no malformed steps"
+			"A funnel needs at least 2 steps, and every step needs a target. Fix the steps and try again."
 		);
 	}
 	return normalized;

@@ -45,6 +45,7 @@ import {
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { latestRunDescription } from "./_lib/insight-run";
 
 const PERIOD_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
@@ -107,12 +108,7 @@ function InsightsPageContent() {
 			: null;
 	const triggerFirstReview = useMutation({
 		...orpc.insightGeneration.triggerRun.mutationOptions(),
-		onError: (error) =>
-			toast.error(
-				error instanceof Error
-					? error.message
-					: "Couldn't start your first review"
-			),
+		meta: { errorTitle: "Failed to start first review" },
 		onSuccess: (run) => {
 			if (run.reusedRun) {
 				toast.info("An analysis is already in progress");
@@ -435,7 +431,7 @@ function FirstReview({
 					<WarningCircleIcon aria-hidden className="size-5 text-destructive" />
 					<div className="min-w-0 flex-1">
 						<p className="font-medium text-sm">
-							Couldn't check your first review
+							Failed to check your first review
 						</p>
 						<p className="mt-0.5 text-muted-foreground text-xs">
 							Try again before starting an analysis.
@@ -619,7 +615,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeLabel: "Ready",
 		badgeVariant: "success",
 		description:
-			"Run one review of this site. You will see a specific finding—or a clear no-finding result.",
+			"Run one review of this site. You will see a specific finding or a clear no-finding result.",
 		icon: <LightbulbIcon className="size-5 text-success" />,
 		title: "Your first review is ready",
 	},
@@ -733,11 +729,8 @@ function useReviewScheduleEmptyState(
 	const enableReviews = useMutation({
 		...orpc.insightGeneration.upsertConfig.mutationOptions(),
 		onError: (error) =>
-			toast.error(
-				error instanceof Error
-					? error.message
-					: "Could not turn on weekly reviews"
-			),
+			showErrorToast(error, "Failed to turn on weekly reviews"),
+		meta: { suppressGlobalErrorToast: true },
 		onSuccess: () =>
 			queryClient.invalidateQueries({
 				queryKey: orpc.insightGeneration.key(),
@@ -838,7 +831,7 @@ function InsightBrief({
 					}}
 					description="Databuddy couldn't load recent insights."
 					icon={<LightbulbIcon />}
-					title="Couldn't load insights"
+					title="Failed to load insights"
 					variant="error"
 				/>
 			</div>
@@ -1019,7 +1012,7 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 							aria-label={`Review investigation: ${insight.title}`}
 							href={`/insights/${insight.investigationId}`}
 						>
-							Review & respond
+							Review and respond
 							<ArrowRightIcon className="size-3" />
 						</Link>
 					</Button>

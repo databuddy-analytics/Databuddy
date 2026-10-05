@@ -47,7 +47,7 @@ for (const { aiConfigured, capability } of cases) {
 			}
 		);
 
-		await page.goto("/onboarding");
+		await page.goto("/onboarding?want=analytics");
 		await expect(
 			page.getByText("Tracking verified", { exact: true })
 		).toBeVisible();
@@ -71,7 +71,7 @@ for (const { aiConfigured, capability } of cases) {
 			});
 		}
 		if (hasFailure) {
-			await expect(page.getByText("We couldn't check Insights.")).toBeVisible();
+			await expect(page.getByText("Failed to check Insights.")).toBeVisible();
 			if (!aiConfigured) {
 				await page.getByRole("button", { name: "Open dashboard" }).click();
 				await expect(page).toHaveURL(

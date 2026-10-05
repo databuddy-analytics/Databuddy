@@ -8,6 +8,7 @@ import { useSetAtom } from "jotai";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import {
 	CaretDownIcon,
 	CheckIcon,
@@ -110,7 +111,7 @@ function OrgDropdownItems({
 			<DropdownMenu.Separator />
 			<DropdownMenu.Item onClick={onCreateClick}>
 				<PlusIcon className="size-4 shrink-0" />
-				Create Organization
+				Create organization
 			</DropdownMenu.Item>
 		</>
 	);
@@ -166,7 +167,7 @@ export function OrganizationSelector({
 		});
 
 		if (error) {
-			toast.error(error.message || "Failed to switch organization");
+			showErrorToast(error, "Failed to switch organization");
 			setPendingActiveOrganizationId(null);
 			return;
 		}

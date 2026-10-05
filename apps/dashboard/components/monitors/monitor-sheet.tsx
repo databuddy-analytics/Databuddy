@@ -14,6 +14,7 @@ import {
 	type UptimeGranularity,
 } from "@databuddy/shared/uptime";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { useWebsite } from "@/hooks/use-websites";
 import {
@@ -115,12 +116,15 @@ export function MonitorSheet({
 
 	const createMutation = useMutation({
 		...orpc.uptime.createSchedule.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
 	});
 	const updateMutation = useMutation({
 		...orpc.uptime.updateSchedule.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
 	});
 	const alarmUpdateMutation = useMutation({
 		...orpc.alarms.update.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const { data: rawAlarms } = useQuery({
@@ -150,7 +154,9 @@ export function MonitorSheet({
 			await queryClient.invalidateQueries({
 				queryKey: orpc.alarms.list.key(),
 			});
-		} catch {}
+		} catch (error) {
+			showErrorToast(error, "Failed to update alert");
+		}
 	};
 
 	useEffect(() => {
@@ -187,7 +193,7 @@ export function MonitorSheet({
 		setUrlError(
 			!url || isValidUrl(url)
 				? null
-				: "Please enter a valid URL (e.g. https://example.com)"
+				: "Enter a valid URL (e.g. https://example.com)"
 		);
 
 	const canSubmit = isEditing || (url.length > 0 && isValidUrl(url));
@@ -196,7 +202,7 @@ export function MonitorSheet({
 		e.preventDefault();
 
 		if (!(isEditing || (url && isValidUrl(url)))) {
-			setUrlError("Please enter a valid URL (e.g. https://example.com)");
+			setUrlError("Enter a valid URL (e.g. https://example.com)");
 			return;
 		}
 
@@ -229,7 +235,12 @@ export function MonitorSheet({
 				toast.success("Monitor created");
 			}
 			onCloseAction(false);
-		} catch {}
+		} catch (error) {
+			showErrorToast(
+				error,
+				isEditing ? "Failed to update monitor" : "Failed to create monitor"
+			);
+		}
 	};
 
 	const advancedCount = (timeoutMs ? 1 : 0) + (cacheBust ? 1 : 0);
@@ -240,7 +251,7 @@ export function MonitorSheet({
 				<Sheet.Close />
 				<Sheet.Header>
 					<Sheet.Title>
-						{isEditing ? "Edit Monitor" : "Create Monitor"}
+						{isEditing ? "Edit monitor" : "Create monitor"}
 					</Sheet.Title>
 					<Sheet.Description>
 						{isEditing
@@ -293,7 +304,7 @@ export function MonitorSheet({
 
 						<Field>
 							<Field.Label className="flex items-center gap-2">
-								Check Frequency
+								Check frequency
 								<Tooltip content="How often the monitor checks availability">
 									<InfoIcon className="size-3.5 text-muted-foreground" />
 								</Tooltip>
@@ -314,7 +325,7 @@ export function MonitorSheet({
 								<Accordion>
 									<Accordion.Trigger>
 										<GearIcon className="size-4 shrink-0 text-muted-foreground" />
-										<Text variant="label">Advanced Settings</Text>
+										<Text variant="label">Advanced settings</Text>
 										{advancedCount > 0 && (
 											<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
 												{advancedCount}
@@ -396,7 +407,7 @@ export function MonitorSheet({
 															>
 																<div className="flex items-center gap-2">
 																	{!alarm.enabled && (
-																		<Badge size="sm" variant="muted">
+																		<Badge size="sm" variant="warning">
 																			Paused
 																		</Badge>
 																	)}
@@ -432,7 +443,7 @@ export function MonitorSheet({
 							loading={isPending}
 							type="submit"
 						>
-							{isEditing ? "Update" : "Create"}
+							{isEditing ? "Save changes" : "Create monitor"}
 						</Button>
 					</Sheet.Footer>
 				</form>

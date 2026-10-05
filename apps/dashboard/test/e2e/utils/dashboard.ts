@@ -2,7 +2,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
 
 const SAFE_SCOPE_CHARS_RE = /[^a-z0-9]/gi;
 const CREATE_API_KEY_BUTTON_RE = /Create (your first )?key/i;
-export const SHORT_LINK_LABEL_RE = /Short Link/;
+export const SHORT_LINK_LABEL_RE = /Short link/i;
 export const WEBSITE_PATH_RE = /\/websites\/[A-Za-z0-9_-]+/;
 export const LINK_PATH_RE = /\/links\/[A-Za-z0-9_-]+/;
 const ORGANIZATION_TRIGGER_RE = /^Organization:/;
@@ -82,7 +82,7 @@ export async function createWebsite(
 	input: { domain: string; name: string }
 ): Promise<Locator> {
 	await page.getByRole("button", { name: "New Website" }).click();
-	const dialog = page.getByRole("dialog", { name: "Create a new website" });
+	const dialog = page.getByRole("dialog", { name: "Create website" });
 	await dialog.waitFor();
 	await dialog.getByRole("textbox", { name: "Name" }).fill(input.name);
 	await dialog.getByRole("textbox", { name: "Domain" }).fill(input.domain);
@@ -113,7 +113,7 @@ export async function createApiKey(
 	await dialog
 		.getByRole("textbox", { exact: true, name: "Name" })
 		.fill(keyName);
-	await dialog.getByRole("button", { name: "Create Key" }).click();
+	await dialog.getByRole("button", { name: "Create API key" }).click();
 	await expect(page.getByText("Secret key", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Done" }).click();
 	await expect(dialog).toBeHidden();

@@ -90,7 +90,7 @@ const appendInvestigationReplyInputSchema = z
 			.min(1)
 			.max(200)
 			.refine((value) => !value.includes(":"), {
-				message: "Reply ids cannot contain colons",
+				message: "Reply IDs cannot contain colons.",
 			})
 			.optional(),
 	})
@@ -117,7 +117,7 @@ const investigationAIMissing = () =>
 function requireInvestigationAI() {
 	if (investigationAIMissing()) {
 		throw rpcError.badRequest(
-			"Ask your administrator to configure AI before continuing an investigation."
+			"AI is not set up on this Databuddy instance. Ask your administrator to configure it before continuing an investigation."
 		);
 	}
 }
@@ -583,7 +583,7 @@ export async function appendInvestigationReply(
 		.limit(1);
 
 	if (!insight) {
-		throw rpcError.notFound("insight", parsed.insightId);
+		throw rpcError.notFound("investigation", parsed.insightId);
 	}
 	await withWorkspace(context, {
 		allowCrossOrg: true,
@@ -599,7 +599,9 @@ export async function appendInvestigationReply(
 	requireInvestigationAI();
 	const author = replyAuthor(context, authorName);
 	if (parsed.intent === "analysis" && !author.authorId) {
-		throw rpcError.badRequest("Start a new analysis from the dashboard.");
+		throw rpcError.badRequest(
+			"New analyses can only be started from the dashboard. Open the investigation there to continue."
+		);
 	}
 	const principalId =
 		author.authorId ??
@@ -671,7 +673,7 @@ export async function appendInvestigationReply(
 			.limit(1)
 			.for("update");
 		if (!current) {
-			throw rpcError.notFound("insight", parsed.insightId);
+			throw rpcError.notFound("investigation", parsed.insightId);
 		}
 
 		const [existing] = await tx
@@ -705,7 +707,7 @@ export async function appendInvestigationReply(
 				existing.slackDelivery?.threadTs !== slackDelivery?.threadTs
 			) {
 				throw rpcError.conflict(
-					"Reply id is already used for different context"
+					"This reply was already sent with different content. Refresh the page and try again."
 				);
 			}
 			return {
@@ -737,7 +739,7 @@ export async function appendInvestigationReply(
 			.limit(1);
 		if (!observation) {
 			throw rpcError.badRequest(
-				"This investigation has no history to continue"
+				"This investigation has no history to continue from. Start a new investigation instead."
 			);
 		}
 
@@ -754,7 +756,7 @@ export async function appendInvestigationReply(
 			.limit(1);
 		if (active) {
 			throw rpcError.badRequest(
-				"Databuddy is already investigating the latest reply"
+				"Databuddy is still working on the latest reply. Wait for it to finish and try again."
 			);
 		}
 
@@ -846,9 +848,11 @@ function definitionActionError(
 ): ReturnType<typeof rpcError.badRequest | typeof rpcError.conflict> {
 	return phase === "initial"
 		? rpcError.badRequest(
-				"This investigation has no executable definition action to apply"
+				"This investigation has no suggested change to apply."
 			)
-		: rpcError.conflict("This definition action is no longer available");
+		: rpcError.conflict(
+				"This suggested change is no longer available. Refresh the page to see the latest version."
+			);
 }
 
 async function applyInsightAction(input: {
@@ -873,7 +877,7 @@ async function applyInsightAction(input: {
 		)
 		.limit(1);
 	if (!target) {
-		throw rpcError.notFound("insight", parsed.insightId);
+		throw rpcError.notFound("investigation", parsed.insightId);
 	}
 	const [latestObservation] = await db
 		.select({
@@ -937,7 +941,7 @@ async function applyInsightAction(input: {
 			current.status !== "open"
 		) {
 			throw rpcError.conflict(
-				"This investigation changed before the action could apply"
+				"This investigation changed before the change could be applied. Refresh the page and try again."
 			);
 		}
 
@@ -990,7 +994,7 @@ async function applyInsightAction(input: {
 			.limit(1);
 		if (activeReply) {
 			throw rpcError.conflict(
-				"Databuddy is already verifying this investigation"
+				"Databuddy is already checking this investigation. Wait for it to finish and try again."
 			);
 		}
 
@@ -1073,7 +1077,7 @@ async function applyInsightAction(input: {
 					)
 				) {
 					throw rpcError.badRequest(
-						"This action does not change the goal definition."
+						"This change matches the current goal, so there is nothing to apply."
 					);
 				}
 				await tx
@@ -1149,7 +1153,7 @@ async function applyInsightAction(input: {
 					)
 				) {
 					throw rpcError.badRequest(
-						"This action does not change the funnel definition."
+						"This change matches the current funnel, so there is nothing to apply."
 					);
 				}
 				await tx
@@ -1228,7 +1232,7 @@ async function authorizeInvestigationShare(
 ) {
 	const insight = await findCurrentInvestigation(insightId);
 	if (!insight) {
-		throw rpcError.notFound("Investigation", insightId);
+		throw rpcError.notFound("investigation", insightId);
 	}
 	await withWorkspace(context, {
 		allowCrossOrg: true,
@@ -1612,7 +1616,7 @@ export const insightsRouter = {
 				)
 				.limit(1);
 			if (!reply) {
-				throw rpcError.notFound("insight reply", input.replyId);
+				throw rpcError.notFound("investigation reply", input.replyId);
 			}
 			await withWorkspace(context, {
 				allowCrossOrg: true,
@@ -1639,7 +1643,7 @@ export const insightsRouter = {
 					.limit(1)
 					.for("update");
 				if (!current) {
-					throw rpcError.notFound("insight reply", input.replyId);
+					throw rpcError.notFound("investigation reply", input.replyId);
 				}
 
 				const [latest] = await tx
@@ -1653,7 +1657,9 @@ export const insightsRouter = {
 					.orderBy(desc(insightReplies.createdAt), desc(insightReplies.id))
 					.limit(1);
 				if (latest?.id !== input.replyId) {
-					throw rpcError.badRequest("Only the latest reply can be retried");
+					throw rpcError.badRequest(
+						"Only the latest reply can be retried. Refresh the page to see it."
+					);
 				}
 				if (latest.status !== "failed") {
 					return latest.status;
@@ -1672,7 +1678,7 @@ export const insightsRouter = {
 					.limit(1);
 				if (!observation) {
 					throw rpcError.badRequest(
-						"This investigation has no history to continue"
+						"This investigation has no history to continue from. Start a new investigation instead."
 					);
 				}
 
@@ -1692,7 +1698,7 @@ export const insightsRouter = {
 					.limit(1);
 				if (active) {
 					throw rpcError.badRequest(
-						"Databuddy is already investigating the latest reply"
+						"Databuddy is still working on the latest reply. Wait for it to finish and try again."
 					);
 				}
 
@@ -1791,7 +1797,7 @@ export const insightsRouter = {
 			);
 			if (timeline.length === 0) {
 				throw rpcError.badRequest(
-					"This investigation has no findings to publish yet"
+					"This investigation has no findings to share yet. Try again once it has results."
 				);
 			}
 			const snapshot: InvestigationShareSnapshot = {
@@ -1842,7 +1848,9 @@ export const insightsRouter = {
 					version: investigationShares.version,
 				});
 			if (!share) {
-				throw rpcError.internal("Could not publish the investigation");
+				throw rpcError.internal(
+					"The investigation could not be shared. Try again in a moment."
+				);
 			}
 			await fetchPublicInvestigationShare.invalidate(share.id);
 			return {
@@ -1899,7 +1907,7 @@ export const insightsRouter = {
 			);
 			const { share } = await fetchPublicInvestigationShare(input.shareId);
 			if (!share) {
-				throw rpcError.notFound("Investigation", input.shareId);
+				throw rpcError.notFound("investigation", input.shareId);
 			}
 			return share;
 		}),

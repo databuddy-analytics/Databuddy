@@ -23,7 +23,7 @@ export default function WebsiteError({
 				<WarningCircleIcon className="size-6 text-destructive" />
 			</div>
 			<div className="max-w-sm space-y-2 text-center">
-				<h2 className="font-semibold text-lg">Something went wrong</h2>
+				<h2 className="font-semibold text-lg">Failed to load website</h2>
 				<p className="text-muted-foreground text-sm">
 					We couldn&apos;t load this website. Try again or return to your
 					websites.

@@ -20,7 +20,7 @@ test("validates, creates, renames, rejects a duplicate domain, and deletes a web
 	await page.goto("/websites");
 	await expectDashboardReady(page);
 	await page.getByRole("button", { name: "New Website" }).click();
-	const dialog = page.getByRole("dialog", { name: "Create a new website" });
+	const dialog = page.getByRole("dialog", { name: "Create website" });
 	const nameField = dialog.getByRole("textbox", { name: "Name" });
 	const domainField = dialog.getByRole("textbox", { name: "Domain" });
 	const create = dialog.getByRole("button", { name: "Create website" });

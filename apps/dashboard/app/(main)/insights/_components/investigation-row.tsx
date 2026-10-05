@@ -11,6 +11,7 @@ import { DeleteDialog } from "@databuddy/ui/client";
 import Link from "next/link";
 import { useId, useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { List } from "@/components/ui/composables/list";
 import {
 	insightQueries,
@@ -58,12 +59,9 @@ export function ExecuteDefinitionAction({
 	const apply = useMutation({
 		...orpc.insights.applyAction.mutationOptions(),
 		onError: (error) => {
-			toast.error(
-				error instanceof Error
-					? error.message
-					: `Could not apply ${definitionType} action`
-			);
+			showErrorToast(error, `Failed to apply ${definitionType} change`);
 		},
+		meta: { suppressGlobalErrorToast: true },
 		onSuccess: ({ reply }) => {
 			queryClient.invalidateQueries({ queryKey: insightQueries.all() });
 			queryClient.invalidateQueries({
@@ -74,7 +72,7 @@ export function ExecuteDefinitionAction({
 			toast.success(
 				reply.status === "failed"
 					? `${noun} change applied, but verification could not start`
-					: `${noun} change applied — verifying the result`
+					: `${noun} change applied. Verifying the result`
 			);
 		},
 	});

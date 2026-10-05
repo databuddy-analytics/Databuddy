@@ -139,13 +139,14 @@ function ConsentPage() {
 				}
 			),
 		onError: ({ cause }) => {
-			const message =
+			const reason =
 				cause instanceof Object && "message" in cause ? cause.message : null;
-			toast.error(
-				typeof message === "string" && message
-					? message
-					: "Could not complete authorization. Try connecting again."
-			);
+			toast.error("Failed to complete authorization", {
+				description:
+					typeof reason === "string" && reason
+						? reason
+						: "Try connecting again.",
+			});
 		},
 	});
 	const busy = decision.isPending || decision.isSuccess;
@@ -237,7 +238,7 @@ function ConsentPage() {
 				</DropdownMenu>
 				{organizationsQuery.isError ? (
 					<Field.Error id="consent-organization-description">
-						Could not load organizations. Try connecting again.
+						Failed to load organizations. Try connecting again.
 					</Field.Error>
 				) : (
 					<Field.Description id="consent-organization-description">
@@ -268,7 +269,7 @@ function ConsentPage() {
 						</Text>
 					) : websitesQuery.isError ? (
 						<Text role="alert" tone="destructive">
-							Could not load websites. Try connecting again.
+							Failed to load websites. Try connecting again.
 						</Text>
 					) : websiteIds === null ? (
 						<Text tone="muted" variant="caption">

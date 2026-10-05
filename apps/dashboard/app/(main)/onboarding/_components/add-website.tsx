@@ -23,7 +23,7 @@ const formSchema = z.object({
 		.trim()
 		.min(1, "Name is required")
 		.max(100, "Keep the name under 100 characters")
-		.regex(/^[a-zA-Z0-9\s\-_.]+$/, "Use letters, numbers, spaces, -, _ or ."),
+		.regex(/^[a-zA-Z0-9\s\-_.]+$/, "Use letters, numbers, spaces, -, _, or ."),
 });
 
 export type WebsiteFormValues = z.infer<typeof formSchema>;
@@ -136,7 +136,7 @@ export function AddWebsite({
 				size="sm"
 				type="submit"
 			>
-				{pending ? "Creating" : "Create website"}
+				{pending ? "Creating…" : "Create website"}
 			</Button>
 		</form>
 	);
