@@ -66,6 +66,7 @@ describe("handleAppError", () => {
 	});
 
 	it("uses the API-key authentication challenge without OAuth metadata", async () => {
+		process.env.NODE_ENV = "production";
 		const response = handleAppError({
 			code: "AUTH_REQUIRED",
 			requestId: "req_test_auth",
