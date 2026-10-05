@@ -23,7 +23,7 @@ import {
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
-import { showErrorToast } from "@/lib/user-facing-error";
+import { toast } from "sonner";
 import { orpc } from "@/lib/orpc";
 
 const IDENTITY_SCOPE_LABELS = new Map([
@@ -138,8 +138,16 @@ function ConsentPage() {
 						: undefined,
 				}
 			),
-		onError: (error) =>
-			showErrorToast(error, "Failed to complete authorization"),
+		onError: ({ cause }) => {
+			const reason =
+				cause instanceof Object && "message" in cause ? cause.message : null;
+			toast.error("Failed to complete authorization", {
+				description:
+					typeof reason === "string" && reason
+						? reason
+						: "Try connecting again.",
+			});
+		},
 	});
 	const busy = decision.isPending || decision.isSuccess;
 
