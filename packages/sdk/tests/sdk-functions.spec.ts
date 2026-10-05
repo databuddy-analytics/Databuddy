@@ -200,6 +200,7 @@ test.describe("SDK Functions", () => {
 		test("returns the session at exactly the 30 minute boundary as expired", async ({
 			page,
 		}) => {
+			await page.clock.install({ time: new Date("2026-06-01T12:00:00.000Z") });
 			const result = await page.evaluate(() => {
 				sessionStorage.setItem("did_session", "sess-boundary");
 				sessionStorage.setItem(
@@ -209,6 +210,50 @@ test.describe("SDK Functions", () => {
 				return window.__SDK__.getSessionId();
 			});
 			expect(result).toBeNull();
+		});
+
+		test("returns the stored id when the tracker is running, even past 30 minutes", async ({
+			page,
+		}) => {
+			const result = await page.evaluate(() => {
+				(window as any).databuddy = {
+					track: () => {},
+					screenView: () => {},
+					setGlobalProperties: () => {},
+					clear: () => {},
+					flush: () => {},
+					getTrackingIds: () => ({
+						anonId: "anon-live",
+						sessionId: "sess-live",
+					}),
+					options: {},
+				};
+				sessionStorage.setItem("did_session", "sess-live");
+				sessionStorage.setItem(
+					"did_session_timestamp",
+					(Date.now() - 31 * 60 * 1000).toString()
+				);
+				return window.__SDK__.getSessionId();
+			});
+			expect(result).toBe("sess-live");
+		});
+
+		test("returns the stored id for a tracker without getTrackingIds, even past 30 minutes", async ({
+			page,
+		}) => {
+			const result = await page.evaluate(() => {
+				(window as any).databuddy = {
+					track: () => {},
+					options: {},
+				};
+				sessionStorage.setItem("did_session", "sess-legacy");
+				sessionStorage.setItem(
+					"did_session_timestamp",
+					(Date.now() - 31 * 60 * 1000).toString()
+				);
+				return window.__SDK__.getSessionId();
+			});
+			expect(result).toBe("sess-legacy");
 		});
 
 		test("prioritizes URL param over sessionStorage", async ({ page }) => {

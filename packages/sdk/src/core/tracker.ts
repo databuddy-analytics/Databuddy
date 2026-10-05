@@ -176,7 +176,11 @@ export function getAnonymousId(urlParams?: URLSearchParams): string | null {
 	}
 }
 
-/** Get current session ID. Priority: URL params → active tracker → sessionStorage. */
+/**
+ * Get current session ID. Priority: URL params → active tracker → sessionStorage.
+ * The stored id resets after 30 min inactivity — except while the tracker runs
+ * on the page, where the stored id is returned as-is (the tracker owns rotation).
+ */
 export function getSessionId(urlParams?: URLSearchParams): string | null {
 	if (typeof window === "undefined") {
 		return null;
@@ -193,6 +197,12 @@ export function getSessionId(urlParams?: URLSearchParams): string | null {
 		const storedId = sessionStorage.getItem("did_session");
 		if (!storedId) {
 			return null;
+		}
+		if (isTrackerAvailable()) {
+			// The tracker only refreshes `did_session_timestamp` on page load
+			// (and bfcache restore), yet keeps sending the same `did_session`
+			// across SPA navigations — a stale timestamp does not mean rotation.
+			return storedId;
 		}
 		const storedAt = Number.parseInt(
 			sessionStorage.getItem("did_session_timestamp") ?? "",
