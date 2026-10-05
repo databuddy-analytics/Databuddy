@@ -320,8 +320,22 @@ SETTINGS additional_table_filters = {} -- '`
 			`SELECT \`DISTINCT\` FROM analytics.events ${TENANT} GROUP BY (url DISTINCT)`,
 			`SELECT \`IS\`, count() FROM analytics.events ${TENANT} GROUP BY url IS`,
 			`SELECT \`END\` FROM analytics.events ${TENANT} AND CASE WHEN notEmpty(url END) THEN true ELSE false END`,
+			`SELECT \`ASC\` FROM analytics.events ${TENANT} ORDER BY CASE WHEN notEmpty(path) THEN url ASC ELSE path END`,
+			`SELECT \`BY\` FROM analytics.events ${TENANT} ORDER BY row_number() OVER (PARTITION BY CASE WHEN notEmpty(path) THEN url BY ELSE path END)`,
+			`SELECT u FROM analytics.events ${TENANT} LIMIT 1 BY url AS u`,
+			`SELECT u FROM analytics.events e WHERE e.client_id = {websiteId:String} LIMIT 1, 2 BY "e"."url" AS u`,
+			`SELECT u FROM analytics.events ${TENANT} LIMIT 1 OFFSET 2 BY toString(url) AS u`,
+			`SELECT u FROM analytics.events ARRAY JOIN [url] AS u ${TENANT}`,
+			"SELECT u FROM analytics.events e ARRAY JOIN [e.url] AS u WHERE e.client_id = {websiteId:String}",
+			`SELECT u FROM analytics.events ${TENANT} WINDOW w AS (PARTITION BY url AS u)`,
 			`SELECT COLUMNS('^prop') FROM analytics.custom_events WHERE ${ORG_TENANT}`,
 			`SELECT toJSONString(tuple(*)) FROM analytics.events ${TENANT}`,
+			`SELECT toJSONString(tuple(* APPLY toString)) FROM analytics.events ${TENANT}`,
+			`SELECT toJSONString(tuple(* APPLY(toString))) FROM analytics.events ${TENANT}`,
+			`SELECT toJSONString(tuple(path, * APPLY toString)) FROM analytics.events ${TENANT}`,
+			`SELECT path FROM analytics.events ${TENANT} AND notEmpty(toJSONString(tuple(path, * APPLY toString)))`,
+			"SELECT toJSONString(tuple(e.* APPLY toString)) FROM analytics.events e WHERE e.client_id = {websiteId:String}",
+			`SELECT count(* APPLY toString) FROM analytics.events ${TENANT}`,
 		])("rejects protected columns reached through aliases or matchers: %s", (sql) => {
 			expect(validateAgentSQL(sql).valid).toBe(false);
 		});
@@ -341,8 +355,18 @@ SETTINGS additional_table_filters = {} -- '`
 			`SELECT path, count() FROM analytics.events ${TENANT} GROUP BY path WITH TOTALS ORDER BY path WITH FILL`,
 			`SELECT path, count() FROM analytics.events ${TENANT} GROUP BY path HAVING count(DISTINCT path) > 1`,
 			`SELECT path FROM analytics.events ${TENANT} ORDER BY row_number() OVER (PARTITION BY path ORDER BY time)`,
+			`SELECT path FROM analytics.events ${TENANT} ORDER BY CASE WHEN notEmpty(path) THEN row_number() OVER (PARTITION BY path ORDER BY time DESC) ELSE 0 END ASC`,
 			`SELECT path FROM analytics.events ${TENANT} ORDER BY sum(time_on_page) OVER (PARTITION BY path ORDER BY time DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)`,
 			`SELECT path FROM analytics.events ${TENANT} WINDOW w AS (PARTITION BY path ORDER BY time RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) ORDER BY row_number() OVER w`,
+			`SELECT path FROM analytics.events ${TENANT} LIMIT 1 BY path LIMIT 10`,
+			`SELECT path FROM analytics.events ${TENANT} LIMIT 1, 2 BY path`,
+			`SELECT path FROM analytics.events ${TENANT} LIMIT 1 OFFSET 2 BY path`,
+			`SELECT path FROM analytics.events ${TENANT} limit 1 offset 2 by path`,
+			`SELECT path FROM analytics.events ${TENANT} ORDER BY time LIMIT 2 WITH TIES`,
+			`SELECT path FROM analytics.events ${TENANT} OFFSET 1 ROW`,
+			`SELECT path FROM analytics.events ${TENANT} ORDER BY time OFFSET 1 ROWS FETCH NEXT 2 ROWS ONLY`,
+			`SELECT path FROM analytics.events ARRAY JOIN [path] ${TENANT}`,
+			"SELECT e.path FROM analytics.events e ARRAY JOIN [e.path] INNER JOIN analytics.ai_traffic_spans a ON e.client_id = a.client_id WHERE e.client_id = {websiteId:String} AND a.client_id = {websiteId:String}",
 			`WITH s AS (SELECT session_id AS sid FROM analytics.events ${TENANT}) SELECT e.path FROM analytics.events AS e JOIN s ON e.session_id = s.sid WHERE e.client_id = {websiteId:String}`,
 			`WITH s AS (SELECT session_id sid FROM analytics.events ${TENANT}) SELECT e.path FROM analytics.events e JOIN s ON e.session_id = s.sid WHERE e.client_id = {websiteId:String}`,
 		])("keeps filters, casts, table aliases and CTE aliases working: %s", (sql) => {
@@ -368,6 +392,7 @@ SETTINGS additional_table_filters = {} -- '`
 				`tuple(*${whitespace})`,
 				`tuple(e.${whitespace}*)`,
 				`count(e.${whitespace}*)`,
+				`tuple(*${whitespace}APPLY${whitespace}toString)`,
 			]) {
 				expect(
 					validateAgentSQL(

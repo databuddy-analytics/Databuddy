@@ -233,6 +233,10 @@ const CLAUSE_TERMINATOR_PATTERN =
 	/\b(?:GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT|OFFSET|SETTINGS|WINDOW|JOIN)\b/i;
 const FROM_CLAUSE_TERMINATOR_PATTERN =
 	/\b(?:PREWHERE|WHERE|GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT|OFFSET|SETTINGS|WINDOW|UNION|INTERSECT|EXCEPT)\b/i;
+const ARRAY_JOIN_TERMINATOR_PATTERN = new RegExp(
+	`${FROM_CLAUSE_TERMINATOR_PATTERN.source}|\\b(?:(?:GLOBAL|LOCAL)\\s+)?(?:(?:ALL|ANY|ASOF|SEMI|ANTI|ONLY)\\s+)?(?:(?:INNER|LEFT|RIGHT|FULL|CROSS|PASTE)\\s+)?(?:(?:ALL|ANY|ASOF|SEMI|ANTI|ONLY)\\s+)?(?:OUTER\\s+)?JOIN\\b`,
+	"i"
+);
 const PAGEVIEW_EVENT_PATTERN = /\bevent_name\s*=\s*(['"])pageview\1/i;
 const SELECT_PROJECTION_PATTERN = /\bSELECT\b([\s\S]*?)\bFROM\b/gi;
 const WILDCARD_PROJECTION_PATTERN =
@@ -243,7 +247,8 @@ const COLUMNS_MATCHER_PATTERN = /\bCOLUMNS\s*\(/i;
 const WHITESPACE_CHARACTER_PATTERN = /\s/;
 const IDENTIFIER_CHARACTER_PATTERN = /[A-Za-z0-9_]/;
 const ALIAS_FREE_CLAUSE_PATTERN =
-	/\b(?:PREWHERE|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|QUALIFY|ON|WINDOW)\b/gi;
+	/\b(?:PREWHERE|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|QUALIFY|ON|WINDOW|LIMIT|OFFSET|ARRAY\s+JOIN)\b/gi;
+const STAR_TRANSFORMER_PATTERN = /^(?:APPLY|EXCEPT|REPLACE)\b/i;
 const CLAUSE_TOKEN_PATTERN =
 	/`[A-Za-z0-9_.]+`|"[A-Za-z0-9_.]+"|[A-Za-z0-9_]+|[^\s]/g;
 const ALIAS_IDENTIFIER_PATTERN = /^[A-Za-z_`"]/;
@@ -261,6 +266,7 @@ const ORDER_MODIFIER_PATTERN =
 	/^(?:ASC|ASCENDING|DESC|DESCENDING|NULLS|COLLATE)$/;
 const GROUP_MODIFIER_PATTERN = /^(?:TOTALS|ROLLUP|CUBE)$/;
 const FILL_MODIFIER_PATTERN = /^(?:FROM|TO|STEP|STALENESS)$/;
+const FETCH_MODIFIER_PATTERN = /^(?:FIRST|NEXT|ROW|ROWS|ONLY|WITH|TIES)$/;
 const EXPRESSION_END_TOKEN_PATTERN = /^[A-Za-z0-9_`")\]}]/;
 
 const PLAIN_QUOTED_IDENTIFIER_PATTERN = /^[A-Za-z0-9_.]+$/;
@@ -494,15 +500,16 @@ function hiddenProjectionError(sql: string): string | null {
 		while (WHITESPACE_CHARACTER_PATTERN.test(sql[end] ?? "")) {
 			end += 1;
 		}
-		if (sql[end] !== "," && sql[end] !== ")") {
+		const transformer = STAR_TRANSFORMER_PATTERN.test(sql.slice(end));
+		if (sql[end] !== "," && sql[end] !== ")" && !transformer) {
 			continue;
 		}
 		let start = star - 1;
 		while (WHITESPACE_CHARACTER_PATTERN.test(sql[start] ?? "")) {
 			start -= 1;
 		}
-		const qualified = sql[start] === ".";
-		if (!qualified && sql[start] !== "(") {
+		const firstArgument = sql[start] === "(";
+		if (sql[start] !== "." && !firstArgument && sql[start] !== ",") {
 			continue;
 		}
 		start -= 1;
@@ -514,7 +521,8 @@ function hiddenProjectionError(sql: string): string | null {
 			start -= 1;
 		}
 		if (
-			qualified ||
+			!firstArgument ||
+			transformer ||
 			sql.slice(start + 1, functionEnd).toLowerCase() !== "count"
 		) {
 			return "Wildcard arguments are not allowed; pass explicit columns.";
@@ -526,11 +534,18 @@ function hiddenProjectionError(sql: string): string | null {
 			continue;
 		}
 		const start = clause.index + clause[0].length;
-		scannedUntil = findClauseEnd(sql, start);
+		const clauseName = clause[0].toUpperCase();
+		const arrayJoin = clauseName.startsWith("ARRAY");
+		scannedUntil = findClauseEnd(
+			sql,
+			start,
+			arrayJoin ? ARRAY_JOIN_TERMINATOR_PATTERN : CLAUSE_TERMINATOR_PATTERN
+		);
 		const body = sql.slice(start, scannedUntil);
-		const orderBy = clause[0].toUpperCase().startsWith("ORDER");
-		const groupBy = clause[0].toUpperCase().startsWith("GROUP");
-		const windowClause = clause[0].toUpperCase() === "WINDOW";
+		const orderBy = clauseName.startsWith("ORDER");
+		const groupBy = clauseName.startsWith("GROUP");
+		const windowClause = clauseName === "WINDOW";
+		const limitClause = clauseName === "LIMIT" || clauseName === "OFFSET";
 		const castScopes: boolean[] = [];
 		const caseScopes: number[] = [];
 		const windowScopes: number[] = [];
@@ -541,6 +556,8 @@ function hiddenProjectionError(sql: string): string | null {
 		let opensWindow = false;
 		let interval = false;
 		let withFill = false;
+		let limitBy = false;
+		let offsetFetch = false;
 		for (const match of body.matchAll(CLAUSE_TOKEN_PATTERN)) {
 			const token = match[0].toUpperCase();
 			const identifier = ALIAS_IDENTIFIER_PATTERN.test(token);
@@ -551,16 +568,30 @@ function hiddenProjectionError(sql: string): string | null {
 				token === "OVER" &&
 				previous === ")" &&
 				WINDOW_REFERENCE_PATTERN.test(body.slice(match.index + token.length));
+			const inCase = caseScopes.at(-1) === castScopes.length;
 			const caseKeyword: boolean =
 				!castType &&
 				((token === "CASE" && !canEndExpression) ||
-					(caseScopes.at(-1) === castScopes.length &&
+					(inCase &&
 						(token === "WHEN" ||
 							token === "THEN" ||
 							token === "ELSE" ||
 							token === "END")));
 			const modifier =
+				(castScopes.length === 0 &&
+					caseScopes.at(-1) !== 0 &&
+					((limitClause &&
+						!limitBy &&
+						(token === "BY" ||
+							token === "WITH" ||
+							(previous === "WITH" && token === "TIES"))) ||
+						(clauseName === "OFFSET" &&
+							(token === "ROW" ||
+								token === "ROWS" ||
+								token === "FETCH" ||
+								(offsetFetch && FETCH_MODIFIER_PATTERN.test(token)))))) ||
 				(((orderBy && castScopes.length === 0) || windowScope) &&
+					!inCase &&
 					(ORDER_MODIFIER_PATTERN.test(token) ||
 						(previous === "NULLS" &&
 							(token === "FIRST" || token === "LAST")))) ||
@@ -576,7 +607,7 @@ function hiddenProjectionError(sql: string): string | null {
 				CLAUSE_OPERATOR_PATTERN.test(token) ||
 				modifier ||
 				windowReference ||
-				(windowScope && WINDOW_SYNTAX_PATTERN.test(token)) ||
+				(windowScope && !inCase && WINDOW_SYNTAX_PATTERN.test(token)) ||
 				(token === "DISTINCT" && functionArgumentStart) ||
 				(caseKeyword && token !== "END") ||
 				(token === "IS" &&
@@ -633,6 +664,12 @@ function hiddenProjectionError(sql: string): string | null {
 			}
 			withFill ||=
 				!castType && orderBy && previous === "WITH" && token === "FILL";
+			limitBy ||= limitClause && castScopes.length === 0 && token === "BY";
+			offsetFetch ||=
+				clauseName === "OFFSET" &&
+				castScopes.length === 0 &&
+				caseScopes.at(-1) !== 0 &&
+				token === "FETCH";
 			functionArgumentStart =
 				token === "(" &&
 				canEndExpression &&
