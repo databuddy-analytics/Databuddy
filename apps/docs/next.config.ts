@@ -62,6 +62,15 @@ const config: NextConfig = {
 				],
 			},
 			{
+				source: "/compare/:slug",
+				headers: [
+					{
+						key: "Vary",
+						value: "Accept, Accept-Encoding",
+					},
+				],
+			},
+			{
 				source: "/docs/:path*",
 				headers: [
 					{
@@ -89,6 +98,21 @@ const config: NextConfig = {
 			{ source: "/api.md", destination: "/api/llms.txt" },
 			{ source: "/developer.md", destination: "/developers/llms.txt" },
 			{ source: "/developers.md", destination: "/developers/llms.txt" },
+			{
+				source: "/compare/:slug.md",
+				destination: "/api/compare/raw/:slug",
+			},
+			{
+				source: "/compare/:slug",
+				destination: "/api/compare/raw/:slug",
+				has: [
+					{
+						type: "header",
+						key: "Accept",
+						value: ".*text/markdown.*",
+					},
+				],
+			},
 			{
 				source: "/docs/:path*.md",
 				destination: "/api/docs/raw/:path*",

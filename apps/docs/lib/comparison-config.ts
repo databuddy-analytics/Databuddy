@@ -2,6 +2,7 @@ import {
 	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
 } from "@databuddy/shared/billing";
+import { SITE_URL } from "@/app/util/constants";
 
 const investigationPrice = `${INVESTIGATION_ALLOWANCES.intelligence}/month on Business, ${INVESTIGATION_ALLOWANCES.intelligence_scale}/month on Scale · $${INVESTIGATION_USAGE.priceUsd} per additional investigation, billed monthly`;
 
@@ -1276,4 +1277,74 @@ export function getComparisonData(slug: string): ComparisonData | null {
 
 export function getAllCompetitorSlugs(): string[] {
 	return Object.keys(competitors);
+}
+
+const mark = (value: boolean) => (value ? "Yes" : "No");
+
+export function createComparisonMarkdown(
+	data: ComparisonData,
+	pageUrl: string
+): string {
+	const { competitor, verdict } = data;
+	const bullets = (items: string[]) =>
+		items.map((item) => `- ${item}`).join("\n");
+	const featureRows = data.features
+		.map(
+			(feature) =>
+				`| ${feature.name} | ${mark(feature.databuddy)} | ${mark(feature.competitor)} | ${feature.benefit} |`
+		)
+		.join("\n");
+	const pricingRows = data.pricingTiers
+		.map(
+			(tier) => `| ${tier.pageviews} | ${tier.databuddy} | ${tier.competitor} |`
+		)
+		.join("\n");
+	const faqs = data.faqs
+		.map((faq) => `### ${faq.question}\n\n${faq.answer}`)
+		.join("\n\n");
+	const sources = data.sources
+		.map((source) => `- [${source.label}](${source.href})`)
+		.join("\n");
+
+	return `# ${data.hero.title}
+
+> ${data.seo.description}
+
+Canonical: ${pageUrl}
+Last reviewed: ${comparisonsReviewedAt}
+
+## Choose Databuddy if
+
+${bullets(verdict.databuddy)}
+
+## Choose ${competitor.name} if
+
+${bullets(verdict.competitor)}
+
+## Features
+
+| Feature | Databuddy | ${competitor.name} | Notes |
+| --- | --- | --- | --- |
+${featureRows}
+
+## Pricing
+
+| Plan | Databuddy | ${competitor.name} |
+| --- | --- | --- |
+${pricingRows}
+
+${competitor.name} starts at ${competitor.pricing.starting}.${competitor.pricing.note ? ` ${competitor.pricing.note}` : ""}
+
+Databuddy pricing: ${SITE_URL}/pricing.md
+
+## FAQ
+
+${faqs}
+
+## Sources
+
+${sources}
+
+Start free: https://app.databuddy.cc/register
+`;
 }
