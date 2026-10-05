@@ -10,11 +10,12 @@ function resolveBullMQRedisUrl(config: BullMQConnectionConfig = {}): string {
 		? `${config.envPrefix}_BULLMQ_REDIS_URL`
 		: null;
 	const prefixedUrl = prefixedName ? process.env[prefixedName]?.trim() : "";
-	const fallbackUrl = dataUrl("BULLMQ_REDIS_URL")?.trim();
+	const fallbackUrl = process.env.BULLMQ_REDIS_URL?.trim();
 	const redisUrl =
 		prefixedUrl ||
 		fallbackUrl ||
-		(readBooleanEnv("SELFHOST") ? dataUrl("REDIS_URL")?.trim() : undefined);
+		(readBooleanEnv("SELFHOST") ? dataUrl("REDIS_URL")?.trim() : undefined) ||
+		dataUrl("BULLMQ_REDIS_URL")?.trim();
 	if (!redisUrl) {
 		throw new Error(
 			`${prefixedName ? `${prefixedName} or ` : ""}BULLMQ_REDIS_URL environment variable is required`

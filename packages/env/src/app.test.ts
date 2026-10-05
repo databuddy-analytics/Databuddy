@@ -5,6 +5,7 @@ import {
 	createConfig,
 	dataUrl,
 	isLocalHost,
+	isLoopbackHost,
 	readBooleanEnv,
 } from "./app";
 
@@ -245,6 +246,28 @@ describe("isLocalHost", () => {
 		}
 		// Unbracketed IPv6 is invalid URL input and must also fail closed.
 		expect(() => isLocalHost("2001:db8::1")).toThrow();
+	});
+});
+
+describe("isLoopbackHost", () => {
+	it.each([
+		"postgres://u:p@localhost:5432/databuddy",
+		"http://127.0.0.1:8123",
+		"redis://[::1]:6379",
+		"redis://[0:0:0:0:0:0:0:1]:6379",
+	])("accepts concrete loopback URLs: %s", (url) => {
+		expect(isLoopbackHost(url)).toBe(true);
+	});
+
+	it.each([
+		"postgres://u:p@db:5432/databuddy",
+		"postgres://u:p@staging:5432/databuddy",
+		"redis://redis:6379",
+		"http://0.0.0.0:8123",
+		"http://clickhouse.example.com:8123",
+		"http://[2001:db8::1]:8123",
+	])("refuses non-loopback URLs at test/destructive boundaries: %s", (url) => {
+		expect(isLoopbackHost(url)).toBe(false);
 	});
 });
 

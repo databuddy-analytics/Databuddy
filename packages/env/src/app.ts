@@ -1,6 +1,11 @@
 import { LOOPBACK_HOSTS, readBooleanEnv } from "./boolean";
 
-export { dataUrl, isLocalHost, readBooleanEnv } from "./boolean";
+export {
+	dataUrl,
+	isLocalHost,
+	isLoopbackHost,
+	readBooleanEnv,
+} from "./boolean";
 
 // App-wide runtime config.
 //

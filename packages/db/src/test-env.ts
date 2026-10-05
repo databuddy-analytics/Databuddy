@@ -1,4 +1,4 @@
-import { isLocalHost, readBooleanEnv } from "@databuddy/env/app";
+import { isLoopbackHost, readBooleanEnv } from "@databuddy/env/app";
 
 const useCiUrls = readBooleanEnv("CI");
 const defaultDatabaseUrl =
@@ -6,7 +6,7 @@ const defaultDatabaseUrl =
 const defaultRedisUrl = "redis://localhost:6379/1";
 
 function localTestUrl(name: string, value: string): string {
-	if (!isLocalHost(value)) {
+	if (!isLoopbackHost(value)) {
 		throw new Error(
 			`${name} must point at a local test service. Refusing to run tests against ${new URL(value).hostname}.`
 		);

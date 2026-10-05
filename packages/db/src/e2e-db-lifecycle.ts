@@ -1,4 +1,4 @@
-import { isLocalHost } from "@databuddy/env/app";
+import { isLoopbackHost } from "@databuddy/env/app";
 import { Client } from "pg";
 
 const DEFAULT_E2E_DB_PREFIX = "databuddy_e2e";
@@ -142,7 +142,7 @@ export function resolveLifecycleConfig(
 	input: ParsedLifecycleArgs
 ): ResolvedLifecycleConfig {
 	const baseUrl = normalizeDatabaseUrl(input.baseDsn);
-	if (!(input.allowNonLocal || isLocalHost(baseUrl.href))) {
+	if (!(input.allowNonLocal || isLoopbackHost(baseUrl.href))) {
 		throw new Error(
 			`Refusing to manage E2E DB on non-local host '${baseUrl.hostname}'. Set --allow-non-local to override.`
 		);

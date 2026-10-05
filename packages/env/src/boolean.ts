@@ -36,6 +36,11 @@ export function isLocalHost(url: string): boolean {
 	);
 }
 
+export function isLoopbackHost(url: string): boolean {
+	const hostname = hostnameOf(url);
+	return hostname !== "0.0.0.0" && LOOPBACK_HOSTS.has(hostname);
+}
+
 export function dataUrl(
 	key: keyof typeof LOCAL_DATA_URLS,
 	env: Env = process.env

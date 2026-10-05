@@ -68,6 +68,9 @@ describe("e2e db lifecycle helpers", () => {
 	});
 
 	it.each([
+		"postgres://u:p@db:5432/databuddy",
+		"postgres://u:p@staging:5432/databuddy",
+		"postgres://u:p@0.0.0.0:5432/databuddy",
 		"postgres://u:p@db.example.com:5432/databuddy",
 		"postgres://[2001:db8::1]:5432/databuddy",
 		"postgres://[::ffff:8.8.8.8]:5432/databuddy",
@@ -80,6 +83,39 @@ describe("e2e db lifecycle helpers", () => {
 				dbPrefix: "databuddy_e2e",
 			})
 		).toThrow("Refusing to manage E2E DB on non-local host");
+	});
+
+	it("refuses to drop a database on a single-label host without the override", () => {
+		const args = parseLifecycleArgs([
+			"drop",
+			"--base-dsn",
+			"postgres://u:p@staging:5432/databuddy",
+			"--db-name",
+			"databuddy_e2e_run",
+		]);
+		expect(() => resolveLifecycleConfig(args)).toThrow(
+			"Refusing to manage E2E DB on non-local host"
+		);
+		expect(
+			resolveLifecycleConfig({ ...args, allowNonLocal: true }).adminDsn
+		).toBe("postgres://u:p@staging:5432/postgres");
+	});
+
+	it.each([
+		"localhost",
+		"127.0.0.1",
+		"[::1]",
+		"[0:0:0:0:0:0:0:1]",
+	])("allows an E2E database on loopback: %s", (host) => {
+		expect(
+			resolveLifecycleConfig({
+				allowNonLocal: false,
+				baseDsn: `postgres://u:p@${host}:5432/databuddy`,
+				command: "create",
+				dbPrefix: "databuddy_e2e",
+				runId: "run",
+			}).dbName
+		).toBe("databuddy_e2e_run");
 	});
 
 	it("prints shell-safe assignments", () => {
