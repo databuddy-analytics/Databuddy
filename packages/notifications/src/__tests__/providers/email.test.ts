@@ -3,7 +3,7 @@ import type { EmailPayload } from "../../types";
 import { EmailProvider } from "../../providers/email";
 
 describe("EmailProvider", () => {
-	test("builds plain text and hides internal metadata from recipients", async () => {
+	test("renders metadata labels and hides internal fields from recipients", async () => {
 		let delivered: EmailPayload | undefined;
 		const sendEmailAction = mock(async (payload: EmailPayload) => {
 			delivered = payload;
@@ -18,6 +18,9 @@ describe("EmailProvider", () => {
 			message: "The site is unavailable.",
 			metadata: {
 				dashboardUrl: "https://app.databuddy.cc/monitors/1",
+				httpCode: 503,
+				sslExpiresAt: "2026-11-01T00:00:00Z",
+				apiEndpoint: "https://acme.example/health",
 				monitorId: "internal-monitor-id",
 				template: "anomaly",
 				zScore: 9.42,
@@ -26,6 +29,14 @@ describe("EmailProvider", () => {
 
 		expect(result).toEqual({ success: true, channel: "email" });
 		expect(delivered?.text).toContain("Dashboard URL:");
+		expect(delivered?.text).toContain("HTTP code: 503");
+		expect(delivered?.text).toContain("SSL expires at: 2026-11-01T00:00:00Z");
+		expect(delivered?.text).toContain(
+			"API endpoint: https://acme.example/health"
+		);
+		expect(delivered?.html).toContain(">HTTP code</td>");
+		expect(delivered?.html).toContain(">SSL expires at</td>");
+		expect(delivered?.html).toContain(">API endpoint</td>");
 		expect(delivered?.text).not.toContain("internal-monitor-id");
 		expect(delivered?.text).not.toContain("Template:");
 		expect(delivered?.text).not.toContain("Z score:");
