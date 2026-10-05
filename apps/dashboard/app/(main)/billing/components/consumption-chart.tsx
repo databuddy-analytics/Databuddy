@@ -163,7 +163,7 @@ export function ConsumptionChart({
 					<Card.Description>Daily event volume by type</Card.Description>
 				</Card.Header>
 				<Card.Content className="py-8">
-					<EmptyState icon={<CalendarIcon />} title="No usage yet" />
+					<EmptyState icon={<CalendarIcon />} title="No usage data" />
 				</Card.Content>
 			</Card>
 		);

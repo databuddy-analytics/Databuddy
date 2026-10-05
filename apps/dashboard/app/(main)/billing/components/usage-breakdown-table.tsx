@@ -93,7 +93,7 @@ export function UsageBreakdownTable({
 					<Card.Description>Breakdown of events by category</Card.Description>
 				</Card.Header>
 				<Card.Content className="py-8">
-					<EmptyState icon={<TableIcon />} title="No usage yet" />
+					<EmptyState icon={<TableIcon />} title="No usage data" />
 				</Card.Content>
 			</Card>
 		);
