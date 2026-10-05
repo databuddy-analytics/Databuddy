@@ -2,6 +2,7 @@ import { trackAgents } from "@databuddy/sdk/agents";
 import type { NextFetchEvent, NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { acceptMarkdownOverHtml } from "@/app/api/pricing/accept-markdown";
+import { getComparisonData } from "@/lib/comparison-config";
 
 const MARKDOWN_NEGOTIATED_PATHS = new Set(["/", "/pricing", "/pricing/"]);
 
@@ -43,6 +44,17 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
 		const target = request.nextUrl.clone();
 		target.pathname = `${INTEGRATIONS_DOCS}${pathname.slice(LOWERCASE_INTEGRATIONS_DOCS.length)}`;
 		return NextResponse.redirect(target, 308);
+	}
+	const legacyCompetitor = request.nextUrl.searchParams.get("competitor");
+	if (
+		pathname === "/compare" &&
+		legacyCompetitor &&
+		getComparisonData(legacyCompetitor)
+	) {
+		return NextResponse.redirect(
+			new URL(`/compare/${legacyCompetitor}`, request.nextUrl),
+			308
+		);
 	}
 	if (!MARKDOWN_NEGOTIATED_PATHS.has(pathname)) {
 		return NextResponse.next();
