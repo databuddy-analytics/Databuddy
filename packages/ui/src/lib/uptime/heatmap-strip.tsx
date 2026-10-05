@@ -68,7 +68,7 @@ const SEVERITY_META: Record<
 	empty: {
 		accent: "var(--muted-foreground)",
 		background: tintStatusColor("var(--muted-foreground)", 14),
-		label: "No Data",
+		label: "No data",
 	},
 	operational: {
 		accent: SEGMENT_COLORS.operational,
@@ -78,17 +78,17 @@ const SEVERITY_META: Record<
 	degraded: {
 		accent: SEGMENT_COLORS.degraded,
 		background: tintStatusColor(SEGMENT_COLORS.degraded, 20),
-		label: "Degraded Performance",
+		label: "Degraded",
 	},
 	partial: {
 		accent: SEGMENT_COLORS.partial,
 		background: tintStatusColor(SEGMENT_COLORS.partial, 18),
-		label: "Partial Outage",
+		label: "Partial outage",
 	},
 	major: {
 		accent: SEGMENT_COLORS.major,
 		background: tintStatusColor(SEGMENT_COLORS.major, 16),
-		label: "Major Outage",
+		label: "Major outage",
 	},
 };
 

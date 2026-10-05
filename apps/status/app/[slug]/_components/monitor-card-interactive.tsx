@@ -51,7 +51,7 @@ export function MonitorCardInteractive({
 		degraded: { label: "Degraded", color: "warning" as const },
 		down: { label: "Down", color: "destructive" as const },
 		unknown: {
-			label: freshness === "stale" ? "Data stale" : "Status unknown",
+			label: freshness === "stale" ? "Unknown" : "No data",
 			color: "muted" as const,
 		},
 	}[currentStatus];
