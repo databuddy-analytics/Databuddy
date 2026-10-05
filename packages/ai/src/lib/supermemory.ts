@@ -24,11 +24,12 @@ const REMEMBER_REQUESTS = [
 	/\bfrom now on\b/,
 ];
 const FORGET_REQUESTS = [
-	/^(?:forget|unlearn)\b(?!\s+(?:about\s+)?it$)/,
+	/^(?:forget|unlearn)\b(?!\s+(?:about\s+)?it\b)/,
 	/^stop remembering\b/,
-	/^(?:delete|remove|erase|clear|drop|wipe)\b.*\bmemor(?:y|ies)\b/,
-	/\bmemor(?:y|ies)\b.*\b(?:is|are|was|were) (?:wrong|incorrect|outdated|stale|out of date|no longer (?:true|right|correct))\b/,
-	/^(?:you|you've|you have) (?:remembered|saved|noted|stored)\b.*\b(?:wrong|incorrect|outdated)\b/,
+	/^(?:delete|remove|erase|clear|drop|wipe)\s+(?:(?:my|your|the|this|that|all)\s+)?(?:(?:saved|stored|remembered)\s+)?memor(?:y|ies)\b/,
+	/^(?:delete|remove|erase|clear|drop|wipe)\s+(?:this|that|it)\s+from\s+(?:your|the|my)\s+memory\b/,
+	/^(?:(?:this|that|these|those|the|your|my)\s+)?(?:(?:saved|stored|remembered)\s+)?memor(?:y|ies)\s+(?:is|are|was|were)\s+(?:wrong|incorrect|outdated|stale|out of date|no longer (?:true|right|correct))$/,
+	/^(?:you|you've|you have) (?:remembered|saved|noted|stored) (?:(?!(?:and|but|not|never|without)\b)\S+ ){1,20}(?:wrong|incorrect|outdated)$/,
 ];
 
 export function isMemoryEnabled(): boolean {

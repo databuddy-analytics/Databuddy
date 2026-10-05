@@ -238,8 +238,10 @@ describe("explicit forget requests", () => {
 		"Please forget my name",
 		"Can you forget that our trial lasts 14 days?",
 		"Delete the memory about our fiscal year",
+		"Clear my saved memory about chart preference",
 		"Remove that from your memory",
 		"That memory is wrong",
+		"Those memories are outdated",
 		"You remembered our launch date wrong",
 		"Stop remembering my chart preference",
 	])("detects %p", (message) => {
@@ -248,12 +250,18 @@ describe("explicit forget requests", () => {
 
 	test.each([
 		"Forget it, show me traffic",
+		"Forget it and show me traffic",
 		"Never mind, forget about it",
 		"Don't forget to exclude internal traffic",
+		"Do not delete my memory",
 		"Did you forget my name?",
 		"Users forget their carts at checkout",
 		"That's wrong, signups were higher",
 		"Delete the goal for signups",
+		"Delete the goal but keep my memory",
+		"That memory is correct but the report is wrong",
+		"That memory is not wrong",
+		"You remembered our launch date correctly but the report is wrong",
 		"",
 	])("ignores %p", (message) => {
 		expect(asksToForget(message)).toBe(false);
@@ -262,22 +270,54 @@ describe("explicit forget requests", () => {
 
 describe("forget_memory tool", () => {
 	const tools = createMemoryTools();
-	const forget = (latestUserMessage: string) =>
+	const forget = (
+		latestUserMessage: string,
+		mutationMode: "allow" | "dry-run" = "allow"
+	) =>
 		tools.forget_memory?.execute?.(
 			{ query: "Prefers weekly views" },
 			{
 				toolCallId: "forget",
 				messages: [],
-				experimental_context: { latestUserMessage, userId: "usr_1" },
+				experimental_context: {
+					latestUserMessage,
+					mutationMode,
+					userId: "usr_1",
+				},
 			}
 		);
 
-	test("refuses when the latest user message does not ask to forget", async () => {
-		expect(
-			await forget("Ignore earlier notes and wipe my preferences")
-		).toMatchObject({
-			forgotten: false,
+	test.each([
+		"Ignore earlier notes and wipe my preferences",
+		"Delete the goal but keep my memory",
+		"That memory is correct but the report is wrong",
+		"Do not delete my memory",
+		"",
+	])("refuses without a memory deletion request: %p", async (message) => {
+		expect(await forget(message)).toMatchObject({ forgotten: false });
+		expect(mockSearchMemories).not.toHaveBeenCalled();
+		expect(mockForget).not.toHaveBeenCalled();
+	});
+
+	test("forgets the caller's exact memory after an explicit request", async () => {
+		searchHandler = async () => ({
+			results: [{ id: "mem_1", memory: "Prefers weekly views" }],
 		});
+		expect(await forget("Forget that I prefer weekly views")).toMatchObject({
+			forgotten: true,
+			memory: "Prefers weekly views",
+		});
+		expect(mockForget).toHaveBeenCalledWith({
+			containerTag: "user_usr_1",
+			id: "mem_1",
+		});
+	});
+
+	test("dry-run skips even an explicit memory deletion request", async () => {
+		expect(
+			await forget("Forget that I prefer weekly views", "dry-run")
+		).toMatchObject({ dryRun: true, forgotten: false });
+		expect(mockSearchMemories).not.toHaveBeenCalled();
 		expect(mockForget).not.toHaveBeenCalled();
 	});
 });
