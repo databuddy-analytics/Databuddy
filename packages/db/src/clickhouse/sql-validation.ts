@@ -596,6 +596,7 @@ function hiddenProjectionError(sql: string): string | null {
 						(previous === "NULLS" &&
 							(token === "FIRST" || token === "LAST")))) ||
 				(castScopes.length === 0 &&
+					!inCase &&
 					(((orderBy || groupBy) && token === "WITH") ||
 						(groupBy &&
 							previous === "WITH" &&
