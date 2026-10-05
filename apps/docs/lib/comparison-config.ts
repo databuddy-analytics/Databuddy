@@ -2,7 +2,7 @@ import {
 	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
 } from "@databuddy/shared/billing";
-import { SITE_URL } from "@/app/util/constants";
+import { DASHBOARD_URL, SITE_URL } from "@/app/util/constants";
 
 const investigationPrice = `${INVESTIGATION_ALLOWANCES.intelligence}/month on Business, ${INVESTIGATION_ALLOWANCES.intelligence_scale}/month on Scale · $${INVESTIGATION_USAGE.priceUsd} per additional investigation, billed monthly`;
 
@@ -1281,14 +1281,11 @@ export function getAllCompetitorSlugs(): string[] {
 
 const mark = (value: boolean) => (value ? "Yes" : "No");
 const cell = (text: string) => text.replaceAll("|", "\\|");
+const bullets = (items: string[]) =>
+	items.map((item) => `- ${item}`).join("\n");
 
-export function createComparisonMarkdown(
-	data: ComparisonData,
-	pageUrl: string
-): string {
+export function createComparisonMarkdown(data: ComparisonData): string {
 	const { competitor, verdict } = data;
-	const bullets = (items: string[]) =>
-		items.map((item) => `- ${item}`).join("\n");
 	const featureRows = data.features
 		.map(
 			(feature) =>
@@ -1312,7 +1309,7 @@ export function createComparisonMarkdown(
 
 > ${data.seo.description}
 
-Canonical: ${pageUrl}
+Canonical: ${SITE_URL}/compare/${competitor.slug}
 Last reviewed: ${comparisonsReviewedAt}
 
 ## Choose Databuddy if
@@ -1347,6 +1344,6 @@ ${faqs}
 
 ${sources}
 
-Start free: https://app.databuddy.cc/register
+Start free: ${DASHBOARD_URL}/register
 `;
 }

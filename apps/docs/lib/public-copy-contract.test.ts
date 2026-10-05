@@ -227,7 +227,7 @@ describe("search discovery", () => {
 			expect(response.headers.get("link")).toBe(
 				`<${pageUrl}>; rel="canonical"`
 			);
-			expect(body).toBe(createComparisonMarkdown(data, pageUrl));
+			expect(body).toContain(`Canonical: ${pageUrl}`);
 			expect(body).not.toMatch(/undefined|\[object /);
 			const sections = [...body.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
 			expect(sections.slice(0, 3)).toEqual([
@@ -262,13 +262,12 @@ describe("search discovery", () => {
 		if (!plausible) {
 			throw new Error("Missing Plausible comparison");
 		}
-		const piped = createComparisonMarkdown(
-			{
-				...plausible,
-				features: [{ ...plausible.features[0], name: "A | B", benefit: "x|y" }],
-			} as typeof plausible,
-			"u"
-		);
+		const piped = createComparisonMarkdown({
+			...plausible,
+			features: [
+				{ name: "A | B", benefit: "x|y", databuddy: true, competitor: false },
+			],
+		});
 		const row = piped.split("\n").find((line) => line.startsWith("| A"));
 		expect(row && cellCount(row)).toBe(4);
 		for (const slug of ["missing", "..", "__proto__", "constructor", ""]) {

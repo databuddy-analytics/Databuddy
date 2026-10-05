@@ -21,8 +21,7 @@ export async function GET(
 	if (!data) {
 		return new Response("Not found", { status: 404 });
 	}
-	const pageUrl = `${SITE_URL}/compare/${slug}`;
-	return markdownResponse(createComparisonMarkdown(data, pageUrl), {
-		headers: { Link: `<${pageUrl}>; rel="canonical"` },
+	return markdownResponse(createComparisonMarkdown(data), {
+		headers: { Link: `<${SITE_URL}/compare/${slug}>; rel="canonical"` },
 	});
 }
