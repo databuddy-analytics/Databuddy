@@ -54,7 +54,7 @@ export const targetGroupsRouter = {
 	list: publicProcedure
 		.route({
 			description:
-				"Returns all target groups for a website. Requires website read permission.",
+				"Returns all target groups for a website. Requires feature flag read permission.",
 			method: "POST",
 			path: "/target-groups/list",
 			summary: "List target groups",
