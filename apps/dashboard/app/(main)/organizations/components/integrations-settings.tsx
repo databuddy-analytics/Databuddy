@@ -245,7 +245,7 @@ function useOAuthConnect(provider: string, scopes: string[], label: string) {
 				callbackURL: window.location.href,
 			});
 			if (result.error) {
-				throw result.error;
+				throw Object.assign(new Error(result.error.message), result.error);
 			}
 			return result;
 		},

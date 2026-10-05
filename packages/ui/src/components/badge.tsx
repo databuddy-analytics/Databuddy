@@ -44,7 +44,7 @@ export function StageBadge({ stage, className }: StageBadgeProps) {
 	return (
 		<span
 			className={cn(
-				"inline-flex shrink-0 items-center rounded bg-secondary px-1.5 py-0.5 font-semibold text-[10px] text-muted-foreground uppercase leading-none tracking-wide",
+				"inline-flex shrink-0 items-center rounded bg-secondary px-1.5 py-0.5 font-semibold text-[10px] text-muted-foreground uppercase leading-none",
 				className
 			)}
 		>
