@@ -57,8 +57,8 @@ describe("EmailProvider", () => {
 
 		expect(delivered?.text).toContain("URL: https://acme.example/health");
 		expect(delivered?.text).not.toContain("Dashboard URL:");
-		expect(delivered?.text).not.toContain("Http Code:");
-		expect(delivered?.text).not.toContain("Monitor Name:");
+		expect(delivered?.text).not.toContain("HTTP code:");
+		expect(delivered?.text).not.toContain("Monitor name:");
 		expect(delivered?.text).not.toContain("monitor-1");
 	});
 
@@ -86,9 +86,9 @@ describe("EmailProvider", () => {
 		});
 
 		expect(delivered?.text).toContain("URL: https://acme.example/health");
-		expect(delivered?.text).not.toContain("Days Remaining:");
-		expect(delivered?.text).not.toContain("Expires At:");
-		expect(delivered?.text).not.toContain("Monitor Name:");
+		expect(delivered?.text).not.toContain("Days remaining:");
+		expect(delivered?.text).not.toContain("Expires at:");
+		expect(delivered?.text).not.toContain("Monitor name:");
 	});
 
 	test("returns a failed channel result when delivery throws", async () => {
