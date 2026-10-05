@@ -12,7 +12,7 @@ type Incident = StatusPageData["incidents"][number];
 export const OVERALL_STATUS_LABELS = {
 	operational: "All systems operational",
 	degraded: "Some systems degraded",
-	outage: "Major outage",
+	outage: "Service outage",
 	unknown: "Status unavailable",
 } as const satisfies Record<OverallStatus, string>;
 
