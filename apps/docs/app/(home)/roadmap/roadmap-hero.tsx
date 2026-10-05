@@ -86,7 +86,7 @@ export default function RoadmapHero({ stats }: Props) {
 						</div>
 						<div className="font-bold text-2xl">{stats.upcomingMilestones}</div>
 						<div className="text-muted-foreground text-sm">
-							Upcoming Milestones
+							Upcoming milestones
 						</div>
 						<div className="mt-2 text-muted-foreground text-xs">
 							{stats.plannedItems} planned items
@@ -106,7 +106,7 @@ export default function RoadmapHero({ stats }: Props) {
 							rel="noopener"
 							target="_blank"
 						>
-							Join Discussion
+							Join discussion
 						</a>
 						<a
 							className="inline-flex items-center justify-center rounded border border-border bg-background px-6 py-3 font-medium hover:bg-accent hover:text-accent-foreground"
@@ -114,7 +114,7 @@ export default function RoadmapHero({ stats }: Props) {
 							rel="noopener"
 							target="_blank"
 						>
-							Request Feature
+							Request feature
 						</a>
 					</div>
 				</div>

@@ -80,9 +80,9 @@ export const competitors: Record<string, ComparisonData> = {
 				"Compare Google Analytics reporting and advertising integrations with Databuddy’s analytics, error tracking, and AI analysis.",
 		},
 		seo: {
-			title: "Google Analytics Alternative: Databuddy vs GA4 (2026)",
+			title: "Google Analytics alternative: Databuddy vs GA4 (2026)",
 			description:
-				"Databuddy vs GA4: cookieless analytics with funnels and goals, an AI analyst that shows its query, and uptime and feature flags built in. Free to 10k events.",
+				"Databuddy vs GA4: cookieless analytics with funnels and goals, an AI analyst that shows its query, and uptime and feature flags built in. Free to 10,000 events.",
 		},
 		verdict: {
 			competitor: [
@@ -191,7 +191,7 @@ export const competitors: Record<string, ComparisonData> = {
 				"Compare Plausible’s web analytics with Databuddy’s analytics, optional identified-user profiles, and investigations.",
 		},
 		seo: {
-			title: "Plausible Alternative: Databuddy vs Plausible (2026)",
+			title: "Plausible alternative: Databuddy vs Plausible (2026)",
 			description:
 				"Databuddy vs Plausible: both are cookieless and open source, with funnels and custom properties. Databuddy also links events to identified-user profiles.",
 		},
@@ -311,9 +311,9 @@ export const competitors: Record<string, ComparisonData> = {
 				"Compare Fathom’s web analytics with Databuddy’s funnels, error tracking, and investigations.",
 		},
 		seo: {
-			title: "Fathom Alternative: Databuddy vs Fathom Analytics (2026)",
+			title: "Fathom alternative: Databuddy vs Fathom Analytics (2026)",
 			description:
-				"Databuddy vs Fathom: both are cookieless, with conversion goals and CSV exports. Databuddy adds a multi-step funnel builder and a free plan with 10k events.",
+				"Databuddy vs Fathom: both are cookieless, with conversion goals and CSV exports. Databuddy adds a multi-step funnel builder and a Free plan with 10,000 events.",
 		},
 		verdict: {
 			competitor: [
@@ -432,7 +432,7 @@ export const competitors: Record<string, ComparisonData> = {
 				"PostHog combines analytics, replay, experiments, surveys, and AI. Databuddy combines analytics, errors, monitoring, and investigations in one dashboard.",
 		},
 		seo: {
-			title: "PostHog Alternative: Databuddy vs PostHog (2026)",
+			title: "PostHog alternative: Databuddy vs PostHog (2026)",
 			description:
 				"Databuddy vs PostHog: both track product events, run feature flags, and have AI. Databuddy is one cookieless script; PostHog adds replay and surveys.",
 		},
@@ -443,7 +443,7 @@ export const competitors: Record<string, ComparisonData> = {
 			],
 			databuddy: [
 				"You want one cookieless script for traffic, custom events, funnels, and goals.",
-				"You want page views, custom events, errors, and Web Vitals to share one event allowance.",
+				"You want pageviews, custom events, errors, and Web Vitals to share one event allowance.",
 				"You want uptime monitoring next to your product analytics, errors, and feature flags.",
 			],
 		},
@@ -542,7 +542,7 @@ export const competitors: Record<string, ComparisonData> = {
 				"Compare Umami’s analytics with Databuddy’s investigations, feature flags, and error tracking.",
 		},
 		seo: {
-			title: "Umami Alternative: Databuddy vs Umami (2026)",
+			title: "Umami alternative: Databuddy vs Umami (2026)",
 			description:
 				"Databuddy vs Umami: both have funnels, goals, identified users, event properties, exports, and MCP access. Compare features, pricing, and when to pick each.",
 		},
@@ -664,7 +664,7 @@ export const competitors: Record<string, ComparisonData> = {
 				"Compare Mixpanel’s product and web analytics, cohorts, and AI agents with Databuddy’s analytics, monitoring, and investigations.",
 		},
 		seo: {
-			title: "Mixpanel Alternative: Databuddy vs Mixpanel (2026)",
+			title: "Mixpanel alternative: Databuddy vs Mixpanel (2026)",
 			description:
 				"Databuddy vs Mixpanel: both have web analytics, funnels, flags, identified users, and AI analysis. Mixpanel adds cohorts; Databuddy is one cookieless script.",
 		},
@@ -789,7 +789,7 @@ export const competitors: Record<string, ComparisonData> = {
 				"Compare Amplitude’s product analytics, cohorts, replay, experiments, and AI agents with Databuddy’s analytics and investigation workflows.",
 		},
 		seo: {
-			title: "Amplitude Alternative: Databuddy vs Amplitude (2026)",
+			title: "Amplitude alternative: Databuddy vs Amplitude (2026)",
 			description:
 				"Databuddy vs Amplitude: both have AI analysis, feature flags, and custom events. Amplitude adds session replay and cohorts; Databuddy is one cookieless script.",
 		},
@@ -915,7 +915,7 @@ export const competitors: Record<string, ComparisonData> = {
 				"Both offer cookieless analytics, identified profiles, funnels, and MCP access. Rybbit adds replay and retention; Databuddy adds flags and investigation workflows.",
 		},
 		seo: {
-			title: "Rybbit Alternative: Databuddy vs Rybbit (2026)",
+			title: "Rybbit alternative: Databuddy vs Rybbit (2026)",
 			description:
 				"Databuddy vs Rybbit: both are cookieless, with identified profiles, funnels, MCP access, and managed cloud. Rybbit adds session replay and retention reports.",
 		},
@@ -1043,9 +1043,9 @@ export const competitors: Record<string, ComparisonData> = {
 				"Compare Vercel’s integrated Web Analytics and related platform tools with Databuddy’s analytics, errors, and investigations across hosting providers.",
 		},
 		seo: {
-			title: "Vercel Analytics Alternative: Databuddy vs Vercel (2026)",
+			title: "Vercel Analytics alternative: Databuddy vs Vercel (2026)",
 			description:
-				"Databuddy vs Vercel Analytics: both are cookieless, with custom events, Next.js support, Web Vitals, and flags. Databuddy works on any host. Free to 10k events.",
+				"Databuddy vs Vercel Analytics: both are cookieless, with custom events, Next.js support, Web Vitals, and flags. Databuddy works on any host. Free to 10,000 events.",
 		},
 		verdict: {
 			competitor: [
@@ -1164,7 +1164,7 @@ export const competitors: Record<string, ComparisonData> = {
 				"Matomo offers managed and self-hosted analytics with an established reporting and plugin ecosystem. Compare that with Databuddy’s analytics and AI workflows.",
 		},
 		seo: {
-			title: "Matomo Alternative: Databuddy vs Matomo (2026)",
+			title: "Matomo alternative: Databuddy vs Matomo (2026)",
 			description:
 				"Databuddy vs Matomo: both track events, goals, and live visits, with reporting APIs. Matomo adds heatmaps and recordings; Databuddy is one cookieless script.",
 		},

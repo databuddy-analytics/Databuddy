@@ -11,9 +11,9 @@ interface HonorableMentionsProps {
 
 function MentionCard({ mention }: { mention: HonorableMention }) {
 	const supportTypeColors = {
-		"Free Plan": "bg-blue-500/10 text-blue-600 border-blue-500/20",
-		"Open Source": "bg-green-500/10 text-green-600 border-green-500/20",
-		"Community Support":
+		"Free plan": "bg-blue-500/10 text-blue-600 border-blue-500/20",
+		"Open source": "bg-green-500/10 text-green-600 border-green-500/20",
+		"Community support":
 			"bg-purple-500/10 text-purple-600 border-purple-500/20",
 		Educational: "bg-orange-500/10 text-orange-600 border-orange-500/20",
 	};
@@ -75,7 +75,7 @@ export default function HonorableMentions({
 			{/* Header */}
 			<div className="mb-12 text-center">
 				<h2 className="mb-4 font-semibold text-2xl sm:text-3xl lg:text-4xl">
-					Honorable Mentions
+					Honorable mentions
 				</h2>
 				<p className="mx-auto max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-lg">
 					Special thanks to these amazing companies and tools that support open

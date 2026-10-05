@@ -10,7 +10,7 @@ import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import { StructuredData } from "@/components/structured-data";
 
-const title = "Terms of Service - Usage Policies & Legal Agreement";
+const title = "Terms of service: usage policies and legal agreement";
 const url = "https://www.databuddy.cc/terms";
 
 export const metadata: Metadata = {
@@ -49,7 +49,7 @@ export default function TermsPage() {
 						<ScalesIcon className="size-7 text-primary" />
 					</div>
 					<h1 className="mb-4 font-bold text-4xl md:text-5xl">
-						Terms of Service
+						Terms of service
 					</h1>
 					<p className="mb-4 text-muted-foreground">
 						Last Updated{" "}
@@ -58,7 +58,7 @@ export default function TermsPage() {
 					{/* TL;DR */}
 					<div className="mx-auto mb-6 max-w-2xl rounded border border-accent bg-accent/50 p-4 text-left">
 						<p className="text-foreground text-sm">
-							<strong>TL;DR</strong> - Be fair and lawful, keep your account
+							<strong>TL;DR:</strong> Be fair and lawful, keep your account
 							secure, don’t abuse the service, and you can cancel anytime. We’ll
 							notify you about material changes.
 						</p>
@@ -73,7 +73,7 @@ export default function TermsPage() {
 				<div className="mb-8 rounded border border-accent bg-accent/50 p-6">
 					<h2 className="mb-3 flex items-center font-bold text-primary text-xl">
 						<ShieldIcon className="mr-2 size-5" />
-						Fair & Transparent Terms
+						Fair & transparent terms
 					</h2>
 					<p className="mb-4 text-muted-foreground">
 						Our terms are designed to be fair, clear, and protect both our users
@@ -160,7 +160,7 @@ export default function TermsPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">3. Account Registration</h2>
+						<h2 className="mb-4 font-bold text-2xl">3. Account registration</h2>
 						<p className="mb-4">
 							To use our Service, you need to create an account. When you
 							register, you agree to:
@@ -183,9 +183,9 @@ export default function TermsPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">4. Acceptable Use</h2>
+						<h2 className="mb-4 font-bold text-2xl">4. Acceptable use</h2>
 
-						<h3 className="mb-3 font-semibold text-xl">What You Can Do</h3>
+						<h3 className="mb-3 font-semibold text-xl">What you can do</h3>
 						<p className="mb-3">You may use our Service to:</p>
 						<ul className="mb-6 space-y-2">
 							<li>
@@ -196,7 +196,7 @@ export default function TermsPage() {
 							<li>Use our API within reasonable limits</li>
 						</ul>
 
-						<h3 className="mb-3 font-semibold text-xl">What You Cannot Do</h3>
+						<h3 className="mb-3 font-semibold text-xl">What you cannot do</h3>
 						<p className="mb-3">You may not:</p>
 						<ul className="mb-4 space-y-2">
 							<li>Track websites you don't own without permission</li>
@@ -221,7 +221,7 @@ export default function TermsPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">5. Privacy and Data</h2>
+						<h2 className="mb-4 font-bold text-2xl">5. Privacy and data</h2>
 						<p className="mb-4">
 							Your privacy is important to us. Our{" "}
 							<a className="text-primary hover:text-primary/80" href="/privacy">
@@ -265,11 +265,11 @@ export default function TermsPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">6. Billing and Payments</h2>
+						<h2 className="mb-4 font-bold text-2xl">6. Billing and payments</h2>
 
 						<h3 className="mb-3 flex items-center font-semibold text-xl">
 							<CreditCardIcon className="mr-2 size-5 text-primary" />
-							Subscription Plans
+							Subscription plans
 						</h3>
 						<p className="mb-4">
 							We offer various subscription plans with different features and
@@ -282,7 +282,7 @@ export default function TermsPage() {
 							<li>You can cancel your subscription at any time</li>
 						</ul>
 
-						<h3 className="mb-3 font-semibold text-xl">Payment Terms</h3>
+						<h3 className="mb-3 font-semibold text-xl">Payment terms</h3>
 						<ul className="mb-4 space-y-2">
 							<li>Payment is due at the beginning of each billing cycle</li>
 							<li>We accept major credit cards and other payment methods</li>
@@ -292,7 +292,7 @@ export default function TermsPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">7. Service Availability</h2>
+						<h2 className="mb-4 font-bold text-2xl">7. Service availability</h2>
 						<p className="mb-4">
 							We strive to provide reliable service, but we cannot guarantee
 							100% uptime. We aim for 99.9% uptime and will notify you of
@@ -310,7 +310,7 @@ export default function TermsPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 font-bold text-2xl">
-							8. Intellectual Property
+							8. Intellectual property
 						</h2>
 						<p className="mb-4">
 							The Service and its original content, features, and functionality
@@ -334,7 +334,7 @@ export default function TermsPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 font-bold text-2xl">
-							9. Limitation of Liability
+							9. Limitation of liability
 						</h2>
 						<p className="mb-4">
 							To the maximum extent permitted by law, Databuddy shall not be
@@ -358,7 +358,7 @@ export default function TermsPage() {
 					<section className="mb-8">
 						<h2 className="mb-4 font-bold text-2xl">10. Termination</h2>
 
-						<h3 className="mb-3 font-semibold text-xl">Your Right to Cancel</h3>
+						<h3 className="mb-3 font-semibold text-xl">Your right to cancel</h3>
 						<p className="mb-3">You may cancel your account at any time by:</p>
 						<ul className="mb-6 space-y-2">
 							<li>Using the cancellation option in your account settings</li>
@@ -369,7 +369,7 @@ export default function TermsPage() {
 						</ul>
 
 						<h3 className="mb-3 font-semibold text-xl">
-							Our Right to Terminate
+							Our right to terminate
 						</h3>
 						<p className="mb-3">
 							We may suspend or terminate your account if you:
@@ -388,7 +388,7 @@ export default function TermsPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">11. Changes to Terms</h2>
+						<h2 className="mb-4 font-bold text-2xl">11. Changes to terms</h2>
 						<p className="mb-4">
 							We may update these Terms from time to time. We'll notify you of
 							material changes by:
@@ -405,7 +405,7 @@ export default function TermsPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">12. Governing Law</h2>
+						<h2 className="mb-4 font-bold text-2xl">12. Governing law</h2>
 						<p className="mb-4">
 							These Terms are governed by and construed in accordance with the
 							laws of the jurisdiction where Databuddy is incorporated, without
@@ -421,7 +421,7 @@ export default function TermsPage() {
 					<section className="mb-8">
 						<h2 className="mb-4 flex items-center font-bold text-2xl">
 							<QuestionIcon className="mr-2 size-6 text-accent-foreground" />
-							13. Contact Information
+							13. Contact information
 						</h2>
 						<p className="mb-4">
 							If you have questions about these Terms of Service, please contact
@@ -451,7 +451,7 @@ export default function TermsPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">13. Entire Agreement</h2>
+						<h2 className="mb-4 font-bold text-2xl">15. Entire agreement</h2>
 						<p className="mb-4">
 							These Terms, together with our{" "}
 							<a className="text-primary hover:text-primary/80" href="/privacy">

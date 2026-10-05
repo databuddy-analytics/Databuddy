@@ -97,7 +97,7 @@ export function CalculatorSection({
 		<section className="mx-auto w-full max-w-5xl" id="calculator">
 			<div className="mb-8 text-center">
 				<p className="mb-2 text-pretty font-mono text-muted-foreground text-xs uppercase tracking-widest">
-					Analytics Measurement Gap
+					Analytics measurement gap
 				</p>
 				<h2 className="mb-3 text-balance font-bold text-2xl tracking-tight sm:text-3xl">
 					Model the measurement gap
@@ -113,14 +113,14 @@ export function CalculatorSection({
 					<SciFiCard>
 						<div className="rounded border border-border bg-card/70 p-5 backdrop-blur-sm sm:p-6">
 							<h3 className="mb-5 text-balance font-semibold text-sm uppercase tracking-wider">
-								Your Numbers
+								Your numbers
 							</h3>
 
 							<div className="space-y-6">
 								<InputField
 									hint="Total unique visitors per month"
 									id="visitors"
-									label="Monthly Visitors"
+									label="Monthly visitors"
 									max={2_000_000}
 									min={0}
 									onChangeAction={setMonthlyVisitors}
@@ -140,7 +140,7 @@ export function CalculatorSection({
 									displayPercent
 									hint="Your estimate of visitors missing from analytics. The 55% starting value is illustrative."
 									id="data-loss"
-									label="Unmeasured Share"
+									label="Unmeasured share"
 									max={0.75}
 									min={0}
 									onChangeAction={setVisitorDataLossRate}
@@ -155,7 +155,7 @@ export function CalculatorSection({
 									displayPercent
 									hint="Your estimated share of visitors who buy. Use paid conversions, not signups."
 									id="visitor-paid"
-									label="Visitor-to-Paid Rate"
+									label="Visitor-to-paid rate"
 									max={0.05}
 									min={0}
 									onChangeAction={setVisitorToPaidRate}
@@ -169,7 +169,7 @@ export function CalculatorSection({
 								<InputField
 									hint="Average revenue per paying customer attributed to a visit (order value, subscription, etc.)"
 									id="revenue"
-									label="Revenue per Conversion"
+									label="Revenue per conversion"
 									max={1000}
 									min={0}
 									onChangeAction={setRevenuePerConversion}

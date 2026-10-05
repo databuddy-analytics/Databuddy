@@ -118,11 +118,7 @@ export default async function HomePage() {
 					id="faq"
 				>
 					<div className={container}>
-						<FaqSection
-							className="max-w-full"
-							items={homeFaqItems}
-							title="We give a FAQ"
-						/>
+						<FaqSection className="max-w-full" items={homeFaqItems} />
 					</div>
 				</Section>
 

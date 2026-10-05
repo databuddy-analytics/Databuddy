@@ -8,14 +8,14 @@ import ContactForm from "./contact-form";
 import ContactHero from "./contact-hero";
 
 export const metadata: Metadata = {
-	title: "Contact Us",
+	title: "Contact us",
 	description:
 		"Get in touch with the Databuddy team. We'd love to hear from you.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/contact",
 	},
 	openGraph: {
-		title: "Contact Us",
+		title: "Contact us",
 		description:
 			"Get in touch with the Databuddy team. We'd love to hear from you.",
 		url: "https://www.databuddy.cc/contact",
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 };
 
 export default function ContactPage() {
-	const title = "Contact Us";
+	const title = "Contact us";
 	const description =
 		"Get in touch with the Databuddy team. We'd love to hear from you.";
 	const url = "https://www.databuddy.cc/contact";

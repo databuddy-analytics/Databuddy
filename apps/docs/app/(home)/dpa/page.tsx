@@ -10,7 +10,7 @@ import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import { StructuredData } from "@/components/structured-data";
 
-const title = "Data Processing Agreement - GDPR Article 28 DPA";
+const title = "Data processing agreement: GDPR Article 28 DPA";
 const description =
 	"Our data processing agreement under Article 28 of the GDPR, covering our role as data processor when you use our analytics service.";
 const url = "https://www.databuddy.cc/dpa";
@@ -49,7 +49,7 @@ export default function DPAPage() {
 						<FileTextIcon className="size-7 text-primary" />
 					</div>
 					<h1 className="mb-4 font-bold text-4xl md:text-5xl">
-						Data Processing Agreement
+						Data processing agreement
 					</h1>
 					<p className="mb-4 text-pretty text-muted-foreground">
 						Last Updated{" "}
@@ -63,7 +63,7 @@ export default function DPAPage() {
 					</p>
 					<div className="mx-auto mb-6 max-w-2xl rounded border border-accent bg-accent/50 p-4 text-left">
 						<p className="text-foreground text-sm">
-							<strong>TL;DR</strong> - Our data processing agreement under
+							<strong>TL;DR:</strong> Our data processing agreement under
 							Article 28 of the GDPR, covering our role as data processor when
 							you use our analytics service. By using our service, you
 							automatically agree to this DPA.
@@ -78,13 +78,13 @@ export default function DPAPage() {
 				<div className="mb-8 rounded border border-accent bg-accent/50 p-6">
 					<h2 className="mb-3 flex items-center font-bold text-primary text-xl">
 						<ShieldCheckIcon className="mr-2 size-5" />
-						GDPR Article 28 Compliance
+						GDPR Article 28 compliance
 					</h2>
 					<p className="mb-4 text-muted-foreground">
 						This Data Processing Agreement (DPA) explains our responsibilities
 						as your data processor and your responsibilities as the data
 						controller. By using our service, you automatically agree to this
-						DPA - no separate signature required.
+						DPA. No separate signature is required.
 					</p>
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 						<div className="flex items-center text-primary">
@@ -104,7 +104,7 @@ export default function DPAPage() {
 				<div className="prose prose-lg dark:prose-invert max-w-none">
 					<section className="mb-8">
 						<h2 className="mb-4 font-bold text-2xl">
-							What We Do with Your Data
+							What we do with your data
 						</h2>
 						<p className="mb-4 text-pretty">
 							We process the visitor information, account context, and connected
@@ -121,7 +121,7 @@ export default function DPAPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 font-bold text-2xl">
-							Why We Process Your Data
+							Why we process your data
 						</h2>
 						<p className="mb-4 text-pretty">
 							We process this information to provide the services you configure
@@ -138,7 +138,7 @@ export default function DPAPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">What Data We Handle</h2>
+						<h2 className="mb-4 font-bold text-2xl">What data we handle</h2>
 						<p className="mb-4 text-pretty">
 							Depending on your configuration, we process visitor and session
 							IDs, page and referrer information, attribution parameters,
@@ -155,7 +155,7 @@ export default function DPAPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">Our Commitments to You</h2>
+						<h2 className="mb-4 font-bold text-2xl">Our commitments to you</h2>
 						<p className="mb-4">
 							We only process your visitor data according to your instructions
 							and the service settings you choose. We won't use your data for
@@ -174,7 +174,7 @@ export default function DPAPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">Your Responsibilities</h2>
+						<h2 className="mb-4 font-bold text-2xl">Your responsibilities</h2>
 						<p className="mb-4">
 							As the data controller, you need to make sure you have a legal
 							basis for collecting visitor data through our service. This might
@@ -195,7 +195,7 @@ export default function DPAPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 font-bold text-2xl">
-							How We Keep Your Data Secure
+							How we keep your data secure
 						</h2>
 						<p className="mb-4 text-pretty">
 							We use industry-standard security practices including encrypting
@@ -212,7 +212,7 @@ export default function DPAPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">Our Partners</h2>
+						<h2 className="mb-4 font-bold text-2xl">Our partners</h2>
 						<p className="mb-4 text-pretty">
 							We use infrastructure, delivery, payment, billing, observability,
 							and AI service providers to operate Databuddy. Their functions are
@@ -233,7 +233,7 @@ export default function DPAPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">If Something Goes Wrong</h2>
+						<h2 className="mb-4 font-bold text-2xl">If something goes wrong</h2>
 						<p className="mb-4">
 							If there's ever a data breach that affects personal data we
 							process for you, we'll notify you within 72 hours. We'll give you
@@ -247,7 +247,7 @@ export default function DPAPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">When You Leave</h2>
+						<h2 className="mb-4 font-bold text-2xl">When you leave</h2>
 						<p className="mb-4">
 							When you stop using our service or ask us to delete your data,
 							we'll delete or return all the personal data we've processed for
@@ -267,7 +267,7 @@ export default function DPAPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">Checking Up on Us</h2>
+						<h2 className="mb-4 font-bold text-2xl">Checking up on us</h2>
 						<p className="mb-4">
 							You have the right to audit how well we're following this
 							agreement. We'll cooperate and provide the information you need to
@@ -283,7 +283,7 @@ export default function DPAPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 font-bold text-2xl">
-							Who's Responsible for What
+							Who's responsible for what
 						</h2>
 						<p className="mb-4">
 							Our liability under this agreement follows the same limits as our{" "}
@@ -301,7 +301,7 @@ export default function DPAPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">Governing Law</h2>
+						<h2 className="mb-4 font-bold text-2xl">Governing law</h2>
 						<p className="mb-4">
 							This DPA is governed by the laws applicable to our Terms of
 							Service and forms part of our agreement with you. You do not need
@@ -332,13 +332,13 @@ export default function DPAPage() {
 						</div>
 						<div className="flex flex-wrap gap-4">
 							<a className="text-primary hover:text-primary/80" href="/privacy">
-								Privacy Policy →
+								Privacy policy →
 							</a>
 							<a
 								className="text-primary hover:text-primary/80"
 								href="/data-policy"
 							>
-								Data Policy →
+								Data policy →
 							</a>
 							<a
 								className="text-primary hover:text-primary/80"

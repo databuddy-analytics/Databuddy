@@ -222,7 +222,7 @@ export default function AmbassadorForm() {
 				>
 					<CheckIcon className="mx-auto mb-4 h-12 w-12 text-green-500" />
 					<h3 className="mb-2 font-semibold text-foreground text-xl">
-						Application Submitted!
+						Application submitted!
 					</h3>
 					<p className="text-muted-foreground text-sm">
 						Thank you for your interest in becoming a Databuddy ambassador.
@@ -238,7 +238,7 @@ export default function AmbassadorForm() {
 		<div>
 			<div className="mb-8 text-center">
 				<h2 className="mb-4 font-semibold text-2xl sm:text-3xl lg:text-4xl">
-					Ambassador Application
+					Ambassador application
 				</h2>
 				<p className="mx-auto max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-lg">
 					Tell us about yourself and why you'd be a great Databuddy ambassador
@@ -248,7 +248,7 @@ export default function AmbassadorForm() {
 			<SciFiCard className="relative rounded border border-border bg-card/50 p-6 backdrop-blur-sm sm:p-8">
 				<form className="space-y-6" onSubmit={handleSubmit}>
 					<div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-						<FormField error={errors.name} label="Full Name" required>
+						<FormField error={errors.name} label="Full name" required>
 							<Input
 								aria-describedby={
 									errors.name ? "name-error" : "name-description"
@@ -274,7 +274,7 @@ export default function AmbassadorForm() {
 							</div>
 						</FormField>
 
-						<FormField error={errors.email} label="Email Address" required>
+						<FormField error={errors.email} label="Email address" required>
 							<Input
 								className={errors.email ? "border-destructive" : ""}
 								maxLength={255}
@@ -292,7 +292,7 @@ export default function AmbassadorForm() {
 						<FormField
 							description="Enter your X (Twitter) handle without the @"
 							error={errors.xHandle}
-							label="X (Twitter) Handle"
+							label="X (Twitter) handle"
 						>
 							<Input
 								className={errors.xHandle ? "border-destructive" : ""}
@@ -324,7 +324,7 @@ export default function AmbassadorForm() {
 
 					<FormField
 						description="Tell us about your experience with analytics, privacy, or developer tools (max 800 characters)"
-						label="Relevant Experience"
+						label="Relevant experience"
 					>
 						<Textarea
 							maxLength={800}
@@ -362,7 +362,7 @@ export default function AmbassadorForm() {
 
 					<FormField
 						description="Describe your audience size and engagement across platforms (max 600 characters)"
-						label="Audience & Reach"
+						label="Audience & reach"
 					>
 						<Textarea
 							maxLength={600}
@@ -398,12 +398,12 @@ export default function AmbassadorForm() {
 							{isSubmitting ? (
 								<>
 									<SpinnerIcon className="size-4 animate-spin" />
-									Submitting Application...
+									Submitting application...
 								</>
 							) : (
 								<>
 									<PaperPlaneIcon className="size-4" />
-									Submit Application
+									Submit application
 								</>
 							)}
 						</SciFiButton>

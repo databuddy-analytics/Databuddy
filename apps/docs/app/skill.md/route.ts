@@ -141,7 +141,7 @@ Requires \`trackAttributes: true\`:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| \`clientId\` | \`string\` | Auto-detect | Project client ID |
+| \`clientId\` | \`string\` | Auto-detect | Project Client ID |
 | \`disabled\` | \`boolean\` | \`false\` | Disable all tracking |
 | \`anonymizeVisitorIds\` | \`boolean \\| "auto"\` | \`true\` | Anonymize visitor IDs before storage |
 | \`apiUrl\` | \`string\` | \`https://basket.databuddy.cc\` | Event ingestion endpoint |
@@ -173,8 +173,8 @@ interface DatabuddyConfig {
   apiKey: string;              // Required. Format: dbdy_xxx
   apiUrl?: string;             // Default: "https://basket.databuddy.cc"
   websiteId?: string;          // Default website scope
-  namespace?: string;          // Default namespace (e.g., "billing")
-  source?: string;             // Default source (e.g., "backend")
+  namespace?: string;          // Default namespace (e.g. "billing")
+  source?: string;             // Default source (e.g. "backend")
   enableBatching?: boolean;    // Default: true
   batchSize?: number;          // Default: 10, max: 100
   enableDeduplication?: boolean; // Default: true (by eventId)
@@ -239,7 +239,7 @@ Accepts single event or array (max 100). Max payload: 1MB (2MB request body hard
 
 ## Common Pitfalls
 
-- Do NOT put client ID in server-only env vars. Use \`NEXT_PUBLIC_DATABUDDY_CLIENT_ID\`.
+- Do NOT put the Client ID in server-only env vars. Use \`NEXT_PUBLIC_DATABUDDY_CLIENT_ID\`.
 - Do NOT add \`<Databuddy />\` in multiple layouts. One at the root is enough.
 - The script auto-tracks SPA route changes. Do NOT manually call \`track\` for pageviews.
 - \`track()\` is client-side only. Do NOT call it in server components or API routes.

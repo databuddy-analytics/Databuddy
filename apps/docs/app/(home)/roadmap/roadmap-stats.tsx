@@ -171,7 +171,7 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 						</div>
 					</div>
 					<div className="font-bold text-xl">{stats.inProgressItems}</div>
-					<div className="text-muted-foreground text-xs">In Progress</div>
+					<div className="text-muted-foreground text-xs">In progress</div>
 				</SciFiCard>
 
 				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
@@ -191,7 +191,7 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 						</div>
 					</div>
 					<div className="font-bold text-xl">{stats.onHoldItems}</div>
-					<div className="text-muted-foreground text-xs">On Hold</div>
+					<div className="text-muted-foreground text-xs">On hold</div>
 				</SciFiCard>
 			</div>
 
@@ -199,7 +199,7 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 			<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
 				<h3 className="mb-4 flex items-center gap-2 font-semibold text-foreground text-lg">
 					<ChartBarIcon className="size-5" />
-					Progress by Category
+					Progress by category
 				</h3>
 				<div className="space-y-4">
 					{categoryStats.map((category) => (
@@ -227,7 +227,7 @@ export default function RoadmapStatsComponent({ items, stats }: Props) {
 			<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
 				<h3 className="mb-4 flex items-center gap-2 font-semibold text-foreground text-lg">
 					<TrendUpIcon className="size-5" />
-					Progress by Priority
+					Progress by priority
 				</h3>
 				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 					{priorityStats.map((priority) => (

@@ -40,7 +40,7 @@ const getStatusConfig = (status: RoadmapStatus) => {
 				color: "text-blue-600 dark:text-blue-400",
 				bgColor: "bg-blue-100 dark:bg-blue-900/30",
 				borderColor: "border-blue-500",
-				label: "In Progress",
+				label: "In progress",
 				labelColor:
 					"bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
 			};
@@ -60,7 +60,7 @@ const getStatusConfig = (status: RoadmapStatus) => {
 				color: "text-orange-600 dark:text-orange-400",
 				bgColor: "bg-orange-100 dark:bg-orange-900/30",
 				borderColor: "border-orange-500",
-				label: "On Hold",
+				label: "On hold",
 				labelColor:
 					"bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
 			};
@@ -70,7 +70,7 @@ const getStatusConfig = (status: RoadmapStatus) => {
 				color: "text-red-600 dark:text-red-400",
 				bgColor: "bg-red-100 dark:bg-red-900/30",
 				borderColor: "border-red-500",
-				label: "Cancelled",
+				label: "Canceled",
 				labelColor:
 					"bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
 			};
@@ -292,7 +292,7 @@ export default function RoadmapTimeline({ items }: Props) {
 									{item.features && item.features.length > 0 && (
 										<div className="mb-4">
 											<h4 className="mb-2 font-medium text-foreground text-sm">
-												Key Features:
+												Key features:
 											</h4>
 											<ul className="grid grid-cols-1 gap-1 text-muted-foreground text-sm sm:grid-cols-2">
 												{item.features.map((feature) => (
@@ -356,7 +356,7 @@ export default function RoadmapTimeline({ items }: Props) {
 													target="_blank"
 												>
 													<GitBranchIcon className="size-3" />
-													Pull Request
+													Pull request
 													<ArrowUpRightIcon className="size-3" />
 												</a>
 											)}

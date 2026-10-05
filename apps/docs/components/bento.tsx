@@ -100,14 +100,14 @@ const FunnelsFeature = () => {
 	const data = [
 		{
 			value: 100,
-			name: "Page View",
+			name: "Pageview",
 
 			fill: "var(--primary)",
 			stroke: "var(--primary)",
 		},
 		{
 			value: 65,
-			name: "Sign Up",
+			name: "Signup",
 			fill: "var(--muted-foreground)",
 			stroke: "var(--muted-foreground)",
 		},
@@ -138,7 +138,7 @@ const FunnelsFeature = () => {
 						24.5%
 					</motion.div>
 					<div className="font-medium font-mono text-muted-foreground text-xs uppercase tracking-widest">
-						Conversion Rate
+						Conversion rate
 					</div>
 				</div>
 				<Badge variant="gray">+2.4%</Badge>
@@ -239,7 +239,7 @@ const RealTimeFeature = () => {
 						<span className="relative inline-flex size-2 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
 					</span>
 					<span className="font-medium font-mono text-muted-foreground text-xs uppercase tracking-widest">
-						Live Users
+						Live users
 					</span>
 				</div>
 				<motion.div
@@ -673,7 +673,7 @@ export default function Bento() {
 				className="h-full md:col-span-4 md:row-span-2"
 				description="Track user journeys through your app"
 				icon={FunnelIcon}
-				title="Conversion Funnels"
+				title="Conversion funnels"
 			>
 				<FunnelsFeature />
 			</BentoCard>
@@ -714,7 +714,7 @@ export default function Bento() {
 				description="Catch and fix bugs fast"
 				href="/errors"
 				icon={BugIcon}
-				title="Error Tracking"
+				title="Error tracking"
 			>
 				<ErrorTrackingFeature />
 			</BentoCard>
@@ -724,7 +724,7 @@ export default function Bento() {
 				description="Roll out features safely"
 				href="/feature-flags"
 				icon={FlagIcon}
-				title="Feature Flags"
+				title="Feature flags"
 			>
 				<FeatureFlagsFeature />
 			</BentoCard>

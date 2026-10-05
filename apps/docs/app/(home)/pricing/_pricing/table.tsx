@@ -192,8 +192,8 @@ export function PlansComparisonTable({ plans }: { plans: NormalizedPlan[] }) {
 												}
 											>
 												{plan.id === "enterprise"
-													? "CONTACT US"
-													: "GET STARTED"}
+													? "Contact us"
+													: "Get started"}
 											</Link>
 										</SciFiButton>
 									</td>

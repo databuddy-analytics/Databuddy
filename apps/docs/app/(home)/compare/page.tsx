@@ -10,7 +10,7 @@ import { StructuredData } from "@/components/structured-data";
 import { competitors } from "@/lib/comparison-config";
 
 const compareTitle =
-	"Databuddy vs PostHog, Plausible, GA4, and More | Databuddy";
+	"Databuddy vs PostHog, Plausible, GA4, and more | Databuddy";
 const compareDescription =
 	"Side-by-side comparisons of Databuddy with Google Analytics, PostHog, Plausible, Mixpanel, Umami, and more: features, pricing, and when to pick each one.";
 const compareUrl = `${SITE_URL}/compare`;
@@ -86,14 +86,14 @@ export default function ComparePage() {
 									rel="noopener noreferrer"
 									target="_blank"
 								>
-									Start Free - No Credit Card
+									Start free, no credit card
 								</Link>
 							</SciFiButton>
 							<Link
 								className="group inline-flex items-center justify-center gap-2 rounded border border-border bg-foreground/5 px-5 py-2 font-medium text-foreground text-sm backdrop-blur-sm transition-colors hover:bg-foreground/10 active:scale-[0.98]"
 								href="/demo"
 							>
-								View Live Demo
+								View live demo
 								<ArrowRightIcon className="size-3.5 transition-transform group-hover:translate-x-0.5" />
 							</Link>
 						</div>

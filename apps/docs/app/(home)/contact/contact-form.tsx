@@ -223,7 +223,7 @@ export default function ContactForm() {
 				<FormField
 					error={errors.fullName?.message}
 					id="full-name"
-					label="Full Name"
+					label="Full name"
 					required
 				>
 					<Input
@@ -241,7 +241,7 @@ export default function ContactForm() {
 				<FormField
 					error={errors.businessName?.message}
 					id="business-name"
-					label="Business or Website Name"
+					label="Business or website name"
 					required
 				>
 					<Input
@@ -277,7 +277,7 @@ export default function ContactForm() {
 				<FormField
 					error={errors.email?.message}
 					id="email"
-					label="Contact Email"
+					label="Contact email"
 					required
 				>
 					<Input
@@ -293,10 +293,10 @@ export default function ContactForm() {
 				</FormField>
 
 				<FormField
-					description="Optional - we'll only call if needed"
+					description="Optional. We'll only call if needed."
 					error={errors.phone?.message}
 					id="phone"
-					label="Phone Number"
+					label="Phone number"
 				>
 					<Controller
 						control={control}
@@ -327,7 +327,7 @@ export default function ContactForm() {
 						) : (
 							<>
 								<PaperPlaneIcon className="size-4" />
-								Send Message
+								Send message
 							</>
 						)}
 					</SciFiButton>

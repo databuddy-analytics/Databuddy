@@ -308,7 +308,7 @@ export default function OssForm() {
 						}`}
 						id="notes"
 						maxLength={800}
-						placeholder="Optional - project size, traffic, what you'd use it for"
+						placeholder="Optional: project size, traffic, what you'd use it for"
 						rows={3}
 						{...register("notes")}
 					/>

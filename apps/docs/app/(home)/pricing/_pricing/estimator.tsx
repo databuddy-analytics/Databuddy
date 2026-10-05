@@ -193,7 +193,7 @@ export function Estimator({ plans }: Props) {
 													)
 												}
 											>
-												CONTACT US
+												Contact us
 											</Link>
 										</SciFiButton>
 									</div>
@@ -280,7 +280,7 @@ export function Estimator({ plans }: Props) {
 												rel="noopener noreferrer"
 												target="_blank"
 											>
-												GET STARTED
+												Get started
 											</Link>
 										</SciFiButton>
 									</div>

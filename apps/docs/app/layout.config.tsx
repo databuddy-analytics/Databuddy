@@ -11,7 +11,7 @@ export const baseOptions: BaseLayoutProps = {
 	},
 	links: [
 		{
-			text: "Log in",
+			text: "Sign in",
 			url: "https://app.databuddy.cc/register",
 			external: true,
 			icon: <ChartBarIcon />,

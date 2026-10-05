@@ -16,9 +16,9 @@ import {
 import { StructuredData } from "@/components/structured-data";
 import { TrackOnMount } from "@/components/track-on-mount";
 
-const TITLE = "Free Uptime Monitoring and Status Pages";
+const TITLE = "Free uptime monitoring and status pages";
 const DESCRIPTION =
-	"Check your site as often as every minute on the free plan, get alerts in Slack, email, or a webhook, and keep customers updated on a public status page.";
+	"Check your site as often as every minute on the Free plan, get alerts in Slack, email, or a webhook, and keep customers updated on a public status page.";
 
 export const metadata: Metadata = {
 	title: TITLE,
@@ -87,7 +87,7 @@ export default function UptimePage() {
 					footnote="Free on every plan, including 1-minute checks."
 					primaryLabel="Start monitoring"
 					secondaryLabel="Read the docs"
-					subtitle="Databuddy checks your site as often as every minute, even on the free plan, alerts your team the moment it fails, and shows uptime in the same dashboard as your traffic."
+					subtitle="Databuddy checks your site as often as every minute, even on the Free plan, alerts your team the moment it fails, and shows uptime in the same dashboard as your traffic."
 					title="Know your site is down before a customer tells you."
 					visual={<CheckStrip />}
 				/>

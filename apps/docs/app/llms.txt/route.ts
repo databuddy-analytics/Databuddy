@@ -48,7 +48,7 @@ const PRODUCT_LINKS = [
 			"JavaScript errors from the same script, with stack trace, page, browser, and how many visitors each error hit. Starts on the Hobby plan.",
 	},
 	{
-		title: "Web vitals",
+		title: "Web Vitals",
 		url: `${SITE_URL}/web-vitals`,
 		description:
 			"Real-user LCP, INP, CLS, FCP, and TTFB at p75 by page, browser, and country.",

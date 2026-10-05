@@ -58,7 +58,7 @@ export default function NotFound() {
 										rel="noopener noreferrer"
 										target="_blank"
 									>
-										Start Free - No Credit Card
+										Start free, no credit card
 									</Link>
 								</SciFiButton>
 							</div>

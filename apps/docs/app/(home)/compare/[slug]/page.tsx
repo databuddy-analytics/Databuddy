@@ -25,7 +25,7 @@ export async function generateMetadata({
 	const data = getComparisonData(slug);
 
 	if (!data) {
-		return { title: "Comparison Not Found" };
+		return { title: "Comparison not found" };
 	}
 
 	const compareUrl = `${SITE_URL}/compare/${slug}`;
