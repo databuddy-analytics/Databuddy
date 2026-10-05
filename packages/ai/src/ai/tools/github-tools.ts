@@ -642,7 +642,7 @@ export function createGitHubTools(
 
 	const getRecentDeploysTool = tool({
 		description:
-			"Get GitHub deployments around a metric change. previousSha (production only) is a confirmed successful prior deployment in that environment, or null when unproven; pass it as github_commit_diff base to inspect a production change. Failed or pending requests are not a baseline. since/until filter the request time and require exact timestamps. result is the completion outcome; currentState can later become inactive. If truncated is true (history older than the scanned window, or no environment named like production), absence is not evidence that no deploy occurred.",
+			"Get GitHub deployments around a metric change. previousSha (production only) is a confirmed successful prior deployment in that environment, or null when unproven; pass it as github_commit_diff base to inspect a production change. Failed or pending requests are not a baseline. since/until filter the request time and require exact timestamps. result is the completion outcome; currentState can later become inactive. truncated means the scan could not prove completeness: history outside the scan window, unrecognized production environments, or failed deployment requests. It does not identify the cause; absence is not evidence that no deploy occurred.",
 		inputSchema: deploymentInput,
 		execute: async (input) => {
 			const token = await getToken();
