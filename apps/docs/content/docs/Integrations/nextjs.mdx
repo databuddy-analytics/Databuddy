@@ -1,12 +1,24 @@
 ---
 title: Next.js
 seoTitle: "Next.js Analytics: Cookieless App Router Setup | Databuddy"
-description: "Add cookieless analytics to Next.js: install the SDK, track pageviews and custom events in the App Router, and build funnels and goals on the same data."
+description: "Set up cookieless analytics in Next.js App Router or Pages Router, verify your first pageview and event, and replace an existing tracker without duplicate events."
 ---
 
 import { Card, Cards } from "@/components/docs";
 
 Databuddy works with both the App Router and Pages Router. Add it once near the root of your app; page views and client-side route changes are tracked automatically.
+
+Start with pageviews and one custom event, then use the same data for goals and funnels. The Free plan includes 10,000 events per month; error tracking starts on Hobby. See [current plans and limits](/pricing).
+
+## Before you start
+
+1. [Create a free account](https://app.databuddy.cc/register) and add your website in Databuddy.
+2. Copy that website's Client ID from its tracking setup. This is a public identifier; keep server API keys out of browser code.
+3. Add the Client ID to `.env.local` at your Next.js project root, then restart your dev server:
+
+```bash
+NEXT_PUBLIC_DATABUDDY_CLIENT_ID=your-client-id
+```
 
 ## Install
 
@@ -38,8 +50,6 @@ export default function RootLayout({
       <body>
         <Databuddy
           clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
-		  trackWebVitals
-          trackErrors
         />
         {children}
       </body>
@@ -48,11 +58,7 @@ export default function RootLayout({
 }
 ```
 
-Add your Client ID to `.env.local`:
-
-```bash
-NEXT_PUBLIC_DATABUDDY_CLIENT_ID=your-client-id
-```
+The SDK's React entry point includes the client boundary, so your root layout can stay a Server Component. Custom event handlers belong in a Client Component, as shown below.
 
 ## Pages Router
 
@@ -67,8 +73,6 @@ export default function MyApp({ Component, pageProps }: AppProps) {
     <>
       <Databuddy
         clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
-		trackWebVitals
-        trackErrors
       />
       <Component {...pageProps} />
     </>
@@ -93,8 +97,6 @@ export default function Document() {
           async
           crossOrigin="anonymous"
           data-client-id={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID}
-          data-track-errors
-          data-track-web-vitals
           src="https://cdn.databuddy.cc/databuddy.js"
         />
       </Head>
@@ -108,6 +110,20 @@ export default function Document() {
 ```
 
 Use either the React component or the script tag, not both.
+
+## Optional errors and Web Vitals
+
+Add `trackWebVitals` to the React component to collect performance measurements. Add `trackErrors` if your plan includes error tracking. Both are off by default, and the collected measurements count toward your event allowance.
+
+```tsx
+<Databuddy
+  clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
+  trackWebVitals
+  trackErrors
+/>
+```
+
+For the script tag, the equivalent attributes are `data-track-web-vitals` and `data-track-errors`.
 
 ## Track Custom Events
 
@@ -134,11 +150,24 @@ export function SubscribeButton() {
 }
 ```
 
-For server-side events from route handlers, use the Node SDK instead of the browser tracker.
+This records a click, not a completed subscription. Record outcomes such as account creation or payment after the backend confirms success, using the [Node SDK](/docs/sdk/node). Send each completed outcome from one place so a browser call and server call do not double-count it.
+
+Use stable event names and small properties such as the button location. Do not send emails, passwords, tokens, or entire form values.
+
+## Verify your first events
+
+Verify on your deployed site. For a local test, the standard tracker skips localhost: temporarily add `debug` to `<Databuddy />` to load the debug bundle, or use `https://cdn.databuddy.cc/databuddy-debug.js` in your script tag. Use a separate Databuddy website and Client ID for local test data, and remove debug mode before deploying.
+
+1. Open your site and use a client-side link to visit a second page.
+2. In the browser Network tab, confirm the Databuddy script loads from `cdn.databuddy.cc` and requests reach `basket.databuddy.cc`. Events are batched, so allow a few seconds for delivery.
+3. Open that website in Databuddy and check for your two pageviews. Check the same date range and website as your test.
+4. Trigger the custom event once and confirm its name appears on the Events page. A successful pageview does not prove your custom event is instrumented.
+
+[Databuddy DevTools](/docs/sdk/devtools) can help inspect the tracker and custom events while you develop.
 
 ## Production Setup
 
-Add `NEXT_PUBLIC_DATABUDDY_CLIENT_ID` to your deployment provider. On Vercel, set it in Project Settings → Environment Variables for production and preview environments.
+Add `NEXT_PUBLIC_DATABUDDY_CLIENT_ID` to your deployment provider before building. On Vercel, choose the deployment environments that should collect data. Next.js embeds public environment variables at build time, so rebuild and redeploy after changing the Client ID.
 
 To avoid test data, disable tracking outside production:
 
@@ -146,10 +175,19 @@ To avoid test data, disable tracking outside production:
 <Databuddy
   clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
   disabled={process.env.NODE_ENV !== "production"}
-  trackErrors
-	trackWebVitals
 />
 ```
+
+`NODE_ENV` is also `production` for many preview deployments. If previews should stay out of production analytics, use your deployment provider's environment indicator for `disabled`, or give previews a separate Databuddy website and Client ID.
+
+## Replace an existing tracker
+
+1. Install Databuddy once and verify pageviews and one important event before removing the old tracker.
+2. Write down what each existing conversion means. Keep a button click separate from a completed signup, and send the completed event only after success.
+3. Recreate the goals and funnels you need in Databuddy. Confirm that their paths and event names match the events you just verified.
+4. Remove the old provider's script and manual route listeners when you are ready to switch. Remove any duplicate Databuddy script added through a tag manager or another layout.
+
+If you briefly run both providers, compare the same dates and definitions. Different session, consent, and bot-filtering rules can produce different totals; an exact count match is not a setup requirement.
 
 ## Troubleshooting
 
@@ -159,6 +197,12 @@ To avoid test data, disable tracking outside production:
 2. Check the browser Network tab for requests to `basket.databuddy.cc`.
 3. Make sure the component or script is included only once.
 4. If `disabled` is set, confirm it is `false` in the environment you are testing.
+5. Check your site's Content Security Policy and blockers. Allow scripts from `https://cdn.databuddy.cc` and connections to `https://basket.databuddy.cc`.
+6. For local tests, use the debug bundle as described above. For deployment tests, rebuild after setting the public Client ID.
+
+**Pageviews work, but an outcome is missing**
+
+Confirm the event call runs after the actual outcome, uses the same website, and is not skipped by an error or redirect. If you send it from a serverless route handler, flush the Node SDK before the handler exits. Check the [custom event helpers](/docs/sdk/tracker) and [server event setup](/docs/sdk/node).
 
 ## Related
 
