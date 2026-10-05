@@ -152,7 +152,7 @@ export function QueryTypeSelector({
 				onClick={onExecuteQuery}
 				size="lg"
 			>
-				{isLoading ? "Executing..." : "Execute Query"}
+				{isLoading ? "Executing..." : "Execute query"}
 			</Button>
 		</div>
 	);

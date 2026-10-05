@@ -18,7 +18,7 @@ export interface ManifestoChapter {
 }
 
 export const manifestoIntro = {
-	title: "The Databuddy Manifesto",
+	title: "The Databuddy manifesto",
 	lead: [
 		"I built Databuddy because I wanted to understand what changed in my product without reconstructing the answer across separate analytics, error, and performance tools.",
 		"Here's what guides the product.",
@@ -29,7 +29,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 	{
 		id: "analytics-is-broken",
 		number: "01",
-		title: "Analytics Is Broken",
+		title: "Analytics is broken",
 		blocks: [
 			{
 				type: "paragraph",
@@ -48,7 +48,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 	{
 		id: "context-is-everything",
 		number: "02",
-		title: "Context Is Everything",
+		title: "Context is everything",
 		blocks: [
 			{
 				type: "paragraph",
@@ -79,7 +79,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 	{
 		id: "privacy-is-the-default",
 		number: "03",
-		title: "Privacy Is the Default, Not the Feature",
+		title: "Privacy is the default, not the feature",
 		blocks: [
 			{
 				type: "paragraph",
@@ -102,7 +102,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 	{
 		id: "ask-your-data",
 		number: "04",
-		title: "Ask Your Data Questions, Not Your Dashboard",
+		title: "Ask your data questions, not your dashboard",
 		blocks: [
 			{
 				type: "callout",
@@ -122,7 +122,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 			},
 			{
 				type: "paragraph",
-				text: "Databunny, the AI agent inside Databuddy, answers questions, builds charts, and runs investigations. When you configure a schedule and Slack delivery, it sends actionable investigations to your chosen channels.",
+				text: "Databunny, the built-in AI analyst, answers questions, builds charts, and runs investigations. When you configure a schedule and Slack delivery, it sends actionable investigations to your chosen channels.",
 			},
 			{
 				type: "paragraph",
@@ -133,7 +133,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 	{
 		id: "build-for-builders",
 		number: "05",
-		title: "Build for Builders",
+		title: "Build for builders",
 		blocks: [
 			{
 				type: "paragraph",

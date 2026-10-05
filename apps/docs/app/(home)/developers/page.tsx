@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { developerResources } from "@/lib/agent-discovery";
 
-const title = "Developer Resources: API, OpenAPI, MCP, and SDKs";
+const title = "Developer resources: API, OpenAPI, MCP, and SDKs";
 const description =
 	"Find Databuddy developer resources for agents and humans: API docs, OpenAPI spec, authentication, webhooks, MCP server, SDKs, and llms.txt.";
 const url = `${SITE_URL}/developers`;
@@ -42,7 +42,7 @@ export default function DevelopersPage() {
 							description,
 							datePublished: "2026-07-03",
 							dateModified: "2026-07-03",
-							section: "Developer Resources",
+							section: "Developer resources",
 							keywords: [
 								"Databuddy developer resources",
 								"Databuddy API docs",
@@ -67,7 +67,7 @@ export default function DevelopersPage() {
 							Agent-ready docs
 						</p>
 						<h1 className="mt-4 text-balance font-semibold text-4xl sm:text-5xl">
-							Databuddy Developer Resources
+							Databuddy developer resources
 						</h1>
 						<p className="mt-5 text-lg text-muted-foreground">
 							API docs, OpenAPI schema, authentication, webhooks, MCP server,

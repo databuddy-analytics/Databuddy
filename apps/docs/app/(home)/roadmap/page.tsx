@@ -54,7 +54,7 @@ export default function RoadmapPage() {
 				<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
 					<div className="mb-8">
 						<h2 className="mb-2 font-semibold text-2xl sm:text-3xl lg:text-4xl">
-							Progress Overview
+							Progress overview
 						</h2>
 						<p className="text-muted-foreground text-sm sm:text-base lg:text-lg">
 							Detailed breakdown of our development progress across categories
@@ -73,7 +73,7 @@ export default function RoadmapPage() {
 				<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
 					<div className="mb-8">
 						<h2 className="mb-2 font-semibold text-2xl sm:text-3xl lg:text-4xl">
-							Development Timeline
+							Development timeline
 						</h2>
 						<p className="text-muted-foreground text-sm sm:text-base lg:text-lg">
 							Completed work and current priorities. Dates appear only after the
@@ -89,7 +89,7 @@ export default function RoadmapPage() {
 			<Section className="bg-background/50" id="roadmap-community">
 				<div className="mx-auto w-full max-w-4xl px-4 text-center sm:px-6 lg:px-8">
 					<h2 className="mb-6 font-semibold text-2xl sm:text-3xl lg:text-4xl">
-						Shape Our Future
+						Shape our future
 					</h2>
 					<p className="mx-auto mb-8 max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-lg">
 						Our roadmap is a living document that evolves based on user
@@ -104,7 +104,7 @@ export default function RoadmapPage() {
 							rel="noopener"
 							target="_blank"
 						>
-							Join Discussion
+							Join discussion
 						</a>
 						<a
 							className="inline-flex items-center justify-center rounded border border-border bg-background px-8 py-3 font-medium hover:bg-accent hover:text-accent-foreground"
@@ -112,7 +112,7 @@ export default function RoadmapPage() {
 							rel="noopener"
 							target="_blank"
 						>
-							Request Feature
+							Request feature
 						</a>
 						<a
 							className="inline-flex items-center justify-center rounded border border-border bg-background px-8 py-3 font-medium hover:bg-accent hover:text-accent-foreground"
@@ -134,7 +134,7 @@ export default function RoadmapPage() {
 				<div className="mx-auto w-full max-w-4xl px-4 sm:px-6 lg:px-8">
 					<SciFiCard className="rounded border border-border bg-card/50 p-8 backdrop-blur-sm">
 						<h3 className="mb-4 font-semibold text-foreground text-lg">
-							Our Commitment to Transparency
+							Our commitment to transparency
 						</h3>
 						<div className="space-y-4 text-muted-foreground text-sm leading-relaxed">
 							<p>

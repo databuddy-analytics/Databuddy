@@ -426,8 +426,8 @@ export function StatusPagePreview() {
 						/>
 						<Swap className="font-semibold text-foreground text-xl tracking-tight sm:text-2xl">
 							{websiteDown
-								? "Some Systems Degraded"
-								: "We're Fully Operational"}
+								? "Some systems degraded"
+								: "We're fully operational"}
 						</Swap>
 					</div>
 					<ul className="flex flex-col gap-6">
@@ -478,7 +478,7 @@ export function StatusPagePreview() {
 				</div>
 				<div className="flex min-w-0 flex-col gap-4 lg:border-white/[0.06] lg:border-l lg:pl-14">
 					<Swap className="text-muted-foreground text-sm">
-						{posted && !resolved ? "Active Incidents" : "Past Incidents"}
+						{posted && !resolved ? "Active incidents" : "Past incidents"}
 					</Swap>
 					<div className="grid [&>*]:col-start-1 [&>*]:row-start-1">
 						<Reveal shown={!posted}>

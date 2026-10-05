@@ -39,10 +39,10 @@ const ltSuperiorMono = localFont({
 export const metadata: Metadata = {
 	title: {
 		template: "%s | Databuddy",
-		default: "Databuddy: Product Analytics for Startups",
+		default: "Databuddy: product analytics for startups",
 	},
 	description:
-		"Track visitors, events, funnels, and goals without cookies. Ask Databunny, the built-in AI analyst, about your numbers and see the query. Free up to 10k events.",
+		"Track visitors, events, funnels, and goals without cookies. Ask Databunny, the built-in AI analyst, about your numbers and see the query. Free up to 10,000 events.",
 	authors: [{ name: "Databuddy Team" }],
 	creator: "Databuddy",
 	publisher: "Databuddy",

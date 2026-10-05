@@ -107,28 +107,28 @@ interface PlatformFeature {
 
 const PLATFORM_FEATURES: PlatformFeature[] = [
 	{
-		name: "Uptime Monitoring",
+		name: "Uptime monitoring",
 		description: "Endpoint checks, alerts, and status pages",
 		href: "/uptime",
 	},
 	{
-		name: "Short Links",
+		name: "Short links",
 		description: "Branded links with click analytics and deep linking",
 		href: "/links",
 	},
 	{
-		name: "Revenue Tracking",
+		name: "Revenue tracking",
 		description: "Stripe and Paddle revenue attribution",
 	},
 	{
-		name: "Alerts & Notifications",
+		name: "Alerts & notifications",
 		description: "Traffic, error, and anomaly alerts",
 	},
-	{ name: "Team Members", description: "Unlimited seats on all plans" },
+	{ name: "Team members", description: "Unlimited seats on all plans" },
 	{ name: "Websites", description: "Unlimited websites on all plans" },
-	{ name: "API Access", description: "REST API with scoped API keys" },
+	{ name: "API access", description: "REST API with scoped API keys" },
 	{
-		name: "Slack Integration",
+		name: "Slack integration",
 		description: "Analytics and alerts in Slack",
 	},
 	{ name: "SDKs", description: "JavaScript, React, Vue, Swift" },

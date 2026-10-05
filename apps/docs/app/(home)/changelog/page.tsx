@@ -18,14 +18,14 @@ import {
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-	title: { absolute: "Databuddy Changelog: New Features and Fixes" },
+	title: { absolute: "Databuddy changelog: new features and fixes" },
 	description:
 		"Every Databuddy release: new analytics features, Databunny AI analyst updates, SDK changes, and fixes, newest first. Follow along as the product ships.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/changelog",
 	},
 	openGraph: {
-		title: "Databuddy Changelog: New Features and Fixes",
+		title: "Databuddy changelog: new features and fixes",
 		description:
 			"Every Databuddy release: new analytics features, Databunny AI analyst updates, SDK changes, and fixes, newest first. Follow along as the product ships.",
 		url: "https://www.databuddy.cc/changelog",
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
 	},
 	twitter: {
 		card: "summary_large_image",
-		title: "Databuddy Changelog: New Features and Fixes",
+		title: "Databuddy changelog: new features and fixes",
 		description:
 			"Every Databuddy release: new analytics features, Databunny AI analyst updates, SDK changes, and fixes, newest first. Follow along as the product ships.",
 		images: ["/og-image.png"],
@@ -103,7 +103,7 @@ export default async function ChangelogPage() {
 		<div>
 			<StructuredData
 				page={{
-					title: "Databuddy Changelog: New Features and Fixes",
+					title: "Databuddy changelog: new features and fixes",
 					description:
 						"Every Databuddy release: new analytics features, Databunny AI analyst updates, SDK changes, and fixes, newest first. Follow along as the product ships.",
 					url: "https://www.databuddy.cc/changelog",
@@ -113,14 +113,14 @@ export default async function ChangelogPage() {
 				<section className="relative w-full pt-16 pb-10 sm:pt-20 sm:pb-12 lg:pt-24 lg:pb-14">
 					<div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
 						<div className="mb-8 text-center lg:mb-10">
-							<div className="mx-auto mb-3 inline-flex items-center gap-2 rounded border border-border bg-card/50 px-2.5 py-1 font-medium text-[0.6875rem] text-muted-foreground tracking-wide">
+							<div className="mx-auto mb-3 inline-flex items-center gap-2 rounded border border-border bg-card/50 px-2.5 py-1 font-medium text-[0.6875rem] text-muted-foreground uppercase tracking-wide">
 								<span
 									aria-hidden="true"
 									className="h-1.5 w-1.5 rounded bg-foreground/60"
 								/>
-								DATABUDDY
+								Databuddy
 								<span className="text-foreground/40">•</span>
-								CHANGELOG
+								Changelog
 							</div>
 							<h1 className="mb-2 font-semibold text-3xl leading-tight tracking-tight sm:text-4xl md:text-5xl lg:text-5xl">
 								What&apos;s new in Databuddy

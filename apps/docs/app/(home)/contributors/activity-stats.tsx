@@ -144,7 +144,7 @@ export default function ActivityStats({
 			<div>
 				<div className="mb-6">
 					<h3 className="mb-2 font-semibold text-xl sm:text-2xl">
-						Language Breakdown
+						Language breakdown
 					</h3>
 					<p className="text-muted-foreground text-sm sm:text-base">
 						Code composition across the repository
@@ -170,7 +170,7 @@ export default function ActivityStats({
 			<div>
 				<div className="mb-6">
 					<h3 className="mb-2 font-semibold text-xl sm:text-2xl">
-						Pull Request Activity
+						Pull request activity
 					</h3>
 					<p className="text-muted-foreground text-sm sm:text-base">
 						Community engagement and contribution metrics
@@ -207,7 +207,7 @@ export default function ActivityStats({
 						description="All time contributions"
 						href="https://github.com/databuddy-analytics/Databuddy/commits"
 						icon={CodeIcon}
-						label="Total Commits"
+						label="Total commits"
 						value={stats.totalContributions}
 					/>
 				</div>

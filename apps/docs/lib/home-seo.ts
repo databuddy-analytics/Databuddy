@@ -1,9 +1,9 @@
 import { SITE_URL } from "@/app/util/constants";
 
 export const homePageSeo = {
-	title: "Cookieless Product Analytics for Startups | Databuddy",
+	title: "Cookieless product analytics for startups | Databuddy",
 	description:
-		"Track visitors, events, funnels, and goals without cookies. Ask Databunny, the built-in AI analyst, about your numbers and see the query. Free up to 10k events.",
+		"Track visitors, events, funnels, and goals without cookies. Ask Databunny, the built-in AI analyst, about your numbers and see the query. Free up to 10,000 events.",
 	url: SITE_URL,
 } as const;
 
@@ -16,7 +16,7 @@ export const homeFaqItems: LandingFaqItem[] = [
 	{
 		question: "What does the Databuddy platform include?",
 		answer:
-			"Product analytics from one cookieless script: visitors, custom events, funnels, goals, and user profiles, with error tracking and web vitals when you turn them on. Uptime monitoring, feature flags, short links, and Databunny, the built-in AI analyst, run in the same dashboard.",
+			"Product analytics from one cookieless script: visitors, custom events, funnels, goals, and user profiles, with error tracking and Web Vitals when you turn them on. Uptime monitoring, feature flags, short links, and Databunny, the built-in AI analyst, run in the same dashboard.",
 	},
 	{
 		question: "How is Databuddy different from Google Analytics?",
@@ -29,9 +29,9 @@ export const homeFaqItems: LandingFaqItem[] = [
 			"The analytics tracker uses browser storage instead of cookies. Consent requirements depend on your configuration, the information you collect, and applicable rules. Cookieless does not automatically mean consent-free.",
 	},
 	{
-		question: "What is included in the free plan?",
+		question: "What is included in the Free plan?",
 		answer:
-			"The free plan includes 10,000 monthly events, real-time analytics, Core Web Vitals, one funnel, two goals, and up to three feature flags. Error tracking starts on Hobby. No credit card is required.",
+			"The Free plan includes 10,000 monthly events, real-time analytics, Core Web Vitals, one funnel, two goals, and up to three feature flags. Error tracking starts on Hobby. No credit card is required.",
 	},
 	{
 		question: "How long does setup take?",
@@ -44,9 +44,9 @@ export const homeFaqItems: LandingFaqItem[] = [
 			"Yes. Add Databuddy alongside your current tool, compare the data for as long as you need, and remove the old script when you're satisfied.",
 	},
 	{
-		question: "What happens if I outgrow the free plan?",
+		question: "What happens if I outgrow the Free plan?",
 		answer:
-			"The dashboard can warn you as usage approaches your allowance. Free-plan ingestion pauses after 10,000 monthly events. Hobby and Pro can continue with tiered event overage unless you set a hard billing limit.",
+			"The dashboard can warn you as usage approaches your allowance. On the Free plan, ingestion pauses after 10,000 monthly events. Hobby and Pro can continue with tiered event overage unless you set a hard billing limit.",
 	},
 	{
 		question: "Will the script slow down my site?",

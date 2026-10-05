@@ -342,7 +342,7 @@ export default function StartupsForm() {
 						}`}
 						id="notes"
 						maxLength={800}
-						placeholder="Optional - what you're building, which plan you're looking at"
+						placeholder="Optional: what you're building, which plan you're looking at"
 						rows={3}
 						{...register("notes")}
 					/>

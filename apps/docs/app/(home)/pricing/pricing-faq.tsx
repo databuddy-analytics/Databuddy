@@ -36,17 +36,17 @@ export const pricingFaqItems = [
 	{
 		question: "What counts as an event?",
 		answer:
-			"A page view, a custom event, an error, a Web Vitals measurement, or an MCP tool call each count as one event. Feature flag evaluations do not count toward your event quota.",
+			"A pageview, a custom event, a captured error, a Web Vitals measurement, or an MCP tool call each count as one event. Feature flag evaluations, uptime checks, and AI crawler visits do not count toward your event quota.",
 	},
 	{
 		question: "What payment methods do you accept?",
 		answer:
-			"We accept all major credit and debit cards via Stripe. All payments are processed securely - we never see or store your card details.",
+			"We accept all major credit and debit cards via Stripe. All payments are processed securely; we never see or store your card details.",
 	},
 	{
 		question: "Can I self-host instead?",
 		answer:
-			"Yes. Databuddy is fully open source. You can self-host the entire stack on your own infrastructure at no cost. The cloud plans are for teams who want a managed experience without the ops overhead.",
+			"The code is open source on GitHub, but a packaged self-host release is still pending. Until it ships, use the managed cloud, which is free up to 10,000 events a month.",
 	},
 ];
 

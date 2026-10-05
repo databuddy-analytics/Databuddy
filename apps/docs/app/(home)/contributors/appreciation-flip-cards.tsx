@@ -111,7 +111,7 @@ function FlipCard() {
 							initial={{ y: 20, opacity: 0 }}
 							transition={{ delay: 0.3, duration: 0.5 }}
 						>
-							Our Sponsors
+							Our sponsors
 						</motion.h3>
 
 						<motion.p
@@ -294,7 +294,7 @@ export default function AppreciationFlipCards() {
 		<div className="text-center">
 			<div className="mb-8">
 				<h2 className="mb-4 font-semibold text-2xl sm:text-3xl lg:text-4xl">
-					Appreciation Corner
+					Appreciation corner
 				</h2>
 				<p className="mx-auto max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-lg">
 					Recognizing everyone who makes Databuddy possible

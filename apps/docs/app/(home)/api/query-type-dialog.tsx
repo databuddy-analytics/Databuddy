@@ -238,7 +238,7 @@ export function QueryTypeDialog({
 
 										<div className="grid gap-6 sm:grid-cols-2">
 											{allowedFilters?.length && (
-												<DetailRow label="Allowed Filters">
+												<DetailRow label="Allowed filters">
 													<div className="flex flex-wrap gap-1.5">
 														{allowedFilters.map((filter) => (
 															<code
@@ -253,7 +253,7 @@ export function QueryTypeDialog({
 											)}
 
 											{meta?.supports_granularity?.length && (
-												<DetailRow label="Granularity Support">
+												<DetailRow label="Granularity support">
 													<div className="text-muted-foreground">
 														{meta.supports_granularity.join(", ")}
 													</div>

@@ -7,14 +7,14 @@ import OssForm from "./oss-form";
 export const metadata: Metadata = {
 	title: "Databuddy for open source",
 	description:
-		"One year of Databuddy Pro, free, for maintainers of active open source projects, with 1 million events a month and every Pro feature.",
+		"One year of Databuddy Pro, free, for maintainers of active open-source projects, with 1 million events a month and every Pro feature.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/oss",
 	},
 	openGraph: {
 		title: "Databuddy for open source",
 		description:
-			"One year of Databuddy Pro, free, for maintainers of active open source projects, with 1 million events a month and every Pro feature.",
+			"One year of Databuddy Pro, free, for maintainers of active open-source projects, with 1 million events a month and every Pro feature.",
 		url: "https://www.databuddy.cc/oss",
 		images: ["/og-image.png"],
 	},
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 export default function OssPage() {
 	const title = "Databuddy for open source";
 	const description =
-		"One year of Databuddy Pro, free, for maintainers of active open source projects, with 1 million events a month and every Pro feature.";
+		"One year of Databuddy Pro, free, for maintainers of active open-source projects, with 1 million events a month and every Pro feature.";
 	const url = "https://www.databuddy.cc/oss";
 
 	return (
@@ -34,7 +34,7 @@ export default function OssPage() {
 				<div className="mx-auto w-full max-w-xl px-4 pt-20 pb-16 sm:px-6 sm:pt-24 sm:pb-20">
 					<div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-card/40 px-3 py-1 font-medium text-muted-foreground text-xs backdrop-blur-sm">
 						<span className="size-1.5 rounded-full bg-primary" />
-						Open source program
+						Open-source program
 					</div>
 
 					<h1 className="mb-4 text-balance font-semibold text-3xl leading-[1.1] tracking-tight sm:text-4xl">

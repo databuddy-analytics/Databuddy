@@ -23,11 +23,11 @@ export function CtaSection() {
 								rel="noopener noreferrer"
 								target="_blank"
 							>
-								START FREE
+								Start free
 							</a>
 						</SciFiButton>
 						<SciFiButton asChild>
-							<Link href="/docs">READ THE DOCS</Link>
+							<Link href="/docs">Read the docs</Link>
 						</SciFiButton>
 					</div>
 				</div>
