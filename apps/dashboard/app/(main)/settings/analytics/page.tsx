@@ -10,7 +10,7 @@ export default function AnalyticsSettingsPage() {
 			<div className="flex flex-col">
 				<SettingsSection
 					description="Configure analytics display preferences"
-					title="Analytics Settings"
+					title="Analytics settings"
 				>
 					<div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
 						<ChartLineIcon className="size-12 text-muted-foreground" />

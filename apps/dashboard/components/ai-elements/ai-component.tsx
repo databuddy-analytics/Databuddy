@@ -9,28 +9,28 @@ import {
 import { chartSurfaceClassName } from "@/lib/chart-presentation";
 
 const SKELETON_LABELS: Record<string, string> = {
-	"line-chart": "Loading chart...",
-	"bar-chart": "Loading chart...",
-	"area-chart": "Loading chart...",
-	"stacked-bar-chart": "Loading chart...",
-	"pie-chart": "Loading chart...",
-	"donut-chart": "Loading chart...",
-	"data-table": "Loading table...",
-	"referrers-list": "Loading referrers...",
-	"mini-map": "Loading map...",
-	"links-list": "Loading links...",
-	"link-preview": "Loading preview...",
-	"funnels-list": "Loading funnels...",
-	"funnel-preview": "Loading preview...",
-	"dashboard-actions": "Loading actions...",
-	"goals-list": "Loading goals...",
-	"goal-preview": "Loading preview...",
-	"annotations-list": "Loading annotations...",
-	"annotation-preview": "Loading preview...",
+	"line-chart": "Loading chart…",
+	"bar-chart": "Loading chart…",
+	"area-chart": "Loading chart…",
+	"stacked-bar-chart": "Loading chart…",
+	"pie-chart": "Loading chart…",
+	"donut-chart": "Loading chart…",
+	"data-table": "Loading table…",
+	"referrers-list": "Loading referrers…",
+	"mini-map": "Loading map…",
+	"links-list": "Loading links…",
+	"link-preview": "Loading preview…",
+	"funnels-list": "Loading funnels…",
+	"funnel-preview": "Loading preview…",
+	"dashboard-actions": "Loading actions…",
+	"goals-list": "Loading goals…",
+	"goal-preview": "Loading preview…",
+	"annotations-list": "Loading annotations…",
+	"annotation-preview": "Loading preview…",
 };
 
 function ComponentSkeleton({ type, title }: { type: string; title?: string }) {
-	const label = SKELETON_LABELS[type] ?? "Loading...";
+	const label = SKELETON_LABELS[type] ?? "Loading…";
 
 	if (type === "dashboard-actions") {
 		return (

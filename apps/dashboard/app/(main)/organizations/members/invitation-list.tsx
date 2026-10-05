@@ -22,7 +22,7 @@ const STATUS_CONFIG = {
 	accepted: { label: "Accepted", variant: "success" as const },
 	canceled: { label: "Canceled", variant: "muted" as const },
 	rejected: { label: "Declined", variant: "muted" as const },
-	expired: { label: "Expired", variant: "muted" as const },
+	expired: { label: "Expired", variant: "warning" as const },
 };
 
 function resolveStatus(invitation: Invitation) {
@@ -170,7 +170,7 @@ export function InvitationList({
 				<Dialog.Content>
 					<Dialog.Close />
 					<Dialog.Header>
-						<Dialog.Title>Cancel Invitation</Dialog.Title>
+						<Dialog.Title>Cancel invitation</Dialog.Title>
 						<Dialog.Description>
 							Are you sure you want to cancel the invitation for{" "}
 							{invitationToCancel?.email}?
@@ -178,14 +178,14 @@ export function InvitationList({
 					</Dialog.Header>
 					<Dialog.Footer>
 						<Dialog.Close>
-							<Button variant="secondary">Keep</Button>
+							<Button variant="secondary">Keep invitation</Button>
 						</Dialog.Close>
 						<Button
 							loading={isCancellingInvitation}
 							onClick={handleCancel}
 							tone="destructive"
 						>
-							Cancel Invitation
+							Cancel invitation
 						</Button>
 					</Dialog.Footer>
 				</Dialog.Content>

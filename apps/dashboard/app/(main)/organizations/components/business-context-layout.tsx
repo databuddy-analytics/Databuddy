@@ -11,7 +11,7 @@ export function BusinessContextLayout({ children }: { children: ReactNode }) {
 			<TopBar.Breadcrumbs
 				items={[
 					{ label: "Settings", href: "/organizations/settings" },
-					{ label: "Business Context" },
+					{ label: "Business context" },
 				]}
 			/>
 			<div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">

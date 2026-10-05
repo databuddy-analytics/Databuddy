@@ -20,7 +20,9 @@ test("gates a new website behind setup until its first page view", {
 
 	await page.goto("/websites");
 	await expectDashboardReady(page);
-	await page.getByRole("button", { name: "New Website" }).click();
+	await page
+		.getByRole("button", { exact: true, name: "Create website" })
+		.click();
 	const dialog = page.getByRole("dialog", { name: "Create website" });
 	await dialog.getByRole("textbox", { name: "Name" }).fill(`Gate ${suffix}`);
 	await dialog

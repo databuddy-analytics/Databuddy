@@ -48,21 +48,21 @@ interface ModeConfig {
 
 const MODE_CONFIG: Record<string, ModeConfig> = {
 	create: {
-		title: "Create Funnel",
+		title: "Create funnel",
 		confirmLabel: "Create",
 		confirmMessage: "Yes, create it",
 		accent: "",
 		ButtonIcon: CheckIcon,
 	},
 	update: {
-		title: "Update Funnel",
+		title: "Update funnel",
 		confirmLabel: "Update",
 		confirmMessage: "Yes, update it",
 		accent: "border-amber-500/30",
 		ButtonIcon: CheckIcon,
 	},
 	delete: {
-		title: "Delete Funnel",
+		title: "Delete funnel",
 		confirmLabel: "Delete",
 		confirmMessage: "Yes, delete it",
 		accent: "border-destructive/30",

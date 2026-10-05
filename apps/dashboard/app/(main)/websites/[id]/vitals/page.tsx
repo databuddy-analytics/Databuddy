@@ -513,7 +513,7 @@ export default function VitalsPage() {
 						isLoading={isLoading}
 						metrics={chartMetrics}
 						partialLastSegment
-						title="Performance Trend"
+						title="Performance trend"
 					/>
 				) : (
 					<div className="rounded border bg-card p-8 text-center">

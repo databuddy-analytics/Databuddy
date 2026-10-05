@@ -74,7 +74,7 @@ export function TransferToOrgDialog({
 				<Dialog.Body className="space-y-4">
 					<div className="space-y-2">
 						<span className="font-medium text-foreground text-xs">
-							Current Organization
+							Current organization
 						</span>
 						<div className="flex items-center gap-2.5 rounded border bg-secondary p-2.5">
 							<img

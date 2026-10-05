@@ -101,7 +101,7 @@ function resolveCheckDisplay(check: RecentActivityCheck) {
 	if (check.http_code > 0 && check.http_code < 500) {
 		return { label: "Degraded", tone: "degraded" } as const;
 	}
-	return { label: "Downtime", tone: "down" } as const;
+	return { label: "Down", tone: "down" } as const;
 }
 
 const WARNING_CHECK_ICON = (
@@ -336,7 +336,7 @@ function SslIndicator({ check }: { check: RecentActivityCheck | undefined }) {
 const STATUS_DISPLAY = {
 	up: { label: "Operational", dot: "bg-success", text: "text-success" },
 	degraded: { label: "Degraded", dot: "bg-warning", text: "text-warning" },
-	down: { label: "Outage", dot: "bg-destructive", text: "text-destructive" },
+	down: { label: "Down", dot: "bg-destructive", text: "text-destructive" },
 	unknown: {
 		label: "Unknown",
 		dot: "bg-muted-foreground",
@@ -512,8 +512,8 @@ function MonitorDetailBody({
 		? schedule.website?.name ||
 			schedule.website?.domain ||
 			schedule.name ||
-			"Uptime Monitor"
-		: schedule.name || schedule.url || "Uptime Monitor";
+			"Uptime monitor"
+		: schedule.name || schedule.url || "Uptime monitor";
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
@@ -547,7 +547,7 @@ function MonitorDetailBody({
 							actions.isChecking && "animate-spin"
 						)}
 					/>
-					Check Now
+					Check now
 				</Button>
 				<Button
 					disabled={actions.isTogglingPause}
@@ -734,7 +734,7 @@ export function MonitorDetail({
 			<div className="flex min-h-0 flex-1 items-center justify-center p-6">
 				<EmptyState
 					action={{
-						label: "Back to Monitors",
+						label: "Back to monitors",
 						onClick: () => router.push("/monitors"),
 					}}
 					description="The monitor you are looking for does not exist or you don't have permission to view it."

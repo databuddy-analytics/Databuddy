@@ -240,7 +240,7 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 			) : (
 				<PageNavigation
 					breadcrumb={{ label: "Links", href: "/links" }}
-					currentPage={link?.name ?? "Link Stats"}
+					currentPage={link?.name ?? "Link stats"}
 					variant="breadcrumb"
 				/>
 			)}

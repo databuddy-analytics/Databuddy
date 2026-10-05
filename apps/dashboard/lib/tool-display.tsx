@@ -24,7 +24,7 @@ const QUERY_LABELS: Record<string, string> = {
 	utm: "UTM parameters",
 	events: "events",
 	custom_events: "custom events",
-	vitals: "web vitals",
+	vitals: "Web Vitals",
 	performance: "performance",
 	errors: "errors",
 	summary: "summary",

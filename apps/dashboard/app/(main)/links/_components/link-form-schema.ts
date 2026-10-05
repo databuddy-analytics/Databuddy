@@ -28,7 +28,7 @@ export const linkFormSchema = z.object({
 					return false;
 				}
 			},
-			{ message: "Please enter a valid URL" }
+			{ message: "Enter a valid URL" }
 		),
 	slug: z
 		.string()

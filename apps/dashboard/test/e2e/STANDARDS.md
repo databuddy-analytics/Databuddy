@@ -85,8 +85,8 @@ Selector priority:
 Good:
 
 ```ts
-await page.getByRole("button", { name: "Create Key" }).click();
-await expect(page.getByRole("heading", { name: "API Keys" })).toBeVisible();
+await page.getByRole("button", { name: "Create API key" }).click();
+await expect(page.getByRole("heading", { name: "API keys" })).toBeVisible();
 ```
 
 Avoid:

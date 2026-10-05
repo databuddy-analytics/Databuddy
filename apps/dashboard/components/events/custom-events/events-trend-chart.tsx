@@ -150,7 +150,7 @@ const MODE_OPTIONS = [
 		label: (
 			<>
 				<ListBulletsIcon className="size-3.5" />
-				<span className="hidden sm:inline">By Event</span>
+				<span className="hidden sm:inline">By event</span>
 			</>
 		),
 	},
@@ -417,9 +417,9 @@ export function EventsTrendChart({
 				<Chart className="overflow-hidden rounded-lg">
 					<Chart.Header
 						className="border-sidebar-border/60 bg-sidebar"
-						description="Loading event trends"
+						description="Loading event trends…"
 						descriptionClassName="text-sidebar-foreground/70"
-						title="Events Trend"
+						title="Events trend"
 						titleClassName="font-semibold text-base text-sidebar-foreground"
 					/>
 					<Chart.Plot className="p-3 sm:p-4">
@@ -438,7 +438,7 @@ export function EventsTrendChart({
 						className="border-sidebar-border/60 bg-sidebar"
 						description="No data available"
 						descriptionClassName="text-sidebar-foreground/70"
-						title="Events Trend"
+						title="Events trend"
 						titleClassName="font-semibold text-base text-sidebar-foreground"
 					/>
 					<Chart.Plot className="p-4">
@@ -466,14 +466,14 @@ export function EventsTrendChart({
 							: "Event occurrences over time"
 					}
 					descriptionClassName="text-sidebar-foreground/70"
-					title="Events Trend"
+					title="Events trend"
 					titleClassName="font-semibold text-base text-sidebar-foreground"
 				>
 					<div className="flex flex-wrap items-center justify-end gap-1.5">
 						{isFetching && !isLoading && (
 							<div className="flex items-center gap-1.5 text-muted-foreground text-xs">
 								<ArrowCounterClockwiseIcon className="size-3 animate-spin" />
-								<span>Updating...</span>
+								<span>Updating…</span>
 							</div>
 						)}
 						{isZoomed && (
@@ -519,7 +519,7 @@ export function EventsTrendChart({
 					<div className="grid grid-cols-2 gap-3 border-b bg-muted/40 px-4 py-3">
 						<div className="space-y-0.5">
 							<p className="font-mono text-[10px] text-muted-foreground uppercase">
-								Total Events
+								Total events
 							</p>
 							<p className="font-semibold text-foreground text-lg tabular-nums">
 								{totalEvents.toLocaleString()}
@@ -527,7 +527,7 @@ export function EventsTrendChart({
 						</div>
 						<div className="space-y-0.5">
 							<p className="font-mono text-[10px] text-muted-foreground uppercase">
-								Unique Users
+								Unique users
 							</p>
 							<p className="font-semibold text-foreground text-lg tabular-nums">
 								{totalUsers.toLocaleString()}

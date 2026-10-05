@@ -86,7 +86,7 @@ export async function generateMetadata({
 
 	if (!link) {
 		return {
-			title: "Link Not Found",
+			title: "Link not found",
 			robots: { index: false, follow: false },
 		};
 	}

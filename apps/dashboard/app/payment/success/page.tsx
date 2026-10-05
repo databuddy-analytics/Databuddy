@@ -33,7 +33,7 @@ export default function PaymentSuccess() {
 
 				<div className="mt-6 space-y-2">
 					<h1 className="text-balance font-semibold text-foreground text-lg">
-						Payment Successful
+						Payment successful
 					</h1>
 					<p className="text-pretty text-muted-foreground text-sm leading-relaxed">
 						Thank you for your purchase. You now have access to all premium
@@ -42,7 +42,7 @@ export default function PaymentSuccess() {
 				</div>
 
 				<Button asChild className="mt-8 w-full" size="lg">
-					<Link href="/websites">Go to Dashboard</Link>
+					<Link href="/websites">Go to dashboard</Link>
 				</Button>
 			</div>
 		</div>

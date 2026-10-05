@@ -18,7 +18,7 @@ export function UnauthorizedAccessError() {
 						/>
 					</div>
 					<div>
-						<Card.Title className="text-lg">Access Denied</Card.Title>
+						<Card.Title className="text-lg">Access denied</Card.Title>
 						<Card.Description className="mt-1">
 							You don't have permission to view this website's analytics.
 						</Card.Description>
@@ -33,7 +33,7 @@ export function UnauthorizedAccessError() {
 					className="w-full sm:w-auto"
 					onClick={() => router.push("/websites")}
 				>
-					Back to Websites
+					Back to websites
 				</Button>
 			</Card.Content>
 		</Card>

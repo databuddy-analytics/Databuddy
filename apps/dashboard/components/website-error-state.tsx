@@ -256,7 +256,7 @@ export function WebsiteErrorState({
 		return (
 			<ResourceUnavailableState
 				backHref="/websites"
-				backLabel="Back to Websites"
+				backLabel="Back to websites"
 				className="min-h-full p-4 sm:p-6 lg:p-8"
 			/>
 		);
@@ -273,7 +273,7 @@ export function WebsiteErrorState({
 							variant="secondary"
 						>
 							<ArrowLeftIcon className="mr-2 size-4" />
-							Go Back
+							Go back
 						</Button>
 					)}
 					<Button asChild className={canGoBack ? "flex-1" : "w-full"}>
@@ -296,7 +296,7 @@ export function WebsiteErrorState({
 								onClick={() => router.push("/login")}
 								size="lg"
 							>
-								Sign In
+								Sign in
 							</Button>
 							<Button
 								className="flex-1"
@@ -304,7 +304,7 @@ export function WebsiteErrorState({
 								size="lg"
 								variant="secondary"
 							>
-								Go to Homepage
+								Go to homepage
 							</Button>
 						</>
 					) : (
@@ -315,7 +315,7 @@ export function WebsiteErrorState({
 								size="lg"
 							>
 								<ArrowLeftIcon className="mr-2 size-4" />
-								Back to Websites
+								Back to websites
 							</Button>
 							{type === "unauthorized" && (
 								<Button
@@ -324,7 +324,7 @@ export function WebsiteErrorState({
 									size="lg"
 									variant="secondary"
 								>
-									Sign In
+									Sign in
 								</Button>
 							)}
 						</>
@@ -336,7 +336,7 @@ export function WebsiteErrorState({
 		return (
 			<div className="flex w-full max-w-xs flex-col gap-4 sm:flex-row">
 				<Button className="flex-1" onClick={() => router.refresh()} size="lg">
-					Try Again
+					Try again
 				</Button>
 				<Button
 					className="flex-1"
@@ -396,7 +396,7 @@ export function WebsiteErrorState({
 							variant="secondary"
 						>
 							<MagnifyingGlassIcon className="mr-2 size-4" />
-							Search pages, settings...
+							Search pages, settings…
 							<kbd className="ml-auto hidden items-center gap-1 rounded border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
 								<CommandIcon className="size-3" />
 								<span>K</span>
@@ -430,7 +430,7 @@ export function WebsiteErrorState({
 											<CommandPrimitive.Input
 												className="h-8 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
 												onValueChange={setSearch}
-												placeholder="Search pages, settings..."
+												placeholder="Search pages, settings…"
 												value={search}
 											/>
 											<kbd className="hidden items-center gap-1 rounded border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">

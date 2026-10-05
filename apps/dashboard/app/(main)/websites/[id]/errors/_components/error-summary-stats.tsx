@@ -94,7 +94,7 @@ export const ErrorSummaryStats = ({
 		<div className="grid grid-cols-2 gap-1.5 rounded-xl bg-secondary p-1.5">
 			<ErrorStatCard
 				icon={WarningCircleIcon}
-				title="Total Errors"
+				title="Total errors"
 				value={(errorSummary.totalErrors || 0).toLocaleString()}
 				variant="destructive"
 			/>
@@ -106,12 +106,12 @@ export const ErrorSummaryStats = ({
 			/>
 			<ErrorStatCard
 				icon={UsersIcon}
-				title="Affected Users"
+				title="Affected users"
 				value={(errorSummary.affectedUsers || 0).toLocaleString()}
 			/>
 			<ErrorStatCard
 				icon={ActivityIcon}
-				title="Affected Sessions"
+				title="Affected sessions"
 				value={(errorSummary.affectedSessions || 0).toLocaleString()}
 			/>
 		</div>

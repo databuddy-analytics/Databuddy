@@ -180,7 +180,7 @@ export function VariantEditor({
 									onChange={(e) =>
 										handleUpdateVariant(index, "key", e.target.value)
 									}
-									placeholder="e.g., control"
+									placeholder="control"
 									value={variant.key}
 								/>
 								<Input
@@ -259,7 +259,7 @@ export function VariantEditor({
 						</span>
 					) : (
 						<span>
-							{totalWeight}% {isValidTotal ? "total" : "— must add up to 100%"}
+							{totalWeight}% {isValidTotal ? "total" : "(must add up to 100%)"}
 						</span>
 					)}
 				</div>

@@ -203,14 +203,14 @@ const ANALYTICS_METRICS: MetricConfig[] = [
 	),
 	createMetric(
 		"bounce_rate",
-		"Bounce Rate",
+		"Bounce rate",
 		"bounce_rate",
 		CursorClickIcon,
 		(value) => `${value.toFixed(1)}%`
 	),
 	createMetric(
 		"median_session_duration",
-		"Session Duration",
+		"Session duration",
 		"session_duration",
 		TrendUpIcon,
 		(value, row) =>
@@ -223,7 +223,7 @@ const ANALYTICS_METRICS: MetricConfig[] = [
 const PERFORMANCE_METRICS: MetricConfig[] = [
 	createMetric(
 		"avg_load_time",
-		"Avg Load Time",
+		"Avg load time",
 		"avg_load_time",
 		ClockIcon,
 		formatPerformanceTime,
@@ -231,7 +231,7 @@ const PERFORMANCE_METRICS: MetricConfig[] = [
 	),
 	createMetric(
 		"p50_load_time",
-		"P50 Load Time",
+		"P50 load time",
 		"p50_load_time",
 		ClockIcon,
 		formatPerformanceTime,
@@ -309,14 +309,14 @@ const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 const ERROR_METRICS: MetricConfig[] = [
 	createMetric(
 		"total_errors",
-		"Total Errors",
+		"Total errors",
 		"bounce_rate",
 		BugIcon,
 		(value) => formatLocaleNumber(value)
 	),
 	createMetric(
 		"affected_users",
-		"Affected Users",
+		"Affected users",
 		"session_duration",
 		UsersIcon,
 		(value) => formatLocaleNumber(value)

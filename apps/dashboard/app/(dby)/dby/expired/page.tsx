@@ -5,7 +5,7 @@ import { ClockIcon } from "@databuddy/ui/icons";
 import { Button } from "@databuddy/ui";
 
 export const metadata: Metadata = {
-	title: "Link Expired - Databuddy",
+	title: "Link expired - Databuddy",
 	description: "This link has expired and is no longer available.",
 };
 

@@ -15,12 +15,12 @@ import { Badge, Card, EmptyState, Skeleton, Text } from "@databuddy/ui";
 
 const EVENT_TYPE_CONFIG = {
 	event: {
-		name: "Page Views & Events",
-		description: "Standard analytics events and page views",
+		name: "Pageviews and events",
+		description: "Standard analytics events and pageviews",
 		icon: ChartBarIcon,
 	},
 	error: {
-		name: "Error Events",
+		name: "Error events",
 		description: "JavaScript errors and exceptions",
 		icon: BugIcon,
 	},
@@ -30,17 +30,17 @@ const EVENT_TYPE_CONFIG = {
 		icon: LightningIcon,
 	},
 	custom_event: {
-		name: "Custom Events",
+		name: "Custom events",
 		description: "Custom tracking events",
 		icon: TagIcon,
 	},
 	outgoing_link: {
-		name: "Outgoing Links",
+		name: "Outgoing links",
 		description: "External link click tracking",
 		icon: LinkIcon,
 	},
 	mcp: {
-		name: "MCP Tool Calls",
+		name: "MCP tool calls",
 		description: "Tool calls recorded by your MCP servers",
 		icon: PlugIcon,
 	},
@@ -89,11 +89,11 @@ export function UsageBreakdownTable({
 		return (
 			<Card>
 				<Card.Header>
-					<Card.Title>Usage by Event Type</Card.Title>
+					<Card.Title>Usage by event type</Card.Title>
 					<Card.Description>Breakdown of events by category</Card.Description>
 				</Card.Header>
 				<Card.Content className="py-8">
-					<EmptyState icon={<TableIcon />} title="No data available" />
+					<EmptyState icon={<TableIcon />} title="No usage yet" />
 				</Card.Content>
 			</Card>
 		);
@@ -108,7 +108,7 @@ export function UsageBreakdownTable({
 	return (
 		<Card>
 			<Card.Header>
-				<Card.Title>Usage by Event Type</Card.Title>
+				<Card.Title>Usage by event type</Card.Title>
 				<Card.Description>Breakdown of events by category</Card.Description>
 			</Card.Header>
 			<Card.Content className="p-0">

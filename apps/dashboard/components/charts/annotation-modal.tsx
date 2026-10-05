@@ -178,7 +178,7 @@ export function AnnotationModal(props: AnnotationModalProps) {
 			<Dialog.Content className="w-[95vw] max-w-sm sm:w-full">
 				<Dialog.Header>
 					<Dialog.Title>
-						{isCreate ? "New Annotation" : "Edit Annotation"}
+						{isCreate ? "Create annotation" : "Edit annotation"}
 					</Dialog.Title>
 					<Dialog.Description>{getDateRangeText()}</Dialog.Description>
 				</Dialog.Header>
@@ -338,7 +338,7 @@ export function AnnotationModal(props: AnnotationModalProps) {
 						loading={loading}
 						onClick={handleSubmit}
 					>
-						{isCreate ? "Create" : "Save"}
+						{isCreate ? "Create annotation" : "Save changes"}
 					</Button>
 				</Dialog.Footer>
 				<Dialog.Close />

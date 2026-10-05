@@ -78,7 +78,7 @@ export default function HistoryPage() {
 						</div>
 						<Button onClick={onManageBilling} size="sm" variant="secondary">
 							<ArrowSquareOutIcon size={14} />
-							Billing Portal
+							Billing portal
 						</Button>
 					</Card.Header>
 					<Card.Content className="p-0">
@@ -130,7 +130,7 @@ export default function HistoryPage() {
 				{subscriptionHistory.length > 0 && (
 					<Card>
 						<Card.Header>
-							<Card.Title>Subscription History</Card.Title>
+							<Card.Title>Subscription history</Card.Title>
 							<Card.Description>
 								{subscriptionHistory.length} subscription
 								{subscriptionHistory.length === 1 ? "" : "s"}
@@ -355,7 +355,8 @@ function getInvoiceStatus(status: string) {
 			};
 		default:
 			return {
-				label: status,
+				label:
+					status.charAt(0).toUpperCase() + status.slice(1).replaceAll("_", " "),
 				icon: FileTextIcon,
 				variant: "default" as const,
 			};

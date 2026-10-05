@@ -22,8 +22,8 @@ const ERROR_COLOR = "var(--destructive)";
 const USER_COLOR = "var(--chart-2)";
 
 const TOOLTIP_METRICS = [
-	{ key: "Total Errors", label: "Total Errors", color: ERROR_COLOR },
-	{ key: "Affected Users", label: "Affected Users", color: USER_COLOR },
+	{ key: "Total Errors", label: "Total errors", color: ERROR_COLOR },
+	{ key: "Affected Users", label: "Affected users", color: USER_COLOR },
 ];
 
 const ResponsiveContainer = dynamic(
@@ -130,7 +130,7 @@ export const ErrorTrendsChart = ({
 				<Card.Header className="py-3">
 					<div className="flex items-center gap-2">
 						<BugIcon className="size-4 text-muted-foreground" />
-						<Card.Title className="text-sm">Error Trends</Card.Title>
+						<Card.Title className="text-sm">Error trends</Card.Title>
 					</div>
 				</Card.Header>
 				<Skeleton className="h-[320px] w-full rounded-none" />
@@ -144,7 +144,7 @@ export const ErrorTrendsChart = ({
 				<Card.Header className="py-3">
 					<div className="flex items-center gap-2">
 						<BugIcon className="size-4 text-muted-foreground" />
-						<Card.Title className="text-sm">Error Trends</Card.Title>
+						<Card.Title className="text-sm">Error trends</Card.Title>
 					</div>
 				</Card.Header>
 				<Card.Content className="flex-1">
@@ -192,7 +192,7 @@ export const ErrorTrendsChart = ({
 							Reset
 						</Button>
 					)}
-					<AskAgentButton subject="the Error Trends chart" />
+					<AskAgentButton subject="the error trends chart" />
 				</div>
 			</Card.Header>
 
@@ -283,7 +283,7 @@ export const ErrorTrendsChart = ({
 								dataKey="Total Errors"
 								fill={ERROR_COLOR}
 								fillOpacity={0.15}
-								name="Total Errors"
+								name="Total errors"
 								stroke={ERROR_COLOR}
 								strokeWidth={2}
 								type="monotone"
@@ -292,7 +292,7 @@ export const ErrorTrendsChart = ({
 								dataKey="Affected Users"
 								fill={USER_COLOR}
 								fillOpacity={0.15}
-								name="Affected Users"
+								name="Affected users"
 								stroke={USER_COLOR}
 								strokeWidth={2}
 								type="monotone"

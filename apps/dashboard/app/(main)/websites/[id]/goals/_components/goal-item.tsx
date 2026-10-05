@@ -37,7 +37,7 @@ function GoalProgress({ rate }: { rate: number }) {
 
 function formatGoalType(type: Goal["type"]) {
 	if (type === "PAGE_VIEW") {
-		return "Page View";
+		return "Pageview";
 	}
 	if (type === "EVENT") {
 		return "Event";

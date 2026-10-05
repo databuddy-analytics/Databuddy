@@ -52,7 +52,7 @@ function VisitorLocations({ countries }: { countries: CountryRow[] }) {
 	return (
 		<Card>
 			<Card.Header className="py-3">
-				<Card.Title className="text-sm">Visitor Locations</Card.Title>
+				<Card.Title className="text-sm">Visitor locations</Card.Title>
 				<Card.Description>Geographic distribution</Card.Description>
 			</Card.Header>
 

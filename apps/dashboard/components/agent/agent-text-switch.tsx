@@ -320,5 +320,5 @@ export function AgentTextSwitch({
 
 export const AGENT_INPUT_PLACEHOLDER_PHRASES = [
 	"Ask Databunny anything about your analytics…",
-	"Type / for quick commands and prompts...",
+	"Type / for quick commands and prompts…",
 ] as const;

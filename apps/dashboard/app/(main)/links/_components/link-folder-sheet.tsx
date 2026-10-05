@@ -37,7 +37,7 @@ export function LinkFolderSheet({
 		<Sheet onOpenChange={onOpenChange} open={open}>
 			<Sheet.Content className="w-full sm:max-w-md" side="right">
 				<Sheet.Header>
-					<Sheet.Title>Create Folder</Sheet.Title>
+					<Sheet.Title>Create folder</Sheet.Title>
 					<Sheet.Description>
 						Name the folder for this organization.
 					</Sheet.Description>
@@ -48,7 +48,7 @@ export function LinkFolderSheet({
 				>
 					<Sheet.Body>
 						<Field>
-							<Field.Label>Folder Name</Field.Label>
+							<Field.Label>Folder name</Field.Label>
 							<Input
 								aria-invalid={error ? true : undefined}
 								autoFocus
@@ -69,7 +69,7 @@ export function LinkFolderSheet({
 							Cancel
 						</Button>
 						<Button loading={isCreating} type="submit">
-							Create Folder
+							Create folder
 						</Button>
 					</Sheet.Footer>
 				</form>
