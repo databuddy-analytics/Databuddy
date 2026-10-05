@@ -142,7 +142,7 @@ export function GET() {
 			? [
 					{
 						title: `Databuddy vs ${comparison.competitor.name}`,
-						url: `${SITE_URL}/compare/${slug}`,
+						url: `${SITE_URL}/compare/${slug}.md`,
 						description: comparison.seo.description,
 					},
 				]

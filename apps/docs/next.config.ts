@@ -62,15 +62,6 @@ const config: NextConfig = {
 				],
 			},
 			{
-				source: "/compare/:slug",
-				headers: [
-					{
-						key: "Vary",
-						value: "Accept, Accept-Encoding",
-					},
-				],
-			},
-			{
 				source: "/docs/:path*",
 				headers: [
 					{

@@ -1272,7 +1272,7 @@ export const competitors: Record<string, ComparisonData> = {
 };
 
 export function getComparisonData(slug: string): ComparisonData | null {
-	return competitors[slug] ?? null;
+	return Object.hasOwn(competitors, slug) ? (competitors[slug] ?? null) : null;
 }
 
 export function getAllCompetitorSlugs(): string[] {
@@ -1280,6 +1280,7 @@ export function getAllCompetitorSlugs(): string[] {
 }
 
 const mark = (value: boolean) => (value ? "Yes" : "No");
+const cell = (text: string) => text.replaceAll("|", "\\|");
 
 export function createComparisonMarkdown(
 	data: ComparisonData,
@@ -1291,12 +1292,13 @@ export function createComparisonMarkdown(
 	const featureRows = data.features
 		.map(
 			(feature) =>
-				`| ${feature.name} | ${mark(feature.databuddy)} | ${mark(feature.competitor)} | ${feature.benefit} |`
+				`| ${cell(feature.name)} | ${mark(feature.databuddy)} | ${mark(feature.competitor)} | ${cell(feature.benefit)} |`
 		)
 		.join("\n");
 	const pricingRows = data.pricingTiers
 		.map(
-			(tier) => `| ${tier.pageviews} | ${tier.databuddy} | ${tier.competitor} |`
+			(tier) =>
+				`| ${cell(tier.pageviews)} | ${cell(tier.databuddy)} | ${cell(tier.competitor)} |`
 		)
 		.join("\n");
 	const faqs = data.faqs
@@ -1323,13 +1325,13 @@ ${bullets(verdict.competitor)}
 
 ## Features
 
-| Feature | Databuddy | ${competitor.name} | Notes |
+| Feature | Databuddy | ${cell(competitor.name)} | Notes |
 | --- | --- | --- | --- |
 ${featureRows}
 
 ## Pricing
 
-| Plan | Databuddy | ${competitor.name} |
+| Plan | Databuddy | ${cell(competitor.name)} |
 | --- | --- | --- |
 ${pricingRows}
 

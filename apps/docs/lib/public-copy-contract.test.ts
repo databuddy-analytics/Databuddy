@@ -10,7 +10,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { StructuredData } from "@/components/structured-data";
 import { GET as robots } from "@/app/robots.txt/route";
-import { competitors } from "./comparison-config";
+import { createComparisonMarkdown, competitors } from "./comparison-config";
 
 describe("public copy contracts", () => {
 	it("emits GTM readiness only after the documented loader succeeds", async () => {
@@ -202,6 +202,80 @@ describe("search discovery", () => {
 			).rejects.toThrow("Read failed");
 		} finally {
 			getText.mockRestore();
+		}
+	});
+
+	it("serves every comparison as Markdown that leads with the verdict", async () => {
+		await plugin(createMdxPlugin());
+		const { GET: compare } = await import("@/app/api/compare/raw/[slug]/route");
+		const { GET: index } = await import("@/app/llms.txt/route");
+		const request = new Request("https://www.databuddy.cc/api/compare/raw/x");
+		const indexBody = await index().text();
+		const cellCount = (row: string) => row.split(/(?<!\\)\|/).length - 2;
+		for (const [slug, data] of Object.entries(competitors)) {
+			const pageUrl = `https://www.databuddy.cc/compare/${slug}`;
+			expect(indexBody).toContain(`${pageUrl}.md`);
+			const response = await compare(request, {
+				params: Promise.resolve({ slug }),
+			});
+			const body = await response.text();
+			expect(response.status).toBe(200);
+			expect(response.headers.get("content-type")).toBe(
+				"text/markdown; charset=utf-8"
+			);
+			expect(response.headers.get("vary")).toBe("Accept, Accept-Encoding");
+			expect(response.headers.get("link")).toBe(
+				`<${pageUrl}>; rel="canonical"`
+			);
+			expect(body).toBe(createComparisonMarkdown(data, pageUrl));
+			expect(body).not.toMatch(/undefined|\[object /);
+			const sections = [...body.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
+			expect(sections.slice(0, 3)).toEqual([
+				"Choose Databuddy if",
+				`Choose ${data.competitor.name} if`,
+				"Features",
+			]);
+			for (const reason of [
+				...data.verdict.databuddy,
+				...data.verdict.competitor,
+			]) {
+				expect(body).toContain(`- ${reason}`);
+			}
+			for (const source of data.sources) {
+				expect(body).toContain(`](${source.href})`);
+			}
+			const tables = body
+				.split(/\n\n/)
+				.filter((block) => block.startsWith("|"));
+			expect(tables).toHaveLength(2);
+			const [features, pricing] = tables.map((table) => table.split("\n"));
+			expect(features).toHaveLength(data.features.length + 2);
+			expect(pricing).toHaveLength(data.pricingTiers.length + 2);
+			for (const row of features ?? []) {
+				expect(cellCount(row)).toBe(4);
+			}
+			for (const row of pricing ?? []) {
+				expect(cellCount(row)).toBe(3);
+			}
+		}
+		const plausible = competitors.plausible;
+		if (!plausible) {
+			throw new Error("Missing Plausible comparison");
+		}
+		const piped = createComparisonMarkdown(
+			{
+				...plausible,
+				features: [{ ...plausible.features[0], name: "A | B", benefit: "x|y" }],
+			} as typeof plausible,
+			"u"
+		);
+		const row = piped.split("\n").find((line) => line.startsWith("| A"));
+		expect(row && cellCount(row)).toBe(4);
+		for (const slug of ["missing", "..", "__proto__", "constructor", ""]) {
+			const response = await compare(request, {
+				params: Promise.resolve({ slug }),
+			});
+			expect(response.status).toBe(404);
 		}
 	});
 
