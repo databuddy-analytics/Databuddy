@@ -8,6 +8,31 @@ import { Callout, CodeBlock, Card, Cards } from "@/components/docs";
 
 The Databuddy MCP server lets AI agents (Claude, Claude Code, Cursor, Windsurf, or any MCP-compatible client) query your analytics, triage errors, read investigations, and manage goals, funnels, annotations, feature flags, and short links through a standard protocol.
 
+## Start with read-only analytics
+
+Connect your editor or assistant to the data you already track. A `read:data` connection can answer traffic questions and read existing signup goals and funnels; it cannot create or change them.
+
+1. For **Claude or Claude Code**, follow [Client Setup](#client-setup) below and approve read permissions for the organization and websites you need.
+2. For **Cursor, Windsurf, or an API-key client**, open [Organization Settings → Integrations](https://app.databuddy.cc/organizations/settings/integrations), choose **Databuddy MCP**, select your client and websites, and leave optional actions off. Copy the generated configuration into your client.
+3. Ask the client to list your accessible websites. Then use the domain or ID it returns in your question.
+
+Try this after connecting, replacing `example.com` with your website:
+
+<CodeBlock
+  language="text"
+  code={`For example.com, review the last 7 days in UTC. Where did traffic come
+from, how many completions were recorded for our existing signup goal, and
+which step of our signup funnel had the largest drop-off? Use existing goals and
+funnels only. Show the measured date ranges and counts, and tell me if
+signup tracking or a funnel is missing.`}
+/>
+
+The client can use `get_data` for traffic, `list_goals` and `get_goal_analytics` for recorded signup conversions, and `list_funnels` and `get_funnel_analytics` for step-level drop-off. These reads need only `read:data`.
+
+<Callout type="info">
+  Signup answers need a goal or funnel that matches the events or pages you already track. Missing setup does not mean zero signups. Start with a traffic question if signup tracking is not ready, or [track custom events](/docs/api/events) and configure a goal or funnel in the dashboard. Traffic totals and signup totals alone do not establish which campaign caused a signup.
+</Callout>
+
 ## Endpoint
 
 | Environment | URL |
@@ -223,6 +248,31 @@ Funnel and goal analytics include `range`, the window actually measured, and `re
 **Errors**: A failed tool call returns a result with `isError: true` and an `error` object with a `code` (`invalid_input`, `not_found`, `unauthorized`, `rate_limited`, `plan_limit`, `upstream_timeout`, `query_failed`, or `internal`), a message, and where available a `hint` or `details`. Tools your permissions do not cover are left out of `tools/list`. Calling one returns a JSON-RPC `-32602` (invalid params) error that names the scopes the tool needs, so reconnect with those permissions or use an API key that has them. A credential that covers no tools gets `-32601` (method not found) for every tool call. A missing, expired, or revoked credential returns `401` with a JSON-RPC error and a `WWW-Authenticate` header that points OAuth clients to sign-in. If Databuddy briefly cannot verify sign-in tokens, OAuth calls return `503` with `Retry-After`.
 
 ## Example Usage
+
+### Traffic and signup review
+
+For the question above, start with `list_websites` and use its returned website selector. A traffic batch can then read the overview, referring sites, and tagged campaigns:
+
+<CodeBlock
+  language="json"
+  code={`{
+  "tool": "get_data",
+  "arguments": {
+    "websiteDomain": "example.com",
+    "preset": "last_7d",
+    "timezone": "UTC",
+    "queries": [
+      { "type": "summary_metrics" },
+      { "type": "top_referrers", "limit": 5 },
+      { "type": "utm_campaigns", "limit": 5 }
+    ]
+  }
+}`}
+/>
+
+Next, use `list_goals` and `list_funnels` to find the existing signup definitions. Pass the returned `goalId` or `funnelId` to the matching analytics tool with `preset: "last_7d"`. If several definitions could match signup, inspect their targets and steps before choosing one. Report the measured `range` from each result, and label the five-row traffic breakdowns as top results. This workflow reads existing data and needs no write permissions.
+
+### Batch analytics queries
 
 Batch multiple queries in a single `get_data` call:
 
