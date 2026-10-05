@@ -6,7 +6,9 @@ import {
 	FEATURE_METADATA,
 	type GatedFeatureId,
 	getMinimumPlanForFeature,
+	getPlanDisplayName,
 	getPlanLimitMessage,
+	getUpgradePlanDisplayName,
 	INTELLIGENCE_PLAN_IDS,
 	PLAN_IDS,
 	type PlanId,
@@ -14,7 +16,6 @@ import {
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useBillingContext } from "@/components/providers/billing-provider";
-import { getCustomerPlanName } from "@/lib/autumn/customer-plan-name";
 import { cn } from "@/lib/utils";
 import {
 	ArrowRightIcon,
@@ -26,33 +27,16 @@ import {
 } from "@databuddy/ui/icons";
 import { Button, Card } from "@databuddy/ui";
 
-const PLAN_CONFIG: Record<
-	string,
-	{ name: string; icon: typeof StarIcon; color: string }
-> = {
-	[PLAN_IDS.FREE]: {
-		name: "Free",
-		icon: LeafIcon,
-		color: "text-muted-foreground",
-	},
-	[PLAN_IDS.HOBBY]: {
-		name: "Hobby",
-		icon: RocketLaunchIcon,
-		color: "text-success",
-	},
-	[PLAN_IDS.PRO]: { name: "Pro", icon: StarIcon, color: "text-primary" },
-	[PLAN_IDS.SCALE]: {
-		name: "Business",
-		icon: CrownIcon,
-		color: "text-brand-amber",
-	},
+const PLAN_CONFIG: Record<string, { icon: typeof StarIcon; color: string }> = {
+	[PLAN_IDS.FREE]: { icon: LeafIcon, color: "text-muted-foreground" },
+	[PLAN_IDS.HOBBY]: { icon: RocketLaunchIcon, color: "text-success" },
+	[PLAN_IDS.PRO]: { icon: StarIcon, color: "text-primary" },
+	[PLAN_IDS.SCALE]: { icon: CrownIcon, color: "text-brand-amber" },
 	[INTELLIGENCE_PLAN_IDS.ANALYST]: {
-		name: "Business",
 		icon: CrownIcon,
 		color: "text-brand-amber",
 	},
 	[INTELLIGENCE_PLAN_IDS.DATA_TEAM]: {
-		name: "Scale",
 		icon: CrownIcon,
 		color: "text-brand-amber",
 	},
@@ -111,10 +95,8 @@ export function FeatureGate({
 	const planConfig = PLAN_CONFIG[requiredPlan] ?? PLAN_CONFIG[PLAN_IDS.PRO];
 	const currentConfig =
 		PLAN_CONFIG[currentPlanId ?? PLAN_IDS.FREE] ?? PLAN_CONFIG[PLAN_IDS.FREE];
-	const currentPlanName = getCustomerPlanName(
-		currentPlanId,
-		currentConfig.name
-	);
+	const requiredPlanName = getUpgradePlanDisplayName(requiredPlan);
+	const currentPlanName = getPlanDisplayName(currentPlanId);
 	const PlanIcon = planConfig.icon;
 	const CurrentIcon = currentConfig.icon;
 
@@ -127,7 +109,7 @@ export function FeatureGate({
 					</div>
 					<div className="text-center">
 						<h2 className="font-semibold text-lg">
-							{title ?? `Unlock ${metadata?.name ?? "this feature"}`}
+							{title ?? metadata?.name ?? "Upgrade required"}
 						</h2>
 						<p className="mt-1 text-muted-foreground text-sm">
 							{description ??
@@ -143,7 +125,7 @@ export function FeatureGate({
 						<div className="flex items-center gap-1.5">
 							<PlanIcon className={cn("size-4", planConfig.color)} />
 							<span className={cn("font-semibold text-sm", planConfig.color)}>
-								{planConfig.name}
+								{requiredPlanName}
 							</span>
 						</div>
 					</div>
@@ -162,7 +144,7 @@ export function FeatureGate({
 						<Button asChild className="group w-full gap-2" size="lg">
 							<Link href="/billing/plans">
 								<RocketLaunchIcon className="size-5" />
-								Upgrade to {planConfig.name}
+								Upgrade to {requiredPlanName}
 								<ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-0.5" />
 							</Link>
 						</Button>
@@ -172,7 +154,7 @@ export function FeatureGate({
 								<>
 									<p className="font-medium text-muted-foreground text-sm">
 										Ask an organization owner or billing admin to upgrade to{" "}
-										{planConfig.name}.
+										{requiredPlanName}.
 									</p>
 									<Button
 										asChild
@@ -187,7 +169,7 @@ export function FeatureGate({
 								</>
 							) : (
 								<p className="font-medium text-muted-foreground text-sm">
-									Upgrade to {planConfig.name} to access this feature.
+									Upgrade to {requiredPlanName} to access this feature.
 								</p>
 							)}
 						</div>
