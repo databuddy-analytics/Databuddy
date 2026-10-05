@@ -285,6 +285,138 @@ SETTINGS additional_table_filters = {} -- '`
 			});
 		}
 
+		it.each([
+			`SELECT u, count() FROM analytics.events ${TENANT} GROUP BY url AS u`,
+			`SELECT u, count() FROM analytics.events ${TENANT} GROUP BY url u`,
+			`SELECT u, count() FROM analytics.events ${TENANT} GROUP BY "url" "u"`,
+			`SELECT u, count() FROM analytics.events e ${TENANT} GROUP BY "e".\`url\` u`,
+			"SELECT u FROM analytics.ai_traffic_spans a WHERE a.client_id = {websiteId:String} GROUP BY a.user_agent u",
+			`SELECT u, count() FROM analytics.events ${TENANT} GROUP BY toString(url) u`,
+			`SELECT u, count() FROM analytics.events ${TENANT} GROUP BY CAST(url AS String) u`,
+			`SELECT u, count() FROM analytics.events ${TENANT} GROUP BY CAST(url AS u AS String)`,
+			`SELECT u, count() FROM analytics.events ${TENANT} GROUP BY CAST(url AS u, 'String')`,
+			`SELECT u, count() FROM analytics.events ${TENANT} GROUP BY (url) u`,
+			`SELECT u, count() FROM analytics.events ${TENANT} GROUP BY url || '' u`,
+			`SELECT u FROM analytics.events ${TENANT} AND notEmpty(url AS u)`,
+			`SELECT u FROM analytics.events ${TENANT} AND notEmpty(url u)`,
+			`SELECT u FROM analytics.events ${TENANT} AND notEmpty(CAST((url AS u) AS String))`,
+			`SELECT u FROM analytics.events ${TENANT} AND notEmpty(CAST([url AS u] AS String))`,
+			`SELECT u FROM analytics.events ${TENANT} ORDER BY user_agent AS u`,
+			`SELECT u FROM analytics.events ${TENANT} ORDER BY concat(user_agent, '') u`,
+			`SELECT m, count() FROM analytics.revenue WHERE ${ORG_TENANT} GROUP BY metadata AS m`,
+			`SELECT m, count() FROM analytics.revenue WHERE ${ORG_TENANT} GROUP BY metadata m`,
+			`SELECT p, count() FROM analytics.custom_events WHERE ${ORG_TENANT} GROUP BY properties p`,
+			`SELECT u, count() FROM analytics.events ${TENANT} GROUP BY ip u`,
+			`SELECT u, count() FROM analytics.events ${TENANT} GROUP BY url \`DESC\``,
+			`SELECT \`END\`, count() FROM analytics.events ${TENANT} GROUP BY url END`,
+			`SELECT \`CASE\`, count() FROM analytics.events ${TENANT} GROUP BY url CASE`,
+			`SELECT \`WHEN\`, count() FROM analytics.events ${TENANT} GROUP BY url WHEN`,
+			`SELECT \`THEN\`, count() FROM analytics.events ${TENANT} GROUP BY url THEN`,
+			`SELECT \`BY\`, count() FROM analytics.events ${TENANT} GROUP BY url BY`,
+			`SELECT \`OVER\`, count() FROM analytics.events ${TENANT} GROUP BY url OVER`,
+			`SELECT u FROM analytics.events ${TENANT} ORDER BY row_number() OVER (PARTITION BY notEmpty(url u))`,
+			`SELECT \`BY\` FROM analytics.events ${TENANT} ORDER BY row_number() OVER (PARTITION BY notEmpty(url BY))`,
+			`SELECT u FROM analytics.events ${TENANT} WINDOW w AS (PARTITION BY notEmpty(url AS u)) ORDER BY row_number() OVER w`,
+			`SELECT \`DISTINCT\` FROM analytics.events ${TENANT} GROUP BY (url DISTINCT)`,
+			`SELECT \`IS\`, count() FROM analytics.events ${TENANT} GROUP BY url IS`,
+			`SELECT \`END\` FROM analytics.events ${TENANT} AND CASE WHEN notEmpty(url END) THEN true ELSE false END`,
+			`SELECT \`ASC\` FROM analytics.events ${TENANT} ORDER BY CASE WHEN notEmpty(path) THEN url ASC ELSE path END`,
+			`SELECT \`BY\` FROM analytics.events ${TENANT} ORDER BY row_number() OVER (PARTITION BY CASE WHEN notEmpty(path) THEN url BY ELSE path END)`,
+			`SELECT \`STEP\` FROM analytics.events ${TENANT} ORDER BY length(path) WITH FILL STEP 1, CASE WHEN notEmpty(path) THEN url STEP ELSE path END`,
+			`SELECT u FROM analytics.events ${TENANT} LIMIT 1 BY url AS u`,
+			`SELECT u FROM analytics.events e WHERE e.client_id = {websiteId:String} LIMIT 1, 2 BY "e"."url" AS u`,
+			`SELECT u FROM analytics.events ${TENANT} LIMIT 1 OFFSET 2 BY toString(url) AS u`,
+			`SELECT u FROM analytics.events ARRAY JOIN [url] AS u ${TENANT}`,
+			"SELECT u FROM analytics.events e ARRAY JOIN [e.url] AS u WHERE e.client_id = {websiteId:String}",
+			`SELECT u FROM analytics.events ${TENANT} WINDOW w AS (PARTITION BY url AS u)`,
+			`SELECT COLUMNS('^prop') FROM analytics.custom_events WHERE ${ORG_TENANT}`,
+			`SELECT toJSONString(tuple(*)) FROM analytics.events ${TENANT}`,
+			`SELECT toJSONString(tuple(* APPLY toString)) FROM analytics.events ${TENANT}`,
+			`SELECT toJSONString(tuple(* APPLY(toString))) FROM analytics.events ${TENANT}`,
+			`SELECT toJSONString(tuple(path, * APPLY toString)) FROM analytics.events ${TENANT}`,
+			`SELECT path FROM analytics.events ${TENANT} AND notEmpty(toJSONString(tuple(path, * APPLY toString)))`,
+			"SELECT toJSONString(tuple(e.* APPLY toString)) FROM analytics.events e WHERE e.client_id = {websiteId:String}",
+			`SELECT count(* APPLY toString) FROM analytics.events ${TENANT}`,
+		])("rejects protected columns reached through aliases or matchers: %s", (sql) => {
+			expect(validateAgentSQL(sql).valid).toBe(false);
+		});
+
+		it.each([
+			`SELECT count(*) FROM analytics.events ${TENANT} AND url LIKE '%pricing%'`,
+			`SELECT path FROM analytics.events ${TENANT} AND toString(CAST(time AS Date)) = '2026-10-01'`,
+			`SELECT path FROM analytics.events ${TENANT} AND CAST(time AS Nullable(Date)) IS NOT NULL`,
+			`SELECT path FROM analytics.events ${TENANT} AND CAST((path, path) AS Tuple(first String, second String)).first = '/pricing'`,
+			`SELECT path FROM analytics.events ${TENANT} AND path IS NOT DISTINCT FROM '/pricing'`,
+			`SELECT path FROM analytics.events ${TENANT} AND path IN ('url', 'AS') AND time BETWEEN now() - INTERVAL 1 DAY AND now()`,
+			`SELECT path FROM analytics.events ${TENANT} AND url REGEXP '^https:' AND time_on_page DIV 2 MOD 3 = 0`,
+			`SELECT path FROM analytics.events ${TENANT} AND CASE WHEN url IS NULL THEN false ELSE notEmpty(url) END`,
+			`SELECT path FROM analytics.events ${TENANT} AND CASE path WHEN '' THEN CASE WHEN url IS NULL THEN false ELSE notEmpty(url) END ELSE true END`,
+			`SELECT count() FROM analytics.events ${TENANT} ORDER BY url DESC NULLS LAST`,
+			`SELECT count() FROM analytics.events ${TENANT} ORDER BY url ASC NULLS FIRST, path COLLATE 'en'`,
+			`SELECT path, count() FROM analytics.events ${TENANT} GROUP BY path WITH TOTALS ORDER BY path WITH FILL`,
+			`SELECT path, count() FROM analytics.events ${TENANT} GROUP BY path HAVING count(DISTINCT path) > 1`,
+			`SELECT path FROM analytics.events ${TENANT} ORDER BY row_number() OVER (PARTITION BY path ORDER BY time)`,
+			`SELECT path FROM analytics.events ${TENANT} ORDER BY CASE WHEN notEmpty(path) THEN row_number() OVER (PARTITION BY path ORDER BY time DESC) ELSE 0 END ASC`,
+			`SELECT path FROM analytics.events ${TENANT} ORDER BY CASE WHEN notEmpty(path) THEN length(path) ELSE 0 END WITH FILL STEP 1`,
+			`SELECT path FROM analytics.events ${TENANT} ORDER BY sum(time_on_page) OVER (PARTITION BY path ORDER BY time DESC ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)`,
+			`SELECT path FROM analytics.events ${TENANT} WINDOW w AS (PARTITION BY path ORDER BY time RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) ORDER BY row_number() OVER w`,
+			`SELECT path FROM analytics.events ${TENANT} LIMIT 1 BY path LIMIT 10`,
+			`SELECT path FROM analytics.events ${TENANT} LIMIT 1, 2 BY path`,
+			`SELECT path FROM analytics.events ${TENANT} LIMIT 1 OFFSET 2 BY path`,
+			`SELECT path FROM analytics.events ${TENANT} limit 1 offset 2 by path`,
+			`SELECT path FROM analytics.events ${TENANT} ORDER BY time LIMIT 2 WITH TIES`,
+			`SELECT path FROM analytics.events ${TENANT} OFFSET 1 ROW`,
+			`SELECT path FROM analytics.events ${TENANT} ORDER BY time OFFSET 1 ROWS FETCH NEXT 2 ROWS ONLY`,
+			`SELECT path FROM analytics.events ARRAY JOIN [path] ${TENANT}`,
+			"SELECT e.path FROM analytics.events e ARRAY JOIN [e.path] INNER JOIN analytics.ai_traffic_spans a ON e.client_id = a.client_id WHERE e.client_id = {websiteId:String} AND a.client_id = {websiteId:String}",
+			`WITH s AS (SELECT session_id AS sid FROM analytics.events ${TENANT}) SELECT e.path FROM analytics.events AS e JOIN s ON e.session_id = s.sid WHERE e.client_id = {websiteId:String}`,
+			`WITH s AS (SELECT session_id sid FROM analytics.events ${TENANT}) SELECT e.path FROM analytics.events e JOIN s ON e.session_id = s.sid WHERE e.client_id = {websiteId:String}`,
+		])("keeps filters, casts, table aliases and CTE aliases working: %s", (sql) => {
+			expect(validateAgentSQL(sql)).toEqual({ valid: true, reason: null });
+		});
+
+		it("preserves wildcard guards with long whitespace", () => {
+			const whitespace = "\t".repeat(12_000);
+			for (const expression of [
+				`count${whitespace}(*)`,
+				`COUNT(${whitespace}*)`,
+				`count(*${whitespace})`,
+				"tuple(2 * 3)",
+			]) {
+				expect(
+					validateAgentSQL(
+						`SELECT ${expression} FROM analytics.events ${TENANT}`
+					)
+				).toEqual({ valid: true, reason: null });
+			}
+			for (const expression of [
+				`tuple${whitespace}(*)`,
+				`tuple(*${whitespace})`,
+				`tuple(e.${whitespace}*)`,
+				`count(e.${whitespace}*)`,
+				`tuple(*${whitespace}APPLY${whitespace}toString)`,
+			]) {
+				expect(
+					validateAgentSQL(
+						`SELECT ${expression} FROM analytics.events e WHERE e.client_id = {websiteId:String}`
+					)
+				).toEqual({
+					valid: false,
+					reason: "Wildcard arguments are not allowed; pass explicit columns.",
+				});
+			}
+			expect(
+				validateAgentSQL(
+					`SELECT count() AS views ${whitespace} FROM analytics.events ${TENANT}`
+				)
+			).toEqual({ valid: true, reason: null });
+			expect(
+				validateAgentSQL(
+					`SELECT u, count() FROM analytics.events ${TENANT} GROUP BY url${whitespace}u`
+				).valid
+			).toBe(false);
+		});
+
 		it("rejects raw custom-event properties projections", () => {
 			const result = validateAgentSQL(
 				`SELECT properties FROM analytics.custom_events WHERE ${ORG_TENANT}`
