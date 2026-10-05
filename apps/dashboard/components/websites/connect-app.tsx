@@ -194,8 +194,9 @@ export function ConnectApp({
 	return (
 		<div className="space-y-5">
 			<div className="space-y-2.5">
-				<p className="font-medium text-muted-foreground text-xs">
-					Send to your coding agent
+				<p className="text-pretty text-sm">
+					Pick your coding agent to copy a setup prompt. Paste it in and it
+					installs Databuddy for you.
 				</p>
 				{research.phase === "idle" && research.canStart && onStartResearch ? (
 					<p className="flex flex-wrap items-center gap-x-2 text-muted-foreground text-xs">
@@ -374,7 +375,7 @@ export function ConnectApp({
 								? `${tracking.issue.message} ${tracking.issue.fix}`
 								: tracking.state === "error"
 									? "Couldn't check for events. Checking again shortly."
-									: `Waiting for the first page view from ${domain}. Open the site once after installing.`}
+									: `Waiting for the first page view. Open ${domain} to send one.`}
 					</p>
 				</div>
 				{onSkip && tracking.state !== "verified" ? (
