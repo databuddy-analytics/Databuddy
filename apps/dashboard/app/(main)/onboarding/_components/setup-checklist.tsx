@@ -131,11 +131,17 @@ export function SetupChecklist(props: SetupChecklistProps) {
 	const focus = rows.find((row) => row.status === "active")?.id ?? null;
 	const doneCount = rows.filter((row) => row.status === "done").length;
 	const [open, setOpen] = useState<RowId | null>(focus);
-	const [lastFocus, setLastFocus] = useState(focus);
-	if (focus !== lastFocus) {
-		setLastFocus(focus);
-		// A row that is still working (agent progress, reading) stays open.
-		if (rows.find((row) => row.id === open)?.status !== "waiting") {
+	const [last, setLast] = useState({ focus, readStatus });
+	if (focus !== last.focus || readStatus !== last.readStatus) {
+		setLast({ focus, readStatus });
+		// Working rows stay open, and so does the brief when it lands.
+		const briefJustLanded =
+			open === "read" && last.readStatus === "waiting" && readStatus === "done";
+		if (
+			focus !== last.focus &&
+			!briefJustLanded &&
+			rows.find((row) => row.id === open)?.status !== "waiting"
+		) {
 			setOpen(focus);
 		}
 	}
@@ -225,7 +231,7 @@ export function SetupChecklist(props: SetupChecklistProps) {
 									? "Skipped"
 									: props.agentProgress
 										? agentProgressSummary(props.agentProgress)
-										: props.trackingCopied && website
+										: props.trackingCopied && website && open !== "connect"
 											? `Waiting for the first page view from ${website.domain}`
 											: readingNow
 												? "Ready once the brief is"
