@@ -9,28 +9,35 @@ export type StatusPageData = NonNullable<
 export type StatusMonitor = StatusPageData["monitors"][number];
 type Incident = StatusPageData["incidents"][number];
 
+export const OVERALL_STATUS_LABELS = {
+	operational: "All systems operational",
+	degraded: "Some systems degraded",
+	outage: "Service outage",
+	unknown: "Status unavailable",
+} as const satisfies Record<OverallStatus, string>;
+
 const STATUS_CONFIG = {
 	operational: {
-		title: "We're Fully Operational",
+		title: OVERALL_STATUS_LABELS.operational,
 		description: "We're not aware of any issues affecting these services.",
 		dotColor: "success",
 		ring: "ring-success/15",
 	},
 	degraded: {
-		title: "Some Systems Degraded",
+		title: OVERALL_STATUS_LABELS.degraded,
 		description:
 			"One or more services are degraded. We're tracking the impact.",
 		dotColor: "warning",
 		ring: "ring-warning/15",
 	},
 	outage: {
-		title: "Service Disruption",
+		title: OVERALL_STATUS_LABELS.outage,
 		description: "An outage is affecting one or more services.",
 		dotColor: "destructive",
 		ring: "ring-destructive/15",
 	},
 	unknown: {
-		title: "Status Unavailable",
+		title: OVERALL_STATUS_LABELS.unknown,
 		description:
 			"We don't have enough recent monitoring data to confirm service health.",
 		dotColor: "muted",

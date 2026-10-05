@@ -7,6 +7,7 @@ import type {
 import { ImageResponse } from "next/og";
 import { rpcClient } from "@/lib/orpc";
 import { STATUS_URL } from "@/lib/status-url";
+import { OVERALL_STATUS_LABELS } from "./_components/status-page";
 
 export const revalidate = 60;
 export const contentType = "image/png";
@@ -23,31 +24,27 @@ const THEME = {
 
 const STATUS_BANNER: Record<
 	OverallStatus,
-	{ bg: string; border: string; text: string; label: string }
+	{ bg: string; border: string; text: string }
 > = {
 	operational: {
 		bg: "rgba(16, 185, 129, 0.1)",
 		border: "rgba(16, 185, 129, 0.2)",
 		text: "#34d399",
-		label: "All Systems Operational",
 	},
 	degraded: {
 		bg: "rgba(245, 158, 11, 0.1)",
 		border: "rgba(245, 158, 11, 0.2)",
 		text: "#fbbf24",
-		label: "Partial System Outage",
 	},
 	outage: {
 		bg: "rgba(239, 68, 68, 0.1)",
 		border: "rgba(239, 68, 68, 0.2)",
 		text: "#f87171",
-		label: "Major System Outage",
 	},
 	unknown: {
 		bg: "rgba(163, 164, 171, 0.1)",
 		border: "rgba(163, 164, 171, 0.25)",
 		text: "#a3a4ab",
-		label: "Status Unavailable",
 	},
 };
 
@@ -88,7 +85,7 @@ export default async function OGImage({
 	const { slug } = await params;
 	const data = await rpcClient.statusPage.getBySlug({ slug }).catch(() => null);
 
-	const pageName = data?.statusPage.name || "Status Page";
+	const pageName = data?.statusPage.name || "Status page";
 	const status = data?.overallStatus ?? "unknown";
 	const banner = STATUS_BANNER[status];
 	const monitors = data?.monitors.slice(0, MAX_MONITORS) ?? [];
@@ -177,7 +174,7 @@ export default async function OGImage({
 					)}
 				</svg>
 				<span style={{ color: banner.text, fontSize: "16px", fontWeight: 600 }}>
-					{banner.label}
+					{OVERALL_STATUS_LABELS[status]}
 				</span>
 			</div>
 
