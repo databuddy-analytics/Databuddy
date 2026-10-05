@@ -1127,8 +1127,6 @@ export const baseAuthOptions = {
 				let subject = `${otp} is your Databuddy verification code`;
 				if (type === "sign-in") {
 					subject = `${otp} is your Databuddy sign-in code`;
-				} else if (type === "email-verification") {
-					subject = `${otp} is your Databuddy verification code`;
 				} else if (type === "forget-password") {
 					subject = `${otp} is your Databuddy password reset code`;
 				}
