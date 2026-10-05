@@ -212,6 +212,21 @@ test.describe("SDK Functions", () => {
 			expect(result).toBeNull();
 		});
 
+		test("returns did_session just before the 30 minute boundary", async ({
+			page,
+		}) => {
+			await page.clock.install({ time: new Date("2026-06-01T12:00:00.000Z") });
+			const result = await page.evaluate(() => {
+				sessionStorage.setItem("did_session", "sess-fresh-boundary");
+				sessionStorage.setItem(
+					"did_session_timestamp",
+					(Date.now() - (30 * 60 * 1000 - 1000)).toString()
+				);
+				return window.__SDK__.getSessionId();
+			});
+			expect(result).toBe("sess-fresh-boundary");
+		});
+
 		test("returns the stored id when the tracker is running, even past 30 minutes", async ({
 			page,
 		}) => {
