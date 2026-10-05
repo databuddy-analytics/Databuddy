@@ -6,7 +6,11 @@ import {
 	type BusinessSuggestedGoal,
 } from "@databuddy/shared/organization-business-context";
 import { Button } from "@databuddy/ui";
-import { ArrowSquareOutIcon, CheckIcon } from "@databuddy/ui/icons";
+import {
+	ArrowSquareOutIcon,
+	CaretDownIcon,
+	CheckIcon,
+} from "@databuddy/ui/icons";
 import Link from "next/link";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -22,8 +26,13 @@ export function readSiteDetail(research: SiteResearch): string | null {
 				: `Reading ${research.domain}. Opening the homepage and the pages it links to`;
 		case "writing":
 			return `Writing a brief about ${research.domain}`;
-		case "ready":
-			return `Read ${pages} on ${research.domain}`;
+		case "ready": {
+			const suggested =
+				research.suggestedGoals.length + research.suggestedFunnels.length;
+			return suggested
+				? `Read ${pages} · ${suggested} suggested ${suggested === 1 ? "goal" : "goals"} below`
+				: `Read ${pages} on ${research.domain}`;
+		}
 		case "failed":
 			return `Failed to read ${research.domain}`;
 		case "unavailable":
@@ -113,8 +122,8 @@ export function ReadSite({
 			<div className="space-y-2">
 				<div
 					className={cn(
-						"rounded border border-border px-4 py-3",
-						!(expanded || streaming) && "max-h-40 overflow-hidden"
+						!(expanded || streaming) &&
+							"max-h-40 overflow-hidden [mask-image:linear-gradient(to_bottom,black_60%,transparent)]"
 					)}
 				>
 					<BusinessContextMarkdown
@@ -125,11 +134,16 @@ export function ReadSite({
 				{streaming ? null : (
 					<div className="flex flex-wrap items-center gap-x-1 gap-y-2">
 						<Button
-							className="-ml-2.5"
 							onClick={() => setExpanded((value) => !value)}
 							size="sm"
-							variant="ghost"
+							variant="secondary"
 						>
+							<CaretDownIcon
+								className={cn(
+									"size-3 transition-transform duration-150 ease-in-out",
+									expanded && "rotate-180"
+								)}
+							/>
 							{expanded ? "Show less" : "Read the full brief"}
 						</Button>
 						{research.sources.length ? (
