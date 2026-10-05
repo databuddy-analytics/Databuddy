@@ -463,7 +463,10 @@ function Setup({ organizationId }: { organizationId?: string }) {
 			await navigator.clipboard.writeText(text);
 		} catch {
 			toast.error("Failed to copy", {
-				description: "Select the text and copy it manually.",
+				description:
+					method === "ai"
+						? "Try copying the agent prompt again."
+						: "Select the text and copy it manually.",
 			});
 			return;
 		}
@@ -786,7 +789,7 @@ function McpAnalytics({ organizationId }: { organizationId?: string }) {
 	return (
 		<div className="relative flex h-full flex-col overflow-y-auto">
 			<TopBar.Title>
-				<h1 className="font-semibold text-sm">MCP analytics</h1>
+				<h1 className="text-balance font-semibold text-sm">MCP analytics</h1>
 				<StageBadge stage="alpha" />
 			</TopBar.Title>
 			{facets?.tracked === 0 ? null : (

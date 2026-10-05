@@ -37,7 +37,7 @@ export function EventsPageHeader() {
 	return (
 		<>
 			<TopBar.Title>
-				<h1 className="font-semibold text-sm">Custom events</h1>
+				<h1 className="text-balance font-semibold text-sm">Custom events</h1>
 				<StageBadge stage="alpha" />
 			</TopBar.Title>
 			<TopBar.Actions>

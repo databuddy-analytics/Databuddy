@@ -79,6 +79,7 @@ function SidebarNavItem({
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
 	const showSpinner = useDelayedPending(isPending);
+	const label = item.stage ? `${item.name} (${item.stage})` : item.name;
 
 	const fullPath = useMemo(() => {
 		if (item.rootLevel) {
@@ -125,7 +126,7 @@ function SidebarNavItem({
 	if (isLocked) {
 		const el = (
 			<Link
-				aria-label={`${item.name}. Requires ${lockedPlanName ?? "a paid"} plan. Open upgrade options.`}
+				aria-label={`${label}. Requires ${lockedPlanName ?? "a paid"} plan. Open upgrade options.`}
 				className={cn(
 					base,
 					"text-sidebar-foreground/45 hover:bg-sidebar-accent hover:text-sidebar-foreground"
@@ -153,7 +154,7 @@ function SidebarNavItem({
 		);
 		return collapsed ? (
 			<Tooltip
-				content={`${item.name} · ${lockedPlanName ?? "Upgrade"}`}
+				content={`${label} · ${lockedPlanName ?? "Upgrade"}`}
 				side="right"
 			>
 				{el}
@@ -173,7 +174,7 @@ function SidebarNavItem({
 			</div>
 		);
 		return collapsed ? (
-			<Tooltip content={item.name} side="right">
+			<Tooltip content={label} side="right">
 				{el}
 			</Tooltip>
 		) : (
@@ -190,6 +191,7 @@ function SidebarNavItem({
 		<LinkComponent
 			{...linkProps}
 			aria-current={active ? "page" : undefined}
+			aria-label={collapsed ? label : undefined}
 			className={cn(
 				base,
 				"group",
@@ -220,7 +222,7 @@ function SidebarNavItem({
 	);
 
 	return collapsed ? (
-		<Tooltip content={item.name} side="right">
+		<Tooltip content={label} side="right">
 			{el}
 		</Tooltip>
 	) : (
