@@ -12,7 +12,10 @@ const state = vi.hoisted(() => ({
 	contexts: [] as Record<string, unknown>[],
 	accessible: vi.fn(),
 	errors: vi.fn(),
+	sessionUserId: "user-synthetic" as string | null,
 	sessionOrg: "org-synthetic",
+	apiKeyId: null as string | null,
+	chatExists: true,
 	chatOrg: "org-synthetic",
 	billing: vi.fn(),
 	billedUsage: vi.fn(),
@@ -60,15 +63,20 @@ vi.mock("@databuddy/ai/lib/accessible-websites", () => ({
 vi.mock("@databuddy/api-keys/resolve", () => ({
 	API_KEY_AUTH_CHALLENGE: "Bearer",
 	getApiKeyFromHeader: async () => null,
-	hasKeyScope: () => false,
+	hasKeyScope: () => Boolean(state.apiKeyId),
 	isApiKeyPresent: () => false,
 }));
 vi.mock("../lib/auth-wide-event", () => ({
 	getResolvedAuth: () => ({
-		session: {
-			user: { id: "user-synthetic" },
-			session: { activeOrganizationId: state.sessionOrg },
-		},
+		session: state.sessionUserId
+			? {
+					user: { id: state.sessionUserId },
+					session: { activeOrganizationId: state.sessionOrg },
+				}
+			: null,
+		apiKeyResult: state.apiKeyId
+			? { key: { id: state.apiKeyId, organizationId: state.sessionOrg } }
+			: null,
 	}),
 }));
 vi.mock("@databuddy/auth", () => ({
@@ -79,10 +87,13 @@ vi.mock("@databuddy/db", () => ({
 	db: {
 		query: {
 			agentChats: {
-				findFirst: async () => ({
-					userId: "user-synthetic",
-					organizationId: state.chatOrg,
-				}),
+				findFirst: async () =>
+					state.chatExists
+						? {
+								userId: "user-synthetic",
+								organizationId: state.chatOrg,
+							}
+						: null,
 			},
 		},
 		insert: () => ({ values: () => ({ onConflictDoUpdate: async () => {} }) }),
@@ -258,7 +269,10 @@ beforeEach(() => {
 		async (auth: { organizationId: string }) =>
 			auth.organizationId === "org-synthetic" ? [site] : []
 	);
+	state.sessionUserId = "user-synthetic";
 	state.sessionOrg = "org-synthetic";
+	state.apiKeyId = null;
+	state.chatExists = true;
 	state.chatOrg = "org-synthetic";
 	state.memoryEnabled = false;
 	state.storedMemory.mockReset();
@@ -300,6 +314,41 @@ describe("dashboard approval claims through the native HTTP/model stream", () =>
 		},
 	];
 
+	it.each([
+		["session callers", "user-other", "org-synthetic", null],
+		["API-key callers", null, "org-synthetic", "key-other"],
+		["organizations", "user-synthetic", "org-other", null],
+	] as const)("keeps approvals independent across %s when the chat is not persisted", async (_scope, otherUserId, otherOrg, otherKeyId) => {
+		const firstUserId = otherKeyId ? null : "user-synthetic";
+		const firstKeyId = otherKeyId ? "key-synthetic" : null;
+		state.chatExists = false;
+		state.sessionUserId = firstUserId;
+		state.apiKeyId = firstKeyId;
+		state.accessible.mockResolvedValue([site]);
+		const first = await chat({ messages });
+
+		state.sessionUserId = otherUserId;
+		state.sessionOrg = otherOrg;
+		state.apiKeyId = otherKeyId;
+		const other = await chat({ messages, organizationId: otherOrg });
+
+		state.sessionUserId = firstUserId;
+		state.sessionOrg = "org-synthetic";
+		state.apiKeyId = firstKeyId;
+		const retry = await chat({ messages });
+		for (const response of [first, other, retry]) {
+			expect(response.status, response.text).toBe(200);
+		}
+		for (const response of [first, other]) {
+			expect(response.text).toContain('"type":"tool-output-available"');
+		}
+		expect(retry.text).not.toContain('"type":"tool-output-available"');
+		expect(state.goalWrites).toHaveBeenCalledTimes(2);
+		expect(JSON.stringify(state.prompts.at(-1)?.prompt)).toContain(
+			"This approval was already used"
+		);
+	});
+
 	it("runs one write when two tabs claim the same approval concurrently", async () => {
 		const bothClaimed = Promise.withResolvers<void>();
 		state.claim.mockImplementation(async (key: string) => {
@@ -319,7 +368,7 @@ describe("dashboard approval claims through the native HTTP/model stream", () =>
 			expect(response.status, response.text).toBe(200);
 		}
 		const claimArgs = [
-			"agent:approval:chat-synthetic:approval-synthetic",
+			"agent:approval:user-synthetic:org-synthetic:chat-synthetic:approval-synthetic",
 			"1",
 			"EX",
 			86_400,

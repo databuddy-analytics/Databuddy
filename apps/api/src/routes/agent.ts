@@ -208,12 +208,14 @@ async function generateChatTitle(
 const APPROVAL_CLAIM_TTL_SEC = 86_400;
 
 async function claimApproval(
+	userId: string,
+	organizationId: string,
 	chatId: string,
 	approvalId: string
 ): Promise<boolean> {
 	try {
 		const claimed = await getRedisCache().set(
-			`agent:approval:${chatId}:${approvalId}`,
+			`agent:approval:${userId}:${organizationId}:${chatId}:${approvalId}`,
 			"1",
 			"EX",
 			APPROVAL_CLAIM_TTL_SEC,
@@ -874,9 +876,11 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					if (!validation.success) {
 						return jsonError(400, "INVALID_MESSAGES", "Invalid message format");
 					}
+					const approvalOrganizationId = organizationId;
 					const chatMessages = await claimToolApprovals(
 						settleStaleToolApprovals(validation.data),
-						(approvalId) => claimApproval(chatId, approvalId)
+						(approvalId) =>
+							claimApproval(userId, approvalOrganizationId, chatId, approvalId)
 					);
 
 					const modelMessages = await timeAgentPhase(
