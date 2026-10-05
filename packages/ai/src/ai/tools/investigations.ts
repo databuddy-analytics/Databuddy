@@ -81,7 +81,7 @@ export const investigationActionSchema = z
 			.min(1)
 			.max(200)
 			.refine((value) => !value.includes(":"), {
-				message: "Reply ids cannot contain colons",
+				message: "Reply IDs cannot contain colons",
 			})
 			.optional()
 			.describe(

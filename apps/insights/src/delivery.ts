@@ -232,7 +232,7 @@ function formatMetricValue(value: number, format?: string): string {
 		case "percent":
 			return `${pretty}%`;
 		case "duration_ms":
-			return `${pretty}ms`;
+			return `${pretty} ms`;
 		case "duration_s":
 			return `${pretty}s`;
 		default:
@@ -254,7 +254,7 @@ function buildThreadBlocks(insight: SlackInvestigation): SlackBlock[] {
 	];
 	if (insight.outcome.rootCause?.trim()) {
 		lines.push(
-			`_Why:_ ${escapeMrkdwn(userVisibleCopy(insight.outcome.rootCause))}`
+			`*Why:* ${escapeMrkdwn(userVisibleCopy(insight.outcome.rootCause))}`
 		);
 	}
 	if (insight.outcome.evidence.length) {

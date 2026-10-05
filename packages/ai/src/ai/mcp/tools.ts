@@ -337,7 +337,7 @@ const replyToInvestigationTool = defineMcpTool(
 				.min(1)
 				.max(200)
 				.refine((value) => !value.includes(":"), {
-					message: "Reply ids cannot contain colons",
+					message: "Reply IDs cannot contain colons",
 				})
 				.describe(
 					"Unique stable idempotency key. Reuse it if this tool call is retried."

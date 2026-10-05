@@ -128,7 +128,7 @@ const updateGoalTool = defineMcpTool(
 		);
 		return {
 			success: true,
-			message: "Goal updated successfully.",
+			message: "Goal updated successfully",
 			goal: pickFields(goal, GOAL_FIELDS),
 		};
 	}
@@ -163,7 +163,7 @@ const deleteGoalTool = defineMcpTool(
 		}
 
 		await callRPCProcedure("goals", "delete", { id }, rpcContext);
-		return { success: true, message: "Goal deleted successfully." };
+		return { success: true, message: "Goal deleted successfully" };
 	}
 );
 
@@ -209,7 +209,7 @@ const updateAnnotationTool = defineMcpTool(
 		);
 		return {
 			success: true,
-			message: "Annotation updated successfully.",
+			message: "Annotation updated successfully",
 			annotation: pickFields(annotation, ANNOTATION_FIELDS),
 		};
 	}
@@ -244,7 +244,7 @@ const deleteAnnotationTool = defineMcpTool(
 		}
 
 		await callRPCProcedure("annotations", "delete", { id }, rpcContext);
-		return { success: true, message: "Annotation deleted successfully." };
+		return { success: true, message: "Annotation deleted successfully" };
 	}
 );
 
@@ -308,7 +308,7 @@ const updateLinkTool = defineMcpTool(
 		);
 		return {
 			success: true,
-			message: `Short link "${link.name}" updated successfully.`,
+			message: `Short link "${link.name}" updated successfully`,
 			link: summarizeLink(link, plan.folders),
 		};
 	}
@@ -340,7 +340,7 @@ const deleteLinkTool = defineMcpTool(
 		if (!confirmed) {
 			return {
 				preview: true,
-				message: "Review this short-link deletion before applying it.",
+				message: "Review this short link deletion before applying it.",
 				confirmationRequired: true,
 				link: summarizeLink(link, folders),
 			};
@@ -349,7 +349,7 @@ const deleteLinkTool = defineMcpTool(
 		await callRPCProcedure("links", "delete", { id }, rpcContext);
 		return {
 			success: true,
-			message: `Short link "${link.name}" deleted successfully.`,
+			message: `Short link "${link.name}" deleted successfully`,
 		};
 	}
 );

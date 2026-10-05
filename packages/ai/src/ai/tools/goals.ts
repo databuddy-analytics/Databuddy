@@ -154,8 +154,7 @@ export function createGoalTools() {
 				if (!confirmed) {
 					return {
 						preview: true,
-						message:
-							"Please review the goal details below and confirm if you want to create it:",
+						message: "Review the goal details below and confirm to create it:",
 						goal: {
 							name: goal.name,
 							description: goal.description || null,
@@ -221,7 +220,7 @@ export function createGoalTools() {
 					}
 					return {
 						preview: true,
-						message: "Please review this goal update before applying it.",
+						message: "Review this goal update before applying it.",
 						current,
 						updates,
 						confirmationRequired: true,

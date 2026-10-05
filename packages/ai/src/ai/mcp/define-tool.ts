@@ -154,7 +154,7 @@ function toErrorResult(err: McpToolError): CallToolResult {
 	const errorPayload: Record<string, unknown> = {
 		code: err.code,
 		message: isInternal
-			? "An internal error occurred. Please try again."
+			? "Internal server error. Try again shortly."
 			: stripAnsi(err.message),
 	};
 	if (!isInternal && err.hint) {

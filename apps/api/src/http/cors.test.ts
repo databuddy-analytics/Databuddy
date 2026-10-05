@@ -25,7 +25,7 @@ describe("MCP CORS", () => {
 
 		expect(response.status).toBe(403);
 		expect(await response.json()).toMatchObject({
-			error: { message: "Forbidden Origin" },
+			error: { message: "Forbidden origin" },
 			id: null,
 			jsonrpc: "2.0",
 		});

@@ -245,7 +245,7 @@ export async function readWebsitePage(
 		fullPageLinks
 	);
 	if (signal.aborted) {
-		return { success: false, error: "Page read cancelled or timed out" };
+		return { success: false, error: "Page read canceled or timed out" };
 	}
 	if (
 		cached &&
@@ -368,7 +368,7 @@ export async function readWebsitePage(
 			scriptHosts: [...scriptHosts],
 		};
 		if (signal.aborted) {
-			return { success: false, error: "Page read cancelled or timed out" };
+			return { success: false, error: "Page read canceled or timed out" };
 		}
 		if (input.mutationMode !== "dry-run") {
 			cache.write(
@@ -381,7 +381,7 @@ export async function readWebsitePage(
 		return {
 			success: false,
 			error: signal.aborted
-				? "Page read cancelled or timed out"
+				? "Page read canceled or timed out"
 				: "Page read failed",
 		};
 	}
@@ -624,7 +624,7 @@ export function createScrapeTools(cache: ScrapeCache = DEFAULT_SCRAPE_CACHE) {
 					return {
 						success: false,
 						error: signal.aborted
-							? "Website search cancelled or timed out"
+							? "Website search canceled or timed out"
 							: "Website search failed",
 					};
 				}
