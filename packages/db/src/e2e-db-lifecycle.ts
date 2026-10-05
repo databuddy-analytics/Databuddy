@@ -1,4 +1,4 @@
-import { dataUrl, isLocalHost, isLoopbackHost } from "@databuddy/env/app";
+import { dataUrl, isLoopbackHost } from "@databuddy/env/app";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Client, Pool } from "pg";
 
@@ -241,7 +241,7 @@ function localUrl(
 	name: "CLICKHOUSE_URL" | "DATABASE_URL" | "REDIS_URL"
 ): string {
 	const url = dataUrl(name);
-	if (url && URL.canParse(url) && isLocalHost(url)) {
+	if (url && URL.canParse(url) && isLoopbackHost(url)) {
 		return url;
 	}
 	const host = url && URL.canParse(url) ? new URL(url).hostname : "unset";
@@ -259,7 +259,7 @@ export function assertLocalTargets(): string {
 export async function resetLocalDatabase(databaseUrl: string): Promise<void> {
 	const url = normalizeDatabaseUrl(databaseUrl);
 	const dbName = decodeURIComponent(url.pathname.slice(1));
-	if (!(dbName && isLocalHost(url.href))) {
+	if (!(dbName && isLoopbackHost(url.href))) {
 		throw new Error(
 			`Refusing to reset database "${dbName}" on ${url.hostname}`
 		);
