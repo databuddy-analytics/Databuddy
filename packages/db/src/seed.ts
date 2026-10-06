@@ -228,11 +228,13 @@ export async function deleteAnalytics(
 ): Promise<void> {
 	for (const table of [
 		TABLE_NAMES.events,
+		"analytics.daily_pageviews",
 		TABLE_NAMES.outgoing_links,
 		TABLE_NAMES.error_spans,
 		TABLE_NAMES.web_vitals_spans,
 	]) {
 		await client.command({
+			clickhouse_settings: { lightweight_deletes_sync: "1" },
 			query: `DELETE FROM ${table} WHERE client_id = {clientId:String}`,
 			query_params: { clientId },
 		});

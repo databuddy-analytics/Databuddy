@@ -42,17 +42,21 @@ async function workspaceWebsite(websiteId?: string) {
 	if (websiteId) {
 		throw new Error(`Website "${websiteId}" does not exist`);
 	}
-	const user = await signUp({
-		email: WORKSPACE.email,
-		name: "Local Dev",
-		password: WORKSPACE.password,
-		verified: true,
-	});
+	const user =
+		(await db().query.user.findFirst({
+			where: { email: WORKSPACE.email },
+		})) ??
+		(await signUp({
+			email: WORKSPACE.email,
+			name: "Local Dev",
+			password: WORKSPACE.password,
+			verified: true,
+		}));
 	const membership = await db().query.member.findFirst({
 		where: { userId: user.id },
 	});
 	if (!membership) {
-		throw new Error("Sign-up did not provision an organization");
+		throw new Error("Local dev user has no organization");
 	}
 	const website = await insertWebsite({
 		domain: WORKSPACE.domain,
