@@ -9,6 +9,7 @@ import {
 import {
 	deleteAnalytics,
 	generateAnalytics,
+	MAX_ANALYTICS_EVENTS,
 	seedAnalytics,
 } from "@databuddy/db/seed";
 import { signUp } from "./auth";
@@ -85,9 +86,15 @@ if (import.meta.main) {
 				website: { type: "string" },
 			},
 		});
-		const events = values.events ? Number(values.events) : undefined;
-		if (events !== undefined && !(Number.isFinite(events) && events > 0)) {
-			throw new Error("--events must be a positive number");
+		const events =
+			values.events === undefined ? undefined : Number(values.events);
+		if (events !== undefined && !(Number.isSafeInteger(events) && events > 0)) {
+			throw new Error("--events must be a positive integer");
+		}
+		if (events !== undefined && events > MAX_ANALYTICS_EVENTS) {
+			throw new Error(
+				`--events must be no greater than ${MAX_ANALYTICS_EVENTS}`
+			);
 		}
 		const databaseUrl = assertLocalTargets();
 		if (values.reset) {

@@ -2,6 +2,8 @@ import type { ClickHouseClient } from "@clickhouse/client";
 import { en, Faker } from "@faker-js/faker";
 import { TABLE_NAMES } from "./clickhouse/client";
 
+export const MAX_ANALYTICS_EVENTS = 100_000;
+
 const EVENTS_PER_SESSION = 6;
 const DAY_MS = 86_400_000;
 const SESSION_WINDOW_MS = DAY_MS - 3_600_000;
@@ -50,6 +52,8 @@ function clickHouseTime(ms: number): string {
 	return new Date(ms).toISOString().replace("T", " ").replace("Z", "");
 }
 
+// Events are an approximate target: session sizes, weekends and anomaly mode
+// vary the rows generated within the bounded day range.
 export function generateAnalytics({
 	anomaly = false,
 	clientId,
@@ -63,6 +67,20 @@ export function generateAnalytics({
 	domain: string;
 	events?: number;
 }) {
+	if (!(Number.isInteger(days) && days > 0 && days <= 365)) {
+		throw new Error("days must be a positive integer no greater than 365");
+	}
+	if (
+		!(
+			Number.isSafeInteger(eventCount) &&
+			eventCount > 0 &&
+			eventCount <= MAX_ANALYTICS_EVENTS
+		)
+	) {
+		throw new Error(
+			`events must be a positive integer no greater than ${MAX_ANALYTICS_EVENTS}`
+		);
+	}
 	const faker = new Faker({ locale: [en], seed: 42 });
 	const dailySessions = Math.ceil(eventCount / days / EVENTS_PER_SESSION);
 	const now = Date.now();

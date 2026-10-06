@@ -42,7 +42,10 @@ see [optional services](README.md#optional-services).
 To explore with sample data, run `bun run workspace --reset`. It targets the
 local Docker services only and prints a login, a website and an API key. Add
 `--anomaly` for a traffic spike and error surge that Insights will flag, or
-`--website YOUR_WEBSITE_ID` to seed a website you already made.
+`--website YOUR_WEBSITE_ID` to seed a website you already made. The optional
+`--events N` sets an approximate event target of up to 100,000 across 28 days;
+session sizes, weekend traffic and anomaly variation affect the number written.
+The command prints the actual inserted counts.
 
 ## Check your changes
 
