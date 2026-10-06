@@ -12,7 +12,10 @@ const state = vi.hoisted(() => ({
 	contexts: [] as Record<string, unknown>[],
 	accessible: vi.fn(),
 	errors: vi.fn(),
+	sessionUserId: "user-synthetic" as string | null,
 	sessionOrg: "org-synthetic",
+	apiKeyId: null as string | null,
+	chatExists: true,
 	chatOrg: "org-synthetic",
 	billing: vi.fn(),
 	billedUsage: vi.fn(),
@@ -21,6 +24,10 @@ const state = vi.hoisted(() => ({
 	storedMemory: vi.fn(),
 	ask: vi.fn(),
 	stream: vi.fn(),
+	claims: new Set<string>(),
+	claim: vi.fn(),
+	goalWrites: vi.fn(),
+	modelFailure: false,
 }));
 const site = {
 	id: "site-synthetic",
@@ -56,15 +63,20 @@ vi.mock("@databuddy/ai/lib/accessible-websites", () => ({
 vi.mock("@databuddy/api-keys/resolve", () => ({
 	API_KEY_AUTH_CHALLENGE: "Bearer",
 	getApiKeyFromHeader: async () => null,
-	hasKeyScope: () => false,
+	hasKeyScope: () => Boolean(state.apiKeyId),
 	isApiKeyPresent: () => false,
 }));
 vi.mock("../lib/auth-wide-event", () => ({
 	getResolvedAuth: () => ({
-		session: {
-			user: { id: "user-synthetic" },
-			session: { activeOrganizationId: state.sessionOrg },
-		},
+		session: state.sessionUserId
+			? {
+					user: { id: state.sessionUserId },
+					session: { activeOrganizationId: state.sessionOrg },
+				}
+			: null,
+		apiKeyResult: state.apiKeyId
+			? { key: { id: state.apiKeyId, organizationId: state.sessionOrg } }
+			: null,
 	}),
 }));
 vi.mock("@databuddy/auth", () => ({
@@ -75,10 +87,13 @@ vi.mock("@databuddy/db", () => ({
 	db: {
 		query: {
 			agentChats: {
-				findFirst: async () => ({
-					userId: "user-synthetic",
-					organizationId: state.chatOrg,
-				}),
+				findFirst: async () =>
+					state.chatExists
+						? {
+								userId: "user-synthetic",
+								organizationId: state.chatOrg,
+							}
+						: null,
 			},
 		},
 		insert: () => ({ values: () => ({ onConflictDoUpdate: async () => {} }) }),
@@ -90,6 +105,7 @@ vi.mock("@databuddy/ai/agent", () => ({
 	streamDatabuddyAgent: state.stream,
 }));
 vi.mock("@databuddy/ai/agents/analytics", async () => {
+	const { createToolkit } = await import("@databuddy/ai/tools/toolkit");
 	const { MockLanguageModelV3, convertArrayToReadableStream } = await import(
 		"ai/test"
 	);
@@ -97,6 +113,9 @@ vi.mock("@databuddy/ai/agents/analytics", async () => {
 		modelId: "synthetic/actual-model",
 		doStream: async (input) => {
 			state.prompts.push(input);
+			if (state.modelFailure) {
+				throw new Error("Synthetic model stream failure");
+			}
 			return {
 				stream: convertArrayToReadableStream([
 					{ type: "text-start", id: "text" },
@@ -124,7 +143,12 @@ vi.mock("@databuddy/ai/agents/analytics", async () => {
 			state.contexts.push(context);
 			return {
 				model,
-				tools: {},
+				tools: {
+					create_goal: {
+						...createToolkit({ capabilities: ["mutations"] }).create_goal,
+						execute: state.goalWrites,
+					},
+				},
 				system: { role: "system", content: "Synthetic analytics agent" },
 				experimental_context: context,
 			};
@@ -167,6 +191,18 @@ vi.mock("evlog/elysia", () => ({
 vi.mock("@databuddy/redis/rate-limit", () => ({
 	ratelimit: state.rateLimit,
 }));
+vi.mock("@databuddy/redis", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@databuddy/redis")>()),
+	getRedisCache: () => ({ set: state.claim }),
+}));
+vi.mock("@databuddy/ai/tools/toolkit", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@databuddy/ai/tools/toolkit")>()),
+	resolveToolIntegrations: async () => ({
+		github: false,
+		scrape: false,
+		searchConsole: false,
+	}),
+}));
 vi.mock("@databuddy/redis/stream-buffer", () => ({
 	appendStreamChunk: async () => {},
 	clearActiveStream: async () => {},
@@ -205,6 +241,14 @@ async function chat(input: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+	state.claims.clear();
+	state.claim.mockReset().mockImplementation((key: string) => {
+		const alreadyClaimed = state.claims.has(key);
+		state.claims.add(key);
+		return alreadyClaimed ? null : "OK";
+	});
+	state.goalWrites.mockReset().mockResolvedValue({ id: "goal-synthetic" });
+	state.modelFailure = false;
 	state.billing.mockReset().mockResolvedValue({
 		allowed: true,
 		customerId: "synthetic-billing-owner",
@@ -225,7 +269,10 @@ beforeEach(() => {
 		async (auth: { organizationId: string }) =>
 			auth.organizationId === "org-synthetic" ? [site] : []
 	);
+	state.sessionUserId = "user-synthetic";
 	state.sessionOrg = "org-synthetic";
+	state.apiKeyId = null;
+	state.chatExists = true;
 	state.chatOrg = "org-synthetic";
 	state.memoryEnabled = false;
 	state.storedMemory.mockReset();
@@ -235,6 +282,138 @@ beforeEach(() => {
 	});
 	state.stream.mockReset().mockImplementation(async function* () {
 		yield "Synthetic answer.";
+	});
+});
+
+describe("dashboard approval claims through the native HTTP/model stream", () => {
+	const goal = {
+		websiteId: site.id,
+		type: "PAGE_VIEW",
+		target: "/signup",
+		name: "Signup",
+		confirmed: true,
+	};
+	const messages = [
+		{
+			id: "user-1",
+			role: "user",
+			parts: [{ type: "text", text: "Yes, create it" }],
+		},
+		{
+			id: "assistant-1",
+			role: "assistant",
+			parts: [
+				{
+					type: "tool-create_goal",
+					toolCallId: "call-goal",
+					state: "approval-responded",
+					input: goal,
+					approval: { id: "approval-synthetic", approved: true },
+				},
+			],
+		},
+	];
+
+	it.each([
+		["session callers", "user-other", "org-synthetic", null],
+		["API-key callers", null, "org-synthetic", "key-other"],
+		["organizations", "user-synthetic", "org-other", null],
+	] as const)("keeps approvals independent across %s when the chat is not persisted", async (_scope, otherUserId, otherOrg, otherKeyId) => {
+		const firstUserId = otherKeyId ? null : "user-synthetic";
+		const firstKeyId = otherKeyId ? "key-synthetic" : null;
+		state.chatExists = false;
+		state.sessionUserId = firstUserId;
+		state.apiKeyId = firstKeyId;
+		state.accessible.mockResolvedValue([site]);
+		const first = await chat({ messages });
+
+		state.sessionUserId = otherUserId;
+		state.sessionOrg = otherOrg;
+		state.apiKeyId = otherKeyId;
+		const other = await chat({ messages, organizationId: otherOrg });
+
+		state.sessionUserId = firstUserId;
+		state.sessionOrg = "org-synthetic";
+		state.apiKeyId = firstKeyId;
+		const retry = await chat({ messages });
+		for (const response of [first, other, retry]) {
+			expect(response.status, response.text).toBe(200);
+		}
+		for (const response of [first, other]) {
+			expect(response.text).toContain('"type":"tool-output-available"');
+		}
+		expect(retry.text).not.toContain('"type":"tool-output-available"');
+		expect(state.goalWrites).toHaveBeenCalledTimes(2);
+		expect(JSON.stringify(state.prompts.at(-1)?.prompt)).toContain(
+			"This approval was already used"
+		);
+	});
+
+	it("runs one write when two tabs claim the same approval concurrently", async () => {
+		const bothClaimed = Promise.withResolvers<void>();
+		state.claim.mockImplementation(async (key: string) => {
+			const alreadyClaimed = state.claims.has(key);
+			state.claims.add(key);
+			if (state.claim.mock.calls.length === 2) {
+				bothClaimed.resolve();
+			}
+			await bothClaimed.promise;
+			return alreadyClaimed ? null : "OK";
+		});
+		const responses = await Promise.all([
+			chat({ messages }),
+			chat({ messages }),
+		]);
+		for (const response of responses) {
+			expect(response.status, response.text).toBe(200);
+		}
+		const claimArgs = [
+			"agent:approval:user-synthetic:org-synthetic:chat-synthetic:approval-synthetic",
+			"1",
+			"EX",
+			86_400,
+			"NX",
+		];
+		expect(state.claim.mock.calls).toEqual([claimArgs, claimArgs]);
+		expect(state.goalWrites).toHaveBeenCalledExactlyOnceWith(
+			goal,
+			expect.anything()
+		);
+		expect(
+			state.prompts.filter(({ prompt }) =>
+				JSON.stringify(prompt).includes("This approval was already used")
+			)
+		).toHaveLength(1);
+		expect(
+			responses.filter(({ text }) =>
+				text.includes('"type":"tool-output-available"')
+			)
+		).toHaveLength(1);
+	});
+
+	it("retains a claim when the model fails after the approved write", async () => {
+		state.modelFailure = true;
+		const failed = await chat({ messages });
+		expect(failed.text).toContain('"type":"error"');
+		expect(state.goalWrites).toHaveBeenCalledTimes(1);
+		state.modelFailure = false;
+		const retry = await chat({ messages });
+		expect(retry.status, retry.text).toBe(200);
+		expect(JSON.stringify(state.prompts.at(-1)?.prompt)).toContain(
+			"This approval was already used"
+		);
+		expect(state.goalWrites).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps the accepted fail-open behavior when Redis rejects the claim", async () => {
+		const error = new Error("Synthetic Redis command timeout");
+		state.claim.mockRejectedValueOnce(error);
+		const result = await chat({ messages });
+		expect(result.status, result.text).toBe(200);
+		expect(state.goalWrites).toHaveBeenCalledTimes(1);
+		expect(state.errors).toHaveBeenCalledWith(error, {
+			agent_approval_claim_failed: true,
+		});
 	});
 });
 

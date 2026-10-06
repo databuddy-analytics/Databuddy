@@ -21,6 +21,7 @@ import { conversationModelOptions } from "../config/conversation-model";
 import { modelNames } from "../config/models";
 import { createGoalTools } from "../tools/goals";
 import {
+	claimToolApprovals,
 	createConversationAgent,
 	settleStaleToolApprovals,
 } from "./conversation";
@@ -307,13 +308,24 @@ describe("human approval for writes", () => {
 			}),
 		});
 		const agent = createConversationAgent(configFor(model, { tools }));
+		const claimed = new Set<string>();
+		const claim = async (approvalId: string) => {
+			if (claimed.has(approvalId)) {
+				return false;
+			}
+			claimed.add(approvalId);
+			return true;
+		};
 
 		async function send(messages: UIMessage[]) {
 			const validation = await safeValidateUIMessages({ messages, tools });
 			if (!validation.success) {
 				throw validation.error;
 			}
-			const chatMessages = settleStaleToolApprovals(validation.data);
+			const chatMessages = await claimToolApprovals(
+				settleStaleToolApprovals(validation.data),
+				claim
+			);
 			const result = await agent.stream({
 				messages: pruneMessages({
 					messages: await convertToModelMessages(chatMessages, {
@@ -397,6 +409,20 @@ describe("human approval for writes", () => {
 			approved ? [goal] : []
 		);
 		expect(part).toMatchObject({ state, approval: { approved } });
+	});
+
+	it("runs an approved write once when the same approval arrives twice", async () => {
+		const { execute, send } = setup();
+		const requested = await send([confirmation]);
+		const approved = answer(requested.assistant, true);
+		await send([confirmation, approved]);
+		const { part } = await send([confirmation, approved]);
+
+		expect(execute.mock.calls.map(([input]) => input)).toEqual([goal]);
+		expect(part).toMatchObject({
+			state: "output-denied",
+			approval: { approved: false },
+		});
 	});
 
 	it.each([
