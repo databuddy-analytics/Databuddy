@@ -1,4 +1,5 @@
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
+import type { agentChats } from "@databuddy/db/schema";
 import { BillingUnavailableError } from "@databuddy/shared/billing";
 import { AgentError } from "@databuddy/ai/agent";
 import { APICallError } from "ai";
@@ -32,7 +33,7 @@ const state = vi.hoisted(() => ({
 	memoryLookup: vi.fn(),
 	integrations: vi.fn(),
 	streamSetup: vi.fn(),
-	persistedChats: [] as unknown[],
+	persistedChats: [] as (typeof agentChats.$inferInsert)[],
 	storedMemory: vi.fn(),
 	ask: vi.fn(),
 	stream: vi.fn(),
@@ -126,7 +127,7 @@ vi.mock("@databuddy/db", () => ({
 			},
 		},
 		insert: () => ({
-			values: (value: unknown) => {
+			values: (value: typeof agentChats.$inferInsert) => {
 				state.persistedChats.push(value);
 				return { onConflictDoUpdate: async () => {} };
 			},
@@ -217,7 +218,7 @@ vi.mock("@databuddy/ai/agents/cache", () => ({
 	shouldLoadMemoryContext: () => state.loadMemory,
 }));
 vi.mock("@databuddy/ai/lib/ai-logger", () => ({
-	getAILogger: () => ({ wrap: (model: unknown) => model }),
+	getAILogger: () => ({ wrap: (model: MockLanguageModelV3) => model }),
 }));
 vi.mock("@databuddy/ai/lib/databuddy", () => ({ trackAgentEvent: () => {} }));
 vi.mock("@databuddy/ai/lib/tracing", () => ({
