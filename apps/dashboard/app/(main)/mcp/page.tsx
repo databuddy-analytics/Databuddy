@@ -8,6 +8,7 @@ import {
 	fromNow,
 	Progress,
 	Skeleton,
+	StageBadge,
 	Tooltip,
 } from "@databuddy/ui";
 import { DropdownMenu, Tabs } from "@databuddy/ui/client";
@@ -461,7 +462,12 @@ function Setup({ organizationId }: { organizationId?: string }) {
 		try {
 			await navigator.clipboard.writeText(text);
 		} catch {
-			toast.error("Copy failed. Select the text and copy it manually.");
+			toast.error("Failed to copy", {
+				description:
+					method === "ai"
+						? "Try copying the agent prompt again."
+						: "Select the text and copy it manually.",
+			});
 			return;
 		}
 		setCopied(id);
@@ -783,10 +789,8 @@ function McpAnalytics({ organizationId }: { organizationId?: string }) {
 	return (
 		<div className="relative flex h-full flex-col overflow-y-auto">
 			<TopBar.Title>
-				<h1 className="font-semibold text-sm">MCP Analytics</h1>
-				<Badge className="h-5 px-2" variant="warning">
-					Alpha
-				</Badge>
+				<h1 className="text-balance font-semibold text-sm">MCP analytics</h1>
+				<StageBadge stage="alpha" />
 			</TopBar.Title>
 			{facets?.tracked === 0 ? null : (
 				<TopBar.Actions>

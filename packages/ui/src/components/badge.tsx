@@ -33,6 +33,26 @@ export function Badge({ className, variant, size, ...rest }: BadgeProps) {
 	return <span className={cn(badge({ variant, size }), className)} {...rest} />;
 }
 
+export type Stage = "alpha" | "beta" | "new" | "soon";
+
+interface StageBadgeProps {
+	className?: string;
+	stage: Stage;
+}
+
+export function StageBadge({ stage, className }: StageBadgeProps) {
+	return (
+		<span
+			className={cn(
+				"inline-flex shrink-0 items-center rounded bg-secondary px-1.5 py-0.5 font-semibold text-[10px] text-muted-foreground uppercase leading-none",
+				className
+			)}
+		>
+			{stage}
+		</span>
+	);
+}
+
 interface PercentageBadgeProps {
 	className?: string;
 	percentage: number;

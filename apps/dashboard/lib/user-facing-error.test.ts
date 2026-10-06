@@ -14,6 +14,16 @@ describe("getUserFacingErrorMessage", () => {
 		).toBe("Too many requests. Wait a moment and try again.");
 	});
 
+	it("maps native OAuth provider errors to safe status copy", () => {
+		const error = Object.assign(new Error("Provider not found"), {
+			code: "PROVIDER_NOT_FOUND",
+			status: 404,
+		});
+		expect(getUserFacingErrorMessage(error)).toBe(
+			"That item could not be found. It may have been removed."
+		);
+	});
+
 	it("uses a safe fallback for unknown internal errors", () => {
 		expect(
 			getUserFacingErrorMessage(new Error("postgres relation users failed"))
