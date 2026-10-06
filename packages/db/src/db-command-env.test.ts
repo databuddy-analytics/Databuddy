@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, it } from "bun:test";
 import manifest from "../../../package.json";
 
-const dotenv = join(import.meta.dir, "../../../node_modules/dotenv-cli/cli.js");
+const dotenv = Bun.resolveSync("dotenv-cli/cli.js", import.meta.dir);
 const node = Bun.which("node");
 if (!node) {
 	throw new Error("Node is required to run the dotenv CLI");
