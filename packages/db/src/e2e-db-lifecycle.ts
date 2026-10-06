@@ -242,6 +242,11 @@ function localUrl(
 ): string {
 	const url = dataUrl(name);
 	if (url && URL.canParse(url) && isLoopbackHost(url)) {
+		if (name === "DATABASE_URL" && new URL(url).searchParams.has("host")) {
+			throw new Error(
+				"Refusing to run the workspace with a PostgreSQL host override"
+			);
+		}
 		return url;
 	}
 	const host = url && URL.canParse(url) ? new URL(url).hostname : "unset";
@@ -258,6 +263,11 @@ export function assertLocalTargets(): string {
 
 export async function resetLocalDatabase(databaseUrl: string): Promise<void> {
 	const url = normalizeDatabaseUrl(databaseUrl);
+	if (url.searchParams.has("host")) {
+		throw new Error(
+			"Refusing to reset database with a PostgreSQL host override"
+		);
+	}
 	const dbName = decodeURIComponent(url.pathname.slice(1));
 	if (!(dbName && isLoopbackHost(url.href))) {
 		throw new Error(

@@ -223,6 +223,37 @@ describe("workspace target guards", () => {
 	});
 
 	it.each([
+		"host=remote.example",
+		"%68ost=remote.example",
+		"host=localhost&host=remote.example",
+		"host=%2Ftmp%2Fpostgres",
+	])("refuses workspace PostgreSQL host overrides before writes: %s", (query) => {
+		process.env.DATABASE_URL = `postgres://u:p@localhost:5432/databuddy?${query}`;
+		expect(() => assertLocalTargets()).toThrow(
+			"Refusing to run the workspace with a PostgreSQL host override"
+		);
+	});
+
+	it.each([
+		"host=remote.example",
+		"%68ost=remote.example",
+		"host=localhost&host=remote.example",
+		"host=%2Ftmp%2Fpostgres",
+	])("refuses PostgreSQL reset host overrides before connecting: %s", async (query) => {
+		const connect = spyOn(Client.prototype, "connect").mockImplementation(
+			() => {
+				throw new Error("Unexpected database connection in guard test");
+			}
+		);
+		await expect(
+			resetLocalDatabase(`postgres://u:p@localhost:5432/databuddy?${query}`)
+		).rejects.toThrow(
+			"Refusing to reset database with a PostgreSQL host override"
+		);
+		expect(connect).not.toHaveBeenCalled();
+	});
+
+	it.each([
 		"staging",
 		"0.0.0.0",
 		"db.example.com",
