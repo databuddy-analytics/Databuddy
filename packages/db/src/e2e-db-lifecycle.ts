@@ -142,6 +142,11 @@ export function resolveLifecycleConfig(
 	input: ParsedLifecycleArgs
 ): ResolvedLifecycleConfig {
 	const baseUrl = normalizeDatabaseUrl(input.baseDsn);
+	if (!input.allowNonLocal && baseUrl.searchParams.has("host")) {
+		throw new Error(
+			"Refusing to manage E2E DB with a PostgreSQL host override. Set --allow-non-local to override."
+		);
+	}
 	if (!(input.allowNonLocal || isLoopbackHost(baseUrl.href))) {
 		throw new Error(
 			`Refusing to manage E2E DB on non-local host '${baseUrl.hostname}'. Set --allow-non-local to override.`

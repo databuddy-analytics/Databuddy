@@ -102,6 +102,41 @@ describe("e2e db lifecycle helpers", () => {
 	});
 
 	it.each([
+		"host=remote.example",
+		"%68ost=remote.example",
+		"host=localhost&host=remote.example",
+		"host=%2Ftmp%2Fpostgres",
+	])("refuses PostgreSQL host overrides before create or drop: %s", (query) => {
+		for (const command of ["create", "drop"] as const) {
+			expect(() =>
+				resolveLifecycleConfig({
+					allowNonLocal: false,
+					baseDsn: `postgres://u:p@localhost:5432/databuddy?${query}`,
+					command,
+					dbName: "databuddy_e2e_run",
+					dbPrefix: "databuddy_e2e",
+				})
+			).toThrow("Refusing to manage E2E DB with a PostgreSQL host override");
+		}
+	});
+
+	it("preserves an explicitly allowed PostgreSQL host override", () => {
+		const config = resolveLifecycleConfig({
+			allowNonLocal: true,
+			baseDsn: "postgres://u:p@localhost:5432/databuddy?host=remote.example",
+			command: "create",
+			dbName: "databuddy_e2e_run",
+			dbPrefix: "databuddy_e2e",
+		});
+		expect(config.adminDsn).toBe(
+			"postgres://u:p@localhost:5432/postgres?host=remote.example"
+		);
+		expect(config.dbDsn).toBe(
+			"postgres://u:p@localhost:5432/databuddy_e2e_run?host=remote.example"
+		);
+	});
+
+	it.each([
 		"localhost",
 		"127.0.0.1",
 		"[::1]",
