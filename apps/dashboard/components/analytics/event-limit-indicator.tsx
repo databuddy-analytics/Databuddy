@@ -27,7 +27,7 @@ export function EventLimitIndicator() {
 	if (data.unavailable === true) {
 		return (
 			<div
-				className="flex items-center gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2"
+				className="flex items-center gap-2 rounded border border-warning/30 bg-warning/5 px-3 py-2"
 				role="status"
 			>
 				<WarningIcon
