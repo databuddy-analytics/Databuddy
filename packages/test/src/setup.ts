@@ -82,7 +82,7 @@ if (import.meta.main) {
 			},
 		});
 		const events = values.events ? Number(values.events) : undefined;
-		if (events !== undefined && !(events > 0)) {
+		if (events !== undefined && !(Number.isFinite(events) && events > 0)) {
 			throw new Error("--events must be a positive number");
 		}
 		const databaseUrl = assertLocalTargets();
