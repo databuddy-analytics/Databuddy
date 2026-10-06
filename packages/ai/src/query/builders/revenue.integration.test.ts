@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, setDefaultTimeout } from "bun:test";
 import { chQuery, clickHouse } from "@databuddy/db/clickhouse";
 import { randomUUIDv7 } from "bun";
 import { SimpleQueryBuilder } from "../simple-builder";
@@ -10,6 +10,10 @@ const describeIntegration =
 	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"
 		? describe
 		: describe.skip;
+
+if (process.env.CLICKHOUSE_INTEGRATION_TESTS === "true") {
+	setDefaultTimeout(15_000);
+}
 
 function stripeMetadata(
 	recordKind: "attempt" | "link" | "money",
@@ -1834,7 +1838,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		expect(Number(stripe?.observed_failure_event_types)).toBe(1);
 		expect(Number(stripe?.required_failure_event_types)).toBe(2);
 		expect(stripe?.top_payment_failure_reason).toBe("do_not_honor");
-	}, 10_000);
+	}, 15_000);
 
 	it("counts a canonical modern payment once across invoice event deliveries", async () => {
 		const websiteId = `revenue-canonical-${randomUUIDv7()}`;
@@ -1905,7 +1909,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		const [overview] = await revenueOverview(websiteId);
 		expect(Number(overview?.total_revenue)).toBe(100);
 		expect(Number(overview?.total_transactions)).toBe(2);
-	}, 10_000);
+	}, 15_000);
 
 	it("keeps currencies separate and counts retry events without collapsing them", async () => {
 		const websiteId = `revenue-currency-${randomUUIDv7()}`;
