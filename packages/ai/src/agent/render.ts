@@ -231,6 +231,8 @@ export function componentToPlainText(spec: ComponentSpec): string {
 				return `- ${cell(label)}: ${parts.join(", ")}`;
 			})
 			.join("\n");
+	} else {
+		return `\n\`\`\`json\n${JSON.stringify(spec, null, 2)}\n\`\`\`\n`;
 	}
 	return [title && `**${title}**`, body].filter(Boolean).join("\n");
 }

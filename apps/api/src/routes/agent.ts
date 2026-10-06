@@ -454,10 +454,19 @@ async function createPlainTextStreamResponse(
 export const agent = new Elysia({ prefix: "/v1/agent" })
 	.derive(async ({ request }) => {
 		const { apiKey, session } = await resolveRequestAuth(request.headers);
+		const scopedKey =
+			apiKey && hasKeyScope(apiKey, "read:data") ? apiKey : null;
+		const agentHeaders = new Headers(request.headers);
+		if (scopedKey) {
+			agentHeaders.delete("cookie");
+		}
 		return {
-			activeOrganizationId: session?.session.activeOrganizationId ?? null,
-			apiKey: apiKey && hasKeyScope(apiKey, "read:data") ? apiKey : null,
-			user: session?.user ?? null,
+			activeOrganizationId: scopedKey
+				? null
+				: (session?.session.activeOrganizationId ?? null),
+			agentHeaders,
+			apiKey: scopedKey,
+			user: scopedKey ? null : (session?.user ?? null),
 		};
 	})
 	.onBeforeHandle(({ apiKey, user, request }) => {
@@ -477,6 +486,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 			user,
 			apiKey,
 			activeOrganizationId,
+			agentHeaders,
 		}) {
 			const conversationId = body.id ?? generateId();
 			mergeWideEvent({ agent_chat_id: conversationId, source: "api" });
@@ -485,7 +495,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 				const agentRequest: AgentRequestInput = {
 					actor: agentActor(
 						{ activeOrganizationId, apiKey, user },
-						request.headers
+						agentHeaders
 					),
 					organizationId: body.organizationId,
 					rateLimit: "agent:ask",
@@ -497,6 +507,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 				});
 				const options = {
 					...agentRequest,
+					abortSignal: request.signal,
 					conversationId,
 					input: body.question,
 					mutationMode: "dry-run" as const,
@@ -506,7 +517,9 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					timezone: body.timezone,
 				};
 				if (body.stream) {
-					return await createPlainTextStreamResponse(streamDatabuddyAgent(options));
+					return await createPlainTextStreamResponse(
+						streamDatabuddyAgent(options)
+					);
 				}
 				return await askDatabuddyAgent(options);
 			} catch (error) {
@@ -526,7 +539,14 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 	)
 	.post(
 		"/chat",
-		function agentChat({ body, user, apiKey, activeOrganizationId, request }) {
+		function agentChat({
+			body,
+			user,
+			apiKey,
+			activeOrganizationId,
+			agentHeaders,
+			request,
+		}) {
 			return (async () => {
 				const chatId = body.id ?? generateId();
 				const t0 = performance.now();
@@ -544,7 +564,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						prepareAgentRequest({
 							actor: agentActor(
 								{ activeOrganizationId, apiKey, user },
-								request.headers
+								agentHeaders
 							),
 							organizationId: body.organizationId,
 							rateLimit: "agent:chat",
@@ -709,7 +729,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 							accessibleWebsites,
 							timezone,
 							chatId,
-							requestHeaders: request.headers,
+							requestHeaders: agentHeaders,
 							thinking: body.thinking,
 							billingCustomerId,
 							integrations,

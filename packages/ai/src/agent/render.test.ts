@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+	type ComponentSpec,
 	ComponentStreamSplitter,
 	componentToPlainText,
 	splitAgentText,
@@ -7,14 +8,25 @@ import {
 
 const DATA_TABLE = `{"type":"data-table","title":"Top Pages","columns":["Page","Visitors"],"rows":[["/",1500],["/pricing",820]]}`;
 
-function pushAll(chunks: string[]): { components: unknown[]; text: string } {
-	const splitter = new ComponentStreamSplitter();
+function pushAll(
+	chunks: string[],
+	inline?: (spec: ComponentSpec) => string
+): { components: unknown[]; text: string } {
+	const splitter = new ComponentStreamSplitter(inline);
 	let text = "";
 	for (const chunk of chunks) {
 		text += splitter.push(chunk);
 	}
 	const tail = splitter.flush();
 	return { components: tail.components, text: text + tail.text };
+}
+
+function fallbackPayload(text: string): unknown {
+	const start = text.indexOf("```json\n");
+	const end = text.lastIndexOf("\n```");
+	expect(start).toBeGreaterThanOrEqual(0);
+	expect(end).toBeGreaterThan(start);
+	return JSON.parse(text.slice(start + "```json\n".length, end));
 }
 
 describe("ComponentStreamSplitter", () => {
@@ -69,14 +81,60 @@ describe("markdown output", () => {
 		);
 	});
 
-	it("renders charts as lists and drops components with nothing to read", () => {
+	it("renders charts as lists and preserves suggested action payloads", () => {
 		const { text } = splitAgentText(
 			'{"type":"line-chart","title":"Daily","series":["visitors","sessions"],"rows":[["May 1",10,12],["May 2",11,14]]}\n{"type":"suggested-actions","actions":[{"label":"More","prompt":"more"}]}',
 			componentToPlainText
 		);
 
-		expect(text).toBe(
-			"**Daily**\n- May 1: visitors 10, sessions 12\n- May 2: visitors 11, sessions 14\n"
-		);
+		expect(
+			text.startsWith(
+				"**Daily**\n- May 1: visitors 10, sessions 12\n- May 2: visitors 11, sessions 14\n"
+			)
+		).toBe(true);
+		expect(fallbackPayload(text)).toEqual({
+			type: "suggested-actions",
+			actions: [{ label: "More", prompt: "more" }],
+		});
+	});
+
+	it("preserves untitled list and preview payloads in whole and chunked prose", () => {
+		const components = [
+			{
+				type: "links-list",
+				links: [
+					{
+						id: "link-one",
+						name: "Pricing",
+						slug: "pricing",
+						targetUrl: "https://example.com/pricing",
+						expiresAt: null,
+					},
+				],
+			},
+			{
+				type: "goal-preview",
+				mode: "create",
+				goal: {
+					name: 'Braces { and } and "quotes"',
+					description: "Before\n```\n<script>alert(1)</script>\n```\nAfter",
+					type: "EVENT",
+					target: "signup",
+					ignoreHistoricData: true,
+				},
+			},
+		];
+		for (const component of components) {
+			const input = `Before ${JSON.stringify(component)} after`;
+			const whole = splitAgentText(input, componentToPlainText);
+			expect(pushAll([...input], componentToPlainText)).toEqual(whole);
+			expect(whole.components).toEqual([]);
+			expect(whole.text.startsWith("Before \n```json\n")).toBe(true);
+			expect(whole.text.endsWith("\n```\n after")).toBe(true);
+			expect(fallbackPayload(whole.text)).toEqual(component);
+			expect(
+				whole.text.split("\n").filter((line) => line === "```")
+			).toHaveLength(1);
+		}
 	});
 });
