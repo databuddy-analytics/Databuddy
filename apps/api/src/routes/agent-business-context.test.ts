@@ -875,17 +875,13 @@ describe("selected agent identity through native HTTP", () => {
 		expect(response.status).toBe(200);
 		expect(await response.text()).toContain("Synthetic answer.");
 		const options = (stream ? state.stream : state.ask).mock.calls[0]?.[0];
-		expect(options.actor).toMatchObject({
-			type: "api_key",
-			apiKey: state.apiKey,
-			userId: null,
-		});
 		expect(options.principal).toMatchObject({
+			apiKey: state.apiKey,
 			organizationId: selectedKey.organizationId,
 			userId: keyOwner,
 		});
-		expect(options.actor.requestHeaders.get("cookie")).toBeNull();
-		expect(options.actor.requestHeaders.get("x-api-key")).toBe(
+		expect(options.principal.requestHeaders.get("cookie")).toBeNull();
+		expect(options.principal.requestHeaders.get("x-api-key")).toBe(
 			mixedHeaders["x-api-key"]
 		);
 		expect(options.abortSignal).toBeInstanceOf(AbortSignal);
@@ -1020,9 +1016,13 @@ describe("selected agent identity through native HTTP", () => {
 		const response = await askResponse({}, { cookie: mixedHeaders.cookie });
 		expect(response.status).toBe(200);
 		expect(await response.text()).toContain("Synthetic answer.");
-		const actor = state.ask.mock.calls[0]?.[0].actor;
-		expect(actor).toMatchObject({ type: "session", userId: "user-synthetic" });
-		expect(actor.requestHeaders.get("cookie")).toBe(mixedHeaders.cookie);
+		const principal = state.ask.mock.calls[0]?.[0].principal;
+		expect(principal).toMatchObject({
+			apiKey: null,
+			organizationId: "org-synthetic",
+			userId: "user-synthetic",
+		});
+		expect(principal.requestHeaders.get("cookie")).toBe(mixedHeaders.cookie);
 	});
 
 	it.each<{
