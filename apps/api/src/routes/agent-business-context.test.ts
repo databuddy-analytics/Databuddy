@@ -22,6 +22,8 @@ const state = vi.hoisted(() => ({
 	chatExists: true,
 	chatOrg: "org-synthetic",
 	billing: vi.fn(),
+	billingCustomer: vi.fn(),
+	memberRole: vi.fn(),
 	billedUsage: vi.fn(),
 	rateLimit: vi.fn(),
 	memoryEnabled: false,
@@ -163,8 +165,12 @@ vi.mock("@databuddy/ai/agents/analytics", async () => {
 });
 vi.mock("@databuddy/ai/agents/execution", () => ({
 	getAgentBillingAccess: state.billing,
-	resolveAgentBillingCustomerId: async () => "synthetic-billing-owner",
+	resolveAgentBillingCustomerId: state.billingCustomer,
 	trackAgentUsageAndBill: state.billedUsage,
+}));
+vi.mock("@databuddy/rpc/organization", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@databuddy/rpc/organization")>()),
+	getMemberRole: state.memberRole,
 }));
 vi.mock("@databuddy/ai/config/models", () => ({
 	AI_MODEL_MAX_RETRIES: 0,
@@ -260,6 +266,10 @@ beforeEach(() => {
 		customerId: "synthetic-billing-owner",
 	});
 	state.billedUsage.mockReset().mockResolvedValue(undefined);
+	state.billingCustomer
+		.mockReset()
+		.mockResolvedValue("synthetic-billing-owner");
+	state.memberRole.mockReset().mockResolvedValue("member");
 	state.rateLimit.mockReset().mockResolvedValue({ success: true });
 	state.profile = profile;
 	state.prompts.length = 0;
@@ -647,7 +657,67 @@ describe("ask route", () => {
 		expect(state.ask).not.toHaveBeenCalled();
 		expect(state.stream).not.toHaveBeenCalled();
 	});
+	it.each([
+		false,
+		true,
+	])("rejects a session outside the requested organization before any paid work (stream=%s)", async (stream) => {
+		state.memberRole.mockResolvedValue(null);
+		const response = await ask({ organizationId: "foreign-org", stream });
+		expect(response.status, response.text).toBe(403);
+		expect(JSON.parse(response.text)).toMatchObject({ code: "ACCESS_DENIED" });
+		expect(state.memberRole).toHaveBeenCalledExactlyOnceWith(
+			"user-synthetic",
+			"foreign-org"
+		);
+		expect(state.rateLimit).not.toHaveBeenCalled();
+		expect(state.accessible).not.toHaveBeenCalled();
+		expect(state.billingCustomer).not.toHaveBeenCalled();
+		expect(state.billing).not.toHaveBeenCalled();
+		expect(state.ask).not.toHaveBeenCalled();
+		expect(state.stream).not.toHaveBeenCalled();
+	});
+	it("checks membership in the active organization when none is requested", async () => {
+		state.memberRole.mockResolvedValue(null);
+		const response = await ask();
+		expect(response.status, response.text).toBe(403);
+		expect(state.memberRole).toHaveBeenCalledExactlyOnceWith(
+			"user-synthetic",
+			"org-synthetic"
+		);
+		expect(state.billingCustomer).not.toHaveBeenCalled();
+		expect(state.billing).not.toHaveBeenCalled();
+		expect(state.ask).not.toHaveBeenCalled();
+	});
+	it("keeps a valid requested-organization member eligible with zero websites", async () => {
+		state.accessible.mockResolvedValue([]);
+		const response = await ask({ organizationId: "org-other" });
+		expect(response.status, response.text).toBe(200);
+		expect(state.memberRole).toHaveBeenCalledExactlyOnceWith(
+			"user-synthetic",
+			"org-other"
+		);
+		expect(state.billingCustomer).toHaveBeenCalledExactlyOnceWith({
+			apiKey: null,
+			organizationId: "org-other",
+			userId: "user-synthetic",
+		});
+		expect(state.ask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				mutationMode: "dry-run",
+				output: "markdown",
+				source: "api",
+				principal: expect.objectContaining({
+					organizationId: "org-other",
+					accessibleWebsites: [],
+				}),
+			})
+		);
+	});
 	it("rejects an API key used for another organization", async () => {
+		state.sessionUserId = null;
+		state.memberRole.mockRejectedValue(
+			new Error("API keys use bound organization access")
+		);
 		state.apiKey = {
 			id: "key-synthetic",
 			name: "Synthetic",
@@ -670,7 +740,15 @@ describe("ask route", () => {
 			updatedAt: new Date("2026-10-05"),
 		};
 		expect((await ask({ organizationId: "foreign-org" })).status).toBe(403);
+		expect(state.billingCustomer).not.toHaveBeenCalled();
+		expect(state.billing).not.toHaveBeenCalled();
 		expect((await ask()).status).toBe(200);
+		expect(state.memberRole).not.toHaveBeenCalled();
+		expect(state.billingCustomer).toHaveBeenCalledExactlyOnceWith({
+			apiKey: state.apiKey,
+			organizationId: "org-synthetic",
+			userId: null,
+		});
 		expect(state.ask).toHaveBeenCalledTimes(1);
 	});
 	it("maps billing, credit, provider and unknown failures to their statuses", async () => {

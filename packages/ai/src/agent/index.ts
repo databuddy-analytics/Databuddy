@@ -1,5 +1,6 @@
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { ratelimit } from "@databuddy/redis/rate-limit";
+import { getMemberRole } from "@databuddy/rpc/organization";
 import type { LanguageModelUsage } from "ai";
 import {
 	type AgentBillingAccess,
@@ -164,6 +165,16 @@ export async function prepareAgentRequest(
 	});
 	if (!organizationId) {
 		throw new AgentError("workspace_required");
+	}
+
+	if (
+		actor.type === "session" &&
+		!(await getMemberRole(actor.userId, organizationId))
+	) {
+		throw new AgentError(
+			"access_denied",
+			"You are not a member of this organization."
+		);
 	}
 
 	if (input.rateLimit) {

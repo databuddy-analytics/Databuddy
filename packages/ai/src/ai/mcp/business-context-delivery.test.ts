@@ -60,6 +60,15 @@ mock.module("@databuddy/auth", () => ({
 }));
 let allowed = true;
 let sites = [site];
+const memberRole = mock(async (userId: string, organizationId: string) =>
+	userId === "user-synthetic" && organizationId === "org-synthetic"
+		? "member"
+		: null
+);
+mock.module("@databuddy/rpc/organization", () => ({
+	getMemberRole: memberRole,
+	getOrganizationOwnerId: async () => "synthetic-owner",
+}));
 const accessible = mock(async (auth: AccessibleWebsitesAuth) =>
 	allowed &&
 	auth.organizationId === "org-synthetic" &&
@@ -221,6 +230,7 @@ beforeEach(() => {
 	read.mockReset();
 	read.mockImplementation(async () => saved);
 	accessible.mockClear();
+	memberRole.mockClear();
 	model.doGenerateCalls.length = 0;
 	model.doStreamCalls.length = 0;
 	allowed = true;
@@ -471,6 +481,8 @@ describe("canonical business context at the native shared-agent model boundary",
 			},
 		});
 		expect(read).toHaveBeenCalledWith("org-synthetic");
+		expect(memberRole).toHaveBeenCalledTimes(1);
+		expect(memberRole).toHaveBeenCalledWith("user-synthetic", "org-synthetic");
 		const call = model.doGenerateCalls[0];
 		if (!call) {
 			throw new Error("Expected the session's model call");
