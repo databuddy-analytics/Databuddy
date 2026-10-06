@@ -1,3 +1,5 @@
+import type { JSONValue } from "@ai-sdk/provider";
+
 const COMPONENT_START = '{"type":"';
 
 const CHART_COMPONENT_TYPES = [
@@ -83,7 +85,7 @@ function findCloseBrace(text: string, start: number): number {
 
 function parseComponent(json: string): ComponentSpec | null {
 	try {
-		const parsed: unknown = JSON.parse(json);
+		const parsed: JSONValue = JSON.parse(json);
 		if (
 			parsed &&
 			typeof parsed === "object" &&
