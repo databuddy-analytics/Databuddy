@@ -39,7 +39,7 @@ const footerSections: FooterSectionData[] = [
 			{ href: "/developers", label: "Developers", navItem: "developers" },
 			{ href: "/pricing", label: "Pricing", navItem: "pricing" },
 			{ href: "/startups", label: "Startups", navItem: "startups" },
-			{ href: "/oss", label: "Open source program", navItem: "oss" },
+			{ href: "/oss", label: "Open-source program", navItem: "oss" },
 			{
 				href: "/calculator",
 				label: "Measurement gap calculator",
@@ -114,10 +114,10 @@ const socialLinks = [
 ] as const;
 
 const legalLinks = [
-	{ href: "/privacy", label: "Privacy Policy" },
-	{ href: "/data-policy", label: "Data Policy" },
+	{ href: "/privacy", label: "Privacy policy" },
+	{ href: "/data-policy", label: "Data policy" },
 	{ href: "/dpa", label: "DPA" },
-	{ href: "/terms", label: "Terms of Service" },
+	{ href: "/terms", label: "Terms of service" },
 ] as const;
 
 const TRAFFIC = [

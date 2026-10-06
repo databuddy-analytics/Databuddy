@@ -20,7 +20,7 @@ export const revalidate = 3600;
 
 const WORD_SPLIT_REGEX = /\s+/;
 
-const blogTitle = "Blog: Product Analytics Guides and Updates";
+const blogTitle = "Blog: product analytics guides and updates";
 const blogDescription =
 	"Practical guides on product analytics, event tracking, funnels, cookieless measurement, GDPR, and Core Web Vitals from the Databuddy team.";
 const blogUrl = "https://www.databuddy.cc/blog";
@@ -196,9 +196,9 @@ export default async function BlogPage() {
 									aria-hidden="true"
 									className="h-1.5 w-1.5 rounded bg-foreground/60"
 								/>
-								DATABUDDY
+								Databuddy
 								<span className="text-foreground/40">•</span>
-								BLOG
+								Blog
 							</div>
 							<h1 className="mb-2 font-semibold text-3xl leading-tight tracking-tight sm:text-4xl md:text-5xl lg:text-5xl">
 								Privacy‑first analytics
@@ -231,7 +231,7 @@ export default async function BlogPage() {
 								<div className="rounded border border-border bg-card/50 p-8 text-center backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-12">
 									<TagIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground duration-300 group-hover:text-foreground sm:h-16 sm:w-16" />
 									<h1 className="mb-3 text-balance font-semibold text-2xl leading-tight tracking-tight sm:text-3xl md:text-4xl">
-										No Posts Yet
+										No posts yet
 									</h1>
 									<p className="mb-6 font-medium text-muted-foreground text-sm leading-relaxed tracking-tight sm:text-base">
 										We're working on some amazing content. Check back soon for
@@ -240,7 +240,7 @@ export default async function BlogPage() {
 									<div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
 										<SciFiButton asChild className="flex-1 sm:flex-initial">
 											<Link aria-label="Back to home" href="/">
-												Back to Home
+												Back to home
 											</Link>
 										</SciFiButton>
 									</div>

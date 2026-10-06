@@ -132,7 +132,7 @@ const tabLabels = new Map<HeroTabId, string>(
 	tabs.map((tab) => [tab.id, tab.label])
 );
 
-const proofPoints = ["Free up to 10k events/mo", "No cookies"] as const;
+const proofPoints = ["Free up to 10,000 events/mo", "No cookies"] as const;
 
 type FullscreenElement = HTMLIFrameElement & {
 	webkitRequestFullscreen?: () => Promise<void>;

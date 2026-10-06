@@ -256,7 +256,7 @@ export const GridCards = () => {
 					</span>
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
-					One tracker collects analytics, errors, and web vitals, and the same
+					One tracker collects analytics, errors, and Web Vitals, and the same
 					dashboard runs your funnels, flags, links, and uptime.
 				</p>
 			</div>

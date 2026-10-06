@@ -17,7 +17,7 @@ const DEMO_DATE_DAYS = 30;
 
 class DemoRateLimitError extends Error {
 	constructor() {
-		super("Too many demo queries — try again shortly.");
+		super("Too many demo queries. Try again shortly.");
 	}
 }
 

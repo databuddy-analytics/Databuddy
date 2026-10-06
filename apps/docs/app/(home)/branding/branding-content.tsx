@@ -26,16 +26,16 @@ const LOGO_ASSETS: { category: string; items: BrandingAssetItem[] }[] = [
 		],
 	},
 	{
-		category: "Primary Logo",
+		category: "Primary logo",
 		items: [
 			{
-				label: "Primary Logo",
+				label: "Primary logo",
 				path: "/brand/primary-logo/black.svg",
 				variant: "light",
 				filename: "primary-logo-light",
 			},
 			{
-				label: "Primary Logo",
+				label: "Primary logo",
 				path: "/brand/primary-logo/white.svg",
 				variant: "dark",
 				filename: "primary-logo-dark",
@@ -43,16 +43,16 @@ const LOGO_ASSETS: { category: string; items: BrandingAssetItem[] }[] = [
 		],
 	},
 	{
-		category: "Secondary Logo",
+		category: "Secondary logo",
 		items: [
 			{
-				label: "Secondary Logo",
+				label: "Secondary logo",
 				path: "/brand/secondary-logo/black.svg",
 				variant: "light",
 				filename: "secondary-logo-light",
 			},
 			{
-				label: "Secondary Logo",
+				label: "Secondary logo",
 				path: "/brand/secondary-logo/white.svg",
 				variant: "dark",
 				filename: "secondary-logo-dark",
@@ -80,25 +80,25 @@ const LOGO_ASSETS: { category: string; items: BrandingAssetItem[] }[] = [
 
 const BUNNY_ASSETS: BrandingAssetItem[] = [
 	{
-		label: "8-bit Bunny",
+		label: "8-bit bunny",
 		path: "/brand/bunny/black.svg",
 		variant: "light",
 		filename: "bunny-black",
 	},
 	{
-		label: "8-bit Bunny",
+		label: "8-bit bunny",
 		path: "/brand/bunny/white.svg",
 		variant: "dark",
 		filename: "bunny-white",
 	},
 	{
-		label: "8-bit Bunny",
+		label: "8-bit bunny",
 		path: "/brand/bunny/off-black.svg",
 		variant: "light",
 		filename: "bunny-off-black",
 	},
 	{
-		label: "8-bit Bunny",
+		label: "8-bit bunny",
 		path: "/brand/bunny/off-white.svg",
 		variant: "dark",
 		filename: "bunny-off-white",
@@ -146,13 +146,13 @@ const CLEARSPACE_RULES = [
 		note: "x = height of the logomark",
 	},
 	{
-		asset: "Primary Logo",
+		asset: "Primary logo",
 		clearspace: "0.5x",
 		minSize: "50px",
 		note: "x = height of the bunny",
 	},
 	{
-		asset: "Secondary Logo",
+		asset: "Secondary logo",
 		clearspace: "0.5x",
 		minSize: "100px",
 		note: "x = height of the bunny",
@@ -264,8 +264,8 @@ export default function BrandingContent() {
 								Headlines
 							</p>
 							<p className="text-pretty text-muted-foreground text-xs">
-								Same pairing - larger size and weight provide sufficient
-								contrast on their own.
+								Same pairing. Larger size and weight provide sufficient contrast
+								on their own.
 							</p>
 						</div>
 						<div>
@@ -313,7 +313,7 @@ export default function BrandingContent() {
 			{/* Typography */}
 			<section className="mb-16 sm:mb-24" id="typography">
 				<SectionHeader
-					description="Two typefaces form the Databuddy type system - LT Superior for display and body, and LT Superior Mono for code and technical content."
+					description="Two typefaces form the Databuddy type system: LT Superior for display and body, and LT Superior Mono for code and technical content."
 					title="Typography"
 				/>
 
@@ -444,7 +444,7 @@ export default function BrandingContent() {
 			{/* 8-bit Bunny */}
 			<section className="mb-16 sm:mb-24" id="graphic-assets">
 				<SectionHeader
-					description="The 8-bit bunny adds personality and digital charm. It should live in the background or play a secondary role - never replace the main logomark."
+					description="The 8-bit bunny adds personality and digital charm. It should live in the background or play a secondary role and never replace the main logomark."
 					title="Graphic assets"
 				/>
 

@@ -39,7 +39,7 @@ export function PricingPreview() {
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
 					No credit card and no sales call. Free includes real-time analytics,
-					web vitals, one funnel, and three feature flags.
+					Web Vitals, one funnel, and three feature flags.
 				</p>
 			</div>
 

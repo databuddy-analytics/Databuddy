@@ -18,14 +18,14 @@ import {
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-	title: { absolute: "Databuddy Changelog: New Features and Fixes" },
+	title: { absolute: "Databuddy changelog: new features and fixes" },
 	description:
 		"Every Databuddy release: new analytics features, Databunny AI analyst updates, SDK changes, and fixes, newest first. Follow along as the product ships.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/changelog",
 	},
 	openGraph: {
-		title: "Databuddy Changelog: New Features and Fixes",
+		title: "Databuddy changelog: new features and fixes",
 		description:
 			"Every Databuddy release: new analytics features, Databunny AI analyst updates, SDK changes, and fixes, newest first. Follow along as the product ships.",
 		url: "https://www.databuddy.cc/changelog",
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
 	},
 	twitter: {
 		card: "summary_large_image",
-		title: "Databuddy Changelog: New Features and Fixes",
+		title: "Databuddy changelog: new features and fixes",
 		description:
 			"Every Databuddy release: new analytics features, Databunny AI analyst updates, SDK changes, and fixes, newest first. Follow along as the product ships.",
 		images: ["/og-image.png"],
@@ -103,7 +103,7 @@ export default async function ChangelogPage() {
 		<div>
 			<StructuredData
 				page={{
-					title: "Databuddy Changelog: New Features and Fixes",
+					title: "Databuddy changelog: new features and fixes",
 					description:
 						"Every Databuddy release: new analytics features, Databunny AI analyst updates, SDK changes, and fixes, newest first. Follow along as the product ships.",
 					url: "https://www.databuddy.cc/changelog",
@@ -118,9 +118,9 @@ export default async function ChangelogPage() {
 									aria-hidden="true"
 									className="h-1.5 w-1.5 rounded bg-foreground/60"
 								/>
-								DATABUDDY
+								Databuddy
 								<span className="text-foreground/40">•</span>
-								CHANGELOG
+								Changelog
 							</div>
 							<h1 className="mb-2 font-semibold text-3xl leading-tight tracking-tight sm:text-4xl md:text-5xl lg:text-5xl">
 								What&apos;s new in Databuddy

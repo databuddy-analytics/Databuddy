@@ -3,7 +3,7 @@ import { createAgentJson, developerResources } from "@/lib/agent-discovery";
 import { homePageSeo } from "@/lib/home-seo";
 
 export const metadata: Metadata = {
-	title: { absolute: "Databuddy Agent View" },
+	title: { absolute: "Databuddy agent view" },
 	description:
 		"Structured entrypoint for AI agents integrating Databuddy analytics, OpenAPI, API-key authentication, and MCP tools.",
 	alternates: {
@@ -20,7 +20,7 @@ export default function AgentViewPage() {
 
 	return (
 		<main className="mx-auto w-full max-w-5xl px-4 pt-24 pb-16 sm:px-6 lg:px-8">
-			<h1 className="font-semibold text-4xl">Databuddy Agent View</h1>
+			<h1 className="font-semibold text-4xl">Databuddy agent view</h1>
 			<p className="mt-4 text-lg text-muted-foreground">
 				Structured entrypoint for AI agents integrating Databuddy analytics,
 				OpenAPI, API-key authentication, and MCP tools.

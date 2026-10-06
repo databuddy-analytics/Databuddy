@@ -75,7 +75,7 @@ export async function GET(request: Request) {
 						letterSpacing: "0.05em",
 					}}
 				>
-					Analytics Measurement Gap
+					Analytics measurement gap
 				</span>
 			</div>
 
@@ -146,7 +146,7 @@ export async function GET(request: Request) {
 								letterSpacing: "0.1em",
 							}}
 						>
-							Monthly Visitors
+							Monthly visitors
 						</span>
 						<span
 							style={{

@@ -66,7 +66,7 @@ export default function AmbassadorHero() {
 					<FeatureCard
 						description="Exclusive benefits"
 						icon={GiftIcon}
-						title="Perks & Rewards"
+						title="Perks & rewards"
 					/>
 					<FeatureCard
 						description="Join our mission"

@@ -120,7 +120,7 @@ export default function CommitActivityChart({
 			<div>
 				<div className="mb-8">
 					<h3 className="mb-2 font-semibold text-2xl sm:text-3xl lg:text-4xl">
-						Commit Activity
+						Commit activity
 					</h3>
 					<p className="text-muted-foreground text-sm sm:text-base lg:text-lg">
 						52-week contribution timeline
@@ -139,7 +139,7 @@ export default function CommitActivityChart({
 		<div>
 			<div className="mb-8">
 				<h3 className="mb-2 font-semibold text-2xl sm:text-3xl lg:text-4xl">
-					Commit Activity
+					Commit activity
 				</h3>
 				<p className="text-muted-foreground text-sm sm:text-base lg:text-lg">
 					52-week contribution timeline • {totalCommits.toLocaleString()} total

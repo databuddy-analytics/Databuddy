@@ -18,7 +18,7 @@ import { FaqSection } from "@/components/landing/faq-section";
 import { StructuredData } from "@/components/structured-data";
 import { TrackOnMount } from "@/components/track-on-mount";
 
-const TITLE = "Databunny: AI Analyst for Product Analytics | Databuddy";
+const TITLE = "Databunny: AI analyst for product analytics | Databuddy";
 const DESCRIPTION =
 	"Ask Databunny about traffic, funnels, and errors in plain words and open the query behind each answer. Business and Scale add daily or weekly investigations.";
 
