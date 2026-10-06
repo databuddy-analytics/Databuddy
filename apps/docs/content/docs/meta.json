@@ -1,5 +1,5 @@
 {
-  "title": "Databuddy Documentation",
+  "title": "Databuddy documentation",
   "description": "Product analytics for startups, with a built-in AI analyst",
   "icon": "BarChart3",
   "root": true,
@@ -9,7 +9,7 @@
     "getting-started",
     "---Install---",
     "Integrations",
-    "---SDK & API---",
+    "---SDK and API---",
     "sdk",
     "api",
     "api-keys",

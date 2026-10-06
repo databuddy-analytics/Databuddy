@@ -1,5 +1,5 @@
 ---
-title: Feature Flags (Client)
+title: Feature flags (client)
 description: Control feature rollouts and variant splits with React and Vue hooks
 ---
 
@@ -14,9 +14,9 @@ Feature flags allow you to control feature rollouts and split people across vari
   **Dashboard-controlled Rollouts** | **Client-side Caching** | **Stale-While-Revalidate**
 </Callout>
 
-## Quick Start
+## Quick start
 
-<Tabs items={['React with User Context', 'Vue', 'Setup']}>
+<Tabs items={['React with user context', 'Vue', 'Setup']}>
 
 <Tab>
 <CodeBlock language="tsx" filename="app.tsx">
@@ -119,7 +119,7 @@ Feature flags allow you to control feature rollouts and split people across vari
   **React vs Vue API differences**: In Vue, `useFlag` returns `{ on, loading, state }` as refs; there are no top-level `status`, `value`, or `variant` fields, so read them from `state` (e.g. `flag.state.value.variant`). Vue's `useFlags` returns `{ getFlag, fetchAllFlags, updateUser, refresh, updateConfig, memoryFlags, lastError }`; it has no `isOn`, `getValue`, `fetchFlag`, or `isReady`. The `getValue`, `isOn`, and `variant` examples below are React-only.
 </Callout>
 
-### `useFlag(key)` - Flag State
+### `useFlag(key)`: flag state
 
 The primary hook for checking feature flags. Returns `{ on, loading, status, value, variant }`.
 
@@ -155,7 +155,7 @@ You can also use the `status` field for more granular control:
   }`}
 </CodeBlock>
 
-### `useFlags()` - Context API
+### `useFlags()`: Context API
 
 Access the full flags context for advanced use cases like checking multiple flags, fetching typed values, or updating user context.
 
@@ -192,16 +192,16 @@ Access the full flags context for advanced use cases like checking multiple flag
   }`}
 </CodeBlock>
 
-## Flag Types
+## Flag types
 
-### Boolean Flags
+### Boolean flags
 Simple on/off switches for features.
 
 <CodeBlock language="tsx">
   {`const { on } = useFlag('my-feature');`}
 </CodeBlock>
 
-### String/Number Flags
+### String/number flags
 For configuration values and multivariate testing. Use `getValue` from the context:
 
 <CodeBlock language="tsx">
@@ -210,19 +210,19 @@ For configuration values and multivariate testing. Use `getValue` from the conte
   const theme = getValue<'light' | 'dark'>('theme', 'light');`}
 </CodeBlock>
 
-### Rollout Flags
+### Rollout flags
 Gradually roll out features to a percentage of users.
 
 <CodeBlock language="tsx">
-  {`// Set rollout percentage in dashboard (e.g., 25%)
+  {`// Set rollout percentage in dashboard (e.g. 25%)
   const { on } = useFlag('new-ui-rollout');`}
 </CodeBlock>
 
-#### Rollout Units
+#### Rollout units
 
 Control how users are grouped for rollouts. In the dashboard, choose the **Rollout Unit**:
 
-| Unit | Description | Use Case |
+| Unit | Description | Use case |
 |------|-------------|----------|
 | **User** | Each user individually | Standard per-user rollouts |
 | **Organization** | All org members together | Organization-wide launches |
@@ -246,7 +246,7 @@ Control how users are grouped for rollouts. In the dashboard, choose the **Rollo
   **Consistent Group Rollouts**: When using organization or team rollouts, all members with the same ID get the same flag result. If `org_abc` falls within the 25% rollout, all its members see the feature.
 </Callout>
 
-### Multivariant Flags (A/B/n Testing)
+### Multivariant flags (A/B/n testing)
 
 Split people across multiple variants. Each user is consistently assigned to a variant based on their identifier. There's no built-in results view yet, so compare variants with your own events. Use the `variant` field from `useFlag`:
 
@@ -320,7 +320,7 @@ Split people across multiple variants. Each user is consistently assigned to a v
   </FlagsProvider>`}
 </CodeBlock>
 
-### Configuration Options
+### Configuration options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -336,7 +336,7 @@ Split people across multiple variants. Each user is consistently assigned to a v
 | `autoFetch` | boolean | `true` | Auto-fetch flags on mount |
 | `skipStorage` | boolean | `false` | Skip localStorage caching |
 
-### User Context Options
+### User context options
 
 | Option | Type | Description |
 |--------|------|-------------|
@@ -359,7 +359,7 @@ Pass `environment` when you maintain separate flag definitions for production, s
   </FlagsProvider>`}
 </CodeBlock>
 
-## Flag States
+## Flag states
 
 The `FlagState` object returned by `useFlag`:
 
@@ -373,9 +373,9 @@ The `FlagState` object returned by `useFlag`:
   }`}
 </CodeBlock>
 
-## Performance Features
+## Performance features
 
-### Stale-While-Revalidate
+### Stale-while-revalidate
 Flags return cached values immediately while revalidating in the background.
 
 <CodeBlock language="tsx">
@@ -383,7 +383,7 @@ Flags return cached values immediately while revalidating in the background.
   const { on } = useFlag('my-feature');  // Instant!`}
 </CodeBlock>
 
-### Request Batching
+### Request batching
 Multiple flag requests within 10ms are batched into a single API call.
 
 <CodeBlock language="tsx">
@@ -396,10 +396,10 @@ Multiple flag requests within 10ms are batched into a single API call.
 ### Visibility API
 Pauses background revalidation when the tab is hidden to save bandwidth and battery. Initial fetches still run.
 
-### Request Deduplication
+### Request deduplication
 Identical requests are deduplicated automatically.
 
-## Why isPending Matters
+## Why isPending matters
 
 The `isPending` prop prevents race conditions during authentication:
 
@@ -424,17 +424,17 @@ The `isPending` prop prevents race conditions during authentication:
 - Consistent user experience
 - Better performance
 
-## User Targeting
+## User targeting
 
 Target specific users or groups from your dashboard:
 
 - **User ID**: Target specific users by their unique identifier
-- **Email**: Target by email address or domain (e.g., `@company.com`)
+- **Email**: Target by email address or domain (e.g. `@company.com`)
 - **Organization**: Roll out to entire organizations at once
 - **Team**: Roll out to specific teams
 - **Custom Properties**: Target by user attributes
 
-### Organization & Team Rollouts
+### Organization and team rollouts
 
 For launches that should apply to all members of an organization:
 
@@ -450,7 +450,7 @@ For launches that should apply to all members of an organization:
 
 Then in the dashboard, set the **Rollout Unit** to "Organization" or "Team" when configuring your rollout flag.
 
-### Target Groups
+### Target groups
 
 Target groups are reusable audiences you can attach to flags. They can match:
 
@@ -470,7 +470,7 @@ Evaluation order matters:
 
 Direct rules and target group matches short-circuit evaluation as force on/off rules. For A/B/n experiments, use them to control eligibility carefully, but do not rely on them to choose a specific variant. If you need both strict eligibility and variant measurement, use a boolean eligibility flag plus a separate multivariant assignment flag.
 
-### Advanced Targeting with Custom Properties
+### Advanced targeting with custom properties
 
 <CodeBlock language="tsx">
   {`<FlagsProvider
@@ -499,11 +499,11 @@ Direct rules and target group matches short-circuit evaluation as force on/off r
 - **Behavioral**: `reportsViewed > 10` → Target power users
 - **Time-based**: `created_at > '2024-01-01'` → New vs. existing users
 
-## Best Practices
+## Best practices
 
-### Measure Flag Outcomes
+### Measure flag outcomes
 
-Treat flag metrics as two separate questions: who was evaluated, and what changed afterward. When the tracker is available, the browser SDK emits a deduplicated `$flag_evaluated` event when a flag is read through `useFlag`, `useFlags`, or the manager APIs. The Feature Flags dashboard uses those events to show observed visitors, identified visitors, evaluation count, and the last observed evaluation time.
+Treat flag metrics as two separate questions: who was evaluated, and what changed afterward. When the tracker is available, the browser SDK emits a deduplicated `$flag_evaluated` event when a flag is read through `useFlag`, `useFlags`, or the manager APIs. The feature flags dashboard uses those events to show observed visitors, identified visitors, evaluation count, and the last observed evaluation time.
 
 These dashboard numbers are directional estimates, not guaranteed complete or exact counts of people who used a feature. They only include browser evaluations that Databuddy observed, so blockers, consent or opt-out settings, event sampling, missing tracker coverage, server-side evaluations, and incomplete identity linkage can make the numbers lower than reality. The visitor count should be read as “observed visitors evaluated,” not “people who used the feature.” Passing `userId` to the flags provider and calling Databuddy `identify()` on the tracker lets those evaluations carry your profile ID.
 
@@ -569,7 +569,7 @@ function ExportButton() {
 
 Use one meaningful exposure event and one meaningful outcome event. Avoid tracking every render of a flagged component.
 
-### Flag Planning Checklist
+### Flag planning checklist
 
 Before adding a flag, decide:
 
@@ -580,10 +580,10 @@ Before adding a flag, decide:
 - **Success metric**: the one outcome event that proves the rollout helped
 - **Cleanup date**: when the flag should be removed or made permanent
 
-### Use the Right API
+### Use the right API
 
 <CodeBlock language="tsx">
-  {`// Simple boolean check — most common
+  {`// Simple boolean check, the most common case
   const { on, loading } = useFlag('dark-mode');
 
   // Full control with status
@@ -602,7 +602,7 @@ Before adding a flag, decide:
   if (isOn('advanced-search')) { ... }`}
 </CodeBlock>
 
-### Handle Loading States
+### Handle loading states
 
 <CodeBlock language="tsx">
   {`function FeatureComponent() {
@@ -613,7 +613,7 @@ Before adding a flag, decide:
   }`}
 </CodeBlock>
 
-### Multiple Flags
+### Multiple flags
 
 <CodeBlock language="tsx">
   {`function Dashboard() {
@@ -630,7 +630,7 @@ Before adding a flag, decide:
   }`}
 </CodeBlock>
 
-### Update User Context
+### Update user context
 
 <CodeBlock language="tsx">
   {`function WorkspaceSwitcher() {
@@ -656,7 +656,7 @@ Before adding a flag, decide:
   }`}
 </CodeBlock>
 
-## Debug With DevTools
+## Debug with DevTools
 
 Install DevTools in local development to inspect the flag manager that `FlagsProvider` or Vue `createFlagsPlugin` mounted on the page.
 
@@ -687,7 +687,7 @@ Use the flag panel to verify:
 
 When you paste an API key with `manage:flags` scope at runtime, DevTools can also create, edit, and delete flag definitions. Do not hard-code management keys in source, and clear local overrides before validating production-like behavior.
 
-## Debug Mode
+## Debug mode
 
 Enable debug mode to see flag evaluation in the console:
 
@@ -701,7 +701,7 @@ Enable debug mode to see flag evaluation in the console:
 ## Related
 
 <Cards>
-  <Card title="Server-Side Flags" href="/docs/sdk/server-flags">
+  <Card title="Server-side flags" href="/docs/sdk/server-flags">
     Feature flags for Node.js and API routes
   </Card>
   <Card title="React SDK" href="/docs/sdk/react">
@@ -710,7 +710,7 @@ Enable debug mode to see flag evaluation in the console:
   <Card title="Vue SDK" href="/docs/sdk/vue">
     Vue component and composables
   </Card>
-  <Card title="Configuration" href="/docs/sdk/configuration">
+  <Card title="SDK configuration" href="/docs/sdk/configuration">
     All configuration options
   </Card>
   <Card title="DevTools" href="/docs/sdk/devtools">

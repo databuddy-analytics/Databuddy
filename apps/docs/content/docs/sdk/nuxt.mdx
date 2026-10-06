@@ -5,7 +5,7 @@ description: Zero-config Nuxt module with auto-imports, SPA tracking, and TypeSc
 
 import { Callout, CodeBlock, Card, Cards } from "@/components/docs";
 
-`@databuddy/nuxt` is a first-class Nuxt module. Add it to `nuxt.config.ts` once and you're done — pageviews and SPA navigation work automatically with no `app.vue` changes. Enable `trackErrors` to also capture JavaScript and Vue component errors.
+`@databuddy/nuxt` is a first-class Nuxt module. Add it to `nuxt.config.ts` once and you're done. Pageviews and SPA navigation work automatically with no `app.vue` changes. Enable `trackErrors` to also capture JavaScript and Vue component errors.
 
 ## Install
 
@@ -26,7 +26,7 @@ Or install manually:
 
 ## Setup
 
-Add your client ID to `nuxt.config.ts`:
+Add your Client ID to `nuxt.config.ts`:
 
 <CodeBlock language="ts" filename="nuxt.config.ts">
   {`export default defineNuxtConfig({
@@ -44,10 +44,10 @@ Add your client ID to `nuxt.config.ts`:
 That's it. Pageviews and SPA route changes are tracked automatically. No `app.vue` edits, no plugins to register, no components to place.
 
 <Callout type="info">
-  Nuxt automatically maps the `NUXT_PUBLIC_DATABUDDY_CLIENT_ID` environment variable to `runtimeConfig.public.databuddy.clientId` — no extra configuration needed.
+  Nuxt automatically maps the `NUXT_PUBLIC_DATABUDDY_CLIENT_ID` environment variable to `runtimeConfig.public.databuddy.clientId`, so no extra configuration is needed.
 </Callout>
 
-## Tracking Events
+## Tracking events
 
 `useDatabuddy` is auto-imported in every component:
 
@@ -87,7 +87,7 @@ All functions are available from `useDatabuddy()`:
 
 ## Options API and templates
 
-`$databuddy` is available directly in templates and Options API components — no import needed:
+`$databuddy` is available directly in templates and Options API components with no import needed:
 
 <CodeBlock language="html">
   {`<template>
@@ -105,7 +105,7 @@ All functions are available from `useDatabuddy()`:
 })`}
 </CodeBlock>
 
-## Feature Flags
+## Feature flags
 
 Add the `flags` config to enable the flag composables:
 
@@ -119,7 +119,7 @@ Add the `flags` config to enable the flag composables:
 })`}
 </CodeBlock>
 
-Then use `useFlag` and `useFlags` — auto-imported everywhere:
+Then use `useFlag` and `useFlags`, which are auto-imported everywhere:
 
 <CodeBlock language="html">
   {`<script setup>
@@ -145,7 +145,7 @@ All options are passed under the `databuddy` key in `nuxt.config.ts`:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `clientId` | `string` | — | Your Databuddy client ID |
+| `clientId` | `string` | - | Your Databuddy Client ID |
 | `disabled` | `boolean` | `false` | Disable all tracking |
 | `debug` | `boolean` | `false` | Enable verbose logging |
 | `trackWebVitals` | `boolean` | `false` | FCP, LCP, INP, CLS, TTFB, and FPS |
@@ -156,7 +156,7 @@ All options are passed under the `databuddy` key in `nuxt.config.ts`:
 | `maskPatterns` | `string[]` | `[]` | Glob patterns to anonymise paths |
 | `skipPatterns` | `string[]` | `[]` | Glob patterns to skip entirely |
 | `samplingRate` | `number` | `1.0` | Event sampling rate (0.0–1.0) |
-| `flags` | `FlagsConfig` | — | Feature flag configuration |
+| `flags` | `FlagsConfig` | - | Feature flag configuration |
 
 ## Privacy
 
@@ -191,13 +191,13 @@ All options are passed under the `databuddy` key in `nuxt.config.ts`:
   <Card title="Vue SDK" href="/docs/sdk/vue">
     Component-based integration for plain Vue 3 apps
   </Card>
-  <Card title="Feature Flags" href="/docs/sdk/feature-flags">
+  <Card title="Feature flags" href="/docs/sdk/feature-flags">
     Complete feature flag documentation
   </Card>
-  <Card title="Tracker Helpers" href="/docs/sdk/tracker">
+  <Card title="Tracker helpers" href="/docs/sdk/tracker">
     track, flush, getAnonymousId, and more
   </Card>
-  <Card title="Configuration" href="/docs/sdk/configuration">
+  <Card title="SDK configuration" href="/docs/sdk/configuration">
     Full configuration reference
   </Card>
 </Cards>

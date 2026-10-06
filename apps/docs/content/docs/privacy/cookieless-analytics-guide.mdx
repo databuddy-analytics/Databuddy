@@ -1,16 +1,16 @@
 ---
-title: "Cookieless Analytics: How Collection and Privacy Work"
+title: "Cookieless analytics: how collection and privacy work"
 description: "Understand cookieless analytics, browser storage, optional user identification, consent requirements, and how to verify your Databuddy setup."
 icon: "Shield"
 ---
 
 Cookieless analytics collects website activity without using analytics cookies. It can still use browser storage and process personal data. The collection method, identifiers, enabled features, and applicable rules determine the privacy implications.
 
-## What is Cookieless Analytics?
+## What is cookieless analytics?
 
 “Cookieless” describes a storage choice. It does not guarantee anonymous data, exemption from consent, or complete measurement. A tracker can use localStorage instead of cookies, and an application can attach a user ID or email to either kind of tracking.
 
-## How Cookieless Analytics Works
+## How cookieless analytics works
 
 Databuddy's browser tracker:
 
@@ -24,7 +24,7 @@ Ingestion hashes visitor IDs with a rotating daily salt by default. The website'
 
 These controls do not make every payload anonymous. Page paths, titles, custom properties, error messages, and optional profile traits can contain personal information. See the [Data Policy](/data-policy) for the collection and processing details.
 
-## Implementing Cookieless Analytics
+## Implementing cookieless analytics
 
 Create a website in Databuddy and add its ID to the tracking snippet:
 
@@ -46,13 +46,13 @@ The [identify API](/docs/sdk/identify-users) associates activity with a profile 
 
 Leaving identification disabled does not establish that every event is anonymous. Review the rest of your payloads too.
 
-## Benefits of Cookieless Analytics
+## Benefits of cookieless analytics
 
 Databuddy lets you collect traffic, product events, errors, and performance measurements without analytics cookies. You can inspect its open-source implementation and choose the enabled features.
 
 Cookieless collection does not bypass browser privacy protections or ad blockers. Network failures, consent decisions, storage restrictions, and tracking configuration can still affect counts.
 
-## Migration to Cookieless Analytics
+## Migration to cookieless analytics
 
 1. Record the pageviews, events, conversions, and reports you need from your current setup.
 2. Install Databuddy and verify the actual requests and browser storage in developer tools.
@@ -60,7 +60,7 @@ Cookieless collection does not bypass browser privacy protections or ad blockers
 4. Review personal information in URLs, event properties, errors, and optional profiles. Update your privacy notice and consent behavior accordingly.
 5. Remove the old tracker when the replacement covers your requirements. Keep consent controls needed for any remaining collection.
 
-## Frequently Asked Questions
+## Frequently asked questions
 
 ### Do I need consent banners with cookieless analytics?
 

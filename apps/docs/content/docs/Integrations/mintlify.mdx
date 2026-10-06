@@ -8,16 +8,16 @@ import { Callout } from "@/components/docs";
 import { CodeBlock } from "@/components/docs";
 import { Card, Cards } from "@/components/docs";
 
-Add Databuddy's cookieless product analytics to your [Mintlify](https://mintlify.com) documentation site by dropping a small `databuddy.js` file next to your `docs.json`. Mintlify auto-loads any `.js` file in your content directory on every page, so the tracker becomes available across all of your docs with zero per-page wiring.
+Add Databuddy's cookieless product analytics to your [Mintlify](https://mintlify.com) documentation site by adding a `databuddy.js` file next to your `docs.json`. Mintlify auto-loads any `.js` file in your content directory on every page, so the tracker becomes available across all of your docs with zero per-page wiring.
 
 <Callout type="info">
   There is no official Databuddy integration for Mintlify *yet*.
 </Callout>
 
-## How to Add Databuddy to Mintlify
+## How to add Databuddy to Mintlify
 
 <Steps>
-  <Step title="Get Your Client ID">
+  <Step title="Get your Client ID">
     Open your [Databuddy dashboard](https://app.databuddy.cc/websites), select the website that represents your docs, and copy the **Client ID** from the tracking setup screen.
   </Step>
 
@@ -40,7 +40,7 @@ Add Databuddy's cookieless product analytics to your [Mintlify](https://mintlify
     Replace `YOUR_CLIENT_ID` with the Client ID you copied from your dashboard.
   </Step>
 
-  <Step title="Deploy Your Docs">
+  <Step title="Deploy your docs">
     Commit and push the new file to your repository:
 
     <CodeBlock
@@ -53,7 +53,7 @@ git push`}
     Mintlify rebuilds your docs on push and includes any `.js` file in your content directory on every page automatically. No extra changes to `docs.json` are required.
   </Step>
 
-  <Step title="Verify Tracking">
+  <Step title="Verify tracking">
     Open your published Mintlify site, then:
 
     1. Open your browser's DevTools and switch to the **Network** tab.
@@ -62,7 +62,7 @@ git push`}
   </Step>
 </Steps>
 
-## Configuration Options
+## Configuration options
 
 Enable extra tracking features by adding more `data-*` attributes when you create the script element.
 
@@ -86,11 +86,11 @@ Enable extra tracking features by adding more `data-*` attributes when you creat
 
 See the full list of options in the [SDK reference](/docs/sdk).
 
-## Custom Event Tracking
+## Custom event tracking
 
 Mintlify renders MDX, so you can drop tracked elements directly into any `.mdx` page.
 
-### Using Data Attributes
+### Using data attributes
 
 <CodeBlock
   language="html"
@@ -103,7 +103,7 @@ Mintlify renders MDX, so you can drop tracked elements directly into any `.mdx` 
 </a>`}
 />
 
-### Programmatic Events
+### Programmatic events
 
 Once the script has loaded, `window.databuddy` is available globally. You can call it from any inline `<script>` block in an MDX page or from your own custom script.
 
@@ -135,7 +135,7 @@ Once the script has loaded, `window.databuddy` is available globally. You can ca
 3. Test in an incognito window to rule out ad blockers and previous opt-outs.
 </Callout>
 
-## Related Integrations
+## Related
 
 <Cards>
   <Card title="Webflow" href="/docs/Integrations/webflow">

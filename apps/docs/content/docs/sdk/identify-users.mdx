@@ -1,11 +1,11 @@
 ---
-title: Identify Users
+title: Identify users
 description: Link tracked activity to your own user IDs and see real names in your dashboard
 ---
 
 import { Callout, CodeBlock, Tab, Tabs } from "@/components/docs";
 
-By default, Databuddy tracks visitors with an anonymous device ID. Calling `identify()` links that activity to a user ID from your own system, so the same person is recognized across sessions and devices — and your dashboard shows real names and emails instead of anonymous visitors.
+By default, Databuddy tracks visitors with an anonymous device ID. Calling `identify()` links that activity to a user ID from your own system, so the same person is recognized across sessions and devices, and your dashboard shows real names and emails instead of anonymous visitors.
 
 <Callout type="warn">
   User identification processes personal data. Make sure you have a lawful
@@ -13,11 +13,11 @@ By default, Databuddy tracks visitors with an anonymous device ID. Calling `iden
   traits you are allowed to process.
 </Callout>
 
-## Quick Start
+## Quick start
 
-<Tabs items={['React / Next.js', 'Script Tag', 'Node.js']}>
+<Tabs items={['React / Next.js', 'Script tag', 'Node.js']}>
 <Tab value="React / Next.js">
-Call `identify()` when your auth state resolves — on every page load is fine, repeat calls are deduplicated to one request per session.
+Call `identify()` when your auth state resolves. Calling it on every page load is fine: repeat calls are deduplicated to one request per session.
 
 <CodeBlock language="tsx">
   {`import { clearProfile, identify } from "@databuddy/sdk";
@@ -43,7 +43,7 @@ function IdentifyUser() {
 }`}
 </CodeBlock>
 </Tab>
-<Tab value="Script Tag">
+<Tab value="Script tag">
 The same methods live on the global object once the script loads.
 
 <CodeBlock language="js">
@@ -80,10 +80,10 @@ await client.identify({
 
 <Callout type="info">
   Pass an opaque, stable ID from your database (max 128 characters, stored
-  verbatim) — not an email address. Emails belong in traits.
+  verbatim), not an email address. Emails belong in traits.
 </Callout>
 
-## How It Works
+## How it works
 
 - Every visitor has an anonymous ID stored on their device.
 - `identify(profileId, traits)` links that ID to your user and attaches the user ID to every subsequent event, including earlier pageviews from the same session.
@@ -92,7 +92,7 @@ await client.identify({
 
 ## Traits
 
-Traits are flat key/value metadata about the user. Values must be strings, numbers, booleans, or `null` — nested objects are rejected. Limits: 50 keys, 2KB serialized.
+Traits are flat key/value metadata about the user. Values must be strings, numbers, booleans, or `null`. Nested objects are rejected. Limits: 50 keys, 2KB serialized.
 
 | Trait | Behavior |
 |-------|----------|
@@ -111,7 +111,7 @@ Update traits later without re-identifying, and remove one by setting it to `nul
 setTraits({ plan: "enterprise", trial_ends_at: null });`}
 </CodeBlock>
 
-## Revenue Attribution
+## Revenue attribution
 
 If you use the [Stripe or Paddle integration](/docs/Integrations/payments), include the user ID in your payment metadata and transactions are attributed to the identified user:
 
@@ -134,15 +134,15 @@ If you use the [Stripe or Paddle integration](/docs/Integrations/payments), incl
 </Tab>
 </Tabs>
 
-## API Reference
+## API reference
 
 ### `identify(profileId, traits?)`
 
-Links the browser to a user ID. Persists across sessions, attaches to every subsequent event. Safe to call on every page load — repeat calls with the same ID and no traits send one request per session.
+Links the browser to a user ID. Persists across sessions, attaches to every subsequent event. Safe to call on every page load: repeat calls with the same ID and no traits send one request per session.
 
 ### `setTraits(traits)`
 
-Merges traits into the identified user's profile. Requires a prior `identify()` — otherwise a no-op that warns in debug builds.
+Merges traits into the identified user's profile. Requires a prior `identify()`; otherwise it is a no-op that warns in debug builds.
 
 ### `clearProfile()`
 

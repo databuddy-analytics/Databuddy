@@ -10,10 +10,10 @@ import { Card, Cards } from "@/components/docs";
 
 Add Databuddy's cookieless product analytics to your Laravel application by adding the tracking script to your main Blade layout file.
 
-## How to Add Databuddy to Laravel
+## How to add Databuddy to Laravel
 
 <Steps>
-  <Step title="Get Your Tracking Script">
+  <Step title="Get your tracking script">
     Get your Databuddy tracking script from your [Databuddy dashboard](https://app.databuddy.cc). It will look like this:
 
     <CodeBlock
@@ -29,7 +29,7 @@ Add Databuddy's cookieless product analytics to your Laravel application by addi
     Replace `YOUR_CLIENT_ID` with your actual Client ID from your Databuddy dashboard.
   </Step>
 
-  <Step title="Locate Your Main Blade Layout File">
+  <Step title="Locate your main Blade layout file">
     In a standard Laravel application, you'll have a main layout file that other Blade views extend. This file is often located at:
 
     - `resources/views/layouts/app.blade.php` (common for applications using Laravel's authentication scaffolding)
@@ -39,7 +39,7 @@ Add Databuddy's cookieless product analytics to your Laravel application by addi
     Identify the primary layout file that wraps most or all of your site's pages.
   </Step>
 
-  <Step title="Add the Tracking Script to the Layout">
+  <Step title="Add the tracking script to the layout">
     Open your main Blade layout file. Paste the Databuddy tracking script just before the closing `</body>` tag.
 
     <CodeBlock
@@ -96,7 +96,7 @@ Add Databuddy's cookieless product analytics to your Laravel application by addi
     Remember to replace `YOUR_CLIENT_ID` with your actual Client ID.
   </Step>
 
-  <Step title="Configure Environment Variables (Recommended)">
+  <Step title="Configure environment variables (recommended)">
     It's best practice to store your Databuddy Client ID and server API key in your `.env` file and access them via Laravel's configuration.
 
     **a. Add to `.env` file:**
@@ -134,7 +134,7 @@ return [
     Make sure to run `php artisan config:clear` if you've cached your configuration.
   </Step>
 
-  <Step title="Verify Integration">
+  <Step title="Verify integration">
     - Deploy your Laravel application to your production environment (or set `APP_ENV=production` locally for testing, but be mindful of tracking local data)
     - Open your live Laravel website in a browser
     - Navigate through a few pages
@@ -142,7 +142,7 @@ return [
   </Step>
 </Steps>
 
-## Configuration Options
+## Configuration options
 
 Enable additional tracking features by adding data attributes to your script tag:
 
@@ -164,11 +164,11 @@ Enable additional tracking features by adding data attributes to your script tag
 @endif`}
 />
 
-## Custom Event Tracking
+## Custom event tracking
 
 Track custom events from your Laravel Blade templates or JavaScript:
 
-### In Blade Templates
+### In Blade templates
 
 <CodeBlock
   language="php"
@@ -179,7 +179,7 @@ Track custom events from your Laravel Blade templates or JavaScript:
 </button>`}
 />
 
-### Using Data Attributes
+### Using data attributes
 
 Enable automatic tracking with data attributes:
 
@@ -204,7 +204,7 @@ Enable automatic tracking with data attributes:
 </a>`}
 />
 
-### In JavaScript Files
+### In JavaScript files
 
 If you're using Vite or Laravel Mix, you can track events from your JavaScript:
 
@@ -237,7 +237,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });`}
 />
 
-## Server-Side Tracking
+## Server-side tracking
 
 For server-side tracking in Laravel, use the Databuddy Node SDK or make HTTP requests directly:
 
@@ -306,9 +306,9 @@ class OrderController extends Controller
 }`}
 />
 
-## Common Use Cases
+## Common use cases
 
-### E-commerce Tracking
+### E-commerce tracking
 
 Track product views and purchases:
 
@@ -329,7 +329,7 @@ Track product views and purchases:
 @endpush`}
 />
 
-### Form Submissions
+### Form submissions
 
 Mark the form with `data-form-type` so the submit handler from `resources/js/app.js` (shown above) tracks it. Avoid adding `data-track` to the form itself: that attribute fires a click event for every click inside the form and would duplicate the submit handler.
 
@@ -344,7 +344,7 @@ Mark the form with `data-form-type` so the submit handler from `resources/js/app
 
 ## Troubleshooting
 
-### Script Not Loading
+### Script not loading
 
 - Verify the script is in the correct Blade layout file
 - Check that `APP_ENV=production` in your `.env` file (or remove the `@if` condition for testing)
@@ -352,20 +352,20 @@ Mark the form with `data-form-type` so the submit handler from `resources/js/app
 - Ensure your Client ID is correct in the config
 - Run `php artisan config:clear` if you've updated configuration
 
-### Events Not Tracking
+### Events not tracking
 
 - Confirm `window.databuddy` exists before calling tracking methods
 - Check browser console for any errors
 - Verify events appear in your Databuddy dashboard after 2-3 minutes
 - Use browser dev tools Network tab to confirm requests are being sent
 
-### Environment-Specific Issues
+### Environment-specific issues
 
 - The script only loads in production by default (due to `@if(app()->environment('production'))`)
 - For local testing, temporarily remove the environment check or set `APP_ENV=production` in your `.env`
 - Remember to restore the environment check before deploying
 
-## Related Integrations
+## Related
 
 <Cards>
   <Card title="React" href="/docs/Integrations/react">

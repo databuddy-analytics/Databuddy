@@ -1,5 +1,5 @@
 ---
-title: Configuration Reference
+title: Configuration reference
 description: Complete configuration options for all Databuddy SDK platforms
 ---
 
@@ -51,7 +51,7 @@ This page documents all configuration options across the Databuddy SDK platforms
 />`}
 </CodeBlock>
 
-### React Props Reference
+### React props reference
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
@@ -61,7 +61,7 @@ This page documents all configuration options across the Databuddy SDK platforms
 | `disabled` | `boolean` | `false` | Disable all tracking |
 | `debug` | `boolean` | `false` | Enable debug logging |
 
-#### Tracking Features
+#### Tracking features
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
@@ -76,7 +76,7 @@ This page documents all configuration options across the Databuddy SDK platforms
   Use `trackWebVitals` in React, Vue, and Nuxt, or `data-track-web-vitals` with the CDN script.
 </Callout>
 
-#### Batching & Performance
+#### Batching and performance
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
@@ -138,11 +138,11 @@ Vue uses the same props as React but with kebab-case naming:
 ></script>`}
 </CodeBlock>
 
-### Data Attributes Reference
+### Data attributes reference
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `data-client-id` | `string` | Required | Your client ID |
+| `data-client-id` | `string` | Required | Your Client ID |
 | `data-track-web-vitals` | flag | `false` | FCP, LCP, INP, CLS, TTFB, and FPS |
 | `data-track-errors` | flag | `false` | Track JavaScript errors |
 | `data-track-outgoing-links` | flag | `false` | Track external links |
@@ -173,10 +173,10 @@ const client = new Databuddy({
   // Optional: Scope events to a specific website
   websiteId: process.env.DATABUDDY_WEBSITE_ID,
   
-  // Optional: Logical grouping (e.g., 'auth', 'api', 'jobs')
+  // Optional: Logical grouping (e.g. 'auth', 'api', 'jobs')
   namespace: "api",
   
-  // Optional: Source identifier (e.g., 'backend', 'webhook', 'cli')
+  // Optional: Source identifier (e.g. 'backend', 'webhook', 'cli')
   source: "backend",
   
   // API
@@ -206,7 +206,7 @@ const client = new Databuddy({
 });`}
 </CodeBlock>
 
-### Node.js Options Reference
+### Node.js options reference
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -225,7 +225,7 @@ const client = new Databuddy({
 | `debug` | `boolean` | `false` | Enable debug logging |
 | `logger` | `Logger` | - | Custom logger instance |
 
-## Feature Flags (Client)
+## Feature flags (client)
 
 <CodeBlock language="tsx">
   {`import { FlagsProvider } from "@databuddy/sdk/react";
@@ -257,11 +257,11 @@ const client = new Databuddy({
 </FlagsProvider>`}
 </CodeBlock>
 
-### Feature Flags Options Reference
+### Feature flags options reference
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `clientId` | `string` | Required | Your client ID |
+| `clientId` | `string` | Required | Your Client ID |
 | `apiUrl` | `string` | `https://api.databuddy.cc` | API endpoint |
 | `user` | `UserContext` | - | User context for targeting |
 | `isPending` | `boolean` | `false` | Defer evaluation |
@@ -274,7 +274,7 @@ const client = new Databuddy({
 | `staleTime` | `number` | `30000` | Revalidate after (ms) |
 | `maxCacheSize` | `number` | `5000` | Maximum in-memory cache entries |
 
-### User Context
+### User context
 
 | Option | Type | Description |
 |--------|------|-------------|
@@ -284,7 +284,7 @@ const client = new Databuddy({
 | `teamId` | `string` | Team ID for group rollouts |
 | `properties` | `object` | Custom targeting properties |
 
-## Feature Flags (Server)
+## Feature flags (server)
 
 <CodeBlock language="tsx">
   {`import { createServerFlagsManager } from "@databuddy/sdk/node";
@@ -307,9 +307,9 @@ const flags = createServerFlagsManager({
 
 Server flags use the same options as client flags, but `skipStorage` is always `true`, `autoFetch` defaults to `false`, and the in-memory cache is capped by `maxCacheSize`.
 
-## Environment Variables
+## Environment variables
 
-The browser SDK auto-detects the client ID from `NEXT_PUBLIC_DATABUDDY_CLIENT_ID`, `NUXT_PUBLIC_DATABUDDY_CLIENT_ID`, `VITE_DATABUDDY_CLIENT_ID`, or `REACT_APP_DATABUDDY_CLIENT_ID`. Other variables must be wired in explicitly.
+The browser SDK auto-detects the Client ID from `NEXT_PUBLIC_DATABUDDY_CLIENT_ID`, `NUXT_PUBLIC_DATABUDDY_CLIENT_ID`, `VITE_DATABUDDY_CLIENT_ID`, or `REACT_APP_DATABUDDY_CLIENT_ID`. Other variables must be wired in explicitly.
 
 ### Next.js
 
@@ -324,7 +324,7 @@ DATABUDDY_API_KEY=your-api-key`}
   {`VITE_DATABUDDY_CLIENT_ID=your-client-id`}
 </CodeBlock>
 
-### Node.js / Server
+### Node.js / server
 
 The Node client does not read environment variables on its own. Pass them through the constructor:
 
@@ -353,7 +353,7 @@ const client = new Databuddy({
   <Card title="Node SDK" href="/docs/sdk/node">
     Server-side tracking
   </Card>
-  <Card title="Feature Flags" href="/docs/sdk/feature-flags">
+  <Card title="Feature flags" href="/docs/sdk/feature-flags">
     Client-side feature flags
   </Card>
 </Cards>

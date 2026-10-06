@@ -10,14 +10,14 @@ import { Card, Cards } from "@/components/docs";
 
 This guide explains how to integrate Databuddy with your SvelteKit application for analytics tracking.
 
-## How to Add Databuddy to Your SvelteKit App
+## How to add Databuddy to your SvelteKit app
 
 The recommended method for SvelteKit is to add the Databuddy tracking script directly to your `src/app.html` file. This ensures the script is loaded early on all pages.
 
 ### Adding to `src/app.html`
 
 <Steps>
-  <Step title="Get Your Tracking Script">
+  <Step title="Get your tracking script">
     Navigate to your [Databuddy dashboard](https://app.databuddy.cc) to get your tracking code snippet:
 
     <CodeBlock
@@ -33,11 +33,11 @@ The recommended method for SvelteKit is to add the Databuddy tracking script dir
     Replace `YOUR_CLIENT_ID` with your actual Client ID.
   </Step>
 
-  <Step title="Locate Your app.html File">
+  <Step title="Locate your app.html file">
     In a SvelteKit project, this file is typically located at `src/app.html`.
   </Step>
 
-  <Step title="Add the Snippet to app.html">
+  <Step title="Add the snippet to app.html">
     Open `src/app.html` and paste the Databuddy tracking snippet into the `<head>` section, usually before `%sveltekit.head%` or just after it.
 
     <CodeBlock
@@ -67,13 +67,13 @@ The recommended method for SvelteKit is to add the Databuddy tracking script dir
     Ensure `YOUR_CLIENT_ID` is replaced with your actual Client ID.
   </Step>
 
-  <Step title="Verify Installation">
+  <Step title="Verify installation">
     Deploy your application and check your [Databuddy dashboard](https://app.databuddy.cc) for incoming data. You can also inspect your browser's network tab to confirm the script is loaded.
   </Step>
 </Steps>
 
 <Callout type="info">
-  **SPA Page View Tracking**: Databuddy automatically tracks route changes in SvelteKit applications. If page views aren't tracked correctly after navigation (which is uncommon), you can manually trigger them using the `afterNavigate` lifecycle function:
+  **SPA pageview tracking**: Databuddy automatically tracks route changes in SvelteKit applications. If pageviews aren't tracked correctly after navigation (which is uncommon), you can manually trigger them using the `afterNavigate` lifecycle function:
 
   <CodeBlock
     language="svelte"
@@ -92,7 +92,7 @@ afterNavigate(() => {
   Test the default behavior first, as manual tracking is usually not needed.
 </Callout>
 
-## Custom Event Tracking
+## Custom event tracking
 
 Track custom events from any Svelte component within your SvelteKit app:
 
@@ -116,7 +116,7 @@ Track custom events from any Svelte component within your SvelteKit app:
 
 Always check `typeof window !== 'undefined'` before accessing `window.databuddy` as SvelteKit components can also run on the server during SSR.
 
-## Tracking Route Changes
+## Tracking route changes
 
 For more control over route tracking, use SvelteKit's navigation lifecycle:
 
@@ -140,7 +140,7 @@ For more control over route tracking, use SvelteKit's navigation lifecycle:
 <slot />`}
 />
 
-## Using Data Attributes
+## Using data attributes
 
 Enable automatic tracking with data attributes by adding this to your script tag:
 
@@ -176,7 +176,7 @@ Then add `data-track` attributes directly to elements in your Svelte components:
 </a>`}
 />
 
-## Configuration Options
+## Configuration options
 
 Enable additional tracking features:
 
@@ -195,9 +195,9 @@ Enable additional tracking features:
 ></script>`}
 />
 
-## Common Use Cases
+## Common use cases
 
-### Form Submissions
+### Form submissions
 
 Track form submissions in SvelteKit:
 
@@ -222,7 +222,7 @@ Track form submissions in SvelteKit:
 </form>`}
 />
 
-### Server Actions
+### Server actions
 
 Track events from server actions:
 
@@ -270,7 +270,7 @@ Then track on the client side after successful submission:
 </form>`}
 />
 
-### Page-Specific Tracking
+### Page-specific tracking
 
 Track events on specific pages:
 
@@ -303,7 +303,7 @@ Track events on specific pages:
 </button>`}
 />
 
-## Server-Side Tracking
+## Server-side tracking
 
 For server-side tracking in SvelteKit, use the Databuddy Node SDK:
 
@@ -337,7 +337,7 @@ export async function trackServerEvent(name: string, properties?: Record<string,
 }`}
 />
 
-## Environment Variables
+## Environment variables
 
 Store your Client ID and server API key in environment variables:
 
@@ -373,37 +373,37 @@ Alternatively, import the value from `$env/static/public` in a component:
 
 ## Troubleshooting
 
-### Script Not Loading
+### Script not loading
 
 - Verify the script is in `src/app.html` in the `<head>` section
 - Check browser console for errors
 - Ensure your Client ID is correct
 - Clear browser cache and reload
 
-### Events Not Tracking
+### Events not tracking
 
 - Confirm `window.databuddy` exists before calling tracking methods
 - Always check `typeof window !== 'undefined'` for SSR safety
 - Check browser console for any errors
 - Verify events appear in your Databuddy dashboard after 2-3 minutes
 
-### Route Changes Not Tracked
+### Route changes not tracked
 
 - Databuddy automatically tracks route changes in SvelteKit
 - If needed, use `afterNavigate` from `$app/navigation` for manual tracking
 - Check that SvelteKit's client-side navigation is working correctly
 
-### SSR Issues
+### SSR issues
 
 - Never call `window.databuddy` during SSR (server-side rendering)
 - Always wrap tracking calls in `typeof window !== 'undefined'` checks
 - Use `onMount` or `afterNavigate` for client-only tracking
 
-## Related Integrations
+## Related
 
 <Cards>
   <Card title="Svelte" href="/docs/Integrations/svelte">
-    Lightweight Svelte integration for client-side apps.
+    Svelte integration for client-side apps.
   </Card>
   <Card title="Next.js" href="/docs/Integrations/nextjs">
     App Router and Pages Router support with SSR.

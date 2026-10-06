@@ -14,7 +14,7 @@ Manage uptime monitors and status pages from a Pulumi TypeScript or JavaScript p
 pulumi config set --secret databuddy:apiKey dbdy_...`}
 </CodeBlock>
 
-Create the key in [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys) with `read:monitors`, `write:monitors`, `read:status_pages`, and `write:status_pages`. Resources are created in the key's organization.
+Create the key in [Organization settings → API keys](https://app.databuddy.cc/organizations/settings#api-keys) with `read:monitors`, `write:monitors`, `read:status_pages`, and `write:status_pages`. Resources are created in the key's organization.
 
 ## Example
 
@@ -84,7 +84,7 @@ Also exports `organizationId`.
 | `hideUptimePercentage` | `boolean` | `false` | Hide the uptime percentage |
 | `hideLatency` | `boolean` | `false` | Hide response times |
 
-## Dashboard Edits
+## Dashboard edits
 
 `pulumi refresh` picks up changes made in the dashboard, and the next `pulumi up` reverts them. To let the dashboard own a field, ignore it:
 
@@ -96,7 +96,7 @@ Also exports `organizationId`.
 );`}
 </CodeBlock>
 
-## Replacements and Renames
+## Replacements and renames
 
 A replaced monitor starts a new check history, and dashboard alerts need to be pointed at it again.
 
@@ -141,13 +141,13 @@ Stack config takes precedence. The API URL must use HTTPS unless it points at `l
 | `Function serialization is not supported when using bun` | Use `runtime: nodejs` |
 | `fetch failed` behind a proxy | Export `NODE_USE_ENV_PROXY=1` (Node 22.21+) with `HTTPS_PROXY`, or `NODE_EXTRA_CA_CERTS` for TLS inspection |
 
-## What's Next?
+## Related
 
 <Cards>
-  <Card title="Uptime Monitoring" href="/docs/uptime">
+  <Card title="Uptime monitoring" href="/docs/uptime">
     How monitors, alerts, and status pages work
   </Card>
-  <Card title="API Keys" href="/docs/api-keys">
+  <Card title="API keys" href="/docs/api-keys">
     Create and scope keys
   </Card>
 </Cards>

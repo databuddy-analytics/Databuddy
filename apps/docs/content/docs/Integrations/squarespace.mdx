@@ -10,10 +10,10 @@ import { Card, Cards } from "@/components/docs";
 
 Add Databuddy's cookieless product analytics to your Squarespace website using Squarespace's Code Injection feature.
 
-## How to Add Databuddy to Squarespace
+## How to add Databuddy to Squarespace
 
 <Steps>
-  <Step title="Get Your Tracking Script">
+  <Step title="Get your tracking script">
     Get your Databuddy tracking script from your [Databuddy dashboard](https://app.databuddy.cc). It will look like this:
 
     <CodeBlock
@@ -29,13 +29,13 @@ Add Databuddy's cookieless product analytics to your Squarespace website using S
     Replace `YOUR_CLIENT_ID` with your actual Client ID from your Databuddy dashboard.
   </Step>
 
-  <Step title="Go to Squarespace Settings">
+  <Step title="Go to Squarespace settings">
     Log in to your Squarespace account and select the website you want to track.
 
     From the main dashboard (Home Menu), navigate to **Settings**.
   </Step>
 
-  <Step title="Access Code Injection">
+  <Step title="Access code injection">
     In the Settings panel, find and click on:
 
     - **Website** (under the "GENERAL" section)
@@ -46,7 +46,7 @@ Add Databuddy's cookieless product analytics to your Squarespace website using S
     </Callout>
   </Step>
 
-  <Step title="Paste Your Tracking Script">
+  <Step title="Paste your tracking script">
     In the Code Injection settings, you'll see several fields (Header, Footer, Lock Page, Order Confirmation Page).
 
     For sitewide tracking, paste your Databuddy tracking script into the **Footer** text area. This ensures the script loads after your page content, which is better for perceived page load performance.
@@ -54,11 +54,11 @@ Add Databuddy's cookieless product analytics to your Squarespace website using S
     Alternatively, you can place it in the **Header**, which might track users who leave before the page fully loads, but could slightly impact initial page load speed. For most analytics purposes, the Footer is recommended.
   </Step>
 
-  <Step title="Save Changes">
+  <Step title="Save changes">
     After pasting the script, click the **Save** button at the top of the Code Injection panel.
   </Step>
 
-  <Step title="Verify Integration">
+  <Step title="Verify integration">
     Once you've saved the changes, Databuddy should start tracking visitors on your Squarespace site.
 
     - Open your Squarespace website in a new browser tab or incognito window
@@ -67,7 +67,7 @@ Add Databuddy's cookieless product analytics to your Squarespace website using S
   </Step>
 </Steps>
 
-## Configuration Options
+## Configuration options
 
 Enable additional tracking features by adding data attributes to your script tag:
 
@@ -86,11 +86,11 @@ Enable additional tracking features by adding data attributes to your script tag
 ></script>`}
 />
 
-## Custom Event Tracking in Squarespace
+## Custom event tracking in Squarespace
 
 Track custom events by adding JavaScript code through Code Injection or using Squarespace's built-in code blocks.
 
-### Using Data Attributes
+### Using data attributes
 
 Enable automatic tracking with data attributes:
 
@@ -120,7 +120,7 @@ Then add `data-track` attributes directly to elements in your Squarespace conten
 </a>`}
 />
 
-### Tracking Button Clicks
+### Tracking button clicks
 
 Add custom JavaScript to track specific button interactions:
 
@@ -142,7 +142,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>`}
 />
 
-### Tracking Form Submissions
+### Tracking form submissions
 
 Track form submissions from Squarespace forms:
 
@@ -165,9 +165,9 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>`}
 />
 
-## Common Use Cases
+## Common use cases
 
-### E-commerce Tracking
+### E-commerce tracking
 
 Track product views and purchases on Squarespace Commerce sites:
 
@@ -189,7 +189,7 @@ window.databuddy.track('add_to_cart', {
 });`}
 />
 
-### Newsletter Signups
+### Newsletter signups
 
 Track newsletter subscriptions:
 
@@ -208,7 +208,7 @@ Track newsletter subscriptions:
 });`}
 />
 
-### Blog Engagement
+### Blog engagement
 
 Track blog post views and reading engagement:
 
@@ -226,7 +226,7 @@ Track blog post views and reading engagement:
 
 ## Troubleshooting
 
-### Script Not Loading
+### Script not loading
 
 - Verify the script is in the **Footer** section of Code Injection
 - Check browser console for errors
@@ -234,7 +234,7 @@ Track blog post views and reading engagement:
 - Confirm you have a Squarespace Business or Commerce plan
 - Clear browser cache and reload
 
-### Events Not Tracking
+### Events not tracking
 
 - Confirm `window.databuddy` exists before calling tracking methods
 - Check that elements exist before attaching event listeners
@@ -242,24 +242,24 @@ Track blog post views and reading engagement:
 - Verify events appear in your Databuddy dashboard after 2-3 minutes
 - Check browser dev tools Network tab to confirm requests are being sent
 
-### Squarespace-Specific Issues
+### Squarespace-specific issues
 
 - Some Squarespace templates may load content dynamically
 - Use `DOMContentLoaded` or `setTimeout` for timing-sensitive tracking
 - Test in different browsers and devices
 - Ensure Code Injection is enabled for your plan
 
-### Verification Steps
+### Verification steps
 
 After installation, verify tracking is working:
 
 1. Visit your Squarespace site and navigate through a few pages
 2. Wait 2-3 minutes for data to process
-3. Check your [Databuddy dashboard](https://app.databuddy.cc) for page views
+3. Check your [Databuddy dashboard](https://app.databuddy.cc) for pageviews
 4. Use browser dev tools Network tab to confirm requests are being sent
 5. Test in incognito mode to avoid cache issues
 
-## Related Integrations
+## Related
 
 <Cards>
   <Card title="WordPress" href="/docs/Integrations/wordpress">
