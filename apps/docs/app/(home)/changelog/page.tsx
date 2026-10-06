@@ -113,7 +113,7 @@ export default async function ChangelogPage() {
 				<section className="relative w-full pt-16 pb-10 sm:pt-20 sm:pb-12 lg:pt-24 lg:pb-14">
 					<div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
 						<div className="mb-8 text-center lg:mb-10">
-							<div className="mx-auto mb-3 inline-flex items-center gap-2 rounded border border-border bg-card/50 px-2.5 py-1 font-medium text-[0.6875rem] text-muted-foreground uppercase tracking-wide">
+							<div className="mx-auto mb-3 inline-flex items-center gap-2 rounded border border-border bg-card/50 px-2.5 py-1 font-medium text-[0.6875rem] text-muted-foreground tracking-wide">
 								<span
 									aria-hidden="true"
 									className="h-1.5 w-1.5 rounded bg-foreground/60"

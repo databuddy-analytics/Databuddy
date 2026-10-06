@@ -191,7 +191,7 @@ export default async function BlogPage() {
 					<div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
 						{/* Header */}
 						<div className="mb-8 text-center lg:mb-10">
-							<div className="mx-auto mb-3 inline-flex items-center gap-2 rounded border border-border bg-card/50 px-2.5 py-1 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+							<div className="mx-auto mb-3 inline-flex items-center gap-2 rounded border border-border bg-card/50 px-2.5 py-1 font-medium text-[11px] text-muted-foreground tracking-wide">
 								<span
 									aria-hidden="true"
 									className="h-1.5 w-1.5 rounded bg-foreground/60"
