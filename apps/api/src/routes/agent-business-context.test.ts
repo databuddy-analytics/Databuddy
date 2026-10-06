@@ -74,10 +74,14 @@ vi.mock("@databuddy/ai/lib/accessible-websites", () => ({
 }));
 vi.mock("@databuddy/api-keys/resolve", () => ({
 	API_KEY_AUTH_CHALLENGE: "Bearer",
-	hasKeyScope: () => Boolean(state.apiKeyId || state.apiKey),
+	hasKeyScope: (key: ApiKeyRow, scope: string) =>
+		key.scopes ? key.scopes.includes(scope) : Boolean(state.apiKeyId),
 	isApiKeyPresent: () => false,
 	getApiKeyFromHeader: async (headers: Headers) =>
-		headers.get("x-api-key") ? state.apiKey : null,
+		headers.get("x-api-key") ||
+		headers.get("authorization")?.toLowerCase().startsWith("bearer ")
+			? state.apiKey
+			: null,
 }));
 vi.mock("../lib/auth-wide-event", () => ({
 	resolveRequestAuth: async () => ({
@@ -1014,6 +1018,90 @@ describe("selected agent identity through native HTTP", () => {
 			"user-synthetic",
 			"org-synthetic"
 		);
+	});
+
+	it.each([
+		{ endpoint: "ask", credential: { "x-api-key": "dbdy_inert_unscoped" } },
+		{
+			endpoint: "ask",
+			credential: { authorization: "bEaReR dbdy_inert_unscoped" },
+		},
+		{ endpoint: "chat", credential: { "x-api-key": "dbdy_inert_unscoped" } },
+		{
+			endpoint: "chat",
+			credential: { authorization: "bEaReR dbdy_inert_unscoped" },
+		},
+	])("keeps session fallback RPC in the session organization ($endpoint, $credential)", async ({
+		endpoint,
+		credential,
+	}) => {
+		state.apiKey = { ...selectedKey, scopes: ["read:flags"] };
+		const rawHeaders = { cookie: mixedHeaders.cookie, ...credential };
+		let headers: Headers;
+		if (endpoint === "ask") {
+			const response = await askResponse({}, rawHeaders);
+			expect(response.status).toBe(200);
+			await response.text();
+			headers = state.ask.mock.calls[0][0].principal.requestHeaders;
+		} else {
+			const response = await chat({}, rawHeaders);
+			expect(response.status, response.text).toBe(200);
+			headers = state.contexts.at(-1)!.requestHeaders as Headers;
+		}
+		const { createRPCContext } = await import(
+			"../../../../packages/rpc/src/orpc"
+		);
+		const rawContext = await createRPCContext({
+			headers: new Headers(rawHeaders),
+		});
+		expect(rawContext.organizationId).toBe(selectedKey.organizationId);
+		const context = await createRPCContext({ headers });
+		expect(context.user?.id).toBe("user-synthetic");
+		expect(context.organizationId).toBe("org-synthetic");
+		expect(context.apiKey).toBeUndefined();
+		expect(headers.get("cookie")).toBe(mixedHeaders.cookie);
+		expect(headers.get("x-api-key")).toBeNull();
+		expect(headers.get("authorization")).toBeNull();
+		expect(state.memberRole).toHaveBeenCalledExactlyOnceWith(
+			"user-synthetic",
+			"org-synthetic"
+		);
+		expect(state.billingCustomer).toHaveBeenCalledExactlyOnceWith({
+			apiKey: null,
+			organizationId: "org-synthetic",
+			userId: "user-synthetic",
+		});
+	});
+
+	it("preserves non-Bearer authorization on the session path", async () => {
+		const response = await askResponse(
+			{},
+			{ cookie: mixedHeaders.cookie, authorization: "Basic inert" }
+		);
+		expect(response.status).toBe(200);
+		await response.text();
+		expect(
+			state.ask.mock.calls[0][0].principal.requestHeaders.get("authorization")
+		).toBe("Basic inert");
+	});
+
+	it.each([
+		"ask",
+		"chat",
+	])("denies an unscoped key without a session before paid work (%s)", async (endpoint) => {
+		state.apiKey = { ...selectedKey, scopes: ["read:flags"] };
+		state.sessionUserId = null;
+		const headers = { "x-api-key": "dbdy_inert_unscoped" };
+		const response =
+			endpoint === "ask"
+				? await askResponse({}, headers)
+				: await chat({}, headers);
+		expect(response.status).toBe(401);
+		expect(state.memberRole).not.toHaveBeenCalled();
+		expect(state.billingCustomer).not.toHaveBeenCalled();
+		expect(state.billing).not.toHaveBeenCalled();
+		expect(state.ask).not.toHaveBeenCalled();
+		expect(state.prompts).toEqual([]);
 	});
 });
 

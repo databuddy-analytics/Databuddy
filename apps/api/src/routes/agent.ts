@@ -459,6 +459,13 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 		const agentHeaders = new Headers(request.headers);
 		if (scopedKey) {
 			agentHeaders.delete("cookie");
+		} else {
+			agentHeaders.delete("x-api-key");
+			if (
+				agentHeaders.get("authorization")?.toLowerCase().startsWith("bearer ")
+			) {
+				agentHeaders.delete("authorization");
+			}
 		}
 		return {
 			activeOrganizationId: scopedKey

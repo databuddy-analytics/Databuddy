@@ -32,7 +32,7 @@ export async function resolveRequestAuth(headers: Headers): Promise<{
 	}
 	const [apiKeyResult, session] = await Promise.all([
 		isApiKeyPresent(headers) ? resolveApiKey(headers) : null,
-		auth.api.getSession({ headers }),
+		auth.api.getSession({ headers }).catch(() => null),
 	]);
 	return { apiKey: apiKeyResult?.key ?? null, session };
 }
