@@ -144,6 +144,7 @@ Dashboard (Next.js) ←→ ORPC (rpc package) ←→ API (Elysia) → PostgreSQL
 
 - **Linter/Formatter**: Ultracite (Biome-based). Run `bun run lint` / `bun run format`.
 - **TypeScript**: Strict mode. Always use proper types — avoid `any`.
+- **Marketing copy**: Never write staccato sentences on landing pages, docs, or any marketing copy. No runs of clipped fragments like "Fast. Private. Simple." or "No cookies. No banners. No guesswork." Write full sentences that connect the idea to what the reader gets.
 - **Commit format**: `<type>(<scope>): <description>` (e.g., `feat(dashboard): add export button`, `fix(api): handle null session`)
 - **Commit slicing rule**: Prefer one commit per coherent product or technical slice, not one giant snapshot and not ultra-fragmented file-by-file commits.
   - Split commits by intent: feature, bug fix, refactor, style/copy pass, or migration slice.
