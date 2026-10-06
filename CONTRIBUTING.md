@@ -40,8 +40,11 @@ devtools for you. Add provider keys only for the features you're working on;
 see [optional services](README.md#optional-services).
 
 To explore with sample data, run `bun run workspace --reset`. It targets the
-local Docker services only and prints a login, a website and an API key. Add
-`--anomaly` for a traffic spike and error surge that Insights will flag, or
+local Docker services only and prints the website. Without `--website`, it
+prints a password for a newly created default account or directs you to use
+the existing account's password. It prints an API key only when it creates
+the default website. Add `--anomaly` for a traffic spike and error surge that
+Insights will flag, or
 `--website YOUR_WEBSITE_ID` to seed a website you already made. The optional
 `--events N` sets an approximate event target of up to 100,000 across 28 days;
 session sizes, weekend traffic and anomaly variation affect the number written.

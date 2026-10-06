@@ -38,15 +38,16 @@ async function workspaceWebsite(websiteId?: string) {
 		where: { id: websiteId ?? WORKSPACE.websiteId },
 	});
 	if (existing) {
-		return { apiKey: null, website: existing };
+		return { apiKey: null, createdUser: false, website: existing };
 	}
 	if (websiteId) {
 		throw new Error(`Website "${websiteId}" does not exist`);
 	}
+	const existingUser = await db().query.user.findFirst({
+		where: { email: WORKSPACE.email },
+	});
 	const user =
-		(await db().query.user.findFirst({
-			where: { email: WORKSPACE.email },
-		})) ??
+		existingUser ??
 		(await signUp({
 			email: WORKSPACE.email,
 			name: "Local Dev",
@@ -73,7 +74,7 @@ async function workspaceWebsite(websiteId?: string) {
 		organizationId: membership.organizationId,
 		scopes: ["read:data"],
 	});
-	return { apiKey: apiKey.secret, website };
+	return { apiKey: apiKey.secret, createdUser: !existingUser, website };
 }
 
 if (import.meta.main) {
@@ -104,7 +105,9 @@ if (import.meta.main) {
 			applyPostgresSchema(databaseUrl),
 			applyClickHouseSchema(),
 		]);
-		const { apiKey, website } = await workspaceWebsite(values.website);
+		const { apiKey, createdUser, website } = await workspaceWebsite(
+			values.website
+		);
 		const rows = generateAnalytics({
 			anomaly: values.anomaly,
 			clientId: website.id,
@@ -113,12 +116,13 @@ if (import.meta.main) {
 		});
 		await deleteAnalytics(clickHouse, website.id);
 		await seedAnalytics(clickHouse, rows);
+		const loginMessage = createdUser
+			? `Login:   ${WORKSPACE.email} / ${WORKSPACE.password}`
+			: `Login:   ${WORKSPACE.email} (use your existing password)`;
 		console.info(
 			[
 				`Seeded ${rows.events.length} events, ${rows.errors.length} errors, ${rows.webVitals.length} web vitals and ${rows.outgoingLinks.length} outgoing links`,
-				values.website
-					? null
-					: `Login:   ${WORKSPACE.email} / ${WORKSPACE.password}`,
+				values.website ? null : loginMessage,
 				`Website: ${website.id} (${website.domain})`,
 				apiKey ? `API key: ${apiKey} (shown once)` : null,
 			]

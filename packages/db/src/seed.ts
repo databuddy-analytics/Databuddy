@@ -59,7 +59,10 @@ export function generateAnalytics({
 	clientId,
 	days = 28,
 	domain,
-	events: eventCount = days * 150 * EVENTS_PER_SESSION,
+	events: eventCount = Math.min(
+		days * 150 * EVENTS_PER_SESSION,
+		MAX_ANALYTICS_EVENTS
+	),
 }: {
 	anomaly?: boolean;
 	clientId: string;
