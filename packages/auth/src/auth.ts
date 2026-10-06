@@ -1388,10 +1388,13 @@ export async function assertAuthSecretMatchesDashboard(): Promise<void> {
 	const response = await fetch(url, {
 		signal: AbortSignal.timeout(5000),
 	}).catch(() => null);
-	const body: { fingerprint?: string } | null = response?.ok
+	const body: unknown = response?.ok
 		? await response.json().catch(() => null)
 		: null;
-	const dashboardFingerprint = body?.fingerprint;
+	const dashboardFingerprint =
+		body && typeof body === "object" && "fingerprint" in body
+			? body.fingerprint
+			: undefined;
 
 	if (typeof dashboardFingerprint !== "string") {
 		log.warn({
