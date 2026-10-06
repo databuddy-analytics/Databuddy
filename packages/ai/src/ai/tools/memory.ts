@@ -1,6 +1,7 @@
 import { type Tool, tool } from "ai";
 import { z } from "zod";
 import {
+	asksToForget,
 	asksToRemember,
 	forgetMemory,
 	isMemoryEnabled,
@@ -121,19 +122,26 @@ export function createMemoryTools(): Record<string, Tool> {
 		}),
 		forget_memory: tool({
 			description:
-				"Delete one of the user's own saved memories only when the latest user message explicitly says a remembered/saved memory is wrong or asks you to forget it. When nothing matches it exactly, the result lists candidate memories instead of deleting one. Do not use for generic corrections or current Slack thread context.",
+				"Delete one of the user's own saved memories only when the latest user message explicitly names its exact text in a memory deletion or correction request. For an unnamed or shorthand subject, use search_memory and ask the user to identify the exact memory. Fuzzy matches return candidates without deletion. Do not use for generic corrections or current Slack thread context.",
 			strict: true,
 			inputSchema: z.object({
 				query: z.string().describe("Exact text of the saved memory to forget"),
 			}),
 			execute: async (args, options) => {
-				const { apiKeyId, memoryUserId, mutationMode } =
+				const { apiKeyId, latestUserMessage, memoryUserId, mutationMode } =
 					getAgentContext(options);
 				if (mutationMode === "dry-run") {
 					return {
 						dryRun: true,
 						forgotten: false,
 						message: "Dry-run mode skipped forgetting memory.",
+					};
+				}
+				if (!asksToForget(latestUserMessage, args.query)) {
+					return {
+						forgotten: false,
+						message:
+							"Refused: the user's latest message does not explicitly request forgetting this exact memory. Use search_memory to find candidates and ask the user to name the memory to forget.",
 					};
 				}
 				const result = await forgetMemory(args.query, memoryUserId, apiKeyId);
@@ -157,7 +165,7 @@ export function createMemoryTools(): Record<string, Tool> {
 					candidates: result.candidates,
 					forgotten: false,
 					message:
-						"No saved memory has that exact text. If one of these candidates is what the user asked to forget, call forget_memory again with its exact text.",
+						"No saved memory has that exact text. Ask the user to name the exact candidate they want forgotten before calling forget_memory again.",
 				};
 			},
 		}),

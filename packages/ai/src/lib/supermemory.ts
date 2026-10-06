@@ -6,11 +6,11 @@ const apiKey = process.env.SUPERMEMORY_API_KEY;
 const MAX_MEMORY_LENGTH = 2000;
 const MEMORY_REQUEST_CLAUSE = /[^.!?;:,\n]+\??/g;
 const MEMORY_REQUEST_FILLER =
-	/^(?:(?:please|pls|plz|kindly|also|and|but|so|ok|okay|hey|hi|hello|btw|oh|now|just|thanks|thank you|databunny)\b\s*)+/;
+	/^(?:(?:please|pls|plz|kindly|also|and|but|so|ok|okay|hey|hi|hello|btw|oh|now|just|thanks|thank you|databunny)\b\s*)+/i;
 const MEMORY_REQUEST_LEAD_IN =
-	/^(?:(?:can|could|would|will) you|you (?:can|should|must|need to)|i (?:want|need) you to|i(?:'d| would) like you to|make sure (?:to|you)|be sure to)\s+(?:please\s+)?/;
+	/^(?:(?:can|could|would|will) you|you (?:can|should|must|need to)|i (?:want|need) you to|i(?:['’]d| would) like you to|make sure (?:to|you)|be sure to)\s+(?:please\s+)?/i;
 const QUESTION_START =
-	/^(?:what|how|why|when|where|who|whom|whose|which|is|are|am|was|were|will|would|does|did|can|could|should|has|have|had|do(?! not\b))\b/;
+	/^(?:what|how|why|when|where|who|whom|whose|which|is|are|am|was|were|will|would|does|did|can|could|should|has|have|had|do(?! not\b))\b/i;
 const REMEMBER_REQUESTS = [
 	/^(?:remember|memori[sz]e)\b(?![\s-]*(?:me|when|what|how|why|where|who|which|whether|if)\b)/,
 	/^(?:don't|dont|do not|never) forget\b/,
@@ -23,6 +23,27 @@ const REMEMBER_REQUESTS = [
 	/^call me\b/,
 	/\bfrom now on\b/,
 ];
+const FORGET_MEMORY_PREFIX =
+	/^(?:(?:forget|unlearn|delete|remove|erase|clear|drop|wipe)\s+(?:(?:my|your|the|this|that)\s+)?(?:(?:saved|stored|remembered)\s+(?:memory|preference|fact|note)|memory)\b[\s:]+|stop remembering\s+)/i;
+const FORGET_COMMAND_PREFIX =
+	/^(?:forget|unlearn|delete|remove|erase|clear|drop|wipe)\s+/i;
+const FROM_MEMORY_SUFFIX = /(?<=\s)from\s+(?:(?:my|your|the)\s+)?memory$/i;
+const MEMORY_CORRECTION_PREFIX =
+	/^(?:(?:this|that|the|your|my)\s+)?(?:(?:saved|stored|remembered)\s+)?memory\b[\s:]+/i;
+const REMEMBERED_CORRECTION_PREFIX =
+	/^(?:you|you['’]ve|you have)\s+(?:remembered|saved|noted|stored)\s+/i;
+const MEMORY_CORRECTION_SUFFIX =
+	/(?<=\s)(?:is|are|was|were)\s+(?:wrong|incorrect|outdated|stale|out of date|no longer (?:true|right|correct))$/i;
+const REMEMBERED_CORRECTION_SUFFIX =
+	/(?<=\s)(?:wrong|incorrect|outdated|stale|out of date|no longer (?:true|right|correct))$/i;
+const NEGATED_CORRECTION_SUFFIX =
+	/(?<=\s)(?:not|never|no longer)\s+(?:wrong|incorrect|outdated|stale|out of date|no longer (?:true|right|correct))$/i;
+const MEMORY_REQUEST_END = /[.!?]$/;
+const QUOTED_FORGET_PREFIX = /^(?:forget|unlearn)\s+/i;
+const MEMORY_TARGET_QUOTE = /^["'“‘`]/;
+const UNNAMED_MEMORY_TARGET = /^(?:this|that|it|these|those|all)$/i;
+const FORGET_ACKNOWLEDGEMENT =
+	/^(?:(?:thanks|thank you|ok|okay|got it)[.!]\s*)+/i;
 
 export function isMemoryEnabled(): boolean {
 	return Boolean(apiKey);
@@ -51,6 +72,79 @@ export function asksToRemember(message: string): boolean {
 		}
 		return REMEMBER_REQUESTS.some((pattern) => pattern.test(request));
 	});
+}
+
+export function asksToForget(message: string, query: string): boolean {
+	const target = query.trim();
+	const clause = message
+		.trim()
+		.replace(FORGET_ACKNOWLEDGEMENT, "")
+		.replace(MEMORY_REQUEST_FILLER, "");
+	const request = clause.replace(MEMORY_REQUEST_LEAD_IN, "");
+	if (
+		!target ||
+		QUESTION_START.test(request) ||
+		(request === clause && request.endsWith("?"))
+	) {
+		return false;
+	}
+	const quotedTargets = [
+		`"${target}"`,
+		`'${target}'`,
+		`“${target}”`,
+		`‘${target}’`,
+		`\`${target}\``,
+	];
+
+	// Only strip sentence punctuation outside a quoted target; its content stays exact.
+	return [request, request.replace(MEMORY_REQUEST_END, "").trimEnd()].some(
+		(command) => {
+			const memoryPrefix = command.match(FORGET_MEMORY_PREFIX)?.[0];
+			const memoryCorrectionPrefix = command.match(
+				MEMORY_CORRECTION_PREFIX
+			)?.[0];
+			const correctionPrefix =
+				memoryCorrectionPrefix ??
+				command.match(REMEMBERED_CORRECTION_PREFIX)?.[0];
+			const correctionSuffix = command.match(
+				memoryCorrectionPrefix
+					? MEMORY_CORRECTION_SUFFIX
+					: REMEMBERED_CORRECTION_SUFFIX
+			)?.[0];
+			const commandPrefix = command.match(FORGET_COMMAND_PREFIX)?.[0];
+			const fromMemorySuffix = command.match(FROM_MEMORY_SUFFIX)?.[0];
+			let object: string;
+			let quotedOnly = false;
+			if (memoryPrefix) {
+				object = command.slice(memoryPrefix.length);
+			} else if (correctionPrefix && correctionSuffix) {
+				if (NEGATED_CORRECTION_SUFFIX.test(command)) {
+					return false;
+				}
+				object = command.slice(
+					correctionPrefix.length,
+					-correctionSuffix.length
+				);
+			} else if (commandPrefix && fromMemorySuffix) {
+				object = command.slice(commandPrefix.length, -fromMemorySuffix.length);
+			} else if (QUOTED_FORGET_PREFIX.test(command) && commandPrefix) {
+				object = command.slice(commandPrefix.length);
+				quotedOnly = true;
+			} else {
+				return false;
+			}
+			object = object.trim();
+			if (quotedTargets.includes(object)) {
+				return object.indexOf(object.slice(-1), 1) === object.length - 1;
+			}
+			return (
+				!quotedOnly &&
+				object === target &&
+				!MEMORY_TARGET_QUOTE.test(object) &&
+				!UNNAMED_MEMORY_TARGET.test(object)
+			);
+		}
+	);
 }
 
 export type MemoryContainerKind = "apikey" | "user";
