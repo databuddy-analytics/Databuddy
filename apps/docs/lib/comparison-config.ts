@@ -82,7 +82,7 @@ export const competitors: Record<string, ComparisonData> = {
 		seo: {
 			title: "Google Analytics alternative: Databuddy vs GA4 (2026)",
 			description:
-				"Databuddy vs GA4: cookieless analytics with funnels and goals, an AI analyst that shows its query, and uptime and feature flags built in. Free to 10,000 events.",
+				"Databuddy vs GA4: cookieless analytics with funnels and goals, an AI analyst that shows its query, and uptime and feature flags built in, free up to 10,000 events a month.",
 		},
 		verdict: {
 			competitor: [
@@ -1045,7 +1045,7 @@ export const competitors: Record<string, ComparisonData> = {
 		seo: {
 			title: "Vercel Analytics alternative: Databuddy vs Vercel (2026)",
 			description:
-				"Databuddy vs Vercel Analytics: both are cookieless, with custom events, Next.js support, Web Vitals, and flags. Databuddy works on any host. Free to 10,000 events.",
+				"Databuddy vs Vercel Analytics: both are cookieless, with custom events, Next.js support, Web Vitals, and flags. Databuddy works on any host and is free up to 10,000 events a month.",
 		},
 		verdict: {
 			competitor: [

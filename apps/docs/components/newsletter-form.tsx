@@ -58,7 +58,7 @@ export function NewsletterForm({
 		return (
 			<div className="flex items-center gap-2 text-foreground text-sm">
 				<CheckIcon className="size-4" />
-				<span>You're in. Watch your inbox.</span>
+				<span>You're subscribed, so watch your inbox for the next update.</span>
 			</div>
 		);
 	}

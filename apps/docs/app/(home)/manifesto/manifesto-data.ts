@@ -87,7 +87,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 			},
 			{
 				type: "callout",
-				text: "Privacy isn’t a feature. It’s the bare minimum.",
+				text: "Privacy isn’t a feature you upgrade to, because it’s the bare minimum.",
 			},
 			{
 				type: "paragraph",
@@ -137,7 +137,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 		blocks: [
 			{
 				type: "paragraph",
-				text: "Databuddy is for the founder who checks analytics between deploys. The engineer who wants to know if the feature they shipped last night actually moved a number. The two-person team that doesn’t have a “data person” and shouldn’t need one.",
+				text: "Databuddy is for the founder who checks analytics between deploys, the engineer who wants to know if last night’s feature actually moved a number, and the two-person team that doesn’t have a “data person” and shouldn’t need one.",
 			},
 			{
 				type: "paragraph",
@@ -145,11 +145,11 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 			},
 			{
 				type: "callout",
-				text: "One script. One platform. The full picture.",
+				text: "One script gives you the full picture on one platform.",
 			},
 			{
 				type: "paragraph",
-				text: "That’s it. That’s Databuddy.",
+				text: "That’s all Databuddy is meant to be.",
 			},
 		],
 	},
