@@ -159,7 +159,7 @@ jobs:
           WEBSITE_READER_INTEGRATION_TESTS: "true"
           CLICKHOUSE_URL: http://default:@localhost:8123
           NODE_ENV: test
-        run: bun run test
+        run: bun run test --output-logs=errors-only
       - name: Self-hosted dashboard settings
         if: ${{ !cancelled() }}
         run: >-
@@ -176,4 +176,4 @@ jobs:
         env:
           NODE_ENV: test
           CLICKHOUSE_URL: http://default:@localhost:8123
-        run: bun run test:integration
+        run: bun run test:integration --output-logs=errors-only
