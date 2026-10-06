@@ -93,7 +93,7 @@ export function PropertySummary({
 					{isFetching && !isLoading && (
 						<span className="inline-flex items-center gap-1.5 text-muted-foreground text-xs">
 							<ArrowClockwiseIcon className="size-3 animate-spin" />
-							Updating
+							Updating…
 						</span>
 					)}
 				</div>

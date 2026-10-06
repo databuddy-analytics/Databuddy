@@ -29,7 +29,7 @@ export const ErrorDataTable = ({
 		() => [
 			{
 				id: "error_types",
-				label: "Error Types",
+				label: "Error types",
 				data: processedData.error_types,
 				columns: createErrorTypeColumns(),
 				getFilter: (row: ErrorType) => ({
@@ -39,7 +39,7 @@ export const ErrorDataTable = ({
 			},
 			{
 				id: "errors_by_page",
-				label: "By Page",
+				label: "By page",
 				data: processedData.errors_by_page,
 				columns: [createPageColumn(), ...errorColumns],
 				getFilter: (row: ErrorByPage) => ({
@@ -59,7 +59,7 @@ export const ErrorDataTable = ({
 			minHeight={350}
 			onAddFilter={onAddFilter}
 			tabs={errorTabs as any}
-			title="Error Analysis"
+			title="Error analysis"
 		/>
 	);
 };

@@ -246,7 +246,7 @@ export function TimeSeriesRenderer({
 						<ChartLineIcon className="size-3.5 text-muted-foreground" />
 					</div>
 					<p className="min-w-0 flex-1 truncate font-medium text-sm">
-						{title ?? "Time Series"}
+						{title ?? "Time series"}
 					</p>
 					<div
 						className={cn(

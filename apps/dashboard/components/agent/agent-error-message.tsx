@@ -28,7 +28,7 @@ function displayMessageForError(error: Error | undefined): string {
 	}
 
 	if (error.name === "AbortError" || lower.includes("abort")) {
-		return "Request cancelled.";
+		return "Request canceled.";
 	}
 
 	if (lower.includes("timeout") || lower.includes("timed out")) {

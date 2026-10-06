@@ -101,14 +101,14 @@ export default function FlagsLayout({
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			<TopBar.Title>
-				<h1 className="font-medium text-sm">
+				<h1 className="font-semibold text-sm">
 					{isTemplatesPage
-						? "Flag Templates"
+						? "Flag templates"
 						: isGroupsPage
-							? "Target Groups"
+							? "Target groups"
 							: isArchivePage
-								? "Archived Flags"
-								: "Feature Flags"}
+								? "Archived flags"
+								: "Feature flags"}
 				</h1>
 			</TopBar.Title>
 			<TopBar.Actions>
@@ -141,7 +141,7 @@ export default function FlagsLayout({
 						size="sm"
 					>
 						<PlusIcon className="size-4 shrink-0" />
-						{isGroupsPage ? "Create Group" : "Create Flag"}
+						{isGroupsPage ? "Create group" : "Create flag"}
 					</Button>
 				)}
 			</TopBar.Actions>

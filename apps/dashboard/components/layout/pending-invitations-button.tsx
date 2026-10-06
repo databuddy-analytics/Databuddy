@@ -23,7 +23,7 @@ export function PendingInvitationsButton() {
 				side="bottom"
 			>
 				<DropdownMenu.Trigger
-					aria-label={`${count} pending invitations`}
+					aria-label={`${count} pending invitation${count === 1 ? "" : "s"}`}
 					className={cn(
 						"relative flex size-8 items-center justify-center rounded-md",
 						"text-sidebar-foreground/65 transition-colors duration-(--duration-quick) ease-(--ease-smooth)",

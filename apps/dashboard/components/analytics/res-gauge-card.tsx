@@ -48,7 +48,7 @@ const STATUS_CONFIG = {
 		borderClass: "border-l-success",
 	},
 	"needs-improvement": {
-		label: "Needs Work",
+		label: "Needs work",
 		description: "Some metrics need improvement",
 		colorClass: "text-warning",
 		bgClass: "bg-warning/10",
@@ -238,7 +238,7 @@ export const RESGaugeCard = memo(function RESGaugeCard({
 						)}
 						<div>
 							<div className="flex items-baseline gap-1.5">
-								<span className="font-bold text-lg">Real Experience Score</span>
+								<span className="font-bold text-lg">Real experience score</span>
 								<span
 									className={cn(
 										"font-semibold text-sm",

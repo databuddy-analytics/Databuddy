@@ -63,7 +63,7 @@ export const VITAL_CONFIGS: Record<string, VitalConfig> = {
 		label: "Cumulative Layout Shift",
 		description: "Visual stability",
 		explanation:
-			"Measures unexpected layout shifts during the page's lifetime. High CLS means content 'jumps around' as the page loads—frustrating users who may click the wrong thing or lose their place.",
+			"Measures unexpected layout shifts during the page's lifetime. High CLS means content 'jumps around' as the page loads, frustrating users who may click the wrong thing or lose their place.",
 		improvementTips: [
 			"Set explicit width/height on images and videos",
 			"Reserve space for ads and embeds",
@@ -101,7 +101,7 @@ export const VITAL_CONFIGS: Record<string, VitalConfig> = {
 		label: "Time to First Byte",
 		description: "Server speed",
 		explanation:
-			"Measures how long it takes for the server to respond with the first byte of data. A slow TTFB indicates server-side issues—everything else waits for the server.",
+			"Measures how long it takes for the server to respond with the first byte of data. A slow TTFB indicates server-side issues: everything else waits for the server.",
 		improvementTips: [
 			"Optimize server-side code",
 			"Use a CDN closer to users",
@@ -117,10 +117,10 @@ export const VITAL_CONFIGS: Record<string, VitalConfig> = {
 	},
 	FPS: {
 		name: "FPS",
-		label: "Frames Per Second",
+		label: "Frames per second",
 		description: "Smoothness",
 		explanation:
-			"Measures animation smoothness. Higher is better—60 FPS means smooth scrolling and animations. Low FPS causes visible stuttering and makes your site feel janky.",
+			"Measures animation smoothness. Higher is better: 60 FPS means smooth scrolling and animations. Low FPS causes visible stuttering and makes your site feel janky.",
 		improvementTips: [
 			"Avoid layout thrashing",
 			"Use CSS transforms instead of top/left",

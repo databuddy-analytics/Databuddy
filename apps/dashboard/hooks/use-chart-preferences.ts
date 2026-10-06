@@ -21,11 +21,11 @@ export const CHART_LOCATIONS: ChartLocation[] = [
 ];
 
 export const CHART_LOCATION_LABELS: Record<ChartLocation, string> = {
-	"overview-stats": "Overview Stats",
-	"overview-main": "Overview Chart",
-	funnels: "Funnel Stats",
-	"website-list": "Website List",
-	events: "Events Stats",
+	"overview-stats": "Overview stats",
+	"overview-main": "Overview chart",
+	funnels: "Funnel stats",
+	"website-list": "Website list",
+	events: "Events stats",
 };
 
 function isValidChartSeriesKind(value: unknown): value is ChartSeriesKind {

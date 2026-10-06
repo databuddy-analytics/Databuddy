@@ -93,11 +93,11 @@ export function EditFunnelDialog({
 				name: "",
 				description: "",
 				steps: [
-					{ type: "PAGE_VIEW" as const, target: "/", name: "Landing Page" },
+					{ type: "PAGE_VIEW" as const, target: "/", name: "Landing page" },
 					{
 						type: "PAGE_VIEW" as const,
 						target: "/signup",
-						name: "Sign Up Page",
+						name: "Sign up page",
 					},
 				],
 				filters: [],
@@ -149,11 +149,11 @@ export function EditFunnelDialog({
 				name: "",
 				description: "",
 				steps: [
-					{ type: "PAGE_VIEW" as const, target: "/", name: "Landing Page" },
+					{ type: "PAGE_VIEW" as const, target: "/", name: "Landing page" },
 					{
 						type: "PAGE_VIEW" as const,
 						target: "/signup",
-						name: "Sign Up Page",
+						name: "Sign up page",
 					},
 				],
 				filters: [],
@@ -322,7 +322,9 @@ export function EditFunnelDialog({
 						</div>
 						<div>
 							<Sheet.Title className="text-lg">
-								{isCreateMode ? "New Funnel" : formData.name || "Edit Funnel"}
+								{isCreateMode
+									? "Create funnel"
+									: formData.name || "Edit funnel"}
 							</Sheet.Title>
 							<Sheet.Description>
 								{isCreateMode
@@ -344,7 +346,7 @@ export function EditFunnelDialog({
 											prev ? { ...prev, name: e.target.value } : prev
 										)
 									}
-									placeholder="e.g., Sign Up Flow"
+									placeholder="Sign up flow"
 									value={formData.name}
 								/>
 							</Field>
@@ -443,7 +445,7 @@ export function EditFunnelDialog({
 																		value={step.type}
 																	>
 																		<DropdownMenu.RadioItem value="PAGE_VIEW">
-																			Page View
+																			Pageview
 																		</DropdownMenu.RadioItem>
 																		<DropdownMenu.RadioItem value="EVENT">
 																			Event
@@ -494,7 +496,7 @@ export function EditFunnelDialog({
 								variant="secondary"
 							>
 								<PlusIcon className="size-3.5" />
-								Add Step
+								Add step
 							</Button>
 						</div>
 
@@ -582,7 +584,7 @@ export function EditFunnelDialog({
 											variant="secondary"
 										>
 											<PlusIcon className="size-3.5" />
-											Add Filter
+											Add filter
 										</Button>
 									</Accordion.Content>
 								</Accordion>
@@ -599,7 +601,7 @@ export function EditFunnelDialog({
 							loading={isCreateMode ? isCreating : isUpdating}
 							type="submit"
 						>
-							{isCreateMode ? "Create Funnel" : "Save Changes"}
+							{isCreateMode ? "Create funnel" : "Save changes"}
 						</Button>
 					</Sheet.Footer>
 				</Sheet.Form>

@@ -5,7 +5,7 @@ import { LinkBreakIcon } from "@databuddy/ui/icons";
 import { Button } from "@databuddy/ui";
 
 export const metadata: Metadata = {
-	title: "Link Not Found - Databuddy",
+	title: "Link not found - Databuddy",
 	description: "This link could not be found.",
 };
 

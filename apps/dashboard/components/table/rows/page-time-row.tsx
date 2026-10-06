@@ -37,7 +37,7 @@ export function createPageTimeColumns(): ColumnDef<PageTimeEntry>[] {
 		{
 			id: "median_time_on_page",
 			accessorKey: "median_time_on_page",
-			header: "Avg Time",
+			header: "Median time",
 			cell: (info: CellContext<PageTimeEntry, any>) => {
 				const seconds = (info.getValue() as number) ?? 0;
 				return (

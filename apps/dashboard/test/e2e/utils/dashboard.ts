@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
 const SAFE_SCOPE_CHARS_RE = /[^a-z0-9]/gi;
-const CREATE_API_KEY_BUTTON_RE = /Create (your first )?key/i;
+const CREATE_API_KEY_BUTTON_RE = /Create API key/i;
 export const SHORT_LINK_LABEL_RE = /Short link/i;
 export const WEBSITE_PATH_RE = /\/websites\/[A-Za-z0-9_-]+/;
 export const LINK_PATH_RE = /\/links\/[A-Za-z0-9_-]+/;
@@ -51,17 +51,15 @@ export async function createOrganization(
 ): Promise<void> {
 	await organizationSelector(page).click();
 	await page.getByRole("menu").waitFor();
-	await page.getByRole("menuitem", { name: "Create Organization" }).click();
+	await page.getByRole("menuitem", { name: "Create organization" }).click();
+	await page.getByRole("heading", { name: "Create organization" }).waitFor();
 	await page
-		.getByRole("heading", { name: "Create New Organization" })
-		.waitFor();
-	await page
-		.getByRole("textbox", { name: "Organization Name" })
+		.getByRole("textbox", { name: "Organization name" })
 		.fill(input.name);
 	await page
-		.getByRole("textbox", { name: "Organization Slug" })
+		.getByRole("textbox", { name: "Organization slug" })
 		.fill(input.slug);
-	await page.getByRole("button", { name: "Create Organization" }).click();
+	await page.getByRole("button", { name: "Create organization" }).click();
 	await organizationSelector(page).filter({ hasText: input.name }).waitFor();
 }
 
@@ -81,7 +79,9 @@ export async function createWebsite(
 	page: Page,
 	input: { domain: string; name: string }
 ): Promise<Locator> {
-	await page.getByRole("button", { name: "New Website" }).click();
+	await page
+		.getByRole("button", { exact: true, name: "Create website" })
+		.click();
 	const dialog = page.getByRole("dialog", { name: "Create website" });
 	await dialog.waitFor();
 	await dialog.getByRole("textbox", { name: "Name" }).fill(input.name);
@@ -101,14 +101,14 @@ export async function createApiKey(
 	keyName: string
 ): Promise<Locator> {
 	await expect(
-		page.getByRole("heading", { exact: true, name: "API Keys" })
+		page.getByRole("heading", { exact: true, name: "API keys" })
 	).toBeVisible({ timeout: 15_000 });
 	await page
 		.getByRole("button", { name: CREATE_API_KEY_BUTTON_RE })
 		.first()
 		.click();
 
-	const dialog = page.getByRole("dialog", { name: "Create API Key" });
+	const dialog = page.getByRole("dialog", { name: "Create API key" });
 	await dialog.waitFor();
 	await dialog
 		.getByRole("textbox", { exact: true, name: "Name" })
@@ -125,11 +125,11 @@ export async function createLinkFolder(
 	folderName: string
 ): Promise<void> {
 	await page.getByRole("button", { name: "Folder" }).click();
-	await page.getByRole("heading", { name: "Create Folder" }).waitFor();
-	await page.getByRole("textbox", { name: "Folder Name" }).fill(folderName);
-	await page.getByRole("button", { name: "Create Folder" }).click();
+	await page.getByRole("heading", { name: "Create folder" }).waitFor();
+	await page.getByRole("textbox", { name: "Folder name" }).fill(folderName);
+	await page.getByRole("button", { name: "Create folder" }).click();
 	await expect(
-		page.getByRole("heading", { name: "Create Folder" })
+		page.getByRole("heading", { name: "Create folder" })
 	).toBeHidden();
 }
 

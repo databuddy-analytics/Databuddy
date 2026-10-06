@@ -51,17 +51,17 @@ const CATEGORY_CONFIG: Record<
 	{ color: string; icon: typeof BugIcon; label: string }
 > = {
 	bug_report: {
-		label: "Bug Report",
+		label: "Bug report",
 		icon: BugIcon,
 		color: "bg-destructive/10 text-destructive",
 	},
 	feature_request: {
-		label: "Feature Request",
+		label: "Feature request",
 		icon: LightbulbIcon,
 		color: "bg-warning/10 text-warning",
 	},
 	ux_improvement: {
-		label: "UX Improvement",
+		label: "UX improvement",
 		icon: WrenchIcon,
 		color: "bg-sky-500/10 text-sky-500",
 	},
@@ -262,7 +262,7 @@ export function FeedbackList() {
 						<Card.Title>Feedback queue</Card.Title>
 						<Card.Description>
 							{isLoading
-								? "Loading submissions"
+								? "Loading submissions…"
 								: `${statusCounts.all.toLocaleString()} submissions / ${statusCounts.pending.toLocaleString()} pending`}
 						</Card.Description>
 					</div>

@@ -136,7 +136,7 @@ export function ApiKeysSection({
 		<Card id="api-keys">
 			<Card.Header className="flex-row items-start justify-between gap-4">
 				<div>
-					<Card.Title>API Keys</Card.Title>
+					<Card.Title>API keys</Card.Title>
 					<Card.Description>
 						{isSwitchingOrganization
 							? "Switching organization…"
@@ -152,7 +152,7 @@ export function ApiKeysSection({
 					variant="secondary"
 				>
 					<PlusIcon size={14} />
-					Create Key
+					Create API key
 				</Button>
 			</Card.Header>
 
@@ -231,7 +231,7 @@ export function ApiKeysSection({
 							action={
 								<Button onClick={openCreate} size="sm">
 									<PlusIcon size={14} />
-									Create your first key
+									Create API key
 								</Button>
 							}
 							description={`API keys created here only authenticate requests for ${organization.name}. Keys are shown once at creation.`}

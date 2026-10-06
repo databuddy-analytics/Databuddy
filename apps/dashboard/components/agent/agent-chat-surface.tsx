@@ -191,7 +191,7 @@ function WelcomeState({
 								analytics.
 							</>
 						) : (
-							"Ask anything about your analytics. Mention a site with @."
+							"Ask anything about your analytics. Mention a website with @."
 						)}
 					</p>
 				</div>
