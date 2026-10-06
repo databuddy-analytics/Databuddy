@@ -126,9 +126,9 @@ function agentFailure(
 		agent_type: AGENT_TYPE,
 		error_type: errorType,
 		organization_id:
+			apiKey?.organizationId ??
 			body.organizationId ??
 			activeOrganizationId ??
-			apiKey?.organizationId ??
 			null,
 		user_id: user?.id ?? null,
 		website_id: body.websiteId ?? null,
