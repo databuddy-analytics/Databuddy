@@ -297,7 +297,7 @@ export function resolveOrganizationId(principal: RequestPrincipal): string {
 		"unauthorized",
 		principal.userId
 			? "Session requests require an active organization"
-			: "Could not determine organization"
+			: "Failed to determine organization"
 	);
 }
 

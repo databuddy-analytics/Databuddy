@@ -25,20 +25,21 @@ export const MCP_PERMISSIONS: Record<
 			"Analytics, insights, investigations, goals, funnels, annotations, and feature flags.",
 	},
 	"manage:websites": {
-		label: "Manage goals, funnels, and annotations",
-		description: "Also lets the app reply to investigations.",
+		label: "Manage websites",
+		description:
+			"Create, update, and delete websites; manage goals, funnels, and annotations; and reply to investigations.",
 	},
 	"manage:flags": {
 		label: "Manage flags",
 		description: "Create and update feature flags.",
 	},
 	"read:links": {
-		label: "Read short links",
-		description: LINK_SCOPE_DESCRIPTION,
+		label: "Read links",
+		description: `View short links. ${LINK_SCOPE_DESCRIPTION}`,
 	},
 	"write:links": {
-		label: "Create, edit, and delete short links",
-		description: LINK_SCOPE_DESCRIPTION,
+		label: "Write links",
+		description: `Create, edit, and delete short links. ${LINK_SCOPE_DESCRIPTION}`,
 	},
 };
 

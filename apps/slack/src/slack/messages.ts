@@ -23,15 +23,14 @@ export const SLACK_LOADING_MESSAGES = [
 
 export const SLACK_COPY = {
 	agentFailure:
-		"I couldn't finish that response. Try again in a moment. If it keeps happening, contact your Databuddy organization admin.",
+		"I couldn't finish that response. Try again shortly. If it keeps happening, contact your Databuddy organization admin.",
 	agentRestarted:
 		"I was restarted before I could finish. Mention me again and I'll take another look.",
 	agentTimeout:
 		"This took longer than expected, so I stopped. Try again with a narrower question.",
 	agentStopped:
 		"Stopping this response and clearing queued follow-ups in this thread.",
-	queueUnavailable:
-		"I couldn't safely process this thread. Please try again in a moment.",
+	queueUnavailable: "I couldn't safely process this thread. Try again shortly.",
 	queueFull:
 		"There are too many queued follow-ups in this thread. Please wait for my response before sending this again.",
 	assistantGreeting:
@@ -64,14 +63,14 @@ export const SLACK_COPY = {
 	missingSlackScopes:
 		"I'm missing a Slack permission in this workspace. Reconnect Slack from Databuddy settings so the new scopes are granted, then try again.",
 	noAnswer:
-		"That took too long or came back empty. Try a narrower question — one site, or a shorter range like `traffic for the last 7 days`.",
+		"That took too long or came back empty. Try a narrower question: one website, or a shorter range like `traffic for the last 7 days`.",
 	processingReaction: "rabbit",
 	responseInterrupted:
 		"Response interrupted. The information above may be incomplete. Try again before acting on it.",
 	streamOpening: "Thinking...",
 	statusConnected: "*Workspace connected.*",
 	statusFailure:
-		"I couldn't check Databuddy's Slack status right now. Try again in a moment.",
+		"I couldn't check Databuddy's Slack status right now. Try again shortly.",
 	statusReady: "*Ready here.* Mention `@Databuddy` or DM me with a question.",
 	suggestedPromptsTitle: "Start with Databuddy",
 } as const;

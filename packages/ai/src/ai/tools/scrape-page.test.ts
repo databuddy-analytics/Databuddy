@@ -344,7 +344,7 @@ describe("readWebsitePage", () => {
 		controller.abort("test-key");
 		expect(await reading).toEqual({
 			success: false,
-			error: "Page read cancelled or timed out",
+			error: "Page read canceled or timed out",
 		});
 		expect(globalThis.fetch).not.toHaveBeenCalled();
 		const fetching = new AbortController();
@@ -359,7 +359,7 @@ describe("readWebsitePage", () => {
 				{ domain: "example.com", abortSignal: fetching.signal },
 				fresh
 			)
-		).toEqual({ success: false, error: "Page read cancelled or timed out" });
+		).toEqual({ success: false, error: "Page read canceled or timed out" });
 		expect(fresh.write).not.toHaveBeenCalled();
 	});
 });
@@ -508,7 +508,7 @@ describe("website tools", () => {
 			)
 		).toEqual({
 			success: false,
-			error: "Website search cancelled or timed out",
+			error: "Website search canceled or timed out",
 		});
 	});
 });

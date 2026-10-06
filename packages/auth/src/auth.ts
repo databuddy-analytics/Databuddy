@@ -222,7 +222,7 @@ async function enforceAuthEmailRateLimit(input: {
 		...(input.email ? { auth_rate_limit_email: input.email } : {}),
 	});
 	throw new APIError("TOO_MANY_REQUESTS", {
-		message: "Too many email requests. Please try again later.",
+		message: `Too many email requests. Wait up to ${Math.ceil(input.windowSeconds / 60)} minutes before trying again.`,
 	});
 }
 
@@ -243,7 +243,7 @@ async function sendAuthEmail(input: {
 			email_provider_error: "RESEND_API_KEY is not configured",
 		});
 		throw new APIError("SERVICE_UNAVAILABLE", {
-			message: "Email delivery is temporarily unavailable. Please try again.",
+			message: "Email delivery is temporarily unavailable. Try again shortly.",
 		});
 	}
 	const [html, text] = await Promise.all([
@@ -266,7 +266,7 @@ async function sendAuthEmail(input: {
 			email_provider_error: result.error.message,
 		});
 		throw new APIError("INTERNAL_SERVER_ERROR", {
-			message: "We could not send this email. Please try again.",
+			message: "Failed to send this email. Try again shortly.",
 		});
 	}
 }
@@ -555,8 +555,7 @@ async function assertNoRenewingSubscription(userId: string): Promise<void> {
 				error: error instanceof Error ? error.message : String(error),
 			});
 			throw new APIError("SERVICE_UNAVAILABLE", {
-				message:
-					"We couldn't check your subscription. Please try again in a minute.",
+				message: "Failed to check your subscription. Try again shortly.",
 			});
 		});
 	if (
@@ -567,7 +566,7 @@ async function assertNoRenewingSubscription(userId: string): Promise<void> {
 	) {
 		throw new APIError("BAD_REQUEST", {
 			message:
-				"Cancel your subscription in Billing before deleting your account.",
+				"Cancel your subscription in Billing before deleting your account",
 		});
 	}
 }
@@ -591,7 +590,7 @@ async function planAccountDeletion(userId: string) {
 			!others.some((m) => isOwnerRole(m.role))
 		) {
 			throw new APIError("BAD_REQUEST", {
-				message: `Transfer ownership of ${organization.name} or delete it before deleting your account.`,
+				message: `Transfer ownership of ${organization.name} or delete it before deleting your account`,
 			});
 		}
 	}
@@ -616,7 +615,7 @@ async function deleteSoleMemberOrganizations(userId: string): Promise<void> {
 			}
 			throw new APIError("SERVICE_UNAVAILABLE", {
 				message:
-					"Business memory could not be removed. Retry deleting your account.",
+					"Failed to remove business context. Try deleting your account again shortly.",
 			});
 		}
 		await recordAuthAudit(org.id, {
@@ -965,7 +964,7 @@ export const baseAuthOptions = {
 						error instanceof APIError
 							? error
 							: new APIError("INTERNAL_SERVER_ERROR", {
-									message: "We could not send this email. Please try again.",
+									message: "Failed to send this email. Try again shortly.",
 								})
 					);
 					throw error;
@@ -1125,13 +1124,11 @@ export const baseAuthOptions = {
 					windowSeconds: 900,
 				});
 
-				let subject = `${otp} is your verification code`;
+				let subject = `${otp} is your Databuddy verification code`;
 				if (type === "sign-in") {
-					subject = `${otp} — Sign in to Databuddy`;
-				} else if (type === "email-verification") {
-					subject = `${otp} — Verify your email`;
+					subject = `${otp} is your Databuddy sign-in code`;
 				} else if (type === "forget-password") {
-					subject = `${otp} — Reset your password`;
+					subject = `${otp} is your Databuddy password reset code`;
 				}
 
 				await sendAuthEmail({
@@ -1177,7 +1174,7 @@ export const baseAuthOptions = {
 				beforeCreateOrganization: ({ organization }) => {
 					if (organization.metadata !== undefined) {
 						throw new APIError("BAD_REQUEST", {
-							message: "Organization metadata is managed by the server.",
+							message: "Organization metadata is managed by the server",
 						});
 					}
 					return Promise.resolve();
@@ -1185,7 +1182,7 @@ export const baseAuthOptions = {
 				beforeUpdateOrganization: ({ organization }) => {
 					if (organization.metadata !== undefined) {
 						throw new APIError("BAD_REQUEST", {
-							message: "Organization metadata is managed by the server.",
+							message: "Organization metadata is managed by the server",
 						});
 					}
 					return Promise.resolve();

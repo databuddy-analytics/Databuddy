@@ -134,7 +134,7 @@ export const auditActionLabels = {
 	"organization.created": "Created organization",
 	"organization.deleted": "Deleted organization",
 	"organization.invitation_accepted": "Accepted organization invitation",
-	"organization.invitation_cancelled": "Cancelled organization invitation",
+	"organization.invitation_cancelled": "Canceled organization invitation",
 	"organization.invitation_created": "Created organization invitation",
 	"organization.invitation_rejected": "Rejected organization invitation",
 	"organization.member_added": "Added organization member",

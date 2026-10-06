@@ -130,7 +130,7 @@ export const emailUnsubscribeRoute = new Elysia({
 				? htmlPage(
 						200,
 						"You are unsubscribed",
-						`<p>The weekly AI digest is off for every site in this organization. Turn it back on any time in ${emailSettingsLink(query.organization)}.</p>`
+						`<p>The weekly AI digest is off for every website in this organization. Turn it back on any time in ${emailSettingsLink(query.organization)}.</p>`
 					)
 				: { success: true };
 		},

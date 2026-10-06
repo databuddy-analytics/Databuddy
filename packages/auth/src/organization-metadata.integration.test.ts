@@ -145,7 +145,7 @@ integration("native Better Auth organization metadata protection", () => {
 			});
 			expect(response.status).toBe(400);
 			expect(await response.json()).toMatchObject({
-				message: "Organization metadata is managed by the server.",
+				message: "Organization metadata is managed by the server",
 			});
 			expect(await metadata()).toEqual(original);
 		}
@@ -162,7 +162,7 @@ integration("native Better Auth organization metadata protection", () => {
 			});
 			expect(response.status).toBe(400);
 			expect(await response.json()).toMatchObject({
-				message: "Organization metadata is managed by the server.",
+				message: "Organization metadata is managed by the server",
 			});
 			expect(
 				await db.query.organization.findFirst({ where: { slug } })
@@ -310,7 +310,7 @@ integration("account deletion refusals", () => {
 		const response = await requestDeletion();
 		expect(response.status).toBe(400);
 		expect(await response.json()).toMatchObject({
-			message: `Transfer ownership of ${sharedOrg} or delete it before deleting your account.`,
+			message: `Transfer ownership of ${sharedOrg} or delete it before deleting your account`,
 		});
 		expect(
 			await db.query.organization.findFirst({ where: { id: soloOrg } })
