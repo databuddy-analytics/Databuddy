@@ -1,0 +1,28 @@
+name: Observability
+
+on:
+  pull_request:
+    branches: [main, staging]
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+concurrency:
+  group: observability-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  evlog-map:
+    name: evlog map
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - uses: evloghq/action@3b6ea8aa68a7bc65973459f6422f16d282e7b0bb # v1.3.0
+        with:
+          packages: apps/dashboard

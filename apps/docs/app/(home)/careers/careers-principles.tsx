@@ -53,7 +53,7 @@ const principles: Principle[] = [
 		icon: ChatCircleTextIcon,
 		title: "Feedback is a gift",
 		description:
-			"Direct, specific, kind. We review code hard because we trust each other. If something's broken, say it. If something's great, say that too.",
+			"We keep feedback direct, specific, and kind, and we review code hard because we trust each other. If something's broken, say it. If something's great, say that too.",
 	},
 ];
 
