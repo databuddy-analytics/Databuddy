@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
 	contexts: [] as Record<string, unknown>[],
 	accessible: vi.fn(),
 	errors: vi.fn(),
+	events: vi.fn(),
 	sessionUserId: "user-synthetic" as string | null,
 	sessionOrg: "org-synthetic" as string | null,
 	apiKeyId: null as string | null,
@@ -224,7 +225,9 @@ vi.mock("@databuddy/ai/agents/cache", () => ({
 vi.mock("@databuddy/ai/lib/ai-logger", () => ({
 	getAILogger: () => ({ wrap: (model: MockLanguageModelV3) => model }),
 }));
-vi.mock("@databuddy/ai/lib/databuddy", () => ({ trackAgentEvent: () => {} }));
+vi.mock("@databuddy/ai/lib/databuddy", () => ({
+	trackAgentEvent: state.events,
+}));
 vi.mock("@databuddy/ai/lib/tracing", () => ({
 	captureError: state.errors,
 	mergeWideEvent: () => {},
@@ -308,6 +311,7 @@ beforeEach(() => {
 	state.contexts.length = 0;
 	state.read.mockReset();
 	state.errors.mockReset();
+	state.events.mockReset();
 	state.accessible.mockReset();
 	state.read.mockImplementation(async () => ({
 		profile: state.profile,
@@ -857,6 +861,41 @@ const mixedHeaders = {
 	cookie: "synthetic-session=inert",
 	"x-api-key": "dbdy_inert_selected_key",
 };
+
+describe("failure telemetry identity", () => {
+	it.each([
+		{ route: "ask", identity: "key", key: selectedKey },
+		{ route: "chat", identity: "key", key: selectedKey },
+		{ route: "ask", identity: "session", key: null },
+		{ route: "chat", identity: "session", key: null },
+	])("attributes failure telemetry to the selected $identity on /$route", async ({
+		route,
+		key,
+	}) => {
+		state.apiKey = key;
+		const organizationId = key?.organizationId ?? "org-synthetic";
+		const userId = key ? `apikey:${key.id}` : "user-synthetic";
+		state.billing.mockRejectedValueOnce(
+			new BillingUnavailableError("Synthetic billing outage")
+		);
+		const response = await (route === "ask"
+			? ask({ organizationId })
+			: chat({ organizationId }));
+		expect(response.status).toBe(503);
+		expect(state.events).toHaveBeenCalledWith(
+			"agent_activity",
+			expect.objectContaining({
+				action: "chat_error",
+				organization_id: organizationId,
+				user_id: userId,
+			})
+		);
+		expect(state.errors).toHaveBeenCalledWith(
+			expect.any(Error),
+			expect.objectContaining({ agent_user_id: userId })
+		);
+	});
+});
 
 describe("selected agent identity through native HTTP", () => {
 	it.each([

@@ -120,6 +120,7 @@ function agentFailure(
 		return toAgentErrorResponse(error);
 	}
 	const errorType = getErrorName(error);
+	const userId = apiKey ? `apikey:${apiKey.id}` : user?.id;
 	trackAgentEvent("agent_activity", {
 		action: "chat_error",
 		source,
@@ -130,7 +131,7 @@ function agentFailure(
 			body.organizationId ??
 			activeOrganizationId ??
 			null,
-		user_id: user?.id ?? null,
+		user_id: userId ?? null,
 		website_id: body.websiteId ?? null,
 	});
 	captureError(error, {
@@ -138,7 +139,7 @@ function agentFailure(
 		agent_type: AGENT_TYPE,
 		agent_chat_id: chatId,
 		...(body.websiteId ? { agent_website_id: body.websiteId } : {}),
-		...(user?.id ? { agent_user_id: user.id } : {}),
+		...(userId ? { agent_user_id: userId } : {}),
 		error_type: errorType,
 		source,
 	});
