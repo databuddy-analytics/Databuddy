@@ -377,7 +377,7 @@ const INCIDENT_UPDATES = [
 	},
 	{
 		status: "Identified",
-		message: "A bad deploy. We're rolling it back.",
+		message: "A bad deploy caused this, and we're rolling it back.",
 		time: "14:08",
 	},
 	{

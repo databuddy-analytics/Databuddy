@@ -293,7 +293,7 @@ export default function ContactForm() {
 				</FormField>
 
 				<FormField
-					description="Optional. We'll only call if needed."
+					description="Optional, and we'll only call if we need to."
 					error={errors.phone?.message}
 					id="phone"
 					label="Phone number"
