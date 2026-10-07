@@ -1,5 +1,6 @@
 import { auth } from "@databuddy/auth";
-import { member as memberTable } from "@databuddy/db/schema";
+import { member as memberTable, user as userTable } from "@databuddy/db/schema";
+import { eq } from "drizzle-orm";
 import { db } from "./db";
 import { nextId } from "./factories/id";
 
@@ -10,7 +11,12 @@ export interface AuthUser {
 }
 
 export async function signUp(
-	overrides: { email?: string; name?: string; password?: string } = {}
+	overrides: {
+		email?: string;
+		name?: string;
+		password?: string;
+		verified?: boolean;
+	} = {}
 ): Promise<AuthUser> {
 	const id = nextId("auth");
 	const email = overrides.email ?? `${id}@test.local`;
@@ -18,6 +24,12 @@ export async function signUp(
 	const password = overrides.password ?? "test-password-123!";
 
 	await auth.api.signUpEmail({ body: { email, name, password } });
+	if (overrides.verified) {
+		await db()
+			.update(userTable)
+			.set({ emailVerified: true })
+			.where(eq(userTable.email, email));
+	}
 
 	const res = await auth.api.signInEmail({
 		body: { email, password },
