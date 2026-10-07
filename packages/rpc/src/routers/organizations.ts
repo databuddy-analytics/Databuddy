@@ -389,42 +389,45 @@ export const organizationsRouter = {
 			if (billingMode() !== "live") {
 				return { unlimited: true, canUserUpgrade: false };
 			}
-			const billing = await context.getBilling();
-			const customerId = billing?.customerId ?? context.user.id;
-			const isOrganization = billing?.isOrganization ?? false;
-			const canUserUpgrade = billing?.canUserUpgrade ?? true;
+			let billing: Awaited<ReturnType<typeof context.getBilling>>;
+			try {
+				billing = await context.getBilling();
+				const customerId = billing?.customerId ?? context.user.id;
+				const isOrganization = billing?.isOrganization ?? false;
+				const canUserUpgrade = billing?.canUserUpgrade ?? true;
+				const response = await autumnCall("check", () =>
+					getAutumn().check({ customerId, featureId: "events" })
+				);
 
-			const response = await autumnCall("check", () =>
-				getAutumn().check({ customerId, featureId: "events" })
-			).catch((error: unknown) => {
-				if (isBillingUnavailable(error)) {
-					logger.warn({ error }, "Usage is unavailable while billing is down");
-					return null;
-				}
-				throw error;
-			});
-			if (!response) {
+				const b = response.balance;
+				const unlimited = b?.unlimited ?? false;
+				const granted = b?.granted ?? 0;
 				return {
-					unavailable: true,
+					used: b?.usage ?? 0,
+					limit: unlimited ? null : granted,
+					unlimited,
+					balance: b?.remaining ?? 0,
+					remaining: unlimited ? null : Math.max(0, b?.remaining ?? 0),
+					includedUsage: granted,
+					overageAllowed: b?.overageAllowed ?? false,
 					isOrganizationUsage: isOrganization,
 					canUserUpgrade,
 				};
+			} catch (error) {
+				if (!isBillingUnavailable(error)) {
+					throw error;
+				}
+				logger.warn({ error }, "Usage is unavailable while billing is down");
+				return {
+					unavailable: true,
+					...(billing
+						? {
+								isOrganizationUsage: billing.isOrganization,
+								canUserUpgrade: billing.canUserUpgrade,
+							}
+						: {}),
+				};
 			}
-
-			const b = response.balance;
-			const unlimited = b?.unlimited ?? false;
-			const granted = b?.granted ?? 0;
-			return {
-				used: b?.usage ?? 0,
-				limit: unlimited ? null : granted,
-				unlimited,
-				balance: b?.remaining ?? 0,
-				remaining: unlimited ? null : Math.max(0, b?.remaining ?? 0),
-				includedUsage: granted,
-				overageAllowed: b?.overageAllowed ?? false,
-				isOrganizationUsage: isOrganization,
-				canUserUpgrade,
-			};
 		}),
 
 	getBillingContext: publicProcedure
