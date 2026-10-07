@@ -519,7 +519,12 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		const entry = this.validEntry(cacheKey);
 
 		if (entry?.result) {
-			if (isStale(entry) && !this.shouldSkipFetch()) {
+			if (
+				isStale(entry) &&
+				!this.shouldSkipFetch() &&
+				!this.config.disabled &&
+				!this.config.isPending
+			) {
 				this.revalidate(key, cacheKey, this.config.user);
 			}
 			this.onFlagEvaluated(key, entry.result);
@@ -532,7 +537,12 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			};
 		}
 
-		if (!entry && this.canFetchOnRead()) {
+		if (
+			!entry &&
+			this.canFetchOnRead() &&
+			!this.config.disabled &&
+			!this.config.isPending
+		) {
 			this.getFlag(key).catch((err) =>
 				logger.error(`Background fetch error: ${key}`, err)
 			);
@@ -555,14 +565,24 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		const entry = this.validEntry(cacheKey);
 
 		if (entry?.result) {
-			if (isStale(entry) && !this.shouldSkipFetch()) {
+			if (
+				isStale(entry) &&
+				!this.shouldSkipFetch() &&
+				!this.config.disabled &&
+				!this.config.isPending
+			) {
 				this.revalidate(key, cacheKey, this.config.user);
 			}
 			this.onFlagEvaluated(key, entry.result);
 			return entry.result.value as T;
 		}
 
-		if (!entry && this.canFetchOnRead()) {
+		if (
+			!entry &&
+			this.canFetchOnRead() &&
+			!this.config.disabled &&
+			!this.config.isPending
+		) {
 			this.getFlag(key).catch((err) =>
 				logger.error(`Background fetch error: ${key}`, err)
 			);
