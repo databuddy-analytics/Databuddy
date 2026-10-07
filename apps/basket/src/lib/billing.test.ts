@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { config } from "@databuddy/env/app";
 import { BillingUnavailableError } from "@databuddy/shared/billing";
 import { EvlogError } from "evlog";
 
@@ -14,10 +15,16 @@ const { mockCheck, mockLoggerSet, mockLoggerWarn } = vi.hoisted(() => ({
 	mockLoggerWarn: vi.fn(() => {}),
 }));
 
-vi.mock("@databuddy/rpc/autumn", async (importOriginal) => ({
-	...(await importOriginal<typeof import("@databuddy/rpc/autumn")>()),
-	getAutumn: () => ({ check: mockCheck }),
-}));
+vi.mock("@databuddy/rpc/autumn", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@databuddy/rpc/autumn")>();
+	return {
+		...actual,
+		getAutumn: () =>
+			config.services.autumnSecretKey
+				? { check: mockCheck }
+				: actual.getAutumn(),
+	};
+});
 
 vi.mock("evlog/elysia", () => ({
 	useLogger: () => ({
@@ -33,16 +40,31 @@ vi.mock("@lib/tracing", () => ({
 }));
 
 const { checkAutumnUsage } = await import("./billing");
+const originalAutumnSecretKey = config.services.autumnSecretKey;
 
 describe("checkAutumnUsage", () => {
 	beforeEach(() => {
 		vi.stubEnv("SELFHOST", "false");
 		vi.stubEnv("AUTUMN_SECRET_KEY", "am_sk_test_synthetic");
+		config.services.autumnSecretKey = "am_sk_test_synthetic";
 		mockCheck.mockReset();
 		mockLoggerSet.mockReset();
 		mockLoggerWarn.mockReset();
 	});
-	afterEach(() => vi.unstubAllEnvs());
+	afterEach(() => {
+		vi.unstubAllEnvs();
+		config.services.autumnSecretKey = originalAutumnSecretKey;
+	});
+
+	test("hosted events reject missing billing configuration", async () => {
+		vi.stubEnv("NODE_ENV", "production");
+		vi.stubEnv("AUTUMN_SECRET_KEY", undefined);
+		config.services.autumnSecretKey = undefined;
+		await expect(checkAutumnUsage("cust_1", "events")).rejects.toMatchObject({
+			status: 503,
+			message: "Billing check unavailable",
+		});
+	});
 
 	test("self-hosted events skip hosted billing", async () => {
 		vi.stubEnv("SELFHOST", "true");

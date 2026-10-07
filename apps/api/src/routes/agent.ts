@@ -427,14 +427,21 @@ function createAgentUsageInjector(
 	});
 }
 
-function createPlainTextStreamResponse(
-	stream: AsyncIterable<string>
-): Response {
+async function createPlainTextStreamResponse(
+	stream: AsyncGenerator<string>
+): Promise<Response> {
+	let first = await stream.next();
+	while (!(first.done || first.value)) {
+		first = await stream.next();
+	}
 	const encoder = new TextEncoder();
 	return new Response(
 		new ReadableStream<Uint8Array>({
 			async start(controller) {
 				try {
+					if (!first.done) {
+						controller.enqueue(encoder.encode(first.value));
+					}
 					for await (const chunk of stream) {
 						if (chunk) {
 							controller.enqueue(encoder.encode(chunk));
@@ -535,7 +542,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						}
 					: createSessionAgentActor(user, request.headers);
 				if (body.stream) {
-					return createPlainTextStreamResponse(
+					return await createPlainTextStreamResponse(
 						streamDatabuddyAgent({
 							actor,
 							conversationId,

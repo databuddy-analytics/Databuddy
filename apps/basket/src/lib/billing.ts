@@ -1,4 +1,4 @@
-import { billingMode } from "@databuddy/env/app";
+import { billingMode, config } from "@databuddy/env/app";
 import {
 	autumnCall,
 	getAutumn,
@@ -66,7 +66,7 @@ export function checkAutumnUsage(
 			if (error instanceof EvlogError) {
 				throw error;
 			}
-			if (isBillingUnavailable(error)) {
+			if (isBillingUnavailable(error) && config.services.autumnSecretKey) {
 				log.set({ billing: { allowed: true, checkFailed: true } });
 				captureError(error, {
 					message: "Autumn check failed, accepting event",
