@@ -23,9 +23,13 @@ export function readBooleanEnv(
 }
 
 function hostnameOf(url: string): string {
-	return new URL(
-		url.includes("://") ? url : `tcp://${url}`
-	).hostname.toLowerCase();
+	try {
+		return new URL(
+			url.includes("://") ? url : `tcp://${url}`
+		).hostname.toLowerCase();
+	} catch {
+		throw new Error("Cannot parse host from the configured service URL");
+	}
 }
 
 export function isLocalHost(url: string): boolean {

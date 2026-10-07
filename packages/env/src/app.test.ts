@@ -244,6 +244,25 @@ describe("isLocalHost", () => {
 		]) {
 			expect(isLocalHost(url)).toBe(false);
 		}
+	});
+
+	it("rejects malformed service URLs without exposing credentials", () => {
+		const invalid = "postgres://synthetic-user:synthetic-private@[broken";
+		for (const checkHost of [isLocalHost, isLoopbackHost]) {
+			let failure: unknown;
+			try {
+				checkHost(invalid);
+			} catch (error) {
+				failure = error;
+			}
+			expect(failure).toBeInstanceOf(Error);
+			expect(String(failure)).toContain("configured service URL");
+			expect(JSON.stringify(failure)).not.toContain("synthetic-private");
+			expect(Bun.inspect(failure)).not.toContain("synthetic-private");
+		}
+	});
+
+	it("rejects unbracketed IPv6", () => {
 		// Unbracketed IPv6 is invalid URL input and must also fail closed.
 		expect(() => isLocalHost("2001:db8::1")).toThrow();
 	});
