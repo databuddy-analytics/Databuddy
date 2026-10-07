@@ -14,9 +14,9 @@ import { AGENT_THINKING_LEVELS, AGENT_TIERS } from "@databuddy/ai/agents/types";
 import { type AgentModelKey, models } from "@databuddy/ai/config/models";
 import {
 	AgentError,
-	type AgentRequestInput,
 	askDatabuddyAgent,
 	type DatabuddyAgentActor,
+	type DatabuddyAgentOptions,
 	prepareAgentRequest,
 	streamDatabuddyAgent,
 	toAgentErrorResponse,
@@ -106,36 +106,42 @@ function agentActor(
 
 function agentFailure(
 	error: unknown,
-	event: {
-		chatId: string;
-		organizationId: string | null;
-		source: "api" | "dashboard";
-		userId: string | null;
-		websiteId?: string | null;
-	}
+	source: "api" | "dashboard",
+	chatId: string,
+	{
+		activeOrganizationId,
+		apiKey,
+		body,
+		user,
+	}: AgentAuth & { body: { organizationId?: string; websiteId?: string } }
 ): Response {
 	if (error instanceof AgentError && error.status < 500) {
 		mergeWideEvent({ agent_rejected: error.code });
 		return toAgentErrorResponse(error);
 	}
 	const errorType = getErrorName(error);
+	const userId = apiKey ? `apikey:${apiKey.id}` : user?.id;
 	trackAgentEvent("agent_activity", {
 		action: "chat_error",
-		source: event.source,
+		source,
 		agent_type: AGENT_TYPE,
 		error_type: errorType,
-		organization_id: event.organizationId,
-		user_id: event.userId,
-		website_id: event.websiteId ?? null,
+		organization_id:
+			apiKey?.organizationId ??
+			body.organizationId ??
+			activeOrganizationId ??
+			null,
+		user_id: userId ?? null,
+		website_id: body.websiteId ?? null,
 	});
 	captureError(error, {
 		agent_error: true,
 		agent_type: AGENT_TYPE,
-		agent_chat_id: event.chatId,
-		...(event.websiteId ? { agent_website_id: event.websiteId } : {}),
-		...(event.userId ? { agent_user_id: event.userId } : {}),
+		agent_chat_id: chatId,
+		...(body.websiteId ? { agent_website_id: body.websiteId } : {}),
+		...(userId ? { agent_user_id: userId } : {}),
 		error_type: errorType,
-		source: event.source,
+		source,
 	});
 	return toAgentErrorResponse(error);
 }
@@ -499,28 +505,26 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 			mergeWideEvent({ agent_chat_id: conversationId, source: "api" });
 
 			try {
-				const agentRequest: AgentRequestInput = {
+				const principal = await prepareAgentRequest({
 					actor: agentActor(
 						{ activeOrganizationId, apiKey, user },
 						agentHeaders
 					),
 					organizationId: body.organizationId,
 					rateLimit: "agent:ask",
-				};
-				const principal = await prepareAgentRequest(agentRequest);
+				});
 				mergeWideEvent({
 					organization_id: principal.organizationId,
 					agent_user_id: user?.id ?? `apikey:${apiKey?.id}`,
 				});
-				const options = {
-					...agentRequest,
+				const options: DatabuddyAgentOptions = {
 					abortSignal: request.signal,
 					conversationId,
 					input: body.question,
-					mutationMode: "dry-run" as const,
-					output: "markdown" as const,
+					mutationMode: "dry-run",
+					output: "markdown",
 					principal,
-					source: "api" as const,
+					source: "api",
 					timezone: body.timezone,
 				};
 				if (body.stream) {
@@ -530,15 +534,11 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 				}
 				return await askDatabuddyAgent(options);
 			} catch (error) {
-				return agentFailure(error, {
-					chatId: conversationId,
-					organizationId:
-						body.organizationId ??
-						activeOrganizationId ??
-						apiKey?.organizationId ??
-						null,
-					source: "api",
-					userId: user?.id ?? null,
+				return agentFailure(error, "api", conversationId, {
+					activeOrganizationId,
+					apiKey,
+					body,
+					user,
 				});
 			}
 		},
@@ -1074,16 +1074,11 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					}
 					return response;
 				} catch (error) {
-					return agentFailure(error, {
-						chatId,
-						organizationId:
-							body.organizationId ??
-							activeOrganizationId ??
-							apiKey?.organizationId ??
-							null,
-						source: "dashboard",
-						userId: user?.id ?? null,
-						websiteId: body.websiteId,
+					return agentFailure(error, "dashboard", chatId, {
+						activeOrganizationId,
+						apiKey,
+						body,
+						user,
 					});
 				}
 			})();

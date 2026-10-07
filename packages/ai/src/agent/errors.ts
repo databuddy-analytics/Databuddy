@@ -34,7 +34,7 @@ const AGENT_ERRORS = {
 	},
 } as const;
 
-export type AgentErrorCode = keyof typeof AGENT_ERRORS;
+type AgentErrorCode = keyof typeof AGENT_ERRORS;
 
 export class AgentError extends Error {
 	readonly code: AgentErrorCode;
