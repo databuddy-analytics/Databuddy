@@ -726,7 +726,28 @@ describe("ask route", () => {
 		expect(state.ask).not.toHaveBeenCalled();
 		expect(state.stream).not.toHaveBeenCalled();
 	});
-	it("keeps a valid requested-organization member eligible with zero websites", async () => {
+	it.each([
+		{ endpoint: "ask", stream: false },
+		{ endpoint: "ask", stream: true },
+		{ endpoint: "chat", stream: false },
+	])("rejects an inactive organization before paid work ($endpoint, stream=$stream)", async ({
+		endpoint,
+		stream,
+	}) => {
+		const response =
+			endpoint === "ask"
+				? await ask({ organizationId: "org-other", stream })
+				: await chat({ organizationId: "org-other" });
+		expect(response.status).toBe(403);
+		expect(state.rateLimit).not.toHaveBeenCalled();
+		expect(state.billingCustomer).not.toHaveBeenCalled();
+		expect(state.billing).not.toHaveBeenCalled();
+		expect(state.ask).not.toHaveBeenCalled();
+		expect(state.stream).not.toHaveBeenCalled();
+		expect(state.prompts).toEqual([]);
+	});
+	it("keeps an active requested-organization member eligible with zero websites", async () => {
+		state.sessionOrg = "org-other";
 		state.accessible.mockResolvedValue([]);
 		const response = await ask({ organizationId: "org-other" });
 		expect(response.status, response.text).toBe(200);

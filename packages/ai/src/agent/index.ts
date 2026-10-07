@@ -169,6 +169,12 @@ export async function prepareAgentRequest(
 	}
 
 	if (actor.type === "session") {
+		if (organizationId !== actor.activeOrganizationId) {
+			throw new AgentError(
+				"access_denied",
+				"Switch to this organization before asking Databuddy."
+			);
+		}
 		const membership = await db.query.member.findFirst({
 			where: { organizationId, userId: actor.userId },
 			columns: { id: true },
