@@ -22,9 +22,9 @@ export function generateDateRange(
 	granularity: "daily" | "hourly"
 ): string[] {
 	const dates: string[] = [];
-	let current = dayjs(startDate);
-	const end = dayjs(endDate);
 	const unit = granularity === "hourly" ? "hour" : "day";
+	let current = dayjs(startDate).startOf(unit);
+	const end = dayjs(endDate);
 	const format =
 		granularity === "hourly" ? "YYYY-MM-DD HH:mm:ss" : "YYYY-MM-DD";
 

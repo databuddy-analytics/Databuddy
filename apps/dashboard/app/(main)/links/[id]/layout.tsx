@@ -80,7 +80,10 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 	const handleQuickRangeSelect = useCallback(
 		(range: QuickRange) => {
 			const start = getStartDateForRange(range);
-			setDateRangeAction({ startDate: start, endDate: new Date() });
+			setDateRangeAction(
+				{ startDate: start, endDate: new Date() },
+				{ exact: Boolean(range.hours) }
+			);
 		},
 		[setDateRangeAction]
 	);
