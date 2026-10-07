@@ -79,6 +79,17 @@ describe("markdown output", () => {
 		expect(text).toBe(
 			"Top pages:\n**Top Pages**\n| Page | Visitors |\n| --- | --- |\n| / | 1,500 |\n| /pricing | 820 |\nDone."
 		);
+		const multilineTable: ComponentSpec = {
+			type: "data-table",
+			columns: ["Page\r\nname", "Visitors\r count"],
+			rows: [["/pricing\n| details", 820]],
+		};
+		const input = JSON.stringify(multilineTable);
+		const whole = splitAgentText(input, componentToPlainText);
+		expect(whole.text).toBe(
+			"| Page name | Visitors  count |\n| --- | --- |\n| /pricing \\| details | 820 |"
+		);
+		expect(pushAll([...input], componentToPlainText)).toEqual(whole);
 	});
 
 	it("renders charts as lists and preserves suggested action payloads", () => {

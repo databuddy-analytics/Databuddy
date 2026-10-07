@@ -199,7 +199,13 @@ function cell(value: unknown): string {
 			? value.toLocaleString("en-US")
 			: String(value);
 	}
-	const text = value == null ? "" : String(value).replaceAll("|", "\\|").trim();
+	const text =
+		value == null
+			? ""
+			: String(value)
+					.replace(/\r\n|[\r\n]/g, " ")
+					.replaceAll("|", "\\|")
+					.trim();
 	return text || "-";
 }
 
