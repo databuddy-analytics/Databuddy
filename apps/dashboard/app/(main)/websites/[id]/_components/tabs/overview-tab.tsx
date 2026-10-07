@@ -407,9 +407,12 @@ export function WebsiteOverviewTab({
 		while (current.isBefore(endDate) || current.isSame(endDate, "day")) {
 			if (isHourly) {
 				for (let hour = 0; hour < 24; hour++) {
-					const hourDate = current.hour(hour);
+					const hourDate = current.hour(hour).startOf("hour");
 					if (hourDate.isAfter(now)) {
 						break;
+					}
+					if (hourDate.isBefore(startDate.startOf("hour"))) {
+						continue;
 					}
 
 					const key = hourDate.format("YYYY-MM-DD HH:00:00");
