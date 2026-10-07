@@ -4,6 +4,8 @@ import type {
 	LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
+import { db } from "@databuddy/db";
+import type { member } from "@databuddy/db/schema";
 import {
 	organizationBusinessContextSchema,
 	PROFILE_ORIGIN_PROVENANCE,
@@ -60,6 +62,17 @@ mock.module("@databuddy/auth", () => ({
 }));
 let allowed = true;
 let sites = [site];
+const memberRow: typeof member.$inferSelect = {
+	id: "member-synthetic",
+	organizationId: "org-synthetic",
+	userId: "user-synthetic",
+	role: "member",
+	teamId: null,
+	createdAt: new Date("2026-10-07T00:00:00Z"),
+};
+const membership = spyOn(db.query.member, "findFirst").mockResolvedValue(
+	memberRow
+);
 const memberRole = mock(async (userId: string, organizationId: string) =>
 	userId === "user-synthetic" && organizationId === "org-synthetic"
 		? "member"
@@ -231,6 +244,7 @@ beforeEach(() => {
 	read.mockImplementation(async () => saved);
 	accessible.mockClear();
 	memberRole.mockClear();
+	membership.mockClear();
 	model.doGenerateCalls.length = 0;
 	model.doStreamCalls.length = 0;
 	allowed = true;
@@ -481,8 +495,6 @@ describe("canonical business context at the native shared-agent model boundary",
 			},
 		});
 		expect(read).toHaveBeenCalledWith("org-synthetic");
-		expect(memberRole).toHaveBeenCalledTimes(1);
-		expect(memberRole).toHaveBeenCalledWith("user-synthetic", "org-synthetic");
 		const call = model.doGenerateCalls[0];
 		if (!call) {
 			throw new Error("Expected the session's model call");

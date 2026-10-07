@@ -1,6 +1,6 @@
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { ratelimit } from "@databuddy/redis/rate-limit";
-import { getMemberRole } from "@databuddy/rpc/organization";
+import { db } from "@databuddy/db";
 import type { LanguageModelUsage } from "ai";
 import {
 	type AgentBillingAccess,
@@ -23,6 +23,7 @@ import {
 import type { DatabuddyAgentSlackContext } from "../ai/mcp/slack-context";
 import {
 	getAccessibleWebsites,
+	getOrganizationWebsites,
 	type WebsiteSummary,
 } from "../lib/accessible-websites";
 import { mergeWideEvent } from "../lib/tracing";
@@ -167,14 +168,17 @@ export async function prepareAgentRequest(
 		throw new AgentError("workspace_required");
 	}
 
-	if (
-		actor.type === "session" &&
-		!(await getMemberRole(actor.userId, organizationId))
-	) {
-		throw new AgentError(
-			"access_denied",
-			"You are not a member of this organization."
-		);
+	if (actor.type === "session") {
+		const membership = await db.query.member.findFirst({
+			where: { organizationId, userId: actor.userId },
+			columns: { id: true },
+		});
+		if (!membership) {
+			throw new AgentError(
+				"access_denied",
+				"You are not a member of this organization."
+			);
+		}
 	}
 
 	if (input.rateLimit) {
@@ -192,11 +196,9 @@ export async function prepareAgentRequest(
 	const billed = input.billingMode !== "skip";
 	mergeWideEvent({ agent_billing_mode: billed ? "bill" : "skip" });
 	const [accessibleWebsites, billing] = await Promise.all([
-		getAccessibleWebsites({
-			apiKey,
-			organizationId,
-			user: actor.type === "session" ? { id: actor.userId } : null,
-		}),
+		actor.type === "session"
+			? getOrganizationWebsites(organizationId)
+			: getAccessibleWebsites({ apiKey, organizationId, user: null }),
 		billed
 			? resolveAgentBillingCustomerId({ apiKey, organizationId, userId }).then(
 					async (customerId) => ({

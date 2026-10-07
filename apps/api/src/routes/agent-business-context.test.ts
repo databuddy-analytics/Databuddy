@@ -26,6 +26,7 @@ const state = vi.hoisted(() => ({
 	billing: vi.fn(),
 	billingCustomer: vi.fn(),
 	memberRole: vi.fn(),
+	membership: vi.fn(),
 	billedUsage: vi.fn(),
 	rateLimit: vi.fn(),
 	memoryEnabled: false,
@@ -72,6 +73,8 @@ vi.mock("@databuddy/services/organization-business-context", () => ({
 }));
 vi.mock("@databuddy/ai/lib/accessible-websites", () => ({
 	getAccessibleWebsites: state.accessible,
+	getOrganizationWebsites: (organizationId: string) =>
+		state.accessible({ organizationId }),
 }));
 vi.mock("@databuddy/api-keys/resolve", () => ({
 	API_KEY_AUTH_CHALLENGE: "Bearer",
@@ -116,6 +119,7 @@ vi.mock("@databuddy/db", () => ({
 	eq: () => undefined,
 	db: {
 		query: {
+			member: { findFirst: state.membership },
 			agentChats: {
 				findFirst: async () =>
 					state.chatExists
@@ -297,6 +301,7 @@ beforeEach(() => {
 		.mockReset()
 		.mockResolvedValue("synthetic-billing-owner");
 	state.memberRole.mockReset().mockResolvedValue("member");
+	state.membership.mockReset().mockResolvedValue({ id: "member-synthetic" });
 	state.rateLimit.mockReset().mockResolvedValue({ success: true });
 	state.profile = profile;
 	state.prompts.length = 0;
@@ -708,14 +713,10 @@ describe("ask route", () => {
 		false,
 		true,
 	])("rejects a session outside the requested organization before any paid work (stream=%s)", async (stream) => {
-		state.memberRole.mockResolvedValue(null);
+		state.membership.mockResolvedValue(undefined);
 		const response = await ask({ organizationId: "foreign-org", stream });
 		expect(response.status, response.text).toBe(403);
 		expect(JSON.parse(response.text)).toMatchObject({ code: "ACCESS_DENIED" });
-		expect(state.memberRole).toHaveBeenCalledExactlyOnceWith(
-			"user-synthetic",
-			"foreign-org"
-		);
 		expect(state.rateLimit).not.toHaveBeenCalled();
 		expect(state.accessible).not.toHaveBeenCalled();
 		expect(state.billingCustomer).not.toHaveBeenCalled();
@@ -724,25 +725,32 @@ describe("ask route", () => {
 		expect(state.stream).not.toHaveBeenCalled();
 	});
 	it("checks membership in the active organization when none is requested", async () => {
-		state.memberRole.mockResolvedValue(null);
+		state.membership.mockResolvedValue(undefined);
 		const response = await ask();
 		expect(response.status, response.text).toBe(403);
-		expect(state.memberRole).toHaveBeenCalledExactlyOnceWith(
-			"user-synthetic",
-			"org-synthetic"
-		);
 		expect(state.billingCustomer).not.toHaveBeenCalled();
 		expect(state.billing).not.toHaveBeenCalled();
 		expect(state.ask).not.toHaveBeenCalled();
+	});
+	it.each([
+		false,
+		true,
+	])("does not authorize revoked session membership from a cached role (stream=%s)", async (stream) => {
+		state.memberRole.mockResolvedValue("member");
+		state.membership.mockResolvedValue(undefined);
+		state.accessible.mockResolvedValue([]);
+		const response = await ask({ stream });
+		expect(response.status, response.text).toBe(403);
+		expect(JSON.parse(response.text)).toMatchObject({ code: "ACCESS_DENIED" });
+		expect(state.billingCustomer).not.toHaveBeenCalled();
+		expect(state.billing).not.toHaveBeenCalled();
+		expect(state.ask).not.toHaveBeenCalled();
+		expect(state.stream).not.toHaveBeenCalled();
 	});
 	it("keeps a valid requested-organization member eligible with zero websites", async () => {
 		state.accessible.mockResolvedValue([]);
 		const response = await ask({ organizationId: "org-other" });
 		expect(response.status, response.text).toBe(200);
-		expect(state.memberRole).toHaveBeenCalledExactlyOnceWith(
-			"user-synthetic",
-			"org-other"
-		);
 		expect(state.billingCustomer).toHaveBeenCalledExactlyOnceWith({
 			apiKey: null,
 			organizationId: "org-other",
@@ -762,7 +770,7 @@ describe("ask route", () => {
 	});
 	it("rejects an API key used for another organization", async () => {
 		state.sessionUserId = null;
-		state.memberRole.mockRejectedValue(
+		state.membership.mockRejectedValue(
 			new Error("API keys use bound organization access")
 		);
 		state.apiKey = {
@@ -790,7 +798,7 @@ describe("ask route", () => {
 		expect(state.billingCustomer).not.toHaveBeenCalled();
 		expect(state.billing).not.toHaveBeenCalled();
 		expect((await ask()).status).toBe(200);
-		expect(state.memberRole).not.toHaveBeenCalled();
+		expect(state.membership).not.toHaveBeenCalled();
 		expect(state.billingCustomer).toHaveBeenCalledExactlyOnceWith({
 			apiKey: state.apiKey,
 			organizationId: "org-synthetic",
@@ -861,12 +869,12 @@ describe("selected agent identity through native HTTP", () => {
 		keyOwner,
 	}) => {
 		state.apiKey = { ...selectedKey, userId: keyOwner };
-		state.memberRole.mockResolvedValue(null);
+		state.membership.mockResolvedValue(undefined);
 		state.accessible.mockResolvedValue([site]);
 		const response = await askResponse({ stream }, mixedHeaders);
 		expect(response.status).toBe(200);
 		expect(await response.text()).toContain("Synthetic answer.");
-		const options = (stream ? state.stream : state.ask).mock.calls[0][0];
+		const options = (stream ? state.stream : state.ask).mock.calls[0]?.[0];
 		expect(options.actor).toMatchObject({
 			type: "api_key",
 			apiKey: state.apiKey,
@@ -881,7 +889,7 @@ describe("selected agent identity through native HTTP", () => {
 			mixedHeaders["x-api-key"]
 		);
 		expect(options.abortSignal).toBeInstanceOf(AbortSignal);
-		expect(state.memberRole).not.toHaveBeenCalled();
+		expect(state.membership).not.toHaveBeenCalled();
 		expect(state.rateLimit).toHaveBeenCalledExactlyOnceWith(
 			`agent:ask:apikey:${selectedKey.id}:${selectedKey.organizationId}`,
 			30,
@@ -898,7 +906,7 @@ describe("selected agent identity through native HTTP", () => {
 		state.apiKey = selectedKey;
 		state.chatExists = false;
 		state.accessible.mockResolvedValue([site]);
-		state.memberRole.mockResolvedValue(null);
+		state.membership.mockResolvedValue(undefined);
 		state.loadMemory = true;
 		state.memoryEnabled = true;
 		const response = await chat(
@@ -954,7 +962,7 @@ describe("selected agent identity through native HTTP", () => {
 			expect.any(Object)
 		);
 		expect(state.persistedChats).toEqual([]);
-		expect(state.memberRole).not.toHaveBeenCalled();
+		expect(state.membership).not.toHaveBeenCalled();
 	});
 
 	it("deduplicates the same key approval across unrelated cookie sessions", async () => {
@@ -1012,16 +1020,15 @@ describe("selected agent identity through native HTTP", () => {
 		const response = await askResponse({}, { cookie: mixedHeaders.cookie });
 		expect(response.status).toBe(200);
 		expect(await response.text()).toContain("Synthetic answer.");
-		const actor = state.ask.mock.calls[0][0].actor;
+		const actor = state.ask.mock.calls[0]?.[0].actor;
 		expect(actor).toMatchObject({ type: "session", userId: "user-synthetic" });
 		expect(actor.requestHeaders.get("cookie")).toBe(mixedHeaders.cookie);
-		expect(state.memberRole).toHaveBeenCalledExactlyOnceWith(
-			"user-synthetic",
-			"org-synthetic"
-		);
 	});
 
-	it.each([
+	it.each<{
+		endpoint: "ask" | "chat";
+		credential: Record<string, string>;
+	}>([
 		{ endpoint: "ask", credential: { "x-api-key": "dbdy_inert_unscoped" } },
 		{
 			endpoint: "ask",
@@ -1043,7 +1050,7 @@ describe("selected agent identity through native HTTP", () => {
 			const response = await askResponse({}, rawHeaders);
 			expect(response.status).toBe(200);
 			await response.text();
-			headers = state.ask.mock.calls[0][0].principal.requestHeaders;
+			headers = state.ask.mock.calls[0]?.[0].principal.requestHeaders;
 		} else {
 			const response = await chat({}, rawHeaders);
 			expect(response.status, response.text).toBe(200);
@@ -1063,10 +1070,6 @@ describe("selected agent identity through native HTTP", () => {
 		expect(headers.get("cookie")).toBe(mixedHeaders.cookie);
 		expect(headers.get("x-api-key")).toBeNull();
 		expect(headers.get("authorization")).toBeNull();
-		expect(state.memberRole).toHaveBeenCalledExactlyOnceWith(
-			"user-synthetic",
-			"org-synthetic"
-		);
 		expect(state.billingCustomer).toHaveBeenCalledExactlyOnceWith({
 			apiKey: null,
 			organizationId: "org-synthetic",
@@ -1082,7 +1085,7 @@ describe("selected agent identity through native HTTP", () => {
 		expect(response.status).toBe(200);
 		await response.text();
 		expect(
-			state.ask.mock.calls[0][0].principal.requestHeaders.get("authorization")
+			state.ask.mock.calls[0]?.[0].principal.requestHeaders.get("authorization")
 		).toBe("Basic inert");
 	});
 
@@ -1098,7 +1101,7 @@ describe("selected agent identity through native HTTP", () => {
 				? await askResponse({}, headers)
 				: await chat({}, headers);
 		expect(response.status).toBe(401);
-		expect(state.memberRole).not.toHaveBeenCalled();
+		expect(state.membership).not.toHaveBeenCalled();
 		expect(state.billingCustomer).not.toHaveBeenCalled();
 		expect(state.billing).not.toHaveBeenCalled();
 		expect(state.ask).not.toHaveBeenCalled();
