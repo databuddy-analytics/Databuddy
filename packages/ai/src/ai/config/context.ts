@@ -1,6 +1,7 @@
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import type { PreResolvedAuth } from "@databuddy/rpc";
 import type { WebsiteSummary } from "../../lib/accessible-websites";
+import type { AgentSource } from "./models";
 
 export type AppMutationMode = "allow" | "dry-run";
 
@@ -18,7 +19,7 @@ export interface AppContext {
 	organizationId?: string | null;
 	requestHeaders?: Headers;
 	serviceAuth?: ServiceAuth;
-	source?: "dashboard" | "mcp" | "slack";
+	source?: AgentSource;
 	timezone: string;
 	userId?: string | null;
 	websiteDomain?: string;

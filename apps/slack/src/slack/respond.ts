@@ -1,11 +1,11 @@
 import { isRecord } from "@/lib/guards";
-import { isDatabuddyAgentUserError } from "@databuddy/ai/agent/errors";
+import { AgentError } from "@databuddy/ai/agent/errors";
+import { ComponentStreamSplitter } from "@databuddy/ai/agent/render";
 import type { RequestLogger } from "evlog";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
 import { getSlackApiErrorCode, setSlackLog, toError } from "@/lib/evlog-slack";
 import {
 	type Block,
-	ComponentStreamSplitter,
 	componentsToBlocks,
 	feedbackButtonsBlock,
 	safeMarkdown,
@@ -277,9 +277,8 @@ export async function streamAgentToSlack({
 		logStreamError(error, eventLog, logger);
 
 		const partialText = fullText.trim();
-		const failureText = isDatabuddyAgentUserError(error)
-			? error.message
-			: SLACK_COPY.agentFailure;
+		const failureText =
+			error instanceof AgentError ? error.message : SLACK_COPY.agentFailure;
 
 		return recoverFromError({
 			client,
@@ -643,7 +642,7 @@ function logStreamError(
 	eventLog: RequestLogger | undefined,
 	logger: LoggerLike
 ): void {
-	const userFacingError = isDatabuddyAgentUserError(error) ? error : null;
+	const userFacingError = error instanceof AgentError ? error : null;
 	const err = toError(error);
 	const slackApiCode = getSlackApiErrorCode(error);
 

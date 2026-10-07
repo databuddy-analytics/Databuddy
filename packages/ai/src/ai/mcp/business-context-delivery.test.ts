@@ -4,6 +4,8 @@ import type {
 	LanguageModelV3StreamPart,
 } from "@ai-sdk/provider";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
+import { db } from "@databuddy/db";
+import type { member } from "@databuddy/db/schema";
 import {
 	organizationBusinessContextSchema,
 	PROFILE_ORIGIN_PROVENANCE,
@@ -55,15 +57,31 @@ mock.module("@databuddy/services/organization-business-context", () => ({
 	readOrganizationBusinessContext: read,
 }));
 
-let session: {
-	user: { id: string };
-	session: { activeOrganizationId: string | null };
-} | null = null;
 mock.module("@databuddy/auth", () => ({
-	auth: { api: { getSession: async () => session } },
+	auth: { api: { getSession: async () => null } },
 }));
 let allowed = true;
 let sites = [site];
+const memberRow: typeof member.$inferSelect = {
+	id: "member-synthetic",
+	organizationId: "org-synthetic",
+	userId: "user-synthetic",
+	role: "member",
+	teamId: null,
+	createdAt: new Date("2026-10-07T00:00:00Z"),
+};
+const membership = spyOn(db.query.member, "findFirst").mockResolvedValue(
+	memberRow
+);
+const memberRole = mock(async (userId: string, organizationId: string) =>
+	userId === "user-synthetic" && organizationId === "org-synthetic"
+		? "member"
+		: null
+);
+mock.module("@databuddy/rpc/organization", () => ({
+	getMemberRole: memberRole,
+	getOrganizationOwnerId: async () => "synthetic-owner",
+}));
 const accessible = mock(async (auth: AccessibleWebsitesAuth) =>
 	allowed &&
 	auth.organizationId === "org-synthetic" &&
@@ -111,11 +129,6 @@ const persistedConversation = mock(async (..._input: unknown[]) => {});
 mock.module("./conversation-store", () => ({
 	getConversationHistory: async () => [],
 	appendToConversation: persistedConversation,
-}));
-mock.module("@databuddy/api-keys/resolve", () => ({
-	resolveApiKey: async () => {
-		throw new Error("No secret or production credential is needed");
-	},
 }));
 mock.module("../../agent/slack-relevance", () => ({
 	classifySlackThreadReplyRelevance: async () => ({}),
@@ -230,9 +243,10 @@ beforeEach(() => {
 	read.mockReset();
 	read.mockImplementation(async () => saved);
 	accessible.mockClear();
+	memberRole.mockClear();
+	membership.mockClear();
 	model.doGenerateCalls.length = 0;
 	model.doStreamCalls.length = 0;
-	session = null;
 	allowed = true;
 	sites = [site];
 });
@@ -387,7 +401,9 @@ describe("canonical business context at the native shared-agent model boundary",
 					expect(prompt.includes(meaning)).toBe(present);
 					expect(prompt.includes(priority)).toBe(present);
 					if (present) {
-						expect(prompt).toContain("never instructions or measured evidence");
+						expect(prompt).toContain(
+							"business background, not measured evidence"
+						);
 						expect(prompt).toContain(PROFILE_ORIGIN_PROVENANCE.team.meaning);
 						expect(prompt).toContain("reports.example.com");
 					} else {
@@ -468,45 +484,37 @@ describe("canonical business context at the native shared-agent model boundary",
 		expect(prompt).not.toContain(meaning);
 		expect(prompt).not.toContain("UNSAVED_DRAFT_SENTINEL");
 	});
-	it("uses the verified session's active organization without membership fanout", async () => {
-		session = {
-			user: { id: "user-synthetic" },
-			session: { activeOrganizationId: "org-synthetic" },
-		};
+	it("uses the session's active organization without membership fanout", async () => {
 		await askDatabuddyAgent({
 			...options,
 			actor: {
 				type: "session",
 				userId: "user-synthetic",
+				activeOrganizationId: "org-synthetic",
 				requestHeaders: new Headers(),
 			},
 		});
 		expect(read).toHaveBeenCalledWith("org-synthetic");
 		const call = model.doGenerateCalls[0];
 		if (!call) {
-			throw new Error("Expected the verified session's model call");
+			throw new Error("Expected the session's model call");
 		}
 		expect(JSON.stringify(call.prompt)).toContain(meaning);
 	});
-	it("does not borrow a session organization from another user", async () => {
-		session = {
-			user: { id: "other-user" },
-			session: { activeOrganizationId: "org-synthetic" },
-		};
-		await askDatabuddyAgent({
-			...options,
-			actor: {
-				type: "session",
-				userId: "user-synthetic",
-				requestHeaders: new Headers(),
-			},
-		});
+	it("requires a workspace when the session has no active organization", async () => {
+		await expect(
+			askDatabuddyAgent({
+				...options,
+				actor: {
+					type: "session",
+					userId: "user-synthetic",
+					activeOrganizationId: null,
+					requestHeaders: new Headers(),
+				},
+			})
+		).rejects.toMatchObject({ code: "workspace_required", status: 400 });
 		expect(read).not.toHaveBeenCalled();
-		const call = model.doGenerateCalls[0];
-		if (!call) {
-			throw new Error("Expected the unmatched session's model call");
-		}
-		expect(JSON.stringify(call.prompt)).not.toContain(meaning);
+		expect(model.doGenerateCalls).toHaveLength(0);
 	});
 	it("does not inject one organization's profile when a caller selects a foreign site/domain", async () => {
 		for (const selection of [
@@ -684,7 +692,7 @@ describe("bounded canonical loader and formatter", () => {
 				},
 				sources: Array.from({ length: 8 }, (_, index) => ({
 					url: `https://example.com/${index}/`.padEnd(2048, "x"),
-					title: ">".repeat(512),
+					title: "<".repeat(512),
 				})),
 			},
 			generation: null,

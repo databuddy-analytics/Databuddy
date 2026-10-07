@@ -9,7 +9,9 @@ import {
 import { getBillingCustomerId } from "@databuddy/rpc/billing";
 import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
 import type { RequestLogger } from "evlog";
+import { AgentError } from "../../agent/errors";
 import { trackAgentEvent } from "../../lib/databuddy";
+import type { AgentSource } from "../config/models";
 import { captureError, mergeWideEvent } from "../../lib/tracing";
 import {
 	summarizeAgentUsage,
@@ -26,7 +28,7 @@ interface AgentUsageTrackingInput {
 	modelId: string;
 	organizationId?: string | null;
 	requestLogger?: RequestLogger;
-	source: "dashboard" | "mcp" | "slack" | "insights";
+	source: AgentSource | "insights";
 	usage: AgentUsage;
 	userId?: string | null;
 	websiteId?: string;
@@ -95,7 +97,8 @@ export async function getAgentBillingAccess(
 	billingCustomerId: string | null
 ): Promise<AgentBillingAccess> {
 	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
-		throw new Error(
+		throw new AgentError(
+			"provider_unavailable",
 			"Ask your administrator to configure AI before using Databunny."
 		);
 	}

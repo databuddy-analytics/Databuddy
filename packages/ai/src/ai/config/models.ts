@@ -20,7 +20,7 @@ export const modelNames = {
 } as const;
 
 export type AgentModelKey = "quick" | "balanced" | "deep";
-export type AgentSource = "dashboard" | "mcp" | "slack";
+export type AgentSource = "api" | "dashboard" | "mcp" | "slack";
 
 export const models = {
 	tiny: gateway.chat(modelNames.tiny),

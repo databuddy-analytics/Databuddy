@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { DatabuddyAgentUserError } from "@databuddy/ai/agent/errors";
+import { AgentError } from "@databuddy/ai/agent/errors";
 import type { ChatStopStreamArguments } from "@slack/web-api";
 import type { DatabuddyAgentClient } from "@/agent/agent-client";
 import { SLACK_COPY } from "@/slack/messages";
@@ -136,7 +136,7 @@ describe("Databuddy Slack response streaming", () => {
 				],
 			}),
 		});
-		expect(calls[1].options).not.toHaveProperty("markdown_text");
+		expect(calls[1]?.options).not.toHaveProperty("markdown_text");
 
 		expect(calls[2]).toEqual({
 			method: "chat.appendStream",
@@ -144,8 +144,8 @@ describe("Databuddy Slack response streaming", () => {
 				chunks: [{ text: "Sure — traffic is up ", type: "markdown_text" }],
 			}),
 		});
-		expect(calls[2].options).not.toHaveProperty("markdown_text");
-		expect(getChunkText(calls[3].options)).toBe("12%.");
+		expect(calls[2]?.options).not.toHaveProperty("markdown_text");
+		expect(getChunkText(calls[3]?.options)).toBe("12%.");
 
 		expect(calls.map((c) => c.method)).toEqual([
 			"chat.startStream",
@@ -525,11 +525,7 @@ describe("Databuddy Slack response streaming", () => {
 		const { calls, client } = createStreamClient();
 		const agent: Pick<DatabuddyAgentClient, "stream"> = {
 			async *stream() {
-				throw new DatabuddyAgentUserError({
-					code: "agent_credits_exhausted",
-					message:
-						"You've used your Databunny allowance for this month. Add more usage, upgrade, or wait for the monthly reset.",
-				});
+				throw new AgentError("agent_credits_exhausted");
 			},
 		};
 
@@ -565,10 +561,7 @@ describe("Databuddy Slack response streaming", () => {
 		const sayCalls: Array<{ text: string; thread_ts?: string }> = [];
 		const agent: Pick<DatabuddyAgentClient, "stream"> = {
 			async *stream() {
-				throw new DatabuddyAgentUserError({
-					code: "agent_credits_exhausted",
-					message: "No credits left.",
-				});
+				throw new AgentError("agent_credits_exhausted", "No credits left.");
 			},
 		};
 
