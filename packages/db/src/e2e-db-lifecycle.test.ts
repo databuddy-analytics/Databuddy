@@ -7,6 +7,9 @@ import {
 	mock,
 	spyOn,
 } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Client } from "pg";
 import {
 	assertLocalTargets,
@@ -212,6 +215,46 @@ describe("workspace target guards", () => {
 		expect(() => assertLocalTargets()).toThrow(
 			`Refusing to run against a non-local database; ${name}`
 		);
+	});
+
+	it("rejects remote workspace targets before initializing auth", () => {
+		const directory = mkdtempSync(join(tmpdir(), "workspace-auth-guard-"));
+		const preload = join(directory, "preload.ts");
+		try {
+			writeFileSync(
+				preload,
+				`Bun.plugin({ name: "auth-startup-guard", setup(build) {
+					build.onLoad({ filter: /\\/packages\\/test\\/src\\/auth\\.ts$/ }, () => ({
+						loader: "js",
+						contents: 'throw new Error("Auth initialized before target validation"); export const signUp = () => {};',
+					}));
+				} });`
+			);
+			const result = Bun.spawnSync(
+				[
+					process.execPath,
+					"--no-env-file",
+					"--preload",
+					preload,
+					join(import.meta.dir, "../../test/src/setup.ts"),
+				],
+				{
+					env: {
+						CLICKHOUSE_URL: "http://localhost:8123",
+						DATABASE_URL: "postgres://u:p@localhost:5432/databuddy",
+						NODE_ENV: "development",
+						REDIS_URL: "redis://remote.example:6379",
+					},
+					timeout: 10_000,
+				}
+			);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr.toString()).toContain(
+				'Refusing to run against a non-local database; REDIS_URL host is "remote.example"'
+			);
+		} finally {
+			rmSync(directory, { force: true, recursive: true });
+		}
 	});
 
 	it.each([

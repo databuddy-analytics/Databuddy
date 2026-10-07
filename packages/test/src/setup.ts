@@ -12,7 +12,6 @@ import {
 	MAX_ANALYTICS_EVENTS,
 	seedAnalytics,
 } from "@databuddy/db/seed";
-import { signUp } from "./auth";
 import { closeClickHouse } from "./clickhouse";
 import { closePostgres, db, truncatePostgres } from "./db";
 import { insertApiKey, insertWebsite } from "./factories";
@@ -48,7 +47,9 @@ async function workspaceWebsite(websiteId?: string) {
 	});
 	const user =
 		existingUser ??
-		(await signUp({
+		(await (
+			await import("./auth")
+		).signUp({
 			email: WORKSPACE.email,
 			name: "Local Dev",
 			password: WORKSPACE.password,
