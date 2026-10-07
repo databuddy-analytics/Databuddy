@@ -647,27 +647,6 @@ async function ask(input: Record<string, unknown> = {}) {
 }
 
 describe("ask route", () => {
-	it("returns HTTP 503 when billing fails before streamed text", async () => {
-		state.stream.mockImplementationOnce(async function* () {
-			yield "";
-			throw new BillingUnavailableError("Synthetic provider detail");
-		});
-		const response = await agent.handle(
-			new Request("http://localhost/v1/agent/ask", {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ question: "Show recent events", stream: true }),
-			})
-		);
-		expect(response.status).toBe(503);
-		expect(response.headers.get("content-type")).toBe("application/json");
-		expect(await response.json()).toMatchObject({
-			success: false,
-			code: "BILLING_UNAVAILABLE",
-		});
-	});
-
-
 	it("runs the shared agent read-only for answers and streams", async () => {
 		for (const stream of [false, true]) {
 			const response = await ask({ stream });
@@ -1110,41 +1089,49 @@ describe("selected agent identity through native HTTP", () => {
 });
 
 describe("ask stream HTTP startup and transport failures", () => {
-	it.each([
-		{
-			name: "provider",
-			error: new APICallError({
-				message: "SYNTHETIC_PROVIDER_DETAIL",
-				url: "https://provider.invalid",
-				requestBodyValues: {},
-			}),
-			status: 503,
-			code: "PROVIDER_UNAVAILABLE",
-		},
-		{
-			name: "billing",
-			error: new BillingUnavailableError("SYNTHETIC_BILLING_DETAIL"),
-			status: 503,
-			code: "BILLING_UNAVAILABLE",
-		},
-		{
-			name: "typed request",
-			error: new AgentError("invalid_messages"),
-			status: 400,
-			code: "INVALID_MESSAGES",
-		},
-		{
-			name: "internal",
-			error: new Error("SYNTHETIC_INTERNAL_DETAIL"),
-			status: 500,
-			code: "INTERNAL_ERROR",
-		},
-	])("maps a $name failure before the first text to its HTTP status", async ({
+	it.each(
+		[
+			{
+				name: "provider",
+				error: new APICallError({
+					message: "SYNTHETIC_PROVIDER_DETAIL",
+					url: "https://provider.invalid",
+					requestBodyValues: {},
+				}),
+				status: 503,
+				code: "PROVIDER_UNAVAILABLE",
+			},
+			{
+				name: "billing",
+				error: new BillingUnavailableError("SYNTHETIC_BILLING_DETAIL"),
+				status: 503,
+				code: "BILLING_UNAVAILABLE",
+			},
+			{
+				name: "typed request",
+				error: new AgentError("invalid_messages"),
+				status: 400,
+				code: "INVALID_MESSAGES",
+			},
+			{
+				name: "internal",
+				error: new Error("SYNTHETIC_INTERNAL_DETAIL"),
+				status: 500,
+				code: "INTERNAL_ERROR",
+			},
+		].flatMap((failure) =>
+			[false, true].map((emptyFirst) => ({ ...failure, emptyFirst }))
+		)
+	)("maps a $name failure before the first text (empty=$emptyFirst) to its HTTP status", async ({
 		error,
 		status,
 		code,
+		emptyFirst,
 	}) => {
 		state.stream.mockImplementationOnce(async function* () {
+			if (emptyFirst) {
+				yield "";
+			}
 			throw error;
 		});
 		const response = await askResponse({ stream: true });
@@ -1153,22 +1140,6 @@ describe("ask stream HTTP startup and transport failures", () => {
 		const text = await response.text();
 		expect(JSON.parse(text)).toMatchObject({ success: false, code });
 		expect(text).not.toContain("SYNTHETIC_");
-	});
-
-	it("does not commit success for an empty chunk followed by provider failure", async () => {
-		state.stream.mockImplementationOnce(async function* () {
-			yield "";
-			throw new APICallError({
-				message: "SYNTHETIC_PROVIDER_DETAIL",
-				url: "https://provider.invalid",
-				requestBodyValues: {},
-			});
-		});
-		const response = await askResponse({ stream: true });
-		expect(response.status).toBe(503);
-		expect(await response.json()).toMatchObject({
-			code: "PROVIDER_UNAVAILABLE",
-		});
 	});
 
 	it("preserves ordered plain text without duplicating the primed chunk", async () => {

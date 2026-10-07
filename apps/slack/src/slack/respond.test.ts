@@ -136,7 +136,7 @@ describe("Databuddy Slack response streaming", () => {
 				],
 			}),
 		});
-		expect(calls[1].options).not.toHaveProperty("markdown_text");
+		expect(calls[1]?.options).not.toHaveProperty("markdown_text");
 
 		expect(calls[2]).toEqual({
 			method: "chat.appendStream",
@@ -144,8 +144,8 @@ describe("Databuddy Slack response streaming", () => {
 				chunks: [{ text: "Sure — traffic is up ", type: "markdown_text" }],
 			}),
 		});
-		expect(calls[2].options).not.toHaveProperty("markdown_text");
-		expect(getChunkText(calls[3].options)).toBe("12%.");
+		expect(calls[2]?.options).not.toHaveProperty("markdown_text");
+		expect(getChunkText(calls[3]?.options)).toBe("12%.");
 
 		expect(calls.map((c) => c.method)).toEqual([
 			"chat.startStream",

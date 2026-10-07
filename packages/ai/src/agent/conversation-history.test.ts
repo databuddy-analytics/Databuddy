@@ -109,7 +109,7 @@ test.each([
 	await invoke({ ...options, input: "Third question" });
 
 	expect(runs.map((run) => run.priorMessages?.length ?? 0)).toEqual([0, 2, 4]);
-	expect(runs[1].priorMessages).toEqual([
+	expect(runs[1]?.priorMessages).toEqual([
 		{ role: "user", content: "First question" },
 		{ role: "assistant", content: "Answer: First question" },
 	]);

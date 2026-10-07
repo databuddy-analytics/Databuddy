@@ -8,9 +8,11 @@ import {
 import { buildAnalyticsInstructionsForMcp } from "../../../../packages/ai/src/ai/prompts/analytics";
 
 function firstBlock(spec: ComponentSpec): Block {
-	const blocks = componentToBlocks(spec);
-	expect(blocks.length).toBeGreaterThan(0);
-	return blocks[0];
+	const block = componentToBlocks(spec)[0];
+	if (!block) {
+		throw new Error("Expected a rendered block");
+	}
+	return block;
 }
 
 describe("componentToBlocks tables and lists", () => {
@@ -176,7 +178,7 @@ describe("componentToBlocks charts", () => {
 			"data_table",
 		]);
 		expect(blocks[3]).toEqual(componentToBlocks(chart, false)[0]);
-		expect(componentsToBlocks([chart], false)[0].type).toBe("data_table");
+		expect(componentsToBlocks([chart], false)[0]?.type).toBe("data_table");
 	});
 
 	it("preserves values in table fallbacks and labels row limits", () => {
@@ -255,8 +257,8 @@ describe("componentToBlocks native actions and previews", () => {
 			"agent_drilldown_0",
 			"agent_drilldown_2",
 		]);
-		expect(elements[0].value).toBe("break /pricing down by referrer");
-		expect(elements[1].value).toBe("compare with yesterday");
+		expect(elements[0]?.value).toBe("break /pricing down by referrer");
+		expect(elements[1]?.value).toBe("compare with yesterday");
 	});
 });
 
@@ -268,7 +270,7 @@ describe("componentToBlocks no silent drop", () => {
 			title: "Top referrers",
 		});
 		expect(blocks).toHaveLength(1);
-		expect(blocks[0].type).toBe("context");
+		expect(blocks[0]?.type).toBe("context");
 	});
 
 	it("never returns an empty block list for a known component", () => {
