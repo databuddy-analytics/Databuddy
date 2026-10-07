@@ -7,7 +7,7 @@ import {
 } from "@databuddy/db";
 import { chQuery } from "@databuddy/db/clickhouse";
 import { uptimeSchedules } from "@databuddy/db/schema";
-import { config } from "@databuddy/env/app";
+import { config, dataUrl } from "@databuddy/env/app";
 import {
 	NotificationClient,
 	buildAlarmNotificationTargets,
@@ -395,7 +395,7 @@ export async function writeMonitorState(
 }
 
 async function queryPreviousState(siteId: string): Promise<MonitorStateLookup> {
-	if (!process.env.CLICKHOUSE_URL) {
+	if (!dataUrl("CLICKHOUSE_URL")) {
 		return { kind: "missing" };
 	}
 	try {

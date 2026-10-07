@@ -1,6 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readBooleanEnv } from "@databuddy/env/app";
+import { config, readBooleanEnv } from "@databuddy/env/app";
 import {
 	createBatchedAxiomDrain,
 	enrichHttpWideEvent,
@@ -10,7 +10,7 @@ import { createBatchedSuperlogDrain } from "@databuddy/shared/evlog-superlog";
 import type { DrainContext, EnrichContext } from "evlog";
 import { createFsDrain } from "evlog/fs";
 
-const batchedAxiomDrain = createBatchedAxiomDrain(process.env.AXIOM_TOKEN);
+const batchedAxiomDrain = createBatchedAxiomDrain(config.services.axiomToken);
 const batchedSuperlogDrain = createBatchedSuperlogDrain();
 
 const devFsLogsDir = join(
@@ -24,8 +24,7 @@ const devFsLogsDir = join(
 const useLocalEvlogFiles =
 	process.env.NODE_ENV === "development" || readBooleanEnv("UPTIME_EVLOG_FS");
 
-const drainToAxiom =
-	process.env.NODE_ENV !== "development" && Boolean(process.env.AXIOM_TOKEN);
+const drainToAxiom = Boolean(config.services.axiomToken);
 
 const devFsDrain = useLocalEvlogFiles
 	? createFsDrain({ dir: devFsLogsDir, pretty: false })

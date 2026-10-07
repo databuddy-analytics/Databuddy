@@ -1,6 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readBooleanEnv } from "@databuddy/env/app";
+import { config, readBooleanEnv } from "@databuddy/env/app";
 import { createDatabuddyEvlogEnv } from "@databuddy/shared/evlog-redaction";
 import type { DrainContext, EnrichContext, WideEvent } from "evlog";
 import { log } from "evlog";
@@ -20,7 +20,7 @@ type LogFields = Record<string, LogField>;
 const batchedAxiomDrain = createDrainPipeline<DrainContext>({
 	batch: { size: 50, intervalMs: 5000 },
 	maxBufferSize: 2000,
-})(createAxiomDrain({ apiKey: process.env.AXIOM_TOKEN }));
+})(createAxiomDrain({ apiKey: config.services.axiomToken }));
 
 const fsDrain =
 	process.env.NODE_ENV === "development" || readBooleanEnv("LINKS_EVLOG_FS")
@@ -36,8 +36,7 @@ const fsDrain =
 			})
 		: null;
 
-const drainToAxiom =
-	process.env.NODE_ENV !== "development" && Boolean(process.env.AXIOM_TOKEN);
+const drainToAxiom = Boolean(config.services.axiomToken);
 
 const DURATION_RE = /^([\d.]+)(ms|s)$/;
 

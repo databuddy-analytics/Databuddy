@@ -1,11 +1,6 @@
+import { isLoopbackHost } from "@databuddy/env/app";
 import { Client } from "pg";
 
-const LOCAL_DATABASE_HOSTS = new Set([
-	"localhost",
-	"127.0.0.1",
-	"::1",
-	"[::1]",
-]);
 const DEFAULT_E2E_DB_PREFIX = "databuddy_e2e";
 const INVALID_DB_IDENTIFIER_PARTS = /[^A-Za-z0-9_]+/g;
 const REPEATED_UNDERSCORES = /_+/g;
@@ -131,10 +126,6 @@ export function normalizeDatabaseUrl(databaseDsn: string): URL {
 	return parsed;
 }
 
-export function isLocalDbHostname(hostname: string): boolean {
-	return LOCAL_DATABASE_HOSTS.has(hostname.toLowerCase());
-}
-
 export function deriveAdminDatabaseUrl(baseUrl: URL): URL {
 	const url = new URL(baseUrl.href);
 	url.pathname = "/postgres";
@@ -151,7 +142,12 @@ export function resolveLifecycleConfig(
 	input: ParsedLifecycleArgs
 ): ResolvedLifecycleConfig {
 	const baseUrl = normalizeDatabaseUrl(input.baseDsn);
-	if (!(input.allowNonLocal || isLocalDbHostname(baseUrl.hostname))) {
+	if (!input.allowNonLocal && baseUrl.searchParams.has("host")) {
+		throw new Error(
+			"Refusing to manage E2E DB with a PostgreSQL host override. Set --allow-non-local to override."
+		);
+	}
+	if (!(input.allowNonLocal || isLoopbackHost(baseUrl.href))) {
 		throw new Error(
 			`Refusing to manage E2E DB on non-local host '${baseUrl.hostname}'. Set --allow-non-local to override.`
 		);

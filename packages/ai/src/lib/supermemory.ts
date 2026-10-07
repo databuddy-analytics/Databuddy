@@ -1,8 +1,8 @@
+import { config } from "@databuddy/env/app";
 import { getMemoryClient } from "@databuddy/services/business-memory";
 export { getMemoryClient } from "@databuddy/services/business-memory";
 import { stripHtmlTags } from "./sanitize";
 
-const apiKey = process.env.SUPERMEMORY_API_KEY;
 const MAX_MEMORY_LENGTH = 2000;
 const MEMORY_REQUEST_CLAUSE = /[^.!?;:,\n]+\??/g;
 const MEMORY_REQUEST_FILLER =
@@ -46,7 +46,7 @@ const FORGET_ACKNOWLEDGEMENT =
 	/^(?:(?:thanks|thank you|ok|okay|got it)[.!]\s*)+/i;
 
 export function isMemoryEnabled(): boolean {
-	return Boolean(apiKey);
+	return Boolean(config.services.supermemoryApiKey);
 }
 
 export function sanitizeMemoryContent(

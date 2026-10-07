@@ -1,4 +1,5 @@
 import { TCCSpanProcessor } from "@contextcompany/otel";
+import { config } from "@databuddy/env/app";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import {
@@ -9,7 +10,7 @@ import pkg from "../../package.json";
 
 let sdk: NodeSDK | null = null;
 export function initTccTracing(): void {
-	if (sdk || !process.env.TCC_API_KEY) {
+	if (sdk || !config.services.tccApiKey) {
 		return;
 	}
 

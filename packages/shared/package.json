@@ -46,6 +46,7 @@
     "bots:sync": "curl -fsSL https://raw.githubusercontent.com/arcjet/well-known-bots/main/well-known-bots.json -o src/utils/bot-detection/well-known-bots.json && bun test src/utils/bot-detection"
   },
   "dependencies": {
+    "@databuddy/env": "workspace:*",
     "evlog": "catalog:",
     "ua-parser-js": "catalog:",
     "undici": "^8.2.0",

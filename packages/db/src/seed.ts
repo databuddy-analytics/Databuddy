@@ -1,12 +1,12 @@
+import { dataUrl, isLoopbackHost } from "@databuddy/env/app";
 import { faker } from "@faker-js/faker";
 import { clickHouse, TABLE_NAMES } from "./clickhouse/client";
 import { db } from "./client";
-import { isLocalDbHostname } from "./e2e-db-lifecycle";
 
 for (const name of ["CLICKHOUSE_URL", "DATABASE_URL"] as const) {
-	const url = process.env[name];
+	const url = dataUrl(name);
 	const hostname = url && URL.canParse(url) ? new URL(url).hostname : "";
-	if (!isLocalDbHostname(hostname)) {
+	if (!(url && hostname && isLoopbackHost(url))) {
 		throw new Error(
 			`db:seed only runs against local databases; ${name} host is "${hostname || "unset"}"`
 		);
