@@ -36,12 +36,18 @@ describe("updateAutumnBalance", () => {
 			async (_input: string | URL | Request, _init?: RequestInit) =>
 				Response.json({ success: true })
 		);
-		globalThis.fetch = fetchMock as unknown as typeof fetch;
+		globalThis.fetch = Object.assign(fetchMock, {
+			preconnect: originalFetch.preconnect,
+		});
 
 		await update("redemption-1");
 
 		expect(fetchMock).toHaveBeenCalledTimes(1);
-		const [input, init] = fetchMock.mock.calls[0];
+		const call = fetchMock.mock.calls[0];
+		if (!call) {
+			throw new Error("Expected an Autumn balance request");
+		}
+		const [input, init] = call;
 		const request = new Request(input, init);
 		expect(request.url).toBe("https://api.useautumn.com/v1/balances.update");
 		expect(request.headers.get("Idempotency-Key")).toBe(
@@ -60,9 +66,10 @@ describe("updateAutumnBalance", () => {
 		[500, false],
 		[503, false],
 	])("treats an HTTP %i Autumn response as definitive=%p for rollback", async (status, definitive) => {
-		globalThis.fetch = mock(async () =>
-			Response.json({ message: "autumn error" }, { status })
-		) as unknown as typeof fetch;
+		globalThis.fetch = Object.assign(
+			mock(async () => Response.json({ message: "autumn error" }, { status })),
+			{ preconnect: originalFetch.preconnect }
+		);
 
 		const error = await update("redemption-2").catch((caught) => caught);
 
@@ -72,7 +79,9 @@ describe("updateAutumnBalance", () => {
 
 	it("fails definitively without calling Autumn when billing is not live", async () => {
 		const fetchMock = mock(async () => Response.json({ success: true }));
-		globalThis.fetch = fetchMock as unknown as typeof fetch;
+		globalThis.fetch = Object.assign(fetchMock, {
+			preconnect: originalFetch.preconnect,
+		});
 		process.env.SELFHOST = "true";
 
 		const error = await update("redemption-4").catch((caught) => caught);
@@ -82,9 +91,12 @@ describe("updateAutumnBalance", () => {
 	});
 
 	it("marks network failures as ambiguous so callers do not roll back spent credits", async () => {
-		globalThis.fetch = mock(async () => {
-			throw new TypeError("socket closed after write");
-		}) as unknown as typeof fetch;
+		globalThis.fetch = Object.assign(
+			mock(async () => {
+				throw new TypeError("socket closed after write");
+			}),
+			{ preconnect: originalFetch.preconnect }
+		);
 
 		const error = await update("redemption-3").catch((caught) => caught);
 

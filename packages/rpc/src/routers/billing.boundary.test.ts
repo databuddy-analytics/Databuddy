@@ -43,8 +43,11 @@ mock.module("@databuddy/db/clickhouse", () => ({
 let status = 202;
 const requests: string[] = [];
 const originalSecret = process.env.AUTUMN_SECRET_KEY;
-const transport = spyOn(globalThis, "fetch").mockImplementation(
-	async (input, init) => {
+const fetcher = Object.assign(
+	async (
+		input: Parameters<typeof fetch>[0],
+		init?: Parameters<typeof fetch>[1]
+	) => {
 		const request = input instanceof Request ? input : new Request(input, init);
 		const url = new URL(request.url);
 		requests.push(url.pathname);
@@ -54,8 +57,10 @@ const transport = spyOn(globalThis, "fetch").mockImplementation(
 			customer_id: "owner-example",
 		});
 		return Response.json({}, { status });
-	}
+	},
+	{ preconnect: globalThis.fetch.preconnect }
 );
+const transport = spyOn(globalThis, "fetch").mockImplementation(fetcher);
 
 const { billingRouter } = await import("./billing");
 const context = {
@@ -84,7 +89,7 @@ beforeEach(() => {
 afterAll(() => {
 	transport.mockRestore();
 	if (originalSecret === undefined) {
-		delete process.env.AUTUMN_SECRET_KEY;
+		Reflect.deleteProperty(process.env, "AUTUMN_SECRET_KEY");
 	} else {
 		process.env.AUTUMN_SECRET_KEY = originalSecret;
 	}
