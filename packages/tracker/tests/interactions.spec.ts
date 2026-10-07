@@ -616,7 +616,7 @@ test.describe("interaction frustration signals", () => {
 	}) => {
 		await page.goto("/test");
 		await page.evaluate(() => {
-			document.body.innerHTML = `<button aria-label="pay">Pay</button>`;
+			document.body.innerHTML = `<button type="button" aria-label="pay">Pay</button>`;
 			window.databuddyConfig = {
 				clientId: "test-interactions-default",
 				ignoreBotDetection: true,
@@ -634,7 +634,7 @@ test.describe("interaction frustration signals", () => {
 	}) => {
 		await page.goto("/test");
 		await page.evaluate(() => {
-			document.body.innerHTML = `<button aria-label="pay">Pay</button>`;
+			document.body.innerHTML = `<button type="button" aria-label="pay">Pay</button>`;
 			const script = document.createElement("script");
 			script.src = "/dist/databuddy-debug.js";
 			script.dataset.clientId = "test-interactions-opt-out";
