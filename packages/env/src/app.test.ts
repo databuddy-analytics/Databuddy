@@ -249,10 +249,13 @@ describe("isLocalHost", () => {
 	it("rejects malformed service URLs without exposing credentials", () => {
 		const invalid = "postgres://synthetic-user:synthetic-private@[broken";
 		for (const checkHost of [isLocalHost, isLoopbackHost]) {
-			let failure: unknown;
+			let failure: Error | undefined;
 			try {
 				checkHost(invalid);
 			} catch (error) {
+				if (!(error instanceof Error)) {
+					throw error;
+				}
 				failure = error;
 			}
 			expect(failure).toBeInstanceOf(Error);

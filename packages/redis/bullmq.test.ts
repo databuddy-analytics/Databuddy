@@ -58,7 +58,7 @@ assert.equal(getBullMQConnectionOptions().host, "queue.example.com");
 	});
 
 	it("requires BULLMQ_REDIS_URL", () => {
-		delete process.env.BULLMQ_REDIS_URL;
+		Reflect.deleteProperty(process.env, "BULLMQ_REDIS_URL");
 
 		expect(() => getBullMQConnectionOptions()).toThrow(
 			"BULLMQ_REDIS_URL environment variable is required"
@@ -99,7 +99,7 @@ assert.equal(getBullMQConnectionOptions().host, "queue.example.com");
 	it("prefers the self-hosted shared URL over development defaults", () => {
 		process.env.NODE_ENV = "development";
 		process.env.SELFHOST = "true";
-		delete process.env.BULLMQ_REDIS_URL;
+		Reflect.deleteProperty(process.env, "BULLMQ_REDIS_URL");
 
 		for (const resolve of [
 			getBullMQConnectionOptions,
@@ -113,7 +113,7 @@ assert.equal(getBullMQConnectionOptions().host, "queue.example.com");
 			});
 			process.env.BULLMQ_REDIS_URL = "redis://dedicated.test:6379/3";
 			expect(resolve().host).toBe("dedicated.test");
-			delete process.env.BULLMQ_REDIS_URL;
+			Reflect.deleteProperty(process.env, "BULLMQ_REDIS_URL");
 		}
 	});
 
@@ -123,8 +123,8 @@ assert.equal(getBullMQConnectionOptions().host, "queue.example.com");
 	])("keeps local development defaults when SELFHOST=%s and URLs are unset", (selfhost) => {
 		process.env.NODE_ENV = "development";
 		process.env.SELFHOST = selfhost;
-		delete process.env.BULLMQ_REDIS_URL;
-		delete process.env.REDIS_URL;
+		Reflect.deleteProperty(process.env, "BULLMQ_REDIS_URL");
+		Reflect.deleteProperty(process.env, "REDIS_URL");
 
 		expect(getBullMQConnectionOptions().host).toBe("localhost");
 		expect(getBullMQWorkerConnectionOptions().host).toBe("localhost");
