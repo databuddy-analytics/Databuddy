@@ -1,4 +1,5 @@
 import type { MockLanguageModelV3 } from "ai/test";
+import { BillingUnavailableError } from "@databuddy/shared/billing";
 import {
 	type OrganizationBusinessProfile,
 	PROFILE_ORIGIN_PROVENANCE,
@@ -445,7 +446,7 @@ describe("dashboard canonical business context through the native HTTP/model str
 	});
 	it("delivers organization-wide context with no selected website", async () => {
 		expect((await chat({ websiteId: undefined })).status).toBe(200);
-		expect(JSON.stringify(state.prompts[0].prompt)).toContain(meaning);
+		expect(JSON.stringify(state.prompts[0]?.prompt)).toContain(meaning);
 	});
 	it("delivers team-only settings and preserves mixed legacy meanings as assertions", async () => {
 		for (const content of ["", `${meaning}. Public capability claims.`]) {
@@ -467,9 +468,9 @@ describe("dashboard canonical business context through the native HTTP/model str
 			200
 		);
 		expect(state.read).not.toHaveBeenCalled();
-		expect(JSON.stringify(state.prompts[0].prompt)).not.toContain(meaning);
+		expect(JSON.stringify(state.prompts[0]?.prompt)).not.toContain(meaning);
 		for (const assertion of Object.values(teamContext)) {
-			expect(JSON.stringify(state.prompts[0].prompt)).not.toContain(assertion);
+			expect(JSON.stringify(state.prompts[0]?.prompt)).not.toContain(assertion);
 		}
 	});
 	it("rejects an inaccessible organization, site or existing chat before reading profiles", async () => {
@@ -483,7 +484,7 @@ describe("dashboard canonical business context through the native HTTP/model str
 	it("continues the stream with explicit uncertainty when the profile read fails", async () => {
 		state.read.mockRejectedValueOnce(new Error("synthetic read failure"));
 		expect((await chat()).status).toBe(200);
-		expect(JSON.stringify(state.prompts[0].prompt)).toContain(
+		expect(JSON.stringify(state.prompts[0]?.prompt)).toContain(
 			"unavailable for this turn"
 		);
 		expect(state.read).toHaveBeenCalledTimes(1);
@@ -567,6 +568,26 @@ describe("dashboard memory writes", () => {
 });
 
 describe("ask route permissions", () => {
+	it("returns HTTP 503 when billing fails before streamed text", async () => {
+		state.stream.mockImplementationOnce(async function* () {
+			yield "";
+			throw new BillingUnavailableError("Synthetic provider detail");
+		});
+		const response = await agent.handle(
+			new Request("http://localhost/v1/agent/ask", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ question: "Show recent events", stream: true }),
+			})
+		);
+		expect(response.status).toBe(503);
+		expect(response.headers.get("content-type")).toBe("application/json");
+		expect(await response.json()).toMatchObject({
+			success: false,
+			code: "BILLING_UNAVAILABLE",
+		});
+	});
+
 	it("runs the shared agent read-only for answers and streams", async () => {
 		for (const stream of [false, true]) {
 			const response = await agent.handle(

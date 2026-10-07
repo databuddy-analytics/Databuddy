@@ -9,7 +9,7 @@ import { formatLocaleNumber } from "@/lib/format-locale-number";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import { WarningIcon } from "@databuddy/ui/icons";
-import { buttonVariants } from "@databuddy/ui";
+import { buttonVariants, Text } from "@databuddy/ui";
 
 export function EventLimitIndicator() {
 	const pathname = usePathname();
@@ -20,8 +20,25 @@ export function EventLimitIndicator() {
 		enabled: !(isDemoRoute || isSelfHosted),
 	});
 
-	if (isSelfHosted || !data || data.unlimited) {
+	if (isDemoRoute || isSelfHosted || !data || data.unlimited) {
 		return null;
+	}
+
+	if (data.unavailable === true) {
+		return (
+			<div
+				className="flex items-center gap-2 rounded border border-warning/30 bg-warning/5 px-3 py-2"
+				role="status"
+			>
+				<WarningIcon
+					aria-hidden="true"
+					className="size-4 shrink-0 text-warning"
+				/>
+				<Text className="text-pretty" tone="muted" variant="caption">
+					Billing usage is temporarily unavailable.
+				</Text>
+			</div>
+		);
 	}
 
 	const planLimit = Number(data.includedUsage ?? 0);

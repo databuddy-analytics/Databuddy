@@ -1,7 +1,11 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { billingMode, readBooleanEnv } from "@databuddy/env/app";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { MIN_AGENT_CREDIT_CHECK_BALANCE } from "@databuddy/shared/agent-credits";
-import { getAutumn } from "@databuddy/rpc/autumn";
+import {
+	autumnCall,
+	BillingUnavailableError,
+	getAutumn,
+} from "@databuddy/rpc/autumn";
 import { getBillingCustomerId } from "@databuddy/rpc/billing";
 import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
 import type { RequestLogger } from "evlog";
@@ -33,19 +37,12 @@ export interface AgentBillingAccess {
 	customerId: string | null;
 }
 
-export function isAgentBillingConfigured(): boolean {
-	return (
-		!readBooleanEnv("SELFHOST") &&
-		Boolean(process.env.AUTUMN_SECRET_KEY?.trim())
-	);
-}
-
 export async function resolveAgentBillingCustomerId(principal: {
 	apiKey?: ApiKeyRow | null;
 	organizationId?: string | null;
 	userId?: string | null;
 }): Promise<string | null> {
-	if (!isAgentBillingConfigured()) {
+	if (billingMode() !== "live") {
 		mergeAgentBillingFields({
 			billingCustomerId: null,
 			organizationId:
@@ -102,7 +99,7 @@ export async function getAgentBillingAccess(
 			"Ask your administrator to configure AI before using Databunny."
 		);
 	}
-	if (!isAgentBillingConfigured()) {
+	if (billingMode() !== "live") {
 		mergeWideEvent({
 			agent_credits_allowed: true,
 			agent_credits_check_skipped: true,
@@ -110,28 +107,36 @@ export async function getAgentBillingAccess(
 		return { allowed: true, customerId: billingCustomerId };
 	}
 	if (!billingCustomerId) {
-		throw new Error("The agent billing customer is unavailable");
+		throw new BillingUnavailableError(
+			"The agent billing customer is unavailable"
+		);
 	}
 
 	const startedAt = performance.now();
 	try {
-		const autumn = getAutumn({ strict: true });
-		const customer = await autumn.customers.get({
-			customerId: billingCustomerId,
-		});
+		const autumn = getAutumn();
+		const customer = await autumnCall("customers.get", () =>
+			autumn.customers.get({ customerId: billingCustomerId })
+		);
 		if (customer.id !== billingCustomerId) {
-			throw new Error("The agent billing customer could not be verified");
+			throw new BillingUnavailableError(
+				"The agent billing customer could not be verified"
+			);
 		}
-		const result = await autumn.check({
-			customerId: billingCustomerId,
-			featureId: "agent_credits",
-			requiredBalance: MIN_AGENT_CREDIT_CHECK_BALANCE,
-		});
+		const result = await autumnCall("check", () =>
+			autumn.check({
+				customerId: billingCustomerId,
+				featureId: "agent_credits",
+				requiredBalance: MIN_AGENT_CREDIT_CHECK_BALANCE,
+			})
+		);
 		if (
 			result.customerId !== billingCustomerId ||
 			(result.allowed && result.balance?.featureId !== "agent_credits")
 		) {
-			throw new Error("The agent credit balance could not be verified");
+			throw new BillingUnavailableError(
+				"The agent credit balance could not be verified"
+			);
 		}
 		const allowed = result.allowed === true;
 		const balance = result.balance;
@@ -209,7 +214,7 @@ export async function trackAgentUsageAndBill(
 ): Promise<UsageTelemetry> {
 	const summary = trackAgentUsage(input);
 
-	if (!(isAgentBillingConfigured() && input.billingCustomerId)) {
+	if (!(billingMode() === "live" && input.billingCustomerId)) {
 		return summary;
 	}
 	if (input.source !== "insights") {

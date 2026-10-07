@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { createAutumnClient } from "@databuddy/rpc/autumn";
 import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 
 // The provider contract is exercised through the installed SDK. Customer ownership
@@ -10,7 +11,6 @@ mock.module("@databuddy/ai/agents/execution", () => ({
 const {
 	assertInvestigationReservationActive,
 	canRunInvestigation,
-	createInvestigationBillingClient,
 	releaseInvestigationCharge,
 	reserveInvestigationCharge,
 	resolveInvestigationBilling,
@@ -22,6 +22,10 @@ const integration =
 const customerId = "synthetic-investigation-customer";
 const originalSecret = process.env.AUTUMN_SECRET_KEY;
 const originalNodeEnv = process.env.NODE_ENV;
+
+beforeEach(() => {
+	process.env.AUTUMN_SECRET_KEY = "synthetic-local-only";
+});
 
 afterEach(() => {
 	if (originalSecret === undefined) {
@@ -128,7 +132,7 @@ function provider(
 			{ status: fault.status ?? 500 }
 		);
 	};
-	const client = createInvestigationBillingClient({
+	const client = createAutumnClient({
 		secretKey: "synthetic-local-only",
 		fetcher: async (request) => {
 			if (!(request instanceof Request)) {
@@ -294,7 +298,6 @@ integration("investigation billing through the native Autumn SDK", () => {
 	it("rejects missing production configuration and mismatched native customer identities", async () => {
 		delete process.env.AUTUMN_SECRET_KEY;
 		process.env.NODE_ENV = "production";
-		expect(() => createInvestigationBillingClient()).toThrow("not configured");
 		await expect(
 			resolveInvestigationBilling({ organizationId: "synthetic-org" })
 		).rejects.toThrow("not configured");

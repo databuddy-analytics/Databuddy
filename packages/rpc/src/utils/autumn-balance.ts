@@ -1,14 +1,21 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
-
-const AUTUMN_BALANCE_TIMEOUT_MS = 10_000;
+import { AutumnError, ResponseValidationError } from "autumn-js";
+import { getAutumn, isBillingUnavailable } from "../lib/autumn-client";
 
 class AutumnBalanceUpdateError extends Error {
 	readonly definitiveFailure: boolean;
 
-	constructor(message: string, definitiveFailure: boolean) {
-		super(message);
-		this.definitiveFailure = definitiveFailure;
+	constructor(cause: unknown) {
+		super(
+			`Autumn balance update failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+			{ cause }
+		);
 		this.name = "AutumnBalanceUpdateError";
+		this.definitiveFailure =
+			isBillingUnavailable(cause) ||
+			(cause instanceof AutumnError &&
+				!(cause instanceof ResponseValidationError) &&
+				cause.statusCode >= 400 &&
+				cause.statusCode < 500);
 	}
 }
 
@@ -21,51 +28,21 @@ export async function updateAutumnBalance(input: {
 	customerId: string;
 	featureId: string;
 	redemptionId: string;
-	secretKey?: string | null;
 }): Promise<void> {
-	if (readBooleanEnv("SELFHOST")) {
-		throw new AutumnBalanceUpdateError(
-			"Hosted billing is disabled for self-hosted instances",
-			true
-		);
-	}
-	const secretKey = input.secretKey ?? process.env.AUTUMN_SECRET_KEY;
-	if (!secretKey) {
-		throw new AutumnBalanceUpdateError("AUTUMN_SECRET_KEY is not set", true);
-	}
-
-	const controller = new AbortController();
-	const timeoutId = setTimeout(
-		() => controller.abort(),
-		AUTUMN_BALANCE_TIMEOUT_MS
-	);
 	try {
-		const response = await fetch(
-			"https://api.useautumn.com/v1/balances.update",
+		await getAutumn().balances.update(
 			{
-				method: "POST",
+				customerId: input.customerId,
+				featureId: input.featureId,
+				addToBalance: input.amount,
+			},
+			{
 				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${secretKey}`,
 					"Idempotency-Key": `feedback-redemption:${input.redemptionId}`,
 				},
-				body: JSON.stringify({
-					customer_id: input.customerId,
-					feature_id: input.featureId,
-					add_to_balance: input.amount,
-				}),
-				signal: controller.signal,
 			}
 		);
-
-		if (!response.ok) {
-			const body = await response.text();
-			throw new AutumnBalanceUpdateError(
-				`Autumn API ${response.status}: ${body}`,
-				response.status < 500
-			);
-		}
-	} finally {
-		clearTimeout(timeoutId);
+	} catch (error) {
+		throw new AutumnBalanceUpdateError(error);
 	}
 }

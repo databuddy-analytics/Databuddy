@@ -7,12 +7,12 @@ import {
 	roleHasPermission,
 } from "@databuddy/auth/permissions";
 import { db } from "@databuddy/db";
+import { billingMode } from "@databuddy/env/app";
 import { cacheNamespaces, cacheable } from "@databuddy/redis";
 import { normalizePlanId, type PlanId } from "@databuddy/shared/types/features";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { hasHostedBilling } from "../lib/autumn-client";
 import { type Context, os } from "../orpc";
 import { getMemberRole, getOrganizationOwnerId } from "../utils/organization";
 
@@ -156,7 +156,7 @@ async function getPlanId(
 }
 
 function requirePlan(plan: PlanId, requiredPlans: PlanId[] | undefined): void {
-	if (!(hasHostedBilling() && requiredPlans?.length)) {
+	if (!(billingMode() === "live" && requiredPlans?.length)) {
 		return;
 	}
 	if (!requiredPlans.includes(plan)) {

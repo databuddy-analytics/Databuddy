@@ -6,7 +6,8 @@ import {
 } from "@databuddy/api-keys/resolve";
 import { auth, type User } from "@databuddy/auth";
 import { db } from "@databuddy/db";
-import { os as createOS } from "@orpc/server";
+import { billingMode } from "@databuddy/env/app";
+import { ORPCError, os as createOS } from "@orpc/server";
 import { baseErrors } from "./errors";
 import {
 	enrichRpcWideEventContext,
@@ -15,7 +16,7 @@ import {
 	setRpcProcedureType,
 	setRpcAuthTiming,
 } from "./lib/rpc-log-context";
-import { hasHostedBilling } from "./lib/autumn-client";
+import { isBillingUnavailable } from "./lib/autumn-client";
 import { runTracked } from "./middleware/track-mutation";
 import { runAuditedMutation } from "./middleware/audit-mutation";
 import { type BillingOwner, getBillingOwner } from "./utils/billing";
@@ -123,7 +124,7 @@ export const createRPCContext = async (
 	const getBilling = async (
 		billingOrganizationId: string | null = organizationId
 	): Promise<BillingOwner | undefined> => {
-		if (!hasHostedBilling()) {
+		if (billingMode() !== "live") {
 			return;
 		}
 		if (user && billingOrganizationId !== organizationId) {
@@ -164,25 +165,43 @@ export type Context = Awaited<ReturnType<typeof createRPCContext>>;
 
 const os = createOS.$context<Context>().errors(baseErrors);
 
-export const publicProcedure = os.use(({ context, next, path }) => {
+const procedure = os.use(async ({ next }) => {
+	try {
+		return await next();
+	} catch (error) {
+		if (isBillingUnavailable(error)) {
+			throw new ORPCError("SERVICE_UNAVAILABLE", {
+				status: 503,
+				message: "Billing is temporarily unavailable",
+				data: { retryAfter: 30 },
+				cause: error,
+			});
+		}
+		throw error;
+	}
+});
+
+export const publicProcedure = procedure.use(({ context, next, path }) => {
 	setRpcProcedureType("public");
 	setRpcProcedurePath(path);
 	enrichRpcWideEventContext(context);
 	return next();
 });
 
-export const protectedProcedure = os.use(({ context, next, errors, path }) => {
-	setRpcProcedureType("protected");
-	setRpcProcedurePath(path);
-	enrichRpcWideEventContext(context);
+export const protectedProcedure = procedure.use(
+	({ context, next, errors, path }) => {
+		setRpcProcedureType("protected");
+		setRpcProcedurePath(path);
+		enrichRpcWideEventContext(context);
 
-	if (!(context.user || context.apiKey)) {
-		recordORPCError({ code: "UNAUTHORIZED" });
-		throw errors.UNAUTHORIZED();
+		if (!(context.user || context.apiKey)) {
+			recordORPCError({ code: "UNAUTHORIZED" });
+			throw errors.UNAUTHORIZED();
+		}
+
+		return next({ context });
 	}
-
-	return next({ context });
-});
+);
 
 export const sessionProcedure = protectedProcedure.use(
 	({ context, next, errors }) => {

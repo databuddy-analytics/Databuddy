@@ -703,7 +703,7 @@ test("unconfigured billing preserves the local billing policy and fails closed i
 	delete process.env.AUTUMN_SECRET_KEY;
 	expect(await access()).toMatchObject({ status: "allowed" });
 	process.env.NODE_ENV = "production";
-	expect(await access()).toMatchObject({ status: "not-configured" });
+	expect(await access()).toMatchObject({ status: "unavailable" });
 	expect(billingRequests).toEqual([]);
 });
 

@@ -10,13 +10,18 @@ import {
 	or,
 } from "@databuddy/db";
 import { invitation, organization } from "@databuddy/db/schema";
+import { billingMode } from "@databuddy/env/app";
 import {
 	clearExpiredInvitationsSchema,
 	getPendingInvitationsSchema,
 } from "@databuddy/validation";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { getAutumn, hasHostedBilling } from "../lib/autumn-client";
+import {
+	autumnCall,
+	getAutumn,
+	isBillingUnavailable,
+} from "../lib/autumn-client";
 import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import {
@@ -381,42 +386,47 @@ export const organizationsRouter = {
 		})
 		.output(z.record(z.string(), z.unknown()))
 		.handler(async ({ context }) => {
-			if (!hasHostedBilling()) {
+			if (billingMode() !== "live") {
 				return { unlimited: true, canUserUpgrade: false };
 			}
-			const billing = await context.getBilling();
-			const customerId = billing?.customerId ?? context.user.id;
-			const isOrganization = billing?.isOrganization ?? false;
-			const canUserUpgrade = billing?.canUserUpgrade ?? true;
-
+			let billing: Awaited<ReturnType<typeof context.getBilling>>;
 			try {
-				const response = await getAutumn().check({
-					customerId,
-					featureId: "events",
-				});
+				billing = await context.getBilling();
+				const customerId = billing?.customerId ?? context.user.id;
+				const isOrganization = billing?.isOrganization ?? false;
+				const canUserUpgrade = billing?.canUserUpgrade ?? true;
+				const response = await autumnCall("check", () =>
+					getAutumn().check({ customerId, featureId: "events" })
+				);
 
 				const b = response.balance;
 				const unlimited = b?.unlimited ?? false;
-				const used = b?.usage ?? 0;
 				const granted = b?.granted ?? 0;
-				const includedUsage = granted;
-				const overageAllowed = b?.overageAllowed ?? false;
-				const remaining = unlimited ? null : Math.max(0, b?.remaining ?? 0);
-
 				return {
-					used,
+					used: b?.usage ?? 0,
 					limit: unlimited ? null : granted,
 					unlimited,
 					balance: b?.remaining ?? 0,
-					remaining,
-					includedUsage,
-					overageAllowed,
+					remaining: unlimited ? null : Math.max(0, b?.remaining ?? 0),
+					includedUsage: granted,
+					overageAllowed: b?.overageAllowed ?? false,
 					isOrganizationUsage: isOrganization,
 					canUserUpgrade,
 				};
 			} catch (error) {
-				logger.error({ error }, "Failed to check usage");
-				throw rpcError.internal("Failed to retrieve usage data");
+				if (!isBillingUnavailable(error)) {
+					throw error;
+				}
+				logger.warn({ error }, "Usage is unavailable while billing is down");
+				return {
+					unavailable: true,
+					...(billing
+						? {
+								isOrganizationUsage: billing.isOrganization,
+								canUserUpgrade: billing.canUserUpgrade,
+							}
+						: {}),
+				};
 			}
 		}),
 
@@ -465,7 +475,7 @@ export const organizationsRouter = {
 				}
 			}
 
-			if (!hasHostedBilling()) {
+			if (billingMode() !== "live") {
 				return {
 					planId: null,
 					isOrganization: Boolean(context.organizationId),

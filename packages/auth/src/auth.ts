@@ -30,8 +30,7 @@ import {
 	ResetPasswordEmail,
 	VerificationEmail,
 } from "@databuddy/email";
-import { config } from "@databuddy/env/app";
-import { readBooleanEnv } from "@databuddy/env/app";
+import { billingMode, config, readBooleanEnv } from "@databuddy/env/app";
 import { SlackProvider } from "@databuddy/notifications";
 import {
 	getRedisCache,
@@ -179,7 +178,7 @@ function shouldRequireEmailVerification() {
 		if (
 			required &&
 			isSelfHosted() &&
-			!(process.env.RESEND_API_KEY?.trim() && process.env.EMAIL_FROM?.trim())
+			!(config.services.resendApiKey && process.env.EMAIL_FROM?.trim())
 		) {
 			throw new Error(
 				"Self-hosted email verification requires RESEND_API_KEY and EMAIL_FROM on a verified domain."
@@ -235,7 +234,7 @@ async function sendAuthEmail(input: {
 		log.info({ service: "auth", auth_email_skipped: true });
 		return;
 	}
-	const apiKey = process.env.RESEND_API_KEY;
+	const apiKey = config.services.resendApiKey;
 	if (!apiKey) {
 		log.error({
 			service: "auth",
@@ -278,7 +277,7 @@ function formatInvitationRole(role: string | string[]): string {
 		.join(", ");
 }
 
-const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL ?? "";
+const SLACK_WEBHOOK_URL = config.services.slackWebhookUrl ?? "";
 
 function notifySlack(
 	title: string,
@@ -305,7 +304,7 @@ function notifySlack(
 		});
 }
 
-const DUB_API_KEY = process.env.DUB_API_KEY ?? "";
+const DUB_API_KEY = config.services.dubApiKey ?? "";
 
 function trackDubSignUp(user: {
 	id: string;
@@ -528,22 +527,13 @@ async function assertUserRowDeletable(
 }
 
 async function assertNoRenewingSubscription(userId: string): Promise<void> {
-	const secretKey = process.env.AUTUMN_SECRET_KEY?.trim();
-	if (isSelfHosted()) {
+	if (billingMode() !== "live") {
 		return;
 	}
-	if (!secretKey) {
-		if (isProduction()) {
-			log.error({
-				service: "auth",
-				component: "account_deletion",
-				message:
-					"AUTUMN_SECRET_KEY is not set, so the subscription check was skipped",
-			});
-		}
-		return;
-	}
-	const customer = await new Autumn({ secretKey, timeoutMs: 5000 }).customers
+	const customer = await new Autumn({
+		secretKey: config.services.autumnSecretKey,
+		timeoutMs: 5000,
+	}).customers
 		.get({ customerId: userId })
 		.catch((error: unknown) => {
 			if (error instanceof AutumnError && error.statusCode === 404) {

@@ -40,6 +40,7 @@ import {
 } from "@databuddy/redis/stream-buffer";
 import { getRedisCache } from "@databuddy/redis";
 import { ratelimit } from "@databuddy/redis/rate-limit";
+import { isBillingUnavailable } from "@databuddy/shared/billing";
 import {
 	convertToModelMessages,
 	generateId,
@@ -87,6 +88,8 @@ function jsonError(status: number, code: string, message: string): Response {
 
 const INTERNAL_AGENT_ERROR_MESSAGE =
 	"Agent request failed. Please try again shortly.";
+const BILLING_UNAVAILABLE_MESSAGE =
+	"Billing is temporarily unavailable. Please try again shortly.";
 
 function getErrorName(error: unknown, fallback = "UnknownError"): string {
 	if (error instanceof Error) {
@@ -424,14 +427,21 @@ function createAgentUsageInjector(
 	});
 }
 
-function createPlainTextStreamResponse(
-	stream: AsyncIterable<string>
-): Response {
+async function createPlainTextStreamResponse(
+	stream: AsyncGenerator<string>
+): Promise<Response> {
+	let first = await stream.next();
+	while (!(first.done || first.value)) {
+		first = await stream.next();
+	}
 	const encoder = new TextEncoder();
 	return new Response(
 		new ReadableStream<Uint8Array>({
 			async start(controller) {
 				try {
+					if (!first.done) {
+						controller.enqueue(encoder.encode(first.value));
+					}
 					for await (const chunk of stream) {
 						if (chunk) {
 							controller.enqueue(encoder.encode(chunk));
@@ -532,7 +542,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						}
 					: createSessionAgentActor(user, request.headers);
 				if (body.stream) {
-					return createPlainTextStreamResponse(
+					return await createPlainTextStreamResponse(
 						streamDatabuddyAgent({
 							actor,
 							conversationId,
@@ -573,6 +583,13 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					error_type: getErrorName(error),
 					source: "slack",
 				});
+				if (isBillingUnavailable(error)) {
+					return jsonError(
+						503,
+						"BILLING_UNAVAILABLE",
+						BILLING_UNAVAILABLE_MESSAGE
+					);
+				}
 				return jsonError(500, "INTERNAL_ERROR", INTERNAL_AGENT_ERROR_MESSAGE);
 			}
 		},
@@ -1229,6 +1246,13 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						...(user?.id ? { agent_user_id: user.id } : {}),
 						error_type: getErrorName(error),
 					});
+					if (isBillingUnavailable(error)) {
+						return jsonError(
+							503,
+							"BILLING_UNAVAILABLE",
+							BILLING_UNAVAILABLE_MESSAGE
+						);
+					}
 					return jsonError(500, "INTERNAL_ERROR", INTERNAL_AGENT_ERROR_MESSAGE);
 				}
 			})();
