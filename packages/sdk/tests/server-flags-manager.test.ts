@@ -834,6 +834,109 @@ describe("ServerFlagsManager", () => {
 			expect(state.loading).toBe(false);
 			expect(state.status).toBe("ready");
 		});
+
+		it("skips revalidation when evaluation is disabled or pending", async () => {
+			for (const inactive of [
+				{ disabled: true, isPending: false, reason: "DEFAULT" },
+				{ disabled: false, isPending: true, reason: "SESSION_PENDING" },
+			] as const) {
+				const manager = await create({
+					clientId: "test-id",
+					autoFetch: true,
+					staleTime: 1,
+				});
+				await sleep(5);
+				const callsBefore = fetchMock.calls.length;
+
+				manager.updateConfig({
+					clientId: "test-id",
+					disabled: inactive.disabled,
+					isPending: inactive.isPending,
+				});
+				expect(manager.isEnabled("feature-on")).toMatchObject({
+					on: true,
+					status: "ready",
+					loading: false,
+					value: true,
+				});
+				expect(manager.getValue("feature-on", "fallback")).toBe(true);
+				expect((await manager.getFlag("feature-on")).reason).toBe(
+					inactive.reason
+				);
+				await sleep(20);
+				expect(fetchMock.calls.length).toBe(callsBefore);
+			}
+		});
+
+		it("does not fetch a cache miss while evaluation is inactive", async () => {
+			const disabled = await create({
+				clientId: "test-id",
+				disabled: true,
+				defaults: { "configured-flag": "from-config" },
+			});
+			expect(disabled.isEnabled("missing")).toEqual({
+				on: false,
+				status: "loading",
+				loading: true,
+			});
+			expect(disabled.getValue("missing", "fallback")).toBe("fallback");
+			expect(disabled.getValue("configured-flag")).toBe("from-config");
+
+			const pending = await create({
+				clientId: "test-id",
+				isPending: true,
+			});
+			expect(pending.isEnabled("missing")).toEqual({
+				on: false,
+				status: "loading",
+				loading: true,
+			});
+			expect(pending.getValue("missing", 7)).toBe(7);
+			await sleep(20);
+			expect(fetchMock.calls.length).toBe(0);
+		});
+
+		it("returns an override without fetching while evaluation is inactive", async () => {
+			const manager = await create({
+				clientId: "test-id",
+				autoFetch: true,
+				staleTime: 1,
+			});
+			await sleep(5);
+			manager.updateConfig({ clientId: "test-id", disabled: true });
+			manager.setOverride("feature-on", {
+				enabled: false,
+				value: "override",
+				payload: null,
+				reason: "MATCH",
+			});
+			const callsBefore = fetchMock.calls.length;
+
+			expect(manager.isEnabled("feature-on")).toMatchObject({
+				on: false,
+				status: "ready",
+				loading: false,
+				value: "override",
+			});
+			expect(manager.getValue("feature-on", "fallback")).toBe("override");
+			await sleep(20);
+			expect(fetchMock.calls.length).toBe(callsBefore);
+		});
+
+		it("revalidates a stale read while evaluation is active", async () => {
+			const manager = await create({
+				clientId: "test-id",
+				autoFetch: true,
+				staleTime: 1,
+			});
+			await sleep(5);
+			const callsBefore = fetchMock.calls.length;
+
+			expect(manager.isEnabled("feature-on").on).toBe(true);
+			expect(manager.getValue("feature-on", "fallback")).toBe(true);
+			await sleep(20);
+			expect(fetchMock.calls.length).toBeGreaterThan(callsBefore);
+		});
 	});
 
 	describe("getValue", () => {
