@@ -40,26 +40,22 @@ vi.mock("@lib/tracing", () => ({
 }));
 
 const { checkAutumnUsage } = await import("./billing");
-const originalAutumnSecretKey = config.services.autumnSecretKey;
 
 describe("checkAutumnUsage", () => {
 	beforeEach(() => {
 		vi.stubEnv("SELFHOST", "false");
 		vi.stubEnv("AUTUMN_SECRET_KEY", "am_sk_test_synthetic");
-		config.services.autumnSecretKey = "am_sk_test_synthetic";
 		mockCheck.mockReset();
 		mockLoggerSet.mockReset();
 		mockLoggerWarn.mockReset();
 	});
 	afterEach(() => {
 		vi.unstubAllEnvs();
-		config.services.autumnSecretKey = originalAutumnSecretKey;
 	});
 
 	test("hosted events reject missing billing configuration", async () => {
 		vi.stubEnv("NODE_ENV", "production");
 		vi.stubEnv("AUTUMN_SECRET_KEY", undefined);
-		config.services.autumnSecretKey = undefined;
 		await expect(checkAutumnUsage("cust_1", "events")).rejects.toMatchObject({
 			status: 503,
 			message: "Billing check unavailable",
