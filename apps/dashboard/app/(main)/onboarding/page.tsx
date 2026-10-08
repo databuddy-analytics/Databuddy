@@ -5,6 +5,11 @@ import type {
 	BusinessSuggestedGoal,
 } from "@databuddy/shared/organization-business-context";
 import type { OnboardingWant } from "@databuddy/shared/custom-events";
+import {
+	GATED_FEATURES,
+	type GatedFeatureId,
+	getPlanDisplayName,
+} from "@databuddy/shared/types/features";
 import { authClient } from "@databuddy/auth/client";
 import { roleHasPermission } from "@databuddy/auth/permissions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -224,6 +229,31 @@ function OnboardingFlow() {
 		}),
 		enabled: Boolean(websiteId) && picks.includes("uptime"),
 	});
+	const existingGoals = useQuery({
+		...orpc.goals.list.queryOptions({ input: { websiteId: websiteId ?? "" } }),
+		enabled: Boolean(websiteId),
+	});
+	const existingFunnels = useQuery({
+		...orpc.funnels.list.queryOptions({
+			input: { websiteId: websiteId ?? "" },
+		}),
+		enabled: Boolean(websiteId),
+	});
+	function planLimitNote(
+		feature: GatedFeatureId,
+		existing: number | undefined,
+		unit: string
+	): string | null {
+		const { limit } = billing.getGatedFeatureAccess(feature);
+		if (
+			typeof limit !== "number" ||
+			existing === undefined ||
+			existing < limit
+		) {
+			return null;
+		}
+		return `${getPlanDisplayName(billing.currentPlanId)} plan includes ${limit} ${limit === 1 ? unit : `${unit}s`}`;
+	}
 	const memberRole = authClient.useActiveMemberRole().data?.role ?? null;
 	const monitorBlockedRole =
 		memberRole && !roleHasPermission(memberRole, "monitor", ["create"])
@@ -316,20 +346,28 @@ function OnboardingFlow() {
 		const isFunnel = "steps" in suggestion;
 		try {
 			if (isFunnel) {
-				await createFunnel.mutateAsync({
+				const funnel = await createFunnel.mutateAsync({
 					websiteId,
 					name: suggestion.name,
 					description: suggestion.reason || undefined,
 					steps: suggestion.steps,
 				});
+				queryClient.setQueryData(
+					orpc.funnels.list.queryKey({ input: { websiteId } }),
+					(funnels) => (funnels ? [funnel, ...funnels] : funnels)
+				);
 			} else {
-				await createGoal.mutateAsync({
+				const goal = await createGoal.mutateAsync({
 					websiteId,
 					name: suggestion.name,
 					type: suggestion.type,
 					target: suggestion.target,
 					description: suggestion.reason || null,
 				});
+				queryClient.setQueryData(
+					orpc.goals.list.queryKey({ input: { websiteId } }),
+					(goals) => (goals ? [goal, ...goals] : goals)
+				);
 			}
 			setCreatedSuggestions(
 				(prev) => new Set([...prev, suggestionKey(suggestion)])
@@ -528,6 +566,18 @@ function OnboardingFlow() {
 						: createFunnel.isPending
 							? `funnel:${createFunnel.variables.name}`
 							: null,
+					limitNotes: {
+						goal: planLimitNote(
+							GATED_FEATURES.GOALS,
+							existingGoals.data?.length,
+							"goal"
+						),
+						funnel: planLimitNote(
+							GATED_FEATURES.FUNNELS,
+							existingFunnels.data?.length,
+							"funnel"
+						),
+					},
 					onCreate: createSuggestion,
 				}}
 				tracking={install.tracking}
