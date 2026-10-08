@@ -221,51 +221,45 @@ export function SetupChecklist(props: SetupChecklistProps) {
 											? "Skipped"
 											: props.agentProgress
 												? agentProgressSummary(props.agentProgress)
-												: props.trackingCopied && website
+												: props.trackingCopied
 													? open === "connect"
 														? undefined
 														: `Waiting for the first page view from ${website.domain}`
 													: undefined
 								}
 								expanded={open === "connect"}
-								onToggle={website ? toggle("connect") : undefined}
+								onToggle={toggle("connect")}
 								status={connectStatus}
 								title="Connect your app"
 							>
-								{website ? (
-									<ConnectApp
-										agentProgress={props.agentProgress}
-										domain={website.domain}
-										onCopy={props.onCopy}
-										onSkip={props.onSkipTracking}
-										research={research}
-										setupSession={props.setupSession}
-										tracking={tracking}
-										wants={wants}
-										websiteId={website.id}
-									/>
-								) : null}
+								<ConnectApp
+									agentProgress={props.agentProgress}
+									domain={website.domain}
+									onCopy={props.onCopy}
+									onSkip={props.onSkipTracking}
+									research={research}
+									setupSession={props.setupSession}
+									tracking={tracking}
+									wants={wants}
+									websiteId={website.id}
+								/>
 							</SetupRow>
 
 							<SetupRow
 								detail={readSiteDetail(research)}
 								expanded={open === "read"}
 								onToggle={
-									website && research.phase !== "unavailable"
-										? toggle("read")
-										: undefined
+									research.phase === "unavailable" ? undefined : toggle("read")
 								}
 								status={readStatus}
 								title="We read your site"
 							>
-								{website ? (
-									<ReadSite
-										onStart={props.onStartResearch}
-										research={research}
-										suggestions={props.suggestions}
-										websiteId={website.id}
-									/>
-								) : null}
+								<ReadSite
+									onStart={props.onStartResearch}
+									research={research}
+									suggestions={props.suggestions}
+									websiteId={website.id}
+								/>
 							</SetupRow>
 
 							{wants.includes("uptime") ? (
@@ -278,38 +272,36 @@ export function SetupChecklist(props: SetupChecklistProps) {
 												: undefined
 									}
 									expanded={open === "uptime"}
-									onToggle={website ? toggle("uptime") : undefined}
+									onToggle={toggle("uptime")}
 									status={uptimeStatus}
-									title={`Watch ${website?.domain ?? "your site"} for downtime`}
+									title={`Watch ${website.domain} for downtime`}
 								>
-									{website ? (
-										<div className="flex flex-wrap items-center justify-between gap-3">
-											<p className="max-w-md text-pretty text-muted-foreground text-sm">
-												{products.monitor.exists
-													? `https://${website.domain} is checked every 10 minutes. Edit the monitor to change the interval or add alerts.`
-													: products.monitor.blockedRole
-														? `Your ${products.monitor.blockedRole} role can't create monitors. Ask an owner or admin to start monitoring ${website.domain}.`
-														: `Databuddy checks https://${website.domain} every 10 minutes and records every outage.`}
-											</p>
-											{products.monitor.exists ? (
-												<Button
-													onClick={products.onEditMonitor}
-													size="sm"
-													variant="secondary"
-												>
-													Edit monitor
-												</Button>
-											) : products.monitor.blockedRole ? null : (
-												<Button
-													loading={products.monitor.creating}
-													onClick={products.onCreateMonitor}
-													size="sm"
-												>
-													Start monitoring
-												</Button>
-											)}
-										</div>
-									) : null}
+									<div className="flex flex-wrap items-center justify-between gap-3">
+										<p className="max-w-md text-pretty text-muted-foreground text-sm">
+											{products.monitor.exists
+												? `https://${website.domain} is checked every 10 minutes. Edit the monitor to change the interval or add alerts.`
+												: products.monitor.blockedRole
+													? `Your ${products.monitor.blockedRole} role can't create monitors. Ask an owner or admin to start monitoring ${website.domain}.`
+													: `Databuddy checks https://${website.domain} every 10 minutes and records every outage.`}
+										</p>
+										{products.monitor.exists ? (
+											<Button
+												onClick={products.onEditMonitor}
+												size="sm"
+												variant="secondary"
+											>
+												Edit monitor
+											</Button>
+										) : products.monitor.blockedRole ? null : (
+											<Button
+												loading={products.monitor.creating}
+												onClick={products.onCreateMonitor}
+												size="sm"
+											>
+												Start monitoring
+											</Button>
+										)}
+									</div>
 								</SetupRow>
 							) : null}
 
