@@ -490,7 +490,7 @@ export function generateTanStackCode(
 	const propsString =
 		meaningfulProps.length > 0 ? `\n${meaningfulProps.join("\n")}\n      ` : "";
 
-	return `import { createRootRoute, Outlet, ScrollRestoration } from '@tanstack/react-router';
+	return `import { createRootRoute, Outlet } from '@tanstack/react-router';
 import { Databuddy } from '@databuddy/sdk/react';
 
 export const Route = createRootRoute({
@@ -499,15 +499,11 @@ export const Route = createRootRoute({
 
 function RootComponent() {
   return (
-    <html lang="en">
-      <head />
-      <body>
-        <Outlet />
-        <ScrollRestoration />
-        <Databuddy
-${isSelfHosted ? `          apiUrl="${publicConfig.urls.basket}"\n` : ""}          clientId="${websiteId}"${propsString}/>
-      </body>
-    </html>
+    <>
+      <Outlet />
+      <Databuddy
+${isSelfHosted ? `        apiUrl="${publicConfig.urls.basket}"\n` : ""}        clientId="${websiteId}"${propsString}/>
+    </>
   );
 }`;
 }

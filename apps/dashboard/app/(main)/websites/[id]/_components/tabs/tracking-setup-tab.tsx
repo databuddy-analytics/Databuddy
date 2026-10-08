@@ -390,14 +390,14 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 
 						<Tabs.Panel className="mt-4 space-y-4" value="nextjs">
 							<div className="space-y-3">
-								<p className="text-muted-foreground text-sm">
+								<p className="text-pretty text-muted-foreground text-sm">
 									Install the SDK:
 								</p>
 								<PackageInstallTabs />
 							</div>
 
 							<div className="space-y-3">
-								<p className="text-muted-foreground text-sm">
+								<p className="text-pretty text-muted-foreground text-sm">
 									Mount the component in your root layout (e.g.{" "}
 									<code className="rounded bg-accent px-1.5 py-0.5 font-mono text-xs">
 										app/layout.tsx
@@ -409,7 +409,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								</CodeBlock>
 							</div>
 
-							<div className="rounded-lg border border-border/60 bg-accent/40 p-3 text-muted-foreground text-sm">
+							<div className="text-pretty rounded border border-border/60 bg-accent/40 p-3 text-muted-foreground text-sm">
 								You can also store your Client ID as{" "}
 								<code className="rounded bg-background px-1.5 py-0.5 font-mono text-xs">
 									NEXT_PUBLIC_DATABUDDY_CLIENT_ID
@@ -428,15 +428,15 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 
 						<Tabs.Panel className="mt-4 space-y-4" value="tanstack">
 							<div className="space-y-3">
-								<p className="text-muted-foreground text-sm">
+								<p className="text-pretty text-muted-foreground text-sm">
 									Install the SDK:
 								</p>
 								<PackageInstallTabs />
 							</div>
 
 							<div className="space-y-3">
-								<p className="text-muted-foreground text-sm">
-									Mount the component in your root route (
+								<p className="text-pretty text-muted-foreground text-sm">
+									Mount the component in your root route (e.g.{" "}
 									<code className="rounded bg-accent px-1.5 py-0.5 font-mono text-xs">
 										src/routes/__root.tsx
 									</code>
