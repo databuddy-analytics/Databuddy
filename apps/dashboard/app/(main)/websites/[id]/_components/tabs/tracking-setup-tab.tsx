@@ -25,9 +25,11 @@ import {
 	BASIC_TRACKING_OPTIONS,
 } from "../constants/settings-constants";
 import {
+	generateNextJsCode,
 	generateNodeCode,
 	generateNpmCode,
 	generateScriptTag,
+	generateTanStackCode,
 	generateVueCode,
 	type VersionedScript,
 } from "../utils/code-generators";
@@ -202,6 +204,8 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 	const pinnedTrackingCode = activeVersionedScript
 		? generateScriptTag(websiteId, trackingOptions, activeVersionedScript)
 		: null;
+	const nextCode = generateNextJsCode(websiteId, trackingOptions);
+	const tanStackCode = generateTanStackCode(websiteId, trackingOptions);
 	const npmCode = generateNpmCode(websiteId, trackingOptions);
 	const nodeCode = generateNodeCode(websiteId);
 	const vueCode = generateVueCode(websiteId, trackingOptions);
@@ -281,6 +285,10 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 							<Tabs.Tab value="script">
 								<CodeIcon className="size-3.5" />
 								Script tag
+							</Tabs.Tab>
+							<Tabs.Tab value="nextjs">
+								<PackageIcon className="size-3.5" />
+								Next.js
 							</Tabs.Tab>
 							<Tabs.Tab value="react">
 								<PackageIcon className="size-3.5" />
@@ -376,6 +384,44 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 							</div>
 						</Tabs.Panel>
 
+						<Tabs.Panel className="mt-4 space-y-4" value="nextjs">
+							<div className="space-y-3">
+								<p className="text-muted-foreground text-sm">
+									Install the SDK:
+								</p>
+								<PackageInstallTabs />
+							</div>
+
+							<div className="space-y-3">
+								<p className="text-muted-foreground text-sm">
+									Mount the component in your root layout (e.g.{" "}
+									<code className="rounded bg-accent px-1.5 py-0.5 font-mono text-xs">
+										app/layout.tsx
+									</code>
+									):
+								</p>
+								<CodeBlock code={nextCode} language="tsx">
+									<CodeBlockCopyButton />
+								</CodeBlock>
+							</div>
+
+							<div className="rounded-lg border border-border/60 bg-accent/40 p-3 text-muted-foreground text-sm">
+								You can also store your Client ID as{" "}
+								<code className="rounded bg-background px-1.5 py-0.5 font-mono text-xs">
+									NEXT_PUBLIC_DATABUDDY_CLIENT_ID
+								</code>{" "}
+								in your{" "}
+								<code className="rounded bg-background px-1.5 py-0.5 font-mono text-xs">
+									.env.local
+								</code>{" "}
+								file and omit the{" "}
+								<code className="rounded bg-background px-1.5 py-0.5 font-mono text-xs">
+									clientId
+								</code>{" "}
+								prop.
+							</div>
+						</Tabs.Panel>
+
 						<Tabs.Panel className="mt-4 space-y-4" value="react">
 							<div className="space-y-3">
 								<p className="text-muted-foreground text-sm">
@@ -389,6 +435,20 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 									Add the component to your layout:
 								</p>
 								<CodeBlock code={npmCode} language="tsx">
+									<CodeBlockCopyButton />
+								</CodeBlock>
+							</div>
+
+							<div className="space-y-3 pt-2">
+								<p className="font-medium text-sm">TanStack Router / Start</p>
+								<p className="text-muted-foreground text-xs">
+									Add to your root route component in{" "}
+									<code className="rounded bg-accent px-1.5 py-0.5 font-mono text-xs">
+										src/routes/__root.tsx
+									</code>
+									:
+								</p>
+								<CodeBlock code={tanStackCode} language="tsx">
 									<CodeBlockCopyButton />
 								</CodeBlock>
 							</div>
