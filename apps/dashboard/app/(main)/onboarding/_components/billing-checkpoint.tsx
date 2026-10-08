@@ -71,7 +71,7 @@ export function ChoosePlan({
 				<Card className="gap-0 py-0">
 					<Card.Header className="gap-1 border-border border-b bg-card px-5 py-4">
 						<Card.Title>
-							{billing.isLoading
+							{billing.isLoading || billing.isError
 								? "Your setup is saved"
 								: `You are on ${getPlanDisplayName(billing.currentPlanId)}`}
 						</Card.Title>
