@@ -14,6 +14,7 @@ import {
 import { authClient } from "@databuddy/auth/client";
 import { roleHasPermission } from "@databuddy/auth/permissions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useFlags } from "@databuddy/sdk/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { parseAsArrayOf, parseAsStringLiteral, useQueryState } from "nuqs";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
@@ -39,6 +40,7 @@ import {
 import { orpc } from "@/lib/orpc";
 import { LinkSheet } from "@/app/(main)/links/_components/link-sheet";
 import { generateMcpAgentPrompt } from "@/app/(main)/websites/[id]/_components/utils/code-generators";
+import { isDashboardE2E } from "@/lib/e2e-mode";
 import { showErrorToast } from "@/lib/user-facing-error";
 import { ChoosePlan } from "./_components/billing-checkpoint";
 import type { WebsiteFormValues } from "./_components/add-website";
@@ -161,6 +163,8 @@ function OnboardingFlow() {
 	const searchParams = useSearchParams();
 	const [requestedWebsiteId, setRequestedWebsiteId] = useQueryState("website");
 	const [step, setStep] = useQueryState("step", parseAsStringLiteral(["plan"]));
+	const resumedAtPlanRef = useRef(step === "plan");
+	const { isOn } = useFlags();
 	const billing = useBillingContext();
 	const investigations = useInvestigationUsage();
 	const { activeOrganization } = useOrganizationsContext();
@@ -282,6 +286,9 @@ function OnboardingFlow() {
 			return;
 		}
 		startedRef.current = true;
+		if (resumedAtPlanRef.current) {
+			return;
+		}
 		const signupProperties = consumePendingSocialSignup();
 		const onboardingAttribution =
 			signupProperties === null
@@ -300,7 +307,8 @@ function OnboardingFlow() {
 	useEffect(() => {
 		if (
 			!verifiedWebsiteId ||
-			verifiedTrackedRef.current === verifiedWebsiteId
+			verifiedTrackedRef.current === verifiedWebsiteId ||
+			resumedAtPlanRef.current
 		) {
 			return;
 		}
@@ -463,7 +471,10 @@ function OnboardingFlow() {
 	const reviewFailed =
 		verifiedWebsiteId !== null && billing.isError && !billingPending;
 	const opensInsights = verifiedWebsiteId !== null && canReview;
-	const offersPlans = !isSelfHosted && billing.canUserUpgrade;
+	const offersPlans =
+		!isSelfHosted &&
+		billing.canUserUpgrade &&
+		(isDashboardE2E || isOn("onboarding-plan-step"));
 
 	function choosePlan() {
 		setRequestedWebsiteId(websiteId);
