@@ -1,3 +1,4 @@
+import type { TrackerOptions } from "../src/core/types";
 import { expect, findEvent, hasEvent, test } from "./test-utils";
 
 test.describe("SPA Navigation", () => {
@@ -312,36 +313,50 @@ test.describe("SPA Navigation", () => {
 	});
 
 	test("masks the page left on SPA navigation", async ({ page }) => {
-		await page.goto("/test");
-		await page.evaluate(() => {
-			(window as any).databuddyConfig = {
-				clientId: "test-spa-exit-mask",
-				ignoreBotDetection: true,
-				batchTimeout: 200,
-				maskPatterns: ["/team/*"],
-			};
+		const config: TrackerOptions = {
+			clientId: "test-spa-exit-mask",
+			ignoreBotDetection: true,
+			batchTimeout: 200,
+			maskPatterns: ["/team/*"],
+		};
+		const sentBodies: string[] = [];
+		page.on("request", (req) => {
+			if (req.method() === "POST") {
+				sentBodies.push(req.postData() ?? "");
+			}
 		});
+
+		await page.goto("/test");
+		await page.evaluate((options) => {
+			window.databuddyConfig = options;
+		}, config);
 		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 		await expect
-			.poll(async () => await page.evaluate(() => !!(window as any).db))
+			.poll(async () => await page.evaluate(() => Boolean(window.db)))
 			.toBeTruthy();
 
 		await page.evaluate(() => history.pushState({}, "", "/team/jane-doe"));
-		await page.waitForTimeout(200);
-
-		const exitRequest = page.waitForRequest((req) =>
-			hasEvent(req, (e) => e.name === "page_exit")
-		);
-		const spanRequest = page.waitForRequest((req) =>
-			req.url().includes("/engagement")
-		);
+		await page.waitForTimeout(300);
 		await page.evaluate(() => history.pushState({}, "", "/settings"));
 
-		const exit = findEvent(await exitRequest, (e) => e.name === "page_exit");
-		expect(exit?.path).toBe("http://127.0.0.1:3033/team/*");
-		const spans = (await spanRequest).postDataJSON() as Array<{
-			path: string;
-		}>;
-		expect(spans.map((span) => span.path)).toContain("/team/*");
+		await expect
+			.poll(() =>
+				sentBodies.some(
+					(body) =>
+						body.includes('"name":"page_exit"') &&
+						body.includes('"path":"http://127.0.0.1:3033/team/*"')
+				)
+			)
+			.toBe(true);
+		await expect
+			.poll(() =>
+				sentBodies.some(
+					(body) =>
+						body.includes('"exitType":"spa"') &&
+						body.includes('"path":"/team/*"')
+				)
+			)
+			.toBe(true);
+		expect(sentBodies.join("\n")).not.toContain("jane-doe");
 	});
 });
