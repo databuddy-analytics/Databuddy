@@ -290,6 +290,10 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								<PackageIcon className="size-3.5" />
 								Next.js
 							</Tabs.Tab>
+							<Tabs.Tab value="tanstack">
+								<PackageIcon className="size-3.5" />
+								TanStack
+							</Tabs.Tab>
 							<Tabs.Tab value="react">
 								<PackageIcon className="size-3.5" />
 								React
@@ -422,6 +426,28 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 							</div>
 						</Tabs.Panel>
 
+						<Tabs.Panel className="mt-4 space-y-4" value="tanstack">
+							<div className="space-y-3">
+								<p className="text-muted-foreground text-sm">
+									Install the SDK:
+								</p>
+								<PackageInstallTabs />
+							</div>
+
+							<div className="space-y-3">
+								<p className="text-muted-foreground text-sm">
+									Mount the component in your root route (
+									<code className="rounded bg-accent px-1.5 py-0.5 font-mono text-xs">
+										src/routes/__root.tsx
+									</code>
+									):
+								</p>
+								<CodeBlock code={tanStackCode} language="tsx">
+									<CodeBlockCopyButton />
+								</CodeBlock>
+							</div>
+						</Tabs.Panel>
+
 						<Tabs.Panel className="mt-4 space-y-4" value="react">
 							<div className="space-y-3">
 								<p className="text-muted-foreground text-sm">
@@ -435,20 +461,6 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 									Add the component to your layout:
 								</p>
 								<CodeBlock code={npmCode} language="tsx">
-									<CodeBlockCopyButton />
-								</CodeBlock>
-							</div>
-
-							<div className="space-y-3 pt-2">
-								<p className="font-medium text-sm">TanStack Router / Start</p>
-								<p className="text-muted-foreground text-xs">
-									Add to your root route component in{" "}
-									<code className="rounded bg-accent px-1.5 py-0.5 font-mono text-xs">
-										src/routes/__root.tsx
-									</code>
-									:
-								</p>
-								<CodeBlock code={tanStackCode} language="tsx">
 									<CodeBlockCopyButton />
 								</CodeBlock>
 							</div>
