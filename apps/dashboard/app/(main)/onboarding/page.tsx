@@ -1,5 +1,6 @@
 "use client";
 
+import { isSelfHosted } from "@databuddy/env/public";
 import type {
 	BusinessSuggestedFunnel,
 	BusinessSuggestedGoal,
@@ -39,6 +40,7 @@ import { orpc } from "@/lib/orpc";
 import { LinkSheet } from "@/app/(main)/links/_components/link-sheet";
 import { generateMcpAgentPrompt } from "@/app/(main)/websites/[id]/_components/utils/code-generators";
 import { showErrorToast } from "@/lib/user-facing-error";
+import { ChoosePlan } from "./_components/billing-checkpoint";
 import type { WebsiteFormValues } from "./_components/add-website";
 import { suggestionKey } from "./_components/read-site";
 import {
@@ -156,7 +158,9 @@ function domainFromEmail(email: string | undefined): string | null {
 
 function OnboardingFlow() {
 	const router = useRouter();
-	const requestedWebsiteId = useSearchParams().get("website");
+	const searchParams = useSearchParams();
+	const [requestedWebsiteId, setRequestedWebsiteId] = useQueryState("website");
+	const [step, setStep] = useQueryState("step", parseAsStringLiteral(["plan"]));
 	const billing = useBillingContext();
 	const investigations = useInvestigationUsage();
 	const { activeOrganization } = useOrganizationsContext();
@@ -459,6 +463,17 @@ function OnboardingFlow() {
 	const reviewFailed =
 		verifiedWebsiteId !== null && billing.isError && !billingPending;
 	const opensInsights = verifiedWebsiteId !== null && canReview;
+	const offersPlans = !isSelfHosted && billing.canUserUpgrade;
+
+	function choosePlan() {
+		setRequestedWebsiteId(websiteId);
+		setStep("plan");
+	}
+
+	function finishWithPlan() {
+		trackAppEvent(APP_EVENTS.onboardingStepCompleted, { step: "billing" });
+		finish();
+	}
 
 	async function finish() {
 		if (!websiteId) {
@@ -498,9 +513,33 @@ function OnboardingFlow() {
 		return (
 			<WhatMatters
 				onContinue={continueWithWants}
-				onSkipSetup={skipSetup}
 				onToggle={toggleWant}
 				selected={wantsDraft}
+			/>
+		);
+	}
+
+	const leaveAction = {
+		label: reviewPending
+			? "Checking Insights…"
+			: opensInsights
+				? "Open Insights"
+				: "Open dashboard",
+		loading: reviewPending || research.saving,
+		note: reviewFailed
+			? "Failed to check Insights."
+			: opensInsights
+				? "Your first review runs once there is enough history to compare."
+				: null,
+		onRetry: reviewFailed ? billing.refetch : undefined,
+	};
+
+	if (step === "plan" && websiteId && offersPlans) {
+		return (
+			<ChoosePlan
+				finish={{ ...leaveAction, onClick: finishWithPlan }}
+				onBack={() => setStep(null)}
+				successPath={`/onboarding?${searchParams.toString()}`}
 			/>
 		);
 	}
@@ -513,21 +552,9 @@ function OnboardingFlow() {
 				loadingWebsites={loadingWebsites && !createdWebsite}
 				finish={
 					websiteId
-						? {
-								label: reviewPending
-									? "Checking Insights…"
-									: opensInsights
-										? "Open Insights"
-										: "Open dashboard",
-								onClick: finish,
-								loading: reviewPending || research.saving,
-								note: reviewFailed
-									? "Failed to check Insights."
-									: opensInsights
-										? "Your first review runs once there is enough history to compare."
-										: null,
-								onRetry: reviewFailed ? billing.refetch : undefined,
-							}
+						? offersPlans
+							? { label: "Continue", onClick: choosePlan }
+							: { ...leaveAction, onClick: finish }
 						: null
 				}
 				onChangeWants={changeWants}
