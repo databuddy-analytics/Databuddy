@@ -71,9 +71,12 @@ export default function HomePage() {
 		trendDirection,
 		websiteCount,
 		needsSetup,
-		topPerformers,
 	} = useGlobalAnalytics();
-	const siteToInstall = topPerformers.length === 0 ? needsSetup[0] : undefined;
+	const anySiteHasData = websites.some((website) => {
+		const chart = chartData?.[website.id];
+		return Boolean(chart && (chart.totalViews > 0 || chart.hasHistoricalData));
+	});
+	const siteToInstall = anySiteHasData ? undefined : needsSetup.at(0);
 	const showSetupPrompt =
 		!(isLoading || isError) &&
 		(websites.length === 0 || Boolean(siteToInstall));
