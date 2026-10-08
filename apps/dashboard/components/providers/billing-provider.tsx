@@ -204,8 +204,6 @@ function AuthenticatedBillingProvider({
 	const {
 		data: plans,
 		isLoading: isPlansLoading,
-		isError: isPlansError,
-		isFetching: isPlansFetching,
 		refetch: refetchPlans,
 	} = useListPlans();
 
@@ -314,9 +312,12 @@ function AuthenticatedBillingProvider({
 		return {
 			customer: customer ?? null,
 			plans: plans ?? [],
-			isError: isCustomerError || isPlansError || isBillingContextError,
+			isError:
+				(isCustomerError && !customer) ||
+				(isBillingContextError && !billingContext),
 			isFetching:
-				isCustomerFetching || isPlansFetching || isBillingContextFetching,
+				(isCustomerFetching && !customer) ||
+				(isBillingContextFetching && !billingContext),
 			isLoading: isCustomerLoading || isPlansLoading || isBillingContextLoading,
 			hasActiveSubscription: Boolean(billingContext?.hasActiveSubscription),
 			currentPlanId,
@@ -337,8 +338,6 @@ function AuthenticatedBillingProvider({
 		isCustomerError,
 		isCustomerFetching,
 		isCustomerLoading,
-		isPlansError,
-		isPlansFetching,
 		isPlansLoading,
 		isBillingContextError,
 		isBillingContextFetching,
