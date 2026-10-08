@@ -36,7 +36,9 @@ test("gates a new website behind setup until its first page view", {
 	await expect(page.getByText("Connect your app")).toBeVisible();
 	await expect(page.getByText("First pageview", { exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Cursor" })).toBeVisible();
-	await page.getByRole("button", { name: "Or install it yourself" }).click();
+	await page
+		.getByRole("button", { name: "Or add the script tag or SDK yourself" })
+		.click();
 	await expect(page.getByRole("tab", { name: "Script tag" })).toBeVisible();
 	await expect(page.getByText(`data-client-id="${websiteId}"`)).toBeVisible();
 
