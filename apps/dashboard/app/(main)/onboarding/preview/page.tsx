@@ -350,7 +350,6 @@ function Sample({ sample }: { sample: Sample }) {
 		return (
 			<WhatMatters
 				onContinue={noop}
-				onSkipSetup={noop}
 				onToggle={(want) =>
 					setPicked((current) =>
 						current.includes(want)
