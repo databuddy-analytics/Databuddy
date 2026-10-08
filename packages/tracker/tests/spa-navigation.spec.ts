@@ -310,4 +310,38 @@ test.describe("SPA Navigation", () => {
 		await page.waitForTimeout(500);
 		expect(screenViewCount).toBe(0);
 	});
+
+	test("masks the page left on SPA navigation", async ({ page }) => {
+		await page.goto("/test");
+		await page.evaluate(() => {
+			(window as any).databuddyConfig = {
+				clientId: "test-spa-exit-mask",
+				ignoreBotDetection: true,
+				batchTimeout: 200,
+				maskPatterns: ["/team/*"],
+			};
+		});
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+		await expect
+			.poll(async () => await page.evaluate(() => !!(window as any).db))
+			.toBeTruthy();
+
+		await page.evaluate(() => history.pushState({}, "", "/team/jane-doe"));
+		await page.waitForTimeout(200);
+
+		const exitRequest = page.waitForRequest((req) =>
+			hasEvent(req, (e) => e.name === "page_exit")
+		);
+		const spanRequest = page.waitForRequest((req) =>
+			req.url().includes("/engagement")
+		);
+		await page.evaluate(() => history.pushState({}, "", "/settings"));
+
+		const exit = findEvent(await exitRequest, (e) => e.name === "page_exit");
+		expect(exit?.path).toBe("http://127.0.0.1:3033/team/*");
+		const spans = (await spanRequest).postDataJSON() as Array<{
+			path: string;
+		}>;
+		expect(spans.map((span) => span.path)).toContain("/team/*");
+	});
 });
