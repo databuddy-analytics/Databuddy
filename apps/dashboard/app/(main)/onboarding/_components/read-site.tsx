@@ -51,6 +51,7 @@ export function suggestionKey(
 export interface ReadSiteSuggestions {
 	created: ReadonlySet<string>;
 	creating: string | null;
+	limitNotes: { funnel: string | null; goal: string | null };
 	onCreate: (
 		suggestion: BusinessSuggestedFunnel | BusinessSuggestedGoal
 	) => void;
@@ -109,11 +110,13 @@ export function ReadSite({
 		...research.suggestedGoals.map((goal) => ({
 			suggestion: goal,
 			label: "Create goal",
+			limitNote: suggestions.limitNotes.goal,
 			reason: `${goal.type === "PAGE_VIEW" ? "Page view of" : "Event"} ${goal.target}. ${goal.reason}`,
 		})),
 		...research.suggestedFunnels.map((funnel) => ({
 			suggestion: funnel,
 			label: "Create funnel",
+			limitNote: suggestions.limitNotes.funnel,
 			reason: `${funnel.steps.map((step) => step.target).join(" → ")}. ${funnel.reason}`,
 		})),
 	];
@@ -195,7 +198,7 @@ export function ReadSite({
 								Based on the pages read. Nothing is created until you say so.
 							</p>
 							<ul className="mt-1 divide-y divide-border">
-								{suggested.map(({ suggestion, label, reason }) => {
+								{suggested.map(({ suggestion, label, limitNote, reason }) => {
 									const key = suggestionKey(suggestion);
 									return (
 										<li
@@ -212,6 +215,10 @@ export function ReadSite({
 												<span className="flex shrink-0 items-center gap-1 text-success text-xs">
 													<CheckIcon className="size-3.5" />
 													Created
+												</span>
+											) : limitNote ? (
+												<span className="shrink-0 text-muted-foreground text-xs">
+													{limitNote}
 												</span>
 											) : (
 												<Button
