@@ -238,6 +238,11 @@ export function StructuredData({
 		legalName: "Databuddy Analytics, Inc.",
 		disambiguatingDescription: DATABUDDY_DISAMBIGUATION,
 		founder: { "@type": "Person", name: "Issa Nassar" },
+		funder: {
+			"@type": "Organization",
+			name: "Y Combinator",
+			url: "https://www.ycombinator.com",
+		},
 		url: baseUrl,
 		logo: { "@type": "ImageObject", url: logoUrl },
 		sameAs: [
@@ -246,6 +251,7 @@ export function StructuredData({
 			"https://www.linkedin.com/company/databuddy-analytics",
 			"https://www.npmjs.com/package/@databuddy/sdk",
 			"https://pypi.org/project/databuddy/",
+			"https://www.ycombinator.com/companies/databuddy",
 		],
 		email: "support@databuddy.cc",
 		contactPoint: {

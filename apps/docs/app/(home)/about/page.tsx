@@ -67,6 +67,8 @@ export default function AboutPage() {
 								analytics, error tracking, Core Web Vitals, feature flags, short
 								links, uptime monitoring, and automatic investigations into one
 								product with a small client footprint and a clear API surface.
+								Databuddy is backed by Y Combinator as part of the Fall 2026
+								batch.
 							</p>
 							<p>
 								The product is designed for teams that care about speed,
