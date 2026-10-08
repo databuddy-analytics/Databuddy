@@ -434,7 +434,7 @@ function OnboardingFlow() {
 		verifiedWebsiteId !== null && billing.isError && !billingPending;
 	const opensInsights = verifiedWebsiteId !== null && canReview;
 	const offersPlans =
-		!isSelfHosted &&
+		!(isSelfHosted || billing.isLoading || billing.isError) &&
 		billing.canUserUpgrade &&
 		(isDashboardE2E || isOn("onboarding-plan-step"));
 
@@ -511,7 +511,10 @@ function OnboardingFlow() {
 		return (
 			<ChoosePlan
 				finish={{ ...leaveAction, onClick: finishWithPlan }}
-				onBack={() => setStep(null)}
+				onBack={() => {
+					resumedAtPlanRef.current = false;
+					setStep(null);
+				}}
 				successPath={`/onboarding?${searchParams.toString()}`}
 			/>
 		);
