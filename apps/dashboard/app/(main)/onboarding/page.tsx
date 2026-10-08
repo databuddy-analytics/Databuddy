@@ -231,14 +231,13 @@ function OnboardingFlow() {
 	});
 	const existingGoals = useQuery({
 		...orpc.goals.list.queryOptions({ input: { websiteId: websiteId ?? "" } }),
-		enabled: Boolean(websiteId) && research.research.suggestedGoals.length > 0,
+		enabled: Boolean(websiteId),
 	});
 	const existingFunnels = useQuery({
 		...orpc.funnels.list.queryOptions({
 			input: { websiteId: websiteId ?? "" },
 		}),
-		enabled:
-			Boolean(websiteId) && research.research.suggestedFunnels.length > 0,
+		enabled: Boolean(websiteId),
 	});
 	function planLimitNote(
 		feature: GatedFeatureId,
@@ -347,20 +346,28 @@ function OnboardingFlow() {
 		const isFunnel = "steps" in suggestion;
 		try {
 			if (isFunnel) {
-				await createFunnel.mutateAsync({
+				const funnel = await createFunnel.mutateAsync({
 					websiteId,
 					name: suggestion.name,
 					description: suggestion.reason || undefined,
 					steps: suggestion.steps,
 				});
+				queryClient.setQueryData(
+					orpc.funnels.list.queryKey({ input: { websiteId } }),
+					(funnels) => (funnels ? [funnel, ...funnels] : funnels)
+				);
 			} else {
-				await createGoal.mutateAsync({
+				const goal = await createGoal.mutateAsync({
 					websiteId,
 					name: suggestion.name,
 					type: suggestion.type,
 					target: suggestion.target,
 					description: suggestion.reason || null,
 				});
+				queryClient.setQueryData(
+					orpc.goals.list.queryKey({ input: { websiteId } }),
+					(goals) => (goals ? [goal, ...goals] : goals)
+				);
 			}
 			setCreatedSuggestions(
 				(prev) => new Set([...prev, suggestionKey(suggestion)])
