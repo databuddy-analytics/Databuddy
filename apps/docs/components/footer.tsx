@@ -19,6 +19,7 @@ import { SciFiButton } from "./landing/scifi-btn";
 import { LogoContent } from "./logo";
 import { NavLink } from "./nav-link";
 import { NewsletterForm } from "./newsletter-form";
+import { YcBadge } from "./yc-badge";
 
 interface FooterItem {
 	href: string;
@@ -497,6 +498,7 @@ function FooterIntro() {
 			<p className="max-w-xs text-pretty text-muted-foreground text-sm sm:text-base">
 				Product analytics for startups with a built-in AI analyst.
 			</p>
+			<YcBadge />
 			<NavLink
 				className="flex w-fit items-center gap-3 text-muted-foreground text-sm hover:text-foreground sm:text-base"
 				href="mailto:support@databuddy.cc"

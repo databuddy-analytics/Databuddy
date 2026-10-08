@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { flush, track } from "@databuddy/sdk";
 import BackgroundFlow from "./backgroundFlow";
+import { YcBadge } from "@/components/yc-badge";
 import { getDemoEmbedBaseUrl } from "@/lib/demo-embed-url";
 import { SciFiButton } from "./scifi-btn";
 
@@ -328,16 +329,7 @@ export default function Hero({ stars }: { stars?: number | null }) {
 			<BackgroundFlow />
 			<div className="mx-auto w-full max-w-400 px-4 pt-26 pb-8 sm:px-14 sm:pt-20 lg:px-20 lg:pt-38">
 				<div className="mx-auto flex max-w-360 flex-col items-start space-y-2 text-left">
-					<div className="z-10 mb-4 flex items-center gap-2 rounded border border-border bg-card/60 px-2.5 py-1.5 font-medium text-foreground text-xs">
-						<Image
-							alt=""
-							className="size-5 rounded-[2px]"
-							height={20}
-							src="/social/ycombinator.svg"
-							width={20}
-						/>
-						<span>Backed by YC</span>
-					</div>
+					<YcBadge className="z-10 mb-4" />
 					<h1 className="z-10 font-semibold text-3xl sm:text-5xl md:text-6xl">
 						Product analytics for founders
 						<br />
