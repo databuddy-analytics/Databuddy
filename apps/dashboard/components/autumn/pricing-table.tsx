@@ -18,7 +18,7 @@ import {
 } from "@databuddy/ui/icons";
 import { Accordion } from "@databuddy/ui/client";
 import { useCustomer, useListPlans } from "autumn-js/react";
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
 import { toast } from "sonner";
 import { PricingTiersTooltip } from "@/app/(main)/billing/components/pricing-tiers-tooltip";
 import { getStripeMetadata } from "@/app/(main)/billing/utils/stripe-metadata";
@@ -42,22 +42,23 @@ type HookPlan = NonNullable<ReturnType<typeof useListPlans>["data"]>[number];
 type BillingItem = HookPlan["items"][number];
 type BillingPreview = AttachDialogProps["preview"];
 
-const DISPLAYED_PLAN_IDS = [
+export const DISPLAYED_PLAN_IDS = [
 	"intelligence_scale",
 	"intelligence",
 	"pro",
 	"hobby",
 ];
-const RECOMMENDED_PLAN_ID = "intelligence";
+export const RECOMMENDED_PLAN_ID = "intelligence";
 const PLAN_ICONS: Record<string, typeof CrownIcon> = {
 	hobby: RocketLaunchIcon,
 	pro: StarIcon,
 	intelligence: CrownIcon,
 	intelligence_scale: CrownIcon,
 };
-const PLAN_TAGLINES: Record<string, string | undefined> = Object.fromEntries(
-	Object.entries(PLAN_COPY).map(([id, copy]) => [id, copy.description])
-);
+export const PLAN_TAGLINES: Record<string, string | undefined> =
+	Object.fromEntries(
+		Object.entries(PLAN_COPY).map(([id, copy]) => [id, copy.description])
+	);
 const PLAN_SUPPORT: Record<string, string> = {
 	hobby: "Email support",
 	pro: "Priority email support",
@@ -69,7 +70,7 @@ function formatPriceAmount(amount: number) {
 	return `$${amount.toLocaleString("en-US", { maximumFractionDigits: 6 })}`;
 }
 
-function allowanceText(item: BillingItem, unit: string) {
+export function allowanceText(item: BillingItem, unit: string) {
 	const quantity = item.unlimited
 		? "Unlimited"
 		: formatLocaleNumber(item.included ?? 0);
@@ -112,11 +113,14 @@ function getButtonText(
 
 export default function PricingTable({
 	selectedPlan,
+	successPath = "/billing",
+	onPlanUpdated,
 }: {
 	selectedPlan?: string | null;
+	successPath?: string;
+	onPlanUpdated?: () => void;
 }) {
-	const { attach, previewAttach } = useCustomer();
-	const { data: plans, isLoading, error } = useListPlans();
+	const { data: plans, isLoading, error, refetch } = useListPlans();
 
 	if (isLoading) {
 		return (
@@ -147,6 +151,7 @@ export default function PricingTable({
 	if (error) {
 		return (
 			<EmptyState
+				action={{ label: "Try again", onClick: () => refetch() }}
 				description="Try again in a moment."
 				icon={<WarningIcon />}
 				title="Failed to load plans"
@@ -165,27 +170,11 @@ export default function PricingTable({
 			<div className="motion-safe:fade-in motion-safe:slide-in-from-bottom-1 grid items-stretch gap-4 motion-safe:animate-in motion-safe:duration-150 sm:grid-cols-2 xl:grid-cols-4">
 				{displayedPlans.map((plan) => (
 					<PricingCard
-						attachAction={async () => {
-							try {
-								const result = await attach({
-									planId: plan.id,
-									metadata: getStripeMetadata(),
-									successUrl: `${window.location.origin}/billing`,
-								});
-								if (result?.paymentUrl) {
-									window.location.href = result.paymentUrl;
-								} else {
-									toast.success("Plan updated");
-								}
-							} catch (error) {
-								showErrorToast(error, "Failed to update plan");
-								throw error;
-							}
-						}}
 						isSelected={selectedPlan === plan.id}
 						key={plan.id}
+						onPlanUpdated={onPlanUpdated}
 						plan={plan}
-						previewAction={() => previewAttach({ planId: plan.id })}
+						successPath={successPath}
 					/>
 				))}
 			</div>
@@ -208,22 +197,16 @@ export default function PricingTable({
 
 function PricingCard({
 	plan,
-	attachAction,
-	previewAction,
 	isSelected,
+	successPath,
+	onPlanUpdated,
 }: {
 	plan: HookPlan;
-	attachAction: () => Promise<void>;
-	previewAction: () => Promise<BillingPreview>;
 	isSelected: boolean;
+	successPath: string;
+	onPlanUpdated?: () => void;
 }) {
-	const [isLoadingPreview, setIsLoadingPreview] = useState(false);
-	const [preview, setPreview] = useState<BillingPreview | null>(null);
-	const [dialogOpen, setDialogOpen] = useState(false);
-	const eligibility = plan.customerEligibility;
-	const isActive = eligibility?.status === "active";
-	const planName = getCustomerPlanName(plan.id, plan.name);
-	const investigationTerms = getInvestigationTerms(plan.items);
+	const isActive = plan.customerEligibility?.status === "active";
 	const isRecommended = plan.id === RECOMMENDED_PLAN_ID;
 	const Icon = PLAN_ICONS[plan.id] ?? CrownIcon;
 
@@ -260,7 +243,7 @@ function PricingCard({
 				<div className="min-w-0 flex-1">
 					<div className="flex flex-wrap items-center gap-2">
 						<Card.Title className="text-balance text-base">
-							{planName}
+							{getCustomerPlanName(plan.id, plan.name)}
 						</Card.Title>
 						{isActive && (
 							<Badge size="sm" variant="muted">
@@ -284,36 +267,72 @@ function PricingCard({
 			<Card.Content className="flex flex-1 flex-col gap-5 p-5">
 				<PricingFeatures plan={plan} />
 				<div className="mt-auto space-y-3">
-					<Button
-						aria-label={getButtonText(eligibility, isSelected)}
+					<PlanButton
 						className="w-full"
-						disabled={
-							!eligibility?.canceling &&
-							(isActive || eligibility?.status === "scheduled")
-						}
-						loading={isLoadingPreview}
-						onClick={async () => {
-							setIsLoadingPreview(true);
-							try {
-								setPreview(await previewAction());
-								setDialogOpen(true);
-							} catch (error) {
-								showErrorToast(error, "Failed to load billing preview");
-							} finally {
-								setIsLoadingPreview(false);
-							}
-						}}
+						isSelected={isSelected}
+						onPlanUpdated={onPlanUpdated}
+						plan={plan}
 						size="lg"
-						variant={
-							isActive || !(isRecommended || isSelected)
-								? "secondary"
-								: "primary"
-						}
-					>
-						{getButtonText(eligibility, isSelected)}
-					</Button>
+						successPath={successPath}
+					/>
 				</div>
 			</Card.Content>
+		</Card>
+	);
+}
+
+export function PlanButton({
+	plan,
+	successPath,
+	onPlanUpdated,
+	isSelected = false,
+	className,
+	size,
+}: {
+	plan: HookPlan;
+	successPath: string;
+	onPlanUpdated?: () => void;
+	isSelected?: boolean;
+	className?: string;
+	size?: ComponentProps<typeof Button>["size"];
+}) {
+	const { attach, previewAttach } = useCustomer();
+	const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+	const [preview, setPreview] = useState<BillingPreview | null>(null);
+	const [dialogOpen, setDialogOpen] = useState(false);
+	const eligibility = plan.customerEligibility;
+	const isActive = eligibility?.status === "active";
+	const isRecommended = plan.id === RECOMMENDED_PLAN_ID;
+	const label = getButtonText(eligibility, isSelected);
+
+	return (
+		<>
+			<Button
+				aria-label={label}
+				className={className}
+				disabled={
+					!eligibility?.canceling &&
+					(isActive || eligibility?.status === "scheduled")
+				}
+				loading={isLoadingPreview}
+				onClick={async () => {
+					setIsLoadingPreview(true);
+					try {
+						setPreview(await previewAttach({ planId: plan.id }));
+						setDialogOpen(true);
+					} catch (error) {
+						showErrorToast(error, "Failed to load billing preview");
+					} finally {
+						setIsLoadingPreview(false);
+					}
+				}}
+				size={size}
+				variant={
+					isActive || !(isRecommended || isSelected) ? "secondary" : "primary"
+				}
+			>
+				{label}
+			</Button>
 			{preview && (
 				<AttachDialog
 					action={
@@ -323,15 +342,32 @@ function PricingCard({
 								? "trial"
 								: eligibility?.attachAction
 					}
-					onConfirm={attachAction}
+					onConfirm={async () => {
+						try {
+							const result = await attach({
+								planId: plan.id,
+								metadata: getStripeMetadata(),
+								successUrl: `${window.location.origin}${successPath}`,
+							});
+							if (result?.paymentUrl) {
+								window.location.href = result.paymentUrl;
+							} else {
+								toast.success("Plan updated");
+								onPlanUpdated?.();
+							}
+						} catch (error) {
+							showErrorToast(error, "Failed to update plan");
+							throw error;
+						}
+					}}
 					open={dialogOpen}
-					planName={planName}
+					planName={getCustomerPlanName(plan.id, plan.name)}
 					preview={preview}
 					setOpen={setDialogOpen}
-					terms={investigationTerms}
+					terms={getInvestigationTerms(plan.items)}
 				/>
 			)}
-		</Card>
+		</>
 	);
 }
 
