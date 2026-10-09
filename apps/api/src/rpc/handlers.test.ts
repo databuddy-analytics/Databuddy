@@ -15,6 +15,15 @@ function testRequest() {
 	return new Request("http://localhost/rpc/test");
 }
 
+interface RpcErrorPayload {
+	code: string;
+	success: boolean;
+}
+
+async function readErrorPayload(response: Response): Promise<RpcErrorPayload> {
+	return (await response.json()) as RpcErrorPayload;
+}
+
 describe("handleAnonymousOrpcRequest errors", () => {
 	it("preserves the ORPC error status instead of collapsing to 500", async () => {
 		const response = await handleAnonymousOrpcRequest(testRequest(), () => {
@@ -22,7 +31,7 @@ describe("handleAnonymousOrpcRequest errors", () => {
 		});
 
 		expect(response.status).toBe(404);
-		const body = (await response.json()) as Record<string, unknown>;
+		const body = await readErrorPayload(response);
 		expect(body.code).toBe("NOT_FOUND");
 		expect(body.success).toBe(false);
 	});
@@ -41,7 +50,7 @@ describe("handleAnonymousOrpcRequest errors", () => {
 		});
 
 		expect(response.status).toBe(500);
-		const body = (await response.json()) as Record<string, unknown>;
+		const body = await readErrorPayload(response);
 		expect(body.code).toBe("INTERNAL_SERVER_ERROR");
 	});
 });
