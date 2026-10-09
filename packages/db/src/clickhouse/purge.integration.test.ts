@@ -9,9 +9,7 @@ const describeIntegration =
 		: describe.skip;
 
 describeIntegration("revenue erasure against ClickHouse", () => {
-	it("erases website and organization rows, keeps other tenants and transferred websites, and discovers revenue-only owners", {
-		timeout: 30_000,
-	}, async () => {
+	it("erases website and organization rows, keeps other tenants and transferred websites, and discovers revenue-only owners", async () => {
 		const url = new URL(process.env.CLICKHOUSE_URL ?? "http://localhost:8123");
 		if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) {
 			throw new Error(
@@ -110,5 +108,5 @@ describeIntegration("revenue erasure against ClickHouse", () => {
 				transferredWebsiteId,
 			]);
 		}
-	});
+	}, 30_000);
 });
