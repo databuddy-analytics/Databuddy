@@ -1,8 +1,9 @@
-import { db, eq, withTransaction } from "@databuddy/db";
+import { and, db, eq, isNull, withTransaction } from "@databuddy/db";
 import {
 	alarmDestinations,
 	alarms,
 	alarmTriggerTypeValues,
+	websites,
 } from "@databuddy/db/schema";
 import { MAX_ALARM_DESTINATIONS } from "@databuddy/notifications";
 import { ratelimit } from "@databuddy/redis/rate-limit";
@@ -158,6 +159,28 @@ async function callerCanReadSecrets(
 	}
 }
 
+async function requireAlarmWebsite(
+	ctx: Context,
+	organizationId: string,
+	websiteId: string
+): Promise<void> {
+	const ownedWebsites = await ctx.db
+		.select({ id: websites.id })
+		.from(websites)
+		.where(
+			and(
+				eq(websites.id, websiteId),
+				eq(websites.organizationId, organizationId),
+				isNull(websites.deletedAt)
+			)
+		);
+	if (ownedWebsites.length === 0) {
+		throw rpcError.badRequest(
+			"This alert can only be linked to a website in the selected organization."
+		);
+	}
+}
+
 export const alarmsRouter = {
 	list: protectedProcedure
 		.route({
@@ -228,6 +251,13 @@ export const alarmsRouter = {
 				resource: "organization",
 				permissions: ["update"],
 			});
+			if (input.websiteId) {
+				await requireAlarmWebsite(
+					context,
+					input.organizationId,
+					input.websiteId
+				);
+			}
 
 			const alarmId = randomUUIDv7();
 			const now = new Date();
@@ -293,11 +323,18 @@ export const alarmsRouter = {
 		)
 		.output(alarmOutputSchema)
 		.handler(async ({ context, input }) => {
-			await withResource(context, {
+			const alarm = await withResource(context, {
 				resource: "alarm",
 				id: input.alarmId,
 				permissions: ["update"],
 			});
+			if (input.websiteId) {
+				await requireAlarmWebsite(
+					context,
+					alarm.organizationId,
+					input.websiteId
+				);
+			}
 			const now = new Date();
 
 			const { alarmId, destinations, ...fields } = input;
