@@ -354,7 +354,7 @@ export default function Hero({ stars }: { stars?: number | null }) {
 									flush();
 								}}
 							>
-								Start analyzing for free
+								Start free
 							</a>
 						</SciFiButton>
 
@@ -366,7 +366,7 @@ export default function Hero({ stars }: { stars?: number | null }) {
 									flush();
 								}}
 							>
-								Live demo
+								Try the live demo
 							</Link>
 						</SciFiButton>
 					</div>
