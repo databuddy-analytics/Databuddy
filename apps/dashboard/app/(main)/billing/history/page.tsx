@@ -57,7 +57,7 @@ export default function HistoryPage() {
 		return (
 			<main className="min-h-0 flex-1 overflow-y-auto">
 				<div className="mx-auto max-w-4xl p-5">
-					<ErrorState error={error} onRetry={refetch} />
+					<ErrorState onRetry={refetch} />
 				</div>
 			</main>
 		);
