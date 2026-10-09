@@ -62,11 +62,7 @@ async function purgeInBatches(
 	for (let start = 0; start < ids.length; start += PURGE_BATCH_SIZE) {
 		const batch = ids.slice(start, start + PURGE_BATCH_SIZE);
 		for (const statement of statements) {
-			// A queued mutation is not completed erasure. Wait for every replica
-			// before acknowledging this batch to the caller or purge audit log.
-			await chCommand(`${statement} SETTINGS mutations_sync = 2`, {
-				ids: batch,
-			});
+			await chCommand(statement, { ids: batch });
 		}
 		await onBatchPurged?.(batch);
 	}

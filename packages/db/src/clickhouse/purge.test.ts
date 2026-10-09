@@ -68,12 +68,12 @@ describe("website purge coverage", () => {
 describe("revenue erasure", () => {
 	afterEach(() => mock.restore());
 
-	it("purges website and organization revenue and waits for replicas", async () => {
+	it("submits website and organization revenue deletion", async () => {
 		const command = spyOn(clickHouse, "command").mockResolvedValue({
 			query_id: "purge-test",
 			response_headers: {},
 		});
-		const onBatchPurged = mock(async () => undefined);
+		const onBatchPurged = mock(() => Promise.resolve());
 		await purgeAnalyticsData(
 			["website-example", "organization-example"],
 			onBatchPurged
@@ -82,7 +82,7 @@ describe("revenue erasure", () => {
 			options.query.startsWith("ALTER TABLE analytics.revenue ")
 		);
 		expect(revenue?.[0].query).toBe(
-			"ALTER TABLE analytics.revenue DELETE WHERE website_id IN {ids:Array(String)} OR (owner_id IN {ids:Array(String)} AND ifNull(website_id, '') = '') SETTINGS mutations_sync = 2"
+			"ALTER TABLE analytics.revenue DELETE WHERE website_id IN {ids:Array(String)} OR (owner_id IN {ids:Array(String)} AND ifNull(website_id, '') = '')"
 		);
 		expect(revenue?.[0].query_params).toEqual({
 			ids: ["website-example", "organization-example"],
@@ -114,13 +114,13 @@ describe("revenue erasure", () => {
 	});
 
 	it("does not acknowledge erasure when the revenue mutation fails", async () => {
-		spyOn(clickHouse, "command").mockImplementation(async (options) => {
+		spyOn(clickHouse, "command").mockImplementation((options) => {
 			if (options.query.startsWith("ALTER TABLE analytics.revenue ")) {
-				throw new Error("revenue mutation failed");
+				return Promise.reject(new Error("revenue mutation failed"));
 			}
-			return { query_id: "purge-test", response_headers: {} };
+			return Promise.resolve({ query_id: "purge-test", response_headers: {} });
 		});
-		const onBatchPurged = mock(async () => undefined);
+		const onBatchPurged = mock(() => Promise.resolve());
 		await expect(
 			purgeAnalyticsData(["website-example"], onBatchPurged)
 		).rejects.toThrow("revenue mutation failed");

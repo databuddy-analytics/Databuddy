@@ -65,6 +65,21 @@ describeIntegration("revenue erasure against ClickHouse", () => {
 					{ transactions }
 				)
 			).map((row) => row.transaction_id);
+		const waitForRemaining = async (
+			expected: string[],
+			retries = 200
+		): Promise<void> => {
+			const actual = await remaining();
+			if (JSON.stringify(actual) === JSON.stringify(expected)) {
+				return;
+			}
+			if (retries === 0) {
+				expect(actual).toEqual(expected);
+				return;
+			}
+			await Bun.sleep(100);
+			return waitForRemaining(expected, retries - 1);
+		};
 		try {
 			await clickHouse.insert({
 				table: "analytics.revenue",
@@ -74,16 +89,15 @@ describeIntegration("revenue erasure against ClickHouse", () => {
 			const owners = await listOwnersWithStoredData();
 			expect(owners).toContainEqual({ id: websiteId, recent: 1 });
 			expect(owners).toContainEqual({ id: organizationId, recent: 1 });
-			await purgeAnalyticsData([websiteId], async () => {
-				expect(await remaining()).toEqual(
-					fixtures
-						.filter((row) => row.name !== "website" && row.name !== "legacy")
-						.map((row) => row.transaction_id)
-						.sort()
-				);
-			});
+			await purgeAnalyticsData([websiteId]);
+			await waitForRemaining(
+				fixtures
+					.filter((row) => row.name !== "website" && row.name !== "legacy")
+					.map((row) => row.transaction_id)
+					.sort()
+			);
 			await purgeAnalyticsData([organizationId]);
-			expect(await remaining()).toEqual([
+			await waitForRemaining([
 				`other-tenant-${suffix}`,
 				`transferred-${suffix}`,
 			]);
