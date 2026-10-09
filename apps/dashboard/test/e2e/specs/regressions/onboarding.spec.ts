@@ -51,12 +51,6 @@ for (const { aiConfigured, capability } of cases) {
 		await expect(
 			page.getByText("Tracking verified", { exact: true })
 		).toBeVisible();
-		if (!selfHosted) {
-			await page.getByRole("button", { name: "Continue", exact: true }).click();
-			await expect(
-				page.getByRole("heading", { name: "Pick a plan" })
-			).toBeVisible();
-		}
 		const open = page.getByRole("button", {
 			name: aiConfigured && selfHosted ? "Open Insights" : "Open dashboard",
 			exact: true,

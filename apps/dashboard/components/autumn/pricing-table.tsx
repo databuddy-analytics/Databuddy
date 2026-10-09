@@ -48,7 +48,7 @@ export const DISPLAYED_PLAN_IDS = [
 	"pro",
 	"hobby",
 ];
-export const RECOMMENDED_PLAN_ID = "intelligence";
+const RECOMMENDED_PLAN_ID = "intelligence";
 const PLAN_ICONS: Record<string, typeof CrownIcon> = {
 	hobby: RocketLaunchIcon,
 	pro: StarIcon,
@@ -66,7 +66,7 @@ const PLAN_SUPPORT: Record<string, string> = {
 	intelligence_scale: "Priority email + Slack",
 };
 
-function formatPriceAmount(amount: number) {
+export function formatPriceAmount(amount: number) {
 	return `$${amount.toLocaleString("en-US", { maximumFractionDigits: 6 })}`;
 }
 
@@ -113,12 +113,8 @@ function getButtonText(
 
 export default function PricingTable({
 	selectedPlan,
-	successPath = "/billing",
-	onPlanUpdated,
 }: {
 	selectedPlan?: string | null;
-	successPath?: string;
-	onPlanUpdated?: () => void;
 }) {
 	const { data: plans, isLoading, error, refetch } = useListPlans();
 
@@ -172,9 +168,7 @@ export default function PricingTable({
 					<PricingCard
 						isSelected={selectedPlan === plan.id}
 						key={plan.id}
-						onPlanUpdated={onPlanUpdated}
 						plan={plan}
-						successPath={successPath}
 					/>
 				))}
 			</div>
@@ -198,13 +192,9 @@ export default function PricingTable({
 function PricingCard({
 	plan,
 	isSelected,
-	successPath,
-	onPlanUpdated,
 }: {
 	plan: HookPlan;
 	isSelected: boolean;
-	successPath: string;
-	onPlanUpdated?: () => void;
 }) {
 	const isActive = plan.customerEligibility?.status === "active";
 	const isRecommended = plan.id === RECOMMENDED_PLAN_ID;
@@ -270,10 +260,9 @@ function PricingCard({
 					<PlanButton
 						className="w-full"
 						isSelected={isSelected}
-						onPlanUpdated={onPlanUpdated}
 						plan={plan}
 						size="lg"
-						successPath={successPath}
+						successPath="/billing"
 					/>
 				</div>
 			</Card.Content>
