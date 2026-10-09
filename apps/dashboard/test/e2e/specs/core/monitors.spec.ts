@@ -10,13 +10,13 @@ test("creates, pauses, and deletes an uptime monitor", {
 	const name = `Monitor ${suffix}`;
 	await page.goto("/monitors");
 
-	await page.getByRole("button", { name: "Create Monitor" }).first().click();
-	const sheet = page.getByRole("dialog", { name: "Create Monitor" });
+	await page.getByRole("button", { name: "Start monitoring" }).first().click();
+	const sheet = page.getByRole("dialog", { name: "Start monitoring" });
 	await sheet.getByPlaceholder("e.g. Production API").fill(name);
 	await sheet
 		.getByPlaceholder("https://api.example.com/health")
 		.fill(`https://monitor-${suffix}.local/health`);
-	await sheet.getByRole("button", { name: "Create monitor" }).click();
+	await sheet.getByRole("button", { name: "Start monitoring" }).click();
 	await expect(sheet).toBeHidden();
 
 	await page.getByText(name, { exact: true }).click();

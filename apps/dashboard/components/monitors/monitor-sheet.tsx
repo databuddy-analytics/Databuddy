@@ -251,7 +251,7 @@ export function MonitorSheet({
 				<Sheet.Close />
 				<Sheet.Header>
 					<Sheet.Title>
-						{isEditing ? "Edit monitor" : "Create monitor"}
+						{isEditing ? "Edit monitor" : "Start monitoring"}
 					</Sheet.Title>
 					<Sheet.Description>
 						{isEditing
@@ -443,7 +443,7 @@ export function MonitorSheet({
 							loading={isPending}
 							type="submit"
 						>
-							{isEditing ? "Save changes" : "Create monitor"}
+							{isEditing ? "Save changes" : "Start monitoring"}
 						</Button>
 					</Sheet.Footer>
 				</form>

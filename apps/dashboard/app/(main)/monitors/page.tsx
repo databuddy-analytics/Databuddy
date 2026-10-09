@@ -129,7 +129,7 @@ function MonitorsPageContent() {
 				</Button>
 				<Button onClick={handleCreate} size="sm">
 					<PlusIcon className="size-4 shrink-0" />
-					Create monitor
+					Start monitoring
 				</Button>
 			</TopBar.Actions>
 			<div className="flex-1 overflow-y-auto">
@@ -148,7 +148,7 @@ function MonitorsPageContent() {
 												variant="secondary"
 											>
 												<PlusIcon className="size-3.5" />
-												Create monitor
+												Start monitoring
 											</Button>
 										}
 										description="Create your first uptime monitor to track availability, then link an alert to get notified when services go down."
