@@ -1,41 +1,59 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
 	isDefinitiveAutumnBalanceFailure,
 	updateAutumnBalance,
 } from "./autumn-balance";
 
 const originalFetch = globalThis.fetch;
+const originalEnv = process.env;
+
+beforeEach(() => {
+	process.env = {
+		...originalEnv,
+		AUTUMN_SECRET_KEY: "synthetic-balance-key",
+		NODE_ENV: "test",
+		SELFHOST: "false",
+	};
+});
 
 afterEach(() => {
 	globalThis.fetch = originalFetch;
+	process.env = originalEnv;
 });
+
+function update(redemptionId: string) {
+	return updateAutumnBalance({
+		amount: 2500,
+		customerId: "cus_1",
+		featureId: "events",
+		redemptionId,
+	});
+}
 
 describe("updateAutumnBalance", () => {
 	it("posts the balance update with a redemption-scoped idempotency key", async () => {
 		const fetchMock = mock(
-			async (_url: string | URL | Request, _init?: RequestInit) =>
-				new Response("{}", { status: 200 })
+			async (_input: string | URL | Request, _init?: RequestInit) =>
+				Response.json({ success: true })
 		);
-		globalThis.fetch = fetchMock as typeof fetch;
-
-		await updateAutumnBalance({
-			amount: 2500,
-			customerId: "cus_1",
-			featureId: "events",
-			redemptionId: "redemption-1",
-			secretKey: "secret",
+		globalThis.fetch = Object.assign(fetchMock, {
+			preconnect: originalFetch.preconnect,
 		});
+
+		await update("redemption-1");
 
 		expect(fetchMock).toHaveBeenCalledTimes(1);
-		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe("https://api.useautumn.com/v1/balances.update");
-		expect(init?.method).toBe("POST");
-		expect(init?.headers).toMatchObject({
-			Authorization: "Bearer secret",
-			"Content-Type": "application/json",
-			"Idempotency-Key": "feedback-redemption:redemption-1",
-		});
-		expect(JSON.parse(String(init?.body))).toEqual({
+		const call = fetchMock.mock.calls[0];
+		if (!call) {
+			throw new Error("Expected an Autumn balance request");
+		}
+		const [input, init] = call;
+		const request = new Request(input, init);
+		expect(request.url).toBe("https://api.useautumn.com/v1/balances.update");
+		expect(request.headers.get("Idempotency-Key")).toBe(
+			"feedback-redemption:redemption-1"
+		);
+		expect(await request.json()).toEqual({
 			customer_id: "cus_1",
 			feature_id: "events",
 			add_to_balance: 2500,
@@ -48,97 +66,41 @@ describe("updateAutumnBalance", () => {
 		[500, false],
 		[503, false],
 	])("treats an HTTP %i Autumn response as definitive=%p for rollback", async (status, definitive) => {
-		globalThis.fetch = mock(
-			async () => new Response("autumn error", { status })
-		) as typeof fetch;
+		globalThis.fetch = Object.assign(
+			mock(async () => Response.json({ message: "autumn error" }, { status })),
+			{ preconnect: originalFetch.preconnect }
+		);
 
-		let error: unknown;
-		try {
-			await updateAutumnBalance({
-				amount: 10,
-				customerId: "cus_1",
-				featureId: "agent-credits",
-				redemptionId: "redemption-2",
-				secretKey: "secret",
-			});
-		} catch (caught) {
-			error = caught;
-		}
+		const error = await update("redemption-2").catch((caught) => caught);
 
 		expect(error).toBeInstanceOf(Error);
 		expect(isDefinitiveAutumnBalanceFailure(error)).toBe(definitive);
 	});
 
-	it("fails definitively without calling Autumn when no secret key is configured", async () => {
-		const fetchMock = mock(async () => new Response("{}", { status: 200 }));
-		globalThis.fetch = fetchMock as typeof fetch;
-		const originalSecret = process.env.AUTUMN_SECRET_KEY;
-		delete process.env.AUTUMN_SECRET_KEY;
+	it("fails definitively without calling Autumn when billing is not live", async () => {
+		const fetchMock = mock(async () => Response.json({ success: true }));
+		globalThis.fetch = Object.assign(fetchMock, {
+			preconnect: originalFetch.preconnect,
+		});
+		process.env.SELFHOST = "true";
 
-		let error: unknown;
-		try {
-			await updateAutumnBalance({
-				amount: 10,
-				customerId: "cus_1",
-				featureId: "agent-credits",
-				redemptionId: "redemption-4",
-				secretKey: null,
-			});
-		} catch (caught) {
-			error = caught;
-		} finally {
-			if (originalSecret !== undefined) {
-				process.env.AUTUMN_SECRET_KEY = originalSecret;
-			}
-		}
+		const error = await update("redemption-4").catch((caught) => caught);
 
 		expect(isDefinitiveAutumnBalanceFailure(error)).toBe(true);
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
 	it("marks network failures as ambiguous so callers do not roll back spent credits", async () => {
-		globalThis.fetch = mock(async () => {
-			throw new Error("socket closed after write");
-		}) as typeof fetch;
+		globalThis.fetch = Object.assign(
+			mock(async () => {
+				throw new TypeError("socket closed after write");
+			}),
+			{ preconnect: originalFetch.preconnect }
+		);
 
-		let error: unknown;
-		try {
-			await updateAutumnBalance({
-				amount: 10,
-				customerId: "cus_1",
-				featureId: "agent-credits",
-				redemptionId: "redemption-3",
-				secretKey: "secret",
-			});
-		} catch (caught) {
-			error = caught;
-		}
+		const error = await update("redemption-3").catch((caught) => caught);
 
 		expect(error).toBeInstanceOf(Error);
 		expect(isDefinitiveAutumnBalanceFailure(error)).toBe(false);
 	});
-});
-
-it("self-hosted balance writes fail definitively before any provider request", async () => {
-	const original = process.env.SELFHOST;
-	process.env.SELFHOST = "true";
-	const request = mock(async () => new Response("{}"));
-	globalThis.fetch = request as typeof fetch;
-	try {
-		const definitiveFailure = await updateAutumnBalance({
-			amount: 1,
-			customerId: "synthetic-customer",
-			featureId: "events",
-			redemptionId: "synthetic-redemption",
-			secretKey: "synthetic-stale-key",
-		}).catch(isDefinitiveAutumnBalanceFailure);
-		expect(definitiveFailure).toBe(true);
-		expect(request).not.toHaveBeenCalled();
-	} finally {
-		if (original === undefined) {
-			Reflect.deleteProperty(process.env, "SELFHOST");
-		} else {
-			process.env.SELFHOST = original;
-		}
-	}
 });

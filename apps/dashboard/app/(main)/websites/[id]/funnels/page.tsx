@@ -57,7 +57,8 @@ export default function FunnelsPage() {
 	const websiteId = id as string;
 	const pathname = usePathname();
 	const isDemoRoute = pathname.startsWith("/demo/");
-	const { formattedDateRangeState, dateRange } = useDateFilters();
+	const { formattedDateRangeState, calendarDateRange: dateRange } =
+		useDateFilters();
 
 	const [expandedId, setExpandedId] = useState<string | null>(null);
 	const [selectedReferrer, setSelectedReferrer] = useState("all");

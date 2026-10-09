@@ -72,7 +72,7 @@ export default function GoalsPage() {
 	const [deletingGoalId, setDeletingGoalId] = useState<string | null>(null);
 	const [editingGoal, setEditingGoal] = useState<Goal | null>();
 
-	const { dateRange } = useDateFilters();
+	const { calendarDateRange: dateRange } = useDateFilters();
 	const globalFilters = useAtomValue(dynamicQueryFiltersAtom);
 	const goalFilters = useMemo(
 		() => toGoalFilters(globalFilters),

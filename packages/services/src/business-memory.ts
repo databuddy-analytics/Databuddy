@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { db } from "@databuddy/db";
+import { config } from "@databuddy/env/app";
 import Supermemory from "supermemory";
 import { z } from "zod";
 
@@ -13,7 +14,7 @@ export interface BusinessScope {
 let client: Supermemory | null = null;
 
 export function getMemoryClient(): Supermemory | null {
-	const apiKey = process.env.SUPERMEMORY_API_KEY;
+	const apiKey = config.services.supermemoryApiKey;
 	if (!apiKey) {
 		return null;
 	}

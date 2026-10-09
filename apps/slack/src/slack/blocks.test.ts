@@ -1,69 +1,19 @@
 import { describe, expect, it } from "bun:test";
+import { type ComponentSpec, splitAgentText } from "@databuddy/ai/agent/render";
 import {
 	type Block,
-	ComponentStreamSplitter,
-	type ComponentSpec,
 	componentsToBlocks,
 	componentToBlocks,
-	splitAgentText,
 } from "@/slack/blocks";
-import { buildAnalyticsInstructionsForMcp } from "../../../../packages/ai/src/ai/prompts/analytics";
-
-const DATA_TABLE = `{"type":"data-table","title":"Top Pages","columns":["Page","Visitors"],"rows":[["/",1500],["/pricing",820]]}`;
-
-function pushAll(chunks: string[]): { components: unknown[]; text: string } {
-	const splitter = new ComponentStreamSplitter();
-	let text = "";
-	for (const chunk of chunks) {
-		text += splitter.push(chunk);
-	}
-	const tail = splitter.flush();
-	return { components: tail.components, text: text + tail.text };
-}
+import { buildAnalyticsInstructionsForMcp } from "@databuddy/ai/prompts/analytics";
 
 function firstBlock(spec: ComponentSpec): Block {
-	const blocks = componentToBlocks(spec);
-	expect(blocks.length).toBeGreaterThan(0);
-	return blocks[0];
+	const block = componentToBlocks(spec)[0];
+	if (!block) {
+		throw new Error("Expected a rendered block");
+	}
+	return block;
 }
-
-describe("ComponentStreamSplitter", () => {
-	it("diverts a data-table component out of the prose text", () => {
-		const input = `Here are your top pages.\n${DATA_TABLE}\nLet me know if you need more.`;
-		const { text, components } = splitAgentText(input);
-
-		expect(text).not.toContain('{"type"');
-		expect(text).toContain("Here are your top pages.");
-		expect(text).toContain("Let me know if you need more.");
-		expect(components).toHaveLength(1);
-	});
-
-	it("reassembles a component split across multiple chunks", () => {
-		const mid = Math.floor(DATA_TABLE.length / 2);
-		const { text, components } = pushAll([
-			"prose ",
-			DATA_TABLE.slice(0, mid),
-			DATA_TABLE.slice(mid),
-			" tail",
-		]);
-
-		expect(components).toHaveLength(1);
-		expect(text).toBe("prose  tail");
-	});
-
-	it("holds back a partial component marker instead of leaking it mid-stream", () => {
-		const splitter = new ComponentStreamSplitter();
-		const emitted = splitter.push('done. {"ty');
-		expect(emitted).toBe("done. ");
-	});
-
-	it("does not divert ordinary JSON-looking prose without a known type", () => {
-		const input = 'The config was {"port": 3010} yesterday.';
-		const { text, components } = splitAgentText(input);
-		expect(components).toHaveLength(0);
-		expect(text).toContain('{"port": 3010}');
-	});
-});
 
 describe("componentToBlocks tables and lists", () => {
 	it("maps a data-table numeric cell to raw_number with value and text", () => {
@@ -228,7 +178,7 @@ describe("componentToBlocks charts", () => {
 			"data_table",
 		]);
 		expect(blocks[3]).toEqual(componentToBlocks(chart, false)[0]);
-		expect(componentsToBlocks([chart], false)[0].type).toBe("data_table");
+		expect(componentsToBlocks([chart], false)[0]?.type).toBe("data_table");
 	});
 
 	it("preserves values in table fallbacks and labels row limits", () => {
@@ -307,8 +257,8 @@ describe("componentToBlocks native actions and previews", () => {
 			"agent_drilldown_0",
 			"agent_drilldown_2",
 		]);
-		expect(elements[0].value).toBe("break /pricing down by referrer");
-		expect(elements[1].value).toBe("compare with yesterday");
+		expect(elements[0]?.value).toBe("break /pricing down by referrer");
+		expect(elements[1]?.value).toBe("compare with yesterday");
 	});
 });
 
@@ -320,7 +270,7 @@ describe("componentToBlocks no silent drop", () => {
 			title: "Top referrers",
 		});
 		expect(blocks).toHaveLength(1);
-		expect(blocks[0].type).toBe("context");
+		expect(blocks[0]?.type).toBe("context");
 	});
 
 	it("never returns an empty block list for a known component", () => {

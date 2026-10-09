@@ -1,6 +1,5 @@
 import { cacheNamespaces, cacheTags, cacheable } from "@databuddy/redis";
-import { getAutumn } from "../lib/autumn-client";
-import { logger } from "../lib/logger";
+import { autumnCall, getAutumn } from "../lib/autumn-client";
 import { getMemberRole, getOrganizationOwnerId } from "./organization";
 
 export interface BillingOwner {
@@ -43,12 +42,9 @@ export async function resolveBillingOwner(
 		}
 	}
 
-	const customer = await getAutumn()
-		.customers.getOrCreate({ customerId })
-		.catch((error: unknown) => {
-			logger.error({ error, customerId }, "Error resolving billing owner plan");
-			throw error;
-		});
+	const customer = await autumnCall("customers.getOrCreate", () =>
+		getAutumn().customers.getOrCreate({ customerId })
+	);
 
 	const subs = customer.subscriptions;
 	const activeSub =

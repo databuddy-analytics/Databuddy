@@ -5,55 +5,28 @@ import {
 	isMemoryEnabled,
 	storeConversation,
 } from "../../lib/supermemory";
-import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
-import { auth } from "@databuddy/auth";
 import type { LanguageModelUsage, StepResult, ToolSet } from "ai";
+import type { AgentPrincipal, DatabuddyAgentOptions } from "../../agent";
 import { createConversationAgent } from "../agents/conversation";
-import { DatabuddyAgentUserError } from "../../agent/errors";
 import { getAILogger } from "../../lib/ai-logger";
-import { getAccessibleWebsites } from "../../lib/accessible-websites";
 import { loadOrganizationBusinessContext } from "../../lib/organization-business-context";
-import { matchesWebsiteDomain } from "../../lib/website-domain";
-import { captureError, mergeWideEvent } from "../../lib/tracing";
-import {
-	getAgentBillingAccess,
-	resolveAgentBillingCustomerId,
-	trackAgentUsageAndBill,
-} from "../agents/execution";
+import { captureError } from "../../lib/tracing";
+import { trackAgentUsageAndBill } from "../agents/execution";
 import { createMcpAgentConfig } from "../agents/mcp";
-import { getDefaultAgentModelId } from "../config/models";
-import type { AppMutationMode } from "../config/context";
-import type { DatabuddyAgentSlackContext } from "./slack-context";
+import { type AgentSource, getDefaultAgentModelId } from "../config/models";
+import { prependBackgroundContext } from "../prompts/context";
 
 const DEFAULT_MCP_AGENT_TIMEOUT_MS = 45_000;
 const EMPTY_ANSWER =
 	"No answer was generated from the gathered evidence. Try a narrower question: one metric, one segment, or one time range.";
-type AgentBillingMode = "bill" | "skip";
 
-export interface RunMcpAgentOptions {
-	abortSignal?: AbortSignal;
-	apiKey: ApiKeyRow | null;
-	billingMode?: AgentBillingMode;
-	conversationId?: string;
-	historyInput?: string;
-	memoryUserId?: string | null;
-	modelOverride?: string | null;
-	mutationMode?: AppMutationMode;
-	onToolEvent?: (toolNames: string[]) => void;
-	/** Called once after a stream completes and its usage has been settled. */
-	onToolTrace?: (trace: McpAgentToolTrace[]) => void;
-	priorMessages?: Array<{ role: "user" | "assistant"; content: string }>;
-	question: string;
-	requestHeaders: Headers;
-	slackContext?: DatabuddyAgentSlackContext | null;
-	source?: "dashboard" | "mcp" | "slack";
-	storeMemory?: boolean;
-	timeoutMs?: number;
-	timezone?: string;
-	userId: string | null;
-	websiteDomain?: string | null;
-	websiteId?: string | null;
-}
+export type RunMcpAgentOptions = DatabuddyAgentOptions & {
+	conversationId: string;
+	conversationUserId: string | null;
+	memoryUserId: string | null;
+	principal: AgentPrincipal;
+	source: AgentSource;
+};
 
 export interface McpAgentToolTrace {
 	index: number;
@@ -85,9 +58,7 @@ export async function runMcpAgent(
 		await trackPreparedUsage(prepared, result.totalUsage);
 
 		const answer = result.text.trim() || EMPTY_ANSWER;
-		if (options.storeMemory !== false) {
-			storePreparedConversation(prepared, answer);
-		}
+		storePreparedConversation(prepared, answer);
 
 		return answer;
 	} finally {
@@ -110,9 +81,7 @@ export async function runMcpAgentWithTrace(
 
 		await trackPreparedUsage(prepared, result.totalUsage);
 		const answer = result.text.trim() || EMPTY_ANSWER;
-		if (options.storeMemory !== false) {
-			storePreparedConversation(prepared, answer);
-		}
+		storePreparedConversation(prepared, answer);
 
 		return {
 			answer,
@@ -230,9 +199,7 @@ export async function* streamMcpAgentText(
 		}
 
 		options.onToolTrace?.(collectToolTrace(prepared.capturedSteps));
-		if (options.storeMemory !== false) {
-			storePreparedConversation(prepared, answer);
-		}
+		storePreparedConversation(prepared, answer);
 	} finally {
 		abort.cleanup();
 		await settleRemainingUsage(prepared);
@@ -272,77 +239,19 @@ function createRunAbortController(options: RunMcpAgentOptions): {
 }
 
 async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
-	const sessionId = options.conversationId ?? crypto.randomUUID();
-	const historyInput = options.historyInput ?? options.question;
-	const mcpUserId = options.userId ?? options.apiKey?.userId ?? null;
-	const memoryUserId = options.memoryUserId ?? mcpUserId;
-	const session =
-		!options.apiKey && mcpUserId
-			? await auth.api.getSession({ headers: options.requestHeaders })
-			: null;
-	const organizationId = options.apiKey
-		? options.apiKey.organizationId
-		: session?.user.id === mcpUserId
-			? (session?.session.activeOrganizationId ?? null)
-			: null;
-	const [accessibleWebsites, billingCustomerId] = await Promise.all([
-		getAccessibleWebsites({
-			apiKey: options.apiKey,
-			organizationId,
-			user: session?.user.id === mcpUserId ? session.user : null,
-		}),
-		options.billingMode === "skip"
-			? Promise.resolve(null)
-			: resolveAgentBillingCustomerId({
-					userId: mcpUserId,
-					apiKey: options.apiKey,
-					organizationId,
-				}),
-	]);
-	const websiteDomain = options.websiteDomain;
-	// A caller-supplied site must not bind another organization's brief or tools.
-	if (
-		(options.websiteId &&
-			!accessibleWebsites.some((site) => site.id === options.websiteId)) ||
-		(websiteDomain &&
-			!accessibleWebsites.some(
-				(site) =>
-					matchesWebsiteDomain(site.domain, websiteDomain) &&
-					(!options.websiteId || site.id === options.websiteId)
-			))
-	) {
-		throw new Error("Website is not accessible in this organization");
-	}
-	const source = options.source ?? "mcp";
-	const selectedModelId =
-		options.modelOverride ?? getDefaultAgentModelId(source);
-
-	const apiKeyId = options.apiKey?.id ?? null;
-
-	mergeWideEvent({
-		agent_billing_mode: options.billingMode === "skip" ? "skip" : "bill",
-	});
-
-	const billingAccess =
-		options.billingMode === "skip"
-			? undefined
-			: await getAgentBillingAccess(billingCustomerId);
-	if (billingAccess && !billingAccess.allowed) {
-		throw new DatabuddyAgentUserError({
-			code: "agent_credits_exhausted",
-			message:
-				"You've used your Databunny allowance for this month. Add more usage, upgrade, or wait for the monthly reset.",
-		});
-	}
+	const { conversationId, memoryUserId, principal, source } = options;
+	const { accessibleWebsites, apiKey, organizationId, userId, website } =
+		principal;
+	const historyInput = options.historyInput ?? options.input;
 
 	const [config, memoryCtx, businessContext] = await Promise.all([
 		createMcpAgentConfig({
-			billingCustomerId,
-			requestHeaders: options.requestHeaders,
-			apiKey: options.apiKey,
-			userId: mcpUserId,
+			billingCustomerId: principal.billingCustomerId,
+			requestHeaders: principal.requestHeaders,
+			apiKey,
+			userId,
 			timezone: options.timezone,
-			chatId: sessionId,
+			chatId: conversationId,
 			latestUserMessage: historyInput,
 			modelOverride: options.modelOverride,
 			memoryUserId,
@@ -351,21 +260,19 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 			accessibleWebsites,
 			slackContext: options.slackContext,
 			source,
-			websiteDomain: options.websiteDomain,
-			websiteId: options.websiteId,
+			websiteDomain: website?.domain,
+			websiteId: website?.id,
 		}),
 		isMemoryEnabled()
-			? getMemoryContext(historyInput, memoryUserId, apiKeyId)
+			? getMemoryContext(historyInput, memoryUserId, apiKey?.id ?? null)
 			: Promise.resolve(null),
 		loadOrganizationBusinessContext({
 			organizationId,
 			accessibleWebsites,
-			websiteIds: options.websiteId ? [options.websiteId] : [],
+			websiteIds: website ? [website.id] : [],
 			abortSignal: options.abortSignal,
 		}),
 	]);
-
-	const memoryBlock = memoryCtx ? formatMemoryForPrompt(memoryCtx) : "";
 
 	const ai = getAILogger();
 	const capturedSteps: StepResult<ToolSet>[] = [];
@@ -384,49 +291,30 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 				functionId: `databuddy.${source}.ask`,
 				metadata: {
 					source,
-					authType: options.apiKey ? "api_key" : "session",
+					authType: apiKey ? "api_key" : "session",
 					timezone: options.timezone ?? "UTC",
 					"tcc.conversational": "true",
-					...(mcpUserId && { userId: mcpUserId }),
-					...(options.apiKey?.organizationId && {
-						organizationId: options.apiKey.organizationId,
-					}),
-					"tcc.sessionId": sessionId,
+					...(userId && { userId }),
+					organizationId,
+					"tcc.sessionId": conversationId,
 				},
 			},
 		}
 	);
 
-	const contextBlock = [businessContext, memoryBlock]
-		.filter(Boolean)
-		.join("\n\n");
-	const questionContent = contextBlock
-		? `<context>\n${contextBlock}\n</context>\n\n${options.question}`
-		: options.question;
-
-	const messages = [
-		...(options.priorMessages ?? []),
-		{ role: "user" as const, content: questionContent },
-	];
+	const messages = prependBackgroundContext(
+		[...(options.history ?? []), { role: "user", content: options.input }],
+		[businessContext, memoryCtx ? formatMemoryForPrompt(memoryCtx) : ""]
+	);
 
 	return {
 		agent,
-		apiKeyId,
-		billingCustomerId,
-		billingAccess,
 		capturedSteps,
 		historyInput,
-		usageSettlementAttempted: false,
-		memoryUserId,
-		mcpUserId,
 		messages,
-		modelId: selectedModelId,
-		mutationMode: options.mutationMode,
-		organizationId,
-		sessionId,
-		source,
-		websiteDomain: options.websiteDomain ?? undefined,
-		websiteId: options.websiteId ?? undefined,
+		modelId: options.modelOverride ?? getDefaultAgentModelId(source),
+		options,
+		usageSettlementAttempted: false,
 	};
 }
 
@@ -439,6 +327,7 @@ async function trackPreparedUsage(
 	}
 	// An uncertain charge must not be replayed by cleanup.
 	prepared.usageSettlementAttempted = true;
+	const { conversationId, principal, source } = prepared.options;
 	await trackAgentUsageAndBill({
 		usage: {
 			...usage,
@@ -447,12 +336,12 @@ async function trackPreparedUsage(
 				: {}),
 		},
 		modelId: prepared.modelId,
-		source: prepared.source,
-		organizationId: prepared.organizationId,
-		userId: prepared.mcpUserId,
-		chatId: prepared.sessionId,
-		billingCustomerId: prepared.billingCustomerId,
-		billingAccess: prepared.billingAccess,
+		source,
+		organizationId: principal.organizationId,
+		userId: principal.userId,
+		chatId: conversationId,
+		billingCustomerId: principal.billingCustomerId,
+		billingAccess: principal.billingAccess,
 	});
 }
 
@@ -474,8 +363,8 @@ async function settleRemainingUsage(
 		// Preserve the model error or consumer cancellation that entered cleanup.
 		captureError(error, {
 			agent_usage_billing_error: true,
-			agent_source: prepared.source,
-			agent_chat_id: prepared.sessionId,
+			agent_source: prepared.options.source,
+			agent_chat_id: prepared.options.conversationId,
 		});
 	}
 }
@@ -501,27 +390,29 @@ function collectToolTrace(
 }
 
 function storePreparedConversation(
-	prepared: Awaited<ReturnType<typeof prepareMcpAgentRun>>,
+	{ historyInput, options }: Awaited<ReturnType<typeof prepareMcpAgentRun>>,
 	answer: string
 ): void {
 	if (
-		prepared.mutationMode === "dry-run" ||
-		!asksToRemember(prepared.historyInput)
+		options.persistConversation === false ||
+		options.mutationMode === "dry-run" ||
+		!asksToRemember(historyInput)
 	) {
 		return;
 	}
+	const { website } = options.principal;
 	storeConversation(
 		[
-			{ role: "user", content: prepared.historyInput },
+			{ role: "user", content: historyInput },
 			{ role: "assistant", content: answer },
 		],
-		prepared.memoryUserId,
-		prepared.apiKeyId,
+		options.memoryUserId,
+		options.principal.apiKey?.id ?? null,
 		{
-			...(prepared.websiteDomain ? { domain: prepared.websiteDomain } : {}),
-			metadata: { source: prepared.source },
-			conversationId: prepared.sessionId,
-			websiteId: prepared.websiteId,
+			...(website?.domain ? { domain: website.domain } : {}),
+			metadata: { source: options.source },
+			conversationId: options.conversationId,
+			websiteId: website?.id,
 		}
 	);
 }

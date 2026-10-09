@@ -1,5 +1,6 @@
 import { createClient, type ResponseJSON } from "@clickhouse/client";
 import type { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
+import { dataUrl, isLoopbackHost } from "@databuddy/env/app";
 import { finalizeDeliveryTables } from "./logical-reads";
 export const TABLE_NAMES = {
 	events: "analytics.events",
@@ -82,18 +83,18 @@ function assertLoopbackForIntegrationTests(url: string | undefined): void {
 	if (process.env.CLICKHOUSE_INTEGRATION_TESTS !== "true") {
 		return;
 	}
-	const hostname = url ? new URL(url).hostname : "";
-	if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostname)) {
+	if (!(url && isLoopbackHost(url))) {
 		throw new Error(
-			`ClickHouse integration tests only run against a loopback server; CLICKHOUSE_URL host is "${hostname || "unset"}"`
+			`ClickHouse integration tests only run against a loopback server; CLICKHOUSE_URL host is "${url ? new URL(url).hostname : "unset"}"`
 		);
 	}
 }
 
-assertLoopbackForIntegrationTests(process.env.CLICKHOUSE_URL);
+const clickHouseUrl = dataUrl("CLICKHOUSE_URL");
+assertLoopbackForIntegrationTests(clickHouseUrl);
 
 const baseClient = createClient({
-	url: process.env.CLICKHOUSE_URL,
+	url: clickHouseUrl,
 	...CLICKHOUSE_OPTIONS,
 });
 

@@ -376,6 +376,7 @@ function Sample({ sample }: { sample: Sample }) {
 			suggestions={{
 				created: new Set(["goal:Pricing viewed"]),
 				creating: null,
+				limitNotes: { goal: null, funnel: "Free plan includes 1 funnel" },
 				onCreate: noop,
 			}}
 			products={{

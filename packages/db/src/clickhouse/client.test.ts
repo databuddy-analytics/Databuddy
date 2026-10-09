@@ -177,27 +177,50 @@ describe("integration test loopback guard", () => {
 		});
 	}
 
-	test("refuses a remote ClickHouse when integration tests are enabled", () => {
+	test.each([
+		"clickhouse.example.test",
+		"staging",
+		"clickhouse",
+		"0.0.0.0",
+	])("refuses non-loopback ClickHouse when integration tests are enabled: %s", (host) => {
 		const result = importClient({
 			CLICKHOUSE_INTEGRATION_TESTS: "true",
-			CLICKHOUSE_URL: "http://default:@clickhouse.example.test:8123",
+			CLICKHOUSE_URL: `http://default:@${host}:8123`,
 		});
 		expect(result.exitCode).not.toBe(0);
 		expect(result.stderr.toString()).toContain(
-			'only run against a loopback server; CLICKHOUSE_URL host is "clickhouse.example.test"'
+			`only run against a loopback server; CLICKHOUSE_URL host is "${host}"`
 		);
 	});
 
-	test("refuses an unset ClickHouse URL when integration tests are enabled", () => {
-		const result = importClient({ CLICKHOUSE_INTEGRATION_TESTS: "true" });
+	test.each([
+		"production",
+		"test",
+	])("refuses an unset integration URL outside development: %s", (NODE_ENV) => {
+		const result = importClient({
+			NODE_ENV,
+			CLICKHOUSE_INTEGRATION_TESTS: "true",
+		});
 		expect(result.exitCode).not.toBe(0);
 		expect(result.stderr.toString()).toContain('host is "unset"');
 	});
 
-	test("allows loopback when integration tests are enabled", () => {
+	test("allows the resolved development URL when CLICKHOUSE_URL is unset", () => {
+		const result = importClient({
+			NODE_ENV: "development",
+			CLICKHOUSE_INTEGRATION_TESTS: "true",
+		});
+		expect(result.exitCode, result.stderr.toString()).toBe(0);
+	});
+
+	test.each([
+		"localhost",
+		"127.0.0.1",
+		"[::1]",
+	])("allows loopback when integration tests are enabled: %s", (host) => {
 		const result = importClient({
 			CLICKHOUSE_INTEGRATION_TESTS: "true",
-			CLICKHOUSE_URL: "http://default:@127.0.0.1:8123/databuddy_analytics",
+			CLICKHOUSE_URL: `http://default:@${host}:8123/databuddy_analytics`,
 		});
 		expect(result.exitCode).toBe(0);
 	});

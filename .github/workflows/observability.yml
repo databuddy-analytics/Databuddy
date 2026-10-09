@@ -26,3 +26,4 @@ jobs:
       - uses: evloghq/action@3b6ea8aa68a7bc65973459f6422f16d282e7b0bb # v1.3.0
         with:
           packages: apps/dashboard
+          min-score: 31

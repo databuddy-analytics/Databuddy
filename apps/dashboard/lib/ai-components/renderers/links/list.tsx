@@ -278,7 +278,7 @@ export function LinksListRenderer({ title, links, className }: LinksListProps) {
 						<div className="ml-auto flex items-center gap-2">
 							<Button onClick={openCreate} size="sm" variant="primary">
 								<PlusIcon className="size-3.5" />
-								Create
+								Create link
 							</Button>
 						</div>
 					</div>

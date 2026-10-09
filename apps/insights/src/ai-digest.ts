@@ -171,7 +171,7 @@ async function sitesWhoseServerTrackingStopped(
 }
 
 export async function dispatchAiDigests(now = new Date()) {
-	if (!config.email.resendApiKey) {
+	if (!config.services.resendApiKey) {
 		return logOutcome({ reason: "email_not_configured", status: "skipped" });
 	}
 	const week = weekRange(previousWeekStart(now));
@@ -319,7 +319,7 @@ export async function sendAiDigest({
 	websiteId,
 	weekStart,
 }: AiDigestWebsiteJobData) {
-	const apiKey = config.email.resendApiKey;
+	const apiKey = config.services.resendApiKey;
 	if (!apiKey) {
 		return logOutcome({ reason: "email_not_configured", status: "skipped" });
 	}

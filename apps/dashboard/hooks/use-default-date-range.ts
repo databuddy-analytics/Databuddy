@@ -39,9 +39,10 @@ export function getDefaultDatesFromPreset(preset: DefaultDateRangePreset): {
 	endDate: string;
 } {
 	if (preset === "24h") {
+		const now = dayjs().startOf("minute");
 		return {
-			endDate: dayjs().format("YYYY-MM-DD"),
-			startDate: dayjs().subtract(24, "hour").format("YYYY-MM-DD"),
+			endDate: now.toISOString(),
+			startDate: now.subtract(24, "hour").toISOString(),
 		};
 	}
 	const daysMap: Record<Exclude<DefaultDateRangePreset, "24h">, number> = {

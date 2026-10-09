@@ -2,7 +2,7 @@ import { beforeEach, expect, mock, test } from "bun:test";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import type { RunMcpAgentOptions } from "../ai/mcp/run-agent";
 import { createRedisModuleMock } from "../ai/test-redis-mock";
-import type { DatabuddyAgentOptions } from "./index";
+import type { AgentPrincipal, DatabuddyAgentOptions } from "./index";
 
 const stored = new Map<string, string>();
 const runs: RunMcpAgentOptions[] = [];
@@ -14,20 +14,16 @@ mock.module("@databuddy/redis", () =>
 				stored.set(key, value);
 			},
 		}),
+		redis: {},
 	})
 );
-mock.module("@databuddy/api-keys/resolve", () => ({
-	resolveApiKey: () => {
-		throw new Error("Synthetic API keys do not need external resolution");
-	},
-}));
 mock.module("./slack-relevance", () => ({
 	classifySlackThreadReplyRelevance: async () => ({}),
 }));
 
 function answer(options: RunMcpAgentOptions): string {
 	runs.push(options);
-	return `Answer: ${options.question}`;
+	return `Answer: ${options.input}`;
 }
 mock.module("../ai/mcp/run-agent", () => ({
 	runMcpAgent: async (options: RunMcpAgentOptions) => answer(options),
@@ -65,8 +61,19 @@ const key: ApiKeyRow = {
 	createdAt: new Date("2026-09-17"),
 	updatedAt: new Date("2026-09-17"),
 };
+function principalFor(apiKey: ApiKeyRow | null): AgentPrincipal {
+	return {
+		accessibleWebsites: [],
+		apiKey,
+		billingCustomerId: null,
+		organizationId: "organization-synthetic",
+		requestHeaders: new Headers(),
+		userId: apiKey?.userId ?? "user-synthetic",
+		website: null,
+	};
+}
 const options: DatabuddyAgentOptions = {
-	actor: { type: "api_key", apiKey: key },
+	principal: principalFor(key),
 	conversationId: "slack-T_TEST-C_TEST-111_000",
 	input: "First question",
 	memoryUserId: "slack-T_TEST-U_A",
@@ -100,8 +107,8 @@ test.each([
 	});
 	await invoke({ ...options, input: "Third question" });
 
-	expect(runs.map((run) => run.priorMessages?.length ?? 0)).toEqual([0, 2, 4]);
-	expect(runs[1].priorMessages).toEqual([
+	expect(runs.map((run) => run.history?.length ?? 0)).toEqual([0, 2, 4]);
+	expect(runs[1]?.history).toEqual([
 		{ role: "user", content: "First question" },
 		{ role: "assistant", content: "Answer: First question" },
 	]);
@@ -115,22 +122,14 @@ test.each([
 test.each([
 	[
 		"integration",
-		{
-			actor: {
-				type: "api_key" as const,
-				apiKey: {
-					...key,
-					id: "slack:other-integration",
-				},
-			},
-		},
+		{ principal: principalFor({ ...key, id: "slack:other-integration" }) },
 	],
 	["channel", { conversationId: "slack-T_TEST-C_OTHER-111_000" }],
 	["thread", { conversationId: "slack-T_TEST-C_TEST-222_000" }],
 ] as const)("isolates Slack history by %s", async (_scope, isolated) => {
 	await askDatabuddyAgent(options);
 	await askDatabuddyAgent({ ...options, ...isolated });
-	expect(runs.at(-1)?.priorMessages).toBeUndefined();
+	expect(runs.at(-1)?.history).toBeUndefined();
 });
 
 test.each([
@@ -140,17 +139,24 @@ test.each([
 ] as const)("keeps %s history scoped to the speaker", async (source) => {
 	const input: DatabuddyAgentOptions =
 		source === "slack-session"
-			? {
-					...options,
-					actor: {
-						type: "session",
-						userId: "user-synthetic",
-						requestHeaders: new Headers(),
-					},
-				}
+			? { ...options, principal: principalFor(null) }
 			: { ...options, source };
 	await askDatabuddyAgent(input);
 	await askDatabuddyAgent({ ...input, memoryUserId: "slack-T_TEST-U_B" });
 	await askDatabuddyAgent(input);
-	expect(runs.map((run) => run.priorMessages?.length ?? 0)).toEqual([0, 0, 2]);
+	expect(runs.map((run) => run.history?.length ?? 0)).toEqual([0, 0, 2]);
+});
+
+test("renders component JSON as markdown for markdown output", async () => {
+	const input: DatabuddyAgentOptions = {
+		...options,
+		input: '{"type":"data-table","columns":["Page"],"rows":[["/"]]}',
+		output: "markdown",
+		source: "api",
+	};
+	const expected = "Answer: | Page |\n| --- |\n| / |";
+	expect((await askDatabuddyAgent(input)).answer).toBe(expected);
+	expect((await Array.fromAsync(streamDatabuddyAgent(input))).join("")).toBe(
+		expected
+	);
 });

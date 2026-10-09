@@ -42,6 +42,7 @@ import {
 	CrownIcon,
 	PlusIcon,
 	TrendUpIcon,
+	WarningIcon,
 	XMarkIcon as XIcon,
 } from "@databuddy/ui/icons";
 import {
@@ -62,6 +63,7 @@ const INTELLIGENCE_PLAN_ID_SET = new Set<string>(
 interface OrgUsageData {
 	balance?: number | null;
 	includedUsage?: number | null;
+	unavailable?: boolean;
 	unlimited: boolean;
 }
 
@@ -289,7 +291,7 @@ export default function BillingPage() {
 	const orgUsage = orgUsageRaw as OrgUsageData | undefined;
 
 	const overageInfo = useMemo(() => {
-		if (!orgUsage) {
+		if (!orgUsage || orgUsage.unavailable === true) {
 			return null;
 		}
 		const eventsFeature = usage?.features.find(
@@ -594,6 +596,21 @@ export default function BillingPage() {
 									);
 								})}
 							</div>
+						</Card.Content>
+					</Card>
+				)}
+
+				{orgUsage?.unavailable === true && (
+					<Card className="border-warning/30 bg-warning/5" role="status">
+						<Card.Content className="flex items-start gap-2 py-3">
+							<WarningIcon
+								aria-hidden="true"
+								className="size-4 shrink-0 text-warning"
+							/>
+							<Text className="text-pretty" tone="muted" variant="caption">
+								Billing usage and event overage estimates are temporarily
+								unavailable.
+							</Text>
 						</Card.Content>
 					</Card>
 				)}

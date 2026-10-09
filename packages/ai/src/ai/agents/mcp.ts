@@ -1,7 +1,11 @@
 import { conversationModelOptions } from "../config/conversation-model";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import type { WebsiteSummary } from "../../lib/accessible-websites";
-import { createModelFromId, getDefaultAgentModelId } from "../config/models";
+import {
+	type AgentSource,
+	createModelFromId,
+	getDefaultAgentModelId,
+} from "../config/models";
 import { createMcpAgentTools } from "../mcp/agent-tools";
 import type { DatabuddyAgentSlackContext } from "../mcp/slack-context";
 import { buildAnalyticsInstructionsForMcp } from "../prompts/analytics";
@@ -23,7 +27,7 @@ export function createMcpAgentConfig(context: {
 	mutationMode?: AppMutationMode;
 	organizationId?: string | null;
 	slackContext?: DatabuddyAgentSlackContext | null;
-	source?: "dashboard" | "mcp" | "slack";
+	source?: AgentSource;
 	websiteDomain?: string | null;
 	websiteId?: string | null;
 	activeTools?: string[];

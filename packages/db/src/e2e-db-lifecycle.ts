@@ -1,11 +1,7 @@
-import { Client } from "pg";
+import { dataUrl, isLoopbackHost } from "@databuddy/env/app";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Client, Pool } from "pg";
 
-const LOCAL_DATABASE_HOSTS = new Set([
-	"localhost",
-	"127.0.0.1",
-	"::1",
-	"[::1]",
-]);
 const DEFAULT_E2E_DB_PREFIX = "databuddy_e2e";
 const INVALID_DB_IDENTIFIER_PARTS = /[^A-Za-z0-9_]+/g;
 const REPEATED_UNDERSCORES = /_+/g;
@@ -131,10 +127,6 @@ export function normalizeDatabaseUrl(databaseDsn: string): URL {
 	return parsed;
 }
 
-export function isLocalDbHostname(hostname: string): boolean {
-	return LOCAL_DATABASE_HOSTS.has(hostname.toLowerCase());
-}
-
 export function deriveAdminDatabaseUrl(baseUrl: URL): URL {
 	const url = new URL(baseUrl.href);
 	url.pathname = "/postgres";
@@ -151,7 +143,12 @@ export function resolveLifecycleConfig(
 	input: ParsedLifecycleArgs
 ): ResolvedLifecycleConfig {
 	const baseUrl = normalizeDatabaseUrl(input.baseDsn);
-	if (!(input.allowNonLocal || isLocalDbHostname(baseUrl.hostname))) {
+	if (!input.allowNonLocal && baseUrl.searchParams.has("host")) {
+		throw new Error(
+			"Refusing to manage E2E DB with a PostgreSQL host override. Set --allow-non-local to override."
+		);
+	}
+	if (!(input.allowNonLocal || isLoopbackHost(baseUrl.href))) {
 		throw new Error(
 			`Refusing to manage E2E DB on non-local host '${baseUrl.hostname}'. Set --allow-non-local to override.`
 		);
@@ -238,6 +235,74 @@ export async function dropLifecycleDatabase(
 		dropDatabase(client, config.dbName)
 	);
 	return { dbDsn: config.dbDsn, dbName: config.dbName };
+}
+
+function localUrl(
+	name: "CLICKHOUSE_URL" | "DATABASE_URL" | "REDIS_URL"
+): string {
+	const url = dataUrl(name);
+	if (url && URL.canParse(url) && isLoopbackHost(url)) {
+		if (name === "DATABASE_URL" && new URL(url).searchParams.has("host")) {
+			throw new Error(
+				"Refusing to run the workspace with a PostgreSQL host override"
+			);
+		}
+		return url;
+	}
+	const host = url && URL.canParse(url) ? new URL(url).hostname : "unset";
+	throw new Error(
+		`Refusing to run against a non-local database; ${name} host is "${host}"`
+	);
+}
+
+export function assertLocalTargets(): string {
+	localUrl("CLICKHOUSE_URL");
+	localUrl("REDIS_URL");
+	return localUrl("DATABASE_URL");
+}
+
+export async function resetLocalDatabase(databaseUrl: string): Promise<void> {
+	const url = normalizeDatabaseUrl(databaseUrl);
+	if (url.searchParams.has("host")) {
+		throw new Error(
+			"Refusing to reset database with a PostgreSQL host override"
+		);
+	}
+	const dbName = decodeURIComponent(url.pathname.slice(1));
+	if (!(dbName && isLoopbackHost(url.href))) {
+		throw new Error(
+			`Refusing to reset database "${dbName}" on ${url.hostname}`
+		);
+	}
+	const config = {
+		adminDsn: deriveAdminDatabaseUrl(url).toString(),
+		dbDsn: url.toString(),
+		dbName,
+	};
+	await dropLifecycleDatabase(config);
+	await createLifecycleDatabase(config);
+}
+
+export async function applyPostgresSchema(databaseUrl: string): Promise<void> {
+	const [{ pushSchema }, schema] = await Promise.all([
+		import("drizzle-kit/api-postgres"),
+		import("./drizzle/schema"),
+	]);
+	const pool = new Pool({ connectionString: databaseUrl, max: 1 });
+	try {
+		const { apply, hints } = await pushSchema(
+			schema,
+			drizzle({ client: pool }) as unknown as Parameters<typeof pushSchema>[1]
+		);
+		if (hints.length > 0) {
+			throw new Error(
+				`Schema drift needs a decision (${hints.map(({ hint }) => hint).join("; ")}); rerun with --reset`
+			);
+		}
+		await apply();
+	} finally {
+		await pool.end();
+	}
 }
 
 export async function runLifecycleCommand(

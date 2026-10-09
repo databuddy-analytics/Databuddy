@@ -1,6 +1,11 @@
-import { readBooleanEnv } from "./boolean";
+import { LOOPBACK_HOSTS, readBooleanEnv } from "./boolean";
 
-export { readBooleanEnv } from "./boolean";
+export {
+	dataUrl,
+	isLocalHost,
+	isLoopbackHost,
+	readBooleanEnv,
+} from "./boolean";
 
 // App-wide runtime config.
 //
@@ -72,11 +77,11 @@ export interface Config {
 	email: {
 		alertsFrom: string;
 		from: string;
-		resendApiKey?: string;
 	};
 	integrations: {
 		openAiAdsPixelId?: string;
 	};
+	services: ReturnType<typeof readServices>;
 	storage?: StorageConfig;
 	urls: {
 		api: string;
@@ -91,10 +96,20 @@ export interface Config {
 
 const REQUIRED_IN_PRODUCTION = ["BETTER_AUTH_SECRET"] as const;
 const REQUIRED_IN_HOSTED_CLOUD = ["AUTUMN_SECRET_KEY"] as const;
-const LOOPBACK_HOSTS = new Set(["0.0.0.0", "127.0.0.1", "[::1]", "localhost"]);
 
 function isHostedCloud(env: Env): boolean {
 	return env.NODE_ENV === "production" && !readBooleanEnv("SELFHOST", env);
+}
+
+export function billingMode(
+	env: Env = process.env
+): "selfhost" | "live" | "disabled" {
+	if (readBooleanEnv("SELFHOST", env)) {
+		return "selfhost";
+	}
+	return isHostedCloud(env) || readOptional(env, "AUTUMN_SECRET_KEY")
+		? "live"
+		: "disabled";
 }
 
 function defaultUrl(env: Env, setting: UrlConfig): string {
@@ -144,6 +159,23 @@ function readOrigins(values: Array<string | undefined>): string[] {
 	return [...new Set(values.flatMap(readList).map(normalizeOrigin))];
 }
 
+function readServices(env: Env) {
+	return {
+		autumnSecretKey: readOptional(env, "AUTUMN_SECRET_KEY"),
+		axiomToken:
+			env.NODE_ENV === "development"
+				? undefined
+				: readOptional(env, "AXIOM_TOKEN"),
+		databuddyApiKey: readOptional(env, "DATABUDDY_API_KEY"),
+		dubApiKey: readOptional(env, "DUB_API_KEY"),
+		resendApiKey: readOptional(env, "RESEND_API_KEY"),
+		slackWebhookUrl: readOptional(env, "SLACK_WEBHOOK_URL"),
+		superlogApiKey: readOptional(env, "SUPERLOG_API_KEY"),
+		supermemoryApiKey: readOptional(env, "SUPERMEMORY_API_KEY"),
+		tccApiKey: readOptional(env, "TCC_API_KEY"),
+	};
+}
+
 function readStorage(env: Env): StorageConfig | undefined {
 	const accessKeyId = readOptional(env, "AWS_ACCESS_KEY_ID");
 	const secretAccessKey = readOptional(env, "AWS_SECRET_ACCESS_KEY");
@@ -168,7 +200,8 @@ function readStorage(env: Env): StorageConfig | undefined {
 	};
 }
 
-export function createConfig(env: Env = process.env): Config {
+export function createConfig(source?: Env): Config {
+	const env = source ?? process.env;
 	const dashboardUrl = readUrl(env, URLS.dashboard);
 	const apiUrl = readUrl(env, URLS.api);
 
@@ -183,10 +216,12 @@ export function createConfig(env: Env = process.env): Config {
 		email: {
 			alertsFrom: readEmail(env, EMAIL.alertsFrom),
 			from: readEmail(env, EMAIL.from),
-			resendApiKey: readOptional(env, "RESEND_API_KEY"),
 		},
 		integrations: {
 			openAiAdsPixelId: readOptional(env, "NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID"),
+		},
+		get services() {
+			return readServices(source ?? process.env);
 		},
 		storage: readStorage(env),
 		urls: {

@@ -21,7 +21,7 @@ export function AgentNoWebsites() {
 				</p>
 			</div>
 			<Button asChild>
-				<Link href="/websites">Add a website</Link>
+				<Link href="/websites">Add your website</Link>
 			</Button>
 		</div>
 	);

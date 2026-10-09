@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { config } from "@databuddy/env/app";
+import { BillingUnavailableError } from "@databuddy/shared/billing";
 import { EvlogError } from "evlog";
 
 const { mockCheck, mockLoggerSet, mockLoggerWarn } = vi.hoisted(() => ({
@@ -13,9 +15,16 @@ const { mockCheck, mockLoggerSet, mockLoggerWarn } = vi.hoisted(() => ({
 	mockLoggerWarn: vi.fn(() => {}),
 }));
 
-vi.mock("@databuddy/rpc/autumn", () => ({
-	getAutumn: () => ({ check: mockCheck }),
-}));
+vi.mock("@databuddy/rpc/autumn", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@databuddy/rpc/autumn")>();
+	return {
+		...actual,
+		getAutumn: () =>
+			config.services.autumnSecretKey
+				? { check: mockCheck }
+				: actual.getAutumn(),
+	};
+});
 
 vi.mock("evlog/elysia", () => ({
 	useLogger: () => ({
@@ -35,11 +44,23 @@ const { checkAutumnUsage } = await import("./billing");
 describe("checkAutumnUsage", () => {
 	beforeEach(() => {
 		vi.stubEnv("SELFHOST", "false");
+		vi.stubEnv("AUTUMN_SECRET_KEY", "am_sk_test_synthetic");
 		mockCheck.mockReset();
 		mockLoggerSet.mockReset();
 		mockLoggerWarn.mockReset();
 	});
-	afterEach(() => vi.unstubAllEnvs());
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	test("hosted events reject missing billing configuration", async () => {
+		vi.stubEnv("NODE_ENV", "production");
+		vi.stubEnv("AUTUMN_SECRET_KEY", undefined);
+		await expect(checkAutumnUsage("cust_1", "events")).rejects.toMatchObject({
+			status: 503,
+			message: "Billing check unavailable",
+		});
+	});
 
 	test("self-hosted events skip hosted billing", async () => {
 		vi.stubEnv("SELFHOST", "true");
@@ -130,6 +151,18 @@ describe("checkAutumnUsage", () => {
 			featureId: "events",
 			quantity: 25,
 			billing: { usage: 10_001, granted: 10_000, unlimited: false },
+		});
+	});
+
+	test("an Autumn outage accepts the event instead of dropping it", async () => {
+		mockCheck.mockRejectedValue(
+			new BillingUnavailableError("Autumn check failed")
+		);
+		await expect(checkAutumnUsage("cust_1", "events")).resolves.toEqual({
+			allowed: true,
+		});
+		expect(mockLoggerSet).toHaveBeenCalledWith({
+			billing: { allowed: true, checkFailed: true },
 		});
 	});
 

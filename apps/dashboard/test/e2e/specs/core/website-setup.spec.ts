@@ -20,15 +20,13 @@ test("gates a new website behind setup until its first page view", {
 
 	await page.goto("/websites");
 	await expectDashboardReady(page);
-	await page
-		.getByRole("button", { exact: true, name: "Create website" })
-		.click();
-	const dialog = page.getByRole("dialog", { name: "Create website" });
+	await page.getByRole("button", { exact: true, name: "Add website" }).click();
+	const dialog = page.getByRole("dialog", { name: "Add your website" });
 	await dialog.getByRole("textbox", { name: "Name" }).fill(`Gate ${suffix}`);
 	await dialog
 		.getByRole("textbox", { name: "Domain" })
 		.fill(`gate-${suffix}.local`);
-	await dialog.getByRole("button", { name: "Create website" }).click();
+	await dialog.getByRole("button", { name: "Add website" }).click();
 
 	await expect(page).toHaveURL(WEBSITE_PATH_RE, { timeout: 15_000 });
 	const websiteId = idFromPath(page.url(), "websites");
@@ -36,7 +34,9 @@ test("gates a new website behind setup until its first page view", {
 	await expect(page.getByText("Connect your app")).toBeVisible();
 	await expect(page.getByText("First pageview", { exact: true })).toBeVisible();
 	await expect(page.getByRole("button", { name: "Cursor" })).toBeVisible();
-	await page.getByRole("button", { name: "Or install it yourself" }).click();
+	await page
+		.getByRole("button", { name: "Or add the script tag or SDK yourself" })
+		.click();
 	await expect(page.getByRole("tab", { name: "Script tag" })).toBeVisible();
 	await expect(page.getByText(`data-client-id="${websiteId}"`)).toBeVisible();
 

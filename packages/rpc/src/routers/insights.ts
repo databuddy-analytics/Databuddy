@@ -1,5 +1,5 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
-import { getAutumn } from "../lib/autumn-client";
+import { billingMode, readBooleanEnv } from "@databuddy/env/app";
+import { autumnCall, getAutumn } from "../lib/autumn-client";
 import { getBillingCustomerId } from "../utils/billing";
 import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import {
@@ -619,20 +619,24 @@ export async function appendInvestigationReply(
 	if (
 		parsed.intent === "analysis" &&
 		author.authorId &&
-		!readBooleanEnv("SELFHOST")
+		billingMode() === "live"
 	) {
 		const customerId = await getBillingCustomerId(
 			author.authorId,
 			insight.organizationId
 		);
-		const customer = await getAutumn().customers.get({ customerId });
+		const customer = await autumnCall("customers.get", () =>
+			getAutumn().customers.get({ customerId })
+		);
 		if (
 			customer.id !== customerId ||
 			!hasInvestigationAllowance(
 				customer.balances[INVESTIGATION_USAGE.featureId]
 			)
 		) {
-			throw rpcError.badRequest(
+			throw rpcError.featureUnavailable(
+				INVESTIGATION_USAGE.featureId,
+				undefined,
 				"Activate investigation billing to start a new analysis. Clarifications remain included."
 			);
 		}

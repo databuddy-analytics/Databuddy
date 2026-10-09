@@ -1,3 +1,8 @@
+import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
+import type { agentChats } from "@databuddy/db/schema";
+import { BillingUnavailableError } from "@databuddy/shared/billing";
+import { AgentError } from "@databuddy/ai/agent";
+import { APICallError } from "ai";
 import type { MockLanguageModelV3 } from "ai/test";
 import {
 	type OrganizationBusinessProfile,
@@ -12,15 +17,25 @@ const state = vi.hoisted(() => ({
 	contexts: [] as Record<string, unknown>[],
 	accessible: vi.fn(),
 	errors: vi.fn(),
+	events: vi.fn(),
 	sessionUserId: "user-synthetic" as string | null,
-	sessionOrg: "org-synthetic",
+	sessionOrg: "org-synthetic" as string | null,
 	apiKeyId: null as string | null,
+	apiKey: null as ApiKeyRow | null,
 	chatExists: true,
 	chatOrg: "org-synthetic",
 	billing: vi.fn(),
+	billingCustomer: vi.fn(),
+	memberRole: vi.fn(),
+	membership: vi.fn(),
 	billedUsage: vi.fn(),
 	rateLimit: vi.fn(),
 	memoryEnabled: false,
+	loadMemory: false,
+	memoryLookup: vi.fn(),
+	integrations: vi.fn(),
+	streamSetup: vi.fn(),
+	persistedChats: [] as (typeof agentChats.$inferInsert)[],
 	storedMemory: vi.fn(),
 	ask: vi.fn(),
 	stream: vi.fn(),
@@ -59,33 +74,53 @@ vi.mock("@databuddy/services/organization-business-context", () => ({
 }));
 vi.mock("@databuddy/ai/lib/accessible-websites", () => ({
 	getAccessibleWebsites: state.accessible,
+	getOrganizationWebsites: (organizationId: string) =>
+		state.accessible({ organizationId }),
 }));
 vi.mock("@databuddy/api-keys/resolve", () => ({
 	API_KEY_AUTH_CHALLENGE: "Bearer",
-	getApiKeyFromHeader: async () => null,
-	hasKeyScope: () => Boolean(state.apiKeyId),
+	hasKeyScope: (key: ApiKeyRow, scope: string) =>
+		key.scopes ? key.scopes.includes(scope) : Boolean(state.apiKeyId),
 	isApiKeyPresent: () => false,
+	getApiKeyFromHeader: async (headers: Headers) =>
+		headers.get("x-api-key") ||
+		headers.get("authorization")?.toLowerCase().startsWith("bearer ")
+			? state.apiKey
+			: null,
 }));
 vi.mock("../lib/auth-wide-event", () => ({
-	getResolvedAuth: () => ({
+	resolveRequestAuth: async () => ({
+		apiKey:
+			state.apiKey ??
+			(state.apiKeyId
+				? { id: state.apiKeyId, organizationId: state.sessionOrg }
+				: null),
 		session: state.sessionUserId
 			? {
 					user: { id: state.sessionUserId },
 					session: { activeOrganizationId: state.sessionOrg },
 				}
 			: null,
-		apiKeyResult: state.apiKeyId
-			? { key: { id: state.apiKeyId, organizationId: state.sessionOrg } }
-			: null,
 	}),
 }));
 vi.mock("@databuddy/auth", () => ({
-	auth: { api: { getSession: async () => null } },
+	auth: {
+		api: {
+			getSession: async ({ headers }: { headers: Headers }) =>
+				headers.get("cookie") && state.sessionUserId
+					? {
+							user: { id: state.sessionUserId },
+							session: { activeOrganizationId: state.sessionOrg },
+						}
+					: null,
+		},
+	},
 }));
 vi.mock("@databuddy/db", () => ({
 	eq: () => undefined,
 	db: {
 		query: {
+			member: { findFirst: state.membership },
 			agentChats: {
 				findFirst: async () =>
 					state.chatExists
@@ -96,11 +131,17 @@ vi.mock("@databuddy/db", () => ({
 						: null,
 			},
 		},
-		insert: () => ({ values: () => ({ onConflictDoUpdate: async () => {} }) }),
+		insert: () => ({
+			values: (value: typeof agentChats.$inferInsert) => {
+				state.persistedChats.push(value);
+				return { onConflictDoUpdate: async () => {} };
+			},
+		}),
 	},
 }));
 vi.mock("@databuddy/db/schema", () => ({ agentChats: { id: "id" } }));
-vi.mock("@databuddy/ai/agent", () => ({
+vi.mock("@databuddy/ai/agent", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@databuddy/ai/agent")>()),
 	askDatabuddyAgent: state.ask,
 	streamDatabuddyAgent: state.stream,
 }));
@@ -157,8 +198,12 @@ vi.mock("@databuddy/ai/agents/analytics", async () => {
 });
 vi.mock("@databuddy/ai/agents/execution", () => ({
 	getAgentBillingAccess: state.billing,
-	resolveAgentBillingCustomerId: async () => "synthetic-billing-owner",
+	resolveAgentBillingCustomerId: state.billingCustomer,
 	trackAgentUsageAndBill: state.billedUsage,
+}));
+vi.mock("@databuddy/rpc/organization", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@databuddy/rpc/organization")>()),
+	getMemberRole: state.memberRole,
 }));
 vi.mock("@databuddy/ai/config/models", () => ({
 	AI_MODEL_MAX_RETRIES: 0,
@@ -174,13 +219,15 @@ vi.mock("@databuddy/ai/lib/supermemory", async (importOriginal) => ({
 }));
 vi.mock("@databuddy/ai/agents/cache", () => ({
 	getAgentContextSnapshot: async () => ({ context: "", source: "miss" }),
-	getMemoryContextCached: vi.fn(),
-	shouldLoadMemoryContext: () => false,
+	getMemoryContextCached: state.memoryLookup,
+	shouldLoadMemoryContext: () => state.loadMemory,
 }));
 vi.mock("@databuddy/ai/lib/ai-logger", () => ({
-	getAILogger: () => ({ wrap: (model: unknown) => model }),
+	getAILogger: () => ({ wrap: (model: MockLanguageModelV3) => model }),
 }));
-vi.mock("@databuddy/ai/lib/databuddy", () => ({ trackAgentEvent: () => {} }));
+vi.mock("@databuddy/ai/lib/databuddy", () => ({
+	trackAgentEvent: state.events,
+}));
 vi.mock("@databuddy/ai/lib/tracing", () => ({
 	captureError: state.errors,
 	mergeWideEvent: () => {},
@@ -197,11 +244,7 @@ vi.mock("@databuddy/redis", async (importOriginal) => ({
 }));
 vi.mock("@databuddy/ai/tools/toolkit", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@databuddy/ai/tools/toolkit")>()),
-	resolveToolIntegrations: async () => ({
-		github: false,
-		scrape: false,
-		searchConsole: false,
-	}),
+	resolveToolIntegrations: state.integrations,
 }));
 vi.mock("@databuddy/redis/stream-buffer", () => ({
 	appendStreamChunk: async () => {},
@@ -209,18 +252,21 @@ vi.mock("@databuddy/redis/stream-buffer", () => ({
 	getActiveStream: async () => null,
 	markStreamDone: async () => {},
 	readStreamHistory: async () => [],
-	setActiveStream: async () => {},
+	setActiveStream: state.streamSetup,
 	streamBufferKey: () => "synthetic-stream",
 	async *tailStream() {},
 }));
 
 const { agent } = await import("./agent");
 
-async function chat(input: Record<string, unknown> = {}) {
+async function chat(
+	input: Record<string, unknown> = {},
+	headers: Record<string, string> = {}
+) {
 	const response = await agent.handle(
 		new Request("http://localhost/v1/agent/chat", {
 			method: "POST",
-			headers: { "content-type": "application/json" },
+			headers: { "content-type": "application/json", ...headers },
 			body: JSON.stringify({
 				id: "chat-synthetic",
 				organizationId: "org-synthetic",
@@ -254,12 +300,18 @@ beforeEach(() => {
 		customerId: "synthetic-billing-owner",
 	});
 	state.billedUsage.mockReset().mockResolvedValue(undefined);
+	state.billingCustomer
+		.mockReset()
+		.mockResolvedValue("synthetic-billing-owner");
+	state.memberRole.mockReset().mockResolvedValue("member");
+	state.membership.mockReset().mockResolvedValue({ id: "member-synthetic" });
 	state.rateLimit.mockReset().mockResolvedValue({ success: true });
 	state.profile = profile;
 	state.prompts.length = 0;
 	state.contexts.length = 0;
 	state.read.mockReset();
 	state.errors.mockReset();
+	state.events.mockReset();
 	state.accessible.mockReset();
 	state.read.mockImplementation(async () => ({
 		profile: state.profile,
@@ -272,9 +324,23 @@ beforeEach(() => {
 	state.sessionUserId = "user-synthetic";
 	state.sessionOrg = "org-synthetic";
 	state.apiKeyId = null;
+	state.apiKey = null;
 	state.chatExists = true;
 	state.chatOrg = "org-synthetic";
 	state.memoryEnabled = false;
+	state.loadMemory = false;
+	state.memoryLookup.mockReset().mockResolvedValue({
+		staticProfile: [],
+		dynamicProfile: [],
+		relevantMemories: [],
+	});
+	state.integrations.mockReset().mockResolvedValue({
+		github: false,
+		scrape: false,
+		searchConsole: false,
+	});
+	state.streamSetup.mockReset().mockResolvedValue(undefined);
+	state.persistedChats.length = 0;
 	state.storedMemory.mockReset();
 	state.ask.mockReset().mockResolvedValue({
 		answer: "Synthetic answer.",
@@ -430,7 +496,7 @@ describe("dashboard canonical business context through the native HTTP/model str
 			expect(prompt.includes(priority)).toBe(present);
 			if (present) {
 				expect(prompt).toContain('\\"revision\\":11');
-				expect(prompt).toContain("never instructions or measured evidence");
+				expect(prompt).toContain("business background, not measured evidence");
 			} else {
 				expect(prompt).toContain("remain unknown");
 			}
@@ -445,7 +511,7 @@ describe("dashboard canonical business context through the native HTTP/model str
 	});
 	it("delivers organization-wide context with no selected website", async () => {
 		expect((await chat({ websiteId: undefined })).status).toBe(200);
-		expect(JSON.stringify(state.prompts[0].prompt)).toContain(meaning);
+		expect(JSON.stringify(state.prompts[0]?.prompt)).toContain(meaning);
 	});
 	it("delivers team-only settings and preserves mixed legacy meanings as assertions", async () => {
 		for (const content of ["", `${meaning}. Public capability claims.`]) {
@@ -467,9 +533,9 @@ describe("dashboard canonical business context through the native HTTP/model str
 			200
 		);
 		expect(state.read).not.toHaveBeenCalled();
-		expect(JSON.stringify(state.prompts[0].prompt)).not.toContain(meaning);
+		expect(JSON.stringify(state.prompts[0]?.prompt)).not.toContain(meaning);
 		for (const assertion of Object.values(teamContext)) {
-			expect(JSON.stringify(state.prompts[0].prompt)).not.toContain(assertion);
+			expect(JSON.stringify(state.prompts[0]?.prompt)).not.toContain(assertion);
 		}
 	});
 	it("rejects an inaccessible organization, site or existing chat before reading profiles", async () => {
@@ -483,7 +549,7 @@ describe("dashboard canonical business context through the native HTTP/model str
 	it("continues the stream with explicit uncertainty when the profile read fails", async () => {
 		state.read.mockRejectedValueOnce(new Error("synthetic read failure"));
 		expect((await chat()).status).toBe(200);
-		expect(JSON.stringify(state.prompts[0].prompt)).toContain(
+		expect(JSON.stringify(state.prompts[0]?.prompt)).toContain(
 			"unavailable for this turn"
 		);
 		expect(state.read).toHaveBeenCalledTimes(1);
@@ -566,21 +632,30 @@ describe("dashboard memory writes", () => {
 	});
 });
 
-describe("ask route permissions", () => {
+function askResponse(
+	input: Record<string, unknown> = {},
+	headers: Record<string, string> = {}
+) {
+	return agent.handle(
+		new Request("http://localhost/v1/agent/ask", {
+			method: "POST",
+			headers: { "content-type": "application/json", ...headers },
+			body: JSON.stringify({ question: "Create a goal for signups", ...input }),
+		})
+	);
+}
+
+async function ask(input: Record<string, unknown> = {}) {
+	const response = await askResponse(input);
+	return { status: response.status, text: await response.text() };
+}
+
+describe("ask route", () => {
 	it("runs the shared agent read-only for answers and streams", async () => {
 		for (const stream of [false, true]) {
-			const response = await agent.handle(
-				new Request("http://localhost/v1/agent/ask", {
-					method: "POST",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({
-						question: "Create a goal for signups",
-						stream,
-					}),
-				})
-			);
+			const response = await ask({ stream });
 			expect(response.status).toBe(200);
-			expect(await response.text()).toContain("Synthetic answer.");
+			expect(response.text).toContain("Synthetic answer.");
 		}
 		expect(state.ask).toHaveBeenCalledWith(
 			expect.objectContaining({ mutationMode: "dry-run" })
@@ -588,5 +663,575 @@ describe("ask route permissions", () => {
 		expect(state.stream).toHaveBeenCalledWith(
 			expect.objectContaining({ mutationMode: "dry-run" })
 		);
+	});
+	it("answers as the API in markdown for the session's organization", async () => {
+		expect((await ask()).status).toBe(200);
+		expect(state.ask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				output: "markdown",
+				source: "api",
+				principal: expect.objectContaining({
+					organizationId: "org-synthetic",
+					accessibleWebsites: [site],
+				}),
+			})
+		);
+	});
+	it("returns real status codes before streaming when preflight fails", async () => {
+		state.sessionOrg = null;
+		for (const stream of [false, true]) {
+			const response = await ask({ stream });
+			expect(response.status).toBe(400);
+			expect(JSON.parse(response.text)).toMatchObject({
+				code: "WORKSPACE_REQUIRED",
+			});
+		}
+		state.sessionOrg = "org-synthetic";
+		state.rateLimit.mockResolvedValueOnce({ success: false });
+		expect((await ask({ stream: true })).status).toBe(429);
+		expect(state.ask).not.toHaveBeenCalled();
+		expect(state.stream).not.toHaveBeenCalled();
+	});
+	it.each([
+		false,
+		true,
+	])("rejects a session outside the requested organization before any paid work (stream=%s)", async (stream) => {
+		state.membership.mockResolvedValue(undefined);
+		const response = await ask({ organizationId: "foreign-org", stream });
+		expect(response.status, response.text).toBe(403);
+		expect(JSON.parse(response.text)).toMatchObject({ code: "ACCESS_DENIED" });
+		expect(state.rateLimit).not.toHaveBeenCalled();
+		expect(state.accessible).not.toHaveBeenCalled();
+		expect(state.billingCustomer).not.toHaveBeenCalled();
+		expect(state.billing).not.toHaveBeenCalled();
+		expect(state.ask).not.toHaveBeenCalled();
+		expect(state.stream).not.toHaveBeenCalled();
+	});
+	it("checks membership in the active organization when none is requested", async () => {
+		state.membership.mockResolvedValue(undefined);
+		const response = await ask();
+		expect(response.status, response.text).toBe(403);
+		expect(state.billingCustomer).not.toHaveBeenCalled();
+		expect(state.billing).not.toHaveBeenCalled();
+		expect(state.ask).not.toHaveBeenCalled();
+	});
+	it.each([
+		false,
+		true,
+	])("does not authorize revoked session membership from a cached role (stream=%s)", async (stream) => {
+		state.memberRole.mockResolvedValue("member");
+		state.membership.mockResolvedValue(undefined);
+		state.accessible.mockResolvedValue([]);
+		const response = await ask({ stream });
+		expect(response.status, response.text).toBe(403);
+		expect(JSON.parse(response.text)).toMatchObject({ code: "ACCESS_DENIED" });
+		expect(state.billingCustomer).not.toHaveBeenCalled();
+		expect(state.billing).not.toHaveBeenCalled();
+		expect(state.ask).not.toHaveBeenCalled();
+		expect(state.stream).not.toHaveBeenCalled();
+	});
+	it.each([
+		{ endpoint: "ask", stream: false },
+		{ endpoint: "ask", stream: true },
+		{ endpoint: "chat", stream: false },
+	])("rejects an inactive organization before paid work ($endpoint, stream=$stream)", async ({
+		endpoint,
+		stream,
+	}) => {
+		const response =
+			endpoint === "ask"
+				? await ask({ organizationId: "org-other", stream })
+				: await chat({ organizationId: "org-other" });
+		expect(response.status).toBe(403);
+		expect(state.rateLimit).not.toHaveBeenCalled();
+		expect(state.billingCustomer).not.toHaveBeenCalled();
+		expect(state.billing).not.toHaveBeenCalled();
+		expect(state.ask).not.toHaveBeenCalled();
+		expect(state.stream).not.toHaveBeenCalled();
+		expect(state.prompts).toEqual([]);
+	});
+	it("keeps an active requested-organization member eligible with zero websites", async () => {
+		state.sessionOrg = "org-other";
+		state.accessible.mockResolvedValue([]);
+		const response = await ask({ organizationId: "org-other" });
+		expect(response.status, response.text).toBe(200);
+		expect(state.billingCustomer).toHaveBeenCalledExactlyOnceWith({
+			apiKey: null,
+			organizationId: "org-other",
+			userId: "user-synthetic",
+		});
+		expect(state.ask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				mutationMode: "dry-run",
+				output: "markdown",
+				source: "api",
+				principal: expect.objectContaining({
+					organizationId: "org-other",
+					accessibleWebsites: [],
+				}),
+			})
+		);
+	});
+	it("rejects an API key used for another organization", async () => {
+		state.sessionUserId = null;
+		state.membership.mockRejectedValue(
+			new Error("API keys use bound organization access")
+		);
+		state.apiKey = {
+			id: "key-synthetic",
+			name: "Synthetic",
+			prefix: "test",
+			start: "test",
+			keyHash: "inert",
+			userId: null,
+			organizationId: "org-synthetic",
+			type: "user",
+			scopes: ["read:data"],
+			enabled: true,
+			revokedAt: null,
+			rateLimitEnabled: false,
+			rateLimitTimeWindow: null,
+			rateLimitMax: null,
+			expiresAt: null,
+			lastUsedAt: null,
+			metadata: {},
+			createdAt: new Date("2026-10-05"),
+			updatedAt: new Date("2026-10-05"),
+		};
+		expect((await ask({ organizationId: "foreign-org" })).status).toBe(403);
+		expect(state.billingCustomer).not.toHaveBeenCalled();
+		expect(state.billing).not.toHaveBeenCalled();
+		expect((await ask()).status).toBe(200);
+		expect(state.membership).not.toHaveBeenCalled();
+		expect(state.billingCustomer).toHaveBeenCalledExactlyOnceWith({
+			apiKey: state.apiKey,
+			organizationId: "org-synthetic",
+			userId: null,
+		});
+		expect(state.ask).toHaveBeenCalledTimes(1);
+	});
+	it("maps billing, credit, provider and unknown failures to their statuses", async () => {
+		state.billing.mockRejectedValueOnce(
+			new BillingUnavailableError("synthetic outage")
+		);
+		expect(await ask()).toMatchObject({ status: 503 });
+		state.billing.mockResolvedValueOnce({
+			allowed: false,
+			customerId: "synthetic-billing-owner",
+		});
+		expect(await ask()).toMatchObject({ status: 402 });
+		state.ask.mockRejectedValueOnce(
+			new APICallError({
+				message: "synthetic provider outage",
+				url: "https://provider.invalid",
+				requestBodyValues: {},
+			})
+		);
+		expect(await ask()).toMatchObject({ status: 503 });
+		state.ask.mockRejectedValueOnce(new Error("SYNTHETIC_INTERNAL_DETAIL"));
+		const internal = await ask();
+		expect(internal.status).toBe(500);
+		expect(JSON.parse(internal.text)).toMatchObject({ code: "INTERNAL_ERROR" });
+		expect(internal.text).not.toContain("SYNTHETIC_INTERNAL_DETAIL");
+	});
+});
+
+const selectedKey: ApiKeyRow = {
+	id: "key-synthetic-selected",
+	name: "Synthetic selected key",
+	prefix: "test",
+	start: "test",
+	keyHash: "inert",
+	userId: "key-owner-synthetic",
+	organizationId: "org-key-synthetic",
+	type: "user",
+	scopes: ["read:data"],
+	enabled: true,
+	revokedAt: null,
+	rateLimitEnabled: false,
+	rateLimitTimeWindow: null,
+	rateLimitMax: null,
+	expiresAt: null,
+	lastUsedAt: null,
+	metadata: {},
+	createdAt: new Date("2026-10-05"),
+	updatedAt: new Date("2026-10-05"),
+};
+const mixedHeaders = {
+	cookie: "synthetic-session=inert",
+	"x-api-key": "dbdy_inert_selected_key",
+};
+
+describe("failure telemetry identity", () => {
+	it.each([
+		{ route: "ask", identity: "key", key: selectedKey },
+		{ route: "chat", identity: "key", key: selectedKey },
+		{ route: "ask", identity: "session", key: null },
+		{ route: "chat", identity: "session", key: null },
+	])("attributes failure telemetry to the selected $identity on /$route", async ({
+		route,
+		key,
+	}) => {
+		state.apiKey = key;
+		const organizationId = key?.organizationId ?? "org-synthetic";
+		const userId = key ? `apikey:${key.id}` : "user-synthetic";
+		state.billing.mockRejectedValueOnce(
+			new BillingUnavailableError("Synthetic billing outage")
+		);
+		const response = await (route === "ask"
+			? ask({ organizationId })
+			: chat({ organizationId }));
+		expect(response.status).toBe(503);
+		expect(state.events).toHaveBeenCalledWith(
+			"agent_activity",
+			expect.objectContaining({
+				action: "chat_error",
+				organization_id: organizationId,
+				user_id: userId,
+			})
+		);
+		expect(state.errors).toHaveBeenCalledWith(
+			expect.any(Error),
+			expect.objectContaining({ agent_user_id: userId })
+		);
+	});
+});
+
+describe("selected agent identity through native HTTP", () => {
+	it.each([
+		{ stream: false, keyOwner: "key-owner-synthetic" },
+		{ stream: true, keyOwner: "key-owner-synthetic" },
+		{ stream: false, keyOwner: null },
+		{ stream: true, keyOwner: null },
+	])("keeps the selected key independent of an unrelated cookie (stream=$stream, owner=$keyOwner)", async ({
+		stream,
+		keyOwner,
+	}) => {
+		state.apiKey = { ...selectedKey, userId: keyOwner };
+		state.membership.mockResolvedValue(undefined);
+		state.accessible.mockResolvedValue([site]);
+		const response = await askResponse({ stream }, mixedHeaders);
+		expect(response.status).toBe(200);
+		expect(await response.text()).toContain("Synthetic answer.");
+		const options = (stream ? state.stream : state.ask).mock.calls[0]?.[0];
+		expect(options.principal).toMatchObject({
+			apiKey: state.apiKey,
+			organizationId: selectedKey.organizationId,
+			userId: keyOwner,
+		});
+		expect(options.principal.requestHeaders.get("cookie")).toBeNull();
+		expect(options.principal.requestHeaders.get("x-api-key")).toBe(
+			mixedHeaders["x-api-key"]
+		);
+		expect(options.abortSignal).toBeInstanceOf(AbortSignal);
+		expect(state.membership).not.toHaveBeenCalled();
+		expect(state.rateLimit).toHaveBeenCalledExactlyOnceWith(
+			`agent:ask:apikey:${selectedKey.id}:${selectedKey.organizationId}`,
+			30,
+			60
+		);
+		expect(state.billingCustomer).toHaveBeenCalledExactlyOnceWith({
+			apiKey: state.apiKey,
+			organizationId: selectedKey.organizationId,
+			userId: keyOwner,
+		});
+	});
+
+	it("uses the key namespace for chat memory, tools and streams without cookie-user persistence", async () => {
+		state.apiKey = selectedKey;
+		state.chatExists = false;
+		state.accessible.mockResolvedValue([site]);
+		state.membership.mockResolvedValue(undefined);
+		state.loadMemory = true;
+		state.memoryEnabled = true;
+		const response = await chat(
+			{
+				organizationId: selectedKey.organizationId,
+				messages: [
+					{
+						id: "remember",
+						role: "user",
+						parts: [{ type: "text", text: "Remember that we report weekly" }],
+					},
+				],
+			},
+			mixedHeaders
+		);
+		expect(response.status, response.text).toBe(200);
+		const namespace = `apikey:${selectedKey.id}`;
+		const context = state.contexts.at(-1)!;
+		expect(context.userId).toBe(namespace);
+		expect(context.organizationId).toBe(selectedKey.organizationId);
+		const headers = context.requestHeaders as Headers;
+		expect(headers.get("cookie")).toBeNull();
+		expect(headers.get("x-api-key")).toBe(mixedHeaders["x-api-key"]);
+		const { createRPCContext } = await import(
+			"../../../../packages/rpc/src/orpc"
+		);
+		const rpcContext = await createRPCContext({ headers });
+		expect(rpcContext.user).toBeUndefined();
+		expect(rpcContext.apiKey).toEqual(selectedKey);
+		expect(rpcContext.organizationId).toBe(selectedKey.organizationId);
+		const mixedContext = await createRPCContext({
+			headers: new Headers(mixedHeaders),
+		});
+		expect(mixedContext.user?.id).toBe("user-synthetic");
+		expect(mixedContext.organizationId).toBe(selectedKey.organizationId);
+		expect(state.memoryLookup).toHaveBeenCalledWith(
+			"Remember that we report weekly",
+			namespace
+		);
+		expect(state.integrations).toHaveBeenCalledWith(
+			selectedKey.organizationId,
+			namespace
+		);
+		expect(state.streamSetup).toHaveBeenCalledWith(
+			namespace,
+			"chat-synthetic",
+			expect.any(String)
+		);
+		expect(state.storedMemory).toHaveBeenCalledWith(
+			expect.any(Array),
+			namespace,
+			null,
+			expect.any(Object)
+		);
+		expect(state.persistedChats).toEqual([]);
+		expect(state.membership).not.toHaveBeenCalled();
+	});
+
+	it("deduplicates the same key approval across unrelated cookie sessions", async () => {
+		state.apiKey = selectedKey;
+		state.chatExists = false;
+		state.accessible.mockResolvedValue([site]);
+		const goal = {
+			websiteId: site.id,
+			type: "PAGE_VIEW",
+			target: "/signup",
+			name: "Signup",
+			confirmed: true,
+		};
+		const messages = [
+			{
+				id: "confirm",
+				role: "user",
+				parts: [{ type: "text", text: "Yes, create it" }],
+			},
+			{
+				id: "approval",
+				role: "assistant",
+				parts: [
+					{
+						type: "tool-create_goal",
+						toolCallId: "selected-goal",
+						state: "approval-responded",
+						input: goal,
+						approval: { id: "selected-approval", approved: true },
+					},
+				],
+			},
+		];
+		const first = await chat(
+			{ organizationId: selectedKey.organizationId, messages },
+			mixedHeaders
+		);
+		state.sessionUserId = "another-cookie-user";
+		state.sessionOrg = "another-cookie-org";
+		const retry = await chat(
+			{ organizationId: selectedKey.organizationId, messages },
+			{ ...mixedHeaders, cookie: "another-synthetic-session=inert" }
+		);
+		for (const response of [first, retry]) {
+			expect(response.status, response.text).toBe(200);
+		}
+		expect(state.goalWrites).toHaveBeenCalledTimes(1);
+		expect(state.claim.mock.calls.map(([key]) => key)).toEqual([
+			`agent:approval:apikey:${selectedKey.id}:${selectedKey.organizationId}:chat-synthetic:selected-approval`,
+			`agent:approval:apikey:${selectedKey.id}:${selectedKey.organizationId}:chat-synthetic:selected-approval`,
+		]);
+	});
+
+	it("retains session headers and membership when no scoped key is selected", async () => {
+		const response = await askResponse({}, { cookie: mixedHeaders.cookie });
+		expect(response.status).toBe(200);
+		expect(await response.text()).toContain("Synthetic answer.");
+		const principal = state.ask.mock.calls[0]?.[0].principal;
+		expect(principal).toMatchObject({
+			apiKey: null,
+			organizationId: "org-synthetic",
+			userId: "user-synthetic",
+		});
+		expect(principal.requestHeaders.get("cookie")).toBe(mixedHeaders.cookie);
+	});
+
+	it.each<{
+		endpoint: "ask" | "chat";
+		credential: Record<string, string>;
+	}>([
+		{ endpoint: "ask", credential: { "x-api-key": "dbdy_inert_unscoped" } },
+		{
+			endpoint: "ask",
+			credential: { authorization: "bEaReR dbdy_inert_unscoped" },
+		},
+		{ endpoint: "chat", credential: { "x-api-key": "dbdy_inert_unscoped" } },
+		{
+			endpoint: "chat",
+			credential: { authorization: "bEaReR dbdy_inert_unscoped" },
+		},
+	])("keeps session fallback RPC in the session organization ($endpoint, $credential)", async ({
+		endpoint,
+		credential,
+	}) => {
+		state.apiKey = { ...selectedKey, scopes: ["read:flags"] };
+		const rawHeaders = { cookie: mixedHeaders.cookie, ...credential };
+		let headers: Headers;
+		if (endpoint === "ask") {
+			const response = await askResponse({}, rawHeaders);
+			expect(response.status).toBe(200);
+			await response.text();
+			headers = state.ask.mock.calls[0]?.[0].principal.requestHeaders;
+		} else {
+			const response = await chat({}, rawHeaders);
+			expect(response.status, response.text).toBe(200);
+			headers = state.contexts.at(-1)!.requestHeaders as Headers;
+		}
+		const { createRPCContext } = await import(
+			"../../../../packages/rpc/src/orpc"
+		);
+		const rawContext = await createRPCContext({
+			headers: new Headers(rawHeaders),
+		});
+		expect(rawContext.organizationId).toBe(selectedKey.organizationId);
+		const context = await createRPCContext({ headers });
+		expect(context.user?.id).toBe("user-synthetic");
+		expect(context.organizationId).toBe("org-synthetic");
+		expect(context.apiKey).toBeUndefined();
+		expect(headers.get("cookie")).toBe(mixedHeaders.cookie);
+		expect(headers.get("x-api-key")).toBeNull();
+		expect(headers.get("authorization")).toBeNull();
+		expect(state.billingCustomer).toHaveBeenCalledExactlyOnceWith({
+			apiKey: null,
+			organizationId: "org-synthetic",
+			userId: "user-synthetic",
+		});
+	});
+
+	it("preserves non-Bearer authorization on the session path", async () => {
+		const response = await askResponse(
+			{},
+			{ cookie: mixedHeaders.cookie, authorization: "Basic inert" }
+		);
+		expect(response.status).toBe(200);
+		await response.text();
+		expect(
+			state.ask.mock.calls[0]?.[0].principal.requestHeaders.get("authorization")
+		).toBe("Basic inert");
+	});
+
+	it.each([
+		"ask",
+		"chat",
+	])("denies an unscoped key without a session before paid work (%s)", async (endpoint) => {
+		state.apiKey = { ...selectedKey, scopes: ["read:flags"] };
+		state.sessionUserId = null;
+		const headers = { "x-api-key": "dbdy_inert_unscoped" };
+		const response =
+			endpoint === "ask"
+				? await askResponse({}, headers)
+				: await chat({}, headers);
+		expect(response.status).toBe(401);
+		expect(state.membership).not.toHaveBeenCalled();
+		expect(state.billingCustomer).not.toHaveBeenCalled();
+		expect(state.billing).not.toHaveBeenCalled();
+		expect(state.ask).not.toHaveBeenCalled();
+		expect(state.prompts).toEqual([]);
+	});
+});
+
+describe("ask stream HTTP startup and transport failures", () => {
+	it.each(
+		[
+			{
+				name: "provider",
+				error: new APICallError({
+					message: "SYNTHETIC_PROVIDER_DETAIL",
+					url: "https://provider.invalid",
+					requestBodyValues: {},
+				}),
+				status: 503,
+				code: "PROVIDER_UNAVAILABLE",
+			},
+			{
+				name: "billing",
+				error: new BillingUnavailableError("SYNTHETIC_BILLING_DETAIL"),
+				status: 503,
+				code: "BILLING_UNAVAILABLE",
+			},
+			{
+				name: "typed request",
+				error: new AgentError("invalid_messages"),
+				status: 400,
+				code: "INVALID_MESSAGES",
+			},
+			{
+				name: "internal",
+				error: new Error("SYNTHETIC_INTERNAL_DETAIL"),
+				status: 500,
+				code: "INTERNAL_ERROR",
+			},
+		].flatMap((failure) =>
+			[false, true].map((emptyFirst) => ({ ...failure, emptyFirst }))
+		)
+	)("maps a $name failure before the first text (empty=$emptyFirst) to its HTTP status", async ({
+		error,
+		status,
+		code,
+		emptyFirst,
+	}) => {
+		state.stream.mockImplementationOnce(async function* () {
+			if (emptyFirst) {
+				yield "";
+			}
+			throw error;
+		});
+		const response = await askResponse({ stream: true });
+		expect(response.status).toBe(status);
+		expect(response.headers.get("content-type")).toBe("application/json");
+		const text = await response.text();
+		expect(JSON.parse(text)).toMatchObject({ success: false, code });
+		expect(text).not.toContain("SYNTHETIC_");
+	});
+
+	it("preserves ordered plain text without duplicating the primed chunk", async () => {
+		state.stream.mockImplementationOnce(async function* () {
+			yield "";
+			yield "First ";
+			yield "second.";
+		});
+		const response = await askResponse({ stream: true });
+		expect(response.status).toBe(200);
+		expect(response.headers.get("content-type")).toBe(
+			"text/plain; charset=utf-8"
+		);
+		expect(await response.text()).toBe("First second.");
+	});
+
+	it("rejects a body read after partial output instead of closing the failed answer", async () => {
+		const later = Promise.withResolvers<void>();
+		const failure = new Error("SYNTHETIC_LATER_FAILURE");
+		state.stream.mockImplementationOnce(async function* () {
+			yield "Synthetic partial answer.";
+			await later.promise;
+			throw failure;
+		});
+		const response = await askResponse({ stream: true });
+		expect(response.status).toBe(200);
+		const reader = response.body!.getReader();
+		expect(new TextDecoder().decode((await reader.read()).value)).toBe(
+			"Synthetic partial answer."
+		);
+		later.resolve();
+		await expect(reader.read()).rejects.toBe(failure);
+		reader.releaseLock();
 	});
 });

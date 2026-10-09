@@ -79,14 +79,12 @@ export async function createWebsite(
 	page: Page,
 	input: { domain: string; name: string }
 ): Promise<Locator> {
-	await page
-		.getByRole("button", { exact: true, name: "Create website" })
-		.click();
-	const dialog = page.getByRole("dialog", { name: "Create website" });
+	await page.getByRole("button", { exact: true, name: "Add website" }).click();
+	const dialog = page.getByRole("dialog", { name: "Add your website" });
 	await dialog.waitFor();
 	await dialog.getByRole("textbox", { name: "Name" }).fill(input.name);
 	await dialog.getByRole("textbox", { name: "Domain" }).fill(input.domain);
-	const submitButton = dialog.getByRole("button", { name: "Create website" });
+	const submitButton = dialog.getByRole("button", { name: "Add website" });
 	await expect(submitButton).toBeEnabled();
 	await submitButton.click();
 	await expect(dialog).toBeHidden({ timeout: 15_000 });

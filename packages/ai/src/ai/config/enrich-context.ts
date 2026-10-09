@@ -1,5 +1,5 @@
 import { and, count, db, eq, isNull } from "@databuddy/db";
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { billingMode } from "@databuddy/env/app";
 import {
 	annotations,
 	funnelDefinitions,
@@ -17,7 +17,7 @@ async function fetchPlanContext(
 	userId: string,
 	organizationId: string | null
 ): Promise<string> {
-	if (readBooleanEnv("SELFHOST")) {
+	if (billingMode() !== "live") {
 		return "<self_hosted>Analytics features have no plan limits.</self_hosted>";
 	}
 	try {
