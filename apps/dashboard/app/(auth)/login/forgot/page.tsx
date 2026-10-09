@@ -189,7 +189,7 @@ function ForgotPasswordPage() {
 							onChange={setOtp}
 							value={otp}
 						/>
-						<p className="flex items-center gap-1.5 text-muted-foreground text-xs">
+						<p className="flex items-center gap-1.5 text-pretty text-muted-foreground text-xs">
 							Didn&apos;t receive a code?
 							<Button
 								className="h-auto p-0 text-xs"
