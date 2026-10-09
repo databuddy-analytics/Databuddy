@@ -451,7 +451,8 @@ function extractQueryTypes(
 async function verifyWebsiteAccess(
 	ctx: AuthContext,
 	websiteId: string,
-	queryTypes: string[] = []
+	queryTypes: string[] = [],
+	hasFilters = false
 ): Promise<boolean> {
 	mergeWideEvent({ access_check_type: "website", website_id: websiteId });
 
@@ -465,7 +466,13 @@ async function verifyWebsiteAccess(
 		return false;
 	}
 
-	if (website.isPublic && canReadQueryTypesPublicly(queryTypes)) {
+	// Public sharing is an unfiltered overview. Trait, identifier, and cohort
+	// filters require normal website permission, including for signed-in outsiders.
+	if (
+		website.isPublic &&
+		!hasFilters &&
+		canReadQueryTypesPublicly(queryTypes)
+	) {
 		mergeWideEvent({ access_result: "public_query" });
 		return true;
 	}
@@ -666,9 +673,17 @@ async function resolveProjectAccess(
 		linkId?: string;
 		organizationId?: string;
 		queryTypes?: string[];
+		hasFilters?: boolean;
 	}
 ): Promise<ProjectAccessResult> {
-	const { websiteId, scheduleId, linkId, organizationId, queryTypes } = options;
+	const {
+		websiteId,
+		scheduleId,
+		linkId,
+		organizationId,
+		queryTypes,
+		hasFilters,
+	} = options;
 
 	if (linkId) {
 		const hasAccess = await verifyLinkAccess(ctx, linkId);
@@ -701,7 +716,12 @@ async function resolveProjectAccess(
 	}
 
 	if (websiteId) {
-		const hasAccess = await verifyWebsiteAccess(ctx, websiteId, queryTypes);
+		const hasAccess = await verifyWebsiteAccess(
+			ctx,
+			websiteId,
+			queryTypes,
+			hasFilters
+		);
 		if (!hasAccess) {
 			return {
 				success: false,
@@ -1239,6 +1259,7 @@ export const query = new Elysia({ prefix: "/v1/query" })
 			const accessResult = await resolveProjectAccess(ctx, {
 				websiteId: q.website_id,
 				queryTypes: body.type ? [String(body.type)] : [],
+				hasFilters: Boolean(body.filters?.length),
 			});
 
 			if (!accessResult.success) {
@@ -1315,6 +1336,9 @@ export const query = new Elysia({ prefix: "/v1/query" })
 					linkId: q.link_id,
 					organizationId: q.organization_id,
 					queryTypes,
+					hasFilters: (Array.isArray(body) ? body : [body]).some((req) =>
+						Boolean(req.filters?.length)
+					),
 				});
 
 				if (!accessResult.success) {

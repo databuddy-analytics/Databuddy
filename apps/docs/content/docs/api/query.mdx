@@ -16,6 +16,14 @@ The Query API lets you fetch analytics data for your websites with flexible date
 | POST | `/v1/query/compile` | Validate and compile a query without executing it |
 | POST | `/v1/query` | Execute analytics query |
 
+## Public website access
+
+When a website owner enables public sharing, anonymous viewers can request only the unfiltered aggregate overview. The `/v1/query/types` response marks these query types with `publicAccess: true`. Date ranges and the overview's fixed breakdowns remain available.
+
+Custom events, arbitrary event properties, error diagnostics, audience details, web vitals, profiles, and revenue require authenticated website permission. Filters also require website permission, including trait, visitor identifier, and ordinary dimension filters. A batch containing a private query or any filter is rejected before execution unless the caller has website permission. The same policy applies to `/v1/query/compile`.
+
+Public overview counts can include small groups, and page, referrer, or campaign labels can contain information supplied by your application. Public sharing does not apply a minimum group size or guarantee statistical anonymity. Review these labels and your traffic before publishing an overview, and keep sharing disabled when the overview itself could reveal personal information.
+
 ## List websites
 
 Get all websites you have access to:
