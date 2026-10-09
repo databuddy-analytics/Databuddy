@@ -20,15 +20,13 @@ test("gates a new website behind setup until its first page view", {
 
 	await page.goto("/websites");
 	await expectDashboardReady(page);
-	await page
-		.getByRole("button", { exact: true, name: "Create website" })
-		.click();
-	const dialog = page.getByRole("dialog", { name: "Create website" });
+	await page.getByRole("button", { exact: true, name: "Add website" }).click();
+	const dialog = page.getByRole("dialog", { name: "Add your website" });
 	await dialog.getByRole("textbox", { name: "Name" }).fill(`Gate ${suffix}`);
 	await dialog
 		.getByRole("textbox", { name: "Domain" })
 		.fill(`gate-${suffix}.local`);
-	await dialog.getByRole("button", { name: "Create website" }).click();
+	await dialog.getByRole("button", { name: "Add website" }).click();
 
 	await expect(page).toHaveURL(WEBSITE_PATH_RE, { timeout: 15_000 });
 	const websiteId = idFromPath(page.url(), "websites");

@@ -90,7 +90,7 @@ export default function WebsitesPage() {
 					size="sm"
 				>
 					<PlusIcon className="size-4" />
-					Create website
+					Add website
 				</Button>
 			</TopBar.Actions>
 
@@ -125,7 +125,7 @@ export default function WebsitesPage() {
 					websites.length === 0 && (
 						<EmptyState
 							action={{
-								label: "Create your first website",
+								label: "Add your website",
 								onClick: () => setDialogOpen(true),
 							}}
 							className="h-full"
