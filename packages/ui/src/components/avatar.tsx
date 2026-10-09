@@ -63,6 +63,12 @@ export function Avatar({
 					.toUpperCase()
 			: "?");
 
+	// Forget a previous failure once the source changes, so retrying that
+	// URL later gets a fresh load attempt instead of staying on fallback.
+	if (failedSrc !== null && failedSrc !== src) {
+		setFailedSrc(null);
+	}
+
 	const failed = failedSrc !== null && failedSrc === src;
 
 	if (!safeSrc || failed) {
