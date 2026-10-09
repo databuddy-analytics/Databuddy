@@ -131,8 +131,9 @@ describe("image proxy response bounds", () => {
 		expect(await response.json()).toEqual({ error: "Failed to fetch image" });
 	});
 
-	it("keeps the deadline active while reading the upstream body", async () => {
+	it("interrupts a stalled upstream body when the deadline expires", async () => {
 		const controller = new AbortController();
+		const readStarted = Promise.withResolvers<void>();
 		spyOn(AbortSignal, "timeout").mockReturnValue(controller.signal);
 		const safeFetch = spyOn(ssrf, "safeFetch").mockImplementation(
 			(_url, options) => {
@@ -142,11 +143,15 @@ describe("image proxy response bounds", () => {
 				return Promise.resolve(
 					new Response(
 						new ReadableStream({
-							pull(streamController) {
-								controller.abort(
-									new DOMException("Body deadline", "TimeoutError")
+							start(streamController) {
+								options?.signal?.addEventListener(
+									"abort",
+									() => streamController.error(options.signal?.reason),
+									{ once: true }
 								);
-								streamController.error(controller.signal.reason);
+							},
+							pull() {
+								readStarted.resolve();
 							},
 						}),
 						{ headers: { "content-type": "image/png" } }
@@ -154,7 +159,10 @@ describe("image proxy response bounds", () => {
 				);
 			}
 		);
-		const response = await request();
+		const pending = request();
+		await readStarted.promise;
+		controller.abort(new DOMException("Body deadline", "TimeoutError"));
+		const response = await pending;
 		expect(safeFetch).toHaveBeenCalledTimes(1);
 		expect(response.status).toBe(504);
 		expect(await response.json()).toEqual({ error: "Request timeout" });
