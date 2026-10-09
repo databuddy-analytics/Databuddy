@@ -105,10 +105,8 @@ function connect(reportFailure = true): Promise<boolean> {
 	}
 
 	const useSsl =
-		process.env.REDPANDA_SSL === "false" ||
-		process.env.REDPANDA_SSL_ENABLED === "false"
-			? false
-			: true;
+		process.env.REDPANDA_SSL?.trim().toLowerCase() !== "false" &&
+		process.env.REDPANDA_SSL_ENABLED?.trim().toLowerCase() !== "false";
 
 	connectPromise = (async () => {
 		let candidate: Producer | null = null;
@@ -290,7 +288,7 @@ export async function sendLinkVisit(
 	let kafkaReady = false;
 	try {
 		kafkaReady = await connect();
-	} catch (error) {
+	} catch {
 		kafkaReady = false;
 	}
 

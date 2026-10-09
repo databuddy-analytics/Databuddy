@@ -88,6 +88,8 @@ beforeEach(() => {
 	process.env.SELFHOST = "false";
 	delete process.env.REDPANDA_BROKER;
 	delete process.env.REDPANDA_PASSWORD;
+	delete process.env.REDPANDA_SSL;
+	delete process.env.REDPANDA_SSL_ENABLED;
 	delete process.env.REDPANDA_USER;
 	setAttributes.mockClear();
 	captureError.mockClear();
@@ -470,8 +472,7 @@ describe("health probe failures (issue #719)", () => {
 					releaseConnect = reject;
 				}),
 		});
-		const { refreshProducerConnection, sendLinkVisit } =
-			await loadProducer();
+		const { refreshProducerConnection, sendLinkVisit } = await loadProducer();
 
 		const health = refreshProducerConnection();
 		await Bun.sleep(0);
@@ -487,9 +488,15 @@ describe("health probe failures (issue #719)", () => {
 		expect(clickHouseInsert).toHaveBeenCalledTimes(1);
 	});
 
-	test("disables SSL when REDPANDA_SSL is false", async () => {
+	test.each([
+		["REDPANDA_SSL", "false"],
+		["REDPANDA_SSL", "FALSE"],
+		["REDPANDA_SSL", " false "],
+		["REDPANDA_SSL_ENABLED", "false"],
+		["REDPANDA_SSL_ENABLED", " FALSE "],
+	])("disables SSL when %s is %s", async (name, value) => {
 		process.env.REDPANDA_BROKER = "redpanda.test:9092";
-		process.env.REDPANDA_SSL = "false";
+		process.env[name] = value;
 		nextProducer = makeProducer();
 		const { disconnectProducer, sendLinkVisit } = await loadProducer();
 
@@ -514,8 +521,7 @@ describe("health probe failures (issue #719)", () => {
 					releaseConnect = reject;
 				}),
 		});
-		const { refreshProducerConnection, sendLinkVisit } =
-			await loadProducer();
+		const { refreshProducerConnection, sendLinkVisit } = await loadProducer();
 
 		const health = refreshProducerConnection();
 		await Bun.sleep(0);
@@ -542,8 +548,7 @@ describe("health probe failures (issue #719)", () => {
 					releaseConnect = reject;
 				}),
 		});
-		const { disconnectProducer, warmProducerConnection } =
-			await loadProducer();
+		const { disconnectProducer, warmProducerConnection } = await loadProducer();
 
 		const warmup = warmProducerConnection();
 		await Bun.sleep(0);
