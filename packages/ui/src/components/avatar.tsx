@@ -2,7 +2,7 @@
 
 import { cn } from "../lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
-import { useState, type ImgHTMLAttributes } from "react";
+import { useEffect, useState, type ImgHTMLAttributes } from "react";
 
 const avatar = cva(
 	"relative inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full bg-secondary font-medium text-muted-foreground",
@@ -34,6 +34,10 @@ export function Avatar({
 	...rest
 }: AvatarProps) {
 	const [failed, setFailed] = useState(false);
+
+	useEffect(() => {
+		setFailed(false);
+	}, [src]);
 
 	const safeSrc = (() => {
 		if (!src || typeof src !== "string") {
