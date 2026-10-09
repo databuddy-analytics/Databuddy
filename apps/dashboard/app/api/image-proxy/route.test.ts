@@ -1,10 +1,18 @@
 import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
-import * as ssrf from "@databuddy/shared/ssrf-guard";
+import { SsrfError, type SafeFetchInit } from "@databuddy/shared/ssrf-guard";
 import { NextRequest } from "next/server";
 
 mock.module("@databuddy/redis/rate-limit", () => ({
-	ratelimit: async () => ({ success: true }),
+	ratelimit: () => Promise.resolve({ success: true }),
 	getRateLimitHeaders: () => ({}),
+}));
+
+const safeFetchMock = mock((_url: string, _options?: SafeFetchInit) =>
+	Promise.resolve(new Response())
+);
+mock.module("@databuddy/shared/ssrf-guard", () => ({
+	safeFetch: safeFetchMock,
+	SsrfError,
 }));
 
 const { GET } = await import("./route");
@@ -43,7 +51,7 @@ function streamedImage(
 		status,
 		headers: { "content-type": "image/png", ...headers },
 	});
-	spyOn(ssrf, "safeFetch").mockResolvedValue(response);
+	safeFetchMock.mockResolvedValue(response);
 	return state;
 }
 
@@ -55,7 +63,10 @@ function request() {
 	);
 }
 
-afterEach(() => mock.restore());
+afterEach(() => {
+	mock.restore();
+	safeFetchMock.mockReset();
+});
 
 describe("image proxy response bounds", () => {
 	it.each(
@@ -116,7 +127,7 @@ describe("image proxy response bounds", () => {
 	});
 
 	it("returns a fetch error when the upstream stream fails", async () => {
-		spyOn(ssrf, "safeFetch").mockResolvedValue(
+		safeFetchMock.mockResolvedValue(
 			new Response(
 				new ReadableStream({
 					pull(controller) {
@@ -135,30 +146,21 @@ describe("image proxy response bounds", () => {
 		const controller = new AbortController();
 		const readStarted = Promise.withResolvers<void>();
 		spyOn(AbortSignal, "timeout").mockReturnValue(controller.signal);
-		const safeFetch = spyOn(ssrf, "safeFetch").mockImplementation(
-			(_url, options) => {
-				expect(options?.timeoutMs).toBe(10_000);
-				expect(options?.maxRedirects).toBe(0);
-				expect(options?.signal).toBe(controller.signal);
-				return Promise.resolve(
-					new Response(
-						new ReadableStream({
-							start(streamController) {
-								options?.signal?.addEventListener(
-									"abort",
-									() => streamController.error(options.signal?.reason),
-									{ once: true }
-								);
-							},
-							pull() {
-								readStarted.resolve();
-							},
-						}),
-						{ headers: { "content-type": "image/png" } }
-					)
-				);
-			}
-		);
+		const safeFetch = safeFetchMock.mockImplementation((_url, options) => {
+			expect(options?.timeoutMs).toBe(10_000);
+			expect(options?.maxRedirects).toBe(0);
+			expect(options?.signal).toBe(controller.signal);
+			return Promise.resolve(
+				new Response(
+					new ReadableStream({
+						pull() {
+							readStarted.resolve();
+						},
+					}),
+					{ headers: { "content-type": "image/png" } }
+				)
+			);
+		});
 		const pending = request();
 		await readStarted.promise;
 		controller.abort(new DOMException("Body deadline", "TimeoutError"));
@@ -169,9 +171,7 @@ describe("image proxy response bounds", () => {
 	});
 
 	it("preserves SSRF rejection", async () => {
-		spyOn(ssrf, "safeFetch").mockRejectedValue(
-			new ssrf.SsrfError("Private IP")
-		);
+		safeFetchMock.mockRejectedValue(new SsrfError("Private IP"));
 		const response = await request();
 		expect(response.status).toBe(400);
 		expect(await response.json()).toEqual({ error: "URL not allowed" });

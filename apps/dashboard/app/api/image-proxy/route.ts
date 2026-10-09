@@ -14,6 +14,8 @@ const ALLOWED_CONTENT_TYPES = [
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
 const TIMEOUT_MESSAGE_PATTERN = /timed out/;
 
+class ImageTooLargeError extends Error {}
+
 export async function GET(request: NextRequest) {
 	// Without a configured trusted proxy, unverified traffic shares one bucket
 	// instead of letting client-controlled forwarding headers bypass the limit.
@@ -73,27 +75,18 @@ export async function GET(request: NextRequest) {
 		// potentially huge list of small chunks. Check before copying each chunk.
 		const image = new Uint8Array(MAX_IMAGE_SIZE);
 		let bytesRead = 0;
-		const reader = response.body?.getReader();
-		try {
-			if (reader) {
-				while (true) {
-					const { done, value } = await reader.read();
-					if (done) {
-						break;
+		await response.body?.pipeTo(
+			new WritableStream<Uint8Array>({
+				write(chunk) {
+					if (bytesRead + chunk.byteLength > MAX_IMAGE_SIZE) {
+						throw new ImageTooLargeError();
 					}
-					if (bytesRead + value.byteLength > MAX_IMAGE_SIZE) {
-						return NextResponse.json(
-							{ error: "Image too large" },
-							{ status: 400 }
-						);
-					}
-					image.set(value, bytesRead);
-					bytesRead += value.byteLength;
-				}
-			}
-		} finally {
-			reader?.releaseLock();
-		}
+					image.set(chunk, bytesRead);
+					bytesRead += chunk.byteLength;
+				},
+			}),
+			{ signal: deadline }
+		);
 
 		return new NextResponse(image.subarray(0, bytesRead), {
 			status: 200,
@@ -107,6 +100,9 @@ export async function GET(request: NextRequest) {
 	} catch (error) {
 		if (deadline.aborted) {
 			return NextResponse.json({ error: "Request timeout" }, { status: 504 });
+		}
+		if (error instanceof ImageTooLargeError) {
+			return NextResponse.json({ error: "Image too large" }, { status: 400 });
 		}
 		if (error instanceof SsrfError) {
 			return NextResponse.json({ error: "URL not allowed" }, { status: 400 });
