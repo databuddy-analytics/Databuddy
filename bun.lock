@@ -268,7 +268,9 @@
       },
       "devDependencies": {
         "@databuddy/test": "workspace:*",
+        "@orpc/server": "1.14.3",
         "@types/pg": "^8.16.0",
+        "jszip": "^3.10.2",
         "pg": "^8.16.3",
       },
     },
