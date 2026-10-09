@@ -136,7 +136,7 @@ export function AddWebsite({
 				size="sm"
 				type="submit"
 			>
-				{pending ? "Creating…" : "Create website"}
+				{pending ? "Adding…" : "Add website"}
 			</Button>
 		</form>
 	);

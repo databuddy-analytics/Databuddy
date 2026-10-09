@@ -449,7 +449,7 @@ export function BusinessContextEditor({
 		if (!selectedWebsite) {
 			return (
 				<Button asChild size="sm" variant="secondary">
-					<Link href="/websites">Add a website</Link>
+					<Link href="/websites">Add your website</Link>
 				</Button>
 			);
 		}
