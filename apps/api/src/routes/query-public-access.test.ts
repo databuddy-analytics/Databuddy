@@ -1,18 +1,20 @@
 import "@databuddy/test/env";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
+import type { QueryRequest } from "@databuddy/ai/query/types";
 import { Elysia } from "elysia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { DynamicQueryRequestType } from "../schemas/query-schemas";
 
 const state = vi.hoisted(() => ({
 	isPublic: true,
 	userId: null as string | null,
 	isMember: false,
 	apiKey: null as ApiKeyRow | null,
-	executeBatch: vi.fn(async (requests: unknown[]) =>
-		requests.map(() => ({ data: [{ count: 1 }] }))
+	executeBatch: vi.fn((requests: QueryRequest[]) =>
+		Promise.resolve(requests.map(() => ({ data: [{ count: 1 }] })))
 	),
 	compileQuery: vi.fn(() => ({ sql: "SELECT 1", params: {} })),
-	resolveTraitSegment: vi.fn(async () => ["example-profile"]),
+	resolveTraitSegment: vi.fn(() => Promise.resolve(["example-profile"])),
 }));
 
 vi.mock("@databuddy/db", async (importOriginal) => ({
@@ -20,15 +22,16 @@ vi.mock("@databuddy/db", async (importOriginal) => ({
 	db: {
 		query: {
 			websites: {
-				findFirst: async () => ({
-					id: "example-website",
-					isPublic: state.isPublic,
-					organizationId: "example-org",
-				}),
+				findFirst: () =>
+					Promise.resolve({
+						id: "example-website",
+						isPublic: state.isPublic,
+						organizationId: "example-org",
+					}),
 			},
 			member: {
-				findFirst: async () =>
-					state.isMember ? { id: "example-member" } : null,
+				findFirst: () =>
+					Promise.resolve(state.isMember ? { id: "example-member" } : null),
 			},
 		},
 	},
@@ -36,17 +39,19 @@ vi.mock("@databuddy/db", async (importOriginal) => ({
 vi.mock("@databuddy/auth", () => ({
 	auth: {
 		api: {
-			getSession: async () =>
-				state.userId ? { user: { id: state.userId }, session: {} } : null,
+			getSession: () =>
+				Promise.resolve(
+					state.userId ? { user: { id: state.userId }, session: {} } : null
+				),
 		},
 	},
 }));
 vi.mock("@databuddy/api-keys/resolve", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@databuddy/api-keys/resolve")>()),
-	getApiKeyFromHeader: async () => state.apiKey,
+	getApiKeyFromHeader: () => Promise.resolve(state.apiKey),
 }));
 vi.mock("@databuddy/redis/rate-limit", () => ({
-	ratelimit: async () => ({ success: true }),
+	ratelimit: () => Promise.resolve({ success: true }),
 	getRateLimitHeaders: () => ({}),
 }));
 vi.mock("@databuddy/ai/lib/tracing", () => ({
@@ -54,13 +59,13 @@ vi.mock("@databuddy/ai/lib/tracing", () => ({
 	captureError: vi.fn(),
 }));
 vi.mock("@databuddy/ai/lib/website-utils", () => ({
-	getWebsiteDomain: async () => "example.com",
+	getWebsiteDomain: () => Promise.resolve("example.com"),
 }));
 vi.mock("@databuddy/ai/lib/accessible-websites", () => ({
-	getAccessibleWebsites: async () => [],
+	getAccessibleWebsites: () => Promise.resolve([]),
 }));
 vi.mock("@databuddy/services/identity", () => ({
-	isTraitFilterField: (field: string) => field.startsWith("trait."),
+	isTraitFilterField: (field: string) => field.startsWith("trait:"),
 	resolveTraitSegment: state.resolveTraitSegment,
 	revealPii: (value: string) => value,
 	TraitFilterError: class extends Error {},
@@ -68,7 +73,7 @@ vi.mock("@databuddy/services/identity", () => ({
 vi.mock("@databuddy/ai/query", () => ({
 	allowedFilterFields: () => [],
 	isFilterFieldAllowed: () => true,
-	queryPlanGateError: async () => null,
+	queryPlanGateError: () => Promise.resolve(null),
 	truncateQueryErrorForLog: (value: string) => value,
 	compileQuery: state.compileQuery,
 	executeBatch: state.executeBatch,
@@ -79,7 +84,18 @@ const { query } = await import("./query");
 const app = new Elysia().use(query);
 const dates = { startDate: "2026-01-01", endDate: "2026-01-07" };
 
-function request(body: unknown, path = "/") {
+type QueryBody =
+	| DynamicQueryRequestType
+	| DynamicQueryRequestType[]
+	| {
+			projectId: string;
+			type: string;
+			from: string;
+			to: string;
+			filters?: DynamicQueryRequestType["filters"];
+	  };
+
+function request(body: QueryBody, path = "/") {
 	return app.handle(
 		new Request(`http://localhost/v1/query${path}?website_id=example-website`, {
 			method: "POST",
@@ -138,7 +154,7 @@ describe("public website query access", () => {
 	});
 
 	it.each([
-		"trait.email",
+		"trait:email",
 		"profile_id",
 		"anonymous_id",
 		"country",
@@ -251,7 +267,7 @@ describe("public website query access", () => {
 					{
 						...body,
 						filters: [
-							{ field: "trait.email", op: "eq", value: "example@example.com" },
+							{ field: "trait:email", op: "eq", value: "example@example.com" },
 						],
 					},
 					"/compile"

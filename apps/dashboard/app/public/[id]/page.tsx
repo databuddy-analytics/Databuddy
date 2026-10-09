@@ -1,22 +1,18 @@
 "use client";
 
-import { useAtom } from "jotai";
 import { useParams } from "next/navigation";
 import { WebsiteOverviewTab } from "@/app/(main)/websites/[id]/_components/tabs/overview-tab";
 import { EmptyState } from "@/app/(main)/websites/[id]/_components/utils/ui-components";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { usePublicWebsiteSummary } from "@/hooks/use-websites";
-import {
-	addDynamicFilterAtom,
-	dynamicQueryFiltersAtom,
-} from "@/stores/jotai/filterAtoms";
+import type { DynamicQueryFilter } from "@/stores/jotai/filter-types";
 import { WarningIcon } from "@databuddy/ui/icons";
+
+const PUBLIC_FILTERS: DynamicQueryFilter[] = [];
 
 export default function PublicDashboardPage() {
 	const { id } = useParams();
 	const websiteId = id as string;
-	const [filters] = useAtom(dynamicQueryFiltersAtom);
-	const [, addFilter] = useAtom(addDynamicFilterAtom);
 	const { dateRange } = useDateFilters();
 	const {
 		data: websiteData,
@@ -39,8 +35,7 @@ export default function PublicDashboardPage() {
 	const tabProps = {
 		websiteId,
 		dateRange,
-		filters,
-		addFilter,
+		filters: PUBLIC_FILTERS,
 	};
 
 	return (

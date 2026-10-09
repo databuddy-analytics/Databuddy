@@ -4,7 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useAtom } from "jotai";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { formatNumber } from "@/lib/formatters";
 import {
 	DeviceTypeCell,
@@ -134,8 +134,8 @@ const QUERY_CONFIG = {
 
 type WebsiteOverviewTabProps = Pick<
 	FullTabProps,
-	"addFilter" | "dateRange" | "filters" | "websiteId"
->;
+	"dateRange" | "filters" | "websiteId"
+> & { addFilter?: FullTabProps["addFilter"] };
 
 export function WebsiteOverviewTab({
 	websiteId,
@@ -838,16 +838,12 @@ export function WebsiteOverviewTab({
 		previousPeriodRange.end_date,
 	]);
 
-	const onAddFilter = useCallback(
-		(field: string, value: string) => {
-			const filter = {
-				field,
-				operator: "eq" as const,
-				value,
-			};
-
-			addFilter(filter);
-		},
+	const onAddFilter = useMemo(
+		() =>
+			addFilter
+				? (field: string, value: string) =>
+						addFilter({ field, operator: "eq", value })
+				: undefined,
 		[addFilter]
 	);
 
