@@ -1331,7 +1331,7 @@ function StatTile({
 					size="sm"
 					variant="secondary"
 				>
-					Set up
+					Track AI reads
 				</Button>
 			) : (
 				<div className="flex h-7 items-center gap-2">
@@ -2489,7 +2489,7 @@ export default function AgentsPage() {
 	const needsProxy = !isPending && topSender !== null && !hasProxy;
 	const setupButton = (
 		<Button onClick={() => setIsSetupOpen(true)} size="md" variant="secondary">
-			Set up
+			Track AI reads
 		</Button>
 	);
 
